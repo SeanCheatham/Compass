@@ -18,6 +18,7 @@ Enable "vibe coding" at the project level. A human provides a vision in COMPASS.
 - Answers Developer questions during sessions
 - Decides session outcome: commit changes or replan
 - Updates plans based on learnings
+- **Tools**: Only Compass MCP tools — no Read/Write/Edit/Bash (must use Developer)
 
 **Developer Agent** — Exploration and implementation
 
