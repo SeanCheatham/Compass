@@ -5,6 +5,7 @@ import {
   createCommitMcpServer,
   type CommitMcpContext,
 } from "../mcp/commit-server.js";
+import type { OutputManager } from "../web/output-manager.js";
 
 export interface CommitAgentResult {
   approved: boolean;
@@ -21,7 +22,8 @@ export interface CommitAgentResult {
  */
 export async function runCommitAgent(
   config: WorkspaceConfig,
-  taskDescription: string
+  taskDescription: string,
+  output: OutputManager
 ): Promise<CommitAgentResult> {
   const systemPrompt = buildCommitSystemPrompt({
     taskDescription,
@@ -59,7 +61,7 @@ Start by viewing the git status and diff, then:
     ],
   };
 
-  console.log(`\n[Commit Agent Starting]`);
+  output.agentStart("Commit");
 
   try {
     const commitStream = query({
@@ -71,16 +73,16 @@ Start by viewing the git status and diff, then:
       if (message.type === "assistant") {
         for (const block of message.message.content) {
           if (block.type === "text") {
-            process.stdout.write(block.text);
+            output.log(block.text);
           } else if (block.type === "tool_use") {
-            console.log(`\n[Commit Tool: ${block.name}]`);
+            output.tool("Commit", block.name);
           }
         }
       }
 
       // Check if approved
       if (mcpContext.approved) {
-        console.log(`\n[Commit Agent Approved]`);
+        output.agentComplete("Commit", "Approved");
         return {
           approved: true,
           commitMessage: mcpContext.commitMessage,
@@ -88,9 +90,9 @@ Start by viewing the git status and diff, then:
       }
     }
 
-    console.log("\n[Commit Agent Complete]");
+    output.agentComplete("Commit");
   } catch (error) {
-    console.error("Commit agent error:", error);
+    output.error(`Commit agent error: ${error}`);
     throw error;
   }
 

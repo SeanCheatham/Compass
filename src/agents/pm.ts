@@ -11,6 +11,7 @@ import {
   type PmMcpContext,
   type CompassInvalidation,
 } from "../mcp/pm-server.js";
+import type { OutputManager } from "../web/output-manager.js";
 
 export interface PmAgentResult {
   hasPendingPlans: boolean;
@@ -30,6 +31,7 @@ export interface PmAgentResult {
 export async function runPmAgent(
   config: WorkspaceConfig,
   compassContent: string,
+  output: OutputManager,
   revertReason?: string,
   compassChangeMode?: CompassChangeMode
 ): Promise<PmAgentResult> {
@@ -130,7 +132,7 @@ The Dev agent will handle implementation after you complete.`;
     allowedTools,
   };
 
-  console.log("\n[PM Agent Starting]");
+  output.agentStart("PM");
 
   try {
     const pmStream = query({ prompt: initialPrompt, options: pmOptions });
@@ -139,17 +141,17 @@ The Dev agent will handle implementation after you complete.`;
       if (message.type === "assistant") {
         for (const block of message.message.content) {
           if (block.type === "text") {
-            process.stdout.write(block.text);
+            output.log(block.text);
           } else if (block.type === "tool_use") {
-            console.log(`\n[PM Tool: ${block.name}]`);
+            output.tool("PM", block.name);
           }
         }
       }
     }
 
-    console.log("\n[PM Agent Complete]");
+    output.agentComplete("PM");
   } catch (error) {
-    console.error("PM agent error:", error);
+    output.error(`PM agent error: ${error}`);
     throw error;
   }
 

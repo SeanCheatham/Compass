@@ -3,6 +3,7 @@ import type { WorkspaceConfig, Plan } from "../state/types.js";
 import { readFile } from "fs/promises";
 import { buildDevSystemPrompt } from "./prompts/dev-system.js";
 import { createDevMcpServer, type DevMcpContext } from "../mcp/dev-server.js";
+import type { OutputManager } from "../web/output-manager.js";
 
 export interface DevAgentResult {
   success: boolean;
@@ -20,7 +21,8 @@ export interface DevAgentResult {
  */
 export async function runDevAgent(
   config: WorkspaceConfig,
-  task: Plan
+  task: Plan,
+  output: OutputManager
 ): Promise<DevAgentResult> {
   let notes = "";
   try {
@@ -68,7 +70,7 @@ Verify your implementation works (run tests, build, etc.) before completing.`;
     ],
   };
 
-  console.log(`\n[Dev Agent Starting: ${task.content}]`);
+  output.agentStart("Dev", task.content);
 
   try {
     const devStream = query({ prompt: initialPrompt, options: devOptions });
@@ -77,16 +79,16 @@ Verify your implementation works (run tests, build, etc.) before completing.`;
       if (message.type === "assistant") {
         for (const block of message.message.content) {
           if (block.type === "text") {
-            process.stdout.write(block.text);
+            output.log(block.text);
           } else if (block.type === "tool_use") {
-            console.log(`\n[Dev Tool: ${block.name}]`);
+            output.tool("Dev", block.name);
           }
         }
       }
 
       // Check if revert was signaled
       if (mcpContext.reverted) {
-        console.log(`\n[Dev Agent Reverted: ${mcpContext.revertReason}]`);
+        output.agentComplete("Dev", "Reverted");
         return {
           success: false,
           revertReason: mcpContext.revertReason,
@@ -94,9 +96,9 @@ Verify your implementation works (run tests, build, etc.) before completing.`;
       }
     }
 
-    console.log("\n[Dev Agent Complete]");
+    output.agentComplete("Dev");
   } catch (error) {
-    console.error("Dev agent error:", error);
+    output.error(`Dev agent error: ${error}`);
     throw error;
   }
 

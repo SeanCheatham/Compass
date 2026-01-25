@@ -19,44 +19,40 @@ import {
   isValidCommit,
 } from "../mcp/utils/git.js";
 import { writeShadowCompass } from "../mcp/utils/workspace.js";
+import type { OutputManager } from "../web/output-manager.js";
 
 export interface RunOptions {
   maxIterations?: number;
+  output: OutputManager;
 }
 
 export async function runCompass(
   cwd: string,
-  options: RunOptions = {}
+  options: RunOptions
 ): Promise<void> {
   const maxIterations = options.maxIterations ?? 100;
+  const output = options.output;
 
-  if (!(await hasCompassFile(cwd))) {
-    console.error("Error: COMPASS.md not found in current directory.");
-    console.error(
-      "Create a COMPASS.md file with your project vision to get started."
-    );
-    process.exit(1);
-  }
-
-  console.log("🧭 Compass - Autonomous Project Development\n");
+  output.info("Compass - Autonomous Project Development\n");
 
   const { config, compassContent, compassDiff } = await initializeWorkspace(cwd);
 
-  console.log(`Impl repo: ${config.implRepoPath}`);
-  console.log(`Workspace: ${config.workspacePath}\n`);
+  output.info(`Impl repo: ${config.implRepoPath}`);
+  output.info(`Workspace: ${config.workspacePath}\n`);
 
   // Handle COMPASS.md changes at startup
   if (compassDiff.isFirstRun) {
-    console.log("First run - initializing COMPASS shadow copy\n");
+    output.info("First run - initializing COMPASS shadow copy\n");
     await writeShadowCompass(config.shadowCompassPath, compassContent);
   } else if (compassDiff.hasDiff) {
-    console.log("🔄 COMPASS.md has changed since last session");
-    console.log(`Changes: ${compassDiff.diffSummary}\n`);
+    output.info("COMPASS.md has changed since last session");
+    output.info(`Changes: ${compassDiff.diffSummary}\n`);
 
     // Run PM in compass change mode
     const pmResult = await runPmAgent(
       config,
       compassContent,
+      output,
       undefined, // no revert reason
       {
         previousCompass: compassDiff.shadowContent!,
@@ -70,7 +66,7 @@ export async function runCompass(
       const { invalidatedCompletedPlanIds, reasoning } =
         pmResult.compassInvalidation;
 
-      console.log(`\nPM Analysis: ${reasoning}`);
+      output.info(`\nPM Analysis: ${reasoning}`);
 
       if (invalidatedCompletedPlanIds.length > 0) {
         // Need to revert code
@@ -87,24 +83,24 @@ export async function runCompass(
           );
 
           if (revertToCommit && (await isValidCommit(config.implRepoPath, revertToCommit))) {
-            console.log(
-              `\n↩️ Reverting to commit ${revertToCommit.slice(0, 7)} (before plan ${oldestInvalidated.id})`
+            output.info(
+              `\nReverting to commit ${revertToCommit.slice(0, 7)} (before plan ${oldestInvalidated.id})`
             );
 
             // Discard any uncommitted changes first
             if (await hasUncommittedChanges(config.implRepoPath)) {
-              console.log("Discarding uncommitted changes...");
+              output.info("Discarding uncommitted changes...");
               await discardChanges(config.implRepoPath);
             }
 
             await resetHard(config.implRepoPath, revertToCommit);
           } else if (!revertToCommit) {
-            console.log(
-              "\n⚠️ No prior commit found - cannot revert code state"
+            output.info(
+              "\nNo prior commit found - cannot revert code state"
             );
           } else {
-            console.log(
-              `\n⚠️ Commit ${revertToCommit.slice(0, 7)} is invalid - cannot revert`
+            output.info(
+              `\nCommit ${revertToCommit.slice(0, 7)} is invalid - cannot revert`
             );
           }
 
@@ -114,7 +110,7 @@ export async function runCompass(
             oldestInvalidated.id
           );
           await writePlanFile(config.planPath, { plans: resetPlans });
-          console.log(
+          output.info(
             `Reset ${invalidatedCompletedPlanIds.length} completed plan(s) to pending`
           );
         }
@@ -123,7 +119,7 @@ export async function runCompass(
 
     // Update shadow copy after handling changes
     await writeShadowCompass(config.shadowCompassPath, compassContent);
-    console.log("\nCOMPASS shadow updated. Proceeding with normal operation.\n");
+    output.info("\nCOMPASS shadow updated. Proceeding with normal operation.\n");
   }
 
   let iteration = 0;
@@ -132,45 +128,43 @@ export async function runCompass(
   while (iteration < maxIterations) {
     iteration++;
 
-    console.log(`\n${"=".repeat(60)}`);
-    console.log(`Session ${iteration}`);
-    console.log("=".repeat(60));
+    output.session(iteration);
 
     // Phase 1: PM Agent (read-only, planning)
-    console.log("\n--- PM Phase ---");
-    const pmResult = await runPmAgent(config, compassContent, revertReason);
+    output.phase("PM Phase");
+    const pmResult = await runPmAgent(config, compassContent, output, revertReason);
 
     // Clear revert reason after PM has seen it
     revertReason = undefined;
 
     // Check if all done
     if (!pmResult.hasPendingPlans) {
-      console.log("\n✅ All plans completed! Project is done.");
+      output.info("\nAll plans completed! Project is done.");
       break;
     }
 
     // Phase 2: Dev Agent (read-write, implementation)
-    console.log("\n--- Dev Phase ---");
+    output.phase("Dev Phase");
 
     const planFile = await readPlanFile(config.planPath);
     const currentTask = getFirstPendingPlan(planFile.plans);
 
     if (!currentTask) {
-      console.log("No pending tasks found. PM may need to create plans.");
+      output.info("No pending tasks found. PM may need to create plans.");
       continue;
     }
 
-    console.log(`Task: ${currentTask.content}`);
+    output.info(`Task: ${currentTask.content}`);
 
-    const devResult = await runDevAgent(config, currentTask);
+    const devResult = await runDevAgent(config, currentTask, output);
 
     // Phase 3: Handle result
     if (devResult.success) {
       // Check for changes to commit
       if (await hasUncommittedChanges(config.implRepoPath)) {
         // Phase 3a: Commit Agent (review and prepare commit)
-        console.log("\n--- Commit Phase ---");
-        const commitResult = await runCommitAgent(config, currentTask.content);
+        output.phase("Commit Phase");
+        const commitResult = await runCommitAgent(config, currentTask.content, output);
 
         if (commitResult.approved) {
           const commitMessage = commitResult.commitMessage
@@ -186,25 +180,25 @@ export async function runCompass(
           );
           await writePlanFile(config.planPath, { plans: updatedPlans });
 
-          console.log(`\n✅ Committed: ${commitSha.slice(0, 7)}`);
+          output.commit(commitSha);
         } else {
-          console.log("\n⚠️ Commit not approved, discarding changes");
+          output.info("\nCommit not approved, discarding changes");
           await discardChanges(config.implRepoPath);
           revertReason = "Commit agent did not approve the changes";
         }
       } else {
-        console.log("\n⚠️ No changes to commit");
+        output.info("\nNo changes to commit");
       }
     } else {
       // Revert - discard changes
-      console.log(`\n↩️ Reverting: ${devResult.revertReason}`);
+      output.info(`\nReverting: ${devResult.revertReason}`);
       await discardChanges(config.implRepoPath);
       revertReason = devResult.revertReason;
     }
   }
 
   if (iteration >= maxIterations) {
-    console.log(`\n⚠️ Reached maximum iterations (${maxIterations})`);
+    output.info(`\nReached maximum iterations (${maxIterations})`);
   }
 }
 
