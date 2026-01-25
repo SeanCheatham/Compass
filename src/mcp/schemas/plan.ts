@@ -35,32 +35,9 @@ export const WriteNotesInputSchema = z.object({
   content: z.string().describe("Full content to write to notes.md"),
 });
 
-export const EndSessionCommitSchema = z.object({
-  outcome: z.literal("commit"),
-  summary: z.string().describe("Summary of what was accomplished"),
-});
-
-export const EndSessionReplannedSchema = z.object({
-  outcome: z.literal("replanned"),
-  summary: z.string().describe("Summary of planning changes made"),
-});
-
-export const EndSessionRevertSchema = z.object({
-  outcome: z.literal("revert"),
-  revert_to: z.string().describe("Plan ID or commit SHA to revert to"),
-  reason: z.string().describe("Reason for reverting (preserved for next session)"),
-});
-
-export const EndSessionInputSchema = z.discriminatedUnion("outcome", [
-  EndSessionCommitSchema,
-  EndSessionReplannedSchema,
-  EndSessionRevertSchema,
-]);
-
 export type ListPlansInput = z.infer<typeof ListPlansInputSchema>;
 export type InsertPlanInput = z.infer<typeof InsertPlanInputSchema>;
 export type InsertPlansInput = z.infer<typeof InsertPlansInputSchema>;
 export type RemovePlanInput = z.infer<typeof RemovePlanInputSchema>;
 export type SetPlanStatusInput = z.infer<typeof SetPlanStatusInputSchema>;
 export type WriteNotesInput = z.infer<typeof WriteNotesInputSchema>;
-export type EndSessionInput = z.infer<typeof EndSessionInputSchema>;

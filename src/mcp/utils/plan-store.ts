@@ -108,7 +108,7 @@ export function updatePlanCommit(
   plans: Plan[],
   id: string,
   commit: string,
-  session: string
+  session: string | null = null
 ): Plan[] {
   return plans.map((p) =>
     p.id === id ? { ...p, commit, session, status: "completed" as const } : p
