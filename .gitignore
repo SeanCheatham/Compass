@@ -1,0 +1,26 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Debug logs
+*.log
+!firebase-debug.log
+
+# NPM
+package-lock.json
+
+# Compass internal state (tracked per-project)
+.compass/state.json
+.compass/compass.log
+.compass/.north.md
+.compass/.south.md
