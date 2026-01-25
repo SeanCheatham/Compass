@@ -1,10 +1,18 @@
 import type { PlanFile } from "../../state/types.js";
 
+// Exported for use by pm.ts
+export interface CompassChangeMode {
+  previousCompass: string;
+  currentCompass: string;
+  diffSummary: string;
+}
+
 export interface PmSystemPromptContext {
   compass: string;
   plans: PlanFile;
   notes: string;
   revertReason?: string;
+  compassChangeMode?: CompassChangeMode;
 }
 
 function formatPlans(plans: PlanFile): string {
@@ -41,6 +49,49 @@ Consider adjusting plans based on this feedback.
 `
     : "";
 
+  const compassChangeSection = context.compassChangeMode
+    ? `
+## 🔄 COMPASS.md Has Changed
+
+The human has updated COMPASS.md since your last session. You MUST review these changes.
+
+### Previous COMPASS.md
+
+\`\`\`
+${context.compassChangeMode.previousCompass}
+\`\`\`
+
+### Current COMPASS.md
+
+\`\`\`
+${context.compassChangeMode.currentCompass}
+\`\`\`
+
+### Change Summary
+${context.compassChangeMode.diffSummary}
+
+### Your Task in COMPASS Change Mode
+
+1. Review what changed in COMPASS.md
+2. Review the current plans (both completed and pending)
+3. Determine if any plans are invalidated by the changes:
+   - A plan is "invalidated" if the COMPASS changes mean its implementation is wrong or unnecessary
+   - Completed plans may need to be re-done differently
+   - Pending plans may need to be updated or removed
+
+4. Use the \`signal_compass_invalidation\` tool to report your findings:
+   - List completed plan IDs that are invalidated (will trigger code revert)
+   - List pending plan IDs that need updating
+   - Provide your reasoning
+
+5. After signaling, adjust plans as needed using the normal plan tools.
+
+IMPORTANT: You MUST call signal_compass_invalidation before making any plan changes.
+If no plans are invalidated, call it with empty arrays.
+
+`
+    : "";
+
   return `You are a Product Manager (PM) agent responsible for planning a software project.
 
 ## Your Role
@@ -59,8 +110,7 @@ ${formatPlans(context.plans)}
 ## Notes
 
 ${context.notes || "No notes yet."}
-${revertSection}
-## Available Tools
+${revertSection}${compassChangeSection}## Available Tools
 
 ### Code Exploration (READ-ONLY)
 - \`Read\` - Read file contents

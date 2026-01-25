@@ -4,13 +4,19 @@ import {
   getWorkspaceConfig,
   ensureWorkspaceExists,
   readCompassFile,
+  readShadowCompass,
 } from "../mcp/utils/workspace.js";
 import { isGitRepo } from "../mcp/utils/git.js";
+import {
+  detectCompassDiff,
+  type CompassDiffResult,
+} from "../mcp/utils/compass-diff.js";
 import type { WorkspaceConfig } from "./types.js";
 
 export interface WorkspaceInitResult {
   config: WorkspaceConfig;
   compassContent: string;
+  compassDiff: CompassDiffResult;
 }
 
 export async function initializeWorkspace(
@@ -30,7 +36,11 @@ export async function initializeWorkspace(
 
   await ensureWorkspaceExists(config);
 
-  return { config, compassContent };
+  // Read shadow compass and detect diff
+  const shadowContent = await readShadowCompass(config.shadowCompassPath);
+  const compassDiff = detectCompassDiff(compassContent, shadowContent);
+
+  return { config, compassContent, compassDiff };
 }
 
 export async function hasCompassFile(implRepoPath: string): Promise<boolean> {

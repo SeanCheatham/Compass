@@ -147,3 +147,60 @@ export function resetPlansAfterCommit(
     return p;
   });
 }
+
+/**
+ * Find the oldest (first in order) completed plan that is in the invalidated list.
+ */
+export function findOldestInvalidatedPlan(
+  plans: Plan[],
+  invalidatedIds: string[]
+): Plan | null {
+  for (const plan of plans) {
+    if (plan.status === "completed" && invalidatedIds.includes(plan.id)) {
+      return plan;
+    }
+  }
+  return null;
+}
+
+/**
+ * Get the commit SHA of the plan immediately before the given plan.
+ * Returns null if no prior committed plan exists.
+ */
+export function getCommitBeforePlan(
+  plans: Plan[],
+  planId: string
+): string | null {
+  const index = findPlanIndex(plans, planId);
+  if (index <= 0) {
+    return null;
+  }
+
+  // Walk backwards to find the most recent completed plan before this one
+  for (let i = index - 1; i >= 0; i--) {
+    if (plans[i].commit) {
+      return plans[i].commit;
+    }
+  }
+  return null;
+}
+
+/**
+ * Reset the given plan and all subsequent plans to pending status.
+ */
+export function resetPlansFromId(plans: Plan[], planId: string): Plan[] {
+  const index = findPlanIndex(plans, planId);
+  if (index === -1) return plans;
+
+  return plans.map((p, i) => {
+    if (i >= index) {
+      return {
+        ...p,
+        status: "pending" as const,
+        commit: null,
+        session: null,
+      };
+    }
+    return p;
+  });
+}

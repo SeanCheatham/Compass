@@ -2,11 +2,19 @@ import { query, type Options } from "@anthropic-ai/claude-code";
 import type { WorkspaceConfig } from "../state/types.js";
 import { readPlanFile } from "../mcp/utils/plan-store.js";
 import { readFile } from "fs/promises";
-import { buildPmSystemPrompt } from "./prompts/pm-system.js";
-import { createPmMcpServer } from "../mcp/pm-server.js";
+import {
+  buildPmSystemPrompt,
+  type CompassChangeMode,
+} from "./prompts/pm-system.js";
+import {
+  createPmMcpServer,
+  type PmMcpContext,
+  type CompassInvalidation,
+} from "../mcp/pm-server.js";
 
 export interface PmAgentResult {
   hasPendingPlans: boolean;
+  compassInvalidation?: CompassInvalidation;
 }
 
 /**
@@ -22,7 +30,8 @@ export interface PmAgentResult {
 export async function runPmAgent(
   config: WorkspaceConfig,
   compassContent: string,
-  revertReason?: string
+  revertReason?: string,
+  compassChangeMode?: CompassChangeMode
 ): Promise<PmAgentResult> {
   const planFile = await readPlanFile(config.planPath);
 
@@ -33,20 +42,38 @@ export async function runPmAgent(
     notes = "";
   }
 
+  // Create context to capture invalidation results (only in compass change mode)
+  const pmContext: PmMcpContext | undefined = compassChangeMode
+    ? {}
+    : undefined;
+
   const systemPrompt = buildPmSystemPrompt({
     compass: compassContent,
     plans: planFile,
     notes,
     revertReason,
+    compassChangeMode,
   });
 
-  const mcpServer = createPmMcpServer(config);
+  const mcpServer = createPmMcpServer(config, pmContext);
 
   const hasPlans = planFile.plans.length > 0;
   const hasPendingPlans = planFile.plans.some((p) => p.status === "pending");
 
   let initialPrompt: string;
-  if (!hasPlans) {
+  if (compassChangeMode) {
+    // Special prompt for COMPASS change mode
+    initialPrompt = `COMPASS.md has been modified since your last session.
+
+Your task:
+1. Review the changes between previous and current COMPASS.md (shown in system prompt)
+2. Review all existing plans (completed and pending)
+3. Determine which plans (if any) are invalidated by the changes
+4. FIRST: Use signal_compass_invalidation to report your findings
+5. THEN: Adjust plans as needed (add, remove, modify)
+
+Begin by analyzing the COMPASS changes and their impact on existing plans.`;
+  } else if (!hasPlans) {
     initialPrompt = `Begin your analysis. There are no plans yet.
 
 Your task:
@@ -73,6 +100,25 @@ Your task:
 The Dev agent will handle implementation after you complete.`;
   }
 
+  // PM has READ-only access to code + plan MCP tools
+  const allowedTools = [
+    "Read",
+    "Glob",
+    "Grep",
+    "LS",
+    "mcp__compass__list_plans",
+    "mcp__compass__insert_plan",
+    "mcp__compass__insert_plans",
+    "mcp__compass__remove_plan",
+    "mcp__compass__set_plan_status",
+    "mcp__compass__write_notes",
+  ];
+
+  // Add invalidation tool when in compass change mode
+  if (compassChangeMode) {
+    allowedTools.push("mcp__compass__signal_compass_invalidation");
+  }
+
   const pmOptions: Options = {
     customSystemPrompt: systemPrompt,
     cwd: config.implRepoPath,
@@ -81,19 +127,7 @@ The Dev agent will handle implementation after you complete.`;
     mcpServers: {
       compass: mcpServer,
     },
-    // PM has READ-only access to code + plan MCP tools
-    allowedTools: [
-      "Read",
-      "Glob",
-      "Grep",
-      "LS",
-      "mcp__compass__list_plans",
-      "mcp__compass__insert_plan",
-      "mcp__compass__insert_plans",
-      "mcp__compass__remove_plan",
-      "mcp__compass__set_plan_status",
-      "mcp__compass__write_notes",
-    ],
+    allowedTools,
   };
 
   console.log("\n[PM Agent Starting]");
@@ -127,5 +161,6 @@ The Dev agent will handle implementation after you complete.`;
 
   return {
     hasPendingPlans: updatedHasPending,
+    compassInvalidation: pmContext?.compassInvalidation,
   };
 }

@@ -21,4 +21,5 @@ export interface WorkspaceConfig {
   planPath: string;
   notesPath: string;
   sessionsPath: string; // kept for potential future use
+  shadowCompassPath: string; // shadow copy of COMPASS.md for diff detection
 }

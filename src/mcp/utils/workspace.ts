@@ -30,6 +30,7 @@ export function getWorkspaceConfig(implRepoPath: string): WorkspaceConfig {
     planPath: resolve(workspacePath, "plan.json"),
     notesPath: resolve(workspacePath, "notes.md"),
     sessionsPath: resolve(workspacePath, "sessions"),
+    shadowCompassPath: resolve(workspacePath, "compass-shadow.md"),
   };
 }
 
@@ -63,4 +64,21 @@ export async function readCompassFile(implRepoPath: string): Promise<string> {
   } catch {
     throw new Error(`COMPASS.md not found in ${implRepoPath}`);
   }
+}
+
+export async function readShadowCompass(
+  shadowPath: string
+): Promise<string | null> {
+  try {
+    return await readFile(shadowPath, "utf-8");
+  } catch {
+    return null; // No shadow exists yet (first run)
+  }
+}
+
+export async function writeShadowCompass(
+  shadowPath: string,
+  content: string
+): Promise<void> {
+  await writeFile(shadowPath, content, "utf-8");
 }

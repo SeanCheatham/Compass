@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Compass</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header>
+    <h1>Compass</h1>
+    <div id="status" class="status">
+      <span id="status-indicator" class="indicator"></span>
+      <span id="status-text">Connecting...</span>
+    </div>
+  </header>
+
+  <nav class="tabs">
+    <button class="tab active" data-tab="activity">Activity</button>
+    <button class="tab" data-tab="compass">COMPASS.md</button>
+    <button class="tab" data-tab="plans">Plans <span id="plans-badge" class="badge"></span></button>
+    <button class="tab" data-tab="notes">Notes</button>
+  </nav>
+
+  <main>
+    <section id="activity-panel" class="panel active">
+      <div id="activity-log"></div>
+    </section>
+
+    <section id="compass-panel" class="panel">
+      <div id="compass-content"></div>
+    </section>
+
+    <section id="plans-panel" class="panel">
+      <ul id="plans-list"></ul>
+    </section>
+
+    <section id="notes-panel" class="panel">
+      <div id="notes-content"></div>
+    </section>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>

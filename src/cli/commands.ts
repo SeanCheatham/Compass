@@ -7,12 +7,18 @@ import {
   getFirstPendingPlan,
   updatePlanCommit,
   writePlanFile,
+  findOldestInvalidatedPlan,
+  getCommitBeforePlan,
+  resetPlansFromId,
 } from "../mcp/utils/plan-store.js";
 import {
   commit,
   discardChanges,
   hasUncommittedChanges,
+  resetHard,
+  isValidCommit,
 } from "../mcp/utils/git.js";
+import { writeShadowCompass } from "../mcp/utils/workspace.js";
 
 export interface RunOptions {
   maxIterations?: number;
@@ -34,10 +40,91 @@ export async function runCompass(
 
   console.log("🧭 Compass - Autonomous Project Development\n");
 
-  const { config, compassContent } = await initializeWorkspace(cwd);
+  const { config, compassContent, compassDiff } = await initializeWorkspace(cwd);
 
   console.log(`Impl repo: ${config.implRepoPath}`);
   console.log(`Workspace: ${config.workspacePath}\n`);
+
+  // Handle COMPASS.md changes at startup
+  if (compassDiff.isFirstRun) {
+    console.log("First run - initializing COMPASS shadow copy\n");
+    await writeShadowCompass(config.shadowCompassPath, compassContent);
+  } else if (compassDiff.hasDiff) {
+    console.log("🔄 COMPASS.md has changed since last session");
+    console.log(`Changes: ${compassDiff.diffSummary}\n`);
+
+    // Run PM in compass change mode
+    const pmResult = await runPmAgent(
+      config,
+      compassContent,
+      undefined, // no revert reason
+      {
+        previousCompass: compassDiff.shadowContent!,
+        currentCompass: compassContent,
+        diffSummary: compassDiff.diffSummary!,
+      }
+    );
+
+    // Handle invalidation result
+    if (pmResult.compassInvalidation) {
+      const { invalidatedCompletedPlanIds, reasoning } =
+        pmResult.compassInvalidation;
+
+      console.log(`\nPM Analysis: ${reasoning}`);
+
+      if (invalidatedCompletedPlanIds.length > 0) {
+        // Need to revert code
+        const planFile = await readPlanFile(config.planPath);
+        const oldestInvalidated = findOldestInvalidatedPlan(
+          planFile.plans,
+          invalidatedCompletedPlanIds
+        );
+
+        if (oldestInvalidated) {
+          const revertToCommit = getCommitBeforePlan(
+            planFile.plans,
+            oldestInvalidated.id
+          );
+
+          if (revertToCommit && (await isValidCommit(config.implRepoPath, revertToCommit))) {
+            console.log(
+              `\n↩️ Reverting to commit ${revertToCommit.slice(0, 7)} (before plan ${oldestInvalidated.id})`
+            );
+
+            // Discard any uncommitted changes first
+            if (await hasUncommittedChanges(config.implRepoPath)) {
+              console.log("Discarding uncommitted changes...");
+              await discardChanges(config.implRepoPath);
+            }
+
+            await resetHard(config.implRepoPath, revertToCommit);
+          } else if (!revertToCommit) {
+            console.log(
+              "\n⚠️ No prior commit found - cannot revert code state"
+            );
+          } else {
+            console.log(
+              `\n⚠️ Commit ${revertToCommit.slice(0, 7)} is invalid - cannot revert`
+            );
+          }
+
+          // Reset plans from the oldest invalidated one
+          const resetPlans = resetPlansFromId(
+            planFile.plans,
+            oldestInvalidated.id
+          );
+          await writePlanFile(config.planPath, { plans: resetPlans });
+          console.log(
+            `Reset ${invalidatedCompletedPlanIds.length} completed plan(s) to pending`
+          );
+        }
+      }
+    }
+
+    // Update shadow copy after handling changes
+    await writeShadowCompass(config.shadowCompassPath, compassContent);
+    console.log("\nCOMPASS shadow updated. Proceeding with normal operation.\n");
+  }
 
   let iteration = 0;
   let revertReason: string | undefined;
