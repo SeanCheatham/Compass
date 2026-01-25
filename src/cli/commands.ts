@@ -1,6 +1,7 @@
 import { initializeWorkspace, hasCompassFile } from "../state/workspace.js";
 import { runPmAgent } from "../agents/pm.js";
 import { runDevAgent } from "../agents/dev.js";
+import { runCommitAgent } from "../agents/commit.js";
 import {
   readPlanFile,
   getFirstPendingPlan,
@@ -78,20 +79,32 @@ export async function runCompass(
 
     // Phase 3: Handle result
     if (devResult.success) {
-      // Commit changes
+      // Check for changes to commit
       if (await hasUncommittedChanges(config.implRepoPath)) {
-        const commitMessage = `compass: ${currentTask.content}`;
-        const commitSha = await commit(config.implRepoPath, commitMessage);
+        // Phase 3a: Commit Agent (review and prepare commit)
+        console.log("\n--- Commit Phase ---");
+        const commitResult = await runCommitAgent(config, currentTask.content);
 
-        // Update plan with commit
-        const updatedPlans = updatePlanCommit(
-          planFile.plans,
-          currentTask.id,
-          commitSha
-        );
-        await writePlanFile(config.planPath, { plans: updatedPlans });
+        if (commitResult.approved) {
+          const commitMessage = commitResult.commitMessage
+            ? `compass: ${currentTask.content}\n\n${commitResult.commitMessage}`
+            : `compass: ${currentTask.content}`;
+          const commitSha = await commit(config.implRepoPath, commitMessage);
 
-        console.log(`\n✅ Committed: ${commitSha.slice(0, 7)}`);
+          // Update plan with commit
+          const updatedPlans = updatePlanCommit(
+            planFile.plans,
+            currentTask.id,
+            commitSha
+          );
+          await writePlanFile(config.planPath, { plans: updatedPlans });
+
+          console.log(`\n✅ Committed: ${commitSha.slice(0, 7)}`);
+        } else {
+          console.log("\n⚠️ Commit not approved, discarding changes");
+          await discardChanges(config.implRepoPath);
+          revertReason = "Commit agent did not approve the changes";
+        }
       } else {
         console.log("\n⚠️ No changes to commit");
       }
