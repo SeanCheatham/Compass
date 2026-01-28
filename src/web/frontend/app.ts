@@ -29,6 +29,29 @@ interface PlansResponse {
   };
 }
 
+interface Issue {
+  id: string;
+  type: "bug" | "enhancement";
+  title: string;
+  description: string | null;
+  status: "open" | "in_progress" | "closed";
+  priority: "low" | "normal" | "high";
+  createdAt: string;
+  closedAt: string | null;
+  planId: string | null;
+  commit: string | null;
+}
+
+interface IssuesResponse {
+  issues: Issue[];
+  summary: {
+    total: number;
+    open: number;
+    inProgress: number;
+    closed: number;
+  };
+}
+
 class CompassApp {
   private ws: WebSocket | null = null;
   private reconnectAttempts = 0;
@@ -50,7 +73,11 @@ class CompassApp {
       this.loadCompass(),
       this.loadPlans(),
       this.loadNotes(),
+      this.loadIssues(),
     ]);
+
+    // Set up issue form
+    this.setupIssueForm();
 
     // Connect WebSocket
     this.connectWebSocket();
@@ -58,10 +85,11 @@ class CompassApp {
     // Set up auto-scroll detection
     this.setupAutoScroll();
 
-    // Poll for state changes (plans, notes) every 2 seconds
+    // Poll for state changes (plans, notes, issues) every 2 seconds
     setInterval(() => {
       this.loadPlans();
       this.loadNotes();
+      this.loadIssues();
     }, 2000);
   }
 
@@ -150,6 +178,89 @@ class CompassApp {
       }
     } catch (error) {
       console.error("Failed to load notes:", error);
+    }
+  }
+
+  private async loadIssues(): Promise<void> {
+    try {
+      const res = await fetch("/api/issues");
+      const data: IssuesResponse = await res.json() as IssuesResponse;
+
+      // Update badge
+      const badgeEl = document.getElementById("issues-badge")!;
+      badgeEl.textContent = data.summary.open > 0 ? `${data.summary.open}` : "";
+
+      const listEl = document.getElementById("issues-list")!;
+
+      if (data.issues.length === 0) {
+        listEl.innerHTML = '<li class="empty">No issues reported</li>';
+        return;
+      }
+
+      // Sort: open first, then in_progress, then closed
+      const sortedIssues = [...data.issues].sort((a, b) => {
+        const order = { open: 0, in_progress: 1, closed: 2 };
+        return order[a.status] - order[b.status];
+      });
+
+      listEl.innerHTML = sortedIssues.map(issue => {
+        const typeIcon = issue.type === "bug" ? "bug" : "enhancement";
+        const statusIcon = issue.status === "closed" ? "✓" : issue.status === "in_progress" ? "▶" : "○";
+        const priorityClass = issue.priority !== "normal" ? ` priority-${issue.priority}` : "";
+        return `
+          <li class="issue-item ${issue.status}${priorityClass}">
+            <span class="issue-status">${statusIcon}</span>
+            <span class="issue-type ${typeIcon}">${issue.type}</span>
+            <span class="issue-title">${this.escapeHtml(issue.title)}</span>
+            ${issue.commit ? `<span class="issue-commit">${issue.commit.slice(0, 7)}</span>` : ""}
+          </li>
+        `;
+      }).join("");
+    } catch (error) {
+      console.error("Failed to load issues:", error);
+    }
+  }
+
+  private setupIssueForm(): void {
+    const form = document.getElementById("issue-form") as HTMLFormElement;
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      await this.submitIssue();
+    });
+  }
+
+  private async submitIssue(): Promise<void> {
+    const typeEl = document.getElementById("issue-type") as HTMLSelectElement;
+    const priorityEl = document.getElementById("issue-priority") as HTMLSelectElement;
+    const titleEl = document.getElementById("issue-title") as HTMLInputElement;
+    const descEl = document.getElementById("issue-description") as HTMLTextAreaElement;
+
+    const type = typeEl.value as "bug" | "enhancement";
+    const priority = priorityEl.value as "low" | "normal" | "high";
+    const title = titleEl.value.trim();
+    const description = descEl.value.trim() || null;
+
+    if (!title) return;
+
+    try {
+      const res = await fetch("/api/issues", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type, priority, title, description }),
+      });
+
+      if (res.ok) {
+        // Clear form
+        titleEl.value = "";
+        descEl.value = "";
+        typeEl.value = "bug";
+        priorityEl.value = "normal";
+
+        // Reload issues
+        await this.loadIssues();
+      }
+    } catch (error) {
+      console.error("Failed to submit issue:", error);
     }
   }
 

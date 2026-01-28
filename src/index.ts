@@ -6,6 +6,7 @@ import { runCompass, showStatus } from "./cli/commands.js";
 import { createOutputManager } from "./web/output-manager.js";
 import { startWebServer } from "./web/server.js";
 import { initializeWorkspace, hasCompassFile } from "./state/workspace.js";
+import { hasUncommittedChanges, stashChanges } from "./mcp/utils/git.js";
 
 const program = new Command();
 
@@ -33,6 +34,12 @@ program
 
     // Initialize workspace to get config and compass content
     const { config, compassContent } = await initializeWorkspace(cwd);
+
+    // Auto-stash uncommitted changes before proceeding
+    if (await hasUncommittedChanges(cwd)) {
+      console.log("Stashing uncommitted changes...");
+      await stashChanges(cwd);
+    }
 
     // Create output manager
     const output = createOutputManager();

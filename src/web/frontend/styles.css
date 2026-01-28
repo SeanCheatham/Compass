@@ -409,3 +409,167 @@ main {
 .markdown-body input[type="checkbox"] {
   margin-right: 0.5em;
 }
+
+/* Issues panel */
+.issues-form {
+  background: var(--bg-secondary);
+  padding: 1rem;
+  border-radius: 8px;
+  margin-bottom: 1.5rem;
+}
+
+.issues-form h3 {
+  font-size: 0.9rem;
+  font-weight: 600;
+  margin-bottom: 0.75rem;
+  color: var(--text-primary);
+}
+
+#issue-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.form-row {
+  display: flex;
+  gap: 0.5rem;
+}
+
+#issue-form select,
+#issue-form input,
+#issue-form textarea {
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.875rem;
+  color: var(--text-primary);
+  font-family: inherit;
+}
+
+#issue-form select {
+  flex: 1;
+  cursor: pointer;
+}
+
+#issue-form input {
+  width: 100%;
+}
+
+#issue-form textarea {
+  width: 100%;
+  resize: vertical;
+  min-height: 2.5rem;
+}
+
+#issue-form select:focus,
+#issue-form input:focus,
+#issue-form textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+#issue-form button {
+  background: var(--accent);
+  border: none;
+  border-radius: 4px;
+  padding: 0.5rem 1rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: white;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+#issue-form button:hover {
+  background: var(--accent-dim);
+}
+
+/* Issues list */
+#issues-list {
+  list-style: none;
+}
+
+#issues-list li.empty {
+  padding: 0.75rem 0;
+}
+
+.issue-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.9rem;
+}
+
+.issue-item:last-child {
+  border-bottom: none;
+}
+
+.issue-item.closed {
+  opacity: 0.6;
+}
+
+.issue-item.priority-high {
+  border-left: 3px solid var(--error);
+  padding-left: 0.5rem;
+}
+
+.issue-item.priority-low {
+  border-left: 3px solid var(--text-muted);
+  padding-left: 0.5rem;
+}
+
+.issue-status {
+  flex-shrink: 0;
+  width: 1.25rem;
+  text-align: center;
+}
+
+.issue-item.closed .issue-status {
+  color: var(--success);
+}
+
+.issue-item.in_progress .issue-status {
+  color: var(--warning);
+}
+
+.issue-item.open .issue-status {
+  color: var(--text-muted);
+}
+
+.issue-type {
+  flex-shrink: 0;
+  font-size: 0.7rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  padding: 0.15rem 0.4rem;
+  border-radius: 4px;
+  background: var(--bg-secondary);
+}
+
+.issue-type.bug {
+  color: var(--error);
+  background: rgba(239, 68, 68, 0.15);
+}
+
+.issue-type.enhancement {
+  color: var(--accent);
+  background: rgba(99, 102, 241, 0.15);
+}
+
+.issue-title {
+  flex: 1;
+  color: var(--text-primary);
+}
+
+.issue-commit {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  font-family: ui-monospace, SFMono-Regular, monospace;
+  background: var(--bg-secondary);
+  padding: 0.15rem 0.4rem;
+  border-radius: 4px;
+}

@@ -19,6 +19,7 @@
     <button class="tab active" data-tab="activity">Activity</button>
     <button class="tab" data-tab="compass">COMPASS.md</button>
     <button class="tab" data-tab="plans">Plans <span id="plans-badge" class="badge"></span></button>
+    <button class="tab" data-tab="issues">Issues <span id="issues-badge" class="badge"></span></button>
     <button class="tab" data-tab="notes">Notes</button>
   </nav>
 
@@ -33,6 +34,29 @@
 
     <section id="plans-panel" class="panel">
       <ul id="plans-list"></ul>
+    </section>
+
+    <section id="issues-panel" class="panel">
+      <div class="issues-form">
+        <h3>Report Issue</h3>
+        <form id="issue-form">
+          <div class="form-row">
+            <select id="issue-type" required>
+              <option value="bug">Bug</option>
+              <option value="enhancement">Enhancement</option>
+            </select>
+            <select id="issue-priority">
+              <option value="normal">Normal</option>
+              <option value="high">High</option>
+              <option value="low">Low</option>
+            </select>
+          </div>
+          <input type="text" id="issue-title" placeholder="Brief description..." required>
+          <textarea id="issue-description" placeholder="Additional details (optional)..." rows="2"></textarea>
+          <button type="submit">Submit</button>
+        </form>
+      </div>
+      <ul id="issues-list"></ul>
     </section>
 
     <section id="notes-panel" class="panel">

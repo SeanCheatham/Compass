@@ -10,7 +10,16 @@ import {
   findOldestInvalidatedPlan,
   getCommitBeforePlan,
   resetPlansFromId,
+  createPlan,
+  insertPlanAfter,
 } from "../mcp/utils/plan-store.js";
+import {
+  readIssueFile,
+  writeIssueFile,
+  getNextOpenIssue,
+  updateIssueStatus,
+  findIssueByPlanId,
+} from "../mcp/utils/issue-store.js";
 import {
   commit,
   discardChanges,
@@ -130,6 +139,34 @@ export async function runCompass(
 
     output.session(iteration);
 
+    // Issue injection: check for open issues and create a plan for the next one
+    const issueFile = await readIssueFile(config.issuesPath);
+    const nextIssue = getNextOpenIssue(issueFile.issues);
+
+    if (nextIssue) {
+      const issueLabel = nextIssue.type === "bug" ? "BUG" : "ENHANCEMENT";
+      const planContent = `[${issueLabel}] ${nextIssue.title}${
+        nextIssue.description ? `: ${nextIssue.description}` : ""
+      }`;
+
+      output.info(`Processing issue: ${nextIssue.type} - ${nextIssue.title}`);
+
+      // Create a plan for this issue and insert at position 0
+      const planFile = await readPlanFile(config.planPath);
+      const issuePlan = createPlan(planContent);
+      const updatedPlans = insertPlanAfter(planFile.plans, null, issuePlan);
+      await writePlanFile(config.planPath, { plans: updatedPlans });
+
+      // Mark issue as in_progress and link to plan
+      const updatedIssues = updateIssueStatus(
+        issueFile.issues,
+        nextIssue.id,
+        "in_progress",
+        issuePlan.id
+      );
+      await writeIssueFile(config.issuesPath, { issues: updatedIssues });
+    }
+
     // Phase 1: PM Agent (read-only, planning)
     output.phase("PM Phase");
     const pmResult = await runPmAgent(config, compassContent, output, revertReason);
@@ -179,6 +216,21 @@ export async function runCompass(
             commitSha
           );
           await writePlanFile(config.planPath, { plans: updatedPlans });
+
+          // Close any linked issue
+          const currentIssueFile = await readIssueFile(config.issuesPath);
+          const linkedIssue = findIssueByPlanId(currentIssueFile.issues, currentTask.id);
+          if (linkedIssue) {
+            const closedIssues = updateIssueStatus(
+              currentIssueFile.issues,
+              linkedIssue.id,
+              "closed",
+              currentTask.id,
+              commitSha
+            );
+            await writeIssueFile(config.issuesPath, { issues: closedIssues });
+            output.info(`Closed issue ${linkedIssue.id}: ${linkedIssue.title}`);
+          }
 
           output.commit(commitSha);
         } else {

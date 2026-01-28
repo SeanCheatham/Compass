@@ -77,6 +77,18 @@ export async function commit(cwd: string, message: string): Promise<string> {
   return getCurrentCommit(cwd);
 }
 
+export async function stashChanges(cwd: string): Promise<void> {
+  const result = await runGit(cwd, [
+    "stash",
+    "push",
+    "-m",
+    "compass-auto-stash",
+  ]);
+  if (!result.success) {
+    throw new Error(`Failed to stash changes: ${result.stderr}`);
+  }
+}
+
 export async function discardChanges(cwd: string): Promise<void> {
   const checkout = await runGit(cwd, ["checkout", "--", "."]);
   if (!checkout.success) {

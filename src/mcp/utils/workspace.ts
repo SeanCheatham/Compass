@@ -31,6 +31,7 @@ export function getWorkspaceConfig(implRepoPath: string): WorkspaceConfig {
     notesPath: resolve(workspacePath, "notes.md"),
     sessionsPath: resolve(workspacePath, "sessions"),
     shadowCompassPath: resolve(workspacePath, "compass-shadow.md"),
+    issuesPath: resolve(workspacePath, "issues.json"),
   };
 }
 
@@ -54,6 +55,14 @@ export async function ensureWorkspaceExists(
 
   if (!notesExists) {
     await writeFile(config.notesPath, "");
+  }
+
+  const issuesExists = await access(config.issuesPath)
+    .then(() => true)
+    .catch(() => false);
+
+  if (!issuesExists) {
+    await writeFile(config.issuesPath, JSON.stringify({ issues: [] }, null, 2));
   }
 }
 
