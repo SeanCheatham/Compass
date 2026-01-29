@@ -1,4 +1,4 @@
-import { query, type Options } from "@anthropic-ai/claude-code";
+import { query, type Options } from "@anthropic-ai/claude-agent-sdk";
 import type { WorkspaceConfig, Plan } from "../state/types.js";
 import { readFile } from "fs/promises";
 import { buildDevSystemPrompt } from "./prompts/dev-system.js";
@@ -42,7 +42,15 @@ export async function runDevAgent(
 
   const mcpServer = createDevMcpServer(mcpContext);
 
-  const initialPrompt = `Implement the following task:
+  const initialPrompt = `
+
+## Notes from PM
+
+${notes || "No additional notes."}
+
+---
+
+Implement the following task:
 
 ${task.content}
 
@@ -50,9 +58,8 @@ Begin by exploring the codebase to understand the context, then implement the ta
 Verify your implementation works (run tests, build, etc.) before completing.`;
 
   const devOptions: Options = {
-    customSystemPrompt: systemPrompt,
+    systemPrompt: systemPrompt,
     cwd: config.implRepoPath,
-    model: "sonnet",
     permissionMode: "bypassPermissions",
     mcpServers: {
       compass: mcpServer,

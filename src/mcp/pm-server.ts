@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { tool, createSdkMcpServer } from "@anthropic-ai/claude-code";
+import { tool, createSdkMcpServer } from "@anthropic-ai/claude-agent-sdk";
 import type { WorkspaceConfig } from "../state/types.js";
 import {
   listPlans,

@@ -1,20 +1,12 @@
 import type { Plan } from "../../state/types.js";
 
 export interface DevSystemPromptContext {
-  task: Plan;
-  notes: string;
+   task: Plan;
+   notes: string;
 }
 
 export function buildDevSystemPrompt(context: DevSystemPromptContext): string {
-  return `You are a Developer agent responsible for implementing a specific task.
-
-## Your Task
-
-${context.task.content}
-
-## Notes from PM
-
-${context.notes || "No additional notes."}
+   return `You are a Developer agent responsible for implementing a specific task.
 
 ## Your Role
 

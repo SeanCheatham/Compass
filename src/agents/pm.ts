@@ -1,4 +1,4 @@
-import { query, type Options } from "@anthropic-ai/claude-code";
+import { query, type Options } from "@anthropic-ai/claude-agent-sdk";
 import type { WorkspaceConfig } from "../state/types.js";
 import { readPlanFile } from "../mcp/utils/plan-store.js";
 import { readFile } from "fs/promises";
@@ -122,9 +122,8 @@ The Dev agent will handle implementation after you complete.`;
   }
 
   const pmOptions: Options = {
-    customSystemPrompt: systemPrompt,
+    systemPrompt: systemPrompt,
     cwd: config.implRepoPath,
-    model: "sonnet",
     permissionMode: "bypassPermissions",
     mcpServers: {
       compass: mcpServer,

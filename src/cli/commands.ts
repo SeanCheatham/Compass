@@ -21,8 +21,8 @@ import {
   findIssueByPlanId,
 } from "../mcp/utils/issue-store.js";
 import {
-  commit,
   discardChanges,
+  getCurrentCommit,
   hasUncommittedChanges,
   resetHard,
   isValidCommit,
@@ -204,35 +204,40 @@ export async function runCompass(
         const commitResult = await runCommitAgent(config, currentTask.content, output);
 
         if (commitResult.approved) {
-          const commitMessage = commitResult.commitMessage
-            ? `compass: ${currentTask.content}\n\n${commitResult.commitMessage}`
-            : `compass: ${currentTask.content}`;
-          const commitSha = await commit(config.implRepoPath, commitMessage);
+          // Verify working tree is clean
+          if (await hasUncommittedChanges(config.implRepoPath)) {
+            output.error("Commit agent left uncommitted changes");
+            await discardChanges(config.implRepoPath);
+            revertReason = "Commit agent failed to commit all changes";
+          } else {
+            // Get the commit SHA from HEAD
+            const commitSha = await getCurrentCommit(config.implRepoPath);
 
-          // Update plan with commit
-          const updatedPlans = updatePlanCommit(
-            planFile.plans,
-            currentTask.id,
-            commitSha
-          );
-          await writePlanFile(config.planPath, { plans: updatedPlans });
-
-          // Close any linked issue
-          const currentIssueFile = await readIssueFile(config.issuesPath);
-          const linkedIssue = findIssueByPlanId(currentIssueFile.issues, currentTask.id);
-          if (linkedIssue) {
-            const closedIssues = updateIssueStatus(
-              currentIssueFile.issues,
-              linkedIssue.id,
-              "closed",
+            // Update plan with commit
+            const updatedPlans = updatePlanCommit(
+              planFile.plans,
               currentTask.id,
               commitSha
             );
-            await writeIssueFile(config.issuesPath, { issues: closedIssues });
-            output.info(`Closed issue ${linkedIssue.id}: ${linkedIssue.title}`);
-          }
+            await writePlanFile(config.planPath, { plans: updatedPlans });
 
-          output.commit(commitSha);
+            // Close any linked issue
+            const currentIssueFile = await readIssueFile(config.issuesPath);
+            const linkedIssue = findIssueByPlanId(currentIssueFile.issues, currentTask.id);
+            if (linkedIssue) {
+              const closedIssues = updateIssueStatus(
+                currentIssueFile.issues,
+                linkedIssue.id,
+                "closed",
+                currentTask.id,
+                commitSha
+              );
+              await writeIssueFile(config.issuesPath, { issues: closedIssues });
+              output.info(`Closed issue ${linkedIssue.id}: ${linkedIssue.title}`);
+            }
+
+            output.commit(commitSha);
+          }
         } else {
           output.info("\nCommit not approved, discarding changes");
           await discardChanges(config.implRepoPath);

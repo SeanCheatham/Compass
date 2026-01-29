@@ -1,10 +1,6 @@
-import { query, type Options } from "@anthropic-ai/claude-code";
+import { query, type Options } from "@anthropic-ai/claude-agent-sdk";
 import type { WorkspaceConfig } from "../state/types.js";
 import { buildCommitSystemPrompt } from "./prompts/commit-system.js";
-import {
-  createCommitMcpServer,
-  type CommitMcpContext,
-} from "../mcp/commit-server.js";
 import type { OutputManager } from "../web/output-manager.js";
 
 export interface CommitAgentResult {
@@ -29,36 +25,23 @@ export async function runCommitAgent(
     taskDescription,
   });
 
-  const mcpContext: CommitMcpContext = {
-    cwd: config.implRepoPath,
-    approved: false,
-  };
-
-  const mcpServer = createCommitMcpServer(mcpContext);
-
-  const initialPrompt = `Review the changes for the following task and prepare them for commit:
+  const initialPrompt = `Review and commit the changes for the following task:
 
 ${taskDescription}
 
 Start by viewing the git status and diff, then:
-1. Check for files that shouldn't be committed
+1. Check for files that shouldn't be committed (secrets, build artifacts, etc.)
 2. Update .gitignore if needed
-3. Approve the commit when ready`;
+3. Stage the appropriate files with git add
+4. Commit with a clear message describing what was done
+
+The working tree should be clean when you're done.`;
 
   const commitOptions: Options = {
-    customSystemPrompt: systemPrompt,
+    systemPrompt: systemPrompt,
     cwd: config.implRepoPath,
-    model: "haiku",
     permissionMode: "bypassPermissions",
-    mcpServers: {
-      compass: mcpServer,
-    },
-    allowedTools: [
-      "mcp__compass__get_diff",
-      "mcp__compass__get_status",
-      "mcp__compass__update_gitignore",
-      "mcp__compass__approve_commit",
-    ],
+    allowedTools: ["Read", "Write", "Edit", "Bash", "Glob", "Grep", "LS"],
   };
 
   output.agentStart("Commit");
@@ -80,24 +63,12 @@ Start by viewing the git status and diff, then:
         }
       }
 
-      // Check if approved
-      if (mcpContext.approved) {
-        output.agentComplete("Commit", "Approved");
-        return {
-          approved: true,
-          commitMessage: mcpContext.commitMessage,
-        };
-      }
     }
 
     output.agentComplete("Commit");
+    return { approved: true };
   } catch (error) {
     output.error(`Commit agent error: ${error}`);
     throw error;
   }
-
-  return {
-    approved: mcpContext.approved,
-    commitMessage: mcpContext.commitMessage,
-  };
 }

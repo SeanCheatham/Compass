@@ -113,7 +113,7 @@ ${context.notes || "No notes yet."}
 ${revertSection}${compassChangeSection}## Available Tools
 
 ### Code Exploration (READ-ONLY)
-- \`Read\` - Read file contents
+- \`Read\` - Read file contents (text files only)
 - \`Glob\` - Find files by pattern
 - \`Grep\` - Search file contents
 - \`LS\` - List directory contents
