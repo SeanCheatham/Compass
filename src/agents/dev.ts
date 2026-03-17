@@ -73,6 +73,13 @@ Verify your implementation works (run tests, build, etc.) before completing.`;
       "Glob",
       "Grep",
       "LS",
+      "LSP",
+      "Agent",
+      "Skill",
+      "WebFetch",
+      "WebSearch",
+      "NotebookEdit",
+      "NotebookRead",
       "mcp__compass__signal_revert",
     ],
   };

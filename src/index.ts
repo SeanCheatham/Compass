@@ -64,11 +64,10 @@ program
     process.on("SIGTERM", shutdown);
 
     // Run compass with the output manager
-    try {
-      await runCompass(cwd, { maxIterations, output });
-    } finally {
-      await server.close();
-    }
+    await runCompass(cwd, { maxIterations, output });
+
+    // Keep service running after loop completes
+    output.info("Compass loop finished. Service still running. Press Ctrl+C to exit.");
   });
 
 program
