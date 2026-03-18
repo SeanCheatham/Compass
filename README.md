@@ -6,6 +6,22 @@ Compass is a recursive iteration tool for autonomous end-to-end project developm
 
 Enable "vibe coding" at the project level. A human provides a vision in COMPASS.md, and Compass iteratively builds the entire project — planning, implementing, committing, and adapting — until the vision is realized.
 
+## Installation
+
+### Local Installation
+
+```bash
+git clone https://github.com/SeanCheatham/Compass.git
+cd Compass
+npm install
+npm run build
+npm link
+```
+
+This makes the `compass` command available globally.
+
+**Prerequisites**: Node.js >= 20.0.0
+
 ## Architecture
 
 ### Two-Agent Model
@@ -166,22 +182,6 @@ On **replan**, the PM captures relevant learnings in the reason field before ses
 - **Tools**: MCP (Model Context Protocol) for custom tool definitions
 - **VCS**: Git for checkpointing and rollback
 - **Models**: Claude for both PM and Developer agents
-
-## Installation
-
-### Local Installation
-
-```bash
-git clone https://github.com/SeanCheatham/Compass.git
-cd Compass
-npm install
-npm run build
-npm link
-```
-
-This makes the `compass` command available globally.
-
-**Prerequisites**: Node.js >= 20.0.0
 
 ## Usage
 
