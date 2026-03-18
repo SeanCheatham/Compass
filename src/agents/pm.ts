@@ -131,6 +131,7 @@ The Dev agent will handle implementation after you complete.`;
     systemPrompt: systemPrompt,
     cwd: config.implRepoPath,
     permissionMode: "bypassPermissions",
+    settingSources: ["user", "project", "local"],
     mcpServers: {
       compass: mcpServer,
     },

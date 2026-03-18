@@ -61,6 +61,7 @@ Verify your implementation works (run tests, build, etc.) before completing.`;
     systemPrompt: systemPrompt,
     cwd: config.implRepoPath,
     permissionMode: "bypassPermissions",
+    settingSources: ["user", "project", "local"],
     mcpServers: {
       compass: mcpServer,
     },

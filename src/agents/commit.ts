@@ -41,6 +41,7 @@ The working tree should be clean when you're done.`;
     systemPrompt: systemPrompt,
     cwd: config.implRepoPath,
     permissionMode: "bypassPermissions",
+    settingSources: ["user", "project", "local"],
     allowedTools: ["Read", "Write", "Edit", "Bash", "Glob", "Grep", "LS", "LSP", "Agent", "Skill", "WebFetch", "WebSearch"],
   };
 
