@@ -167,6 +167,22 @@ On **replan**, the PM captures relevant learnings in the reason field before ses
 - **VCS**: Git for checkpointing and rollback
 - **Models**: Claude for both PM and Developer agents
 
+## Installation
+
+### Local Installation
+
+```bash
+git clone https://github.com/SeanCheatham/Compass.git
+cd Compass
+npm install
+npm run build
+npm link
+```
+
+This makes the `compass` command available globally.
+
+**Prerequisites**: Node.js >= 20.0.0
+
 ## Usage
 
 ```bash
