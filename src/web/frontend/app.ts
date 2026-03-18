@@ -330,10 +330,58 @@ class CompassApp {
       case "phase":
         entry.textContent = `── ${event.data} ──`;
         break;
-      case "tool":
+      case "tool": {
         const agent = event.metadata?.agent || "Agent";
-        entry.textContent = `[${agent} → ${event.data}]`;
+        const summary = event.metadata?.summary as string | undefined;
+        const full = event.metadata?.full as Record<string, string> | undefined;
+
+        if (summary) {
+          entry.classList.add("tool-collapsible");
+
+          const header = document.createElement("span");
+          header.className = "tool-header";
+          header.textContent = `[${agent} → ${event.data}] `;
+
+          const summarySpan = document.createElement("span");
+          summarySpan.className = "tool-summary";
+          summarySpan.textContent = summary;
+
+          entry.appendChild(header);
+          entry.appendChild(summarySpan);
+
+          if (full && Object.keys(full).length > 0) {
+            const toggle = document.createElement("span");
+            toggle.className = "tool-toggle";
+            toggle.textContent = " +";
+            entry.appendChild(toggle);
+
+            const details = document.createElement("div");
+            details.className = "tool-full";
+            for (const [key, value] of Object.entries(full)) {
+              const row = document.createElement("div");
+              row.className = "tool-full-row";
+              const keySpan = document.createElement("span");
+              keySpan.className = "tool-full-key";
+              keySpan.textContent = key + ": ";
+              const valSpan = document.createElement("span");
+              valSpan.className = "tool-full-value";
+              valSpan.textContent = value;
+              row.appendChild(keySpan);
+              row.appendChild(valSpan);
+              details.appendChild(row);
+            }
+            entry.appendChild(details);
+
+            entry.addEventListener("click", () => {
+              const expanded = entry.classList.toggle("expanded");
+              toggle.textContent = expanded ? " −" : " +";
+            });
+          }
+        } else {
+          entry.textContent = `[${agent} → ${event.data}]`;
+        }
         break;
+      }
       case "agent_start":
         const ctx = event.metadata?.context ? `: ${event.metadata.context}` : "";
         entry.textContent = `▶ ${event.data} Agent${ctx}`;

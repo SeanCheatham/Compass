@@ -1,4 +1,5 @@
 import { EventEmitter } from "events";
+import type { ToolDetail } from "../agents/tool-details.js";
 
 export type OutputEventType =
   | "log"
@@ -29,7 +30,7 @@ export interface OutputManager {
   phase(name: string): void;
 
   /** Tool usage by an agent */
-  tool(agent: string, toolName: string): void;
+  tool(agent: string, toolName: string, detail?: ToolDetail): void;
 
   /** Successful commit */
   commit(sha: string): void;
@@ -91,9 +92,12 @@ class OutputManagerImpl extends EventEmitter implements OutputManager {
     this.emit_event(this.createEvent("phase", name));
   }
 
-  tool(agent: string, toolName: string): void {
+  tool(agent: string, toolName: string, detail?: ToolDetail): void {
     this.emit_event(
-      this.createEvent("tool", toolName, { agent })
+      this.createEvent("tool", toolName, {
+        agent,
+        ...(detail ? { summary: detail.summary, full: detail.full } : {}),
+      })
     );
   }
 

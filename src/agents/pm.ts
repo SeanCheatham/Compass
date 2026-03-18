@@ -12,6 +12,7 @@ import {
   type CompassInvalidation,
 } from "../mcp/pm-server.js";
 import type { OutputManager } from "../web/output-manager.js";
+import { extractToolDetail } from "./tool-details.js";
 
 export interface PmAgentResult {
   hasPendingPlans: boolean;
@@ -149,7 +150,7 @@ The Dev agent will handle implementation after you complete.`;
           if (block.type === "text") {
             output.log(block.text);
           } else if (block.type === "tool_use") {
-            output.tool("PM", block.name);
+            output.tool("PM", block.name, extractToolDetail(block.name, block.input as Record<string, unknown>));
           }
         }
       }

@@ -4,6 +4,7 @@ import { readFile } from "fs/promises";
 import { buildDevSystemPrompt } from "./prompts/dev-system.js";
 import { createDevMcpServer, type DevMcpContext } from "../mcp/dev-server.js";
 import type { OutputManager } from "../web/output-manager.js";
+import { extractToolDetail } from "./tool-details.js";
 
 export interface DevAgentResult {
   success: boolean;
@@ -96,7 +97,7 @@ Verify your implementation works (run tests, build, etc.) before completing.`;
           if (block.type === "text") {
             output.log(block.text);
           } else if (block.type === "tool_use") {
-            output.tool("Dev", block.name);
+            output.tool("Dev", block.name, extractToolDetail(block.name, block.input as Record<string, unknown>));
           }
         }
       }

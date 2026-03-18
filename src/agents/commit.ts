@@ -2,6 +2,7 @@ import { query, type Options } from "@anthropic-ai/claude-agent-sdk";
 import type { WorkspaceConfig } from "../state/types.js";
 import { buildCommitSystemPrompt } from "./prompts/commit-system.js";
 import type { OutputManager } from "../web/output-manager.js";
+import { extractToolDetail } from "./tool-details.js";
 
 export interface CommitAgentResult {
   approved: boolean;
@@ -59,7 +60,7 @@ The working tree should be clean when you're done.`;
           if (block.type === "text") {
             output.log(block.text);
           } else if (block.type === "tool_use") {
-            output.tool("Commit", block.name);
+            output.tool("Commit", block.name, extractToolDetail(block.name, block.input as Record<string, unknown>));
           }
         }
       }
