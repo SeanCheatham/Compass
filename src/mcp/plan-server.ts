@@ -16,11 +16,11 @@ export function createPlanMcpServer(context: PlanMcpContext) {
     `Signal that no further work is needed and the project is complete.
 
 Call this only when:
-- state.md's Next section has nothing left to do
+- state.json's "next" is null
 - drafts.md is empty (no pending user input)
-- the codebase satisfies the work captured in Completed
+- the codebase satisfies the work captured in "completed"
 
-The loop will exit cleanly. If the user adds new drafts later, the loop resumes.`,
+The loop drops into idle. If the user adds new drafts later, the loop resumes.`,
     {
       reason: z
         .string()

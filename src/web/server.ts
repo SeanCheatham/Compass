@@ -11,7 +11,7 @@ import { fileURLToPath } from "url";
 import type { OutputManager, OutputEvent } from "./output-manager.js";
 import type { WorkspaceConfig } from "../state/types.js";
 import {
-  readState,
+  readPlanState,
   readDrafts,
   readFeedback,
   appendDraft,
@@ -74,7 +74,7 @@ async function handleApiRequest(
 
   try {
     if (path === "/api/state" && req.method === "GET") {
-      res.end(JSON.stringify({ content: await readState(ctx.config) }));
+      res.end(JSON.stringify(await readPlanState(ctx.config)));
     } else if (path === "/api/drafts" && req.method === "GET") {
       res.end(JSON.stringify({ content: await readDrafts(ctx.config) }));
     } else if (path === "/api/drafts" && req.method === "POST") {

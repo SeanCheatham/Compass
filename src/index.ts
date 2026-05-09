@@ -54,7 +54,7 @@ program
 
 program
   .command("status")
-  .description("Show current state.md and drafts.md")
+  .description("Show current state.json and drafts.md")
   .action(async () => {
     await showStatus(process.cwd());
   });

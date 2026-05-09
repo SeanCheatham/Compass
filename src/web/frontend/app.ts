@@ -5,6 +5,17 @@ interface OutputEvent {
   metadata?: Record<string, unknown>;
 }
 
+interface PlanNext {
+  plan: string;
+  verify: string;
+}
+
+interface PlanState {
+  completed: string[];
+  next: PlanNext | null;
+  followUp: string;
+}
+
 class CompassApp {
   private ws: WebSocket | null = null;
   private reconnectAttempts = 0;
@@ -77,15 +88,76 @@ class CompassApp {
     }
   }
 
+  private renderState(state: PlanState): void {
+    const el = document.getElementById("state-content")!;
+    el.replaceChildren();
+
+    el.appendChild(this.makeHeading("Completed"));
+    if (state.completed.length === 0) {
+      el.appendChild(this.makeEmpty("No iterations shipped yet."));
+    } else {
+      const ul = document.createElement("ul");
+      ul.className = "completed-list";
+      for (const c of state.completed) {
+        const li = document.createElement("li");
+        li.textContent = c;
+        ul.appendChild(li);
+      }
+      el.appendChild(ul);
+    }
+
+    el.appendChild(this.makeHeading("Next"));
+    if (state.next) {
+      const pre = document.createElement("pre");
+      pre.className = "text-block";
+      pre.textContent = state.next.plan;
+      el.appendChild(pre);
+
+      const verifyRow = document.createElement("div");
+      verifyRow.className = "verify-row";
+      const verifyLabel = document.createElement("span");
+      verifyLabel.className = "verify-label";
+      verifyLabel.textContent = "verify";
+      const verifyCmd = document.createElement("code");
+      verifyCmd.className = "verify-cmd";
+      verifyCmd.textContent = state.next.verify;
+      verifyRow.appendChild(verifyLabel);
+      verifyRow.appendChild(verifyCmd);
+      el.appendChild(verifyRow);
+    } else {
+      el.appendChild(this.makeEmpty("No next plan. Add a draft to get started."));
+    }
+
+    el.appendChild(this.makeHeading("Follow-up"));
+    if (state.followUp.trim()) {
+      const pre = document.createElement("pre");
+      pre.className = "text-block";
+      pre.textContent = state.followUp;
+      el.appendChild(pre);
+    } else {
+      el.appendChild(this.makeEmpty("No follow-up sketched."));
+    }
+  }
+
+  private makeHeading(text: string): HTMLElement {
+    const h = document.createElement("h3");
+    h.className = "section-heading";
+    h.textContent = text;
+    return h;
+  }
+
+  private makeEmpty(text: string): HTMLElement {
+    const span = document.createElement("span");
+    span.className = "empty";
+    span.textContent = text;
+    return span;
+  }
+
   private async loadState(): Promise<void> {
     try {
       const res = await fetch("/api/state");
-      const data = (await res.json()) as { content: string };
-      this.renderText(
-        "state-content",
-        data.content,
-        "state.md is empty — add a draft to get started."
-      );
+      const data = (await res.json()) as PlanState;
+      this.renderState(data);
     } catch (error) {
       console.error("Failed to load state:", error);
     }

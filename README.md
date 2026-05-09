@@ -35,22 +35,29 @@ Compass will:
 4. Idle until you submit a draft plan from the UI.
 5. From there: Plan refines → Develop implements → repeat.
 
-Press Ctrl+C to stop. Run `compass status` at any time to print the current `state.md` and `drafts.md`.
+Press Ctrl+C to stop. Run `compass status` at any time to print the current `state.json` and `drafts.md`.
 
 ## Architecture
 
 ### Two agents
 
-**Plan** — read-only over the codebase, plus edit access to three files in `.compass/`.
-- Reads `state.md`, `drafts.md`, `feedback.md` and the codebase.
-- Refines drafts, integrates them into `state.md`, picks the next concrete plan.
-- Clears `drafts.md` and `feedback.md` after consuming them.
+**Plan** — read-only over the codebase, plus edit access to one file: `.compass/state.json`.
+- Reads `state.json` and snapshots of `drafts.md` / `feedback.md` provided by the runner.
+- Refines drafts, picks the next concrete plan, picks a `verify` command for it.
 - Calls `signal_done` when there's nothing left to do.
 
 **Develop** — full read/write over the codebase.
-- Implements the `Next` block from `state.md`.
+- Implements `state.json`'s `next.plan`.
+- Iterates until `next.verify` exits 0.
 - Commits changes (creates new commits with `git add` + `git commit`).
 - Writes notes for the next Plan run into `feedback.md`.
+
+After Develop finishes, the runner enforces two post-checks:
+1. The `verify` command from `next` must exit 0.
+2. `git status --porcelain` must be empty (everything committed or gitignored).
+
+If either fails, the runner re-prompts Develop with the failure (up to 3 attempts) before
+yielding to Plan.
 
 ### State
 
@@ -58,37 +65,44 @@ Everything lives in `.compass/` inside your repo (gitignored, per-repo):
 
 ```
 {repo}/.compass/
-├── state.md      # Plan owns. Single source of truth.
-├── drafts.md     # User owns (via UI). Plan consumes and clears.
-└── feedback.md   # Develop owns. Plan reads and clears.
+├── state.json    # Plan owns. Structured single source of truth.
+├── drafts.md     # User owns (via UI). Runner snapshots+clears before Plan runs.
+└── feedback.md   # Develop owns. Runner snapshots+clears before Plan runs.
 ```
 
-`state.md` always has exactly this structure:
+`state.json` schema:
 
+```json
+{
+  "completed": ["one-line summary per shipped iteration"],
+  "next": {
+    "plan": "markdown describing the single concrete plan Develop will implement next",
+    "verify": "shell command run from repo root that exits 0 iff Develop succeeded"
+  },
+  "followUp": "markdown sketch of what should come after Next"
+}
 ```
-## Completed
-- One-line summary per shipped iteration
 
-## Next
-The single concrete plan Develop will implement next.
-
-## Follow-up
-A short sketch of what should come after Next.
-```
+`next` may also be `null` when there is no concrete next step.
 
 ### Loop
 
-1. If `drafts.md` and `state.md`'s `Next` are both empty, **idle** until a draft arrives.
-2. **Plan** runs: refines drafts, updates `state.md`, clears drafts/feedback. May call `signal_done`.
-3. **Develop** runs against `Next`: implements, commits, writes `feedback.md`.
-4. Back to step 1.
+1. If `drafts.md` is empty and `state.json`'s `next` is null, **idle** until a draft arrives
+   (the runner watches `.compass/` for changes).
+2. The runner snapshots `drafts.md` and `feedback.md` (atomic `rename`, race-free with new
+   user input).
+3. **Plan** runs against the snapshots; updates `state.json`. May call `signal_done`.
+4. **Develop** runs against `next.plan`: implements, runs `next.verify`, commits, writes
+   `feedback.md`.
+5. Runner runs verify + `git status --porcelain` post-checks. Re-prompts Develop on failure.
+6. Back to step 1.
 
 When `signal_done` fires, the loop drops back into idle. Adding a new draft from the UI wakes it up.
 
 ## UI
 
 - **Activity** — live stream of agent output and tool calls.
-- **State** — current `state.md` (Completed / Next / Follow-up).
+- **State** — Completed list, current `Next` (with verify command), and `Follow-up`.
 - **Drafts** — submit a draft plan; see what's pending.
 - **Feedback** — what Develop wrote at the end of the last iteration.
 

@@ -1,14 +1,17 @@
 import { query, type Options } from "@anthropic-ai/claude-agent-sdk";
 import type { WorkspaceConfig } from "../state/types.js";
-import {
-  readState,
-  readDrafts,
-  readFeedback,
-} from "../mcp/utils/workspace.js";
+import { readStateText } from "../mcp/utils/workspace.js";
 import { buildPlanSystemPrompt } from "./prompts/plan-system.js";
 import { createPlanMcpServer, type PlanMcpContext } from "../mcp/plan-server.js";
 import type { OutputManager } from "../web/output-manager.js";
 import { extractToolDetail } from "./tool-details.js";
+
+export interface PlanAgentInput {
+  /** Snapshot of drafts.md taken by the runner (already cleared from disk). */
+  drafts: string;
+  /** Snapshot of feedback.md taken by the runner (already cleared from disk). */
+  feedback: string;
+}
 
 export interface PlanAgentResult {
   done: boolean;
@@ -17,25 +20,28 @@ export interface PlanAgentResult {
 
 export async function runPlanAgent(
   config: WorkspaceConfig,
+  input: PlanAgentInput,
   output: OutputManager
 ): Promise<PlanAgentResult> {
-  const state = await readState(config);
-  const drafts = await readDrafts(config);
-  const feedback = await readFeedback(config);
+  const stateJson = await readStateText(config);
 
-  const systemPrompt = buildPlanSystemPrompt({ state, drafts, feedback });
+  const systemPrompt = buildPlanSystemPrompt({
+    stateJson,
+    drafts: input.drafts,
+    feedback: input.feedback,
+  });
   const mcpContext: PlanMcpContext = { done: false };
   const mcpServer = createPlanMcpServer(mcpContext);
 
   const initialPrompt = `Run a planning iteration.
 
-1. Review state.md, drafts.md, and feedback.md (provided in your system prompt and on disk).
-2. Explore the codebase if you need to ground your plan in reality.
-3. Edit .compass/state.md so Completed / Next / Follow-up reflect current truth.
-4. Clear .compass/drafts.md and .compass/feedback.md by overwriting them with empty content.
-5. If there is nothing left to do, call signal_done to exit the loop.
+1. Review state.json (provided in your system prompt; also at .compass/state.json on disk).
+2. Review the drafts and feedback snapshots in your system prompt.
+3. Explore the codebase if you need to ground the plan in reality.
+4. Overwrite .compass/state.json with updated Completed / Next / Follow-up.
+5. If next is null AND there were no drafts to integrate, call signal_done to drop into idle.
 
-Otherwise finish when state.md is in good shape — Develop will implement Next next.`;
+Otherwise finish when state.json is in good shape — Develop will implement next.`;
 
   const planOptions: Options = {
     systemPrompt,
