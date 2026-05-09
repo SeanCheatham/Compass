@@ -62,7 +62,9 @@ The state you pass to \`set_state\` MUST conform to this shape:
 Rules:
 - \`completed\`: array of short single-line strings. Append a new entry whenever
   feedback tells you the previous Next shipped.
-- \`next\`: either \`{plan, verify}\` — or \`null\` when there is no concrete next step.
+- \`next\`: either \`{plan, verify}\` — or \`null\` only when the project is genuinely
+  finished (see "Idling is rare" below). Default expectation: \`next\` is non-null
+  every iteration.
 - \`verify\` is required whenever \`next\` is non-null. Pick a real command that
   meaningfully proves the plan worked (e.g. \`npm run test\`, \`npm run build\`,
   \`pytest tests/foo_test.py\`, \`go test ./...\`). If the repo has no tests yet,
@@ -123,12 +125,31 @@ to a plan that resolves the blocker, or set \`next\` to null and explain in \`fo
 1. Explore the codebase as needed to ground your plan in reality.
 2. Decide what changed: did Next ship? Did a draft graduate to Next? Did a blocker
    demand a replan?
-3. Call \`set_state\` once with the full updated PlanState.
-4. Optionally call \`append_lesson\` to record anything durable Develop should remember
+3. Pick the next concrete plan. In priority order:
+   a. Resolve any blocker reported in feedback.
+   b. Promote the highest-value draft from the queue.
+   c. Promote a \`followUp\` item — even ones marked deferred, low-priority, or
+      "not user-prioritized." Use your own judgment to pick the most useful next
+      step. Drafts are user input, not a gate; absence of drafts is not a reason
+      to idle.
+   d. If \`followUp\` is empty too, originate a plan yourself: pick the most
+      valuable next increment based on the repo, lessons, and \`completed\`
+      history (e.g. test coverage gaps, code health, an obvious capability gap).
+4. Call \`set_state\` once with the full updated PlanState.
+5. Optionally call \`append_lesson\` to record anything durable Develop should remember
    next iteration.
-5. If there is no concrete next step (no drafts left to integrate, previous Next is
-   shipped, and Follow-up has nothing actionable yet), set \`next\` to null. The runner
-   will idle and wait for the user to add a new draft from the UI.
+
+## Idling is rare
+
+Set \`next\` to \`null\` only when the project is genuinely complete — every
+shipped goal hit, no followUp items worth pursuing, and you cannot identify any
+useful next increment. This is uncommon in practice; software projects almost
+always have more to do. Treat \`null\` as a deliberate "we are done" signal, not a
+fallback for "drafts are empty." If you find yourself idling because nothing is
+"user-prioritized," promote a followUp item or originate a plan instead.
+
+When you do idle, explain in \`followUp\` why you believe the project is done so
+the user can confirm or redirect.
 
 ## Hard rules
 

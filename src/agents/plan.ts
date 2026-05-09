@@ -60,9 +60,12 @@ export async function runPlanAgent(
 3. Optionally call \`append_lesson\` to record anything durable for future iterations.
 4. Call \`set_state\` exactly once with the full updated PlanState.
 
-If there is no concrete next step (drafts were empty or fully absorbed into Follow-up,
-and the previous Next is shipped), pass \`next: null\` to set_state. The runner will
-idle and wait for the user to add a draft.`;
+Default to producing a non-null \`next\` every iteration. If drafts are empty,
+promote the most useful \`followUp\` item — including ones marked deferred or
+not user-prioritized — or originate a plan yourself from the repo, lessons,
+and \`completed\` history. Pass \`next: null\` only when the project is genuinely
+complete (every goal hit, no useful followUp, no obvious next increment); see
+the "Idling is rare" section of your system prompt.`;
 
   let capturedState: PlanState | null = null;
   const mcpServer = createPlanMcpServer(config, {
