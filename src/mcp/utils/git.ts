@@ -183,3 +183,18 @@ export async function tryGetCurrentCommit(cwd: string): Promise<string | null> {
   if (!result.success) return null;
   return result.stdout || null;
 }
+
+/**
+ * List all tracked + untracked-but-not-ignored files, repo-relative paths.
+ * Honours .gitignore for free. Returns [] on failure.
+ */
+export async function listTrackedAndUntracked(cwd: string): Promise<string[]> {
+  const result = await runGit(cwd, [
+    "ls-files",
+    "--cached",
+    "--others",
+    "--exclude-standard",
+  ]);
+  if (!result.success || !result.stdout) return [];
+  return result.stdout.split("\n").filter((l) => l.length > 0);
+}

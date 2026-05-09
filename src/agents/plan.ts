@@ -4,6 +4,7 @@ import { readStateText } from "../mcp/utils/workspace.js";
 import { buildPlanSystemPrompt } from "./prompts/plan-system.js";
 import type { OutputManager } from "../web/output-manager.js";
 import { extractToolDetail } from "./tool-details.js";
+import { buildRepoMap } from "../repomap/index.js";
 
 export interface PlanAgentInput {
   /** Snapshot of drafts.md taken by the runner (already cleared from disk). */
@@ -30,10 +31,18 @@ export async function runPlanAgent(
 ): Promise<PlanAgentResult> {
   const stateJson = await readStateText(config);
 
+  let repoMap = "";
+  try {
+    repoMap = await buildRepoMap(config);
+  } catch (err) {
+    output.error(`Repo map build failed: ${err}`);
+  }
+
   const systemPrompt = buildPlanSystemPrompt({
     stateJson,
     drafts: input.drafts,
     feedback: input.feedback,
+    repoMap,
   });
 
   const initialPrompt = `Run a planning iteration.

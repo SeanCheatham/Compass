@@ -5,6 +5,8 @@ export interface PlanSystemPromptContext {
   drafts: string;
   /** Snapshot of feedback.md the runner consumed before invoking Plan. May be empty. */
   feedback: string;
+  /** Pre-rendered compact symbol map of the repo (top-level decls per file). */
+  repoMap: string;
 }
 
 export function buildPlanSystemPrompt(context: PlanSystemPromptContext): string {
@@ -46,6 +48,17 @@ Rules for state.json:
 - \`next\`: either an object with \`plan\` (markdown) and \`verify\` (shell command) — or \`null\` when there is no concrete next step.
 - \`verify\` is required whenever \`next\` is non-null. Pick a real command that meaningfully proves the plan worked. Examples: \`npm run test\`, \`npm run build\`, \`pytest tests/foo_test.py\`, \`go test ./...\`. If the repo has no tests yet, default to a build/typecheck (\`npm run build\`, \`tsc --noEmit\`, etc.). Never use \`true\`.
 - \`followUp\`: free-form markdown. Keep it short.
+
+## Repo map (auto-generated, top-level symbols only)
+
+The runner regenerates this each iteration from a mtime-keyed cache, so it tracks
+the current state of the codebase. Use it to find the right place to ground your
+plan — don't burn tokens re-discovering structure. Read the actual files when you
+need detail (method bodies, signatures, comments).
+
+\`\`\`
+${context.repoMap.trim() || "_(no source files indexed)_"}
+\`\`\`
 
 ## drafts (user input via the UI)
 
