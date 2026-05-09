@@ -44,7 +44,7 @@ Press Ctrl+C to stop. Run `compass status` at any time to print the current `sta
 **Plan** — read-only over the codebase, plus edit access to one file: `.compass/state.json`.
 - Reads `state.json` and snapshots of `drafts.md` / `feedback.md` provided by the runner.
 - Refines drafts, picks the next concrete plan, picks a `verify` command for it.
-- Calls `signal_done` when there's nothing left to do.
+- Sets `next` to `null` when there is no concrete next step. The runner idles and waits for drafts.
 
 **Develop** — full read/write over the codebase.
 - Implements `state.json`'s `next.plan`.
@@ -97,7 +97,7 @@ Everything lives in `.compass/` inside your repo (gitignored, per-repo):
 5. Runner runs verify + `git status --porcelain` post-checks. Re-prompts Develop on failure.
 6. Back to step 1.
 
-When `signal_done` fires, the loop drops back into idle. Adding a new draft from the UI wakes it up.
+There is no separate "done" signal. Idle is the universal exit case: empty drafts and `next == null` send the runner back to step 1. Same path the bootstrap (fresh repo) takes.
 
 ## UI
 

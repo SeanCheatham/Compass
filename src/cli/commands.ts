@@ -99,15 +99,6 @@ export async function runCompass(
       continue;
     }
 
-    if (planResult.done) {
-      sessions.end("skipped");
-      sessions.addNote(planResult.doneReason ?? "signal_done");
-      output.info(
-        `\nPlan signaled done${planResult.doneReason ? `: ${planResult.doneReason}` : ""}.`
-      );
-      continue;
-    }
-
     // Read state strictly — if Plan corrupted state.json, halt instead of
     // silently advancing with empty state.
     let state;

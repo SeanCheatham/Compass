@@ -100,16 +100,15 @@ program
     process.on("SIGINT", shutdown);
     process.on("SIGTERM", shutdown);
 
-    try {
-      await runCompass(cwd, {
-        output,
-        controller,
-        sessions,
-        signal: abortController.signal,
-      });
-    } finally {
-      output.info("Loop ended. Service still running. Press Ctrl+C to exit.");
-    }
+    // runCompass only returns when abortController fires, which is the same
+    // signal the SIGINT/SIGTERM handlers raise. The loop itself never "exits"
+    // on its own — when there's nothing to do it idles and waits for drafts.
+    await runCompass(cwd, {
+      output,
+      controller,
+      sessions,
+      signal: abortController.signal,
+    });
   });
 
 program

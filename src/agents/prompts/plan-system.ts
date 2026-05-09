@@ -78,8 +78,10 @@ plan that resolves the blocker, or set \`next\` to null and explain in \`followU
 1. Explore the codebase as needed to ground your plan in reality.
 2. Read \`.compass/state.json\` (the current contents are also shown above).
 3. Write \`.compass/state.json\` with updated \`completed\`, \`next\`, and \`followUp\`.
-4. If \`next\` is null AND there are no drafts to integrate, call \`signal_done\` to drop
-   the loop into idle. New drafts will wake it up.
+4. If there is no concrete next step (no drafts left to integrate, previous Next is
+   shipped, and Follow-up has nothing actionable yet), set \`next\` to null. The runner
+   will idle and wait for the user to add a new draft from the UI — there is nothing
+   else for you to signal.
 
 ## Hard rules
 

@@ -2,7 +2,6 @@ import { query, type Options } from "@anthropic-ai/claude-agent-sdk";
 import type { WorkspaceConfig } from "../state/types.js";
 import { readStateText } from "../mcp/utils/workspace.js";
 import { buildPlanSystemPrompt } from "./prompts/plan-system.js";
-import { createPlanMcpServer, type PlanMcpContext } from "../mcp/plan-server.js";
 import type { OutputManager } from "../web/output-manager.js";
 import { extractToolDetail } from "./tool-details.js";
 
@@ -14,8 +13,6 @@ export interface PlanAgentInput {
 }
 
 export interface PlanAgentResult {
-  done: boolean;
-  doneReason?: string;
   /** True if the run was aborted via the signal (cancel button or shutdown). */
   cancelled: boolean;
 }
@@ -38,8 +35,6 @@ export async function runPlanAgent(
     drafts: input.drafts,
     feedback: input.feedback,
   });
-  const mcpContext: PlanMcpContext = { done: false };
-  const mcpServer = createPlanMcpServer(mcpContext);
 
   const initialPrompt = `Run a planning iteration.
 
@@ -47,7 +42,10 @@ export async function runPlanAgent(
 2. Review the drafts and feedback snapshots in your system prompt.
 3. Explore the codebase if you need to ground the plan in reality.
 4. Overwrite .compass/state.json with updated Completed / Next / Follow-up.
-5. If next is null AND there were no drafts to integrate, call signal_done to drop into idle.
+
+If there is no concrete next step (drafts were empty or fully absorbed into Follow-up,
+and the previous Next is shipped), set \`next\` to null. The runner will idle and wait
+for the user to add a draft.
 
 Otherwise finish when state.json is in good shape — Develop will implement next.`;
 
@@ -64,9 +62,6 @@ Otherwise finish when state.json is in good shape — Develop will implement nex
     permissionMode: "bypassPermissions",
     settingSources: ["user", "project", "local"],
     abortController,
-    mcpServers: {
-      compass: mcpServer,
-    },
     allowedTools: [
       "Read",
       "Write",
@@ -80,7 +75,6 @@ Otherwise finish when state.json is in good shape — Develop will implement nex
       "WebFetch",
       "WebSearch",
       "NotebookRead",
-      "mcp__compass__signal_done",
     ],
   };
 
@@ -106,7 +100,7 @@ Otherwise finish when state.json is in good shape — Develop will implement nex
       }
     }
 
-    output.agentComplete("Plan", mcpContext.done ? "Done" : undefined);
+    output.agentComplete("Plan");
   } catch (error) {
     if (opts.signal.aborted) {
       cancelled = true;
@@ -117,9 +111,5 @@ Otherwise finish when state.json is in good shape — Develop will implement nex
     }
   }
 
-  return {
-    done: mcpContext.done,
-    doneReason: mcpContext.doneReason,
-    cancelled,
-  };
+  return { cancelled };
 }
