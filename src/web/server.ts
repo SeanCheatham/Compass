@@ -15,11 +15,12 @@ import type { WorkspaceConfig } from "../state/types.js";
 import {
   tryReadPlanState,
   readDrafts,
-  readFeedback,
+  readLessons,
   appendDraft,
 } from "../mcp/utils/workspace.js";
 import type { LoopController } from "../state/control.js";
 import type { SessionTracker } from "../state/sessions.js";
+import type { FeedbackBus } from "../state/feedback.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -35,6 +36,7 @@ interface ServerContext {
   outputManager: OutputManager;
   controller: LoopController;
   sessions: SessionTracker;
+  feedback: FeedbackBus;
   token: string;
 }
 
@@ -143,13 +145,20 @@ async function handleApiRequest(
       res.statusCode = 201;
       res.end(JSON.stringify({ content: await readDrafts(ctx.config) }));
     } else if (path === "/api/feedback" && method === "GET") {
-      res.end(JSON.stringify({ content: await readFeedback(ctx.config) }));
+      res.end(JSON.stringify({ content: ctx.feedback.current() }));
+    } else if (path === "/api/lessons" && method === "GET") {
+      res.end(JSON.stringify({ content: await readLessons(ctx.config) }));
     } else if (path === "/api/status" && method === "GET") {
       res.end(JSON.stringify(ctx.controller.status()));
     } else if (path === "/api/sessions" && method === "GET") {
       res.end(JSON.stringify({ sessions: ctx.sessions.all() }));
     } else if (path === "/api/control/pause" && method === "POST") {
-      ctx.controller.pause();
+      const body = await parseJsonBody(req).catch(
+        () => ({}) as Record<string, unknown>
+      );
+      const mode =
+        body.mode === "after_iteration" ? "after_iteration" : "immediate";
+      ctx.controller.pause(mode);
       res.end(JSON.stringify(ctx.controller.status()));
     } else if (path === "/api/control/resume" && method === "POST") {
       ctx.controller.resume();
@@ -202,6 +211,7 @@ export interface StartWebServerOptions {
   output: OutputManager;
   controller: LoopController;
   sessions: SessionTracker;
+  feedback: FeedbackBus;
 }
 
 export async function startWebServer(
@@ -214,6 +224,7 @@ export async function startWebServer(
     outputManager: opts.output,
     controller: opts.controller,
     sessions: opts.sessions,
+    feedback: opts.feedback,
     token,
   };
 
@@ -294,6 +305,11 @@ export async function startWebServer(
     broadcast({ kind: "sessions", sessions: opts.sessions.all() });
   });
 
+  // Forward feedback bus changes (Develop's `complete()` payload).
+  const unsubscribeFeedback = opts.feedback.onChange((content) => {
+    broadcast({ kind: "feedback", content });
+  });
+
   // Watch the workspace dir for file changes (drafts, state, feedback).
   // Push targeted updates so the UI doesn't need to poll.
   let pushDebounce: NodeJS.Timeout | null = null;
@@ -330,6 +346,7 @@ export async function startWebServer(
           unsubscribeOutput();
           unsubscribeController();
           unsubscribeSessions();
+          unsubscribeFeedback();
           if (pushDebounce) clearTimeout(pushDebounce);
           fileWatcher?.close();
 
@@ -343,15 +360,16 @@ export async function startWebServer(
 }
 
 async function sendSnapshot(ctx: ServerContext, ws: WebSocket): Promise<void> {
-  const [state, drafts, feedback] = await Promise.all([
+  const [state, drafts, lessons] = await Promise.all([
     tryReadPlanState(ctx.config),
     readDrafts(ctx.config),
-    readFeedback(ctx.config),
+    readLessons(ctx.config),
   ]);
   const payload = [
     { kind: "state", state },
     { kind: "drafts", content: drafts },
-    { kind: "feedback", content: feedback },
+    { kind: "feedback", content: ctx.feedback.current() },
+    { kind: "lessons", content: lessons },
     { kind: "status", status: ctx.controller.status() },
     { kind: "sessions", sessions: ctx.sessions.all() },
   ];
@@ -371,7 +389,7 @@ async function flushFileChanges(
   if (changed.has("drafts.md")) {
     broadcast({ kind: "drafts", content: await readDrafts(ctx.config) });
   }
-  if (changed.has("feedback.md")) {
-    broadcast({ kind: "feedback", content: await readFeedback(ctx.config) });
+  if (changed.has("lessons.md")) {
+    broadcast({ kind: "lessons", content: await readLessons(ctx.config) });
   }
 }

@@ -4,24 +4,25 @@ import { runPlanAgent } from "../agents/plan.js";
 import { runDevAgent } from "../agents/dev.js";
 import {
   readDrafts,
-  readPlanState,
+  readLessons,
   tryReadPlanState,
   backupStateFile,
+  writePlanState,
   getWorkspaceConfig,
   snapshotAndClearDrafts,
-  snapshotAndClearFeedback,
-  StateParseError,
 } from "../mcp/utils/workspace.js";
 import type { WorkspaceConfig } from "../state/types.js";
 import type { OutputManager } from "../web/output-manager.js";
 import type { LoopController } from "../state/control.js";
 import type { SessionTracker } from "../state/sessions.js";
+import type { FeedbackBus } from "../state/feedback.js";
 import { commitsBetween, tryGetCurrentCommit } from "../mcp/utils/git.js";
 
 export interface RunOptions {
   output: OutputManager;
   controller: LoopController;
   sessions: SessionTracker;
+  feedback: FeedbackBus;
   /** Abort signal to stop the loop on shutdown. */
   signal: AbortSignal;
 }
@@ -30,7 +31,7 @@ export async function runCompass(
   cwd: string,
   options: RunOptions
 ): Promise<void> {
-  const { output, controller, sessions, signal } = options;
+  const { output, controller, sessions, feedback, signal } = options;
 
   output.info("Compass — Plan + Develop loop\n");
 
@@ -74,11 +75,14 @@ export async function runCompass(
     controller.setPhase("planning");
     output.phase("Plan");
 
-    // Race-free handoff: rotate drafts/feedback into snapshots before Plan starts.
+    // Race-free handoff for drafts. Feedback is in-memory (FeedbackBus); we
+    // capture and clear it now so a Develop run that overlaps doesn't leak
+    // into the next iteration.
     const drafts = await snapshotAndClearDrafts(config);
-    const feedback = await snapshotAndClearFeedback(config);
+    const carriedFeedback = feedback.current();
+    feedback.clear();
 
-    // Backup state.json before Plan touches it.
+    // Backup state.json before we overwrite it with whatever Plan returns.
     try {
       await backupStateFile(config);
     } catch (err) {
@@ -88,7 +92,7 @@ export async function runCompass(
     const planSignal = controller.iterationSignal(signal);
     const planResult = await runPlanAgent(
       config,
-      { drafts, feedback },
+      { drafts, feedback: carriedFeedback },
       output,
       { signal: planSignal }
     );
@@ -99,31 +103,21 @@ export async function runCompass(
       continue;
     }
 
-    // Read state strictly — if Plan corrupted state.json, halt instead of
-    // silently advancing with empty state.
     let state;
-    try {
-      state = await readPlanState(config);
-    } catch (err) {
-      if (err instanceof StateParseError) {
-        sessions.addNote(`state.json corrupted by Plan: ${err.message}`);
-        sessions.end("failed");
-        output.error(
-          `state.json is unparseable after Plan ran. Backup at ${config.stateBackupPath}. Loop pausing.`
-        );
-        output.error(err.message);
-        controller.pause();
-        const resumed = await controller.waitWhilePaused(signal);
-        if (!resumed) break;
-        continue;
-      }
-      throw err;
+    if (planResult.state) {
+      await writePlanState(config, planResult.state);
+      state = planResult.state;
+    } else {
+      output.info(
+        "Plan finished without calling set_state; carrying forward existing state."
+      );
+      state = await tryReadPlanState(config);
     }
 
     if (!state.next) {
       sessions.end("skipped");
       output.info(
-        "\nPlan finished but state.json has no next. Idling until drafts arrive."
+        "\nPlan finished but state has no next. Idling until drafts arrive."
       );
       continue;
     }
@@ -144,13 +138,18 @@ export async function runCompass(
     }
 
     // Honour a pause that landed during Plan or while awaiting approval.
-    if (controller.status().paused) {
-      controller.setPhase("paused");
-      const resumed = await controller.waitWhilePaused(signal);
-      if (!resumed) {
-        sessions.end("cancelled");
-        if (signal.aborted) break;
-        continue;
+    // "after_iteration" mode skips this gate so Develop runs and the loop only
+    // pauses once the iteration completes.
+    {
+      const status = controller.status();
+      if (status.paused && status.pauseMode === "immediate") {
+        controller.setPhase("paused");
+        const resumed = await controller.waitWhilePaused(signal);
+        if (!resumed) {
+          sessions.end("cancelled");
+          if (signal.aborted) break;
+          continue;
+        }
       }
     }
 
@@ -165,6 +164,10 @@ export async function runCompass(
     const devResult = await runDevAgent(config, state.next, output, {
       signal: devSignal,
     });
+
+    if (devResult.feedback) {
+      feedback.set(devResult.feedback);
+    }
 
     // Record commits regardless of outcome (lets the user see partials too).
     const afterSha = await tryGetCurrentCommit(config.implRepoPath);
@@ -264,6 +267,7 @@ export async function showStatus(cwd: string): Promise<void> {
   const config = getWorkspaceConfig(cwd);
   const state = await tryReadPlanState(config);
   const drafts = await readDrafts(config);
+  const lessons = await readLessons(config);
 
   console.log("Compass status\n");
   console.log(`Workspace: ${config.workspacePath}\n`);
@@ -291,4 +295,8 @@ export async function showStatus(cwd: string): Promise<void> {
 
   console.log("--- Drafts ---");
   console.log(drafts.trim() || "(empty)");
+  console.log();
+
+  console.log("--- Lessons ---");
+  console.log(lessons.trim() || "(empty)");
 }

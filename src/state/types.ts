@@ -4,7 +4,7 @@ export interface WorkspaceConfig {
   statePath: string;
   stateBackupPath: string;
   draftsPath: string;
-  feedbackPath: string;
+  lessonsPath: string;
   sessionsPath: string;
 }
 
@@ -19,7 +19,8 @@ export interface PlanNext {
 
 /**
  * Structured contents of `.compass/state.json`.
- * Plan owns this file. The runner reads/writes it; agents Read/Write/Edit it as JSON.
+ * Plan owns this file via the `set_state` MCP tool. The runner persists it to disk
+ * after each Plan run.
  */
 export interface PlanState {
   completed: string[];

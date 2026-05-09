@@ -13,7 +13,22 @@
       <div id="loop-controls" class="loop-controls">
         <span id="phase-pill" class="phase-pill">idle</span>
         <button id="approve-btn" class="ctrl ctrl-primary" hidden>Approve Next</button>
-        <button id="pause-btn" class="ctrl">Pause</button>
+        <div id="pause-menu" class="ctrl-menu">
+          <button id="pause-btn" class="ctrl ctrl-menu-trigger" type="button" aria-haspopup="true" aria-expanded="false">
+            <span>Pause</span>
+            <span class="ctrl-menu-caret" aria-hidden="true">▾</span>
+          </button>
+          <div id="pause-menu-list" class="ctrl-menu-list" role="menu" hidden>
+            <button class="ctrl-menu-item" type="button" role="menuitem" data-pause-mode="immediate">
+              <span class="ctrl-menu-item-label">Pause Now</span>
+              <span class="ctrl-menu-item-hint">Pauses at the next gate, possibly between Plan and Develop</span>
+            </button>
+            <button class="ctrl-menu-item" type="button" role="menuitem" data-pause-mode="after_iteration">
+              <span class="ctrl-menu-item-label">Pause After Iteration</span>
+              <span class="ctrl-menu-item-hint">Lets the current Plan and Develop finish, then pauses</span>
+            </button>
+          </div>
+        </div>
         <button id="resume-btn" class="ctrl" hidden>Resume</button>
         <button id="cancel-btn" class="ctrl ctrl-danger" hidden>Cancel iteration</button>
         <label class="toggle">
@@ -34,6 +49,7 @@
     <button class="tab" data-tab="sessions">Sessions <span id="sessions-badge" class="badge"></span></button>
     <button class="tab" data-tab="drafts">Drafts <span id="drafts-badge" class="badge"></span></button>
     <button class="tab" data-tab="feedback">Feedback</button>
+    <button class="tab" data-tab="lessons">Lessons</button>
   </nav>
 
   <main>
@@ -72,10 +88,18 @@
 
     <section id="feedback-panel" class="panel">
       <p class="form-hint">
-        Notes the Develop agent left for the Plan agent at the end of the last iteration.
-        Cleared once Plan reads them.
+        The most recent feedback Develop passed to <code>complete()</code>. Cleared
+        once Plan picks it up next iteration.
       </p>
       <div id="feedback-content"></div>
+    </section>
+
+    <section id="lessons-panel" class="panel">
+      <p class="form-hint">
+        Long-term memory, shared across iterations. Both Plan and Develop can write
+        to this via <code>append_lesson</code> and <code>set_lessons</code>.
+      </p>
+      <div id="lessons-content"></div>
     </section>
   </main>
 

@@ -5,6 +5,8 @@ import type { PlanNext, WorkspaceConfig } from "../state/types.js";
 import { buildDevSystemPrompt } from "./prompts/dev-system.js";
 import type { OutputManager } from "../web/output-manager.js";
 import { extractToolDetail } from "./tool-details.js";
+import { readLessons } from "../mcp/utils/workspace.js";
+import { createDevMcpServer } from "../mcp/server.js";
 
 const execAsync = promisify(exec);
 
@@ -36,6 +38,11 @@ export interface DevAgentResult {
   cancelled: boolean;
   /** Last set of post-check issues, if any (empty when succeeded). */
   issues: string[];
+  /**
+   * Feedback string from the last `complete()` call, threaded into the next
+   * Plan run. Empty if Develop never called complete.
+   */
+  feedback: string;
 }
 
 export async function runDevAgent(
@@ -44,13 +51,20 @@ export async function runDevAgent(
   output: OutputManager,
   opts: DevAgentOptions
 ): Promise<DevAgentResult> {
-  const systemPrompt = buildDevSystemPrompt({ next });
+  const lessons = await readLessons(config);
+  const systemPrompt = buildDevSystemPrompt({ next, lessons });
 
   let priorIssues: string[] = [];
+  let lastFeedback = "";
 
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
     if (opts.signal.aborted) {
-      return { succeeded: false, cancelled: true, issues: priorIssues };
+      return {
+        succeeded: false,
+        cancelled: true,
+        issues: priorIssues,
+        feedback: lastFeedback,
+      };
     }
 
     const initialPrompt = buildDevPrompt(attempt, priorIssues);
@@ -64,12 +78,30 @@ export async function runDevAgent(
       opts.signal
     );
     if (queryResult.cancelled) {
-      return { succeeded: false, cancelled: true, issues: priorIssues };
+      return {
+        succeeded: false,
+        cancelled: true,
+        issues: priorIssues,
+        feedback: lastFeedback,
+      };
+    }
+    if (queryResult.feedback !== null) {
+      lastFeedback = queryResult.feedback;
     }
 
-    const post = await runPostChecks(config, next.verify, output);
+    const post = await runPostChecks(
+      config,
+      next.verify,
+      output,
+      queryResult.feedback !== null
+    );
     if (post.ok) {
-      return { succeeded: true, cancelled: false, issues: [] };
+      return {
+        succeeded: true,
+        cancelled: false,
+        issues: [],
+        feedback: lastFeedback,
+      };
     }
 
     priorIssues = post.issues;
@@ -78,7 +110,12 @@ export async function runDevAgent(
       output.error(
         `Develop post-checks still failing after ${MAX_ATTEMPTS} attempts. Moving on; Plan will see the feedback next iteration.`
       );
-      return { succeeded: false, cancelled: false, issues: priorIssues };
+      return {
+        succeeded: false,
+        cancelled: false,
+        issues: priorIssues,
+        feedback: lastFeedback,
+      };
     }
 
     output.info(
@@ -86,7 +123,12 @@ export async function runDevAgent(
     );
   }
 
-  return { succeeded: false, cancelled: false, issues: priorIssues };
+  return {
+    succeeded: false,
+    cancelled: false,
+    issues: priorIssues,
+    feedback: lastFeedback,
+  };
 }
 
 function buildDevPrompt(attempt: number, priorIssues: string[]): string {
@@ -94,18 +136,18 @@ function buildDevPrompt(attempt: number, priorIssues: string[]): string {
     return `Implement the plan in your system prompt.
 
 When you're done — implementation working, verify command passing, changes committed —
-overwrite \`.compass/feedback.md\` with notes for the Plan agent and finish.
+call the \`complete\` MCP tool with feedback for the next Plan run, and finish.
 
-If the plan can't be implemented as written, make no changes, write the reason to
-\`.compass/feedback.md\`, and finish. Plan will read it and replan next iteration.`;
+If the plan can't be implemented as written, make no changes, call \`complete\` with
+the reason in feedback, and finish. Plan will read it and replan next iteration.`;
   }
 
   return `Your previous attempt left these post-check failures unresolved:
 
 ${priorIssues.map((i, idx) => `${idx + 1}. ${i}`).join("\n\n")}
 
-Fix them now and finish. Do not signal completion until both the verify command exits 0
-and \`git status --porcelain\` is empty.`;
+Fix them now and finish with a \`complete\` call. Do not stop until the verify command
+exits 0, \`git status --porcelain\` is empty, and you have called \`complete\`.`;
 }
 
 async function runDevQuery(
@@ -116,10 +158,18 @@ async function runDevQuery(
   output: OutputManager,
   attempt: number,
   signal: AbortSignal
-): Promise<{ cancelled: boolean }> {
+): Promise<{ cancelled: boolean; feedback: string | null }> {
   const abortController = new AbortController();
   if (signal.aborted) abortController.abort();
   else signal.addEventListener("abort", () => abortController.abort(), { once: true });
+
+  let capturedFeedback: string | null = null;
+  const mcpServer = createDevMcpServer(config, {
+    onComplete: (feedback) => {
+      // First call wins; subsequent calls in the same attempt are ignored.
+      if (capturedFeedback === null) capturedFeedback = feedback;
+    },
+  });
 
   const devOptions: Options = {
     systemPrompt,
@@ -127,6 +177,7 @@ async function runDevQuery(
     permissionMode: "bypassPermissions",
     settingSources: ["user", "project", "local"],
     abortController,
+    mcpServers: { compass: mcpServer },
     allowedTools: [
       "Read",
       "Write",
@@ -142,6 +193,10 @@ async function runDevQuery(
       "WebSearch",
       "NotebookEdit",
       "NotebookRead",
+      "mcp__compass__complete",
+      "mcp__compass__read_lessons",
+      "mcp__compass__set_lessons",
+      "mcp__compass__append_lesson",
     ],
   };
 
@@ -171,11 +226,11 @@ async function runDevQuery(
     }
 
     output.agentComplete("Develop");
-    return { cancelled: false };
+    return { cancelled: false, feedback: capturedFeedback };
   } catch (error) {
     if (signal.aborted) {
       output.info("Develop cancelled.");
-      return { cancelled: true };
+      return { cancelled: true, feedback: capturedFeedback };
     }
     output.error(`Develop agent error: ${error}`);
     throw error;
@@ -185,9 +240,17 @@ async function runDevQuery(
 async function runPostChecks(
   config: WorkspaceConfig,
   verifyCommand: string,
-  output: OutputManager
+  output: OutputManager,
+  completeWasCalled: boolean
 ): Promise<PostCheckResult> {
   const issues: string[] = [];
+
+  if (!completeWasCalled) {
+    issues.push(
+      "Develop ended without calling the `complete` MCP tool. Every iteration must finish by calling `complete({ feedback: \"...\" })` so the next Plan run gets context."
+    );
+    output.error("Develop did not call `complete`.");
+  }
 
   output.info(`Post-check: running verify command \`${verifyCommand}\`...`);
   const verify = await runCommand(verifyCommand, config.implRepoPath, getVerifyTimeoutMs());

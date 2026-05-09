@@ -18,9 +18,12 @@ interface PlanState {
   followUp: string;
 }
 
+type PauseMode = "immediate" | "after_iteration";
+
 interface LoopStatus {
   phase: "idle" | "planning" | "awaiting_approval" | "developing" | "paused";
   paused: boolean;
+  pauseMode: PauseMode;
   approveRequired: boolean;
   session: number;
   pendingApproval: { plan: string; verify: string } | null;
@@ -50,6 +53,7 @@ type WsMessage =
   | { kind: "state"; state: PlanState }
   | { kind: "drafts"; content: string }
   | { kind: "feedback"; content: string }
+  | { kind: "lessons"; content: string }
   | { kind: "status"; status: LoopStatus }
   | { kind: "sessions"; sessions: SessionRecord[] };
 
@@ -122,9 +126,7 @@ class CompassApp {
   }
 
   private setupControls(): void {
-    document.getElementById("pause-btn")?.addEventListener("click", () => {
-      void this.postControl("pause");
-    });
+    this.setupPauseMenu();
     document.getElementById("resume-btn")?.addEventListener("click", () => {
       void this.postControl("resume");
     });
@@ -155,6 +157,54 @@ class CompassApp {
     } catch (err) {
       console.error("control failed:", err);
     }
+  }
+
+  private async postPause(mode: PauseMode): Promise<void> {
+    try {
+      await fetch(`/api/control/pause`, {
+        method: "POST",
+        headers: this.apiHeaders({ "Content-Type": "application/json" }),
+        body: JSON.stringify({ mode }),
+      });
+    } catch (err) {
+      console.error("pause failed:", err);
+    }
+  }
+
+  private setupPauseMenu(): void {
+    const trigger = document.getElementById("pause-btn") as HTMLButtonElement | null;
+    const list = document.getElementById("pause-menu-list") as HTMLDivElement | null;
+    if (!trigger || !list) return;
+
+    const setOpen = (open: boolean): void => {
+      list.hidden = !open;
+      trigger.setAttribute("aria-expanded", open ? "true" : "false");
+    };
+
+    trigger.addEventListener("click", (e) => {
+      e.stopPropagation();
+      setOpen(list.hidden);
+    });
+
+    list.querySelectorAll<HTMLButtonElement>(".ctrl-menu-item").forEach((item) => {
+      item.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const mode = (item.dataset.pauseMode as PauseMode | undefined) ?? "immediate";
+        setOpen(false);
+        void this.postPause(mode);
+      });
+    });
+
+    document.addEventListener("click", (e) => {
+      if (list.hidden) return;
+      const target = e.target as Node | null;
+      if (target && (trigger.contains(target) || list.contains(target))) return;
+      setOpen(false);
+    });
+
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape" && !list.hidden) setOpen(false);
+    });
   }
 
   private async postApproveRequired(value: boolean): Promise<void> {
@@ -392,10 +442,23 @@ class CompassApp {
     this.status = status;
 
     const phasePill = document.getElementById("phase-pill")!;
-    phasePill.textContent = status.paused ? "paused" : status.phase;
-    phasePill.className = `phase-pill phase-${status.paused ? "paused" : status.phase}`;
+    const pausePending =
+      status.paused &&
+      status.phase !== "paused" &&
+      status.phase !== "idle";
+    if (pausePending) {
+      const label =
+        status.pauseMode === "after_iteration"
+          ? "pausing after iteration"
+          : "pausing";
+      phasePill.textContent = label;
+      phasePill.className = `phase-pill phase-paused`;
+    } else {
+      phasePill.textContent = status.paused ? "paused" : status.phase;
+      phasePill.className = `phase-pill phase-${status.paused ? "paused" : status.phase}`;
+    }
 
-    const pauseBtn = document.getElementById("pause-btn") as HTMLButtonElement;
+    const pauseMenu = document.getElementById("pause-menu") as HTMLDivElement;
     const resumeBtn = document.getElementById("resume-btn") as HTMLButtonElement;
     const cancelBtn = document.getElementById("cancel-btn") as HTMLButtonElement;
     const approveBtn = document.getElementById("approve-btn") as HTMLButtonElement;
@@ -403,7 +466,7 @@ class CompassApp {
       "approve-required-toggle"
     ) as HTMLInputElement;
 
-    pauseBtn.hidden = status.paused;
+    pauseMenu.hidden = status.paused;
     resumeBtn.hidden = !status.paused;
     cancelBtn.hidden =
       status.phase !== "planning" &&
@@ -523,6 +586,13 @@ class CompassApp {
           "feedback-content",
           msg.content,
           "No pending feedback."
+        );
+        break;
+      case "lessons":
+        this.renderMarkdownInto(
+          "lessons-content",
+          msg.content,
+          "No lessons recorded yet."
         );
         break;
       case "status":

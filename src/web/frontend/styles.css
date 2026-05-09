@@ -118,6 +118,84 @@ header {
   color: white;
 }
 
+/* Dropdown control (Pause menu) */
+.ctrl-menu {
+  position: relative;
+  display: inline-block;
+}
+
+.ctrl-menu[hidden] {
+  display: none;
+}
+
+.ctrl-menu-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.ctrl-menu-caret {
+  font-size: 0.65rem;
+  line-height: 1;
+  color: var(--text-muted);
+}
+
+.ctrl-menu-trigger:hover .ctrl-menu-caret {
+  color: var(--text-primary);
+}
+
+.ctrl-menu-list {
+  position: absolute;
+  top: calc(100% + 0.25rem);
+  right: 0;
+  min-width: 16rem;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  padding: 0.25rem;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.ctrl-menu-list[hidden] {
+  display: none;
+}
+
+.ctrl-menu-item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.15rem;
+  background: none;
+  border: none;
+  border-radius: 4px;
+  padding: 0.45rem 0.6rem;
+  text-align: left;
+  cursor: pointer;
+  color: var(--text-primary);
+  font: inherit;
+}
+
+.ctrl-menu-item:hover,
+.ctrl-menu-item:focus-visible {
+  background: var(--bg-panel);
+  outline: none;
+}
+
+.ctrl-menu-item-label {
+  font-size: 0.82rem;
+  font-weight: 500;
+}
+
+.ctrl-menu-item-hint {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  line-height: 1.35;
+}
+
 .toggle {
   display: inline-flex;
   align-items: center;

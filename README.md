@@ -41,23 +41,36 @@ Press Ctrl+C to stop. Run `compass status` at any time to print the current `sta
 
 ### Two agents
 
-**Plan** — read-only over the codebase, plus edit access to one file: `.compass/state.json`.
-- Reads `state.json` and snapshots of `drafts.md` / `feedback.md` provided by the runner.
-- Refines drafts, picks the next concrete plan, picks a `verify` command for it.
+**Plan** — read-only over the codebase. Mutates state via MCP tool calls only.
+- Reads the current state, drafts, last feedback, and lessons (all injected into its system prompt).
+- Calls `set_state(...)` exactly once with the new `completed` / `next` / `followUp`.
+- Optionally calls `append_lesson(text)` or `set_lessons(text)` to record durable guidance.
 - Sets `next` to `null` when there is no concrete next step. The runner idles and waits for drafts.
 
-**Develop** — full read/write over the codebase.
-- Implements `state.json`'s `next.plan`.
+**Develop** — full read/write over the codebase, plus shell.
+- Implements the current `next.plan`.
 - Iterates until `next.verify` exits 0.
-- Commits changes (creates new commits with `git add` + `git commit`).
-- Writes notes for the next Plan run into `feedback.md`.
+- Commits changes (`git add` + `git commit`).
+- Calls `complete({ feedback })` to signal end-of-iteration. The feedback string is threaded into the next Plan run.
 
-After Develop finishes, the runner enforces two post-checks:
-1. The `verify` command from `next` must exit 0.
-2. `git status --porcelain` must be empty (everything committed or gitignored).
+After Develop's `complete` call, the runner enforces three post-checks:
+1. `complete` was actually called (skipping it is treated as a failed iteration).
+2. The `verify` command from `next` must exit 0.
+3. `git status --porcelain` must be empty (everything committed or gitignored).
 
-If either fails, the runner re-prompts Develop with the failure (up to 3 attempts) before
-yielding to Plan.
+If any fail, the runner re-prompts Develop with the failure (up to 3 attempts) before yielding to Plan.
+
+### MCP tools
+
+Compass exposes a small in-process MCP server to the agents.
+
+| Tool             | Plan | Develop | Purpose                                                                      |
+|------------------|------|---------|------------------------------------------------------------------------------|
+| `set_state`      | ✓    |         | Replace the full PlanState. Runner persists to `state.json` after Plan ends. |
+| `complete`       |      | ✓       | Signal iteration done; ship `feedback` to the next Plan run.                 |
+| `read_lessons`   | ✓    | ✓       | Read `lessons.md` (already injected into system prompts; rare).              |
+| `set_lessons`    | ✓    | ✓       | Replace `lessons.md` (use for compaction).                                   |
+| `append_lesson`  | ✓    | ✓       | Append a single bullet to `lessons.md`. Preferred for the common case.       |
 
 ### State
 
@@ -65,10 +78,12 @@ Everything lives in `.compass/` inside your repo (gitignored, per-repo):
 
 ```
 {repo}/.compass/
-├── state.json    # Plan owns. Structured single source of truth.
+├── state.json    # Plan owns. Mutated only via the set_state MCP tool.
 ├── drafts.md     # User owns (via UI). Runner snapshots+clears before Plan runs.
-└── feedback.md   # Develop owns. Runner snapshots+clears before Plan runs.
+└── lessons.md    # Plan + Develop. Long-term memory; persists across iterations.
 ```
+
+There is no `feedback.md` — feedback now flows in-memory through the runner, captured from Develop's `complete` call and threaded into the next Plan's system prompt.
 
 `state.json` schema:
 
@@ -87,15 +102,13 @@ Everything lives in `.compass/` inside your repo (gitignored, per-repo):
 
 ### Loop
 
-1. If `drafts.md` is empty and `state.json`'s `next` is null, **idle** until a draft arrives
-   (the runner watches `.compass/` for changes).
-2. The runner snapshots `drafts.md` and `feedback.md` (atomic `rename`, race-free with new
-   user input).
-3. **Plan** runs against the snapshots; updates `state.json`. May call `signal_done`.
-4. **Develop** runs against `next.plan`: implements, runs `next.verify`, commits, writes
-   `feedback.md`.
-5. Runner runs verify + `git status --porcelain` post-checks. Re-prompts Develop on failure.
-6. Back to step 1.
+1. If `drafts.md` is empty and `state.json`'s `next` is null, **idle** until a draft arrives (the runner watches `.compass/` for changes).
+2. The runner snapshots `drafts.md` (atomic `rename`, race-free with new user input) and clears the in-memory feedback bus, holding the previous Develop's feedback to thread into Plan's system prompt.
+3. **Plan** runs: reviews drafts/feedback/lessons, calls `set_state` (and optionally `append_lesson`).
+4. The runner persists the new state to `state.json`.
+5. **Develop** runs against `next.plan`: implements, runs `next.verify`, commits, calls `complete({ feedback })`.
+6. Runner runs the three post-checks (complete called, verify, clean tree). Re-prompts Develop on failure.
+7. Back to step 1.
 
 There is no separate "done" signal. Idle is the universal exit case: empty drafts and `next == null` send the runner back to step 1. Same path the bootstrap (fresh repo) takes.
 
@@ -103,13 +116,15 @@ There is no separate "done" signal. Idle is the universal exit case: empty draft
 
 - **Activity** — live stream of agent output and tool calls.
 - **State** — Completed list, current `Next` (with verify command), and `Follow-up`.
+- **Sessions** — per-iteration record: plan, verify, commits, status.
 - **Drafts** — submit a draft plan; see what's pending.
-- **Feedback** — what Develop wrote at the end of the last iteration.
+- **Feedback** — the most recent feedback Develop passed to `complete()`. Cleared once Plan picks it up next iteration.
+- **Lessons** — long-term memory shared across iterations; written by either agent.
 
 ## Technology
 
 - **Runtime**: Claude Agent SDK (TypeScript)
-- **Tools**: MCP for the single `signal_done` tool exposed to Plan
+- **Tools**: in-process MCP server exposing `set_state` (Plan), `complete` (Develop), and `read_lessons` / `set_lessons` / `append_lesson` (both)
 - **VCS**: Git (Develop creates commits via standard git CLI)
 - **UI**: Plain HTML + WebSocket stream of agent activity
 

@@ -9,7 +9,9 @@
  *   - paused            user explicitly paused; loop will not advance phases
  *
  * The user-facing knobs (HTTP endpoints) translate to:
- *   - pause()    → after the current phase ends, do not advance until resume()
+ *   - pause(mode) → set the pause flag; the runner honours it at gates
+ *                   per the mode (immediate = next gate; after_iteration =
+ *                   only the pre-iteration gate, so Plan→Develop runs through)
  *   - resume()   → clear the pause flag
  *   - cancel()   → abort the in-flight agent and skip the rest of this iteration
  *   - approve()  → release the awaiting_approval gate
@@ -22,9 +24,18 @@ export type LoopPhase =
   | "developing"
   | "paused";
 
+/**
+ * How aggressively a pause request takes effect:
+ *   - immediate       honour at every gate (post-Plan and pre-iteration)
+ *   - after_iteration skip the post-Plan gate so the current Develop runs;
+ *                     only the pre-iteration gate honours the pause
+ */
+export type PauseMode = "immediate" | "after_iteration";
+
 export interface LoopStatus {
   phase: LoopPhase;
   paused: boolean;
+  pauseMode: PauseMode;
   approveRequired: boolean;
   session: number;
   pendingApproval: {
@@ -38,7 +49,7 @@ export interface LoopController {
 
   /** Set true to require approve() before each Develop run. */
   setApproveRequired(value: boolean): void;
-  pause(): void;
+  pause(mode?: PauseMode): void;
   resume(): void;
   /** Approve the pending Next so Develop can run. */
   approve(): void;
@@ -89,6 +100,7 @@ interface Waiter {
 class LoopControllerImpl implements LoopController {
   private phase: LoopPhase = "idle";
   private paused = false;
+  private pauseMode: PauseMode = "immediate";
   private approveRequired: boolean;
   private session = 0;
   private cancelled = false;
@@ -108,6 +120,7 @@ class LoopControllerImpl implements LoopController {
     return {
       phase: this.phase,
       paused: this.paused,
+      pauseMode: this.pauseMode,
       approveRequired: this.approveRequired,
       session: this.session,
       pendingApproval: this.pendingApproval,
@@ -129,15 +142,21 @@ class LoopControllerImpl implements LoopController {
     this.emit();
   }
 
-  pause(): void {
-    if (this.paused) return;
+  pause(mode: PauseMode = "immediate"): void {
+    // Allow upgrading an already-set "after_iteration" pause to "immediate",
+    // but never downgrade an "immediate" pause to "after_iteration".
+    if (this.paused && (mode === "after_iteration" || mode === this.pauseMode)) {
+      return;
+    }
     this.paused = true;
+    this.pauseMode = mode;
     this.emit();
   }
 
   resume(): void {
     if (!this.paused) return;
     this.paused = false;
+    this.pauseMode = "immediate";
     const waiters = this.pauseWaiters;
     this.pauseWaiters = [];
     for (const w of waiters) {

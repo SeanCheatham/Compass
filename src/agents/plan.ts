@@ -1,21 +1,27 @@
 import { query, type Options } from "@anthropic-ai/claude-agent-sdk";
-import type { WorkspaceConfig } from "../state/types.js";
-import { readStateText } from "../mcp/utils/workspace.js";
+import type { PlanState, WorkspaceConfig } from "../state/types.js";
+import { readStateText, readLessons } from "../mcp/utils/workspace.js";
 import { buildPlanSystemPrompt } from "./prompts/plan-system.js";
 import type { OutputManager } from "../web/output-manager.js";
 import { extractToolDetail } from "./tool-details.js";
 import { buildRepoMap } from "../repomap/index.js";
+import { createPlanMcpServer } from "../mcp/server.js";
 
 export interface PlanAgentInput {
   /** Snapshot of drafts.md taken by the runner (already cleared from disk). */
   drafts: string;
-  /** Snapshot of feedback.md taken by the runner (already cleared from disk). */
+  /** Feedback from the previous Develop run's `complete()` call (in-memory). */
   feedback: string;
 }
 
 export interface PlanAgentResult {
   /** True if the run was aborted via the signal (cancel button or shutdown). */
   cancelled: boolean;
+  /**
+   * The latest PlanState passed to set_state during this run. Null if Plan
+   * never called set_state. The runner is responsible for persisting it.
+   */
+  state: PlanState | null;
 }
 
 export interface PlanAgentOptions {
@@ -30,6 +36,7 @@ export async function runPlanAgent(
   opts: PlanAgentOptions
 ): Promise<PlanAgentResult> {
   const stateJson = await readStateText(config);
+  const lessons = await readLessons(config);
 
   let repoMap = "";
   try {
@@ -42,21 +49,27 @@ export async function runPlanAgent(
     stateJson,
     drafts: input.drafts,
     feedback: input.feedback,
+    lessons,
     repoMap,
   });
 
   const initialPrompt = `Run a planning iteration.
 
-1. Review state.json (provided in your system prompt; also at .compass/state.json on disk).
-2. Review the drafts and feedback snapshots in your system prompt.
-3. Explore the codebase if you need to ground the plan in reality.
-4. Overwrite .compass/state.json with updated Completed / Next / Follow-up.
+1. Review the current state, drafts, feedback, and lessons in your system prompt.
+2. Explore the codebase if you need to ground the plan in reality.
+3. Optionally call \`append_lesson\` to record anything durable for future iterations.
+4. Call \`set_state\` exactly once with the full updated PlanState.
 
 If there is no concrete next step (drafts were empty or fully absorbed into Follow-up,
-and the previous Next is shipped), set \`next\` to null. The runner will idle and wait
-for the user to add a draft.
+and the previous Next is shipped), pass \`next: null\` to set_state. The runner will
+idle and wait for the user to add a draft.`;
 
-Otherwise finish when state.json is in good shape — Develop will implement next.`;
+  let capturedState: PlanState | null = null;
+  const mcpServer = createPlanMcpServer(config, {
+    onSetState: (state) => {
+      capturedState = state;
+    },
+  });
 
   const abortController = new AbortController();
   if (opts.signal.aborted) abortController.abort();
@@ -71,10 +84,9 @@ Otherwise finish when state.json is in good shape — Develop will implement nex
     permissionMode: "bypassPermissions",
     settingSources: ["user", "project", "local"],
     abortController,
+    mcpServers: { compass: mcpServer },
     allowedTools: [
       "Read",
-      "Write",
-      "Edit",
       "Glob",
       "Grep",
       "LS",
@@ -84,6 +96,10 @@ Otherwise finish when state.json is in good shape — Develop will implement nex
       "WebFetch",
       "WebSearch",
       "NotebookRead",
+      "mcp__compass__set_state",
+      "mcp__compass__read_lessons",
+      "mcp__compass__set_lessons",
+      "mcp__compass__append_lesson",
     ],
   };
 
@@ -120,5 +136,5 @@ Otherwise finish when state.json is in good shape — Develop will implement nex
     }
   }
 
-  return { cancelled };
+  return { cancelled, state: capturedState };
 }

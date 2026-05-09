@@ -18,7 +18,7 @@ export const WORKSPACE_DIR = ".compass";
 export const STATE_FILE = "state.json";
 export const STATE_BACKUP_FILE = "state.json.bak";
 export const DRAFTS_FILE = "drafts.md";
-export const FEEDBACK_FILE = "feedback.md";
+export const LESSONS_FILE = "lessons.md";
 
 /**
  * Thrown when state.json exists on disk but cannot be parsed/normalized.
@@ -44,7 +44,7 @@ export function getWorkspaceConfig(implRepoPath: string): WorkspaceConfig {
     statePath: resolve(workspacePath, STATE_FILE),
     stateBackupPath: resolve(workspacePath, STATE_BACKUP_FILE),
     draftsPath: resolve(workspacePath, DRAFTS_FILE),
-    feedbackPath: resolve(workspacePath, FEEDBACK_FILE),
+    lessonsPath: resolve(workspacePath, LESSONS_FILE),
     sessionsPath: resolve(workspacePath, "sessions"),
   };
 }
@@ -65,7 +65,7 @@ export async function ensureWorkspaceExists(
   await mkdir(config.sessionsPath, { recursive: true });
   await ensureFile(config.statePath, JSON.stringify(EMPTY_PLAN_STATE, null, 2) + "\n");
   await ensureFile(config.draftsPath);
-  await ensureFile(config.feedbackPath);
+  await ensureFile(config.lessonsPath);
   await ensureGitignore(config.implRepoPath);
 }
 
@@ -231,12 +231,37 @@ export async function readDrafts(config: WorkspaceConfig): Promise<string> {
   }
 }
 
-export async function readFeedback(config: WorkspaceConfig): Promise<string> {
+export async function readLessons(config: WorkspaceConfig): Promise<string> {
   try {
-    return await readFile(config.feedbackPath, "utf-8");
+    return await readFile(config.lessonsPath, "utf-8");
   } catch {
     return "";
   }
+}
+
+export async function writeLessons(
+  config: WorkspaceConfig,
+  content: string
+): Promise<void> {
+  await writeFile(config.lessonsPath, content, "utf-8");
+}
+
+export async function appendLesson(
+  config: WorkspaceConfig,
+  text: string
+): Promise<void> {
+  const trimmed = text.trim();
+  if (!trimmed) return;
+
+  const existing = await readLessons(config);
+  const separator = existing.length === 0 || existing.endsWith("\n")
+    ? ""
+    : "\n";
+  await writeFile(
+    config.lessonsPath,
+    existing + separator + trimmed + "\n",
+    "utf-8"
+  );
 }
 
 export async function appendDraft(
@@ -284,10 +309,4 @@ export async function snapshotAndClearDrafts(
   config: WorkspaceConfig
 ): Promise<string> {
   return snapshotAndConsume(config.draftsPath);
-}
-
-export async function snapshotAndClearFeedback(
-  config: WorkspaceConfig
-): Promise<string> {
-  return snapshotAndConsume(config.feedbackPath);
 }
