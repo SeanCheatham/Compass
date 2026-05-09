@@ -1,3 +1,5 @@
+import { renderMarkdown } from "./markdown.js";
+
 interface OutputEvent {
   type: string;
   timestamp: number;
@@ -183,6 +185,26 @@ class CompassApp {
     }
   }
 
+  private renderMarkdownInto(
+    elId: string,
+    content: string,
+    emptyMessage: string
+  ): void {
+    const el = document.getElementById(elId)!;
+    el.replaceChildren();
+    if (content.trim()) {
+      const block = document.createElement("div");
+      block.className = "markdown-block";
+      block.appendChild(renderMarkdown(content));
+      el.appendChild(block);
+    } else {
+      const span = document.createElement("span");
+      span.className = "empty";
+      span.textContent = emptyMessage;
+      el.appendChild(span);
+    }
+  }
+
   private renderState(state: PlanState): void {
     const el = document.getElementById("state-content")!;
     el.replaceChildren();
@@ -195,7 +217,10 @@ class CompassApp {
       ul.className = "completed-list";
       for (const c of state.completed) {
         const li = document.createElement("li");
-        li.textContent = c;
+        const md = document.createElement("div");
+        md.className = "markdown-block markdown-inline";
+        md.appendChild(renderMarkdown(c));
+        li.appendChild(md);
         ul.appendChild(li);
       }
       el.appendChild(ul);
@@ -203,10 +228,10 @@ class CompassApp {
 
     el.appendChild(this.makeHeading("Next"));
     if (state.next) {
-      const pre = document.createElement("pre");
-      pre.className = "text-block";
-      pre.textContent = state.next.plan;
-      el.appendChild(pre);
+      const block = document.createElement("div");
+      block.className = "markdown-block";
+      block.appendChild(renderMarkdown(state.next.plan));
+      el.appendChild(block);
 
       el.appendChild(this.makeVerifyRow(state.next.verify));
     } else {
@@ -215,10 +240,10 @@ class CompassApp {
 
     el.appendChild(this.makeHeading("Follow-up"));
     if (state.followUp.trim()) {
-      const pre = document.createElement("pre");
-      pre.className = "text-block";
-      pre.textContent = state.followUp;
-      el.appendChild(pre);
+      const block = document.createElement("div");
+      block.className = "markdown-block";
+      block.appendChild(renderMarkdown(state.followUp));
+      el.appendChild(block);
     } else {
       el.appendChild(this.makeEmpty("No follow-up sketched."));
     }
@@ -494,7 +519,7 @@ class CompassApp {
         this.renderDrafts(msg.content);
         break;
       case "feedback":
-        this.renderText(
+        this.renderMarkdownInto(
           "feedback-content",
           msg.content,
           "No pending feedback."
@@ -592,9 +617,13 @@ class CompassApp {
       case "info":
         entry.textContent = event.data;
         break;
-      case "log":
-        entry.textContent = event.data;
+      case "log": {
+        const block = document.createElement("div");
+        block.className = "markdown-block";
+        block.appendChild(renderMarkdown(event.data));
+        entry.appendChild(block);
         break;
+      }
       default:
         entry.textContent = event.data;
     }
