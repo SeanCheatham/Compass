@@ -28,10 +28,11 @@ program
     false
   )
   .option(
-    "--no-approve-required",
-    "Skip the approval gate before each Develop run (default: gate enabled)"
+    "--require-approval",
+    "Require manual approval of each plan before Develop runs (default: auto-accept)",
+    false
   )
-  .action(async (opts: { autoStash: boolean; approveRequired: boolean }) => {
+  .action(async (opts: { autoStash: boolean; requireApproval: boolean }) => {
     const cwd = process.cwd();
 
     const config = await initializeWorkspace(cwd);
@@ -69,7 +70,7 @@ program
 
     const output = createOutputManager({ sessionsDir: config.sessionsPath });
     const controller = createLoopController({
-      approveRequired: opts.approveRequired,
+      approveRequired: opts.requireApproval,
     });
     const sessions = createSessionTracker();
     const feedback = createFeedbackBus();
