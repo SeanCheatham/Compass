@@ -5,7 +5,7 @@ import { CLI_NAME, CLI_VERSION, CLI_DESCRIPTION } from "./cli/config.js";
 import { runCompass, showStatus } from "./cli/commands.js";
 import { createOutputManager } from "./web/output-manager.js";
 import { startWebServer } from "./web/server.js";
-import { initializeWorkspace, hasCompassFile } from "./state/workspace.js";
+import { initializeWorkspace } from "./state/workspace.js";
 import { hasUncommittedChanges, stashChanges } from "./mcp/utils/git.js";
 
 const program = new Command();
@@ -17,45 +17,29 @@ program
 
 program
   .command("run", { isDefault: true })
-  .description("Start or continue autonomous development from COMPASS.md")
-  .option("-m, --max-iterations <n>", "Maximum number of iterations", "100")
-  .action(async (options) => {
-    const maxIterations = parseInt(options.maxIterations, 10);
+  .description("Start the Plan + Develop loop, driven by drafts from the UI")
+  .action(async () => {
     const cwd = process.cwd();
 
-    // Check for COMPASS.md first
-    if (!(await hasCompassFile(cwd))) {
-      console.error("Error: COMPASS.md not found in current directory.");
-      console.error(
-        "Create a COMPASS.md file with your project vision to get started."
-      );
-      process.exit(1);
-    }
+    const config = await initializeWorkspace(cwd);
 
-    // Initialize workspace to get config and compass content
-    const { config, compassContent } = await initializeWorkspace(cwd);
-
-    // Auto-stash uncommitted changes before proceeding
     if (await hasUncommittedChanges(cwd)) {
       console.log("Stashing uncommitted changes...");
       await stashChanges(cwd);
     }
 
-    // Create output manager
     const output = createOutputManager();
 
-    // Start web server
-    const server = await startWebServer(
-      config,
-      compassContent,
-      output
-    );
-
+    const server = await startWebServer(config, output);
     console.log(`\nCompass UI: http://localhost:${server.port}\n`);
 
-    // Handle graceful shutdown
+    const abortController = new AbortController();
+    let shuttingDown = false;
     const shutdown = async () => {
+      if (shuttingDown) return;
+      shuttingDown = true;
       output.info("\nShutting down...");
+      abortController.abort();
       await server.close();
       process.exit(0);
     };
@@ -63,16 +47,14 @@ program
     process.on("SIGINT", shutdown);
     process.on("SIGTERM", shutdown);
 
-    // Run compass with the output manager
-    await runCompass(cwd, { maxIterations, output });
+    await runCompass(cwd, { output, signal: abortController.signal });
 
-    // Keep service running after loop completes
-    output.info("Compass loop finished. Service still running. Press Ctrl+C to exit.");
+    output.info("Loop ended. Service still running. Press Ctrl+C to exit.");
   });
 
 program
   .command("status")
-  .description("Show current plan status")
+  .description("Show current state.md and drafts.md")
   .action(async () => {
     await showStatus(process.cwd());
   });

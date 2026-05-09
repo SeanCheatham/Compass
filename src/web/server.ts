@@ -1,16 +1,21 @@
-import { createServer, type Server, type IncomingMessage, type ServerResponse } from "http";
+import {
+  createServer,
+  type Server,
+  type IncomingMessage,
+  type ServerResponse,
+} from "http";
 import { WebSocketServer, WebSocket } from "ws";
 import { readFile } from "fs/promises";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
 import type { OutputManager, OutputEvent } from "./output-manager.js";
 import type { WorkspaceConfig } from "../state/types.js";
-import { readPlanFile } from "../mcp/utils/plan-store.js";
 import {
-  readIssueFile,
-  writeIssueFile,
-  createIssue,
-} from "../mcp/utils/issue-store.js";
+  readState,
+  readDrafts,
+  readFeedback,
+  appendDraft,
+} from "../mcp/utils/workspace.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -21,23 +26,26 @@ export interface CompassServer {
 
 interface ServerContext {
   config: WorkspaceConfig;
-  compassContent: string;
   outputManager: OutputManager;
   status: {
     running: boolean;
     phase: string | null;
     session: number;
-    currentTask: string | null;
   };
 }
-
 
 function setJsonHeaders(res: ServerResponse): void {
   res.setHeader("Content-Type", "application/json");
   res.setHeader("Access-Control-Allow-Origin", "*");
 }
 
-async function parseJsonBody(req: IncomingMessage): Promise<Record<string, unknown>> {
+function setHtmlHeaders(res: ServerResponse): void {
+  res.setHeader("Content-Type", "text/html");
+}
+
+async function parseJsonBody(
+  req: IncomingMessage
+): Promise<Record<string, unknown>> {
   return new Promise((resolve, reject) => {
     let body = "";
     req.on("data", (chunk) => {
@@ -54,10 +62,6 @@ async function parseJsonBody(req: IncomingMessage): Promise<Record<string, unkno
   });
 }
 
-function setHtmlHeaders(res: ServerResponse): void {
-  res.setHeader("Content-Type", "text/html");
-}
-
 async function handleApiRequest(
   req: IncomingMessage,
   res: ServerResponse,
@@ -69,78 +73,27 @@ async function handleApiRequest(
   setJsonHeaders(res);
 
   try {
-    if (path === "/api/compass") {
-      res.end(JSON.stringify({ content: ctx.compassContent }));
-    } else if (path === "/api/plans") {
-      const planFile = await readPlanFile(ctx.config.planPath);
-      const completed = planFile.plans.filter(p => p.status === "completed").length;
-      const pending = planFile.plans.filter(p => p.status === "pending").length;
-      res.end(JSON.stringify({
-        plans: planFile.plans,
-        summary: {
-          total: planFile.plans.length,
-          completed,
-          pending,
-        },
-      }));
-    } else if (path === "/api/notes") {
-      let content = "";
-      try {
-        content = await readFile(ctx.config.notesPath, "utf-8");
-      } catch {
-        content = "";
+    if (path === "/api/state" && req.method === "GET") {
+      res.end(JSON.stringify({ content: await readState(ctx.config) }));
+    } else if (path === "/api/drafts" && req.method === "GET") {
+      res.end(JSON.stringify({ content: await readDrafts(ctx.config) }));
+    } else if (path === "/api/drafts" && req.method === "POST") {
+      const body = await parseJsonBody(req);
+      const content = typeof body.content === "string" ? body.content.trim() : "";
+      if (!content) {
+        res.statusCode = 400;
+        res.end(JSON.stringify({ error: "content is required" }));
+        return;
       }
-      res.end(JSON.stringify({ content }));
-    } else if (path === "/api/status") {
+      await appendDraft(ctx.config, content);
+      res.statusCode = 201;
+      res.end(
+        JSON.stringify({ content: await readDrafts(ctx.config) })
+      );
+    } else if (path === "/api/feedback" && req.method === "GET") {
+      res.end(JSON.stringify({ content: await readFeedback(ctx.config) }));
+    } else if (path === "/api/status" && req.method === "GET") {
       res.end(JSON.stringify(ctx.status));
-    } else if (path === "/api/issues") {
-      if (req.method === "GET") {
-        const issueFile = await readIssueFile(ctx.config.issuesPath);
-        const open = issueFile.issues.filter((i) => i.status === "open").length;
-        const inProgress = issueFile.issues.filter(
-          (i) => i.status === "in_progress"
-        ).length;
-        const closed = issueFile.issues.filter(
-          (i) => i.status === "closed"
-        ).length;
-        res.end(
-          JSON.stringify({
-            issues: issueFile.issues,
-            summary: {
-              total: issueFile.issues.length,
-              open,
-              inProgress,
-              closed,
-            },
-          })
-        );
-      } else if (req.method === "POST") {
-        const body = await parseJsonBody(req);
-        const type = body.type as string | undefined;
-        const title = body.title as string | undefined;
-        const description = body.description as string | undefined;
-        const priority = body.priority as string | undefined;
-        if (!type || !title || (type !== "bug" && type !== "enhancement")) {
-          res.statusCode = 400;
-          res.end(JSON.stringify({ error: "type (bug|enhancement) and title are required" }));
-          return;
-        }
-        const validPriority = priority === "high" || priority === "low" ? priority : "normal";
-        const issueFile = await readIssueFile(ctx.config.issuesPath);
-        const newIssue = createIssue(
-          type,
-          title,
-          description || null,
-          validPriority
-        );
-        issueFile.issues.push(newIssue);
-        await writeIssueFile(ctx.config.issuesPath, issueFile);
-        res.statusCode = 201;
-        res.end(JSON.stringify({ issue: newIssue }));
-      } else {
-        res.statusCode = 405;
-        res.end(JSON.stringify({ error: "Method not allowed" }));
-      }
     } else {
       res.statusCode = 404;
       res.end(JSON.stringify({ error: "Not found" }));
@@ -151,11 +104,8 @@ async function handleApiRequest(
   }
 }
 
-async function handleStaticRequest(
-  res: ServerResponse
-): Promise<void> {
+async function handleStaticRequest(res: ServerResponse): Promise<void> {
   try {
-    // Read the bundled frontend HTML from dist
     const frontendPath = join(__dirname, "frontend", "index.html");
     const html = await readFile(frontendPath, "utf-8");
     setHtmlHeaders(res);
@@ -168,23 +118,18 @@ async function handleStaticRequest(
 
 export async function startWebServer(
   config: WorkspaceConfig,
-  compassContent: string,
   outputManager: OutputManager
 ): Promise<CompassServer> {
-
   const ctx: ServerContext = {
     config,
-    compassContent,
     outputManager,
     status: {
       running: true,
       phase: null,
       session: 0,
-      currentTask: null,
     },
   };
 
-  // Track status from output events
   outputManager.onEvent((event: OutputEvent) => {
     if (event.type === "session") {
       ctx.status.session = parseInt(event.data, 10);
@@ -212,7 +157,6 @@ export async function startWebServer(
   wss.on("connection", (ws: WebSocket) => {
     clients.add(ws);
 
-    // Send buffered events to new connection
     const buffer = outputManager.getBuffer();
     for (const event of buffer) {
       ws.send(JSON.stringify(event));
@@ -227,7 +171,6 @@ export async function startWebServer(
     });
   });
 
-  // Broadcast new events to all connected clients
   const unsubscribe = outputManager.onEvent((event: OutputEvent) => {
     const message = JSON.stringify(event);
     for (const client of clients) {
@@ -248,12 +191,10 @@ export async function startWebServer(
           unsubscribe();
           ctx.status.running = false;
 
-          // Close all WebSocket connections
           for (const client of clients) {
             client.close();
           }
 
-          // Close servers
           wss.close();
           return new Promise((res) => server.close(() => res()));
         },

@@ -1,55 +1,8 @@
-import { marked } from "marked";
-
-// Configure marked for safe rendering
-marked.setOptions({
-  gfm: true,
-  breaks: true,
-});
-
 interface OutputEvent {
   type: string;
   timestamp: number;
   data: string;
   metadata?: Record<string, unknown>;
-}
-
-interface Plan {
-  id: string;
-  content: string;
-  status: "pending" | "completed";
-  commit: string | null;
-}
-
-interface PlansResponse {
-  plans: Plan[];
-  summary: {
-    total: number;
-    completed: number;
-    pending: number;
-  };
-}
-
-interface Issue {
-  id: string;
-  type: "bug" | "enhancement";
-  title: string;
-  description: string | null;
-  status: "open" | "in_progress" | "closed";
-  priority: "low" | "normal" | "high";
-  createdAt: string;
-  closedAt: string | null;
-  planId: string | null;
-  commit: string | null;
-}
-
-interface IssuesResponse {
-  issues: Issue[];
-  summary: {
-    total: number;
-    open: number;
-    inProgress: number;
-    closed: number;
-  };
 }
 
 class CompassApp {
@@ -65,42 +18,30 @@ class CompassApp {
   }
 
   private async init(): Promise<void> {
-    // Set up tab switching
     this.setupTabs();
 
-    // Load initial data
     await Promise.all([
-      this.loadCompass(),
-      this.loadPlans(),
-      this.loadNotes(),
-      this.loadIssues(),
+      this.loadState(),
+      this.loadDrafts(),
+      this.loadFeedback(),
     ]);
 
-    // Set up issue form
-    this.setupIssueForm();
-
-    // Connect WebSocket
+    this.setupDraftForm();
     this.connectWebSocket();
-
-    // Set up auto-scroll detection
     this.setupAutoScroll();
 
-    // Poll for state changes (plans, notes, issues) every 2 seconds
     setInterval(() => {
-      this.loadPlans();
-      this.loadNotes();
-      this.loadIssues();
+      this.loadState();
+      this.loadDrafts();
+      this.loadFeedback();
     }, 2000);
   }
 
   private setupTabs(): void {
-    const tabs = document.querySelectorAll(".tab");
-    tabs.forEach(tab => {
+    document.querySelectorAll(".tab").forEach((tab) => {
       tab.addEventListener("click", () => {
         const tabName = (tab as HTMLElement).dataset.tab;
-        if (tabName) {
-          this.switchTab(tabName);
-        }
+        if (tabName) this.switchTab(tabName);
       });
     });
   }
@@ -108,159 +49,109 @@ class CompassApp {
   private switchTab(tabName: string): void {
     this.currentTab = tabName;
 
-    // Update tab buttons
-    document.querySelectorAll(".tab").forEach(tab => {
-      tab.classList.toggle("active", (tab as HTMLElement).dataset.tab === tabName);
+    document.querySelectorAll(".tab").forEach((tab) => {
+      tab.classList.toggle(
+        "active",
+        (tab as HTMLElement).dataset.tab === tabName
+      );
     });
 
-    // Update panels
-    document.querySelectorAll(".panel").forEach(panel => {
+    document.querySelectorAll(".panel").forEach((panel) => {
       panel.classList.toggle("active", panel.id === `${tabName}-panel`);
     });
   }
 
-  private async loadCompass(): Promise<void> {
-    try {
-      const res = await fetch("/api/compass");
-      const data = await res.json() as { content: string };
-      const el = document.getElementById("compass-content")!;
-      if (data.content) {
-        el.innerHTML = marked.parse(data.content) as string;
-        el.classList.add("markdown-body");
-      } else {
-        el.innerHTML = '<span class="empty">No COMPASS.md content</span>';
-        el.classList.remove("markdown-body");
-      }
-    } catch (error) {
-      console.error("Failed to load COMPASS:", error);
+  private renderText(elId: string, content: string, emptyMessage: string): void {
+    const el = document.getElementById(elId)!;
+    el.replaceChildren();
+    if (content.trim()) {
+      const pre = document.createElement("pre");
+      pre.className = "text-block";
+      pre.textContent = content;
+      el.appendChild(pre);
+    } else {
+      const span = document.createElement("span");
+      span.className = "empty";
+      span.textContent = emptyMessage;
+      el.appendChild(span);
     }
   }
 
-  private async loadPlans(): Promise<void> {
+  private async loadState(): Promise<void> {
     try {
-      const res = await fetch("/api/plans");
-      const data: PlansResponse = await res.json() as PlansResponse;
-
-      // Update badge
-      const badgeEl = document.getElementById("plans-badge")!;
-      badgeEl.textContent = data.summary.pending > 0 ? `${data.summary.pending}` : "";
-
-      const listEl = document.getElementById("plans-list")!;
-
-      if (data.plans.length === 0) {
-        listEl.innerHTML = '<li class="empty">No plans yet</li>';
-        return;
-      }
-
-      listEl.innerHTML = data.plans.map(plan => `
-        <li>
-          <span class="plan-status ${plan.status}">${plan.status === "completed" ? "✓" : "○"}</span>
-          <span class="plan-content">${this.escapeHtml(plan.content)}</span>
-          ${plan.commit ? `<span class="plan-commit">${plan.commit.slice(0, 7)}</span>` : ""}
-        </li>
-      `).join("");
+      const res = await fetch("/api/state");
+      const data = (await res.json()) as { content: string };
+      this.renderText(
+        "state-content",
+        data.content,
+        "state.md is empty — add a draft to get started."
+      );
     } catch (error) {
-      console.error("Failed to load plans:", error);
+      console.error("Failed to load state:", error);
     }
   }
 
-  private async loadNotes(): Promise<void> {
+  private async loadDrafts(): Promise<void> {
     try {
-      const res = await fetch("/api/notes");
-      const data = await res.json() as { content: string };
-      const el = document.getElementById("notes-content")!;
-      if (data.content) {
-        el.innerHTML = marked.parse(data.content) as string;
-        el.classList.add("markdown-body");
-      } else {
-        el.innerHTML = '<span class="empty">No notes yet</span>';
-        el.classList.remove("markdown-body");
-      }
+      const res = await fetch("/api/drafts");
+      const data = (await res.json()) as { content: string };
+      const badge = document.getElementById("drafts-badge")!;
+
+      const lines = data.content
+        .split("\n")
+        .map((l) => l.trim())
+        .filter((l) => l.length > 0);
+
+      badge.textContent = lines.length > 0 ? String(lines.length) : "";
+
+      this.renderText("drafts-content", data.content, "No pending drafts.");
     } catch (error) {
-      console.error("Failed to load notes:", error);
+      console.error("Failed to load drafts:", error);
     }
   }
 
-  private async loadIssues(): Promise<void> {
+  private async loadFeedback(): Promise<void> {
     try {
-      const res = await fetch("/api/issues");
-      const data: IssuesResponse = await res.json() as IssuesResponse;
-
-      // Update badge
-      const badgeEl = document.getElementById("issues-badge")!;
-      badgeEl.textContent = data.summary.open > 0 ? `${data.summary.open}` : "";
-
-      const listEl = document.getElementById("issues-list")!;
-
-      if (data.issues.length === 0) {
-        listEl.innerHTML = '<li class="empty">No issues reported</li>';
-        return;
-      }
-
-      // Sort: open first, then in_progress, then closed
-      const sortedIssues = [...data.issues].sort((a, b) => {
-        const order = { open: 0, in_progress: 1, closed: 2 };
-        return order[a.status] - order[b.status];
-      });
-
-      listEl.innerHTML = sortedIssues.map(issue => {
-        const typeIcon = issue.type === "bug" ? "bug" : "enhancement";
-        const statusIcon = issue.status === "closed" ? "✓" : issue.status === "in_progress" ? "▶" : "○";
-        const priorityClass = issue.priority !== "normal" ? ` priority-${issue.priority}` : "";
-        return `
-          <li class="issue-item ${issue.status}${priorityClass}">
-            <span class="issue-status">${statusIcon}</span>
-            <span class="issue-type ${typeIcon}">${issue.type}</span>
-            <span class="issue-title">${this.escapeHtml(issue.title)}</span>
-            ${issue.commit ? `<span class="issue-commit">${issue.commit.slice(0, 7)}</span>` : ""}
-          </li>
-        `;
-      }).join("");
+      const res = await fetch("/api/feedback");
+      const data = (await res.json()) as { content: string };
+      this.renderText(
+        "feedback-content",
+        data.content,
+        "No pending feedback."
+      );
     } catch (error) {
-      console.error("Failed to load issues:", error);
+      console.error("Failed to load feedback:", error);
     }
   }
 
-  private setupIssueForm(): void {
-    const form = document.getElementById("issue-form") as HTMLFormElement;
+  private setupDraftForm(): void {
+    const form = document.getElementById("draft-form") as HTMLFormElement;
     form.addEventListener("submit", async (e) => {
       e.preventDefault();
-      await this.submitIssue();
+      await this.submitDraft();
     });
   }
 
-  private async submitIssue(): Promise<void> {
-    const typeEl = document.getElementById("issue-type") as HTMLSelectElement;
-    const priorityEl = document.getElementById("issue-priority") as HTMLSelectElement;
-    const titleEl = document.getElementById("issue-title") as HTMLInputElement;
-    const descEl = document.getElementById("issue-description") as HTMLTextAreaElement;
-
-    const type = typeEl.value as "bug" | "enhancement";
-    const priority = priorityEl.value as "low" | "normal" | "high";
-    const title = titleEl.value.trim();
-    const description = descEl.value.trim() || null;
-
-    if (!title) return;
+  private async submitDraft(): Promise<void> {
+    const textarea = document.getElementById(
+      "draft-content"
+    ) as HTMLTextAreaElement;
+    const content = textarea.value.trim();
+    if (!content) return;
 
     try {
-      const res = await fetch("/api/issues", {
+      const res = await fetch("/api/drafts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ type, priority, title, description }),
+        body: JSON.stringify({ content }),
       });
 
       if (res.ok) {
-        // Clear form
-        titleEl.value = "";
-        descEl.value = "";
-        typeEl.value = "bug";
-        priorityEl.value = "normal";
-
-        // Reload issues
-        await this.loadIssues();
+        textarea.value = "";
+        await this.loadDrafts();
       }
     } catch (error) {
-      console.error("Failed to submit issue:", error);
+      console.error("Failed to submit draft:", error);
     }
   }
 
@@ -309,7 +200,10 @@ class CompassApp {
     }, delay);
   }
 
-  private updateStatus(state: "connected" | "running" | "error", text: string): void {
+  private updateStatus(
+    state: "connected" | "running" | "error",
+    text: string
+  ): void {
     const indicator = document.getElementById("status-indicator")!;
     const textEl = document.getElementById("status-text")!;
 
@@ -382,14 +276,16 @@ class CompassApp {
         }
         break;
       }
-      case "agent_start":
+      case "agent_start": {
         const ctx = event.metadata?.context ? `: ${event.metadata.context}` : "";
         entry.textContent = `▶ ${event.data} Agent${ctx}`;
         break;
-      case "agent_complete":
+      }
+      case "agent_complete": {
         const status = event.metadata?.status ? ` (${event.metadata.status})` : "";
         entry.textContent = `✓ ${event.data} Agent${status}`;
         break;
+      }
       case "commit":
         entry.textContent = `✓ Committed: ${event.data.slice(0, 7)}`;
         break;
@@ -418,19 +314,13 @@ class CompassApp {
     const panel = document.getElementById("activity-panel")!;
 
     panel.addEventListener("scroll", () => {
-      const isAtBottom = panel.scrollHeight - panel.scrollTop - panel.clientHeight < 50;
+      const isAtBottom =
+        panel.scrollHeight - panel.scrollTop - panel.clientHeight < 50;
       this.autoScroll = isAtBottom;
     });
   }
-
-  private escapeHtml(text: string): string {
-    const div = document.createElement("div");
-    div.textContent = text;
-    return div.innerHTML;
-  }
 }
 
-// Initialize app when DOM is ready
 document.addEventListener("DOMContentLoaded", () => {
   new CompassApp();
 });

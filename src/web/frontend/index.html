@@ -17,10 +17,9 @@
 
   <nav class="tabs">
     <button class="tab active" data-tab="activity">Activity</button>
-    <button class="tab" data-tab="compass">COMPASS.md</button>
-    <button class="tab" data-tab="plans">Plans <span id="plans-badge" class="badge"></span></button>
-    <button class="tab" data-tab="issues">Issues <span id="issues-badge" class="badge"></span></button>
-    <button class="tab" data-tab="notes">Notes</button>
+    <button class="tab" data-tab="state">State</button>
+    <button class="tab" data-tab="drafts">Drafts <span id="drafts-badge" class="badge"></span></button>
+    <button class="tab" data-tab="feedback">Feedback</button>
   </nav>
 
   <main>
@@ -28,39 +27,37 @@
       <div id="activity-log"></div>
     </section>
 
-    <section id="compass-panel" class="panel">
-      <div id="compass-content"></div>
+    <section id="state-panel" class="panel">
+      <div id="state-content"></div>
     </section>
 
-    <section id="plans-panel" class="panel">
-      <ul id="plans-list"></ul>
-    </section>
-
-    <section id="issues-panel" class="panel">
-      <div class="issues-form">
-        <h3>Report Issue</h3>
-        <form id="issue-form">
-          <div class="form-row">
-            <select id="issue-type" required>
-              <option value="bug">Bug</option>
-              <option value="enhancement">Enhancement</option>
-            </select>
-            <select id="issue-priority">
-              <option value="normal">Normal</option>
-              <option value="high">High</option>
-              <option value="low">Low</option>
-            </select>
-          </div>
-          <input type="text" id="issue-title" placeholder="Brief description..." required>
-          <textarea id="issue-description" placeholder="Additional details (optional)..." rows="2"></textarea>
-          <button type="submit">Submit</button>
+    <section id="drafts-panel" class="panel">
+      <div class="drafts-form">
+        <h3>Add a draft plan</h3>
+        <p class="form-hint">
+          Drop a rough idea — a feature, a fix, a direction. The Plan agent will refine
+          and integrate it on the next iteration.
+        </p>
+        <form id="draft-form">
+          <textarea
+            id="draft-content"
+            placeholder="What should Compass work on next?"
+            rows="3"
+            required
+          ></textarea>
+          <button type="submit">Add draft</button>
         </form>
       </div>
-      <ul id="issues-list"></ul>
+      <h3 class="section-heading">Pending drafts</h3>
+      <div id="drafts-content"></div>
     </section>
 
-    <section id="notes-panel" class="panel">
-      <div id="notes-content"></div>
+    <section id="feedback-panel" class="panel">
+      <p class="form-hint">
+        Notes the Develop agent left for the Plan agent at the end of the last iteration.
+        Cleared once Plan reads them.
+      </p>
+      <div id="feedback-content"></div>
     </section>
   </main>
 

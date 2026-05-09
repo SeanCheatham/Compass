@@ -1,93 +1,109 @@
-import { homedir } from "os";
-import { resolve, sep } from "path";
+import { resolve } from "path";
 import { mkdir, access, readFile, writeFile } from "fs/promises";
 import type { WorkspaceConfig } from "../../state/types.js";
 
-export function sanitizePath(path: string): string {
-  const home = homedir();
-  let normalized = path;
-
-  if (normalized.startsWith(home)) {
-    normalized = normalized.slice(home.length);
-  }
-
-  return normalized
-    .split(sep)
-    .filter(Boolean)
-    .join("-");
-}
-
-export function getWorkspacePath(implRepoPath: string): string {
-  const sanitized = sanitizePath(implRepoPath);
-  return resolve(homedir(), ".compass", sanitized);
-}
+export const WORKSPACE_DIR = ".compass";
+export const STATE_FILE = "state.md";
+export const DRAFTS_FILE = "drafts.md";
+export const FEEDBACK_FILE = "feedback.md";
 
 export function getWorkspaceConfig(implRepoPath: string): WorkspaceConfig {
-  const workspacePath = getWorkspacePath(implRepoPath);
+  const workspacePath = resolve(implRepoPath, WORKSPACE_DIR);
   return {
     implRepoPath,
     workspacePath,
-    planPath: resolve(workspacePath, "plan.json"),
-    notesPath: resolve(workspacePath, "notes.md"),
-    sessionsPath: resolve(workspacePath, "sessions"),
-    shadowCompassPath: resolve(workspacePath, "compass-shadow.md"),
-    issuesPath: resolve(workspacePath, "issues.json"),
+    statePath: resolve(workspacePath, STATE_FILE),
+    draftsPath: resolve(workspacePath, DRAFTS_FILE),
+    feedbackPath: resolve(workspacePath, FEEDBACK_FILE),
   };
+}
+
+async function ensureFile(path: string, defaultContent = ""): Promise<void> {
+  const exists = await access(path)
+    .then(() => true)
+    .catch(() => false);
+  if (!exists) {
+    await writeFile(path, defaultContent, "utf-8");
+  }
 }
 
 export async function ensureWorkspaceExists(
   config: WorkspaceConfig
 ): Promise<void> {
   await mkdir(config.workspacePath, { recursive: true });
-  await mkdir(config.sessionsPath, { recursive: true });
-
-  const planExists = await access(config.planPath)
-    .then(() => true)
-    .catch(() => false);
-
-  if (!planExists) {
-    await writeFile(config.planPath, JSON.stringify({ plans: [] }, null, 2));
-  }
-
-  const notesExists = await access(config.notesPath)
-    .then(() => true)
-    .catch(() => false);
-
-  if (!notesExists) {
-    await writeFile(config.notesPath, "");
-  }
-
-  const issuesExists = await access(config.issuesPath)
-    .then(() => true)
-    .catch(() => false);
-
-  if (!issuesExists) {
-    await writeFile(config.issuesPath, JSON.stringify({ issues: [] }, null, 2));
-  }
+  await ensureFile(config.statePath);
+  await ensureFile(config.draftsPath);
+  await ensureFile(config.feedbackPath);
+  await ensureGitignore(config.implRepoPath);
 }
 
-export async function readCompassFile(implRepoPath: string): Promise<string> {
-  const compassPath = resolve(implRepoPath, "COMPASS.md");
+export async function ensureGitignore(implRepoPath: string): Promise<void> {
+  const gitignorePath = resolve(implRepoPath, ".gitignore");
+  const entry = `${WORKSPACE_DIR}/`;
+
+  let existing = "";
   try {
-    return await readFile(compassPath, "utf-8");
+    existing = await readFile(gitignorePath, "utf-8");
   } catch {
-    throw new Error(`COMPASS.md not found in ${implRepoPath}`);
+    existing = "";
   }
+
+  const lines = existing.split("\n").map((l) => l.trim());
+  if (lines.includes(entry) || lines.includes(WORKSPACE_DIR)) {
+    return;
+  }
+
+  const updated = existing.length === 0 || existing.endsWith("\n")
+    ? existing + entry + "\n"
+    : existing + "\n" + entry + "\n";
+  await writeFile(gitignorePath, updated, "utf-8");
 }
 
-export async function readShadowCompass(
-  shadowPath: string
-): Promise<string | null> {
+export async function readState(config: WorkspaceConfig): Promise<string> {
   try {
-    return await readFile(shadowPath, "utf-8");
+    return await readFile(config.statePath, "utf-8");
   } catch {
-    return null; // No shadow exists yet (first run)
+    return "";
   }
 }
 
-export async function writeShadowCompass(
-  shadowPath: string,
+export async function readDrafts(config: WorkspaceConfig): Promise<string> {
+  try {
+    return await readFile(config.draftsPath, "utf-8");
+  } catch {
+    return "";
+  }
+}
+
+export async function readFeedback(config: WorkspaceConfig): Promise<string> {
+  try {
+    return await readFile(config.feedbackPath, "utf-8");
+  } catch {
+    return "";
+  }
+}
+
+export async function appendDraft(
+  config: WorkspaceConfig,
   content: string
 ): Promise<void> {
-  await writeFile(shadowPath, content, "utf-8");
+  const trimmed = content.trim();
+  if (!trimmed) return;
+
+  const existing = await readDrafts(config);
+  const separator = existing.length === 0 || existing.endsWith("\n\n")
+    ? ""
+    : existing.endsWith("\n")
+      ? "\n"
+      : "\n\n";
+  const block = `- ${trimmed}\n`;
+  await writeFile(config.draftsPath, existing + separator + block, "utf-8");
+}
+
+export async function clearDrafts(config: WorkspaceConfig): Promise<void> {
+  await writeFile(config.draftsPath, "", "utf-8");
+}
+
+export async function clearFeedback(config: WorkspaceConfig): Promise<void> {
+  await writeFile(config.feedbackPath, "", "utf-8");
 }

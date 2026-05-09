@@ -1,14 +1,12 @@
 # Compass
 
-Compass is a recursive iteration tool for autonomous end-to-end project development. It wraps the Claude Agent SDK to orchestrate a Product Manager (PM) agent and Developer agent that collaborate to build complete projects from a high-level specification.
+Compass is a recursive iteration tool for autonomous project development. It wraps the Claude Agent SDK to run a tight **Plan → Develop** loop, driven by draft plans you submit through a local web UI.
 
 ## Vision
 
-Enable "vibe coding" at the project level. A human provides a vision in COMPASS.md, and Compass iteratively builds the entire project — planning, implementing, committing, and adapting — until the vision is realized.
+Drop a one-line idea — a feature, a fix, a direction — into the Compass UI. The Plan agent refines it and writes the next concrete plan. The Develop agent implements that plan, commits, and leaves notes. The loop repeats until you say it's done.
 
 ## Installation
-
-### Local Installation
 
 ```bash
 git clone https://github.com/SeanCheatham/Compass.git
@@ -22,185 +20,88 @@ This makes the `compass` command available globally.
 
 **Prerequisites**: Node.js >= 20.0.0
 
-## Architecture
-
-### Two-Agent Model
-
-**PM Agent** — Orchestration and planning
-
-- Receives COMPASS.md (human's vision) and plan.json (current state) via system prompt
-- Maintains detailed near-term plans, coarse far-term plans
-- Directs Developer via streaming I/O: exploration or implementation
-- Answers Developer questions during sessions
-- Decides session outcome: commit changes or replan
-- Updates plans based on learnings
-- **Tools**: Only Compass MCP tools — no Read/Write/Edit/Bash (must use Developer)
-
-**Developer Agent** — Exploration and implementation
-
-- Fresh context each session (no accumulated state)
-- PM's "hands and eyes" in the codebase
-- Explores codebase when PM needs context
-- Implements tasks when PM directs
-- Has full code tools (Read, Write, Edit, Bash, Glob, Grep)
-- Streams questions to PM, receives guidance
-
-### Compass CLI
-
-The thin execution layer that:
-
-- Launches PM + Developer agents together (always paired)
-- Connects their streaming I/O for bidirectional communication
-- Executes PM tool calls (git operations, plan updates)
-- Runs the main iteration loop until project completion
-
-## State Management
-
-### Impl Repo (user's project)
-
-```
-~/code/my-app/
-├── COMPASS.md      # human-owned vision and goals
-├── README.md       # developer-maintained project docs
-└── src/            # implementation
-```
-
-### Compass Workspace
-
-```
-~/.compass/{sanitized-repo-path}/
-├── config.yaml     # compass configuration
-├── plan.json       # structured plan (compass-managed)
-├── notes.md        # PM scratchpad for cross-session learnings
-└── sessions/       # session summaries
-    └── {plan_id}-{timestamp}.md
-```
-
-## Plan Structure
-
-Plans are stored as JSON with deterministic hash IDs (first 6 chars of SHA-256 of content):
-
-```json
-{
-  "plans": [
-    {
-      "id": "f8a3c1",
-      "content": "Set up TypeScript project with build configuration",
-      "status": "completed",
-      "commit": "a7b3c9d",
-      "session": "f8a3c1-1706012400.md"
-    },
-    {
-      "id": "b2d4e6",
-      "content": "Implement user authentication with JWT",
-      "status": "pending",
-      "commit": null,
-      "session": null
-    }
-  ]
-}
-```
-
-Note: Plans completed via `replan` have a session but no commit.
-
-Plans are managed via MCP tools, not direct file editing:
-
-- `list_plans` — view current plans with IDs and status
-- `insert_plan` / `insert_plans` — add plans after a given ID
-- `remove_plan` — remove a plan by ID
-- `set_plan_status` — update plan status
-
-**Sequential execution**: Plans must be completed in order. The PM always works on the first pending plan. To skip ahead or reorder, PM must modify the plan list first (remove, insert, reorder). This keeps plan.json as the authoritative queue.
-
-## PM MCP Tools
-
-| Tool | Purpose |
-|------|---------|
-| `list_plans` | View current plan state |
-| `insert_plan` | Add a new plan after a given ID |
-| `insert_plans` | Batch insert for task decomposition |
-| `remove_plan` | Remove a plan by ID |
-| `set_plan_status` | Update plan status |
-| `write_notes` | Update PM notes |
-| `end_session` | End session with outcome (see below) |
-
-**Completion**: Project is complete when no pending plans remain. Empty plan list on first launch triggers initial planning.
-
-### `end_session` Tool
-
-Ends the current session with one of three outcomes:
-
-**Commit** — `end_session(outcome="commit", summary="...")`
-
-- Spawns ephemeral "committer" agent to create commit with appropriate message
-- Links commit SHA to the completed plan
-- Writes session summary (from `summary` field)
-- Disallows plan mutations (only current plan status is updated)
-
-**Replanned** — `end_session(outcome="replanned", summary="...")`
-
-- Resets working tree (discards any impl changes)
-- Allows plan mutations made during session to persist
-- Writes session summary
-- Use when PM adjusted plans without implementing
-
-**Revert** — `end_session(outcome="revert", revert_to="<plan_id or commit>", reason="...")`
-
-- Reverts impl repo to the specified commit (or commit associated with plan ID)
-- Resets all plans after that point to pending (clears session/commit fields)
-- Resets session history to that point
-- Stores reason as context for next iteration
-
-## Session Flow
-
-1. Compass launches PM + Developer together (streaming I/O connected)
-2. PM receives system prompt with COMPASS.md, plan.json, notes.md, and recent session summaries
-3. PM may direct Developer to explore codebase for context
-4. PM decides: implement first pending plan, or adjust plans first
-5. PM directs Developer as needed, ends session with `end_session`:
-   - **commit** — impl changes committed, plan marked completed (no plan mutations)
-   - **replanned** — plan mutations persist, impl changes discarded
-   - **revert** — revert to checkpoint, reset plans/sessions since that point
-6. Loop continues until no pending plans remain
-
-## Session Summaries
-
-Each session produces a summary capturing:
-
-- Plan ID and task description
-- Outcome type (commit, replanned, or revert)
-- Commit SHA (new for commit, current for replanned, reverted-to for revert)
-- Key decisions and learnings
-
-Summaries are injected as context for future PM sessions, providing institutional memory without full conversation history.
-
-On **replan**, the PM captures relevant learnings in the reason field before sessions are reset. This ensures knowledge from failed attempts persists even though code and plan state are rewound. Any session summaries since the revert commit will also be reset, so the PM should capture any relevant learnings in the reason field before calling `end_session`.
-
-## Technology
-
-- **Runtime**: Claude Agent SDK (TypeScript)
-- **Tools**: MCP (Model Context Protocol) for custom tool definitions
-- **VCS**: Git for checkpointing and rollback
-- **Models**: Claude for both PM and Developer agents
-
 ## Usage
 
 ```bash
 cd ~/code/my-project
-echo "# My Project\n\nBuild a CLI tool that..." > COMPASS.md
 compass
 ```
 
 Compass will:
 
-1. Create workspace at `~/.compass/home-user-code-my-project/`
-2. Initialize plan.json from COMPASS.md
-3. Begin iterative development loop
-4. Continue until project matches the vision
+1. Confirm you're inside a git repository.
+2. Create `.compass/` next to your code (and add it to `.gitignore`).
+3. Start the web UI on a local port and print the URL.
+4. Idle until you submit a draft plan from the UI.
+5. From there: Plan refines → Develop implements → repeat.
+
+Press Ctrl+C to stop. Run `compass status` at any time to print the current `state.md` and `drafts.md`.
+
+## Architecture
+
+### Two agents
+
+**Plan** — read-only over the codebase, plus edit access to three files in `.compass/`.
+- Reads `state.md`, `drafts.md`, `feedback.md` and the codebase.
+- Refines drafts, integrates them into `state.md`, picks the next concrete plan.
+- Clears `drafts.md` and `feedback.md` after consuming them.
+- Calls `signal_done` when there's nothing left to do.
+
+**Develop** — full read/write over the codebase.
+- Implements the `Next` block from `state.md`.
+- Commits changes (creates new commits with `git add` + `git commit`).
+- Writes notes for the next Plan run into `feedback.md`.
+
+### State
+
+Everything lives in `.compass/` inside your repo (gitignored, per-repo):
+
+```
+{repo}/.compass/
+├── state.md      # Plan owns. Single source of truth.
+├── drafts.md     # User owns (via UI). Plan consumes and clears.
+└── feedback.md   # Develop owns. Plan reads and clears.
+```
+
+`state.md` always has exactly this structure:
+
+```
+## Completed
+- One-line summary per shipped iteration
+
+## Next
+The single concrete plan Develop will implement next.
+
+## Follow-up
+A short sketch of what should come after Next.
+```
+
+### Loop
+
+1. If `drafts.md` and `state.md`'s `Next` are both empty, **idle** until a draft arrives.
+2. **Plan** runs: refines drafts, updates `state.md`, clears drafts/feedback. May call `signal_done`.
+3. **Develop** runs against `Next`: implements, commits, writes `feedback.md`.
+4. Back to step 1.
+
+When `signal_done` fires, the loop drops back into idle. Adding a new draft from the UI wakes it up.
+
+## UI
+
+- **Activity** — live stream of agent output and tool calls.
+- **State** — current `state.md` (Completed / Next / Follow-up).
+- **Drafts** — submit a draft plan; see what's pending.
+- **Feedback** — what Develop wrote at the end of the last iteration.
+
+## Technology
+
+- **Runtime**: Claude Agent SDK (TypeScript)
+- **Tools**: MCP for the single `signal_done` tool exposed to Plan
+- **VCS**: Git (Develop creates commits via standard git CLI)
+- **UI**: Plain HTML + WebSocket stream of agent activity
 
 ## Non-Goals
 
-- Real-time collaboration (single-user tool)
-- IDE integration (CLI-first)
-- Multi-repo orchestration (single impl repo per compass instance)
-- Preserving conversation history (uses summaries instead)
+- Multi-repo orchestration (one impl repo per Compass instance)
+- Audit trail beyond what git already provides
+- Auto-revert of bad commits (use `git` directly if needed)
+- Persistent vision document (drafts are how you steer)

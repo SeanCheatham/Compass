@@ -1,72 +1,29 @@
 import { query, type Options } from "@anthropic-ai/claude-agent-sdk";
-import type { WorkspaceConfig, Plan } from "../state/types.js";
-import { readFile } from "fs/promises";
+import type { WorkspaceConfig } from "../state/types.js";
 import { buildDevSystemPrompt } from "./prompts/dev-system.js";
-import { createDevMcpServer, type DevMcpContext } from "../mcp/dev-server.js";
 import type { OutputManager } from "../web/output-manager.js";
 import { extractToolDetail } from "./tool-details.js";
 
-export interface DevAgentResult {
-  success: boolean;
-  revertReason?: string;
-}
-
-/**
- * Runs the Dev agent with READ/WRITE access to implement a specific task.
- *
- * The Dev agent:
- * - Implements the given task
- * - Verifies the implementation works
- * - Can signal revert if blocked
- * - Completes when implementation is done
- */
 export async function runDevAgent(
   config: WorkspaceConfig,
-  task: Plan,
+  next: string,
   output: OutputManager
-): Promise<DevAgentResult> {
-  let notes = "";
-  try {
-    notes = await readFile(config.notesPath, "utf-8");
-  } catch {
-    notes = "";
-  }
+): Promise<void> {
+  const systemPrompt = buildDevSystemPrompt({ next });
 
-  const systemPrompt = buildDevSystemPrompt({
-    task,
-    notes,
-  });
+  const initialPrompt = `Implement the plan in your system prompt.
 
-  const mcpContext: DevMcpContext = {
-    reverted: false,
-  };
+When you're done — implementation working, changes committed — overwrite
+\`.compass/feedback.md\` with notes for the Plan agent and finish.
 
-  const mcpServer = createDevMcpServer(mcpContext);
-
-  const initialPrompt = `
-
-## Notes from PM
-
-${notes || "No additional notes."}
-
----
-
-Implement the following task:
-
-${task.content}
-
-Begin by exploring the codebase to understand the context, then implement the task.
-Verify your implementation works (run tests, build, etc.) before completing.`;
+If the plan can't be implemented as written, make no changes, write the reason to
+\`.compass/feedback.md\`, and finish. Plan will read it and replan next iteration.`;
 
   const devOptions: Options = {
-    systemPrompt: systemPrompt,
+    systemPrompt,
     cwd: config.implRepoPath,
     permissionMode: "bypassPermissions",
     settingSources: ["user", "project", "local"],
-    mcpServers: {
-      compass: mcpServer,
-    },
-    // Dev has full code access + revert signal
     allowedTools: [
       "Read",
       "Write",
@@ -82,44 +39,33 @@ Verify your implementation works (run tests, build, etc.) before completing.`;
       "WebSearch",
       "NotebookEdit",
       "NotebookRead",
-      "mcp__compass__signal_revert",
     ],
   };
 
-  output.agentStart("Dev", task.content);
+  output.agentStart("Develop", next.split("\n")[0]?.slice(0, 120));
 
   try {
-    const devStream = query({ prompt: initialPrompt, options: devOptions });
+    const stream = query({ prompt: initialPrompt, options: devOptions });
 
-    for await (const message of devStream) {
+    for await (const message of stream) {
       if (message.type === "assistant") {
         for (const block of message.message.content) {
           if (block.type === "text") {
             output.log(block.text);
           } else if (block.type === "tool_use") {
-            output.tool("Dev", block.name, extractToolDetail(block.name, block.input as Record<string, unknown>));
+            output.tool(
+              "Develop",
+              block.name,
+              extractToolDetail(block.name, block.input as Record<string, unknown>)
+            );
           }
         }
       }
-
-      // Check if revert was signaled
-      if (mcpContext.reverted) {
-        output.agentComplete("Dev", "Reverted");
-        return {
-          success: false,
-          revertReason: mcpContext.revertReason,
-        };
-      }
     }
 
-    output.agentComplete("Dev");
+    output.agentComplete("Develop");
   } catch (error) {
-    output.error(`Dev agent error: ${error}`);
+    output.error(`Develop agent error: ${error}`);
     throw error;
   }
-
-  return {
-    success: !mcpContext.reverted,
-    revertReason: mcpContext.revertReason,
-  };
 }
