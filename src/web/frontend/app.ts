@@ -16,6 +16,41 @@ interface PlanState {
   followUp: string;
 }
 
+interface LoopStatus {
+  phase: "idle" | "planning" | "awaiting_approval" | "developing" | "paused";
+  paused: boolean;
+  approveRequired: boolean;
+  session: number;
+  pendingApproval: { plan: string; verify: string } | null;
+}
+
+interface SessionCommit {
+  sha: string;
+  short: string;
+  subject: string;
+}
+
+interface SessionRecord {
+  session: number;
+  startedAt: number;
+  endedAt: number | null;
+  plan: string | null;
+  verify: string | null;
+  beforeSha: string | null;
+  afterSha: string | null;
+  commits: SessionCommit[];
+  status: string;
+  notes: string[];
+}
+
+type WsMessage =
+  | { kind: "output"; event: OutputEvent }
+  | { kind: "state"; state: PlanState }
+  | { kind: "drafts"; content: string }
+  | { kind: "feedback"; content: string }
+  | { kind: "status"; status: LoopStatus }
+  | { kind: "sessions"; sessions: SessionRecord[] };
+
 class CompassApp {
   private ws: WebSocket | null = null;
   private reconnectAttempts = 0;
@@ -23,29 +58,41 @@ class CompassApp {
   private reconnectDelay = 1000;
   private autoScroll = true;
   private currentTab = "activity";
+  private token: string;
+  private status: LoopStatus | null = null;
 
   constructor() {
+    const params = new URLSearchParams(window.location.search);
+    this.token = params.get("t") ?? "";
     this.init();
   }
 
+  private apiHeaders(extra: Record<string, string> = {}): Record<string, string> {
+    return {
+      "X-Compass-Token": this.token,
+      ...extra,
+    };
+  }
+
   private async init(): Promise<void> {
+    if (!this.token) {
+      this.updateConn("error", "Missing token in URL");
+      const log = document.getElementById("activity-log");
+      if (log) {
+        const entry = document.createElement("div");
+        entry.className = "log-entry error";
+        entry.textContent =
+          "No access token in URL. Use the URL printed by `compass run`.";
+        log.appendChild(entry);
+      }
+      return;
+    }
+
     this.setupTabs();
-
-    await Promise.all([
-      this.loadState(),
-      this.loadDrafts(),
-      this.loadFeedback(),
-    ]);
-
     this.setupDraftForm();
+    this.setupControls();
     this.connectWebSocket();
     this.setupAutoScroll();
-
-    setInterval(() => {
-      this.loadState();
-      this.loadDrafts();
-      this.loadFeedback();
-    }, 2000);
   }
 
   private setupTabs(): void {
@@ -70,6 +117,54 @@ class CompassApp {
     document.querySelectorAll(".panel").forEach((panel) => {
       panel.classList.toggle("active", panel.id === `${tabName}-panel`);
     });
+  }
+
+  private setupControls(): void {
+    document.getElementById("pause-btn")?.addEventListener("click", () => {
+      void this.postControl("pause");
+    });
+    document.getElementById("resume-btn")?.addEventListener("click", () => {
+      void this.postControl("resume");
+    });
+    document.getElementById("cancel-btn")?.addEventListener("click", () => {
+      if (
+        !confirm("Cancel the current iteration? The agent will be aborted.")
+      )
+        return;
+      void this.postControl("cancel");
+    });
+    document.getElementById("approve-btn")?.addEventListener("click", () => {
+      void this.postControl("approve");
+    });
+    const toggle = document.getElementById(
+      "approve-required-toggle"
+    ) as HTMLInputElement | null;
+    toggle?.addEventListener("change", () => {
+      void this.postApproveRequired(toggle.checked);
+    });
+  }
+
+  private async postControl(action: string): Promise<void> {
+    try {
+      await fetch(`/api/control/${action}`, {
+        method: "POST",
+        headers: this.apiHeaders(),
+      });
+    } catch (err) {
+      console.error("control failed:", err);
+    }
+  }
+
+  private async postApproveRequired(value: boolean): Promise<void> {
+    try {
+      await fetch(`/api/control/approve-required`, {
+        method: "POST",
+        headers: this.apiHeaders({ "Content-Type": "application/json" }),
+        body: JSON.stringify({ value }),
+      });
+    } catch (err) {
+      console.error("approve-required failed:", err);
+    }
   }
 
   private renderText(elId: string, content: string, emptyMessage: string): void {
@@ -113,17 +208,7 @@ class CompassApp {
       pre.textContent = state.next.plan;
       el.appendChild(pre);
 
-      const verifyRow = document.createElement("div");
-      verifyRow.className = "verify-row";
-      const verifyLabel = document.createElement("span");
-      verifyLabel.className = "verify-label";
-      verifyLabel.textContent = "verify";
-      const verifyCmd = document.createElement("code");
-      verifyCmd.className = "verify-cmd";
-      verifyCmd.textContent = state.next.verify;
-      verifyRow.appendChild(verifyLabel);
-      verifyRow.appendChild(verifyCmd);
-      el.appendChild(verifyRow);
+      el.appendChild(this.makeVerifyRow(state.next.verify));
     } else {
       el.appendChild(this.makeEmpty("No next plan. Add a draft to get started."));
     }
@@ -137,6 +222,121 @@ class CompassApp {
     } else {
       el.appendChild(this.makeEmpty("No follow-up sketched."));
     }
+  }
+
+  private makeVerifyRow(verify: string): HTMLElement {
+    const verifyRow = document.createElement("div");
+    verifyRow.className = "verify-row";
+    const verifyLabel = document.createElement("span");
+    verifyLabel.className = "verify-label";
+    verifyLabel.textContent = "verify";
+    const verifyCmd = document.createElement("code");
+    verifyCmd.className = "verify-cmd";
+    verifyCmd.textContent = verify;
+    verifyRow.appendChild(verifyLabel);
+    verifyRow.appendChild(verifyCmd);
+    return verifyRow;
+  }
+
+  private renderSessions(sessions: SessionRecord[]): void {
+    const badge = document.getElementById("sessions-badge")!;
+    badge.textContent = sessions.length > 0 ? String(sessions.length) : "";
+
+    const el = document.getElementById("sessions-content")!;
+    el.replaceChildren();
+
+    if (sessions.length === 0) {
+      el.appendChild(this.makeEmpty("No sessions yet."));
+      return;
+    }
+
+    for (const s of [...sessions].reverse()) {
+      el.appendChild(this.renderSessionCard(s));
+    }
+  }
+
+  private renderSessionCard(s: SessionRecord): HTMLElement {
+    const card = document.createElement("div");
+    card.className = `session-card session-status-${s.status}`;
+
+    const header = document.createElement("div");
+    header.className = "session-header";
+
+    const num = document.createElement("span");
+    num.className = "session-num";
+    num.textContent = `Session ${s.session}`;
+    header.appendChild(num);
+
+    const status = document.createElement("span");
+    status.className = "session-status";
+    status.textContent = s.status;
+    header.appendChild(status);
+
+    if (s.endedAt) {
+      const dur = document.createElement("span");
+      dur.className = "session-dur";
+      const seconds = Math.round((s.endedAt - s.startedAt) / 1000);
+      dur.textContent = `${seconds}s`;
+      header.appendChild(dur);
+    }
+
+    card.appendChild(header);
+
+    if (s.plan) {
+      const planBlock = document.createElement("div");
+      planBlock.className = "session-plan";
+      const firstLine = s.plan.split("\n")[0].slice(0, 200);
+      planBlock.textContent = firstLine;
+      card.appendChild(planBlock);
+    }
+
+    if (s.verify) {
+      card.appendChild(this.makeVerifyRow(s.verify));
+    }
+
+    if (s.commits.length > 0) {
+      const commits = document.createElement("ul");
+      commits.className = "session-commits";
+      for (const c of s.commits) {
+        const li = document.createElement("li");
+        const sha = document.createElement("code");
+        sha.className = "commit-sha";
+        sha.textContent = c.short;
+        const subj = document.createElement("span");
+        subj.className = "commit-subj";
+        subj.textContent = c.subject;
+        li.appendChild(sha);
+        li.appendChild(subj);
+        commits.appendChild(li);
+      }
+      card.appendChild(commits);
+    } else if (
+      s.status === "succeeded" ||
+      s.status === "failed" ||
+      s.status === "cancelled"
+    ) {
+      const none = document.createElement("div");
+      none.className = "session-no-commits";
+      none.textContent = "(no commits)";
+      card.appendChild(none);
+    }
+
+    if (s.notes.length > 0) {
+      const notes = document.createElement("details");
+      notes.className = "session-notes";
+      const summary = document.createElement("summary");
+      summary.textContent = `Notes (${s.notes.length})`;
+      notes.appendChild(summary);
+      for (const n of s.notes) {
+        const p = document.createElement("pre");
+        p.className = "session-note";
+        p.textContent = n;
+        notes.appendChild(p);
+      }
+      card.appendChild(notes);
+    }
+
+    return card;
   }
 
   private makeHeading(text: string): HTMLElement {
@@ -153,46 +353,47 @@ class CompassApp {
     return span;
   }
 
-  private async loadState(): Promise<void> {
-    try {
-      const res = await fetch("/api/state");
-      const data = (await res.json()) as PlanState;
-      this.renderState(data);
-    } catch (error) {
-      console.error("Failed to load state:", error);
-    }
+  private renderDrafts(content: string): void {
+    const badge = document.getElementById("drafts-badge")!;
+    const lines = content
+      .split("\n")
+      .map((l) => l.trim())
+      .filter((l) => l.length > 0);
+    badge.textContent = lines.length > 0 ? String(lines.length) : "";
+    this.renderText("drafts-content", content, "No pending drafts.");
   }
 
-  private async loadDrafts(): Promise<void> {
-    try {
-      const res = await fetch("/api/drafts");
-      const data = (await res.json()) as { content: string };
-      const badge = document.getElementById("drafts-badge")!;
+  private renderStatus(status: LoopStatus): void {
+    this.status = status;
 
-      const lines = data.content
-        .split("\n")
-        .map((l) => l.trim())
-        .filter((l) => l.length > 0);
+    const phasePill = document.getElementById("phase-pill")!;
+    phasePill.textContent = status.paused ? "paused" : status.phase;
+    phasePill.className = `phase-pill phase-${status.paused ? "paused" : status.phase}`;
 
-      badge.textContent = lines.length > 0 ? String(lines.length) : "";
+    const pauseBtn = document.getElementById("pause-btn") as HTMLButtonElement;
+    const resumeBtn = document.getElementById("resume-btn") as HTMLButtonElement;
+    const cancelBtn = document.getElementById("cancel-btn") as HTMLButtonElement;
+    const approveBtn = document.getElementById("approve-btn") as HTMLButtonElement;
+    const approveToggle = document.getElementById(
+      "approve-required-toggle"
+    ) as HTMLInputElement;
 
-      this.renderText("drafts-content", data.content, "No pending drafts.");
-    } catch (error) {
-      console.error("Failed to load drafts:", error);
+    pauseBtn.hidden = status.paused;
+    resumeBtn.hidden = !status.paused;
+    cancelBtn.hidden =
+      status.phase !== "planning" &&
+      status.phase !== "developing" &&
+      status.phase !== "awaiting_approval";
+    approveBtn.hidden = status.phase !== "awaiting_approval";
+
+    if (approveToggle.checked !== status.approveRequired) {
+      approveToggle.checked = status.approveRequired;
     }
-  }
 
-  private async loadFeedback(): Promise<void> {
-    try {
-      const res = await fetch("/api/feedback");
-      const data = (await res.json()) as { content: string };
-      this.renderText(
-        "feedback-content",
-        data.content,
-        "No pending feedback."
-      );
-    } catch (error) {
-      console.error("Failed to load feedback:", error);
+    if (status.session > 0) {
+      this.updateConn("running", `Session ${status.session} — ${status.phase}`);
+    } else {
+      this.updateConn("connected", `Idle — ${status.phase}`);
     }
   }
 
@@ -214,13 +415,11 @@ class CompassApp {
     try {
       const res = await fetch("/api/drafts", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: this.apiHeaders({ "Content-Type": "application/json" }),
         body: JSON.stringify({ content }),
       });
-
       if (res.ok) {
         textarea.value = "";
-        await this.loadDrafts();
       }
     } catch (error) {
       console.error("Failed to submit draft:", error);
@@ -229,37 +428,37 @@ class CompassApp {
 
   private connectWebSocket(): void {
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-    const wsUrl = `${protocol}//${window.location.host}/ws`;
+    const wsUrl = `${protocol}//${window.location.host}/ws?t=${encodeURIComponent(this.token)}`;
 
     this.ws = new WebSocket(wsUrl);
 
     this.ws.onopen = () => {
       this.reconnectAttempts = 0;
-      this.updateStatus("connected", "Connected");
+      this.updateConn("connected", "Connected");
     };
 
     this.ws.onmessage = (event) => {
       try {
-        const data: OutputEvent = JSON.parse(event.data as string);
-        this.handleEvent(data);
+        const data: WsMessage = JSON.parse(event.data as string);
+        this.handleMessage(data);
       } catch (error) {
         console.error("Failed to parse WebSocket message:", error);
       }
     };
 
     this.ws.onclose = () => {
-      this.updateStatus("error", "Disconnected");
+      this.updateConn("error", "Disconnected");
       this.scheduleReconnect();
     };
 
     this.ws.onerror = () => {
-      this.updateStatus("error", "Connection error");
+      this.updateConn("error", "Connection error");
     };
   }
 
   private scheduleReconnect(): void {
     if (this.reconnectAttempts >= this.maxReconnectAttempts) {
-      this.updateStatus("error", "Connection failed");
+      this.updateConn("error", "Connection failed");
       return;
     }
 
@@ -267,12 +466,12 @@ class CompassApp {
     const delay = this.reconnectDelay * Math.pow(1.5, this.reconnectAttempts - 1);
 
     setTimeout(() => {
-      this.updateStatus("error", `Reconnecting (${this.reconnectAttempts})...`);
+      this.updateConn("error", `Reconnecting (${this.reconnectAttempts})...`);
       this.connectWebSocket();
     }, delay);
   }
 
-  private updateStatus(
+  private updateConn(
     state: "connected" | "running" | "error",
     text: string
   ): void {
@@ -283,7 +482,34 @@ class CompassApp {
     textEl.textContent = text;
   }
 
-  private handleEvent(event: OutputEvent): void {
+  private handleMessage(msg: WsMessage): void {
+    switch (msg.kind) {
+      case "output":
+        this.handleOutputEvent(msg.event);
+        break;
+      case "state":
+        this.renderState(msg.state);
+        break;
+      case "drafts":
+        this.renderDrafts(msg.content);
+        break;
+      case "feedback":
+        this.renderText(
+          "feedback-content",
+          msg.content,
+          "No pending feedback."
+        );
+        break;
+      case "status":
+        this.renderStatus(msg.status);
+        break;
+      case "sessions":
+        this.renderSessions(msg.sessions);
+        break;
+    }
+  }
+
+  private handleOutputEvent(event: OutputEvent): void {
     const logEl = document.getElementById("activity-log")!;
     const entry = document.createElement("div");
     entry.className = `log-entry ${event.type}`;
@@ -291,7 +517,6 @@ class CompassApp {
     switch (event.type) {
       case "session":
         entry.textContent = `Session ${event.data}`;
-        this.updateStatus("running", `Session ${event.data}`);
         break;
       case "phase":
         entry.textContent = `── ${event.data} ──`;

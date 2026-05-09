@@ -30,9 +30,106 @@ header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 1rem 1.5rem;
+  padding: 0.75rem 1.5rem;
   background: var(--bg-secondary);
   border-bottom: 1px solid var(--border);
+  gap: 1rem;
+}
+
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+}
+
+.loop-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.phase-pill {
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  background: var(--bg-panel);
+  color: var(--text-secondary);
+  border: 1px solid var(--border);
+}
+
+.phase-pill.phase-planning,
+.phase-pill.phase-developing {
+  color: var(--success);
+  border-color: var(--success);
+}
+
+.phase-pill.phase-awaiting_approval {
+  color: var(--warning);
+  border-color: var(--warning);
+}
+
+.phase-pill.phase-paused {
+  color: var(--warning);
+  border-color: var(--warning);
+}
+
+.ctrl {
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 0.3rem 0.7rem;
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.12s ease;
+}
+
+.ctrl:hover {
+  color: var(--text-primary);
+  border-color: var(--accent-dim);
+}
+
+.ctrl[hidden] {
+  display: none;
+}
+
+.ctrl-primary {
+  background: var(--accent);
+  color: white;
+  border-color: var(--accent);
+}
+
+.ctrl-primary:hover {
+  background: var(--accent-dim);
+  color: white;
+}
+
+.ctrl-danger {
+  color: var(--error);
+  border-color: var(--error);
+}
+
+.ctrl-danger:hover {
+  background: var(--error);
+  color: white;
+}
+
+.toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+  cursor: pointer;
+  user-select: none;
+}
+
+.toggle input {
+  cursor: pointer;
 }
 
 header h1 {
@@ -320,6 +417,121 @@ main {
 .empty {
   color: var(--text-muted);
   font-style: italic;
+}
+
+/* Sessions */
+.session-card {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--text-muted);
+  border-radius: 6px;
+  padding: 0.75rem 1rem;
+  margin-bottom: 0.75rem;
+}
+
+.session-card.session-status-succeeded {
+  border-left-color: var(--success);
+}
+
+.session-card.session-status-failed,
+.session-card.session-status-cancelled {
+  border-left-color: var(--error);
+}
+
+.session-card.session-status-awaiting_approval,
+.session-card.session-status-developing,
+.session-card.session-status-planning {
+  border-left-color: var(--accent);
+}
+
+.session-header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 0.4rem;
+}
+
+.session-num {
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: var(--text-primary);
+}
+
+.session-status {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  padding: 0.1rem 0.4rem;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+}
+
+.session-dur {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  margin-left: auto;
+}
+
+.session-plan {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  margin-bottom: 0.4rem;
+  line-height: 1.4;
+}
+
+.session-commits {
+  list-style: none;
+  padding: 0;
+  margin: 0.5rem 0 0;
+}
+
+.session-commits li {
+  display: flex;
+  gap: 0.6rem;
+  padding: 0.2rem 0;
+  font-size: 0.8rem;
+  align-items: baseline;
+}
+
+.commit-sha {
+  color: var(--accent);
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+  font-size: 0.78rem;
+}
+
+.commit-subj {
+  color: var(--text-secondary);
+}
+
+.session-no-commits {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  font-style: italic;
+  margin-top: 0.4rem;
+}
+
+.session-notes {
+  margin-top: 0.5rem;
+  font-size: 0.8rem;
+}
+
+.session-notes summary {
+  color: var(--text-muted);
+  cursor: pointer;
+  user-select: none;
+}
+
+.session-note {
+  background: var(--bg-panel);
+  padding: 0.5rem 0.75rem;
+  margin: 0.4rem 0 0;
+  border-radius: 3px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+  border-left: 2px solid var(--border);
 }
 
 /* Drafts form */

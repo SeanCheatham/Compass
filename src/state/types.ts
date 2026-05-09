@@ -2,8 +2,10 @@ export interface WorkspaceConfig {
   implRepoPath: string;
   workspacePath: string;
   statePath: string;
+  stateBackupPath: string;
   draftsPath: string;
   feedbackPath: string;
+  sessionsPath: string;
 }
 
 /**

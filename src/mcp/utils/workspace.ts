@@ -6,6 +6,7 @@ import {
   writeFile,
   rename,
   unlink,
+  copyFile,
 } from "fs/promises";
 import {
   EMPTY_PLAN_STATE,
@@ -15,8 +16,25 @@ import {
 
 export const WORKSPACE_DIR = ".compass";
 export const STATE_FILE = "state.json";
+export const STATE_BACKUP_FILE = "state.json.bak";
 export const DRAFTS_FILE = "drafts.md";
 export const FEEDBACK_FILE = "feedback.md";
+
+/**
+ * Thrown when state.json exists on disk but cannot be parsed/normalized.
+ * The runner catches this and halts the loop rather than silently wiping
+ * `completed` history.
+ */
+export class StateParseError extends Error {
+  constructor(
+    message: string,
+    readonly path: string,
+    readonly raw: string
+  ) {
+    super(message);
+    this.name = "StateParseError";
+  }
+}
 
 export function getWorkspaceConfig(implRepoPath: string): WorkspaceConfig {
   const workspacePath = resolve(implRepoPath, WORKSPACE_DIR);
@@ -24,8 +42,10 @@ export function getWorkspaceConfig(implRepoPath: string): WorkspaceConfig {
     implRepoPath,
     workspacePath,
     statePath: resolve(workspacePath, STATE_FILE),
+    stateBackupPath: resolve(workspacePath, STATE_BACKUP_FILE),
     draftsPath: resolve(workspacePath, DRAFTS_FILE),
     feedbackPath: resolve(workspacePath, FEEDBACK_FILE),
+    sessionsPath: resolve(workspacePath, "sessions"),
   };
 }
 
@@ -42,6 +62,7 @@ export async function ensureWorkspaceExists(
   config: WorkspaceConfig
 ): Promise<void> {
   await mkdir(config.workspacePath, { recursive: true });
+  await mkdir(config.sessionsPath, { recursive: true });
   await ensureFile(config.statePath, JSON.stringify(EMPTY_PLAN_STATE, null, 2) + "\n");
   await ensureFile(config.draftsPath);
   await ensureFile(config.feedbackPath);
@@ -70,30 +91,42 @@ export async function ensureGitignore(implRepoPath: string): Promise<void> {
   await writeFile(gitignorePath, updated, "utf-8");
 }
 
-function normalizePlanState(raw: unknown): PlanState {
-  if (!raw || typeof raw !== "object") return { ...EMPTY_PLAN_STATE };
+/**
+ * Normalize parsed JSON into a PlanState. Returns null on shape mismatch so
+ * callers can decide whether to throw or fall back.
+ */
+export function normalizePlanState(raw: unknown): PlanState | null {
+  if (!raw || typeof raw !== "object") return null;
 
   const obj = raw as Record<string, unknown>;
-  const completed = Array.isArray(obj.completed)
-    ? obj.completed.filter((x): x is string => typeof x === "string")
-    : [];
+  if (!Array.isArray(obj.completed)) return null;
+  const completed = obj.completed.filter((x): x is string => typeof x === "string");
+
   const followUp = typeof obj.followUp === "string" ? obj.followUp : "";
 
   let next: PlanState["next"] = null;
-  if (obj.next && typeof obj.next === "object") {
+  if (obj.next === null || obj.next === undefined) {
+    next = null;
+  } else if (typeof obj.next === "object") {
     const n = obj.next as Record<string, unknown>;
     const plan = typeof n.plan === "string" ? n.plan.trim() : "";
     const verify = typeof n.verify === "string" ? n.verify.trim() : "";
-    if (plan && verify) {
-      next = { plan, verify };
-    }
+    if (!plan || !verify) return null;
+    next = { plan, verify };
+  } else {
+    return null;
   }
 
   return { completed, next, followUp };
 }
 
 /**
- * Read state.json, parsed and normalized. Returns EMPTY_PLAN_STATE on missing/invalid file.
+ * Read state.json, parsed and normalized.
+ * - Missing or empty file → EMPTY_PLAN_STATE (this is a fresh workspace).
+ * - Corrupt or shape-invalid file → throws StateParseError (caller halts).
+ *
+ * Never silently returns EMPTY for a non-empty corrupt file — that masks
+ * data loss.
  */
 export async function readPlanState(
   config: WorkspaceConfig
@@ -101,14 +134,62 @@ export async function readPlanState(
   let raw: string;
   try {
     raw = await readFile(config.statePath, "utf-8");
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === "ENOENT") {
+      return { ...EMPTY_PLAN_STATE };
+    }
+    throw err;
+  }
+  if (!raw.trim()) return { ...EMPTY_PLAN_STATE };
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch (err) {
+    throw new StateParseError(
+      `state.json is not valid JSON: ${(err as Error).message}`,
+      config.statePath,
+      raw
+    );
+  }
+  const normalized = normalizePlanState(parsed);
+  if (!normalized) {
+    throw new StateParseError(
+      "state.json does not match the expected schema (completed: string[], next: object|null, followUp: string)",
+      config.statePath,
+      raw
+    );
+  }
+  return normalized;
+}
+
+/**
+ * Lenient read — returns EMPTY_PLAN_STATE on any failure. Use only for status
+ * displays where masking corruption is acceptable.
+ */
+export async function tryReadPlanState(
+  config: WorkspaceConfig
+): Promise<PlanState> {
+  try {
+    return await readPlanState(config);
   } catch {
     return { ...EMPTY_PLAN_STATE };
   }
-  if (!raw.trim()) return { ...EMPTY_PLAN_STATE };
+}
+
+/**
+ * Copy the current state.json to state.json.bak. No-op if state.json doesn't
+ * exist yet. Called before each Plan run so an unparseable write can be
+ * recovered manually.
+ */
+export async function backupStateFile(
+  config: WorkspaceConfig
+): Promise<void> {
   try {
-    return normalizePlanState(JSON.parse(raw));
-  } catch {
-    return { ...EMPTY_PLAN_STATE };
+    await copyFile(config.statePath, config.stateBackupPath);
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === "ENOENT") return;
+    throw err;
   }
 }
 
@@ -179,8 +260,10 @@ export async function appendDraft(
  * Atomically snapshot a workspace file's contents and clear it.
  * Uses fs.rename so writes during the snapshot land in the fresh empty file.
  * Returns "" if the file did not exist or was empty.
+ *
+ * Exported for tests; prefer the typed `snapshotAndClear*` wrappers below.
  */
-async function snapshotAndConsume(path: string): Promise<string> {
+export async function snapshotAndConsume(path: string): Promise<string> {
   const snapshotPath = `${path}.snapshot`;
   try {
     await rename(path, snapshotPath);

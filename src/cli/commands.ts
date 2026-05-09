@@ -5,25 +5,32 @@ import { runDevAgent } from "../agents/dev.js";
 import {
   readDrafts,
   readPlanState,
+  tryReadPlanState,
+  backupStateFile,
   getWorkspaceConfig,
   snapshotAndClearDrafts,
   snapshotAndClearFeedback,
+  StateParseError,
 } from "../mcp/utils/workspace.js";
 import type { WorkspaceConfig } from "../state/types.js";
 import type { OutputManager } from "../web/output-manager.js";
+import type { LoopController } from "../state/control.js";
+import type { SessionTracker } from "../state/sessions.js";
+import { commitsBetween, tryGetCurrentCommit } from "../mcp/utils/git.js";
 
 export interface RunOptions {
   output: OutputManager;
+  controller: LoopController;
+  sessions: SessionTracker;
   /** Abort signal to stop the loop on shutdown. */
-  signal?: AbortSignal;
+  signal: AbortSignal;
 }
 
 export async function runCompass(
   cwd: string,
   options: RunOptions
 ): Promise<void> {
-  const output = options.output;
-  const signal = options.signal;
+  const { output, controller, sessions, signal } = options;
 
   output.info("Compass — Plan + Develop loop\n");
 
@@ -34,46 +41,168 @@ export async function runCompass(
 
   let iteration = 0;
 
-  while (!signal?.aborted) {
+  while (!signal.aborted) {
     if (!(await hasWork(config))) {
+      controller.setPhase("idle");
       output.info("Idle — waiting for drafts. Add one in the UI to get started.");
       const woke = await waitForWork(config, signal);
-      if (!woke) break; // aborted
+      if (!woke) break;
       continue;
     }
 
+    // Honour pause between iterations. If cancelled while paused, exit.
+    if (controller.status().paused) {
+      controller.setPhase("paused");
+      const resumed = await controller.waitWhilePaused(signal);
+      if (!resumed) {
+        if (signal.aborted) break;
+        continue;
+      }
+    }
+
     iteration++;
+    controller.resetIteration();
+    controller.setSession(iteration);
     output.session(iteration);
 
+    sessions.start(iteration);
+
+    const beforeSha = await tryGetCurrentCommit(config.implRepoPath);
+    if (beforeSha) sessions.setBefore(beforeSha);
+
+    // ---- Plan phase ------------------------------------------------------
+    controller.setPhase("planning");
     output.phase("Plan");
 
     // Race-free handoff: rotate drafts/feedback into snapshots before Plan starts.
     const drafts = await snapshotAndClearDrafts(config);
     const feedback = await snapshotAndClearFeedback(config);
 
-    const planResult = await runPlanAgent(config, { drafts, feedback }, output);
+    // Backup state.json before Plan touches it.
+    try {
+      await backupStateFile(config);
+    } catch (err) {
+      output.error(`Could not back up state.json: ${err}`);
+    }
+
+    const planSignal = controller.iterationSignal(signal);
+    const planResult = await runPlanAgent(
+      config,
+      { drafts, feedback },
+      output,
+      { signal: planSignal }
+    );
+
+    if (planResult.cancelled) {
+      sessions.end("cancelled");
+      output.info("Iteration cancelled.");
+      continue;
+    }
 
     if (planResult.done) {
+      sessions.end("skipped");
+      sessions.addNote(planResult.doneReason ?? "signal_done");
       output.info(
         `\nPlan signaled done${planResult.doneReason ? `: ${planResult.doneReason}` : ""}.`
       );
       continue;
     }
 
-    const state = await readPlanState(config);
+    // Read state strictly — if Plan corrupted state.json, halt instead of
+    // silently advancing with empty state.
+    let state;
+    try {
+      state = await readPlanState(config);
+    } catch (err) {
+      if (err instanceof StateParseError) {
+        sessions.addNote(`state.json corrupted by Plan: ${err.message}`);
+        sessions.end("failed");
+        output.error(
+          `state.json is unparseable after Plan ran. Backup at ${config.stateBackupPath}. Loop pausing.`
+        );
+        output.error(err.message);
+        controller.pause();
+        const resumed = await controller.waitWhilePaused(signal);
+        if (!resumed) break;
+        continue;
+      }
+      throw err;
+    }
+
     if (!state.next) {
+      sessions.end("skipped");
       output.info(
         "\nPlan finished but state.json has no next. Idling until drafts arrive."
       );
       continue;
     }
 
+    sessions.setPlan(state.next.plan, state.next.verify);
+
+    // ---- Approval gate ---------------------------------------------------
+    if (controller.status().approveRequired) {
+      controller.setPhase("awaiting_approval");
+      sessions.setStatus("awaiting_approval");
+      output.info("Waiting for approval before Develop runs. Approve in the UI to continue.");
+      const approved = await controller.awaitApproval(state.next, signal);
+      if (!approved) {
+        sessions.end("cancelled");
+        output.info("Iteration cancelled while awaiting approval.");
+        continue;
+      }
+    }
+
+    // Honour a pause that landed during Plan or while awaiting approval.
+    if (controller.status().paused) {
+      controller.setPhase("paused");
+      const resumed = await controller.waitWhilePaused(signal);
+      if (!resumed) {
+        sessions.end("cancelled");
+        if (signal.aborted) break;
+        continue;
+      }
+    }
+
+    // ---- Develop phase ---------------------------------------------------
+    controller.setPhase("developing");
+    sessions.setStatus("developing");
     output.phase("Develop");
     output.info(`Plan: ${state.next.plan.split("\n")[0].slice(0, 200)}`);
     output.info(`Verify: ${state.next.verify}`);
-    await runDevAgent(config, state.next, output);
+
+    const devSignal = controller.iterationSignal(signal);
+    const devResult = await runDevAgent(config, state.next, output, {
+      signal: devSignal,
+    });
+
+    // Record commits regardless of outcome (lets the user see partials too).
+    const afterSha = await tryGetCurrentCommit(config.implRepoPath);
+    if (afterSha) {
+      const commits = await commitsBetween(
+        config.implRepoPath,
+        beforeSha,
+        afterSha
+      );
+      sessions.setAfter(
+        afterSha,
+        commits.map((c) => ({ sha: c.sha, short: c.short, subject: c.subject }))
+      );
+    }
+
+    if (devResult.cancelled) {
+      sessions.end("cancelled");
+      output.info("Develop cancelled.");
+      continue;
+    }
+    if (devResult.succeeded) {
+      sessions.end("succeeded");
+    } else {
+      for (const issue of devResult.issues) sessions.addNote(issue);
+      sessions.end("failed");
+    }
   }
 
+  controller.setPhase("idle");
   output.info("\nLoop stopped.");
 }
 
@@ -81,7 +210,7 @@ async function hasWork(config: WorkspaceConfig): Promise<boolean> {
   const drafts = await readDrafts(config);
   if (drafts.trim().length > 0) return true;
 
-  const state = await readPlanState(config);
+  const state = await tryReadPlanState(config);
   return state.next !== null;
 }
 
@@ -142,7 +271,7 @@ async function waitForWork(
 
 export async function showStatus(cwd: string): Promise<void> {
   const config = getWorkspaceConfig(cwd);
-  const state = await readPlanState(config);
+  const state = await tryReadPlanState(config);
   const drafts = await readDrafts(config);
 
   console.log("Compass status\n");

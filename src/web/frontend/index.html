@@ -9,15 +9,29 @@
 <body>
   <header>
     <h1>Compass</h1>
-    <div id="status" class="status">
-      <span id="status-indicator" class="indicator"></span>
-      <span id="status-text">Connecting...</span>
+    <div class="header-right">
+      <div id="loop-controls" class="loop-controls">
+        <span id="phase-pill" class="phase-pill">idle</span>
+        <button id="approve-btn" class="ctrl ctrl-primary" hidden>Approve Next</button>
+        <button id="pause-btn" class="ctrl">Pause</button>
+        <button id="resume-btn" class="ctrl" hidden>Resume</button>
+        <button id="cancel-btn" class="ctrl ctrl-danger" hidden>Cancel iteration</button>
+        <label class="toggle">
+          <input type="checkbox" id="approve-required-toggle" checked>
+          <span>Require approval</span>
+        </label>
+      </div>
+      <div id="status" class="status">
+        <span id="status-indicator" class="indicator"></span>
+        <span id="status-text">Connecting...</span>
+      </div>
     </div>
   </header>
 
   <nav class="tabs">
     <button class="tab active" data-tab="activity">Activity</button>
     <button class="tab" data-tab="state">State</button>
+    <button class="tab" data-tab="sessions">Sessions <span id="sessions-badge" class="badge"></span></button>
     <button class="tab" data-tab="drafts">Drafts <span id="drafts-badge" class="badge"></span></button>
     <button class="tab" data-tab="feedback">Feedback</button>
   </nav>
@@ -29,6 +43,10 @@
 
     <section id="state-panel" class="panel">
       <div id="state-content"></div>
+    </section>
+
+    <section id="sessions-panel" class="panel">
+      <div id="sessions-content"></div>
     </section>
 
     <section id="drafts-panel" class="panel">

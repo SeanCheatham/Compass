@@ -1,4 +1,6 @@
 import { EventEmitter } from "events";
+import { appendFile, mkdir } from "fs/promises";
+import { join } from "path";
 import type { ToolDetail } from "../agents/tool-details.js";
 
 export type OutputEventType =
@@ -52,12 +54,35 @@ export interface OutputManager {
 
   /** Get buffered events for new connections */
   getBuffer(): OutputEvent[];
+
+  /** Path of the file events are being persisted to (null if no persistence). */
+  getActivityLogPath(): string | null;
 }
 
 const MAX_BUFFER_SIZE = 1000;
 
+export interface OutputManagerOptions {
+  /**
+   * Directory to write activity logs to. Each session opens a new
+   * `session-NNN.jsonl` file; events before the first session land in
+   * `pre-session.jsonl`. If omitted, no persistence happens.
+   */
+  sessionsDir?: string;
+}
+
 class OutputManagerImpl extends EventEmitter implements OutputManager {
   private buffer: OutputEvent[] = [];
+  private sessionsDir?: string;
+  private currentLogPath: string | null = null;
+  private writeQueue = Promise.resolve();
+
+  constructor(opts: OutputManagerOptions = {}) {
+    super();
+    this.sessionsDir = opts.sessionsDir;
+    if (this.sessionsDir) {
+      this.currentLogPath = join(this.sessionsDir, "pre-session.jsonl");
+    }
+  }
 
   private emit_event(event: OutputEvent): void {
     this.buffer.push(event);
@@ -65,6 +90,23 @@ class OutputManagerImpl extends EventEmitter implements OutputManager {
       this.buffer.shift();
     }
     this.emit("event", event);
+    this.persist(event);
+  }
+
+  private persist(event: OutputEvent): void {
+    if (!this.sessionsDir || !this.currentLogPath) return;
+    const path = this.currentLogPath;
+    const line = JSON.stringify(event) + "\n";
+    // Serialize writes so events stay ordered even under burst.
+    this.writeQueue = this.writeQueue
+      .then(async () => {
+        await mkdir(this.sessionsDir!, { recursive: true });
+        await appendFile(path, line, "utf-8");
+      })
+      .catch(() => {
+        // Swallow write errors — losing transcript persistence shouldn't kill
+        // the loop. Errors will surface on the next mkdir/append attempt.
+      });
   }
 
   private createEvent(
@@ -85,6 +127,12 @@ class OutputManagerImpl extends EventEmitter implements OutputManager {
   }
 
   session(number: number): void {
+    if (this.sessionsDir) {
+      this.currentLogPath = join(
+        this.sessionsDir,
+        `session-${String(number).padStart(3, "0")}.jsonl`
+      );
+    }
     this.emit_event(this.createEvent("session", String(number)));
   }
 
@@ -133,8 +181,14 @@ class OutputManagerImpl extends EventEmitter implements OutputManager {
   getBuffer(): OutputEvent[] {
     return [...this.buffer];
   }
+
+  getActivityLogPath(): string | null {
+    return this.currentLogPath;
+  }
 }
 
-export function createOutputManager(): OutputManager {
-  return new OutputManagerImpl();
+export function createOutputManager(
+  opts: OutputManagerOptions = {}
+): OutputManager {
+  return new OutputManagerImpl(opts);
 }

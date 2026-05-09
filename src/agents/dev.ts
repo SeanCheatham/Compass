@@ -9,28 +9,68 @@ import { extractToolDetail } from "./tool-details.js";
 const execAsync = promisify(exec);
 
 const MAX_ATTEMPTS = 3;
-const VERIFY_TIMEOUT_MS = 10 * 60 * 1000;
+const DEFAULT_VERIFY_TIMEOUT_MS = 10 * 60 * 1000;
+
+function getVerifyTimeoutMs(): number {
+  const raw = process.env.COMPASS_VERIFY_TIMEOUT_MS;
+  if (!raw) return DEFAULT_VERIFY_TIMEOUT_MS;
+  const parsed = parseInt(raw, 10);
+  if (!Number.isFinite(parsed) || parsed <= 0) return DEFAULT_VERIFY_TIMEOUT_MS;
+  return parsed;
+}
 
 interface PostCheckResult {
   ok: boolean;
   issues: string[];
 }
 
+export interface DevAgentOptions {
+  /** Aborts the agent mid-stream when the user cancels or the process exits. */
+  signal: AbortSignal;
+}
+
+export interface DevAgentResult {
+  /** True if at least one Develop attempt finished with both post-checks green. */
+  succeeded: boolean;
+  /** True if the run was cancelled (Ctrl+C or UI cancel). */
+  cancelled: boolean;
+  /** Last set of post-check issues, if any (empty when succeeded). */
+  issues: string[];
+}
+
 export async function runDevAgent(
   config: WorkspaceConfig,
   next: PlanNext,
-  output: OutputManager
-): Promise<void> {
+  output: OutputManager,
+  opts: DevAgentOptions
+): Promise<DevAgentResult> {
   const systemPrompt = buildDevSystemPrompt({ next });
 
   let priorIssues: string[] = [];
 
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    if (opts.signal.aborted) {
+      return { succeeded: false, cancelled: true, issues: priorIssues };
+    }
+
     const initialPrompt = buildDevPrompt(attempt, priorIssues);
-    await runDevQuery(config, systemPrompt, initialPrompt, next, output, attempt);
+    const queryResult = await runDevQuery(
+      config,
+      systemPrompt,
+      initialPrompt,
+      next,
+      output,
+      attempt,
+      opts.signal
+    );
+    if (queryResult.cancelled) {
+      return { succeeded: false, cancelled: true, issues: priorIssues };
+    }
 
     const post = await runPostChecks(config, next.verify, output);
-    if (post.ok) return;
+    if (post.ok) {
+      return { succeeded: true, cancelled: false, issues: [] };
+    }
 
     priorIssues = post.issues;
 
@@ -38,13 +78,15 @@ export async function runDevAgent(
       output.error(
         `Develop post-checks still failing after ${MAX_ATTEMPTS} attempts. Moving on; Plan will see the feedback next iteration.`
       );
-      return;
+      return { succeeded: false, cancelled: false, issues: priorIssues };
     }
 
     output.info(
       `Develop post-checks failed (attempt ${attempt}/${MAX_ATTEMPTS}). Re-prompting.`
     );
   }
+
+  return { succeeded: false, cancelled: false, issues: priorIssues };
 }
 
 function buildDevPrompt(attempt: number, priorIssues: string[]): string {
@@ -72,13 +114,19 @@ async function runDevQuery(
   prompt: string,
   next: PlanNext,
   output: OutputManager,
-  attempt: number
-): Promise<void> {
+  attempt: number,
+  signal: AbortSignal
+): Promise<{ cancelled: boolean }> {
+  const abortController = new AbortController();
+  if (signal.aborted) abortController.abort();
+  else signal.addEventListener("abort", () => abortController.abort(), { once: true });
+
   const devOptions: Options = {
     systemPrompt,
     cwd: config.implRepoPath,
     permissionMode: "bypassPermissions",
     settingSources: ["user", "project", "local"],
+    abortController,
     allowedTools: [
       "Read",
       "Write",
@@ -123,7 +171,12 @@ async function runDevQuery(
     }
 
     output.agentComplete("Develop");
+    return { cancelled: false };
   } catch (error) {
+    if (signal.aborted) {
+      output.info("Develop cancelled.");
+      return { cancelled: true };
+    }
     output.error(`Develop agent error: ${error}`);
     throw error;
   }
@@ -137,7 +190,7 @@ async function runPostChecks(
   const issues: string[] = [];
 
   output.info(`Post-check: running verify command \`${verifyCommand}\`...`);
-  const verify = await runCommand(verifyCommand, config.implRepoPath, VERIFY_TIMEOUT_MS);
+  const verify = await runCommand(verifyCommand, config.implRepoPath, getVerifyTimeoutMs());
   if (!verify.ok) {
     issues.push(
       `Verify command \`${verifyCommand}\` exited with code ${verify.code}. Output (tail):\n\`\`\`\n${tail(verify.output, 4000)}\n\`\`\``

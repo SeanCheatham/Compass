@@ -16,12 +16,20 @@ export interface PlanAgentInput {
 export interface PlanAgentResult {
   done: boolean;
   doneReason?: string;
+  /** True if the run was aborted via the signal (cancel button or shutdown). */
+  cancelled: boolean;
+}
+
+export interface PlanAgentOptions {
+  /** Aborts the agent mid-stream when the user cancels or the process exits. */
+  signal: AbortSignal;
 }
 
 export async function runPlanAgent(
   config: WorkspaceConfig,
   input: PlanAgentInput,
-  output: OutputManager
+  output: OutputManager,
+  opts: PlanAgentOptions
 ): Promise<PlanAgentResult> {
   const stateJson = await readStateText(config);
 
@@ -43,11 +51,19 @@ export async function runPlanAgent(
 
 Otherwise finish when state.json is in good shape — Develop will implement next.`;
 
+  const abortController = new AbortController();
+  if (opts.signal.aborted) abortController.abort();
+  else
+    opts.signal.addEventListener("abort", () => abortController.abort(), {
+      once: true,
+    });
+
   const planOptions: Options = {
     systemPrompt,
     cwd: config.implRepoPath,
     permissionMode: "bypassPermissions",
     settingSources: ["user", "project", "local"],
+    abortController,
     mcpServers: {
       compass: mcpServer,
     },
@@ -70,6 +86,7 @@ Otherwise finish when state.json is in good shape — Develop will implement nex
 
   output.agentStart("Plan");
 
+  let cancelled = false;
   try {
     const stream = query({ prompt: initialPrompt, options: planOptions });
 
@@ -91,12 +108,18 @@ Otherwise finish when state.json is in good shape — Develop will implement nex
 
     output.agentComplete("Plan", mcpContext.done ? "Done" : undefined);
   } catch (error) {
-    output.error(`Plan agent error: ${error}`);
-    throw error;
+    if (opts.signal.aborted) {
+      cancelled = true;
+      output.info("Plan cancelled.");
+    } else {
+      output.error(`Plan agent error: ${error}`);
+      throw error;
+    }
   }
 
   return {
     done: mcpContext.done,
     doneReason: mcpContext.doneReason,
+    cancelled,
   };
 }

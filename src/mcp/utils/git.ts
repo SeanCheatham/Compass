@@ -140,3 +140,46 @@ export async function initRepo(cwd: string): Promise<void> {
     throw new Error(`Failed to init repo: ${result.stderr}`);
   }
 }
+
+export interface CommitInfo {
+  sha: string;
+  short: string;
+  subject: string;
+}
+
+/**
+ * Returns the commits introduced going from `before` to `after` (i.e. commits
+ * reachable from `after` but not `before`). Order is oldest-first.
+ *
+ * If `before` is null (e.g. fresh repo), returns the single commit at `after`
+ * if it exists.
+ */
+export async function commitsBetween(
+  cwd: string,
+  before: string | null,
+  after: string
+): Promise<CommitInfo[]> {
+  if (before === after) return [];
+  const range = before ? `${before}..${after}` : after;
+  const result = await runGit(cwd, [
+    "log",
+    "--reverse",
+    "--pretty=format:%H%x09%h%x09%s",
+    range,
+  ]);
+  if (!result.success) return [];
+  if (!result.stdout) return [];
+  return result.stdout
+    .split("\n")
+    .map((line) => {
+      const [sha, short, ...rest] = line.split("\t");
+      return { sha, short, subject: rest.join("\t") };
+    })
+    .filter((c) => c.sha);
+}
+
+export async function tryGetCurrentCommit(cwd: string): Promise<string | null> {
+  const result = await runGit(cwd, ["rev-parse", "HEAD"]);
+  if (!result.success) return null;
+  return result.stdout || null;
+}
