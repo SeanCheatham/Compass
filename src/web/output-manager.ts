@@ -1,5 +1,6 @@
 import { EventEmitter } from "events";
 import { appendFile, mkdir } from "fs/promises";
+import { readFileSync, readdirSync } from "fs";
 import { join } from "path";
 import type { ToolDetail } from "../agents/tool-details.js";
 
@@ -59,7 +60,7 @@ export interface OutputManager {
   getActivityLogPath(): string | null;
 }
 
-const MAX_BUFFER_SIZE = 1000;
+export const DEFAULT_MAX_BUFFER_SIZE = 1000;
 
 export interface OutputManagerOptions {
   /**
@@ -68,6 +69,23 @@ export interface OutputManagerOptions {
    * `pre-session.jsonl`. If omitted, no persistence happens.
    */
   sessionsDir?: string;
+  /**
+   * Maximum number of events kept in the in-memory ring buffer (replayed to
+   * each new WS client). Defaults to {@link DEFAULT_MAX_BUFFER_SIZE}. Exposed
+   * primarily for tests.
+   */
+  maxBuffer?: number;
+}
+
+function isOutputEvent(value: unknown): value is OutputEvent {
+  if (!value || typeof value !== "object") return false;
+  const v = value as Record<string, unknown>;
+  return (
+    typeof v.type === "string" &&
+    typeof v.timestamp === "number" &&
+    Number.isFinite(v.timestamp) &&
+    typeof v.data === "string"
+  );
 }
 
 class OutputManagerImpl extends EventEmitter implements OutputManager {
@@ -75,18 +93,64 @@ class OutputManagerImpl extends EventEmitter implements OutputManager {
   private sessionsDir?: string;
   private currentLogPath: string | null = null;
   private writeQueue = Promise.resolve();
+  private readonly maxBuffer: number;
 
   constructor(opts: OutputManagerOptions = {}) {
     super();
     this.sessionsDir = opts.sessionsDir;
+    this.maxBuffer = Math.max(1, opts.maxBuffer ?? DEFAULT_MAX_BUFFER_SIZE);
     if (this.sessionsDir) {
       this.currentLogPath = join(this.sessionsDir, "pre-session.jsonl");
+      this.loadBufferFromDisk();
+    }
+  }
+
+  private loadBufferFromDisk(): void {
+    if (!this.sessionsDir) return;
+    let names: string[];
+    try {
+      names = readdirSync(this.sessionsDir);
+    } catch {
+      return; // dir doesn't exist yet — nothing to rehydrate
+    }
+
+    // pre-session.jsonl is treated as session 0 (oldest).
+    const files: { num: number; name: string }[] = [];
+    for (const name of names) {
+      if (name === "pre-session.jsonl") {
+        files.push({ num: 0, name });
+        continue;
+      }
+      const m = /^session-(\d+)\.jsonl$/.exec(name);
+      if (m) files.push({ num: Number(m[1]), name });
+    }
+    files.sort((a, b) => a.num - b.num);
+
+    for (const { name } of files) {
+      let content: string;
+      try {
+        content = readFileSync(join(this.sessionsDir, name), "utf-8");
+      } catch {
+        continue;
+      }
+      for (const line of content.split("\n")) {
+        if (!line) continue;
+        let parsed: unknown;
+        try {
+          parsed = JSON.parse(line);
+        } catch {
+          continue;
+        }
+        if (!isOutputEvent(parsed)) continue;
+        this.buffer.push(parsed);
+        if (this.buffer.length > this.maxBuffer) this.buffer.shift();
+      }
     }
   }
 
   private emit_event(event: OutputEvent): void {
     this.buffer.push(event);
-    if (this.buffer.length > MAX_BUFFER_SIZE) {
+    if (this.buffer.length > this.maxBuffer) {
       this.buffer.shift();
     }
     this.emit("event", event);
