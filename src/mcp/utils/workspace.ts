@@ -115,7 +115,18 @@ export function normalizePlanState(raw: unknown): PlanState | null {
     const plan = typeof n.plan === "string" ? n.plan.trim() : "";
     const verify = typeof n.verify === "string" ? n.verify.trim() : "";
     if (!plan || !verify) return null;
-    next = { plan, verify };
+    const rawTimeout = n.verifyTimeoutMs;
+    const verifyTimeoutMs =
+      typeof rawTimeout === "number" &&
+      Number.isFinite(rawTimeout) &&
+      Number.isInteger(rawTimeout) &&
+      rawTimeout > 0
+        ? rawTimeout
+        : undefined;
+    next =
+      verifyTimeoutMs !== undefined
+        ? { plan, verify, verifyTimeoutMs }
+        : { plan, verify };
   } else {
     return null;
   }

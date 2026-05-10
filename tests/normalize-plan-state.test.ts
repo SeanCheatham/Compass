@@ -177,3 +177,84 @@ test("readPlanState: parses valid state file", async () => {
     await cleanup();
   }
 });
+
+test("normalizePlanState: accepts positive verifyTimeoutMs", () => {
+  const result = normalizePlanState({
+    completed: [],
+    next: { plan: "x", verify: "y", verifyTimeoutMs: 60000 },
+    followUp: "",
+  });
+  assert.deepEqual(result?.next, { plan: "x", verify: "y", verifyTimeoutMs: 60000 });
+});
+
+test("normalizePlanState: omits verifyTimeoutMs when absent", () => {
+  const result = normalizePlanState({
+    completed: [],
+    next: { plan: "x", verify: "y" },
+    followUp: "",
+  });
+  assert.deepEqual(result?.next, { plan: "x", verify: "y" });
+  assert.ok(result?.next);
+  assert.equal(
+    Object.prototype.hasOwnProperty.call(result.next, "verifyTimeoutMs"),
+    false
+  );
+});
+
+test("normalizePlanState: drops zero/negative/non-integer/non-finite verifyTimeoutMs", () => {
+  for (const bad of [0, -100, 1.5, Infinity]) {
+    const result = normalizePlanState({
+      completed: [],
+      next: { plan: "x", verify: "y", verifyTimeoutMs: bad },
+      followUp: "",
+    });
+    assert.deepEqual(
+      result?.next,
+      { plan: "x", verify: "y" },
+      `expected verifyTimeoutMs=${bad} to be dropped`
+    );
+    assert.ok(result?.next);
+    assert.equal(
+      Object.prototype.hasOwnProperty.call(result.next, "verifyTimeoutMs"),
+      false,
+      `expected verifyTimeoutMs key absent for bad value ${bad}`
+    );
+  }
+});
+
+test("normalizePlanState: drops non-numeric verifyTimeoutMs", () => {
+  const result = normalizePlanState({
+    completed: [],
+    next: { plan: "x", verify: "y", verifyTimeoutMs: "60000" },
+    followUp: "",
+  });
+  assert.deepEqual(result?.next, { plan: "x", verify: "y" });
+  assert.ok(result?.next);
+  assert.equal(
+    Object.prototype.hasOwnProperty.call(result.next, "verifyTimeoutMs"),
+    false
+  );
+});
+
+test("readPlanState: round-trips verifyTimeoutMs from disk", async () => {
+  const { config, cleanup } = await tmpWorkspace();
+  try {
+    await writeFile(
+      config.statePath,
+      JSON.stringify({
+        completed: ["x"],
+        next: { plan: "y", verify: "z", verifyTimeoutMs: 120000 },
+        followUp: "more",
+      }),
+      "utf-8"
+    );
+    const result = await readPlanState(config);
+    assert.deepEqual(result, {
+      completed: ["x"],
+      next: { plan: "y", verify: "z", verifyTimeoutMs: 120000 },
+      followUp: "more",
+    });
+  } finally {
+    await cleanup();
+  }
+});

@@ -34,6 +34,7 @@ import type { PlanState, WorkspaceConfig } from "../state/types.js";
 const planNextSchema = z.object({
   plan: z.string().min(1, "next.plan must be a non-empty markdown string"),
   verify: z.string().min(1, "next.verify must be a non-empty shell command"),
+  verifyTimeoutMs: z.number().int().positive().optional(),
 });
 
 const planStateSchema = z.object({

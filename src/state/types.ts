@@ -17,6 +17,13 @@ export interface WorkspaceConfig {
 export interface PlanNext {
   plan: string;
   verify: string;
+  /**
+   * Optional override for COMPASS_VERIFY_TIMEOUT_MS, in milliseconds. Must be a
+   * positive finite integer. When unset, the env var (or its 10-min default)
+   * applies. Use this for plans whose verify is unusually slow (e.g. e2e) or
+   * unusually fast (e.g. typecheck-only).
+   */
+  verifyTimeoutMs?: number;
 }
 
 /**

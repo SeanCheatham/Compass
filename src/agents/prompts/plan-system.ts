@@ -66,7 +66,8 @@ The state you pass to \`set_state\` MUST conform to this shape:
   "completed": ["<one-line summary of each shipped iteration>", "..."],
   "next": {
     "plan": "<markdown describing the single concrete plan Develop will implement next>",
-    "verify": "<shell command run from the repo root that exits 0 iff Develop succeeded>"
+    "verify": "<shell command run from the repo root that exits 0 iff Develop succeeded>",
+    "verifyTimeoutMs": <optional positive integer; ms override for COMPASS_VERIFY_TIMEOUT_MS (default 10 min). Set this for unusually slow (e2e) or fast (typecheck-only) verifies. Omit for the default.>
   } | null,
   "followUp": "<markdown sketch of what should come after Next>"
 }

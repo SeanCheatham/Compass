@@ -113,7 +113,8 @@ export async function runDevAgent(
       config,
       next.verify,
       output,
-      queryResult.feedback !== null
+      queryResult.feedback !== null,
+      next.verifyTimeoutMs
     );
     lastDisplayIssues = post.displayIssues;
     lastVerifyOutput = post.verifyOutput;
@@ -266,7 +267,8 @@ async function runPostChecks(
   config: WorkspaceConfig,
   verifyCommand: string,
   output: OutputManager,
-  completeWasCalled: boolean
+  completeWasCalled: boolean,
+  verifyTimeoutMsOverride: number | undefined
 ): Promise<PostCheckResult> {
   const retryIssues: string[] = [];
   const displayIssues: string[] = [];
@@ -280,8 +282,11 @@ async function runPostChecks(
     output.error("Develop did not call `complete`.");
   }
 
-  output.info(`Post-check: running verify command \`${verifyCommand}\`...`);
-  const verify = await runCommand(verifyCommand, config.implRepoPath, getVerifyTimeoutMs());
+  const verifyTimeoutMs = verifyTimeoutMsOverride ?? getVerifyTimeoutMs();
+  output.info(
+    `Post-check: running verify command \`${verifyCommand}\` (timeout ${verifyTimeoutMs}ms)...`
+  );
+  const verify = await runCommand(verifyCommand, config.implRepoPath, verifyTimeoutMs);
   if (!verify.ok) {
     const verifyTail = tail(verify.output, 4000);
     // Retry prompt still includes the verify-tail string so attempt N+1 has

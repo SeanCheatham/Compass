@@ -10,6 +10,7 @@ interface OutputEvent {
 interface PlanNext {
   plan: string;
   verify: string;
+  verifyTimeoutMs?: number;
 }
 
 interface PlanState {
