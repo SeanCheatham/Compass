@@ -13,11 +13,11 @@ export interface FileEntry {
 }
 
 export interface RepoMapCache {
-  version: 7;
+  version: 8;
   files: Record<string, FileEntry>;
 }
 
-const EMPTY_CACHE: RepoMapCache = { version: 7, files: {} };
+const EMPTY_CACHE: RepoMapCache = { version: 8, files: {} };
 
 export function repoMapCachePath(config: WorkspaceConfig): string {
   return resolve(config.workspacePath, REPOMAP_FILE);
@@ -31,21 +31,21 @@ export async function readRepoMapCache(
   try {
     raw = await readFile(path, "utf-8");
   } catch {
-    return { version: 7, files: {} };
+    return { version: 8, files: {} };
   }
-  if (!raw.trim()) return { version: 7, files: {} };
+  if (!raw.trim()) return { version: 8, files: {} };
 
   let parsed: unknown;
   try {
     parsed = JSON.parse(raw);
   } catch {
-    return { version: 7, files: {} };
+    return { version: 8, files: {} };
   }
 
   if (
     !parsed ||
     typeof parsed !== "object" ||
-    (parsed as { version?: unknown }).version !== 7 ||
+    (parsed as { version?: unknown }).version !== 8 ||
     typeof (parsed as { files?: unknown }).files !== "object"
   ) {
     return { ...EMPTY_CACHE, files: {} };

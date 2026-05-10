@@ -889,10 +889,96 @@ test("extractGoReturnType: leading whitespace before type", () => {
   assert.equal(extractGoReturnType(text, offset), "int");
 });
 
-test("extractGoReturnType: anonymous interface yields keyword only (acceptable loss)", () => {
+test("extractGoReturnType: anonymous interface{}", () => {
   const text = "func foo() interface{} {";
   const offset = "func foo".length;
-  assert.equal(extractGoReturnType(text, offset), "interface");
+  assert.equal(extractGoReturnType(text, offset), "interface{}");
+});
+
+test("extractGoReturnType: anonymous struct{}", () => {
+  const text = "func foo() struct{} {";
+  const offset = "func foo".length;
+  assert.equal(extractGoReturnType(text, offset), "struct{}");
+});
+
+test("extractGoReturnType: anonymous interface with method", () => {
+  const text = "func foo() interface{ M() } {";
+  const offset = "func foo".length;
+  assert.equal(extractGoReturnType(text, offset), "interface{ M() }");
+});
+
+test("extractGoReturnType: anonymous struct with field", () => {
+  const text = "func foo() struct{ x int } {";
+  const offset = "func foo".length;
+  assert.equal(extractGoReturnType(text, offset), "struct{ x int }");
+});
+
+test("extractGoReturnType: anonymous struct with multiple fields", () => {
+  const text = "func foo() struct{ x int; y string } {";
+  const offset = "func foo".length;
+  assert.equal(
+    extractGoReturnType(text, offset),
+    "struct{ x int; y string }"
+  );
+});
+
+test("extractGoReturnType: nested anonymous interface", () => {
+  const text = "func foo() interface{ Bar() interface{} } {";
+  const offset = "func foo".length;
+  assert.equal(
+    extractGoReturnType(text, offset),
+    "interface{ Bar() interface{} }"
+  );
+});
+
+test("extractGoReturnType: pointer to anonymous interface", () => {
+  const text = "func foo() *interface{} {";
+  const offset = "func foo".length;
+  assert.equal(extractGoReturnType(text, offset), "*interface{}");
+});
+
+test("extractGoReturnType: anonymous struct in multi-return", () => {
+  const text = "func foo() (s struct{}, err error) {";
+  const offset = "func foo".length;
+  assert.equal(
+    extractGoReturnType(text, offset),
+    "(s struct{}, err error)"
+  );
+});
+
+test("extractGoReturnType: function-typed return of anonymous struct", () => {
+  const text = "func foo() func() struct{} {";
+  const offset = "func foo".length;
+  assert.equal(extractGoReturnType(text, offset), "func() struct{}");
+});
+
+test("extractGoReturnType: identifier ending in 'interface' is not anonymous (regression)", () => {
+  const text = "func foo() MyInterface {";
+  const offset = "func foo".length;
+  assert.equal(extractGoReturnType(text, offset), "MyInterface");
+});
+
+test("extractGoReturnType: identifier 'interface_xyz' is not anonymous (regression)", () => {
+  const text = "func foo() interface_xyz {";
+  const offset = "func foo".length;
+  assert.equal(extractGoReturnType(text, offset), "interface_xyz");
+});
+
+test("extractGoReturnType: truncates over MAX_RETURN_TYPE_CHARS for anonymous struct", () => {
+  const text = `func foo() struct{ ${"x".repeat(80)} } {`;
+  const offset = "func foo".length;
+  const ret = extractGoReturnType(text, offset);
+  assert.ok(ret !== null);
+  assert.equal(ret!.length, 60);
+  assert.equal(ret!.charAt(ret!.length - 1), "…");
+});
+
+test("extractSymbols: Go func with anonymous interface{} return type", () => {
+  const text = "func foo() interface{} {\n}\n";
+  const syms = extractSymbols(text, "go");
+  const foo = syms.find((s) => s.name === "foo");
+  assert.equal(foo?.signature, "");
+  assert.equal(foo?.returnType, "interface{}");
 });
 
 test("extractGoReturnType: any alias works", () => {

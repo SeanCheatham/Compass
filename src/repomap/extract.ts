@@ -405,12 +405,14 @@ export function extractRustReturnType(text: string, fromOffset: number): string 
 
 /**
  * Go variant: given the full file text and an offset (typically the end of a `func` regex match),
- * scan forward to the args' closing `)`, then walk the return type. Go has no `->` arrow — the
- * return type sits directly between args' `)` and body `{`. Track bracket depth on `[` and `(` only
- * (Go uses `<-`/`chan<-` as channel-direction tokens, not bracket pairs; `{}` opens the body).
- * Terminate at depth-0 `{` (body) or `\n` (defensive). Returns null if no `(...)`, no return type
- * (first non-ws after `)` is `{`), or empty inner. Anonymous `interface{}`/`struct{}` returns yield
- * the keyword only (e.g. `"interface"`) — the modern `any` alias works correctly.
+ * scan forward to the args' closing `)`, then read the bare/parenthesized return type up to body
+ * `{` or newline. Walks balanced `[]`, `()`, and `{}` (the latter only when type-internal or when
+ * preceded by the `interface`/`struct` keyword — the only Go forms where `{` belongs to the type).
+ * Body `{` at depth 0 is distinguished from an anonymous-type `{` by inspecting the run of word
+ * characters immediately preceding (after whitespace): only `interface` or `struct` triggers an
+ * inline-type push. Does NOT track `<>` since Go uses `<-` / `chan<-` as standalone tokens, not
+ * brackets. If first non-whitespace after args' `)` is `{`, returns null (no return type). Returns
+ * the inner text with whitespace collapsed and truncated to MAX_RETURN_TYPE_CHARS (suffix `…`).
  */
 export function extractGoReturnType(text: string, fromOffset: number): string | null {
   const SCAN_LIMIT = 4096;
@@ -435,14 +437,42 @@ export function extractGoReturnType(text: string, fromOffset: number): string | 
   // No `->` to find; if first non-ws is `{`, there is no return type.
   if (text[i] === "{") return null;
 
-  // Step 3: walk return type. Depth on `[` and `(` only. Terminate on depth-0 `{` or `\n`.
+  // Step 3: walk return type. Depth on `[`, `(`, and `{` (latter only when type-internal
+  // or when the `{` follows the `interface`/`struct` keyword — the only Go syntactic forms
+  // where `{` is part of the type rather than the function body). Distinguish body `{` from
+  // an anonymous-type `{` at depth 0 by inspecting the previous run of word characters.
   const start = i;
   let bd = 0;
   for (; i < text.length && i - start < SCAN_LIMIT; i++) {
     const c = text.charCodeAt(i);
     if (c === 91 /* [ */ || c === 40 /* ( */) bd++;
-    else if (c === 93 /* ] */ || c === 41 /* ) */) bd--;
-    else if (bd === 0 && (c === 123 /* { */ || c === 10 /* \n */)) break;
+    else if (c === 93 /* ] */ || c === 41 /* ) */ || c === 125 /* } */) bd--;
+    else if (c === 123 /* { */) {
+      if (bd > 0) {
+        bd++; // type-internal
+      } else {
+        // bd === 0: distinguish anonymous `interface{`/`struct{` from body `{`.
+        let j = i - 1;
+        while (j >= start && /\s/.test(text[j]!)) j--;
+        const wordEnd = j + 1;
+        while (j >= start) {
+          const cc = text.charCodeAt(j);
+          const isWord =
+            (cc >= 48 && cc <= 57) /* 0-9 */ ||
+            (cc >= 65 && cc <= 90) /* A-Z */ ||
+            (cc >= 97 && cc <= 122) /* a-z */ ||
+            cc === 95 /* _ */;
+          if (!isWord) break;
+          j--;
+        }
+        const word = text.slice(j + 1, wordEnd);
+        if (word === "interface" || word === "struct") {
+          bd++;
+        } else {
+          break; // body `{` — terminate.
+        }
+      }
+    } else if (bd === 0 && c === 10 /* \n */) break;
   }
 
   const inner = text.slice(start, i).replace(/\s+/g, " ").trim();
