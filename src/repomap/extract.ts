@@ -8,7 +8,7 @@ export interface Symbol {
   line: number;
   /** Parameter list for function-like decls, e.g. `"a: number, b: string"`. Empty string for no-arg functions. Absent for non-functions. */
   signature?: string;
-  /** Return type for TS/Python/Rust function-like decls (TS `: Type`, Python/Rust `-> Type`). Absent if no annotation, JS/Go, or non-function. */
+  /** Return type for TS/Python/Rust/Go function-like decls (TS `: Type`, Python/Rust `-> Type`, Go bare/parenthesized after args). Absent if no annotation, JS, or non-function. */
   returnType?: string;
 }
 
@@ -376,6 +376,54 @@ export function extractRustReturnType(text: string, fromOffset: number): string 
   return inner.slice(0, MAX_RETURN_TYPE_CHARS - 1) + "…";
 }
 
+/**
+ * Go variant: given the full file text and an offset (typically the end of a `func` regex match),
+ * scan forward to the args' closing `)`, then walk the return type. Go has no `->` arrow — the
+ * return type sits directly between args' `)` and body `{`. Track bracket depth on `[` and `(` only
+ * (Go uses `<-`/`chan<-` as channel-direction tokens, not bracket pairs; `{}` opens the body).
+ * Terminate at depth-0 `{` (body) or `\n` (defensive). Returns null if no `(...)`, no return type
+ * (first non-ws after `)` is `{`), or empty inner. Anonymous `interface{}`/`struct{}` returns yield
+ * the keyword only (e.g. `"interface"`) — the modern `any` alias works correctly.
+ */
+export function extractGoReturnType(text: string, fromOffset: number): string | null {
+  const SCAN_LIMIT = 4096;
+  // Step 1: find args' close paren.
+  const open = text.indexOf("(", fromOffset);
+  if (open === -1 || open - fromOffset > SCAN_LIMIT) return null;
+  let depth = 0;
+  let close = -1;
+  for (let i = open; i < text.length && i - open < SCAN_LIMIT; i++) {
+    const c = text.charCodeAt(i);
+    if (c === 40) depth++;
+    else if (c === 41) {
+      depth--;
+      if (depth === 0) { close = i; break; }
+    }
+  }
+  if (close === -1) return null;
+
+  // Step 2: skip whitespace (incl. newlines) past args' `)`.
+  let i = close + 1;
+  while (i < text.length && /\s/.test(text[i]!)) i++;
+  // No `->` to find; if first non-ws is `{`, there is no return type.
+  if (text[i] === "{") return null;
+
+  // Step 3: walk return type. Depth on `[` and `(` only. Terminate on depth-0 `{` or `\n`.
+  const start = i;
+  let bd = 0;
+  for (; i < text.length && i - start < SCAN_LIMIT; i++) {
+    const c = text.charCodeAt(i);
+    if (c === 91 /* [ */ || c === 40 /* ( */) bd++;
+    else if (c === 93 /* ] */ || c === 41 /* ) */) bd--;
+    else if (bd === 0 && (c === 123 /* { */ || c === 10 /* \n */)) break;
+  }
+
+  const inner = text.slice(start, i).replace(/\s+/g, " ").trim();
+  if (inner.length === 0) return null;
+  if (inner.length <= MAX_RETURN_TYPE_CHARS) return inner;
+  return inner.slice(0, MAX_RETURN_TYPE_CHARS - 1) + "…";
+}
+
 export function extractSymbols(text: string, language: Language): Symbol[] {
   const patterns = PATTERNS_BY_LANG[language];
   if (!patterns) return [];
@@ -415,6 +463,9 @@ export function extractSymbols(text: string, language: Language): Symbol[] {
         if (ret !== null) sym.returnType = ret;
       } else if (language === "rs") {
         const ret = extractRustReturnType(text, r.matchEnd);
+        if (ret !== null) sym.returnType = ret;
+      } else if (language === "go") {
+        const ret = extractGoReturnType(text, r.matchEnd);
         if (ret !== null) sym.returnType = ret;
       }
     }

@@ -33,7 +33,7 @@ export async function buildRepoMap(
   const maxFileBytes = opts.maxFileBytes ?? DEFAULT_MAX_FILE_BYTES;
 
   const cache = await readRepoMapCache(config);
-  const next: RepoMapCache = { version: 5, files: {} };
+  const next: RepoMapCache = { version: 6, files: {} };
 
   const all = await listTrackedAndUntracked(config.implRepoPath);
   const sourceFiles = all.filter((p) => detectLanguage(p) !== null);

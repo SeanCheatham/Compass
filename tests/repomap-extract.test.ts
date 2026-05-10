@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   detectLanguage,
+  extractGoReturnType,
   extractPythonReturnType,
   extractReturnType,
   extractRustReturnType,
@@ -669,6 +670,177 @@ test("extractSymbols: Rust fn with no annotation has no returnType", () => {
 test("extractSymbols: Rust struct has no returnType", () => {
   const text = "struct Foo { x: i32 }\n";
   const syms = extractSymbols(text, "rs");
+  const foo = syms.find((s) => s.name === "Foo");
+  assert.equal(foo?.returnType, undefined);
+});
+
+test("extractGoReturnType: simple func -> int", () => {
+  const text = "func foo() int {";
+  const offset = "func foo".length;
+  assert.equal(extractGoReturnType(text, offset), "int");
+});
+
+test("extractGoReturnType: pointer return *User", () => {
+  const text = "func foo() *User {";
+  const offset = "func foo".length;
+  assert.equal(extractGoReturnType(text, offset), "*User");
+});
+
+test("extractGoReturnType: slice []byte", () => {
+  const text = "func foo() []byte {";
+  const offset = "func foo".length;
+  assert.equal(extractGoReturnType(text, offset), "[]byte");
+});
+
+test("extractGoReturnType: map[string]int", () => {
+  const text = "func foo() map[string]int {";
+  const offset = "func foo".length;
+  assert.equal(extractGoReturnType(text, offset), "map[string]int");
+});
+
+test("extractGoReturnType: nested map of slices map[string][]int", () => {
+  const text = "func foo() map[string][]int {";
+  const offset = "func foo".length;
+  assert.equal(extractGoReturnType(text, offset), "map[string][]int");
+});
+
+test("extractGoReturnType: chan int", () => {
+  const text = "func foo() chan int {";
+  const offset = "func foo".length;
+  assert.equal(extractGoReturnType(text, offset), "chan int");
+});
+
+test("extractGoReturnType: send-only chan<- int", () => {
+  const text = "func foo() chan<- int {";
+  const offset = "func foo".length;
+  assert.equal(extractGoReturnType(text, offset), "chan<- int");
+});
+
+test("extractGoReturnType: receive-only <-chan int", () => {
+  const text = "func foo() <-chan int {";
+  const offset = "func foo".length;
+  assert.equal(extractGoReturnType(text, offset), "<-chan int");
+});
+
+test("extractGoReturnType: array [3]int", () => {
+  const text = "func foo() [3]int {";
+  const offset = "func foo".length;
+  assert.equal(extractGoReturnType(text, offset), "[3]int");
+});
+
+test("extractGoReturnType: function-typed return func(int) string", () => {
+  const text = "func foo() func(int) string {";
+  const offset = "func foo".length;
+  assert.equal(extractGoReturnType(text, offset), "func(int) string");
+});
+
+test("extractGoReturnType: nested function type func() func() int", () => {
+  const text = "func foo() func() func() int {";
+  const offset = "func foo".length;
+  assert.equal(extractGoReturnType(text, offset), "func() func() int");
+});
+
+test("extractGoReturnType: multi-return (int, error)", () => {
+  const text = "func foo() (int, error) {";
+  const offset = "func foo".length;
+  assert.equal(extractGoReturnType(text, offset), "(int, error)");
+});
+
+test("extractGoReturnType: named returns (a int, b error)", () => {
+  const text = "func foo() (a int, b error) {";
+  const offset = "func foo".length;
+  assert.equal(extractGoReturnType(text, offset), "(a int, b error)");
+});
+
+test("extractGoReturnType: shorthand multi-name (a, b int)", () => {
+  const text = "func foo() (a, b int) {";
+  const offset = "func foo".length;
+  assert.equal(extractGoReturnType(text, offset), "(a, b int)");
+});
+
+test("extractGoReturnType: no return type returns null", () => {
+  const text = "func foo() {";
+  const offset = "func foo".length;
+  assert.equal(extractGoReturnType(text, offset), null);
+});
+
+test("extractGoReturnType: terminates at newline", () => {
+  const text = "func foo() int\nrest_of_line";
+  const offset = "func foo".length;
+  assert.equal(extractGoReturnType(text, offset), "int");
+});
+
+test("extractGoReturnType: multiline arg list then return type", () => {
+  const text = "func foo(\n  a int,\n) (int, error) {";
+  const offset = "func foo".length;
+  assert.equal(extractGoReturnType(text, offset), "(int, error)");
+});
+
+test("extractGoReturnType: leading whitespace before type", () => {
+  const text = "func foo()   int   {";
+  const offset = "func foo".length;
+  assert.equal(extractGoReturnType(text, offset), "int");
+});
+
+test("extractGoReturnType: anonymous interface yields keyword only (acceptable loss)", () => {
+  const text = "func foo() interface{} {";
+  const offset = "func foo".length;
+  assert.equal(extractGoReturnType(text, offset), "interface");
+});
+
+test("extractGoReturnType: any alias works", () => {
+  const text = "func foo() any {";
+  const offset = "func foo".length;
+  assert.equal(extractGoReturnType(text, offset), "any");
+});
+
+test("extractGoReturnType: error type", () => {
+  const text = "func foo() error {";
+  const offset = "func foo".length;
+  assert.equal(extractGoReturnType(text, offset), "error");
+});
+
+test("extractGoReturnType: truncates over MAX_RETURN_TYPE_CHARS", () => {
+  const text = `func foo() map[string]${"x".repeat(80)} {`;
+  const offset = "func foo".length;
+  const ret = extractGoReturnType(text, offset);
+  assert.ok(ret !== null);
+  assert.equal(ret!.length, 60);
+  assert.equal(ret!.charAt(ret!.length - 1), "…");
+});
+
+test("extractGoReturnType: returns null when no '(' within scan limit", () => {
+  const text = "func foo" + "x".repeat(5000) + "() int {";
+  const offset = "func foo".length;
+  assert.equal(extractGoReturnType(text, offset), null);
+});
+
+test("extractSymbols: Go func gets returnType", () => {
+  const text = "func foo(a int) (int, error) {\n}\n";
+  const syms = extractSymbols(text, "go");
+  const foo = syms.find((s) => s.name === "foo");
+  assert.equal(foo?.signature, "a int");
+  assert.equal(foo?.returnType, "(int, error)");
+});
+
+test("extractSymbols: Go method (with receiver) gets returnType", () => {
+  const text = "func (r *R) foo() int {\n}\n";
+  const syms = extractSymbols(text, "go");
+  const foo = syms.find((s) => s.name === "foo");
+  assert.equal(foo?.returnType, "int");
+});
+
+test("extractSymbols: Go func with no return type has no returnType", () => {
+  const text = "func foo(a int) {\n}\n";
+  const syms = extractSymbols(text, "go");
+  const foo = syms.find((s) => s.name === "foo");
+  assert.equal(foo?.signature, "a int");
+  assert.equal(foo?.returnType, undefined);
+});
+
+test("extractSymbols: Go type decl has no returnType", () => {
+  const text = "type Foo int\n";
+  const syms = extractSymbols(text, "go");
   const foo = syms.find((s) => s.name === "Foo");
   assert.equal(foo?.returnType, undefined);
 });
