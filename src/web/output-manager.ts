@@ -62,6 +62,7 @@ export interface OutputManager {
 
 export const DEFAULT_MAX_BUFFER_SIZE = 1000;
 export const DEFAULT_MAX_PRE_SESSION_ARCHIVES = 20;
+export const DEFAULT_MAX_SESSION_LOGS = 200;
 
 export interface OutputManagerOptions {
   /**
@@ -82,6 +83,12 @@ export interface OutputManagerOptions {
    * Floored at 1. Exposed primarily for tests.
    */
   maxPreSessionArchives?: number;
+  /**
+   * Maximum number of `session-NNN.jsonl` files to keep on disk after each
+   * startup sweep. Defaults to {@link DEFAULT_MAX_SESSION_LOGS}. Floored at 1.
+   * Exposed primarily for tests.
+   */
+  maxSessionLogs?: number;
 }
 
 function isOutputEvent(value: unknown): value is OutputEvent {
@@ -102,6 +109,7 @@ class OutputManagerImpl extends EventEmitter implements OutputManager {
   private writeQueue = Promise.resolve();
   private readonly maxBuffer: number;
   private readonly maxPreSessionArchives: number;
+  private readonly maxSessionLogs: number;
 
   constructor(opts: OutputManagerOptions = {}) {
     super();
@@ -111,10 +119,15 @@ class OutputManagerImpl extends EventEmitter implements OutputManager {
       1,
       opts.maxPreSessionArchives ?? DEFAULT_MAX_PRE_SESSION_ARCHIVES
     );
+    this.maxSessionLogs = Math.max(
+      1,
+      opts.maxSessionLogs ?? DEFAULT_MAX_SESSION_LOGS
+    );
     if (this.sessionsDir) {
       this.currentLogPath = join(this.sessionsDir, "pre-session.jsonl");
       this.rotatePreSession();
       this.gcPreSessionArchives();
+      this.gcSessionLogs();
       this.loadBufferFromDisk();
     }
   }
@@ -156,6 +169,33 @@ class OutputManagerImpl extends EventEmitter implements OutputManager {
     for (let i = 0; i < excess; i++) {
       try {
         unlinkSync(join(this.sessionsDir, archives[i]));
+      } catch {
+        // best-effort; surface nothing
+      }
+    }
+  }
+
+  private gcSessionLogs(): void {
+    if (!this.sessionsDir) return;
+    let names: string[];
+    try {
+      names = readdirSync(this.sessionsDir);
+    } catch {
+      return;
+    }
+    const SESSION = /^session-(\d+)\.jsonl$/;
+    const sessions: Array<{ n: number; name: string }> = [];
+    for (const name of names) {
+      const m = name.match(SESSION);
+      if (!m) continue;
+      sessions.push({ n: parseInt(m[1], 10), name });
+    }
+    sessions.sort((a, b) => a.n - b.n); // ascending — oldest first
+    const excess = sessions.length - this.maxSessionLogs;
+    if (excess <= 0) return;
+    for (let i = 0; i < excess; i++) {
+      try {
+        unlinkSync(join(this.sessionsDir, sessions[i].name));
       } catch {
         // best-effort; surface nothing
       }

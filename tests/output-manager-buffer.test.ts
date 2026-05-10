@@ -500,3 +500,223 @@ test("output-manager gc: tolerates missing sessions dir without throwing", () =>
   });
   assert.deepEqual(om.getBuffer(), []);
 });
+
+function sessionLogName(n: number): string {
+  return `session-${String(n).padStart(3, "0")}.jsonl`;
+}
+
+test("gc session logs: keeps the K most recent session logs (numeric N order)", async () => {
+  const { sessionsDir, cleanup } = await tmpWorkspace();
+  try {
+    for (let i = 1; i <= 250; i++) {
+      await writeFile(
+        join(sessionsDir, sessionLogName(i)),
+        lines([ev("log", `s${i}`, i)])
+      );
+    }
+
+    createOutputManager({ sessionsDir });
+
+    const names = await readdir(sessionsDir);
+    const sessions = names.filter((n) => /^session-\d+\.jsonl$/.test(n));
+    assert.equal(sessions.length, 200);
+
+    const ns = new Set(
+      sessions.map((n) => {
+        const m = n.match(/^session-(\d+)\.jsonl$/);
+        return Number(m![1]);
+      })
+    );
+    const expected = new Set<number>();
+    for (let i = 51; i <= 250; i++) expected.add(i);
+    assert.deepEqual(ns, expected);
+  } finally {
+    await cleanup();
+  }
+});
+
+test("gc session logs: respects custom maxSessionLogs option", async () => {
+  const { sessionsDir, cleanup } = await tmpWorkspace();
+  try {
+    for (let i = 1; i <= 10; i++) {
+      await writeFile(
+        join(sessionsDir, sessionLogName(i)),
+        lines([ev("log", `s${i}`, i)])
+      );
+    }
+
+    createOutputManager({ sessionsDir, maxSessionLogs: 3 });
+
+    const names = await readdir(sessionsDir);
+    const sessions = names.filter((n) => /^session-\d+\.jsonl$/.test(n));
+    assert.equal(sessions.length, 3);
+
+    const ns = new Set(
+      sessions.map((n) => {
+        const m = n.match(/^session-(\d+)\.jsonl$/);
+        return Number(m![1]);
+      })
+    );
+    assert.deepEqual(ns, new Set([8, 9, 10]));
+  } finally {
+    await cleanup();
+  }
+});
+
+test("gc session logs: no-op when at or below the cap", async () => {
+  const { sessionsDir, cleanup } = await tmpWorkspace();
+  try {
+    for (let i = 1; i <= 5; i++) {
+      await writeFile(
+        join(sessionsDir, sessionLogName(i)),
+        lines([ev("log", `s${i}`, i)])
+      );
+    }
+
+    createOutputManager({ sessionsDir });
+
+    const names = await readdir(sessionsDir);
+    const sessions = names.filter((n) => /^session-\d+\.jsonl$/.test(n));
+    assert.equal(sessions.length, 5);
+  } finally {
+    await cleanup();
+  }
+});
+
+test("gc session logs: floors maxSessionLogs at 1", async () => {
+  const { sessionsDir, cleanup } = await tmpWorkspace();
+  try {
+    for (let i = 1; i <= 5; i++) {
+      await writeFile(
+        join(sessionsDir, sessionLogName(i)),
+        lines([ev("log", `s${i}`, i)])
+      );
+    }
+
+    createOutputManager({ sessionsDir, maxSessionLogs: 0 });
+
+    const names = await readdir(sessionsDir);
+    const sessions = names.filter((n) => /^session-\d+\.jsonl$/.test(n));
+    assert.equal(sessions.length, 1);
+
+    const m = sessions[0].match(/^session-(\d+)\.jsonl$/);
+    assert.ok(m);
+    assert.equal(Number(m![1]), 5);
+  } finally {
+    await cleanup();
+  }
+});
+
+test("gc session logs: sorts numerically not lexicographically (4-digit N)", async () => {
+  const { sessionsDir, cleanup } = await tmpWorkspace();
+  try {
+    for (const n of [998, 999, 1000, 1001, 1002, 1003]) {
+      await writeFile(
+        join(sessionsDir, sessionLogName(n)),
+        lines([ev("log", `s${n}`, n)])
+      );
+    }
+
+    createOutputManager({ sessionsDir, maxSessionLogs: 3 });
+
+    const names = await readdir(sessionsDir);
+    const sessions = names.filter((n) => /^session-\d+\.jsonl$/.test(n));
+    assert.equal(sessions.length, 3);
+
+    const ns = new Set(
+      sessions.map((n) => {
+        const m = n.match(/^session-(\d+)\.jsonl$/);
+        return Number(m![1]);
+      })
+    );
+    assert.deepEqual(ns, new Set([1001, 1002, 1003]));
+  } finally {
+    await cleanup();
+  }
+});
+
+test("gc session logs: leaves pre-session archives and pre-session.jsonl alone", async () => {
+  const { sessionsDir, cleanup } = await tmpWorkspace();
+  try {
+    for (let i = 1; i <= 250; i++) {
+      await writeFile(
+        join(sessionsDir, sessionLogName(i)),
+        lines([ev("log", `s${i}`, i)])
+      );
+    }
+
+    // One rotated archive (seed)
+    await writeFile(
+      join(sessionsDir, "pre-session-2026-01-01T00-00-00-000Z.jsonl"),
+      lines([ev("log", "old-pre", 1)])
+    );
+
+    // Active pre-session.jsonl with a valid event (gets rotated by ctor)
+    await writeFile(
+      join(sessionsDir, "pre-session.jsonl"),
+      lines([ev("log", "active-pre", 99)])
+    );
+
+    createOutputManager({ sessionsDir });
+
+    const names = await readdir(sessionsDir);
+
+    const sessions = names.filter((n) => /^session-\d+\.jsonl$/.test(n));
+    assert.equal(sessions.length, 200);
+
+    const rotated = names.filter((n) => /^pre-session-.+\.jsonl$/.test(n));
+    assert.equal(rotated.length, 2);
+
+    assert.ok(!names.includes("pre-session.jsonl"));
+  } finally {
+    await cleanup();
+  }
+});
+
+test("gc session logs: ignores files that don't match session-NNN.jsonl pattern", async () => {
+  const { sessionsDir, cleanup } = await tmpWorkspace();
+  try {
+    // Non-matching files
+    await writeFile(
+      join(sessionsDir, "session-abc.jsonl"),
+      JSON.stringify(ev("log", "no", 1)) + "\n"
+    );
+    await writeFile(
+      join(sessionsDir, "session-.jsonl"),
+      JSON.stringify(ev("log", "no", 1)) + "\n"
+    );
+    await writeFile(join(sessionsDir, "notes.txt"), "garbage");
+
+    // 251 valid logs (N=1..251)
+    for (let i = 1; i <= 251; i++) {
+      await writeFile(
+        join(sessionsDir, sessionLogName(i)),
+        lines([ev("log", `s${i}`, i)])
+      );
+    }
+
+    createOutputManager({ sessionsDir });
+
+    const names = await readdir(sessionsDir);
+
+    // Non-matching files survive
+    assert.ok(names.includes("session-abc.jsonl"));
+    assert.ok(names.includes("session-.jsonl"));
+    assert.ok(names.includes("notes.txt"));
+
+    const sessions = names.filter((n) => /^session-\d+\.jsonl$/.test(n));
+    assert.equal(sessions.length, 200);
+
+    const ns = new Set(
+      sessions.map((n) => {
+        const m = n.match(/^session-(\d+)\.jsonl$/);
+        return Number(m![1]);
+      })
+    );
+    const expected = new Set<number>();
+    for (let i = 52; i <= 251; i++) expected.add(i);
+    assert.deepEqual(ns, expected);
+  } finally {
+    await cleanup();
+  }
+});
