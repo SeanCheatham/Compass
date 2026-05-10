@@ -8,7 +8,7 @@ export interface Symbol {
   line: number;
   /** Parameter list for function-like decls, e.g. `"a: number, b: string"`. Empty string for no-arg functions. Absent for non-functions. */
   signature?: string;
-  /** Return type for TS function-like decls, e.g. `"Promise<void>"`. Absent if no annotation, JS, or non-function. */
+  /** Return type for TS/Python function-like decls (TS `: Type`, Python `-> Type`). Absent if no annotation, JS, or non-function. */
   returnType?: string;
 }
 
@@ -257,6 +257,57 @@ export function extractReturnType(text: string, fromOffset: number): string | nu
   return inner.slice(0, MAX_RETURN_TYPE_CHARS - 1) + "…";
 }
 
+/**
+ * Python variant: given the full file text and an offset (typically the end of a `def` regex match),
+ * scan forward to the args' closing `)`, then look for `->`. Walk balanced `[]`, `()`, `{}` until
+ * hitting a depth-0 `:` (signature end) or `\n` (defensive). Returns the inner text with whitespace
+ * collapsed and truncated to MAX_RETURN_TYPE_CHARS (suffix `…`). Returns null if no `(...)`,
+ * no `->`, or the type would be empty.
+ */
+export function extractPythonReturnType(text: string, fromOffset: number): string | null {
+  const SCAN_LIMIT = 4096;
+  // Step 1: find args' close paren (same as TS version).
+  const open = text.indexOf("(", fromOffset);
+  if (open === -1 || open - fromOffset > SCAN_LIMIT) return null;
+  let depth = 0;
+  let close = -1;
+  for (let i = open; i < text.length && i - open < SCAN_LIMIT; i++) {
+    const c = text.charCodeAt(i);
+    if (c === 40) depth++;
+    else if (c === 41) {
+      depth--;
+      if (depth === 0) {
+        close = i;
+        break;
+      }
+    }
+  }
+  if (close === -1) return null;
+
+  // Step 2: skip whitespace (incl. newlines), expect `->`.
+  let i = close + 1;
+  while (i < text.length && /\s/.test(text[i]!)) i++;
+  if (text[i] !== "-" || text[i + 1] !== ">") return null;
+  i += 2;
+  // Skip whitespace after '->' (allow newlines too — multiline annotations).
+  while (i < text.length && /\s/.test(text[i]!)) i++;
+
+  // Step 3: walk return type with bracket depth on [, (, {.
+  const start = i;
+  let bd = 0;
+  for (; i < text.length && i - start < SCAN_LIMIT; i++) {
+    const c = text.charCodeAt(i);
+    if (c === 91 /* [ */ || c === 40 /* ( */ || c === 123 /* { */) bd++;
+    else if (c === 93 /* ] */ || c === 41 /* ) */ || c === 125 /* } */) bd--;
+    else if (bd === 0 && (c === 58 /* : */ || c === 10 /* \n */)) break;
+  }
+
+  const inner = text.slice(start, i).replace(/\s+/g, " ").trim();
+  if (inner.length === 0) return null;
+  if (inner.length <= MAX_RETURN_TYPE_CHARS) return inner;
+  return inner.slice(0, MAX_RETURN_TYPE_CHARS - 1) + "…";
+}
+
 export function extractSymbols(text: string, language: Language): Symbol[] {
   const patterns = PATTERNS_BY_LANG[language];
   if (!patterns) return [];
@@ -288,9 +339,11 @@ export function extractSymbols(text: string, language: Language): Symbol[] {
     if (SIGNATURE_KINDS.has(r.kind)) {
       const sig = extractSignature(text, r.matchEnd);
       if (sig !== null) sym.signature = sig;
-      // Only TS gets return types; for JS the parser returns null because there's no `:`.
       if (language === "ts") {
         const ret = extractReturnType(text, r.matchEnd);
+        if (ret !== null) sym.returnType = ret;
+      } else if (language === "py") {
+        const ret = extractPythonReturnType(text, r.matchEnd);
         if (ret !== null) sym.returnType = ret;
       }
     }

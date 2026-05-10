@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   detectLanguage,
+  extractPythonReturnType,
   extractReturnType,
   extractSignature,
   extractSymbols,
@@ -398,6 +399,129 @@ test("extractSymbols: typed multiline frobnicate gets return type", () => {
   const fn = syms.find((s) => s.name === "frobnicate");
   assert.equal(fn?.signature, "a: number");
   assert.equal(fn?.returnType, "number");
+});
+
+test("extractPythonReturnType: simple def", () => {
+  const text = "def foo() -> int:";
+  const offset = "def foo".length;
+  assert.equal(extractPythonReturnType(text, offset), "int");
+});
+
+test("extractPythonReturnType: Optional generic", () => {
+  const text = "def foo() -> Optional[int]:";
+  const offset = "def foo".length;
+  assert.equal(extractPythonReturnType(text, offset), "Optional[int]");
+});
+
+test("extractPythonReturnType: nested generic Dict[str, List[int]]", () => {
+  const text = "def foo() -> Dict[str, List[int]]:";
+  const offset = "def foo".length;
+  assert.equal(extractPythonReturnType(text, offset), "Dict[str, List[int]]");
+});
+
+test("extractPythonReturnType: Callable with nested square brackets", () => {
+  const text = "def foo() -> Callable[[int], str]:";
+  const offset = "def foo".length;
+  assert.equal(extractPythonReturnType(text, offset), "Callable[[int], str]");
+});
+
+test("extractPythonReturnType: PEP 604 union", () => {
+  const text = "def foo() -> int | None:";
+  const offset = "def foo".length;
+  assert.equal(extractPythonReturnType(text, offset), "int | None");
+});
+
+test("extractPythonReturnType: paren-wrapped multiline return type", () => {
+  const text = "def foo() -> (\n  Optional[int]\n):";
+  const offset = "def foo".length;
+  assert.equal(extractPythonReturnType(text, offset), "( Optional[int] )");
+});
+
+test("extractPythonReturnType: multiline arg list then -> on next line", () => {
+  const text = "def foo(\n  a: int,\n) -> int:";
+  const offset = "def foo".length;
+  assert.equal(extractPythonReturnType(text, offset), "int");
+});
+
+test("extractPythonReturnType: forward reference (quoted)", () => {
+  const text = "def foo() -> \"Foo\":";
+  const offset = "def foo".length;
+  assert.equal(extractPythonReturnType(text, offset), "\"Foo\"");
+});
+
+test("extractPythonReturnType: no annotation returns null", () => {
+  const text = "def foo():";
+  const offset = "def foo".length;
+  assert.equal(extractPythonReturnType(text, offset), null);
+});
+
+test("extractPythonReturnType: empty annotation returns null", () => {
+  const text = "def foo() ->:";
+  const offset = "def foo".length;
+  assert.equal(extractPythonReturnType(text, offset), null);
+});
+
+test("extractPythonReturnType: leading whitespace before arrow", () => {
+  const text = "def foo()   ->   int:";
+  const offset = "def foo".length;
+  assert.equal(extractPythonReturnType(text, offset), "int");
+});
+
+test("extractPythonReturnType: truncates over MAX_RETURN_TYPE_CHARS", () => {
+  const text = `def foo() -> Dict[str, ${"x".repeat(80)}]:`;
+  const offset = "def foo".length;
+  const ret = extractPythonReturnType(text, offset);
+  assert.ok(ret !== null);
+  assert.equal(ret!.length, 60);
+  assert.equal(ret!.charAt(ret!.length - 1), "…");
+});
+
+test("extractPythonReturnType: returns null when no '(' within scan limit", () => {
+  const text = "def foo" + "x".repeat(5000) + "() -> int:";
+  const offset = "def foo".length;
+  assert.equal(extractPythonReturnType(text, offset), null);
+});
+
+test("extractPythonReturnType: returns null when arrow missing (just colon)", () => {
+  const text = "def foo() : int";
+  const offset = "def foo".length;
+  assert.equal(extractPythonReturnType(text, offset), null);
+});
+
+test("extractPythonReturnType: terminates at newline if no colon", () => {
+  const text = "def foo() -> int\nrest_of_line";
+  const offset = "def foo".length;
+  assert.equal(extractPythonReturnType(text, offset), "int");
+});
+
+test("extractSymbols: Python def gets returnType", () => {
+  const text = "def foo(a: int, b: str) -> Optional[int]:\n    pass\n";
+  const syms = extractSymbols(text, "py");
+  const foo = syms.find((s) => s.name === "foo");
+  assert.equal(foo?.signature, "a: int, b: str");
+  assert.equal(foo?.returnType, "Optional[int]");
+});
+
+test("extractSymbols: Python async def gets returnType", () => {
+  const text = "async def foo() -> Awaitable[int]:\n    pass\n";
+  const syms = extractSymbols(text, "py");
+  const foo = syms.find((s) => s.name === "foo");
+  assert.equal(foo?.returnType, "Awaitable[int]");
+});
+
+test("extractSymbols: Python def with no annotation has no returnType", () => {
+  const text = "def foo(a):\n    pass\n";
+  const syms = extractSymbols(text, "py");
+  const foo = syms.find((s) => s.name === "foo");
+  assert.equal(foo?.signature, "a");
+  assert.equal(foo?.returnType, undefined);
+});
+
+test("extractSymbols: Python class has no returnType", () => {
+  const text = "class Foo:\n    pass\n";
+  const syms = extractSymbols(text, "py");
+  const foo = syms.find((s) => s.name === "Foo");
+  assert.equal(foo?.returnType, undefined);
 });
 
 test("Markdown: extracts h1, h2, h3 with line numbers", () => {
