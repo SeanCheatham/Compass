@@ -139,3 +139,47 @@ test("SIGKILL'd child leaves stale pidfile; parent overwrites it", async () => {
     await cleanup();
   }
 });
+
+test("racing acquires: only one of N parallel processes wins", async () => {
+  const { dir, cleanup } = await tmpWorkspace();
+  const N = 6;
+  try {
+    const outcomes = await Promise.all(
+      Array.from({ length: N }, () => {
+        const { child, ready } = spawnHolder(dir);
+        return ready
+          .then(() => ({ child, outcome: "ready" as const }))
+          .catch(() => ({
+            child,
+            outcome: { code: child.exitCode } as const,
+          }));
+      })
+    );
+
+    const winners = outcomes.filter((o) => o.outcome === "ready");
+    const losers = outcomes.filter((o) => o.outcome !== "ready");
+    assert.equal(
+      winners.length,
+      1,
+      `expected exactly 1 winner, got ${winners.length}`
+    );
+    assert.equal(losers.length, N - 1);
+    for (const l of losers) {
+      assert.equal(
+        (l.outcome as { code: number | null }).code,
+        3,
+        "loser must exit code 3 (acquire failed), not 1 (crash) or 2 (usage)"
+      );
+    }
+
+    const winnerChild = (winners[0] as { child: ChildProcess }).child;
+    const raw = await readFile(resolve(dir, "compass.pid"), "utf-8");
+    assert.equal(parseInt(raw.trim(), 10), winnerChild.pid);
+
+    winnerChild.stdin!.end();
+    const exitCode = await waitForExit(winnerChild);
+    assert.equal(exitCode, 0);
+  } finally {
+    await cleanup();
+  }
+});
