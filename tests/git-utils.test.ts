@@ -212,15 +212,56 @@ test("commit round-trips a simple message", async () => {
 });
 
 test("commit escapes embedded double-quotes", async () => {
-  // Pins the current `replace(/"/g, '\\"')` behaviour. We do NOT test
-  // backticks / $VAR / single-quote injection — those are shell-expanded by
-  // the current implementation and are out of scope to fix here.
+  // Pins that double-quotes in commit messages round-trip cleanly. With
+  // execFile (no shell), no escaping is needed — args go through verbatim.
   const { dir, cleanup } = await initializedRepo();
   try {
     await writeFile(join(dir, "foo.txt"), "hello", "utf-8");
     await commit(dir, 'a "quoted" word');
     const subject = git(dir, ["log", "-1", "--pretty=%s"]);
     assert.equal(subject, 'a "quoted" word');
+  } finally {
+    await cleanup();
+  }
+});
+
+test("commit handles backticks literally (no shell expansion)", async () => {
+  const { dir, cleanup } = await initializedRepo();
+  try {
+    await writeFile(join(dir, "foo.txt"), "hello", "utf-8");
+    const msg = "with `injected` backticks";
+    await commit(dir, msg);
+    const subject = git(dir, ["log", "-1", "--pretty=%s"]);
+    assert.equal(subject, msg);
+  } finally {
+    await cleanup();
+  }
+});
+
+test("commit handles $VAR literally (no shell expansion)", async () => {
+  const { dir, cleanup } = await initializedRepo();
+  try {
+    await writeFile(join(dir, "foo.txt"), "hello", "utf-8");
+    const msg = "path is $HOME literal";
+    await commit(dir, msg);
+    const subject = git(dir, ["log", "-1", "--pretty=%s"]);
+    assert.equal(subject, msg);
+  } finally {
+    await cleanup();
+  }
+});
+
+test("commit handles $(...) literally (no shell expansion)", async () => {
+  const { dir, cleanup } = await initializedRepo();
+  try {
+    await writeFile(join(dir, "foo.txt"), "hello", "utf-8");
+    // Use $(true) — even if the fix regressed and the shell expanded this,
+    // `true` produces no output, so the assertion would catch the empty
+    // string mismatch without polluting the test environment.
+    const msg = "contains $(true) literal";
+    await commit(dir, msg);
+    const subject = git(dir, ["log", "-1", "--pretty=%s"]);
+    assert.equal(subject, msg);
   } finally {
     await cleanup();
   }

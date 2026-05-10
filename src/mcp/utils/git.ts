@@ -1,7 +1,7 @@
-import { execSync, exec } from "child_process";
+import { execFile, execFileSync } from "child_process";
 import { promisify } from "util";
 
-const execAsync = promisify(exec);
+const execFileAsync = promisify(execFile);
 
 export interface GitResult {
   success: boolean;
@@ -10,7 +10,7 @@ export interface GitResult {
 }
 
 function runGitSync(cwd: string, args: string[]): string {
-  return execSync(`git ${args.join(" ")}`, {
+  return execFileSync("git", args, {
     cwd,
     encoding: "utf-8",
     stdio: ["pipe", "pipe", "pipe"],
@@ -19,7 +19,7 @@ function runGitSync(cwd: string, args: string[]): string {
 
 async function runGit(cwd: string, args: string[]): Promise<GitResult> {
   try {
-    const { stdout, stderr } = await execAsync(`git ${args.join(" ")}`, {
+    const { stdout, stderr } = await execFileAsync("git", args, {
       cwd,
       encoding: "utf-8",
     });
@@ -65,11 +65,7 @@ export async function stageAllChanges(cwd: string): Promise<void> {
 export async function commit(cwd: string, message: string): Promise<string> {
   await stageAllChanges(cwd);
 
-  const result = await runGit(cwd, [
-    "commit",
-    "-m",
-    `"${message.replace(/"/g, '\\"')}"`,
-  ]);
+  const result = await runGit(cwd, ["commit", "-m", message]);
   if (!result.success) {
     throw new Error(`Failed to commit: ${result.stderr}`);
   }
