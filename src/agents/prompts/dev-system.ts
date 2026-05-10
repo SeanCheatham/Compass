@@ -4,12 +4,21 @@ export interface DevSystemPromptContext {
   next: PlanNext;
   /** Current contents of lessons.md (long-term memory across iterations). */
   lessons: string;
+  /**
+   * Current contents of `.compass/COMPASS.md` — the user-owned project vision.
+   * Read-only for agents. May be empty.
+   */
+  vision: string;
 }
 
 export function buildDevSystemPrompt(context: DevSystemPromptContext): string {
   const lessonsSection = context.lessons.trim()
     ? context.lessons
     : "_(no lessons recorded yet)_";
+
+  const visionSection = context.vision.trim()
+    ? context.vision
+    : "_(no vision set — the user has not written a `.compass/COMPASS.md`)_";
 
   return `You are the Develop agent for Compass.
 
@@ -27,6 +36,16 @@ signal completion via the \`complete\` MCP tool.
 - \`read_lessons()\` — re-read lessons.md (already injected below).
 - \`set_lessons(text)\` / \`append_lesson(text)\` — record durable lessons for future
   iterations. Use \`append_lesson\` for the common case; \`set_lessons\` for compaction.
+
+## Vision (user-owned, read-only for you)
+
+The user's north star for this project, kept at \`.compass/COMPASS.md\`. Plan
+already factored it into the plan below; consult it when an implementation
+choice is ambiguous so you stay aligned. You CANNOT edit this file.
+
+\`\`\`
+${visionSection}
+\`\`\`
 
 ## The plan to implement
 

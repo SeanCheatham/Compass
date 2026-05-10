@@ -1,6 +1,6 @@
 import { query, type Options } from "@anthropic-ai/claude-agent-sdk";
 import type { PlanState, WorkspaceConfig } from "../state/types.js";
-import { readStateText, readLessons } from "../mcp/utils/workspace.js";
+import { readStateText, readLessons, readCompass } from "../mcp/utils/workspace.js";
 import { buildPlanSystemPrompt } from "./prompts/plan-system.js";
 import type { OutputManager } from "../web/output-manager.js";
 import { extractToolDetail } from "./tool-details.js";
@@ -37,6 +37,7 @@ export async function runPlanAgent(
 ): Promise<PlanAgentResult> {
   const stateJson = await readStateText(config);
   const lessons = await readLessons(config);
+  const vision = await readCompass(config);
 
   let repoMap = "";
   try {
@@ -50,6 +51,7 @@ export async function runPlanAgent(
     drafts: input.drafts,
     feedback: input.feedback,
     lessons,
+    vision,
     repoMap,
   });
 

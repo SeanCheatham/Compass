@@ -826,3 +826,112 @@ main {
 #draft-form button:hover {
   background: var(--accent-dim);
 }
+
+/* Vision form */
+.vision-form {
+  background: var(--bg-secondary);
+  padding: 1rem;
+  border-radius: 8px;
+}
+
+.vision-form h3 {
+  font-size: 0.95rem;
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+  color: var(--text-primary);
+}
+
+#vision-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+#vision-form textarea {
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 0.6rem 0.75rem;
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+  font-size: 0.85rem;
+  line-height: 1.5;
+  color: var(--text-primary);
+  resize: vertical;
+  min-height: 12rem;
+}
+
+#vision-form textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.vision-form-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+#vision-save-btn {
+  background: var(--accent);
+  border: none;
+  border-radius: 4px;
+  padding: 0.45rem 1rem;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: white;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+#vision-save-btn:hover:not(:disabled) {
+  background: var(--accent-dim);
+}
+
+#vision-save-btn:disabled {
+  background: var(--bg-panel);
+  color: var(--text-muted);
+  cursor: not-allowed;
+}
+
+#vision-revert-btn {
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 0.4rem 0.75rem;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+#vision-revert-btn:hover:not(:disabled) {
+  color: var(--text-primary);
+  border-color: var(--text-muted);
+}
+
+#vision-revert-btn:disabled {
+  color: var(--text-muted);
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.vision-status {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+
+.vision-status.dirty {
+  color: var(--warning);
+}
+
+.vision-status.saved {
+  color: var(--success);
+}
+
+.vision-status.error {
+  color: var(--error);
+}
+
+.vision-status.conflict {
+  color: var(--warning);
+  font-weight: 500;
+}

@@ -14,6 +14,11 @@ export interface PlanSystemPromptContext {
   feedback: string;
   /** Current contents of lessons.md (long-term memory across iterations). */
   lessons: string;
+  /**
+   * Current contents of `.compass/COMPASS.md` — the user-owned project vision.
+   * Read-only for agents. May be empty.
+   */
+  vision: string;
   /** Pre-rendered compact symbol map of the repo (top-level decls per file). */
   repoMap: string;
 }
@@ -31,6 +36,10 @@ export function buildPlanSystemPrompt(context: PlanSystemPromptContext): string 
     ? context.lessons
     : "_(no lessons recorded yet)_";
 
+  const visionSection = context.vision.trim()
+    ? context.vision
+    : "_(no vision set — the user has not written a `.compass/COMPASS.md`)_";
+
   const lessonsBytes = Buffer.byteLength(context.lessons, "utf-8");
   const shouldNudgeCompact = lessonsBytes > LESSONS_COMPACT_THRESHOLD_BYTES;
   const compactionNudge = shouldNudgeCompact
@@ -42,6 +51,20 @@ export function buildPlanSystemPrompt(context: PlanSystemPromptContext): string 
 You have READ-ONLY access to the codebase. You produce the next plan; a separate
 Develop agent implements it. You mutate state and lessons exclusively through MCP
 tool calls — never by editing files.
+
+## Vision (user-owned, read-only for you)
+
+This is the project's north star — the user writes and edits it through the UI
+(or directly on disk at \`.compass/COMPASS.md\`). Every plan you pick must serve
+it. If a draft conflicts with the vision, surface that tension in \`followUp\`
+rather than silently overriding either side. If the vision is empty, you're
+unconstrained beyond drafts and lessons.
+
+You CANNOT edit this file. Don't try.
+
+\`\`\`
+${visionSection}
+\`\`\`
 
 ## Tools you must use
 

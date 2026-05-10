@@ -46,6 +46,7 @@
   <nav class="tabs">
     <button class="tab active" data-tab="activity">Activity</button>
     <button class="tab" data-tab="state">State</button>
+    <button class="tab" data-tab="vision">Vision</button>
     <button class="tab" data-tab="sessions">Sessions <span id="sessions-badge" class="badge"></span></button>
     <button class="tab" data-tab="drafts">Drafts <span id="drafts-badge" class="badge"></span></button>
     <button class="tab" data-tab="feedback">Feedback</button>
@@ -59,6 +60,29 @@
 
     <section id="state-panel" class="panel">
       <div id="state-content"></div>
+    </section>
+
+    <section id="vision-panel" class="panel">
+      <div class="vision-form">
+        <h3>Project vision</h3>
+        <p class="form-hint">
+          The north star for this project. Stored at <code>.compass/COMPASS.md</code>.
+          Plan and Develop both read it; only you can edit it (here, or directly on
+          disk — external edits are picked up automatically).
+        </p>
+        <form id="vision-form">
+          <textarea
+            id="vision-content"
+            placeholder="What is this project trying to become?"
+            rows="14"
+          ></textarea>
+          <div class="vision-form-actions">
+            <button type="submit" id="vision-save-btn" disabled>Save</button>
+            <button type="button" id="vision-revert-btn" disabled>Revert</button>
+            <span id="vision-status" class="vision-status"></span>
+          </div>
+        </form>
+      </div>
     </section>
 
     <section id="sessions-panel" class="panel">

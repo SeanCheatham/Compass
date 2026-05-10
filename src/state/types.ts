@@ -5,6 +5,7 @@ export interface WorkspaceConfig {
   stateBackupPath: string;
   draftsPath: string;
   lessonsPath: string;
+  compassPath: string;
   sessionsPath: string;
   sessionsRecordPath: string;
   feedbackPath: string;

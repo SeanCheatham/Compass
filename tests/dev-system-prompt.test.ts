@@ -11,6 +11,7 @@ function baseContext(
   return {
     next,
     lessons: "",
+    vision: "",
     ...overrides,
   };
 }
@@ -83,6 +84,7 @@ test("dev system prompt: required sections appear in canonical order", () => {
   const prompt = buildDevSystemPrompt(baseContext());
   const headings = [
     "## Tools you must use",
+    "## Vision",
     "## The plan to implement",
     "## Verify command",
     "## Lessons (long-term memory)",
@@ -97,6 +99,24 @@ test("dev system prompt: required sections appear in canonical order", () => {
     assert.ok(idx > lastIdx, `${h} appears out of order`);
     lastIdx = idx;
   }
+});
+
+test("dev system prompt: empty vision renders the placeholder", () => {
+  const prompt = buildDevSystemPrompt(baseContext());
+  assert.ok(prompt.includes("## Vision"));
+  assert.ok(prompt.includes("no vision set"));
+});
+
+test("dev system prompt: non-empty vision is included verbatim", () => {
+  const vision = "Recursive iteration tool. Plan/Develop loop. Stay simple.";
+  const prompt = buildDevSystemPrompt(baseContext({ vision }));
+  assert.ok(prompt.includes(vision));
+  assert.equal(prompt.includes("no vision set"), false);
+});
+
+test("dev system prompt: vision is marked read-only for the agent", () => {
+  const prompt = buildDevSystemPrompt(baseContext({ vision: "ship it" }));
+  assert.ok(/CANNOT edit/i.test(prompt) || /read-only/i.test(prompt));
 });
 
 test("dev system prompt: explicitly names the complete + lessons MCP tools", () => {

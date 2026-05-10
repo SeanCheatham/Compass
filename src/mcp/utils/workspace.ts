@@ -19,6 +19,7 @@ export const STATE_FILE = "state.json";
 export const STATE_BACKUP_FILE = "state.json.bak";
 export const DRAFTS_FILE = "drafts.md";
 export const LESSONS_FILE = "lessons.md";
+export const COMPASS_FILE = "COMPASS.md";
 export const FEEDBACK_FILE = "feedback.json";
 
 /**
@@ -46,6 +47,7 @@ export function getWorkspaceConfig(implRepoPath: string): WorkspaceConfig {
     stateBackupPath: resolve(workspacePath, STATE_BACKUP_FILE),
     draftsPath: resolve(workspacePath, DRAFTS_FILE),
     lessonsPath: resolve(workspacePath, LESSONS_FILE),
+    compassPath: resolve(workspacePath, COMPASS_FILE),
     sessionsPath: resolve(workspacePath, "sessions"),
     sessionsRecordPath: resolve(workspacePath, "sessions.json"),
     feedbackPath: resolve(workspacePath, FEEDBACK_FILE),
@@ -69,6 +71,7 @@ export async function ensureWorkspaceExists(
   await ensureFile(config.statePath, JSON.stringify(EMPTY_PLAN_STATE, null, 2) + "\n");
   await ensureFile(config.draftsPath);
   await ensureFile(config.lessonsPath);
+  await ensureFile(config.compassPath);
   await ensureGitignore(config.implRepoPath);
 }
 
@@ -251,6 +254,21 @@ export async function readLessons(config: WorkspaceConfig): Promise<string> {
   } catch {
     return "";
   }
+}
+
+export async function readCompass(config: WorkspaceConfig): Promise<string> {
+  try {
+    return await readFile(config.compassPath, "utf-8");
+  } catch {
+    return "";
+  }
+}
+
+export async function writeCompass(
+  config: WorkspaceConfig,
+  content: string
+): Promise<void> {
+  await writeFile(config.compassPath, content, "utf-8");
 }
 
 export async function writeLessons(

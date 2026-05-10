@@ -5,7 +5,7 @@ import type { PlanNext, WorkspaceConfig } from "../state/types.js";
 import { buildDevSystemPrompt } from "./prompts/dev-system.js";
 import type { OutputManager } from "../web/output-manager.js";
 import { extractToolDetail } from "./tool-details.js";
-import { readLessons } from "../mcp/utils/workspace.js";
+import { readLessons, readCompass } from "../mcp/utils/workspace.js";
 import { createDevMcpServer } from "../mcp/server.js";
 import type { VerifyOutput } from "../state/sessions.js";
 
@@ -68,7 +68,8 @@ export async function runDevAgent(
   opts: DevAgentOptions
 ): Promise<DevAgentResult> {
   const lessons = await readLessons(config);
-  const systemPrompt = buildDevSystemPrompt({ next, lessons });
+  const vision = await readCompass(config);
+  const systemPrompt = buildDevSystemPrompt({ next, lessons, vision });
 
   let priorRetryIssues: string[] = [];
   let lastDisplayIssues: string[] = [];

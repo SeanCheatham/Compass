@@ -14,6 +14,7 @@ function baseContext(
     drafts: "",
     feedback: "",
     lessons: "",
+    vision: "",
     repoMap: "",
     ...overrides,
   };
@@ -55,6 +56,34 @@ test("plan system prompt: multibyte chars are counted as UTF-8 bytes, not JS cha
 
   const prompt = buildPlanSystemPrompt(baseContext({ lessons }));
   assert.ok(prompt.includes("Compaction nudge"));
+});
+
+test("plan system prompt: empty vision renders the placeholder", () => {
+  const prompt = buildPlanSystemPrompt(baseContext());
+  assert.ok(prompt.includes("## Vision"));
+  assert.ok(prompt.includes("no vision set"));
+});
+
+test("plan system prompt: non-empty vision is included verbatim", () => {
+  const vision = "Build a recursive iteration tool. Stay simple.";
+  const prompt = buildPlanSystemPrompt(baseContext({ vision }));
+  assert.ok(prompt.includes(vision));
+  assert.equal(prompt.includes("no vision set"), false);
+});
+
+test("plan system prompt: vision is marked as user-owned and read-only", () => {
+  const prompt = buildPlanSystemPrompt(baseContext({ vision: "ship it" }));
+  // The agent must understand it cannot edit the file.
+  assert.ok(/CANNOT edit/i.test(prompt) || /read-only/i.test(prompt));
+});
+
+test("plan system prompt: vision section comes before the state block", () => {
+  const prompt = buildPlanSystemPrompt(baseContext({ vision: "north star" }));
+  const visionIdx = prompt.indexOf("## Vision");
+  const stateIdx = prompt.indexOf("## state.json");
+  assert.notEqual(visionIdx, -1);
+  assert.notEqual(stateIdx, -1);
+  assert.ok(visionIdx < stateIdx);
 });
 
 test("plan system prompt: nudge sits between lessons block and drafts heading", () => {

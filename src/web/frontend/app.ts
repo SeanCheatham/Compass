@@ -56,6 +56,7 @@ type WsMessage =
   | { kind: "drafts"; content: string }
   | { kind: "feedback"; content: string }
   | { kind: "lessons"; content: string }
+  | { kind: "compass"; content: string }
   | { kind: "status"; status: LoopStatus }
   | { kind: "sessions"; sessions: SessionRecord[]; priorRunsCount: number };
 
@@ -68,6 +69,8 @@ class CompassApp {
   private currentTab = "activity";
   private token: string;
   private status: LoopStatus | null = null;
+  private compassRemote = "";
+  private compassRemoteSeen = false;
 
   constructor() {
     const params = new URLSearchParams(window.location.search);
@@ -98,6 +101,7 @@ class CompassApp {
 
     this.setupTabs();
     this.setupDraftForm();
+    this.setupVisionForm();
     this.setupControls();
     this.connectWebSocket();
     this.setupAutoScroll();
@@ -586,6 +590,130 @@ class CompassApp {
     }
   }
 
+  private setupVisionForm(): void {
+    const form = document.getElementById("vision-form") as HTMLFormElement;
+    const textarea = document.getElementById(
+      "vision-content"
+    ) as HTMLTextAreaElement;
+    const revertBtn = document.getElementById(
+      "vision-revert-btn"
+    ) as HTMLButtonElement;
+
+    textarea.addEventListener("input", () => this.refreshVisionDirtyState());
+    revertBtn.addEventListener("click", () => {
+      textarea.value = this.compassRemote;
+      this.refreshVisionDirtyState();
+    });
+
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      await this.saveVision();
+    });
+  }
+
+  private isVisionDirty(): boolean {
+    const textarea = document.getElementById(
+      "vision-content"
+    ) as HTMLTextAreaElement | null;
+    if (!textarea) return false;
+    return textarea.value !== this.compassRemote;
+  }
+
+  private refreshVisionDirtyState(): void {
+    const saveBtn = document.getElementById(
+      "vision-save-btn"
+    ) as HTMLButtonElement | null;
+    const revertBtn = document.getElementById(
+      "vision-revert-btn"
+    ) as HTMLButtonElement | null;
+    const statusEl = document.getElementById(
+      "vision-status"
+    ) as HTMLElement | null;
+    const dirty = this.isVisionDirty();
+    if (saveBtn) saveBtn.disabled = !dirty;
+    if (revertBtn) revertBtn.disabled = !dirty;
+    if (statusEl && dirty) {
+      statusEl.textContent = "Unsaved changes";
+      statusEl.className = "vision-status dirty";
+    } else if (statusEl && statusEl.classList.contains("dirty")) {
+      statusEl.textContent = "";
+      statusEl.className = "vision-status";
+    }
+  }
+
+  private handleCompassUpdate(content: string): void {
+    const textarea = document.getElementById(
+      "vision-content"
+    ) as HTMLTextAreaElement | null;
+    const statusEl = document.getElementById(
+      "vision-status"
+    ) as HTMLElement | null;
+    if (!textarea) {
+      this.compassRemote = content;
+      this.compassRemoteSeen = true;
+      return;
+    }
+
+    const firstSnapshot = !this.compassRemoteSeen;
+    const wasDirty = !firstSnapshot && this.isVisionDirty();
+    const previousRemote = this.compassRemote;
+    this.compassRemote = content;
+    this.compassRemoteSeen = true;
+
+    if (firstSnapshot || !wasDirty) {
+      // Safe to overwrite — user has nothing in flight.
+      textarea.value = content;
+      this.refreshVisionDirtyState();
+      return;
+    }
+
+    // User has unsaved edits. Don't clobber. Surface the conflict.
+    if (statusEl && content !== previousRemote) {
+      statusEl.textContent =
+        "File changed on disk while you were editing — Save will overwrite, Revert will discard your edits.";
+      statusEl.className = "vision-status conflict";
+    }
+    // Save/Revert button states still reflect dirtiness vs the new remote.
+    this.refreshVisionDirtyState();
+  }
+
+  private async saveVision(): Promise<void> {
+    const textarea = document.getElementById(
+      "vision-content"
+    ) as HTMLTextAreaElement;
+    const statusEl = document.getElementById(
+      "vision-status"
+    ) as HTMLElement | null;
+    const content = textarea.value;
+    try {
+      const res = await fetch("/api/compass", {
+        method: "POST",
+        headers: this.apiHeaders({ "Content-Type": "application/json" }),
+        body: JSON.stringify({ content }),
+      });
+      if (!res.ok) {
+        if (statusEl) {
+          statusEl.textContent = `Save failed (${res.status})`;
+          statusEl.className = "vision-status error";
+        }
+        return;
+      }
+      this.compassRemote = content;
+      this.refreshVisionDirtyState();
+      if (statusEl) {
+        const time = new Date().toLocaleTimeString();
+        statusEl.textContent = `Saved at ${time}`;
+        statusEl.className = "vision-status saved";
+      }
+    } catch (error) {
+      console.error("Failed to save vision:", error);
+      if (statusEl) {
+        statusEl.textContent = "Save failed (network error)";
+        statusEl.className = "vision-status error";
+      }
+    }
+  }
+
   private connectWebSocket(): void {
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
     const wsUrl = `${protocol}//${window.location.host}/ws?t=${encodeURIComponent(this.token)}`;
@@ -666,6 +794,9 @@ class CompassApp {
           msg.content,
           "No lessons recorded yet."
         );
+        break;
+      case "compass":
+        this.handleCompassUpdate(msg.content);
         break;
       case "status":
         this.renderStatus(msg.status);

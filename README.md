@@ -86,7 +86,8 @@ Everything lives in `.compass/` inside your repo (gitignored, per-repo):
 {repo}/.compass/
 ├── state.json    # Plan owns. Mutated only via the set_state MCP tool.
 ├── drafts.md     # User owns (via UI). Runner snapshots+clears before Plan runs.
-└── lessons.md    # Plan + Develop. Long-term memory; persists across iterations.
+├── lessons.md    # Plan + Develop. Long-term memory; persists across iterations.
+└── COMPASS.md    # User owns (via UI or disk). Persistent project vision; agents read but never write.
 ```
 
 There is no `feedback.md` — feedback now flows in-memory through the runner, captured from Develop's `complete` call and threaded into the next Plan's system prompt.
@@ -126,6 +127,7 @@ Tabs:
 - **Activity** — live stream of agent output and tool calls.
 - **State** — Completed list, current `Next` (with verify command), and `Follow-up`.
 - **Sessions** — per-iteration record: plan, verify, commits, status.
+- **Vision** — the project's north star (`.compass/COMPASS.md`). Edit it here or directly on disk; external edits are picked up live. Plan and Develop both read it; only you can write it.
 - **Drafts** — submit a draft plan; see what's pending.
 - **Feedback** — the most recent feedback Develop passed to `complete()`. Cleared once Plan picks it up next iteration.
 - **Lessons** — long-term memory shared across iterations; written by either agent.
@@ -144,4 +146,3 @@ Header controls let you pause the loop (`Pause Now` at the next gate, or `Pause 
 - Multi-repo orchestration (one impl repo per Compass instance)
 - Audit trail beyond what git already provides
 - Auto-revert of bad commits (use `git` directly if needed)
-- Persistent vision document (drafts are how you steer)

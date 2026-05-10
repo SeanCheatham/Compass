@@ -16,6 +16,8 @@ import {
   tryReadPlanState,
   readDrafts,
   readLessons,
+  readCompass,
+  writeCompass,
   appendDraft,
 } from "../mcp/utils/workspace.js";
 import type { LoopController } from "../state/control.js";
@@ -148,6 +150,17 @@ async function handleApiRequest(
       res.end(JSON.stringify({ content: ctx.feedback.current() }));
     } else if (path === "/api/lessons" && method === "GET") {
       res.end(JSON.stringify({ content: await readLessons(ctx.config) }));
+    } else if (path === "/api/compass" && method === "GET") {
+      res.end(JSON.stringify({ content: await readCompass(ctx.config) }));
+    } else if (path === "/api/compass" && method === "POST") {
+      const body = await parseJsonBody(req);
+      if (typeof body.content !== "string") {
+        res.statusCode = 400;
+        res.end(JSON.stringify({ error: "content must be a string" }));
+        return;
+      }
+      await writeCompass(ctx.config, body.content);
+      res.end(JSON.stringify({ content: body.content }));
     } else if (path === "/api/status" && method === "GET") {
       res.end(JSON.stringify(ctx.controller.status()));
     } else if (path === "/api/sessions" && method === "GET") {
@@ -377,16 +390,18 @@ export async function startWebServer(
 }
 
 async function sendSnapshot(ctx: ServerContext, ws: WebSocket): Promise<void> {
-  const [state, drafts, lessons] = await Promise.all([
+  const [state, drafts, lessons, compass] = await Promise.all([
     tryReadPlanState(ctx.config),
     readDrafts(ctx.config),
     readLessons(ctx.config),
+    readCompass(ctx.config),
   ]);
   const payload = [
     { kind: "state", state },
     { kind: "drafts", content: drafts },
     { kind: "feedback", content: ctx.feedback.current() },
     { kind: "lessons", content: lessons },
+    { kind: "compass", content: compass },
     { kind: "status", status: ctx.controller.status() },
     {
       kind: "sessions",
@@ -412,5 +427,8 @@ async function flushFileChanges(
   }
   if (changed.has("lessons.md")) {
     broadcast({ kind: "lessons", content: await readLessons(ctx.config) });
+  }
+  if (changed.has("COMPASS.md")) {
+    broadcast({ kind: "compass", content: await readCompass(ctx.config) });
   }
 }
