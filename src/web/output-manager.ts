@@ -1,6 +1,6 @@
 import { EventEmitter } from "events";
 import { appendFile, mkdir } from "fs/promises";
-import { readFileSync, readdirSync, renameSync, statSync } from "fs";
+import { readFileSync, readdirSync, renameSync, statSync, unlinkSync } from "fs";
 import { join } from "path";
 import type { ToolDetail } from "../agents/tool-details.js";
 
@@ -61,6 +61,7 @@ export interface OutputManager {
 }
 
 export const DEFAULT_MAX_BUFFER_SIZE = 1000;
+export const DEFAULT_MAX_PRE_SESSION_ARCHIVES = 20;
 
 export interface OutputManagerOptions {
   /**
@@ -75,6 +76,12 @@ export interface OutputManagerOptions {
    * primarily for tests.
    */
   maxBuffer?: number;
+  /**
+   * Maximum number of rotated `pre-session-*.jsonl` archives to keep on
+   * disk after each startup sweep. Defaults to {@link DEFAULT_MAX_PRE_SESSION_ARCHIVES}.
+   * Floored at 1. Exposed primarily for tests.
+   */
+  maxPreSessionArchives?: number;
 }
 
 function isOutputEvent(value: unknown): value is OutputEvent {
@@ -94,14 +101,20 @@ class OutputManagerImpl extends EventEmitter implements OutputManager {
   private currentLogPath: string | null = null;
   private writeQueue = Promise.resolve();
   private readonly maxBuffer: number;
+  private readonly maxPreSessionArchives: number;
 
   constructor(opts: OutputManagerOptions = {}) {
     super();
     this.sessionsDir = opts.sessionsDir;
     this.maxBuffer = Math.max(1, opts.maxBuffer ?? DEFAULT_MAX_BUFFER_SIZE);
+    this.maxPreSessionArchives = Math.max(
+      1,
+      opts.maxPreSessionArchives ?? DEFAULT_MAX_PRE_SESSION_ARCHIVES
+    );
     if (this.sessionsDir) {
       this.currentLogPath = join(this.sessionsDir, "pre-session.jsonl");
       this.rotatePreSession();
+      this.gcPreSessionArchives();
       this.loadBufferFromDisk();
     }
   }
@@ -124,6 +137,28 @@ class OutputManagerImpl extends EventEmitter implements OutputManager {
       renameSync(path, dest);
     } catch {
       // Rotation failed — fall back to prior behaviour (events get interleaved).
+    }
+  }
+
+  private gcPreSessionArchives(): void {
+    if (!this.sessionsDir) return;
+    let names: string[];
+    try {
+      names = readdirSync(this.sessionsDir);
+    } catch {
+      return;
+    }
+    const archives = names
+      .filter((n) => /^pre-session-.+\.jsonl$/.test(n))
+      .sort(); // ISO-8601 lex order == chronological
+    const excess = archives.length - this.maxPreSessionArchives;
+    if (excess <= 0) return;
+    for (let i = 0; i < excess; i++) {
+      try {
+        unlinkSync(join(this.sessionsDir, archives[i]));
+      } catch {
+        // best-effort; surface nothing
+      }
     }
   }
 

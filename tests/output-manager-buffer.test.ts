@@ -340,3 +340,163 @@ test("output-manager rehydrate: skips files with no valid events from the buffer
     await cleanup();
   }
 });
+
+test("output-manager gc: keeps the K most recent archives, deletes older ones (lex-by-filename)", async () => {
+  const { sessionsDir, cleanup } = await tmpWorkspace();
+  try {
+    for (let i = 0; i < 25; i++) {
+      const day = String(i + 1).padStart(2, "0");
+      const name = `pre-session-2026-01-${day}T00-00-00-000Z.jsonl`;
+      await writeFile(
+        join(sessionsDir, name),
+        lines([ev("log", `r${i}`, i)])
+      );
+    }
+
+    createOutputManager({ sessionsDir });
+
+    const names = await readdir(sessionsDir);
+    const rotated = names.filter((n) => /^pre-session-.+\.jsonl$/.test(n));
+    assert.equal(rotated.length, 20);
+
+    const survivors = rotated.sort();
+    for (const name of survivors) {
+      const m = name.match(/^pre-session-2026-01-(\d{2})T00-00-00-000Z\.jsonl$/);
+      assert.ok(m, `unexpected survivor: ${name}`);
+      const day = Number(m![1]);
+      assert.ok(day >= 6 && day <= 25, `survivor day out of range: ${day}`);
+    }
+  } finally {
+    await cleanup();
+  }
+});
+
+test("output-manager gc: respects custom maxPreSessionArchives option", async () => {
+  const { sessionsDir, cleanup } = await tmpWorkspace();
+  try {
+    for (let i = 0; i < 10; i++) {
+      const day = String(i + 1).padStart(2, "0");
+      const name = `pre-session-2026-01-${day}T00-00-00-000Z.jsonl`;
+      await writeFile(
+        join(sessionsDir, name),
+        lines([ev("log", `r${i}`, i)])
+      );
+    }
+
+    createOutputManager({ sessionsDir, maxPreSessionArchives: 3 });
+
+    const names = await readdir(sessionsDir);
+    const rotated = names.filter((n) => /^pre-session-.+\.jsonl$/.test(n)).sort();
+    assert.equal(rotated.length, 3);
+
+    const days = rotated.map((n) => {
+      const m = n.match(/^pre-session-2026-01-(\d{2})T00-00-00-000Z\.jsonl$/);
+      return Number(m![1]);
+    });
+    assert.deepEqual(days, [8, 9, 10]);
+  } finally {
+    await cleanup();
+  }
+});
+
+test("output-manager gc: no-op when at or below the cap", async () => {
+  const { sessionsDir, cleanup } = await tmpWorkspace();
+  try {
+    for (let i = 0; i < 5; i++) {
+      const day = String(i + 1).padStart(2, "0");
+      const name = `pre-session-2026-01-${day}T00-00-00-000Z.jsonl`;
+      await writeFile(
+        join(sessionsDir, name),
+        lines([ev("log", `r${i}`, i)])
+      );
+    }
+
+    createOutputManager({ sessionsDir });
+
+    const names = await readdir(sessionsDir);
+    const rotated = names.filter((n) => /^pre-session-.+\.jsonl$/.test(n));
+    assert.equal(rotated.length, 5);
+  } finally {
+    await cleanup();
+  }
+});
+
+test("output-manager gc: floors maxPreSessionArchives at 1", async () => {
+  const { sessionsDir, cleanup } = await tmpWorkspace();
+  try {
+    for (let i = 0; i < 5; i++) {
+      const day = String(i + 1).padStart(2, "0");
+      const name = `pre-session-2026-01-${day}T00-00-00-000Z.jsonl`;
+      await writeFile(
+        join(sessionsDir, name),
+        lines([ev("log", `r${i}`, i)])
+      );
+    }
+
+    createOutputManager({ sessionsDir, maxPreSessionArchives: 0 });
+
+    const names = await readdir(sessionsDir);
+    const rotated = names.filter((n) => /^pre-session-.+\.jsonl$/.test(n));
+    assert.equal(rotated.length, 1);
+
+    const m = rotated[0].match(/^pre-session-2026-01-(\d{2})T00-00-00-000Z\.jsonl$/);
+    assert.ok(m);
+    assert.equal(Number(m![1]), 5);
+  } finally {
+    await cleanup();
+  }
+});
+
+test("output-manager gc: leaves session-NNN.jsonl and pre-session.jsonl alone", async () => {
+  const { sessionsDir, cleanup } = await tmpWorkspace();
+  try {
+    for (let i = 0; i < 25; i++) {
+      const day = String(i + 1).padStart(2, "0");
+      const name = `pre-session-2026-01-${day}T00-00-00-000Z.jsonl`;
+      await writeFile(
+        join(sessionsDir, name),
+        lines([ev("log", `r${i}`, i)])
+      );
+    }
+
+    const sessEvent = ev("log", "session-content", 42);
+    const sessContent = lines([sessEvent]);
+    await writeFile(join(sessionsDir, "session-001.jsonl"), sessContent);
+
+    const preEvent = ev("log", "active-pre", 99);
+    await writeFile(join(sessionsDir, "pre-session.jsonl"), lines([preEvent]));
+
+    createOutputManager({ sessionsDir });
+
+    // session-001 untouched
+    const sessAfter = await readFile(
+      join(sessionsDir, "session-001.jsonl"),
+      "utf-8"
+    );
+    assert.equal(sessAfter, sessContent);
+
+    // pre-session.jsonl rotated away
+    const names = await readdir(sessionsDir);
+    assert.ok(!names.includes("pre-session.jsonl"));
+
+    // exactly 20 rotated archives
+    const rotated = names.filter((n) => /^pre-session-.+\.jsonl$/.test(n)).sort();
+    assert.equal(rotated.length, 20);
+
+    // freshest rotated file is the today-stamp (lex-greater than 2026-01-25...)
+    const freshest = rotated[rotated.length - 1];
+    assert.ok(
+      freshest > "pre-session-2026-01-25T00-00-00-000Z.jsonl",
+      `freshest archive should be lex-greater than the seed range: ${freshest}`
+    );
+  } finally {
+    await cleanup();
+  }
+});
+
+test("output-manager gc: tolerates missing sessions dir without throwing", () => {
+  const om = createOutputManager({
+    sessionsDir: "/path/that/does/not/exist/compass-gc-test",
+  });
+  assert.deepEqual(om.getBuffer(), []);
+});
