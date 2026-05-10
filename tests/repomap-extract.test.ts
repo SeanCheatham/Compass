@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   detectLanguage,
+  extractReturnType,
   extractSignature,
   extractSymbols,
 } from "../src/repomap/extract.ts";
@@ -265,6 +266,138 @@ export const SOME_CONST = 42;
   const syms = extractSymbols(text, "ts");
   assert.equal(syms.find((s) => s.name === "Foo")?.signature, undefined);
   assert.equal(syms.find((s) => s.name === "SOME_CONST")?.signature, undefined);
+});
+
+test("extractReturnType: simple TS function", () => {
+  const text = "function foo(): string {}";
+  const offset = "function foo".length;
+  assert.equal(extractReturnType(text, offset), "string");
+});
+
+test("extractReturnType: generic Promise", () => {
+  const text = "function foo(a: number): Promise<void> {}";
+  const offset = "function foo".length;
+  assert.equal(extractReturnType(text, offset), "Promise<void>");
+});
+
+test("extractReturnType: arrow function type (=> handling)", () => {
+  const text = "function foo(): (x: number) => string {}";
+  const offset = "function foo".length;
+  assert.equal(extractReturnType(text, offset), "(x: number) => string");
+});
+
+test("extractReturnType: type predicate", () => {
+  const text = "function isFoo(x: any): x is Foo {}";
+  const offset = "function isFoo".length;
+  assert.equal(extractReturnType(text, offset), "x is Foo");
+});
+
+test("extractReturnType: asserts predicate", () => {
+  const text = "function assertFoo(x: any): asserts x is Foo {}";
+  const offset = "function assertFoo".length;
+  assert.equal(extractReturnType(text, offset), "asserts x is Foo");
+});
+
+test("extractReturnType: ambient declaration (semicolon terminator)", () => {
+  const text = "function foo(): string;";
+  const offset = "function foo".length;
+  assert.equal(extractReturnType(text, offset), "string");
+});
+
+test("extractReturnType: nested generic with object type inside", () => {
+  const text = "function foo(): Promise<{ a: string }> {}";
+  const offset = "function foo".length;
+  assert.equal(
+    extractReturnType(text, offset),
+    "Promise<{ a: string }>"
+  );
+});
+
+test("extractReturnType: tuple/array return", () => {
+  const text = "function foo(): [string, number][] {}";
+  const offset = "function foo".length;
+  assert.equal(extractReturnType(text, offset), "[string, number][]");
+});
+
+test("extractReturnType: multiline return type", () => {
+  const text = "function foo(\n  a: number\n): Promise<\n  string\n> {}";
+  const offset = "function foo".length;
+  assert.equal(extractReturnType(text, offset), "Promise< string >");
+});
+
+test("extractReturnType: no annotation returns null", () => {
+  const text = "function foo() {}";
+  const offset = "function foo".length;
+  assert.equal(extractReturnType(text, offset), null);
+});
+
+test("extractReturnType: leading whitespace before colon", () => {
+  const text = "function foo()   :   number {}";
+  const offset = "function foo".length;
+  assert.equal(extractReturnType(text, offset), "number");
+});
+
+test("extractReturnType: truncates over MAX_RETURN_TYPE_CHARS", () => {
+  const text = `function foo(): Record<string, ${"x".repeat(80)}> {}`;
+  const offset = "function foo".length;
+  const ret = extractReturnType(text, offset);
+  assert.ok(ret !== null);
+  assert.equal(ret!.length, 60);
+  assert.equal(ret!.charAt(ret!.length - 1), "…");
+});
+
+test("extractReturnType: returns null when no '(' within scan limit", () => {
+  const text = "function foo" + "x".repeat(5000) + "()";
+  const offset = "function foo".length;
+  assert.equal(extractReturnType(text, offset), null);
+});
+
+test("extractReturnType: returns null on JS code (no annotation)", () => {
+  const text = "function foo() { return 42; }";
+  const offset = "function foo".length;
+  assert.equal(extractReturnType(text, offset), null);
+});
+
+test("extractSymbols: TS function gets returnType", () => {
+  const text = "export function foo(a: number): Promise<string> {}";
+  const syms = extractSymbols(text, "ts");
+  const foo = syms.find((s) => s.name === "foo");
+  assert.equal(foo?.signature, "a: number");
+  assert.equal(foo?.returnType, "Promise<string>");
+});
+
+test("extractSymbols: TS function with no annotation has no returnType", () => {
+  const text = "export function foo(a: number) {}";
+  const syms = extractSymbols(text, "ts");
+  const foo = syms.find((s) => s.name === "foo");
+  assert.equal(foo?.signature, "a: number");
+  assert.equal(foo?.returnType, undefined);
+});
+
+test("extractSymbols: JS function never gets returnType", () => {
+  const text = "export function foo(a) { return a; }";
+  const syms = extractSymbols(text, "js");
+  const foo = syms.find((s) => s.name === "foo");
+  assert.equal(foo?.signature, "a");
+  assert.equal(foo?.returnType, undefined);
+});
+
+test("extractSymbols: non-function TS kinds have no returnType", () => {
+  const text = "export interface Foo { x: string }\nexport const X = 1;";
+  const syms = extractSymbols(text, "ts");
+  assert.equal(syms.find((s) => s.name === "Foo")?.returnType, undefined);
+  assert.equal(syms.find((s) => s.name === "X")?.returnType, undefined);
+});
+
+test("extractSymbols: typed multiline frobnicate gets return type", () => {
+  const text = `export function frobnicate(a: number): number {
+  return a + 1;
+}
+`;
+  const syms = extractSymbols(text, "ts");
+  const fn = syms.find((s) => s.name === "frobnicate");
+  assert.equal(fn?.signature, "a: number");
+  assert.equal(fn?.returnType, "number");
 });
 
 test("Markdown: extracts h1, h2, h3 with line numbers", () => {

@@ -31,7 +31,8 @@ export function renderRepoMap(
     const lines: string[] = [`${path}:`];
     for (const sym of entry.symbols) {
       const sigPart = sym.signature !== undefined ? `(${sym.signature})` : "";
-      lines.push(`  ${sym.kind} ${sym.name}${sigPart} (L${sym.line})`);
+      const retPart = sym.returnType !== undefined ? `: ${sym.returnType}` : "";
+      lines.push(`  ${sym.kind} ${sym.name}${sigPart}${retPart} (L${sym.line})`);
     }
     const block = lines.join("\n");
 

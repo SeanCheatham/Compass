@@ -27,7 +27,7 @@ test("readRepoMapCache: missing file returns empty cache", async () => {
   const { config, cleanup } = await tmpWorkspace();
   try {
     const cache = await readRepoMapCache(config);
-    assert.deepEqual(cache, { version: 2, files: {} });
+    assert.deepEqual(cache, { version: 3, files: {} });
   } finally {
     await cleanup();
   }
@@ -37,7 +37,7 @@ test("write then read round-trips", async () => {
   const { config, cleanup } = await tmpWorkspace();
   try {
     const original = {
-      version: 2 as const,
+      version: 3 as const,
       files: {
         "src/foo.ts": {
           mtime: 100,
@@ -67,7 +67,7 @@ test("readRepoMapCache: corrupt file returns empty (does not throw)", async () =
   try {
     await writeFile(repoMapCachePath(config), "{ not valid json", "utf-8");
     const cache = await readRepoMapCache(config);
-    assert.deepEqual(cache, { version: 2, files: {} });
+    assert.deepEqual(cache, { version: 3, files: {} });
   } finally {
     await cleanup();
   }
@@ -82,7 +82,7 @@ test("readRepoMapCache: wrong version returns empty", async () => {
       "utf-8"
     );
     const cache = await readRepoMapCache(config);
-    assert.deepEqual(cache, { version: 2, files: {} });
+    assert.deepEqual(cache, { version: 3, files: {} });
   } finally {
     await cleanup();
   }
@@ -107,7 +107,39 @@ test("readRepoMapCache: legacy version 1 cache is discarded", async () => {
       "utf-8"
     );
     const cache = await readRepoMapCache(config);
-    assert.deepEqual(cache, { version: 2, files: {} });
+    assert.deepEqual(cache, { version: 3, files: {} });
+  } finally {
+    await cleanup();
+  }
+});
+
+test("readRepoMapCache: legacy version 2 cache is discarded", async () => {
+  const { config, cleanup } = await tmpWorkspace();
+  try {
+    await writeFile(
+      repoMapCachePath(config),
+      JSON.stringify({
+        version: 2,
+        files: {
+          "x.ts": {
+            mtime: 1,
+            size: 1,
+            language: "ts",
+            symbols: [
+              {
+                kind: "function",
+                name: "foo",
+                line: 1,
+                signature: "a: number",
+              },
+            ],
+          },
+        },
+      }),
+      "utf-8"
+    );
+    const cache = await readRepoMapCache(config);
+    assert.deepEqual(cache, { version: 3, files: {} });
   } finally {
     await cleanup();
   }
@@ -129,10 +161,10 @@ test("isFresh: matches mtime+size", () => {
 test("written cache file is parseable JSON on disk", async () => {
   const { config, cleanup } = await tmpWorkspace();
   try {
-    await writeRepoMapCache(config, { version: 2, files: {} });
+    await writeRepoMapCache(config, { version: 3, files: {} });
     const raw = await readFile(repoMapCachePath(config), "utf-8");
     const parsed = JSON.parse(raw);
-    assert.equal(parsed.version, 2);
+    assert.equal(parsed.version, 3);
   } finally {
     await cleanup();
   }
