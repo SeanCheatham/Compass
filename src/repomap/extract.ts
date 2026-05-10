@@ -6,6 +6,8 @@ export interface Symbol {
   kind: string;
   name: string;
   line: number;
+  /** Parameter list for function-like decls, e.g. `"a: number, b: string"`. Empty string for no-arg functions. Absent for non-functions. */
+  signature?: string;
 }
 
 const LANG_BY_EXT: Record<string, Language> = {
@@ -21,6 +23,12 @@ const LANG_BY_EXT: Record<string, Language> = {
   ".go": "go",
   ".rs": "rs",
 };
+
+/** Function-like kinds whose signatures we extract. */
+const SIGNATURE_KINDS = new Set(["function", "func", "fn"]);
+
+/** Cap rendered signature length. */
+const MAX_SIGNATURE_CHARS = 80;
 
 export function detectLanguage(path: string): Language | null {
   return LANG_BY_EXT[extname(path).toLowerCase()] ?? null;
@@ -146,11 +154,38 @@ function attachLineNumbers<T extends { offset: number }>(
   return result;
 }
 
+/**
+ * Given the full file text and an offset (typically the end of a `function`/`def`/`func`/`fn` regex match),
+ * scan forward for the next `(`, then walk to find the matching `)`. Returns the inner text with whitespace
+ * collapsed to single spaces and truncated to `MAX_SIGNATURE_CHARS` (with `…` suffix if exceeded).
+ * Returns `null` if no balanced `(...)` is found within a reasonable scan window.
+ */
+export function extractSignature(text: string, fromOffset: number): string | null {
+  const SCAN_LIMIT = 4096; // don't scan to EOF for malformed input
+  const open = text.indexOf("(", fromOffset);
+  if (open === -1 || open - fromOffset > SCAN_LIMIT) return null;
+
+  let depth = 0;
+  for (let i = open; i < text.length && i - open < SCAN_LIMIT; i++) {
+    const c = text.charCodeAt(i);
+    if (c === 40) depth++;       // (
+    else if (c === 41) {         // )
+      depth--;
+      if (depth === 0) {
+        const inner = text.slice(open + 1, i).replace(/\s+/g, " ").trim();
+        if (inner.length <= MAX_SIGNATURE_CHARS) return inner;
+        return inner.slice(0, MAX_SIGNATURE_CHARS - 1) + "…";
+      }
+    }
+  }
+  return null;
+}
+
 export function extractSymbols(text: string, language: Language): Symbol[] {
   const patterns = PATTERNS_BY_LANG[language];
   if (!patterns) return [];
 
-  type RawMatch = { offset: number; kind: string; name: string };
+  type RawMatch = { offset: number; kind: string; name: string; matchEnd: number };
   const raw: RawMatch[] = [];
 
   for (const { kind, pattern } of patterns) {
@@ -161,7 +196,7 @@ export function extractSymbols(text: string, language: Language): Symbol[] {
         kind === "impl" && m[2]
           ? `${m[1].replace(/\s+/g, " ").trim()} for ${m[2]}`
           : m[1];
-      raw.push({ offset: m.index, kind, name });
+      raw.push({ offset: m.index, kind, name, matchEnd: m.index + m[0].length });
     }
   }
 
@@ -173,7 +208,12 @@ export function extractSymbols(text: string, language: Language): Symbol[] {
     const key = `${r.line}:${r.name}`;
     if (seen.has(key)) continue;
     seen.add(key);
-    out.push({ kind: r.kind, name: r.name, line: r.line });
+    const sym: Symbol = { kind: r.kind, name: r.name, line: r.line };
+    if (SIGNATURE_KINDS.has(r.kind)) {
+      const sig = extractSignature(text, r.matchEnd);
+      if (sig !== null) sym.signature = sig;
+    }
+    out.push(sym);
   }
   return out;
 }

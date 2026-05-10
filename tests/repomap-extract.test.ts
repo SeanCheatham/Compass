@@ -1,6 +1,10 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { detectLanguage, extractSymbols } from "../src/repomap/extract.ts";
+import {
+  detectLanguage,
+  extractSignature,
+  extractSymbols,
+} from "../src/repomap/extract.ts";
 
 test("detectLanguage maps common extensions", () => {
   assert.equal(detectLanguage("foo.ts"), "ts");
@@ -52,6 +56,10 @@ export const SOME_CONST = 42;
   assert.ok(!names.some((n) => n.endsWith(":inner")));
   // class method should NOT be picked up
   assert.ok(!names.some((n) => n.endsWith(":method")));
+  assert.equal(
+    syms.find((s) => s.name === "frobnicate")?.signature,
+    "a: number"
+  );
 });
 
 test("TypeScript: line numbers are 1-based and accurate", () => {
@@ -182,4 +190,78 @@ test("dedup: same line not reported twice", () => {
 test("empty text returns no symbols", () => {
   assert.deepEqual(extractSymbols("", "ts"), []);
   assert.deepEqual(extractSymbols("\n\n\n", "py"), []);
+});
+
+test("extractSignature: simple TS function", () => {
+  const text = "function foo(a, b) {}";
+  const offset = "function foo".length;
+  assert.equal(extractSignature(text, offset), "a, b");
+});
+
+test("extractSignature: typed multiline TS", () => {
+  const text = `function foo(
+  a: number,
+  b: string
+): void {}
+`;
+  const offset = "function foo".length;
+  assert.equal(extractSignature(text, offset), "a: number, b: string");
+});
+
+test("extractSignature: nested parens (default value)", () => {
+  const text = "function foo(a: number = (1 + 2)) {}";
+  const offset = "function foo".length;
+  assert.equal(extractSignature(text, offset), "a: number = (1 + 2)");
+});
+
+test("extractSignature: no args", () => {
+  const text = "function foo() {}";
+  const offset = "function foo".length;
+  assert.equal(extractSignature(text, offset), "");
+});
+
+test("extractSignature: truncates over 80 chars", () => {
+  const giantArg = "x".repeat(120);
+  const text = `function foo(${giantArg}) {}`;
+  const offset = "function foo".length;
+  const sig = extractSignature(text, offset);
+  assert.ok(sig !== null);
+  assert.equal(sig!.length, 80);
+  assert.equal(sig!.charAt(sig!.length - 1), "…");
+});
+
+test("extractSignature: returns null when no '(' within scan limit", () => {
+  const text = "function foo" + "x".repeat(5000) + "(";
+  const offset = "function foo".length;
+  assert.equal(extractSignature(text, offset), null);
+});
+
+test("extractSymbols: Python def signature", () => {
+  const text = "def foo(a, b):\n    pass\n";
+  const syms = extractSymbols(text, "py");
+  assert.equal(syms.find((s) => s.name === "foo")?.signature, "a, b");
+});
+
+test("extractSymbols: Go func signature ignores receiver", () => {
+  const text = "func (u *User) Greet(name string) string {\n}\n";
+  const syms = extractSymbols(text, "go");
+  assert.equal(syms.find((s) => s.name === "Greet")?.signature, "name string");
+});
+
+test("extractSymbols: Rust fn signature", () => {
+  const text = "pub fn foo(a: i32) -> i32 {}\n";
+  const syms = extractSymbols(text, "rs");
+  assert.equal(syms.find((s) => s.name === "foo")?.signature, "a: i32");
+});
+
+test("extractSymbols: non-function kinds get no signature", () => {
+  const text = `export interface Foo {
+  field: string;
+}
+
+export const SOME_CONST = 42;
+`;
+  const syms = extractSymbols(text, "ts");
+  assert.equal(syms.find((s) => s.name === "Foo")?.signature, undefined);
+  assert.equal(syms.find((s) => s.name === "SOME_CONST")?.signature, undefined);
 });
