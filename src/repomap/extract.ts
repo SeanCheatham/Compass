@@ -132,19 +132,12 @@ const RUST: PatternSet[] = [
   },
 ];
 
-const MD: PatternSet[] = [
-  { kind: "h1", pattern: /^#\s+(.+?)\s*$/gm },
-  { kind: "h2", pattern: /^##\s+(.+?)\s*$/gm },
-  { kind: "h3", pattern: /^###\s+(.+?)\s*$/gm },
-];
-
-const PATTERNS_BY_LANG: Record<Language, PatternSet[]> = {
+const PATTERNS_BY_LANG: Partial<Record<Language, PatternSet[]>> = {
   ts: TS_JS,
   js: TS_JS,
   py: PY,
   go: GO,
   rs: RUST,
-  md: MD,
 };
 
 function attachLineNumbers<T extends { offset: number }>(
@@ -481,7 +474,67 @@ export function extractGoReturnType(text: string, fromOffset: number): string | 
   return inner.slice(0, MAX_RETURN_TYPE_CHARS - 1) + "…";
 }
 
+/**
+ * Markdown variant: walk the file line-by-line, tracking fenced-code-block state.
+ * Emit h1/h2/h3 symbols only for column-0 heading lines that fall OUTSIDE a fence.
+ * Recognizes both backtick and tilde fences with up to 3 leading spaces;
+ * a close fence must use the same character, with length >= open, and only whitespace
+ * after the marker run. Unclosed fences suppress headings until EOF.
+ */
+function extractMarkdownSymbols(text: string): Symbol[] {
+  const out: Symbol[] = [];
+  let inFence = false;
+  let fenceChar = ""; // "`" or "~"
+  let fenceLen = 0;
+
+  const fenceRe = /^( {0,3})(`{3,}|~{3,})(.*)$/;
+  const headingRe = /^(#{1,3})\s+(.+?)\s*$/;
+
+  const lines = text.split("\n");
+  for (let i = 0; i < lines.length; i++) {
+    const lineText = lines[i]!;
+    const lineNum = i + 1;
+
+    // Fence detection: up to 3 leading spaces, then a run of >=3 backticks or >=3 tildes.
+    const fenceMatch = lineText.match(fenceRe);
+    if (fenceMatch) {
+      const marker = fenceMatch[2]!;
+      const after = fenceMatch[3]!;
+      const ch = marker[0]!;
+      const len = marker.length;
+      if (!inFence) {
+        // Open fence. Info string allowed.
+        inFence = true;
+        fenceChar = ch;
+        fenceLen = len;
+        continue;
+      }
+      // Close-fence candidate: same char, length >= open, only whitespace after.
+      if (ch === fenceChar && len >= fenceLen && /^\s*$/.test(after)) {
+        inFence = false;
+        fenceChar = "";
+        fenceLen = 0;
+        continue;
+      }
+      // Otherwise fall through — treat as content within the open fence.
+    }
+
+    if (inFence) continue;
+
+    // Heading match — column-0 anchored, identical to legacy regex semantics.
+    const h = lineText.match(headingRe);
+    if (h) {
+      const level = h[1]!.length;
+      out.push({ kind: `h${level}`, name: h[2]!, line: lineNum });
+    }
+  }
+
+  return out;
+}
+
 export function extractSymbols(text: string, language: Language): Symbol[] {
+  if (language === "md") return extractMarkdownSymbols(text);
+
   const patterns = PATTERNS_BY_LANG[language];
   if (!patterns) return [];
 

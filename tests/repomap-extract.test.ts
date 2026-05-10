@@ -1096,3 +1096,126 @@ test("Markdown: heading symbols have no signature", () => {
 test("Markdown: empty file returns no symbols", () => {
   assert.deepEqual(extractSymbols("", "md"), []);
 });
+
+test("Markdown: backtick code fence suppresses headings inside", () => {
+  const text = "# Title\n\n```bash\n# in fence\n```\n\n## After\n";
+  const syms = extractSymbols(text, "md");
+  assert.equal(syms.length, 2);
+  assert.equal(syms[0].kind, "h1");
+  assert.equal(syms[0].name, "Title");
+  assert.equal(syms[0].line, 1);
+  assert.equal(syms[1].kind, "h2");
+  assert.equal(syms[1].name, "After");
+  assert.equal(syms[1].line, 7);
+});
+
+test("Markdown: tilde code fence suppresses headings inside", () => {
+  const text = "# Title\n\n~~~\n# in fence\n~~~\n\n## After\n";
+  const syms = extractSymbols(text, "md");
+  assert.equal(syms.length, 2);
+  assert.equal(syms[0].kind, "h1");
+  assert.equal(syms[0].name, "Title");
+  assert.equal(syms[1].kind, "h2");
+  assert.equal(syms[1].name, "After");
+  assert.equal(syms[1].line, 7);
+});
+
+test("Markdown: backtick fence does NOT close tilde fence", () => {
+  const text = "~~~\n# foo\n```\n# bar\n~~~\n## valid\n";
+  const syms = extractSymbols(text, "md");
+  assert.equal(syms.length, 1);
+  assert.equal(syms[0].kind, "h2");
+  assert.equal(syms[0].name, "valid");
+  assert.equal(syms[0].line, 6);
+});
+
+test("Markdown: tilde fence does NOT close backtick fence", () => {
+  const text = "```\n# foo\n~~~\n# bar\n```\n## valid\n";
+  const syms = extractSymbols(text, "md");
+  assert.equal(syms.length, 1);
+  assert.equal(syms[0].kind, "h2");
+  assert.equal(syms[0].name, "valid");
+  assert.equal(syms[0].line, 6);
+});
+
+test("Markdown: shorter inner fence does not close longer outer fence", () => {
+  const text = "````\n# foo\n```\n# bar\n````\n## valid\n";
+  const syms = extractSymbols(text, "md");
+  assert.equal(syms.length, 1);
+  assert.equal(syms[0].kind, "h2");
+  assert.equal(syms[0].name, "valid");
+  assert.equal(syms[0].line, 6);
+});
+
+test("Markdown: longer close fence is still a close", () => {
+  const text = "```\n# foo\n````\n## valid\n";
+  const syms = extractSymbols(text, "md");
+  assert.equal(syms.length, 1);
+  assert.equal(syms[0].kind, "h2");
+  assert.equal(syms[0].name, "valid");
+  assert.equal(syms[0].line, 4);
+});
+
+test("Markdown: open fence with info string", () => {
+  const text = "```bash\n# in fence\n```\n## valid\n";
+  const syms = extractSymbols(text, "md");
+  assert.equal(syms.length, 1);
+  assert.equal(syms[0].kind, "h2");
+  assert.equal(syms[0].name, "valid");
+  assert.equal(syms[0].line, 4);
+});
+
+test("Markdown: close-fence candidate with non-whitespace after marker is content", () => {
+  const text = "```\n# foo\n``` not-a-close\n# bar\n```\n## valid\n";
+  const syms = extractSymbols(text, "md");
+  assert.equal(syms.length, 1);
+  assert.equal(syms[0].kind, "h2");
+  assert.equal(syms[0].name, "valid");
+  assert.equal(syms[0].line, 6);
+});
+
+test("Markdown: unclosed fence suppresses headings to EOF", () => {
+  const text = "# valid\n```\n# in fence\n## also in fence\n";
+  const syms = extractSymbols(text, "md");
+  assert.equal(syms.length, 1);
+  assert.equal(syms[0].kind, "h1");
+  assert.equal(syms[0].name, "valid");
+  assert.equal(syms[0].line, 1);
+});
+
+test("Markdown: fence with up to 3 leading spaces is recognized", () => {
+  const text = "   ```\n# in fence\n   ```\n## valid\n";
+  const syms = extractSymbols(text, "md");
+  assert.equal(syms.length, 1);
+  assert.equal(syms[0].kind, "h2");
+  assert.equal(syms[0].name, "valid");
+  assert.equal(syms[0].line, 4);
+});
+
+test("Markdown: fence with 4 leading spaces is NOT a fence", () => {
+  const text = "    ```\n# col0\n    ```\n## bar\n";
+  const syms = extractSymbols(text, "md");
+  assert.equal(syms.length, 2);
+  assert.equal(syms[0].kind, "h1");
+  assert.equal(syms[0].name, "col0");
+  assert.equal(syms[0].line, 2);
+  assert.equal(syms[1].kind, "h2");
+  assert.equal(syms[1].name, "bar");
+  assert.equal(syms[1].line, 4);
+});
+
+test("Markdown: multiple fences with valid headings between", () => {
+  const text =
+    "# Title\n\n```bash\n# in1\n```\n\n## Mid\n\n~~~\n# in2\n~~~\n\n### End\n";
+  const syms = extractSymbols(text, "md");
+  assert.equal(syms.length, 3);
+  assert.equal(syms[0].kind, "h1");
+  assert.equal(syms[0].name, "Title");
+  assert.equal(syms[0].line, 1);
+  assert.equal(syms[1].kind, "h2");
+  assert.equal(syms[1].name, "Mid");
+  assert.equal(syms[1].line, 7);
+  assert.equal(syms[2].kind, "h3");
+  assert.equal(syms[2].name, "End");
+  assert.equal(syms[2].line, 13);
+});
