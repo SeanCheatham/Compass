@@ -196,12 +196,16 @@ export function extractSignature(text: string, fromOffset: number): string | nul
 }
 
 /**
- * Given the full file text and an offset (typically the end of a `function` regex match),
+ * TS variant: given the full file text and an offset (typically the end of a function regex match),
  * scan forward to the args' closing `)`, then look for `:` (TS return-type annotation).
- * Walk balanced `<>`, `()`, `[]` until hitting a depth-0 `{`, `;`, or newline. Returns the
- * inner text with whitespace collapsed and truncated to MAX_RETURN_TYPE_CHARS (suffix `…`).
- * Returns null if no `(...)`, no `:`, or the type would be empty. Treats `=>` as a token
- * (does not decrement depth on the `>` of `=>`).
+ * Walk balanced `<>`, `()`, `[]`, `{}` until hitting a depth-0 `{` (body), `;`, or newline.
+ * `{}` tracking lets inline object types like `{ a: string }`, intersections (`Foo & { x }`), and
+ * unions (`string | { x }`) be captured as part of the return type. Body `{` is distinguished from
+ * inline-object `{` by the previous non-whitespace char: body `{` follows a type-end (`)`, `]`, `>`,
+ * `}`, alphanumeric, `_`, `$`, `?`); inline-object `{` follows an operator/separator (`:`, `&`, `|`,
+ * `(`, `<`, `[`, `,`) or is the first non-whitespace char. Treats `=>` as a token (does not
+ * decrement depth on the `>` of `=>`). Returns the inner text with whitespace collapsed and
+ * truncated to MAX_RETURN_TYPE_CHARS (suffix `…`). Returns null if no `(...)`, no `:`, or empty inner.
  */
 export function extractReturnType(text: string, fromOffset: number): string | null {
   const SCAN_LIMIT = 4096;
@@ -232,6 +236,11 @@ export function extractReturnType(text: string, fromOffset: number): string | nu
   while (i < text.length && (text[i] === " " || text[i] === "\t")) i++;
 
   // Step 3: walk return type with bracket depth tracking.
+  // Track `{}` depth so inline object types like `{ a: string }`, intersections (`Foo & { x }`),
+  // and unions (`string | { x }`) are walked as part of the return type. Distinguish the body `{`
+  // from an inline-object `{` by the previous non-whitespace char: body `{` follows a type-end
+  // (`)`, `]`, `>`, `}`, or alphanumeric/`_`/`$`/`?`); inline-object `{` follows an operator/
+  // separator (`:`, `&`, `|`, `(`, `<`, `[`, `,`) or is the first non-whitespace char of the type.
   const start = i;
   let bd = 0;
   for (; i < text.length && i - start < SCAN_LIMIT; i++) {
@@ -242,13 +251,31 @@ export function extractReturnType(text: string, fromOffset: number): string | nu
       if (i > start && text.charCodeAt(i - 1) === 61 /* = */) {
         // skip
       } else bd--;
-    } else if (c === 41 /* ) */ || c === 93 /* ] */) bd--;
-    else if (
-      bd === 0 &&
-      (c === 123 /* { */ || c === 59 /* ; */ || c === 10 /* \n */)
-    ) {
-      break;
-    }
+    } else if (c === 41 /* ) */ || c === 93 /* ] */ || c === 125 /* } */) bd--;
+    else if (c === 123 /* { */) {
+      if (bd > 0) {
+        // Already inside something; this `{` is type-internal.
+        bd++;
+      } else {
+        // bd === 0. Look back at last non-whitespace char to decide body vs inline-object.
+        let j = i - 1;
+        while (j >= start && /\s/.test(text[j]!)) j--;
+        const prev = j >= start ? text.charCodeAt(j) : -1;
+        const isTypeEnd =
+          prev === 41 /* ) */ ||
+          prev === 93 /* ] */ ||
+          prev === 62 /* > */ ||
+          prev === 125 /* } */ ||
+          prev === 63 /* ? */ ||
+          (prev >= 48 && prev <= 57) /* 0-9 */ ||
+          (prev >= 65 && prev <= 90) /* A-Z */ ||
+          (prev >= 97 && prev <= 122) /* a-z */ ||
+          prev === 95 /* _ */ ||
+          prev === 36 /* $ */;
+        if (isTypeEnd) break; // body `{` — terminate.
+        bd++; // inline-object `{` — push depth.
+      }
+    } else if (bd === 0 && (c === 59 /* ; */ || c === 10 /* \n */)) break;
   }
 
   const inner = text.slice(start, i).replace(/\s+/g, " ").trim();

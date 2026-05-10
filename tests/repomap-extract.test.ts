@@ -403,6 +403,113 @@ test("extractSymbols: typed multiline frobnicate gets return type", () => {
   assert.equal(fn?.returnType, "number");
 });
 
+test("extractReturnType: inline object simple", () => {
+  const text = "function foo(): { a: string } {";
+  const offset = "function foo".length;
+  assert.equal(extractReturnType(text, offset), "{ a: string }");
+});
+
+test("extractReturnType: inline object empty", () => {
+  const text = "function foo(): {} {";
+  const offset = "function foo".length;
+  assert.equal(extractReturnType(text, offset), "{}");
+});
+
+test("extractReturnType: inline object nested", () => {
+  const text = "function foo(): { a: { b: number } } {";
+  const offset = "function foo".length;
+  assert.equal(extractReturnType(text, offset), "{ a: { b: number } }");
+});
+
+test("extractReturnType: intersection with inline object", () => {
+  const text = "function foo(): Foo & { a: number } {";
+  const offset = "function foo".length;
+  assert.equal(extractReturnType(text, offset), "Foo & { a: number }");
+});
+
+test("extractReturnType: union with inline object", () => {
+  const text = "function foo(): string | { a: number } {";
+  const offset = "function foo".length;
+  assert.equal(extractReturnType(text, offset), "string | { a: number }");
+});
+
+test("extractReturnType: inline object with method member", () => {
+  const text = "function foo(): { foo(): void } {";
+  const offset = "function foo".length;
+  assert.equal(extractReturnType(text, offset), "{ foo(): void }");
+});
+
+test("extractReturnType: inline object with semicolon separators", () => {
+  const text = "function foo(): { a: number; b: string } {";
+  const offset = "function foo".length;
+  assert.equal(extractReturnType(text, offset), "{ a: number; b: string }");
+});
+
+test("extractReturnType: inline object with arrow inside", () => {
+  const text = "function foo(): { foo: () => string } {";
+  const offset = "function foo".length;
+  assert.equal(extractReturnType(text, offset), "{ foo: () => string }");
+});
+
+test("extractReturnType: mapped type stays intact", () => {
+  const text = "function foo(): { [K in keyof T]: T[K] } {";
+  const offset = "function foo".length;
+  assert.equal(extractReturnType(text, offset), "{ [K in keyof T]: T[K] }");
+});
+
+test("extractReturnType: generic with inline object (regression)", () => {
+  const text = "function foo(): Record<string, { a: number }> {";
+  const offset = "function foo".length;
+  assert.equal(extractReturnType(text, offset), "Record<string, { a: number }>");
+});
+
+test("extractReturnType: plain string return (regression)", () => {
+  const text = "function foo(): string {";
+  const offset = "function foo".length;
+  assert.equal(extractReturnType(text, offset), "string");
+});
+
+test("extractReturnType: arrow type (regression)", () => {
+  const text = "function foo(): () => string {";
+  const offset = "function foo".length;
+  assert.equal(extractReturnType(text, offset), "() => string");
+});
+
+test("extractReturnType: tuple (regression)", () => {
+  const text = "function foo(): [number, string] {";
+  const offset = "function foo".length;
+  assert.equal(extractReturnType(text, offset), "[number, string]");
+});
+
+test("extractReturnType: union ending in identifier (regression)", () => {
+  const text = "function foo(): number | undefined {";
+  const offset = "function foo".length;
+  assert.equal(extractReturnType(text, offset), "number | undefined");
+});
+
+test("extractReturnType: terminates at semicolon for inline object", () => {
+  const text = "declare function foo(): { a: 1 };";
+  const offset = "declare function foo".length;
+  assert.equal(extractReturnType(text, offset), "{ a: 1 }");
+});
+
+test("extractReturnType: truncates over MAX_RETURN_TYPE_CHARS for inline object", () => {
+  const text = `function foo(): { a: ${"x".repeat(80)} } {`;
+  const offset = "function foo".length;
+  const ret = extractReturnType(text, offset);
+  assert.ok(ret !== null);
+  assert.equal(ret!.length, 60);
+  assert.equal(ret!.charAt(ret!.length - 1), "…");
+});
+
+test("extractSymbols: TS function with inline object return type", () => {
+  const text = "export function foo(): { a: string } {\n}\n";
+  const syms = extractSymbols(text, "ts");
+  const foo = syms.find((s) => s.name === "foo");
+  assert.equal(foo?.signature, "");
+  assert.equal(foo?.returnType, "{ a: string }");
+});
+
 test("extractPythonReturnType: simple def", () => {
   const text = "def foo() -> int:";
   const offset = "def foo".length;
