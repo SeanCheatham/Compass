@@ -24,3 +24,4 @@ npm-debug.log*
 
 # Firebase
 firebase-debug.log
+.compass/
