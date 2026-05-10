@@ -128,3 +128,84 @@ test("feedback persistence: simulates crash between set and consume", async () =
     await cleanup();
   }
 });
+
+test("feedback runtime: onChange fires on set with the new value", () => {
+  const t = createFeedbackBus();
+  const seen: string[] = [];
+  t.onChange((v) => seen.push(v));
+  t.set("hello");
+  t.set("world");
+  assert.deepEqual(seen, ["hello", "world"]);
+});
+
+test("feedback runtime: onChange fires on clear with the empty string", () => {
+  const t = createFeedbackBus();
+  t.set("value");
+  const seen: string[] = [];
+  t.onChange((v) => seen.push(v));
+  t.clear();
+  assert.deepEqual(seen, [""]);
+});
+
+test("feedback runtime: clear() is a no-op when value is already empty", () => {
+  const t = createFeedbackBus();
+  const seen: string[] = [];
+  t.onChange((v) => seen.push(v));
+  t.clear(); // already empty
+  t.clear(); // still empty
+  assert.deepEqual(seen, []);
+  assert.equal(t.current(), "");
+});
+
+test("feedback runtime: set() emits even when value is unchanged", () => {
+  const t = createFeedbackBus();
+  t.set("x");
+  const seen: string[] = [];
+  t.onChange((v) => seen.push(v));
+  t.set("x");
+  t.set("x");
+  assert.deepEqual(seen, ["x", "x"]);
+});
+
+test("feedback runtime: every subscribed listener fires on set", () => {
+  const t = createFeedbackBus();
+  const a: string[] = [];
+  const b: string[] = [];
+  t.onChange((v) => a.push(v));
+  t.onChange((v) => b.push(v));
+  t.set("hi");
+  assert.deepEqual(a, ["hi"]);
+  assert.deepEqual(b, ["hi"]);
+});
+
+test("feedback runtime: unsubscribe stops the listener from firing", () => {
+  const t = createFeedbackBus();
+  const seen: string[] = [];
+  const unsub = t.onChange((v) => seen.push(v));
+  t.set("first");
+  unsub();
+  t.set("second");
+  assert.deepEqual(seen, ["first"]);
+});
+
+test("feedback runtime: unsubscribe only removes that one listener", () => {
+  const t = createFeedbackBus();
+  const a: string[] = [];
+  const b: string[] = [];
+  const unsubA = t.onChange((v) => a.push(v));
+  t.onChange((v) => b.push(v));
+  t.set("first");
+  unsubA();
+  t.set("second");
+  assert.deepEqual(a, ["first"]);
+  assert.deepEqual(b, ["first", "second"]);
+});
+
+test("feedback runtime: full lifecycle — listener sees set then clear", () => {
+  const t = createFeedbackBus();
+  const seen: string[] = [];
+  t.onChange((v) => seen.push(v));
+  t.set("loaded");
+  t.clear();
+  assert.deepEqual(seen, ["loaded", ""]);
+});
