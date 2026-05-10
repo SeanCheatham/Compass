@@ -8,7 +8,7 @@ export interface Symbol {
   line: number;
   /** Parameter list for function-like decls, e.g. `"a: number, b: string"`. Empty string for no-arg functions. Absent for non-functions. */
   signature?: string;
-  /** Return type for TS/Python function-like decls (TS `: Type`, Python `-> Type`). Absent if no annotation, JS, or non-function. */
+  /** Return type for TS/Python/Rust function-like decls (TS `: Type`, Python/Rust `-> Type`). Absent if no annotation, JS/Go, or non-function. */
   returnType?: string;
 }
 
@@ -308,6 +308,74 @@ export function extractPythonReturnType(text: string, fromOffset: number): strin
   return inner.slice(0, MAX_RETURN_TYPE_CHARS - 1) + "…";
 }
 
+/**
+ * Rust variant: given the full file text and an offset (typically the end of an `fn` regex match),
+ * scan forward to the args' closing `)`, then look for `->`. Walk balanced `<>`, `()`, `[]` (NOT `{}` —
+ * `{` opens the function body) until hitting a depth-0 `{` (body), `;` (trait method), `\n` (defensive),
+ * or the literal token `where` (clause start). Returns the inner text with whitespace collapsed and
+ * truncated to MAX_RETURN_TYPE_CHARS (suffix `…`). Returns null if no `(...)`, no `->`, or the type
+ * would be empty. Treats `->` as a token (does not decrement depth on the `>` of `->`).
+ */
+export function extractRustReturnType(text: string, fromOffset: number): string | null {
+  const SCAN_LIMIT = 4096;
+  // Step 1: find args' close paren.
+  const open = text.indexOf("(", fromOffset);
+  if (open === -1 || open - fromOffset > SCAN_LIMIT) return null;
+  let depth = 0;
+  let close = -1;
+  for (let i = open; i < text.length && i - open < SCAN_LIMIT; i++) {
+    const c = text.charCodeAt(i);
+    if (c === 40) depth++;
+    else if (c === 41) {
+      depth--;
+      if (depth === 0) {
+        close = i;
+        break;
+      }
+    }
+  }
+  if (close === -1) return null;
+
+  // Step 2: skip whitespace, expect `->`.
+  let i = close + 1;
+  while (i < text.length && /\s/.test(text[i]!)) i++;
+  if (text[i] !== "-" || text[i + 1] !== ">") return null;
+  i += 2;
+  while (i < text.length && /\s/.test(text[i]!)) i++;
+
+  // Step 3: walk return type. Depth on `<`, `(`, `[`. Don't underflow on `>` of `->`.
+  const start = i;
+  let bd = 0;
+  for (; i < text.length && i - start < SCAN_LIMIT; i++) {
+    const c = text.charCodeAt(i);
+    if (c === 60 /* < */ || c === 40 /* ( */ || c === 91 /* [ */) bd++;
+    else if (c === 62 /* > */) {
+      // Don't underflow on the '>' of '->'.
+      if (i > start && text.charCodeAt(i - 1) === 45 /* - */) {
+        // skip
+      } else bd--;
+    } else if (c === 41 /* ) */ || c === 93 /* ] */) bd--;
+    else if (bd === 0) {
+      if (c === 123 /* { */ || c === 59 /* ; */ || c === 10 /* \n */) break;
+      // `where` keyword: must be preceded and followed by non-word characters.
+      if (
+        c === 119 /* 'w' */ &&
+        text.charCodeAt(i + 1) === 104 /* 'h' */ &&
+        text.charCodeAt(i + 2) === 101 /* 'e' */ &&
+        text.charCodeAt(i + 3) === 114 /* 'r' */ &&
+        text.charCodeAt(i + 4) === 101 /* 'e' */ &&
+        (i === start || /\W/.test(text[i - 1]!)) &&
+        (i + 5 >= text.length || /\W/.test(text[i + 5]!))
+      ) break;
+    }
+  }
+
+  const inner = text.slice(start, i).replace(/\s+/g, " ").trim();
+  if (inner.length === 0) return null;
+  if (inner.length <= MAX_RETURN_TYPE_CHARS) return inner;
+  return inner.slice(0, MAX_RETURN_TYPE_CHARS - 1) + "…";
+}
+
 export function extractSymbols(text: string, language: Language): Symbol[] {
   const patterns = PATTERNS_BY_LANG[language];
   if (!patterns) return [];
@@ -344,6 +412,9 @@ export function extractSymbols(text: string, language: Language): Symbol[] {
         if (ret !== null) sym.returnType = ret;
       } else if (language === "py") {
         const ret = extractPythonReturnType(text, r.matchEnd);
+        if (ret !== null) sym.returnType = ret;
+      } else if (language === "rs") {
+        const ret = extractRustReturnType(text, r.matchEnd);
         if (ret !== null) sym.returnType = ret;
       }
     }

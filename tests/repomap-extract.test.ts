@@ -4,6 +4,7 @@ import {
   detectLanguage,
   extractPythonReturnType,
   extractReturnType,
+  extractRustReturnType,
   extractSignature,
   extractSymbols,
 } from "../src/repomap/extract.ts";
@@ -520,6 +521,154 @@ test("extractSymbols: Python def with no annotation has no returnType", () => {
 test("extractSymbols: Python class has no returnType", () => {
   const text = "class Foo:\n    pass\n";
   const syms = extractSymbols(text, "py");
+  const foo = syms.find((s) => s.name === "Foo");
+  assert.equal(foo?.returnType, undefined);
+});
+
+test("extractRustReturnType: simple fn -> i32", () => {
+  const text = "fn foo() -> i32 {";
+  const offset = "fn foo".length;
+  assert.equal(extractRustReturnType(text, offset), "i32");
+});
+
+test("extractRustReturnType: Result<T, E>", () => {
+  const text = "fn foo() -> Result<T, E> {";
+  const offset = "fn foo".length;
+  assert.equal(extractRustReturnType(text, offset), "Result<T, E>");
+});
+
+test("extractRustReturnType: nested generics with no space (>>)", () => {
+  const text = "fn foo() -> Vec<Box<dyn Trait>> {";
+  const offset = "fn foo".length;
+  assert.equal(extractRustReturnType(text, offset), "Vec<Box<dyn Trait>>");
+});
+
+test("extractRustReturnType: lifetime ref &'a mut T", () => {
+  const text = "fn foo() -> &'a mut T {";
+  const offset = "fn foo".length;
+  assert.equal(extractRustReturnType(text, offset), "&'a mut T");
+});
+
+test("extractRustReturnType: tuple (T, U)", () => {
+  const text = "fn foo() -> (T, U) {";
+  const offset = "fn foo".length;
+  assert.equal(extractRustReturnType(text, offset), "(T, U)");
+});
+
+test("extractRustReturnType: array [T; N] does not terminate on inner ;", () => {
+  const text = "fn foo() -> [T; N] {";
+  const offset = "fn foo".length;
+  assert.equal(extractRustReturnType(text, offset), "[T; N]");
+});
+
+test("extractRustReturnType: impl Fn(i32) -> i32 (inner arrow doesn't underflow)", () => {
+  const text = "fn foo() -> impl Fn(i32) -> i32 {";
+  const offset = "fn foo".length;
+  assert.equal(extractRustReturnType(text, offset), "impl Fn(i32) -> i32");
+});
+
+test("extractRustReturnType: where clause termination", () => {
+  const text = "fn foo() -> T where T: Clone {";
+  const offset = "fn foo".length;
+  assert.equal(extractRustReturnType(text, offset), "T");
+});
+
+test("extractRustReturnType: where keyword inside identifier does not terminate", () => {
+  const text = "fn foo() -> Twhereunto {";
+  const offset = "fn foo".length;
+  assert.equal(extractRustReturnType(text, offset), "Twhereunto");
+});
+
+test("extractRustReturnType: trait method semicolon terminator", () => {
+  const text = "fn foo() -> T;";
+  const offset = "fn foo".length;
+  assert.equal(extractRustReturnType(text, offset), "T");
+});
+
+test("extractRustReturnType: no annotation returns null", () => {
+  const text = "fn foo() {";
+  const offset = "fn foo".length;
+  assert.equal(extractRustReturnType(text, offset), null);
+});
+
+test("extractRustReturnType: empty annotation returns null", () => {
+  const text = "fn foo() -> {";
+  const offset = "fn foo".length;
+  assert.equal(extractRustReturnType(text, offset), null);
+});
+
+test("extractRustReturnType: leading whitespace before arrow", () => {
+  const text = "fn foo()   ->   i32 {";
+  const offset = "fn foo".length;
+  assert.equal(extractRustReturnType(text, offset), "i32");
+});
+
+test("extractRustReturnType: multiline arg list then -> on next line", () => {
+  const text = "fn foo(\n  a: i32,\n) -> i32 {";
+  const offset = "fn foo".length;
+  assert.equal(extractRustReturnType(text, offset), "i32");
+});
+
+test("extractRustReturnType: terminates at newline if no { or ;", () => {
+  const text = "fn foo() -> i32\nrest_of_line";
+  const offset = "fn foo".length;
+  assert.equal(extractRustReturnType(text, offset), "i32");
+});
+
+test("extractRustReturnType: truncates over MAX_RETURN_TYPE_CHARS", () => {
+  const text = `fn foo() -> Vec<${"x".repeat(80)}> {`;
+  const offset = "fn foo".length;
+  const ret = extractRustReturnType(text, offset);
+  assert.ok(ret !== null);
+  assert.equal(ret!.length, 60);
+  assert.equal(ret!.charAt(ret!.length - 1), "…");
+});
+
+test("extractRustReturnType: returns null when no '(' within scan limit", () => {
+  const text = "fn foo" + "x".repeat(5000) + "() -> i32 {";
+  const offset = "fn foo".length;
+  assert.equal(extractRustReturnType(text, offset), null);
+});
+
+test("extractRustReturnType: returns null when arrow missing", () => {
+  const text = "fn foo() : i32";
+  const offset = "fn foo".length;
+  assert.equal(extractRustReturnType(text, offset), null);
+});
+
+test("extractSymbols: Rust fn gets returnType", () => {
+  const text = "fn foo(a: i32) -> Result<i32, Error> {\n}\n";
+  const syms = extractSymbols(text, "rs");
+  const foo = syms.find((s) => s.name === "foo");
+  assert.equal(foo?.signature, "a: i32");
+  assert.equal(foo?.returnType, "Result<i32, Error>");
+});
+
+test("extractSymbols: Rust async fn gets returnType", () => {
+  const text = "async fn foo() -> i32 {\n}\n";
+  const syms = extractSymbols(text, "rs");
+  const foo = syms.find((s) => s.name === "foo");
+  assert.equal(foo?.returnType, "i32");
+});
+
+test("extractSymbols: Rust pub fn gets returnType", () => {
+  const text = "pub fn foo() -> Box<dyn Trait> {\n}\n";
+  const syms = extractSymbols(text, "rs");
+  const foo = syms.find((s) => s.name === "foo");
+  assert.equal(foo?.returnType, "Box<dyn Trait>");
+});
+
+test("extractSymbols: Rust fn with no annotation has no returnType", () => {
+  const text = "fn foo(a: i32) {\n}\n";
+  const syms = extractSymbols(text, "rs");
+  const foo = syms.find((s) => s.name === "foo");
+  assert.equal(foo?.signature, "a: i32");
+  assert.equal(foo?.returnType, undefined);
+});
+
+test("extractSymbols: Rust struct has no returnType", () => {
+  const text = "struct Foo { x: i32 }\n";
+  const syms = extractSymbols(text, "rs");
   const foo = syms.find((s) => s.name === "Foo");
   assert.equal(foo?.returnType, undefined);
 });
