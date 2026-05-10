@@ -7,6 +7,7 @@ export interface WorkspaceConfig {
   lessonsPath: string;
   sessionsPath: string;
   sessionsRecordPath: string;
+  feedbackPath: string;
 }
 
 /**

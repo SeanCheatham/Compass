@@ -75,7 +75,7 @@ program
     const sessions = createSessionTracker({
       recordPath: config.sessionsRecordPath,
     });
-    const feedback = createFeedbackBus();
+    const feedback = createFeedbackBus({ recordPath: config.feedbackPath });
 
     const server = await startWebServer({
       config,
@@ -99,6 +99,7 @@ program
       output.info("\nShutting down...");
       abortController.abort();
       await sessions.flush();
+      await feedback.flush();
       await server.close();
       await lock.release();
       process.exit(0);

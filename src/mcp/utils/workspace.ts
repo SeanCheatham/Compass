@@ -19,6 +19,7 @@ export const STATE_FILE = "state.json";
 export const STATE_BACKUP_FILE = "state.json.bak";
 export const DRAFTS_FILE = "drafts.md";
 export const LESSONS_FILE = "lessons.md";
+export const FEEDBACK_FILE = "feedback.json";
 
 /**
  * Thrown when state.json exists on disk but cannot be parsed/normalized.
@@ -47,6 +48,7 @@ export function getWorkspaceConfig(implRepoPath: string): WorkspaceConfig {
     lessonsPath: resolve(workspacePath, LESSONS_FILE),
     sessionsPath: resolve(workspacePath, "sessions"),
     sessionsRecordPath: resolve(workspacePath, "sessions.json"),
+    feedbackPath: resolve(workspacePath, FEEDBACK_FILE),
   };
 }
 
