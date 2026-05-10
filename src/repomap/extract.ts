@@ -1,6 +1,6 @@
 import { extname } from "node:path";
 
-export type Language = "ts" | "js" | "py" | "go" | "rs";
+export type Language = "ts" | "js" | "py" | "go" | "rs" | "md";
 
 export interface Symbol {
   kind: string;
@@ -22,6 +22,8 @@ const LANG_BY_EXT: Record<string, Language> = {
   ".py": "py",
   ".go": "go",
   ".rs": "rs",
+  ".md": "md",
+  ".markdown": "md",
 };
 
 /** Function-like kinds whose signatures we extract. */
@@ -125,12 +127,19 @@ const RUST: PatternSet[] = [
   },
 ];
 
+const MD: PatternSet[] = [
+  { kind: "h1", pattern: /^#\s+(.+?)\s*$/gm },
+  { kind: "h2", pattern: /^##\s+(.+?)\s*$/gm },
+  { kind: "h3", pattern: /^###\s+(.+?)\s*$/gm },
+];
+
 const PATTERNS_BY_LANG: Record<Language, PatternSet[]> = {
   ts: TS_JS,
   js: TS_JS,
   py: PY,
   go: GO,
   rs: RUST,
+  md: MD,
 };
 
 function attachLineNumbers<T extends { offset: number }>(

@@ -15,7 +15,8 @@ test("detectLanguage maps common extensions", () => {
   assert.equal(detectLanguage("script.py"), "py");
   assert.equal(detectLanguage("main.go"), "go");
   assert.equal(detectLanguage("lib.rs"), "rs");
-  assert.equal(detectLanguage("README.md"), null);
+  assert.equal(detectLanguage("README.md"), "md");
+  assert.equal(detectLanguage("docs/foo.markdown"), "md");
   assert.equal(detectLanguage("Dockerfile"), null);
 });
 
@@ -264,4 +265,63 @@ export const SOME_CONST = 42;
   const syms = extractSymbols(text, "ts");
   assert.equal(syms.find((s) => s.name === "Foo")?.signature, undefined);
   assert.equal(syms.find((s) => s.name === "SOME_CONST")?.signature, undefined);
+});
+
+test("Markdown: extracts h1, h2, h3 with line numbers", () => {
+  const text = `# Compass
+
+Some intro text.
+
+## Installation
+
+Run \`npm install\`.
+
+### Prerequisites
+
+Node 22+.
+
+## Usage
+`;
+  const syms = extractSymbols(text, "md");
+  const compass = syms.find((s) => s.name === "Compass");
+  assert.equal(compass?.kind, "h1");
+  assert.equal(compass?.line, 1);
+  const install = syms.find((s) => s.name === "Installation");
+  assert.equal(install?.kind, "h2");
+  assert.equal(install?.line, 5);
+  const prereq = syms.find((s) => s.name === "Prerequisites");
+  assert.equal(prereq?.kind, "h3");
+  assert.equal(prereq?.line, 9);
+  const usage = syms.find((s) => s.name === "Usage");
+  assert.equal(usage?.kind, "h2");
+  assert.equal(usage?.line, 13);
+});
+
+test("Markdown: ignores h4 and deeper", () => {
+  assert.deepEqual(extractSymbols("#### too deep\n##### deeper\n", "md"), []);
+});
+
+test("Markdown: heading without space after # is not a heading", () => {
+  const syms = extractSymbols("#nospace\n## valid\n", "md");
+  assert.equal(syms.length, 1);
+  assert.equal(syms[0].kind, "h2");
+  assert.equal(syms[0].name, "valid");
+});
+
+test("Markdown: trailing whitespace and inline formatting preserved", () => {
+  const syms = extractSymbols("## Hello **world**   \n", "md");
+  assert.equal(syms.length, 1);
+  assert.equal(syms[0].kind, "h2");
+  assert.equal(syms[0].name, "Hello **world**");
+});
+
+test("Markdown: heading symbols have no signature", () => {
+  const syms = extractSymbols("# Title\n## Sub\n", "md");
+  for (const s of syms) {
+    assert.equal(s.signature, undefined);
+  }
+});
+
+test("Markdown: empty file returns no symbols", () => {
+  assert.deepEqual(extractSymbols("", "md"), []);
 });
