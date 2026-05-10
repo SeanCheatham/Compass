@@ -60,14 +60,16 @@ export async function runPlanAgent(
 1. Review the current state, drafts, feedback, and lessons in your system prompt.
 2. Explore the codebase if you need to ground the plan in reality.
 3. Optionally call \`append_lesson\` to record anything durable for future iterations.
-4. Call \`set_state\` exactly once with the full updated PlanState.
+4. Call \`set_state\` exactly once with the full updated PlanState
+   (\`completed\`, \`immediate\`, \`midTerm\`, \`longTerm\`).
 
-Default to producing a non-null \`next\` every iteration. If drafts are empty,
-promote the most useful \`followUp\` item — including ones marked deferred or
+Default to producing a non-null \`immediate\` every iteration. If drafts are
+empty, promote the top item from \`midTerm\` — including ones marked deferred or
 not user-prioritized — or originate a plan yourself from the repo, lessons,
-and \`completed\` history. Pass \`next: null\` only when the project is genuinely
-complete (every goal hit, no useful followUp, no obvious next increment); see
-the "Idling is rare" section of your system prompt.`;
+\`completed\` history, and \`longTerm\`. Pass \`immediate: null\` only when the
+project is genuinely complete (every goal hit, \`midTerm\` and \`longTerm\` both
+exhausted, no obvious next increment); see the "Idling is rare" section of
+your system prompt.`;
 
   let capturedState: PlanState | null = null;
   const mcpServer = createPlanMcpServer(config, {

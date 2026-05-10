@@ -110,6 +110,7 @@ test("plan system prompt: volatile sections come after stable instructional sect
   const stableHeadings = [
     "## Vision",
     "## Tools you must use",
+    "## Three horizons",
     "## Lessons",
     "## Your job, every iteration",
     "## Idling is rare",
@@ -135,4 +136,23 @@ test("plan system prompt: volatile sections come after stable instructional sect
     assert.ok(idx > lastIdx, `${h} appears out of order in the volatile zone`);
     lastIdx = idx;
   }
+});
+
+test("plan system prompt: schema block names immediate/midTerm/longTerm", () => {
+  const prompt = buildPlanSystemPrompt(baseContext());
+  assert.ok(prompt.includes('"immediate"'));
+  assert.ok(prompt.includes('"midTerm"'));
+  assert.ok(prompt.includes('"longTerm"'));
+  assert.equal(prompt.includes('"followUp"'), false);
+});
+
+test("plan system prompt: three horizons section explains all three tiers", () => {
+  const prompt = buildPlanSystemPrompt(baseContext());
+  const horizonsIdx = prompt.indexOf("## Three horizons");
+  assert.notEqual(horizonsIdx, -1);
+  // The section names each horizon and explains its purpose.
+  const section = prompt.slice(horizonsIdx);
+  assert.ok(/\*\*Immediate\*\*/.test(section));
+  assert.ok(/\*\*Mid-term\*\*/.test(section));
+  assert.ok(/\*\*Long-term\*\*/.test(section));
 });

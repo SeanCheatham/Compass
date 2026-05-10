@@ -108,13 +108,14 @@ export function normalizePlanState(raw: unknown): PlanState | null {
   if (!Array.isArray(obj.completed)) return null;
   const completed = obj.completed.filter((x): x is string => typeof x === "string");
 
-  const followUp = typeof obj.followUp === "string" ? obj.followUp : "";
+  const midTerm = typeof obj.midTerm === "string" ? obj.midTerm : "";
+  const longTerm = typeof obj.longTerm === "string" ? obj.longTerm : "";
 
-  let next: PlanState["next"] = null;
-  if (obj.next === null || obj.next === undefined) {
-    next = null;
-  } else if (typeof obj.next === "object") {
-    const n = obj.next as Record<string, unknown>;
+  let immediate: PlanState["immediate"] = null;
+  if (obj.immediate === null || obj.immediate === undefined) {
+    immediate = null;
+  } else if (typeof obj.immediate === "object") {
+    const n = obj.immediate as Record<string, unknown>;
     const plan = typeof n.plan === "string" ? n.plan.trim() : "";
     const verify = typeof n.verify === "string" ? n.verify.trim() : "";
     if (!plan || !verify) return null;
@@ -126,7 +127,7 @@ export function normalizePlanState(raw: unknown): PlanState | null {
       rawTimeout > 0
         ? rawTimeout
         : undefined;
-    next =
+    immediate =
       verifyTimeoutMs !== undefined
         ? { plan, verify, verifyTimeoutMs }
         : { plan, verify };
@@ -134,7 +135,7 @@ export function normalizePlanState(raw: unknown): PlanState | null {
     return null;
   }
 
-  return { completed, next, followUp };
+  return { completed, immediate, midTerm, longTerm };
 }
 
 /**
@@ -172,7 +173,7 @@ export async function readPlanState(
   const normalized = normalizePlanState(parsed);
   if (!normalized) {
     throw new StateParseError(
-      "state.json does not match the expected schema (completed: string[], next: object|null, followUp: string)",
+      "state.json does not match the expected schema (completed: string[], immediate: object|null, midTerm: string, longTerm: string)",
       config.statePath,
       raw
     );

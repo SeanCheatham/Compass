@@ -29,51 +29,71 @@ async function tmpWorkspace(): Promise<{
 test("normalizePlanState: valid empty state", () => {
   const result = normalizePlanState({
     completed: [],
-    next: null,
-    followUp: "",
+    immediate: null,
+    midTerm: "",
+    longTerm: "",
   });
-  assert.deepEqual(result, { completed: [], next: null, followUp: "" });
+  assert.deepEqual(result, {
+    completed: [],
+    immediate: null,
+    midTerm: "",
+    longTerm: "",
+  });
 });
 
 test("normalizePlanState: valid populated state", () => {
   const result = normalizePlanState({
     completed: ["did a thing", "did another thing"],
-    next: { plan: "do thing", verify: "npm test" },
-    followUp: "more later",
+    immediate: { plan: "do thing", verify: "npm test" },
+    midTerm: "next few iterations",
+    longTerm: "strategic arc",
   });
   assert.deepEqual(result, {
     completed: ["did a thing", "did another thing"],
-    next: { plan: "do thing", verify: "npm test" },
-    followUp: "more later",
+    immediate: { plan: "do thing", verify: "npm test" },
+    midTerm: "next few iterations",
+    longTerm: "strategic arc",
   });
 });
 
 test("normalizePlanState: trims plan and verify", () => {
   const result = normalizePlanState({
     completed: [],
-    next: { plan: "  plan  ", verify: "  npm test  " },
-    followUp: "",
+    immediate: { plan: "  plan  ", verify: "  npm test  " },
+    midTerm: "",
+    longTerm: "",
   });
-  assert.deepEqual(result?.next, { plan: "plan", verify: "npm test" });
+  assert.deepEqual(result?.immediate, { plan: "plan", verify: "npm test" });
 });
 
 test("normalizePlanState: rejects non-array completed", () => {
   assert.equal(
-    normalizePlanState({ completed: "not an array", next: null, followUp: "" }),
+    normalizePlanState({
+      completed: "not an array",
+      immediate: null,
+      midTerm: "",
+      longTerm: "",
+    }),
     null
   );
 });
 
-test("normalizePlanState: rejects next without plan/verify", () => {
+test("normalizePlanState: rejects immediate without plan/verify", () => {
   assert.equal(
-    normalizePlanState({ completed: [], next: { plan: "" }, followUp: "" }),
+    normalizePlanState({
+      completed: [],
+      immediate: { plan: "" },
+      midTerm: "",
+      longTerm: "",
+    }),
     null
   );
   assert.equal(
     normalizePlanState({
       completed: [],
-      next: { plan: "x", verify: "" },
-      followUp: "",
+      immediate: { plan: "x", verify: "" },
+      midTerm: "",
+      longTerm: "",
     }),
     null
   );
@@ -85,9 +105,14 @@ test("normalizePlanState: rejects null/non-object input", () => {
   assert.equal(normalizePlanState(42), null);
 });
 
-test("normalizePlanState: rejects unexpected next type", () => {
+test("normalizePlanState: rejects unexpected immediate type", () => {
   assert.equal(
-    normalizePlanState({ completed: [], next: "weird", followUp: "" }),
+    normalizePlanState({
+      completed: [],
+      immediate: "weird",
+      midTerm: "",
+      longTerm: "",
+    }),
     null
   );
 });
@@ -95,17 +120,52 @@ test("normalizePlanState: rejects unexpected next type", () => {
 test("normalizePlanState: filters non-string completed entries", () => {
   const r = normalizePlanState({
     completed: ["a", 1, null, "b"],
-    next: null,
-    followUp: "",
+    immediate: null,
+    midTerm: "",
+    longTerm: "",
   });
   assert.deepEqual(r?.completed, ["a", "b"]);
+});
+
+test("normalizePlanState: defaults missing midTerm/longTerm to empty string", () => {
+  const r = normalizePlanState({
+    completed: [],
+    immediate: null,
+  });
+  assert.deepEqual(r, {
+    completed: [],
+    immediate: null,
+    midTerm: "",
+    longTerm: "",
+  });
+});
+
+test("normalizePlanState: ignores legacy `next` and `followUp` fields", () => {
+  // Hard cut: the renamed schema does not auto-migrate. Legacy keys are
+  // silently dropped (their values are unreachable through the new shape).
+  const r = normalizePlanState({
+    completed: [],
+    next: { plan: "legacy", verify: "npm test" },
+    followUp: "legacy followup",
+  });
+  assert.deepEqual(r, {
+    completed: [],
+    immediate: null,
+    midTerm: "",
+    longTerm: "",
+  });
 });
 
 test("readPlanState: missing file returns EMPTY", async () => {
   const { config, cleanup } = await tmpWorkspace();
   try {
     const result = await readPlanState(config);
-    assert.deepEqual(result, { completed: [], next: null, followUp: "" });
+    assert.deepEqual(result, {
+      completed: [],
+      immediate: null,
+      midTerm: "",
+      longTerm: "",
+    });
   } finally {
     await cleanup();
   }
@@ -116,11 +176,21 @@ test("readPlanState: empty file returns EMPTY", async () => {
   try {
     await writeFile(config.statePath, "", "utf-8");
     const result = await readPlanState(config);
-    assert.deepEqual(result, { completed: [], next: null, followUp: "" });
+    assert.deepEqual(result, {
+      completed: [],
+      immediate: null,
+      midTerm: "",
+      longTerm: "",
+    });
 
     await writeFile(config.statePath, "   \n  \n", "utf-8");
     const result2 = await readPlanState(config);
-    assert.deepEqual(result2, { completed: [], next: null, followUp: "" });
+    assert.deepEqual(result2, {
+      completed: [],
+      immediate: null,
+      midTerm: "",
+      longTerm: "",
+    });
   } finally {
     await cleanup();
   }
@@ -146,7 +216,12 @@ test("readPlanState: shape-invalid JSON throws StateParseError", async () => {
   try {
     await writeFile(
       config.statePath,
-      JSON.stringify({ completed: "not an array", next: null, followUp: "" }),
+      JSON.stringify({
+        completed: "not an array",
+        immediate: null,
+        midTerm: "",
+        longTerm: "",
+      }),
       "utf-8"
     );
     await assert.rejects(() => readPlanState(config), StateParseError);
@@ -162,16 +237,18 @@ test("readPlanState: parses valid state file", async () => {
       config.statePath,
       JSON.stringify({
         completed: ["x"],
-        next: { plan: "y", verify: "z" },
-        followUp: "more",
+        immediate: { plan: "y", verify: "z" },
+        midTerm: "more",
+        longTerm: "horizon",
       }),
       "utf-8"
     );
     const result = await readPlanState(config);
     assert.deepEqual(result, {
       completed: ["x"],
-      next: { plan: "y", verify: "z" },
-      followUp: "more",
+      immediate: { plan: "y", verify: "z" },
+      midTerm: "more",
+      longTerm: "horizon",
     });
   } finally {
     await cleanup();
@@ -181,22 +258,28 @@ test("readPlanState: parses valid state file", async () => {
 test("normalizePlanState: accepts positive verifyTimeoutMs", () => {
   const result = normalizePlanState({
     completed: [],
-    next: { plan: "x", verify: "y", verifyTimeoutMs: 60000 },
-    followUp: "",
+    immediate: { plan: "x", verify: "y", verifyTimeoutMs: 60000 },
+    midTerm: "",
+    longTerm: "",
   });
-  assert.deepEqual(result?.next, { plan: "x", verify: "y", verifyTimeoutMs: 60000 });
+  assert.deepEqual(result?.immediate, {
+    plan: "x",
+    verify: "y",
+    verifyTimeoutMs: 60000,
+  });
 });
 
 test("normalizePlanState: omits verifyTimeoutMs when absent", () => {
   const result = normalizePlanState({
     completed: [],
-    next: { plan: "x", verify: "y" },
-    followUp: "",
+    immediate: { plan: "x", verify: "y" },
+    midTerm: "",
+    longTerm: "",
   });
-  assert.deepEqual(result?.next, { plan: "x", verify: "y" });
-  assert.ok(result?.next);
+  assert.deepEqual(result?.immediate, { plan: "x", verify: "y" });
+  assert.ok(result?.immediate);
   assert.equal(
-    Object.prototype.hasOwnProperty.call(result.next, "verifyTimeoutMs"),
+    Object.prototype.hasOwnProperty.call(result.immediate, "verifyTimeoutMs"),
     false
   );
 });
@@ -205,17 +288,18 @@ test("normalizePlanState: drops zero/negative/non-integer/non-finite verifyTimeo
   for (const bad of [0, -100, 1.5, Infinity]) {
     const result = normalizePlanState({
       completed: [],
-      next: { plan: "x", verify: "y", verifyTimeoutMs: bad },
-      followUp: "",
+      immediate: { plan: "x", verify: "y", verifyTimeoutMs: bad },
+      midTerm: "",
+      longTerm: "",
     });
     assert.deepEqual(
-      result?.next,
+      result?.immediate,
       { plan: "x", verify: "y" },
       `expected verifyTimeoutMs=${bad} to be dropped`
     );
-    assert.ok(result?.next);
+    assert.ok(result?.immediate);
     assert.equal(
-      Object.prototype.hasOwnProperty.call(result.next, "verifyTimeoutMs"),
+      Object.prototype.hasOwnProperty.call(result.immediate, "verifyTimeoutMs"),
       false,
       `expected verifyTimeoutMs key absent for bad value ${bad}`
     );
@@ -225,13 +309,14 @@ test("normalizePlanState: drops zero/negative/non-integer/non-finite verifyTimeo
 test("normalizePlanState: drops non-numeric verifyTimeoutMs", () => {
   const result = normalizePlanState({
     completed: [],
-    next: { plan: "x", verify: "y", verifyTimeoutMs: "60000" },
-    followUp: "",
+    immediate: { plan: "x", verify: "y", verifyTimeoutMs: "60000" },
+    midTerm: "",
+    longTerm: "",
   });
-  assert.deepEqual(result?.next, { plan: "x", verify: "y" });
-  assert.ok(result?.next);
+  assert.deepEqual(result?.immediate, { plan: "x", verify: "y" });
+  assert.ok(result?.immediate);
   assert.equal(
-    Object.prototype.hasOwnProperty.call(result.next, "verifyTimeoutMs"),
+    Object.prototype.hasOwnProperty.call(result.immediate, "verifyTimeoutMs"),
     false
   );
 });
@@ -243,16 +328,18 @@ test("readPlanState: round-trips verifyTimeoutMs from disk", async () => {
       config.statePath,
       JSON.stringify({
         completed: ["x"],
-        next: { plan: "y", verify: "z", verifyTimeoutMs: 120000 },
-        followUp: "more",
+        immediate: { plan: "y", verify: "z", verifyTimeoutMs: 120000 },
+        midTerm: "more",
+        longTerm: "horizon",
       }),
       "utf-8"
     );
     const result = await readPlanState(config);
     assert.deepEqual(result, {
       completed: ["x"],
-      next: { plan: "y", verify: "z", verifyTimeoutMs: 120000 },
-      followUp: "more",
+      immediate: { plan: "y", verify: "z", verifyTimeoutMs: 120000 },
+      midTerm: "more",
+      longTerm: "horizon",
     });
   } finally {
     await cleanup();

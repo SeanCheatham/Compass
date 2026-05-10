@@ -15,8 +15,9 @@ interface PlanNext {
 
 interface PlanState {
   completed: string[];
-  next: PlanNext | null;
-  followUp: string;
+  immediate: PlanNext | null;
+  midTerm: string;
+  longTerm: string;
 }
 
 type PauseMode = "immediate" | "after_iteration";
@@ -282,26 +283,38 @@ class CompassApp {
       el.appendChild(ul);
     }
 
-    el.appendChild(this.makeHeading("Next"));
-    if (state.next) {
+    el.appendChild(this.makeHeading("Immediate"));
+    if (state.immediate) {
       const block = document.createElement("div");
       block.className = "markdown-block";
-      block.appendChild(renderMarkdown(state.next.plan));
+      block.appendChild(renderMarkdown(state.immediate.plan));
       el.appendChild(block);
 
-      el.appendChild(this.makeVerifyRow(state.next.verify));
+      el.appendChild(this.makeVerifyRow(state.immediate.verify));
     } else {
-      el.appendChild(this.makeEmpty("No next plan. Add a draft to get started."));
+      el.appendChild(
+        this.makeEmpty("No immediate plan. Add a draft to get started.")
+      );
     }
 
-    el.appendChild(this.makeHeading("Follow-up"));
-    if (state.followUp.trim()) {
+    el.appendChild(this.makeHeading("Mid-term"));
+    if (state.midTerm.trim()) {
       const block = document.createElement("div");
       block.className = "markdown-block";
-      block.appendChild(renderMarkdown(state.followUp));
+      block.appendChild(renderMarkdown(state.midTerm));
       el.appendChild(block);
     } else {
-      el.appendChild(this.makeEmpty("No follow-up sketched."));
+      el.appendChild(this.makeEmpty("No mid-term plan sketched."));
+    }
+
+    el.appendChild(this.makeHeading("Long-term"));
+    if (state.longTerm.trim()) {
+      const block = document.createElement("div");
+      block.className = "markdown-block";
+      block.appendChild(renderMarkdown(state.longTerm));
+      el.appendChild(block);
+    } else {
+      el.appendChild(this.makeEmpty("No long-term plan sketched."));
     }
   }
 

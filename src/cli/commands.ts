@@ -119,22 +119,22 @@ export async function runCompass(
       state = await tryReadPlanState(config);
     }
 
-    if (!state.next) {
+    if (!state.immediate) {
       sessions.end("skipped");
       output.info(
-        "\nPlan finished but state has no next. Idling until drafts arrive."
+        "\nPlan finished but state has no immediate plan. Idling until drafts arrive."
       );
       continue;
     }
 
-    sessions.setPlan(state.next.plan, state.next.verify);
+    sessions.setPlan(state.immediate.plan, state.immediate.verify);
 
     // ---- Approval gate ---------------------------------------------------
     if (controller.status().approveRequired) {
       controller.setPhase("awaiting_approval");
       sessions.setStatus("awaiting_approval");
       output.info("Waiting for approval before Develop runs. Approve in the UI to continue.");
-      const approved = await controller.awaitApproval(state.next, signal);
+      const approved = await controller.awaitApproval(state.immediate, signal);
       if (!approved) {
         sessions.end("cancelled");
         output.info("Iteration cancelled while awaiting approval.");
@@ -162,11 +162,11 @@ export async function runCompass(
     controller.setPhase("developing");
     sessions.setStatus("developing");
     output.phase("Develop");
-    output.info(`Plan: ${state.next.plan.split("\n")[0].slice(0, 200)}`);
-    output.info(`Verify: ${state.next.verify}`);
+    output.info(`Plan: ${state.immediate.plan.split("\n")[0].slice(0, 200)}`);
+    output.info(`Verify: ${state.immediate.verify}`);
 
     const devSignal = controller.iterationSignal(signal);
-    const devResult = await runDevAgent(config, state.next, output, {
+    const devResult = await runDevAgent(config, state.immediate, output, {
       signal: devSignal,
     });
 
@@ -213,7 +213,7 @@ async function hasWork(config: WorkspaceConfig): Promise<boolean> {
   if (drafts.trim().length > 0) return true;
 
   const state = await tryReadPlanState(config);
-  return state.next !== null;
+  return state.immediate !== null;
 }
 
 /**
@@ -288,17 +288,21 @@ export async function showStatus(cwd: string): Promise<void> {
   }
   console.log();
 
-  console.log("--- Next ---");
-  if (state.next) {
-    console.log(state.next.plan);
-    console.log(`\n[verify] ${state.next.verify}`);
+  console.log("--- Immediate ---");
+  if (state.immediate) {
+    console.log(state.immediate.plan);
+    console.log(`\n[verify] ${state.immediate.verify}`);
   } else {
     console.log("(none)");
   }
   console.log();
 
-  console.log("--- Follow-up ---");
-  console.log(state.followUp.trim() || "(empty)");
+  console.log("--- Mid-term ---");
+  console.log(state.midTerm.trim() || "(empty)");
+  console.log();
+
+  console.log("--- Long-term ---");
+  console.log(state.longTerm.trim() || "(empty)");
   console.log();
 
   console.log("--- Drafts ---");

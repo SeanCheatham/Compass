@@ -12,7 +12,7 @@ export interface WorkspaceConfig {
 }
 
 /**
- * The single concrete plan Develop will implement next.
+ * The single concrete plan Develop will implement next iteration.
  * `verify` is the shell command that must exit 0 before the iteration is accepted.
  */
 export interface PlanNext {
@@ -29,17 +29,26 @@ export interface PlanNext {
 
 /**
  * Structured contents of `.compass/state.json`.
- * Plan owns this file via the `set_state` MCP tool. The runner persists it to disk
- * after each Plan run.
+ *
+ * Three horizons:
+ *   - `immediate`: the single concrete plan Develop runs this iteration.
+ *   - `midTerm`:   markdown sketch of the next ~3-7 iterations (the promotion queue).
+ *   - `longTerm`:  markdown sketch of the strategic arc (~10+ iterations) — Plan's
+ *                  read on how to reach the vision in COMPASS.md.
+ *
+ * Plan owns this file via the `set_state` MCP tool. The runner persists it to
+ * disk after each Plan run.
  */
 export interface PlanState {
   completed: string[];
-  next: PlanNext | null;
-  followUp: string;
+  immediate: PlanNext | null;
+  midTerm: string;
+  longTerm: string;
 }
 
 export const EMPTY_PLAN_STATE: PlanState = {
   completed: [],
-  next: null,
-  followUp: "",
+  immediate: null,
+  midTerm: "",
+  longTerm: "",
 };

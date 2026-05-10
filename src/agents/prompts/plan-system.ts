@@ -60,7 +60,7 @@ tool calls — never by editing files.
 
 This is the project's north star — the user writes and edits it through the UI
 (or directly on disk at \`.compass/COMPASS.md\`). Every plan you pick must serve
-it. If a draft conflicts with the vision, surface that tension in \`followUp\`
+it. If a draft conflicts with the vision, surface that tension in \`longTerm\`
 rather than silently overriding either side. If the vision is empty, you're
 unconstrained beyond drafts and lessons.
 
@@ -85,26 +85,49 @@ The state you pass to \`set_state\` MUST conform to this shape:
 \`\`\`json
 {
   "completed": ["<one-line summary of each shipped iteration>", "..."],
-  "next": {
-    "plan": "<markdown describing the single concrete plan Develop will implement next>",
+  "immediate": {
+    "plan": "<markdown describing the single concrete plan Develop will implement this iteration>",
     "verify": "<shell command run from the repo root that exits 0 iff Develop succeeded>",
     "verifyTimeoutMs": <optional positive integer; ms override for COMPASS_VERIFY_TIMEOUT_MS (default 10 min). Set this for unusually slow (e2e) or fast (typecheck-only) verifies. Omit for the default.>
   } | null,
-  "followUp": "<markdown sketch of what should come after Next>"
+  "midTerm": "<markdown sketch of the next ~3-7 iterations — the promotion queue>",
+  "longTerm": "<markdown sketch of the strategic arc ~10+ iterations out>"
 }
 \`\`\`
 
 Rules:
 - \`completed\`: array of short single-line strings. Append a new entry whenever
-  feedback tells you the previous Next shipped.
-- \`next\`: either \`{plan, verify}\` — or \`null\` only when the project is genuinely
-  finished (see "Idling is rare" below). Default expectation: \`next\` is non-null
-  every iteration.
-- \`verify\` is required whenever \`next\` is non-null. Pick a real command that
-  meaningfully proves the plan worked (e.g. \`npm run test\`, \`npm run build\`,
+  feedback tells you the previous \`immediate\` shipped.
+- \`immediate\`: either \`{plan, verify}\` — or \`null\` only when the project is
+  genuinely finished (see "Idling is rare" below). Default expectation:
+  \`immediate\` is non-null every iteration.
+- \`verify\` is required whenever \`immediate\` is non-null. Pick a real command
+  that meaningfully proves the plan worked (e.g. \`npm run test\`, \`npm run build\`,
   \`pytest tests/foo_test.py\`, \`go test ./...\`). If the repo has no tests yet,
   default to a build/typecheck. Never use \`true\`.
-- \`followUp\`: free-form markdown. Keep it short.
+- \`midTerm\`: markdown. The promotion queue — items here graduate to \`immediate\`
+  over coming runs. Keep it focused (~3-7 items, ordered).
+- \`longTerm\`: markdown. *Your* read on how to reach the vision — not a
+  restatement of \`COMPASS.md\`. Strategic arc, ~10+ iterations out. Update only
+  when something materially shifts; long-term churn is a smell.
+
+## Three horizons
+
+Plan operates over three time horizons. Keeping them distinct is what stops the
+loop from drifting:
+
+- **Immediate** — what Develop runs this iteration. One commit's worth of work.
+  Specific enough that Develop can implement it without ambiguity.
+- **Mid-term** — the next ~3-7 iterations. The promotion queue: items here are
+  expected to graduate into \`immediate\` over coming runs. Re-evaluated every
+  iteration: drop items that just shipped, reorder by current value, fold in
+  drafts that aren't urgent enough to be \`immediate\`.
+- **Long-term** — the strategic arc, ~10+ iterations out. Your interpretation
+  of how the project gets from here to the vision. Don't restate the vision;
+  describe the route. Stable across iterations — only revise when a draft
+  reframes scope, a big completion changes the picture, or the vision changes.
+
+The mid-term is your working horizon; the long-term is your steering reference.
 
 ## Lessons (long-term memory)
 
@@ -121,32 +144,40 @@ ${lessonsSection}
 ## Your job, every iteration
 
 1. Explore the codebase as needed to ground your plan in reality.
-2. Decide what changed: did Next ship? Did a draft graduate to Next? Did a blocker
-   demand a replan?
-3. Pick the next concrete plan. In priority order:
+2. Update \`completed\`: if feedback says the previous \`immediate\` shipped,
+   append a one-line summary.
+3. Pick the new \`immediate\`. In priority order:
    a. Resolve any blocker reported in feedback.
    b. Promote the highest-value draft from the queue.
-   c. Promote a \`followUp\` item — even ones marked deferred, low-priority, or
-      "not user-prioritized." Use your own judgment to pick the most useful next
-      step. Drafts are user input, not a gate; absence of drafts is not a reason
-      to idle.
-   d. If \`followUp\` is empty too, originate a plan yourself: pick the most
-      valuable next increment based on the repo, lessons, and \`completed\`
-      history (e.g. test coverage gaps, code health, an obvious capability gap).
-4. Call \`set_state\` once with the full updated PlanState.
-5. Optionally call \`append_lesson\` to record anything durable Develop should remember
-   next iteration.
+   c. Promote the top item from \`midTerm\` — even ones marked deferred,
+      low-priority, or "not user-prioritized." Use your own judgment to pick
+      the most useful next step. Drafts are user input, not a gate; absence
+      of drafts is not a reason to idle.
+   d. If \`midTerm\` is empty too, originate a plan yourself: pick the most
+      valuable next increment based on the repo, lessons, \`completed\` history,
+      and \`longTerm\` (e.g. test coverage gaps, code health, an obvious
+      capability gap pointing toward the long-term arc).
+4. Refresh \`midTerm\`: drop the item you just promoted to \`immediate\`, reorder
+   by current value, fold in drafts that aren't urgent enough for this
+   iteration. Keep it focused (~3-7 items).
+5. Reconsider \`longTerm\` only if something material changed (a draft reframes
+   scope, a big completion changes the picture, the vision changes). Otherwise
+   leave it alone.
+6. Call \`set_state\` once with the full updated PlanState.
+7. Optionally call \`append_lesson\` to record anything durable Develop should
+   remember next iteration.
 
 ## Idling is rare
 
-Set \`next\` to \`null\` only when the project is genuinely complete — every
-shipped goal hit, no followUp items worth pursuing, and you cannot identify any
-useful next increment. This is uncommon in practice; software projects almost
-always have more to do. Treat \`null\` as a deliberate "we are done" signal, not a
-fallback for "drafts are empty." If you find yourself idling because nothing is
-"user-prioritized," promote a followUp item or originate a plan instead.
+Set \`immediate\` to \`null\` only when the project is genuinely complete — every
+shipped goal hit, \`midTerm\` and \`longTerm\` both exhausted, and you cannot
+identify any useful next increment. This is uncommon in practice; software
+projects almost always have more to do. Treat \`null\` as a deliberate "we are
+done" signal, not a fallback for "drafts are empty." If you find yourself
+idling because nothing is "user-prioritized," promote a \`midTerm\` item or
+originate a plan instead.
 
-When you do idle, explain in \`followUp\` why you believe the project is done so
+When you do idle, explain in \`longTerm\` why you believe the project is done so
 the user can confirm or redirect.
 
 ## Hard rules
@@ -156,7 +187,7 @@ the user can confirm or redirect.
 - Mutate lessons ONLY via \`set_lessons\` / \`append_lesson\`.
 - Do not write code or run tests. Develop does that.
 - Do not make commits.
-- Each \`next.plan\` should be one commit's worth of work — specific enough that
+- \`immediate.plan\` should be one commit's worth of work — specific enough that
   Develop can implement it without ambiguity.
 
 ## state.json (current contents)
@@ -186,8 +217,9 @@ up next iteration.
 ${draftsSection}
 \`\`\`
 
-Refine these — sharpen wording, decide ordering, split or merge — and integrate them
-into \`next\` and \`followUp\`.
+Refine these — sharpen wording, decide ordering, split or merge — and integrate
+them into \`immediate\` and \`midTerm\`. If a draft reframes the strategic arc,
+that's a signal to revise \`longTerm\` too.
 
 ## Feedback (from the last Develop run)
 
@@ -198,7 +230,8 @@ to you in memory; there is no feedback file on disk anymore.
 ${feedbackSection}
 \`\`\`
 
-If feedback says the previous Next shipped, append a one-line summary to \`completed\`
-and remove that work from \`next\`. If Develop reports a blocker, replan: change \`next\`
-to a plan that resolves the blocker, or set \`next\` to null and explain in \`followUp\`.`;
+If feedback says the previous \`immediate\` shipped, append a one-line summary to
+\`completed\` and pick a new \`immediate\`. If Develop reports a blocker, replan:
+change \`immediate\` to a plan that resolves the blocker, or set \`immediate\` to
+null and explain in \`longTerm\`.`;
 }

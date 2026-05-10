@@ -2,7 +2,8 @@
  * In-process MCP servers for the Plan and Develop agents.
  *
  * Plan tools:
- *   - set_state(state)        — replace the full PlanState. Runner persists to disk.
+ *   - set_state(state)        — replace the full PlanState (completed,
+ *                               immediate, midTerm, longTerm). Runner persists.
  *   - read_lessons()          — read lessons.md.
  *   - set_lessons(text)       — replace lessons.md.
  *   - append_lesson(text)     — append a bullet to lessons.md.
@@ -32,15 +33,16 @@ import {
 import type { PlanState, WorkspaceConfig } from "../state/types.js";
 
 const planNextSchema = z.object({
-  plan: z.string().min(1, "next.plan must be a non-empty markdown string"),
-  verify: z.string().min(1, "next.verify must be a non-empty shell command"),
+  plan: z.string().min(1, "immediate.plan must be a non-empty markdown string"),
+  verify: z.string().min(1, "immediate.verify must be a non-empty shell command"),
   verifyTimeoutMs: z.number().int().positive().optional(),
 });
 
 const planStateSchema = z.object({
   completed: z.array(z.string()),
-  next: z.union([planNextSchema, z.null()]),
-  followUp: z.string(),
+  immediate: z.union([planNextSchema, z.null()]),
+  midTerm: z.string(),
+  longTerm: z.string(),
 });
 
 function textResult(text: string, isError = false): CallToolResult {
@@ -98,7 +100,7 @@ export function createPlanMcpServer(
     tools: [
       tool(
         "set_state",
-        "Replace the full state.json contents with the given object. Plan calls this once it has decided the next iteration's plan and verify command. Use null for `next` when there is no concrete next step (the runner will idle).",
+        "Replace the full state.json contents with the given object. Plan calls this once it has decided the iteration's three horizons: `immediate` (the {plan,verify} Develop runs this iteration), `midTerm` (markdown sketch of the next ~3-7 iterations — the promotion queue), and `longTerm` (markdown sketch of the strategic arc, ~10+ iterations out). Use null for `immediate` only when the project is genuinely complete; the runner will idle.",
         planStateSchema.shape,
         async (args) => {
           const parsed = planStateSchema.parse(args);
