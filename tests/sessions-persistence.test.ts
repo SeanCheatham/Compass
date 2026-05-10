@@ -157,3 +157,58 @@ test("sessions persistence: malformed entries are dropped silently while valid o
     await cleanup();
   }
 });
+
+test("sessions persistence: setVerifyOutput round-trips through disk", async () => {
+  const { path, cleanup } = await tmpWorkspace();
+  try {
+    const t1 = createSessionTracker({ recordPath: path });
+    t1.start(1);
+    t1.setPlan("plan body", "npm test");
+    t1.setVerifyOutput({
+      command: "npm test",
+      exitCode: 1,
+      tail: "FAIL\nfoo",
+    });
+    t1.end("failed");
+    await t1.flush();
+
+    const t2 = createSessionTracker({ recordPath: path });
+    const records = t2.all();
+    assert.equal(records.length, 1);
+    const r = records[0];
+    assert.deepEqual(r.verifyOutput, {
+      command: "npm test",
+      exitCode: 1,
+      tail: "FAIL\nfoo",
+    });
+  } finally {
+    await cleanup();
+  }
+});
+
+test("sessions persistence: older sessions without verifyOutput load with verifyOutput: null", async () => {
+  const { path, cleanup } = await tmpWorkspace();
+  try {
+    const valid = {
+      session: 1,
+      startedAt: 100,
+      endedAt: 200,
+      plan: "p",
+      verify: "v",
+      beforeSha: null,
+      afterSha: null,
+      commits: [],
+      status: "succeeded",
+      notes: [],
+      // Note: no verifyOutput field — mirrors older session files.
+    };
+    await writeFile(path, JSON.stringify([valid]), "utf-8");
+
+    const t = createSessionTracker({ recordPath: path });
+    const records = t.all();
+    assert.equal(records.length, 1);
+    assert.equal(records[0].verifyOutput, null);
+  } finally {
+    await cleanup();
+  }
+});

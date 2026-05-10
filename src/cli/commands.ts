@@ -196,6 +196,9 @@ export async function runCompass(
     if (devResult.succeeded) {
       sessions.end("succeeded");
     } else {
+      if (devResult.verifyOutput) {
+        sessions.setVerifyOutput(devResult.verifyOutput);
+      }
       for (const issue of devResult.issues) sessions.addNote(issue);
       sessions.end("failed");
     }

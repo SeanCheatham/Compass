@@ -7,6 +7,7 @@ import type { OutputManager } from "../web/output-manager.js";
 import { extractToolDetail } from "./tool-details.js";
 import { readLessons } from "../mcp/utils/workspace.js";
 import { createDevMcpServer } from "../mcp/server.js";
+import type { VerifyOutput } from "../state/sessions.js";
 
 const execAsync = promisify(exec);
 
@@ -23,7 +24,12 @@ function getVerifyTimeoutMs(): number {
 
 interface PostCheckResult {
   ok: boolean;
-  issues: string[];
+  /** Issues fed back to Develop as the retry prompt (includes verify-tail). */
+  retryIssues: string[];
+  /** Issues surfaced as session notes (excludes the verify-failure dup). */
+  displayIssues: string[];
+  /** Populated only when verify failed; null otherwise. */
+  verifyOutput: VerifyOutput | null;
 }
 
 export interface DevAgentOptions {
@@ -36,8 +42,18 @@ export interface DevAgentResult {
   succeeded: boolean;
   /** True if the run was cancelled (Ctrl+C or UI cancel). */
   cancelled: boolean;
-  /** Last set of post-check issues, if any (empty when succeeded). */
+  /**
+   * Display issues to be addNote'd on the session — i.e. everything except the
+   * verify-failure entry, which is now surfaced separately via `verifyOutput`.
+   * Empty when succeeded.
+   */
   issues: string[];
+  /**
+   * Verify-failure detail from the final post-check (the one whose result
+   * decided the loop's outcome). Null on success and on cancellations that
+   * never reached the verify step.
+   */
+  verifyOutput: VerifyOutput | null;
   /**
    * Feedback string from the last `complete()` call, threaded into the next
    * Plan run. Empty if Develop never called complete.
@@ -54,7 +70,9 @@ export async function runDevAgent(
   const lessons = await readLessons(config);
   const systemPrompt = buildDevSystemPrompt({ next, lessons });
 
-  let priorIssues: string[] = [];
+  let priorRetryIssues: string[] = [];
+  let lastDisplayIssues: string[] = [];
+  let lastVerifyOutput: VerifyOutput | null = null;
   let lastFeedback = "";
 
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
@@ -62,12 +80,13 @@ export async function runDevAgent(
       return {
         succeeded: false,
         cancelled: true,
-        issues: priorIssues,
+        issues: lastDisplayIssues,
+        verifyOutput: lastVerifyOutput,
         feedback: lastFeedback,
       };
     }
 
-    const initialPrompt = buildDevPrompt(attempt, priorIssues);
+    const initialPrompt = buildDevPrompt(attempt, priorRetryIssues);
     const queryResult = await runDevQuery(
       config,
       systemPrompt,
@@ -81,7 +100,8 @@ export async function runDevAgent(
       return {
         succeeded: false,
         cancelled: true,
-        issues: priorIssues,
+        issues: lastDisplayIssues,
+        verifyOutput: lastVerifyOutput,
         feedback: lastFeedback,
       };
     }
@@ -95,16 +115,19 @@ export async function runDevAgent(
       output,
       queryResult.feedback !== null
     );
+    lastDisplayIssues = post.displayIssues;
+    lastVerifyOutput = post.verifyOutput;
     if (post.ok) {
       return {
         succeeded: true,
         cancelled: false,
         issues: [],
+        verifyOutput: null,
         feedback: lastFeedback,
       };
     }
 
-    priorIssues = post.issues;
+    priorRetryIssues = post.retryIssues;
 
     if (attempt === MAX_ATTEMPTS) {
       output.error(
@@ -113,7 +136,8 @@ export async function runDevAgent(
       return {
         succeeded: false,
         cancelled: false,
-        issues: priorIssues,
+        issues: lastDisplayIssues,
+        verifyOutput: lastVerifyOutput,
         feedback: lastFeedback,
       };
     }
@@ -126,7 +150,8 @@ export async function runDevAgent(
   return {
     succeeded: false,
     cancelled: false,
-    issues: priorIssues,
+    issues: lastDisplayIssues,
+    verifyOutput: lastVerifyOutput,
     feedback: lastFeedback,
   };
 }
@@ -243,21 +268,33 @@ async function runPostChecks(
   output: OutputManager,
   completeWasCalled: boolean
 ): Promise<PostCheckResult> {
-  const issues: string[] = [];
+  const retryIssues: string[] = [];
+  const displayIssues: string[] = [];
+  let verifyOutput: VerifyOutput | null = null;
 
   if (!completeWasCalled) {
-    issues.push(
-      "Develop ended without calling the `complete` MCP tool. Every iteration must finish by calling `complete({ feedback: \"...\" })` so the next Plan run gets context."
-    );
+    const msg =
+      "Develop ended without calling the `complete` MCP tool. Every iteration must finish by calling `complete({ feedback: \"...\" })` so the next Plan run gets context.";
+    retryIssues.push(msg);
+    displayIssues.push(msg);
     output.error("Develop did not call `complete`.");
   }
 
   output.info(`Post-check: running verify command \`${verifyCommand}\`...`);
   const verify = await runCommand(verifyCommand, config.implRepoPath, getVerifyTimeoutMs());
   if (!verify.ok) {
-    issues.push(
-      `Verify command \`${verifyCommand}\` exited with code ${verify.code}. Output (tail):\n\`\`\`\n${tail(verify.output, 4000)}\n\`\`\``
+    const verifyTail = tail(verify.output, 4000);
+    // Retry prompt still includes the verify-tail string so attempt N+1 has
+    // the same failure context as before.
+    retryIssues.push(
+      `Verify command \`${verifyCommand}\` exited with code ${verify.code}. Output (tail):\n\`\`\`\n${verifyTail}\n\`\`\``
     );
+    // Display path uses the structured field instead of a duplicated note.
+    verifyOutput = {
+      command: verifyCommand,
+      exitCode: verify.code,
+      tail: verifyTail,
+    };
     output.error(`Verify failed (exit ${verify.code}).`);
   } else {
     output.info("Verify passed.");
@@ -269,19 +306,24 @@ async function runPostChecks(
     30_000
   );
   if (!gitStatus.ok) {
-    issues.push(
-      `\`git status --porcelain\` failed unexpectedly:\n\`\`\`\n${tail(gitStatus.output, 2000)}\n\`\`\``
-    );
+    const msg = `\`git status --porcelain\` failed unexpectedly:\n\`\`\`\n${tail(gitStatus.output, 2000)}\n\`\`\``;
+    retryIssues.push(msg);
+    displayIssues.push(msg);
   } else if (gitStatus.output.trim().length > 0) {
-    issues.push(
-      `Uncommitted or untracked changes remain after Develop ran. Either commit them or add them to .gitignore. \`git status --porcelain\` output:\n\`\`\`\n${gitStatus.output.trim()}\n\`\`\``
-    );
+    const msg = `Uncommitted or untracked changes remain after Develop ran. Either commit them or add them to .gitignore. \`git status --porcelain\` output:\n\`\`\`\n${gitStatus.output.trim()}\n\`\`\``;
+    retryIssues.push(msg);
+    displayIssues.push(msg);
     output.error("Workspace dirty after Develop ran.");
   } else {
     output.info("Working tree clean.");
   }
 
-  return { ok: issues.length === 0, issues };
+  return {
+    ok: retryIssues.length === 0,
+    retryIssues,
+    displayIssues,
+    verifyOutput,
+  };
 }
 
 interface CommandResult {

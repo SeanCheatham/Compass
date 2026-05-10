@@ -11,6 +11,12 @@ export interface SessionCommit {
   subject: string;
 }
 
+export interface VerifyOutput {
+  command: string;
+  exitCode: number | null;
+  tail: string;
+}
+
 export type SessionStatus =
   | "planning"
   | "awaiting_approval"
@@ -32,6 +38,7 @@ export interface SessionRecord {
   commits: SessionCommit[];
   status: SessionStatus;
   notes: string[];
+  verifyOutput: VerifyOutput | null;
 }
 
 export interface SessionTrackerOptions {
@@ -48,6 +55,7 @@ export interface SessionTracker {
   setStatus(status: SessionStatus): void;
   setBefore(sha: string): void;
   setAfter(sha: string, commits: SessionCommit[]): void;
+  setVerifyOutput(out: VerifyOutput | null): void;
   addNote(note: string): void;
   end(status: SessionStatus): void;
   current(): SessionRecord | null;
@@ -79,6 +87,19 @@ function validateCommit(raw: unknown): SessionCommit | null {
   return { sha: c.sha, short: c.short, subject: c.subject };
 }
 
+function validateVerifyOutput(raw: unknown): VerifyOutput | null {
+  if (!raw || typeof raw !== "object") return null;
+  const v = raw as Record<string, unknown>;
+  if (!isString(v.command)) return null;
+  if (v.exitCode !== null && !isFiniteNumber(v.exitCode)) return null;
+  if (!isString(v.tail)) return null;
+  return {
+    command: v.command,
+    exitCode: v.exitCode as number | null,
+    tail: v.tail,
+  };
+}
+
 function validateRecord(raw: unknown): SessionRecord | null {
   if (!raw || typeof raw !== "object") return null;
   const r = raw as Record<string, unknown>;
@@ -102,6 +123,13 @@ function validateRecord(raw: unknown): SessionRecord | null {
     commits.push(v);
   }
 
+  // Tolerant: missing/null/invalid verifyOutput defaults to null so older
+  // session files predating this field still load.
+  const verifyOutput =
+    r.verifyOutput === undefined || r.verifyOutput === null
+      ? null
+      : validateVerifyOutput(r.verifyOutput);
+
   return {
     session: r.session,
     startedAt: r.startedAt,
@@ -113,6 +141,7 @@ function validateRecord(raw: unknown): SessionRecord | null {
     commits,
     status: r.status as SessionStatus,
     notes,
+    verifyOutput,
   };
 }
 
@@ -227,6 +256,7 @@ class SessionTrackerImpl implements SessionTracker {
       commits: [],
       status: "planning",
       notes: [],
+      verifyOutput: null,
     };
     this.records.push(rec);
     this.emit();
@@ -264,6 +294,14 @@ class SessionTrackerImpl implements SessionTracker {
     if (!r) return;
     r.afterSha = sha;
     r.commits = commits;
+    this.emit();
+    this.schedulePersist();
+  }
+
+  setVerifyOutput(out: VerifyOutput | null): void {
+    const r = this.currentRecord();
+    if (!r) return;
+    r.verifyOutput = out;
     this.emit();
     this.schedulePersist();
   }

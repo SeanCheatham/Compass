@@ -46,6 +46,7 @@ interface SessionRecord {
   commits: SessionCommit[];
   status: string;
   notes: string[];
+  verifyOutput: { command: string; exitCode: number | null; tail: string } | null;
 }
 
 type WsMessage =
@@ -394,6 +395,22 @@ class CompassApp {
       none.className = "session-no-commits";
       none.textContent = "(no commits)";
       card.appendChild(none);
+    }
+
+    if (s.verifyOutput) {
+      const details = document.createElement("details");
+      details.className = "session-verify-output";
+      const summary = document.createElement("summary");
+      const exit = s.verifyOutput.exitCode == null
+        ? "unknown exit"
+        : `exit ${s.verifyOutput.exitCode}`;
+      summary.textContent = `verify failed (${exit}) — show output`;
+      details.appendChild(summary);
+      const pre = document.createElement("pre");
+      pre.className = "session-verify-tail";
+      pre.textContent = s.verifyOutput.tail;
+      details.appendChild(pre);
+      card.appendChild(details);
     }
 
     if (s.notes.length > 0) {

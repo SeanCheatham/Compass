@@ -708,6 +708,32 @@ main {
   border-left: 2px solid var(--border);
 }
 
+.session-verify-output {
+  margin-top: 0.5rem;
+  font-size: 0.8rem;
+}
+
+.session-verify-output summary {
+  color: var(--text-muted);
+  cursor: pointer;
+  user-select: none;
+  font-weight: 500;
+}
+
+.session-verify-tail {
+  background: var(--bg-panel);
+  padding: 0.5rem 0.75rem;
+  margin: 0.4rem 0 0;
+  border-radius: 3px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  border-left: 2px solid var(--border);
+  max-height: 24rem;
+  overflow-y: auto;
+}
+
 /* Drafts form */
 .drafts-form {
   background: var(--bg-secondary);
