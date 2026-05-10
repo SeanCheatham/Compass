@@ -56,7 +56,7 @@ type WsMessage =
   | { kind: "feedback"; content: string }
   | { kind: "lessons"; content: string }
   | { kind: "status"; status: LoopStatus }
-  | { kind: "sessions"; sessions: SessionRecord[] };
+  | { kind: "sessions"; sessions: SessionRecord[]; priorRunsCount: number };
 
 class CompassApp {
   private ws: WebSocket | null = null;
@@ -314,7 +314,10 @@ class CompassApp {
     return verifyRow;
   }
 
-  private renderSessions(sessions: SessionRecord[]): void {
+  private renderSessions(
+    sessions: SessionRecord[],
+    priorRunsCount: number
+  ): void {
     const badge = document.getElementById("sessions-badge")!;
     badge.textContent = sessions.length > 0 ? String(sessions.length) : "";
 
@@ -326,8 +329,59 @@ class CompassApp {
       return;
     }
 
-    for (const s of [...sessions].reverse()) {
+    // Clamp so a stale UI render with a smaller `sessions` array degrades
+    // gracefully (no out-of-bounds slicing).
+    const clamped = Math.min(priorRunsCount, sessions.length);
+    const priorRuns = sessions.slice(0, clamped);
+    const currentRuns = sessions.slice(clamped);
+
+    for (const s of [...currentRuns].reverse()) {
       el.appendChild(this.renderSessionCard(s));
+    }
+
+    if (priorRuns.length > 0) {
+      el.appendChild(this.renderPriorRunsDivider(priorRuns.length));
+      for (const s of [...priorRuns].reverse()) {
+        el.appendChild(this.renderSessionCard(s));
+      }
+    }
+  }
+
+  private renderPriorRunsDivider(count: number): HTMLElement {
+    const wrapper = document.createElement("div");
+    wrapper.className = "sessions-divider";
+
+    const leftRule = document.createElement("hr");
+    wrapper.appendChild(leftRule);
+
+    const btn = document.createElement("button");
+    btn.className = "clear-prior-btn";
+    btn.textContent = `Clear prior runs (${count})`;
+    btn.addEventListener("click", () => {
+      if (
+        !confirm(
+          `Clear ${count} prior session(s)? This cannot be undone.`
+        )
+      )
+        return;
+      void this.postClearPrior();
+    });
+    wrapper.appendChild(btn);
+
+    const rightRule = document.createElement("hr");
+    wrapper.appendChild(rightRule);
+
+    return wrapper;
+  }
+
+  private async postClearPrior(): Promise<void> {
+    try {
+      await fetch("/api/sessions/clear-prior", {
+        method: "POST",
+        headers: this.apiHeaders(),
+      });
+    } catch (err) {
+      console.error("clear-prior failed:", err);
     }
   }
 
@@ -616,7 +670,7 @@ class CompassApp {
         this.renderStatus(msg.status);
         break;
       case "sessions":
-        this.renderSessions(msg.sessions);
+        this.renderSessions(msg.sessions, msg.priorRunsCount);
         break;
     }
   }

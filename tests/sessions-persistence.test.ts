@@ -212,3 +212,90 @@ test("sessions persistence: older sessions without verifyOutput load with verify
     await cleanup();
   }
 });
+
+test("sessions persistence: priorRunsCount reflects records loaded from disk", async () => {
+  const { path, cleanup } = await tmpWorkspace();
+  try {
+    const rec = (n: number) => ({
+      session: n,
+      startedAt: 100 * n,
+      endedAt: 100 * n + 50,
+      plan: "p",
+      verify: "v",
+      beforeSha: null,
+      afterSha: null,
+      commits: [],
+      status: "succeeded",
+      notes: [],
+    });
+    await writeFile(path, JSON.stringify([rec(1), rec(2)]), "utf-8");
+
+    const t = createSessionTracker({ recordPath: path });
+    assert.equal(t.priorRunsCount(), 2);
+    assert.equal(t.all().length, 2);
+  } finally {
+    await cleanup();
+  }
+});
+
+test("sessions persistence: new sessions started after load are not counted as prior", async () => {
+  const { path, cleanup } = await tmpWorkspace();
+  try {
+    const rec = (n: number) => ({
+      session: n,
+      startedAt: 100 * n,
+      endedAt: 100 * n + 50,
+      plan: "p",
+      verify: "v",
+      beforeSha: null,
+      afterSha: null,
+      commits: [],
+      status: "succeeded",
+      notes: [],
+    });
+    await writeFile(path, JSON.stringify([rec(1), rec(2)]), "utf-8");
+
+    const t = createSessionTracker({ recordPath: path });
+    t.start(99);
+    assert.equal(t.priorRunsCount(), 2);
+    assert.equal(t.all().length, 3);
+  } finally {
+    await cleanup();
+  }
+});
+
+test("sessions persistence: clearPriorRuns drops only prior records, persists, and resets the count", async () => {
+  const { path, cleanup } = await tmpWorkspace();
+  try {
+    const rec = (n: number) => ({
+      session: n,
+      startedAt: 100 * n,
+      endedAt: 100 * n + 50,
+      plan: "p",
+      verify: "v",
+      beforeSha: null,
+      afterSha: null,
+      commits: [],
+      status: "succeeded",
+      notes: [],
+    });
+    await writeFile(path, JSON.stringify([rec(1), rec(2)]), "utf-8");
+
+    const t = createSessionTracker({ recordPath: path });
+    t.start(99);
+    t.clearPriorRuns();
+    assert.equal(t.priorRunsCount(), 0);
+    const remaining = t.all();
+    assert.equal(remaining.length, 1);
+    assert.equal(remaining[0].session, 99);
+
+    await t.flush();
+
+    const t2 = createSessionTracker({ recordPath: path });
+    const reloaded = t2.all();
+    assert.equal(reloaded.length, 1);
+    assert.equal(reloaded[0].session, 99);
+  } finally {
+    await cleanup();
+  }
+});

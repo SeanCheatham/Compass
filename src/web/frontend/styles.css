@@ -734,6 +734,37 @@ main {
   overflow-y: auto;
 }
 
+.sessions-divider {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin: 1.25rem 0;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+
+.sessions-divider hr {
+  flex: 1;
+  border: 0;
+  border-top: 1px dashed var(--border);
+  margin: 0;
+}
+
+.clear-prior-btn {
+  background: transparent;
+  color: var(--text-secondary);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 0.25rem 0.6rem;
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+
+.clear-prior-btn:hover {
+  color: var(--text-primary);
+  border-color: var(--text-muted);
+}
+
 /* Drafts form */
 .drafts-form {
   background: var(--bg-secondary);

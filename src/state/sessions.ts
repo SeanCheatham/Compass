@@ -62,6 +62,20 @@ export interface SessionTracker {
   all(): SessionRecord[];
   onChange(fn: () => void): () => void;
   /**
+   * Number of records that existed on disk at startup. Records at indices
+   * `[0, priorRunsCount)` are "prior runs" — they predate this process and
+   * are eligible to be cleared. Records at indices `[priorRunsCount, ...)`
+   * belong to the current run (including any in-flight session) and are never
+   * cleared by `clearPriorRuns`.
+   */
+  priorRunsCount(): number;
+  /**
+   * Drop every record from prior runs. After this call `priorRunsCount()`
+   * returns 0 and `all()` returns only sessions started in this process.
+   * No-op if there are no prior runs.
+   */
+  clearPriorRuns(): void;
+  /**
    * Await any pending debounced disk write. Useful at shutdown so the final
    * mutation doesn't get dropped, and in tests for deterministic ordering.
    */
@@ -147,6 +161,7 @@ function validateRecord(raw: unknown): SessionRecord | null {
 
 class SessionTrackerImpl implements SessionTracker {
   private records: SessionRecord[] = [];
+  private priorRunsCount_ = 0;
   private listeners = new Set<() => void>();
   private recordPath?: string;
   private writeQueue: Promise<void> = Promise.resolve();
@@ -195,6 +210,7 @@ class SessionTrackerImpl implements SessionTracker {
       if (v) valid.push(v);
     }
     this.records = valid;
+    this.priorRunsCount_ = this.records.length;
   }
 
   private emit(): void {
@@ -329,6 +345,21 @@ class SessionTrackerImpl implements SessionTracker {
 
   all(): SessionRecord[] {
     return this.records.slice();
+  }
+
+  priorRunsCount(): number {
+    return this.priorRunsCount_;
+  }
+
+  clearPriorRuns(): void {
+    if (this.priorRunsCount_ === 0) return;
+    // Invariant: every record at index >= priorRunsCount was appended after
+    // loadFromDisk completed, so the in-flight session (if any) lives in that
+    // tail and survives this slice. Don't add a separate guard for it.
+    this.records = this.records.slice(this.priorRunsCount_);
+    this.priorRunsCount_ = 0;
+    this.emit();
+    this.schedulePersist();
   }
 
   onChange(fn: () => void): () => void {

@@ -151,7 +151,20 @@ async function handleApiRequest(
     } else if (path === "/api/status" && method === "GET") {
       res.end(JSON.stringify(ctx.controller.status()));
     } else if (path === "/api/sessions" && method === "GET") {
-      res.end(JSON.stringify({ sessions: ctx.sessions.all() }));
+      res.end(
+        JSON.stringify({
+          sessions: ctx.sessions.all(),
+          priorRunsCount: ctx.sessions.priorRunsCount(),
+        })
+      );
+    } else if (path === "/api/sessions/clear-prior" && method === "POST") {
+      ctx.sessions.clearPriorRuns();
+      res.end(
+        JSON.stringify({
+          sessions: ctx.sessions.all(),
+          priorRunsCount: ctx.sessions.priorRunsCount(),
+        })
+      );
     } else if (path === "/api/control/pause" && method === "POST") {
       const body = await parseJsonBody(req).catch(
         () => ({}) as Record<string, unknown>
@@ -302,7 +315,11 @@ export async function startWebServer(
 
   // Forward session tracker changes.
   const unsubscribeSessions = opts.sessions.onChange(() => {
-    broadcast({ kind: "sessions", sessions: opts.sessions.all() });
+    broadcast({
+      kind: "sessions",
+      sessions: opts.sessions.all(),
+      priorRunsCount: opts.sessions.priorRunsCount(),
+    });
   });
 
   // Forward feedback bus changes (Develop's `complete()` payload).
@@ -371,7 +388,11 @@ async function sendSnapshot(ctx: ServerContext, ws: WebSocket): Promise<void> {
     { kind: "feedback", content: ctx.feedback.current() },
     { kind: "lessons", content: lessons },
     { kind: "status", status: ctx.controller.status() },
-    { kind: "sessions", sessions: ctx.sessions.all() },
+    {
+      kind: "sessions",
+      sessions: ctx.sessions.all(),
+      priorRunsCount: ctx.sessions.priorRunsCount(),
+    },
   ];
   for (const msg of payload) {
     if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(msg));
