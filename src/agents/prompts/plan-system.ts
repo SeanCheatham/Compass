@@ -1,3 +1,10 @@
+/**
+ * When `lessons.md` exceeds this many UTF-8 bytes, the Plan system prompt grows
+ * an extra paragraph nudging Plan to compact the lessons via `set_lessons`.
+ * 4 KB ~ 60-80 short bullets, well past the point where compaction pays off.
+ */
+export const LESSONS_COMPACT_THRESHOLD_BYTES = 4 * 1024;
+
 export interface PlanSystemPromptContext {
   /** Pretty-printed state.json contents (current state, before this iteration). */
   stateJson: string;
@@ -23,6 +30,12 @@ export function buildPlanSystemPrompt(context: PlanSystemPromptContext): string 
   const lessonsSection = context.lessons.trim()
     ? context.lessons
     : "_(no lessons recorded yet)_";
+
+  const lessonsBytes = Buffer.byteLength(context.lessons, "utf-8");
+  const shouldNudgeCompact = lessonsBytes > LESSONS_COMPACT_THRESHOLD_BYTES;
+  const compactionNudge = shouldNudgeCompact
+    ? `\n\n> **Compaction nudge:** \`lessons.md\` is currently ${lessonsBytes} bytes (threshold ${LESSONS_COMPACT_THRESHOLD_BYTES}). Before you finish this iteration, compact the lessons via \`set_lessons\`: merge near-duplicate bullets, drop status/iteration noise that no longer applies, and tighten wording. Keep durable gotchas; lose history.`
+    : "";
 
   return `You are the Plan agent for Compass.
 
@@ -92,7 +105,7 @@ unwieldy.
 
 \`\`\`
 ${lessonsSection}
-\`\`\`
+\`\`\`${compactionNudge}
 
 ## Drafts (user input via the UI)
 
