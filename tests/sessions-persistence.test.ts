@@ -401,3 +401,87 @@ test("sessions persistence: maxPersisted floors at 1 so the in-flight session is
   assert.equal(t.all().length, 1);
   assert.equal(t.current()?.session, 2);
 });
+
+test("validator: rejects record with non-string beforeSha; pins non-null happy path for beforeSha/afterSha", async () => {
+  const { path, cleanup } = await tmpWorkspace();
+  try {
+    const valid = {
+      session: 1,
+      startedAt: 100,
+      endedAt: 200,
+      plan: "p",
+      verify: "v",
+      beforeSha: "aaa", // non-null string — pins happy path for this branch
+      afterSha: "bbb",
+      commits: [],
+      status: "succeeded",
+      notes: [],
+    };
+    const bad = { ...valid, session: 2, beforeSha: 12345 }; // not string and not null → reject
+    await writeFile(path, JSON.stringify([valid, bad]), "utf-8");
+    const t = createSessionTracker({ recordPath: path });
+    const records = t.all();
+    assert.equal(records.length, 1);
+    assert.equal(records[0].session, 1);
+    assert.equal(records[0].beforeSha, "aaa");
+    assert.equal(records[0].afterSha, "bbb");
+  } finally {
+    await cleanup();
+  }
+});
+
+test("validator: rejects record where commits entry has non-string sha", async () => {
+  const { path, cleanup } = await tmpWorkspace();
+  try {
+    const valid = {
+      session: 1,
+      startedAt: 100,
+      endedAt: 200,
+      plan: "p",
+      verify: "v",
+      beforeSha: null,
+      afterSha: null,
+      commits: [],
+      status: "succeeded",
+      notes: [],
+    };
+    const bad = {
+      ...valid,
+      session: 2,
+      commits: [{ sha: 123, short: "xxx", subject: "oops" }],
+    };
+    await writeFile(path, JSON.stringify([valid, bad]), "utf-8");
+    const t = createSessionTracker({ recordPath: path });
+    const records = t.all();
+    assert.equal(records.length, 1);
+    assert.equal(records[0].session, 1);
+  } finally {
+    await cleanup();
+  }
+});
+
+test("validator: rejects verifyOutput with non-finite exitCode by defaulting verifyOutput to null (record itself survives)", async () => {
+  const { path, cleanup } = await tmpWorkspace();
+  try {
+    const rec = {
+      session: 1,
+      startedAt: 100,
+      endedAt: 200,
+      plan: "p",
+      verify: "v",
+      beforeSha: null,
+      afterSha: null,
+      commits: [],
+      status: "succeeded",
+      notes: [],
+      verifyOutput: { command: "npm test", exitCode: "not-a-number", tail: "" },
+    };
+    await writeFile(path, JSON.stringify([rec]), "utf-8");
+    const t = createSessionTracker({ recordPath: path });
+    const records = t.all();
+    assert.equal(records.length, 1); // record survives — verifyOutput is tolerantly defaulted
+    assert.equal(records[0].verifyOutput, null);
+  } finally {
+    await cleanup();
+  }
+});
