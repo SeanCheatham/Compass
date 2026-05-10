@@ -30,10 +30,16 @@ compass
 Compass will:
 
 1. Confirm you're inside a git repository.
-2. Create `.compass/` next to your code (and add it to `.gitignore`).
-3. Start the web UI on a local port and print the URL.
-4. Idle until you submit a draft plan from the UI.
-5. From there: Plan refines → Develop implements → repeat.
+2. Refuse to start if another `compass` is already running here (pidfile lock), or if the working tree is dirty.
+3. Create `.compass/` next to your code (and add it to `.gitignore`).
+4. Start the web UI on a local port and print the URL.
+5. Idle until you submit a draft plan from the UI.
+6. From there: Plan refines → Develop implements → repeat.
+
+Flags:
+
+- `--auto-stash` — stash uncommitted changes on startup as `compass-auto-stash` instead of refusing to start.
+- `--require-approval` — pause after each Plan run and wait for explicit UI approval before Develop runs. Default is auto-accept.
 
 Press Ctrl+C to stop. Run `compass status` at any time to print the current `state.json` and `drafts.md`.
 
@@ -42,14 +48,14 @@ Press Ctrl+C to stop. Run `compass status` at any time to print the current `sta
 ### Two agents
 
 **Plan** — read-only over the codebase. Mutates state via MCP tool calls only.
-- Reads the current state, drafts, last feedback, and lessons (all injected into its system prompt).
+- Reads the current state, drafts, last feedback, lessons, and a cached symbol map of the repo (all injected into its system prompt).
 - Calls `set_state(...)` exactly once with the new `completed` / `next` / `followUp`.
 - Optionally calls `append_lesson(text)` or `set_lessons(text)` to record durable guidance.
 - Sets `next` to `null` when there is no concrete next step. The runner idles and waits for drafts.
 
-**Develop** — full read/write over the codebase, plus shell.
+**Develop** — full read/write over the codebase, plus shell, web fetch/search, sub-agents, and skills.
 - Implements the current `next.plan`.
-- Iterates until `next.verify` exits 0.
+- Iterates until `next.verify` exits 0 (default 10-minute timeout, override via `COMPASS_VERIFY_TIMEOUT_MS`).
 - Commits changes (`git add` + `git commit`).
 - Calls `complete({ feedback })` to signal end-of-iteration. The feedback string is threaded into the next Plan run.
 
@@ -106,13 +112,16 @@ There is no `feedback.md` — feedback now flows in-memory through the runner, c
 2. The runner snapshots `drafts.md` (atomic `rename`, race-free with new user input) and clears the in-memory feedback bus, holding the previous Develop's feedback to thread into Plan's system prompt.
 3. **Plan** runs: reviews drafts/feedback/lessons, calls `set_state` (and optionally `append_lesson`).
 4. The runner persists the new state to `state.json`.
-5. **Develop** runs against `next.plan`: implements, runs `next.verify`, commits, calls `complete({ feedback })`.
-6. Runner runs the three post-checks (complete called, verify, clean tree). Re-prompts Develop on failure.
-7. Back to step 1.
+5. If `--require-approval` is set, the runner pauses for explicit UI approval before Develop runs.
+6. **Develop** runs against `next.plan`: implements, runs `next.verify`, commits, calls `complete({ feedback })`.
+7. Runner runs the three post-checks (complete called, verify, clean tree). Re-prompts Develop on failure.
+8. Back to step 1.
 
 There is no separate "done" signal. Idle is the universal exit case: empty drafts and `next == null` send the runner back to step 1. Same path the bootstrap (fresh repo) takes.
 
 ## UI
+
+Tabs:
 
 - **Activity** — live stream of agent output and tool calls.
 - **State** — Completed list, current `Next` (with verify command), and `Follow-up`.
@@ -120,6 +129,8 @@ There is no separate "done" signal. Idle is the universal exit case: empty draft
 - **Drafts** — submit a draft plan; see what's pending.
 - **Feedback** — the most recent feedback Develop passed to `complete()`. Cleared once Plan picks it up next iteration.
 - **Lessons** — long-term memory shared across iterations; written by either agent.
+
+Header controls let you pause the loop (`Pause Now` at the next gate, or `Pause After Iteration`), resume, cancel the iteration in flight, and — when `--require-approval` is on — approve the pending plan before Develop runs.
 
 ## Technology
 
