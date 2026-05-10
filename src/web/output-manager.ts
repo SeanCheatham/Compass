@@ -1,6 +1,6 @@
 import { EventEmitter } from "events";
 import { appendFile, mkdir } from "fs/promises";
-import { readFileSync, readdirSync } from "fs";
+import { readFileSync, readdirSync, renameSync, statSync } from "fs";
 import { join } from "path";
 import type { ToolDetail } from "../agents/tool-details.js";
 
@@ -101,7 +101,29 @@ class OutputManagerImpl extends EventEmitter implements OutputManager {
     this.maxBuffer = Math.max(1, opts.maxBuffer ?? DEFAULT_MAX_BUFFER_SIZE);
     if (this.sessionsDir) {
       this.currentLogPath = join(this.sessionsDir, "pre-session.jsonl");
+      this.rotatePreSession();
       this.loadBufferFromDisk();
+    }
+  }
+
+  private rotatePreSession(): void {
+    if (!this.sessionsDir) return;
+    const path = join(this.sessionsDir, "pre-session.jsonl");
+    let size: number;
+    try {
+      size = statSync(path).size;
+    } catch {
+      return; // doesn't exist — nothing to rotate
+    }
+    if (size === 0) return; // nothing to preserve
+
+    // ISO with `:` replaced for filesystem portability.
+    const stamp = new Date().toISOString().replace(/:/g, "-");
+    const dest = join(this.sessionsDir, `pre-session-${stamp}.jsonl`);
+    try {
+      renameSync(path, dest);
+    } catch {
+      // Rotation failed — fall back to prior behaviour (events get interleaved).
     }
   }
 
@@ -111,28 +133,27 @@ class OutputManagerImpl extends EventEmitter implements OutputManager {
     try {
       names = readdirSync(this.sessionsDir);
     } catch {
-      return; // dir doesn't exist yet — nothing to rehydrate
+      return;
     }
 
-    // pre-session.jsonl is treated as session 0 (oldest).
-    const files: { num: number; name: string }[] = [];
-    for (const name of names) {
-      if (name === "pre-session.jsonl") {
-        files.push({ num: 0, name });
-        continue;
-      }
-      const m = /^session-(\d+)\.jsonl$/.exec(name);
-      if (m) files.push({ num: Number(m[1]), name });
-    }
-    files.sort((a, b) => a.num - b.num);
+    const ROTATED = /^pre-session-.+\.jsonl$/;
+    const SESSION = /^session-\d+\.jsonl$/;
+    const matched = names.filter(
+      (n) => n === "pre-session.jsonl" || ROTATED.test(n) || SESSION.test(n)
+    );
 
-    for (const { name } of files) {
+    type Loaded = { firstTs: number; events: OutputEvent[] };
+    const loaded: Loaded[] = [];
+
+    for (const name of matched) {
       let content: string;
       try {
         content = readFileSync(join(this.sessionsDir, name), "utf-8");
       } catch {
         continue;
       }
+      const events: OutputEvent[] = [];
+      let firstTs: number | null = null;
       for (const line of content.split("\n")) {
         if (!line) continue;
         let parsed: unknown;
@@ -142,7 +163,18 @@ class OutputManagerImpl extends EventEmitter implements OutputManager {
           continue;
         }
         if (!isOutputEvent(parsed)) continue;
-        this.buffer.push(parsed);
+        events.push(parsed);
+        if (firstTs === null) firstTs = parsed.timestamp;
+      }
+      if (events.length === 0 || firstTs === null) continue;
+      loaded.push({ firstTs, events });
+    }
+
+    loaded.sort((a, b) => a.firstTs - b.firstTs);
+
+    for (const { events } of loaded) {
+      for (const event of events) {
+        this.buffer.push(event);
         if (this.buffer.length > this.maxBuffer) this.buffer.shift();
       }
     }

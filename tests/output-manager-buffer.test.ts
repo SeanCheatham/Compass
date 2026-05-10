@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtemp, rm, writeFile, stat } from "node:fs/promises";
+import { mkdtemp, rm, writeFile, stat, readdir, readFile } from "node:fs/promises";
+import { statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -213,6 +214,128 @@ test("output-manager rehydrate: rehydrated events are NOT re-persisted to disk",
 
     const sizeAfter = (await stat(path)).size;
     assert.equal(sizeAfter, sizeBefore);
+  } finally {
+    await cleanup();
+  }
+});
+
+test("output-manager rotate: rotates non-empty pre-session.jsonl on construction", async () => {
+  const { sessionsDir, cleanup } = await tmpWorkspace();
+  try {
+    const e1 = ev("log", "banner", 1);
+    const original = JSON.stringify(e1) + "\n";
+    await writeFile(join(sessionsDir, "pre-session.jsonl"), original);
+
+    const om = createOutputManager({ sessionsDir });
+
+    const names = await readdir(sessionsDir);
+    assert.ok(
+      !names.includes("pre-session.jsonl"),
+      "pre-session.jsonl should be rotated away"
+    );
+
+    const rotated = names.filter((n) => /^pre-session-.+\.jsonl$/.test(n));
+    assert.equal(rotated.length, 1);
+
+    const content = await readFile(join(sessionsDir, rotated[0]), "utf-8");
+    assert.equal(content, original);
+
+    const buf = om.getBuffer();
+    assert.equal(buf.length, 1);
+    assert.deepEqual(buf[0], e1);
+  } finally {
+    await cleanup();
+  }
+});
+
+test("output-manager rotate: leaves empty pre-session.jsonl in place (no rotation)", async () => {
+  const { sessionsDir, cleanup } = await tmpWorkspace();
+  try {
+    await writeFile(join(sessionsDir, "pre-session.jsonl"), "");
+
+    const om = createOutputManager({ sessionsDir });
+
+    // pre-session.jsonl should still exist
+    const s = statSync(join(sessionsDir, "pre-session.jsonl"));
+    assert.equal(s.size, 0);
+
+    const names = await readdir(sessionsDir);
+    const rotated = names.filter((n) => /^pre-session-.+\.jsonl$/.test(n));
+    assert.equal(rotated.length, 0);
+
+    assert.deepEqual(om.getBuffer(), []);
+  } finally {
+    await cleanup();
+  }
+});
+
+test("output-manager rotate: treats missing pre-session.jsonl as a no-op (no archive created)", async () => {
+  const { sessionsDir, cleanup } = await tmpWorkspace();
+  try {
+    const om = createOutputManager({ sessionsDir });
+
+    const names = await readdir(sessionsDir);
+    const rotated = names.filter((n) => /^pre-session-.+\.jsonl$/.test(n));
+    assert.equal(rotated.length, 0);
+
+    assert.deepEqual(om.getBuffer(), []);
+  } finally {
+    await cleanup();
+  }
+});
+
+test("output-manager rehydrate: sorts rehydrated events by first-event timestamp across rotated + session files", async () => {
+  const { sessionsDir, cleanup } = await tmpWorkspace();
+  try {
+    const oldPre = ev("log", "old-banner", 100);
+    const oldSess = ev("log", "old-session-1", 200);
+    const newPre = ev("log", "new-banner", 400);
+    const newSess = ev("log", "new-session-2", 500);
+
+    await writeFile(
+      join(sessionsDir, "pre-session-2026-01-01T00-00-00-000Z.jsonl"),
+      lines([oldPre])
+    );
+    await writeFile(join(sessionsDir, "session-001.jsonl"), lines([oldSess]));
+    await writeFile(join(sessionsDir, "pre-session.jsonl"), lines([newPre]));
+    await writeFile(join(sessionsDir, "session-002.jsonl"), lines([newSess]));
+
+    const om = createOutputManager({ sessionsDir });
+
+    const buf = om.getBuffer();
+    assert.deepEqual(
+      buf.map((e) => e.timestamp),
+      [100, 200, 400, 500]
+    );
+
+    const names = await readdir(sessionsDir);
+    const rotated = names.filter((n) => /^pre-session-.+\.jsonl$/.test(n));
+    assert.equal(rotated.length, 2);
+    assert.ok(!names.includes("pre-session.jsonl"));
+  } finally {
+    await cleanup();
+  }
+});
+
+test("output-manager rehydrate: skips files with no valid events from the buffer entirely", async () => {
+  const { sessionsDir, cleanup } = await tmpWorkspace();
+  try {
+    // All-malformed rotated archive (no valid events at all)
+    const malformed =
+      "not json\nstill not json\n{ also not json }\n";
+    await writeFile(
+      join(sessionsDir, "pre-session-2026-01-01T00-00-00-000Z.jsonl"),
+      malformed
+    );
+
+    // Valid session file
+    const good = ev("log", "good", 50);
+    await writeFile(join(sessionsDir, "session-001.jsonl"), lines([good]));
+
+    const om = createOutputManager({ sessionsDir });
+    const buf = om.getBuffer();
+    assert.equal(buf.length, 1);
+    assert.equal(buf[0].timestamp, 50);
   } finally {
     await cleanup();
   }
