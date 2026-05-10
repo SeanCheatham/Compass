@@ -85,10 +85,15 @@ the "Idling is rare" section of your system prompt.`;
 
   const planOptions: Options = {
     systemPrompt,
+    model: "claude-opus-4-7",
+    effort: "xhigh",
     cwd: config.implRepoPath,
     permissionMode: "bypassPermissions",
+    allowDangerouslySkipPermissions: true,
     settingSources: ["user", "project", "local"],
     abortController,
+    maxTurns: 300,
+    maxBudgetUsd: 8,
     mcpServers: { compass: mcpServer },
     allowedTools: [
       "Read",

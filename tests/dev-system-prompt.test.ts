@@ -82,15 +82,17 @@ test("dev system prompt: multi-line plan preserves newlines", () => {
 
 test("dev system prompt: required sections appear in canonical order", () => {
   const prompt = buildDevSystemPrompt(baseContext());
+  // Stable instructional sections come first (cacheable across turns/iterations);
+  // volatile per-iteration sections (plan body, verify command) come last.
   const headings = [
     "## Tools you must use",
     "## Vision",
-    "## The plan to implement",
-    "## Verify command",
     "## Lessons (long-term memory)",
     "## Workflow",
     "## Post-checks (enforced by the runner, AFTER `complete`)",
     "## Hard rules",
+    "## The plan to implement",
+    "## Verify command",
   ];
   let lastIdx = -1;
   for (const h of headings) {
@@ -98,6 +100,27 @@ test("dev system prompt: required sections appear in canonical order", () => {
     assert.notEqual(idx, -1, `missing heading: ${h}`);
     assert.ok(idx > lastIdx, `${h} appears out of order`);
     lastIdx = idx;
+  }
+});
+
+test("dev system prompt: volatile sections (plan, verify) come after stable instructional sections", () => {
+  // The whole point of the reorder is cache-prefix wins. If something stable
+  // ever drifts below the volatile zone, this test should fail.
+  const prompt = buildDevSystemPrompt(baseContext());
+  const planIdx = prompt.indexOf("## The plan to implement");
+  const stableHeadings = [
+    "## Tools you must use",
+    "## Vision",
+    "## Lessons (long-term memory)",
+    "## Workflow",
+    "## Post-checks (enforced by the runner, AFTER `complete`)",
+    "## Hard rules",
+  ];
+  for (const h of stableHeadings) {
+    assert.ok(
+      prompt.indexOf(h) < planIdx,
+      `stable heading "${h}" must appear before the volatile plan body`,
+    );
   }
 });
 

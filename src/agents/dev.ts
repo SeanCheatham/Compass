@@ -200,10 +200,15 @@ async function runDevQuery(
 
   const devOptions: Options = {
     systemPrompt,
+    model: "claude-sonnet-4-6",
+    fallbackModel: "claude-opus-4-7",
     cwd: config.implRepoPath,
     permissionMode: "bypassPermissions",
+    allowDangerouslySkipPermissions: true,
     settingSources: ["user", "project", "local"],
     abortController,
+    maxTurns: 300,
+    maxBudgetUsd: 8,
     mcpServers: { compass: mcpServer },
     allowedTools: [
       "Read",

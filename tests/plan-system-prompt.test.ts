@@ -100,3 +100,39 @@ test("plan system prompt: nudge sits between lessons block and drafts heading", 
   assert.ok(nudgeIdx > lessonsHeadingIdx);
   assert.ok(nudgeIdx < draftsHeadingIdx);
 });
+
+test("plan system prompt: volatile sections come after stable instructional sections", () => {
+  // Cache-prefix invariant: stable instructional content must precede the
+  // per-iteration volatile blocks (state.json, repo map, drafts, feedback)
+  // so the SDK's prompt cache can hit on the stable prefix.
+  const prompt = buildPlanSystemPrompt(baseContext());
+  const stateIdx = prompt.indexOf("## state.json");
+  const stableHeadings = [
+    "## Vision",
+    "## Tools you must use",
+    "## Lessons",
+    "## Your job, every iteration",
+    "## Idling is rare",
+    "## Hard rules",
+  ];
+  for (const h of stableHeadings) {
+    assert.ok(
+      prompt.indexOf(h) < stateIdx,
+      `stable heading "${h}" must appear before the volatile state.json block`,
+    );
+  }
+
+  const volatileHeadings = [
+    "## state.json",
+    "## Repo map",
+    "## Drafts",
+    "## Feedback",
+  ];
+  let lastIdx = -1;
+  for (const h of volatileHeadings) {
+    const idx = prompt.indexOf(h);
+    assert.notEqual(idx, -1, `missing heading: ${h}`);
+    assert.ok(idx > lastIdx, `${h} appears out of order in the volatile zone`);
+    lastIdx = idx;
+  }
+});

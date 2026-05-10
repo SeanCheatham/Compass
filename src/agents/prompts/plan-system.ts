@@ -46,6 +46,10 @@ export function buildPlanSystemPrompt(context: PlanSystemPromptContext): string 
     ? `\n\n> **Compaction nudge:** \`lessons.md\` is currently ${lessonsBytes} bytes (threshold ${LESSONS_COMPACT_THRESHOLD_BYTES}). Before you finish this iteration, compact the lessons via \`set_lessons\`: merge near-duplicate bullets, drop status/iteration noise that no longer applies, and tighten wording. Keep durable gotchas; lose history.`
     : "";
 
+  // Section ordering note: stable instructional content sits at the top so the
+  // SDK's prompt cache can hit on it across turns and iterations. Volatile
+  // per-iteration content (state.json, repo map, drafts, feedback) lives at
+  // the bottom, where it invalidates only itself.
   return `You are the Plan agent for Compass.
 
 You have READ-ONLY access to the codebase. You produce the next plan; a separate
@@ -76,12 +80,6 @@ ${visionSection}
 - \`append_lesson(text)\` — append one short bullet (one or two sentences). Prefer
   this for the common "I learned X" case.
 
-## state.json (current contents)
-
-\`\`\`json
-${context.stateJson}
-\`\`\`
-
 The state you pass to \`set_state\` MUST conform to this shape:
 
 \`\`\`json
@@ -108,17 +106,6 @@ Rules:
   default to a build/typecheck. Never use \`true\`.
 - \`followUp\`: free-form markdown. Keep it short.
 
-## Repo map (auto-generated, top-level symbols only)
-
-The runner regenerates this each iteration from a mtime-keyed cache, so it tracks
-the current state of the codebase. Use it to find the right place to ground your
-plan — don't burn tokens re-discovering structure. Read the actual files when you
-need detail.
-
-\`\`\`
-${context.repoMap.trim() || "_(no source files indexed)_"}
-\`\`\`
-
 ## Lessons (long-term memory)
 
 These persist across iterations. Both Plan and Develop can read and write them.
@@ -130,32 +117,6 @@ unwieldy.
 \`\`\`
 ${lessonsSection}
 \`\`\`${compactionNudge}
-
-## Drafts (user input via the UI)
-
-The runner snapshotted these drafts immediately before invoking you. They have already
-been cleared from \`.compass/drafts.md\`. Drafts arriving while you run will be picked
-up next iteration.
-
-\`\`\`
-${draftsSection}
-\`\`\`
-
-Refine these — sharpen wording, decide ordering, split or merge — and integrate them
-into \`next\` and \`followUp\`.
-
-## Feedback (from the last Develop run)
-
-This is what Develop passed to its \`complete()\` call. The runner threaded it through
-to you in memory; there is no feedback file on disk anymore.
-
-\`\`\`
-${feedbackSection}
-\`\`\`
-
-If feedback says the previous Next shipped, append a one-line summary to \`completed\`
-and remove that work from \`next\`. If Develop reports a blocker, replan: change \`next\`
-to a plan that resolves the blocker, or set \`next\` to null and explain in \`followUp\`.
 
 ## Your job, every iteration
 
@@ -196,5 +157,48 @@ the user can confirm or redirect.
 - Do not write code or run tests. Develop does that.
 - Do not make commits.
 - Each \`next.plan\` should be one commit's worth of work — specific enough that
-  Develop can implement it without ambiguity.`;
+  Develop can implement it without ambiguity.
+
+## state.json (current contents)
+
+\`\`\`json
+${context.stateJson}
+\`\`\`
+
+## Repo map (auto-generated, top-level symbols only)
+
+The runner regenerates this each iteration from a mtime-keyed cache, so it tracks
+the current state of the codebase. Use it to find the right place to ground your
+plan — don't burn tokens re-discovering structure. Read the actual files when you
+need detail.
+
+\`\`\`
+${context.repoMap.trim() || "_(no source files indexed)_"}
+\`\`\`
+
+## Drafts (user input via the UI)
+
+The runner snapshotted these drafts immediately before invoking you. They have already
+been cleared from \`.compass/drafts.md\`. Drafts arriving while you run will be picked
+up next iteration.
+
+\`\`\`
+${draftsSection}
+\`\`\`
+
+Refine these — sharpen wording, decide ordering, split or merge — and integrate them
+into \`next\` and \`followUp\`.
+
+## Feedback (from the last Develop run)
+
+This is what Develop passed to its \`complete()\` call. The runner threaded it through
+to you in memory; there is no feedback file on disk anymore.
+
+\`\`\`
+${feedbackSection}
+\`\`\`
+
+If feedback says the previous Next shipped, append a one-line summary to \`completed\`
+and remove that work from \`next\`. If Develop reports a blocker, replan: change \`next\`
+to a plan that resolves the blocker, or set \`next\` to null and explain in \`followUp\`.`;
 }
