@@ -72,7 +72,9 @@ program
     const controller = createLoopController({
       approveRequired: opts.requireApproval,
     });
-    const sessions = createSessionTracker();
+    const sessions = createSessionTracker({
+      recordPath: config.sessionsRecordPath,
+    });
     const feedback = createFeedbackBus();
 
     const server = await startWebServer({
@@ -96,6 +98,7 @@ program
       shuttingDown = true;
       output.info("\nShutting down...");
       abortController.abort();
+      await sessions.flush();
       await server.close();
       await lock.release();
       process.exit(0);

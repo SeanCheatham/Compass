@@ -46,6 +46,7 @@ export function getWorkspaceConfig(implRepoPath: string): WorkspaceConfig {
     draftsPath: resolve(workspacePath, DRAFTS_FILE),
     lessonsPath: resolve(workspacePath, LESSONS_FILE),
     sessionsPath: resolve(workspacePath, "sessions"),
+    sessionsRecordPath: resolve(workspacePath, "sessions.json"),
   };
 }
 

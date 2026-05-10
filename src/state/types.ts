@@ -6,6 +6,7 @@ export interface WorkspaceConfig {
   draftsPath: string;
   lessonsPath: string;
   sessionsPath: string;
+  sessionsRecordPath: string;
 }
 
 /**

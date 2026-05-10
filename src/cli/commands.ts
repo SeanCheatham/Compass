@@ -40,7 +40,12 @@ export async function runCompass(
   output.info(`Repo:      ${config.implRepoPath}`);
   output.info(`Workspace: ${config.workspacePath}\n`);
 
-  let iteration = 0;
+  // Seed from prior persisted sessions so iteration counts continue across
+  // restarts instead of resetting to 1.
+  let iteration = sessions.all().reduce(
+    (m, s) => Math.max(m, s.session),
+    0
+  );
 
   while (!signal.aborted) {
     if (!(await hasWork(config))) {
