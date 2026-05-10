@@ -299,3 +299,105 @@ test("sessions persistence: clearPriorRuns drops only prior records, persists, a
     await cleanup();
   }
 });
+
+test("sessions persistence: maxPersisted trims oldest records on load and rewrites file", async () => {
+  const { path, cleanup } = await tmpWorkspace();
+  try {
+    const rec = (n: number) => ({
+      session: n,
+      startedAt: 100 * n,
+      endedAt: 100 * n + 50,
+      plan: "p",
+      verify: "v",
+      beforeSha: null,
+      afterSha: null,
+      commits: [],
+      status: "succeeded",
+      notes: [],
+    });
+    await writeFile(
+      path,
+      JSON.stringify([rec(1), rec(2), rec(3), rec(4), rec(5)]),
+      "utf-8"
+    );
+
+    const t = createSessionTracker({ recordPath: path, maxPersisted: 3 });
+    assert.equal(t.all().length, 3);
+    assert.deepEqual(
+      t.all().map((r) => r.session),
+      [3, 4, 5]
+    );
+    assert.equal(t.priorRunsCount(), 3);
+
+    await t.flush();
+
+    const t2 = createSessionTracker({ recordPath: path, maxPersisted: 100 });
+    assert.equal(t2.all().length, 3);
+    assert.deepEqual(
+      t2.all().map((r) => r.session),
+      [3, 4, 5]
+    );
+  } finally {
+    await cleanup();
+  }
+});
+
+test("sessions persistence: maxPersisted trims oldest when start() pushes past the cap", async () => {
+  const t = createSessionTracker({ maxPersisted: 3 });
+  t.start(1);
+  t.end("succeeded");
+  t.start(2);
+  t.end("succeeded");
+  t.start(3);
+  t.end("succeeded");
+  t.start(4);
+
+  assert.equal(t.all().length, 3);
+  assert.deepEqual(
+    t.all().map((r) => r.session),
+    [2, 3, 4]
+  );
+  assert.equal(t.current()?.session, 4);
+});
+
+test("sessions persistence: trimming during start decrements priorRunsCount when prior records are dropped", async () => {
+  const { path, cleanup } = await tmpWorkspace();
+  try {
+    const rec = (n: number) => ({
+      session: n,
+      startedAt: 100 * n,
+      endedAt: 100 * n + 50,
+      plan: "p",
+      verify: "v",
+      beforeSha: null,
+      afterSha: null,
+      commits: [],
+      status: "succeeded",
+      notes: [],
+    });
+    await writeFile(path, JSON.stringify([rec(1), rec(2), rec(3)]), "utf-8");
+
+    const t = createSessionTracker({ recordPath: path, maxPersisted: 3 });
+    assert.equal(t.priorRunsCount(), 3);
+
+    t.start(99);
+
+    assert.equal(t.all().length, 3);
+    assert.equal(t.priorRunsCount(), 2);
+    assert.equal(t.current()?.session, 99);
+    assert.equal(t.all()[0].session, 2);
+  } finally {
+    await cleanup();
+  }
+});
+
+test("sessions persistence: maxPersisted floors at 1 so the in-flight session is never dropped", async () => {
+  const t = createSessionTracker({ maxPersisted: 0 });
+  t.start(1);
+  assert.equal(t.all().length, 1);
+  assert.equal(t.current()?.session, 1);
+
+  t.start(2);
+  assert.equal(t.all().length, 1);
+  assert.equal(t.current()?.session, 2);
+});

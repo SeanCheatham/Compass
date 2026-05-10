@@ -47,6 +47,12 @@ export interface SessionTrackerOptions {
    * restarts. If omitted, records live only in memory.
    */
   recordPath?: string;
+  /**
+   * Maximum number of records kept in memory and on disk. When exceeded, the
+   * oldest records are dropped (prior-run records first; the in-flight session
+   * is always preserved because it lives at the tail). Defaults to 200.
+   */
+  maxPersisted?: number;
 }
 
 export interface SessionTracker {
@@ -83,6 +89,7 @@ export interface SessionTracker {
 }
 
 const PERSIST_DEBOUNCE_MS = 50;
+const DEFAULT_MAX_PERSISTED_SESSIONS = 200;
 
 function isString(x: unknown): x is string {
   return typeof x === "string";
@@ -166,12 +173,32 @@ class SessionTrackerImpl implements SessionTracker {
   private recordPath?: string;
   private writeQueue: Promise<void> = Promise.resolve();
   private persistTimer: NodeJS.Timeout | null = null;
+  private readonly maxPersisted: number;
 
   constructor(opts: SessionTrackerOptions = {}) {
     this.recordPath = opts.recordPath;
+    this.maxPersisted = Math.max(
+      1,
+      opts.maxPersisted ?? DEFAULT_MAX_PERSISTED_SESSIONS
+    );
     if (this.recordPath) {
       this.loadFromDisk(this.recordPath);
     }
+  }
+
+  /**
+   * If `records.length` exceeds the cap, drop the oldest records from the
+   * front. Adjusts `priorRunsCount_` so it never references dropped indices.
+   * Returns the number of records dropped (0 if no trim was necessary).
+   * Never touches the in-flight session: it lives at the tail, and overflow
+   * is always < records.length because maxPersisted >= 1.
+   */
+  private trimToMax(): number {
+    const overflow = this.records.length - this.maxPersisted;
+    if (overflow <= 0) return 0;
+    this.records = this.records.slice(overflow);
+    this.priorRunsCount_ = Math.max(0, this.priorRunsCount_ - overflow);
+    return overflow;
   }
 
   private loadFromDisk(path: string): void {
@@ -210,7 +237,9 @@ class SessionTrackerImpl implements SessionTracker {
       if (v) valid.push(v);
     }
     this.records = valid;
+    const dropped = this.trimToMax();
     this.priorRunsCount_ = this.records.length;
+    if (dropped > 0) this.schedulePersist();
   }
 
   private emit(): void {
@@ -275,6 +304,7 @@ class SessionTrackerImpl implements SessionTracker {
       verifyOutput: null,
     };
     this.records.push(rec);
+    this.trimToMax();
     this.emit();
     this.schedulePersist();
     return rec;
