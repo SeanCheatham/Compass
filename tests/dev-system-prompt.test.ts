@@ -12,7 +12,6 @@ function baseContext(
     next,
     lessons: "",
     vision: "",
-    repoIndex: "",
     ...overrides,
   };
 }

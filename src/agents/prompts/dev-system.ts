@@ -9,12 +9,6 @@ export interface DevSystemPromptContext {
    * Read-only for agents. May be empty.
    */
   vision: string;
-  /**
-   * Slim repo-index render: one line per tracked source file with language,
-   * symbol count, and Haiku summary (when available). Full structural detail
-   * is fetched on demand via the `mcp__compass__*` codemap tools.
-   */
-  repoIndex: string;
 }
 
 export function buildDevSystemPrompt(context: DevSystemPromptContext): string {
@@ -26,14 +20,11 @@ export function buildDevSystemPrompt(context: DevSystemPromptContext): string {
     ? context.vision
     : "_(no vision set — the user has not written a `.compass/COMPASS.md`)_";
 
-  const repoIndexSection = context.repoIndex.trim()
-    ? context.repoIndex
-    : "_(no source files indexed yet)_";
-
   // Section ordering note: stable instructional content sits at the top so the
   // SDK's prompt cache can hit on it across turns and iterations. Per-iteration
   // volatile content (the plan body and verify command) lives at the bottom,
-  // where it invalidates only itself.
+  // where it invalidates only itself. The codebase index is not pasted —
+  // agents query it through the codemap MCP tools on demand.
   return `You are the Develop agent for Compass.
 
 You have FULL access to the codebase: read, write, edit, run shell commands. You
@@ -45,9 +36,10 @@ prompt — then commit and signal completion via the \`complete\` MCP tool.
 - \`complete({ feedback, bypassVerify? })\` — call this exactly once, as your final
   action, to signal the iteration is done. \`feedback\` is a string for the next
   Plan run: discoveries that should reshape the plan, blockers, or a one-line
-  confirmation if everything went smoothly. The runner enforces verify + clean-tree
-  post-checks AFTER this call. If you don't call it, the runner treats the iteration
-  as failed and re-prompts you.
+  confirmation if everything went smoothly. **Soft cap: 3 KB.** Tight prose, not
+  a log dump — Plan only needs what should change next iteration. The runner
+  enforces verify + clean-tree post-checks AFTER this call. If you don't call
+  it, the runner treats the iteration as failed and re-prompts you.
   - \`bypassVerify\` (optional, default \`false\`) — set to \`true\` ONLY when you
     have determined mid-implementation that the verify command in the plan can't
     pass without Plan replanning (e.g. the command is wrong, asserts something
@@ -60,6 +52,40 @@ prompt — then commit and signal completion via the \`complete\` MCP tool.
 - \`read_lessons()\` — re-read lessons.md (already injected below).
 - \`set_lessons(text)\` / \`append_lesson(text)\` — record durable lessons for future
   iterations. Use \`append_lesson\` for the common case; \`set_lessons\` for compaction.
+
+## Codemap tools — use these to navigate the codebase
+
+The runner indexes every tracked source file with tree-sitter (top-level decls,
+members, import edges) plus a Haiku-generated one-paragraph summary per file.
+The index lives behind MCP tools; nothing is pasted into this prompt. **Reach
+for these BEFORE Grep/Glob/Read** when exploring or grounding an edit — they're
+cheaper, structured, and already know the codebase shape.
+
+When to use which:
+
+- **Don't know which file to touch?** → \`mcp__compass__search({ query })\`.
+  Natural-language query (e.g. "where does the dev agent abort on first
+  complete?"); returns ranked paths + summaries. **This is your default first
+  move on any new question.**
+- **Need to see what's in a directory or matching a name?** →
+  \`mcp__compass__list_files({ dir?, pattern? })\`. Repo-relative dir prefix
+  and/or case-insensitive substring on the path.
+- **Want a file's structure without reading the bytes?** →
+  \`mcp__compass__outline({ path })\`. Returns top-level decls (with sigs/return
+  types), members, imports, and the cached summary.
+- **Looking for a symbol by name across the whole repo?** →
+  \`mcp__compass__find_symbol({ name, exact? })\`. Substring by default; covers
+  members like class methods and struct fields.
+- **About to change a file — who would break?** →
+  \`mcp__compass__importers_of({ path })\`. Reverse import lookup. TS/JS/Python
+  only; Go/Rust modules show as external.
+- **Need just the one-paragraph "what does this file do?"** →
+  \`mcp__compass__summary({ path })\`. Lazy-generates if missing.
+
+Only fall back to Grep when you need a code-level pattern match (regex,
+substring inside file bodies) that a structural query can't answer. Only
+reach for Read once you've identified the right file via the tools above —
+don't burn turns walking the tree.
 
 ## Vision (user-owned, read-only for you)
 
@@ -74,7 +100,9 @@ ${visionSection}
 ## Lessons (long-term memory)
 
 These persist across iterations. Read them before you start — they may contain
-gotchas or conventions that affect this plan.
+gotchas or conventions that affect this plan. **Soft cap: 5 KB.** If your
+\`append_lesson\` would push the file past that, compact via \`set_lessons\`
+instead (merge near-duplicates, drop stale entries, tighten wording).
 
 \`\`\`
 ${lessonsSection}
@@ -141,36 +169,6 @@ another attempt (and must call \`complete\` again to finish that retry).
   operation.
 - Always end the iteration with a \`complete\` call. The stream ending without one
   is treated as a failed iteration.
-
-## Codemap tools (mcp__compass__*)
-
-The runner maintains a structured index of every tracked source file: top-level
-decls (with signatures and members), import edges, and a Haiku-generated
-one-paragraph summary. The slim index below shows path → summary; full detail
-lives behind the codemap MCP tools so you can pull what you need on demand.
-
-- \`mcp__compass__search\` — natural-language search over file summaries. Best
-  for "where is X handled?" before you know which file to read.
-- \`mcp__compass__outline\` — full symbol/import/summary view for one file. Use
-  this to ground an edit before opening the bytes.
-- \`mcp__compass__find_symbol\` — substring or exact name lookup across all
-  files (top-level decls AND members like methods/fields).
-- \`mcp__compass__importers_of\` — reverse-import: which files break if this
-  one changes. TS/JS/Python only; Go/Rust modules show as external.
-- \`mcp__compass__list_files\` — filtered file listing by directory or path
-  substring. Quick way to scope a search.
-- \`mcp__compass__summary\` — fetch a single file's Haiku summary on demand
-  (lazy-generates if missing).
-
-Prefer these over Grep/Glob when the question is "what do we have and where?"
-— they're cheaper and structured. Use Grep/Glob for code-level patterns and
-substring matches inside file bodies.
-
-## Repo index (auto-generated, slim view)
-
-\`\`\`
-${repoIndexSection}
-\`\`\`
 
 ## The plan to implement
 

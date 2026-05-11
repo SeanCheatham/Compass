@@ -1,9 +1,9 @@
 /**
- * When `lessons.md` exceeds this many UTF-8 bytes, the Plan system prompt grows
- * an extra paragraph nudging Plan to compact the lessons via `set_lessons`.
- * 4 KB ~ 60-80 short bullets, well past the point where compaction pays off.
+ * Soft cap on `lessons.md`. When the file exceeds this size, the Plan system
+ * prompt grows an extra paragraph nudging Plan to compact via `set_lessons`.
+ * 5 KB ~ 75-100 short bullets, past the point where compaction pays off.
  */
-export const LESSONS_COMPACT_THRESHOLD_BYTES = 4 * 1024;
+export const LESSONS_COMPACT_THRESHOLD_BYTES = 5 * 1024;
 
 export interface PlanSystemPromptContext {
   /** Pretty-printed state.json contents (current state, before this iteration). */
@@ -19,8 +19,6 @@ export interface PlanSystemPromptContext {
    * Read-only for agents. May be empty.
    */
   vision: string;
-  /** Pre-rendered compact symbol map of the repo (top-level decls per file). */
-  repoMap: string;
 }
 
 export function buildPlanSystemPrompt(context: PlanSystemPromptContext): string {
@@ -48,8 +46,9 @@ export function buildPlanSystemPrompt(context: PlanSystemPromptContext): string 
 
   // Section ordering note: stable instructional content sits at the top so the
   // SDK's prompt cache can hit on it across turns and iterations. Volatile
-  // per-iteration content (state.json, repo map, drafts, feedback) lives at
-  // the bottom, where it invalidates only itself.
+  // per-iteration content (state.json, drafts, feedback) lives at the bottom,
+  // where it invalidates only itself. The codebase index is not pasted —
+  // agents query it through the codemap MCP tools on demand.
   return `You are the Plan agent for Compass.
 
 You have READ-ONLY access to the codebase. You produce the next plan; a separate
@@ -80,6 +79,40 @@ ${visionSection}
 - \`append_lesson(text)\` — append one short bullet (one or two sentences). Prefer
   this for the common "I learned X" case.
 
+## Codemap tools — use these to navigate the codebase
+
+The runner indexes every tracked source file with tree-sitter (top-level decls,
+members, import edges) plus a Haiku-generated one-paragraph summary per file.
+The index lives behind MCP tools; nothing is pasted into this prompt. **Reach
+for these BEFORE Grep/Glob/Read** when grounding a plan — they're cheaper,
+structured, and already know the codebase shape.
+
+When to use which:
+
+- **Don't know which file is relevant?** → \`mcp__compass__search({ query })\`.
+  Natural-language query (e.g. "where does Develop's abort signal get
+  threaded?"); returns ranked paths + summaries. **This is your default first
+  move on any new question.**
+- **Need to see what's in a directory or matching a name pattern?** →
+  \`mcp__compass__list_files({ dir?, pattern? })\`. Repo-relative dir prefix
+  and/or case-insensitive substring on the path.
+- **Want a file's structure without reading the bytes?** →
+  \`mcp__compass__outline({ path })\`. Returns top-level decls (with sigs/return
+  types), members, imports, and the cached summary.
+- **Looking for a symbol by name across the whole repo?** →
+  \`mcp__compass__find_symbol({ name, exact? })\`. Substring by default; covers
+  members like class methods and struct fields, not just top-level decls.
+- **About to change a file — who would break?** →
+  \`mcp__compass__importers_of({ path })\`. Reverse import lookup. TS/JS/Python
+  only; Go/Rust modules show as external.
+- **Need just the one-paragraph "what does this file do?"** →
+  \`mcp__compass__summary({ path })\`. Lazy-generates if missing.
+
+Only fall back to Grep when you need a code-level pattern match (regex,
+substring inside file bodies) that a structural query can't answer. Only
+reach for Read once you've identified the right file via the tools above —
+don't burn turns walking the tree.
+
 The state you pass to \`set_state\` MUST conform to this shape:
 
 \`\`\`json
@@ -106,10 +139,12 @@ Rules:
   \`pytest tests/foo_test.py\`, \`go test ./...\`). If the repo has no tests yet,
   default to a build/typecheck. Never use \`true\`.
 - \`midTerm\`: markdown. The promotion queue — items here graduate to \`immediate\`
-  over coming runs. Keep it focused (~3-7 items, ordered).
+  over coming runs. Keep it focused (~3-7 items, ordered). **Soft cap: 5 KB.**
+  If you're crowding the cap, tighten bullets and drop stale items.
 - \`longTerm\`: markdown. *Your* read on how to reach the vision — not a
   restatement of \`COMPASS.md\`. Strategic arc, ~10+ iterations out. Update only
-  when something materially shifts; long-term churn is a smell.
+  when something materially shifts; long-term churn is a smell. **Soft cap:
+  3 KB.** This is a steering reference, not an essay.
 
 ## Three horizons
 
@@ -134,8 +169,9 @@ The mid-term is your working horizon; the long-term is your steering reference.
 These persist across iterations. Both Plan and Develop can read and write them.
 Treat them as durable guidance: gotchas about the codebase, recurring failure
 modes, conventions you keep having to rediscover. Don't dump iteration-by-iteration
-status here — that's what \`completed\` and feedback are for. Compact when it grows
-unwieldy.
+status here — that's what \`completed\` and feedback are for. **Soft cap: 5 KB.**
+Compact via \`set_lessons\` when it grows past that; merge near-duplicates, drop
+stale entries, tighten wording.
 
 \`\`\`
 ${lessonsSection}
@@ -206,40 +242,6 @@ the user can confirm or redirect.
 
 \`\`\`json
 ${context.stateJson}
-\`\`\`
-
-## Codemap tools (mcp__compass__*)
-
-The runner maintains a structured index of every tracked source file: top-level
-decls (with signatures and members), import edges, and a Haiku-generated
-one-paragraph summary. The slim index below shows path → summary; full detail
-lives behind the codemap MCP tools so you can pull what you need on demand
-without burning tokens loading the whole map.
-
-- \`mcp__compass__search\` — natural-language search over file summaries. Best
-  when you don't yet know which file to look at ("where is X handled?").
-- \`mcp__compass__outline\` — full symbol/import/summary view for one file. Use
-  this before reading the bytes when you just need to ground a decision.
-- \`mcp__compass__find_symbol\` — substring or exact name lookup across all
-  files (top-level decls AND members like methods/fields).
-- \`mcp__compass__importers_of\` — reverse-import: which files would break if
-  this file changed. TS/JS/Python only; Go/Rust modules show as external.
-- \`mcp__compass__list_files\` — filtered file listing by directory or path
-  substring. Quick way to scope a search.
-- \`mcp__compass__summary\` — fetch a single file's Haiku summary on demand
-  (lazy-generates if missing).
-
-Prefer these over re-walking the tree with Glob/Grep when the question is
-"what do we have and where?" — they're cheaper and structured.
-
-## Repo index (auto-generated, slim view)
-
-One line per tracked source file with language, symbol count, and the
-Haiku summary when available. Use the codemap tools above for structural
-detail. Read the actual files only when you need code-level precision.
-
-\`\`\`
-${context.repoMap.trim() || "_(no source files indexed)_"}
 \`\`\`
 
 ## Drafts (user input via the UI)

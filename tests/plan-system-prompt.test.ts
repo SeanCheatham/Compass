@@ -15,7 +15,6 @@ function baseContext(
     feedback: "",
     lessons: "",
     vision: "",
-    repoMap: "",
     ...overrides,
   };
 }
@@ -125,7 +124,6 @@ test("plan system prompt: volatile sections come after stable instructional sect
 
   const volatileHeadings = [
     "## state.json",
-    "## Repo index",
     "## Drafts",
     "## Feedback",
   ];

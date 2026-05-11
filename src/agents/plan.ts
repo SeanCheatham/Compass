@@ -5,7 +5,6 @@ import { buildPlanSystemPrompt } from "./prompts/plan-system.js";
 import type { OutputManager } from "../web/output-manager.js";
 import { extractToolDetail } from "./tool-details.js";
 import { prepareCodemap } from "../repomap/index.js";
-import { renderRepoIndex } from "../repomap/render.js";
 import { createPlanMcpServer } from "../mcp/server.js";
 
 export interface PlanAgentInput {
@@ -40,19 +39,17 @@ export async function runPlanAgent(
   const lessons = await readLessons(config);
   const vision = await readCompass(config);
 
-  let repoMap = "";
   try {
     const { cache, summaryResult } = await prepareCodemap(config, {
       signal: opts.signal,
     });
-    repoMap = renderRepoIndex(cache.files);
     if (summaryResult.generated > 0 || summaryResult.errors > 0) {
       output.info(
         `Codemap: indexed ${Object.keys(cache.files).length} files; summarized ${summaryResult.generated} (${summaryResult.skipped} skipped, ${summaryResult.errors} errors).`
       );
     }
   } catch (err) {
-    output.error(`Repo map build failed: ${err}`);
+    output.error(`Codemap build failed: ${err}`);
   }
 
   const systemPrompt = buildPlanSystemPrompt({
@@ -61,7 +58,6 @@ export async function runPlanAgent(
     feedback: input.feedback,
     lessons,
     vision,
-    repoMap,
   });
 
   const initialPrompt = `Run a planning iteration.

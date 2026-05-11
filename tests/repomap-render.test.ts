@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { renderRepoIndex, renderRepoMap } from "../src/repomap/render.ts";
+import { renderRepoMap } from "../src/repomap/render.ts";
 import type { FileEntry, Symbol } from "../src/repomap/cache.ts";
 
 function sym(name: string, line: number, extra: Partial<Symbol> = {}): Symbol {
@@ -177,51 +177,4 @@ test("renderRepoMap: extremely tight budget still admits the first file (cutoff 
     { maxChars: 1 }
   );
   assert.equal(out, "a.ts:\n  function foo (L1)");
-});
-
-// ---------- renderRepoIndex (slim, summary-aware)
-
-test("renderRepoIndex: empty input returns no-files fallback", () => {
-  assert.equal(renderRepoIndex({}), "_(no source files indexed yet)_");
-});
-
-test("renderRepoIndex: one file with summary renders path + symbol count + summary", () => {
-  const out = renderRepoIndex({
-    "src/foo.ts": entry([sym("foo", 1)], "ts", {
-      summary: "Frobnicates the widget.",
-    }),
-  });
-  assert.equal(out, "src/foo.ts  (ts, 1 symbol)\n  Frobnicates the widget.");
-});
-
-test("renderRepoIndex: file without summary still gets a header line", () => {
-  const out = renderRepoIndex({
-    "src/foo.ts": entry([sym("foo", 1), sym("bar", 2)]),
-  });
-  assert.equal(out, "src/foo.ts  (ts, 2 symbols)");
-});
-
-test("renderRepoIndex: long summaries are truncated with an ellipsis", () => {
-  const long = "x".repeat(500);
-  const out = renderRepoIndex({
-    "f.ts": entry([sym("a", 1)], "ts", { summary: long }),
-  });
-  // Summary trailing line should fit under 240 chars and end with …
-  const summaryLine = out.split("\n")[1]!;
-  assert.ok(summaryLine.endsWith("…"));
-  assert.ok(summaryLine.length <= 2 + 240); // "  " + capped summary
-});
-
-test("renderRepoIndex: budget overflow drops later files with omitted count", () => {
-  const out = renderRepoIndex(
-    {
-      "a.ts": entry([sym("a", 1)]),
-      "b.ts": entry([sym("b", 1)]),
-      "c.ts": entry([sym("c", 1)]),
-    },
-    { maxChars: 30 }
-  );
-  // First file fits; subsequent ones overflow.
-  assert.match(out, /a\.ts\s+\(ts, 1 symbol\)/);
-  assert.match(out, /\(2 more files omitted\)/);
 });
