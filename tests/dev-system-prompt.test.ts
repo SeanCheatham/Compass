@@ -89,7 +89,7 @@ test("dev system prompt: required sections appear in canonical order", () => {
     "## Vision",
     "## Lessons (long-term memory)",
     "## Workflow",
-    "## Post-checks (enforced by the runner, AFTER `complete`)",
+    "## Post-checks (enforced by the runner, AFTER `signal_complete`)",
     "## Hard rules",
     "## The plan to implement",
     "## Verify command",
@@ -113,7 +113,7 @@ test("dev system prompt: volatile sections (plan, verify) come after stable inst
     "## Vision",
     "## Lessons (long-term memory)",
     "## Workflow",
-    "## Post-checks (enforced by the runner, AFTER `complete`)",
+    "## Post-checks (enforced by the runner, AFTER `signal_complete`)",
     "## Hard rules",
   ];
   for (const h of stableHeadings) {
@@ -142,17 +142,26 @@ test("dev system prompt: vision is marked read-only for the agent", () => {
   assert.ok(/CANNOT edit/i.test(prompt) || /read-only/i.test(prompt));
 });
 
-test("dev system prompt: explicitly names the complete + lessons MCP tools", () => {
+test("dev system prompt: explicitly names the set_feedback / signal_complete + lessons MCP tools", () => {
   const prompt = buildDevSystemPrompt(baseContext());
-  assert.ok(prompt.includes("`complete({ feedback, bypassVerify? })`"));
+  assert.ok(prompt.includes("`set_feedback({ text })`"));
+  assert.ok(prompt.includes("`signal_complete({ bypassVerify? })`"));
   assert.ok(prompt.includes("`read_lessons()`"));
   assert.ok(prompt.includes("`set_lessons(text)`"));
   assert.ok(prompt.includes("`append_lesson(text)`"));
 });
 
-test("dev system prompt: documents bypassVerify on complete", () => {
+test("dev system prompt: documents bypassVerify on signal_complete", () => {
   const prompt = buildDevSystemPrompt(baseContext());
   assert.ok(prompt.includes("bypassVerify"));
   // Should explain when to use it and that the clean-tree check still applies.
   assert.ok(/clean-tree.*still applies/i.test(prompt));
+});
+
+test("dev system prompt: strongly recommends calling set_feedback", () => {
+  const prompt = buildDevSystemPrompt(baseContext());
+  // The split lets the agent skip set_feedback, but the prompt should still
+  // push hard for the common case. Check for at least one strong-encouragement
+  // signal near the set_feedback section.
+  assert.ok(/strongly recommended/i.test(prompt));
 });

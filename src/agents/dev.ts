@@ -16,11 +16,11 @@ const MAX_ATTEMPTS = 3;
 const DEFAULT_VERIFY_TIMEOUT_MS = 10 * 60 * 1000;
 
 /**
- * Why the Develop query stream ended without `complete()` being called.
+ * Why the Develop query stream ended without `signal_complete()` being called.
  * - "budget"      — SDK reported `error_max_budget_usd`.
  * - "turns"       — SDK reported `error_max_turns`.
  * - "no_complete" — Stream ended (success or other error) but the agent never
- *                   called the `complete` MCP tool.
+ *                   called the `signal_complete` MCP tool.
  *
  * Any of these triggers a single follow-up Cleanup pass before yielding to Plan.
  */
@@ -33,7 +33,7 @@ function describeCutOff(reason: CutOffReason): string {
     case "turns":
       return "hit its per-attempt turn limit";
     case "no_complete":
-      return "ended without calling `complete`";
+      return "ended without calling `signal_complete`";
   }
 }
 
@@ -78,8 +78,9 @@ export interface DevAgentResult {
    */
   verifyOutput: VerifyOutput | null;
   /**
-   * Feedback string from the last `complete()` call, threaded into the next
-   * Plan run. Empty if Develop never called complete.
+   * Feedback string from the last `set_feedback` call, threaded into the next
+   * Plan run. Empty if Develop never called set_feedback (Plan continues from
+   * state alone).
    */
   feedback: string;
 }
@@ -152,7 +153,7 @@ export async function runDevAgent(
       lastFeedback = queryResult.feedback;
     }
 
-    // If the stream was cut off (budget / turns / never called complete),
+    // If the stream was cut off (budget / turns / never called signal_complete),
     // skip the normal post-check retry path. A single dedicated Cleanup pass
     // below will try to wrap up the in-flight work before yielding to Plan.
     if (queryResult.cutOff) {
@@ -167,7 +168,7 @@ export async function runDevAgent(
       config,
       next.verify,
       output,
-      queryResult.feedback !== null,
+      true,
       queryResult.bypassVerify,
       next.verifyTimeoutMs
     );
@@ -235,7 +236,7 @@ export async function runDevAgent(
       config,
       next.verify,
       output,
-      cleanupResult.feedback !== null,
+      cleanupResult.cutOff === null,
       cleanupResult.bypassVerify,
       next.verifyTimeoutMs
     );
@@ -276,18 +277,21 @@ function buildDevPrompt(attempt: number, priorIssues: string[]): string {
     return `Implement the plan in your system prompt.
 
 When you're done — implementation working, verify command passing, changes committed —
-call the \`complete\` MCP tool with feedback for the next Plan run, and finish.
+call \`set_feedback\` with a short note for the next Plan run, then call
+\`signal_complete\` as your final action.
 
-If the plan can't be implemented as written, make no changes, call \`complete\` with
-the reason in feedback, and finish. Plan will read it and replan next iteration.`;
+If the plan can't be implemented as written, make no changes, call \`set_feedback\`
+with the reason, then call \`signal_complete\`. Plan will read the feedback and
+replan next iteration.`;
   }
 
   return `Your previous attempt left these post-check failures unresolved:
 
 ${priorIssues.map((i, idx) => `${idx + 1}. ${i}`).join("\n\n")}
 
-Fix them now and finish with a \`complete\` call. Do not stop until the verify command
-exits 0, \`git status --porcelain\` is empty, and you have called \`complete\`.`;
+Fix them now and finish with a \`signal_complete\` call (call \`set_feedback\`
+first to leave a note for Plan). Do not stop until the verify command exits 0,
+\`git status --porcelain\` is empty, and you have called \`signal_complete\`.`;
 }
 
 function buildCleanupPrompt(reason: CutOffReason): string {
@@ -302,15 +306,16 @@ Plan run gets a clean handoff. Do NOT expand scope or start anything new.
    left behind. Read any partially-edited files.
 2. Decide between two paths and execute it:
    a) FINISH — if the remaining work is small and clear, complete it: get the
-      verify command passing, commit, then call \`complete\` with feedback that
-      summarises what shipped.
+      verify command passing, commit, then call \`set_feedback\` to summarise
+      what shipped and \`signal_complete\` to end the iteration.
    b) REVERT — if finishing would be too large or risky for one more pass,
       undo the partial work (\`git restore\`, \`git clean -fd\` for untracked
-      files) until \`git status --porcelain\` is empty, then call \`complete\`
-      with feedback that explains what was attempted and what's still
-      outstanding so Plan can downsize the scope next iteration.
-3. Either way you MUST end with a \`complete({ feedback })\` call and leave
-   \`git status --porcelain\` empty. There are no more retries after this pass.
+      files) until \`git status --porcelain\` is empty, then call \`set_feedback\`
+      to explain what was attempted and what's still outstanding so Plan can
+      downsize the scope next iteration, and \`signal_complete\` to end.
+3. Either way you MUST end with a \`signal_complete\` call (after \`set_feedback\`)
+   and leave \`git status --porcelain\` empty. There are no more retries after
+   this pass.
 
 Keep this attempt tight. Don't risk a second budget exhaustion — pick the
 quicker of FINISH or REVERT when in doubt.`;
@@ -328,9 +333,9 @@ async function runDevQuery(
 ): Promise<{
   cancelled: boolean;
   feedback: string | null;
-  /** Non-null when the stream ended without `complete` being called. */
+  /** Non-null when the stream ended without `signal_complete` being called. */
   cutOff: CutOffReason | null;
-  /** Whether `complete` was called with bypassVerify=true. */
+  /** Whether `signal_complete` was called with bypassVerify=true. */
   bypassVerify: boolean;
 }> {
   const abortController = new AbortController();
@@ -339,27 +344,31 @@ async function runDevQuery(
 
   let capturedFeedback: string | null = null;
   let capturedBypassVerify = false;
-  // Distinguishes "stream ended because we aborted on first `complete`" from
+  let signaledComplete = false;
+  // Distinguishes "stream ended because we aborted on signal_complete" from
   // "stream ended because the user cancelled" in the catch block below.
   let completedNormally = false;
   const mcpServer = createDevMcpServer(config, {
-    onComplete: ({ feedback, bypassVerify }) => {
+    onSetFeedback: (text) => {
+      // Last call wins — the agent may refine the feedback before completing.
+      capturedFeedback = text;
+    },
+    onSignalComplete: ({ bypassVerify }) => {
       // First call wins; subsequent calls in the same attempt are ignored.
-      if (capturedFeedback === null) {
-        capturedFeedback = feedback;
-        capturedBypassVerify = bypassVerify;
-        if (bypassVerify) {
-          output.info(
-            "Develop requested bypassVerify=true — verify post-check will be skipped this iteration."
-          );
-        }
-        // End the stream as soon as Develop signals done. Without this the SDK
-        // keeps spinning and the model frequently re-calls `complete` (seeing
-        // the bland "ok" result, it second-guesses itself and burns budget on
-        // retries the runner can't even use — first call already won).
-        completedNormally = true;
-        abortController.abort();
+      if (signaledComplete) return;
+      signaledComplete = true;
+      capturedBypassVerify = bypassVerify;
+      if (bypassVerify) {
+        output.info(
+          "Develop requested bypassVerify=true — verify post-check will be skipped this iteration."
+        );
       }
+      // End the stream as soon as Develop signals done. Without this the SDK
+      // keeps spinning and the model frequently re-calls signal_complete
+      // (seeing the bland "ok" result, it second-guesses itself and burns
+      // budget on retries the runner can't even use — first call already won).
+      completedNormally = true;
+      abortController.abort();
     },
   });
 
@@ -390,7 +399,8 @@ async function runDevQuery(
       "WebSearch",
       "NotebookEdit",
       "NotebookRead",
-      "mcp__compass__complete",
+      "mcp__compass__set_feedback",
+      "mcp__compass__signal_complete",
       "mcp__compass__read_lessons",
       "mcp__compass__set_lessons",
       "mcp__compass__append_lesson",
@@ -432,12 +442,12 @@ async function runDevQuery(
     return {
       cancelled: false,
       feedback: capturedFeedback,
-      cutOff: deriveCutOff(capturedFeedback, lastResultSubtype),
+      cutOff: deriveCutOff(signaledComplete, lastResultSubtype),
       bypassVerify: capturedBypassVerify,
     };
   } catch (error) {
     if (completedNormally) {
-      // We aborted the stream ourselves because Develop called `complete`.
+      // We aborted the stream ourselves because Develop called signal_complete.
       // Treat as a clean end-of-iteration, not a cancellation.
       output.agentComplete("Develop");
       return {
@@ -452,7 +462,7 @@ async function runDevQuery(
       return {
         cancelled: true,
         feedback: capturedFeedback,
-        cutOff: deriveCutOff(capturedFeedback, lastResultSubtype),
+        cutOff: deriveCutOff(signaledComplete, lastResultSubtype),
         bypassVerify: capturedBypassVerify,
       };
     }
@@ -462,14 +472,14 @@ async function runDevQuery(
 }
 
 function deriveCutOff(
-  capturedFeedback: string | null,
+  signaledComplete: boolean,
   resultSubtype: string | null
 ): CutOffReason | null {
-  // If the agent called `complete`, trust it — the iteration is "done" from
-  // its perspective and the normal post-checks (verify, clean tree) decide
-  // whether the work is actually good. Cleanup is only for the case where
-  // the stream ended before the agent could wrap up.
-  if (capturedFeedback !== null) return null;
+  // If the agent called signal_complete, trust it — the iteration is "done"
+  // from its perspective and the normal post-checks (verify, clean tree)
+  // decide whether the work is actually good. Cleanup is only for the case
+  // where the stream ended before the agent could wrap up.
+  if (signaledComplete) return null;
   if (resultSubtype === "error_max_budget_usd") return "budget";
   if (resultSubtype === "error_max_turns") return "turns";
   return "no_complete";
@@ -479,7 +489,7 @@ async function runPostChecks(
   config: WorkspaceConfig,
   verifyCommand: string,
   output: OutputManager,
-  completeWasCalled: boolean,
+  signaledComplete: boolean,
   bypassVerify: boolean,
   verifyTimeoutMsOverride: number | undefined
 ): Promise<PostCheckResult> {
@@ -487,12 +497,12 @@ async function runPostChecks(
   const displayIssues: string[] = [];
   let verifyOutput: VerifyOutput | null = null;
 
-  if (!completeWasCalled) {
+  if (!signaledComplete) {
     const msg =
-      "Develop ended without calling the `complete` MCP tool. Every iteration must finish by calling `complete({ feedback: \"...\" })` so the next Plan run gets context.";
+      "Develop ended without calling the `signal_complete` MCP tool. Every iteration must finish by calling `signal_complete()` as its final action (after optionally leaving a note via `set_feedback`).";
     retryIssues.push(msg);
     displayIssues.push(msg);
-    output.error("Develop did not call `complete`.");
+    output.error("Develop did not call `signal_complete`.");
   }
 
   if (bypassVerify) {

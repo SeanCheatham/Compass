@@ -1,13 +1,13 @@
 /**
  * In-memory holder for the most recent feedback string passed to Develop's
- * `complete()` MCP tool. Lives between the end of a Develop run and the start
+ * `set_feedback` MCP tool. Lives between the end of a Develop run and the start
  * of the next Plan run; cleared when Plan starts so the UI matches the same
  * "consumed once" semantics the old feedback.md file had.
  *
  * The web server subscribes via onChange to broadcast updates over WebSocket.
  *
  * Optionally persists to disk so feedback survives a `compass run` restart
- * between Develop's `complete()` and the next Plan tick. Mirrors the
+ * between Develop's `set_feedback` and the next Plan tick. Mirrors the
  * SessionTracker pattern: synchronous load in the constructor, debounced
  * atomic-rename writes via a writeQueue, and `flush()` on shutdown.
  */

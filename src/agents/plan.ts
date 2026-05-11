@@ -10,7 +10,7 @@ import { createPlanMcpServer } from "../mcp/server.js";
 export interface PlanAgentInput {
   /** Snapshot of drafts.md taken by the runner (already cleared from disk). */
   drafts: string;
-  /** Feedback from the previous Develop run's `complete()` call (in-memory). */
+  /** Feedback from the previous Develop run's `set_feedback` call (in-memory). May be empty if Develop skipped it. */
   feedback: string;
 }
 

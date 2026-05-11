@@ -9,13 +9,18 @@
  *   - append_lesson(text)     — append a bullet to lessons.md.
  *
  * Develop tools:
- *   - complete({ feedback })  — signal end-of-iteration with feedback for Plan.
+ *   - set_feedback({ text })  — set/replace the feedback string handed to the
+ *                               next Plan run. Optional but strongly encouraged.
+ *                               Last call wins.
+ *   - signal_complete({ bypassVerify? })
+ *                             — exactly-once end-of-iteration signal. Aborts
+ *                               the stream so the runner moves to post-checks.
  *   - read_lessons()
  *   - set_lessons(text)
  *   - append_lesson(text)
  *
- * Tools close over per-run callback objects so the runner can observe set_state
- * and complete payloads without re-reading disk.
+ * Tools close over per-run callback objects so the runner can observe set_state,
+ * set_feedback, and signal_complete payloads without re-reading disk.
  */
 
 import { z } from "zod";
@@ -115,8 +120,7 @@ export function createPlanMcpServer(
   });
 }
 
-export interface DevCompletePayload {
-  feedback: string;
+export interface DevSignalCompletePayload {
   /**
    * When true, the runner skips the verify post-check for this iteration. Use
    * sparingly — only when Develop has determined that the verify command as
@@ -129,11 +133,18 @@ export interface DevCompletePayload {
 
 export interface DevToolCallbacks {
   /**
-   * Called when Develop invokes complete. The first call wins — the runner
-   * uses it as the iteration-finished signal and surfaces feedback to the
-   * next Plan run. Subsequent calls are ignored (and warned about).
+   * Called whenever Develop invokes set_feedback. Last call wins — the runner
+   * stores the most recent text and surfaces it to the next Plan run when the
+   * iteration ends. Optional from the agent's side; if never called, Plan
+   * sees no feedback and continues from state alone.
    */
-  onComplete: (payload: DevCompletePayload) => void;
+  onSetFeedback: (text: string) => void;
+  /**
+   * Called when Develop invokes signal_complete. The first call wins — the
+   * runner uses it as the iteration-finished signal. Subsequent calls are
+   * ignored.
+   */
+  onSignalComplete: (payload: DevSignalCompletePayload) => void;
 }
 
 export function createDevMcpServer(
@@ -145,14 +156,20 @@ export function createDevMcpServer(
     version: "0.1.0",
     tools: [
       tool(
-        "complete",
-        "Signal that this Develop iteration is finished. Pass `feedback` for the next Plan run — discoveries that should reshape the plan, blockers, or a one-line confirmation if everything went smoothly. Optionally set `bypassVerify: true` if you've determined the verify command as written can't pass without Plan replanning (wrong command, impossible assertion, out-of-scope dependency) — the runner will skip the verify post-check and route your feedback straight to Plan. The clean-tree post-check still applies.",
-        { feedback: z.string(), bypassVerify: z.boolean().optional() },
-        async ({ feedback, bypassVerify }) => {
-          callbacks.onComplete({
-            feedback,
-            bypassVerify: bypassVerify ?? false,
-          });
+        "set_feedback",
+        "Set the feedback string handed to the next Plan run. STRONGLY recommended — Plan uses it to decide what to plan next. Pass discoveries that should reshape the plan, blockers, or a one-line confirmation if everything went smoothly. Call this BEFORE `signal_complete`. Last call wins; calling again replaces the prior text. Soft cap: 3 KB. If you skip this entirely, Plan will see no feedback and just continue from state alone.",
+        { text: z.string() },
+        async ({ text }) => {
+          callbacks.onSetFeedback(text);
+          return textResult("ok");
+        }
+      ),
+      tool(
+        "signal_complete",
+        "Signal that this Develop iteration is finished. Call this exactly once, as your FINAL action — the runner aborts the stream on the first call and moves to post-checks (verify + clean tree). Set `bypassVerify: true` ONLY when you have determined mid-implementation that the verify command in the plan can't pass without Plan replanning (e.g. the command is wrong, asserts something impossible, or needs an out-of-scope dependency); the runner will skip the verify post-check (clean-tree still applies) and route your feedback straight to Plan. Always call `set_feedback` first to explain.",
+        { bypassVerify: z.boolean().optional() },
+        async ({ bypassVerify }) => {
+          callbacks.onSignalComplete({ bypassVerify: bypassVerify ?? false });
           return textResult("ok");
         }
       ),

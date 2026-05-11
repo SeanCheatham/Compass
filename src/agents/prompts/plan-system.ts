@@ -10,7 +10,7 @@ export interface PlanSystemPromptContext {
   stateJson: string;
   /** Snapshot of drafts.md the runner consumed before invoking Plan. May be empty. */
   drafts: string;
-  /** Feedback string from the last Develop run's `complete()` call. May be empty. */
+  /** Feedback string from the last Develop run's `set_feedback` call. May be empty. */
   feedback: string;
   /** Current contents of lessons.md (long-term memory across iterations). */
   lessons: string;
@@ -260,8 +260,10 @@ that's a signal to revise \`longTerm\` too.
 
 ## Feedback (from the last Develop run)
 
-This is what Develop passed to its \`complete()\` call. The runner threaded it through
-to you in memory; there is no feedback file on disk anymore.
+This is what Develop passed to its \`set_feedback\` call (the runner threaded it
+through in memory — there is no feedback file on disk). Develop may have skipped
+\`set_feedback\` entirely; if so the section below is empty and you should
+continue from state alone.
 
 \`\`\`
 ${feedbackSection}
@@ -270,5 +272,7 @@ ${feedbackSection}
 If feedback says the previous \`immediate\` shipped, append a one-line summary to
 \`completed\` and pick a new \`immediate\`. If Develop reports a blocker, replan:
 change \`immediate\` to a plan that resolves the blocker, or set \`immediate\` to
-null and explain in \`longTerm\`.`;
+null and explain in \`longTerm\`. If there is no feedback, infer outcome from
+state changes (e.g. a new commit, or the previous \`immediate\` still pending)
+and proceed.`;
 }

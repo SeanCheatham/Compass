@@ -335,7 +335,7 @@ export async function startWebServer(
     });
   });
 
-  // Forward feedback bus changes (Develop's `complete()` payload).
+  // Forward feedback bus changes (Develop's `set_feedback` payload).
   const unsubscribeFeedback = opts.feedback.onChange((content) => {
     broadcast({ kind: "feedback", content });
   });
