@@ -324,6 +324,9 @@ async function runDevQuery(
 
   let capturedFeedback: string | null = null;
   let capturedBypassVerify = false;
+  // Distinguishes "stream ended because we aborted on first `complete`" from
+  // "stream ended because the user cancelled" in the catch block below.
+  let completedNormally = false;
   const mcpServer = createDevMcpServer(config, {
     onComplete: ({ feedback, bypassVerify }) => {
       // First call wins; subsequent calls in the same attempt are ignored.
@@ -335,6 +338,12 @@ async function runDevQuery(
             "Develop requested bypassVerify=true — verify post-check will be skipped this iteration."
           );
         }
+        // End the stream as soon as Develop signals done. Without this the SDK
+        // keeps spinning and the model frequently re-calls `complete` (seeing
+        // the bland "ok" result, it second-guesses itself and burns budget on
+        // retries the runner can't even use — first call already won).
+        completedNormally = true;
+        abortController.abort();
       }
     },
   });
@@ -406,6 +415,17 @@ async function runDevQuery(
       bypassVerify: capturedBypassVerify,
     };
   } catch (error) {
+    if (completedNormally) {
+      // We aborted the stream ourselves because Develop called `complete`.
+      // Treat as a clean end-of-iteration, not a cancellation.
+      output.agentComplete("Develop");
+      return {
+        cancelled: false,
+        feedback: capturedFeedback,
+        cutOff: null,
+        bypassVerify: capturedBypassVerify,
+      };
+    }
     if (signal.aborted) {
       output.info("Develop cancelled.");
       return {
