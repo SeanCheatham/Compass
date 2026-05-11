@@ -125,7 +125,7 @@ test("plan system prompt: volatile sections come after stable instructional sect
 
   const volatileHeadings = [
     "## state.json",
-    "## Repo map",
+    "## Repo index",
     "## Drafts",
     "## Feedback",
   ];

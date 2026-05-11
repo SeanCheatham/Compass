@@ -30,6 +30,7 @@ import {
   readLessons,
   writeLessons,
 } from "./utils/workspace.js";
+import { codemapTools } from "./codemap-tools.js";
 import type { PlanState, WorkspaceConfig } from "../state/types.js";
 
 const planNextSchema = z.object({
@@ -109,6 +110,7 @@ export function createPlanMcpServer(
         }
       ),
       ...lessonsTools(config),
+      ...codemapTools(config),
     ],
   });
 }
@@ -155,6 +157,7 @@ export function createDevMcpServer(
         }
       ),
       ...lessonsTools(config),
+      ...codemapTools(config),
     ],
   });
 }

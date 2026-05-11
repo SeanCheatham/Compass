@@ -208,12 +208,35 @@ the user can confirm or redirect.
 ${context.stateJson}
 \`\`\`
 
-## Repo map (auto-generated, top-level symbols only)
+## Codemap tools (mcp__compass__*)
 
-The runner regenerates this each iteration from a mtime-keyed cache, so it tracks
-the current state of the codebase. Use it to find the right place to ground your
-plan — don't burn tokens re-discovering structure. Read the actual files when you
-need detail.
+The runner maintains a structured index of every tracked source file: top-level
+decls (with signatures and members), import edges, and a Haiku-generated
+one-paragraph summary. The slim index below shows path → summary; full detail
+lives behind the codemap MCP tools so you can pull what you need on demand
+without burning tokens loading the whole map.
+
+- \`mcp__compass__search\` — natural-language search over file summaries. Best
+  when you don't yet know which file to look at ("where is X handled?").
+- \`mcp__compass__outline\` — full symbol/import/summary view for one file. Use
+  this before reading the bytes when you just need to ground a decision.
+- \`mcp__compass__find_symbol\` — substring or exact name lookup across all
+  files (top-level decls AND members like methods/fields).
+- \`mcp__compass__importers_of\` — reverse-import: which files would break if
+  this file changed. TS/JS/Python only; Go/Rust modules show as external.
+- \`mcp__compass__list_files\` — filtered file listing by directory or path
+  substring. Quick way to scope a search.
+- \`mcp__compass__summary\` — fetch a single file's Haiku summary on demand
+  (lazy-generates if missing).
+
+Prefer these over re-walking the tree with Glob/Grep when the question is
+"what do we have and where?" — they're cheaper and structured.
+
+## Repo index (auto-generated, slim view)
+
+One line per tracked source file with language, symbol count, and the
+Haiku summary when available. Use the codemap tools above for structural
+detail. Read the actual files only when you need code-level precision.
 
 \`\`\`
 ${context.repoMap.trim() || "_(no source files indexed)_"}

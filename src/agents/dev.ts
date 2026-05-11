@@ -7,6 +7,8 @@ import type { OutputManager } from "../web/output-manager.js";
 import { extractToolDetail } from "./tool-details.js";
 import { readLessons, readCompass } from "../mcp/utils/workspace.js";
 import { createDevMcpServer } from "../mcp/server.js";
+import { prepareCodemap } from "../repomap/index.js";
+import { renderRepoIndex } from "../repomap/render.js";
 import type { VerifyOutput } from "../state/sessions.js";
 
 const execAsync = promisify(exec);
@@ -91,7 +93,23 @@ export async function runDevAgent(
 ): Promise<DevAgentResult> {
   const lessons = await readLessons(config);
   const vision = await readCompass(config);
-  const systemPrompt = buildDevSystemPrompt({ next, lessons, vision });
+
+  let repoIndex = "";
+  try {
+    const { cache, summaryResult } = await prepareCodemap(config, {
+      signal: opts.signal,
+    });
+    repoIndex = renderRepoIndex(cache.files);
+    if (summaryResult.generated > 0 || summaryResult.errors > 0) {
+      output.info(
+        `Codemap: indexed ${Object.keys(cache.files).length} files; summarized ${summaryResult.generated} (${summaryResult.skipped} skipped, ${summaryResult.errors} errors).`
+      );
+    }
+  } catch (err) {
+    output.error(`Repo map build failed: ${err}`);
+  }
+
+  const systemPrompt = buildDevSystemPrompt({ next, lessons, vision, repoIndex });
 
   let priorRetryIssues: string[] = [];
   let lastDisplayIssues: string[] = [];
@@ -379,6 +397,12 @@ async function runDevQuery(
       "mcp__compass__read_lessons",
       "mcp__compass__set_lessons",
       "mcp__compass__append_lesson",
+      "mcp__compass__outline",
+      "mcp__compass__find_symbol",
+      "mcp__compass__list_files",
+      "mcp__compass__importers_of",
+      "mcp__compass__summary",
+      "mcp__compass__search",
     ],
   };
 

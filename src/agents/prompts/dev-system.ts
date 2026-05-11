@@ -9,6 +9,12 @@ export interface DevSystemPromptContext {
    * Read-only for agents. May be empty.
    */
   vision: string;
+  /**
+   * Slim repo-index render: one line per tracked source file with language,
+   * symbol count, and Haiku summary (when available). Full structural detail
+   * is fetched on demand via the `mcp__compass__*` codemap tools.
+   */
+  repoIndex: string;
 }
 
 export function buildDevSystemPrompt(context: DevSystemPromptContext): string {
@@ -19,6 +25,10 @@ export function buildDevSystemPrompt(context: DevSystemPromptContext): string {
   const visionSection = context.vision.trim()
     ? context.vision
     : "_(no vision set — the user has not written a `.compass/COMPASS.md`)_";
+
+  const repoIndexSection = context.repoIndex.trim()
+    ? context.repoIndex
+    : "_(no source files indexed yet)_";
 
   // Section ordering note: stable instructional content sits at the top so the
   // SDK's prompt cache can hit on it across turns and iterations. Per-iteration
@@ -131,6 +141,36 @@ another attempt (and must call \`complete\` again to finish that retry).
   operation.
 - Always end the iteration with a \`complete\` call. The stream ending without one
   is treated as a failed iteration.
+
+## Codemap tools (mcp__compass__*)
+
+The runner maintains a structured index of every tracked source file: top-level
+decls (with signatures and members), import edges, and a Haiku-generated
+one-paragraph summary. The slim index below shows path → summary; full detail
+lives behind the codemap MCP tools so you can pull what you need on demand.
+
+- \`mcp__compass__search\` — natural-language search over file summaries. Best
+  for "where is X handled?" before you know which file to read.
+- \`mcp__compass__outline\` — full symbol/import/summary view for one file. Use
+  this to ground an edit before opening the bytes.
+- \`mcp__compass__find_symbol\` — substring or exact name lookup across all
+  files (top-level decls AND members like methods/fields).
+- \`mcp__compass__importers_of\` — reverse-import: which files break if this
+  one changes. TS/JS/Python only; Go/Rust modules show as external.
+- \`mcp__compass__list_files\` — filtered file listing by directory or path
+  substring. Quick way to scope a search.
+- \`mcp__compass__summary\` — fetch a single file's Haiku summary on demand
+  (lazy-generates if missing).
+
+Prefer these over Grep/Glob when the question is "what do we have and where?"
+— they're cheaper and structured. Use Grep/Glob for code-level patterns and
+substring matches inside file bodies.
+
+## Repo index (auto-generated, slim view)
+
+\`\`\`
+${repoIndexSection}
+\`\`\`
 
 ## The plan to implement
 

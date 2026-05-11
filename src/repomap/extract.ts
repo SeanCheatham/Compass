@@ -1,490 +1,1070 @@
-import { extname } from "node:path";
+import Parser from "tree-sitter";
+import TS from "tree-sitter-typescript";
+import JS from "tree-sitter-javascript";
+import PY from "tree-sitter-python";
+import GO from "tree-sitter-go";
+import RS from "tree-sitter-rust";
+import type {
+  ImportRef,
+  Language,
+  Member,
+  Symbol as RepoSymbol,
+} from "./cache.js";
 
-export type Language = "ts" | "js" | "py" | "go" | "rs" | "md";
-
-export interface Symbol {
-  kind: string;
-  name: string;
-  line: number;
-  /** Parameter list for function-like decls, e.g. `"a: number, b: string"`. Empty string for no-arg functions. Absent for non-functions. */
-  signature?: string;
-  /** Return type for TS/Python/Rust/Go function-like decls (TS `: Type`, Python/Rust `-> Type`, Go bare/parenthesized after args). Absent if no annotation, JS, or non-function. */
-  returnType?: string;
-}
-
-const LANG_BY_EXT: Record<string, Language> = {
-  ".ts": "ts",
-  ".tsx": "ts",
-  ".mts": "ts",
-  ".cts": "ts",
-  ".js": "js",
-  ".jsx": "js",
-  ".mjs": "js",
-  ".cjs": "js",
-  ".py": "py",
-  ".go": "go",
-  ".rs": "rs",
-  ".md": "md",
-  ".markdown": "md",
-};
-
-/** Function-like kinds whose signatures we extract. */
-const SIGNATURE_KINDS = new Set(["function", "func", "fn"]);
+export type { Language, Member, RepoSymbol as Symbol };
+export { detectLanguage } from "./cache.js";
 
 /** Cap rendered signature length. */
 const MAX_SIGNATURE_CHARS = 80;
-
 /** Cap rendered return type length. */
 const MAX_RETURN_TYPE_CHARS = 60;
 
-export function detectLanguage(path: string): Language | null {
-  return LANG_BY_EXT[extname(path).toLowerCase()] ?? null;
+export interface ExtractResult {
+  symbols: RepoSymbol[];
+  imports: ImportRef[];
 }
 
-interface PatternSet {
-  kind: string;
-  pattern: RegExp;
+// Lazy parser cache. Tree-sitter parsers are stateful but reusable; we keep
+// one per language to amortize the C-side init cost across files.
+const parsers = new Map<Language, Parser>();
+
+function getParser(language: Language): Parser | null {
+  const cached = parsers.get(language);
+  if (cached) return cached;
+  const lang = languageGrammar(language);
+  if (!lang) return null;
+  const p = new Parser();
+  // Tree-sitter grammar packages don't ship matching TS types for the Language
+  // object; cast through unknown to satisfy the strict setLanguage signature.
+  p.setLanguage(lang as Parser.Language);
+  parsers.set(language, p);
+  return p;
 }
 
-const TS_JS: PatternSet[] = [
-  {
-    kind: "function",
-    pattern:
-      /^(?:export\s+(?:default\s+)?)?(?:async\s+)?function\s*\*?\s+([A-Za-z_$][\w$]*)/gm,
-  },
-  {
-    kind: "class",
-    pattern:
-      /^(?:export\s+(?:default\s+)?)?(?:abstract\s+)?class\s+([A-Za-z_$][\w$]*)/gm,
-  },
-  {
-    kind: "interface",
-    pattern: /^(?:export\s+)?interface\s+([A-Za-z_$][\w$]*)/gm,
-  },
-  {
-    kind: "type",
-    pattern: /^(?:export\s+)?type\s+([A-Za-z_$][\w$]*)\s*=/gm,
-  },
-  {
-    kind: "enum",
-    pattern: /^(?:export\s+)?(?:const\s+)?enum\s+([A-Za-z_$][\w$]*)/gm,
-  },
-  {
-    kind: "const",
-    pattern: /^export\s+(?:const|let|var)\s+([A-Za-z_$][\w$]*)/gm,
-  },
-];
-
-const PY: PatternSet[] = [
-  { kind: "function", pattern: /^(?:async\s+)?def\s+([A-Za-z_]\w*)/gm },
-  { kind: "class", pattern: /^class\s+([A-Za-z_]\w*)/gm },
-];
-
-const GO: PatternSet[] = [
-  { kind: "func", pattern: /^func\s+(?:\([^)]*\)\s+)?([A-Za-z_]\w*)/gm },
-  { kind: "type", pattern: /^type\s+([A-Za-z_]\w*)/gm },
-  { kind: "const", pattern: /^const\s+([A-Za-z_]\w*)/gm },
-  { kind: "var", pattern: /^var\s+([A-Za-z_]\w*)/gm },
-];
-
-const RUST: PatternSet[] = [
-  {
-    kind: "fn",
-    pattern:
-      /^(?:pub(?:\([^)]*\))?\s+)?(?:const\s+|async\s+|unsafe\s+)*fn\s+([A-Za-z_]\w*)/gm,
-  },
-  {
-    kind: "struct",
-    pattern: /^(?:pub(?:\([^)]*\))?\s+)?struct\s+([A-Za-z_]\w*)/gm,
-  },
-  {
-    kind: "enum",
-    pattern: /^(?:pub(?:\([^)]*\))?\s+)?enum\s+([A-Za-z_]\w*)/gm,
-  },
-  {
-    kind: "trait",
-    pattern: /^(?:pub(?:\([^)]*\))?\s+)?(?:unsafe\s+)?trait\s+([A-Za-z_]\w*)/gm,
-  },
-  {
-    kind: "type",
-    pattern: /^(?:pub(?:\([^)]*\))?\s+)?type\s+([A-Za-z_]\w*)/gm,
-  },
-  {
-    kind: "mod",
-    pattern: /^(?:pub(?:\([^)]*\))?\s+)?mod\s+([A-Za-z_]\w*)/gm,
-  },
-  {
-    kind: "const",
-    pattern: /^(?:pub(?:\([^)]*\))?\s+)?const\s+([A-Z_][A-Z0-9_]*)/gm,
-  },
-  {
-    kind: "static",
-    pattern: /^(?:pub(?:\([^)]*\))?\s+)?static\s+([A-Z_][A-Z0-9_]*)/gm,
-  },
-  {
-    kind: "impl",
-    pattern:
-      /^impl(?:\s*<[^>]*>)?\s+([A-Za-z_]\w*(?:\s*<[^>]*>)?)\s+for\s+([A-Za-z_]\w*)/gm,
-  },
-  {
-    kind: "impl",
-    pattern: /^impl(?:\s*<[^>]*>)?\s+([A-Za-z_]\w*)\b(?!\s+for)/gm,
-  },
-];
-
-const PATTERNS_BY_LANG: Partial<Record<Language, PatternSet[]>> = {
-  ts: TS_JS,
-  js: TS_JS,
-  py: PY,
-  go: GO,
-  rs: RUST,
-};
-
-function attachLineNumbers<T extends { offset: number }>(
-  text: string,
-  matches: T[]
-): Array<T & { line: number }> {
-  if (matches.length === 0) return [];
-
-  const sorted = [...matches].sort((a, b) => a.offset - b.offset);
-  const result: Array<T & { line: number }> = [];
-
-  let cursor = 0;
-  let line = 1;
-  for (const m of sorted) {
-    while (cursor < m.offset) {
-      if (text.charCodeAt(cursor) === 10) line++;
-      cursor++;
-    }
-    result.push({ ...m, line });
+function languageGrammar(language: Language): unknown {
+  switch (language) {
+    case "ts":
+      return (TS as unknown as { typescript: unknown }).typescript;
+    case "tsx":
+      return (TS as unknown as { tsx: unknown }).tsx;
+    case "js":
+      return JS;
+    case "py":
+      return PY;
+    case "go":
+      return GO;
+    case "rs":
+      return RS;
+    case "md":
+      return null;
   }
-  return result;
 }
 
-/**
- * Given the full file text and an offset (typically the end of a `function`/`def`/`func`/`fn` regex match),
- * scan forward for the next `(`, then walk to find the matching `)`. Returns the inner text with whitespace
- * collapsed to single spaces and truncated to `MAX_SIGNATURE_CHARS` (with `…` suffix if exceeded).
- * Returns `null` if no balanced `(...)` is found within a reasonable scan window.
- */
-export function extractSignature(text: string, fromOffset: number): string | null {
-  const SCAN_LIMIT = 4096; // don't scan to EOF for malformed input
-  const open = text.indexOf("(", fromOffset);
-  if (open === -1 || open - fromOffset > SCAN_LIMIT) return null;
+export function extractSymbols(text: string, language: Language): RepoSymbol[] {
+  return extract(text, language).symbols;
+}
 
-  let depth = 0;
-  for (let i = open; i < text.length && i - open < SCAN_LIMIT; i++) {
-    const c = text.charCodeAt(i);
-    if (c === 40) depth++;       // (
-    else if (c === 41) {         // )
-      depth--;
-      if (depth === 0) {
-        const inner = text.slice(open + 1, i).replace(/\s+/g, " ").trim();
-        if (inner.length <= MAX_SIGNATURE_CHARS) return inner;
-        return inner.slice(0, MAX_SIGNATURE_CHARS - 1) + "…";
+export function extract(text: string, language: Language): ExtractResult {
+  if (language === "md") {
+    return { symbols: extractMarkdownSymbols(text), imports: [] };
+  }
+  const parser = getParser(language);
+  if (!parser) return { symbols: [], imports: [] };
+
+  let tree: Parser.Tree;
+  try {
+    tree = parser.parse(text);
+  } catch {
+    return { symbols: [], imports: [] };
+  }
+  const root = tree.rootNode;
+
+  switch (language) {
+    case "ts":
+    case "tsx":
+    case "js":
+      return extractTsLike(root, text, language);
+    case "py":
+      return extractPython(root, text);
+    case "go":
+      return extractGo(root, text);
+    case "rs":
+      return extractRust(root, text);
+    default:
+      return { symbols: [], imports: [] };
+  }
+}
+
+function lineOf(node: Parser.SyntaxNode): number {
+  return node.startPosition.row + 1;
+}
+
+function condenseText(text: string, max: number): string {
+  const collapsed = text.replace(/\s+/g, " ").trim();
+  if (collapsed.length <= max) return collapsed;
+  return collapsed.slice(0, max - 1) + "…";
+}
+
+/** Strip the outer `(...)` from a parameter-list node's text and condense whitespace. */
+function paramListInner(node: Parser.SyntaxNode, source: string): string {
+  const raw = source.slice(node.startIndex, node.endIndex);
+  const trimmed = raw.replace(/^\(/, "").replace(/\)$/, "");
+  return condenseText(trimmed, MAX_SIGNATURE_CHARS);
+}
+
+// ---------------------------------------------------------------- TS / JS / TSX
+
+interface TsLikeOptions {
+  hasTypes: boolean; // true for ts/tsx, false for js
+}
+
+function extractTsLike(
+  root: Parser.SyntaxNode,
+  source: string,
+  language: Language
+): ExtractResult {
+  const opts: TsLikeOptions = { hasTypes: language !== "js" };
+  const symbols: RepoSymbol[] = [];
+  const imports: ImportRef[] = [];
+
+  for (let i = 0; i < root.namedChildCount; i++) {
+    const child = root.namedChild(i)!;
+    visitTsTop(child, source, opts, symbols, imports, false);
+  }
+
+  return { symbols, imports };
+}
+
+function visitTsTop(
+  node: Parser.SyntaxNode,
+  source: string,
+  opts: TsLikeOptions,
+  out: RepoSymbol[],
+  imports: ImportRef[],
+  exported: boolean
+): void {
+  switch (node.type) {
+    case "export_statement": {
+      // `export default class Foo {}`, `export const x = 1`, `export function f() {}`, etc.
+      // Walk the declaration child(ren) with `exported=true`.
+      for (let i = 0; i < node.namedChildCount; i++) {
+        const inner = node.namedChild(i)!;
+        // Skip the bare `export { a, b }` re-export specifier children — they
+        // don't define new symbols here. The named declaration child (if any)
+        // is what we want.
+        if (
+          inner.type === "export_clause" ||
+          inner.type === "export_specifier" ||
+          inner.type === "string"
+        ) {
+          continue;
+        }
+        visitTsTop(inner, source, opts, out, imports, true);
+      }
+      return;
+    }
+    case "function_declaration":
+    case "generator_function_declaration": {
+      const sym = tsFunctionSymbol(node, source, opts);
+      if (sym) {
+        sym.exported = exported || undefined;
+        out.push(sym);
+      }
+      return;
+    }
+    case "class_declaration":
+    case "abstract_class_declaration": {
+      const sym = tsClassSymbol(node, source, opts);
+      if (sym) {
+        sym.exported = exported || undefined;
+        out.push(sym);
+      }
+      return;
+    }
+    case "interface_declaration": {
+      const sym = tsInterfaceSymbol(node, source, opts);
+      if (sym) {
+        sym.exported = exported || undefined;
+        out.push(sym);
+      }
+      return;
+    }
+    case "type_alias_declaration": {
+      const name = node.childForFieldName("name");
+      if (name) {
+        out.push({
+          kind: "type",
+          name: source.slice(name.startIndex, name.endIndex),
+          line: lineOf(node),
+          ...(exported ? { exported: true } : {}),
+        });
+      }
+      return;
+    }
+    case "enum_declaration": {
+      const name = node.childForFieldName("name");
+      if (name) {
+        out.push({
+          kind: "enum",
+          name: source.slice(name.startIndex, name.endIndex),
+          line: lineOf(node),
+          ...(exported ? { exported: true } : {}),
+        });
+      }
+      return;
+    }
+    case "lexical_declaration":
+    case "variable_declaration": {
+      // const / let / var. Only emit `exported` ones at top level (matches the
+      // old regex behaviour). Unexported top-level consts are typically too
+      // noisy.
+      if (!exported) return;
+      for (let i = 0; i < node.namedChildCount; i++) {
+        const decl = node.namedChild(i)!;
+        if (decl.type !== "variable_declarator") continue;
+        const name = decl.childForFieldName("name");
+        if (!name) continue;
+        // Arrow function or function expression on the RHS → treat as function.
+        const value = decl.childForFieldName("value");
+        if (
+          value &&
+          (value.type === "arrow_function" || value.type === "function_expression")
+        ) {
+          const params = value.childForFieldName("parameters");
+          const ret = value.childForFieldName("return_type");
+          out.push({
+            kind: "function",
+            name: source.slice(name.startIndex, name.endIndex),
+            line: lineOf(decl),
+            ...(params ? { signature: paramListInner(params, source) } : {}),
+            ...(opts.hasTypes && ret
+              ? { returnType: condenseTypeAnnotation(ret, source) }
+              : {}),
+            exported: true,
+          });
+        } else {
+          out.push({
+            kind: "const",
+            name: source.slice(name.startIndex, name.endIndex),
+            line: lineOf(decl),
+            exported: true,
+          });
+        }
+      }
+      return;
+    }
+    case "import_statement": {
+      const ref = tsImportRef(node, source);
+      if (ref) imports.push(ref);
+      return;
+    }
+    default:
+      return;
+  }
+}
+
+function tsFunctionSymbol(
+  node: Parser.SyntaxNode,
+  source: string,
+  opts: TsLikeOptions
+): RepoSymbol | null {
+  const name = node.childForFieldName("name");
+  if (!name) return null;
+  const params = node.childForFieldName("parameters");
+  const ret = node.childForFieldName("return_type");
+  const sym: RepoSymbol = {
+    kind: "function",
+    name: source.slice(name.startIndex, name.endIndex),
+    line: lineOf(node),
+  };
+  if (params) sym.signature = paramListInner(params, source);
+  if (opts.hasTypes && ret) sym.returnType = condenseTypeAnnotation(ret, source);
+  return sym;
+}
+
+function tsClassSymbol(
+  node: Parser.SyntaxNode,
+  source: string,
+  opts: TsLikeOptions
+): RepoSymbol | null {
+  const name = node.childForFieldName("name");
+  if (!name) return null;
+  const body = node.childForFieldName("body");
+  const members: Member[] = [];
+  if (body) {
+    for (let i = 0; i < body.namedChildCount; i++) {
+      const m = body.namedChild(i)!;
+      const member = tsClassMember(m, source, opts);
+      if (member) members.push(member);
+    }
+  }
+  const sym: RepoSymbol = {
+    kind: "class",
+    name: source.slice(name.startIndex, name.endIndex),
+    line: lineOf(node),
+  };
+  if (members.length > 0) sym.members = members;
+  return sym;
+}
+
+function tsClassMember(
+  node: Parser.SyntaxNode,
+  source: string,
+  opts: TsLikeOptions
+): Member | null {
+  switch (node.type) {
+    case "method_definition":
+    case "method_signature": {
+      const name = node.childForFieldName("name");
+      if (!name) return null;
+      const params = node.childForFieldName("parameters");
+      const ret = node.childForFieldName("return_type");
+      const m: Member = {
+        kind: "method",
+        name: source.slice(name.startIndex, name.endIndex),
+        line: lineOf(node),
+      };
+      if (params) m.signature = paramListInner(params, source);
+      if (opts.hasTypes && ret) m.returnType = condenseTypeAnnotation(ret, source);
+      return m;
+    }
+    case "public_field_definition":
+    case "property_signature": {
+      const name = node.childForFieldName("name");
+      if (!name) return null;
+      const type = node.childForFieldName("type");
+      const m: Member = {
+        kind: "field",
+        name: source.slice(name.startIndex, name.endIndex),
+        line: lineOf(node),
+      };
+      if (opts.hasTypes && type) {
+        const t = condenseTypeAnnotation(type, source);
+        if (t) m.returnType = t;
+      }
+      return m;
+    }
+    default:
+      return null;
+  }
+}
+
+function tsInterfaceSymbol(
+  node: Parser.SyntaxNode,
+  source: string,
+  opts: TsLikeOptions
+): RepoSymbol | null {
+  const name = node.childForFieldName("name");
+  if (!name) return null;
+  const body = node.childForFieldName("body");
+  const members: Member[] = [];
+  if (body) {
+    for (let i = 0; i < body.namedChildCount; i++) {
+      const m = body.namedChild(i)!;
+      const member = tsClassMember(m, source, opts);
+      if (member) members.push(member);
+    }
+  }
+  const sym: RepoSymbol = {
+    kind: "interface",
+    name: source.slice(name.startIndex, name.endIndex),
+    line: lineOf(node),
+  };
+  if (members.length > 0) sym.members = members;
+  return sym;
+}
+
+/** A `type_annotation` node wraps a leading `:` plus the type; strip it. */
+function condenseTypeAnnotation(
+  node: Parser.SyntaxNode,
+  source: string
+): string {
+  const raw = source.slice(node.startIndex, node.endIndex).replace(/^:\s*/, "");
+  return condenseText(raw, MAX_RETURN_TYPE_CHARS);
+}
+
+function tsImportRef(
+  node: Parser.SyntaxNode,
+  source: string
+): ImportRef | null {
+  // `import_statement` has a `source` field on the string literal.
+  const src = node.childForFieldName("source");
+  const stringNode =
+    src ??
+    findChildOfType(node, "string"); // bare side-effect import: `import "x"`
+  if (!stringNode) return null;
+  // Unwrap to the inner string_fragment (or strip quotes ourselves).
+  const fragment = findChildOfType(stringNode, "string_fragment");
+  const raw = fragment
+    ? source.slice(fragment.startIndex, fragment.endIndex)
+    : source
+        .slice(stringNode.startIndex, stringNode.endIndex)
+        .replace(/^['"`]|['"`]$/g, "");
+  return { raw, resolved: null, line: lineOf(node) };
+}
+
+function findChildOfType(
+  node: Parser.SyntaxNode,
+  type: string
+): Parser.SyntaxNode | null {
+  for (let i = 0; i < node.namedChildCount; i++) {
+    const c = node.namedChild(i)!;
+    if (c.type === type) return c;
+  }
+  return null;
+}
+
+// ---------------------------------------------------------------- Python
+
+function extractPython(
+  root: Parser.SyntaxNode,
+  source: string
+): ExtractResult {
+  const symbols: RepoSymbol[] = [];
+  const imports: ImportRef[] = [];
+
+  for (let i = 0; i < root.namedChildCount; i++) {
+    const child = root.namedChild(i)!;
+    visitPyTop(child, source, symbols, imports);
+  }
+
+  return { symbols, imports };
+}
+
+function visitPyTop(
+  node: Parser.SyntaxNode,
+  source: string,
+  out: RepoSymbol[],
+  imports: ImportRef[]
+): void {
+  switch (node.type) {
+    case "decorated_definition": {
+      // Walk into the inner definition.
+      const def =
+        node.childForFieldName("definition") ??
+        node.namedChild(node.namedChildCount - 1);
+      if (def) visitPyTop(def, source, out, imports);
+      return;
+    }
+    case "function_definition": {
+      const sym = pyFunctionSymbol(node, source, "function");
+      if (sym) out.push(sym);
+      return;
+    }
+    case "class_definition": {
+      const name = node.childForFieldName("name");
+      if (!name) return;
+      const body = node.childForFieldName("body");
+      const members: Member[] = [];
+      if (body) {
+        for (let i = 0; i < body.namedChildCount; i++) {
+          const m = body.namedChild(i)!;
+          const wrapped =
+            m.type === "decorated_definition"
+              ? m.childForFieldName("definition") ??
+                m.namedChild(m.namedChildCount - 1)
+              : m;
+          if (wrapped && wrapped.type === "function_definition") {
+            const fn = pyFunctionSymbol(wrapped, source, "method");
+            if (fn) members.push(memberFromSymbol(fn));
+          }
+        }
+      }
+      const sym: RepoSymbol = {
+        kind: "class",
+        name: source.slice(name.startIndex, name.endIndex),
+        line: lineOf(node),
+      };
+      if (members.length > 0) sym.members = members;
+      out.push(sym);
+      return;
+    }
+    case "import_statement": {
+      // `import a, b.c as d, …`
+      for (let i = 0; i < node.namedChildCount; i++) {
+        const c = node.namedChild(i)!;
+        if (c.type === "dotted_name") {
+          imports.push({
+            raw: source.slice(c.startIndex, c.endIndex),
+            resolved: null,
+            line: lineOf(node),
+          });
+        } else if (c.type === "aliased_import") {
+          const inner = c.childForFieldName("name") ?? c.namedChild(0);
+          if (inner) {
+            imports.push({
+              raw: source.slice(inner.startIndex, inner.endIndex),
+              resolved: null,
+              line: lineOf(node),
+            });
+          }
+        }
+      }
+      return;
+    }
+    case "import_from_statement": {
+      // `from .foo import bar` or `from typing import List, Dict`.
+      const moduleNode =
+        node.childForFieldName("module_name") ?? node.namedChild(0);
+      if (moduleNode) {
+        imports.push({
+          raw: source.slice(moduleNode.startIndex, moduleNode.endIndex),
+          resolved: null,
+          line: lineOf(node),
+        });
+      }
+      return;
+    }
+    default:
+      return;
+  }
+}
+
+function pyFunctionSymbol(
+  node: Parser.SyntaxNode,
+  source: string,
+  kind: "function" | "method"
+): RepoSymbol | null {
+  const name = node.childForFieldName("name");
+  if (!name) return null;
+  const params = node.childForFieldName("parameters");
+  const ret = node.childForFieldName("return_type");
+  const sym: RepoSymbol = {
+    kind,
+    name: source.slice(name.startIndex, name.endIndex),
+    line: lineOf(node),
+  };
+  if (params) sym.signature = paramListInner(params, source);
+  if (ret) {
+    const t = condenseText(
+      source.slice(ret.startIndex, ret.endIndex),
+      MAX_RETURN_TYPE_CHARS
+    );
+    if (t) sym.returnType = t;
+  }
+  return sym;
+}
+
+function memberFromSymbol(sym: RepoSymbol): Member {
+  const m: Member = { kind: sym.kind, name: sym.name, line: sym.line };
+  if (sym.signature !== undefined) m.signature = sym.signature;
+  if (sym.returnType !== undefined) m.returnType = sym.returnType;
+  return m;
+}
+
+// ---------------------------------------------------------------- Go
+
+function extractGo(root: Parser.SyntaxNode, source: string): ExtractResult {
+  const symbols: RepoSymbol[] = [];
+  const imports: ImportRef[] = [];
+
+  // Group method_declarations by their receiver type so we can attach them to
+  // the corresponding struct/interface as members.
+  type GoMethod = { name: string; line: number; signature?: string; returnType?: string };
+  const methodsByReceiver = new Map<string, GoMethod[]>();
+
+  for (let i = 0; i < root.namedChildCount; i++) {
+    const child = root.namedChild(i)!;
+    switch (child.type) {
+      case "import_declaration": {
+        collectGoImports(child, source, imports);
+        break;
+      }
+      case "type_declaration": {
+        for (let j = 0; j < child.namedChildCount; j++) {
+          const spec = child.namedChild(j)!;
+          if (spec.type !== "type_spec") continue;
+          const name = spec.childForFieldName("name");
+          const typeNode = spec.childForFieldName("type");
+          if (!name) continue;
+          const kind =
+            typeNode?.type === "struct_type"
+              ? "struct"
+              : typeNode?.type === "interface_type"
+                ? "interface"
+                : "type";
+          const sym: RepoSymbol = {
+            kind,
+            name: source.slice(name.startIndex, name.endIndex),
+            line: lineOf(spec),
+          };
+          const members = goTypeMembers(typeNode, source);
+          if (members.length > 0) sym.members = members;
+          symbols.push(sym);
+        }
+        break;
+      }
+      case "function_declaration": {
+        const name = child.childForFieldName("name");
+        if (!name) break;
+        const params = child.childForFieldName("parameters");
+        const result = child.childForFieldName("result");
+        const sym: RepoSymbol = {
+          kind: "func",
+          name: source.slice(name.startIndex, name.endIndex),
+          line: lineOf(child),
+        };
+        if (params) sym.signature = paramListInner(params, source);
+        if (result) {
+          const t = condenseText(
+            source.slice(result.startIndex, result.endIndex),
+            MAX_RETURN_TYPE_CHARS
+          );
+          if (t) sym.returnType = t;
+        }
+        symbols.push(sym);
+        break;
+      }
+      case "method_declaration": {
+        const receiver = child.childForFieldName("receiver");
+        const name = child.childForFieldName("name");
+        const params = child.childForFieldName("parameters");
+        const result = child.childForFieldName("result");
+        if (!name) break;
+        const recvType = parseGoReceiverType(receiver, source);
+        const method: GoMethod = {
+          name: source.slice(name.startIndex, name.endIndex),
+          line: lineOf(child),
+        };
+        if (params) method.signature = paramListInner(params, source);
+        if (result) {
+          const t = condenseText(
+            source.slice(result.startIndex, result.endIndex),
+            MAX_RETURN_TYPE_CHARS
+          );
+          if (t) method.returnType = t;
+        }
+        if (recvType) {
+          const list = methodsByReceiver.get(recvType) ?? [];
+          list.push(method);
+          methodsByReceiver.set(recvType, list);
+        } else {
+          // Receiver had no parseable type — emit as a bare func so it isn't lost.
+          symbols.push({
+            kind: "func",
+            name: method.name,
+            line: method.line,
+            ...(method.signature ? { signature: method.signature } : {}),
+            ...(method.returnType ? { returnType: method.returnType } : {}),
+          });
+        }
+        break;
+      }
+      case "const_declaration":
+      case "var_declaration": {
+        const kind = child.type === "const_declaration" ? "const" : "var";
+        for (let j = 0; j < child.namedChildCount; j++) {
+          const spec = child.namedChild(j)!;
+          if (spec.type !== "const_spec" && spec.type !== "var_spec") continue;
+          for (let k = 0; k < spec.namedChildCount; k++) {
+            const id = spec.namedChild(k)!;
+            if (id.type !== "identifier") continue;
+            symbols.push({
+              kind,
+              name: source.slice(id.startIndex, id.endIndex),
+              line: lineOf(spec),
+            });
+          }
+        }
+        break;
+      }
+      default:
+        break;
+    }
+  }
+
+  // Attach buffered methods to their receiver types.
+  for (const sym of symbols) {
+    if (sym.kind !== "struct" && sym.kind !== "interface") continue;
+    const methods = methodsByReceiver.get(sym.name);
+    if (!methods) continue;
+    const members: Member[] = (sym.members ?? []).slice();
+    for (const m of methods) {
+      members.push({
+        kind: "method",
+        name: m.name,
+        line: m.line,
+        ...(m.signature ? { signature: m.signature } : {}),
+        ...(m.returnType ? { returnType: m.returnType } : {}),
+      });
+    }
+    if (members.length > 0) sym.members = members;
+    methodsByReceiver.delete(sym.name);
+  }
+
+  // Orphan methods (receiver type not declared in this file) → emit as bare funcs.
+  for (const [, methods] of methodsByReceiver) {
+    for (const m of methods) {
+      symbols.push({
+        kind: "func",
+        name: m.name,
+        line: m.line,
+        ...(m.signature ? { signature: m.signature } : {}),
+        ...(m.returnType ? { returnType: m.returnType } : {}),
+      });
+    }
+  }
+
+  return { symbols, imports };
+}
+
+function collectGoImports(
+  node: Parser.SyntaxNode,
+  source: string,
+  out: ImportRef[]
+): void {
+  for (let i = 0; i < node.namedChildCount; i++) {
+    const c = node.namedChild(i)!;
+    if (c.type === "import_spec") {
+      const path = c.childForFieldName("path") ?? findChildOfType(c, "interpreted_string_literal");
+      if (path) {
+        const raw = source
+          .slice(path.startIndex, path.endIndex)
+          .replace(/^['"`]|['"`]$/g, "");
+        out.push({ raw, resolved: null, line: lineOf(c) });
+      }
+    } else if (c.type === "import_spec_list") {
+      collectGoImports(c, source, out);
+    }
+  }
+}
+
+function goTypeMembers(
+  typeNode: Parser.SyntaxNode | null,
+  source: string
+): Member[] {
+  if (!typeNode) return [];
+  const members: Member[] = [];
+  if (typeNode.type === "struct_type") {
+    const fields = findChildOfType(typeNode, "field_declaration_list");
+    if (!fields) return members;
+    for (let i = 0; i < fields.namedChildCount; i++) {
+      const field = fields.namedChild(i)!;
+      if (field.type !== "field_declaration") continue;
+      const typeChild = field.childForFieldName("type");
+      const typeText = typeChild
+        ? condenseText(
+            source.slice(typeChild.startIndex, typeChild.endIndex),
+            MAX_RETURN_TYPE_CHARS
+          )
+        : undefined;
+      for (let j = 0; j < field.namedChildCount; j++) {
+        const id = field.namedChild(j)!;
+        if (id.type !== "field_identifier") continue;
+        members.push({
+          kind: "field",
+          name: source.slice(id.startIndex, id.endIndex),
+          line: lineOf(field),
+          ...(typeText ? { returnType: typeText } : {}),
+        });
+      }
+    }
+  } else if (typeNode.type === "interface_type") {
+    for (let i = 0; i < typeNode.namedChildCount; i++) {
+      const m = typeNode.namedChild(i)!;
+      if (m.type === "method_elem" || m.type === "method_spec") {
+        const name = m.childForFieldName("name") ?? findChildOfType(m, "field_identifier");
+        if (!name) continue;
+        const params = m.childForFieldName("parameters");
+        const result = m.childForFieldName("result");
+        members.push({
+          kind: "method",
+          name: source.slice(name.startIndex, name.endIndex),
+          line: lineOf(m),
+          ...(params ? { signature: paramListInner(params, source) } : {}),
+          ...(result
+            ? {
+                returnType: condenseText(
+                  source.slice(result.startIndex, result.endIndex),
+                  MAX_RETURN_TYPE_CHARS
+                ),
+              }
+            : {}),
+        });
+      }
+    }
+  }
+  return members;
+}
+
+function parseGoReceiverType(
+  receiver: Parser.SyntaxNode | null,
+  source: string
+): string | null {
+  if (!receiver) return null;
+  // receiver is a parameter_list with one parameter_declaration whose type is
+  // either a type_identifier (`Foo`) or pointer_type (`*Foo`).
+  for (let i = 0; i < receiver.namedChildCount; i++) {
+    const param = receiver.namedChild(i)!;
+    if (param.type !== "parameter_declaration") continue;
+    const typeNode = param.childForFieldName("type");
+    if (!typeNode) continue;
+    if (typeNode.type === "type_identifier") {
+      return source.slice(typeNode.startIndex, typeNode.endIndex);
+    }
+    if (typeNode.type === "pointer_type") {
+      const inner = typeNode.namedChild(0);
+      if (inner && inner.type === "type_identifier") {
+        return source.slice(inner.startIndex, inner.endIndex);
       }
     }
   }
   return null;
 }
 
-/**
- * TS variant: given the full file text and an offset (typically the end of a function regex match),
- * scan forward to the args' closing `)`, then look for `:` (TS return-type annotation).
- * Walk balanced `<>`, `()`, `[]`, `{}` until hitting a depth-0 `{` (body), `;`, or newline.
- * `{}` tracking lets inline object types like `{ a: string }`, intersections (`Foo & { x }`), and
- * unions (`string | { x }`) be captured as part of the return type. Body `{` is distinguished from
- * inline-object `{` by the previous non-whitespace char: body `{` follows a type-end (`)`, `]`, `>`,
- * `}`, alphanumeric, `_`, `$`, `?`); inline-object `{` follows an operator/separator (`:`, `&`, `|`,
- * `(`, `<`, `[`, `,`) or is the first non-whitespace char. Treats `=>` as a token (does not
- * decrement depth on the `>` of `=>`). Returns the inner text with whitespace collapsed and
- * truncated to MAX_RETURN_TYPE_CHARS (suffix `…`). Returns null if no `(...)`, no `:`, or empty inner.
- */
-export function extractReturnType(text: string, fromOffset: number): string | null {
-  const SCAN_LIMIT = 4096;
-  // Step 1: find args' close paren.
-  const open = text.indexOf("(", fromOffset);
-  if (open === -1 || open - fromOffset > SCAN_LIMIT) return null;
-  let depth = 0;
-  let close = -1;
-  for (let i = open; i < text.length && i - open < SCAN_LIMIT; i++) {
-    const c = text.charCodeAt(i);
-    if (c === 40) depth++;
-    else if (c === 41) {
-      depth--;
-      if (depth === 0) {
-        close = i;
-        break;
-      }
-    }
-  }
-  if (close === -1) return null;
+// ---------------------------------------------------------------- Rust
 
-  // Step 2: skip whitespace, expect ':'.
-  let i = close + 1;
-  while (i < text.length && /\s/.test(text[i]!)) i++;
-  if (text[i] !== ":") return null;
-  i++;
-  // Skip whitespace after ':'.
-  while (i < text.length && (text[i] === " " || text[i] === "\t")) i++;
+function extractRust(root: Parser.SyntaxNode, source: string): ExtractResult {
+  const symbols: RepoSymbol[] = [];
+  const imports: ImportRef[] = [];
 
-  // Step 3: walk return type with bracket depth tracking.
-  // Track `{}` depth so inline object types like `{ a: string }`, intersections (`Foo & { x }`),
-  // and unions (`string | { x }`) are walked as part of the return type. Distinguish the body `{`
-  // from an inline-object `{` by the previous non-whitespace char: body `{` follows a type-end
-  // (`)`, `]`, `>`, `}`, or alphanumeric/`_`/`$`/`?`); inline-object `{` follows an operator/
-  // separator (`:`, `&`, `|`, `(`, `<`, `[`, `,`) or is the first non-whitespace char of the type.
-  const start = i;
-  let bd = 0;
-  for (; i < text.length && i - start < SCAN_LIMIT; i++) {
-    const c = text.charCodeAt(i);
-    if (c === 60 /* < */ || c === 40 /* ( */ || c === 91 /* [ */) bd++;
-    else if (c === 62 /* > */) {
-      // Don't underflow on the '>' of '=>'.
-      if (i > start && text.charCodeAt(i - 1) === 61 /* = */) {
-        // skip
-      } else bd--;
-    } else if (c === 41 /* ) */ || c === 93 /* ] */ || c === 125 /* } */) bd--;
-    else if (c === 123 /* { */) {
-      if (bd > 0) {
-        // Already inside something; this `{` is type-internal.
-        bd++;
-      } else {
-        // bd === 0. Look back at last non-whitespace char to decide body vs inline-object.
-        let j = i - 1;
-        while (j >= start && /\s/.test(text[j]!)) j--;
-        const prev = j >= start ? text.charCodeAt(j) : -1;
-        const isTypeEnd =
-          prev === 41 /* ) */ ||
-          prev === 93 /* ] */ ||
-          prev === 62 /* > */ ||
-          prev === 125 /* } */ ||
-          prev === 63 /* ? */ ||
-          (prev >= 48 && prev <= 57) /* 0-9 */ ||
-          (prev >= 65 && prev <= 90) /* A-Z */ ||
-          (prev >= 97 && prev <= 122) /* a-z */ ||
-          prev === 95 /* _ */ ||
-          prev === 36 /* $ */;
-        if (isTypeEnd) break; // body `{` — terminate.
-        bd++; // inline-object `{` — push depth.
-      }
-    } else if (bd === 0 && (c === 59 /* ; */ || c === 10 /* \n */)) break;
+  for (let i = 0; i < root.namedChildCount; i++) {
+    const child = root.namedChild(i)!;
+    visitRustTop(child, source, symbols, imports);
   }
 
-  const inner = text.slice(start, i).replace(/\s+/g, " ").trim();
-  if (inner.length === 0) return null;
-  if (inner.length <= MAX_RETURN_TYPE_CHARS) return inner;
-  return inner.slice(0, MAX_RETURN_TYPE_CHARS - 1) + "…";
+  return { symbols, imports };
 }
 
-/**
- * Python variant: given the full file text and an offset (typically the end of a `def` regex match),
- * scan forward to the args' closing `)`, then look for `->`. Walk balanced `[]`, `()`, `{}` until
- * hitting a depth-0 `:` (signature end) or `\n` (defensive). Returns the inner text with whitespace
- * collapsed and truncated to MAX_RETURN_TYPE_CHARS (suffix `…`). Returns null if no `(...)`,
- * no `->`, or the type would be empty.
- */
-export function extractPythonReturnType(text: string, fromOffset: number): string | null {
-  const SCAN_LIMIT = 4096;
-  // Step 1: find args' close paren (same as TS version).
-  const open = text.indexOf("(", fromOffset);
-  if (open === -1 || open - fromOffset > SCAN_LIMIT) return null;
-  let depth = 0;
-  let close = -1;
-  for (let i = open; i < text.length && i - open < SCAN_LIMIT; i++) {
-    const c = text.charCodeAt(i);
-    if (c === 40) depth++;
-    else if (c === 41) {
-      depth--;
-      if (depth === 0) {
-        close = i;
-        break;
+function visitRustTop(
+  node: Parser.SyntaxNode,
+  source: string,
+  out: RepoSymbol[],
+  imports: ImportRef[]
+): void {
+  const exported = hasRustPub(node);
+
+  switch (node.type) {
+    case "use_declaration": {
+      // Argument is the imported path (scoped_identifier / use_list / etc.).
+      const arg = node.childForFieldName("argument") ?? node.namedChild(0);
+      if (arg) {
+        imports.push({
+          raw: condenseText(source.slice(arg.startIndex, arg.endIndex), 200),
+          resolved: null,
+          line: lineOf(node),
+        });
       }
+      return;
     }
-  }
-  if (close === -1) return null;
-
-  // Step 2: skip whitespace (incl. newlines), expect `->`.
-  let i = close + 1;
-  while (i < text.length && /\s/.test(text[i]!)) i++;
-  if (text[i] !== "-" || text[i + 1] !== ">") return null;
-  i += 2;
-  // Skip whitespace after '->' (allow newlines too — multiline annotations).
-  while (i < text.length && /\s/.test(text[i]!)) i++;
-
-  // Step 3: walk return type with bracket depth on [, (, {.
-  const start = i;
-  let bd = 0;
-  for (; i < text.length && i - start < SCAN_LIMIT; i++) {
-    const c = text.charCodeAt(i);
-    if (c === 91 /* [ */ || c === 40 /* ( */ || c === 123 /* { */) bd++;
-    else if (c === 93 /* ] */ || c === 41 /* ) */ || c === 125 /* } */) bd--;
-    else if (bd === 0 && (c === 58 /* : */ || c === 10 /* \n */)) break;
-  }
-
-  const inner = text.slice(start, i).replace(/\s+/g, " ").trim();
-  if (inner.length === 0) return null;
-  if (inner.length <= MAX_RETURN_TYPE_CHARS) return inner;
-  return inner.slice(0, MAX_RETURN_TYPE_CHARS - 1) + "…";
-}
-
-/**
- * Rust variant: given the full file text and an offset (typically the end of an `fn` regex match),
- * scan forward to the args' closing `)`, then look for `->`. Walk balanced `<>`, `()`, `[]` (NOT `{}` —
- * `{` opens the function body) until hitting a depth-0 `{` (body), `;` (trait method), `\n` (defensive),
- * or the literal token `where` (clause start). Returns the inner text with whitespace collapsed and
- * truncated to MAX_RETURN_TYPE_CHARS (suffix `…`). Returns null if no `(...)`, no `->`, or the type
- * would be empty. Treats `->` as a token (does not decrement depth on the `>` of `->`).
- */
-export function extractRustReturnType(text: string, fromOffset: number): string | null {
-  const SCAN_LIMIT = 4096;
-  // Step 1: find args' close paren.
-  const open = text.indexOf("(", fromOffset);
-  if (open === -1 || open - fromOffset > SCAN_LIMIT) return null;
-  let depth = 0;
-  let close = -1;
-  for (let i = open; i < text.length && i - open < SCAN_LIMIT; i++) {
-    const c = text.charCodeAt(i);
-    if (c === 40) depth++;
-    else if (c === 41) {
-      depth--;
-      if (depth === 0) {
-        close = i;
-        break;
+    case "function_item": {
+      const name = node.childForFieldName("name");
+      if (!name) return;
+      const params = node.childForFieldName("parameters");
+      const ret = node.childForFieldName("return_type");
+      const sym: RepoSymbol = {
+        kind: "fn",
+        name: source.slice(name.startIndex, name.endIndex),
+        line: lineOf(node),
+      };
+      if (params) sym.signature = paramListInner(params, source);
+      if (ret) {
+        const t = condenseText(
+          source.slice(ret.startIndex, ret.endIndex),
+          MAX_RETURN_TYPE_CHARS
+        );
+        if (t) sym.returnType = t;
       }
+      if (exported) sym.exported = true;
+      out.push(sym);
+      return;
     }
-  }
-  if (close === -1) return null;
-
-  // Step 2: skip whitespace, expect `->`.
-  let i = close + 1;
-  while (i < text.length && /\s/.test(text[i]!)) i++;
-  if (text[i] !== "-" || text[i + 1] !== ">") return null;
-  i += 2;
-  while (i < text.length && /\s/.test(text[i]!)) i++;
-
-  // Step 3: walk return type. Depth on `<`, `(`, `[`. Don't underflow on `>` of `->`.
-  const start = i;
-  let bd = 0;
-  for (; i < text.length && i - start < SCAN_LIMIT; i++) {
-    const c = text.charCodeAt(i);
-    if (c === 60 /* < */ || c === 40 /* ( */ || c === 91 /* [ */) bd++;
-    else if (c === 62 /* > */) {
-      // Don't underflow on the '>' of '->'.
-      if (i > start && text.charCodeAt(i - 1) === 45 /* - */) {
-        // skip
-      } else bd--;
-    } else if (c === 41 /* ) */ || c === 93 /* ] */) bd--;
-    else if (bd === 0) {
-      if (c === 123 /* { */ || c === 59 /* ; */ || c === 10 /* \n */) break;
-      // `where` keyword: must be preceded and followed by non-word characters.
-      if (
-        c === 119 /* 'w' */ &&
-        text.charCodeAt(i + 1) === 104 /* 'h' */ &&
-        text.charCodeAt(i + 2) === 101 /* 'e' */ &&
-        text.charCodeAt(i + 3) === 114 /* 'r' */ &&
-        text.charCodeAt(i + 4) === 101 /* 'e' */ &&
-        (i === start || /\W/.test(text[i - 1]!)) &&
-        (i + 5 >= text.length || /\W/.test(text[i + 5]!))
-      ) break;
+    case "struct_item": {
+      const name = node.childForFieldName("name");
+      if (!name) return;
+      const body = node.childForFieldName("body");
+      const members = rustFieldMembers(body, source);
+      const sym: RepoSymbol = {
+        kind: "struct",
+        name: source.slice(name.startIndex, name.endIndex),
+        line: lineOf(node),
+      };
+      if (members.length > 0) sym.members = members;
+      if (exported) sym.exported = true;
+      out.push(sym);
+      return;
     }
-  }
-
-  const inner = text.slice(start, i).replace(/\s+/g, " ").trim();
-  if (inner.length === 0) return null;
-  if (inner.length <= MAX_RETURN_TYPE_CHARS) return inner;
-  return inner.slice(0, MAX_RETURN_TYPE_CHARS - 1) + "…";
-}
-
-/**
- * Go variant: given the full file text and an offset (typically the end of a `func` regex match),
- * scan forward to the args' closing `)`, then read the bare/parenthesized return type up to body
- * `{` or newline. Walks balanced `[]`, `()`, and `{}` (the latter only when type-internal or when
- * preceded by the `interface`/`struct` keyword — the only Go forms where `{` belongs to the type).
- * Body `{` at depth 0 is distinguished from an anonymous-type `{` by inspecting the run of word
- * characters immediately preceding (after whitespace): only `interface` or `struct` triggers an
- * inline-type push. Does NOT track `<>` since Go uses `<-` / `chan<-` as standalone tokens, not
- * brackets. If first non-whitespace after args' `)` is `{`, returns null (no return type). Returns
- * the inner text with whitespace collapsed and truncated to MAX_RETURN_TYPE_CHARS (suffix `…`).
- */
-export function extractGoReturnType(text: string, fromOffset: number): string | null {
-  const SCAN_LIMIT = 4096;
-  // Step 1: find args' close paren.
-  const open = text.indexOf("(", fromOffset);
-  if (open === -1 || open - fromOffset > SCAN_LIMIT) return null;
-  let depth = 0;
-  let close = -1;
-  for (let i = open; i < text.length && i - open < SCAN_LIMIT; i++) {
-    const c = text.charCodeAt(i);
-    if (c === 40) depth++;
-    else if (c === 41) {
-      depth--;
-      if (depth === 0) { close = i; break; }
-    }
-  }
-  if (close === -1) return null;
-
-  // Step 2: skip whitespace (incl. newlines) past args' `)`.
-  let i = close + 1;
-  while (i < text.length && /\s/.test(text[i]!)) i++;
-  // No `->` to find; if first non-ws is `{`, there is no return type.
-  if (text[i] === "{") return null;
-
-  // Step 3: walk return type. Depth on `[`, `(`, and `{` (latter only when type-internal
-  // or when the `{` follows the `interface`/`struct` keyword — the only Go syntactic forms
-  // where `{` is part of the type rather than the function body). Distinguish body `{` from
-  // an anonymous-type `{` at depth 0 by inspecting the previous run of word characters.
-  const start = i;
-  let bd = 0;
-  for (; i < text.length && i - start < SCAN_LIMIT; i++) {
-    const c = text.charCodeAt(i);
-    if (c === 91 /* [ */ || c === 40 /* ( */) bd++;
-    else if (c === 93 /* ] */ || c === 41 /* ) */ || c === 125 /* } */) bd--;
-    else if (c === 123 /* { */) {
-      if (bd > 0) {
-        bd++; // type-internal
-      } else {
-        // bd === 0: distinguish anonymous `interface{`/`struct{` from body `{`.
-        let j = i - 1;
-        while (j >= start && /\s/.test(text[j]!)) j--;
-        const wordEnd = j + 1;
-        while (j >= start) {
-          const cc = text.charCodeAt(j);
-          const isWord =
-            (cc >= 48 && cc <= 57) /* 0-9 */ ||
-            (cc >= 65 && cc <= 90) /* A-Z */ ||
-            (cc >= 97 && cc <= 122) /* a-z */ ||
-            cc === 95 /* _ */;
-          if (!isWord) break;
-          j--;
-        }
-        const word = text.slice(j + 1, wordEnd);
-        if (word === "interface" || word === "struct") {
-          bd++;
-        } else {
-          break; // body `{` — terminate.
+    case "enum_item": {
+      const name = node.childForFieldName("name");
+      if (!name) return;
+      const body = node.childForFieldName("body");
+      const members: Member[] = [];
+      if (body) {
+        for (let i = 0; i < body.namedChildCount; i++) {
+          const v = body.namedChild(i)!;
+          if (v.type !== "enum_variant") continue;
+          const vname = v.childForFieldName("name") ?? findChildOfType(v, "identifier");
+          if (!vname) continue;
+          members.push({
+            kind: "variant",
+            name: source.slice(vname.startIndex, vname.endIndex),
+            line: lineOf(v),
+          });
         }
       }
-    } else if (bd === 0 && c === 10 /* \n */) break;
+      const sym: RepoSymbol = {
+        kind: "enum",
+        name: source.slice(name.startIndex, name.endIndex),
+        line: lineOf(node),
+      };
+      if (members.length > 0) sym.members = members;
+      if (exported) sym.exported = true;
+      out.push(sym);
+      return;
+    }
+    case "trait_item": {
+      const name = node.childForFieldName("name");
+      if (!name) return;
+      const body = node.childForFieldName("body");
+      const members = rustTraitMembers(body, source);
+      const sym: RepoSymbol = {
+        kind: "trait",
+        name: source.slice(name.startIndex, name.endIndex),
+        line: lineOf(node),
+      };
+      if (members.length > 0) sym.members = members;
+      if (exported) sym.exported = true;
+      out.push(sym);
+      return;
+    }
+    case "impl_item": {
+      const traitNode = node.childForFieldName("trait");
+      const typeNode = node.childForFieldName("type");
+      const typeText = typeNode
+        ? source.slice(typeNode.startIndex, typeNode.endIndex)
+        : "?";
+      const name = traitNode
+        ? `${source.slice(traitNode.startIndex, traitNode.endIndex)} for ${typeText}`
+        : typeText;
+      const body = node.childForFieldName("body");
+      const members = rustTraitMembers(body, source); // same shape: function_item / signature_item
+      out.push({
+        kind: "impl",
+        name: condenseText(name, MAX_SIGNATURE_CHARS),
+        line: lineOf(node),
+        ...(members.length > 0 ? { members } : {}),
+      });
+      return;
+    }
+    case "type_item": {
+      const name = node.childForFieldName("name");
+      if (name) {
+        out.push({
+          kind: "type",
+          name: source.slice(name.startIndex, name.endIndex),
+          line: lineOf(node),
+          ...(exported ? { exported: true } : {}),
+        });
+      }
+      return;
+    }
+    case "mod_item": {
+      const name = node.childForFieldName("name");
+      if (name) {
+        out.push({
+          kind: "mod",
+          name: source.slice(name.startIndex, name.endIndex),
+          line: lineOf(node),
+          ...(exported ? { exported: true } : {}),
+        });
+      }
+      return;
+    }
+    case "const_item":
+    case "static_item": {
+      const name = node.childForFieldName("name");
+      if (name) {
+        out.push({
+          kind: node.type === "const_item" ? "const" : "static",
+          name: source.slice(name.startIndex, name.endIndex),
+          line: lineOf(node),
+          ...(exported ? { exported: true } : {}),
+        });
+      }
+      return;
+    }
+    default:
+      return;
   }
-
-  const inner = text.slice(start, i).replace(/\s+/g, " ").trim();
-  if (inner.length === 0) return null;
-  if (inner.length <= MAX_RETURN_TYPE_CHARS) return inner;
-  return inner.slice(0, MAX_RETURN_TYPE_CHARS - 1) + "…";
 }
 
-/**
- * Markdown variant: walk the file line-by-line, tracking fenced-code-block state.
- * Emit h1/h2/h3 symbols only for column-0 heading lines that fall OUTSIDE a fence.
- * Recognizes both backtick and tilde fences with up to 3 leading spaces;
- * a close fence must use the same character, with length >= open, and only whitespace
- * after the marker run. Unclosed fences suppress headings until EOF.
- */
-function extractMarkdownSymbols(text: string): Symbol[] {
-  const out: Symbol[] = [];
+function hasRustPub(node: Parser.SyntaxNode): boolean {
+  for (let i = 0; i < node.namedChildCount; i++) {
+    if (node.namedChild(i)!.type === "visibility_modifier") return true;
+  }
+  return false;
+}
+
+function rustFieldMembers(
+  body: Parser.SyntaxNode | null,
+  source: string
+): Member[] {
+  if (!body) return [];
+  const out: Member[] = [];
+  for (let i = 0; i < body.namedChildCount; i++) {
+    const f = body.namedChild(i)!;
+    if (f.type !== "field_declaration") continue;
+    const name = f.childForFieldName("name");
+    const typeNode = f.childForFieldName("type");
+    if (!name) continue;
+    out.push({
+      kind: "field",
+      name: source.slice(name.startIndex, name.endIndex),
+      line: lineOf(f),
+      ...(typeNode
+        ? {
+            returnType: condenseText(
+              source.slice(typeNode.startIndex, typeNode.endIndex),
+              MAX_RETURN_TYPE_CHARS
+            ),
+          }
+        : {}),
+    });
+  }
+  return out;
+}
+
+function rustTraitMembers(
+  body: Parser.SyntaxNode | null,
+  source: string
+): Member[] {
+  if (!body) return [];
+  const out: Member[] = [];
+  for (let i = 0; i < body.namedChildCount; i++) {
+    const m = body.namedChild(i)!;
+    if (m.type !== "function_item" && m.type !== "function_signature_item") {
+      continue;
+    }
+    const name = m.childForFieldName("name");
+    if (!name) continue;
+    const params = m.childForFieldName("parameters");
+    const ret = m.childForFieldName("return_type");
+    out.push({
+      kind: "method",
+      name: source.slice(name.startIndex, name.endIndex),
+      line: lineOf(m),
+      ...(params ? { signature: paramListInner(params, source) } : {}),
+      ...(ret
+        ? {
+            returnType: condenseText(
+              source.slice(ret.startIndex, ret.endIndex),
+              MAX_RETURN_TYPE_CHARS
+            ),
+          }
+        : {}),
+    });
+  }
+  return out;
+}
+
+// ---------------------------------------------------------------- Markdown
+// Kept on the original line-scan path. Tree-sitter-markdown is heavyweight for
+// what's essentially "find column-0 #/##/### headings outside fenced code blocks".
+
+function extractMarkdownSymbols(text: string): RepoSymbol[] {
+  const out: RepoSymbol[] = [];
   let inFence = false;
-  let fenceChar = ""; // "`" or "~"
+  let fenceChar = "";
   let fenceLen = 0;
 
   const fenceRe = /^( {0,3})(`{3,}|~{3,})(.*)$/;
@@ -495,7 +1075,6 @@ function extractMarkdownSymbols(text: string): Symbol[] {
     const lineText = lines[i]!;
     const lineNum = i + 1;
 
-    // Fence detection: up to 3 leading spaces, then a run of >=3 backticks or >=3 tildes.
     const fenceMatch = lineText.match(fenceRe);
     if (fenceMatch) {
       const marker = fenceMatch[2]!;
@@ -503,25 +1082,21 @@ function extractMarkdownSymbols(text: string): Symbol[] {
       const ch = marker[0]!;
       const len = marker.length;
       if (!inFence) {
-        // Open fence. Info string allowed.
         inFence = true;
         fenceChar = ch;
         fenceLen = len;
         continue;
       }
-      // Close-fence candidate: same char, length >= open, only whitespace after.
       if (ch === fenceChar && len >= fenceLen && /^\s*$/.test(after)) {
         inFence = false;
         fenceChar = "";
         fenceLen = 0;
         continue;
       }
-      // Otherwise fall through — treat as content within the open fence.
     }
 
     if (inFence) continue;
 
-    // Heading match — column-0 anchored, identical to legacy regex semantics.
     const h = lineText.match(headingRe);
     if (h) {
       const level = h[1]!.length;
@@ -532,54 +1107,3 @@ function extractMarkdownSymbols(text: string): Symbol[] {
   return out;
 }
 
-export function extractSymbols(text: string, language: Language): Symbol[] {
-  if (language === "md") return extractMarkdownSymbols(text);
-
-  const patterns = PATTERNS_BY_LANG[language];
-  if (!patterns) return [];
-
-  type RawMatch = { offset: number; kind: string; name: string; matchEnd: number };
-  const raw: RawMatch[] = [];
-
-  for (const { kind, pattern } of patterns) {
-    pattern.lastIndex = 0;
-    let m: RegExpExecArray | null;
-    while ((m = pattern.exec(text)) !== null) {
-      const name =
-        kind === "impl" && m[2]
-          ? `${m[1].replace(/\s+/g, " ").trim()} for ${m[2]}`
-          : m[1];
-      raw.push({ offset: m.index, kind, name, matchEnd: m.index + m[0].length });
-    }
-  }
-
-  const withLines = attachLineNumbers(text, raw);
-
-  const seen = new Set<string>();
-  const out: Symbol[] = [];
-  for (const r of withLines) {
-    const key = `${r.line}:${r.name}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
-    const sym: Symbol = { kind: r.kind, name: r.name, line: r.line };
-    if (SIGNATURE_KINDS.has(r.kind)) {
-      const sig = extractSignature(text, r.matchEnd);
-      if (sig !== null) sym.signature = sig;
-      if (language === "ts") {
-        const ret = extractReturnType(text, r.matchEnd);
-        if (ret !== null) sym.returnType = ret;
-      } else if (language === "py") {
-        const ret = extractPythonReturnType(text, r.matchEnd);
-        if (ret !== null) sym.returnType = ret;
-      } else if (language === "rs") {
-        const ret = extractRustReturnType(text, r.matchEnd);
-        if (ret !== null) sym.returnType = ret;
-      } else if (language === "go") {
-        const ret = extractGoReturnType(text, r.matchEnd);
-        if (ret !== null) sym.returnType = ret;
-      }
-    }
-    out.push(sym);
-  }
-  return out;
-}
