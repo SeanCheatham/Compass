@@ -25,6 +25,12 @@ export interface PlanNext {
    * unusually fast (e.g. typecheck-only).
    */
   verifyTimeoutMs?: number;
+  /**
+   * Plan's estimate of how hard the implementation will be. Selects the Develop
+   * model: low → Haiku, medium → Sonnet, high → Opus. When omitted the runner
+   * defaults to Sonnet.
+   */
+  estimatedDifficulty?: "low" | "medium" | "high";
 }
 
 /**

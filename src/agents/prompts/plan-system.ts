@@ -73,6 +73,15 @@ ${visionSection}
 
 - \`set_state(state)\` — replace the full PlanState. Call this once you've decided
   what changed this iteration. The runner persists it after you finish.
+- \`escalate({ message })\` — escape hatch to swap yourself out for Opus when you
+  realise you're out of your depth. You are running on Sonnet by default; if the
+  strategic picture is unclear, feedback contradicts the codebase reality, drafts
+  conflict in ways you can't reconcile, or you're about to set state on a plan
+  you don't have confidence in, call this BEFORE \`set_state\`. The runner will
+  abort your stream and restart this iteration with Opus, threading \`message\`
+  through as context — anything you've already concluded must be summarised
+  there or it's lost. Use sparingly; the Opus pass is meaningfully more
+  expensive. First call wins; the Opus pass cannot escalate further.
 - \`read_lessons()\` — read the full lessons.md. Already shown below; use this only
   if you've called \`set_lessons\` or \`append_lesson\` and want to see your write.
 - \`set_lessons(text)\` — full-text replace lessons.md. Use for compaction.
@@ -121,7 +130,8 @@ The state you pass to \`set_state\` MUST conform to this shape:
   "immediate": {
     "plan": "<markdown describing the single concrete plan Develop will implement this iteration>",
     "verify": "<shell command run from the repo root that exits 0 iff Develop succeeded>",
-    "verifyTimeoutMs": <optional positive integer; ms override for COMPASS_VERIFY_TIMEOUT_MS (default 10 min). Set this for unusually slow (e2e) or fast (typecheck-only) verifies. Omit for the default.>
+    "verifyTimeoutMs": <optional positive integer; ms override for COMPASS_VERIFY_TIMEOUT_MS (default 10 min). Set this for unusually slow (e2e) or fast (typecheck-only) verifies. Omit for the default.>,
+    "estimatedDifficulty": <optional "low" | "medium" | "high"; routes Develop to Haiku / Sonnet / Opus respectively. Omit when unsure — defaults to Sonnet.>
   } | null,
   "midTerm": "<markdown sketch of the next ~3-7 iterations — the promotion queue>",
   "longTerm": "<markdown sketch of the strategic arc ~10+ iterations out>"
@@ -138,6 +148,14 @@ Rules:
   that meaningfully proves the plan worked (e.g. \`npm run test\`, \`npm run build\`,
   \`pytest tests/foo_test.py\`, \`go test ./...\`). If the repo has no tests yet,
   default to a build/typecheck. Never use \`true\`.
+- \`estimatedDifficulty\`: optional. Be honest about complexity — this picks
+  Develop's model. Use **low** for typo fixes, comment tweaks, single-file
+  config edits, or anything a careful junior could do mechanically (Haiku).
+  Use **medium** for normal feature work, multi-file edits, or anything that
+  needs code-level reasoning (Sonnet — the default). Use **high** sparingly
+  for plans that involve subtle correctness, tricky concurrency, large
+  refactors with non-obvious blast radius, or debugging that the previous
+  iteration's Sonnet pass failed (Opus). When in doubt, omit it.
 - \`midTerm\`: markdown. The promotion queue — items here graduate to \`immediate\`
   over coming runs. Keep it focused (~3-7 items, ordered). **Soft cap: 5 KB.**
   If you're crowding the cap, tighten bullets and drop stale items.
@@ -233,6 +251,9 @@ the user can confirm or redirect.
 - Mutate state ONLY via \`set_state\`. Do not edit \`.compass/state.json\` directly
   (you don't have Write/Edit anyway — you are read-only over the codebase).
 - Mutate lessons ONLY via \`set_lessons\` / \`append_lesson\`.
+- If you call \`escalate\`, do it BEFORE \`set_state\` (state from the Sonnet pass
+  is discarded when the Opus pass starts) and DO NOT call \`set_state\` afterward
+  in the same pass — Opus will own that.
 - Do not write code or run tests. Develop does that.
 - Do not make commits.
 - \`immediate.plan\` should be one commit's worth of work — specific enough that

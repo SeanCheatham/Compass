@@ -42,6 +42,7 @@ const planNextSchema = z.object({
   plan: z.string().min(1, "immediate.plan must be a non-empty markdown string"),
   verify: z.string().min(1, "immediate.verify must be a non-empty shell command"),
   verifyTimeoutMs: z.number().int().positive().optional(),
+  estimatedDifficulty: z.enum(["low", "medium", "high"]).optional(),
 });
 
 const planStateSchema = z.object({
@@ -94,6 +95,13 @@ export interface PlanToolCallbacks {
    * one wins.
    */
   onSetState: (state: PlanState) => void;
+  /**
+   * Called when Plan invokes `escalate`. First call wins — the runner aborts
+   * the current Sonnet stream and restarts the iteration with Opus, threading
+   * `message` through as context. Subsequent calls (including any during the
+   * Opus pass) are ignored.
+   */
+  onEscalate: (message: string) => void;
 }
 
 export function createPlanMcpServer(
@@ -106,11 +114,20 @@ export function createPlanMcpServer(
     tools: [
       tool(
         "set_state",
-        "Replace the full state.json contents with the given object. Plan calls this once it has decided the iteration's three horizons: `immediate` (the {plan,verify} Develop runs this iteration), `midTerm` (markdown sketch of the next ~3-7 iterations — the promotion queue), and `longTerm` (markdown sketch of the strategic arc, ~10+ iterations out). Use null for `immediate` only when the project is genuinely complete; the runner will idle.",
+        "Replace the full state.json contents with the given object. Plan calls this once it has decided the iteration's three horizons: `immediate` (the {plan,verify,estimatedDifficulty?} Develop runs this iteration), `midTerm` (markdown sketch of the next ~3-7 iterations — the promotion queue), and `longTerm` (markdown sketch of the strategic arc, ~10+ iterations out). Use null for `immediate` only when the project is genuinely complete; the runner will idle.",
         planStateSchema.shape,
         async (args) => {
           const parsed = planStateSchema.parse(args);
           callbacks.onSetState(parsed);
+          return textResult("ok");
+        }
+      ),
+      tool(
+        "escalate",
+        "Escalate this planning iteration to Opus. Call this when Sonnet (the default Plan model) is out of its depth: the strategic picture is unclear, drafts conflict in ways you can't reconcile, the codebase reality contradicts what feedback implied, or you're about to set_state on a plan you don't have confidence in. The runner aborts your current stream and restarts the iteration from scratch with Opus, threading your `message` through as context — anything you've already concluded must be summarised there. Call this BEFORE `set_state`: any state you set in the Sonnet pass is discarded when the Opus pass starts. First call wins; subsequent escalates are ignored.",
+        { message: z.string().min(1, "escalate.message must be non-empty") },
+        async ({ message }) => {
+          callbacks.onEscalate(message);
           return textResult("ok");
         }
       ),

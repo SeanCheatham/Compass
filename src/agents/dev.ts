@@ -15,6 +15,29 @@ const execAsync = promisify(exec);
 const MAX_ATTEMPTS = 3;
 const DEFAULT_VERIFY_TIMEOUT_MS = 10 * 60 * 1000;
 
+const HAIKU = "claude-haiku-4-5-20251001";
+const SONNET = "claude-sonnet-4-6";
+const OPUS = "claude-opus-4-7";
+
+/**
+ * Pick the Develop model from Plan's difficulty estimate. The fallback handles
+ * SDK-level errors (rate limits, overload) — for Haiku we bump up to Sonnet,
+ * for Sonnet up to Opus, for Opus we stay put.
+ */
+function pickDevModel(
+  difficulty: "low" | "medium" | "high" | undefined
+): { model: string; fallback: string } {
+  switch (difficulty) {
+    case "low":
+      return { model: HAIKU, fallback: SONNET };
+    case "high":
+      return { model: OPUS, fallback: SONNET };
+    case "medium":
+    case undefined:
+      return { model: SONNET, fallback: OPUS };
+  }
+}
+
 /**
  * Why the Develop query stream ended without `signal_complete()` being called.
  * - "budget"      — SDK reported `error_max_budget_usd`.
@@ -372,10 +395,11 @@ async function runDevQuery(
     },
   });
 
+  const { model, fallback } = pickDevModel(next.estimatedDifficulty);
   const devOptions: Options = {
     systemPrompt,
-    model: "claude-sonnet-4-6",
-    fallbackModel: "claude-opus-4-7",
+    model,
+    fallbackModel: fallback,
     cwd: config.implRepoPath,
     permissionMode: "bypassPermissions",
     allowDangerouslySkipPermissions: true,
@@ -413,7 +437,9 @@ async function runDevQuery(
     ],
   };
 
-  output.agentStart("Develop", ctxLabel);
+  const modelLabel = model === HAIKU ? "Haiku" : model === OPUS ? "Opus" : "Sonnet";
+  const fullLabel = ctxLabel ? `${modelLabel} · ${ctxLabel}` : modelLabel;
+  output.agentStart("Develop", fullLabel);
 
   let lastResultSubtype: string | null = null;
 

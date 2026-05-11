@@ -2,6 +2,7 @@ import { watch } from "node:fs";
 import { initializeWorkspace } from "../state/workspace.js";
 import { runPlanAgent } from "../agents/plan.js";
 import { runDevAgent } from "../agents/dev.js";
+import { runReflectAgent } from "../agents/reflect.js";
 import {
   readDrafts,
   readLessons,
@@ -27,6 +28,22 @@ export interface RunOptions {
   signal: AbortSignal;
 }
 
+const DEFAULT_REFLECT_EVERY = 5;
+/** Window of past sessions handed to Reflect — roughly 2× the cadence. */
+const REFLECT_SESSION_WINDOW = 10;
+
+/**
+ * How often Reflect runs, in iterations. `COMPASS_REFLECT_EVERY=0` disables.
+ * Unparseable values fall back to the default rather than crashing the loop.
+ */
+function parseReflectEvery(): number {
+  const raw = process.env.COMPASS_REFLECT_EVERY;
+  if (raw === undefined || raw === "") return DEFAULT_REFLECT_EVERY;
+  const parsed = parseInt(raw, 10);
+  if (!Number.isFinite(parsed) || parsed < 0) return DEFAULT_REFLECT_EVERY;
+  return parsed;
+}
+
 export async function runCompass(
   cwd: string,
   options: RunOptions
@@ -46,6 +63,15 @@ export async function runCompass(
     (m, s) => Math.max(m, s.session),
     0
   );
+
+  const reflectEvery = parseReflectEvery();
+  if (reflectEvery > 0) {
+    output.info(
+      `Reflect cadence: every ${reflectEvery} iterations (set COMPASS_REFLECT_EVERY to override; 0 to disable).`
+    );
+  } else {
+    output.info("Reflect disabled (COMPASS_REFLECT_EVERY=0).");
+  }
 
   while (!signal.aborted) {
     if (!(await hasWork(config))) {
@@ -76,6 +102,49 @@ export async function runCompass(
     const beforeSha = await tryGetCurrentCommit(config.implRepoPath);
     if (beforeSha) sessions.setBefore(beforeSha);
 
+    // Backup state.json once per iteration, before any agent can mutate it.
+    // Reflect (if it runs) and Plan both write state; one backup covers both.
+    try {
+      await backupStateFile(config);
+    } catch (err) {
+      output.error(`Could not back up state.json: ${err}`);
+    }
+
+    // ---- Reflect phase (every Nth iteration) -----------------------------
+    if (reflectEvery > 0 && iteration % reflectEvery === 0) {
+      controller.setPhase("planning");
+      output.phase("Reflect");
+
+      // Hand Reflect roughly twice its cadence in past sessions, most recent
+      // first, excluding the in-flight record we just started.
+      const all = sessions.all();
+      const recentSessions = all
+        .slice(0, all.length - 1)
+        .slice(-REFLECT_SESSION_WINDOW)
+        .reverse();
+
+      const reflectSignal = controller.iterationSignal(signal);
+      const reflectResult = await runReflectAgent(
+        config,
+        { recentSessions, iteration },
+        output,
+        { signal: reflectSignal }
+      );
+
+      if (reflectResult.cancelled) {
+        sessions.end("cancelled");
+        output.info("Iteration cancelled during Reflect.");
+        continue;
+      }
+
+      if (reflectResult.state) {
+        await writePlanState(config, reflectResult.state);
+        output.info("Reflect updated state.json; Plan will see the revised midTerm/longTerm.");
+      } else {
+        output.info("Reflect: on course, no state changes.");
+      }
+    }
+
     // ---- Plan phase ------------------------------------------------------
     controller.setPhase("planning");
     output.phase("Plan");
@@ -86,13 +155,6 @@ export async function runCompass(
     const drafts = await snapshotAndClearDrafts(config);
     const carriedFeedback = feedback.current();
     feedback.clear();
-
-    // Backup state.json before we overwrite it with whatever Plan returns.
-    try {
-      await backupStateFile(config);
-    } catch (err) {
-      output.error(`Could not back up state.json: ${err}`);
-    }
 
     const planSignal = controller.iterationSignal(signal);
     const planResult = await runPlanAgent(
