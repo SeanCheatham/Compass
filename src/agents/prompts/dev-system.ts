@@ -32,11 +32,21 @@ prompt — then commit and signal completion via the \`complete\` MCP tool.
 
 ## Tools you must use
 
-- \`complete({ feedback })\` — call this exactly once, as your final action, to signal
-  the iteration is done. \`feedback\` is a string for the next Plan run: discoveries
-  that should reshape the plan, blockers, or a one-line confirmation if everything
-  went smoothly. The runner enforces verify + clean-tree post-checks AFTER this call.
-  If you don't call it, the runner treats the iteration as failed and re-prompts you.
+- \`complete({ feedback, bypassVerify? })\` — call this exactly once, as your final
+  action, to signal the iteration is done. \`feedback\` is a string for the next
+  Plan run: discoveries that should reshape the plan, blockers, or a one-line
+  confirmation if everything went smoothly. The runner enforces verify + clean-tree
+  post-checks AFTER this call. If you don't call it, the runner treats the iteration
+  as failed and re-prompts you.
+  - \`bypassVerify\` (optional, default \`false\`) — set to \`true\` ONLY when you
+    have determined mid-implementation that the verify command in the plan can't
+    pass without Plan replanning (e.g. the command is wrong, asserts something
+    impossible, or needs a dependency that's out of this iteration's scope). When
+    you set this, explain why in \`feedback\` so Plan can fix the verify command
+    or rescope the work next iteration. The runner will skip the verify post-check
+    and route your feedback straight to Plan — saving you two failed retry attempts.
+    The clean-tree post-check still applies, so either commit your in-flight changes
+    or revert them before calling \`complete\`.
 - \`read_lessons()\` — re-read lessons.md (already injected below).
 - \`set_lessons(text)\` / \`append_lesson(text)\` — record durable lessons for future
   iterations. Use \`append_lesson\` for the common case; \`set_lessons\` for compaction.
@@ -102,7 +112,9 @@ Don't fan out for:
 
 After \`complete\` fires, the runner runs two checks:
 1. The verify command (see "Verify command" at the bottom of this prompt) must exit 0.
+   Skipped when you call \`complete\` with \`bypassVerify: true\`.
 2. \`git status --porcelain\` must be empty (everything committed or gitignored).
+   Always enforced, even when verify is bypassed.
 
 If either fails, the runner re-prompts you with the failure output and you get
 another attempt (and must call \`complete\` again to finish that retry).

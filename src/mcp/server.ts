@@ -113,13 +113,25 @@ export function createPlanMcpServer(
   });
 }
 
+export interface DevCompletePayload {
+  feedback: string;
+  /**
+   * When true, the runner skips the verify post-check for this iteration. Use
+   * sparingly — only when Develop has determined that the verify command as
+   * written can't pass without Plan revisiting the plan (e.g. wrong command,
+   * impossible assertion, missing dependency that's out of scope). The
+   * clean-tree post-check still applies. Defaults to false.
+   */
+  bypassVerify: boolean;
+}
+
 export interface DevToolCallbacks {
   /**
    * Called when Develop invokes complete. The first call wins — the runner
    * uses it as the iteration-finished signal and surfaces feedback to the
    * next Plan run. Subsequent calls are ignored (and warned about).
    */
-  onComplete: (feedback: string) => void;
+  onComplete: (payload: DevCompletePayload) => void;
 }
 
 export function createDevMcpServer(
@@ -132,10 +144,13 @@ export function createDevMcpServer(
     tools: [
       tool(
         "complete",
-        "Signal that this Develop iteration is finished. Pass `feedback` for the next Plan run — discoveries that should reshape the plan, blockers, or a one-line confirmation if everything went smoothly. The runner enforces verify + clean-tree post-checks after this call.",
-        { feedback: z.string() },
-        async ({ feedback }) => {
-          callbacks.onComplete(feedback);
+        "Signal that this Develop iteration is finished. Pass `feedback` for the next Plan run — discoveries that should reshape the plan, blockers, or a one-line confirmation if everything went smoothly. Optionally set `bypassVerify: true` if you've determined the verify command as written can't pass without Plan replanning (wrong command, impossible assertion, out-of-scope dependency) — the runner will skip the verify post-check and route your feedback straight to Plan. The clean-tree post-check still applies.",
+        { feedback: z.string(), bypassVerify: z.boolean().optional() },
+        async ({ feedback, bypassVerify }) => {
+          callbacks.onComplete({
+            feedback,
+            bypassVerify: bypassVerify ?? false,
+          });
           return textResult("ok");
         }
       ),

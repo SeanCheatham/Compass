@@ -144,8 +144,15 @@ test("dev system prompt: vision is marked read-only for the agent", () => {
 
 test("dev system prompt: explicitly names the complete + lessons MCP tools", () => {
   const prompt = buildDevSystemPrompt(baseContext());
-  assert.ok(prompt.includes("`complete({ feedback })`"));
+  assert.ok(prompt.includes("`complete({ feedback, bypassVerify? })`"));
   assert.ok(prompt.includes("`read_lessons()`"));
   assert.ok(prompt.includes("`set_lessons(text)`"));
   assert.ok(prompt.includes("`append_lesson(text)`"));
+});
+
+test("dev system prompt: documents bypassVerify on complete", () => {
+  const prompt = buildDevSystemPrompt(baseContext());
+  assert.ok(prompt.includes("bypassVerify"));
+  // Should explain when to use it and that the clean-tree check still applies.
+  assert.ok(/clean-tree.*still applies/i.test(prompt));
 });

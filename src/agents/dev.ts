@@ -14,6 +14,28 @@ const execAsync = promisify(exec);
 const MAX_ATTEMPTS = 3;
 const DEFAULT_VERIFY_TIMEOUT_MS = 10 * 60 * 1000;
 
+/**
+ * Why the Develop query stream ended without `complete()` being called.
+ * - "budget"      — SDK reported `error_max_budget_usd`.
+ * - "turns"       — SDK reported `error_max_turns`.
+ * - "no_complete" — Stream ended (success or other error) but the agent never
+ *                   called the `complete` MCP tool.
+ *
+ * Any of these triggers a single follow-up Cleanup pass before yielding to Plan.
+ */
+type CutOffReason = "budget" | "turns" | "no_complete";
+
+function describeCutOff(reason: CutOffReason): string {
+  switch (reason) {
+    case "budget":
+      return "ran out of its per-attempt USD budget";
+    case "turns":
+      return "hit its per-attempt turn limit";
+    case "no_complete":
+      return "ended without calling `complete`";
+  }
+}
+
 function getVerifyTimeoutMs(): number {
   const raw = process.env.COMPASS_VERIFY_TIMEOUT_MS;
   if (!raw) return DEFAULT_VERIFY_TIMEOUT_MS;
@@ -75,6 +97,7 @@ export async function runDevAgent(
   let lastDisplayIssues: string[] = [];
   let lastVerifyOutput: VerifyOutput | null = null;
   let lastFeedback = "";
+  let cutOffReason: CutOffReason | null = null;
 
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
     if (opts.signal.aborted) {
@@ -88,13 +111,17 @@ export async function runDevAgent(
     }
 
     const initialPrompt = buildDevPrompt(attempt, priorRetryIssues);
+    const ctxLabel =
+      attempt === 1
+        ? next.plan.split("\n")[0]?.slice(0, 120)
+        : `Retry ${attempt}/${MAX_ATTEMPTS}`;
     const queryResult = await runDevQuery(
       config,
       systemPrompt,
       initialPrompt,
       next,
       output,
-      attempt,
+      ctxLabel,
       opts.signal
     );
     if (queryResult.cancelled) {
@@ -110,11 +137,23 @@ export async function runDevAgent(
       lastFeedback = queryResult.feedback;
     }
 
+    // If the stream was cut off (budget / turns / never called complete),
+    // skip the normal post-check retry path. A single dedicated Cleanup pass
+    // below will try to wrap up the in-flight work before yielding to Plan.
+    if (queryResult.cutOff) {
+      cutOffReason = queryResult.cutOff;
+      output.info(
+        `Develop ${describeCutOff(queryResult.cutOff)}. Skipping further retries; running Cleanup pass next.`
+      );
+      break;
+    }
+
     const post = await runPostChecks(
       config,
       next.verify,
       output,
       queryResult.feedback !== null,
+      queryResult.bypassVerify,
       next.verifyTimeoutMs
     );
     lastDisplayIssues = post.displayIssues;
@@ -149,6 +188,65 @@ export async function runDevAgent(
     );
   }
 
+  // Cleanup pass — runs at most once per Dev invocation, only when the prior
+  // attempt was cut off mid-task (budget/turns/no-complete). Fresh budget,
+  // bounded scope: finish the in-flight work or revert to a clean state, then
+  // call complete so the next Plan run gets context.
+  if (cutOffReason) {
+    const cleanupPrompt = buildCleanupPrompt(cutOffReason);
+    const cleanupResult = await runDevQuery(
+      config,
+      systemPrompt,
+      cleanupPrompt,
+      next,
+      output,
+      "Cleanup",
+      opts.signal
+    );
+    if (cleanupResult.cancelled) {
+      return {
+        succeeded: false,
+        cancelled: true,
+        issues: lastDisplayIssues,
+        verifyOutput: lastVerifyOutput,
+        feedback: lastFeedback,
+      };
+    }
+    if (cleanupResult.feedback !== null) {
+      lastFeedback = cleanupResult.feedback;
+    }
+
+    const post = await runPostChecks(
+      config,
+      next.verify,
+      output,
+      cleanupResult.feedback !== null,
+      cleanupResult.bypassVerify,
+      next.verifyTimeoutMs
+    );
+    lastDisplayIssues = post.displayIssues;
+    lastVerifyOutput = post.verifyOutput;
+    if (post.ok) {
+      return {
+        succeeded: true,
+        cancelled: false,
+        issues: [],
+        verifyOutput: null,
+        feedback: lastFeedback,
+      };
+    }
+    output.error(
+      "Cleanup pass finished but post-checks still failing. Yielding to Plan."
+    );
+    return {
+      succeeded: false,
+      cancelled: false,
+      issues: lastDisplayIssues,
+      verifyOutput: lastVerifyOutput,
+      feedback: lastFeedback,
+    };
+  }
+
   return {
     succeeded: false,
     cancelled: false,
@@ -177,24 +275,67 @@ Fix them now and finish with a \`complete\` call. Do not stop until the verify c
 exits 0, \`git status --porcelain\` is empty, and you have called \`complete\`.`;
 }
 
+function buildCleanupPrompt(reason: CutOffReason): string {
+  return `Your previous attempt ${describeCutOff(reason)} mid-task. The working
+tree may contain partial edits, uncommitted changes, or half-finished work from
+that attempt.
+
+This is a CLEANUP pass — your job is to wrap up the in-flight work so the next
+Plan run gets a clean handoff. Do NOT expand scope or start anything new.
+
+1. Run \`git status\` and \`git diff\` to see what state the previous attempt
+   left behind. Read any partially-edited files.
+2. Decide between two paths and execute it:
+   a) FINISH — if the remaining work is small and clear, complete it: get the
+      verify command passing, commit, then call \`complete\` with feedback that
+      summarises what shipped.
+   b) REVERT — if finishing would be too large or risky for one more pass,
+      undo the partial work (\`git restore\`, \`git clean -fd\` for untracked
+      files) until \`git status --porcelain\` is empty, then call \`complete\`
+      with feedback that explains what was attempted and what's still
+      outstanding so Plan can downsize the scope next iteration.
+3. Either way you MUST end with a \`complete({ feedback })\` call and leave
+   \`git status --porcelain\` empty. There are no more retries after this pass.
+
+Keep this attempt tight. Don't risk a second budget exhaustion — pick the
+quicker of FINISH or REVERT when in doubt.`;
+}
+
 async function runDevQuery(
   config: WorkspaceConfig,
   systemPrompt: string,
   prompt: string,
   next: PlanNext,
   output: OutputManager,
-  attempt: number,
+  /** Short label rendered next to "Develop" in the activity stream. */
+  ctxLabel: string | undefined,
   signal: AbortSignal
-): Promise<{ cancelled: boolean; feedback: string | null }> {
+): Promise<{
+  cancelled: boolean;
+  feedback: string | null;
+  /** Non-null when the stream ended without `complete` being called. */
+  cutOff: CutOffReason | null;
+  /** Whether `complete` was called with bypassVerify=true. */
+  bypassVerify: boolean;
+}> {
   const abortController = new AbortController();
   if (signal.aborted) abortController.abort();
   else signal.addEventListener("abort", () => abortController.abort(), { once: true });
 
   let capturedFeedback: string | null = null;
+  let capturedBypassVerify = false;
   const mcpServer = createDevMcpServer(config, {
-    onComplete: (feedback) => {
+    onComplete: ({ feedback, bypassVerify }) => {
       // First call wins; subsequent calls in the same attempt are ignored.
-      if (capturedFeedback === null) capturedFeedback = feedback;
+      if (capturedFeedback === null) {
+        capturedFeedback = feedback;
+        capturedBypassVerify = bypassVerify;
+        if (bypassVerify) {
+          output.info(
+            "Develop requested bypassVerify=true — verify post-check will be skipped this iteration."
+          );
+        }
+      }
     },
   });
 
@@ -232,11 +373,9 @@ async function runDevQuery(
     ],
   };
 
-  const ctx =
-    attempt === 1
-      ? next.plan.split("\n")[0]?.slice(0, 120)
-      : `Retry ${attempt}/${MAX_ATTEMPTS}`;
-  output.agentStart("Develop", ctx);
+  output.agentStart("Develop", ctxLabel);
+
+  let lastResultSubtype: string | null = null;
 
   try {
     const stream = query({ prompt, options: devOptions });
@@ -254,19 +393,45 @@ async function runDevQuery(
             );
           }
         }
+      } else if (message.type === "result") {
+        lastResultSubtype = message.subtype;
       }
     }
 
     output.agentComplete("Develop");
-    return { cancelled: false, feedback: capturedFeedback };
+    return {
+      cancelled: false,
+      feedback: capturedFeedback,
+      cutOff: deriveCutOff(capturedFeedback, lastResultSubtype),
+      bypassVerify: capturedBypassVerify,
+    };
   } catch (error) {
     if (signal.aborted) {
       output.info("Develop cancelled.");
-      return { cancelled: true, feedback: capturedFeedback };
+      return {
+        cancelled: true,
+        feedback: capturedFeedback,
+        cutOff: deriveCutOff(capturedFeedback, lastResultSubtype),
+        bypassVerify: capturedBypassVerify,
+      };
     }
     output.error(`Develop agent error: ${error}`);
     throw error;
   }
+}
+
+function deriveCutOff(
+  capturedFeedback: string | null,
+  resultSubtype: string | null
+): CutOffReason | null {
+  // If the agent called `complete`, trust it — the iteration is "done" from
+  // its perspective and the normal post-checks (verify, clean tree) decide
+  // whether the work is actually good. Cleanup is only for the case where
+  // the stream ended before the agent could wrap up.
+  if (capturedFeedback !== null) return null;
+  if (resultSubtype === "error_max_budget_usd") return "budget";
+  if (resultSubtype === "error_max_turns") return "turns";
+  return "no_complete";
 }
 
 async function runPostChecks(
@@ -274,6 +439,7 @@ async function runPostChecks(
   verifyCommand: string,
   output: OutputManager,
   completeWasCalled: boolean,
+  bypassVerify: boolean,
   verifyTimeoutMsOverride: number | undefined
 ): Promise<PostCheckResult> {
   const retryIssues: string[] = [];
@@ -288,27 +454,33 @@ async function runPostChecks(
     output.error("Develop did not call `complete`.");
   }
 
-  const verifyTimeoutMs = verifyTimeoutMsOverride ?? getVerifyTimeoutMs();
-  output.info(
-    `Post-check: running verify command \`${verifyCommand}\` (timeout ${verifyTimeoutMs}ms)...`
-  );
-  const verify = await runCommand(verifyCommand, config.implRepoPath, verifyTimeoutMs);
-  if (!verify.ok) {
-    const verifyTail = tail(verify.output, 4000);
-    // Retry prompt still includes the verify-tail string so attempt N+1 has
-    // the same failure context as before.
-    retryIssues.push(
-      `Verify command \`${verifyCommand}\` exited with code ${verify.code}. Output (tail):\n\`\`\`\n${verifyTail}\n\`\`\``
+  if (bypassVerify) {
+    output.info(
+      `Post-check: skipping verify command \`${verifyCommand}\` per Develop's bypassVerify=true.`
     );
-    // Display path uses the structured field instead of a duplicated note.
-    verifyOutput = {
-      command: verifyCommand,
-      exitCode: verify.code,
-      tail: verifyTail,
-    };
-    output.error(`Verify failed (exit ${verify.code}).`);
   } else {
-    output.info("Verify passed.");
+    const verifyTimeoutMs = verifyTimeoutMsOverride ?? getVerifyTimeoutMs();
+    output.info(
+      `Post-check: running verify command \`${verifyCommand}\` (timeout ${verifyTimeoutMs}ms)...`
+    );
+    const verify = await runCommand(verifyCommand, config.implRepoPath, verifyTimeoutMs);
+    if (!verify.ok) {
+      const verifyTail = tail(verify.output, 4000);
+      // Retry prompt still includes the verify-tail string so attempt N+1 has
+      // the same failure context as before.
+      retryIssues.push(
+        `Verify command \`${verifyCommand}\` exited with code ${verify.code}. Output (tail):\n\`\`\`\n${verifyTail}\n\`\`\``
+      );
+      // Display path uses the structured field instead of a duplicated note.
+      verifyOutput = {
+        command: verifyCommand,
+        exitCode: verify.code,
+        tail: verifyTail,
+      };
+      output.error(`Verify failed (exit ${verify.code}).`);
+    } else {
+      output.info("Verify passed.");
+    }
   }
 
   const gitStatus = await runCommand(

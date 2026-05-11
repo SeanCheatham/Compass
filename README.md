@@ -57,14 +57,14 @@ Press Ctrl+C to stop. Run `compass status` at any time to print the current `sta
 - Implements the current `next.plan`.
 - Iterates until `next.verify` exits 0 (default 10-minute timeout, override via `COMPASS_VERIFY_TIMEOUT_MS`).
 - Commits changes (`git add` + `git commit`).
-- Calls `complete({ feedback })` to signal end-of-iteration. The feedback string is threaded into the next Plan run.
+- Calls `complete({ feedback, bypassVerify? })` to signal end-of-iteration. The feedback string is threaded into the next Plan run. Setting `bypassVerify: true` tells the runner to skip the verify post-check this iteration — Develop uses this when it determines mid-implementation that the verify command can't pass without Plan revisiting the plan, avoiding two doomed retry attempts.
 
 After Develop's `complete` call, the runner enforces three post-checks:
 1. `complete` was actually called (skipping it is treated as a failed iteration).
-2. The `verify` command from `next` must exit 0.
+2. The `verify` command from `next` must exit 0 (skipped when Develop sets `bypassVerify: true`).
 3. `git status --porcelain` must be empty (everything committed or gitignored).
 
-If any fail, the runner re-prompts Develop with the failure (up to 3 attempts) before yielding to Plan.
+If any fail, the runner re-prompts Develop with the failure (up to 3 attempts) before yielding to Plan. If an attempt is cut off mid-task (budget exhausted, max turns hit, or stream ends without `complete`), the runner skips further retries and spins up a single dedicated **Cleanup pass** with a fresh budget — its job is to either finish the in-flight work or revert it to a clean state so Plan gets a clean handoff.
 
 ### MCP tools
 
