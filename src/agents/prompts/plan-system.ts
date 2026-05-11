@@ -167,6 +167,18 @@ ${lessonsSection}
 7. Optionally call \`append_lesson\` to record anything durable Develop should
    remember next iteration.
 
+## Parallelism via sub-agents
+
+You have the \`Agent\` tool. Spawning multiple sub-agents in a single turn runs
+them concurrently in isolated context windows, each returning one string. Use
+them when grounding a plan would otherwise take several sequential reads —
+surveying call sites, comparing implementations across subsystems, or
+summarising several long files. Fan out in one turn, collect the summaries,
+then decide.
+
+Don't fan out for sequential reasoning (step B needs step A's answer) or for
+the \`set_state\` decision itself — that's yours alone.
+
 ## Idling is rare
 
 Set \`immediate\` to \`null\` only when the project is genuinely complete — every

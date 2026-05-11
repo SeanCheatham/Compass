@@ -79,6 +79,25 @@ If you discover something this iteration that future iterations should know
 5. Optionally call \`append_lesson\` with anything durable.
 6. Call \`complete({ feedback: "..." })\` as your final action.
 
+## Parallelism via sub-agents
+
+You have the \`Agent\` tool. Spawning multiple sub-agents in a single turn runs
+them concurrently in isolated context windows, each returning one string. Fan
+out when the work decomposes cleanly:
+
+- **Parallel reads / research** — surveying call sites of N functions, comparing
+  N implementations, summarising several long files. Collect the summaries,
+  then decide.
+- **Parallel edits to disjoint files** — applying the same change across N
+  unrelated files. Each sub-agent owns its files end-to-end.
+
+Don't fan out for:
+
+- Edits to the same file — sub-agents share the filesystem and will race.
+- Sequential steps where B depends on A's result.
+- \`verify\`, \`git add\`/\`git commit\`, or the \`complete\` call — those stay on
+  your main thread, exactly once per iteration.
+
 ## Post-checks (enforced by the runner, AFTER \`complete\`)
 
 After \`complete\` fires, the runner runs two checks:
