@@ -281,8 +281,8 @@ that's a signal to revise \`longTerm\` too.
 
 ## Feedback (from the last Develop run)
 
-This is what Develop passed to its \`set_feedback\` call (the runner threaded it
-through in memory — there is no feedback file on disk). Develop may have skipped
+This is what Develop passed to its \`set_feedback\` call last iteration (the
+runner reads it from the previous session record). Develop may have skipped
 \`set_feedback\` entirely; if so the section below is empty and you should
 continue from state alone.
 

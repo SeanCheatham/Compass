@@ -16,14 +16,12 @@ import type { WorkspaceConfig } from "../state/types.js";
 import type { OutputManager } from "../web/output-manager.js";
 import type { LoopController } from "../state/control.js";
 import type { SessionTracker } from "../state/sessions.js";
-import type { FeedbackBus } from "../state/feedback.js";
 import { commitsBetween, tryGetCurrentCommit } from "../mcp/utils/git.js";
 
 export interface RunOptions {
   output: OutputManager;
   controller: LoopController;
   sessions: SessionTracker;
-  feedback: FeedbackBus;
   /** Abort signal to stop the loop on shutdown. */
   signal: AbortSignal;
 }
@@ -48,7 +46,7 @@ export async function runCompass(
   cwd: string,
   options: RunOptions
 ): Promise<void> {
-  const { output, controller, sessions, feedback, signal } = options;
+  const { output, controller, sessions, signal } = options;
 
   output.info("Compass — Plan + Develop loop\n");
 
@@ -149,12 +147,11 @@ export async function runCompass(
     controller.setPhase("planning");
     output.phase("Plan");
 
-    // Race-free handoff for drafts. Feedback is in-memory (FeedbackBus); we
-    // capture and clear it now so a Develop run that overlaps doesn't leak
-    // into the next iteration.
+    // Race-free handoff for drafts. Feedback now lives on the prior session
+    // record; we pull it from there so the current in-flight record stays
+    // empty until Develop calls set_feedback.
     const drafts = await snapshotAndClearDrafts(config);
-    const carriedFeedback = feedback.current();
-    feedback.clear();
+    const carriedFeedback = sessions.previousFeedback();
 
     const planSignal = controller.iterationSignal(signal);
     const planResult = await runPlanAgent(
@@ -233,7 +230,7 @@ export async function runCompass(
     });
 
     if (devResult.feedback) {
-      feedback.set(devResult.feedback);
+      sessions.setFeedback(devResult.feedback);
     }
 
     // Record commits regardless of outcome (lets the user see partials too).

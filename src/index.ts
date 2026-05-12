@@ -9,7 +9,6 @@ import { initializeWorkspace } from "./state/workspace.js";
 import { hasUncommittedChanges, stashChanges } from "./mcp/utils/git.js";
 import { createLoopController } from "./state/control.js";
 import { createSessionTracker } from "./state/sessions.js";
-import { createFeedbackBus } from "./state/feedback.js";
 import { acquireWorkspaceLock } from "./state/lock.js";
 
 const program = new Command();
@@ -75,14 +74,12 @@ program
     const sessions = createSessionTracker({
       recordPath: config.sessionsRecordPath,
     });
-    const feedback = createFeedbackBus({ recordPath: config.feedbackPath });
 
     const server = await startWebServer({
       config,
       output,
       controller,
       sessions,
-      feedback,
     });
 
     console.log(`\nCompass UI: ${server.url}`);
@@ -99,7 +96,6 @@ program
       output.info("\nShutting down...");
       abortController.abort();
       await sessions.flush();
-      await feedback.flush();
       await server.close();
       await lock.release();
       process.exit(0);
@@ -115,7 +111,6 @@ program
       output,
       controller,
       sessions,
-      feedback,
       signal: abortController.signal,
     });
   });

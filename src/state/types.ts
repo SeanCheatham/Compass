@@ -8,7 +8,6 @@ export interface WorkspaceConfig {
   compassPath: string;
   sessionsPath: string;
   sessionsRecordPath: string;
-  feedbackPath: string;
 }
 
 /**

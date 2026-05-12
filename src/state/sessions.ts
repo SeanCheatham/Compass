@@ -39,6 +39,12 @@ export interface SessionRecord {
   status: SessionStatus;
   notes: string[];
   verifyOutput: VerifyOutput | null;
+  /**
+   * Text Develop passed to its `set_feedback` MCP tool during this iteration.
+   * Null when Develop didn't call set_feedback (or the iteration hadn't reached
+   * Develop yet). Read by the next Plan run via `previousFeedback()`.
+   */
+  feedback: string | null;
 }
 
 export interface SessionTrackerOptions {
@@ -63,8 +69,16 @@ export interface SessionTracker {
   setAfter(sha: string, commits: SessionCommit[]): void;
   setVerifyOutput(out: VerifyOutput | null): void;
   addNote(note: string): void;
+  setFeedback(text: string): void;
   end(status: SessionStatus): void;
   current(): SessionRecord | null;
+  /**
+   * Feedback from the most recently *ended* session — i.e. the session that
+   * preceded the in-flight one. Returns "" when there is no prior session or
+   * the prior session never recorded feedback. Used by the runner to thread
+   * Develop's `set_feedback` text into the next Plan run.
+   */
+  previousFeedback(): string;
   all(): SessionRecord[];
   onChange(fn: () => void): () => void;
   /**
@@ -151,6 +165,10 @@ function validateRecord(raw: unknown): SessionRecord | null {
       ? null
       : validateVerifyOutput(r.verifyOutput);
 
+  // Tolerant: missing/null/non-string feedback defaults to null so older session
+  // files predating this field still load.
+  const feedback = isString(r.feedback) ? r.feedback : null;
+
   return {
     session: r.session,
     startedAt: r.startedAt,
@@ -163,6 +181,7 @@ function validateRecord(raw: unknown): SessionRecord | null {
     status: r.status as SessionStatus,
     notes,
     verifyOutput,
+    feedback,
   };
 }
 
@@ -302,6 +321,7 @@ class SessionTrackerImpl implements SessionTracker {
       status: "planning",
       notes: [],
       verifyOutput: null,
+      feedback: null,
     };
     this.records.push(rec);
     this.trimToMax();
@@ -358,6 +378,21 @@ class SessionTrackerImpl implements SessionTracker {
     r.notes.push(note);
     this.emit();
     this.schedulePersist();
+  }
+
+  setFeedback(text: string): void {
+    const r = this.currentRecord();
+    if (!r) return;
+    r.feedback = text;
+    this.emit();
+    this.schedulePersist();
+  }
+
+  previousFeedback(): string {
+    // The in-flight session lives at the tail; the prior session is the one
+    // whose feedback Plan should see this iteration.
+    const prior = this.records[this.records.length - 2];
+    return prior?.feedback ?? "";
   }
 
   end(status: SessionStatus): void {

@@ -22,7 +22,6 @@ import {
 } from "../mcp/utils/workspace.js";
 import type { LoopController } from "../state/control.js";
 import type { SessionTracker } from "../state/sessions.js";
-import type { FeedbackBus } from "../state/feedback.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -38,7 +37,6 @@ interface ServerContext {
   outputManager: OutputManager;
   controller: LoopController;
   sessions: SessionTracker;
-  feedback: FeedbackBus;
   token: string;
 }
 
@@ -147,7 +145,7 @@ async function handleApiRequest(
       res.statusCode = 201;
       res.end(JSON.stringify({ content: await readDrafts(ctx.config) }));
     } else if (path === "/api/feedback" && method === "GET") {
-      res.end(JSON.stringify({ content: ctx.feedback.current() }));
+      res.end(JSON.stringify({ content: latestFeedback(ctx) }));
     } else if (path === "/api/lessons" && method === "GET") {
       res.end(JSON.stringify({ content: await readLessons(ctx.config) }));
     } else if (path === "/api/compass" && method === "GET") {
@@ -237,7 +235,6 @@ export interface StartWebServerOptions {
   output: OutputManager;
   controller: LoopController;
   sessions: SessionTracker;
-  feedback: FeedbackBus;
 }
 
 export async function startWebServer(
@@ -250,7 +247,6 @@ export async function startWebServer(
     outputManager: opts.output,
     controller: opts.controller,
     sessions: opts.sessions,
-    feedback: opts.feedback,
     token,
   };
 
@@ -326,18 +322,16 @@ export async function startWebServer(
     broadcast({ kind: "status", status });
   });
 
-  // Forward session tracker changes.
+  // Forward session tracker changes. Feedback now lives on the latest session
+  // record, so push the feedback panel alongside the sessions list — that way
+  // the UI updates immediately when Develop calls `set_feedback`.
   const unsubscribeSessions = opts.sessions.onChange(() => {
     broadcast({
       kind: "sessions",
       sessions: opts.sessions.all(),
       priorRunsCount: opts.sessions.priorRunsCount(),
     });
-  });
-
-  // Forward feedback bus changes (Develop's `set_feedback` payload).
-  const unsubscribeFeedback = opts.feedback.onChange((content) => {
-    broadcast({ kind: "feedback", content });
+    broadcast({ kind: "feedback", content: latestFeedback(ctx) });
   });
 
   // Watch the workspace dir for file changes (drafts, state, feedback).
@@ -376,7 +370,6 @@ export async function startWebServer(
           unsubscribeOutput();
           unsubscribeController();
           unsubscribeSessions();
-          unsubscribeFeedback();
           if (pushDebounce) clearTimeout(pushDebounce);
           fileWatcher?.close();
 
@@ -399,7 +392,7 @@ async function sendSnapshot(ctx: ServerContext, ws: WebSocket): Promise<void> {
   const payload = [
     { kind: "state", state },
     { kind: "drafts", content: drafts },
-    { kind: "feedback", content: ctx.feedback.current() },
+    { kind: "feedback", content: latestFeedback(ctx) },
     { kind: "lessons", content: lessons },
     { kind: "compass", content: compass },
     { kind: "status", status: ctx.controller.status() },
@@ -412,6 +405,20 @@ async function sendSnapshot(ctx: ServerContext, ws: WebSocket): Promise<void> {
   for (const msg of payload) {
     if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(msg));
   }
+}
+
+/**
+ * Feedback from the most recent session record (in-flight or otherwise). Used
+ * for the feedback panel snapshot — shows whatever Develop most recently said,
+ * regardless of whether the next Plan run has consumed it yet.
+ */
+function latestFeedback(ctx: ServerContext): string {
+  const all = ctx.sessions.all();
+  for (let i = all.length - 1; i >= 0; i--) {
+    const fb = all[i].feedback;
+    if (fb) return fb;
+  }
+  return "";
 }
 
 async function flushFileChanges(
