@@ -104,15 +104,6 @@ export async function resetHard(cwd: string, commitSha: string): Promise<void> {
   }
 }
 
-export async function getCommitForPlan(
-  cwd: string,
-  planId: string,
-  plans: { id: string; commit: string | null }[]
-): Promise<string | null> {
-  const plan = plans.find((p) => p.id === planId);
-  return plan?.commit ?? null;
-}
-
 export async function isValidCommit(
   cwd: string,
   commitSha: string

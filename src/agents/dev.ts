@@ -241,7 +241,7 @@ export async function runDevAgent(
   // Cleanup pass — runs at most once per Dev invocation, only when the prior
   // attempt was cut off mid-task (budget/turns/no-complete). Fresh budget,
   // bounded scope: finish the in-flight work or revert to a clean state, then
-  // call complete so the next Plan run gets context.
+  // call signal_complete so the next Plan run gets context.
   if (cutOffReason) {
     const cleanupPrompt = buildCleanupPrompt(cutOffReason);
     const cleanupResult = await runDevQuery(

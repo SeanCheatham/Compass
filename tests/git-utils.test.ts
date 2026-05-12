@@ -20,7 +20,6 @@ import {
   isValidCommit,
   commitsBetween,
   listTrackedAndUntracked,
-  getCommitForPlan,
 } from "../src/mcp/utils/git.ts";
 
 // Tiny shell-out helper for setup/verification work that the git utility
@@ -469,26 +468,4 @@ test("listTrackedAndUntracked excludes gitignored files", async () => {
   } finally {
     await cleanup();
   }
-});
-
-// ---------- getCommitForPlan (pure function) ----------
-
-test("getCommitForPlan returns commit for matching plan id", async () => {
-  const result = await getCommitForPlan("/anywhere", "p1", [
-    { id: "p1", commit: "abc123" },
-  ]);
-  assert.equal(result, "abc123");
-});
-
-test("getCommitForPlan returns null when not found OR plan.commit is null", async () => {
-  // Missing id branch.
-  const missing = await getCommitForPlan("/anywhere", "p2", [
-    { id: "p1", commit: "abc123" },
-  ]);
-  assert.equal(missing, null);
-  // Found-but-null-commit branch (the `?? null` coalesce).
-  const nullCommit = await getCommitForPlan("/anywhere", "p1", [
-    { id: "p1", commit: null },
-  ]);
-  assert.equal(nullCommit, null);
 });
