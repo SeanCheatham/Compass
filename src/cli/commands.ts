@@ -234,6 +234,7 @@ export async function runCompass(
     const devResult = await runDevAgent(config, state.immediate, output, {
       signal: devSignal,
       codexSidecar,
+      beforeSha,
     });
 
     if (devResult.feedback) {

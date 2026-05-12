@@ -11,8 +11,10 @@ import { prepareCodemap } from "../repomap/index.js";
 import type { VerifyOutput } from "../state/sessions.js";
 import {
   diagnoseVerifyFailureWithCodex,
+  reviewDiffWithCodex,
   type CodexSidecarOptions,
 } from "./codex-sidecar.js";
+import { tryGetCurrentCommit } from "../mcp/utils/git.js";
 
 const execAsync = promisify(exec);
 
@@ -86,6 +88,8 @@ export interface DevAgentOptions {
   /** Aborts the agent mid-stream when the user cancels or the process exits. */
   signal: AbortSignal;
   codexSidecar?: CodexSidecarOptions;
+  /** HEAD before this Develop iteration started; used for sidecar diff review. */
+  beforeSha?: string | null;
 }
 
 export interface DevAgentResult {
@@ -607,6 +611,25 @@ async function runPostChecks(
     output.error("Workspace dirty after Develop ran.");
   } else {
     output.info("Working tree clean.");
+  }
+
+  if (retryIssues.length === 0 && opts.codexSidecar) {
+    const afterSha = await tryGetCurrentCommit(config.implRepoPath);
+    const reviewIssue = await reviewDiffWithCodex({
+      config,
+      options: opts.codexSidecar,
+      next,
+      beforeSha: opts.beforeSha ?? null,
+      afterSha,
+      output,
+      signal: opts.signal,
+    });
+    if (reviewIssue) {
+      const msg = `Codex sidecar diff review found issues:\n\`\`\`\n${reviewIssue}\n\`\`\``;
+      retryIssues.push(msg);
+      displayIssues.push(msg);
+      output.error("Codex sidecar diff review found issues.");
+    }
   }
 
   return {

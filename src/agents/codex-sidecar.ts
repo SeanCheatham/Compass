@@ -5,7 +5,11 @@ import { join } from "node:path";
 import type { PlanNext, WorkspaceConfig } from "../state/types.js";
 import type { OutputManager } from "../web/output-manager.js";
 
-export type CodexSidecarMode = "auto" | "off" | "verify-failures";
+export type CodexSidecarMode =
+  | "auto"
+  | "off"
+  | "verify-failures"
+  | "diff-review";
 
 export interface CodexSidecarOptions {
   mode: CodexSidecarMode;
@@ -20,12 +24,13 @@ export function parseCodexSidecarMode(
   if (
     normalized === "auto" ||
     normalized === "off" ||
-    normalized === "verify-failures"
+    normalized === "verify-failures" ||
+    normalized === "diff-review"
   ) {
     return normalized;
   }
   throw new Error(
-    `Unknown Codex sidecar mode "${value}". Expected "auto", "verify-failures", or "off".`
+    `Unknown Codex sidecar mode "${value}". Expected "auto", "verify-failures", "diff-review", or "off".`
   );
 }
 
@@ -33,11 +38,25 @@ export function codexSidecarLabel(mode: CodexSidecarMode): string {
   switch (mode) {
     case "off":
       return "off";
+    case "diff-review":
+      return "diff-review";
     case "verify-failures":
       return "verify-failures";
     case "auto":
-      return "auto (verify-failure diagnosis when Codex CLI is available)";
+      return "auto (verify-failure diagnosis + diff review when Codex CLI is available)";
   }
+}
+
+export function codexSidecarHandlesDiffReview(
+  options: CodexSidecarOptions
+): boolean {
+  return options.mode === "auto" || options.mode === "diff-review";
+}
+
+export function codexSidecarHandlesVerifyFailures(
+  options: CodexSidecarOptions
+): boolean {
+  return options.mode === "auto" || options.mode === "verify-failures";
 }
 
 export async function diagnoseVerifyFailureWithCodex(args: {
@@ -50,7 +69,7 @@ export async function diagnoseVerifyFailureWithCodex(args: {
   output: OutputManager;
   signal: AbortSignal;
 }): Promise<string | null> {
-  if (args.options.mode === "off") return null;
+  if (!codexSidecarHandlesVerifyFailures(args.options)) return null;
 
   args.output.info("Codex sidecar: diagnosing verify failure (read-only).");
 
@@ -77,6 +96,43 @@ export async function diagnoseVerifyFailureWithCodex(args: {
   args.output.info("Codex sidecar: diagnosis captured for Claude retry.");
   args.output.log(`Codex sidecar diagnosis:\n\n${diagnosis}`);
   return diagnosis;
+}
+
+export async function reviewDiffWithCodex(args: {
+  config: WorkspaceConfig;
+  options: CodexSidecarOptions;
+  next: PlanNext;
+  beforeSha: string | null;
+  afterSha: string | null;
+  output: OutputManager;
+  signal: AbortSignal;
+}): Promise<string | null> {
+  if (!codexSidecarHandlesDiffReview(args.options)) return null;
+  if (args.beforeSha && args.beforeSha === args.afterSha) return null;
+  if (!args.afterSha) return null;
+
+  args.output.info("Codex sidecar: reviewing committed diff (read-only).");
+
+  const prompt = buildDiffReviewPrompt(args.next, args.beforeSha, args.afterSha);
+  const result = await runCodexReadOnly(prompt, args.config.implRepoPath, args.signal);
+  if (result.status === "unavailable") {
+    args.output.info("Codex sidecar unavailable; skipping diff review.");
+    return null;
+  }
+  if (result.status === "cancelled") return null;
+  if (result.status === "failed") {
+    args.output.info(`Codex sidecar diff review failed: ${result.message}`);
+    return null;
+  }
+
+  const review = result.message.trim();
+  if (!review || isNoIssuesReview(review)) {
+    args.output.info("Codex sidecar: no concrete diff issues reported.");
+    return null;
+  }
+  args.output.info("Codex sidecar: diff review found issues for Claude retry.");
+  args.output.log(`Codex sidecar diff review:\n\n${review}`);
+  return review;
 }
 
 function buildVerifyDiagnosisPrompt(
@@ -116,6 +172,52 @@ Exit code: ${exitCode ?? "unknown"}
 \`\`\`
 ${verifyTail}
 \`\`\`
+`;
+}
+
+function buildDiffReviewPrompt(
+  next: PlanNext,
+  beforeSha: string | null,
+  afterSha: string
+): string {
+  const target = beforeSha ? `${beforeSha}..${afterSha}` : afterSha;
+  const commands = beforeSha
+    ? `git show --stat --oneline ${afterSha}
+git diff ${beforeSha}..${afterSha}
+git status --porcelain`
+    : `git show --stat --oneline ${afterSha}
+git show --format=fuller --find-renames ${afterSha}
+git status --porcelain`;
+  return `You are a read-only sidecar code reviewer for Compass, a Claude-driven
+software factory. Claude owns all tool calls, state changes, file edits, and
+commits. Your job is only to review the committed diff for concrete correctness
+issues before Compass accepts the iteration.
+
+Do not edit files. Do not run destructive commands. Inspect the repository and
+diff if needed. Focus on bugs, regressions, missed requirements, broken tests,
+and unsafe assumptions. Ignore style-only nits unless they hide a real bug.
+
+Review this git range:
+
+\`\`\`
+${target}
+\`\`\`
+
+Suggested commands, if useful:
+
+\`\`\`bash
+${commands}
+\`\`\`
+
+Return exactly one of:
+
+- \`NO_ISSUES\` if you found no concrete issue that should block acceptance.
+- Markdown bullets of concrete issues Claude should fix, with file paths when
+  possible. Keep it concise.
+
+## Plan Claude implemented
+
+${next.plan}
 `;
 }
 
@@ -246,6 +348,10 @@ function runProcess(
 
 function tail(text: string, max: number): string {
   return text.length <= max ? text : text.slice(text.length - max);
+}
+
+function isNoIssuesReview(text: string): boolean {
+  return text.trim().toUpperCase() === "NO_ISSUES";
 }
 
 function getCodexSidecarTimeoutMs(): number {

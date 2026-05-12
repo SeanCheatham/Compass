@@ -11,6 +11,7 @@ test("codex sidecar: parses supported modes", () => {
   assert.equal(parseCodexSidecarMode("auto"), "auto");
   assert.equal(parseCodexSidecarMode("off"), "off");
   assert.equal(parseCodexSidecarMode("verify-failures"), "verify-failures");
+  assert.equal(parseCodexSidecarMode("diff-review"), "diff-review");
 });
 
 test("codex sidecar: parser is case and whitespace tolerant", () => {
@@ -26,4 +27,5 @@ test("codex sidecar: labels supported modes", () => {
   assert.match(codexSidecarLabel("auto"), /verify-failure diagnosis/);
   assert.equal(codexSidecarLabel("off"), "off");
   assert.equal(codexSidecarLabel("verify-failures"), "verify-failures");
+  assert.equal(codexSidecarLabel("diff-review"), "diff-review");
 });

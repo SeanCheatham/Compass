@@ -34,7 +34,7 @@ program
   )
   .option(
     "--codex-sidecar <mode>",
-    "Optional Codex CLI sidecar mode: auto, verify-failures, or off (default: auto, or COMPASS_CODEX_SIDECAR)",
+    "Optional Codex CLI sidecar mode: auto, verify-failures, diff-review, or off (default: auto, or COMPASS_CODEX_SIDECAR)",
     process.env.COMPASS_CODEX_SIDECAR ?? "auto"
   )
   .action(async (opts: {
