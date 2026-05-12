@@ -17,11 +17,16 @@ import type { OutputManager } from "../web/output-manager.js";
 import type { LoopController } from "../state/control.js";
 import type { SessionTracker } from "../state/sessions.js";
 import { commitsBetween, tryGetCurrentCommit } from "../mcp/utils/git.js";
+import {
+  codexSidecarLabel,
+  type CodexSidecarOptions,
+} from "../agents/codex-sidecar.js";
 
 export interface RunOptions {
   output: OutputManager;
   controller: LoopController;
   sessions: SessionTracker;
+  codexSidecar: CodexSidecarOptions;
   /** Abort signal to stop the loop on shutdown. */
   signal: AbortSignal;
 }
@@ -46,7 +51,7 @@ export async function runCompass(
   cwd: string,
   options: RunOptions
 ): Promise<void> {
-  const { output, controller, sessions, signal } = options;
+  const { output, controller, sessions, codexSidecar, signal } = options;
 
   output.info("Compass — Plan + Develop loop\n");
 
@@ -54,6 +59,7 @@ export async function runCompass(
 
   output.info(`Repo:      ${config.implRepoPath}`);
   output.info(`Workspace: ${config.workspacePath}\n`);
+  output.info(`Codex sidecar: ${codexSidecarLabel(codexSidecar.mode)}\n`);
 
   // Seed from prior persisted sessions so iteration counts continue across
   // restarts instead of resetting to 1.
@@ -227,6 +233,7 @@ export async function runCompass(
     const devSignal = controller.iterationSignal(signal);
     const devResult = await runDevAgent(config, state.immediate, output, {
       signal: devSignal,
+      codexSidecar,
     });
 
     if (devResult.feedback) {

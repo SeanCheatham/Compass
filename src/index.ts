@@ -10,6 +10,7 @@ import { hasUncommittedChanges, stashChanges } from "./mcp/utils/git.js";
 import { createLoopController } from "./state/control.js";
 import { createSessionTracker } from "./state/sessions.js";
 import { acquireWorkspaceLock } from "./state/lock.js";
+import { parseCodexSidecarMode } from "./agents/codex-sidecar.js";
 
 const program = new Command();
 
@@ -31,8 +32,20 @@ program
     "Require manual approval of each plan before Develop runs (default: auto-accept)",
     false
   )
-  .action(async (opts: { autoStash: boolean; requireApproval: boolean }) => {
+  .option(
+    "--codex-sidecar <mode>",
+    "Optional Codex CLI sidecar mode: auto, verify-failures, or off (default: auto, or COMPASS_CODEX_SIDECAR)",
+    process.env.COMPASS_CODEX_SIDECAR ?? "auto"
+  )
+  .action(async (opts: {
+    autoStash: boolean;
+    requireApproval: boolean;
+    codexSidecar: string;
+  }) => {
     const cwd = process.cwd();
+    const codexSidecar = {
+      mode: parseCodexSidecarMode(opts.codexSidecar),
+    };
 
     const config = await initializeWorkspace(cwd);
 
@@ -111,6 +124,7 @@ program
       output,
       controller,
       sessions,
+      codexSidecar,
       signal: abortController.signal,
     });
   });

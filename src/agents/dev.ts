@@ -9,6 +9,10 @@ import { readLessons, readCompass } from "../mcp/utils/workspace.js";
 import { createDevMcpServer } from "../mcp/server.js";
 import { prepareCodemap } from "../repomap/index.js";
 import type { VerifyOutput } from "../state/sessions.js";
+import {
+  diagnoseVerifyFailureWithCodex,
+  type CodexSidecarOptions,
+} from "./codex-sidecar.js";
 
 const execAsync = promisify(exec);
 
@@ -81,6 +85,7 @@ interface PostCheckResult {
 export interface DevAgentOptions {
   /** Aborts the agent mid-stream when the user cancels or the process exits. */
   signal: AbortSignal;
+  codexSidecar?: CodexSidecarOptions;
 }
 
 export interface DevAgentResult {
@@ -193,7 +198,9 @@ export async function runDevAgent(
       output,
       true,
       queryResult.bypassVerify,
-      next.verifyTimeoutMs
+      next.verifyTimeoutMs,
+      next,
+      opts
     );
     lastDisplayIssues = post.displayIssues;
     lastVerifyOutput = post.verifyOutput;
@@ -261,7 +268,9 @@ export async function runDevAgent(
       output,
       cleanupResult.cutOff === null,
       cleanupResult.bypassVerify,
-      next.verifyTimeoutMs
+      next.verifyTimeoutMs,
+      next,
+      opts
     );
     lastDisplayIssues = post.displayIssues;
     lastVerifyOutput = post.verifyOutput;
@@ -520,7 +529,9 @@ async function runPostChecks(
   output: OutputManager,
   signaledComplete: boolean,
   bypassVerify: boolean,
-  verifyTimeoutMsOverride: number | undefined
+  verifyTimeoutMsOverride: number | undefined,
+  next: PlanNext,
+  opts: DevAgentOptions
 ): Promise<PostCheckResult> {
   const retryIssues: string[] = [];
   const displayIssues: string[] = [];
@@ -558,6 +569,23 @@ async function runPostChecks(
         tail: verifyTail,
       };
       output.error(`Verify failed (exit ${verify.code}).`);
+      const diagnosis = opts.codexSidecar
+        ? await diagnoseVerifyFailureWithCodex({
+            config,
+            options: opts.codexSidecar,
+            next,
+            verifyCommand,
+            exitCode: verify.code,
+            verifyTail,
+            output,
+            signal: opts.signal,
+          })
+        : null;
+      if (diagnosis) {
+        const msg = `Codex sidecar diagnosis for the verify failure:\n\`\`\`\n${diagnosis}\n\`\`\``;
+        retryIssues.push(msg);
+        displayIssues.push(msg);
+      }
     } else {
       output.info("Verify passed.");
     }
