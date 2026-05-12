@@ -183,11 +183,13 @@ export function createDevMcpServer(
       ),
       tool(
         "signal_complete",
-        "Signal that this Develop iteration is finished. Call this exactly once, as your FINAL action — the runner aborts the stream on the first call and moves to post-checks (verify + clean tree). Set `bypassVerify: true` ONLY when you have determined mid-implementation that the verify command in the plan can't pass without Plan replanning (e.g. the command is wrong, asserts something impossible, or needs an out-of-scope dependency); the runner will skip the verify post-check (clean-tree still applies) and route your feedback straight to Plan. Always call `set_feedback` first to explain.",
+        "Signal that this Develop iteration is finished. Call this exactly once, as your FINAL action — the runner aborts the stream right after this call returns and moves to post-checks (verify + clean tree). Set `bypassVerify: true` ONLY when you have determined mid-implementation that the verify command in the plan can't pass without Plan replanning (e.g. the command is wrong, asserts something impossible, or needs an out-of-scope dependency); the runner will skip the verify post-check (clean-tree still applies) and route your feedback straight to Plan. Always call `set_feedback` first to explain.",
         { bypassVerify: z.boolean().optional() },
         async ({ bypassVerify }) => {
           callbacks.onSignalComplete({ bypassVerify: bypassVerify ?? false });
-          return textResult("ok");
+          return textResult(
+            "Iteration complete. The runner has captured your signal and will terminate this stream momentarily. Do not take any further action; any subsequent assistant text or tool calls will be discarded."
+          );
         }
       ),
       ...lessonsTools(config),

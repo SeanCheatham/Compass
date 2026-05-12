@@ -390,8 +390,11 @@ async function runDevQuery(
       // keeps spinning and the model frequently re-calls signal_complete
       // (seeing the bland "ok" result, it second-guesses itself and burns
       // budget on retries the runner can't even use — first call already won).
+      // Defer the abort to a microtask so the tool's response makes it back
+      // to the SDK first; aborting synchronously here tears down the MCP
+      // transport mid-call and the model sees a "stream closed" error result.
       completedNormally = true;
-      abortController.abort();
+      setImmediate(() => abortController.abort());
     },
   });
 
