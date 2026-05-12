@@ -9,6 +9,8 @@ import { readLessons, readCompass } from "../mcp/utils/workspace.js";
 import { createDevMcpServer } from "../mcp/server.js";
 import { prepareCodemap } from "../repomap/index.js";
 import type { VerifyOutput } from "../state/sessions.js";
+import { runCodexDevAgent } from "./codex.js";
+import type { AgentSdk } from "./provider.js";
 
 const execAsync = promisify(exec);
 
@@ -81,6 +83,7 @@ interface PostCheckResult {
 export interface DevAgentOptions {
   /** Aborts the agent mid-stream when the user cancels or the process exits. */
   signal: AbortSignal;
+  sdk?: AgentSdk;
 }
 
 export interface DevAgentResult {
@@ -161,7 +164,8 @@ export async function runDevAgent(
       next,
       output,
       ctxLabel,
-      opts.signal
+      opts.signal,
+      opts.sdk
     );
     if (queryResult.cancelled) {
       return {
@@ -240,7 +244,8 @@ export async function runDevAgent(
       next,
       output,
       "Cleanup",
-      opts.signal
+      opts.signal,
+      opts.sdk
     );
     if (cleanupResult.cancelled) {
       return {
@@ -352,7 +357,8 @@ async function runDevQuery(
   output: OutputManager,
   /** Short label rendered next to "Develop" in the activity stream. */
   ctxLabel: string | undefined,
-  signal: AbortSignal
+  signal: AbortSignal,
+  sdk: AgentSdk | undefined
 ): Promise<{
   cancelled: boolean;
   feedback: string | null;
@@ -361,6 +367,21 @@ async function runDevQuery(
   /** Whether `signal_complete` was called with bypassVerify=true. */
   bypassVerify: boolean;
 }> {
+  if (sdk === "codex") {
+    const result = await runCodexDevAgent(
+      config,
+      { systemPrompt, prompt, next, ctxLabel },
+      output,
+      signal
+    );
+    return {
+      cancelled: result.cancelled,
+      feedback: result.feedback,
+      cutOff: result.completed ? null : "no_complete",
+      bypassVerify: result.bypassVerify,
+    };
+  }
+
   const abortController = new AbortController();
   if (signal.aborted) abortController.abort();
   else signal.addEventListener("abort", () => abortController.abort(), { once: true });

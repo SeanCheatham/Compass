@@ -1,7 +1,7 @@
 {
   "name": "compass",
   "version": "0.1.0",
-  "description": "Recursive iteration tool for autonomous project development using Claude Agent SDK",
+  "description": "Recursive iteration tool for autonomous project development using Claude Agent SDK or Codex SDK",
   "type": "module",
   "main": "dist/index.js",
   "bin": {
@@ -17,6 +17,7 @@
   },
   "keywords": [
     "claude",
+    "codex",
     "ai",
     "agent",
     "autonomous",
@@ -26,6 +27,7 @@
   "license": "MIT",
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.2.139",
+    "@openai/codex-sdk": "^0.130.0",
     "commander": "^14.0.3",
     "tree-sitter": "^0.25.0",
     "tree-sitter-go": "^0.25.0",

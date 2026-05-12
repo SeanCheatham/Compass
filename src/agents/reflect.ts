@@ -7,6 +7,8 @@ import type { OutputManager } from "../web/output-manager.js";
 import { extractToolDetail } from "./tool-details.js";
 import { prepareCodemap } from "../repomap/index.js";
 import { createPlanMcpServer } from "../mcp/server.js";
+import { runCodexReflectAgent } from "./codex.js";
+import type { AgentSdk } from "./provider.js";
 
 const OPUS = "claude-opus-4-7";
 
@@ -25,6 +27,7 @@ export interface ReflectAgentResult {
 
 export interface ReflectAgentOptions {
   signal: AbortSignal;
+  sdk?: AgentSdk;
 }
 
 const INITIAL_PROMPT = `Run a course-correction pass.
@@ -73,6 +76,15 @@ export async function runReflectAgent(
     recentSessions: input.recentSessions,
     iteration: input.iteration,
   });
+
+  if (opts.sdk === "codex") {
+    return runCodexReflectAgent(
+      config,
+      { systemPrompt, prompt: INITIAL_PROMPT },
+      output,
+      opts.signal
+    );
+  }
 
   let capturedState: PlanState | null = null;
 

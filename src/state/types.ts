@@ -25,9 +25,8 @@ export interface PlanNext {
    */
   verifyTimeoutMs?: number;
   /**
-   * Plan's estimate of how hard the implementation will be. Selects the Develop
-   * model: low → Haiku, medium → Sonnet, high → Opus. When omitted the runner
-   * defaults to Sonnet.
+   * Plan's estimate of how hard the implementation will be. Claude uses this
+   * to select a Develop model; Codex uses it to select reasoning effort.
    */
   estimatedDifficulty?: "low" | "medium" | "high";
 }
@@ -41,8 +40,8 @@ export interface PlanNext {
  *   - `longTerm`:  markdown sketch of the strategic arc (~10+ iterations) — Plan's
  *                  read on how to reach the vision in COMPASS.md.
  *
- * Plan owns this file via the `set_state` MCP tool. The runner persists it to
- * disk after each Plan run.
+ * Plan owns this file through the runner handoff (`set_state` for Claude,
+ * structured JSON for Codex). The runner persists it after each Plan run.
  */
 export interface PlanState {
   completed: string[];

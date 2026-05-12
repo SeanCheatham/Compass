@@ -66,6 +66,43 @@ test("normalizePlanState: trims plan and verify", () => {
   assert.deepEqual(result?.immediate, { plan: "plan", verify: "npm test" });
 });
 
+test("normalizePlanState: preserves optional immediate metadata", () => {
+  const result = normalizePlanState({
+    completed: [],
+    immediate: {
+      plan: "plan",
+      verify: "npm test",
+      verifyTimeoutMs: 12345,
+      estimatedDifficulty: "high",
+    },
+    midTerm: "",
+    longTerm: "",
+  });
+  assert.deepEqual(result?.immediate, {
+    plan: "plan",
+    verify: "npm test",
+    verifyTimeoutMs: 12345,
+    estimatedDifficulty: "high",
+  });
+});
+
+test("normalizePlanState: drops invalid estimatedDifficulty", () => {
+  const result = normalizePlanState({
+    completed: [],
+    immediate: {
+      plan: "plan",
+      verify: "npm test",
+      estimatedDifficulty: "enormous",
+    },
+    midTerm: "",
+    longTerm: "",
+  });
+  assert.deepEqual(result?.immediate, {
+    plan: "plan",
+    verify: "npm test",
+  });
+});
+
 test("normalizePlanState: rejects non-array completed", () => {
   assert.equal(
     normalizePlanState({

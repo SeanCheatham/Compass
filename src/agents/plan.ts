@@ -6,6 +6,8 @@ import type { OutputManager } from "../web/output-manager.js";
 import { extractToolDetail } from "./tool-details.js";
 import { prepareCodemap } from "../repomap/index.js";
 import { createPlanMcpServer } from "../mcp/server.js";
+import { runCodexPlanAgent } from "./codex.js";
+import type { AgentSdk } from "./provider.js";
 
 export interface PlanAgentInput {
   /** Snapshot of drafts.md taken by the runner (already cleared from disk). */
@@ -27,6 +29,7 @@ export interface PlanAgentResult {
 export interface PlanAgentOptions {
   /** Aborts the agent mid-stream when the user cancels or the process exits. */
   signal: AbortSignal;
+  sdk?: AgentSdk;
 }
 
 /** SDK model IDs for the two Plan rungs. */
@@ -94,6 +97,15 @@ export async function runPlanAgent(
     lessons,
     vision,
   });
+
+  if (opts.sdk === "codex") {
+    return runCodexPlanAgent(
+      config,
+      { systemPrompt, prompt: INITIAL_PROMPT },
+      output,
+      opts.signal
+    );
+  }
 
   let capturedState: PlanState | null = null;
   let escalationMessage: string | null = null;

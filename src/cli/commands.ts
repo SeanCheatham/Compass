@@ -17,11 +17,14 @@ import type { OutputManager } from "../web/output-manager.js";
 import type { LoopController } from "../state/control.js";
 import type { SessionTracker } from "../state/sessions.js";
 import { commitsBetween, tryGetCurrentCommit } from "../mcp/utils/git.js";
+import type { AgentSdk } from "../agents/provider.js";
+import { agentSdkLabel } from "../agents/provider.js";
 
 export interface RunOptions {
   output: OutputManager;
   controller: LoopController;
   sessions: SessionTracker;
+  agentSdk: AgentSdk;
   /** Abort signal to stop the loop on shutdown. */
   signal: AbortSignal;
 }
@@ -46,7 +49,7 @@ export async function runCompass(
   cwd: string,
   options: RunOptions
 ): Promise<void> {
-  const { output, controller, sessions, signal } = options;
+  const { output, controller, sessions, agentSdk, signal } = options;
 
   output.info("Compass — Plan + Develop loop\n");
 
@@ -54,6 +57,7 @@ export async function runCompass(
 
   output.info(`Repo:      ${config.implRepoPath}`);
   output.info(`Workspace: ${config.workspacePath}\n`);
+  output.info(`Agent SDK: ${agentSdkLabel(agentSdk)}\n`);
 
   // Seed from prior persisted sessions so iteration counts continue across
   // restarts instead of resetting to 1.
@@ -126,7 +130,7 @@ export async function runCompass(
         config,
         { recentSessions, iteration },
         output,
-        { signal: reflectSignal }
+        { signal: reflectSignal, sdk: agentSdk }
       );
 
       if (reflectResult.cancelled) {
@@ -158,7 +162,7 @@ export async function runCompass(
       config,
       { drafts, feedback: carriedFeedback },
       output,
-      { signal: planSignal }
+      { signal: planSignal, sdk: agentSdk }
     );
 
     if (planResult.cancelled) {
@@ -227,6 +231,7 @@ export async function runCompass(
     const devSignal = controller.iterationSignal(signal);
     const devResult = await runDevAgent(config, state.immediate, output, {
       signal: devSignal,
+      sdk: agentSdk,
     });
 
     if (devResult.feedback) {
