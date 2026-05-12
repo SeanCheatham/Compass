@@ -1,7 +1,4 @@
-import { spawn } from "node:child_process";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { Codex, type CodexOptions } from "@openai/codex-sdk";
 import type { PlanNext, WorkspaceConfig } from "../state/types.js";
 import type { OutputManager } from "../web/output-manager.js";
 
@@ -15,7 +12,8 @@ export interface CodexSidecarOptions {
   mode: CodexSidecarMode;
 }
 
-const DEFAULT_CODEX_SIDECAR_TIMEOUT_MS = 2 * 60 * 1000;
+const DEFAULT_CODEX_VERIFY_TIMEOUT_MS = 2 * 60 * 1000;
+const DEFAULT_CODEX_DIFF_REVIEW_TIMEOUT_MS = 15 * 60 * 1000;
 
 export function parseCodexSidecarMode(
   value: string | undefined
@@ -80,7 +78,9 @@ export async function diagnoseVerifyFailureWithCodex(args: {
     args.verifyTail
   );
 
-  const result = await runCodexReadOnly(prompt, args.config.implRepoPath, args.signal);
+  const result = await runCodexReadOnly(prompt, args.config.implRepoPath, args.signal, {
+    defaultTimeoutMs: DEFAULT_CODEX_VERIFY_TIMEOUT_MS,
+  });
   if (result.status === "unavailable") {
     args.output.info("Codex sidecar unavailable; continuing with Claude-only retry context.");
     return null;
@@ -114,7 +114,9 @@ export async function reviewDiffWithCodex(args: {
   args.output.info("Codex sidecar: reviewing committed diff (read-only).");
 
   const prompt = buildDiffReviewPrompt(args.next, args.beforeSha, args.afterSha);
-  const result = await runCodexReadOnly(prompt, args.config.implRepoPath, args.signal);
+  const result = await runCodexReadOnly(prompt, args.config.implRepoPath, args.signal, {
+    defaultTimeoutMs: DEFAULT_CODEX_DIFF_REVIEW_TIMEOUT_MS,
+  });
   if (result.status === "unavailable") {
     args.output.info("Codex sidecar unavailable; skipping diff review.");
     return null;
@@ -230,136 +232,116 @@ type CodexRunResult =
 async function runCodexReadOnly(
   prompt: string,
   cwd: string,
-  signal: AbortSignal
+  signal: AbortSignal,
+  options: { defaultTimeoutMs: number }
 ): Promise<CodexRunResult> {
-  const bin = process.env.COMPASS_CODEX_BIN?.trim() || "codex";
-  const dir = await mkdtemp(join(tmpdir(), "compass-codex-sidecar-"));
-  const outPath = join(dir, "last-message.md");
-  const timeoutMs = getCodexSidecarTimeoutMs();
+  const timeoutMs = getCodexSidecarTimeoutMs(options.defaultTimeoutMs);
+  const controller = new AbortController();
+  const timeout = setTimeout(() => {
+    controller.abort(new Error(`Codex sidecar timed out after ${timeoutMs}ms.`));
+  }, timeoutMs);
+
+  const onAbort = () => controller.abort(signal.reason);
+  signal.addEventListener("abort", onAbort, { once: true });
+  if (signal.aborted) controller.abort(signal.reason);
 
   try {
-    const args = [
-      "exec",
-      "--cd",
-      cwd,
-      "--sandbox",
-      "read-only",
-      "--ask-for-approval",
-      "never",
-      "--ephemeral",
-      "--output-last-message",
-      outPath,
-      "-",
-    ];
+    const codex = new Codex(getCodexOptions());
+    const thread = codex.startThread({
+      workingDirectory: cwd,
+      sandboxMode: "read-only",
+      approvalPolicy: "never",
+      modelReasoningEffort: "low",
+    });
 
-    const result = await runProcess(bin, args, prompt, cwd, signal, timeoutMs);
-    if (result.status === "cancelled" || result.status === "unavailable") {
-      return result;
+    const turn = await thread.run(prompt, { signal: controller.signal });
+    return { status: "ok", message: turn.finalResponse };
+  } catch (err) {
+    if (signal.aborted) return { status: "cancelled" };
+    if (controller.signal.aborted) {
+      return { status: "failed", message: getErrorMessage(controller.signal.reason) };
     }
-    if (result.code !== 0) {
-      return {
-        status: "failed",
-        message: tail(result.stderr || result.stdout || `exit ${result.code}`, 1200),
-      };
-    }
-
-    const message = await readFile(outPath, "utf-8").catch(() => result.stdout);
-    return { status: "ok", message };
+    if (isCodexUnavailableError(err)) return { status: "unavailable" };
+    return { status: "failed", message: tail(getErrorMessage(err), 1200) };
   } finally {
-    await rm(dir, { recursive: true, force: true }).catch(() => {});
+    clearTimeout(timeout);
+    signal.removeEventListener("abort", onAbort);
   }
-}
-
-function runProcess(
-  bin: string,
-  args: string[],
-  stdin: string,
-  cwd: string,
-  signal: AbortSignal,
-  timeoutMs: number
-): Promise<
-  | { status: "ok"; code: number | null; stdout: string; stderr: string }
-  | { status: "cancelled" }
-  | { status: "unavailable" }
-> {
-  return new Promise((resolve) => {
-    const child = spawn(bin, args, {
-      cwd,
-      stdio: ["pipe", "pipe", "pipe"],
-    });
-
-    let settled = false;
-    let stdout = "";
-    let stderr = "";
-    let timeout: NodeJS.Timeout | null = null;
-
-    const settle = (
-      result:
-        | { status: "ok"; code: number | null; stdout: string; stderr: string }
-        | { status: "cancelled" }
-        | { status: "unavailable" }
-    ) => {
-      if (settled) return;
-      settled = true;
-      if (timeout) clearTimeout(timeout);
-      signal.removeEventListener("abort", onAbort);
-      resolve(result);
-    };
-
-    const onAbort = () => {
-      child.kill("SIGTERM");
-      settle({ status: "cancelled" });
-    };
-
-    if (signal.aborted) {
-      child.kill("SIGTERM");
-      settle({ status: "cancelled" });
-      return;
-    }
-    signal.addEventListener("abort", onAbort, { once: true });
-    timeout = setTimeout(() => {
-      child.kill("SIGTERM");
-      stderr += `Codex sidecar timed out after ${timeoutMs}ms.`;
-      settle({ status: "ok", code: 124, stdout, stderr });
-    }, timeoutMs);
-
-    child.on("error", (err) => {
-      if ((err as NodeJS.ErrnoException).code === "ENOENT") {
-        settle({ status: "unavailable" });
-      } else {
-        stderr += String(err);
-        settle({ status: "ok", code: 1, stdout, stderr });
-      }
-    });
-
-    child.stdout?.on("data", (chunk) => {
-      stdout += String(chunk);
-    });
-    child.stderr?.on("data", (chunk) => {
-      stderr += String(chunk);
-    });
-    child.on("close", (code) => {
-      settle({ status: "ok", code, stdout, stderr });
-    });
-
-    child.stdin?.end(stdin);
-  });
 }
 
 function tail(text: string, max: number): string {
   return text.length <= max ? text : text.slice(text.length - max);
 }
 
+export function getCodexOptionsForTest(
+  env: CodexEnv = process.env
+): CodexOptions {
+  return getCodexOptions(env);
+}
+
+interface CodexEnv {
+  COMPASS_CODEX_BIN?: string;
+  COMPASS_CODEX_SIDECAR_TIMEOUT_MS?: string;
+}
+
+function getCodexOptions(env: CodexEnv = process.env): CodexOptions {
+  const codexPathOverride = env.COMPASS_CODEX_BIN?.trim();
+  return codexPathOverride ? { codexPathOverride } : {};
+}
+
+export function isCodexUnavailableErrorForTest(err: unknown): boolean {
+  return isCodexUnavailableError(err);
+}
+
+export function getDefaultCodexTimeoutsForTest(): {
+  verifyMs: number;
+  diffReviewMs: number;
+} {
+  return {
+    verifyMs: DEFAULT_CODEX_VERIFY_TIMEOUT_MS,
+    diffReviewMs: DEFAULT_CODEX_DIFF_REVIEW_TIMEOUT_MS,
+  };
+}
+
+function isCodexUnavailableError(err: unknown): boolean {
+  const message = getErrorMessage(err);
+  const code =
+    typeof err === "object" && err !== null && "code" in err
+      ? String((err as { code?: unknown }).code)
+      : "";
+  return (
+    code === "ENOENT" ||
+    /Unable to locate Codex CLI binaries/i.test(message) ||
+    /no such file or directory/i.test(message)
+  );
+}
+
+function getErrorMessage(err: unknown): string {
+  if (err instanceof Error) return err.message;
+  if (typeof err === "string") return err;
+  return String(err);
+}
+
 function isNoIssuesReview(text: string): boolean {
   return text.trim().toUpperCase() === "NO_ISSUES";
 }
 
-function getCodexSidecarTimeoutMs(): number {
-  const raw = process.env.COMPASS_CODEX_SIDECAR_TIMEOUT_MS;
-  if (!raw) return DEFAULT_CODEX_SIDECAR_TIMEOUT_MS;
+export function getCodexSidecarTimeoutMsForTest(
+  defaultTimeoutMs: number,
+  env: CodexEnv = process.env
+): number {
+  return getCodexSidecarTimeoutMs(defaultTimeoutMs, env);
+}
+
+function getCodexSidecarTimeoutMs(
+  defaultTimeoutMs: number,
+  env: CodexEnv = process.env
+): number {
+  const raw = env.COMPASS_CODEX_SIDECAR_TIMEOUT_MS;
+  if (!raw) return defaultTimeoutMs;
   const parsed = parseInt(raw, 10);
   if (!Number.isFinite(parsed) || parsed <= 0) {
-    return DEFAULT_CODEX_SIDECAR_TIMEOUT_MS;
+    return defaultTimeoutMs;
   }
   return parsed;
 }

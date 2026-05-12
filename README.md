@@ -40,14 +40,15 @@ Flags:
 
 - `--auto-stash` — stash uncommitted changes on startup as `compass-auto-stash` instead of refusing to start.
 - `--require-approval` — pause after each Plan run and wait for explicit UI approval before Develop runs. Default is auto-accept.
-- `--codex-sidecar auto|verify-failures|diff-review|off` — optionally use an installed Codex CLI as a read-only sidecar for narrow diagnostics/review. Default is `auto`; can also be set with `COMPASS_CODEX_SIDECAR`.
+- `--codex-sidecar auto|verify-failures|diff-review|off` — optionally use Codex SDK as a read-only sidecar for narrow diagnostics/review. Default is `auto`; can also be set with `COMPASS_CODEX_SIDECAR`.
 
 Codex is not a primary Compass runtime. Claude remains responsible for Plan,
 Develop, Compass MCP tools, state updates, commits, and completion handoffs. In
 `auto` mode, Compass asks Codex for concise verify-failure diagnosis and
-read-only review of accepted diffs when the `codex` CLI is installed and
-available. Override the binary with `COMPASS_CODEX_BIN` and the sidecar timeout with
-`COMPASS_CODEX_SIDECAR_TIMEOUT_MS`.
+read-only review of accepted diffs through `@openai/codex-sdk` when available.
+Override the SDK binary with `COMPASS_CODEX_BIN` and the sidecar timeout with
+`COMPASS_CODEX_SIDECAR_TIMEOUT_MS`. Verify-failure diagnosis defaults to 2
+minutes; diff review defaults to 15 minutes.
 
 Press Ctrl+C to stop. Run `compass status` at any time to print the current `state.json` and `drafts.md`.
 
@@ -88,9 +89,9 @@ Compass exposes a small in-process MCP server to the agents.
 
 ### Codex sidecar
 
-Compass can optionally consult an installed Codex CLI, but only as a narrow
-read-only reviewer. The sidecar does not receive Compass MCP tools and does not
-own Plan or Develop. Today it is used for verify-failure diagnosis and
+Compass can optionally consult Codex through `@openai/codex-sdk`, but only as a
+narrow read-only reviewer. The sidecar does not receive Compass MCP tools and
+does not own Plan or Develop. Today it is used for verify-failure diagnosis and
 post-Develop diff review: Claude sees the failing command/output as before, plus
 Codex's concise diagnosis in the retry prompt when Codex is available; after a
 successful Develop pass, Codex can review the committed diff and block acceptance
