@@ -10,7 +10,6 @@ import { hasUncommittedChanges, stashChanges } from "./mcp/utils/git.js";
 import { createLoopController } from "./state/control.js";
 import { createSessionTracker } from "./state/sessions.js";
 import { acquireWorkspaceLock } from "./state/lock.js";
-import { parseAgentSdk } from "./agents/provider.js";
 
 const program = new Command();
 
@@ -32,18 +31,8 @@ program
     "Require manual approval of each plan before Develop runs (default: auto-accept)",
     false
   )
-  .option(
-    "--agent-sdk <sdk>",
-    "Agent SDK to run agents with: claude or codex (default: claude, or COMPASS_AGENT_SDK)",
-    process.env.COMPASS_AGENT_SDK ?? "claude"
-  )
-  .action(async (opts: {
-    autoStash: boolean;
-    requireApproval: boolean;
-    agentSdk: string;
-  }) => {
+  .action(async (opts: { autoStash: boolean; requireApproval: boolean }) => {
     const cwd = process.cwd();
-    const agentSdk = parseAgentSdk(opts.agentSdk);
 
     const config = await initializeWorkspace(cwd);
 
@@ -122,7 +111,6 @@ program
       output,
       controller,
       sessions,
-      agentSdk,
       signal: abortController.signal,
     });
   });

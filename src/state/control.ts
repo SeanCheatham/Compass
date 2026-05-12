@@ -2,7 +2,7 @@
  * Runtime controls for the Plan + Develop loop.
  *
  * Phases the runner moves through:
- *   - idle              waiting for drafts or a non-null `immediate`
+ *   - idle              waiting for drafts or a non-null `next`
  *   - planning          Plan agent is running
  *   - awaiting_approval Plan finished, runner is gated on user before Develop
  *   - developing        Develop agent is running
@@ -51,7 +51,7 @@ export interface LoopController {
   setApproveRequired(value: boolean): void;
   pause(mode?: PauseMode): void;
   resume(): void;
-  /** Approve the pending immediate plan so Develop can run. */
+  /** Approve the pending Next so Develop can run. */
   approve(): void;
   /** Abort the current agent (if any) and skip the rest of this iteration. */
   cancel(): void;

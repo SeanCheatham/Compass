@@ -125,19 +125,10 @@ export function normalizePlanState(raw: unknown): PlanState | null {
       rawTimeout > 0
         ? rawTimeout
         : undefined;
-    const rawDifficulty = n.estimatedDifficulty;
-    const estimatedDifficulty =
-      rawDifficulty === "low" ||
-      rawDifficulty === "medium" ||
-      rawDifficulty === "high"
-        ? rawDifficulty
-        : undefined;
-    immediate = {
-      plan,
-      verify,
-      ...(verifyTimeoutMs !== undefined ? { verifyTimeoutMs } : {}),
-      ...(estimatedDifficulty !== undefined ? { estimatedDifficulty } : {}),
-    };
+    immediate =
+      verifyTimeoutMs !== undefined
+        ? { plan, verify, verifyTimeoutMs }
+        : { plan, verify };
   } else {
     return null;
   }
