@@ -106,6 +106,7 @@ header {
   gap: 1rem;
   justify-content: space-between;
   padding: 0.85rem 1.35rem;
+  z-index: 30;
 }
 
 header h1 {
@@ -278,7 +279,7 @@ button:focus-visible {
   position: absolute;
   right: 0;
   top: calc(100% + 0.45rem);
-  z-index: 20;
+  z-index: 40;
 }
 
 .ctrl-menu-list[hidden] {
