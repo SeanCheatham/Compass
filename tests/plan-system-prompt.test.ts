@@ -144,10 +144,13 @@ test("plan system prompt: schema block names immediate/midTerm/longTerm", () => 
   assert.equal(prompt.includes('"followUp"'), false);
 });
 
-test("plan system prompt: explicitly names docs MCP tools", () => {
+test("plan system prompt: embeds planning standards instead of docs tools", () => {
   const prompt = buildPlanSystemPrompt(baseContext());
-  assert.ok(prompt.includes("`search_docs({ query })`"));
-  assert.ok(prompt.includes("`read_doc({ id })`"));
+  assert.equal(prompt.includes("search_docs"), false);
+  assert.equal(prompt.includes("read_doc"), false);
+  assert.match(prompt, /## Planning standards/);
+  assert.match(prompt, /State has strict ownership/);
+  assert.match(prompt, /prompt caching/);
 });
 
 test("plan system prompt: three horizons section explains all three tiers", () => {

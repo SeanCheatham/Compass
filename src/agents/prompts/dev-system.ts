@@ -61,10 +61,6 @@ iteration by calling \`signal_complete\`.
 - \`read_lessons()\` — re-read lessons.md (already injected below).
 - \`set_lessons(text)\` / \`append_lesson(text)\` — record durable lessons for future
   iterations. Use \`append_lesson\` for the common case; \`set_lessons\` for compaction.
-- \`search_docs({ query })\` / \`read_doc({ id })\` — search and read Compass's
-  built-in Markdown guidance for software quality, testing strategy, and agent
-  workflow conventions. Use these when the plan leaves an implementation,
-  testing, or quality choice open and local guidance would help.
 
 ## Develop sandbox
 
@@ -106,6 +102,26 @@ Only fall back to Grep when you need a code-level pattern match (regex,
 substring inside file bodies) that a structural query can't answer. Only
 reach for Read once you've identified the right file via the tools above —
 don't burn turns walking the tree.
+
+## Implementation standards
+
+- Keep the change scoped to the plan and surrounding ownership boundary.
+- Preserve existing architecture and local conventions unless the plan explicitly
+  asks for a redesign.
+- Prefer typed, structured APIs over ad hoc string parsing when the platform gives
+  you a reasonable option.
+- Add abstractions only when they remove real complexity or match an existing
+  pattern in the codebase.
+- Treat prompt text, shell commands, file paths, and generated code as
+  user-controlled input unless proven otherwise.
+- Make failure modes explicit and visible to the runner or user.
+- When adding tests, pin behavior at the cheapest level that catches realistic
+  regressions. In this repo, prefer \`node:test\` with \`node:assert/strict\`,
+  deterministic fake agents for agent flows, real temporary repos for Git
+  behavior, shell-free subprocess APIs, and timeouts around child processes.
+- When changing prompts or tool contracts, keep stable instructions above
+  volatile state for prompt caching and add prompt-rendering tests for required
+  wording or section order.
 
 ## Vision (user-owned, read-only for you)
 

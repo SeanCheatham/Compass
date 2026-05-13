@@ -210,8 +210,6 @@ async function runPlanPass(args: PlanPassArgs): Promise<"completed" | "cancelled
     "mcp__compass__read_lessons",
     "mcp__compass__set_lessons",
     "mcp__compass__append_lesson",
-    "mcp__compass__search_docs",
-    "mcp__compass__read_doc",
     "mcp__compass__outline",
     "mcp__compass__find_symbol",
     "mcp__compass__list_files",

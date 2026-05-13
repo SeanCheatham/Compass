@@ -153,10 +153,13 @@ test("dev system prompt: explicitly names the set_feedback / signal_complete + l
   assert.ok(prompt.includes("`append_lesson(text)`"));
 });
 
-test("dev system prompt: explicitly names docs MCP tools and sandbox promotion", () => {
+test("dev system prompt: embeds implementation standards and sandbox promotion", () => {
   const prompt = buildDevSystemPrompt(baseContext());
-  assert.ok(prompt.includes("`search_docs({ query })`"));
-  assert.ok(prompt.includes("`read_doc({ id })`"));
+  assert.equal(prompt.includes("search_docs"), false);
+  assert.equal(prompt.includes("read_doc"), false);
+  assert.match(prompt, /## Implementation standards/);
+  assert.match(prompt, /prompt caching/);
+  assert.match(prompt, /node:test/);
   assert.match(prompt, /disposable Git worktree/i);
   assert.match(prompt, /promoted.*only after/i);
 });

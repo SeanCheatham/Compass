@@ -8,9 +8,8 @@
     "compass": "dist/index.js"
   },
   "scripts": {
-    "build": "npm run build:frontend && tsc && npm run build:docs",
+    "build": "npm run build:frontend && tsc",
     "build:frontend": "node scripts/build-frontend.js",
-    "build:docs": "node scripts/copy-docs.js",
     "dev": "tsc --watch",
     "start": "node dist/index.js",
     "lint": "tsc --noEmit",

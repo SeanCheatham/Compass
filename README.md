@@ -101,8 +101,6 @@ Compass exposes a small in-process MCP server to the agents.
 | `read_lessons`    | yes  | yes     | Read `lessons.md` (already injected into prompts; rare). |
 | `set_lessons`     | yes  | yes     | Replace `lessons.md` (use for compaction). |
 | `append_lesson`   | yes  | yes     | Append a single bullet to `lessons.md`. Preferred for the common case. |
-| `search_docs`     | yes  | yes     | Search Compass's built-in Markdown guidance docs. |
-| `read_doc`        | yes  | yes     | Read one built-in guidance doc by id. |
 | `codemap` tools   | yes  | yes     | Search, outline, and navigate the cached repo map. |
 
 ### Codex sidecar

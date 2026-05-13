@@ -87,10 +87,6 @@ ${visionSection}
 - \`set_lessons(text)\` — full-text replace lessons.md. Use for compaction.
 - \`append_lesson(text)\` — append one short bullet (one or two sentences). Prefer
   this for the common "I learned X" case.
-- \`search_docs({ query })\` / \`read_doc({ id })\` — search and read Compass's
-  built-in Markdown guidance for software quality, testing strategy, and agent
-  workflow conventions. Use these when a draft or feedback raises a broad
-  engineering-practice question and local guidance would sharpen the plan.
 
 ## Codemap tools — use these to navigate the codebase
 
@@ -125,6 +121,25 @@ Only fall back to Grep when you need a code-level pattern match (regex,
 substring inside file bodies) that a structural query can't answer. Only
 reach for Read once you've identified the right file via the tools above —
 don't burn turns walking the tree.
+
+## Planning standards
+
+- Ground plans in the repository before choosing work.
+- Pick one commit-sized \`immediate\` with a verify command that proves the
+  important behavior, not merely nearby compilation. If there are no relevant
+  tests yet, use a build or typecheck as the fallback.
+- Keep plans scoped to the surrounding ownership boundary. Preserve local
+  architecture unless a user draft or vision change explicitly asks otherwise.
+- State has strict ownership: \`state.json\` is Plan/Reflect via \`set_state\`;
+  \`drafts.md\` is user input; Develop's feedback is the next handoff; lessons
+  are durable gotchas, not status logs; \`.compass/COMPASS.md\` is read-only
+  user vision.
+- For test work, prefer the cheapest level that catches realistic regressions:
+  pure functions first, deterministic fake agents for loop contracts, and real
+  temporary repositories for Git behavior.
+- For prompt or tool-contract changes, keep stable instructions before volatile
+  blocks for prompt caching, explain the decision point a tool serves, and add
+  prompt-rendering tests for contract-bearing wording or section order.
 
 The state you pass to \`set_state\` MUST conform to this shape:
 
