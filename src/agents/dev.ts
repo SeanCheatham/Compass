@@ -63,7 +63,7 @@ function pickDevModel(
  *
  * Any of these triggers a single follow-up Cleanup pass before yielding to Plan.
  */
-type CutOffReason = "budget" | "turns" | "no_complete";
+export type CutOffReason = "budget" | "turns" | "no_complete";
 
 function describeCutOff(reason: CutOffReason): string {
   switch (reason) {
@@ -108,6 +108,8 @@ export interface DevAgentOptions {
   codexSidecar?: CodexSidecarOptions;
   /** HEAD before this Develop iteration started; used for sidecar diff review. */
   beforeSha?: string | null;
+  /** Test/runtime seam: swap the model provider while reusing runner post-checks. */
+  queryRunner?: DevQueryRunner;
 }
 
 export interface DevAgentResult {
@@ -143,6 +145,7 @@ export async function runDevAgent(
 ): Promise<DevAgentResult> {
   const workspace = await createDevWorkspace(config, opts.beforeSha ?? null, output);
   const activeConfig = workspace.config;
+  const queryRunner = opts.queryRunner ?? runClaudeDevQuery;
 
   try {
     const lessons = await readLessons(activeConfig);
@@ -185,15 +188,15 @@ export async function runDevAgent(
         attempt === 1
           ? next.plan.split("\n")[0]?.slice(0, 120)
           : `Retry ${attempt}/${MAX_ATTEMPTS}`;
-      const queryResult = await runDevQuery(
-        activeConfig,
+      const queryResult = await queryRunner({
+        config: activeConfig,
         systemPrompt,
-        initialPrompt,
+        prompt: initialPrompt,
         next,
         output,
         ctxLabel,
-        opts.signal
-      );
+        signal: opts.signal,
+      });
       if (queryResult.cancelled) {
         return {
           succeeded: false,
@@ -282,15 +285,15 @@ export async function runDevAgent(
     // call signal_complete so the next Plan run gets context.
     if (cutOffReason) {
       const cleanupPrompt = buildCleanupPrompt(cutOffReason);
-      const cleanupResult = await runDevQuery(
-        activeConfig,
+      const cleanupResult = await queryRunner({
+        config: activeConfig,
         systemPrompt,
-        cleanupPrompt,
+        prompt: cleanupPrompt,
         next,
         output,
-        "Cleanup",
-        opts.signal
-      );
+        ctxLabel: "Cleanup",
+        signal: opts.signal,
+      });
       if (cleanupResult.cancelled) {
         return {
           succeeded: false,
@@ -496,23 +499,30 @@ Keep this attempt tight. Don't risk a second budget exhaustion — pick the
 quicker of FINISH or REVERT when in doubt.`;
 }
 
-async function runDevQuery(
-  config: WorkspaceConfig,
-  systemPrompt: string,
-  prompt: string,
-  next: PlanNext,
-  output: OutputManager,
+export interface DevQueryArgs {
+  config: WorkspaceConfig;
+  systemPrompt: string;
+  prompt: string;
+  next: PlanNext;
+  output: OutputManager;
   /** Short label rendered next to "Develop" in the activity stream. */
-  ctxLabel: string | undefined,
-  signal: AbortSignal
-): Promise<{
+  ctxLabel: string | undefined;
+  signal: AbortSignal;
+}
+
+export interface DevQueryResult {
   cancelled: boolean;
   feedback: string | null;
   /** Non-null when the stream ended without `signal_complete` being called. */
   cutOff: CutOffReason | null;
   /** Whether `signal_complete` was called with bypassVerify=true. */
   bypassVerify: boolean;
-}> {
+}
+
+export type DevQueryRunner = (args: DevQueryArgs) => Promise<DevQueryResult>;
+
+async function runClaudeDevQuery(args: DevQueryArgs): Promise<DevQueryResult> {
+  const { config, systemPrompt, prompt, next, output, ctxLabel, signal } = args;
   const abortController = new AbortController();
   if (signal.aborted) abortController.abort();
   else signal.addEventListener("abort", () => abortController.abort(), { once: true });

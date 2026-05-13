@@ -12,6 +12,7 @@ import { createLoopController } from "./state/control.js";
 import { createSessionTracker } from "./state/sessions.js";
 import { acquireWorkspaceLock } from "./state/lock.js";
 import { parseCodexSidecarMode } from "./agents/codex-sidecar.js";
+import { parseAgentRuntime } from "./agents/runtime.js";
 
 const program = new Command();
 
@@ -56,6 +57,11 @@ program
     false
   )
   .option(
+    "--agent-runtime <runtime>",
+    "Primary agent runtime: claude or codex (default: claude, or COMPASS_AGENT_RUNTIME)",
+    process.env.COMPASS_AGENT_RUNTIME ?? "claude"
+  )
+  .option(
     "--codex-sidecar <mode>",
     "Optional Codex CLI sidecar mode: auto, verify-failures, diff-review, or off (default: auto, or COMPASS_CODEX_SIDECAR)",
     process.env.COMPASS_CODEX_SIDECAR ?? "auto"
@@ -64,10 +70,12 @@ program
   .action(async (opts: {
     autoStash: boolean;
     requireApproval: boolean;
+    agentRuntime: string;
     codexSidecar: string;
     open: boolean;
   }) => {
     const cwd = process.cwd();
+    const agentRuntime = parseAgentRuntime(opts.agentRuntime);
     const codexSidecar = {
       mode: parseCodexSidecarMode(opts.codexSidecar),
     };
@@ -153,6 +161,7 @@ program
       output,
       controller,
       sessions,
+      agentRuntime,
       codexSidecar,
       signal: abortController.signal,
     });

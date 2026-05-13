@@ -4,6 +4,11 @@ import { runPlanAgent } from "../agents/plan.js";
 import { runDevAgent } from "../agents/dev.js";
 import { runReflectAgent } from "../agents/reflect.js";
 import {
+  runCodexDevAgent,
+  runCodexPlanAgent,
+  runCodexReflectAgent,
+} from "../agents/codex.js";
+import {
   readDrafts,
   readLessons,
   tryReadPlanState,
@@ -21,11 +26,16 @@ import {
   codexSidecarLabel,
   type CodexSidecarOptions,
 } from "../agents/codex-sidecar.js";
+import {
+  agentRuntimeLabel,
+  type CompassAgentRuntime,
+} from "../agents/runtime.js";
 
 export interface RunOptions {
   output: OutputManager;
   controller: LoopController;
   sessions: SessionTracker;
+  agentRuntime?: CompassAgentRuntime;
   codexSidecar: CodexSidecarOptions;
   /** Abort signal to stop the loop on shutdown. */
   signal: AbortSignal;
@@ -60,10 +70,23 @@ export async function runCompass(
   options: RunOptions
 ): Promise<void> {
   const { output, controller, sessions, codexSidecar, signal } = options;
+  const agentRuntime = options.agentRuntime ?? "claude";
+  const defaultAgents =
+    agentRuntime === "codex"
+      ? {
+          plan: runCodexPlanAgent,
+          develop: runCodexDevAgent,
+          reflect: runCodexReflectAgent,
+        }
+      : {
+          plan: runPlanAgent,
+          develop: runDevAgent,
+          reflect: runReflectAgent,
+        };
   const agents: CompassAgentRunners = {
-    plan: options.agents?.plan ?? runPlanAgent,
-    develop: options.agents?.develop ?? runDevAgent,
-    reflect: options.agents?.reflect ?? runReflectAgent,
+    plan: options.agents?.plan ?? defaultAgents.plan,
+    develop: options.agents?.develop ?? defaultAgents.develop,
+    reflect: options.agents?.reflect ?? defaultAgents.reflect,
   };
 
   output.info("Compass — Plan + Develop loop\n");
@@ -72,7 +95,12 @@ export async function runCompass(
 
   output.info(`Repo:      ${config.implRepoPath}`);
   output.info(`Workspace: ${config.workspacePath}\n`);
-  output.info(`Codex sidecar: ${codexSidecarLabel(codexSidecar.mode)}\n`);
+  output.info(`Agent runtime: ${agentRuntimeLabel(agentRuntime)}`);
+  if (agentRuntime === "claude") {
+    output.info(`Codex sidecar: ${codexSidecarLabel(codexSidecar.mode)}\n`);
+  } else {
+    output.info("Claude runtime remains available via --agent-runtime claude.\n");
+  }
 
   // Seed from prior persisted sessions so iteration counts continue across
   // restarts instead of resetting to 1.

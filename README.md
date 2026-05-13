@@ -40,6 +40,7 @@ Flags:
 
 - `--auto-stash` -- stash uncommitted changes on startup as `compass-auto-stash` instead of refusing to start.
 - `--require-approval` -- pause after each Plan run and wait for explicit UI approval before Develop runs. Default is auto-accept.
+- `--agent-runtime claude|codex` -- choose the primary Plan / Develop / Reflect runtime. Default is `claude`; can also be set with `COMPASS_AGENT_RUNTIME`.
 - `--codex-sidecar auto|verify-failures|diff-review|off` -- optionally use Codex SDK as a read-only sidecar for narrow diagnostics/review. Default is `auto`; can also be set with `COMPASS_CODEX_SIDECAR`.
 - `--no-open` -- do not automatically open the Compass UI in a browser.
 
@@ -47,10 +48,20 @@ Useful environment variables:
 
 - `COMPASS_VERIFY_TIMEOUT_MS` -- default Develop verify timeout in milliseconds. Defaults to 10 minutes.
 - `COMPASS_REFLECT_EVERY` -- run Reflect every N iterations. Defaults to 5; set to `0` to disable.
+- `COMPASS_AGENT_RUNTIME` -- default primary runtime (`claude` or `codex`) when `--agent-runtime` is omitted.
 - `COMPASS_CODEX_BIN` -- override the Codex CLI binary used by `@openai/codex-sdk`.
+- `COMPASS_CODEX_PLAN_MODEL`, `COMPASS_CODEX_DEV_MODEL`, `COMPASS_CODEX_REFLECT_MODEL` -- optional model overrides for Codex runtime phases. When unset, Codex uses its configured default model.
 - `COMPASS_CODEX_SIDECAR_TIMEOUT_MS` -- override Codex sidecar timeouts. Verify-failure diagnosis defaults to 2 minutes; diff review defaults to 15 minutes.
 
-Codex is not a primary Compass runtime. Claude remains responsible for Plan, Develop, Compass MCP tools, state updates, commits, and completion handoffs. In `auto` mode, Compass asks Codex for concise verify-failure diagnosis and read-only review of accepted diffs when available.
+Claude remains the default primary runtime. In `--agent-runtime codex` mode,
+Compass runs Plan, Develop, and Reflect through `@openai/codex-sdk`. For each
+Codex run, Compass starts a tokenized local Streamable HTTP MCP server on
+`127.0.0.1` and injects it into Codex config, so Codex can call the same Compass
+tools (`set_state`, `set_feedback`, `signal_complete`, lessons, and codemap)
+without requiring global Codex config changes.
+
+When the primary runtime is Claude, `--codex-sidecar` can still consult Codex as
+a narrow read-only reviewer. The sidecar is skipped in Codex-primary mode.
 
 Press Ctrl+C to stop. Run `compass status` at any time to print the current state, drafts, and lessons.
 
@@ -105,7 +116,14 @@ Compass exposes a small in-process MCP server to the agents.
 
 ### Codex sidecar
 
-Compass can optionally consult Codex through `@openai/codex-sdk`, but only as a narrow read-only reviewer. The sidecar does not receive Compass MCP tools and does not own Plan or Develop. It is used for verify-failure diagnosis and post-Develop diff review: Claude sees the failing command/output as before, plus Codex's concise diagnosis when available; after a successful Develop pass, Codex can review the committed diff and block acceptance with concrete issues.
+Compass can run Codex in two ways:
+
+- **Primary runtime** (`--agent-runtime codex`) -- Codex owns Plan, Develop, and
+  Reflect. Compass exposes its own per-run MCP server so Codex can call Compass
+  state, feedback, completion, lesson, and codemap tools.
+- **Sidecar** (`--agent-runtime claude --codex-sidecar ...`) -- Claude owns the
+  loop, and Codex is only a narrow read-only reviewer for verify-failure
+  diagnosis and post-Develop diff review.
 
 ### State
 
@@ -181,9 +199,9 @@ npm run dev         # watch TypeScript compilation
 
 ## Technology
 
-- **Runtime**: Claude Agent SDK (TypeScript)
-- **Sidecar**: optional `@openai/codex-sdk` read-only diagnostics/review
-- **Tools**: in-process MCP server exposing state, feedback, lessons, and codemap tools
+- **Runtime**: Claude Agent SDK or `@openai/codex-sdk` (TypeScript)
+- **Sidecar**: optional `@openai/codex-sdk` read-only diagnostics/review when Claude is primary
+- **Tools**: in-process MCP server for Claude; per-run local Streamable HTTP MCP server for Codex
 - **VCS**: Git (Develop creates commits via standard git CLI)
 - **UI**: Plain HTML + WebSocket stream of agent activity
 

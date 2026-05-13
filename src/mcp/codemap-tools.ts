@@ -28,6 +28,13 @@ const SEARCH_MODEL = "claude-haiku-4-5";
 const DEFAULT_SEARCH_LIMIT = 8;
 const MAX_SEARCH_LIMIT = 25;
 
+export interface CompassToolDefinition {
+  name: string;
+  description: string;
+  inputSchema: Record<string, z.ZodType>;
+  handler: (args: Record<string, unknown>) => Promise<CallToolResult>;
+}
+
 function textResult(text: string, isError = false): CallToolResult {
   return {
     content: [{ type: "text", text }],
@@ -178,43 +185,55 @@ function streamHaiku(prompt: string, ab: AbortController) {
 }
 
 export function codemapTools(config: WorkspaceConfig) {
+  return codemapToolDefinitions(config).map((def) =>
+    tool(def.name, def.description, def.inputSchema, def.handler)
+  );
+}
+
+export function codemapToolDefinitions(
+  config: WorkspaceConfig
+): CompassToolDefinition[] {
   return [
-    tool(
-      "outline",
-      "Return the full symbol outline for one source file from the cached repo map: top-level decls (with signatures and return types), their members (class methods, struct fields, enum variants, etc.), import edges, and the cached summary if available. Use this when you know the file you care about and want its structure without reading the raw bytes.",
-      {
+    {
+      name: "outline",
+      description:
+        "Return the full symbol outline for one source file from the cached repo map: top-level decls (with signatures and return types), their members (class methods, struct fields, enum variants, etc.), import edges, and the cached summary if available. Use this when you know the file you care about and want its structure without reading the raw bytes.",
+      inputSchema: {
         path: z
           .string()
           .min(1)
           .describe("Repo-relative path, e.g. `src/repomap/cache.ts`."),
       },
-      async ({ path }) => {
+      handler: async ({ path }) => {
         const cache = await readRepoMapCache(config);
-        const entry = cache.files[path];
+        const rel = String(path);
+        const entry = cache.files[rel];
         if (!entry) {
           return textResult(
-            `No cached entry for \`${path}\`. The file may not be tracked by git, may be in a language the indexer doesn't support, or the cache may need a rebuild.`,
+            `No cached entry for \`${rel}\`. The file may not be tracked by git, may be in a language the indexer doesn't support, or the cache may need a rebuild.`,
             true
           );
         }
-        return textResult(renderFileOutline(path, entry));
-      }
-    ),
-    tool(
-      "find_symbol",
-      "Search the cached repo map for symbols by name (top-level decls AND members like class methods or struct fields). Default match is case-insensitive substring; pass `exact: true` for strict equality. Returns up to 50 hits with file path, line, kind, and parent (if any).",
-      {
+        return textResult(renderFileOutline(rel, entry));
+      },
+    },
+    {
+      name: "find_symbol",
+      description:
+        "Search the cached repo map for symbols by name (top-level decls AND members like class methods or struct fields). Default match is case-insensitive substring; pass `exact: true` for strict equality. Returns up to 50 hits with file path, line, kind, and parent (if any).",
+      inputSchema: {
         name: z.string().min(1).describe("Symbol name or substring to match."),
         exact: z
           .boolean()
           .optional()
           .describe("If true, require exact-name equality. Default substring."),
       },
-      async ({ name, exact }) => {
+      handler: async ({ name, exact }) => {
         const cache = await readRepoMapCache(config);
-        const hits = searchSymbols(cache, name, exact ?? false);
+        const queryText = String(name);
+        const hits = searchSymbols(cache, queryText, exact === true);
         if (hits.length === 0) {
-          return textResult(`No symbols matching \`${name}\` in the cache.`);
+          return textResult(`No symbols matching \`${queryText}\` in the cache.`);
         }
         const capped = hits.slice(0, 50);
         const lines = capped.map((h) => {
@@ -225,12 +244,13 @@ export function codemapTools(config: WorkspaceConfig) {
           lines.push(`…(${hits.length - capped.length} more hits truncated)`);
         }
         return textResult(lines.join("\n"));
-      }
-    ),
-    tool(
-      "list_files",
-      "List indexed files from the cached repo map. Optionally filter by `dir` (repo-relative directory prefix) and `pattern` (case-insensitive substring on the path). Useful for exploring what's in a subtree.",
-      {
+      },
+    },
+    {
+      name: "list_files",
+      description:
+        "List indexed files from the cached repo map. Optionally filter by `dir` (repo-relative directory prefix) and `pattern` (case-insensitive substring on the path). Useful for exploring what's in a subtree.",
+      inputSchema: {
         dir: z
           .string()
           .optional()
@@ -240,14 +260,14 @@ export function codemapTools(config: WorkspaceConfig) {
           .optional()
           .describe("Case-insensitive substring filter on the path."),
       },
-      async ({ dir, pattern }) => {
+      handler: async ({ dir, pattern }) => {
         const cache = await readRepoMapCache(config);
         let paths = Object.keys(cache.files).sort();
-        if (dir) {
+        if (typeof dir === "string" && dir.length > 0) {
           const prefix = dir.endsWith("/") ? dir : `${dir}/`;
           paths = paths.filter((p) => p === dir || p.startsWith(prefix));
         }
-        if (pattern) {
+        if (typeof pattern === "string" && pattern.length > 0) {
           const needle = pattern.toLowerCase();
           paths = paths.filter((p) => p.toLowerCase().includes(needle));
         }
@@ -257,53 +277,58 @@ export function codemapTools(config: WorkspaceConfig) {
           return `${p}  (${e.language}, ${e.symbols.length} symbol${e.symbols.length === 1 ? "" : "s"})`;
         });
         return textResult(lines.join("\n"));
-      }
-    ),
-    tool(
-      "importers_of",
-      "Return the list of files whose resolved imports point at the given path. Use this to answer 'what breaks if I change this file?'. Only TS/JS/Python imports are resolved today; Go and Rust modules show up as external and won't appear here.",
-      {
+      },
+    },
+    {
+      name: "importers_of",
+      description:
+        "Return the list of files whose resolved imports point at the given path. Use this to answer 'what breaks if I change this file?'. Only TS/JS/Python imports are resolved today; Go and Rust modules show up as external and won't appear here.",
+      inputSchema: {
         path: z
           .string()
           .min(1)
           .describe("Repo-relative path of the file you want importers for."),
       },
-      async ({ path }) => {
+      handler: async ({ path }) => {
         const cache = await readRepoMapCache(config);
         const index = buildImporterIndex(cache);
-        const importers = index.get(path) ?? [];
+        const rel = String(path);
+        const importers = index.get(rel) ?? [];
         if (importers.length === 0) {
           return textResult(
-            `No resolved importers of \`${path}\`. Either no files import it, or its callers are in a language whose imports aren't resolved (Go/Rust).`
+            `No resolved importers of \`${rel}\`. Either no files import it, or its callers are in a language whose imports aren't resolved (Go/Rust).`
           );
         }
         return textResult(importers.join("\n"));
-      }
-    ),
-    tool(
-      "summary",
-      "Return the Haiku-generated one-paragraph summary of a single file. If the file's summary is missing or stale, generates one on the fly (and persists it). Returns null-ish text if the file isn't indexed or is too small to summarize.",
-      {
+      },
+    },
+    {
+      name: "summary",
+      description:
+        "Return the Haiku-generated one-paragraph summary of a single file. If the file's summary is missing or stale, generates one on the fly (and persists it). Returns null-ish text if the file isn't indexed or is too small to summarize.",
+      inputSchema: {
         path: z
           .string()
           .min(1)
           .describe("Repo-relative path to summarize."),
       },
-      async ({ path }) => {
-        const summary = await ensureSummary(config, path);
+      handler: async ({ path }) => {
+        const rel = String(path);
+        const summary = await ensureSummary(config, rel);
         if (!summary) {
           return textResult(
-            `No summary available for \`${path}\` (not indexed, unreadable, or too small).`,
+            `No summary available for \`${rel}\` (not indexed, unreadable, or too small).`,
             true
           );
         }
         return textResult(summary);
-      }
-    ),
-    tool(
-      "search",
-      "Semantic search over the cached repo: ranks indexed files by relevance to a natural-language query using their Haiku-generated summaries. Returns the top matches with their path and summary. Use this when you don't know which file to look at yet (e.g. 'where is the runner's abort signal threaded through?').",
-      {
+      },
+    },
+    {
+      name: "search",
+      description:
+        "Semantic search over the cached repo: ranks indexed files by relevance to a natural-language query using their Haiku-generated summaries. Returns the top matches with their path and summary. Use this when you don't know which file to look at yet (e.g. 'where is the runner's abort signal threaded through?').",
+      inputSchema: {
         query: z
           .string()
           .min(1)
@@ -318,7 +343,7 @@ export function codemapTools(config: WorkspaceConfig) {
             `Max results to return (default ${DEFAULT_SEARCH_LIMIT}, hard cap ${MAX_SEARCH_LIMIT}).`
           ),
       },
-      async ({ query: q, limit }) => {
+      handler: async ({ query: q, limit }) => {
         const cache = await readRepoMapCache(config);
         const candidates: Array<{ path: string; summary: string }> = [];
         for (const [path, entry] of Object.entries(cache.files)) {
@@ -330,13 +355,17 @@ export function codemapTools(config: WorkspaceConfig) {
             true
           );
         }
-        const cap = Math.min(limit ?? DEFAULT_SEARCH_LIMIT, MAX_SEARCH_LIMIT);
-        const ranked = await rankBySummary(q, candidates, cap);
+        const parsedLimit =
+          typeof limit === "number" && Number.isFinite(limit)
+            ? limit
+            : DEFAULT_SEARCH_LIMIT;
+        const cap = Math.min(parsedLimit, MAX_SEARCH_LIMIT);
+        const ranked = await rankBySummary(String(q), candidates, cap);
         const lines = ranked.map(
           (r) => `${r.path}\n  ${r.summary}`
         );
         return textResult(lines.join("\n\n"));
-      }
-    ),
+      },
+    },
   ];
 }
