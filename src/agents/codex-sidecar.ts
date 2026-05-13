@@ -104,6 +104,7 @@ export async function reviewDiffWithCodex(args: {
   next: PlanNext;
   beforeSha: string | null;
   afterSha: string | null;
+  feedback: string;
   output: OutputManager;
   signal: AbortSignal;
 }): Promise<string | null> {
@@ -113,7 +114,12 @@ export async function reviewDiffWithCodex(args: {
 
   args.output.info("Codex sidecar: reviewing committed diff (read-only).");
 
-  const prompt = buildDiffReviewPrompt(args.next, args.beforeSha, args.afterSha);
+  const prompt = buildDiffReviewPrompt(
+    args.next,
+    args.beforeSha,
+    args.afterSha,
+    args.feedback
+  );
   const result = await runCodexReadOnly(prompt, args.config.implRepoPath, args.signal, {
     defaultTimeoutMs: DEFAULT_CODEX_DIFF_REVIEW_TIMEOUT_MS,
   });
@@ -180,7 +186,8 @@ ${verifyTail}
 function buildDiffReviewPrompt(
   next: PlanNext,
   beforeSha: string | null,
-  afterSha: string
+  afterSha: string,
+  feedback: string
 ): string {
   const target = beforeSha ? `${beforeSha}..${afterSha}` : afterSha;
   const commands = beforeSha
@@ -190,6 +197,10 @@ git status --porcelain`
     : `git show --stat --oneline ${afterSha}
 git show --format=fuller --find-renames ${afterSha}
 git status --porcelain`;
+  const trimmedFeedback = feedback.trim();
+  const feedbackSection = trimmedFeedback
+    ? `\n## Develop feedback\n\nThis is the note Claude left via \`set_feedback\` before review. Use it as intent/context when judging whether a diff is acceptable, while still blocking concrete correctness issues.\n\n<develop_feedback>\n${trimmedFeedback}\n</develop_feedback>\n`
+    : "";
   return `You are a read-only sidecar code reviewer for Compass, a Claude-driven
 software factory. Claude owns all tool calls, state changes, file edits, and
 commits. Your job is only to review the committed diff for concrete correctness
@@ -220,6 +231,7 @@ Return exactly one of:
 ## Plan Claude implemented
 
 ${next.plan}
+${feedbackSection}
 `;
 }
 
@@ -277,6 +289,15 @@ export function getCodexOptionsForTest(
   env: CodexEnv = process.env
 ): CodexOptions {
   return getCodexOptions(env);
+}
+
+export function buildDiffReviewPromptForTest(
+  next: PlanNext,
+  beforeSha: string | null,
+  afterSha: string,
+  feedback = ""
+): string {
+  return buildDiffReviewPrompt(next, beforeSha, afterSha, feedback);
 }
 
 interface CodexEnv {

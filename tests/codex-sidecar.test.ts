@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 
 import {
+  buildDiffReviewPromptForTest,
   codexSidecarLabel,
   getDefaultCodexTimeoutsForTest,
   getCodexOptionsForTest,
@@ -94,4 +95,20 @@ test("codex sidecar: default timeouts are tuned by sidecar task", () => {
     verifyMs: 120_000,
     diffReviewMs: 900_000,
   });
+});
+
+test("codex sidecar: diff review prompt includes Develop feedback", () => {
+  const prompt = buildDiffReviewPromptForTest(
+    {
+      plan: "Implement the offline-only mode.",
+      verify: "npm test",
+    },
+    "abc123",
+    "def456",
+    "Offline-only mode intentionally rejects remote sync even when configured."
+  );
+
+  assert.match(prompt, /## Develop feedback/);
+  assert.match(prompt, /note Claude left via `set_feedback`/);
+  assert.match(prompt, /Offline-only mode intentionally rejects remote sync/);
 });

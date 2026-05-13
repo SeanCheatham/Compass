@@ -226,6 +226,7 @@ export async function runDevAgent(
         queryResult.bypassVerify,
         next.verifyTimeoutMs,
         next,
+        lastFeedback,
         opts
       );
       lastDisplayIssues = post.displayIssues;
@@ -311,6 +312,7 @@ export async function runDevAgent(
         cleanupResult.bypassVerify,
         next.verifyTimeoutMs,
         next,
+        lastFeedback,
         opts
       );
       lastDisplayIssues = post.displayIssues;
@@ -674,6 +676,7 @@ async function runPostChecks(
   bypassVerify: boolean,
   verifyTimeoutMsOverride: number | undefined,
   next: PlanNext,
+  developFeedback: string,
   opts: DevAgentOptions
 ): Promise<PostCheckResult> {
   const retryIssues: string[] = [];
@@ -760,6 +763,7 @@ async function runPostChecks(
       next,
       beforeSha: opts.beforeSha ?? null,
       afterSha,
+      feedback: developFeedback,
       output,
       signal: opts.signal,
     });
