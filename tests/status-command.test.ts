@@ -96,6 +96,8 @@ test("showStatus: renders recent persisted sessions with feedback and verify fai
 
     const output = await captureConsoleLog(() => showStatus(dir));
 
+    assert.match(output, /--- Loop Control ---/);
+    assert.match(output, /\(no live control status recorded\)/);
     assert.match(output, /--- Sessions ---/);
     assert.match(output, /Latest feedback \(#6\): Need Plan to rescope next\./);
     assert.match(output, /Details are visible\./);
@@ -117,9 +119,72 @@ test("showStatus: renders empty sessions section when no records exist", async (
   const { dir, cleanup } = await tmpCompassWorkspace();
   try {
     const output = await captureConsoleLog(() => showStatus(dir));
+    assert.match(output, /--- Loop Control ---\n\(no live control status recorded\)/);
     const sessionsStart = output.indexOf("--- Sessions ---");
     assert.notEqual(sessionsStart, -1);
     assert.match(output.slice(sessionsStart), /--- Sessions ---\n\(none\)/);
+  } finally {
+    await cleanup();
+  }
+});
+
+test("showStatus: renders persisted loop control status", async () => {
+  const { dir, cleanup } = await tmpCompassWorkspace();
+  try {
+    const config = getWorkspaceConfig(dir);
+    await writeFile(
+      config.controlStatusPath,
+      JSON.stringify(
+        {
+          updatedAt: "2026-05-13T12:00:00.000Z",
+          status: {
+            phase: "awaiting_approval",
+            paused: true,
+            pauseMode: "after_iteration",
+            approveRequired: true,
+            session: 12,
+            cancellationRequested: true,
+            pendingApproval: {
+              plan: "Ship live status\nwith detail",
+              verify: "npm run lint && npm test",
+            },
+          },
+        },
+        null,
+        2
+      ),
+      "utf-8"
+    );
+
+    const output = await captureConsoleLog(() => showStatus(dir));
+    const controlStart = output.indexOf("--- Loop Control ---");
+    const completedStart = output.indexOf("--- Completed ---");
+    assert.notEqual(controlStart, -1);
+    assert.notEqual(completedStart, -1);
+    const section = output.slice(controlStart, completedStart);
+
+    assert.match(section, /Updated: 2026-05-13T12:00:00\.000Z/);
+    assert.match(section, /Phase: awaiting_approval/);
+    assert.match(section, /Session: 12/);
+    assert.match(section, /Approval mode: manual/);
+    assert.match(section, /Pending approval: yes/);
+    assert.match(section, /Plan: Ship live status/);
+    assert.match(section, /Verify: npm run lint && npm test/);
+    assert.match(section, /Pause: requested \(after_iteration\)/);
+    assert.match(section, /Cancellation: requested/);
+  } finally {
+    await cleanup();
+  }
+});
+
+test("showStatus: ignores malformed loop control status", async () => {
+  const { dir, cleanup } = await tmpCompassWorkspace();
+  try {
+    const config = getWorkspaceConfig(dir);
+    await writeFile(config.controlStatusPath, "{not json", "utf-8");
+
+    const output = await captureConsoleLog(() => showStatus(dir));
+    assert.match(output, /--- Loop Control ---\n\(no live control status recorded\)/);
   } finally {
     await cleanup();
   }

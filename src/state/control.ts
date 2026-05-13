@@ -38,10 +38,16 @@ export interface LoopStatus {
   pauseMode: PauseMode;
   approveRequired: boolean;
   session: number;
+  cancellationRequested: boolean;
   pendingApproval: {
     plan: string;
     verify: string;
   } | null;
+}
+
+export interface PersistedLoopControlStatus {
+  updatedAt: string;
+  status: LoopStatus;
 }
 
 export interface LoopController {
@@ -123,6 +129,7 @@ class LoopControllerImpl implements LoopController {
       pauseMode: this.pauseMode,
       approveRequired: this.approveRequired,
       session: this.session,
+      cancellationRequested: this.cancelled,
       pendingApproval: this.pendingApproval,
     };
   }
@@ -209,8 +216,10 @@ class LoopControllerImpl implements LoopController {
   }
 
   resetIteration(): void {
+    const wasCancelled = this.cancelled;
     this.cancelled = false;
     this.currentAbort = null;
+    if (wasCancelled) this.emit();
   }
 
   async waitWhilePaused(signal: AbortSignal): Promise<boolean> {

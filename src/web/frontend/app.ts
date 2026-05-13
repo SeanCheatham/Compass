@@ -28,6 +28,7 @@ interface LoopStatus {
   pauseMode: PauseMode;
   approveRequired: boolean;
   session: number;
+  cancellationRequested: boolean;
   pendingApproval: { plan: string; verify: string } | null;
 }
 

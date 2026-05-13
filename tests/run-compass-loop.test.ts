@@ -13,7 +13,10 @@ import { createLoopController } from "../src/state/control.ts";
 import { createSessionTracker } from "../src/state/sessions.ts";
 import type { PlanState } from "../src/state/types.ts";
 import { createOutputManager } from "../src/web/output-manager.ts";
-import { appendDraft } from "../src/mcp/utils/workspace.ts";
+import {
+  appendDraft,
+  readLoopControlStatus,
+} from "../src/mcp/utils/workspace.ts";
 import { initializeWorkspace } from "../src/state/workspace.ts";
 import { commit, initRepo } from "../src/mcp/utils/git.ts";
 
@@ -120,6 +123,10 @@ test("runCompass: fake Plan/Develop ship one iteration and thread feedback", asy
         sessions.all().map((s) => s.status),
         ["succeeded", "skipped"]
       );
+      const controlStatus = await readLoopControlStatus(config);
+      assert.equal(controlStatus?.status.phase, "idle");
+      assert.equal(controlStatus?.status.session, 2);
+      assert.equal(controlStatus?.status.cancellationRequested, false);
     } finally {
       await cleanup();
     }

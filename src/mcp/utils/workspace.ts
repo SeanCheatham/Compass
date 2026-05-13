@@ -14,6 +14,12 @@ import {
   type PlanState,
   type WorkspaceConfig,
 } from "../../state/types.js";
+import type {
+  LoopPhase,
+  LoopStatus,
+  PauseMode,
+  PersistedLoopControlStatus,
+} from "../../state/control.js";
 
 export const WORKSPACE_DIR = ".compass";
 export const STATE_FILE = "state.json";
@@ -21,6 +27,7 @@ export const STATE_BACKUP_FILE = "state.json.bak";
 export const DRAFTS_FILE = "drafts.md";
 export const LESSONS_FILE = "lessons.md";
 export const COMPASS_FILE = "COMPASS.md";
+export const CONTROL_STATUS_FILE = "control-status.json";
 
 let atomicWriteCounter = 0;
 
@@ -52,6 +59,7 @@ export function getWorkspaceConfig(implRepoPath: string): WorkspaceConfig {
     compassPath: resolve(workspacePath, COMPASS_FILE),
     sessionsPath: resolve(workspacePath, "sessions"),
     sessionsRecordPath: resolve(workspacePath, "sessions.json"),
+    controlStatusPath: resolve(workspacePath, CONTROL_STATUS_FILE),
   };
 }
 
@@ -214,6 +222,102 @@ export async function tryReadPlanState(
   } catch {
     return { ...EMPTY_PLAN_STATE };
   }
+}
+
+function isLoopPhase(value: unknown): value is LoopPhase {
+  return (
+    value === "idle" ||
+    value === "planning" ||
+    value === "awaiting_approval" ||
+    value === "developing" ||
+    value === "paused"
+  );
+}
+
+function isPauseMode(value: unknown): value is PauseMode {
+  return value === "immediate" || value === "after_iteration";
+}
+
+function normalizeLoopStatus(raw: unknown): LoopStatus | null {
+  if (!raw || typeof raw !== "object") return null;
+  const obj = raw as Record<string, unknown>;
+  if (!isLoopPhase(obj.phase)) return null;
+  if (typeof obj.paused !== "boolean") return null;
+  if (!isPauseMode(obj.pauseMode)) return null;
+  if (typeof obj.approveRequired !== "boolean") return null;
+  if (
+    typeof obj.session !== "number" ||
+    !Number.isFinite(obj.session) ||
+    obj.session < 0
+  ) {
+    return null;
+  }
+  if (typeof obj.cancellationRequested !== "boolean") return null;
+
+  let pendingApproval: LoopStatus["pendingApproval"] = null;
+  if (obj.pendingApproval !== null && obj.pendingApproval !== undefined) {
+    if (typeof obj.pendingApproval !== "object") return null;
+    const pending = obj.pendingApproval as Record<string, unknown>;
+    if (typeof pending.plan !== "string" || typeof pending.verify !== "string") {
+      return null;
+    }
+    pendingApproval = { plan: pending.plan, verify: pending.verify };
+  }
+
+  return {
+    phase: obj.phase,
+    paused: obj.paused,
+    pauseMode: obj.pauseMode,
+    approveRequired: obj.approveRequired,
+    session: Math.trunc(obj.session),
+    cancellationRequested: obj.cancellationRequested,
+    pendingApproval,
+  };
+}
+
+function normalizeLoopControlStatus(
+  raw: unknown
+): PersistedLoopControlStatus | null {
+  if (!raw || typeof raw !== "object") return null;
+  const obj = raw as Record<string, unknown>;
+  if (typeof obj.updatedAt !== "string" || !obj.updatedAt.trim()) return null;
+  const status = normalizeLoopStatus(obj.status);
+  if (!status) return null;
+  return { updatedAt: obj.updatedAt, status };
+}
+
+export async function readLoopControlStatus(
+  config: WorkspaceConfig
+): Promise<PersistedLoopControlStatus | null> {
+  let raw: string;
+  try {
+    raw = await readFile(config.controlStatusPath, "utf-8");
+  } catch {
+    return null;
+  }
+  if (!raw.trim()) return null;
+  try {
+    return normalizeLoopControlStatus(JSON.parse(raw));
+  } catch {
+    return null;
+  }
+}
+
+export async function writeLoopControlStatus(
+  config: WorkspaceConfig,
+  status: LoopStatus
+): Promise<void> {
+  await writeFileAtomic(
+    config.controlStatusPath,
+    JSON.stringify(
+      {
+        updatedAt: new Date().toISOString(),
+        status,
+      } satisfies PersistedLoopControlStatus,
+      null,
+      2
+    ) + "\n"
+  );
 }
 
 /**

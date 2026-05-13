@@ -13,6 +13,7 @@ import { createSessionTracker } from "./state/sessions.js";
 import { acquireWorkspaceLock } from "./state/lock.js";
 import { parseCodexSidecarMode } from "./agents/codex-sidecar.js";
 import { parseAgentRuntime } from "./agents/runtime.js";
+import { writeLoopControlStatus } from "./mcp/utils/workspace.js";
 
 const program = new Command();
 
@@ -145,6 +146,10 @@ program
       shuttingDown = true;
       output.info("\nShutting down...");
       abortController.abort();
+      controller.setPhase("idle");
+      await writeLoopControlStatus(config, controller.status()).catch((err) => {
+        console.warn(`Warning: could not write final loop control status: ${err}`);
+      });
       await sessions.flush();
       await server.close();
       await lock.release();

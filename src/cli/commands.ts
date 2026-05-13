@@ -11,15 +11,17 @@ import {
 import {
   readDrafts,
   readLessons,
+  readLoopControlStatus,
   tryReadPlanState,
   backupStateFile,
   writePlanState,
   getWorkspaceConfig,
   snapshotAndClearDrafts,
+  writeLoopControlStatus,
 } from "../mcp/utils/workspace.js";
 import type { WorkspaceConfig } from "../state/types.js";
 import type { OutputManager } from "../web/output-manager.js";
-import type { LoopController } from "../state/control.js";
+import type { LoopController, LoopStatus } from "../state/control.js";
 import {
   createSessionTracker,
   type SessionRecord,
@@ -100,6 +102,12 @@ export async function runCompass(
 
   output.info(`Repo:      ${config.implRepoPath}`);
   output.info(`Workspace: ${config.workspacePath}\n`);
+
+  const controlStatus = startLoopControlStatusPersistence(
+    config,
+    controller,
+    (message) => output.error(message)
+  );
   output.info(`Agent runtime: ${agentRuntimeLabel(agentRuntime)}`);
   if (agentRuntime === "claude") {
     output.info(`Codex sidecar: ${codexSidecarLabel(codexSidecar.mode)}\n`);
@@ -123,201 +131,206 @@ export async function runCompass(
     output.info("Reflect disabled (COMPASS_REFLECT_EVERY=0).");
   }
 
-  while (!signal.aborted) {
-    if (!(await hasWork(config))) {
-      controller.setPhase("idle");
-      output.info("Idle — waiting for drafts. Add one in the UI to get started.");
-      const woke = await waitForWork(config, signal);
-      if (!woke) break;
-      continue;
-    }
-
-    // Honour pause between iterations. If cancelled while paused, exit.
-    if (controller.status().paused) {
-      controller.setPhase("paused");
-      const resumed = await controller.waitWhilePaused(signal);
-      if (!resumed) {
-        if (signal.aborted) break;
-        continue;
-      }
-    }
-
-    iteration++;
-    controller.resetIteration();
-    controller.setSession(iteration);
-    output.session(iteration);
-
-    sessions.start(iteration);
-
-    const beforeSha = await tryGetCurrentCommit(config.implRepoPath);
-    if (beforeSha) sessions.setBefore(beforeSha);
-
-    // Backup state.json once per iteration, before any agent can mutate it.
-    // Reflect (if it runs) and Plan both write state; one backup covers both.
-    try {
-      await backupStateFile(config);
-    } catch (err) {
-      output.error(`Could not back up state.json: ${err}`);
-    }
-
-    // ---- Reflect phase (every Nth iteration) -----------------------------
-    if (reflectEvery > 0 && iteration % reflectEvery === 0) {
-      controller.setPhase("planning");
-      output.phase("Reflect");
-
-      // Hand Reflect roughly twice its cadence in past sessions, most recent
-      // first, excluding the in-flight record we just started.
-      const all = sessions.all();
-      const recentSessions = all
-        .slice(0, all.length - 1)
-        .slice(-REFLECT_SESSION_WINDOW)
-        .reverse();
-
-      const reflectSignal = controller.iterationSignal(signal);
-      const reflectResult = await agents.reflect(
-        config,
-        { recentSessions, iteration },
-        output,
-        { signal: reflectSignal }
-      );
-
-      if (reflectResult.cancelled) {
-        sessions.end("cancelled");
-        output.info("Iteration cancelled during Reflect.");
+  try {
+    while (!signal.aborted) {
+      if (!(await hasWork(config))) {
+        controller.setPhase("idle");
+        output.info("Idle — waiting for drafts. Add one in the UI to get started.");
+        const woke = await waitForWork(config, signal);
+        if (!woke) break;
         continue;
       }
 
-      if (reflectResult.state) {
-        await writePlanState(config, reflectResult.state);
-        output.info("Reflect updated state.json; Plan will see the revised midTerm/longTerm.");
-      } else {
-        output.info("Reflect: on course, no state changes.");
-      }
-    }
-
-    // ---- Plan phase ------------------------------------------------------
-    controller.setPhase("planning");
-    output.phase("Plan");
-
-    // Race-free handoff for drafts. Feedback now lives on the prior session
-    // record; we pull it from there so the current in-flight record stays
-    // empty until Develop calls set_feedback.
-    const drafts = await snapshotAndClearDrafts(config);
-    const carriedFeedback = sessions.previousFeedback();
-
-    const planSignal = controller.iterationSignal(signal);
-    const planResult = await agents.plan(
-      config,
-      { drafts, feedback: carriedFeedback },
-      output,
-      { signal: planSignal }
-    );
-
-    if (planResult.cancelled) {
-      sessions.end("cancelled");
-      output.info("Iteration cancelled.");
-      continue;
-    }
-
-    let state;
-    if (planResult.state) {
-      await writePlanState(config, planResult.state);
-      state = planResult.state;
-    } else {
-      output.info(
-        "Plan finished without calling set_state; carrying forward existing state."
-      );
-      state = await tryReadPlanState(config);
-    }
-
-    if (!state.immediate) {
-      sessions.end("skipped");
-      output.info(
-        "\nPlan finished but state has no immediate plan. Idling until drafts arrive."
-      );
-      continue;
-    }
-
-    sessions.setPlan(state.immediate.plan, state.immediate.verify);
-
-    // ---- Approval gate ---------------------------------------------------
-    if (controller.status().approveRequired) {
-      controller.setPhase("awaiting_approval");
-      sessions.setStatus("awaiting_approval");
-      output.info("Waiting for approval before Develop runs. Approve in the UI to continue.");
-      const approved = await controller.awaitApproval(state.immediate, signal);
-      if (!approved) {
-        sessions.end("cancelled");
-        output.info("Iteration cancelled while awaiting approval.");
-        continue;
-      }
-    }
-
-    // Honour a pause that landed during Plan or while awaiting approval.
-    // "after_iteration" mode skips this gate so Develop runs and the loop only
-    // pauses once the iteration completes.
-    {
-      const status = controller.status();
-      if (status.paused && status.pauseMode === "immediate") {
+      // Honour pause between iterations. If cancelled while paused, exit.
+      if (controller.status().paused) {
         controller.setPhase("paused");
         const resumed = await controller.waitWhilePaused(signal);
         if (!resumed) {
-          sessions.end("cancelled");
           if (signal.aborted) break;
           continue;
         }
       }
-    }
 
-    // ---- Develop phase ---------------------------------------------------
-    controller.setPhase("developing");
-    sessions.setStatus("developing");
-    output.phase("Develop");
-    output.info(`Plan: ${state.immediate.plan.split("\n")[0].slice(0, 200)}`);
-    output.info(`Verify: ${state.immediate.verify}`);
+      iteration++;
+      controller.resetIteration();
+      controller.setSession(iteration);
+      output.session(iteration);
 
-    const devSignal = controller.iterationSignal(signal);
-    const devResult = await agents.develop(config, state.immediate, output, {
-      signal: devSignal,
-      codexSidecar,
-      beforeSha,
-    });
+      sessions.start(iteration);
 
-    if (devResult.feedback) {
-      sessions.setFeedback(devResult.feedback);
-    }
+      const beforeSha = await tryGetCurrentCommit(config.implRepoPath);
+      if (beforeSha) sessions.setBefore(beforeSha);
 
-    // Record commits regardless of outcome (lets the user see partials too).
-    const afterSha = await tryGetCurrentCommit(config.implRepoPath);
-    if (afterSha) {
-      const commits = await commitsBetween(
-        config.implRepoPath,
-        beforeSha,
-        afterSha
-      );
-      sessions.setAfter(
-        afterSha,
-        commits.map((c) => ({ sha: c.sha, short: c.short, subject: c.subject }))
-      );
-    }
-
-    if (devResult.cancelled) {
-      sessions.end("cancelled");
-      output.info("Develop cancelled.");
-      continue;
-    }
-    if (devResult.succeeded) {
-      sessions.end("succeeded");
-    } else {
-      if (devResult.verifyOutput) {
-        sessions.setVerifyOutput(devResult.verifyOutput);
+      // Backup state.json once per iteration, before any agent can mutate it.
+      // Reflect (if it runs) and Plan both write state; one backup covers both.
+      try {
+        await backupStateFile(config);
+      } catch (err) {
+        output.error(`Could not back up state.json: ${err}`);
       }
-      for (const issue of devResult.issues) sessions.addNote(issue);
-      sessions.end("failed");
+
+      // ---- Reflect phase (every Nth iteration) -----------------------------
+      if (reflectEvery > 0 && iteration % reflectEvery === 0) {
+        controller.setPhase("planning");
+        output.phase("Reflect");
+
+        // Hand Reflect roughly twice its cadence in past sessions, most recent
+        // first, excluding the in-flight record we just started.
+        const all = sessions.all();
+        const recentSessions = all
+          .slice(0, all.length - 1)
+          .slice(-REFLECT_SESSION_WINDOW)
+          .reverse();
+
+        const reflectSignal = controller.iterationSignal(signal);
+        const reflectResult = await agents.reflect(
+          config,
+          { recentSessions, iteration },
+          output,
+          { signal: reflectSignal }
+        );
+
+        if (reflectResult.cancelled) {
+          sessions.end("cancelled");
+          output.info("Iteration cancelled during Reflect.");
+          continue;
+        }
+
+        if (reflectResult.state) {
+          await writePlanState(config, reflectResult.state);
+          output.info("Reflect updated state.json; Plan will see the revised midTerm/longTerm.");
+        } else {
+          output.info("Reflect: on course, no state changes.");
+        }
+      }
+
+      // ---- Plan phase ------------------------------------------------------
+      controller.setPhase("planning");
+      output.phase("Plan");
+
+      // Race-free handoff for drafts. Feedback now lives on the prior session
+      // record; we pull it from there so the current in-flight record stays
+      // empty until Develop calls set_feedback.
+      const drafts = await snapshotAndClearDrafts(config);
+      const carriedFeedback = sessions.previousFeedback();
+
+      const planSignal = controller.iterationSignal(signal);
+      const planResult = await agents.plan(
+        config,
+        { drafts, feedback: carriedFeedback },
+        output,
+        { signal: planSignal }
+      );
+
+      if (planResult.cancelled) {
+        sessions.end("cancelled");
+        output.info("Iteration cancelled.");
+        continue;
+      }
+
+      let state;
+      if (planResult.state) {
+        await writePlanState(config, planResult.state);
+        state = planResult.state;
+      } else {
+        output.info(
+          "Plan finished without calling set_state; carrying forward existing state."
+        );
+        state = await tryReadPlanState(config);
+      }
+
+      if (!state.immediate) {
+        sessions.end("skipped");
+        output.info(
+          "\nPlan finished but state has no immediate plan. Idling until drafts arrive."
+        );
+        continue;
+      }
+
+      sessions.setPlan(state.immediate.plan, state.immediate.verify);
+
+      // ---- Approval gate ---------------------------------------------------
+      if (controller.status().approveRequired) {
+        controller.setPhase("awaiting_approval");
+        sessions.setStatus("awaiting_approval");
+        output.info("Waiting for approval before Develop runs. Approve in the UI to continue.");
+        const approved = await controller.awaitApproval(state.immediate, signal);
+        if (!approved) {
+          sessions.end("cancelled");
+          output.info("Iteration cancelled while awaiting approval.");
+          continue;
+        }
+      }
+
+      // Honour a pause that landed during Plan or while awaiting approval.
+      // "after_iteration" mode skips this gate so Develop runs and the loop only
+      // pauses once the iteration completes.
+      {
+        const status = controller.status();
+        if (status.paused && status.pauseMode === "immediate") {
+          controller.setPhase("paused");
+          const resumed = await controller.waitWhilePaused(signal);
+          if (!resumed) {
+            sessions.end("cancelled");
+            if (signal.aborted) break;
+            continue;
+          }
+        }
+      }
+
+      // ---- Develop phase ---------------------------------------------------
+      controller.setPhase("developing");
+      sessions.setStatus("developing");
+      output.phase("Develop");
+      output.info(`Plan: ${state.immediate.plan.split("\n")[0].slice(0, 200)}`);
+      output.info(`Verify: ${state.immediate.verify}`);
+
+      const devSignal = controller.iterationSignal(signal);
+      const devResult = await agents.develop(config, state.immediate, output, {
+        signal: devSignal,
+        codexSidecar,
+        beforeSha,
+      });
+
+      if (devResult.feedback) {
+        sessions.setFeedback(devResult.feedback);
+      }
+
+      // Record commits regardless of outcome (lets the user see partials too).
+      const afterSha = await tryGetCurrentCommit(config.implRepoPath);
+      if (afterSha) {
+        const commits = await commitsBetween(
+          config.implRepoPath,
+          beforeSha,
+          afterSha
+        );
+        sessions.setAfter(
+          afterSha,
+          commits.map((c) => ({ sha: c.sha, short: c.short, subject: c.subject }))
+        );
+      }
+
+      if (devResult.cancelled) {
+        sessions.end("cancelled");
+        output.info("Develop cancelled.");
+        continue;
+      }
+      if (devResult.succeeded) {
+        sessions.end("succeeded");
+      } else {
+        if (devResult.verifyOutput) {
+          sessions.setVerifyOutput(devResult.verifyOutput);
+        }
+        for (const issue of devResult.issues) sessions.addNote(issue);
+        sessions.end("failed");
+      }
     }
+  } finally {
+    controller.setPhase("idle");
+    await controlStatus.writeNow(controller.status());
+    controlStatus.stop();
   }
 
-  controller.setPhase("idle");
   output.info("\nLoop stopped.");
 }
 
@@ -393,9 +406,14 @@ export async function showStatus(cwd: string): Promise<void> {
     recordPath: config.sessionsRecordPath,
     maxPersisted: Number.MAX_SAFE_INTEGER,
   }).all();
+  const controlStatus = await readLoopControlStatus(config);
 
   console.log("Compass status\n");
   console.log(`Workspace: ${config.workspacePath}\n`);
+
+  console.log("--- Loop Control ---");
+  renderLoopControlStatus(controlStatus);
+  console.log();
 
   console.log("--- Completed ---");
   if (state.completed.length === 0) {
@@ -432,6 +450,70 @@ export async function showStatus(cwd: string): Promise<void> {
 
   console.log("--- Sessions ---");
   renderStatusSessions(sessions);
+}
+
+function startLoopControlStatusPersistence(
+  config: WorkspaceConfig,
+  controller: LoopController,
+  warn: (message: string) => void
+): { writeNow: (status: LoopStatus) => Promise<void>; stop: () => void } {
+  let writeQueue = Promise.resolve();
+
+  const enqueue = (status: LoopStatus): Promise<void> => {
+    writeQueue = writeQueue
+      .then(() => writeLoopControlStatus(config, status))
+      .catch((err) => {
+        warn(`Warning: could not write loop control status: ${err}`);
+      });
+    return writeQueue;
+  };
+
+  const stop = controller.onChange((status) => {
+    void enqueue(status);
+  });
+
+  void enqueue(controller.status());
+
+  return {
+    writeNow: enqueue,
+    stop,
+  };
+}
+
+function renderLoopControlStatus(
+  snapshot: Awaited<ReturnType<typeof readLoopControlStatus>>
+): void {
+  if (!snapshot) {
+    console.log("(no live control status recorded)");
+    return;
+  }
+
+  const status = snapshot.status;
+  console.log(`Updated: ${snapshot.updatedAt}`);
+  console.log(`Phase: ${status.phase}`);
+  console.log(`Session: ${status.session > 0 ? status.session : "(none)"}`);
+  console.log(
+    `Approval mode: ${status.approveRequired ? "manual" : "auto-accept"}`
+  );
+
+  if (status.pendingApproval) {
+    console.log("Pending approval: yes");
+    console.log(
+      `  Plan: ${firstContentLine(status.pendingApproval.plan) || "(empty)"}`
+    );
+    console.log(`  Verify: ${status.pendingApproval.verify || "(empty)"}`);
+  } else {
+    console.log("Pending approval: no");
+  }
+
+  console.log(
+    `Pause: ${status.paused ? "requested" : "not requested"} (${status.pauseMode})`
+  );
+  console.log(
+    `Cancellation: ${
+      status.cancellationRequested ? "requested" : "not requested"
+    }`
+  );
 }
 
 function renderStatusSessions(sessions: SessionRecord[]): void {

@@ -23,6 +23,7 @@ test("loop-controller: initial status", () => {
   assert.equal(s.pauseMode, "immediate");
   assert.equal(s.approveRequired, true);
   assert.equal(s.session, 0);
+  assert.equal(s.cancellationRequested, false);
   assert.equal(s.pendingApproval, null);
 
   const c2 = makeController(false);
@@ -243,8 +244,10 @@ test("loop-controller: cancel() aborts the current iteration signal", () => {
   const parent = new AbortController();
   const sig = c.iterationSignal(parent.signal);
   assert.equal(sig.aborted, false);
+  assert.equal(c.status().cancellationRequested, false);
   c.cancel();
   assert.equal(sig.aborted, true);
+  assert.equal(c.status().cancellationRequested, true);
 });
 
 test("loop-controller: cancel() releases blocked awaitApproval and waitWhilePaused with false", async () => {
@@ -304,7 +307,9 @@ test("loop-controller: iterationSignal aborts when parent aborts later", async (
 test("loop-controller: resetIteration() clears the cancelled flag", async () => {
   const c = makeController();
   c.cancel();
+  assert.equal(c.status().cancellationRequested, true);
   c.resetIteration();
+  assert.equal(c.status().cancellationRequested, false);
 
   const parent = new AbortController();
   const sig = c.iterationSignal(parent.signal);
