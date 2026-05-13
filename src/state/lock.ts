@@ -1,4 +1,4 @@
-import { open, readFile, unlink, mkdir } from "fs/promises";
+import { link, readFile, unlink, mkdir, writeFile } from "fs/promises";
 import { resolve } from "path";
 
 /**
@@ -50,11 +50,17 @@ export async function acquireWorkspaceLock(
   let lastSeenPid: number | null = null;
 
   for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
-    // Atomic create-or-fail. POSIX O_EXCL | O_CREAT.
-    let handle: import("fs/promises").FileHandle;
+    // Atomic publish-or-fail. We write the PID to a unique temp file first,
+    // then hard-link it into place. Losers can never observe an empty pidfile.
+    const tmpPath = `${pidfilePath}.${process.pid}.${attempt}.tmp`;
     try {
-      handle = await open(pidfilePath, "wx");
+      await writeFile(tmpPath, String(process.pid) + "\n", {
+        encoding: "utf-8",
+        flag: "wx",
+      });
+      await link(tmpPath, pidfilePath);
     } catch (err) {
+      await unlink(tmpPath).catch(() => {});
       if ((err as NodeJS.ErrnoException).code !== "EEXIST") throw err;
       // Pidfile exists — decide if its owner is live.
       let raw: string;
@@ -86,13 +92,7 @@ export async function acquireWorkspaceLock(
       }
       continue;
     }
-
-    // We hold the lock — write our pid and close the handle.
-    try {
-      await handle.writeFile(String(process.pid) + "\n", "utf-8");
-    } finally {
-      await handle.close();
-    }
+    await unlink(tmpPath).catch(() => {});
 
     return {
       ok: true,

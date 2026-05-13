@@ -86,6 +86,7 @@ test("dev system prompt: required sections appear in canonical order", () => {
   // volatile per-iteration sections (plan body, verify command) come last.
   const headings = [
     "## Tools you must use",
+    "## Develop sandbox",
     "## Vision",
     "## Lessons (long-term memory)",
     "## Workflow",
@@ -110,6 +111,7 @@ test("dev system prompt: volatile sections (plan, verify) come after stable inst
   const planIdx = prompt.indexOf("## The plan to implement");
   const stableHeadings = [
     "## Tools you must use",
+    "## Develop sandbox",
     "## Vision",
     "## Lessons (long-term memory)",
     "## Workflow",
@@ -149,6 +151,14 @@ test("dev system prompt: explicitly names the set_feedback / signal_complete + l
   assert.ok(prompt.includes("`read_lessons()`"));
   assert.ok(prompt.includes("`set_lessons(text)`"));
   assert.ok(prompt.includes("`append_lesson(text)`"));
+});
+
+test("dev system prompt: explicitly names docs MCP tools and sandbox promotion", () => {
+  const prompt = buildDevSystemPrompt(baseContext());
+  assert.ok(prompt.includes("`search_docs({ query })`"));
+  assert.ok(prompt.includes("`read_doc({ id })`"));
+  assert.match(prompt, /disposable Git worktree/i);
+  assert.match(prompt, /promoted.*only after/i);
 });
 
 test("dev system prompt: documents bypassVerify on signal_complete", () => {

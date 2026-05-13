@@ -104,6 +104,49 @@ export async function resetHard(cwd: string, commitSha: string): Promise<void> {
   }
 }
 
+export async function createWorktreeBranch(
+  cwd: string,
+  worktreePath: string,
+  branchName: string,
+  baseRef: string
+): Promise<void> {
+  const result = await runGit(cwd, [
+    "worktree",
+    "add",
+    "-b",
+    branchName,
+    worktreePath,
+    baseRef,
+  ]);
+  if (!result.success) {
+    throw new Error(`Failed to create worktree ${worktreePath}: ${result.stderr}`);
+  }
+}
+
+export async function removeWorktree(
+  cwd: string,
+  worktreePath: string
+): Promise<void> {
+  const result = await runGit(cwd, ["worktree", "remove", "--force", worktreePath]);
+  if (!result.success) {
+    throw new Error(`Failed to remove worktree ${worktreePath}: ${result.stderr}`);
+  }
+}
+
+export async function deleteBranch(cwd: string, branchName: string): Promise<void> {
+  const result = await runGit(cwd, ["branch", "-D", branchName]);
+  if (!result.success) {
+    throw new Error(`Failed to delete branch ${branchName}: ${result.stderr}`);
+  }
+}
+
+export async function mergeFastForward(cwd: string, ref: string): Promise<void> {
+  const result = await runGit(cwd, ["merge", "--ff-only", ref]);
+  if (!result.success) {
+    throw new Error(`Failed to fast-forward merge ${ref}: ${result.stderr}`);
+  }
+}
+
 export async function isValidCommit(
   cwd: string,
   commitSha: string

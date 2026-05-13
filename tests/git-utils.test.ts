@@ -17,6 +17,10 @@ import {
   stashChanges,
   discardChanges,
   resetHard,
+  createWorktreeBranch,
+  removeWorktree,
+  deleteBranch,
+  mergeFastForward,
   isValidCommit,
   commitsBetween,
   listTrackedAndUntracked,
@@ -466,6 +470,33 @@ test("listTrackedAndUntracked excludes gitignored files", async () => {
       `secret.txt should be excluded; files=${JSON.stringify(files)}`
     );
   } finally {
+    await cleanup();
+  }
+});
+
+test("worktree branch can be committed, fast-forward promoted, and cleaned up", async () => {
+  const { dir, initialSha, cleanup } = await initializedRepo();
+  const parent = await mkdtemp(join(tmpdir(), "compass-git-worktree-"));
+  const worktree = join(parent, "wt");
+  const branch = "compass/test-worktree";
+  try {
+    await createWorktreeBranch(dir, worktree, branch, initialSha);
+    git(worktree, ["config", "--local", "user.email", "test@compass.local"]);
+    git(worktree, ["config", "--local", "user.name", "Compass Test"]);
+    await writeFile(join(worktree, "feature.txt"), "hello", "utf-8");
+    await commit(worktree, "feature");
+
+    await mergeFastForward(dir, branch);
+    assert.equal(git(dir, ["log", "-1", "--pretty=%s"]), "feature");
+    assert.equal(await hasUncommittedChanges(dir), false);
+
+    await removeWorktree(dir, worktree);
+    await deleteBranch(dir, branch);
+    assert.equal(git(dir, ["branch", "--list", branch]), "");
+  } finally {
+    await removeWorktree(dir, worktree).catch(() => {});
+    await deleteBranch(dir, branch).catch(() => {});
+    await rm(parent, { recursive: true, force: true });
     await cleanup();
   }
 });

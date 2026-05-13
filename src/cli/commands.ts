@@ -29,6 +29,14 @@ export interface RunOptions {
   codexSidecar: CodexSidecarOptions;
   /** Abort signal to stop the loop on shutdown. */
   signal: AbortSignal;
+  /** Test seam: deterministic fake agents can replace live SDK-backed agents. */
+  agents?: Partial<CompassAgentRunners>;
+}
+
+export interface CompassAgentRunners {
+  plan: typeof runPlanAgent;
+  develop: typeof runDevAgent;
+  reflect: typeof runReflectAgent;
 }
 
 const DEFAULT_REFLECT_EVERY = 5;
@@ -52,6 +60,11 @@ export async function runCompass(
   options: RunOptions
 ): Promise<void> {
   const { output, controller, sessions, codexSidecar, signal } = options;
+  const agents: CompassAgentRunners = {
+    plan: options.agents?.plan ?? runPlanAgent,
+    develop: options.agents?.develop ?? runDevAgent,
+    reflect: options.agents?.reflect ?? runReflectAgent,
+  };
 
   output.info("Compass — Plan + Develop loop\n");
 
@@ -128,7 +141,7 @@ export async function runCompass(
         .reverse();
 
       const reflectSignal = controller.iterationSignal(signal);
-      const reflectResult = await runReflectAgent(
+      const reflectResult = await agents.reflect(
         config,
         { recentSessions, iteration },
         output,
@@ -160,7 +173,7 @@ export async function runCompass(
     const carriedFeedback = sessions.previousFeedback();
 
     const planSignal = controller.iterationSignal(signal);
-    const planResult = await runPlanAgent(
+    const planResult = await agents.plan(
       config,
       { drafts, feedback: carriedFeedback },
       output,
@@ -231,7 +244,7 @@ export async function runCompass(
     output.info(`Verify: ${state.immediate.verify}`);
 
     const devSignal = controller.iterationSignal(signal);
-    const devResult = await runDevAgent(config, state.immediate, output, {
+    const devResult = await agents.develop(config, state.immediate, output, {
       signal: devSignal,
       codexSidecar,
       beforeSha,

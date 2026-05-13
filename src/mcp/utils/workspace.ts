@@ -4,6 +4,7 @@ import {
   access,
   readFile,
   writeFile,
+  appendFile,
   rename,
   unlink,
   copyFile,
@@ -20,6 +21,8 @@ export const STATE_BACKUP_FILE = "state.json.bak";
 export const DRAFTS_FILE = "drafts.md";
 export const LESSONS_FILE = "lessons.md";
 export const COMPASS_FILE = "COMPASS.md";
+
+let atomicWriteCounter = 0;
 
 /**
  * Thrown when state.json exists on disk but cannot be parsed/normalized.
@@ -58,6 +61,17 @@ async function ensureFile(path: string, defaultContent = ""): Promise<void> {
     .catch(() => false);
   if (!exists) {
     await writeFile(path, defaultContent, "utf-8");
+  }
+}
+
+async function writeFileAtomic(path: string, content: string): Promise<void> {
+  const tmp = `${path}.${process.pid}.${Date.now()}.${atomicWriteCounter++}.tmp`;
+  try {
+    await writeFile(tmp, content, "utf-8");
+    await rename(tmp, path);
+  } catch (err) {
+    await unlink(tmp).catch(() => {});
+    throw err;
   }
 }
 
@@ -125,10 +139,19 @@ export function normalizePlanState(raw: unknown): PlanState | null {
       rawTimeout > 0
         ? rawTimeout
         : undefined;
-    immediate =
-      verifyTimeoutMs !== undefined
-        ? { plan, verify, verifyTimeoutMs }
-        : { plan, verify };
+    const rawDifficulty = n.estimatedDifficulty;
+    const estimatedDifficulty =
+      rawDifficulty === "low" ||
+      rawDifficulty === "medium" ||
+      rawDifficulty === "high"
+        ? rawDifficulty
+        : undefined;
+    immediate = {
+      plan,
+      verify,
+      ...(verifyTimeoutMs !== undefined ? { verifyTimeoutMs } : {}),
+      ...(estimatedDifficulty !== undefined ? { estimatedDifficulty } : {}),
+    };
   } else {
     return null;
   }
@@ -232,10 +255,9 @@ export async function writePlanState(
   config: WorkspaceConfig,
   state: PlanState
 ): Promise<void> {
-  await writeFile(
+  await writeFileAtomic(
     config.statePath,
-    JSON.stringify(state, null, 2) + "\n",
-    "utf-8"
+    JSON.stringify(state, null, 2) + "\n"
   );
 }
 
@@ -267,14 +289,14 @@ export async function writeCompass(
   config: WorkspaceConfig,
   content: string
 ): Promise<void> {
-  await writeFile(config.compassPath, content, "utf-8");
+  await writeFileAtomic(config.compassPath, content);
 }
 
 export async function writeLessons(
   config: WorkspaceConfig,
   content: string
 ): Promise<void> {
-  await writeFile(config.lessonsPath, content, "utf-8");
+  await writeFileAtomic(config.lessonsPath, content);
 }
 
 export async function appendLesson(
@@ -288,11 +310,7 @@ export async function appendLesson(
   const separator = existing.length === 0 || existing.endsWith("\n")
     ? ""
     : "\n";
-  await writeFile(
-    config.lessonsPath,
-    existing + separator + trimmed + "\n",
-    "utf-8"
-  );
+  await appendFile(config.lessonsPath, separator + trimmed + "\n", "utf-8");
 }
 
 export async function appendDraft(
@@ -309,7 +327,7 @@ export async function appendDraft(
       ? "\n"
       : "\n\n";
   const block = `- ${trimmed}\n`;
-  await writeFile(config.draftsPath, existing + separator + block, "utf-8");
+  await appendFile(config.draftsPath, separator + block, "utf-8");
 }
 
 /**

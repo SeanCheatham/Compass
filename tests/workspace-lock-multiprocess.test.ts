@@ -143,10 +143,12 @@ test("SIGKILL'd child leaves stale pidfile; parent overwrites it", async () => {
 test("racing acquires: only one of N parallel processes wins", async () => {
   const { dir, cleanup } = await tmpWorkspace();
   const N = 6;
+  const children: ChildProcess[] = [];
   try {
     const outcomes = await Promise.all(
       Array.from({ length: N }, () => {
         const { child, ready } = spawnHolder(dir);
+        children.push(child);
         return ready
           .then(() => ({ child, outcome: "ready" as const }))
           .catch(() => ({
@@ -180,6 +182,15 @@ test("racing acquires: only one of N parallel processes wins", async () => {
     const exitCode = await waitForExit(winnerChild);
     assert.equal(exitCode, 0);
   } finally {
+    await Promise.all(
+      children.map(async (child) => {
+        if (child.exitCode !== null || child.signalCode !== null) return;
+        child.stdin?.end();
+        await waitForExit(child).catch(() => {
+          /* best-effort */
+        });
+      })
+    );
     await cleanup();
   }
 });

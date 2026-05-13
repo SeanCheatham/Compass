@@ -9,6 +9,7 @@ import {
   readPlanState,
   StateParseError,
   getWorkspaceConfig,
+  writePlanState,
 } from "../src/mcp/utils/workspace.ts";
 
 async function tmpWorkspace(): Promise<{
@@ -321,6 +322,32 @@ test("normalizePlanState: drops non-numeric verifyTimeoutMs", () => {
   );
 });
 
+test("normalizePlanState: preserves valid estimatedDifficulty", () => {
+  for (const estimatedDifficulty of ["low", "medium", "high"] as const) {
+    const result = normalizePlanState({
+      completed: [],
+      immediate: { plan: "x", verify: "y", estimatedDifficulty },
+      midTerm: "",
+      longTerm: "",
+    });
+    assert.deepEqual(result?.immediate, {
+      plan: "x",
+      verify: "y",
+      estimatedDifficulty,
+    });
+  }
+});
+
+test("normalizePlanState: drops invalid estimatedDifficulty", () => {
+  const result = normalizePlanState({
+    completed: [],
+    immediate: { plan: "x", verify: "y", estimatedDifficulty: "extreme" },
+    midTerm: "",
+    longTerm: "",
+  });
+  assert.deepEqual(result?.immediate, { plan: "x", verify: "y" });
+});
+
 test("readPlanState: round-trips verifyTimeoutMs from disk", async () => {
   const { config, cleanup } = await tmpWorkspace();
   try {
@@ -340,6 +367,62 @@ test("readPlanState: round-trips verifyTimeoutMs from disk", async () => {
       immediate: { plan: "y", verify: "z", verifyTimeoutMs: 120000 },
       midTerm: "more",
       longTerm: "horizon",
+    });
+  } finally {
+    await cleanup();
+  }
+});
+
+test("readPlanState: round-trips estimatedDifficulty from disk", async () => {
+  const { config, cleanup } = await tmpWorkspace();
+  try {
+    await writeFile(
+      config.statePath,
+      JSON.stringify({
+        completed: ["x"],
+        immediate: { plan: "y", verify: "z", estimatedDifficulty: "high" },
+        midTerm: "more",
+        longTerm: "horizon",
+      }),
+      "utf-8"
+    );
+    const result = await readPlanState(config);
+    assert.deepEqual(result, {
+      completed: ["x"],
+      immediate: { plan: "y", verify: "z", estimatedDifficulty: "high" },
+      midTerm: "more",
+      longTerm: "horizon",
+    });
+  } finally {
+    await cleanup();
+  }
+});
+
+test("writePlanState: writes a readable complete state", async () => {
+  const { config, cleanup } = await tmpWorkspace();
+  try {
+    await writePlanState(config, {
+      completed: ["done"],
+      immediate: {
+        plan: "next",
+        verify: "npm test",
+        verifyTimeoutMs: 123,
+        estimatedDifficulty: "medium",
+      },
+      midTerm: "soon",
+      longTerm: "later",
+    });
+    const result = await readPlanState(config);
+    assert.deepEqual(result, {
+      completed: ["done"],
+      immediate: {
+        plan: "next",
+        verify: "npm test",
+        verifyTimeoutMs: 123,
+        estimatedDifficulty: "medium",
+      },
+      midTerm: "soon",
+      longTerm: "later",
     });
   } finally {
     await cleanup();

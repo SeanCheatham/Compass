@@ -61,6 +61,17 @@ iteration by calling \`signal_complete\`.
 - \`read_lessons()\` — re-read lessons.md (already injected below).
 - \`set_lessons(text)\` / \`append_lesson(text)\` — record durable lessons for future
   iterations. Use \`append_lesson\` for the common case; \`set_lessons\` for compaction.
+- \`search_docs({ query })\` / \`read_doc({ id })\` — search and read Compass's
+  built-in Markdown guidance for software quality, testing strategy, and agent
+  workflow conventions. Use these when the plan leaves an implementation,
+  testing, or quality choice open and local guidance would help.
+
+## Develop sandbox
+
+Compass normally runs you inside a disposable Git worktree on a temporary branch.
+Your commits are promoted to the user's main worktree only after \`signal_complete\`
+and the runner's verify, clean-tree, and optional diff-review checks pass. Commit
+normally from your current working directory; do not push or switch branches.
 
 ## Codemap tools — use these to navigate the codebase
 

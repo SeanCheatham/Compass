@@ -144,6 +144,12 @@ test("plan system prompt: schema block names immediate/midTerm/longTerm", () => 
   assert.equal(prompt.includes('"followUp"'), false);
 });
 
+test("plan system prompt: explicitly names docs MCP tools", () => {
+  const prompt = buildPlanSystemPrompt(baseContext());
+  assert.ok(prompt.includes("`search_docs({ query })`"));
+  assert.ok(prompt.includes("`read_doc({ id })`"));
+});
+
 test("plan system prompt: three horizons section explains all three tiers", () => {
   const prompt = buildPlanSystemPrompt(baseContext());
   const horizonsIdx = prompt.indexOf("## Three horizons");

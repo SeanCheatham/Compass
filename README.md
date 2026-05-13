@@ -73,6 +73,7 @@ Press Ctrl+C to stop. Run `compass status` at any time to print the current stat
 - Implements the current `immediate.plan`.
 - Runs `immediate.verify` until it exits 0. `immediate.verifyTimeoutMs` can override the default verify timeout for one plan.
 - Selects the Develop model from `immediate.estimatedDifficulty`: `low` -> Haiku, `medium` or omitted -> Sonnet, `high` -> Opus.
+- Runs in a disposable Git worktree/branch when the repo already has a HEAD. Compass promotes the branch to the main worktree only after post-checks pass.
 - Commits changes with standard git CLI commands.
 - Calls `set_feedback({ text })` with the handoff note for Plan.
 - Calls `signal_complete({ bypassVerify? })` as the final action. Setting `bypassVerify: true` skips the verify post-check for this iteration, but the clean-tree check still applies.
@@ -99,6 +100,8 @@ Compass exposes a small in-process MCP server to the agents.
 | `read_lessons`    | yes  | yes     | Read `lessons.md` (already injected into prompts; rare). |
 | `set_lessons`     | yes  | yes     | Replace `lessons.md` (use for compaction). |
 | `append_lesson`   | yes  | yes     | Append a single bullet to `lessons.md`. Preferred for the common case. |
+| `search_docs`     | yes  | yes     | Search Compass's built-in Markdown guidance docs. |
+| `read_doc`        | yes  | yes     | Read one built-in guidance doc by id. |
 | `codemap` tools   | yes  | yes     | Search, outline, and navigate the cached repo map. |
 
 ### Codex sidecar

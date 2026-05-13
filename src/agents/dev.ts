@@ -1,4 +1,8 @@
 import { exec } from "node:child_process";
+import { randomBytes } from "node:crypto";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { promisify } from "node:util";
 import { query, type Options } from "@anthropic-ai/claude-agent-sdk";
 import type { PlanNext, WorkspaceConfig } from "../state/types.js";
@@ -14,7 +18,13 @@ import {
   reviewDiffWithCodex,
   type CodexSidecarOptions,
 } from "./codex-sidecar.js";
-import { tryGetCurrentCommit } from "../mcp/utils/git.js";
+import {
+  createWorktreeBranch,
+  deleteBranch,
+  mergeFastForward,
+  removeWorktree,
+  tryGetCurrentCommit,
+} from "../mcp/utils/git.js";
 
 const execAsync = promisify(exec);
 
@@ -84,6 +94,14 @@ interface PostCheckResult {
   verifyOutput: VerifyOutput | null;
 }
 
+interface DevWorkspace {
+  config: WorkspaceConfig;
+  sandboxed: boolean;
+  branchName: string | null;
+  parentPath: string | null;
+  worktreePath: string | null;
+}
+
 export interface DevAgentOptions {
   /** Aborts the agent mid-stream when the user cancels or the process exits. */
   signal: AbortSignal;
@@ -123,106 +141,206 @@ export async function runDevAgent(
   output: OutputManager,
   opts: DevAgentOptions
 ): Promise<DevAgentResult> {
-  const lessons = await readLessons(config);
-  const vision = await readCompass(config);
+  const workspace = await createDevWorkspace(config, opts.beforeSha ?? null, output);
+  const activeConfig = workspace.config;
 
   try {
-    const { cache, summaryResult } = await prepareCodemap(config, {
-      signal: opts.signal,
-    });
-    if (summaryResult.generated > 0 || summaryResult.errors > 0) {
+    const lessons = await readLessons(activeConfig);
+    const vision = await readCompass(activeConfig);
+
+    try {
+      const { cache, summaryResult } = await prepareCodemap(activeConfig, {
+        signal: opts.signal,
+      });
+      if (summaryResult.generated > 0 || summaryResult.errors > 0) {
+        output.info(
+          `Codemap: indexed ${Object.keys(cache.files).length} files; summarized ${summaryResult.generated} (${summaryResult.skipped} skipped, ${summaryResult.errors} errors).`
+        );
+      }
+    } catch (err) {
+      output.error(`Codemap build failed: ${err}`);
+    }
+
+    const systemPrompt = buildDevSystemPrompt({ next, lessons, vision });
+
+    let priorRetryIssues: string[] = [];
+    let lastDisplayIssues: string[] = [];
+    let lastVerifyOutput: VerifyOutput | null = null;
+    let lastFeedback = "";
+    let cutOffReason: CutOffReason | null = null;
+
+    for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+      if (opts.signal.aborted) {
+        return {
+          succeeded: false,
+          cancelled: true,
+          issues: lastDisplayIssues,
+          verifyOutput: lastVerifyOutput,
+          feedback: lastFeedback,
+        };
+      }
+
+      const initialPrompt = buildDevPrompt(attempt, priorRetryIssues);
+      const ctxLabel =
+        attempt === 1
+          ? next.plan.split("\n")[0]?.slice(0, 120)
+          : `Retry ${attempt}/${MAX_ATTEMPTS}`;
+      const queryResult = await runDevQuery(
+        activeConfig,
+        systemPrompt,
+        initialPrompt,
+        next,
+        output,
+        ctxLabel,
+        opts.signal
+      );
+      if (queryResult.cancelled) {
+        return {
+          succeeded: false,
+          cancelled: true,
+          issues: lastDisplayIssues,
+          verifyOutput: lastVerifyOutput,
+          feedback: lastFeedback,
+        };
+      }
+      if (queryResult.feedback !== null) {
+        lastFeedback = queryResult.feedback;
+      }
+
+      // If the stream was cut off (budget / turns / never called signal_complete),
+      // skip the normal post-check retry path. A single dedicated Cleanup pass
+      // below will try to wrap up the in-flight work before yielding to Plan.
+      if (queryResult.cutOff) {
+        cutOffReason = queryResult.cutOff;
+        output.info(
+          `Develop ${describeCutOff(queryResult.cutOff)}. Skipping further retries; running Cleanup pass next.`
+        );
+        break;
+      }
+
+      const post = await runPostChecks(
+        activeConfig,
+        next.verify,
+        output,
+        true,
+        queryResult.bypassVerify,
+        next.verifyTimeoutMs,
+        next,
+        opts
+      );
+      lastDisplayIssues = post.displayIssues;
+      lastVerifyOutput = post.verifyOutput;
+      if (post.ok) {
+        const promotionIssue = await promoteDevWorkspace(
+          config,
+          activeConfig,
+          workspace,
+          output
+        );
+        if (promotionIssue) {
+          return {
+            succeeded: false,
+            cancelled: false,
+            issues: [promotionIssue],
+            verifyOutput: null,
+            feedback: lastFeedback,
+          };
+        }
+        return {
+          succeeded: true,
+          cancelled: false,
+          issues: [],
+          verifyOutput: null,
+          feedback: lastFeedback,
+        };
+      }
+
+      priorRetryIssues = post.retryIssues;
+
+      if (attempt === MAX_ATTEMPTS) {
+        output.error(
+          `Develop post-checks still failing after ${MAX_ATTEMPTS} attempts. Moving on; Plan will see the feedback next iteration.`
+        );
+        return {
+          succeeded: false,
+          cancelled: false,
+          issues: lastDisplayIssues,
+          verifyOutput: lastVerifyOutput,
+          feedback: lastFeedback,
+        };
+      }
+
       output.info(
-        `Codemap: indexed ${Object.keys(cache.files).length} files; summarized ${summaryResult.generated} (${summaryResult.skipped} skipped, ${summaryResult.errors} errors).`
+        `Develop post-checks failed (attempt ${attempt}/${MAX_ATTEMPTS}). Re-prompting.`
       );
     }
-  } catch (err) {
-    output.error(`Codemap build failed: ${err}`);
-  }
 
-  const systemPrompt = buildDevSystemPrompt({ next, lessons, vision });
-
-  let priorRetryIssues: string[] = [];
-  let lastDisplayIssues: string[] = [];
-  let lastVerifyOutput: VerifyOutput | null = null;
-  let lastFeedback = "";
-  let cutOffReason: CutOffReason | null = null;
-
-  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
-    if (opts.signal.aborted) {
-      return {
-        succeeded: false,
-        cancelled: true,
-        issues: lastDisplayIssues,
-        verifyOutput: lastVerifyOutput,
-        feedback: lastFeedback,
-      };
-    }
-
-    const initialPrompt = buildDevPrompt(attempt, priorRetryIssues);
-    const ctxLabel =
-      attempt === 1
-        ? next.plan.split("\n")[0]?.slice(0, 120)
-        : `Retry ${attempt}/${MAX_ATTEMPTS}`;
-    const queryResult = await runDevQuery(
-      config,
-      systemPrompt,
-      initialPrompt,
-      next,
-      output,
-      ctxLabel,
-      opts.signal
-    );
-    if (queryResult.cancelled) {
-      return {
-        succeeded: false,
-        cancelled: true,
-        issues: lastDisplayIssues,
-        verifyOutput: lastVerifyOutput,
-        feedback: lastFeedback,
-      };
-    }
-    if (queryResult.feedback !== null) {
-      lastFeedback = queryResult.feedback;
-    }
-
-    // If the stream was cut off (budget / turns / never called signal_complete),
-    // skip the normal post-check retry path. A single dedicated Cleanup pass
-    // below will try to wrap up the in-flight work before yielding to Plan.
-    if (queryResult.cutOff) {
-      cutOffReason = queryResult.cutOff;
-      output.info(
-        `Develop ${describeCutOff(queryResult.cutOff)}. Skipping further retries; running Cleanup pass next.`
+    // Cleanup pass — runs at most once per Dev invocation, only when the prior
+    // attempt was cut off mid-task (budget/turns/no-complete). Fresh budget,
+    // bounded scope: finish the in-flight work or revert to a clean state, then
+    // call signal_complete so the next Plan run gets context.
+    if (cutOffReason) {
+      const cleanupPrompt = buildCleanupPrompt(cutOffReason);
+      const cleanupResult = await runDevQuery(
+        activeConfig,
+        systemPrompt,
+        cleanupPrompt,
+        next,
+        output,
+        "Cleanup",
+        opts.signal
       );
-      break;
-    }
+      if (cleanupResult.cancelled) {
+        return {
+          succeeded: false,
+          cancelled: true,
+          issues: lastDisplayIssues,
+          verifyOutput: lastVerifyOutput,
+          feedback: lastFeedback,
+        };
+      }
+      if (cleanupResult.feedback !== null) {
+        lastFeedback = cleanupResult.feedback;
+      }
 
-    const post = await runPostChecks(
-      config,
-      next.verify,
-      output,
-      true,
-      queryResult.bypassVerify,
-      next.verifyTimeoutMs,
-      next,
-      opts
-    );
-    lastDisplayIssues = post.displayIssues;
-    lastVerifyOutput = post.verifyOutput;
-    if (post.ok) {
-      return {
-        succeeded: true,
-        cancelled: false,
-        issues: [],
-        verifyOutput: null,
-        feedback: lastFeedback,
-      };
-    }
-
-    priorRetryIssues = post.retryIssues;
-
-    if (attempt === MAX_ATTEMPTS) {
+      const post = await runPostChecks(
+        activeConfig,
+        next.verify,
+        output,
+        cleanupResult.cutOff === null,
+        cleanupResult.bypassVerify,
+        next.verifyTimeoutMs,
+        next,
+        opts
+      );
+      lastDisplayIssues = post.displayIssues;
+      lastVerifyOutput = post.verifyOutput;
+      if (post.ok) {
+        const promotionIssue = await promoteDevWorkspace(
+          config,
+          activeConfig,
+          workspace,
+          output
+        );
+        if (promotionIssue) {
+          return {
+            succeeded: false,
+            cancelled: false,
+            issues: [promotionIssue],
+            verifyOutput: null,
+            feedback: lastFeedback,
+          };
+        }
+        return {
+          succeeded: true,
+          cancelled: false,
+          issues: [],
+          verifyOutput: null,
+          feedback: lastFeedback,
+        };
+      }
       output.error(
-        `Develop post-checks still failing after ${MAX_ATTEMPTS} attempts. Moving on; Plan will see the feedback next iteration.`
+        "Cleanup pass finished but post-checks still failing. Yielding to Plan."
       );
       return {
         succeeded: false,
@@ -233,63 +351,6 @@ export async function runDevAgent(
       };
     }
 
-    output.info(
-      `Develop post-checks failed (attempt ${attempt}/${MAX_ATTEMPTS}). Re-prompting.`
-    );
-  }
-
-  // Cleanup pass — runs at most once per Dev invocation, only when the prior
-  // attempt was cut off mid-task (budget/turns/no-complete). Fresh budget,
-  // bounded scope: finish the in-flight work or revert to a clean state, then
-  // call signal_complete so the next Plan run gets context.
-  if (cutOffReason) {
-    const cleanupPrompt = buildCleanupPrompt(cutOffReason);
-    const cleanupResult = await runDevQuery(
-      config,
-      systemPrompt,
-      cleanupPrompt,
-      next,
-      output,
-      "Cleanup",
-      opts.signal
-    );
-    if (cleanupResult.cancelled) {
-      return {
-        succeeded: false,
-        cancelled: true,
-        issues: lastDisplayIssues,
-        verifyOutput: lastVerifyOutput,
-        feedback: lastFeedback,
-      };
-    }
-    if (cleanupResult.feedback !== null) {
-      lastFeedback = cleanupResult.feedback;
-    }
-
-    const post = await runPostChecks(
-      config,
-      next.verify,
-      output,
-      cleanupResult.cutOff === null,
-      cleanupResult.bypassVerify,
-      next.verifyTimeoutMs,
-      next,
-      opts
-    );
-    lastDisplayIssues = post.displayIssues;
-    lastVerifyOutput = post.verifyOutput;
-    if (post.ok) {
-      return {
-        succeeded: true,
-        cancelled: false,
-        issues: [],
-        verifyOutput: null,
-        feedback: lastFeedback,
-      };
-    }
-    output.error(
-      "Cleanup pass finished but post-checks still failing. Yielding to Plan."
-    );
     return {
       succeeded: false,
       cancelled: false,
@@ -297,15 +358,91 @@ export async function runDevAgent(
       verifyOutput: lastVerifyOutput,
       feedback: lastFeedback,
     };
+  } finally {
+    await cleanupDevWorkspace(config, workspace, output);
+  }
+}
+
+async function createDevWorkspace(
+  config: WorkspaceConfig,
+  beforeSha: string | null,
+  output: OutputManager
+): Promise<DevWorkspace> {
+  if (!beforeSha) {
+    output.info("Develop sandbox: using main worktree because this repo has no HEAD yet.");
+    return {
+      config,
+      sandboxed: false,
+      branchName: null,
+      parentPath: null,
+      worktreePath: null,
+    };
   }
 
+  const parentPath = await mkdtemp(join(tmpdir(), "compass-dev-"));
+  const worktreePath = join(parentPath, "worktree");
+  const branchName = `compass/dev-${process.pid}-${Date.now()}-${randomBytes(4).toString("hex")}`;
+  try {
+    await createWorktreeBranch(config.implRepoPath, worktreePath, branchName, beforeSha);
+  } catch (err) {
+    await rm(parentPath, { recursive: true, force: true }).catch(() => {});
+    throw err;
+  }
+  output.info(`Develop sandbox: ${branchName} at ${worktreePath}`);
   return {
-    succeeded: false,
-    cancelled: false,
-    issues: lastDisplayIssues,
-    verifyOutput: lastVerifyOutput,
-    feedback: lastFeedback,
+    config: { ...config, implRepoPath: worktreePath },
+    sandboxed: true,
+    branchName,
+    parentPath,
+    worktreePath,
   };
+}
+
+async function promoteDevWorkspace(
+  mainConfig: WorkspaceConfig,
+  activeConfig: WorkspaceConfig,
+  workspace: DevWorkspace,
+  output: OutputManager
+): Promise<string | null> {
+  if (!workspace.sandboxed || !workspace.branchName) return null;
+  const afterSha = await tryGetCurrentCommit(activeConfig.implRepoPath);
+  if (!afterSha) return "Develop sandbox produced no commit to promote.";
+
+  try {
+    await mergeFastForward(mainConfig.implRepoPath, workspace.branchName);
+    output.info(`Develop sandbox: promoted ${afterSha.slice(0, 12)} to the main worktree.`);
+    return null;
+  } catch (err) {
+    const msg = `Could not promote Develop sandbox branch ${workspace.branchName}: ${err}`;
+    output.error(msg);
+    return msg;
+  }
+}
+
+async function cleanupDevWorkspace(
+  mainConfig: WorkspaceConfig,
+  workspace: DevWorkspace,
+  output: OutputManager
+): Promise<void> {
+  if (!workspace.sandboxed) return;
+
+  if (workspace.worktreePath) {
+    await removeWorktree(mainConfig.implRepoPath, workspace.worktreePath).catch(
+      (err) => {
+        output.error(`Could not remove Develop sandbox worktree: ${err}`);
+      }
+    );
+  }
+  if (workspace.branchName) {
+    await deleteBranch(mainConfig.implRepoPath, workspace.branchName).catch(
+      (err) => {
+        output.error(`Could not delete Develop sandbox branch ${workspace.branchName}: ${err}`);
+      }
+    );
+  }
+  if (workspace.parentPath) {
+    await rm(workspace.parentPath, { recursive: true, force: true }).catch(() => {});
+  }
 }
 
 function buildDevPrompt(attempt: number, priorIssues: string[]): string {
@@ -444,6 +581,8 @@ async function runDevQuery(
       "mcp__compass__read_lessons",
       "mcp__compass__set_lessons",
       "mcp__compass__append_lesson",
+      "mcp__compass__search_docs",
+      "mcp__compass__read_doc",
       "mcp__compass__outline",
       "mcp__compass__find_symbol",
       "mcp__compass__list_files",

@@ -87,6 +87,10 @@ ${visionSection}
 - \`set_lessons(text)\` — full-text replace lessons.md. Use for compaction.
 - \`append_lesson(text)\` — append one short bullet (one or two sentences). Prefer
   this for the common "I learned X" case.
+- \`search_docs({ query })\` / \`read_doc({ id })\` — search and read Compass's
+  built-in Markdown guidance for software quality, testing strategy, and agent
+  workflow conventions. Use these when a draft or feedback raises a broad
+  engineering-practice question and local guidance would sharpen the plan.
 
 ## Codemap tools — use these to navigate the codebase
 

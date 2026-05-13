@@ -115,6 +115,9 @@ the project is on course toward COMPASS.md.
 - Codemap MCP tools (\`mcp__compass__search\`, \`outline\`, \`find_symbol\`,
   \`list_files\`, \`importers_of\`, \`summary\`) — your default way to ground
   observations in the actual code.
+- Docs MCP tools (\`search_docs\`, \`read_doc\`) — built-in Markdown guidance
+  for quality, testing strategy, and agent workflows. Use these when evaluating
+  repeated failures or drift in the factory process itself.
 - \`Read\`, \`Glob\`, \`Grep\`, \`LS\` — fallback for content the codemap can't
   answer. Reach for these only after the codemap tools have led you to the
   right file.
