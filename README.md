@@ -1,6 +1,12 @@
-# Compass
+<div align="center">
+  <img src="src/web/frontend/assets/compass-logo.png" alt="Compass logo" width="132">
+  <h1>Compass</h1>
+  <p><strong>A recursive iteration tool for autonomous project development.</strong></p>
+</div>
 
-Compass is a recursive iteration tool for autonomous project development. It wraps the Claude Agent SDK to run a tight **Plan -> Develop** loop, driven by draft plans you submit through a local web UI.
+![Compass cartographic interface artwork](src/web/frontend/assets/compass-cartography.jpg)
+
+Compass wraps the Claude Agent SDK to run a tight **Plan -> Develop** loop, driven by draft plans you submit through a local web UI.
 
 ## Vision
 
