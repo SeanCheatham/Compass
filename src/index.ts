@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 
+import { spawn } from "node:child_process";
 import { Command } from "commander";
 import { CLI_NAME, CLI_VERSION, CLI_DESCRIPTION } from "./cli/config.js";
 import { runCompass, showStatus } from "./cli/commands.js";
@@ -13,6 +14,28 @@ import { acquireWorkspaceLock } from "./state/lock.js";
 import { parseCodexSidecarMode } from "./agents/codex-sidecar.js";
 
 const program = new Command();
+
+function openBrowser(url: string): void {
+  const command =
+    process.platform === "darwin"
+      ? "open"
+      : process.platform === "win32"
+        ? "cmd"
+        : "xdg-open";
+  const args =
+    process.platform === "win32" ? ["/c", "start", "", url] : [url];
+
+  try {
+    const child = spawn(command, args, { detached: true, stdio: "ignore" });
+    child.on("error", (error) => {
+      console.warn(`Unable to open Compass UI automatically: ${error.message}`);
+    });
+    child.unref();
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.warn(`Unable to open Compass UI automatically: ${message}`);
+  }
+}
 
 program
   .name(CLI_NAME)
@@ -37,10 +60,12 @@ program
     "Optional Codex CLI sidecar mode: auto, verify-failures, diff-review, or off (default: auto, or COMPASS_CODEX_SIDECAR)",
     process.env.COMPASS_CODEX_SIDECAR ?? "auto"
   )
+  .option("--no-open", "Do not automatically open the Compass UI in a browser")
   .action(async (opts: {
     autoStash: boolean;
     requireApproval: boolean;
     codexSidecar: string;
+    open: boolean;
   }) => {
     const cwd = process.cwd();
     const codexSidecar = {
@@ -96,6 +121,10 @@ program
     });
 
     console.log(`\nCompass UI: ${server.url}`);
+    if (opts.open) {
+      console.log("Opening Compass UI in your browser...");
+      openBrowser(server.url);
+    }
     console.log(
       `(URL contains a per-run access token; treat it like a password — anyone ` +
         `with the URL can run code via the Develop agent.)\n`

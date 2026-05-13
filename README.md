@@ -32,7 +32,7 @@ Compass will:
 1. Confirm you're inside a git repository.
 2. Refuse to start if another `compass` is already running here (pidfile lock), or if the working tree is dirty.
 3. Create `.compass/` next to your code (and add it to `.gitignore`).
-4. Start the web UI on a local port and print the URL.
+4. Start the web UI on a local port, open it in your browser, and print the URL as a fallback.
 5. Idle until you submit a draft from the UI, or until `state.json` already contains a non-null `immediate` plan.
 6. From there: Reflect occasionally reviews direction, Plan chooses the next `immediate`, Develop implements it, then the loop repeats.
 
@@ -41,6 +41,7 @@ Flags:
 - `--auto-stash` -- stash uncommitted changes on startup as `compass-auto-stash` instead of refusing to start.
 - `--require-approval` -- pause after each Plan run and wait for explicit UI approval before Develop runs. Default is auto-accept.
 - `--codex-sidecar auto|verify-failures|diff-review|off` -- optionally use Codex SDK as a read-only sidecar for narrow diagnostics/review. Default is `auto`; can also be set with `COMPASS_CODEX_SIDECAR`.
+- `--no-open` -- do not automatically open the Compass UI in a browser.
 
 Useful environment variables:
 
