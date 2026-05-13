@@ -20,7 +20,11 @@ import {
 import type { WorkspaceConfig } from "../state/types.js";
 import type { OutputManager } from "../web/output-manager.js";
 import type { LoopController } from "../state/control.js";
-import type { SessionTracker } from "../state/sessions.js";
+import {
+  createSessionTracker,
+  type SessionRecord,
+  type SessionTracker,
+} from "../state/sessions.js";
 import { commitsBetween, tryGetCurrentCommit } from "../mcp/utils/git.js";
 import {
   codexSidecarLabel,
@@ -52,6 +56,7 @@ export interface CompassAgentRunners {
 const DEFAULT_REFLECT_EVERY = 5;
 /** Window of past sessions handed to Reflect — roughly 2× the cadence. */
 const REFLECT_SESSION_WINDOW = 10;
+const STATUS_SESSION_LIMIT = 5;
 
 /**
  * How often Reflect runs, in iterations. `COMPASS_REFLECT_EVERY=0` disables.
@@ -384,6 +389,10 @@ export async function showStatus(cwd: string): Promise<void> {
   const state = await tryReadPlanState(config);
   const drafts = await readDrafts(config);
   const lessons = await readLessons(config);
+  const sessions = createSessionTracker({
+    recordPath: config.sessionsRecordPath,
+    maxPersisted: Number.MAX_SAFE_INTEGER,
+  }).all();
 
   console.log("Compass status\n");
   console.log(`Workspace: ${config.workspacePath}\n`);
@@ -419,4 +428,96 @@ export async function showStatus(cwd: string): Promise<void> {
 
   console.log("--- Lessons ---");
   console.log(lessons.trim() || "(empty)");
+  console.log();
+
+  console.log("--- Sessions ---");
+  renderStatusSessions(sessions);
+}
+
+function renderStatusSessions(sessions: SessionRecord[]): void {
+  if (sessions.length === 0) {
+    console.log("(none)");
+    return;
+  }
+
+  const newestFirst = sessions.slice().sort((a, b) => b.startedAt - a.startedAt);
+  const recent = newestFirst.slice(0, STATUS_SESSION_LIMIT);
+  const latestFeedback = newestFirst.find((s) => s.feedback?.trim());
+
+  if (latestFeedback?.feedback) {
+    console.log(
+      `Latest feedback (#${latestFeedback.session}): ${firstContentLine(latestFeedback.feedback)}`
+    );
+    const rest = remainingContentLines(latestFeedback.feedback);
+    for (const line of rest) console.log(`  ${line}`);
+    console.log();
+  }
+
+  for (const session of recent) {
+    const title = `#${session.session} ${session.status}`;
+    const duration = session.endedAt
+      ? ` (${formatDuration(session.endedAt - session.startedAt)})`
+      : "";
+    console.log(`${title}${duration}`);
+    console.log(`  Plan: ${firstContentLine(session.plan) || "(none)"}`);
+    console.log(`  Verify: ${session.verify || "(none)"}`);
+
+    if (session.commits.length > 0) {
+      for (const commit of session.commits) {
+        console.log(`  Commit: ${commit.short} ${commit.subject}`);
+      }
+    } else {
+      console.log("  Commits: (none)");
+    }
+
+    const failure = renderVerifyFailure(session);
+    if (failure.length > 0) {
+      console.log(`  Verify failure: ${failure[0]}`);
+      for (const line of failure.slice(1)) console.log(`    ${line}`);
+    }
+    console.log();
+  }
+}
+
+function formatDuration(ms: number): string {
+  const safeMs = Math.max(0, ms);
+  if (safeMs < 1000) return `${safeMs}ms`;
+  if (safeMs < 60_000) return `${trimFixed(safeMs / 1000)}s`;
+  const minutes = Math.floor(safeMs / 60_000);
+  const seconds = Math.round((safeMs % 60_000) / 1000);
+  return seconds > 0 ? `${minutes}m ${seconds}s` : `${minutes}m`;
+}
+
+function trimFixed(n: number): string {
+  return n.toFixed(1).replace(/\.0$/, "");
+}
+
+function firstContentLine(text: string | null): string {
+  return contentLines(text)[0] ?? "";
+}
+
+function remainingContentLines(text: string | null): string[] {
+  return contentLines(text).slice(1);
+}
+
+function contentLines(text: string | null): string[] {
+  return (text ?? "")
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+}
+
+function renderVerifyFailure(session: SessionRecord): string[] {
+  const out = session.verifyOutput;
+  if (!out) return [];
+  if (out.exitCode === 0 && session.status !== "failed") return [];
+
+  const summary = [
+    out.command === session.verify ? "" : out.command,
+    out.exitCode === null ? "exit unknown" : `exit ${out.exitCode}`,
+  ]
+    .filter(Boolean)
+    .join(" ");
+  const tail = contentLines(out.tail).slice(-6);
+  return [summary || "failed", ...tail];
 }
