@@ -25,6 +25,7 @@ import {
   removeWorktree,
   tryGetCurrentCommit,
 } from "../mcp/utils/git.js";
+import { warmDevSandboxCaches } from "./warm-sandbox.js";
 
 const execAsync = promisify(exec);
 
@@ -389,6 +390,11 @@ async function createDevWorkspace(
   const branchName = `compass/dev-${process.pid}-${Date.now()}-${randomBytes(4).toString("hex")}`;
   try {
     await createWorktreeBranch(config.implRepoPath, worktreePath, branchName, beforeSha);
+    await warmDevSandboxCaches({
+      mainRepoPath: config.implRepoPath,
+      worktreePath,
+      output,
+    });
   } catch (err) {
     await rm(parentPath, { recursive: true, force: true }).catch(() => {});
     throw err;

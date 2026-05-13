@@ -58,6 +58,8 @@ Useful environment variables:
 - `COMPASS_CODEX_BIN` -- override the Codex CLI binary used by `@openai/codex-sdk`.
 - `COMPASS_CODEX_PLAN_MODEL`, `COMPASS_CODEX_DEV_MODEL`, `COMPASS_CODEX_REFLECT_MODEL` -- optional model overrides for Codex runtime phases. When unset, Codex uses its configured default model.
 - `COMPASS_CODEX_SIDECAR_TIMEOUT_MS` -- override Codex sidecar timeouts. Verify-failure diagnosis defaults to 2 minutes; diff review defaults to 15 minutes.
+- `COMPASS_WARM_SANDBOX` -- macOS-only cache warming for disposable Develop worktrees. Defaults to `auto`; use `off` to disable, or a comma-separated list like `target:link,node_modules:clone`.
+- `COMPASS_WARM_SANDBOX_TIMEOUT_MS` -- timeout for each APFS clone warm step. Defaults to 30 seconds.
 
 Claude remains the default primary runtime. In `--agent-runtime codex` mode,
 Compass runs Plan, Develop, and Reflect through `@openai/codex-sdk`. For each
@@ -92,6 +94,7 @@ Press Ctrl+C to stop. Run `compass status` at any time to print the current stat
 - Runs `immediate.verify` until it exits 0. `immediate.verifyTimeoutMs` can override the default verify timeout for one plan.
 - Selects the Develop model from `immediate.estimatedDifficulty`: `low` -> Haiku, `medium` or omitted -> Sonnet, `high` -> Opus.
 - Runs in a disposable Git worktree/branch when the repo already has a HEAD. Compass promotes the branch to the main worktree only after post-checks pass.
+- On macOS, warms disposable worktrees with ignored build caches when possible. Auto mode APFS-clones `node_modules` and shares Rust `target` via symlinks because file-heavy Cargo targets are faster to share than clone.
 - Commits changes with standard git CLI commands.
 - Calls `set_feedback({ text })` with the handoff note for Plan.
 - Calls `signal_complete({ bypassVerify? })` as the final action. Setting `bypassVerify: true` skips the verify post-check for this iteration, but the clean-tree check still applies.

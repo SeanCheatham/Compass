@@ -228,3 +228,8 @@ export async function listTrackedAndUntracked(cwd: string): Promise<string[]> {
   if (!result.success || !result.stdout) return [];
   return result.stdout.split("\n").filter((l) => l.length > 0);
 }
+
+export async function isGitIgnored(cwd: string, path: string): Promise<boolean> {
+  const result = await runGit(cwd, ["check-ignore", "--quiet", "--", path]);
+  return result.success;
+}
