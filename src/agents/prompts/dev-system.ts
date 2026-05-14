@@ -72,7 +72,7 @@ normally from your current working directory; do not push or switch branches.
 ## Codemap tools — use these to navigate the codebase
 
 The runner indexes every tracked source file with tree-sitter (top-level decls,
-members, import edges) plus a Haiku-generated one-paragraph summary per file.
+members, import edges) plus a Codex-generated one-paragraph summary per file.
 The index lives behind MCP tools; nothing is pasted into this prompt. **Reach
 for these BEFORE Grep/Glob/Read** when exploring or grounding an edit — they're
 cheaper, structured, and already know the codebase shape.

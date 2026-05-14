@@ -1,4 +1,3 @@
-import { query } from "@anthropic-ai/claude-agent-sdk";
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import type { WorkspaceConfig } from "../state/types.js";
@@ -7,10 +6,15 @@ import {
   writeRepoMapCache,
   type RepoMapCache,
 } from "./cache.js";
+import {
+  CODEMAP_MODEL_ENV,
+  DEFAULT_CODEMAP_MODEL,
+  codexModelFromEnv,
+  runCodexReadOnlyTurn,
+} from "../agents/codex-client.js";
 
-const SUMMARY_MODEL = "claude-haiku-4-5";
-const DEFAULT_CONCURRENCY = 8;
-/** Truncate huge files before sending to Haiku — beyond this the summary won't change meaningfully. */
+const DEFAULT_CONCURRENCY = 4;
+/** Truncate huge files before sending to Codex — beyond this the summary won't change meaningfully. */
 const MAX_FILE_CHARS = 60_000;
 /** Files smaller than this are skipped — usually trivial re-exports or stubs. */
 const MIN_FILE_CHARS = 80;
@@ -36,12 +40,7 @@ export interface SummarizeResult {
 }
 
 /**
- * Walk the cache, generate Haiku summaries for any file whose `summary` is
- * absent or stale (summaryHash !== contentHash), and persist the updated
- * cache. Concurrency-limited; fire-and-forget safe via the `signal`.
- */
-/**
- * Return the cached summary for a single file, generating it via Haiku if
+ * Return the cached summary for a single file, generating it via Codex if
  * missing or stale. Persists the updated cache. Returns null if the file is
  * not indexed or is too small to summarize.
  */
@@ -70,7 +69,7 @@ export async function ensureSummary(
       ? text.slice(0, MAX_FILE_CHARS) + "\n…(truncated)…"
       : text;
 
-  const summary = await summarizeOne(rel, snippet, signal);
+  const summary = await summarizeOne(rel, snippet, config.implRepoPath, signal);
   if (summary.length === 0) return null;
 
   cache.files[rel] = { ...entry, summary, summaryHash: entry.contentHash };
@@ -78,6 +77,11 @@ export async function ensureSummary(
   return summary;
 }
 
+/**
+ * Walk the cache, generate Codex summaries for any file whose `summary` is
+ * absent or stale (summaryHash !== contentHash), and persist the updated
+ * cache. Concurrency-limited; fire-and-forget safe via the `signal`.
+ */
 export async function summarizeMissing(
   config: WorkspaceConfig,
   opts: SummarizeOptions = {}
@@ -119,7 +123,12 @@ export async function summarizeMissing(
           ? text.slice(0, MAX_FILE_CHARS) + "\n…(truncated)…"
           : text;
       try {
-        const summary = await summarizeOne(rel, snippet, opts.signal);
+        const summary = await summarizeOne(
+          rel,
+          snippet,
+          config.implRepoPath,
+          opts.signal
+        );
         if (summary.length > 0) {
           cache.files[rel] = {
             ...entry,
@@ -158,31 +167,20 @@ function pickTargets(cache: RepoMapCache): string[] {
 async function summarizeOne(
   path: string,
   content: string,
+  cwd: string,
   signal?: AbortSignal
 ): Promise<string> {
-  const ab = new AbortController();
-  if (signal?.aborted) ab.abort();
-  else signal?.addEventListener("abort", () => ab.abort(), { once: true });
+  return runCodexReadOnlyTurn({
+    prompt: `${SUMMARY_SYSTEM_PROMPT}
 
-  const stream = query({
-    prompt: `File path: ${path}\n\n\`\`\`\n${content}\n\`\`\``,
-    options: {
-      systemPrompt: SUMMARY_SYSTEM_PROMPT,
-      model: SUMMARY_MODEL,
-      maxTurns: 1,
-      allowedTools: [],
-      settingSources: [],
-      abortController: ab,
-    },
+File path: ${path}
+
+\`\`\`
+${content}
+\`\`\``,
+    cwd,
+    reasoningEffort: "low",
+    model: codexModelFromEnv(CODEMAP_MODEL_ENV, DEFAULT_CODEMAP_MODEL),
+    signal,
   });
-
-  let text = "";
-  for await (const msg of stream) {
-    if (msg.type === "assistant") {
-      for (const block of msg.message.content) {
-        if (block.type === "text") text += block.text;
-      }
-    }
-  }
-  return text.trim();
 }

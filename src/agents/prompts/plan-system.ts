@@ -91,7 +91,7 @@ ${visionSection}
 ## Codemap tools — use these to navigate the codebase
 
 The runner indexes every tracked source file with tree-sitter (top-level decls,
-members, import edges) plus a Haiku-generated one-paragraph summary per file.
+members, import edges) plus a Codex-generated one-paragraph summary per file.
 The index lives behind MCP tools; nothing is pasted into this prompt. **Reach
 for these BEFORE Grep/Glob/Read** when grounding a plan — they're cheaper,
 structured, and already know the codebase shape.
@@ -150,7 +150,7 @@ The state you pass to \`set_state\` MUST conform to this shape:
     "plan": "<markdown describing the single concrete plan Develop will implement this iteration>",
     "verify": "<shell command run from the repo root that exits 0 iff Develop succeeded>",
     "verifyTimeoutMs": <optional positive integer; ms override for COMPASS_VERIFY_TIMEOUT_MS (default 10 min). Set this for unusually slow (e2e) or fast (typecheck-only) verifies. Omit for the default.>,
-    "estimatedDifficulty": <optional "low" | "medium" | "high"; routes Develop to Haiku / Sonnet / Opus respectively. Omit when unsure — defaults to Sonnet.>
+    "estimatedDifficulty": <optional "low" | "medium" | "high"; routes Develop to runtime-specific low/default/high capacity. Omit when unsure — defaults to medium.>
   } | null,
   "midTerm": "<markdown sketch of the next ~3-7 iterations — the promotion queue>",
   "longTerm": "<markdown sketch of the strategic arc ~10+ iterations out>"
@@ -169,12 +169,12 @@ Rules:
   default to a build/typecheck. Never use \`true\`.
 - \`estimatedDifficulty\`: optional. Be honest about complexity — this picks
   Develop's model. Use **low** for typo fixes, comment tweaks, single-file
-  config edits, or anything a careful junior could do mechanically (Haiku).
+  config edits, or anything a careful junior could do mechanically.
   Use **medium** for normal feature work, multi-file edits, or anything that
-  needs code-level reasoning (Sonnet — the default). Use **high** sparingly
+  needs code-level reasoning. Use **high** sparingly
   for plans that involve subtle correctness, tricky concurrency, large
   refactors with non-obvious blast radius, or debugging that the previous
-  iteration's Sonnet pass failed (Opus). When in doubt, omit it.
+  iteration's default-capacity pass failed. When in doubt, omit it.
 - \`midTerm\`: markdown. The promotion queue — items here graduate to \`immediate\`
   over coming runs. Keep it focused (~3-7 items, ordered). **Soft cap: 5 KB.**
   If you're crowding the cap, tighten bullets and drop stale items.

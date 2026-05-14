@@ -8,12 +8,11 @@
  *   - find_symbol({name,...}) — substring/exact lookup across all files
  *   - list_files({dir?,...})  — filtered file listing from the cache
  *   - importers_of(path)      — reverse-import lookup
- *   - summary(path)           — Haiku-generated one-paragraph summary (lazy)
- *   - search({query,limit?})  — Haiku-ranked relevance over file summaries
+ *   - summary(path)           — Codex-generated one-paragraph summary (lazy)
+ *   - search({query,limit?})  — Codex-ranked relevance over file summaries
  */
 
 import { z } from "zod";
-import { query, tool } from "@anthropic-ai/claude-agent-sdk";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import type { WorkspaceConfig } from "../state/types.js";
 import {
@@ -23,10 +22,27 @@ import {
 } from "../repomap/cache.js";
 import { buildImporterIndex } from "../repomap/graph.js";
 import { ensureSummary } from "../repomap/summary.js";
+import {
+  CODEMAP_MODEL_ENV,
+  DEFAULT_CODEMAP_MODEL,
+  codexModelFromEnv,
+  runCodexReadOnlyTurn,
+} from "../agents/codex-client.js";
 
-const SEARCH_MODEL = "claude-haiku-4-5";
 const DEFAULT_SEARCH_LIMIT = 8;
 const MAX_SEARCH_LIMIT = 25;
+const RANK_SCHEMA = {
+  type: "object",
+  properties: {
+    ids: {
+      type: "array",
+      items: { type: "integer" },
+      maxItems: MAX_SEARCH_LIMIT,
+    },
+  },
+  required: ["ids"],
+  additionalProperties: false,
+} as const;
 
 export interface CompassToolDefinition {
   name: string;
@@ -119,45 +135,37 @@ function searchSymbols(
 async function rankBySummary(
   userQuery: string,
   candidates: Array<{ path: string; summary: string }>,
+  cwd: string,
   limit: number,
   signal?: AbortSignal
 ): Promise<Array<{ path: string; summary: string }>> {
   if (candidates.length === 0) return [];
   if (candidates.length <= limit) return candidates;
 
-  // Build a compact catalog. Each entry has a numeric ID so Haiku can return
+  // Build a compact catalog. Each entry has a numeric ID so Codex can return
   // a small JSON array of IDs instead of repeating long paths.
   const numbered = candidates.map((c, i) => `${i}: ${c.path}\n  ${c.summary}`);
   const prompt = `User query: ${userQuery}
 
-Rank the following indexed files by relevance to the query. Return ONLY a JSON array of the top ${limit} integer IDs in descending relevance, e.g. [3, 17, 0, 22]. No prose, no markdown, no trailing text. If fewer than ${limit} files are clearly relevant, return fewer IDs.
+Rank the following indexed files by relevance to the query. Return JSON matching this shape exactly:
+{"ids":[3,17,0,22]}
+
+The ids array must contain the top ${limit} integer IDs in descending relevance. If fewer than ${limit} files are clearly relevant, return fewer IDs. No prose, no markdown, no trailing text.
 
 Files:
 
 ${numbered.join("\n\n")}`;
 
-  const ab = new AbortController();
-  if (signal?.aborted) ab.abort();
-  else signal?.addEventListener("abort", () => ab.abort(), { once: true });
+  const text = await runCodexReadOnlyTurn({
+    prompt,
+    cwd,
+    reasoningEffort: "medium",
+    model: codexModelFromEnv(CODEMAP_MODEL_ENV, DEFAULT_CODEMAP_MODEL),
+    signal,
+    outputSchema: RANK_SCHEMA,
+  });
 
-  let text = "";
-  for await (const msg of streamHaiku(prompt, ab)) {
-    if (msg.type === "assistant") {
-      for (const block of msg.message.content) {
-        if (block.type === "text") text += block.text;
-      }
-    }
-  }
-
-  // Parse: find the first JSON array of integers in the response.
-  const match = text.match(/\[\s*\d+(?:\s*,\s*\d+)*\s*\]/);
-  if (!match) return candidates.slice(0, limit);
-  let ids: number[];
-  try {
-    ids = JSON.parse(match[0]) as number[];
-  } catch {
-    return candidates.slice(0, limit);
-  }
+  const ids = parseRankedIds(text);
   const picked: Array<{ path: string; summary: string }> = [];
   const seen = new Set<number>();
   for (const id of ids) {
@@ -171,23 +179,25 @@ ${numbered.join("\n\n")}`;
   return picked;
 }
 
-function streamHaiku(prompt: string, ab: AbortController) {
-  return query({
-    prompt,
-    options: {
-      model: SEARCH_MODEL,
-      maxTurns: 1,
-      allowedTools: [],
-      settingSources: [],
-      abortController: ab,
-    },
-  });
-}
-
-export function codemapTools(config: WorkspaceConfig) {
-  return codemapToolDefinitions(config).map((def) =>
-    tool(def.name, def.description, def.inputSchema, def.handler)
-  );
+function parseRankedIds(text: string): number[] {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    const match = text.match(/\[\s*\d+(?:\s*,\s*\d+)*\s*\]/);
+    if (!match) return [];
+    try {
+      parsed = JSON.parse(match[0]);
+    } catch {
+      return [];
+    }
+  }
+  if (Array.isArray(parsed)) return parsed.filter(Number.isInteger);
+  if (parsed && typeof parsed === "object") {
+    const ids = (parsed as { ids?: unknown }).ids;
+    if (Array.isArray(ids)) return ids.filter(Number.isInteger);
+  }
+  return [];
 }
 
 export function codemapToolDefinitions(
@@ -305,7 +315,7 @@ export function codemapToolDefinitions(
     {
       name: "summary",
       description:
-        "Return the Haiku-generated one-paragraph summary of a single file. If the file's summary is missing or stale, generates one on the fly (and persists it). Returns null-ish text if the file isn't indexed or is too small to summarize.",
+        "Return the Codex-generated one-paragraph summary of a single file. If the file's summary is missing or stale, generates one on the fly (and persists it). Returns null-ish text if the file isn't indexed or is too small to summarize.",
       inputSchema: {
         path: z
           .string()
@@ -327,7 +337,7 @@ export function codemapToolDefinitions(
     {
       name: "search",
       description:
-        "Semantic search over the cached repo: ranks indexed files by relevance to a natural-language query using their Haiku-generated summaries. Returns the top matches with their path and summary. Use this when you don't know which file to look at yet (e.g. 'where is the runner's abort signal threaded through?').",
+        "Semantic search over the cached repo: ranks indexed files by relevance to a natural-language query using their Codex-generated summaries. Returns the top matches with their path and summary. Use this when you don't know which file to look at yet (e.g. 'where is the runner's abort signal threaded through?').",
       inputSchema: {
         query: z
           .string()
@@ -360,7 +370,12 @@ export function codemapToolDefinitions(
             ? limit
             : DEFAULT_SEARCH_LIMIT;
         const cap = Math.min(parsedLimit, MAX_SEARCH_LIMIT);
-        const ranked = await rankBySummary(String(q), candidates, cap);
+        const ranked = await rankBySummary(
+          String(q),
+          candidates,
+          config.implRepoPath,
+          cap
+        );
         const lines = ranked.map(
           (r) => `${r.path}\n  ${r.summary}`
         );

@@ -35,7 +35,7 @@ import {
   readLessons,
   writeLessons,
 } from "./utils/workspace.js";
-import { codemapTools } from "./codemap-tools.js";
+import { codemapToolDefinitions } from "./codemap-tools.js";
 import type { PlanState, WorkspaceConfig } from "../state/types.js";
 
 const planNextSchema = z.object({
@@ -86,6 +86,12 @@ function lessonsTools(config: WorkspaceConfig) {
       }
     ),
   ];
+}
+
+function codemapTools(config: WorkspaceConfig) {
+  return codemapToolDefinitions(config).map((def) =>
+    tool(def.name, def.description, def.inputSchema, def.handler)
+  );
 }
 
 export interface PlanToolCallbacks {

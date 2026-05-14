@@ -78,7 +78,7 @@ export interface FileEntry {
   symbols: Symbol[];
   imports: ImportRef[];
   /**
-   * Haiku-generated one-paragraph "what does this file do" summary. Absent
+   * Codex-generated one-paragraph "what does this file do" summary. Absent
    * until the summarizer runs. Carried across cache rebuilds as long as the
    * contentHash hasn't changed since `summaryHash` was recorded.
    */

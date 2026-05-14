@@ -30,7 +30,7 @@ const DEFAULT_MAX_FILE_BYTES = 1024 * 1024;
  * Build the repo map for `config.implRepoPath`. Updates the on-disk cache
  * (parsing only files whose content hash changed) and returns the rendered
  * string ready to inject into a system prompt. The cache also keeps imports
- * and Haiku-generated summaries; tooling reads those separately via the cache.
+ * and Codex-generated summaries; tooling reads those separately via the cache.
  */
 export async function buildRepoMap(
   config: WorkspaceConfig,
@@ -144,7 +144,7 @@ export async function rebuildRepoMapCache(
 
 export interface PrepareCodemapOptions {
   signal?: AbortSignal;
-  /** Called after each summary completes during the Haiku pass. */
+  /** Called after each summary completes during the Codex pass. */
   onSummaryProgress?: (done: number, total: number) => void;
 }
 
@@ -155,7 +155,7 @@ export interface PrepareCodemapResult {
 
 /**
  * One-stop helper for agent startup: rebuilds the symbol/import cache, then
- * generates Haiku summaries for any files whose `summary` is missing or
+ * generates Codex summaries for any files whose `summary` is missing or
  * stale. Returns the fully-populated cache and the summary pass stats.
  */
 export async function prepareCodemap(

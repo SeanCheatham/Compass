@@ -1,6 +1,5 @@
 import {
   Codex,
-  type CodexOptions,
   type ModelReasoningEffort,
   type SandboxMode,
   type ThreadEvent,
@@ -37,6 +36,7 @@ import type {
   ReflectAgentOptions,
   ReflectAgentResult,
 } from "./reflect.js";
+import { buildCodexOptions, codexModelFromEnv } from "./codex-client.js";
 
 const PLAN_INITIAL_PROMPT = `Run a planning iteration.
 
@@ -553,26 +553,6 @@ the first pass concluded that isn't in the note above is gone — re-derive it.
 You cannot escalate further; this pass must end with a \`set_state\` call.`;
 }
 
-function buildCodexOptions(args: {
-  mcpUrl: string;
-  toolNames: string[];
-}): CodexOptions {
-  const codexPathOverride = process.env.COMPASS_CODEX_BIN?.trim();
-  return {
-    ...(codexPathOverride ? { codexPathOverride } : {}),
-    config: {
-      mcp_servers: {
-        compass: {
-          url: args.mcpUrl,
-          enabled_tools: args.toolNames,
-          default_tools_approval_mode: "approve",
-          tool_timeout_sec: 600,
-        },
-      },
-    },
-  };
-}
-
 function pickCodexDevEffort(
   difficulty: PlanNext["estimatedDifficulty"]
 ): ModelReasoningEffort {
@@ -589,11 +569,6 @@ function pickCodexDevEffort(
 
 function codexAgentLabel(effort: ModelReasoningEffort): string {
   return `Codex · ${effort}`;
-}
-
-function codexModelFromEnv(key: string): string | undefined {
-  const model = process.env[key]?.trim();
-  return model ? model : undefined;
 }
 
 function recordFromUnknown(value: unknown): Record<string, unknown> {
