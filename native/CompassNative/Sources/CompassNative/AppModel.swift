@@ -276,8 +276,8 @@ extension AppModel {
                     prompt: prompt
                 ),
                 decode: PlanState.self,
-                onEvent: { [weak self] line in
-                    Task { @MainActor in self?.log(line, level: .raw) }
+                onEvent: { [weak self] event in
+                    Task { @MainActor in self?.log(event) }
                 }
             )
 
@@ -410,8 +410,8 @@ extension AppModel {
                         prompt: prompt
                     ),
                     decode: DevelopSummary.self,
-                    onEvent: { [weak self] line in
-                        Task { @MainActor in self?.log(line, level: .raw) }
+                    onEvent: { [weak self] event in
+                        Task { @MainActor in self?.log(event) }
                     }
                 )
 
@@ -591,8 +591,8 @@ extension AppModel {
                 prompt: prompt
             ),
             decode: ReflectSummary.self,
-            onEvent: { [weak self] line in
-                Task { @MainActor in self?.log(line, level: .raw) }
+            onEvent: { [weak self] event in
+                Task { @MainActor in self?.log(event) }
             }
         )
 
@@ -901,6 +901,40 @@ extension AppModel {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
         activity.append(ActivityLine(level: level, text: trimmed))
+        trimActivity()
+    }
+
+    private func log(_ event: ActivityEvent) {
+        let title = event.text.trimmingCharacters(in: .whitespacesAndNewlines)
+        let detail = event.detail?.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !title.isEmpty || !(detail?.isEmpty ?? true) else { return }
+
+        if event.status == .completed || event.status == .failed,
+           let correlationID = event.correlationID,
+           let index = activity.lastIndex(where: {
+               $0.correlationID == correlationID && $0.status == .running
+           }) {
+            activity[index].level = event.level
+            activity[index].text = title.isEmpty ? activity[index].text : title
+            activity[index].detail = detail?.isEmpty == false ? detail : activity[index].detail
+            activity[index].kind = event.kind
+            activity[index].status = event.status
+            activity[index].completedAt = Date()
+        } else {
+            activity.append(ActivityLine(
+                level: event.level,
+                text: title,
+                detail: detail?.isEmpty == false ? detail : nil,
+                kind: event.kind,
+                status: event.status,
+                correlationID: event.correlationID
+            ))
+        }
+
+        trimActivity()
+    }
+
+    private func trimActivity() {
         if activity.count > 800 {
             activity.removeFirst(activity.count - 800)
         }

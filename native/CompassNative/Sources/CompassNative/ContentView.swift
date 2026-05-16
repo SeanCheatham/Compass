@@ -179,9 +179,7 @@ private struct StateTab: View {
             VStack(alignment: .leading, spacing: 18) {
                 SectionHeader("Immediate", systemImage: "target")
                 if let immediate = model.state.immediate {
-                    Text(immediate.plan)
-                        .textSelection(.enabled)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                    MarkdownBlock(immediate.plan, empty: "No immediate plan.")
                     Label(immediate.verify, systemImage: "checkmark.seal")
                         .font(.callout.monospaced())
                         .foregroundStyle(.secondary)
@@ -197,7 +195,13 @@ private struct StateTab: View {
                 } else {
                     VStack(alignment: .leading, spacing: 6) {
                         ForEach(model.state.completed, id: \.self) { item in
-                            Label(item, systemImage: "checkmark")
+                            HStack(alignment: .top, spacing: 8) {
+                                Image(systemName: "checkmark")
+                                    .foregroundStyle(.green)
+                                    .frame(width: 18)
+                                InlineMarkdownText(text: item)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                            }
                         }
                     }
                 }
@@ -267,23 +271,13 @@ private struct ActivityTab: View {
     var body: some View {
         ScrollViewReader { proxy in
             ScrollView {
-                LazyVStack(alignment: .leading, spacing: 6) {
+                LazyVStack(alignment: .leading, spacing: 4) {
                     ForEach(model.activity) { line in
-                        HStack(alignment: .top, spacing: 8) {
-                            Text(timestamp(line.date))
-                                .font(.caption.monospacedDigit())
-                                .foregroundStyle(.secondary)
-                                .frame(width: 74, alignment: .leading)
-                            Text(line.text)
-                                .font(.system(.callout, design: .monospaced))
-                                .foregroundStyle(color(for: line.level))
-                                .textSelection(.enabled)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                        }
+                        ActivityRow(line: line)
                         .id(line.id)
                     }
                 }
-                .padding(12)
+                .padding(10)
             }
             .background(.black.opacity(0.06), in: RoundedRectangle(cornerRadius: 8))
             .onChange(of: model.activity.count) {
@@ -293,42 +287,215 @@ private struct ActivityTab: View {
             }
         }
     }
+}
+
+private struct ActivityRow: View {
+    var line: ActivityLine
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 10) {
+            Text(timestamp(line.date))
+                .font(.caption.monospacedDigit())
+                .foregroundStyle(.secondary)
+                .frame(width: 74, alignment: .leading)
+
+            ActivityStatusIcon(line: line)
+                .frame(width: 18, height: 18)
+                .padding(.top, 1)
+
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Text(line.text)
+                        .font(.callout.weight(titleWeight))
+                        .foregroundStyle(titleColor)
+                        .textSelection(.enabled)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+
+                    if let duration {
+                        Text(duration)
+                            .font(.caption.monospacedDigit())
+                            .foregroundStyle(.secondary)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(.quaternary.opacity(0.7), in: Capsule())
+                    }
+                }
+
+                if let detail = line.detail, !detail.isEmpty {
+                    ActivityDetail(line: line, detail: detail)
+                }
+            }
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 6)
+        .background(rowBackground, in: RoundedRectangle(cornerRadius: 6))
+    }
+
+    private var titleWeight: Font.Weight {
+        switch line.status {
+        case .running:
+            return .semibold
+        default:
+            return line.kind == .lifecycle ? .regular : .medium
+        }
+    }
+
+    private var titleColor: Color {
+        switch line.level {
+        case .success:
+            return .green
+        case .warning:
+            return .orange
+        case .error:
+            return .red
+        case .raw:
+            return .primary.opacity(0.82)
+        case .info:
+            return .primary
+        }
+    }
+
+    private var rowBackground: Color {
+        switch line.status {
+        case .running:
+            return .blue.opacity(0.07)
+        case .failed:
+            return .red.opacity(0.08)
+        default:
+            return .clear
+        }
+    }
+
+    private var duration: String? {
+        guard let completedAt = line.completedAt else { return nil }
+        let seconds = completedAt.timeIntervalSince(line.date)
+        if seconds < 1 {
+            return "\(Int((seconds * 1000).rounded()))ms"
+        }
+        return String(format: "%.1fs", seconds)
+    }
 
     private func timestamp(_ date: Date) -> String {
         let formatter = DateFormatter()
         formatter.dateFormat = "HH:mm:ss"
         return formatter.string(from: date)
     }
+}
 
-    private func color(for level: ActivityLine.Level) -> Color {
-        switch level {
-        case .info: return .primary
-        case .success: return .green
-        case .warning: return .orange
-        case .error: return .red
-        case .raw: return .secondary
+private struct ActivityStatusIcon: View {
+    var line: ActivityLine
+
+    var body: some View {
+        switch line.status {
+        case .running:
+            ProgressView()
+                .controlSize(.small)
+        case .completed:
+            Image(systemName: "checkmark.circle.fill")
+                .foregroundStyle(.green)
+        case .failed:
+            Image(systemName: "xmark.octagon.fill")
+                .foregroundStyle(.red)
+        case .none:
+            Image(systemName: iconName)
+                .foregroundStyle(iconColor)
+        }
+    }
+
+    private var iconName: String {
+        switch line.level {
+        case .success:
+            return "checkmark.circle.fill"
+        case .warning:
+            return "exclamationmark.triangle.fill"
+        case .error:
+            return "xmark.octagon.fill"
+        case .info, .raw:
+            switch line.kind {
+            case .command:
+                return "terminal"
+            case .agentMessage:
+                return "sparkles"
+            case .fileChange:
+                return "doc.badge.gearshape"
+            case .lifecycle:
+                return "circle"
+            case .message:
+                return "info.circle"
+            }
+        }
+    }
+
+    private var iconColor: Color {
+        switch line.level {
+        case .success:
+            return .green
+        case .warning:
+            return .orange
+        case .error:
+            return .red
+        case .raw:
+            return .secondary
+        case .info:
+            return .blue
+        }
+    }
+}
+
+private struct ActivityDetail: View {
+    var line: ActivityLine
+    var detail: String
+
+    var body: some View {
+        switch line.kind {
+        case .command:
+            Text(detail)
+                .font(.system(.caption, design: .monospaced))
+                .foregroundStyle(.secondary)
+                .textSelection(.enabled)
+                .lineLimit(nil)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 6)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(.black.opacity(0.045), in: RoundedRectangle(cornerRadius: 5))
+        case .agentMessage:
+            MarkdownContent(detail, compact: true)
+                .foregroundStyle(.secondary)
+        default:
+            Text(detail)
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .textSelection(.enabled)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 }
 
 private struct VisionTab: View {
     @EnvironmentObject private var model: AppModel
+    @State private var mode = MarkdownDocumentMode.preview
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
                 SectionHeader("Project Vision", systemImage: "scope")
                 Spacer()
+                Picker("Vision display mode", selection: $mode) {
+                    ForEach(MarkdownDocumentMode.allCases) { mode in
+                        Text(mode.rawValue).tag(mode)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .frame(width: 150)
                 Button {
                     Task { await model.saveVision() }
                 } label: {
                     Label("Save", systemImage: "square.and.arrow.down")
                 }
             }
-            TextEditor(text: $model.vision)
-                .font(.system(.body, design: .monospaced))
-                .scrollContentBackground(.hidden)
-                .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 8))
+            MarkdownDocumentBody(text: $model.vision, mode: mode, empty: "No project vision.")
         }
     }
 }
@@ -338,19 +505,13 @@ private struct LessonsTab: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                SectionHeader("Lessons", systemImage: "book.closed")
-                Spacer()
-                Button {
-                    Task { await model.saveLessons() }
-                } label: {
-                    Label("Save", systemImage: "square.and.arrow.down")
-                }
+            SectionHeader("Lessons", systemImage: "book.closed")
+            ScrollView {
+                MarkdownBlock(model.lessons, empty: "No lessons captured.")
+                    .padding(12)
             }
-            TextEditor(text: $model.lessons)
-                .font(.system(.body, design: .monospaced))
-                .scrollContentBackground(.hidden)
-                .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 8))
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 8))
         }
     }
 }
@@ -380,8 +541,7 @@ private struct SessionsTab: View {
                                     .foregroundStyle(.secondary)
                             }
                             if let plan = session.plan {
-                                Text(plan)
-                                    .lineLimit(3)
+                                MarkdownContent(plan, compact: true)
                             }
                             if let verify = session.verify {
                                 Text(verify)
@@ -389,8 +549,7 @@ private struct SessionsTab: View {
                                     .foregroundStyle(.secondary)
                             }
                             if let feedback = session.feedback, !feedback.isEmpty {
-                                Text(feedback)
-                                    .font(.callout)
+                                MarkdownContent(feedback, compact: true)
                                     .foregroundStyle(.secondary)
                             }
                             if let verifyOutput = session.verifyOutput {
@@ -403,10 +562,14 @@ private struct SessionsTab: View {
                                 }
                             }
                             ForEach(session.notes, id: \.self) { note in
-                                Text(note)
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                                    .textSelection(.enabled)
+                                HStack(alignment: .top, spacing: 8) {
+                                    Image(systemName: "note.text")
+                                        .foregroundStyle(.secondary)
+                                        .frame(width: 16)
+                                    MarkdownContent(note, compact: true)
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
                             }
                             ForEach(session.commits) { commit in
                                 Label("\(commit.short) \(commit.subject)", systemImage: "arrow.triangle.branch")
@@ -443,6 +606,38 @@ private struct SectionHeader: View {
     }
 }
 
+private enum MarkdownDocumentMode: String, CaseIterable, Identifiable {
+    case preview = "Preview"
+    case edit = "Edit"
+
+    var id: Self { self }
+}
+
+private struct MarkdownDocumentBody: View {
+    @Binding var text: String
+    var mode: MarkdownDocumentMode
+    var empty: String
+
+    var body: some View {
+        Group {
+            switch mode {
+            case .preview:
+                ScrollView {
+                    MarkdownBlock(text, empty: empty)
+                        .padding(12)
+                }
+            case .edit:
+                TextEditor(text: $text)
+                    .font(.system(.body, design: .monospaced))
+                    .scrollContentBackground(.hidden)
+                    .padding(8)
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 8))
+    }
+}
+
 private struct MarkdownBlock: View {
     var text: String
     var empty: String
@@ -453,13 +648,7 @@ private struct MarkdownBlock: View {
     }
 
     var body: some View {
-        if text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            EmptyState(empty)
-        } else {
-            Text(text)
-                .textSelection(.enabled)
-                .frame(maxWidth: .infinity, alignment: .leading)
-        }
+        MarkdownContent(text, empty: empty)
     }
 }
 

@@ -185,6 +185,11 @@ struct ActivityLine: Identifiable, Equatable {
     var date = Date()
     var level: Level
     var text: String
+    var detail: String?
+    var kind: Kind = .message
+    var status: Status = .none
+    var correlationID: String?
+    var completedAt: Date?
 
     enum Level {
         case info
@@ -192,6 +197,46 @@ struct ActivityLine: Identifiable, Equatable {
         case warning
         case error
         case raw
+    }
+
+    enum Kind {
+        case message
+        case lifecycle
+        case command
+        case agentMessage
+        case fileChange
+    }
+
+    enum Status {
+        case none
+        case running
+        case completed
+        case failed
+    }
+}
+
+struct ActivityEvent: Equatable {
+    var level: ActivityLine.Level
+    var text: String
+    var detail: String?
+    var kind: ActivityLine.Kind
+    var status: ActivityLine.Status
+    var correlationID: String?
+
+    init(
+        level: ActivityLine.Level = .info,
+        text: String,
+        detail: String? = nil,
+        kind: ActivityLine.Kind = .message,
+        status: ActivityLine.Status = .none,
+        correlationID: String? = nil
+    ) {
+        self.level = level
+        self.text = text
+        self.detail = detail
+        self.kind = kind
+        self.status = status
+        self.correlationID = correlationID
     }
 }
 

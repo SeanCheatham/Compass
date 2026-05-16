@@ -19,7 +19,7 @@ final class CodexExecutor {
     func run<T: Decodable>(
         _ configuration: CodexRunConfiguration,
         decode type: T.Type,
-        onEvent: @escaping (String) -> Void
+        onEvent: @escaping (ActivityEvent) -> Void
     ) async throws -> T {
         let tempDirectory = FileManager.default.temporaryDirectory
             .appending(path: "CompassNative-\(UUID().uuidString)", directoryHint: .isDirectory)
@@ -78,7 +78,7 @@ final class CodexExecutor {
         arguments: [String],
         workingDirectory: URL,
         inputFile: URL,
-        onEvent: @escaping (String) -> Void
+        onEvent: @escaping (ActivityEvent) -> Void
     ) async throws -> ProcessResult {
         try await withCheckedThrowingContinuation { continuation in
             let process = Process()
@@ -133,7 +133,12 @@ final class CodexExecutor {
                 let data = handle.availableData
                 guard !data.isEmpty, let chunk = String(data: data, encoding: .utf8) else { return }
                 outputStore.appendStderr(chunk)
-                onEvent(chunk.trimmingCharacters(in: .newlines))
+                onEvent(ActivityEvent(
+                    level: .warning,
+                    text: "Codex diagnostic",
+                    detail: chunk.trimmingCharacters(in: .whitespacesAndNewlines),
+                    kind: .message
+                ))
             }
 
             process.terminationHandler = { process in
@@ -154,42 +159,99 @@ final class CodexExecutor {
         }
     }
 
-    private static func renderJSONLine(_ line: String) -> String {
+    private static func renderJSONLine(_ line: String) -> ActivityEvent {
+        let trimmedLine = line.trimmingCharacters(in: .whitespacesAndNewlines)
         guard let data = line.data(using: .utf8),
               let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-            return line
+            return ActivityEvent(level: .raw, text: trimmedLine, kind: .message)
         }
 
         let type = object["type"] as? String ?? "event"
         if let item = object["item"] as? [String: Any],
            let itemType = item["type"] as? String {
+            let status = status(for: type, item: item)
+            let correlationID = (item["id"] as? String) ?? fallbackCorrelationID(for: item)
             switch itemType {
             case "command_execution":
                 let command = item["command"] as? String ?? "(command)"
-                return "\(type): \(command)"
+                let displayCommand = cleanShellCommand(command)
+                let exitCode = item["exit_code"] as? Int
+                let title: String
+                if let exitCode, exitCode != 0 {
+                    title = "Command failed"
+                } else if status == .running {
+                    title = "Running command"
+                } else if status == .completed {
+                    title = "Command completed"
+                } else {
+                    title = "Command"
+                }
+                let detail = exitCode.map { "\(displayCommand)\nexit code \($0)" } ?? displayCommand
+                return ActivityEvent(
+                    level: exitCode.map { $0 == 0 ? .success : .error } ?? (status == .completed ? .success : .raw),
+                    text: title,
+                    detail: detail,
+                    kind: .command,
+                    status: exitCode.map { $0 == 0 ? .completed : .failed } ?? status,
+                    correlationID: correlationID
+                )
             case "agent_message":
                 let text = item["text"] as? String ?? ""
-                return summarizeAgentMessage(text, eventType: type)
+                var event = summarizeAgentMessage(text, eventType: type)
+                event.status = status == .running ? .running : .completed
+                event.correlationID = correlationID
+                return event
             case "file_change":
-                return "\(type): file changes"
+                return ActivityEvent(
+                    level: status == .completed ? .success : .raw,
+                    text: status == .running ? "Preparing file changes" : "File changes ready",
+                    kind: .fileChange,
+                    status: status,
+                    correlationID: correlationID
+                )
             default:
-                return "\(type): \(itemType)"
+                return ActivityEvent(
+                    level: .raw,
+                    text: readableEventType(itemType),
+                    detail: readableEventType(type),
+                    kind: .lifecycle,
+                    status: status,
+                    correlationID: correlationID
+                )
             }
         }
 
         if let message = object["message"] as? String {
-            return "\(type): \(message)"
+            return ActivityEvent(
+                level: .info,
+                text: readableEventType(type),
+                detail: message,
+                kind: .message
+            )
         }
         if let error = object["error"] as? [String: Any],
            let message = error["message"] as? String {
-            return "\(type): \(message)"
+            return ActivityEvent(
+                level: .error,
+                text: readableEventType(type),
+                detail: message,
+                kind: .message,
+                status: .failed
+            )
         }
-        return type
+        return ActivityEvent(
+            level: .raw,
+            text: readableEventType(type),
+            kind: .lifecycle,
+            status: lifecycleStatus(for: type)
+        )
     }
 
-    private static func summarizeAgentMessage(_ text: String, eventType: String) -> String {
+    private static func summarizeAgentMessage(_ text: String, eventType: String) -> ActivityEvent {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return "\(eventType): agent_message" }
+        guard !trimmed.isEmpty else {
+            return ActivityEvent(level: .raw, text: "Codex message", kind: .agentMessage)
+        }
 
         if let data = trimmed.data(using: .utf8),
            let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
@@ -200,18 +262,47 @@ final class CodexExecutor {
                 let immediate = object["immediate"] as? [String: Any]
                 let plan = firstLine(immediate?["plan"] as? String) ?? "none"
                 let verify = firstLine(immediate?["verify"] as? String) ?? "none"
-                return "Codex candidate PlanState (streamed; not accepted yet): completed=\(completed.count), immediate=\(plan), verify=\(verify)"
+                return ActivityEvent(
+                    level: .raw,
+                    text: "Candidate plan state",
+                    detail: "Not accepted yet\nCompleted: \(completed.count)\nImmediate: \(plan)\nVerify: \(verify)",
+                    kind: .agentMessage,
+                    status: .completed
+                )
             }
 
             if let status = object["status"] as? String,
                object.keys.contains("summary"),
                object.keys.contains("feedback") {
                 let summary = firstLine(object["summary"] as? String) ?? ""
-                return "Codex candidate DevelopSummary (streamed; not accepted yet): status=\(status), summary=\(summary)"
+                return ActivityEvent(
+                    level: .raw,
+                    text: "Candidate develop summary",
+                    detail: "Not accepted yet\nStatus: \(status)\nSummary: \(summary)",
+                    kind: .agentMessage,
+                    status: .completed
+                )
+            }
+
+            if let summary = object["summary"] as? String,
+               object.keys.contains("state") {
+                return ActivityEvent(
+                    level: .raw,
+                    text: "Reflection summary",
+                    detail: summary,
+                    kind: .agentMessage,
+                    status: .completed
+                )
             }
         }
 
-        return "Codex: \(trimmed)"
+        return ActivityEvent(
+            level: .raw,
+            text: "Codex response",
+            detail: trimmed,
+            kind: .agentMessage,
+            status: .completed
+        )
     }
 
     private static func firstLine(_ text: String?) -> String? {
@@ -219,6 +310,83 @@ final class CodexExecutor {
             .split(whereSeparator: \.isNewline)
             .first
             .map(String.init)
+    }
+
+    private static func status(for eventType: String, item: [String: Any]) -> ActivityLine.Status {
+        if let exitCode = item["exit_code"] as? Int {
+            return exitCode == 0 ? .completed : .failed
+        }
+        switch eventType {
+        case "item.started":
+            return .running
+        case "item.completed":
+            return .completed
+        default:
+            return .none
+        }
+    }
+
+    private static func lifecycleStatus(for eventType: String) -> ActivityLine.Status {
+        switch eventType {
+        case let type where type.hasSuffix(".started"):
+            return .running
+        case let type where type.hasSuffix(".completed"):
+            return .completed
+        case let type where type.hasSuffix(".failed"):
+            return .failed
+        default:
+            return .none
+        }
+    }
+
+    private static func fallbackCorrelationID(for item: [String: Any]) -> String? {
+        if let command = item["command"] as? String {
+            return "command:\(command)"
+        }
+        if let text = item["text"] as? String {
+            return "message:\(text.hashValue)"
+        }
+        return nil
+    }
+
+    private static func cleanShellCommand(_ command: String) -> String {
+        let zshPrefix = "/bin/zsh -lc "
+        let shPrefix = "/bin/sh -lc "
+        let raw: String
+        if command.hasPrefix(zshPrefix) {
+            raw = String(command.dropFirst(zshPrefix.count))
+        } else if command.hasPrefix(shPrefix) {
+            raw = String(command.dropFirst(shPrefix.count))
+        } else {
+            raw = command
+        }
+
+        return unquoteShellArgument(raw).trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private static func unquoteShellArgument(_ value: String) -> String {
+        guard value.count >= 2 else { return value }
+        if value.first == "'", value.last == "'" {
+            let inner = value.dropFirst().dropLast()
+            return inner.replacingOccurrences(of: "'\\''", with: "'")
+        }
+        if value.first == "\"", value.last == "\"" {
+            let inner = value.dropFirst().dropLast()
+            return inner.replacingOccurrences(of: "\\\"", with: "\"")
+        }
+        return value
+    }
+
+    private static func readableEventType(_ type: String) -> String {
+        type
+            .replacingOccurrences(of: "_", with: " ")
+            .replacingOccurrences(of: ".", with: " ")
+            .split(separator: " ")
+            .map { word in
+                guard let first = word.first else { return "" }
+                return first.uppercased() + word.dropFirst()
+            }
+            .joined(separator: " ")
     }
 
     private static func processEnvironment() -> [String: String] {
