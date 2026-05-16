@@ -389,8 +389,8 @@ private struct WorkspaceContent: View {
         switch selectedTab {
         case .live:
             LiveTab(project: project)
-        case .state:
-            StateTab(project: project)
+        case .plan:
+            PlanTab(project: project)
         case .drafts:
             DraftsTab(project: project)
         case .vision:
@@ -405,7 +405,7 @@ private struct WorkspaceContent: View {
 
 private enum WorkspaceTab: String, CaseIterable, Identifiable {
     case live
-    case state
+    case plan
     case drafts
     case vision
     case lessons
@@ -416,7 +416,7 @@ private enum WorkspaceTab: String, CaseIterable, Identifiable {
     var title: String {
         switch self {
         case .live: return "Live"
-        case .state: return "State"
+        case .plan: return "Plan"
         case .drafts: return "Drafts"
         case .vision: return "Vision"
         case .lessons: return "Lessons"
@@ -427,7 +427,7 @@ private enum WorkspaceTab: String, CaseIterable, Identifiable {
     var systemImage: String {
         switch self {
         case .live: return "waveform.path.ecg"
-        case .state: return "list.bullet.rectangle"
+        case .plan: return "map"
         case .drafts: return "square.and.pencil"
         case .vision: return "scope"
         case .lessons: return "book.closed"
@@ -436,52 +436,335 @@ private enum WorkspaceTab: String, CaseIterable, Identifiable {
     }
 }
 
-private struct StateTab: View {
+private struct PlanTab: View {
     @ObservedObject var project: CompassProject
+    @State private var selectedItemID = PlanTimelineItem.immediateID
 
     var body: some View {
+        let items = PlanTimelineItem.items(for: project.state)
+
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
-                SectionHeader("Immediate", systemImage: "target")
-                if let immediate = project.state.immediate {
-                    MarkdownBlock(immediate.plan, empty: "No immediate plan.")
-                    Label(immediate.verify, systemImage: "checkmark.seal")
-                        .font(.callout.monospaced())
+                PlanTimelineHeader(
+                    items: items,
+                    selectedItemID: $selectedItemID,
+                    completedCount: project.state.completed.count
+                )
+
+                PlanFocusPanel(item: selectedItem(in: items))
+            }
+            .frame(maxWidth: 1060, alignment: .leading)
+        }
+        .onAppear {
+            normalizeSelection(for: items)
+        }
+        .onChange(of: project.state) {
+            normalizeSelection(for: PlanTimelineItem.items(for: project.state))
+        }
+    }
+
+    private func selectedItem(in items: [PlanTimelineItem]) -> PlanTimelineItem {
+        items.first { $0.id == selectedItemID } ?? items.first { $0.id == PlanTimelineItem.immediateID } ?? items[0]
+    }
+
+    private func normalizeSelection(for items: [PlanTimelineItem]) {
+        if !items.contains(where: { $0.id == selectedItemID }) {
+            selectedItemID = items.first { $0.id == PlanTimelineItem.immediateID }?.id ?? items[0].id
+        }
+    }
+}
+
+private struct PlanTimelineHeader: View {
+    var items: [PlanTimelineItem]
+    @Binding var selectedItemID: String
+    var completedCount: Int
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(alignment: .firstTextBaseline) {
+                VStack(alignment: .leading, spacing: 3) {
+                    SectionHeader("Plan", systemImage: "map")
+                    Text("Completed work fades into the rail; upcoming intent stays prominent.")
+                        .font(.callout)
                         .foregroundStyle(.secondary)
-                } else {
-                    EmptyState("No immediate plan.")
                 }
+                Spacer()
+                Label("\(completedCount) completed", systemImage: "checkmark.circle")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 9)
+                    .padding(.vertical, 5)
+                    .background(.quaternary.opacity(0.55), in: Capsule())
+            }
 
-                Divider()
-
-                SectionHeader("Completed", systemImage: "checklist")
-                if project.state.completed.isEmpty {
-                    EmptyState("No shipped iterations yet.")
-                } else {
-                    VStack(alignment: .leading, spacing: 6) {
-                        ForEach(project.state.completed, id: \.self) { item in
-                            HStack(alignment: .top, spacing: 8) {
-                                Image(systemName: "checkmark")
-                                    .foregroundStyle(.green)
-                                    .frame(width: 18)
-                                InlineMarkdownText(text: item)
-                                    .frame(maxWidth: .infinity, alignment: .leading)
+            ScrollViewReader { proxy in
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(alignment: .center, spacing: 0) {
+                        ForEach(items) { item in
+                            PlanTimelineTickButton(
+                                item: item,
+                                isSelected: item.id == selectedItemID
+                            ) {
+                                selectedItemID = item.id
                             }
+                            .id(item.id)
                         }
                     }
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 8)
+                    .background(alignment: .top) {
+                        Capsule()
+                            .fill(.secondary.opacity(0.16))
+                            .frame(height: 3)
+                            .padding(.horizontal, 16)
+                            .padding(.top, 26)
+                    }
+                }
+                .onChange(of: selectedItemID) {
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        proxy.scrollTo(selectedItemID, anchor: .center)
+                    }
+                }
+                .onAppear {
+                    proxy.scrollTo(selectedItemID, anchor: .center)
+                }
+            }
+        }
+        .padding(14)
+        .background(.quaternary.opacity(0.32), in: RoundedRectangle(cornerRadius: 8))
+    }
+}
+
+private struct PlanTimelineTickButton: View {
+    var item: PlanTimelineItem
+    var isSelected: Bool
+    var action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            VStack(spacing: 7) {
+                ZStack {
+                    Circle()
+                        .fill(item.kind.color.opacity(isSelected ? 0.18 : item.kind.backgroundOpacity))
+                        .frame(width: item.kind.hitSize, height: item.kind.hitSize)
+
+                    Image(systemName: item.kind.systemImage)
+                        .font(.system(size: item.kind.iconSize, weight: .semibold))
+                        .foregroundStyle(item.kind.color.opacity(isSelected ? 1 : item.kind.idleOpacity))
+                        .frame(width: item.kind.hitSize, height: item.kind.hitSize)
+                }
+                .frame(height: 36)
+                .overlay {
+                    Circle()
+                        .stroke(item.kind.color.opacity(isSelected ? 0.95 : 0), lineWidth: 2)
                 }
 
-                Divider()
-
-                SectionHeader("Mid-Term", systemImage: "point.3.connected.trianglepath.dotted")
-                MarkdownBlock(project.state.midTerm, empty: "No mid-term queue.")
-
-                Divider()
-
-                SectionHeader("Long-Term", systemImage: "mountain.2")
-                MarkdownBlock(project.state.longTerm, empty: "No long-term arc.")
+                if item.kind.showsLabel {
+                    Text(item.title)
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(isSelected ? .primary : .secondary)
+                        .lineLimit(1)
+                        .frame(width: item.kind.width)
+                } else {
+                    Text(" ")
+                        .font(.caption)
+                        .hidden()
+                }
             }
-            .frame(maxWidth: 900, alignment: .leading)
+            .frame(width: item.kind.width, height: 54, alignment: .top)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .help(item.helpText)
+        .accessibilityLabel(item.helpText)
+    }
+}
+
+private struct PlanFocusPanel: View {
+    var item: PlanTimelineItem
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Label(item.title, systemImage: item.kind.systemImage)
+                    .font(.headline)
+                    .foregroundStyle(item.kind.color)
+
+                Text(item.kind.label)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 3)
+                    .background(.quaternary.opacity(0.7), in: Capsule())
+
+                Spacer()
+
+                if let metadata = item.metadata {
+                    Text(metadata)
+                        .font(.caption.monospacedDigit())
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            MarkdownContent(item.body, empty: item.emptyMessage)
+
+            if let verify = item.verify {
+                VerifyCommandView(command: verify)
+            }
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(item.kind.color.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+        .overlay {
+            RoundedRectangle(cornerRadius: 8)
+                .stroke(item.kind.color.opacity(0.22))
+        }
+    }
+}
+
+private struct VerifyCommandView: View {
+    var command: String
+
+    var body: some View {
+        Label(command, systemImage: "checkmark.seal")
+            .font(.callout.monospaced())
+            .foregroundStyle(.secondary)
+            .textSelection(.enabled)
+            .padding(.top, 2)
+    }
+}
+
+private struct PlanTimelineItem: Identifiable, Equatable {
+    static let immediateID = "plan-immediate"
+
+    var id: String
+    var kind: Kind
+    var title: String
+    var body: String
+    var verify: String?
+    var metadata: String?
+    var emptyMessage: String
+
+    var helpText: String {
+        switch kind {
+        case .history:
+            return "\(title): \(body)"
+        default:
+            return title
+        }
+    }
+
+    static func items(for state: PlanState) -> [PlanTimelineItem] {
+        let history = state.completed.enumerated().map { index, item in
+            PlanTimelineItem(
+                id: "plan-history-\(index)",
+                kind: .history,
+                title: "Iteration \(index + 1)",
+                body: item,
+                metadata: "#\(index + 1)",
+                emptyMessage: "No detail recorded for this iteration."
+            )
+        }
+
+        let immediate = PlanTimelineItem(
+            id: immediateID,
+            kind: .immediate,
+            title: "Immediate",
+            body: state.immediate?.plan ?? "",
+            verify: state.immediate?.verify,
+            metadata: state.immediate?.estimatedDifficulty?.rawValue.capitalized,
+            emptyMessage: "No immediate plan."
+        )
+
+        let midTerm = PlanTimelineItem(
+            id: "plan-mid-term",
+            kind: .midTerm,
+            title: "Mid-Term",
+            body: state.midTerm,
+            emptyMessage: "No mid-term queue."
+        )
+
+        let longTerm = PlanTimelineItem(
+            id: "plan-long-term",
+            kind: .longTerm,
+            title: "Long-Term",
+            body: state.longTerm,
+            emptyMessage: "No long-term arc."
+        )
+
+        return history + [immediate, midTerm, longTerm]
+    }
+
+    enum Kind: Equatable {
+        case history
+        case immediate
+        case midTerm
+        case longTerm
+
+        var label: String {
+            switch self {
+            case .history: return "History"
+            case .immediate: return "Next"
+            case .midTerm: return "Queue"
+            case .longTerm: return "Arc"
+            }
+        }
+
+        var systemImage: String {
+            switch self {
+            case .history: return "circle.fill"
+            case .immediate: return "target"
+            case .midTerm: return "point.3.connected.trianglepath.dotted"
+            case .longTerm: return "mountain.2.fill"
+            }
+        }
+
+        var color: Color {
+            switch self {
+            case .history: return .secondary
+            case .immediate: return .blue
+            case .midTerm: return .orange
+            case .longTerm: return .purple
+            }
+        }
+
+        var width: CGFloat {
+            switch self {
+            case .history: return 18
+            case .immediate, .midTerm, .longTerm: return 112
+            }
+        }
+
+        var hitSize: CGFloat {
+            switch self {
+            case .history: return 14
+            case .immediate, .midTerm, .longTerm: return 34
+            }
+        }
+
+        var iconSize: CGFloat {
+            switch self {
+            case .history: return 5
+            case .immediate, .midTerm, .longTerm: return 16
+            }
+        }
+
+        var backgroundOpacity: Double {
+            switch self {
+            case .history: return 0.05
+            case .immediate, .midTerm, .longTerm: return 0.13
+            }
+        }
+
+        var idleOpacity: Double {
+            switch self {
+            case .history: return 0.36
+            case .immediate, .midTerm, .longTerm: return 0.85
+            }
+        }
+
+        var showsLabel: Bool {
+            self != .history
         }
     }
 }
