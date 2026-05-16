@@ -207,6 +207,17 @@ npm test            # run node:test suite through tsx
 npm run dev         # watch TypeScript compilation
 ```
 
+## macOS Native Prototype
+
+A Codex-only SwiftUI prototype lives in `native/CompassNative`. It reuses the
+per-repo `.compass/` files but shells out to `codex exec` for Plan and Develop
+instead of embedding the Claude Agent SDK or Codex SDK.
+
+```bash
+cd native/CompassNative
+swift run CompassNative
+```
+
 ## Technology
 
 - **Runtime**: Claude Agent SDK or `@openai/codex-sdk` (TypeScript)
