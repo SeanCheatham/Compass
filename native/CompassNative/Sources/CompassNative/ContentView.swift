@@ -7,7 +7,12 @@ struct ContentView: View {
         NavigationSplitView {
             SidebarView()
         } detail: {
-            MainWorkspaceView()
+            if let project = model.selectedProject {
+                MainWorkspaceView(project: project)
+                    .id(project.id)
+            } else {
+                NoProjectView()
+            }
         }
     }
 }
@@ -16,169 +21,429 @@ private struct SidebarView: View {
     @EnvironmentObject private var model: AppModel
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 14) {
+            VStack(alignment: .leading, spacing: 6) {
                 Label("CompassNative", systemImage: "safari")
                     .font(.title2.weight(.semibold))
                 Text("Codex-only macOS prototype")
                     .font(.callout)
                     .foregroundStyle(.secondary)
             }
+            .padding(.bottom, 4)
 
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Repository")
+            HStack {
+                Text("Projects")
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(.secondary)
-                TextField("Repository path", text: $model.repoPath)
-                    .textFieldStyle(.roundedBorder)
-                HStack {
-                    Button {
-                        Task { await model.chooseRepository() }
-                    } label: {
-                        Label("Choose", systemImage: "folder")
+                Spacer()
+                Button {
+                    Task { await model.chooseRepository() }
+                } label: {
+                    Label("Add Project", systemImage: "folder.badge.plus")
+                }
+                .labelStyle(.iconOnly)
+                .help("Add project")
+            }
+
+            if model.projects.isEmpty {
+                EmptyProjectList()
+            } else {
+                ScrollView {
+                    LazyVStack(alignment: .leading, spacing: 6) {
+                        ForEach(model.projects) { project in
+                            ProjectListRow(
+                                project: project,
+                                isSelected: project.id == model.selectedProjectID
+                            )
+                            .onTapGesture {
+                                model.selectProject(project)
+                            }
+                            .contextMenu {
+                                Button("Reveal in Finder") {
+                                    NSWorkspace.shared.activateFileViewerSelecting([project.repoURL])
+                                }
+                                Button("Refresh") {
+                                    Task { await project.refresh() }
+                                }
+                                Divider()
+                                Button("Remove from Compass", role: .destructive) {
+                                    model.removeProject(project)
+                                }
+                            }
+                        }
                     }
-                    Button {
-                        Task { await model.initializeWorkspace() }
-                    } label: {
-                        Label("Init", systemImage: "plus.circle")
-                    }
-                    .disabled(!model.hasRepository)
+                    .padding(.vertical, 2)
                 }
             }
 
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Codex")
+            Spacer(minLength: 8)
+
+            DisclosureGroup {
+                VStack(alignment: .leading, spacing: 8) {
+                    TextField("codex binary", text: $model.codexBinary)
+                        .textFieldStyle(.roundedBorder)
+                    TextField("model override", text: $model.modelOverride)
+                        .textFieldStyle(.roundedBorder)
+                }
+                .padding(.top, 8)
+            } label: {
+                Label("Runtime", systemImage: "terminal")
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(.secondary)
-                TextField("codex binary", text: $model.codexBinary)
-                    .textFieldStyle(.roundedBorder)
-                TextField("model override", text: $model.modelOverride)
-                    .textFieldStyle(.roundedBorder)
             }
 
-            VStack(alignment: .leading, spacing: 10) {
-                HStack {
-                    Circle()
-                        .fill(phaseColor)
-                        .frame(width: 9, height: 9)
-                    Text(model.phase.rawValue)
-                        .font(.headline)
-                }
-
-                Text(model.immediateTitle)
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(4)
+            if let message = model.errorMessage {
+                Text(message)
+                    .font(.caption)
+                    .foregroundStyle(.red)
                     .fixedSize(horizontal: false, vertical: true)
             }
-            .padding(12)
-            .background(.quaternary.opacity(0.55), in: RoundedRectangle(cornerRadius: 8))
-
-            VStack(spacing: 8) {
-                Button {
-                    Task { await model.runIteration() }
-                } label: {
-                    Label("Run Iteration", systemImage: "play.fill")
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.borderedProminent)
-                .disabled(model.isRunning || !model.hasRepository)
-
-                HStack {
-                    Button {
-                        Task { await model.runPlanOnly() }
-                    } label: {
-                        Label("Plan", systemImage: "map")
-                            .frame(maxWidth: .infinity)
-                    }
-                    .disabled(model.isRunning || !model.hasRepository)
-
-                    Button {
-                        Task { await model.runDevelopOnly() }
-                    } label: {
-                        Label("Develop", systemImage: "hammer")
-                            .frame(maxWidth: .infinity)
-                    }
-                    .disabled(model.isRunning || !model.hasRepository || model.state.immediate == nil)
-                }
-
-                Button {
-                    model.cancelRun()
-                } label: {
-                    Label("Stop", systemImage: "stop.fill")
-                        .frame(maxWidth: .infinity)
-                }
-                .disabled(!model.isRunning)
-
-                Button {
-                    Task { await model.refresh() }
-                } label: {
-                    Label("Refresh", systemImage: "arrow.clockwise")
-                        .frame(maxWidth: .infinity)
-                }
-                .disabled(!model.hasRepository)
-            }
-
-            Spacer()
         }
         .padding()
-        .navigationSplitViewColumnWidth(min: 260, ideal: 300, max: 360)
+        .navigationSplitViewColumnWidth(min: 260, ideal: 310, max: 380)
     }
+}
 
-    private var phaseColor: Color {
-        switch model.phase {
-        case .idle: return .secondary
-        case .planning: return .blue
-        case .developing: return .orange
-        case .verifying: return .purple
-        case .failed: return .red
-        case .succeeded: return .green
-        case .cancelled: return .yellow
+private struct EmptyProjectList: View {
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Image(systemName: "folder")
+                .font(.title2)
+                .foregroundStyle(.secondary)
+            Text("No projects yet.")
+                .font(.headline)
+            Text("Add a Git repository to start using Compass.")
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(14)
+        .background(.quaternary.opacity(0.45), in: RoundedRectangle(cornerRadius: 8))
+    }
+}
+
+private struct ProjectListRow: View {
+    @ObservedObject var project: CompassProject
+    var isSelected: Bool
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 10) {
+            ProjectPhaseMark(project: project)
+                .frame(width: 16, height: 16)
+                .padding(.top, 3)
+
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: 6) {
+                    Text(project.displayName)
+                        .font(.callout.weight(.semibold))
+                        .foregroundStyle(.primary)
+                        .lineLimit(1)
+                    if project.isRunning || project.isAutoPlaying {
+                        ProgressView()
+                            .controlSize(.small)
+                    }
+                }
+
+                Text(project.repoPath)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+
+                Text(project.immediateTitle)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .padding(10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            isSelected ? Color.accentColor.opacity(0.16) : Color.clear,
+            in: RoundedRectangle(cornerRadius: 8)
+        )
+        .overlay {
+            RoundedRectangle(cornerRadius: 8)
+                .stroke(isSelected ? Color.accentColor.opacity(0.35) : Color.clear)
+        }
+        .contentShape(RoundedRectangle(cornerRadius: 8))
+    }
+}
+
+private struct ProjectPhaseMark: View {
+    @ObservedObject var project: CompassProject
+
+    var body: some View {
+        Group {
+            if project.isRunning || project.isAutoPlaying {
+                ProgressView()
+                    .controlSize(.small)
+            } else {
+                Circle()
+                    .fill(phaseColor(project.isPaused ? .paused : project.phase))
+                    .frame(width: 9, height: 9)
+            }
         }
     }
 }
 
-private struct MainWorkspaceView: View {
+private struct NoProjectView: View {
     @EnvironmentObject private var model: AppModel
 
     var body: some View {
-        TabView {
-            StateTab()
-                .tabItem { Label("State", systemImage: "list.bullet.rectangle") }
-            DraftsTab()
-                .tabItem { Label("Drafts", systemImage: "square.and.pencil") }
-            ActivityTab()
-                .tabItem { Label("Activity", systemImage: "waveform.path.ecg") }
-            VisionTab()
-                .tabItem { Label("Vision", systemImage: "scope") }
-            LessonsTab()
-                .tabItem { Label("Lessons", systemImage: "book.closed") }
-            SessionsTab()
-                .tabItem { Label("Sessions", systemImage: "clock.arrow.circlepath") }
-        }
-        .padding(16)
-        .overlay(alignment: .bottom) {
-            if let message = model.errorMessage {
-                Text(message)
-                    .font(.callout)
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 10)
-                    .background(.red, in: RoundedRectangle(cornerRadius: 8))
-                    .padding(.bottom, 12)
+        VStack(spacing: 12) {
+            Image(systemName: "folder.badge.plus")
+                .font(.system(size: 42, weight: .regular))
+                .foregroundStyle(.secondary)
+            Text("Choose a project")
+                .font(.title2.weight(.semibold))
+            Text("Compass remembers Git repositories here, then lets each one run independently.")
+                .font(.callout)
+                .foregroundStyle(.secondary)
+            Button {
+                Task { await model.chooseRepository() }
+            } label: {
+                Label("Add Project", systemImage: "folder.badge.plus")
             }
+            .buttonStyle(.borderedProminent)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+}
+
+private struct MainWorkspaceView: View {
+    @ObservedObject var project: CompassProject
+    @State private var selectedTab: WorkspaceTab = .live
+
+    var body: some View {
+        VStack(spacing: 0) {
+            WorkspaceHeader(project: project, selectedTab: $selectedTab)
+            Divider()
+            WorkspaceContent(project: project, selectedTab: selectedTab)
+                .padding(16)
+                .overlay(alignment: .bottom) {
+                    if let message = project.errorMessage {
+                        Text(message)
+                            .font(.callout)
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 10)
+                            .background(.red, in: RoundedRectangle(cornerRadius: 8))
+                            .padding(.bottom, 12)
+                    }
+                }
+        }
+    }
+}
+
+private struct WorkspaceHeader: View {
+    @ObservedObject var project: CompassProject
+    @Binding var selectedTab: WorkspaceTab
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .firstTextBaseline, spacing: 10) {
+                Text(project.displayName)
+                    .font(.headline)
+                    .lineLimit(1)
+                Text(project.repoPath)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                Spacer(minLength: 12)
+                ProjectPhasePill(project: project)
+            }
+
+            HStack(spacing: 4) {
+                ForEach(WorkspaceTab.allCases) { tab in
+                    WorkspaceTabButton(tab: tab, selectedTab: $selectedTab)
+                }
+                Spacer()
+                ProjectRunControls(project: project)
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+    }
+}
+
+private struct ProjectPhasePill: View {
+    @ObservedObject var project: CompassProject
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Circle()
+                .fill(phaseColor(project.isPaused ? .paused : project.phase))
+                .frame(width: 8, height: 8)
+            Text(phaseText)
+                .font(.caption.weight(.semibold))
+                .lineLimit(1)
+        }
+        .padding(.horizontal, 9)
+        .padding(.vertical, 5)
+        .background(.quaternary.opacity(0.55), in: Capsule())
+    }
+
+    private var phaseText: String {
+        if project.isPaused && project.isRunning {
+            switch project.pauseMode {
+            case .immediate:
+                return "Pausing"
+            case .afterIteration:
+                return "Pausing after iteration"
+            }
+        }
+        if project.isAutoPlaying {
+            return "Auto - \(project.phase.rawValue)"
+        }
+        return project.phase.rawValue
+    }
+}
+
+private struct ProjectRunControls: View {
+    @EnvironmentObject private var model: AppModel
+    @ObservedObject var project: CompassProject
+
+    var body: some View {
+        HStack(spacing: 5) {
+            Button {
+                Task {
+                    await project.play(
+                        codexBinary: model.codexBinary,
+                        modelOverride: model.modelOverride
+                    )
+                }
+            } label: {
+                Image(systemName: "play.fill")
+                    .frame(width: 18, height: 18)
+            }
+            .buttonStyle(.borderedProminent)
+            .disabled(project.isRunning || project.isAutoPlaying || !project.hasRepository)
+            .help(project.isPaused ? "Resume auto-play" : "Start auto-play")
+
+            Menu {
+                ForEach(PauseMode.allCases) { mode in
+                    Button {
+                        project.requestPause(mode)
+                    } label: {
+                        VStack(alignment: .leading) {
+                            Text(mode.label)
+                            Text(mode.hint)
+                        }
+                    }
+                }
+            } label: {
+                Image(systemName: "pause.fill")
+                    .frame(width: 18, height: 18)
+            }
+            .menuStyle(.borderlessButton)
+            .disabled((!project.isRunning && !project.isAutoPlaying) || project.isPaused)
+            .help("Pause")
+
+            Button {
+                project.stopRun()
+            } label: {
+                Image(systemName: "stop.fill")
+                    .frame(width: 18, height: 18)
+            }
+            .buttonStyle(.bordered)
+            .disabled(!project.canStop)
+            .help("Stop")
+        }
+        .controlSize(.regular)
+    }
+}
+
+private struct WorkspaceTabButton: View {
+    var tab: WorkspaceTab
+    @Binding var selectedTab: WorkspaceTab
+
+    var body: some View {
+        Button {
+            selectedTab = tab
+        } label: {
+            Label(tab.title, systemImage: tab.systemImage)
+                .labelStyle(.titleAndIcon)
+                .font(.callout.weight(selectedTab == tab ? .semibold : .regular))
+                .padding(.horizontal, 8)
+                .padding(.vertical, 5)
+                .frame(minWidth: 82)
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(selectedTab == tab ? .primary : .secondary)
+        .background(
+            selectedTab == tab ? Color.accentColor.opacity(0.16) : Color.clear,
+            in: RoundedRectangle(cornerRadius: 7)
+        )
+    }
+}
+
+private struct WorkspaceContent: View {
+    @ObservedObject var project: CompassProject
+    var selectedTab: WorkspaceTab
+
+    var body: some View {
+        switch selectedTab {
+        case .live:
+            LiveTab(project: project)
+        case .state:
+            StateTab(project: project)
+        case .drafts:
+            DraftsTab(project: project)
+        case .vision:
+            VisionTab(project: project)
+        case .lessons:
+            LessonsTab(project: project)
+        case .history:
+            HistoryTab(project: project)
+        }
+    }
+}
+
+private enum WorkspaceTab: String, CaseIterable, Identifiable {
+    case live
+    case state
+    case drafts
+    case vision
+    case lessons
+    case history
+
+    var id: Self { self }
+
+    var title: String {
+        switch self {
+        case .live: return "Live"
+        case .state: return "State"
+        case .drafts: return "Drafts"
+        case .vision: return "Vision"
+        case .lessons: return "Lessons"
+        case .history: return "History"
+        }
+    }
+
+    var systemImage: String {
+        switch self {
+        case .live: return "waveform.path.ecg"
+        case .state: return "list.bullet.rectangle"
+        case .drafts: return "square.and.pencil"
+        case .vision: return "scope"
+        case .lessons: return "book.closed"
+        case .history: return "clock.arrow.circlepath"
         }
     }
 }
 
 private struct StateTab: View {
-    @EnvironmentObject private var model: AppModel
+    @ObservedObject var project: CompassProject
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
                 SectionHeader("Immediate", systemImage: "target")
-                if let immediate = model.state.immediate {
+                if let immediate = project.state.immediate {
                     MarkdownBlock(immediate.plan, empty: "No immediate plan.")
                     Label(immediate.verify, systemImage: "checkmark.seal")
                         .font(.callout.monospaced())
@@ -190,11 +455,11 @@ private struct StateTab: View {
                 Divider()
 
                 SectionHeader("Completed", systemImage: "checklist")
-                if model.state.completed.isEmpty {
+                if project.state.completed.isEmpty {
                     EmptyState("No shipped iterations yet.")
                 } else {
                     VStack(alignment: .leading, spacing: 6) {
-                        ForEach(model.state.completed, id: \.self) { item in
+                        ForEach(project.state.completed, id: \.self) { item in
                             HStack(alignment: .top, spacing: 8) {
                                 Image(systemName: "checkmark")
                                     .foregroundStyle(.green)
@@ -209,12 +474,12 @@ private struct StateTab: View {
                 Divider()
 
                 SectionHeader("Mid-Term", systemImage: "point.3.connected.trianglepath.dotted")
-                MarkdownBlock(model.state.midTerm, empty: "No mid-term queue.")
+                MarkdownBlock(project.state.midTerm, empty: "No mid-term queue.")
 
                 Divider()
 
                 SectionHeader("Long-Term", systemImage: "mountain.2")
-                MarkdownBlock(model.state.longTerm, empty: "No long-term arc.")
+                MarkdownBlock(project.state.longTerm, empty: "No long-term arc.")
             }
             .frame(maxWidth: 900, alignment: .leading)
         }
@@ -222,40 +487,40 @@ private struct StateTab: View {
 }
 
 private struct DraftsTab: View {
-    @EnvironmentObject private var model: AppModel
+    @ObservedObject var project: CompassProject
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             SectionHeader("New Draft", systemImage: "square.and.pencil")
             HStack(alignment: .top, spacing: 10) {
-                TextField("Describe the next direction", text: $model.draftEntry, axis: .vertical)
+                TextField("Describe the next direction", text: $project.draftEntry, axis: .vertical)
                     .lineLimit(2...5)
                     .textFieldStyle(.roundedBorder)
                 Button {
-                    Task { await model.addDraft() }
+                    Task { await project.addDraft() }
                 } label: {
                     Label("Add", systemImage: "plus")
                 }
                 .keyboardShortcut(.return, modifiers: [.command])
-                .disabled(!model.hasRepository || model.draftEntry.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                .disabled(!project.hasRepository || project.draftEntry.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             }
 
             HStack {
                 SectionHeader("Pending Drafts", systemImage: "tray")
                 Spacer()
                 Button {
-                    Task { await model.saveDrafts() }
+                    Task { await project.saveDrafts() }
                 } label: {
                     Label("Save", systemImage: "square.and.arrow.down")
                 }
-                .disabled(!model.hasRepository)
+                .disabled(!project.hasRepository)
             }
-            TextEditor(text: $model.drafts)
+            TextEditor(text: $project.drafts)
                 .font(.system(.body, design: .monospaced))
                 .scrollContentBackground(.hidden)
                 .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 8))
                 .overlay(alignment: .topLeading) {
-                    if model.drafts.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    if project.drafts.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                         Text("No drafts queued.")
                             .foregroundStyle(.secondary)
                             .padding(12)
@@ -265,32 +530,55 @@ private struct DraftsTab: View {
     }
 }
 
-private struct ActivityTab: View {
-    @EnvironmentObject private var model: AppModel
+private struct LiveTab: View {
+    @ObservedObject var project: CompassProject
+    private static let thinkingRowID = "live-thinking-row"
 
     var body: some View {
         ScrollViewReader { proxy in
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 4) {
-                    ForEach(model.activity) { line in
-                        ActivityRow(line: line)
-                        .id(line.id)
+                    ForEach(project.liveLog) { line in
+                        LiveRow(line: line)
+                            .id(line.id)
+                    }
+                    if showsThinkingIndicator {
+                        ThinkingLiveRow(phase: project.phase)
+                            .id(Self.thinkingRowID)
                     }
                 }
                 .padding(10)
             }
             .background(.black.opacity(0.06), in: RoundedRectangle(cornerRadius: 8))
-            .onChange(of: model.activity.count) {
-                if let last = model.activity.last {
-                    proxy.scrollTo(last.id, anchor: .bottom)
-                }
+            .onChange(of: project.liveLog.count) {
+                scrollToLiveEnd(proxy)
             }
+            .onChange(of: project.isRunning) {
+                scrollToLiveEnd(proxy)
+            }
+            .onChange(of: showsThinkingIndicator) {
+                scrollToLiveEnd(proxy)
+            }
+        }
+    }
+
+    private var showsThinkingIndicator: Bool {
+        project.isRunning && !project.liveLog.contains {
+            $0.status == .running && ($0.kind == .command || $0.kind == .fileChange)
+        }
+    }
+
+    private func scrollToLiveEnd(_ proxy: ScrollViewProxy) {
+        if showsThinkingIndicator {
+            proxy.scrollTo(Self.thinkingRowID, anchor: .bottom)
+        } else if let last = project.liveLog.last {
+            proxy.scrollTo(last.id, anchor: .bottom)
         }
     }
 }
 
-private struct ActivityRow: View {
-    var line: ActivityLine
+private struct LiveRow: View {
+    var line: LiveLine
 
     var body: some View {
         HStack(alignment: .top, spacing: 10) {
@@ -299,7 +587,7 @@ private struct ActivityRow: View {
                 .foregroundStyle(.secondary)
                 .frame(width: 74, alignment: .leading)
 
-            ActivityStatusIcon(line: line)
+            LiveStatusIcon(line: line)
                 .frame(width: 18, height: 18)
                 .padding(.top, 1)
 
@@ -322,7 +610,7 @@ private struct ActivityRow: View {
                 }
 
                 if let detail = line.detail, !detail.isEmpty {
-                    ActivityDetail(line: line, detail: detail)
+                    LiveDetail(line: line, detail: detail)
                 }
             }
         }
@@ -382,8 +670,102 @@ private struct ActivityRow: View {
     }
 }
 
-private struct ActivityStatusIcon: View {
-    var line: ActivityLine
+private struct ThinkingLiveRow: View {
+    var phase: LoopPhase
+    @State private var isAnimating = false
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 10) {
+            Text("live")
+                .font(.caption.monospacedDigit())
+                .foregroundStyle(.secondary)
+                .frame(width: 74, alignment: .leading)
+
+            Image(systemName: "brain.head.profile")
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundStyle(.blue)
+                .scaleEffect(isAnimating ? 1.12 : 0.92)
+                .opacity(isAnimating ? 1 : 0.55)
+                .frame(width: 18, height: 18)
+                .padding(.top, 1)
+
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: 3) {
+                    Text(title)
+                        .font(.callout.weight(.semibold))
+                    ThinkingDots()
+                }
+                .foregroundStyle(.primary)
+
+                Text(detail)
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 7)
+        .background(.blue.opacity(0.07), in: RoundedRectangle(cornerRadius: 6))
+        .onAppear {
+            isAnimating = true
+        }
+        .animation(.easeInOut(duration: 0.95).repeatForever(autoreverses: true), value: isAnimating)
+    }
+
+    private var title: String {
+        switch phase {
+        case .planning:
+            return "Codex is planning"
+        case .developing:
+            return "Codex is thinking"
+        case .verifying:
+            return "Compass is checking"
+        default:
+            return "Codex is working"
+        }
+    }
+
+    private var detail: String {
+        switch phase {
+        case .planning:
+            return "Waiting for the next planning event."
+        case .developing:
+            return "Waiting for the next development event."
+        case .verifying:
+            return "Running post-checks for this project."
+        default:
+            return "Waiting for the next live event."
+        }
+    }
+}
+
+private struct ThinkingDots: View {
+    @State private var isAnimating = false
+
+    var body: some View {
+        HStack(spacing: 2) {
+            ForEach(0..<3, id: \.self) { index in
+                Circle()
+                    .frame(width: 3.5, height: 3.5)
+                    .opacity(isAnimating ? 1 : 0.28)
+                    .animation(
+                        .easeInOut(duration: 0.65)
+                            .repeatForever(autoreverses: true)
+                            .delay(Double(index) * 0.16),
+                        value: isAnimating
+                    )
+            }
+        }
+        .padding(.top, 8)
+        .onAppear {
+            isAnimating = true
+        }
+    }
+}
+
+private struct LiveStatusIcon: View {
+    var line: LiveLine
 
     var body: some View {
         switch line.status {
@@ -442,8 +824,8 @@ private struct ActivityStatusIcon: View {
     }
 }
 
-private struct ActivityDetail: View {
-    var line: ActivityLine
+private struct LiveDetail: View {
+    var line: LiveLine
     var detail: String
 
     var body: some View {
@@ -473,7 +855,7 @@ private struct ActivityDetail: View {
 }
 
 private struct VisionTab: View {
-    @EnvironmentObject private var model: AppModel
+    @ObservedObject var project: CompassProject
     @State private var mode = MarkdownDocumentMode.preview
 
     var body: some View {
@@ -490,24 +872,24 @@ private struct VisionTab: View {
                 .labelsHidden()
                 .frame(width: 150)
                 Button {
-                    Task { await model.saveVision() }
+                    Task { await project.saveVision() }
                 } label: {
                     Label("Save", systemImage: "square.and.arrow.down")
                 }
             }
-            MarkdownDocumentBody(text: $model.vision, mode: mode, empty: "No project vision.")
+            MarkdownDocumentBody(text: $project.vision, mode: mode, empty: "No project vision.")
         }
     }
 }
 
 private struct LessonsTab: View {
-    @EnvironmentObject private var model: AppModel
+    @ObservedObject var project: CompassProject
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             SectionHeader("Lessons", systemImage: "book.closed")
             ScrollView {
-                MarkdownBlock(model.lessons, empty: "No lessons captured.")
+                MarkdownBlock(project.lessons, empty: "No lessons captured.")
                     .padding(12)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
@@ -516,16 +898,16 @@ private struct LessonsTab: View {
     }
 }
 
-private struct SessionsTab: View {
-    @EnvironmentObject private var model: AppModel
+private struct HistoryTab: View {
+    @ObservedObject var project: CompassProject
 
     var body: some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 10) {
-                if model.sessions.isEmpty {
-                    EmptyState("No sessions recorded.")
+                if project.sessions.isEmpty {
+                    EmptyState("No history recorded.")
                 } else {
-                    ForEach(model.sessions.sorted { $0.startedAt > $1.startedAt }) { session in
+                    ForEach(project.sessions.sorted { $0.startedAt > $1.startedAt }) { session in
                         VStack(alignment: .leading, spacing: 8) {
                             HStack {
                                 Text("#\(session.session)")
@@ -664,5 +1046,18 @@ private struct EmptyState: View {
             .foregroundStyle(.secondary)
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.vertical, 8)
+    }
+}
+
+private func phaseColor(_ phase: LoopPhase) -> Color {
+    switch phase {
+    case .idle: return .secondary
+    case .planning: return .blue
+    case .developing: return .orange
+    case .verifying: return .purple
+    case .paused: return .yellow
+    case .failed: return .red
+    case .succeeded: return .green
+    case .cancelled: return .yellow
     }
 }

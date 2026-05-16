@@ -180,7 +180,7 @@ struct DevelopSummary: Codable, Equatable {
     }
 }
 
-struct ActivityLine: Identifiable, Equatable {
+struct LiveLine: Identifiable, Equatable {
     var id = UUID()
     var date = Date()
     var level: Level
@@ -215,20 +215,20 @@ struct ActivityLine: Identifiable, Equatable {
     }
 }
 
-struct ActivityEvent: Equatable {
-    var level: ActivityLine.Level
+struct LiveEvent: Equatable {
+    var level: LiveLine.Level
     var text: String
     var detail: String?
-    var kind: ActivityLine.Kind
-    var status: ActivityLine.Status
+    var kind: LiveLine.Kind
+    var status: LiveLine.Status
     var correlationID: String?
 
     init(
-        level: ActivityLine.Level = .info,
+        level: LiveLine.Level = .info,
         text: String,
         detail: String? = nil,
-        kind: ActivityLine.Kind = .message,
-        status: ActivityLine.Status = .none,
+        kind: LiveLine.Kind = .message,
+        status: LiveLine.Status = .none,
         correlationID: String? = nil
     ) {
         self.level = level
@@ -240,11 +240,37 @@ struct ActivityEvent: Equatable {
     }
 }
 
+enum PauseMode: String, Codable, CaseIterable, Identifiable {
+    case immediate
+    case afterIteration = "after_iteration"
+
+    var id: Self { self }
+
+    var label: String {
+        switch self {
+        case .immediate:
+            return "Pause Now"
+        case .afterIteration:
+            return "Pause After Iteration"
+        }
+    }
+
+    var hint: String {
+        switch self {
+        case .immediate:
+            return "Stop before the next phase gate."
+        case .afterIteration:
+            return "Let the current Plan and Develop finish first."
+        }
+    }
+}
+
 enum LoopPhase: String {
     case idle = "Idle"
     case planning = "Planning"
     case developing = "Developing"
     case verifying = "Verifying"
+    case paused = "Paused"
     case failed = "Failed"
     case succeeded = "Succeeded"
     case cancelled = "Cancelled"

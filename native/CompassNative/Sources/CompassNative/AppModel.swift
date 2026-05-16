@@ -2,33 +2,48 @@ import AppKit
 import Foundation
 
 @MainActor
-final class AppModel: ObservableObject {
-    @Published var repoPath = ""
-    @Published var codexBinary = CodexBinaryLocator.defaultBinary()
-    @Published var modelOverride = ""
+final class CompassProject: ObservableObject, Identifiable {
+    let id: UUID
+    @Published var repoURL: URL
     @Published var state = PlanState.empty
     @Published var drafts = ""
     @Published var draftEntry = ""
     @Published var lessons = ""
     @Published var vision = ""
     @Published var sessions: [SessionRecord] = []
-    @Published var activity: [ActivityLine] = []
+    @Published var liveLog: [LiveLine] = []
     @Published var phase: LoopPhase = .idle
     @Published var isRunning = false
+    @Published var isAutoPlaying = false
+    @Published var isPaused = false
+    @Published var pauseMode: PauseMode = .immediate
     @Published var errorMessage: String?
 
+    var addedAt: Date
+    var lastOpenedAt: Date
+
     private var workspace: CompassWorkspace? {
-        let trimmed = repoPath.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return nil }
-        let url = CompassWorkspace.normalizedURL(from: trimmed)
-        guard let repoURL = CompassWorkspace.discover(from: url) else { return nil }
+        guard FileManager.default.fileExists(atPath: repoURL.path),
+              let repoURL = CompassWorkspace.discover(from: repoURL) else { return nil }
         return CompassWorkspace(repoURL: repoURL)
     }
 
     private var executor: CodexExecutor?
+    private var stopRequested = false
     private let maxDevelopAttempts = 3
     private let reflectSessionWindow = 10
 
+    init(
+        id: UUID = UUID(),
+        repoURL: URL,
+        addedAt: Date = Date(),
+        lastOpenedAt: Date = Date()
+    ) {
+        self.id = id
+        self.repoURL = repoURL.standardizedFileURL
+        self.addedAt = addedAt
+        self.lastOpenedAt = lastOpenedAt
+    }
 }
 
 private enum CodexBinaryLocator {
@@ -49,9 +64,25 @@ private enum CodexBinaryLocator {
 }
 
 @MainActor
-extension AppModel {
+extension CompassProject {
+    var displayName: String {
+        repoURL.lastPathComponent
+    }
+
+    var repoPath: String {
+        repoURL.path
+    }
+
+    var compassPath: String {
+        CompassWorkspace(repoURL: repoURL).compassURL.path
+    }
+
     var hasRepository: Bool {
         workspace != nil
+    }
+
+    var canStop: Bool {
+        isRunning || isAutoPlaying || isPaused
     }
 
     var immediateTitle: String {
@@ -60,31 +91,6 @@ extension AppModel {
             .split(whereSeparator: \.isNewline)
             .first
             .map(String.init) ?? "Immediate plan"
-    }
-
-    func bootstrap() async {
-        log("Choose a Git repository to begin.", level: .info)
-    }
-
-    func chooseRepository() async {
-        let panel = NSOpenPanel()
-        panel.canChooseDirectories = true
-        panel.canChooseFiles = false
-        panel.allowsMultipleSelection = false
-        panel.message = "Choose a Git repository for CompassNative"
-
-        guard panel.runModal() == .OK, let url = panel.url else { return }
-        let repoURL: URL
-        do {
-            repoURL = try await resolveGitRoot(from: url)
-        } catch {
-            fail(AppModelError.notGitRepository(url.path))
-            return
-        }
-        repoPath = repoURL.path
-        log("Selected repo: \(repoURL.path)", level: .success)
-        log("Compass workspace: \(CompassWorkspace(repoURL: repoURL).compassURL.path)", level: .info)
-        await refresh()
     }
 
     func initializeWorkspace() async {
@@ -136,6 +142,7 @@ extension AppModel {
                 fail(AppModelError.noRepositorySelected)
                 return
             }
+            try await initializeIfNeeded(workspace)
             try workspace.writeVision(vision)
             log("Saved vision.", level: .success)
         } catch {
@@ -149,6 +156,7 @@ extension AppModel {
                 fail(AppModelError.noRepositorySelected)
                 return
             }
+            try await initializeIfNeeded(workspace)
             try workspace.writeLessons(lessons)
             log("Saved lessons.", level: .success)
         } catch {
@@ -162,6 +170,7 @@ extension AppModel {
                 fail(AppModelError.noRepositorySelected)
                 return
             }
+            try await initializeIfNeeded(workspace)
             try workspace.writeDrafts(drafts)
             log("Saved drafts.", level: .success)
         } catch {
@@ -175,6 +184,7 @@ extension AppModel {
                 fail(AppModelError.noRepositorySelected)
                 return
             }
+            try await initializeIfNeeded(workspace)
             try workspace.appendDraft(draftEntry)
             draftEntry = ""
             drafts = workspace.readDrafts()
@@ -184,29 +194,117 @@ extension AppModel {
         }
     }
 
-    func runIteration() async {
-        guard !isRunning else { return }
-        await runPlanPass(continueToDevelop: true)
+    func play(codexBinary: String, modelOverride: String) async {
+        guard !isRunning, !isAutoPlaying else { return }
+        stopRequested = false
+        let resumedFromPause = isPaused
+        isAutoPlaying = true
+        isPaused = false
+        pauseMode = .immediate
+
+        if resumedFromPause,
+           let sessionIndex = latestAwaitingDevelopSessionIndex(),
+           state.immediate != nil {
+            log("Auto-play resumed.", level: .success)
+            await runDevelopPass(
+                existingSessionIndex: sessionIndex,
+                codexBinary: codexBinary,
+                modelOverride: modelOverride
+            )
+        } else {
+            log("Auto-play started.", level: .success)
+        }
+
+        while isAutoPlaying, !isPaused, !stopRequested {
+            guard phase != .failed, phase != .cancelled else {
+                isAutoPlaying = false
+                return
+            }
+
+            await runPlanPass(
+                continueToDevelop: true,
+                codexBinary: codexBinary,
+                modelOverride: modelOverride
+            )
+
+            if state.immediate == nil, phase == .idle {
+                isAutoPlaying = false
+                log("Auto-play stopped: no immediate work.", level: .info)
+                return
+            }
+
+            if phase == .failed || phase == .cancelled {
+                isAutoPlaying = false
+                return
+            }
+
+            await Task.yield()
+        }
     }
 
-    func runPlanOnly() async {
+    func runPlanOnly(codexBinary: String, modelOverride: String) async {
         guard !isRunning else { return }
-        await runPlanPass(continueToDevelop: false)
+        isAutoPlaying = false
+        await runPlanPass(
+            continueToDevelop: false,
+            codexBinary: codexBinary,
+            modelOverride: modelOverride
+        )
     }
 
-    func runDevelopOnly() async {
+    func runDevelopOnly(codexBinary: String, modelOverride: String) async {
         guard !isRunning else { return }
-        await runDevelopPass(existingSessionIndex: nil)
+        isAutoPlaying = false
+        isPaused = false
+        await runDevelopPass(
+            existingSessionIndex: nil,
+            codexBinary: codexBinary,
+            modelOverride: modelOverride
+        )
     }
 
-    func cancelRun() {
+    func requestPause(_ mode: PauseMode) {
+        if isPaused && (mode == .afterIteration || mode == pauseMode) {
+            return
+        }
+
+        isPaused = true
+        isAutoPlaying = false
+        pauseMode = mode
+        if !isRunning {
+            phase = .paused
+        }
+        switch mode {
+        case .immediate:
+            log("Pause requested: stopping at the next gate.", level: .warning)
+        case .afterIteration:
+            log("Pause requested: after this iteration.", level: .warning)
+        }
+    }
+
+    func stopRun() {
+        let wasRunning = isRunning
+        stopRequested = wasRunning
         executor?.cancel()
+        isAutoPlaying = false
+        isPaused = false
+        pauseMode = .immediate
         phase = .cancelled
-        isRunning = false
-        log("Cancellation requested.", level: .warning)
+        isRunning = wasRunning
+        if let sessionIndex = latestAwaitingDevelopSessionIndex() {
+            endSession(sessionIndex, status: .cancelled)
+        }
+        if !wasRunning {
+            stopRequested = false
+        }
+        log("Stop requested.", level: .warning)
     }
 
-    private func runPlanPass(continueToDevelop: Bool) async {
+    private func runPlanPass(
+        continueToDevelop: Bool,
+        codexBinary: String,
+        modelOverride: String
+    ) async {
         let workspace: CompassWorkspace
         do {
             workspace = try await resolveWorkspaceForRun()
@@ -237,7 +335,12 @@ extension AppModel {
 
         do {
             try workspace.backupStateFile()
-            try await runReflectIfNeeded(workspace, sessionIndex: sessionIndex)
+            try await runReflectIfNeeded(
+                workspace,
+                sessionIndex: sessionIndex,
+                codexBinary: codexBinary,
+                modelOverride: modelOverride
+            )
 
             let priorFeedback = previousFeedback(excluding: sessionNumber)
             consumedDrafts = try workspace.snapshotAndClearDrafts()
@@ -271,7 +374,7 @@ extension AppModel {
                     codexBinary: codexBinary,
                     repoURL: workspace.repoURL,
                     sandbox: "read-only",
-                    model: modelForPhase(envKey: "COMPASS_CODEX_PLAN_MODEL"),
+                    model: modelForPhase(envKey: "COMPASS_CODEX_PLAN_MODEL", modelOverride: modelOverride),
                     schema: Prompts.planSchema,
                     prompt: prompt
                 ),
@@ -308,9 +411,28 @@ extension AppModel {
             log("Plan selected: \(immediateTitle)", level: .success)
 
             if continueToDevelop {
+                if isPaused && pauseMode == .immediate {
+                    guard sessions.indices.contains(sessionIndex) else {
+                        throw AppModelError.internalInvariant("Session #\(sessionNumber) disappeared while pausing.")
+                    }
+                    sessions[sessionIndex].status = .awaitingApproval
+                    sessions[sessionIndex].endedAt = nil
+                    try persistSessions()
+                    phase = .paused
+                    log("Paused before Develop.", level: .warning)
+                    isRunning = false
+                    executor = nil
+                    await refresh()
+                    return
+                }
+
                 isRunning = false
                 executor = nil
-                await runDevelopPass(existingSessionIndex: sessionIndex)
+                await runDevelopPass(
+                    existingSessionIndex: sessionIndex,
+                    codexBinary: codexBinary,
+                    modelOverride: modelOverride
+                )
             } else {
                 appendSessionNote("Plan-only run; Develop was not started.", to: sessionIndex)
                 endSession(sessionIndex, status: .awaitingApproval)
@@ -319,6 +441,22 @@ extension AppModel {
                 executor = nil
             }
         } catch {
+            if stopRequested {
+                stopRequested = false
+                if !consumedDrafts.isEmpty {
+                    let current = workspace.readDrafts()
+                    try? workspace.writeDrafts([consumedDrafts, current].filter { !$0.isEmpty }.joined(separator: "\n"))
+                }
+                appendSessionNote("Stopped by user.", to: sessionIndex)
+                endSession(sessionIndex, status: .cancelled)
+                phase = .cancelled
+                isRunning = false
+                executor = nil
+                log("Run stopped.", level: .warning)
+                await refresh()
+                return
+            }
+
             if !consumedDrafts.isEmpty {
                 let current = workspace.readDrafts()
                 try? workspace.writeDrafts([consumedDrafts, current].filter { !$0.isEmpty }.joined(separator: "\n"))
@@ -334,7 +472,11 @@ extension AppModel {
         await refresh()
     }
 
-    private func runDevelopPass(existingSessionIndex: Int?) async {
+    private func runDevelopPass(
+        existingSessionIndex: Int?,
+        codexBinary: String,
+        modelOverride: String
+    ) async {
         let workspace: CompassWorkspace
         do {
             workspace = try await resolveWorkspaceForRun()
@@ -367,6 +509,7 @@ extension AppModel {
             return
         }
         sessions[sessionIndex].status = .developing
+        sessions[sessionIndex].endedAt = nil
         sessions[sessionIndex].plan = next.plan
         sessions[sessionIndex].verify = next.verify
         let beforeSha = await gitCurrentSha(at: workspace.repoURL)
@@ -405,7 +548,7 @@ extension AppModel {
                         codexBinary: codexBinary,
                         repoURL: devWorkspace.repoURL,
                         sandbox: "danger-full-access",
-                        model: modelForPhase(envKey: "COMPASS_CODEX_DEV_MODEL"),
+                        model: modelForPhase(envKey: "COMPASS_CODEX_DEV_MODEL", modelOverride: modelOverride),
                         schema: Prompts.developSchema,
                         prompt: prompt
                     ),
@@ -467,11 +610,24 @@ extension AppModel {
             endSession(sessionIndex, status: succeeded ? .succeeded : .failed)
             phase = succeeded ? .succeeded : .failed
             log(succeeded ? "Develop completed." : "Develop finished with failed post-checks.", level: succeeded ? .success : .error)
+
+            if isPaused {
+                phase = .paused
+                log("Paused after iteration.", level: .warning)
+            }
         } catch {
-            appendSessionNote(error.localizedDescription, to: sessionIndex)
-            endSession(sessionIndex, status: .failed)
-            phase = .failed
-            fail(error)
+            if stopRequested {
+                stopRequested = false
+                appendSessionNote("Stopped by user.", to: sessionIndex)
+                endSession(sessionIndex, status: .cancelled)
+                phase = .cancelled
+                log("Run stopped.", level: .warning)
+            } else {
+                appendSessionNote(error.localizedDescription, to: sessionIndex)
+                endSession(sessionIndex, status: .failed)
+                phase = .failed
+                fail(error)
+            }
         }
 
         if let devWorkspace {
@@ -489,14 +645,9 @@ extension AppModel {
     }
 
     private func resolveWorkspaceForRun() async throws -> CompassWorkspace {
-        let trimmed = repoPath.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else {
-            throw AppModelError.noRepositorySelected
-        }
-
-        let repoURL = try await resolveGitRoot(from: CompassWorkspace.normalizedURL(from: trimmed))
-        if repoPath != repoURL.path {
-            repoPath = repoURL.path
+        let resolvedURL = try await resolveGitRoot(from: repoURL)
+        if repoURL.path != resolvedURL.path {
+            repoURL = resolvedURL
             log("Resolved repo root: \(repoURL.path)", level: .info)
         }
 
@@ -559,7 +710,12 @@ extension AppModel {
             .first { !$0.isEmpty } ?? ""
     }
 
-    private func runReflectIfNeeded(_ workspace: CompassWorkspace, sessionIndex: Int) async throws {
+    private func runReflectIfNeeded(
+        _ workspace: CompassWorkspace,
+        sessionIndex: Int,
+        codexBinary: String,
+        modelOverride: String
+    ) async throws {
         guard sessions.indices.contains(sessionIndex) else { return }
         let cadence = reflectEvery()
         guard cadence > 0, sessions[sessionIndex].session % cadence == 0 else { return }
@@ -586,7 +742,7 @@ extension AppModel {
                 codexBinary: codexBinary,
                 repoURL: workspace.repoURL,
                 sandbox: "read-only",
-                model: modelForPhase(envKey: "COMPASS_CODEX_REFLECT_MODEL"),
+                model: modelForPhase(envKey: "COMPASS_CODEX_REFLECT_MODEL", modelOverride: modelOverride),
                 schema: Prompts.reflectSchema,
                 prompt: prompt
             ),
@@ -617,7 +773,7 @@ extension AppModel {
         try workspace?.writeSessions(sessions)
     }
 
-    private func modelForPhase(envKey: String) -> String? {
+    private func modelForPhase(envKey: String, modelOverride: String) -> String? {
         let override = modelOverride.trimmingCharacters(in: .whitespacesAndNewlines)
         if !override.isEmpty { return override }
 
@@ -897,31 +1053,31 @@ extension AppModel {
             }
     }
 
-    private func log(_ text: String, level: ActivityLine.Level) {
+    private func log(_ text: String, level: LiveLine.Level) {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
-        activity.append(ActivityLine(level: level, text: trimmed))
-        trimActivity()
+        liveLog.append(LiveLine(level: level, text: trimmed))
+        trimLiveLog()
     }
 
-    private func log(_ event: ActivityEvent) {
+    private func log(_ event: LiveEvent) {
         let title = event.text.trimmingCharacters(in: .whitespacesAndNewlines)
         let detail = event.detail?.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !title.isEmpty || !(detail?.isEmpty ?? true) else { return }
 
         if event.status == .completed || event.status == .failed,
            let correlationID = event.correlationID,
-           let index = activity.lastIndex(where: {
+           let index = liveLog.lastIndex(where: {
                $0.correlationID == correlationID && $0.status == .running
            }) {
-            activity[index].level = event.level
-            activity[index].text = title.isEmpty ? activity[index].text : title
-            activity[index].detail = detail?.isEmpty == false ? detail : activity[index].detail
-            activity[index].kind = event.kind
-            activity[index].status = event.status
-            activity[index].completedAt = Date()
+            liveLog[index].level = event.level
+            liveLog[index].text = title.isEmpty ? liveLog[index].text : title
+            liveLog[index].detail = detail?.isEmpty == false ? detail : liveLog[index].detail
+            liveLog[index].kind = event.kind
+            liveLog[index].status = event.status
+            liveLog[index].completedAt = Date()
         } else {
-            activity.append(ActivityLine(
+            liveLog.append(LiveLine(
                 level: event.level,
                 text: title,
                 detail: detail?.isEmpty == false ? detail : nil,
@@ -931,12 +1087,12 @@ extension AppModel {
             ))
         }
 
-        trimActivity()
+        trimLiveLog()
     }
 
-    private func trimActivity() {
-        if activity.count > 800 {
-            activity.removeFirst(activity.count - 800)
+    private func trimLiveLog() {
+        if liveLog.count > 800 {
+            liveLog.removeFirst(liveLog.count - 800)
         }
     }
 
@@ -947,6 +1103,12 @@ extension AppModel {
             .map(String.init)
     }
 
+    private func latestAwaitingDevelopSessionIndex() -> Int? {
+        sessions.indices
+            .filter { sessions[$0].status == .awaitingApproval && sessions[$0].endedAt == nil }
+            .max { sessions[$0].session < sessions[$1].session }
+    }
+
     private func fail(_ error: Error) {
         errorMessage = error.localizedDescription
         log(error.localizedDescription, level: .error)
@@ -955,6 +1117,188 @@ extension AppModel {
     private func tail(_ text: String, max: Int) -> String {
         guard text.count > max else { return text }
         return "...(truncated)...\n" + String(text.suffix(max))
+    }
+}
+
+@MainActor
+final class AppModel: ObservableObject {
+    @Published var projects: [CompassProject] = []
+    @Published var selectedProjectID: UUID?
+    @Published var codexBinary = CodexBinaryLocator.defaultBinary()
+    @Published var modelOverride = ""
+    @Published var errorMessage: String?
+
+    var selectedProject: CompassProject? {
+        projects.first { $0.id == selectedProjectID }
+    }
+
+    func bootstrap() async {
+        projects = KnownProjectStore.load().map(CompassProject.init(record:))
+        selectedProjectID = projects.sorted { $0.lastOpenedAt > $1.lastOpenedAt }.first?.id
+
+        if projects.isEmpty {
+            errorMessage = nil
+        } else {
+            for project in projects {
+                await project.refresh()
+            }
+        }
+    }
+
+    func chooseRepository() async {
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        panel.allowsMultipleSelection = false
+        panel.message = "Choose a Git repository for CompassNative"
+
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+
+        do {
+            let repoURL = try await resolveGitRoot(from: url)
+            let project = upsertProject(repoURL: repoURL)
+            selectProject(project)
+            project.logProjectSelected()
+            await project.refresh()
+        } catch {
+            fail(error)
+        }
+    }
+
+    func selectProject(_ project: CompassProject) {
+        selectedProjectID = project.id
+        project.lastOpenedAt = Date()
+        errorMessage = nil
+        saveProjects()
+        Task { await project.refresh() }
+    }
+
+    func removeProject(_ project: CompassProject) {
+        if project.canStop {
+            project.stopRun()
+        }
+        projects.removeAll { $0.id == project.id }
+        if selectedProjectID == project.id {
+            selectedProjectID = projects.sorted { $0.lastOpenedAt > $1.lastOpenedAt }.first?.id
+        }
+        saveProjects()
+    }
+
+    func playSelectedProject() async {
+        guard let selectedProject else { return }
+        await selectedProject.play(codexBinary: codexBinary, modelOverride: modelOverride)
+    }
+
+    func refreshSelectedProject() async {
+        await selectedProject?.refresh()
+    }
+
+    private func upsertProject(repoURL: URL) -> CompassProject {
+        let standardized = repoURL.standardizedFileURL
+        if let existing = projects.first(where: { $0.repoURL.path == standardized.path }) {
+            existing.lastOpenedAt = Date()
+            saveProjects()
+            return existing
+        }
+
+        let project = CompassProject(repoURL: standardized)
+        projects.insert(project, at: 0)
+        saveProjects()
+        return project
+    }
+
+    private func resolveGitRoot(from url: URL) async throws -> URL {
+        let result: ProcessResult
+        do {
+            result = try await ProcessRunner.runEnv(
+                "git",
+                ["rev-parse", "--show-toplevel"],
+                workingDirectory: url
+            )
+        } catch {
+            throw AppModelError.notGitRepository(url.path)
+        }
+
+        guard result.exitCode == 0 else {
+            throw AppModelError.notGitRepository(url.path)
+        }
+
+        let root = result.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !root.isEmpty else {
+            throw AppModelError.notGitRepository(url.path)
+        }
+        return URL(fileURLWithPath: root).standardizedFileURL
+    }
+
+    private func saveProjects() {
+        do {
+            try KnownProjectStore.save(projects.map(\.record))
+        } catch {
+            fail(error)
+        }
+    }
+
+    private func fail(_ error: Error) {
+        errorMessage = error.localizedDescription
+    }
+}
+
+private struct KnownProjectRecord: Codable, Identifiable, Equatable {
+    var id: UUID
+    var path: String
+    var addedAt: Double
+    var lastOpenedAt: Double
+}
+
+private extension CompassProject {
+    convenience init(record: KnownProjectRecord) {
+        self.init(
+            id: record.id,
+            repoURL: URL(fileURLWithPath: record.path).standardizedFileURL,
+            addedAt: Date(timeIntervalSince1970: record.addedAt),
+            lastOpenedAt: Date(timeIntervalSince1970: record.lastOpenedAt)
+        )
+    }
+
+    var record: KnownProjectRecord {
+        KnownProjectRecord(
+            id: id,
+            path: repoURL.path,
+            addedAt: addedAt.timeIntervalSince1970,
+            lastOpenedAt: lastOpenedAt.timeIntervalSince1970
+        )
+    }
+
+    func logProjectSelected() {
+        log("Selected repo: \(repoURL.path)", level: .success)
+        log("Compass workspace: \(compassPath)", level: .info)
+    }
+}
+
+private enum KnownProjectStore {
+    static func load() -> [KnownProjectRecord] {
+        guard let data = try? Data(contentsOf: projectsURL), !data.isEmpty else {
+            return []
+        }
+        return (try? JSONDecoder().decode([KnownProjectRecord].self, from: data)) ?? []
+    }
+
+    static func save(_ records: [KnownProjectRecord]) throws {
+        try FileManager.default.createDirectory(at: directoryURL, withIntermediateDirectories: true)
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        let data = try encoder.encode(records)
+        try data.write(to: projectsURL, options: .atomic)
+    }
+
+    private static var projectsURL: URL {
+        directoryURL.appending(path: "projects.json")
+    }
+
+    private static var directoryURL: URL {
+        let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
+            ?? FileManager.default.homeDirectoryForCurrentUser.appending(path: "Library/Application Support", directoryHint: .isDirectory)
+        return base.appending(path: "CompassNative", directoryHint: .isDirectory)
     }
 }
 

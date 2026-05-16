@@ -19,7 +19,7 @@ final class CodexExecutor {
     func run<T: Decodable>(
         _ configuration: CodexRunConfiguration,
         decode type: T.Type,
-        onEvent: @escaping (ActivityEvent) -> Void
+        onEvent: @escaping (LiveEvent) -> Void
     ) async throws -> T {
         let tempDirectory = FileManager.default.temporaryDirectory
             .appending(path: "CompassNative-\(UUID().uuidString)", directoryHint: .isDirectory)
@@ -78,7 +78,7 @@ final class CodexExecutor {
         arguments: [String],
         workingDirectory: URL,
         inputFile: URL,
-        onEvent: @escaping (ActivityEvent) -> Void
+        onEvent: @escaping (LiveEvent) -> Void
     ) async throws -> ProcessResult {
         try await withCheckedThrowingContinuation { continuation in
             let process = Process()
@@ -133,7 +133,7 @@ final class CodexExecutor {
                 let data = handle.availableData
                 guard !data.isEmpty, let chunk = String(data: data, encoding: .utf8) else { return }
                 outputStore.appendStderr(chunk)
-                onEvent(ActivityEvent(
+                onEvent(LiveEvent(
                     level: .warning,
                     text: "Codex diagnostic",
                     detail: chunk.trimmingCharacters(in: .whitespacesAndNewlines),
@@ -159,11 +159,11 @@ final class CodexExecutor {
         }
     }
 
-    private static func renderJSONLine(_ line: String) -> ActivityEvent {
+    private static func renderJSONLine(_ line: String) -> LiveEvent {
         let trimmedLine = line.trimmingCharacters(in: .whitespacesAndNewlines)
         guard let data = line.data(using: .utf8),
               let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-            return ActivityEvent(level: .raw, text: trimmedLine, kind: .message)
+            return LiveEvent(level: .raw, text: trimmedLine, kind: .message)
         }
 
         let type = object["type"] as? String ?? "event"
@@ -187,7 +187,7 @@ final class CodexExecutor {
                     title = "Command"
                 }
                 let detail = exitCode.map { "\(displayCommand)\nexit code \($0)" } ?? displayCommand
-                return ActivityEvent(
+                return LiveEvent(
                     level: exitCode.map { $0 == 0 ? .success : .error } ?? (status == .completed ? .success : .raw),
                     text: title,
                     detail: detail,
@@ -202,7 +202,7 @@ final class CodexExecutor {
                 event.correlationID = correlationID
                 return event
             case "file_change":
-                return ActivityEvent(
+                return LiveEvent(
                     level: status == .completed ? .success : .raw,
                     text: status == .running ? "Preparing file changes" : "File changes ready",
                     kind: .fileChange,
@@ -210,7 +210,7 @@ final class CodexExecutor {
                     correlationID: correlationID
                 )
             default:
-                return ActivityEvent(
+                return LiveEvent(
                     level: .raw,
                     text: readableEventType(itemType),
                     detail: readableEventType(type),
@@ -222,7 +222,7 @@ final class CodexExecutor {
         }
 
         if let message = object["message"] as? String {
-            return ActivityEvent(
+            return LiveEvent(
                 level: .info,
                 text: readableEventType(type),
                 detail: message,
@@ -231,7 +231,7 @@ final class CodexExecutor {
         }
         if let error = object["error"] as? [String: Any],
            let message = error["message"] as? String {
-            return ActivityEvent(
+            return LiveEvent(
                 level: .error,
                 text: readableEventType(type),
                 detail: message,
@@ -239,7 +239,7 @@ final class CodexExecutor {
                 status: .failed
             )
         }
-        return ActivityEvent(
+        return LiveEvent(
             level: .raw,
             text: readableEventType(type),
             kind: .lifecycle,
@@ -247,10 +247,10 @@ final class CodexExecutor {
         )
     }
 
-    private static func summarizeAgentMessage(_ text: String, eventType: String) -> ActivityEvent {
+    private static func summarizeAgentMessage(_ text: String, eventType: String) -> LiveEvent {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else {
-            return ActivityEvent(level: .raw, text: "Codex message", kind: .agentMessage)
+            return LiveEvent(level: .raw, text: "Codex message", kind: .agentMessage)
         }
 
         if let data = trimmed.data(using: .utf8),
@@ -262,7 +262,7 @@ final class CodexExecutor {
                 let immediate = object["immediate"] as? [String: Any]
                 let plan = firstLine(immediate?["plan"] as? String) ?? "none"
                 let verify = firstLine(immediate?["verify"] as? String) ?? "none"
-                return ActivityEvent(
+                return LiveEvent(
                     level: .raw,
                     text: "Candidate plan state",
                     detail: "Not accepted yet\nCompleted: \(completed.count)\nImmediate: \(plan)\nVerify: \(verify)",
@@ -275,7 +275,7 @@ final class CodexExecutor {
                object.keys.contains("summary"),
                object.keys.contains("feedback") {
                 let summary = firstLine(object["summary"] as? String) ?? ""
-                return ActivityEvent(
+                return LiveEvent(
                     level: .raw,
                     text: "Candidate develop summary",
                     detail: "Not accepted yet\nStatus: \(status)\nSummary: \(summary)",
@@ -286,7 +286,7 @@ final class CodexExecutor {
 
             if let summary = object["summary"] as? String,
                object.keys.contains("state") {
-                return ActivityEvent(
+                return LiveEvent(
                     level: .raw,
                     text: "Reflection summary",
                     detail: summary,
@@ -296,7 +296,7 @@ final class CodexExecutor {
             }
         }
 
-        return ActivityEvent(
+        return LiveEvent(
             level: .raw,
             text: "Codex response",
             detail: trimmed,
@@ -312,7 +312,7 @@ final class CodexExecutor {
             .map(String.init)
     }
 
-    private static func status(for eventType: String, item: [String: Any]) -> ActivityLine.Status {
+    private static func status(for eventType: String, item: [String: Any]) -> LiveLine.Status {
         if let exitCode = item["exit_code"] as? Int {
             return exitCode == 0 ? .completed : .failed
         }
@@ -326,7 +326,7 @@ final class CodexExecutor {
         }
     }
 
-    private static func lifecycleStatus(for eventType: String) -> ActivityLine.Status {
+    private static func lifecycleStatus(for eventType: String) -> LiveLine.Status {
         switch eventType {
         case let type where type.hasSuffix(".started"):
             return .running

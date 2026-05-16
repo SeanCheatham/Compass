@@ -35,17 +35,23 @@ struct CompassNativeApp: App {
         .commands {
             CommandGroup(replacing: .newItem) {}
             CommandMenu("Compass") {
-                Button("Refresh Workspace") {
-                    Task { await model.refresh() }
+                Button("Add Project") {
+                    Task { await model.chooseRepository() }
+                }
+                .keyboardShortcut("o", modifiers: [.command])
+
+                Button("Refresh Project") {
+                    Task { await model.refreshSelectedProject() }
                 }
                 .keyboardShortcut("r", modifiers: [.command])
+                .disabled(model.selectedProject == nil)
 
-                Button("Run Iteration") {
-                    Task { await model.runIteration() }
+                Button("Play") {
+                    Task { await model.playSelectedProject() }
                 }
                 .keyboardShortcut(.return, modifiers: [.command])
-                .disabled(model.isRunning)
+                .disabled((model.selectedProject?.isRunning ?? true) || (model.selectedProject?.isAutoPlaying ?? true))
             }
         }
-    }
+}
 }

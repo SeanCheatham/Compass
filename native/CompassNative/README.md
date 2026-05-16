@@ -17,9 +17,13 @@ should come to the foreground. Close the window to stop the app. The Codex
 binary field defaults to `COMPASS_CODEX_BIN` when set, then common macOS
 locations including `/Applications/Codex.app/Contents/Resources/codex`.
 
-The app starts without an active project. Choose a Git repository from the
-sidebar, initialize the `.compass` workspace, then add a draft and run a
-planning pass or a full Plan -> Develop iteration.
+The app remembers known projects in macOS Application Support and starts with
+the most recently opened repository selected. Add Git repositories from the
+sidebar project list; each project keeps its own `.compass/` data, Live log,
+and active Codex process, so multiple projects can run in parallel. The main
+content header contains the per-project play, pause, and stop controls. Play is
+auto-play: it keeps running Plan -> Develop iterations until paused, stopped, or
+Plan reports no immediate work.
 
 ## Prototype Boundaries
 
@@ -40,7 +44,7 @@ planning pass or a full Plan -> Develop iteration.
 - Develop post-checks mirror the TypeScript runner's core gates: repeat the
   verify command, require `git status --porcelain` to be clean, and retry failed
   post-checks up to three attempts with failure context.
-- Session metadata is written to `.compass/sessions.json` using the same broad
+- History metadata is written to `.compass/sessions.json` using the same broad
   schema as the TypeScript app.
 - The prototype intentionally omits Claude runtime selection, Codex SDK usage,
   MCP tools, Codex sidecar review, cache warming for disposable worktrees, and
