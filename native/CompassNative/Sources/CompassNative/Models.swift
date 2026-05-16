@@ -11,6 +11,52 @@ struct PlanNext: Codable, Equatable {
         case medium
         case high
     }
+
+    enum CodingKeys: String, CodingKey {
+        case plan
+        case verify
+        case verifyTimeoutMs
+        case estimatedDifficulty
+    }
+
+    init(
+        plan: String,
+        verify: String,
+        verifyTimeoutMs: Int? = nil,
+        estimatedDifficulty: Difficulty? = nil
+    ) {
+        self.plan = plan.trimmingCharacters(in: .whitespacesAndNewlines)
+        self.verify = verify.trimmingCharacters(in: .whitespacesAndNewlines)
+        self.verifyTimeoutMs = verifyTimeoutMs
+        self.estimatedDifficulty = estimatedDifficulty
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let plan = try container.decode(String.self, forKey: .plan)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let verify = try container.decode(String.self, forKey: .verify)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !plan.isEmpty, !verify.isEmpty else {
+            throw DecodingError.dataCorrupted(
+                .init(codingPath: decoder.codingPath, debugDescription: "PlanNext requires non-empty plan and verify.")
+            )
+        }
+
+        let rawTimeout = try container.decodeIfPresent(Int.self, forKey: .verifyTimeoutMs)
+        self.plan = plan
+        self.verify = verify
+        self.verifyTimeoutMs = rawTimeout.flatMap { $0 > 0 ? $0 : nil }
+        self.estimatedDifficulty = try container.decodeIfPresent(Difficulty.self, forKey: .estimatedDifficulty)
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(plan, forKey: .plan)
+        try container.encode(verify, forKey: .verify)
+        try container.encodeIfPresent(verifyTimeoutMs, forKey: .verifyTimeoutMs)
+        try container.encodeIfPresent(estimatedDifficulty, forKey: .estimatedDifficulty)
+    }
 }
 
 struct PlanState: Codable, Equatable {
@@ -25,6 +71,43 @@ struct PlanState: Codable, Equatable {
         midTerm: "",
         longTerm: ""
     )
+
+    enum CodingKeys: String, CodingKey {
+        case completed
+        case immediate
+        case midTerm
+        case longTerm
+    }
+
+    init(completed: [String], immediate: PlanNext?, midTerm: String, longTerm: String) {
+        self.completed = completed
+        self.immediate = immediate
+        self.midTerm = midTerm
+        self.longTerm = longTerm
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let completedValues = try container.decode([LossyString].self, forKey: .completed)
+        completed = completedValues.compactMap(\.value)
+        immediate = try container.decodeIfPresent(PlanNext.self, forKey: .immediate)
+        midTerm = try container.decodeIfPresent(String.self, forKey: .midTerm) ?? ""
+        longTerm = try container.decodeIfPresent(String.self, forKey: .longTerm) ?? ""
+    }
+}
+
+private struct LossyString: Decodable {
+    var value: String?
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        value = try? container.decode(String.self)
+    }
+}
+
+struct ReflectSummary: Codable, Equatable {
+    var state: PlanState?
+    var summary: String
 }
 
 struct SessionCommit: Codable, Identifiable, Equatable {

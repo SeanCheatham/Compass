@@ -213,6 +213,11 @@ A Codex-only SwiftUI prototype lives in `native/CompassNative`. It reuses the
 per-repo `.compass/` files but shells out to `codex exec` for Plan and Develop
 instead of embedding the Claude Agent SDK or Codex SDK.
 
+The prototype starts without an active project, requires the user to choose a
+Git repository, backs up `state.json` before planning, runs Reflect on the same
+default cadence, and runs Develop in a disposable worktree when the repo has a
+HEAD.
+
 ```bash
 cd native/CompassNative
 swift run CompassNative

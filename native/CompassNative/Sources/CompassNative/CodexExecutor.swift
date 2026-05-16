@@ -28,7 +28,9 @@ final class CodexExecutor {
 
         let schemaURL = tempDirectory.appending(path: "schema.json")
         let outputURL = tempDirectory.appending(path: "last-message.json")
+        let promptURL = tempDirectory.appending(path: "prompt.txt")
         try configuration.schema.write(to: schemaURL, atomically: true, encoding: .utf8)
+        try configuration.prompt.write(to: promptURL, atomically: true, encoding: .utf8)
 
         var arguments = [
             "exec",
@@ -51,7 +53,7 @@ final class CodexExecutor {
             binary: configuration.codexBinary,
             arguments: arguments,
             workingDirectory: configuration.repoURL,
-            input: configuration.prompt,
+            inputFile: promptURL,
             onEvent: onEvent
         )
 
@@ -75,7 +77,7 @@ final class CodexExecutor {
         binary: String,
         arguments: [String],
         workingDirectory: URL,
-        input: String,
+        inputFile: URL,
         onEvent: @escaping (String) -> Void
     ) async throws -> ProcessResult {
         try await withCheckedThrowingContinuation { continuation in
@@ -88,13 +90,20 @@ final class CodexExecutor {
                 process.arguments = [binary] + arguments
             }
             process.currentDirectoryURL = workingDirectory
+            process.environment = Self.processEnvironment()
 
             let stdoutPipe = Pipe()
             let stderrPipe = Pipe()
-            let stdinPipe = Pipe()
             process.standardOutput = stdoutPipe
             process.standardError = stderrPipe
-            process.standardInput = stdinPipe
+            let inputHandle: FileHandle
+            do {
+                inputHandle = try FileHandle(forReadingFrom: inputFile)
+            } catch {
+                continuation.resume(throwing: error)
+                return
+            }
+            process.standardInput = inputHandle
 
             let outputStore = CodexOutputStore()
 
@@ -107,6 +116,7 @@ final class CodexExecutor {
 
                 stdoutPipe.fileHandleForReading.readabilityHandler = nil
                 stderrPipe.fileHandleForReading.readabilityHandler = nil
+                try? inputHandle.close()
                 self.process = nil
                 continuation.resume(with: result)
             }
@@ -138,8 +148,6 @@ final class CodexExecutor {
             do {
                 try process.run()
                 self.process = process
-                stdinPipe.fileHandleForWriting.write(Data(input.utf8))
-                try stdinPipe.fileHandleForWriting.close()
             } catch {
                 finish(.failure(error))
             }
@@ -161,7 +169,7 @@ final class CodexExecutor {
                 return "\(type): \(command)"
             case "agent_message":
                 let text = item["text"] as? String ?? ""
-                return text.isEmpty ? "\(type): agent_message" : text
+                return summarizeAgentMessage(text, eventType: type)
             case "file_change":
                 return "\(type): file changes"
             default:
@@ -177,6 +185,63 @@ final class CodexExecutor {
             return "\(type): \(message)"
         }
         return type
+    }
+
+    private static func summarizeAgentMessage(_ text: String, eventType: String) -> String {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return "\(eventType): agent_message" }
+
+        if let data = trimmed.data(using: .utf8),
+           let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+            if let completed = object["completed"] as? [Any],
+               object.keys.contains("immediate"),
+               object.keys.contains("midTerm"),
+               object.keys.contains("longTerm") {
+                let immediate = object["immediate"] as? [String: Any]
+                let plan = firstLine(immediate?["plan"] as? String) ?? "none"
+                let verify = firstLine(immediate?["verify"] as? String) ?? "none"
+                return "Codex candidate PlanState (streamed; not accepted yet): completed=\(completed.count), immediate=\(plan), verify=\(verify)"
+            }
+
+            if let status = object["status"] as? String,
+               object.keys.contains("summary"),
+               object.keys.contains("feedback") {
+                let summary = firstLine(object["summary"] as? String) ?? ""
+                return "Codex candidate DevelopSummary (streamed; not accepted yet): status=\(status), summary=\(summary)"
+            }
+        }
+
+        return "Codex: \(trimmed)"
+    }
+
+    private static func firstLine(_ text: String?) -> String? {
+        text?
+            .split(whereSeparator: \.isNewline)
+            .first
+            .map(String.init)
+    }
+
+    private static func processEnvironment() -> [String: String] {
+        var environment = ProcessInfo.processInfo.environment
+        let pathAdditions = [
+            "/Applications/Codex.app/Contents/Resources",
+            "/opt/homebrew/bin",
+            "/usr/local/bin",
+            "/usr/bin",
+            "/bin",
+            "/usr/sbin",
+            "/sbin"
+        ]
+        let existingPath = environment["PATH"] ?? ""
+        let mergedPath = (pathAdditions + existingPath.split(separator: ":").map(String.init))
+            .reduce(into: [String]()) { paths, path in
+                if !path.isEmpty && !paths.contains(path) {
+                    paths.append(path)
+                }
+            }
+            .joined(separator: ":")
+        environment["PATH"] = mergedPath
+        return environment
     }
 }
 

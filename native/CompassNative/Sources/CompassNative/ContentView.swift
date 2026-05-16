@@ -236,7 +236,16 @@ private struct DraftsTab: View {
                 .disabled(!model.hasRepository || model.draftEntry.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             }
 
-            SectionHeader("Pending Drafts", systemImage: "tray")
+            HStack {
+                SectionHeader("Pending Drafts", systemImage: "tray")
+                Spacer()
+                Button {
+                    Task { await model.saveDrafts() }
+                } label: {
+                    Label("Save", systemImage: "square.and.arrow.down")
+                }
+                .disabled(!model.hasRepository)
+            }
             TextEditor(text: $model.drafts)
                 .font(.system(.body, design: .monospaced))
                 .scrollContentBackground(.hidden)
@@ -383,6 +392,21 @@ private struct SessionsTab: View {
                                 Text(feedback)
                                     .font(.callout)
                                     .foregroundStyle(.secondary)
+                            }
+                            if let verifyOutput = session.verifyOutput {
+                                DisclosureGroup("verify failed (\(verifyOutput.exitCode.map { String($0) } ?? "exit unknown"))") {
+                                    Text(verifyOutput.tail)
+                                        .font(.caption.monospaced())
+                                        .textSelection(.enabled)
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                        .padding(.top, 4)
+                                }
+                            }
+                            ForEach(session.notes, id: \.self) { note in
+                                Text(note)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                    .textSelection(.enabled)
                             }
                             ForEach(session.commits) { commit in
                                 Label("\(commit.short) \(commit.subject)", systemImage: "arrow.triangle.branch")

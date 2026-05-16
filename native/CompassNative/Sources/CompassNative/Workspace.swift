@@ -5,6 +5,7 @@ struct CompassWorkspace {
 
     var compassURL: URL { repoURL.appending(path: ".compass", directoryHint: .isDirectory) }
     var stateURL: URL { compassURL.appending(path: "state.json") }
+    var stateBackupURL: URL { compassURL.appending(path: "state.json.bak") }
     var draftsURL: URL { compassURL.appending(path: "drafts.md") }
     var lessonsURL: URL { compassURL.appending(path: "lessons.md") }
     var visionURL: URL { compassURL.appending(path: "COMPASS.md") }
@@ -27,6 +28,11 @@ struct CompassWorkspace {
             if parent.path == current.path { return nil }
             current = parent
         }
+    }
+
+    static func normalizedURL(from path: String) -> URL {
+        URL(fileURLWithPath: (path as NSString).expandingTildeInPath)
+            .standardizedFileURL
     }
 
     func initialize() throws {
@@ -55,6 +61,15 @@ struct CompassWorkspace {
         try Self.encodeState(state).write(to: stateURL, atomically: true, encoding: .utf8)
     }
 
+    func backupStateFile() throws {
+        let fm = FileManager.default
+        guard fm.fileExists(atPath: stateURL.path) else { return }
+        if fm.fileExists(atPath: stateBackupURL.path) {
+            try fm.removeItem(at: stateBackupURL)
+        }
+        try fm.copyItem(at: stateURL, to: stateBackupURL)
+    }
+
     func readDrafts() -> String {
         (try? String(contentsOf: draftsURL, encoding: .utf8)) ?? ""
     }
@@ -68,17 +83,34 @@ struct CompassWorkspace {
         guard !trimmed.isEmpty else { return }
 
         var existing = readDrafts()
-        if !existing.isEmpty && !existing.hasSuffix("\n") {
+        if existing.isEmpty || existing.hasSuffix("\n\n") {
+            // No separator needed.
+        } else if existing.hasSuffix("\n") {
             existing += "\n"
+        } else {
+            existing += "\n\n"
         }
         existing += "- \(trimmed)\n"
         try writeDrafts(existing)
     }
 
     func snapshotAndClearDrafts() throws -> String {
-        let drafts = readDrafts()
+        let fm = FileManager.default
+        let snapshotURL = draftsURL.deletingLastPathComponent()
+            .appending(path: "\(draftsURL.lastPathComponent).snapshot")
+
+        do {
+            if fm.fileExists(atPath: snapshotURL.path) {
+                try fm.removeItem(at: snapshotURL)
+            }
+            try fm.moveItem(at: draftsURL, to: snapshotURL)
+        } catch let error as NSError where error.domain == NSCocoaErrorDomain && error.code == NSFileNoSuchFileError {
+            return ""
+        }
+
         try writeDrafts("")
-        return drafts
+        defer { try? fm.removeItem(at: snapshotURL) }
+        return (try? String(contentsOf: snapshotURL, encoding: .utf8)) ?? ""
     }
 
     func readLessons() -> String {
@@ -108,8 +140,18 @@ struct CompassWorkspace {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         let data = try encoder.encode(records)
-        try data.write(to: sessionsRecordURL, options: .atomic)
-        try "\n".append(to: sessionsRecordURL)
+        let text = String(decoding: data, as: UTF8.self) + "\n"
+        try text.write(to: sessionsRecordURL, atomically: true, encoding: .utf8)
+    }
+
+    func writeSessionArtifact(session: Int, name: String, contents: String) throws -> URL {
+        try FileManager.default.createDirectory(at: sessionsURL, withIntermediateDirectories: true)
+        let safeName = name
+            .replacingOccurrences(of: "/", with: "-")
+            .replacingOccurrences(of: ":", with: "-")
+        let url = sessionsURL.appending(path: "\(session)-\(safeName)")
+        try contents.write(to: url, atomically: true, encoding: .utf8)
+        return url
     }
 
     static func encodeState(_ state: PlanState) throws -> String {
@@ -130,7 +172,10 @@ struct CompassWorkspace {
         var text = (try? String(contentsOf: gitignoreURL, encoding: .utf8)) ?? ""
         let alreadyIgnored = text
             .split(whereSeparator: \.isNewline)
-            .contains { $0.trimmingCharacters(in: .whitespaces) == marker }
+            .contains {
+                let line = $0.trimmingCharacters(in: .whitespaces)
+                return line == marker || line == ".compass"
+            }
         guard !alreadyIgnored else { return }
 
         if !text.isEmpty && !text.hasSuffix("\n") {
@@ -138,16 +183,5 @@ struct CompassWorkspace {
         }
         text += "\(marker)\n"
         try text.write(to: gitignoreURL, atomically: true, encoding: .utf8)
-    }
-}
-
-private extension String {
-    func append(to url: URL) throws {
-        let handle = try FileHandle(forWritingTo: url)
-        defer { try? handle.close() }
-        try handle.seekToEnd()
-        if let data = data(using: .utf8) {
-            try handle.write(contentsOf: data)
-        }
     }
 }
