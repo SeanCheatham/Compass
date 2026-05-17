@@ -638,19 +638,22 @@ private struct PlanTab: View {
     @ObservedObject var project: CompassProject
     @State private var selectedItemID = PlanTimelineItem.immediateID
     @State private var showAllSessionHistory = false
+    @State private var sessionHistoryFilter = PlanSessionHistoryFilter.all
 
     var body: some View {
         let items = PlanTimelineItem.items(for: project.state)
         let overview = PlanWorkflowOverview(state: project.state)
         let sessionHistory = PlanSessionHistory.displayItems(for: project.sessions)
-        let sessionHistoryDisplay = PlanSessionHistoryDisplay(
-            items: sessionHistory,
-            mode: showAllSessionHistory ? .all : .recent
-        )
         let reliabilityFeedback = PlanReliabilityFeedback(
             state: project.state,
             sessions: project.sessions,
             historyItems: sessionHistory
+        )
+        let sessionHistoryDisplay = PlanSessionHistoryDisplay(
+            items: sessionHistory,
+            mode: showAllSessionHistory ? .all : .recent,
+            filter: sessionHistoryFilter,
+            runCues: reliabilityFeedback.recentRunCues
         )
 
         ScrollView {
@@ -682,6 +685,7 @@ private struct PlanTab: View {
                 PlanSessionHistorySection(
                     display: sessionHistoryDisplay,
                     showAllRuns: $showAllSessionHistory,
+                    selectedFilter: $sessionHistoryFilter,
                     runCues: reliabilityFeedback.recentRunCues
                 )
             }
@@ -1165,6 +1169,7 @@ private struct VerifyCommandView: View {
 private struct PlanSessionHistorySection: View {
     var display: PlanSessionHistoryDisplay
     @Binding var showAllRuns: Bool
+    @Binding var selectedFilter: PlanSessionHistoryFilter
     var runCues: [Int: PlanReliabilityFeedback.RunCue] = [:]
 
     var body: some View {
@@ -1178,6 +1183,20 @@ private struct PlanSessionHistorySection: View {
                 }
                 Spacer()
                 HStack(spacing: 8) {
+                    if display.unfilteredTotalCount > 0 {
+                        Picker("Status filter", selection: $selectedFilter) {
+                            ForEach(display.filterOptions) { option in
+                                Label(
+                                    "\(option.filter.title) (\(option.count))",
+                                    systemImage: option.filter.systemImage
+                                )
+                                .tag(option.filter)
+                            }
+                        }
+                        .pickerStyle(.menu)
+                        .controlSize(.small)
+                    }
+
                     Label(display.countSummary, systemImage: "number")
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(.secondary)
@@ -1202,15 +1221,17 @@ private struct PlanSessionHistorySection: View {
 
             if let hiddenStatusSummary = display.hiddenStatusSummary {
                 Label(
-                    "\(display.hiddenCount) older \(PlanSessionHistoryDisplay.runWord(for: display.hiddenCount)) hidden: \(hiddenStatusSummary)",
+                    hiddenSummaryText(hiddenStatusSummary),
                     systemImage: "archivebox"
                 )
                 .font(.caption)
                 .foregroundStyle(.secondary)
             }
 
-            if display.totalCount == 0 {
+            if display.unfilteredTotalCount == 0 {
                 EmptyState("No run history recorded.")
+            } else if display.totalCount == 0 {
+                EmptyState("No \(display.filter.emptyStateName) match this filter.")
             } else {
                 VStack(alignment: .leading, spacing: 10) {
                     ForEach(display.visibleItems) { item in
@@ -1223,6 +1244,11 @@ private struct PlanSessionHistorySection: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func hiddenSummaryText(_ statusSummary: String) -> String {
+        let matchingText = display.filter == .all ? "" : " matching"
+        return "\(display.hiddenCount) older\(matchingText) \(PlanSessionHistoryDisplay.runWord(for: display.hiddenCount)) hidden: \(statusSummary)"
     }
 }
 
