@@ -15,11 +15,16 @@ final class CinematicOverlayDisplayPlanTests: XCTestCase {
         XCTAssertLessThan(plan.hudMaxWidth, 430)
         XCTAssertFalse(plan.showsHUDDetail)
         XCTAssertFalse(plan.showsHUDProfiles)
+        XCTAssertTrue(plan.chromeStyleIdentifier.hasPrefix("compact-active|"))
+        XCTAssertLessThan(plan.worldTextPillBackgroundOpacity, 0.28)
+        XCTAssertLessThan(plan.hudBackgroundOpacity, 0.30)
         XCTAssertTrue(plan.identifier.contains("mode:compact"))
+        XCTAssertTrue(plan.identifier.contains("chrome:\(plan.chromeStyleIdentifier)"))
     }
 
     func testPlanningSuccessAndFailureRemainCompactWhenCuesAreReadable() {
         let planning = makeOverlayPlan(phase: .planning)
+        let developing = makeOverlayPlan(phase: .developing)
         let succeeded = makeOverlayPlan(phase: .succeeded)
         let failed = makeOverlayPlan(phase: .failed)
 
@@ -27,14 +32,37 @@ final class CinematicOverlayDisplayPlanTests: XCTestCase {
         XCTAssertEqual(planning.visiblePills, [.quest])
         XCTAssertEqual(planning.hudProminence, .compact)
         XCTAssertTrue(planning.showsHUDDetail)
+        XCTAssertTrue(planning.chromeStyleIdentifier.hasPrefix("compact-readable|"))
+        XCTAssertGreaterThan(planning.worldTextPillBackgroundOpacity, developing.worldTextPillBackgroundOpacity)
+        XCTAssertGreaterThan(planning.hudBackgroundOpacity, developing.hudBackgroundOpacity)
+        XCTAssertGreaterThan(planning.hudDetailTextEmphasis, developing.hudDetailTextEmphasis)
 
         XCTAssertEqual(succeeded.mode, .compact)
         XCTAssertEqual(succeeded.visiblePills, [.activity])
         XCTAssertEqual(succeeded.hudProminence, .compact)
+        XCTAssertEqual(succeeded.chromeStyleIdentifier, failed.chromeStyleIdentifier)
 
         XCTAssertEqual(failed.mode, .compact)
         XCTAssertEqual(failed.visiblePills, [.activity])
         XCTAssertEqual(failed.hudProminence, .compact)
+    }
+
+    func testFullAndFallbackChromeStylesStayIntentionallyStrongerThanCompact() {
+        let active = makeOverlayPlan(phase: .developing)
+        let readableCompact = makeOverlayPlan(phase: .planning)
+        let full = makeOverlayPlan(phase: .idle, isRunning: false)
+        let fallback = makeOverlayPlan(phase: .developing, hasRepository: false)
+
+        XCTAssertTrue(full.chromeStyleIdentifier.hasPrefix("full-readable|"))
+        XCTAssertTrue(fallback.chromeStyleIdentifier.hasPrefix("fallback-readable|"))
+        XCTAssertGreaterThan(readableCompact.worldTextPillBackgroundOpacity, active.worldTextPillBackgroundOpacity)
+        XCTAssertGreaterThan(full.worldTextPillBackgroundOpacity, readableCompact.worldTextPillBackgroundOpacity)
+        XCTAssertGreaterThan(fallback.worldTextPillBackgroundOpacity, full.worldTextPillBackgroundOpacity)
+        XCTAssertGreaterThan(readableCompact.hudStrokeOpacity, active.hudStrokeOpacity)
+        XCTAssertGreaterThan(full.hudStrokeOpacity, readableCompact.hudStrokeOpacity)
+        XCTAssertGreaterThan(fallback.hudStrokeOpacity, full.hudStrokeOpacity)
+        XCTAssertGreaterThan(full.hudTitleEmphasis, active.hudTitleEmphasis)
+        XCTAssertGreaterThanOrEqual(fallback.hudTitleEmphasis, full.hudTitleEmphasis)
     }
 
     func testIdleUnavailablePausedAndMissingRepositoryStayReadable() {
@@ -112,10 +140,31 @@ final class CinematicOverlayDisplayPlanTests: XCTestCase {
             XCTAssertInRange(plan.hudDetailLineLimit, CinematicOverlayDisplayPlan.hudDetailLineLimitRange)
             XCTAssertInRange(plan.hudProfileLineLimit, CinematicOverlayDisplayPlan.hudProfileLineLimitRange)
             XCTAssertInRange(plan.hudStatusLineLimit, CinematicOverlayDisplayPlan.hudStatusLineLimitRange)
+            assertChromeStyleBounds(plan)
             XCTAssertFalse(plan.identifier.isEmpty)
+            XCTAssertFalse(plan.chromeStyleIdentifier.isEmpty)
             XCTAssertFalse(plan.reasonIdentifier.isEmpty)
             XCTAssertFalse(plan.narrativeCueReadabilityIdentifier.isEmpty)
         }
+    }
+
+    func testChromeStyleIdentifierIsStableForEquivalentInputs() {
+        let first = makeOverlayPlan(
+            phase: .verifying,
+            influenceSettings: CinematicInfluenceSettings(cameraStyle: .dramatic, intensity: 0.9)
+        )
+        let repeated = makeOverlayPlan(
+            phase: .verifying,
+            influenceSettings: CinematicInfluenceSettings(cameraStyle: .dramatic, intensity: 0.9)
+        )
+        let full = makeOverlayPlan(phase: .idle, isRunning: false)
+
+        XCTAssertEqual(first.chromeStyleIdentifier, repeated.chromeStyleIdentifier)
+        XCTAssertEqual(first.identifier, repeated.identifier)
+        XCTAssertNotEqual(first.chromeStyleIdentifier, full.chromeStyleIdentifier)
+        XCTAssertTrue(first.chromeStyleIdentifier.contains("pill:bg"))
+        XCTAssertTrue(first.chromeStyleIdentifier.contains("hud:bg"))
+        XCTAssertTrue(first.chromeStyleIdentifier.contains("status"))
     }
 
     func testNarrativeCueReadabilityFromPlannerEnablesCompactOverlay() {
@@ -271,6 +320,71 @@ private func worktreeChanges(
     changes.conflicted = conflicted
     changes.other = other
     return changes
+}
+
+private func assertChromeStyleBounds(
+    _ plan: CinematicOverlayDisplayPlan,
+    file: StaticString = #filePath,
+    line: UInt = #line
+) {
+    XCTAssertInRange(
+        plan.worldTextPillBackgroundOpacity,
+        CinematicOverlayDisplayPlan.worldTextPillBackgroundOpacityRange,
+        file: file,
+        line: line
+    )
+    XCTAssertInRange(
+        plan.worldTextPillStrokeOpacity,
+        CinematicOverlayDisplayPlan.worldTextPillStrokeOpacityRange,
+        file: file,
+        line: line
+    )
+    XCTAssertInRange(
+        plan.worldTextPillHorizontalPadding,
+        CinematicOverlayDisplayPlan.worldTextPillHorizontalPaddingRange,
+        file: file,
+        line: line
+    )
+    XCTAssertInRange(
+        plan.worldTextPillVerticalPadding,
+        CinematicOverlayDisplayPlan.worldTextPillVerticalPaddingRange,
+        file: file,
+        line: line
+    )
+    XCTAssertInRange(
+        plan.worldTextPillCornerRadius,
+        CinematicOverlayDisplayPlan.worldTextPillCornerRadiusRange,
+        file: file,
+        line: line
+    )
+    XCTAssertInRange(
+        plan.worldTextPillIconEmphasis,
+        CinematicOverlayDisplayPlan.worldTextPillIconEmphasisRange,
+        file: file,
+        line: line
+    )
+    XCTAssertInRange(
+        plan.worldTextPillTextEmphasis,
+        CinematicOverlayDisplayPlan.worldTextPillTextEmphasisRange,
+        file: file,
+        line: line
+    )
+    XCTAssertInRange(plan.hudBackgroundOpacity, CinematicOverlayDisplayPlan.hudBackgroundOpacityRange, file: file, line: line)
+    XCTAssertInRange(plan.hudStrokeOpacity, CinematicOverlayDisplayPlan.hudStrokeOpacityRange, file: file, line: line)
+    XCTAssertInRange(plan.hudHorizontalPadding, CinematicOverlayDisplayPlan.hudHorizontalPaddingRange, file: file, line: line)
+    XCTAssertInRange(plan.hudVerticalPadding, CinematicOverlayDisplayPlan.hudVerticalPaddingRange, file: file, line: line)
+    XCTAssertInRange(plan.hudCornerRadius, CinematicOverlayDisplayPlan.hudCornerRadiusRange, file: file, line: line)
+    XCTAssertInRange(plan.hudIconEmphasis, CinematicOverlayDisplayPlan.hudIconEmphasisRange, file: file, line: line)
+    XCTAssertInRange(plan.hudTitleEmphasis, CinematicOverlayDisplayPlan.hudTitleEmphasisRange, file: file, line: line)
+    XCTAssertInRange(plan.hudDetailTextEmphasis, CinematicOverlayDisplayPlan.hudDetailTextEmphasisRange, file: file, line: line)
+    XCTAssertInRange(plan.hudStatusTextEmphasis, CinematicOverlayDisplayPlan.hudStatusTextEmphasisRange, file: file, line: line)
+    XCTAssertInRange(
+        plan.hudPhaseBackgroundOpacity,
+        CinematicOverlayDisplayPlan.hudPhaseBackgroundOpacityRange,
+        file: file,
+        line: line
+    )
+    XCTAssertInRange(plan.hudAccentOpacity, CinematicOverlayDisplayPlan.hudAccentOpacityRange, file: file, line: line)
 }
 
 private func XCTAssertInRange<T: Comparable>(

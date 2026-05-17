@@ -169,6 +169,24 @@ struct CinematicOverlayDisplayPlan: Equatable {
     static let hudDetailLineLimitRange: ClosedRange<Int> = 1...3
     static let hudProfileLineLimitRange: ClosedRange<Int> = 1...2
     static let hudStatusLineLimitRange: ClosedRange<Int> = 1...2
+    static let worldTextPillBackgroundOpacityRange: ClosedRange<Double> = 0.18...0.46
+    static let worldTextPillStrokeOpacityRange: ClosedRange<Double> = 0.05...0.15
+    static let worldTextPillHorizontalPaddingRange: ClosedRange<Double> = 7...11
+    static let worldTextPillVerticalPaddingRange: ClosedRange<Double> = 4...7
+    static let worldTextPillCornerRadiusRange: ClosedRange<Double> = 5...8
+    static let worldTextPillIconEmphasisRange: ClosedRange<Double> = 0.72...1
+    static let worldTextPillTextEmphasisRange: ClosedRange<Double> = 0.72...0.94
+    static let hudBackgroundOpacityRange: ClosedRange<Double> = 0.20...0.48
+    static let hudStrokeOpacityRange: ClosedRange<Double> = 0.05...0.16
+    static let hudHorizontalPaddingRange: ClosedRange<Double> = 10...16
+    static let hudVerticalPaddingRange: ClosedRange<Double> = 8...14
+    static let hudCornerRadiusRange: ClosedRange<Double> = 6...9
+    static let hudIconEmphasisRange: ClosedRange<Double> = 0.72...1
+    static let hudTitleEmphasisRange: ClosedRange<Double> = 0.82...1
+    static let hudDetailTextEmphasisRange: ClosedRange<Double> = 0.62...0.86
+    static let hudStatusTextEmphasisRange: ClosedRange<Double> = 0.70...0.92
+    static let hudPhaseBackgroundOpacityRange: ClosedRange<Double> = 0.07...0.16
+    static let hudAccentOpacityRange: ClosedRange<Double> = 0.70...1
 
     var identifier: String
     var mode: CinematicOverlayDisplayMode
@@ -183,6 +201,25 @@ struct CinematicOverlayDisplayPlan: Equatable {
     var hudProfileLineLimit: Int
     var hudStatusLineLimit: Int
     var overlayOpacity: Double
+    var chromeStyleIdentifier: String
+    var worldTextPillBackgroundOpacity: Double
+    var worldTextPillStrokeOpacity: Double
+    var worldTextPillHorizontalPadding: Double
+    var worldTextPillVerticalPadding: Double
+    var worldTextPillCornerRadius: Double
+    var worldTextPillIconEmphasis: Double
+    var worldTextPillTextEmphasis: Double
+    var hudBackgroundOpacity: Double
+    var hudStrokeOpacity: Double
+    var hudHorizontalPadding: Double
+    var hudVerticalPadding: Double
+    var hudCornerRadius: Double
+    var hudIconEmphasis: Double
+    var hudTitleEmphasis: Double
+    var hudDetailTextEmphasis: Double
+    var hudStatusTextEmphasis: Double
+    var hudPhaseBackgroundOpacity: Double
+    var hudAccentOpacity: Double
     var reasonIdentifier: String
     var narrativeCueReadabilityIdentifier: String
 
@@ -206,6 +243,25 @@ struct CinematicOverlayDisplayPlan: Equatable {
         hudProfileLineLimit: Int,
         hudStatusLineLimit: Int,
         overlayOpacity: Double,
+        chromeStyleName: String,
+        worldTextPillBackgroundOpacity: Double,
+        worldTextPillStrokeOpacity: Double,
+        worldTextPillHorizontalPadding: Double,
+        worldTextPillVerticalPadding: Double,
+        worldTextPillCornerRadius: Double,
+        worldTextPillIconEmphasis: Double,
+        worldTextPillTextEmphasis: Double,
+        hudBackgroundOpacity: Double,
+        hudStrokeOpacity: Double,
+        hudHorizontalPadding: Double,
+        hudVerticalPadding: Double,
+        hudCornerRadius: Double,
+        hudIconEmphasis: Double,
+        hudTitleEmphasis: Double,
+        hudDetailTextEmphasis: Double,
+        hudStatusTextEmphasis: Double,
+        hudPhaseBackgroundOpacity: Double,
+        hudAccentOpacity: Double,
         reasonIdentifier: String,
         narrativeCueReadability: CinematicNarrativeCueReadabilitySignals,
         phase: LoopPhase,
@@ -231,6 +287,69 @@ struct CinematicOverlayDisplayPlan: Equatable {
         self.hudProfileLineLimit = Self.clamp(hudProfileLineLimit, to: Self.hudProfileLineLimitRange)
         self.hudStatusLineLimit = Self.clamp(hudStatusLineLimit, to: Self.hudStatusLineLimitRange)
         self.overlayOpacity = Self.clamp(overlayOpacity, to: Self.overlayOpacityRange)
+        self.worldTextPillBackgroundOpacity = Self.clamp(
+            worldTextPillBackgroundOpacity,
+            to: Self.worldTextPillBackgroundOpacityRange
+        )
+        self.worldTextPillStrokeOpacity = Self.clamp(
+            worldTextPillStrokeOpacity,
+            to: Self.worldTextPillStrokeOpacityRange
+        )
+        self.worldTextPillHorizontalPadding = Self.clamp(
+            worldTextPillHorizontalPadding,
+            to: Self.worldTextPillHorizontalPaddingRange
+        )
+        self.worldTextPillVerticalPadding = Self.clamp(
+            worldTextPillVerticalPadding,
+            to: Self.worldTextPillVerticalPaddingRange
+        )
+        self.worldTextPillCornerRadius = Self.clamp(
+            worldTextPillCornerRadius,
+            to: Self.worldTextPillCornerRadiusRange
+        )
+        self.worldTextPillIconEmphasis = Self.clamp(
+            worldTextPillIconEmphasis,
+            to: Self.worldTextPillIconEmphasisRange
+        )
+        self.worldTextPillTextEmphasis = Self.clamp(
+            worldTextPillTextEmphasis,
+            to: Self.worldTextPillTextEmphasisRange
+        )
+        self.hudBackgroundOpacity = Self.clamp(hudBackgroundOpacity, to: Self.hudBackgroundOpacityRange)
+        self.hudStrokeOpacity = Self.clamp(hudStrokeOpacity, to: Self.hudStrokeOpacityRange)
+        self.hudHorizontalPadding = Self.clamp(hudHorizontalPadding, to: Self.hudHorizontalPaddingRange)
+        self.hudVerticalPadding = Self.clamp(hudVerticalPadding, to: Self.hudVerticalPaddingRange)
+        self.hudCornerRadius = Self.clamp(hudCornerRadius, to: Self.hudCornerRadiusRange)
+        self.hudIconEmphasis = Self.clamp(hudIconEmphasis, to: Self.hudIconEmphasisRange)
+        self.hudTitleEmphasis = Self.clamp(hudTitleEmphasis, to: Self.hudTitleEmphasisRange)
+        self.hudDetailTextEmphasis = Self.clamp(hudDetailTextEmphasis, to: Self.hudDetailTextEmphasisRange)
+        self.hudStatusTextEmphasis = Self.clamp(hudStatusTextEmphasis, to: Self.hudStatusTextEmphasisRange)
+        self.hudPhaseBackgroundOpacity = Self.clamp(
+            hudPhaseBackgroundOpacity,
+            to: Self.hudPhaseBackgroundOpacityRange
+        )
+        self.hudAccentOpacity = Self.clamp(hudAccentOpacity, to: Self.hudAccentOpacityRange)
+        self.chromeStyleIdentifier = Self.makeChromeStyleIdentifier(
+            styleName: chromeStyleName,
+            worldTextPillBackgroundOpacity: self.worldTextPillBackgroundOpacity,
+            worldTextPillStrokeOpacity: self.worldTextPillStrokeOpacity,
+            worldTextPillHorizontalPadding: self.worldTextPillHorizontalPadding,
+            worldTextPillVerticalPadding: self.worldTextPillVerticalPadding,
+            worldTextPillCornerRadius: self.worldTextPillCornerRadius,
+            worldTextPillIconEmphasis: self.worldTextPillIconEmphasis,
+            worldTextPillTextEmphasis: self.worldTextPillTextEmphasis,
+            hudBackgroundOpacity: self.hudBackgroundOpacity,
+            hudStrokeOpacity: self.hudStrokeOpacity,
+            hudHorizontalPadding: self.hudHorizontalPadding,
+            hudVerticalPadding: self.hudVerticalPadding,
+            hudCornerRadius: self.hudCornerRadius,
+            hudIconEmphasis: self.hudIconEmphasis,
+            hudTitleEmphasis: self.hudTitleEmphasis,
+            hudDetailTextEmphasis: self.hudDetailTextEmphasis,
+            hudStatusTextEmphasis: self.hudStatusTextEmphasis,
+            hudPhaseBackgroundOpacity: self.hudPhaseBackgroundOpacity,
+            hudAccentOpacity: self.hudAccentOpacity
+        )
         self.reasonIdentifier = reasonIdentifier
         narrativeCueReadabilityIdentifier = narrativeCueReadability.identifier
         identifier = [
@@ -238,6 +357,7 @@ struct CinematicOverlayDisplayPlan: Equatable {
             "reason:\(reasonIdentifier)",
             "pills:\(self.visiblePills.map(\.rawValue).joined(separator: ","))",
             "hud:\(hudProminence.rawValue)",
+            "chrome:\(self.chromeStyleIdentifier)",
             "gradient:\(Self.fixed(self.gradientStrength))",
             "widths:\(Self.fixed(self.worldTextMaxWidth))/\(Self.fixed(self.hudMaxWidth))",
             "lines:\(self.pillLineLimit)/\(self.hudTitleLineLimit)/\(self.hudDetailLineLimit)/\(self.hudProfileLineLimit)/\(self.hudStatusLineLimit)",
@@ -276,6 +396,35 @@ struct CinematicOverlayDisplayPlan: Equatable {
                     .trimmingCharacters(in: .whitespacesAndNewlines)
             }
             .joined(separator: "/")
+    }
+
+    private static func makeChromeStyleIdentifier(
+        styleName: String,
+        worldTextPillBackgroundOpacity: Double,
+        worldTextPillStrokeOpacity: Double,
+        worldTextPillHorizontalPadding: Double,
+        worldTextPillVerticalPadding: Double,
+        worldTextPillCornerRadius: Double,
+        worldTextPillIconEmphasis: Double,
+        worldTextPillTextEmphasis: Double,
+        hudBackgroundOpacity: Double,
+        hudStrokeOpacity: Double,
+        hudHorizontalPadding: Double,
+        hudVerticalPadding: Double,
+        hudCornerRadius: Double,
+        hudIconEmphasis: Double,
+        hudTitleEmphasis: Double,
+        hudDetailTextEmphasis: Double,
+        hudStatusTextEmphasis: Double,
+        hudPhaseBackgroundOpacity: Double,
+        hudAccentOpacity: Double
+    ) -> String {
+        let name = styleName.trimmingCharacters(in: .whitespacesAndNewlines)
+        return [
+            name.isEmpty ? "unnamed" : name,
+            "pill:bg\(fixed(worldTextPillBackgroundOpacity)):stroke\(fixed(worldTextPillStrokeOpacity)):pad\(fixed(worldTextPillHorizontalPadding))x\(fixed(worldTextPillVerticalPadding)):radius\(fixed(worldTextPillCornerRadius)):icon\(fixed(worldTextPillIconEmphasis)):text\(fixed(worldTextPillTextEmphasis))",
+            "hud:bg\(fixed(hudBackgroundOpacity)):stroke\(fixed(hudStrokeOpacity)):pad\(fixed(hudHorizontalPadding))x\(fixed(hudVerticalPadding)):radius\(fixed(hudCornerRadius)):icon\(fixed(hudIconEmphasis)):title\(fixed(hudTitleEmphasis)):detail\(fixed(hudDetailTextEmphasis)):status\(fixed(hudStatusTextEmphasis)):phase\(fixed(hudPhaseBackgroundOpacity)):accent\(fixed(hudAccentOpacity))"
+        ].joined(separator: "|")
     }
 
     private static func flag(_ value: Bool) -> String {
@@ -336,6 +485,25 @@ enum CinematicOverlayDisplayPlanner {
             hudProfileLineLimit: values.hudProfileLineLimit,
             hudStatusLineLimit: values.hudStatusLineLimit,
             overlayOpacity: values.overlayOpacity,
+            chromeStyleName: values.chromeStyle.styleName,
+            worldTextPillBackgroundOpacity: values.chromeStyle.worldTextPillBackgroundOpacity,
+            worldTextPillStrokeOpacity: values.chromeStyle.worldTextPillStrokeOpacity,
+            worldTextPillHorizontalPadding: values.chromeStyle.worldTextPillHorizontalPadding,
+            worldTextPillVerticalPadding: values.chromeStyle.worldTextPillVerticalPadding,
+            worldTextPillCornerRadius: values.chromeStyle.worldTextPillCornerRadius,
+            worldTextPillIconEmphasis: values.chromeStyle.worldTextPillIconEmphasis,
+            worldTextPillTextEmphasis: values.chromeStyle.worldTextPillTextEmphasis,
+            hudBackgroundOpacity: values.chromeStyle.hudBackgroundOpacity,
+            hudStrokeOpacity: values.chromeStyle.hudStrokeOpacity,
+            hudHorizontalPadding: values.chromeStyle.hudHorizontalPadding,
+            hudVerticalPadding: values.chromeStyle.hudVerticalPadding,
+            hudCornerRadius: values.chromeStyle.hudCornerRadius,
+            hudIconEmphasis: values.chromeStyle.hudIconEmphasis,
+            hudTitleEmphasis: values.chromeStyle.hudTitleEmphasis,
+            hudDetailTextEmphasis: values.chromeStyle.hudDetailTextEmphasis,
+            hudStatusTextEmphasis: values.chromeStyle.hudStatusTextEmphasis,
+            hudPhaseBackgroundOpacity: values.chromeStyle.hudPhaseBackgroundOpacity,
+            hudAccentOpacity: values.chromeStyle.hudAccentOpacity,
             reasonIdentifier: modeAndReason.reason,
             narrativeCueReadability: narrativeCueReadability,
             phase: currentPhase,
@@ -422,6 +590,29 @@ enum CinematicOverlayDisplayPlanner {
         var hudProfileLineLimit: Int
         var hudStatusLineLimit: Int
         var overlayOpacity: Double
+        var chromeStyle: ChromeStyleValues
+    }
+
+    private struct ChromeStyleValues {
+        var styleName: String
+        var worldTextPillBackgroundOpacity: Double
+        var worldTextPillStrokeOpacity: Double
+        var worldTextPillHorizontalPadding: Double
+        var worldTextPillVerticalPadding: Double
+        var worldTextPillCornerRadius: Double
+        var worldTextPillIconEmphasis: Double
+        var worldTextPillTextEmphasis: Double
+        var hudBackgroundOpacity: Double
+        var hudStrokeOpacity: Double
+        var hudHorizontalPadding: Double
+        var hudVerticalPadding: Double
+        var hudCornerRadius: Double
+        var hudIconEmphasis: Double
+        var hudTitleEmphasis: Double
+        var hudDetailTextEmphasis: Double
+        var hudStatusTextEmphasis: Double
+        var hudPhaseBackgroundOpacity: Double
+        var hudAccentOpacity: Double
     }
 
     private static func displayMode(
@@ -478,7 +669,8 @@ enum CinematicOverlayDisplayPlanner {
                 hudDetailLineLimit: 2,
                 hudProfileLineLimit: 1,
                 hudStatusLineLimit: 1,
-                overlayOpacity: 1
+                overlayOpacity: 1,
+                chromeStyle: fullChromeStyle()
             )
         case .fallback:
             return DisplayValues(
@@ -492,7 +684,8 @@ enum CinematicOverlayDisplayPlanner {
                 hudDetailLineLimit: 3,
                 hudProfileLineLimit: 2,
                 hudStatusLineLimit: 2,
-                overlayOpacity: 1
+                overlayOpacity: 1,
+                chromeStyle: fallbackChromeStyle()
             )
         }
     }
@@ -525,7 +718,104 @@ enum CinematicOverlayDisplayPlanner {
             hudDetailLineLimit: 1,
             hudProfileLineLimit: 1,
             hudStatusLineLimit: 1,
-            overlayOpacity: 0.82
+            overlayOpacity: terminalPhase || phase == .planning ? 0.9 : 0.82,
+            chromeStyle: compactChromeStyle(phase: phase)
+        )
+    }
+
+    private static func compactChromeStyle(phase: LoopPhase) -> ChromeStyleValues {
+        if phase == .planning || phase == .succeeded || phase == .failed {
+            return ChromeStyleValues(
+                styleName: "compact-readable",
+                worldTextPillBackgroundOpacity: 0.28,
+                worldTextPillStrokeOpacity: 0.08,
+                worldTextPillHorizontalPadding: 9,
+                worldTextPillVerticalPadding: 5,
+                worldTextPillCornerRadius: 7,
+                worldTextPillIconEmphasis: 0.9,
+                worldTextPillTextEmphasis: 0.84,
+                hudBackgroundOpacity: 0.30,
+                hudStrokeOpacity: 0.08,
+                hudHorizontalPadding: 12,
+                hudVerticalPadding: 9,
+                hudCornerRadius: 7,
+                hudIconEmphasis: 0.9,
+                hudTitleEmphasis: 0.93,
+                hudDetailTextEmphasis: 0.72,
+                hudStatusTextEmphasis: 0.8,
+                hudPhaseBackgroundOpacity: 0.10,
+                hudAccentOpacity: 0.82
+            )
+        }
+
+        return ChromeStyleValues(
+            styleName: "compact-active",
+            worldTextPillBackgroundOpacity: 0.24,
+            worldTextPillStrokeOpacity: 0.06,
+            worldTextPillHorizontalPadding: 8,
+            worldTextPillVerticalPadding: 4,
+            worldTextPillCornerRadius: 6,
+            worldTextPillIconEmphasis: 0.84,
+            worldTextPillTextEmphasis: 0.76,
+            hudBackgroundOpacity: 0.25,
+            hudStrokeOpacity: 0.06,
+            hudHorizontalPadding: 11,
+            hudVerticalPadding: 8,
+            hudCornerRadius: 7,
+            hudIconEmphasis: 0.84,
+            hudTitleEmphasis: 0.88,
+            hudDetailTextEmphasis: 0.65,
+            hudStatusTextEmphasis: 0.74,
+            hudPhaseBackgroundOpacity: 0.08,
+            hudAccentOpacity: 0.76
+        )
+    }
+
+    private static func fullChromeStyle() -> ChromeStyleValues {
+        ChromeStyleValues(
+            styleName: "full-readable",
+            worldTextPillBackgroundOpacity: 0.36,
+            worldTextPillStrokeOpacity: 0.10,
+            worldTextPillHorizontalPadding: 9,
+            worldTextPillVerticalPadding: 6,
+            worldTextPillCornerRadius: 7,
+            worldTextPillIconEmphasis: 0.96,
+            worldTextPillTextEmphasis: 0.88,
+            hudBackgroundOpacity: 0.38,
+            hudStrokeOpacity: 0.11,
+            hudHorizontalPadding: 14,
+            hudVerticalPadding: 12,
+            hudCornerRadius: 8,
+            hudIconEmphasis: 0.98,
+            hudTitleEmphasis: 1,
+            hudDetailTextEmphasis: 0.78,
+            hudStatusTextEmphasis: 0.86,
+            hudPhaseBackgroundOpacity: 0.12,
+            hudAccentOpacity: 1
+        )
+    }
+
+    private static func fallbackChromeStyle() -> ChromeStyleValues {
+        ChromeStyleValues(
+            styleName: "fallback-readable",
+            worldTextPillBackgroundOpacity: 0.44,
+            worldTextPillStrokeOpacity: 0.14,
+            worldTextPillHorizontalPadding: 10,
+            worldTextPillVerticalPadding: 7,
+            worldTextPillCornerRadius: 8,
+            worldTextPillIconEmphasis: 1,
+            worldTextPillTextEmphasis: 0.92,
+            hudBackgroundOpacity: 0.46,
+            hudStrokeOpacity: 0.15,
+            hudHorizontalPadding: 15,
+            hudVerticalPadding: 13,
+            hudCornerRadius: 8,
+            hudIconEmphasis: 1,
+            hudTitleEmphasis: 1,
+            hudDetailTextEmphasis: 0.84,
+            hudStatusTextEmphasis: 0.9,
+            hudPhaseBackgroundOpacity: 0.15,
+            hudAccentOpacity: 1
         )
     }
 

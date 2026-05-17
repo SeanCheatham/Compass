@@ -84,8 +84,10 @@ final class CinematicDiagnosticsTests: XCTestCase {
         XCTAssertEqual(report.overlayDisplay.modeIdentifier, "compact")
         XCTAssertEqual(report.overlayDisplay.visiblePillIdentifiers, ["activity"])
         XCTAssertEqual(report.overlayDisplay.hudProminenceIdentifier, "minimal")
+        XCTAssertTrue(report.overlayDisplay.chromeStyleIdentifier.hasPrefix("compact-active|"))
         XCTAssertEqual(report.overlayDisplay.reasonIdentifier, "in-world-readable-cues")
         XCTAssertTrue(report.overlayDisplay.narrativeCueReadabilityIdentifier.contains("count:3"))
+        XCTAssertTrue(report.overlayDisplay.identifier.contains("chrome:\(report.overlayDisplay.chromeStyleIdentifier)"))
         XCTAssertTrue(report.worldText.identifier.contains(report.worldText.questLabel))
         XCTAssertTrue(report.briefing.identifier.contains(report.briefing.title))
 
@@ -154,6 +156,11 @@ final class CinematicDiagnosticsTests: XCTestCase {
         XCTAssertTrue(
             Set(reports.map(\.overlayDisplay.modeIdentifier))
                 .isSuperset(of: ["full", "compact"])
+        )
+        XCTAssertTrue(reports.allSatisfy { !$0.overlayDisplay.chromeStyleIdentifier.isEmpty })
+        XCTAssertTrue(
+            Set(reports.map(\.overlayDisplay.chromeStyleIdentifier))
+                .contains { $0.hasPrefix("compact-active|") || $0.hasPrefix("compact-readable|") }
         )
     }
 
@@ -456,6 +463,7 @@ final class CinematicDiagnosticsTests: XCTestCase {
         XCTAssertTrue(summary.exportText.contains("Narrative layout:"))
         XCTAssertTrue(summary.exportText.contains("Overlay display:"))
         XCTAssertTrue(summary.exportText.contains("mode \(report.overlayDisplay.modeIdentifier)"))
+        XCTAssertTrue(summary.exportText.contains("chrome \(report.overlayDisplay.chromeStyleIdentifier)"))
         XCTAssertTrue(summary.exportText.contains(report.narrativeCue.questPlaque.anchorIdentifier))
         XCTAssertTrue(summary.exportText.contains(report.narrativeCue.activityBanner.text))
         XCTAssertTrue(summary.exportText.contains(report.narrativeCue.arenaInscription.layout.facingModeIdentifier))

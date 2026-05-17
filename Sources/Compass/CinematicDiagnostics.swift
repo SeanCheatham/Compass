@@ -198,6 +198,7 @@ struct CinematicDiagnosticsReport: Equatable {
         var modeIdentifier: String
         var visiblePillIdentifiers: [String]
         var hudProminenceIdentifier: String
+        var chromeStyleIdentifier: String
         var gradientStrength: Double
         var worldTextMaxWidth: Double
         var hudMaxWidth: Double
@@ -737,6 +738,7 @@ struct CinematicDiagnosticsSummary: Equatable {
             "reason \(snapshot.reasonIdentifier)",
             "pills \(snapshot.visiblePillIdentifiers.isEmpty ? "none" : snapshot.visiblePillIdentifiers.joined(separator: ","))",
             "hud \(snapshot.hudProminenceIdentifier)",
+            "chrome \(snapshot.chromeStyleIdentifier)",
             "gradient \(fixed(snapshot.gradientStrength))",
             "width \(fixed(snapshot.worldTextMaxWidth))/\(fixed(snapshot.hudMaxWidth))",
             "lines \(snapshot.pillLineLimit)/\(snapshot.hudTitleLineLimit)/\(snapshot.hudDetailLineLimit)/\(snapshot.hudProfileLineLimit)/\(snapshot.hudStatusLineLimit)",
@@ -1427,6 +1429,7 @@ enum CinematicDiagnostics {
             modeIdentifier: plan.modeIdentifier,
             visiblePillIdentifiers: plan.visiblePillIdentifiers,
             hudProminenceIdentifier: plan.hudProminenceIdentifier,
+            chromeStyleIdentifier: plan.chromeStyleIdentifier,
             gradientStrength: plan.gradientStrength,
             worldTextMaxWidth: plan.worldTextMaxWidth,
             hudMaxWidth: plan.hudMaxWidth,

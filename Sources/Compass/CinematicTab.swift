@@ -266,8 +266,7 @@ private struct CinematicWorldTextOverlay: View {
                     systemImage: pill.systemImage,
                     text: pill.text(from: worldText),
                     tint: pill.tint(activityTint: tint),
-                    lineLimit: displayPlan.pillLineLimit,
-                    opacity: displayPlan.overlayOpacity
+                    displayPlan: displayPlan
                 )
             }
         }
@@ -279,28 +278,30 @@ private struct CinematicWorldTextPill: View {
     var systemImage: String
     var text: String
     var tint: Color
-    var lineLimit: Int
-    var opacity: Double
+    var displayPlan: CinematicOverlayDisplayPlan
 
     var body: some View {
         HStack(spacing: 7) {
             Image(systemName: systemImage)
                 .font(.system(size: 11, weight: .bold))
-                .foregroundStyle(tint)
+                .foregroundStyle(tint.opacity(displayPlan.worldTextPillIconEmphasis))
                 .frame(width: 15)
 
             Text(text)
                 .font(.caption.weight(.semibold))
-                .foregroundStyle(.white.opacity(0.88))
-                .lineLimit(lineLimit)
+                .foregroundStyle(.white.opacity(displayPlan.worldTextPillTextEmphasis))
+                .lineLimit(displayPlan.pillLineLimit)
                 .minimumScaleFactor(0.82)
         }
-        .padding(.horizontal, 9)
-        .padding(.vertical, 6)
-        .background(.black.opacity(0.34 * opacity), in: RoundedRectangle(cornerRadius: 7))
+        .padding(.horizontal, CGFloat(displayPlan.worldTextPillHorizontalPadding))
+        .padding(.vertical, CGFloat(displayPlan.worldTextPillVerticalPadding))
+        .background(
+            .black.opacity(displayPlan.worldTextPillBackgroundOpacity * displayPlan.overlayOpacity),
+            in: RoundedRectangle(cornerRadius: CGFloat(displayPlan.worldTextPillCornerRadius))
+        )
         .overlay {
-            RoundedRectangle(cornerRadius: 7)
-                .stroke(.white.opacity(0.09))
+            RoundedRectangle(cornerRadius: CGFloat(displayPlan.worldTextPillCornerRadius))
+                .stroke(.white.opacity(displayPlan.worldTextPillStrokeOpacity * displayPlan.overlayOpacity))
         }
     }
 }
@@ -314,24 +315,27 @@ private struct CinematicHUD: View {
             HStack(spacing: 8) {
                 Image(systemName: caption.systemImage)
                     .font(.system(size: 15, weight: .semibold))
-                    .foregroundStyle(caption.color)
+                    .foregroundStyle(caption.color.opacity(displayPlan.hudIconEmphasis))
                 Text(caption.title)
                     .font(.headline.weight(.semibold))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(.white.opacity(displayPlan.hudTitleEmphasis))
                     .lineLimit(displayPlan.hudTitleLineLimit)
                     .minimumScaleFactor(0.82)
                 Text(caption.phase)
                     .font(.caption.weight(.semibold))
-                    .foregroundStyle(.white.opacity(0.76))
+                    .foregroundStyle(.white.opacity(displayPlan.hudStatusTextEmphasis))
                     .padding(.horizontal, 7)
                     .padding(.vertical, 3)
-                    .background(.white.opacity(0.12), in: Capsule())
+                    .background(
+                        .white.opacity(displayPlan.hudPhaseBackgroundOpacity * displayPlan.overlayOpacity),
+                        in: Capsule()
+                    )
             }
 
             if displayPlan.showsHUDDetail {
                 Text(caption.detail)
                     .font(.callout)
-                    .foregroundStyle(.white.opacity(0.78))
+                    .foregroundStyle(.white.opacity(displayPlan.hudDetailTextEmphasis))
                     .lineLimit(displayPlan.hudDetailLineLimit)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -339,31 +343,38 @@ private struct CinematicHUD: View {
             if displayPlan.showsHUDProfiles, let repositoryProfile = caption.repositoryProfile {
                 Text(repositoryProfile)
                     .font(.caption.weight(.semibold))
-                    .foregroundStyle(caption.profileColor.opacity(0.88))
+                    .foregroundStyle(caption.profileColor.opacity(displayPlan.hudDetailTextEmphasis))
                     .lineLimit(displayPlan.hudProfileLineLimit)
             }
 
             if displayPlan.showsHUDProfiles, let activityProfile = caption.activityProfile {
                 Text(activityProfile)
                     .font(.caption.weight(.semibold))
-                    .foregroundStyle(caption.activityColor.opacity(0.9))
+                    .foregroundStyle(caption.activityColor.opacity(displayPlan.hudStatusTextEmphasis))
                     .lineLimit(displayPlan.hudProfileLineLimit)
             }
 
             if let status = caption.status {
                 Text(status)
                     .font(.caption.weight(.semibold))
-                    .foregroundStyle(caption.color.opacity(0.86))
+                    .foregroundStyle(caption.color.opacity(displayPlan.hudStatusTextEmphasis))
                     .lineLimit(displayPlan.hudStatusLineLimit)
             }
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 12)
+        .padding(.horizontal, CGFloat(displayPlan.hudHorizontalPadding))
+        .padding(.vertical, CGFloat(displayPlan.hudVerticalPadding))
         .frame(maxWidth: CGFloat(displayPlan.hudMaxWidth), alignment: .leading)
-        .background(.black.opacity(0.36 * displayPlan.overlayOpacity), in: RoundedRectangle(cornerRadius: 8))
+        .background(
+            .black.opacity(displayPlan.hudBackgroundOpacity * displayPlan.overlayOpacity),
+            in: RoundedRectangle(cornerRadius: CGFloat(displayPlan.hudCornerRadius))
+        )
+        .overlay {
+            RoundedRectangle(cornerRadius: CGFloat(displayPlan.hudCornerRadius))
+                .stroke(.white.opacity(displayPlan.hudStrokeOpacity * displayPlan.overlayOpacity))
+        }
         .overlay(alignment: .leading) {
             Rectangle()
-                .fill(caption.color)
+                .fill(caption.color.opacity(displayPlan.hudAccentOpacity))
                 .frame(width: 3)
                 .clipShape(RoundedRectangle(cornerRadius: 2))
         }
