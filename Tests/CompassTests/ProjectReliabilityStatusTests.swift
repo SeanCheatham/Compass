@@ -122,6 +122,52 @@ final class ProjectReliabilityStatusTests: XCTestCase {
         XCTAssertEqual(status.detail, "Test Suite failed Expected true but got false")
     }
 
+    func testDirtyWorktreeStatusCarriesPostCheckMetadata() {
+        let session = makeSession(
+            9,
+            status: .failed,
+            notes: [
+                """
+                Uncommitted or untracked changes remain after Develop ran. Commit them or add them to .gitignore.
+                `git status --porcelain` output:
+                ```
+                 M Sources/Compass/AppModel.swift
+                ```
+                """
+            ],
+            feedback: "done"
+        )
+        let feedback = PlanReliabilityFeedback(state: makeState(), sessions: [session])
+
+        let status = ProjectReliabilityStatus(feedback: feedback)
+
+        XCTAssertEqual(status.primaryCue, "Worktree dirty")
+        XCTAssertEqual(status.severity, .warning)
+        XCTAssertEqual(status.actionLabel, "Clean Worktree")
+        XCTAssertEqual(status.metadata, "#9 · 1 pending change")
+        XCTAssertTrue(status.detail.hasPrefix("Uncommitted or untracked changes remain"))
+    }
+
+    func testPromotionFailureStatusCarriesPromotionMetadata() {
+        let session = makeSession(
+            10,
+            status: .failed,
+            notes: [
+                "Develop sandbox produced no commit to promote."
+            ],
+            feedback: "done"
+        )
+        let feedback = PlanReliabilityFeedback(state: makeState(), sessions: [session])
+
+        let status = ProjectReliabilityStatus(feedback: feedback)
+
+        XCTAssertEqual(status.primaryCue, "Promotion failed")
+        XCTAssertEqual(status.severity, .failure)
+        XCTAssertEqual(status.actionLabel, "Resolve Promotion")
+        XCTAssertEqual(status.metadata, "#10 · promotion")
+        XCTAssertEqual(status.detail, "Develop sandbox produced no commit to promote.")
+    }
+
     func testAwaitingApprovalStatusUsesResumeCue() {
         let session = makeSession(
             6,
@@ -159,12 +205,13 @@ final class ProjectReliabilityStatusTests: XCTestCase {
         XCTAssertEqual(feedback.notices.map(\.kind), [.developFailed, .failedVerify])
         XCTAssertEqual(status.noticeCount, 2)
         XCTAssertEqual(status.countLabel, "2 cues")
-        XCTAssertEqual(status.primaryCue, "Develop failed")
+        XCTAssertEqual(status.primaryCue, "Verify failed")
+        XCTAssertEqual(status.metadata, "swift test · exit 1")
     }
 
     func testDetailCanBeBoundedForCompactProjectSurfaces() {
         let session = makeSession(
-            8,
+            11,
             status: .failed,
             notes: ["Develop reported it was blocked but did not request verify bypass."],
             feedback: "First line\n\nsecond line with enough extra words to force a compact project banner."

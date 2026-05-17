@@ -105,6 +105,66 @@ final class CinematicSessionTimelinePlanTests: XCTestCase {
         XCTAssertEqual(outcomeBeat.attentionDetail, "Expected true but got false")
     }
 
+    func testDirtyWorktreeCueTargetsDevelopAndOutcomeBeats() throws {
+        let cue = makeRunCue(
+            kind: .dirtyWorktree,
+            severity: .warning,
+            label: "Clean Worktree",
+            detail: "2 pending changes",
+            systemImage: "pencil.and.outline"
+        )
+        let session = makeSession(5, status: .failed)
+
+        let plan = CinematicSessionTimelinePlan(
+            sessions: [session],
+            runCues: [5: cue]
+        )
+
+        let developBeat = try XCTUnwrap(plan.beats.first { $0.moment == .develop })
+        XCTAssertEqual(developBeat.style, .warning)
+        XCTAssertEqual(developBeat.systemImage, "pencil.and.outline")
+        XCTAssertEqual(developBeat.attentionLabel, "Clean Worktree")
+        XCTAssertEqual(developBeat.detail, "2 pending changes")
+
+        let verifyBeat = try XCTUnwrap(plan.beats.first { $0.moment == .verify })
+        XCTAssertEqual(verifyBeat.style, .neutral)
+        XCTAssertEqual(verifyBeat.systemImage, "checkmark.seal")
+
+        let outcomeBeat = try XCTUnwrap(plan.beats.first { $0.moment == .outcome })
+        XCTAssertEqual(outcomeBeat.style, .warning)
+        XCTAssertEqual(outcomeBeat.systemImage, "pencil.and.outline")
+    }
+
+    func testPromotionFailureCueTargetsOutcomeBeatOnly() throws {
+        let cue = makeRunCue(
+            kind: .promotionFailed,
+            severity: .failure,
+            label: "Resolve Promotion",
+            detail: "Failed to promote Develop sandbox branch compass/dev-123.",
+            systemImage: "arrow.triangle.branch"
+        )
+        let session = makeSession(6, status: .failed)
+
+        let plan = CinematicSessionTimelinePlan(
+            sessions: [session],
+            runCues: [6: cue]
+        )
+
+        let developBeat = try XCTUnwrap(plan.beats.first { $0.moment == .develop })
+        XCTAssertEqual(developBeat.style, .neutral)
+        XCTAssertEqual(developBeat.systemImage, "hammer")
+
+        let verifyBeat = try XCTUnwrap(plan.beats.first { $0.moment == .verify })
+        XCTAssertEqual(verifyBeat.style, .neutral)
+        XCTAssertEqual(verifyBeat.systemImage, "checkmark.seal")
+
+        let outcomeBeat = try XCTUnwrap(plan.beats.first { $0.moment == .outcome })
+        XCTAssertEqual(outcomeBeat.style, .failure)
+        XCTAssertEqual(outcomeBeat.systemImage, "arrow.triangle.branch")
+        XCTAssertEqual(outcomeBeat.attentionLabel, "Resolve Promotion")
+        XCTAssertEqual(outcomeBeat.detail, "Failed to promote Develop sandbox branch compass/dev-123.")
+    }
+
     func testCommitBeatLabelsUseBoundedDisplaySubjectAndStableCommitID() throws {
         let commit = SessionCommit(
             sha: "abcdef1234567890abcdef",

@@ -273,6 +273,8 @@ final class PlanSessionHistoryTests: XCTestCase {
 
     func testDisplayGroupsFailedAndRejectedRuns() {
         let items = [
+            makeHistoryItem(7),
+            makeHistoryItem(6),
             makeHistoryItem(5),
             makeHistoryItem(4, status: .rejectedByPlan),
             makeHistoryItem(3, status: .failed),
@@ -284,13 +286,15 @@ final class PlanSessionHistoryTests: XCTestCase {
             mode: .all,
             filter: .failedRejected,
             runCues: [
+                7: makeRunCue(kind: .promotionFailed),
+                6: makeRunCue(kind: .dirtyWorktree, severity: .warning),
                 5: makeRunCue(kind: .failedVerify),
                 2: makeRunCue(kind: .developFailed)
             ]
         )
 
-        XCTAssertEqual(display.visibleItems.map(\.sessionNumber), [5, 4, 3, 2])
-        XCTAssertEqual(display.totalCount, 4)
+        XCTAssertEqual(display.visibleItems.map(\.sessionNumber), [7, 6, 5, 4, 3, 2])
+        XCTAssertEqual(display.totalCount, 6)
     }
 
     func testDisplayGroupsActiveAndPausedRuns() {

@@ -362,7 +362,9 @@ struct CinematicSessionTimelinePlan: Equatable {
     ) -> Bool {
         switch session.status {
         case .planning, .rejectedByPlan:
-            return runCue?.kind == .developBlocked || runCue?.kind == .developFailed
+            return runCue?.kind == .developBlocked
+                || runCue?.kind == .developFailed
+                || runCue?.kind == .dirtyWorktree
         case .awaitingApproval, .developing, .succeeded, .failed, .cancelled, .skipped:
             return true
         }
@@ -463,10 +465,12 @@ struct CinematicSessionTimelinePlan: Equatable {
         switch runCue.kind {
         case .rejectedPlan:
             return moment == .plan || moment == .outcome
-        case .developBlocked, .developFailed, .resumeDevelop:
+        case .developBlocked, .developFailed, .dirtyWorktree, .resumeDevelop:
             return moment == .develop || moment == .outcome
         case .failedVerify:
             return moment == .verify || moment == .outcome
+        case .promotionFailed:
+            return moment == .outcome
         }
     }
 

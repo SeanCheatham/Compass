@@ -120,6 +120,8 @@ enum PlanSessionHistoryFilter: String, CaseIterable, Identifiable, Equatable, Ha
                 || runCue?.kind == .rejectedPlan
                 || runCue?.kind == .developFailed
                 || runCue?.kind == .failedVerify
+                || runCue?.kind == .dirtyWorktree
+                || runCue?.kind == .promotionFailed
         case .completedFinished:
             return item.status == .succeeded
                 || item.status == .cancelled

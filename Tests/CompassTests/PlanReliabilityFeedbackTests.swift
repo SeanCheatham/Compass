@@ -104,6 +104,79 @@ final class PlanReliabilityFeedbackTests: XCTestCase {
         XCTAssertEqual(feedback.recentRunCues[5]?.kind, .failedVerify)
     }
 
+    func testDirtyWorktreePostCheckNoteBecomesDistinctCue() {
+        let session = makeSession(
+            12,
+            status: .failed,
+            notes: [
+                """
+                Uncommitted or untracked changes remain after Develop ran. Commit them or add them to .gitignore.
+                `git status --porcelain` output:
+                ```
+                 M Sources/Compass/AppModel.swift
+                ?? Tests/CompassTests/NewTests.swift
+                ```
+                """
+            ],
+            feedback: "done"
+        )
+
+        let feedback = PlanReliabilityFeedback(state: makeState(), sessions: [session])
+
+        XCTAssertEqual(feedback.notices.map(\.kind), [.dirtyWorktree])
+        XCTAssertEqual(feedback.notices[0].title, "Worktree dirty")
+        XCTAssertEqual(feedback.notices[0].severity, .warning)
+        XCTAssertEqual(feedback.notices[0].actionLabel, "Clean Worktree")
+        XCTAssertEqual(feedback.notices[0].metadata, "#12 · 2 pending changes")
+        XCTAssertTrue(feedback.notices[0].detail.hasPrefix("Uncommitted or untracked changes remain"))
+        XCTAssertEqual(feedback.recentRunCues[12]?.kind, .dirtyWorktree)
+        XCTAssertEqual(feedback.recentRunCues[12]?.systemImage, "pencil.and.outline")
+    }
+
+    func testPromotionFailurePostCheckNoteBecomesDistinctCue() {
+        let session = makeSession(
+            13,
+            status: .failed,
+            notes: [
+                "Failed to promote Develop sandbox branch compass/dev-123: fatal: Not possible to fast-forward, aborting."
+            ],
+            feedback: "done"
+        )
+
+        let feedback = PlanReliabilityFeedback(state: makeState(), sessions: [session])
+
+        XCTAssertEqual(feedback.notices.map(\.kind), [.promotionFailed])
+        XCTAssertEqual(feedback.notices[0].title, "Promotion failed")
+        XCTAssertEqual(feedback.notices[0].severity, .failure)
+        XCTAssertEqual(feedback.notices[0].actionLabel, "Resolve Promotion")
+        XCTAssertEqual(feedback.notices[0].metadata, "#13 · compass/dev-123")
+        XCTAssertEqual(
+            feedback.notices[0].detail,
+            "Failed to promote Develop sandbox branch compass/dev-123: fatal: Not possible to fast-forward, aborting."
+        )
+        XCTAssertEqual(feedback.recentRunCues[13]?.kind, .promotionFailed)
+    }
+
+    func testRecentRunCueUsesPostCheckPriorityWithinSession() {
+        let session = makeSession(
+            14,
+            status: .failed,
+            notes: ["Develop reported failure: compile failed"],
+            verifyOutput: VerifyOutput(
+                command: "swift test --filter PlanReliabilityFeedbackTests",
+                exitCode: 1,
+                tail: "compile failure"
+            ),
+            feedback: "compile failed"
+        )
+
+        let feedback = PlanReliabilityFeedback(state: makeState(), sessions: [session])
+
+        XCTAssertEqual(feedback.notices.map(\.kind), [.developFailed, .failedVerify])
+        XCTAssertEqual(feedback.recentRunCues[14]?.kind, .failedVerify)
+        XCTAssertEqual(feedback.recentRunCues[14]?.label, "Retry Develop")
+    }
+
     func testAwaitingApprovalShowsResumeCueWhenImmediatePlanExists() {
         let session = makeSession(
             6,

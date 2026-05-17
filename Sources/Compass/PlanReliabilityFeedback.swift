@@ -42,11 +42,15 @@ struct PlanReliabilityFeedback: Equatable {
 
         notices = Array(allNotices.prefix(max(0, noticeLimit)))
 
-        var cues: [Int: RunCue] = [:]
-        for notice in allNotices where cues[notice.sessionNumber] == nil {
-            cues[notice.sessionNumber] = RunCue(notice: notice)
+        var cueNotices: [Int: Notice] = [:]
+        for notice in allNotices {
+            if let existing = cueNotices[notice.sessionNumber],
+               Self.priority(for: existing.kind) <= Self.priority(for: notice.kind) {
+                continue
+            }
+            cueNotices[notice.sessionNumber] = notice
         }
-        recentRunCues = cues
+        recentRunCues = cueNotices.mapValues { RunCue(notice: $0) }
     }
 
     struct Notice: Identifiable, Equatable {
@@ -82,6 +86,8 @@ struct PlanReliabilityFeedback: Equatable {
         case developBlocked
         case developFailed
         case failedVerify
+        case dirtyWorktree
+        case promotionFailed
         case resumeDevelop
     }
 
@@ -180,7 +186,58 @@ struct PlanReliabilityFeedback: Equatable {
             )
         }
 
+        if let dirtyWorktree = dirtyWorktreeCue(in: session, detailLimit: detailLimit) {
+            results.append(
+                Notice(
+                    id: "\(Kind.dirtyWorktree.rawValue)-\(session.session)",
+                    kind: .dirtyWorktree,
+                    severity: dirtyWorktree.severity,
+                    sessionNumber: session.session,
+                    title: "Worktree dirty",
+                    detail: dirtyWorktree.detail,
+                    actionLabel: "Clean Worktree",
+                    metadata: dirtyWorktree.metadata,
+                    systemImage: "pencil.and.outline"
+                )
+            )
+        }
+
+        if let promotionFailure = promotionFailureCue(in: session, detailLimit: detailLimit) {
+            results.append(
+                Notice(
+                    id: "\(Kind.promotionFailed.rawValue)-\(session.session)",
+                    kind: .promotionFailed,
+                    severity: .failure,
+                    sessionNumber: session.session,
+                    title: "Promotion failed",
+                    detail: promotionFailure.detail,
+                    actionLabel: "Resolve Promotion",
+                    metadata: promotionFailure.metadata,
+                    systemImage: "arrow.triangle.branch"
+                )
+            )
+        }
+
         return results
+    }
+
+    static func priority(for kind: Kind) -> Int {
+        switch kind {
+        case .rejectedPlan:
+            return 0
+        case .failedVerify:
+            return 1
+        case .dirtyWorktree:
+            return 2
+        case .promotionFailed:
+            return 3
+        case .developBlocked:
+            return 4
+        case .developFailed:
+            return 5
+        case .resumeDevelop:
+            return 6
+        }
     }
 
     private static func planRejectionText(in session: SessionRecord, detailLimit: Int) -> String? {
@@ -232,8 +289,52 @@ struct PlanReliabilityFeedback: Equatable {
                 ) ?? "Develop reported failure."
         }
 
-        guard session.verifyOutput == nil else { return nil }
+        guard session.verifyOutput == nil,
+              !hasPostCheckRecoveryCue(in: session) else { return nil }
         return boundedPrefix(session.feedback, limit: detailLimit)
+    }
+
+    private struct ParsedPostCheckCue {
+        var detail: String
+        var metadata: String?
+        var severity: Severity
+    }
+
+    private static func dirtyWorktreeCue(in session: SessionRecord, detailLimit: Int) -> ParsedPostCheckCue? {
+        guard let text = firstMatchingText(in: session.notes + optionalTexts(session.feedback), containsAny: [
+            "uncommitted or untracked changes remain after develop ran",
+            "`git status --porcelain` failed unexpectedly"
+        ]) else {
+            return nil
+        }
+
+        let statusCheckFailed = text.lowercased().contains("`git status --porcelain` failed unexpectedly")
+        return ParsedPostCheckCue(
+            detail: boundedPrefix(text, limit: detailLimit)
+                ?? (statusCheckFailed ? "Working-tree status check failed." : "Develop left uncommitted or untracked changes."),
+            metadata: dirtyWorktreeMetadata(from: text, sessionNumber: session.session, limit: detailLimit),
+            severity: statusCheckFailed ? .failure : .warning
+        )
+    }
+
+    private static func promotionFailureCue(in session: SessionRecord, detailLimit: Int) -> ParsedPostCheckCue? {
+        guard let text = firstMatchingText(in: session.notes + optionalTexts(session.feedback), containsAny: [
+            "develop sandbox produced no commit to promote",
+            "failed to promote develop sandbox branch"
+        ]) else {
+            return nil
+        }
+
+        return ParsedPostCheckCue(
+            detail: boundedPrefix(text, limit: detailLimit) ?? "Develop sandbox promotion failed.",
+            metadata: promotionFailureMetadata(from: text, sessionNumber: session.session, limit: detailLimit),
+            severity: .failure
+        )
+    }
+
+    private static func hasPostCheckRecoveryCue(in session: SessionRecord) -> Bool {
+        dirtyWorktreeCue(in: session, detailLimit: defaultDetailLimit) != nil
+            || promotionFailureCue(in: session, detailLimit: defaultDetailLimit) != nil
     }
 
     private static func retryDevelopLabel(for state: PlanState) -> String {
@@ -257,6 +358,57 @@ struct PlanReliabilityFeedback: Equatable {
         ]
             .compactMap { $0 }
             .joined(separator: " · ")
+    }
+
+    private static func dirtyWorktreeMetadata(from text: String, sessionNumber: Int, limit: Int) -> String? {
+        let descriptor: String
+        if let count = porcelainStatusLineCount(in: text) {
+            descriptor = "\(count) pending \(count == 1 ? "change" : "changes")"
+        } else {
+            descriptor = "git status"
+        }
+
+        return boundedPrefix("#\(sessionNumber) · \(descriptor)", limit: min(limit, 96))
+    }
+
+    private static func promotionFailureMetadata(from text: String, sessionNumber: Int, limit: Int) -> String? {
+        let descriptor = promotionBranchName(in: text) ?? "promotion"
+        return boundedPrefix("#\(sessionNumber) · \(descriptor)", limit: min(limit, 96))
+    }
+
+    private static func porcelainStatusLineCount(in text: String) -> Int? {
+        guard text.lowercased().contains("`git status --porcelain` output:"),
+              let statusBlock = fencedCodeBlocks(in: text).last else {
+            return nil
+        }
+
+        let count = statusBlock
+            .split(whereSeparator: \.isNewline)
+            .filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+            .count
+        return count > 0 ? count : nil
+    }
+
+    private static func promotionBranchName(in text: String) -> String? {
+        let prefix = "Failed to promote Develop sandbox branch "
+        guard let range = text.range(of: prefix, options: .caseInsensitive) else {
+            return nil
+        }
+
+        let suffix = text[range.upperBound...]
+        guard let branch = suffix.split(separator: ":", maxSplits: 1).first?
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+            !branch.isEmpty else {
+            return nil
+        }
+        return branch
+    }
+
+    private static func fencedCodeBlocks(in text: String) -> [String] {
+        let parts = text.components(separatedBy: "```")
+        guard parts.count >= 3 else { return [] }
+
+        return stride(from: 1, to: parts.count, by: 2).map { parts[$0] }
     }
 
     private static func rejectionCandidateTexts(in session: SessionRecord) -> [String] {
@@ -369,28 +521,13 @@ struct ProjectReliabilityStatus: Equatable {
 
     private static func primaryNotice(in notices: [PlanReliabilityFeedback.Notice]) -> PlanReliabilityFeedback.Notice? {
         notices.enumerated().min { lhs, rhs in
-            let leftPriority = priority(for: lhs.element.kind)
-            let rightPriority = priority(for: rhs.element.kind)
+            let leftPriority = PlanReliabilityFeedback.priority(for: lhs.element.kind)
+            let rightPriority = PlanReliabilityFeedback.priority(for: rhs.element.kind)
             if leftPriority != rightPriority {
                 return leftPriority < rightPriority
             }
             return lhs.offset < rhs.offset
         }?.element
-    }
-
-    private static func priority(for kind: PlanReliabilityFeedback.Kind) -> Int {
-        switch kind {
-        case .rejectedPlan:
-            return 0
-        case .developBlocked:
-            return 1
-        case .developFailed:
-            return 2
-        case .failedVerify:
-            return 3
-        case .resumeDevelop:
-            return 4
-        }
     }
 
     private static func countLabel(for count: Int) -> String {

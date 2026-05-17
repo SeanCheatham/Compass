@@ -129,6 +129,44 @@ final class ProjectSidebarStatusTests: XCTestCase {
                 )
             )
         )
+        let dirtyStatus = makeSidebarStatus(
+            reliabilityStatus: ProjectReliabilityStatus(
+                feedback: PlanReliabilityFeedback(
+                    state: makeState(),
+                    sessions: [
+                        makeSession(
+                            11,
+                            status: .failed,
+                            notes: [
+                                """
+                                Uncommitted or untracked changes remain after Develop ran. Commit them or add them to .gitignore.
+                                `git status --porcelain` output:
+                                ```
+                                 M Sources/Compass/AppModel.swift
+                                ```
+                                """
+                            ],
+                            feedback: "done"
+                        )
+                    ]
+                )
+            )
+        )
+        let promotionStatus = makeSidebarStatus(
+            reliabilityStatus: ProjectReliabilityStatus(
+                feedback: PlanReliabilityFeedback(
+                    state: makeState(),
+                    sessions: [
+                        makeSession(
+                            12,
+                            status: .failed,
+                            notes: ["Failed to promote Develop sandbox branch compass/dev-123: fatal: Not possible to fast-forward, aborting."],
+                            feedback: "done"
+                        )
+                    ]
+                )
+            )
+        )
 
         XCTAssertEqual(blockedStatus.title, "Develop blocked")
         XCTAssertEqual(blockedStatus.subtitle, "Missing signing credentials.")
@@ -138,6 +176,12 @@ final class ProjectSidebarStatusTests: XCTestCase {
         XCTAssertEqual(failedVerifyStatus.subtitle, "Test Suite failed Expected true but got false")
         XCTAssertEqual(resumeStatus.title, "Develop ready")
         XCTAssertEqual(resumeStatus.subtitle, "Implement the approved next slice")
+        XCTAssertEqual(dirtyStatus.title, "Worktree dirty")
+        XCTAssertTrue(dirtyStatus.subtitle.hasPrefix("Uncommitted or untracked changes remain"))
+        XCTAssertEqual(dirtyStatus.actionLabel, "Clean Worktree")
+        XCTAssertEqual(promotionStatus.title, "Promotion failed")
+        XCTAssertEqual(promotionStatus.actionLabel, "Resolve Promotion")
+        XCTAssertEqual(promotionStatus.metadata, "#12 · compass/dev-123")
     }
 
     func testMultipleCueSidebarStatusReportsCountLabel() {
@@ -160,7 +204,7 @@ final class ProjectSidebarStatusTests: XCTestCase {
 
         XCTAssertEqual(sidebarStatus.cueCount, 2)
         XCTAssertEqual(sidebarStatus.countLabel, "2 cues")
-        XCTAssertEqual(sidebarStatus.title, "Develop failed")
+        XCTAssertEqual(sidebarStatus.title, "Verify failed")
         XCTAssertTrue(sidebarStatus.helpText.contains("2 cues"))
         XCTAssertTrue(sidebarStatus.accessibilityLabel.contains("2 cues"))
     }
