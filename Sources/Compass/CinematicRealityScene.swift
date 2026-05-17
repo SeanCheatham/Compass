@@ -209,6 +209,10 @@ private final class CinematicSceneCoordinator {
     private let atmospherePulseNode = Entity()
     private let backdropTintNode = Entity()
     private let floorTintNode = Entity()
+    private let phasePolishRoot = Entity()
+    private let portalApertureNode = Entity()
+    private let portalFillNode = Entity()
+    private let healingAccentNode = Entity()
     private let keyLightNode = Entity()
     private let rimLightNode = Entity()
     private let phaseLightNode = Entity()
@@ -256,9 +260,20 @@ private final class CinematicSceneCoordinator {
     private var activeCameraShakeScale: Float = 0
     private var staffOrbBoost: Float = 0
     private var currentAtmospherePlan: CinematicStageAtmospherePlan?
+    private var currentPhasePolishPlan: CinematicStagePhasePolishPlan?
+    private var fractureAccentNodes: [Entity] = []
+    private var phaseStaffOrientation = simd_quatf(angle: 0.18, axis: SIMD3<Float>(0, 0, 1))
+    private var phaseLeftArmOrientation = simd_quatf(angle: 0.44, axis: SIMD3<Float>(0, 0, 1))
+    private var phaseRightArmOrientation = simd_quatf(angle: -0.34, axis: SIMD3<Float>(0, 0, 1))
+    private var phaseHeadOrientation = simd_quatf()
+    private var phaseOrbScale: Float = 1
+    private var phaseOrbPulseAmplitude: Float = 0.12
+    private var phaseOrbPulseCadence: TimeInterval = 4.8
     private let staffIdleOrientation = simd_quatf(angle: 0.18, axis: SIMD3<Float>(0, 0, 1))
     private let leftArmIdleOrientation = simd_quatf(angle: 0.44, axis: SIMD3<Float>(0, 0, 1))
     private let rightArmIdleOrientation = simd_quatf(angle: -0.34, axis: SIMD3<Float>(0, 0, 1))
+    private let languageSigilBasePosition = SIMD3<Float>(-5.8, 0.035, 5.55)
+    private let activitySigilBasePosition = SIMD3<Float>(5.8, 0.035, 5.55)
 
     init(projectID: UUID) {
         self.projectID = projectID
@@ -563,6 +578,70 @@ private final class CinematicSceneCoordinator {
         )
         backdropTintNode.components.set(OpacityComponent(opacity: 0))
         atmosphereRoot.addChild(backdropTintNode)
+
+        buildPhasePolishNodes(clearMaterial: clear)
+    }
+
+    private func buildPhasePolishNodes(clearMaterial: UnlitMaterial) {
+        phasePolishRoot.name = "phase-polish-root"
+
+        portalApertureNode.name = "phase-polish-portal-aperture"
+        portalApertureNode.components.set(
+            ModelComponent(
+                mesh: torusMesh(ringRadius: 1, pipeRadius: 0.028),
+                materials: [clearMaterial]
+            )
+        )
+        portalApertureNode.position = [0, 1.48, -3.2]
+        portalApertureNode.orientation = simd_quatf(angle: .pi / 2, axis: [1, 0, 0])
+        portalApertureNode.components.set(OpacityComponent(opacity: 0))
+        phasePolishRoot.addChild(portalApertureNode)
+
+        portalFillNode.name = "phase-polish-portal-fill"
+        portalFillNode.components.set(
+            ModelComponent(
+                mesh: circularPlaneMesh(radius: 1),
+                materials: [clearMaterial]
+            )
+        )
+        portalFillNode.position = [0, 1.48, -3.22]
+        portalFillNode.orientation = simd_quatf(angle: .pi / 2, axis: [1, 0, 0])
+        portalFillNode.components.set(OpacityComponent(opacity: 0))
+        phasePolishRoot.addChild(portalFillNode)
+
+        healingAccentNode.name = "phase-polish-healing-ring"
+        healingAccentNode.components.set(
+            ModelComponent(
+                mesh: torusMesh(ringRadius: 2.25, pipeRadius: 0.018),
+                materials: [clearMaterial]
+            )
+        )
+        healingAccentNode.position.y = 0.13
+        healingAccentNode.components.set(OpacityComponent(opacity: 0))
+        phasePolishRoot.addChild(healingAccentNode)
+
+        let fractureSegments: [(SIMD3<Float>, SIMD3<Float>)] = [
+            ([-0.45, 0.075, -0.2], [-3.2, 0.075, -1.35]),
+            ([0.32, 0.078, -0.28], [3.1, 0.078, -1.65]),
+            ([-0.2, 0.081, 0.32], [-2.35, 0.081, 2.6]),
+            ([0.4, 0.084, 0.18], [2.85, 0.084, 2.35]),
+            ([0.0, 0.087, -0.5], [0.32, 0.087, -3.55]),
+            ([-0.18, 0.09, 0.48], [0.22, 0.09, 3.4])
+        ]
+        fractureAccentNodes = fractureSegments.enumerated().map { index, segment in
+            let node = beamEntity(
+                from: segment.0,
+                to: segment.1,
+                radius: 0.018,
+                color: SpellSchool.failure.nsColor,
+                opacity: 0
+            )
+            node.name = "phase-polish-fracture-\(index)"
+            phasePolishRoot.addChild(node)
+            return node
+        }
+
+        atmosphereRoot.addChild(phasePolishRoot)
     }
 
     private func buildSetDressing() {
@@ -897,19 +976,38 @@ private final class CinematicSceneCoordinator {
         )
     }
 
+    private func stagePhasePolishPlan(
+        for beat: CinematicStageBeat,
+        effectPlan: CinematicStageEffectPlan,
+        atmospherePlan: CinematicStageAtmospherePlan
+    ) -> CinematicStagePhasePolishPlan {
+        CinematicStagePhasePolishPlanner.plan(
+            beat: beat,
+            stageEffectTuning: effectPlan.tuningMetadata,
+            atmospherePlan: atmospherePlan,
+            activityMotif: activityMotif,
+            activityProfile: activityProfile,
+            influenceSettings: influenceSettings
+        )
+    }
+
     private func refreshAtmosphere(animated: Bool) {
         let beat = stageBeat()
         let effectPlan = stageEffectPlan(for: beat)
-        applyAtmospherePlan(
-            stageAtmospherePlan(for: beat, tuningMetadata: effectPlan.tuningMetadata),
+        let atmospherePlan = stageAtmospherePlan(for: beat, tuningMetadata: effectPlan.tuningMetadata)
+        applyAtmospherePlan(atmospherePlan, animated: animated)
+        applyPhasePolishPlan(
+            stagePhasePolishPlan(for: beat, effectPlan: effectPlan, atmospherePlan: atmospherePlan),
             animated: animated
         )
     }
 
     private func applyPhaseBeat(_ beat: CinematicStageBeat) {
         let effectPlan = stageEffectPlan(for: beat)
-        applyAtmospherePlan(
-            stageAtmospherePlan(for: beat, tuningMetadata: effectPlan.tuningMetadata),
+        let atmospherePlan = stageAtmospherePlan(for: beat, tuningMetadata: effectPlan.tuningMetadata)
+        applyAtmospherePlan(atmospherePlan, animated: true)
+        applyPhasePolishPlan(
+            stagePhasePolishPlan(for: beat, effectPlan: effectPlan, atmospherePlan: atmospherePlan),
             animated: true
         )
         if beat.shouldRunVictorySurge {
@@ -1802,7 +1900,8 @@ private final class CinematicSceneCoordinator {
     private func rebuildLanguageSigil() {
         clearChildren(of: languageSigilRoot)
         languageSigilRoot.name = "language-sigil-\(setDressingPlan.languageArchitecture.identifier)"
-        languageSigilRoot.position = [-5.8, 0.035, 5.55]
+        languageSigilRoot.position = languageSigilBasePosition
+        languageSigilRoot.scale = SIMD3<Float>(repeating: 1)
 
         let color = setDressingTint(
             languageMotif.accent,
@@ -1836,7 +1935,8 @@ private final class CinematicSceneCoordinator {
     private func rebuildActivitySigil() {
         clearChildren(of: activitySigilRoot)
         activitySigilRoot.name = "activity-sigil-\(setDressingPlan.activityMarker.identifier)"
-        activitySigilRoot.position = [5.8, 0.035, 5.55]
+        activitySigilRoot.position = activitySigilBasePosition
+        activitySigilRoot.scale = SIMD3<Float>(repeating: 1)
 
         let color = activityColor(for: activityMotif)
         let secondary = activityMotif.tintSource.map { themedColor($0.nsColor) } ?? languageMotif.secondaryAccent
@@ -2177,8 +2277,10 @@ private final class CinematicSceneCoordinator {
         applySetDressingPlan(animated: animated)
         let beat = stageBeat()
         let effectPlan = stageEffectPlan(for: beat)
-        applyAtmospherePlan(
-            stageAtmospherePlan(for: beat, tuningMetadata: effectPlan.tuningMetadata),
+        let atmospherePlan = stageAtmospherePlan(for: beat, tuningMetadata: effectPlan.tuningMetadata)
+        applyAtmospherePlan(atmospherePlan, animated: animated)
+        applyPhasePolishPlan(
+            stagePhasePolishPlan(for: beat, effectPlan: effectPlan, atmospherePlan: atmospherePlan),
             animated: animated
         )
         setPhaseLight(
@@ -2252,6 +2354,62 @@ private final class CinematicSceneCoordinator {
         }
     }
 
+    private func applyPhasePolishPlan(_ plan: CinematicStagePhasePolishPlan, animated: Bool) {
+        currentPhasePolishPlan = plan
+        phaseStaffOrientation = staffOrientation(for: plan.wizardPose)
+        phaseLeftArmOrientation = armOrientation(plan.wizardPose.leftArmLift)
+        phaseRightArmOrientation = armOrientation(plan.wizardPose.rightArmLift)
+        phaseHeadOrientation = simd_quatf(angle: plan.wizardPose.headTilt, axis: [1, 0, 0])
+        phaseOrbScale = plan.staffOrb.scale
+        phaseOrbPulseAmplitude = plan.staffOrb.pulseAmplitude
+        phaseOrbPulseCadence = plan.cadence.orbPulseCadence
+
+        let poseDuration = min(0.78, max(0.18, plan.cadence.poseCadence * 0.18))
+        if animated {
+            animate(staffPivotNode, toOrientation: phaseStaffOrientation, duration: poseDuration, timing: .easeInOut)
+            animate(leftArmNode, toOrientation: phaseLeftArmOrientation, duration: poseDuration, timing: .easeInOut)
+            animate(rightArmNode, toOrientation: phaseRightArmOrientation, duration: poseDuration, timing: .easeInOut)
+            animate(headNode, toOrientation: phaseHeadOrientation, duration: min(0.46, poseDuration), timing: .easeInOut)
+        } else {
+            staffPivotNode.orientation = phaseStaffOrientation
+            leftArmNode.orientation = phaseLeftArmOrientation
+            rightArmNode.orientation = phaseRightArmOrientation
+            headNode.orientation = phaseHeadOrientation
+        }
+
+        let orbColor = themedColor(plan.staffOrb.lightFamily.spell.nsColor)
+            .withAlphaComponent(CGFloat(plan.staffOrb.emission))
+        setGlow(orbColor, opacity: max(0.001, plan.staffOrb.emission), on: staffOrbNode)
+
+        let portalColor = themedColor(plan.portalBackdrop.lightFamily.spell.nsColor)
+        setGlow(
+            portalColor.withAlphaComponent(CGFloat(plan.portalBackdrop.portalOpacity)),
+            opacity: plan.portalBackdrop.portalOpacity,
+            on: portalApertureNode
+        )
+        setGlow(
+            portalColor.withAlphaComponent(CGFloat(plan.portalBackdrop.portalOpacity * 0.42)),
+            opacity: plan.portalBackdrop.portalOpacity * 0.42,
+            on: portalFillNode
+        )
+
+        let fractureColor = themedColor(plan.fractureRecovery.lightFamily.spell.nsColor)
+        for node in fractureAccentNodes {
+            setGlow(
+                fractureColor.withAlphaComponent(CGFloat(plan.fractureRecovery.fractureOpacity)),
+                opacity: plan.fractureRecovery.fractureOpacity,
+                on: node
+            )
+        }
+        setGlow(
+            themedColor(SpellSchool.verify.nsColor).withAlphaComponent(CGFloat(plan.fractureRecovery.healingOpacity)),
+            opacity: plan.fractureRecovery.healingOpacity,
+            on: healingAccentNode
+        )
+
+        updatePhasePolish()
+    }
+
     private func applyCinematicInfluenceChange() {
         stageCamera(currentCameraShot)
         applySetDressingPlan(animated: false)
@@ -2280,6 +2438,15 @@ private final class CinematicSceneCoordinator {
     private func atmosphereScale(radius: Float, scale: Float) -> SIMD3<Float> {
         let value = max(0.001, radius * scale)
         return [value, 1, value]
+    }
+
+    private func staffOrientation(for pose: CinematicStagePhasePolishPlan.WizardPose) -> simd_quatf {
+        simd_quatf(angle: pose.staffPitch, axis: [1, 0, 0])
+            * simd_quatf(angle: pose.staffRoll, axis: [0, 0, 1])
+    }
+
+    private func armOrientation(_ lift: Float) -> simd_quatf {
+        simd_quatf(angle: lift, axis: [0, 0, 1])
     }
 
     private func phaseLightBaseline(for phase: LoopPhase) -> (color: NSColor, intensity: Float) {
@@ -2492,10 +2659,10 @@ private final class CinematicSceneCoordinator {
         Task { @MainActor [weak self] in
             try? await Task.sleep(for: .seconds(duration))
             guard let self else { return }
-            self.animate(self.staffPivotNode, toOrientation: self.staffIdleOrientation, duration: 0.28, timing: .easeInOut)
-            self.animate(self.rightArmNode, toOrientation: self.rightArmIdleOrientation, duration: 0.28, timing: .easeInOut)
-            self.animate(self.leftArmNode, toOrientation: self.leftArmIdleOrientation, duration: 0.34, timing: .easeInOut)
-            self.animate(self.headNode, toOrientation: simd_quatf(), duration: 0.24, timing: .easeInOut)
+            self.animate(self.staffPivotNode, toOrientation: self.phaseStaffOrientation, duration: 0.28, timing: .easeInOut)
+            self.animate(self.rightArmNode, toOrientation: self.phaseRightArmOrientation, duration: 0.28, timing: .easeInOut)
+            self.animate(self.leftArmNode, toOrientation: self.phaseLeftArmOrientation, duration: 0.34, timing: .easeInOut)
+            self.animate(self.headNode, toOrientation: self.phaseHeadOrientation, duration: 0.24, timing: .easeInOut)
         }
     }
 
@@ -2519,6 +2686,7 @@ private final class CinematicSceneCoordinator {
         updateWizard(delta: delta)
         updateEnemyLoops()
         updateAtmosphere()
+        updatePhasePolish()
         updateSetDressing()
         updateAnimations(delta: delta)
     }
@@ -2600,7 +2768,9 @@ private final class CinematicSceneCoordinator {
         }
 
         staffOrbBoost = max(0, staffOrbBoost - Float(delta) * 1.8)
-        let orbPulse = 1 + sin(Float(elapsedTime) * 5.6) * 0.12 + staffOrbBoost
+        let cadence = max(phaseOrbPulseCadence, 0.1)
+        let orbWave = sin(Float(elapsedTime / cadence) * .pi * 2)
+        let orbPulse = max(0.001, phaseOrbScale + orbWave * phaseOrbPulseAmplitude + staffOrbBoost)
         staffOrbNode.scale = SIMD3<Float>(repeating: orbPulse)
         headNode.position.y = 1.45 + idleY * 0.18
         hatNode.position.y = 1.78 + idleY * 0.24
@@ -2684,6 +2854,68 @@ private final class CinematicSceneCoordinator {
         let pulseScale = plan.pressureHalo.scale * 0.74 + plan.atmosphericPulse.amplitude * (0.8 + wave)
         atmospherePulseNode.scale = atmosphereScale(radius: plan.pressureHalo.radius, scale: pulseScale)
         setOpacity(plan.atmosphericPulse.opacity * (0.52 + wave * 0.48), on: atmospherePulseNode)
+    }
+
+    private func updatePhasePolish() {
+        guard let plan = currentPhasePolishPlan else { return }
+
+        let sigilCadence = max(plan.cadence.sigilOrbitCadence, 0.1)
+        let sigilAngle = Float(elapsedTime / sigilCadence) * .pi * 2
+        let sigilWave = 0.5 + sin(sigilAngle) * 0.5
+        let orbit = plan.sigilEmphasis.orbitRadius
+        languageSigilRoot.position = languageSigilBasePosition + [
+            cos(sigilAngle) * orbit,
+            0,
+            sin(sigilAngle) * orbit
+        ]
+        activitySigilRoot.position = activitySigilBasePosition + [
+            cos(sigilAngle + .pi) * orbit,
+            0,
+            sin(sigilAngle + .pi) * orbit
+        ]
+
+        let sigilScale = 1
+            + plan.sigilEmphasis.sealEmphasis * 0.14
+            + plan.sigilEmphasis.victoryEmphasis * 0.12
+            + plan.sigilEmphasis.pulseAmplitude * sigilWave
+        languageSigilRoot.scale = SIMD3<Float>(repeating: max(0.001, sigilScale))
+        activitySigilRoot.scale = SIMD3<Float>(
+            repeating: max(0.001, sigilScale + plan.sigilEmphasis.victoryEmphasis * 0.04)
+        )
+
+        let portalCadence = max(plan.cadence.orbPulseCadence, 0.1)
+        let portalWave = 0.5 + sin(Float(elapsedTime / portalCadence) * .pi * 2) * 0.5
+        let portalScale = max(
+            0.001,
+            plan.portalBackdrop.portalScale + plan.portalBackdrop.portalPulseAmplitude * portalWave
+        )
+        portalApertureNode.scale = SIMD3<Float>(repeating: portalScale)
+        portalFillNode.scale = SIMD3<Float>(repeating: max(0.001, portalScale * 0.88))
+        setOpacity(plan.portalBackdrop.portalOpacity * (0.68 + portalWave * 0.32), on: portalApertureNode)
+        setOpacity(plan.portalBackdrop.portalOpacity * 0.42 * (0.62 + portalWave * 0.38), on: portalFillNode)
+
+        if let atmospherePlan = currentAtmospherePlan {
+            let backdropOpacity = min(
+                1,
+                atmospherePlan.backdropTint.opacity + plan.portalBackdrop.backdropOpacityBoost * (0.72 + portalWave * 0.28)
+            )
+            setOpacity(backdropOpacity, on: backdropTintNode)
+        }
+
+        let fractureCadence = max(plan.cadence.fractureCadence, 0.1)
+        let fractureAngle = Float(elapsedTime / fractureCadence) * .pi * 2
+        let fractureWave = 0.5 + sin(fractureAngle) * 0.5
+        let fractureScale = max(0.001, plan.fractureRecovery.fractureSpread * (0.92 + fractureWave * 0.08))
+        phasePolishRoot.orientation = simd_quatf(angle: fractureAngle * 0.018, axis: [0, 1, 0])
+        for (index, node) in fractureAccentNodes.enumerated() {
+            let stagger = 0.72 + sin(fractureAngle + Float(index) * 0.73) * 0.14
+            node.scale = [fractureScale, 1, fractureScale]
+            setOpacity(plan.fractureRecovery.fractureOpacity * max(0.4, stagger), on: node)
+        }
+
+        let healingScale = max(0.001, 1 + plan.fractureRecovery.healingOpacity * 0.28 + fractureWave * 0.08)
+        healingAccentNode.scale = SIMD3<Float>(repeating: healingScale)
+        setOpacity(plan.fractureRecovery.healingOpacity * (0.58 + fractureWave * 0.42), on: healingAccentNode)
     }
 
     private func updateSetDressing() {

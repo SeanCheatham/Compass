@@ -12,6 +12,7 @@ struct CinematicDiagnosticsReport: Equatable {
     var stageBeat: StageBeatSnapshot
     var stageEffect: StageEffectSnapshot
     var stageAtmosphere: StageAtmosphereSnapshot
+    var stagePhasePolish: StagePhasePolishSnapshot
     var worldText: WorldTextSnapshot
     var briefing: BriefingSnapshot
     var cameraTuning: CameraTuningSnapshot
@@ -138,6 +139,46 @@ struct CinematicDiagnosticsReport: Equatable {
         var floorTintBlendFraction: Float
     }
 
+    struct StagePhasePolishSnapshot: Equatable {
+        var identifier: String
+        var beatIdentifier: String
+        var stageEffectTuningIdentifier: String
+        var atmosphereIdentifier: String
+        var phaseIdentifier: String
+        var activityIdentifier: String
+        var influenceIdentifier: String
+        var postureIdentifier: String
+        var wizardPoseIdentifier: String
+        var poseIntensity: Float
+        var staffOrbIdentifier: String
+        var staffOrbLightFamilyIdentifier: String
+        var staffOrbScale: Float
+        var staffOrbEmission: Float
+        var staffOrbPulseAmplitude: Float
+        var sigilEmphasisIdentifier: String
+        var sigilOrbitRadius: Float
+        var sigilSealEmphasis: Float
+        var sigilVictoryEmphasis: Float
+        var sigilPulseAmplitude: Float
+        var portalBackdropIdentifier: String
+        var portalLightFamilyIdentifier: String
+        var portalAperture: Float
+        var portalScale: Float
+        var portalOpacity: Float
+        var backdropAperture: Float
+        var backdropOpacityBoost: Float
+        var fractureRecoveryIdentifier: String
+        var fractureLightFamilyIdentifier: String
+        var fractureOpacity: Float
+        var fractureSpread: Float
+        var healingOpacity: Float
+        var cadenceIdentifier: String
+        var poseCadence: TimeInterval
+        var orbPulseCadence: TimeInterval
+        var sigilOrbitCadence: TimeInterval
+        var fractureCadence: TimeInterval
+    }
+
     struct WorldTextSnapshot: Equatable {
         var identifier: String
         var questLabel: String
@@ -203,7 +244,7 @@ struct CinematicDiagnosticsReport: Equatable {
 }
 
 struct CinematicDiagnosticsSummary: Equatable {
-    static let maxRows = 28
+    static let maxRows = 29
     static let labelMaxCharacters = 32
     static let detailMaxCharacters = 512
 
@@ -348,6 +389,22 @@ struct CinematicDiagnosticsSummary: Equatable {
                 detail: [
                     "backdrop \(report.stageAtmosphere.backdropTintIdentifier)",
                     "floor \(report.stageAtmosphere.floorTintIdentifier)"
+                ].joined(separator: " | ")
+            ),
+            row(
+                id: "phase-polish",
+                label: "Phase polish",
+                detail: [
+                    report.stagePhasePolish.postureIdentifier,
+                    "pose \(fixed(report.stagePhasePolish.poseIntensity))",
+                    "orb \(report.stagePhasePolish.staffOrbLightFamilyIdentifier) \(fixed(report.stagePhasePolish.staffOrbScale))/\(fixed(report.stagePhasePolish.staffOrbEmission))",
+                    "sigil \(fixed(report.stagePhasePolish.sigilSealEmphasis))/\(fixed(report.stagePhasePolish.sigilOrbitRadius))",
+                    "victory \(fixed(report.stagePhasePolish.sigilVictoryEmphasis))",
+                    "portal \(fixed(report.stagePhasePolish.portalAperture))",
+                    "backdrop \(fixed(report.stagePhasePolish.backdropAperture))",
+                    "fracture \(fixed(report.stagePhasePolish.fractureOpacity))",
+                    "heal \(fixed(report.stagePhasePolish.healingOpacity))",
+                    "cadence \(report.stagePhasePolish.cadenceIdentifier)"
                 ].joined(separator: " | ")
             ),
             row(id: "world-quest", label: "World quest", detail: report.worldText.questLabel),
@@ -575,9 +632,18 @@ enum CinematicDiagnostics {
             stageEffectTuning: stageEffectPlan.tuningMetadata,
             influenceSettings: influenceSettings
         )
+        let stagePhasePolishPlan = CinematicStagePhasePolishPlanner.plan(
+            beat: stageBeat,
+            stageEffectTuning: stageEffectPlan.tuningMetadata,
+            atmospherePlan: stageAtmospherePlan,
+            activityMotif: activityMotif,
+            activityProfile: activityProfile,
+            influenceSettings: influenceSettings
+        )
         let stageBeatSnapshot = stageBeatSnapshot(for: stageBeat)
         let stageEffectSnapshot = stageEffectSnapshot(for: stageEffectPlan)
         let stageAtmosphereSnapshot = stageAtmosphereSnapshot(for: stageAtmospherePlan)
+        let stagePhasePolishSnapshot = stagePhasePolishSnapshot(for: stagePhasePolishPlan)
         let worldTextSnapshot = worldTextSnapshot(for: worldText)
         let briefingSnapshot = briefingSnapshot(for: briefing)
         let cameraTuningSnapshot = cameraTuningSnapshot(settings: influenceSettings)
@@ -599,6 +665,7 @@ enum CinematicDiagnostics {
                 "stage:\(stageBeatSnapshot.identifier)",
                 "stage-effect:\(stageEffectSnapshot.identifier)",
                 "stage-atmosphere:\(stageAtmosphereSnapshot.identifier)",
+                "phase-polish:\(stagePhasePolishSnapshot.identifier)",
                 "influence:\(influenceIdentifier)",
                 "set-dressing:\(setDressingSnapshot.identifier)"
             ].joined(separator: "|"),
@@ -612,6 +679,7 @@ enum CinematicDiagnostics {
             stageBeat: stageBeatSnapshot,
             stageEffect: stageEffectSnapshot,
             stageAtmosphere: stageAtmosphereSnapshot,
+            stagePhasePolish: stagePhasePolishSnapshot,
             worldText: worldTextSnapshot,
             briefing: briefingSnapshot,
             cameraTuning: cameraTuningSnapshot,
@@ -914,6 +982,66 @@ enum CinematicDiagnostics {
             floorTintBlue: plan.floorTint.blue,
             floorTintOpacity: plan.floorTint.opacity,
             floorTintBlendFraction: plan.floorTint.blendFraction
+        )
+    }
+
+    private static func stagePhasePolishSnapshot(
+        for plan: CinematicStagePhasePolishPlan
+    ) -> CinematicDiagnosticsReport.StagePhasePolishSnapshot {
+        let identifier = [
+            "beat:\(plan.beatIdentifier)",
+            "effect:\(plan.stageEffectTuningIdentifier)",
+            "atmosphere:\(plan.atmosphereIdentifier)",
+            "phase:\(plan.phaseIdentifier)",
+            "activity:\(plan.activityIdentifier)",
+            "posture:\(plan.postureIdentifier)",
+            "pose:\(plan.wizardPose.identifier)",
+            "orb:\(plan.staffOrb.identifier)",
+            "sigil:\(plan.sigilEmphasis.identifier)",
+            "portal:\(plan.portalBackdrop.identifier)",
+            "fracture:\(plan.fractureRecovery.identifier)",
+            "cadence:\(plan.cadence.identifier)",
+            "influence:\(plan.influenceIdentifier)"
+        ].joined(separator: "|")
+
+        return CinematicDiagnosticsReport.StagePhasePolishSnapshot(
+            identifier: identifier,
+            beatIdentifier: plan.beatIdentifier,
+            stageEffectTuningIdentifier: plan.stageEffectTuningIdentifier,
+            atmosphereIdentifier: plan.atmosphereIdentifier,
+            phaseIdentifier: plan.phaseIdentifier,
+            activityIdentifier: plan.activityIdentifier,
+            influenceIdentifier: plan.influenceIdentifier,
+            postureIdentifier: plan.postureIdentifier,
+            wizardPoseIdentifier: plan.wizardPose.identifier,
+            poseIntensity: plan.wizardPose.poseIntensity,
+            staffOrbIdentifier: plan.staffOrb.identifier,
+            staffOrbLightFamilyIdentifier: plan.staffOrb.lightFamily.rawValue,
+            staffOrbScale: plan.staffOrb.scale,
+            staffOrbEmission: plan.staffOrb.emission,
+            staffOrbPulseAmplitude: plan.staffOrb.pulseAmplitude,
+            sigilEmphasisIdentifier: plan.sigilEmphasis.identifier,
+            sigilOrbitRadius: plan.sigilEmphasis.orbitRadius,
+            sigilSealEmphasis: plan.sigilEmphasis.sealEmphasis,
+            sigilVictoryEmphasis: plan.sigilEmphasis.victoryEmphasis,
+            sigilPulseAmplitude: plan.sigilEmphasis.pulseAmplitude,
+            portalBackdropIdentifier: plan.portalBackdrop.identifier,
+            portalLightFamilyIdentifier: plan.portalBackdrop.lightFamily.rawValue,
+            portalAperture: plan.portalBackdrop.portalAperture,
+            portalScale: plan.portalBackdrop.portalScale,
+            portalOpacity: plan.portalBackdrop.portalOpacity,
+            backdropAperture: plan.portalBackdrop.backdropAperture,
+            backdropOpacityBoost: plan.portalBackdrop.backdropOpacityBoost,
+            fractureRecoveryIdentifier: plan.fractureRecovery.identifier,
+            fractureLightFamilyIdentifier: plan.fractureRecovery.lightFamily.rawValue,
+            fractureOpacity: plan.fractureRecovery.fractureOpacity,
+            fractureSpread: plan.fractureRecovery.fractureSpread,
+            healingOpacity: plan.fractureRecovery.healingOpacity,
+            cadenceIdentifier: plan.cadence.identifier,
+            poseCadence: plan.cadence.poseCadence,
+            orbPulseCadence: plan.cadence.orbPulseCadence,
+            sigilOrbitCadence: plan.cadence.sigilOrbitCadence,
+            fractureCadence: plan.cadence.fractureCadence
         )
     }
 

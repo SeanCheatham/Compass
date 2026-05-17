@@ -58,6 +58,15 @@ final class CinematicDiagnosticsTests: XCTestCase {
         XCTAssertGreaterThan(report.stageAtmosphere.pressureHaloOpacity, 0)
         XCTAssertGreaterThan(report.stageAtmosphere.phaseLightPressureBoost, 0)
         XCTAssertGreaterThan(report.stageAtmosphere.floorTintOpacity, 0)
+        XCTAssertTrue(report.identifier.contains("phase-polish:"))
+        XCTAssertEqual(report.stagePhasePolish.postureIdentifier, "editing")
+        XCTAssertEqual(report.stagePhasePolish.phaseIdentifier, "developing")
+        XCTAssertEqual(report.stagePhasePolish.activityIdentifier, "dirty")
+        XCTAssertEqual(report.stagePhasePolish.staffOrbLightFamilyIdentifier, "edit")
+        XCTAssertGreaterThan(report.stagePhasePolish.poseIntensity, 0)
+        XCTAssertGreaterThan(report.stagePhasePolish.staffOrbEmission, 0)
+        XCTAssertGreaterThan(report.stagePhasePolish.sigilOrbitRadius, 0)
+        XCTAssertGreaterThan(report.stagePhasePolish.portalAperture, 0)
         XCTAssertTrue(report.worldText.identifier.contains(report.worldText.questLabel))
         XCTAssertTrue(report.briefing.identifier.contains(report.briefing.title))
 
@@ -118,6 +127,10 @@ final class CinematicDiagnosticsTests: XCTestCase {
         XCTAssertTrue(
             Set(reports.map(\.stageAtmosphere.pressureLevelIdentifier))
                 .isSuperset(of: ["clean", "light", "moderate", "heavy"])
+        )
+        XCTAssertTrue(
+            Set(reports.map(\.stagePhasePolish.postureIdentifier))
+                .isSuperset(of: ["neutral", "editing", "sealing", "archival", "fracture", "healing"])
         )
     }
 
@@ -205,6 +218,7 @@ final class CinematicDiagnosticsTests: XCTestCase {
 
                 assertStageEffectTuningBounds(report.stageEffect, file: #filePath, line: #line)
                 assertStageAtmosphereBounds(report.stageAtmosphere, file: #filePath, line: #line)
+                assertStagePhasePolishBounds(report.stagePhasePolish, file: #filePath, line: #line)
 
                 for snapshot in report.cameraSnapshots {
                     XCTAssertFinite(snapshot.position)
@@ -246,6 +260,7 @@ final class CinematicDiagnosticsTests: XCTestCase {
                 "effect-history",
                 "stage-atmosphere",
                 "atmosphere-tints",
+                "phase-polish",
                 "world-quest",
                 "world-arena",
                 "world-activity",
@@ -316,6 +331,10 @@ final class CinematicDiagnosticsTests: XCTestCase {
         XCTAssertTrue(summary.exportText.contains("Atmosphere tints:"))
         XCTAssertTrue(summary.exportText.contains(report.stageAtmosphere.pressureHaloIdentifier))
         XCTAssertTrue(summary.exportText.contains(report.stageAtmosphere.floorTintIdentifier))
+        XCTAssertTrue(summary.exportText.contains("Phase polish:"))
+        XCTAssertTrue(summary.exportText.contains(report.stagePhasePolish.postureIdentifier))
+        XCTAssertTrue(summary.exportText.contains(report.stagePhasePolish.staffOrbLightFamilyIdentifier))
+        XCTAssertTrue(summary.exportText.contains(report.stagePhasePolish.cadenceIdentifier))
         XCTAssertTrue(summary.exportText.contains(report.setDressing.languageArchitectureIdentifier))
         XCTAssertTrue(summary.exportText.contains(report.setDressing.activityMarkerIdentifier))
         XCTAssertTrue(summary.exportText.contains(report.setDressing.materialTextureVariantIdentifier))
@@ -424,6 +443,8 @@ final class CinematicDiagnosticsTests: XCTestCase {
         XCTAssertGreaterThan(heavy.stageAtmosphere.rimLightPressureBoost, clean.stageAtmosphere.rimLightPressureBoost)
         XCTAssertGreaterThan(heavy.stageAtmosphere.floorTintOpacity, clean.stageAtmosphere.floorTintOpacity)
         XCTAssertLessThan(heavy.stageAtmosphere.atmosphericPulseCadence, clean.stageAtmosphere.atmosphericPulseCadence)
+        XCTAssertGreaterThan(heavy.stagePhasePolish.poseIntensity, clean.stagePhasePolish.poseIntensity)
+        XCTAssertGreaterThan(heavy.stagePhasePolish.staffOrbEmission, clean.stagePhasePolish.staffOrbEmission)
 
         let steady = CinematicDiagnostics.report(
             repoName: "Compass",
@@ -463,12 +484,17 @@ final class CinematicDiagnosticsTests: XCTestCase {
         XCTAssertGreaterThan(dramatic.stageAtmosphere.influenceFraction, steady.stageAtmosphere.influenceFraction)
         XCTAssertGreaterThan(dramatic.stageAtmosphere.rimLightPressureBoost, steady.stageAtmosphere.rimLightPressureBoost)
         XCTAssertInRange(dramatic.stageAtmosphere.rimLightPressureBoost, CinematicStageAtmospherePlan.rimLightPressureBoostRange)
+        XCTAssertGreaterThan(dramatic.stagePhasePolish.sigilOrbitRadius, steady.stagePhasePolish.sigilOrbitRadius)
+        XCTAssertGreaterThan(dramatic.stagePhasePolish.portalAperture, steady.stagePhasePolish.portalAperture)
+        XCTAssertInRange(dramatic.stagePhasePolish.portalAperture, CinematicStagePhasePolishPlan.portalApertureRange)
 
         let summary = CinematicDiagnosticsSummary(report: heavy)
         XCTAssertTrue(summary.rows.contains { $0.id == "effect-tuning" })
         XCTAssertTrue(summary.rows.contains { $0.id == "stage-atmosphere" })
+        XCTAssertTrue(summary.rows.contains { $0.id == "phase-polish" })
         XCTAssertTrue(summary.exportText.contains("Effect tuning:"))
         XCTAssertTrue(summary.exportText.contains("Atmosphere:"))
+        XCTAssertTrue(summary.exportText.contains("Phase polish:"))
         XCTAssertTrue(summary.exportText.contains("pressure heavy"))
         XCTAssertTrue(summary.exportText.contains("influence dramatic"))
     }
@@ -677,6 +703,40 @@ private func assertStageAtmosphereBounds(
     XCTAssertFalse(snapshot.pressureLightingIdentifier.isEmpty, file: file, line: line)
     XCTAssertFalse(snapshot.backdropTintIdentifier.isEmpty, file: file, line: line)
     XCTAssertFalse(snapshot.floorTintIdentifier.isEmpty, file: file, line: line)
+}
+
+private func assertStagePhasePolishBounds(
+    _ snapshot: CinematicDiagnosticsReport.StagePhasePolishSnapshot,
+    file: StaticString = #filePath,
+    line: UInt = #line
+) {
+    XCTAssertInRange(snapshot.poseIntensity, CinematicStagePhasePolishPlan.poseIntensityRange, file: file, line: line)
+    XCTAssertInRange(snapshot.staffOrbScale, CinematicStagePhasePolishPlan.staffOrbScaleRange, file: file, line: line)
+    XCTAssertInRange(snapshot.staffOrbEmission, CinematicStagePhasePolishPlan.staffOrbEmissionRange, file: file, line: line)
+    XCTAssertInRange(snapshot.staffOrbPulseAmplitude, CinematicStagePhasePolishPlan.staffOrbPulseAmplitudeRange, file: file, line: line)
+    XCTAssertInRange(snapshot.sigilOrbitRadius, CinematicStagePhasePolishPlan.sigilOrbitRadiusRange, file: file, line: line)
+    XCTAssertInRange(snapshot.sigilSealEmphasis, CinematicStagePhasePolishPlan.sigilSealEmphasisRange, file: file, line: line)
+    XCTAssertInRange(snapshot.sigilVictoryEmphasis, CinematicStagePhasePolishPlan.sigilVictoryEmphasisRange, file: file, line: line)
+    XCTAssertInRange(snapshot.sigilPulseAmplitude, CinematicStagePhasePolishPlan.sigilPulseAmplitudeRange, file: file, line: line)
+    XCTAssertInRange(snapshot.portalAperture, CinematicStagePhasePolishPlan.portalApertureRange, file: file, line: line)
+    XCTAssertInRange(snapshot.portalScale, CinematicStagePhasePolishPlan.portalScaleRange, file: file, line: line)
+    XCTAssertInRange(snapshot.portalOpacity, CinematicStagePhasePolishPlan.portalOpacityRange, file: file, line: line)
+    XCTAssertInRange(snapshot.backdropAperture, CinematicStagePhasePolishPlan.backdropApertureRange, file: file, line: line)
+    XCTAssertInRange(snapshot.backdropOpacityBoost, CinematicStagePhasePolishPlan.backdropOpacityBoostRange, file: file, line: line)
+    XCTAssertInRange(snapshot.fractureOpacity, CinematicStagePhasePolishPlan.fractureOpacityRange, file: file, line: line)
+    XCTAssertInRange(snapshot.fractureSpread, CinematicStagePhasePolishPlan.fractureSpreadRange, file: file, line: line)
+    XCTAssertInRange(snapshot.healingOpacity, CinematicStagePhasePolishPlan.healingOpacityRange, file: file, line: line)
+    XCTAssertInRange(snapshot.poseCadence, CinematicStagePhasePolishPlan.poseCadenceRange, file: file, line: line)
+    XCTAssertInRange(snapshot.orbPulseCadence, CinematicStagePhasePolishPlan.orbPulseCadenceRange, file: file, line: line)
+    XCTAssertInRange(snapshot.sigilOrbitCadence, CinematicStagePhasePolishPlan.sigilOrbitCadenceRange, file: file, line: line)
+    XCTAssertInRange(snapshot.fractureCadence, CinematicStagePhasePolishPlan.fractureCadenceRange, file: file, line: line)
+    XCTAssertFalse(snapshot.identifier.isEmpty, file: file, line: line)
+    XCTAssertFalse(snapshot.wizardPoseIdentifier.isEmpty, file: file, line: line)
+    XCTAssertFalse(snapshot.staffOrbIdentifier.isEmpty, file: file, line: line)
+    XCTAssertFalse(snapshot.sigilEmphasisIdentifier.isEmpty, file: file, line: line)
+    XCTAssertFalse(snapshot.portalBackdropIdentifier.isEmpty, file: file, line: line)
+    XCTAssertFalse(snapshot.fractureRecoveryIdentifier.isEmpty, file: file, line: line)
+    XCTAssertFalse(snapshot.cadenceIdentifier.isEmpty, file: file, line: line)
 }
 
 private func XCTAssertTintInRange(
