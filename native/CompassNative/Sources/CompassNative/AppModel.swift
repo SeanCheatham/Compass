@@ -14,6 +14,7 @@ final class CompassProject: ObservableObject, Identifiable {
     @Published var languageProfile = RepositoryLanguageProfile.empty
     @Published var activityProfile = RepositoryActivityProfile.empty
     @Published var cinematicInfluenceSettings: CinematicInfluenceSettings
+    @Published var nativeFeedbackMode: NativeFeedbackMode
     @Published var liveLog: [LiveLine] = []
     @Published var phase: LoopPhase = .idle {
         didSet {
@@ -50,13 +51,15 @@ final class CompassProject: ObservableObject, Identifiable {
         repoURL: URL,
         addedAt: Date = Date(),
         lastOpenedAt: Date = Date(),
-        cinematicInfluenceSettings: CinematicInfluenceSettings = CinematicInfluenceSettings()
+        cinematicInfluenceSettings: CinematicInfluenceSettings = CinematicInfluenceSettings(),
+        nativeFeedbackMode: NativeFeedbackMode = .notifications
     ) {
         self.id = id
         self.repoURL = repoURL.standardizedFileURL
         self.addedAt = addedAt
         self.lastOpenedAt = lastOpenedAt
         self.cinematicInfluenceSettings = cinematicInfluenceSettings
+        self.nativeFeedbackMode = nativeFeedbackMode
         cinematicBriefing = CinematicBriefingService.deterministicBriefing(
             for: CinematicBriefingInput(
                 repoName: repoURL.lastPathComponent,
@@ -314,6 +317,7 @@ extension CompassProject {
         isPaused = true
         isAutoPlaying = false
         pauseMode = mode
+        let pausedImmediately = !isRunning
         if !isRunning {
             phase = .paused
         }
@@ -322,6 +326,9 @@ extension CompassProject {
             log("Pause requested: stopping at the next gate.", level: .warning)
         case .afterIteration:
             log("Pause requested: after this iteration.", level: .warning)
+        }
+        if pausedImmediately {
+            feedback(.paused)
         }
     }
 
@@ -341,6 +348,9 @@ extension CompassProject {
             stopRequested = false
         }
         log("Stop requested.", level: .warning)
+        if !wasRunning {
+            feedback(.stopped)
+        }
     }
 
     private func runPlanPass(
@@ -435,6 +445,7 @@ extension CompassProject {
                 "Plan accepted: \(nextState.completed.count) completed, immediate: \(firstLine(nextState.immediate?.plan) ?? "none").",
                 level: .success
             )
+            feedback(.planAccepted)
             guard sessions.indices.contains(sessionIndex) else {
                 throw AppModelError.internalInvariant("Session #\(sessionNumber) disappeared during Plan.")
             }
@@ -446,6 +457,7 @@ extension CompassProject {
                 endSession(sessionIndex, status: .skipped)
                 phase = .idle
                 log("Plan returned no immediate work.", level: .info)
+                feedback(.noImmediateWork)
                 isRunning = false
                 executor = nil
                 await refresh()
@@ -464,6 +476,7 @@ extension CompassProject {
                     try persistSessions()
                     phase = .paused
                     log("Paused before Develop.", level: .warning)
+                    feedback(.paused)
                     isRunning = false
                     executor = nil
                     await refresh()
@@ -497,6 +510,7 @@ extension CompassProject {
                 isRunning = false
                 executor = nil
                 log("Run stopped.", level: .warning)
+                feedback(.stopped)
                 await refresh()
                 return
             }
@@ -539,6 +553,7 @@ extension CompassProject {
 
         guard let next = state.immediate else {
             log("No immediate plan to develop.", level: .warning)
+            feedback(.noImmediateWork)
             return
         }
 
@@ -559,6 +574,7 @@ extension CompassProject {
         let beforeSha = await gitCurrentSha(at: workspace.repoURL)
         sessions[sessionIndex].beforeSha = beforeSha
         try? persistSessions()
+        feedback(.developStarted)
 
         var devWorkspace: DevRunWorkspace?
         do {
@@ -654,10 +670,14 @@ extension CompassProject {
             endSession(sessionIndex, status: succeeded ? .succeeded : .failed)
             phase = succeeded ? .succeeded : .failed
             log(succeeded ? "Develop completed." : "Develop finished with failed post-checks.", level: succeeded ? .success : .error)
+            if !succeeded {
+                feedback(.postChecksFailed)
+            }
 
             if isPaused {
                 phase = .paused
                 log("Paused after iteration.", level: .warning)
+                feedback(.paused)
             }
         } catch {
             if stopRequested {
@@ -666,6 +686,7 @@ extension CompassProject {
                 endSession(sessionIndex, status: .cancelled)
                 phase = .cancelled
                 log("Run stopped.", level: .warning)
+                feedback(.stopped)
             } else {
                 appendSessionNote(error.localizedDescription, to: sessionIndex)
                 endSession(sessionIndex, status: .failed)
@@ -895,6 +916,7 @@ extension CompassProject {
             )
             if verify.exitCode == 0 {
                 log("Verify passed.", level: .success)
+                feedback(.verifyPassed)
             } else {
                 let verifyTail = tail(verify.stdout + verify.stderr, max: 4000)
                 let issue = """
@@ -1020,6 +1042,7 @@ extension CompassProject {
                 failurePrefix: "Failed to promote Develop sandbox branch \(branchName)"
             )
             log("Develop sandbox: promoted \(String(afterSha.prefix(12))) to the main worktree.", level: .success)
+            feedback(.commitsPromoted)
             return nil
         } catch {
             return error.localizedDescription
@@ -1096,6 +1119,14 @@ extension CompassProject {
                 guard parts.count == 3 else { return nil }
                 return SessionCommit(sha: parts[0], short: parts[1], subject: parts[2])
             }
+    }
+
+    private func feedback(_ milestone: NativeFeedbackMilestone) {
+        NativeFeedbackService.shared.emit(
+            milestone,
+            projectName: displayName,
+            mode: nativeFeedbackMode
+        )
     }
 
     private func log(_ text: String, level: LiveLine.Level) {
@@ -1250,6 +1281,7 @@ final class AppModel: ObservableObject {
     }
 
     func bootstrap() async {
+        NativeFeedbackService.shared.prepare()
         projects = KnownProjectStore.load().map(CompassProject.init(record:))
         selectedProjectID = projects.sorted { $0.lastOpenedAt > $1.lastOpenedAt }.first?.id
 
@@ -1366,6 +1398,7 @@ private struct KnownProjectRecord: Codable, Identifiable, Equatable {
     var addedAt: Double
     var lastOpenedAt: Double
     var cinematicInfluenceSettings: CinematicInfluenceSettings
+    var nativeFeedbackMode: NativeFeedbackMode
 
     enum CodingKeys: String, CodingKey {
         case id
@@ -1373,6 +1406,7 @@ private struct KnownProjectRecord: Codable, Identifiable, Equatable {
         case addedAt
         case lastOpenedAt
         case cinematicInfluenceSettings
+        case nativeFeedbackMode
     }
 
     init(
@@ -1380,13 +1414,15 @@ private struct KnownProjectRecord: Codable, Identifiable, Equatable {
         path: String,
         addedAt: Double,
         lastOpenedAt: Double,
-        cinematicInfluenceSettings: CinematicInfluenceSettings = CinematicInfluenceSettings()
+        cinematicInfluenceSettings: CinematicInfluenceSettings = CinematicInfluenceSettings(),
+        nativeFeedbackMode: NativeFeedbackMode = .notifications
     ) {
         self.id = id
         self.path = path
         self.addedAt = addedAt
         self.lastOpenedAt = lastOpenedAt
         self.cinematicInfluenceSettings = cinematicInfluenceSettings
+        self.nativeFeedbackMode = nativeFeedbackMode
     }
 
     init(from decoder: Decoder) throws {
@@ -1399,6 +1435,10 @@ private struct KnownProjectRecord: Codable, Identifiable, Equatable {
             CinematicInfluenceSettings.self,
             forKey: .cinematicInfluenceSettings
         ) ?? CinematicInfluenceSettings()
+        nativeFeedbackMode = try container.decodeIfPresent(
+            NativeFeedbackMode.self,
+            forKey: .nativeFeedbackMode
+        ) ?? .notifications
     }
 }
 
@@ -1409,7 +1449,8 @@ private extension CompassProject {
             repoURL: URL(fileURLWithPath: record.path).standardizedFileURL,
             addedAt: Date(timeIntervalSince1970: record.addedAt),
             lastOpenedAt: Date(timeIntervalSince1970: record.lastOpenedAt),
-            cinematicInfluenceSettings: record.cinematicInfluenceSettings
+            cinematicInfluenceSettings: record.cinematicInfluenceSettings,
+            nativeFeedbackMode: record.nativeFeedbackMode
         )
     }
 
@@ -1419,7 +1460,8 @@ private extension CompassProject {
             path: repoURL.path,
             addedAt: addedAt.timeIntervalSince1970,
             lastOpenedAt: lastOpenedAt.timeIntervalSince1970,
-            cinematicInfluenceSettings: cinematicInfluenceSettings
+            cinematicInfluenceSettings: cinematicInfluenceSettings,
+            nativeFeedbackMode: nativeFeedbackMode
         )
     }
 

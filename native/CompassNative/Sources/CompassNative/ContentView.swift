@@ -337,6 +337,26 @@ private struct ProjectRunControls: View {
 
     var body: some View {
         HStack(spacing: 5) {
+            Menu {
+                ForEach(NativeFeedbackMode.allCases) { mode in
+                    Button {
+                        project.nativeFeedbackMode = mode
+                        NativeFeedbackService.shared.applyModeChange(mode)
+                        model.saveProjects()
+                    } label: {
+                        Label(
+                            mode.title,
+                            systemImage: project.nativeFeedbackMode == mode ? "checkmark" : mode.systemImage
+                        )
+                    }
+                }
+            } label: {
+                Image(systemName: project.nativeFeedbackMode.systemImage)
+                    .frame(width: 18, height: 18)
+            }
+            .menuStyle(.borderlessButton)
+            .help("Feedback: \(project.nativeFeedbackMode.title)")
+
             Button {
                 Task {
                     await project.play(
