@@ -4,11 +4,22 @@ import SwiftUI
 struct CinematicTab: View {
     @EnvironmentObject private var model: AppModel
     @ObservedObject var project: CompassProject
+    @State private var overlayMode = CinematicTabOverlayMode.live
+    @State private var selectedTimelineBeatID: String?
 
     var body: some View {
         GeometryReader { proxy in
             let caption = CinematicCaption(project: project)
             let displayPlan = cinematicOverlayDisplayPlan
+            let reliabilityFeedback = PlanReliabilityFeedback(
+                state: project.state,
+                sessions: project.sessions
+            )
+            let timelinePlan = CinematicSessionTimelinePlan(
+                sessions: project.sessions,
+                runCues: reliabilityFeedback.recentRunCues,
+                selectedBeatID: selectedTimelineBeatID
+            )
 
             ZStack(alignment: .bottomLeading) {
                 CinematicSceneView(
@@ -35,16 +46,36 @@ struct CinematicTab: View {
                 .allowsHitTesting(false)
 
                 VStack(alignment: .leading, spacing: 10) {
-                    if displayPlan.showsWorldTextOverlay {
-                        CinematicWorldTextOverlay(
-                            worldText: project.cinematicWorldText,
-                            tint: caption.activityColor,
-                            displayPlan: displayPlan
+                    CinematicTabOverlayModePicker(selection: $overlayMode)
+
+                    if overlayMode == .timeline {
+                        CinematicTimelineOverlay(
+                            plan: timelinePlan,
+                            selectedBeatID: $selectedTimelineBeatID
                         )
+                    } else {
+                        if displayPlan.showsWorldTextOverlay {
+                            CinematicWorldTextOverlay(
+                                worldText: project.cinematicWorldText,
+                                tint: caption.activityColor,
+                                displayPlan: displayPlan
+                            )
+                        }
+                        CinematicHUD(caption: caption, displayPlan: displayPlan)
                     }
-                    CinematicHUD(caption: caption, displayPlan: displayPlan)
                 }
                 .padding(18)
+                .onAppear {
+                    selectedTimelineBeatID = timelinePlan.selectedBeatID
+                }
+                .onChange(of: timelinePlan.identifier) {
+                    selectedTimelineBeatID = timelinePlan.selectedBeatID
+                }
+                .onChange(of: overlayMode) {
+                    if overlayMode == .timeline {
+                        selectedTimelineBeatID = timelinePlan.selectedBeatID
+                    }
+                }
 
                 VStack {
                     HStack {
@@ -88,6 +119,222 @@ struct CinematicTab: View {
             influenceSettings: project.cinematicInfluenceSettings,
             narrativeCueReadability: readability
         )
+    }
+}
+
+private enum CinematicTabOverlayMode: String, CaseIterable, Identifiable {
+    case live
+    case timeline
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .live:
+            return "Live"
+        case .timeline:
+            return "Timeline"
+        }
+    }
+}
+
+private struct CinematicTabOverlayModePicker: View {
+    @Binding var selection: CinematicTabOverlayMode
+
+    var body: some View {
+        Picker("Cinematic overlay mode", selection: $selection) {
+            ForEach(CinematicTabOverlayMode.allCases) { mode in
+                Text(mode.title).tag(mode)
+            }
+        }
+        .pickerStyle(.segmented)
+        .labelsHidden()
+        .controlSize(.small)
+        .frame(width: 174)
+        .background(.black.opacity(0.28), in: RoundedRectangle(cornerRadius: 7))
+        .help("Switch cinematic overlay mode")
+    }
+}
+
+private struct CinematicTimelineOverlay: View {
+    var plan: CinematicSessionTimelinePlan
+    @Binding var selectedBeatID: String?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 9) {
+            HStack(spacing: 8) {
+                Label("Timeline", systemImage: "point.topleft.down.curvedto.point.bottomright.up")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.white.opacity(0.86))
+
+                Spacer()
+
+                Text(plan.countLabel)
+                    .font(.caption2.monospacedDigit().weight(.semibold))
+                    .foregroundStyle(.white.opacity(0.62))
+            }
+
+            if plan.isEmpty {
+                Label("No session beats yet.", systemImage: "clock.badge.questionmark")
+                    .font(.caption)
+                    .foregroundStyle(.white.opacity(0.66))
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.vertical, 5)
+            } else {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(alignment: .center, spacing: 5) {
+                        ForEach(plan.beats) { beat in
+                            CinematicTimelineTick(
+                                beat: beat,
+                                isSelected: beat.stableID == plan.selectedBeatID
+                            ) {
+                                selectedBeatID = beat.stableID
+                            }
+                        }
+                    }
+                    .padding(.vertical, 2)
+                }
+                .frame(height: 38)
+
+                if let selectedBeat = plan.selectedBeat {
+                    CinematicTimelineBeatSummary(beat: selectedBeat)
+                }
+            }
+        }
+        .padding(.horizontal, 11)
+        .padding(.vertical, 10)
+        .frame(width: 430, alignment: .leading)
+        .background(.black.opacity(0.42), in: RoundedRectangle(cornerRadius: 8))
+        .overlay {
+            RoundedRectangle(cornerRadius: 8)
+                .stroke(.white.opacity(0.11))
+        }
+    }
+}
+
+private struct CinematicTimelineTick: View {
+    var beat: CinematicSessionTimelinePlan.Beat
+    var isSelected: Bool
+    var action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            VStack(spacing: 3) {
+                RoundedRectangle(cornerRadius: 2)
+                    .fill(beat.style.color.opacity(isSelected ? 1 : 0.62))
+                    .frame(width: isSelected ? 7 : 5, height: beat.tickHeight)
+                    .overlay {
+                        if beat.hasAttention {
+                            RoundedRectangle(cornerRadius: 2)
+                                .stroke(.white.opacity(0.86), lineWidth: 1)
+                        }
+                    }
+
+                Circle()
+                    .fill(isSelected ? .white.opacity(0.84) : .white.opacity(0.22))
+                    .frame(width: 3, height: 3)
+            }
+            .frame(width: 14, height: 34)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .help(beat.label)
+        .accessibilityLabel(beat.label)
+    }
+}
+
+private struct CinematicTimelineBeatSummary: View {
+    var beat: CinematicSessionTimelinePlan.Beat
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 7) {
+                Image(systemName: beat.systemImage)
+                    .font(.system(size: 12, weight: .bold))
+                    .foregroundStyle(beat.style.color)
+                    .frame(width: 16)
+
+                Text(beat.title)
+                    .font(.callout.weight(.semibold))
+                    .foregroundStyle(.white.opacity(0.9))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.82)
+
+                Text(beat.moment.shortTitle)
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.white.opacity(0.58))
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(.white.opacity(0.08), in: Capsule())
+
+                Spacer()
+
+                Text(beat.timestamp.formatted(date: .omitted, time: .shortened))
+                    .font(.caption2.monospacedDigit())
+                    .foregroundStyle(.white.opacity(0.52))
+            }
+
+            Text(beat.detail)
+                .font(.caption)
+                .foregroundStyle(.white.opacity(0.72))
+                .lineLimit(2)
+                .fixedSize(horizontal: false, vertical: true)
+
+            HStack(spacing: 7) {
+                if let metadata = beat.metadata {
+                    Text(metadata)
+                        .font(.caption2.monospacedDigit().weight(.semibold))
+                        .foregroundStyle(.white.opacity(0.54))
+                }
+
+                if let attentionLabel = beat.attentionLabel {
+                    Label(attentionLabel, systemImage: "exclamationmark.triangle.fill")
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(beat.style.color.opacity(0.9))
+                        .lineLimit(1)
+                        .help(beat.attentionDetail ?? attentionLabel)
+                }
+            }
+        }
+        .padding(.top, 1)
+    }
+}
+
+private extension CinematicSessionTimelinePlan.Beat {
+    var tickHeight: CGFloat {
+        switch moment {
+        case .plan:
+            return 13
+        case .develop:
+            return 18
+        case .verify:
+            return 22
+        case .outcome:
+            return 26
+        case .commit:
+            return 31
+        }
+    }
+}
+
+private extension CinematicSessionTimelinePlan.Beat.Style {
+    var color: Color {
+        switch self {
+        case .neutral:
+            return .white.opacity(0.68)
+        case .active:
+            return .cyan
+        case .success:
+            return .green
+        case .warning:
+            return .orange
+        case .failure:
+            return .red
+        case .paused:
+            return .blue
+        case .commit:
+            return .mint
+        }
     }
 }
 
