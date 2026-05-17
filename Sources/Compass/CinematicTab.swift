@@ -62,21 +62,39 @@ struct CinematicTab: View {
 private struct CinematicInfluenceControls: View {
     @EnvironmentObject private var model: AppModel
     @ObservedObject var project: CompassProject
+    @State private var isShowingDiagnostics = false
 
     private var trimmedDraft: String {
         project.draftEntry.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
+    private var diagnosticsSummary: CinematicDiagnosticsSummary {
+        CinematicDiagnosticsSummary(report: CinematicDiagnostics.currentReport(for: project))
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 9) {
-            Picker("Camera", selection: $project.cinematicInfluenceSettings.cameraStyle) {
-                ForEach(CinematicInfluenceSettings.CameraStyle.allCases) { style in
-                    Text(style.title).tag(style)
+            HStack(spacing: 8) {
+                Picker("Camera", selection: $project.cinematicInfluenceSettings.cameraStyle) {
+                    ForEach(CinematicInfluenceSettings.CameraStyle.allCases) { style in
+                        Text(style.title).tag(style)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .help("Camera style")
+
+                Button {
+                    isShowingDiagnostics.toggle()
+                } label: {
+                    Image(systemName: "list.bullet.rectangle")
+                        .frame(width: 17, height: 17)
+                }
+                .help("Show cinematic diagnostics")
+                .popover(isPresented: $isShowingDiagnostics, arrowEdge: .top) {
+                    CinematicDiagnosticsPopover(summary: diagnosticsSummary)
                 }
             }
-            .pickerStyle(.segmented)
-            .labelsHidden()
-            .help("Camera style")
 
             HStack(spacing: 8) {
                 Image(systemName: "dial.medium")
@@ -125,6 +143,63 @@ private struct CinematicInfluenceControls: View {
         .onChange(of: project.cinematicInfluenceSettings) {
             model.saveProjects()
         }
+    }
+}
+
+private struct CinematicDiagnosticsPopover: View {
+    var summary: CinematicDiagnosticsSummary
+    @State private var copied = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 8) {
+                Text("Diagnostics")
+                    .font(.headline.weight(.semibold))
+
+                Spacer()
+
+                Button {
+                    copyToPasteboard(summary.exportText)
+                    copied = true
+                } label: {
+                    Image(systemName: copied ? "checkmark" : "doc.on.doc")
+                        .frame(width: 17, height: 17)
+                }
+                .help("Copy diagnostics report")
+            }
+
+            ScrollView {
+                VStack(alignment: .leading, spacing: 8) {
+                    ForEach(summary.rows) { row in
+                        HStack(alignment: .top, spacing: 10) {
+                            Text(row.label)
+                                .font(.system(.caption, design: .monospaced).weight(.semibold))
+                                .foregroundStyle(.secondary)
+                                .frame(width: 108, alignment: .leading)
+
+                            Text(row.detail)
+                                .font(.caption)
+                                .foregroundStyle(.primary)
+                                .lineLimit(2)
+                                .textSelection(.enabled)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                    }
+                }
+                .padding(.trailing, 4)
+            }
+            .frame(maxHeight: 360)
+        }
+        .padding(14)
+        .frame(width: 430, alignment: .leading)
+        .onChange(of: summary.exportText) {
+            copied = false
+        }
+    }
+
+    private func copyToPasteboard(_ text: String) {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(text, forType: .string)
     }
 }
 

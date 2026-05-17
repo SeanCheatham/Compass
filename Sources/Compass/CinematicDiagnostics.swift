@@ -102,6 +102,189 @@ struct CinematicDiagnosticsReport: Equatable {
     }
 }
 
+struct CinematicDiagnosticsSummary: Equatable {
+    static let maxRows = 20
+    static let labelMaxCharacters = 32
+    static let detailMaxCharacters = 180
+
+    var rows: [Row]
+    var exportText: String
+
+    struct Row: Identifiable, Equatable {
+        var id: String
+        var label: String
+        var detail: String
+    }
+
+    init(report: CinematicDiagnosticsReport) {
+        let rows = Self.makeRows(report: report)
+        self.rows = Array(rows.prefix(Self.maxRows))
+        exportText = Self.makeExportText(report: report, rows: self.rows)
+    }
+
+    private static func makeRows(report: CinematicDiagnosticsReport) -> [Row] {
+        var rows: [Row] = [
+            row(
+                id: "repository",
+                label: "Repository",
+                detail: [
+                    report.repoName,
+                    report.phase,
+                    completedLabel(report.completedCount)
+                ].joined(separator: " | ")
+            ),
+            row(id: "immediate", label: "Immediate", detail: report.immediateTitle),
+            row(
+                id: "language-motif",
+                label: "Language motif",
+                detail: [
+                    report.languageMotif.language.displayName,
+                    report.languageMotif.sigilIdentifier,
+                    report.languageMotif.styleIdentifier,
+                    "ambient \(report.languageMotif.ambientSpellIdentifier)",
+                    "blend \(fixed(report.languageMotif.phaseBlend))"
+                ].joined(separator: " | ")
+            ),
+            row(
+                id: "activity-motif",
+                label: "Activity motif",
+                detail: [
+                    report.activityMotif.eventKindIdentifier,
+                    report.activityMotif.sigilIdentifier,
+                    report.activityMotif.styleIdentifier,
+                    optionalIdentifier("tint", report.activityMotif.tintSourceIdentifier),
+                    optionalIdentifier("transition", report.activityMotif.transitionSpellIdentifier),
+                    optionalIdentifier("ambient", report.activityMotif.ambientOverrideIdentifier),
+                    report.activityMotif.shouldShakeOnTransition ? "shake" : nil
+                ].compactMap { $0 }.joined(separator: " | ")
+            ),
+            row(id: "world-quest", label: "World quest", detail: report.worldText.questLabel),
+            row(id: "world-arena", label: "World arena", detail: report.worldText.arenaCallout),
+            row(id: "world-activity", label: "World activity", detail: report.worldText.activityCallout),
+            row(
+                id: "set-dressing",
+                label: "Set dressing",
+                detail: [
+                    report.setDressing.languageArchitectureIdentifier,
+                    report.setDressing.activityMarkerIdentifier,
+                    "runes \(report.setDressing.runeIntensityIdentifier)",
+                    "cadence \(report.setDressing.animationCadenceIdentifier)"
+                ].joined(separator: " | ")
+            ),
+            row(
+                id: "textures",
+                label: "Textures",
+                detail: [
+                    report.setDressing.materialTextureVariantIdentifier,
+                    report.setDressing.backdropTextureName,
+                    report.setDressing.arenaTextureName
+                ].joined(separator: " | ")
+            ),
+            row(
+                id: "activity-tuning",
+                label: "Activity tuning",
+                detail: [
+                    report.activityTuning.pressureLevelIdentifier,
+                    "spawn \(fixed(report.activityTuning.ambientSpawnCadence))s",
+                    "limit \(report.activityTuning.ambientEnemyLimit)",
+                    "light \(fixed(report.activityTuning.activityLightBoost))",
+                    "scale \(fixed(report.activityTuning.activityPressureScale))"
+                ].joined(separator: " | ")
+            ),
+            row(
+                id: "camera-tuning",
+                label: "Camera tuning",
+                detail: [
+                    report.cameraTuning.identifier,
+                    "orbit \(fixed(report.cameraTuning.orbitScale))",
+                    "pullback \(fixed(report.cameraTuning.pullbackScale))",
+                    "height \(fixed(report.cameraTuning.heightOffset))"
+                ].joined(separator: " | ")
+            ),
+            row(
+                id: "camera-follow",
+                label: "Camera follow",
+                detail: [
+                    "fov \(fixed(report.cameraTuning.followFieldOfView))",
+                    "response \(fixed(report.cameraTuning.followResponsiveness))",
+                    "drift \(fixed(report.cameraTuning.driftScale))",
+                    "shake \(fixed(report.cameraTuning.shakeScale))"
+                ].joined(separator: " | ")
+            )
+        ]
+
+        rows.append(contentsOf: report.cameraSnapshots.map { snapshot in
+            row(
+                id: "camera-shot-\(snapshot.shotIdentifier)",
+                label: "Shot \(snapshot.shotIdentifier)",
+                detail: [
+                    snapshot.identifier,
+                    "pos \(position(snapshot.position))",
+                    "fov \(fixed(snapshot.fieldOfView))",
+                    "transition \(fixed(snapshot.transitionDuration))s"
+                ].joined(separator: " | ")
+            )
+        })
+
+        return rows
+    }
+
+    private static func makeExportText(report: CinematicDiagnosticsReport, rows: [Row]) -> String {
+        ([
+            "Cinematic Diagnostics",
+            "Report: \(bounded(report.identifier, limit: detailMaxCharacters))"
+        ] + rows.map { "\($0.label): \($0.detail)" })
+        .joined(separator: "\n")
+    }
+
+    private static func row(id: String, label: String, detail: String) -> Row {
+        Row(
+            id: id,
+            label: bounded(label, limit: labelMaxCharacters),
+            detail: bounded(detail, limit: detailMaxCharacters)
+        )
+    }
+
+    private static func optionalIdentifier(_ label: String, _ identifier: String?) -> String? {
+        guard let identifier, !identifier.isEmpty else { return nil }
+        return "\(label) \(identifier)"
+    }
+
+    private static func completedLabel(_ count: Int) -> String {
+        count == 1 ? "1 completed" : "\(count) completed"
+    }
+
+    private static func position(_ value: SIMD3<Float>) -> String {
+        [
+            fixed(value.x),
+            fixed(value.y),
+            fixed(value.z)
+        ].joined(separator: ",")
+    }
+
+    private static func fixed(_ value: Float) -> String {
+        fixed(Double(value))
+    }
+
+    private static func fixed(_ value: Double) -> String {
+        String(format: "%.4f", value)
+    }
+
+    private static func bounded(_ text: String, limit: Int) -> String {
+        let normalized = text
+            .replacingOccurrences(of: "\r", with: " ")
+            .replacingOccurrences(of: "\n", with: " ")
+            .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalized.isEmpty else { return "-" }
+        guard normalized.count > limit else { return normalized }
+
+        let prefixLimit = max(1, limit - 3)
+        let prefix = normalized.prefix(prefixLimit)
+        return String(prefix).trimmingCharacters(in: .whitespacesAndNewlines) + "..."
+    }
+}
+
 enum CinematicDiagnostics {
     struct ActivityCase: Equatable {
         var identifier: String
@@ -109,6 +292,20 @@ enum CinematicDiagnostics {
         var immediateTitle: String
         var completedCount: Int
         var profile: RepositoryActivityProfile
+    }
+
+    @MainActor
+    static func currentReport(for project: CompassProject) -> CinematicDiagnosticsReport {
+        report(
+            repoName: project.displayName,
+            phase: (project.isPaused ? LoopPhase.paused : project.phase).rawValue,
+            immediateTitle: project.immediateTitle,
+            completedCount: project.state.completed.count,
+            latestEvent: project.liveLog.last.map(CinematicBriefingEvent.init(line:)),
+            languageProfile: project.languageProfile,
+            activityProfile: project.activityProfile,
+            influenceSettings: project.cinematicInfluenceSettings
+        )
     }
 
     static func report(

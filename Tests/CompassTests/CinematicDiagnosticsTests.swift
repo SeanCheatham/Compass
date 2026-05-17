@@ -183,6 +183,170 @@ final class CinematicDiagnosticsTests: XCTestCase {
             }
         }
     }
+
+    func testSummaryRowsAreDeterministicallyOrderedAndBounded() {
+        let report = makeReport(
+            CinematicDiagnosticsInput(
+                repoName: "Compass Diagnostics Surface With A Deliberately Long Repository Name",
+                phase: "Developing",
+                immediateTitle: "Add current cinematic diagnostics export rows with a deliberately long title",
+                completedCount: 7,
+                latestEvent: nil,
+                languageProfile: languageProfile(primaryLanguage: .swift),
+                activityProfile: activityProfile(worktreeChanges: worktreeChanges(modified: 12)),
+                influenceSettings: CinematicInfluenceSettings(cameraStyle: .dramatic, intensity: 0.9)
+            )
+        )
+
+        let summary = CinematicDiagnosticsSummary(report: report)
+
+        XCTAssertEqual(
+            summary.rows.map(\.id),
+            [
+                "repository",
+                "immediate",
+                "language-motif",
+                "activity-motif",
+                "world-quest",
+                "world-arena",
+                "world-activity",
+                "set-dressing",
+                "textures",
+                "activity-tuning",
+                "camera-tuning",
+                "camera-follow",
+                "camera-shot-home",
+                "camera-shot-wide",
+                "camera-shot-cast-prep",
+                "camera-shot-over-shoulder",
+                "camera-shot-impact",
+                "camera-shot-overhead",
+                "camera-shot-failure",
+                "camera-shot-victory"
+            ]
+        )
+        XCTAssertEqual(summary.rows.count, CinematicDiagnosticsSummary.maxRows)
+
+        for row in summary.rows {
+            XCTAssertLessThanOrEqual(row.label.count, CinematicDiagnosticsSummary.labelMaxCharacters)
+            XCTAssertLessThanOrEqual(row.detail.count, CinematicDiagnosticsSummary.detailMaxCharacters)
+            XCTAssertFalse(row.label.isEmpty)
+            XCTAssertFalse(row.detail.isEmpty)
+        }
+    }
+
+    func testSummaryExportIncludesMotifSetDressingAndCameraIdentifiers() {
+        let report = makeReport(
+            CinematicDiagnosticsInput(
+                repoName: "Compass",
+                phase: "Verifying",
+                immediateTitle: "Expose current diagnostics",
+                completedCount: 3,
+                latestEvent: CinematicBriefingEvent(
+                    line: LiveLine(
+                        level: .success,
+                        text: "Verify passed",
+                        detail: "swift test passed",
+                        kind: .command,
+                        status: .completed
+                    )
+                ),
+                languageProfile: languageProfile(primaryLanguage: .swift),
+                activityProfile: activityProfile(recentCommitCount: 2),
+                influenceSettings: CinematicInfluenceSettings(cameraStyle: .steady, intensity: 0.2)
+            )
+        )
+
+        let summary = CinematicDiagnosticsSummary(report: report)
+
+        XCTAssertTrue(summary.exportText.hasPrefix("Cinematic Diagnostics\n"))
+        XCTAssertEqual(summary.exportText.components(separatedBy: "\n").count, summary.rows.count + 2)
+        XCTAssertTrue(summary.exportText.contains(report.languageMotif.sigilIdentifier))
+        XCTAssertTrue(summary.exportText.contains(report.languageMotif.styleIdentifier))
+        XCTAssertTrue(summary.exportText.contains(report.activityMotif.sigilIdentifier))
+        XCTAssertTrue(summary.exportText.contains(report.activityMotif.styleIdentifier))
+        XCTAssertTrue(summary.exportText.contains(report.setDressing.languageArchitectureIdentifier))
+        XCTAssertTrue(summary.exportText.contains(report.setDressing.activityMarkerIdentifier))
+        XCTAssertTrue(summary.exportText.contains(report.setDressing.materialTextureVariantIdentifier))
+        XCTAssertTrue(summary.exportText.contains(report.setDressing.backdropTextureName))
+        XCTAssertTrue(summary.exportText.contains(report.setDressing.arenaTextureName))
+        XCTAssertTrue(summary.exportText.contains(report.cameraTuning.identifier))
+        XCTAssertTrue(summary.exportText.contains(report.cameraSnapshots[0].identifier))
+        XCTAssertTrue(summary.exportText.contains(report.cameraSnapshots[3].shotIdentifier))
+    }
+
+    func testCurrentReportUsesCompassProjectInputs() async {
+        await MainActor.run {
+            let repoURL = URL(fileURLWithPath: "/tmp/CurrentDiagnosticsRepo", isDirectory: true)
+            let project = CompassProject(
+                repoURL: repoURL,
+                cinematicInfluenceSettings: CinematicInfluenceSettings(cameraStyle: .dramatic, intensity: 0.75)
+            )
+            project.state = PlanState(
+                completed: ["Stage diagnostics", "Wire copy action"],
+                immediate: PlanNext(
+                    plan: "Expose current cinematic diagnostics\nKeep behavior unchanged",
+                    verify: "swift test"
+                ),
+                midTerm: "",
+                longTerm: ""
+            )
+            project.phase = .developing
+            project.languageProfile = languageProfile(primaryLanguage: .python)
+            project.activityProfile = activityProfile(recentCommitCount: 1)
+            project.liveLog = [
+                LiveLine(
+                    level: .success,
+                    text: "Generated diagnostics report",
+                    detail: "Current motif state is ready",
+                    kind: .agentMessage,
+                    status: .completed
+                )
+            ]
+
+            let report = CinematicDiagnostics.currentReport(for: project)
+            let expected = CinematicDiagnostics.report(
+                repoName: "CurrentDiagnosticsRepo",
+                phase: "Developing",
+                immediateTitle: "Expose current cinematic diagnostics",
+                completedCount: 2,
+                latestEvent: project.liveLog.last.map(CinematicBriefingEvent.init(line:)),
+                languageProfile: project.languageProfile,
+                activityProfile: project.activityProfile,
+                influenceSettings: project.cinematicInfluenceSettings
+            )
+
+            XCTAssertEqual(report, expected)
+            XCTAssertEqual(report.repoName, "CurrentDiagnosticsRepo")
+            XCTAssertEqual(report.phase, "Developing")
+            XCTAssertEqual(report.immediateTitle, "Expose current cinematic diagnostics")
+            XCTAssertEqual(report.completedCount, 2)
+            XCTAssertEqual(report.languageMotif.sigilIdentifier, "language.python")
+            XCTAssertEqual(report.activityMotif.eventKindIdentifier, "commit")
+            XCTAssertEqual(report.influenceIdentifier, "dramatic|0.7500")
+        }
+    }
+
+    func testSummaryOutputIsStableAcrossRepeatedCalls() {
+        let report = makeReport(
+            CinematicDiagnosticsInput(
+                repoName: "Compass",
+                phase: "Recovering",
+                immediateTitle: "Stabilize diagnostics export",
+                completedCount: 4,
+                latestEvent: nil,
+                languageProfile: languageProfile(primaryLanguage: .rust),
+                activityProfile: activityProfile(worktreeChanges: worktreeChanges(conflicted: 1)),
+                influenceSettings: CinematicInfluenceSettings(cameraStyle: .follow, intensity: 0.5)
+            )
+        )
+
+        let first = CinematicDiagnosticsSummary(report: report)
+        let second = CinematicDiagnosticsSummary(report: report)
+
+        XCTAssertEqual(first, second)
+        XCTAssertEqual(first.exportText, second.exportText)
+    }
 }
 
 private struct CinematicDiagnosticsInput {
