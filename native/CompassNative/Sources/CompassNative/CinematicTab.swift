@@ -64,6 +64,13 @@ private struct CinematicHUD: View {
                 .foregroundStyle(.white.opacity(0.78))
                 .lineLimit(2)
                 .fixedSize(horizontal: false, vertical: true)
+
+            if let status = caption.status {
+                Text(status)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(caption.color.opacity(0.86))
+                    .lineLimit(1)
+            }
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 12)
@@ -82,6 +89,7 @@ private struct CinematicCaption {
     var title: String
     var detail: String
     var phase: String
+    var status: String?
     var systemImage: String
     var color: Color
 
@@ -89,19 +97,20 @@ private struct CinematicCaption {
     init(project: CompassProject) {
         let latest = project.liveLog.last
         let currentPhase = project.isPaused ? LoopPhase.paused : project.phase
+        let briefing = project.cinematicBriefing
+        title = briefing.title
+        detail = briefing.detail
         phase = currentPhase.rawValue
+        status = nil
 
         if (project.isRunning || project.isAutoPlaying) && Self.isThinking(project: project) {
-            title = "The robot wizard is holding the line"
-            detail = "Codex is thinking while wards slow the wave."
+            status = "Codex is thinking while wards slow the wave."
             systemImage = "brain.head.profile"
             color = .blue
             return
         }
 
         guard let latest else {
-            title = "The arena is quiet"
-            detail = "Start a run to wake the dark expedition."
             systemImage = "moon.stars"
             color = .secondary
             return
@@ -113,17 +122,13 @@ private struct CinematicCaption {
 
         switch latest.status {
         case .running:
-            title = "\(spell.name) is being cast"
-            detail = Self.detail(for: latest) ?? "An enemy is closing in."
+            status = "\(spell.name) is being cast"
         case .completed:
-            title = "\(spell.name) landed"
-            detail = Self.detail(for: latest) ?? "The wave breaks for a moment."
+            status = "\(spell.name) landed"
         case .failed:
-            title = "The spell backfired"
-            detail = Self.detail(for: latest) ?? "The arena flashes red."
+            status = "The spell backfired"
         case .none:
-            title = latest.text.isEmpty ? "The expedition advances" : latest.text
-            detail = Self.detail(for: latest) ?? "The wizard watches the next gate."
+            status = Self.detail(for: latest)
         }
     }
 

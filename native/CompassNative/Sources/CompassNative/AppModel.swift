@@ -12,7 +12,13 @@ final class CompassProject: ObservableObject, Identifiable {
     @Published var vision = ""
     @Published var sessions: [SessionRecord] = []
     @Published var liveLog: [LiveLine] = []
-    @Published var phase: LoopPhase = .idle
+    @Published var phase: LoopPhase = .idle {
+        didSet {
+            guard oldValue != phase else { return }
+            scheduleCinematicBriefingRefresh(reason: .phaseChanged)
+        }
+    }
+    @Published var cinematicBriefing = CinematicBriefing.placeholder
     @Published var isRunning = false
     @Published var isAutoPlaying = false
     @Published var isPaused = false
@@ -30,6 +36,9 @@ final class CompassProject: ObservableObject, Identifiable {
 
     private var executor: CodexExecutor?
     private var stopRequested = false
+    private var cinematicBriefingTask: Task<Void, Never>?
+    private var lastCinematicBriefingInput: CinematicBriefingInput?
+    private var lastCinematicBriefingGeneratedAt = Date.distantPast
     private let maxDevelopAttempts = 3
     private let reflectSessionWindow = 10
 
@@ -43,7 +52,27 @@ final class CompassProject: ObservableObject, Identifiable {
         self.repoURL = repoURL.standardizedFileURL
         self.addedAt = addedAt
         self.lastOpenedAt = lastOpenedAt
+        cinematicBriefing = CinematicBriefingService.deterministicBriefing(
+            for: CinematicBriefingInput(
+                repoName: repoURL.lastPathComponent,
+                currentPhase: LoopPhase.idle.rawValue,
+                immediatePlanTitle: "No immediate plan",
+                completedCount: 0,
+                latestEvent: nil
+            )
+        )
     }
+
+    deinit {
+        cinematicBriefingTask?.cancel()
+    }
+}
+
+private enum CinematicBriefingRefreshReason {
+    case projectRefresh
+    case planAccepted
+    case phaseChanged
+    case liveEvent
 }
 
 private enum CodexBinaryLocator {
@@ -114,6 +143,7 @@ extension CompassProject {
             lessons = ""
             vision = ""
             sessions = []
+            scheduleCinematicBriefingRefresh(reason: .projectRefresh)
             return
         }
         do {
@@ -123,6 +153,7 @@ extension CompassProject {
                 lessons = ""
                 vision = ""
                 sessions = []
+                scheduleCinematicBriefingRefresh(reason: .projectRefresh)
                 return
             }
 
@@ -131,6 +162,7 @@ extension CompassProject {
             lessons = workspace.readLessons()
             vision = workspace.readVision()
             sessions = workspace.readSessions()
+            scheduleCinematicBriefingRefresh(reason: .projectRefresh)
         } catch {
             fail(error)
         }
@@ -387,6 +419,7 @@ extension CompassProject {
             try validatePlanTransition(from: currentState, to: nextState)
             try workspace.writeState(nextState)
             state = nextState
+            scheduleCinematicBriefingRefresh(reason: .planAccepted)
             log(
                 "Plan accepted: \(nextState.completed.count) completed, immediate: \(firstLine(nextState.immediate?.plan) ?? "none").",
                 level: .success
@@ -755,6 +788,7 @@ extension CompassProject {
         if let reflectedState = result.state {
             try workspace.writeState(reflectedState)
             state = reflectedState
+            scheduleCinematicBriefingRefresh(reason: .planAccepted)
             log("Reflect updated state.json: \(result.summary)", level: .success)
         } else {
             log("Reflect: \(result.summary)", level: .info)
@@ -1056,8 +1090,10 @@ extension CompassProject {
     private func log(_ text: String, level: LiveLine.Level) {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
-        liveLog.append(LiveLine(level: level, text: trimmed))
+        let line = LiveLine(level: level, text: trimmed)
+        liveLog.append(line)
         trimLiveLog()
+        scheduleCinematicBriefingRefreshIfMeaningful(line)
     }
 
     private func log(_ event: LiveEvent) {
@@ -1076,15 +1112,18 @@ extension CompassProject {
             liveLog[index].kind = event.kind
             liveLog[index].status = event.status
             liveLog[index].completedAt = Date()
+            scheduleCinematicBriefingRefreshIfMeaningful(liveLog[index])
         } else {
-            liveLog.append(LiveLine(
+            let line = LiveLine(
                 level: event.level,
                 text: title,
                 detail: detail?.isEmpty == false ? detail : nil,
                 kind: event.kind,
                 status: event.status,
                 correlationID: event.correlationID
-            ))
+            )
+            liveLog.append(line)
+            scheduleCinematicBriefingRefreshIfMeaningful(line)
         }
 
         trimLiveLog()
@@ -1093,6 +1132,73 @@ extension CompassProject {
     private func trimLiveLog() {
         if liveLog.count > 800 {
             liveLog.removeFirst(liveLog.count - 800)
+        }
+    }
+
+    private func scheduleCinematicBriefingRefreshIfMeaningful(_ line: LiveLine) {
+        guard isMeaningfulBriefingEvent(line) else { return }
+        scheduleCinematicBriefingRefresh(reason: .liveEvent)
+    }
+
+    private func scheduleCinematicBriefingRefresh(reason: CinematicBriefingRefreshReason) {
+        let input = makeCinematicBriefingInput()
+        guard input != lastCinematicBriefingInput else { return }
+        lastCinematicBriefingInput = input
+
+        cinematicBriefingTask?.cancel()
+        let delay = cinematicBriefingDelay(for: reason)
+        cinematicBriefingTask = Task { @MainActor [weak self, input, delay] in
+            if delay > 0 {
+                let nanoseconds = UInt64(delay * 1_000_000_000)
+                try? await Task.sleep(nanoseconds: nanoseconds)
+            }
+
+            guard !Task.isCancelled, let self else { return }
+            lastCinematicBriefingGeneratedAt = Date()
+            let briefing = await CinematicBriefingService.makeBriefing(input: input)
+            guard !Task.isCancelled else { return }
+            cinematicBriefing = briefing
+        }
+    }
+
+    private func makeCinematicBriefingInput() -> CinematicBriefingInput {
+        CinematicBriefingInput(
+            repoName: displayName,
+            currentPhase: (isPaused ? LoopPhase.paused : phase).rawValue,
+            immediatePlanTitle: immediateTitle,
+            completedCount: state.completed.count,
+            latestEvent: liveLog.last.map(CinematicBriefingEvent.init(line:))
+        )
+    }
+
+    private func cinematicBriefingDelay(for reason: CinematicBriefingRefreshReason) -> TimeInterval {
+        switch reason {
+        case .projectRefresh, .planAccepted, .phaseChanged:
+            return 0.25
+        case .liveEvent:
+            let cadenceDelay = max(0, 8 - Date().timeIntervalSince(lastCinematicBriefingGeneratedAt))
+            return max(0.8, cadenceDelay)
+        }
+    }
+
+    private func isMeaningfulBriefingEvent(_ line: LiveLine) -> Bool {
+        switch line.kind {
+        case .command, .agentMessage, .fileChange, .lifecycle:
+            return true
+        case .message:
+            switch line.level {
+            case .success, .warning, .error:
+                return true
+            case .info:
+                let text = line.text.lowercased()
+                return text.contains("plan")
+                    || text.contains("develop")
+                    || text.contains("verify")
+                    || text.contains("reflect")
+                    || text.contains("workspace")
+            case .raw:
+                return false
+            }
         }
     }
 
