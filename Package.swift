@@ -8,12 +8,11 @@ let package = Package(
         .macOS("15.0")
     ],
     products: [
-        .executable(name: "Compass", targets: ["CompassNative"])
+        .executable(name: "Compass", targets: ["Compass"])
     ],
     targets: [
         .executableTarget(
-            name: "CompassNative",
-            path: "Sources/CompassNative",
+            name: "Compass",
             resources: [
                 .process("Resources")
             ]
