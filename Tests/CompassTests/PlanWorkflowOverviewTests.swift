@@ -69,6 +69,7 @@ final class PlanWorkflowOverviewTests: XCTestCase {
         XCTAssertEqual(overview.immediate.body, "")
         XCTAssertNil(overview.immediate.excerpt)
         XCTAssertNil(overview.immediate.verifyCommand)
+        XCTAssertNil(overview.immediate.verifyTimeoutLabel)
         XCTAssertNil(overview.immediate.estimatedDifficulty)
         XCTAssertEqual(overview.midTerm.excerpt, "- Later work")
         XCTAssertEqual(overview.longTerm.excerpt, "Long arc")
@@ -127,6 +128,56 @@ final class PlanWorkflowOverviewTests: XCTestCase {
         XCTAssertEqual(overview.immediate.verifyCommand, "swift test --filter PlanWorkflowOverviewTests")
         XCTAssertEqual(overview.immediate.estimatedDifficulty, .high)
         XCTAssertEqual(overview.immediate.estimatedDifficultyLabel, "High")
+    }
+
+    func testVerifyTimeoutMetadataFormatsExplicitSeconds() {
+        let metadata = PlanVerifyMetadata(timeoutMs: 90_000)
+
+        XCTAssertEqual(metadata.label, "Timeout 90s")
+    }
+
+    func testVerifyTimeoutMetadataFormatsExplicitMinutes() {
+        let metadata = PlanVerifyMetadata(timeoutMs: 600_000)
+
+        XCTAssertEqual(metadata.label, "Timeout 10m")
+    }
+
+    func testVerifyTimeoutMetadataLabelsDefaultTimeout() {
+        let metadata = PlanVerifyMetadata(timeoutMs: nil)
+
+        XCTAssertEqual(metadata.label, "Default timeout 10m")
+    }
+
+    func testSectionPropagatesVerifyTimeoutMetadataOnlyForImmediatePlan() {
+        let overview = PlanWorkflowOverview(
+            state: makeState(
+                immediate: PlanNext(
+                    plan: "Implement the slice",
+                    verify: "swift test --filter PlanWorkflowOverviewTests",
+                    verifyTimeoutMs: 90_000,
+                    estimatedDifficulty: .medium
+                ),
+                midTerm: "Queue",
+                longTerm: "Arc"
+            )
+        )
+
+        XCTAssertEqual(overview.immediate.verifyTimeoutLabel, "Timeout 90s")
+        XCTAssertEqual(overview.sections.map(\.verifyTimeoutLabel), ["Timeout 90s", nil, nil])
+    }
+
+    func testSectionPropagatesDefaultVerifyTimeoutMetadataForImmediatePlan() {
+        let overview = PlanWorkflowOverview(
+            state: makeState(
+                immediate: PlanNext(
+                    plan: "Implement the slice",
+                    verify: "swift test --filter PlanWorkflowOverviewTests",
+                    estimatedDifficulty: .low
+                )
+            )
+        )
+
+        XCTAssertEqual(overview.immediate.verifyTimeoutLabel, "Default timeout 10m")
     }
 
     func testPreservesCompletedCountMetadata() {

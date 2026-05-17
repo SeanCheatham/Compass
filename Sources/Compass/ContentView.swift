@@ -713,6 +713,10 @@ private struct PlanWorkflowMetadataRow: View {
                 metadataLabel("No verify command", systemImage: "checkmark.seal")
             }
 
+            if let timeoutLabel = section.verifyTimeoutLabel {
+                metadataLabel(timeoutLabel, systemImage: "timer")
+            }
+
             if let difficulty = section.estimatedDifficultyLabel {
                 metadataLabel(difficulty, systemImage: "gauge.with.dots.needle.bottom.50percent")
             } else if section.kind == .immediate {
@@ -861,10 +865,18 @@ private struct PlanFocusPanel: View {
 
                 Spacer()
 
-                if let metadata = item.metadata {
-                    Text(metadata)
-                        .font(.caption.monospacedDigit())
-                        .foregroundStyle(.secondary)
+                if item.metadata != nil || item.verifyTimeoutLabel != nil {
+                    HStack(spacing: 6) {
+                        if let metadata = item.metadata {
+                            Text(metadata)
+                        }
+
+                        if let timeoutLabel = item.verifyTimeoutLabel {
+                            Label(timeoutLabel, systemImage: "timer")
+                        }
+                    }
+                    .font(.caption.monospacedDigit())
+                    .foregroundStyle(.secondary)
                 }
             }
 
@@ -1086,6 +1098,7 @@ private struct PlanTimelineItem: Identifiable, Equatable {
     var title: String
     var body: String
     var verify: String?
+    var verifyTimeoutLabel: String?
     var metadata: String?
     var emptyMessage: String
 
@@ -1116,6 +1129,7 @@ private struct PlanTimelineItem: Identifiable, Equatable {
             title: "Immediate",
             body: state.immediate?.plan ?? "",
             verify: state.immediate?.verify,
+            verifyTimeoutLabel: state.immediate.map { PlanVerifyMetadata(timeoutMs: $0.verifyTimeoutMs).label },
             metadata: state.immediate?.estimatedDifficulty?.rawValue.capitalized,
             emptyMessage: "No immediate plan."
         )

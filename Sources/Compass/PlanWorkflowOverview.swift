@@ -1,5 +1,29 @@
 import Foundation
 
+struct PlanVerifyMetadata: Equatable {
+    static let defaultTimeoutMs = 10 * 60 * 1000
+
+    var timeoutMs: Int?
+
+    var label: String {
+        let explicitTimeoutMs = timeoutMs.flatMap { $0 > 0 ? $0 : nil }
+        let displayTimeoutMs = explicitTimeoutMs ?? Self.defaultTimeoutMs
+        let prefix = explicitTimeoutMs == nil ? "Default timeout" : "Timeout"
+
+        return "\(prefix) \(Self.compactDurationLabel(for: displayTimeoutMs))"
+    }
+
+    private static func compactDurationLabel(for timeoutMs: Int) -> String {
+        let seconds = max(1, timeoutMs / 1000 + (timeoutMs % 1000 == 0 ? 0 : 1))
+
+        if seconds >= 60, seconds % 60 == 0 {
+            return "\(seconds / 60)m"
+        }
+
+        return "\(seconds)s"
+    }
+}
+
 struct PlanWorkflowOverview: Equatable {
     static let defaultExcerptLimit = 220
 
@@ -22,6 +46,7 @@ struct PlanWorkflowOverview: Equatable {
             rawBody: state.immediate?.plan ?? "",
             emptyMessage: "No immediate plan. The factory is ready for the next scoped implementation.",
             verifyCommand: state.immediate?.verify,
+            verifyTimeoutLabel: state.immediate.map { PlanVerifyMetadata(timeoutMs: $0.verifyTimeoutMs).label },
             estimatedDifficulty: state.immediate?.estimatedDifficulty,
             completedCount: completedCount,
             excerptLimit: excerptLimit
@@ -57,6 +82,7 @@ struct PlanWorkflowOverview: Equatable {
         var excerpt: String?
         var emptyMessage: String
         var verifyCommand: String?
+        var verifyTimeoutLabel: String?
         var estimatedDifficulty: PlanNext.Difficulty?
         var completedCount: Int
 
@@ -78,6 +104,7 @@ struct PlanWorkflowOverview: Equatable {
             rawBody: String,
             emptyMessage: String,
             verifyCommand: String? = nil,
+            verifyTimeoutLabel: String? = nil,
             estimatedDifficulty: PlanNext.Difficulty? = nil,
             completedCount: Int,
             excerptLimit: Int
@@ -91,6 +118,7 @@ struct PlanWorkflowOverview: Equatable {
             self.excerpt = PlanWorkflowOverview.boundedExcerpt(for: body, limit: excerptLimit)
             self.emptyMessage = emptyMessage
             self.verifyCommand = verifyCommand?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
+            self.verifyTimeoutLabel = verifyTimeoutLabel
             self.estimatedDifficulty = estimatedDifficulty
             self.completedCount = completedCount
         }
