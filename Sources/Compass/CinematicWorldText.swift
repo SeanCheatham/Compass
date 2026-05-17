@@ -28,6 +28,7 @@ struct CinematicWorldTextInput: Equatable {
     var immediatePlanTitle: String
     var completedCount: Int
     var latestEvent: CinematicBriefingEvent?
+    var latestCommitSubject: String? = nil
     var languageProfile: RepositoryLanguageProfile
     var activityProfile: RepositoryActivityProfile
 }
@@ -63,6 +64,8 @@ enum CinematicWorldTextService {
         )
         let eventCue = latestEventCue(
             event: input.latestEvent,
+            latestCommitSubject: input.latestCommitSubject,
+            activityKind: activityMotif.eventKind,
             phase: input.currentPhase,
             completedCount: input.completedCount
         )
@@ -173,9 +176,19 @@ enum CinematicWorldTextService {
 
     private static func latestEventCue(
         event: CinematicBriefingEvent?,
+        latestCommitSubject: String?,
+        activityKind: CinematicActivityEventKind,
         phase: String,
         completedCount: Int
     ) -> String {
+        if activityKind == .commit,
+           let latestCommitSubject = CinematicCommitContext.displaySubject(from: latestCommitSubject) {
+            let cue = boundedDisplayText(latestCommitSubject, maxCharacters: 34, maxWords: 5, fallback: "")
+            if !cue.isEmpty {
+                return cue
+            }
+        }
+
         if let event {
             let cue = boundedDisplayText(event.shortText, maxCharacters: 30, maxWords: 5, fallback: "")
             if !cue.isEmpty {
@@ -356,7 +369,7 @@ private enum FoundationModelCinematicWorldTextGenerator {
         Arena: ...
         Activity: ...
         Keep each line plain text. No markdown, URLs, JSON, code, bullets, quotes, or invented files.
-        Use only the supplied repository, phase, plan, language motif, activity motif, and live event.
+        Use only the supplied repository, phase, plan, language motif, activity motif, live event, and commit subject.
         """)
 
         let response = try await session.respond(
@@ -366,6 +379,7 @@ private enum FoundationModelCinematicWorldTextGenerator {
             Immediate plan: \(input.immediatePlanTitle)
             Completed count: \(input.completedCount)
             Latest live event: \(input.latestEvent?.promptText ?? "none")
+            Latest commit subject: \(CinematicCommitContext.displaySubject(from: input.latestCommitSubject) ?? "none")
             Language: \(input.languageProfile.primaryLanguage.displayName)
             Language motif: \(languageMotif.sigilIdentifier)
             Activity motif: \(activityMotif.sigilIdentifier)
@@ -375,6 +389,7 @@ private enum FoundationModelCinematicWorldTextGenerator {
             Quest under \(CinematicWorldTextService.questLabelMaxWords) words.
             Arena under \(CinematicWorldTextService.arenaCalloutMaxWords) words.
             Activity under \(CinematicWorldTextService.activityCalloutMaxWords) words.
+            If a latest commit subject is present, use that exact subject for history or progress activity.
             """,
             options: GenerationOptions(temperature: 0.45, maximumResponseTokens: 90)
         )

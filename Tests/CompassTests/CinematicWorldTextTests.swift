@@ -93,6 +93,18 @@ final class CinematicWorldTextDeterministicTests: XCTestCase {
         XCTAssertEqual(text.activityCallout, "Calm halo: Developing 2 milestones")
     }
 
+    func testFallbackUsesLatestCommitSubjectForActivityCopy() {
+        let text = CinematicWorldTextService.deterministicWorldText(
+            for: worldTextInput(
+                activityProfile: activityProfile(recentCommitCount: 1),
+                latestCommitSubject: "Ship commit-aware cinematic copy"
+            )
+        )
+
+        XCTAssertEqual(text.activityCallout, "History branch: Ship commit-aware cinematic copy")
+        assertWorldTextBounds(text, file: #filePath, line: #line)
+    }
+
     func testFallbackBoundsUnusualShortWordsAndUnsafeSignals() {
         let event = CinematicBriefingEvent(
             line: LiveLine(
@@ -229,6 +241,10 @@ final class CinematicWorldTextInputTests: XCTestCase {
             )
         )
         XCTAssertNotEqual(base, eventChanged)
+
+        var commitChanged = base
+        commitChanged.latestCommitSubject = "Ship commit-aware copy"
+        XCTAssertNotEqual(base, commitChanged)
     }
 }
 
@@ -239,7 +255,8 @@ private func worldTextInput(
     completedCount: Int = 2,
     language: RepositoryLanguage = .swift,
     activityProfile: RepositoryActivityProfile,
-    latestEvent: CinematicBriefingEvent? = nil
+    latestEvent: CinematicBriefingEvent? = nil,
+    latestCommitSubject: String? = nil
 ) -> CinematicWorldTextInput {
     CinematicWorldTextInput(
         repoName: repoName,
@@ -247,6 +264,7 @@ private func worldTextInput(
         immediatePlanTitle: plan,
         completedCount: completedCount,
         latestEvent: latestEvent,
+        latestCommitSubject: latestCommitSubject,
         languageProfile: languageProfile(primaryLanguage: language),
         activityProfile: activityProfile
     )

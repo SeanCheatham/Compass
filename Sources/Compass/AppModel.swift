@@ -1217,12 +1217,14 @@ extension CompassProject {
     }
 
     private func makeCinematicRefreshInput() -> CinematicRefreshInput {
+        let latestCommitSubject = CinematicCommitContext.latestSubject(from: sessions)
         let briefing = CinematicBriefingInput(
             repoName: displayName,
             currentPhase: (isPaused ? LoopPhase.paused : phase).rawValue,
             immediatePlanTitle: immediateTitle,
             completedCount: state.completed.count,
-            latestEvent: liveLog.last.map(CinematicBriefingEvent.init(line:))
+            latestEvent: liveLog.last.map(CinematicBriefingEvent.init(line:)),
+            latestCommitSubject: latestCommitSubject
         )
         return CinematicRefreshInput(
             briefing: briefing,
@@ -1232,6 +1234,7 @@ extension CompassProject {
                 immediatePlanTitle: briefing.immediatePlanTitle,
                 completedCount: briefing.completedCount,
                 latestEvent: briefing.latestEvent,
+                latestCommitSubject: briefing.latestCommitSubject,
                 languageProfile: languageProfile,
                 activityProfile: activityProfile
             )

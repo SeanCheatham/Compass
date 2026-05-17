@@ -89,6 +89,48 @@ final class CinematicBriefingDeterministicTests: XCTestCase {
             briefing.detail.contains("Latest signal: Generated tests for cinematic briefing.")
         )
     }
+
+    func testFallbackIncludesBoundedLatestCommitSubject() {
+        let briefing = CinematicBriefingService.deterministicBriefing(
+            for: CinematicBriefingInput(
+                repoName: "Compass",
+                currentPhase: "Developing",
+                immediatePlanTitle: "Add commit-aware cinematic copy",
+                completedCount: 5,
+                latestEvent: nil,
+                latestCommitSubject: #"Add [unsafe] `HUD` {"json":true} details at https://example.com with a deliberately overflowing subject line"#
+            )
+        )
+
+        XCTAssertLessThanOrEqual(briefing.detail.count, CinematicBriefingService.detailMaxCharacters)
+        XCTAssertTrue(briefing.detail.contains("Latest commit: Add unsafe HUD json:true details"))
+        XCTAssertFalse(briefing.detail.contains("https://"))
+        XCTAssertFalse(briefing.detail.contains("["))
+        XCTAssertFalse(briefing.detail.contains("]"))
+        XCTAssertFalse(briefing.detail.contains("`"))
+        XCTAssertFalse(briefing.detail.contains("{"))
+        XCTAssertFalse(briefing.detail.contains("}"))
+        XCTAssertFalse(briefing.detail.contains("\""))
+    }
+}
+
+final class CinematicBriefingInputTests: XCTestCase {
+    func testInputEqualityIncludesLatestCommitSubject() {
+        let base = CinematicBriefingInput(
+            repoName: "Compass",
+            currentPhase: "Developing",
+            immediatePlanTitle: "Add commit-aware cinematic copy",
+            completedCount: 2,
+            latestEvent: nil,
+            latestCommitSubject: "Ship commit-aware copy"
+        )
+
+        XCTAssertEqual(base, base)
+
+        var changed = base
+        changed.latestCommitSubject = "Refine world-text copy"
+        XCTAssertNotEqual(base, changed)
+    }
 }
 
 final class CinematicBriefingEventTests: XCTestCase {

@@ -53,6 +53,7 @@ struct CinematicBriefingInput: Equatable, Sendable {
     var immediatePlanTitle: String
     var completedCount: Int
     var latestEvent: CinematicBriefingEvent?
+    var latestCommitSubject: String? = nil
 }
 
 enum CinematicBriefingService {
@@ -85,6 +86,8 @@ enum CinematicBriefingService {
         let eventClause: String
         if let latest = input.latestEvent?.shortText, !latest.isEmpty {
             eventClause = "Latest signal: \(latest)."
+        } else if let latestCommitSubject = CinematicCommitContext.displaySubject(from: input.latestCommitSubject) {
+            eventClause = "Latest commit: \(latestCommitSubject)."
         } else {
             eventClause = "Awaiting the first live signal."
         }
@@ -235,7 +238,7 @@ private enum FoundationModelCinematicBriefingGenerator {
         You write bounded cinematic quest HUD copy for a macOS software factory.
         Return exactly two short lines: "Title: ..." and "Detail: ...".
         The title must include the repository name or the plan topic.
-        Do not invent files, outcomes, people, metrics, markdown, or JSON.
+        Do not invent files, outcomes, people, metrics, commit subjects, markdown, or JSON.
         """)
 
         let response = try await session.respond(
@@ -245,8 +248,10 @@ private enum FoundationModelCinematicBriefingGenerator {
             Immediate plan: \(input.immediatePlanTitle)
             Completed count: \(input.completedCount)
             Latest live event: \(input.latestEvent?.promptText ?? "none")
+            Latest commit subject: \(CinematicCommitContext.displaySubject(from: input.latestCommitSubject) ?? "none")
 
             Write a title under 10 words and a detail under 24 words.
+            If a latest commit subject is present, you may reference that exact subject as recent progress.
             """,
             options: GenerationOptions(temperature: 0.55, maximumResponseTokens: 80)
         )

@@ -61,7 +61,7 @@ final class CinematicSetDressingPlanTests: XCTestCase {
         )
         XCTAssertEqual(
             Set(activityPlans.map(\.activityMarker.identifier)).count,
-            CinematicDiagnostics.representativeActivityCases().count
+            CinematicDiagnostics.representativeActivityCases().filter { $0.hasRepository }.count
         )
         XCTAssertTrue(
             Set(activityPlans.map(\.activityMarker.pressureLevelIdentifier))

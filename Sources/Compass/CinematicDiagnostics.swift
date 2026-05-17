@@ -1329,6 +1329,7 @@ enum CinematicDiagnostics {
             immediateTitle: project.immediateTitle,
             completedCount: project.state.completed.count,
             latestEvent: project.liveLog.last.map(CinematicBriefingEvent.init(line:)),
+            latestCommitSubject: CinematicCommitContext.latestSubject(from: project.sessions),
             languageProfile: project.languageProfile,
             activityProfile: project.activityProfile,
             influenceSettings: project.cinematicInfluenceSettings,
@@ -1345,6 +1346,7 @@ enum CinematicDiagnostics {
         immediateTitle: String,
         completedCount: Int,
         latestEvent: CinematicBriefingEvent?,
+        latestCommitSubject: String? = nil,
         languageProfile: RepositoryLanguageProfile,
         activityProfile: RepositoryActivityProfile,
         influenceSettings: CinematicInfluenceSettings,
@@ -1361,7 +1363,8 @@ enum CinematicDiagnostics {
                 currentPhase: phase,
                 immediatePlanTitle: immediateTitle,
                 completedCount: completedCount,
-                latestEvent: latestEvent
+                latestEvent: latestEvent,
+                latestCommitSubject: latestCommitSubject
             )
         )
         let worldText = CinematicWorldTextService.deterministicWorldText(
@@ -1371,6 +1374,7 @@ enum CinematicDiagnostics {
                 immediatePlanTitle: immediateTitle,
                 completedCount: completedCount,
                 latestEvent: latestEvent,
+                latestCommitSubject: latestCommitSubject,
                 languageProfile: languageProfile,
                 activityProfile: activityProfile
             )
