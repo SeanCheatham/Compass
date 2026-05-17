@@ -1,6 +1,6 @@
 import Foundation
 
-enum CinematicCameraShot: CaseIterable {
+enum CinematicCameraShot: CaseIterable, Equatable {
     case home
     case wide
     case castPrep
@@ -9,6 +9,27 @@ enum CinematicCameraShot: CaseIterable {
     case overhead
     case failure
     case victory
+
+    var identifier: String {
+        switch self {
+        case .home:
+            return "home"
+        case .wide:
+            return "wide"
+        case .castPrep:
+            return "cast-prep"
+        case .overShoulder:
+            return "over-shoulder"
+        case .impact:
+            return "impact"
+        case .overhead:
+            return "overhead"
+        case .failure:
+            return "failure"
+        case .victory:
+            return "victory"
+        }
+    }
 
     var position: SIMD3<Float> {
         switch self {
