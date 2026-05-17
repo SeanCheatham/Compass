@@ -75,6 +75,7 @@ struct CinematicCommitConstellationPlan: Equatable {
     static let positionXRange: ClosedRange<Float> = -3.2...3.2
     static let positionYRange: ClosedRange<Float> = 1.24...2.86
     static let positionZRange: ClosedRange<Float> = -6.15...(-5.05)
+    static let fallbackFocusLookTarget = SIMD3<Float>(0, 1.7, -4.9)
 
     static let empty = CinematicCommitConstellationPlan(
         identifier: "commit-constellation.empty",
@@ -91,6 +92,36 @@ struct CinematicCommitConstellationPlan: Equatable {
     var isEmpty: Bool { nodes.isEmpty }
     var nodeIdentifiers: [String] { nodes.map(\.stableID) }
     var branchIdentifiers: [String] { branchSegments.map(\.stableID) }
+    var focusPlan: FocusPlan {
+        guard let newestNode = nodes.first else {
+            return FocusPlan(
+                identifier: "commit-constellation-focus.empty",
+                shot: .home,
+                lookTarget: Self.fallbackFocusLookTarget,
+                isFallback: true
+            )
+        }
+
+        let lookTarget = newestNode.position
+        return FocusPlan(
+            identifier: [
+                "commit-constellation-focus",
+                "shot:\(CinematicCameraShot.commitConstellation.identifier)",
+                "newest:\(newestNode.stableID)",
+                "plan:\(identifier)"
+            ].joined(separator: "|"),
+            shot: .commitConstellation,
+            lookTarget: lookTarget,
+            isFallback: false
+        )
+    }
+
+    struct FocusPlan: Equatable {
+        var identifier: String
+        var shot: CinematicCameraShot
+        var lookTarget: SIMD3<Float>
+        var isFallback: Bool
+    }
 
     struct Node: Equatable {
         var stableID: String

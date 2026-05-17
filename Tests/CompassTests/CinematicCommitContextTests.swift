@@ -189,6 +189,36 @@ final class CinematicCommitContextTests: XCTestCase {
         XCTAssertTrue(unavailablePlan.branchIdentifiers.isEmpty)
     }
 
+    func testConstellationFocusPlanUsesFallbackForEmptyAndNewestNodeForNonEmpty() throws {
+        let emptyFocus = CinematicCommitConstellationPlan.empty.focusPlan
+
+        XCTAssertTrue(emptyFocus.isFallback)
+        XCTAssertEqual(emptyFocus.shot, .home)
+        XCTAssertEqual(emptyFocus.lookTarget, CinematicCommitConstellationPlan.fallbackFocusLookTarget)
+        XCTAssertEqual(emptyFocus.identifier, "commit-constellation-focus.empty")
+
+        let plan = CinematicCommitConstellationPlan(
+            sessions: [
+                makeSession(
+                    1,
+                    startedAt: 100,
+                    endedAt: 200,
+                    commits: [
+                        makeCommit(subject: "Older constellation anchor"),
+                        makeCommit(subject: "Newest constellation anchor")
+                    ]
+                )
+            ]
+        )
+        let focus = plan.focusPlan
+
+        XCTAssertFalse(focus.isFallback)
+        XCTAssertEqual(focus.shot, .commitConstellation)
+        XCTAssertEqual(focus.lookTarget, try XCTUnwrap(plan.nodes.first).position)
+        XCTAssertTrue(focus.identifier.contains(plan.identifier))
+        XCTAssertTrue(focus.identifier.contains(plan.nodes[0].stableID))
+    }
+
     func testDiagnosticsExposeCommitConstellationSnapshotAndSummaryRow() throws {
         let plan = CinematicCommitConstellationPlan(
             sessions: [
@@ -220,14 +250,21 @@ final class CinematicCommitContextTests: XCTestCase {
         XCTAssertEqual(report.commitConstellation.newestSubject, "Render branch trails")
         XCTAssertEqual(report.commitConstellation.nodeIdentifiers, plan.nodeIdentifiers)
         XCTAssertEqual(report.commitConstellation.branchIdentifiers, plan.branchIdentifiers)
+        XCTAssertEqual(report.commitConstellation.focusIdentifier, plan.focusPlan.identifier)
+        XCTAssertEqual(report.commitConstellation.focusShotIdentifier, CinematicCameraShot.commitConstellation.identifier)
+        XCTAssertEqual(report.commitConstellation.focusLookTarget, plan.focusPlan.lookTarget)
+        XCTAssertFalse(report.commitConstellation.usesFallbackFocus)
         XCTAssertTrue(report.identifier.contains(plan.identifier))
+        XCTAssertTrue(report.identifier.contains(plan.focusPlan.identifier))
 
         let summary = CinematicDiagnosticsSummary(report: report)
         let row = try XCTUnwrap(summary.rows.first { $0.id == "commit-constellation" })
         XCTAssertEqual(row.label, "Commit constellation")
         XCTAssertTrue(row.detail.contains("count 2"))
         XCTAssertTrue(row.detail.contains(plan.nodes[0].stableID))
+        XCTAssertTrue(row.detail.contains("shot commit-constellation"))
         XCTAssertTrue(summary.exportText.contains("Commit constellation:"))
+        XCTAssertTrue(summary.exportText.contains(plan.focusPlan.identifier))
         XCTAssertTrue(summary.exportText.contains(plan.branchSegments[0].stableID))
     }
 
@@ -250,17 +287,38 @@ final class CinematicCommitContextTests: XCTestCase {
             languageProfile: .empty,
             activityProfile: .empty
         )
+        let firstPlan = CinematicCommitConstellationPlan(
+            sessions: [
+                makeSession(
+                    1,
+                    startedAt: 100,
+                    endedAt: 200,
+                    commits: [makeCommit(subject: "Render branch trails")]
+                )
+            ]
+        )
+        let secondPlan = CinematicCommitConstellationPlan(
+            sessions: [
+                makeSession(
+                    2,
+                    startedAt: 200,
+                    endedAt: 300,
+                    commits: [makeCommit(subject: "Focus new constellation node")]
+                )
+            ]
+        )
         let first = CinematicRefreshInput(
             briefing: briefing,
             worldText: worldText,
-            commitConstellationIdentifier: "commit-constellation|nodes:a"
+            commitConstellationIdentifier: firstPlan.focusPlan.identifier
         )
         let second = CinematicRefreshInput(
             briefing: briefing,
             worldText: worldText,
-            commitConstellationIdentifier: "commit-constellation|nodes:a,b"
+            commitConstellationIdentifier: secondPlan.focusPlan.identifier
         )
 
+        XCTAssertNotEqual(firstPlan.focusPlan.identifier, secondPlan.focusPlan.identifier)
         XCTAssertNotEqual(first, second)
         XCTAssertEqual(first, first)
     }

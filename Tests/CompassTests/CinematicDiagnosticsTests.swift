@@ -164,13 +164,20 @@ final class CinematicDiagnosticsTests: XCTestCase {
         )
     }
 
-    func testReportContainsEveryCameraShotAndCameraTuningValue() {
+    func testReportContainsEveryCameraShotAndCameraTuningValue() throws {
         let settings = CinematicInfluenceSettings(cameraStyle: .steady, intensity: 0.25)
         let report = CinematicDiagnostics.representativeSmokeMatrix(influenceSettings: settings).first!
 
         XCTAssertEqual(
             report.cameraSnapshots.map(\.shotIdentifier),
             CinematicCameraShot.allCases.map(\.identifier)
+        )
+        let commitConstellationShot = try XCTUnwrap(
+            report.cameraSnapshots.first { $0.shotIdentifier == CinematicCameraShot.commitConstellation.identifier }
+        )
+        XCTAssertEqual(
+            commitConstellationShot.position,
+            CinematicTuning.cameraPosition(for: .commitConstellation, settings: settings)
         )
         XCTAssertEqual(Set(report.cameraSnapshots.map(\.identifier)).count, CinematicCameraShot.allCases.count)
         XCTAssertEqual(report.cameraTuning.orbitScale, CinematicTuning.cameraOrbitScale(settings: settings))
@@ -310,6 +317,7 @@ final class CinematicDiagnosticsTests: XCTestCase {
                 "camera-shot-over-shoulder",
                 "camera-shot-impact",
                 "camera-shot-overhead",
+                "camera-shot-commit-constellation",
                 "camera-shot-failure",
                 "camera-shot-victory"
             ]
@@ -374,6 +382,7 @@ final class CinematicDiagnosticsTests: XCTestCase {
                     "camera-shot-over-shoulder",
                     "camera-shot-impact",
                     "camera-shot-overhead",
+                    "camera-shot-commit-constellation",
                     "camera-shot-failure",
                     "camera-shot-victory"
                 ]
@@ -440,7 +449,7 @@ final class CinematicDiagnosticsTests: XCTestCase {
         XCTAssertTrue(summary.exportText.contains("Narrative/overlay (6 rows)"))
         XCTAssertTrue(summary.exportText.contains("Assets/textures (2 rows)"))
         XCTAssertTrue(summary.exportText.contains("Tuning (4 rows)"))
-        XCTAssertTrue(summary.exportText.contains("Camera shots (8 rows)"))
+        XCTAssertTrue(summary.exportText.contains("Camera shots (9 rows)"))
         XCTAssertTrue(summary.exportText.contains("Visual smoke (pass, 7 checks)"))
         XCTAssertTrue(summary.exportText.contains("Overlay fallback: pass"))
         XCTAssertTrue(summary.exportText.contains(report.languageMotif.sigilIdentifier))

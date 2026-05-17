@@ -7,6 +7,7 @@ enum CinematicCameraShot: CaseIterable, Equatable {
     case overShoulder
     case impact
     case overhead
+    case commitConstellation
     case failure
     case victory
 
@@ -24,6 +25,8 @@ enum CinematicCameraShot: CaseIterable, Equatable {
             return "impact"
         case .overhead:
             return "overhead"
+        case .commitConstellation:
+            return "commit-constellation"
         case .failure:
             return "failure"
         case .victory:
@@ -45,6 +48,8 @@ enum CinematicCameraShot: CaseIterable, Equatable {
             return [2.1, 2.85, 4.75]
         case .overhead:
             return [0, 8.9, 3.6]
+        case .commitConstellation:
+            return [0.25, 3.45, 1.15]
         case .failure:
             return [0.55, 2.05, 3.55]
         case .victory:
@@ -60,6 +65,8 @@ enum CinematicCameraShot: CaseIterable, Equatable {
             return 35
         case .overhead:
             return 48
+        case .commitConstellation:
+            return 44
         case .victory:
             return 50
         case .home, .wide:
@@ -75,6 +82,8 @@ enum CinematicCameraShot: CaseIterable, Equatable {
             return 0.48
         case .victory:
             return 1.2
+        case .commitConstellation:
+            return 0.72
         case .home, .wide, .overhead:
             return 0.82
         }

@@ -211,6 +211,11 @@ private enum DefensiveSpell {
 private final class CinematicSceneCoordinator {
     let projectID: UUID
 
+    private enum CameraFollowSource {
+        case liveCommandOrFile
+        case stageAction
+    }
+
     private let root = Entity()
     private let cameraEntity = Entity()
     private let wizardNode = Entity()
@@ -291,6 +296,10 @@ private final class CinematicSceneCoordinator {
     private var currentPhasePolishPlan: CinematicStagePhasePolishPlan?
     private var currentNarrativeCuePlan: CinematicSceneNarrativeCuePlan?
     private var currentCommitConstellationPlan = CinematicCommitConstellationPlan.empty
+    private var pendingCommitConstellationFocusPlan: CinematicCommitConstellationPlan.FocusPlan?
+    private var activeCommitConstellationFocusPlan: CinematicCommitConstellationPlan.FocusPlan?
+    private var commitConstellationFocusUntil = Date.distantPast
+    private var followCameraSource: CameraFollowSource?
     private var fractureAccentNodes: [Entity] = []
     private var phaseStaffOrientation = simd_quatf(angle: 0.18, axis: SIMD3<Float>(0, 0, 1))
     private var phaseLeftArmOrientation = simd_quatf(angle: 0.44, axis: SIMD3<Float>(0, 0, 1))
@@ -393,6 +402,7 @@ private final class CinematicSceneCoordinator {
             }
             refreshAtmosphere(animated: false)
             applyCommitConstellationPlan(commitConstellationPlan, animated: false)
+            stagePendingCommitConstellationFocusIfPossible(lines: lines, animated: false)
             let baseline = phaseLightBaseline(for: phase)
             setPhaseLight(color: themedColor(baseline.color), intensity: baseline.intensity)
             return
@@ -436,6 +446,7 @@ private final class CinematicSceneCoordinator {
         if commitConstellationChanged {
             applyCommitConstellationPlan(commitConstellationPlan, animated: hasBuiltScene)
         }
+        stagePendingCommitConstellationFocusIfPossible(lines: lines, animated: hasBuiltScene)
     }
 
     func stop() {
@@ -1145,7 +1156,11 @@ private final class CinematicSceneCoordinator {
                 stageCamera(.overShoulder)
                 chargeArena(color: spell.nsColor)
                 let enemy = spawnEnemy(for: line.id, spell: spell, persistent: true)
-                trackTarget(enemy.position(relativeTo: nil), duration: 1.8)
+                trackTarget(
+                    enemy.position(relativeTo: nil),
+                    duration: 1.8,
+                    source: .liveCommandOrFile
+                )
             } else if line.kind == .lifecycle {
                 stageCamera(.wide)
                 portalPulse(color: spell.nsColor)
@@ -2709,10 +2724,14 @@ private final class CinematicSceneCoordinator {
         clearChildren(of: commitConstellationRoot)
 
         guard !plan.isEmpty else {
+            pendingCommitConstellationFocusPlan = nil
+            activeCommitConstellationFocusPlan = nil
+            commitConstellationFocusUntil = .distantPast
             setOpacity(0, on: commitConstellationRoot)
             return
         }
 
+        pendingCommitConstellationFocusPlan = plan.focusPlan
         commitConstellationRoot.position = .zero
         commitConstellationRoot.orientation = simd_quatf()
         setOpacity(0.94, on: commitConstellationRoot)
@@ -2744,6 +2763,29 @@ private final class CinematicSceneCoordinator {
             )
         } else {
             commitConstellationRoot.scale = SIMD3<Float>(repeating: 1)
+        }
+    }
+
+    private func stagePendingCommitConstellationFocusIfPossible(
+        lines: [LiveLine],
+        animated: Bool
+    ) {
+        guard let focusPlan = pendingCommitConstellationFocusPlan else { return }
+        guard !focusPlan.isFallback else {
+            pendingCommitConstellationFocusPlan = nil
+            return
+        }
+        guard !hasActiveLiveFollowTarget(lines: lines) else { return }
+
+        pendingCommitConstellationFocusPlan = nil
+        activeCommitConstellationFocusPlan = focusPlan
+        commitConstellationFocusUntil = Date().addingTimeInterval(1.75)
+        stageCamera(focusPlan.shot, animated: animated)
+    }
+
+    private func hasActiveLiveFollowTarget(lines: [LiveLine]) -> Bool {
+        lines.contains {
+            $0.status == .running && ($0.kind == .command || $0.kind == .fileChange)
         }
     }
 
@@ -3099,12 +3141,17 @@ private final class CinematicSceneCoordinator {
         CinematicTuning.cameraTransitionDuration(for: shot, settings: influenceSettings)
     }
 
-    private func trackTarget(_ target: SIMD3<Float>, duration: TimeInterval) {
+    private func trackTarget(
+        _ target: SIMD3<Float>,
+        duration: TimeInterval,
+        source: CameraFollowSource = .stageAction
+    ) {
         let until = Date().addingTimeInterval(duration)
         wizardFacingTarget = target
         wizardFacingUntil = until
         followCameraTarget = target
         followCameraUntil = until
+        followCameraSource = source
     }
 
     private func performCastPose(spell: SpellSchool, duration: TimeInterval) {
@@ -3251,6 +3298,9 @@ private final class CinematicSceneCoordinator {
         if Date() < wizardFacingUntil, let wizardFacingTarget {
             return wizardFacingTarget
         }
+        if let target = activeCommitConstellationFocusTarget() {
+            return target
+        }
         if isThinking {
             return closestEnemy(in: Array(enemyRoot.children).filter { $0.name != "dyingEnemy" })?.position(relativeTo: nil)
         }
@@ -3258,6 +3308,12 @@ private final class CinematicSceneCoordinator {
     }
 
     private func activeFollowTarget() -> SIMD3<Float>? {
+        if let target = activeLiveFollowTarget() {
+            return target
+        }
+        if activeCommitConstellationFocusTarget() != nil {
+            return nil
+        }
         if Date() < followCameraUntil, let followCameraTarget {
             return followCameraTarget
         }
@@ -3269,10 +3325,32 @@ private final class CinematicSceneCoordinator {
 
     private func cameraLookTarget() -> SIMD3<Float> {
         let wizardPosition = wizardNode.position(relativeTo: nil)
-        guard let target = activeFollowTarget() else {
+        if let target = activeFollowTarget() {
+            return mix(wizardPosition, target, 0.56) + [0, 0.84, 0]
+        }
+        guard let target = activeCommitConstellationFocusTarget() else {
             return wizardPosition + [0, 0.9, 0]
         }
-        return mix(wizardPosition, target, 0.56) + [0, 0.84, 0]
+        return target
+    }
+
+    private func activeCommitConstellationFocusTarget() -> SIMD3<Float>? {
+        guard activeLiveFollowTarget() == nil,
+              Date() < commitConstellationFocusUntil,
+              let focusPlan = activeCommitConstellationFocusPlan,
+              !focusPlan.isFallback else {
+            return nil
+        }
+        return focusPlan.lookTarget
+    }
+
+    private func activeLiveFollowTarget() -> SIMD3<Float>? {
+        guard Date() < followCameraUntil,
+              followCameraSource == .liveCommandOrFile,
+              let followCameraTarget else {
+            return nil
+        }
+        return followCameraTarget
     }
 
     private func faceWizard(toward target: SIMD3<Float>) {

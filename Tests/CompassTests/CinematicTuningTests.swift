@@ -46,6 +46,30 @@ final class CinematicTuningCameraTests: XCTestCase {
         }
     }
 
+    func testCommitConstellationShotFramesConstellationBounds() throws {
+        let shot = CinematicCameraShot.commitConstellation
+        let plan = CinematicCommitConstellationPlan(
+            sessions: [
+                makeTuningSession(
+                    commits: (1...CinematicCommitConstellationPlan.maxCommitCount).map {
+                        makeTuningCommit(subject: "Constellation commit \($0)")
+                    }
+                )
+            ]
+        )
+        let focusPlan = plan.focusPlan
+        let maxFocusAngle = try XCTUnwrap(
+            plan.nodes.map { angle(from: shot.position, toward: focusPlan.lookTarget, to: $0.position) }.max()
+        )
+
+        XCTAssertEqual(focusPlan.shot, shot)
+        XCTAssertEqual(focusPlan.lookTarget, plan.nodes[0].position)
+        XCTAssertGreaterThan(shot.position.z, CinematicCommitConstellationPlan.positionZRange.upperBound)
+        XCTAssertInRange(shot.position.y, 1.75...CinematicCameraShot.overhead.position.y)
+        XCTAssertInRange(shot.fieldOfView, CinematicTuning.cameraFieldOfViewRange)
+        XCTAssertLessThanOrEqual(maxFocusAngle, radians(shot.fieldOfView))
+    }
+
     func testCameraMotionScalesAndDurationsAreOrderedAndClamped() {
         for intensity in cinematicIntensitySamples {
             let steady = cinematicSettings(style: .steady, intensity: intensity)
@@ -271,6 +295,56 @@ private func cameraPosition(
         for: shot,
         settings: cinematicSettings(style: style, intensity: intensity)
     )
+}
+
+private func makeTuningSession(commits: [SessionCommit]) -> SessionRecord {
+    SessionRecord(
+        session: 1,
+        startedAt: 100,
+        endedAt: 200,
+        plan: nil,
+        verify: nil,
+        beforeSha: nil,
+        afterSha: nil,
+        commits: commits,
+        status: .succeeded,
+        notes: [],
+        verifyOutput: nil,
+        feedback: nil
+    )
+}
+
+private func makeTuningCommit(subject: String) -> SessionCommit {
+    let checksum = subject.unicodeScalars.reduce(0) { ($0 + Int($1.value)) % 1_000_000 }
+    let short = String(("0000000" + String(checksum)).suffix(7))
+    return SessionCommit(
+        sha: "feedbeef\(short)",
+        short: short,
+        subject: subject
+    )
+}
+
+private func angle(
+    from origin: SIMD3<Float>,
+    toward target: SIMD3<Float>,
+    to point: SIMD3<Float>
+) -> Float {
+    let targetDirection = normalized(target - origin)
+    let pointDirection = normalized(point - origin)
+    let dotProduct = targetDirection.x * pointDirection.x
+        + targetDirection.y * pointDirection.y
+        + targetDirection.z * pointDirection.z
+    return acos(min(max(dotProduct, -1), 1))
+}
+
+private func normalized(_ value: SIMD3<Float>) -> SIMD3<Float> {
+    let length = sqrt(value.x * value.x + value.y * value.y + value.z * value.z)
+    guard length > 0.0001 else { return .zero }
+    return value / length
+}
+
+private func radians(_ degrees: Float) -> Float {
+    degrees * .pi / 180
 }
 
 private func cinematicActivityProfiles() -> [(name: String, profile: RepositoryActivityProfile)] {

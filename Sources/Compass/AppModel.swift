@@ -1244,7 +1244,7 @@ extension CompassProject {
                 languageProfile: languageProfile,
                 activityProfile: activityProfile
             ),
-            commitConstellationIdentifier: commitConstellationPlan.identifier
+            commitConstellationIdentifier: commitConstellationPlan.focusPlan.identifier
         )
     }
 

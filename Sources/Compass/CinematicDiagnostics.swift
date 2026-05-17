@@ -309,6 +309,10 @@ struct CinematicDiagnosticsReport: Equatable {
         var newestSubject: String?
         var nodeIdentifiers: [String]
         var branchIdentifiers: [String]
+        var focusIdentifier: String
+        var focusShotIdentifier: String
+        var focusLookTarget: SIMD3<Float>
+        var usesFallbackFocus: Bool
     }
 
     struct CameraSnapshot: Equatable {
@@ -800,7 +804,7 @@ struct CinematicVisualSmokeReport: Equatable {
 }
 
 struct CinematicDiagnosticsSummary: Equatable {
-    static let maxRows = 33
+    static let maxRows = 34
     static let labelMaxCharacters = 32
     static let detailMaxCharacters = 512
 
@@ -1260,7 +1264,11 @@ struct CinematicDiagnosticsSummary: Equatable {
             "count \(snapshot.count)",
             optionalIdentifier("newest", snapshot.newestSubject),
             snapshot.nodeIdentifiers.isEmpty ? "nodes none" : "nodes \(snapshot.nodeIdentifiers.joined(separator: ","))",
-            snapshot.branchIdentifiers.isEmpty ? "branches none" : "branches \(snapshot.branchIdentifiers.joined(separator: ","))"
+            snapshot.branchIdentifiers.isEmpty ? "branches none" : "branches \(snapshot.branchIdentifiers.joined(separator: ","))",
+            "focus \(snapshot.focusIdentifier)",
+            "shot \(snapshot.focusShotIdentifier)",
+            "look \(position(snapshot.focusLookTarget))",
+            snapshot.usesFallbackFocus ? "fallback focus" : nil
         ].compactMap { $0 }.joined(separator: " | ")
     }
 
@@ -2115,12 +2123,20 @@ enum CinematicDiagnostics {
     private static func commitConstellationSnapshot(
         for plan: CinematicCommitConstellationPlan
     ) -> CinematicDiagnosticsReport.CommitConstellationSnapshot {
-        CinematicDiagnosticsReport.CommitConstellationSnapshot(
-            identifier: plan.identifier,
+        let focusPlan = plan.focusPlan
+        return CinematicDiagnosticsReport.CommitConstellationSnapshot(
+            identifier: [
+                plan.identifier,
+                "focus:\(focusPlan.identifier)"
+            ].joined(separator: "|"),
             count: plan.count,
             newestSubject: plan.newestSubject,
             nodeIdentifiers: plan.nodeIdentifiers,
-            branchIdentifiers: plan.branchIdentifiers
+            branchIdentifiers: plan.branchIdentifiers,
+            focusIdentifier: focusPlan.identifier,
+            focusShotIdentifier: focusPlan.shot.identifier,
+            focusLookTarget: focusPlan.lookTarget,
+            usesFallbackFocus: focusPlan.isFallback
         )
     }
 
