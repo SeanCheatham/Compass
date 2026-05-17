@@ -165,66 +165,6 @@ private final class CinematicSceneCache {
     }
 }
 
-private enum CinematicCameraShot {
-    case home
-    case wide
-    case castPrep
-    case overShoulder
-    case impact
-    case overhead
-    case failure
-    case victory
-
-    var position: SIMD3<Float> {
-        switch self {
-        case .home:
-            return [0, 4.8, 9.8]
-        case .wide:
-            return [-5.8, 5.6, 10.5]
-        case .castPrep:
-            return [-2.15, 2.65, 4.85]
-        case .overShoulder:
-            return [0.95, 2.45, 4.35]
-        case .impact:
-            return [2.1, 2.85, 4.75]
-        case .overhead:
-            return [0, 8.9, 3.6]
-        case .failure:
-            return [0.55, 2.05, 3.55]
-        case .victory:
-            return [0, 6.1, 12.2]
-        }
-    }
-
-    var fieldOfView: Float {
-        switch self {
-        case .castPrep, .overShoulder, .failure:
-            return 34
-        case .impact:
-            return 35
-        case .overhead:
-            return 48
-        case .victory:
-            return 50
-        case .home, .wide:
-            return 42
-        }
-    }
-
-    var duration: TimeInterval {
-        switch self {
-        case .failure:
-            return 0.22
-        case .impact, .castPrep, .overShoulder:
-            return 0.48
-        case .victory:
-            return 1.2
-        case .home, .wide, .overhead:
-            return 0.82
-        }
-    }
-}
-
 private enum DefensiveSpell {
     case slow
     case stun
@@ -1523,41 +1463,17 @@ private final class CinematicSceneCoordinator {
     }
 
     private func ambientSpawnCadence() -> TimeInterval {
-        let pressureScale = Double(ambientPressureScale())
-        let base: TimeInterval
-        guard !activityProfile.isEmpty else {
-            return max(0.9, 2.4 / pressureScale)
-        }
-        switch activityProfile.pressureLevel {
-        case .clean:
-            base = activityProfile.successStreak > 1 ? 3.1 : 2.65
-        case .light:
-            base = 2.15
-        case .moderate:
-            base = 1.65
-        case .heavy:
-            base = 1.18
-        }
-        return max(0.72, base / pressureScale)
+        CinematicTuning.ambientSpawnCadence(
+            activityProfile: activityProfile,
+            settings: influenceSettings
+        )
     }
 
     private func ambientEnemyLimit() -> Int {
-        let pressureScale = ambientPressureScale()
-        let base: Int
-        guard !activityProfile.isEmpty else {
-            return max(4, min(12, Int((8 * pressureScale).rounded())))
-        }
-        switch activityProfile.pressureLevel {
-        case .clean:
-            base = 5
-        case .light:
-            base = 7
-        case .moderate:
-            base = 9
-        case .heavy:
-            base = 11
-        }
-        return max(3, min(15, Int((Float(base) * pressureScale).rounded())))
+        CinematicTuning.ambientEnemyLimit(
+            activityProfile: activityProfile,
+            settings: influenceSettings
+        )
     }
 
     private func ambientSpellForActivity() -> SpellSchool {
@@ -1893,106 +1809,38 @@ private final class CinematicSceneCoordinator {
     }
 
     private func activityLightBoost() -> Float {
-        guard !activityProfile.isEmpty else { return 0 }
-        let pressureBoost = min(Float(activityProfile.pressureScore) * 24, 440)
-        let streakBoost = Float(max(activityProfile.successStreak - 1, 0)) * 18
-        return min(620, (pressureBoost + streakBoost) * ambientPressureScale())
-    }
-
-    private func ambientPressureScale() -> Float {
-        let intensity = Float(influenceSettings.intensity)
-        switch influenceSettings.cameraStyle {
-        case .steady:
-            return 0.45 + intensity * 0.5
-        case .follow:
-            return 0.65 + intensity * 0.7
-        case .dramatic:
-            return 1.05 + intensity * 0.9
-        }
+        CinematicTuning.activityLightBoost(
+            activityProfile: activityProfile,
+            settings: influenceSettings
+        )
     }
 
     private func cameraOrbitScale() -> Float {
-        let intensity = Float(influenceSettings.intensity)
-        switch influenceSettings.cameraStyle {
-        case .steady:
-            return 0.24 + intensity * 0.36
-        case .follow:
-            return 0.65 + intensity * 0.7
-        case .dramatic:
-            return 1.15 + intensity * 0.8
-        }
+        CinematicTuning.cameraOrbitScale(settings: influenceSettings)
     }
 
     private func cameraPullbackScale() -> Float {
-        let intensity = Float(influenceSettings.intensity)
-        switch influenceSettings.cameraStyle {
-        case .steady:
-            return 1.15 - intensity * 0.08
-        case .follow:
-            return 1
-        case .dramatic:
-            return 0.93 - intensity * 0.1
-        }
+        CinematicTuning.cameraPullbackScale(settings: influenceSettings)
     }
 
     private func cameraHeightOffset() -> Float {
-        let intensity = Float(influenceSettings.intensity)
-        switch influenceSettings.cameraStyle {
-        case .steady:
-            return 0.22 - intensity * 0.08
-        case .follow:
-            return 0
-        case .dramatic:
-            return -0.2 - intensity * 0.2
-        }
+        CinematicTuning.cameraHeightOffset(settings: influenceSettings)
     }
 
     private func cameraFollowResponsiveness() -> Float {
-        let intensity = Float(influenceSettings.intensity)
-        switch influenceSettings.cameraStyle {
-        case .steady:
-            return 2.55 + intensity * 0.8
-        case .follow:
-            return 3.2 + intensity * 2.0
-        case .dramatic:
-            return 5.0 + intensity * 2.2
-        }
+        CinematicTuning.cameraFollowResponsiveness(settings: influenceSettings)
     }
 
     private func cameraFollowFieldOfView() -> Float {
-        let intensity = Float(influenceSettings.intensity)
-        switch influenceSettings.cameraStyle {
-        case .steady:
-            return 35.5 + intensity * 2.4
-        case .follow:
-            return 38.5 + intensity * 2.0
-        case .dramatic:
-            return 42.5 + intensity * 5.0
-        }
+        CinematicTuning.cameraFollowFieldOfView(settings: influenceSettings)
     }
 
     private func cameraDriftScale() -> Float {
-        let intensity = Float(influenceSettings.intensity)
-        switch influenceSettings.cameraStyle {
-        case .steady:
-            return 0.15 + intensity * 0.36
-        case .follow:
-            return 0.65 + intensity * 0.7
-        case .dramatic:
-            return 1.08 + intensity * 0.9
-        }
+        CinematicTuning.cameraDriftScale(settings: influenceSettings)
     }
 
     private func cameraShakeScale() -> Float {
-        let intensity = Float(influenceSettings.intensity)
-        switch influenceSettings.cameraStyle {
-        case .steady:
-            return 0.18 + intensity * 0.44
-        case .follow:
-            return 0.55 + intensity * 0.9
-        case .dramatic:
-            return 1.1 + intensity * 1.35
-        }
+        CinematicTuning.cameraShakeScale(settings: influenceSettings)
     }
 
     private func setPointLight(color: NSColor, intensity: Float, on entity: Entity) {
@@ -2031,59 +1879,15 @@ private final class CinematicSceneCoordinator {
     }
 
     private func cameraPosition(for shot: CinematicCameraShot) -> SIMD3<Float> {
-        let base = shot.position
-        let intensity = Float(influenceSettings.intensity)
-
-        switch influenceSettings.cameraStyle {
-        case .steady:
-            let homeBlend = 0.24 + (1 - intensity) * 0.18
-            var position = mix(base, CinematicCameraShot.home.position, homeBlend)
-            position.y += 0.16 + (1 - intensity) * 0.2
-            return position
-        case .follow:
-            let adjustment = intensity - 0.5
-            return [
-                base.x * (1 + adjustment * 0.08),
-                base.y + adjustment * 0.22,
-                base.z * (1 - adjustment * 0.06)
-            ]
-        case .dramatic:
-            let push = 0.14 + intensity * 0.18
-            return [
-                base.x * (1 + intensity * 0.08),
-                max(1.72, base.y - 0.22 - intensity * 0.42),
-                base.z * (1 - push)
-            ]
-        }
+        CinematicTuning.cameraPosition(for: shot, settings: influenceSettings)
     }
 
     private func cameraFieldOfView(for shot: CinematicCameraShot) -> Float {
-        let base = shot.fieldOfView
-        let intensity = Float(influenceSettings.intensity)
-        let adjusted: Float
-
-        switch influenceSettings.cameraStyle {
-        case .steady:
-            adjusted = base - 2.2 - (1 - intensity) * 2.1
-        case .follow:
-            adjusted = base + (intensity - 0.5) * 2.0
-        case .dramatic:
-            adjusted = base + 2.8 + intensity * 4.4
-        }
-
-        return min(58, max(30, adjusted))
+        CinematicTuning.cameraFieldOfView(for: shot, settings: influenceSettings)
     }
 
     private func cameraTransitionDuration(for shot: CinematicCameraShot) -> TimeInterval {
-        let intensity = influenceSettings.intensity
-        switch influenceSettings.cameraStyle {
-        case .steady:
-            return shot.duration * (1.22 + (1 - intensity) * 0.42)
-        case .follow:
-            return shot.duration
-        case .dramatic:
-            return max(0.14, shot.duration * (0.82 - intensity * 0.22))
-        }
+        CinematicTuning.cameraTransitionDuration(for: shot, settings: influenceSettings)
     }
 
     private func trackTarget(_ target: SIMD3<Float>, duration: TimeInterval) {
