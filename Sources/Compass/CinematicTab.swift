@@ -17,7 +17,9 @@ struct CinematicTab: View {
                     isActive: project.isRunning || project.isAutoPlaying,
                     languageProfile: project.languageProfile,
                     activityProfile: project.activityProfile,
-                    influenceSettings: project.cinematicInfluenceSettings
+                    influenceSettings: project.cinematicInfluenceSettings,
+                    worldText: project.cinematicWorldText,
+                    briefing: project.cinematicBriefing
                 )
                 .frame(width: proxy.size.width, height: proxy.size.height)
 

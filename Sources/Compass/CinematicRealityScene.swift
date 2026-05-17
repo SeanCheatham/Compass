@@ -11,6 +11,8 @@ struct CinematicSceneView: View {
     var languageProfile: RepositoryLanguageProfile
     var activityProfile: RepositoryActivityProfile
     var influenceSettings: CinematicInfluenceSettings
+    var worldText: CinematicWorldText
+    var briefing: CinematicBriefing
 
     @StateObject private var host: CinematicRealitySceneHost
 
@@ -21,7 +23,9 @@ struct CinematicSceneView: View {
         isActive: Bool,
         languageProfile: RepositoryLanguageProfile,
         activityProfile: RepositoryActivityProfile,
-        influenceSettings: CinematicInfluenceSettings
+        influenceSettings: CinematicInfluenceSettings,
+        worldText: CinematicWorldText,
+        briefing: CinematicBriefing
     ) {
         self.projectID = projectID
         self.lines = lines
@@ -30,6 +34,8 @@ struct CinematicSceneView: View {
         self.languageProfile = languageProfile
         self.activityProfile = activityProfile
         self.influenceSettings = influenceSettings
+        self.worldText = worldText
+        self.briefing = briefing
         _host = StateObject(wrappedValue: CinematicRealitySceneHost(projectID: projectID))
     }
 
@@ -42,7 +48,9 @@ struct CinematicSceneView: View {
                 isActive: isActive,
                 languageProfile: languageProfile,
                 activityProfile: activityProfile,
-                influenceSettings: influenceSettings
+                influenceSettings: influenceSettings,
+                worldText: worldText,
+                briefing: briefing
             )
         } update: { content in
             host.install(in: &content)
@@ -52,7 +60,9 @@ struct CinematicSceneView: View {
                 isActive: isActive,
                 languageProfile: languageProfile,
                 activityProfile: activityProfile,
-                influenceSettings: influenceSettings
+                influenceSettings: influenceSettings,
+                worldText: worldText,
+                briefing: briefing
             )
         } placeholder: {
             Color.black
@@ -94,7 +104,9 @@ private final class CinematicRealitySceneHost: ObservableObject {
         isActive: Bool,
         languageProfile: RepositoryLanguageProfile,
         activityProfile: RepositoryActivityProfile,
-        influenceSettings: CinematicInfluenceSettings
+        influenceSettings: CinematicInfluenceSettings,
+        worldText: CinematicWorldText,
+        briefing: CinematicBriefing
     ) {
         coordinator.update(
             lines: lines,
@@ -102,7 +114,9 @@ private final class CinematicRealitySceneHost: ObservableObject {
             isActive: isActive,
             languageProfile: languageProfile,
             activityProfile: activityProfile,
-            influenceSettings: influenceSettings
+            influenceSettings: influenceSettings,
+            worldText: worldText,
+            briefing: briefing
         )
     }
 
@@ -213,6 +227,10 @@ private final class CinematicSceneCoordinator {
     private let portalApertureNode = Entity()
     private let portalFillNode = Entity()
     private let healingAccentNode = Entity()
+    private let narrativeCueRoot = Entity()
+    private let narrativeQuestPlaqueNode = Entity()
+    private let narrativeArenaInscriptionNode = Entity()
+    private let narrativeActivityBannerNode = Entity()
     private let keyLightNode = Entity()
     private let rimLightNode = Entity()
     private let phaseLightNode = Entity()
@@ -228,6 +246,8 @@ private final class CinematicSceneCoordinator {
     private var activityProfile = RepositoryActivityProfile.empty
     private var activityMotif = CinematicMotif.activity(for: RepositoryActivityProfile.empty)
     private var influenceSettings = CinematicInfluenceSettings()
+    private var worldText = CinematicWorldText.placeholder
+    private var briefing = CinematicBriefing.placeholder
     private var setDressingPlan = CinematicSetDressingPlanner.plan(
         languageProfile: .empty,
         activityProfile: .empty,
@@ -261,6 +281,7 @@ private final class CinematicSceneCoordinator {
     private var staffOrbBoost: Float = 0
     private var currentAtmospherePlan: CinematicStageAtmospherePlan?
     private var currentPhasePolishPlan: CinematicStagePhasePolishPlan?
+    private var currentNarrativeCuePlan: CinematicSceneNarrativeCuePlan?
     private var fractureAccentNodes: [Entity] = []
     private var phaseStaffOrientation = simd_quatf(angle: 0.18, axis: SIMD3<Float>(0, 0, 1))
     private var phaseLeftArmOrientation = simd_quatf(angle: 0.44, axis: SIMD3<Float>(0, 0, 1))
@@ -308,7 +329,9 @@ private final class CinematicSceneCoordinator {
         isActive: Bool,
         languageProfile: RepositoryLanguageProfile,
         activityProfile: RepositoryActivityProfile,
-        influenceSettings: CinematicInfluenceSettings
+        influenceSettings: CinematicInfluenceSettings,
+        worldText: CinematicWorldText,
+        briefing: CinematicBriefing
     ) {
         let languageProfileChanged = languageProfile != self.languageProfile
         if languageProfileChanged {
@@ -323,6 +346,14 @@ private final class CinematicSceneCoordinator {
         let influenceChanged = influenceSettings != self.influenceSettings
         if influenceChanged {
             self.influenceSettings = influenceSettings
+        }
+        let worldTextChanged = worldText != self.worldText
+        if worldTextChanged {
+            self.worldText = worldText
+        }
+        let briefingChanged = briefing != self.briefing
+        if briefingChanged {
+            self.briefing = briefing
         }
         if languageProfileChanged || activityProfileChanged || influenceChanged {
             setDressingPlan = CinematicSetDressingPlanner.plan(
@@ -387,6 +418,9 @@ private final class CinematicSceneCoordinator {
 
         syncRunningEnemies(with: lines)
         setThinking(isActive && isWaitingForCodex(lines: lines))
+        if worldTextChanged || briefingChanged {
+            refreshNarrativeCues(animated: hasBuiltScene)
+        }
     }
 
     func stop() {
@@ -404,10 +438,12 @@ private final class CinematicSceneCoordinator {
         effectsRoot.name = "effects-root"
         setDressingRoot.name = "set-dressing-root"
         atmosphereRoot.name = "atmosphere-root"
+        narrativeCueRoot.name = "narrative-cue-root"
 
         buildBackdrop()
         buildArena()
         buildAtmosphere()
+        buildNarrativeCueNodes()
         buildSetDressing()
         buildLights()
         buildCamera()
@@ -418,6 +454,7 @@ private final class CinematicSceneCoordinator {
         root.addChild(atmosphereRoot)
         root.addChild(effectsRoot)
         root.addChild(setDressingRoot)
+        root.addChild(narrativeCueRoot)
         refreshAtmosphere(animated: false)
         stageCamera(.home, animated: false)
     }
@@ -642,6 +679,21 @@ private final class CinematicSceneCoordinator {
         }
 
         atmosphereRoot.addChild(phasePolishRoot)
+    }
+
+    private func buildNarrativeCueNodes() {
+        narrativeQuestPlaqueNode.name = "narrative-quest-plaque"
+        narrativeArenaInscriptionNode.name = "narrative-arena-inscription"
+        narrativeActivityBannerNode.name = "narrative-activity-banner"
+
+        for node in [
+            narrativeQuestPlaqueNode,
+            narrativeArenaInscriptionNode,
+            narrativeActivityBannerNode
+        ] {
+            node.components.set(OpacityComponent(opacity: 0))
+            narrativeCueRoot.addChild(node)
+        }
     }
 
     private func buildSetDressing() {
@@ -991,13 +1043,30 @@ private final class CinematicSceneCoordinator {
         )
     }
 
+    private func narrativeCuePlan(
+        for beat: CinematicStageBeat,
+        phasePolishPlan: CinematicStagePhasePolishPlan
+    ) -> CinematicSceneNarrativeCuePlan {
+        CinematicSceneNarrativeCuePlanner.plan(
+            worldText: worldText,
+            briefing: briefing,
+            stageBeat: beat,
+            stagePhasePolishPlan: phasePolishPlan,
+            languageMotif: languageMotif,
+            activityMotif: activityMotif,
+            influenceSettings: influenceSettings
+        )
+    }
+
     private func refreshAtmosphere(animated: Bool) {
         let beat = stageBeat()
         let effectPlan = stageEffectPlan(for: beat)
         let atmospherePlan = stageAtmospherePlan(for: beat, tuningMetadata: effectPlan.tuningMetadata)
         applyAtmospherePlan(atmospherePlan, animated: animated)
-        applyPhasePolishPlan(
-            stagePhasePolishPlan(for: beat, effectPlan: effectPlan, atmospherePlan: atmospherePlan),
+        let phasePolishPlan = stagePhasePolishPlan(for: beat, effectPlan: effectPlan, atmospherePlan: atmospherePlan)
+        applyPhasePolishPlan(phasePolishPlan, animated: animated)
+        applyNarrativeCuePlan(
+            narrativeCuePlan(for: beat, phasePolishPlan: phasePolishPlan),
             animated: animated
         )
     }
@@ -1006,8 +1075,10 @@ private final class CinematicSceneCoordinator {
         let effectPlan = stageEffectPlan(for: beat)
         let atmospherePlan = stageAtmospherePlan(for: beat, tuningMetadata: effectPlan.tuningMetadata)
         applyAtmospherePlan(atmospherePlan, animated: true)
-        applyPhasePolishPlan(
-            stagePhasePolishPlan(for: beat, effectPlan: effectPlan, atmospherePlan: atmospherePlan),
+        let phasePolishPlan = stagePhasePolishPlan(for: beat, effectPlan: effectPlan, atmospherePlan: atmospherePlan)
+        applyPhasePolishPlan(phasePolishPlan, animated: true)
+        applyNarrativeCuePlan(
+            narrativeCuePlan(for: beat, phasePolishPlan: phasePolishPlan),
             animated: true
         )
         if beat.shouldRunVictorySurge {
@@ -2279,8 +2350,10 @@ private final class CinematicSceneCoordinator {
         let effectPlan = stageEffectPlan(for: beat)
         let atmospherePlan = stageAtmospherePlan(for: beat, tuningMetadata: effectPlan.tuningMetadata)
         applyAtmospherePlan(atmospherePlan, animated: animated)
-        applyPhasePolishPlan(
-            stagePhasePolishPlan(for: beat, effectPlan: effectPlan, atmospherePlan: atmospherePlan),
+        let phasePolishPlan = stagePhasePolishPlan(for: beat, effectPlan: effectPlan, atmospherePlan: atmospherePlan)
+        applyPhasePolishPlan(phasePolishPlan, animated: animated)
+        applyNarrativeCuePlan(
+            narrativeCuePlan(for: beat, phasePolishPlan: phasePolishPlan),
             animated: animated
         )
         setPhaseLight(
@@ -2408,6 +2481,296 @@ private final class CinematicSceneCoordinator {
         )
 
         updatePhasePolish()
+    }
+
+    private func refreshNarrativeCues(animated: Bool) {
+        let beat = stageBeat()
+        let effectPlan = stageEffectPlan(for: beat)
+        let atmospherePlan = currentAtmospherePlan
+            ?? stageAtmospherePlan(for: beat, tuningMetadata: effectPlan.tuningMetadata)
+        let phasePolishPlan = currentPhasePolishPlan
+            ?? stagePhasePolishPlan(for: beat, effectPlan: effectPlan, atmospherePlan: atmospherePlan)
+        applyNarrativeCuePlan(
+            narrativeCuePlan(for: beat, phasePolishPlan: phasePolishPlan),
+            animated: animated
+        )
+    }
+
+    private func applyNarrativeCuePlan(_ plan: CinematicSceneNarrativeCuePlan, animated: Bool) {
+        guard currentNarrativeCuePlan?.identifier != plan.identifier else { return }
+        let previousPlan = currentNarrativeCuePlan
+        currentNarrativeCuePlan = plan
+
+        applyNarrativeCueDescriptor(
+            plan.questPlaque,
+            to: narrativeQuestPlaqueNode,
+            role: .questPlaque,
+            animated: animated && previousPlan?.questPlaque.identifier != plan.questPlaque.identifier
+        )
+        applyNarrativeCueDescriptor(
+            plan.arenaInscription,
+            to: narrativeArenaInscriptionNode,
+            role: .arenaInscription,
+            animated: animated && previousPlan?.arenaInscription.identifier != plan.arenaInscription.identifier
+        )
+        applyNarrativeCueDescriptor(
+            plan.activityBanner,
+            to: narrativeActivityBannerNode,
+            role: .activityBanner,
+            animated: animated && previousPlan?.activityBanner.identifier != plan.activityBanner.identifier
+        )
+    }
+
+    private func applyNarrativeCueDescriptor(
+        _ descriptor: CinematicSceneNarrativeCuePlan.CueDescriptor,
+        to node: Entity,
+        role: NarrativeCueRole,
+        animated: Bool
+    ) {
+        clearChildren(of: node)
+        node.name = descriptor.stableID
+
+        let placement = narrativePlacement(for: descriptor.anchor, role: role)
+        node.position = placement.position
+        node.orientation = placement.orientation
+        node.scale = SIMD3<Float>(repeating: descriptor.scale)
+        setOpacity(descriptor.opacity, on: node)
+
+        let color = narrativeColor(for: descriptor)
+        let backingOpacity = max(0.12, descriptor.opacity * (role == .arenaInscription ? 0.28 : 0.42))
+        let plate = ModelEntity(
+            mesh: .generateBox(
+                width: placement.width,
+                height: placement.height,
+                depth: role == .arenaInscription ? 0.018 : 0.04,
+                cornerRadius: role == .arenaInscription ? 0.018 : 0.035
+            ),
+            materials: [
+                material(
+                    diffuse: NSColor(calibratedRed: 0.018, green: 0.02, blue: 0.032, alpha: 1),
+                    emission: color.withAlphaComponent(0.14),
+                    opacity: backingOpacity
+                )
+            ]
+        )
+        plate.name = "\(descriptor.stableID).placard"
+        plate.position.z = -0.02
+        plate.components.set(OpacityComponent(opacity: backingOpacity))
+        node.addChild(plate)
+
+        let hasSecondary = descriptor.secondaryText?.isEmpty == false && role == .questPlaque
+        let primaryYOffset: Float = hasSecondary ? 0.06 : -0.035
+        addNarrativeText(
+            descriptor.text,
+            to: node,
+            name: "\(descriptor.stableID).text.primary",
+            width: placement.width - 0.42,
+            yOffset: primaryYOffset,
+            fontSize: role == .arenaInscription ? 0.18 : 0.14,
+            weight: .semibold,
+            color: color,
+            opacity: min(0.96, descriptor.opacity + 0.12)
+        )
+
+        if let secondaryText = descriptor.secondaryText, hasSecondary {
+            addNarrativeText(
+                secondaryText,
+                to: node,
+                name: "\(descriptor.stableID).text.secondary",
+                width: placement.width - 0.58,
+                yOffset: -0.13,
+                fontSize: 0.074,
+                weight: .medium,
+                color: color.withAlphaComponent(0.78),
+                opacity: min(0.72, descriptor.opacity)
+            )
+        }
+
+        if descriptor.glyphIdentifier != nil {
+            addNarrativeGlyph(
+                to: node,
+                name: "\(descriptor.stableID).glyph",
+                role: role,
+                color: color,
+                opacity: min(0.82, descriptor.opacity + 0.08),
+                plateWidth: placement.width
+            )
+        }
+
+        if animated {
+            node.scale = SIMD3<Float>(repeating: max(0.001, descriptor.scale * 0.92))
+            animate(
+                node,
+                toScale: SIMD3<Float>(repeating: descriptor.scale),
+                duration: min(0.5, descriptor.cadence * 0.16),
+                timing: .easeOut
+            )
+        }
+    }
+
+    private func addNarrativeText(
+        _ value: String,
+        to node: Entity,
+        name: String,
+        width: Float,
+        yOffset: Float,
+        fontSize: CGFloat,
+        weight: NSFont.Weight,
+        color: NSColor,
+        opacity: Float
+    ) {
+        let frame = CGRect(
+            x: CGFloat(-width / 2),
+            y: CGFloat(-fontSize * 0.52),
+            width: CGFloat(width),
+            height: CGFloat(fontSize * 1.55)
+        )
+        let text = ModelEntity(
+            mesh: MeshResource.generateText(
+                value,
+                extrusionDepth: 0.0035,
+                font: .systemFont(ofSize: fontSize, weight: weight),
+                containerFrame: frame,
+                alignment: .center,
+                lineBreakMode: .byTruncatingTail
+            ),
+            materials: [glowMaterial(color, opacity: opacity)]
+        )
+        text.name = name
+        text.position = [0, yOffset, 0.026]
+        text.components.set(OpacityComponent(opacity: opacity))
+        node.addChild(text)
+    }
+
+    private func addNarrativeGlyph(
+        to node: Entity,
+        name: String,
+        role: NarrativeCueRole,
+        color: NSColor,
+        opacity: Float,
+        plateWidth: Float
+    ) {
+        let glyph = Entity()
+        glyph.name = name
+        glyph.position = role == .activityBanner
+            ? [plateWidth * 0.42, 0, 0.036]
+            : [-plateWidth * 0.42, 0, 0.036]
+
+        let ring = ModelEntity(
+            mesh: torusMesh(ringRadius: role == .arenaInscription ? 0.18 : 0.15, pipeRadius: 0.006),
+            materials: [glowMaterial(color, opacity: opacity)]
+        )
+        ring.name = "\(name).ring"
+        ring.orientation = simd_quatf(angle: .pi / 2, axis: [1, 0, 0])
+        ring.components.set(OpacityComponent(opacity: opacity))
+        glyph.addChild(ring)
+
+        let horizontal = beamEntity(
+            from: [-0.14, 0, 0],
+            to: [0.14, 0, 0],
+            radius: 0.006,
+            color: color,
+            opacity: opacity
+        )
+        horizontal.name = "\(name).segment.horizontal"
+        glyph.addChild(horizontal)
+
+        let vertical = beamEntity(
+            from: [0, -0.12, 0],
+            to: [0, 0.12, 0],
+            radius: 0.006,
+            color: color.withAlphaComponent(0.76),
+            opacity: opacity * 0.82
+        )
+        vertical.name = "\(name).segment.vertical"
+        glyph.addChild(vertical)
+
+        let core = ModelEntity(
+            mesh: .generateSphere(radius: 0.034),
+            materials: [glowMaterial(color, opacity: opacity)]
+        )
+        core.name = "\(name).core"
+        glyph.addChild(core)
+        node.addChild(glyph)
+    }
+
+    private func narrativePlacement(
+        for anchor: CinematicNarrativeCueAnchor,
+        role: NarrativeCueRole
+    ) -> (position: SIMD3<Float>, orientation: simd_quatf, width: Float, height: Float) {
+        let position: SIMD3<Float>
+        let isFloor: Bool
+        switch anchor {
+        case .idleArchive:
+            position = role == .activityBanner ? [4.1, 0.9, 3.2] : [-4.1, 0.9, 3.2]
+            isFloor = false
+        case .leftScoutPylon:
+            position = [-4.8, 1.08, 1.1]
+            isFloor = false
+        case .leftForgePylon:
+            position = [-5.15, 1.12, -0.55]
+            isFloor = false
+        case .leftSealPylon:
+            position = [-4.45, 1.18, -2.35]
+            isFloor = false
+        case .fractureGate:
+            position = [-3.55, 1.36, -3.65]
+            isFloor = false
+        case .victoryArch:
+            position = [0, 2.0, -4.45]
+            isFloor = false
+        case .arenaCenter:
+            position = [0, 0.13, 1.15]
+            isFloor = true
+        case .arenaFront:
+            position = [0, 0.13, 3.75]
+            isFloor = true
+        case .arenaRear:
+            position = [0, 0.13, -3.75]
+            isFloor = true
+        case .rightPylon:
+            position = [4.75, 1.02, 1.05]
+            isFloor = false
+        case .rightHistoryPylon:
+            position = [4.85, 1.16, -0.85]
+            isFloor = false
+        case .rightWarningPylon:
+            position = [4.4, 1.28, -2.85]
+            isFloor = false
+        }
+
+        let width: Float
+        let height: Float
+        switch role {
+        case .questPlaque:
+            width = 2.72
+            height = 0.58
+        case .arenaInscription:
+            width = 3.4
+            height = 0.34
+        case .activityBanner:
+            width = 2.76
+            height = 0.42
+        }
+
+        let orientation = isFloor
+            ? simd_quatf(angle: -.pi / 2, axis: [1, 0, 0])
+            : narrativeBillboardOrientation(from: position)
+        return (position, orientation, width, height)
+    }
+
+    private func narrativeBillboardOrientation(from position: SIMD3<Float>) -> simd_quatf {
+        let target = SIMD3<Float>(0, position.y, 0)
+        guard let direction = horizontalDirection(from: position, to: target) else {
+            return simd_quatf()
+        }
+        return simd_quatf(from: [0, 0, 1], to: direction)
+    }
+
+    private func narrativeColor(for descriptor: CinematicSceneNarrativeCuePlan.CueDescriptor) -> NSColor {
+        let base = themedColor(descriptor.lightFamily.spell.nsColor)
+        let tint = themedColor(descriptor.tintFamily.spell.nsColor)
+        return base.mixing(with: tint, fraction: 0.32)
     }
 
     private func applyCinematicInfluenceChange() {
@@ -2687,6 +3050,7 @@ private final class CinematicSceneCoordinator {
         updateEnemyLoops()
         updateAtmosphere()
         updatePhasePolish()
+        updateNarrativeCues()
         updateSetDressing()
         updateAnimations(delta: delta)
     }
@@ -2916,6 +3280,25 @@ private final class CinematicSceneCoordinator {
         let healingScale = max(0.001, 1 + plan.fractureRecovery.healingOpacity * 0.28 + fractureWave * 0.08)
         healingAccentNode.scale = SIMD3<Float>(repeating: healingScale)
         setOpacity(plan.fractureRecovery.healingOpacity * (0.58 + fractureWave * 0.42), on: healingAccentNode)
+    }
+
+    private func updateNarrativeCues() {
+        guard let plan = currentNarrativeCuePlan else { return }
+        updateNarrativeCueNode(narrativeQuestPlaqueNode, descriptor: plan.questPlaque, phaseOffset: 0)
+        updateNarrativeCueNode(narrativeArenaInscriptionNode, descriptor: plan.arenaInscription, phaseOffset: 0.34)
+        updateNarrativeCueNode(narrativeActivityBannerNode, descriptor: plan.activityBanner, phaseOffset: 0.68)
+    }
+
+    private func updateNarrativeCueNode(
+        _ node: Entity,
+        descriptor: CinematicSceneNarrativeCuePlan.CueDescriptor,
+        phaseOffset: Float
+    ) {
+        let cadence = max(descriptor.cadence, 0.1)
+        let wave = 0.5 + sin(Float(elapsedTime / cadence) * .pi * 2 + phaseOffset * .pi * 2) * 0.5
+        let pulseScale = descriptor.scale * (1 + wave * 0.025)
+        node.scale = SIMD3<Float>(repeating: max(0.001, pulseScale))
+        setOpacity(descriptor.opacity * (0.82 + wave * 0.18), on: node)
     }
 
     private func updateSetDressing() {
@@ -3296,6 +3679,12 @@ private final class CinematicSceneCoordinator {
         }
         return .generateSphere(radius: max(pipeRadius, 0.01))
     }
+}
+
+private enum NarrativeCueRole {
+    case questPlaque
+    case arenaInscription
+    case activityBanner
 }
 
 private struct SetDressingSigilSegment {

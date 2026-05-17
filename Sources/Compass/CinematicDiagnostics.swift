@@ -13,6 +13,7 @@ struct CinematicDiagnosticsReport: Equatable {
     var stageEffect: StageEffectSnapshot
     var stageAtmosphere: StageAtmosphereSnapshot
     var stagePhasePolish: StagePhasePolishSnapshot
+    var narrativeCue: NarrativeCueSnapshot
     var worldText: WorldTextSnapshot
     var briefing: BriefingSnapshot
     var cameraTuning: CameraTuningSnapshot
@@ -179,6 +180,33 @@ struct CinematicDiagnosticsReport: Equatable {
         var fractureCadence: TimeInterval
     }
 
+    struct NarrativeCueSnapshot: Equatable {
+        var identifier: String
+        var stageBeatIdentifier: String
+        var stagePhasePolishIdentifier: String
+        var languageIdentifier: String
+        var activityIdentifier: String
+        var influenceIdentifier: String
+        var questPlaque: NarrativeCueDescriptorSnapshot
+        var arenaInscription: NarrativeCueDescriptorSnapshot
+        var activityBanner: NarrativeCueDescriptorSnapshot
+    }
+
+    struct NarrativeCueDescriptorSnapshot: Equatable {
+        var identifier: String
+        var stableID: String
+        var text: String
+        var secondaryText: String?
+        var glyphIdentifier: String?
+        var anchorIdentifier: String
+        var visibilityIdentifier: String
+        var scale: Float
+        var opacity: Float
+        var lightFamilyIdentifier: String
+        var tintFamilyIdentifier: String
+        var cadence: TimeInterval
+    }
+
     struct WorldTextSnapshot: Equatable {
         var identifier: String
         var questLabel: String
@@ -244,7 +272,7 @@ struct CinematicDiagnosticsReport: Equatable {
 }
 
 struct CinematicDiagnosticsSummary: Equatable {
-    static let maxRows = 29
+    static let maxRows = 30
     static let labelMaxCharacters = 32
     static let detailMaxCharacters = 512
 
@@ -407,6 +435,11 @@ struct CinematicDiagnosticsSummary: Equatable {
                     "cadence \(report.stagePhasePolish.cadenceIdentifier)"
                 ].joined(separator: " | ")
             ),
+            row(
+                id: "narrative-cues",
+                label: "Narrative cues",
+                detail: narrativeCueDetail(report.narrativeCue)
+            ),
             row(id: "world-quest", label: "World quest", detail: report.worldText.questLabel),
             row(id: "world-arena", label: "World arena", detail: report.worldText.arenaCallout),
             row(id: "world-activity", label: "World activity", detail: report.worldText.activityCallout),
@@ -514,6 +547,31 @@ struct CinematicDiagnosticsSummary: Equatable {
         ].compactMap { $0 }
 
         return values.isEmpty ? "none" : values.joined(separator: " | ")
+    }
+
+    private static func narrativeCueDetail(_ snapshot: CinematicDiagnosticsReport.NarrativeCueSnapshot) -> String {
+        [
+            narrativeCueDescriptorDetail("quest", snapshot.questPlaque),
+            narrativeCueDescriptorDetail("arena", snapshot.arenaInscription),
+            narrativeCueDescriptorDetail("activity", snapshot.activityBanner)
+        ].joined(separator: " | ")
+    }
+
+    private static func narrativeCueDescriptorDetail(
+        _ label: String,
+        _ descriptor: CinematicDiagnosticsReport.NarrativeCueDescriptorSnapshot
+    ) -> String {
+        [
+            label,
+            descriptor.anchorIdentifier,
+            descriptor.visibilityIdentifier,
+            descriptor.lightFamilyIdentifier,
+            "tint \(descriptor.tintFamilyIdentifier)",
+            "scale \(fixed(descriptor.scale))",
+            "opacity \(fixed(descriptor.opacity))",
+            "cadence \(fixed(descriptor.cadence))s",
+            "\"\(descriptor.text)\""
+        ].joined(separator: " ")
     }
 
     private static func completedLabel(_ count: Int) -> String {
@@ -640,10 +698,20 @@ enum CinematicDiagnostics {
             activityProfile: activityProfile,
             influenceSettings: influenceSettings
         )
+        let narrativeCuePlan = CinematicSceneNarrativeCuePlanner.plan(
+            worldText: worldText,
+            briefing: briefing,
+            stageBeat: stageBeat,
+            stagePhasePolishPlan: stagePhasePolishPlan,
+            languageMotif: languageMotif,
+            activityMotif: activityMotif,
+            influenceSettings: influenceSettings
+        )
         let stageBeatSnapshot = stageBeatSnapshot(for: stageBeat)
         let stageEffectSnapshot = stageEffectSnapshot(for: stageEffectPlan)
         let stageAtmosphereSnapshot = stageAtmosphereSnapshot(for: stageAtmospherePlan)
         let stagePhasePolishSnapshot = stagePhasePolishSnapshot(for: stagePhasePolishPlan)
+        let narrativeCueSnapshot = narrativeCueSnapshot(for: narrativeCuePlan)
         let worldTextSnapshot = worldTextSnapshot(for: worldText)
         let briefingSnapshot = briefingSnapshot(for: briefing)
         let cameraTuningSnapshot = cameraTuningSnapshot(settings: influenceSettings)
@@ -666,6 +734,7 @@ enum CinematicDiagnostics {
                 "stage-effect:\(stageEffectSnapshot.identifier)",
                 "stage-atmosphere:\(stageAtmosphereSnapshot.identifier)",
                 "phase-polish:\(stagePhasePolishSnapshot.identifier)",
+                "narrative-cues:\(narrativeCueSnapshot.identifier)",
                 "influence:\(influenceIdentifier)",
                 "set-dressing:\(setDressingSnapshot.identifier)"
             ].joined(separator: "|"),
@@ -680,6 +749,7 @@ enum CinematicDiagnostics {
             stageEffect: stageEffectSnapshot,
             stageAtmosphere: stageAtmosphereSnapshot,
             stagePhasePolish: stagePhasePolishSnapshot,
+            narrativeCue: narrativeCueSnapshot,
             worldText: worldTextSnapshot,
             briefing: briefingSnapshot,
             cameraTuning: cameraTuningSnapshot,
@@ -1042,6 +1112,55 @@ enum CinematicDiagnostics {
             orbPulseCadence: plan.cadence.orbPulseCadence,
             sigilOrbitCadence: plan.cadence.sigilOrbitCadence,
             fractureCadence: plan.cadence.fractureCadence
+        )
+    }
+
+    private static func narrativeCueSnapshot(
+        for plan: CinematicSceneNarrativeCuePlan
+    ) -> CinematicDiagnosticsReport.NarrativeCueSnapshot {
+        let quest = narrativeCueDescriptorSnapshot(for: plan.questPlaque)
+        let arena = narrativeCueDescriptorSnapshot(for: plan.arenaInscription)
+        let activity = narrativeCueDescriptorSnapshot(for: plan.activityBanner)
+        let identifier = [
+            "beat:\(plan.stageBeatIdentifier)",
+            "phase-polish:\(plan.stagePhasePolishIdentifier)",
+            "language:\(plan.languageIdentifier)",
+            "activity:\(plan.activityIdentifier)",
+            "quest:\(quest.identifier)",
+            "arena:\(arena.identifier)",
+            "banner:\(activity.identifier)",
+            "influence:\(plan.influenceIdentifier)"
+        ].joined(separator: "|")
+
+        return CinematicDiagnosticsReport.NarrativeCueSnapshot(
+            identifier: identifier,
+            stageBeatIdentifier: plan.stageBeatIdentifier,
+            stagePhasePolishIdentifier: plan.stagePhasePolishIdentifier,
+            languageIdentifier: plan.languageIdentifier,
+            activityIdentifier: plan.activityIdentifier,
+            influenceIdentifier: plan.influenceIdentifier,
+            questPlaque: quest,
+            arenaInscription: arena,
+            activityBanner: activity
+        )
+    }
+
+    private static func narrativeCueDescriptorSnapshot(
+        for descriptor: CinematicSceneNarrativeCuePlan.CueDescriptor
+    ) -> CinematicDiagnosticsReport.NarrativeCueDescriptorSnapshot {
+        CinematicDiagnosticsReport.NarrativeCueDescriptorSnapshot(
+            identifier: descriptor.identifier,
+            stableID: descriptor.stableID,
+            text: descriptor.text,
+            secondaryText: descriptor.secondaryText,
+            glyphIdentifier: descriptor.glyphIdentifier,
+            anchorIdentifier: descriptor.anchorIdentifier,
+            visibilityIdentifier: descriptor.visibilityIdentifier,
+            scale: descriptor.scale,
+            opacity: descriptor.opacity,
+            lightFamilyIdentifier: descriptor.lightFamilyIdentifier,
+            tintFamilyIdentifier: descriptor.tintFamilyIdentifier,
+            cadence: descriptor.cadence
         )
     }
 

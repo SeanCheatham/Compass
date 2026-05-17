@@ -56,6 +56,9 @@ struct CinematicBriefingInput: Equatable, Sendable {
 }
 
 enum CinematicBriefingService {
+    static let titleMaxCharacters = 68
+    static let detailMaxCharacters = 150
+
     static func makeBriefing(input: CinematicBriefingInput) async -> CinematicBriefing {
         #if canImport(FoundationModels)
         if #available(macOS 26.0, *) {
@@ -74,7 +77,7 @@ enum CinematicBriefingService {
             maxCharacters: 30
         )
         let mission = missionTitle(from: input.immediatePlanTitle)
-        let title = fittedPlainText("\(repo): \(mission)", maxCharacters: 68)
+        let title = fittedPlainText("\(repo): \(mission)", maxCharacters: Self.titleMaxCharacters)
 
         let completed = input.completedCount == 1
             ? "1 completed milestone"
@@ -88,7 +91,7 @@ enum CinematicBriefingService {
 
         let detail = fittedPlainText(
             "\(input.currentPhase) with \(completed). \(eventClause)",
-            maxCharacters: 150
+            maxCharacters: Self.detailMaxCharacters
         )
         return CinematicBriefing(title: title, detail: detail)
     }

@@ -67,6 +67,15 @@ final class CinematicDiagnosticsTests: XCTestCase {
         XCTAssertGreaterThan(report.stagePhasePolish.staffOrbEmission, 0)
         XCTAssertGreaterThan(report.stagePhasePolish.sigilOrbitRadius, 0)
         XCTAssertGreaterThan(report.stagePhasePolish.portalAperture, 0)
+        XCTAssertTrue(report.identifier.contains("narrative-cues:"))
+        XCTAssertEqual(report.narrativeCue.questPlaque.text, report.worldText.questLabel)
+        XCTAssertEqual(report.narrativeCue.questPlaque.secondaryText, report.briefing.title)
+        XCTAssertEqual(report.narrativeCue.arenaInscription.text, report.worldText.arenaCallout)
+        XCTAssertEqual(report.narrativeCue.activityBanner.text, report.worldText.activityCallout)
+        XCTAssertEqual(report.narrativeCue.questPlaque.anchorIdentifier, "left-forge-pylon")
+        XCTAssertEqual(report.narrativeCue.activityBanner.anchorIdentifier, "right-warning-pylon")
+        XCTAssertEqual(report.narrativeCue.activityBanner.lightFamilyIdentifier, "pressure")
+        XCTAssertFalse(report.narrativeCue.identifier.isEmpty)
         XCTAssertTrue(report.worldText.identifier.contains(report.worldText.questLabel))
         XCTAssertTrue(report.briefing.identifier.contains(report.briefing.title))
 
@@ -181,10 +190,11 @@ final class CinematicDiagnosticsTests: XCTestCase {
 
         for report in reports {
             assertWorldTextBounds(report.worldText, file: #filePath, line: #line)
+            assertNarrativeCueBounds(report.narrativeCue, file: #filePath, line: #line)
             XCTAssertFalse(report.briefing.title.isEmpty)
             XCTAssertFalse(report.briefing.detail.isEmpty)
-            XCTAssertLessThanOrEqual(report.briefing.title.count, 68)
-            XCTAssertLessThanOrEqual(report.briefing.detail.count, 150)
+            XCTAssertLessThanOrEqual(report.briefing.title.count, CinematicBriefingService.titleMaxCharacters)
+            XCTAssertLessThanOrEqual(report.briefing.detail.count, CinematicBriefingService.detailMaxCharacters)
         }
     }
 
@@ -261,6 +271,7 @@ final class CinematicDiagnosticsTests: XCTestCase {
                 "stage-atmosphere",
                 "atmosphere-tints",
                 "phase-polish",
+                "narrative-cues",
                 "world-quest",
                 "world-arena",
                 "world-activity",
@@ -335,6 +346,9 @@ final class CinematicDiagnosticsTests: XCTestCase {
         XCTAssertTrue(summary.exportText.contains(report.stagePhasePolish.postureIdentifier))
         XCTAssertTrue(summary.exportText.contains(report.stagePhasePolish.staffOrbLightFamilyIdentifier))
         XCTAssertTrue(summary.exportText.contains(report.stagePhasePolish.cadenceIdentifier))
+        XCTAssertTrue(summary.exportText.contains("Narrative cues:"))
+        XCTAssertTrue(summary.exportText.contains(report.narrativeCue.questPlaque.anchorIdentifier))
+        XCTAssertTrue(summary.exportText.contains(report.narrativeCue.activityBanner.text))
         XCTAssertTrue(summary.exportText.contains(report.setDressing.languageArchitectureIdentifier))
         XCTAssertTrue(summary.exportText.contains(report.setDressing.activityMarkerIdentifier))
         XCTAssertTrue(summary.exportText.contains(report.setDressing.materialTextureVariantIdentifier))
@@ -492,9 +506,11 @@ final class CinematicDiagnosticsTests: XCTestCase {
         XCTAssertTrue(summary.rows.contains { $0.id == "effect-tuning" })
         XCTAssertTrue(summary.rows.contains { $0.id == "stage-atmosphere" })
         XCTAssertTrue(summary.rows.contains { $0.id == "phase-polish" })
+        XCTAssertTrue(summary.rows.contains { $0.id == "narrative-cues" })
         XCTAssertTrue(summary.exportText.contains("Effect tuning:"))
         XCTAssertTrue(summary.exportText.contains("Atmosphere:"))
         XCTAssertTrue(summary.exportText.contains("Phase polish:"))
+        XCTAssertTrue(summary.exportText.contains("Narrative cues:"))
         XCTAssertTrue(summary.exportText.contains("pressure heavy"))
         XCTAssertTrue(summary.exportText.contains("influence dramatic"))
     }
@@ -737,6 +753,68 @@ private func assertStagePhasePolishBounds(
     XCTAssertFalse(snapshot.portalBackdropIdentifier.isEmpty, file: file, line: line)
     XCTAssertFalse(snapshot.fractureRecoveryIdentifier.isEmpty, file: file, line: line)
     XCTAssertFalse(snapshot.cadenceIdentifier.isEmpty, file: file, line: line)
+}
+
+private func assertNarrativeCueBounds(
+    _ snapshot: CinematicDiagnosticsReport.NarrativeCueSnapshot,
+    file: StaticString = #filePath,
+    line: UInt = #line
+) {
+    XCTAssertFalse(snapshot.identifier.isEmpty, file: file, line: line)
+    XCTAssertFalse(snapshot.stageBeatIdentifier.isEmpty, file: file, line: line)
+    XCTAssertFalse(snapshot.stagePhasePolishIdentifier.isEmpty, file: file, line: line)
+    XCTAssertFalse(snapshot.languageIdentifier.isEmpty, file: file, line: line)
+    XCTAssertFalse(snapshot.activityIdentifier.isEmpty, file: file, line: line)
+    XCTAssertFalse(snapshot.influenceIdentifier.isEmpty, file: file, line: line)
+
+    assertNarrativeCueDescriptorBounds(
+        snapshot.questPlaque,
+        maxCharacters: CinematicWorldTextService.questLabelMaxCharacters,
+        maxWords: CinematicWorldTextService.questLabelMaxWords,
+        file: file,
+        line: line
+    )
+    assertNarrativeCueDescriptorBounds(
+        snapshot.arenaInscription,
+        maxCharacters: CinematicWorldTextService.arenaCalloutMaxCharacters,
+        maxWords: CinematicWorldTextService.arenaCalloutMaxWords,
+        file: file,
+        line: line
+    )
+    assertNarrativeCueDescriptorBounds(
+        snapshot.activityBanner,
+        maxCharacters: CinematicWorldTextService.activityCalloutMaxCharacters,
+        maxWords: CinematicWorldTextService.activityCalloutMaxWords,
+        file: file,
+        line: line
+    )
+    XCTAssertLessThanOrEqual(
+        snapshot.questPlaque.secondaryText?.count ?? 0,
+        CinematicBriefingService.titleMaxCharacters,
+        file: file,
+        line: line
+    )
+}
+
+private func assertNarrativeCueDescriptorBounds(
+    _ descriptor: CinematicDiagnosticsReport.NarrativeCueDescriptorSnapshot,
+    maxCharacters: Int,
+    maxWords: Int,
+    file: StaticString = #filePath,
+    line: UInt = #line
+) {
+    XCTAssertFalse(descriptor.identifier.isEmpty, file: file, line: line)
+    XCTAssertFalse(descriptor.stableID.isEmpty, file: file, line: line)
+    XCTAssertFalse(descriptor.text.isEmpty, file: file, line: line)
+    XCTAssertLessThanOrEqual(descriptor.text.count, maxCharacters, file: file, line: line)
+    XCTAssertLessThanOrEqual(wordCount(descriptor.text), maxWords, file: file, line: line)
+    XCTAssertInRange(descriptor.scale, CinematicSceneNarrativeCuePlan.cueScaleRange, file: file, line: line)
+    XCTAssertInRange(descriptor.opacity, CinematicSceneNarrativeCuePlan.cueOpacityRange, file: file, line: line)
+    XCTAssertInRange(descriptor.cadence, CinematicSceneNarrativeCuePlan.cueCadenceRange, file: file, line: line)
+    XCTAssertFalse(descriptor.anchorIdentifier.isEmpty, file: file, line: line)
+    XCTAssertFalse(descriptor.visibilityIdentifier.isEmpty, file: file, line: line)
+    XCTAssertFalse(descriptor.lightFamilyIdentifier.isEmpty, file: file, line: line)
+    XCTAssertFalse(descriptor.tintFamilyIdentifier.isEmpty, file: file, line: line)
 }
 
 private func XCTAssertTintInRange(
