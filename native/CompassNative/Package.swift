@@ -13,7 +13,10 @@ let package = Package(
     targets: [
         .executableTarget(
             name: "CompassNative",
-            path: "Sources/CompassNative"
+            path: "Sources/CompassNative",
+            resources: [
+                .process("Resources")
+            ]
         )
     ]
 )

@@ -216,6 +216,7 @@ private struct NoProjectView: View {
 private struct MainWorkspaceView: View {
     @ObservedObject var project: CompassProject
     @State private var selectedTab: WorkspaceTab = .live
+    @State private var hasOpenedCinematic = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -234,6 +235,30 @@ private struct MainWorkspaceView: View {
                             .padding(.bottom, 12)
                     }
                 }
+                .background {
+                    if hasOpenedCinematic && selectedTab != .cinematic {
+                        CinematicSceneView(
+                            projectID: project.id,
+                            lines: project.liveLog,
+                            phase: project.phase,
+                            isActive: project.isRunning || project.isAutoPlaying
+                        )
+                        .frame(width: 1, height: 1)
+                        .opacity(0.01)
+                        .allowsHitTesting(false)
+                        .accessibilityHidden(true)
+                    }
+                }
+        }
+        .onAppear {
+            if selectedTab == .cinematic {
+                hasOpenedCinematic = true
+            }
+        }
+        .onChange(of: selectedTab) {
+            if selectedTab == .cinematic {
+                hasOpenedCinematic = true
+            }
         }
     }
 }
@@ -389,6 +414,8 @@ private struct WorkspaceContent: View {
         switch selectedTab {
         case .live:
             LiveTab(project: project)
+        case .cinematic:
+            CinematicTab(project: project)
         case .plan:
             PlanTab(project: project)
         case .drafts:
@@ -405,6 +432,7 @@ private struct WorkspaceContent: View {
 
 private enum WorkspaceTab: String, CaseIterable, Identifiable {
     case live
+    case cinematic
     case plan
     case drafts
     case vision
@@ -416,6 +444,7 @@ private enum WorkspaceTab: String, CaseIterable, Identifiable {
     var title: String {
         switch self {
         case .live: return "Live"
+        case .cinematic: return "Cinematic"
         case .plan: return "Plan"
         case .drafts: return "Drafts"
         case .vision: return "Vision"
@@ -427,6 +456,7 @@ private enum WorkspaceTab: String, CaseIterable, Identifiable {
     var systemImage: String {
         switch self {
         case .live: return "waveform.path.ecg"
+        case .cinematic: return "wand.and.stars"
         case .plan: return "map"
         case .drafts: return "square.and.pencil"
         case .vision: return "scope"
