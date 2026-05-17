@@ -139,26 +139,13 @@ enum RepositoryActivityProfileService {
     }
 }
 
-private struct RepositoryActivityProfileScanner {
-    private static let gitStatusTimeout: TimeInterval = 2
-    private static let maxSessionsFileBytes: UInt64 = 2 * 1024 * 1024
+enum RepositoryActivityProfileDeriver {
     private static let recentSessionLimit = 8
 
-    private let repoURL: URL
-    private let fileManager = FileManager.default
-
-    init(repoURL: URL) {
-        self.repoURL = repoURL.standardizedFileURL
-    }
-
-    func scan() async -> RepositoryActivityProfile {
-        guard let sessions = loadSessions() else {
-            return .empty
-        }
-        guard let worktreeChanges = await loadWorktreeChanges() else {
-            return .empty
-        }
-
+    static func profile(
+        from sessions: [SessionRecord],
+        worktreeChanges: RepositoryWorktreeChangeCounts
+    ) -> RepositoryActivityProfile {
         let terminalSessions = sessions
             .filter { $0.endedAt != nil }
             .sorted { outcomeTime($0) > outcomeTime($1) }
@@ -185,6 +172,80 @@ private struct RepositoryActivityProfileScanner {
             successStreak: successStreak,
             failureStreak: failureStreak,
             recoveredFromFailure: recoveredFromFailure
+        )
+    }
+
+    static func worktreeChanges(fromPorcelainStatus output: String) -> RepositoryWorktreeChangeCounts {
+        var counts = RepositoryWorktreeChangeCounts()
+        for line in output.split(whereSeparator: \.isNewline) {
+            guard line.count >= 2 else {
+                counts.other += 1
+                continue
+            }
+
+            let x = line[line.startIndex]
+            let y = line[line.index(after: line.startIndex)]
+
+            if x == "?" && y == "?" {
+                counts.untracked += 1
+            } else if isConflict(x, y) {
+                counts.conflicted += 1
+            } else if x == "R" || y == "R" || x == "C" || y == "C" {
+                counts.renamed += 1
+            } else if x == "D" || y == "D" {
+                counts.deleted += 1
+            } else if x == "A" || y == "A" {
+                counts.added += 1
+            } else if x == "M" || y == "M" || x == "T" || y == "T" {
+                counts.modified += 1
+            } else {
+                counts.other += 1
+            }
+        }
+        return counts
+    }
+
+    private static func outcomeTime(_ record: SessionRecord?) -> Double {
+        guard let record else { return -Double.infinity }
+        return record.endedAt ?? record.startedAt
+    }
+
+    private static func streak(in records: [SessionRecord], status: SessionStatus) -> Int {
+        var count = 0
+        for record in records {
+            guard record.status == status else { break }
+            count += 1
+        }
+        return count
+    }
+
+    private static func isConflict(_ x: Character, _ y: Character) -> Bool {
+        x == "U" || y == "U" || (x == "A" && y == "A") || (x == "D" && y == "D")
+    }
+}
+
+private struct RepositoryActivityProfileScanner {
+    private static let gitStatusTimeout: TimeInterval = 2
+    private static let maxSessionsFileBytes: UInt64 = 2 * 1024 * 1024
+
+    private let repoURL: URL
+    private let fileManager = FileManager.default
+
+    init(repoURL: URL) {
+        self.repoURL = repoURL.standardizedFileURL
+    }
+
+    func scan() async -> RepositoryActivityProfile {
+        guard let sessions = loadSessions() else {
+            return .empty
+        }
+        guard let worktreeChanges = await loadWorktreeChanges() else {
+            return .empty
+        }
+
+        return RepositoryActivityProfileDeriver.profile(
+            from: sessions,
+            worktreeChanges: worktreeChanges
         )
     }
 
@@ -216,54 +277,6 @@ private struct RepositoryActivityProfileScanner {
         ), result.exitCode == 0 else {
             return nil
         }
-        return Self.parsePorcelainStatus(result.stdout)
-    }
-
-    private func outcomeTime(_ record: SessionRecord?) -> Double {
-        guard let record else { return -Double.infinity }
-        return record.endedAt ?? record.startedAt
-    }
-
-    private func streak(in records: [SessionRecord], status: SessionStatus) -> Int {
-        var count = 0
-        for record in records {
-            guard record.status == status else { break }
-            count += 1
-        }
-        return count
-    }
-
-    private static func parsePorcelainStatus(_ output: String) -> RepositoryWorktreeChangeCounts {
-        var counts = RepositoryWorktreeChangeCounts()
-        for line in output.split(whereSeparator: \.isNewline) {
-            guard line.count >= 2 else {
-                counts.other += 1
-                continue
-            }
-
-            let x = line[line.startIndex]
-            let y = line[line.index(after: line.startIndex)]
-
-            if x == "?" && y == "?" {
-                counts.untracked += 1
-            } else if isConflict(x, y) {
-                counts.conflicted += 1
-            } else if x == "R" || y == "R" || x == "C" || y == "C" {
-                counts.renamed += 1
-            } else if x == "D" || y == "D" {
-                counts.deleted += 1
-            } else if x == "A" || y == "A" {
-                counts.added += 1
-            } else if x == "M" || y == "M" || x == "T" || y == "T" {
-                counts.modified += 1
-            } else {
-                counts.other += 1
-            }
-        }
-        return counts
-    }
-
-    private static func isConflict(_ x: Character, _ y: Character) -> Bool {
-        x == "U" || y == "U" || (x == "A" && y == "A") || (x == "D" && y == "D")
+        return RepositoryActivityProfileDeriver.worktreeChanges(fromPorcelainStatus: result.stdout)
     }
 }
