@@ -1387,7 +1387,7 @@ final class AppModel: ObservableObject {
     }
 }
 
-private struct KnownProjectRecord: Codable, Identifiable, Equatable {
+struct KnownProjectRecord: Codable, Identifiable, Equatable {
     var id: UUID
     var path: String
     var addedAt: Double
@@ -1466,11 +1466,20 @@ private extension CompassProject {
     }
 }
 
-private enum KnownProjectStore {
+enum KnownProjectStore {
+    struct ApplicationSupportRoots: Equatable {
+        var current: URL
+        var legacy: URL
+    }
+
     static func load() -> [KnownProjectRecord] {
-        let sourceURL = FileManager.default.fileExists(atPath: projectsURL.path)
-            ? projectsURL
-            : legacyProjectsURL
+        load(applicationSupportRoots: productionApplicationSupportRoots())
+    }
+
+    static func load(applicationSupportRoots roots: ApplicationSupportRoots) -> [KnownProjectRecord] {
+        let sourceURL = FileManager.default.fileExists(atPath: projectsURL(in: roots.current).path)
+            ? projectsURL(in: roots.current)
+            : legacyProjectsURL(in: roots.legacy)
         guard let data = try? Data(contentsOf: sourceURL), !data.isEmpty else {
             return []
         }
@@ -1478,31 +1487,38 @@ private enum KnownProjectStore {
     }
 
     static func save(_ records: [KnownProjectRecord]) throws {
+        try save(records, applicationSupportRoots: productionApplicationSupportRoots())
+    }
+
+    static func save(_ records: [KnownProjectRecord], applicationSupportRoots roots: ApplicationSupportRoots) throws {
+        let directoryURL = directoryURL(in: roots.current)
         try FileManager.default.createDirectory(at: directoryURL, withIntermediateDirectories: true)
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         let data = try encoder.encode(records)
-        try data.write(to: projectsURL, options: .atomic)
+        try data.write(to: projectsURL(in: roots.current), options: .atomic)
     }
 
-    private static var projectsURL: URL {
-        directoryURL.appending(path: "projects.json")
+    private static func projectsURL(in currentApplicationSupportRoot: URL) -> URL {
+        directoryURL(in: currentApplicationSupportRoot).appending(path: "projects.json")
     }
 
-    private static var legacyProjectsURL: URL {
-        legacyDirectoryURL.appending(path: "projects.json")
+    private static func legacyProjectsURL(in legacyApplicationSupportRoot: URL) -> URL {
+        legacyDirectoryURL(in: legacyApplicationSupportRoot).appending(path: "projects.json")
     }
 
-    private static var directoryURL: URL {
+    private static func directoryURL(in currentApplicationSupportRoot: URL) -> URL {
+        currentApplicationSupportRoot.appending(path: "Compass", directoryHint: .isDirectory)
+    }
+
+    private static func legacyDirectoryURL(in legacyApplicationSupportRoot: URL) -> URL {
+        legacyApplicationSupportRoot.appending(path: "CompassNative", directoryHint: .isDirectory)
+    }
+
+    private static func productionApplicationSupportRoots() -> ApplicationSupportRoots {
         let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
             ?? FileManager.default.homeDirectoryForCurrentUser.appending(path: "Library/Application Support", directoryHint: .isDirectory)
-        return base.appending(path: "Compass", directoryHint: .isDirectory)
-    }
-
-    private static var legacyDirectoryURL: URL {
-        let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
-            ?? FileManager.default.homeDirectoryForCurrentUser.appending(path: "Library/Application Support", directoryHint: .isDirectory)
-        return base.appending(path: "CompassNative", directoryHint: .isDirectory)
+        return ApplicationSupportRoots(current: base, legacy: base)
     }
 }
 
