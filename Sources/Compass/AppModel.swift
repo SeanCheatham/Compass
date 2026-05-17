@@ -23,6 +23,7 @@ final class CompassProject: ObservableObject, Identifiable {
         }
     }
     @Published var cinematicBriefing = CinematicBriefing.placeholder
+    @Published var cinematicWorldText = CinematicWorldText.placeholder
     @Published var isRunning = false
     @Published var isAutoPlaying = false
     @Published var isPaused = false
@@ -41,7 +42,7 @@ final class CompassProject: ObservableObject, Identifiable {
     private var executor: CodexExecutor?
     private var stopRequested = false
     private var cinematicBriefingTask: Task<Void, Never>?
-    private var lastCinematicBriefingInput: CinematicBriefingInput?
+    private var lastCinematicRefreshInput: CinematicRefreshInput?
     private var lastCinematicBriefingGeneratedAt = Date.distantPast
     private let maxDevelopAttempts = 3
     private let reflectSessionWindow = 10
@@ -60,13 +61,23 @@ final class CompassProject: ObservableObject, Identifiable {
         self.lastOpenedAt = lastOpenedAt
         self.cinematicInfluenceSettings = cinematicInfluenceSettings
         self.nativeFeedbackMode = nativeFeedbackMode
-        cinematicBriefing = CinematicBriefingService.deterministicBriefing(
-            for: CinematicBriefingInput(
-                repoName: repoURL.lastPathComponent,
-                currentPhase: LoopPhase.idle.rawValue,
-                immediatePlanTitle: "No immediate plan",
-                completedCount: 0,
-                latestEvent: nil
+        let briefingInput = CinematicBriefingInput(
+            repoName: repoURL.lastPathComponent,
+            currentPhase: LoopPhase.idle.rawValue,
+            immediatePlanTitle: "No immediate plan",
+            completedCount: 0,
+            latestEvent: nil
+        )
+        cinematicBriefing = CinematicBriefingService.deterministicBriefing(for: briefingInput)
+        cinematicWorldText = CinematicWorldTextService.deterministicWorldText(
+            for: CinematicWorldTextInput(
+                repoName: briefingInput.repoName,
+                currentPhase: briefingInput.currentPhase,
+                immediatePlanTitle: briefingInput.immediatePlanTitle,
+                completedCount: briefingInput.completedCount,
+                latestEvent: briefingInput.latestEvent,
+                languageProfile: languageProfile,
+                activityProfile: activityProfile
             )
         )
     }
@@ -81,6 +92,11 @@ private enum CinematicBriefingRefreshReason {
     case planAccepted
     case phaseChanged
     case liveEvent
+}
+
+private struct CinematicRefreshInput: Equatable {
+    var briefing: CinematicBriefingInput
+    var worldText: CinematicWorldTextInput
 }
 
 private enum CodexBinaryLocator {
@@ -1178,9 +1194,9 @@ extension CompassProject {
     }
 
     private func scheduleCinematicBriefingRefresh(reason: CinematicBriefingRefreshReason) {
-        let input = makeCinematicBriefingInput()
-        guard input != lastCinematicBriefingInput else { return }
-        lastCinematicBriefingInput = input
+        let input = makeCinematicRefreshInput()
+        guard input != lastCinematicRefreshInput else { return }
+        lastCinematicRefreshInput = input
 
         cinematicBriefingTask?.cancel()
         let delay = cinematicBriefingDelay(for: reason)
@@ -1192,19 +1208,33 @@ extension CompassProject {
 
             guard !Task.isCancelled, let self else { return }
             lastCinematicBriefingGeneratedAt = Date()
-            let briefing = await CinematicBriefingService.makeBriefing(input: input)
+            let briefing = await CinematicBriefingService.makeBriefing(input: input.briefing)
+            let worldText = await CinematicWorldTextService.makeWorldText(input: input.worldText)
             guard !Task.isCancelled else { return }
             cinematicBriefing = briefing
+            cinematicWorldText = worldText
         }
     }
 
-    private func makeCinematicBriefingInput() -> CinematicBriefingInput {
-        CinematicBriefingInput(
+    private func makeCinematicRefreshInput() -> CinematicRefreshInput {
+        let briefing = CinematicBriefingInput(
             repoName: displayName,
             currentPhase: (isPaused ? LoopPhase.paused : phase).rawValue,
             immediatePlanTitle: immediateTitle,
             completedCount: state.completed.count,
             latestEvent: liveLog.last.map(CinematicBriefingEvent.init(line:))
+        )
+        return CinematicRefreshInput(
+            briefing: briefing,
+            worldText: CinematicWorldTextInput(
+                repoName: briefing.repoName,
+                currentPhase: briefing.currentPhase,
+                immediatePlanTitle: briefing.immediatePlanTitle,
+                completedCount: briefing.completedCount,
+                latestEvent: briefing.latestEvent,
+                languageProfile: languageProfile,
+                activityProfile: activityProfile
+            )
         )
     }
 

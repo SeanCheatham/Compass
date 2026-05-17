@@ -30,8 +30,14 @@ struct CinematicTab: View {
                 .frame(maxHeight: .infinity, alignment: .bottom)
                 .allowsHitTesting(false)
 
-                CinematicHUD(caption: caption)
-                    .padding(18)
+                VStack(alignment: .leading, spacing: 10) {
+                    CinematicWorldTextOverlay(
+                        worldText: project.cinematicWorldText,
+                        tint: caption.activityColor
+                    )
+                    CinematicHUD(caption: caption)
+                }
+                .padding(18)
 
                 VStack {
                     HStack {
@@ -118,6 +124,60 @@ private struct CinematicInfluenceControls: View {
         }
         .onChange(of: project.cinematicInfluenceSettings) {
             model.saveProjects()
+        }
+    }
+}
+
+private struct CinematicWorldTextOverlay: View {
+    var worldText: CinematicWorldText
+    var tint: Color
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            CinematicWorldTextPill(
+                systemImage: "sparkle.magnifyingglass",
+                text: worldText.questLabel,
+                tint: tint
+            )
+            CinematicWorldTextPill(
+                systemImage: "scope",
+                text: worldText.arenaCallout,
+                tint: .white.opacity(0.76)
+            )
+            CinematicWorldTextPill(
+                systemImage: "waveform.path.ecg",
+                text: worldText.activityCallout,
+                tint: tint.opacity(0.92)
+            )
+        }
+        .frame(maxWidth: 430, alignment: .leading)
+    }
+}
+
+private struct CinematicWorldTextPill: View {
+    var systemImage: String
+    var text: String
+    var tint: Color
+
+    var body: some View {
+        HStack(spacing: 7) {
+            Image(systemName: systemImage)
+                .font(.system(size: 11, weight: .bold))
+                .foregroundStyle(tint)
+                .frame(width: 15)
+
+            Text(text)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.white.opacity(0.88))
+                .lineLimit(1)
+                .minimumScaleFactor(0.82)
+        }
+        .padding(.horizontal, 9)
+        .padding(.vertical, 6)
+        .background(.black.opacity(0.34), in: RoundedRectangle(cornerRadius: 7))
+        .overlay {
+            RoundedRectangle(cornerRadius: 7)
+                .stroke(.white.opacity(0.09))
         }
     }
 }
