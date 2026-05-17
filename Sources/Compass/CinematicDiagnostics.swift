@@ -11,6 +11,7 @@ struct CinematicDiagnosticsReport: Equatable {
     var activityMotif: ActivityMotifSnapshot
     var stageBeat: StageBeatSnapshot
     var stageEffect: StageEffectSnapshot
+    var stageAtmosphere: StageAtmosphereSnapshot
     var worldText: WorldTextSnapshot
     var briefing: BriefingSnapshot
     var cameraTuning: CameraTuningSnapshot
@@ -99,6 +100,44 @@ struct CinematicDiagnosticsReport: Equatable {
         var victoryCadenceMultiplier: Float
     }
 
+    struct StageAtmosphereSnapshot: Equatable {
+        var identifier: String
+        var beatIdentifier: String
+        var phaseIdentifier: String
+        var activityIdentifier: String
+        var pressureLevelIdentifier: String
+        var influenceStyleIdentifier: String
+        var influenceIntensity: Float
+        var pressureFraction: Float
+        var influenceFraction: Float
+        var energy: Float
+        var pressureHaloIdentifier: String
+        var pressureHaloRadius: Float
+        var pressureHaloOpacity: Float
+        var pressureHaloScale: Float
+        var pressureHaloColorAlpha: Float
+        var atmosphericPulseIdentifier: String
+        var atmosphericPulseCadence: TimeInterval
+        var atmosphericPulseAmplitude: Float
+        var atmosphericPulseOpacity: Float
+        var pressureLightingIdentifier: String
+        var phaseLightPressureBoost: Float
+        var rimLightPressureBoost: Float
+        var pressureLightColorAlpha: Float
+        var backdropTintIdentifier: String
+        var backdropTintRed: Float
+        var backdropTintGreen: Float
+        var backdropTintBlue: Float
+        var backdropTintOpacity: Float
+        var backdropTintBlendFraction: Float
+        var floorTintIdentifier: String
+        var floorTintRed: Float
+        var floorTintGreen: Float
+        var floorTintBlue: Float
+        var floorTintOpacity: Float
+        var floorTintBlendFraction: Float
+    }
+
     struct WorldTextSnapshot: Equatable {
         var identifier: String
         var questLabel: String
@@ -164,7 +203,7 @@ struct CinematicDiagnosticsReport: Equatable {
 }
 
 struct CinematicDiagnosticsSummary: Equatable {
-    static let maxRows = 26
+    static let maxRows = 28
     static let labelMaxCharacters = 32
     static let detailMaxCharacters = 512
 
@@ -290,6 +329,26 @@ struct CinematicDiagnosticsSummary: Equatable {
                 detail: report.stageEffect.historyTrailIdentifiers.isEmpty
                     ? "none"
                     : report.stageEffect.historyTrailIdentifiers.joined(separator: " | ")
+            ),
+            row(
+                id: "stage-atmosphere",
+                label: "Atmosphere",
+                detail: [
+                    "pressure \(report.stageAtmosphere.pressureLevelIdentifier) \(fixed(report.stageAtmosphere.pressureFraction))",
+                    "energy \(fixed(report.stageAtmosphere.energy))",
+                    "influence \(report.stageAtmosphere.influenceStyleIdentifier) \(fixed(report.stageAtmosphere.influenceIntensity))/\(fixed(report.stageAtmosphere.influenceFraction))",
+                    "halo \(report.stageAtmosphere.pressureHaloIdentifier)",
+                    "pulse \(report.stageAtmosphere.atmosphericPulseIdentifier)",
+                    "light \(report.stageAtmosphere.pressureLightingIdentifier)"
+                ].joined(separator: " | ")
+            ),
+            row(
+                id: "atmosphere-tints",
+                label: "Atmosphere tints",
+                detail: [
+                    "backdrop \(report.stageAtmosphere.backdropTintIdentifier)",
+                    "floor \(report.stageAtmosphere.floorTintIdentifier)"
+                ].joined(separator: " | ")
             ),
             row(id: "world-quest", label: "World quest", detail: report.worldText.questLabel),
             row(id: "world-arena", label: "World arena", detail: report.worldText.arenaCallout),
@@ -510,8 +569,15 @@ enum CinematicDiagnostics {
             setDressingPlan: setDressingPlan,
             influenceSettings: influenceSettings
         )
+        let stageAtmospherePlan = CinematicStageAtmospherePlanner.plan(
+            beat: stageBeat,
+            setDressingPlan: setDressingPlan,
+            stageEffectTuning: stageEffectPlan.tuningMetadata,
+            influenceSettings: influenceSettings
+        )
         let stageBeatSnapshot = stageBeatSnapshot(for: stageBeat)
         let stageEffectSnapshot = stageEffectSnapshot(for: stageEffectPlan)
+        let stageAtmosphereSnapshot = stageAtmosphereSnapshot(for: stageAtmospherePlan)
         let worldTextSnapshot = worldTextSnapshot(for: worldText)
         let briefingSnapshot = briefingSnapshot(for: briefing)
         let cameraTuningSnapshot = cameraTuningSnapshot(settings: influenceSettings)
@@ -532,6 +598,7 @@ enum CinematicDiagnostics {
                 "activity:\(activitySnapshot.identifier)",
                 "stage:\(stageBeatSnapshot.identifier)",
                 "stage-effect:\(stageEffectSnapshot.identifier)",
+                "stage-atmosphere:\(stageAtmosphereSnapshot.identifier)",
                 "influence:\(influenceIdentifier)",
                 "set-dressing:\(setDressingSnapshot.identifier)"
             ].joined(separator: "|"),
@@ -544,6 +611,7 @@ enum CinematicDiagnostics {
             activityMotif: activitySnapshot,
             stageBeat: stageBeatSnapshot,
             stageEffect: stageEffectSnapshot,
+            stageAtmosphere: stageAtmosphereSnapshot,
             worldText: worldTextSnapshot,
             briefing: briefingSnapshot,
             cameraTuning: cameraTuningSnapshot,
@@ -790,6 +858,62 @@ enum CinematicDiagnostics {
             cameraShakeMultiplier: tuning.cameraShakeMultiplier,
             cameraShakeDurationMultiplier: tuning.cameraShakeDurationMultiplier,
             victoryCadenceMultiplier: tuning.victoryCadenceMultiplier
+        )
+    }
+
+    private static func stageAtmosphereSnapshot(
+        for plan: CinematicStageAtmospherePlan
+    ) -> CinematicDiagnosticsReport.StageAtmosphereSnapshot {
+        let identifier = [
+            "beat:\(plan.beatIdentifier)",
+            "phase:\(plan.phaseIdentifier)",
+            "activity:\(plan.activityIdentifier)",
+            "pressure:\(plan.pressureLevelIdentifier):\(fixed(Double(plan.pressureFraction)))",
+            "energy:\(fixed(Double(plan.energy)))",
+            "influence:\(plan.influenceStyleIdentifier):\(fixed(Double(plan.influenceIntensity))):\(fixed(Double(plan.influenceFraction)))",
+            "halo:\(plan.pressureHalo.identifier)",
+            "pulse:\(plan.atmosphericPulse.identifier)",
+            "light:\(plan.pressureLighting.identifier)",
+            "backdrop:\(plan.backdropTint.identifier)",
+            "floor:\(plan.floorTint.identifier)"
+        ].joined(separator: "|")
+
+        return CinematicDiagnosticsReport.StageAtmosphereSnapshot(
+            identifier: identifier,
+            beatIdentifier: plan.beatIdentifier,
+            phaseIdentifier: plan.phaseIdentifier,
+            activityIdentifier: plan.activityIdentifier,
+            pressureLevelIdentifier: plan.pressureLevelIdentifier,
+            influenceStyleIdentifier: plan.influenceStyleIdentifier,
+            influenceIntensity: plan.influenceIntensity,
+            pressureFraction: plan.pressureFraction,
+            influenceFraction: plan.influenceFraction,
+            energy: plan.energy,
+            pressureHaloIdentifier: plan.pressureHalo.identifier,
+            pressureHaloRadius: plan.pressureHalo.radius,
+            pressureHaloOpacity: plan.pressureHalo.opacity,
+            pressureHaloScale: plan.pressureHalo.scale,
+            pressureHaloColorAlpha: plan.pressureHalo.colorAlpha,
+            atmosphericPulseIdentifier: plan.atmosphericPulse.identifier,
+            atmosphericPulseCadence: plan.atmosphericPulse.cadence,
+            atmosphericPulseAmplitude: plan.atmosphericPulse.amplitude,
+            atmosphericPulseOpacity: plan.atmosphericPulse.opacity,
+            pressureLightingIdentifier: plan.pressureLighting.identifier,
+            phaseLightPressureBoost: plan.pressureLighting.phaseLightPressureBoost,
+            rimLightPressureBoost: plan.pressureLighting.rimLightPressureBoost,
+            pressureLightColorAlpha: plan.pressureLighting.colorAlpha,
+            backdropTintIdentifier: plan.backdropTint.identifier,
+            backdropTintRed: plan.backdropTint.red,
+            backdropTintGreen: plan.backdropTint.green,
+            backdropTintBlue: plan.backdropTint.blue,
+            backdropTintOpacity: plan.backdropTint.opacity,
+            backdropTintBlendFraction: plan.backdropTint.blendFraction,
+            floorTintIdentifier: plan.floorTint.identifier,
+            floorTintRed: plan.floorTint.red,
+            floorTintGreen: plan.floorTint.green,
+            floorTintBlue: plan.floorTint.blue,
+            floorTintOpacity: plan.floorTint.opacity,
+            floorTintBlendFraction: plan.floorTint.blendFraction
         )
     }
 

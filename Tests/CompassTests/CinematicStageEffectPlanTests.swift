@@ -321,6 +321,11 @@ final class CinematicStageEffectPlanTests: XCTestCase {
         XCTAssertGreaterThan(report.stageEffect.pulseIntensityMultiplier, 0)
         XCTAssertGreaterThan(report.stageEffect.sparkBirthRateMultiplier, 0)
         XCTAssertEqual(report.stageEffect.historyTrailTargetCount, 3)
+        XCTAssertEqual(report.stageAtmosphere.pressureLevelIdentifier, report.stageEffect.pressureLevelIdentifier)
+        XCTAssertEqual(report.stageAtmosphere.influenceStyleIdentifier, report.stageEffect.influenceStyleIdentifier)
+        XCTAssertGreaterThan(report.stageAtmosphere.pressureHaloRadius, 0)
+        XCTAssertGreaterThan(report.stageAtmosphere.pressureHaloOpacity, 0)
+        XCTAssertGreaterThan(report.stageAtmosphere.phaseLightPressureBoost, 0)
 
         let summary = CinematicDiagnosticsSummary(report: report)
         XCTAssertTrue(summary.rows.contains { $0.id == "stage-effect" })
@@ -328,11 +333,15 @@ final class CinematicStageEffectPlanTests: XCTestCase {
         XCTAssertTrue(summary.rows.contains { $0.id == "effect-rings" })
         XCTAssertTrue(summary.rows.contains { $0.id == "effect-pulses" })
         XCTAssertTrue(summary.rows.contains { $0.id == "effect-history" })
+        XCTAssertTrue(summary.rows.contains { $0.id == "stage-atmosphere" })
+        XCTAssertTrue(summary.rows.contains { $0.id == "atmosphere-tints" })
         XCTAssertTrue(summary.exportText.contains("Stage effect:"))
         XCTAssertTrue(summary.exportText.contains("Effect tuning:"))
         XCTAssertTrue(summary.exportText.contains("Effect rings:"))
         XCTAssertTrue(summary.exportText.contains("Effect pulses:"))
         XCTAssertTrue(summary.exportText.contains("Effect history:"))
+        XCTAssertTrue(summary.exportText.contains("Atmosphere:"))
+        XCTAssertTrue(summary.exportText.contains("Atmosphere tints:"))
         XCTAssertTrue(summary.exportText.contains("history-chains"))
     }
 }

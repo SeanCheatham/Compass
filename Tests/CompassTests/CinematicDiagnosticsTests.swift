@@ -51,6 +51,13 @@ final class CinematicDiagnosticsTests: XCTestCase {
         XCTAssertEqual(report.stageEffect.pressureLevelIdentifier, "light")
         XCTAssertEqual(report.stageEffect.influenceStyleIdentifier, "dramatic")
         XCTAssertGreaterThan(report.stageEffect.energy, 0)
+        XCTAssertTrue(report.identifier.contains("stage-atmosphere:"))
+        XCTAssertEqual(report.stageAtmosphere.pressureLevelIdentifier, "light")
+        XCTAssertEqual(report.stageAtmosphere.influenceStyleIdentifier, "dramatic")
+        XCTAssertEqual(report.stageAtmosphere.activityIdentifier, "dirty")
+        XCTAssertGreaterThan(report.stageAtmosphere.pressureHaloOpacity, 0)
+        XCTAssertGreaterThan(report.stageAtmosphere.phaseLightPressureBoost, 0)
+        XCTAssertGreaterThan(report.stageAtmosphere.floorTintOpacity, 0)
         XCTAssertTrue(report.worldText.identifier.contains(report.worldText.questLabel))
         XCTAssertTrue(report.briefing.identifier.contains(report.briefing.title))
 
@@ -106,6 +113,10 @@ final class CinematicDiagnosticsTests: XCTestCase {
         )
         XCTAssertTrue(
             Set(reports.map(\.stageEffect.pressureLevelIdentifier))
+                .isSuperset(of: ["clean", "light", "moderate", "heavy"])
+        )
+        XCTAssertTrue(
+            Set(reports.map(\.stageAtmosphere.pressureLevelIdentifier))
                 .isSuperset(of: ["clean", "light", "moderate", "heavy"])
         )
     }
@@ -193,6 +204,7 @@ final class CinematicDiagnosticsTests: XCTestCase {
                 XCTAssertGreaterThan(report.activityTuning.activityPressureScale, 0)
 
                 assertStageEffectTuningBounds(report.stageEffect, file: #filePath, line: #line)
+                assertStageAtmosphereBounds(report.stageAtmosphere, file: #filePath, line: #line)
 
                 for snapshot in report.cameraSnapshots {
                     XCTAssertFinite(snapshot.position)
@@ -232,6 +244,8 @@ final class CinematicDiagnosticsTests: XCTestCase {
                 "effect-rings",
                 "effect-pulses",
                 "effect-history",
+                "stage-atmosphere",
+                "atmosphere-tints",
                 "world-quest",
                 "world-arena",
                 "world-activity",
@@ -298,6 +312,10 @@ final class CinematicDiagnosticsTests: XCTestCase {
         XCTAssertTrue(summary.exportText.contains(report.stageEffect.influenceStyleIdentifier))
         XCTAssertTrue(summary.exportText.contains(report.stageEffect.arenaRingIdentifiers[0]))
         XCTAssertTrue(summary.exportText.contains(report.stageEffect.phaseLightPulseIdentifiers[0]))
+        XCTAssertTrue(summary.exportText.contains("Atmosphere:"))
+        XCTAssertTrue(summary.exportText.contains("Atmosphere tints:"))
+        XCTAssertTrue(summary.exportText.contains(report.stageAtmosphere.pressureHaloIdentifier))
+        XCTAssertTrue(summary.exportText.contains(report.stageAtmosphere.floorTintIdentifier))
         XCTAssertTrue(summary.exportText.contains(report.setDressing.languageArchitectureIdentifier))
         XCTAssertTrue(summary.exportText.contains(report.setDressing.activityMarkerIdentifier))
         XCTAssertTrue(summary.exportText.contains(report.setDressing.materialTextureVariantIdentifier))
@@ -401,6 +419,11 @@ final class CinematicDiagnosticsTests: XCTestCase {
         XCTAssertGreaterThan(heavy.stageEffect.energy, clean.stageEffect.energy)
         XCTAssertGreaterThan(heavy.stageEffect.ringScaleMultiplier, clean.stageEffect.ringScaleMultiplier)
         XCTAssertLessThan(heavy.stageEffect.ringDurationScale, clean.stageEffect.ringDurationScale)
+        XCTAssertGreaterThan(heavy.stageAtmosphere.pressureHaloOpacity, clean.stageAtmosphere.pressureHaloOpacity)
+        XCTAssertGreaterThan(heavy.stageAtmosphere.phaseLightPressureBoost, clean.stageAtmosphere.phaseLightPressureBoost)
+        XCTAssertGreaterThan(heavy.stageAtmosphere.rimLightPressureBoost, clean.stageAtmosphere.rimLightPressureBoost)
+        XCTAssertGreaterThan(heavy.stageAtmosphere.floorTintOpacity, clean.stageAtmosphere.floorTintOpacity)
+        XCTAssertLessThan(heavy.stageAtmosphere.atmosphericPulseCadence, clean.stageAtmosphere.atmosphericPulseCadence)
 
         let steady = CinematicDiagnostics.report(
             repoName: "Compass",
@@ -437,10 +460,15 @@ final class CinematicDiagnosticsTests: XCTestCase {
         XCTAssertLessThan(follow.stageEffect.influenceFraction, dramatic.stageEffect.influenceFraction)
         XCTAssertGreaterThan(dramatic.stageEffect.sparkBirthRateMultiplier, steady.stageEffect.sparkBirthRateMultiplier)
         XCTAssertInRange(dramatic.stageEffect.sparkBirthRateMultiplier, CinematicStageEffectPlan.sparkBirthRateMultiplierRange)
+        XCTAssertGreaterThan(dramatic.stageAtmosphere.influenceFraction, steady.stageAtmosphere.influenceFraction)
+        XCTAssertGreaterThan(dramatic.stageAtmosphere.rimLightPressureBoost, steady.stageAtmosphere.rimLightPressureBoost)
+        XCTAssertInRange(dramatic.stageAtmosphere.rimLightPressureBoost, CinematicStageAtmospherePlan.rimLightPressureBoostRange)
 
         let summary = CinematicDiagnosticsSummary(report: heavy)
         XCTAssertTrue(summary.rows.contains { $0.id == "effect-tuning" })
+        XCTAssertTrue(summary.rows.contains { $0.id == "stage-atmosphere" })
         XCTAssertTrue(summary.exportText.contains("Effect tuning:"))
+        XCTAssertTrue(summary.exportText.contains("Atmosphere:"))
         XCTAssertTrue(summary.exportText.contains("pressure heavy"))
         XCTAssertTrue(summary.exportText.contains("influence dramatic"))
     }
@@ -602,6 +630,70 @@ private func assertStageEffectTuningBounds(
     XCTAssertInRange(snapshot.cameraShakeDurationMultiplier, CinematicStageEffectPlan.cameraShakeDurationMultiplierRange, file: file, line: line)
     XCTAssertInRange(snapshot.victoryCadenceMultiplier, CinematicStageEffectPlan.victoryCadenceMultiplierRange, file: file, line: line)
     XCTAssertFalse(snapshot.tuningIdentifier.isEmpty, file: file, line: line)
+}
+
+private func assertStageAtmosphereBounds(
+    _ snapshot: CinematicDiagnosticsReport.StageAtmosphereSnapshot,
+    file: StaticString = #filePath,
+    line: UInt = #line
+) {
+    XCTAssertInRange(snapshot.pressureFraction, CinematicStageAtmospherePlan.atmospherePressureRange, file: file, line: line)
+    XCTAssertInRange(snapshot.influenceIntensity, CinematicStageAtmospherePlan.atmosphereInfluenceRange, file: file, line: line)
+    XCTAssertInRange(snapshot.influenceFraction, CinematicStageAtmospherePlan.atmosphereInfluenceRange, file: file, line: line)
+    XCTAssertInRange(snapshot.energy, CinematicStageAtmospherePlan.atmosphereEnergyRange, file: file, line: line)
+    XCTAssertInRange(snapshot.pressureHaloRadius, CinematicStageAtmospherePlan.pressureHaloRadiusRange, file: file, line: line)
+    XCTAssertInRange(snapshot.pressureHaloOpacity, CinematicStageAtmospherePlan.pressureHaloOpacityRange, file: file, line: line)
+    XCTAssertInRange(snapshot.pressureHaloScale, CinematicStageAtmospherePlan.pressureHaloScaleRange, file: file, line: line)
+    XCTAssertInRange(snapshot.pressureHaloColorAlpha, CinematicStageAtmospherePlan.colorAlphaRange, file: file, line: line)
+    XCTAssertInRange(snapshot.atmosphericPulseCadence, CinematicStageAtmospherePlan.atmosphericPulseCadenceRange, file: file, line: line)
+    XCTAssertInRange(snapshot.atmosphericPulseAmplitude, CinematicStageAtmospherePlan.atmosphericPulseAmplitudeRange, file: file, line: line)
+    XCTAssertInRange(snapshot.atmosphericPulseOpacity, CinematicStageAtmospherePlan.atmosphericPulseOpacityRange, file: file, line: line)
+    XCTAssertInRange(snapshot.phaseLightPressureBoost, CinematicStageAtmospherePlan.phaseLightPressureBoostRange, file: file, line: line)
+    XCTAssertInRange(snapshot.rimLightPressureBoost, CinematicStageAtmospherePlan.rimLightPressureBoostRange, file: file, line: line)
+    XCTAssertInRange(snapshot.pressureLightColorAlpha, CinematicStageAtmospherePlan.colorAlphaRange, file: file, line: line)
+    XCTAssertTintInRange(
+        red: snapshot.backdropTintRed,
+        green: snapshot.backdropTintGreen,
+        blue: snapshot.backdropTintBlue,
+        opacity: snapshot.backdropTintOpacity,
+        blendFraction: snapshot.backdropTintBlendFraction,
+        opacityRange: CinematicStageAtmospherePlan.backdropTintOpacityRange,
+        file: file,
+        line: line
+    )
+    XCTAssertTintInRange(
+        red: snapshot.floorTintRed,
+        green: snapshot.floorTintGreen,
+        blue: snapshot.floorTintBlue,
+        opacity: snapshot.floorTintOpacity,
+        blendFraction: snapshot.floorTintBlendFraction,
+        opacityRange: CinematicStageAtmospherePlan.floorTintOpacityRange,
+        file: file,
+        line: line
+    )
+    XCTAssertFalse(snapshot.identifier.isEmpty, file: file, line: line)
+    XCTAssertFalse(snapshot.pressureHaloIdentifier.isEmpty, file: file, line: line)
+    XCTAssertFalse(snapshot.atmosphericPulseIdentifier.isEmpty, file: file, line: line)
+    XCTAssertFalse(snapshot.pressureLightingIdentifier.isEmpty, file: file, line: line)
+    XCTAssertFalse(snapshot.backdropTintIdentifier.isEmpty, file: file, line: line)
+    XCTAssertFalse(snapshot.floorTintIdentifier.isEmpty, file: file, line: line)
+}
+
+private func XCTAssertTintInRange(
+    red: Float,
+    green: Float,
+    blue: Float,
+    opacity: Float,
+    blendFraction: Float,
+    opacityRange: ClosedRange<Float>,
+    file: StaticString = #filePath,
+    line: UInt = #line
+) {
+    XCTAssertInRange(red, CinematicStageAtmospherePlan.colorComponentRange, file: file, line: line)
+    XCTAssertInRange(green, CinematicStageAtmospherePlan.colorComponentRange, file: file, line: line)
+    XCTAssertInRange(blue, CinematicStageAtmospherePlan.colorComponentRange, file: file, line: line)
+    XCTAssertInRange(opacity, opacityRange, file: file, line: line)
+    XCTAssertInRange(blendFraction, CinematicStageAtmospherePlan.surfaceTintBlendRange, file: file, line: line)
 }
 
 private func XCTAssertInRange<T: Comparable>(

@@ -204,9 +204,15 @@ private final class CinematicSceneCoordinator {
     private let setDressingRoot = Entity()
     private let languageSigilRoot = Entity()
     private let activitySigilRoot = Entity()
+    private let atmosphereRoot = Entity()
+    private let pressureHaloNode = Entity()
+    private let atmospherePulseNode = Entity()
+    private let backdropTintNode = Entity()
+    private let floorTintNode = Entity()
     private let keyLightNode = Entity()
     private let rimLightNode = Entity()
     private let phaseLightNode = Entity()
+    private let rimLightBaseIntensity: Float = 1180
 
     private var activeEnemies: [UUID: Entity] = [:]
     private var lineStatuses: [UUID: LiveLine.Status] = [:]
@@ -249,6 +255,7 @@ private final class CinematicSceneCoordinator {
     private var shakeUntil = Date.distantPast
     private var activeCameraShakeScale: Float = 0
     private var staffOrbBoost: Float = 0
+    private var currentAtmospherePlan: CinematicStageAtmospherePlan?
     private let staffIdleOrientation = simd_quatf(angle: 0.18, axis: SIMD3<Float>(0, 0, 1))
     private let leftArmIdleOrientation = simd_quatf(angle: 0.44, axis: SIMD3<Float>(0, 0, 1))
     private let rightArmIdleOrientation = simd_quatf(angle: -0.34, axis: SIMD3<Float>(0, 0, 1))
@@ -327,6 +334,9 @@ private final class CinematicSceneCoordinator {
             if influenceChanged {
                 applyCinematicInfluenceChange()
             }
+            refreshAtmosphere(animated: false)
+            let baseline = phaseLightBaseline(for: phase)
+            setPhaseLight(color: themedColor(baseline.color), intensity: baseline.intensity)
             return
         }
 
@@ -378,9 +388,11 @@ private final class CinematicSceneCoordinator {
         enemyRoot.name = "enemy-root"
         effectsRoot.name = "effects-root"
         setDressingRoot.name = "set-dressing-root"
+        atmosphereRoot.name = "atmosphere-root"
 
         buildBackdrop()
         buildArena()
+        buildAtmosphere()
         buildSetDressing()
         buildLights()
         buildCamera()
@@ -388,8 +400,10 @@ private final class CinematicSceneCoordinator {
 
         root.addChild(wizardNode)
         root.addChild(enemyRoot)
+        root.addChild(atmosphereRoot)
         root.addChild(effectsRoot)
         root.addChild(setDressingRoot)
+        refreshAtmosphere(animated: false)
         stageCamera(.home, animated: false)
     }
 
@@ -502,6 +516,53 @@ private final class CinematicSceneCoordinator {
             ring.position.y = 0.055
             root.addChild(ring)
         }
+    }
+
+    private func buildAtmosphere() {
+        let clear = glowMaterial(NSColor(calibratedWhite: 0, alpha: 0), opacity: 0)
+
+        pressureHaloNode.name = "pressure-atmosphere-halo"
+        pressureHaloNode.components.set(
+            ModelComponent(
+                mesh: torusMesh(ringRadius: 1, pipeRadius: 0.011),
+                materials: [clear]
+            )
+        )
+        pressureHaloNode.position.y = 0.09
+        pressureHaloNode.components.set(OpacityComponent(opacity: 0))
+        atmosphereRoot.addChild(pressureHaloNode)
+
+        atmospherePulseNode.name = "pressure-atmosphere-pulse"
+        atmospherePulseNode.components.set(
+            ModelComponent(
+                mesh: torusMesh(ringRadius: 1, pipeRadius: 0.006),
+                materials: [clear]
+            )
+        )
+        atmospherePulseNode.position.y = 0.115
+        atmospherePulseNode.components.set(OpacityComponent(opacity: 0))
+        atmosphereRoot.addChild(atmospherePulseNode)
+
+        floorTintNode.name = "pressure-atmosphere-floor"
+        floorTintNode.components.set(
+            ModelComponent(
+                mesh: circularPlaneMesh(radius: 13.8),
+                materials: [clear]
+            )
+        )
+        floorTintNode.position.y = 0.04
+        floorTintNode.components.set(OpacityComponent(opacity: 0))
+        atmosphereRoot.addChild(floorTintNode)
+
+        backdropTintNode.name = "pressure-atmosphere-backdrop"
+        backdropTintNode.components.set(
+            ModelComponent(
+                mesh: curvedWallMesh(radius: 30.35, height: 16.8, arc: 2.58, bottomY: 0),
+                materials: [clear]
+            )
+        )
+        backdropTintNode.components.set(OpacityComponent(opacity: 0))
+        atmosphereRoot.addChild(backdropTintNode)
     }
 
     private func buildSetDressing() {
@@ -624,7 +685,7 @@ private final class CinematicSceneCoordinator {
         rimLightNode.components.set(
             PointLightComponent(
                 color: NSColor(calibratedRed: 0.22, green: 0.38, blue: 1, alpha: 1),
-                intensity: 1180,
+                intensity: rimLightBaseIntensity,
                 attenuationRadius: 12
             )
         )
@@ -824,8 +885,33 @@ private final class CinematicSceneCoordinator {
         )
     }
 
+    private func stageAtmospherePlan(
+        for beat: CinematicStageBeat,
+        tuningMetadata: CinematicStageEffectPlan.StageEffectTuning
+    ) -> CinematicStageAtmospherePlan {
+        CinematicStageAtmospherePlanner.plan(
+            beat: beat,
+            setDressingPlan: setDressingPlan,
+            stageEffectTuning: tuningMetadata,
+            influenceSettings: influenceSettings
+        )
+    }
+
+    private func refreshAtmosphere(animated: Bool) {
+        let beat = stageBeat()
+        let effectPlan = stageEffectPlan(for: beat)
+        applyAtmospherePlan(
+            stageAtmospherePlan(for: beat, tuningMetadata: effectPlan.tuningMetadata),
+            animated: animated
+        )
+    }
+
     private func applyPhaseBeat(_ beat: CinematicStageBeat) {
         let effectPlan = stageEffectPlan(for: beat)
+        applyAtmospherePlan(
+            stageAtmospherePlan(for: beat, tuningMetadata: effectPlan.tuningMetadata),
+            animated: true
+        )
         if beat.shouldRunVictorySurge {
             victorySurge(using: effectPlan)
             return
@@ -2078,6 +2164,7 @@ private final class CinematicSceneCoordinator {
         )
         setGlow(accent, on: staffOrbNode)
         applySetDressingPlan(animated: animated)
+        refreshAtmosphere(animated: animated)
 
         let baseline = phaseLightBaseline(for: lastPhase)
         setPhaseLight(color: themedColor(baseline.color), intensity: baseline.intensity)
@@ -2090,6 +2177,10 @@ private final class CinematicSceneCoordinator {
         applySetDressingPlan(animated: animated)
         let beat = stageBeat()
         let effectPlan = stageEffectPlan(for: beat)
+        applyAtmospherePlan(
+            stageAtmospherePlan(for: beat, tuningMetadata: effectPlan.tuningMetadata),
+            animated: animated
+        )
         setPhaseLight(
             color: themedColor(beat.lightFamily.spell.nsColor),
             intensity: beat.phaseLightIntensity
@@ -2114,9 +2205,57 @@ private final class CinematicSceneCoordinator {
         }
     }
 
+    private func applyAtmospherePlan(_ plan: CinematicStageAtmospherePlan, animated: Bool) {
+        currentAtmospherePlan = plan
+
+        let haloColor = atmosphereColor(plan.floorTint)
+            .withAlphaComponent(CGFloat(plan.pressureHalo.colorAlpha))
+        setGlow(haloColor, opacity: plan.pressureHalo.opacity, on: pressureHaloNode)
+        pressureHaloNode.scale = atmosphereScale(
+            radius: plan.pressureHalo.radius,
+            scale: plan.pressureHalo.scale
+        )
+        setOpacity(plan.pressureHalo.opacity, on: pressureHaloNode)
+
+        let pulseColor = atmosphereColor(plan.floorTint)
+            .withAlphaComponent(CGFloat(plan.pressureLighting.colorAlpha))
+        setGlow(pulseColor, opacity: plan.atmosphericPulse.opacity, on: atmospherePulseNode)
+        atmospherePulseNode.scale = atmosphereScale(
+            radius: plan.pressureHalo.radius * 0.76,
+            scale: plan.pressureHalo.scale
+        )
+        setOpacity(plan.atmosphericPulse.opacity, on: atmospherePulseNode)
+
+        setGlow(atmosphereColor(plan.backdropTint), opacity: plan.backdropTint.opacity, on: backdropTintNode)
+        setOpacity(plan.backdropTint.opacity, on: backdropTintNode)
+        setGlow(atmosphereColor(plan.floorTint), opacity: plan.floorTint.opacity, on: floorTintNode)
+        setOpacity(plan.floorTint.opacity, on: floorTintNode)
+
+        let rimColor = themedColor(stageBeat().lightFamily.spell.nsColor)
+            .mixing(with: atmosphereColor(plan.floorTint), fraction: CGFloat(plan.floorTint.blendFraction))
+        setPointLight(
+            color: rimColor,
+            intensity: rimLightBaseIntensity + plan.pressureLighting.rimLightPressureBoost,
+            on: rimLightNode
+        )
+
+        if animated, plan.pressureHalo.opacity > 0 {
+            animate(
+                pressureHaloNode,
+                toScale: atmosphereScale(
+                    radius: plan.pressureHalo.radius,
+                    scale: plan.pressureHalo.scale + plan.atmosphericPulse.amplitude
+                ),
+                duration: min(0.65, plan.atmosphericPulse.cadence * 0.32),
+                timing: .easeOut
+            )
+        }
+    }
+
     private func applyCinematicInfluenceChange() {
         stageCamera(currentCameraShot)
         applySetDressingPlan(animated: false)
+        refreshAtmosphere(animated: false)
         let baseline = phaseLightBaseline(for: lastPhase)
         setPhaseLight(color: themedColor(baseline.color), intensity: baseline.intensity)
 
@@ -2127,6 +2266,20 @@ private final class CinematicSceneCoordinator {
 
     private func themedColor(_ color: NSColor) -> NSColor {
         languageMotif.phaseColor(color)
+    }
+
+    private func atmosphereColor(_ tint: CinematicStageAtmospherePlan.SurfaceTint) -> NSColor {
+        NSColor(
+            calibratedRed: CGFloat(tint.red),
+            green: CGFloat(tint.green),
+            blue: CGFloat(tint.blue),
+            alpha: CGFloat(tint.opacity)
+        )
+    }
+
+    private func atmosphereScale(radius: Float, scale: Float) -> SIMD3<Float> {
+        let value = max(0.001, radius * scale)
+        return [value, 1, value]
     }
 
     private func phaseLightBaseline(for phase: LoopPhase) -> (color: NSColor, intensity: Float) {
@@ -2153,8 +2306,12 @@ private final class CinematicSceneCoordinator {
     private func setPhaseLight(color: NSColor, intensity: Float) {
         guard var light = phaseLightNode.components[PointLightComponent.self] else { return }
         light.color = activityTint(for: color)
-        light.intensity = intensity + activityLightBoost()
+        light.intensity = intensity + activityLightBoost() + atmospherePhaseLightBoost()
         phaseLightNode.components.set(light)
+    }
+
+    private func atmospherePhaseLightBoost() -> Float {
+        currentAtmospherePlan?.pressureLighting.phaseLightPressureBoost ?? 0
     }
 
     private func activityTint(for color: NSColor) -> NSColor {
@@ -2361,6 +2518,7 @@ private final class CinematicSceneCoordinator {
         updateCamera(delta: delta)
         updateWizard(delta: delta)
         updateEnemyLoops()
+        updateAtmosphere()
         updateSetDressing()
         updateAnimations(delta: delta)
     }
@@ -2514,6 +2672,18 @@ private final class CinematicSceneCoordinator {
                 aura.orientation = simd_quatf(angle: Float(elapsedTime) * (isSlowed ? 1.1 : 2.6) + Float(index), axis: [0, 1, 0])
             }
         }
+    }
+
+    private func updateAtmosphere() {
+        guard let plan = currentAtmospherePlan else { return }
+        let cadence = max(plan.atmosphericPulse.cadence, 0.1)
+        let wave = 0.5 + sin(Float(elapsedTime / cadence) * .pi * 2) * 0.5
+        let haloScale = plan.pressureHalo.scale + plan.atmosphericPulse.amplitude * wave
+        pressureHaloNode.scale = atmosphereScale(radius: plan.pressureHalo.radius, scale: haloScale)
+
+        let pulseScale = plan.pressureHalo.scale * 0.74 + plan.atmosphericPulse.amplitude * (0.8 + wave)
+        atmospherePulseNode.scale = atmosphereScale(radius: plan.pressureHalo.radius, scale: pulseScale)
+        setOpacity(plan.atmosphericPulse.opacity * (0.52 + wave * 0.48), on: atmospherePulseNode)
     }
 
     private func updateSetDressing() {
