@@ -92,8 +92,8 @@ private struct CinematicCaption {
         phase = currentPhase.rawValue
 
         if (project.isRunning || project.isAutoPlaying) && Self.isThinking(project: project) {
-            title = "The robot wizard is kiting the wave"
-            detail = "Codex is thinking while pressure gathers around the arena."
+            title = "The robot wizard is holding the line"
+            detail = "Codex is thinking while wards slow the wave."
             systemImage = "brain.head.profile"
             color = .blue
             return

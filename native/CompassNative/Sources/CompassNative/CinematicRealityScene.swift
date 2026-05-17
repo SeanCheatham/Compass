@@ -183,6 +183,27 @@ private enum CinematicCameraShot {
     }
 }
 
+private enum DefensiveSpell {
+    case slow
+    case stun
+    case wall
+
+    var school: SpellSchool {
+        switch self {
+        case .slow:
+            return .scan
+        case .stun:
+            return .verify
+        case .wall:
+            return .lifecycle
+        }
+    }
+
+    var color: NSColor {
+        school.nsColor
+    }
+}
+
 @MainActor
 private final class CinematicSceneCoordinator {
     let projectID: UUID
@@ -210,14 +231,17 @@ private final class CinematicSceneCoordinator {
     private var isInstalled = false
     private var lastPhase: LoopPhase = .idle
     private var thinkingTimer: Timer?
-    private var skirmishTimer: Timer?
+    private var defenseTimer: Timer?
     private var displayTimer: Timer?
     private var lastTickDate = Date()
     private var elapsedTime: TimeInterval = 0
     private var isThinking = false
     private var ambientSpawnIndex = 0
+    private var defensiveCastIndex = 0
     private var nextAmbientSpawnDate = Date.distantPast
     private var enemyHealth: [ObjectIdentifier: Float] = [:]
+    private var slowedEnemies: [ObjectIdentifier: Date] = [:]
+    private var stunnedEnemies: [ObjectIdentifier: Date] = [:]
     private var setDressingBaseHeights: [ObjectIdentifier: Float] = [:]
     private var animations: [EntityAnimation] = []
     private var cameraAnimation: CameraAnimation?
@@ -294,8 +318,8 @@ private final class CinematicSceneCoordinator {
     func stop() {
         thinkingTimer?.invalidate()
         thinkingTimer = nil
-        skirmishTimer?.invalidate()
-        skirmishTimer = nil
+        defenseTimer?.invalidate()
+        defenseTimer = nil
         displayTimer?.invalidate()
         displayTimer = nil
     }
@@ -321,50 +345,78 @@ private final class CinematicSceneCoordinator {
     }
 
     private func buildBackdrop() {
-        let fallback = glowMaterial(NSColor(calibratedRed: 0.012, green: 0.013, blue: 0.018, alpha: 1))
+        let fallback = glowMaterial(NSColor(calibratedRed: 0.006, green: 0.006, blue: 0.01, alpha: 1))
         let backdrop = ModelEntity(
-            mesh: .generatePlane(width: 42, height: 18),
+            mesh: curvedWallMesh(radius: 31, height: 21, arc: 2.55),
             materials: [
                 textureMaterial(
                     "void-arches-v2",
-                    tint: NSColor(calibratedWhite: 0.66, alpha: 1)
+                    tint: NSColor(calibratedWhite: 0.52, alpha: 1)
                 ) ?? fallback
             ]
         )
-        backdrop.name = "void-arches-v2"
-        backdrop.position = [0, 9.0, -20.0]
+        backdrop.name = "void-cyclorama"
         root.addChild(backdrop)
+
+        let horizonHaze = ModelEntity(
+            mesh: curvedWallMesh(radius: 30.5, height: 6.2, arc: 2.62, bottomY: -0.08),
+            materials: [
+                glowMaterial(
+                    NSColor(calibratedRed: 0.002, green: 0.002, blue: 0.006, alpha: 1),
+                    opacity: 0.68
+                )
+            ]
+        )
+        horizonHaze.name = "horizon-haze"
+        root.addChild(horizonHaze)
     }
 
     private func buildArena() {
         let floor = ModelEntity(
-            mesh: .generatePlane(width: 26, depth: 26),
-            materials: [
-                material(
-                    diffuse: NSColor(calibratedRed: 0.018, green: 0.018, blue: 0.024, alpha: 1),
-                    emission: NSColor(calibratedRed: 0.006, green: 0.006, blue: 0.014, alpha: 1)
-                )
-            ]
+            mesh: .generatePlane(width: 128, depth: 128),
+            materials: [obsidianFloorMaterial()]
         )
-        floor.name = "arena-floor"
+        floor.name = "void-floor"
+        floor.position.y = -0.012
         root.addChild(floor)
 
         let arenaFallback = glowMaterial(
-            NSColor(calibratedRed: 0.035, green: 0.035, blue: 0.045, alpha: 1),
-            opacity: 0.72
+            NSColor(calibratedRed: 0.02, green: 0.025, blue: 0.052, alpha: 1),
+            opacity: 0.48
         )
         let arena = ModelEntity(
-            mesh: .generatePlane(width: 17.4, depth: 17.4),
+            mesh: circularPlaneMesh(radius: 9.55),
             materials: [
                 textureMaterial(
-                    "arena-runes-v2",
-                    tint: NSColor(calibratedWhite: 0.64, alpha: 1)
+                    "arena-runes-v3",
+                    tint: NSColor(calibratedWhite: 0.82, alpha: 1),
+                    opacity: 0.9
                 ) ?? arenaFallback
             ]
         )
-        arena.name = "arena-runes-v2"
-        arena.position.y = 0.026
+        arena.name = "arena-runes-v3"
+        arena.position.y = 0.032
         root.addChild(arena)
+
+        let falloffBands: [(inner: Float, outer: Float, opacity: Float)] = [
+            (10.6, 18, 0.12),
+            (18, 34, 0.25),
+            (34, 62, 0.42)
+        ]
+        for (index, band) in falloffBands.enumerated() {
+            let falloff = ModelEntity(
+                mesh: annulusMesh(innerRadius: band.inner, outerRadius: band.outer),
+                materials: [
+                    glowMaterial(
+                        NSColor(calibratedRed: 0.001, green: 0.001, blue: 0.004, alpha: 1),
+                        opacity: band.opacity
+                    )
+                ]
+            )
+            falloff.name = "floor-falloff-\(index)"
+            falloff.position.y = 0.018 + Float(index) * 0.002
+            root.addChild(falloff)
+        }
 
         for radius in stride(from: Float(2.6), through: Float(10.4), by: Float(1.7)) {
             let ring = ModelEntity(
@@ -377,8 +429,28 @@ private final class CinematicSceneCoordinator {
                     )
                 ]
             )
-            ring.position.y = 0.03
+            ring.position.y = 0.052
             ring.components.set(OpacityComponent(opacity: 0.42))
+            root.addChild(ring)
+        }
+
+        let distantRings: [(Float, Float)] = [
+            (14.2, 0.16),
+            (21.8, 0.1),
+            (31.5, 0.06)
+        ]
+        for (radius, opacity) in distantRings {
+            let ring = ModelEntity(
+                mesh: torusMesh(ringRadius: radius, pipeRadius: 0.01),
+                materials: [
+                    glowMaterial(
+                        NSColor(calibratedRed: 0.11, green: 0.16, blue: 0.42, alpha: 1),
+                        opacity: opacity
+                    )
+                ]
+            )
+            ring.name = "distant-arena-ring"
+            ring.position.y = 0.055
             root.addChild(ring)
         }
     }
@@ -507,7 +579,7 @@ private final class CinematicSceneCoordinator {
         var camera = PerspectiveCameraComponent()
         camera.fieldOfViewInDegrees = CinematicCameraShot.home.fieldOfView
         camera.near = 0.01
-        camera.far = 80
+        camera.far = 140
         cameraEntity.components.set(camera)
         cameraEntity.name = "cinematic-camera"
     }
@@ -715,6 +787,7 @@ private final class CinematicSceneCoordinator {
             } else if line.kind == .agentMessage {
                 stageCamera(.overhead)
                 insightPulse(color: spell.nsColor)
+                castVolley(spell: spell, failed: false)
             } else if line.kind == .lifecycle {
                 stageCamera(.wide)
                 portalPulse(color: spell.nsColor)
@@ -756,30 +829,30 @@ private final class CinematicSceneCoordinator {
                 }
             }
             spawnAmbientEnemy()
-            startSkirmishCasting()
+            startDefensiveCasting()
         } else {
             thinkingTimer?.invalidate()
             thinkingTimer = nil
-            stopSkirmishCasting()
+            stopDefensiveCasting()
             animate(wizardNode, toPosition: .zero, duration: 0.55, timing: .easeInOut)
             stageCamera(.home)
         }
     }
 
-    private func startSkirmishCasting() {
-        skirmishTimer?.invalidate()
-        skirmishTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
+    private func startDefensiveCasting() {
+        defenseTimer?.invalidate()
+        defenseTimer = Timer.scheduledTimer(withTimeInterval: 1.05, repeats: true) { [weak self] _ in
             Task { @MainActor in
-                self?.skirmishShot()
+                self?.defensiveCast()
             }
         }
-        skirmishTimer?.tolerance = 0.04
-        skirmishShot()
+        defenseTimer?.tolerance = 0.08
+        defensiveCast()
     }
 
-    private func stopSkirmishCasting() {
-        skirmishTimer?.invalidate()
-        skirmishTimer = nil
+    private func stopDefensiveCasting() {
+        defenseTimer?.invalidate()
+        defenseTimer = nil
     }
 
     private func chargeArena(color: NSColor) {
@@ -1029,7 +1102,7 @@ private final class CinematicSceneCoordinator {
         start + (end - start) * t
     }
 
-    private func skirmishShot() {
+    private func defensiveCast() {
         var targets = livingEnemies()
         if targets.isEmpty {
             spawnAmbientEnemy()
@@ -1037,63 +1110,115 @@ private final class CinematicSceneCoordinator {
         }
         guard let target = closestEnemy(in: targets) else { return }
 
-        let spell = SpellSchool.pressure
+        let defensiveSpell = nextDefensiveSpell()
+        let spell = defensiveSpell.school
         let startPosition = staffOrbNode.convert(position: .zero, to: nil)
         let targetPosition = target.position(relativeTo: nil)
-        trackTarget(targetPosition, duration: 1.6)
+        trackTarget(targetPosition, duration: defensiveSpell == .wall ? 1.9 : 1.45)
         performCastPose(spell: spell, duration: 0.34)
         castCharge(at: startPosition, spell: spell, duration: 0.18)
-
-        let projectile = ModelEntity(
-            mesh: .generateSphere(radius: 0.055),
-            materials: [glowMaterial(spell.nsColor)]
-        )
-        projectile.position = startPosition
-        effectsRoot.addChild(projectile)
-
-        animate(projectile, toPosition: targetPosition, duration: 0.18, timing: .easeOut, removeOnCompletion: true)
         spellTrail(from: startPosition, to: targetPosition, spell: spell)
 
-        Task { @MainActor [weak self, weak target] in
-            try? await Task.sleep(for: .seconds(0.16))
-            guard let self, let target else { return }
-            self.applySkirmishDamage(to: target, at: targetPosition)
+        switch defensiveSpell {
+        case .slow:
+            applySlow(to: target, at: targetPosition, color: defensiveSpell.color)
+        case .stun:
+            applyStun(to: target, at: targetPosition, color: defensiveSpell.color)
+        case .wall:
+            buildMagicWall(blocking: target, color: defensiveSpell.color)
         }
 
-        staffOrbBoost = max(staffOrbBoost, 0.22)
+        staffOrbBoost = max(staffOrbBoost, 0.28)
     }
 
-    private func applySkirmishDamage(to enemy: Entity, at position: SIMD3<Float>) {
-        let id = ObjectIdentifier(enemy)
-        let remaining = max((enemyHealth[id] ?? 1.0) - 0.25, 0)
-        enemyHealth[id] = remaining
-        chipImpact(at: position, color: SpellSchool.pressure.nsColor)
+    private func nextDefensiveSpell() -> DefensiveSpell {
+        let sequence: [DefensiveSpell] = [.wall, .slow, .stun, .slow]
+        let spell = sequence[defensiveCastIndex % sequence.count]
+        defensiveCastIndex += 1
+        return spell
+    }
 
-        if remaining <= 0 {
-            destroyEnemy(enemy, color: SpellSchool.pressure.nsColor, failed: false)
-        } else {
-            let scale = 0.78 + (remaining * 0.22)
-            animate(
-                enemy,
-                toPosition: enemy.position + [0, 0.08, 0],
-                toScale: SIMD3<Float>(repeating: scale),
-                duration: 0.08,
-                timing: .easeOut
-            ) { [weak self, weak enemy] in
-                guard let self, let enemy else { return }
-                self.animate(
-                    enemy,
-                    toPosition: enemy.position - [0, 0.08, 0],
-                    toScale: SIMD3<Float>(repeating: max(scale, 0.82)),
-                    duration: 0.16,
-                    timing: .easeInOut
-                )
-            }
+    private func applySlow(to enemy: Entity, at position: SIMD3<Float>, color: NSColor) {
+        cancelMotion(for: enemy)
+        slowedEnemies[ObjectIdentifier(enemy)] = Date().addingTimeInterval(4.2)
+        slowField(at: position, color: color)
+
+        animate(
+            enemy,
+            toPosition: guardedAdvancePosition(for: enemy, step: 0.75),
+            duration: 8.8,
+            timing: .easeOut
+        )
+    }
+
+    private func applyStun(to enemy: Entity, at position: SIMD3<Float>, color: NSColor) {
+        cancelMotion(for: enemy)
+        stunnedEnemies[ObjectIdentifier(enemy)] = Date().addingTimeInterval(3.1)
+        stunField(at: position, color: color)
+
+        animate(enemy, toPosition: enemy.position + [0, 0.18, 0], duration: 0.12, timing: .easeOut) { [weak self, weak enemy] in
+            guard let self, let enemy else { return }
+            self.animate(enemy, toPosition: enemy.position - [0, 0.18, 0], duration: 0.32, timing: .easeInOut)
         }
+    }
+
+    private func buildMagicWall(blocking enemy: Entity, color: NSColor) {
+        cancelMotion(for: enemy)
+        let id = ObjectIdentifier(enemy)
+        stunnedEnemies[id] = Date().addingTimeInterval(1.8)
+
+        let wizardPosition = wizardNode.position(relativeTo: nil)
+        let enemyPosition = enemy.position(relativeTo: nil)
+        let direction = horizontalDirection(from: wizardPosition, to: enemyPosition) ?? [0, 0, 1]
+        let side = SIMD3<Float>(-direction.z, 0, direction.x)
+        let wallPosition = mix(wizardPosition, enemyPosition, 0.58)
+
+        let wall = Entity()
+        wall.name = "magic-wall"
+        wall.position = [wallPosition.x, 0.82, wallPosition.z]
+        wall.look(at: wall.position + direction, from: wall.position, relativeTo: nil, forward: .positiveZ)
+        wall.components.set(OpacityComponent(opacity: 0.86))
+
+        let panel = ModelEntity(
+            mesh: .generateBox(width: 2.45, height: 1.34, depth: 0.055, cornerRadius: 0.025),
+            materials: [glowMaterial(color.withAlphaComponent(0.48), opacity: 0.42)]
+        )
+        panel.components.set(OpacityComponent(opacity: 0.42))
+        wall.addChild(panel)
+
+        for offsetY in [Float(-0.66), 0.66] {
+            let edge = ModelEntity(
+                mesh: .generateBox(width: 2.62, height: 0.045, depth: 0.075, cornerRadius: 0.02),
+                materials: [glowMaterial(color, opacity: 0.78)]
+            )
+            edge.position.y = offsetY
+            edge.components.set(OpacityComponent(opacity: 0.78))
+            wall.addChild(edge)
+        }
+
+        for offsetX in [Float(-1.22), 1.22] {
+            let pillar = ModelEntity(
+                mesh: .generateBox(width: 0.055, height: 1.42, depth: 0.08, cornerRadius: 0.02),
+                materials: [glowMaterial(color, opacity: 0.72)]
+            )
+            pillar.position.x = offsetX
+            pillar.components.set(OpacityComponent(opacity: 0.72))
+            wall.addChild(pillar)
+        }
+
+        effectsRoot.addChild(wall)
+        animate(wall, toScale: [1.08, 1.03, 1], toOpacity: 0, duration: 2.25, timing: .easeOut, removeOnCompletion: true)
+
+        let pushPosition = enemyPosition + direction * 0.82 + side * Float.random(in: -0.28...0.28)
+        animate(enemy, toPosition: [pushPosition.x, 0.45, pushPosition.z], duration: 0.42, timing: .easeOut)
+        arenaRing(radius: simd_length(SIMD2<Float>(wallPosition.x, wallPosition.z)), color: color, duration: 0.85, scale: 1.04, opacity: 0.36)
     }
 
     private func destroyEnemy(_ enemy: Entity, color: NSColor, failed: Bool) {
-        enemyHealth[ObjectIdentifier(enemy)] = nil
+        let id = ObjectIdentifier(enemy)
+        enemyHealth[id] = nil
+        slowedEnemies[id] = nil
+        stunnedEnemies[id] = nil
         enemy.name = "dyingEnemy"
         animations.removeAll { $0.entity === enemy }
         impact(at: enemy.position(relativeTo: nil), color: color, failed: failed)
@@ -1115,6 +1240,9 @@ private final class CinematicSceneCoordinator {
         }
         let ids = Set(nodes.map { ObjectIdentifier($0) })
         enemyHealth = enemyHealth.filter { ids.contains($0.key) }
+        let now = Date()
+        slowedEnemies = slowedEnemies.filter { ids.contains($0.key) && $0.value > now }
+        stunnedEnemies = stunnedEnemies.filter { ids.contains($0.key) && $0.value > now }
         for node in nodes where enemyHealth[ObjectIdentifier(node)] == nil {
             enemyHealth[ObjectIdentifier(node)] = 1.0
         }
@@ -1147,6 +1275,51 @@ private final class CinematicSceneCoordinator {
             duration: 0.18,
             removeOnCompletion: true
         )
+    }
+
+    private func slowField(at position: SIMD3<Float>, color: NSColor) {
+        for (index, radius) in [Float(0.42), 0.68, 0.94].enumerated() {
+            let ring = ModelEntity(
+                mesh: torusMesh(ringRadius: radius, pipeRadius: 0.012),
+                materials: [glowMaterial(color.withAlphaComponent(0.74), opacity: 0.62)]
+            )
+            ring.position = [position.x, 0.12 + Float(index) * 0.045, position.z]
+            ring.components.set(OpacityComponent(opacity: 0.62))
+            effectsRoot.addChild(ring)
+            animate(
+                ring,
+                toScale: SIMD3<Float>(repeating: 1.55),
+                toOpacity: 0,
+                duration: 1.15 + Double(index) * 0.12,
+                delay: Double(index) * 0.06,
+                timing: .easeOut,
+                removeOnCompletion: true
+            )
+        }
+    }
+
+    private func stunField(at position: SIMD3<Float>, color: NSColor) {
+        let flare = ModelEntity(
+            mesh: torusMesh(ringRadius: 0.36, pipeRadius: 0.016),
+            materials: [glowMaterial(color, opacity: 0.82)]
+        )
+        flare.position = [position.x, position.y + 0.18, position.z]
+        flare.orientation = simd_quatf(angle: .pi / 2, axis: [1, 0, 0])
+        flare.components.set(OpacityComponent(opacity: 0.82))
+        effectsRoot.addChild(flare)
+        animate(flare, toScale: SIMD3<Float>(repeating: 2.2), toOpacity: 0, duration: 0.74, timing: .easeOut, removeOnCompletion: true)
+
+        sparkBurst(at: position + [0, 0.32, 0], color: color, birthRate: 520)
+    }
+
+    private func guardedAdvancePosition(for enemy: Entity, step: Float) -> SIMD3<Float> {
+        let wizardPosition = wizardNode.position(relativeTo: nil)
+        let enemyPosition = enemy.position(relativeTo: nil)
+        let direction = horizontalDirection(from: wizardPosition, to: enemyPosition) ?? [0, 0, 1]
+        let distance = simd_length(SIMD2<Float>(enemyPosition.x - wizardPosition.x, enemyPosition.z - wizardPosition.z))
+        let guardedDistance = max(3.9, distance - step)
+        let destination = wizardPosition + direction * guardedDistance
+        return [destination.x, 0.45, destination.z]
     }
 
     @discardableResult
@@ -1602,14 +1775,21 @@ private final class CinematicSceneCoordinator {
     private func updateEnemyLoops() {
         let enemies = Array(enemyRoot.children)
         let wizardPosition = wizardNode.position(relativeTo: nil)
+        let now = Date()
         for (index, enemy) in enemies.enumerated() where enemy.name != "dyingEnemy" {
-            let baseY = Float(0.45) + sin(Float(elapsedTime) * 2.1 + Float(index)) * 0.045
+            let id = ObjectIdentifier(enemy)
+            let isSlowed = slowedEnemies[id].map { $0 > now } ?? false
+            let isStunned = stunnedEnemies[id].map { $0 > now } ?? false
+            let bobSpeed: Float = isStunned ? 0.55 : (isSlowed ? 0.95 : 2.1)
+            let bobHeight: Float = isStunned ? 0.016 : (isSlowed ? 0.028 : 0.045)
+            let baseY = Float(0.45) + sin(Float(elapsedTime) * bobSpeed + Float(index)) * bobHeight
             enemy.position.y = baseY
             enemy.look(at: wizardPosition + [0, 0.65, 0], from: enemy.position(relativeTo: nil), relativeTo: nil, forward: .positiveZ)
             if let aura = enemy.children.first(where: { $0.name == "enemyAura" }) {
-                let pulse = 1.05 + sin(Float(elapsedTime) * 4.2 + Float(index)) * 0.13
+                let pulseSpeed: Float = isStunned ? 1.1 : (isSlowed ? 2.2 : 4.2)
+                let pulse = 1.05 + sin(Float(elapsedTime) * pulseSpeed + Float(index)) * (isStunned ? 0.07 : 0.13)
                 aura.scale = SIMD3<Float>(repeating: pulse)
-                aura.orientation = simd_quatf(angle: Float(elapsedTime) * 2.6 + Float(index), axis: [0, 1, 0])
+                aura.orientation = simd_quatf(angle: Float(elapsedTime) * (isSlowed ? 1.1 : 2.6) + Float(index), axis: [0, 1, 0])
             }
         }
     }
@@ -1711,6 +1891,10 @@ private final class CinematicSceneCoordinator {
         )
     }
 
+    private func cancelMotion(for entity: Entity) {
+        animations.removeAll { $0.entity === entity }
+    }
+
     private func opacity(of entity: Entity) -> Float {
         entity.components[OpacityComponent.self]?.opacity ?? 1
     }
@@ -1751,6 +1935,17 @@ private final class CinematicSceneCoordinator {
         if opacity < 0.999 || diffuse.alphaComponent < 0.999 {
             material.blending = .transparent(opacity: PhysicallyBasedMaterial.Opacity(floatLiteral: opacity))
         }
+        return material
+    }
+
+    private func obsidianFloorMaterial() -> PhysicallyBasedMaterial {
+        var material = PhysicallyBasedMaterial()
+        material.baseColor = .init(tint: NSColor(calibratedRed: 0.004, green: 0.004, blue: 0.007, alpha: 1))
+        material.roughness = 0.94
+        material.metallic = 0.02
+        material.specular = 0.08
+        material.emissiveColor = .init(color: NSColor(calibratedRed: 0.001, green: 0.001, blue: 0.004, alpha: 1))
+        material.emissiveIntensity = 0.65
         return material
     }
 
@@ -1801,6 +1996,119 @@ private final class CinematicSceneCoordinator {
             return nil
         }
         return NSImage(contentsOf: url)
+    }
+
+    private func curvedWallMesh(radius: Float, height: Float, arc: Float, segments: Int = 72, bottomY: Float = 0) -> MeshResource {
+        var positions: [SIMD3<Float>] = []
+        var normals: [SIMD3<Float>] = []
+        var uvs: [SIMD2<Float>] = []
+        var indices: [UInt32] = []
+
+        for segment in 0...segments {
+            let t = Float(segment) / Float(segments)
+            let theta = -arc * 0.5 + arc * t
+            let x = sin(theta) * radius
+            let z = -cos(theta) * radius
+            let normal = simd_normalize(SIMD3<Float>(-sin(theta), 0, cos(theta)))
+
+            positions.append([x, bottomY, z])
+            normals.append(normal)
+            uvs.append([t, 0])
+
+            positions.append([x, bottomY + height, z])
+            normals.append(normal)
+            uvs.append([t, 1])
+        }
+
+        for segment in 0..<segments {
+            let lower = UInt32(segment * 2)
+            let upper = lower + 1
+            let nextLower = UInt32((segment + 1) * 2)
+            let nextUpper = nextLower + 1
+            indices.append(contentsOf: [lower, upper, nextUpper, lower, nextUpper, nextLower])
+        }
+
+        var descriptor = MeshDescriptor(name: "curved-wall")
+        descriptor.positions = MeshBuffer(positions)
+        descriptor.normals = MeshBuffer(normals)
+        descriptor.textureCoordinates = MeshBuffer(uvs)
+        descriptor.primitives = .triangles(indices)
+
+        if let mesh = try? MeshResource.generate(from: [descriptor]) {
+            return mesh
+        }
+        return .generatePlane(width: radius * 1.6, height: height)
+    }
+
+    private func circularPlaneMesh(radius: Float, segments: Int = 128) -> MeshResource {
+        var positions: [SIMD3<Float>] = [[0, 0, 0]]
+        var normals: [SIMD3<Float>] = [[0, 1, 0]]
+        var uvs: [SIMD2<Float>] = [[0.5, 0.5]]
+        var indices: [UInt32] = []
+
+        for segment in 0..<segments {
+            let theta = Float(segment) / Float(segments) * .pi * 2
+            let x = cos(theta) * radius
+            let z = sin(theta) * radius
+            positions.append([x, 0, z])
+            normals.append([0, 1, 0])
+            uvs.append([0.5 + cos(theta) * 0.5, 0.5 + sin(theta) * 0.5])
+        }
+
+        for segment in 0..<segments {
+            let current = UInt32(segment + 1)
+            let next = UInt32(((segment + 1) % segments) + 1)
+            indices.append(contentsOf: [0, current, next])
+        }
+
+        var descriptor = MeshDescriptor(name: "circular-plane")
+        descriptor.positions = MeshBuffer(positions)
+        descriptor.normals = MeshBuffer(normals)
+        descriptor.textureCoordinates = MeshBuffer(uvs)
+        descriptor.primitives = .triangles(indices)
+
+        if let mesh = try? MeshResource.generate(from: [descriptor]) {
+            return mesh
+        }
+        return .generatePlane(width: radius * 2, depth: radius * 2)
+    }
+
+    private func annulusMesh(innerRadius: Float, outerRadius: Float, segments: Int = 128) -> MeshResource {
+        var positions: [SIMD3<Float>] = []
+        var normals: [SIMD3<Float>] = []
+        var uvs: [SIMD2<Float>] = []
+        var indices: [UInt32] = []
+
+        for segment in 0..<segments {
+            let theta = Float(segment) / Float(segments) * .pi * 2
+            let radial = SIMD3<Float>(cos(theta), 0, sin(theta))
+            positions.append(radial * innerRadius)
+            normals.append([0, 1, 0])
+            uvs.append([0.5 + radial.x * innerRadius / (outerRadius * 2), 0.5 + radial.z * innerRadius / (outerRadius * 2)])
+
+            positions.append(radial * outerRadius)
+            normals.append([0, 1, 0])
+            uvs.append([0.5 + radial.x * 0.5, 0.5 + radial.z * 0.5])
+        }
+
+        for segment in 0..<segments {
+            let inner = UInt32(segment * 2)
+            let outer = inner + 1
+            let nextInner = UInt32(((segment + 1) % segments) * 2)
+            let nextOuter = nextInner + 1
+            indices.append(contentsOf: [inner, outer, nextOuter, inner, nextOuter, nextInner])
+        }
+
+        var descriptor = MeshDescriptor(name: "annulus")
+        descriptor.positions = MeshBuffer(positions)
+        descriptor.normals = MeshBuffer(normals)
+        descriptor.textureCoordinates = MeshBuffer(uvs)
+        descriptor.primitives = .triangles(indices)
+
+        if let mesh = try? MeshResource.generate(from: [descriptor]) {
+            return mesh
+        }
+        return .generatePlane(width: outerRadius * 2, depth: outerRadius * 2)
     }
 
     private func torusMesh(ringRadius: Float, pipeRadius: Float) -> MeshResource {
