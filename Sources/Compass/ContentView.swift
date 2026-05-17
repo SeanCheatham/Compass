@@ -487,11 +487,16 @@ private enum WorkspaceTab: String, CaseIterable, Identifiable {
 private struct PlanTab: View {
     @ObservedObject var project: CompassProject
     @State private var selectedItemID = PlanTimelineItem.immediateID
+    @State private var showAllSessionHistory = false
 
     var body: some View {
         let items = PlanTimelineItem.items(for: project.state)
         let overview = PlanWorkflowOverview(state: project.state)
         let sessionHistory = PlanSessionHistory.displayItems(for: project.sessions)
+        let sessionHistoryDisplay = PlanSessionHistoryDisplay(
+            items: sessionHistory,
+            mode: showAllSessionHistory ? .all : .recent
+        )
         let reliabilityFeedback = PlanReliabilityFeedback(
             state: project.state,
             sessions: project.sessions,
@@ -525,7 +530,8 @@ private struct PlanTab: View {
                 PlanFocusPanel(item: selectedItem(in: items))
 
                 PlanSessionHistorySection(
-                    items: sessionHistory,
+                    display: sessionHistoryDisplay,
+                    showAllRuns: $showAllSessionHistory,
                     runCues: reliabilityFeedback.recentRunCues
                 )
             }
@@ -1007,7 +1013,8 @@ private struct VerifyCommandView: View {
 }
 
 private struct PlanSessionHistorySection: View {
-    var items: [PlanSessionHistoryItem]
+    var display: PlanSessionHistoryDisplay
+    @Binding var showAllRuns: Bool
     var runCues: [Int: PlanReliabilityFeedback.RunCue] = [:]
 
     var body: some View {
@@ -1020,19 +1027,43 @@ private struct PlanSessionHistorySection: View {
                         .foregroundStyle(.secondary)
                 }
                 Spacer()
-                Label("\(items.count) runs", systemImage: "number")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.secondary)
-                    .padding(.horizontal, 9)
-                    .padding(.vertical, 5)
-                    .background(.quaternary.opacity(0.55), in: Capsule())
+                HStack(spacing: 8) {
+                    Label(display.countSummary, systemImage: "number")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                        .padding(.horizontal, 9)
+                        .padding(.vertical, 5)
+                        .background(.quaternary.opacity(0.55), in: Capsule())
+
+                    if display.shouldOfferModeToggle {
+                        Button {
+                            showAllRuns.toggle()
+                        } label: {
+                            Label(
+                                display.mode == .all ? "Show Recent" : "Show All",
+                                systemImage: display.mode == .all ? "clock.arrow.circlepath" : "list.bullet"
+                            )
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                    }
+                }
             }
 
-            if items.isEmpty {
+            if let hiddenStatusSummary = display.hiddenStatusSummary {
+                Label(
+                    "\(display.hiddenCount) older \(PlanSessionHistoryDisplay.runWord(for: display.hiddenCount)) hidden: \(hiddenStatusSummary)",
+                    systemImage: "archivebox"
+                )
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            }
+
+            if display.totalCount == 0 {
                 EmptyState("No run history recorded.")
             } else {
                 VStack(alignment: .leading, spacing: 10) {
-                    ForEach(items) { item in
+                    ForEach(display.visibleItems) { item in
                         PlanSessionHistoryCard(
                             item: item,
                             reliabilityCue: runCues[item.sessionNumber]

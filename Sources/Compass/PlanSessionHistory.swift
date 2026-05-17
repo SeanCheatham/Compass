@@ -21,6 +21,111 @@ struct PlanSessionHistoryItem: Identifiable, Equatable {
     var failedVerify: FailedVerify?
 }
 
+struct PlanSessionHistoryDisplay: Equatable {
+    enum Mode: Equatable {
+        case recent
+        case all
+    }
+
+    static let defaultRecentLimit = 8
+
+    var mode: Mode
+    var recentLimit: Int
+    var visibleItems: [PlanSessionHistoryItem]
+    var totalCount: Int
+    var hiddenCount: Int
+    var hiddenStatusSummary: String?
+    var shouldOfferModeToggle: Bool
+    var countSummary: String
+
+    var visibleCount: Int {
+        visibleItems.count
+    }
+
+    init(
+        items: [PlanSessionHistoryItem],
+        mode: Mode = .recent,
+        recentLimit: Int = Self.defaultRecentLimit
+    ) {
+        let boundedRecentLimit = max(0, recentLimit)
+        let visibleItems: [PlanSessionHistoryItem]
+        switch mode {
+        case .recent:
+            visibleItems = Array(items.prefix(boundedRecentLimit))
+        case .all:
+            visibleItems = items
+        }
+
+        let hiddenItems = Array(items.dropFirst(visibleItems.count))
+        let shouldOfferModeToggle = items.count > boundedRecentLimit
+
+        self.mode = mode
+        self.recentLimit = boundedRecentLimit
+        self.visibleItems = visibleItems
+        totalCount = items.count
+        hiddenCount = hiddenItems.count
+        hiddenStatusSummary = Self.hiddenStatusSummary(for: hiddenItems)
+        self.shouldOfferModeToggle = shouldOfferModeToggle
+        countSummary = Self.countSummary(
+            totalCount: items.count,
+            visibleCount: visibleItems.count,
+            hiddenCount: hiddenItems.count,
+            mode: mode,
+            shouldOfferModeToggle: shouldOfferModeToggle
+        )
+    }
+
+    private static func countSummary(
+        totalCount: Int,
+        visibleCount: Int,
+        hiddenCount: Int,
+        mode: Mode,
+        shouldOfferModeToggle: Bool
+    ) -> String {
+        guard totalCount > 0 else {
+            return "0 runs"
+        }
+
+        if hiddenCount > 0 {
+            return "Showing latest \(visibleCount) of \(totalCount)"
+        }
+
+        if mode == .all, shouldOfferModeToggle {
+            return "Showing all \(totalCount)"
+        }
+
+        return "\(totalCount) \(runWord(for: totalCount))"
+    }
+
+    private static func hiddenStatusSummary(for items: [PlanSessionHistoryItem]) -> String? {
+        guard !items.isEmpty else {
+            return nil
+        }
+
+        var orderedStatuses: [String] = []
+        var counts: [String: Int] = [:]
+        for item in items {
+            let statusText = item.statusText.lowercased()
+            if counts[statusText] == nil {
+                orderedStatuses.append(statusText)
+            }
+            counts[statusText, default: 0] += 1
+        }
+
+        return orderedStatuses.compactMap { statusText in
+            guard let count = counts[statusText] else {
+                return nil
+            }
+            return "\(count) \(statusText)"
+        }
+        .joined(separator: ", ")
+    }
+
+    static func runWord(for count: Int) -> String {
+        count == 1 ? "run" : "runs"
+    }
+}
+
 enum PlanSessionHistory {
     static let defaultPlanExcerptLimit = 280
 
