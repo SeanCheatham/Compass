@@ -349,6 +349,7 @@ private struct WorkspaceHeader: View {
     var body: some View {
         let reliabilityStatus = project.reliabilityStatus
         let storageAssessment = project.storageAssessment
+        let storagePreflight = project.storagePreflight
 
         VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .firstTextBaseline, spacing: 10) {
@@ -361,7 +362,10 @@ private struct WorkspaceHeader: View {
                     .lineLimit(1)
                     .truncationMode(.middle)
                 Spacer(minLength: 12)
-                ProjectStorageAssessmentPill(assessment: storageAssessment)
+                ProjectStorageAssessmentPill(
+                    assessment: storageAssessment,
+                    preflight: storagePreflight
+                )
                 if let repairAction = storageAssessment.repairAction {
                     ProjectStorageRepairButton(
                         repairAction: repairAction,
@@ -414,10 +418,18 @@ private extension CompassProject {
             applicationSupportRoots: KnownProjectStore.productionApplicationSupportRoots()
         )
     }
+
+    var storagePreflight: CompassWorkspaceStoragePreflight {
+        CompassWorkspaceStoragePreflight(
+            repoURL: repoURL,
+            applicationSupportRoots: KnownProjectStore.productionApplicationSupportRoots()
+        )
+    }
 }
 
 private struct ProjectStorageAssessmentPill: View {
     var assessment: CompassWorkspaceStorageAssessment
+    var preflight: CompassWorkspaceStoragePreflight
 
     var body: some View {
         HStack(spacing: 5) {
@@ -449,10 +461,31 @@ private struct ProjectStorageAssessmentPill: View {
             assessment.label,
             assessment.detail,
             assessment.recommendation,
-            assessment.currentApplicationSupportCandidateURL.path
+            "Preflight: \(preflight.label)",
+            preflight.detail,
+            preflight.recommendation,
+            "Repo-local readiness: \(preflight.repoLocalReadiness.displayName)",
+            missingCoreFilesText,
+            "Sessions directory: \(preflight.sessionsDirectoryExists ? "present" : "missing")",
+            "Project storage ID: \(preflight.projectStorageIdentifier)",
+            candidateText(preflight.currentApplicationSupportCandidate),
+            candidateText(preflight.legacyApplicationSupportCandidate)
         ]
             .filter { !$0.isEmpty }
             .joined(separator: " · ")
+    }
+
+    private var missingCoreFilesText: String {
+        guard !preflight.missingCoreFiles.isEmpty else {
+            return "Missing core files: none"
+        }
+        return "Missing core files: \(preflight.missingCoreFiles.map(\.relativePath).joined(separator: ", "))"
+    }
+
+    private func candidateText(
+        _ candidate: CompassWorkspaceStoragePreflight.ApplicationSupportCandidate
+    ) -> String {
+        "\(candidate.kind.displayName) support candidate: \(candidate.occupancy.displayName) \(candidate.url.path)"
     }
 }
 
