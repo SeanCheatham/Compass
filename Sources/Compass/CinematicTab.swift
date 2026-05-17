@@ -8,6 +8,7 @@ struct CinematicTab: View {
     var body: some View {
         GeometryReader { proxy in
             let caption = CinematicCaption(project: project)
+            let displayPlan = cinematicOverlayDisplayPlan
 
             ZStack(alignment: .bottomLeading) {
                 CinematicSceneView(
@@ -24,7 +25,7 @@ struct CinematicTab: View {
                 .frame(width: proxy.size.width, height: proxy.size.height)
 
                 LinearGradient(
-                    colors: [.black.opacity(0), .black.opacity(0.52)],
+                    colors: [.black.opacity(0), .black.opacity(displayPlan.gradientStrength)],
                     startPoint: .top,
                     endPoint: .bottom
                 )
@@ -33,11 +34,14 @@ struct CinematicTab: View {
                 .allowsHitTesting(false)
 
                 VStack(alignment: .leading, spacing: 10) {
-                    CinematicWorldTextOverlay(
-                        worldText: project.cinematicWorldText,
-                        tint: caption.activityColor
-                    )
-                    CinematicHUD(caption: caption)
+                    if displayPlan.showsWorldTextOverlay {
+                        CinematicWorldTextOverlay(
+                            worldText: project.cinematicWorldText,
+                            tint: caption.activityColor,
+                            displayPlan: displayPlan
+                        )
+                    }
+                    CinematicHUD(caption: caption, displayPlan: displayPlan)
                 }
                 .padding(18)
 
@@ -58,6 +62,31 @@ struct CinematicTab: View {
             }
         }
         .frame(minHeight: 520)
+    }
+
+    private var cinematicOverlayDisplayPlan: CinematicOverlayDisplayPlan {
+        let currentPhase = project.isPaused ? LoopPhase.paused : project.phase
+        let readability = CinematicOverlayDisplayPlanner.narrativeCueReadabilitySignals(
+            phase: currentPhase,
+            worldText: project.cinematicWorldText,
+            briefing: project.cinematicBriefing,
+            languageProfile: project.languageProfile,
+            activityProfile: project.activityProfile,
+            influenceSettings: project.cinematicInfluenceSettings
+        )
+        return CinematicOverlayDisplayPlanner.plan(
+            phase: project.phase,
+            isRunning: project.isRunning,
+            isAutoPlaying: project.isAutoPlaying,
+            isPaused: project.isPaused,
+            hasRepository: project.hasRepository,
+            worldText: project.cinematicWorldText,
+            briefing: project.cinematicBriefing,
+            languageProfile: project.languageProfile,
+            activityProfile: project.activityProfile,
+            influenceSettings: project.cinematicInfluenceSettings,
+            narrativeCueReadability: readability
+        )
     }
 }
 
@@ -212,26 +241,21 @@ private struct CinematicDiagnosticsPopover: View {
 private struct CinematicWorldTextOverlay: View {
     var worldText: CinematicWorldText
     var tint: Color
+    var displayPlan: CinematicOverlayDisplayPlan
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            CinematicWorldTextPill(
-                systemImage: "sparkle.magnifyingglass",
-                text: worldText.questLabel,
-                tint: tint
-            )
-            CinematicWorldTextPill(
-                systemImage: "scope",
-                text: worldText.arenaCallout,
-                tint: .white.opacity(0.76)
-            )
-            CinematicWorldTextPill(
-                systemImage: "waveform.path.ecg",
-                text: worldText.activityCallout,
-                tint: tint.opacity(0.92)
-            )
+            ForEach(displayPlan.visiblePills) { pill in
+                CinematicWorldTextPill(
+                    systemImage: pill.systemImage,
+                    text: pill.text(from: worldText),
+                    tint: pill.tint(activityTint: tint),
+                    lineLimit: displayPlan.pillLineLimit,
+                    opacity: displayPlan.overlayOpacity
+                )
+            }
         }
-        .frame(maxWidth: 430, alignment: .leading)
+        .frame(maxWidth: CGFloat(displayPlan.worldTextMaxWidth), alignment: .leading)
     }
 }
 
@@ -239,6 +263,8 @@ private struct CinematicWorldTextPill: View {
     var systemImage: String
     var text: String
     var tint: Color
+    var lineLimit: Int
+    var opacity: Double
 
     var body: some View {
         HStack(spacing: 7) {
@@ -250,12 +276,12 @@ private struct CinematicWorldTextPill: View {
             Text(text)
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(.white.opacity(0.88))
-                .lineLimit(1)
+                .lineLimit(lineLimit)
                 .minimumScaleFactor(0.82)
         }
         .padding(.horizontal, 9)
         .padding(.vertical, 6)
-        .background(.black.opacity(0.34), in: RoundedRectangle(cornerRadius: 7))
+        .background(.black.opacity(0.34 * opacity), in: RoundedRectangle(cornerRadius: 7))
         .overlay {
             RoundedRectangle(cornerRadius: 7)
                 .stroke(.white.opacity(0.09))
@@ -265,6 +291,7 @@ private struct CinematicWorldTextPill: View {
 
 private struct CinematicHUD: View {
     var caption: CinematicCaption
+    var displayPlan: CinematicOverlayDisplayPlan
 
     var body: some View {
         VStack(alignment: .leading, spacing: 7) {
@@ -275,6 +302,8 @@ private struct CinematicHUD: View {
                 Text(caption.title)
                     .font(.headline.weight(.semibold))
                     .foregroundStyle(.white)
+                    .lineLimit(displayPlan.hudTitleLineLimit)
+                    .minimumScaleFactor(0.82)
                 Text(caption.phase)
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(.white.opacity(0.76))
@@ -283,42 +312,79 @@ private struct CinematicHUD: View {
                     .background(.white.opacity(0.12), in: Capsule())
             }
 
-            Text(caption.detail)
-                .font(.callout)
-                .foregroundStyle(.white.opacity(0.78))
-                .lineLimit(2)
-                .fixedSize(horizontal: false, vertical: true)
+            if displayPlan.showsHUDDetail {
+                Text(caption.detail)
+                    .font(.callout)
+                    .foregroundStyle(.white.opacity(0.78))
+                    .lineLimit(displayPlan.hudDetailLineLimit)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
 
-            if let repositoryProfile = caption.repositoryProfile {
+            if displayPlan.showsHUDProfiles, let repositoryProfile = caption.repositoryProfile {
                 Text(repositoryProfile)
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(caption.profileColor.opacity(0.88))
-                    .lineLimit(1)
+                    .lineLimit(displayPlan.hudProfileLineLimit)
             }
 
-            if let activityProfile = caption.activityProfile {
+            if displayPlan.showsHUDProfiles, let activityProfile = caption.activityProfile {
                 Text(activityProfile)
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(caption.activityColor.opacity(0.9))
-                    .lineLimit(1)
+                    .lineLimit(displayPlan.hudProfileLineLimit)
             }
 
             if let status = caption.status {
                 Text(status)
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(caption.color.opacity(0.86))
-                    .lineLimit(1)
+                    .lineLimit(displayPlan.hudStatusLineLimit)
             }
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 12)
-        .frame(maxWidth: 620, alignment: .leading)
-        .background(.black.opacity(0.36), in: RoundedRectangle(cornerRadius: 8))
+        .frame(maxWidth: CGFloat(displayPlan.hudMaxWidth), alignment: .leading)
+        .background(.black.opacity(0.36 * displayPlan.overlayOpacity), in: RoundedRectangle(cornerRadius: 8))
         .overlay(alignment: .leading) {
             Rectangle()
                 .fill(caption.color)
                 .frame(width: 3)
                 .clipShape(RoundedRectangle(cornerRadius: 2))
+        }
+    }
+}
+
+private extension CinematicOverlayPill {
+    var systemImage: String {
+        switch self {
+        case .quest:
+            return "sparkle.magnifyingglass"
+        case .arena:
+            return "scope"
+        case .activity:
+            return "waveform.path.ecg"
+        }
+    }
+
+    func text(from worldText: CinematicWorldText) -> String {
+        switch self {
+        case .quest:
+            return worldText.questLabel
+        case .arena:
+            return worldText.arenaCallout
+        case .activity:
+            return worldText.activityCallout
+        }
+    }
+
+    func tint(activityTint: Color) -> Color {
+        switch self {
+        case .quest:
+            return activityTint
+        case .arena:
+            return .white.opacity(0.76)
+        case .activity:
+            return activityTint.opacity(0.92)
         }
     }
 }

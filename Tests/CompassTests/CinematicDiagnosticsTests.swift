@@ -80,6 +80,12 @@ final class CinematicDiagnosticsTests: XCTestCase {
         XCTAssertEqual(report.narrativeCue.activityBanner.layout.glyphSideIdentifier, "trailing")
         XCTAssertTrue(report.narrativeCue.questPlaque.identifier.contains(report.narrativeCue.questPlaque.layout.identifier))
         XCTAssertFalse(report.narrativeCue.identifier.isEmpty)
+        XCTAssertTrue(report.identifier.contains("overlay:"))
+        XCTAssertEqual(report.overlayDisplay.modeIdentifier, "compact")
+        XCTAssertEqual(report.overlayDisplay.visiblePillIdentifiers, ["activity"])
+        XCTAssertEqual(report.overlayDisplay.hudProminenceIdentifier, "minimal")
+        XCTAssertEqual(report.overlayDisplay.reasonIdentifier, "in-world-readable-cues")
+        XCTAssertTrue(report.overlayDisplay.narrativeCueReadabilityIdentifier.contains("count:3"))
         XCTAssertTrue(report.worldText.identifier.contains(report.worldText.questLabel))
         XCTAssertTrue(report.briefing.identifier.contains(report.briefing.title))
 
@@ -144,6 +150,10 @@ final class CinematicDiagnosticsTests: XCTestCase {
         XCTAssertTrue(
             Set(reports.map(\.stagePhasePolish.postureIdentifier))
                 .isSuperset(of: ["neutral", "editing", "sealing", "archival", "fracture", "healing"])
+        )
+        XCTAssertTrue(
+            Set(reports.map(\.overlayDisplay.modeIdentifier))
+                .isSuperset(of: ["full", "compact"])
         )
     }
 
@@ -277,6 +287,7 @@ final class CinematicDiagnosticsTests: XCTestCase {
                 "phase-polish",
                 "narrative-cues",
                 "narrative-layout",
+                "overlay-display",
                 "world-quest",
                 "world-arena",
                 "world-activity",
@@ -353,6 +364,8 @@ final class CinematicDiagnosticsTests: XCTestCase {
         XCTAssertTrue(summary.exportText.contains(report.stagePhasePolish.cadenceIdentifier))
         XCTAssertTrue(summary.exportText.contains("Narrative cues:"))
         XCTAssertTrue(summary.exportText.contains("Narrative layout:"))
+        XCTAssertTrue(summary.exportText.contains("Overlay display:"))
+        XCTAssertTrue(summary.exportText.contains("mode \(report.overlayDisplay.modeIdentifier)"))
         XCTAssertTrue(summary.exportText.contains(report.narrativeCue.questPlaque.anchorIdentifier))
         XCTAssertTrue(summary.exportText.contains(report.narrativeCue.activityBanner.text))
         XCTAssertTrue(summary.exportText.contains(report.narrativeCue.arenaInscription.layout.facingModeIdentifier))
@@ -405,7 +418,11 @@ final class CinematicDiagnosticsTests: XCTestCase {
                 latestEvent: project.liveLog.last.map(CinematicBriefingEvent.init(line:)),
                 languageProfile: project.languageProfile,
                 activityProfile: project.activityProfile,
-                influenceSettings: project.cinematicInfluenceSettings
+                influenceSettings: project.cinematicInfluenceSettings,
+                isRunning: project.isRunning,
+                isAutoPlaying: project.isAutoPlaying,
+                isPaused: project.isPaused,
+                hasRepository: project.hasRepository
             )
 
             XCTAssertEqual(report, expected)
@@ -516,11 +533,13 @@ final class CinematicDiagnosticsTests: XCTestCase {
         XCTAssertTrue(summary.rows.contains { $0.id == "phase-polish" })
         XCTAssertTrue(summary.rows.contains { $0.id == "narrative-cues" })
         XCTAssertTrue(summary.rows.contains { $0.id == "narrative-layout" })
+        XCTAssertTrue(summary.rows.contains { $0.id == "overlay-display" })
         XCTAssertTrue(summary.exportText.contains("Effect tuning:"))
         XCTAssertTrue(summary.exportText.contains("Atmosphere:"))
         XCTAssertTrue(summary.exportText.contains("Phase polish:"))
         XCTAssertTrue(summary.exportText.contains("Narrative cues:"))
         XCTAssertTrue(summary.exportText.contains("Narrative layout:"))
+        XCTAssertTrue(summary.exportText.contains("Overlay display:"))
         XCTAssertTrue(summary.exportText.contains("pressure heavy"))
         XCTAssertTrue(summary.exportText.contains("influence dramatic"))
     }

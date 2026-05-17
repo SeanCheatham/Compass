@@ -14,6 +14,7 @@ struct CinematicDiagnosticsReport: Equatable {
     var stageAtmosphere: StageAtmosphereSnapshot
     var stagePhasePolish: StagePhasePolishSnapshot
     var narrativeCue: NarrativeCueSnapshot
+    var overlayDisplay: OverlayDisplaySnapshot
     var worldText: WorldTextSnapshot
     var briefing: BriefingSnapshot
     var cameraTuning: CameraTuningSnapshot
@@ -192,6 +193,24 @@ struct CinematicDiagnosticsReport: Equatable {
         var activityBanner: NarrativeCueDescriptorSnapshot
     }
 
+    struct OverlayDisplaySnapshot: Equatable {
+        var identifier: String
+        var modeIdentifier: String
+        var visiblePillIdentifiers: [String]
+        var hudProminenceIdentifier: String
+        var gradientStrength: Double
+        var worldTextMaxWidth: Double
+        var hudMaxWidth: Double
+        var pillLineLimit: Int
+        var hudTitleLineLimit: Int
+        var hudDetailLineLimit: Int
+        var hudProfileLineLimit: Int
+        var hudStatusLineLimit: Int
+        var overlayOpacity: Double
+        var reasonIdentifier: String
+        var narrativeCueReadabilityIdentifier: String
+    }
+
     struct NarrativeCueDescriptorSnapshot: Equatable {
         var identifier: String
         var stableID: String
@@ -292,7 +311,7 @@ struct CinematicDiagnosticsReport: Equatable {
 }
 
 struct CinematicDiagnosticsSummary: Equatable {
-    static let maxRows = 31
+    static let maxRows = 32
     static let labelMaxCharacters = 32
     static let detailMaxCharacters = 512
 
@@ -465,6 +484,11 @@ struct CinematicDiagnosticsSummary: Equatable {
                 label: "Narrative layout",
                 detail: narrativeLayoutDetail(report.narrativeCue)
             ),
+            row(
+                id: "overlay-display",
+                label: "Overlay display",
+                detail: overlayDisplayDetail(report.overlayDisplay)
+            ),
             row(id: "world-quest", label: "World quest", detail: report.worldText.questLabel),
             row(id: "world-arena", label: "World arena", detail: report.worldText.arenaCallout),
             row(id: "world-activity", label: "World activity", detail: report.worldText.activityCallout),
@@ -590,6 +614,19 @@ struct CinematicDiagnosticsSummary: Equatable {
         ].joined(separator: " | ")
     }
 
+    private static func overlayDisplayDetail(_ snapshot: CinematicDiagnosticsReport.OverlayDisplaySnapshot) -> String {
+        [
+            "mode \(snapshot.modeIdentifier)",
+            "reason \(snapshot.reasonIdentifier)",
+            "pills \(snapshot.visiblePillIdentifiers.isEmpty ? "none" : snapshot.visiblePillIdentifiers.joined(separator: ","))",
+            "hud \(snapshot.hudProminenceIdentifier)",
+            "gradient \(fixed(snapshot.gradientStrength))",
+            "width \(fixed(snapshot.worldTextMaxWidth))/\(fixed(snapshot.hudMaxWidth))",
+            "lines \(snapshot.pillLineLimit)/\(snapshot.hudTitleLineLimit)/\(snapshot.hudDetailLineLimit)/\(snapshot.hudProfileLineLimit)/\(snapshot.hudStatusLineLimit)",
+            "opacity \(fixed(snapshot.overlayOpacity))"
+        ].joined(separator: " | ")
+    }
+
     private static func narrativeCueLayoutDescriptorDetail(
         _ label: String,
         _ layout: CinematicDiagnosticsReport.NarrativeCueLayoutSnapshot
@@ -678,7 +715,11 @@ enum CinematicDiagnostics {
             latestEvent: project.liveLog.last.map(CinematicBriefingEvent.init(line:)),
             languageProfile: project.languageProfile,
             activityProfile: project.activityProfile,
-            influenceSettings: project.cinematicInfluenceSettings
+            influenceSettings: project.cinematicInfluenceSettings,
+            isRunning: project.isRunning,
+            isAutoPlaying: project.isAutoPlaying,
+            isPaused: project.isPaused,
+            hasRepository: project.hasRepository
         )
     }
 
@@ -690,7 +731,11 @@ enum CinematicDiagnostics {
         latestEvent: CinematicBriefingEvent?,
         languageProfile: RepositoryLanguageProfile,
         activityProfile: RepositoryActivityProfile,
-        influenceSettings: CinematicInfluenceSettings
+        influenceSettings: CinematicInfluenceSettings,
+        isRunning: Bool = true,
+        isAutoPlaying: Bool = false,
+        isPaused: Bool = false,
+        hasRepository: Bool = true
     ) -> CinematicDiagnosticsReport {
         let languageMotif = CinematicMotif.language(for: languageProfile)
         let activityMotif = CinematicMotif.activity(for: activityProfile)
@@ -717,8 +762,10 @@ enum CinematicDiagnostics {
         let influenceIdentifier = settingsIdentifier(influenceSettings)
         let languageSnapshot = languageSnapshot(for: languageMotif)
         let activitySnapshot = activitySnapshot(for: activityMotif)
+        let loopPhase = loopPhase(from: phase)
+        let effectivePhase: LoopPhase = isPaused ? .paused : loopPhase
         let stageBeat = CinematicStageBeatPlanner.plan(
-            phase: loopPhase(from: phase),
+            phase: effectivePhase,
             activityProfile: activityProfile,
             influenceSettings: influenceSettings
         )
@@ -762,6 +809,21 @@ enum CinematicDiagnostics {
         let stageAtmosphereSnapshot = stageAtmosphereSnapshot(for: stageAtmospherePlan)
         let stagePhasePolishSnapshot = stagePhasePolishSnapshot(for: stagePhasePolishPlan)
         let narrativeCueSnapshot = narrativeCueSnapshot(for: narrativeCuePlan)
+        let narrativeCueReadability = CinematicNarrativeCueReadabilitySignals(plan: narrativeCuePlan)
+        let overlayDisplayPlan = CinematicOverlayDisplayPlanner.plan(
+            phase: loopPhase,
+            isRunning: isRunning,
+            isAutoPlaying: isAutoPlaying,
+            isPaused: isPaused,
+            hasRepository: hasRepository,
+            worldText: worldText,
+            briefing: briefing,
+            languageProfile: languageProfile,
+            activityProfile: activityProfile,
+            influenceSettings: influenceSettings,
+            narrativeCueReadability: narrativeCueReadability
+        )
+        let overlayDisplaySnapshot = overlayDisplaySnapshot(for: overlayDisplayPlan)
         let worldTextSnapshot = worldTextSnapshot(for: worldText)
         let briefingSnapshot = briefingSnapshot(for: briefing)
         let cameraTuningSnapshot = cameraTuningSnapshot(settings: influenceSettings)
@@ -785,6 +847,7 @@ enum CinematicDiagnostics {
                 "stage-atmosphere:\(stageAtmosphereSnapshot.identifier)",
                 "phase-polish:\(stagePhasePolishSnapshot.identifier)",
                 "narrative-cues:\(narrativeCueSnapshot.identifier)",
+                "overlay:\(overlayDisplaySnapshot.identifier)",
                 "influence:\(influenceIdentifier)",
                 "set-dressing:\(setDressingSnapshot.identifier)"
             ].joined(separator: "|"),
@@ -800,6 +863,7 @@ enum CinematicDiagnostics {
             stageAtmosphere: stageAtmosphereSnapshot,
             stagePhasePolish: stagePhasePolishSnapshot,
             narrativeCue: narrativeCueSnapshot,
+            overlayDisplay: overlayDisplaySnapshot,
             worldText: worldTextSnapshot,
             briefing: briefingSnapshot,
             cameraTuning: cameraTuningSnapshot,
@@ -1235,6 +1299,28 @@ enum CinematicDiagnostics {
             plateZOffset: layout.plateZOffset,
             primaryTextOffset: layout.primaryTextOffset,
             secondaryTextOffset: layout.secondaryTextOffset
+        )
+    }
+
+    private static func overlayDisplaySnapshot(
+        for plan: CinematicOverlayDisplayPlan
+    ) -> CinematicDiagnosticsReport.OverlayDisplaySnapshot {
+        CinematicDiagnosticsReport.OverlayDisplaySnapshot(
+            identifier: plan.identifier,
+            modeIdentifier: plan.modeIdentifier,
+            visiblePillIdentifiers: plan.visiblePillIdentifiers,
+            hudProminenceIdentifier: plan.hudProminenceIdentifier,
+            gradientStrength: plan.gradientStrength,
+            worldTextMaxWidth: plan.worldTextMaxWidth,
+            hudMaxWidth: plan.hudMaxWidth,
+            pillLineLimit: plan.pillLineLimit,
+            hudTitleLineLimit: plan.hudTitleLineLimit,
+            hudDetailLineLimit: plan.hudDetailLineLimit,
+            hudProfileLineLimit: plan.hudProfileLineLimit,
+            hudStatusLineLimit: plan.hudStatusLineLimit,
+            overlayOpacity: plan.overlayOpacity,
+            reasonIdentifier: plan.reasonIdentifier,
+            narrativeCueReadabilityIdentifier: plan.narrativeCueReadabilityIdentifier
         )
     }
 
