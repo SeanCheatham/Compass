@@ -867,33 +867,10 @@ extension CompassProject {
     }
 
     private func validatePlanTransition(from current: PlanState, to next: PlanState) throws {
-        if next.completed.count < current.completed.count {
-            throw AppModelError.rejectedPlan(
-                "Plan tried to shrink completed history from \(current.completed.count) entries to \(next.completed.count). Refusing to overwrite state.json."
-            )
-        }
-
-        if !current.midTerm.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
-            next.midTerm.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
-            next.completed.count == current.completed.count {
-            throw AppModelError.rejectedPlan(
-                "Plan tried to clear a non-empty midTerm queue without recording a completion. Refusing to overwrite state.json."
-            )
-        }
-
-        guard let immediate = next.immediate else { return }
-        let verify = immediate.verify.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        let rejectedVerifyCommands = Set([
-            "true",
-            "not-running-tests",
-            "not running tests",
-            "none",
-            "n/a"
-        ])
-        if rejectedVerifyCommands.contains(verify) {
-            throw AppModelError.rejectedPlan(
-                "Plan returned placeholder verify command `\(immediate.verify)`. Refusing to overwrite state.json."
-            )
+        do {
+            try PlanTransitionValidator.validate(from: current, to: next)
+        } catch let error as PlanTransitionValidationError {
+            throw AppModelError.rejectedPlan(error.message)
         }
     }
 
