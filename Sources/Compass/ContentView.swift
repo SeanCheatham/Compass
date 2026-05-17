@@ -271,6 +271,8 @@ private struct WorkspaceHeader: View {
     @Binding var selectedTab: WorkspaceTab
 
     var body: some View {
+        let reliabilityStatus = project.reliabilityStatus
+
         VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .firstTextBaseline, spacing: 10) {
                 Text(project.displayName)
@@ -282,6 +284,9 @@ private struct WorkspaceHeader: View {
                     .lineLimit(1)
                     .truncationMode(.middle)
                 Spacer(minLength: 12)
+                if !reliabilityStatus.isEmpty {
+                    ProjectReliabilityAttentionPill(status: reliabilityStatus)
+                }
                 ProjectPhasePill(project: project)
             }
 
@@ -295,6 +300,63 @@ private struct WorkspaceHeader: View {
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
+    }
+}
+
+private extension CompassProject {
+    var reliabilityStatus: ProjectReliabilityStatus {
+        ProjectReliabilityStatus(
+            feedback: PlanReliabilityFeedback(state: state, sessions: sessions)
+        )
+    }
+}
+
+private struct ProjectReliabilityAttentionPill: View {
+    var status: ProjectReliabilityStatus
+
+    var body: some View {
+        HStack(spacing: 5) {
+            Image(systemName: status.systemImage)
+                .font(.system(size: 12, weight: .semibold))
+
+            Text(status.primaryCue)
+                .lineLimit(1)
+
+            if status.noticeCount > 1 {
+                Text(status.countLabel)
+                    .font(.caption2.weight(.bold))
+                    .padding(.horizontal, 5)
+                    .padding(.vertical, 1)
+                    .background(color.opacity(0.14), in: Capsule())
+            }
+        }
+        .font(.caption.weight(.semibold))
+        .foregroundStyle(color)
+        .padding(.horizontal, 9)
+        .padding(.vertical, 5)
+        .background(color.opacity(0.12), in: Capsule())
+        .overlay {
+            Capsule()
+                .stroke(color.opacity(0.24))
+        }
+        .help(helpText)
+        .accessibilityLabel("\(status.primaryCue), \(status.countLabel)")
+        .accessibilityHint(status.actionLabel)
+    }
+
+    private var color: Color {
+        reliabilityColor(for: status.severity)
+    }
+
+    private var helpText: String {
+        [
+            status.primaryCue,
+            status.actionLabel,
+            status.metadata,
+            status.detail
+        ]
+            .compactMap { $0?.isEmpty == false ? $0 : nil }
+            .joined(separator: " · ")
     }
 }
 
@@ -1431,31 +1493,41 @@ private struct LiveTab: View {
     private static let thinkingRowID = "live-thinking-row"
 
     var body: some View {
-        ScrollViewReader { proxy in
-            ScrollView {
-                LazyVStack(alignment: .leading, spacing: 4) {
-                    ForEach(project.liveLog) { line in
-                        LiveRow(line: line)
-                            .id(line.id)
+        let reliabilityStatus = project.reliabilityStatus
+
+        VStack(alignment: .leading, spacing: 10) {
+            if !reliabilityStatus.isEmpty {
+                ProjectReliabilityBanner(status: reliabilityStatus)
+            }
+
+            ScrollViewReader { proxy in
+                ScrollView {
+                    LazyVStack(alignment: .leading, spacing: 4) {
+                        ForEach(project.liveLog) { line in
+                            LiveRow(line: line)
+                                .id(line.id)
+                        }
+                        if showsThinkingIndicator {
+                            ThinkingLiveRow(phase: project.phase)
+                                .id(Self.thinkingRowID)
+                        }
                     }
-                    if showsThinkingIndicator {
-                        ThinkingLiveRow(phase: project.phase)
-                            .id(Self.thinkingRowID)
-                    }
+                    .padding(10)
                 }
-                .padding(10)
+                .background(.black.opacity(0.06), in: RoundedRectangle(cornerRadius: 8))
+                .onChange(of: project.liveLog.count) {
+                    scrollToLiveEnd(proxy)
+                }
+                .onChange(of: project.isRunning) {
+                    scrollToLiveEnd(proxy)
+                }
+                .onChange(of: showsThinkingIndicator) {
+                    scrollToLiveEnd(proxy)
+                }
             }
-            .background(.black.opacity(0.06), in: RoundedRectangle(cornerRadius: 8))
-            .onChange(of: project.liveLog.count) {
-                scrollToLiveEnd(proxy)
-            }
-            .onChange(of: project.isRunning) {
-                scrollToLiveEnd(proxy)
-            }
-            .onChange(of: showsThinkingIndicator) {
-                scrollToLiveEnd(proxy)
-            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 
     private var showsThinkingIndicator: Bool {
@@ -1470,6 +1542,78 @@ private struct LiveTab: View {
         } else if let last = project.liveLog.last {
             proxy.scrollTo(last.id, anchor: .bottom)
         }
+    }
+}
+
+private struct ProjectReliabilityBanner: View {
+    var status: ProjectReliabilityStatus
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: status.systemImage)
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundStyle(color)
+                .frame(width: 22, height: 22)
+
+            VStack(alignment: .leading, spacing: 5) {
+                HStack(alignment: .firstTextBaseline, spacing: 7) {
+                    Text(status.primaryCue)
+                        .font(.callout.weight(.semibold))
+
+                    Text(status.actionLabel)
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(color)
+                        .padding(.horizontal, 7)
+                        .padding(.vertical, 2)
+                        .background(color.opacity(0.12), in: Capsule())
+
+                    if let metadata = status.metadata {
+                        Text(metadata)
+                            .font(.caption.monospacedDigit())
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    }
+
+                    Spacer(minLength: 8)
+
+                    Text(status.countLabel)
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+
+                Text(status.detail)
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .textSelection(.enabled)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .padding(11)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(color.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+        .overlay {
+            RoundedRectangle(cornerRadius: 8)
+                .stroke(color.opacity(0.22))
+        }
+        .help(helpText)
+    }
+
+    private var color: Color {
+        reliabilityColor(for: status.severity)
+    }
+
+    private var helpText: String {
+        [
+            status.primaryCue,
+            status.actionLabel,
+            status.metadata,
+            status.detail
+        ]
+            .compactMap { $0?.isEmpty == false ? $0 : nil }
+            .joined(separator: " · ")
     }
 }
 

@@ -324,3 +324,85 @@ struct PlanReliabilityFeedback: Equatable {
         return normalized.isEmpty ? nil : normalized
     }
 }
+
+struct ProjectReliabilityStatus: Equatable {
+    static let defaultDetailLimit = 180
+
+    var primaryCue: String
+    var severity: PlanReliabilityFeedback.Severity
+    var countLabel: String
+    var actionLabel: String
+    var metadata: String?
+    var detail: String
+    var systemImage: String
+    var noticeCount: Int
+
+    var isEmpty: Bool {
+        noticeCount == 0
+    }
+
+    init(
+        feedback: PlanReliabilityFeedback,
+        detailLimit: Int = Self.defaultDetailLimit
+    ) {
+        guard let primaryNotice = Self.primaryNotice(in: feedback.notices) else {
+            primaryCue = ""
+            severity = .warning
+            countLabel = Self.countLabel(for: 0)
+            actionLabel = ""
+            metadata = nil
+            detail = ""
+            systemImage = "checkmark.circle"
+            noticeCount = 0
+            return
+        }
+
+        primaryCue = primaryNotice.title
+        severity = primaryNotice.severity
+        countLabel = Self.countLabel(for: feedback.notices.count)
+        actionLabel = primaryNotice.actionLabel
+        metadata = primaryNotice.metadata
+        detail = Self.boundedDetail(primaryNotice.detail, limit: detailLimit)
+        systemImage = primaryNotice.systemImage
+        noticeCount = feedback.notices.count
+    }
+
+    private static func primaryNotice(in notices: [PlanReliabilityFeedback.Notice]) -> PlanReliabilityFeedback.Notice? {
+        notices.enumerated().min { lhs, rhs in
+            let leftPriority = priority(for: lhs.element.kind)
+            let rightPriority = priority(for: rhs.element.kind)
+            if leftPriority != rightPriority {
+                return leftPriority < rightPriority
+            }
+            return lhs.offset < rhs.offset
+        }?.element
+    }
+
+    private static func priority(for kind: PlanReliabilityFeedback.Kind) -> Int {
+        switch kind {
+        case .rejectedPlan:
+            return 0
+        case .developBlocked:
+            return 1
+        case .developFailed:
+            return 2
+        case .failedVerify:
+            return 3
+        case .resumeDevelop:
+            return 4
+        }
+    }
+
+    private static func countLabel(for count: Int) -> String {
+        "\(count) \(count == 1 ? "cue" : "cues")"
+    }
+
+    private static func boundedDetail(_ value: String, limit: Int) -> String {
+        guard limit > 0 else { return "" }
+        guard value.count > limit else { return value }
+        guard limit > 3 else { return String(value.prefix(limit)) }
+
+        return value.prefix(limit - 3)
+            .trimmingCharacters(in: .whitespacesAndNewlines) + "..."
+    }
+}
