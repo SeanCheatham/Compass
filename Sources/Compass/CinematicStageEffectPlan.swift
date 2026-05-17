@@ -35,6 +35,9 @@ struct CinematicStageEffectPlan: Equatable {
     var beatIdentifier: String
     var phaseEffect: EffectChoreography
     var activityEffect: EffectChoreography?
+    var recoveryEffect: EffectChoreography?
+    var recoveryCueIdentifier: String
+    var recoveryCueKindIdentifier: String
     var influenceIdentifier: String
     var tuningMetadata: StageEffectTuning
 
@@ -42,6 +45,9 @@ struct CinematicStageEffectPlan: Equatable {
         var values = [phaseEffect]
         if let activityEffect {
             values.append(activityEffect)
+        }
+        if let recoveryEffect {
+            values.append(recoveryEffect)
         }
         return values
     }
@@ -223,7 +229,8 @@ enum CinematicStageEffectPlanner {
     static func plan(
         beat: CinematicStageBeat,
         setDressingPlan: CinematicSetDressingPlan,
-        influenceSettings: CinematicInfluenceSettings
+        influenceSettings: CinematicInfluenceSettings,
+        recoveryCuePlan: CinematicRecoveryCuePlan = .none
     ) -> CinematicStageEffectPlan {
         let tuningMetadata = stageEffectTuning(
             setDressingPlan: setDressingPlan,
@@ -242,11 +249,17 @@ enum CinematicStageEffectPlanner {
                 tuningMetadata: tuningMetadata
             )
         }
+        let recoveryEffect = recoveryEffect(
+            for: recoveryCuePlan,
+            tuningMetadata: tuningMetadata
+        )
         let influenceIdentifier = influenceIdentifier(influenceSettings)
         let identifier = [
             "beat:\(beat.identifier)",
             "phase:\(phaseEffect.identifier)",
             "activity:\(activityEffect?.identifier ?? "none")",
+            "recovery:\(recoveryEffect?.identifier ?? "none")",
+            "recovery-cue:\(recoveryCuePlan.identifier)",
             "influence:\(influenceIdentifier)",
             "tuning:\(tuningMetadata.identifier)"
         ].joined(separator: "||")
@@ -256,6 +269,9 @@ enum CinematicStageEffectPlanner {
             beatIdentifier: beat.identifier,
             phaseEffect: phaseEffect,
             activityEffect: activityEffect,
+            recoveryEffect: recoveryEffect,
+            recoveryCueIdentifier: recoveryCuePlan.identifier,
+            recoveryCueKindIdentifier: recoveryCuePlan.selectedKindIdentifier,
             influenceIdentifier: influenceIdentifier,
             tuningMetadata: tuningMetadata
         )
@@ -387,6 +403,123 @@ enum CinematicStageEffectPlanner {
                 sourceIdentifier: sourceIdentifier,
                 arenaEffect: accent.arenaEffect,
                 lightFamily: accent.lightFamily,
+                cameraShake: cameraShake
+            )
+        }
+    }
+
+    private static func recoveryEffect(
+        for plan: CinematicRecoveryCuePlan,
+        tuningMetadata: CinematicStageEffectPlan.StageEffectTuning
+    ) -> CinematicStageEffectPlan.EffectChoreography? {
+        guard let descriptor = plan.visualDescriptor else { return nil }
+
+        let sourceIdentifier = "recovery:\(descriptor.treatmentIdentifier):\(plan.selectedCue?.sessionNumber ?? 0)"
+        let cameraShake = descriptor.shouldShakeCamera
+            ? CinematicStageEffectPlan.CameraShake(
+                shouldShake: true,
+                duration: descriptor.cameraShakeDuration,
+                scale: descriptor.cameraShakeScale
+            )
+            : nil
+
+        switch descriptor.arenaEffect {
+        case .historyChains:
+            var historyEffect = historyChainsEffect(
+                lightFamily: descriptor.lightFamily,
+                sourceIdentifier: sourceIdentifier,
+                tuningMetadata: tuningMetadata
+            )
+            historyEffect.phaseLightPulse = tunedPhaseLightPulse(
+                intensity: descriptor.phaseLightIntensity,
+                duration: 0.46 + TimeInterval(descriptor.intensity) * 0.22,
+                resetIntensity: 420,
+                tuningMetadata: tuningMetadata
+            )
+            historyEffect.cameraShake = cameraShake
+            historyEffect.identifier = identifier(for: historyEffect)
+            return historyEffect
+        case .activityPulse:
+            return effect(
+                sourceIdentifier: sourceIdentifier,
+                arenaEffect: .activityPulse,
+                lightFamily: descriptor.lightFamily,
+                arenaRings: [
+                    tunedArenaRing(
+                        radius: 4.2 + descriptor.intensity,
+                        duration: 0.9,
+                        scale: 1.55 + descriptor.intensity * 0.34,
+                        opacity: 0.34 + descriptor.intensity * 0.16,
+                        colorAlpha: 0.72,
+                        tuningMetadata: tuningMetadata
+                    )
+                ],
+                phaseLightPulse: tunedPhaseLightPulse(
+                    intensity: descriptor.phaseLightIntensity,
+                    duration: 0.34 + TimeInterval(descriptor.intensity) * 0.2,
+                    resetIntensity: 420,
+                    tuningMetadata: tuningMetadata
+                ),
+                sparkBursts: [
+                    tunedSparkBurst(
+                        position: [0, 0.42, 1.05],
+                        birthRate: 480 + descriptor.intensity * 520,
+                        colorAlpha: 0.78,
+                        tuningMetadata: tuningMetadata
+                    )
+                ],
+                cameraShake: cameraShake
+            )
+        case .charge:
+            return effect(
+                sourceIdentifier: sourceIdentifier,
+                arenaEffect: .charge,
+                lightFamily: descriptor.lightFamily,
+                arenaRings: [
+                    tunedArenaRing(
+                        radius: 1.2,
+                        duration: 0.42,
+                        scale: 5.2 + descriptor.intensity * 0.8,
+                        opacity: 0.64,
+                        colorAlpha: 1,
+                        tuningMetadata: tuningMetadata
+                    ),
+                    tunedArenaRing(
+                        radius: 3.4,
+                        duration: 0.78,
+                        scale: 2.35 + descriptor.intensity * 0.55,
+                        opacity: 0.42,
+                        colorAlpha: 0.82,
+                        tuningMetadata: tuningMetadata
+                    )
+                ],
+                phaseLightPulse: tunedPhaseLightPulse(
+                    intensity: descriptor.phaseLightIntensity,
+                    duration: 0.4 + TimeInterval(descriptor.intensity) * 0.18,
+                    resetIntensity: 420,
+                    tuningMetadata: tuningMetadata
+                ),
+                sparkBursts: [
+                    tunedSparkBurst(
+                        position: [0, 0.52, -0.55],
+                        birthRate: 720 + descriptor.intensity * 560,
+                        colorAlpha: 0.92,
+                        tuningMetadata: tuningMetadata
+                    )
+                ],
+                cameraShake: cameraShake
+            )
+        case .seal, .victory, .none:
+            return effect(
+                sourceIdentifier: sourceIdentifier,
+                arenaEffect: descriptor.arenaEffect,
+                lightFamily: descriptor.lightFamily,
+                phaseLightPulse: tunedPhaseLightPulse(
+                    intensity: descriptor.phaseLightIntensity,
+                    duration: 0.36,
+                    resetIntensity: 420,
+                    tuningMetadata: tuningMetadata
+                ),
                 cameraShake: cameraShake
             )
         }

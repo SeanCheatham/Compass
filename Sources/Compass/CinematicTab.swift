@@ -20,6 +20,10 @@ struct CinematicTab: View {
                 runCues: reliabilityFeedback.recentRunCues,
                 selectedBeatID: selectedTimelineBeatID
             )
+            let recoveryCuePlan = CinematicRecoveryCuePlanner.plan(
+                recentRunCues: reliabilityFeedback.recentRunCues,
+                influenceSettings: project.cinematicInfluenceSettings
+            )
 
             ZStack(alignment: .bottomLeading) {
                 CinematicSceneView(
@@ -32,7 +36,8 @@ struct CinematicTab: View {
                     influenceSettings: project.cinematicInfluenceSettings,
                     worldText: project.cinematicWorldText,
                     briefing: project.cinematicBriefing,
-                    commitConstellationPlan: project.cinematicCommitConstellationPlan
+                    commitConstellationPlan: project.cinematicCommitConstellationPlan,
+                    recoveryCuePlan: recoveryCuePlan
                 )
                 .frame(width: proxy.size.width, height: proxy.size.height)
 

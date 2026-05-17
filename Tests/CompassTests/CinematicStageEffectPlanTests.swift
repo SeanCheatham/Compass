@@ -289,6 +289,53 @@ final class CinematicStageEffectPlanTests: XCTestCase {
         XCTAssertGreaterThan(highShake.duration, lowShake.duration)
     }
 
+    func testRecoveryCueEffectsUseDistinctArenaTreatmentsAndStayBounded() throws {
+        let settings = CinematicInfluenceSettings(cameraStyle: .dramatic, intensity: 1)
+        let verifyCue = CinematicRecoveryCuePlanner.representativePlans(influenceSettings: settings)[1]
+        let dirtyCue = CinematicRecoveryCuePlanner.representativePlans(influenceSettings: settings)[2]
+        let promotionCue = CinematicRecoveryCuePlanner.representativePlans(influenceSettings: settings)[3]
+
+        let verifyPlan = effectPlan(
+            phase: .failed,
+            activityProfile: activityProfile(),
+            settings: settings,
+            recoveryCuePlan: verifyCue
+        )
+        let dirtyPlan = effectPlan(
+            phase: .developing,
+            activityProfile: activityProfile(worktreeChanges: worktreeChanges(modified: 2)),
+            settings: settings,
+            recoveryCuePlan: dirtyCue
+        )
+        let promotionPlan = effectPlan(
+            phase: .failed,
+            activityProfile: activityProfile(recentCommitCount: 2),
+            settings: settings,
+            recoveryCuePlan: promotionCue
+        )
+
+        let verifyEffect = try XCTUnwrap(verifyPlan.recoveryEffect)
+        let dirtyEffect = try XCTUnwrap(dirtyPlan.recoveryEffect)
+        let promotionEffect = try XCTUnwrap(promotionPlan.recoveryEffect)
+
+        XCTAssertEqual(verifyEffect.lightFamily, .failure)
+        XCTAssertEqual(verifyEffect.arenaEffect, .charge)
+        XCTAssertEqual(dirtyEffect.lightFamily, .edit)
+        XCTAssertEqual(dirtyEffect.arenaEffect, .activityPulse)
+        XCTAssertEqual(promotionEffect.lightFamily, .git)
+        XCTAssertEqual(promotionEffect.arenaEffect, .historyChains)
+        XCTAssertTrue(verifyEffect.cameraShake?.shouldShake ?? false)
+        XCTAssertNil(dirtyEffect.cameraShake)
+        XCTAssertTrue(promotionEffect.cameraShake?.shouldShake ?? false)
+        XCTAssertEqual(verifyPlan.recoveryCueKindIdentifier, "failedVerify")
+        XCTAssertEqual(dirtyPlan.recoveryCueKindIdentifier, "dirtyWorktree")
+        XCTAssertEqual(promotionPlan.recoveryCueKindIdentifier, "promotionFailed")
+
+        assertPlanInBounds(verifyPlan)
+        assertPlanInBounds(dirtyPlan)
+        assertPlanInBounds(promotionPlan)
+    }
+
     func testDiagnosticsReportIncludesStageEffectSnapshotAndSummaryRows() {
         let settings = CinematicInfluenceSettings(cameraStyle: .follow, intensity: 0.6)
         let report = CinematicDiagnostics.report(
@@ -349,7 +396,8 @@ final class CinematicStageEffectPlanTests: XCTestCase {
 private func effectPlan(
     phase: LoopPhase,
     activityProfile: RepositoryActivityProfile,
-    settings: CinematicInfluenceSettings
+    settings: CinematicInfluenceSettings,
+    recoveryCuePlan: CinematicRecoveryCuePlan = .none
 ) -> CinematicStageEffectPlan {
     let beat = CinematicStageBeatPlanner.plan(
         phase: phase,
@@ -359,7 +407,8 @@ private func effectPlan(
     return CinematicStageEffectPlanner.plan(
         beat: beat,
         setDressingPlan: setDressingPlan(settings: settings, activityProfile: activityProfile),
-        influenceSettings: settings
+        influenceSettings: settings,
+        recoveryCuePlan: recoveryCuePlan
     )
 }
 

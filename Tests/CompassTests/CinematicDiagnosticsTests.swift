@@ -38,6 +38,10 @@ final class CinematicDiagnosticsTests: XCTestCase {
         XCTAssertEqual(report.activityMotif.styleIdentifier, "pressure-shard")
         XCTAssertEqual(report.activityMotif.tintSourceIdentifier, "pressure")
         XCTAssertEqual(report.activityMotif.transitionSpellIdentifier, "pressure")
+        XCTAssertEqual(report.recoveryCue.kindIdentifier, "none")
+        XCTAssertEqual(report.recoveryCue.treatmentIdentifier, "none")
+        XCTAssertEqual(report.recoveryCue.visualIdentifier, "none")
+        XCTAssertEqual(report.recoveryCue.lightFamilyIdentifier, "none")
         XCTAssertEqual(report.stageBeat.kindIdentifier, "developing")
         XCTAssertEqual(report.stageBeat.cameraShotIdentifier, "cast-prep")
         XCTAssertEqual(report.stageBeat.lightFamilyIdentifier, "shell")
@@ -46,6 +50,8 @@ final class CinematicDiagnosticsTests: XCTestCase {
         XCTAssertEqual(report.stageBeat.activityArenaEffectIdentifier, "activity-pulse")
         XCTAssertEqual(report.stageEffect.phaseArenaEffectIdentifier, "charge")
         XCTAssertEqual(report.stageEffect.activityArenaEffectIdentifier, "activity-pulse")
+        XCTAssertNil(report.stageEffect.recoveryEffectIdentifier)
+        XCTAssertEqual(report.stageEffect.recoveryCueKindIdentifier, "none")
         XCTAssertEqual(report.stageEffect.arenaRingCount, 3)
         XCTAssertEqual(report.stageEffect.phaseLightPulseCount, 1)
         XCTAssertEqual(report.stageEffect.pressureLevelIdentifier, "light")
@@ -62,6 +68,7 @@ final class CinematicDiagnosticsTests: XCTestCase {
         XCTAssertEqual(report.stagePhasePolish.postureIdentifier, "editing")
         XCTAssertEqual(report.stagePhasePolish.phaseIdentifier, "developing")
         XCTAssertEqual(report.stagePhasePolish.activityIdentifier, "dirty")
+        XCTAssertEqual(report.stagePhasePolish.recoveryCueKindIdentifier, "none")
         XCTAssertEqual(report.stagePhasePolish.staffOrbLightFamilyIdentifier, "edit")
         XCTAssertGreaterThan(report.stagePhasePolish.poseIntensity, 0)
         XCTAssertGreaterThan(report.stagePhasePolish.staffOrbEmission, 0)
@@ -122,8 +129,12 @@ final class CinematicDiagnosticsTests: XCTestCase {
     func testRepresentativeSmokeMatrixCoversLanguagesAndActivityStates() {
         let reports = CinematicDiagnostics.representativeSmokeMatrix()
         let expectedActivityCaseCount = CinematicDiagnostics.representativeActivityCases().count
+        let expectedRecoveryCueCaseCount = CinematicRecoveryCuePlanner.representativePlans().count
 
-        XCTAssertEqual(reports.count, RepositoryLanguage.allCases.count * expectedActivityCaseCount)
+        XCTAssertEqual(
+            reports.count,
+            RepositoryLanguage.allCases.count * expectedActivityCaseCount * expectedRecoveryCueCaseCount
+        )
         XCTAssertEqual(Set(reports.map(\.languageMotif.language)), Set(RepositoryLanguage.allCases))
         XCTAssertEqual(
             Set(reports.map(\.activityMotif.eventKindIdentifier)),
@@ -153,6 +164,14 @@ final class CinematicDiagnosticsTests: XCTestCase {
             Set(reports.map(\.stagePhasePolish.postureIdentifier))
                 .isSuperset(of: ["neutral", "editing", "sealing", "archival", "fracture", "healing"])
         )
+        XCTAssertEqual(
+            Set(reports.map(\.recoveryCue.kindIdentifier)),
+            Set(["none", "failedVerify", "dirtyWorktree", "promotionFailed"])
+        )
+        XCTAssertEqual(
+            Set(reports.map(\.recoveryCue.treatmentIdentifier)),
+            Set(["none", "verify-failure", "dirty-cleanup", "promotion-branch"])
+        )
         XCTAssertTrue(
             Set(reports.map(\.overlayDisplay.modeIdentifier))
                 .isSuperset(of: ["full", "compact"])
@@ -162,6 +181,42 @@ final class CinematicDiagnosticsTests: XCTestCase {
             Set(reports.map(\.overlayDisplay.chromeStyleIdentifier))
                 .contains { $0.hasPrefix("compact-active|") || $0.hasPrefix("compact-readable|") }
         )
+    }
+
+    func testReportAndSummaryExportSelectedRecoveryCue() throws {
+        let recoveryCuePlan = try XCTUnwrap(
+            CinematicRecoveryCuePlanner.representativePlans().first {
+                $0.selectedKindIdentifier == "promotionFailed"
+            }
+        )
+        let report = CinematicDiagnostics.report(
+            repoName: "Compass",
+            phase: LoopPhase.failed.rawValue,
+            immediateTitle: "Resolve promotion failure",
+            completedCount: 4,
+            latestEvent: nil,
+            languageProfile: languageProfile(primaryLanguage: .swift),
+            activityProfile: activityProfile(recentCommitCount: 2),
+            influenceSettings: CinematicInfluenceSettings(),
+            recoveryCuePlan: recoveryCuePlan
+        )
+
+        XCTAssertEqual(report.recoveryCue.kindIdentifier, "promotionFailed")
+        XCTAssertEqual(report.recoveryCue.treatmentIdentifier, "promotion-branch")
+        XCTAssertEqual(report.recoveryCue.lightFamilyIdentifier, "git")
+        XCTAssertEqual(report.recoveryCue.symbolIdentifier, "git-failure-branch")
+        XCTAssertEqual(report.stageEffect.recoveryArenaEffectIdentifier, "history-chains")
+        XCTAssertEqual(report.stagePhasePolish.recoveryCueKindIdentifier, "promotionFailed")
+        XCTAssertEqual(report.stagePhasePolish.staffOrbLightFamilyIdentifier, "git")
+        XCTAssertEqual(report.stagePhasePolish.fractureLightFamilyIdentifier, "git")
+
+        let summary = CinematicDiagnosticsSummary(
+            report: report,
+            visualSmoke: CinematicVisualSmokeReport(reports: [report])
+        )
+        XCTAssertTrue(summary.rows.contains { $0.id == "recovery-cue" })
+        XCTAssertTrue(summary.exportText.contains("Recovery cue: promotionFailed"))
+        XCTAssertTrue(summary.exportText.contains("git-failure-branch"))
     }
 
     func testReportContainsEveryCameraShotAndCameraTuningValue() throws {
@@ -291,6 +346,7 @@ final class CinematicDiagnosticsTests: XCTestCase {
                 "commit-constellation",
                 "language-motif",
                 "activity-motif",
+                "recovery-cue",
                 "stage-beat",
                 "stage-effect",
                 "effect-tuning",
@@ -348,6 +404,7 @@ final class CinematicDiagnosticsTests: XCTestCase {
                     "activity-motif"
                 ],
                 [
+                    "recovery-cue",
                     "stage-beat",
                     "stage-effect",
                     "effect-rings",
@@ -445,12 +502,12 @@ final class CinematicDiagnosticsTests: XCTestCase {
         XCTAssertEqual(actualSectionHeadings, expectedSectionHeadings)
         XCTAssertTrue(summary.exportText.contains("Repository/context (3 rows)"))
         XCTAssertTrue(summary.exportText.contains("Motifs (2 rows)"))
-        XCTAssertTrue(summary.exportText.contains("Stage motion/effects (8 rows)"))
+        XCTAssertTrue(summary.exportText.contains("Stage motion/effects (9 rows)"))
         XCTAssertTrue(summary.exportText.contains("Narrative/overlay (6 rows)"))
         XCTAssertTrue(summary.exportText.contains("Assets/textures (2 rows)"))
         XCTAssertTrue(summary.exportText.contains("Tuning (4 rows)"))
         XCTAssertTrue(summary.exportText.contains("Camera shots (9 rows)"))
-        XCTAssertTrue(summary.exportText.contains("Visual smoke (pass, 7 checks)"))
+        XCTAssertTrue(summary.exportText.contains("Visual smoke (pass, 8 checks)"))
         XCTAssertTrue(summary.exportText.contains("Overlay fallback: pass"))
         XCTAssertTrue(summary.exportText.contains(report.languageMotif.sigilIdentifier))
         XCTAssertTrue(summary.exportText.contains(report.languageMotif.styleIdentifier))

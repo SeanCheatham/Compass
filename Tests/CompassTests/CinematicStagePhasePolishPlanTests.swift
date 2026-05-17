@@ -118,6 +118,51 @@ final class CinematicStagePhasePolishPlanTests: XCTestCase {
         XCTAssertGreaterThan(recovery.fractureRecovery.healingOpacity, commit.fractureRecovery.healingOpacity)
     }
 
+    func testRecoveryCuePolishOverridesUseDistinctFractureAndHealingBalance() {
+        let settings = CinematicInfluenceSettings(cameraStyle: .follow, intensity: CinematicInfluenceSettings.defaultIntensity)
+        let recoveryPlans = CinematicRecoveryCuePlanner.representativePlans(influenceSettings: settings)
+        let verify = phasePolishPlan(
+            phase: .developing,
+            activityProfile: activityProfile(),
+            settings: settings,
+            recoveryCuePlan: recoveryPlans[1]
+        )
+        let dirty = phasePolishPlan(
+            phase: .developing,
+            activityProfile: activityProfile(),
+            settings: settings,
+            recoveryCuePlan: recoveryPlans[2]
+        )
+        let promotion = phasePolishPlan(
+            phase: .developing,
+            activityProfile: activityProfile(),
+            settings: settings,
+            recoveryCuePlan: recoveryPlans[3]
+        )
+
+        XCTAssertEqual(verify.recoveryCueKindIdentifier, "failedVerify")
+        XCTAssertEqual(verify.posture, .fracture)
+        XCTAssertEqual(verify.staffOrb.lightFamily, .failure)
+        XCTAssertEqual(verify.fractureRecovery.lightFamily, .failure)
+        XCTAssertGreaterThan(verify.fractureRecovery.fractureOpacity, dirty.fractureRecovery.fractureOpacity)
+
+        XCTAssertEqual(dirty.recoveryCueKindIdentifier, "dirtyWorktree")
+        XCTAssertEqual(dirty.posture, .editing)
+        XCTAssertEqual(dirty.staffOrb.lightFamily, .edit)
+        XCTAssertEqual(dirty.fractureRecovery.lightFamily, .edit)
+        XCTAssertGreaterThan(dirty.fractureRecovery.healingOpacity, verify.fractureRecovery.healingOpacity)
+
+        XCTAssertEqual(promotion.recoveryCueKindIdentifier, "promotionFailed")
+        XCTAssertEqual(promotion.posture, .fracture)
+        XCTAssertEqual(promotion.staffOrb.lightFamily, .git)
+        XCTAssertEqual(promotion.fractureRecovery.lightFamily, .git)
+        XCTAssertGreaterThan(promotion.fractureRecovery.fractureSpread, verify.fractureRecovery.fractureSpread)
+
+        assertPhasePolishPlanInBounds(verify)
+        assertPhasePolishPlanInBounds(dirty)
+        assertPhasePolishPlanInBounds(promotion)
+    }
+
     func testUnavailableIdlePolishIsNeutral() {
         let plan = phasePolishPlan(
             phase: .idle,
@@ -149,7 +194,8 @@ final class CinematicStagePhasePolishPlanTests: XCTestCase {
 private func phasePolishPlan(
     phase: LoopPhase,
     activityProfile: RepositoryActivityProfile,
-    settings: CinematicInfluenceSettings
+    settings: CinematicInfluenceSettings,
+    recoveryCuePlan: CinematicRecoveryCuePlan = .none
 ) -> CinematicStagePhasePolishPlan {
     let languageProfile = languageProfile(primaryLanguage: .swift)
     let activityMotif = CinematicMotif.activity(for: activityProfile)
@@ -166,7 +212,8 @@ private func phasePolishPlan(
     let effectPlan = CinematicStageEffectPlanner.plan(
         beat: beat,
         setDressingPlan: setDressing,
-        influenceSettings: settings
+        influenceSettings: settings,
+        recoveryCuePlan: recoveryCuePlan
     )
     let atmospherePlan = CinematicStageAtmospherePlanner.plan(
         beat: beat,
@@ -181,7 +228,8 @@ private func phasePolishPlan(
         atmospherePlan: atmospherePlan,
         activityMotif: activityMotif,
         activityProfile: activityProfile,
-        influenceSettings: settings
+        influenceSettings: settings,
+        recoveryCuePlan: recoveryCuePlan
     )
 }
 

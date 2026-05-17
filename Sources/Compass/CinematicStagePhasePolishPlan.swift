@@ -43,6 +43,8 @@ struct CinematicStagePhasePolishPlan: Equatable {
     var atmosphereIdentifier: String
     var phaseIdentifier: String
     var activityIdentifier: String
+    var recoveryCueIdentifier: String
+    var recoveryCueKindIdentifier: String
     var influenceIdentifier: String
     var posture: CinematicStagePhasePolishPosture
     var wizardPose: WizardPose
@@ -168,10 +170,12 @@ enum CinematicStagePhasePolishPlanner {
         atmospherePlan: CinematicStageAtmospherePlan,
         activityMotif: CinematicActivityMotif,
         activityProfile: RepositoryActivityProfile,
-        influenceSettings: CinematicInfluenceSettings
+        influenceSettings: CinematicInfluenceSettings,
+        recoveryCuePlan: CinematicRecoveryCuePlan = .none
     ) -> CinematicStagePhasePolishPlan {
         let isIdleUnavailable = beat.kind == .idle && activityMotif.eventKind == .unavailable
-        let posture = posture(for: beat, activityMotif: activityMotif)
+        let recoveryDescriptor = recoveryCuePlan.visualDescriptor
+        let posture = recoveryDescriptor?.posture ?? posture(for: beat, activityMotif: activityMotif)
         let pressureFraction = isIdleUnavailable
             ? 0
             : clamp(stageEffectTuning.pressureFraction, to: CinematicStageEffectPlan.stageEffectPressureRange)
@@ -192,7 +196,8 @@ enum CinematicStagePhasePolishPlanner {
                 stageEffectTuning.energy * 0.42
                     + atmospherePlan.energy * 0.34
                     + postureEnergy * 0.14
-                    + activityLoad * 0.1,
+                    + activityLoad * 0.1
+                    + (recoveryDescriptor?.intensity ?? 0) * 0.16,
                 to: 0...1
             )
 
@@ -202,6 +207,7 @@ enum CinematicStagePhasePolishPlanner {
             pressureFraction: pressureFraction,
             influenceFraction: influenceFraction,
             activityUrgency: activityUrgency,
+            recoveryIntensity: recoveryDescriptor?.intensity ?? 0,
             isIdleUnavailable: isIdleUnavailable
         )
         let staffOrb = staffOrb(
@@ -212,6 +218,7 @@ enum CinematicStagePhasePolishPlanner {
             pressureFraction: pressureFraction,
             influenceFraction: influenceFraction,
             activityUrgency: activityUrgency,
+            recoveryDescriptor: recoveryDescriptor,
             isIdleUnavailable: isIdleUnavailable
         )
         let sigilEmphasis = sigilEmphasis(
@@ -220,6 +227,7 @@ enum CinematicStagePhasePolishPlanner {
             pressureFraction: pressureFraction,
             influenceFraction: influenceFraction,
             activityUrgency: activityUrgency,
+            recoveryIntensity: recoveryDescriptor?.intensity ?? 0,
             isIdleUnavailable: isIdleUnavailable
         )
         let portalBackdrop = portalBackdrop(
@@ -229,6 +237,7 @@ enum CinematicStagePhasePolishPlanner {
             atmosphereEnergy: atmospherePlan.energy,
             influenceFraction: influenceFraction,
             activityUrgency: activityUrgency,
+            recoveryDescriptor: recoveryDescriptor,
             isIdleUnavailable: isIdleUnavailable
         )
         let fractureRecovery = fractureRecovery(
@@ -236,12 +245,14 @@ enum CinematicStagePhasePolishPlanner {
             pressureFraction: pressureFraction,
             energy: energy,
             activityUrgency: activityUrgency,
+            recoveryDescriptor: recoveryDescriptor,
             isIdleUnavailable: isIdleUnavailable
         )
         let cadence = phaseCadence(
             posture: posture,
             energy: energy,
             influenceIntensity: influenceIntensity,
+            recoveryIntensity: recoveryDescriptor?.intensity ?? 0,
             isIdleUnavailable: isIdleUnavailable
         )
         let influenceIdentifier = [
@@ -255,6 +266,7 @@ enum CinematicStagePhasePolishPlanner {
             "atmosphere:\(atmospherePlan.identifier)",
             "phase:\(beat.kindIdentifier)",
             "activity:\(activityMotif.eventKind.rawValue)",
+            "recovery:\(recoveryCuePlan.identifier)",
             "posture:\(posture.rawValue)",
             "pose:\(wizardPose.identifier)",
             "orb:\(staffOrb.identifier)",
@@ -272,6 +284,8 @@ enum CinematicStagePhasePolishPlanner {
             atmosphereIdentifier: atmospherePlan.identifier,
             phaseIdentifier: beat.kindIdentifier,
             activityIdentifier: activityMotif.eventKind.rawValue,
+            recoveryCueIdentifier: recoveryCuePlan.identifier,
+            recoveryCueKindIdentifier: recoveryCuePlan.selectedKindIdentifier,
             influenceIdentifier: influenceIdentifier,
             posture: posture,
             wizardPose: wizardPose,
@@ -328,11 +342,17 @@ enum CinematicStagePhasePolishPlanner {
         pressureFraction: Float,
         influenceFraction: Float,
         activityUrgency: Float,
+        recoveryIntensity: Float,
         isIdleUnavailable: Bool
     ) -> CinematicStagePhasePolishPlan.WizardPose {
         let base = basePose(for: posture)
         let intensity = isIdleUnavailable ? 0 : clamp(
-            base.intensity + energy * 0.14 + pressureFraction * 0.08 + influenceFraction * 0.04 + activityUrgency * 0.03,
+            base.intensity
+                + energy * 0.14
+                + pressureFraction * 0.08
+                + influenceFraction * 0.04
+                + activityUrgency * 0.03
+                + recoveryIntensity * 0.05,
             to: CinematicStagePhasePolishPlan.poseIntensityRange
         )
         let liftBoost = intensity * 0.08
@@ -355,25 +375,27 @@ enum CinematicStagePhasePolishPlanner {
         pressureFraction: Float,
         influenceFraction: Float,
         activityUrgency: Float,
+        recoveryDescriptor: CinematicRecoveryCuePlan.VisualDescriptor?,
         isIdleUnavailable: Bool
     ) -> CinematicStagePhasePolishPlan.StaffOrb {
         let base = baseOrb(for: posture)
+        let recoveryIntensity = recoveryDescriptor?.intensity ?? 0
         return CinematicStagePhasePolishPlan.StaffOrb(
-            lightFamily: staffLightFamily(
+            lightFamily: recoveryDescriptor?.lightFamily ?? staffLightFamily(
                 beat: beat,
                 posture: posture,
                 activityMotif: activityMotif
             ),
             scale: isIdleUnavailable ? base.scale : clamp(
-                base.scale + energy * 0.18 + influenceFraction * 0.08,
+                base.scale + energy * 0.18 + influenceFraction * 0.08 + recoveryIntensity * 0.12,
                 to: CinematicStagePhasePolishPlan.staffOrbScaleRange
             ),
             emission: isIdleUnavailable ? 0 : clamp(
-                base.emission + energy * 0.22 + pressureFraction * 0.12,
+                base.emission + energy * 0.22 + pressureFraction * 0.12 + recoveryIntensity * 0.12,
                 to: CinematicStagePhasePolishPlan.staffOrbEmissionRange
             ),
             pulseAmplitude: isIdleUnavailable ? 0 : clamp(
-                0.035 + energy * 0.09 + activityUrgency * 0.04,
+                0.035 + energy * 0.09 + activityUrgency * 0.04 + recoveryIntensity * 0.035,
                 to: CinematicStagePhasePolishPlan.staffOrbPulseAmplitudeRange
             )
         )
@@ -385,6 +407,7 @@ enum CinematicStagePhasePolishPlanner {
         pressureFraction: Float,
         influenceFraction: Float,
         activityUrgency: Float,
+        recoveryIntensity: Float,
         isIdleUnavailable: Bool
     ) -> CinematicStagePhasePolishPlan.SigilEmphasis {
         guard !isIdleUnavailable else {
@@ -399,11 +422,11 @@ enum CinematicStagePhasePolishPlanner {
         let base = baseSigil(for: posture)
         return CinematicStagePhasePolishPlan.SigilEmphasis(
             orbitRadius: clamp(
-                base.orbitRadius + influenceFraction * 0.055 + activityUrgency * 0.025,
+                base.orbitRadius + influenceFraction * 0.055 + activityUrgency * 0.025 + recoveryIntensity * 0.035,
                 to: CinematicStagePhasePolishPlan.sigilOrbitRadiusRange
             ),
             sealEmphasis: clamp(
-                base.sealEmphasis + energy * 0.11 + pressureFraction * 0.035,
+                base.sealEmphasis + energy * 0.11 + pressureFraction * 0.035 + recoveryIntensity * 0.11,
                 to: CinematicStagePhasePolishPlan.sigilSealEmphasisRange
             ),
             victoryEmphasis: clamp(
@@ -411,7 +434,11 @@ enum CinematicStagePhasePolishPlanner {
                 to: CinematicStagePhasePolishPlan.sigilVictoryEmphasisRange
             ),
             pulseAmplitude: clamp(
-                0.025 + energy * 0.06 + base.sealEmphasis * 0.04 + base.victoryEmphasis * 0.05,
+                0.025
+                    + energy * 0.06
+                    + base.sealEmphasis * 0.04
+                    + base.victoryEmphasis * 0.05
+                    + recoveryIntensity * 0.025,
                 to: CinematicStagePhasePolishPlan.sigilPulseAmplitudeRange
             )
         )
@@ -424,6 +451,7 @@ enum CinematicStagePhasePolishPlanner {
         atmosphereEnergy: Float,
         influenceFraction: Float,
         activityUrgency: Float,
+        recoveryDescriptor: CinematicRecoveryCuePlan.VisualDescriptor?,
         isIdleUnavailable: Bool
     ) -> CinematicStagePhasePolishPlan.PortalBackdropAperture {
         guard !isIdleUnavailable else {
@@ -439,8 +467,9 @@ enum CinematicStagePhasePolishPlanner {
         }
 
         let base = basePortal(for: posture)
+        let recoveryIntensity = recoveryDescriptor?.intensity ?? 0
         let portalAperture = clamp(
-            base.aperture + energy * 0.08 + activityUrgency * 0.045,
+            base.aperture + energy * 0.08 + activityUrgency * 0.045 + recoveryIntensity * 0.05,
             to: CinematicStagePhasePolishPlan.portalApertureRange
         )
         let backdropAperture = clamp(
@@ -448,7 +477,7 @@ enum CinematicStagePhasePolishPlanner {
             to: CinematicStagePhasePolishPlan.backdropApertureRange
         )
         return CinematicStagePhasePolishPlan.PortalBackdropAperture(
-            lightFamily: portalLightFamily(beat: beat, posture: posture),
+            lightFamily: recoveryDescriptor?.lightFamily ?? portalLightFamily(beat: beat, posture: posture),
             portalAperture: portalAperture,
             portalScale: clamp(
                 0.72 + portalAperture * 1.5,
@@ -475,6 +504,7 @@ enum CinematicStagePhasePolishPlanner {
         pressureFraction: Float,
         energy: Float,
         activityUrgency: Float,
+        recoveryDescriptor: CinematicRecoveryCuePlan.VisualDescriptor?,
         isIdleUnavailable: Bool
     ) -> CinematicStagePhasePolishPlan.FractureRecoveryAccent {
         guard !isIdleUnavailable else {
@@ -483,6 +513,24 @@ enum CinematicStagePhasePolishPlanner {
                 fractureOpacity: 0,
                 fractureSpread: 0,
                 healingOpacity: 0
+            )
+        }
+
+        if let recoveryDescriptor {
+            return CinematicStagePhasePolishPlan.FractureRecoveryAccent(
+                lightFamily: recoveryDescriptor.fractureLightFamily,
+                fractureOpacity: clamp(
+                    recoveryDescriptor.fractureOpacity,
+                    to: CinematicStagePhasePolishPlan.fractureOpacityRange
+                ),
+                fractureSpread: clamp(
+                    recoveryDescriptor.fractureSpread,
+                    to: CinematicStagePhasePolishPlan.fractureSpreadRange
+                ),
+                healingOpacity: clamp(
+                    recoveryDescriptor.healingOpacity,
+                    to: CinematicStagePhasePolishPlan.healingOpacityRange
+                )
             )
         }
 
@@ -518,6 +566,7 @@ enum CinematicStagePhasePolishPlanner {
         posture: CinematicStagePhasePolishPosture,
         energy: Float,
         influenceIntensity: Float,
+        recoveryIntensity: Float,
         isIdleUnavailable: Bool
     ) -> CinematicStagePhasePolishPlan.PhaseCadence {
         guard !isIdleUnavailable else {
@@ -544,7 +593,7 @@ enum CinematicStagePhasePolishPlanner {
                 to: CinematicStagePhasePolishPlan.sigilOrbitCadenceRange
             ),
             fractureCadence: clamp(
-                base.fracture - TimeInterval(energy * 0.45),
+                base.fracture - TimeInterval(energy * 0.45 + recoveryIntensity * 0.34),
                 to: CinematicStagePhasePolishPlan.fractureCadenceRange
             )
         )

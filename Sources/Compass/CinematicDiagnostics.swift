@@ -9,6 +9,7 @@ struct CinematicDiagnosticsReport: Equatable {
     var influenceIdentifier: String
     var languageMotif: LanguageMotifSnapshot
     var activityMotif: ActivityMotifSnapshot
+    var recoveryCue: RecoveryCueSnapshot
     var stageBeat: StageBeatSnapshot
     var stageEffect: StageEffectSnapshot
     var stageAtmosphere: StageAtmosphereSnapshot
@@ -45,6 +46,31 @@ struct CinematicDiagnosticsReport: Equatable {
         var shouldShakeOnTransition: Bool
     }
 
+    struct RecoveryCueSnapshot: Equatable {
+        var identifier: String
+        var selectedCueIdentifier: String?
+        var sessionNumber: Int?
+        var kindIdentifier: String
+        var severityIdentifier: String?
+        var label: String?
+        var detail: String?
+        var systemImage: String?
+        var visualIdentifier: String
+        var treatmentIdentifier: String
+        var lightFamilyIdentifier: String
+        var fractureLightFamilyIdentifier: String
+        var symbolIdentifier: String?
+        var phaseLightIntensity: Float
+        var intensity: Float
+        var postureIdentifier: String
+        var arenaEffectIdentifier: String
+        var fractureOpacity: Float
+        var fractureSpread: Float
+        var healingOpacity: Float
+        var shouldShakeCamera: Bool
+        var cameraShakeIdentifier: String?
+    }
+
     struct StageBeatSnapshot: Equatable {
         var identifier: String
         var phaseIdentifier: String
@@ -70,6 +96,9 @@ struct CinematicDiagnosticsReport: Equatable {
         var activityEffectIdentifier: String?
         var activitySourceIdentifier: String?
         var activityArenaEffectIdentifier: String?
+        var recoveryEffectIdentifier: String?
+        var recoverySourceIdentifier: String?
+        var recoveryArenaEffectIdentifier: String?
         var arenaRingIdentifiers: [String]
         var phaseLightPulseIdentifiers: [String]
         var sparkBurstIdentifiers: [String]
@@ -81,6 +110,8 @@ struct CinematicDiagnosticsReport: Equatable {
         var sparkBurstCount: Int
         var historyTrailCount: Int
         var tuningIdentifier: String
+        var recoveryCueIdentifier: String
+        var recoveryCueKindIdentifier: String
         var pressureLevelIdentifier: String
         var pressureFraction: Float
         var energy: Float
@@ -149,6 +180,8 @@ struct CinematicDiagnosticsReport: Equatable {
         var atmosphereIdentifier: String
         var phaseIdentifier: String
         var activityIdentifier: String
+        var recoveryCueIdentifier: String
+        var recoveryCueKindIdentifier: String
         var influenceIdentifier: String
         var postureIdentifier: String
         var wizardPoseIdentifier: String
@@ -373,7 +406,8 @@ struct CinematicVisualSmokeReport: Equatable {
             textBoundsCheck(reports: reports),
             assetAvailabilityCheck(reports: reports),
             cameraPhaseCoverageCheck(reports: reports),
-            pressureInfluenceSpreadCheck(reports: reports)
+            pressureInfluenceSpreadCheck(reports: reports),
+            recoveryCueCoverageCheck(reports: reports)
         ]
     }
 
@@ -579,6 +613,34 @@ struct CinematicVisualSmokeReport: Equatable {
             detail: [
                 "pressure \(joined(effectPressure)) \(range(pressureRange))",
                 "influence \(joined(influenceStyles)) \(range(influenceRange))"
+            ].joined(separator: " | ")
+        )
+    }
+
+    private static func recoveryCueCoverageCheck(reports: [CinematicDiagnosticsReport]) -> Check {
+        let expectedKinds = Set(["none", "failedVerify", "dirtyWorktree", "promotionFailed"])
+        let expectedTreatments = Set(["none", "verify-failure", "dirty-cleanup", "promotion-branch"])
+        let kinds = Set(reports.map(\.recoveryCue.kindIdentifier))
+        let treatments = Set(reports.map(\.recoveryCue.treatmentIdentifier))
+        let lights = Set(reports.map(\.recoveryCue.lightFamilyIdentifier))
+        let symbols = Set(reports.compactMap(\.recoveryCue.symbolIdentifier))
+        let cueReports = reports.filter { $0.recoveryCue.kindIdentifier != "none" }
+        let distinctEffects = Set(cueReports.compactMap(\.stageEffect.recoveryArenaEffectIdentifier))
+        let isPassing = !reports.isEmpty
+            && kinds.isSuperset(of: expectedKinds)
+            && treatments.isSuperset(of: expectedTreatments)
+            && lights.isSuperset(of: ["edit", "failure", "git"])
+            && symbols.isSuperset(of: ["verify-fracture-seal", "edit-amber-cleanup", "git-failure-branch"])
+            && distinctEffects.isSuperset(of: ["charge", "activity-pulse", "history-chains"])
+
+        return check(
+            id: "recovery-cue-coverage",
+            label: "Recovery cue coverage",
+            isPassing: isPassing,
+            warningIdentifier: "visual-smoke.recovery-cue-coverage",
+            detail: [
+                "kinds \(joined(kinds))",
+                "effects \(joined(distinctEffects))"
             ].joined(separator: " | ")
         )
     }
@@ -804,7 +866,7 @@ struct CinematicVisualSmokeReport: Equatable {
 }
 
 struct CinematicDiagnosticsSummary: Equatable {
-    static let maxRows = 34
+    static let maxRows = 35
     static let labelMaxCharacters = 32
     static let detailMaxCharacters = 512
 
@@ -855,6 +917,7 @@ struct CinematicDiagnosticsSummary: Equatable {
             id: "stage-motion-effects",
             label: "Stage motion/effects",
             rowIDs: [
+                "recovery-cue",
                 "stage-beat",
                 "stage-effect",
                 "effect-rings",
@@ -950,6 +1013,20 @@ struct CinematicDiagnosticsSummary: Equatable {
                 ].compactMap { $0 }.joined(separator: " | ")
             ),
             row(
+                id: "recovery-cue",
+                label: "Recovery cue",
+                detail: [
+                    report.recoveryCue.kindIdentifier,
+                    "treatment \(report.recoveryCue.treatmentIdentifier)",
+                    "light \(report.recoveryCue.lightFamilyIdentifier)",
+                    "symbol \(report.recoveryCue.symbolIdentifier ?? "none")",
+                    "intensity \(fixed(report.recoveryCue.intensity))",
+                    "fracture \(fixed(report.recoveryCue.fractureOpacity))",
+                    "heal \(fixed(report.recoveryCue.healingOpacity))",
+                    report.recoveryCue.shouldShakeCamera ? "shake" : nil
+                ].compactMap { $0 }.joined(separator: " | ")
+            ),
+            row(
                 id: "stage-beat",
                 label: "Stage beat",
                 detail: [
@@ -972,6 +1049,9 @@ struct CinematicDiagnosticsSummary: Equatable {
                     "phase \(report.stageEffect.phaseSourceIdentifier)/\(report.stageEffect.phaseArenaEffectIdentifier)",
                     report.stageEffect.activitySourceIdentifier.flatMap { source in
                         report.stageEffect.activityArenaEffectIdentifier.map { "activity \(source)/\($0)" }
+                    },
+                    report.stageEffect.recoverySourceIdentifier.flatMap { source in
+                        report.stageEffect.recoveryArenaEffectIdentifier.map { "recovery \(source)/\($0)" }
                     },
                     "rings \(report.stageEffect.arenaRingCount)",
                     "pulses \(report.stageEffect.phaseLightPulseCount)",
@@ -1046,6 +1126,7 @@ struct CinematicDiagnosticsSummary: Equatable {
                 label: "Phase polish",
                 detail: [
                     report.stagePhasePolish.postureIdentifier,
+                    "recovery \(report.stagePhasePolish.recoveryCueKindIdentifier)",
                     "pose \(fixed(report.stagePhasePolish.poseIntensity))",
                     "orb \(report.stagePhasePolish.staffOrbLightFamilyIdentifier) \(fixed(report.stagePhasePolish.staffOrbScale))/\(fixed(report.stagePhasePolish.staffOrbEmission))",
                     "sigil \(fixed(report.stagePhasePolish.sigilSealEmphasis))/\(fixed(report.stagePhasePolish.sigilOrbitRadius))",
@@ -1357,6 +1438,14 @@ enum CinematicDiagnostics {
     @MainActor
     static func currentReport(for project: CompassProject) -> CinematicDiagnosticsReport {
         let commitConstellationPlan = project.cinematicCommitConstellationPlan
+        let reliabilityFeedback = PlanReliabilityFeedback(
+            state: project.state,
+            sessions: project.sessions
+        )
+        let recoveryCuePlan = CinematicRecoveryCuePlanner.plan(
+            recentRunCues: reliabilityFeedback.recentRunCues,
+            influenceSettings: project.cinematicInfluenceSettings
+        )
         return report(
             repoName: project.displayName,
             phase: (project.isPaused ? LoopPhase.paused : project.phase).rawValue,
@@ -1371,7 +1460,8 @@ enum CinematicDiagnostics {
             isAutoPlaying: project.isAutoPlaying,
             isPaused: project.isPaused,
             hasRepository: project.hasRepository,
-            commitConstellationPlan: commitConstellationPlan
+            commitConstellationPlan: commitConstellationPlan,
+            recoveryCuePlan: recoveryCuePlan
         )
     }
 
@@ -1389,7 +1479,8 @@ enum CinematicDiagnostics {
         isAutoPlaying: Bool = false,
         isPaused: Bool = false,
         hasRepository: Bool = true,
-        commitConstellationPlan: CinematicCommitConstellationPlan = .empty
+        commitConstellationPlan: CinematicCommitConstellationPlan = .empty,
+        recoveryCuePlan: CinematicRecoveryCuePlan = .none
     ) -> CinematicDiagnosticsReport {
         let languageMotif = CinematicMotif.language(for: languageProfile)
         let activityMotif = CinematicMotif.activity(for: activityProfile)
@@ -1418,6 +1509,7 @@ enum CinematicDiagnostics {
         let influenceIdentifier = settingsIdentifier(influenceSettings)
         let languageSnapshot = languageSnapshot(for: languageMotif)
         let activitySnapshot = activitySnapshot(for: activityMotif)
+        let recoveryCueSnapshot = recoveryCueSnapshot(for: recoveryCuePlan)
         let loopPhase = loopPhase(from: phase)
         let effectivePhase: LoopPhase = isPaused ? .paused : loopPhase
         let stageBeat = CinematicStageBeatPlanner.plan(
@@ -1435,7 +1527,8 @@ enum CinematicDiagnostics {
         let stageEffectPlan = CinematicStageEffectPlanner.plan(
             beat: stageBeat,
             setDressingPlan: setDressingPlan,
-            influenceSettings: influenceSettings
+            influenceSettings: influenceSettings,
+            recoveryCuePlan: recoveryCuePlan
         )
         let stageAtmospherePlan = CinematicStageAtmospherePlanner.plan(
             beat: stageBeat,
@@ -1449,7 +1542,8 @@ enum CinematicDiagnostics {
             atmospherePlan: stageAtmospherePlan,
             activityMotif: activityMotif,
             activityProfile: activityProfile,
-            influenceSettings: influenceSettings
+            influenceSettings: influenceSettings,
+            recoveryCuePlan: recoveryCuePlan
         )
         let narrativeCuePlan = CinematicSceneNarrativeCuePlanner.plan(
             worldText: worldText,
@@ -1499,6 +1593,7 @@ enum CinematicDiagnostics {
                 "phase:\(phase)",
                 "language:\(languageSnapshot.identifier)",
                 "activity:\(activitySnapshot.identifier)",
+                "recovery:\(recoveryCueSnapshot.identifier)",
                 "stage:\(stageBeatSnapshot.identifier)",
                 "stage-effect:\(stageEffectSnapshot.identifier)",
                 "stage-atmosphere:\(stageAtmosphereSnapshot.identifier)",
@@ -1516,6 +1611,7 @@ enum CinematicDiagnostics {
             influenceIdentifier: influenceIdentifier,
             languageMotif: languageSnapshot,
             activityMotif: activitySnapshot,
+            recoveryCue: recoveryCueSnapshot,
             stageBeat: stageBeatSnapshot,
             stageEffect: stageEffectSnapshot,
             stageAtmosphere: stageAtmosphereSnapshot,
@@ -1536,21 +1632,24 @@ enum CinematicDiagnostics {
         influenceSettings: CinematicInfluenceSettings = CinematicInfluenceSettings()
     ) -> [CinematicDiagnosticsReport] {
         RepositoryLanguage.allCases.flatMap { language in
-            representativeActivityCases().map { activityCase in
-                report(
-                    repoName: "Diagnostics \(language.displayName)",
-                    phase: activityCase.phase,
-                    immediateTitle: activityCase.immediateTitle,
-                    completedCount: activityCase.completedCount,
-                    latestEvent: nil,
-                    languageProfile: representativeLanguageProfile(for: language),
-                    activityProfile: activityCase.profile,
-                    influenceSettings: influenceSettings,
-                    isRunning: activityCase.isRunning,
-                    isAutoPlaying: activityCase.isAutoPlaying,
-                    isPaused: activityCase.isPaused,
-                    hasRepository: activityCase.hasRepository
-                )
+            representativeActivityCases().flatMap { activityCase in
+                CinematicRecoveryCuePlanner.representativePlans(influenceSettings: influenceSettings).map { recoveryCuePlan in
+                    report(
+                        repoName: "Diagnostics \(language.displayName)",
+                        phase: activityCase.phase,
+                        immediateTitle: activityCase.immediateTitle,
+                        completedCount: activityCase.completedCount,
+                        latestEvent: nil,
+                        languageProfile: representativeLanguageProfile(for: language),
+                        activityProfile: activityCase.profile,
+                        influenceSettings: influenceSettings,
+                        isRunning: activityCase.isRunning,
+                        isAutoPlaying: activityCase.isAutoPlaying,
+                        isPaused: activityCase.isPaused,
+                        hasRepository: activityCase.hasRepository,
+                        recoveryCuePlan: recoveryCuePlan
+                    )
+                }
             }
         }
     }
@@ -1696,6 +1795,51 @@ enum CinematicDiagnostics {
         )
     }
 
+    private static func recoveryCueSnapshot(
+        for plan: CinematicRecoveryCuePlan
+    ) -> CinematicDiagnosticsReport.RecoveryCueSnapshot {
+        let selectedCue = plan.selectedCue
+        let descriptor = plan.visualDescriptor
+        let cameraShakeIdentifier = descriptor.flatMap { cueDescriptor -> String? in
+            guard cueDescriptor.shouldShakeCamera else { return nil }
+            return CinematicStageEffectPlan.CameraShake(
+                shouldShake: true,
+                duration: cueDescriptor.cameraShakeDuration,
+                scale: cueDescriptor.cameraShakeScale
+            ).identifier
+        }
+        let identifier = [
+            "cue:\(selectedCue?.identifier ?? "none")",
+            "visual:\(descriptor?.identifier ?? "none")",
+            "camera:\(cameraShakeIdentifier ?? "steady")"
+        ].joined(separator: "|")
+
+        return CinematicDiagnosticsReport.RecoveryCueSnapshot(
+            identifier: identifier,
+            selectedCueIdentifier: selectedCue?.identifier,
+            sessionNumber: selectedCue?.sessionNumber,
+            kindIdentifier: selectedCue?.kind.rawValue ?? "none",
+            severityIdentifier: selectedCue?.severity.rawValue,
+            label: selectedCue?.label,
+            detail: selectedCue?.detail,
+            systemImage: selectedCue?.systemImage,
+            visualIdentifier: descriptor?.identifier ?? "none",
+            treatmentIdentifier: descriptor?.treatmentIdentifier ?? "none",
+            lightFamilyIdentifier: descriptor?.lightFamily.rawValue ?? "none",
+            fractureLightFamilyIdentifier: descriptor?.fractureLightFamily.rawValue ?? "none",
+            symbolIdentifier: descriptor?.symbolIdentifier,
+            phaseLightIntensity: descriptor?.phaseLightIntensity ?? 0,
+            intensity: descriptor?.intensity ?? 0,
+            postureIdentifier: descriptor?.posture.rawValue ?? "none",
+            arenaEffectIdentifier: descriptor?.arenaEffect.rawValue ?? "none",
+            fractureOpacity: descriptor?.fractureOpacity ?? 0,
+            fractureSpread: descriptor?.fractureSpread ?? 0,
+            healingOpacity: descriptor?.healingOpacity ?? 0,
+            shouldShakeCamera: descriptor?.shouldShakeCamera ?? false,
+            cameraShakeIdentifier: cameraShakeIdentifier
+        )
+    }
+
     private static func stageBeatSnapshot(
         for beat: CinematicStageBeat
     ) -> CinematicDiagnosticsReport.StageBeatSnapshot {
@@ -1732,12 +1876,14 @@ enum CinematicDiagnostics {
         let identifier = [
             "phase:\(plan.phaseEffect.identifier)",
             "activity:\(plan.activityEffect?.identifier ?? "none")",
+            "recovery:\(plan.recoveryEffect?.identifier ?? "none")",
             "rings:\(ringIdentifiers.joined(separator: ","))",
             "pulses:\(phaseLightPulseIdentifiers.joined(separator: ","))",
             "sparks:\(sparkBurstIdentifiers.joined(separator: ","))",
             "history:\(historyTrailIdentifiers.joined(separator: ","))",
             "victory:\(victoryCadenceIdentifier ?? "none")",
             "camera:\(cameraShakeIdentifiers.joined(separator: ","))",
+            "recovery-cue:\(plan.recoveryCueIdentifier)",
             "tuning:\(tuning.identifier)"
         ].joined(separator: "|")
 
@@ -1749,6 +1895,9 @@ enum CinematicDiagnostics {
             activityEffectIdentifier: plan.activityEffect?.identifier,
             activitySourceIdentifier: plan.activityEffect?.sourceIdentifier,
             activityArenaEffectIdentifier: plan.activityEffect?.arenaEffect.rawValue,
+            recoveryEffectIdentifier: plan.recoveryEffect?.identifier,
+            recoverySourceIdentifier: plan.recoveryEffect?.sourceIdentifier,
+            recoveryArenaEffectIdentifier: plan.recoveryEffect?.arenaEffect.rawValue,
             arenaRingIdentifiers: ringIdentifiers,
             phaseLightPulseIdentifiers: phaseLightPulseIdentifiers,
             sparkBurstIdentifiers: sparkBurstIdentifiers,
@@ -1760,6 +1909,8 @@ enum CinematicDiagnostics {
             sparkBurstCount: sparkBurstIdentifiers.count,
             historyTrailCount: historyTrailIdentifiers.count,
             tuningIdentifier: tuning.identifier,
+            recoveryCueIdentifier: plan.recoveryCueIdentifier,
+            recoveryCueKindIdentifier: plan.recoveryCueKindIdentifier,
             pressureLevelIdentifier: tuning.pressureLevelIdentifier,
             pressureFraction: tuning.pressureFraction,
             energy: tuning.energy,
@@ -1849,6 +2000,7 @@ enum CinematicDiagnostics {
             "atmosphere:\(plan.atmosphereIdentifier)",
             "phase:\(plan.phaseIdentifier)",
             "activity:\(plan.activityIdentifier)",
+            "recovery:\(plan.recoveryCueIdentifier)",
             "posture:\(plan.postureIdentifier)",
             "pose:\(plan.wizardPose.identifier)",
             "orb:\(plan.staffOrb.identifier)",
@@ -1866,6 +2018,8 @@ enum CinematicDiagnostics {
             atmosphereIdentifier: plan.atmosphereIdentifier,
             phaseIdentifier: plan.phaseIdentifier,
             activityIdentifier: plan.activityIdentifier,
+            recoveryCueIdentifier: plan.recoveryCueIdentifier,
+            recoveryCueKindIdentifier: plan.recoveryCueKindIdentifier,
             influenceIdentifier: plan.influenceIdentifier,
             postureIdentifier: plan.postureIdentifier,
             wizardPoseIdentifier: plan.wizardPose.identifier,

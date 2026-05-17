@@ -14,6 +14,7 @@ struct CinematicSceneView: View {
     var worldText: CinematicWorldText
     var briefing: CinematicBriefing
     var commitConstellationPlan: CinematicCommitConstellationPlan
+    var recoveryCuePlan: CinematicRecoveryCuePlan
 
     @StateObject private var host: CinematicRealitySceneHost
 
@@ -27,7 +28,8 @@ struct CinematicSceneView: View {
         influenceSettings: CinematicInfluenceSettings,
         worldText: CinematicWorldText,
         briefing: CinematicBriefing,
-        commitConstellationPlan: CinematicCommitConstellationPlan
+        commitConstellationPlan: CinematicCommitConstellationPlan,
+        recoveryCuePlan: CinematicRecoveryCuePlan = .none
     ) {
         self.projectID = projectID
         self.lines = lines
@@ -39,6 +41,7 @@ struct CinematicSceneView: View {
         self.worldText = worldText
         self.briefing = briefing
         self.commitConstellationPlan = commitConstellationPlan
+        self.recoveryCuePlan = recoveryCuePlan
         _host = StateObject(wrappedValue: CinematicRealitySceneHost(projectID: projectID))
     }
 
@@ -54,7 +57,8 @@ struct CinematicSceneView: View {
                 influenceSettings: influenceSettings,
                 worldText: worldText,
                 briefing: briefing,
-                commitConstellationPlan: commitConstellationPlan
+                commitConstellationPlan: commitConstellationPlan,
+                recoveryCuePlan: recoveryCuePlan
             )
         } update: { content in
             host.install(in: &content)
@@ -67,7 +71,8 @@ struct CinematicSceneView: View {
                 influenceSettings: influenceSettings,
                 worldText: worldText,
                 briefing: briefing,
-                commitConstellationPlan: commitConstellationPlan
+                commitConstellationPlan: commitConstellationPlan,
+                recoveryCuePlan: recoveryCuePlan
             )
         } placeholder: {
             Color.black
@@ -112,7 +117,8 @@ private final class CinematicRealitySceneHost: ObservableObject {
         influenceSettings: CinematicInfluenceSettings,
         worldText: CinematicWorldText,
         briefing: CinematicBriefing,
-        commitConstellationPlan: CinematicCommitConstellationPlan
+        commitConstellationPlan: CinematicCommitConstellationPlan,
+        recoveryCuePlan: CinematicRecoveryCuePlan
     ) {
         coordinator.update(
             lines: lines,
@@ -123,7 +129,8 @@ private final class CinematicRealitySceneHost: ObservableObject {
             influenceSettings: influenceSettings,
             worldText: worldText,
             briefing: briefing,
-            commitConstellationPlan: commitConstellationPlan
+            commitConstellationPlan: commitConstellationPlan,
+            recoveryCuePlan: recoveryCuePlan
         )
     }
 
@@ -261,6 +268,7 @@ private final class CinematicSceneCoordinator {
     private var influenceSettings = CinematicInfluenceSettings()
     private var worldText = CinematicWorldText.placeholder
     private var briefing = CinematicBriefing.placeholder
+    private var recoveryCuePlan = CinematicRecoveryCuePlan.none
     private var setDressingPlan = CinematicSetDressingPlanner.plan(
         languageProfile: .empty,
         activityProfile: .empty,
@@ -350,7 +358,8 @@ private final class CinematicSceneCoordinator {
         influenceSettings: CinematicInfluenceSettings,
         worldText: CinematicWorldText,
         briefing: CinematicBriefing,
-        commitConstellationPlan: CinematicCommitConstellationPlan
+        commitConstellationPlan: CinematicCommitConstellationPlan,
+        recoveryCuePlan: CinematicRecoveryCuePlan
     ) {
         let languageProfileChanged = languageProfile != self.languageProfile
         if languageProfileChanged {
@@ -373,6 +382,10 @@ private final class CinematicSceneCoordinator {
         let briefingChanged = briefing != self.briefing
         if briefingChanged {
             self.briefing = briefing
+        }
+        let recoveryCueChanged = recoveryCuePlan != self.recoveryCuePlan
+        if recoveryCueChanged {
+            self.recoveryCuePlan = recoveryCuePlan
         }
         let commitConstellationChanged = commitConstellationPlan != currentCommitConstellationPlan
         if languageProfileChanged || activityProfileChanged || influenceChanged {
@@ -401,6 +414,9 @@ private final class CinematicSceneCoordinator {
                 applyCinematicInfluenceChange()
             }
             refreshAtmosphere(animated: false)
+            if recoveryCuePlan.hasActionableCue {
+                applyRecoveryCueTraits(animated: false)
+            }
             applyCommitConstellationPlan(commitConstellationPlan, animated: false)
             stagePendingCommitConstellationFocusIfPossible(lines: lines, animated: false)
             let baseline = phaseLightBaseline(for: phase)
@@ -419,6 +435,9 @@ private final class CinematicSceneCoordinator {
         }
         if influenceChanged {
             applyCinematicInfluenceChange()
+        }
+        if recoveryCueChanged {
+            applyRecoveryCueTraits(animated: hasBuiltScene)
         }
 
         if phase != lastPhase {
@@ -1040,7 +1059,8 @@ private final class CinematicSceneCoordinator {
         CinematicStageEffectPlanner.plan(
             beat: beat,
             setDressingPlan: setDressingPlan,
-            influenceSettings: influenceSettings
+            influenceSettings: influenceSettings,
+            recoveryCuePlan: recoveryCuePlan
         )
     }
 
@@ -1067,7 +1087,8 @@ private final class CinematicSceneCoordinator {
             atmospherePlan: atmospherePlan,
             activityMotif: activityMotif,
             activityProfile: activityProfile,
-            influenceSettings: influenceSettings
+            influenceSettings: influenceSettings,
+            recoveryCuePlan: recoveryCuePlan
         )
     }
 
@@ -1111,27 +1132,32 @@ private final class CinematicSceneCoordinator {
         )
         if beat.shouldRunVictorySurge {
             victorySurge(using: effectPlan)
+            if let recoveryEffect = effectPlan.recoveryEffect {
+                applyRecoveryCueEffect(recoveryEffect)
+            }
             return
         }
 
         if beat.kind == .failed {
             stageCamera(beat.cameraShot)
-            setPhaseLight(
-                color: themedColor(beat.lightFamily.spell.nsColor),
-                intensity: beat.phaseLightIntensity
-            )
+            let baseline = phaseLightBaseline(for: beat.phase)
+            setPhaseLight(color: themedColor(baseline.color), intensity: baseline.intensity)
             if let cameraShake = effectPlan.phaseEffect.cameraShake {
                 shakeCamera(cameraShake)
             }
             applyArenaEffect(effectPlan.phaseEffect)
+            if let recoveryEffect = effectPlan.recoveryEffect {
+                applyRecoveryCueEffect(recoveryEffect)
+            }
             return
         }
 
-        setPhaseLight(
-            color: themedColor(beat.lightFamily.spell.nsColor),
-            intensity: beat.phaseLightIntensity
-        )
+        let baseline = phaseLightBaseline(for: beat.phase)
+        setPhaseLight(color: themedColor(baseline.color), intensity: baseline.intensity)
         applyArenaEffect(effectPlan.phaseEffect)
+        if let recoveryEffect = effectPlan.recoveryEffect {
+            applyRecoveryCueEffect(recoveryEffect)
+        }
         stageCamera(beat.cameraShot)
     }
 
@@ -2388,12 +2414,32 @@ private final class CinematicSceneCoordinator {
             narrativeCuePlan(for: beat, phasePolishPlan: phasePolishPlan),
             animated: animated
         )
-        setPhaseLight(
-            color: themedColor(beat.lightFamily.spell.nsColor),
-            intensity: beat.phaseLightIntensity
+        let baseline = phaseLightBaseline(for: lastPhase)
+        setPhaseLight(color: themedColor(baseline.color), intensity: baseline.intensity)
+        guard animated else { return }
+        if let activityEffect = effectPlan.activityEffect {
+            applyActivityAccent(activityEffect)
+        }
+        if let recoveryEffect = effectPlan.recoveryEffect {
+            applyRecoveryCueEffect(recoveryEffect)
+        }
+    }
+
+    private func applyRecoveryCueTraits(animated: Bool) {
+        let beat = stageBeat()
+        let effectPlan = stageEffectPlan(for: beat)
+        let atmospherePlan = stageAtmospherePlan(for: beat, tuningMetadata: effectPlan.tuningMetadata)
+        applyAtmospherePlan(atmospherePlan, animated: animated)
+        let phasePolishPlan = stagePhasePolishPlan(for: beat, effectPlan: effectPlan, atmospherePlan: atmospherePlan)
+        applyPhasePolishPlan(phasePolishPlan, animated: animated)
+        applyNarrativeCuePlan(
+            narrativeCuePlan(for: beat, phasePolishPlan: phasePolishPlan),
+            animated: animated
         )
-        guard animated, let activityEffect = effectPlan.activityEffect else { return }
-        applyActivityAccent(activityEffect)
+        let baseline = phaseLightBaseline(for: lastPhase)
+        setPhaseLight(color: themedColor(baseline.color), intensity: baseline.intensity)
+        guard animated, let recoveryEffect = effectPlan.recoveryEffect else { return }
+        applyRecoveryCueEffect(recoveryEffect)
     }
 
     private func applyActivityAccent(_ effect: CinematicStageEffectPlan.EffectChoreography) {
@@ -2407,6 +2453,13 @@ private final class CinematicSceneCoordinator {
         if let pulse = effect.phaseLightPulse {
             pulsePhaseLight(color: color, pulse: pulse)
         }
+        if let cameraShake = effect.cameraShake {
+            shakeCamera(cameraShake)
+        }
+    }
+
+    private func applyRecoveryCueEffect(_ effect: CinematicStageEffectPlan.EffectChoreography) {
+        applyArenaEffect(effect)
         if let cameraShake = effect.cameraShake {
             shakeCamera(cameraShake)
         }
@@ -2957,6 +3010,9 @@ private final class CinematicSceneCoordinator {
     }
 
     private func phaseLightBaseline(for phase: LoopPhase) -> (color: NSColor, intensity: Float) {
+        if let descriptor = recoveryCuePlan.visualDescriptor {
+            return (descriptor.lightFamily.spell.nsColor, descriptor.phaseLightIntensity)
+        }
         let beat = stageBeat(for: phase)
         return (beat.lightFamily.spell.nsColor, beat.phaseLightIntensity)
     }
