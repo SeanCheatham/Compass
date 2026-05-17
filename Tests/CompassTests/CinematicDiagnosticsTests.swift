@@ -425,7 +425,7 @@ final class CinematicDiagnosticsTests: XCTestCase {
         XCTAssertTrue(summary.exportText.hasPrefix("Cinematic Diagnostics\n"))
         XCTAssertEqual(
             summary.exportText.components(separatedBy: "\n").count,
-            summary.rows.count + summary.sections.count + 2
+            summary.rows.count + summary.sections.count + summary.visualSmoke.checks.count + 3
         )
         let expectedSectionHeadings = summary.sections.map { "\($0.label) (\($0.rowCountLabel))" }
         let actualSectionHeadings = summary.exportText
@@ -439,6 +439,8 @@ final class CinematicDiagnosticsTests: XCTestCase {
         XCTAssertTrue(summary.exportText.contains("Assets/textures (2 rows)"))
         XCTAssertTrue(summary.exportText.contains("Tuning (4 rows)"))
         XCTAssertTrue(summary.exportText.contains("Camera shots (8 rows)"))
+        XCTAssertTrue(summary.exportText.contains("Visual smoke (pass, 7 checks)"))
+        XCTAssertTrue(summary.exportText.contains("Overlay fallback: pass"))
         XCTAssertTrue(summary.exportText.contains(report.languageMotif.sigilIdentifier))
         XCTAssertTrue(summary.exportText.contains(report.languageMotif.styleIdentifier))
         XCTAssertTrue(summary.exportText.contains(report.activityMotif.sigilIdentifier))

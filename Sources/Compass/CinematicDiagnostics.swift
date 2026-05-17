@@ -311,6 +311,485 @@ struct CinematicDiagnosticsReport: Equatable {
     }
 }
 
+struct CinematicVisualSmokeReport: Equatable {
+    static let labelMaxCharacters = 32
+    static let detailMaxCharacters = 120
+    static let warningIdentifierMaxCharacters = 72
+
+    var status: Status
+    var warningIdentifiers: [String]
+    var checks: [Check]
+
+    enum Status: String, Equatable {
+        case pass
+        case warning
+    }
+
+    struct Check: Identifiable, Equatable {
+        var id: String
+        var label: String
+        var status: Status
+        var warningIdentifier: String?
+        var detail: String
+    }
+
+    init(reports: [CinematicDiagnosticsReport]) {
+        let checks = Self.makeChecks(reports: reports)
+        self.checks = checks
+        warningIdentifiers = checks.compactMap(\.warningIdentifier)
+        status = warningIdentifiers.isEmpty ? .pass : .warning
+    }
+
+    static func representative() -> CinematicVisualSmokeReport {
+        let settingsSamples = [
+            CinematicInfluenceSettings(cameraStyle: .steady, intensity: 0),
+            CinematicInfluenceSettings(cameraStyle: .follow, intensity: CinematicInfluenceSettings.defaultIntensity),
+            CinematicInfluenceSettings(cameraStyle: .dramatic, intensity: 1)
+        ]
+        let reports = settingsSamples.flatMap {
+            CinematicDiagnostics.representativeSmokeMatrix(influenceSettings: $0)
+        }
+        return CinematicVisualSmokeReport(reports: reports)
+    }
+
+    private static func makeChecks(reports: [CinematicDiagnosticsReport]) -> [Check] {
+        [
+            narrativeCueReadabilityCheck(reports: reports),
+            overlayFallbackUsageCheck(reports: reports),
+            chromeStrengthCheck(reports: reports),
+            textBoundsCheck(reports: reports),
+            assetAvailabilityCheck(reports: reports),
+            cameraPhaseCoverageCheck(reports: reports),
+            pressureInfluenceSpreadCheck(reports: reports)
+        ]
+    }
+
+    private static func narrativeCueReadabilityCheck(reports: [CinematicDiagnosticsReport]) -> Check {
+        let total = reports.count
+        guard total > 0 else {
+            return check(
+                id: "narrative-cue-readability",
+                label: "Narrative cue readability",
+                isPassing: false,
+                warningIdentifier: "visual-smoke.no-reports",
+                detail: "no representative reports available"
+            )
+        }
+
+        let compactReports = reports.filter { $0.overlayDisplay.modeIdentifier == "compact" }
+        let metrics = compactReports.map(readabilityMetrics)
+        let readableCount = metrics.filter(\.isReadable).count
+        let minimumScale = metrics.map(\.minimumScale).min() ?? 0
+        let minimumOpacity = metrics.map(\.minimumOpacity).min() ?? 0
+        let minimumFontSize = metrics.map(\.minimumPrimaryFontSize).min() ?? 0
+        let minimumBackingOpacity = metrics.map(\.minimumBackingOpacity).min() ?? 0
+        let isPassing = !compactReports.isEmpty && readableCount == compactReports.count
+
+        return check(
+            id: "narrative-cue-readability",
+            label: "Narrative cue readability",
+            isPassing: isPassing,
+            warningIdentifier: "visual-smoke.narrative-readability",
+            detail: [
+                "compact readable \(readableCount)/\(compactReports.count)",
+                "reports \(total)",
+                "scale \(fixed(minimumScale))",
+                "opacity \(fixed(minimumOpacity))",
+                "font \(fixed(minimumFontSize))",
+                "backing \(fixed(minimumBackingOpacity))"
+            ].joined(separator: " | ")
+        )
+    }
+
+    private static func overlayFallbackUsageCheck(reports: [CinematicDiagnosticsReport]) -> Check {
+        let modes = Set(reports.map(\.overlayDisplay.modeIdentifier))
+        let reasons = Set(reports.map(\.overlayDisplay.reasonIdentifier))
+        let requiredModes: Set<String> = ["compact", "full", "fallback"]
+        let requiredReasons: Set<String> = [
+            "in-world-readable-cues",
+            "activity-unavailable",
+            "missing-repository"
+        ]
+        let missingModes = requiredModes.subtracting(modes).sorted()
+        let missingReasons = requiredReasons.subtracting(reasons).sorted()
+        let isPassing = !reports.isEmpty && missingModes.isEmpty && missingReasons.isEmpty
+        let fallbackReasons = reasons.filter { reason in
+            reports.contains {
+                $0.overlayDisplay.modeIdentifier == "fallback"
+                    && $0.overlayDisplay.reasonIdentifier == reason
+            }
+        }
+        .sorted()
+
+        return check(
+            id: "overlay-fallback-usage",
+            label: "Overlay fallback",
+            isPassing: isPassing,
+            warningIdentifier: "visual-smoke.overlay-coverage",
+            detail: [
+                "modes \(joined(modes))",
+                "fallback \(fallbackReasons.isEmpty ? "none" : joined(fallbackReasons))",
+                missingModes.isEmpty ? nil : "missing modes \(missingModes.joined(separator: ","))",
+                missingReasons.isEmpty ? nil : "missing reasons \(missingReasons.joined(separator: ","))"
+            ].compactMap { $0 }.joined(separator: " | ")
+        )
+    }
+
+    private static func chromeStrengthCheck(reports: [CinematicDiagnosticsReport]) -> Check {
+        let styleNames = Set(reports.map { chromeStyleName($0.overlayDisplay.chromeStyleIdentifier) })
+        let compactGradients = gradients(for: "compact", in: reports)
+        let fullGradients = gradients(for: "full", in: reports)
+        let fallbackGradients = gradients(for: "fallback", in: reports)
+        let modes = Set(reports.map(\.overlayDisplay.modeIdentifier))
+        let hasExpectedModes = ["compact", "full", "fallback"].allSatisfy(modes.contains)
+        let stylesMatchModes = reports.allSatisfy { report in
+            let styleName = chromeStyleName(report.overlayDisplay.chromeStyleIdentifier)
+            switch report.overlayDisplay.modeIdentifier {
+            case "compact":
+                return styleName.hasPrefix("compact-")
+            case "full":
+                return styleName.hasPrefix("full-")
+            case "fallback":
+                return styleName.hasPrefix("fallback-")
+            default:
+                return false
+            }
+        }
+        let strengthOrdering = compactGradients.maxValue < fullGradients.minValue
+            && fullGradients.maxValue <= fallbackGradients.minValue
+        let isPassing = !reports.isEmpty
+            && !styleNames.contains("")
+            && hasExpectedModes
+            && stylesMatchModes
+            && strengthOrdering
+
+        return check(
+            id: "chrome-strength",
+            label: "Chrome strength",
+            isPassing: isPassing,
+            warningIdentifier: "visual-smoke.chrome-strength",
+            detail: [
+                "styles \(joined(styleNames))",
+                "gradients c\(range(compactGradients))/f\(range(fullGradients))/b\(range(fallbackGradients))"
+            ].joined(separator: " | ")
+        )
+    }
+
+    private static func textBoundsCheck(reports: [CinematicDiagnosticsReport]) -> Check {
+        let boundedCount = reports.filter(textIsBounded).count
+        let isPassing = !reports.isEmpty && boundedCount == reports.count
+
+        return check(
+            id: "text-bounds",
+            label: "Text bounds",
+            isPassing: isPassing,
+            warningIdentifier: "visual-smoke.text-bounds",
+            detail: "\(boundedCount)/\(reports.count) reports fit world, briefing, and cue copy limits"
+        )
+    }
+
+    private static func assetAvailabilityCheck(reports: [CinematicDiagnosticsReport]) -> Check {
+        let availableCount = reports.filter(assetsAreAvailable).count
+        let textureVariants = Set(reports.map(\.setDressing.materialTextureVariantIdentifier))
+        let architectureCount = Set(reports.map(\.setDressing.languageArchitectureIdentifier)).count
+        let markerCount = Set(reports.map(\.setDressing.activityMarkerIdentifier)).count
+        let isPassing = !reports.isEmpty && availableCount == reports.count
+
+        return check(
+            id: "asset-availability",
+            label: "Asset availability",
+            isPassing: isPassing,
+            warningIdentifier: "visual-smoke.asset-availability",
+            detail: [
+                "assets \(availableCount)/\(reports.count)",
+                "texture variants \(textureVariants.count)",
+                "architecture \(architectureCount)",
+                "markers \(markerCount)"
+            ].joined(separator: " | ")
+        )
+    }
+
+    private static func cameraPhaseCoverageCheck(reports: [CinematicDiagnosticsReport]) -> Check {
+        let expectedShots = Set(CinematicCameraShot.allCases.map(\.identifier))
+        let expectedEvents = Set(CinematicActivityEventKind.allCases.map(\.rawValue))
+        let expectedActivityCaseIDs = Set(CinematicDiagnostics.representativeActivityCases().map(\.identifier))
+        let completeCameraReports = reports.filter {
+            Set($0.cameraSnapshots.map(\.shotIdentifier)) == expectedShots
+        }.count
+        let phases = Set(reports.map(\.phase))
+        let shotCoverage = Set(reports.flatMap { $0.cameraSnapshots.map(\.shotIdentifier) })
+        let eventCoverage = Set(reports.map(\.activityMotif.eventKindIdentifier))
+        let activityCaseCoverage = Set(reports.compactMap(activityCaseIdentifier))
+        let isPassing = !reports.isEmpty
+            && completeCameraReports == reports.count
+            && shotCoverage == expectedShots
+            && eventCoverage.isSuperset(of: expectedEvents)
+            && activityCaseCoverage.isSuperset(of: expectedActivityCaseIDs)
+
+        return check(
+            id: "camera-phase-coverage",
+            label: "Camera/phase coverage",
+            isPassing: isPassing,
+            warningIdentifier: "visual-smoke.camera-phase-coverage",
+            detail: [
+                "shots \(shotCoverage.count)/\(expectedShots.count)",
+                "complete \(completeCameraReports)/\(reports.count)",
+                "phases \(phases.count)",
+                "activity cases \(activityCaseCoverage.count)/\(expectedActivityCaseIDs.count)"
+            ].joined(separator: " | ")
+        )
+    }
+
+    private static func pressureInfluenceSpreadCheck(reports: [CinematicDiagnosticsReport]) -> Check {
+        let expectedPressure = Set(["clean", "light", "moderate", "heavy"])
+        let effectPressure = Set(reports.map(\.stageEffect.pressureLevelIdentifier))
+        let atmospherePressure = Set(reports.map(\.stageAtmosphere.pressureLevelIdentifier))
+        let activityPressure = Set(reports.map(\.activityTuning.pressureLevelIdentifier))
+        let influenceStyles = Set(reports.map(\.stageEffect.influenceStyleIdentifier))
+        let pressureFractions = reports.map(\.stageEffect.pressureFraction)
+        let influenceFractions = reports.map(\.stageEffect.influenceFraction)
+        let pressureRange = valueRange(pressureFractions)
+        let influenceRange = valueRange(influenceFractions)
+        let isPassing = !reports.isEmpty
+            && effectPressure.isSuperset(of: expectedPressure)
+            && atmospherePressure.isSuperset(of: expectedPressure)
+            && activityPressure.isSuperset(of: expectedPressure)
+            && influenceStyles == Set(CinematicInfluenceSettings.CameraStyle.allCases.map(\.rawValue))
+            && pressureRange.hasSpread
+            && influenceRange.hasSpread
+
+        return check(
+            id: "pressure-influence-spread",
+            label: "Pressure/influence spread",
+            isPassing: isPassing,
+            warningIdentifier: "visual-smoke.pressure-influence-spread",
+            detail: [
+                "pressure \(joined(effectPressure)) \(range(pressureRange))",
+                "influence \(joined(influenceStyles)) \(range(influenceRange))"
+            ].joined(separator: " | ")
+        )
+    }
+
+    private struct ReadabilityMetrics {
+        var isReadable: Bool
+        var minimumScale: Float
+        var minimumOpacity: Float
+        var minimumPrimaryFontSize: Float
+        var minimumBackingOpacity: Float
+    }
+
+    private struct NumericRange {
+        var minValue: Float
+        var maxValue: Float
+
+        var hasSpread: Bool {
+            maxValue > minValue
+        }
+    }
+
+    private static func readabilityMetrics(_ report: CinematicDiagnosticsReport) -> ReadabilityMetrics {
+        let descriptors = narrativeCueDescriptors(report)
+        let minimumScale = descriptors.map(\.scale).min() ?? 0
+        let minimumOpacity = descriptors.map(\.opacity).min() ?? 0
+        let minimumPrimaryFontSize = descriptors.map(\.layout.primaryFontSize).min() ?? 0
+        let minimumBackingOpacity = descriptors.map(\.layout.backingOpacity).min() ?? 0
+        let hasReadableText = descriptors.allSatisfy {
+            !$0.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                && $0.visibilityIdentifier != "dim"
+        }
+        let hasReadableLayout = descriptors.allSatisfy {
+            $0.layout.plateWidth > 0
+                && $0.layout.plateHeight > 0
+                && $0.layout.primaryTextWidth > 0
+                && $0.layout.primaryFontSize > 0
+        }
+        let isReadable = descriptors.count == 3
+            && hasReadableText
+            && hasReadableLayout
+            && minimumScale >= CinematicNarrativeCueReadabilitySignals.readableScaleThreshold
+            && minimumOpacity >= CinematicNarrativeCueReadabilitySignals.readableOpacityThreshold
+            && minimumPrimaryFontSize >= CinematicNarrativeCueReadabilitySignals.readablePrimaryFontSizeThreshold
+            && minimumBackingOpacity >= CinematicNarrativeCueReadabilitySignals.readableBackingOpacityThreshold
+
+        return ReadabilityMetrics(
+            isReadable: isReadable,
+            minimumScale: minimumScale,
+            minimumOpacity: minimumOpacity,
+            minimumPrimaryFontSize: minimumPrimaryFontSize,
+            minimumBackingOpacity: minimumBackingOpacity
+        )
+    }
+
+    private static func narrativeCueDescriptors(
+        _ report: CinematicDiagnosticsReport
+    ) -> [CinematicDiagnosticsReport.NarrativeCueDescriptorSnapshot] {
+        [
+            report.narrativeCue.questPlaque,
+            report.narrativeCue.arenaInscription,
+            report.narrativeCue.activityBanner
+        ]
+    }
+
+    private static func textIsBounded(_ report: CinematicDiagnosticsReport) -> Bool {
+        string(report.worldText.questLabel, maxCharacters: CinematicWorldTextService.questLabelMaxCharacters)
+            && string(report.worldText.arenaCallout, maxCharacters: CinematicWorldTextService.arenaCalloutMaxCharacters)
+            && string(report.worldText.activityCallout, maxCharacters: CinematicWorldTextService.activityCalloutMaxCharacters)
+            && wordCount(report.worldText.questLabel) <= CinematicWorldTextService.questLabelMaxWords
+            && wordCount(report.worldText.arenaCallout) <= CinematicWorldTextService.arenaCalloutMaxWords
+            && wordCount(report.worldText.activityCallout) <= CinematicWorldTextService.activityCalloutMaxWords
+            && string(report.briefing.title, maxCharacters: CinematicBriefingService.titleMaxCharacters)
+            && string(report.briefing.detail, maxCharacters: CinematicBriefingService.detailMaxCharacters)
+            && cueTextIsBounded(
+                report.narrativeCue.questPlaque,
+                maxCharacters: CinematicWorldTextService.questLabelMaxCharacters,
+                maxWords: CinematicWorldTextService.questLabelMaxWords
+            )
+            && cueTextIsBounded(
+                report.narrativeCue.arenaInscription,
+                maxCharacters: CinematicWorldTextService.arenaCalloutMaxCharacters,
+                maxWords: CinematicWorldTextService.arenaCalloutMaxWords
+            )
+            && cueTextIsBounded(
+                report.narrativeCue.activityBanner,
+                maxCharacters: CinematicWorldTextService.activityCalloutMaxCharacters,
+                maxWords: CinematicWorldTextService.activityCalloutMaxWords
+            )
+            && (report.narrativeCue.questPlaque.secondaryText?.count ?? 0)
+                <= CinematicBriefingService.titleMaxCharacters
+    }
+
+    private static func cueTextIsBounded(
+        _ descriptor: CinematicDiagnosticsReport.NarrativeCueDescriptorSnapshot,
+        maxCharacters: Int,
+        maxWords: Int
+    ) -> Bool {
+        string(descriptor.text, maxCharacters: maxCharacters)
+            && wordCount(descriptor.text) <= maxWords
+    }
+
+    private static func assetsAreAvailable(_ report: CinematicDiagnosticsReport) -> Bool {
+        [
+            report.setDressing.identifier,
+            report.setDressing.languageArchitectureIdentifier,
+            report.setDressing.activityMarkerIdentifier,
+            report.setDressing.runeIntensityIdentifier,
+            report.setDressing.animationCadenceIdentifier,
+            report.setDressing.materialTextureVariantIdentifier,
+            report.setDressing.backdropTextureName,
+            report.setDressing.arenaTextureName
+        ]
+        .allSatisfy { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+    }
+
+    private static func activityCaseIdentifier(_ report: CinematicDiagnosticsReport) -> String? {
+        if report.overlayDisplay.reasonIdentifier == "missing-repository" {
+            return "missing-repository"
+        }
+        switch report.activityMotif.eventKindIdentifier {
+        case "unavailable":
+            return "unavailable"
+        case "clean":
+            return "clean"
+        case "dirty":
+            switch report.stageEffect.pressureLevelIdentifier {
+            case "light":
+                return "dirty-light"
+            case "moderate":
+                return "dirty-moderate"
+            case "heavy":
+                return "dirty-heavy"
+            default:
+                return nil
+            }
+        case "conflicted":
+            return "conflicted"
+        case "commit":
+            return "commit"
+        case "success":
+            return "success"
+        case "recovery":
+            return "recovery"
+        case "failure":
+            return "failure"
+        default:
+            return nil
+        }
+    }
+
+    private static func gradients(
+        for mode: String,
+        in reports: [CinematicDiagnosticsReport]
+    ) -> NumericRange {
+        valueRange(
+            reports
+                .filter { $0.overlayDisplay.modeIdentifier == mode }
+                .map { Float($0.overlayDisplay.gradientStrength) }
+        )
+    }
+
+    private static func valueRange(_ values: [Float]) -> NumericRange {
+        NumericRange(minValue: values.min() ?? 0, maxValue: values.max() ?? 0)
+    }
+
+    private static func range(_ range: NumericRange) -> String {
+        "\(fixed(range.minValue))...\(fixed(range.maxValue))"
+    }
+
+    private static func chromeStyleName(_ identifier: String) -> String {
+        identifier.split(separator: "|", maxSplits: 1).first.map(String.init) ?? ""
+    }
+
+    private static func joined<S: Sequence>(_ values: S) -> String where S.Element == String {
+        let sortedValues = values.sorted()
+        return sortedValues.isEmpty ? "none" : sortedValues.joined(separator: ",")
+    }
+
+    private static func string(_ text: String, maxCharacters: Int) -> Bool {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        return !trimmed.isEmpty && trimmed.count <= maxCharacters
+    }
+
+    private static func wordCount(_ text: String) -> Int {
+        text.split(whereSeparator: \.isWhitespace).count
+    }
+
+    private static func check(
+        id: String,
+        label: String,
+        isPassing: Bool,
+        warningIdentifier: String,
+        detail: String
+    ) -> Check {
+        Check(
+            id: bounded(id, limit: warningIdentifierMaxCharacters),
+            label: bounded(label, limit: labelMaxCharacters),
+            status: isPassing ? .pass : .warning,
+            warningIdentifier: isPassing
+                ? nil
+                : bounded(warningIdentifier, limit: warningIdentifierMaxCharacters),
+            detail: bounded(detail, limit: detailMaxCharacters)
+        )
+    }
+
+    private static func fixed(_ value: Float) -> String {
+        String(format: "%.2f", Double(value))
+    }
+
+    private static func bounded(_ text: String, limit: Int) -> String {
+        let normalized = text
+            .replacingOccurrences(of: "\r", with: " ")
+            .replacingOccurrences(of: "\n", with: " ")
+            .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalized.isEmpty else { return "-" }
+        guard normalized.count > limit else { return normalized }
+
+        let prefixLimit = max(1, limit - 3)
+        let prefix = normalized.prefix(prefixLimit)
+        return String(prefix).trimmingCharacters(in: .whitespacesAndNewlines) + "..."
+    }
+}
+
 struct CinematicDiagnosticsSummary: Equatable {
     static let maxRows = 32
     static let labelMaxCharacters = 32
@@ -318,6 +797,7 @@ struct CinematicDiagnosticsSummary: Equatable {
 
     var rows: [Row]
     var sections: [Section]
+    var visualSmoke: CinematicVisualSmokeReport
     var exportText: String
 
     struct Row: Identifiable, Equatable {
@@ -407,11 +887,12 @@ struct CinematicDiagnosticsSummary: Equatable {
         )
     ]
 
-    init(report: CinematicDiagnosticsReport) {
+    init(report: CinematicDiagnosticsReport, visualSmoke: CinematicVisualSmokeReport = .representative()) {
         let rows = Self.makeRows(report: report)
         self.rows = Array(rows.prefix(Self.maxRows))
         sections = Self.makeSections(rows: self.rows)
-        exportText = Self.makeExportText(report: report, sections: sections)
+        self.visualSmoke = visualSmoke
+        exportText = Self.makeExportText(report: report, sections: sections, visualSmoke: visualSmoke)
     }
 
     private static func makeRows(report: CinematicDiagnosticsReport) -> [Row] {
@@ -672,7 +1153,11 @@ struct CinematicDiagnosticsSummary: Equatable {
         return sections
     }
 
-    private static func makeExportText(report: CinematicDiagnosticsReport, sections: [Section]) -> String {
+    private static func makeExportText(
+        report: CinematicDiagnosticsReport,
+        sections: [Section],
+        visualSmoke: CinematicVisualSmokeReport
+    ) -> String {
         var lines = [
             "Cinematic Diagnostics",
             "Report: \(bounded(report.identifier, limit: detailMaxCharacters))"
@@ -682,6 +1167,14 @@ struct CinematicDiagnosticsSummary: Equatable {
             lines.append("\(section.label) (\(section.rowCountLabel))")
             lines.append(contentsOf: section.rows.map { "\($0.label): \($0.detail)" })
         }
+
+        lines.append(
+            "Visual smoke (\(visualSmoke.status.rawValue), \(visualSmoke.checks.count) checks)"
+        )
+        lines.append(contentsOf: visualSmoke.checks.map { check in
+            let warning = check.warningIdentifier.map { " | warning \($0)" } ?? ""
+            return "\(check.label): \(check.status.rawValue) | \(check.detail)\(warning)"
+        })
 
         return lines.joined(separator: "\n")
     }
@@ -822,6 +1315,10 @@ enum CinematicDiagnostics {
         var immediateTitle: String
         var completedCount: Int
         var profile: RepositoryActivityProfile
+        var isRunning: Bool = true
+        var isAutoPlaying: Bool = false
+        var isPaused: Bool = false
+        var hasRepository: Bool = true
     }
 
     @MainActor
@@ -1005,7 +1502,11 @@ enum CinematicDiagnostics {
                     latestEvent: nil,
                     languageProfile: representativeLanguageProfile(for: language),
                     activityProfile: activityCase.profile,
-                    influenceSettings: influenceSettings
+                    influenceSettings: influenceSettings,
+                    isRunning: activityCase.isRunning,
+                    isAutoPlaying: activityCase.isAutoPlaying,
+                    isPaused: activityCase.isPaused,
+                    hasRepository: activityCase.hasRepository
                 )
             }
         }
@@ -1019,6 +1520,14 @@ enum CinematicDiagnostics {
                 immediateTitle: "No immediate plan",
                 completedCount: 0,
                 profile: .empty
+            ),
+            ActivityCase(
+                identifier: "missing-repository",
+                phase: "Staging",
+                immediateTitle: "Reconnect repository for cinematic diagnostics",
+                completedCount: 0,
+                profile: .empty,
+                hasRepository: false
             ),
             ActivityCase(
                 identifier: "clean",
