@@ -322,7 +322,8 @@ private struct MainWorkspaceView: View {
                             activityProfile: project.activityProfile,
                             influenceSettings: project.cinematicInfluenceSettings,
                             worldText: project.cinematicWorldText,
-                            briefing: project.cinematicBriefing
+                            briefing: project.cinematicBriefing,
+                            commitConstellationPlan: project.cinematicCommitConstellationPlan
                         )
                         .frame(width: 1, height: 1)
                         .opacity(0.01)

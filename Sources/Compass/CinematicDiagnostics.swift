@@ -20,6 +20,7 @@ struct CinematicDiagnosticsReport: Equatable {
     var cameraTuning: CameraTuningSnapshot
     var activityTuning: ActivityTuningSnapshot
     var setDressing: SetDressingSnapshot
+    var commitConstellation: CommitConstellationSnapshot
     var cameraSnapshots: [CameraSnapshot]
 
     struct LanguageMotifSnapshot: Equatable {
@@ -300,6 +301,14 @@ struct CinematicDiagnosticsReport: Equatable {
         var materialTextureVariantIdentifier: String
         var backdropTextureName: String
         var arenaTextureName: String
+    }
+
+    struct CommitConstellationSnapshot: Equatable {
+        var identifier: String
+        var count: Int
+        var newestSubject: String?
+        var nodeIdentifiers: [String]
+        var branchIdentifiers: [String]
     }
 
     struct CameraSnapshot: Equatable {
@@ -791,7 +800,7 @@ struct CinematicVisualSmokeReport: Equatable {
 }
 
 struct CinematicDiagnosticsSummary: Equatable {
-    static let maxRows = 32
+    static let maxRows = 33
     static let labelMaxCharacters = 32
     static let detailMaxCharacters = 512
 
@@ -831,7 +840,7 @@ struct CinematicDiagnosticsSummary: Equatable {
         SectionDefinition(
             id: "repository-context",
             label: "Repository/context",
-            rowIDs: ["repository", "immediate"]
+            rowIDs: ["repository", "immediate", "commit-constellation"]
         ),
         SectionDefinition(
             id: "motifs",
@@ -907,6 +916,11 @@ struct CinematicDiagnosticsSummary: Equatable {
                 ].joined(separator: " | ")
             ),
             row(id: "immediate", label: "Immediate", detail: report.immediateTitle),
+            row(
+                id: "commit-constellation",
+                label: "Commit constellation",
+                detail: commitConstellationDetail(report.commitConstellation)
+            ),
             row(
                 id: "language-motif",
                 label: "Language motif",
@@ -1239,6 +1253,17 @@ struct CinematicDiagnosticsSummary: Equatable {
         ].joined(separator: " | ")
     }
 
+    private static func commitConstellationDetail(
+        _ snapshot: CinematicDiagnosticsReport.CommitConstellationSnapshot
+    ) -> String {
+        [
+            "count \(snapshot.count)",
+            optionalIdentifier("newest", snapshot.newestSubject),
+            snapshot.nodeIdentifiers.isEmpty ? "nodes none" : "nodes \(snapshot.nodeIdentifiers.joined(separator: ","))",
+            snapshot.branchIdentifiers.isEmpty ? "branches none" : "branches \(snapshot.branchIdentifiers.joined(separator: ","))"
+        ].compactMap { $0 }.joined(separator: " | ")
+    }
+
     private static func narrativeCueLayoutDescriptorDetail(
         _ label: String,
         _ layout: CinematicDiagnosticsReport.NarrativeCueLayoutSnapshot
@@ -1323,20 +1348,22 @@ enum CinematicDiagnostics {
 
     @MainActor
     static func currentReport(for project: CompassProject) -> CinematicDiagnosticsReport {
-        report(
+        let commitConstellationPlan = project.cinematicCommitConstellationPlan
+        return report(
             repoName: project.displayName,
             phase: (project.isPaused ? LoopPhase.paused : project.phase).rawValue,
             immediateTitle: project.immediateTitle,
             completedCount: project.state.completed.count,
             latestEvent: project.liveLog.last.map(CinematicBriefingEvent.init(line:)),
-            latestCommitSubject: CinematicCommitContext.latestSubject(from: project.sessions),
+            latestCommitSubject: commitConstellationPlan.newestSubject,
             languageProfile: project.languageProfile,
             activityProfile: project.activityProfile,
             influenceSettings: project.cinematicInfluenceSettings,
             isRunning: project.isRunning,
             isAutoPlaying: project.isAutoPlaying,
             isPaused: project.isPaused,
-            hasRepository: project.hasRepository
+            hasRepository: project.hasRepository,
+            commitConstellationPlan: commitConstellationPlan
         )
     }
 
@@ -1353,7 +1380,8 @@ enum CinematicDiagnostics {
         isRunning: Bool = true,
         isAutoPlaying: Bool = false,
         isPaused: Bool = false,
-        hasRepository: Bool = true
+        hasRepository: Bool = true,
+        commitConstellationPlan: CinematicCommitConstellationPlan = .empty
     ) -> CinematicDiagnosticsReport {
         let languageMotif = CinematicMotif.language(for: languageProfile)
         let activityMotif = CinematicMotif.activity(for: activityProfile)
@@ -1452,6 +1480,7 @@ enum CinematicDiagnostics {
             settings: influenceSettings
         )
         let setDressingSnapshot = setDressingSnapshot(for: setDressingPlan)
+        let commitConstellationSnapshot = commitConstellationSnapshot(for: commitConstellationPlan)
         let cameraSnapshots = CinematicCameraShot.allCases.map {
             cameraSnapshot(for: $0, settings: influenceSettings)
         }
@@ -1469,7 +1498,8 @@ enum CinematicDiagnostics {
                 "narrative-cues:\(narrativeCueSnapshot.identifier)",
                 "overlay:\(overlayDisplaySnapshot.identifier)",
                 "influence:\(influenceIdentifier)",
-                "set-dressing:\(setDressingSnapshot.identifier)"
+                "set-dressing:\(setDressingSnapshot.identifier)",
+                "commit-constellation:\(commitConstellationSnapshot.identifier)"
             ].joined(separator: "|"),
             repoName: repoName,
             phase: phase,
@@ -1489,6 +1519,7 @@ enum CinematicDiagnostics {
             cameraTuning: cameraTuningSnapshot,
             activityTuning: activityTuningSnapshot,
             setDressing: setDressingSnapshot,
+            commitConstellation: commitConstellationSnapshot,
             cameraSnapshots: cameraSnapshots
         )
     }
@@ -2078,6 +2109,18 @@ enum CinematicDiagnostics {
             materialTextureVariantIdentifier: plan.materialTextureVariants.identifier,
             backdropTextureName: plan.materialTextureVariants.backdropTextureName,
             arenaTextureName: plan.materialTextureVariants.arenaTextureName
+        )
+    }
+
+    private static func commitConstellationSnapshot(
+        for plan: CinematicCommitConstellationPlan
+    ) -> CinematicDiagnosticsReport.CommitConstellationSnapshot {
+        CinematicDiagnosticsReport.CommitConstellationSnapshot(
+            identifier: plan.identifier,
+            count: plan.count,
+            newestSubject: plan.newestSubject,
+            nodeIdentifiers: plan.nodeIdentifiers,
+            branchIdentifiers: plan.branchIdentifiers
         )
     }
 

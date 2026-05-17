@@ -281,6 +281,7 @@ final class CinematicDiagnosticsTests: XCTestCase {
             [
                 "repository",
                 "immediate",
+                "commit-constellation",
                 "language-motif",
                 "activity-motif",
                 "stage-beat",
@@ -331,7 +332,8 @@ final class CinematicDiagnosticsTests: XCTestCase {
             [
                 [
                     "repository",
-                    "immediate"
+                    "immediate",
+                    "commit-constellation"
                 ],
                 [
                     "language-motif",
@@ -432,7 +434,7 @@ final class CinematicDiagnosticsTests: XCTestCase {
             .components(separatedBy: "\n")
             .filter { expectedSectionHeadings.contains($0) }
         XCTAssertEqual(actualSectionHeadings, expectedSectionHeadings)
-        XCTAssertTrue(summary.exportText.contains("Repository/context (2 rows)"))
+        XCTAssertTrue(summary.exportText.contains("Repository/context (3 rows)"))
         XCTAssertTrue(summary.exportText.contains("Motifs (2 rows)"))
         XCTAssertTrue(summary.exportText.contains("Stage motion/effects (8 rows)"))
         XCTAssertTrue(summary.exportText.contains("Narrative/overlay (6 rows)"))
@@ -695,6 +697,7 @@ private struct CinematicDiagnosticsInput {
     var languageProfile: RepositoryLanguageProfile
     var activityProfile: RepositoryActivityProfile
     var influenceSettings: CinematicInfluenceSettings
+    var commitConstellationPlan: CinematicCommitConstellationPlan = .empty
 }
 
 private func makeReport(_ input: CinematicDiagnosticsInput) -> CinematicDiagnosticsReport {
@@ -706,7 +709,8 @@ private func makeReport(_ input: CinematicDiagnosticsInput) -> CinematicDiagnost
         latestEvent: input.latestEvent,
         languageProfile: input.languageProfile,
         activityProfile: input.activityProfile,
-        influenceSettings: input.influenceSettings
+        influenceSettings: input.influenceSettings,
+        commitConstellationPlan: input.commitConstellationPlan
     )
 }
 

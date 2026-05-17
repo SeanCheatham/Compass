@@ -13,6 +13,7 @@ struct CinematicSceneView: View {
     var influenceSettings: CinematicInfluenceSettings
     var worldText: CinematicWorldText
     var briefing: CinematicBriefing
+    var commitConstellationPlan: CinematicCommitConstellationPlan
 
     @StateObject private var host: CinematicRealitySceneHost
 
@@ -25,7 +26,8 @@ struct CinematicSceneView: View {
         activityProfile: RepositoryActivityProfile,
         influenceSettings: CinematicInfluenceSettings,
         worldText: CinematicWorldText,
-        briefing: CinematicBriefing
+        briefing: CinematicBriefing,
+        commitConstellationPlan: CinematicCommitConstellationPlan
     ) {
         self.projectID = projectID
         self.lines = lines
@@ -36,6 +38,7 @@ struct CinematicSceneView: View {
         self.influenceSettings = influenceSettings
         self.worldText = worldText
         self.briefing = briefing
+        self.commitConstellationPlan = commitConstellationPlan
         _host = StateObject(wrappedValue: CinematicRealitySceneHost(projectID: projectID))
     }
 
@@ -50,7 +53,8 @@ struct CinematicSceneView: View {
                 activityProfile: activityProfile,
                 influenceSettings: influenceSettings,
                 worldText: worldText,
-                briefing: briefing
+                briefing: briefing,
+                commitConstellationPlan: commitConstellationPlan
             )
         } update: { content in
             host.install(in: &content)
@@ -62,7 +66,8 @@ struct CinematicSceneView: View {
                 activityProfile: activityProfile,
                 influenceSettings: influenceSettings,
                 worldText: worldText,
-                briefing: briefing
+                briefing: briefing,
+                commitConstellationPlan: commitConstellationPlan
             )
         } placeholder: {
             Color.black
@@ -106,7 +111,8 @@ private final class CinematicRealitySceneHost: ObservableObject {
         activityProfile: RepositoryActivityProfile,
         influenceSettings: CinematicInfluenceSettings,
         worldText: CinematicWorldText,
-        briefing: CinematicBriefing
+        briefing: CinematicBriefing,
+        commitConstellationPlan: CinematicCommitConstellationPlan
     ) {
         coordinator.update(
             lines: lines,
@@ -116,7 +122,8 @@ private final class CinematicRealitySceneHost: ObservableObject {
             activityProfile: activityProfile,
             influenceSettings: influenceSettings,
             worldText: worldText,
-            briefing: briefing
+            briefing: briefing,
+            commitConstellationPlan: commitConstellationPlan
         )
     }
 
@@ -224,6 +231,7 @@ private final class CinematicSceneCoordinator {
     private let backdropTintNode = Entity()
     private let floorTintNode = Entity()
     private let phasePolishRoot = Entity()
+    private let commitConstellationRoot = Entity()
     private let portalApertureNode = Entity()
     private let portalFillNode = Entity()
     private let healingAccentNode = Entity()
@@ -282,6 +290,7 @@ private final class CinematicSceneCoordinator {
     private var currentAtmospherePlan: CinematicStageAtmospherePlan?
     private var currentPhasePolishPlan: CinematicStagePhasePolishPlan?
     private var currentNarrativeCuePlan: CinematicSceneNarrativeCuePlan?
+    private var currentCommitConstellationPlan = CinematicCommitConstellationPlan.empty
     private var fractureAccentNodes: [Entity] = []
     private var phaseStaffOrientation = simd_quatf(angle: 0.18, axis: SIMD3<Float>(0, 0, 1))
     private var phaseLeftArmOrientation = simd_quatf(angle: 0.44, axis: SIMD3<Float>(0, 0, 1))
@@ -331,7 +340,8 @@ private final class CinematicSceneCoordinator {
         activityProfile: RepositoryActivityProfile,
         influenceSettings: CinematicInfluenceSettings,
         worldText: CinematicWorldText,
-        briefing: CinematicBriefing
+        briefing: CinematicBriefing,
+        commitConstellationPlan: CinematicCommitConstellationPlan
     ) {
         let languageProfileChanged = languageProfile != self.languageProfile
         if languageProfileChanged {
@@ -355,6 +365,7 @@ private final class CinematicSceneCoordinator {
         if briefingChanged {
             self.briefing = briefing
         }
+        let commitConstellationChanged = commitConstellationPlan != currentCommitConstellationPlan
         if languageProfileChanged || activityProfileChanged || influenceChanged {
             setDressingPlan = CinematicSetDressingPlanner.plan(
                 languageMotif: languageMotif,
@@ -381,6 +392,7 @@ private final class CinematicSceneCoordinator {
                 applyCinematicInfluenceChange()
             }
             refreshAtmosphere(animated: false)
+            applyCommitConstellationPlan(commitConstellationPlan, animated: false)
             let baseline = phaseLightBaseline(for: phase)
             setPhaseLight(color: themedColor(baseline.color), intensity: baseline.intensity)
             return
@@ -421,6 +433,9 @@ private final class CinematicSceneCoordinator {
         if worldTextChanged || briefingChanged {
             refreshNarrativeCues(animated: hasBuiltScene)
         }
+        if commitConstellationChanged {
+            applyCommitConstellationPlan(commitConstellationPlan, animated: hasBuiltScene)
+        }
     }
 
     func stop() {
@@ -439,6 +454,7 @@ private final class CinematicSceneCoordinator {
         setDressingRoot.name = "set-dressing-root"
         atmosphereRoot.name = "atmosphere-root"
         narrativeCueRoot.name = "narrative-cue-root"
+        commitConstellationRoot.name = "commit-constellation-root"
 
         buildBackdrop()
         buildArena()
@@ -455,6 +471,7 @@ private final class CinematicSceneCoordinator {
         root.addChild(effectsRoot)
         root.addChild(setDressingRoot)
         root.addChild(narrativeCueRoot)
+        root.addChild(commitConstellationRoot)
         refreshAtmosphere(animated: false)
         stageCamera(.home, animated: false)
     }
@@ -2686,6 +2703,148 @@ private final class CinematicSceneCoordinator {
         node.addChild(glyph)
     }
 
+    private func applyCommitConstellationPlan(_ plan: CinematicCommitConstellationPlan, animated: Bool) {
+        guard currentCommitConstellationPlan != plan else { return }
+        currentCommitConstellationPlan = plan
+        clearChildren(of: commitConstellationRoot)
+
+        guard !plan.isEmpty else {
+            setOpacity(0, on: commitConstellationRoot)
+            return
+        }
+
+        commitConstellationRoot.position = .zero
+        commitConstellationRoot.orientation = simd_quatf()
+        setOpacity(0.94, on: commitConstellationRoot)
+
+        let branchColor = themedColor(SpellSchool.git.nsColor).withAlphaComponent(0.52)
+        for branch in plan.branchSegments {
+            let trail = beamEntity(
+                from: branch.startPosition,
+                to: branch.endPosition,
+                radius: 0.014,
+                color: branchColor,
+                opacity: 0.46
+            )
+            trail.name = branch.stableID
+            commitConstellationRoot.addChild(trail)
+        }
+
+        for node in plan.nodes {
+            addCommitConstellationNode(node, animated: animated)
+        }
+
+        if animated {
+            commitConstellationRoot.scale = SIMD3<Float>(repeating: 0.96)
+            animate(
+                commitConstellationRoot,
+                toScale: SIMD3<Float>(repeating: 1),
+                duration: 0.42,
+                timing: .easeOut
+            )
+        } else {
+            commitConstellationRoot.scale = SIMD3<Float>(repeating: 1)
+        }
+    }
+
+    private func addCommitConstellationNode(
+        _ node: CinematicCommitConstellationPlan.Node,
+        animated: Bool
+    ) {
+        let orb = Entity()
+        orb.name = node.stableID
+        orb.position = node.position
+        orb.orientation = narrativeBillboardOrientation(
+            from: node.position,
+            to: CinematicCameraShot.home.position
+        )
+        orb.components.set(OpacityComponent(opacity: 0.95))
+
+        let baseColor = themedColor(SpellSchool.git.nsColor)
+        let subjectColor = node.rank == 0
+            ? baseColor.mixing(with: NSColor(calibratedRed: 1, green: 0.86, blue: 0.38, alpha: 1), fraction: 0.34)
+            : baseColor
+        let core = ModelEntity(
+            mesh: .generateSphere(radius: node.radius),
+            materials: [glowMaterial(subjectColor, opacity: node.rank == 0 ? 0.9 : 0.72)]
+        )
+        core.name = "\(node.stableID).orb"
+        core.components.set(OpacityComponent(opacity: node.rank == 0 ? 0.9 : 0.72))
+        orb.addChild(core)
+
+        let ring = ModelEntity(
+            mesh: torusMesh(ringRadius: node.radius * 1.42, pipeRadius: 0.006),
+            materials: [glowMaterial(subjectColor.withAlphaComponent(0.74), opacity: 0.6)]
+        )
+        ring.name = "\(node.stableID).ring"
+        ring.orientation = simd_quatf(angle: .pi / 2, axis: [1, 0, 0])
+        ring.components.set(OpacityComponent(opacity: 0.6))
+        orb.addChild(ring)
+
+        if node.rank == 0 {
+            let halo = ModelEntity(
+                mesh: torusMesh(ringRadius: node.radius * 2.0, pipeRadius: 0.008),
+                materials: [glowMaterial(subjectColor.withAlphaComponent(0.5), opacity: 0.42)]
+            )
+            halo.name = "\(node.stableID).halo"
+            halo.orientation = simd_quatf(angle: .pi / 2, axis: [1, 0, 0])
+            halo.components.set(OpacityComponent(opacity: 0.42))
+            orb.addChild(halo)
+        }
+
+        addCommitConstellationLabel(node, to: orb, color: subjectColor)
+        commitConstellationRoot.addChild(orb)
+
+        if animated {
+            orb.scale = SIMD3<Float>(repeating: 0.001)
+            animate(
+                orb,
+                toScale: SIMD3<Float>(repeating: 1),
+                duration: 0.34,
+                delay: Double(node.rank) * 0.035,
+                timing: .easeOut
+            )
+        }
+    }
+
+    private func addCommitConstellationLabel(
+        _ node: CinematicCommitConstellationPlan.Node,
+        to orb: Entity,
+        color: NSColor
+    ) {
+        let plate = ModelEntity(
+            mesh: .generateBox(width: 1.54, height: 0.18, depth: 0.012, cornerRadius: 0.014),
+            materials: [
+                material(
+                    diffuse: NSColor(calibratedRed: 0.012, green: 0.016, blue: 0.024, alpha: 1),
+                    emission: color.withAlphaComponent(0.12),
+                    opacity: 0.52
+                )
+            ]
+        )
+        plate.name = "\(node.stableID).label.plate"
+        plate.position = [0, -0.31, 0.028]
+        plate.components.set(OpacityComponent(opacity: 0.52))
+        orb.addChild(plate)
+
+        let frame = CGRect(x: -0.72, y: -0.045, width: 1.44, height: 0.13)
+        let text = ModelEntity(
+            mesh: MeshResource.generateText(
+                node.label,
+                extrusionDepth: 0.0025,
+                font: .systemFont(ofSize: 0.075, weight: node.rank == 0 ? .semibold : .medium),
+                containerFrame: frame,
+                alignment: .center,
+                lineBreakMode: .byTruncatingTail
+            ),
+            materials: [glowMaterial(color.withAlphaComponent(0.82), opacity: 0.82)]
+        )
+        text.name = "\(node.stableID).label.text"
+        text.position = [0, -0.345, 0.041]
+        text.components.set(OpacityComponent(opacity: 0.82))
+        orb.addChild(text)
+    }
+
     private func narrativeOrientation(
         for layout: CinematicSceneNarrativeCuePlan.CueDescriptor.LayoutDescriptor
     ) -> simd_quatf {
@@ -2994,6 +3153,7 @@ private final class CinematicSceneCoordinator {
         updateAtmosphere()
         updatePhasePolish()
         updateNarrativeCues()
+        updateCommitConstellation()
         updateSetDressing()
         updateAnimations(delta: delta)
     }
@@ -3242,6 +3402,34 @@ private final class CinematicSceneCoordinator {
         let pulseScale = descriptor.scale * (1 + wave * 0.025)
         node.scale = SIMD3<Float>(repeating: max(0.001, pulseScale))
         setOpacity(descriptor.opacity * (0.82 + wave * 0.18), on: node)
+    }
+
+    private func updateCommitConstellation() {
+        guard !currentCommitConstellationPlan.isEmpty else { return }
+
+        for node in currentCommitConstellationPlan.nodes {
+            guard let entity = commitConstellationRoot.children.first(where: { $0.name == node.stableID }) else {
+                continue
+            }
+
+            entity.orientation = narrativeBillboardOrientation(
+                from: node.position,
+                to: cameraPosition
+            )
+            let cadence: Float = node.rank == 0 ? 3.8 : 5.2
+            let wave = 0.5 + sin(Float(elapsedTime) / cadence * .pi * 2 + Float(node.rank) * 0.54) * 0.5
+            let scale = 1 + wave * (node.rank == 0 ? 0.045 : 0.026)
+            if !animations.contains(where: { $0.entity === entity }) {
+                entity.scale = SIMD3<Float>(repeating: scale)
+            }
+
+            if let ring = entity.children.first(where: { $0.name == "\(node.stableID).ring" }) {
+                ring.orientation = ring.orientation * simd_quatf(
+                    angle: 0.006 + Float(node.rank) * 0.0008,
+                    axis: [0, 1, 0]
+                )
+            }
+        }
     }
 
     private func updateSetDressing() {

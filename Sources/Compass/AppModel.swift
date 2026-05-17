@@ -94,9 +94,10 @@ private enum CinematicBriefingRefreshReason {
     case liveEvent
 }
 
-private struct CinematicRefreshInput: Equatable {
+struct CinematicRefreshInput: Equatable {
     var briefing: CinematicBriefingInput
     var worldText: CinematicWorldTextInput
+    var commitConstellationIdentifier: String
 }
 
 private enum CodexBinaryLocator {
@@ -144,6 +145,10 @@ extension CompassProject {
             .split(whereSeparator: \.isNewline)
             .first
             .map(String.init) ?? "Immediate plan"
+    }
+
+    var cinematicCommitConstellationPlan: CinematicCommitConstellationPlan {
+        CinematicCommitConstellationPlan(sessions: sessions, hasRepository: hasRepository)
     }
 
     func initializeWorkspace() async {
@@ -1217,7 +1222,8 @@ extension CompassProject {
     }
 
     private func makeCinematicRefreshInput() -> CinematicRefreshInput {
-        let latestCommitSubject = CinematicCommitContext.latestSubject(from: sessions)
+        let commitConstellationPlan = cinematicCommitConstellationPlan
+        let latestCommitSubject = commitConstellationPlan.newestSubject
         let briefing = CinematicBriefingInput(
             repoName: displayName,
             currentPhase: (isPaused ? LoopPhase.paused : phase).rawValue,
@@ -1237,7 +1243,8 @@ extension CompassProject {
                 latestCommitSubject: briefing.latestCommitSubject,
                 languageProfile: languageProfile,
                 activityProfile: activityProfile
-            )
+            ),
+            commitConstellationIdentifier: commitConstellationPlan.identifier
         )
     }
 

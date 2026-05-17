@@ -64,6 +64,206 @@ final class CinematicCommitContextTests: XCTestCase {
         XCTAssertFalse(subject.contains("\""))
         XCTAssertTrue(subject.hasPrefix("Add unsafe HUD json:true details at"))
     }
+
+    func testConstellationUsesNewestSixSanitizedCommitsInDisplayOrder() {
+        let sessions = [
+            makeSession(
+                1,
+                startedAt: 100,
+                endedAt: 150,
+                commits: [
+                    makeCommit(subject: "Commit 1"),
+                    makeCommit(subject: "Commit 2"),
+                    makeCommit(subject: "Commit 3")
+                ]
+            ),
+            makeSession(
+                2,
+                startedAt: 200,
+                endedAt: 250,
+                commits: [
+                    makeCommit(subject: "Commit 4"),
+                    makeCommit(subject: "Commit 5")
+                ]
+            ),
+            makeSession(
+                3,
+                startedAt: 300,
+                endedAt: 350,
+                commits: [
+                    makeCommit(subject: "Commit 6"),
+                    makeCommit(subject: "Commit 7"),
+                    makeCommit(subject: "Commit 8")
+                ]
+            )
+        ]
+
+        let plan = CinematicCommitConstellationPlan(sessions: sessions)
+
+        XCTAssertEqual(plan.count, CinematicCommitConstellationPlan.maxCommitCount)
+        XCTAssertEqual(
+            plan.nodes.map(\.subject),
+            ["Commit 8", "Commit 7", "Commit 6", "Commit 5", "Commit 4", "Commit 3"]
+        )
+        XCTAssertEqual(plan.newestSubject, "Commit 8")
+        XCTAssertEqual(plan.branchSegments.count, 5)
+        XCTAssertEqual(plan.branchSegments.first?.fromNodeID, plan.nodes[1].stableID)
+        XCTAssertEqual(plan.branchSegments.first?.toNodeID, plan.nodes[0].stableID)
+        XCTAssertTrue(plan.identifier.contains(plan.nodes[0].stableID))
+        XCTAssertTrue(plan.identifier.contains(plan.branchSegments[0].stableID))
+    }
+
+    func testConstellationNodePositionsStayInsideSceneBounds() {
+        let plan = CinematicCommitConstellationPlan(
+            sessions: [
+                makeSession(
+                    1,
+                    startedAt: 100,
+                    endedAt: 200,
+                    commits: (1...6).map { makeCommit(subject: "Bounded commit \($0)") }
+                )
+            ]
+        )
+
+        XCTAssertEqual(plan.nodes.count, 6)
+        for node in plan.nodes {
+            XCTAssertInRange(node.position.x, CinematicCommitConstellationPlan.positionXRange)
+            XCTAssertInRange(node.position.y, CinematicCommitConstellationPlan.positionYRange)
+            XCTAssertInRange(node.position.z, CinematicCommitConstellationPlan.positionZRange)
+        }
+        for branch in plan.branchSegments {
+            XCTAssertInRange(branch.startPosition.x, CinematicCommitConstellationPlan.positionXRange)
+            XCTAssertInRange(branch.endPosition.x, CinematicCommitConstellationPlan.positionXRange)
+        }
+    }
+
+    func testConstellationSanitizesSubjectsBeforeLabeling() throws {
+        let plan = CinematicCommitConstellationPlan(
+            sessions: [
+                makeSession(
+                    1,
+                    startedAt: 100,
+                    endedAt: 200,
+                    commits: [
+                        makeCommit(
+                            subject: #"Ship [unsafe] `constellation` {"payload":true} at https://example.com with a deliberately long title"#
+                        )
+                    ]
+                )
+            ]
+        )
+
+        let node = try XCTUnwrap(plan.nodes.first)
+
+        XCTAssertLessThanOrEqual(node.subject.count, CinematicCommitContext.subjectMaxCharacters)
+        XCTAssertFalse(node.subject.contains("https://"))
+        XCTAssertFalse(node.subject.contains("["))
+        XCTAssertFalse(node.subject.contains("]"))
+        XCTAssertFalse(node.subject.contains("`"))
+        XCTAssertFalse(node.subject.contains("{"))
+        XCTAssertFalse(node.subject.contains("}"))
+        XCTAssertFalse(node.subject.contains("\""))
+        XCTAssertTrue(node.label.contains(node.shortHash))
+        XCTAssertTrue(node.label.contains(node.subject))
+    }
+
+    func testConstellationIsEmptyForEmptyHistoryOrUnavailableRepository() {
+        let emptyPlan = CinematicCommitConstellationPlan(sessions: [])
+        let unavailablePlan = CinematicCommitConstellationPlan(
+            sessions: [
+                makeSession(
+                    1,
+                    startedAt: 100,
+                    endedAt: 200,
+                    commits: [makeCommit(subject: "Hidden commit")]
+                )
+            ],
+            hasRepository: false
+        )
+
+        XCTAssertTrue(emptyPlan.isEmpty)
+        XCTAssertEqual(emptyPlan.identifier, CinematicCommitConstellationPlan.empty.identifier)
+        XCTAssertTrue(unavailablePlan.isEmpty)
+        XCTAssertNil(unavailablePlan.newestSubject)
+        XCTAssertTrue(unavailablePlan.nodeIdentifiers.isEmpty)
+        XCTAssertTrue(unavailablePlan.branchIdentifiers.isEmpty)
+    }
+
+    func testDiagnosticsExposeCommitConstellationSnapshotAndSummaryRow() throws {
+        let plan = CinematicCommitConstellationPlan(
+            sessions: [
+                makeSession(
+                    1,
+                    startedAt: 100,
+                    endedAt: 200,
+                    commits: [
+                        makeCommit(subject: "Prepare commit constellation"),
+                        makeCommit(subject: "Render branch trails")
+                    ]
+                )
+            ]
+        )
+        let report = CinematicDiagnostics.report(
+            repoName: "Compass",
+            phase: LoopPhase.verifying.rawValue,
+            immediateTitle: "Expose constellation diagnostics",
+            completedCount: 3,
+            latestEvent: nil,
+            latestCommitSubject: plan.newestSubject,
+            languageProfile: .empty,
+            activityProfile: .empty,
+            influenceSettings: CinematicInfluenceSettings(),
+            commitConstellationPlan: plan
+        )
+
+        XCTAssertEqual(report.commitConstellation.count, 2)
+        XCTAssertEqual(report.commitConstellation.newestSubject, "Render branch trails")
+        XCTAssertEqual(report.commitConstellation.nodeIdentifiers, plan.nodeIdentifiers)
+        XCTAssertEqual(report.commitConstellation.branchIdentifiers, plan.branchIdentifiers)
+        XCTAssertTrue(report.identifier.contains(plan.identifier))
+
+        let summary = CinematicDiagnosticsSummary(report: report)
+        let row = try XCTUnwrap(summary.rows.first { $0.id == "commit-constellation" })
+        XCTAssertEqual(row.label, "Commit constellation")
+        XCTAssertTrue(row.detail.contains("count 2"))
+        XCTAssertTrue(row.detail.contains(plan.nodes[0].stableID))
+        XCTAssertTrue(summary.exportText.contains("Commit constellation:"))
+        XCTAssertTrue(summary.exportText.contains(plan.branchSegments[0].stableID))
+    }
+
+    func testRefreshInputEqualityIncludesConstellationIdentifierForUpdateTriggering() {
+        let briefing = CinematicBriefingInput(
+            repoName: "Compass",
+            currentPhase: "Verifying",
+            immediatePlanTitle: "Render commits",
+            completedCount: 2,
+            latestEvent: nil,
+            latestCommitSubject: "Render branch trails"
+        )
+        let worldText = CinematicWorldTextInput(
+            repoName: briefing.repoName,
+            currentPhase: briefing.currentPhase,
+            immediatePlanTitle: briefing.immediatePlanTitle,
+            completedCount: briefing.completedCount,
+            latestEvent: briefing.latestEvent,
+            latestCommitSubject: briefing.latestCommitSubject,
+            languageProfile: .empty,
+            activityProfile: .empty
+        )
+        let first = CinematicRefreshInput(
+            briefing: briefing,
+            worldText: worldText,
+            commitConstellationIdentifier: "commit-constellation|nodes:a"
+        )
+        let second = CinematicRefreshInput(
+            briefing: briefing,
+            worldText: worldText,
+            commitConstellationIdentifier: "commit-constellation|nodes:a,b"
+        )
+
+        XCTAssertNotEqual(first, second)
+        XCTAssertEqual(first, first)
+    }
 }
 
 private func makeSession(
@@ -96,4 +296,14 @@ private func makeCommit(subject: String) -> SessionCommit {
         short: short,
         subject: subject
     )
+}
+
+private func XCTAssertInRange<T: Comparable>(
+    _ value: T,
+    _ range: ClosedRange<T>,
+    file: StaticString = #filePath,
+    line: UInt = #line
+) {
+    XCTAssertGreaterThanOrEqual(value, range.lowerBound, file: file, line: line)
+    XCTAssertLessThanOrEqual(value, range.upperBound, file: file, line: line)
 }

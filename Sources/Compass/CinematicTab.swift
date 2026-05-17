@@ -20,7 +20,8 @@ struct CinematicTab: View {
                     activityProfile: project.activityProfile,
                     influenceSettings: project.cinematicInfluenceSettings,
                     worldText: project.cinematicWorldText,
-                    briefing: project.cinematicBriefing
+                    briefing: project.cinematicBriefing,
+                    commitConstellationPlan: project.cinematicCommitConstellationPlan
                 )
                 .frame(width: proxy.size.width, height: proxy.size.height)
 
