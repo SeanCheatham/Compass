@@ -13,6 +13,7 @@ struct CinematicDiagnosticsReport: Equatable {
     var briefing: BriefingSnapshot
     var cameraTuning: CameraTuningSnapshot
     var activityTuning: ActivityTuningSnapshot
+    var setDressing: SetDressingSnapshot
     var cameraSnapshots: [CameraSnapshot]
 
     struct LanguageMotifSnapshot: Equatable {
@@ -68,6 +69,28 @@ struct CinematicDiagnosticsReport: Equatable {
         var ambientEnemyLimit: Int
         var activityLightBoost: Float
         var activityPressureScale: Float
+    }
+
+    struct SetDressingSnapshot: Equatable {
+        var identifier: String
+        var languageArchitectureIdentifier: String
+        var activityMarkerIdentifier: String
+        var pedestalCount: Int
+        var flameLightIntensity: Float
+        var flameOpacity: Float
+        var rimOpacity: Float
+        var shardCount: Int
+        var shardEmissionOpacity: Float
+        var runeIntensityIdentifier: String
+        var animationCadenceIdentifier: String
+        var flamePulseRate: Float
+        var shardBobRate: Float
+        var ambientSpawnCadence: TimeInterval
+        var ambientEnemyLimit: Int
+        var activityLightBoost: Float
+        var materialTextureVariantIdentifier: String
+        var backdropTextureName: String
+        var arenaTextureName: String
     }
 
     struct CameraSnapshot: Equatable {
@@ -130,6 +153,14 @@ enum CinematicDiagnostics {
             activityProfile: activityProfile,
             settings: influenceSettings
         )
+        let setDressingPlan = CinematicSetDressingPlanner.plan(
+            languageMotif: languageMotif,
+            activityMotif: activityMotif,
+            languageProfile: languageProfile,
+            activityProfile: activityProfile,
+            influenceSettings: influenceSettings
+        )
+        let setDressingSnapshot = setDressingSnapshot(for: setDressingPlan)
         let cameraSnapshots = CinematicCameraShot.allCases.map {
             cameraSnapshot(for: $0, settings: influenceSettings)
         }
@@ -140,7 +171,8 @@ enum CinematicDiagnostics {
                 "phase:\(phase)",
                 "language:\(languageSnapshot.identifier)",
                 "activity:\(activitySnapshot.identifier)",
-                "influence:\(influenceIdentifier)"
+                "influence:\(influenceIdentifier)",
+                "set-dressing:\(setDressingSnapshot.identifier)"
             ].joined(separator: "|"),
             repoName: repoName,
             phase: phase,
@@ -153,6 +185,7 @@ enum CinematicDiagnostics {
             briefing: briefingSnapshot,
             cameraTuning: cameraTuningSnapshot,
             activityTuning: activityTuningSnapshot,
+            setDressing: setDressingSnapshot,
             cameraSnapshots: cameraSnapshots
         )
     }
@@ -404,6 +437,32 @@ enum CinematicDiagnostics {
             ambientEnemyLimit: ambientEnemyLimit,
             activityLightBoost: activityLightBoost,
             activityPressureScale: activityPressureScale
+        )
+    }
+
+    private static func setDressingSnapshot(
+        for plan: CinematicSetDressingPlan
+    ) -> CinematicDiagnosticsReport.SetDressingSnapshot {
+        CinematicDiagnosticsReport.SetDressingSnapshot(
+            identifier: plan.identifier,
+            languageArchitectureIdentifier: plan.languageArchitecture.identifier,
+            activityMarkerIdentifier: plan.activityMarker.identifier,
+            pedestalCount: plan.pedestalFlames.pedestalCount,
+            flameLightIntensity: plan.pedestalFlames.flameLightIntensity,
+            flameOpacity: plan.pedestalFlames.flameOpacity,
+            rimOpacity: plan.pedestalFlames.rimOpacity,
+            shardCount: plan.floatingShards.shardCount,
+            shardEmissionOpacity: plan.floatingShards.emissionOpacity,
+            runeIntensityIdentifier: plan.runeIntensity.identifier,
+            animationCadenceIdentifier: plan.animationCadence.identifier,
+            flamePulseRate: plan.animationCadence.flamePulseRate,
+            shardBobRate: plan.animationCadence.shardBobRate,
+            ambientSpawnCadence: plan.ambientSpawnCadence,
+            ambientEnemyLimit: plan.ambientEnemyLimit,
+            activityLightBoost: plan.activityLightBoost,
+            materialTextureVariantIdentifier: plan.materialTextureVariants.identifier,
+            backdropTextureName: plan.materialTextureVariants.backdropTextureName,
+            arenaTextureName: plan.materialTextureVariants.arenaTextureName
         )
     }
 

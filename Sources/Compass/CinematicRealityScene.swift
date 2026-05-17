@@ -218,6 +218,11 @@ private final class CinematicSceneCoordinator {
     private var activityProfile = RepositoryActivityProfile.empty
     private var activityMotif = CinematicMotif.activity(for: RepositoryActivityProfile.empty)
     private var influenceSettings = CinematicInfluenceSettings()
+    private var setDressingPlan = CinematicSetDressingPlanner.plan(
+        languageProfile: .empty,
+        activityProfile: .empty,
+        influenceSettings: CinematicInfluenceSettings()
+    )
     private var lastPhase: LoopPhase = .idle
     private var thinkingTimer: Timer?
     private var defenseTimer: Timer?
@@ -295,6 +300,15 @@ private final class CinematicSceneCoordinator {
         let influenceChanged = influenceSettings != self.influenceSettings
         if influenceChanged {
             self.influenceSettings = influenceSettings
+        }
+        if languageProfileChanged || activityProfileChanged || influenceChanged {
+            setDressingPlan = CinematicSetDressingPlanner.plan(
+                languageMotif: languageMotif,
+                activityMotif: activityMotif,
+                languageProfile: self.languageProfile,
+                activityProfile: self.activityProfile,
+                influenceSettings: self.influenceSettings
+            )
         }
 
         if !hasBootstrapped {
@@ -384,7 +398,7 @@ private final class CinematicSceneCoordinator {
             mesh: curvedWallMesh(radius: 31, height: 21, arc: 2.55),
             materials: [
                 textureMaterial(
-                    "void-arches-v2",
+                    setDressingPlan.materialTextureVariants.backdropTextureName,
                     tint: NSColor(calibratedWhite: 0.52, alpha: 1)
                 ) ?? fallback
             ]
@@ -422,13 +436,13 @@ private final class CinematicSceneCoordinator {
             mesh: circularPlaneMesh(radius: 9.55),
             materials: [
                 textureMaterial(
-                    "arena-runes-v3",
+                    setDressingPlan.materialTextureVariants.arenaTextureName,
                     tint: NSColor(calibratedWhite: 0.82, alpha: 1),
                     opacity: 0.9
                 ) ?? arenaFallback
             ]
         )
-        arena.name = "arena-runes-v3"
+        arena.name = "arena-\(setDressingPlan.materialTextureVariants.arenaTextureName)"
         arena.position.y = 0.032
         root.addChild(arena)
 
@@ -494,18 +508,23 @@ private final class CinematicSceneCoordinator {
             [-7.7, 0, -6.3],
             [7.7, 0, -6.3],
             [-8.5, 0, 2.8],
-            [8.5, 0, 2.8]
+            [8.5, 0, 2.8],
+            [-3.4, 0, -8.9],
+            [3.4, 0, -8.9]
         ]
 
-        for (index, position) in pedestalPositions.enumerated() {
+        for (index, position) in pedestalPositions
+            .prefix(CinematicSetDressingPlan.pedestalCountRange.upperBound)
+            .enumerated() {
             let pedestal = Entity()
-            pedestal.name = "set-pedestal"
+            pedestal.name = "set-pedestal-\(index)"
             pedestal.position = position
 
             let base = ModelEntity(
                 mesh: .generateCylinder(height: 0.28, radius: 0.38),
                 materials: [material(diffuse: NSColor(calibratedRed: 0.055, green: 0.055, blue: 0.07, alpha: 1))]
             )
+            base.name = "set-pedestal-base"
             base.position.y = 0.14
             pedestal.addChild(base)
 
@@ -513,6 +532,7 @@ private final class CinematicSceneCoordinator {
                 mesh: .generateCylinder(height: 1.05, radius: 0.2),
                 materials: [material(diffuse: NSColor(calibratedRed: 0.036, green: 0.038, blue: 0.052, alpha: 1))]
             )
+            column.name = "set-pedestal-column"
             column.position.y = 0.78
             pedestal.addChild(column)
 
@@ -528,7 +548,7 @@ private final class CinematicSceneCoordinator {
                 mesh: .generateSphere(radius: 0.18),
                 materials: [glowMaterial(NSColor(calibratedRed: 0.28, green: 0.58, blue: 1, alpha: 1), opacity: 0.86)]
             )
-            flame.name = "set-flame-\(index)"
+            flame.name = "set-flame-core-\(index)"
             flame.scale = [0.72, 1.35, 0.72]
             flame.position.y = 1.58
             pedestal.addChild(flame)
@@ -554,10 +574,15 @@ private final class CinematicSceneCoordinator {
             [2.8, 2.3, -9.4],
             [5.4, 1.75, -8.6],
             [-6.2, 1.3, -2.4],
-            [6.1, 1.5, -2.1]
+            [6.1, 1.5, -2.1],
+            [-4.4, 2.15, 4.4],
+            [0.0, 3.05, -11.2],
+            [4.4, 2.05, 4.3]
         ]
 
-        for (index, position) in shardPositions.enumerated() {
+        for (index, position) in shardPositions
+            .prefix(CinematicSetDressingPlan.shardCountRange.upperBound)
+            .enumerated() {
             let shard = ModelEntity(
                 mesh: .generateBox(width: 0.22, height: 0.62, depth: 0.08, cornerRadius: 0.015),
                 materials: [
@@ -578,8 +603,7 @@ private final class CinematicSceneCoordinator {
         activitySigilRoot.name = "activity-sigil-root"
         setDressingRoot.addChild(languageSigilRoot)
         setDressingRoot.addChild(activitySigilRoot)
-        rebuildLanguageSigil()
-        rebuildActivitySigil()
+        applySetDressingPlan(animated: false)
     }
 
     private func buildLights() {
@@ -1416,17 +1440,11 @@ private final class CinematicSceneCoordinator {
     }
 
     private func ambientSpawnCadence() -> TimeInterval {
-        CinematicTuning.ambientSpawnCadence(
-            activityProfile: activityProfile,
-            settings: influenceSettings
-        )
+        setDressingPlan.ambientSpawnCadence
     }
 
     private func ambientEnemyLimit() -> Int {
-        CinematicTuning.ambientEnemyLimit(
-            activityProfile: activityProfile,
-            settings: influenceSettings
-        )
+        setDressingPlan.ambientEnemyLimit
     }
 
     private func ambientSpellForActivity() -> SpellSchool {
@@ -1638,31 +1656,41 @@ private final class CinematicSceneCoordinator {
 
     private func rebuildLanguageSigil() {
         clearChildren(of: languageSigilRoot)
-        languageSigilRoot.name = "language-sigil-\(languageMotif.sigilIdentifier)"
+        languageSigilRoot.name = "language-sigil-\(setDressingPlan.languageArchitecture.identifier)"
         languageSigilRoot.position = [-5.8, 0.035, 5.55]
 
+        let color = setDressingTint(
+            languageMotif.accent,
+            fraction: setDressingPlan.pedestalFlames.activityTintFraction
+        )
+        let secondary = setDressingTint(
+            languageMotif.secondaryAccent,
+            fraction: setDressingPlan.pedestalFlames.activityTintFraction
+        )
         addSigilBase(
             to: languageSigilRoot,
-            color: languageMotif.accent,
-            secondary: languageMotif.secondaryAccent,
-            radius: 0.64
+            color: color,
+            secondary: secondary,
+            radius: setDressingPlan.runeIntensity.languageBaseRadius
         )
         addSigilSegments(
             languageSigilSegments(for: languageMotif.style),
             to: languageSigilRoot,
-            color: languageMotif.accent,
-            secondary: languageMotif.secondaryAccent
+            color: color,
+            secondary: secondary,
+            radiusScale: setDressingPlan.runeIntensity.segmentRadiusScale,
+            opacityScale: setDressingPlan.runeIntensity.segmentOpacityScale
         )
         addSigilCore(
             to: languageSigilRoot,
-            color: languageMotif.secondaryAccent,
-            scale: [1, 1.35, 1]
+            color: secondary,
+            scale: SIMD3<Float>(1, 1.35, 1) * setDressingPlan.runeIntensity.coreScale
         )
     }
 
     private func rebuildActivitySigil() {
         clearChildren(of: activitySigilRoot)
-        activitySigilRoot.name = "activity-sigil-\(activityMotif.sigilIdentifier)"
+        activitySigilRoot.name = "activity-sigil-\(setDressingPlan.activityMarker.identifier)"
         activitySigilRoot.position = [5.8, 0.035, 5.55]
 
         let color = activityColor(for: activityMotif)
@@ -1671,18 +1699,23 @@ private final class CinematicSceneCoordinator {
             to: activitySigilRoot,
             color: color,
             secondary: secondary,
-            radius: 0.58
+            radius: setDressingPlan.runeIntensity.activityBaseRadius
         )
         addSigilSegments(
             activitySigilSegments(for: activityMotif.style),
             to: activitySigilRoot,
             color: color,
-            secondary: secondary
+            secondary: secondary,
+            radiusScale: setDressingPlan.runeIntensity.segmentRadiusScale,
+            opacityScale: setDressingPlan.runeIntensity.segmentOpacityScale
         )
+        let activityCoreBaseScale: SIMD3<Float> = activityMotif.eventKind == .unavailable
+            ? [0.62, 0.62, 0.62]
+            : [0.9, 1.1, 0.9]
         addSigilCore(
             to: activitySigilRoot,
             color: secondary,
-            scale: activityMotif.eventKind == .unavailable ? [0.62, 0.62, 0.62] : [0.9, 1.1, 0.9]
+            scale: activityCoreBaseScale * setDressingPlan.runeIntensity.coreScale
         )
     }
 
@@ -1747,15 +1780,17 @@ private final class CinematicSceneCoordinator {
         _ segments: [SetDressingSigilSegment],
         to root: Entity,
         color: NSColor,
-        secondary: NSColor
+        secondary: NSColor,
+        radiusScale: Float,
+        opacityScale: Float
     ) {
         for segment in segments {
             let beam = beamEntity(
                 from: segment.start,
                 to: segment.end,
-                radius: segment.radius,
+                radius: segment.radius * radiusScale,
                 color: segment.usesSecondary ? secondary : color,
-                opacity: segment.opacity
+                opacity: max(0, min(1, segment.opacity * opacityScale))
             )
             beam.name = "sigil-segment"
             root.addChild(beam)
@@ -1900,63 +1935,135 @@ private final class CinematicSceneCoordinator {
         }
     }
 
-    private func applyLanguageTheme(animated: Bool) {
-        let accent = languageMotif.accent
-        let secondary = languageMotif.secondaryAccent
+    private func applySetDressingPlan(animated: Bool) {
+        applyPedestalFlames()
+        applyFloatingShards()
+        rebuildLanguageSigil()
+        rebuildActivitySigil()
 
-        setGlow(accent, on: staffOrbNode)
-        for pedestal in setDressingRoot.children where pedestal.name == "set-pedestal" {
+        if animated, activityMotif.eventKind != .unavailable {
+            let color = activityMotif.transitionSpell.map { themedColor($0.nsColor) }
+                ?? setDressingTint(languageMotif.accent, fraction: setDressingPlan.pedestalFlames.activityTintFraction)
+            arenaRing(
+                radius: 7.2,
+                color: color.withAlphaComponent(0.44),
+                duration: max(0.58, setDressingPlan.animationCadence.activityPulseDuration * 0.9),
+                scale: 1.08 * setDressingPlan.runeIntensity.activityPulseScale,
+                opacity: 0.26
+            )
+        }
+    }
+
+    private func applyPedestalFlames() {
+        let plan = setDressingPlan.pedestalFlames
+        let rimColor = setDressingTint(languageMotif.accent, fraction: plan.activityTintFraction)
+        let flameColor = setDressingTint(languageMotif.secondaryAccent, fraction: plan.activityTintFraction)
+        let stone = pedestalStoneColors()
+
+        for pedestal in setDressingRoot.children where pedestal.name.hasPrefix("set-pedestal-") {
+            let index = setDressingIndex(in: pedestal.name, prefix: "set-pedestal-") ?? 0
+            let isActive = index < plan.pedestalCount
+            setOpacity(isActive ? 1 : 0, on: pedestal)
+
             for child in pedestal.children {
-                if child.name == "set-flame-rim" {
-                    setGlow(accent, opacity: 0.62, on: child)
+                if child.name == "set-pedestal-base" {
+                    setMaterial(
+                        material(diffuse: stone.base, emission: stone.emission),
+                        on: child
+                    )
+                } else if child.name == "set-pedestal-column" {
+                    setMaterial(
+                        material(diffuse: stone.column, emission: stone.emission.withAlphaComponent(0.7)),
+                        on: child
+                    )
+                } else if child.name == "set-flame-rim" {
+                    setGlow(rimColor, opacity: isActive ? plan.rimOpacity : 0, on: child)
                 } else if child.name.hasPrefix("set-flame-light-") {
-                    setPointLight(color: accent, intensity: 190, on: child)
-                } else if child.name.hasPrefix("set-flame-") {
-                    setGlow(secondary, opacity: 0.88, on: child)
+                    setPointLight(color: rimColor, intensity: isActive ? plan.flameLightIntensity : 0, on: child)
+                } else if child.name.hasPrefix("set-flame-core-") {
+                    setGlow(flameColor, opacity: isActive ? plan.flameOpacity : 0, on: child)
+                    child.scale = [
+                        plan.flameXZScale,
+                        plan.flameHeightScale,
+                        plan.flameXZScale
+                    ]
                 }
             }
         }
+    }
+
+    private func applyFloatingShards() {
+        let plan = setDressingPlan.floatingShards
+        let shardColor = setDressingTint(languageMotif.accent, fraction: plan.activityTintFraction)
+        let shardDiffuse = shardStoneColor()
 
         for shard in setDressingRoot.children where shard.name.hasPrefix("floating-shard-") {
-            if var model = shard.components[ModelComponent.self] {
-                model.materials = [
-                    material(
-                        diffuse: NSColor(calibratedRed: 0.055, green: 0.052, blue: 0.074, alpha: 1),
-                        emission: accent.withAlphaComponent(0.24)
-                    )
-                ]
-                shard.components.set(model)
-            }
+            let index = setDressingIndex(in: shard.name, prefix: "floating-shard-") ?? 0
+            let isActive = index < plan.shardCount
+            setOpacity(isActive ? plan.opacity : 0, on: shard)
+            shard.scale = SIMD3<Float>(repeating: isActive ? plan.scale : 0.001)
+            setMaterial(
+                material(
+                    diffuse: shardDiffuse,
+                    emission: shardColor.withAlphaComponent(CGFloat(plan.emissionOpacity))
+                ),
+                on: shard
+            )
         }
+    }
+
+    private func applyLanguageTheme(animated: Bool) {
+        let accent = setDressingTint(
+            languageMotif.accent,
+            fraction: setDressingPlan.pedestalFlames.activityTintFraction
+        )
+        setGlow(accent, on: staffOrbNode)
+        applySetDressingPlan(animated: animated)
 
         let baseline = phaseLightBaseline(for: lastPhase)
         setPhaseLight(color: themedColor(baseline.color), intensity: baseline.intensity)
-        rebuildLanguageSigil()
-        rebuildActivitySigil()
         if animated, languageMotif.language != .unknown {
             arenaRing(radius: 6.6, color: accent.withAlphaComponent(0.72), duration: 1.05, scale: 1.18, opacity: 0.34)
         }
     }
 
     private func applyActivityTraits(animated: Bool) {
+        applySetDressingPlan(animated: animated)
         let baseline = phaseLightBaseline(for: lastPhase)
         setPhaseLight(color: themedColor(baseline.color), intensity: baseline.intensity)
-        rebuildActivitySigil()
         guard animated, activityMotif.eventKind != .unavailable else { return }
 
         switch activityMotif.eventKind {
         case .conflicted, .failure:
             let color = themedColor(activityMotif.transitionSpell?.nsColor ?? SpellSchool.failure.nsColor)
-            arenaRing(radius: 5.4, color: color.withAlphaComponent(0.68), duration: 0.62, scale: 1.22, opacity: 0.5)
+            arenaRing(
+                radius: 5.4,
+                color: color.withAlphaComponent(0.68),
+                duration: setDressingPlan.animationCadence.activityPulseDuration,
+                scale: 1.22 * setDressingPlan.runeIntensity.activityPulseScale,
+                opacity: 0.5
+            )
             if activityMotif.shouldShakeOnTransition {
                 shakeCamera()
             }
         case .dirty:
             let color = themedColor(activityMotif.transitionSpell?.nsColor ?? SpellSchool.pressure.nsColor)
-            arenaRing(radius: 4.4, color: color.withAlphaComponent(0.58), duration: 0.85, scale: 1.18, opacity: 0.4)
+            arenaRing(
+                radius: 4.4,
+                color: color.withAlphaComponent(0.58),
+                duration: setDressingPlan.animationCadence.activityPulseDuration,
+                scale: 1.18 * setDressingPlan.runeIntensity.activityPulseScale,
+                opacity: 0.4
+            )
         case .success, .recovery:
             let color = themedColor(activityMotif.transitionSpell?.nsColor ?? SpellSchool.verify.nsColor)
-            arenaRing(radius: 5.8, color: color.withAlphaComponent(0.58), duration: 1.0, scale: 1.14, opacity: 0.34)
+            arenaRing(
+                radius: 5.8,
+                color: color.withAlphaComponent(0.58),
+                duration: setDressingPlan.animationCadence.activityPulseDuration,
+                scale: 1.14 * setDressingPlan.runeIntensity.activityPulseScale,
+                opacity: 0.34
+            )
         case .commit:
             historyChains(color: themedColor(activityMotif.transitionSpell?.nsColor ?? SpellSchool.git.nsColor))
         case .clean, .unavailable:
@@ -1966,6 +2073,7 @@ private final class CinematicSceneCoordinator {
 
     private func applyCinematicInfluenceChange() {
         stageCamera(currentCameraShot)
+        applySetDressingPlan(animated: false)
         let baseline = phaseLightBaseline(for: lastPhase)
         setPhaseLight(color: themedColor(baseline.color), intensity: baseline.intensity)
 
@@ -2008,14 +2116,25 @@ private final class CinematicSceneCoordinator {
 
     private func activityTint(for color: NSColor) -> NSColor {
         guard let tintSource = activityMotif.tintSource else { return color }
-        return color.mixing(with: themedColor(tintSource.nsColor), fraction: CinematicMotif.activityTintBlend)
+        return setDressingTint(
+            color,
+            fraction: setDressingPlan.pedestalFlames.activityTintFraction,
+            tintSource: tintSource
+        )
+    }
+
+    private func setDressingTint(
+        _ color: NSColor,
+        fraction: Float,
+        tintSource: SpellSchool? = nil
+    ) -> NSColor {
+        let tint = tintSource ?? activityMotif.tintSource
+        guard let tint else { return color }
+        return color.mixing(with: themedColor(tint.nsColor), fraction: CGFloat(fraction))
     }
 
     private func activityLightBoost() -> Float {
-        CinematicTuning.activityLightBoost(
-            activityProfile: activityProfile,
-            settings: influenceSettings
-        )
+        setDressingPlan.activityLightBoost
     }
 
     private func cameraOrbitScale() -> Float {
@@ -2057,6 +2176,61 @@ private final class CinematicSceneCoordinator {
         guard var model = entity.components[ModelComponent.self] else { return }
         model.materials = [glowMaterial(color, opacity: opacity)]
         entity.components.set(model)
+    }
+
+    private func setMaterial(_ material: PhysicallyBasedMaterial, on entity: Entity) {
+        guard var model = entity.components[ModelComponent.self] else { return }
+        model.materials = [material]
+        entity.components.set(model)
+    }
+
+    private func setDressingIndex(in name: String, prefix: String) -> Int? {
+        guard name.hasPrefix(prefix) else { return nil }
+        return Int(name.dropFirst(prefix.count))
+    }
+
+    private func pedestalStoneColors() -> (base: NSColor, column: NSColor, emission: NSColor) {
+        let identifier = setDressingPlan.materialTextureVariants.pedestalMaterialIdentifier
+        if identifier.contains("oxidized") {
+            return (
+                NSColor(calibratedRed: 0.078, green: 0.052, blue: 0.044, alpha: 1),
+                NSColor(calibratedRed: 0.052, green: 0.044, blue: 0.04, alpha: 1),
+                languageMotif.accent.withAlphaComponent(0.16)
+            )
+        }
+        if identifier.contains("circuit") {
+            return (
+                NSColor(calibratedRed: 0.042, green: 0.058, blue: 0.076, alpha: 1),
+                NSColor(calibratedRed: 0.028, green: 0.044, blue: 0.062, alpha: 1),
+                languageMotif.accent.withAlphaComponent(0.18)
+            )
+        }
+        if identifier.contains("etched") {
+            return (
+                NSColor(calibratedRed: 0.045, green: 0.047, blue: 0.058, alpha: 1),
+                NSColor(calibratedRed: 0.032, green: 0.034, blue: 0.046, alpha: 1),
+                languageMotif.secondaryAccent.withAlphaComponent(0.12)
+            )
+        }
+        return (
+            NSColor(calibratedRed: 0.052, green: 0.054, blue: 0.072, alpha: 1),
+            NSColor(calibratedRed: 0.034, green: 0.038, blue: 0.054, alpha: 1),
+            languageMotif.accent.withAlphaComponent(0.14)
+        )
+    }
+
+    private func shardStoneColor() -> NSColor {
+        let identifier = setDressingPlan.materialTextureVariants.shardMaterialIdentifier
+        if identifier.contains("circuit") {
+            return NSColor(calibratedRed: 0.04, green: 0.056, blue: 0.078, alpha: 1)
+        }
+        if identifier.contains("oxidized") {
+            return NSColor(calibratedRed: 0.07, green: 0.05, blue: 0.046, alpha: 1)
+        }
+        if identifier.contains("etched") {
+            return NSColor(calibratedRed: 0.052, green: 0.052, blue: 0.064, alpha: 1)
+        }
+        return NSColor(calibratedRed: 0.055, green: 0.052, blue: 0.074, alpha: 1)
     }
 
     private func stageCamera(_ shot: CinematicCameraShot, animated: Bool = true) {
@@ -2298,18 +2472,35 @@ private final class CinematicSceneCoordinator {
     }
 
     private func updateSetDressing() {
-        for (index, pedestal) in setDressingRoot.children.enumerated() where pedestal.name == "set-pedestal" {
-            if let flame = pedestal.children.first(where: { $0.name.hasPrefix("set-flame-") }) {
-                let pulse = 1 + sin(Float(elapsedTime) * 4.4 + Float(index)) * 0.12
-                flame.scale = [0.72 * pulse, 1.35 + pulse * 0.08, 0.72 * pulse]
+        let flamePlan = setDressingPlan.pedestalFlames
+        for pedestal in setDressingRoot.children where pedestal.name.hasPrefix("set-pedestal-") {
+            let index = setDressingIndex(in: pedestal.name, prefix: "set-pedestal-") ?? 0
+            guard index < flamePlan.pedestalCount else { continue }
+            if let flame = pedestal.children.first(where: { $0.name.hasPrefix("set-flame-core-") }) {
+                let pulse = 1 + sin(
+                    Float(elapsedTime) * setDressingPlan.animationCadence.flamePulseRate + Float(index)
+                ) * setDressingPlan.animationCadence.flamePulseAmplitude
+                flame.scale = [
+                    flamePlan.flameXZScale * pulse,
+                    flamePlan.flameHeightScale + pulse * 0.08,
+                    flamePlan.flameXZScale * pulse
+                ]
             }
         }
 
-        for (index, shard) in setDressingRoot.children.enumerated() where shard.name.hasPrefix("floating-shard-") {
+        let shardPlan = setDressingPlan.floatingShards
+        for shard in setDressingRoot.children where shard.name.hasPrefix("floating-shard-") {
+            let index = setDressingIndex(in: shard.name, prefix: "floating-shard-") ?? 0
+            guard index < shardPlan.shardCount else { continue }
             if let baseY = setDressingBaseHeights[ObjectIdentifier(shard)] {
-                shard.position.y = baseY + sin(Float(elapsedTime) * 1.1 + Float(index)) * 0.08
+                shard.position.y = baseY + sin(
+                    Float(elapsedTime) * setDressingPlan.animationCadence.shardBobRate + Float(index)
+                ) * setDressingPlan.animationCadence.shardBobAmplitude
             }
-            shard.orientation = shard.orientation * simd_quatf(angle: 0.006 + Float(index) * 0.0007, axis: [0.22, 1, 0.12])
+            shard.orientation = shard.orientation * simd_quatf(
+                angle: setDressingPlan.animationCadence.shardRotationStep + Float(index) * 0.0007,
+                axis: [0.22, 1, 0.12]
+            )
         }
     }
 
