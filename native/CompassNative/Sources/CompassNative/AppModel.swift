@@ -13,6 +13,7 @@ final class CompassProject: ObservableObject, Identifiable {
     @Published var sessions: [SessionRecord] = []
     @Published var languageProfile = RepositoryLanguageProfile.empty
     @Published var activityProfile = RepositoryActivityProfile.empty
+    @Published var cinematicInfluenceSettings: CinematicInfluenceSettings
     @Published var liveLog: [LiveLine] = []
     @Published var phase: LoopPhase = .idle {
         didSet {
@@ -48,12 +49,14 @@ final class CompassProject: ObservableObject, Identifiable {
         id: UUID = UUID(),
         repoURL: URL,
         addedAt: Date = Date(),
-        lastOpenedAt: Date = Date()
+        lastOpenedAt: Date = Date(),
+        cinematicInfluenceSettings: CinematicInfluenceSettings = CinematicInfluenceSettings()
     ) {
         self.id = id
         self.repoURL = repoURL.standardizedFileURL
         self.addedAt = addedAt
         self.lastOpenedAt = lastOpenedAt
+        self.cinematicInfluenceSettings = cinematicInfluenceSettings
         cinematicBriefing = CinematicBriefingService.deterministicBriefing(
             for: CinematicBriefingInput(
                 repoName: repoURL.lastPathComponent,
@@ -1344,7 +1347,7 @@ final class AppModel: ObservableObject {
         return URL(fileURLWithPath: root).standardizedFileURL
     }
 
-    private func saveProjects() {
+    func saveProjects() {
         do {
             try KnownProjectStore.save(projects.map(\.record))
         } catch {
@@ -1362,6 +1365,41 @@ private struct KnownProjectRecord: Codable, Identifiable, Equatable {
     var path: String
     var addedAt: Double
     var lastOpenedAt: Double
+    var cinematicInfluenceSettings: CinematicInfluenceSettings
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case path
+        case addedAt
+        case lastOpenedAt
+        case cinematicInfluenceSettings
+    }
+
+    init(
+        id: UUID,
+        path: String,
+        addedAt: Double,
+        lastOpenedAt: Double,
+        cinematicInfluenceSettings: CinematicInfluenceSettings = CinematicInfluenceSettings()
+    ) {
+        self.id = id
+        self.path = path
+        self.addedAt = addedAt
+        self.lastOpenedAt = lastOpenedAt
+        self.cinematicInfluenceSettings = cinematicInfluenceSettings
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(UUID.self, forKey: .id)
+        path = try container.decode(String.self, forKey: .path)
+        addedAt = try container.decode(Double.self, forKey: .addedAt)
+        lastOpenedAt = try container.decode(Double.self, forKey: .lastOpenedAt)
+        cinematicInfluenceSettings = try container.decodeIfPresent(
+            CinematicInfluenceSettings.self,
+            forKey: .cinematicInfluenceSettings
+        ) ?? CinematicInfluenceSettings()
+    }
 }
 
 private extension CompassProject {
@@ -1370,7 +1408,8 @@ private extension CompassProject {
             id: record.id,
             repoURL: URL(fileURLWithPath: record.path).standardizedFileURL,
             addedAt: Date(timeIntervalSince1970: record.addedAt),
-            lastOpenedAt: Date(timeIntervalSince1970: record.lastOpenedAt)
+            lastOpenedAt: Date(timeIntervalSince1970: record.lastOpenedAt),
+            cinematicInfluenceSettings: record.cinematicInfluenceSettings
         )
     }
 
@@ -1379,7 +1418,8 @@ private extension CompassProject {
             id: id,
             path: repoURL.path,
             addedAt: addedAt.timeIntervalSince1970,
-            lastOpenedAt: lastOpenedAt.timeIntervalSince1970
+            lastOpenedAt: lastOpenedAt.timeIntervalSince1970,
+            cinematicInfluenceSettings: cinematicInfluenceSettings
         )
     }
 

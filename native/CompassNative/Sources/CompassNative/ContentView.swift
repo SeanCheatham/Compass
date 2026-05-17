@@ -243,7 +243,8 @@ private struct MainWorkspaceView: View {
                             phase: project.phase,
                             isActive: project.isRunning || project.isAutoPlaying,
                             languageProfile: project.languageProfile,
-                            activityProfile: project.activityProfile
+                            activityProfile: project.activityProfile,
+                            influenceSettings: project.cinematicInfluenceSettings
                         )
                         .frame(width: 1, height: 1)
                         .opacity(0.01)

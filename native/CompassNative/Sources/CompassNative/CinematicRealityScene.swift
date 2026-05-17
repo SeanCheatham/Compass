@@ -10,6 +10,7 @@ struct CinematicSceneView: View {
     var isActive: Bool
     var languageProfile: RepositoryLanguageProfile
     var activityProfile: RepositoryActivityProfile
+    var influenceSettings: CinematicInfluenceSettings
 
     @StateObject private var host: CinematicRealitySceneHost
 
@@ -19,7 +20,8 @@ struct CinematicSceneView: View {
         phase: LoopPhase,
         isActive: Bool,
         languageProfile: RepositoryLanguageProfile,
-        activityProfile: RepositoryActivityProfile
+        activityProfile: RepositoryActivityProfile,
+        influenceSettings: CinematicInfluenceSettings
     ) {
         self.projectID = projectID
         self.lines = lines
@@ -27,6 +29,7 @@ struct CinematicSceneView: View {
         self.isActive = isActive
         self.languageProfile = languageProfile
         self.activityProfile = activityProfile
+        self.influenceSettings = influenceSettings
         _host = StateObject(wrappedValue: CinematicRealitySceneHost(projectID: projectID))
     }
 
@@ -38,7 +41,8 @@ struct CinematicSceneView: View {
                 phase: phase,
                 isActive: isActive,
                 languageProfile: languageProfile,
-                activityProfile: activityProfile
+                activityProfile: activityProfile,
+                influenceSettings: influenceSettings
             )
         } update: { content in
             host.install(in: &content)
@@ -47,7 +51,8 @@ struct CinematicSceneView: View {
                 phase: phase,
                 isActive: isActive,
                 languageProfile: languageProfile,
-                activityProfile: activityProfile
+                activityProfile: activityProfile,
+                influenceSettings: influenceSettings
             )
         } placeholder: {
             Color.black
@@ -88,14 +93,16 @@ private final class CinematicRealitySceneHost: ObservableObject {
         phase: LoopPhase,
         isActive: Bool,
         languageProfile: RepositoryLanguageProfile,
-        activityProfile: RepositoryActivityProfile
+        activityProfile: RepositoryActivityProfile,
+        influenceSettings: CinematicInfluenceSettings
     ) {
         coordinator.update(
             lines: lines,
             phase: phase,
             isActive: isActive,
             languageProfile: languageProfile,
-            activityProfile: activityProfile
+            activityProfile: activityProfile,
+            influenceSettings: influenceSettings
         )
     }
 
@@ -325,6 +332,7 @@ private final class CinematicSceneCoordinator {
     private var languageProfile = RepositoryLanguageProfile.empty
     private var languageTheme = RepositoryCinematicTheme(language: .unknown)
     private var activityProfile = RepositoryActivityProfile.empty
+    private var influenceSettings = CinematicInfluenceSettings()
     private var lastPhase: LoopPhase = .idle
     private var thinkingTimer: Timer?
     private var defenseTimer: Timer?
@@ -341,6 +349,7 @@ private final class CinematicSceneCoordinator {
     private var setDressingBaseHeights: [ObjectIdentifier: Float] = [:]
     private var animations: [EntityAnimation] = []
     private var cameraAnimation: CameraAnimation?
+    private var currentCameraShot = CinematicCameraShot.home
     private var cameraPosition = CinematicCameraShot.home.position
     private var cameraFieldOfView = CinematicCameraShot.home.fieldOfView
     private var wizardFacingTarget: SIMD3<Float>?
@@ -385,7 +394,8 @@ private final class CinematicSceneCoordinator {
         phase: LoopPhase,
         isActive: Bool,
         languageProfile: RepositoryLanguageProfile,
-        activityProfile: RepositoryActivityProfile
+        activityProfile: RepositoryActivityProfile,
+        influenceSettings: CinematicInfluenceSettings
     ) {
         let languageProfileChanged = languageProfile != self.languageProfile
         if languageProfileChanged {
@@ -395,6 +405,10 @@ private final class CinematicSceneCoordinator {
         let activityProfileChanged = activityProfile != self.activityProfile
         if activityProfileChanged {
             self.activityProfile = activityProfile
+        }
+        let influenceChanged = influenceSettings != self.influenceSettings
+        if influenceChanged {
+            self.influenceSettings = influenceSettings
         }
 
         if !hasBootstrapped {
@@ -409,6 +423,9 @@ private final class CinematicSceneCoordinator {
             if activityProfileChanged {
                 applyActivityTraits(animated: false)
             }
+            if influenceChanged {
+                applyCinematicInfluenceChange()
+            }
             return
         }
 
@@ -420,6 +437,9 @@ private final class CinematicSceneCoordinator {
             if isThinking {
                 startThinkingTimer(spawnImmediately: false)
             }
+        }
+        if influenceChanged {
+            applyCinematicInfluenceChange()
         }
 
         if phase != lastPhase {
@@ -1503,31 +1523,41 @@ private final class CinematicSceneCoordinator {
     }
 
     private func ambientSpawnCadence() -> TimeInterval {
-        guard !activityProfile.isEmpty else { return 2.4 }
+        let pressureScale = Double(ambientPressureScale())
+        let base: TimeInterval
+        guard !activityProfile.isEmpty else {
+            return max(0.9, 2.4 / pressureScale)
+        }
         switch activityProfile.pressureLevel {
         case .clean:
-            return activityProfile.successStreak > 1 ? 3.1 : 2.65
+            base = activityProfile.successStreak > 1 ? 3.1 : 2.65
         case .light:
-            return 2.15
+            base = 2.15
         case .moderate:
-            return 1.65
+            base = 1.65
         case .heavy:
-            return 1.18
+            base = 1.18
         }
+        return max(0.72, base / pressureScale)
     }
 
     private func ambientEnemyLimit() -> Int {
-        guard !activityProfile.isEmpty else { return 8 }
+        let pressureScale = ambientPressureScale()
+        let base: Int
+        guard !activityProfile.isEmpty else {
+            return max(4, min(12, Int((8 * pressureScale).rounded())))
+        }
         switch activityProfile.pressureLevel {
         case .clean:
-            return 5
+            base = 5
         case .light:
-            return 7
+            base = 7
         case .moderate:
-            return 9
+            base = 9
         case .heavy:
-            return 11
+            base = 11
         }
+        return max(3, min(15, Int((Float(base) * pressureScale).rounded())))
     }
 
     private func ambientSpellForActivity() -> SpellSchool {
@@ -1803,6 +1833,16 @@ private final class CinematicSceneCoordinator {
         }
     }
 
+    private func applyCinematicInfluenceChange() {
+        stageCamera(currentCameraShot)
+        let baseline = phaseLightBaseline(for: lastPhase)
+        setPhaseLight(color: themedColor(baseline.color), intensity: baseline.intensity)
+
+        if isThinking {
+            startThinkingTimer(spawnImmediately: false)
+        }
+    }
+
     private func themedColor(_ color: NSColor) -> NSColor {
         languageTheme.phaseColor(color)
     }
@@ -1825,7 +1865,7 @@ private final class CinematicSceneCoordinator {
     }
 
     private func shakeCamera() {
-        shakeUntil = Date().addingTimeInterval(0.22)
+        shakeUntil = Date().addingTimeInterval(0.22 * Double(cameraShakeScale()))
     }
 
     private func setPhaseLight(color: NSColor, intensity: Float) {
@@ -1856,7 +1896,103 @@ private final class CinematicSceneCoordinator {
         guard !activityProfile.isEmpty else { return 0 }
         let pressureBoost = min(Float(activityProfile.pressureScore) * 24, 440)
         let streakBoost = Float(max(activityProfile.successStreak - 1, 0)) * 18
-        return min(560, pressureBoost + streakBoost)
+        return min(620, (pressureBoost + streakBoost) * ambientPressureScale())
+    }
+
+    private func ambientPressureScale() -> Float {
+        let intensity = Float(influenceSettings.intensity)
+        switch influenceSettings.cameraStyle {
+        case .steady:
+            return 0.45 + intensity * 0.5
+        case .follow:
+            return 0.65 + intensity * 0.7
+        case .dramatic:
+            return 1.05 + intensity * 0.9
+        }
+    }
+
+    private func cameraOrbitScale() -> Float {
+        let intensity = Float(influenceSettings.intensity)
+        switch influenceSettings.cameraStyle {
+        case .steady:
+            return 0.24 + intensity * 0.36
+        case .follow:
+            return 0.65 + intensity * 0.7
+        case .dramatic:
+            return 1.15 + intensity * 0.8
+        }
+    }
+
+    private func cameraPullbackScale() -> Float {
+        let intensity = Float(influenceSettings.intensity)
+        switch influenceSettings.cameraStyle {
+        case .steady:
+            return 1.15 - intensity * 0.08
+        case .follow:
+            return 1
+        case .dramatic:
+            return 0.93 - intensity * 0.1
+        }
+    }
+
+    private func cameraHeightOffset() -> Float {
+        let intensity = Float(influenceSettings.intensity)
+        switch influenceSettings.cameraStyle {
+        case .steady:
+            return 0.22 - intensity * 0.08
+        case .follow:
+            return 0
+        case .dramatic:
+            return -0.2 - intensity * 0.2
+        }
+    }
+
+    private func cameraFollowResponsiveness() -> Float {
+        let intensity = Float(influenceSettings.intensity)
+        switch influenceSettings.cameraStyle {
+        case .steady:
+            return 2.55 + intensity * 0.8
+        case .follow:
+            return 3.2 + intensity * 2.0
+        case .dramatic:
+            return 5.0 + intensity * 2.2
+        }
+    }
+
+    private func cameraFollowFieldOfView() -> Float {
+        let intensity = Float(influenceSettings.intensity)
+        switch influenceSettings.cameraStyle {
+        case .steady:
+            return 35.5 + intensity * 2.4
+        case .follow:
+            return 38.5 + intensity * 2.0
+        case .dramatic:
+            return 42.5 + intensity * 5.0
+        }
+    }
+
+    private func cameraDriftScale() -> Float {
+        let intensity = Float(influenceSettings.intensity)
+        switch influenceSettings.cameraStyle {
+        case .steady:
+            return 0.15 + intensity * 0.36
+        case .follow:
+            return 0.65 + intensity * 0.7
+        case .dramatic:
+            return 1.08 + intensity * 0.9
+        }
+    }
+
+    private func cameraShakeScale() -> Float {
+        let intensity = Float(influenceSettings.intensity)
+        switch influenceSettings.cameraStyle {
+        case .steady:
+            return 0.18 + intensity * 0.44
+        case .follow:
+            return 0.55 + intensity * 0.9
+        case .dramatic:
+            return 1.1 + intensity * 1.35
+        }
     }
 
     private func setPointLight(color: NSColor, intensity: Float, on entity: Entity) {
@@ -1873,19 +2009,80 @@ private final class CinematicSceneCoordinator {
     }
 
     private func stageCamera(_ shot: CinematicCameraShot, animated: Bool = true) {
+        currentCameraShot = shot
+        let position = cameraPosition(for: shot)
+        let fieldOfView = cameraFieldOfView(for: shot)
+        let duration = cameraTransitionDuration(for: shot)
+
         if animated {
             cameraAnimation = CameraAnimation(
                 startPosition: cameraPosition,
-                endPosition: shot.position,
+                endPosition: position,
                 startFieldOfView: cameraFieldOfView,
-                endFieldOfView: shot.fieldOfView,
-                duration: shot.duration
+                endFieldOfView: fieldOfView,
+                duration: duration
             )
         } else {
             cameraAnimation = nil
-            cameraPosition = shot.position
-            cameraFieldOfView = shot.fieldOfView
+            cameraPosition = position
+            cameraFieldOfView = fieldOfView
             updateCameraEntity()
+        }
+    }
+
+    private func cameraPosition(for shot: CinematicCameraShot) -> SIMD3<Float> {
+        let base = shot.position
+        let intensity = Float(influenceSettings.intensity)
+
+        switch influenceSettings.cameraStyle {
+        case .steady:
+            let homeBlend = 0.24 + (1 - intensity) * 0.18
+            var position = mix(base, CinematicCameraShot.home.position, homeBlend)
+            position.y += 0.16 + (1 - intensity) * 0.2
+            return position
+        case .follow:
+            let adjustment = intensity - 0.5
+            return [
+                base.x * (1 + adjustment * 0.08),
+                base.y + adjustment * 0.22,
+                base.z * (1 - adjustment * 0.06)
+            ]
+        case .dramatic:
+            let push = 0.14 + intensity * 0.18
+            return [
+                base.x * (1 + intensity * 0.08),
+                max(1.72, base.y - 0.22 - intensity * 0.42),
+                base.z * (1 - push)
+            ]
+        }
+    }
+
+    private func cameraFieldOfView(for shot: CinematicCameraShot) -> Float {
+        let base = shot.fieldOfView
+        let intensity = Float(influenceSettings.intensity)
+        let adjusted: Float
+
+        switch influenceSettings.cameraStyle {
+        case .steady:
+            adjusted = base - 2.2 - (1 - intensity) * 2.1
+        case .follow:
+            adjusted = base + (intensity - 0.5) * 2.0
+        case .dramatic:
+            adjusted = base + 2.8 + intensity * 4.4
+        }
+
+        return min(58, max(30, adjusted))
+    }
+
+    private func cameraTransitionDuration(for shot: CinematicCameraShot) -> TimeInterval {
+        let intensity = influenceSettings.intensity
+        switch influenceSettings.cameraStyle {
+        case .steady:
+            return shot.duration * (1.22 + (1 - intensity) * 0.42)
+        case .follow:
+            return shot.duration
+        case .dramatic:
+            return max(0.14, shot.duration * (0.82 - intensity * 0.22))
         }
     }
 
@@ -1950,12 +2147,12 @@ private final class CinematicSceneCoordinator {
             let wizardPosition = wizardNode.position(relativeTo: nil)
             let direction = horizontalDirection(from: wizardPosition, to: followTarget) ?? [0, 0, 1]
             let side = SIMD3<Float>(-direction.z, 0, direction.x)
-            let orbit = side * (0.72 + sin(Float(elapsedTime) * 0.42) * 0.36)
-            let pullback: Float = isThinking ? 5.9 : 5.35
-            let desired = wizardPosition - direction * pullback + orbit + [0, 2.28, 0]
-            let factor = min(1, Float(delta) * 4.2)
+            let orbit = side * ((0.72 + sin(Float(elapsedTime) * 0.42) * 0.36) * cameraOrbitScale())
+            let pullback: Float = (isThinking ? 5.9 : 5.35) * cameraPullbackScale()
+            let desired = wizardPosition - direction * pullback + orbit + [0, 2.28 + cameraHeightOffset(), 0]
+            let factor = min(1, Float(delta) * cameraFollowResponsiveness())
             cameraPosition = mix(cameraPosition, desired, factor)
-            cameraFieldOfView += (39.5 - cameraFieldOfView) * factor
+            cameraFieldOfView += (cameraFollowFieldOfView() - cameraFieldOfView) * factor
         } else if var animation = cameraAnimation {
             animation.elapsed += delta
             let progress = animation.duration <= 0 ? 1 : min(Float(animation.elapsed / animation.duration), 1)
@@ -1969,16 +2166,18 @@ private final class CinematicSceneCoordinator {
     }
 
     private func updateCameraEntity() {
+        let driftScale = cameraDriftScale()
         var cameraOffset = SIMD3<Float>(
-            sin(Float(elapsedTime) * 1.5) * 0.12,
-            sin(Float(elapsedTime) * 1.1) * 0.05,
-            cos(Float(elapsedTime) * 1.2) * 0.09
+            sin(Float(elapsedTime) * 1.5) * 0.12 * driftScale,
+            sin(Float(elapsedTime) * 1.1) * 0.05 * driftScale,
+            cos(Float(elapsedTime) * 1.2) * 0.09 * driftScale
         )
 
         if Date() < shakeUntil {
+            let shakeScale = cameraShakeScale()
             cameraOffset += SIMD3<Float>(
-                Float.random(in: -0.16...0.16),
-                Float.random(in: -0.05...0.05),
+                Float.random(in: -0.16...0.16) * shakeScale,
+                Float.random(in: -0.05...0.05) * shakeScale,
                 0
             )
         }
@@ -2041,7 +2240,7 @@ private final class CinematicSceneCoordinator {
         if Date() < followCameraUntil, let followCameraTarget {
             return followCameraTarget
         }
-        if isThinking {
+        if isThinking && influenceSettings.cameraStyle != .steady {
             return activeWizardTarget()
         }
         return nil

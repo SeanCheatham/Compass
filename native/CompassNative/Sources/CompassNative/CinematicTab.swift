@@ -2,6 +2,7 @@ import AppKit
 import SwiftUI
 
 struct CinematicTab: View {
+    @EnvironmentObject private var model: AppModel
     @ObservedObject var project: CompassProject
 
     var body: some View {
@@ -15,7 +16,8 @@ struct CinematicTab: View {
                     phase: project.phase,
                     isActive: project.isRunning || project.isAutoPlaying,
                     languageProfile: project.languageProfile,
-                    activityProfile: project.activityProfile
+                    activityProfile: project.activityProfile,
+                    influenceSettings: project.cinematicInfluenceSettings
                 )
                 .frame(width: proxy.size.width, height: proxy.size.height)
 
@@ -30,6 +32,16 @@ struct CinematicTab: View {
 
                 CinematicHUD(caption: caption)
                     .padding(18)
+
+                VStack {
+                    HStack {
+                        Spacer()
+                        CinematicInfluenceControls(project: project)
+                            .environmentObject(model)
+                    }
+                    Spacer()
+                }
+                .padding(14)
             }
             .clipShape(RoundedRectangle(cornerRadius: 8))
             .overlay {
@@ -38,6 +50,75 @@ struct CinematicTab: View {
             }
         }
         .frame(minHeight: 520)
+    }
+}
+
+private struct CinematicInfluenceControls: View {
+    @EnvironmentObject private var model: AppModel
+    @ObservedObject var project: CompassProject
+
+    private var trimmedDraft: String {
+        project.draftEntry.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 9) {
+            Picker("Camera", selection: $project.cinematicInfluenceSettings.cameraStyle) {
+                ForEach(CinematicInfluenceSettings.CameraStyle.allCases) { style in
+                    Text(style.title).tag(style)
+                }
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .help("Camera style")
+
+            HStack(spacing: 8) {
+                Image(systemName: "dial.medium")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(.white.opacity(0.74))
+                    .frame(width: 18)
+
+                Slider(
+                    value: $project.cinematicInfluenceSettings.intensity,
+                    in: CinematicInfluenceSettings.intensityRange
+                )
+                .frame(width: 132)
+                .help("Cinematic intensity")
+
+                Text("\(Int(project.cinematicInfluenceSettings.intensity * 100))%")
+                    .font(.caption.monospacedDigit().weight(.semibold))
+                    .foregroundStyle(.white.opacity(0.76))
+                    .frame(width: 36, alignment: .trailing)
+            }
+
+            HStack(spacing: 7) {
+                TextField("Quick draft", text: $project.draftEntry, axis: .vertical)
+                    .lineLimit(1...3)
+                    .textFieldStyle(.roundedBorder)
+                    .frame(width: 210)
+
+                Button {
+                    Task { await project.addDraft() }
+                } label: {
+                    Image(systemName: "plus")
+                        .frame(width: 17, height: 17)
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(!project.hasRepository || trimmedDraft.isEmpty)
+                .help("Add draft")
+            }
+        }
+        .controlSize(.small)
+        .padding(10)
+        .frame(width: 286, alignment: .leading)
+        .background(.black.opacity(0.38), in: RoundedRectangle(cornerRadius: 8))
+        .overlay {
+            RoundedRectangle(cornerRadius: 8)
+                .stroke(.white.opacity(0.1))
+        }
+        .onChange(of: project.cinematicInfluenceSettings) {
+            model.saveProjects()
+        }
     }
 }
 
