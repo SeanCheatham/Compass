@@ -406,3 +406,147 @@ struct ProjectReliabilityStatus: Equatable {
             .trimmingCharacters(in: .whitespacesAndNewlines) + "..."
     }
 }
+
+struct ProjectSidebarStatus: Equatable {
+    static let defaultSubtitleLimit = 86
+
+    var title: String
+    var subtitle: String
+    var badgeLabel: String
+    var countLabel: String
+    var actionLabel: String
+    var metadata: String?
+    var systemImage: String
+    var severity: PlanReliabilityFeedback.Severity
+    var cueCount: Int
+    var phaseLabel: String
+    var showsProgress: Bool
+    var helpText: String
+    var accessibilityLabel: String
+    var accessibilityHint: String
+
+    var hasReliabilityCue: Bool {
+        cueCount > 0
+    }
+
+    init(
+        reliabilityStatus: ProjectReliabilityStatus,
+        immediateTitle: String,
+        phase: LoopPhase,
+        isRunning: Bool,
+        isAutoPlaying: Bool,
+        isPaused: Bool,
+        pauseMode: PauseMode = .immediate,
+        subtitleLimit: Int = Self.defaultSubtitleLimit
+    ) {
+        phaseLabel = Self.phaseLabel(
+            phase: phase,
+            isRunning: isRunning,
+            isAutoPlaying: isAutoPlaying,
+            isPaused: isPaused,
+            pauseMode: pauseMode
+        )
+        showsProgress = isRunning || isAutoPlaying
+
+        guard !reliabilityStatus.isEmpty else {
+            title = ""
+            subtitle = Self.boundedText(immediateTitle, limit: subtitleLimit)
+            badgeLabel = ""
+            countLabel = reliabilityStatus.countLabel
+            actionLabel = ""
+            metadata = nil
+            systemImage = reliabilityStatus.systemImage
+            severity = reliabilityStatus.severity
+            cueCount = 0
+            helpText = Self.joinedText([phaseLabel, subtitle], separator: " · ")
+            accessibilityLabel = Self.joinedText([phaseLabel, subtitle], separator: ", ")
+            accessibilityHint = ""
+            return
+        }
+
+        title = reliabilityStatus.primaryCue
+        subtitle = Self.boundedText(reliabilityStatus.detail, limit: subtitleLimit)
+        badgeLabel = reliabilityStatus.primaryCue
+        countLabel = reliabilityStatus.countLabel
+        actionLabel = reliabilityStatus.actionLabel
+        metadata = reliabilityStatus.metadata
+        systemImage = reliabilityStatus.systemImage
+        severity = reliabilityStatus.severity
+        cueCount = reliabilityStatus.noticeCount
+
+        helpText = Self.joinedText(
+            [
+                phaseLabel,
+                reliabilityStatus.primaryCue,
+                reliabilityStatus.actionLabel,
+                reliabilityStatus.metadata,
+                reliabilityStatus.countLabel,
+                reliabilityStatus.detail
+            ],
+            separator: " · "
+        )
+        accessibilityLabel = Self.joinedText(
+            [
+                phaseLabel,
+                reliabilityStatus.primaryCue,
+                reliabilityStatus.actionLabel,
+                reliabilityStatus.metadata,
+                reliabilityStatus.countLabel
+            ],
+            separator: ", "
+        )
+        accessibilityHint = subtitle
+    }
+
+    private static func phaseLabel(
+        phase: LoopPhase,
+        isRunning: Bool,
+        isAutoPlaying: Bool,
+        isPaused: Bool,
+        pauseMode: PauseMode
+    ) -> String {
+        if isPaused && isRunning {
+            switch pauseMode {
+            case .immediate:
+                return "Pausing"
+            case .afterIteration:
+                return "Pausing after iteration"
+            }
+        }
+
+        if isAutoPlaying {
+            return "Auto - \(phase.rawValue)"
+        }
+
+        if isPaused {
+            return LoopPhase.paused.rawValue
+        }
+
+        return phase.rawValue
+    }
+
+    private static func boundedText(_ value: String, limit: Int) -> String {
+        let normalized = value
+            .replacingOccurrences(of: "\r\n", with: "\n")
+            .replacingOccurrences(of: "\r", with: "\n")
+            .split(whereSeparator: \.isWhitespace)
+            .joined(separator: " ")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        guard !normalized.isEmpty, limit > 0 else { return "" }
+        guard normalized.count > limit else { return normalized }
+        guard limit > 3 else { return String(normalized.prefix(limit)) }
+
+        return normalized.prefix(limit - 3)
+            .trimmingCharacters(in: .whitespacesAndNewlines) + "..."
+    }
+
+    private static func joinedText(_ values: [String?], separator: String) -> String {
+        values
+            .compactMap { value in
+                guard let value, !value.isEmpty else { return nil }
+                return value
+            }
+            .joined(separator: separator)
+    }
+}

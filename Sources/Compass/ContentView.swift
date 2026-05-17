@@ -128,8 +128,10 @@ private struct ProjectListRow: View {
     var isSelected: Bool
 
     var body: some View {
+        let sidebarStatus = project.sidebarStatus
+
         HStack(alignment: .top, spacing: 10) {
-            ProjectPhaseMark(project: project)
+            ProjectPhaseMark(project: project, sidebarStatus: sidebarStatus)
                 .frame(width: 16, height: 16)
                 .padding(.top, 3)
 
@@ -151,11 +153,15 @@ private struct ProjectListRow: View {
                     .lineLimit(1)
                     .truncationMode(.middle)
 
-                Text(project.immediateTitle)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(2)
-                    .fixedSize(horizontal: false, vertical: true)
+                if sidebarStatus.hasReliabilityCue {
+                    ProjectSidebarReliabilitySummary(status: sidebarStatus)
+                } else {
+                    Text(sidebarStatus.subtitle)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
         }
         .padding(10)
@@ -169,11 +175,26 @@ private struct ProjectListRow: View {
                 .stroke(isSelected ? Color.accentColor.opacity(0.35) : Color.clear)
         }
         .contentShape(RoundedRectangle(cornerRadius: 8))
+        .help(sidebarStatus.helpText)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(rowAccessibilityLabel(status: sidebarStatus))
+        .accessibilityHint(sidebarStatus.accessibilityHint)
+    }
+
+    private func rowAccessibilityLabel(status: ProjectSidebarStatus) -> String {
+        [
+            project.displayName,
+            project.repoPath,
+            status.accessibilityLabel
+        ]
+            .filter { !$0.isEmpty }
+            .joined(separator: ", ")
     }
 }
 
 private struct ProjectPhaseMark: View {
     @ObservedObject var project: CompassProject
+    var sidebarStatus: ProjectSidebarStatus
 
     var body: some View {
         Group {
@@ -181,11 +202,66 @@ private struct ProjectPhaseMark: View {
                 ProgressView()
                     .controlSize(.small)
             } else {
-                Circle()
-                    .fill(phaseColor(project.isPaused ? .paused : project.phase))
-                    .frame(width: 9, height: 9)
+                ZStack {
+                    Circle()
+                        .fill(phaseColor(project.isPaused ? .paused : project.phase))
+                        .frame(width: 9, height: 9)
+                    if sidebarStatus.hasReliabilityCue {
+                        Circle()
+                            .stroke(reliabilityColor(for: sidebarStatus.severity).opacity(0.75), lineWidth: 1.4)
+                            .frame(width: 15, height: 15)
+                    }
+                }
             }
         }
+        .help(sidebarStatus.helpText)
+        .accessibilityLabel(sidebarStatus.phaseLabel)
+    }
+}
+
+private struct ProjectSidebarReliabilitySummary: View {
+    var status: ProjectSidebarStatus
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 3) {
+            HStack(spacing: 5) {
+                Image(systemName: status.systemImage)
+                    .font(.system(size: 10, weight: .bold))
+                Text(status.badgeLabel)
+                    .lineLimit(1)
+                if status.cueCount > 1 {
+                    Text(status.countLabel)
+                        .font(.caption2.weight(.bold))
+                        .padding(.horizontal, 5)
+                        .padding(.vertical, 1)
+                        .background(color.opacity(0.14), in: Capsule())
+                }
+            }
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(color)
+            .padding(.horizontal, 7)
+            .padding(.vertical, 3)
+            .background(color.opacity(0.11), in: Capsule())
+            .overlay {
+                Capsule()
+                    .stroke(color.opacity(0.22))
+            }
+            .fixedSize(horizontal: false, vertical: true)
+
+            Text(status.subtitle)
+                .font(.caption.weight(.medium))
+                .foregroundStyle(color)
+                .lineLimit(2)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .help(status.helpText)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(status.accessibilityLabel)
+        .accessibilityHint(status.accessibilityHint)
+    }
+
+    private var color: Color {
+        reliabilityColor(for: status.severity)
     }
 }
 
@@ -307,6 +383,18 @@ private extension CompassProject {
     var reliabilityStatus: ProjectReliabilityStatus {
         ProjectReliabilityStatus(
             feedback: PlanReliabilityFeedback(state: state, sessions: sessions)
+        )
+    }
+
+    var sidebarStatus: ProjectSidebarStatus {
+        ProjectSidebarStatus(
+            reliabilityStatus: reliabilityStatus,
+            immediateTitle: immediateTitle,
+            phase: phase,
+            isRunning: isRunning,
+            isAutoPlaying: isAutoPlaying,
+            isPaused: isPaused,
+            pauseMode: pauseMode
         )
     }
 }
