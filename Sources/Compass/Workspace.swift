@@ -726,6 +726,10 @@ struct CompassWorkspaceStoragePreflight: Equatable {
             applicationSupportRoots: applicationSupportRoots,
             fileManager: fileManager
         )
+        self.init(assessment: assessment)
+    }
+
+    init(assessment: CompassWorkspaceStorageAssessment) {
         let readiness = Self.repoLocalReadiness(from: assessment.facts)
         let currentCandidate = ApplicationSupportCandidate(
             kind: .current,
@@ -739,7 +743,7 @@ struct CompassWorkspaceStoragePreflight: Equatable {
         )
 
         self.repoURL = assessment.repoURL
-        self.applicationSupportRoots = applicationSupportRoots
+        self.applicationSupportRoots = assessment.applicationSupportRoots
         projectStorageIdentifier = assessment.projectStorageIdentifier
         repoLocalReadiness = readiness
         missingCoreFiles = assessment.facts.missingCoreFiles
@@ -904,6 +908,156 @@ struct CompassWorkspaceStoragePreflight: Equatable {
         guard value.count > limit else { return value }
         guard limit > 1 else { return String(value.prefix(max(0, limit))) }
         return "..." + value.suffix(max(0, limit - 3))
+    }
+
+    private static func boundedText(_ value: String, limit: Int) -> String {
+        guard limit > 0 else { return "" }
+        guard value.count > limit else { return value }
+        guard limit > 3 else { return String(value.prefix(limit)) }
+        return value.prefix(limit - 3)
+            .trimmingCharacters(in: .whitespacesAndNewlines) + "..."
+    }
+}
+
+struct CompassWorkspaceStorageBoundary: Equatable {
+    static let labelLimit = 34
+    static let detailLimit = 180
+    static let recommendationLimit = 140
+
+    var repoURL: URL
+    var applicationSupportRoots: KnownProjectStore.ApplicationSupportRoots
+    var projectStorageIdentifier: String
+    var currentApplicationSupportCandidateURL: URL
+    var legacyApplicationSupportCandidateURL: URL
+    var assessmentKind: CompassWorkspaceStorageAssessment.Kind
+    var preflightKind: CompassWorkspaceStoragePreflight.Kind
+    var migrationCouldBeTechnicallyEligible: Bool
+    var status: Status
+
+    var kind: Kind { status.kind }
+    var severity: CompassWorkspaceStorageAssessment.Severity { status.severity }
+    var label: String { status.label }
+    var detail: String { status.detail }
+    var recommendation: String { status.recommendation }
+    var systemImage: String { status.systemImage }
+
+    init(
+        assessment: CompassWorkspaceStorageAssessment,
+        preflight: CompassWorkspaceStoragePreflight
+    ) {
+        repoURL = assessment.repoURL
+        applicationSupportRoots = assessment.applicationSupportRoots
+        projectStorageIdentifier = assessment.projectStorageIdentifier
+        currentApplicationSupportCandidateURL = assessment.currentApplicationSupportCandidateURL
+        legacyApplicationSupportCandidateURL = assessment.legacyApplicationSupportCandidateURL
+        assessmentKind = assessment.kind
+        preflightKind = preflight.kind
+        migrationCouldBeTechnicallyEligible = preflight.migrationWouldBeSafe
+        status = Self.status(assessment: assessment, preflight: preflight)
+    }
+
+    enum Kind: String, Equatable {
+        case repoLocalRecommended
+        case repoLocalRepairFirst
+        case applicationSupportInspectOnlyConflict
+    }
+
+    struct Status: Equatable {
+        var kind: Kind
+        var severity: CompassWorkspaceStorageAssessment.Severity
+        var label: String
+        var detail: String
+        var recommendation: String
+        var systemImage: String
+    }
+
+    private static func status(
+        assessment: CompassWorkspaceStorageAssessment,
+        preflight: CompassWorkspaceStoragePreflight
+    ) -> Status {
+        if assessment.issues.contains(where: isRepoLocalRepairIssue) {
+            return status(
+                kind: .repoLocalRepairFirst,
+                severity: assessment.severity,
+                label: "Repair repo-local",
+                detail: repairFirstDetail(for: assessment),
+                recommendation: "Use repo-local repair first; leave Application Support as inspect-only future-candidate storage.",
+                systemImage: assessment.systemImage
+            )
+        }
+
+        if !preflight.occupiedApplicationSupportCandidates.isEmpty {
+            let occupied = preflight.occupiedApplicationSupportCandidates
+                .map(\.kind.displayName)
+                .joined(separator: ", ")
+            return status(
+                kind: .applicationSupportInspectOnlyConflict,
+                severity: .warning,
+                label: "Inspect support data",
+                detail: "Active state remains in repo-local .compass/; occupied \(occupied) Application Support candidates are inspect-only conflicts.",
+                recommendation: "No migration or mirroring by default; inspect support directories before any future opt-in storage change.",
+                systemImage: "externaldrive.badge.exclamationmark"
+            )
+        }
+
+        return status(
+            kind: .repoLocalRecommended,
+            severity: .healthy,
+            label: "Repo-local boundary",
+            detail: "Active project state stays in repo-local .compass/; Application Support remains the project registry and future-candidate area.",
+            recommendation: "No migration or mirroring needed by default; preflight only preserves future opt-in eligibility.",
+            systemImage: "checkmark.seal.fill"
+        )
+    }
+
+    private static func isRepoLocalRepairIssue(
+        _ issue: CompassWorkspaceStorageAssessment.Issue
+    ) -> Bool {
+        switch issue.kind {
+        case .missingWorkspace,
+             .incompleteCoreFiles,
+             .unignoredCompass:
+            return true
+        case .repoLocalHealthy,
+             .currentApplicationSupportCandidateExists,
+             .legacyApplicationSupportCandidateExists:
+            return false
+        }
+    }
+
+    private static func repairFirstDetail(
+        for assessment: CompassWorkspaceStorageAssessment
+    ) -> String {
+        switch assessment.kind {
+        case .missingWorkspace:
+            return "Repo-local .compass/ is missing; repair the workspace before considering migration or mirroring."
+        case .incompleteCoreFiles:
+            return ".compass/ is incomplete; restore the repo-local skeleton before considering migration or mirroring."
+        case .unignoredCompass:
+            return ".compass/ is complete but not ignored; repair .gitignore coverage before storage changes."
+        case .repoLocalHealthy,
+             .currentApplicationSupportCandidateExists,
+             .legacyApplicationSupportCandidateExists:
+            return assessment.detail
+        }
+    }
+
+    private static func status(
+        kind: Kind,
+        severity: CompassWorkspaceStorageAssessment.Severity,
+        label: String,
+        detail: String,
+        recommendation: String,
+        systemImage: String
+    ) -> Status {
+        Status(
+            kind: kind,
+            severity: severity,
+            label: boundedText(label, limit: labelLimit),
+            detail: boundedText(detail, limit: detailLimit),
+            recommendation: boundedText(recommendation, limit: recommendationLimit),
+            systemImage: systemImage
+        )
     }
 
     private static func boundedText(_ value: String, limit: Int) -> String {

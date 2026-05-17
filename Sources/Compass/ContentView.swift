@@ -349,7 +349,11 @@ private struct WorkspaceHeader: View {
     var body: some View {
         let reliabilityStatus = project.reliabilityStatus
         let storageAssessment = project.storageAssessment
-        let storagePreflight = project.storagePreflight
+        let storagePreflight = CompassWorkspaceStoragePreflight(assessment: storageAssessment)
+        let storageBoundary = CompassWorkspaceStorageBoundary(
+            assessment: storageAssessment,
+            preflight: storagePreflight
+        )
 
         VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .firstTextBaseline, spacing: 10) {
@@ -364,7 +368,8 @@ private struct WorkspaceHeader: View {
                 Spacer(minLength: 12)
                 ProjectStorageAssessmentPill(
                     assessment: storageAssessment,
-                    preflight: storagePreflight
+                    preflight: storagePreflight,
+                    boundary: storageBoundary
                 )
                 if let repairAction = storageAssessment.repairAction {
                     ProjectStorageRepairButton(
@@ -421,8 +426,7 @@ private extension CompassProject {
 
     var storagePreflight: CompassWorkspaceStoragePreflight {
         CompassWorkspaceStoragePreflight(
-            repoURL: repoURL,
-            applicationSupportRoots: KnownProjectStore.productionApplicationSupportRoots()
+            assessment: storageAssessment
         )
     }
 }
@@ -430,34 +434,40 @@ private extension CompassProject {
 private struct ProjectStorageAssessmentPill: View {
     var assessment: CompassWorkspaceStorageAssessment
     var preflight: CompassWorkspaceStoragePreflight
+    var boundary: CompassWorkspaceStorageBoundary
 
     var body: some View {
         HStack(spacing: 5) {
-            Image(systemName: assessment.systemImage)
+            Image(systemName: boundary.systemImage)
                 .font(.system(size: 12, weight: .semibold))
-            Text(assessment.label)
+            Text(boundary.label)
                 .lineLimit(1)
         }
         .font(.caption.weight(.semibold))
         .foregroundStyle(color)
         .padding(.horizontal, 9)
         .padding(.vertical, 5)
-        .background(color.opacity(assessment.isHealthy ? 0.10 : 0.12), in: Capsule())
+        .background(color.opacity(boundary.severity == .healthy ? 0.10 : 0.12), in: Capsule())
         .overlay {
             Capsule()
-                .stroke(color.opacity(assessment.isHealthy ? 0.20 : 0.28))
+                .stroke(color.opacity(boundary.severity == .healthy ? 0.20 : 0.28))
         }
         .help(helpText)
-        .accessibilityLabel("Storage: \(assessment.label)")
-        .accessibilityHint(assessment.recommendation)
+        .accessibilityLabel("Storage: \(boundary.label)")
+        .accessibilityValue(boundary.detail)
+        .accessibilityHint(boundary.recommendation)
     }
 
     private var color: Color {
-        storageAssessmentColor(for: assessment.severity)
+        storageAssessmentColor(for: boundary.severity)
     }
 
     private var helpText: String {
         [
+            "Boundary: \(boundary.label)",
+            boundary.detail,
+            boundary.recommendation,
+            "Technical migration eligible: \(boundary.migrationCouldBeTechnicallyEligible ? "yes" : "no")",
             assessment.label,
             assessment.detail,
             assessment.recommendation,
