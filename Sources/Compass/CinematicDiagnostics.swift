@@ -10,6 +10,7 @@ struct CinematicDiagnosticsReport: Equatable {
     var languageMotif: LanguageMotifSnapshot
     var activityMotif: ActivityMotifSnapshot
     var stageBeat: StageBeatSnapshot
+    var stageEffect: StageEffectSnapshot
     var worldText: WorldTextSnapshot
     var briefing: BriefingSnapshot
     var cameraTuning: CameraTuningSnapshot
@@ -54,6 +55,26 @@ struct CinematicDiagnosticsReport: Equatable {
         var activityEventKindIdentifier: String?
         var activityLightFamilyIdentifier: String?
         var activityArenaEffectIdentifier: String?
+    }
+
+    struct StageEffectSnapshot: Equatable {
+        var identifier: String
+        var phaseEffectIdentifier: String
+        var phaseSourceIdentifier: String
+        var phaseArenaEffectIdentifier: String
+        var activityEffectIdentifier: String?
+        var activitySourceIdentifier: String?
+        var activityArenaEffectIdentifier: String?
+        var arenaRingIdentifiers: [String]
+        var phaseLightPulseIdentifiers: [String]
+        var sparkBurstIdentifiers: [String]
+        var historyTrailIdentifiers: [String]
+        var victoryCadenceIdentifier: String?
+        var cameraShakeIdentifiers: [String]
+        var arenaRingCount: Int
+        var phaseLightPulseCount: Int
+        var sparkBurstCount: Int
+        var historyTrailCount: Int
     }
 
     struct WorldTextSnapshot: Equatable {
@@ -121,9 +142,9 @@ struct CinematicDiagnosticsReport: Equatable {
 }
 
 struct CinematicDiagnosticsSummary: Equatable {
-    static let maxRows = 21
+    static let maxRows = 25
     static let labelMaxCharacters = 32
-    static let detailMaxCharacters = 180
+    static let detailMaxCharacters = 512
 
     var rows: [Row]
     var exportText: String
@@ -191,6 +212,43 @@ struct CinematicDiagnosticsSummary: Equatable {
                     report.stageBeat.shouldRunVictorySurge ? "victory" : nil,
                     report.stageBeat.shouldRunHistoryChains ? "history" : nil
                 ].compactMap { $0 }.joined(separator: " | ")
+            ),
+            row(
+                id: "stage-effect",
+                label: "Stage effect",
+                detail: [
+                    "phase \(report.stageEffect.phaseSourceIdentifier)/\(report.stageEffect.phaseArenaEffectIdentifier)",
+                    report.stageEffect.activitySourceIdentifier.flatMap { source in
+                        report.stageEffect.activityArenaEffectIdentifier.map { "activity \(source)/\($0)" }
+                    },
+                    "rings \(report.stageEffect.arenaRingCount)",
+                    "pulses \(report.stageEffect.phaseLightPulseCount)",
+                    "sparks \(report.stageEffect.sparkBurstCount)",
+                    "history \(report.stageEffect.historyTrailCount)",
+                    optionalIdentifier("victory", report.stageEffect.victoryCadenceIdentifier),
+                    report.stageEffect.cameraShakeIdentifiers.isEmpty
+                        ? nil
+                        : "camera \(report.stageEffect.cameraShakeIdentifiers.joined(separator: ","))"
+                ].compactMap { $0 }.joined(separator: " | ")
+            ),
+            row(
+                id: "effect-rings",
+                label: "Effect rings",
+                detail: report.stageEffect.arenaRingIdentifiers.isEmpty
+                    ? "none"
+                    : report.stageEffect.arenaRingIdentifiers.joined(separator: " | ")
+            ),
+            row(
+                id: "effect-pulses",
+                label: "Effect pulses",
+                detail: effectPulseDetail(report.stageEffect)
+            ),
+            row(
+                id: "effect-history",
+                label: "Effect history",
+                detail: report.stageEffect.historyTrailIdentifiers.isEmpty
+                    ? "none"
+                    : report.stageEffect.historyTrailIdentifiers.joined(separator: " | ")
             ),
             row(id: "world-quest", label: "World quest", detail: report.worldText.questLabel),
             row(id: "world-arena", label: "World arena", detail: report.worldText.arenaCallout),
@@ -282,6 +340,23 @@ struct CinematicDiagnosticsSummary: Equatable {
     private static func optionalIdentifier(_ label: String, _ identifier: String?) -> String? {
         guard let identifier, !identifier.isEmpty else { return nil }
         return "\(label) \(identifier)"
+    }
+
+    private static func effectPulseDetail(_ snapshot: CinematicDiagnosticsReport.StageEffectSnapshot) -> String {
+        let values = [
+            snapshot.phaseLightPulseIdentifiers.isEmpty
+                ? nil
+                : "light \(snapshot.phaseLightPulseIdentifiers.joined(separator: ","))",
+            snapshot.sparkBurstIdentifiers.isEmpty
+                ? nil
+                : "sparks \(snapshot.sparkBurstIdentifiers.joined(separator: ","))",
+            snapshot.cameraShakeIdentifiers.isEmpty
+                ? nil
+                : "camera \(snapshot.cameraShakeIdentifiers.joined(separator: ","))",
+            optionalIdentifier("victory", snapshot.victoryCadenceIdentifier)
+        ].compactMap { $0 }
+
+        return values.isEmpty ? "none" : values.joined(separator: " | ")
     }
 
     private static func completedLabel(_ count: Int) -> String {
@@ -377,19 +452,10 @@ enum CinematicDiagnostics {
         let influenceIdentifier = settingsIdentifier(influenceSettings)
         let languageSnapshot = languageSnapshot(for: languageMotif)
         let activitySnapshot = activitySnapshot(for: activityMotif)
-        let stageBeatSnapshot = stageBeatSnapshot(
-            for: CinematicStageBeatPlanner.plan(
-                phase: loopPhase(from: phase),
-                activityProfile: activityProfile,
-                influenceSettings: influenceSettings
-            )
-        )
-        let worldTextSnapshot = worldTextSnapshot(for: worldText)
-        let briefingSnapshot = briefingSnapshot(for: briefing)
-        let cameraTuningSnapshot = cameraTuningSnapshot(settings: influenceSettings)
-        let activityTuningSnapshot = activityTuningSnapshot(
+        let stageBeat = CinematicStageBeatPlanner.plan(
+            phase: loopPhase(from: phase),
             activityProfile: activityProfile,
-            settings: influenceSettings
+            influenceSettings: influenceSettings
         )
         let setDressingPlan = CinematicSetDressingPlanner.plan(
             languageMotif: languageMotif,
@@ -397,6 +463,20 @@ enum CinematicDiagnostics {
             languageProfile: languageProfile,
             activityProfile: activityProfile,
             influenceSettings: influenceSettings
+        )
+        let stageEffectPlan = CinematicStageEffectPlanner.plan(
+            beat: stageBeat,
+            setDressingPlan: setDressingPlan,
+            influenceSettings: influenceSettings
+        )
+        let stageBeatSnapshot = stageBeatSnapshot(for: stageBeat)
+        let stageEffectSnapshot = stageEffectSnapshot(for: stageEffectPlan)
+        let worldTextSnapshot = worldTextSnapshot(for: worldText)
+        let briefingSnapshot = briefingSnapshot(for: briefing)
+        let cameraTuningSnapshot = cameraTuningSnapshot(settings: influenceSettings)
+        let activityTuningSnapshot = activityTuningSnapshot(
+            activityProfile: activityProfile,
+            settings: influenceSettings
         )
         let setDressingSnapshot = setDressingSnapshot(for: setDressingPlan)
         let cameraSnapshots = CinematicCameraShot.allCases.map {
@@ -410,6 +490,7 @@ enum CinematicDiagnostics {
                 "language:\(languageSnapshot.identifier)",
                 "activity:\(activitySnapshot.identifier)",
                 "stage:\(stageBeatSnapshot.identifier)",
+                "stage-effect:\(stageEffectSnapshot.identifier)",
                 "influence:\(influenceIdentifier)",
                 "set-dressing:\(setDressingSnapshot.identifier)"
             ].joined(separator: "|"),
@@ -421,6 +502,7 @@ enum CinematicDiagnostics {
             languageMotif: languageSnapshot,
             activityMotif: activitySnapshot,
             stageBeat: stageBeatSnapshot,
+            stageEffect: stageEffectSnapshot,
             worldText: worldTextSnapshot,
             briefing: briefingSnapshot,
             cameraTuning: cameraTuningSnapshot,
@@ -601,6 +683,48 @@ enum CinematicDiagnostics {
             activityEventKindIdentifier: accent?.eventKind.rawValue,
             activityLightFamilyIdentifier: accent?.lightFamily.rawValue,
             activityArenaEffectIdentifier: accent?.arenaEffect.rawValue
+        )
+    }
+
+    private static func stageEffectSnapshot(
+        for plan: CinematicStageEffectPlan
+    ) -> CinematicDiagnosticsReport.StageEffectSnapshot {
+        let effects = plan.effects
+        let ringIdentifiers = effects.flatMap(\.arenaRings).map(\.identifier)
+        let phaseLightPulseIdentifiers = effects.compactMap { $0.phaseLightPulse?.identifier }
+        let sparkBurstIdentifiers = effects.flatMap(\.sparkBursts).map(\.identifier)
+        let historyTrailIdentifiers = effects.flatMap(\.historyTrails).map(\.identifier)
+        let victoryCadenceIdentifier = effects.compactMap { $0.victoryCadence?.identifier }.first
+        let cameraShakeIdentifiers = effects.compactMap { $0.cameraShake?.identifier }
+        let identifier = [
+            "phase:\(plan.phaseEffect.identifier)",
+            "activity:\(plan.activityEffect?.identifier ?? "none")",
+            "rings:\(ringIdentifiers.joined(separator: ","))",
+            "pulses:\(phaseLightPulseIdentifiers.joined(separator: ","))",
+            "sparks:\(sparkBurstIdentifiers.joined(separator: ","))",
+            "history:\(historyTrailIdentifiers.joined(separator: ","))",
+            "victory:\(victoryCadenceIdentifier ?? "none")",
+            "camera:\(cameraShakeIdentifiers.joined(separator: ","))"
+        ].joined(separator: "|")
+
+        return CinematicDiagnosticsReport.StageEffectSnapshot(
+            identifier: identifier,
+            phaseEffectIdentifier: plan.phaseEffect.identifier,
+            phaseSourceIdentifier: plan.phaseEffect.sourceIdentifier,
+            phaseArenaEffectIdentifier: plan.phaseEffect.arenaEffect.rawValue,
+            activityEffectIdentifier: plan.activityEffect?.identifier,
+            activitySourceIdentifier: plan.activityEffect?.sourceIdentifier,
+            activityArenaEffectIdentifier: plan.activityEffect?.arenaEffect.rawValue,
+            arenaRingIdentifiers: ringIdentifiers,
+            phaseLightPulseIdentifiers: phaseLightPulseIdentifiers,
+            sparkBurstIdentifiers: sparkBurstIdentifiers,
+            historyTrailIdentifiers: historyTrailIdentifiers,
+            victoryCadenceIdentifier: victoryCadenceIdentifier,
+            cameraShakeIdentifiers: cameraShakeIdentifiers,
+            arenaRingCount: ringIdentifiers.count,
+            phaseLightPulseCount: phaseLightPulseIdentifiers.count,
+            sparkBurstCount: sparkBurstIdentifiers.count,
+            historyTrailCount: historyTrailIdentifiers.count
         )
     }
 

@@ -44,6 +44,10 @@ final class CinematicDiagnosticsTests: XCTestCase {
         XCTAssertEqual(report.stageBeat.activityEventKindIdentifier, "dirty")
         XCTAssertEqual(report.stageBeat.activityLightFamilyIdentifier, "pressure")
         XCTAssertEqual(report.stageBeat.activityArenaEffectIdentifier, "activity-pulse")
+        XCTAssertEqual(report.stageEffect.phaseArenaEffectIdentifier, "charge")
+        XCTAssertEqual(report.stageEffect.activityArenaEffectIdentifier, "activity-pulse")
+        XCTAssertEqual(report.stageEffect.arenaRingCount, 3)
+        XCTAssertEqual(report.stageEffect.phaseLightPulseCount, 1)
         XCTAssertTrue(report.worldText.identifier.contains(report.worldText.questLabel))
         XCTAssertTrue(report.briefing.identifier.contains(report.briefing.title))
 
@@ -214,6 +218,10 @@ final class CinematicDiagnosticsTests: XCTestCase {
                 "language-motif",
                 "activity-motif",
                 "stage-beat",
+                "stage-effect",
+                "effect-rings",
+                "effect-pulses",
+                "effect-history",
                 "world-quest",
                 "world-arena",
                 "world-activity",
@@ -274,6 +282,9 @@ final class CinematicDiagnosticsTests: XCTestCase {
         XCTAssertTrue(summary.exportText.contains(report.activityMotif.styleIdentifier))
         XCTAssertTrue(summary.exportText.contains(report.stageBeat.kindIdentifier))
         XCTAssertTrue(summary.exportText.contains(report.stageBeat.cameraShotIdentifier))
+        XCTAssertTrue(summary.exportText.contains(report.stageEffect.phaseArenaEffectIdentifier))
+        XCTAssertTrue(summary.exportText.contains(report.stageEffect.arenaRingIdentifiers[0]))
+        XCTAssertTrue(summary.exportText.contains(report.stageEffect.phaseLightPulseIdentifiers[0]))
         XCTAssertTrue(summary.exportText.contains(report.setDressing.languageArchitectureIdentifier))
         XCTAssertTrue(summary.exportText.contains(report.setDressing.activityMarkerIdentifier))
         XCTAssertTrue(summary.exportText.contains(report.setDressing.materialTextureVariantIdentifier))

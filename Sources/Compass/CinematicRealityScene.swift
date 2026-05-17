@@ -247,6 +247,7 @@ private final class CinematicSceneCoordinator {
     private var followCameraTarget: SIMD3<Float>?
     private var followCameraUntil = Date.distantPast
     private var shakeUntil = Date.distantPast
+    private var activeCameraShakeScale: Float = 0
     private var staffOrbBoost: Float = 0
     private let staffIdleOrientation = simd_quatf(angle: 0.18, axis: SIMD3<Float>(0, 0, 1))
     private let leftArmIdleOrientation = simd_quatf(angle: 0.44, axis: SIMD3<Float>(0, 0, 1))
@@ -815,9 +816,18 @@ private final class CinematicSceneCoordinator {
         )
     }
 
+    private func stageEffectPlan(for beat: CinematicStageBeat) -> CinematicStageEffectPlan {
+        CinematicStageEffectPlanner.plan(
+            beat: beat,
+            setDressingPlan: setDressingPlan,
+            influenceSettings: influenceSettings
+        )
+    }
+
     private func applyPhaseBeat(_ beat: CinematicStageBeat) {
+        let effectPlan = stageEffectPlan(for: beat)
         if beat.shouldRunVictorySurge {
-            victorySurge()
+            victorySurge(using: effectPlan)
             return
         }
 
@@ -827,10 +837,10 @@ private final class CinematicSceneCoordinator {
                 color: themedColor(beat.lightFamily.spell.nsColor),
                 intensity: beat.phaseLightIntensity
             )
-            if beat.shouldShakeCamera {
-                shakeCamera()
+            if let cameraShake = effectPlan.phaseEffect.cameraShake {
+                shakeCamera(cameraShake)
             }
-            applyArenaEffect(beat.arenaEffect, lightFamily: beat.lightFamily)
+            applyArenaEffect(effectPlan.phaseEffect)
             return
         }
 
@@ -838,22 +848,20 @@ private final class CinematicSceneCoordinator {
             color: themedColor(beat.lightFamily.spell.nsColor),
             intensity: beat.phaseLightIntensity
         )
-        applyArenaEffect(beat.arenaEffect, lightFamily: beat.lightFamily)
+        applyArenaEffect(effectPlan.phaseEffect)
         stageCamera(beat.cameraShot)
     }
 
-    private func applyArenaEffect(
-        _ effect: CinematicStageArenaEffect,
-        lightFamily: CinematicStageLightFamily
-    ) {
-        let color = themedColor(lightFamily.spell.nsColor)
-        switch effect {
-        case .charge:
-            chargeArena(color: color)
-        case .seal:
-            sealArena(color: color)
-        case .none, .victory, .activityPulse, .historyChains:
-            break
+    private func applyArenaEffect(_ effect: CinematicStageEffectPlan.EffectChoreography) {
+        let color = themedColor(effect.lightFamily.spell.nsColor)
+        if !effect.historyTrails.isEmpty {
+            historyChains(effect, color: color)
+        } else {
+            applyArenaRings(effect.arenaRings, color: color)
+        }
+        applySparkBursts(effect.sparkBursts, color: color)
+        if let pulse = effect.phaseLightPulse {
+            pulsePhaseLight(color: color, pulse: pulse)
         }
     }
 
@@ -978,25 +986,18 @@ private final class CinematicSceneCoordinator {
         pulsePhaseLight(color: color, intensity: 1200, duration: 0.8)
     }
 
-    private func victorySurge() {
-        stageCamera(.victory)
-        nextAmbientSpawnDate = Date().addingTimeInterval(2.2)
-        if !Array(enemyRoot.children).isEmpty {
+    private func victorySurge(using plan: CinematicStageEffectPlan) {
+        guard let cadence = plan.phaseEffect.victoryCadence else { return }
+        stageCamera(cadence.cameraShot)
+        nextAmbientSpawnDate = Date().addingTimeInterval(cadence.ambientSpawnDelay)
+        if cadence.shouldVolleyActiveEnemies, !Array(enemyRoot.children).isEmpty {
             castVolley(spell: .verify, failed: false)
         }
-        let victoryColor = themedColor(SpellSchool.verify.nsColor)
-        for radius in stride(from: Float(0.9), through: Float(7.6), by: Float(1.1)) {
-            arenaRing(
-                radius: radius,
-                color: victoryColor.withAlphaComponent(0.7),
-                duration: 1.1,
-                scale: 1.35,
-                opacity: 0.54
-            )
+        let victoryColor = themedColor(cadence.portalLightFamily.spell.nsColor)
+        applyArenaEffect(plan.phaseEffect)
+        if cadence.shouldRunPortalPulse {
+            portalPulse(color: victoryColor)
         }
-        portalPulse(color: victoryColor)
-        sparkBurst(at: [0, 1.3, -0.4], color: victoryColor, birthRate: 1600)
-        pulsePhaseLight(color: victoryColor, intensity: 1500, duration: 1.0)
     }
 
     private func forgeSparks(color: NSColor) {
@@ -1009,16 +1010,33 @@ private final class CinematicSceneCoordinator {
         }
     }
 
-    private func historyChains(color: NSColor) {
-        let points = [
-            (SIMD3<Float>(-3.8, 0.18, -1.8), SIMD3<Float>(3.6, 0.18, 1.6)),
-            (SIMD3<Float>(-3.2, 0.24, 2.0), SIMD3<Float>(3.3, 0.24, -1.6)),
-            (SIMD3<Float>(0, 0.26, -4.2), SIMD3<Float>(0, 0.26, 4.2))
-        ]
-        for pair in points {
-            spellTrail(from: pair.0, to: pair.1, spell: .git)
+    private func historyChains(_ effect: CinematicStageEffectPlan.EffectChoreography, color: NSColor) {
+        for trail in effect.historyTrails {
+            spellTrail(from: trail.start, to: trail.end, spell: trail.lightFamily.spell)
         }
-        arenaRing(radius: 4.0, color: color, duration: 0.95, scale: 1.45, opacity: 0.58)
+        applyArenaRings(effect.arenaRings, color: color)
+    }
+
+    private func applyArenaRings(_ rings: [CinematicStageEffectPlan.ArenaRing], color: NSColor) {
+        for ring in rings {
+            arenaRing(
+                radius: ring.radius,
+                color: color.withAlphaComponent(CGFloat(ring.colorAlpha)),
+                duration: ring.duration,
+                scale: ring.scale,
+                opacity: ring.opacity
+            )
+        }
+    }
+
+    private func applySparkBursts(_ sparkBursts: [CinematicStageEffectPlan.SparkBurst], color: NSColor) {
+        for spark in sparkBursts {
+            sparkBurst(
+                at: spark.position,
+                color: color.withAlphaComponent(CGFloat(spark.colorAlpha)),
+                birthRate: spark.birthRate
+            )
+        }
     }
 
     private func arenaRing(radius: Float, color: NSColor, duration: TimeInterval, scale: Float, opacity: Float) {
@@ -1037,6 +1055,17 @@ private final class CinematicSceneCoordinator {
         Task { @MainActor [weak self] in
             try? await Task.sleep(for: .seconds(duration))
             self?.setPhaseLight(color: color, intensity: 360)
+        }
+    }
+
+    private func pulsePhaseLight(
+        color: NSColor,
+        pulse: CinematicStageEffectPlan.PhaseLightPulse
+    ) {
+        setPhaseLight(color: color, intensity: pulse.intensity)
+        Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .seconds(pulse.duration))
+            self?.setPhaseLight(color: color, intensity: pulse.resetIntensity)
         }
     }
 
@@ -1550,7 +1579,10 @@ private final class CinematicSceneCoordinator {
             case .edit:
                 forgeSparks(color: spell.nsColor)
             case .git:
-                historyChains(color: spell.nsColor)
+                historyChains(
+                    CinematicStageEffectPlanner.historyChainsEffect(),
+                    color: spell.nsColor
+                )
             default:
                 break
             }
@@ -2057,32 +2089,28 @@ private final class CinematicSceneCoordinator {
     private func applyActivityTraits(animated: Bool) {
         applySetDressingPlan(animated: animated)
         let beat = stageBeat()
+        let effectPlan = stageEffectPlan(for: beat)
         setPhaseLight(
             color: themedColor(beat.lightFamily.spell.nsColor),
             intensity: beat.phaseLightIntensity
         )
-        guard animated, let accent = beat.activityAccent else { return }
-        applyActivityAccent(accent)
+        guard animated, let activityEffect = effectPlan.activityEffect else { return }
+        applyActivityAccent(activityEffect)
     }
 
-    private func applyActivityAccent(_ accent: CinematicStageActivityAccent) {
-        let color = themedColor(accent.lightFamily.spell.nsColor)
-        switch accent.arenaEffect {
-        case .activityPulse:
-            arenaRing(
-                radius: accent.pulseRadius,
-                color: color.withAlphaComponent(CGFloat(accent.pulseColorAlpha)),
-                duration: setDressingPlan.animationCadence.activityPulseDuration,
-                scale: accent.pulseScaleMultiplier * setDressingPlan.runeIntensity.activityPulseScale,
-                opacity: accent.pulseOpacity
-            )
-            if accent.shouldShakeCamera {
-                shakeCamera()
-            }
-        case .historyChains:
-            historyChains(color: color)
-        case .none, .charge, .seal, .victory:
-            break
+    private func applyActivityAccent(_ effect: CinematicStageEffectPlan.EffectChoreography) {
+        let color = themedColor(effect.lightFamily.spell.nsColor)
+        if !effect.historyTrails.isEmpty {
+            historyChains(effect, color: color)
+        } else {
+            applyArenaRings(effect.arenaRings, color: color)
+        }
+        applySparkBursts(effect.sparkBursts, color: color)
+        if let pulse = effect.phaseLightPulse {
+            pulsePhaseLight(color: color, pulse: pulse)
+        }
+        if let cameraShake = effect.cameraShake {
+            shakeCamera(cameraShake)
         }
     }
 
@@ -2107,7 +2135,19 @@ private final class CinematicSceneCoordinator {
     }
 
     private func shakeCamera() {
-        shakeUntil = Date().addingTimeInterval(0.22 * Double(cameraShakeScale()))
+        shakeCamera(
+            CinematicStageEffectPlan.CameraShake(
+                shouldShake: true,
+                duration: 0.22 * Double(cameraShakeScale()),
+                scale: cameraShakeScale()
+            )
+        )
+    }
+
+    private func shakeCamera(_ cameraShake: CinematicStageEffectPlan.CameraShake) {
+        guard cameraShake.shouldShake else { return }
+        activeCameraShakeScale = cameraShake.scale
+        shakeUntil = Date().addingTimeInterval(cameraShake.duration)
     }
 
     private func setPhaseLight(color: NSColor, intensity: Float) {
@@ -2358,12 +2398,14 @@ private final class CinematicSceneCoordinator {
         )
 
         if Date() < shakeUntil {
-            let shakeScale = cameraShakeScale()
+            let shakeScale = activeCameraShakeScale > 0 ? activeCameraShakeScale : cameraShakeScale()
             cameraOffset += SIMD3<Float>(
                 Float.random(in: -0.16...0.16) * shakeScale,
                 Float.random(in: -0.05...0.05) * shakeScale,
                 0
             )
+        } else {
+            activeCameraShakeScale = 0
         }
 
         let finalPosition = cameraPosition + cameraOffset

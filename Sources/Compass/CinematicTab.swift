@@ -180,7 +180,7 @@ private struct CinematicDiagnosticsPopover: View {
                             Text(row.detail)
                                 .font(.caption)
                                 .foregroundStyle(.primary)
-                                .lineLimit(2)
+                                .lineLimit(detailLineLimit(for: row))
                                 .textSelection(.enabled)
                                 .frame(maxWidth: .infinity, alignment: .leading)
                         }
@@ -200,6 +200,10 @@ private struct CinematicDiagnosticsPopover: View {
     private func copyToPasteboard(_ text: String) {
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(text, forType: .string)
+    }
+
+    private func detailLineLimit(for row: CinematicDiagnosticsSummary.Row) -> Int {
+        row.id.hasPrefix("effect-") || row.id == "stage-effect" ? 4 : 2
     }
 }
 
