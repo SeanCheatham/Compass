@@ -1,0 +1,227 @@
+import Foundation
+@testable import Compass
+import XCTest
+
+final class PlanReliabilityFeedbackTests: XCTestCase {
+    func testRejectedPlanStatusUsesRejectionText() {
+        let session = makeSession(
+            1,
+            status: .rejectedByPlan,
+            notes: [
+                "Plan tried to shrink completed history from 3 entries to 2. Refusing to overwrite state.json."
+            ],
+            feedback: "fallback"
+        )
+
+        let feedback = PlanReliabilityFeedback(state: makeState(), sessions: [session])
+
+        XCTAssertEqual(feedback.notices.count, 1)
+        XCTAssertEqual(feedback.notices[0].kind, .rejectedPlan)
+        XCTAssertEqual(feedback.notices[0].title, "Plan rejected")
+        XCTAssertEqual(
+            feedback.notices[0].detail,
+            "Plan tried to shrink completed history from 3 entries to 2. Refusing to overwrite state.json."
+        )
+        XCTAssertEqual(feedback.notices[0].actionLabel, "Retry Plan")
+        XCTAssertEqual(feedback.recentRunCues[1]?.kind, .rejectedPlan)
+        XCTAssertEqual(feedback.recentRunCues[1]?.label, "Retry Plan")
+    }
+
+    func testFailedPlanTransitionNoteBecomesRejectedPlanNotice() {
+        let session = makeSession(
+            2,
+            status: .failed,
+            notes: [
+                "Plan returned placeholder verify command `true`. Refusing to overwrite state.json."
+            ]
+        )
+
+        let feedback = PlanReliabilityFeedback(state: makeState(), sessions: [session])
+
+        XCTAssertEqual(feedback.notices.map(\.kind), [.rejectedPlan])
+        XCTAssertEqual(
+            feedback.notices[0].detail,
+            "Plan returned placeholder verify command `true`. Refusing to overwrite state.json."
+        )
+    }
+
+    func testDevelopBlockerUsesFeedbackText() {
+        let session = makeSession(
+            3,
+            status: .failed,
+            notes: ["Develop reported it was blocked but did not request verify bypass."],
+            feedback: "  Missing signing credentials.\nAsk the next pass to add a local fixture. "
+        )
+
+        let feedback = PlanReliabilityFeedback(state: makeState(), sessions: [session])
+
+        XCTAssertEqual(feedback.notices.map(\.kind), [.developBlocked])
+        XCTAssertEqual(feedback.notices[0].title, "Develop blocked")
+        XCTAssertEqual(feedback.notices[0].detail, "Missing signing credentials. Ask the next pass to add a local fixture.")
+        XCTAssertEqual(feedback.notices[0].actionLabel, "Retry Develop")
+    }
+
+    func testFailedDevelopUsesFeedbackWhenNoVerifyOutputExists() {
+        let session = makeSession(
+            4,
+            status: .failed,
+            notes: ["Develop reported failure: build settings were inconsistent"],
+            feedback: "build settings were inconsistent"
+        )
+
+        let feedback = PlanReliabilityFeedback(state: makeState(), sessions: [session])
+
+        XCTAssertEqual(feedback.notices.map(\.kind), [.developFailed])
+        XCTAssertEqual(feedback.notices[0].detail, "build settings were inconsistent")
+        XCTAssertEqual(feedback.recentRunCues[4]?.label, "Retry Develop")
+    }
+
+    func testFailedVerifyIncludesTailMetadata() {
+        let session = makeSession(
+            5,
+            status: .failed,
+            verify: "swift test --filter Plan",
+            verifyOutput: VerifyOutput(
+                command: "swift test --filter PlanReliabilityFeedbackTests",
+                exitCode: 65,
+                tail: """
+                Test Suite failed
+
+                Expected true but got false
+                """
+            )
+        )
+
+        let feedback = PlanReliabilityFeedback(state: makeState(), sessions: [session])
+
+        XCTAssertEqual(feedback.notices.map(\.kind), [.failedVerify])
+        XCTAssertEqual(feedback.notices[0].title, "Verify failed")
+        XCTAssertEqual(feedback.notices[0].detail, "Test Suite failed Expected true but got false")
+        XCTAssertEqual(
+            feedback.notices[0].metadata,
+            "swift test --filter PlanReliabilityFeedbackTests · exit 65"
+        )
+        XCTAssertEqual(feedback.recentRunCues[5]?.kind, .failedVerify)
+    }
+
+    func testAwaitingApprovalShowsResumeCueWhenImmediatePlanExists() {
+        let session = makeSession(
+            6,
+            status: .awaitingApproval,
+            plan: "Implement the approved next slice"
+        )
+
+        let feedback = PlanReliabilityFeedback(state: makeState(), sessions: [session])
+
+        XCTAssertEqual(feedback.notices.map(\.kind), [.resumeDevelop])
+        XCTAssertEqual(feedback.notices[0].title, "Develop ready")
+        XCTAssertEqual(feedback.notices[0].actionLabel, "Resume Develop")
+        XCTAssertEqual(feedback.notices[0].detail, "Implement the approved next slice")
+        XCTAssertEqual(feedback.recentRunCues[6]?.label, "Resume Develop")
+    }
+
+    func testSuccessfulAndCleanStatesStayEmpty() {
+        let sessions = [
+            makeSession(7, status: .succeeded, feedback: "done"),
+            makeSession(8, status: .skipped, notes: ["Plan returned no immediate work."])
+        ]
+
+        let feedback = PlanReliabilityFeedback(
+            state: makeState(immediate: nil),
+            sessions: sessions
+        )
+
+        XCTAssertTrue(feedback.isEmpty)
+        XCTAssertEqual(feedback.recentRunCues, [:])
+    }
+
+    func testBoundsAndNormalizesDetails() {
+        let session = makeSession(
+            9,
+            status: .failed,
+            notes: ["Develop reported it was blocked but did not request verify bypass."],
+            feedback: "  First line\n\n\tsecond   line with enough extra words to force truncation. "
+        )
+
+        let feedback = PlanReliabilityFeedback(
+            state: makeState(),
+            sessions: [session],
+            detailLimit: 38
+        )
+
+        let detail = feedback.notices[0].detail
+        XCTAssertLessThanOrEqual(detail.count, 38)
+        XCTAssertEqual(detail, "First line second line with enough...")
+    }
+
+    func testNoticeSectionLimitAndRecentRunCuePropagationCanDiffer() {
+        let newestFailedVerify = makeSession(
+            10,
+            startedAt: 9_000,
+            status: .failed,
+            verifyOutput: VerifyOutput(
+                command: "swift test",
+                exitCode: 1,
+                tail: "latest failure"
+            )
+        )
+        let olderRejectedPlan = makeSession(
+            11,
+            startedAt: 8_000,
+            status: .failed,
+            notes: ["Plan tried to clear a non-empty midTerm queue without recording a completion. Refusing to overwrite state.json."]
+        )
+
+        let feedback = PlanReliabilityFeedback(
+            state: makeState(),
+            sessions: [olderRejectedPlan, newestFailedVerify],
+            noticeLimit: 1
+        )
+
+        XCTAssertEqual(feedback.notices.map(\.sessionNumber), [10])
+        XCTAssertEqual(feedback.notices.map(\.kind), [.failedVerify])
+        XCTAssertEqual(feedback.recentRunCues[10]?.kind, .failedVerify)
+        XCTAssertEqual(feedback.recentRunCues[11]?.kind, .rejectedPlan)
+    }
+
+    private func makeState(
+        immediate: PlanNext? = PlanNext(
+            plan: "Implement reliability feedback",
+            verify: "swift test --filter Plan"
+        )
+    ) -> PlanState {
+        PlanState(
+            completed: [],
+            immediate: immediate,
+            midTerm: "",
+            longTerm: ""
+        )
+    }
+
+    private func makeSession(
+        _ number: Int,
+        startedAt: Double? = nil,
+        status: SessionStatus,
+        plan: String? = "Plan",
+        verify: String? = "swift test --filter Plan",
+        notes: [String] = [],
+        verifyOutput: VerifyOutput? = nil,
+        feedback: String? = nil
+    ) -> SessionRecord {
+        let start = startedAt ?? Double(number) * 1_000
+        return SessionRecord(
+            session: number,
+            startedAt: start,
+            endedAt: start + 500,
+            plan: plan,
+            verify: verify,
+            beforeSha: nil,
+            afterSha: nil,
+            commits: [],
+            status: status,
+            notes: notes,
+            verifyOutput: verifyOutput,
+            feedback: feedback
+        )
+    }
+}

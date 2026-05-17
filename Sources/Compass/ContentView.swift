@@ -492,6 +492,11 @@ private struct PlanTab: View {
         let items = PlanTimelineItem.items(for: project.state)
         let overview = PlanWorkflowOverview(state: project.state)
         let sessionHistory = PlanSessionHistory.displayItems(for: project.sessions)
+        let reliabilityFeedback = PlanReliabilityFeedback(
+            state: project.state,
+            sessions: project.sessions,
+            historyItems: sessionHistory
+        )
 
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
@@ -515,9 +520,14 @@ private struct PlanTab: View {
                     }
                 }
 
+                PlanReliabilityFeedbackView(feedback: reliabilityFeedback)
+
                 PlanFocusPanel(item: selectedItem(in: items))
 
-                PlanSessionHistorySection(items: sessionHistory)
+                PlanSessionHistorySection(
+                    items: sessionHistory,
+                    runCues: reliabilityFeedback.recentRunCues
+                )
             }
             .frame(maxWidth: 1060, alignment: .leading)
         }
@@ -740,6 +750,94 @@ private struct PlanWorkflowMetadataRow: View {
     }
 }
 
+private struct PlanReliabilityFeedbackView: View {
+    var feedback: PlanReliabilityFeedback
+
+    var body: some View {
+        if !feedback.isEmpty {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(alignment: .firstTextBaseline) {
+                    SectionHeader("Needs Attention", systemImage: "exclamationmark.triangle")
+
+                    Spacer()
+
+                    Label(
+                        "\(feedback.notices.count) \(feedback.notices.count == 1 ? "cue" : "cues")",
+                        systemImage: "waveform.path.ecg"
+                    )
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                        .padding(.horizontal, 9)
+                        .padding(.vertical, 5)
+                        .background(.quaternary.opacity(0.55), in: Capsule())
+                }
+
+                VStack(alignment: .leading, spacing: 8) {
+                    ForEach(feedback.notices) { notice in
+                        PlanReliabilityNoticeRow(notice: notice)
+                    }
+                }
+            }
+            .padding(14)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(sectionColor.opacity(0.07), in: RoundedRectangle(cornerRadius: 8))
+            .overlay {
+                RoundedRectangle(cornerRadius: 8)
+                    .stroke(sectionColor.opacity(0.2))
+            }
+        }
+    }
+
+    private var sectionColor: Color {
+        feedback.notices.first.map { reliabilityColor(for: $0.severity) } ?? .red
+    }
+}
+
+private struct PlanReliabilityNoticeRow: View {
+    var notice: PlanReliabilityFeedback.Notice
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 9) {
+            Image(systemName: notice.systemImage)
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(color)
+                .frame(width: 20, height: 20)
+
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                    Text(notice.title)
+                        .font(.callout.weight(.semibold))
+
+                    Text(notice.actionLabel)
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(color)
+                        .padding(.horizontal, 7)
+                        .padding(.vertical, 2)
+                        .background(color.opacity(0.12), in: Capsule())
+
+                    if let metadata = notice.metadata {
+                        Text(metadata)
+                            .font(.caption.monospacedDigit())
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
+                Text(notice.detail)
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(3)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .textSelection(.enabled)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    private var color: Color {
+        reliabilityColor(for: notice.severity)
+    }
+}
+
 private struct PlanTimelineHeader: View {
     var items: [PlanTimelineItem]
     @Binding var selectedItemID: String
@@ -910,6 +1008,7 @@ private struct VerifyCommandView: View {
 
 private struct PlanSessionHistorySection: View {
     var items: [PlanSessionHistoryItem]
+    var runCues: [Int: PlanReliabilityFeedback.RunCue] = [:]
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -934,7 +1033,10 @@ private struct PlanSessionHistorySection: View {
             } else {
                 VStack(alignment: .leading, spacing: 10) {
                     ForEach(items) { item in
-                        PlanSessionHistoryCard(item: item)
+                        PlanSessionHistoryCard(
+                            item: item,
+                            reliabilityCue: runCues[item.sessionNumber]
+                        )
                     }
                 }
             }
@@ -945,6 +1047,7 @@ private struct PlanSessionHistorySection: View {
 
 private struct PlanSessionHistoryCard: View {
     var item: PlanSessionHistoryItem
+    var reliabilityCue: PlanReliabilityFeedback.RunCue?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 9) {
@@ -958,6 +1061,16 @@ private struct PlanSessionHistoryCard: View {
                     .padding(.horizontal, 8)
                     .padding(.vertical, 3)
                     .background(statusColor.opacity(0.12), in: Capsule())
+
+                if let reliabilityCue {
+                    Label(reliabilityCue.label, systemImage: reliabilityCue.systemImage)
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(reliabilityColor(for: reliabilityCue.severity))
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 3)
+                        .background(reliabilityColor(for: reliabilityCue.severity).opacity(0.12), in: Capsule())
+                        .help(reliabilityCue.detail)
+                }
 
                 Spacer()
 
@@ -1058,6 +1171,17 @@ private struct PlanSessionHistoryCard: View {
 
     private func dateString(_ date: Date) -> String {
         date.formatted(date: .abbreviated, time: .shortened)
+    }
+}
+
+private func reliabilityColor(for severity: PlanReliabilityFeedback.Severity) -> Color {
+    switch severity {
+    case .warning:
+        return .orange
+    case .failure:
+        return .red
+    case .paused:
+        return .blue
     }
 }
 
