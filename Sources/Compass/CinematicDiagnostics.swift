@@ -75,6 +75,28 @@ struct CinematicDiagnosticsReport: Equatable {
         var phaseLightPulseCount: Int
         var sparkBurstCount: Int
         var historyTrailCount: Int
+        var tuningIdentifier: String
+        var pressureLevelIdentifier: String
+        var pressureFraction: Float
+        var energy: Float
+        var influenceStyleIdentifier: String
+        var influenceIntensity: Float
+        var influenceFraction: Float
+        var activityLightBoost: Float
+        var activityLightBoostFraction: Float
+        var runePulseScale: Float
+        var activityPulseDuration: TimeInterval
+        var ringDurationScale: Float
+        var ringScaleMultiplier: Float
+        var ringOpacityMultiplier: Float
+        var colorAlphaMultiplier: Float
+        var pulseIntensityMultiplier: Float
+        var pulseDurationMultiplier: Float
+        var sparkBirthRateMultiplier: Float
+        var historyTrailTargetCount: Int
+        var cameraShakeMultiplier: Float
+        var cameraShakeDurationMultiplier: Float
+        var victoryCadenceMultiplier: Float
     }
 
     struct WorldTextSnapshot: Equatable {
@@ -142,7 +164,7 @@ struct CinematicDiagnosticsReport: Equatable {
 }
 
 struct CinematicDiagnosticsSummary: Equatable {
-    static let maxRows = 25
+    static let maxRows = 26
     static let labelMaxCharacters = 32
     static let detailMaxCharacters = 512
 
@@ -230,6 +252,25 @@ struct CinematicDiagnosticsSummary: Equatable {
                         ? nil
                         : "camera \(report.stageEffect.cameraShakeIdentifiers.joined(separator: ","))"
                 ].compactMap { $0 }.joined(separator: " | ")
+            ),
+            row(
+                id: "effect-tuning",
+                label: "Effect tuning",
+                detail: [
+                    "pressure \(report.stageEffect.pressureLevelIdentifier) \(fixed(report.stageEffect.pressureFraction))",
+                    "energy \(fixed(report.stageEffect.energy))",
+                    "influence \(report.stageEffect.influenceStyleIdentifier) \(fixed(report.stageEffect.influenceIntensity))/\(fixed(report.stageEffect.influenceFraction))",
+                    "light \(fixed(report.stageEffect.activityLightBoost))/\(fixed(report.stageEffect.activityLightBoostFraction))",
+                    "rune \(fixed(report.stageEffect.runePulseScale))",
+                    "cadence \(fixed(report.stageEffect.activityPulseDuration))s",
+                    "ring \(fixed(report.stageEffect.ringScaleMultiplier))/\(fixed(report.stageEffect.ringDurationScale))/\(fixed(report.stageEffect.ringOpacityMultiplier))",
+                    "alpha \(fixed(report.stageEffect.colorAlphaMultiplier))",
+                    "pulse \(fixed(report.stageEffect.pulseIntensityMultiplier))/\(fixed(report.stageEffect.pulseDurationMultiplier))",
+                    "spark \(fixed(report.stageEffect.sparkBirthRateMultiplier))",
+                    "trails \(report.stageEffect.historyTrailTargetCount)",
+                    "shake \(fixed(report.stageEffect.cameraShakeMultiplier))/\(fixed(report.stageEffect.cameraShakeDurationMultiplier))",
+                    "victory \(fixed(report.stageEffect.victoryCadenceMultiplier))"
+                ].joined(separator: " | ")
             ),
             row(
                 id: "effect-rings",
@@ -690,6 +731,7 @@ enum CinematicDiagnostics {
         for plan: CinematicStageEffectPlan
     ) -> CinematicDiagnosticsReport.StageEffectSnapshot {
         let effects = plan.effects
+        let tuning = plan.tuningMetadata
         let ringIdentifiers = effects.flatMap(\.arenaRings).map(\.identifier)
         let phaseLightPulseIdentifiers = effects.compactMap { $0.phaseLightPulse?.identifier }
         let sparkBurstIdentifiers = effects.flatMap(\.sparkBursts).map(\.identifier)
@@ -704,7 +746,8 @@ enum CinematicDiagnostics {
             "sparks:\(sparkBurstIdentifiers.joined(separator: ","))",
             "history:\(historyTrailIdentifiers.joined(separator: ","))",
             "victory:\(victoryCadenceIdentifier ?? "none")",
-            "camera:\(cameraShakeIdentifiers.joined(separator: ","))"
+            "camera:\(cameraShakeIdentifiers.joined(separator: ","))",
+            "tuning:\(tuning.identifier)"
         ].joined(separator: "|")
 
         return CinematicDiagnosticsReport.StageEffectSnapshot(
@@ -724,7 +767,29 @@ enum CinematicDiagnostics {
             arenaRingCount: ringIdentifiers.count,
             phaseLightPulseCount: phaseLightPulseIdentifiers.count,
             sparkBurstCount: sparkBurstIdentifiers.count,
-            historyTrailCount: historyTrailIdentifiers.count
+            historyTrailCount: historyTrailIdentifiers.count,
+            tuningIdentifier: tuning.identifier,
+            pressureLevelIdentifier: tuning.pressureLevelIdentifier,
+            pressureFraction: tuning.pressureFraction,
+            energy: tuning.energy,
+            influenceStyleIdentifier: tuning.influenceStyleIdentifier,
+            influenceIntensity: tuning.influenceIntensity,
+            influenceFraction: tuning.influenceFraction,
+            activityLightBoost: tuning.activityLightBoost,
+            activityLightBoostFraction: tuning.activityLightBoostFraction,
+            runePulseScale: tuning.runePulseScale,
+            activityPulseDuration: tuning.activityPulseDuration,
+            ringDurationScale: tuning.ringDurationScale,
+            ringScaleMultiplier: tuning.ringScaleMultiplier,
+            ringOpacityMultiplier: tuning.ringOpacityMultiplier,
+            colorAlphaMultiplier: tuning.colorAlphaMultiplier,
+            pulseIntensityMultiplier: tuning.pulseIntensityMultiplier,
+            pulseDurationMultiplier: tuning.pulseDurationMultiplier,
+            sparkBirthRateMultiplier: tuning.sparkBirthRateMultiplier,
+            historyTrailTargetCount: tuning.historyTrailCount,
+            cameraShakeMultiplier: tuning.cameraShakeMultiplier,
+            cameraShakeDurationMultiplier: tuning.cameraShakeDurationMultiplier,
+            victoryCadenceMultiplier: tuning.victoryCadenceMultiplier
         )
     }
 

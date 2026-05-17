@@ -48,6 +48,9 @@ final class CinematicDiagnosticsTests: XCTestCase {
         XCTAssertEqual(report.stageEffect.activityArenaEffectIdentifier, "activity-pulse")
         XCTAssertEqual(report.stageEffect.arenaRingCount, 3)
         XCTAssertEqual(report.stageEffect.phaseLightPulseCount, 1)
+        XCTAssertEqual(report.stageEffect.pressureLevelIdentifier, "light")
+        XCTAssertEqual(report.stageEffect.influenceStyleIdentifier, "dramatic")
+        XCTAssertGreaterThan(report.stageEffect.energy, 0)
         XCTAssertTrue(report.worldText.identifier.contains(report.worldText.questLabel))
         XCTAssertTrue(report.briefing.identifier.contains(report.briefing.title))
 
@@ -99,6 +102,10 @@ final class CinematicDiagnosticsTests: XCTestCase {
         )
         XCTAssertTrue(
             Set(reports.map(\.activityTuning.pressureLevelIdentifier))
+                .isSuperset(of: ["clean", "light", "moderate", "heavy"])
+        )
+        XCTAssertTrue(
+            Set(reports.map(\.stageEffect.pressureLevelIdentifier))
                 .isSuperset(of: ["clean", "light", "moderate", "heavy"])
         )
     }
@@ -185,6 +192,8 @@ final class CinematicDiagnosticsTests: XCTestCase {
                 XCTAssertFinite(report.activityTuning.activityPressureScale)
                 XCTAssertGreaterThan(report.activityTuning.activityPressureScale, 0)
 
+                assertStageEffectTuningBounds(report.stageEffect, file: #filePath, line: #line)
+
                 for snapshot in report.cameraSnapshots {
                     XCTAssertFinite(snapshot.position)
                     XCTAssertInRange(snapshot.fieldOfView, CinematicTuning.cameraFieldOfViewRange)
@@ -219,6 +228,7 @@ final class CinematicDiagnosticsTests: XCTestCase {
                 "activity-motif",
                 "stage-beat",
                 "stage-effect",
+                "effect-tuning",
                 "effect-rings",
                 "effect-pulses",
                 "effect-history",
@@ -283,6 +293,9 @@ final class CinematicDiagnosticsTests: XCTestCase {
         XCTAssertTrue(summary.exportText.contains(report.stageBeat.kindIdentifier))
         XCTAssertTrue(summary.exportText.contains(report.stageBeat.cameraShotIdentifier))
         XCTAssertTrue(summary.exportText.contains(report.stageEffect.phaseArenaEffectIdentifier))
+        XCTAssertTrue(summary.exportText.contains("Effect tuning:"))
+        XCTAssertTrue(summary.exportText.contains(report.stageEffect.pressureLevelIdentifier))
+        XCTAssertTrue(summary.exportText.contains(report.stageEffect.influenceStyleIdentifier))
         XCTAssertTrue(summary.exportText.contains(report.stageEffect.arenaRingIdentifiers[0]))
         XCTAssertTrue(summary.exportText.contains(report.stageEffect.phaseLightPulseIdentifiers[0]))
         XCTAssertTrue(summary.exportText.contains(report.setDressing.languageArchitectureIdentifier))
@@ -371,6 +384,65 @@ final class CinematicDiagnosticsTests: XCTestCase {
 
         XCTAssertEqual(first, second)
         XCTAssertEqual(first.exportText, second.exportText)
+    }
+
+    func testRepresentativeDiagnosticsExposeStageEffectTuningDifferences() throws {
+        let dramaticReports = CinematicDiagnostics.representativeSmokeMatrix(
+            influenceSettings: CinematicInfluenceSettings(cameraStyle: .dramatic, intensity: 1)
+        )
+        let clean = try XCTUnwrap(dramaticReports.first {
+            $0.activityMotif.eventKindIdentifier == "clean" && $0.stageEffect.pressureLevelIdentifier == "clean"
+        })
+        let heavy = try XCTUnwrap(dramaticReports.first {
+            $0.activityMotif.eventKindIdentifier == "dirty" && $0.stageEffect.pressureLevelIdentifier == "heavy"
+        })
+
+        XCTAssertGreaterThan(heavy.stageEffect.pressureFraction, clean.stageEffect.pressureFraction)
+        XCTAssertGreaterThan(heavy.stageEffect.energy, clean.stageEffect.energy)
+        XCTAssertGreaterThan(heavy.stageEffect.ringScaleMultiplier, clean.stageEffect.ringScaleMultiplier)
+        XCTAssertLessThan(heavy.stageEffect.ringDurationScale, clean.stageEffect.ringDurationScale)
+
+        let steady = CinematicDiagnostics.report(
+            repoName: "Compass",
+            phase: "Verifying",
+            immediateTitle: "Bound stage effect tuning",
+            completedCount: 2,
+            latestEvent: nil,
+            languageProfile: languageProfile(primaryLanguage: .swift),
+            activityProfile: activityProfile(worktreeChanges: worktreeChanges(modified: 8)),
+            influenceSettings: CinematicInfluenceSettings(cameraStyle: .steady, intensity: 0)
+        )
+        let follow = CinematicDiagnostics.report(
+            repoName: "Compass",
+            phase: "Verifying",
+            immediateTitle: "Bound stage effect tuning",
+            completedCount: 2,
+            latestEvent: nil,
+            languageProfile: languageProfile(primaryLanguage: .swift),
+            activityProfile: activityProfile(worktreeChanges: worktreeChanges(modified: 8)),
+            influenceSettings: CinematicInfluenceSettings(cameraStyle: .follow, intensity: CinematicInfluenceSettings.defaultIntensity)
+        )
+        let dramatic = CinematicDiagnostics.report(
+            repoName: "Compass",
+            phase: "Verifying",
+            immediateTitle: "Bound stage effect tuning",
+            completedCount: 2,
+            latestEvent: nil,
+            languageProfile: languageProfile(primaryLanguage: .swift),
+            activityProfile: activityProfile(worktreeChanges: worktreeChanges(modified: 8)),
+            influenceSettings: CinematicInfluenceSettings(cameraStyle: .dramatic, intensity: 1)
+        )
+
+        XCTAssertLessThan(steady.stageEffect.influenceFraction, follow.stageEffect.influenceFraction)
+        XCTAssertLessThan(follow.stageEffect.influenceFraction, dramatic.stageEffect.influenceFraction)
+        XCTAssertGreaterThan(dramatic.stageEffect.sparkBirthRateMultiplier, steady.stageEffect.sparkBirthRateMultiplier)
+        XCTAssertInRange(dramatic.stageEffect.sparkBirthRateMultiplier, CinematicStageEffectPlan.sparkBirthRateMultiplierRange)
+
+        let summary = CinematicDiagnosticsSummary(report: heavy)
+        XCTAssertTrue(summary.rows.contains { $0.id == "effect-tuning" })
+        XCTAssertTrue(summary.exportText.contains("Effect tuning:"))
+        XCTAssertTrue(summary.exportText.contains("pressure heavy"))
+        XCTAssertTrue(summary.exportText.contains("influence dramatic"))
     }
 }
 
@@ -503,6 +575,33 @@ private func assertWorldTextBounds(
 
 private func wordCount(_ text: String) -> Int {
     text.split(whereSeparator: \.isWhitespace).count
+}
+
+private func assertStageEffectTuningBounds(
+    _ snapshot: CinematicDiagnosticsReport.StageEffectSnapshot,
+    file: StaticString = #filePath,
+    line: UInt = #line
+) {
+    XCTAssertInRange(snapshot.pressureFraction, CinematicStageEffectPlan.stageEffectPressureRange, file: file, line: line)
+    XCTAssertInRange(snapshot.energy, CinematicStageEffectPlan.stageEffectEnergyRange, file: file, line: line)
+    XCTAssertInRange(snapshot.influenceIntensity, CinematicStageEffectPlan.stageEffectInfluenceRange, file: file, line: line)
+    XCTAssertInRange(snapshot.influenceFraction, CinematicStageEffectPlan.stageEffectInfluenceRange, file: file, line: line)
+    XCTAssertInRange(snapshot.activityLightBoost, CinematicStageEffectPlan.stageEffectActivityLightBoostRange, file: file, line: line)
+    XCTAssertInRange(snapshot.activityLightBoostFraction, CinematicStageEffectPlan.stageEffectEnergyRange, file: file, line: line)
+    XCTAssertInRange(snapshot.runePulseScale, CinematicStageEffectPlan.stageEffectRunePulseScaleRange, file: file, line: line)
+    XCTAssertInRange(snapshot.activityPulseDuration, CinematicStageEffectPlan.stageEffectActivityPulseDurationRange, file: file, line: line)
+    XCTAssertInRange(snapshot.ringDurationScale, CinematicStageEffectPlan.ringDurationScaleRange, file: file, line: line)
+    XCTAssertInRange(snapshot.ringScaleMultiplier, CinematicStageEffectPlan.ringScaleMultiplierRange, file: file, line: line)
+    XCTAssertInRange(snapshot.ringOpacityMultiplier, CinematicStageEffectPlan.ringOpacityMultiplierRange, file: file, line: line)
+    XCTAssertInRange(snapshot.colorAlphaMultiplier, CinematicStageEffectPlan.colorAlphaMultiplierRange, file: file, line: line)
+    XCTAssertInRange(snapshot.pulseIntensityMultiplier, CinematicStageEffectPlan.pulseIntensityMultiplierRange, file: file, line: line)
+    XCTAssertInRange(snapshot.pulseDurationMultiplier, CinematicStageEffectPlan.pulseDurationMultiplierRange, file: file, line: line)
+    XCTAssertInRange(snapshot.sparkBirthRateMultiplier, CinematicStageEffectPlan.sparkBirthRateMultiplierRange, file: file, line: line)
+    XCTAssertInRange(snapshot.historyTrailTargetCount, CinematicStageEffectPlan.historyTrailTuningCountRange, file: file, line: line)
+    XCTAssertInRange(snapshot.cameraShakeMultiplier, CinematicStageEffectPlan.cameraShakeMultiplierRange, file: file, line: line)
+    XCTAssertInRange(snapshot.cameraShakeDurationMultiplier, CinematicStageEffectPlan.cameraShakeDurationMultiplierRange, file: file, line: line)
+    XCTAssertInRange(snapshot.victoryCadenceMultiplier, CinematicStageEffectPlan.victoryCadenceMultiplierRange, file: file, line: line)
+    XCTAssertFalse(snapshot.tuningIdentifier.isEmpty, file: file, line: line)
 }
 
 private func XCTAssertInRange<T: Comparable>(

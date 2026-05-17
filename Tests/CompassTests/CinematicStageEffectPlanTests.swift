@@ -181,8 +181,69 @@ final class CinematicStageEffectPlanTests: XCTestCase {
         XCTAssertEqual(first, second)
         XCTAssertEqual(first.identifier, second.identifier)
         XCTAssertEqual(first.influenceIdentifier, "dramatic|0.7000")
+        XCTAssertEqual(first.tuningMetadata.identifier, second.tuningMetadata.identifier)
+        XCTAssertEqual(first.tuningMetadata.influenceStyleIdentifier, "dramatic")
         XCTAssertTrue(first.phaseEffect.identifier.contains("seal"))
         XCTAssertTrue(first.activityEffect?.identifier.contains("history-chains") ?? false)
+    }
+
+    func testPressureTuningIncreasesVisibleChoreographyFromCleanToHeavy() throws {
+        let settings = CinematicInfluenceSettings(cameraStyle: .follow, intensity: CinematicInfluenceSettings.defaultIntensity)
+        let cleanPlan = effectPlan(
+            phase: .developing,
+            activityProfile: activityProfile(),
+            settings: settings
+        )
+        let heavyPlan = effectPlan(
+            phase: .developing,
+            activityProfile: activityProfile(worktreeChanges: worktreeChanges(modified: 16)),
+            settings: settings
+        )
+
+        let cleanRing = try XCTUnwrap(cleanPlan.phaseEffect.arenaRings.first)
+        let heavyRing = try XCTUnwrap(heavyPlan.phaseEffect.arenaRings.first)
+        let cleanPulse = try XCTUnwrap(cleanPlan.phaseEffect.phaseLightPulse)
+        let heavyPulse = try XCTUnwrap(heavyPlan.phaseEffect.phaseLightPulse)
+        let heavyActivityRing = try XCTUnwrap(heavyPlan.activityEffect?.arenaRings.first)
+
+        XCTAssertEqual(cleanPlan.tuningMetadata.pressureLevelIdentifier, "clean")
+        XCTAssertEqual(heavyPlan.tuningMetadata.pressureLevelIdentifier, "heavy")
+        XCTAssertGreaterThan(heavyPlan.tuningMetadata.pressureFraction, cleanPlan.tuningMetadata.pressureFraction)
+        XCTAssertGreaterThan(heavyPlan.tuningMetadata.energy, cleanPlan.tuningMetadata.energy)
+        XCTAssertGreaterThan(heavyRing.scale, cleanRing.scale)
+        XCTAssertGreaterThan(heavyRing.opacity, cleanRing.opacity)
+        XCTAssertLessThan(heavyRing.duration, cleanRing.duration)
+        XCTAssertGreaterThan(heavyPulse.intensity, cleanPulse.intensity)
+        XCTAssertGreaterThan(heavyActivityRing.scale, 1)
+    }
+
+    func testInfluenceTuningChangesStayBoundedFromSteadyToDramatic() throws {
+        let profile = activityProfile(worktreeChanges: worktreeChanges(modified: 8))
+        let steadyPlan = effectPlan(
+            phase: .verifying,
+            activityProfile: profile,
+            settings: CinematicInfluenceSettings(cameraStyle: .steady, intensity: 0)
+        )
+        let dramaticPlan = effectPlan(
+            phase: .verifying,
+            activityProfile: profile,
+            settings: CinematicInfluenceSettings(cameraStyle: .dramatic, intensity: 1)
+        )
+
+        let steadySpark = try XCTUnwrap(steadyPlan.phaseEffect.sparkBursts.first)
+        let dramaticSpark = try XCTUnwrap(dramaticPlan.phaseEffect.sparkBursts.first)
+        let steadyRing = try XCTUnwrap(steadyPlan.phaseEffect.arenaRings.first)
+        let dramaticRing = try XCTUnwrap(dramaticPlan.phaseEffect.arenaRings.first)
+
+        XCTAssertEqual(steadyPlan.tuningMetadata.influenceStyleIdentifier, "steady")
+        XCTAssertEqual(dramaticPlan.tuningMetadata.influenceStyleIdentifier, "dramatic")
+        XCTAssertGreaterThan(dramaticPlan.tuningMetadata.influenceFraction, steadyPlan.tuningMetadata.influenceFraction)
+        XCTAssertGreaterThan(dramaticPlan.tuningMetadata.energy, steadyPlan.tuningMetadata.energy)
+        XCTAssertGreaterThan(dramaticRing.scale, steadyRing.scale)
+        XCTAssertLessThan(dramaticRing.duration, steadyRing.duration)
+        XCTAssertGreaterThan(dramaticSpark.birthRate, steadySpark.birthRate)
+        assertPlanInBounds(steadyPlan)
+        assertPlanInBounds(dramaticPlan)
     }
 
     func testInfluenceIntensityScalesActivityPulseAndCameraShakeDescriptors() throws {
@@ -251,15 +312,24 @@ final class CinematicStageEffectPlanTests: XCTestCase {
         XCTAssertNil(report.stageEffect.victoryCadenceIdentifier)
         XCTAssertTrue(report.stageEffect.cameraShakeIdentifiers.isEmpty)
         XCTAssertTrue(report.stageEffect.arenaRingIdentifiers.contains { $0.contains("r4.0000") })
-        XCTAssertTrue(report.stageEffect.phaseLightPulseIdentifiers.contains { $0.contains("i1200.0000") })
-        XCTAssertTrue(report.stageEffect.sparkBurstIdentifiers.contains { $0.contains("b1200.0000") })
+        XCTAssertTrue(report.stageEffect.phaseLightPulseIdentifiers.contains { $0.contains("reset") })
+        XCTAssertTrue(report.stageEffect.sparkBurstIdentifiers.contains { $0.contains("b") })
+        XCTAssertEqual(report.stageEffect.pressureLevelIdentifier, "clean")
+        XCTAssertEqual(report.stageEffect.influenceStyleIdentifier, "follow")
+        XCTAssertGreaterThan(report.stageEffect.energy, 0)
+        XCTAssertGreaterThan(report.stageEffect.ringScaleMultiplier, 0)
+        XCTAssertGreaterThan(report.stageEffect.pulseIntensityMultiplier, 0)
+        XCTAssertGreaterThan(report.stageEffect.sparkBirthRateMultiplier, 0)
+        XCTAssertEqual(report.stageEffect.historyTrailTargetCount, 3)
 
         let summary = CinematicDiagnosticsSummary(report: report)
         XCTAssertTrue(summary.rows.contains { $0.id == "stage-effect" })
+        XCTAssertTrue(summary.rows.contains { $0.id == "effect-tuning" })
         XCTAssertTrue(summary.rows.contains { $0.id == "effect-rings" })
         XCTAssertTrue(summary.rows.contains { $0.id == "effect-pulses" })
         XCTAssertTrue(summary.rows.contains { $0.id == "effect-history" })
         XCTAssertTrue(summary.exportText.contains("Stage effect:"))
+        XCTAssertTrue(summary.exportText.contains("Effect tuning:"))
         XCTAssertTrue(summary.exportText.contains("Effect rings:"))
         XCTAssertTrue(summary.exportText.contains("Effect pulses:"))
         XCTAssertTrue(summary.exportText.contains("Effect history:"))
@@ -300,6 +370,27 @@ private func assertPlanInBounds(
     file: StaticString = #filePath,
     line: UInt = #line
 ) {
+    XCTAssertInRange(plan.tuningMetadata.pressureFraction, CinematicStageEffectPlan.stageEffectPressureRange, file: file, line: line)
+    XCTAssertInRange(plan.tuningMetadata.energy, CinematicStageEffectPlan.stageEffectEnergyRange, file: file, line: line)
+    XCTAssertInRange(plan.tuningMetadata.influenceIntensity, CinematicStageEffectPlan.stageEffectInfluenceRange, file: file, line: line)
+    XCTAssertInRange(plan.tuningMetadata.influenceFraction, CinematicStageEffectPlan.stageEffectInfluenceRange, file: file, line: line)
+    XCTAssertInRange(plan.tuningMetadata.activityLightBoost, CinematicStageEffectPlan.stageEffectActivityLightBoostRange, file: file, line: line)
+    XCTAssertInRange(plan.tuningMetadata.activityLightBoostFraction, CinematicStageEffectPlan.stageEffectEnergyRange, file: file, line: line)
+    XCTAssertInRange(plan.tuningMetadata.runePulseScale, CinematicStageEffectPlan.stageEffectRunePulseScaleRange, file: file, line: line)
+    XCTAssertInRange(plan.tuningMetadata.activityPulseDuration, CinematicStageEffectPlan.stageEffectActivityPulseDurationRange, file: file, line: line)
+    XCTAssertInRange(plan.tuningMetadata.ringDurationScale, CinematicStageEffectPlan.ringDurationScaleRange, file: file, line: line)
+    XCTAssertInRange(plan.tuningMetadata.ringScaleMultiplier, CinematicStageEffectPlan.ringScaleMultiplierRange, file: file, line: line)
+    XCTAssertInRange(plan.tuningMetadata.ringOpacityMultiplier, CinematicStageEffectPlan.ringOpacityMultiplierRange, file: file, line: line)
+    XCTAssertInRange(plan.tuningMetadata.colorAlphaMultiplier, CinematicStageEffectPlan.colorAlphaMultiplierRange, file: file, line: line)
+    XCTAssertInRange(plan.tuningMetadata.pulseIntensityMultiplier, CinematicStageEffectPlan.pulseIntensityMultiplierRange, file: file, line: line)
+    XCTAssertInRange(plan.tuningMetadata.pulseDurationMultiplier, CinematicStageEffectPlan.pulseDurationMultiplierRange, file: file, line: line)
+    XCTAssertInRange(plan.tuningMetadata.sparkBirthRateMultiplier, CinematicStageEffectPlan.sparkBirthRateMultiplierRange, file: file, line: line)
+    XCTAssertInRange(plan.tuningMetadata.historyTrailCount, CinematicStageEffectPlan.historyTrailTuningCountRange, file: file, line: line)
+    XCTAssertInRange(plan.tuningMetadata.cameraShakeMultiplier, CinematicStageEffectPlan.cameraShakeMultiplierRange, file: file, line: line)
+    XCTAssertInRange(plan.tuningMetadata.cameraShakeDurationMultiplier, CinematicStageEffectPlan.cameraShakeDurationMultiplierRange, file: file, line: line)
+    XCTAssertInRange(plan.tuningMetadata.victoryCadenceMultiplier, CinematicStageEffectPlan.victoryCadenceMultiplierRange, file: file, line: line)
+    XCTAssertFalse(plan.tuningMetadata.identifier.isEmpty, file: file, line: line)
+
     for effect in plan.effects {
         for ring in effect.arenaRings {
             XCTAssertInRange(ring.radius, CinematicStageEffectPlan.arenaRingRadiusRange, file: file, line: line)
