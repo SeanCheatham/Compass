@@ -1537,15 +1537,15 @@ enum KnownProjectStore {
         legacyDirectoryURL(in: legacyApplicationSupportRoot).appending(path: "projects.json")
     }
 
-    private static func directoryURL(in currentApplicationSupportRoot: URL) -> URL {
+    static func directoryURL(in currentApplicationSupportRoot: URL) -> URL {
         currentApplicationSupportRoot.appending(path: "Compass", directoryHint: .isDirectory)
     }
 
-    private static func legacyDirectoryURL(in legacyApplicationSupportRoot: URL) -> URL {
+    static func legacyDirectoryURL(in legacyApplicationSupportRoot: URL) -> URL {
         legacyApplicationSupportRoot.appending(path: "CompassNative", directoryHint: .isDirectory)
     }
 
-    private static func productionApplicationSupportRoots() -> ApplicationSupportRoots {
+    static func productionApplicationSupportRoots() -> ApplicationSupportRoots {
         let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
             ?? FileManager.default.homeDirectoryForCurrentUser.appending(path: "Library/Application Support", directoryHint: .isDirectory)
         return ApplicationSupportRoots(current: base, legacy: base)

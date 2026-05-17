@@ -348,6 +348,7 @@ private struct WorkspaceHeader: View {
 
     var body: some View {
         let reliabilityStatus = project.reliabilityStatus
+        let storageAssessment = project.storageAssessment
 
         VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .firstTextBaseline, spacing: 10) {
@@ -360,6 +361,7 @@ private struct WorkspaceHeader: View {
                     .lineLimit(1)
                     .truncationMode(.middle)
                 Spacer(minLength: 12)
+                ProjectStorageAssessmentPill(assessment: storageAssessment)
                 if !reliabilityStatus.isEmpty {
                     ProjectReliabilityAttentionPill(status: reliabilityStatus)
                 }
@@ -396,6 +398,53 @@ private extension CompassProject {
             isPaused: isPaused,
             pauseMode: pauseMode
         )
+    }
+
+    var storageAssessment: CompassWorkspaceStorageAssessment {
+        CompassWorkspaceStorageAssessment(
+            repoURL: repoURL,
+            applicationSupportRoots: KnownProjectStore.productionApplicationSupportRoots()
+        )
+    }
+}
+
+private struct ProjectStorageAssessmentPill: View {
+    var assessment: CompassWorkspaceStorageAssessment
+
+    var body: some View {
+        HStack(spacing: 5) {
+            Image(systemName: assessment.systemImage)
+                .font(.system(size: 12, weight: .semibold))
+            Text(assessment.label)
+                .lineLimit(1)
+        }
+        .font(.caption.weight(.semibold))
+        .foregroundStyle(color)
+        .padding(.horizontal, 9)
+        .padding(.vertical, 5)
+        .background(color.opacity(assessment.isHealthy ? 0.10 : 0.12), in: Capsule())
+        .overlay {
+            Capsule()
+                .stroke(color.opacity(assessment.isHealthy ? 0.20 : 0.28))
+        }
+        .help(helpText)
+        .accessibilityLabel("Storage: \(assessment.label)")
+        .accessibilityHint(assessment.recommendation)
+    }
+
+    private var color: Color {
+        storageAssessmentColor(for: assessment.severity)
+    }
+
+    private var helpText: String {
+        [
+            assessment.label,
+            assessment.detail,
+            assessment.recommendation,
+            assessment.currentApplicationSupportCandidateURL.path
+        ]
+            .filter { !$0.isEmpty }
+            .joined(separator: " · ")
     }
 }
 
@@ -1389,6 +1438,19 @@ private func reliabilityColor(for severity: PlanReliabilityFeedback.Severity) ->
         return .red
     case .paused:
         return .blue
+    }
+}
+
+private func storageAssessmentColor(for severity: CompassWorkspaceStorageAssessment.Severity) -> Color {
+    switch severity {
+    case .healthy:
+        return .green
+    case .info:
+        return .blue
+    case .warning:
+        return .orange
+    case .failure:
+        return .red
     }
 }
 
