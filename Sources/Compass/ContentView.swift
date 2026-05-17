@@ -490,6 +490,7 @@ private struct PlanTab: View {
 
     var body: some View {
         let items = PlanTimelineItem.items(for: project.state)
+        let overview = PlanWorkflowOverview(state: project.state)
         let sessionHistory = PlanSessionHistory.displayItems(for: project.sessions)
 
         ScrollView {
@@ -499,6 +500,8 @@ private struct PlanTab: View {
                     selectedItemID: $selectedItemID,
                     completedCount: project.state.completed.count
                 )
+
+                PlanWorkflowOverviewView(overview: overview)
 
                 PlanFocusPanel(item: selectedItem(in: items))
 
@@ -522,6 +525,133 @@ private struct PlanTab: View {
         if !items.contains(where: { $0.id == selectedItemID }) {
             selectedItemID = items.first { $0.id == PlanTimelineItem.immediateID }?.id ?? items[0].id
         }
+    }
+}
+
+private struct PlanWorkflowOverviewView: View {
+    var overview: PlanWorkflowOverview
+
+    private let columns = [
+        GridItem(.adaptive(minimum: 280), spacing: 12, alignment: .top)
+    ]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .firstTextBaseline) {
+                VStack(alignment: .leading, spacing: 3) {
+                    SectionHeader("Workflow Overview", systemImage: "rectangle.3.group")
+                    Text("Current work, queued direction, and the strategic arc stay visible together.")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                }
+
+                Spacer()
+
+                Label("\(overview.completedCount) completed", systemImage: "checkmark.circle")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 9)
+                    .padding(.vertical, 5)
+                    .background(.quaternary.opacity(0.55), in: Capsule())
+            }
+
+            LazyVGrid(columns: columns, alignment: .leading, spacing: 12) {
+                ForEach(overview.sections) { section in
+                    PlanWorkflowOverviewCard(section: section)
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+private struct PlanWorkflowOverviewCard: View {
+    var section: PlanWorkflowOverview.Section
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .top, spacing: 8) {
+                Image(systemName: section.systemImage)
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(color)
+                    .frame(width: 24, height: 24)
+                    .background(color.opacity(0.12), in: Circle())
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(section.title)
+                        .font(.headline)
+                    Text(section.label)
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(color)
+                }
+
+                Spacer(minLength: 8)
+            }
+
+            Text(section.excerpt ?? section.emptyMessage)
+                .font(.callout)
+                .foregroundStyle(section.isEmpty ? .secondary : .primary)
+                .lineLimit(5)
+                .fixedSize(horizontal: false, vertical: true)
+                .textSelection(.enabled)
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+            PlanWorkflowMetadataRow(section: section, color: color)
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, minHeight: 154, alignment: .topLeading)
+        .background(color.opacity(0.07), in: RoundedRectangle(cornerRadius: 8))
+        .overlay {
+            RoundedRectangle(cornerRadius: 8)
+                .stroke(color.opacity(0.2))
+        }
+    }
+
+    private var color: Color {
+        switch section.kind {
+        case .immediate:
+            return .blue
+        case .midTerm:
+            return .orange
+        case .longTerm:
+            return .purple
+        }
+    }
+}
+
+private struct PlanWorkflowMetadataRow: View {
+    var section: PlanWorkflowOverview.Section
+    var color: Color
+
+    var body: some View {
+        HStack(spacing: 6) {
+            if let verifyCommand = section.verifyCommand {
+                metadataLabel(verifyCommand, systemImage: "checkmark.seal")
+                    .textSelection(.enabled)
+            } else if section.kind == .immediate {
+                metadataLabel("No verify command", systemImage: "checkmark.seal")
+            }
+
+            if let difficulty = section.estimatedDifficultyLabel {
+                metadataLabel(difficulty, systemImage: "gauge.with.dots.needle.bottom.50percent")
+            } else if section.kind == .immediate {
+                metadataLabel("No difficulty", systemImage: "gauge.with.dots.needle.bottom.50percent")
+            }
+
+            if section.kind != .immediate {
+                metadataLabel("\(section.completedCount) completed", systemImage: "checkmark.circle")
+            }
+        }
+        .font(.caption)
+        .foregroundStyle(.secondary)
+        .lineLimit(1)
+    }
+
+    private func metadataLabel(_ text: String, systemImage: String) -> some View {
+        Label(text, systemImage: systemImage)
+            .padding(.horizontal, 7)
+            .padding(.vertical, 3)
+            .background(color.opacity(0.1), in: Capsule())
     }
 }
 
