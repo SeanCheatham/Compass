@@ -344,7 +344,7 @@ enum PauseMode: String, Codable, CaseIterable, Identifiable {
     }
 }
 
-enum LoopPhase: String {
+enum LoopPhase: String, CaseIterable {
     case idle = "Idle"
     case planning = "Planning"
     case developing = "Developing"

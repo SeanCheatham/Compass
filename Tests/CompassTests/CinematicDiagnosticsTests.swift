@@ -38,6 +38,12 @@ final class CinematicDiagnosticsTests: XCTestCase {
         XCTAssertEqual(report.activityMotif.styleIdentifier, "pressure-shard")
         XCTAssertEqual(report.activityMotif.tintSourceIdentifier, "pressure")
         XCTAssertEqual(report.activityMotif.transitionSpellIdentifier, "pressure")
+        XCTAssertEqual(report.stageBeat.kindIdentifier, "developing")
+        XCTAssertEqual(report.stageBeat.cameraShotIdentifier, "cast-prep")
+        XCTAssertEqual(report.stageBeat.lightFamilyIdentifier, "shell")
+        XCTAssertEqual(report.stageBeat.activityEventKindIdentifier, "dirty")
+        XCTAssertEqual(report.stageBeat.activityLightFamilyIdentifier, "pressure")
+        XCTAssertEqual(report.stageBeat.activityArenaEffectIdentifier, "activity-pulse")
         XCTAssertTrue(report.worldText.identifier.contains(report.worldText.questLabel))
         XCTAssertTrue(report.briefing.identifier.contains(report.briefing.title))
 
@@ -207,6 +213,7 @@ final class CinematicDiagnosticsTests: XCTestCase {
                 "immediate",
                 "language-motif",
                 "activity-motif",
+                "stage-beat",
                 "world-quest",
                 "world-arena",
                 "world-activity",
@@ -265,6 +272,8 @@ final class CinematicDiagnosticsTests: XCTestCase {
         XCTAssertTrue(summary.exportText.contains(report.languageMotif.styleIdentifier))
         XCTAssertTrue(summary.exportText.contains(report.activityMotif.sigilIdentifier))
         XCTAssertTrue(summary.exportText.contains(report.activityMotif.styleIdentifier))
+        XCTAssertTrue(summary.exportText.contains(report.stageBeat.kindIdentifier))
+        XCTAssertTrue(summary.exportText.contains(report.stageBeat.cameraShotIdentifier))
         XCTAssertTrue(summary.exportText.contains(report.setDressing.languageArchitectureIdentifier))
         XCTAssertTrue(summary.exportText.contains(report.setDressing.activityMarkerIdentifier))
         XCTAssertTrue(summary.exportText.contains(report.setDressing.materialTextureVariantIdentifier))
@@ -323,6 +332,11 @@ final class CinematicDiagnosticsTests: XCTestCase {
             XCTAssertEqual(report.completedCount, 2)
             XCTAssertEqual(report.languageMotif.sigilIdentifier, "language.python")
             XCTAssertEqual(report.activityMotif.eventKindIdentifier, "commit")
+            XCTAssertEqual(report.stageBeat.phaseIdentifier, "Developing")
+            XCTAssertEqual(report.stageBeat.kindIdentifier, "developing")
+            XCTAssertEqual(report.stageBeat.cameraShotIdentifier, "cast-prep")
+            XCTAssertEqual(report.stageBeat.activityEventKindIdentifier, "commit")
+            XCTAssertTrue(report.stageBeat.shouldRunHistoryChains)
             XCTAssertEqual(report.influenceIdentifier, "dramatic|0.7500")
         }
     }

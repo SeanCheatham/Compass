@@ -9,6 +9,7 @@ struct CinematicDiagnosticsReport: Equatable {
     var influenceIdentifier: String
     var languageMotif: LanguageMotifSnapshot
     var activityMotif: ActivityMotifSnapshot
+    var stageBeat: StageBeatSnapshot
     var worldText: WorldTextSnapshot
     var briefing: BriefingSnapshot
     var cameraTuning: CameraTuningSnapshot
@@ -36,6 +37,23 @@ struct CinematicDiagnosticsReport: Equatable {
         var usesCommitAmbient: Bool
         var usesSuccessAmbient: Bool
         var shouldShakeOnTransition: Bool
+    }
+
+    struct StageBeatSnapshot: Equatable {
+        var identifier: String
+        var phaseIdentifier: String
+        var kindIdentifier: String
+        var cameraShotIdentifier: String
+        var lightFamilyIdentifier: String
+        var arenaEffectIdentifier: String
+        var phaseLightIntensity: Float
+        var shouldShakeCamera: Bool
+        var shouldRunVictorySurge: Bool
+        var shouldRunHistoryChains: Bool
+        var activityAccentIdentifier: String
+        var activityEventKindIdentifier: String?
+        var activityLightFamilyIdentifier: String?
+        var activityArenaEffectIdentifier: String?
     }
 
     struct WorldTextSnapshot: Equatable {
@@ -103,7 +121,7 @@ struct CinematicDiagnosticsReport: Equatable {
 }
 
 struct CinematicDiagnosticsSummary: Equatable {
-    static let maxRows = 20
+    static let maxRows = 21
     static let labelMaxCharacters = 32
     static let detailMaxCharacters = 180
 
@@ -156,6 +174,22 @@ struct CinematicDiagnosticsSummary: Equatable {
                     optionalIdentifier("transition", report.activityMotif.transitionSpellIdentifier),
                     optionalIdentifier("ambient", report.activityMotif.ambientOverrideIdentifier),
                     report.activityMotif.shouldShakeOnTransition ? "shake" : nil
+                ].compactMap { $0 }.joined(separator: " | ")
+            ),
+            row(
+                id: "stage-beat",
+                label: "Stage beat",
+                detail: [
+                    report.stageBeat.kindIdentifier,
+                    "shot \(report.stageBeat.cameraShotIdentifier)",
+                    "light \(report.stageBeat.lightFamilyIdentifier)",
+                    "effect \(report.stageBeat.arenaEffectIdentifier)",
+                    "intensity \(fixed(report.stageBeat.phaseLightIntensity))",
+                    optionalIdentifier("activity", report.stageBeat.activityEventKindIdentifier),
+                    optionalIdentifier("accent", report.stageBeat.activityAccentIdentifier),
+                    report.stageBeat.shouldShakeCamera ? "shake" : nil,
+                    report.stageBeat.shouldRunVictorySurge ? "victory" : nil,
+                    report.stageBeat.shouldRunHistoryChains ? "history" : nil
                 ].compactMap { $0 }.joined(separator: " | ")
             ),
             row(id: "world-quest", label: "World quest", detail: report.worldText.questLabel),
@@ -343,6 +377,13 @@ enum CinematicDiagnostics {
         let influenceIdentifier = settingsIdentifier(influenceSettings)
         let languageSnapshot = languageSnapshot(for: languageMotif)
         let activitySnapshot = activitySnapshot(for: activityMotif)
+        let stageBeatSnapshot = stageBeatSnapshot(
+            for: CinematicStageBeatPlanner.plan(
+                phase: loopPhase(from: phase),
+                activityProfile: activityProfile,
+                influenceSettings: influenceSettings
+            )
+        )
         let worldTextSnapshot = worldTextSnapshot(for: worldText)
         let briefingSnapshot = briefingSnapshot(for: briefing)
         let cameraTuningSnapshot = cameraTuningSnapshot(settings: influenceSettings)
@@ -368,6 +409,7 @@ enum CinematicDiagnostics {
                 "phase:\(phase)",
                 "language:\(languageSnapshot.identifier)",
                 "activity:\(activitySnapshot.identifier)",
+                "stage:\(stageBeatSnapshot.identifier)",
                 "influence:\(influenceIdentifier)",
                 "set-dressing:\(setDressingSnapshot.identifier)"
             ].joined(separator: "|"),
@@ -378,6 +420,7 @@ enum CinematicDiagnostics {
             influenceIdentifier: influenceIdentifier,
             languageMotif: languageSnapshot,
             activityMotif: activitySnapshot,
+            stageBeat: stageBeatSnapshot,
             worldText: worldTextSnapshot,
             briefing: briefingSnapshot,
             cameraTuning: cameraTuningSnapshot,
@@ -536,6 +579,28 @@ enum CinematicDiagnostics {
             usesCommitAmbient: motif.usesCommitAmbient,
             usesSuccessAmbient: motif.usesSuccessAmbient,
             shouldShakeOnTransition: motif.shouldShakeOnTransition
+        )
+    }
+
+    private static func stageBeatSnapshot(
+        for beat: CinematicStageBeat
+    ) -> CinematicDiagnosticsReport.StageBeatSnapshot {
+        let accent = beat.activityAccent
+        return CinematicDiagnosticsReport.StageBeatSnapshot(
+            identifier: beat.identifier,
+            phaseIdentifier: beat.phaseIdentifier,
+            kindIdentifier: beat.kindIdentifier,
+            cameraShotIdentifier: beat.cameraShotIdentifier,
+            lightFamilyIdentifier: beat.lightFamilyIdentifier,
+            arenaEffectIdentifier: beat.arenaEffectIdentifier,
+            phaseLightIntensity: beat.phaseLightIntensity,
+            shouldShakeCamera: beat.shouldShakeCamera,
+            shouldRunVictorySurge: beat.shouldRunVictorySurge,
+            shouldRunHistoryChains: beat.shouldRunHistoryChains,
+            activityAccentIdentifier: beat.activityAccentIdentifier,
+            activityEventKindIdentifier: accent?.eventKind.rawValue,
+            activityLightFamilyIdentifier: accent?.lightFamily.rawValue,
+            activityArenaEffectIdentifier: accent?.arenaEffect.rawValue
         )
     }
 
@@ -764,6 +829,33 @@ enum CinematicDiagnostics {
         changes.conflicted = conflicted
         changes.other = other
         return changes
+    }
+
+    private static func loopPhase(from phase: String) -> LoopPhase {
+        if let loopPhase = LoopPhase(rawValue: phase) {
+            return loopPhase
+        }
+
+        let lowercased = phase.lowercased()
+        if lowercased.contains("develop") {
+            return .developing
+        }
+        if lowercased.contains("verify") || lowercased.contains("commit") {
+            return .verifying
+        }
+        if lowercased.contains("recover") || lowercased.contains("repair") || lowercased.contains("fail") {
+            return .failed
+        }
+        if lowercased.contains("plan") {
+            return .planning
+        }
+        if lowercased.contains("pause") {
+            return .paused
+        }
+        if lowercased.contains("cancel") {
+            return .cancelled
+        }
+        return .idle
     }
 
     private static func settingsIdentifier(_ settings: CinematicInfluenceSettings) -> String {

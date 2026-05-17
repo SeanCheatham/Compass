@@ -804,29 +804,56 @@ private final class CinematicSceneCoordinator {
     }
 
     private func applyPhaseChange(_ phase: LoopPhase) {
-        switch phase {
-        case .planning:
-            setPhaseLight(color: themedColor(SpellSchool.scan.nsColor), intensity: 520)
-            chargeArena(color: themedColor(SpellSchool.scan.nsColor))
-            stageCamera(.wide)
-        case .developing:
-            setPhaseLight(color: themedColor(SpellSchool.shell.nsColor), intensity: 680)
-            chargeArena(color: themedColor(SpellSchool.shell.nsColor))
-            stageCamera(.castPrep)
-        case .verifying:
-            setPhaseLight(color: themedColor(SpellSchool.verify.nsColor), intensity: 760)
-            sealArena(color: themedColor(SpellSchool.verify.nsColor))
-            stageCamera(.overhead)
-        case .succeeded:
+        applyPhaseBeat(stageBeat(for: phase))
+    }
+
+    private func stageBeat(for phase: LoopPhase? = nil) -> CinematicStageBeat {
+        CinematicStageBeatPlanner.plan(
+            phase: phase ?? lastPhase,
+            activityProfile: activityProfile,
+            influenceSettings: influenceSettings
+        )
+    }
+
+    private func applyPhaseBeat(_ beat: CinematicStageBeat) {
+        if beat.shouldRunVictorySurge {
             victorySurge()
-        case .failed:
-            stageCamera(.failure)
-            setPhaseLight(color: themedColor(SpellSchool.failure.nsColor), intensity: 900)
-            shakeCamera()
-            chargeArena(color: themedColor(SpellSchool.failure.nsColor))
-        case .paused, .cancelled, .idle:
-            setPhaseLight(color: themedColor(SpellSchool.lifecycle.nsColor), intensity: 320)
-            stageCamera(.home)
+            return
+        }
+
+        if beat.kind == .failed {
+            stageCamera(beat.cameraShot)
+            setPhaseLight(
+                color: themedColor(beat.lightFamily.spell.nsColor),
+                intensity: beat.phaseLightIntensity
+            )
+            if beat.shouldShakeCamera {
+                shakeCamera()
+            }
+            applyArenaEffect(beat.arenaEffect, lightFamily: beat.lightFamily)
+            return
+        }
+
+        setPhaseLight(
+            color: themedColor(beat.lightFamily.spell.nsColor),
+            intensity: beat.phaseLightIntensity
+        )
+        applyArenaEffect(beat.arenaEffect, lightFamily: beat.lightFamily)
+        stageCamera(beat.cameraShot)
+    }
+
+    private func applyArenaEffect(
+        _ effect: CinematicStageArenaEffect,
+        lightFamily: CinematicStageLightFamily
+    ) {
+        let color = themedColor(lightFamily.spell.nsColor)
+        switch effect {
+        case .charge:
+            chargeArena(color: color)
+        case .seal:
+            sealArena(color: color)
+        case .none, .victory, .activityPulse, .historyChains:
+            break
         }
     }
 
@@ -2029,44 +2056,32 @@ private final class CinematicSceneCoordinator {
 
     private func applyActivityTraits(animated: Bool) {
         applySetDressingPlan(animated: animated)
-        let baseline = phaseLightBaseline(for: lastPhase)
-        setPhaseLight(color: themedColor(baseline.color), intensity: baseline.intensity)
-        guard animated, activityMotif.eventKind != .unavailable else { return }
+        let beat = stageBeat()
+        setPhaseLight(
+            color: themedColor(beat.lightFamily.spell.nsColor),
+            intensity: beat.phaseLightIntensity
+        )
+        guard animated, let accent = beat.activityAccent else { return }
+        applyActivityAccent(accent)
+    }
 
-        switch activityMotif.eventKind {
-        case .conflicted, .failure:
-            let color = themedColor(activityMotif.transitionSpell?.nsColor ?? SpellSchool.failure.nsColor)
+    private func applyActivityAccent(_ accent: CinematicStageActivityAccent) {
+        let color = themedColor(accent.lightFamily.spell.nsColor)
+        switch accent.arenaEffect {
+        case .activityPulse:
             arenaRing(
-                radius: 5.4,
-                color: color.withAlphaComponent(0.68),
+                radius: accent.pulseRadius,
+                color: color.withAlphaComponent(CGFloat(accent.pulseColorAlpha)),
                 duration: setDressingPlan.animationCadence.activityPulseDuration,
-                scale: 1.22 * setDressingPlan.runeIntensity.activityPulseScale,
-                opacity: 0.5
+                scale: accent.pulseScaleMultiplier * setDressingPlan.runeIntensity.activityPulseScale,
+                opacity: accent.pulseOpacity
             )
-            if activityMotif.shouldShakeOnTransition {
+            if accent.shouldShakeCamera {
                 shakeCamera()
             }
-        case .dirty:
-            let color = themedColor(activityMotif.transitionSpell?.nsColor ?? SpellSchool.pressure.nsColor)
-            arenaRing(
-                radius: 4.4,
-                color: color.withAlphaComponent(0.58),
-                duration: setDressingPlan.animationCadence.activityPulseDuration,
-                scale: 1.18 * setDressingPlan.runeIntensity.activityPulseScale,
-                opacity: 0.4
-            )
-        case .success, .recovery:
-            let color = themedColor(activityMotif.transitionSpell?.nsColor ?? SpellSchool.verify.nsColor)
-            arenaRing(
-                radius: 5.8,
-                color: color.withAlphaComponent(0.58),
-                duration: setDressingPlan.animationCadence.activityPulseDuration,
-                scale: 1.14 * setDressingPlan.runeIntensity.activityPulseScale,
-                opacity: 0.34
-            )
-        case .commit:
-            historyChains(color: themedColor(activityMotif.transitionSpell?.nsColor ?? SpellSchool.git.nsColor))
-        case .clean, .unavailable:
+        case .historyChains:
+            historyChains(color: color)
+        case .none, .charge, .seal, .victory:
             break
         }
     }
@@ -2087,20 +2102,8 @@ private final class CinematicSceneCoordinator {
     }
 
     private func phaseLightBaseline(for phase: LoopPhase) -> (color: NSColor, intensity: Float) {
-        switch phase {
-        case .planning:
-            return (SpellSchool.scan.nsColor, 520)
-        case .developing:
-            return (SpellSchool.shell.nsColor, 680)
-        case .verifying:
-            return (SpellSchool.verify.nsColor, 760)
-        case .succeeded:
-            return (SpellSchool.verify.nsColor, 760)
-        case .failed:
-            return (SpellSchool.failure.nsColor, 900)
-        case .paused, .cancelled, .idle:
-            return (SpellSchool.lifecycle.nsColor, 320)
-        }
+        let beat = stageBeat(for: phase)
+        return (beat.lightFamily.spell.nsColor, beat.phaseLightIntensity)
     }
 
     private func shakeCamera() {
