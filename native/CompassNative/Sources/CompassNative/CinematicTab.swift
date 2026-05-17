@@ -14,7 +14,8 @@ struct CinematicTab: View {
                     lines: project.liveLog,
                     phase: project.phase,
                     isActive: project.isRunning || project.isAutoPlaying,
-                    languageProfile: project.languageProfile
+                    languageProfile: project.languageProfile,
+                    activityProfile: project.activityProfile
                 )
                 .frame(width: proxy.size.width, height: proxy.size.height)
 
@@ -73,6 +74,13 @@ private struct CinematicHUD: View {
                     .lineLimit(1)
             }
 
+            if let activityProfile = caption.activityProfile {
+                Text(activityProfile)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(caption.activityColor.opacity(0.9))
+                    .lineLimit(1)
+            }
+
             if let status = caption.status {
                 Text(status)
                     .font(.caption.weight(.semibold))
@@ -99,9 +107,11 @@ private struct CinematicCaption {
     var phase: String
     var status: String?
     var repositoryProfile: String?
+    var activityProfile: String?
     var systemImage: String
     var color: Color
     var profileColor: Color
+    var activityColor: Color
 
     @MainActor
     init(project: CompassProject) {
@@ -109,12 +119,15 @@ private struct CinematicCaption {
         let currentPhase = project.isPaused ? LoopPhase.paused : project.phase
         let briefing = project.cinematicBriefing
         let profile = project.languageProfile
+        let activity = project.activityProfile
         title = briefing.title
         detail = briefing.detail
         phase = currentPhase.rawValue
         status = nil
         repositoryProfile = profile.hudSummary
+        activityProfile = activity.hudSummary
         profileColor = profile.primaryLanguage.cinematicColor
+        activityColor = activity.pressureLevel.cinematicColor
 
         if (project.isRunning || project.isAutoPlaying) && Self.isThinking(project: project) {
             status = "Codex is thinking while wards slow the wave."
@@ -161,6 +174,21 @@ private struct CinematicCaption {
                 .map(String.init)
         }
         return line.text.isEmpty ? nil : line.text
+    }
+}
+
+private extension RepositoryWorktreePressureLevel {
+    var cinematicColor: Color {
+        switch self {
+        case .clean:
+            return .green
+        case .light:
+            return .mint
+        case .moderate:
+            return .orange
+        case .heavy:
+            return .red
+        }
     }
 }
 

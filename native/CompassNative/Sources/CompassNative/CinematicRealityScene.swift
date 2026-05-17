@@ -9,6 +9,7 @@ struct CinematicSceneView: View {
     var phase: LoopPhase
     var isActive: Bool
     var languageProfile: RepositoryLanguageProfile
+    var activityProfile: RepositoryActivityProfile
 
     @StateObject private var host: CinematicRealitySceneHost
 
@@ -17,23 +18,37 @@ struct CinematicSceneView: View {
         lines: [LiveLine],
         phase: LoopPhase,
         isActive: Bool,
-        languageProfile: RepositoryLanguageProfile
+        languageProfile: RepositoryLanguageProfile,
+        activityProfile: RepositoryActivityProfile
     ) {
         self.projectID = projectID
         self.lines = lines
         self.phase = phase
         self.isActive = isActive
         self.languageProfile = languageProfile
+        self.activityProfile = activityProfile
         _host = StateObject(wrappedValue: CinematicRealitySceneHost(projectID: projectID))
     }
 
     var body: some View {
         RealityView { content in
             host.install(in: &content)
-            host.update(lines: lines, phase: phase, isActive: isActive, languageProfile: languageProfile)
+            host.update(
+                lines: lines,
+                phase: phase,
+                isActive: isActive,
+                languageProfile: languageProfile,
+                activityProfile: activityProfile
+            )
         } update: { content in
             host.install(in: &content)
-            host.update(lines: lines, phase: phase, isActive: isActive, languageProfile: languageProfile)
+            host.update(
+                lines: lines,
+                phase: phase,
+                isActive: isActive,
+                languageProfile: languageProfile,
+                activityProfile: activityProfile
+            )
         } placeholder: {
             Color.black
         }
@@ -72,9 +87,16 @@ private final class CinematicRealitySceneHost: ObservableObject {
         lines: [LiveLine],
         phase: LoopPhase,
         isActive: Bool,
-        languageProfile: RepositoryLanguageProfile
+        languageProfile: RepositoryLanguageProfile,
+        activityProfile: RepositoryActivityProfile
     ) {
-        coordinator.update(lines: lines, phase: phase, isActive: isActive, languageProfile: languageProfile)
+        coordinator.update(
+            lines: lines,
+            phase: phase,
+            isActive: isActive,
+            languageProfile: languageProfile,
+            activityProfile: activityProfile
+        )
     }
 
     func release() {
@@ -302,6 +324,7 @@ private final class CinematicSceneCoordinator {
     private var isInstalled = false
     private var languageProfile = RepositoryLanguageProfile.empty
     private var languageTheme = RepositoryCinematicTheme(language: .unknown)
+    private var activityProfile = RepositoryActivityProfile.empty
     private var lastPhase: LoopPhase = .idle
     private var thinkingTimer: Timer?
     private var defenseTimer: Timer?
@@ -361,12 +384,17 @@ private final class CinematicSceneCoordinator {
         lines: [LiveLine],
         phase: LoopPhase,
         isActive: Bool,
-        languageProfile: RepositoryLanguageProfile
+        languageProfile: RepositoryLanguageProfile,
+        activityProfile: RepositoryActivityProfile
     ) {
         let languageProfileChanged = languageProfile != self.languageProfile
         if languageProfileChanged {
             self.languageProfile = languageProfile
             languageTheme = RepositoryCinematicTheme(language: languageProfile.primaryLanguage)
+        }
+        let activityProfileChanged = activityProfile != self.activityProfile
+        if activityProfileChanged {
+            self.activityProfile = activityProfile
         }
 
         if !hasBootstrapped {
@@ -378,11 +406,20 @@ private final class CinematicSceneCoordinator {
             if languageProfileChanged {
                 applyLanguageTheme(animated: hasBuiltScene)
             }
+            if activityProfileChanged {
+                applyActivityTraits(animated: false)
+            }
             return
         }
 
         if languageProfileChanged {
             applyLanguageTheme(animated: hasBuiltScene)
+        }
+        if activityProfileChanged {
+            applyActivityTraits(animated: hasBuiltScene)
+            if isThinking {
+                startThinkingTimer(spawnImmediately: false)
+            }
         }
 
         if phase != lastPhase {
@@ -914,13 +951,7 @@ private final class CinematicSceneCoordinator {
 
         if active {
             stageCamera(.wide)
-            thinkingTimer?.invalidate()
-            thinkingTimer = Timer.scheduledTimer(withTimeInterval: 2.4, repeats: true) { [weak self] _ in
-                Task { @MainActor in
-                    self?.spawnAmbientEnemy()
-                }
-            }
-            spawnAmbientEnemy()
+            startThinkingTimer(spawnImmediately: true)
             startDefensiveCasting()
         } else {
             thinkingTimer?.invalidate()
@@ -928,6 +959,20 @@ private final class CinematicSceneCoordinator {
             stopDefensiveCasting()
             animate(wizardNode, toPosition: .zero, duration: 0.55, timing: .easeInOut)
             stageCamera(.home)
+        }
+    }
+
+    private func startThinkingTimer(spawnImmediately: Bool) {
+        thinkingTimer?.invalidate()
+        let cadence = ambientSpawnCadence()
+        thinkingTimer = Timer.scheduledTimer(withTimeInterval: cadence, repeats: true) { [weak self] _ in
+            Task { @MainActor in
+                self?.spawnAmbientEnemy()
+            }
+        }
+        thinkingTimer?.tolerance = min(0.18, cadence * 0.12)
+        if spawnImmediately {
+            spawnAmbientEnemy()
         }
     }
 
@@ -1453,8 +1498,53 @@ private final class CinematicSceneCoordinator {
     private func spawnAmbientEnemy() {
         guard Date() >= nextAmbientSpawnDate else { return }
         let ambientEnemies = enemyRoot.children.filter { $0.name == "ambientEnemy" }
-        guard ambientEnemies.count < 8 else { return }
-        spawnEnemy(for: nil, spell: languageTheme.ambientSpell, persistent: false)
+        guard ambientEnemies.count < ambientEnemyLimit() else { return }
+        spawnEnemy(for: nil, spell: ambientSpellForActivity(), persistent: false)
+    }
+
+    private func ambientSpawnCadence() -> TimeInterval {
+        guard !activityProfile.isEmpty else { return 2.4 }
+        switch activityProfile.pressureLevel {
+        case .clean:
+            return activityProfile.successStreak > 1 ? 3.1 : 2.65
+        case .light:
+            return 2.15
+        case .moderate:
+            return 1.65
+        case .heavy:
+            return 1.18
+        }
+    }
+
+    private func ambientEnemyLimit() -> Int {
+        guard !activityProfile.isEmpty else { return 8 }
+        switch activityProfile.pressureLevel {
+        case .clean:
+            return 5
+        case .light:
+            return 7
+        case .moderate:
+            return 9
+        case .heavy:
+            return 11
+        }
+    }
+
+    private func ambientSpellForActivity() -> SpellSchool {
+        guard !activityProfile.isEmpty else { return languageTheme.ambientSpell }
+        if activityProfile.worktreeChanges.conflicted > 0 || activityProfile.failureStreak > 0 {
+            return .failure
+        }
+        if activityProfile.pressureLevel == .heavy {
+            return .pressure
+        }
+        if activityProfile.recentCommitCount > 0 && ambientSpawnIndex % 3 == 0 {
+            return .git
+        }
+        if activityProfile.successStreak > 1 && ambientSpawnIndex % 2 == 0 {
+            return .verify
+        }
+        return languageTheme.ambientSpell
     }
 
     private func makeEnemy(spell: SpellSchool) -> Entity {
@@ -1693,6 +1783,26 @@ private final class CinematicSceneCoordinator {
         }
     }
 
+    private func applyActivityTraits(animated: Bool) {
+        let baseline = phaseLightBaseline(for: lastPhase)
+        setPhaseLight(color: themedColor(baseline.color), intensity: baseline.intensity)
+        guard animated, !activityProfile.isEmpty else { return }
+
+        if activityProfile.worktreeChanges.conflicted > 0 || activityProfile.failureStreak > 0 {
+            let color = themedColor(SpellSchool.failure.nsColor)
+            arenaRing(radius: 5.4, color: color.withAlphaComponent(0.68), duration: 0.62, scale: 1.22, opacity: 0.5)
+            shakeCamera()
+        } else if activityProfile.worktreeChanges.isDirty {
+            let color = themedColor(SpellSchool.pressure.nsColor)
+            arenaRing(radius: 4.4, color: color.withAlphaComponent(0.58), duration: 0.85, scale: 1.18, opacity: 0.4)
+        } else if activityProfile.successStreak > 1 || activityProfile.recoveredFromFailure {
+            let color = themedColor(SpellSchool.verify.nsColor)
+            arenaRing(radius: 5.8, color: color.withAlphaComponent(0.58), duration: 1.0, scale: 1.14, opacity: 0.34)
+        } else if activityProfile.recentCommitCount > 0 {
+            historyChains(color: themedColor(SpellSchool.git.nsColor))
+        }
+    }
+
     private func themedColor(_ color: NSColor) -> NSColor {
         languageTheme.phaseColor(color)
     }
@@ -1720,9 +1830,33 @@ private final class CinematicSceneCoordinator {
 
     private func setPhaseLight(color: NSColor, intensity: Float) {
         guard var light = phaseLightNode.components[PointLightComponent.self] else { return }
-        light.color = color
-        light.intensity = intensity
+        light.color = activityTint(for: color)
+        light.intensity = intensity + activityLightBoost()
         phaseLightNode.components.set(light)
+    }
+
+    private func activityTint(for color: NSColor) -> NSColor {
+        guard !activityProfile.isEmpty else { return color }
+        let activityColor: NSColor
+        if activityProfile.worktreeChanges.conflicted > 0 || activityProfile.failureStreak > 0 {
+            activityColor = SpellSchool.failure.nsColor
+        } else if activityProfile.worktreeChanges.isDirty {
+            activityColor = SpellSchool.pressure.nsColor
+        } else if activityProfile.successStreak > 1 {
+            activityColor = SpellSchool.verify.nsColor
+        } else if activityProfile.recentCommitCount > 0 {
+            activityColor = SpellSchool.git.nsColor
+        } else {
+            return color
+        }
+        return color.mixing(with: themedColor(activityColor), fraction: 0.24)
+    }
+
+    private func activityLightBoost() -> Float {
+        guard !activityProfile.isEmpty else { return 0 }
+        let pressureBoost = min(Float(activityProfile.pressureScore) * 24, 440)
+        let streakBoost = Float(max(activityProfile.successStreak - 1, 0)) * 18
+        return min(560, pressureBoost + streakBoost)
     }
 
     private func setPointLight(color: NSColor, intensity: Float, on entity: Entity) {

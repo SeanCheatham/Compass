@@ -242,7 +242,8 @@ private struct MainWorkspaceView: View {
                             lines: project.liveLog,
                             phase: project.phase,
                             isActive: project.isRunning || project.isAutoPlaying,
-                            languageProfile: project.languageProfile
+                            languageProfile: project.languageProfile,
+                            activityProfile: project.activityProfile
                         )
                         .frame(width: 1, height: 1)
                         .opacity(0.01)

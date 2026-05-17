@@ -12,6 +12,7 @@ final class CompassProject: ObservableObject, Identifiable {
     @Published var vision = ""
     @Published var sessions: [SessionRecord] = []
     @Published var languageProfile = RepositoryLanguageProfile.empty
+    @Published var activityProfile = RepositoryActivityProfile.empty
     @Published var liveLog: [LiveLine] = []
     @Published var phase: LoopPhase = .idle {
         didSet {
@@ -145,6 +146,7 @@ extension CompassProject {
             vision = ""
             sessions = []
             languageProfile = .empty
+            activityProfile = .empty
             scheduleCinematicBriefingRefresh(reason: .projectRefresh)
             return
         }
@@ -157,6 +159,7 @@ extension CompassProject {
                 lessons = ""
                 vision = ""
                 sessions = []
+                activityProfile = .empty
                 scheduleCinematicBriefingRefresh(reason: .projectRefresh)
                 return
             }
@@ -166,6 +169,7 @@ extension CompassProject {
             lessons = workspace.readLessons()
             vision = workspace.readVision()
             sessions = workspace.readSessions()
+            activityProfile = await RepositoryActivityProfileService.scan(repoURL: workspace.repoURL)
             scheduleCinematicBriefingRefresh(reason: .projectRefresh)
         } catch {
             fail(error)
