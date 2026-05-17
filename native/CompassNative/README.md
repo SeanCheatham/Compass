@@ -5,6 +5,9 @@ CompassNative is a macOS-native prototype of Compass. It keeps the same per-repo
 Codex-only and shells out to `codex exec` instead of embedding the Claude Agent
 SDK or the Codex SDK.
 
+The native prototype requires macOS 15 or newer because its Cinematic tab uses
+RealityKit's SwiftUI `RealityView` renderer.
+
 Run it from this package:
 
 ```bash
