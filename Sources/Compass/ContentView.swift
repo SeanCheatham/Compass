@@ -447,8 +447,6 @@ private struct WorkspaceContent: View {
             VisionTab(project: project)
         case .lessons:
             LessonsTab(project: project)
-        case .history:
-            HistoryTab(project: project)
         }
     }
 }
@@ -460,7 +458,6 @@ private enum WorkspaceTab: String, CaseIterable, Identifiable {
     case drafts
     case vision
     case lessons
-    case history
 
     var id: Self { self }
 
@@ -472,7 +469,6 @@ private enum WorkspaceTab: String, CaseIterable, Identifiable {
         case .drafts: return "Drafts"
         case .vision: return "Vision"
         case .lessons: return "Lessons"
-        case .history: return "History"
         }
     }
 
@@ -484,7 +480,6 @@ private enum WorkspaceTab: String, CaseIterable, Identifiable {
         case .drafts: return "square.and.pencil"
         case .vision: return "scope"
         case .lessons: return "book.closed"
-        case .history: return "clock.arrow.circlepath"
         }
     }
 }
@@ -495,6 +490,7 @@ private struct PlanTab: View {
 
     var body: some View {
         let items = PlanTimelineItem.items(for: project.state)
+        let sessionHistory = PlanSessionHistory.displayItems(for: project.sessions)
 
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
@@ -505,6 +501,8 @@ private struct PlanTab: View {
                 )
 
                 PlanFocusPanel(item: selectedItem(in: items))
+
+                PlanSessionHistorySection(items: sessionHistory)
             }
             .frame(maxWidth: 1060, alignment: .leading)
         }
@@ -684,6 +682,186 @@ private struct VerifyCommandView: View {
             .foregroundStyle(.secondary)
             .textSelection(.enabled)
             .padding(.top, 2)
+    }
+}
+
+private struct PlanSessionHistorySection: View {
+    var items: [PlanSessionHistoryItem]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .firstTextBaseline) {
+                VStack(alignment: .leading, spacing: 3) {
+                    SectionHeader("Run History", systemImage: "clock.arrow.circlepath")
+                    Text("Recent plan runs, checks, notes, and commits.")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+                Label("\(items.count) runs", systemImage: "number")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 9)
+                    .padding(.vertical, 5)
+                    .background(.quaternary.opacity(0.55), in: Capsule())
+            }
+
+            if items.isEmpty {
+                EmptyState("No run history recorded.")
+            } else {
+                VStack(alignment: .leading, spacing: 10) {
+                    ForEach(items) { item in
+                        PlanSessionHistoryCard(item: item)
+                    }
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+private struct PlanSessionHistoryCard: View {
+    var item: PlanSessionHistoryItem
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 9) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Text("#\(item.sessionNumber)")
+                    .font(.headline.monospacedDigit())
+
+                Text(item.statusText)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(statusColor)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 3)
+                    .background(statusColor.opacity(0.12), in: Capsule())
+
+                Spacer()
+
+                Text(dateString(item.startedAt))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Text(item.planExcerpt ?? "No plan recorded.")
+                .font(.callout)
+                .foregroundStyle(item.planExcerpt == nil ? .secondary : .primary)
+                .textSelection(.enabled)
+                .fixedSize(horizontal: false, vertical: true)
+
+            if let verifyCommand = item.verifyCommand {
+                Label(verifyCommand, systemImage: "checkmark.seal")
+                    .font(.caption.monospaced())
+                    .foregroundStyle(.secondary)
+                    .textSelection(.enabled)
+            } else {
+                Label("No verify command recorded.", systemImage: "checkmark.seal")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            if let feedback = item.feedback {
+                LabeledHistoryBlock(title: "Feedback", systemImage: "text.bubble") {
+                    MarkdownContent(feedback, compact: true)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            if !item.notes.isEmpty {
+                LabeledHistoryBlock(title: "Notes", systemImage: "note.text") {
+                    VStack(alignment: .leading, spacing: 6) {
+                        ForEach(item.notes, id: \.self) { note in
+                            MarkdownContent(note, compact: true)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+            }
+
+            if !item.commits.isEmpty {
+                LabeledHistoryBlock(title: "Commits", systemImage: "arrow.triangle.branch") {
+                    VStack(alignment: .leading, spacing: 5) {
+                        ForEach(item.commits) { commit in
+                            Label("\(commit.short) \(commit.subject)", systemImage: "arrow.triangle.branch")
+                                .font(.caption)
+                                .textSelection(.enabled)
+                        }
+                    }
+                }
+            }
+
+            if let failedVerify = item.failedVerify {
+                DisclosureGroup("Verify failed (\(failedVerify.exitCodeText))") {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(failedVerify.command)
+                            .font(.caption.monospaced())
+                            .foregroundStyle(.secondary)
+                            .textSelection(.enabled)
+
+                        Text(failedVerify.tail)
+                            .font(.caption.monospaced())
+                            .textSelection(.enabled)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(8)
+                            .background(.black.opacity(0.045), in: RoundedRectangle(cornerRadius: 6))
+                    }
+                    .padding(.top, 4)
+                }
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.red)
+            }
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(.quaternary.opacity(0.38), in: RoundedRectangle(cornerRadius: 8))
+    }
+
+    private var statusColor: Color {
+        switch item.status {
+        case .planning:
+            return .blue
+        case .awaitingApproval:
+            return .purple
+        case .developing:
+            return .orange
+        case .succeeded:
+            return .green
+        case .failed, .rejectedByPlan:
+            return .red
+        case .cancelled, .skipped:
+            return .secondary
+        }
+    }
+
+    private func dateString(_ date: Date) -> String {
+        date.formatted(date: .abbreviated, time: .shortened)
+    }
+}
+
+private struct LabeledHistoryBlock<Content: View>: View {
+    var title: String
+    var systemImage: String
+    var content: Content
+
+    init(
+        title: String,
+        systemImage: String,
+        @ViewBuilder content: () -> Content
+    ) {
+        self.title = title
+        self.systemImage = systemImage
+        self.content = content()
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 5) {
+            Label(title, systemImage: systemImage)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+
+            content
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
     }
 }
 
@@ -1231,81 +1409,6 @@ private struct LessonsTab: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 8))
         }
-    }
-}
-
-private struct HistoryTab: View {
-    @ObservedObject var project: CompassProject
-
-    var body: some View {
-        ScrollView {
-            LazyVStack(alignment: .leading, spacing: 10) {
-                if project.sessions.isEmpty {
-                    EmptyState("No history recorded.")
-                } else {
-                    ForEach(project.sessions.sorted { $0.startedAt > $1.startedAt }) { session in
-                        VStack(alignment: .leading, spacing: 8) {
-                            HStack {
-                                Text("#\(session.session)")
-                                    .font(.headline)
-                                Text(session.status.rawValue)
-                                    .font(.caption.weight(.semibold))
-                                    .padding(.horizontal, 8)
-                                    .padding(.vertical, 3)
-                                    .background(.quaternary, in: Capsule())
-                                Spacer()
-                                Text(dateString(session.startedAt))
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
-                            if let plan = session.plan {
-                                MarkdownContent(plan, compact: true)
-                            }
-                            if let verify = session.verify {
-                                Text(verify)
-                                    .font(.caption.monospaced())
-                                    .foregroundStyle(.secondary)
-                            }
-                            if let feedback = session.feedback, !feedback.isEmpty {
-                                MarkdownContent(feedback, compact: true)
-                                    .foregroundStyle(.secondary)
-                            }
-                            if let verifyOutput = session.verifyOutput {
-                                DisclosureGroup("verify failed (\(verifyOutput.exitCode.map { String($0) } ?? "exit unknown"))") {
-                                    Text(verifyOutput.tail)
-                                        .font(.caption.monospaced())
-                                        .textSelection(.enabled)
-                                        .frame(maxWidth: .infinity, alignment: .leading)
-                                        .padding(.top, 4)
-                                }
-                            }
-                            ForEach(session.notes, id: \.self) { note in
-                                HStack(alignment: .top, spacing: 8) {
-                                    Image(systemName: "note.text")
-                                        .foregroundStyle(.secondary)
-                                        .frame(width: 16)
-                                    MarkdownContent(note, compact: true)
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
-                                }
-                            }
-                            ForEach(session.commits) { commit in
-                                Label("\(commit.short) \(commit.subject)", systemImage: "arrow.triangle.branch")
-                                    .font(.caption)
-                            }
-                        }
-                        .padding(12)
-                        .background(.quaternary.opacity(0.45), in: RoundedRectangle(cornerRadius: 8))
-                    }
-                }
-            }
-            .frame(maxWidth: 900, alignment: .leading)
-        }
-    }
-
-    private func dateString(_ milliseconds: Double) -> String {
-        let date = Date(timeIntervalSince1970: milliseconds / 1000)
-        return date.formatted(date: .abbreviated, time: .shortened)
     }
 }
 
