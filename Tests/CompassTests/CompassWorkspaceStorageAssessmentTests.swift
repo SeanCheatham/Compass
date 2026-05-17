@@ -30,6 +30,7 @@ final class CompassWorkspaceStorageAssessmentTests: XCTestCase {
         XCTAssertEqual(assessment.label, "Repo-local healthy")
         XCTAssertTrue(assessment.detail.contains("core files"))
         XCTAssertTrue(assessment.recommendation.contains("No storage action"))
+        XCTAssertNil(assessment.repairAction)
     }
 
     func testMissingWorkspaceReportsUninitializedRepoLocalStorage() throws {
@@ -46,6 +47,8 @@ final class CompassWorkspaceStorageAssessmentTests: XCTestCase {
         XCTAssertEqual(assessment.severity, .warning)
         XCTAssertTrue(assessment.detail.contains(".compass/ has not been initialized"))
         XCTAssertTrue(assessment.recommendation.contains("Initialize"))
+        XCTAssertEqual(assessment.repairAction?.kind, .initializeRepoLocalWorkspace)
+        XCTAssertEqual(assessment.repairAction?.issueKind, .missingWorkspace)
     }
 
     func testIncompleteCoreFilesReportMissingCoreAndSessionStorage() throws {
@@ -69,6 +72,8 @@ final class CompassWorkspaceStorageAssessmentTests: XCTestCase {
         XCTAssertTrue(assessment.detail.contains("COMPASS.md"))
         XCTAssertTrue(assessment.detail.contains("sessions/"))
         XCTAssertFalse(assessment.detail.contains("sessions.json"))
+        XCTAssertEqual(assessment.repairAction?.kind, .initializeRepoLocalWorkspace)
+        XCTAssertEqual(assessment.repairAction?.issueKind, .incompleteCoreFiles)
     }
 
     func testGitignoreVariantsRecognizeCompassCoverageAndFlagMissingCoverage() throws {
@@ -108,6 +113,66 @@ final class CompassWorkspaceStorageAssessmentTests: XCTestCase {
         XCTAssertEqual(assessment.kind, .unignoredCompass)
         XCTAssertEqual(assessment.severity, .warning)
         XCTAssertTrue(assessment.recommendation.contains(".gitignore"))
+        XCTAssertEqual(assessment.repairAction?.kind, .initializeRepoLocalWorkspace)
+        XCTAssertEqual(assessment.repairAction?.issueKind, .unignoredCompass)
+    }
+
+    func testRepairActionsAreDerivedForRepoLocalConditionsAndStayBounded() throws {
+        let repoURL = try makeTemporaryGitRepository()
+        let roots = try makeApplicationSupportRoots()
+        let completeCoreFiles = Set(CompassWorkspaceStorageAssessment.CoreFile.allCases)
+        let cases: [(CompassWorkspaceStorageAssessment.Kind, CompassWorkspaceStorageAssessment.Facts)] = [
+            (
+                .missingWorkspace,
+                CompassWorkspaceStorageAssessment.Facts(
+                    compassDirectoryExists: false,
+                    presentCoreFiles: [],
+                    sessionsDirectoryExists: false,
+                    gitignoreContents: nil,
+                    currentApplicationSupportCandidateExists: false,
+                    legacyApplicationSupportCandidateExists: false
+                )
+            ),
+            (
+                .incompleteCoreFiles,
+                CompassWorkspaceStorageAssessment.Facts(
+                    compassDirectoryExists: true,
+                    presentCoreFiles: [.state],
+                    sessionsDirectoryExists: false,
+                    gitignoreContents: nil,
+                    currentApplicationSupportCandidateExists: false,
+                    legacyApplicationSupportCandidateExists: false
+                )
+            ),
+            (
+                .unignoredCompass,
+                CompassWorkspaceStorageAssessment.Facts(
+                    compassDirectoryExists: true,
+                    presentCoreFiles: completeCoreFiles,
+                    sessionsDirectoryExists: true,
+                    gitignoreContents: "build\n",
+                    currentApplicationSupportCandidateExists: false,
+                    legacyApplicationSupportCandidateExists: false
+                )
+            )
+        ]
+
+        for (issueKind, facts) in cases {
+            let assessment = CompassWorkspaceStorageAssessment(
+                repoURL: repoURL,
+                applicationSupportRoots: roots,
+                facts: facts
+            )
+            let action = try XCTUnwrap(assessment.repairAction, issueKind.rawValue)
+
+            XCTAssertEqual(action.kind, .initializeRepoLocalWorkspace)
+            XCTAssertEqual(action.issueKind, issueKind)
+            XCTAssertEqual(action.label, "Repair storage")
+            XCTAssertEqual(action.systemImage, "wrench.fill")
+            XCTAssertLessThanOrEqual(action.label.count, CompassWorkspaceStorageAssessment.repairActionLabelLimit)
+            XCTAssertLessThanOrEqual(action.helpText.count, CompassWorkspaceStorageAssessment.repairActionHelpLimit)
+            XCTAssertFalse(action.helpText.isEmpty)
+        }
     }
 
     func testCandidateApplicationSupportPathIsStableSanitizedAndBounded() throws {
@@ -148,6 +213,7 @@ final class CompassWorkspaceStorageAssessmentTests: XCTestCase {
         XCTAssertTrue(issueKinds.contains(.legacyApplicationSupportCandidateExists))
         XCTAssertTrue(assessment.detail.contains("Future storage candidate"))
         XCTAssertEqual(assessment.severity, .warning)
+        XCTAssertNil(assessment.repairAction)
     }
 
     func testAssessmentDisplayTextAndIdentifiersStayBounded() throws {

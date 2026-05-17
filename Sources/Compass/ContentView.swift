@@ -362,6 +362,14 @@ private struct WorkspaceHeader: View {
                     .truncationMode(.middle)
                 Spacer(minLength: 12)
                 ProjectStorageAssessmentPill(assessment: storageAssessment)
+                if let repairAction = storageAssessment.repairAction {
+                    ProjectStorageRepairButton(
+                        repairAction: repairAction,
+                        isDisabled: project.isRunning || project.isAutoPlaying
+                    ) {
+                        Task { await project.initializeWorkspace() }
+                    }
+                }
                 if !reliabilityStatus.isEmpty {
                     ProjectReliabilityAttentionPill(status: reliabilityStatus)
                 }
@@ -445,6 +453,26 @@ private struct ProjectStorageAssessmentPill: View {
         ]
             .filter { !$0.isEmpty }
             .joined(separator: " · ")
+    }
+}
+
+private struct ProjectStorageRepairButton: View {
+    var repairAction: CompassWorkspaceStorageAssessment.RepairAction
+    var isDisabled: Bool
+    var performRepair: () -> Void
+
+    var body: some View {
+        Button(action: performRepair) {
+            Label(repairAction.label, systemImage: repairAction.systemImage)
+                .labelStyle(.iconOnly)
+                .frame(width: 14, height: 14)
+        }
+        .buttonStyle(.bordered)
+        .controlSize(.small)
+        .disabled(isDisabled)
+        .help(repairAction.helpText)
+        .accessibilityLabel(repairAction.label)
+        .accessibilityHint(repairAction.helpText)
     }
 }
 

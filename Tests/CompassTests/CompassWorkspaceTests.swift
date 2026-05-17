@@ -62,6 +62,38 @@ final class CompassWorkspacePersistenceTests: XCTestCase {
         XCTAssertEqual(try read(repoURL.appending(path: ".gitignore")), "# keep\n.compass\n")
     }
 
+    func testInitializeRepairsMissingCoreFilesAndGitignoreCoverageIdempotently() throws {
+        let repoURL = try makeTemporaryGitRepository()
+        let workspace = CompassWorkspace(repoURL: repoURL)
+        try createDirectory(workspace.compassURL)
+
+        let preservedState = makeState(completed: ["preserve"], midTerm: "next", longTerm: "later")
+        try write(try CompassWorkspace.encodeState(preservedState), to: workspace.stateURL)
+        try write("existing lessons\n", to: workspace.lessonsURL)
+        try write("build", to: repoURL.appending(path: ".gitignore"))
+
+        try workspace.initialize()
+        try workspace.initialize()
+
+        XCTAssertDirectoryExists(workspace.compassURL)
+        XCTAssertDirectoryExists(workspace.sessionsURL)
+        XCTAssertFileExists(workspace.stateURL)
+        XCTAssertFileExists(workspace.draftsURL)
+        XCTAssertFileExists(workspace.lessonsURL)
+        XCTAssertFileExists(workspace.visionURL)
+        XCTAssertFileExists(workspace.sessionsRecordURL)
+
+        XCTAssertEqual(try workspace.readState(), preservedState)
+        XCTAssertEqual(try read(workspace.lessonsURL), "existing lessons\n")
+        XCTAssertEqual(try read(workspace.draftsURL), "")
+        XCTAssertEqual(try read(workspace.visionURL), "")
+        XCTAssertEqual(try read(workspace.sessionsRecordURL), "[]\n")
+
+        let gitignore = try read(repoURL.appending(path: ".gitignore"))
+        XCTAssertEqual(gitignore, "build\n.compass/\n")
+        XCTAssertEqual(gitignore.components(separatedBy: ".compass/").count - 1, 1)
+    }
+
     func testInitializeAppendsCompassIgnoreWithMissingTrailingNewline() throws {
         let repoURL = try makeTemporaryGitRepository()
         let workspace = CompassWorkspace(repoURL: repoURL)

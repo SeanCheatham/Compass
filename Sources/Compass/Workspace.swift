@@ -235,6 +235,8 @@ struct CompassWorkspaceStorageAssessment: Equatable {
     static let labelLimit = 34
     static let detailLimit = 180
     static let recommendationLimit = 140
+    static let repairActionLabelLimit = 24
+    static let repairActionHelpLimit = 140
 
     var repoURL: URL
     var applicationSupportRoots: KnownProjectStore.ApplicationSupportRoots
@@ -244,6 +246,7 @@ struct CompassWorkspaceStorageAssessment: Equatable {
     var facts: Facts
     var issues: [Issue]
     var primaryIssue: Issue
+    var repairAction: RepairAction?
 
     var kind: Kind { primaryIssue.kind }
     var severity: Severity { primaryIssue.severity }
@@ -322,6 +325,7 @@ struct CompassWorkspaceStorageAssessment: Equatable {
         )
         issues = derivedIssues
         primaryIssue = derivedIssues.first ?? Self.healthyIssue(repoURL: standardizedRepoURL)
+        repairAction = Self.repairAction(for: derivedIssues)
     }
 
     static func projectStorageIdentifier(for repoURL: URL) -> String {
@@ -404,6 +408,20 @@ struct CompassWorkspaceStorageAssessment: Equatable {
         var systemImage: String
 
         var id: String { kind.rawValue }
+    }
+
+    enum RepairKind: String, Equatable {
+        case initializeRepoLocalWorkspace
+    }
+
+    struct RepairAction: Identifiable, Equatable {
+        var kind: RepairKind
+        var issueKind: Kind
+        var label: String
+        var helpText: String
+        var systemImage: String
+
+        var id: String { "\(kind.rawValue)-\(issueKind.rawValue)" }
     }
 
     private static func collectFacts(
@@ -519,6 +537,43 @@ struct CompassWorkspaceStorageAssessment: Equatable {
             detail: ".compass/ has the expected core files, session storage, and .gitignore coverage.",
             recommendation: "No storage action needed for \(boundedPath(repoURL.lastPathComponent, limit: 48)).",
             systemImage: "checkmark.seal.fill"
+        )
+    }
+
+    private static func repairAction(for issues: [Issue]) -> RepairAction? {
+        for issue in issues {
+            switch issue.kind {
+            case .missingWorkspace:
+                return repairAction(
+                    issueKind: issue.kind,
+                    helpText: "Create repo-local .compass/ core files and add .compass/ to .gitignore."
+                )
+            case .incompleteCoreFiles:
+                return repairAction(
+                    issueKind: issue.kind,
+                    helpText: "Restore missing repo-local Compass files and .gitignore coverage without overwriting existing files."
+                )
+            case .unignoredCompass:
+                return repairAction(
+                    issueKind: issue.kind,
+                    helpText: "Add .compass/ to .gitignore using the repo-local workspace initializer."
+                )
+            case .repoLocalHealthy,
+                 .currentApplicationSupportCandidateExists,
+                 .legacyApplicationSupportCandidateExists:
+                break
+            }
+        }
+        return nil
+    }
+
+    private static func repairAction(issueKind: Kind, helpText: String) -> RepairAction {
+        RepairAction(
+            kind: .initializeRepoLocalWorkspace,
+            issueKind: issueKind,
+            label: boundedText("Repair storage", limit: repairActionLabelLimit),
+            helpText: boundedText(helpText, limit: repairActionHelpLimit),
+            systemImage: "wrench.fill"
         )
     }
 
