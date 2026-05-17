@@ -501,7 +501,19 @@ private struct PlanTab: View {
                     completedCount: project.state.completed.count
                 )
 
-                PlanWorkflowOverviewView(overview: overview)
+                PlanWorkflowOverviewView(
+                    overview: overview,
+                    selectedKind: PlanWorkflowOverview.Kind(timelineItemID: selectedItemID)
+                ) { kind in
+                    let destinationID = kind.timelineItemID
+                    guard items.contains(where: { $0.id == destinationID }) else {
+                        return
+                    }
+
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        selectedItemID = destinationID
+                    }
+                }
 
                 PlanFocusPanel(item: selectedItem(in: items))
 
@@ -530,6 +542,8 @@ private struct PlanTab: View {
 
 private struct PlanWorkflowOverviewView: View {
     var overview: PlanWorkflowOverview
+    var selectedKind: PlanWorkflowOverview.Kind?
+    var onSelect: (PlanWorkflowOverview.Kind) -> Void
 
     private let columns = [
         GridItem(.adaptive(minimum: 280), spacing: 12, alignment: .top)
@@ -557,7 +571,12 @@ private struct PlanWorkflowOverviewView: View {
 
             LazyVGrid(columns: columns, alignment: .leading, spacing: 12) {
                 ForEach(overview.sections) { section in
-                    PlanWorkflowOverviewCard(section: section)
+                    PlanWorkflowOverviewCard(
+                        section: section,
+                        isSelected: section.kind == selectedKind
+                    ) {
+                        onSelect(section.kind)
+                    }
                 }
             }
         }
@@ -567,26 +586,29 @@ private struct PlanWorkflowOverviewView: View {
 
 private struct PlanWorkflowOverviewCard: View {
     var section: PlanWorkflowOverview.Section
+    var isSelected: Bool
+    var action: () -> Void
+
+    @FocusState private var isFocused: Bool
+    @State private var isHovered = false
 
     var body: some View {
+        Button(action: action) {
+            cardContent
+        }
+        .buttonStyle(.plain)
+        .focused($isFocused)
+        .onHover { isHovered = $0 }
+        .help("Show \(section.title.lowercased())")
+        .accessibilityLabel("\(section.label): \(section.title)")
+        .accessibilityValue(section.excerpt ?? section.emptyMessage)
+        .accessibilityHint("Shows this plan section in the focus panel.")
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
+    }
+
+    private var cardContent: some View {
         VStack(alignment: .leading, spacing: 10) {
-            HStack(alignment: .top, spacing: 8) {
-                Image(systemName: section.systemImage)
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundStyle(color)
-                    .frame(width: 24, height: 24)
-                    .background(color.opacity(0.12), in: Circle())
-
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(section.title)
-                        .font(.headline)
-                    Text(section.label)
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(color)
-                }
-
-                Spacer(minLength: 8)
-            }
+            cardHeader
 
             Text(section.excerpt ?? section.emptyMessage)
                 .font(.callout)
@@ -600,11 +622,54 @@ private struct PlanWorkflowOverviewCard: View {
         }
         .padding(12)
         .frame(maxWidth: .infinity, minHeight: 154, alignment: .topLeading)
-        .background(color.opacity(0.07), in: RoundedRectangle(cornerRadius: 8))
+        .contentShape(RoundedRectangle(cornerRadius: 8))
+        .background(color.opacity(backgroundOpacity), in: RoundedRectangle(cornerRadius: 8))
         .overlay {
             RoundedRectangle(cornerRadius: 8)
-                .stroke(color.opacity(0.2))
+                .stroke(color.opacity(borderOpacity), lineWidth: isSelected ? 1.5 : 1)
         }
+        .overlay {
+            RoundedRectangle(cornerRadius: 8)
+                .stroke(Color.primary.opacity(isFocused ? 0.38 : 0), style: StrokeStyle(lineWidth: 1, dash: [3, 2]))
+                .padding(3)
+        }
+    }
+
+    private var cardHeader: some View {
+        HStack(alignment: .top, spacing: 8) {
+            Image(systemName: section.systemImage)
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(color)
+                .frame(width: 24, height: 24)
+                .background(color.opacity(isSelected ? 0.2 : 0.12), in: Circle())
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(section.title)
+                    .font(.headline)
+                    .foregroundStyle(isSelected ? Color.primary : Color.primary.opacity(0.92))
+                Text(section.label)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(color)
+            }
+
+            Spacer(minLength: 8)
+
+            statusIcon
+        }
+    }
+
+    @ViewBuilder private var statusIcon: some View {
+        ZStack {
+            if isSelected {
+                Image(systemName: "checkmark.circle.fill")
+                    .foregroundStyle(color)
+            } else if isHovered || isFocused {
+                Image(systemName: "chevron.right.circle")
+                    .foregroundStyle(color.opacity(0.72))
+            }
+        }
+        .font(.system(size: 15, weight: .semibold))
+        .frame(width: 18, height: 18)
     }
 
     private var color: Color {
@@ -616,6 +681,22 @@ private struct PlanWorkflowOverviewCard: View {
         case .longTerm:
             return .purple
         }
+    }
+
+    private var backgroundOpacity: Double {
+        if isSelected {
+            return 0.15
+        }
+
+        return isHovered || isFocused ? 0.1 : 0.07
+    }
+
+    private var borderOpacity: Double {
+        if isSelected {
+            return 0.72
+        }
+
+        return isHovered || isFocused ? 0.38 : 0.2
     }
 }
 
@@ -996,7 +1077,9 @@ private struct LabeledHistoryBlock<Content: View>: View {
 }
 
 private struct PlanTimelineItem: Identifiable, Equatable {
-    static let immediateID = "plan-immediate"
+    static let immediateID = PlanWorkflowOverview.TimelineDestination.immediate.itemID
+    private static let midTermID = PlanWorkflowOverview.TimelineDestination.midTerm.itemID
+    private static let longTermID = PlanWorkflowOverview.TimelineDestination.longTerm.itemID
 
     var id: String
     var kind: Kind
@@ -1038,7 +1121,7 @@ private struct PlanTimelineItem: Identifiable, Equatable {
         )
 
         let midTerm = PlanTimelineItem(
-            id: "plan-mid-term",
+            id: midTermID,
             kind: .midTerm,
             title: "Mid-Term",
             body: state.midTerm,
@@ -1046,7 +1129,7 @@ private struct PlanTimelineItem: Identifiable, Equatable {
         )
 
         let longTerm = PlanTimelineItem(
-            id: "plan-long-term",
+            id: longTermID,
             kind: .longTerm,
             title: "Long-Term",
             body: state.longTerm,

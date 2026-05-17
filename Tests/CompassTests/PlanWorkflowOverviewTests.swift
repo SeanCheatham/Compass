@@ -24,6 +24,37 @@ final class PlanWorkflowOverviewTests: XCTestCase {
         XCTAssertFalse(overview.immediate.isEmpty)
     }
 
+    func testOverviewKindsMapToStableTimelineDestinations() {
+        XCTAssertEqual(PlanWorkflowOverview.Kind.immediate.timelineItemID, "plan-immediate")
+        XCTAssertEqual(PlanWorkflowOverview.Kind.midTerm.timelineItemID, "plan-mid-term")
+        XCTAssertEqual(PlanWorkflowOverview.Kind.longTerm.timelineItemID, "plan-long-term")
+
+        XCTAssertEqual(PlanWorkflowOverview.Kind(timelineItemID: "plan-immediate"), .immediate)
+        XCTAssertEqual(PlanWorkflowOverview.Kind(timelineItemID: "plan-mid-term"), .midTerm)
+        XCTAssertEqual(PlanWorkflowOverview.Kind(timelineItemID: "plan-long-term"), .longTerm)
+        XCTAssertNil(PlanWorkflowOverview.Kind(timelineItemID: "plan-history-0"))
+    }
+
+    func testSectionTimelineDestinationsFollowOverviewOrder() {
+        let overview = PlanWorkflowOverview(
+            state: makeState(
+                completed: ["Past work"],
+                midTerm: "Queue",
+                longTerm: "Arc"
+            )
+        )
+
+        XCTAssertEqual(overview.sections.map(\.kind), [.immediate, .midTerm, .longTerm])
+        XCTAssertEqual(
+            overview.sections.map(\.timelineItemID),
+            ["plan-immediate", "plan-mid-term", "plan-long-term"]
+        )
+        XCTAssertEqual(
+            PlanWorkflowOverview.TimelineDestination.allCases.map(\.overviewKind),
+            [.immediate, .midTerm, .longTerm]
+        )
+    }
+
     func testNoImmediateStateKeepsQueueAndArcVisible() {
         let overview = PlanWorkflowOverview(
             state: makeState(

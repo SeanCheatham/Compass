@@ -102,6 +102,27 @@ struct PlanWorkflowOverview: Equatable {
         case longTerm
     }
 
+    enum TimelineDestination: String, CaseIterable, Equatable {
+        case immediate = "plan-immediate"
+        case midTerm = "plan-mid-term"
+        case longTerm = "plan-long-term"
+
+        var itemID: String {
+            rawValue
+        }
+
+        var overviewKind: Kind {
+            switch self {
+            case .immediate:
+                return .immediate
+            case .midTerm:
+                return .midTerm
+            case .longTerm:
+                return .longTerm
+            }
+        }
+    }
+
     private static func normalizedMarkdownBody(_ rawBody: String) -> String {
         let normalizedNewlines = rawBody
             .replacingOccurrences(of: "\r\n", with: "\n")
@@ -176,6 +197,41 @@ struct PlanWorkflowOverview: Equatable {
         }
 
         return result
+    }
+}
+
+extension PlanWorkflowOverview.Kind {
+    var timelineDestination: PlanWorkflowOverview.TimelineDestination {
+        switch self {
+        case .immediate:
+            return .immediate
+        case .midTerm:
+            return .midTerm
+        case .longTerm:
+            return .longTerm
+        }
+    }
+
+    var timelineItemID: String {
+        timelineDestination.itemID
+    }
+
+    init?(timelineItemID: String) {
+        guard let destination = PlanWorkflowOverview.TimelineDestination(rawValue: timelineItemID) else {
+            return nil
+        }
+
+        self = destination.overviewKind
+    }
+}
+
+extension PlanWorkflowOverview.Section {
+    var timelineDestination: PlanWorkflowOverview.TimelineDestination {
+        kind.timelineDestination
+    }
+
+    var timelineItemID: String {
+        kind.timelineItemID
     }
 }
 
