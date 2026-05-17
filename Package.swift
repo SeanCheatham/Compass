@@ -3,12 +3,12 @@
 import PackageDescription
 
 let package = Package(
-    name: "CompassNative",
+    name: "Compass",
     platforms: [
         .macOS("15.0")
     ],
     products: [
-        .executable(name: "CompassNative", targets: ["CompassNative"])
+        .executable(name: "Compass", targets: ["CompassNative"])
     ],
     targets: [
         .executableTarget(

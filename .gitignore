@@ -1,8 +1,4 @@
-# Dependencies
-node_modules/
-
 # Build output
-dist/
 .build/
 .swiftpm/
 DerivedData/
@@ -19,12 +15,8 @@ Thumbs.db
 
 # Logs
 *.log
-npm-debug.log*
 
 # Environment
 .env
 .env.local
-
-# Firebase
-firebase-debug.log
 .compass/

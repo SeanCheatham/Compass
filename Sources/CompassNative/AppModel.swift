@@ -1317,7 +1317,7 @@ final class AppModel: ObservableObject {
         panel.canChooseDirectories = true
         panel.canChooseFiles = false
         panel.allowsMultipleSelection = false
-        panel.message = "Choose a Git repository for CompassNative"
+        panel.message = "Choose a Git repository for Compass"
 
         guard panel.runModal() == .OK, let url = panel.url else { return }
 
@@ -1491,7 +1491,10 @@ private extension CompassProject {
 
 private enum KnownProjectStore {
     static func load() -> [KnownProjectRecord] {
-        guard let data = try? Data(contentsOf: projectsURL), !data.isEmpty else {
+        let sourceURL = FileManager.default.fileExists(atPath: projectsURL.path)
+            ? projectsURL
+            : legacyProjectsURL
+        guard let data = try? Data(contentsOf: sourceURL), !data.isEmpty else {
             return []
         }
         return (try? JSONDecoder().decode([KnownProjectRecord].self, from: data)) ?? []
@@ -1509,7 +1512,17 @@ private enum KnownProjectStore {
         directoryURL.appending(path: "projects.json")
     }
 
+    private static var legacyProjectsURL: URL {
+        legacyDirectoryURL.appending(path: "projects.json")
+    }
+
     private static var directoryURL: URL {
+        let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
+            ?? FileManager.default.homeDirectoryForCurrentUser.appending(path: "Library/Application Support", directoryHint: .isDirectory)
+        return base.appending(path: "Compass", directoryHint: .isDirectory)
+    }
+
+    private static var legacyDirectoryURL: URL {
         let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
             ?? FileManager.default.homeDirectoryForCurrentUser.appending(path: "Library/Application Support", directoryHint: .isDirectory)
         return base.appending(path: "CompassNative", directoryHint: .isDirectory)
@@ -1526,7 +1539,7 @@ private enum AppModelError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .noRepositorySelected:
-            return "Choose a Git repository before running CompassNative."
+            return "Choose a Git repository before running Compass."
         case let .notGitRepository(path):
             return "\(path) is not inside a Git repository."
         case let .gitCommandFailed(message):

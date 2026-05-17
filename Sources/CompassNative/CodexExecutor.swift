@@ -22,7 +22,7 @@ final class CodexExecutor {
         onEvent: @escaping (LiveEvent) -> Void
     ) async throws -> T {
         let tempDirectory = FileManager.default.temporaryDirectory
-            .appending(path: "CompassNative-\(UUID().uuidString)", directoryHint: .isDirectory)
+            .appending(path: "Compass-\(UUID().uuidString)", directoryHint: .isDirectory)
         try FileManager.default.createDirectory(at: tempDirectory, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: tempDirectory) }
 

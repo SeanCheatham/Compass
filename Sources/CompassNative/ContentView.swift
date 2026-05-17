@@ -23,9 +23,9 @@ private struct SidebarView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             VStack(alignment: .leading, spacing: 6) {
-                Label("CompassNative", systemImage: "safari")
+                Label("Compass", systemImage: "safari")
                     .font(.title2.weight(.semibold))
-                Text("Codex-only macOS prototype")
+                Text("Codex-powered macOS workspace")
                     .font(.callout)
                     .foregroundStyle(.secondary)
             }

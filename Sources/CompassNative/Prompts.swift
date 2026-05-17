@@ -196,12 +196,12 @@ enum Prompts {
     ) throws -> String {
         let stateJSON = try CompassWorkspace.encodeState(state)
         return """
-        You are the Plan agent for CompassNative, a macOS-native prototype of Compass.
+        You are the Plan agent for Compass, a macOS-native Codex iteration app.
 
-        CompassNative is Codex-only. There is no Claude runtime, no Claude Agent SDK,
+        Compass is Codex-only. There is no Claude runtime, no Claude Agent SDK,
         and no embedded Codex SDK. This app shells out to `codex exec` for each
-        agent turn. Treat the structured JSON you return as the native prototype's
-        equivalent of Compass TypeScript's `set_state` and `edit_lessons` tool calls.
+        agent turn. Treat the structured JSON you return as Compass's state and
+        lesson update contract.
 
         Your job is to choose exactly one concrete next implementation increment
         for a separate Develop pass. You have read-only access to the repository.
@@ -317,8 +317,8 @@ enum Prompts {
         let stateJSON = try CompassWorkspace.encodeState(state)
         let sessionsJSON = try encodeSessions(recentSessions)
         return """
-        You are the Reflect agent for CompassNative, a macOS-native prototype of
-        Compass. This app is Codex-only and shells out to `codex exec`.
+        You are the Reflect agent for Compass, a macOS-native Codex iteration
+        app. This app shells out to `codex exec`.
 
         Run a course-correction pass for iteration \(iteration). You have
         read-only access to the repository. Decide whether the project is still
@@ -370,8 +370,8 @@ enum Prompts {
         sandboxed: Bool
     ) -> String {
         """
-        You are the Develop agent for CompassNative, a macOS-native prototype of
-        Compass. CompassNative is Codex-only and invokes you through `codex exec`.
+        You are the Develop agent for Compass, a macOS-native Codex iteration
+        app. Compass invokes you through `codex exec`.
 
         Implement exactly the plan below. You may read, edit, run shell commands,
         run tests, and commit using git. Keep the change scoped to the plan.
