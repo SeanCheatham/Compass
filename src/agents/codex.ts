@@ -42,7 +42,7 @@ const PLAN_INITIAL_PROMPT = `Run a planning iteration.
 
 1. Review the current state, drafts, feedback, and lessons in your instructions.
 2. Explore the codebase if you need to ground the plan in reality.
-3. Optionally call \`append_lesson\` to record anything durable for future iterations.
+3. Optionally call \`edit_lessons\` to record anything durable for future iterations.
 4. Call \`set_state\` exactly once with the full updated PlanState
    (\`completed\`, \`immediate\`, \`midTerm\`, \`longTerm\`).
 
@@ -64,7 +64,7 @@ const REFLECT_INITIAL_PROMPT = `Run a course-correction pass.
    message and stop. Don't call set_state defensively.
 4. If you see drift, call \`set_state\` ONCE with rewritten \`midTerm\` and/or
    \`longTerm\` (passing the existing \`immediate\` and \`completed\` through
-   unchanged). Optionally \`append_lesson\` if you spotted a recurring failure
+   unchanged). Optionally \`edit_lessons\` if you spotted a recurring failure
    mode worth recording.
 
 Keep the reflection tight. "On course, nothing to change" is a legitimate

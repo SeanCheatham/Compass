@@ -148,9 +148,7 @@ test("dev system prompt: explicitly names the set_feedback / signal_complete + l
   const prompt = buildDevSystemPrompt(baseContext());
   assert.ok(prompt.includes("`set_feedback({ text })`"));
   assert.ok(prompt.includes("`signal_complete({ bypassVerify? })`"));
-  assert.ok(prompt.includes("`read_lessons()`"));
-  assert.ok(prompt.includes("`set_lessons(text)`"));
-  assert.ok(prompt.includes("`append_lesson(text)`"));
+  assert.ok(prompt.includes("`edit_lessons({ find, replace, replaceAll? })`"));
 });
 
 test("dev system prompt: embeds implementation standards and sandbox promotion", () => {

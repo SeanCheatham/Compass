@@ -4,9 +4,7 @@
  * Plan tools:
  *   - set_state(state)        — replace the full PlanState (completed,
  *                               immediate, midTerm, longTerm). Runner persists.
- *   - read_lessons()          — read lessons.md.
- *   - set_lessons(text)       — replace lessons.md.
- *   - append_lesson(text)     — append a bullet to lessons.md.
+ *   - edit_lessons(...)       — exact find/replace edits to lessons.md.
  *
  * Develop tools:
  *   - set_feedback({ text })  — set/replace the feedback string handed to the
@@ -15,9 +13,7 @@
  *   - signal_complete({ bypassVerify? })
  *                             — exactly-once end-of-iteration signal. Aborts
  *                               the stream so the runner moves to post-checks.
- *   - read_lessons()
- *   - set_lessons(text)
- *   - append_lesson(text)
+ *   - edit_lessons(...)
  *
  * Tools close over per-run callback objects so the runner can observe set_state,
  * set_feedback, and signal_complete payloads without re-reading disk.
@@ -30,11 +26,7 @@ import {
   type McpSdkServerConfigWithInstance,
 } from "@anthropic-ai/claude-agent-sdk";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
-import {
-  appendLesson,
-  readLessons,
-  writeLessons,
-} from "./utils/workspace.js";
+import { editLessons } from "./utils/workspace.js";
 import { codemapToolDefinitions } from "./codemap-tools.js";
 import type { PlanState, WorkspaceConfig } from "../state/types.js";
 
@@ -62,27 +54,18 @@ function textResult(text: string, isError = false): CallToolResult {
 function lessonsTools(config: WorkspaceConfig) {
   return [
     tool(
-      "read_lessons",
-      "Read the full contents of lessons.md (long-term memory shared across iterations). Returns an empty string if no lessons have been recorded.",
-      {},
-      async () => textResult(await readLessons(config))
-    ),
-    tool(
-      "set_lessons",
-      "Replace lessons.md with the given text in full. Use this when compacting or rewriting the lessons; otherwise prefer append_lesson.",
-      { text: z.string() },
-      async ({ text }) => {
-        await writeLessons(config, text);
-        return textResult("ok");
-      }
-    ),
-    tool(
-      "append_lesson",
-      "Append a single lesson (a short bullet, one or two sentences) to lessons.md. Use this for the common 'I learned X this iteration' case so concurrent edits don't clobber each other.",
-      { text: z.string() },
-      async ({ text }) => {
-        await appendLesson(config, text);
-        return textResult("ok");
+      "edit_lessons",
+      "Edit lessons.md with exact find/replace mechanics. The current file is already shown in your prompt. `find` must match the current contents exactly; if it occurs multiple times, provide more surrounding context or set `replaceAll=true`. To append, replace the final relevant block with that block plus the new bullet. If lessons.md is empty, use an empty `find` to create its initial contents.",
+      {
+        find: z.string(),
+        replace: z.string(),
+        replaceAll: z.boolean().optional(),
+      },
+      async ({ find, replace, replaceAll }) => {
+        const result = await editLessons(config, { find, replace, replaceAll });
+        return textResult(
+          `ok: replaced ${result.replacements} occurrence${result.replacements === 1 ? "" : "s"}; lessons.md is ${result.bytes} bytes.`
+        );
       }
     ),
   ];

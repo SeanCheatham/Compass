@@ -37,7 +37,7 @@ const INITIAL_PROMPT = `Run a course-correction pass.
    message and stop. Don't call set_state defensively.
 4. If you see drift, call \`set_state\` ONCE with rewritten \`midTerm\` and/or
    \`longTerm\` (passing the existing \`immediate\` and \`completed\` through
-   unchanged). Optionally \`append_lesson\` if you spotted a recurring failure
+   unchanged). Optionally \`edit_lessons\` if you spotted a recurring failure
    mode worth recording.
 
 Keep the reflection tight. "On course, nothing to change" is a legitimate
@@ -110,9 +110,7 @@ export async function runReflectAgent(
       "LS",
       "LSP",
       "mcp__compass__set_state",
-      "mcp__compass__read_lessons",
-      "mcp__compass__set_lessons",
-      "mcp__compass__append_lesson",
+      "mcp__compass__edit_lessons",
       "mcp__compass__outline",
       "mcp__compass__find_symbol",
       "mcp__compass__list_files",

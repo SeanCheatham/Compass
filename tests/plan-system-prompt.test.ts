@@ -42,7 +42,7 @@ test("plan system prompt: lessons just over threshold → nudge appears with byt
   const prompt = buildPlanSystemPrompt(baseContext({ lessons }));
   assert.ok(prompt.includes("Compaction nudge"));
   assert.ok(prompt.includes(String(LESSONS_COMPACT_THRESHOLD_BYTES + 1)));
-  assert.ok(prompt.includes("set_lessons"));
+  assert.ok(prompt.includes("edit_lessons"));
 });
 
 test("plan system prompt: multibyte chars are counted as UTF-8 bytes, not JS chars", () => {

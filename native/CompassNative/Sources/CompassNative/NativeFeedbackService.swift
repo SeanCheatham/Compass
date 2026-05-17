@@ -1,4 +1,4 @@
-import AppKit
+import AVFoundation
 import Foundation
 import UserNotifications
 
@@ -66,18 +66,18 @@ enum NativeFeedbackMilestone: String {
 final class NativeFeedbackService: NSObject, UNUserNotificationCenterDelegate {
     static let shared = NativeFeedbackService()
 
-    private let notificationCenter = UNUserNotificationCenter.current()
-    private let speechSynthesizer = NSSpeechSynthesizer()
+    private let notificationCenter: UNUserNotificationCenter?
+    private let speechSynthesizer = AVSpeechSynthesizer()
     private var authorizationRequested = false
     private var notificationsAllowed = false
     private var recentMilestones: [String: Date] = [:]
     private let duplicateWindow: TimeInterval = 8
 
     private override init() {
+        notificationCenter = Self.supportsUserNotifications ? UNUserNotificationCenter.current() : nil
+
         super.init()
-        notificationCenter.delegate = self
-        speechSynthesizer.rate = 185
-        speechSynthesizer.volume = 0.8
+        notificationCenter?.delegate = self
     }
 
     nonisolated func userNotificationCenter(
@@ -95,7 +95,7 @@ final class NativeFeedbackService: NSObject, UNUserNotificationCenterDelegate {
 
     func applyModeChange(_ mode: NativeFeedbackMode) {
         if mode == .off {
-            speechSynthesizer.stopSpeaking()
+            speechSynthesizer.stopSpeaking(at: .immediate)
         } else {
             prepare()
         }
@@ -129,6 +129,11 @@ final class NativeFeedbackService: NSObject, UNUserNotificationCenterDelegate {
         guard !authorizationRequested else { return }
         authorizationRequested = true
 
+        guard let notificationCenter else {
+            notificationsAllowed = false
+            return
+        }
+
         let settings = await notificationCenter.notificationSettings()
         switch settings.authorizationStatus {
         case .authorized, .provisional, .ephemeral:
@@ -144,7 +149,7 @@ final class NativeFeedbackService: NSObject, UNUserNotificationCenterDelegate {
 
     private func deliverNotification(_ content: NativeFeedbackContent) async {
         await requestNotificationAuthorizationIfNeeded()
-        guard notificationsAllowed else { return }
+        guard notificationsAllowed, let notificationCenter else { return }
 
         let notification = UNMutableNotificationContent()
         notification.title = content.title
@@ -161,7 +166,10 @@ final class NativeFeedbackService: NSObject, UNUserNotificationCenterDelegate {
 
     private func speak(_ phrase: String) {
         guard !speechSynthesizer.isSpeaking else { return }
-        _ = speechSynthesizer.startSpeaking(phrase)
+        let utterance = AVSpeechUtterance(string: phrase)
+        utterance.rate = AVSpeechUtteranceDefaultSpeechRate
+        utterance.volume = 0.8
+        speechSynthesizer.speak(utterance)
     }
 
     private func pruneRecentMilestones(now: Date) {
@@ -172,6 +180,11 @@ final class NativeFeedbackService: NSObject, UNUserNotificationCenterDelegate {
         let trimmed = rawName.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return "Compass project" }
         return String(trimmed.prefix(48))
+    }
+
+    // UserNotifications asserts for SwiftPM-launched executables outside an app bundle.
+    private static var supportsUserNotifications: Bool {
+        Bundle.main.bundleURL.pathExtension == "app" && Bundle.main.bundleIdentifier != nil
     }
 }
 

@@ -5,43 +5,68 @@ enum Prompts {
     {
       "type": "object",
       "additionalProperties": false,
-      "required": ["completed", "immediate", "midTerm", "longTerm"],
+      "required": ["state", "lessonEdits"],
       "properties": {
-        "completed": {
-          "type": "array",
-          "items": { "type": "string" }
-        },
-        "immediate": {
-          "anyOf": [
-            {
-              "type": "object",
-              "additionalProperties": false,
-              "required": ["plan", "verify", "verifyTimeoutMs", "estimatedDifficulty"],
-              "properties": {
-                "plan": { "type": "string" },
-                "verify": { "type": "string" },
-                "verifyTimeoutMs": {
-                  "anyOf": [
-                    { "type": "integer", "minimum": 1 },
-                    { "type": "null" }
-                  ]
-                },
-                "estimatedDifficulty": {
-                  "anyOf": [
-                    {
-                      "type": "string",
-                      "enum": ["low", "medium", "high"]
-                    },
-                    { "type": "null" }
-                  ]
-                }
-              }
+        "state": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["completed", "immediate", "midTerm", "longTerm"],
+          "properties": {
+            "completed": {
+              "type": "array",
+              "items": { "type": "string" }
             },
-            { "type": "null" }
-          ]
+            "immediate": {
+              "anyOf": [
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["plan", "verify", "verifyTimeoutMs", "estimatedDifficulty"],
+                  "properties": {
+                    "plan": { "type": "string" },
+                    "verify": { "type": "string" },
+                    "verifyTimeoutMs": {
+                      "anyOf": [
+                        { "type": "integer", "minimum": 1 },
+                        { "type": "null" }
+                      ]
+                    },
+                    "estimatedDifficulty": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "enum": ["low", "medium", "high"]
+                        },
+                        { "type": "null" }
+                      ]
+                    }
+                  }
+                },
+                { "type": "null" }
+              ]
+            },
+            "midTerm": { "type": "string" },
+            "longTerm": { "type": "string" }
+          }
         },
-        "midTerm": { "type": "string" },
-        "longTerm": { "type": "string" }
+        "lessonEdits": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["find", "replace", "replaceAll"],
+            "properties": {
+              "find": { "type": "string" },
+              "replace": { "type": "string" },
+              "replaceAll": {
+                "anyOf": [
+                  { "type": "boolean" },
+                  { "type": "null" }
+                ]
+              }
+            }
+          }
+        }
       }
     }
     """
@@ -50,7 +75,7 @@ enum Prompts {
     {
       "type": "object",
       "additionalProperties": false,
-      "required": ["status", "summary", "feedback", "bypassVerify"],
+      "required": ["status", "summary", "feedback", "bypassVerify", "lessonEdits"],
       "properties": {
         "status": {
           "type": "string",
@@ -63,6 +88,24 @@ enum Prompts {
             { "type": "boolean" },
             { "type": "null" }
           ]
+        },
+        "lessonEdits": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["find", "replace", "replaceAll"],
+            "properties": {
+              "find": { "type": "string" },
+              "replace": { "type": "string" },
+              "replaceAll": {
+                "anyOf": [
+                  { "type": "boolean" },
+                  { "type": "null" }
+                ]
+              }
+            }
+          }
         }
       }
     }
@@ -72,7 +115,7 @@ enum Prompts {
     {
       "type": "object",
       "additionalProperties": false,
-      "required": ["state", "summary"],
+      "required": ["state", "summary", "lessonEdits"],
       "properties": {
         "state": {
           "anyOf": [
@@ -121,7 +164,25 @@ enum Prompts {
             { "type": "null" }
           ]
         },
-        "summary": { "type": "string" }
+        "summary": { "type": "string" },
+        "lessonEdits": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["find", "replace", "replaceAll"],
+            "properties": {
+              "find": { "type": "string" },
+              "replace": { "type": "string" },
+              "replaceAll": {
+                "anyOf": [
+                  { "type": "boolean" },
+                  { "type": "null" }
+                ]
+              }
+            }
+          }
+        }
       }
     }
     """
@@ -140,11 +201,11 @@ enum Prompts {
         CompassNative is Codex-only. There is no Claude runtime, no Claude Agent SDK,
         and no embedded Codex SDK. This app shells out to `codex exec` for each
         agent turn. Treat the structured JSON you return as the native prototype's
-        equivalent of Compass TypeScript's `set_state` tool call.
+        equivalent of Compass TypeScript's `set_state` and `edit_lessons` tool calls.
 
         Your job is to choose exactly one concrete next implementation increment
         for a separate Develop pass. You have read-only access to the repository.
-        Do not edit files. Return only the structured PlanState requested by the
+        Do not edit files. Return only the structured JSON requested by the
         output schema.
 
         Planning rules:
@@ -171,6 +232,38 @@ enum Prompts {
         - Never choose placeholder verify commands like `true`, `not-running-tests`,
           `none`, or `n/a`.
         - Never write code, run tests, or commit from Plan.
+
+        Lesson edit rules:
+        - `lessonEdits` is an array of exact find/replace edits for
+          `.compass/lessons.md`. Use `[]` when you have no lesson change.
+        - `find` must match the current lessons text exactly. If it appears more
+          than once, include more surrounding context or set `replaceAll` to true.
+        - To append a lesson, replace the final relevant block with that block
+          plus the new bullet. If lessons.md is empty, use `find: ""` and
+          `replace` set to the initial contents.
+        - Lessons are durable gotchas and conventions, not routine status logs.
+
+        Output shape:
+        {
+          "state": {
+            "completed": ["one-line shipped summaries"],
+            "immediate": {
+              "plan": "markdown plan for one implementation increment",
+              "verify": "shell command run from the repo root",
+              "verifyTimeoutMs": 600000,
+              "estimatedDifficulty": "low|medium|high"
+            } | null,
+            "midTerm": "markdown",
+            "longTerm": "markdown"
+          },
+          "lessonEdits": [
+            {
+              "find": "exact current text",
+              "replace": "replacement text",
+              "replaceAll": false
+            }
+          ]
+        }
 
         State shape:
         {
@@ -210,7 +303,7 @@ enum Prompts {
         ## Vision
         \(fencedOrEmpty(vision, empty: "_(no vision set)_"))
 
-        Return the full updated PlanState as JSON matching the output schema.
+        Return JSON matching the output schema.
         """
     }
 
@@ -237,6 +330,16 @@ enum Prompts {
           rewritten. Preserve existing `completed` and `immediate` unless there
           is a concrete reason to adjust them.
         - `summary`: a concise explanation of the reflection result.
+        - `lessonEdits`: exact find/replace edits for `.compass/lessons.md`, or
+          `[]` when nothing durable should be recorded.
+
+        Lesson edit rules:
+        - `find` must match the current lessons text exactly. If it appears more
+          than once, include more surrounding context or set `replaceAll` to true.
+        - To append a lesson, replace the final relevant block with that block
+          plus the new bullet. If lessons.md is empty, use `find: ""` and
+          `replace` set to the initial contents.
+        - Lessons are durable process guidance, not routine status logs.
 
         Keep this tight. Do not rewrite state defensively.
 
@@ -275,11 +378,23 @@ enum Prompts {
 
         Hard rules:
         - Do not edit `.compass/state.json` or `.compass/drafts.md`.
+        - Do not edit `.compass/lessons.md` directly; return `lessonEdits`
+          instead so the app can apply them to the main Compass workspace.
         - Do not push, rebase, or use destructive git operations.
         - Run the verify command before finishing.
         - Commit the finished change if there are code changes.
         - Leave the working tree clean, or explain why you are blocked.
         - Return only the structured JSON requested by the output schema.
+
+        Lesson edit rules:
+        - `lessonEdits` is an array of exact find/replace edits for
+          `.compass/lessons.md`. Use `[]` when you have no lesson change.
+        - `find` must match the current lessons text exactly. If it appears more
+          than once, include more surrounding context or set `replaceAll` to true.
+        - To append a lesson, replace the final relevant block with that block
+          plus the new bullet. If lessons.md is empty, use `find: ""` and
+          `replace` set to the initial contents.
+        - Lessons are durable gotchas and conventions, not routine status logs.
 
         Develop sandbox:
         \(sandboxed ? "You are running in a disposable Git worktree on a temporary branch. Commit normally from this working directory. The app promotes the branch to the main worktree only after post-checks pass." : "This repository has no current HEAD, so you are running in the main worktree. Commit normally once the work is complete.")
@@ -305,6 +420,7 @@ enum Prompts {
         - `summary`: concise human summary of what happened.
         - `feedback`: short handoff note for the next planning pass.
         - `bypassVerify`: true only if the verify command itself is wrong or out of scope.
+        - `lessonEdits`: exact find/replace edits to lessons.md, or [].
         """
     }
 

@@ -422,7 +422,7 @@ extension CompassProject {
             log("Plan: launching codex exec.", level: .info)
             let codex = CodexExecutor()
             executor = codex
-            let nextState = try await codex.run(
+            let planResult = try await codex.run(
                 CodexRunConfiguration(
                     codexBinary: codexBinary,
                     repoURL: workspace.repoURL,
@@ -431,14 +431,17 @@ extension CompassProject {
                     schema: Prompts.planSchema,
                     prompt: prompt
                 ),
-                decode: PlanState.self,
+                decode: PlanRunResult.self,
                 onEvent: { [weak self] event in
                     Task { @MainActor in self?.log(event) }
                 }
             )
+            let nextState = planResult.state
 
             try validatePlanTransition(from: currentState, to: nextState)
+            let lessonEditCount = try workspace.applyLessonEdits(planResult.lessonEdits)
             try workspace.writeState(nextState)
+            logLessonEdits(lessonEditCount)
             state = nextState
             scheduleCinematicBriefingRefresh(reason: .planAccepted)
             log(
@@ -641,6 +644,13 @@ extension CompassProject {
                         finalIssues = [promotionIssue]
                         succeeded = false
                     } else {
+                        do {
+                            logLessonEdits(try workspace.applyLessonEdits(summary.lessonEdits))
+                        } catch {
+                            let note = "Lesson edits were not applied: \(error.localizedDescription)"
+                            appendSessionNote(note, to: sessionIndex)
+                            log(note, level: .error)
+                        }
                         succeeded = true
                     }
                     break
@@ -767,6 +777,12 @@ extension CompassProject {
         try? persistSessions()
     }
 
+    private func logLessonEdits(_ count: Int) {
+        guard count > 0 else { return }
+        let noun = count == 1 ? "edit" : "edits"
+        log("Applied \(count) lesson \(noun).", level: .success)
+    }
+
     private func previousFeedback(excluding session: Int) -> String {
         sessions
             .filter { $0.session != session && $0.endedAt != nil }
@@ -817,6 +833,7 @@ extension CompassProject {
             }
         )
 
+        let lessonEditCount = try workspace.applyLessonEdits(result.lessonEdits)
         if let reflectedState = result.state {
             try workspace.writeState(reflectedState)
             state = reflectedState
@@ -825,6 +842,7 @@ extension CompassProject {
         } else {
             log("Reflect: \(result.summary)", level: .info)
         }
+        logLessonEdits(lessonEditCount)
     }
 
     private func reflectEvery() -> Int {

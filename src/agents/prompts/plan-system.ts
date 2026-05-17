@@ -1,6 +1,6 @@
 /**
  * Soft cap on `lessons.md`. When the file exceeds this size, the Plan system
- * prompt grows an extra paragraph nudging Plan to compact via `set_lessons`.
+ * prompt grows an extra paragraph nudging Plan to compact via `edit_lessons`.
  * 5 KB ~ 75-100 short bullets, past the point where compaction pays off.
  */
 export const LESSONS_COMPACT_THRESHOLD_BYTES = 5 * 1024;
@@ -41,7 +41,7 @@ export function buildPlanSystemPrompt(context: PlanSystemPromptContext): string 
   const lessonsBytes = Buffer.byteLength(context.lessons, "utf-8");
   const shouldNudgeCompact = lessonsBytes > LESSONS_COMPACT_THRESHOLD_BYTES;
   const compactionNudge = shouldNudgeCompact
-    ? `\n\n> **Compaction nudge:** \`lessons.md\` is currently ${lessonsBytes} bytes (threshold ${LESSONS_COMPACT_THRESHOLD_BYTES}). Before you finish this iteration, compact the lessons via \`set_lessons\`: merge near-duplicate bullets, drop status/iteration noise that no longer applies, and tighten wording. Keep durable gotchas; lose history.`
+    ? `\n\n> **Compaction nudge:** \`lessons.md\` is currently ${lessonsBytes} bytes (threshold ${LESSONS_COMPACT_THRESHOLD_BYTES}). Before you finish this iteration, compact the lessons via \`edit_lessons\`: replace the relevant old text with a tighter version, merge near-duplicate bullets, drop status/iteration noise that no longer applies, and keep durable gotchas.`
     : "";
 
   // Section ordering note: stable instructional content sits at the top so the
@@ -82,11 +82,12 @@ ${visionSection}
   through as context — anything you've already concluded must be summarised
   there or it's lost. Use sparingly; the Opus pass is meaningfully more
   expensive. First call wins; the Opus pass cannot escalate further.
-- \`read_lessons()\` — read the full lessons.md. Already shown below; use this only
-  if you've called \`set_lessons\` or \`append_lesson\` and want to see your write.
-- \`set_lessons(text)\` — full-text replace lessons.md. Use for compaction.
-- \`append_lesson(text)\` — append one short bullet (one or two sentences). Prefer
-  this for the common "I learned X" case.
+- \`edit_lessons({ find, replace, replaceAll? })\` — edit lessons.md with exact
+  find/replace mechanics. The current file is already shown below. \`find\` must
+  match the current contents exactly; if it occurs multiple times, include more
+  surrounding context or set \`replaceAll: true\`. To append a lesson, replace
+  the final relevant block with that block plus the new bullet. If lessons.md is
+  empty, use \`find: ""\` and \`replace\` set to the initial contents.
 
 ## Codemap tools — use these to navigate the codebase
 
@@ -207,8 +208,8 @@ These persist across iterations. Both Plan and Develop can read and write them.
 Treat them as durable guidance: gotchas about the codebase, recurring failure
 modes, conventions you keep having to rediscover. Don't dump iteration-by-iteration
 status here — that's what \`completed\` and feedback are for. **Soft cap: 5 KB.**
-Compact via \`set_lessons\` when it grows past that; merge near-duplicates, drop
-stale entries, tighten wording.
+Compact via \`edit_lessons\` when it grows past that; replace the relevant
+old text with a tighter version, merge near-duplicates, and drop stale entries.
 
 \`\`\`
 ${lessonsSection}
@@ -237,7 +238,7 @@ ${lessonsSection}
    scope, a big completion changes the picture, the vision changes). Otherwise
    leave it alone.
 6. Call \`set_state\` once with the full updated PlanState.
-7. Optionally call \`append_lesson\` to record anything durable Develop should
+7. Optionally call \`edit_lessons\` to record anything durable Develop should
    remember next iteration.
 
 ## Parallelism via sub-agents
@@ -269,7 +270,7 @@ the user can confirm or redirect.
 
 - Mutate state ONLY via \`set_state\`. Do not edit \`.compass/state.json\` directly
   (you don't have Write/Edit anyway — you are read-only over the codebase).
-- Mutate lessons ONLY via \`set_lessons\` / \`append_lesson\`.
+- Mutate lessons ONLY via \`edit_lessons\`.
 - If you call \`escalate\`, do it BEFORE \`set_state\` (state from the Sonnet pass
   is discarded when the Opus pass starts) and DO NOT call \`set_state\` afterward
   in the same pass — Opus will own that.

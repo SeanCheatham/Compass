@@ -96,6 +96,33 @@ struct PlanState: Codable, Equatable {
     }
 }
 
+struct LessonEdit: Codable, Equatable {
+    var find: String
+    var replace: String
+    var replaceAll: Bool?
+}
+
+struct PlanRunResult: Codable, Equatable {
+    var state: PlanState
+    var lessonEdits: [LessonEdit]
+
+    enum CodingKeys: String, CodingKey {
+        case state
+        case lessonEdits
+    }
+
+    init(state: PlanState, lessonEdits: [LessonEdit] = []) {
+        self.state = state
+        self.lessonEdits = lessonEdits
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        state = try container.decode(PlanState.self, forKey: .state)
+        lessonEdits = try container.decodeIfPresent([LessonEdit].self, forKey: .lessonEdits) ?? []
+    }
+}
+
 private struct LossyString: Decodable {
     var value: String?
 
@@ -108,6 +135,26 @@ private struct LossyString: Decodable {
 struct ReflectSummary: Codable, Equatable {
     var state: PlanState?
     var summary: String
+    var lessonEdits: [LessonEdit]
+
+    enum CodingKeys: String, CodingKey {
+        case state
+        case summary
+        case lessonEdits
+    }
+
+    init(state: PlanState?, summary: String, lessonEdits: [LessonEdit] = []) {
+        self.state = state
+        self.summary = summary
+        self.lessonEdits = lessonEdits
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        state = try container.decodeIfPresent(PlanState.self, forKey: .state)
+        summary = try container.decode(String.self, forKey: .summary)
+        lessonEdits = try container.decodeIfPresent([LessonEdit].self, forKey: .lessonEdits) ?? []
+    }
 }
 
 struct SessionCommit: Codable, Identifiable, Equatable {
@@ -172,11 +219,43 @@ struct DevelopSummary: Codable, Equatable {
     var summary: String
     var feedback: String
     var bypassVerify: Bool?
+    var lessonEdits: [LessonEdit]
 
     enum Status: String, Codable {
         case succeeded
         case blocked
         case failed
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case status
+        case summary
+        case feedback
+        case bypassVerify
+        case lessonEdits
+    }
+
+    init(
+        status: Status,
+        summary: String,
+        feedback: String,
+        bypassVerify: Bool? = nil,
+        lessonEdits: [LessonEdit] = []
+    ) {
+        self.status = status
+        self.summary = summary
+        self.feedback = feedback
+        self.bypassVerify = bypassVerify
+        self.lessonEdits = lessonEdits
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        status = try container.decode(Status.self, forKey: .status)
+        summary = try container.decode(String.self, forKey: .summary)
+        feedback = try container.decode(String.self, forKey: .feedback)
+        bypassVerify = try container.decodeIfPresent(Bool.self, forKey: .bypassVerify)
+        lessonEdits = try container.decodeIfPresent([LessonEdit].self, forKey: .lessonEdits) ?? []
     }
 }
 

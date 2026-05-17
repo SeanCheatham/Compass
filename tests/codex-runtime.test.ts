@@ -14,6 +14,8 @@ import {
 import { parseAgentRuntime } from "../src/agents/runtime.ts";
 import type { PlanState, WorkspaceConfig } from "../src/state/types.ts";
 import {
+  readLessons,
+  writeLessons,
   ensureWorkspaceExists,
   getWorkspaceConfig,
 } from "../src/mcp/utils/workspace.ts";
@@ -49,10 +51,11 @@ test("agent runtime: parses supported runtimes", () => {
 test("codex MCP tool names are role scoped", () => {
   assert.deepEqual(
     codexPlanMcpToolNames(false).slice(0, 3),
-    ["set_state", "read_lessons", "set_lessons"]
+    ["set_state", "edit_lessons", "outline"]
   );
   assert.equal(codexPlanMcpToolNames(true).includes("escalate"), true);
   assert.equal(codexPlanMcpToolNames(false).includes("escalate"), false);
+  assert.equal(codexDevMcpToolNames().includes("edit_lessons"), true);
   assert.equal(codexDevMcpToolNames().includes("set_feedback"), true);
   assert.equal(codexDevMcpToolNames().includes("signal_complete"), true);
   assert.equal(codexDevMcpToolNames().includes("set_state"), false);
@@ -82,7 +85,21 @@ test("codex MCP plan server exposes callbacks over Streamable HTTP", async () =>
     const names = tools.tools.map((tool) => tool.name);
     assert.equal(names.includes("set_state"), true);
     assert.equal(names.includes("escalate"), true);
+    assert.equal(names.includes("edit_lessons"), true);
+    assert.equal(names.includes("append_lesson"), false);
     assert.equal(names.includes("signal_complete"), false);
+
+    await writeLessons(config, "- old lesson\n");
+    const editLessons = await client.callTool({
+      name: "edit_lessons",
+      arguments: {
+        find: "- old lesson\n",
+        replace: "- new lesson\n",
+      },
+    });
+    assert.equal(editLessons.content[0]?.type, "text");
+    assert.match(editLessons.content[0]?.text ?? "", /replaced 1 occurrence/);
+    assert.equal(await readLessons(config), "- new lesson\n");
 
     const state: PlanState = {
       completed: ["one thing shipped"],

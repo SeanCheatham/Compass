@@ -255,6 +255,24 @@ final class CodexExecutor {
 
         if let data = trimmed.data(using: .utf8),
            let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+            if let state = object["state"] as? [String: Any],
+               let completed = state["completed"] as? [Any],
+               state.keys.contains("immediate"),
+               state.keys.contains("midTerm"),
+               state.keys.contains("longTerm") {
+                let immediate = state["immediate"] as? [String: Any]
+                let plan = firstLine(immediate?["plan"] as? String) ?? "none"
+                let verify = firstLine(immediate?["verify"] as? String) ?? "none"
+                let lessonEdits = (object["lessonEdits"] as? [Any])?.count ?? 0
+                return LiveEvent(
+                    level: .raw,
+                    text: "Candidate plan state",
+                    detail: "Not accepted yet\nCompleted: \(completed.count)\nImmediate: \(plan)\nVerify: \(verify)\nLesson edits: \(lessonEdits)",
+                    kind: .agentMessage,
+                    status: .completed
+                )
+            }
+
             if let completed = object["completed"] as? [Any],
                object.keys.contains("immediate"),
                object.keys.contains("midTerm"),

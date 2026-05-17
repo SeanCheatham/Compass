@@ -58,9 +58,13 @@ iteration by calling \`signal_complete\`.
     you two failed retry attempts. The clean-tree post-check still applies, so
     either commit your in-flight changes or revert them before calling
     \`signal_complete\`.
-- \`read_lessons()\` — re-read lessons.md (already injected below).
-- \`set_lessons(text)\` / \`append_lesson(text)\` — record durable lessons for future
-  iterations. Use \`append_lesson\` for the common case; \`set_lessons\` for compaction.
+- \`edit_lessons({ find, replace, replaceAll? })\` — record durable lessons for
+  future iterations with exact find/replace mechanics. The current file is
+  already shown below. \`find\` must match the current contents exactly; if it
+  occurs multiple times, include more surrounding context or set
+  \`replaceAll: true\`. To append a lesson, replace the final relevant block with
+  that block plus the new bullet. If lessons.md is empty, use \`find: ""\` and
+  \`replace\` set to the initial contents.
 
 ## Develop sandbox
 
@@ -137,8 +141,8 @@ ${visionSection}
 
 These persist across iterations. Read them before you start — they may contain
 gotchas or conventions that affect this plan. **Soft cap: 5 KB.** If your
-\`append_lesson\` would push the file past that, compact via \`set_lessons\`
-instead (merge near-duplicates, drop stale entries, tighten wording).
+\`edit_lessons\` would push the file past that, compact by replacing the relevant
+old text with a tighter version instead.
 
 \`\`\`
 ${lessonsSection}
@@ -146,7 +150,7 @@ ${lessonsSection}
 
 If you discover something this iteration that future iterations should know
 (a recurring pitfall, a non-obvious convention, a tool quirk), record it via
-\`append_lesson\` before you call \`signal_complete\`. Don't log routine status here.
+\`edit_lessons\` before you call \`signal_complete\`. Don't log routine status here.
 
 ## Workflow
 
@@ -160,7 +164,7 @@ If you discover something this iteration that future iterations should know
    - \`git commit -m "<concise message describing what changed>"\`
    - Update \`.gitignore\` first if you see secrets, build artifacts, or other junk
      that shouldn't be tracked.
-5. Optionally call \`append_lesson\` with anything durable.
+5. Optionally call \`edit_lessons\` with anything durable.
 6. Call \`set_feedback({ text: "..." })\` with a short note for the next Plan run.
    Strongly recommended — even a one-liner helps Plan stay grounded.
 7. Call \`signal_complete()\` as your final action. (Pass \`bypassVerify: true\`

@@ -403,18 +403,75 @@ export async function writeLessons(
   await writeFileAtomic(config.lessonsPath, content);
 }
 
-export async function appendLesson(
-  config: WorkspaceConfig,
-  text: string
-): Promise<void> {
-  const trimmed = text.trim();
-  if (!trimmed) return;
+export interface LessonEdit {
+  find: string;
+  replace: string;
+  replaceAll?: boolean;
+}
 
+export interface LessonEditResult {
+  replacements: number;
+  bytes: number;
+}
+
+export async function editLessons(
+  config: WorkspaceConfig,
+  edit: LessonEdit
+): Promise<LessonEditResult> {
   const existing = await readLessons(config);
-  const separator = existing.length === 0 || existing.endsWith("\n")
-    ? ""
-    : "\n";
-  await appendFile(config.lessonsPath, separator + trimmed + "\n", "utf-8");
+  const updated = applyLessonEdit(existing, edit);
+  await writeLessons(config, updated.text);
+  return {
+    replacements: updated.replacements,
+    bytes: Buffer.byteLength(updated.text, "utf-8"),
+  };
+}
+
+function applyLessonEdit(
+  existing: string,
+  edit: LessonEdit
+): { text: string; replacements: number } {
+  if (edit.find.length === 0) {
+    if (existing.length !== 0) {
+      throw new Error(
+        "edit_lessons with an empty find is only allowed when lessons.md is empty."
+      );
+    }
+    return { text: edit.replace, replacements: 1 };
+  }
+
+  const occurrences = countOccurrences(existing, edit.find);
+  if (occurrences === 0) {
+    throw new Error("edit_lessons find text was not found in lessons.md.");
+  }
+  if (occurrences > 1 && edit.replaceAll !== true) {
+    throw new Error(
+      `edit_lessons find text matched ${occurrences} times. Provide more context or set replaceAll=true.`
+    );
+  }
+
+  if (edit.replaceAll === true) {
+    return {
+      text: existing.split(edit.find).join(edit.replace),
+      replacements: occurrences,
+    };
+  }
+
+  return {
+    text: existing.replace(edit.find, edit.replace),
+    replacements: 1,
+  };
+}
+
+function countOccurrences(text: string, needle: string): number {
+  let count = 0;
+  let index = 0;
+  while (true) {
+    const found = text.indexOf(needle, index);
+    if (found === -1) return count;
+    count += 1;
+    index = found + needle.length;
+  }
 }
 
 export async function appendDraft(

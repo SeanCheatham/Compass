@@ -121,6 +121,50 @@ struct CompassWorkspace {
         try text.write(to: lessonsURL, atomically: true, encoding: .utf8)
     }
 
+    @discardableResult
+    func applyLessonEdits(_ edits: [LessonEdit]) throws -> Int {
+        guard !edits.isEmpty else { return 0 }
+        var current = readLessons()
+        var applied = 0
+        for edit in edits {
+            current = try applyingLessonEdit(edit, to: current)
+            applied += 1
+        }
+        try writeLessons(current)
+        return applied
+    }
+
+    private func applyingLessonEdit(_ edit: LessonEdit, to current: String) throws -> String {
+        if edit.find.isEmpty {
+            guard current.isEmpty else {
+                throw CompassWorkspaceError.lessonEditFailed(
+                    "Empty `find` is only allowed when lessons.md is empty."
+                )
+            }
+            return edit.replace
+        }
+
+        let matches = current.nonOverlappingOccurrences(of: edit.find)
+        guard matches > 0 else {
+            throw CompassWorkspaceError.lessonEditFailed("Lesson edit `find` text was not found in lessons.md.")
+        }
+        guard matches == 1 || edit.replaceAll == true else {
+            throw CompassWorkspaceError.lessonEditFailed(
+                "Lesson edit `find` text matched \(matches) times. Include more context or set replaceAll=true."
+            )
+        }
+
+        let updated: String
+        if edit.replaceAll == true {
+            updated = current.replacingOccurrences(of: edit.find, with: edit.replace)
+        } else if let range = current.range(of: edit.find) {
+            updated = current.replacingCharacters(in: range, with: edit.replace)
+        } else {
+            throw CompassWorkspaceError.lessonEditFailed("Lesson edit `find` text was not found in lessons.md.")
+        }
+        return updated
+    }
+
     func readVision() -> String {
         (try? String(contentsOf: visionURL, encoding: .utf8)) ?? ""
     }
@@ -183,5 +227,29 @@ struct CompassWorkspace {
         }
         text += "\(marker)\n"
         try text.write(to: gitignoreURL, atomically: true, encoding: .utf8)
+    }
+}
+
+private enum CompassWorkspaceError: LocalizedError {
+    case lessonEditFailed(String)
+
+    var errorDescription: String? {
+        switch self {
+        case let .lessonEditFailed(message):
+            return message
+        }
+    }
+}
+
+private extension String {
+    func nonOverlappingOccurrences(of needle: String) -> Int {
+        guard !needle.isEmpty else { return 0 }
+        var count = 0
+        var searchStart = startIndex
+        while let range = range(of: needle, range: searchStart..<endIndex) {
+            count += 1
+            searchStart = range.upperBound
+        }
+        return count
     }
 }

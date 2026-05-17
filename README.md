@@ -81,13 +81,13 @@ Press Ctrl+C to stop. Run `compass status` at any time to print the current stat
 **Reflect** -- read-only over the codebase, run every `COMPASS_REFLECT_EVERY` iterations.
 - Reviews recent session records for directional drift.
 - May call `set_state(...)` to rewrite `midTerm` and/or `longTerm`, while preserving the current `completed` and `immediate`.
-- May call `append_lesson(text)` for durable guidance.
+- May call `edit_lessons({ find, replace, replaceAll? })` for durable guidance.
 
 **Plan** -- read-only over the codebase. Mutates state via MCP tool calls only.
 - Reads the current state, drafts, previous feedback, lessons, project vision, and a cached symbol map of the repo.
 - Calls `set_state(...)` with the updated `completed`, `immediate`, `midTerm`, and `longTerm`.
 - Can call `escalate({ message })` before `set_state` to restart the planning pass on Opus.
-- Optionally calls `append_lesson(text)` or `set_lessons(text)` to record durable guidance.
+- Optionally calls `edit_lessons({ find, replace, replaceAll? })` to record durable guidance.
 - Sets `immediate` to `null` only when there is no useful next increment. The runner idles and waits for drafts.
 
 **Develop** -- full read/write over the codebase, plus shell, web fetch/search, sub-agents, and skills.
@@ -119,9 +119,7 @@ Compass exposes a small in-process MCP server to the agents.
 | `escalate`        | yes  |         | Restart the current Plan pass on Opus with a summary message. |
 | `set_feedback`    |      | yes     | Set the feedback string handed to the next Plan run. Last call wins. |
 | `signal_complete` |      | yes     | Signal Develop iteration done and move to runner post-checks. |
-| `read_lessons`    | yes  | yes     | Read `lessons.md` (already injected into prompts; rare). |
-| `set_lessons`     | yes  | yes     | Replace `lessons.md` (use for compaction). |
-| `append_lesson`   | yes  | yes     | Append a single bullet to `lessons.md`. Preferred for the common case. |
+| `edit_lessons`    | yes  | yes     | Edit `lessons.md` with exact find/replace mechanics. Use contextual `find` text; set `replaceAll` only for deliberate multi-replacements. |
 | `codemap` tools   | yes  | yes     | Search, outline, and navigate the cached repo map. |
 
 ### Codex sidecar
@@ -199,6 +197,37 @@ Tabs:
 Header controls let you pause the loop (`Pause Now` at the next gate, or `Pause After Iteration`), resume, cancel the iteration in flight, toggle approval requirements, and -- when approval is required -- approve the pending plan before Develop runs.
 
 ## Development
+
+### Self-hosting safety
+
+When using Compass or CompassNative to develop this Compass repository, treat the
+currently running Compass process as infrastructure, not as the test subject.
+Agents should prefer bounded build, lint, and unit-test commands that do not
+launch another long-running Compass instance:
+
+```bash
+npm run build
+npm run lint
+npm test
+(cd native/CompassNative && swift build)
+```
+
+Do not use broad process-killing commands while Compass is driving the work.
+Avoid commands such as `pkill -f compass`, `pkill -f CompassNative`,
+`killall node`, `killall swift`, `killall codex`, or
+`lsof -ti :<port> | xargs kill`, because they can terminate the live session
+that is orchestrating the iteration.
+
+If a launch or shutdown test is necessary, run it only in a disposable fixture
+repository or temporary worktree, capture the exact child PID started by that
+test, and stop only that PID. Use alternate ports and `--no-open` for CLI/UI
+smoke tests so the test instance stays isolated from the Compass session that is
+already running.
+
+Verify commands stored in `.compass/state.json` should follow the same rule:
+they should prove the change with scoped commands and must not kill processes by
+name, clear shared `.compass/` state, or otherwise interfere with the live
+Compass run.
 
 ```bash
 npm run build       # build frontend assets and TypeScript

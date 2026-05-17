@@ -74,11 +74,11 @@ Look at the recent arc — the last several sessions, the commits Develop has
 shipped, the lessons that have accumulated, the vision — and decide whether
 the project is on course toward COMPASS.md.
 
-- **If it is**, do nothing visible: don't call \`set_state\`, don't append a
-  lesson. "On course" is a valid outcome. Say so briefly in your final text
+- **If it is**, do nothing visible: don't call \`set_state\`, don't edit
+  lessons. "On course" is a valid outcome. Say so briefly in your final text
   and stop.
 - **If it isn't**, course-correct by calling \`set_state\` with rewritten
-  \`midTerm\` and/or \`longTerm\`. You may also \`append_lesson\` if you spotted
+  \`midTerm\` and/or \`longTerm\`. You may also \`edit_lessons\` if you spotted
   a recurring failure mode that's worth remembering.
 
 ## Signs to watch for
@@ -110,8 +110,8 @@ the project is on course toward COMPASS.md.
 - \`set_state(state)\` — replace the full PlanState. Pass through the exact
   \`immediate\` and \`completed\` from the current state shown below; rewrite
   \`midTerm\` / \`longTerm\` only. The runner persists what you set.
-- \`append_lesson(text)\` / \`set_lessons(text)\` / \`read_lessons()\` — the
-  same lesson tools Plan has.
+- \`edit_lessons({ find, replace, replaceAll? })\` — edit lessons.md with the
+  same exact find/replace tool Plan has.
 - Codemap MCP tools (\`mcp__compass__search\`, \`outline\`, \`find_symbol\`,
   \`list_files\`, \`importers_of\`, \`summary\`) — your default way to ground
   observations in the actual code.

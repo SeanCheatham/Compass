@@ -4,11 +4,7 @@ import { z } from "zod";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
-import {
-  appendLesson,
-  readLessons,
-  writeLessons,
-} from "./utils/workspace.js";
+import { editLessons } from "./utils/workspace.js";
 import {
   codemapToolDefinitions,
   type CompassToolDefinition,
@@ -71,9 +67,7 @@ interface TransportRecord {
 }
 
 const COMMON_TOOL_NAMES = [
-  "read_lessons",
-  "set_lessons",
-  "append_lesson",
+  "edit_lessons",
   "outline",
   "find_symbol",
   "list_files",
@@ -240,30 +234,23 @@ function registerCompassTool(server: McpServer, def: CompassToolDefinition): voi
 function lessonsToolDefinitions(config: WorkspaceConfig): CompassToolDefinition[] {
   return [
     {
-      name: "read_lessons",
+      name: "edit_lessons",
       description:
-        "Read the full contents of lessons.md (long-term memory shared across iterations). Returns an empty string if no lessons have been recorded.",
-      inputSchema: {},
-      handler: async () => textResult(await readLessons(config)),
-    },
-    {
-      name: "set_lessons",
-      description:
-        "Replace lessons.md with the given text in full. Use this when compacting or rewriting the lessons; otherwise prefer append_lesson.",
-      inputSchema: { text: z.string() },
-      handler: async ({ text }) => {
-        await writeLessons(config, String(text));
-        return textResult("ok");
+        "Edit lessons.md with exact find/replace mechanics. The current file is already shown in your prompt. `find` must match the current contents exactly; if it occurs multiple times, provide more surrounding context or set `replaceAll=true`. To append, replace the final relevant block with that block plus the new bullet. If lessons.md is empty, use an empty `find` to create its initial contents.",
+      inputSchema: {
+        find: z.string(),
+        replace: z.string(),
+        replaceAll: z.boolean().optional(),
       },
-    },
-    {
-      name: "append_lesson",
-      description:
-        "Append a single lesson (a short bullet, one or two sentences) to lessons.md. Use this for the common 'I learned X this iteration' case so concurrent edits don't clobber each other.",
-      inputSchema: { text: z.string() },
-      handler: async ({ text }) => {
-        await appendLesson(config, String(text));
-        return textResult("ok");
+      handler: async ({ find, replace, replaceAll }) => {
+        const result = await editLessons(config, {
+          find: String(find),
+          replace: String(replace),
+          replaceAll: replaceAll === true,
+        });
+        return textResult(
+          `ok: replaced ${result.replacements} occurrence${result.replacements === 1 ? "" : "s"}; lessons.md is ${result.bytes} bytes.`
+        );
       },
     },
   ];

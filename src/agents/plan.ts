@@ -37,7 +37,7 @@ const INITIAL_PROMPT = `Run a planning iteration.
 
 1. Review the current state, drafts, feedback, and lessons in your system prompt.
 2. Explore the codebase if you need to ground the plan in reality.
-3. Optionally call \`append_lesson\` to record anything durable for future iterations.
+3. Optionally call \`edit_lessons\` to record anything durable for future iterations.
 4. Call \`set_state\` exactly once with the full updated PlanState
    (\`completed\`, \`immediate\`, \`midTerm\`, \`longTerm\`).
 
@@ -207,9 +207,7 @@ async function runPlanPass(args: PlanPassArgs): Promise<"completed" | "cancelled
     "WebSearch",
     "NotebookRead",
     "mcp__compass__set_state",
-    "mcp__compass__read_lessons",
-    "mcp__compass__set_lessons",
-    "mcp__compass__append_lesson",
+    "mcp__compass__edit_lessons",
     "mcp__compass__outline",
     "mcp__compass__find_symbol",
     "mcp__compass__list_files",
