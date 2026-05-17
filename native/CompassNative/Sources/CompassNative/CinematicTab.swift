@@ -13,7 +13,8 @@ struct CinematicTab: View {
                     projectID: project.id,
                     lines: project.liveLog,
                     phase: project.phase,
-                    isActive: project.isRunning || project.isAutoPlaying
+                    isActive: project.isRunning || project.isAutoPlaying,
+                    languageProfile: project.languageProfile
                 )
                 .frame(width: proxy.size.width, height: proxy.size.height)
 
@@ -65,6 +66,13 @@ private struct CinematicHUD: View {
                 .lineLimit(2)
                 .fixedSize(horizontal: false, vertical: true)
 
+            if let repositoryProfile = caption.repositoryProfile {
+                Text(repositoryProfile)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(caption.profileColor.opacity(0.88))
+                    .lineLimit(1)
+            }
+
             if let status = caption.status {
                 Text(status)
                     .font(.caption.weight(.semibold))
@@ -90,18 +98,23 @@ private struct CinematicCaption {
     var detail: String
     var phase: String
     var status: String?
+    var repositoryProfile: String?
     var systemImage: String
     var color: Color
+    var profileColor: Color
 
     @MainActor
     init(project: CompassProject) {
         let latest = project.liveLog.last
         let currentPhase = project.isPaused ? LoopPhase.paused : project.phase
         let briefing = project.cinematicBriefing
+        let profile = project.languageProfile
         title = briefing.title
         detail = briefing.detail
         phase = currentPhase.rawValue
         status = nil
+        repositoryProfile = profile.hudSummary
+        profileColor = profile.primaryLanguage.cinematicColor
 
         if (project.isRunning || project.isAutoPlaying) && Self.isThinking(project: project) {
             status = "Codex is thinking while wards slow the wave."
@@ -148,6 +161,29 @@ private struct CinematicCaption {
                 .map(String.init)
         }
         return line.text.isEmpty ? nil : line.text
+    }
+}
+
+private extension RepositoryLanguage {
+    var cinematicColor: Color {
+        switch self {
+        case .swift:
+            return .orange
+        case .typeScriptJavaScript:
+            return .cyan
+        case .python:
+            return .blue
+        case .go:
+            return .mint
+        case .rust:
+            return .brown
+        case .markdown:
+            return .indigo
+        case .other:
+            return .secondary
+        case .unknown:
+            return .secondary
+        }
     }
 }
 

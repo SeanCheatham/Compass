@@ -8,24 +8,32 @@ struct CinematicSceneView: View {
     var lines: [LiveLine]
     var phase: LoopPhase
     var isActive: Bool
+    var languageProfile: RepositoryLanguageProfile
 
     @StateObject private var host: CinematicRealitySceneHost
 
-    init(projectID: UUID, lines: [LiveLine], phase: LoopPhase, isActive: Bool) {
+    init(
+        projectID: UUID,
+        lines: [LiveLine],
+        phase: LoopPhase,
+        isActive: Bool,
+        languageProfile: RepositoryLanguageProfile
+    ) {
         self.projectID = projectID
         self.lines = lines
         self.phase = phase
         self.isActive = isActive
+        self.languageProfile = languageProfile
         _host = StateObject(wrappedValue: CinematicRealitySceneHost(projectID: projectID))
     }
 
     var body: some View {
         RealityView { content in
             host.install(in: &content)
-            host.update(lines: lines, phase: phase, isActive: isActive)
+            host.update(lines: lines, phase: phase, isActive: isActive, languageProfile: languageProfile)
         } update: { content in
             host.install(in: &content)
-            host.update(lines: lines, phase: phase, isActive: isActive)
+            host.update(lines: lines, phase: phase, isActive: isActive, languageProfile: languageProfile)
         } placeholder: {
             Color.black
         }
@@ -60,8 +68,13 @@ private final class CinematicRealitySceneHost: ObservableObject {
         coordinator.install(in: &content)
     }
 
-    func update(lines: [LiveLine], phase: LoopPhase, isActive: Bool) {
-        coordinator.update(lines: lines, phase: phase, isActive: isActive)
+    func update(
+        lines: [LiveLine],
+        phase: LoopPhase,
+        isActive: Bool,
+        languageProfile: RepositoryLanguageProfile
+    ) {
+        coordinator.update(lines: lines, phase: phase, isActive: isActive, languageProfile: languageProfile)
     }
 
     func release() {
@@ -204,6 +217,64 @@ private enum DefensiveSpell {
     }
 }
 
+private struct RepositoryCinematicTheme: Equatable {
+    var language: RepositoryLanguage
+    var accent: NSColor
+    var secondaryAccent: NSColor
+    var ambientSpell: SpellSchool
+    var phaseBlend: CGFloat
+
+    init(language: RepositoryLanguage) {
+        self.language = language
+        switch language {
+        case .swift:
+            accent = NSColor(calibratedRed: 1.0, green: 0.43, blue: 0.15, alpha: 1)
+            secondaryAccent = NSColor(calibratedRed: 1.0, green: 0.76, blue: 0.34, alpha: 1)
+            ambientSpell = .edit
+            phaseBlend = 0.38
+        case .typeScriptJavaScript:
+            accent = NSColor(calibratedRed: 0.22, green: 0.66, blue: 1.0, alpha: 1)
+            secondaryAccent = NSColor(calibratedRed: 1.0, green: 0.84, blue: 0.24, alpha: 1)
+            ambientSpell = .shell
+            phaseBlend = 0.3
+        case .python:
+            accent = NSColor(calibratedRed: 0.24, green: 0.48, blue: 0.95, alpha: 1)
+            secondaryAccent = NSColor(calibratedRed: 1.0, green: 0.78, blue: 0.24, alpha: 1)
+            ambientSpell = .insight
+            phaseBlend = 0.32
+        case .go:
+            accent = NSColor(calibratedRed: 0.0, green: 0.74, blue: 0.82, alpha: 1)
+            secondaryAccent = NSColor(calibratedRed: 0.42, green: 1.0, blue: 0.82, alpha: 1)
+            ambientSpell = .scan
+            phaseBlend = 0.32
+        case .rust:
+            accent = NSColor(calibratedRed: 0.92, green: 0.38, blue: 0.14, alpha: 1)
+            secondaryAccent = NSColor(calibratedRed: 1.0, green: 0.58, blue: 0.28, alpha: 1)
+            ambientSpell = .git
+            phaseBlend = 0.34
+        case .markdown:
+            accent = NSColor(calibratedRed: 0.48, green: 0.62, blue: 1.0, alpha: 1)
+            secondaryAccent = NSColor(calibratedRed: 0.82, green: 0.9, blue: 1.0, alpha: 1)
+            ambientSpell = .insight
+            phaseBlend = 0.26
+        case .other:
+            accent = NSColor(calibratedRed: 0.56, green: 0.5, blue: 0.72, alpha: 1)
+            secondaryAccent = NSColor(calibratedRed: 0.72, green: 0.68, blue: 0.9, alpha: 1)
+            ambientSpell = .pressure
+            phaseBlend = 0.18
+        case .unknown:
+            accent = NSColor(calibratedRed: 0.32, green: 0.84, blue: 1.0, alpha: 1)
+            secondaryAccent = NSColor(calibratedRed: 0.28, green: 0.58, blue: 1.0, alpha: 1)
+            ambientSpell = .pressure
+            phaseBlend = 0.12
+        }
+    }
+
+    func phaseColor(_ base: NSColor) -> NSColor {
+        base.mixing(with: accent, fraction: phaseBlend)
+    }
+}
+
 @MainActor
 private final class CinematicSceneCoordinator {
     let projectID: UUID
@@ -229,6 +300,8 @@ private final class CinematicSceneCoordinator {
     private var hasBuiltScene = false
     private var hasBootstrapped = false
     private var isInstalled = false
+    private var languageProfile = RepositoryLanguageProfile.empty
+    private var languageTheme = RepositoryCinematicTheme(language: .unknown)
     private var lastPhase: LoopPhase = .idle
     private var thinkingTimer: Timer?
     private var defenseTimer: Timer?
@@ -284,14 +357,32 @@ private final class CinematicSceneCoordinator {
         startDisplayTimer()
     }
 
-    func update(lines: [LiveLine], phase: LoopPhase, isActive: Bool) {
+    func update(
+        lines: [LiveLine],
+        phase: LoopPhase,
+        isActive: Bool,
+        languageProfile: RepositoryLanguageProfile
+    ) {
+        let languageProfileChanged = languageProfile != self.languageProfile
+        if languageProfileChanged {
+            self.languageProfile = languageProfile
+            languageTheme = RepositoryCinematicTheme(language: languageProfile.primaryLanguage)
+        }
+
         if !hasBootstrapped {
             hasBootstrapped = true
             lastPhase = phase
             lineStatuses = Dictionary(uniqueKeysWithValues: lines.map { ($0.id, $0.status) })
             syncRunningEnemies(with: lines)
             setThinking(isActive && isWaitingForCodex(lines: lines))
+            if languageProfileChanged {
+                applyLanguageTheme(animated: hasBuiltScene)
+            }
             return
+        }
+
+        if languageProfileChanged {
+            applyLanguageTheme(animated: hasBuiltScene)
         }
 
         if phase != lastPhase {
@@ -500,6 +591,7 @@ private final class CinematicSceneCoordinator {
             pedestal.addChild(flame)
 
             let flameLight = Entity()
+            flameLight.name = "set-flame-light-\(index)"
             flameLight.components.set(
                 PointLightComponent(
                     color: NSColor(calibratedRed: 0.2, green: 0.42, blue: 1, alpha: 1),
@@ -740,26 +832,26 @@ private final class CinematicSceneCoordinator {
     private func applyPhaseChange(_ phase: LoopPhase) {
         switch phase {
         case .planning:
-            setPhaseLight(color: SpellSchool.scan.nsColor, intensity: 520)
-            chargeArena(color: SpellSchool.scan.nsColor)
+            setPhaseLight(color: themedColor(SpellSchool.scan.nsColor), intensity: 520)
+            chargeArena(color: themedColor(SpellSchool.scan.nsColor))
             stageCamera(.wide)
         case .developing:
-            setPhaseLight(color: SpellSchool.shell.nsColor, intensity: 680)
-            chargeArena(color: SpellSchool.shell.nsColor)
+            setPhaseLight(color: themedColor(SpellSchool.shell.nsColor), intensity: 680)
+            chargeArena(color: themedColor(SpellSchool.shell.nsColor))
             stageCamera(.castPrep)
         case .verifying:
-            setPhaseLight(color: SpellSchool.verify.nsColor, intensity: 760)
-            sealArena(color: SpellSchool.verify.nsColor)
+            setPhaseLight(color: themedColor(SpellSchool.verify.nsColor), intensity: 760)
+            sealArena(color: themedColor(SpellSchool.verify.nsColor))
             stageCamera(.overhead)
         case .succeeded:
             victorySurge()
         case .failed:
             stageCamera(.failure)
-            setPhaseLight(color: SpellSchool.failure.nsColor, intensity: 900)
+            setPhaseLight(color: themedColor(SpellSchool.failure.nsColor), intensity: 900)
             shakeCamera()
-            chargeArena(color: SpellSchool.failure.nsColor)
+            chargeArena(color: themedColor(SpellSchool.failure.nsColor))
         case .paused, .cancelled, .idle:
-            setPhaseLight(color: SpellSchool.lifecycle.nsColor, intensity: 320)
+            setPhaseLight(color: themedColor(SpellSchool.lifecycle.nsColor), intensity: 320)
             stageCamera(.home)
         }
     }
@@ -883,18 +975,19 @@ private final class CinematicSceneCoordinator {
         if !Array(enemyRoot.children).isEmpty {
             castVolley(spell: .verify, failed: false)
         }
+        let victoryColor = themedColor(SpellSchool.verify.nsColor)
         for radius in stride(from: Float(0.9), through: Float(7.6), by: Float(1.1)) {
             arenaRing(
                 radius: radius,
-                color: SpellSchool.verify.nsColor.withAlphaComponent(0.7),
+                color: victoryColor.withAlphaComponent(0.7),
                 duration: 1.1,
                 scale: 1.35,
                 opacity: 0.54
             )
         }
-        portalPulse(color: SpellSchool.verify.nsColor)
-        sparkBurst(at: [0, 1.3, -0.4], color: SpellSchool.verify.nsColor, birthRate: 1600)
-        pulsePhaseLight(color: SpellSchool.verify.nsColor, intensity: 1500, duration: 1.0)
+        portalPulse(color: victoryColor)
+        sparkBurst(at: [0, 1.3, -0.4], color: victoryColor, birthRate: 1600)
+        pulsePhaseLight(color: victoryColor, intensity: 1500, duration: 1.0)
     }
 
     private func forgeSparks(color: NSColor) {
@@ -1361,7 +1454,7 @@ private final class CinematicSceneCoordinator {
         guard Date() >= nextAmbientSpawnDate else { return }
         let ambientEnemies = enemyRoot.children.filter { $0.name == "ambientEnemy" }
         guard ambientEnemies.count < 8 else { return }
-        spawnEnemy(for: nil, spell: .pressure, persistent: false)
+        spawnEnemy(for: nil, spell: languageTheme.ambientSpell, persistent: false)
     }
 
     private func makeEnemy(spell: SpellSchool) -> Entity {
@@ -1564,6 +1657,63 @@ private final class CinematicSceneCoordinator {
         )
     }
 
+    private func applyLanguageTheme(animated: Bool) {
+        let accent = languageTheme.accent
+        let secondary = languageTheme.secondaryAccent
+
+        setGlow(accent, on: staffOrbNode)
+        for pedestal in setDressingRoot.children where pedestal.name == "set-pedestal" {
+            for child in pedestal.children {
+                if child.name == "set-flame-rim" {
+                    setGlow(accent, opacity: 0.62, on: child)
+                } else if child.name.hasPrefix("set-flame-light-") {
+                    setPointLight(color: accent, intensity: 190, on: child)
+                } else if child.name.hasPrefix("set-flame-") {
+                    setGlow(secondary, opacity: 0.88, on: child)
+                }
+            }
+        }
+
+        for shard in setDressingRoot.children where shard.name.hasPrefix("floating-shard-") {
+            if var model = shard.components[ModelComponent.self] {
+                model.materials = [
+                    material(
+                        diffuse: NSColor(calibratedRed: 0.055, green: 0.052, blue: 0.074, alpha: 1),
+                        emission: accent.withAlphaComponent(0.24)
+                    )
+                ]
+                shard.components.set(model)
+            }
+        }
+
+        let baseline = phaseLightBaseline(for: lastPhase)
+        setPhaseLight(color: themedColor(baseline.color), intensity: baseline.intensity)
+        if animated, languageProfile.primaryLanguage != .unknown {
+            arenaRing(radius: 6.6, color: accent.withAlphaComponent(0.72), duration: 1.05, scale: 1.18, opacity: 0.34)
+        }
+    }
+
+    private func themedColor(_ color: NSColor) -> NSColor {
+        languageTheme.phaseColor(color)
+    }
+
+    private func phaseLightBaseline(for phase: LoopPhase) -> (color: NSColor, intensity: Float) {
+        switch phase {
+        case .planning:
+            return (SpellSchool.scan.nsColor, 520)
+        case .developing:
+            return (SpellSchool.shell.nsColor, 680)
+        case .verifying:
+            return (SpellSchool.verify.nsColor, 760)
+        case .succeeded:
+            return (SpellSchool.verify.nsColor, 760)
+        case .failed:
+            return (SpellSchool.failure.nsColor, 900)
+        case .paused, .cancelled, .idle:
+            return (SpellSchool.lifecycle.nsColor, 320)
+        }
+    }
+
     private func shakeCamera() {
         shakeUntil = Date().addingTimeInterval(0.22)
     }
@@ -1573,6 +1723,19 @@ private final class CinematicSceneCoordinator {
         light.color = color
         light.intensity = intensity
         phaseLightNode.components.set(light)
+    }
+
+    private func setPointLight(color: NSColor, intensity: Float, on entity: Entity) {
+        guard var light = entity.components[PointLightComponent.self] else { return }
+        light.color = color
+        light.intensity = intensity
+        entity.components.set(light)
+    }
+
+    private func setGlow(_ color: NSColor, opacity: Float = 1, on entity: Entity) {
+        guard var model = entity.components[ModelComponent.self] else { return }
+        model.materials = [glowMaterial(color, opacity: opacity)]
+        entity.components.set(model)
     }
 
     private func stageCamera(_ shot: CinematicCameraShot, animated: Bool = true) {
@@ -2189,4 +2352,18 @@ private struct EntityAnimation {
     var timing: Timing
     var removeOnCompletion: Bool
     var completion: (() -> Void)?
+}
+
+private extension NSColor {
+    func mixing(with other: NSColor, fraction: CGFloat) -> NSColor {
+        let amount = max(0, min(1, fraction))
+        let lhs = usingColorSpace(.deviceRGB) ?? self
+        let rhs = other.usingColorSpace(.deviceRGB) ?? other
+        return NSColor(
+            calibratedRed: lhs.redComponent + (rhs.redComponent - lhs.redComponent) * amount,
+            green: lhs.greenComponent + (rhs.greenComponent - lhs.greenComponent) * amount,
+            blue: lhs.blueComponent + (rhs.blueComponent - lhs.blueComponent) * amount,
+            alpha: lhs.alphaComponent + (rhs.alphaComponent - lhs.alphaComponent) * amount
+        )
+    }
 }

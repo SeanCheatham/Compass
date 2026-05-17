@@ -11,6 +11,7 @@ final class CompassProject: ObservableObject, Identifiable {
     @Published var lessons = ""
     @Published var vision = ""
     @Published var sessions: [SessionRecord] = []
+    @Published var languageProfile = RepositoryLanguageProfile.empty
     @Published var liveLog: [LiveLine] = []
     @Published var phase: LoopPhase = .idle {
         didSet {
@@ -143,10 +144,13 @@ extension CompassProject {
             lessons = ""
             vision = ""
             sessions = []
+            languageProfile = .empty
             scheduleCinematicBriefingRefresh(reason: .projectRefresh)
             return
         }
         do {
+            languageProfile = RepositoryLanguageProfileService.scan(repoURL: workspace.repoURL)
+
             if !FileManager.default.fileExists(atPath: workspace.compassURL.path) {
                 state = .empty
                 drafts = ""
