@@ -93,7 +93,7 @@ enum CinematicBriefingService {
         return CinematicBriefing(title: title, detail: detail)
     }
 
-    fileprivate static func parseGeneratedBriefing(_ raw: String) -> CinematicBriefing? {
+    static func parseGeneratedBriefing(_ raw: String) -> CinematicBriefing? {
         if let briefing = parseJSONBriefing(raw) {
             return validateGenerated(title: briefing.title, detail: briefing.detail)
         }
@@ -111,8 +111,10 @@ enum CinematicBriefingService {
         for line in lines {
             let lowercased = line.lowercased()
             if lowercased.hasPrefix("title:") {
+                guard title == nil else { return nil }
                 title = stripLabel(from: line)
             } else if lowercased.hasPrefix("detail:") {
+                guard detail == nil else { return nil }
                 detail = stripLabel(from: line)
             }
         }
