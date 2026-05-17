@@ -32,6 +32,13 @@ final class CinematicSceneNarrativeCuePlanTests: XCTestCase {
         XCTAssertFalse(first.questPlaque.identifier.isEmpty)
         XCTAssertFalse(first.arenaInscription.identifier.isEmpty)
         XCTAssertFalse(first.activityBanner.identifier.isEmpty)
+        XCTAssertEqual(first.questPlaque.layout, second.questPlaque.layout)
+        XCTAssertEqual(first.questPlaque.layout.facingMode, .arenaCamera)
+        XCTAssertEqual(first.activityBanner.layout.facingMode, .arenaCamera)
+        XCTAssertEqual(first.arenaInscription.layout.facingMode, .floorInscription)
+        XCTAssertTrue(first.questPlaque.identifier.contains(first.questPlaque.layout.identifier))
+        XCTAssertTrue(first.arenaInscription.identifier.contains(first.arenaInscription.layout.identifier))
+        XCTAssertTrue(first.activityBanner.identifier.contains(first.activityBanner.layout.identifier))
     }
 
     func testDisplayedStringsAreClampedToWorldTextAndBriefingBounds() {
@@ -88,6 +95,9 @@ final class CinematicSceneNarrativeCuePlanTests: XCTestCase {
         XCTAssertEqual(verifying.arenaInscription.anchor, .arenaRear)
         XCTAssertEqual(dirtyActivity.activityBanner.anchor, .rightWarningPylon)
         XCTAssertEqual(commitActivity.activityBanner.anchor, .rightHistoryPylon)
+        XCTAssertNotEqual(planning.questPlaque.layout.anchorPosition, planning.activityBanner.layout.anchorPosition)
+        XCTAssertGreaterThan(dirtyActivity.activityBanner.layout.anchorPosition.x, dirtyActivity.questPlaque.layout.anchorPosition.x)
+        XCTAssertEqual(verifying.arenaInscription.layout.facingMode, .floorInscription)
         XCTAssertNotEqual(planning.questPlaque.identifier, developing.questPlaque.identifier)
         XCTAssertNotEqual(dirtyActivity.activityBanner.identifier, commitActivity.activityBanner.identifier)
     }
@@ -110,8 +120,67 @@ final class CinematicSceneNarrativeCuePlanTests: XCTestCase {
         XCTAssertGreaterThan(dramatic.questPlaque.scale, steady.questPlaque.scale)
         XCTAssertGreaterThan(dramatic.activityBanner.opacity, steady.activityBanner.opacity)
         XCTAssertLessThan(dramatic.arenaInscription.cadence, steady.arenaInscription.cadence)
+        XCTAssertGreaterThan(dramatic.questPlaque.layout.plateSize.x, steady.questPlaque.layout.plateSize.x)
+        XCTAssertGreaterThan(dramatic.arenaInscription.layout.primaryFontSize, steady.arenaInscription.layout.primaryFontSize)
+        XCTAssertGreaterThan(dramatic.activityBanner.layout.backingOpacity, steady.activityBanner.layout.backingOpacity)
         XCTAssertNotEqual(dramatic.influenceIdentifier, steady.influenceIdentifier)
         XCTAssertNotEqual(dramatic.identifier, steady.identifier)
+    }
+
+    func testFeaturedVisibilityStrengthensReadabilityWithoutOverpoweringFloorBacking() {
+        let settings = CinematicInfluenceSettings(cameraStyle: .follow, intensity: 0.5)
+        let visible = narrativeCuePlan(
+            phase: .developing,
+            activityProfile: activityProfile(),
+            settings: settings
+        )
+        let featured = narrativeCuePlan(
+            phase: .succeeded,
+            activityProfile: activityProfile(lastTerminalStatus: .succeeded, successStreak: 2),
+            settings: settings
+        )
+
+        XCTAssertEqual(visible.questPlaque.visibility, .visible)
+        XCTAssertEqual(featured.questPlaque.visibility, .featured)
+        XCTAssertGreaterThan(featured.questPlaque.layout.plateSize.x, visible.questPlaque.layout.plateSize.x)
+        XCTAssertGreaterThan(featured.questPlaque.layout.primaryFontSize, visible.questPlaque.layout.primaryFontSize)
+        XCTAssertGreaterThan(featured.activityBanner.layout.backingOpacity, visible.activityBanner.layout.backingOpacity)
+        XCTAssertLessThan(featured.arenaInscription.layout.backingOpacity, featured.questPlaque.layout.backingOpacity)
+        XCTAssertLessThan(featured.arenaInscription.layout.backingOpacity, featured.activityBanner.layout.backingOpacity)
+    }
+
+    func testActivityBannerLayoutsStaySeparatedAcrossPhaseAndActivityStates() {
+        let settings = CinematicInfluenceSettings(cameraStyle: .dramatic, intensity: 1)
+        let samples = [
+            narrativeCuePlan(phase: .planning, activityProfile: activityProfile(), settings: settings),
+            narrativeCuePlan(
+                phase: .developing,
+                activityProfile: activityProfile(worktreeChanges: worktreeChanges(modified: 5)),
+                settings: settings
+            ),
+            narrativeCuePlan(phase: .verifying, activityProfile: activityProfile(), settings: settings),
+            narrativeCuePlan(
+                phase: .succeeded,
+                activityProfile: activityProfile(lastTerminalStatus: .succeeded, successStreak: 2),
+                settings: settings
+            ),
+            narrativeCuePlan(
+                phase: .failed,
+                activityProfile: activityProfile(recentFailedCount: 1, lastTerminalStatus: .failed, failureStreak: 1),
+                settings: settings
+            ),
+            narrativeCuePlan(
+                phase: .idle,
+                activityProfile: .empty,
+                settings: settings
+            )
+        ]
+
+        for plan in samples {
+            assertActivityBannerSeparated(from: plan.questPlaque, and: plan.arenaInscription, in: plan)
+            XCTAssertEqual(plan.activityBanner.layout.glyphSide, .trailing)
+            XCTAssertGreaterThan(plan.activityBanner.layout.glyphOffset.x, 0)
+        }
     }
 
     func testIdleUnavailableInputsUseNeutralPlaceholders() {
@@ -142,6 +211,13 @@ final class CinematicSceneNarrativeCuePlanTests: XCTestCase {
         XCTAssertEqual(plan.questPlaque.cadence, CinematicSceneNarrativeCuePlan.cueCadenceRange.upperBound)
         XCTAssertEqual(plan.questPlaque.lightFamily, .lifecycle)
         XCTAssertEqual(plan.questPlaque.tintFamily, .lifecycle)
+        XCTAssertEqual(plan.questPlaque.layout.anchorPosition, [-5.05, 1.08, 3.22])
+        XCTAssertEqual(plan.activityBanner.layout.anchorPosition, [5.05, 1.16, 3.22])
+        XCTAssertEqual(plan.arenaInscription.layout.anchorPosition, [0, 0.13, 0.72])
+        XCTAssertEqual(plan.arenaInscription.layout.facingMode, .floorInscription)
+        XCTAssertEqual(plan.arenaInscription.layout.backingOpacity, 0.1)
+        XCTAssertLessThan(plan.questPlaque.layout.plateSize.x, 2.7)
+        XCTAssertLessThan(plan.activityBanner.layout.backingOpacity, plan.questPlaque.layout.backingOpacity)
         assertNarrativeCuePlanInBounds(plan)
     }
 }
@@ -308,6 +384,7 @@ private func assertNarrativeCuePlanInBounds(
         XCTAssertFalse(descriptor.identifier.isEmpty, file: file, line: line)
         XCTAssertFalse(descriptor.stableID.isEmpty, file: file, line: line)
         XCTAssertFalse(descriptor.text.isEmpty, file: file, line: line)
+        assertCueLayoutInBounds(descriptor.layout, file: file, line: line)
     }
     XCTAssertFalse(plan.identifier.isEmpty, file: file, line: line)
     XCTAssertFalse(plan.stageBeatIdentifier.isEmpty, file: file, line: line)
@@ -315,6 +392,63 @@ private func assertNarrativeCuePlanInBounds(
     XCTAssertFalse(plan.languageIdentifier.isEmpty, file: file, line: line)
     XCTAssertFalse(plan.activityIdentifier.isEmpty, file: file, line: line)
     XCTAssertFalse(plan.influenceIdentifier.isEmpty, file: file, line: line)
+}
+
+private func assertCueLayoutInBounds(
+    _ layout: CinematicSceneNarrativeCuePlan.CueDescriptor.LayoutDescriptor,
+    file: StaticString = #filePath,
+    line: UInt = #line
+) {
+    XCTAssertInRange(layout.anchorPosition.x, CinematicSceneNarrativeCuePlan.cueAnchorXRange, file: file, line: line)
+    XCTAssertInRange(layout.anchorPosition.y, CinematicSceneNarrativeCuePlan.cueAnchorYRange, file: file, line: line)
+    XCTAssertInRange(layout.anchorPosition.z, CinematicSceneNarrativeCuePlan.cueAnchorZRange, file: file, line: line)
+    XCTAssertTrue(
+        CinematicSceneNarrativeCuePlan.CueDescriptor.LayoutDescriptor.FacingMode.allCases.contains(layout.facingMode),
+        file: file,
+        line: line
+    )
+    XCTAssertInRange(layout.plateSize.x, CinematicSceneNarrativeCuePlan.cuePlateWidthRange, file: file, line: line)
+    XCTAssertInRange(layout.plateSize.y, CinematicSceneNarrativeCuePlan.cuePlateHeightRange, file: file, line: line)
+    XCTAssertInRange(layout.primaryTextWidth, CinematicSceneNarrativeCuePlan.cueTextWidthRange, file: file, line: line)
+    XCTAssertInRange(layout.secondaryTextWidth, CinematicSceneNarrativeCuePlan.cueTextWidthRange, file: file, line: line)
+    XCTAssertInRange(layout.primaryFontSize, CinematicSceneNarrativeCuePlan.cueFontSizeRange, file: file, line: line)
+    XCTAssertInRange(layout.secondaryFontSize, CinematicSceneNarrativeCuePlan.cueFontSizeRange, file: file, line: line)
+    XCTAssertInRange(layout.backingOpacity, CinematicSceneNarrativeCuePlan.cueBackingOpacityRange, file: file, line: line)
+    XCTAssertTrue(
+        CinematicSceneNarrativeCuePlan.CueDescriptor.LayoutDescriptor.GlyphSide.allCases.contains(layout.glyphSide),
+        file: file,
+        line: line
+    )
+    XCTAssertInRange(layout.glyphOffset.x, CinematicSceneNarrativeCuePlan.cueOffsetXRange, file: file, line: line)
+    XCTAssertInRange(layout.glyphOffset.y, CinematicSceneNarrativeCuePlan.cueOffsetYRange, file: file, line: line)
+    XCTAssertInRange(layout.glyphOffset.z, CinematicSceneNarrativeCuePlan.cueLayerZRange, file: file, line: line)
+    XCTAssertInRange(layout.plateDepth, CinematicSceneNarrativeCuePlan.cuePlateDepthRange, file: file, line: line)
+    XCTAssertInRange(layout.plateZOffset, CinematicSceneNarrativeCuePlan.cueLayerZRange, file: file, line: line)
+    XCTAssertInRange(layout.primaryTextOffset.x, CinematicSceneNarrativeCuePlan.cueOffsetXRange, file: file, line: line)
+    XCTAssertInRange(layout.primaryTextOffset.y, CinematicSceneNarrativeCuePlan.cueOffsetYRange, file: file, line: line)
+    XCTAssertInRange(layout.primaryTextOffset.z, CinematicSceneNarrativeCuePlan.cueLayerZRange, file: file, line: line)
+    XCTAssertInRange(layout.secondaryTextOffset.x, CinematicSceneNarrativeCuePlan.cueOffsetXRange, file: file, line: line)
+    XCTAssertInRange(layout.secondaryTextOffset.y, CinematicSceneNarrativeCuePlan.cueOffsetYRange, file: file, line: line)
+    XCTAssertInRange(layout.secondaryTextOffset.z, CinematicSceneNarrativeCuePlan.cueLayerZRange, file: file, line: line)
+    XCTAssertFalse(layout.identifier.isEmpty, file: file, line: line)
+}
+
+private func assertActivityBannerSeparated(
+    from questPlaque: CinematicSceneNarrativeCuePlan.CueDescriptor,
+    and arenaInscription: CinematicSceneNarrativeCuePlan.CueDescriptor,
+    in plan: CinematicSceneNarrativeCuePlan,
+    file: StaticString = #filePath,
+    line: UInt = #line
+) {
+    let activityLeftEdge = plan.activityBanner.layout.anchorPosition.x
+        - plan.activityBanner.layout.plateSize.x * plan.activityBanner.scale / 2
+    let questRightEdge = questPlaque.layout.anchorPosition.x
+        + questPlaque.layout.plateSize.x * questPlaque.scale / 2
+    let arenaRightEdge = arenaInscription.layout.anchorPosition.x
+        + arenaInscription.layout.plateSize.x * arenaInscription.scale / 2
+
+    XCTAssertGreaterThan(activityLeftEdge, questRightEdge + 0.65, file: file, line: line)
+    XCTAssertGreaterThan(activityLeftEdge, arenaRightEdge + 0.35, file: file, line: line)
 }
 
 private func wordCount(_ text: String) -> Int {

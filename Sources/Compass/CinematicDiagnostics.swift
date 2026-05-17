@@ -205,6 +205,26 @@ struct CinematicDiagnosticsReport: Equatable {
         var lightFamilyIdentifier: String
         var tintFamilyIdentifier: String
         var cadence: TimeInterval
+        var layout: NarrativeCueLayoutSnapshot
+    }
+
+    struct NarrativeCueLayoutSnapshot: Equatable {
+        var identifier: String
+        var anchorPosition: SIMD3<Float>
+        var facingModeIdentifier: String
+        var plateWidth: Float
+        var plateHeight: Float
+        var primaryTextWidth: Float
+        var secondaryTextWidth: Float
+        var primaryFontSize: Float
+        var secondaryFontSize: Float
+        var backingOpacity: Float
+        var glyphSideIdentifier: String
+        var glyphOffset: SIMD3<Float>
+        var plateDepth: Float
+        var plateZOffset: Float
+        var primaryTextOffset: SIMD3<Float>
+        var secondaryTextOffset: SIMD3<Float>
     }
 
     struct WorldTextSnapshot: Equatable {
@@ -272,7 +292,7 @@ struct CinematicDiagnosticsReport: Equatable {
 }
 
 struct CinematicDiagnosticsSummary: Equatable {
-    static let maxRows = 30
+    static let maxRows = 31
     static let labelMaxCharacters = 32
     static let detailMaxCharacters = 512
 
@@ -440,6 +460,11 @@ struct CinematicDiagnosticsSummary: Equatable {
                 label: "Narrative cues",
                 detail: narrativeCueDetail(report.narrativeCue)
             ),
+            row(
+                id: "narrative-layout",
+                label: "Narrative layout",
+                detail: narrativeLayoutDetail(report.narrativeCue)
+            ),
             row(id: "world-quest", label: "World quest", detail: report.worldText.questLabel),
             row(id: "world-arena", label: "World arena", detail: report.worldText.arenaCallout),
             row(id: "world-activity", label: "World activity", detail: report.worldText.activityCallout),
@@ -555,6 +580,31 @@ struct CinematicDiagnosticsSummary: Equatable {
             narrativeCueDescriptorDetail("arena", snapshot.arenaInscription),
             narrativeCueDescriptorDetail("activity", snapshot.activityBanner)
         ].joined(separator: " | ")
+    }
+
+    private static func narrativeLayoutDetail(_ snapshot: CinematicDiagnosticsReport.NarrativeCueSnapshot) -> String {
+        [
+            narrativeCueLayoutDescriptorDetail("quest", snapshot.questPlaque.layout),
+            narrativeCueLayoutDescriptorDetail("arena", snapshot.arenaInscription.layout),
+            narrativeCueLayoutDescriptorDetail("activity", snapshot.activityBanner.layout)
+        ].joined(separator: " | ")
+    }
+
+    private static func narrativeCueLayoutDescriptorDetail(
+        _ label: String,
+        _ layout: CinematicDiagnosticsReport.NarrativeCueLayoutSnapshot
+    ) -> String {
+        [
+            label,
+            layout.facingModeIdentifier,
+            "pos \(position(layout.anchorPosition))",
+            "box \(fixed(layout.plateWidth))x\(fixed(layout.plateHeight))",
+            "text \(fixed(layout.primaryTextWidth))/\(fixed(layout.secondaryTextWidth))",
+            "font \(fixed(layout.primaryFontSize))/\(fixed(layout.secondaryFontSize))",
+            "back \(fixed(layout.backingOpacity))",
+            "glyph \(layout.glyphSideIdentifier)@\(position(layout.glyphOffset))",
+            "z \(fixed(layout.plateZOffset))/\(fixed(layout.primaryTextOffset.z))/\(fixed(layout.glyphOffset.z))"
+        ].joined(separator: " ")
     }
 
     private static func narrativeCueDescriptorDetail(
@@ -1160,7 +1210,31 @@ enum CinematicDiagnostics {
             opacity: descriptor.opacity,
             lightFamilyIdentifier: descriptor.lightFamilyIdentifier,
             tintFamilyIdentifier: descriptor.tintFamilyIdentifier,
-            cadence: descriptor.cadence
+            cadence: descriptor.cadence,
+            layout: narrativeCueLayoutSnapshot(for: descriptor.layout)
+        )
+    }
+
+    private static func narrativeCueLayoutSnapshot(
+        for layout: CinematicSceneNarrativeCuePlan.CueDescriptor.LayoutDescriptor
+    ) -> CinematicDiagnosticsReport.NarrativeCueLayoutSnapshot {
+        CinematicDiagnosticsReport.NarrativeCueLayoutSnapshot(
+            identifier: layout.identifier,
+            anchorPosition: layout.anchorPosition,
+            facingModeIdentifier: layout.facingModeIdentifier,
+            plateWidth: layout.plateSize.x,
+            plateHeight: layout.plateSize.y,
+            primaryTextWidth: layout.primaryTextWidth,
+            secondaryTextWidth: layout.secondaryTextWidth,
+            primaryFontSize: layout.primaryFontSize,
+            secondaryFontSize: layout.secondaryFontSize,
+            backingOpacity: layout.backingOpacity,
+            glyphSideIdentifier: layout.glyphSideIdentifier,
+            glyphOffset: layout.glyphOffset,
+            plateDepth: layout.plateDepth,
+            plateZOffset: layout.plateZOffset,
+            primaryTextOffset: layout.primaryTextOffset,
+            secondaryTextOffset: layout.secondaryTextOffset
         )
     }
 

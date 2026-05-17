@@ -2504,19 +2504,16 @@ private final class CinematicSceneCoordinator {
         applyNarrativeCueDescriptor(
             plan.questPlaque,
             to: narrativeQuestPlaqueNode,
-            role: .questPlaque,
             animated: animated && previousPlan?.questPlaque.identifier != plan.questPlaque.identifier
         )
         applyNarrativeCueDescriptor(
             plan.arenaInscription,
             to: narrativeArenaInscriptionNode,
-            role: .arenaInscription,
             animated: animated && previousPlan?.arenaInscription.identifier != plan.arenaInscription.identifier
         )
         applyNarrativeCueDescriptor(
             plan.activityBanner,
             to: narrativeActivityBannerNode,
-            role: .activityBanner,
             animated: animated && previousPlan?.activityBanner.identifier != plan.activityBanner.identifier
         )
     }
@@ -2524,76 +2521,72 @@ private final class CinematicSceneCoordinator {
     private func applyNarrativeCueDescriptor(
         _ descriptor: CinematicSceneNarrativeCuePlan.CueDescriptor,
         to node: Entity,
-        role: NarrativeCueRole,
         animated: Bool
     ) {
         clearChildren(of: node)
         node.name = descriptor.stableID
 
-        let placement = narrativePlacement(for: descriptor.anchor, role: role)
-        node.position = placement.position
-        node.orientation = placement.orientation
+        let layout = descriptor.layout
+        node.position = layout.anchorPosition
+        node.orientation = narrativeOrientation(for: layout)
         node.scale = SIMD3<Float>(repeating: descriptor.scale)
         setOpacity(descriptor.opacity, on: node)
 
         let color = narrativeColor(for: descriptor)
-        let backingOpacity = max(0.12, descriptor.opacity * (role == .arenaInscription ? 0.28 : 0.42))
         let plate = ModelEntity(
             mesh: .generateBox(
-                width: placement.width,
-                height: placement.height,
-                depth: role == .arenaInscription ? 0.018 : 0.04,
-                cornerRadius: role == .arenaInscription ? 0.018 : 0.035
+                width: layout.plateSize.x,
+                height: layout.plateSize.y,
+                depth: layout.plateDepth,
+                cornerRadius: max(0.014, min(0.04, layout.plateDepth * 0.95))
             ),
             materials: [
                 material(
                     diffuse: NSColor(calibratedRed: 0.018, green: 0.02, blue: 0.032, alpha: 1),
                     emission: color.withAlphaComponent(0.14),
-                    opacity: backingOpacity
+                    opacity: layout.backingOpacity
                 )
             ]
         )
         plate.name = "\(descriptor.stableID).placard"
-        plate.position.z = -0.02
-        plate.components.set(OpacityComponent(opacity: backingOpacity))
+        plate.position.z = layout.plateZOffset
+        plate.components.set(OpacityComponent(opacity: layout.backingOpacity))
         node.addChild(plate)
 
-        let hasSecondary = descriptor.secondaryText?.isEmpty == false && role == .questPlaque
-        let primaryYOffset: Float = hasSecondary ? 0.06 : -0.035
         addNarrativeText(
             descriptor.text,
             to: node,
             name: "\(descriptor.stableID).text.primary",
-            width: placement.width - 0.42,
-            yOffset: primaryYOffset,
-            fontSize: role == .arenaInscription ? 0.18 : 0.14,
+            width: layout.primaryTextWidth,
+            offset: layout.primaryTextOffset,
+            fontSize: CGFloat(layout.primaryFontSize),
             weight: .semibold,
             color: color,
             opacity: min(0.96, descriptor.opacity + 0.12)
         )
 
+        let hasSecondary = descriptor.secondaryText?.isEmpty == false
         if let secondaryText = descriptor.secondaryText, hasSecondary {
             addNarrativeText(
                 secondaryText,
                 to: node,
                 name: "\(descriptor.stableID).text.secondary",
-                width: placement.width - 0.58,
-                yOffset: -0.13,
-                fontSize: 0.074,
+                width: layout.secondaryTextWidth,
+                offset: layout.secondaryTextOffset,
+                fontSize: CGFloat(layout.secondaryFontSize),
                 weight: .medium,
                 color: color.withAlphaComponent(0.78),
                 opacity: min(0.72, descriptor.opacity)
             )
         }
 
-        if descriptor.glyphIdentifier != nil {
+        if descriptor.glyphIdentifier != nil, layout.glyphSide != .none {
             addNarrativeGlyph(
                 to: node,
                 name: "\(descriptor.stableID).glyph",
-                role: role,
+                layout: layout,
                 color: color,
-                opacity: min(0.82, descriptor.opacity + 0.08),
-                plateWidth: placement.width
+                opacity: min(0.82, descriptor.opacity + 0.08)
             )
         }
 
@@ -2613,7 +2606,7 @@ private final class CinematicSceneCoordinator {
         to node: Entity,
         name: String,
         width: Float,
-        yOffset: Float,
+        offset: SIMD3<Float>,
         fontSize: CGFloat,
         weight: NSFont.Weight,
         color: NSColor,
@@ -2637,7 +2630,7 @@ private final class CinematicSceneCoordinator {
             materials: [glowMaterial(color, opacity: opacity)]
         )
         text.name = name
-        text.position = [0, yOffset, 0.026]
+        text.position = offset
         text.components.set(OpacityComponent(opacity: opacity))
         node.addChild(text)
     }
@@ -2645,19 +2638,18 @@ private final class CinematicSceneCoordinator {
     private func addNarrativeGlyph(
         to node: Entity,
         name: String,
-        role: NarrativeCueRole,
+        layout: CinematicSceneNarrativeCuePlan.CueDescriptor.LayoutDescriptor,
         color: NSColor,
-        opacity: Float,
-        plateWidth: Float
+        opacity: Float
     ) {
         let glyph = Entity()
         glyph.name = name
-        glyph.position = role == .activityBanner
-            ? [plateWidth * 0.42, 0, 0.036]
-            : [-plateWidth * 0.42, 0, 0.036]
+        glyph.position = layout.glyphOffset
+        let ringRadius = max(0.115, min(0.18, layout.plateSize.y * 0.34))
+        let segmentReach = ringRadius * 0.82
 
         let ring = ModelEntity(
-            mesh: torusMesh(ringRadius: role == .arenaInscription ? 0.18 : 0.15, pipeRadius: 0.006),
+            mesh: torusMesh(ringRadius: ringRadius, pipeRadius: 0.006),
             materials: [glowMaterial(color, opacity: opacity)]
         )
         ring.name = "\(name).ring"
@@ -2666,8 +2658,8 @@ private final class CinematicSceneCoordinator {
         glyph.addChild(ring)
 
         let horizontal = beamEntity(
-            from: [-0.14, 0, 0],
-            to: [0.14, 0, 0],
+            from: [-segmentReach, 0, 0],
+            to: [segmentReach, 0, 0],
             radius: 0.006,
             color: color,
             opacity: opacity
@@ -2676,8 +2668,8 @@ private final class CinematicSceneCoordinator {
         glyph.addChild(horizontal)
 
         let vertical = beamEntity(
-            from: [0, -0.12, 0],
-            to: [0, 0.12, 0],
+            from: [0, -segmentReach * 0.86, 0],
+            to: [0, segmentReach * 0.86, 0],
             radius: 0.006,
             color: color.withAlphaComponent(0.76),
             opacity: opacity * 0.82
@@ -2694,73 +2686,24 @@ private final class CinematicSceneCoordinator {
         node.addChild(glyph)
     }
 
-    private func narrativePlacement(
-        for anchor: CinematicNarrativeCueAnchor,
-        role: NarrativeCueRole
-    ) -> (position: SIMD3<Float>, orientation: simd_quatf, width: Float, height: Float) {
-        let position: SIMD3<Float>
-        let isFloor: Bool
-        switch anchor {
-        case .idleArchive:
-            position = role == .activityBanner ? [4.1, 0.9, 3.2] : [-4.1, 0.9, 3.2]
-            isFloor = false
-        case .leftScoutPylon:
-            position = [-4.8, 1.08, 1.1]
-            isFloor = false
-        case .leftForgePylon:
-            position = [-5.15, 1.12, -0.55]
-            isFloor = false
-        case .leftSealPylon:
-            position = [-4.45, 1.18, -2.35]
-            isFloor = false
-        case .fractureGate:
-            position = [-3.55, 1.36, -3.65]
-            isFloor = false
-        case .victoryArch:
-            position = [0, 2.0, -4.45]
-            isFloor = false
-        case .arenaCenter:
-            position = [0, 0.13, 1.15]
-            isFloor = true
-        case .arenaFront:
-            position = [0, 0.13, 3.75]
-            isFloor = true
-        case .arenaRear:
-            position = [0, 0.13, -3.75]
-            isFloor = true
-        case .rightPylon:
-            position = [4.75, 1.02, 1.05]
-            isFloor = false
-        case .rightHistoryPylon:
-            position = [4.85, 1.16, -0.85]
-            isFloor = false
-        case .rightWarningPylon:
-            position = [4.4, 1.28, -2.85]
-            isFloor = false
+    private func narrativeOrientation(
+        for layout: CinematicSceneNarrativeCuePlan.CueDescriptor.LayoutDescriptor
+    ) -> simd_quatf {
+        switch layout.facingMode {
+        case .floorInscription:
+            return simd_quatf(angle: -.pi / 2, axis: [1, 0, 0])
+        case .arenaCamera:
+            let position = layout.anchorPosition
+            let target = SIMD3<Float>(
+                CinematicCameraShot.home.position.x,
+                position.y,
+                CinematicCameraShot.home.position.z
+            )
+            return narrativeBillboardOrientation(from: position, to: target)
         }
-
-        let width: Float
-        let height: Float
-        switch role {
-        case .questPlaque:
-            width = 2.72
-            height = 0.58
-        case .arenaInscription:
-            width = 3.4
-            height = 0.34
-        case .activityBanner:
-            width = 2.76
-            height = 0.42
-        }
-
-        let orientation = isFloor
-            ? simd_quatf(angle: -.pi / 2, axis: [1, 0, 0])
-            : narrativeBillboardOrientation(from: position)
-        return (position, orientation, width, height)
     }
 
-    private func narrativeBillboardOrientation(from position: SIMD3<Float>) -> simd_quatf {
-        let target = SIMD3<Float>(0, position.y, 0)
+    private func narrativeBillboardOrientation(from position: SIMD3<Float>, to target: SIMD3<Float>) -> simd_quatf {
         guard let direction = horizontalDirection(from: position, to: target) else {
             return simd_quatf()
         }
@@ -3679,12 +3622,6 @@ private final class CinematicSceneCoordinator {
         }
         return .generateSphere(radius: max(pipeRadius, 0.01))
     }
-}
-
-private enum NarrativeCueRole {
-    case questPlaque
-    case arenaInscription
-    case activityBanner
 }
 
 private struct SetDressingSigilSegment {

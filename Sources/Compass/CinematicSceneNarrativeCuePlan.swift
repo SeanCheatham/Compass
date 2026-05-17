@@ -25,6 +25,18 @@ struct CinematicSceneNarrativeCuePlan: Equatable {
     static let cueScaleRange: ClosedRange<Float> = 0.58...1.34
     static let cueOpacityRange: ClosedRange<Float> = 0.18...0.92
     static let cueCadenceRange: ClosedRange<TimeInterval> = 1.35...6.4
+    static let cueAnchorXRange: ClosedRange<Float> = -6.2...6.2
+    static let cueAnchorYRange: ClosedRange<Float> = 0.08...2.45
+    static let cueAnchorZRange: ClosedRange<Float> = -4.85...4.45
+    static let cuePlateWidthRange: ClosedRange<Float> = 2.18...4.08
+    static let cuePlateHeightRange: ClosedRange<Float> = 0.3...0.72
+    static let cueTextWidthRange: ClosedRange<Float> = 1.44...3.52
+    static let cueFontSizeRange: ClosedRange<Float> = 0.058...0.212
+    static let cueBackingOpacityRange: ClosedRange<Float> = 0.08...0.42
+    static let cueOffsetXRange: ClosedRange<Float> = -1.82...1.82
+    static let cueOffsetYRange: ClosedRange<Float> = -0.24...0.18
+    static let cueLayerZRange: ClosedRange<Float> = -0.052...0.092
+    static let cuePlateDepthRange: ClosedRange<Float> = 0.012...0.052
 
     var identifier: String
     var stageBeatIdentifier: String
@@ -48,11 +60,40 @@ struct CinematicSceneNarrativeCuePlan: Equatable {
         var lightFamily: CinematicStageLightFamily
         var tintFamily: CinematicStageLightFamily
         var cadence: TimeInterval
+        var layout: LayoutDescriptor
 
         var anchorIdentifier: String { anchor.rawValue }
         var visibilityIdentifier: String { visibility.rawValue }
         var lightFamilyIdentifier: String { lightFamily.rawValue }
         var tintFamilyIdentifier: String { tintFamily.rawValue }
+
+        init(
+            stableID: String,
+            text: String,
+            secondaryText: String?,
+            glyphIdentifier: String?,
+            anchor: CinematicNarrativeCueAnchor,
+            visibility: CinematicNarrativeCueVisibility,
+            scale: Float,
+            opacity: Float,
+            lightFamily: CinematicStageLightFamily,
+            tintFamily: CinematicStageLightFamily,
+            cadence: TimeInterval,
+            layout: LayoutDescriptor? = nil
+        ) {
+            self.stableID = stableID
+            self.text = text
+            self.secondaryText = secondaryText
+            self.glyphIdentifier = glyphIdentifier
+            self.anchor = anchor
+            self.visibility = visibility
+            self.scale = scale
+            self.opacity = opacity
+            self.lightFamily = lightFamily
+            self.tintFamily = tintFamily
+            self.cadence = cadence
+            self.layout = layout ?? Self.fallbackLayout(anchor: anchor, opacity: opacity)
+        }
 
         var identifier: String {
             [
@@ -66,8 +107,141 @@ struct CinematicSceneNarrativeCuePlan: Equatable {
                 "opacity\(CinematicSceneNarrativeCuePlanner.fixed(opacity))",
                 "light\(lightFamily.rawValue)",
                 "tint\(tintFamily.rawValue)",
-                "cadence\(CinematicSceneNarrativeCuePlanner.fixed(cadence))"
+                "cadence\(CinematicSceneNarrativeCuePlanner.fixed(cadence))",
+                "layout{\(layout.identifier)}"
             ].joined(separator: "|")
+        }
+
+        struct LayoutDescriptor: Equatable {
+            enum FacingMode: String, CaseIterable, Equatable {
+                case arenaCamera = "arena-camera"
+                case floorInscription = "floor-inscription"
+            }
+
+            enum GlyphSide: String, CaseIterable, Equatable {
+                case none
+                case leading
+                case trailing
+            }
+
+            var anchorPosition: SIMD3<Float>
+            var facingMode: FacingMode
+            var plateSize: SIMD2<Float>
+            var primaryTextWidth: Float
+            var secondaryTextWidth: Float
+            var primaryFontSize: Float
+            var secondaryFontSize: Float
+            var backingOpacity: Float
+            var glyphSide: GlyphSide
+            var glyphOffset: SIMD3<Float>
+            var plateDepth: Float
+            var plateZOffset: Float
+            var primaryTextOffset: SIMD3<Float>
+            var secondaryTextOffset: SIMD3<Float>
+
+            var facingModeIdentifier: String { facingMode.rawValue }
+            var glyphSideIdentifier: String { glyphSide.rawValue }
+
+            var identifier: String {
+                [
+                    "pos\(Self.vectorIdentifier(anchorPosition))",
+                    "face\(facingMode.rawValue)",
+                    "plate\(CinematicSceneNarrativeCuePlanner.fixed(plateSize.x))x\(CinematicSceneNarrativeCuePlanner.fixed(plateSize.y))",
+                    "text\(CinematicSceneNarrativeCuePlanner.fixed(primaryTextWidth))/\(CinematicSceneNarrativeCuePlanner.fixed(secondaryTextWidth))",
+                    "font\(CinematicSceneNarrativeCuePlanner.fixed(primaryFontSize))/\(CinematicSceneNarrativeCuePlanner.fixed(secondaryFontSize))",
+                    "back\(CinematicSceneNarrativeCuePlanner.fixed(backingOpacity))",
+                    "glyph\(glyphSide.rawValue)@\(Self.vectorIdentifier(glyphOffset))",
+                    "depth\(CinematicSceneNarrativeCuePlanner.fixed(plateDepth))@\(CinematicSceneNarrativeCuePlanner.fixed(plateZOffset))",
+                    "primary@\(Self.vectorIdentifier(primaryTextOffset))",
+                    "secondary@\(Self.vectorIdentifier(secondaryTextOffset))"
+                ].joined(separator: "|")
+            }
+
+            init(
+                anchorPosition: SIMD3<Float>,
+                facingMode: FacingMode,
+                plateSize: SIMD2<Float>,
+                primaryTextWidth: Float,
+                secondaryTextWidth: Float,
+                primaryFontSize: Float,
+                secondaryFontSize: Float,
+                backingOpacity: Float,
+                glyphSide: GlyphSide,
+                glyphOffset: SIMD3<Float>,
+                plateDepth: Float,
+                plateZOffset: Float,
+                primaryTextOffset: SIMD3<Float>,
+                secondaryTextOffset: SIMD3<Float>
+            ) {
+                self.anchorPosition = [
+                    Self.clamp(anchorPosition.x, to: CinematicSceneNarrativeCuePlan.cueAnchorXRange),
+                    Self.clamp(anchorPosition.y, to: CinematicSceneNarrativeCuePlan.cueAnchorYRange),
+                    Self.clamp(anchorPosition.z, to: CinematicSceneNarrativeCuePlan.cueAnchorZRange)
+                ]
+                self.facingMode = facingMode
+                self.plateSize = [
+                    Self.clamp(plateSize.x, to: CinematicSceneNarrativeCuePlan.cuePlateWidthRange),
+                    Self.clamp(plateSize.y, to: CinematicSceneNarrativeCuePlan.cuePlateHeightRange)
+                ]
+                self.primaryTextWidth = Self.clamp(primaryTextWidth, to: CinematicSceneNarrativeCuePlan.cueTextWidthRange)
+                self.secondaryTextWidth = Self.clamp(secondaryTextWidth, to: CinematicSceneNarrativeCuePlan.cueTextWidthRange)
+                self.primaryFontSize = Self.clamp(primaryFontSize, to: CinematicSceneNarrativeCuePlan.cueFontSizeRange)
+                self.secondaryFontSize = Self.clamp(secondaryFontSize, to: CinematicSceneNarrativeCuePlan.cueFontSizeRange)
+                self.backingOpacity = Self.clamp(backingOpacity, to: CinematicSceneNarrativeCuePlan.cueBackingOpacityRange)
+                self.glyphSide = glyphSide
+                self.glyphOffset = [
+                    Self.clamp(glyphOffset.x, to: CinematicSceneNarrativeCuePlan.cueOffsetXRange),
+                    Self.clamp(glyphOffset.y, to: CinematicSceneNarrativeCuePlan.cueOffsetYRange),
+                    Self.clamp(glyphOffset.z, to: CinematicSceneNarrativeCuePlan.cueLayerZRange)
+                ]
+                self.plateDepth = Self.clamp(plateDepth, to: CinematicSceneNarrativeCuePlan.cuePlateDepthRange)
+                self.plateZOffset = Self.clamp(plateZOffset, to: CinematicSceneNarrativeCuePlan.cueLayerZRange)
+                self.primaryTextOffset = [
+                    Self.clamp(primaryTextOffset.x, to: CinematicSceneNarrativeCuePlan.cueOffsetXRange),
+                    Self.clamp(primaryTextOffset.y, to: CinematicSceneNarrativeCuePlan.cueOffsetYRange),
+                    Self.clamp(primaryTextOffset.z, to: CinematicSceneNarrativeCuePlan.cueLayerZRange)
+                ]
+                self.secondaryTextOffset = [
+                    Self.clamp(secondaryTextOffset.x, to: CinematicSceneNarrativeCuePlan.cueOffsetXRange),
+                    Self.clamp(secondaryTextOffset.y, to: CinematicSceneNarrativeCuePlan.cueOffsetYRange),
+                    Self.clamp(secondaryTextOffset.z, to: CinematicSceneNarrativeCuePlan.cueLayerZRange)
+                ]
+            }
+
+            private static func vectorIdentifier(_ value: SIMD3<Float>) -> String {
+                [
+                    CinematicSceneNarrativeCuePlanner.fixed(value.x),
+                    CinematicSceneNarrativeCuePlanner.fixed(value.y),
+                    CinematicSceneNarrativeCuePlanner.fixed(value.z)
+                ].joined(separator: ",")
+            }
+
+            private static func clamp(_ value: Float, to range: ClosedRange<Float>) -> Float {
+                min(max(value, range.lowerBound), range.upperBound)
+            }
+        }
+
+        private static func fallbackLayout(
+            anchor: CinematicNarrativeCueAnchor,
+            opacity: Float
+        ) -> LayoutDescriptor {
+            let isFloor = anchor == .arenaCenter || anchor == .arenaFront || anchor == .arenaRear
+            return LayoutDescriptor(
+                anchorPosition: isFloor ? [0, 0.13, 0.72] : [0, 1.1, 2.8],
+                facingMode: isFloor ? .floorInscription : .arenaCamera,
+                plateSize: isFloor ? [3.0, 0.34] : [2.6, 0.52],
+                primaryTextWidth: isFloor ? 2.24 : 1.92,
+                secondaryTextWidth: isFloor ? 2.06 : 1.74,
+                primaryFontSize: isFloor ? 0.17 : 0.136,
+                secondaryFontSize: 0.068,
+                backingOpacity: max(0.1, opacity * (isFloor ? 0.2 : 0.34)),
+                glyphSide: .none,
+                glyphOffset: [0, 0, isFloor ? 0.032 : 0.04],
+                plateDepth: isFloor ? 0.018 : 0.036,
+                plateZOffset: isFloor ? -0.0104 : -0.0208,
+                primaryTextOffset: [0, isFloor ? -0.034 : -0.026, isFloor ? 0.024 : 0.03],
+                secondaryTextOffset: [0, -0.13, isFloor ? 0.028 : 0.034]
+            )
         }
     }
 }
@@ -122,6 +296,7 @@ enum CinematicSceneNarrativeCuePlanner {
             fallback: CinematicWorldText.placeholder.activityCallout
         )
         let questDescriptor = cueDescriptor(
+            slot: .questPlaque,
             stableID: "narrative.quest.plaque",
             text: questText,
             secondaryText: questSecondary == questText ? nil : questSecondary,
@@ -136,6 +311,7 @@ enum CinematicSceneNarrativeCuePlanner {
             isIdleUnavailable: isIdleUnavailable
         )
         let arenaDescriptor = cueDescriptor(
+            slot: .arenaInscription,
             stableID: "narrative.arena.inscription",
             text: arenaText,
             secondaryText: nil,
@@ -150,6 +326,7 @@ enum CinematicSceneNarrativeCuePlanner {
             isIdleUnavailable: isIdleUnavailable
         )
         let activityDescriptor = cueDescriptor(
+            slot: .activityBanner,
             stableID: "narrative.activity.banner",
             text: activityText,
             secondaryText: nil,
@@ -201,6 +378,7 @@ enum CinematicSceneNarrativeCuePlanner {
     }
 
     private static func cueDescriptor(
+        slot: NarrativeCueSlot,
         stableID: String,
         text: String,
         secondaryText: String?,
@@ -241,6 +419,17 @@ enum CinematicSceneNarrativeCuePlanner {
                 4.8 - TimeInterval(phaseEnergy * 1.4 + influenceIntensity * 0.75 + visibilityBoost),
                 to: CinematicSceneNarrativeCuePlan.cueCadenceRange
             )
+        let layout = cueLayoutDescriptor(
+            slot: slot,
+            anchor: anchor,
+            visibility: visibility,
+            opacity: opacity,
+            phaseEnergy: phaseEnergy,
+            influenceFraction: influenceFraction,
+            hasSecondary: secondaryText?.isEmpty == false,
+            hasGlyph: glyphIdentifier?.isEmpty == false,
+            isIdleUnavailable: isIdleUnavailable
+        )
 
         return CinematicSceneNarrativeCuePlan.CueDescriptor(
             stableID: stableID,
@@ -253,8 +442,227 @@ enum CinematicSceneNarrativeCuePlanner {
             opacity: opacity,
             lightFamily: isIdleUnavailable ? .lifecycle : baseLightFamily,
             tintFamily: isIdleUnavailable ? .lifecycle : tintFamily,
-            cadence: cadence
+            cadence: cadence,
+            layout: layout
         )
+    }
+
+    private enum NarrativeCueSlot {
+        case questPlaque
+        case arenaInscription
+        case activityBanner
+    }
+
+    private static func cueLayoutDescriptor(
+        slot: NarrativeCueSlot,
+        anchor: CinematicNarrativeCueAnchor,
+        visibility: CinematicNarrativeCueVisibility,
+        opacity: Float,
+        phaseEnergy: Float,
+        influenceFraction: Float,
+        hasSecondary: Bool,
+        hasGlyph: Bool,
+        isIdleUnavailable: Bool
+    ) -> CinematicSceneNarrativeCuePlan.CueDescriptor.LayoutDescriptor {
+        let visibilityFraction: Float
+        switch visibility {
+        case .dim:
+            visibilityFraction = 0
+        case .visible:
+            visibilityFraction = 0.48
+        case .featured:
+            visibilityFraction = 1
+        }
+
+        let position = cueAnchorPosition(for: anchor, slot: slot)
+        let facingMode: CinematicSceneNarrativeCuePlan.CueDescriptor.LayoutDescriptor.FacingMode = slot == .arenaInscription
+            ? .floorInscription
+            : .arenaCamera
+        let glyphSide = glyphSide(for: slot, hasGlyph: hasGlyph)
+
+        let plateWidth: Float
+        let plateHeight: Float
+        let primaryFontSize: Float
+        let secondaryFontSize: Float
+        let backingOpacity: Float
+        let plateDepth: Float
+        let textXOffset: Float
+        let primaryYOffset: Float
+        let secondaryYOffset: Float
+
+        switch slot {
+        case .questPlaque:
+            plateWidth = isIdleUnavailable
+                ? 2.58
+                : 2.78 + visibilityFraction * 0.2 + influenceFraction * 0.14
+            plateHeight = hasSecondary ? 0.62 + visibilityFraction * 0.035 : 0.52
+            primaryFontSize = 0.132 + visibilityFraction * 0.014 + influenceFraction * 0.006
+            secondaryFontSize = 0.07 + visibilityFraction * 0.004
+            backingOpacity = isIdleUnavailable
+                ? 0.16
+                : 0.17 + opacity * 0.17 + phaseEnergy * 0.035 + visibilityFraction * 0.026
+            plateDepth = 0.038
+            textXOffset = glyphSide == .leading ? 0.18 : 0
+            primaryYOffset = hasSecondary ? 0.074 : -0.026
+            secondaryYOffset = -0.152
+        case .arenaInscription:
+            plateWidth = isIdleUnavailable
+                ? 3.0
+                : 3.34 + visibilityFraction * 0.2 + influenceFraction * 0.12
+            plateHeight = 0.34 + visibilityFraction * 0.025
+            primaryFontSize = 0.166 + visibilityFraction * 0.016 + influenceFraction * 0.006
+            secondaryFontSize = 0.064
+            backingOpacity = isIdleUnavailable
+                ? 0.1
+                : 0.085 + opacity * 0.08 + phaseEnergy * 0.024 + visibilityFraction * 0.016
+            plateDepth = 0.018
+            textXOffset = glyphSide == .leading ? 0.2 : 0
+            primaryYOffset = -0.034
+            secondaryYOffset = -0.13
+        case .activityBanner:
+            plateWidth = isIdleUnavailable
+                ? 2.48
+                : 2.62 + visibilityFraction * 0.18 + influenceFraction * 0.16
+            plateHeight = 0.42 + visibilityFraction * 0.035
+            primaryFontSize = 0.128 + visibilityFraction * 0.013 + influenceFraction * 0.006
+            secondaryFontSize = 0.064
+            backingOpacity = isIdleUnavailable
+                ? 0.15
+                : 0.15 + opacity * 0.19 + phaseEnergy * 0.04 + visibilityFraction * 0.03
+            plateDepth = 0.036
+            textXOffset = glyphSide == .trailing ? -0.18 : 0
+            primaryYOffset = -0.024
+            secondaryYOffset = -0.13
+        }
+
+        let horizontalTextInset: Float
+        switch slot {
+        case .questPlaque:
+            horizontalTextInset = hasGlyph ? 0.78 : 0.46
+        case .arenaInscription:
+            horizontalTextInset = hasGlyph ? 0.86 : 0.42
+        case .activityBanner:
+            horizontalTextInset = hasGlyph ? 0.74 : 0.42
+        }
+        let secondaryTextInset: Float = hasGlyph ? horizontalTextInset + 0.18 : 0.58
+        let textDepth: Float = slot == .arenaInscription ? 0.024 : 0.03
+        let glyphDepth: Float = slot == .arenaInscription ? 0.032 : 0.04
+
+        return CinematicSceneNarrativeCuePlan.CueDescriptor.LayoutDescriptor(
+            anchorPosition: position,
+            facingMode: facingMode,
+            plateSize: [plateWidth, plateHeight],
+            primaryTextWidth: plateWidth - horizontalTextInset,
+            secondaryTextWidth: plateWidth - secondaryTextInset,
+            primaryFontSize: primaryFontSize,
+            secondaryFontSize: secondaryFontSize,
+            backingOpacity: backingOpacity,
+            glyphSide: glyphSide,
+            glyphOffset: glyphOffset(
+                side: glyphSide,
+                plateWidth: plateWidth,
+                plateHeight: plateHeight,
+                depth: glyphDepth
+            ),
+            plateDepth: plateDepth,
+            plateZOffset: -plateDepth * 0.58,
+            primaryTextOffset: [textXOffset, primaryYOffset, textDepth],
+            secondaryTextOffset: [textXOffset, secondaryYOffset, textDepth + 0.004]
+        )
+    }
+
+    private static func cueAnchorPosition(
+        for anchor: CinematicNarrativeCueAnchor,
+        slot: NarrativeCueSlot
+    ) -> SIMD3<Float> {
+        if slot == .arenaInscription {
+            switch anchor {
+            case .arenaFront:
+                return [0, 0.13, 3.12]
+            case .arenaRear:
+                return [0, 0.13, -3.32]
+            case .arenaCenter, .idleArchive:
+                return [0, 0.13, 0.72]
+            case .fractureGate:
+                return [-1.15, 0.13, -2.72]
+            case .victoryArch:
+                return [0, 0.13, -3.45]
+            case .leftScoutPylon, .leftForgePylon, .leftSealPylon:
+                return [-1.2, 0.13, 1.15]
+            case .rightPylon, .rightHistoryPylon, .rightWarningPylon:
+                return [1.2, 0.13, 1.15]
+            }
+        }
+
+        if slot == .activityBanner {
+            switch anchor {
+            case .idleArchive:
+                return [5.05, 1.16, 3.22]
+            case .rightPylon, .arenaCenter, .arenaFront:
+                return [5.18, 1.28, 1.74]
+            case .rightHistoryPylon, .arenaRear, .victoryArch:
+                return [5.32, 1.42, -0.62]
+            case .rightWarningPylon, .fractureGate:
+                return [5.08, 1.54, -3.02]
+            case .leftScoutPylon:
+                return [5.05, 1.28, 1.74]
+            case .leftForgePylon:
+                return [5.24, 1.4, -0.62]
+            case .leftSealPylon:
+                return [5.05, 1.52, -2.82]
+            }
+        }
+
+        switch anchor {
+        case .idleArchive:
+            return [-5.05, 1.08, 3.22]
+        case .leftScoutPylon, .rightPylon:
+            return [-5.12, 1.16, 1.58]
+        case .leftForgePylon, .rightHistoryPylon:
+            return [-5.38, 1.2, -0.34]
+        case .leftSealPylon, .rightWarningPylon:
+            return [-5.02, 1.3, -2.46]
+        case .fractureGate:
+            return [-3.94, 1.58, -4.04]
+        case .victoryArch:
+            return [0, 2.08, -4.58]
+        case .arenaCenter:
+            return [-4.8, 1.18, 0.9]
+        case .arenaFront:
+            return [-4.95, 1.2, 2.18]
+        case .arenaRear:
+            return [-4.55, 1.28, -2.18]
+        }
+    }
+
+    private static func glyphSide(
+        for slot: NarrativeCueSlot,
+        hasGlyph: Bool
+    ) -> CinematicSceneNarrativeCuePlan.CueDescriptor.LayoutDescriptor.GlyphSide {
+        guard hasGlyph else { return .none }
+        switch slot {
+        case .questPlaque, .arenaInscription:
+            return .leading
+        case .activityBanner:
+            return .trailing
+        }
+    }
+
+    private static func glyphOffset(
+        side: CinematicSceneNarrativeCuePlan.CueDescriptor.LayoutDescriptor.GlyphSide,
+        plateWidth: Float,
+        plateHeight: Float,
+        depth: Float
+    ) -> SIMD3<Float> {
+        let inset = min(0.36, max(0.24, plateHeight * 0.72))
+        switch side {
+        case .none:
+            return [0, 0, depth]
+        case .leading:
+            return [-plateWidth / 2 + inset, 0, depth]
+        case .trailing:
+            return [plateWidth / 2 - inset, 0, depth]
+        }
     }
 
     private static func questAnchor(

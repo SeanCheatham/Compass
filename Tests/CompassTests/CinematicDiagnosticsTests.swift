@@ -75,6 +75,10 @@ final class CinematicDiagnosticsTests: XCTestCase {
         XCTAssertEqual(report.narrativeCue.questPlaque.anchorIdentifier, "left-forge-pylon")
         XCTAssertEqual(report.narrativeCue.activityBanner.anchorIdentifier, "right-warning-pylon")
         XCTAssertEqual(report.narrativeCue.activityBanner.lightFamilyIdentifier, "pressure")
+        XCTAssertEqual(report.narrativeCue.questPlaque.layout.facingModeIdentifier, "arena-camera")
+        XCTAssertEqual(report.narrativeCue.arenaInscription.layout.facingModeIdentifier, "floor-inscription")
+        XCTAssertEqual(report.narrativeCue.activityBanner.layout.glyphSideIdentifier, "trailing")
+        XCTAssertTrue(report.narrativeCue.questPlaque.identifier.contains(report.narrativeCue.questPlaque.layout.identifier))
         XCTAssertFalse(report.narrativeCue.identifier.isEmpty)
         XCTAssertTrue(report.worldText.identifier.contains(report.worldText.questLabel))
         XCTAssertTrue(report.briefing.identifier.contains(report.briefing.title))
@@ -272,6 +276,7 @@ final class CinematicDiagnosticsTests: XCTestCase {
                 "atmosphere-tints",
                 "phase-polish",
                 "narrative-cues",
+                "narrative-layout",
                 "world-quest",
                 "world-arena",
                 "world-activity",
@@ -347,8 +352,11 @@ final class CinematicDiagnosticsTests: XCTestCase {
         XCTAssertTrue(summary.exportText.contains(report.stagePhasePolish.staffOrbLightFamilyIdentifier))
         XCTAssertTrue(summary.exportText.contains(report.stagePhasePolish.cadenceIdentifier))
         XCTAssertTrue(summary.exportText.contains("Narrative cues:"))
+        XCTAssertTrue(summary.exportText.contains("Narrative layout:"))
         XCTAssertTrue(summary.exportText.contains(report.narrativeCue.questPlaque.anchorIdentifier))
         XCTAssertTrue(summary.exportText.contains(report.narrativeCue.activityBanner.text))
+        XCTAssertTrue(summary.exportText.contains(report.narrativeCue.arenaInscription.layout.facingModeIdentifier))
+        XCTAssertTrue(summary.exportText.contains(report.narrativeCue.activityBanner.layout.glyphSideIdentifier))
         XCTAssertTrue(summary.exportText.contains(report.setDressing.languageArchitectureIdentifier))
         XCTAssertTrue(summary.exportText.contains(report.setDressing.activityMarkerIdentifier))
         XCTAssertTrue(summary.exportText.contains(report.setDressing.materialTextureVariantIdentifier))
@@ -507,10 +515,12 @@ final class CinematicDiagnosticsTests: XCTestCase {
         XCTAssertTrue(summary.rows.contains { $0.id == "stage-atmosphere" })
         XCTAssertTrue(summary.rows.contains { $0.id == "phase-polish" })
         XCTAssertTrue(summary.rows.contains { $0.id == "narrative-cues" })
+        XCTAssertTrue(summary.rows.contains { $0.id == "narrative-layout" })
         XCTAssertTrue(summary.exportText.contains("Effect tuning:"))
         XCTAssertTrue(summary.exportText.contains("Atmosphere:"))
         XCTAssertTrue(summary.exportText.contains("Phase polish:"))
         XCTAssertTrue(summary.exportText.contains("Narrative cues:"))
+        XCTAssertTrue(summary.exportText.contains("Narrative layout:"))
         XCTAssertTrue(summary.exportText.contains("pressure heavy"))
         XCTAssertTrue(summary.exportText.contains("influence dramatic"))
     }
@@ -815,6 +825,38 @@ private func assertNarrativeCueDescriptorBounds(
     XCTAssertFalse(descriptor.visibilityIdentifier.isEmpty, file: file, line: line)
     XCTAssertFalse(descriptor.lightFamilyIdentifier.isEmpty, file: file, line: line)
     XCTAssertFalse(descriptor.tintFamilyIdentifier.isEmpty, file: file, line: line)
+    assertNarrativeCueLayoutBounds(descriptor.layout, file: file, line: line)
+}
+
+private func assertNarrativeCueLayoutBounds(
+    _ layout: CinematicDiagnosticsReport.NarrativeCueLayoutSnapshot,
+    file: StaticString = #filePath,
+    line: UInt = #line
+) {
+    XCTAssertFalse(layout.identifier.isEmpty, file: file, line: line)
+    XCTAssertInRange(layout.anchorPosition.x, CinematicSceneNarrativeCuePlan.cueAnchorXRange, file: file, line: line)
+    XCTAssertInRange(layout.anchorPosition.y, CinematicSceneNarrativeCuePlan.cueAnchorYRange, file: file, line: line)
+    XCTAssertInRange(layout.anchorPosition.z, CinematicSceneNarrativeCuePlan.cueAnchorZRange, file: file, line: line)
+    XCTAssertFalse(layout.facingModeIdentifier.isEmpty, file: file, line: line)
+    XCTAssertInRange(layout.plateWidth, CinematicSceneNarrativeCuePlan.cuePlateWidthRange, file: file, line: line)
+    XCTAssertInRange(layout.plateHeight, CinematicSceneNarrativeCuePlan.cuePlateHeightRange, file: file, line: line)
+    XCTAssertInRange(layout.primaryTextWidth, CinematicSceneNarrativeCuePlan.cueTextWidthRange, file: file, line: line)
+    XCTAssertInRange(layout.secondaryTextWidth, CinematicSceneNarrativeCuePlan.cueTextWidthRange, file: file, line: line)
+    XCTAssertInRange(layout.primaryFontSize, CinematicSceneNarrativeCuePlan.cueFontSizeRange, file: file, line: line)
+    XCTAssertInRange(layout.secondaryFontSize, CinematicSceneNarrativeCuePlan.cueFontSizeRange, file: file, line: line)
+    XCTAssertInRange(layout.backingOpacity, CinematicSceneNarrativeCuePlan.cueBackingOpacityRange, file: file, line: line)
+    XCTAssertFalse(layout.glyphSideIdentifier.isEmpty, file: file, line: line)
+    XCTAssertInRange(layout.glyphOffset.x, CinematicSceneNarrativeCuePlan.cueOffsetXRange, file: file, line: line)
+    XCTAssertInRange(layout.glyphOffset.y, CinematicSceneNarrativeCuePlan.cueOffsetYRange, file: file, line: line)
+    XCTAssertInRange(layout.glyphOffset.z, CinematicSceneNarrativeCuePlan.cueLayerZRange, file: file, line: line)
+    XCTAssertInRange(layout.plateDepth, CinematicSceneNarrativeCuePlan.cuePlateDepthRange, file: file, line: line)
+    XCTAssertInRange(layout.plateZOffset, CinematicSceneNarrativeCuePlan.cueLayerZRange, file: file, line: line)
+    XCTAssertInRange(layout.primaryTextOffset.x, CinematicSceneNarrativeCuePlan.cueOffsetXRange, file: file, line: line)
+    XCTAssertInRange(layout.primaryTextOffset.y, CinematicSceneNarrativeCuePlan.cueOffsetYRange, file: file, line: line)
+    XCTAssertInRange(layout.primaryTextOffset.z, CinematicSceneNarrativeCuePlan.cueLayerZRange, file: file, line: line)
+    XCTAssertInRange(layout.secondaryTextOffset.x, CinematicSceneNarrativeCuePlan.cueOffsetXRange, file: file, line: line)
+    XCTAssertInRange(layout.secondaryTextOffset.y, CinematicSceneNarrativeCuePlan.cueOffsetYRange, file: file, line: line)
+    XCTAssertInRange(layout.secondaryTextOffset.z, CinematicSceneNarrativeCuePlan.cueLayerZRange, file: file, line: line)
 }
 
 private func XCTAssertTintInRange(
