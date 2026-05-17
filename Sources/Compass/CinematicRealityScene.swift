@@ -186,64 +186,6 @@ private enum DefensiveSpell {
     }
 }
 
-private struct RepositoryCinematicTheme: Equatable {
-    var language: RepositoryLanguage
-    var accent: NSColor
-    var secondaryAccent: NSColor
-    var ambientSpell: SpellSchool
-    var phaseBlend: CGFloat
-
-    init(language: RepositoryLanguage) {
-        self.language = language
-        switch language {
-        case .swift:
-            accent = NSColor(calibratedRed: 1.0, green: 0.43, blue: 0.15, alpha: 1)
-            secondaryAccent = NSColor(calibratedRed: 1.0, green: 0.76, blue: 0.34, alpha: 1)
-            ambientSpell = .edit
-            phaseBlend = 0.38
-        case .typeScriptJavaScript:
-            accent = NSColor(calibratedRed: 0.22, green: 0.66, blue: 1.0, alpha: 1)
-            secondaryAccent = NSColor(calibratedRed: 1.0, green: 0.84, blue: 0.24, alpha: 1)
-            ambientSpell = .shell
-            phaseBlend = 0.3
-        case .python:
-            accent = NSColor(calibratedRed: 0.24, green: 0.48, blue: 0.95, alpha: 1)
-            secondaryAccent = NSColor(calibratedRed: 1.0, green: 0.78, blue: 0.24, alpha: 1)
-            ambientSpell = .insight
-            phaseBlend = 0.32
-        case .go:
-            accent = NSColor(calibratedRed: 0.0, green: 0.74, blue: 0.82, alpha: 1)
-            secondaryAccent = NSColor(calibratedRed: 0.42, green: 1.0, blue: 0.82, alpha: 1)
-            ambientSpell = .scan
-            phaseBlend = 0.32
-        case .rust:
-            accent = NSColor(calibratedRed: 0.92, green: 0.38, blue: 0.14, alpha: 1)
-            secondaryAccent = NSColor(calibratedRed: 1.0, green: 0.58, blue: 0.28, alpha: 1)
-            ambientSpell = .git
-            phaseBlend = 0.34
-        case .markdown:
-            accent = NSColor(calibratedRed: 0.48, green: 0.62, blue: 1.0, alpha: 1)
-            secondaryAccent = NSColor(calibratedRed: 0.82, green: 0.9, blue: 1.0, alpha: 1)
-            ambientSpell = .insight
-            phaseBlend = 0.26
-        case .other:
-            accent = NSColor(calibratedRed: 0.56, green: 0.5, blue: 0.72, alpha: 1)
-            secondaryAccent = NSColor(calibratedRed: 0.72, green: 0.68, blue: 0.9, alpha: 1)
-            ambientSpell = .pressure
-            phaseBlend = 0.18
-        case .unknown:
-            accent = NSColor(calibratedRed: 0.32, green: 0.84, blue: 1.0, alpha: 1)
-            secondaryAccent = NSColor(calibratedRed: 0.28, green: 0.58, blue: 1.0, alpha: 1)
-            ambientSpell = .pressure
-            phaseBlend = 0.12
-        }
-    }
-
-    func phaseColor(_ base: NSColor) -> NSColor {
-        base.mixing(with: accent, fraction: phaseBlend)
-    }
-}
-
 @MainActor
 private final class CinematicSceneCoordinator {
     let projectID: UUID
@@ -260,6 +202,8 @@ private final class CinematicSceneCoordinator {
     private let enemyRoot = Entity()
     private let effectsRoot = Entity()
     private let setDressingRoot = Entity()
+    private let languageSigilRoot = Entity()
+    private let activitySigilRoot = Entity()
     private let keyLightNode = Entity()
     private let rimLightNode = Entity()
     private let phaseLightNode = Entity()
@@ -270,8 +214,9 @@ private final class CinematicSceneCoordinator {
     private var hasBootstrapped = false
     private var isInstalled = false
     private var languageProfile = RepositoryLanguageProfile.empty
-    private var languageTheme = RepositoryCinematicTheme(language: .unknown)
+    private var languageMotif = CinematicMotif.language(for: RepositoryLanguageProfile.empty)
     private var activityProfile = RepositoryActivityProfile.empty
+    private var activityMotif = CinematicMotif.activity(for: RepositoryActivityProfile.empty)
     private var influenceSettings = CinematicInfluenceSettings()
     private var lastPhase: LoopPhase = .idle
     private var thinkingTimer: Timer?
@@ -340,11 +285,12 @@ private final class CinematicSceneCoordinator {
         let languageProfileChanged = languageProfile != self.languageProfile
         if languageProfileChanged {
             self.languageProfile = languageProfile
-            languageTheme = RepositoryCinematicTheme(language: languageProfile.primaryLanguage)
+            languageMotif = CinematicMotif.language(for: languageProfile)
         }
         let activityProfileChanged = activityProfile != self.activityProfile
         if activityProfileChanged {
             self.activityProfile = activityProfile
+            activityMotif = CinematicMotif.activity(for: activityProfile)
         }
         let influenceChanged = influenceSettings != self.influenceSettings
         if influenceChanged {
@@ -627,6 +573,13 @@ private final class CinematicSceneCoordinator {
             setDressingBaseHeights[ObjectIdentifier(shard)] = position.y
             setDressingRoot.addChild(shard)
         }
+
+        languageSigilRoot.name = "language-sigil-root"
+        activitySigilRoot.name = "activity-sigil-root"
+        setDressingRoot.addChild(languageSigilRoot)
+        setDressingRoot.addChild(activitySigilRoot)
+        rebuildLanguageSigil()
+        rebuildActivitySigil()
     }
 
     private func buildLights() {
@@ -1477,20 +1430,10 @@ private final class CinematicSceneCoordinator {
     }
 
     private func ambientSpellForActivity() -> SpellSchool {
-        guard !activityProfile.isEmpty else { return languageTheme.ambientSpell }
-        if activityProfile.worktreeChanges.conflicted > 0 || activityProfile.failureStreak > 0 {
-            return .failure
-        }
-        if activityProfile.pressureLevel == .heavy {
-            return .pressure
-        }
-        if activityProfile.recentCommitCount > 0 && ambientSpawnIndex % 3 == 0 {
-            return .git
-        }
-        if activityProfile.successStreak > 1 && ambientSpawnIndex % 2 == 0 {
-            return .verify
-        }
-        return languageTheme.ambientSpell
+        activityMotif.ambientSpell(
+            languageAmbient: languageMotif.ambientSpell,
+            spawnIndex: ambientSpawnIndex
+        )
     }
 
     private func makeEnemy(spell: SpellSchool) -> Entity {
@@ -1693,9 +1636,273 @@ private final class CinematicSceneCoordinator {
         )
     }
 
+    private func rebuildLanguageSigil() {
+        clearChildren(of: languageSigilRoot)
+        languageSigilRoot.name = "language-sigil-\(languageMotif.sigilIdentifier)"
+        languageSigilRoot.position = [-5.8, 0.035, 5.55]
+
+        addSigilBase(
+            to: languageSigilRoot,
+            color: languageMotif.accent,
+            secondary: languageMotif.secondaryAccent,
+            radius: 0.64
+        )
+        addSigilSegments(
+            languageSigilSegments(for: languageMotif.style),
+            to: languageSigilRoot,
+            color: languageMotif.accent,
+            secondary: languageMotif.secondaryAccent
+        )
+        addSigilCore(
+            to: languageSigilRoot,
+            color: languageMotif.secondaryAccent,
+            scale: [1, 1.35, 1]
+        )
+    }
+
+    private func rebuildActivitySigil() {
+        clearChildren(of: activitySigilRoot)
+        activitySigilRoot.name = "activity-sigil-\(activityMotif.sigilIdentifier)"
+        activitySigilRoot.position = [5.8, 0.035, 5.55]
+
+        let color = activityColor(for: activityMotif)
+        let secondary = activityMotif.tintSource.map { themedColor($0.nsColor) } ?? languageMotif.secondaryAccent
+        addSigilBase(
+            to: activitySigilRoot,
+            color: color,
+            secondary: secondary,
+            radius: 0.58
+        )
+        addSigilSegments(
+            activitySigilSegments(for: activityMotif.style),
+            to: activitySigilRoot,
+            color: color,
+            secondary: secondary
+        )
+        addSigilCore(
+            to: activitySigilRoot,
+            color: secondary,
+            scale: activityMotif.eventKind == .unavailable ? [0.62, 0.62, 0.62] : [0.9, 1.1, 0.9]
+        )
+    }
+
+    private func clearChildren(of entity: Entity) {
+        for child in Array(entity.children) {
+            child.removeFromParent()
+        }
+    }
+
+    private func addSigilBase(
+        to root: Entity,
+        color: NSColor,
+        secondary: NSColor,
+        radius: Float
+    ) {
+        let plinth = ModelEntity(
+            mesh: .generateCylinder(height: 0.1, radius: radius),
+            materials: [
+                material(
+                    diffuse: NSColor(calibratedRed: 0.028, green: 0.03, blue: 0.042, alpha: 1),
+                    emission: color.withAlphaComponent(0.12)
+                )
+            ]
+        )
+        plinth.name = "sigil-plinth"
+        plinth.position.y = 0.05
+        root.addChild(plinth)
+
+        let outerRing = ModelEntity(
+            mesh: torusMesh(ringRadius: radius * 1.05, pipeRadius: 0.012),
+            materials: [glowMaterial(color.withAlphaComponent(0.72), opacity: 0.58)]
+        )
+        outerRing.name = "sigil-outer-ring"
+        outerRing.position.y = 0.12
+        root.addChild(outerRing)
+
+        let innerRing = ModelEntity(
+            mesh: torusMesh(ringRadius: radius * 0.42, pipeRadius: 0.008),
+            materials: [glowMaterial(secondary.withAlphaComponent(0.64), opacity: 0.46)]
+        )
+        innerRing.name = "sigil-inner-ring"
+        innerRing.position.y = 0.145
+        root.addChild(innerRing)
+    }
+
+    private func addSigilCore(
+        to root: Entity,
+        color: NSColor,
+        scale: SIMD3<Float>
+    ) {
+        let core = ModelEntity(
+            mesh: .generateSphere(radius: 0.075),
+            materials: [glowMaterial(color, opacity: 0.84)]
+        )
+        core.name = "sigil-core"
+        core.scale = scale
+        core.position.y = 0.24
+        root.addChild(core)
+    }
+
+    private func addSigilSegments(
+        _ segments: [SetDressingSigilSegment],
+        to root: Entity,
+        color: NSColor,
+        secondary: NSColor
+    ) {
+        for segment in segments {
+            let beam = beamEntity(
+                from: segment.start,
+                to: segment.end,
+                radius: segment.radius,
+                color: segment.usesSecondary ? secondary : color,
+                opacity: segment.opacity
+            )
+            beam.name = "sigil-segment"
+            root.addChild(beam)
+        }
+    }
+
+    private func languageSigilSegments(for style: CinematicLanguageSigilStyle) -> [SetDressingSigilSegment] {
+        let y: Float = 0.2
+        switch style {
+        case .swiftComet:
+            return [
+                SetDressingSigilSegment([-0.42, y, -0.34], [0.24, y, 0.16], radius: 0.018),
+                SetDressingSigilSegment([-0.08, y, -0.48], [0.48, y, -0.04], radius: 0.014, usesSecondary: true),
+                SetDressingSigilSegment([0.16, y, 0.16], [0.5, y, 0.42], radius: 0.014)
+            ]
+        case .scriptCircuit:
+            return [
+                SetDressingSigilSegment([-0.42, y, -0.34], [0.42, y, -0.34], radius: 0.012),
+                SetDressingSigilSegment([0.42, y, -0.34], [0.42, y, 0.34], radius: 0.012),
+                SetDressingSigilSegment([0.42, y, 0.34], [-0.42, y, 0.34], radius: 0.012),
+                SetDressingSigilSegment([-0.42, y, 0.34], [-0.42, y, -0.34], radius: 0.012),
+                SetDressingSigilSegment([-0.18, y, 0], [0.36, y, 0], radius: 0.014, usesSecondary: true),
+                SetDressingSigilSegment([0.08, y, -0.28], [0.08, y, 0.28], radius: 0.01, usesSecondary: true)
+            ]
+        case .pythonCoil:
+            return [
+                SetDressingSigilSegment([-0.42, y, -0.18], [-0.08, y, -0.38], radius: 0.015),
+                SetDressingSigilSegment([-0.08, y, -0.38], [0.28, y, -0.2], radius: 0.015, usesSecondary: true),
+                SetDressingSigilSegment([0.28, y, -0.2], [-0.24, y, 0.2], radius: 0.015),
+                SetDressingSigilSegment([-0.24, y, 0.2], [0.12, y, 0.4], radius: 0.015, usesSecondary: true),
+                SetDressingSigilSegment([0.12, y, 0.4], [0.44, y, 0.18], radius: 0.015)
+            ]
+        case .goCurrent:
+            return [
+                SetDressingSigilSegment([-0.48, y, -0.22], [0.36, y, -0.22], radius: 0.014),
+                SetDressingSigilSegment([-0.36, y, 0], [0.48, y, 0], radius: 0.018, usesSecondary: true),
+                SetDressingSigilSegment([-0.48, y, 0.22], [0.28, y, 0.22], radius: 0.014),
+                SetDressingSigilSegment([0.24, y, -0.38], [0.5, y, -0.16], radius: 0.012),
+                SetDressingSigilSegment([0.5, y, 0.16], [0.24, y, 0.38], radius: 0.012)
+            ]
+        case .rustGear:
+            return stride(from: 0, to: 8, by: 1).map { index in
+                let angle = Float(index) / 8 * .pi * 2
+                let inner = SIMD3<Float>(cos(angle) * 0.22, y, sin(angle) * 0.22)
+                let outer = SIMD3<Float>(cos(angle) * 0.52, y, sin(angle) * 0.52)
+                return SetDressingSigilSegment(inner, outer, radius: 0.012, usesSecondary: index % 2 == 0)
+            }
+        case .markdownRune:
+            return [
+                SetDressingSigilSegment([-0.42, y, 0.34], [-0.42, y, -0.34], radius: 0.014),
+                SetDressingSigilSegment([-0.42, y, -0.34], [0, y, 0.05], radius: 0.014, usesSecondary: true),
+                SetDressingSigilSegment([0, y, 0.05], [0.42, y, -0.34], radius: 0.014, usesSecondary: true),
+                SetDressingSigilSegment([0.42, y, -0.34], [0.42, y, 0.34], radius: 0.014),
+                SetDressingSigilSegment([-0.16, y, 0.28], [0.16, y, 0.28], radius: 0.012)
+            ]
+        case .polyglotPrism:
+            return [
+                SetDressingSigilSegment([0, y, -0.5], [0.44, y, 0.24], radius: 0.014),
+                SetDressingSigilSegment([0.44, y, 0.24], [-0.44, y, 0.24], radius: 0.014, usesSecondary: true),
+                SetDressingSigilSegment([-0.44, y, 0.24], [0, y, -0.5], radius: 0.014),
+                SetDressingSigilSegment([0, y, -0.5], [0, y, 0.24], radius: 0.01, usesSecondary: true)
+            ]
+        case .unknownGate:
+            return [
+                SetDressingSigilSegment([-0.38, y, 0.38], [-0.38, y, -0.18], radius: 0.014),
+                SetDressingSigilSegment([-0.38, y, -0.18], [0, y, -0.42], radius: 0.014, usesSecondary: true),
+                SetDressingSigilSegment([0, y, -0.42], [0.38, y, -0.18], radius: 0.014, usesSecondary: true),
+                SetDressingSigilSegment([0.38, y, -0.18], [0.38, y, 0.38], radius: 0.014)
+            ]
+        }
+    }
+
+    private func activitySigilSegments(for style: CinematicActivitySigilStyle) -> [SetDressingSigilSegment] {
+        let y: Float = 0.2
+        switch style {
+        case .dimGate:
+            return [
+                SetDressingSigilSegment([-0.26, y, 0.24], [0.26, y, 0.24], radius: 0.01),
+                SetDressingSigilSegment([0, y, -0.3], [0, y, 0.1], radius: 0.01, usesSecondary: true)
+            ]
+        case .calmHalo:
+            return [
+                SetDressingSigilSegment([-0.34, y, 0], [0.34, y, 0], radius: 0.012),
+                SetDressingSigilSegment([0, y, -0.34], [0, y, 0.34], radius: 0.012, usesSecondary: true)
+            ]
+        case .pressureShard:
+            return [
+                SetDressingSigilSegment([0, y, -0.48], [0.18, y, 0.18], radius: 0.016),
+                SetDressingSigilSegment([0.18, y, 0.18], [-0.18, y, 0.46], radius: 0.013, usesSecondary: true),
+                SetDressingSigilSegment([-0.22, y, -0.16], [0.46, y, -0.16], radius: 0.012)
+            ]
+        case .fractureCross:
+            return [
+                SetDressingSigilSegment([-0.46, y, -0.38], [0.46, y, 0.38], radius: 0.018),
+                SetDressingSigilSegment([0.46, y, -0.38], [-0.46, y, 0.38], radius: 0.018, usesSecondary: true),
+                SetDressingSigilSegment([-0.12, y, -0.48], [0.12, y, -0.12], radius: 0.011)
+            ]
+        case .historyBranch:
+            return [
+                SetDressingSigilSegment([-0.46, y, 0.24], [0.28, y, -0.24], radius: 0.014),
+                SetDressingSigilSegment([-0.08, y, 0], [0.46, y, 0.26], radius: 0.012, usesSecondary: true),
+                SetDressingSigilSegment([0.04, y, -0.08], [0.42, y, -0.42], radius: 0.012, usesSecondary: true)
+            ]
+        case .sealBurst:
+            return [
+                SetDressingSigilSegment([-0.42, y, 0.02], [-0.1, y, 0.34], radius: 0.018, usesSecondary: true),
+                SetDressingSigilSegment([-0.1, y, 0.34], [0.46, y, -0.36], radius: 0.018),
+                SetDressingSigilSegment([-0.08, y, -0.42], [0.08, y, -0.18], radius: 0.01)
+            ]
+        case .recoveryArc:
+            return [
+                SetDressingSigilSegment([-0.48, y, 0.3], [-0.18, y, 0.02], radius: 0.014),
+                SetDressingSigilSegment([-0.18, y, 0.02], [0.1, y, -0.18], radius: 0.014, usesSecondary: true),
+                SetDressingSigilSegment([0.1, y, -0.18], [0.42, y, -0.4], radius: 0.014),
+                SetDressingSigilSegment([0.2, y, -0.42], [0.42, y, -0.4], radius: 0.012),
+                SetDressingSigilSegment([0.42, y, -0.4], [0.36, y, -0.16], radius: 0.012)
+            ]
+        case .backlashSpike:
+            return [
+                SetDressingSigilSegment([0, y, -0.52], [0.4, y, 0.36], radius: 0.018),
+                SetDressingSigilSegment([0.4, y, 0.36], [-0.4, y, 0.36], radius: 0.018, usesSecondary: true),
+                SetDressingSigilSegment([-0.4, y, 0.36], [0, y, -0.52], radius: 0.018),
+                SetDressingSigilSegment([0, y, -0.22], [0, y, 0.24], radius: 0.012, usesSecondary: true)
+            ]
+        }
+    }
+
+    private func activityColor(for motif: CinematicActivityMotif) -> NSColor {
+        switch motif.eventKind {
+        case .unavailable:
+            return NSColor(calibratedRed: 0.24, green: 0.28, blue: 0.34, alpha: 1)
+        case .clean:
+            return themedColor(SpellSchool.lifecycle.nsColor)
+        case .dirty:
+            return themedColor(SpellSchool.pressure.nsColor)
+        case .conflicted, .failure:
+            return themedColor(SpellSchool.failure.nsColor)
+        case .commit:
+            return themedColor(SpellSchool.git.nsColor)
+        case .success, .recovery:
+            return themedColor(SpellSchool.verify.nsColor)
+        }
+    }
+
     private func applyLanguageTheme(animated: Bool) {
-        let accent = languageTheme.accent
-        let secondary = languageTheme.secondaryAccent
+        let accent = languageMotif.accent
+        let secondary = languageMotif.secondaryAccent
 
         setGlow(accent, on: staffOrbNode)
         for pedestal in setDressingRoot.children where pedestal.name == "set-pedestal" {
@@ -1724,7 +1931,9 @@ private final class CinematicSceneCoordinator {
 
         let baseline = phaseLightBaseline(for: lastPhase)
         setPhaseLight(color: themedColor(baseline.color), intensity: baseline.intensity)
-        if animated, languageProfile.primaryLanguage != .unknown {
+        rebuildLanguageSigil()
+        rebuildActivitySigil()
+        if animated, languageMotif.language != .unknown {
             arenaRing(radius: 6.6, color: accent.withAlphaComponent(0.72), duration: 1.05, scale: 1.18, opacity: 0.34)
         }
     }
@@ -1732,20 +1941,26 @@ private final class CinematicSceneCoordinator {
     private func applyActivityTraits(animated: Bool) {
         let baseline = phaseLightBaseline(for: lastPhase)
         setPhaseLight(color: themedColor(baseline.color), intensity: baseline.intensity)
-        guard animated, !activityProfile.isEmpty else { return }
+        rebuildActivitySigil()
+        guard animated, activityMotif.eventKind != .unavailable else { return }
 
-        if activityProfile.worktreeChanges.conflicted > 0 || activityProfile.failureStreak > 0 {
-            let color = themedColor(SpellSchool.failure.nsColor)
+        switch activityMotif.eventKind {
+        case .conflicted, .failure:
+            let color = themedColor(activityMotif.transitionSpell?.nsColor ?? SpellSchool.failure.nsColor)
             arenaRing(radius: 5.4, color: color.withAlphaComponent(0.68), duration: 0.62, scale: 1.22, opacity: 0.5)
-            shakeCamera()
-        } else if activityProfile.worktreeChanges.isDirty {
-            let color = themedColor(SpellSchool.pressure.nsColor)
+            if activityMotif.shouldShakeOnTransition {
+                shakeCamera()
+            }
+        case .dirty:
+            let color = themedColor(activityMotif.transitionSpell?.nsColor ?? SpellSchool.pressure.nsColor)
             arenaRing(radius: 4.4, color: color.withAlphaComponent(0.58), duration: 0.85, scale: 1.18, opacity: 0.4)
-        } else if activityProfile.successStreak > 1 || activityProfile.recoveredFromFailure {
-            let color = themedColor(SpellSchool.verify.nsColor)
+        case .success, .recovery:
+            let color = themedColor(activityMotif.transitionSpell?.nsColor ?? SpellSchool.verify.nsColor)
             arenaRing(radius: 5.8, color: color.withAlphaComponent(0.58), duration: 1.0, scale: 1.14, opacity: 0.34)
-        } else if activityProfile.recentCommitCount > 0 {
-            historyChains(color: themedColor(SpellSchool.git.nsColor))
+        case .commit:
+            historyChains(color: themedColor(activityMotif.transitionSpell?.nsColor ?? SpellSchool.git.nsColor))
+        case .clean, .unavailable:
+            break
         }
     }
 
@@ -1760,7 +1975,7 @@ private final class CinematicSceneCoordinator {
     }
 
     private func themedColor(_ color: NSColor) -> NSColor {
-        languageTheme.phaseColor(color)
+        languageMotif.phaseColor(color)
     }
 
     private func phaseLightBaseline(for phase: LoopPhase) -> (color: NSColor, intensity: Float) {
@@ -1792,20 +2007,8 @@ private final class CinematicSceneCoordinator {
     }
 
     private func activityTint(for color: NSColor) -> NSColor {
-        guard !activityProfile.isEmpty else { return color }
-        let activityColor: NSColor
-        if activityProfile.worktreeChanges.conflicted > 0 || activityProfile.failureStreak > 0 {
-            activityColor = SpellSchool.failure.nsColor
-        } else if activityProfile.worktreeChanges.isDirty {
-            activityColor = SpellSchool.pressure.nsColor
-        } else if activityProfile.successStreak > 1 {
-            activityColor = SpellSchool.verify.nsColor
-        } else if activityProfile.recentCommitCount > 0 {
-            activityColor = SpellSchool.git.nsColor
-        } else {
-            return color
-        }
-        return color.mixing(with: themedColor(activityColor), fraction: 0.24)
+        guard let tintSource = activityMotif.tintSource else { return color }
+        return color.mixing(with: themedColor(tintSource.nsColor), fraction: CinematicMotif.activityTintBlend)
     }
 
     private func activityLightBoost() -> Float {
@@ -2454,6 +2657,28 @@ private final class CinematicSceneCoordinator {
             return mesh
         }
         return .generateSphere(radius: max(pipeRadius, 0.01))
+    }
+}
+
+private struct SetDressingSigilSegment {
+    var start: SIMD3<Float>
+    var end: SIMD3<Float>
+    var radius: Float
+    var usesSecondary: Bool
+    var opacity: Float
+
+    init(
+        _ start: SIMD3<Float>,
+        _ end: SIMD3<Float>,
+        radius: Float,
+        usesSecondary: Bool = false,
+        opacity: Float = 0.72
+    ) {
+        self.start = start
+        self.end = end
+        self.radius = radius
+        self.usesSecondary = usesSecondary
+        self.opacity = opacity
     }
 }
 
