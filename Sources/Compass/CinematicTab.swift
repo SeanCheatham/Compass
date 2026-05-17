@@ -200,20 +200,36 @@ private struct CinematicDiagnosticsPopover: View {
             }
 
             ScrollView {
-                VStack(alignment: .leading, spacing: 8) {
-                    ForEach(summary.rows) { row in
-                        HStack(alignment: .top, spacing: 10) {
-                            Text(row.label)
-                                .font(.system(.caption, design: .monospaced).weight(.semibold))
-                                .foregroundStyle(.secondary)
-                                .frame(width: 108, alignment: .leading)
+                VStack(alignment: .leading, spacing: 12) {
+                    ForEach(summary.sections) { section in
+                        VStack(alignment: .leading, spacing: 7) {
+                            HStack(spacing: 6) {
+                                Text(section.label)
+                                    .font(.caption.weight(.semibold))
+                                    .foregroundStyle(.primary)
 
-                            Text(row.detail)
-                                .font(.caption)
-                                .foregroundStyle(.primary)
-                                .lineLimit(detailLineLimit(for: row))
-                                .textSelection(.enabled)
-                                .frame(maxWidth: .infinity, alignment: .leading)
+                                Text(section.rowCountLabel)
+                                    .font(.caption2.monospacedDigit())
+                                    .foregroundStyle(.secondary)
+                            }
+
+                            VStack(alignment: .leading, spacing: 8) {
+                                ForEach(section.rows) { row in
+                                    HStack(alignment: .top, spacing: 10) {
+                                        Text(row.label)
+                                            .font(.system(.caption, design: .monospaced).weight(.semibold))
+                                            .foregroundStyle(.secondary)
+                                            .frame(width: 108, alignment: .leading)
+
+                                        Text(row.detail)
+                                            .font(.caption)
+                                            .foregroundStyle(.primary)
+                                            .lineLimit(detailLineLimit(for: row))
+                                            .textSelection(.enabled)
+                                            .frame(maxWidth: .infinity, alignment: .leading)
+                                    }
+                                }
+                            }
                         }
                     }
                 }

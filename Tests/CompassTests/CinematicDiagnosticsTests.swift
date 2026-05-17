@@ -307,12 +307,87 @@ final class CinematicDiagnosticsTests: XCTestCase {
             ]
         )
         XCTAssertEqual(summary.rows.count, CinematicDiagnosticsSummary.maxRows)
+        XCTAssertEqual(
+            summary.sections.map(\.id),
+            [
+                "repository-context",
+                "motifs",
+                "stage-motion-effects",
+                "narrative-overlay",
+                "assets-textures",
+                "tuning",
+                "camera-shots"
+            ]
+        )
+        XCTAssertEqual(
+            summary.sections.map { $0.rows.map(\.id) },
+            [
+                [
+                    "repository",
+                    "immediate"
+                ],
+                [
+                    "language-motif",
+                    "activity-motif"
+                ],
+                [
+                    "stage-beat",
+                    "stage-effect",
+                    "effect-rings",
+                    "effect-pulses",
+                    "effect-history",
+                    "stage-atmosphere",
+                    "atmosphere-tints",
+                    "phase-polish"
+                ],
+                [
+                    "narrative-cues",
+                    "narrative-layout",
+                    "overlay-display",
+                    "world-quest",
+                    "world-arena",
+                    "world-activity"
+                ],
+                [
+                    "set-dressing",
+                    "textures"
+                ],
+                [
+                    "effect-tuning",
+                    "activity-tuning",
+                    "camera-tuning",
+                    "camera-follow"
+                ],
+                [
+                    "camera-shot-home",
+                    "camera-shot-wide",
+                    "camera-shot-cast-prep",
+                    "camera-shot-over-shoulder",
+                    "camera-shot-impact",
+                    "camera-shot-overhead",
+                    "camera-shot-failure",
+                    "camera-shot-victory"
+                ]
+            ]
+        )
+
+        let sectionRowIDs = summary.sections.flatMap { $0.rows.map(\.id) }
+        XCTAssertEqual(sectionRowIDs.count, summary.rows.count)
+        XCTAssertEqual(Set(sectionRowIDs), Set(summary.rows.map(\.id)))
+        XCTAssertEqual(Set(sectionRowIDs).count, sectionRowIDs.count)
 
         for row in summary.rows {
             XCTAssertLessThanOrEqual(row.label.count, CinematicDiagnosticsSummary.labelMaxCharacters)
             XCTAssertLessThanOrEqual(row.detail.count, CinematicDiagnosticsSummary.detailMaxCharacters)
             XCTAssertFalse(row.label.isEmpty)
             XCTAssertFalse(row.detail.isEmpty)
+        }
+
+        for section in summary.sections {
+            XCTAssertLessThanOrEqual(section.label.count, CinematicDiagnosticsSummary.labelMaxCharacters)
+            XCTAssertFalse(section.label.isEmpty)
+            XCTAssertFalse(section.rows.isEmpty)
+            XCTAssertEqual(section.rowCountLabel, "\(section.rows.count) rows")
         }
     }
 
@@ -341,7 +416,22 @@ final class CinematicDiagnosticsTests: XCTestCase {
         let summary = CinematicDiagnosticsSummary(report: report)
 
         XCTAssertTrue(summary.exportText.hasPrefix("Cinematic Diagnostics\n"))
-        XCTAssertEqual(summary.exportText.components(separatedBy: "\n").count, summary.rows.count + 2)
+        XCTAssertEqual(
+            summary.exportText.components(separatedBy: "\n").count,
+            summary.rows.count + summary.sections.count + 2
+        )
+        let expectedSectionHeadings = summary.sections.map { "\($0.label) (\($0.rowCountLabel))" }
+        let actualSectionHeadings = summary.exportText
+            .components(separatedBy: "\n")
+            .filter { expectedSectionHeadings.contains($0) }
+        XCTAssertEqual(actualSectionHeadings, expectedSectionHeadings)
+        XCTAssertTrue(summary.exportText.contains("Repository/context (2 rows)"))
+        XCTAssertTrue(summary.exportText.contains("Motifs (2 rows)"))
+        XCTAssertTrue(summary.exportText.contains("Stage motion/effects (8 rows)"))
+        XCTAssertTrue(summary.exportText.contains("Narrative/overlay (6 rows)"))
+        XCTAssertTrue(summary.exportText.contains("Assets/textures (2 rows)"))
+        XCTAssertTrue(summary.exportText.contains("Tuning (4 rows)"))
+        XCTAssertTrue(summary.exportText.contains("Camera shots (8 rows)"))
         XCTAssertTrue(summary.exportText.contains(report.languageMotif.sigilIdentifier))
         XCTAssertTrue(summary.exportText.contains(report.languageMotif.styleIdentifier))
         XCTAssertTrue(summary.exportText.contains(report.activityMotif.sigilIdentifier))
@@ -378,6 +468,47 @@ final class CinematicDiagnosticsTests: XCTestCase {
         XCTAssertTrue(summary.exportText.contains(report.cameraTuning.identifier))
         XCTAssertTrue(summary.exportText.contains(report.cameraSnapshots[0].identifier))
         XCTAssertTrue(summary.exportText.contains(report.cameraSnapshots[3].shotIdentifier))
+    }
+
+    func testSummaryKeepsNarrativeAndOverlayRowsInOneTuningGroup() throws {
+        let report = makeReport(
+            CinematicDiagnosticsInput(
+                repoName: "Compass",
+                phase: "Developing",
+                immediateTitle: "Tune narrative overlay diagnostics",
+                completedCount: 5,
+                latestEvent: nil,
+                languageProfile: languageProfile(primaryLanguage: .swift),
+                activityProfile: activityProfile(worktreeChanges: worktreeChanges(modified: 5)),
+                influenceSettings: CinematicInfluenceSettings(cameraStyle: .dramatic, intensity: 0.65)
+            )
+        )
+
+        let summary = CinematicDiagnosticsSummary(report: report)
+        let narrativeSection = try XCTUnwrap(summary.sections.first { $0.id == "narrative-overlay" })
+        let narrativeRowIDs = narrativeSection.rows.map(\.id)
+
+        XCTAssertEqual(narrativeSection.label, "Narrative/overlay")
+        XCTAssertEqual(
+            narrativeRowIDs,
+            [
+                "narrative-cues",
+                "narrative-layout",
+                "overlay-display",
+                "world-quest",
+                "world-arena",
+                "world-activity"
+            ]
+        )
+
+        for rowID in ["narrative-cues", "narrative-layout", "overlay-display"] {
+            XCTAssertEqual(
+                summary.sections.filter { section in
+                    section.rows.contains { $0.id == rowID }
+                }.map(\.id),
+                ["narrative-overlay"]
+            )
+        }
     }
 
     func testCurrentReportUsesCompassProjectInputs() async {

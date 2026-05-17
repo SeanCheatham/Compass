@@ -316,6 +316,7 @@ struct CinematicDiagnosticsSummary: Equatable {
     static let detailMaxCharacters = 512
 
     var rows: [Row]
+    var sections: [Section]
     var exportText: String
 
     struct Row: Identifiable, Equatable {
@@ -324,10 +325,92 @@ struct CinematicDiagnosticsSummary: Equatable {
         var detail: String
     }
 
+    struct Section: Identifiable, Equatable {
+        var id: String
+        var label: String
+        var rows: [Row]
+
+        var rowCountLabel: String {
+            rows.count == 1 ? "1 row" : "\(rows.count) rows"
+        }
+    }
+
+    private struct SectionDefinition {
+        var id: String
+        var label: String
+        var rowIDs: Set<String>
+        var rowIDPrefixes: [String] = []
+
+        func contains(_ row: Row) -> Bool {
+            rowIDs.contains(row.id) || rowIDPrefixes.contains { row.id.hasPrefix($0) }
+        }
+    }
+
+    private static let sectionDefinitions: [SectionDefinition] = [
+        SectionDefinition(
+            id: "repository-context",
+            label: "Repository/context",
+            rowIDs: ["repository", "immediate"]
+        ),
+        SectionDefinition(
+            id: "motifs",
+            label: "Motifs",
+            rowIDs: ["language-motif", "activity-motif"]
+        ),
+        SectionDefinition(
+            id: "stage-motion-effects",
+            label: "Stage motion/effects",
+            rowIDs: [
+                "stage-beat",
+                "stage-effect",
+                "effect-rings",
+                "effect-pulses",
+                "effect-history",
+                "stage-atmosphere",
+                "atmosphere-tints",
+                "phase-polish"
+            ]
+        ),
+        SectionDefinition(
+            id: "narrative-overlay",
+            label: "Narrative/overlay",
+            rowIDs: [
+                "narrative-cues",
+                "narrative-layout",
+                "overlay-display",
+                "world-quest",
+                "world-arena",
+                "world-activity"
+            ]
+        ),
+        SectionDefinition(
+            id: "assets-textures",
+            label: "Assets/textures",
+            rowIDs: ["set-dressing", "textures"]
+        ),
+        SectionDefinition(
+            id: "tuning",
+            label: "Tuning",
+            rowIDs: [
+                "effect-tuning",
+                "activity-tuning",
+                "camera-tuning",
+                "camera-follow"
+            ]
+        ),
+        SectionDefinition(
+            id: "camera-shots",
+            label: "Camera shots",
+            rowIDs: [],
+            rowIDPrefixes: ["camera-shot-"]
+        )
+    ]
+
     init(report: CinematicDiagnosticsReport) {
         let rows = Self.makeRows(report: report)
         self.rows = Array(rows.prefix(Self.maxRows))
-        exportText = Self.makeExportText(report: report, rows: self.rows)
+        sections = Self.makeSections(rows: self.rows)
+        exportText = Self.makeExportText(report: report, sections: sections)
     }
 
     private static func makeRows(report: CinematicDiagnosticsReport) -> [Row] {
@@ -560,12 +643,46 @@ struct CinematicDiagnosticsSummary: Equatable {
         return rows
     }
 
-    private static func makeExportText(report: CinematicDiagnosticsReport, rows: [Row]) -> String {
-        ([
+    private static func makeSections(rows: [Row]) -> [Section] {
+        var matchedRowIDs = Set<String>()
+        var sections = sectionDefinitions.compactMap { definition -> Section? in
+            let sectionRows = rows.filter(definition.contains)
+            guard !sectionRows.isEmpty else { return nil }
+
+            matchedRowIDs.formUnion(sectionRows.map(\.id))
+            return Section(
+                id: definition.id,
+                label: bounded(definition.label, limit: labelMaxCharacters),
+                rows: sectionRows
+            )
+        }
+
+        let unmatchedRows = rows.filter { !matchedRowIDs.contains($0.id) }
+        if !unmatchedRows.isEmpty {
+            sections.append(
+                Section(
+                    id: "other",
+                    label: bounded("Other", limit: labelMaxCharacters),
+                    rows: unmatchedRows
+                )
+            )
+        }
+
+        return sections
+    }
+
+    private static func makeExportText(report: CinematicDiagnosticsReport, sections: [Section]) -> String {
+        var lines = [
             "Cinematic Diagnostics",
             "Report: \(bounded(report.identifier, limit: detailMaxCharacters))"
-        ] + rows.map { "\($0.label): \($0.detail)" })
-        .joined(separator: "\n")
+        ]
+
+        for section in sections {
+            lines.append("\(section.label) (\(section.rowCountLabel))")
+            lines.append(contentsOf: section.rows.map { "\($0.label): \($0.detail)" })
+        }
+
+        return lines.joined(separator: "\n")
     }
 
     private static func row(id: String, label: String, detail: String) -> Row {
