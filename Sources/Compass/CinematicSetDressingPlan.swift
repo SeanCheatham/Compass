@@ -207,7 +207,7 @@ struct CinematicSetDressingPlan: Equatable {
     }
 }
 
-enum CinematicTextureAssetRole: String, CaseIterable, Equatable {
+enum CinematicTextureAssetRole: String, CaseIterable, Equatable, Hashable {
     case backdrop
     case arena
 }
@@ -220,6 +220,124 @@ struct CinematicTextureAsset: Equatable {
     var fallbackTextureName: String
     var usesFallback: Bool
     var identifier: String
+}
+
+struct CinematicSetDressingTextureRouteState: Equatable {
+    static let identifierMaxCharacters = 160
+
+    var backdropRouteIdentifier: String
+    var backdropTextureName: String
+    var arenaRouteIdentifier: String
+    var arenaTextureName: String
+    var identifier: String
+
+    var textureNamesAreRecognized: Bool {
+        CinematicTextureAssetCatalog.recognizes(backdropTextureName, role: .backdrop)
+            && CinematicTextureAssetCatalog.recognizes(arenaTextureName, role: .arena)
+    }
+
+    var usesExtensionlessTextureNames: Bool {
+        Self.isExtensionlessTextureName(backdropTextureName)
+            && Self.isExtensionlessTextureName(arenaTextureName)
+    }
+
+    init(materialTextureVariants: CinematicSetDressingPlan.MaterialTextureVariants) {
+        self.init(
+            backdropRouteIdentifier: materialTextureVariants.backdropTextureAsset.routeIdentifier,
+            backdropTextureName: materialTextureVariants.backdropTextureName,
+            arenaRouteIdentifier: materialTextureVariants.arenaTextureAsset.routeIdentifier,
+            arenaTextureName: materialTextureVariants.arenaTextureName
+        )
+    }
+
+    init(
+        backdropRouteIdentifier: String,
+        backdropTextureName: String,
+        arenaRouteIdentifier: String,
+        arenaTextureName: String
+    ) {
+        let trimmedBackdropRouteIdentifier = Self.trimmed(backdropRouteIdentifier)
+        let trimmedBackdropTextureName = Self.trimmed(backdropTextureName)
+        let trimmedArenaRouteIdentifier = Self.trimmed(arenaRouteIdentifier)
+        let trimmedArenaTextureName = Self.trimmed(arenaTextureName)
+        self.backdropRouteIdentifier = trimmedBackdropRouteIdentifier
+        self.backdropTextureName = trimmedBackdropTextureName
+        self.arenaRouteIdentifier = trimmedArenaRouteIdentifier
+        self.arenaTextureName = trimmedArenaTextureName
+        identifier = Self.boundedIdentifier(
+            [
+                "backdrop:\(trimmedBackdropRouteIdentifier)=\(trimmedBackdropTextureName)",
+                "arena:\(trimmedArenaRouteIdentifier)=\(trimmedArenaTextureName)"
+            ].joined(separator: "|")
+        )
+    }
+
+    private static func isExtensionlessTextureName(_ textureName: String) -> Bool {
+        !textureName.contains("/")
+            && !textureName.contains("\\")
+            && (textureName as NSString).pathExtension.isEmpty
+    }
+
+    private static func trimmed(_ value: String) -> String {
+        value.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private static func boundedIdentifier(_ identifier: String) -> String {
+        guard identifier.count > identifierMaxCharacters else { return identifier }
+
+        let prefixLimit = max(1, identifierMaxCharacters - 3)
+        return String(identifier.prefix(prefixLimit)).trimmingCharacters(in: .whitespacesAndNewlines) + "..."
+    }
+}
+
+struct CinematicSetDressingTextureRefreshPlan: Equatable {
+    var previousState: CinematicSetDressingTextureRouteState?
+    var nextState: CinematicSetDressingTextureRouteState
+    var refreshesBackdrop: Bool
+    var refreshesArena: Bool
+
+    var hasRefreshes: Bool {
+        refreshesBackdrop || refreshesArena
+    }
+}
+
+enum CinematicSetDressingTextureRefreshPlanner {
+    static func plan(
+        appliedState: CinematicSetDressingTextureRouteState?,
+        setDressingPlan: CinematicSetDressingPlan
+    ) -> CinematicSetDressingTextureRefreshPlan {
+        plan(
+            appliedState: appliedState,
+            materialTextureVariants: setDressingPlan.materialTextureVariants
+        )
+    }
+
+    static func plan(
+        appliedState: CinematicSetDressingTextureRouteState?,
+        materialTextureVariants: CinematicSetDressingPlan.MaterialTextureVariants
+    ) -> CinematicSetDressingTextureRefreshPlan {
+        let nextState = CinematicSetDressingTextureRouteState(
+            materialTextureVariants: materialTextureVariants
+        )
+
+        guard let appliedState else {
+            return CinematicSetDressingTextureRefreshPlan(
+                previousState: nil,
+                nextState: nextState,
+                refreshesBackdrop: true,
+                refreshesArena: true
+            )
+        }
+
+        return CinematicSetDressingTextureRefreshPlan(
+            previousState: appliedState,
+            nextState: nextState,
+            refreshesBackdrop: appliedState.backdropRouteIdentifier != nextState.backdropRouteIdentifier
+                || appliedState.backdropTextureName != nextState.backdropTextureName,
+            refreshesArena: appliedState.arenaRouteIdentifier != nextState.arenaRouteIdentifier
+                || appliedState.arenaTextureName != nextState.arenaTextureName
+        )
+    }
 }
 
 enum CinematicTextureAssetCatalog {

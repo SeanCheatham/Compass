@@ -263,6 +263,8 @@ private final class CinematicSceneCoordinator {
     private let phaseLightNode = Entity()
     private let rimLightBaseIntensity: Float = 1180
 
+    private var backdropCycloramaNode: ModelEntity?
+    private var arenaDiscNode: ModelEntity?
     private var activeEnemies: [UUID: Entity] = [:]
     private var lineStatuses: [UUID: LiveLine.Status] = [:]
     private var hasBuiltScene = false
@@ -281,6 +283,7 @@ private final class CinematicSceneCoordinator {
         activityProfile: .empty,
         influenceSettings: CinematicInfluenceSettings()
     )
+    private var appliedTextureRouteState: CinematicSetDressingTextureRouteState?
     private var lastPhase: LoopPhase = .idle
     private var thinkingTimer: Timer?
     private var defenseTimer: Timer?
@@ -407,6 +410,7 @@ private final class CinematicSceneCoordinator {
                 activityProfile: self.activityProfile,
                 influenceSettings: self.influenceSettings
             )
+            refreshSetDressingTextureMaterialsIfNeeded()
         }
 
         if !hasBootstrapped {
@@ -503,6 +507,9 @@ private final class CinematicSceneCoordinator {
 
         buildBackdrop()
         buildArena()
+        appliedTextureRouteState = CinematicSetDressingTextureRouteState(
+            materialTextureVariants: setDressingPlan.materialTextureVariants
+        )
         buildAtmosphere()
         buildNarrativeCueNodes()
         buildSetDressing()
@@ -522,17 +529,15 @@ private final class CinematicSceneCoordinator {
     }
 
     private func buildBackdrop() {
-        let fallback = glowMaterial(NSColor(calibratedRed: 0.006, green: 0.006, blue: 0.01, alpha: 1))
+        let backdropAsset = setDressingPlan.materialTextureVariants.backdropTextureAsset
         let backdrop = ModelEntity(
             mesh: curvedWallMesh(radius: 31, height: 21, arc: 2.55),
             materials: [
-                textureMaterial(
-                    setDressingPlan.materialTextureVariants.backdropTextureName,
-                    tint: NSColor(calibratedWhite: 0.52, alpha: 1)
-                ) ?? fallback
+                backdropMaterial(for: backdropAsset)
             ]
         )
-        backdrop.name = "void-cyclorama"
+        backdrop.name = backdropCycloramaName(for: backdropAsset)
+        backdropCycloramaNode = backdrop
         root.addChild(backdrop)
 
         let horizonHaze = ModelEntity(
@@ -557,22 +562,16 @@ private final class CinematicSceneCoordinator {
         floor.position.y = -0.012
         root.addChild(floor)
 
-        let arenaFallback = glowMaterial(
-            NSColor(calibratedRed: 0.02, green: 0.025, blue: 0.052, alpha: 1),
-            opacity: 0.48
-        )
+        let arenaAsset = setDressingPlan.materialTextureVariants.arenaTextureAsset
         let arena = ModelEntity(
             mesh: circularPlaneMesh(radius: 9.55),
             materials: [
-                textureMaterial(
-                    setDressingPlan.materialTextureVariants.arenaTextureName,
-                    tint: NSColor(calibratedWhite: 0.82, alpha: 1),
-                    opacity: 0.9
-                ) ?? arenaFallback
+                arenaMaterial(for: arenaAsset)
             ]
         )
-        arena.name = "arena-\(setDressingPlan.materialTextureVariants.arenaTextureName)"
+        arena.name = arenaDiscName(for: arenaAsset)
         arena.position.y = 0.032
+        arenaDiscNode = arena
         root.addChild(arena)
 
         let falloffBands: [(inner: Float, outer: Float, opacity: Float)] = [
@@ -630,6 +629,67 @@ private final class CinematicSceneCoordinator {
             ring.position.y = 0.055
             root.addChild(ring)
         }
+    }
+
+    private func refreshSetDressingTextureMaterialsIfNeeded() {
+        let refreshPlan = CinematicSetDressingTextureRefreshPlanner.plan(
+            appliedState: appliedTextureRouteState,
+            setDressingPlan: setDressingPlan
+        )
+
+        if refreshPlan.refreshesBackdrop {
+            refreshBackdropTextureMaterial(setDressingPlan.materialTextureVariants.backdropTextureAsset)
+        }
+        if refreshPlan.refreshesArena {
+            refreshArenaTextureMaterial(setDressingPlan.materialTextureVariants.arenaTextureAsset)
+        }
+        appliedTextureRouteState = refreshPlan.nextState
+    }
+
+    private func refreshBackdropTextureMaterial(_ asset: CinematicTextureAsset) {
+        guard let backdropCycloramaNode else { return }
+        backdropCycloramaNode.name = backdropCycloramaName(for: asset)
+        setUnlitMaterial(backdropMaterial(for: asset), on: backdropCycloramaNode)
+    }
+
+    private func refreshArenaTextureMaterial(_ asset: CinematicTextureAsset) {
+        guard let arenaDiscNode else { return }
+        arenaDiscNode.name = arenaDiscName(for: asset)
+        setUnlitMaterial(arenaMaterial(for: asset), on: arenaDiscNode)
+    }
+
+    private func backdropMaterial(for asset: CinematicTextureAsset) -> UnlitMaterial {
+        textureMaterial(
+            asset.textureName,
+            tint: NSColor(calibratedWhite: 0.52, alpha: 1)
+        ) ?? backdropFallbackMaterial()
+    }
+
+    private func arenaMaterial(for asset: CinematicTextureAsset) -> UnlitMaterial {
+        textureMaterial(
+            asset.textureName,
+            tint: NSColor(calibratedWhite: 0.82, alpha: 1),
+            opacity: 0.9
+        ) ?? arenaFallbackMaterial()
+    }
+
+    private func backdropFallbackMaterial() -> UnlitMaterial {
+        glowMaterial(NSColor(calibratedRed: 0.006, green: 0.006, blue: 0.01, alpha: 1))
+    }
+
+    private func arenaFallbackMaterial() -> UnlitMaterial {
+        glowMaterial(
+            NSColor(calibratedRed: 0.02, green: 0.025, blue: 0.052, alpha: 1),
+            opacity: 0.48
+        )
+    }
+
+    private func backdropCycloramaName(for asset: CinematicTextureAsset) -> String {
+        "void-cyclorama-\(asset.textureName)"
+    }
+
+    private func arenaDiscName(for asset: CinematicTextureAsset) -> String {
+        "arena-\(asset.textureName)"
     }
 
     private func buildAtmosphere() {
@@ -3207,6 +3267,12 @@ private final class CinematicSceneCoordinator {
     private func setGlow(_ color: NSColor, opacity: Float = 1, on entity: Entity) {
         guard var model = entity.components[ModelComponent.self] else { return }
         model.materials = [glowMaterial(color, opacity: opacity)]
+        entity.components.set(model)
+    }
+
+    private func setUnlitMaterial(_ material: UnlitMaterial, on entity: Entity) {
+        guard var model = entity.components[ModelComponent.self] else { return }
+        model.materials = [material]
         entity.components.set(model)
     }
 
