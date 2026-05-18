@@ -1301,6 +1301,11 @@ final class CinematicDiagnosticsTests: XCTestCase {
         XCTAssertEqual(quietSupportReport.activitySourceBeacon.suppressionReason, "quiet-noncritical")
         XCTAssertTrue(supportSummary.exportText.contains("source-cue suppressed-quiet-noncritical"))
         XCTAssertTrue(supportSummary.exportText.contains("source-visible no"))
+        XCTAssertFalse(
+            supportSummary.attentionSummary.targets.contains {
+                $0.targetAnchorID == "diagnostics-row-activity-source"
+            }
+        )
 
         XCTAssertTrue(quietMissingReport.overlayDisplay.showsActivitySourceCue)
         XCTAssertEqual(quietMissingReport.overlayDisplay.activitySourceCuePolicyIdentifier, "visible-warning")
@@ -1315,6 +1320,209 @@ final class CinematicDiagnosticsTests: XCTestCase {
         XCTAssertTrue(missingSummary.exportText.contains("source-visible yes"))
         XCTAssertTrue(missingSummary.exportText.contains("availability sessions-record-missing"))
         XCTAssertTrue(missingSummary.exportText.contains("source-beacon visible-warning/application-support-unavailable"))
+        let sourceTarget = missingSummary.attentionSummary.targets.first {
+            $0.targetAnchorID == "diagnostics-row-activity-source"
+        }
+        XCTAssertEqual(sourceTarget?.id, "activity-source-application-support-unavailable-sessions-record-missing")
+        XCTAssertEqual(sourceTarget?.targetGroupID, "repository-context")
+        XCTAssertEqual(sourceTarget?.relatedGroupID, "repository-context")
+        XCTAssertEqual(sourceTarget?.relatedRowID, "activity-source")
+        XCTAssertEqual(sourceTarget?.visibleWarningIdentifiers, ["activity-source.source.sessions-record-missing"])
+        XCTAssertTrue(sourceTarget?.detail.contains("cue policy visible-warning") ?? false)
+        XCTAssertTrue(sourceTarget?.detail.contains("beacon visible-warning/application-support-unavailable") ?? false)
+    }
+
+    func testActivitySourceWarningAttentionTargetExportsBoundedCopyAndRollupAnchors() throws {
+        let repoURL = URL(fileURLWithPath: "/tmp/CompassActivitySourceAttention")
+        let supportRoot = repoURL
+            .appending(path: "Application Support", directoryHint: .isDirectory)
+            .appending(path: "Compass", directoryHint: .isDirectory)
+        let missingSnapshot = RepositoryActivitySourceSnapshot(
+            activeStorage: .applicationSupport,
+            storageRootURL: supportRoot,
+            sessionsRecordURL: supportRoot.appending(path: "sessions.json"),
+            sourceAvailability: .sessionsRecordMissing,
+            repoLocalSessionsRecordURL: repoURL
+                .appending(path: ".compass", directoryHint: .isDirectory)
+                .appending(path: "sessions.json"),
+            repoLocalSessionsState: .ignoredMissing
+        )
+        let report = makeReport(
+            CinematicDiagnosticsInput(
+                repoName: "Compass",
+                phase: "Developing",
+                immediateTitle: "Drill into missing activity source diagnostics",
+                completedCount: 1,
+                latestEvent: nil,
+                languageProfile: languageProfile(primaryLanguage: .swift),
+                activityProfile: activityProfile(recentCommitCount: 1),
+                activitySourceSnapshot: missingSnapshot,
+                influenceSettings: CinematicInfluenceSettings()
+            )
+        )
+        let summary = CinematicDiagnosticsSummary(report: report)
+        let target = try XCTUnwrap(
+            summary.attentionSummary.targets.first {
+                $0.targetAnchorID == "diagnostics-row-activity-source"
+            }
+        )
+
+        XCTAssertEqual(target.id, "activity-source-application-support-unavailable-sessions-record-missing")
+        XCTAssertEqual(target.targetGroupID, "repository-context")
+        XCTAssertEqual(target.targetAnchorID, "diagnostics-row-activity-source")
+        XCTAssertEqual(target.relatedGroupID, "repository-context")
+        XCTAssertEqual(target.relatedRowID, "activity-source")
+        XCTAssertEqual(target.label, "Activity record missing")
+        XCTAssertEqual(target.warningCount, 1)
+        XCTAssertEqual(target.visibleWarningIdentifiers, ["activity-source.source.sessions-record-missing"])
+        XCTAssertLessThanOrEqual(target.detail.count, CinematicDiagnosticsSummary.attentionSummaryDetailMaxCharacters)
+        XCTAssertTrue(target.detail.contains("storage application_support"))
+        XCTAssertTrue(target.detail.contains("availability sessions-record-missing"))
+        XCTAssertTrue(target.detail.contains("repo-local ignored-missing"))
+        XCTAssertTrue(target.detail.contains("cue policy visible-warning"))
+        XCTAssertTrue(target.detail.contains("beacon visible-warning/application-support-unavailable"))
+
+        XCTAssertLessThanOrEqual(target.copyText.count, CinematicDiagnosticsSummary.attentionTargetCopyMaxCharacters)
+        XCTAssertTrue(target.copyText.contains("Cinematic diagnostics warning target"))
+        XCTAssertTrue(target.copyText.contains("Target anchor: diagnostics-row-activity-source"))
+        XCTAssertTrue(target.copyText.contains("Target group: repository-context"))
+        XCTAssertTrue(target.copyText.contains("Warnings: activity-source.source.sessions-record-missing"))
+        XCTAssertTrue(target.copyText.contains("Storage kind: application_support"))
+        XCTAssertTrue(target.copyText.contains("Availability: sessions-record-missing"))
+        XCTAssertTrue(target.copyText.contains("Repo-local state: ignored-missing"))
+        XCTAssertTrue(target.copyText.contains("Sessions path:"))
+        XCTAssertTrue(target.copyText.contains("Repo-local sessions path:"))
+        XCTAssertTrue(target.copyText.contains("Cue policy: visible-warning"))
+        XCTAssertTrue(target.copyText.contains("Beacon visibility: visible-warning"))
+        XCTAssertTrue(target.copyText.contains("Related row: activity-source"))
+        XCTAssertFalse(target.copyText.contains("Cinematic Diagnostics\nReport:"))
+        XCTAssertFalse(target.copyText.contains("Visual smoke (warning,"))
+
+        XCTAssertTrue(summary.exportText.contains("Warning summary (1 target)"))
+        XCTAssertTrue(summary.exportText.contains("Activity record missing -> \(target.id)"))
+        XCTAssertTrue(summary.exportText.contains("anchor diagnostics-row-activity-source"))
+        XCTAssertTrue(summary.exportText.contains("related activity-source"))
+        XCTAssertTrue(summary.exportText.contains("activity-source.source.sessions-record-missing"))
+
+        var history = CinematicDiagnosticsWarningBundleHistory()
+        history.record(summary.attentionSummary)
+        let entry = try XCTUnwrap(history.entries.first)
+        XCTAssertEqual(entry.targetIdentifiers, [target.id])
+        XCTAssertEqual(entry.warningIdentifiers, ["activity-source.source.sessions-record-missing"])
+        XCTAssertEqual(entry.targetAnchors, ["diagnostics-row-activity-source"])
+        XCTAssertEqual(entry.relatedRowAnchors, ["diagnostics-row-activity-source"])
+        XCTAssertTrue(history.rollup.copyText.contains("diagnostics-row-activity-source"))
+    }
+
+    func testActivitySourceAttentionIgnoresOrdinaryAndNoncriticalSupportStates() {
+        let repoURL = URL(fileURLWithPath: "/tmp/CompassActivitySourceAttentionOrdinary")
+        let supportRoot = repoURL
+            .appending(path: "Application Support", directoryHint: .isDirectory)
+            .appending(path: "Compass", directoryHint: .isDirectory)
+        let ordinaryRepoLocal = RepositoryActivitySourceSnapshot(
+            activeStorage: .repoLocal,
+            storageRootURL: repoURL.appending(path: ".compass", directoryHint: .isDirectory),
+            sessionsRecordURL: repoURL
+                .appending(path: ".compass", directoryHint: .isDirectory)
+                .appending(path: "sessions.json"),
+            sourceAvailability: .available,
+            repoLocalSessionsRecordURL: repoURL
+                .appending(path: ".compass", directoryHint: .isDirectory)
+                .appending(path: "sessions.json"),
+            repoLocalSessionsState: .activeSource
+        )
+        let supportAvailable = RepositoryActivitySourceSnapshot(
+            activeStorage: .applicationSupport,
+            storageRootURL: supportRoot,
+            sessionsRecordURL: supportRoot.appending(path: "sessions.json"),
+            sourceAvailability: .available,
+            repoLocalSessionsRecordURL: repoURL
+                .appending(path: ".compass", directoryHint: .isDirectory)
+                .appending(path: "sessions.json"),
+            repoLocalSessionsState: .ignoredCompatible
+        )
+
+        for snapshot in [ordinaryRepoLocal, supportAvailable] {
+            let report = makeReport(
+                CinematicDiagnosticsInput(
+                    repoName: "Compass",
+                    phase: "Developing",
+                    immediateTitle: "Keep ordinary source state out of warning summary",
+                    completedCount: 1,
+                    latestEvent: nil,
+                    languageProfile: languageProfile(primaryLanguage: .swift),
+                    activityProfile: activityProfile(recentCommitCount: 1),
+                    activitySourceSnapshot: snapshot,
+                    influenceSettings: CinematicInfluenceSettings()
+                )
+            )
+            let summary = CinematicDiagnosticsSummary(report: report)
+
+            XCTAssertFalse(
+                summary.attentionSummary.targets.contains {
+                    $0.targetAnchorID == "diagnostics-row-activity-source"
+                }
+            )
+            XCTAssertFalse(summary.exportText.contains("activity-source.source."))
+            XCTAssertFalse(summary.exportText.contains("activity-source.repo-local.ignored-compatible"))
+        }
+    }
+
+    func testActivitySourceAttentionIncludesActionableIgnoredRepoLocalState() throws {
+        let repoURL = URL(fileURLWithPath: "/tmp/CompassActivitySourceAttentionIgnored")
+        let supportRoot = repoURL
+            .appending(path: "Application Support", directoryHint: .isDirectory)
+            .appending(path: "Compass", directoryHint: .isDirectory)
+        let ignoredUnreadable = RepositoryActivitySourceSnapshot(
+            activeStorage: .applicationSupport,
+            storageRootURL: supportRoot,
+            sessionsRecordURL: supportRoot.appending(path: "sessions.json"),
+            sourceAvailability: .available,
+            repoLocalSessionsRecordURL: repoURL
+                .appending(path: ".compass", directoryHint: .isDirectory)
+                .appending(path: "sessions.json"),
+            repoLocalSessionsState: .ignoredUnreadable
+        )
+        let quietSettings = CinematicInfluenceSettings(
+            cameraStyle: .follow,
+            comfortMode: .quiet,
+            intensity: 0.4
+        )
+        let report = makeReport(
+            CinematicDiagnosticsInput(
+                repoName: "Compass",
+                phase: "Developing",
+                immediateTitle: "Surface ignored repo-local source diagnostics",
+                completedCount: 1,
+                latestEvent: nil,
+                languageProfile: languageProfile(primaryLanguage: .swift),
+                activityProfile: activityProfile(recentCommitCount: 1),
+                activitySourceSnapshot: ignoredUnreadable,
+                influenceSettings: quietSettings
+            )
+        )
+        let summary = CinematicDiagnosticsSummary(report: report)
+        let target = try XCTUnwrap(
+            summary.attentionSummary.targets.first {
+                $0.targetAnchorID == "diagnostics-row-activity-source"
+            }
+        )
+
+        XCTAssertFalse(report.overlayDisplay.showsActivitySourceCue)
+        XCTAssertEqual(report.overlayDisplay.activitySourceCuePolicyIdentifier, "suppressed-quiet-noncritical")
+        XCTAssertFalse(report.activitySourceBeacon.isVisible)
+        XCTAssertEqual(report.activitySourceBeacon.visibilityIdentifier, "suppressed-quiet-noncritical")
+        XCTAssertEqual(target.id, "activity-source-application-support-active-ignored-unreadable")
+        XCTAssertEqual(target.label, "Repo sessions ignored")
+        XCTAssertEqual(target.visibleWarningIdentifiers, ["activity-source.repo-local.ignored-unreadable"])
+        XCTAssertTrue(target.detail.contains("availability available"))
+        XCTAssertTrue(target.detail.contains("repo-local ignored-unreadable"))
+        XCTAssertTrue(target.detail.contains("cue policy suppressed-quiet-noncritical"))
+        XCTAssertTrue(target.detail.contains("beacon suppressed-quiet-noncritical/application-support-active"))
+        XCTAssertTrue(target.copyText.contains("Repo-local state: ignored-unreadable"))
+        XCTAssertTrue(target.copyText.contains("Cue policy: suppressed-quiet-noncritical"))
+        XCTAssertTrue(target.copyText.contains("Beacon visibility: suppressed-quiet-noncritical"))
+        XCTAssertTrue(summary.exportText.contains("activity-source.repo-local.ignored-unreadable"))
     }
 
     func testPlanCompassRowsCorrelateWithDiagnosticsExport() throws {

@@ -4949,6 +4949,10 @@ struct CinematicDiagnosticsSummary: Equatable {
         let rowsByID = Dictionary(
             uniqueKeysWithValues: sections.flatMap(\.rows).map { ($0.id, $0) }
         )
+        let activitySourceTarget = activitySourceAttentionTarget(
+            report: report,
+            rowsByID: rowsByID
+        )
         let warningCheckTargets = visualSmoke.checks.compactMap { check in
             warningCheckAttentionTarget(
                 check: check,
@@ -4985,9 +4989,189 @@ struct CinematicDiagnosticsSummary: Equatable {
             )
         ]
         .compactMap { $0 }
-        let targets = (warningCheckTargets + groupTargets).prefix(attentionSummaryMaxTargets)
+        let targets = ([activitySourceTarget].compactMap { $0 } + warningCheckTargets + groupTargets)
+            .prefix(attentionSummaryMaxTargets)
 
         return AttentionSummary(targets: Array(targets))
+    }
+
+    private static func activitySourceAttentionTarget(
+        report: CinematicDiagnosticsReport,
+        rowsByID: [String: Row]
+    ) -> AttentionTarget? {
+        let snapshot = report.activitySource
+        let status = ProjectActivitySourceStatus(snapshot: snapshot)
+        let warningIdentifiers = activitySourceWarningIdentifiers(snapshot: snapshot, status: status)
+        guard !warningIdentifiers.isEmpty else {
+            return nil
+        }
+
+        let visibleWarningIdentifiers = Array(
+            warningIdentifiers.prefix(attentionSummaryMaxVisibleWarnings)
+        )
+        let targetGroupID = "repository-context"
+        let targetAnchorID = "diagnostics-row-activity-source"
+        let label = activitySourceAttentionLabel(status: status, warningIdentifiers: warningIdentifiers)
+        let detail = activitySourceAttentionDetail(snapshot: snapshot, status: status, report: report)
+        let relatedRow = rowsByID["activity-source"]
+
+        return AttentionTarget(
+            id: activitySourceAttentionTargetID(snapshot: snapshot, status: status),
+            targetGroupID: targetGroupID,
+            targetAnchorID: targetAnchorID,
+            relatedGroupID: targetGroupID,
+            relatedRowID: "activity-source",
+            label: bounded(label, limit: labelMaxCharacters),
+            detail: bounded(detail, limit: attentionSummaryDetailMaxCharacters),
+            warningCount: warningIdentifiers.count,
+            visibleWarningIdentifiers: visibleWarningIdentifiers,
+            copyText: activitySourceAttentionCopyText(
+                label: label,
+                targetGroupID: targetGroupID,
+                targetAnchorID: targetAnchorID,
+                visibleWarningIdentifiers: visibleWarningIdentifiers,
+                detail: detail,
+                snapshot: snapshot,
+                status: status,
+                report: report,
+                relatedRow: relatedRow
+            )
+        )
+    }
+
+    private static func activitySourceWarningIdentifiers(
+        snapshot: RepositoryActivitySourceSnapshot,
+        status: ProjectActivitySourceStatus
+    ) -> [String] {
+        var identifiers: [String] = []
+        if status.isVisible,
+           status.severity == .warning || status.severity == .failure {
+            identifiers.append("activity-source.source.\(snapshot.sourceAvailabilityIdentifier)")
+        }
+        if activitySourceRepoLocalStateNeedsAttention(snapshot.repoLocalSessionsState) {
+            identifiers.append("activity-source.repo-local.\(snapshot.repoLocalSessionsStateIdentifier)")
+        }
+
+        var seen = Set<String>()
+        return identifiers.compactMap { identifier in
+            let boundedIdentifier = bounded(
+                identifier,
+                limit: CinematicVisualSmokeReport.warningIdentifierMaxCharacters
+            )
+            return seen.insert(boundedIdentifier).inserted ? boundedIdentifier : nil
+        }
+    }
+
+    private static func activitySourceRepoLocalStateNeedsAttention(
+        _ state: RepositoryActivitySourceSnapshot.RepoLocalSessionsState
+    ) -> Bool {
+        switch state {
+        case .ignoredOversized,
+             .ignoredUnreadable:
+            return true
+        case .activeSource,
+             .ignoredMissing,
+             .ignoredCompatible:
+            return false
+        }
+    }
+
+    private static func activitySourceAttentionTargetID(
+        snapshot: RepositoryActivitySourceSnapshot,
+        status: ProjectActivitySourceStatus
+    ) -> String {
+        let stateToken = snapshot.sourceAvailability == .available
+            ? snapshot.repoLocalSessionsStateIdentifier
+            : snapshot.sourceAvailabilityIdentifier
+        return bounded(
+            "activity-source-\(status.kind.rawValue)-\(stateToken)",
+            limit: CinematicVisualSmokeReport.warningIdentifierMaxCharacters
+        )
+    }
+
+    private static func activitySourceAttentionLabel(
+        status: ProjectActivitySourceStatus,
+        warningIdentifiers: [String]
+    ) -> String {
+        if warningIdentifiers.contains(where: { $0.hasPrefix("activity-source.source.") }) {
+            return status.label.isEmpty ? "Activity source warning" : status.label
+        }
+        return "Repo sessions ignored"
+    }
+
+    private static func activitySourceAttentionDetail(
+        snapshot: RepositoryActivitySourceSnapshot,
+        status: ProjectActivitySourceStatus,
+        report: CinematicDiagnosticsReport
+    ) -> String {
+        [
+            "storage \(snapshot.activeStorageIdentifier)",
+            "availability \(snapshot.sourceAvailabilityIdentifier)",
+            "repo-local \(snapshot.repoLocalSessionsStateIdentifier)",
+            "repo-local-mode \(snapshot.repoLocalSessionsIgnoredIdentifier)",
+            "cue policy \(report.overlayDisplay.activitySourceCuePolicyIdentifier)",
+            "beacon \(report.activitySourceBeacon.visibilityIdentifier)/\(report.activitySourceBeacon.kindIdentifier)",
+            status.detail
+        ]
+            .filter { !$0.isEmpty }
+            .joined(separator: " | ")
+    }
+
+    private static func activitySourceAttentionCopyText(
+        label: String,
+        targetGroupID: String,
+        targetAnchorID: String,
+        visibleWarningIdentifiers: [String],
+        detail: String,
+        snapshot: RepositoryActivitySourceSnapshot,
+        status: ProjectActivitySourceStatus,
+        report: CinematicDiagnosticsReport,
+        relatedRow: Row?
+    ) -> String {
+        let warnings = visibleWarningIdentifiers.isEmpty
+            ? "none"
+            : visibleWarningIdentifiers.joined(separator: ", ")
+        var lines = [
+            "Cinematic diagnostics warning target",
+            "Label: \(bounded(label, limit: labelMaxCharacters))",
+            "Target anchor: \(bounded(targetAnchorID, limit: CinematicVisualSmokeReport.warningIdentifierMaxCharacters))",
+            "Target group: \(bounded(targetGroupID, limit: CinematicVisualSmokeReport.warningIdentifierMaxCharacters))",
+            "Warnings: \(bounded(warnings, limit: detailMaxCharacters))",
+            "Detail: \(bounded(detail, limit: attentionSummaryDetailMaxCharacters))",
+            "Storage kind: \(snapshot.activeStorageIdentifier)",
+            "Availability: \(snapshot.sourceAvailabilityIdentifier)",
+            "Repo-local state: \(snapshot.repoLocalSessionsStateIdentifier)",
+            "Repo-local mode: \(snapshot.repoLocalSessionsIgnoredIdentifier)",
+            "Status kind: \(status.kind.rawValue)",
+            "Status severity: \(status.severity.rawValue)",
+            "Storage root: \(activitySourcePath(snapshot.storageRootURL))",
+            "Sessions path: \(activitySourcePath(snapshot.sessionsRecordURL))",
+            "Repo-local sessions path: \(activitySourcePath(snapshot.repoLocalSessionsRecordURL))",
+            "Cue policy: \(report.overlayDisplay.activitySourceCuePolicyIdentifier)",
+            "Beacon visibility: \(report.activitySourceBeacon.visibilityIdentifier)"
+        ]
+
+        if let relatedRow {
+            lines.append(
+                [
+                    "Related row:",
+                    bounded(relatedRow.id, limit: CinematicVisualSmokeReport.warningIdentifierMaxCharacters),
+                    "(\(bounded(relatedRow.label, limit: labelMaxCharacters)))"
+                ].joined(separator: " ")
+            )
+            lines.append(
+                "Related detail: \(bounded(relatedRow.detail, limit: 180))"
+            )
+        }
+
+        lines.append(
+            "Cue identifier: \(bounded(report.overlayDisplay.activitySourceCueIdentifier, limit: 96))"
+        )
+        lines.append(
+            "Beacon identifier: \(bounded(report.activitySourceBeacon.identifier, limit: 96))"
+        )
+
+        return bounded(lines.joined(separator: "\n"), limit: attentionTargetCopyMaxCharacters)
     }
 
     private static func warningCheckAttentionTarget(
