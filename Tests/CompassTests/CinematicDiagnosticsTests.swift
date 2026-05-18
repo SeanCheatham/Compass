@@ -248,6 +248,60 @@ final class CinematicDiagnosticsTests: XCTestCase {
         )
     }
 
+    func testRepresentativeNativeFeedbackSmokeFixturesCoverRoutesAndLifecycle() throws {
+        let reports = CinematicDiagnostics.representativeNativeFeedbackSmokeReports()
+        let activeReports = reports.filter { $0.nativeFeedback.lifecycleStateIdentifier == "active" }
+        let expiredReport = try XCTUnwrap(
+            reports.first { $0.nativeFeedback.lifecycleStateIdentifier == "expired" }
+        )
+
+        XCTAssertEqual(reports.count, 5)
+        XCTAssertEqual(activeReports.count, 4)
+        XCTAssertEqual(
+            Set(activeReports.map(\.nativeFeedback.styleIdentifier)),
+            Set(["verify", "warning", "failure"])
+        )
+        XCTAssertTrue(activeReports.contains { $0.nativeFeedback.sourceIdentifier == "native:verifyStarted" })
+        XCTAssertTrue(activeReports.contains { $0.nativeFeedback.sourceIdentifier == "native:postChecksFailed" })
+        XCTAssertTrue(activeReports.contains { $0.nativeFeedback.sourceIdentifier == "run-cue:11:dirtyWorktree" })
+        XCTAssertTrue(activeReports.contains { $0.nativeFeedback.sourceIdentifier == "run-cue:7:failedVerify" })
+        XCTAssertEqual(
+            Set(activeReports.flatMap(\.nativeFeedback.affectedNarrativeDescriptorIdentifiers)),
+            Set([
+                "narrative.quest.plaque",
+                "narrative.arena.inscription",
+                "narrative.activity.banner"
+            ])
+        )
+        XCTAssertTrue(activeReports.contains { $0.narrativeCue.questPlaque.anchorIdentifier == "left-seal-pylon" })
+        XCTAssertTrue(activeReports.contains { $0.narrativeCue.questPlaque.anchorIdentifier == "right-warning-pylon" })
+        XCTAssertTrue(activeReports.contains { $0.narrativeCue.questPlaque.anchorIdentifier == "fracture-gate" })
+        XCTAssertTrue(
+            activeReports.allSatisfy {
+                $0.nativeFeedback.cueIdentifier == $0.overlayDisplay.nativeFeedbackCueIdentifier
+                    && $0.nativeFeedback.cueIdentifier == $0.narrativeCue.nativeFeedbackCueIdentifier
+                    && $0.nativeFeedback.lifecycleActiveCueIdentifier == $0.nativeFeedback.cueIdentifier
+                    && $0.overlayDisplay.showsNativeFeedbackBanner
+                    && $0.overlayDisplay.nativeFeedbackBannerPolicyIdentifier == "visible"
+            }
+        )
+        XCTAssertEqual(expiredReport.nativeFeedback.cueIdentifier, "none")
+        XCTAssertEqual(expiredReport.nativeFeedback.lifecycleActiveCueIdentifier, "none")
+        XCTAssertEqual(expiredReport.nativeFeedback.lifecycleRecentArchiveCount, 1)
+        XCTAssertTrue(expiredReport.nativeFeedback.lifecycleRecentArchiveIdentifiers.first?.contains("reason:expired") == true)
+        XCTAssertEqual(expiredReport.overlayDisplay.nativeFeedbackCueIdentifier, "none")
+        XCTAssertFalse(expiredReport.overlayDisplay.showsNativeFeedbackBanner)
+        XCTAssertEqual(expiredReport.overlayDisplay.nativeFeedbackBannerPolicyIdentifier, "none")
+
+        let smoke = CinematicVisualSmokeReport(reports: reports)
+        let nativeFeedbackCheck = try XCTUnwrap(
+            smoke.checks.first { $0.id == "native-feedback-cue-coverage" }
+        )
+        XCTAssertEqual(nativeFeedbackCheck.status, .pass)
+        XCTAssertTrue(nativeFeedbackCheck.detail.contains("active 4"))
+        XCTAssertTrue(nativeFeedbackCheck.detail.contains("expired 1"))
+    }
+
     func testReportAndSummaryExportSelectedRecoveryCue() throws {
         let recoveryCuePlan = try XCTUnwrap(
             CinematicRecoveryCuePlanner.representativePlans().first {
@@ -617,8 +671,9 @@ final class CinematicDiagnosticsTests: XCTestCase {
         XCTAssertTrue(summary.exportText.contains("Assets/textures (2 rows)"))
         XCTAssertTrue(summary.exportText.contains("Tuning (4 rows)"))
         XCTAssertTrue(summary.exportText.contains("Camera shots (9 rows)"))
-        XCTAssertTrue(summary.exportText.contains("Visual smoke (pass, 12 checks)"))
+        XCTAssertTrue(summary.exportText.contains("Visual smoke (pass, 13 checks)"))
         XCTAssertTrue(summary.exportText.contains("Overlay fallback: pass"))
+        XCTAssertTrue(summary.exportText.contains("Native feedback coverage: pass"))
         XCTAssertTrue(summary.exportText.contains(report.languageMotif.sigilIdentifier))
         XCTAssertTrue(summary.exportText.contains(report.languageMotif.styleIdentifier))
         XCTAssertTrue(summary.exportText.contains(report.activityMotif.sigilIdentifier))

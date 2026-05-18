@@ -456,7 +456,8 @@ struct CinematicVisualSmokeReport: Equatable {
         let reports = settingsSamples.flatMap {
             CinematicDiagnostics.representativeSmokeMatrix(influenceSettings: $0)
         }
-        return CinematicVisualSmokeReport(reports: reports)
+        let nativeFeedbackReports = CinematicDiagnostics.representativeNativeFeedbackSmokeReports()
+        return CinematicVisualSmokeReport(reports: reports + nativeFeedbackReports)
     }
 
     private static func makeChecks(reports: [CinematicDiagnosticsReport]) -> [Check] {
@@ -472,6 +473,7 @@ struct CinematicVisualSmokeReport: Equatable {
             cameraPhaseCoverageCheck(reports: reports),
             pressureInfluenceSpreadCheck(reports: reports),
             recoveryCueCoverageCheck(reports: reports),
+            nativeFeedbackCueCoverageCheck(reports: reports),
             timelineFocusCoverageCheck(reports: reports)
         ]
     }
@@ -825,6 +827,55 @@ struct CinematicVisualSmokeReport: Equatable {
         )
     }
 
+    private static func nativeFeedbackCueCoverageCheck(reports: [CinematicDiagnosticsReport]) -> Check {
+        let activeReports = reports.filter {
+            $0.nativeFeedback.cueIdentifier != "none"
+                && $0.nativeFeedback.lifecycleStateIdentifier == "active"
+        }
+        let expectedStyles = Set(["verify", "warning", "failure"])
+        let styles = Set(activeReports.map(\.nativeFeedback.styleIdentifier))
+        let sourceFamilies = Set(activeReports.compactMap(nativeFeedbackSourceFamily))
+        let affectedDescriptors = Set(activeReports.flatMap(\.nativeFeedback.affectedNarrativeDescriptorIdentifiers))
+        let expectedDescriptors = Set([
+            "narrative.quest.plaque",
+            "narrative.arena.inscription",
+            "narrative.activity.banner"
+        ])
+        let anchorRoutes = Set(activeReports.flatMap(nativeFeedbackAnchorRouteIdentifiers))
+        let expectedAnchorRoutes = Set(["seal", "warning", "fracture"])
+        let visibleBannerReports = activeReports.filter {
+            $0.overlayDisplay.showsNativeFeedbackBanner
+                && $0.overlayDisplay.nativeFeedbackBannerPolicyIdentifier == "visible"
+        }.count
+        let consistentActiveReports = activeReports.filter(nativeFeedbackActiveRoutesAreConsistent).count
+        let expiredArchivedReports = reports.filter(nativeFeedbackExpiredLifecycleIsArchived).count
+
+        let isPassing = !activeReports.isEmpty
+            && styles.isSuperset(of: expectedStyles)
+            && sourceFamilies.isSuperset(of: ["native", "run-cue"])
+            && affectedDescriptors.isSuperset(of: expectedDescriptors)
+            && anchorRoutes.isSuperset(of: expectedAnchorRoutes)
+            && visibleBannerReports == activeReports.count
+            && consistentActiveReports == activeReports.count
+            && expiredArchivedReports > 0
+
+        return check(
+            id: "native-feedback-cue-coverage",
+            label: "Native feedback coverage",
+            isPassing: isPassing,
+            warningIdentifier: "visual-smoke.native-feedback-cue-coverage",
+            detail: [
+                "active \(activeReports.count)",
+                "styles \(styles.intersection(expectedStyles).count)/\(expectedStyles.count)",
+                "sources \(joined(sourceFamilies))",
+                "desc \(affectedDescriptors.intersection(expectedDescriptors).count)/\(expectedDescriptors.count)",
+                "anchors \(joined(anchorRoutes))",
+                "visible \(visibleBannerReports)/\(activeReports.count)",
+                "expired \(expiredArchivedReports)"
+            ].joined(separator: " | ")
+        )
+    }
+
     private static func timelineFocusCoverageCheck(reports: [CinematicDiagnosticsReport]) -> Check {
         let expectedKinds = Set(["none", "plan", "develop", "verify", "outcome", "commit", "recovery", "failed-verify"])
         let kinds = Set(reports.map(\.timelineFocus.kindIdentifier))
@@ -1029,6 +1080,70 @@ struct CinematicVisualSmokeReport: Equatable {
         default:
             return nil
         }
+    }
+
+    private static func nativeFeedbackSourceFamily(_ report: CinematicDiagnosticsReport) -> String? {
+        let source = report.nativeFeedback.sourceIdentifier
+        if source.hasPrefix("native:") {
+            return "native"
+        }
+        if source.hasPrefix("run-cue:") {
+            return "run-cue"
+        }
+        return nil
+    }
+
+    private static func nativeFeedbackAnchorRouteIdentifiers(
+        _ report: CinematicDiagnosticsReport
+    ) -> [String] {
+        [
+            nativeFeedbackAnchorRouteIdentifier(report.narrativeCue.questPlaque.anchorIdentifier),
+            nativeFeedbackAnchorRouteIdentifier(report.narrativeCue.arenaInscription.anchorIdentifier),
+            nativeFeedbackAnchorRouteIdentifier(report.narrativeCue.activityBanner.anchorIdentifier)
+        ].compactMap { $0 }
+    }
+
+    private static func nativeFeedbackAnchorRouteIdentifier(_ anchorIdentifier: String) -> String? {
+        switch anchorIdentifier {
+        case "left-seal-pylon", "arena-rear":
+            return "seal"
+        case "right-warning-pylon":
+            return "warning"
+        case "fracture-gate":
+            return "fracture"
+        default:
+            return nil
+        }
+    }
+
+    private static func nativeFeedbackActiveRoutesAreConsistent(
+        _ report: CinematicDiagnosticsReport
+    ) -> Bool {
+        report.nativeFeedback.lifecycleStateIdentifier == "active"
+            && report.nativeFeedback.lifecycleActiveCueIdentifier == report.nativeFeedback.cueIdentifier
+            && report.nativeFeedback.cueIdentifier == report.narrativeCue.nativeFeedbackCueIdentifier
+            && report.nativeFeedback.cueIdentifier == report.overlayDisplay.nativeFeedbackCueIdentifier
+            && report.nativeFeedback.sourceIdentifier == report.narrativeCue.nativeFeedbackSourceIdentifier
+            && report.nativeFeedback.styleIdentifier == report.narrativeCue.nativeFeedbackStyleIdentifier
+            && report.nativeFeedback.milestoneIdentifier == report.narrativeCue.nativeFeedbackMilestoneIdentifier
+            && report.nativeFeedback.affectedNarrativeDescriptorIdentifiers
+                == report.narrativeCue.nativeFeedbackAffectedDescriptorIdentifiers
+            && report.nativeFeedback.lifecycleIdentifier == report.overlayDisplay.nativeFeedbackLifecycleIdentifier
+            && report.narrativeCue.nativeFeedbackLifecycleIdentifier != "none"
+    }
+
+    private static func nativeFeedbackExpiredLifecycleIsArchived(
+        _ report: CinematicDiagnosticsReport
+    ) -> Bool {
+        report.nativeFeedback.cueIdentifier == "none"
+            && report.nativeFeedback.lifecycleStateIdentifier == "expired"
+            && report.nativeFeedback.lifecycleActiveCueIdentifier == "none"
+            && report.nativeFeedback.lifecycleRecentArchiveCount > 0
+            && report.narrativeCue.nativeFeedbackCueIdentifier == "none"
+            && report.overlayDisplay.nativeFeedbackCueIdentifier == "none"
+            && report.nativeFeedback.lifecycleIdentifier == report.overlayDisplay.nativeFeedbackLifecycleIdentifier
+            && !report.overlayDisplay.showsNativeFeedbackBanner
+            && report.overlayDisplay.nativeFeedbackBannerPolicyIdentifier == "none"
     }
 
     private static func gradients(
@@ -2087,6 +2202,91 @@ enum CinematicDiagnostics {
         }
     }
 
+    static func representativeNativeFeedbackSmokeReports(
+        influenceSettings: CinematicInfluenceSettings = CinematicInfluenceSettings()
+    ) -> [CinematicDiagnosticsReport] {
+        let start = Date(timeIntervalSinceReferenceDate: 7_000)
+        let activeReports = [
+            representativeNativeFeedbackSmokeReport(
+                repoName: "Native Feedback Verify",
+                phase: .verifying,
+                immediateTitle: "Verify native feedback seal route",
+                completedCount: 3,
+                language: .swift,
+                activityProfile: activityProfile(recentCommitCount: 1),
+                influenceSettings: influenceSettings,
+                milestone: .verifyStarted,
+                recentRunCues: [:],
+                now: start
+            ),
+            representativeNativeFeedbackSmokeReport(
+                repoName: "Native Feedback Warning",
+                phase: .developing,
+                immediateTitle: "Retry develop with warning cue",
+                completedCount: 2,
+                language: .typeScriptJavaScript,
+                activityProfile: activityProfile(worktreeChanges: worktreeChanges(modified: 2)),
+                influenceSettings: influenceSettings,
+                milestone: .developRetrying,
+                recentRunCues: [
+                    11: representativeRunCue(
+                        kind: .dirtyWorktree,
+                        severity: .warning,
+                        label: "Clean Worktree",
+                        detail: "2 pending changes",
+                        systemImage: "pencil.and.outline"
+                    )
+                ],
+                now: start.addingTimeInterval(1)
+            ),
+            representativeNativeFeedbackSmokeReport(
+                repoName: "Native Feedback Retry",
+                phase: .developing,
+                immediateTitle: "Retry develop after verify failure",
+                completedCount: 2,
+                language: .python,
+                activityProfile: activityProfile(
+                    recentFailedCount: 1,
+                    lastTerminalStatus: .failed,
+                    failureStreak: 1
+                ),
+                influenceSettings: influenceSettings,
+                milestone: .developRetrying,
+                recentRunCues: [
+                    7: representativeRunCue(
+                        kind: .failedVerify,
+                        severity: .failure,
+                        label: "Retry Develop",
+                        detail: "swift test exited 65",
+                        systemImage: "checkmark.seal.fill"
+                    )
+                ],
+                now: start.addingTimeInterval(2)
+            ),
+            representativeNativeFeedbackSmokeReport(
+                repoName: "Native Feedback Post Checks",
+                phase: .failed,
+                immediateTitle: "Post-check failure native cue",
+                completedCount: 4,
+                language: .go,
+                activityProfile: activityProfile(recentCommitCount: 2),
+                influenceSettings: influenceSettings,
+                milestone: .postChecksFailed,
+                recentRunCues: [:],
+                now: start.addingTimeInterval(3)
+            )
+        ].compactMap { $0 }
+
+        guard let expiredReport = representativeExpiredNativeFeedbackSmokeReport(
+            influenceSettings: influenceSettings,
+            now: start.addingTimeInterval(4)
+        ) else {
+            return activeReports
+        }
+
+        return activeReports + [expiredReport]
+    }
+
     static func representativeActivityCases() -> [ActivityCase] {
         [
             ActivityCase(
@@ -2183,6 +2383,100 @@ enum CinematicDiagnostics {
     ) -> CinematicCommitConstellationPlan {
         guard activityCase.identifier == "commit" else { return .empty }
         return CinematicTimelineSceneFocusPlanner.representativeCommitConstellationPlan()
+    }
+
+    private static func representativeNativeFeedbackSmokeReport(
+        repoName: String,
+        phase: LoopPhase,
+        immediateTitle: String,
+        completedCount: Int,
+        language: RepositoryLanguage,
+        activityProfile: RepositoryActivityProfile,
+        influenceSettings: CinematicInfluenceSettings,
+        milestone: NativeFeedbackMilestone,
+        recentRunCues: [Int: PlanReliabilityFeedback.RunCue],
+        now: Date
+    ) -> CinematicDiagnosticsReport? {
+        guard let cue = CinematicNativeFeedbackCuePlanner.plan(
+            milestone: milestone,
+            content: NativeFeedbackContent(milestone: milestone, projectName: repoName),
+            phase: phase,
+            feedbackMode: .notifications,
+            recentRunCues: recentRunCues
+        ) else {
+            return nil
+        }
+
+        var lifecycle = CinematicNativeFeedbackCueLifecycle()
+        let activeCue = lifecycle.record(cue, now: now)
+        return report(
+            repoName: repoName,
+            phase: phase.rawValue,
+            immediateTitle: immediateTitle,
+            completedCount: completedCount,
+            latestEvent: nil,
+            languageProfile: representativeLanguageProfile(for: language),
+            activityProfile: activityProfile,
+            influenceSettings: influenceSettings,
+            nativeFeedbackCue: activeCue,
+            nativeFeedbackLifecycle: lifecycle
+        )
+    }
+
+    private static func representativeExpiredNativeFeedbackSmokeReport(
+        influenceSettings: CinematicInfluenceSettings,
+        now: Date
+    ) -> CinematicDiagnosticsReport? {
+        guard let cue = CinematicNativeFeedbackCuePlanner.plan(
+            milestone: .verifyStarted,
+            content: NativeFeedbackContent(milestone: .verifyStarted, projectName: "Native Feedback Expired"),
+            phase: .verifying,
+            feedbackMode: .notifications,
+            recentRunCues: [:]
+        ) else {
+            return nil
+        }
+
+        var lifecycle = CinematicNativeFeedbackCueLifecycle()
+        _ = lifecycle.record(cue, now: now)
+        _ = lifecycle.expire(
+            now: now.addingTimeInterval(CinematicNativeFeedbackCueLifecycle.standardDisplayDuration)
+        )
+
+        return report(
+            repoName: "Native Feedback Expired",
+            phase: LoopPhase.verifying.rawValue,
+            immediateTitle: "Archive expired native feedback cue",
+            completedCount: 3,
+            latestEvent: nil,
+            languageProfile: representativeLanguageProfile(for: .swift),
+            activityProfile: activityProfile(recentCommitCount: 1),
+            influenceSettings: influenceSettings,
+            nativeFeedbackCue: nil,
+            nativeFeedbackLifecycle: lifecycle
+        )
+    }
+
+    private static func representativeRunCue(
+        kind: PlanReliabilityFeedback.Kind,
+        severity: PlanReliabilityFeedback.Severity,
+        label: String,
+        detail: String,
+        systemImage: String
+    ) -> PlanReliabilityFeedback.RunCue {
+        PlanReliabilityFeedback.RunCue(
+            notice: PlanReliabilityFeedback.Notice(
+                id: "\(kind.rawValue)-native-feedback-smoke",
+                kind: kind,
+                severity: severity,
+                sessionNumber: 0,
+                title: label,
+                detail: detail,
+                actionLabel: label,
+                metadata: nil,
+                systemImage: systemImage
+            )
+        )
     }
 
     private static func languageSnapshot(
