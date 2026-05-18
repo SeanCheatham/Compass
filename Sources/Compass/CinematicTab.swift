@@ -17,6 +17,15 @@ struct CinematicTab: View {
                 state: project.state,
                 sessions: project.sessions
             )
+            let recapPlan = CinematicRunRecapPlanner.plan(
+                state: project.state,
+                sessions: project.sessions,
+                isRunning: project.isRunning,
+                isAutoPlaying: project.isAutoPlaying,
+                recentRunCues: reliabilityFeedback.recentRunCues,
+                commitConstellationPlan: project.cinematicCommitConstellationPlan,
+                nativeFeedbackLifecycle: project.cinematicNativeFeedbackCueLifecycle
+            )
             let timelinePlan = CinematicSessionTimelinePlan(
                 sessions: project.sessions,
                 runCues: reliabilityFeedback.recentRunCues,
@@ -75,6 +84,11 @@ struct CinematicTab: View {
                         CinematicTimelineOverlay(
                             plan: timelinePlan,
                             selectedBeatID: $selectedTimelineBeatID
+                        )
+                    } else if overlayMode == .recap {
+                        CinematicRunRecapOverlay(
+                            plan: recapPlan,
+                            displayPlan: displayPlan
                         )
                     } else {
                         if displayPlan.showsWorldTextOverlay {
@@ -160,6 +174,7 @@ struct CinematicTab: View {
 private enum CinematicTabOverlayMode: String, CaseIterable, Identifiable {
     case live
     case timeline
+    case recap
 
     var id: String { rawValue }
 
@@ -169,6 +184,8 @@ private enum CinematicTabOverlayMode: String, CaseIterable, Identifiable {
             return "Live"
         case .timeline:
             return "Timeline"
+        case .recap:
+            return "Recap"
         }
     }
 }
@@ -185,7 +202,7 @@ private struct CinematicTabOverlayModePicker: View {
         .pickerStyle(.segmented)
         .labelsHidden()
         .controlSize(.small)
-        .frame(width: 174)
+        .frame(width: 246)
         .background(.black.opacity(0.28), in: RoundedRectangle(cornerRadius: 7))
         .help("Switch cinematic overlay mode")
     }
@@ -309,6 +326,130 @@ private struct CinematicTimelineOverlay: View {
             RoundedRectangle(cornerRadius: 8)
                 .stroke(.white.opacity(0.11))
         }
+    }
+}
+
+private struct CinematicRunRecapOverlay: View {
+    var plan: CinematicRunRecapPlan
+    var displayPlan: CinematicOverlayDisplayPlan
+
+    var body: some View {
+        let tint = plan.style.color
+
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .center, spacing: 9) {
+                Image(systemName: plan.systemImage)
+                    .font(.system(size: 17, weight: .bold))
+                    .foregroundStyle(tint.opacity(displayPlan.hudIconEmphasis))
+                    .frame(width: 22)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(plan.title)
+                        .font(.callout.weight(.semibold))
+                        .foregroundStyle(.white.opacity(displayPlan.hudTitleEmphasis))
+                        .lineLimit(displayPlan.hudTitleLineLimit)
+                        .minimumScaleFactor(0.82)
+
+                    Text(plan.status)
+                        .font(.caption2.monospacedDigit().weight(.semibold))
+                        .foregroundStyle(.white.opacity(displayPlan.hudStatusTextEmphasis))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.78)
+                }
+
+                Spacer()
+
+                Text(plan.statusIdentifier == "none" ? plan.availabilityIdentifier : plan.statusIdentifier)
+                    .font(.caption2.weight(.bold))
+                    .foregroundStyle(tint.opacity(0.92))
+                    .lineLimit(1)
+                    .padding(.horizontal, 7)
+                    .padding(.vertical, 3)
+                    .background(tint.opacity(0.16), in: Capsule())
+            }
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(plan.detail)
+                    .font(.caption)
+                    .foregroundStyle(.white.opacity(displayPlan.hudDetailTextEmphasis))
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                if let newestCommit = plan.newestCommitHighlight {
+                    Label(newestCommit, systemImage: "arrow.triangle.branch")
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(.white.opacity(0.72))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.78)
+                        .help(newestCommit)
+                }
+            }
+
+            if !plan.eventChips.isEmpty {
+                HStack(spacing: 6) {
+                    ForEach(plan.eventChips) { chip in
+                        CinematicRunRecapEventChip(chip: chip)
+                    }
+                }
+            }
+        }
+        .padding(.horizontal, CGFloat(max(11, displayPlan.hudHorizontalPadding)))
+        .padding(.vertical, CGFloat(max(9, displayPlan.hudVerticalPadding - 1)))
+        .frame(width: 430, alignment: .leading)
+        .background(
+            .black.opacity(min(0.5, displayPlan.hudBackgroundOpacity + 0.1) * displayPlan.overlayOpacity),
+            in: RoundedRectangle(cornerRadius: CGFloat(displayPlan.hudCornerRadius))
+        )
+        .overlay {
+            RoundedRectangle(cornerRadius: CGFloat(displayPlan.hudCornerRadius))
+                .stroke(tint.opacity(max(0.14, displayPlan.hudStrokeOpacity)), lineWidth: 1)
+        }
+        .overlay(alignment: .leading) {
+            Rectangle()
+                .fill(tint.opacity(displayPlan.hudAccentOpacity))
+                .frame(width: 3)
+                .clipShape(RoundedRectangle(cornerRadius: 2))
+        }
+        .help(plan.detail)
+        .accessibilityIdentifier("cinematic-run-recap-\(plan.identifier)")
+    }
+}
+
+private struct CinematicRunRecapEventChip: View {
+    var chip: CinematicRunRecapPlan.EventChip
+
+    var body: some View {
+        let tint = chip.color
+
+        HStack(spacing: 5) {
+            Image(systemName: chip.systemImage)
+                .font(.system(size: 10, weight: .bold))
+                .foregroundStyle(tint.opacity(0.92))
+                .frame(width: 12)
+
+            VStack(alignment: .leading, spacing: 1) {
+                Text(chip.label)
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.white.opacity(0.82))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.78)
+
+                Text(chip.detail)
+                    .font(.caption2)
+                    .foregroundStyle(.white.opacity(0.58))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.72)
+            }
+        }
+        .padding(.horizontal, 7)
+        .padding(.vertical, 5)
+        .frame(maxWidth: 134, alignment: .leading)
+        .background(.white.opacity(0.07), in: RoundedRectangle(cornerRadius: 7))
+        .overlay {
+            RoundedRectangle(cornerRadius: 7)
+                .stroke(tint.opacity(0.22), lineWidth: 1)
+        }
+        .help(chip.detail)
     }
 }
 
@@ -1184,6 +1325,46 @@ private extension CinematicNativeFeedbackCuePlan.Style {
         case .paused:
             return .blue
         case .idle:
+            return .secondary
+        }
+    }
+}
+
+private extension CinematicRunRecapPlan.Style {
+    var color: Color {
+        switch self {
+        case .success:
+            return .green
+        case .failure:
+            return .red
+        case .warning:
+            return .orange
+        case .paused:
+            return .blue
+        case .empty:
+            return .secondary
+        }
+    }
+}
+
+private extension CinematicRunRecapPlan.EventChip {
+    var color: Color {
+        switch colorIdentifier {
+        case "green":
+            return .green
+        case "red":
+            return .red
+        case "orange":
+            return .orange
+        case "blue":
+            return .blue
+        case "cyan":
+            return .cyan
+        case "yellow":
+            return .yellow
+        case "indigo":
+            return .indigo
+        default:
             return .secondary
         }
     }

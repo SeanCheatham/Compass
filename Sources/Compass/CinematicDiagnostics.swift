@@ -24,6 +24,7 @@ struct CinematicDiagnosticsReport: Equatable {
     var setDressing: SetDressingSnapshot
     var commitConstellation: CommitConstellationSnapshot
     var timelineFocus: TimelineFocusSnapshot
+    var runRecap: RunRecapSnapshot
     var cameraSnapshots: [CameraSnapshot]
 
     struct LanguageMotifSnapshot: Equatable {
@@ -429,6 +430,26 @@ struct CinematicDiagnosticsReport: Equatable {
         var recoveryTreatmentIdentifier: String?
         var recoveryVisualIdentifier: String?
         var usesFallbackTarget: Bool
+    }
+
+    struct RunRecapSnapshot: Equatable {
+        var identifier: String
+        var availabilityIdentifier: String
+        var isAvailable: Bool
+        var sessionNumber: Int?
+        var title: String
+        var detail: String
+        var status: String
+        var statusIdentifier: String
+        var styleIdentifier: String
+        var colorIdentifier: String
+        var systemImage: String
+        var latestCompletedSummary: String
+        var newestCommitHighlight: String?
+        var completedCount: Int
+        var commitHighlightCount: Int
+        var eventChipCount: Int
+        var eventChipIdentifiers: [String]
     }
 
     struct CameraSnapshot: Equatable {
@@ -1491,7 +1512,7 @@ struct CinematicVisualSmokeReport: Equatable {
 }
 
 struct CinematicDiagnosticsSummary: Equatable {
-    static let maxRows = 37
+    static let maxRows = 38
     static let labelMaxCharacters = 32
     static let detailMaxCharacters = 512
     static let headerDetailMaxCharacters = 128
@@ -1616,7 +1637,7 @@ struct CinematicDiagnosticsSummary: Equatable {
         SectionDefinition(
             id: "repository-context",
             label: "Repository/context",
-            rowIDs: ["repository", "immediate", "commit-constellation", "timeline-focus"]
+            rowIDs: ["repository", "immediate", "commit-constellation", "timeline-focus", "run-recap"]
         ),
         SectionDefinition(
             id: "motifs",
@@ -1719,6 +1740,11 @@ struct CinematicDiagnosticsSummary: Equatable {
                 id: "timeline-focus",
                 label: "Timeline focus",
                 detail: timelineFocusDetail(report.timelineFocus)
+            ),
+            row(
+                id: "run-recap",
+                label: "Run recap",
+                detail: runRecapDetail(report.runRecap)
             ),
             row(
                 id: "language-motif",
@@ -2535,6 +2561,32 @@ struct CinematicDiagnosticsSummary: Equatable {
         ].compactMap { $0 }.joined(separator: " | ")
     }
 
+    private static func runRecapDetail(
+        _ snapshot: CinematicDiagnosticsReport.RunRecapSnapshot
+    ) -> String {
+        let availability = snapshot.isAvailable
+            ? "available"
+            : "empty \(snapshot.availabilityIdentifier)"
+        return [
+            availability,
+            snapshot.sessionNumber.map { "session \($0)" },
+            "title \(snapshot.title)",
+            "detail \(snapshot.detail)",
+            "status \(snapshot.status)",
+            "terminal \(snapshot.statusIdentifier)",
+            "style \(snapshot.styleIdentifier)/\(snapshot.colorIdentifier)",
+            "image \(snapshot.systemImage)",
+            "completed \(snapshot.completedCount)",
+            "commits \(snapshot.commitHighlightCount)",
+            "events \(snapshot.eventChipCount)",
+            optionalIdentifier("newest", snapshot.newestCommitHighlight),
+            snapshot.eventChipIdentifiers.isEmpty
+                ? "chips none"
+                : "chips \(snapshot.eventChipIdentifiers.joined(separator: ","))",
+            "id \(bounded(snapshot.identifier, limit: 180))"
+        ].compactMap { $0 }.joined(separator: " | ")
+    }
+
     private static func narrativeCueLayoutDescriptorDetail(
         _ label: String,
         _ layout: CinematicDiagnosticsReport.NarrativeCueLayoutSnapshot
@@ -2648,6 +2700,15 @@ enum CinematicDiagnostics {
             recentRunCues: reliabilityFeedback.recentRunCues,
             influenceSettings: project.cinematicInfluenceSettings
         )
+        let runRecapPlan = CinematicRunRecapPlanner.plan(
+            state: project.state,
+            sessions: project.sessions,
+            isRunning: project.isRunning,
+            isAutoPlaying: project.isAutoPlaying,
+            recentRunCues: reliabilityFeedback.recentRunCues,
+            commitConstellationPlan: commitConstellationPlan,
+            nativeFeedbackLifecycle: project.cinematicNativeFeedbackCueLifecycle
+        )
         return report(
             repoName: project.displayName,
             phase: (project.isPaused ? LoopPhase.paused : project.phase).rawValue,
@@ -2665,6 +2726,7 @@ enum CinematicDiagnostics {
             commitConstellationPlan: commitConstellationPlan,
             recoveryCuePlan: recoveryCuePlan,
             timelineFocusPlan: timelineFocusPlan,
+            runRecapPlan: runRecapPlan,
             nativeFeedbackCue: project.cinematicNativeFeedbackCue,
             nativeFeedbackLifecycle: project.cinematicNativeFeedbackCueLifecycle
         )
@@ -2687,6 +2749,7 @@ enum CinematicDiagnostics {
         commitConstellationPlan: CinematicCommitConstellationPlan = .empty,
         recoveryCuePlan: CinematicRecoveryCuePlan = .none,
         timelineFocusPlan: CinematicTimelineSceneFocusPlan = .none,
+        runRecapPlan: CinematicRunRecapPlan = .empty(reason: "no-finished-session"),
         nativeFeedbackCue: CinematicNativeFeedbackCuePlan? = nil,
         nativeFeedbackLifecycle: CinematicNativeFeedbackCueLifecycle = CinematicNativeFeedbackCueLifecycle()
     ) -> CinematicDiagnosticsReport {
@@ -2803,6 +2866,7 @@ enum CinematicDiagnostics {
         let setDressingSnapshot = setDressingSnapshot(for: setDressingPlan)
         let commitConstellationSnapshot = commitConstellationSnapshot(for: commitConstellationPlan)
         let timelineFocusSnapshot = timelineFocusSnapshot(for: timelineFocusPlan)
+        let runRecapSnapshot = runRecapSnapshot(for: runRecapPlan)
         let cameraSnapshots = CinematicCameraShot.allCases.map {
             cameraSnapshot(for: $0, settings: influenceSettings)
         }
@@ -2824,7 +2888,8 @@ enum CinematicDiagnostics {
                 "influence:\(influenceIdentifier)",
                 "set-dressing:\(setDressingSnapshot.identifier)",
                 "commit-constellation:\(commitConstellationSnapshot.identifier)",
-                "timeline-focus:\(timelineFocusSnapshot.identifier)"
+                "timeline-focus:\(timelineFocusSnapshot.identifier)",
+                "run-recap:\(runRecapSnapshot.identifier)"
             ].joined(separator: "|"),
             repoName: repoName,
             phase: phase,
@@ -2848,6 +2913,7 @@ enum CinematicDiagnostics {
             setDressing: setDressingSnapshot,
             commitConstellation: commitConstellationSnapshot,
             timelineFocus: timelineFocusSnapshot,
+            runRecap: runRecapSnapshot,
             cameraSnapshots: cameraSnapshots
         )
     }
@@ -3932,6 +3998,30 @@ enum CinematicDiagnostics {
             recoveryTreatmentIdentifier: descriptor.recoveryTreatmentIdentifier,
             recoveryVisualIdentifier: descriptor.recoveryVisualIdentifier,
             usesFallbackTarget: descriptor.usesFallbackTarget
+        )
+    }
+
+    private static func runRecapSnapshot(
+        for plan: CinematicRunRecapPlan
+    ) -> CinematicDiagnosticsReport.RunRecapSnapshot {
+        CinematicDiagnosticsReport.RunRecapSnapshot(
+            identifier: plan.identifier,
+            availabilityIdentifier: plan.availabilityIdentifier,
+            isAvailable: plan.isAvailable,
+            sessionNumber: plan.sessionNumber,
+            title: plan.title,
+            detail: plan.detail,
+            status: plan.status,
+            statusIdentifier: plan.statusIdentifier,
+            styleIdentifier: plan.style.rawValue,
+            colorIdentifier: plan.colorIdentifier,
+            systemImage: plan.systemImage,
+            latestCompletedSummary: plan.latestCompletedSummary,
+            newestCommitHighlight: plan.newestCommitHighlight,
+            completedCount: plan.completedCount,
+            commitHighlightCount: plan.commitHighlightCount,
+            eventChipCount: plan.eventChipCount,
+            eventChipIdentifiers: plan.eventChips.map(\.identifier)
         )
     }
 

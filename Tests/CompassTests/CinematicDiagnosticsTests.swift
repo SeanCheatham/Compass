@@ -567,6 +567,7 @@ final class CinematicDiagnosticsTests: XCTestCase {
                 "immediate",
                 "commit-constellation",
                 "timeline-focus",
+                "run-recap",
                 "language-motif",
                 "activity-motif",
                 "recovery-cue",
@@ -622,7 +623,8 @@ final class CinematicDiagnosticsTests: XCTestCase {
                     "repository",
                     "immediate",
                     "commit-constellation",
-                    "timeline-focus"
+                    "timeline-focus",
+                    "run-recap"
                 ],
                 [
                     "language-motif",
@@ -759,7 +761,7 @@ final class CinematicDiagnosticsTests: XCTestCase {
             .components(separatedBy: "\n")
             .filter { expectedSectionHeadings.contains($0) }
         XCTAssertEqual(actualSectionHeadings, expectedSectionHeadings)
-        XCTAssertTrue(summary.exportText.contains("Repository/context (4 rows)"))
+        XCTAssertTrue(summary.exportText.contains("Repository/context (5 rows)"))
         XCTAssertTrue(summary.exportText.contains("Motifs (2 rows)"))
         XCTAssertTrue(summary.exportText.contains("Stage motion/effects (9 rows)"))
         XCTAssertTrue(summary.exportText.contains("Narrative/overlay (7 rows)"))
@@ -1266,6 +1268,113 @@ final class CinematicDiagnosticsTests: XCTestCase {
         XCTAssertTrue(summary.exportText.contains("Native feedback history:"))
     }
 
+    func testRunRecapDiagnosticsExposeAvailabilityAndExportRows() throws {
+        let session = diagnosticsSession(
+            12,
+            status: .succeeded,
+            commits: [
+                SessionCommit(
+                    sha: "abcdef1234567890",
+                    short: "abcdef1",
+                    subject: "Add cinematic recap diagnostics"
+                )
+            ],
+            endedAt: 12_500
+        )
+        let state = PlanState(
+            completed: ["Completed recap diagnostics"],
+            immediate: nil,
+            midTerm: "",
+            longTerm: ""
+        )
+        let commitPlan = CinematicCommitConstellationPlan(sessions: [session])
+        let recapPlan = CinematicRunRecapPlanner.plan(
+            state: state,
+            sessions: [session],
+            isRunning: false,
+            isAutoPlaying: false,
+            recentRunCues: [
+                12: diagnosticsRunCue(
+                    kind: .failedVerify,
+                    severity: .failure,
+                    label: "Retry Develop",
+                    detail: "verify failed before recap",
+                    systemImage: "checkmark.seal.fill"
+                )
+            ],
+            commitConstellationPlan: commitPlan,
+            nativeFeedbackLifecycle: CinematicNativeFeedbackCueLifecycle()
+        )
+        let report = makeReport(
+            CinematicDiagnosticsInput(
+                repoName: "Compass",
+                phase: "Succeeded",
+                immediateTitle: "Expose recap diagnostics",
+                completedCount: state.completed.count,
+                latestEvent: nil,
+                languageProfile: languageProfile(primaryLanguage: .swift),
+                activityProfile: activityProfile(recentCommitCount: 1, lastTerminalStatus: .succeeded),
+                influenceSettings: CinematicInfluenceSettings(),
+                commitConstellationPlan: commitPlan,
+                runRecapPlan: recapPlan
+            )
+        )
+
+        XCTAssertTrue(report.runRecap.isAvailable)
+        XCTAssertEqual(report.runRecap.identifier, recapPlan.identifier)
+        XCTAssertEqual(report.runRecap.availabilityIdentifier, "available")
+        XCTAssertEqual(report.runRecap.title, "Run #12 succeeded")
+        XCTAssertEqual(report.runRecap.detail, "Completed recap diagnostics")
+        XCTAssertEqual(report.runRecap.statusIdentifier, "succeeded")
+        XCTAssertEqual(report.runRecap.styleIdentifier, "success")
+        XCTAssertEqual(report.runRecap.colorIdentifier, "green")
+        XCTAssertEqual(report.runRecap.completedCount, 1)
+        XCTAssertEqual(report.runRecap.commitHighlightCount, 1)
+        XCTAssertEqual(report.runRecap.eventChipCount, 1)
+        XCTAssertEqual(report.runRecap.eventChipIdentifiers, recapPlan.eventChips.map(\.identifier))
+        XCTAssertTrue(report.identifier.contains("run-recap:\(recapPlan.identifier)"))
+
+        let summary = CinematicDiagnosticsSummary(
+            report: report,
+            visualSmoke: CinematicVisualSmokeReport(reports: [report])
+        )
+        let row = try XCTUnwrap(summary.rows.first { $0.id == "run-recap" })
+        XCTAssertTrue(row.detail.contains("available"))
+        XCTAssertTrue(row.detail.contains("title Run #12 succeeded"))
+        XCTAssertTrue(row.detail.contains("completed 1"))
+        XCTAssertTrue(row.detail.contains("commits 1"))
+        XCTAssertTrue(row.detail.contains("events 1"))
+        XCTAssertTrue(summary.exportText.contains("Run recap: available"))
+        XCTAssertTrue(summary.exportText.contains("status 1 commit highlight"))
+    }
+
+    func testEmptyRunRecapDiagnosticsExplainWhyRecapIsUnavailable() {
+        let report = makeReport(
+            CinematicDiagnosticsInput(
+                repoName: "Compass",
+                phase: "Developing",
+                immediateTitle: "Keep empty recap explainable",
+                completedCount: 0,
+                latestEvent: nil,
+                languageProfile: languageProfile(primaryLanguage: .swift),
+                activityProfile: activityProfile(),
+                influenceSettings: CinematicInfluenceSettings(),
+                runRecapPlan: .empty(reason: "active-run")
+            )
+        )
+        let summary = CinematicDiagnosticsSummary(
+            report: report,
+            visualSmoke: CinematicVisualSmokeReport(reports: [report])
+        )
+        let row = summary.rows.first { $0.id == "run-recap" }
+
+        XCTAssertFalse(report.runRecap.isAvailable)
+        XCTAssertEqual(report.runRecap.availabilityIdentifier, "active-run")
+        XCTAssertEqual(report.runRecap.identifier, "run-recap.empty|reason:active-run")
+        XCTAssertTrue(row?.detail.contains("empty active-run") == true)
+        XCTAssertTrue(summary.exportText.contains("Run recap: empty active-run"))
+    }
+
     func testComfortModePropagatesToDiagnosticsIdentifiersAndExport() {
         let settings = CinematicInfluenceSettings(
             cameraStyle: .follow,
@@ -1415,6 +1524,7 @@ private struct CinematicDiagnosticsInput {
     var activityProfile: RepositoryActivityProfile
     var influenceSettings: CinematicInfluenceSettings
     var commitConstellationPlan: CinematicCommitConstellationPlan = .empty
+    var runRecapPlan: CinematicRunRecapPlan = .empty(reason: "no-finished-session")
 }
 
 private func makeReport(_ input: CinematicDiagnosticsInput) -> CinematicDiagnosticsReport {
@@ -1427,7 +1537,52 @@ private func makeReport(_ input: CinematicDiagnosticsInput) -> CinematicDiagnost
         languageProfile: input.languageProfile,
         activityProfile: input.activityProfile,
         influenceSettings: input.influenceSettings,
-        commitConstellationPlan: input.commitConstellationPlan
+        commitConstellationPlan: input.commitConstellationPlan,
+        runRecapPlan: input.runRecapPlan
+    )
+}
+
+private func diagnosticsSession(
+    _ number: Int,
+    status: SessionStatus,
+    commits: [SessionCommit] = [],
+    endedAt: Double?
+) -> SessionRecord {
+    SessionRecord(
+        session: number,
+        startedAt: Double(number * 1_000),
+        endedAt: endedAt,
+        plan: "Expose diagnostics",
+        verify: "swift test",
+        beforeSha: nil,
+        afterSha: nil,
+        commits: commits,
+        status: status,
+        notes: [],
+        verifyOutput: nil,
+        feedback: nil
+    )
+}
+
+private func diagnosticsRunCue(
+    kind: PlanReliabilityFeedback.Kind,
+    severity: PlanReliabilityFeedback.Severity,
+    label: String,
+    detail: String,
+    systemImage: String
+) -> PlanReliabilityFeedback.RunCue {
+    PlanReliabilityFeedback.RunCue(
+        notice: PlanReliabilityFeedback.Notice(
+            id: "\(kind.rawValue)-diagnostics-test",
+            kind: kind,
+            severity: severity,
+            sessionNumber: 0,
+            title: label,
+            detail: detail,
+            actionLabel: label,
+            metadata: nil,
+            systemImage: systemImage
+        )
     )
 }
 

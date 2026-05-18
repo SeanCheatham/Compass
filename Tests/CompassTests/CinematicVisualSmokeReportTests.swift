@@ -354,12 +354,13 @@ final class CinematicVisualSmokeReportTests: XCTestCase {
         XCTAssertFalse(summary.sections.contains { $0.id == "visual-smoke" })
         XCTAssertEqual(summary.rows.count, CinematicDiagnosticsSummary.maxRows)
         XCTAssertEqual(
-            summary.rows.map(\.id).prefix(6),
+            summary.rows.map(\.id).prefix(7),
             [
                 "repository",
                 "immediate",
                 "commit-constellation",
                 "timeline-focus",
+                "run-recap",
                 "language-motif",
                 "activity-motif"
             ]
