@@ -32,6 +32,7 @@ struct CinematicDiagnosticsReport: Equatable {
     var runRecapShareArtifactRollup: RunRecapShareArtifactRollupSnapshot
     var runRecapShareArtifactComparison: RunRecapShareArtifactComparisonSnapshot
     var runRecapShareArtifactPins: RunRecapShareArtifactPinnedReferenceSnapshot
+    var runRecapShareArtifactTour: RunRecapShareArtifactTourSnapshot
     var runRecapShareArtifactPreview: RunRecapShareArtifactPreviewSnapshot
     var runRecapSceneFocus: RunRecapSceneFocusSnapshot
     var runRecapEndCard: RunRecapEndCardSnapshot
@@ -734,6 +735,48 @@ struct CinematicDiagnosticsReport: Equatable {
         var copyHelp: String
     }
 
+    struct RunRecapShareArtifactTourSnapshot: Equatable {
+        var identifier: String
+        var isAvailable: Bool
+        var availabilityReason: String
+        var stateIdentifier: String
+        var selectionSourceIdentifier: String
+        var isSearchActive: Bool
+        var searchQuerySnippet: String
+        var searchQueryFingerprint: String
+        var noMatchAvailabilityReason: String?
+        var retainedEntryCount: Int
+        var totalCount: Int
+        var hiddenCount: Int
+        var matchingEntryCount: Int
+        var unfilteredVisibleCount: Int
+        var selectedEntryIdentifier: String?
+        var selectedOrdinal: Int?
+        var entryCount: Int
+        var rotationSeed: Int
+        var sessionNumber: Int?
+        var filename: String?
+        var titleSnippet: String
+        var statusSnippet: String
+        var commitSnippet: String?
+        var bodyPreviewText: String
+        var sessionText: String
+        var requestedPinnedEntryIdentifiers: [String]
+        var retainedPinnedEntryIdentifiers: [String]
+        var missingPinnedEntryIdentifiers: [String]
+        var filteredPinnedEntryIdentifiers: [String]
+        var pinnedEntryCount: Int
+        var retainedPinnedEntryCount: Int
+        var missingPinnedEntryCount: Int
+        var filteredPinnedEntryCount: Int
+        var warningStateIdentifier: String
+        var warningCount: Int
+        var hiddenWarningCount: Int
+        var warningIdentifiers: [String]
+        var hasWarnings: Bool
+        var shouldDisplay: Bool
+    }
+
     struct RunRecapShareArtifactPreviewSnapshot: Equatable {
         var identifier: String
         var isAvailable: Bool
@@ -893,9 +936,10 @@ struct CinematicVisualSmokeReport: Equatable {
         }
         let nativeFeedbackReports = CinematicDiagnostics.representativeNativeFeedbackSmokeReports()
         let idleStoryReports = CinematicDiagnostics.representativeIdleStoryCycleSmokeReports()
+        let savedArtifactTourReports = CinematicDiagnostics.representativeSavedRecapArtifactTourSmokeReports()
         let pinnedCueReports = CinematicDiagnostics.representativePinnedComparisonCueSmokeReports()
         return CinematicVisualSmokeReport(
-            reports: reports + nativeFeedbackReports + idleStoryReports + pinnedCueReports
+            reports: reports + nativeFeedbackReports + idleStoryReports + savedArtifactTourReports + pinnedCueReports
         )
     }
 
@@ -915,6 +959,7 @@ struct CinematicVisualSmokeReport: Equatable {
             nativeFeedbackCueCoverageCheck(reports: reports),
             nativeFeedbackTreatmentCoverageCheck(reports: reports),
             idleStoryCycleCoverageCheck(reports: reports),
+            runRecapSavedArtifactTourCoverageCheck(reports: reports),
             timelineFocusCoverageCheck(reports: reports),
             runRecapSceneFocusCoverageCheck(reports: reports),
             runRecapEndCardCoverageCheck(reports: reports),
@@ -1447,8 +1492,8 @@ struct CinematicVisualSmokeReport: Equatable {
             && distinctTimingCount >= expectedDistinctRoutes
         let detail = isPassing
             ? [
-                orderedPhaseDetail,
                 "routes \(sourceRouteCount)/\(activeReports.count)",
+                orderedPhaseDetail,
                 "c\(distinctChoreographyCount)/\(expectedDistinctRoutes)",
                 "t\(distinctTimingCount)/\(expectedDistinctRoutes)",
                 "p\(distinctCameraPressureCount)/\(expectedDistinctRoutes)"
@@ -1467,6 +1512,59 @@ struct CinematicVisualSmokeReport: Equatable {
             isPassing: isPassing,
             warningIdentifier: "visual-smoke.idle-story-cycle",
             detail: detail
+        )
+    }
+
+    private static func runRecapSavedArtifactTourCoverageCheck(
+        reports: [CinematicDiagnosticsReport]
+    ) -> Check {
+        let displayReports = reports.filter(\.runRecapShareArtifactTour.shouldDisplay)
+        let activeIdleTourReports = reports.filter {
+            $0.idleStoryCycle.phaseIdentifier == "saved-recap-artifact-tour"
+        }
+        let states = Set(displayReports.map(\.runRecapShareArtifactTour.stateIdentifier))
+        let sources = Set(displayReports.map(\.runRecapShareArtifactTour.selectionSourceIdentifier))
+        let noMatchCount = displayReports.filter {
+            $0.runRecapShareArtifactTour.noMatchAvailabilityReason == "no-matching-recap-share-artifacts"
+        }.count
+        let warningCount = displayReports.filter(\.runRecapShareArtifactTour.hasWarnings).count
+        let boundedCount = reports.filter(runRecapSavedArtifactTourIsBounded).count
+        let idleRouteCount = activeIdleTourReports.filter {
+            $0.idleStoryCycle.sourceDescriptorIdentifier != "none"
+                && $0.idleStoryCycle.targetKindIdentifier.contains("saved-recap-artifact")
+                && $0.idleStoryCycle.cameraPressureIdentifier == "archive-tour"
+        }.count
+        let isPassing = !reports.isEmpty
+            && !displayReports.isEmpty
+            && !activeIdleTourReports.isEmpty
+            && sources.isSuperset(of: ["recent", "pinned"])
+            && states.isSuperset(of: [
+                "recent",
+                "pinned",
+                "filtered-pin",
+                "no-match",
+                "missing-pin",
+                "recent-warning"
+            ])
+            && noMatchCount > 0
+            && warningCount > 0
+            && boundedCount == reports.count
+            && idleRouteCount == activeIdleTourReports.count
+        return check(
+            id: "run-recap-saved-artifact-tour",
+            label: "Saved artifact tour",
+            isPassing: isPassing,
+            warningIdentifier: "visual-smoke.saved-artifact-tour",
+            detail: [
+                "warnings \(warningCount)",
+                "bounded \(boundedCount)/\(reports.count)",
+                "recent \(states.contains("recent"))",
+                "pinned \(states.contains("pinned"))",
+                "filtered-pin \(states.contains("filtered-pin"))",
+                "no-match \(noMatchCount)",
+                "missing-pin \(states.contains("missing-pin"))",
+                "src \(slashJoined(sources))"
+            ].joined(separator: " ")
         )
     }
 
@@ -1834,6 +1932,7 @@ struct CinematicVisualSmokeReport: Equatable {
             && runRecapShareArtifactRollupCopyIsBounded(report)
             && runRecapShareArtifactComparisonCopyIsBounded(report)
             && runRecapShareArtifactPinsCopyIsBounded(report)
+            && runRecapShareArtifactTourCopyIsBounded(report)
             && runRecapShareArtifactPreviewCopyIsBounded(report)
             && runRecapEndCardCopyIsBounded(report)
     }
@@ -2169,6 +2268,67 @@ struct CinematicVisualSmokeReport: Equatable {
             )
     }
 
+    private static func runRecapShareArtifactTourCopyIsBounded(_ report: CinematicDiagnosticsReport) -> Bool {
+        let snapshot = report.runRecapShareArtifactTour
+        return string(
+            snapshot.identifier,
+            maxCharacters: CinematicRunRecapShareArtifactTourPlan.identifierMaxCharacters
+        )
+            && string(
+                snapshot.stateIdentifier,
+                maxCharacters: CinematicRunRecapShareArtifactTourPlan.snippetMaxCharacters
+            )
+            && string(
+                snapshot.selectionSourceIdentifier,
+                maxCharacters: CinematicRunRecapShareArtifactTourPlan.snippetMaxCharacters
+            )
+            && string(
+                snapshot.searchQuerySnippet,
+                maxCharacters: CinematicRunRecapShareArtifactTourPlan.searchQuerySnippetMaxCharacters
+            )
+            && snapshot.searchQueryFingerprint.count
+                <= CinematicRunRecapShareArtifactTourPlan.identifierMaxCharacters
+            && (snapshot.noMatchAvailabilityReason?.count ?? 0)
+                <= CinematicRunRecapShareArtifactTourPlan.snippetMaxCharacters
+            && (snapshot.selectedEntryIdentifier ?? "").count
+                <= CinematicRunRecapShareArtifactHistoryPlan.identifierMaxCharacters
+            && (snapshot.filename?.count ?? 0)
+                <= CinematicRunRecapShareArtifactHistoryPlan.filenameMaxCharacters
+            && string(
+                snapshot.titleSnippet,
+                maxCharacters: CinematicRunRecapShareArtifactTourPlan.snippetMaxCharacters
+            )
+            && string(
+                snapshot.statusSnippet,
+                maxCharacters: CinematicRunRecapShareArtifactTourPlan.snippetMaxCharacters
+            )
+            && (snapshot.commitSnippet?.count ?? 0)
+                <= CinematicRunRecapShareArtifactTourPlan.snippetMaxCharacters
+            && string(
+                snapshot.bodyPreviewText,
+                maxCharacters: CinematicRunRecapShareArtifactTourPlan.bodyPreviewMaxCharacters
+            )
+            && string(
+                snapshot.sessionText,
+                maxCharacters: CinematicRunRecapShareArtifactTourPlan.snippetMaxCharacters
+            )
+            && snapshot.requestedPinnedEntryIdentifiers.allSatisfy {
+                string($0, maxCharacters: CinematicRunRecapShareArtifactHistoryPlan.identifierMaxCharacters)
+            }
+            && snapshot.retainedPinnedEntryIdentifiers.allSatisfy {
+                string($0, maxCharacters: CinematicRunRecapShareArtifactHistoryPlan.identifierMaxCharacters)
+            }
+            && snapshot.missingPinnedEntryIdentifiers.allSatisfy {
+                string($0, maxCharacters: CinematicRunRecapShareArtifactHistoryPlan.identifierMaxCharacters)
+            }
+            && snapshot.filteredPinnedEntryIdentifiers.allSatisfy {
+                string($0, maxCharacters: CinematicRunRecapShareArtifactHistoryPlan.identifierMaxCharacters)
+            }
+            && snapshot.warningIdentifiers.allSatisfy {
+                string($0, maxCharacters: CinematicRunRecapShareArtifactHistoryPlan.identifierMaxCharacters)
+            }
+    }
+
     private static func runRecapShareArtifactPreviewCopyIsBounded(_ report: CinematicDiagnosticsReport) -> Bool {
         let snapshot = report.runRecapShareArtifactPreview
         return string(
@@ -2308,6 +2468,12 @@ struct CinematicVisualSmokeReport: Equatable {
         _ report: CinematicDiagnosticsReport
     ) -> Bool {
         runRecapEndCardCopyIsBounded(report)
+    }
+
+    private static func runRecapSavedArtifactTourIsBounded(
+        _ report: CinematicDiagnosticsReport
+    ) -> Bool {
+        runRecapShareArtifactTourCopyIsBounded(report)
     }
 
     private static func cueTextIsBounded(
@@ -2631,7 +2797,7 @@ struct CinematicVisualSmokeReport: Equatable {
 }
 
 struct CinematicDiagnosticsSummary: Equatable {
-    static let maxRows = 46
+    static let maxRows = 47
     static let labelMaxCharacters = 32
     static let detailMaxCharacters = 512
     static let headerDetailMaxCharacters = 128
@@ -2769,6 +2935,7 @@ struct CinematicDiagnosticsSummary: Equatable {
                 "run-recap-share-artifact-rollup",
                 "run-recap-share-artifact-comparison",
                 "run-recap-share-artifact-pins",
+                "run-recap-share-artifact-tour",
                 "run-recap-share-artifact-preview",
                 "run-recap-focus",
                 "run-recap-end-card"
@@ -2915,6 +3082,11 @@ struct CinematicDiagnosticsSummary: Equatable {
                 id: "run-recap-share-artifact-pins",
                 label: "Recap artifact pins",
                 detail: runRecapShareArtifactPinsDetail(report.runRecapShareArtifactPins)
+            ),
+            row(
+                id: "run-recap-share-artifact-tour",
+                label: "Recap artifact tour",
+                detail: runRecapShareArtifactTourDetail(report.runRecapShareArtifactTour)
             ),
             row(
                 id: "run-recap-share-artifact-preview",
@@ -4007,6 +4179,52 @@ struct CinematicDiagnosticsSummary: Equatable {
         ].compactMap { $0 }.joined(separator: " | ")
     }
 
+    private static func runRecapShareArtifactTourDetail(
+        _ snapshot: CinematicDiagnosticsReport.RunRecapShareArtifactTourSnapshot
+    ) -> String {
+        let availability = snapshot.isAvailable
+            ? "available"
+            : "empty \(snapshot.availabilityReason)"
+        let position = snapshot.selectedOrdinal.map { "\($0)/\(snapshot.entryCount)" } ?? "none/\(snapshot.entryCount)"
+        return [
+            availability,
+            "state \(snapshot.stateIdentifier)",
+            "source \(snapshot.selectionSourceIdentifier)",
+            snapshot.isSearchActive
+                ? "search \(snapshot.searchQuerySnippet) \(snapshot.searchQueryFingerprint)"
+                : "search none",
+            "matches \(snapshot.matchingEntryCount)/\(snapshot.unfilteredVisibleCount)",
+            snapshot.noMatchAvailabilityReason.map { "no-match \($0)" },
+            "selection \(position)",
+            snapshot.sessionNumber.map { "session \($0)" },
+            snapshot.filename.map { "file \(bounded($0, limit: 72))" },
+            "pins \(snapshot.pinnedEntryCount)",
+            "retained pins \(snapshot.retainedPinnedEntryCount)",
+            "missing pins \(snapshot.missingPinnedEntryCount)",
+            "filtered pins \(snapshot.filteredPinnedEntryCount)",
+            snapshot.missingPinnedEntryIdentifiers.isEmpty
+                ? nil
+                : "stale ids \(bounded(snapshot.missingPinnedEntryIdentifiers.joined(separator: ","), limit: 120))",
+            snapshot.filteredPinnedEntryIdentifiers.isEmpty
+                ? nil
+                : "filtered ids \(bounded(snapshot.filteredPinnedEntryIdentifiers.joined(separator: ","), limit: 120))",
+            "warning state \(snapshot.warningStateIdentifier)",
+            "warnings \(snapshot.warningCount)",
+            snapshot.hiddenWarningCount > 0 ? "hidden warnings \(snapshot.hiddenWarningCount)" : nil,
+            snapshot.warningIdentifiers.isEmpty
+                ? nil
+                : "warning ids \(bounded(snapshot.warningIdentifiers.joined(separator: ","), limit: 120))",
+            "display \(snapshot.shouldDisplay)",
+            "seed \(snapshot.rotationSeed)",
+            snapshot.selectedEntryIdentifier.map { "entry \(bounded($0, limit: 54))" },
+            "title \(snapshot.titleSnippet)",
+            "status \(snapshot.statusSnippet)",
+            "session text \(snapshot.sessionText)",
+            optionalIdentifier("commit", snapshot.commitSnippet),
+            "id \(bounded(snapshot.identifier, limit: 54))"
+        ].compactMap { $0 }.joined(separator: " | ")
+    }
+
     private static func runRecapShareArtifactPreviewDetail(
         _ snapshot: CinematicDiagnosticsReport.RunRecapShareArtifactPreviewSnapshot
     ) -> String {
@@ -4412,6 +4630,19 @@ enum CinematicDiagnostics {
             influenceSettings: influenceSettings,
             nativeFeedbackCue: nativeFeedbackCue
         )
+        let runRecapShareArtifactHistoryPlan = providedRunRecapShareArtifactHistoryPlan
+            ?? CinematicRunRecapShareArtifactHistoryPlan.unavailable(reason: "not-scanned")
+        let runRecapShareArtifactLibraryContext = CinematicRunRecapShareArtifactLibraryContext(
+            selectedEntryIdentifier: runRecapShareArtifactPreviewSelectedEntryIdentifier,
+            searchText: runRecapShareArtifactPreviewSearchQuery ?? "",
+            pinnedEntryIdentifiers: runRecapShareArtifactPinnedEntryIdentifiers,
+            comparisonTargetMode: runRecapShareArtifactComparisonTargetMode
+        )
+        let runRecapShareArtifactTourPlan = CinematicRunRecapShareArtifactTourPlanner.plan(
+            historyPlan: runRecapShareArtifactHistoryPlan,
+            libraryContext: runRecapShareArtifactLibraryContext,
+            rotationSeed: idleStoryCycleSession.sessionOrdinal
+        )
         let resolvedIdleStoryCyclePlan = idleStoryCyclePlan ?? CinematicIdleStoryCyclePlanner.plan(
             session: idleStoryCycleSession,
             isLiveFollowActive: isLiveFollowActive,
@@ -4423,7 +4654,8 @@ enum CinematicDiagnostics {
             nativeFeedbackPlaqueDescriptor: nativeFeedbackCue == nil ? nil : narrativeCuePlan.questPlaque,
             runRecapPlan: runRecapPlan,
             runRecapSceneFocusPlan: runRecapSceneFocusPlan,
-            runRecapEndCardPlan: runRecapEndCardPlan
+            runRecapEndCardPlan: runRecapEndCardPlan,
+            runRecapShareArtifactTourPlan: runRecapShareArtifactTourPlan
         )
         let stageBeatSnapshot = stageBeatSnapshot(for: stageBeat)
         let stageEffectSnapshot = stageEffectSnapshot(for: stageEffectPlan)
@@ -4479,8 +4711,6 @@ enum CinematicDiagnostics {
                 sharePlan: runRecapSharePlan,
                 sessionNumber: runRecapPlan.sessionNumber
             )
-        let runRecapShareArtifactHistoryPlan = providedRunRecapShareArtifactHistoryPlan
-            ?? CinematicRunRecapShareArtifactHistoryPlan.unavailable(reason: "not-scanned")
         let runRecapShareSnapshot = runRecapShareSnapshot(for: runRecapSharePlan)
         let runRecapShareArtifactSnapshot = runRecapShareArtifactSnapshot(for: runRecapShareArtifactPlan)
         let runRecapShareArtifactHistorySnapshot = runRecapShareArtifactHistorySnapshot(
@@ -4531,6 +4761,9 @@ enum CinematicDiagnostics {
         let runRecapShareArtifactPinnedReferenceSnapshot = runRecapShareArtifactPinnedReferenceSnapshot(
             for: runRecapShareArtifactPinnedReferencePlan
         )
+        let runRecapShareArtifactTourSnapshot = runRecapShareArtifactTourSnapshot(
+            for: runRecapShareArtifactTourPlan
+        )
         let runRecapShareArtifactPreviewSnapshot = runRecapShareArtifactPreviewSnapshot(
             for: runRecapShareArtifactPreviewPlan,
             selectedExportPlan: selectedRunRecapShareArtifactExportPlan,
@@ -4571,6 +4804,9 @@ enum CinematicDiagnostics {
                 "run-recap-share-artifact-comparison-pinned-state:\(runRecapShareArtifactComparisonSnapshot.pinnedTargetStateIdentifier)",
                 "run-recap-share-artifact-pins:\(runRecapShareArtifactPinnedReferenceSnapshot.identifier)",
                 "run-recap-share-artifact-pins-export:\(runRecapShareArtifactPinnedReferenceSnapshot.exportIdentifier)",
+                "run-recap-share-artifact-tour:\(runRecapShareArtifactTourSnapshot.identifier)",
+                "run-recap-share-artifact-tour-state:\(runRecapShareArtifactTourSnapshot.stateIdentifier)",
+                "run-recap-share-artifact-tour-source:\(runRecapShareArtifactTourSnapshot.selectionSourceIdentifier)",
                 "run-recap-share-artifact-preview:\(runRecapShareArtifactPreviewSnapshot.identifier)",
                 "run-recap-share-artifact-selected-export:\(runRecapShareArtifactPreviewSnapshot.selectedExport.identifier)",
                 "run-recap-share-artifact-filtered-export:\(runRecapShareArtifactPreviewSnapshot.filteredExport.identifier)",
@@ -4612,6 +4848,7 @@ enum CinematicDiagnostics {
             runRecapShareArtifactRollup: runRecapShareArtifactRollupSnapshot,
             runRecapShareArtifactComparison: runRecapShareArtifactComparisonSnapshot,
             runRecapShareArtifactPins: runRecapShareArtifactPinnedReferenceSnapshot,
+            runRecapShareArtifactTour: runRecapShareArtifactTourSnapshot,
             runRecapShareArtifactPreview: runRecapShareArtifactPreviewSnapshot,
             runRecapSceneFocus: runRecapSceneFocusSnapshot,
             runRecapEndCard: runRecapEndCardSnapshot,
@@ -4766,6 +5003,10 @@ enum CinematicDiagnostics {
             for: activityCase,
             commitConstellationPlan: commitConstellationPlan
         )
+        let tourHistoryPlan = representativeSavedRecapArtifactTourHistoryPlan(
+            caseIdentifier: "idle-cycle",
+            warningCount: 0
+        )
         let nativeFeedbackCue = CinematicNativeFeedbackCuePlanner.plan(
             milestone: .verifyStarted,
             content: NativeFeedbackContent(milestone: .verifyStarted, projectName: "Idle Story Cycle"),
@@ -4783,6 +5024,7 @@ enum CinematicDiagnostics {
                 timelineFocusPlan: timelineFocusPlan,
                 nativeFeedbackCue: nativeFeedbackCue,
                 recapContext: recapContext,
+                tourHistoryPlan: tourHistoryPlan,
                 session: CinematicIdleStoryCyclePlan.SessionInput(
                     elapsedTime: elapsedTime,
                     sessionOrdinal: 0
@@ -4800,12 +5042,74 @@ enum CinematicDiagnostics {
             timelineFocusPlan: timelineFocusPlan,
             nativeFeedbackCue: nativeFeedbackCue,
             recapContext: recapContext,
+            tourHistoryPlan: tourHistoryPlan,
             session: CinematicIdleStoryCyclePlan.SessionInput(),
             isLiveFollowActive: true,
             hasExplicitUserFocus: false
         )
 
         return phaseReports + [suppressedReport]
+    }
+
+    static func representativeSavedRecapArtifactTourSmokeReports(
+        influenceSettings: CinematicInfluenceSettings = CinematicInfluenceSettings()
+    ) -> [CinematicDiagnosticsReport] {
+        [
+            representativeSavedRecapArtifactTourSmokeReport(
+                caseIdentifier: "recent",
+                searchQuery: nil,
+                pinnedSessions: [],
+                missingPins: [],
+                warningCount: 0,
+                rotationSeed: 1,
+                influenceSettings: influenceSettings
+            ),
+            representativeSavedRecapArtifactTourSmokeReport(
+                caseIdentifier: "pinned",
+                searchQuery: nil,
+                pinnedSessions: [22],
+                missingPins: [],
+                warningCount: 0,
+                rotationSeed: 0,
+                influenceSettings: influenceSettings
+            ),
+            representativeSavedRecapArtifactTourSmokeReport(
+                caseIdentifier: "search-filtered",
+                searchQuery: "selected archive beacon",
+                pinnedSessions: [21],
+                missingPins: [],
+                warningCount: 0,
+                rotationSeed: 0,
+                influenceSettings: influenceSettings
+            ),
+            representativeSavedRecapArtifactTourSmokeReport(
+                caseIdentifier: "no-match",
+                searchQuery: "missing archive smoke",
+                pinnedSessions: [],
+                missingPins: [],
+                warningCount: 0,
+                rotationSeed: 0,
+                influenceSettings: influenceSettings
+            ),
+            representativeSavedRecapArtifactTourSmokeReport(
+                caseIdentifier: "stale-pin",
+                searchQuery: nil,
+                pinnedSessions: [],
+                missingPins: ["missing-saved-tour-pin"],
+                warningCount: 0,
+                rotationSeed: 0,
+                influenceSettings: influenceSettings
+            ),
+            representativeSavedRecapArtifactTourSmokeReport(
+                caseIdentifier: "warning",
+                searchQuery: nil,
+                pinnedSessions: [],
+                missingPins: [],
+                warningCount: 1,
+                rotationSeed: 0,
+                influenceSettings: influenceSettings
+            )
+        ]
     }
 
     static func representativePinnedComparisonCueSmokeReports(
@@ -5051,6 +5355,166 @@ enum CinematicDiagnostics {
             runRecapPlan: recapPlan,
             runRecapSceneFocusPlan: focusPlan,
             runRecapEndCardPlan: endCardPlan
+        )
+    }
+
+    private static func representativeSavedRecapArtifactTourSmokeReport(
+        caseIdentifier: String,
+        searchQuery: String?,
+        pinnedSessions: [Int],
+        missingPins: [String],
+        warningCount: Int,
+        rotationSeed: Int,
+        influenceSettings: CinematicInfluenceSettings
+    ) -> CinematicDiagnosticsReport {
+        let historyPlan = representativeSavedRecapArtifactTourHistoryPlan(
+            caseIdentifier: caseIdentifier,
+            warningCount: warningCount
+        )
+        let entryIdentifiersBySession = Dictionary(
+            uniqueKeysWithValues: historyPlan.entries.map { ($0.sessionNumber, $0.identifier) }
+        )
+        let pinnedEntryIdentifiers = pinnedSessions.compactMap {
+            entryIdentifiersBySession[$0]
+        } + missingPins
+        let tourPlan = CinematicRunRecapShareArtifactTourPlanner.plan(
+            historyPlan: historyPlan,
+            libraryContext: CinematicRunRecapShareArtifactLibraryContext(
+                selectedEntryIdentifier: historyPlan.entries.first?.identifier,
+                searchText: searchQuery ?? "",
+                pinnedEntryIdentifiers: pinnedEntryIdentifiers
+            ),
+            rotationSeed: rotationSeed
+        )
+        let idleStoryCyclePlan = CinematicIdleStoryCyclePlanner.plan(
+            session: CinematicIdleStoryCyclePlan.SessionInput(
+                elapsedTime: 0,
+                sessionOrdinal: rotationSeed
+            ),
+            isLiveFollowActive: false,
+            hasExplicitUserFocus: false,
+            influenceSettings: influenceSettings,
+            commitConstellationPlan: .empty,
+            timelineSceneFocusPlan: .none,
+            nativeFeedbackCue: nil,
+            nativeFeedbackPlaqueDescriptor: nil,
+            runRecapPlan: .empty(reason: "saved-tour-smoke"),
+            runRecapSceneFocusPlan: .none,
+            runRecapEndCardPlan: .none,
+            runRecapShareArtifactTourPlan: tourPlan
+        )
+
+        return report(
+            repoName: "Saved Tour \(caseIdentifier)",
+            phase: LoopPhase.succeeded.rawValue,
+            immediateTitle: "Cover saved recap artifact tour \(caseIdentifier)",
+            completedCount: 1,
+            latestEvent: nil,
+            languageProfile: representativeLanguageProfile(for: .swift),
+            activityProfile: activityProfile(recentCommitCount: 1, lastTerminalStatus: .succeeded),
+            influenceSettings: influenceSettings,
+            isRunning: false,
+            idleStoryCyclePlan: idleStoryCyclePlan,
+            idleStoryCycleSession: CinematicIdleStoryCyclePlan.SessionInput(sessionOrdinal: rotationSeed),
+            runRecapShareArtifactHistoryPlan: historyPlan,
+            runRecapShareArtifactPreviewSelectedEntryIdentifier: historyPlan.entries.first?.identifier,
+            runRecapShareArtifactPreviewSearchQuery: searchQuery,
+            runRecapShareArtifactPinnedEntryIdentifiers: pinnedEntryIdentifiers
+        )
+    }
+
+    private static func representativeSavedRecapArtifactTourHistoryPlan(
+        caseIdentifier: String,
+        warningCount: Int
+    ) -> CinematicRunRecapShareArtifactHistoryPlan {
+        let entries = [22, 21, 20].map { session in
+            representativeSavedRecapArtifactTourHistoryEntry(
+                caseIdentifier: caseIdentifier,
+                session: session
+            )
+        }
+        let warnings = (0..<warningCount).map { index in
+            CinematicRunRecapShareArtifactHistoryPlan.Warning(
+                identifier: "saved-tour-warning-\(caseIdentifier)-\(index)",
+                fileDisplayText: "saved-tour-\(caseIdentifier)-\(index).md",
+                message: "Representative saved recap artifact tour warning"
+            )
+        }
+        return CinematicRunRecapShareArtifactHistoryPlan(
+            identifier: "saved-tour-history-\(caseIdentifier)",
+            isAvailable: true,
+            availabilityReason: "available",
+            storageRootDisplayText: "/tmp/compass-saved-tour-\(caseIdentifier)",
+            sessionsDisplayText: "/tmp/compass-saved-tour-\(caseIdentifier)/sessions",
+            retentionLimit: CinematicRunRecapShareArtifactHistoryPlan.retentionLimit,
+            entries: entries,
+            totalCount: entries.count,
+            hiddenCount: 0,
+            cleanupCandidateCount: 0,
+            hiddenCleanupCandidateCount: 0,
+            cleanupCandidateIdentifiers: [],
+            warnings: warnings,
+            warningCount: warnings.count,
+            hiddenWarningCount: 0,
+            exportIdentifier: "saved-tour-history-export-\(caseIdentifier)",
+            combinedMarkdownExport: entries.map(\.markdownContents).joined(separator: "\n\n")
+        )
+    }
+
+    private static func representativeSavedRecapArtifactTourHistoryEntry(
+        caseIdentifier: String,
+        session: Int
+    ) -> CinematicRunRecapShareArtifactHistoryPlan.Entry {
+        let role: String
+        let body: String
+        switch session {
+        case 22:
+            role = "selected"
+            body = "selected archive beacon for saved tour \(caseIdentifier)"
+        case 21:
+            role = "pinned"
+            body = "pinned archive target for saved tour \(caseIdentifier)"
+        default:
+            role = "recent"
+            body = "recent archive body for saved tour \(caseIdentifier)"
+        }
+        let filename = "\(session)-saved-tour-\(caseIdentifier)-\(role).md"
+        let markdown = """
+        # Compass Run Recap Share
+
+        - Artifact: saved-tour-\(caseIdentifier)-\(role)
+        - Availability: available
+        - Session: \(session)
+        - Filename: \(filename)
+        - Share: saved-tour-share
+        - Recap: saved-tour-recap
+        - Focus: none
+        - End card: none
+        - Title: Saved tour \(role) \(session)
+        - Status: succeeded
+        - Detail: Saved tour smoke detail
+        - Commit: Saved tour commit \(session)
+
+        ## Events
+        - event
+
+        ## Share Text
+
+        ```text
+        \(body)
+        ```
+        """
+        return CinematicRunRecapShareArtifactHistoryPlan.Entry(
+            identifier: "saved-tour-\(caseIdentifier)-entry-\(session)",
+            sessionNumber: session,
+            filename: filename,
+            url: URL(fileURLWithPath: "/tmp/\(filename)"),
+            pathDisplayText: "/tmp/\(filename)",
+            titleSnippet: "Saved tour \(role) \(session)",
+            statusSnippet: "succeeded",
+            commitSnippet: "Saved tour commit \(session)",
+            markdownContents: markdown,
+            markdownLength: markdown.count
         )
     }
 
@@ -5301,6 +5765,7 @@ enum CinematicDiagnostics {
         timelineFocusPlan: CinematicTimelineSceneFocusPlan,
         nativeFeedbackCue: CinematicNativeFeedbackCuePlan?,
         recapContext: RunRecapFocusContext,
+        tourHistoryPlan: CinematicRunRecapShareArtifactHistoryPlan,
         session: CinematicIdleStoryCyclePlan.SessionInput,
         isLiveFollowActive: Bool,
         hasExplicitUserFocus: Bool
@@ -5326,6 +5791,7 @@ enum CinematicDiagnostics {
             runRecapPlan: recapContext.runRecapPlan,
             runRecapSceneFocusPlan: recapContext.runRecapSceneFocusPlan,
             runRecapEndCardPlan: recapContext.runRecapEndCardPlan,
+            runRecapShareArtifactHistoryPlan: tourHistoryPlan,
             nativeFeedbackCue: nativeFeedbackCue
         )
     }
@@ -6475,6 +6941,52 @@ enum CinematicDiagnostics {
             exportTextLength: plan.exportTextLength,
             copyLabel: plan.copyLabel,
             copyHelp: plan.copyHelp
+        )
+    }
+
+    private static func runRecapShareArtifactTourSnapshot(
+        for plan: CinematicRunRecapShareArtifactTourPlan
+    ) -> CinematicDiagnosticsReport.RunRecapShareArtifactTourSnapshot {
+        CinematicDiagnosticsReport.RunRecapShareArtifactTourSnapshot(
+            identifier: plan.identifier,
+            isAvailable: plan.isAvailable,
+            availabilityReason: plan.availabilityReason,
+            stateIdentifier: plan.stateIdentifier,
+            selectionSourceIdentifier: plan.selectionSourceIdentifier,
+            isSearchActive: plan.isSearchActive,
+            searchQuerySnippet: plan.searchQuerySnippet,
+            searchQueryFingerprint: plan.searchQueryFingerprint,
+            noMatchAvailabilityReason: plan.noMatchAvailabilityReason,
+            retainedEntryCount: plan.retainedEntryCount,
+            totalCount: plan.totalCount,
+            hiddenCount: plan.hiddenCount,
+            matchingEntryCount: plan.matchingEntryCount,
+            unfilteredVisibleCount: plan.unfilteredVisibleCount,
+            selectedEntryIdentifier: plan.selectedEntryIdentifier,
+            selectedOrdinal: plan.selectedOrdinal,
+            entryCount: plan.entryCount,
+            rotationSeed: plan.rotationSeed,
+            sessionNumber: plan.sessionNumber,
+            filename: plan.filename,
+            titleSnippet: plan.titleSnippet,
+            statusSnippet: plan.statusSnippet,
+            commitSnippet: plan.commitSnippet,
+            bodyPreviewText: plan.bodyPreviewText,
+            sessionText: plan.sessionText,
+            requestedPinnedEntryIdentifiers: plan.requestedPinnedEntryIdentifiers,
+            retainedPinnedEntryIdentifiers: plan.retainedPinnedEntryIdentifiers,
+            missingPinnedEntryIdentifiers: plan.missingPinnedEntryIdentifiers,
+            filteredPinnedEntryIdentifiers: plan.filteredPinnedEntryIdentifiers,
+            pinnedEntryCount: plan.pinnedEntryCount,
+            retainedPinnedEntryCount: plan.retainedPinnedEntryCount,
+            missingPinnedEntryCount: plan.missingPinnedEntryCount,
+            filteredPinnedEntryCount: plan.filteredPinnedEntryCount,
+            warningStateIdentifier: plan.warningStateIdentifier,
+            warningCount: plan.warningCount,
+            hiddenWarningCount: plan.hiddenWarningCount,
+            warningIdentifiers: plan.warningIdentifiers,
+            hasWarnings: plan.hasWarnings,
+            shouldDisplay: plan.shouldDisplay
         )
     }
 

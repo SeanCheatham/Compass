@@ -72,6 +72,7 @@ struct CinematicIdleStoryCyclePlan: Equatable {
             case nativeFeedbackPlaque = "native-feedback-plaque"
             case runRecapFocus = "run-recap-focus"
             case runRecapEndCard = "run-recap-end-card"
+            case savedRecapArtifactTour = "saved-recap-artifact-tour"
         }
 
         var identifier: String
@@ -95,6 +96,7 @@ struct CinematicIdleStoryCyclePlan: Equatable {
         var nativeFeedbackPlaqueDescriptor: NativeFeedbackPlaqueDescriptor?
         var runRecapSceneFocusPlan: CinematicRunRecapSceneFocusPlan?
         var runRecapEndCardPlan: CinematicRunRecapEndCardPlan?
+        var runRecapShareArtifactTourPlan: CinematicRunRecapShareArtifactTourPlan?
 
         var phaseIdentifier: String { phase.rawValue }
         var cameraShotIdentifier: String { cameraShot.identifier }
@@ -184,6 +186,7 @@ enum CinematicIdleStoryCyclePlanner {
         runRecapPlan: CinematicRunRecapPlan,
         runRecapSceneFocusPlan: CinematicRunRecapSceneFocusPlan,
         runRecapEndCardPlan: CinematicRunRecapEndCardPlan,
+        runRecapShareArtifactTourPlan: CinematicRunRecapShareArtifactTourPlan? = nil,
         cadence: TimeInterval = CinematicIdleStoryCyclePlan.defaultCadence
     ) -> CinematicIdleStoryCyclePlan {
         if isLiveFollowActive {
@@ -203,6 +206,7 @@ enum CinematicIdleStoryCyclePlanner {
             runRecapPlan: runRecapPlan,
             runRecapSceneFocusPlan: runRecapSceneFocusPlan,
             runRecapEndCardPlan: runRecapEndCardPlan,
+            runRecapShareArtifactTourPlan: runRecapShareArtifactTourPlan,
             cadence: boundedCadence
         )
 
@@ -318,6 +322,7 @@ enum CinematicIdleStoryCyclePlanner {
         var nativeFeedbackPlaqueDescriptor: NativeFeedbackPlaqueDescriptor?
         var runRecapSceneFocusPlan: CinematicRunRecapSceneFocusPlan?
         var runRecapEndCardPlan: CinematicRunRecapEndCardPlan?
+        var runRecapShareArtifactTourPlan: CinematicRunRecapShareArtifactTourPlan?
     }
 
     private static func candidates(
@@ -329,6 +334,7 @@ enum CinematicIdleStoryCyclePlanner {
         runRecapPlan: CinematicRunRecapPlan,
         runRecapSceneFocusPlan: CinematicRunRecapSceneFocusPlan,
         runRecapEndCardPlan: CinematicRunRecapEndCardPlan,
+        runRecapShareArtifactTourPlan: CinematicRunRecapShareArtifactTourPlan?,
         cadence: TimeInterval
     ) -> [Candidate] {
         [
@@ -356,6 +362,11 @@ enum CinematicIdleStoryCyclePlanner {
             ),
             runRecapEndCardCandidate(
                 runRecapEndCardPlan: runRecapEndCardPlan,
+                influenceSettings: influenceSettings,
+                cadence: cadence
+            ),
+            savedRecapArtifactTourCandidate(
+                tourPlan: runRecapShareArtifactTourPlan,
                 influenceSettings: influenceSettings,
                 cadence: cadence
             )
@@ -581,6 +592,49 @@ enum CinematicIdleStoryCyclePlanner {
         )
     }
 
+    private static func savedRecapArtifactTourCandidate(
+        tourPlan: CinematicRunRecapShareArtifactTourPlan?,
+        influenceSettings: CinematicInfluenceSettings,
+        cadence: TimeInterval
+    ) -> Candidate? {
+        guard let tourPlan, tourPlan.shouldDisplay else { return nil }
+        let targetKindIdentifier = "saved-recap-artifact-\(tourPlan.stateIdentifier)"
+        let cameraShot = savedRecapArtifactTourCameraShot(for: tourPlan)
+        let lookTarget = savedRecapArtifactTourLookTarget(for: tourPlan)
+        let choreography = choreography(
+            phase: .savedRecapArtifactTour,
+            sourceDescriptorIdentifier: tourPlan.identifier,
+            targetKindIdentifier: targetKindIdentifier,
+            cameraShot: cameraShot,
+            influenceSettings: influenceSettings,
+            baseCadence: cadence,
+            cadenceScale: 1.28,
+            dwellScale: 1.18,
+            transitionDurationScale: 1.14,
+            cameraPressureIdentifier: "archive-tour",
+            targetBias: 0.7,
+            pulseDuration: 0.72,
+            pulseIntensityScale: tourPlan.hasWarnings ? 1.1 : 1.04,
+            pulseOrbBoost: tourPlan.hasWarnings ? 0.12 : 0.08,
+            shakeScale: tourPlan.hasWarnings ? 0.28 : nil
+        )
+
+        return Candidate(
+            phase: .savedRecapArtifactTour,
+            sourceDescriptorIdentifier: tourPlan.identifier,
+            targetKindIdentifier: targetKindIdentifier,
+            anchorTreatmentIdentifier: "anchor:saved-recap-artifact-archive",
+            cameraShot: cameraShot,
+            lookTarget: lookTarget,
+            lightFamily: savedRecapArtifactTourLightFamily(for: tourPlan),
+            arenaEffect: savedRecapArtifactTourArenaEffect(for: tourPlan),
+            phaseLightIntensity: savedRecapArtifactTourPhaseLightIntensity(for: tourPlan),
+            phaseCopy: tourPlan.titleSnippet,
+            choreography: choreography,
+            runRecapShareArtifactTourPlan: tourPlan
+        )
+    }
+
     private static func activePlan(
         candidate: Candidate,
         phaseIndex: Int,
@@ -640,7 +694,8 @@ enum CinematicIdleStoryCyclePlanner {
             timelineSceneFocusPlan: candidate.timelineSceneFocusPlan,
             nativeFeedbackPlaqueDescriptor: candidate.nativeFeedbackPlaqueDescriptor,
             runRecapSceneFocusPlan: candidate.runRecapSceneFocusPlan,
-            runRecapEndCardPlan: candidate.runRecapEndCardPlan
+            runRecapEndCardPlan: candidate.runRecapEndCardPlan,
+            runRecapShareArtifactTourPlan: candidate.runRecapShareArtifactTourPlan
         )
 
         return CinematicIdleStoryCyclePlan(
@@ -1043,6 +1098,77 @@ enum CinematicIdleStoryCyclePlanner {
         default:
             return 420
         }
+    }
+
+    private static func savedRecapArtifactTourCameraShot(
+        for tourPlan: CinematicRunRecapShareArtifactTourPlan
+    ) -> CinematicCameraShot {
+        if tourPlan.stateIdentifier.contains("no-match")
+            || tourPlan.stateIdentifier.contains("filtered-pin") {
+            return .overhead
+        }
+        if tourPlan.stateIdentifier.contains("missing-pin")
+            || tourPlan.hasWarnings {
+            return .wide
+        }
+        return .overShoulder
+    }
+
+    private static func savedRecapArtifactTourLookTarget(
+        for tourPlan: CinematicRunRecapShareArtifactTourPlan
+    ) -> SIMD3<Float> {
+        let sessionOffset = Float((tourPlan.sessionNumber ?? 0) % 5) * 0.12
+        let pinOffset: Float = tourPlan.selectionSourceIdentifier == "pinned" ? -0.18 : 0.18
+        return [-1.62 + pinOffset, 1.18 + sessionOffset, 1.62]
+    }
+
+    private static func savedRecapArtifactTourLightFamily(
+        for tourPlan: CinematicRunRecapShareArtifactTourPlan
+    ) -> CinematicStageLightFamily {
+        if tourPlan.stateIdentifier.contains("missing-pin") {
+            return .failure
+        }
+        if tourPlan.stateIdentifier.contains("filtered-pin")
+            || tourPlan.stateIdentifier.contains("no-match") {
+            return .scan
+        }
+        if tourPlan.hasWarnings {
+            return .pressure
+        }
+        if tourPlan.selectionSourceIdentifier == "pinned" {
+            return .git
+        }
+        return .insight
+    }
+
+    private static func savedRecapArtifactTourArenaEffect(
+        for tourPlan: CinematicRunRecapShareArtifactTourPlan
+    ) -> CinematicStageArenaEffect {
+        if tourPlan.stateIdentifier.contains("missing-pin") {
+            return .charge
+        }
+        if tourPlan.stateIdentifier.contains("filtered-pin")
+            || tourPlan.stateIdentifier.contains("no-match")
+            || tourPlan.hasWarnings {
+            return .activityPulse
+        }
+        return tourPlan.selectionSourceIdentifier == "pinned" ? .historyChains : .seal
+    }
+
+    private static func savedRecapArtifactTourPhaseLightIntensity(
+        for tourPlan: CinematicRunRecapShareArtifactTourPlan
+    ) -> Float {
+        if tourPlan.stateIdentifier.contains("missing-pin") {
+            return 720
+        }
+        if tourPlan.stateIdentifier.contains("filtered-pin")
+            || tourPlan.stateIdentifier.contains("no-match") {
+            return 620
+        }
+        if tourPlan.hasWarnings {
+            return 700
+        }
+        return tourPlan.selectionSourceIdentifier == "pinned" ? 680 : 560
     }
 
     private static func phaseOrder(

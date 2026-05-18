@@ -287,6 +287,7 @@ private final class CinematicSceneCoordinator {
     private let narrativeArenaInscriptionNode = Entity()
     private let narrativeActivityBannerNode = Entity()
     private let runRecapEndCardNode = Entity()
+    private let savedRecapArtifactTourNode = Entity()
     private let keyLightNode = Entity()
     private let rimLightNode = Entity()
     private let phaseLightNode = Entity()
@@ -350,6 +351,7 @@ private final class CinematicSceneCoordinator {
     private var currentIdleStoryCyclePlan = CinematicIdleStoryCyclePlan.none
     private var activeIdleStoryCycleDescriptor: CinematicIdleStoryCyclePlan.Descriptor?
     private var activeIdleStoryCycleEndCardDescriptor: CinematicRunRecapEndCardPlan.Descriptor?
+    private var activeIdleStoryCycleArtifactTourPlan: CinematicRunRecapShareArtifactTourPlan?
     private var currentTimelineSceneFocusPlan = CinematicTimelineSceneFocusPlan.none
     private var activeTimelineSceneFocusDescriptor: CinematicTimelineSceneFocusPlan.Descriptor?
     private var currentRunRecapSceneFocusPlan = CinematicRunRecapSceneFocusPlan.none
@@ -867,12 +869,14 @@ private final class CinematicSceneCoordinator {
         narrativeArenaInscriptionNode.name = "narrative-arena-inscription"
         narrativeActivityBannerNode.name = "narrative-activity-banner"
         runRecapEndCardNode.name = "run-recap-end-card"
+        savedRecapArtifactTourNode.name = "saved-recap-artifact-tour"
 
         for node in [
             narrativeQuestPlaqueNode,
             narrativeArenaInscriptionNode,
             narrativeActivityBannerNode,
-            runRecapEndCardNode
+            runRecapEndCardNode,
+            savedRecapArtifactTourNode
         ] {
             node.components.set(OpacityComponent(opacity: 0))
             narrativeCueRoot.addChild(node)
@@ -3238,11 +3242,16 @@ private final class CinematicSceneCoordinator {
         currentIdleStoryCyclePlan = plan
         activeIdleStoryCycleDescriptor = plan.descriptor
         activeIdleStoryCycleEndCardDescriptor = nil
+        activeIdleStoryCycleArtifactTourPlan = nil
 
         if previousDescriptor?.phase == .runRecapEndCard,
            plan.descriptor?.phase != .runRecapEndCard,
            currentRunRecapEndCardPlan.descriptor == nil {
             clearRunRecapEndCardNode()
+        }
+        if previousDescriptor?.phase == .savedRecapArtifactTour,
+           plan.descriptor?.phase != .savedRecapArtifactTour {
+            clearSavedRecapArtifactTourNode()
         }
 
         guard let descriptor = plan.descriptor else { return }
@@ -3284,6 +3293,11 @@ private final class CinematicSceneCoordinator {
                 activeIdleStoryCycleEndCardDescriptor = endCardDescriptor
                 applyRunRecapEndCardDescriptor(endCardDescriptor, animated: animated)
             }
+        case .savedRecapArtifactTour:
+            if let tourPlan = descriptor.runRecapShareArtifactTourPlan {
+                activeIdleStoryCycleArtifactTourPlan = tourPlan
+                applySavedRecapArtifactTourPlan(tourPlan, animated: animated)
+            }
         case .timelineFocus:
             break
         case .runRecapFocus:
@@ -3297,6 +3311,135 @@ private final class CinematicSceneCoordinator {
         clearChildren(of: runRecapEndCardNode)
         runRecapEndCardNode.name = "run-recap-end-card.none"
         setOpacity(0, on: runRecapEndCardNode)
+    }
+
+    private func clearSavedRecapArtifactTourNode() {
+        clearChildren(of: savedRecapArtifactTourNode)
+        savedRecapArtifactTourNode.name = "saved-recap-artifact-tour.none"
+        setOpacity(0, on: savedRecapArtifactTourNode)
+    }
+
+    private func applySavedRecapArtifactTourPlan(
+        _ tourPlan: CinematicRunRecapShareArtifactTourPlan,
+        animated: Bool
+    ) {
+        clearChildren(of: savedRecapArtifactTourNode)
+        savedRecapArtifactTourNode.name = "saved-recap-artifact-tour.\(tourPlan.stateIdentifier)"
+        savedRecapArtifactTourNode.position = savedRecapArtifactTourPosition(for: tourPlan)
+        savedRecapArtifactTourNode.orientation = narrativeBillboardOrientation(
+            from: savedRecapArtifactTourNode.position(relativeTo: nil),
+            to: cameraPosition
+        )
+        savedRecapArtifactTourNode.scale = SIMD3<Float>(repeating: 1)
+        setOpacity(0.9, on: savedRecapArtifactTourNode)
+
+        let color = savedRecapArtifactTourColor(for: tourPlan)
+        let plateWidth: Float = 2.62
+        let plateHeight: Float = 0.94
+        let plateDepth: Float = 0.034
+        let plate = ModelEntity(
+            mesh: .generateBox(
+                width: plateWidth,
+                height: plateHeight,
+                depth: plateDepth,
+                cornerRadius: 0.026
+            ),
+            materials: [
+                material(
+                    diffuse: NSColor(calibratedRed: 0.012, green: 0.017, blue: 0.028, alpha: 1),
+                    emission: color.withAlphaComponent(0.22),
+                    opacity: 0.84
+                )
+            ]
+        )
+        plate.name = "saved-recap-artifact-tour.card"
+        plate.position.z = 0
+        plate.components.set(OpacityComponent(opacity: 0.84))
+        savedRecapArtifactTourNode.addChild(plate)
+
+        let topRail = beamEntity(
+            from: [-plateWidth * 0.43, plateHeight * 0.36, 0.032],
+            to: [plateWidth * 0.43, plateHeight * 0.36, 0.032],
+            radius: 0.005,
+            color: color,
+            opacity: 0.48
+        )
+        topRail.name = "saved-recap-artifact-tour.rail.top"
+        savedRecapArtifactTourNode.addChild(topRail)
+
+        let sideRail = beamEntity(
+            from: [-plateWidth * 0.43, -plateHeight * 0.3, 0.034],
+            to: [-plateWidth * 0.43, plateHeight * 0.3, 0.034],
+            radius: 0.0045,
+            color: color.withAlphaComponent(0.82),
+            opacity: tourPlan.selectionSourceIdentifier == "pinned" ? 0.54 : 0.34
+        )
+        sideRail.name = "saved-recap-artifact-tour.rail.pin"
+        savedRecapArtifactTourNode.addChild(sideRail)
+
+        let orb = ModelEntity(
+            mesh: .generateSphere(radius: 0.046),
+            materials: [glowMaterial(color, opacity: tourPlan.hasWarnings ? 0.78 : 0.62)]
+        )
+        orb.name = "saved-recap-artifact-tour.orb.\(tourPlan.stateIdentifier)"
+        orb.position = [-plateWidth * 0.43, plateHeight * 0.36, 0.058]
+        orb.components.set(OpacityComponent(opacity: tourPlan.hasWarnings ? 0.78 : 0.62))
+        savedRecapArtifactTourNode.addChild(orb)
+
+        addNarrativeText(
+            tourPlan.titleSnippet,
+            to: savedRecapArtifactTourNode,
+            name: "saved-recap-artifact-tour.text.title",
+            width: 2.2,
+            offset: [0.08, 0.24, 0.048],
+            fontSize: 0.075,
+            weight: .semibold,
+            color: color,
+            opacity: 0.94
+        )
+        addNarrativeText(
+            tourPlan.statusSnippet,
+            to: savedRecapArtifactTourNode,
+            name: "saved-recap-artifact-tour.text.status",
+            width: 2.26,
+            offset: [0.08, 0.08, 0.05],
+            fontSize: 0.052,
+            weight: .medium,
+            color: color.withAlphaComponent(0.76),
+            opacity: 0.72
+        )
+        addNarrativeText(
+            tourPlan.bodyPreviewText,
+            to: savedRecapArtifactTourNode,
+            name: "saved-recap-artifact-tour.text.body",
+            width: 2.32,
+            offset: [0.08, -0.08, 0.05],
+            fontSize: 0.047,
+            weight: .regular,
+            color: color.withAlphaComponent(0.66),
+            opacity: 0.58
+        )
+        addNarrativeText(
+            tourPlan.sessionText,
+            to: savedRecapArtifactTourNode,
+            name: "saved-recap-artifact-tour.text.session",
+            width: 1.72,
+            offset: [0.08, -0.3, 0.052],
+            fontSize: 0.049,
+            weight: .semibold,
+            color: color.withAlphaComponent(0.84),
+            opacity: 0.68
+        )
+
+        if animated {
+            savedRecapArtifactTourNode.scale = SIMD3<Float>(repeating: 0.92)
+            animate(
+                savedRecapArtifactTourNode,
+                toScale: SIMD3<Float>(repeating: 1),
+                duration: 0.44,
+                timing: .easeOut
+            )
+        }
     }
 
     private func applyRunRecapEndCardDescriptor(
@@ -3515,6 +3658,33 @@ private final class CinematicSceneCoordinator {
     ) -> NSColor {
         themedColor(descriptor.lightFamily.spell.nsColor)
             .mixing(with: themedColor(descriptor.tintFamily.spell.nsColor), fraction: 0.28)
+    }
+
+    private func savedRecapArtifactTourPosition(
+        for tourPlan: CinematicRunRecapShareArtifactTourPlan
+    ) -> SIMD3<Float> {
+        let sessionOffset = Float((tourPlan.sessionNumber ?? 0) % 5) * 0.035
+        let pinOffset: Float = tourPlan.selectionSourceIdentifier == "pinned" ? -0.08 : 0.08
+        return [-1.68 + pinOffset, 1.18 + sessionOffset, 1.58]
+    }
+
+    private func savedRecapArtifactTourColor(
+        for tourPlan: CinematicRunRecapShareArtifactTourPlan
+    ) -> NSColor {
+        if tourPlan.stateIdentifier.contains("missing-pin") {
+            return themedColor(SpellSchool.failure.nsColor)
+        }
+        if tourPlan.stateIdentifier.contains("filtered-pin")
+            || tourPlan.stateIdentifier.contains("no-match") {
+            return themedColor(SpellSchool.scan.nsColor)
+        }
+        if tourPlan.hasWarnings {
+            return themedColor(SpellSchool.pressure.nsColor)
+        }
+        if tourPlan.selectionSourceIdentifier == "pinned" {
+            return themedColor(SpellSchool.git.nsColor)
+        }
+        return themedColor(SpellSchool.insight.nsColor)
     }
 
     private func applyTimelineSceneFocusArenaEffect(
@@ -4084,6 +4254,7 @@ private final class CinematicSceneCoordinator {
         updatePhasePolish()
         updateNarrativeCues()
         updateRunRecapEndCard()
+        updateSavedRecapArtifactTour()
         updateCommitConstellation()
         updateSetDressing()
         updateAnimations(delta: delta)
@@ -4443,6 +4614,22 @@ private final class CinematicSceneCoordinator {
             to: cameraPosition
         )
         setOpacity(0.78 + wave * 0.16, on: runRecapEndCardNode)
+    }
+
+    private func updateSavedRecapArtifactTour() {
+        guard let tourPlan = activeIdleStoryCycleArtifactTourPlan else {
+            return
+        }
+        let cadence = max(currentIdleStoryCyclePlan.descriptor?.cadence ?? 6.8, 0.1)
+        let phase = Float(elapsedTime / cadence) * Float.pi * 2
+        let wave = Float(0.5) + sin(phase + 0.41 * Float.pi * 2) * Float(0.5)
+        let pulseScale: Float = 1 + wave * (tourPlan.hasWarnings ? 0.04 : 0.026)
+        savedRecapArtifactTourNode.scale = SIMD3<Float>(repeating: max(0.001, pulseScale))
+        savedRecapArtifactTourNode.orientation = narrativeBillboardOrientation(
+            from: savedRecapArtifactTourNode.position(relativeTo: nil),
+            to: cameraPosition
+        )
+        setOpacity(0.74 + wave * 0.16, on: savedRecapArtifactTourNode)
     }
 
     private func updateCommitConstellation() {

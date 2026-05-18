@@ -57,13 +57,22 @@ final class CinematicRunRecapShareArtifactLibraryContextTests: XCTestCase {
             searchQuery: context.searchText,
             scope: .filtered
         )
+        let expectedTour = CinematicRunRecapShareArtifactTourPlanner.plan(
+            historyPlan: history,
+            libraryContext: context
+        )
 
         let report = CinematicDiagnostics.currentReport(for: project)
         let summary = CinematicDiagnosticsSummary(report: report)
         let previewRow = try XCTUnwrap(summary.rows.first { $0.id == "run-recap-share-artifact-preview" })
+        let tourRow = try XCTUnwrap(summary.rows.first { $0.id == "run-recap-share-artifact-tour" })
 
         XCTAssertEqual(project.cinematicRunRecapShareArtifactLibraryContext, context)
         XCTAssertEqual(report.runRecapShareArtifactPreview.identifier, expectedPreview.identifier)
+        XCTAssertEqual(report.runRecapShareArtifactTour.identifier, expectedTour.identifier)
+        XCTAssertEqual(report.runRecapShareArtifactTour.selectedEntryIdentifier, selected.identifier)
+        XCTAssertEqual(report.runRecapShareArtifactTour.searchQuerySnippet, "persisted beacon")
+        XCTAssertEqual(report.runRecapShareArtifactTour.matchingEntryCount, 1)
         XCTAssertEqual(report.runRecapShareArtifactPreview.selectedEntryIdentifier, selected.identifier)
         XCTAssertEqual(report.runRecapShareArtifactPreview.searchQuerySnippet, "persisted beacon")
         XCTAssertEqual(report.runRecapShareArtifactPreview.matchCount, 1)
@@ -74,6 +83,8 @@ final class CinematicRunRecapShareArtifactLibraryContextTests: XCTestCase {
         XCTAssertTrue(previewRow.detail.contains("search persisted beacon"))
         XCTAssertTrue(previewRow.detail.contains("selected export available"))
         XCTAssertTrue(previewRow.detail.contains("filtered export available"))
+        XCTAssertTrue(tourRow.detail.contains("state recent"))
+        XCTAssertTrue(tourRow.detail.contains("search persisted beacon"))
     }
 
     @MainActor
@@ -116,6 +127,59 @@ final class CinematicRunRecapShareArtifactLibraryContextTests: XCTestCase {
         XCTAssertEqual(preview.selectedExport.noMatchAvailabilityReason, "no-matching-recap-share-artifacts")
         XCTAssertEqual(preview.filteredExport.noMatchAvailabilityReason, "no-matching-recap-share-artifacts")
         XCTAssertEqual(preview.selectedFallbackReasonIdentifier, "no-match")
+        XCTAssertFalse(report.runRecapShareArtifactTour.isAvailable)
+        XCTAssertEqual(report.runRecapShareArtifactTour.stateIdentifier, "no-match")
+        XCTAssertEqual(
+            report.runRecapShareArtifactTour.noMatchAvailabilityReason,
+            "no-matching-recap-share-artifacts"
+        )
+    }
+
+    func testArtifactTourPrefersPinsFallsBackAndReportsPinStatesWithoutMutatingContext() throws {
+        let workspace = try makeInitializedWorkspace()
+        for session in 1...3 {
+            _ = try workspace.writeSessionArtifact(
+                session: session,
+                name: "recap-share-context-tour-\(session).md",
+                contents: artifactMarkdown(
+                    session: session,
+                    title: "Tour Recap \(session)",
+                    status: "succeeded",
+                    commit: "Tour commit \(session)",
+                    body: session == 1 ? "filtered pin body" : "visible archive body"
+                )
+            )
+        }
+        let history = workspace.refreshRunRecapShareArtifactHistory()
+        let newest = try XCTUnwrap(history.entries.first { $0.sessionNumber == 3 })
+        let filteredPin = try XCTUnwrap(history.entries.first { $0.sessionNumber == 1 })
+        let pinnedContext = CinematicRunRecapShareArtifactLibraryContext(
+            selectedEntryIdentifier: newest.identifier,
+            searchText: "visible archive",
+            pinnedEntryIdentifiers: [filteredPin.identifier, "missing-tour-pin"]
+        )
+
+        let filteredPlan = CinematicRunRecapShareArtifactTourPlanner.plan(
+            historyPlan: history,
+            libraryContext: pinnedContext
+        )
+        let staleOnlyPlan = CinematicRunRecapShareArtifactTourPlanner.plan(
+            historyPlan: history,
+            libraryContext: CinematicRunRecapShareArtifactLibraryContext(
+                selectedEntryIdentifier: newest.identifier,
+                pinnedEntryIdentifiers: ["missing-tour-pin"]
+            )
+        )
+
+        XCTAssertEqual(filteredPlan.stateIdentifier, "filtered-pin")
+        XCTAssertEqual(filteredPlan.selectionSourceIdentifier, "recent")
+        XCTAssertEqual(filteredPlan.selectedEntryIdentifier, newest.identifier)
+        XCTAssertEqual(filteredPlan.filteredPinnedEntryIdentifiers, [filteredPin.identifier])
+        XCTAssertEqual(filteredPlan.missingPinnedEntryIdentifiers, ["missing-tour-pin"])
+        XCTAssertEqual(staleOnlyPlan.stateIdentifier, "missing-pin")
+        XCTAssertEqual(staleOnlyPlan.selectedEntryIdentifier, newest.identifier)
+        XCTAssertEqual(pinnedContext.pinnedEntryIdentifiers, [filteredPin.identifier, "missing-tour-pin"])
+        XCTAssertEqual(pinnedContext.searchText, "visible archive")
     }
 
     func testContextResolvesSelectionFallbackAfterRetainedEntriesChange() throws {

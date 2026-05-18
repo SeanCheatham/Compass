@@ -430,6 +430,59 @@ struct CinematicRunRecapShareArtifactPinnedReferencePlan: Equatable, Identifiabl
     }
 }
 
+struct CinematicRunRecapShareArtifactTourPlan: Equatable, Identifiable {
+    static let identifierMaxCharacters = CinematicRunRecapShareArtifactHistoryPlan.identifierMaxCharacters
+    static let snippetMaxCharacters = CinematicRunRecapShareArtifactHistoryPlan.snippetMaxCharacters
+    static let searchQuerySnippetMaxCharacters = CinematicRunRecapShareArtifactPreviewBrowserPlan.searchQuerySnippetMaxCharacters
+    static let bodyPreviewMaxCharacters = 180
+    static let pinIdentifierLimit = CinematicRunRecapShareArtifactPinnedReferencePlan.pinIdentifierLimit
+
+    var id: String { identifier }
+
+    var identifier: String
+    var isAvailable: Bool
+    var availabilityReason: String
+    var stateIdentifier: String
+    var selectionSourceIdentifier: String
+    var isSearchActive: Bool
+    var searchQuerySnippet: String
+    var searchQueryFingerprint: String
+    var noMatchAvailabilityReason: String?
+    var retainedEntryCount: Int
+    var totalCount: Int
+    var hiddenCount: Int
+    var matchingEntryCount: Int
+    var unfilteredVisibleCount: Int
+    var selectedEntryIdentifier: String?
+    var selectedOrdinal: Int?
+    var entryCount: Int
+    var rotationSeed: Int
+    var sessionNumber: Int?
+    var filename: String?
+    var titleSnippet: String
+    var statusSnippet: String
+    var commitSnippet: String?
+    var bodyPreviewText: String
+    var sessionText: String
+    var requestedPinnedEntryIdentifiers: [String]
+    var retainedPinnedEntryIdentifiers: [String]
+    var missingPinnedEntryIdentifiers: [String]
+    var filteredPinnedEntryIdentifiers: [String]
+    var pinnedEntryCount: Int
+    var retainedPinnedEntryCount: Int
+    var missingPinnedEntryCount: Int
+    var filteredPinnedEntryCount: Int
+    var warningStateIdentifier: String
+    var warningCount: Int
+    var hiddenWarningCount: Int
+    var warningIdentifiers: [String]
+    var hasWarnings: Bool
+
+    var shouldDisplay: Bool {
+        isAvailable || isSearchActive || pinnedEntryCount > 0 || hasWarnings
+    }
+}
+
 enum CinematicRunRecapShareArtifactPinnedReferencePlanner {
     static func plan(
         historyPlan: CinematicRunRecapShareArtifactHistoryPlan,
@@ -902,6 +955,500 @@ enum CinematicRunRecapShareArtifactPinnedReferencePlanner {
         guard limit > 0 else { return "" }
         let normalized = text
             .replacingOccurrences(of: "\r", with: "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalized.isEmpty else { return "none" }
+        guard normalized.count <= limit else {
+            let prefixLimit = max(1, limit - 3)
+            return normalized.prefix(prefixLimit)
+                .trimmingCharacters(in: .whitespacesAndNewlines) + "..."
+        }
+        return normalized
+    }
+
+    private static func fingerprint(_ value: String) -> String {
+        var hash: UInt64 = 0xcbf29ce484222325
+        for byte in value.utf8 {
+            hash ^= UInt64(byte)
+            hash = hash &* 0x100000001b3
+        }
+        return String(format: "%016llx", hash)
+    }
+}
+
+enum CinematicRunRecapShareArtifactTourPlanner {
+    static func plan(
+        historyPlan: CinematicRunRecapShareArtifactHistoryPlan,
+        libraryContext: CinematicRunRecapShareArtifactLibraryContext = .empty,
+        rotationSeed: Int = 0
+    ) -> CinematicRunRecapShareArtifactTourPlan {
+        let search = searchState(for: libraryContext.searchText)
+        let retainedEntries = historyPlan.entries
+        let matchingEntries = search.isActive
+            ? retainedEntries.filter { matches($0, normalizedQuery: search.normalizedQuery) }
+            : retainedEntries
+        let matchingEntryIdentifiers = Set(matchingEntries.map(\.identifier))
+        let requestedPinnedEntryIdentifiers = boundedIdentifierList(libraryContext.pinnedEntryIdentifiers)
+        let retainedEntriesByIdentifier = Dictionary(
+            uniqueKeysWithValues: retainedEntries.map { ($0.identifier, $0) }
+        )
+        let retainedPinnedEntries = requestedPinnedEntryIdentifiers.compactMap { retainedEntriesByIdentifier[$0] }
+        let retainedPinnedEntryIdentifiers = retainedPinnedEntries.map(\.identifier)
+        let missingPinnedEntryIdentifiers = requestedPinnedEntryIdentifiers.filter {
+            retainedEntriesByIdentifier[$0] == nil
+        }
+        let filteredPinnedEntryIdentifiers = search.isActive
+            ? retainedPinnedEntryIdentifiers.filter { !matchingEntryIdentifiers.contains($0) }
+            : []
+        let visiblePinnedEntries = search.isActive
+            ? retainedPinnedEntries.filter { matchingEntryIdentifiers.contains($0.identifier) }
+            : retainedPinnedEntries
+        let selectionPool: [CinematicRunRecapShareArtifactHistoryPlan.Entry]
+        let selectionSourceIdentifier: String
+        if !visiblePinnedEntries.isEmpty {
+            selectionPool = visiblePinnedEntries
+            selectionSourceIdentifier = "pinned"
+        } else {
+            selectionPool = matchingEntries
+            selectionSourceIdentifier = "recent"
+        }
+        let selectedIndex = rotatedIndex(seed: rotationSeed, count: selectionPool.count)
+        let selectedEntry = selectedIndex.map { selectionPool[$0] }
+        let noMatchAvailabilityReason = search.isActive && !retainedEntries.isEmpty && matchingEntries.isEmpty
+            ? "no-matching-recap-share-artifacts"
+            : nil
+        let stateIdentifier = stateIdentifier(
+            selectedEntry: selectedEntry,
+            selectionSourceIdentifier: selectionSourceIdentifier,
+            historyPlan: historyPlan,
+            search: search,
+            noMatchAvailabilityReason: noMatchAvailabilityReason,
+            requestedPinnedEntryIdentifiers: requestedPinnedEntryIdentifiers,
+            retainedPinnedEntryIdentifiers: retainedPinnedEntryIdentifiers,
+            missingPinnedEntryIdentifiers: missingPinnedEntryIdentifiers,
+            filteredPinnedEntryIdentifiers: filteredPinnedEntryIdentifiers
+        )
+        let availabilityReason = availabilityReason(
+            selectedEntry: selectedEntry,
+            historyPlan: historyPlan,
+            noMatchAvailabilityReason: noMatchAvailabilityReason,
+            stateIdentifier: stateIdentifier
+        )
+        let warningStateIdentifier = historyPlan.hasWarnings ? "warnings" : "clear"
+        let identifier = bounded(
+            [
+                "run-recap-share-artifact-tour",
+                "availability:\(availabilityReason)",
+                "state:\(stateIdentifier)",
+                "source:\(selectionSourceIdentifier)",
+                "retained:\(retainedEntries.count)",
+                "total:\(historyPlan.totalCount)",
+                "hidden:\(historyPlan.hiddenCount)",
+                "matching:\(matchingEntries.count)",
+                "query:\(search.queryFingerprint)",
+                "query-snippet:\(search.querySnippet)",
+                "no-match:\(noMatchAvailabilityReason ?? "none")",
+                "selected:\(selectedEntry?.identifier ?? "none")",
+                "ordinal:\(selectedIndex.map { String($0 + 1) } ?? "none")",
+                "entries:\(selectionPool.count)",
+                "seed:\(boundedRotationSeed(rotationSeed))",
+                "pins:\(requestedPinnedEntryIdentifiers.count)",
+                "retained-pins:\(retainedPinnedEntryIdentifiers.count)",
+                "missing-pins:\(missingPinnedEntryIdentifiers.count)",
+                "filtered-pins:\(filteredPinnedEntryIdentifiers.count)",
+                "warnings:\(warningStateIdentifier)",
+                "warning-count:\(historyPlan.warningCount)"
+            ].joined(separator: "|"),
+            limit: CinematicRunRecapShareArtifactTourPlan.identifierMaxCharacters
+        )
+
+        guard let selectedEntry else {
+            return CinematicRunRecapShareArtifactTourPlan(
+                identifier: identifier,
+                isAvailable: false,
+                availabilityReason: availabilityReason,
+                stateIdentifier: stateIdentifier,
+                selectionSourceIdentifier: selectionSourceIdentifier,
+                isSearchActive: search.isActive,
+                searchQuerySnippet: search.querySnippet,
+                searchQueryFingerprint: search.queryFingerprint,
+                noMatchAvailabilityReason: noMatchAvailabilityReason,
+                retainedEntryCount: retainedEntries.count,
+                totalCount: historyPlan.totalCount,
+                hiddenCount: historyPlan.hiddenCount,
+                matchingEntryCount: matchingEntries.count,
+                unfilteredVisibleCount: retainedEntries.count,
+                selectedEntryIdentifier: nil,
+                selectedOrdinal: nil,
+                entryCount: selectionPool.count,
+                rotationSeed: boundedRotationSeed(rotationSeed),
+                sessionNumber: nil,
+                filename: nil,
+                titleSnippet: emptyTitle(stateIdentifier: stateIdentifier),
+                statusSnippet: bounded(
+                    availabilityReason,
+                    limit: CinematicRunRecapShareArtifactTourPlan.snippetMaxCharacters
+                ),
+                commitSnippet: nil,
+                bodyPreviewText: emptyBodyPreviewText(
+                    stateIdentifier: stateIdentifier,
+                    search: search,
+                    retainedCount: retainedEntries.count
+                ),
+                sessionText: "No saved session",
+                requestedPinnedEntryIdentifiers: requestedPinnedEntryIdentifiers,
+                retainedPinnedEntryIdentifiers: retainedPinnedEntryIdentifiers,
+                missingPinnedEntryIdentifiers: missingPinnedEntryIdentifiers,
+                filteredPinnedEntryIdentifiers: filteredPinnedEntryIdentifiers,
+                pinnedEntryCount: requestedPinnedEntryIdentifiers.count,
+                retainedPinnedEntryCount: retainedPinnedEntryIdentifiers.count,
+                missingPinnedEntryCount: missingPinnedEntryIdentifiers.count,
+                filteredPinnedEntryCount: filteredPinnedEntryIdentifiers.count,
+                warningStateIdentifier: warningStateIdentifier,
+                warningCount: historyPlan.warningCount,
+                hiddenWarningCount: historyPlan.hiddenWarningCount,
+                warningIdentifiers: historyPlan.warnings.map(\.identifier),
+                hasWarnings: historyPlan.hasWarnings
+            )
+        }
+
+        return CinematicRunRecapShareArtifactTourPlan(
+            identifier: identifier,
+            isAvailable: true,
+            availabilityReason: availabilityReason,
+            stateIdentifier: stateIdentifier,
+            selectionSourceIdentifier: selectionSourceIdentifier,
+            isSearchActive: search.isActive,
+            searchQuerySnippet: search.querySnippet,
+            searchQueryFingerprint: search.queryFingerprint,
+            noMatchAvailabilityReason: noMatchAvailabilityReason,
+            retainedEntryCount: retainedEntries.count,
+            totalCount: historyPlan.totalCount,
+            hiddenCount: historyPlan.hiddenCount,
+            matchingEntryCount: matchingEntries.count,
+            unfilteredVisibleCount: retainedEntries.count,
+            selectedEntryIdentifier: selectedEntry.identifier,
+            selectedOrdinal: selectedIndex.map { $0 + 1 },
+            entryCount: selectionPool.count,
+            rotationSeed: boundedRotationSeed(rotationSeed),
+            sessionNumber: selectedEntry.sessionNumber,
+            filename: bounded(
+                selectedEntry.filename,
+                limit: CinematicRunRecapShareArtifactHistoryPlan.filenameMaxCharacters
+            ),
+            titleSnippet: bounded(
+                selectedEntry.titleSnippet,
+                limit: CinematicRunRecapShareArtifactTourPlan.snippetMaxCharacters
+            ),
+            statusSnippet: statusText(
+                entry: selectedEntry,
+                stateIdentifier: stateIdentifier,
+                warningStateIdentifier: warningStateIdentifier
+            ),
+            commitSnippet: selectedEntry.commitSnippet.map {
+                bounded(
+                    $0,
+                    limit: CinematicRunRecapShareArtifactTourPlan.snippetMaxCharacters
+                )
+            },
+            bodyPreviewText: bodyPreview(from: selectedEntry.markdownContents),
+            sessionText: sessionText(
+                entry: selectedEntry,
+                selectedOrdinal: selectedIndex.map { $0 + 1 },
+                entryCount: selectionPool.count,
+                selectionSourceIdentifier: selectionSourceIdentifier
+            ),
+            requestedPinnedEntryIdentifiers: requestedPinnedEntryIdentifiers,
+            retainedPinnedEntryIdentifiers: retainedPinnedEntryIdentifiers,
+            missingPinnedEntryIdentifiers: missingPinnedEntryIdentifiers,
+            filteredPinnedEntryIdentifiers: filteredPinnedEntryIdentifiers,
+            pinnedEntryCount: requestedPinnedEntryIdentifiers.count,
+            retainedPinnedEntryCount: retainedPinnedEntryIdentifiers.count,
+            missingPinnedEntryCount: missingPinnedEntryIdentifiers.count,
+            filteredPinnedEntryCount: filteredPinnedEntryIdentifiers.count,
+            warningStateIdentifier: warningStateIdentifier,
+            warningCount: historyPlan.warningCount,
+            hiddenWarningCount: historyPlan.hiddenWarningCount,
+            warningIdentifiers: historyPlan.warnings.map(\.identifier),
+            hasWarnings: historyPlan.hasWarnings
+        )
+    }
+
+    private struct SearchState {
+        var normalizedQuery: String
+        var querySnippet: String
+        var queryFingerprint: String
+        var isActive: Bool
+    }
+
+    private static func searchState(for query: String?) -> SearchState {
+        let normalizedQuery = normalizedSearchText(query ?? "")
+        let isActive = !normalizedQuery.isEmpty
+        return SearchState(
+            normalizedQuery: normalizedQuery,
+            querySnippet: isActive
+                ? bounded(
+                    normalizedQuery,
+                    limit: CinematicRunRecapShareArtifactTourPlan.searchQuerySnippetMaxCharacters
+                )
+                : "none",
+            queryFingerprint: isActive ? fingerprint(normalizedQuery) : "none",
+            isActive: isActive
+        )
+    }
+
+    private static func matches(
+        _ entry: CinematicRunRecapShareArtifactHistoryPlan.Entry,
+        normalizedQuery query: String
+    ) -> Bool {
+        guard !query.isEmpty else { return true }
+        let fields = [
+            entry.filename,
+            entry.titleSnippet,
+            entry.statusSnippet,
+            entry.commitSnippet ?? "",
+            entry.pathDisplayText,
+            previewSearchBody(from: entry.markdownContents) ?? ""
+        ]
+        return fields.contains { normalizedSearchText($0).contains(query) }
+    }
+
+    private static func stateIdentifier(
+        selectedEntry: CinematicRunRecapShareArtifactHistoryPlan.Entry?,
+        selectionSourceIdentifier: String,
+        historyPlan: CinematicRunRecapShareArtifactHistoryPlan,
+        search: SearchState,
+        noMatchAvailabilityReason: String?,
+        requestedPinnedEntryIdentifiers: [String],
+        retainedPinnedEntryIdentifiers: [String],
+        missingPinnedEntryIdentifiers: [String],
+        filteredPinnedEntryIdentifiers: [String]
+    ) -> String {
+        if selectedEntry == nil {
+            if noMatchAvailabilityReason != nil {
+                return "no-match"
+            }
+            if historyPlan.entries.isEmpty {
+                return historyPlan.hasWarnings ? "unavailable-warning" : "unavailable"
+            }
+            if !requestedPinnedEntryIdentifiers.isEmpty,
+               missingPinnedEntryIdentifiers.count == requestedPinnedEntryIdentifiers.count {
+                return "missing-pin"
+            }
+            if search.isActive,
+               !retainedPinnedEntryIdentifiers.isEmpty,
+               filteredPinnedEntryIdentifiers.count == retainedPinnedEntryIdentifiers.count {
+                return "filtered-pin"
+            }
+            return "unavailable"
+        }
+        if selectionSourceIdentifier == "pinned" {
+            return historyPlan.hasWarnings ? "pinned-warning" : "pinned"
+        }
+        if !requestedPinnedEntryIdentifiers.isEmpty,
+           missingPinnedEntryIdentifiers.count == requestedPinnedEntryIdentifiers.count {
+            return historyPlan.hasWarnings ? "missing-pin-warning" : "missing-pin"
+        }
+        if search.isActive,
+           !retainedPinnedEntryIdentifiers.isEmpty,
+           filteredPinnedEntryIdentifiers.count == retainedPinnedEntryIdentifiers.count {
+            return historyPlan.hasWarnings ? "filtered-pin-warning" : "filtered-pin"
+        }
+        return historyPlan.hasWarnings ? "recent-warning" : "recent"
+    }
+
+    private static func availabilityReason(
+        selectedEntry: CinematicRunRecapShareArtifactHistoryPlan.Entry?,
+        historyPlan: CinematicRunRecapShareArtifactHistoryPlan,
+        noMatchAvailabilityReason: String?,
+        stateIdentifier: String
+    ) -> String {
+        guard selectedEntry == nil else { return "available" }
+        if let noMatchAvailabilityReason {
+            return noMatchAvailabilityReason
+        }
+        if historyPlan.entries.isEmpty {
+            return historyPlan.availabilityReason
+        }
+        switch stateIdentifier {
+        case "missing-pin":
+            return "pinned-recap-share-artifacts-missing"
+        case "filtered-pin":
+            return "pinned-recap-share-artifacts-filtered"
+        default:
+            return "no-tour-recap-share-artifact"
+        }
+    }
+
+    private static func statusText(
+        entry: CinematicRunRecapShareArtifactHistoryPlan.Entry,
+        stateIdentifier: String,
+        warningStateIdentifier: String
+    ) -> String {
+        let suffix: String
+        switch stateIdentifier {
+        case "pinned", "pinned-warning":
+            suffix = "pinned archive"
+        case "missing-pin", "missing-pin-warning":
+            suffix = "pin missing, recent archive"
+        case "filtered-pin", "filtered-pin-warning":
+            suffix = "pin filtered, search archive"
+        default:
+            suffix = warningStateIdentifier == "warnings" ? "recent archive warning" : "recent archive"
+        }
+        return bounded(
+            "\(entry.statusSnippet) | \(suffix)",
+            limit: CinematicRunRecapShareArtifactTourPlan.snippetMaxCharacters
+        )
+    }
+
+    private static func sessionText(
+        entry: CinematicRunRecapShareArtifactHistoryPlan.Entry,
+        selectedOrdinal: Int?,
+        entryCount: Int,
+        selectionSourceIdentifier: String
+    ) -> String {
+        let position = selectedOrdinal.map { "\($0)/\(max(entryCount, 1))" } ?? "1/\(max(entryCount, 1))"
+        return bounded(
+            "S\(entry.sessionNumber) \(selectionSourceIdentifier) \(position)",
+            limit: CinematicRunRecapShareArtifactTourPlan.snippetMaxCharacters
+        )
+    }
+
+    private static func emptyTitle(stateIdentifier: String) -> String {
+        switch stateIdentifier {
+        case "no-match":
+            return "No matching saved recap"
+        case "missing-pin":
+            return "Pinned recap no longer retained"
+        case "filtered-pin":
+            return "Pinned recap hidden by search"
+        case "unavailable-warning":
+            return "Recap archive warning"
+        default:
+            return "No saved recap artifact"
+        }
+    }
+
+    private static func emptyBodyPreviewText(
+        stateIdentifier: String,
+        search: SearchState,
+        retainedCount: Int
+    ) -> String {
+        let text: String
+        switch stateIdentifier {
+        case "no-match":
+            text = "No retained recap artifacts match \(search.querySnippet)."
+        case "missing-pin":
+            text = "Pinned recap artifacts are no longer retained; \(retainedCount) artifacts remain."
+        case "filtered-pin":
+            text = "Pinned recap artifacts are hidden by the active archive search."
+        case "unavailable-warning":
+            text = "The saved recap archive has warnings and no displayable artifacts."
+        default:
+            text = "No saved recap artifacts are available for the idle tour."
+        }
+        return bounded(
+            text,
+            limit: CinematicRunRecapShareArtifactTourPlan.bodyPreviewMaxCharacters
+        )
+    }
+
+    private static func rotatedIndex(seed: Int, count: Int) -> Int? {
+        guard count > 0 else { return nil }
+        let boundedSeed = boundedRotationSeed(seed)
+        return boundedSeed % count
+    }
+
+    private static func boundedRotationSeed(_ seed: Int) -> Int {
+        abs(seed % 10_000)
+    }
+
+    private static func bodyPreview(from markdownContents: String) -> String {
+        bounded(
+            previewSearchBody(from: markdownContents) ?? "No preview text available.",
+            limit: CinematicRunRecapShareArtifactTourPlan.bodyPreviewMaxCharacters
+        )
+    }
+
+    private static func previewSearchBody(from markdownContents: String) -> String? {
+        shareTextBody(in: markdownContents)
+            ?? fallbackBody(in: markdownContents)
+    }
+
+    private static func shareTextBody(in markdownContents: String) -> String? {
+        guard let range = markdownContents.range(of: "## Share Text") else {
+            return nil
+        }
+
+        let text = markdownContents[range.upperBound...]
+            .split(omittingEmptySubsequences: false, whereSeparator: \.isNewline)
+            .map { line in
+                String(line).trimmingCharacters(in: .whitespacesAndNewlines)
+            }
+            .filter { line in
+                !line.isEmpty && !line.hasPrefix("```")
+            }
+            .joined(separator: " ")
+        return text.isEmpty ? nil : text
+    }
+
+    private static func fallbackBody(in markdownContents: String) -> String? {
+        let text = markdownContents
+            .split(omittingEmptySubsequences: false, whereSeparator: \.isNewline)
+            .map { line in
+                String(line).trimmingCharacters(in: .whitespacesAndNewlines)
+            }
+            .filter { line in
+                !line.isEmpty
+                    && !line.hasPrefix("#")
+                    && !line.hasPrefix("- ")
+                    && !line.hasPrefix("```")
+            }
+            .joined(separator: " ")
+        return text.isEmpty ? nil : text
+    }
+
+    private static func boundedIdentifierList(_ identifiers: [String]) -> [String] {
+        var seen = Set<String>()
+        var boundedIdentifiers: [String] = []
+
+        for identifier in identifiers {
+            guard let boundedIdentifier = boundedOptionalIdentifier(identifier),
+                  seen.insert(boundedIdentifier).inserted else {
+                continue
+            }
+            boundedIdentifiers.append(boundedIdentifier)
+            if boundedIdentifiers.count == CinematicRunRecapShareArtifactTourPlan.pinIdentifierLimit {
+                break
+            }
+        }
+
+        return boundedIdentifiers
+    }
+
+    private static func boundedOptionalIdentifier(_ identifier: String?) -> String? {
+        let boundedIdentifier = bounded(
+            identifier ?? "",
+            limit: CinematicRunRecapShareArtifactTourPlan.identifierMaxCharacters
+        )
+        return boundedIdentifier == "none" ? nil : boundedIdentifier
+    }
+
+    private static func normalizedSearchText(_ text: String) -> String {
+        text
+            .replacingOccurrences(of: "\r", with: " ")
+            .replacingOccurrences(of: "\n", with: " ")
+            .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+    }
+
+    private static func bounded(_ text: String, limit: Int) -> String {
+        guard limit > 0 else { return "" }
+        let normalized = text
+            .replacingOccurrences(of: "\r", with: " ")
+            .replacingOccurrences(of: "\n", with: " ")
+            .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
             .trimmingCharacters(in: .whitespacesAndNewlines)
         guard !normalized.isEmpty else { return "none" }
         guard normalized.count <= limit else {

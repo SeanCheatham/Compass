@@ -26,10 +26,13 @@ final class CinematicIdleStoryCyclePlanTests: XCTestCase {
         let native = try XCTUnwrap(byPhase[.nativeFeedbackPlaque])
         let recapFocus = try XCTUnwrap(byPhase[.runRecapFocus])
         let recapEnd = try XCTUnwrap(byPhase[.runRecapEndCard])
+        let artifactTour = try XCTUnwrap(byPhase[.savedRecapArtifactTour])
 
         XCTAssertGreaterThan(commit.cadence, timeline.cadence)
         XCTAssertGreaterThan(recapEnd.cadence, recapFocus.cadence)
         XCTAssertGreaterThan(recapFocus.cadence, native.cadence)
+        XCTAssertGreaterThan(artifactTour.cadence, native.cadence)
+        XCTAssertEqual(artifactTour.choreography.cameraPressureIdentifier, "archive-tour")
         XCTAssertGreaterThan(recapEnd.choreography.dwellDuration, native.choreography.dwellDuration)
         XCTAssertLessThan(timeline.choreography.transitionDurationScale, commit.choreography.transitionDurationScale)
         XCTAssertLessThan(native.choreography.transitionDurationScale, recapEnd.choreography.transitionDurationScale)
@@ -126,6 +129,7 @@ final class CinematicIdleStoryCyclePlanTests: XCTestCase {
         context.recapPlan = .empty(reason: "no-finished-session")
         context.recapFocusPlan = .none
         context.recapEndCardPlan = .none
+        context.tourPlan = nil
         let suppressedNativeOnly = plan(context: context, elapsedMultiplier: 2)
         XCTAssertFalse(suppressedNativeOnly.isActive)
         XCTAssertEqual(suppressedNativeOnly.suppressionReason, "quiet-noncritical-native-feedback")
@@ -235,6 +239,7 @@ final class CinematicIdleStoryCyclePlanTests: XCTestCase {
         let recapBefore = context.recapPlan
         let recapFocusBefore = context.recapFocusPlan
         let recapEndCardBefore = context.recapEndCardPlan
+        let tourBefore = context.tourPlan
 
         _ = plan(context: context, elapsedMultiplier: 4)
 
@@ -244,6 +249,36 @@ final class CinematicIdleStoryCyclePlanTests: XCTestCase {
         XCTAssertEqual(context.recapPlan, recapBefore)
         XCTAssertEqual(context.recapFocusPlan, recapFocusBefore)
         XCTAssertEqual(context.recapEndCardPlan, recapEndCardBefore)
+        XCTAssertEqual(context.tourPlan, tourBefore)
+    }
+
+    func testSavedRecapArtifactTourCandidateCarriesArtifactContext() throws {
+        var context = try makeContext()
+        let history = makePinnedComparisonHistory()
+        let pinned = try XCTUnwrap(history.entries.first { $0.sessionNumber == 40 })
+        let libraryContext = CinematicRunRecapShareArtifactLibraryContext(
+            selectedEntryIdentifier: history.entries.first?.identifier,
+            searchText: "idle pinned comparison body",
+            pinnedEntryIdentifiers: [pinned.identifier, "stale-idle-tour-pin"]
+        )
+        context.tourPlan = CinematicRunRecapShareArtifactTourPlanner.plan(
+            historyPlan: history,
+            libraryContext: libraryContext
+        )
+
+        let descriptor = try descriptor(for: .savedRecapArtifactTour, in: context)
+        let tourPlan = try XCTUnwrap(descriptor.runRecapShareArtifactTourPlan)
+
+        XCTAssertEqual(descriptor.phase, .savedRecapArtifactTour)
+        XCTAssertEqual(descriptor.targetKindIdentifier, "saved-recap-artifact-pinned")
+        XCTAssertEqual(descriptor.cameraShot, .overShoulder)
+        XCTAssertEqual(descriptor.lightFamily, .git)
+        XCTAssertEqual(descriptor.arenaEffect, .historyChains)
+        XCTAssertEqual(tourPlan.selectedEntryIdentifier, pinned.identifier)
+        XCTAssertEqual(tourPlan.retainedPinnedEntryIdentifiers, [pinned.identifier])
+        XCTAssertEqual(tourPlan.missingPinnedEntryIdentifiers, ["stale-idle-tour-pin"])
+        XCTAssertEqual(libraryContext.pinnedEntryIdentifiers, [pinned.identifier, "stale-idle-tour-pin"])
+        XCTAssertEqual(libraryContext.searchText, "idle pinned comparison body")
     }
 
     func testRunRecapEndCardCandidateCarriesPinnedComparisonCue() throws {
@@ -292,6 +327,7 @@ final class CinematicIdleStoryCyclePlanTests: XCTestCase {
         var recapPlan: CinematicRunRecapPlan
         var recapFocusPlan: CinematicRunRecapSceneFocusPlan
         var recapEndCardPlan: CinematicRunRecapEndCardPlan
+        var tourPlan: CinematicRunRecapShareArtifactTourPlan?
     }
 
     private func makeContext(
@@ -340,6 +376,11 @@ final class CinematicIdleStoryCyclePlanTests: XCTestCase {
             isRecapOverlaySelected: true,
             recapPlan: recapPlan
         )
+        let tourHistoryPlan = makePinnedComparisonHistory()
+        let tourPlan = CinematicRunRecapShareArtifactTourPlanner.plan(
+            historyPlan: tourHistoryPlan,
+            libraryContext: .empty
+        )
 
         return Context(
             settings: settings,
@@ -353,7 +394,8 @@ final class CinematicIdleStoryCyclePlanTests: XCTestCase {
             ),
             recapPlan: recapPlan,
             recapFocusPlan: recapFocusPlan,
-            recapEndCardPlan: recapEndCardPlan
+            recapEndCardPlan: recapEndCardPlan,
+            tourPlan: tourPlan
         )
     }
 
@@ -379,7 +421,8 @@ final class CinematicIdleStoryCyclePlanTests: XCTestCase {
             nativeFeedbackPlaqueDescriptor: context.nativeFeedbackPlaqueDescriptor,
             runRecapPlan: context.recapPlan,
             runRecapSceneFocusPlan: context.recapFocusPlan,
-            runRecapEndCardPlan: context.recapEndCardPlan
+            runRecapEndCardPlan: context.recapEndCardPlan,
+            runRecapShareArtifactTourPlan: context.tourPlan
         )
     }
 

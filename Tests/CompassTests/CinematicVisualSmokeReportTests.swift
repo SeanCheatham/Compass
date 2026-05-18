@@ -27,6 +27,7 @@ final class CinematicVisualSmokeReportTests: XCTestCase {
                 "native-feedback-cue-coverage",
                 "native-feedback-treatment-coverage",
                 "idle-story-cycle-coverage",
+                "run-recap-saved-artifact-tour",
                 "timeline-focus-coverage",
                 "run-recap-focus-coverage",
                 "run-recap-end-card-coverage",
@@ -51,6 +52,7 @@ final class CinematicVisualSmokeReportTests: XCTestCase {
             smoke.checks.first { $0.id == "native-feedback-treatment-coverage" }
         )
         let idleStoryCycle = try XCTUnwrap(smoke.checks.first { $0.id == "idle-story-cycle-coverage" })
+        let savedArtifactTour = try XCTUnwrap(smoke.checks.first { $0.id == "run-recap-saved-artifact-tour" })
         let timelineFocus = try XCTUnwrap(smoke.checks.first { $0.id == "timeline-focus-coverage" })
         let runRecapFocus = try XCTUnwrap(smoke.checks.first { $0.id == "run-recap-focus-coverage" })
         let runRecapEndCard = try XCTUnwrap(smoke.checks.first { $0.id == "run-recap-end-card-coverage" })
@@ -112,6 +114,14 @@ final class CinematicVisualSmokeReportTests: XCTestCase {
         XCTAssertTrue(idleStoryCycle.detail.contains("run-recap-focus"))
         XCTAssertTrue(idleStoryCycle.detail.contains("run-recap-end-card"))
         XCTAssertTrue(idleStoryCycle.detail.contains("routes"))
+        XCTAssertEqual(savedArtifactTour.status, .pass)
+        XCTAssertTrue(savedArtifactTour.detail.contains("recent"))
+        XCTAssertTrue(savedArtifactTour.detail.contains("pinned"))
+        XCTAssertTrue(savedArtifactTour.detail.contains("filtered-pin"))
+        XCTAssertTrue(savedArtifactTour.detail.contains("no-match"))
+        XCTAssertTrue(savedArtifactTour.detail.contains("missing-pin"))
+        XCTAssertTrue(savedArtifactTour.detail.contains("warnings"))
+        XCTAssertTrue(savedArtifactTour.detail.contains("bounded"))
         XCTAssertTrue(timelineFocus.detail.contains("commit"))
         XCTAssertTrue(timelineFocus.detail.contains("recovery"))
         XCTAssertTrue(timelineFocus.detail.contains("failed-verify"))
@@ -303,9 +313,9 @@ final class CinematicVisualSmokeReportTests: XCTestCase {
 
         XCTAssertEqual(check.status, .warning)
         XCTAssertEqual(check.warningIdentifier, "visual-smoke.idle-story-cycle")
-        XCTAssertTrue(check.detail.contains("choreo 1/5"))
-        XCTAssertTrue(check.detail.contains("timing 1/5"))
-        XCTAssertTrue(check.detail.contains("pressure 1/5"))
+        XCTAssertTrue(check.detail.contains("choreo 1/6"))
+        XCTAssertTrue(check.detail.contains("timing 1/6"))
+        XCTAssertTrue(check.detail.contains("pressure 1/6"))
     }
 
     func testWarningReportUsesBoundedIdentifiersAndDetails() throws {
@@ -329,6 +339,7 @@ final class CinematicVisualSmokeReportTests: XCTestCase {
         XCTAssertTrue(smoke.warningIdentifiers.contains("visual-smoke.native-feedback-cue-coverage"))
         XCTAssertTrue(smoke.warningIdentifiers.contains("visual-smoke.native-feedback-treatment-coverage"))
         XCTAssertTrue(smoke.warningIdentifiers.contains("visual-smoke.idle-story-cycle"))
+        XCTAssertTrue(smoke.warningIdentifiers.contains("visual-smoke.saved-artifact-tour"))
         XCTAssertTrue(smoke.warningIdentifiers.contains("visual-smoke.timeline-focus-coverage"))
         XCTAssertTrue(smoke.warningIdentifiers.contains("visual-smoke.run-recap-focus-coverage"))
         XCTAssertTrue(smoke.warningIdentifiers.contains("visual-smoke.run-recap-end-card"))
@@ -396,8 +407,8 @@ final class CinematicVisualSmokeReportTests: XCTestCase {
         XCTAssertEqual(summary.visualSmoke.warningCountLabel, "No warnings")
         XCTAssertEqual(summary.visualSmoke.warningBadgeLabel, "0")
         XCTAssertEqual(summary.visualSmoke.warningIdentifiers, [])
-        XCTAssertEqual(summary.visualSmoke.checkCountLabel, "18 checks")
-        XCTAssertEqual(summary.visualSmoke.presentation.headerDetail, "18 checks | No warnings")
+        XCTAssertEqual(summary.visualSmoke.checkCountLabel, "19 checks")
+        XCTAssertEqual(summary.visualSmoke.presentation.headerDetail, "19 checks | No warnings")
         XCTAssertEqual(summary.visualSmoke.presentation.defaultExpanded, false)
         XCTAssertEqual(summary.visualSmoke.presentation.attentionState, .normal)
         XCTAssertEqual(summary.visualSmoke.presentation.warningIdentifiers, [])
@@ -412,7 +423,7 @@ final class CinematicVisualSmokeReportTests: XCTestCase {
             summary.visualSmoke.presentation.headerDetail.count,
             CinematicDiagnosticsSummary.headerDetailMaxCharacters
         )
-        XCTAssertTrue(summary.exportText.contains("Visual smoke (pass, 18 checks)"))
+        XCTAssertTrue(summary.exportText.contains("Visual smoke (pass, 19 checks)"))
         XCTAssertTrue(summary.exportText.contains("Narrative cue readability: pass"))
         XCTAssertTrue(summary.exportText.contains("Texture role coverage: pass"))
         XCTAssertTrue(summary.exportText.contains("Language layout coverage: pass"))
@@ -422,6 +433,7 @@ final class CinematicVisualSmokeReportTests: XCTestCase {
         XCTAssertTrue(summary.exportText.contains("Native feedback coverage: pass"))
         XCTAssertTrue(summary.exportText.contains("Native feedback treatment: pass"))
         XCTAssertTrue(summary.exportText.contains("Idle story cycle: pass"))
+        XCTAssertTrue(summary.exportText.contains("Saved artifact tour: pass"))
         XCTAssertTrue(summary.exportText.contains("Timeline focus coverage: pass"))
         XCTAssertTrue(summary.exportText.contains("Run recap end card: pass"))
         XCTAssertEqual(summary.plaqueTreatmentLegend.id, "plaque-treatment-legend")
@@ -502,7 +514,7 @@ final class CinematicVisualSmokeReportTests: XCTestCase {
         XCTAssertEqual(summary.visualSmoke.presentation.attentionState, .warning)
         XCTAssertEqual(summary.visualSmoke.presentation.warningIdentifiers, smoke.warningIdentifiers)
         XCTAssertEqual(summary.visualSmoke.presentation.needsAttention, true)
-        XCTAssertTrue(summary.visualSmoke.presentation.headerDetail.contains("18 checks"))
+        XCTAssertTrue(summary.visualSmoke.presentation.headerDetail.contains("19 checks"))
         for warningIdentifier in smoke.warningIdentifiers.prefix(2) {
             XCTAssertTrue(summary.visualSmoke.presentation.headerDetail.contains(warningIdentifier))
         }
@@ -591,7 +603,7 @@ final class CinematicVisualSmokeReportTests: XCTestCase {
         XCTAssertTrue(summary.exportText.contains("visual-smoke.asset-availability"))
         XCTAssertTrue(summary.exportText.contains("visual-smoke.texture-role-coverage"))
         XCTAssertTrue(summary.exportText.contains("visual-smoke.native-feedback-treatment-coverage"))
-        XCTAssertTrue(summary.exportText.contains("Visual smoke (warning, 18 checks)"))
+        XCTAssertTrue(summary.exportText.contains("Visual smoke (warning, 19 checks)"))
         XCTAssertTrue(summary.exportText.contains("Asset availability: warning"))
         XCTAssertTrue(summary.exportText.contains("warning visual-smoke.asset-availability"))
         XCTAssertTrue(summary.exportText.contains("Texture role coverage: warning"))

@@ -502,6 +502,29 @@ final class CinematicDiagnosticsTests: XCTestCase {
         XCTAssertTrue(suppressedSummary.exportText.contains("Idle story cycle: empty live-follow"))
     }
 
+    func testReportAndSummaryExportSavedRecapArtifactTourState() throws {
+        let report = try XCTUnwrap(
+            CinematicDiagnostics.representativeSavedRecapArtifactTourSmokeReports().first {
+                $0.runRecapShareArtifactTour.stateIdentifier == "pinned"
+            }
+        )
+        let summary = CinematicDiagnosticsSummary(
+            report: report,
+            visualSmoke: CinematicVisualSmokeReport(reports: [report])
+        )
+        let row = try XCTUnwrap(summary.rows.first { $0.id == "run-recap-share-artifact-tour" })
+
+        XCTAssertTrue(report.runRecapShareArtifactTour.isAvailable)
+        XCTAssertEqual(report.runRecapShareArtifactTour.selectionSourceIdentifier, "pinned")
+        XCTAssertEqual(report.idleStoryCycle.phaseIdentifier, "saved-recap-artifact-tour")
+        XCTAssertEqual(report.idleStoryCycle.cameraPressureIdentifier, "archive-tour")
+        XCTAssertTrue(report.identifier.contains("run-recap-share-artifact-tour-state:pinned"))
+        XCTAssertTrue(row.detail.contains("state pinned"))
+        XCTAssertTrue(row.detail.contains("source pinned"))
+        XCTAssertTrue(summary.exportText.contains("Recap artifact tour: available"))
+        XCTAssertTrue(summary.exportText.contains("state pinned"))
+    }
+
     func testReportContainsEveryCameraShotAndCameraTuningValue() throws {
         let settings = CinematicInfluenceSettings(cameraStyle: .steady, intensity: 0.25)
         let report = CinematicDiagnostics.representativeSmokeMatrix(influenceSettings: settings).first!
@@ -636,6 +659,7 @@ final class CinematicDiagnosticsTests: XCTestCase {
                 "run-recap-share-artifact-rollup",
                 "run-recap-share-artifact-comparison",
                 "run-recap-share-artifact-pins",
+                "run-recap-share-artifact-tour",
                 "run-recap-share-artifact-preview",
                 "run-recap-focus",
                 "run-recap-end-card",
@@ -701,6 +725,7 @@ final class CinematicDiagnosticsTests: XCTestCase {
                     "run-recap-share-artifact-rollup",
                     "run-recap-share-artifact-comparison",
                     "run-recap-share-artifact-pins",
+                    "run-recap-share-artifact-tour",
                     "run-recap-share-artifact-preview",
                     "run-recap-focus",
                     "run-recap-end-card"
@@ -838,20 +863,21 @@ final class CinematicDiagnosticsTests: XCTestCase {
             .components(separatedBy: "\n")
             .filter { expectedSectionHeadings.contains($0) }
         XCTAssertEqual(actualSectionHeadings, expectedSectionHeadings)
-        XCTAssertTrue(summary.exportText.contains("Repository/context (15 rows)"))
+        XCTAssertTrue(summary.exportText.contains("Repository/context (16 rows)"))
         XCTAssertTrue(summary.exportText.contains("Motifs (2 rows)"))
         XCTAssertTrue(summary.exportText.contains("Stage motion/effects (9 rows)"))
         XCTAssertTrue(summary.exportText.contains("Narrative/overlay (7 rows)"))
         XCTAssertTrue(summary.exportText.contains("Assets/textures (2 rows)"))
         XCTAssertTrue(summary.exportText.contains("Tuning (4 rows)"))
         XCTAssertTrue(summary.exportText.contains("Camera shots (7 rows)"))
-        XCTAssertTrue(summary.exportText.contains("Visual smoke (pass, 18 checks)"))
+        XCTAssertTrue(summary.exportText.contains("Visual smoke (pass, 19 checks)"))
         XCTAssertTrue(summary.exportText.contains("Plaque treatments (pass, 4 recipes): smoke pass"))
         XCTAssertTrue(summary.exportText.contains("failure-fracture: accent failure-fracture"))
         XCTAssertTrue(summary.exportText.contains("Overlay fallback: pass"))
         XCTAssertTrue(summary.exportText.contains("Native feedback coverage: pass"))
         XCTAssertTrue(summary.exportText.contains("Native feedback treatment: pass"))
         XCTAssertTrue(summary.exportText.contains("Idle story cycle: pass"))
+        XCTAssertTrue(summary.exportText.contains("Saved artifact tour: pass"))
         XCTAssertTrue(summary.exportText.contains(report.languageMotif.sigilIdentifier))
         XCTAssertTrue(summary.exportText.contains(report.languageMotif.styleIdentifier))
         XCTAssertTrue(summary.exportText.contains(report.activityMotif.sigilIdentifier))

@@ -75,11 +75,18 @@ struct CinematicTab: View {
                 recapFocusDescriptor: runRecapSceneFocusCandidatePlan.descriptor,
                 endCardDescriptor: runRecapEndCardCandidatePlan.descriptor
             )
+            let idleStorySession = CinematicIdleStoryCyclePlan.SessionInput(
+                elapsedTime: timeline.date.timeIntervalSinceReferenceDate,
+                sessionOrdinal: project.sessions.last?.session ?? project.sessions.count
+            )
+            let recapArtifactTourPlan = CinematicRunRecapShareArtifactTourPlanner.plan(
+                historyPlan: project.cinematicRunRecapShareArtifactHistory,
+                libraryContext: recapArtifactLibraryContext,
+                rotationSeed: idleStorySession.sessionOrdinal
+                    + Int(idleStorySession.elapsedTime / (CinematicIdleStoryCyclePlan.defaultCadence * 2))
+            )
             let idleStoryCyclePlan = CinematicIdleStoryCyclePlanner.plan(
-                session: CinematicIdleStoryCyclePlan.SessionInput(
-                    elapsedTime: timeline.date.timeIntervalSinceReferenceDate,
-                    sessionOrdinal: project.sessions.last?.session ?? project.sessions.count
-                ),
+                session: idleStorySession,
                 isLiveFollowActive: CinematicIdleStoryCyclePlanner.hasLiveFollowTarget(lines: project.liveLog),
                 hasExplicitUserFocus: overlayMode != .live,
                 influenceSettings: project.cinematicInfluenceSettings,
@@ -98,7 +105,8 @@ struct CinematicTab: View {
                 ),
                 runRecapPlan: recapPlan,
                 runRecapSceneFocusPlan: runRecapSceneFocusCandidatePlan,
-                runRecapEndCardPlan: runRecapEndCardCandidatePlan
+                runRecapEndCardPlan: runRecapEndCardCandidatePlan,
+                runRecapShareArtifactTourPlan: recapArtifactTourPlan
             )
 
             ZStack(alignment: .bottomLeading) {
