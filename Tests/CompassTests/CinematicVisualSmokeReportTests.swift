@@ -724,6 +724,40 @@ final class CinematicVisualSmokeReportTests: XCTestCase {
         XCTAssertTrue(commandTarget.copyText.contains("Recap artifact commands"))
         XCTAssertFalse(commandTarget.copyText.contains("Cinematic Diagnostics\nReport:"))
         XCTAssertFalse(commandTarget.copyText.contains("Visual smoke (warning,"))
+        let planCommandTarget = try XCTUnwrap(
+            summary.attentionSummary.targets.first {
+                $0.id == "visual-smoke-check-plan-compass-command-availability"
+            }
+        )
+        XCTAssertEqual(planCommandTarget.label, "Plan command availability")
+        XCTAssertEqual(planCommandTarget.targetGroupID, "visual-smoke")
+        XCTAssertEqual(planCommandTarget.relatedGroupID, "repository-context")
+        XCTAssertEqual(planCommandTarget.relatedRowID, "plan-compass-commands")
+        XCTAssertTrue(planCommandTarget.detail.contains("selected"))
+        XCTAssertTrue(planCommandTarget.detail.contains("sections"))
+        XCTAssertTrue(planCommandTarget.detail.contains("shortcuts"))
+        XCTAssertTrue(planCommandTarget.detail.contains("app-collisions"))
+        XCTAssertTrue(planCommandTarget.detail.contains("recap-collisions"))
+        XCTAssertTrue(planCommandTarget.detail.contains("copy-cmds"))
+        XCTAssertTrue(planCommandTarget.detail.contains("correlated"))
+        XCTAssertLessThanOrEqual(
+            planCommandTarget.copyText.count,
+            CinematicDiagnosticsSummary.attentionTargetCopyMaxCharacters
+        )
+        XCTAssertTrue(planCommandTarget.copyText.contains("Cinematic diagnostics warning target"))
+        XCTAssertTrue(planCommandTarget.copyText.contains("Label: Plan command availability"))
+        XCTAssertTrue(
+            planCommandTarget.copyText.contains(
+                "Target anchor: visual-smoke-check-plan-compass-command-availability"
+            )
+        )
+        XCTAssertTrue(planCommandTarget.copyText.contains("Target group: visual-smoke"))
+        XCTAssertTrue(planCommandTarget.copyText.contains("Warnings: visual-smoke.plan-compass-commands"))
+        XCTAssertTrue(planCommandTarget.copyText.contains("Related row: plan-compass-commands"))
+        XCTAssertTrue(planCommandTarget.copyText.contains("Related detail:"))
+        XCTAssertTrue(planCommandTarget.copyText.contains("Plan compass commands"))
+        XCTAssertFalse(planCommandTarget.copyText.contains("Cinematic Diagnostics\nReport:"))
+        XCTAssertFalse(planCommandTarget.copyText.contains("Visual smoke (warning,"))
         let visualSmokeTarget = try XCTUnwrap(
             summary.attentionSummary.targets.first { $0.id == "visual-smoke" }
         )
@@ -778,10 +812,15 @@ final class CinematicVisualSmokeReportTests: XCTestCase {
         XCTAssertTrue(warningRollup.copyText.contains("Export correlation: warning summary targets"))
         XCTAssertTrue(warningRollup.copyText.contains(commandTarget.targetAnchorID))
         XCTAssertTrue(warningRollup.copyText.contains("diagnostics-row-run-recap-share-artifact-commands"))
+        XCTAssertTrue(warningRollup.copyText.contains(planCommandTarget.targetAnchorID))
+        XCTAssertTrue(warningRollup.copyText.contains("diagnostics-row-plan-compass-commands"))
         XCTAssertTrue(summary.exportText.contains("related run-recap-share-artifact-commands"))
+        XCTAssertTrue(summary.exportText.contains("related plan-compass-commands"))
         XCTAssertFalse(warningRollup.copyText.contains(commandTarget.detail))
+        XCTAssertFalse(warningRollup.copyText.contains(planCommandTarget.detail))
         XCTAssertFalse(warningRollup.rows.contains { row in
             row.copyText.contains(commandTarget.detail)
+                || row.copyText.contains(planCommandTarget.detail)
                 || row.copyText.contains("Cinematic diagnostics warning target")
         })
         XCTAssertTrue(warningRollup.rows.allSatisfy { row in

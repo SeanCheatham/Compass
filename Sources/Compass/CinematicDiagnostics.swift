@@ -4467,6 +4467,10 @@ struct CinematicDiagnosticsSummary: Equatable {
             detail = runRecapCommandAvailabilityAttentionDetail(
                 report.runRecapShareArtifactCommands
             )
+        } else if check.id == "plan-compass-command-availability" {
+            detail = planCompassCommandAvailabilityAttentionDetail(
+                report.planCompassCommands
+            )
         } else {
             detail = relatedRow.map { "\(check.detail) | \($0.detail)" } ?? check.detail
         }
@@ -5650,6 +5654,29 @@ struct CinematicDiagnosticsSummary: Equatable {
             "cleanup \(cleanupState)",
             "collisions \(snapshot.appLevelShortcutCollisionStateIdentifier) \(identifierListSummary(collisionIdentifiers, visibleLimit: 2))",
             "correlated \(isCorrelated ? "yes" : "no") \(snapshot.commandCount)+\(snapshot.omittedActionKindIdentifiers.count)/\(snapshot.actionCount)"
+        ].joined(separator: " | ")
+    }
+
+    private static func planCompassCommandAvailabilityAttentionDetail(
+        _ snapshot: CinematicDiagnosticsReport.PlanCompassCommandSnapshot
+    ) -> String {
+        let sourcePlanState = snapshot.sourcePlanIdentifier.isEmpty ? "missing" : "available"
+        let selectedRowState = snapshot.selectedSectionRowIdentifier.hasPrefix("plan-compass-")
+            ? snapshot.selectedSectionRowIdentifier
+            : "invalid"
+        let isCorrelated = !snapshot.commandPlanIdentifier.isEmpty
+            && !snapshot.sourcePlanIdentifier.isEmpty
+            && snapshot.commandPlanIdentifier != snapshot.sourcePlanIdentifier
+            && snapshot.selectedSectionRowIdentifier.hasPrefix("plan-compass-")
+
+        return [
+            "selected \(snapshot.selectedRouteIdentifier) \(snapshot.selectedSectionStateIdentifier)",
+            "sections \(planCompassCommandSectionSummary(snapshot.sections))",
+            "shortcuts \(snapshot.shortcutIdentifiers.count) \(identifierListSummary(snapshot.shortcutIdentifiers, visibleLimit: 1))",
+            "app-collisions \(snapshot.appLevelShortcutCollisionStateIdentifier)",
+            "recap-collisions \(snapshot.recapCommandShortcutCollisionStateIdentifier)",
+            "copy-cmds \(snapshot.copyCommandIdentifiers.count)",
+            "correlated \(isCorrelated ? "yes" : "no") source-plan \(sourcePlanState) selected-row \(bounded(selectedRowState, limit: 24))"
         ].joined(separator: " | ")
     }
 

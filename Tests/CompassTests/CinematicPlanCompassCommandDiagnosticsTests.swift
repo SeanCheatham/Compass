@@ -127,6 +127,97 @@ final class CinematicPlanCompassCommandDiagnosticsTests: XCTestCase {
         XCTAssertTrue(smoke.warningIdentifiers.contains("visual-smoke.plan-compass-commands"))
     }
 
+    func testWarningTargetUsesPlanCompassCommandAttentionDetailAndCopyText() throws {
+        var reports = CinematicDiagnostics.representativePlanCompassCommandSmokeReports()
+        reports[0].planCompassCommands.appLevelShortcutCollisionStateIdentifier = "collision"
+        reports[0].planCompassCommands.appLevelShortcutCollisionIdentifiers = [
+            reports[0].planCompassCommands.shortcutIdentifiers[0]
+        ]
+
+        let report = reports[0]
+        let snapshot = report.planCompassCommands
+        let smoke = CinematicVisualSmokeReport(reports: reports)
+        let summary = CinematicDiagnosticsSummary(report: report, visualSmoke: smoke)
+        let check = try XCTUnwrap(
+            summary.visualSmoke.checks.first { $0.id == "plan-compass-command-availability" }
+        )
+        let warningTarget = try XCTUnwrap(check.warningTarget)
+        let target = try XCTUnwrap(
+            summary.attentionSummary.targets.first { $0.id == warningTarget.id }
+        )
+
+        XCTAssertEqual(warningTarget.id, "visual-smoke-check-plan-compass-command-availability")
+        XCTAssertEqual(warningTarget.targetGroupID, "visual-smoke")
+        XCTAssertEqual(warningTarget.targetAnchorID, "visual-smoke-check-plan-compass-command-availability")
+        XCTAssertEqual(warningTarget.relatedGroupID, "repository-context")
+        XCTAssertEqual(warningTarget.relatedRowID, "plan-compass-commands")
+        XCTAssertEqual(target.label, "Plan command availability")
+        XCTAssertEqual(target.targetGroupID, "visual-smoke")
+        XCTAssertEqual(target.targetAnchorID, warningTarget.targetAnchorID)
+        XCTAssertEqual(target.relatedGroupID, "repository-context")
+        XCTAssertEqual(target.relatedRowID, "plan-compass-commands")
+        XCTAssertEqual(target.visibleWarningIdentifiers, ["visual-smoke.plan-compass-commands"])
+        XCTAssertTrue(
+            target.detail.contains(
+                "selected \(snapshot.selectedRouteIdentifier) \(snapshot.selectedSectionStateIdentifier)"
+            )
+        )
+        XCTAssertTrue(target.detail.contains("sections"))
+        XCTAssertTrue(target.detail.contains("shortcuts"))
+        XCTAssertTrue(target.detail.contains("app-collisions collision"))
+        XCTAssertTrue(target.detail.contains("recap-collisions clear"))
+        XCTAssertTrue(target.detail.contains("copy-cmds 2"))
+        XCTAssertTrue(target.detail.contains("correlated yes"))
+        XCTAssertTrue(target.detail.contains("selected-row \(snapshot.selectedSectionRowIdentifier)"))
+        XCTAssertLessThanOrEqual(
+            target.detail.count,
+            CinematicDiagnosticsSummary.attentionSummaryDetailMaxCharacters
+        )
+        XCTAssertLessThanOrEqual(
+            target.copyText.count,
+            CinematicDiagnosticsSummary.attentionTargetCopyMaxCharacters
+        )
+        XCTAssertTrue(target.copyText.contains("Cinematic diagnostics warning target"))
+        XCTAssertTrue(target.copyText.contains("Label: Plan command availability"))
+        XCTAssertTrue(
+            target.copyText.contains(
+                "Target anchor: visual-smoke-check-plan-compass-command-availability"
+            )
+        )
+        XCTAssertTrue(target.copyText.contains("Target group: visual-smoke"))
+        XCTAssertTrue(target.copyText.contains("Warnings: visual-smoke.plan-compass-commands"))
+        XCTAssertTrue(target.copyText.contains("Detail:"))
+        XCTAssertTrue(target.copyText.contains("selected \(snapshot.selectedRouteIdentifier)"))
+        XCTAssertTrue(target.copyText.contains("app-collisions collision"))
+        XCTAssertTrue(target.copyText.contains("copy-cmds 2"))
+        XCTAssertTrue(target.copyText.contains("correlated yes"))
+        XCTAssertTrue(target.copyText.contains("Related row: plan-compass-commands"))
+        XCTAssertTrue(target.copyText.contains("Related detail:"))
+        XCTAssertTrue(target.copyText.contains("Plan compass commands"))
+        XCTAssertFalse(target.copyText.contains("Cinematic Diagnostics\nReport:"))
+        XCTAssertFalse(target.copyText.contains("Repository/context ("))
+        XCTAssertEqual(summary.relatedRow(for: warningTarget)?.id, "plan-compass-commands")
+        XCTAssertTrue(
+            summary.exportText.contains(
+                "Plan command availability -> visual-smoke-check-plan-compass-command-availability"
+            )
+        )
+        XCTAssertTrue(summary.exportText.contains("related plan-compass-commands"))
+        XCTAssertTrue(summary.exportText.contains("app-collisions collision"))
+        XCTAssertTrue(summary.exportText.contains("copy-cmds 2"))
+        XCTAssertTrue(summary.exportText.contains("correlated yes"))
+
+        var warningHistory = CinematicDiagnosticsWarningBundleHistory()
+        warningHistory.record(summary.attentionSummary)
+        let warningRollup = warningHistory.rollup
+        XCTAssertTrue(warningRollup.copyText.contains(target.targetAnchorID))
+        XCTAssertTrue(warningRollup.copyText.contains("diagnostics-row-plan-compass-commands"))
+        XCTAssertFalse(warningRollup.copyText.contains(target.detail))
+        XCTAssertTrue(warningRollup.rows.allSatisfy { row in
+            row.copyText.contains("Warning bundle history row")
+        })
+    }
+
     func testCurrentReportPlanCompassCommandsDoNotMutateProjectStateOrStorage() async throws {
         let repoURL = try makeTemporaryDirectory(prefix: "PlanCompassCommandDiagnosticsProject")
 
