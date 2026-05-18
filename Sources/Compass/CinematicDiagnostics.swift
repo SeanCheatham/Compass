@@ -34,6 +34,7 @@ struct CinematicDiagnosticsReport: Equatable {
     var runRecapShareArtifactPins: RunRecapShareArtifactPinnedReferenceSnapshot
     var runRecapShareArtifactTour: RunRecapShareArtifactTourSnapshot
     var runRecapShareArtifactPreview: RunRecapShareArtifactPreviewSnapshot
+    var runRecapShareArtifactCommands: RunRecapShareArtifactCommandSnapshot
     var runRecapSceneFocus: RunRecapSceneFocusSnapshot
     var runRecapEndCard: RunRecapEndCardSnapshot
     var cameraSnapshots: [CameraSnapshot]
@@ -816,6 +817,53 @@ struct CinematicDiagnosticsReport: Equatable {
         var hasWarnings: Bool
         var selectedExport: RunRecapShareArtifactSubsetExportSnapshot
         var filteredExport: RunRecapShareArtifactSubsetExportSnapshot
+    }
+
+    struct RunRecapShareArtifactCommandSectionSnapshot: Equatable {
+        var sectionIdentifier: String
+        var commandCount: Int
+        var enabledCommandCount: Int
+        var disabledCommandCount: Int
+    }
+
+    struct RunRecapShareArtifactCommandSnapshot: Equatable {
+        var identifier: String
+        var commandPlanIdentifier: String
+        var sourceActionMenuIdentifier: String
+        var sourceHistoryIdentifier: String
+        var sourcePreviewIdentifier: String
+        var sourceRollupIdentifier: String
+        var sourceComparisonIdentifier: String
+        var sourcePinsIdentifier: String
+        var sourceTourIdentifier: String
+        var sourceSelectedExportIdentifier: String
+        var sourceFilteredExportIdentifier: String
+        var actionCount: Int
+        var commandCount: Int
+        var enabledCommandCount: Int
+        var disabledCommandCount: Int
+        var sectionCount: Int
+        var sections: [RunRecapShareArtifactCommandSectionSnapshot]
+        var shortcutIdentifiers: [String]
+        var disabledActionKindIdentifiers: [String]
+        var omittedActionKindIdentifiers: [String]
+        var appLevelShortcutCollisionStateIdentifier: String
+        var appLevelShortcutIdentifiers: [String]
+        var appLevelShortcutCollisionIdentifiers: [String]
+        var historyAvailabilityReason: String
+        var previewNoMatchAvailabilityReason: String?
+        var selectedExportAvailabilityReason: String
+        var filteredExportAvailabilityReason: String
+        var rollupAvailabilityReason: String
+        var comparisonAvailabilityReason: String
+        var comparisonPromotedHoldStateIdentifier: String
+        var pinsAvailabilityReason: String
+        var missingPinnedEntryCount: Int
+        var filteredPinnedEntryCount: Int
+        var tourAvailabilityReason: String
+        var tourSavedHoldStateIdentifier: String
+        var tourFilteredSavedHoldEntryIdentifier: String?
+        var tourNoMatchAvailabilityReason: String?
     }
 
     struct RunRecapSceneFocusSnapshot: Equatable {
@@ -1965,6 +2013,7 @@ struct CinematicVisualSmokeReport: Equatable {
             && runRecapShareArtifactPinsCopyIsBounded(report)
             && runRecapShareArtifactTourCopyIsBounded(report)
             && runRecapShareArtifactPreviewCopyIsBounded(report)
+            && runRecapShareArtifactCommandsCopyIsBounded(report)
             && runRecapEndCardCopyIsBounded(report)
     }
 
@@ -2428,6 +2477,138 @@ struct CinematicVisualSmokeReport: Equatable {
             && runRecapShareArtifactSubsetExportCopyIsBounded(snapshot.filteredExport)
     }
 
+    private static func runRecapShareArtifactCommandsCopyIsBounded(_ report: CinematicDiagnosticsReport) -> Bool {
+        let snapshot = report.runRecapShareArtifactCommands
+        return string(
+            snapshot.identifier,
+            maxCharacters: CinematicRunRecapShareArtifactCommandPlan.identifierMaxCharacters
+        )
+            && string(
+                snapshot.commandPlanIdentifier,
+                maxCharacters: CinematicRunRecapShareArtifactCommandPlan.identifierMaxCharacters
+            )
+            && string(
+                snapshot.sourceActionMenuIdentifier,
+                maxCharacters: CinematicRunRecapShareArtifactActionMenuPlan.identifierMaxCharacters
+            )
+            && string(
+                snapshot.sourceHistoryIdentifier,
+                maxCharacters: CinematicRunRecapShareArtifactHistoryPlan.identifierMaxCharacters
+            )
+            && string(
+                snapshot.sourcePreviewIdentifier,
+                maxCharacters: CinematicRunRecapShareArtifactPreviewBrowserPlan.identifierMaxCharacters
+            )
+            && string(
+                snapshot.sourceRollupIdentifier,
+                maxCharacters: CinematicRunRecapShareArtifactRollupPlan.identifierMaxCharacters
+            )
+            && string(
+                snapshot.sourceComparisonIdentifier,
+                maxCharacters: CinematicRunRecapShareArtifactComparisonPlan.identifierMaxCharacters
+            )
+            && string(
+                snapshot.sourcePinsIdentifier,
+                maxCharacters: CinematicRunRecapShareArtifactPinnedReferencePlan.identifierMaxCharacters
+            )
+            && string(
+                snapshot.sourceTourIdentifier,
+                maxCharacters: CinematicRunRecapShareArtifactTourPlan.identifierMaxCharacters
+            )
+            && string(
+                snapshot.sourceSelectedExportIdentifier,
+                maxCharacters: CinematicRunRecapShareArtifactSubsetExportPlan.identifierMaxCharacters
+            )
+            && string(
+                snapshot.sourceFilteredExportIdentifier,
+                maxCharacters: CinematicRunRecapShareArtifactSubsetExportPlan.identifierMaxCharacters
+            )
+            && snapshot.actionCount <= CinematicRunRecapShareArtifactActionMenuPlan.actionLimit
+            && snapshot.commandCount <= CinematicRunRecapShareArtifactCommandPlan.commandLimit
+            && snapshot.enabledCommandCount <= snapshot.commandCount
+            && snapshot.disabledCommandCount <= snapshot.commandCount
+            && snapshot.enabledCommandCount + snapshot.disabledCommandCount == snapshot.commandCount
+            && snapshot.sectionCount == snapshot.sections.count
+            && snapshot.sectionCount <= CinematicRunRecapShareArtifactActionMenuPlan.Section.allCases.count
+            && snapshot.sections.allSatisfy { section in
+                string(
+                    section.sectionIdentifier,
+                    maxCharacters: CinematicRunRecapShareArtifactCommandPlan.identifierMaxCharacters
+                )
+                    && section.enabledCommandCount <= section.commandCount
+                    && section.disabledCommandCount <= section.commandCount
+                    && section.enabledCommandCount + section.disabledCommandCount == section.commandCount
+            }
+            && snapshot.shortcutIdentifiers.count <= CinematicRunRecapShareArtifactCommandPlan.commandLimit
+            && snapshot.shortcutIdentifiers.allSatisfy {
+                string($0, maxCharacters: CinematicRunRecapShareArtifactCommandPlan.identifierMaxCharacters)
+            }
+            && snapshot.disabledActionKindIdentifiers.count
+                <= CinematicRunRecapShareArtifactActionMenuPlan.actionLimit
+            && snapshot.disabledActionKindIdentifiers.allSatisfy {
+                string($0, maxCharacters: CinematicRunRecapShareArtifactCommandPlan.identifierMaxCharacters)
+            }
+            && snapshot.omittedActionKindIdentifiers.count
+                <= CinematicRunRecapShareArtifactActionMenuPlan.actionLimit
+            && snapshot.omittedActionKindIdentifiers.allSatisfy {
+                string($0, maxCharacters: CinematicRunRecapShareArtifactCommandPlan.identifierMaxCharacters)
+            }
+            && snapshot.appLevelShortcutIdentifiers.count == 3
+            && snapshot.appLevelShortcutIdentifiers.allSatisfy {
+                string($0, maxCharacters: CinematicRunRecapShareArtifactCommandPlan.identifierMaxCharacters)
+            }
+            && snapshot.appLevelShortcutCollisionIdentifiers.count <= snapshot.appLevelShortcutIdentifiers.count
+            && snapshot.appLevelShortcutCollisionIdentifiers.allSatisfy {
+                string($0, maxCharacters: CinematicRunRecapShareArtifactCommandPlan.identifierMaxCharacters)
+            }
+            && string(
+                snapshot.appLevelShortcutCollisionStateIdentifier,
+                maxCharacters: CinematicRunRecapShareArtifactCommandPlan.identifierMaxCharacters
+            )
+            && string(
+                snapshot.historyAvailabilityReason,
+                maxCharacters: CinematicRunRecapShareArtifactHistoryPlan.snippetMaxCharacters
+            )
+            && (snapshot.previewNoMatchAvailabilityReason?.count ?? 0)
+                <= CinematicRunRecapShareArtifactPreviewBrowserPlan.snippetMaxCharacters
+            && string(
+                snapshot.selectedExportAvailabilityReason,
+                maxCharacters: CinematicRunRecapShareArtifactSubsetExportPlan.snippetMaxCharacters
+            )
+            && string(
+                snapshot.filteredExportAvailabilityReason,
+                maxCharacters: CinematicRunRecapShareArtifactSubsetExportPlan.snippetMaxCharacters
+            )
+            && string(
+                snapshot.rollupAvailabilityReason,
+                maxCharacters: CinematicRunRecapShareArtifactRollupPlan.snippetMaxCharacters
+            )
+            && string(
+                snapshot.comparisonAvailabilityReason,
+                maxCharacters: CinematicRunRecapShareArtifactComparisonPlan.snippetMaxCharacters
+            )
+            && string(
+                snapshot.comparisonPromotedHoldStateIdentifier,
+                maxCharacters: CinematicRunRecapShareArtifactComparisonPlan.snippetMaxCharacters
+            )
+            && string(
+                snapshot.pinsAvailabilityReason,
+                maxCharacters: CinematicRunRecapShareArtifactPinnedReferencePlan.snippetMaxCharacters
+            )
+            && string(
+                snapshot.tourAvailabilityReason,
+                maxCharacters: CinematicRunRecapShareArtifactTourPlan.snippetMaxCharacters
+            )
+            && string(
+                snapshot.tourSavedHoldStateIdentifier,
+                maxCharacters: CinematicRunRecapShareArtifactTourPlan.snippetMaxCharacters
+            )
+            && (snapshot.tourFilteredSavedHoldEntryIdentifier ?? "").count
+                <= CinematicRunRecapShareArtifactHistoryPlan.identifierMaxCharacters
+            && (snapshot.tourNoMatchAvailabilityReason?.count ?? 0)
+                <= CinematicRunRecapShareArtifactTourPlan.snippetMaxCharacters
+    }
+
     private static func runRecapShareArtifactSubsetExportCopyIsBounded(
         _ snapshot: CinematicDiagnosticsReport.RunRecapShareArtifactSubsetExportSnapshot
     ) -> Bool {
@@ -2854,7 +3035,7 @@ struct CinematicVisualSmokeReport: Equatable {
 }
 
 struct CinematicDiagnosticsSummary: Equatable {
-    static let maxRows = 47
+    static let maxRows = 48
     static let labelMaxCharacters = 32
     static let detailMaxCharacters = 512
     static let headerDetailMaxCharacters = 128
@@ -2994,6 +3175,7 @@ struct CinematicDiagnosticsSummary: Equatable {
                 "run-recap-share-artifact-pins",
                 "run-recap-share-artifact-tour",
                 "run-recap-share-artifact-preview",
+                "run-recap-share-artifact-commands",
                 "run-recap-focus",
                 "run-recap-end-card"
             ]
@@ -3149,6 +3331,11 @@ struct CinematicDiagnosticsSummary: Equatable {
                 id: "run-recap-share-artifact-preview",
                 label: "Recap artifact preview",
                 detail: runRecapShareArtifactPreviewDetail(report.runRecapShareArtifactPreview)
+            ),
+            row(
+                id: "run-recap-share-artifact-commands",
+                label: "Recap artifact commands",
+                detail: runRecapShareArtifactCommandsDetail(report.runRecapShareArtifactCommands)
             ),
             row(
                 id: "run-recap-focus",
@@ -4336,6 +4523,29 @@ struct CinematicDiagnosticsSummary: Equatable {
         ].compactMap { $0 }.joined(separator: " | ")
     }
 
+    private static func runRecapShareArtifactCommandsDetail(
+        _ snapshot: CinematicDiagnosticsReport.RunRecapShareArtifactCommandSnapshot
+    ) -> String {
+        [
+            "cmd \(snapshot.commandCount)/\(snapshot.actionCount) e\(snapshot.enabledCommandCount) d\(snapshot.disabledCommandCount)",
+            "source-menu \(bounded(snapshot.sourceActionMenuIdentifier, limit: 24))",
+            "command-plan \(bounded(snapshot.commandPlanIdentifier, limit: 24))",
+            "history \(snapshot.historyAvailabilityReason)",
+            "no-match \(snapshot.previewNoMatchAvailabilityReason ?? snapshot.tourNoMatchAvailabilityReason ?? "none")",
+            "disabled \(identifierListSummary(snapshot.disabledActionKindIdentifiers, visibleLimit: 5))",
+            "omitted \(identifierListSummary(snapshot.omittedActionKindIdentifiers, visibleLimit: 4))",
+            "shortcuts \(identifierListSummary(snapshot.shortcutIdentifiers, visibleLimit: 3))",
+            "exports s:\(snapshot.selectedExportAvailabilityReason) f:\(snapshot.filteredExportAvailabilityReason) r:\(snapshot.rollupAvailabilityReason) c:\(snapshot.comparisonAvailabilityReason)",
+            "pins stale \(snapshot.missingPinnedEntryCount) filtered \(snapshot.filteredPinnedEntryCount)",
+            "hold \(snapshot.tourSavedHoldStateIdentifier)",
+            "promoted \(snapshot.comparisonPromotedHoldStateIdentifier)",
+            "app-collisions \(snapshot.appLevelShortcutCollisionStateIdentifier) \(identifierListSummary(snapshot.appLevelShortcutCollisionIdentifiers.isEmpty ? snapshot.appLevelShortcutIdentifiers : snapshot.appLevelShortcutCollisionIdentifiers, visibleLimit: 3))",
+            "sections \(commandSectionSummary(snapshot.sections))",
+            snapshot.tourFilteredSavedHoldEntryIdentifier.map { "filtered hold \(bounded($0, limit: 32))" },
+            "id \(bounded(snapshot.identifier, limit: 30))"
+        ].compactMap { $0 }.joined(separator: " | ")
+    }
+
     private static func subsetExportDetail(
         _ label: String,
         _ snapshot: CinematicDiagnosticsReport.RunRecapShareArtifactSubsetExportSnapshot
@@ -4353,6 +4563,27 @@ struct CinematicDiagnosticsSummary: Equatable {
             "warn \(snapshot.warningStateIdentifier)",
             "id \(bounded(snapshot.exportIdentifier, limit: 24))"
         ].joined(separator: " ")
+    }
+
+    private static func commandSectionSummary(
+        _ sections: [CinematicDiagnosticsReport.RunRecapShareArtifactCommandSectionSnapshot]
+    ) -> String {
+        let summaries = sections.map { section in
+            let prefix = section.sectionIdentifier.prefix(3)
+            return "\(prefix):\(section.commandCount)/\(section.enabledCommandCount)/\(section.disabledCommandCount)"
+        }
+        return identifierListSummary(summaries, visibleLimit: 5)
+    }
+
+    private static func identifierListSummary(_ identifiers: [String], visibleLimit: Int) -> String {
+        guard !identifiers.isEmpty else { return "none" }
+        let visibleIdentifiers = identifiers.prefix(max(0, visibleLimit))
+        let visibleText = visibleIdentifiers.joined(separator: ",")
+        let hiddenCount = identifiers.count - visibleIdentifiers.count
+        guard hiddenCount > 0 else {
+            return bounded(visibleText, limit: 160)
+        }
+        return bounded("\(visibleText),+\(hiddenCount)", limit: 160)
     }
 
     private static func runRecapSceneFocusDetail(
@@ -4838,6 +5069,19 @@ enum CinematicDiagnostics {
             selectedEntryIdentifier: runRecapShareArtifactPreviewSelectedEntryIdentifier,
             searchQuery: runRecapShareArtifactPreviewSearchQuery
         )
+        let runRecapShareArtifactActionMenuPlan = CinematicRunRecapShareArtifactActionMenuPlanner.plan(
+            previewPlan: runRecapShareArtifactPreviewPlan,
+            rollupPlan: runRecapShareArtifactRollupPlan,
+            comparisonPlan: runRecapShareArtifactComparisonPlan,
+            pinnedReferencePlan: runRecapShareArtifactPinnedReferencePlan,
+            tourPlan: runRecapShareArtifactTourPlan,
+            selectedExportPlan: selectedRunRecapShareArtifactExportPlan,
+            filteredExportPlan: filteredRunRecapShareArtifactExportPlan,
+            historyPlan: runRecapShareArtifactHistoryPlan
+        )
+        let runRecapShareArtifactCommandPlan = CinematicRunRecapShareArtifactCommandPlanner.plan(
+            actionMenuPlan: runRecapShareArtifactActionMenuPlan
+        )
         let runRecapShareArtifactRollupSnapshot = runRecapShareArtifactRollupSnapshot(
             for: runRecapShareArtifactRollupPlan
         )
@@ -4852,6 +5096,18 @@ enum CinematicDiagnostics {
         )
         let runRecapShareArtifactPreviewSnapshot = runRecapShareArtifactPreviewSnapshot(
             for: runRecapShareArtifactPreviewPlan,
+            selectedExportPlan: selectedRunRecapShareArtifactExportPlan,
+            filteredExportPlan: filteredRunRecapShareArtifactExportPlan
+        )
+        let runRecapShareArtifactCommandSnapshot = runRecapShareArtifactCommandSnapshot(
+            commandPlan: runRecapShareArtifactCommandPlan,
+            actionMenuPlan: runRecapShareArtifactActionMenuPlan,
+            historyPlan: runRecapShareArtifactHistoryPlan,
+            previewPlan: runRecapShareArtifactPreviewPlan,
+            rollupPlan: runRecapShareArtifactRollupPlan,
+            comparisonPlan: runRecapShareArtifactComparisonPlan,
+            pinnedReferencePlan: runRecapShareArtifactPinnedReferencePlan,
+            tourPlan: runRecapShareArtifactTourPlan,
             selectedExportPlan: selectedRunRecapShareArtifactExportPlan,
             filteredExportPlan: filteredRunRecapShareArtifactExportPlan
         )
@@ -4900,6 +5156,10 @@ enum CinematicDiagnostics {
                 "run-recap-share-artifact-selected-export:\(runRecapShareArtifactPreviewSnapshot.selectedExport.identifier)",
                 "run-recap-share-artifact-filtered-export:\(runRecapShareArtifactPreviewSnapshot.filteredExport.identifier)",
                 "run-recap-share-artifact-cleanup:\(runRecapShareArtifactHistorySnapshot.lastCleanupResultIdentifier)",
+                "run-recap-share-artifact-commands:\(runRecapShareArtifactCommandSnapshot.identifier)",
+                "run-recap-share-artifact-command-plan:\(runRecapShareArtifactCommandSnapshot.commandPlanIdentifier)",
+                "run-recap-share-artifact-command-source-menu:\(runRecapShareArtifactCommandSnapshot.sourceActionMenuIdentifier)",
+                "run-recap-share-artifact-command-collisions:\(runRecapShareArtifactCommandSnapshot.appLevelShortcutCollisionStateIdentifier)",
                 "run-recap-focus:\(runRecapSceneFocusSnapshot.identifier)",
                 "run-recap-end-card:\(runRecapEndCardSnapshot.identifier)",
                 "run-recap-end-card-pinned-cue:\(runRecapEndCardSnapshot.pinnedComparisonCueIdentifier ?? "none")",
@@ -4940,6 +5200,7 @@ enum CinematicDiagnostics {
             runRecapShareArtifactPins: runRecapShareArtifactPinnedReferenceSnapshot,
             runRecapShareArtifactTour: runRecapShareArtifactTourSnapshot,
             runRecapShareArtifactPreview: runRecapShareArtifactPreviewSnapshot,
+            runRecapShareArtifactCommands: runRecapShareArtifactCommandSnapshot,
             runRecapSceneFocus: runRecapSceneFocusSnapshot,
             runRecapEndCard: runRecapEndCardSnapshot,
             cameraSnapshots: cameraSnapshots
@@ -7231,6 +7492,130 @@ enum CinematicDiagnostics {
         )
     }
 
+    private static func runRecapShareArtifactCommandSnapshot(
+        commandPlan: CinematicRunRecapShareArtifactCommandPlan,
+        actionMenuPlan: CinematicRunRecapShareArtifactActionMenuPlan,
+        historyPlan: CinematicRunRecapShareArtifactHistoryPlan,
+        previewPlan: CinematicRunRecapShareArtifactPreviewBrowserPlan,
+        rollupPlan: CinematicRunRecapShareArtifactRollupPlan,
+        comparisonPlan: CinematicRunRecapShareArtifactComparisonPlan,
+        pinnedReferencePlan: CinematicRunRecapShareArtifactPinnedReferencePlan,
+        tourPlan: CinematicRunRecapShareArtifactTourPlan,
+        selectedExportPlan: CinematicRunRecapShareArtifactSubsetExportPlan,
+        filteredExportPlan: CinematicRunRecapShareArtifactSubsetExportPlan
+    ) -> CinematicDiagnosticsReport.RunRecapShareArtifactCommandSnapshot {
+        typealias Section = CinematicRunRecapShareArtifactActionMenuPlan.Section
+        typealias Snapshot = CinematicDiagnosticsReport.RunRecapShareArtifactCommandSnapshot
+        typealias SectionSnapshot = CinematicDiagnosticsReport.RunRecapShareArtifactCommandSectionSnapshot
+
+        let enabledCommandCount = commandPlan.commands.filter(\.isEnabled).count
+        let disabledActionKindIdentifiers = commandPlan.commands
+            .filter { !$0.isEnabled }
+            .map { $0.sourceActionKind.rawValue }
+        let commandActionKinds = Set(commandPlan.commands.map(\.sourceActionKind))
+        let omittedActionKindIdentifiers = actionMenuPlan.actions
+            .filter { !commandActionKinds.contains($0.actionKind) }
+            .map { $0.actionKind.rawValue }
+        let sections = Section.allCases.map { section -> SectionSnapshot in
+            let sectionCommands = commandPlan.commands(in: section)
+            let sectionEnabledCount = sectionCommands.filter(\.isEnabled).count
+            return SectionSnapshot(
+                sectionIdentifier: section.rawValue,
+                commandCount: sectionCommands.count,
+                enabledCommandCount: sectionEnabledCount,
+                disabledCommandCount: sectionCommands.count - sectionEnabledCount
+            )
+        }
+        let shortcutIdentifiers = commandPlan.commands.map(\.shortcut.identifier)
+        let appLevelShortcutIdentifiers = recapArtifactAppLevelShortcutIdentifiers()
+        let appLevelShortcutIdentifierSet = Set(appLevelShortcutIdentifiers)
+        let appLevelShortcutCollisionIdentifiers = shortcutIdentifiers.filter(appLevelShortcutIdentifierSet.contains)
+        let appLevelShortcutCollisionStateIdentifier = appLevelShortcutCollisionIdentifiers.isEmpty
+            ? "clear"
+            : "collision"
+
+        let identifier = bounded(
+            [
+                "run-recap-share-artifact-command-diagnostics",
+                "commands:\(commandPlan.commandCount)",
+                "actions:\(actionMenuPlan.actionCount)",
+                "enabled:\(enabledCommandCount)",
+                "disabled:\(commandPlan.commandCount - enabledCommandCount)",
+                "menu:\(fingerprint(actionMenuPlan.identifier))",
+                "plan:\(fingerprint(commandPlan.identifier))",
+                "history:\(fingerprint(historyPlan.identifier))",
+                "preview:\(fingerprint(previewPlan.identifier))",
+                "rollup:\(fingerprint(rollupPlan.identifier))",
+                "comparison:\(fingerprint(comparisonPlan.identifier))",
+                "pins:\(fingerprint(pinnedReferencePlan.identifier))",
+                "tour:\(fingerprint(tourPlan.identifier))",
+                "selected-export:\(fingerprint(selectedExportPlan.identifier))",
+                "filtered-export:\(fingerprint(filteredExportPlan.identifier))",
+                "shortcuts:\(fingerprint(shortcutIdentifiers.joined(separator: "|")))",
+                "disabled-kinds:\(fingerprint(disabledActionKindIdentifiers.joined(separator: "|")))",
+                "omitted-kinds:\(fingerprint(omittedActionKindIdentifiers.joined(separator: "|")))",
+                "app-shortcuts:\(fingerprint(appLevelShortcutIdentifiers.joined(separator: "|")))",
+                "collisions:\(appLevelShortcutCollisionStateIdentifier)",
+                "collision-ids:\(fingerprint(appLevelShortcutCollisionIdentifiers.joined(separator: "|")))",
+                "history-availability:\(historyPlan.availabilityReason)",
+                "preview-no-match:\(previewPlan.noMatchAvailabilityReason ?? "none")",
+                "selected-export:\(selectedExportPlan.availabilityReason)",
+                "filtered-export:\(filteredExportPlan.availabilityReason)",
+                "rollup:\(rollupPlan.availabilityReason)",
+                "comparison:\(comparisonPlan.availabilityReason)",
+                "pins:\(pinnedReferencePlan.availabilityReason)",
+                "missing-pins:\(pinnedReferencePlan.missingPinnedEntryCount)",
+                "filtered-pins:\(pinnedReferencePlan.filteredPinnedEntryCount)",
+                "tour:\(tourPlan.availabilityReason)",
+                "hold:\(tourPlan.savedTourHoldStateIdentifier)",
+                "filtered-hold:\(tourPlan.filteredSavedTourHoldEntryIdentifier ?? "none")",
+                "tour-no-match:\(tourPlan.noMatchAvailabilityReason ?? "none")",
+                "promoted-hold:\(comparisonPlan.promotedHoldStateIdentifier)"
+            ].joined(separator: "|"),
+            limit: CinematicRunRecapShareArtifactCommandPlan.identifierMaxCharacters
+        )
+
+        return Snapshot(
+            identifier: identifier,
+            commandPlanIdentifier: commandPlan.identifier,
+            sourceActionMenuIdentifier: actionMenuPlan.identifier,
+            sourceHistoryIdentifier: historyPlan.identifier,
+            sourcePreviewIdentifier: previewPlan.identifier,
+            sourceRollupIdentifier: rollupPlan.identifier,
+            sourceComparisonIdentifier: comparisonPlan.identifier,
+            sourcePinsIdentifier: pinnedReferencePlan.identifier,
+            sourceTourIdentifier: tourPlan.identifier,
+            sourceSelectedExportIdentifier: selectedExportPlan.identifier,
+            sourceFilteredExportIdentifier: filteredExportPlan.identifier,
+            actionCount: actionMenuPlan.actionCount,
+            commandCount: commandPlan.commandCount,
+            enabledCommandCount: enabledCommandCount,
+            disabledCommandCount: commandPlan.commandCount - enabledCommandCount,
+            sectionCount: sections.count,
+            sections: sections,
+            shortcutIdentifiers: shortcutIdentifiers,
+            disabledActionKindIdentifiers: disabledActionKindIdentifiers,
+            omittedActionKindIdentifiers: omittedActionKindIdentifiers,
+            appLevelShortcutCollisionStateIdentifier: appLevelShortcutCollisionStateIdentifier,
+            appLevelShortcutIdentifiers: appLevelShortcutIdentifiers,
+            appLevelShortcutCollisionIdentifiers: appLevelShortcutCollisionIdentifiers,
+            historyAvailabilityReason: historyPlan.availabilityReason,
+            previewNoMatchAvailabilityReason: previewPlan.noMatchAvailabilityReason,
+            selectedExportAvailabilityReason: selectedExportPlan.availabilityReason,
+            filteredExportAvailabilityReason: filteredExportPlan.availabilityReason,
+            rollupAvailabilityReason: rollupPlan.availabilityReason,
+            comparisonAvailabilityReason: comparisonPlan.availabilityReason,
+            comparisonPromotedHoldStateIdentifier: comparisonPlan.promotedHoldStateIdentifier,
+            pinsAvailabilityReason: pinnedReferencePlan.availabilityReason,
+            missingPinnedEntryCount: pinnedReferencePlan.missingPinnedEntryCount,
+            filteredPinnedEntryCount: pinnedReferencePlan.filteredPinnedEntryCount,
+            tourAvailabilityReason: tourPlan.availabilityReason,
+            tourSavedHoldStateIdentifier: tourPlan.savedTourHoldStateIdentifier,
+            tourFilteredSavedHoldEntryIdentifier: tourPlan.filteredSavedTourHoldEntryIdentifier,
+            tourNoMatchAvailabilityReason: tourPlan.noMatchAvailabilityReason
+        )
+    }
+
     private static func runRecapSceneFocusSnapshot(
         for plan: CinematicRunRecapSceneFocusPlan
     ) -> CinematicDiagnosticsReport.RunRecapSceneFocusSnapshot {
@@ -7542,6 +7927,40 @@ enum CinematicDiagnostics {
             fixed(Double(position.y)),
             fixed(Double(position.z))
         ].joined(separator: ",")
+    }
+
+    private static func recapArtifactAppLevelShortcutIdentifiers() -> [String] {
+        typealias Shortcut = CinematicRunRecapShareArtifactCommandPlan.Shortcut
+        return [
+            Shortcut(key: .o, modifiers: [.command]),
+            Shortcut(key: .r, modifiers: [.command]),
+            Shortcut(key: .returnKey, modifiers: [.command])
+        ].map(\.identifier)
+    }
+
+    private static func bounded(_ text: String, limit: Int) -> String {
+        guard limit > 0 else { return "" }
+        let normalized = text
+            .replacingOccurrences(of: "\r", with: " ")
+            .replacingOccurrences(of: "\n", with: " ")
+            .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalized.isEmpty else { return "none" }
+        guard normalized.count <= limit else {
+            let prefixLimit = max(1, limit - 3)
+            return normalized.prefix(prefixLimit)
+                .trimmingCharacters(in: .whitespacesAndNewlines) + "..."
+        }
+        return normalized
+    }
+
+    private static func fingerprint(_ value: String) -> String {
+        var hash: UInt64 = 0xcbf29ce484222325
+        for byte in value.utf8 {
+            hash ^= UInt64(byte)
+            hash = hash &* 0x100000001b3
+        }
+        return String(format: "%016llx", hash)
     }
 
     private static func fixed(_ value: Float) -> String {

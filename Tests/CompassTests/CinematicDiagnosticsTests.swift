@@ -687,6 +687,7 @@ final class CinematicDiagnosticsTests: XCTestCase {
                 "run-recap-share-artifact-pins",
                 "run-recap-share-artifact-tour",
                 "run-recap-share-artifact-preview",
+                "run-recap-share-artifact-commands",
                 "run-recap-focus",
                 "run-recap-end-card",
                 "language-motif",
@@ -753,6 +754,7 @@ final class CinematicDiagnosticsTests: XCTestCase {
                     "run-recap-share-artifact-pins",
                     "run-recap-share-artifact-tour",
                     "run-recap-share-artifact-preview",
+                    "run-recap-share-artifact-commands",
                     "run-recap-focus",
                     "run-recap-end-card"
                 ],
@@ -889,7 +891,7 @@ final class CinematicDiagnosticsTests: XCTestCase {
             .components(separatedBy: "\n")
             .filter { expectedSectionHeadings.contains($0) }
         XCTAssertEqual(actualSectionHeadings, expectedSectionHeadings)
-        XCTAssertTrue(summary.exportText.contains("Repository/context (16 rows)"))
+        XCTAssertTrue(summary.exportText.contains("Repository/context (17 rows)"))
         XCTAssertTrue(summary.exportText.contains("Motifs (2 rows)"))
         XCTAssertTrue(summary.exportText.contains("Stage motion/effects (9 rows)"))
         XCTAssertTrue(summary.exportText.contains("Narrative/overlay (7 rows)"))
@@ -2312,6 +2314,9 @@ private struct CinematicDiagnosticsInput {
     var runRecapShareArtifactCleanupResult: CinematicRunRecapShareArtifactCleanupResult?
     var runRecapShareArtifactPreviewSelectedEntryIdentifier: String?
     var runRecapShareArtifactPreviewSearchQuery: String?
+    var runRecapShareArtifactComparisonTargetMode: CinematicRunRecapShareArtifactComparisonTargetMode = .adjacent
+    var runRecapShareArtifactPinnedEntryIdentifiers: [String] = []
+    var runRecapShareArtifactSavedTourHoldEntryIdentifier: String?
 }
 
 private func makeReport(_ input: CinematicDiagnosticsInput) -> CinematicDiagnosticsReport {
@@ -2331,7 +2336,10 @@ private func makeReport(_ input: CinematicDiagnosticsInput) -> CinematicDiagnost
         runRecapShareArtifactHistoryPlan: input.runRecapShareArtifactHistoryPlan,
         runRecapShareArtifactCleanupResult: input.runRecapShareArtifactCleanupResult,
         runRecapShareArtifactPreviewSelectedEntryIdentifier: input.runRecapShareArtifactPreviewSelectedEntryIdentifier,
-        runRecapShareArtifactPreviewSearchQuery: input.runRecapShareArtifactPreviewSearchQuery
+        runRecapShareArtifactPreviewSearchQuery: input.runRecapShareArtifactPreviewSearchQuery,
+        runRecapShareArtifactComparisonTargetMode: input.runRecapShareArtifactComparisonTargetMode,
+        runRecapShareArtifactPinnedEntryIdentifiers: input.runRecapShareArtifactPinnedEntryIdentifiers,
+        runRecapShareArtifactSavedTourHoldEntryIdentifier: input.runRecapShareArtifactSavedTourHoldEntryIdentifier
     )
 }
 
