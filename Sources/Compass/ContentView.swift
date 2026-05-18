@@ -357,6 +357,7 @@ private struct WorkspaceHeader: View {
             assessment: storageAssessment,
             preflight: storagePreflight
         )
+        let storageMigrationPlan = project.storageMigrationPlan()
 
         VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .firstTextBaseline, spacing: 10) {
@@ -374,6 +375,12 @@ private struct WorkspaceHeader: View {
                     preflight: storagePreflight,
                     boundary: storageBoundary
                 )
+                if storageMigrationPlan.isAvailable || project.storageMigrationState.shouldShowFeedback {
+                    ProjectStorageMigrationButton(
+                        project: project,
+                        plan: storageMigrationPlan
+                    )
+                }
                 if let repairAction = storageAssessment.repairAction {
                     ProjectStorageRepairButton(
                         repairAction: repairAction,
@@ -423,7 +430,7 @@ private extension CompassProject {
     var storageAssessment: CompassWorkspaceStorageAssessment {
         CompassWorkspaceStorageAssessment(
             repoURL: repoURL,
-            applicationSupportRoots: KnownProjectStore.productionApplicationSupportRoots()
+            applicationSupportRoots: storageApplicationSupportRoots
         )
     }
 
@@ -499,6 +506,60 @@ private struct ProjectStorageAssessmentPill: View {
         _ candidate: CompassWorkspaceStoragePreflight.ApplicationSupportCandidate
     ) -> String {
         "\(candidate.kind.displayName) support candidate: \(candidate.occupancy.displayName) \(candidate.url.path)"
+    }
+}
+
+private struct ProjectStorageMigrationButton: View {
+    @ObservedObject var project: CompassProject
+    var plan: CompassWorkspaceStorageMigrationPlan
+
+    var body: some View {
+        Button {
+            project.prepareStorageMigrationConfirmation()
+        } label: {
+            Group {
+                if project.storageMigrationState.isRunning {
+                    ProgressView()
+                        .controlSize(.small)
+                } else {
+                    Image(systemName: presentation.systemImage)
+                        .font(.system(size: 12, weight: .semibold))
+                }
+            }
+            .frame(width: 14, height: 14)
+        }
+        .buttonStyle(.bordered)
+        .controlSize(.small)
+        .disabled(isDisabled)
+        .help(presentation.helpText)
+        .accessibilityLabel(presentation.label)
+        .accessibilityHint(presentation.detail)
+        .alert(item: $project.storageMigrationConfirmation) { confirmation in
+            Alert(
+                title: Text(confirmation.title),
+                message: Text(confirmation.message),
+                primaryButton: .default(Text(confirmation.confirmLabel)) {
+                    Task { await project.confirmStorageMigration(confirmation) }
+                },
+                secondaryButton: .cancel(Text(confirmation.cancelLabel)) {
+                    project.cancelStorageMigrationConfirmation()
+                }
+            )
+        }
+    }
+
+    private var isDisabled: Bool {
+        project.storageMigrationState.isRunning
+            || project.isRunning
+            || project.isAutoPlaying
+            || (project.storageMigrationState.phase == .succeeded && !plan.isAvailable)
+            || (!plan.isAvailable && !project.storageMigrationState.shouldShowFeedback)
+    }
+
+    private var presentation: CompassProjectStorageMigrationState {
+        project.storageMigrationState.shouldShowFeedback
+            ? project.storageMigrationState
+            : .idle
     }
 }
 

@@ -1,6 +1,201 @@
 import AppKit
 import Foundation
 
+typealias CompassWorkspaceStorageMigrationAction = (CompassWorkspaceStorageMigrationPlan) throws -> CompassWorkspaceStorageMigrationResult
+
+struct CompassWorkspaceStorageMigrationConfirmation: Identifiable, Equatable {
+    static let titleLimit = 58
+    static let messageLimit = 900
+    static let actionLabelLimit = 32
+
+    var plan: CompassWorkspaceStorageMigrationPlan
+
+    var id: String {
+        [
+            plan.repoURL.path,
+            plan.destinationURL.path,
+            plan.manifestURL.path
+        ]
+        .joined(separator: "|")
+    }
+
+    var title: String {
+        Self.boundedText("Prepare Application Support storage?", limit: Self.titleLimit)
+    }
+
+    var message: String {
+        Self.boundedText(
+            [
+                "Source: \(boundedPath(plan.sourceCompassURL.path, limit: 160))",
+                "Destination: \(boundedPath(plan.destinationURL.path, limit: 220))",
+                "Manifest: \(boundedPath(plan.manifestURL.path, limit: 220))",
+                "No active-storage switch: repo-local .compass/ remains the source of truth after this copy."
+            ]
+            .joined(separator: "\n"),
+            limit: Self.messageLimit
+        )
+    }
+
+    var confirmLabel: String {
+        Self.boundedText("Prepare Candidate", limit: Self.actionLabelLimit)
+    }
+
+    var cancelLabel: String {
+        Self.boundedText("Cancel", limit: Self.actionLabelLimit)
+    }
+
+    private func boundedPath(_ value: String, limit: Int) -> String {
+        Self.boundedPath(value, limit: limit)
+    }
+
+    private static func boundedPath(_ value: String, limit: Int) -> String {
+        guard value.count > limit else { return value }
+        guard limit > 3 else { return String(value.prefix(max(0, limit))) }
+        return "..." + value.suffix(max(0, limit - 3))
+    }
+
+    private static func boundedText(_ value: String, limit: Int) -> String {
+        guard limit > 0 else { return "" }
+        guard value.count > limit else { return value }
+        guard limit > 3 else { return String(value.prefix(limit)) }
+        return value.prefix(limit - 3)
+            .trimmingCharacters(in: .whitespacesAndNewlines) + "..."
+    }
+}
+
+struct CompassProjectStorageMigrationState: Equatable {
+    static let labelLimit = 38
+    static let detailLimit = 260
+    static let helpLimit = 520
+
+    enum Phase: Equatable {
+        case idle
+        case awaitingConfirmation
+        case running
+        case succeeded
+        case failed
+        case blocked
+    }
+
+    var phase: Phase
+    var label: String
+    var detail: String
+    var systemImage: String
+
+    var isRunning: Bool {
+        phase == .running
+    }
+
+    var shouldShowFeedback: Bool {
+        phase != .idle
+    }
+
+    var helpText: String {
+        Self.boundedText(
+            [label, detail]
+                .filter { !$0.isEmpty }
+                .joined(separator: " - "),
+            limit: Self.helpLimit
+        )
+    }
+
+    static let idle = CompassProjectStorageMigrationState(
+        phase: .idle,
+        label: "Prepare storage",
+        detail: "Copy repo-local .compass/ to Application Support as an opt-in candidate. Repo-local remains active.",
+        systemImage: "arrow.triangle.2.circlepath"
+    )
+
+    static func awaitingConfirmation(_ confirmation: CompassWorkspaceStorageMigrationConfirmation) -> Self {
+        Self(
+            phase: .awaitingConfirmation,
+            label: "Confirm storage copy",
+            detail: "Review the Application Support candidate transaction before it runs.",
+            systemImage: confirmation.plan.systemImage
+        )
+    }
+
+    static func running(plan: CompassWorkspaceStorageMigrationPlan) -> Self {
+        Self(
+            phase: .running,
+            label: "Preparing storage",
+            detail: "Copying repo-local .compass/ to \(boundedPath(plan.destinationURL.path, limit: 128)); repo-local remains active.",
+            systemImage: "arrow.triangle.2.circlepath"
+        )
+    }
+
+    static func succeeded(_ result: CompassWorkspaceStorageMigrationResult) -> Self {
+        Self(
+            phase: .succeeded,
+            label: "Storage candidate ready",
+            detail: result.detail,
+            systemImage: "checkmark.circle.fill"
+        )
+    }
+
+    static func failed(_ error: Error) -> Self {
+        Self(
+            phase: .failed,
+            label: "Storage copy failed",
+            detail: error.localizedDescription,
+            systemImage: "exclamationmark.triangle.fill"
+        )
+    }
+
+    static func blocked(plan: CompassWorkspaceStorageMigrationPlan) -> Self {
+        Self(
+            phase: .blocked,
+            label: plan.label,
+            detail: plan.detail,
+            systemImage: plan.systemImage
+        )
+    }
+
+    static func blockedWhileRunning() -> Self {
+        Self(
+            phase: .blocked,
+            label: "Migration blocked",
+            detail: "Stop the active Codex run before preparing Application Support candidate storage.",
+            systemImage: "pause.circle.fill"
+        )
+    }
+
+    init(phase: Phase, label: String, detail: String, systemImage: String) {
+        self.phase = phase
+        self.label = Self.boundedText(label, limit: Self.labelLimit)
+        self.detail = Self.boundedText(detail, limit: Self.detailLimit)
+        self.systemImage = systemImage
+    }
+
+    private static func boundedPath(_ value: String, limit: Int) -> String {
+        guard value.count > limit else { return value }
+        guard limit > 3 else { return String(value.prefix(max(0, limit))) }
+        return "..." + value.suffix(max(0, limit - 3))
+    }
+
+    private static func boundedText(_ value: String, limit: Int) -> String {
+        guard limit > 0 else { return "" }
+        guard value.count > limit else { return value }
+        guard limit > 3 else { return String(value.prefix(limit)) }
+        return value.prefix(limit - 3)
+            .trimmingCharacters(in: .whitespacesAndNewlines) + "..."
+    }
+}
+
+enum CompassProjectStorageMigrationActionError: LocalizedError, Equatable {
+    case activeStorageChanged
+    case repoLocalSourceMissing(String)
+
+    var errorDescription: String? {
+        switch self {
+        case .activeStorageChanged:
+            return "Storage migration unexpectedly reported an active-storage switch; repo-local .compass/ must remain active."
+        case let .repoLocalSourceMissing(path):
+            return "Repo-local .compass/ was not preserved at \(path)."
+        }
+    }
+}
+
 @MainActor
 final class CompassProject: ObservableObject, Identifiable {
     let id: UUID
@@ -29,9 +224,12 @@ final class CompassProject: ObservableObject, Identifiable {
     @Published var isPaused = false
     @Published var pauseMode: PauseMode = .immediate
     @Published var errorMessage: String?
+    @Published var storageMigrationState = CompassProjectStorageMigrationState.idle
+    @Published var storageMigrationConfirmation: CompassWorkspaceStorageMigrationConfirmation?
 
     var addedAt: Date
     var lastOpenedAt: Date
+    var storageApplicationSupportRoots: KnownProjectStore.ApplicationSupportRoots
 
     private var workspace: CompassWorkspace? {
         guard FileManager.default.fileExists(atPath: repoURL.path),
@@ -44,6 +242,7 @@ final class CompassProject: ObservableObject, Identifiable {
     private var cinematicBriefingTask: Task<Void, Never>?
     private var lastCinematicRefreshInput: CinematicRefreshInput?
     private var lastCinematicBriefingGeneratedAt = Date.distantPast
+    private let storageMigrationAction: CompassWorkspaceStorageMigrationAction
     private let maxDevelopAttempts = 3
     private let reflectSessionWindow = 10
 
@@ -53,7 +252,11 @@ final class CompassProject: ObservableObject, Identifiable {
         addedAt: Date = Date(),
         lastOpenedAt: Date = Date(),
         cinematicInfluenceSettings: CinematicInfluenceSettings = CinematicInfluenceSettings(),
-        nativeFeedbackMode: NativeFeedbackMode = .notifications
+        nativeFeedbackMode: NativeFeedbackMode = .notifications,
+        storageApplicationSupportRoots: KnownProjectStore.ApplicationSupportRoots = KnownProjectStore.productionApplicationSupportRoots(),
+        storageMigrationAction: @escaping CompassWorkspaceStorageMigrationAction = { plan in
+            try CompassWorkspaceStorageMigrator().migrate(plan: plan)
+        }
     ) {
         self.id = id
         self.repoURL = repoURL.standardizedFileURL
@@ -61,6 +264,8 @@ final class CompassProject: ObservableObject, Identifiable {
         self.lastOpenedAt = lastOpenedAt
         self.cinematicInfluenceSettings = cinematicInfluenceSettings
         self.nativeFeedbackMode = nativeFeedbackMode
+        self.storageApplicationSupportRoots = storageApplicationSupportRoots
+        self.storageMigrationAction = storageMigrationAction
         let briefingInput = CinematicBriefingInput(
             repoName: repoURL.lastPathComponent,
             currentPhase: LoopPhase.idle.rawValue,
@@ -258,6 +463,86 @@ extension CompassProject {
             log("Draft queued.", level: .success)
         } catch {
             fail(error)
+        }
+    }
+
+    func storageMigrationPlan() -> CompassWorkspaceStorageMigrationPlan {
+        CompassWorkspaceStorageMigrationPlan(
+            repoURL: repoURL,
+            applicationSupportRoots: storageApplicationSupportRoots
+        )
+    }
+
+    func prepareStorageMigrationConfirmation() {
+        guard !isRunning, !isAutoPlaying else {
+            storageMigrationConfirmation = nil
+            storageMigrationState = .blockedWhileRunning()
+            errorMessage = storageMigrationState.detail
+            log(storageMigrationState.detail, level: .warning)
+            return
+        }
+
+        let plan = storageMigrationPlan()
+        guard plan.isAvailable else {
+            storageMigrationConfirmation = nil
+            storageMigrationState = .blocked(plan: plan)
+            errorMessage = storageMigrationState.detail
+            log("Storage migration blocked: \(storageMigrationState.detail)", level: .warning)
+            return
+        }
+
+        let confirmation = CompassWorkspaceStorageMigrationConfirmation(plan: plan)
+        storageMigrationConfirmation = confirmation
+        storageMigrationState = .awaitingConfirmation(confirmation)
+        errorMessage = nil
+    }
+
+    func cancelStorageMigrationConfirmation() {
+        storageMigrationConfirmation = nil
+        if storageMigrationState.phase == .awaitingConfirmation {
+            storageMigrationState = .idle
+        }
+    }
+
+    func confirmStorageMigration(_ confirmation: CompassWorkspaceStorageMigrationConfirmation) async {
+        storageMigrationConfirmation = nil
+
+        guard !isRunning, !isAutoPlaying else {
+            storageMigrationState = .blockedWhileRunning()
+            errorMessage = storageMigrationState.detail
+            log(storageMigrationState.detail, level: .warning)
+            return
+        }
+
+        let plan = confirmation.plan
+        guard plan.isAvailable else {
+            storageMigrationState = .blocked(plan: plan)
+            errorMessage = storageMigrationState.detail
+            log("Storage migration blocked: \(storageMigrationState.detail)", level: .warning)
+            return
+        }
+
+        storageMigrationState = .running(plan: plan)
+        errorMessage = nil
+        log("Storage migration: preparing Application Support candidate at \(plan.destinationURL.path).", level: .info)
+        await Task.yield()
+
+        do {
+            let result = try storageMigrationAction(plan)
+            guard result.activeStorageDidChange == false else {
+                throw CompassProjectStorageMigrationActionError.activeStorageChanged
+            }
+            guard FileManager.default.fileExists(atPath: plan.sourceCompassURL.path) else {
+                throw CompassProjectStorageMigrationActionError.repoLocalSourceMissing(plan.sourceCompassURL.path)
+            }
+
+            storageMigrationState = .succeeded(result)
+            log(storageMigrationState.detail, level: .success)
+            await refresh()
+        } catch {
+            storageMigrationState = .failed(error)
+            errorMessage = storageMigrationState.detail
+            log(storageMigrationState.detail, level: .error)
         }
     }
 
