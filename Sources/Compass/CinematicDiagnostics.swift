@@ -3248,6 +3248,8 @@ struct CinematicDiagnosticsSummary: Equatable {
     static let attentionSummaryMaxTargets = 4
     static let attentionSummaryMaxVisibleWarnings = 3
     static let attentionSummaryDetailMaxCharacters = 256
+    static let attentionTargetCopyMaxCharacters = 1_200
+    static let attentionTargetCopyRelatedDetailMaxCharacters = 360
 
     var rows: [Row]
     var sections: [Section]
@@ -3340,6 +3342,7 @@ struct CinematicDiagnosticsSummary: Equatable {
         var detail: String
         var warningCount: Int
         var visibleWarningIdentifiers: [String]
+        var copyText: String
     }
 
     private struct PlaqueTreatmentLegendEntry {
@@ -3960,7 +3963,15 @@ struct CinematicDiagnosticsSummary: Equatable {
             label: bounded(warningTarget.label, limit: labelMaxCharacters),
             detail: bounded(detail, limit: attentionSummaryDetailMaxCharacters),
             warningCount: 1,
-            visibleWarningIdentifiers: check.warningIdentifier.map { [$0] } ?? []
+            visibleWarningIdentifiers: check.warningIdentifier.map { [$0] } ?? [],
+            copyText: attentionTargetCopyText(
+                label: warningTarget.label,
+                targetGroupID: warningTarget.targetGroupID,
+                targetAnchorID: warningTarget.targetAnchorID,
+                visibleWarningIdentifiers: check.warningIdentifier.map { [$0] } ?? [],
+                detail: detail,
+                relatedRow: relatedRow
+            )
         )
     }
 
@@ -3990,7 +4001,56 @@ struct CinematicDiagnosticsSummary: Equatable {
             warningCount: warningCount,
             visibleWarningIdentifiers: Array(
                 presentation.warningIdentifiers.prefix(attentionSummaryMaxVisibleWarnings)
+            ),
+            copyText: attentionTargetCopyText(
+                label: label,
+                targetGroupID: targetGroupID,
+                targetAnchorID: targetAnchorID,
+                visibleWarningIdentifiers: Array(
+                    presentation.warningIdentifiers.prefix(attentionSummaryMaxVisibleWarnings)
+                ),
+                detail: detail,
+                relatedRow: nil
             )
+        )
+    }
+
+    private static func attentionTargetCopyText(
+        label: String,
+        targetGroupID: String,
+        targetAnchorID: String,
+        visibleWarningIdentifiers: [String],
+        detail: String,
+        relatedRow: Row?
+    ) -> String {
+        let warnings = visibleWarningIdentifiers.isEmpty
+            ? "none"
+            : visibleWarningIdentifiers.joined(separator: ", ")
+        var lines = [
+            "Cinematic diagnostics warning target",
+            "Label: \(bounded(label, limit: labelMaxCharacters))",
+            "Target anchor: \(bounded(targetAnchorID, limit: CinematicVisualSmokeReport.warningIdentifierMaxCharacters))",
+            "Target group: \(bounded(targetGroupID, limit: CinematicVisualSmokeReport.warningIdentifierMaxCharacters))",
+            "Warnings: \(bounded(warnings, limit: detailMaxCharacters))",
+            "Detail: \(bounded(detail, limit: attentionSummaryDetailMaxCharacters))"
+        ]
+
+        if let relatedRow {
+            lines.append(
+                [
+                    "Related row:",
+                    bounded(relatedRow.id, limit: CinematicVisualSmokeReport.warningIdentifierMaxCharacters),
+                    "(\(bounded(relatedRow.label, limit: labelMaxCharacters)))"
+                ].joined(separator: " ")
+            )
+            lines.append(
+                "Related detail: \(bounded(relatedRow.detail, limit: attentionTargetCopyRelatedDetailMaxCharacters))"
+            )
+        }
+
+        return bounded(
+            lines.joined(separator: "\n"),
+            limit: attentionTargetCopyMaxCharacters
         )
     }
 

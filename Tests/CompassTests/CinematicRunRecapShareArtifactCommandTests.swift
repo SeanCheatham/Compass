@@ -67,8 +67,48 @@ final class CinematicRunRecapShareArtifactCommandTests: XCTestCase {
         XCTAssertEqual(commandPlan.commands.dropFirst(12).prefix(3).map(\.section), Array(repeating: .tour, count: 3))
         XCTAssertEqual(Set(commandPlan.commands.map(\.identifier)).count, commandPlan.commandCount)
         XCTAssertTrue(commandPlan.identifier.hasPrefix("run-recap-share-artifact-commands"))
+        XCTAssertEqual(
+            commandPlan.commands.map(\.label),
+            [
+                "Previous Artifact",
+                "Next Artifact",
+                "Reveal in Finder",
+                "Copy selected export",
+                "Copy filtered export",
+                "Copy Library Export",
+                "Copy artifact rollup",
+                "Copy comparison",
+                "Copy pinned export",
+                "Copy Tour Export",
+                "Use Pinned Compare",
+                "Pin Selected",
+                "Release Tour Hold",
+                "Hold Selected Artifact",
+                "Promote Tour Hold"
+            ]
+        )
 
         let shortcuts = commandPlan.commands.map(\.shortcut)
+        XCTAssertEqual(
+            shortcuts.map(\.identifier),
+            [
+                "command:[",
+                "command:]",
+                "command+shift:r",
+                "command+shift:e",
+                "command+option:e",
+                "command+option+shift:e",
+                "command+shift:b",
+                "command+shift:d",
+                "command+option+shift:p",
+                "command+option:t",
+                "command+shift:m",
+                "command+shift:p",
+                "command+shift:h",
+                "command+option+shift:h",
+                "command+option:p"
+            ]
+        )
         XCTAssertEqual(Set(shortcuts).count, shortcuts.count)
         let appLevelShortcuts = Set([
             shortcut(key: .o, modifiers: [.command]),

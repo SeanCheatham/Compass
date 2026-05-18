@@ -68,6 +68,48 @@ final class CinematicRunRecapShareArtifactActionMenuTests: XCTestCase {
         XCTAssertEqual(fixture.menu.actions.last?.section, .maintain)
         XCTAssertEqual(Set(fixture.menu.actions.map(\.identifier)).count, fixture.menu.actionCount)
         XCTAssertTrue(fixture.menu.identifier.hasPrefix("run-recap-share-artifact-action-menu"))
+        XCTAssertEqual(
+            fixture.menu.actions.map(\.label),
+            [
+                "Previous Artifact",
+                "Next Artifact",
+                "Reveal in Finder",
+                "Copy selected export",
+                "Copy filtered export",
+                "Copy Library Export",
+                "Copy artifact rollup",
+                "Copy comparison",
+                "Copy pinned export",
+                "Copy Tour Export",
+                "Use Pinned Compare",
+                "Pin Selected",
+                "Release Tour Hold",
+                "Hold Selected Artifact",
+                "Promote Tour Hold",
+                "Cleanup Unavailable"
+            ]
+        )
+        XCTAssertEqual(
+            fixture.menu.actions.map(\.systemImage),
+            [
+                "chevron.left",
+                "chevron.right",
+                "folder",
+                "doc.text",
+                "line.3.horizontal.decrease.circle",
+                "doc.on.doc",
+                "chart.bar",
+                "rectangle.split.2x1",
+                "pin",
+                "sparkles",
+                "pin",
+                "pin",
+                "lock.open",
+                "bookmark",
+                "pin.circle",
+                "trash"
+            ]
+        )
 
         for action in fixture.menu.actions {
             XCTAssertFalse(action.identifier.isEmpty)

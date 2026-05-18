@@ -473,6 +473,7 @@ final class CinematicVisualSmokeReportTests: XCTestCase {
         XCTAssertEqual(summary.visualSmoke.presentation.warningIdentifiers, [])
         XCTAssertEqual(summary.visualSmoke.presentation.needsAttention, false)
         XCTAssertEqual(summary.attentionSummary.targets, [])
+        XCTAssertEqual(summary.attentionSummary.targets.map(\.copyText), [])
         XCTAssertTrue(summary.attentionSummary.isEmpty)
         XCTAssertLessThanOrEqual(
             summary.visualSmoke.warningCountLabel.count,
@@ -639,6 +640,26 @@ final class CinematicVisualSmokeReportTests: XCTestCase {
         XCTAssertTrue(commandTarget.detail.contains("cleanup"))
         XCTAssertTrue(commandTarget.detail.contains("collisions"))
         XCTAssertTrue(commandTarget.detail.contains("correlated"))
+        XCTAssertLessThanOrEqual(
+            commandTarget.copyText.count,
+            CinematicDiagnosticsSummary.attentionTargetCopyMaxCharacters
+        )
+        XCTAssertTrue(commandTarget.copyText.contains("Cinematic diagnostics warning target"))
+        XCTAssertTrue(commandTarget.copyText.contains("Label: Recap command availability"))
+        XCTAssertTrue(
+            commandTarget.copyText.contains(
+                "Target anchor: visual-smoke-check-run-recap-artifact-command-availability"
+            )
+        )
+        XCTAssertTrue(commandTarget.copyText.contains("Target group: visual-smoke"))
+        XCTAssertTrue(commandTarget.copyText.contains("Warnings: visual-smoke.recap-artifact-commands"))
+        XCTAssertTrue(commandTarget.copyText.contains("Detail:"))
+        XCTAssertTrue(commandTarget.copyText.contains("disabled"))
+        XCTAssertTrue(commandTarget.copyText.contains("Related row: run-recap-share-artifact-commands"))
+        XCTAssertTrue(commandTarget.copyText.contains("Related detail:"))
+        XCTAssertTrue(commandTarget.copyText.contains("Recap artifact commands"))
+        XCTAssertFalse(commandTarget.copyText.contains("Cinematic Diagnostics\nReport:"))
+        XCTAssertFalse(commandTarget.copyText.contains("Visual smoke (warning,"))
         let visualSmokeTarget = try XCTUnwrap(
             summary.attentionSummary.targets.first { $0.id == "visual-smoke" }
         )
@@ -657,6 +678,17 @@ final class CinematicVisualSmokeReportTests: XCTestCase {
             visualSmokeTarget.detail.count,
             CinematicDiagnosticsSummary.attentionSummaryDetailMaxCharacters
         )
+        XCTAssertLessThanOrEqual(
+            visualSmokeTarget.copyText.count,
+            CinematicDiagnosticsSummary.attentionTargetCopyMaxCharacters
+        )
+        XCTAssertTrue(visualSmokeTarget.copyText.contains("Label: Visual smoke"))
+        XCTAssertTrue(visualSmokeTarget.copyText.contains("Target anchor: visual-smoke"))
+        XCTAssertTrue(visualSmokeTarget.copyText.contains("Target group: visual-smoke"))
+        for warningIdentifier in visualSmokeTarget.visibleWarningIdentifiers {
+            XCTAssertTrue(visualSmokeTarget.copyText.contains(warningIdentifier))
+        }
+        XCTAssertFalse(visualSmokeTarget.copyText.contains("Related row:"))
         let plaqueTarget = try XCTUnwrap(
             summary.attentionSummary.targets.first { $0.targetGroupID == "plaque-treatment-legend" }
         )
@@ -670,6 +702,10 @@ final class CinematicVisualSmokeReportTests: XCTestCase {
         XCTAssertLessThanOrEqual(
             summary.attentionSummary.targets.count,
             CinematicDiagnosticsSummary.attentionSummaryMaxTargets
+        )
+        XCTAssertEqual(
+            summary.attentionSummary.targets.map { $0.copyText.contains("Cinematic diagnostics warning target") },
+            [true, true, true]
         )
 
         XCTAssertFalse(summary.sections.contains { $0.id == "visual-smoke" })

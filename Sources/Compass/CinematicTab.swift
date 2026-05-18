@@ -2050,6 +2050,7 @@ private struct CinematicInfluenceControls: View {
 private struct CinematicDiagnosticsPopover: View {
     var summary: CinematicDiagnosticsSummary
     @State private var copied = false
+    @State private var copiedTargetID: String?
     @State private var groupExpansion: [String: Bool] = [:]
     @FocusState private var focusedGroupID: String?
 
@@ -2064,6 +2065,7 @@ private struct CinematicDiagnosticsPopover: View {
                 Button {
                     copyToPasteboard(summary.exportText)
                     copied = true
+                    copiedTargetID = nil
                 } label: {
                     Image(systemName: copied ? "checkmark" : "doc.on.doc")
                         .frame(width: 17, height: 17)
@@ -2101,8 +2103,9 @@ private struct CinematicDiagnosticsPopover: View {
         }
         .padding(14)
         .frame(width: 430, alignment: .leading)
-        .onChange(of: summary.exportText) {
+        .onChange(of: summary) {
             copied = false
+            copiedTargetID = nil
             resetExpansionDefaults()
         }
         .onAppear {
@@ -2119,49 +2122,66 @@ private struct CinematicDiagnosticsPopover: View {
                     .foregroundStyle(.orange)
 
                 ForEach(summary.attentionSummary.targets) { target in
-                    Button {
-                        jumpToAttentionTarget(target, scrollProxy: scrollProxy)
-                    } label: {
-                        HStack(alignment: .center, spacing: 8) {
-                            Image(systemName: "exclamationmark.triangle.fill")
-                                .font(.caption.weight(.bold))
-                                .foregroundStyle(.orange)
-                                .frame(width: 13)
+                    HStack(alignment: .center, spacing: 6) {
+                        Button {
+                            jumpToAttentionTarget(target, scrollProxy: scrollProxy)
+                        } label: {
+                            HStack(alignment: .center, spacing: 8) {
+                                Image(systemName: "exclamationmark.triangle.fill")
+                                    .font(.caption.weight(.bold))
+                                    .foregroundStyle(.orange)
+                                    .frame(width: 13)
 
-                            VStack(alignment: .leading, spacing: 2) {
-                                HStack(alignment: .firstTextBaseline, spacing: 5) {
-                                    Text(target.label)
-                                        .font(.caption.weight(.semibold))
-                                        .foregroundStyle(.primary)
+                                VStack(alignment: .leading, spacing: 2) {
+                                    HStack(alignment: .firstTextBaseline, spacing: 5) {
+                                        Text(target.label)
+                                            .font(.caption.weight(.semibold))
+                                            .foregroundStyle(.primary)
 
-                                    Text(target.targetGroupID)
+                                        Text(target.targetGroupID)
+                                            .font(.caption2.monospaced())
+                                            .foregroundStyle(.secondary)
+                                    }
+
+                                    Text(attentionTargetDetail(target))
                                         .font(.caption2.monospaced())
                                         .foregroundStyle(.secondary)
+                                        .lineLimit(2)
                                 }
+                                .frame(maxWidth: .infinity, alignment: .leading)
 
-                                Text(attentionTargetDetail(target))
-                                    .font(.caption2.monospaced())
-                                    .foregroundStyle(.secondary)
-                                    .lineLimit(2)
+                                Text("\(target.warningCount)")
+                                    .font(.caption2.monospacedDigit().weight(.bold))
+                                    .foregroundStyle(.orange)
+                                    .frame(minWidth: 16)
                             }
                             .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                        .buttonStyle(.plain)
+                        .help("Show \(target.label)")
 
-                            Text("\(target.warningCount)")
-                                .font(.caption2.monospacedDigit().weight(.bold))
-                                .foregroundStyle(.orange)
-                                .frame(minWidth: 16)
+                        Button {
+                            copyToPasteboard(target.copyText)
+                            copied = false
+                            copiedTargetID = target.id
+                        } label: {
+                            Image(systemName: copiedTargetID == target.id ? "checkmark" : "doc.on.doc")
+                                .font(.caption2.weight(.semibold))
+                                .foregroundStyle(copiedTargetID == target.id ? .green : .secondary)
+                                .frame(width: 18, height: 18)
                         }
-                        .padding(.horizontal, 7)
-                        .padding(.vertical, 6)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(.orange.opacity(0.12), in: RoundedRectangle(cornerRadius: 6))
-                        .overlay {
-                            RoundedRectangle(cornerRadius: 6)
-                                .stroke(.orange.opacity(0.35))
-                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Copy \(target.label) warning details")
+                        .help("Copy \(target.label) warning details")
                     }
-                    .buttonStyle(.plain)
-                    .help("Show \(target.label)")
+                    .padding(.horizontal, 7)
+                    .padding(.vertical, 6)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(.orange.opacity(0.12), in: RoundedRectangle(cornerRadius: 6))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 6)
+                            .stroke(.orange.opacity(0.35))
+                    }
                 }
             }
         }

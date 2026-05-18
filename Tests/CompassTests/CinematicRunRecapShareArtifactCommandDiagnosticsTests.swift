@@ -280,6 +280,31 @@ final class CinematicRunRecapShareArtifactCommandDiagnosticsTests: XCTestCase {
             target.detail.count,
             CinematicDiagnosticsSummary.attentionSummaryDetailMaxCharacters
         )
+        XCTAssertLessThanOrEqual(
+            target.copyText.count,
+            CinematicDiagnosticsSummary.attentionTargetCopyMaxCharacters
+        )
+        XCTAssertTrue(target.copyText.contains("Cinematic diagnostics warning target"))
+        XCTAssertTrue(target.copyText.contains("Label: Recap command availability"))
+        XCTAssertTrue(
+            target.copyText.contains(
+                "Target anchor: visual-smoke-check-run-recap-artifact-command-availability"
+            )
+        )
+        XCTAssertTrue(target.copyText.contains("Target group: visual-smoke"))
+        XCTAssertTrue(target.copyText.contains("Warnings: visual-smoke.recap-artifact-commands"))
+        XCTAssertTrue(target.copyText.contains("Detail:"))
+        XCTAssertTrue(target.copyText.contains("pins stale 1 filtered 1"))
+        XCTAssertTrue(target.copyText.contains("hold filtered-hold"))
+        XCTAssertTrue(target.copyText.contains("cleanup omitted"))
+        XCTAssertTrue(target.copyText.contains("collisions clear"))
+        XCTAssertTrue(target.copyText.contains("correlated yes"))
+        XCTAssertTrue(target.copyText.contains("Related row: run-recap-share-artifact-commands"))
+        XCTAssertTrue(target.copyText.contains("Related detail:"))
+        XCTAssertTrue(target.copyText.contains("Recap artifact commands"))
+        XCTAssertTrue(target.copyText.contains("disabled"))
+        XCTAssertFalse(target.copyText.contains("Cinematic Diagnostics\nReport:"))
+        XCTAssertFalse(target.copyText.contains("Repository/context ("))
         XCTAssertEqual(summary.defaultExpandedGroupStates["visual-smoke"], true)
         XCTAssertEqual(summary.defaultExpandedGroupStates["repository-context"], true)
         XCTAssertEqual(summary.relatedRow(for: warningTarget)?.id, "run-recap-share-artifact-commands")
