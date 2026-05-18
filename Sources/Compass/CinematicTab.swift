@@ -142,6 +142,7 @@ struct CinematicTab: View {
                             project: project,
                             plan: recapPlan,
                             sharePlan: runRecapSharePlan,
+                            artifactHistoryPlan: project.cinematicRunRecapShareArtifactHistory,
                             displayPlan: displayPlan
                         )
                     } else {
@@ -391,6 +392,7 @@ private struct CinematicRunRecapOverlay: View {
     @ObservedObject var project: CompassProject
     var plan: CinematicRunRecapPlan
     var sharePlan: CinematicRunRecapSharePlan
+    var artifactHistoryPlan: CinematicRunRecapShareArtifactHistoryPlan
     var displayPlan: CinematicOverlayDisplayPlan
     @State private var shareFeedbackLabel: String?
     @State private var shareFeedbackHelp: String?
@@ -473,6 +475,12 @@ private struct CinematicRunRecapOverlay: View {
                 }
             }
 
+            CinematicRunRecapArtifactLibraryControl(
+                plan: artifactHistoryPlan,
+                tint: tint,
+                displayPlan: displayPlan
+            )
+
             if !plan.eventChips.isEmpty {
                 HStack(spacing: 6) {
                     ForEach(plan.eventChips) { chip in
@@ -550,6 +558,134 @@ private struct CinematicRunRecapOverlay: View {
         shareFeedbackLabel = nil
         shareFeedbackHelp = nil
         shareFeedbackStatus = nil
+    }
+}
+
+private struct CinematicRunRecapArtifactLibraryControl: View {
+    var plan: CinematicRunRecapShareArtifactHistoryPlan
+    var tint: Color
+    var displayPlan: CinematicOverlayDisplayPlan
+    @State private var feedback: String?
+
+    var body: some View {
+        HStack(spacing: 7) {
+            Image(systemName: plan.hasWarnings ? "archivebox.fill" : "archivebox")
+                .font(.system(size: 11, weight: .bold))
+                .foregroundStyle(tint.opacity(plan.isAvailable ? 0.84 : 0.42))
+                .frame(width: 14)
+
+            VStack(alignment: .leading, spacing: 1) {
+                Text(latestLabel)
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.white.opacity(plan.isAvailable ? 0.78 : 0.52))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.72)
+
+                Text(detailLabel)
+                    .font(.caption2)
+                    .foregroundStyle(.white.opacity(0.48))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+            }
+
+            Spacer(minLength: 4)
+
+            if let feedback {
+                Text(feedback)
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(tint.opacity(0.78))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.72)
+            }
+
+            Button {
+                revealLatestArtifact()
+            } label: {
+                Image(systemName: "folder")
+                    .font(.system(size: 12, weight: .bold))
+                    .frame(width: 22, height: 22)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .disabled(plan.latestEntry == nil)
+            .foregroundStyle(tint.opacity(plan.latestEntry == nil ? 0.32 : 0.86))
+            .help(revealHelp)
+            .accessibilityLabel("Reveal latest recap share artifact")
+            .accessibilityIdentifier("cinematic-run-recap-artifact-library-reveal")
+
+            Button {
+                copyExport()
+            } label: {
+                Image(systemName: "doc.on.doc")
+                    .font(.system(size: 12, weight: .bold))
+                    .frame(width: 22, height: 22)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .disabled(!plan.isAvailable)
+            .foregroundStyle(tint.opacity(plan.isAvailable ? 0.86 : 0.32))
+            .help(exportHelp)
+            .accessibilityLabel("Copy recap share artifact library")
+            .accessibilityIdentifier("cinematic-run-recap-artifact-library-copy")
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 6)
+        .background(
+            .white.opacity(0.045 * displayPlan.overlayOpacity),
+            in: RoundedRectangle(cornerRadius: 7)
+        )
+        .overlay {
+            RoundedRectangle(cornerRadius: 7)
+                .stroke(.white.opacity(plan.hasWarnings ? 0.16 : 0.08))
+        }
+        .help(exportHelp)
+        .accessibilityIdentifier("cinematic-run-recap-artifact-library-\(plan.identifier)")
+        .onChange(of: plan.identifier) {
+            feedback = nil
+        }
+    }
+
+    private var latestLabel: String {
+        guard let latest = plan.latestEntry else {
+            return "Artifact library unavailable"
+        }
+        return "Latest S\(latest.sessionNumber) \(latest.filename)"
+    }
+
+    private var detailLabel: String {
+        if !plan.isAvailable {
+            return plan.availabilityReason
+        }
+        let hidden = plan.hiddenCount > 0 ? " +\(plan.hiddenCount) hidden" : ""
+        let warnings = plan.warningCount > 0 ? " | \(plan.warningCount) warning" : ""
+        return "\(plan.totalCount) saved\(hidden)\(warnings)"
+    }
+
+    private var revealHelp: String {
+        guard let latest = plan.latestEntry else {
+            return "No saved recap share artifact to reveal."
+        }
+        return "Reveal \(latest.pathDisplayText) in Finder."
+    }
+
+    private var exportHelp: String {
+        if !plan.isAvailable {
+            return "No recap share artifact library export is available: \(plan.availabilityReason)."
+        }
+        return "Copy combined Markdown export \(plan.exportIdentifier)."
+    }
+
+    private func revealLatestArtifact() {
+        guard let latest = plan.latestEntry else { return }
+        NSWorkspace.shared.activateFileViewerSelecting([latest.url])
+        feedback = "Revealed"
+    }
+
+    private func copyExport() {
+        guard plan.isAvailable else { return }
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(plan.combinedMarkdownExport, forType: .string)
+        feedback = "Export copied"
     }
 }
 

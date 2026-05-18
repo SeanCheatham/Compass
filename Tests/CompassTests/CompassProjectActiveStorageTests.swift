@@ -378,6 +378,13 @@ final class CompassProjectActiveStorageTests: XCTestCase {
         XCTAssertEqual(result.status, .recorded)
         XCTAssertEqual(project.cinematicRunRecapShareArtifactRecording, result)
         XCTAssertEqual(url, workspace.sessionsURL.appending(path: "41-\(result.artifactPlan.filename)"))
+        XCTAssertEqual(project.cinematicRunRecapShareArtifactHistory.totalCount, 1)
+        XCTAssertEqual(project.cinematicRunRecapShareArtifactHistory.latestEntry?.sessionNumber, 41)
+        XCTAssertEqual(
+            project.cinematicRunRecapShareArtifactHistory.latestEntry?.url.standardizedFileURL,
+            url.standardizedFileURL
+        )
+        XCTAssertTrue(project.cinematicRunRecapShareArtifactHistory.combinedMarkdownExport.contains(result.artifactPlan.title))
         XCTAssertFileExists(url)
         XCTAssertFalse(FileManager.default.fileExists(atPath: workspace.repoLocalCompassURL.path))
         XCTAssertFalse(FileManager.default.fileExists(atPath: repoURL.appending(path: ".gitignore").path))

@@ -425,6 +425,9 @@ final class CompassProject: ObservableObject, Identifiable {
     @Published var cinematicWorldText = CinematicWorldText.placeholder
     @Published var cinematicRunRecapFlavor: CinematicRunRecapFlavor?
     @Published var cinematicRunRecapShareArtifactRecording: CinematicRunRecapShareArtifactRecordingResult?
+    @Published var cinematicRunRecapShareArtifactHistory = CinematicRunRecapShareArtifactHistoryPlan.unavailable(
+        reason: "not-scanned"
+    )
     @Published var isRunning = false
     @Published var isAutoPlaying = false
     @Published var isPaused = false
@@ -598,6 +601,9 @@ extension CompassProject {
             lessons = ""
             vision = ""
             sessions = []
+            cinematicRunRecapShareArtifactHistory = CinematicRunRecapShareArtifactHistoryPlan.unavailable(
+                reason: "no-repository"
+            )
             languageProfile = .empty
             activityProfile = .empty
             scheduleCinematicBriefingRefresh(reason: .projectRefresh)
@@ -615,6 +621,11 @@ extension CompassProject {
             lessons = ""
             vision = ""
             sessions = []
+            cinematicRunRecapShareArtifactHistory = CinematicRunRecapShareArtifactHistoryPlan.unavailable(
+                reason: "storage-root-missing",
+                storageRootURL: workspace.compassURL,
+                sessionsURL: workspace.sessionsURL
+            )
             activityProfile = .empty
             scheduleCinematicBriefingRefresh(reason: .projectRefresh)
             if requireStorageRoot {
@@ -630,6 +641,7 @@ extension CompassProject {
         lessons = workspace.readLessons()
         vision = workspace.readVision()
         sessions = workspace.readSessions()
+        cinematicRunRecapShareArtifactHistory = workspace.refreshRunRecapShareArtifactHistory()
         activityProfile = await RepositoryActivityProfileService.scan(repoURL: workspace.repoURL)
         scheduleCinematicBriefingRefresh(reason: .projectRefresh)
     }
@@ -702,6 +714,7 @@ extension CompassProject {
                 sharePlan: sharePlan,
                 sessions: sessions
             )
+            cinematicRunRecapShareArtifactHistory = workspace.refreshRunRecapShareArtifactHistory()
         } else {
             let artifactPlan = CinematicRunRecapShareArtifactPlanner.plan(
                 sharePlan: sharePlan,
@@ -710,6 +723,9 @@ extension CompassProject {
             result = artifactPlan.isAvailable
                 ? .failed(plan: artifactPlan, error: AppModelError.noRepositorySelected)
                 : .skipped(plan: artifactPlan)
+            cinematicRunRecapShareArtifactHistory = CinematicRunRecapShareArtifactHistoryPlan.unavailable(
+                reason: "no-repository"
+            )
         }
 
         cinematicRunRecapShareArtifactRecording = result

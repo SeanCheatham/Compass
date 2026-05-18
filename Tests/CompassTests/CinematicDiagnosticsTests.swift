@@ -632,6 +632,7 @@ final class CinematicDiagnosticsTests: XCTestCase {
                 "run-recap",
                 "run-recap-share",
                 "run-recap-share-artifact",
+                "run-recap-share-artifact-history",
                 "run-recap-focus",
                 "run-recap-end-card",
                 "language-motif",
@@ -693,6 +694,7 @@ final class CinematicDiagnosticsTests: XCTestCase {
                     "run-recap",
                     "run-recap-share",
                     "run-recap-share-artifact",
+                    "run-recap-share-artifact-history",
                     "run-recap-focus",
                     "run-recap-end-card"
                 ],
@@ -830,7 +832,7 @@ final class CinematicDiagnosticsTests: XCTestCase {
             .components(separatedBy: "\n")
             .filter { expectedSectionHeadings.contains($0) }
         XCTAssertEqual(actualSectionHeadings, expectedSectionHeadings)
-        XCTAssertTrue(summary.exportText.contains("Repository/context (10 rows)"))
+        XCTAssertTrue(summary.exportText.contains("Repository/context (11 rows)"))
         XCTAssertTrue(summary.exportText.contains("Motifs (2 rows)"))
         XCTAssertTrue(summary.exportText.contains("Stage motion/effects (9 rows)"))
         XCTAssertTrue(summary.exportText.contains("Narrative/overlay (7 rows)"))
@@ -1737,6 +1739,78 @@ final class CinematicDiagnosticsTests: XCTestCase {
         XCTAssertTrue(summary.exportText.contains("Run recap end card: empty"))
     }
 
+    func testRunRecapArtifactHistoryDiagnosticsExposeLibraryExportAndWarnings() throws {
+        let temporaryDirectory = FileManager.default.temporaryDirectory
+            .appending(path: "CinematicDiagnosticsArtifactHistory-\(UUID().uuidString)", directoryHint: .isDirectory)
+        defer { try? FileManager.default.removeItem(at: temporaryDirectory) }
+        let workspace = CompassWorkspace(repoURL: temporaryDirectory, storageRootURL: temporaryDirectory.appending(path: ".compass"))
+        try FileManager.default.createDirectory(at: temporaryDirectory.appending(path: ".git"), withIntermediateDirectories: true)
+        try workspace.initialize()
+        _ = try workspace.writeSessionArtifact(
+            session: 17,
+            name: "recap-share-diagnostics.md",
+            contents: """
+            # Compass Run Recap Share
+
+            - Artifact: diagnostics-artifact
+            - Availability: available
+            - Session: 17
+            - Filename: recap-share-diagnostics.md
+            - Share: share-id
+            - Recap: recap-id
+            - Focus: focus-id
+            - End card: end-card-id
+            - Title: Diagnostics Recap
+            - Status: succeeded
+            - Detail: Diagnostics detail
+            - Commit: Diagnostics commit
+            """
+        )
+        _ = try workspace.writeSessionArtifact(
+            session: 18,
+            name: "recap-share-corrupt.md",
+            contents: "corrupt diagnostics artifact"
+        )
+        let historyPlan = workspace.refreshRunRecapShareArtifactHistory()
+
+        let report = makeReport(
+            CinematicDiagnosticsInput(
+                repoName: "Compass",
+                phase: "Succeeded",
+                immediateTitle: "Expose recap artifact history",
+                completedCount: 3,
+                latestEvent: nil,
+                languageProfile: languageProfile(primaryLanguage: .swift),
+                activityProfile: activityProfile(recentCommitCount: 1, lastTerminalStatus: .succeeded),
+                influenceSettings: CinematicInfluenceSettings(),
+                runRecapShareArtifactHistoryPlan: historyPlan
+            )
+        )
+        let summary = CinematicDiagnosticsSummary(
+            report: report,
+            visualSmoke: CinematicVisualSmokeReport(reports: [report])
+        )
+        let row = try XCTUnwrap(summary.rows.first { $0.id == "run-recap-share-artifact-history" })
+
+        XCTAssertTrue(report.runRecapShareArtifactHistory.isAvailable)
+        XCTAssertEqual(report.runRecapShareArtifactHistory.totalCount, 1)
+        XCTAssertEqual(report.runRecapShareArtifactHistory.hiddenCount, 0)
+        XCTAssertEqual(report.runRecapShareArtifactHistory.latestSessionNumber, 17)
+        XCTAssertEqual(report.runRecapShareArtifactHistory.latestFilename, "17-recap-share-diagnostics.md")
+        XCTAssertEqual(report.runRecapShareArtifactHistory.warningCount, 1)
+        XCTAssertEqual(report.runRecapShareArtifactHistory.warningIdentifiers.count, 1)
+        XCTAssertEqual(report.runRecapShareArtifactHistory.exportIdentifier, historyPlan.exportIdentifier)
+        XCTAssertEqual(report.runRecapShareArtifactHistory.exportMarkdownLength, historyPlan.combinedMarkdownLength)
+        XCTAssertTrue(row.detail.contains("available"))
+        XCTAssertTrue(row.detail.contains("total 1"))
+        XCTAssertTrue(row.detail.contains("latest session 17"))
+        XCTAssertTrue(row.detail.contains("17-recap-share-diagnostics.md"))
+        XCTAssertTrue(row.detail.contains("warnings 1"))
+        XCTAssertTrue(summary.exportText.contains("Recap artifact library: available"))
+        XCTAssertTrue(summary.exportText.contains(String(historyPlan.exportIdentifier.prefix(32))))
+        XCTAssertTrue(summary.exportText.contains(report.runRecapShareArtifactHistory.warningIdentifiers[0]))
+    }
+
     func testComfortModePropagatesToDiagnosticsIdentifiersAndExport() {
         let settings = CinematicInfluenceSettings(
             cameraStyle: .follow,
@@ -1889,6 +1963,7 @@ private struct CinematicDiagnosticsInput {
     var runRecapPlan: CinematicRunRecapPlan = .empty(reason: "no-finished-session")
     var runRecapSceneFocusPlan: CinematicRunRecapSceneFocusPlan = .none
     var runRecapEndCardPlan: CinematicRunRecapEndCardPlan = .none
+    var runRecapShareArtifactHistoryPlan: CinematicRunRecapShareArtifactHistoryPlan?
 }
 
 private func makeReport(_ input: CinematicDiagnosticsInput) -> CinematicDiagnosticsReport {
@@ -1904,7 +1979,8 @@ private func makeReport(_ input: CinematicDiagnosticsInput) -> CinematicDiagnost
         commitConstellationPlan: input.commitConstellationPlan,
         runRecapPlan: input.runRecapPlan,
         runRecapSceneFocusPlan: input.runRecapSceneFocusPlan,
-        runRecapEndCardPlan: input.runRecapEndCardPlan
+        runRecapEndCardPlan: input.runRecapEndCardPlan,
+        runRecapShareArtifactHistoryPlan: input.runRecapShareArtifactHistoryPlan
     )
 }
 

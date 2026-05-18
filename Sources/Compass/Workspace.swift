@@ -215,6 +215,13 @@ struct CompassWorkspace {
         return url
     }
 
+    func refreshRunRecapShareArtifactHistory() -> CinematicRunRecapShareArtifactHistoryPlan {
+        CinematicRunRecapShareArtifactHistoryPlanner.plan(
+            storageRootURL: compassURL,
+            sessionsURL: sessionsURL
+        )
+    }
+
     func recordRunRecapShareArtifact(
         sharePlan: CinematicRunRecapSharePlan,
         sessions: [SessionRecord]

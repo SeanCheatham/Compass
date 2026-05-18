@@ -151,6 +151,11 @@ final class CinematicRunRecapShareArtifactTests: XCTestCase {
         XCTAssertEqual(result.artifactPlan.sessionNumber, 34)
         XCTAssertEqual(url, workspace.sessionsURL.appending(path: "34-\(result.artifactPlan.filename)"))
         XCTAssertEqual(try read(url), result.artifactPlan.markdownContents)
+        let history = workspace.refreshRunRecapShareArtifactHistory()
+        XCTAssertEqual(history.totalCount, 1)
+        XCTAssertEqual(history.latestEntry?.sessionNumber, 34)
+        XCTAssertEqual(history.latestEntry?.filename, "34-\(result.artifactPlan.filename)")
+        XCTAssertTrue(history.combinedMarkdownExport.contains(result.artifactPlan.title))
         XCTAssertFalse(FileManager.default.fileExists(atPath: workspace.repoLocalCompassURL.path))
     }
 

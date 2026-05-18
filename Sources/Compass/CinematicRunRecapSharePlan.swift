@@ -62,6 +62,485 @@ struct CinematicRunRecapShareArtifactPlan: Equatable, Identifiable {
     var markdownLength: Int { markdownContents.count }
 }
 
+struct CinematicRunRecapShareArtifactHistoryPlan: Equatable, Identifiable {
+    static let identifierMaxCharacters = 320
+    static let entryLimit = 8
+    static let warningLimit = 4
+    static let filenameMaxCharacters = CinematicRunRecapShareArtifactPlan.filenameMaxCharacters
+    static let pathDisplayMaxCharacters = 180
+    static let snippetMaxCharacters = 96
+    static let warningMaxCharacters = 160
+    static let entryMarkdownMaxCharacters = 2_400
+    static let combinedMarkdownMaxCharacters = 12_000
+
+    var id: String { identifier }
+
+    var identifier: String
+    var isAvailable: Bool
+    var availabilityReason: String
+    var storageRootDisplayText: String
+    var sessionsDisplayText: String
+    var entries: [Entry]
+    var totalCount: Int
+    var hiddenCount: Int
+    var warnings: [Warning]
+    var warningCount: Int
+    var hiddenWarningCount: Int
+    var exportIdentifier: String
+    var combinedMarkdownExport: String
+
+    var latestEntry: Entry? { entries.first }
+    var combinedMarkdownLength: Int { combinedMarkdownExport.count }
+    var hasWarnings: Bool { warningCount > 0 }
+
+    static func unavailable(
+        reason: String,
+        storageRootURL: URL? = nil,
+        sessionsURL: URL? = nil,
+        warnings: [Warning] = []
+    ) -> CinematicRunRecapShareArtifactHistoryPlan {
+        CinematicRunRecapShareArtifactHistoryPlanner.unavailable(
+            reason: reason,
+            storageRootURL: storageRootURL,
+            sessionsURL: sessionsURL,
+            warnings: warnings
+        )
+    }
+
+    struct Entry: Equatable, Identifiable {
+        var id: String { identifier }
+
+        var identifier: String
+        var sessionNumber: Int
+        var filename: String
+        var url: URL
+        var pathDisplayText: String
+        var titleSnippet: String
+        var statusSnippet: String
+        var commitSnippet: String?
+        var markdownContents: String
+        var markdownLength: Int
+    }
+
+    struct Warning: Equatable, Identifiable {
+        var id: String { identifier }
+
+        var identifier: String
+        var fileDisplayText: String
+        var message: String
+    }
+}
+
+enum CinematicRunRecapShareArtifactHistoryPlanner {
+    static func plan(
+        storageRootURL: URL,
+        sessionsURL: URL,
+        fileManager: FileManager = .default
+    ) -> CinematicRunRecapShareArtifactHistoryPlan {
+        var isDirectory: ObjCBool = false
+        guard fileManager.fileExists(atPath: sessionsURL.path, isDirectory: &isDirectory),
+              isDirectory.boolValue else {
+            return unavailable(
+                reason: "sessions-directory-unavailable",
+                storageRootURL: storageRootURL,
+                sessionsURL: sessionsURL
+            )
+        }
+
+        let fileURLs: [URL]
+        do {
+            fileURLs = try fileManager.contentsOfDirectory(
+                at: sessionsURL,
+                includingPropertiesForKeys: nil,
+                options: [.skipsHiddenFiles]
+            )
+        } catch {
+            return unavailable(
+                reason: "sessions-scan-failed",
+                storageRootURL: storageRootURL,
+                sessionsURL: sessionsURL,
+                warnings: [
+                    warning(
+                        identifierSeed: "scan:\(sessionsURL.path)",
+                        fileDisplayText: displayPath(sessionsURL, relativeTo: storageRootURL),
+                        message: "Could not scan recap share artifacts: \(error.localizedDescription)"
+                    )
+                ]
+            )
+        }
+
+        var entries: [CinematicRunRecapShareArtifactHistoryPlan.Entry] = []
+        var warnings: [CinematicRunRecapShareArtifactHistoryPlan.Warning] = []
+
+        for fileURL in fileURLs where isRecapShareArtifactFilename(fileURL.lastPathComponent) {
+            switch parseEntry(fileURL: fileURL, storageRootURL: storageRootURL) {
+            case let .success(entry):
+                entries.append(entry)
+            case let .failure(warning):
+                warnings.append(warning)
+            }
+        }
+
+        entries.sort { lhs, rhs in
+            if lhs.sessionNumber != rhs.sessionNumber {
+                return lhs.sessionNumber > rhs.sessionNumber
+            }
+            if lhs.filename != rhs.filename {
+                return lhs.filename > rhs.filename
+            }
+            return lhs.pathDisplayText < rhs.pathDisplayText
+        }
+
+        return makePlan(
+            entries: entries,
+            warnings: warnings,
+            storageRootURL: storageRootURL,
+            sessionsURL: sessionsURL
+        )
+    }
+
+    static func unavailable(
+        reason: String,
+        storageRootURL: URL? = nil,
+        sessionsURL: URL? = nil,
+        warnings: [CinematicRunRecapShareArtifactHistoryPlan.Warning] = []
+    ) -> CinematicRunRecapShareArtifactHistoryPlan {
+        makePlan(
+            entries: [],
+            warnings: warnings,
+            storageRootURL: storageRootURL,
+            sessionsURL: sessionsURL,
+            emptyReason: reason
+        )
+    }
+
+    private enum ParseResult {
+        case success(CinematicRunRecapShareArtifactHistoryPlan.Entry)
+        case failure(CinematicRunRecapShareArtifactHistoryPlan.Warning)
+    }
+
+    private static func parseEntry(fileURL: URL, storageRootURL: URL) -> ParseResult {
+        let filename = fileURL.lastPathComponent
+        let display = displayPath(fileURL, relativeTo: storageRootURL)
+        guard let sessionNumber = sessionNumber(from: filename) else {
+            return .failure(
+                warning(
+                    identifierSeed: "filename:\(fileURL.path)",
+                    fileDisplayText: display,
+                    message: "Recap share artifact filename is missing a session number."
+                )
+            )
+        }
+
+        let contents: String
+        do {
+            contents = try String(contentsOf: fileURL, encoding: .utf8)
+        } catch {
+            return .failure(
+                warning(
+                    identifierSeed: "read:\(fileURL.path)",
+                    fileDisplayText: display,
+                    message: "Could not read recap share artifact: \(error.localizedDescription)"
+                )
+            )
+        }
+
+        guard contents.contains("# Compass Run Recap Share") else {
+            return .failure(
+                warning(
+                    identifierSeed: "corrupt:\(fileURL.path):\(fingerprint(contents))",
+                    fileDisplayText: display,
+                    message: "Recap share artifact did not contain the expected Markdown header."
+                )
+            )
+        }
+
+        let title = markdownField("Title", in: contents) ?? "Untitled recap share"
+        let status = markdownField("Status", in: contents) ?? "status unavailable"
+        let commit = markdownField("Commit", in: contents).flatMap { value in
+            value == "none" ? nil : value
+        }
+        let boundedFilename = boundedFilename(filename)
+        let boundedContents = boundedArtifactText(
+            contents,
+            limit: CinematicRunRecapShareArtifactHistoryPlan.entryMarkdownMaxCharacters
+        )
+        let identifier = bounded(
+            [
+                "run-recap-share-artifact-history-entry",
+                "session:\(sessionNumber)",
+                "file:\(boundedFilename)",
+                "content:\(fingerprint(contents))"
+            ].joined(separator: "|"),
+            limit: CinematicRunRecapShareArtifactHistoryPlan.identifierMaxCharacters
+        )
+
+        return .success(
+            CinematicRunRecapShareArtifactHistoryPlan.Entry(
+                identifier: identifier,
+                sessionNumber: sessionNumber,
+                filename: boundedFilename,
+                url: fileURL,
+                pathDisplayText: boundedPath(display),
+                titleSnippet: bounded(
+                    title,
+                    limit: CinematicRunRecapShareArtifactHistoryPlan.snippetMaxCharacters
+                ),
+                statusSnippet: bounded(
+                    status,
+                    limit: CinematicRunRecapShareArtifactHistoryPlan.snippetMaxCharacters
+                ),
+                commitSnippet: commit.map {
+                    bounded(
+                        $0,
+                        limit: CinematicRunRecapShareArtifactHistoryPlan.snippetMaxCharacters
+                    )
+                },
+                markdownContents: boundedContents,
+                markdownLength: contents.count
+            )
+        )
+    }
+
+    private static func makePlan(
+        entries allEntries: [CinematicRunRecapShareArtifactHistoryPlan.Entry],
+        warnings allWarnings: [CinematicRunRecapShareArtifactHistoryPlan.Warning],
+        storageRootURL: URL?,
+        sessionsURL: URL?,
+        emptyReason: String? = nil
+    ) -> CinematicRunRecapShareArtifactHistoryPlan {
+        let totalCount = allEntries.count
+        let entries = Array(allEntries.prefix(CinematicRunRecapShareArtifactHistoryPlan.entryLimit))
+        let hiddenCount = max(0, totalCount - entries.count)
+        let warningCount = allWarnings.count
+        let warnings = Array(allWarnings.prefix(CinematicRunRecapShareArtifactHistoryPlan.warningLimit))
+        let hiddenWarningCount = max(0, warningCount - warnings.count)
+        let availabilityReason = entries.isEmpty
+            ? (emptyReason ?? "no-recap-share-artifacts")
+            : "available"
+        let exportIdentifier = bounded(
+            [
+                "run-recap-share-artifact-export",
+                "availability:\(availabilityReason)",
+                "total:\(totalCount)",
+                "hidden:\(hiddenCount)",
+                "latest:\(entries.first?.identifier ?? "none")",
+                "warnings:\(warningCount)",
+                "content:\(fingerprint(entries.map(\.identifier).joined(separator: "|")))"
+            ].joined(separator: "|"),
+            limit: CinematicRunRecapShareArtifactHistoryPlan.identifierMaxCharacters
+        )
+        let export = combinedMarkdownExport(
+            entries: entries,
+            totalCount: totalCount,
+            hiddenCount: hiddenCount,
+            warnings: warnings,
+            warningCount: warningCount,
+            hiddenWarningCount: hiddenWarningCount,
+            availabilityReason: availabilityReason,
+            exportIdentifier: exportIdentifier,
+            storageRootURL: storageRootURL,
+            sessionsURL: sessionsURL
+        )
+        let identifier = bounded(
+            [
+                "run-recap-share-artifact-history",
+                "availability:\(availabilityReason)",
+                "total:\(totalCount)",
+                "hidden:\(hiddenCount)",
+                "latest:\(entries.first?.identifier ?? "none")",
+                "export:\(fingerprint(exportIdentifier))",
+                "warnings:\(warningCount)"
+            ].joined(separator: "|"),
+            limit: CinematicRunRecapShareArtifactHistoryPlan.identifierMaxCharacters
+        )
+
+        return CinematicRunRecapShareArtifactHistoryPlan(
+            identifier: identifier,
+            isAvailable: !entries.isEmpty,
+            availabilityReason: availabilityReason,
+            storageRootDisplayText: boundedPath(storageRootURL?.path ?? "unavailable"),
+            sessionsDisplayText: boundedPath(sessionsURL?.path ?? "unavailable"),
+            entries: entries,
+            totalCount: totalCount,
+            hiddenCount: hiddenCount,
+            warnings: warnings,
+            warningCount: warningCount,
+            hiddenWarningCount: hiddenWarningCount,
+            exportIdentifier: exportIdentifier,
+            combinedMarkdownExport: export
+        )
+    }
+
+    private static func combinedMarkdownExport(
+        entries: [CinematicRunRecapShareArtifactHistoryPlan.Entry],
+        totalCount: Int,
+        hiddenCount: Int,
+        warnings: [CinematicRunRecapShareArtifactHistoryPlan.Warning],
+        warningCount: Int,
+        hiddenWarningCount: Int,
+        availabilityReason: String,
+        exportIdentifier: String,
+        storageRootURL: URL?,
+        sessionsURL: URL?
+    ) -> String {
+        var lines = [
+            "# Compass Recap Share Artifact Library",
+            "",
+            "- Export: \(exportIdentifier)",
+            "- Availability: \(entries.isEmpty ? "unavailable (\(availabilityReason))" : "available")",
+            "- Total artifacts: \(totalCount)",
+            "- Hidden artifacts: \(hiddenCount)",
+            "- Latest session: \(entries.first?.sessionNumber.description ?? "none")",
+            "- Latest filename: \(entries.first?.filename ?? "none")",
+            "- Storage root: \(boundedPath(storageRootURL?.path ?? "unavailable"))",
+            "- Sessions path: \(boundedPath(sessionsURL?.path ?? "unavailable"))",
+            "- Warnings: \(warningCount)",
+            "- Hidden warnings: \(hiddenWarningCount)"
+        ]
+
+        if !warnings.isEmpty {
+            lines.append("")
+            lines.append("## Warnings")
+            lines.append(contentsOf: warnings.map { warning in
+                "- \(warning.identifier): \(warning.fileDisplayText) - \(warning.message)"
+            })
+        }
+
+        if entries.isEmpty {
+            lines.append("")
+            lines.append("No recap share artifacts were available for export.")
+        } else {
+            for entry in entries {
+                lines.append("")
+                lines.append("## Session \(entry.sessionNumber) - \(entry.filename)")
+                lines.append("")
+                lines.append("- Artifact: \(entry.identifier)")
+                lines.append("- Path: \(entry.pathDisplayText)")
+                lines.append("- Title: \(entry.titleSnippet)")
+                lines.append("- Status: \(entry.statusSnippet)")
+                lines.append("- Commit: \(entry.commitSnippet ?? "none")")
+                lines.append("")
+                lines.append(entry.markdownContents)
+            }
+        }
+
+        return boundedArtifactText(
+            lines.joined(separator: "\n"),
+            limit: CinematicRunRecapShareArtifactHistoryPlan.combinedMarkdownMaxCharacters
+        )
+    }
+
+    private static func isRecapShareArtifactFilename(_ filename: String) -> Bool {
+        guard filename.hasSuffix(".md") else { return false }
+        let parts = filename.split(separator: "-", maxSplits: 1).map(String.init)
+        guard parts.count == 2, Int(parts[0]) != nil else { return false }
+        return parts[1].hasPrefix("recap-share-")
+    }
+
+    private static func sessionNumber(from filename: String) -> Int? {
+        let prefix = filename.split(separator: "-", maxSplits: 1).first.map(String.init) ?? ""
+        return Int(prefix).flatMap { $0 > 0 ? $0 : nil }
+    }
+
+    private static func markdownField(_ name: String, in contents: String) -> String? {
+        let prefix = "- \(name): "
+        return contents
+            .split(whereSeparator: \.isNewline)
+            .first { $0.hasPrefix(prefix) }
+            .map { line in
+                String(line.dropFirst(prefix.count))
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+            }
+            .flatMap { $0.isEmpty ? nil : $0 }
+    }
+
+    private static func warning(
+        identifierSeed: String,
+        fileDisplayText: String,
+        message: String
+    ) -> CinematicRunRecapShareArtifactHistoryPlan.Warning {
+        CinematicRunRecapShareArtifactHistoryPlan.Warning(
+            identifier: bounded(
+                "recap-share-artifact-history.warning.\(fingerprint(identifierSeed))",
+                limit: CinematicRunRecapShareArtifactHistoryPlan.identifierMaxCharacters
+            ),
+            fileDisplayText: boundedPath(fileDisplayText),
+            message: bounded(
+                message,
+                limit: CinematicRunRecapShareArtifactHistoryPlan.warningMaxCharacters
+            )
+        )
+    }
+
+    private static func displayPath(_ url: URL, relativeTo rootURL: URL) -> String {
+        let rootPath = rootURL.standardizedFileURL.path
+        let path = url.standardizedFileURL.path
+        if path == rootPath {
+            return rootURL.lastPathComponent
+        }
+        if path.hasPrefix(rootPath + "/") {
+            return String(path.dropFirst(rootPath.count + 1))
+        }
+        return path
+    }
+
+    private static func boundedFilename(_ filename: String) -> String {
+        bounded(
+            filename
+                .replacingOccurrences(of: "/", with: "-")
+                .replacingOccurrences(of: ":", with: "-"),
+            limit: CinematicRunRecapShareArtifactHistoryPlan.filenameMaxCharacters
+        )
+    }
+
+    private static func boundedPath(_ value: String) -> String {
+        bounded(
+            value,
+            limit: CinematicRunRecapShareArtifactHistoryPlan.pathDisplayMaxCharacters
+        )
+    }
+
+    private static func bounded(_ text: String, limit: Int) -> String {
+        guard limit > 0 else { return "" }
+        let normalized = text
+            .replacingOccurrences(of: "\r", with: " ")
+            .replacingOccurrences(of: "\n", with: " ")
+            .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalized.isEmpty else { return "none" }
+        guard normalized.count <= limit else {
+            let prefixLimit = max(1, limit - 3)
+            return normalized.prefix(prefixLimit)
+                .trimmingCharacters(in: .whitespacesAndNewlines) + "..."
+        }
+        return normalized
+    }
+
+    private static func boundedArtifactText(_ text: String, limit: Int) -> String {
+        guard limit > 0 else { return "" }
+        let normalized = text
+            .replacingOccurrences(of: "\r", with: "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalized.isEmpty else { return "none" }
+        guard normalized.count <= limit else {
+            let prefixLimit = max(1, limit - 3)
+            return normalized.prefix(prefixLimit)
+                .trimmingCharacters(in: .whitespacesAndNewlines) + "..."
+        }
+        return normalized
+    }
+
+    private static func fingerprint(_ value: String) -> String {
+        var hash: UInt64 = 0xcbf29ce484222325
+        for byte in value.utf8 {
+            hash ^= UInt64(byte)
+            hash = hash &* 0x100000001b3
+        }
+        return String(format: "%016llx", hash)
+    }
+}
+
 enum CinematicRunRecapShareArtifactPlanner {
     static func plan(
         sharePlan: CinematicRunRecapSharePlan,
