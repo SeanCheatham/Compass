@@ -3251,12 +3251,15 @@ struct CinematicDiagnosticsSummary: Equatable {
     static let attentionSummaryDetailMaxCharacters = 256
     static let attentionTargetCopyMaxCharacters = 1_200
     static let attentionTargetCopyRelatedDetailMaxCharacters = 360
+    static let nativeFeedbackHistoryExportCopyMaxCharacters = 1_600
+    static let nativeFeedbackHistoryExportEntryMaxCharacters = 320
 
     var rows: [Row]
     var sections: [Section]
     var visualSmoke: VisualSmokeSection
     var plaqueTreatmentLegend: PlaqueTreatmentLegend
     var attentionSummary: AttentionSummary
+    var nativeFeedbackHistoryExport: NativeFeedbackHistoryExport
     var exportText: String
 
     struct Row: Identifiable, Equatable {
@@ -3344,6 +3347,44 @@ struct CinematicDiagnosticsSummary: Equatable {
         var warningCount: Int
         var visibleWarningIdentifiers: [String]
         var copyText: String
+    }
+
+    struct NativeFeedbackHistoryExport: Identifiable, Equatable {
+        var id: String
+        var rowID: String
+        var activeCount: Int
+        var archivedCount: Int
+        var omittedCount: Int
+        var entries: [Entry]
+        var copyText: String
+
+        var isAvailable: Bool {
+            !entries.isEmpty && !copyText.isEmpty
+        }
+
+        var copyLabel: String {
+            isAvailable ? "Copy native history" : "No native history"
+        }
+
+        var copyHelp: String {
+            guard isAvailable else { return "No native feedback cue history to copy" }
+            return "Copy native feedback history: active \(activeCount), archived \(archivedCount), omitted \(omittedCount)"
+        }
+
+        struct Entry: Identifiable, Equatable {
+            var id: String { identifier }
+
+            var identifier: String
+            var sequence: Int
+            var stateIdentifier: String
+            var reasonIdentifier: String?
+            var milestoneIdentifier: String
+            var sourceIdentifier: String?
+            var styleIdentifier: String?
+            var displayDuration: TimeInterval
+            var lifecycleIdentifier: String
+            var copyLine: String
+        }
     }
 
     private struct PlaqueTreatmentLegendEntry {
@@ -3457,6 +3498,7 @@ struct CinematicDiagnosticsSummary: Equatable {
         sections = Self.makeSections(rows: self.rows)
         self.visualSmoke = Self.makeVisualSmokeSection(visualSmoke)
         plaqueTreatmentLegend = Self.makePlaqueTreatmentLegend(visualSmoke: self.visualSmoke)
+        nativeFeedbackHistoryExport = Self.makeNativeFeedbackHistoryExport(report.nativeFeedback)
         attentionSummary = Self.makeAttentionSummary(
             report: report,
             sections: sections,
@@ -4393,12 +4435,86 @@ struct CinematicDiagnosticsSummary: Equatable {
     private static func nativeFeedbackHistoryDetail(
         _ snapshot: CinematicDiagnosticsReport.NativeFeedbackSnapshot
     ) -> String {
-        let entries = [snapshot.lifecycleActiveHistoryEntry].compactMap { $0 }
-            + snapshot.lifecycleArchiveHistoryEntries
+        let entries = nativeFeedbackHistoryEntries(snapshot)
         guard !entries.isEmpty else { return "none" }
         return entries
             .map(nativeFeedbackHistoryEntryDetail)
             .joined(separator: " | ")
+    }
+
+    private static func makeNativeFeedbackHistoryExport(
+        _ snapshot: CinematicDiagnosticsReport.NativeFeedbackSnapshot
+    ) -> NativeFeedbackHistoryExport {
+        let historyEntries = nativeFeedbackHistoryEntries(snapshot)
+        let entries = historyEntries.map(nativeFeedbackHistoryExportEntry)
+        let activeCount = entries.filter { $0.stateIdentifier == "active" }.count
+        let archivedCount = entries.filter { $0.stateIdentifier == "archived" }.count
+        let maxSequence = entries.map(\.sequence).max() ?? 0
+        let omittedCount = max(0, maxSequence - entries.count)
+        let copyText = nativeFeedbackHistoryExportCopyText(
+            entries: entries,
+            activeCount: activeCount,
+            archivedCount: archivedCount,
+            omittedCount: omittedCount
+        )
+
+        return NativeFeedbackHistoryExport(
+            id: "native-feedback-history-export",
+            rowID: "native-feedback-history",
+            activeCount: activeCount,
+            archivedCount: archivedCount,
+            omittedCount: omittedCount,
+            entries: entries,
+            copyText: copyText
+        )
+    }
+
+    private static func nativeFeedbackHistoryEntries(
+        _ snapshot: CinematicDiagnosticsReport.NativeFeedbackSnapshot
+    ) -> [CinematicDiagnosticsReport.NativeFeedbackHistoryEntrySnapshot] {
+        [snapshot.lifecycleActiveHistoryEntry].compactMap { $0 }
+            + snapshot.lifecycleArchiveHistoryEntries
+    }
+
+    private static func nativeFeedbackHistoryExportEntry(
+        _ entry: CinematicDiagnosticsReport.NativeFeedbackHistoryEntrySnapshot
+    ) -> NativeFeedbackHistoryExport.Entry {
+        NativeFeedbackHistoryExport.Entry(
+            identifier: entry.identifier,
+            sequence: entry.sequence,
+            stateIdentifier: entry.stateIdentifier,
+            reasonIdentifier: entry.reasonIdentifier,
+            milestoneIdentifier: entry.milestoneIdentifier,
+            sourceIdentifier: entry.sourceIdentifier,
+            styleIdentifier: entry.styleIdentifier,
+            displayDuration: entry.displayDuration,
+            lifecycleIdentifier: entry.lifecycleIdentifier,
+            copyLine: bounded(
+                nativeFeedbackHistoryEntryDetail(entry),
+                limit: nativeFeedbackHistoryExportEntryMaxCharacters
+            )
+        )
+    }
+
+    private static func nativeFeedbackHistoryExportCopyText(
+        entries: [NativeFeedbackHistoryExport.Entry],
+        activeCount: Int,
+        archivedCount: Int,
+        omittedCount: Int
+    ) -> String {
+        guard !entries.isEmpty else { return "" }
+
+        let lines = [
+            "Native feedback history",
+            "Row: native-feedback-history",
+            "Counts: active \(activeCount) | archived \(archivedCount) | omitted \(omittedCount)",
+            "Entries:"
+        ] + entries.map(\.copyLine)
+
+        return boundedMultiline(
+            lines.joined(separator: "\n"),
+            limit: nativeFeedbackHistoryExportCopyMaxCharacters
+        )
     }
 
     private static func nativeFeedbackDeliveryDetail(
@@ -5123,6 +5239,25 @@ struct CinematicDiagnosticsSummary: Equatable {
             .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
             .trimmingCharacters(in: .whitespacesAndNewlines)
         guard !normalized.isEmpty else { return "-" }
+        guard normalized.count > limit else { return normalized }
+
+        let prefixLimit = max(1, limit - 3)
+        let prefix = normalized.prefix(prefixLimit)
+        return String(prefix).trimmingCharacters(in: .whitespacesAndNewlines) + "..."
+    }
+
+    private static func boundedMultiline(_ text: String, limit: Int) -> String {
+        let normalized = text
+            .replacingOccurrences(of: "\r\n", with: "\n")
+            .replacingOccurrences(of: "\r", with: "\n")
+            .components(separatedBy: "\n")
+            .map {
+                $0.replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+            }
+            .filter { !$0.isEmpty }
+            .joined(separator: "\n")
+        guard !normalized.isEmpty else { return "" }
         guard normalized.count > limit else { return normalized }
 
         let prefixLimit = max(1, limit - 3)

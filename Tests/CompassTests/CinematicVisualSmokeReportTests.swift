@@ -475,6 +475,8 @@ final class CinematicVisualSmokeReportTests: XCTestCase {
         XCTAssertEqual(summary.attentionSummary.targets, [])
         XCTAssertEqual(summary.attentionSummary.targets.map(\.copyText), [])
         XCTAssertTrue(summary.attentionSummary.isEmpty)
+        XCTAssertFalse(summary.nativeFeedbackHistoryExport.isAvailable)
+        XCTAssertEqual(summary.nativeFeedbackHistoryExport.copyText, "")
         XCTAssertLessThanOrEqual(
             summary.visualSmoke.warningCountLabel.count,
             CinematicDiagnosticsSummary.visualSmokeCountMaxCharacters
@@ -626,6 +628,11 @@ final class CinematicVisualSmokeReportTests: XCTestCase {
                 "visual-smoke",
                 "plaque-treatment-legend"
             ]
+        )
+        XCTAssertFalse(
+            summary.attentionSummary.targets.contains {
+                $0.id == summary.nativeFeedbackHistoryExport.id
+            }
         )
         let commandTarget = try XCTUnwrap(
             summary.attentionSummary.targets.first {

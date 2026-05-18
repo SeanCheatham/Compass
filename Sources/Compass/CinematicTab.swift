@@ -2050,6 +2050,7 @@ private struct CinematicInfluenceControls: View {
 private struct CinematicDiagnosticsPopover: View {
     var summary: CinematicDiagnosticsSummary
     @State private var copied = false
+    @State private var copiedNativeFeedbackHistory = false
     @State private var copiedTargetID: String?
     @State private var groupExpansion: [String: Bool] = [:]
     @FocusState private var focusedGroupID: String?
@@ -2062,9 +2063,26 @@ private struct CinematicDiagnosticsPopover: View {
 
                 Spacer()
 
+                if summary.nativeFeedbackHistoryExport.isAvailable {
+                    Button {
+                        copyToPasteboard(summary.nativeFeedbackHistoryExport.copyText)
+                        copied = false
+                        copiedNativeFeedbackHistory = true
+                        copiedTargetID = nil
+                    } label: {
+                        Image(systemName: copiedNativeFeedbackHistory ? "checkmark" : "clock.arrow.circlepath")
+                            .foregroundStyle(copiedNativeFeedbackHistory ? .green : .secondary)
+                            .frame(width: 17, height: 17)
+                    }
+                    .disabled(!summary.nativeFeedbackHistoryExport.isAvailable)
+                    .accessibilityLabel(summary.nativeFeedbackHistoryExport.copyLabel)
+                    .help(summary.nativeFeedbackHistoryExport.copyHelp)
+                }
+
                 Button {
                     copyToPasteboard(summary.exportText)
                     copied = true
+                    copiedNativeFeedbackHistory = false
                     copiedTargetID = nil
                 } label: {
                     Image(systemName: copied ? "checkmark" : "doc.on.doc")
@@ -2105,6 +2123,7 @@ private struct CinematicDiagnosticsPopover: View {
         .frame(width: 430, alignment: .leading)
         .onChange(of: summary) {
             copied = false
+            copiedNativeFeedbackHistory = false
             copiedTargetID = nil
             resetExpansionDefaults()
         }
@@ -2163,6 +2182,7 @@ private struct CinematicDiagnosticsPopover: View {
                         Button {
                             copyToPasteboard(target.copyText)
                             copied = false
+                            copiedNativeFeedbackHistory = false
                             copiedTargetID = target.id
                         } label: {
                             Image(systemName: copiedTargetID == target.id ? "checkmark" : "doc.on.doc")

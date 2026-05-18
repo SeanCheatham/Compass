@@ -1055,6 +1055,33 @@ final class CinematicDiagnosticsTests: XCTestCase {
         }
     }
 
+    func testNativeFeedbackHistoryQuickExportIsUnavailableWhenHistoryIsEmpty() throws {
+        let report = makeReport(
+            CinematicDiagnosticsInput(
+                repoName: "Empty Native History",
+                phase: "Developing",
+                immediateTitle: "Leave native history empty",
+                completedCount: 0,
+                latestEvent: nil,
+                languageProfile: languageProfile(primaryLanguage: .swift),
+                activityProfile: activityProfile(),
+                influenceSettings: CinematicInfluenceSettings()
+            )
+        )
+        let summary = CinematicDiagnosticsSummary(report: report)
+        let historyRow = try XCTUnwrap(summary.rows.first { $0.id == "native-feedback-history" })
+
+        XCTAssertEqual(historyRow.detail, "none")
+        assertNativeFeedbackHistoryExport(
+            summary.nativeFeedbackHistoryExport,
+            row: historyRow,
+            activeCount: 0,
+            archivedCount: 0,
+            omittedCount: 0,
+            requiredTokens: []
+        )
+    }
+
     func testNativeFeedbackDeliveryDiagnosticsRowsCoverAuthorizationStates() throws {
         let cases: [(String, NativeFeedbackDeliverySnapshot, [String])] = [
             (
@@ -1407,6 +1434,26 @@ final class CinematicDiagnosticsTests: XCTestCase {
             XCTAssertTrue(historyRow.detail.contains("style verify"))
             XCTAssertTrue(historyRow.detail.contains("duration 8.0000s"))
             XCTAssertTrue(summary.exportText.contains("Native feedback history:"))
+            assertNativeFeedbackHistoryExport(
+                summary.nativeFeedbackHistoryExport,
+                row: historyRow,
+                activeCount: 1,
+                archivedCount: 0,
+                omittedCount: 0,
+                requiredTokens: [
+                    "#1 active",
+                    "milestone verifyStarted",
+                    "source native:verifyStarted",
+                    "style verify",
+                    "duration 8.0000s",
+                    "lifecycle \(cue.lifecycleIdentifier)"
+                ],
+                forbiddenTokens: [
+                    cue.title,
+                    cue.detail,
+                    NativeFeedbackContent(milestone: .verifyStarted, projectName: "NativeDiagnosticsRepo").body
+                ]
+            )
         }
     }
 
@@ -1467,6 +1514,23 @@ final class CinematicDiagnosticsTests: XCTestCase {
             XCTAssertTrue(historyRow.detail.contains("milestone verifyStarted"))
             XCTAssertTrue(summary.exportText.contains("Native feedback history:"))
             XCTAssertTrue(summary.exportText.contains("archived/replaced"))
+            assertNativeFeedbackHistoryExport(
+                summary.nativeFeedbackHistoryExport,
+                row: historyRow,
+                activeCount: 1,
+                archivedCount: 1,
+                omittedCount: 0,
+                requiredTokens: [
+                    "#2 active",
+                    "#1 archived/replaced",
+                    "milestone developStarted",
+                    "milestone verifyStarted",
+                    "source native:developStarted",
+                    "source native:verifyStarted",
+                    "lifecycle \(secondCue.lifecycleIdentifier)",
+                    "lifecycle \(archivedHistory.lifecycleIdentifier)"
+                ]
+            )
         }
     }
 
@@ -1540,6 +1604,27 @@ final class CinematicDiagnosticsTests: XCTestCase {
             XCTAssertTrue(summary.exportText.contains("reason:expired"))
             XCTAssertTrue(summary.exportText.contains("Native feedback history:"))
             XCTAssertTrue(summary.exportText.contains("#1 archived/expired"))
+            let historyRow = try XCTUnwrap(summary.rows.first { $0.id == "native-feedback-history" })
+            assertNativeFeedbackHistoryExport(
+                summary.nativeFeedbackHistoryExport,
+                row: historyRow,
+                activeCount: 0,
+                archivedCount: 1,
+                omittedCount: 0,
+                requiredTokens: [
+                    "#1 archived/expired",
+                    "milestone verifyStarted",
+                    "source native:verifyStarted",
+                    "style verify",
+                    "duration 8.0000s",
+                    "lifecycle \(archive.lifecycleIdentifier)"
+                ],
+                forbiddenTokens: [
+                    activeCue.title,
+                    activeCue.detail,
+                    NativeFeedbackContent(milestone: .verifyStarted, projectName: "ExpiredNativeDiagnosticsRepo").body
+                ]
+            )
         }
     }
 
@@ -1574,6 +1659,23 @@ final class CinematicDiagnosticsTests: XCTestCase {
             let historyRow = try XCTUnwrap(summary.rows.first { $0.id == "native-feedback-history" })
             XCTAssertTrue(historyRow.detail.contains("archived/mode-off"))
             XCTAssertTrue(summary.exportText.contains("archived/mode-off"))
+            assertNativeFeedbackHistoryExport(
+                summary.nativeFeedbackHistoryExport,
+                row: historyRow,
+                activeCount: 0,
+                archivedCount: 1,
+                omittedCount: 0,
+                requiredTokens: [
+                    "#1 archived/mode-off",
+                    "milestone verifyStarted",
+                    "source native:verifyStarted",
+                    "style verify",
+                    "duration 8.0000s"
+                ],
+                forbiddenTokens: [
+                    NativeFeedbackContent(milestone: .verifyStarted, projectName: "ModeOffNativeDiagnosticsRepo").body
+                ]
+            )
         }
     }
 
@@ -1635,6 +1737,29 @@ final class CinematicDiagnosticsTests: XCTestCase {
         XCTAssertTrue(historyRow.detail.contains("#\(recordCount) active"))
         XCTAssertTrue(historyRow.detail.contains("#\(recordCount - 1) archived/replaced"))
         XCTAssertTrue(summary.exportText.contains("Native feedback history:"))
+        assertNativeFeedbackHistoryExport(
+            summary.nativeFeedbackHistoryExport,
+            row: historyRow,
+            activeCount: 1,
+            archivedCount: CinematicNativeFeedbackCueLifecycle.recentArchiveLimit,
+            omittedCount: recordCount - (CinematicNativeFeedbackCueLifecycle.recentArchiveLimit + 1),
+            requiredTokens: [
+                "#\(recordCount) active",
+                "#\(recordCount - 1) archived/replaced",
+                "#\(recordCount - CinematicNativeFeedbackCueLifecycle.recentArchiveLimit) archived/replaced",
+                "milestone verifyStarted",
+                "source native:verifyStarted",
+                "style verify",
+                "duration 8.0000s"
+            ],
+            forbiddenTokens: [
+                "#1 archived/replaced",
+                "#2 archived/replaced",
+                "#3 archived/replaced",
+                cue.title,
+                cue.detail
+            ]
+        )
     }
 
     func testRunRecapDiagnosticsExposeAvailabilityAndExportRows() throws {
@@ -2582,6 +2707,87 @@ private func makeReport(_ input: CinematicDiagnosticsInput) -> CinematicDiagnost
         runRecapShareArtifactSavedTourHoldEntryIdentifier: input.runRecapShareArtifactSavedTourHoldEntryIdentifier,
         nativeFeedbackDeliverySnapshot: input.nativeFeedbackDeliverySnapshot
     )
+}
+
+private func assertNativeFeedbackHistoryExport(
+    _ export: CinematicDiagnosticsSummary.NativeFeedbackHistoryExport,
+    row: CinematicDiagnosticsSummary.Row,
+    activeCount: Int,
+    archivedCount: Int,
+    omittedCount: Int,
+    requiredTokens: [String],
+    forbiddenTokens: [String] = [],
+    file: StaticString = #filePath,
+    line: UInt = #line
+) {
+    XCTAssertEqual(export.id, "native-feedback-history-export", file: file, line: line)
+    XCTAssertEqual(export.rowID, row.id, file: file, line: line)
+    XCTAssertEqual(export.activeCount, activeCount, file: file, line: line)
+    XCTAssertEqual(export.archivedCount, archivedCount, file: file, line: line)
+    XCTAssertEqual(export.omittedCount, omittedCount, file: file, line: line)
+    XCTAssertEqual(export.entries.filter { $0.stateIdentifier == "active" }.count, activeCount, file: file, line: line)
+    XCTAssertEqual(export.entries.filter { $0.stateIdentifier == "archived" }.count, archivedCount, file: file, line: line)
+
+    guard !requiredTokens.isEmpty else {
+        XCTAssertFalse(export.isAvailable, file: file, line: line)
+        XCTAssertEqual(export.entries, [], file: file, line: line)
+        XCTAssertEqual(export.copyText, "", file: file, line: line)
+        XCTAssertEqual(export.copyLabel, "No native history", file: file, line: line)
+        XCTAssertTrue(export.copyHelp.contains("No native feedback cue history"), file: file, line: line)
+        return
+    }
+
+    XCTAssertTrue(export.isAvailable, file: file, line: line)
+    XCTAssertEqual(export.copyLabel, "Copy native history", file: file, line: line)
+    XCTAssertTrue(export.copyHelp.contains("active \(activeCount)"), file: file, line: line)
+    XCTAssertTrue(export.copyHelp.contains("archived \(archivedCount)"), file: file, line: line)
+    XCTAssertTrue(export.copyHelp.contains("omitted \(omittedCount)"), file: file, line: line)
+    XCTAssertLessThanOrEqual(
+        export.copyText.count,
+        CinematicDiagnosticsSummary.nativeFeedbackHistoryExportCopyMaxCharacters,
+        file: file,
+        line: line
+    )
+    XCTAssertTrue(export.copyText.hasPrefix("Native feedback history\n"), file: file, line: line)
+    XCTAssertTrue(export.copyText.contains("Row: \(row.id)"), file: file, line: line)
+    XCTAssertTrue(
+        export.copyText.contains("Counts: active \(activeCount) | archived \(archivedCount) | omitted \(omittedCount)"),
+        file: file,
+        line: line
+    )
+    XCTAssertFalse(export.copyText.contains("Cinematic Diagnostics\nReport:"), file: file, line: line)
+
+    for entry in export.entries {
+        XCTAssertLessThanOrEqual(
+            entry.copyLine.count,
+            CinematicDiagnosticsSummary.nativeFeedbackHistoryExportEntryMaxCharacters,
+            file: file,
+            line: line
+        )
+        XCTAssertTrue(export.copyText.contains(entry.copyLine), file: file, line: line)
+        XCTAssertTrue(entry.copyLine.contains("#\(entry.sequence)"), file: file, line: line)
+        XCTAssertTrue(entry.copyLine.contains(entry.stateIdentifier), file: file, line: line)
+        if let reason = entry.reasonIdentifier {
+            XCTAssertTrue(entry.copyLine.contains(reason), file: file, line: line)
+        }
+        XCTAssertTrue(entry.copyLine.contains("milestone \(entry.milestoneIdentifier)"), file: file, line: line)
+        XCTAssertTrue(entry.copyLine.contains("source \(entry.sourceIdentifier ?? "none")"), file: file, line: line)
+        XCTAssertTrue(entry.copyLine.contains("style \(entry.styleIdentifier ?? "none")"), file: file, line: line)
+        XCTAssertTrue(entry.copyLine.contains("duration"), file: file, line: line)
+        XCTAssertTrue(entry.copyLine.contains("lifecycle \(entry.lifecycleIdentifier)"), file: file, line: line)
+    }
+
+    for segment in row.detail.components(separatedBy: " | ") where segment != "none" && !segment.contains("...") {
+        XCTAssertTrue(export.copyText.contains(segment), "missing row segment \(segment)", file: file, line: line)
+    }
+
+    for token in requiredTokens {
+        XCTAssertTrue(export.copyText.contains(token), "missing token \(token)", file: file, line: line)
+    }
+
+    for token in forbiddenTokens {
+        XCTAssertFalse(export.copyText.contains(token), "forbidden token \(token)", file: file, line: line)
+    }
 }
 
 private func diagnosticsSession(
