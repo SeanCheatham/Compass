@@ -139,6 +139,158 @@ final class CompassProjectActiveStorageTests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: workspace.repoLocalCompassURL.path))
     }
 
+    func testActivationGatingRequiresIdleRepoLocalAndUsableCandidate() async throws {
+        let repoURL = try makeTemporaryGitRepository()
+        let roots = try makeApplicationSupportRoots()
+        let project = CompassProject(
+            repoURL: repoURL,
+            storageApplicationSupportRoots: roots
+        )
+
+        var plan = project.activeStorageActivationPlan()
+        XCTAssertFalse(plan.isAvailable)
+        XCTAssertEqual(plan.kind, .candidateMissing)
+
+        project.prepareActiveStorageActivationConfirmation()
+
+        XCTAssertNil(project.activeStorageActivationConfirmation)
+        XCTAssertEqual(project.activeStorageActivationState.phase, .blocked)
+
+        let supportWorkspace = applicationSupportWorkspace(repoURL: repoURL, roots: roots)
+        try supportWorkspace.initialize()
+
+        plan = project.activeStorageActivationPlan()
+        XCTAssertTrue(plan.isAvailable)
+
+        project.isRunning = true
+        project.prepareActiveStorageActivationConfirmation()
+
+        XCTAssertNil(project.activeStorageActivationConfirmation)
+        XCTAssertEqual(project.activeStorageActivationState.phase, .blocked)
+
+        project.isRunning = false
+        project.activeStorage = .applicationSupport
+        plan = project.activeStorageActivationPlan()
+
+        XCTAssertFalse(plan.isAvailable)
+        XCTAssertEqual(plan.kind, .alreadyApplicationSupport)
+    }
+
+    func testActivationPersistsThroughCallbackAndRefreshesSupportState() async throws {
+        let repoURL = try makeTemporaryGitRepository()
+        let roots = try makeApplicationSupportRoots()
+        let workspace = applicationSupportWorkspace(repoURL: repoURL, roots: roots)
+        try workspace.initialize()
+        let state = PlanState(
+            completed: ["prepared"],
+            immediate: PlanNext(plan: "Use support state", verify: "swift test"),
+            midTerm: "storage",
+            longTerm: "factory"
+        )
+        try workspace.writeState(state)
+        try workspace.writeDrafts("support draft\n")
+        try workspace.writeLessons("- support lesson\n")
+        try workspace.writeVision("support vision\n")
+        let project = CompassProject(
+            repoURL: repoURL,
+            storageApplicationSupportRoots: roots
+        )
+
+        project.prepareActiveStorageActivationConfirmation()
+        let confirmation = try XCTUnwrap(project.activeStorageActivationConfirmation)
+        var persistedActiveStorage: [KnownProjectActiveStorage] = []
+
+        await project.confirmActiveStorageActivation(confirmation) {
+            persistedActiveStorage.append(project.activeStorage)
+        }
+
+        XCTAssertEqual(persistedActiveStorage, [.applicationSupport])
+        XCTAssertEqual(project.activeStorage, .applicationSupport)
+        XCTAssertEqual(project.activeStorageActivationState.phase, .succeeded)
+        XCTAssertEqual(project.compassPath, workspace.compassURL.path)
+        XCTAssertEqual(project.state, state)
+        XCTAssertEqual(project.drafts, "support draft\n")
+        XCTAssertEqual(project.lessons, "- support lesson\n")
+        XCTAssertEqual(project.vision, "support vision\n")
+        XCTAssertFalse(FileManager.default.fileExists(atPath: workspace.repoLocalCompassURL.path))
+
+        project.drafts = "updated after activation\n"
+        await project.saveDrafts()
+
+        XCTAssertEqual(workspace.readDrafts(), "updated after activation\n")
+        XCTAssertFalse(FileManager.default.fileExists(atPath: workspace.repoLocalCompassURL.path))
+    }
+
+    func testActivationRollsBackWhenPersistenceCallbackFails() async throws {
+        let repoURL = try makeTemporaryGitRepository()
+        let roots = try makeApplicationSupportRoots()
+        let workspace = applicationSupportWorkspace(repoURL: repoURL, roots: roots)
+        try workspace.initialize()
+        let project = CompassProject(
+            repoURL: repoURL,
+            storageApplicationSupportRoots: roots
+        )
+
+        project.prepareActiveStorageActivationConfirmation()
+        let confirmation = try XCTUnwrap(project.activeStorageActivationConfirmation)
+        var persistedActiveStorage: [KnownProjectActiveStorage] = []
+
+        await project.confirmActiveStorageActivation(confirmation) {
+            persistedActiveStorage.append(project.activeStorage)
+            throw ActiveStoragePersistenceTestError.failed("registry save failed")
+        }
+
+        XCTAssertEqual(persistedActiveStorage, [.applicationSupport, .repoLocal])
+        XCTAssertEqual(project.activeStorage, .repoLocal)
+        XCTAssertEqual(project.activeStorageActivationState.phase, .failed)
+        XCTAssertEqual(project.errorMessage, project.activeStorageActivationState.detail)
+        XCTAssertLessThanOrEqual(project.activeStorageActivationState.label.count, CompassProjectActiveStorageState.labelLimit)
+        XCTAssertLessThanOrEqual(project.activeStorageActivationState.detail.count, CompassProjectActiveStorageState.detailLimit)
+        XCTAssertLessThanOrEqual(project.activeStorageActivationState.helpText.count, CompassProjectActiveStorageState.helpLimit)
+        XCTAssertEqual(project.compassPath, workspace.repoLocalCompassURL.path)
+    }
+
+    func testActivationReportsMissingAndInvalidCandidateFailuresWithoutSwitching() async throws {
+        let missingRepoURL = try makeTemporaryGitRepository()
+        let missingRoots = try makeApplicationSupportRoots()
+        let missingProject = CompassProject(
+            repoURL: missingRepoURL,
+            storageApplicationSupportRoots: missingRoots
+        )
+        let missingConfirmation = CompassWorkspaceStorageActivationConfirmation(
+            plan: missingProject.activeStorageActivationPlan()
+        )
+        var missingPersistCalls = 0
+
+        await missingProject.confirmActiveStorageActivation(missingConfirmation) {
+            missingPersistCalls += 1
+        }
+
+        XCTAssertEqual(missingPersistCalls, 0)
+        XCTAssertEqual(missingProject.activeStorage, .repoLocal)
+        XCTAssertEqual(missingProject.activeStorageActivationState.phase, .failed)
+        XCTAssertEqual(missingProject.activeStorageActivationPlan().kind, .candidateMissing)
+
+        let invalidRepoURL = try makeTemporaryGitRepository()
+        let invalidRoots = try makeApplicationSupportRoots()
+        let invalidWorkspace = applicationSupportWorkspace(repoURL: invalidRepoURL, roots: invalidRoots)
+        try invalidWorkspace.initialize()
+        try write("{", to: invalidWorkspace.stateURL)
+        let invalidProject = CompassProject(
+            repoURL: invalidRepoURL,
+            storageApplicationSupportRoots: invalidRoots
+        )
+
+        invalidProject.prepareActiveStorageActivationConfirmation()
+
+        XCTAssertNil(invalidProject.activeStorageActivationConfirmation)
+        XCTAssertEqual(invalidProject.activeStorage, .repoLocal)
+        XCTAssertEqual(invalidProject.activeStorageActivationPlan().kind, .candidateInvalid)
+        XCTAssertEqual(invalidProject.activeStorageActivationState.phase, .blocked)
+        XCTAssertEqual(invalidProject.errorMessage, invalidProject.activeStorageActivationState.detail)
+        XCTAssertLessThanOrEqual(invalidProject.activeStorageActivationState.detail.count, CompassProjectActiveStorageState.detailLimit)
+    }
+
     private func makeTemporaryGitRepository() throws -> URL {
         let directory = try makeTemporaryDirectory()
         try createDirectory(directory.appending(path: ".git", directoryHint: .isDirectory))
@@ -165,6 +317,23 @@ final class CompassProjectActiveStorageTests: XCTestCase {
         try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
     }
 
+    private func write(_ contents: String, to url: URL) throws {
+        try createDirectory(url.deletingLastPathComponent())
+        try contents.write(to: url, atomically: true, encoding: .utf8)
+    }
+
+    private func applicationSupportWorkspace(
+        repoURL: URL,
+        roots: KnownProjectStore.ApplicationSupportRoots
+    ) -> CompassWorkspace {
+        CompassProjectStorageResolver(
+            repoURL: repoURL,
+            activeStorage: .applicationSupport,
+            applicationSupportRoots: roots
+        )
+        .workspace
+    }
+
     private func XCTAssertDirectoryExists(
         _ url: URL,
         file: StaticString = #filePath,
@@ -178,5 +347,16 @@ final class CompassProjectActiveStorageTests: XCTestCase {
             line: line
         )
         XCTAssertTrue(isDirectory.boolValue, "Expected \(url.path) to be a directory.", file: file, line: line)
+    }
+}
+
+private enum ActiveStoragePersistenceTestError: LocalizedError {
+    case failed(String)
+
+    var errorDescription: String? {
+        switch self {
+        case let .failed(message):
+            return message
+        }
     }
 }

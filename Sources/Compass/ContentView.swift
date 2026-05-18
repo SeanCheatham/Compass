@@ -358,6 +358,10 @@ private struct WorkspaceHeader: View {
             preflight: storagePreflight
         )
         let storageMigrationPlan = project.storageMigrationPlan()
+        let storageActivationPlan = project.activeStorageActivationPlan()
+        let storageActivationIsIdle = !project.isRunning && !project.isAutoPlaying && !project.isPaused
+        let shouldShowStorageActivation = (storageActivationPlan.isAvailable && storageActivationIsIdle)
+            || project.activeStorageActivationState.shouldShowFeedback
 
         VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .firstTextBaseline, spacing: 10) {
@@ -379,6 +383,12 @@ private struct WorkspaceHeader: View {
                     ProjectStorageMigrationButton(
                         project: project,
                         plan: storageMigrationPlan
+                    )
+                }
+                if shouldShowStorageActivation {
+                    ProjectStorageActivationButton(
+                        project: project,
+                        plan: storageActivationPlan
                     )
                 }
                 if let repairAction = storageAssessment.repairAction {
@@ -559,6 +569,65 @@ private struct ProjectStorageMigrationButton: View {
     private var presentation: CompassProjectStorageMigrationState {
         project.storageMigrationState.shouldShowFeedback
             ? project.storageMigrationState
+            : .idle
+    }
+}
+
+private struct ProjectStorageActivationButton: View {
+    @EnvironmentObject private var model: AppModel
+    @ObservedObject var project: CompassProject
+    var plan: CompassWorkspaceStorageActivationPlan
+
+    var body: some View {
+        Button {
+            project.prepareActiveStorageActivationConfirmation()
+        } label: {
+            Group {
+                if project.activeStorageActivationState.isRunning {
+                    ProgressView()
+                        .controlSize(.small)
+                } else {
+                    Image(systemName: presentation.systemImage)
+                        .font(.system(size: 12, weight: .semibold))
+                }
+            }
+            .frame(width: 14, height: 14)
+        }
+        .buttonStyle(.bordered)
+        .controlSize(.small)
+        .disabled(isDisabled)
+        .help(presentation.helpText)
+        .accessibilityLabel(presentation.label)
+        .accessibilityHint(presentation.detail)
+        .alert(item: $project.activeStorageActivationConfirmation) { confirmation in
+            Alert(
+                title: Text(confirmation.title),
+                message: Text(confirmation.message),
+                primaryButton: .default(Text(confirmation.confirmLabel)) {
+                    Task {
+                        await project.confirmActiveStorageActivation(confirmation) {
+                            try model.saveProjectsThrowing()
+                        }
+                    }
+                },
+                secondaryButton: .cancel(Text(confirmation.cancelLabel)) {
+                    project.cancelActiveStorageActivationConfirmation()
+                }
+            )
+        }
+    }
+
+    private var isDisabled: Bool {
+        project.activeStorageActivationState.isRunning
+            || project.isRunning
+            || project.isAutoPlaying
+            || project.isPaused
+            || (!plan.isAvailable && !project.activeStorageActivationState.shouldShowFeedback)
+    }
+
+    private var presentation: CompassProjectActiveStorageState {
+        project.activeStorageActivationState.shouldShowFeedback
+            ? project.activeStorageActivationState
             : .idle
     }
 }

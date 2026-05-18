@@ -3,6 +3,202 @@ import Foundation
 
 typealias CompassWorkspaceStorageMigrationAction = (CompassWorkspaceStorageMigrationPlan) throws -> CompassWorkspaceStorageMigrationResult
 
+struct CompassWorkspaceStorageActivationConfirmation: Identifiable, Equatable {
+    static let titleLimit = 58
+    static let messageLimit = 900
+    static let actionLabelLimit = 32
+
+    var plan: CompassWorkspaceStorageActivationPlan
+
+    var id: String {
+        [
+            plan.repoURL.path,
+            plan.candidateURL.path,
+            plan.projectStorageIdentifier
+        ]
+        .joined(separator: "|")
+    }
+
+    var title: String {
+        Self.boundedText("Activate Application Support storage?", limit: Self.titleLimit)
+    }
+
+    var message: String {
+        Self.boundedText(
+            [
+                "Active state root: \(boundedPath(plan.candidateURL.path, limit: 220))",
+                "Git/Codex repo: \(boundedPath(plan.repoURL.path, limit: 180))",
+                "Repo-local fallback: \(boundedPath(plan.repoLocalURL.path, limit: 180))",
+                "This switches Compass state to the prepared Application Support candidate without changing the Git working directory."
+            ]
+            .joined(separator: "\n"),
+            limit: Self.messageLimit
+        )
+    }
+
+    var confirmLabel: String {
+        Self.boundedText("Activate Candidate", limit: Self.actionLabelLimit)
+    }
+
+    var cancelLabel: String {
+        Self.boundedText("Cancel", limit: Self.actionLabelLimit)
+    }
+
+    private func boundedPath(_ value: String, limit: Int) -> String {
+        Self.boundedPath(value, limit: limit)
+    }
+
+    private static func boundedPath(_ value: String, limit: Int) -> String {
+        guard value.count > limit else { return value }
+        guard limit > 3 else { return String(value.prefix(max(0, limit))) }
+        return "..." + value.suffix(max(0, limit - 3))
+    }
+
+    private static func boundedText(_ value: String, limit: Int) -> String {
+        guard limit > 0 else { return "" }
+        guard value.count > limit else { return value }
+        guard limit > 3 else { return String(value.prefix(limit)) }
+        return value.prefix(limit - 3)
+            .trimmingCharacters(in: .whitespacesAndNewlines) + "..."
+    }
+}
+
+struct CompassProjectActiveStorageState: Equatable {
+    static let labelLimit = 38
+    static let detailLimit = 280
+    static let helpLimit = 560
+
+    enum Phase: Equatable {
+        case idle
+        case awaitingConfirmation
+        case running
+        case succeeded
+        case failed
+        case blocked
+    }
+
+    var phase: Phase
+    var label: String
+    var detail: String
+    var systemImage: String
+
+    var isRunning: Bool {
+        phase == .running
+    }
+
+    var shouldShowFeedback: Bool {
+        phase != .idle
+    }
+
+    var helpText: String {
+        Self.boundedText(
+            [label, detail]
+                .filter { !$0.isEmpty }
+                .joined(separator: " - "),
+            limit: Self.helpLimit
+        )
+    }
+
+    static let idle = CompassProjectActiveStorageState(
+        phase: .idle,
+        label: "Activate storage",
+        detail: "Switch a prepared Application Support candidate into active Compass state while keeping repoURL as the Git/Codex workspace.",
+        systemImage: "externaldrive.badge.checkmark"
+    )
+
+    static func awaitingConfirmation(_ confirmation: CompassWorkspaceStorageActivationConfirmation) -> Self {
+        Self(
+            phase: .awaitingConfirmation,
+            label: "Confirm activation",
+            detail: "Review the active-storage switch before Compass starts reading Application Support state.",
+            systemImage: confirmation.plan.systemImage
+        )
+    }
+
+    static func running(plan: CompassWorkspaceStorageActivationPlan) -> Self {
+        Self(
+            phase: .running,
+            label: "Activating storage",
+            detail: "Switching active Compass state to \(boundedPath(plan.candidateURL.path, limit: 144)).",
+            systemImage: "externaldrive.badge.checkmark"
+        )
+    }
+
+    static func succeeded(plan: CompassWorkspaceStorageActivationPlan) -> Self {
+        Self(
+            phase: .succeeded,
+            label: "Support storage active",
+            detail: "Compass now reads and writes state at \(boundedPath(plan.candidateURL.path, limit: 144)); repoURL remains \(boundedPath(plan.repoURL.path, limit: 96)).",
+            systemImage: "checkmark.circle.fill"
+        )
+    }
+
+    static func failed(_ error: Error) -> Self {
+        Self(
+            phase: .failed,
+            label: "Activation failed",
+            detail: error.localizedDescription,
+            systemImage: "exclamationmark.triangle.fill"
+        )
+    }
+
+    static func blocked(plan: CompassWorkspaceStorageActivationPlan) -> Self {
+        Self(
+            phase: .blocked,
+            label: plan.label,
+            detail: plan.detail,
+            systemImage: plan.systemImage
+        )
+    }
+
+    static func blockedWhileBusy() -> Self {
+        Self(
+            phase: .blocked,
+            label: "Activation blocked",
+            detail: "Stop or finish the active Compass run before switching active storage.",
+            systemImage: "pause.circle.fill"
+        )
+    }
+
+    init(phase: Phase, label: String, detail: String, systemImage: String) {
+        self.phase = phase
+        self.label = Self.boundedText(label, limit: Self.labelLimit)
+        self.detail = Self.boundedText(detail, limit: Self.detailLimit)
+        self.systemImage = systemImage
+    }
+
+    private static func boundedPath(_ value: String, limit: Int) -> String {
+        guard value.count > limit else { return value }
+        guard limit > 3 else { return String(value.prefix(max(0, limit))) }
+        return "..." + value.suffix(max(0, limit - 3))
+    }
+
+    private static func boundedText(_ value: String, limit: Int) -> String {
+        guard limit > 0 else { return "" }
+        guard value.count > limit else { return value }
+        guard limit > 3 else { return String(value.prefix(limit)) }
+        return value.prefix(limit - 3)
+            .trimmingCharacters(in: .whitespacesAndNewlines) + "..."
+    }
+}
+
+enum CompassProjectActiveStorageActivationError: LocalizedError, Equatable {
+    case unavailable(CompassWorkspaceStorageActivationPlan.Kind, String)
+    case rolledBack(primary: String, rollbackFailure: String?)
+
+    var errorDescription: String? {
+        switch self {
+        case let .unavailable(_, detail):
+            return "Active-storage activation is unavailable: \(detail)"
+        case let .rolledBack(primary, rollbackFailure):
+            if let rollbackFailure {
+                return "Activation failed and Compass rolled back to repo-local storage. Primary failure: \(primary) Rollback persistence also failed: \(rollbackFailure)"
+            }
+            return "Activation failed and Compass rolled back to repo-local storage. Primary failure: \(primary)"
+        }
+    }
+}
+
 struct CompassWorkspaceStorageMigrationConfirmation: Identifiable, Equatable {
     static let titleLimit = 58
     static let messageLimit = 900
@@ -225,6 +421,8 @@ final class CompassProject: ObservableObject, Identifiable {
     @Published var isPaused = false
     @Published var pauseMode: PauseMode = .immediate
     @Published var errorMessage: String?
+    @Published var activeStorageActivationState = CompassProjectActiveStorageState.idle
+    @Published var activeStorageActivationConfirmation: CompassWorkspaceStorageActivationConfirmation?
     @Published var storageMigrationState = CompassProjectStorageMigrationState.idle
     @Published var storageMigrationConfirmation: CompassWorkspaceStorageMigrationConfirmation?
 
@@ -374,6 +572,14 @@ extension CompassProject {
     }
 
     func refresh() async {
+        do {
+            try await refreshFromWorkspace(requireStorageRoot: false)
+        } catch {
+            fail(error)
+        }
+    }
+
+    private func refreshFromWorkspace(requireStorageRoot: Bool) async throws {
         guard let workspace else {
             state = .empty
             drafts = ""
@@ -383,32 +589,37 @@ extension CompassProject {
             languageProfile = .empty
             activityProfile = .empty
             scheduleCinematicBriefingRefresh(reason: .projectRefresh)
+            if requireStorageRoot {
+                throw AppModelError.noRepositorySelected
+            }
             return
         }
-        do {
-            languageProfile = RepositoryLanguageProfileService.scan(repoURL: workspace.repoURL)
 
-            if !FileManager.default.fileExists(atPath: workspace.compassURL.path) {
-                state = .empty
-                drafts = ""
-                lessons = ""
-                vision = ""
-                sessions = []
-                activityProfile = .empty
-                scheduleCinematicBriefingRefresh(reason: .projectRefresh)
-                return
-            }
+        languageProfile = RepositoryLanguageProfileService.scan(repoURL: workspace.repoURL)
 
-            state = try workspace.readState()
-            drafts = workspace.readDrafts()
-            lessons = workspace.readLessons()
-            vision = workspace.readVision()
-            sessions = workspace.readSessions()
-            activityProfile = await RepositoryActivityProfileService.scan(repoURL: workspace.repoURL)
+        if !FileManager.default.fileExists(atPath: workspace.compassURL.path) {
+            state = .empty
+            drafts = ""
+            lessons = ""
+            vision = ""
+            sessions = []
+            activityProfile = .empty
             scheduleCinematicBriefingRefresh(reason: .projectRefresh)
-        } catch {
-            fail(error)
+            if requireStorageRoot {
+                throw AppModelError.internalInvariant(
+                    "Active Compass storage root is missing at \(workspace.compassURL.path)."
+                )
+            }
+            return
         }
+
+        state = try workspace.readState()
+        drafts = workspace.readDrafts()
+        lessons = workspace.readLessons()
+        vision = workspace.readVision()
+        sessions = workspace.readSessions()
+        activityProfile = await RepositoryActivityProfileService.scan(repoURL: workspace.repoURL)
+        scheduleCinematicBriefingRefresh(reason: .projectRefresh)
     }
 
     func saveVision() async {
@@ -466,6 +677,96 @@ extension CompassProject {
             log("Draft queued.", level: .success)
         } catch {
             fail(error)
+        }
+    }
+
+    func activeStorageActivationPlan() -> CompassWorkspaceStorageActivationPlan {
+        CompassWorkspaceStorageActivationPlan(
+            repoURL: repoURL,
+            activeStorage: activeStorage,
+            applicationSupportRoots: storageApplicationSupportRoots
+        )
+    }
+
+    func prepareActiveStorageActivationConfirmation() {
+        guard isIdleForActiveStorageActivation else {
+            activeStorageActivationConfirmation = nil
+            activeStorageActivationState = .blockedWhileBusy()
+            errorMessage = activeStorageActivationState.detail
+            log(activeStorageActivationState.detail, level: .warning)
+            return
+        }
+
+        let plan = activeStorageActivationPlan()
+        guard plan.isAvailable else {
+            activeStorageActivationConfirmation = nil
+            activeStorageActivationState = .blocked(plan: plan)
+            errorMessage = activeStorageActivationState.detail
+            log("Active storage activation blocked: \(activeStorageActivationState.detail)", level: .warning)
+            return
+        }
+
+        let confirmation = CompassWorkspaceStorageActivationConfirmation(plan: plan)
+        activeStorageActivationConfirmation = confirmation
+        activeStorageActivationState = .awaitingConfirmation(confirmation)
+        errorMessage = nil
+    }
+
+    func cancelActiveStorageActivationConfirmation() {
+        activeStorageActivationConfirmation = nil
+        if activeStorageActivationState.phase == .awaitingConfirmation {
+            activeStorageActivationState = .idle
+        }
+    }
+
+    func confirmActiveStorageActivation(
+        _ confirmation: CompassWorkspaceStorageActivationConfirmation,
+        persistProjectRegistry: () throws -> Void
+    ) async {
+        activeStorageActivationConfirmation = nil
+
+        guard isIdleForActiveStorageActivation else {
+            activeStorageActivationState = .blockedWhileBusy()
+            errorMessage = activeStorageActivationState.detail
+            log(activeStorageActivationState.detail, level: .warning)
+            return
+        }
+
+        let plan = activeStorageActivationPlan()
+        guard plan.isAvailable else {
+            let error = CompassProjectActiveStorageActivationError.unavailable(plan.kind, plan.detail)
+            activeStorageActivationState = .failed(error)
+            errorMessage = activeStorageActivationState.detail
+            log(activeStorageActivationState.detail, level: .error)
+            return
+        }
+
+        activeStorageActivationState = .running(plan: plan)
+        errorMessage = nil
+        log("Active storage activation: switching Compass state to \(plan.candidateURL.path).", level: .info)
+        await Task.yield()
+
+        let previousStorage = activeStorage
+        do {
+            activeStorage = .applicationSupport
+            try persistProjectRegistry()
+            try await refreshFromWorkspace(requireStorageRoot: true)
+
+            activeStorageActivationState = .succeeded(plan: plan)
+            errorMessage = nil
+            log(activeStorageActivationState.detail, level: .success)
+        } catch {
+            let rollbackFailure = await rollbackActiveStorage(
+                to: previousStorage,
+                persistProjectRegistry: persistProjectRegistry
+            )
+            let rollbackError = CompassProjectActiveStorageActivationError.rolledBack(
+                primary: error.localizedDescription,
+                rollbackFailure: rollbackFailure
+            )
+            activeStorageActivationState = .failed(rollbackError)
+            errorMessage = activeStorageActivationState.detail
+            log(activeStorageActivationState.detail, level: .error)
         }
     }
 
@@ -1026,6 +1327,25 @@ extension CompassProject {
         guard !FileManager.default.fileExists(atPath: workspace.compassURL.path) else { return }
         try workspace.initialize()
         await refresh()
+    }
+
+    private var isIdleForActiveStorageActivation: Bool {
+        !isRunning && !isAutoPlaying && !isPaused
+    }
+
+    private func rollbackActiveStorage(
+        to previousStorage: KnownProjectActiveStorage,
+        persistProjectRegistry: () throws -> Void
+    ) async -> String? {
+        activeStorage = previousStorage
+        var rollbackFailure: String?
+        do {
+            try persistProjectRegistry()
+        } catch {
+            rollbackFailure = error.localizedDescription
+        }
+        await refresh()
+        return rollbackFailure
     }
 
     private func resolveWorkspaceForRun() async throws -> CompassWorkspace {
@@ -1716,10 +2036,14 @@ final class AppModel: ObservableObject {
 
     func saveProjects() {
         do {
-            try KnownProjectStore.save(projects.map(\.record))
+            try saveProjectsThrowing()
         } catch {
             fail(error)
         }
+    }
+
+    func saveProjectsThrowing() throws {
+        try KnownProjectStore.save(projects.map(\.record))
     }
 
     private func fail(_ error: Error) {
