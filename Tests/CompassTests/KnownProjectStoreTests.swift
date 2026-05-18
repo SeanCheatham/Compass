@@ -16,6 +16,7 @@ final class KnownProjectRecordDecodingTests: XCTestCase {
         """)
 
         let record = try XCTUnwrap(records.first)
+        XCTAssertEqual(record.activeStorage, .repoLocal)
         XCTAssertEqual(record.cinematicInfluenceSettings, CinematicInfluenceSettings())
         XCTAssertEqual(record.nativeFeedbackMode, .notifications)
     }
@@ -28,6 +29,7 @@ final class KnownProjectRecordDecodingTests: XCTestCase {
             "path": "/tmp/low",
             "addedAt": 1,
             "lastOpenedAt": 2,
+            "activeStorage": "future_storage",
             "cinematicInfluenceSettings": {
               "cameraStyle": "unknown",
               "intensity": -0.25
@@ -39,6 +41,7 @@ final class KnownProjectRecordDecodingTests: XCTestCase {
             "path": "/tmp/defaults",
             "addedAt": 3,
             "lastOpenedAt": 4,
+            "activeStorage": "application_support",
             "cinematicInfluenceSettings": {
             },
             "nativeFeedbackMode": "speech_and_notifications"
@@ -59,13 +62,16 @@ final class KnownProjectRecordDecodingTests: XCTestCase {
 
         XCTAssertEqual(records[0].cinematicInfluenceSettings.cameraStyle, .follow)
         XCTAssertEqual(records[0].cinematicInfluenceSettings.intensity, 0)
+        XCTAssertEqual(records[0].activeStorage, .repoLocal)
         XCTAssertEqual(records[0].nativeFeedbackMode, .notifications)
 
         XCTAssertEqual(records[1].cinematicInfluenceSettings, CinematicInfluenceSettings())
+        XCTAssertEqual(records[1].activeStorage, .applicationSupport)
         XCTAssertEqual(records[1].nativeFeedbackMode, .speechAndNotifications)
 
         XCTAssertEqual(records[2].cinematicInfluenceSettings.cameraStyle, .dramatic)
         XCTAssertEqual(records[2].cinematicInfluenceSettings.intensity, 1)
+        XCTAssertEqual(records[2].activeStorage, .repoLocal)
         XCTAssertEqual(records[2].nativeFeedbackMode, .off)
     }
 
@@ -146,6 +152,7 @@ final class KnownProjectStorePersistenceTests: XCTestCase {
         let record = makeRecord(
             id: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
             path: "/tmp/saved",
+            activeStorage: .applicationSupport,
             cinematicInfluenceSettings: CinematicInfluenceSettings(cameraStyle: .steady, intensity: 0.8),
             nativeFeedbackMode: .speechAndNotifications
         )
@@ -160,6 +167,7 @@ final class KnownProjectStorePersistenceTests: XCTestCase {
         XCTAssertTrue(saved.contains("\n  {\n"))
         assertSortedKeys(
             [
+                "\"activeStorage\"",
                 "\"addedAt\"",
                 "\"cinematicInfluenceSettings\"",
                 "\"id\"",
@@ -197,6 +205,7 @@ final class KnownProjectStorePersistenceTests: XCTestCase {
     private func makeRecord(
         id: String,
         path: String,
+        activeStorage: KnownProjectActiveStorage = .repoLocal,
         addedAt: Double = 10,
         lastOpenedAt: Double = 20,
         cinematicInfluenceSettings: CinematicInfluenceSettings = CinematicInfluenceSettings(),
@@ -205,6 +214,7 @@ final class KnownProjectStorePersistenceTests: XCTestCase {
         KnownProjectRecord(
             id: UUID(uuidString: id)!,
             path: path,
+            activeStorage: activeStorage,
             addedAt: addedAt,
             lastOpenedAt: lastOpenedAt,
             cinematicInfluenceSettings: cinematicInfluenceSettings,

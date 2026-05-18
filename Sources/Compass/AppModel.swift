@@ -200,6 +200,7 @@ enum CompassProjectStorageMigrationActionError: LocalizedError, Equatable {
 final class CompassProject: ObservableObject, Identifiable {
     let id: UUID
     @Published var repoURL: URL
+    @Published var activeStorage: KnownProjectActiveStorage
     @Published var state = PlanState.empty
     @Published var drafts = ""
     @Published var draftEntry = ""
@@ -234,7 +235,7 @@ final class CompassProject: ObservableObject, Identifiable {
     private var workspace: CompassWorkspace? {
         guard FileManager.default.fileExists(atPath: repoURL.path),
               let repoURL = CompassWorkspace.discover(from: repoURL) else { return nil }
-        return CompassWorkspace(repoURL: repoURL)
+        return makeWorkspace(repoURL: repoURL)
     }
 
     private var executor: CodexExecutor?
@@ -249,6 +250,7 @@ final class CompassProject: ObservableObject, Identifiable {
     init(
         id: UUID = UUID(),
         repoURL: URL,
+        activeStorage: KnownProjectActiveStorage = .repoLocal,
         addedAt: Date = Date(),
         lastOpenedAt: Date = Date(),
         cinematicInfluenceSettings: CinematicInfluenceSettings = CinematicInfluenceSettings(),
@@ -260,6 +262,7 @@ final class CompassProject: ObservableObject, Identifiable {
     ) {
         self.id = id
         self.repoURL = repoURL.standardizedFileURL
+        self.activeStorage = activeStorage
         self.addedAt = addedAt
         self.lastOpenedAt = lastOpenedAt
         self.cinematicInfluenceSettings = cinematicInfluenceSettings
@@ -333,7 +336,7 @@ extension CompassProject {
     }
 
     var compassPath: String {
-        CompassWorkspace(repoURL: repoURL).compassURL.path
+        makeStorageResolver(repoURL: repoURL).storageRootURL.path
     }
 
     var hasRepository: Bool {
@@ -1032,9 +1035,21 @@ extension CompassProject {
             log("Resolved repo root: \(repoURL.path)", level: .info)
         }
 
-        let workspace = CompassWorkspace(repoURL: repoURL)
+        let workspace = makeWorkspace(repoURL: repoURL)
         log("Using Compass workspace: \(workspace.compassURL.path)", level: .info)
         return workspace
+    }
+
+    private func makeWorkspace(repoURL: URL) -> CompassWorkspace {
+        makeStorageResolver(repoURL: repoURL).workspace
+    }
+
+    private func makeStorageResolver(repoURL: URL) -> CompassProjectStorageResolver {
+        CompassProjectStorageResolver(
+            repoURL: repoURL,
+            activeStorage: activeStorage,
+            applicationSupportRoots: storageApplicationSupportRoots
+        )
     }
 
     private func resolveGitRoot(from url: URL) async throws -> URL {
@@ -1712,9 +1727,73 @@ final class AppModel: ObservableObject {
     }
 }
 
+enum KnownProjectActiveStorage: String, Codable, CaseIterable, Identifiable {
+    case repoLocal = "repo_local"
+    case applicationSupport = "application_support"
+
+    var id: Self { self }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        let rawValue = try container.decode(String.self)
+        self = KnownProjectActiveStorage(rawValue: rawValue) ?? .repoLocal
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        try container.encode(rawValue)
+    }
+}
+
+struct CompassProjectStorageResolver: Equatable {
+    var repoURL: URL
+    var activeStorage: KnownProjectActiveStorage
+    var applicationSupportRoots: KnownProjectStore.ApplicationSupportRoots
+
+    init(
+        repoURL: URL,
+        activeStorage: KnownProjectActiveStorage = .repoLocal,
+        applicationSupportRoots: KnownProjectStore.ApplicationSupportRoots = KnownProjectStore.productionApplicationSupportRoots()
+    ) {
+        self.repoURL = repoURL.standardizedFileURL
+        self.activeStorage = activeStorage
+        self.applicationSupportRoots = applicationSupportRoots
+    }
+
+    var storageRootURL: URL {
+        Self.storageRootURL(
+            for: repoURL,
+            activeStorage: activeStorage,
+            applicationSupportRoots: applicationSupportRoots
+        )
+    }
+
+    var workspace: CompassWorkspace {
+        CompassWorkspace(repoURL: repoURL, storageRootURL: storageRootURL)
+    }
+
+    static func storageRootURL(
+        for repoURL: URL,
+        activeStorage: KnownProjectActiveStorage,
+        applicationSupportRoots roots: KnownProjectStore.ApplicationSupportRoots
+    ) -> URL {
+        let standardizedRepoURL = repoURL.standardizedFileURL
+        switch activeStorage {
+        case .repoLocal:
+            return CompassWorkspace.repoLocalStorageRootURL(for: standardizedRepoURL)
+        case .applicationSupport:
+            return CompassWorkspaceStorageAssessment.currentApplicationSupportCandidateURL(
+                for: standardizedRepoURL,
+                applicationSupportRoots: roots
+            )
+        }
+    }
+}
+
 struct KnownProjectRecord: Codable, Identifiable, Equatable {
     var id: UUID
     var path: String
+    var activeStorage: KnownProjectActiveStorage
     var addedAt: Double
     var lastOpenedAt: Double
     var cinematicInfluenceSettings: CinematicInfluenceSettings
@@ -1723,6 +1802,7 @@ struct KnownProjectRecord: Codable, Identifiable, Equatable {
     enum CodingKeys: String, CodingKey {
         case id
         case path
+        case activeStorage
         case addedAt
         case lastOpenedAt
         case cinematicInfluenceSettings
@@ -1732,6 +1812,7 @@ struct KnownProjectRecord: Codable, Identifiable, Equatable {
     init(
         id: UUID,
         path: String,
+        activeStorage: KnownProjectActiveStorage = .repoLocal,
         addedAt: Double,
         lastOpenedAt: Double,
         cinematicInfluenceSettings: CinematicInfluenceSettings = CinematicInfluenceSettings(),
@@ -1739,6 +1820,7 @@ struct KnownProjectRecord: Codable, Identifiable, Equatable {
     ) {
         self.id = id
         self.path = path
+        self.activeStorage = activeStorage
         self.addedAt = addedAt
         self.lastOpenedAt = lastOpenedAt
         self.cinematicInfluenceSettings = cinematicInfluenceSettings
@@ -1749,6 +1831,10 @@ struct KnownProjectRecord: Codable, Identifiable, Equatable {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         id = try container.decode(UUID.self, forKey: .id)
         path = try container.decode(String.self, forKey: .path)
+        activeStorage = try container.decodeIfPresent(
+            KnownProjectActiveStorage.self,
+            forKey: .activeStorage
+        ) ?? .repoLocal
         addedAt = try container.decode(Double.self, forKey: .addedAt)
         lastOpenedAt = try container.decode(Double.self, forKey: .lastOpenedAt)
         cinematicInfluenceSettings = try container.decodeIfPresent(
@@ -1767,6 +1853,7 @@ private extension CompassProject {
         self.init(
             id: record.id,
             repoURL: URL(fileURLWithPath: record.path).standardizedFileURL,
+            activeStorage: record.activeStorage,
             addedAt: Date(timeIntervalSince1970: record.addedAt),
             lastOpenedAt: Date(timeIntervalSince1970: record.lastOpenedAt),
             cinematicInfluenceSettings: record.cinematicInfluenceSettings,
@@ -1778,6 +1865,7 @@ private extension CompassProject {
         KnownProjectRecord(
             id: id,
             path: repoURL.path,
+            activeStorage: activeStorage,
             addedAt: addedAt.timeIntervalSince1970,
             lastOpenedAt: lastOpenedAt.timeIntervalSince1970,
             cinematicInfluenceSettings: cinematicInfluenceSettings,
