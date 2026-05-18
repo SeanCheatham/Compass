@@ -374,6 +374,8 @@ private struct CinematicInfluenceControls: View {
     }
 
     var body: some View {
+        let summary = diagnosticsSummary
+
         VStack(alignment: .leading, spacing: 9) {
             HStack(spacing: 8) {
                 Picker("Camera", selection: $project.cinematicInfluenceSettings.cameraStyle) {
@@ -388,12 +390,11 @@ private struct CinematicInfluenceControls: View {
                 Button {
                     isShowingDiagnostics.toggle()
                 } label: {
-                    Image(systemName: "list.bullet.rectangle")
-                        .frame(width: 17, height: 17)
+                    diagnosticsButtonLabel(summary.visualSmoke)
                 }
-                .help("Show cinematic diagnostics")
+                .help(summary.visualSmoke.help)
                 .popover(isPresented: $isShowingDiagnostics, arrowEdge: .top) {
-                    CinematicDiagnosticsPopover(summary: diagnosticsSummary)
+                    CinematicDiagnosticsPopover(summary: summary)
                 }
             }
 
@@ -443,6 +444,34 @@ private struct CinematicInfluenceControls: View {
         }
         .onChange(of: project.cinematicInfluenceSettings) {
             model.saveProjects()
+        }
+    }
+
+    @ViewBuilder
+    private func diagnosticsButtonLabel(
+        _ visualSmoke: CinematicDiagnosticsSummary.VisualSmokeSection
+    ) -> some View {
+        switch visualSmoke.status {
+        case .pass:
+            Image(systemName: "list.bullet.rectangle")
+                .frame(width: 17, height: 17)
+        case .warning:
+            HStack(spacing: 4) {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .font(.system(size: 11, weight: .bold))
+
+                Text(visualSmoke.warningBadgeLabel)
+                    .font(.caption2.monospacedDigit().weight(.bold))
+                    .frame(minWidth: 8)
+            }
+            .foregroundStyle(.orange)
+            .padding(.horizontal, 5)
+            .frame(minHeight: 20)
+            .background(.orange.opacity(0.14), in: RoundedRectangle(cornerRadius: 5))
+            .overlay {
+                RoundedRectangle(cornerRadius: 5)
+                    .stroke(.orange.opacity(0.4))
+            }
         }
     }
 }
@@ -502,6 +531,8 @@ private struct CinematicDiagnosticsPopover: View {
                             }
                         }
                     }
+
+                    visualSmokeSection
                 }
                 .padding(.trailing, 4)
             }
@@ -514,6 +545,63 @@ private struct CinematicDiagnosticsPopover: View {
         }
     }
 
+    private var visualSmokeSection: some View {
+        VStack(alignment: .leading, spacing: 7) {
+            HStack(spacing: 6) {
+                Image(systemName: visualSmokeSystemImage(for: summary.visualSmoke.status))
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(visualSmokeColor(for: summary.visualSmoke.status))
+
+                Text(summary.visualSmoke.label)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.primary)
+
+                Text(summary.visualSmoke.checkCountLabel)
+                    .font(.caption2.monospacedDigit())
+                    .foregroundStyle(.secondary)
+
+                Text(summary.visualSmoke.warningCountLabel)
+                    .font(.caption2.monospacedDigit().weight(.semibold))
+                    .foregroundStyle(visualSmokeColor(for: summary.visualSmoke.status))
+            }
+
+            VStack(alignment: .leading, spacing: 8) {
+                ForEach(summary.visualSmoke.checks) { check in
+                    HStack(alignment: .top, spacing: 10) {
+                        HStack(alignment: .firstTextBaseline, spacing: 5) {
+                            Image(systemName: visualSmokeSystemImage(for: check.status))
+                                .font(.caption2.weight(.bold))
+                                .foregroundStyle(visualSmokeColor(for: check.status))
+                                .frame(width: 12)
+
+                            Text(check.label)
+                                .font(.system(.caption, design: .monospaced).weight(.semibold))
+                                .foregroundStyle(check.status == .warning ? .orange : .secondary)
+                        }
+                        .frame(width: 108, alignment: .leading)
+
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(check.detail)
+                                .font(.caption)
+                                .foregroundStyle(.primary)
+                                .lineLimit(2)
+                                .textSelection(.enabled)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+
+                            if let warningIdentifier = check.warningIdentifier {
+                                Text(warningIdentifier)
+                                    .font(.caption2.monospaced())
+                                    .foregroundStyle(.orange)
+                                    .textSelection(.enabled)
+                            }
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                }
+            }
+        }
+    }
+
     private func copyToPasteboard(_ text: String) {
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(text, forType: .string)
@@ -521,6 +609,24 @@ private struct CinematicDiagnosticsPopover: View {
 
     private func detailLineLimit(for row: CinematicDiagnosticsSummary.Row) -> Int {
         row.id.hasPrefix("effect-") || row.id == "stage-effect" ? 4 : 2
+    }
+
+    private func visualSmokeSystemImage(for status: CinematicVisualSmokeReport.Status) -> String {
+        switch status {
+        case .pass:
+            return "checkmark.circle.fill"
+        case .warning:
+            return "exclamationmark.triangle.fill"
+        }
+    }
+
+    private func visualSmokeColor(for status: CinematicVisualSmokeReport.Status) -> Color {
+        switch status {
+        case .pass:
+            return .green
+        case .warning:
+            return .orange
+        }
     }
 }
 

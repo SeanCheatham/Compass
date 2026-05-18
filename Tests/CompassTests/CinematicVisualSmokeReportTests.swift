@@ -154,6 +154,19 @@ final class CinematicVisualSmokeReportTests: XCTestCase {
             visualSmoke: CinematicVisualSmokeReport.representative()
         )
 
+        XCTAssertEqual(summary.visualSmoke.id, "visual-smoke")
+        XCTAssertEqual(summary.visualSmoke.label, "Visual smoke")
+        XCTAssertEqual(summary.visualSmoke.status, .pass)
+        XCTAssertEqual(summary.visualSmoke.statusLabel, "Passing")
+        XCTAssertEqual(summary.visualSmoke.warningCount, 0)
+        XCTAssertEqual(summary.visualSmoke.warningCountLabel, "No warnings")
+        XCTAssertEqual(summary.visualSmoke.warningBadgeLabel, "0")
+        XCTAssertEqual(summary.visualSmoke.warningIdentifiers, [])
+        XCTAssertEqual(summary.visualSmoke.checkCountLabel, "12 checks")
+        XCTAssertLessThanOrEqual(
+            summary.visualSmoke.warningCountLabel.count,
+            CinematicDiagnosticsSummary.visualSmokeCountMaxCharacters
+        )
         XCTAssertTrue(summary.exportText.contains("Visual smoke (pass, 12 checks)"))
         XCTAssertTrue(summary.exportText.contains("Narrative cue readability: pass"))
         XCTAssertTrue(summary.exportText.contains("Texture role coverage: pass"))
@@ -187,5 +200,52 @@ final class CinematicVisualSmokeReportTests: XCTestCase {
                 "camera-shots"
             ]
         )
+    }
+
+    func testSummaryVisualSmokeSectionSurfacesInjectedWarningsWithoutChangingExportShape() throws {
+        let report = try XCTUnwrap(CinematicDiagnostics.representativeSmokeMatrix().first)
+
+        var missingTextureReport = report
+        missingTextureReport.setDressing.backdropTextureName = ""
+        let smoke = CinematicVisualSmokeReport(reports: [missingTextureReport])
+        let summary = CinematicDiagnosticsSummary(report: report, visualSmoke: smoke)
+
+        XCTAssertEqual(summary.visualSmoke.status, .warning)
+        XCTAssertEqual(summary.visualSmoke.statusLabel, "Warning")
+        XCTAssertEqual(summary.visualSmoke.warningCount, smoke.warningIdentifiers.count)
+        XCTAssertEqual(summary.visualSmoke.warningCountLabel, "\(smoke.warningIdentifiers.count) warnings")
+        XCTAssertEqual(summary.visualSmoke.warningBadgeLabel, "\(smoke.warningIdentifiers.count)")
+        XCTAssertEqual(summary.visualSmoke.warningIdentifiers, smoke.warningIdentifiers)
+        XCTAssertEqual(summary.visualSmoke.checks, smoke.checks)
+        XCTAssertTrue(summary.visualSmoke.help.contains("visual-smoke.asset-availability"))
+        XCTAssertTrue(summary.visualSmoke.help.contains("visual-smoke.texture-role-coverage"))
+        XCTAssertLessThanOrEqual(
+            summary.visualSmoke.warningCountLabel.count,
+            CinematicDiagnosticsSummary.visualSmokeCountMaxCharacters
+        )
+
+        let assetCheck = try XCTUnwrap(summary.visualSmoke.checks.first { $0.id == "asset-availability" })
+        let textureCheck = try XCTUnwrap(summary.visualSmoke.checks.first { $0.id == "texture-role-coverage" })
+        XCTAssertEqual(assetCheck.status, .warning)
+        XCTAssertEqual(assetCheck.warningIdentifier, "visual-smoke.asset-availability")
+        XCTAssertEqual(textureCheck.status, .warning)
+        XCTAssertEqual(textureCheck.warningIdentifier, "visual-smoke.texture-role-coverage")
+
+        for check in summary.visualSmoke.checks {
+            XCTAssertLessThanOrEqual(check.label.count, CinematicVisualSmokeReport.labelMaxCharacters)
+            XCTAssertLessThanOrEqual(check.detail.count, CinematicVisualSmokeReport.detailMaxCharacters)
+        }
+
+        XCTAssertFalse(summary.sections.contains { $0.id == "visual-smoke" })
+        XCTAssertEqual(summary.rows.count, CinematicDiagnosticsSummary.maxRows)
+        XCTAssertEqual(
+            summary.exportText.components(separatedBy: "\n").count,
+            summary.rows.count + summary.sections.count + summary.visualSmoke.checks.count + 3
+        )
+        XCTAssertTrue(summary.exportText.contains("Visual smoke (warning, 12 checks)"))
+        XCTAssertTrue(summary.exportText.contains("Asset availability: warning"))
+        XCTAssertTrue(summary.exportText.contains("warning visual-smoke.asset-availability"))
+        XCTAssertTrue(summary.exportText.contains("Texture role coverage: warning"))
+        XCTAssertTrue(summary.exportText.contains("warning visual-smoke.texture-role-coverage"))
     }
 }

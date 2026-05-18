@@ -1084,10 +1084,11 @@ struct CinematicDiagnosticsSummary: Equatable {
     static let maxRows = 36
     static let labelMaxCharacters = 32
     static let detailMaxCharacters = 512
+    static let visualSmokeCountMaxCharacters = 24
 
     var rows: [Row]
     var sections: [Section]
-    var visualSmoke: CinematicVisualSmokeReport
+    var visualSmoke: VisualSmokeSection
     var exportText: String
 
     struct Row: Identifiable, Equatable {
@@ -1103,6 +1104,23 @@ struct CinematicDiagnosticsSummary: Equatable {
 
         var rowCountLabel: String {
             rows.count == 1 ? "1 row" : "\(rows.count) rows"
+        }
+    }
+
+    struct VisualSmokeSection: Identifiable, Equatable {
+        var id: String
+        var label: String
+        var status: CinematicVisualSmokeReport.Status
+        var statusLabel: String
+        var warningCount: Int
+        var warningCountLabel: String
+        var warningBadgeLabel: String
+        var help: String
+        var warningIdentifiers: [String]
+        var checks: [CinematicVisualSmokeReport.Check]
+
+        var checkCountLabel: String {
+            checks.count == 1 ? "1 check" : "\(checks.count) checks"
         }
     }
 
@@ -1182,8 +1200,8 @@ struct CinematicDiagnosticsSummary: Equatable {
         let rows = Self.makeRows(report: report)
         self.rows = Array(rows.prefix(Self.maxRows))
         sections = Self.makeSections(rows: self.rows)
-        self.visualSmoke = visualSmoke
-        exportText = Self.makeExportText(report: report, sections: sections, visualSmoke: visualSmoke)
+        self.visualSmoke = Self.makeVisualSmokeSection(visualSmoke)
+        exportText = Self.makeExportText(report: report, sections: sections, visualSmoke: self.visualSmoke)
     }
 
     private static func makeRows(report: CinematicDiagnosticsReport) -> [Row] {
@@ -1494,10 +1512,45 @@ struct CinematicDiagnosticsSummary: Equatable {
         return sections
     }
 
+    private static func makeVisualSmokeSection(
+        _ report: CinematicVisualSmokeReport
+    ) -> VisualSmokeSection {
+        let warningCount = report.warningIdentifiers.count
+        let statusLabel: String
+        switch report.status {
+        case .pass:
+            statusLabel = "Passing"
+        case .warning:
+            statusLabel = "Warning"
+        }
+
+        return VisualSmokeSection(
+            id: "visual-smoke",
+            label: bounded("Visual smoke", limit: labelMaxCharacters),
+            status: report.status,
+            statusLabel: bounded(statusLabel, limit: labelMaxCharacters),
+            warningCount: warningCount,
+            warningCountLabel: bounded(
+                warningCountCopy(for: warningCount),
+                limit: visualSmokeCountMaxCharacters
+            ),
+            warningBadgeLabel: bounded(
+                warningBadgeCopy(for: warningCount),
+                limit: visualSmokeCountMaxCharacters
+            ),
+            help: bounded(
+                visualSmokeHelp(status: report.status, warningIdentifiers: report.warningIdentifiers),
+                limit: detailMaxCharacters
+            ),
+            warningIdentifiers: report.warningIdentifiers,
+            checks: report.checks
+        )
+    }
+
     private static func makeExportText(
         report: CinematicDiagnosticsReport,
         sections: [Section],
-        visualSmoke: CinematicVisualSmokeReport
+        visualSmoke: VisualSmokeSection
     ) -> String {
         var lines = [
             "Cinematic Diagnostics",
@@ -1518,6 +1571,36 @@ struct CinematicDiagnosticsSummary: Equatable {
         })
 
         return lines.joined(separator: "\n")
+    }
+
+    private static func warningCountCopy(for count: Int) -> String {
+        switch count {
+        case 0:
+            return "No warnings"
+        case 1:
+            return "1 warning"
+        default:
+            return "\(count) warnings"
+        }
+    }
+
+    private static func warningBadgeCopy(for count: Int) -> String {
+        count > 99 ? "99+" : "\(count)"
+    }
+
+    private static func visualSmokeHelp(
+        status: CinematicVisualSmokeReport.Status,
+        warningIdentifiers: [String]
+    ) -> String {
+        switch status {
+        case .pass:
+            return "Visual smoke checks passing"
+        case .warning:
+            let warnings = warningIdentifiers.isEmpty
+                ? "warnings unavailable"
+                : warningIdentifiers.joined(separator: ", ")
+            return "Visual smoke warning: \(warningCountCopy(for: warningIdentifiers.count)) (\(warnings))"
+        }
     }
 
     private static func row(id: String, label: String, detail: String) -> Row {
