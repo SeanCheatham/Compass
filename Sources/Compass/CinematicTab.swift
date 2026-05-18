@@ -601,16 +601,16 @@ private struct CinematicRunRecapArtifactLibraryControl: View {
         let pinnedReferencePlan = currentPinnedReferencePlan
         let selectedExportPlan = subsetExportPlan(scope: .selected)
         let filteredExportPlan = subsetExportPlan(scope: .filtered)
-        let actionMenuPlan = CinematicRunRecapShareArtifactActionMenuPlanner.plan(
+        let actionMenuPlan = actionMenuPlan(
             previewPlan: previewPlan,
             rollupPlan: rollupPlan,
             comparisonPlan: comparisonPlan,
             pinnedReferencePlan: pinnedReferencePlan,
             tourPlan: tourPlan,
             selectedExportPlan: selectedExportPlan,
-            filteredExportPlan: filteredExportPlan,
-            historyPlan: plan
+            filteredExportPlan: filteredExportPlan
         )
+        let commandPlan = CinematicRunRecapShareArtifactCommandPlanner.plan(actionMenuPlan: actionMenuPlan)
 
         VStack(alignment: .leading, spacing: 4) {
             rollupScanline(rollupPlan)
@@ -686,7 +686,7 @@ private struct CinematicRunRecapArtifactLibraryControl: View {
                 .accessibilityLabel("Next recap share artifact")
                 .accessibilityIdentifier("cinematic-run-recap-artifact-library-next")
 
-                actionMenu(actionMenuPlan)
+                actionMenu(actionMenuPlan, commandPlan: commandPlan)
             }
         }
         .padding(.horizontal, 8)
@@ -701,6 +701,13 @@ private struct CinematicRunRecapArtifactLibraryControl: View {
         }
         .help(exportHelp)
         .accessibilityIdentifier("cinematic-run-recap-artifact-library-\(plan.identifier)")
+        .focusedValue(
+            \.cinematicRunRecapShareArtifactCommandDispatch,
+            CinematicRunRecapShareArtifactCommandDispatch(
+                plan: commandPlan,
+                perform: performCommandAction
+            )
+        )
         .onAppear {
             reconcileSelectionWithCurrentPlan()
         }
@@ -748,6 +755,18 @@ private struct CinematicRunRecapArtifactLibraryControl: View {
             pinnedEntryIdentifiers: artifactLibraryContext.pinnedEntryIdentifiers,
             selectedEntryIdentifier: artifactLibraryContext.selectedEntryIdentifier,
             searchQuery: artifactLibraryContext.searchText
+        )
+    }
+
+    private var currentActionMenuPlan: CinematicRunRecapShareArtifactActionMenuPlan {
+        actionMenuPlan(
+            previewPlan: currentPreviewPlan,
+            rollupPlan: currentRollupPlan,
+            comparisonPlan: currentComparisonPlan,
+            pinnedReferencePlan: currentPinnedReferencePlan,
+            tourPlan: tourPlan,
+            selectedExportPlan: subsetExportPlan(scope: .selected),
+            filteredExportPlan: subsetExportPlan(scope: .filtered)
         )
     }
 
@@ -1322,7 +1341,10 @@ private struct CinematicRunRecapArtifactLibraryControl: View {
         .accessibilityIdentifier("cinematic-run-recap-artifact-library-search")
     }
 
-    private func actionMenu(_ actionMenuPlan: CinematicRunRecapShareArtifactActionMenuPlan) -> some View {
+    private func actionMenu(
+        _ actionMenuPlan: CinematicRunRecapShareArtifactActionMenuPlan,
+        commandPlan: CinematicRunRecapShareArtifactCommandPlan
+    ) -> some View {
         Menu {
             ForEach(CinematicRunRecapShareArtifactActionMenuPlan.Section.allCases) { section in
                 if !actionMenuPlan.actions(in: section).isEmpty {
@@ -1332,7 +1354,7 @@ private struct CinematicRunRecapArtifactLibraryControl: View {
                                 performMenuAction(action)
                             } label: {
                                 Label {
-                                    actionMenuLabel(action)
+                                    actionMenuLabel(action, commandPlan: commandPlan)
                                 } icon: {
                                     Image(systemName: action.systemImage)
                                 }
@@ -1361,11 +1383,13 @@ private struct CinematicRunRecapArtifactLibraryControl: View {
     }
 
     private func actionMenuLabel(
-        _ action: CinematicRunRecapShareArtifactActionMenuPlan.Action
+        _ action: CinematicRunRecapShareArtifactActionMenuPlan.Action,
+        commandPlan: CinematicRunRecapShareArtifactCommandPlan
     ) -> some View {
-        HStack {
+        let shortcutHint = commandPlan.command(for: action.actionKind)?.shortcut.displayText ?? action.shortcutHint
+        return HStack {
             Text(action.label)
-            if let shortcutHint = action.shortcutHint {
+            if let shortcutHint {
                 Spacer()
                 Text(shortcutHint)
                     .foregroundStyle(.secondary)
@@ -1438,6 +1462,27 @@ private struct CinematicRunRecapArtifactLibraryControl: View {
         return "Delete \(plan.cleanupCandidateCount) old recap share artifact\(plan.cleanupCandidateCount == 1 ? "" : "s") while retaining newest \(plan.retentionLimit)."
     }
 
+    private func actionMenuPlan(
+        previewPlan: CinematicRunRecapShareArtifactPreviewBrowserPlan,
+        rollupPlan: CinematicRunRecapShareArtifactRollupPlan,
+        comparisonPlan: CinematicRunRecapShareArtifactComparisonPlan,
+        pinnedReferencePlan: CinematicRunRecapShareArtifactPinnedReferencePlan,
+        tourPlan: CinematicRunRecapShareArtifactTourPlan,
+        selectedExportPlan: CinematicRunRecapShareArtifactSubsetExportPlan,
+        filteredExportPlan: CinematicRunRecapShareArtifactSubsetExportPlan
+    ) -> CinematicRunRecapShareArtifactActionMenuPlan {
+        CinematicRunRecapShareArtifactActionMenuPlanner.plan(
+            previewPlan: previewPlan,
+            rollupPlan: rollupPlan,
+            comparisonPlan: comparisonPlan,
+            pinnedReferencePlan: pinnedReferencePlan,
+            tourPlan: tourPlan,
+            selectedExportPlan: selectedExportPlan,
+            filteredExportPlan: filteredExportPlan,
+            historyPlan: plan
+        )
+    }
+
     private var feedbackColor: Color {
         switch feedbackStatus {
         case .deleted:
@@ -1459,6 +1504,15 @@ private struct CinematicRunRecapArtifactLibraryControl: View {
             .trimmingCharacters(in: .whitespacesAndNewlines)
         guard normalized.count > 140 else { return normalized }
         return String(normalized.prefix(137)).trimmingCharacters(in: .whitespacesAndNewlines) + "..."
+    }
+
+    private func performCommandAction(
+        _ actionKind: CinematicRunRecapShareArtifactActionMenuPlan.ActionKind
+    ) {
+        guard let action = currentActionMenuPlan.actions.first(where: { $0.actionKind == actionKind }) else {
+            return
+        }
+        performMenuAction(action)
     }
 
     private func performMenuAction(

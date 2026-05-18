@@ -52,6 +52,7 @@ struct CompassApp: App {
                 .keyboardShortcut(.return, modifiers: [.command])
                 .disabled((model.selectedProject?.isRunning ?? true) || (model.selectedProject?.isAutoPlaying ?? true))
             }
+            CinematicRunRecapShareArtifactFocusedCommands()
         }
 }
 }

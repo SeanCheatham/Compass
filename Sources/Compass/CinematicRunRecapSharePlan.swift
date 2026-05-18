@@ -572,6 +572,104 @@ struct CinematicRunRecapShareArtifactActionMenuPlan: Equatable, Identifiable {
     }
 }
 
+struct CinematicRunRecapShareArtifactCommandPlan: Equatable, Identifiable {
+    static let identifierMaxCharacters = CinematicRunRecapShareArtifactHistoryPlan.identifierMaxCharacters
+    static let commandLimit = 15
+    static let labelMaxCharacters = CinematicRunRecapShareArtifactActionMenuPlan.labelMaxCharacters
+    static let helpMaxCharacters = CinematicRunRecapShareArtifactActionMenuPlan.helpMaxCharacters
+    static let shortcutHintMaxCharacters = CinematicRunRecapShareArtifactActionMenuPlan.shortcutHintMaxCharacters
+
+    var id: String { identifier }
+
+    var identifier: String
+    var commands: [Command]
+
+    var commandCount: Int { commands.count }
+
+    func commands(in section: CinematicRunRecapShareArtifactActionMenuPlan.Section) -> [Command] {
+        commands.filter { $0.section == section }
+    }
+
+    func command(
+        for sourceActionKind: CinematicRunRecapShareArtifactActionMenuPlan.ActionKind
+    ) -> Command? {
+        commands.first { $0.sourceActionKind == sourceActionKind }
+    }
+
+    struct Command: Equatable, Identifiable {
+        var id: String { identifier }
+
+        var identifier: String
+        var section: CinematicRunRecapShareArtifactActionMenuPlan.Section
+        var label: String
+        var help: String
+        var isEnabled: Bool
+        var sourceActionKind: CinematicRunRecapShareArtifactActionMenuPlan.ActionKind
+        var shortcut: Shortcut
+    }
+
+    struct Shortcut: Equatable, Hashable {
+        var key: Key
+        var modifiers: [Modifier]
+
+        var identifier: String {
+            let modifierText = modifiers.map(\.rawValue).joined(separator: "+")
+            return "\(modifierText):\(key.rawValue)"
+        }
+
+        var displayText: String {
+            let modifierText = modifiers.map(\.displayText)
+            return (modifierText + [key.displayText]).joined(separator: "-")
+        }
+
+        enum Key: String, Equatable, Hashable {
+            case leftBracket = "["
+            case rightBracket = "]"
+            case b = "b"
+            case d = "d"
+            case e = "e"
+            case h = "h"
+            case m = "m"
+            case o = "o"
+            case p = "p"
+            case r = "r"
+            case returnKey = "return"
+            case t = "t"
+
+            var displayText: String {
+                switch self {
+                case .leftBracket, .rightBracket:
+                    return rawValue
+                case .returnKey:
+                    return "Return"
+                default:
+                    return rawValue.uppercased()
+                }
+            }
+        }
+
+        enum Modifier: String, Equatable, Hashable {
+            case command
+            case control
+            case option
+            case shift
+
+            var displayText: String {
+                switch self {
+                case .command:
+                    return "Cmd"
+                case .control:
+                    return "Ctrl"
+                case .option:
+                    return "Opt"
+                case .shift:
+                    return "Shift"
+                }
+            }
+        }
+    }
+}
+
 enum CinematicRunRecapShareArtifactActionMenuPlanner {
     static func plan(
         previewPlan: CinematicRunRecapShareArtifactPreviewBrowserPlan,
@@ -591,7 +689,7 @@ enum CinematicRunRecapShareArtifactActionMenuPlanner {
                 systemImage: "chevron.left",
                 help: previousHelp(previewPlan),
                 isEnabled: previewPlan.canNavigatePrevious,
-                shortcutHint: "Left",
+                shortcutHint: CinematicRunRecapShareArtifactCommandPlanner.shortcutHint(for: .navigatePrevious),
                 stateIdentifier: previewPlan.previousEntryIdentifier ?? previewPlan.availabilityReason
             ),
             action(
@@ -601,7 +699,7 @@ enum CinematicRunRecapShareArtifactActionMenuPlanner {
                 systemImage: "chevron.right",
                 help: nextHelp(previewPlan),
                 isEnabled: previewPlan.canNavigateNext,
-                shortcutHint: "Right",
+                shortcutHint: CinematicRunRecapShareArtifactCommandPlanner.shortcutHint(for: .navigateNext),
                 stateIdentifier: previewPlan.nextEntryIdentifier ?? previewPlan.availabilityReason
             ),
             action(
@@ -611,7 +709,7 @@ enum CinematicRunRecapShareArtifactActionMenuPlanner {
                 systemImage: "folder",
                 help: revealHelp(previewPlan),
                 isEnabled: previewPlan.selectedEntryIdentifier != nil,
-                shortcutHint: "Cmd-R",
+                shortcutHint: CinematicRunRecapShareArtifactCommandPlanner.shortcutHint(for: .revealSelected),
                 stateIdentifier: previewPlan.selectedEntryIdentifier ?? previewPlan.availabilityReason
             ),
             action(
@@ -621,6 +719,7 @@ enum CinematicRunRecapShareArtifactActionMenuPlanner {
                 systemImage: "doc.text",
                 help: selectedExportPlan.copyHelp,
                 isEnabled: selectedExportPlan.isAvailable,
+                shortcutHint: CinematicRunRecapShareArtifactCommandPlanner.shortcutHint(for: .copySelectedExport),
                 stateIdentifier: selectedExportPlan.exportIdentifier
             ),
             action(
@@ -630,6 +729,7 @@ enum CinematicRunRecapShareArtifactActionMenuPlanner {
                 systemImage: "line.3.horizontal.decrease.circle",
                 help: filteredExportPlan.copyHelp,
                 isEnabled: filteredExportPlan.isAvailable,
+                shortcutHint: CinematicRunRecapShareArtifactCommandPlanner.shortcutHint(for: .copyFilteredExport),
                 stateIdentifier: filteredExportPlan.exportIdentifier
             ),
             action(
@@ -639,6 +739,7 @@ enum CinematicRunRecapShareArtifactActionMenuPlanner {
                 systemImage: "doc.on.doc",
                 help: libraryExportHelp(historyPlan),
                 isEnabled: historyPlan.isAvailable,
+                shortcutHint: CinematicRunRecapShareArtifactCommandPlanner.shortcutHint(for: .copyLibraryExport),
                 stateIdentifier: historyPlan.exportIdentifier
             ),
             action(
@@ -648,6 +749,7 @@ enum CinematicRunRecapShareArtifactActionMenuPlanner {
                 systemImage: "chart.bar",
                 help: rollupPlan.copyHelp,
                 isEnabled: rollupPlan.isAvailable,
+                shortcutHint: CinematicRunRecapShareArtifactCommandPlanner.shortcutHint(for: .copyRollupExport),
                 stateIdentifier: rollupPlan.exportIdentifier
             ),
             action(
@@ -657,6 +759,7 @@ enum CinematicRunRecapShareArtifactActionMenuPlanner {
                 systemImage: comparisonPlan.targetMode == .pinnedReference ? "pin.square" : "rectangle.split.2x1",
                 help: comparisonPlan.copyHelp,
                 isEnabled: comparisonPlan.isAvailable,
+                shortcutHint: CinematicRunRecapShareArtifactCommandPlanner.shortcutHint(for: .copyComparisonExport),
                 stateIdentifier: comparisonPlan.exportIdentifier
             ),
             action(
@@ -666,6 +769,7 @@ enum CinematicRunRecapShareArtifactActionMenuPlanner {
                 systemImage: "pin",
                 help: pinnedExportHelp(pinnedReferencePlan),
                 isEnabled: pinnedReferencePlan.isAvailable,
+                shortcutHint: CinematicRunRecapShareArtifactCommandPlanner.shortcutHint(for: .copyPinnedExport),
                 stateIdentifier: pinnedReferencePlan.exportIdentifier
             ),
             action(
@@ -675,6 +779,7 @@ enum CinematicRunRecapShareArtifactActionMenuPlanner {
                 systemImage: "sparkles",
                 help: tourExportHelp(tourPlan),
                 isEnabled: tourPlan.isAvailable && tourPlan.selectedEntryIdentifier != nil,
+                shortcutHint: CinematicRunRecapShareArtifactCommandPlanner.shortcutHint(for: .copyTourExport),
                 stateIdentifier: tourPlan.identifier
             ),
             action(
@@ -684,6 +789,7 @@ enum CinematicRunRecapShareArtifactActionMenuPlanner {
                 systemImage: comparisonPlan.targetMode.toggled == .pinnedReference ? "pin" : "rectangle.split.2x1",
                 help: comparisonModeToggleHelp(comparisonPlan),
                 isEnabled: true,
+                shortcutHint: CinematicRunRecapShareArtifactCommandPlanner.shortcutHint(for: .toggleComparisonTargetMode),
                 stateIdentifier: comparisonPlan.targetModeIdentifier
             ),
             action(
@@ -693,6 +799,7 @@ enum CinematicRunRecapShareArtifactActionMenuPlanner {
                 systemImage: pinnedReferencePlan.selectedEntryIsPinned ? "pin.slash" : "pin",
                 help: togglePinHelp(pinnedReferencePlan, previewPlan: previewPlan),
                 isEnabled: previewPlan.selectedEntryIdentifier != nil,
+                shortcutHint: CinematicRunRecapShareArtifactCommandPlanner.shortcutHint(for: .toggleSelectedPin),
                 stateIdentifier: pinnedReferencePlan.selectedPinStateIdentifier
             ),
             action(
@@ -702,6 +809,7 @@ enum CinematicRunRecapShareArtifactActionMenuPlanner {
                 systemImage: tourPlan.requestedSavedTourHoldEntryIdentifier == nil ? "lock" : "lock.open",
                 help: tourHoldHelp(tourPlan),
                 isEnabled: tourPlan.requestedSavedTourHoldEntryIdentifier != nil || tourPlan.selectedEntryIdentifier != nil,
+                shortcutHint: CinematicRunRecapShareArtifactCommandPlanner.shortcutHint(for: .toggleTourHold),
                 stateIdentifier: tourPlan.savedTourHoldStateIdentifier
             ),
             action(
@@ -715,6 +823,7 @@ enum CinematicRunRecapShareArtifactActionMenuPlanner {
                     : "bookmark",
                 help: selectedHoldHelp(previewPlan, tourPlan: tourPlan),
                 isEnabled: previewPlan.selectedEntryIdentifier != nil,
+                shortcutHint: CinematicRunRecapShareArtifactCommandPlanner.shortcutHint(for: .toggleSelectedTourHold),
                 stateIdentifier: previewPlan.selectedEntryIdentifier ?? tourPlan.savedTourHoldStateIdentifier
             ),
             action(
@@ -724,6 +833,7 @@ enum CinematicRunRecapShareArtifactActionMenuPlanner {
                 systemImage: comparisonPlan.promotedHoldStateIdentifier == "none" ? "pin.circle" : "pin.circle.fill",
                 help: promoteTourHoldHelp(tourPlan, comparisonPlan: comparisonPlan),
                 isEnabled: tourPlan.retainedSavedTourHoldEntryIdentifier != nil,
+                shortcutHint: CinematicRunRecapShareArtifactCommandPlanner.shortcutHint(for: .promoteTourHold),
                 stateIdentifier: comparisonPlan.promotedHoldStateIdentifier
             ),
             action(
@@ -961,6 +1071,135 @@ enum CinematicRunRecapShareArtifactActionMenuPlanner {
     private static func boundedOptional(_ text: String?, limit: Int) -> String? {
         let boundedText = bounded(text ?? "", limit: limit)
         return boundedText == "none" ? nil : boundedText
+    }
+
+    private static func bounded(_ text: String, limit: Int) -> String {
+        guard limit > 0 else { return "" }
+        let normalized = text
+            .replacingOccurrences(of: "\r", with: " ")
+            .replacingOccurrences(of: "\n", with: " ")
+            .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalized.isEmpty else { return "none" }
+        guard normalized.count <= limit else {
+            let prefixLimit = max(1, limit - 3)
+            return normalized.prefix(prefixLimit)
+                .trimmingCharacters(in: .whitespacesAndNewlines) + "..."
+        }
+        return normalized
+    }
+
+    private static func fingerprint(_ value: String) -> String {
+        var hash: UInt64 = 0xcbf29ce484222325
+        for byte in value.utf8 {
+            hash ^= UInt64(byte)
+            hash = hash &* 0x100000001b3
+        }
+        return String(format: "%016llx", hash)
+    }
+}
+
+enum CinematicRunRecapShareArtifactCommandPlanner {
+    static func plan(
+        actionMenuPlan: CinematicRunRecapShareArtifactActionMenuPlan
+    ) -> CinematicRunRecapShareArtifactCommandPlan {
+        let commands = actionMenuPlan.actions.compactMap { action -> Command? in
+            guard let shortcut = shortcut(for: action.actionKind) else { return nil }
+            return command(for: action, shortcut: shortcut)
+        }.prefix(CinematicRunRecapShareArtifactCommandPlan.commandLimit)
+
+        let boundedCommands = Array(commands)
+        let identifier = bounded(
+            [
+                "run-recap-share-artifact-commands",
+                "commands:\(boundedCommands.count)",
+                "source:\(fingerprint(actionMenuPlan.identifier))",
+                "content:\(fingerprint(boundedCommands.map(\.identifier).joined(separator: "|")))"
+            ].joined(separator: "|"),
+            limit: CommandPlan.identifierMaxCharacters
+        )
+
+        return CinematicRunRecapShareArtifactCommandPlan(
+            identifier: identifier,
+            commands: boundedCommands
+        )
+    }
+
+    static func shortcutHint(
+        for actionKind: CinematicRunRecapShareArtifactActionMenuPlan.ActionKind
+    ) -> String? {
+        shortcut(for: actionKind)?.displayText
+    }
+
+    static func shortcut(
+        for actionKind: CinematicRunRecapShareArtifactActionMenuPlan.ActionKind
+    ) -> CinematicRunRecapShareArtifactCommandPlan.Shortcut? {
+        switch actionKind {
+        case .navigatePrevious:
+            return Shortcut(key: .leftBracket, modifiers: [.command])
+        case .navigateNext:
+            return Shortcut(key: .rightBracket, modifiers: [.command])
+        case .revealSelected:
+            return Shortcut(key: .r, modifiers: [.command, .shift])
+        case .copySelectedExport:
+            return Shortcut(key: .e, modifiers: [.command, .shift])
+        case .copyFilteredExport:
+            return Shortcut(key: .e, modifiers: [.command, .option])
+        case .copyLibraryExport:
+            return Shortcut(key: .e, modifiers: [.command, .option, .shift])
+        case .copyRollupExport:
+            return Shortcut(key: .b, modifiers: [.command, .shift])
+        case .copyComparisonExport:
+            return Shortcut(key: .d, modifiers: [.command, .shift])
+        case .copyPinnedExport:
+            return Shortcut(key: .p, modifiers: [.command, .option, .shift])
+        case .copyTourExport:
+            return Shortcut(key: .t, modifiers: [.command, .option])
+        case .toggleComparisonTargetMode:
+            return Shortcut(key: .m, modifiers: [.command, .shift])
+        case .toggleSelectedPin:
+            return Shortcut(key: .p, modifiers: [.command, .shift])
+        case .toggleTourHold:
+            return Shortcut(key: .h, modifiers: [.command, .shift])
+        case .toggleSelectedTourHold:
+            return Shortcut(key: .h, modifiers: [.command, .option, .shift])
+        case .promoteTourHold:
+            return Shortcut(key: .p, modifiers: [.command, .option])
+        case .cleanupOldArtifacts:
+            return nil
+        }
+    }
+
+    private typealias CommandPlan = CinematicRunRecapShareArtifactCommandPlan
+    private typealias Command = CinematicRunRecapShareArtifactCommandPlan.Command
+    private typealias Shortcut = CinematicRunRecapShareArtifactCommandPlan.Shortcut
+    private typealias Action = CinematicRunRecapShareArtifactActionMenuPlan.Action
+
+    private static func command(
+        for action: Action,
+        shortcut: Shortcut
+    ) -> Command {
+        let identifier = bounded(
+            [
+                "run-recap-share-artifact-command",
+                "kind:\(action.actionKind.rawValue)",
+                "section:\(action.section.rawValue)",
+                "enabled:\(action.isEnabled)",
+                "shortcut:\(shortcut.identifier)",
+                "source:\(fingerprint(action.identifier))"
+            ].joined(separator: "|"),
+            limit: CommandPlan.identifierMaxCharacters
+        )
+
+        return Command(
+            identifier: identifier,
+            section: action.section,
+            label: bounded(action.label, limit: CommandPlan.labelMaxCharacters),
+            help: bounded(action.help, limit: CommandPlan.helpMaxCharacters),
+            isEnabled: action.isEnabled,
+            sourceActionKind: action.actionKind,
+            shortcut: shortcut
+        )
     }
 
     private static func bounded(_ text: String, limit: Int) -> String {
