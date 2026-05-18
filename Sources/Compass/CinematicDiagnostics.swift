@@ -364,6 +364,13 @@ struct CinematicDiagnosticsReport: Equatable {
         var nativeFeedbackLifecycleIdentifier: String
         var nativeFeedbackBannerPolicyIdentifier: String
         var showsNativeFeedbackBanner: Bool
+        var activitySourceCueIdentifier: String
+        var activitySourceCueStatusIdentifier: String
+        var activitySourceCueKindIdentifier: String
+        var activitySourceCuePolicyIdentifier: String
+        var activitySourceCueSeverityIdentifier: String
+        var activitySourceCueTintIdentifier: String
+        var showsActivitySourceCue: Bool
     }
 
     struct NarrativeCueDescriptorSnapshot: Equatable {
@@ -5309,6 +5316,11 @@ struct CinematicDiagnosticsSummary: Equatable {
                 ? nil
                 : "native-lifecycle \(snapshot.nativeFeedbackLifecycleIdentifier)",
             "native-banner \(snapshot.nativeFeedbackBannerPolicyIdentifier)",
+            "source-cue \(snapshot.activitySourceCuePolicyIdentifier)",
+            "source-visible \(snapshot.showsActivitySourceCue ? "yes" : "no")",
+            "source-kind \(snapshot.activitySourceCueKindIdentifier)",
+            "source-severity \(snapshot.activitySourceCueSeverityIdentifier)",
+            "source-tint \(snapshot.activitySourceCueTintIdentifier)",
             "chrome \(snapshot.chromeStyleIdentifier)",
             "gradient \(fixed(snapshot.gradientStrength))",
             "width \(fixed(snapshot.worldTextMaxWidth))/\(fixed(snapshot.hudMaxWidth))",
@@ -7453,6 +7465,7 @@ enum CinematicDiagnostics {
             briefing: briefing,
             languageProfile: languageProfile,
             activityProfile: activityProfile,
+            activitySourceSnapshot: activitySourceSnapshot,
             influenceSettings: influenceSettings,
             narrativeCueReadability: narrativeCueReadability,
             nativeFeedbackCue: nativeFeedbackCue,
@@ -7604,6 +7617,8 @@ enum CinematicDiagnostics {
                 "native-feedback:\(nativeFeedbackSnapshot.identifier)",
                 "native-feedback-delivery:\(nativeFeedbackDeliverySnapshot.identifier)",
                 "overlay:\(overlayDisplaySnapshot.identifier)",
+                "overlay-activity-source-cue:\(overlayDisplaySnapshot.activitySourceCueIdentifier)",
+                "overlay-activity-source-policy:\(overlayDisplaySnapshot.activitySourceCuePolicyIdentifier)",
                 "influence:\(influenceIdentifier)",
                 "set-dressing:\(setDressingSnapshot.identifier)",
                 "commit-constellation:\(commitConstellationSnapshot.identifier)",
@@ -9914,7 +9929,14 @@ enum CinematicDiagnostics {
             nativeFeedbackCueIdentifier: plan.nativeFeedbackCueIdentifier,
             nativeFeedbackLifecycleIdentifier: plan.nativeFeedbackLifecycleIdentifier,
             nativeFeedbackBannerPolicyIdentifier: plan.nativeFeedbackBannerPolicyIdentifier,
-            showsNativeFeedbackBanner: plan.showsNativeFeedbackBanner
+            showsNativeFeedbackBanner: plan.showsNativeFeedbackBanner,
+            activitySourceCueIdentifier: plan.activitySourceCueIdentifier,
+            activitySourceCueStatusIdentifier: plan.activitySourceCueStatusIdentifier,
+            activitySourceCueKindIdentifier: plan.activitySourceCueKindIdentifier,
+            activitySourceCuePolicyIdentifier: plan.activitySourceCuePolicyIdentifier,
+            activitySourceCueSeverityIdentifier: plan.activitySourceCueSeverityIdentifier,
+            activitySourceCueTintIdentifier: plan.activitySourceCueTintIdentifier,
+            showsActivitySourceCue: plan.showsActivitySourceCue
         )
     }
 

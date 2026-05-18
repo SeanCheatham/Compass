@@ -226,6 +226,14 @@ struct CinematicOverlayDisplayPlan: Equatable {
     var nativeFeedbackLifecycleIdentifier: String
     var nativeFeedbackBannerPolicyIdentifier: String
     var showsNativeFeedbackBanner: Bool
+    var activitySourceCue: CinematicActivitySourceCuePlan
+    var activitySourceCueIdentifier: String
+    var activitySourceCueStatusIdentifier: String
+    var activitySourceCueKindIdentifier: String
+    var activitySourceCuePolicyIdentifier: String
+    var activitySourceCueSeverityIdentifier: String
+    var activitySourceCueTintIdentifier: String
+    var showsActivitySourceCue: Bool
 
     var modeIdentifier: String { mode.rawValue }
     var hudProminenceIdentifier: String { hudProminence.rawValue }
@@ -277,12 +285,18 @@ struct CinematicOverlayDisplayPlan: Equatable {
         briefing: CinematicBriefing,
         languageProfile: RepositoryLanguageProfile,
         activityProfile: RepositoryActivityProfile,
+        activitySourceSnapshot: RepositoryActivitySourceSnapshot,
         influenceSettings: CinematicInfluenceSettings,
         nativeFeedbackCue: CinematicNativeFeedbackCuePlan? = nil,
         nativeFeedbackLifecycleIdentifier: String? = nil
     ) {
         let nativeFeedbackPolicy = Self.nativeFeedbackBannerPolicy(
             for: nativeFeedbackCue,
+            influenceSettings: influenceSettings
+        )
+        let activitySourceCue = CinematicActivitySourceCuePlan(snapshot: activitySourceSnapshot)
+        let activitySourcePolicy = Self.activitySourceCuePolicy(
+            for: activitySourceCue,
             influenceSettings: influenceSettings
         )
         self.mode = mode
@@ -368,6 +382,14 @@ struct CinematicOverlayDisplayPlan: Equatable {
             ?? "none"
         nativeFeedbackBannerPolicyIdentifier = nativeFeedbackPolicy.identifier
         showsNativeFeedbackBanner = nativeFeedbackPolicy.showsBanner
+        self.activitySourceCue = activitySourceCue
+        activitySourceCueIdentifier = activitySourceCue.identifier
+        activitySourceCueStatusIdentifier = activitySourceCue.statusIdentifier
+        activitySourceCueKindIdentifier = activitySourceCue.kindIdentifier
+        activitySourceCuePolicyIdentifier = activitySourcePolicy.identifier
+        activitySourceCueSeverityIdentifier = activitySourceCue.severityIdentifier
+        activitySourceCueTintIdentifier = activitySourceCue.tintIdentifier
+        showsActivitySourceCue = activitySourcePolicy.showsCue
         identifier = [
             "mode:\(mode.rawValue)",
             "comfort:\(influenceSettings.comfortMode.rawValue)",
@@ -392,7 +414,10 @@ struct CinematicOverlayDisplayPlan: Equatable {
             "readability:\(narrativeCueReadability.identifier)",
             "native:\(nativeFeedbackCueIdentifier)",
             "native-lifecycle:\(self.nativeFeedbackLifecycleIdentifier)",
-            "native-banner:\(nativeFeedbackBannerPolicyIdentifier)"
+            "native-banner:\(nativeFeedbackBannerPolicyIdentifier)",
+            "activity-source-cue:\(activitySourceCue.identifier)",
+            "activity-source-policy:\(activitySourcePolicy.identifier)",
+            "activity-source-visible:\(Self.flag(activitySourcePolicy.showsCue))"
         ].joined(separator: "|")
     }
 
@@ -452,6 +477,11 @@ struct CinematicOverlayDisplayPlan: Equatable {
         var showsBanner: Bool
     }
 
+    private struct ActivitySourceCuePolicy {
+        var identifier: String
+        var showsCue: Bool
+    }
+
     private static func nativeFeedbackBannerPolicy(
         for cue: CinematicNativeFeedbackCuePlan?,
         influenceSettings: CinematicInfluenceSettings
@@ -465,6 +495,26 @@ struct CinematicOverlayDisplayPlan: Equatable {
         }
 
         return NativeFeedbackBannerPolicy(identifier: "visible", showsBanner: true)
+    }
+
+    private static func activitySourceCuePolicy(
+        for cue: CinematicActivitySourceCuePlan,
+        influenceSettings: CinematicInfluenceSettings
+    ) -> ActivitySourceCuePolicy {
+        guard cue.isVisible else {
+            return ActivitySourceCuePolicy(identifier: "hidden", showsCue: false)
+        }
+
+        if influenceSettings.comfortMode == .quiet,
+           cue.isQuietModeSuppressible {
+            return ActivitySourceCuePolicy(identifier: "suppressed-quiet-noncritical", showsCue: false)
+        }
+
+        if cue.isCritical {
+            return ActivitySourceCuePolicy(identifier: "visible-warning", showsCue: true)
+        }
+
+        return ActivitySourceCuePolicy(identifier: "visible", showsCue: true)
     }
 
     private static func flag(_ value: Bool) -> String {
@@ -491,6 +541,7 @@ enum CinematicOverlayDisplayPlanner {
         briefing: CinematicBriefing,
         languageProfile: RepositoryLanguageProfile,
         activityProfile: RepositoryActivityProfile,
+        activitySourceSnapshot: RepositoryActivitySourceSnapshot = .notScanned(),
         influenceSettings: CinematicInfluenceSettings,
         narrativeCueReadability: CinematicNarrativeCueReadabilitySignals,
         nativeFeedbackCue: CinematicNativeFeedbackCuePlan? = nil,
@@ -557,6 +608,7 @@ enum CinematicOverlayDisplayPlanner {
             briefing: briefing,
             languageProfile: languageProfile,
             activityProfile: activityProfile,
+            activitySourceSnapshot: activitySourceSnapshot,
             influenceSettings: influenceSettings,
             nativeFeedbackCue: nativeFeedbackCue,
             nativeFeedbackLifecycleIdentifier: nativeFeedbackLifecycleIdentifier

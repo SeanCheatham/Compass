@@ -98,6 +98,11 @@ final class CinematicDiagnosticsTests: XCTestCase {
         XCTAssertEqual(report.overlayDisplay.reasonIdentifier, "in-world-readable-cues")
         XCTAssertTrue(report.overlayDisplay.narrativeCueReadabilityIdentifier.contains("count:3"))
         XCTAssertTrue(report.overlayDisplay.identifier.contains("chrome:\(report.overlayDisplay.chromeStyleIdentifier)"))
+        XCTAssertEqual(report.overlayDisplay.activitySourceCuePolicyIdentifier, "hidden")
+        XCTAssertEqual(report.overlayDisplay.activitySourceCueKindIdentifier, "hidden")
+        XCTAssertEqual(report.overlayDisplay.activitySourceCueSeverityIdentifier, "info")
+        XCTAssertFalse(report.overlayDisplay.showsActivitySourceCue)
+        XCTAssertTrue(report.overlayDisplay.identifier.contains("activity-source-policy:hidden"))
         XCTAssertTrue(report.worldText.identifier.contains(report.worldText.questLabel))
         XCTAssertTrue(report.briefing.identifier.contains(report.briefing.title))
 
@@ -1184,6 +1189,13 @@ final class CinematicDiagnosticsTests: XCTestCase {
 
         XCTAssertEqual(report.activitySource, supportSnapshot)
         XCTAssertTrue(report.identifier.contains("activity-source:\(supportSnapshot.identifier)"))
+        XCTAssertEqual(report.overlayDisplay.activitySourceCueKindIdentifier, "application-support-active")
+        XCTAssertEqual(report.overlayDisplay.activitySourceCuePolicyIdentifier, "visible")
+        XCTAssertEqual(report.overlayDisplay.activitySourceCueSeverityIdentifier, "info")
+        XCTAssertEqual(report.overlayDisplay.activitySourceCueTintIdentifier, "blue")
+        XCTAssertTrue(report.overlayDisplay.showsActivitySourceCue)
+        XCTAssertTrue(report.identifier.contains("overlay-activity-source-policy:visible"))
+        XCTAssertTrue(report.overlayDisplay.identifier.contains("activity-source-policy:visible"))
         XCTAssertNotEqual(report.identifier, staleReport.identifier)
         XCTAssertNotEqual(report.identifier, movedReport.identifier)
         XCTAssertTrue(row.detail.contains("storage application_support"))
@@ -1195,6 +1207,87 @@ final class CinematicDiagnosticsTests: XCTestCase {
         XCTAssertTrue(summary.exportText.contains("Activity source:"))
         XCTAssertTrue(summary.exportText.contains("storage application_support"))
         XCTAssertTrue(summary.exportText.contains("repo-local ignored-missing"))
+        XCTAssertTrue(summary.exportText.contains("source-cue visible"))
+        XCTAssertTrue(summary.exportText.contains("source-kind application-support-active"))
+        XCTAssertTrue(summary.exportText.contains("source-severity info"))
+    }
+
+    func testQuietModeSuppressesAvailableActivitySourceCueButKeepsWarningsVisibleInDiagnostics() {
+        let repoURL = URL(fileURLWithPath: "/tmp/CompassActivitySourceCueDiagnostics")
+        let supportRoot = repoURL
+            .appending(path: "Application Support", directoryHint: .isDirectory)
+            .appending(path: "Compass", directoryHint: .isDirectory)
+        let supportAvailable = RepositoryActivitySourceSnapshot(
+            activeStorage: .applicationSupport,
+            storageRootURL: supportRoot,
+            sessionsRecordURL: supportRoot.appending(path: "sessions.json"),
+            sourceAvailability: .available,
+            repoLocalSessionsRecordURL: repoURL
+                .appending(path: ".compass", directoryHint: .isDirectory)
+                .appending(path: "sessions.json"),
+            repoLocalSessionsState: .ignoredCompatible
+        )
+        let missingActiveRecord = RepositoryActivitySourceSnapshot(
+            activeStorage: .applicationSupport,
+            storageRootURL: supportRoot,
+            sessionsRecordURL: supportRoot.appending(path: "sessions.json"),
+            sourceAvailability: .sessionsRecordMissing,
+            repoLocalSessionsRecordURL: repoURL
+                .appending(path: ".compass", directoryHint: .isDirectory)
+                .appending(path: "sessions.json"),
+            repoLocalSessionsState: .ignoredMissing
+        )
+        let quietSettings = CinematicInfluenceSettings(
+            cameraStyle: .follow,
+            comfortMode: .quiet,
+            intensity: 0.4
+        )
+
+        let quietSupportReport = makeReport(
+            CinematicDiagnosticsInput(
+                repoName: "Compass",
+                phase: "Developing",
+                immediateTitle: "Dampen noncritical source cues",
+                completedCount: 1,
+                latestEvent: nil,
+                languageProfile: languageProfile(primaryLanguage: .swift),
+                activityProfile: activityProfile(recentCommitCount: 1),
+                activitySourceSnapshot: supportAvailable,
+                influenceSettings: quietSettings
+            )
+        )
+        let quietMissingReport = makeReport(
+            CinematicDiagnosticsInput(
+                repoName: "Compass",
+                phase: "Developing",
+                immediateTitle: "Keep source warnings visible",
+                completedCount: 1,
+                latestEvent: nil,
+                languageProfile: languageProfile(primaryLanguage: .swift),
+                activityProfile: activityProfile(recentCommitCount: 1),
+                activitySourceSnapshot: missingActiveRecord,
+                influenceSettings: quietSettings
+            )
+        )
+        let supportSummary = CinematicDiagnosticsSummary(report: quietSupportReport)
+        let missingSummary = CinematicDiagnosticsSummary(report: quietMissingReport)
+
+        XCTAssertFalse(quietSupportReport.overlayDisplay.showsActivitySourceCue)
+        XCTAssertEqual(
+            quietSupportReport.overlayDisplay.activitySourceCuePolicyIdentifier,
+            "suppressed-quiet-noncritical"
+        )
+        XCTAssertEqual(quietSupportReport.overlayDisplay.activitySourceCueSeverityIdentifier, "info")
+        XCTAssertTrue(supportSummary.exportText.contains("source-cue suppressed-quiet-noncritical"))
+        XCTAssertTrue(supportSummary.exportText.contains("source-visible no"))
+
+        XCTAssertTrue(quietMissingReport.overlayDisplay.showsActivitySourceCue)
+        XCTAssertEqual(quietMissingReport.overlayDisplay.activitySourceCuePolicyIdentifier, "visible-warning")
+        XCTAssertEqual(quietMissingReport.overlayDisplay.activitySourceCueSeverityIdentifier, "warning")
+        XCTAssertEqual(quietMissingReport.overlayDisplay.activitySourceCueTintIdentifier, "orange")
+        XCTAssertTrue(missingSummary.exportText.contains("source-cue visible-warning"))
+        XCTAssertTrue(missingSummary.exportText.contains("source-visible yes"))
+        XCTAssertTrue(missingSummary.exportText.contains("availability sessions-record-missing"))
     }
 
     func testPlanCompassRowsCorrelateWithDiagnosticsExport() throws {

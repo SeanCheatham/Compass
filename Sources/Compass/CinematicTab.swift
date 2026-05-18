@@ -213,6 +213,12 @@ struct CinematicTab: View {
                                 displayPlan: displayPlan
                             )
                         }
+                        if displayPlan.showsActivitySourceCue {
+                            CinematicActivitySourceCueChip(
+                                cue: displayPlan.activitySourceCue,
+                                displayPlan: displayPlan
+                            )
+                        }
                         CinematicHUD(
                             caption: caption,
                             nativeFeedbackCue: displayedNativeFeedbackCue,
@@ -291,6 +297,7 @@ struct CinematicTab: View {
             briefing: project.cinematicBriefing,
             languageProfile: project.languageProfile,
             activityProfile: project.activityProfile,
+            activitySourceSnapshot: project.activitySourceSnapshot,
             influenceSettings: project.cinematicInfluenceSettings,
             narrativeCueReadability: readability,
             nativeFeedbackCue: project.cinematicNativeFeedbackCue,
@@ -3181,6 +3188,75 @@ private struct CinematicWorldTextPill: View {
         .overlay {
             RoundedRectangle(cornerRadius: CGFloat(displayPlan.worldTextPillCornerRadius))
                 .stroke(.white.opacity(displayPlan.worldTextPillStrokeOpacity * displayPlan.overlayOpacity))
+        }
+    }
+}
+
+private struct CinematicActivitySourceCueChip: View {
+    var cue: CinematicActivitySourceCuePlan
+    var displayPlan: CinematicOverlayDisplayPlan
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 7) {
+            Image(systemName: cue.systemImage)
+                .font(.system(size: 11, weight: .bold))
+                .foregroundStyle(tint.opacity(displayPlan.worldTextPillIconEmphasis))
+                .frame(width: 15)
+
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(spacing: 5) {
+                    Text(cue.label)
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(.white.opacity(displayPlan.worldTextPillTextEmphasis))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.78)
+
+                    Text(cue.activeStorageIdentifier)
+                        .font(.system(size: 8, weight: .bold, design: .monospaced))
+                        .foregroundStyle(tint.opacity(0.84))
+                        .lineLimit(1)
+                        .padding(.horizontal, 4)
+                        .padding(.vertical, 1)
+                        .background(tint.opacity(0.13 * displayPlan.overlayOpacity), in: Capsule())
+                }
+
+                Text(cue.detail)
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.white.opacity(displayPlan.hudDetailTextEmphasis))
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .padding(.horizontal, CGFloat(displayPlan.worldTextPillHorizontalPadding))
+        .padding(.vertical, CGFloat(displayPlan.worldTextPillVerticalPadding))
+        .frame(maxWidth: CGFloat(displayPlan.worldTextMaxWidth), alignment: .leading)
+        .background(
+            .black.opacity(max(0.28, displayPlan.worldTextPillBackgroundOpacity) * displayPlan.overlayOpacity),
+            in: RoundedRectangle(cornerRadius: CGFloat(displayPlan.worldTextPillCornerRadius))
+        )
+        .overlay {
+            RoundedRectangle(cornerRadius: CGFloat(displayPlan.worldTextPillCornerRadius))
+                .stroke(tint.opacity(max(0.18, displayPlan.worldTextPillStrokeOpacity)), lineWidth: 1)
+        }
+        .help(cue.helpText.isEmpty ? cue.copyText : cue.helpText)
+        .accessibilityLabel("Activity source: \(cue.label)")
+        .accessibilityValue(cue.detail)
+        .accessibilityHint("Read-only activity-source status")
+        .accessibilityIdentifier("cinematic-activity-source-cue-\(cue.identifier)")
+    }
+
+    private var tint: Color {
+        switch cue.tintIdentifier {
+        case "green":
+            return .green
+        case "blue":
+            return .blue
+        case "orange":
+            return .orange
+        case "red":
+            return .red
+        default:
+            return .white
         }
     }
 }

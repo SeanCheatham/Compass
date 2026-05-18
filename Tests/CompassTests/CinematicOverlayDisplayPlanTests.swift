@@ -148,6 +148,12 @@ final class CinematicOverlayDisplayPlanTests: XCTestCase {
             XCTAssertFalse(plan.nativeFeedbackCueIdentifier.isEmpty)
             XCTAssertFalse(plan.nativeFeedbackLifecycleIdentifier.isEmpty)
             XCTAssertFalse(plan.nativeFeedbackBannerPolicyIdentifier.isEmpty)
+            XCTAssertFalse(plan.activitySourceCueIdentifier.isEmpty)
+            XCTAssertFalse(plan.activitySourceCueStatusIdentifier.isEmpty)
+            XCTAssertFalse(plan.activitySourceCueKindIdentifier.isEmpty)
+            XCTAssertFalse(plan.activitySourceCuePolicyIdentifier.isEmpty)
+            XCTAssertFalse(plan.activitySourceCueSeverityIdentifier.isEmpty)
+            XCTAssertFalse(plan.activitySourceCueTintIdentifier.isEmpty)
         }
     }
 
@@ -455,6 +461,67 @@ final class CinematicOverlayDisplayPlanTests: XCTestCase {
         XCTAssertTrue(plan.identifier.contains("native:none"))
         XCTAssertTrue(plan.identifier.contains("native-lifecycle:\(lifecycle.identifier)"))
     }
+
+    func testActivitySourceCuePolicySuppressesAvailableSupportInQuietButKeepsWarningsVisible() {
+        let supportAvailable = makeOverlayActivitySourceSnapshot(
+            activeStorage: .applicationSupport,
+            sourceAvailability: .available,
+            repoLocalSessionsState: .ignoredCompatible
+        )
+        let missingActiveRecord = makeOverlayActivitySourceSnapshot(
+            activeStorage: .applicationSupport,
+            sourceAvailability: .sessionsRecordMissing,
+            repoLocalSessionsState: .ignoredMissing
+        )
+        let unreadableActiveRecord = makeOverlayActivitySourceSnapshot(
+            activeStorage: .applicationSupport,
+            sourceAvailability: .sessionsRecordUnreadable,
+            repoLocalSessionsState: .ignoredMissing
+        )
+        let quietSettings = CinematicInfluenceSettings(
+            cameraStyle: .follow,
+            comfortMode: .quiet,
+            intensity: 0.6
+        )
+
+        let standardSupport = makeOverlayPlan(
+            phase: .developing,
+            activitySourceSnapshot: supportAvailable
+        )
+        let quietSupport = makeOverlayPlan(
+            phase: .developing,
+            activitySourceSnapshot: supportAvailable,
+            influenceSettings: quietSettings
+        )
+        let quietMissing = makeOverlayPlan(
+            phase: .developing,
+            activitySourceSnapshot: missingActiveRecord,
+            influenceSettings: quietSettings
+        )
+        let quietUnreadable = makeOverlayPlan(
+            phase: .developing,
+            activitySourceSnapshot: unreadableActiveRecord,
+            influenceSettings: quietSettings
+        )
+
+        XCTAssertTrue(standardSupport.showsActivitySourceCue)
+        XCTAssertEqual(standardSupport.activitySourceCuePolicyIdentifier, "visible")
+        XCTAssertEqual(standardSupport.activitySourceCueKindIdentifier, "application-support-active")
+        XCTAssertEqual(standardSupport.activitySourceCueSeverityIdentifier, "info")
+        XCTAssertEqual(standardSupport.activitySourceCueTintIdentifier, "blue")
+        XCTAssertFalse(quietSupport.showsActivitySourceCue)
+        XCTAssertEqual(quietSupport.activitySourceCuePolicyIdentifier, "suppressed-quiet-noncritical")
+        XCTAssertTrue(quietSupport.identifier.contains("activity-source-policy:suppressed-quiet-noncritical"))
+
+        XCTAssertTrue(quietMissing.showsActivitySourceCue)
+        XCTAssertEqual(quietMissing.activitySourceCuePolicyIdentifier, "visible-warning")
+        XCTAssertEqual(quietMissing.activitySourceCueSeverityIdentifier, "warning")
+        XCTAssertEqual(quietMissing.activitySourceCueTintIdentifier, "orange")
+        XCTAssertTrue(quietUnreadable.showsActivitySourceCue)
+        XCTAssertEqual(quietUnreadable.activitySourceCuePolicyIdentifier, "visible-warning")
+        XCTAssertEqual(quietUnreadable.activitySourceCueSeverityIdentifier, "failure")
+        XCTAssertEqual(quietUnreadable.activitySourceCueTintIdentifier, "red")
+    }
 }
 
 private func makeOverlayPlan(
@@ -467,6 +534,7 @@ private func makeOverlayPlan(
     briefing: CinematicBriefing = briefing(),
     languageProfile: RepositoryLanguageProfile = languageProfile(primaryLanguage: .swift),
     activityProfile: RepositoryActivityProfile = activityProfile(worktreeChanges: worktreeChanges(modified: 2)),
+    activitySourceSnapshot: RepositoryActivitySourceSnapshot = .notScanned(),
     influenceSettings: CinematicInfluenceSettings = CinematicInfluenceSettings(cameraStyle: .follow, intensity: 0.6),
     readability: CinematicNarrativeCueReadabilitySignals = readableSignals(),
     nativeFeedbackCue: CinematicNativeFeedbackCuePlan? = nil,
@@ -482,10 +550,38 @@ private func makeOverlayPlan(
         briefing: briefing,
         languageProfile: languageProfile,
         activityProfile: activityProfile,
+        activitySourceSnapshot: activitySourceSnapshot,
         influenceSettings: influenceSettings,
         narrativeCueReadability: readability,
         nativeFeedbackCue: nativeFeedbackCue,
         nativeFeedbackLifecycleIdentifier: nativeFeedbackLifecycleIdentifier
+    )
+}
+
+private func makeOverlayActivitySourceSnapshot(
+    activeStorage: KnownProjectActiveStorage,
+    sourceAvailability: RepositoryActivitySourceSnapshot.SourceAvailability,
+    repoLocalSessionsState: RepositoryActivitySourceSnapshot.RepoLocalSessionsState
+) -> RepositoryActivitySourceSnapshot {
+    let repoURL = URL(fileURLWithPath: "/tmp/CompassOverlayActivitySourceCue", isDirectory: true)
+    let activeRoot: URL
+    switch activeStorage {
+    case .repoLocal:
+        activeRoot = repoURL.appending(path: ".compass", directoryHint: .isDirectory)
+    case .applicationSupport:
+        activeRoot = repoURL
+            .appending(path: "Application Support", directoryHint: .isDirectory)
+            .appending(path: "Compass", directoryHint: .isDirectory)
+    }
+    let repoLocalRoot = repoURL.appending(path: ".compass", directoryHint: .isDirectory)
+
+    return RepositoryActivitySourceSnapshot(
+        activeStorage: activeStorage,
+        storageRootURL: activeRoot,
+        sessionsRecordURL: activeRoot.appending(path: "sessions.json"),
+        sourceAvailability: sourceAvailability,
+        repoLocalSessionsRecordURL: repoLocalRoot.appending(path: "sessions.json"),
+        repoLocalSessionsState: repoLocalSessionsState
     )
 }
 
