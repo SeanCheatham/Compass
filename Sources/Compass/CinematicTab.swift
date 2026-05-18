@@ -563,6 +563,7 @@ private struct CinematicRunRecapOverlay: View {
 }
 
 private struct CinematicRunRecapArtifactLibraryControl: View {
+    @EnvironmentObject private var model: AppModel
     @ObservedObject var project: CompassProject
     var plan: CinematicRunRecapShareArtifactHistoryPlan
     var tint: Color
@@ -570,8 +571,6 @@ private struct CinematicRunRecapArtifactLibraryControl: View {
     @State private var feedback: String?
     @State private var feedbackStatus: CinematicRunRecapShareArtifactCleanupResult.Status?
     @State private var preservedFeedbackPlanIdentifier: String?
-    @State private var selectedEntryIdentifier: String?
-    @State private var searchText = ""
 
     var body: some View {
         let previewPlan = currentPreviewPlan
@@ -734,19 +733,13 @@ private struct CinematicRunRecapArtifactLibraryControl: View {
         .help(exportHelp)
         .accessibilityIdentifier("cinematic-run-recap-artifact-library-\(plan.identifier)")
         .onAppear {
-            selectedEntryIdentifier = currentPreviewPlan.selectedEntryIdentifier
+            reconcileSelectionWithCurrentPlan()
         }
         .onChange(of: plan.identifier) {
-            selectedEntryIdentifier = currentPreviewPlan.selectedEntryIdentifier
+            reconcileSelectionWithCurrentPlan()
             if preservedFeedbackPlanIdentifier == plan.identifier {
                 return
             }
-            feedback = nil
-            feedbackStatus = nil
-            preservedFeedbackPlanIdentifier = nil
-        }
-        .onChange(of: searchText) {
-            selectedEntryIdentifier = currentPreviewPlan.selectedEntryIdentifier
             feedback = nil
             feedbackStatus = nil
             preservedFeedbackPlanIdentifier = nil
@@ -756,8 +749,8 @@ private struct CinematicRunRecapArtifactLibraryControl: View {
     private var currentPreviewPlan: CinematicRunRecapShareArtifactPreviewBrowserPlan {
         CinematicRunRecapShareArtifactPreviewBrowserPlanner.plan(
             historyPlan: plan,
-            selectedEntryIdentifier: selectedEntryIdentifier,
-            searchQuery: searchText
+            selectedEntryIdentifier: artifactLibraryContext.selectedEntryIdentifier,
+            searchQuery: artifactLibraryContext.searchText
         )
     }
 
@@ -771,8 +764,8 @@ private struct CinematicRunRecapArtifactLibraryControl: View {
     ) -> CinematicRunRecapShareArtifactSubsetExportPlan {
         CinematicRunRecapShareArtifactSubsetExportPlanner.plan(
             historyPlan: plan,
-            selectedEntryIdentifier: selectedEntryIdentifier,
-            searchQuery: searchText,
+            selectedEntryIdentifier: artifactLibraryContext.selectedEntryIdentifier,
+            searchQuery: artifactLibraryContext.searchText,
             scope: scope
         )
     }
@@ -810,7 +803,7 @@ private struct CinematicRunRecapArtifactLibraryControl: View {
                 .foregroundStyle(tint.opacity(previewPlan.isSearchActive ? 0.86 : 0.5))
                 .frame(width: 11)
 
-            TextField("", text: $searchText)
+            TextField("", text: searchTextBinding)
                 .textFieldStyle(.plain)
                 .font(.caption2)
                 .foregroundStyle(.white.opacity(0.76))
@@ -819,7 +812,7 @@ private struct CinematicRunRecapArtifactLibraryControl: View {
 
             if !searchText.isEmpty {
                 Button {
-                    searchText = ""
+                    updateSearchText("")
                 } label: {
                     Image(systemName: "xmark.circle.fill")
                         .font(.system(size: 10, weight: .semibold))
@@ -844,6 +837,21 @@ private struct CinematicRunRecapArtifactLibraryControl: View {
         }
         .help(searchHelp(previewPlan))
         .accessibilityIdentifier("cinematic-run-recap-artifact-library-search")
+    }
+
+    private var artifactLibraryContext: CinematicRunRecapShareArtifactLibraryContext {
+        project.cinematicRunRecapShareArtifactLibraryContext
+    }
+
+    private var searchText: String {
+        artifactLibraryContext.searchText
+    }
+
+    private var searchTextBinding: Binding<String> {
+        Binding(
+            get: { artifactLibraryContext.searchText },
+            set: { updateSearchText($0) }
+        )
     }
 
     private func searchHelp(_ previewPlan: CinematicRunRecapShareArtifactPreviewBrowserPlan) -> String {
@@ -911,7 +919,12 @@ private struct CinematicRunRecapArtifactLibraryControl: View {
 
     private func selectArtifact(_ identifier: String?) {
         guard let identifier else { return }
-        selectedEntryIdentifier = identifier
+        persistContext(
+            artifactLibraryContext.replacing(
+                selectedEntryIdentifier: identifier,
+                searchText: artifactLibraryContext.searchText
+            )
+        )
         feedback = nil
         feedbackStatus = nil
         preservedFeedbackPlanIdentifier = nil
@@ -961,6 +974,27 @@ private struct CinematicRunRecapArtifactLibraryControl: View {
                 preservedFeedbackPlanIdentifier = result.refreshedHistory.identifier
             }
         }
+    }
+
+    private func updateSearchText(_ text: String) {
+        let requestedContext = artifactLibraryContext.replacing(
+            selectedEntryIdentifier: artifactLibraryContext.selectedEntryIdentifier,
+            searchText: text
+        )
+        persistContext(requestedContext.resolvingSelection(in: plan))
+        feedback = nil
+        feedbackStatus = nil
+        preservedFeedbackPlanIdentifier = nil
+    }
+
+    private func reconcileSelectionWithCurrentPlan() {
+        persistContext(artifactLibraryContext.resolvingSelection(in: plan))
+    }
+
+    private func persistContext(_ context: CinematicRunRecapShareArtifactLibraryContext) {
+        guard project.cinematicRunRecapShareArtifactLibraryContext != context else { return }
+        project.cinematicRunRecapShareArtifactLibraryContext = context
+        model.saveProjects()
     }
 }
 

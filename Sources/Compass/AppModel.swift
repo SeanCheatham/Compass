@@ -426,6 +426,7 @@ final class CompassProject: ObservableObject, Identifiable {
     @Published var cinematicRunRecapFlavor: CinematicRunRecapFlavor?
     @Published var cinematicRunRecapShareArtifactRecording: CinematicRunRecapShareArtifactRecordingResult?
     @Published var cinematicRunRecapShareArtifactCleanup: CinematicRunRecapShareArtifactCleanupResult?
+    @Published var cinematicRunRecapShareArtifactLibraryContext: CinematicRunRecapShareArtifactLibraryContext
     @Published var cinematicRunRecapShareArtifactHistory = CinematicRunRecapShareArtifactHistoryPlan.unavailable(
         reason: "not-scanned"
     )
@@ -467,6 +468,7 @@ final class CompassProject: ObservableObject, Identifiable {
         lastOpenedAt: Date = Date(),
         cinematicInfluenceSettings: CinematicInfluenceSettings = CinematicInfluenceSettings(),
         nativeFeedbackMode: NativeFeedbackMode = .notifications,
+        cinematicRunRecapShareArtifactLibraryContext: CinematicRunRecapShareArtifactLibraryContext = .empty,
         storageApplicationSupportRoots: KnownProjectStore.ApplicationSupportRoots = KnownProjectStore.productionApplicationSupportRoots(),
         storageMigrationAction: @escaping CompassWorkspaceStorageMigrationAction = { plan in
             try CompassWorkspaceStorageMigrator().migrate(plan: plan)
@@ -479,6 +481,7 @@ final class CompassProject: ObservableObject, Identifiable {
         self.lastOpenedAt = lastOpenedAt
         self.cinematicInfluenceSettings = cinematicInfluenceSettings
         self.nativeFeedbackMode = nativeFeedbackMode
+        self.cinematicRunRecapShareArtifactLibraryContext = cinematicRunRecapShareArtifactLibraryContext
         self.storageApplicationSupportRoots = storageApplicationSupportRoots
         self.storageMigrationAction = storageMigrationAction
         let briefingInput = CinematicBriefingInput(
@@ -2278,6 +2281,88 @@ enum KnownProjectActiveStorage: String, Codable, CaseIterable, Identifiable {
     }
 }
 
+struct CinematicRunRecapShareArtifactLibraryContext: Codable, Equatable {
+    static let selectedEntryIdentifierMaxCharacters = CinematicRunRecapShareArtifactHistoryPlan.identifierMaxCharacters
+    static let searchTextMaxCharacters = CinematicRunRecapShareArtifactPreviewBrowserPlan.searchQuerySnippetMaxCharacters
+    static let empty = CinematicRunRecapShareArtifactLibraryContext()
+
+    var selectedEntryIdentifier: String?
+    var searchText: String
+
+    enum CodingKeys: String, CodingKey {
+        case selectedEntryIdentifier
+        case searchText
+    }
+
+    init(
+        selectedEntryIdentifier: String? = nil,
+        searchText: String = ""
+    ) {
+        self.selectedEntryIdentifier = Self.boundedOptionalText(
+            selectedEntryIdentifier,
+            limit: Self.selectedEntryIdentifierMaxCharacters
+        )
+        self.searchText = Self.boundedText(
+            searchText,
+            limit: Self.searchTextMaxCharacters
+        )
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.init(
+            selectedEntryIdentifier: try container.decodeIfPresent(String.self, forKey: .selectedEntryIdentifier),
+            searchText: try container.decodeIfPresent(String.self, forKey: .searchText) ?? ""
+        )
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(searchText, forKey: .searchText)
+        try container.encodeIfPresent(selectedEntryIdentifier, forKey: .selectedEntryIdentifier)
+    }
+
+    func replacing(
+        selectedEntryIdentifier: String?,
+        searchText: String
+    ) -> CinematicRunRecapShareArtifactLibraryContext {
+        CinematicRunRecapShareArtifactLibraryContext(
+            selectedEntryIdentifier: selectedEntryIdentifier,
+            searchText: searchText
+        )
+    }
+
+    func resolvingSelection(
+        in historyPlan: CinematicRunRecapShareArtifactHistoryPlan
+    ) -> CinematicRunRecapShareArtifactLibraryContext {
+        let previewPlan = CinematicRunRecapShareArtifactPreviewBrowserPlanner.plan(
+            historyPlan: historyPlan,
+            selectedEntryIdentifier: selectedEntryIdentifier,
+            searchQuery: searchText
+        )
+        return replacing(
+            selectedEntryIdentifier: previewPlan.selectedEntryIdentifier,
+            searchText: searchText
+        )
+    }
+
+    private static func boundedOptionalText(_ text: String?, limit: Int) -> String? {
+        let bounded = boundedText(text ?? "", limit: limit)
+        return bounded.isEmpty ? nil : bounded
+    }
+
+    private static func boundedText(_ text: String, limit: Int) -> String {
+        guard limit > 0 else { return "" }
+        let normalized = text
+            .replacingOccurrences(of: "\r", with: " ")
+            .replacingOccurrences(of: "\n", with: " ")
+            .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard normalized.count > limit else { return normalized }
+        return String(normalized.prefix(limit)).trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+}
+
 struct CompassProjectStorageResolver: Equatable {
     var repoURL: URL
     var activeStorage: KnownProjectActiveStorage
@@ -2331,6 +2416,7 @@ struct KnownProjectRecord: Codable, Identifiable, Equatable {
     var lastOpenedAt: Double
     var cinematicInfluenceSettings: CinematicInfluenceSettings
     var nativeFeedbackMode: NativeFeedbackMode
+    var cinematicRunRecapShareArtifactLibraryContext: CinematicRunRecapShareArtifactLibraryContext
 
     enum CodingKeys: String, CodingKey {
         case id
@@ -2340,6 +2426,7 @@ struct KnownProjectRecord: Codable, Identifiable, Equatable {
         case lastOpenedAt
         case cinematicInfluenceSettings
         case nativeFeedbackMode
+        case cinematicRunRecapShareArtifactLibraryContext
     }
 
     init(
@@ -2349,7 +2436,8 @@ struct KnownProjectRecord: Codable, Identifiable, Equatable {
         addedAt: Double,
         lastOpenedAt: Double,
         cinematicInfluenceSettings: CinematicInfluenceSettings = CinematicInfluenceSettings(),
-        nativeFeedbackMode: NativeFeedbackMode = .notifications
+        nativeFeedbackMode: NativeFeedbackMode = .notifications,
+        cinematicRunRecapShareArtifactLibraryContext: CinematicRunRecapShareArtifactLibraryContext = .empty
     ) {
         self.id = id
         self.path = path
@@ -2358,6 +2446,7 @@ struct KnownProjectRecord: Codable, Identifiable, Equatable {
         self.lastOpenedAt = lastOpenedAt
         self.cinematicInfluenceSettings = cinematicInfluenceSettings
         self.nativeFeedbackMode = nativeFeedbackMode
+        self.cinematicRunRecapShareArtifactLibraryContext = cinematicRunRecapShareArtifactLibraryContext
     }
 
     init(from decoder: Decoder) throws {
@@ -2378,6 +2467,10 @@ struct KnownProjectRecord: Codable, Identifiable, Equatable {
             NativeFeedbackMode.self,
             forKey: .nativeFeedbackMode
         ) ?? .notifications
+        cinematicRunRecapShareArtifactLibraryContext = try container.decodeIfPresent(
+            CinematicRunRecapShareArtifactLibraryContext.self,
+            forKey: .cinematicRunRecapShareArtifactLibraryContext
+        ) ?? .empty
     }
 }
 
@@ -2390,7 +2483,8 @@ private extension CompassProject {
             addedAt: Date(timeIntervalSince1970: record.addedAt),
             lastOpenedAt: Date(timeIntervalSince1970: record.lastOpenedAt),
             cinematicInfluenceSettings: record.cinematicInfluenceSettings,
-            nativeFeedbackMode: record.nativeFeedbackMode
+            nativeFeedbackMode: record.nativeFeedbackMode,
+            cinematicRunRecapShareArtifactLibraryContext: record.cinematicRunRecapShareArtifactLibraryContext
         )
     }
 
@@ -2402,7 +2496,8 @@ private extension CompassProject {
             addedAt: addedAt.timeIntervalSince1970,
             lastOpenedAt: lastOpenedAt.timeIntervalSince1970,
             cinematicInfluenceSettings: cinematicInfluenceSettings,
-            nativeFeedbackMode: nativeFeedbackMode
+            nativeFeedbackMode: nativeFeedbackMode,
+            cinematicRunRecapShareArtifactLibraryContext: cinematicRunRecapShareArtifactLibraryContext
         )
     }
 

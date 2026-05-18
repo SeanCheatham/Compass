@@ -3607,6 +3607,10 @@ enum CinematicDiagnostics {
             runRecapShareArtifactPlan: runRecapShareArtifactPlan,
             runRecapShareArtifactHistoryPlan: project.cinematicRunRecapShareArtifactHistory,
             runRecapShareArtifactCleanupResult: project.cinematicRunRecapShareArtifactCleanup,
+            runRecapShareArtifactPreviewSelectedEntryIdentifier:
+                project.cinematicRunRecapShareArtifactLibraryContext.selectedEntryIdentifier,
+            runRecapShareArtifactPreviewSearchQuery:
+                project.cinematicRunRecapShareArtifactLibraryContext.searchText,
             nativeFeedbackCue: project.cinematicNativeFeedbackCue,
             nativeFeedbackLifecycle: project.cinematicNativeFeedbackCueLifecycle
         )

@@ -19,6 +19,7 @@ final class KnownProjectStoreTestsRecordDecoding: XCTestCase {
         XCTAssertEqual(record.activeStorage, .repoLocal)
         XCTAssertEqual(record.cinematicInfluenceSettings, CinematicInfluenceSettings())
         XCTAssertEqual(record.nativeFeedbackMode, .notifications)
+        XCTAssertEqual(record.cinematicRunRecapShareArtifactLibraryContext, .empty)
     }
 
     func testNativeFeedbackModeDecodingDefaultsMissingAndFutureValues() throws {
@@ -88,6 +89,7 @@ final class KnownProjectStoreTestsRecordDecoding: XCTestCase {
         XCTAssertEqual(records[0].cinematicInfluenceSettings.intensity, 0)
         XCTAssertEqual(records[0].activeStorage, .repoLocal)
         XCTAssertEqual(records[0].nativeFeedbackMode, .notifications)
+        XCTAssertEqual(records[0].cinematicRunRecapShareArtifactLibraryContext, .empty)
 
         XCTAssertEqual(records[1].cinematicInfluenceSettings, CinematicInfluenceSettings())
         XCTAssertEqual(records[1].activeStorage, .applicationSupport)
@@ -98,6 +100,47 @@ final class KnownProjectStoreTestsRecordDecoding: XCTestCase {
         XCTAssertEqual(records[2].cinematicInfluenceSettings.intensity, 1)
         XCTAssertEqual(records[2].activeStorage, .repoLocal)
         XCTAssertEqual(records[2].nativeFeedbackMode, .off)
+    }
+
+    func testRecapShareArtifactLibraryContextDecodingBoundsPersistedText() throws {
+        let longIdentifier = String(repeating: "selected-entry-", count: 40)
+        let longSearch = String(repeating: "Search Needle ", count: 20)
+        let records = try decodeRecords("""
+        [
+          {
+            "id": "51515151-5151-5151-5151-515151515151",
+            "path": "/tmp/context",
+            "addedAt": 1,
+            "lastOpenedAt": 2,
+            "cinematicRunRecapShareArtifactLibraryContext": {
+              "selectedEntryIdentifier": "  \(longIdentifier)  ",
+              "searchText": "  \(longSearch)  "
+            }
+          },
+          {
+            "id": "61616161-6161-6161-6161-616161616161",
+            "path": "/tmp/blank-context",
+            "addedAt": 3,
+            "lastOpenedAt": 4,
+            "cinematicRunRecapShareArtifactLibraryContext": {
+              "selectedEntryIdentifier": "   ",
+              "searchText": "  \\n\\t  "
+            }
+          }
+        ]
+        """)
+
+        XCTAssertLessThanOrEqual(
+            records[0].cinematicRunRecapShareArtifactLibraryContext.selectedEntryIdentifier?.count ?? 0,
+            CinematicRunRecapShareArtifactLibraryContext.selectedEntryIdentifierMaxCharacters
+        )
+        XCTAssertLessThanOrEqual(
+            records[0].cinematicRunRecapShareArtifactLibraryContext.searchText.count,
+            CinematicRunRecapShareArtifactLibraryContext.searchTextMaxCharacters
+        )
+        XCTAssertFalse(records[0].cinematicRunRecapShareArtifactLibraryContext.searchText.hasPrefix(" "))
+        XCTAssertNil(records[1].cinematicRunRecapShareArtifactLibraryContext.selectedEntryIdentifier)
+        XCTAssertEqual(records[1].cinematicRunRecapShareArtifactLibraryContext.searchText, "")
     }
 
     private func decodeRecords(_ json: String) throws -> [KnownProjectRecord] {
@@ -183,7 +226,11 @@ final class KnownProjectStoreTests: XCTestCase {
                 comfortMode: .quiet,
                 intensity: 0.8
             ),
-            nativeFeedbackMode: .speechAndNotifications
+            nativeFeedbackMode: .speechAndNotifications,
+            cinematicRunRecapShareArtifactLibraryContext: CinematicRunRecapShareArtifactLibraryContext(
+                selectedEntryIdentifier: "artifact-selected",
+                searchText: "Selected Search"
+            )
         )
 
         try KnownProjectStore.save([record], applicationSupportRoots: roots)
@@ -199,6 +246,7 @@ final class KnownProjectStoreTests: XCTestCase {
                 "\"activeStorage\"",
                 "\"addedAt\"",
                 "\"cinematicInfluenceSettings\"",
+                "\"cinematicRunRecapShareArtifactLibraryContext\"",
                 "\"id\"",
                 "\"lastOpenedAt\"",
                 "\"nativeFeedbackMode\"",
@@ -207,7 +255,10 @@ final class KnownProjectStoreTests: XCTestCase {
             in: saved
         )
         assertSortedKeys(["\"cameraStyle\"", "\"comfortMode\"", "\"intensity\""], in: saved)
+        assertSortedKeys(["\"searchText\"", "\"selectedEntryIdentifier\""], in: saved)
         XCTAssertTrue(saved.contains("\"comfortMode\" : \"quiet\""))
+        XCTAssertTrue(saved.contains("\"searchText\" : \"Selected Search\""))
+        XCTAssertTrue(saved.contains("\"selectedEntryIdentifier\" : \"artifact-selected\""))
     }
 
     func testSaveRoundTripsReducedMotionComfortMode() throws {
@@ -281,7 +332,8 @@ final class KnownProjectStoreTests: XCTestCase {
         addedAt: Double = 10,
         lastOpenedAt: Double = 20,
         cinematicInfluenceSettings: CinematicInfluenceSettings = CinematicInfluenceSettings(),
-        nativeFeedbackMode: NativeFeedbackMode = .notifications
+        nativeFeedbackMode: NativeFeedbackMode = .notifications,
+        cinematicRunRecapShareArtifactLibraryContext: CinematicRunRecapShareArtifactLibraryContext = .empty
     ) -> KnownProjectRecord {
         KnownProjectRecord(
             id: UUID(uuidString: id)!,
@@ -290,7 +342,8 @@ final class KnownProjectStoreTests: XCTestCase {
             addedAt: addedAt,
             lastOpenedAt: lastOpenedAt,
             cinematicInfluenceSettings: cinematicInfluenceSettings,
-            nativeFeedbackMode: nativeFeedbackMode
+            nativeFeedbackMode: nativeFeedbackMode,
+            cinematicRunRecapShareArtifactLibraryContext: cinematicRunRecapShareArtifactLibraryContext
         )
     }
 
