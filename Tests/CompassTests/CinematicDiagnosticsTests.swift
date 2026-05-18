@@ -1795,20 +1795,124 @@ final class CinematicDiagnosticsTests: XCTestCase {
         XCTAssertTrue(report.runRecapShareArtifactHistory.isAvailable)
         XCTAssertEqual(report.runRecapShareArtifactHistory.totalCount, 1)
         XCTAssertEqual(report.runRecapShareArtifactHistory.hiddenCount, 0)
+        XCTAssertEqual(report.runRecapShareArtifactHistory.retentionLimit, historyPlan.retentionLimit)
+        XCTAssertEqual(report.runRecapShareArtifactHistory.cleanupCandidateCount, 0)
+        XCTAssertEqual(report.runRecapShareArtifactHistory.hiddenCleanupCandidateCount, 0)
+        XCTAssertEqual(report.runRecapShareArtifactHistory.cleanupCandidateIdentifiers, [])
         XCTAssertEqual(report.runRecapShareArtifactHistory.latestSessionNumber, 17)
         XCTAssertEqual(report.runRecapShareArtifactHistory.latestFilename, "17-recap-share-diagnostics.md")
         XCTAssertEqual(report.runRecapShareArtifactHistory.warningCount, 1)
         XCTAssertEqual(report.runRecapShareArtifactHistory.warningIdentifiers.count, 1)
+        XCTAssertEqual(report.runRecapShareArtifactHistory.warningStateIdentifier, "warnings")
+        XCTAssertEqual(report.runRecapShareArtifactHistory.lastCleanupResultIdentifier, "none")
+        XCTAssertEqual(report.runRecapShareArtifactHistory.lastCleanupResultStatus, "none")
         XCTAssertEqual(report.runRecapShareArtifactHistory.exportIdentifier, historyPlan.exportIdentifier)
         XCTAssertEqual(report.runRecapShareArtifactHistory.exportMarkdownLength, historyPlan.combinedMarkdownLength)
         XCTAssertTrue(row.detail.contains("available"))
         XCTAssertTrue(row.detail.contains("total 1"))
+        XCTAssertTrue(row.detail.contains("retention \(historyPlan.retentionLimit)"))
+        XCTAssertTrue(row.detail.contains("cleanup candidates 0"))
+        XCTAssertTrue(row.detail.contains("warning state warnings"))
+        XCTAssertTrue(row.detail.contains("last cleanup none"))
         XCTAssertTrue(row.detail.contains("latest session 17"))
         XCTAssertTrue(row.detail.contains("17-recap-share-diagnostics.md"))
         XCTAssertTrue(row.detail.contains("warnings 1"))
         XCTAssertTrue(summary.exportText.contains("Recap artifact library: available"))
+        XCTAssertTrue(summary.exportText.contains("retention \(historyPlan.retentionLimit)"))
+        XCTAssertTrue(summary.exportText.contains("cleanup candidates 0"))
+        XCTAssertTrue(summary.exportText.contains("warning state warnings"))
+        XCTAssertTrue(summary.exportText.contains("last cleanup none"))
         XCTAssertTrue(summary.exportText.contains(String(historyPlan.exportIdentifier.prefix(32))))
         XCTAssertTrue(summary.exportText.contains(report.runRecapShareArtifactHistory.warningIdentifiers[0]))
+    }
+
+    func testRunRecapArtifactCleanupDiagnosticsExposeRetentionCandidatesAndLastResult() throws {
+        let temporaryDirectory = FileManager.default.temporaryDirectory
+            .appending(path: "CinematicDiagnosticsArtifactCleanup-\(UUID().uuidString)", directoryHint: .isDirectory)
+        defer { try? FileManager.default.removeItem(at: temporaryDirectory) }
+        let workspace = CompassWorkspace(repoURL: temporaryDirectory, storageRootURL: temporaryDirectory.appending(path: ".compass"))
+        try FileManager.default.createDirectory(at: temporaryDirectory.appending(path: ".git"), withIntermediateDirectories: true)
+        try workspace.initialize()
+        let artifactCount = CinematicRunRecapShareArtifactHistoryPlan.retentionLimit + 1
+        for session in 1...artifactCount {
+            _ = try workspace.writeSessionArtifact(
+                session: session,
+                name: "recap-share-cleanup-\(session).md",
+                contents: """
+                # Compass Run Recap Share
+
+                - Artifact: cleanup-artifact-\(session)
+                - Availability: available
+                - Session: \(session)
+                - Filename: recap-share-cleanup-\(session).md
+                - Share: share-id
+                - Recap: recap-id
+                - Focus: focus-id
+                - End card: end-card-id
+                - Title: Cleanup Recap \(session)
+                - Status: succeeded
+                - Detail: Cleanup detail
+                - Commit: Cleanup commit \(session)
+                """
+            )
+        }
+        let before = workspace.refreshRunRecapShareArtifactHistory()
+        let candidateReport = makeReport(
+            CinematicDiagnosticsInput(
+                repoName: "Compass",
+                phase: "Succeeded",
+                immediateTitle: "Expose recap artifact cleanup candidates",
+                completedCount: 3,
+                latestEvent: nil,
+                languageProfile: languageProfile(primaryLanguage: .swift),
+                activityProfile: activityProfile(recentCommitCount: 1, lastTerminalStatus: .succeeded),
+                influenceSettings: CinematicInfluenceSettings(),
+                runRecapShareArtifactHistoryPlan: before
+            )
+        )
+        let candidateSummary = CinematicDiagnosticsSummary(
+            report: candidateReport,
+            visualSmoke: CinematicVisualSmokeReport(reports: [candidateReport])
+        )
+
+        let cleanup = workspace.cleanupRunRecapShareArtifacts()
+        let report = makeReport(
+            CinematicDiagnosticsInput(
+                repoName: "Compass",
+                phase: "Succeeded",
+                immediateTitle: "Expose recap artifact cleanup result",
+                completedCount: 3,
+                latestEvent: nil,
+                languageProfile: languageProfile(primaryLanguage: .swift),
+                activityProfile: activityProfile(recentCommitCount: 1, lastTerminalStatus: .succeeded),
+                influenceSettings: CinematicInfluenceSettings(),
+                runRecapShareArtifactHistoryPlan: cleanup.refreshedHistory,
+                runRecapShareArtifactCleanupResult: cleanup
+            )
+        )
+        let summary = CinematicDiagnosticsSummary(
+            report: report,
+            visualSmoke: CinematicVisualSmokeReport(reports: [report])
+        )
+        let row = try XCTUnwrap(summary.rows.first { $0.id == "run-recap-share-artifact-history" })
+
+        XCTAssertEqual(before.cleanupCandidateCount, 1)
+        XCTAssertEqual(candidateReport.runRecapShareArtifactHistory.cleanupCandidateCount, 1)
+        XCTAssertEqual(candidateReport.runRecapShareArtifactHistory.cleanupCandidateIdentifiers.count, 1)
+        XCTAssertTrue(candidateSummary.exportText.contains("cleanup candidates 1"))
+        XCTAssertTrue(candidateSummary.exportText.contains("cleanup ids"))
+        XCTAssertEqual(cleanup.status, .deleted)
+        XCTAssertEqual(report.runRecapShareArtifactHistory.retentionLimit, before.retentionLimit)
+        XCTAssertEqual(report.runRecapShareArtifactHistory.cleanupCandidateCount, 0)
+        XCTAssertEqual(report.runRecapShareArtifactHistory.warningStateIdentifier, "clear")
+        XCTAssertEqual(report.runRecapShareArtifactHistory.lastCleanupResultIdentifier, cleanup.identifier)
+        XCTAssertEqual(report.runRecapShareArtifactHistory.lastCleanupResultStatus, "deleted")
+        XCTAssertTrue(report.identifier.contains("run-recap-share-artifact-cleanup:\(cleanup.identifier)"))
+        XCTAssertTrue(row.detail.contains("cleanup candidates 0"))
+        XCTAssertTrue(row.detail.contains("warning state clear"))
+        XCTAssertTrue(row.detail.contains("last cleanup deleted"))
+        XCTAssertTrue(summary.exportText.contains("last cleanup deleted"))
+        XCTAssertTrue(summary.exportText.contains(String(cleanup.identifier.prefix(32))))
     }
 
     func testComfortModePropagatesToDiagnosticsIdentifiersAndExport() {
@@ -1964,6 +2068,7 @@ private struct CinematicDiagnosticsInput {
     var runRecapSceneFocusPlan: CinematicRunRecapSceneFocusPlan = .none
     var runRecapEndCardPlan: CinematicRunRecapEndCardPlan = .none
     var runRecapShareArtifactHistoryPlan: CinematicRunRecapShareArtifactHistoryPlan?
+    var runRecapShareArtifactCleanupResult: CinematicRunRecapShareArtifactCleanupResult?
 }
 
 private func makeReport(_ input: CinematicDiagnosticsInput) -> CinematicDiagnosticsReport {
@@ -1980,7 +2085,8 @@ private func makeReport(_ input: CinematicDiagnosticsInput) -> CinematicDiagnost
         runRecapPlan: input.runRecapPlan,
         runRecapSceneFocusPlan: input.runRecapSceneFocusPlan,
         runRecapEndCardPlan: input.runRecapEndCardPlan,
-        runRecapShareArtifactHistoryPlan: input.runRecapShareArtifactHistoryPlan
+        runRecapShareArtifactHistoryPlan: input.runRecapShareArtifactHistoryPlan,
+        runRecapShareArtifactCleanupResult: input.runRecapShareArtifactCleanupResult
     )
 }
 

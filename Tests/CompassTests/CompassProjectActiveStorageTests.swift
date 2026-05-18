@@ -390,6 +390,51 @@ final class CompassProjectActiveStorageTests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: repoURL.appending(path: ".gitignore").path))
     }
 
+    func testProjectCleansRecapShareArtifactsInActiveApplicationSupportStorageAndRefreshesHistory() async throws {
+        let repoURL = try makeTemporaryGitRepository()
+        let roots = try makeApplicationSupportRoots()
+        let project = CompassProject(
+            repoURL: repoURL,
+            activeStorage: .applicationSupport,
+            storageApplicationSupportRoots: roots
+        )
+        let workspace = applicationSupportWorkspace(repoURL: repoURL, roots: roots)
+        let artifactCount = CinematicRunRecapShareArtifactHistoryPlan.retentionLimit + 2
+        var artifactURLs: [Int: URL] = [:]
+
+        await project.initializeWorkspace()
+        for session in 1...artifactCount {
+            artifactURLs[session] = try workspace.writeSessionArtifact(
+                session: session,
+                name: "recap-share-support-\(session).md",
+                contents: recapArtifactMarkdown(session: session)
+            )
+        }
+
+        await project.refresh()
+        let before = project.cinematicRunRecapShareArtifactHistory
+        let result = await project.cleanupRunRecapShareArtifacts()
+
+        XCTAssertEqual(before.totalCount, artifactCount)
+        XCTAssertEqual(before.cleanupCandidateCount, 2)
+        XCTAssertEqual(result.status, .deleted)
+        XCTAssertEqual(result.deletedCount, 2)
+        XCTAssertEqual(project.cinematicRunRecapShareArtifactCleanup, result)
+        XCTAssertEqual(project.cinematicRunRecapShareArtifactHistory, result.refreshedHistory)
+        XCTAssertEqual(project.cinematicRunRecapShareArtifactHistory.totalCount, before.retentionLimit)
+        XCTAssertEqual(project.cinematicRunRecapShareArtifactHistory.cleanupCandidateCount, 0)
+        XCTAssertEqual(project.cinematicRunRecapShareArtifactHistory.warningCount, 0)
+
+        for session in 1...2 {
+            XCTAssertFalse(FileManager.default.fileExists(atPath: try XCTUnwrap(artifactURLs[session]).path))
+        }
+        for session in 3...artifactCount {
+            XCTAssertTrue(FileManager.default.fileExists(atPath: try XCTUnwrap(artifactURLs[session]).path))
+        }
+        XCTAssertFalse(FileManager.default.fileExists(atPath: workspace.repoLocalCompassURL.path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: repoURL.appending(path: ".gitignore").path))
+    }
+
     private func makeTemporaryGitRepository() throws -> URL {
         let directory = try makeTemporaryDirectory()
         try createDirectory(directory.appending(path: ".git", directoryHint: .isDirectory))
@@ -487,6 +532,25 @@ final class CompassProjectActiveStorageTests: XCTestCase {
             verifyOutput: nil,
             feedback: nil
         )
+    }
+
+    private func recapArtifactMarkdown(session: Int) -> String {
+        """
+        # Compass Run Recap Share
+
+        - Artifact: artifact-\(session)
+        - Availability: available
+        - Session: \(session)
+        - Filename: recap-share-support-\(session).md
+        - Share: share-id
+        - Recap: recap-id
+        - Focus: focus-id
+        - End card: end-card-id
+        - Title: Support Recap \(session)
+        - Status: succeeded
+        - Detail: Support detail
+        - Commit: Support commit \(session)
+        """
     }
 
     private func XCTAssertDirectoryExists(

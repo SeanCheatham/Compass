@@ -425,6 +425,7 @@ final class CompassProject: ObservableObject, Identifiable {
     @Published var cinematicWorldText = CinematicWorldText.placeholder
     @Published var cinematicRunRecapFlavor: CinematicRunRecapFlavor?
     @Published var cinematicRunRecapShareArtifactRecording: CinematicRunRecapShareArtifactRecordingResult?
+    @Published var cinematicRunRecapShareArtifactCleanup: CinematicRunRecapShareArtifactCleanupResult?
     @Published var cinematicRunRecapShareArtifactHistory = CinematicRunRecapShareArtifactHistoryPlan.unavailable(
         reason: "not-scanned"
     )
@@ -732,6 +733,39 @@ extension CompassProject {
         switch result.status {
         case .recorded:
             log("Recap share artifact recorded: \(result.artifactURL?.path ?? result.artifactPlan.filename)", level: .success)
+        case .skipped:
+            log(result.detail, level: .info)
+        case .failed:
+            log(result.detail, level: .warning)
+        }
+        return result
+    }
+
+    @discardableResult
+    func cleanupRunRecapShareArtifacts() async -> CinematicRunRecapShareArtifactCleanupResult {
+        let result: CinematicRunRecapShareArtifactCleanupResult
+        if let workspace {
+            result = workspace.cleanupRunRecapShareArtifacts()
+            cinematicRunRecapShareArtifactHistory = result.refreshedHistory
+        } else {
+            let history = CinematicRunRecapShareArtifactHistoryPlan.unavailable(
+                reason: "no-repository"
+            )
+            result = CinematicRunRecapShareArtifactCleanupResult(
+                retentionLimit: CinematicRunRecapShareArtifactHistoryPlan.retentionLimit,
+                cleanupCandidateCount: 0,
+                deletedIdentifiers: [],
+                skippedIdentifiers: [],
+                failedIdentifiers: [],
+                refreshedHistory: history
+            )
+            cinematicRunRecapShareArtifactHistory = history
+        }
+
+        cinematicRunRecapShareArtifactCleanup = result
+        switch result.status {
+        case .deleted:
+            log(result.detail, level: .success)
         case .skipped:
             log(result.detail, level: .info)
         case .failed:

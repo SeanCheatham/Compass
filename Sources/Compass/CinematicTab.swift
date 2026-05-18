@@ -476,6 +476,7 @@ private struct CinematicRunRecapOverlay: View {
             }
 
             CinematicRunRecapArtifactLibraryControl(
+                project: project,
                 plan: artifactHistoryPlan,
                 tint: tint,
                 displayPlan: displayPlan
@@ -562,10 +563,13 @@ private struct CinematicRunRecapOverlay: View {
 }
 
 private struct CinematicRunRecapArtifactLibraryControl: View {
+    @ObservedObject var project: CompassProject
     var plan: CinematicRunRecapShareArtifactHistoryPlan
     var tint: Color
     var displayPlan: CinematicOverlayDisplayPlan
     @State private var feedback: String?
+    @State private var feedbackStatus: CinematicRunRecapShareArtifactCleanupResult.Status?
+    @State private var preservedFeedbackPlanIdentifier: String?
 
     var body: some View {
         HStack(spacing: 7) {
@@ -593,7 +597,7 @@ private struct CinematicRunRecapArtifactLibraryControl: View {
             if let feedback {
                 Text(feedback)
                     .font(.caption2.weight(.semibold))
-                    .foregroundStyle(tint.opacity(0.78))
+                    .foregroundStyle(feedbackColor.opacity(0.78))
                     .lineLimit(1)
                     .minimumScaleFactor(0.72)
             }
@@ -612,6 +616,21 @@ private struct CinematicRunRecapArtifactLibraryControl: View {
             .help(revealHelp)
             .accessibilityLabel("Reveal latest recap share artifact")
             .accessibilityIdentifier("cinematic-run-recap-artifact-library-reveal")
+
+            Button {
+                cleanupArtifacts()
+            } label: {
+                Image(systemName: "trash")
+                    .font(.system(size: 12, weight: .bold))
+                    .frame(width: 22, height: 22)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .disabled(plan.cleanupCandidateCount == 0)
+            .foregroundStyle(tint.opacity(plan.cleanupCandidateCount == 0 ? 0.32 : 0.86))
+            .help(cleanupHelp)
+            .accessibilityLabel("Clean up old recap share artifacts")
+            .accessibilityIdentifier("cinematic-run-recap-artifact-library-cleanup")
 
             Button {
                 copyExport()
@@ -641,7 +660,12 @@ private struct CinematicRunRecapArtifactLibraryControl: View {
         .help(exportHelp)
         .accessibilityIdentifier("cinematic-run-recap-artifact-library-\(plan.identifier)")
         .onChange(of: plan.identifier) {
+            if preservedFeedbackPlanIdentifier == plan.identifier {
+                return
+            }
             feedback = nil
+            feedbackStatus = nil
+            preservedFeedbackPlanIdentifier = nil
         }
     }
 
@@ -657,8 +681,9 @@ private struct CinematicRunRecapArtifactLibraryControl: View {
             return plan.availabilityReason
         }
         let hidden = plan.hiddenCount > 0 ? " +\(plan.hiddenCount) hidden" : ""
+        let cleanup = plan.cleanupCandidateCount > 0 ? " | \(plan.cleanupCandidateCount) cleanup" : ""
         let warnings = plan.warningCount > 0 ? " | \(plan.warningCount) warning" : ""
-        return "\(plan.totalCount) saved\(hidden)\(warnings)"
+        return "\(plan.totalCount) saved\(hidden)\(cleanup)\(warnings)"
     }
 
     private var revealHelp: String {
@@ -675,10 +700,32 @@ private struct CinematicRunRecapArtifactLibraryControl: View {
         return "Copy combined Markdown export \(plan.exportIdentifier)."
     }
 
+    private var cleanupHelp: String {
+        guard plan.cleanupCandidateCount > 0 else {
+            return "No old recap share artifacts to clean up; retaining newest \(plan.retentionLimit)."
+        }
+        return "Delete \(plan.cleanupCandidateCount) old recap share artifact\(plan.cleanupCandidateCount == 1 ? "" : "s") while retaining newest \(plan.retentionLimit)."
+    }
+
+    private var feedbackColor: Color {
+        switch feedbackStatus {
+        case .deleted:
+            return .green
+        case .failed:
+            return .orange
+        case .skipped:
+            return .gray
+        case nil:
+            return tint
+        }
+    }
+
     private func revealLatestArtifact() {
         guard let latest = plan.latestEntry else { return }
         NSWorkspace.shared.activateFileViewerSelecting([latest.url])
         feedback = "Revealed"
+        feedbackStatus = nil
+        preservedFeedbackPlanIdentifier = plan.identifier
     }
 
     private func copyExport() {
@@ -686,6 +733,23 @@ private struct CinematicRunRecapArtifactLibraryControl: View {
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(plan.combinedMarkdownExport, forType: .string)
         feedback = "Export copied"
+        feedbackStatus = nil
+        preservedFeedbackPlanIdentifier = plan.identifier
+    }
+
+    private func cleanupArtifacts() {
+        guard plan.cleanupCandidateCount > 0 else { return }
+        feedback = "Cleaning"
+        feedbackStatus = nil
+
+        Task {
+            let result = await project.cleanupRunRecapShareArtifacts()
+            await MainActor.run {
+                feedback = result.label
+                feedbackStatus = result.status
+                preservedFeedbackPlanIdentifier = result.refreshedHistory.identifier
+            }
+        }
     }
 }
 

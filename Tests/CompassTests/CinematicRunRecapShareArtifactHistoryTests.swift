@@ -36,6 +36,10 @@ final class CinematicRunRecapShareArtifactHistoryTests: XCTestCase {
         XCTAssertEqual(plan.availabilityReason, "available")
         XCTAssertEqual(plan.totalCount, 3)
         XCTAssertEqual(plan.hiddenCount, 0)
+        XCTAssertEqual(plan.retentionLimit, CinematicRunRecapShareArtifactHistoryPlan.retentionLimit)
+        XCTAssertEqual(plan.cleanupCandidateCount, 0)
+        XCTAssertEqual(plan.hiddenCleanupCandidateCount, 0)
+        XCTAssertEqual(plan.cleanupCandidateIdentifiers, [])
         XCTAssertEqual(plan.warningCount, 0)
         XCTAssertEqual(
             plan.entries.map(\.filename),
@@ -56,6 +60,7 @@ final class CinematicRunRecapShareArtifactHistoryTests: XCTestCase {
         XCTAssertTrue(plan.combinedMarkdownExport.contains("## Session 4 - 4-recap-share-zeta.md"))
         XCTAssertTrue(plan.combinedMarkdownExport.contains("Alpha Recap"))
         XCTAssertTrue(plan.combinedMarkdownExport.contains("Old Recap"))
+        XCTAssertTrue(plan.combinedMarkdownExport.contains("- Retention limit: \(plan.retentionLimit)"))
         XCTAssertTrue(plan.combinedMarkdownExport.contains("- Latest filename: 4-recap-share-zeta.md"))
         XCTAssertLessThanOrEqual(
             plan.identifier.count,
@@ -92,6 +97,12 @@ final class CinematicRunRecapShareArtifactHistoryTests: XCTestCase {
         XCTAssertEqual(plan.totalCount, artifactCount)
         XCTAssertEqual(plan.entries.count, CinematicRunRecapShareArtifactHistoryPlan.entryLimit)
         XCTAssertEqual(plan.hiddenCount, 2)
+        XCTAssertEqual(plan.retentionLimit, CinematicRunRecapShareArtifactHistoryPlan.retentionLimit)
+        XCTAssertEqual(plan.cleanupCandidateCount, 2)
+        XCTAssertEqual(plan.hiddenCleanupCandidateCount, 0)
+        XCTAssertEqual(plan.cleanupCandidateIdentifiers.count, 2)
+        XCTAssertTrue(plan.cleanupCandidateIdentifiers[0].contains("session:2"))
+        XCTAssertTrue(plan.cleanupCandidateIdentifiers[1].contains("session:1"))
         XCTAssertTrue(
             plan.entries.allSatisfy {
                 $0.filename.count <= CinematicRunRecapShareArtifactHistoryPlan.filenameMaxCharacters
@@ -107,6 +118,67 @@ final class CinematicRunRecapShareArtifactHistoryTests: XCTestCase {
             CinematicRunRecapShareArtifactHistoryPlan.combinedMarkdownMaxCharacters
         )
         XCTAssertTrue(plan.combinedMarkdownExport.contains("- Hidden artifacts: 2"))
+        XCTAssertTrue(plan.combinedMarkdownExport.contains("- Cleanup candidates: 2"))
+        XCTAssertTrue(plan.combinedMarkdownExport.contains("- Hidden cleanup candidates: 0"))
+    }
+
+    func testCleanupDeletesOnlyOldValidCandidatesAndPreservesCorruptAndForeignFiles() throws {
+        let workspace = try makeInitializedWorkspace()
+        let artifactCount = CinematicRunRecapShareArtifactHistoryPlan.retentionLimit + 3
+        var artifactURLs: [Int: URL] = [:]
+        for session in 1...artifactCount {
+            artifactURLs[session] = try workspace.writeSessionArtifact(
+                session: session,
+                name: "recap-share-\(session).md",
+                contents: artifactMarkdown(
+                    title: "Recap \(session)",
+                    status: "succeeded",
+                    commit: "Commit \(session)"
+                )
+            )
+        }
+        let corruptURL = try workspace.writeSessionArtifact(
+            session: 90,
+            name: "recap-share-corrupt.md",
+            contents: "not a recap share artifact"
+        )
+        let foreignURL = workspace.sessionsURL.appending(path: "90-not-a-recap-share.md")
+        try "foreign session artifact".write(to: foreignURL, atomically: true, encoding: .utf8)
+
+        let before = workspace.refreshRunRecapShareArtifactHistory()
+        let result = workspace.cleanupRunRecapShareArtifacts()
+
+        XCTAssertEqual(before.totalCount, artifactCount)
+        XCTAssertEqual(before.cleanupCandidateCount, 3)
+        XCTAssertEqual(result.status, .deleted)
+        XCTAssertEqual(result.cleanupCandidateCount, 3)
+        XCTAssertEqual(result.deletedCount, 3)
+        XCTAssertEqual(result.skippedCount, 0)
+        XCTAssertEqual(result.failedCount, 0)
+        XCTAssertEqual(result.refreshedHistory.totalCount, CinematicRunRecapShareArtifactHistoryPlan.retentionLimit)
+        XCTAssertEqual(result.refreshedHistory.cleanupCandidateCount, 0)
+        XCTAssertEqual(result.refreshedHistory.warningCount, 1)
+        XCTAssertLessThanOrEqual(
+            result.identifier.count,
+            CinematicRunRecapShareArtifactCleanupResult.identifierMaxCharacters
+        )
+        XCTAssertLessThanOrEqual(
+            result.detail.count,
+            CinematicRunRecapShareArtifactCleanupResult.detailMaxCharacters
+        )
+        XCTAssertLessThanOrEqual(
+            result.help.count,
+            CinematicRunRecapShareArtifactCleanupResult.helpMaxCharacters
+        )
+
+        for session in 1...3 {
+            XCTAssertFalse(FileManager.default.fileExists(atPath: try XCTUnwrap(artifactURLs[session]).path))
+        }
+        for session in 4...artifactCount {
+            XCTAssertTrue(FileManager.default.fileExists(atPath: try XCTUnwrap(artifactURLs[session]).path))
+        }
+        XCTAssertTrue(FileManager.default.fileExists(atPath: corruptURL.path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: foreignURL.path))
     }
 
     func testHistoryToleratesMissingAndCorruptArtifactFilesWithBoundedWarnings() throws {
@@ -194,6 +266,17 @@ final class CinematicRunRecapShareArtifactHistoryTests: XCTestCase {
             name: "recap-share-saved.md",
             contents: artifactMarkdown(title: "Saved Recap", status: "succeeded", commit: "Saved commit")
         )
+        for sessionNumber in 1...CinematicRunRecapShareArtifactHistoryPlan.retentionLimit {
+            _ = try workspace.writeSessionArtifact(
+                session: sessionNumber,
+                name: "recap-share-extra-\(sessionNumber).md",
+                contents: artifactMarkdown(
+                    title: "Extra Recap \(sessionNumber)",
+                    status: "succeeded",
+                    commit: "Extra commit \(sessionNumber)"
+                )
+            )
+        }
         let session = makeSession(9, endedAt: 9_500)
         let commitPlan = CinematicCommitConstellationPlan(sessions: [session])
         let recapPlan = CinematicRunRecapPlan.empty(reason: "active-run")
@@ -232,8 +315,11 @@ final class CinematicRunRecapShareArtifactHistoryTests: XCTestCase {
         )
 
         let history = workspace.refreshRunRecapShareArtifactHistory()
+        let cleanup = workspace.cleanupRunRecapShareArtifacts()
 
         XCTAssertTrue(history.isAvailable)
+        XCTAssertEqual(history.cleanupCandidateCount, 1)
+        XCTAssertEqual(cleanup.status, .deleted)
         XCTAssertFalse(sharePlan.isAvailable)
         XCTAssertEqual(sharePlan.availabilityReason, "active-run")
         XCTAssertEqual(recapPlan, recapBefore)

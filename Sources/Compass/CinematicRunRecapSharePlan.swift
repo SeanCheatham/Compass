@@ -65,7 +65,9 @@ struct CinematicRunRecapShareArtifactPlan: Equatable, Identifiable {
 struct CinematicRunRecapShareArtifactHistoryPlan: Equatable, Identifiable {
     static let identifierMaxCharacters = 320
     static let entryLimit = 8
+    static let retentionLimit = entryLimit
     static let warningLimit = 4
+    static let cleanupCandidateIdentifierLimit = 8
     static let filenameMaxCharacters = CinematicRunRecapShareArtifactPlan.filenameMaxCharacters
     static let pathDisplayMaxCharacters = 180
     static let snippetMaxCharacters = 96
@@ -80,9 +82,13 @@ struct CinematicRunRecapShareArtifactHistoryPlan: Equatable, Identifiable {
     var availabilityReason: String
     var storageRootDisplayText: String
     var sessionsDisplayText: String
+    var retentionLimit: Int
     var entries: [Entry]
     var totalCount: Int
     var hiddenCount: Int
+    var cleanupCandidateCount: Int
+    var hiddenCleanupCandidateCount: Int
+    var cleanupCandidateIdentifiers: [String]
     var warnings: [Warning]
     var warningCount: Int
     var hiddenWarningCount: Int
@@ -128,6 +134,207 @@ struct CinematicRunRecapShareArtifactHistoryPlan: Equatable, Identifiable {
         var identifier: String
         var fileDisplayText: String
         var message: String
+    }
+
+    struct CleanupCandidate: Equatable, Identifiable {
+        var id: String { identifier }
+
+        var identifier: String
+        var sessionNumber: Int
+        var filename: String
+        var url: URL
+        var pathDisplayText: String
+    }
+}
+
+struct CinematicRunRecapShareArtifactCleanupResult: Equatable, Identifiable {
+    static let identifierMaxCharacters = 320
+    static let labelMaxCharacters = 34
+    static let detailMaxCharacters = 180
+    static let helpMaxCharacters = 260
+    static let identifierListLimit = 8
+
+    var id: String { identifier }
+
+    var identifier: String
+    var status: Status
+    var retentionLimit: Int
+    var cleanupCandidateCount: Int
+    var deletedCount: Int
+    var skippedCount: Int
+    var failedCount: Int
+    var deletedIdentifiers: [String]
+    var skippedIdentifiers: [String]
+    var failedIdentifiers: [String]
+    var hiddenDeletedCount: Int
+    var hiddenSkippedCount: Int
+    var hiddenFailedCount: Int
+    var refreshedHistory: CinematicRunRecapShareArtifactHistoryPlan
+    var label: String
+    var detail: String
+    var help: String
+
+    enum Status: String, Equatable {
+        case deleted
+        case skipped
+        case failed
+    }
+
+    init(
+        retentionLimit: Int,
+        cleanupCandidateCount: Int,
+        deletedIdentifiers allDeletedIdentifiers: [String],
+        skippedIdentifiers allSkippedIdentifiers: [String],
+        failedIdentifiers allFailedIdentifiers: [String],
+        refreshedHistory: CinematicRunRecapShareArtifactHistoryPlan
+    ) {
+        self.retentionLimit = retentionLimit
+        self.cleanupCandidateCount = max(0, cleanupCandidateCount)
+        deletedCount = allDeletedIdentifiers.count
+        skippedCount = allSkippedIdentifiers.count
+        failedCount = allFailedIdentifiers.count
+        deletedIdentifiers = Array(allDeletedIdentifiers.prefix(Self.identifierListLimit))
+        skippedIdentifiers = Array(allSkippedIdentifiers.prefix(Self.identifierListLimit))
+        failedIdentifiers = Array(allFailedIdentifiers.prefix(Self.identifierListLimit))
+        hiddenDeletedCount = max(0, deletedCount - deletedIdentifiers.count)
+        hiddenSkippedCount = max(0, skippedCount - skippedIdentifiers.count)
+        hiddenFailedCount = max(0, failedCount - failedIdentifiers.count)
+        self.refreshedHistory = refreshedHistory
+
+        if failedCount > 0 {
+            status = .failed
+        } else if deletedCount > 0 {
+            status = .deleted
+        } else {
+            status = .skipped
+        }
+
+        identifier = Self.bounded(
+            [
+                "run-recap-share-artifact-cleanup",
+                "status:\(status.rawValue)",
+                "retention:\(retentionLimit)",
+                "candidates:\(cleanupCandidateCount)",
+                "deleted:\(deletedCount)",
+                "skipped:\(skippedCount)",
+                "failed:\(failedCount)",
+                "history:\(Self.fingerprint(refreshedHistory.identifier))",
+                "deleted-ids:\(Self.fingerprint(allDeletedIdentifiers.joined(separator: ",")))",
+                "skipped-ids:\(Self.fingerprint(allSkippedIdentifiers.joined(separator: ",")))",
+                "failed-ids:\(Self.fingerprint(allFailedIdentifiers.joined(separator: ",")))"
+            ].joined(separator: "|"),
+            limit: Self.identifierMaxCharacters
+        )
+        label = Self.label(status: status)
+        detail = Self.detail(
+            status: status,
+            retentionLimit: retentionLimit,
+            cleanupCandidateCount: cleanupCandidateCount,
+            deletedCount: deletedCount,
+            skippedCount: skippedCount,
+            failedCount: failedCount
+        )
+        help = Self.help(
+            status: status,
+            deletedIdentifiers: deletedIdentifiers,
+            skippedIdentifiers: skippedIdentifiers,
+            failedIdentifiers: failedIdentifiers,
+            hiddenDeletedCount: hiddenDeletedCount,
+            hiddenSkippedCount: hiddenSkippedCount,
+            hiddenFailedCount: hiddenFailedCount,
+            retentionLimit: retentionLimit
+        )
+    }
+
+    private static func label(status: Status) -> String {
+        switch status {
+        case .deleted:
+            return bounded("Cleaned", limit: labelMaxCharacters)
+        case .skipped:
+            return bounded("Nothing to clean", limit: labelMaxCharacters)
+        case .failed:
+            return bounded("Cleanup failed", limit: labelMaxCharacters)
+        }
+    }
+
+    private static func detail(
+        status: Status,
+        retentionLimit: Int,
+        cleanupCandidateCount: Int,
+        deletedCount: Int,
+        skippedCount: Int,
+        failedCount: Int
+    ) -> String {
+        let text: String
+        switch status {
+        case .deleted:
+            text = "Deleted \(deletedCount) old recap share artifact\(deletedCount == 1 ? "" : "s"); retaining newest \(retentionLimit)."
+        case .skipped:
+            text = cleanupCandidateCount == 0
+                ? "No recap share artifact cleanup candidates; retaining newest \(retentionLimit)."
+                : "Cleanup skipped \(skippedCount) candidate\(skippedCount == 1 ? "" : "s"); retaining newest \(retentionLimit)."
+        case .failed:
+            text = "Cleanup deleted \(deletedCount), skipped \(skippedCount), failed \(failedCount) of \(cleanupCandidateCount) candidate\(cleanupCandidateCount == 1 ? "" : "s")."
+        }
+        return bounded(text, limit: detailMaxCharacters)
+    }
+
+    private static func help(
+        status: Status,
+        deletedIdentifiers: [String],
+        skippedIdentifiers: [String],
+        failedIdentifiers: [String],
+        hiddenDeletedCount: Int,
+        hiddenSkippedCount: Int,
+        hiddenFailedCount: Int,
+        retentionLimit: Int
+    ) -> String {
+        var parts = ["Retains the newest \(retentionLimit) valid recap share artifacts."]
+        if !deletedIdentifiers.isEmpty {
+            parts.append("Deleted \(identifierSummary(deletedIdentifiers, hiddenCount: hiddenDeletedCount)).")
+        }
+        if !skippedIdentifiers.isEmpty {
+            parts.append("Skipped \(identifierSummary(skippedIdentifiers, hiddenCount: hiddenSkippedCount)).")
+        }
+        if !failedIdentifiers.isEmpty {
+            parts.append("Failed \(identifierSummary(failedIdentifiers, hiddenCount: hiddenFailedCount)).")
+        }
+        if status == .skipped && deletedIdentifiers.isEmpty && skippedIdentifiers.isEmpty && failedIdentifiers.isEmpty {
+            parts.append("No eligible cleanup candidates were found.")
+        }
+        return bounded(parts.joined(separator: " "), limit: helpMaxCharacters)
+    }
+
+    private static func identifierSummary(_ identifiers: [String], hiddenCount: Int) -> String {
+        let visible = identifiers
+            .map { bounded($0, limit: 36) }
+            .joined(separator: ", ")
+        return hiddenCount > 0 ? "\(visible) +\(hiddenCount)" : visible
+    }
+
+    private static func bounded(_ text: String, limit: Int) -> String {
+        guard limit > 0 else { return "" }
+        let normalized = text
+            .replacingOccurrences(of: "\r", with: " ")
+            .replacingOccurrences(of: "\n", with: " ")
+            .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalized.isEmpty else { return "none" }
+        guard normalized.count <= limit else {
+            let prefixLimit = max(1, limit - 3)
+            return normalized.prefix(prefixLimit)
+                .trimmingCharacters(in: .whitespacesAndNewlines) + "..."
+        }
+        return normalized
+    }
+
+    private static func fingerprint(_ value: String) -> String {
+        var hash: UInt64 = 0xcbf29ce484222325
+        for byte in value.utf8 {
+            hash ^= UInt64(byte)
+            hash = hash &* 0x100000001b3
+        }
+        return String(format: "%016llx", hash)
     }
 }
 
@@ -181,15 +388,7 @@ enum CinematicRunRecapShareArtifactHistoryPlanner {
             }
         }
 
-        entries.sort { lhs, rhs in
-            if lhs.sessionNumber != rhs.sessionNumber {
-                return lhs.sessionNumber > rhs.sessionNumber
-            }
-            if lhs.filename != rhs.filename {
-                return lhs.filename > rhs.filename
-            }
-            return lhs.pathDisplayText < rhs.pathDisplayText
-        }
+        entries = sortedEntries(entries)
 
         return makePlan(
             entries: entries,
@@ -197,6 +396,37 @@ enum CinematicRunRecapShareArtifactHistoryPlanner {
             storageRootURL: storageRootURL,
             sessionsURL: sessionsURL
         )
+    }
+
+    static func cleanupCandidates(
+        storageRootURL: URL,
+        sessionsURL: URL,
+        fileManager: FileManager = .default
+    ) -> [CinematicRunRecapShareArtifactHistoryPlan.CleanupCandidate] {
+        var isDirectory: ObjCBool = false
+        guard fileManager.fileExists(atPath: sessionsURL.path, isDirectory: &isDirectory),
+              isDirectory.boolValue,
+              let fileURLs = try? fileManager.contentsOfDirectory(
+                at: sessionsURL,
+                includingPropertiesForKeys: nil,
+                options: [.skipsHiddenFiles]
+              ) else {
+            return []
+        }
+
+        let entries = fileURLs.compactMap { fileURL -> CinematicRunRecapShareArtifactHistoryPlan.Entry? in
+            guard isRecapShareArtifactFilename(fileURL.lastPathComponent) else { return nil }
+            switch parseEntry(fileURL: fileURL, storageRootURL: storageRootURL) {
+            case let .success(entry):
+                return entry
+            case .failure:
+                return nil
+            }
+        }
+
+        return sortedEntries(entries)
+            .dropFirst(CinematicRunRecapShareArtifactHistoryPlan.retentionLimit)
+            .map(cleanupCandidate)
     }
 
     static func unavailable(
@@ -310,8 +540,18 @@ enum CinematicRunRecapShareArtifactHistoryPlanner {
         emptyReason: String? = nil
     ) -> CinematicRunRecapShareArtifactHistoryPlan {
         let totalCount = allEntries.count
-        let entries = Array(allEntries.prefix(CinematicRunRecapShareArtifactHistoryPlan.entryLimit))
+        let entries = Array(allEntries.prefix(CinematicRunRecapShareArtifactHistoryPlan.retentionLimit))
         let hiddenCount = max(0, totalCount - entries.count)
+        let cleanupCandidates = allEntries
+            .dropFirst(CinematicRunRecapShareArtifactHistoryPlan.retentionLimit)
+            .map(cleanupCandidate)
+        let cleanupCandidateCount = cleanupCandidates.count
+        let cleanupCandidateIdentifiers = Array(
+            cleanupCandidates
+                .map(\.identifier)
+                .prefix(CinematicRunRecapShareArtifactHistoryPlan.cleanupCandidateIdentifierLimit)
+        )
+        let hiddenCleanupCandidateCount = max(0, cleanupCandidateCount - cleanupCandidateIdentifiers.count)
         let warningCount = allWarnings.count
         let warnings = Array(allWarnings.prefix(CinematicRunRecapShareArtifactHistoryPlan.warningLimit))
         let hiddenWarningCount = max(0, warningCount - warnings.count)
@@ -322,8 +562,10 @@ enum CinematicRunRecapShareArtifactHistoryPlanner {
             [
                 "run-recap-share-artifact-export",
                 "availability:\(availabilityReason)",
+                "retention:\(CinematicRunRecapShareArtifactHistoryPlan.retentionLimit)",
                 "total:\(totalCount)",
                 "hidden:\(hiddenCount)",
+                "cleanup:\(cleanupCandidateCount)",
                 "latest:\(entries.first?.identifier ?? "none")",
                 "warnings:\(warningCount)",
                 "content:\(fingerprint(entries.map(\.identifier).joined(separator: "|")))"
@@ -334,6 +576,9 @@ enum CinematicRunRecapShareArtifactHistoryPlanner {
             entries: entries,
             totalCount: totalCount,
             hiddenCount: hiddenCount,
+            cleanupCandidateCount: cleanupCandidateCount,
+            hiddenCleanupCandidateCount: hiddenCleanupCandidateCount,
+            cleanupCandidateIdentifiers: cleanupCandidateIdentifiers,
             warnings: warnings,
             warningCount: warningCount,
             hiddenWarningCount: hiddenWarningCount,
@@ -346,8 +591,10 @@ enum CinematicRunRecapShareArtifactHistoryPlanner {
             [
                 "run-recap-share-artifact-history",
                 "availability:\(availabilityReason)",
+                "retention:\(CinematicRunRecapShareArtifactHistoryPlan.retentionLimit)",
                 "total:\(totalCount)",
                 "hidden:\(hiddenCount)",
+                "cleanup:\(cleanupCandidateCount)",
                 "latest:\(entries.first?.identifier ?? "none")",
                 "export:\(fingerprint(exportIdentifier))",
                 "warnings:\(warningCount)"
@@ -361,9 +608,13 @@ enum CinematicRunRecapShareArtifactHistoryPlanner {
             availabilityReason: availabilityReason,
             storageRootDisplayText: boundedPath(storageRootURL?.path ?? "unavailable"),
             sessionsDisplayText: boundedPath(sessionsURL?.path ?? "unavailable"),
+            retentionLimit: CinematicRunRecapShareArtifactHistoryPlan.retentionLimit,
             entries: entries,
             totalCount: totalCount,
             hiddenCount: hiddenCount,
+            cleanupCandidateCount: cleanupCandidateCount,
+            hiddenCleanupCandidateCount: hiddenCleanupCandidateCount,
+            cleanupCandidateIdentifiers: cleanupCandidateIdentifiers,
             warnings: warnings,
             warningCount: warningCount,
             hiddenWarningCount: hiddenWarningCount,
@@ -376,6 +627,9 @@ enum CinematicRunRecapShareArtifactHistoryPlanner {
         entries: [CinematicRunRecapShareArtifactHistoryPlan.Entry],
         totalCount: Int,
         hiddenCount: Int,
+        cleanupCandidateCount: Int,
+        hiddenCleanupCandidateCount: Int,
+        cleanupCandidateIdentifiers: [String],
         warnings: [CinematicRunRecapShareArtifactHistoryPlan.Warning],
         warningCount: Int,
         hiddenWarningCount: Int,
@@ -389,8 +643,12 @@ enum CinematicRunRecapShareArtifactHistoryPlanner {
             "",
             "- Export: \(exportIdentifier)",
             "- Availability: \(entries.isEmpty ? "unavailable (\(availabilityReason))" : "available")",
+            "- Retention limit: \(CinematicRunRecapShareArtifactHistoryPlan.retentionLimit)",
             "- Total artifacts: \(totalCount)",
             "- Hidden artifacts: \(hiddenCount)",
+            "- Cleanup candidates: \(cleanupCandidateCount)",
+            "- Hidden cleanup candidates: \(hiddenCleanupCandidateCount)",
+            "- Cleanup candidate identifiers: \(cleanupCandidateIdentifiers.isEmpty ? "none" : cleanupCandidateIdentifiers.joined(separator: ", "))",
             "- Latest session: \(entries.first?.sessionNumber.description ?? "none")",
             "- Latest filename: \(entries.first?.filename ?? "none")",
             "- Storage root: \(boundedPath(storageRootURL?.path ?? "unavailable"))",
@@ -436,6 +694,32 @@ enum CinematicRunRecapShareArtifactHistoryPlanner {
         let parts = filename.split(separator: "-", maxSplits: 1).map(String.init)
         guard parts.count == 2, Int(parts[0]) != nil else { return false }
         return parts[1].hasPrefix("recap-share-")
+    }
+
+    private static func sortedEntries(
+        _ entries: [CinematicRunRecapShareArtifactHistoryPlan.Entry]
+    ) -> [CinematicRunRecapShareArtifactHistoryPlan.Entry] {
+        entries.sorted { lhs, rhs in
+            if lhs.sessionNumber != rhs.sessionNumber {
+                return lhs.sessionNumber > rhs.sessionNumber
+            }
+            if lhs.filename != rhs.filename {
+                return lhs.filename > rhs.filename
+            }
+            return lhs.pathDisplayText < rhs.pathDisplayText
+        }
+    }
+
+    private static func cleanupCandidate(
+        _ entry: CinematicRunRecapShareArtifactHistoryPlan.Entry
+    ) -> CinematicRunRecapShareArtifactHistoryPlan.CleanupCandidate {
+        CinematicRunRecapShareArtifactHistoryPlan.CleanupCandidate(
+            identifier: entry.identifier,
+            sessionNumber: entry.sessionNumber,
+            filename: entry.filename,
+            url: entry.url,
+            pathDisplayText: entry.pathDisplayText
+        )
     }
 
     private static func sessionNumber(from filename: String) -> Int? {

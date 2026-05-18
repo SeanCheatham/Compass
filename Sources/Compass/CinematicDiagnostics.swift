@@ -530,8 +530,12 @@ struct CinematicDiagnosticsReport: Equatable {
         var identifier: String
         var isAvailable: Bool
         var availabilityReason: String
+        var retentionLimit: Int
         var totalCount: Int
         var hiddenCount: Int
+        var cleanupCandidateCount: Int
+        var hiddenCleanupCandidateCount: Int
+        var cleanupCandidateIdentifiers: [String]
         var latestSessionNumber: Int?
         var latestFilename: String?
         var exportIdentifier: String
@@ -539,6 +543,9 @@ struct CinematicDiagnosticsReport: Equatable {
         var warningCount: Int
         var hiddenWarningCount: Int
         var warningIdentifiers: [String]
+        var warningStateIdentifier: String
+        var lastCleanupResultIdentifier: String
+        var lastCleanupResultStatus: String
     }
 
     struct RunRecapSceneFocusSnapshot: Equatable {
@@ -1581,6 +1588,16 @@ struct CinematicVisualSmokeReport: Equatable {
                     maxCharacters: CinematicRunRecapShareArtifactHistoryPlan.identifierMaxCharacters
                 )
             }
+            && snapshot.cleanupCandidateIdentifiers.allSatisfy {
+                string(
+                    $0,
+                    maxCharacters: CinematicRunRecapShareArtifactHistoryPlan.identifierMaxCharacters
+                )
+            }
+            && string(
+                snapshot.lastCleanupResultIdentifier,
+                maxCharacters: CinematicRunRecapShareArtifactCleanupResult.identifierMaxCharacters
+            )
     }
 
     private static func runRecapEndCardCopyIsBounded(_ report: CinematicDiagnosticsReport) -> Bool {
@@ -3125,16 +3142,24 @@ struct CinematicDiagnosticsSummary: Equatable {
             availability,
             "total \(snapshot.totalCount)",
             "hidden \(snapshot.hiddenCount)",
-            snapshot.latestSessionNumber.map { "latest session \($0)" },
-            snapshot.latestFilename.map { "latest file \(bounded($0, limit: 72))" },
-            "export \(bounded(snapshot.exportIdentifier, limit: 96))",
+            "retention \(snapshot.retentionLimit)",
+            "cleanup candidates \(snapshot.cleanupCandidateCount)",
+            snapshot.hiddenCleanupCandidateCount > 0 ? "hidden cleanup \(snapshot.hiddenCleanupCandidateCount)" : nil,
+            snapshot.cleanupCandidateIdentifiers.isEmpty
+                ? nil
+                : "cleanup ids \(bounded(snapshot.cleanupCandidateIdentifiers.joined(separator: ","), limit: 120))",
             "warnings \(snapshot.warningCount)",
+            "warning state \(snapshot.warningStateIdentifier)",
             snapshot.hiddenWarningCount > 0 ? "hidden warnings \(snapshot.hiddenWarningCount)" : nil,
             snapshot.warningIdentifiers.isEmpty
                 ? nil
-                : "warning ids \(bounded(snapshot.warningIdentifiers.joined(separator: ","), limit: 180))",
+                : "warning ids \(bounded(snapshot.warningIdentifiers.joined(separator: ","), limit: 120))",
+            "last cleanup \(snapshot.lastCleanupResultStatus) \(bounded(snapshot.lastCleanupResultIdentifier, limit: 54))",
+            snapshot.latestSessionNumber.map { "latest session \($0)" },
+            snapshot.latestFilename.map { "latest file \(bounded($0, limit: 72))" },
+            "export \(bounded(snapshot.exportIdentifier, limit: 54))",
             "copy \(snapshot.exportMarkdownLength) chars",
-            "id \(bounded(snapshot.identifier, limit: 96))"
+            "id \(bounded(snapshot.identifier, limit: 54))"
         ].compactMap { $0 }.joined(separator: " | ")
     }
 
@@ -3355,6 +3380,7 @@ enum CinematicDiagnostics {
             runRecapEndCardPlan: runRecapEndCardPlan,
             runRecapShareArtifactPlan: runRecapShareArtifactPlan,
             runRecapShareArtifactHistoryPlan: project.cinematicRunRecapShareArtifactHistory,
+            runRecapShareArtifactCleanupResult: project.cinematicRunRecapShareArtifactCleanup,
             nativeFeedbackCue: project.cinematicNativeFeedbackCue,
             nativeFeedbackLifecycle: project.cinematicNativeFeedbackCueLifecycle
         )
@@ -3386,6 +3412,7 @@ enum CinematicDiagnostics {
         runRecapEndCardPlan: CinematicRunRecapEndCardPlan = .none,
         runRecapShareArtifactPlan providedRunRecapShareArtifactPlan: CinematicRunRecapShareArtifactPlan? = nil,
         runRecapShareArtifactHistoryPlan providedRunRecapShareArtifactHistoryPlan: CinematicRunRecapShareArtifactHistoryPlan? = nil,
+        runRecapShareArtifactCleanupResult providedRunRecapShareArtifactCleanupResult: CinematicRunRecapShareArtifactCleanupResult? = nil,
         nativeFeedbackCue: CinematicNativeFeedbackCuePlan? = nil,
         nativeFeedbackLifecycle: CinematicNativeFeedbackCueLifecycle = CinematicNativeFeedbackCueLifecycle()
     ) -> CinematicDiagnosticsReport {
@@ -3534,7 +3561,8 @@ enum CinematicDiagnostics {
         let runRecapShareSnapshot = runRecapShareSnapshot(for: runRecapSharePlan)
         let runRecapShareArtifactSnapshot = runRecapShareArtifactSnapshot(for: runRecapShareArtifactPlan)
         let runRecapShareArtifactHistorySnapshot = runRecapShareArtifactHistorySnapshot(
-            for: runRecapShareArtifactHistoryPlan
+            for: runRecapShareArtifactHistoryPlan,
+            cleanupResult: providedRunRecapShareArtifactCleanupResult
         )
         let cameraSnapshots = CinematicCameraShot.allCases.map {
             cameraSnapshot(for: $0, settings: influenceSettings)
@@ -3563,6 +3591,7 @@ enum CinematicDiagnostics {
                 "run-recap-share:\(runRecapShareSnapshot.identifier)",
                 "run-recap-share-artifact:\(runRecapShareArtifactSnapshot.identifier)",
                 "run-recap-share-artifact-history:\(runRecapShareArtifactHistorySnapshot.identifier)",
+                "run-recap-share-artifact-cleanup:\(runRecapShareArtifactHistorySnapshot.lastCleanupResultIdentifier)",
                 "run-recap-focus:\(runRecapSceneFocusSnapshot.identifier)",
                 "run-recap-end-card:\(runRecapEndCardSnapshot.identifier)"
             ].joined(separator: "|"),
@@ -5025,21 +5054,29 @@ enum CinematicDiagnostics {
     }
 
     private static func runRecapShareArtifactHistorySnapshot(
-        for plan: CinematicRunRecapShareArtifactHistoryPlan
+        for plan: CinematicRunRecapShareArtifactHistoryPlan,
+        cleanupResult: CinematicRunRecapShareArtifactCleanupResult?
     ) -> CinematicDiagnosticsReport.RunRecapShareArtifactHistorySnapshot {
         CinematicDiagnosticsReport.RunRecapShareArtifactHistorySnapshot(
             identifier: plan.identifier,
             isAvailable: plan.isAvailable,
             availabilityReason: plan.availabilityReason,
+            retentionLimit: plan.retentionLimit,
             totalCount: plan.totalCount,
             hiddenCount: plan.hiddenCount,
+            cleanupCandidateCount: plan.cleanupCandidateCount,
+            hiddenCleanupCandidateCount: plan.hiddenCleanupCandidateCount,
+            cleanupCandidateIdentifiers: plan.cleanupCandidateIdentifiers,
             latestSessionNumber: plan.latestEntry?.sessionNumber,
             latestFilename: plan.latestEntry?.filename,
             exportIdentifier: plan.exportIdentifier,
             exportMarkdownLength: plan.combinedMarkdownLength,
             warningCount: plan.warningCount,
             hiddenWarningCount: plan.hiddenWarningCount,
-            warningIdentifiers: plan.warnings.map(\.identifier)
+            warningIdentifiers: plan.warnings.map(\.identifier),
+            warningStateIdentifier: plan.hasWarnings ? "warnings" : "clear",
+            lastCleanupResultIdentifier: cleanupResult?.identifier ?? "none",
+            lastCleanupResultStatus: cleanupResult?.status.rawValue ?? "none"
         )
     }
 
