@@ -26,6 +26,7 @@ struct CinematicDiagnosticsReport: Equatable {
     var idleStoryCycle: IdleStoryCycleSnapshot
     var timelineFocus: TimelineFocusSnapshot
     var runRecap: RunRecapSnapshot
+    var runRecapShare: RunRecapShareSnapshot
     var runRecapSceneFocus: RunRecapSceneFocusSnapshot
     var runRecapEndCard: RunRecapEndCardSnapshot
     var cameraSnapshots: [CameraSnapshot]
@@ -482,6 +483,26 @@ struct CinematicDiagnosticsReport: Equatable {
         var flavorIdentifier: String?
         var flavorSourceIdentifier: String?
         var titleSourceIdentifier: String
+    }
+
+    struct RunRecapShareSnapshot: Equatable {
+        var identifier: String
+        var availabilityIdentifier: String
+        var availabilityReason: String
+        var isAvailable: Bool
+        var recapIdentifier: String
+        var recapFocusIdentifier: String?
+        var endCardIdentifier: String?
+        var title: String
+        var detail: String
+        var status: String
+        var commitHighlight: String?
+        var eventSummaries: [String]
+        var eventSummaryCount: Int
+        var visualDescriptorTokens: [String]
+        var visualDescriptorTokenCount: Int
+        var text: String
+        var textLength: Int
     }
 
     struct RunRecapSceneFocusSnapshot: Equatable {
@@ -1468,7 +1489,28 @@ struct CinematicVisualSmokeReport: Equatable {
             )
             && (report.narrativeCue.questPlaque.secondaryText?.count ?? 0)
                 <= CinematicBriefingService.titleMaxCharacters
+            && runRecapShareCopyIsBounded(report)
             && runRecapEndCardCopyIsBounded(report)
+    }
+
+    private static func runRecapShareCopyIsBounded(_ report: CinematicDiagnosticsReport) -> Bool {
+        let snapshot = report.runRecapShare
+        return string(snapshot.identifier, maxCharacters: CinematicRunRecapSharePlan.identifierMaxCharacters)
+            && string(snapshot.title, maxCharacters: CinematicRunRecapPlan.titleLimit)
+            && string(snapshot.detail, maxCharacters: CinematicRunRecapPlan.detailLimit)
+            && string(snapshot.status, maxCharacters: CinematicRunRecapPlan.statusLimit)
+            && string(snapshot.text, maxCharacters: CinematicRunRecapSharePlan.textMaxCharacters)
+            && snapshot.textLength == snapshot.text.count
+            && snapshot.eventSummaryCount == snapshot.eventSummaries.count
+            && snapshot.eventSummaryCount <= CinematicRunRecapSharePlan.eventSummaryLimit
+            && snapshot.eventSummaries.allSatisfy {
+                string($0, maxCharacters: CinematicRunRecapSharePlan.eventSummaryMaxCharacters)
+            }
+            && snapshot.visualDescriptorTokenCount == snapshot.visualDescriptorTokens.count
+            && snapshot.visualDescriptorTokenCount <= CinematicRunRecapSharePlan.visualDescriptorTokenLimit
+            && snapshot.visualDescriptorTokens.allSatisfy {
+                string($0, maxCharacters: CinematicRunRecapSharePlan.visualDescriptorTokenMaxCharacters)
+            }
     }
 
     private static func runRecapEndCardCopyIsBounded(_ report: CinematicDiagnosticsReport) -> Bool {
@@ -1940,6 +1982,7 @@ struct CinematicDiagnosticsSummary: Equatable {
                 "idle-story-cycle",
                 "timeline-focus",
                 "run-recap",
+                "run-recap-share",
                 "run-recap-focus",
                 "run-recap-end-card"
             ]
@@ -2055,6 +2098,11 @@ struct CinematicDiagnosticsSummary: Equatable {
                 id: "run-recap",
                 label: "Run recap",
                 detail: runRecapDetail(report.runRecap)
+            ),
+            row(
+                id: "run-recap-share",
+                label: "Run recap share",
+                detail: runRecapShareDetail(report.runRecapShare)
             ),
             row(
                 id: "run-recap-focus",
@@ -2943,6 +2991,26 @@ struct CinematicDiagnosticsSummary: Equatable {
         ].compactMap { $0 }.joined(separator: " | ")
     }
 
+    private static func runRecapShareDetail(
+        _ snapshot: CinematicDiagnosticsReport.RunRecapShareSnapshot
+    ) -> String {
+        let availability = snapshot.isAvailable
+            ? "available"
+            : "empty \(snapshot.availabilityReason)"
+        return [
+            availability,
+            "share \(bounded(snapshot.identifier, limit: 64))",
+            "recap \(bounded(snapshot.recapIdentifier, limit: 40))",
+            "focus \(bounded(snapshot.recapFocusIdentifier ?? "none", limit: 40))",
+            "end-card \(bounded(snapshot.endCardIdentifier ?? "none", limit: 40))",
+            "copy \(snapshot.textLength) chars",
+            "events \(snapshot.eventSummaryCount)",
+            snapshot.visualDescriptorTokens.isEmpty
+                ? "visual none"
+                : "visual \(bounded(snapshot.visualDescriptorTokens.joined(separator: ","), limit: 260))"
+        ].compactMap { $0 }.joined(separator: " | ")
+    }
+
     private static func runRecapSceneFocusDetail(
         _ snapshot: CinematicDiagnosticsReport.RunRecapSceneFocusSnapshot
     ) -> String {
@@ -3311,6 +3379,12 @@ enum CinematicDiagnostics {
         let runRecapSnapshot = runRecapSnapshot(for: runRecapPlan)
         let runRecapSceneFocusSnapshot = runRecapSceneFocusSnapshot(for: runRecapSceneFocusPlan)
         let runRecapEndCardSnapshot = runRecapEndCardSnapshot(for: runRecapEndCardPlan)
+        let runRecapSharePlan = CinematicRunRecapSharePlanner.plan(
+            recapPlan: runRecapPlan,
+            recapFocusDescriptor: runRecapSceneFocusPlan.descriptor,
+            endCardDescriptor: runRecapEndCardPlan.descriptor
+        )
+        let runRecapShareSnapshot = runRecapShareSnapshot(for: runRecapSharePlan)
         let cameraSnapshots = CinematicCameraShot.allCases.map {
             cameraSnapshot(for: $0, settings: influenceSettings)
         }
@@ -3335,6 +3409,7 @@ enum CinematicDiagnostics {
                 "idle-story-cycle:\(idleStoryCycleSnapshot.identifier)",
                 "timeline-focus:\(timelineFocusSnapshot.identifier)",
                 "run-recap:\(runRecapSnapshot.identifier)",
+                "run-recap-share:\(runRecapShareSnapshot.identifier)",
                 "run-recap-focus:\(runRecapSceneFocusSnapshot.identifier)",
                 "run-recap-end-card:\(runRecapEndCardSnapshot.identifier)"
             ].joined(separator: "|"),
@@ -3362,6 +3437,7 @@ enum CinematicDiagnostics {
             idleStoryCycle: idleStoryCycleSnapshot,
             timelineFocus: timelineFocusSnapshot,
             runRecap: runRecapSnapshot,
+            runRecapShare: runRecapShareSnapshot,
             runRecapSceneFocus: runRecapSceneFocusSnapshot,
             runRecapEndCard: runRecapEndCardSnapshot,
             cameraSnapshots: cameraSnapshots
@@ -4743,6 +4819,30 @@ enum CinematicDiagnostics {
             flavorIdentifier: plan.flavorIdentifier,
             flavorSourceIdentifier: plan.flavorSourceIdentifier,
             titleSourceIdentifier: plan.titleSourceIdentifier
+        )
+    }
+
+    private static func runRecapShareSnapshot(
+        for plan: CinematicRunRecapSharePlan
+    ) -> CinematicDiagnosticsReport.RunRecapShareSnapshot {
+        CinematicDiagnosticsReport.RunRecapShareSnapshot(
+            identifier: plan.identifier,
+            availabilityIdentifier: plan.availabilityIdentifier,
+            availabilityReason: plan.availabilityReason,
+            isAvailable: plan.isAvailable,
+            recapIdentifier: plan.recapIdentifier,
+            recapFocusIdentifier: plan.recapFocusIdentifier,
+            endCardIdentifier: plan.endCardIdentifier,
+            title: plan.title,
+            detail: plan.detail,
+            status: plan.status,
+            commitHighlight: plan.commitHighlight,
+            eventSummaries: plan.eventSummaries,
+            eventSummaryCount: plan.eventSummaryCount,
+            visualDescriptorTokens: plan.visualDescriptorTokens,
+            visualDescriptorTokenCount: plan.visualDescriptorTokenCount,
+            text: plan.text,
+            textLength: plan.textLength
         )
     }
 

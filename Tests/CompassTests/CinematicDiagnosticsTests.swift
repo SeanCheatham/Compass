@@ -630,6 +630,7 @@ final class CinematicDiagnosticsTests: XCTestCase {
                 "idle-story-cycle",
                 "timeline-focus",
                 "run-recap",
+                "run-recap-share",
                 "run-recap-focus",
                 "run-recap-end-card",
                 "language-motif",
@@ -663,8 +664,7 @@ final class CinematicDiagnosticsTests: XCTestCase {
                 "camera-shot-impact",
                 "camera-shot-overhead",
                 "camera-shot-commit-constellation",
-                "camera-shot-failure",
-                "camera-shot-victory"
+                "camera-shot-failure"
             ]
         )
         XCTAssertEqual(summary.rows.count, CinematicDiagnosticsSummary.maxRows)
@@ -690,6 +690,7 @@ final class CinematicDiagnosticsTests: XCTestCase {
                     "idle-story-cycle",
                     "timeline-focus",
                     "run-recap",
+                    "run-recap-share",
                     "run-recap-focus",
                     "run-recap-end-card"
                 ],
@@ -735,8 +736,7 @@ final class CinematicDiagnosticsTests: XCTestCase {
                     "camera-shot-impact",
                     "camera-shot-overhead",
                     "camera-shot-commit-constellation",
-                    "camera-shot-failure",
-                    "camera-shot-victory"
+                    "camera-shot-failure"
                 ]
             ]
         )
@@ -828,13 +828,13 @@ final class CinematicDiagnosticsTests: XCTestCase {
             .components(separatedBy: "\n")
             .filter { expectedSectionHeadings.contains($0) }
         XCTAssertEqual(actualSectionHeadings, expectedSectionHeadings)
-        XCTAssertTrue(summary.exportText.contains("Repository/context (8 rows)"))
+        XCTAssertTrue(summary.exportText.contains("Repository/context (9 rows)"))
         XCTAssertTrue(summary.exportText.contains("Motifs (2 rows)"))
         XCTAssertTrue(summary.exportText.contains("Stage motion/effects (9 rows)"))
         XCTAssertTrue(summary.exportText.contains("Narrative/overlay (7 rows)"))
         XCTAssertTrue(summary.exportText.contains("Assets/textures (2 rows)"))
         XCTAssertTrue(summary.exportText.contains("Tuning (4 rows)"))
-        XCTAssertTrue(summary.exportText.contains("Camera shots (9 rows)"))
+        XCTAssertTrue(summary.exportText.contains("Camera shots (8 rows)"))
         XCTAssertTrue(summary.exportText.contains("Visual smoke (pass, 17 checks)"))
         XCTAssertTrue(summary.exportText.contains("Plaque treatments (pass, 4 recipes): smoke pass"))
         XCTAssertTrue(summary.exportText.contains("failure-fracture: accent failure-fracture"))
@@ -1383,6 +1383,11 @@ final class CinematicDiagnosticsTests: XCTestCase {
             isRecapOverlaySelected: true,
             recapPlan: recapPlan
         )
+        let recapSharePlan = CinematicRunRecapSharePlanner.plan(
+            recapPlan: recapPlan,
+            recapFocusDescriptor: recapFocusPlan.descriptor,
+            endCardDescriptor: recapEndCardPlan.descriptor
+        )
         let report = makeReport(
             CinematicDiagnosticsInput(
                 repoName: "Compass",
@@ -1415,6 +1420,20 @@ final class CinematicDiagnosticsTests: XCTestCase {
         XCTAssertEqual(report.runRecap.eventChipCount, 1)
         XCTAssertEqual(report.runRecap.eventChipIdentifiers, recapPlan.eventChips.map(\.identifier))
         XCTAssertTrue(report.identifier.contains("run-recap:\(recapPlan.identifier)"))
+        XCTAssertTrue(report.runRecapShare.isAvailable)
+        XCTAssertEqual(report.runRecapShare.identifier, recapSharePlan.identifier)
+        XCTAssertEqual(report.runRecapShare.recapIdentifier, recapPlan.identifier)
+        XCTAssertEqual(report.runRecapShare.recapFocusIdentifier, focusDescriptor.identifier)
+        XCTAssertEqual(report.runRecapShare.endCardIdentifier, cardDescriptor.identifier)
+        XCTAssertEqual(report.runRecapShare.title, recapPlan.title)
+        XCTAssertEqual(report.runRecapShare.detail, recapPlan.detail)
+        XCTAssertEqual(report.runRecapShare.status, recapPlan.status)
+        XCTAssertEqual(report.runRecapShare.commitHighlight, recapPlan.newestCommitHighlight)
+        XCTAssertEqual(report.runRecapShare.eventSummaryCount, recapPlan.eventChipCount)
+        XCTAssertEqual(report.runRecapShare.text, recapSharePlan.text)
+        XCTAssertTrue(report.runRecapShare.visualDescriptorTokens.contains("focus-shot:victory"))
+        XCTAssertTrue(report.runRecapShare.visualDescriptorTokens.contains("end-card-treatment:verify-seal"))
+        XCTAssertTrue(report.identifier.contains("run-recap-share:\(recapSharePlan.identifier)"))
         XCTAssertTrue(report.runRecapSceneFocus.isActive)
         XCTAssertEqual(report.runRecapSceneFocus.identifier, recapFocusPlan.identifier)
         XCTAssertEqual(report.runRecapSceneFocus.descriptorIdentifier, focusDescriptor.identifier)
@@ -1448,6 +1467,7 @@ final class CinematicDiagnosticsTests: XCTestCase {
             visualSmoke: CinematicVisualSmokeReport(reports: [report])
         )
         let row = try XCTUnwrap(summary.rows.first { $0.id == "run-recap" })
+        let shareRow = try XCTUnwrap(summary.rows.first { $0.id == "run-recap-share" })
         let focusRow = try XCTUnwrap(summary.rows.first { $0.id == "run-recap-focus" })
         let cardRow = try XCTUnwrap(summary.rows.first { $0.id == "run-recap-end-card" })
         XCTAssertTrue(row.detail.contains("available"))
@@ -1455,6 +1475,15 @@ final class CinematicDiagnosticsTests: XCTestCase {
         XCTAssertTrue(row.detail.contains("completed 1"))
         XCTAssertTrue(row.detail.contains("commits 1"))
         XCTAssertTrue(row.detail.contains("events 1"))
+        XCTAssertTrue(shareRow.detail.contains("available"))
+        XCTAssertTrue(shareRow.detail.contains("share"))
+        XCTAssertTrue(shareRow.detail.contains("recap"))
+        XCTAssertTrue(shareRow.detail.contains("focus"))
+        XCTAssertTrue(shareRow.detail.contains("end-card"))
+        XCTAssertTrue(shareRow.detail.contains("copy"))
+        XCTAssertTrue(shareRow.detail.contains("visual"))
+        XCTAssertTrue(shareRow.detail.contains("focus-shot:victory"))
+        XCTAssertTrue(shareRow.detail.contains("end-card-treatment:verify-seal"))
         XCTAssertTrue(focusRow.detail.contains("active"))
         XCTAssertTrue(focusRow.detail.contains("descriptor \(focusDescriptor.identifier)"))
         XCTAssertTrue(focusRow.detail.contains("style success"))
@@ -1469,6 +1498,9 @@ final class CinematicDiagnosticsTests: XCTestCase {
         XCTAssertTrue(cardRow.detail.contains("treatment verify-seal/recap.success"))
         XCTAssertTrue(cardRow.detail.contains("lengths"))
         XCTAssertTrue(summary.exportText.contains("Run recap: available"))
+        XCTAssertTrue(summary.exportText.contains("Run recap share: available"))
+        XCTAssertTrue(summary.exportText.contains("focus-shot:victory"))
+        XCTAssertTrue(summary.exportText.contains("end-card-treatment:verify-seal"))
         XCTAssertTrue(summary.exportText.contains("Run recap focus: active"))
         XCTAssertTrue(summary.exportText.contains("Run recap end card: active"))
         XCTAssertTrue(summary.exportText.contains("status 1 commit highlight"))
@@ -1545,6 +1577,7 @@ final class CinematicDiagnosticsTests: XCTestCase {
         )
         let summary = CinematicDiagnosticsSummary(report: report)
         let row = try XCTUnwrap(summary.rows.first { $0.id == "run-recap" })
+        let shareRow = try XCTUnwrap(summary.rows.first { $0.id == "run-recap-share" })
         let cardRow = try XCTUnwrap(summary.rows.first { $0.id == "run-recap-end-card" })
 
         XCTAssertEqual(report.runRecap.title, "Flavor Diagnostics Sealed")
@@ -1558,9 +1591,15 @@ final class CinematicDiagnosticsTests: XCTestCase {
         XCTAssertEqual(report.runRecapEndCard.flavorIdentifier, flavor.identifier)
         XCTAssertTrue(row.detail.contains("flavor applied"))
         XCTAssertTrue(row.detail.contains("title-source generated"))
+        XCTAssertEqual(report.runRecapShare.title, "Flavor Diagnostics Sealed")
+        XCTAssertTrue(report.runRecapShare.visualDescriptorTokens.contains("title-source:generated"))
+        XCTAssertTrue(report.runRecapShare.visualDescriptorTokens.contains("flavor-state:applied"))
+        XCTAssertTrue(shareRow.detail.contains("title-source:generated"))
+        XCTAssertTrue(shareRow.detail.contains("flavor-state:applied"))
         XCTAssertTrue(cardRow.detail.contains("flavor applied"))
         XCTAssertTrue(cardRow.detail.contains("title-source generated"))
         XCTAssertTrue(summary.exportText.contains("Run recap: available"))
+        XCTAssertTrue(summary.exportText.contains("Run recap share: available"))
         XCTAssertTrue(summary.exportText.contains("Run recap end card: active"))
         XCTAssertTrue(summary.exportText.contains("flavor applied"))
 
@@ -1632,20 +1671,27 @@ final class CinematicDiagnosticsTests: XCTestCase {
             visualSmoke: CinematicVisualSmokeReport(reports: [report])
         )
         let row = summary.rows.first { $0.id == "run-recap" }
+        let shareRow = summary.rows.first { $0.id == "run-recap-share" }
         let focusRow = summary.rows.first { $0.id == "run-recap-focus" }
         let cardRow = summary.rows.first { $0.id == "run-recap-end-card" }
 
         XCTAssertFalse(report.runRecap.isAvailable)
         XCTAssertEqual(report.runRecap.availabilityIdentifier, "active-run")
         XCTAssertEqual(report.runRecap.identifier, "run-recap.empty|reason:active-run")
+        XCTAssertFalse(report.runRecapShare.isAvailable)
+        XCTAssertEqual(report.runRecapShare.availabilityReason, "active-run")
+        XCTAssertEqual(report.runRecapShare.recapIdentifier, report.runRecap.identifier)
+        XCTAssertTrue(report.runRecapShare.text.contains("Availability: unavailable (active-run)"))
         XCTAssertFalse(report.runRecapSceneFocus.isActive)
         XCTAssertEqual(report.runRecapSceneFocus.identifier, "run-recap-scene-focus.none")
         XCTAssertFalse(report.runRecapEndCard.isActive)
         XCTAssertEqual(report.runRecapEndCard.identifier, "run-recap-end-card.none")
         XCTAssertTrue(row?.detail.contains("empty active-run") == true)
+        XCTAssertTrue(shareRow?.detail.contains("empty active-run") == true)
         XCTAssertEqual(focusRow?.detail, "empty")
         XCTAssertEqual(cardRow?.detail, "empty")
         XCTAssertTrue(summary.exportText.contains("Run recap: empty active-run"))
+        XCTAssertTrue(summary.exportText.contains("Run recap share: empty active-run"))
         XCTAssertTrue(summary.exportText.contains("Run recap focus: empty"))
         XCTAssertTrue(summary.exportText.contains("Run recap end card: empty"))
     }

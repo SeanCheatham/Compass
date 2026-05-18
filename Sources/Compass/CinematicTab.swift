@@ -61,6 +61,11 @@ struct CinematicTab: View {
             let runRecapEndCardPlan = overlayMode == .recap
                 ? runRecapEndCardCandidatePlan
                 : .none
+            let runRecapSharePlan = CinematicRunRecapSharePlanner.plan(
+                recapPlan: recapPlan,
+                recapFocusDescriptor: runRecapSceneFocusCandidatePlan.descriptor,
+                endCardDescriptor: runRecapEndCardCandidatePlan.descriptor
+            )
             let idleStoryCyclePlan = CinematicIdleStoryCyclePlanner.plan(
                 session: CinematicIdleStoryCyclePlan.SessionInput(
                     elapsedTime: timeline.date.timeIntervalSinceReferenceDate,
@@ -135,6 +140,7 @@ struct CinematicTab: View {
                     } else if overlayMode == .recap {
                         CinematicRunRecapOverlay(
                             plan: recapPlan,
+                            sharePlan: runRecapSharePlan,
                             displayPlan: displayPlan
                         )
                     } else {
@@ -382,6 +388,7 @@ private struct CinematicTimelineOverlay: View {
 
 private struct CinematicRunRecapOverlay: View {
     var plan: CinematicRunRecapPlan
+    var sharePlan: CinematicRunRecapSharePlan
     var displayPlan: CinematicOverlayDisplayPlan
 
     var body: some View {
@@ -409,6 +416,21 @@ private struct CinematicRunRecapOverlay: View {
                 }
 
                 Spacer()
+
+                Button {
+                    copyShareText(sharePlan.text)
+                } label: {
+                    Image(systemName: "square.and.arrow.up")
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundStyle(tint.opacity(sharePlan.isAvailable ? 0.9 : 0.34))
+                        .frame(width: 24, height: 24)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .disabled(!sharePlan.isAvailable)
+                .help(shareHelp)
+                .accessibilityLabel("Copy recap share text")
+                .accessibilityIdentifier("cinematic-run-recap-share-\(sharePlan.identifier)")
 
                 Text(plan.statusIdentifier == "none" ? plan.availabilityIdentifier : plan.statusIdentifier)
                     .font(.caption2.weight(.bold))
@@ -463,6 +485,18 @@ private struct CinematicRunRecapOverlay: View {
         }
         .help(plan.detail)
         .accessibilityIdentifier("cinematic-run-recap-\(plan.identifier)")
+    }
+
+    private var shareHelp: String {
+        sharePlan.isAvailable
+            ? "Copy recap share text"
+            : "Recap share unavailable: \(sharePlan.availabilityReason)"
+    }
+
+    private func copyShareText(_ text: String) {
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        pasteboard.setString(text, forType: .string)
     }
 }
 

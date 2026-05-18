@@ -450,10 +450,10 @@ final class CinematicVisualSmokeReportTests: XCTestCase {
                 "idle-story-cycle",
                 "timeline-focus",
                 "run-recap",
+                "run-recap-share",
                 "run-recap-focus",
                 "run-recap-end-card",
-                "language-motif",
-                "activity-motif"
+                "language-motif"
             ]
         )
         XCTAssertEqual(
