@@ -845,7 +845,7 @@ final class CinematicDiagnosticsTests: XCTestCase {
         XCTAssertTrue(summary.exportText.contains("Assets/textures (2 rows)"))
         XCTAssertTrue(summary.exportText.contains("Tuning (4 rows)"))
         XCTAssertTrue(summary.exportText.contains("Camera shots (7 rows)"))
-        XCTAssertTrue(summary.exportText.contains("Visual smoke (pass, 17 checks)"))
+        XCTAssertTrue(summary.exportText.contains("Visual smoke (pass, 18 checks)"))
         XCTAssertTrue(summary.exportText.contains("Plaque treatments (pass, 4 recipes): smoke pass"))
         XCTAssertTrue(summary.exportText.contains("failure-fracture: accent failure-fracture"))
         XCTAssertTrue(summary.exportText.contains("Overlay fallback: pass"))
@@ -1545,6 +1545,71 @@ final class CinematicDiagnosticsTests: XCTestCase {
         XCTAssertTrue(summary.exportText.contains("Run recap focus: active"))
         XCTAssertTrue(summary.exportText.contains("Run recap end card: active"))
         XCTAssertTrue(summary.exportText.contains("status 1 commit highlight"))
+    }
+
+    func testRunRecapEndCardDiagnosticsExposePinnedComparisonCueStateAndExport() throws {
+        let reports = CinematicDiagnostics.representativePinnedComparisonCueSmokeReports()
+        let activeReport = try XCTUnwrap(
+            reports.first { $0.runRecapEndCard.pinnedComparisonCueStateIdentifier == "visible-pinned-target" }
+        )
+        let filteredReport = try XCTUnwrap(
+            reports.first { $0.runRecapEndCard.pinnedComparisonCueStateIdentifier == "filtered-pinned-target" }
+        )
+        let noMatchReport = try XCTUnwrap(
+            reports.first {
+                $0.runRecapEndCard.pinnedComparisonCueNoMatchStateIdentifier
+                    == "no-matching-recap-share-artifacts"
+            }
+        )
+        let activeCueIdentifier = try XCTUnwrap(activeReport.runRecapEndCard.pinnedComparisonCueIdentifier)
+        let activeSummary = CinematicDiagnosticsSummary(
+            report: activeReport,
+            visualSmoke: CinematicVisualSmokeReport(reports: reports)
+        )
+        let activeRow = try XCTUnwrap(activeSummary.rows.first { $0.id == "run-recap-end-card" })
+
+        XCTAssertTrue(activeReport.runRecapEndCard.hasPinnedComparisonCue)
+        XCTAssertEqual(activeReport.runRecapEndCard.pinnedComparisonCueModeIdentifier, "pinned_reference")
+        XCTAssertEqual(activeReport.runRecapEndCard.pinnedComparisonCueStateIdentifier, "visible-pinned-target")
+        XCTAssertEqual(activeReport.runRecapEndCard.pinnedComparisonCueSelectedSessionNumber, 12)
+        XCTAssertEqual(activeReport.runRecapEndCard.pinnedComparisonCueTargetSessionNumber, 10)
+        XCTAssertEqual(activeReport.runRecapEndCard.pinnedComparisonCueDeltaLabel, "delta 2 sessions")
+        XCTAssertEqual(activeReport.runRecapEndCard.pinnedComparisonCuePinnedEntryCount, 1)
+        XCTAssertEqual(activeReport.runRecapEndCard.pinnedComparisonCueRetainedPinnedEntryCount, 1)
+        XCTAssertEqual(activeReport.runRecapEndCard.pinnedComparisonCueMissingPinnedEntryCount, 0)
+        XCTAssertEqual(activeReport.runRecapEndCard.pinnedComparisonCueFilteredPinnedEntryCount, 0)
+        XCTAssertEqual(activeReport.runRecapEndCard.pinnedComparisonCueGlyphIdentifier, "pin.bridge.active")
+        XCTAssertEqual(activeReport.runRecapEndCard.pinnedComparisonCueRailTreatmentIdentifier, "pin-bridge-rail")
+        XCTAssertLessThanOrEqual(
+            activeReport.runRecapEndCard.pinnedComparisonCueLabelLength,
+            CinematicRunRecapEndCardPlan.pinnedComparisonLabelMaxCharacters
+        )
+        XCTAssertLessThanOrEqual(
+            activeReport.runRecapEndCard.pinnedComparisonCueDetailLength,
+            CinematicRunRecapEndCardPlan.pinnedComparisonDetailMaxCharacters
+        )
+        XCTAssertTrue(activeReport.identifier.contains("run-recap-end-card-pinned-cue:\(activeCueIdentifier)"))
+        XCTAssertTrue(activeReport.identifier.contains("run-recap-end-card-pinned-cue-mode:pinned_reference"))
+        XCTAssertTrue(activeReport.identifier.contains("run-recap-end-card-pinned-cue-state:visible-pinned-target"))
+        XCTAssertTrue(activeRow.detail.contains("pin cue visible-pinned-target"))
+        XCTAssertTrue(activeRow.detail.contains("pin mode pinned_reference"))
+        XCTAssertTrue(activeRow.detail.contains("pin sessions S12->S10"))
+        XCTAssertTrue(activeRow.detail.contains("pin delta 2 sessions pin-bridge-rail"))
+        XCTAssertTrue(activeSummary.exportText.contains("Run recap end card: active"))
+        XCTAssertTrue(activeSummary.exportText.contains("pin cue visible-pinned-target"))
+        XCTAssertTrue(activeSummary.exportText.contains("pin counts 1/1 stale 0 filtered 0"))
+
+        XCTAssertTrue(filteredReport.runRecapEndCard.hasPinnedComparisonCue)
+        XCTAssertEqual(filteredReport.runRecapEndCard.pinnedComparisonCueFilteredPinnedEntryCount, 1)
+        XCTAssertEqual(filteredReport.runRecapEndCard.pinnedComparisonCueGlyphIdentifier, "pin.bridge.filtered")
+        XCTAssertEqual(filteredReport.runRecapEndCard.pinnedComparisonCueRailTreatmentIdentifier, "filtered-pin-rail")
+
+        XCTAssertFalse(noMatchReport.runRecapEndCard.hasPinnedComparisonCue)
+        XCTAssertEqual(noMatchReport.runRecapEndCard.pinnedComparisonCueStateIdentifier, "no-selected-recap-share-artifact")
+        XCTAssertEqual(
+            noMatchReport.runRecapEndCard.pinnedComparisonCueNoMatchStateIdentifier,
+            "no-matching-recap-share-artifacts"
+        )
     }
 
     func testRunRecapDiagnosticsExposeAppliedAndStaleFlavorState() throws {

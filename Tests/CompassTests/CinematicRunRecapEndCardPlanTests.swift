@@ -306,6 +306,227 @@ final class CinematicRunRecapEndCardPlanTests: XCTestCase {
         XCTAssertFalse(descriptor.detail.contains("Stale generated"))
     }
 
+    func testPinnedComparisonCueGatesAndBoundsRealityDescriptorMetadata() throws {
+        let session = makeSession(6, status: .succeeded, endedAt: 6_500)
+        let recapPlan = makeRecapPlan(session: session)
+        let history = makeArtifactHistory(
+            caseIdentifier: "cue-gating",
+            sessions: [12, 11, 10],
+            bodyForSession: { session in
+                session == 12
+                    ? "selected bridge beacon for cue gating"
+                    : "archived target body \(session)"
+            }
+        )
+        let selected = try XCTUnwrap(history.entries.first { $0.sessionNumber == 12 })
+        let target = try XCTUnwrap(history.entries.first { $0.sessionNumber == 10 })
+        let staleIdentifier = "missing-pinned-end-card-cue"
+
+        let activeComparison = CinematicRunRecapShareArtifactComparisonPlanner.plan(
+            historyPlan: history,
+            selectedEntryIdentifier: selected.identifier,
+            targetMode: .pinnedReference,
+            pinnedEntryIdentifiers: [target.identifier, staleIdentifier]
+        )
+        let adjacentComparison = CinematicRunRecapShareArtifactComparisonPlanner.plan(
+            historyPlan: history,
+            selectedEntryIdentifier: selected.identifier,
+            targetMode: .adjacent,
+            pinnedEntryIdentifiers: [target.identifier]
+        )
+        let selectedOnlyComparison = CinematicRunRecapShareArtifactComparisonPlanner.plan(
+            historyPlan: history,
+            selectedEntryIdentifier: selected.identifier,
+            targetMode: .pinnedReference,
+            pinnedEntryIdentifiers: [selected.identifier]
+        )
+        let noMatchComparison = CinematicRunRecapShareArtifactComparisonPlanner.plan(
+            historyPlan: history,
+            selectedEntryIdentifier: selected.identifier,
+            searchQuery: "missing end card cue query",
+            targetMode: .pinnedReference,
+            pinnedEntryIdentifiers: [target.identifier]
+        )
+        let staleComparison = CinematicRunRecapShareArtifactComparisonPlanner.plan(
+            historyPlan: history,
+            selectedEntryIdentifier: selected.identifier,
+            targetMode: .pinnedReference,
+            pinnedEntryIdentifiers: [staleIdentifier]
+        )
+        let filteredComparison = CinematicRunRecapShareArtifactComparisonPlanner.plan(
+            historyPlan: history,
+            selectedEntryIdentifier: selected.identifier,
+            searchQuery: "selected bridge beacon",
+            targetMode: .pinnedReference,
+            pinnedEntryIdentifiers: [target.identifier]
+        )
+
+        let noComparisonCard = CinematicRunRecapEndCardPlanner.plan(
+            isRecapOverlaySelected: true,
+            recapPlan: recapPlan
+        )
+        let adjacentCard = CinematicRunRecapEndCardPlanner.plan(
+            isRecapOverlaySelected: true,
+            recapPlan: recapPlan,
+            artifactComparisonPlan: adjacentComparison
+        )
+        let activeCard = CinematicRunRecapEndCardPlanner.plan(
+            isRecapOverlaySelected: true,
+            recapPlan: recapPlan,
+            artifactComparisonPlan: activeComparison
+        )
+        let selectedOnlyCard = CinematicRunRecapEndCardPlanner.plan(
+            isRecapOverlaySelected: true,
+            recapPlan: recapPlan,
+            artifactComparisonPlan: selectedOnlyComparison
+        )
+        let noMatchCard = CinematicRunRecapEndCardPlanner.plan(
+            isRecapOverlaySelected: true,
+            recapPlan: recapPlan,
+            artifactComparisonPlan: noMatchComparison
+        )
+        let staleCard = CinematicRunRecapEndCardPlanner.plan(
+            isRecapOverlaySelected: true,
+            recapPlan: recapPlan,
+            artifactComparisonPlan: staleComparison
+        )
+        let filteredCard = CinematicRunRecapEndCardPlanner.plan(
+            isRecapOverlaySelected: true,
+            recapPlan: recapPlan,
+            artifactComparisonPlan: filteredComparison
+        )
+
+        let noComparisonDescriptor = try XCTUnwrap(noComparisonCard.descriptor)
+        let adjacentDescriptor = try XCTUnwrap(adjacentCard.descriptor)
+        let activeDescriptor = try XCTUnwrap(activeCard.descriptor)
+        let selectedOnlyDescriptor = try XCTUnwrap(selectedOnlyCard.descriptor)
+        let noMatchDescriptor = try XCTUnwrap(noMatchCard.descriptor)
+        let staleDescriptor = try XCTUnwrap(staleCard.descriptor)
+        let filteredDescriptor = try XCTUnwrap(filteredCard.descriptor)
+        let activeCue = try XCTUnwrap(activeDescriptor.pinnedComparisonCue)
+        let filteredCue = try XCTUnwrap(filteredDescriptor.pinnedComparisonCue)
+
+        XCTAssertNil(noComparisonDescriptor.pinnedComparisonCue)
+        XCTAssertNil(adjacentDescriptor.pinnedComparisonCue)
+        XCTAssertEqual(noComparisonDescriptor.identifier, adjacentDescriptor.identifier)
+        XCTAssertEqual(noComparisonCard.identifier, adjacentCard.identifier)
+        XCTAssertEqual(adjacentDescriptor.pinnedComparisonCueModeIdentifier, "adjacent")
+        XCTAssertEqual(adjacentDescriptor.pinnedComparisonCueStateIdentifier, "inactive")
+        XCTAssertNotEqual(activeCard.identifier, adjacentCard.identifier)
+
+        XCTAssertEqual(activeDescriptor.pinnedComparisonCueModeIdentifier, "pinned_reference")
+        XCTAssertEqual(activeDescriptor.pinnedComparisonCueStateIdentifier, "visible-pinned-target")
+        XCTAssertEqual(activeCue.comparisonIdentifier, activeComparison.identifier)
+        XCTAssertEqual(activeCue.comparisonExportIdentifier, activeComparison.exportIdentifier)
+        XCTAssertEqual(activeCue.selectedEntryIdentifier, selected.identifier)
+        XCTAssertEqual(activeCue.targetEntryIdentifier, target.identifier)
+        XCTAssertEqual(activeCue.selectedSessionNumber, 12)
+        XCTAssertEqual(activeCue.targetSessionNumber, 10)
+        XCTAssertEqual(activeCue.deltaLabel, "delta 2 sessions")
+        XCTAssertEqual(activeCue.pinnedEntryCount, 2)
+        XCTAssertEqual(activeCue.retainedPinnedEntryCount, 1)
+        XCTAssertEqual(activeCue.missingPinnedEntryCount, 1)
+        XCTAssertEqual(activeCue.filteredPinnedEntryCount, 0)
+        XCTAssertEqual(activeCue.warningStateIdentifier, "clear")
+        XCTAssertEqual(activeCue.noMatchStateIdentifier, "none")
+        XCTAssertEqual(activeCue.glyphIdentifier, "pin.bridge.stale")
+        XCTAssertEqual(activeCue.railTreatmentIdentifier, "stale-pin-rail")
+        XCTAssertLessThanOrEqual(activeCue.identifier.count, CinematicRunRecapEndCardPlan.identifierMaxCharacters)
+        XCTAssertLessThanOrEqual(activeCue.labelLength, CinematicRunRecapEndCardPlan.pinnedComparisonLabelMaxCharacters)
+        XCTAssertLessThanOrEqual(activeCue.detailLength, CinematicRunRecapEndCardPlan.pinnedComparisonDetailMaxCharacters)
+        XCTAssertLessThanOrEqual(
+            activeCue.deltaLabelLength,
+            CinematicRunRecapEndCardPlan.pinnedComparisonDeltaLabelMaxCharacters
+        )
+
+        XCTAssertNil(selectedOnlyDescriptor.pinnedComparisonCue)
+        XCTAssertEqual(
+            selectedOnlyDescriptor.pinnedComparisonCueStateIdentifier,
+            "selected-only-pinned-recap-share-artifact"
+        )
+        XCTAssertNil(noMatchDescriptor.pinnedComparisonCue)
+        XCTAssertEqual(noMatchDescriptor.pinnedComparisonCueStateIdentifier, "no-selected-recap-share-artifact")
+        XCTAssertEqual(
+            noMatchDescriptor.pinnedComparisonCueNoMatchStateIdentifier,
+            "no-matching-recap-share-artifacts"
+        )
+        XCTAssertNil(staleDescriptor.pinnedComparisonCue)
+        XCTAssertEqual(staleDescriptor.pinnedComparisonCueStateIdentifier, "pinned-recap-share-artifacts-missing")
+        XCTAssertEqual(filteredDescriptor.pinnedComparisonCueStateIdentifier, "filtered-pinned-target")
+        XCTAssertEqual(filteredCue.filteredPinnedEntryCount, 1)
+        XCTAssertEqual(filteredCue.glyphIdentifier, "pin.bridge.filtered")
+        XCTAssertEqual(filteredCue.railTreatmentIdentifier, "filtered-pin-rail")
+    }
+
+    func testAdjacentComparisonCuePathKeepsShareTextTimelineFocusAndPinPlannerStable() throws {
+        let session = makeSession(7, status: .succeeded, endedAt: 7_500)
+        let recapPlan = makeRecapPlan(session: session)
+        let history = makeArtifactHistory(
+            caseIdentifier: "cue-invariants",
+            sessions: [3, 2, 1],
+            bodyForSession: { "invariant body \($0)" }
+        )
+        let selected = try XCTUnwrap(history.entries.first { $0.sessionNumber == 3 })
+        let pinned = try XCTUnwrap(history.entries.first { $0.sessionNumber == 1 })
+        let pinPlanBefore = CinematicRunRecapShareArtifactPinnedReferencePlanner.plan(
+            historyPlan: history,
+            pinnedEntryIdentifiers: [pinned.identifier],
+            selectedEntryIdentifier: selected.identifier
+        )
+        let timelinePlan = CinematicSessionTimelinePlan(
+            sessions: [session],
+            selectedBeatID: "session-7-plan"
+        )
+        let timelineFocusBefore = CinematicTimelineSceneFocusPlanner.plan(
+            selectedBeat: timelinePlan.selectedBeat,
+            commitConstellationPlan: .empty,
+            recoveryCuePlan: .none
+        )
+        let baseEndCard = CinematicRunRecapEndCardPlanner.plan(
+            isRecapOverlaySelected: true,
+            recapPlan: recapPlan
+        )
+        let adjacentComparison = CinematicRunRecapShareArtifactComparisonPlanner.plan(
+            historyPlan: history,
+            selectedEntryIdentifier: selected.identifier,
+            targetMode: .adjacent,
+            pinnedEntryIdentifiers: [pinned.identifier]
+        )
+        let adjacentEndCard = CinematicRunRecapEndCardPlanner.plan(
+            isRecapOverlaySelected: true,
+            recapPlan: recapPlan,
+            artifactComparisonPlan: adjacentComparison
+        )
+        let baseShare = CinematicRunRecapSharePlanner.plan(
+            recapPlan: recapPlan,
+            endCardDescriptor: baseEndCard.descriptor
+        )
+        let adjacentShare = CinematicRunRecapSharePlanner.plan(
+            recapPlan: recapPlan,
+            endCardDescriptor: adjacentEndCard.descriptor
+        )
+
+        XCTAssertEqual(baseEndCard.identifier, adjacentEndCard.identifier)
+        XCTAssertEqual(baseShare, adjacentShare)
+        XCTAssertEqual(timelinePlan.selectedBeatID, "session-7-plan")
+        XCTAssertEqual(
+            CinematicTimelineSceneFocusPlanner.plan(
+                selectedBeat: timelinePlan.selectedBeat,
+                commitConstellationPlan: .empty,
+                recoveryCuePlan: .none
+            ),
+            timelineFocusBefore
+        )
+        XCTAssertEqual(
+            CinematicRunRecapShareArtifactPinnedReferencePlanner.plan(
+                historyPlan: history,
+                pinnedEntryIdentifiers: [pinned.identifier],
+                selectedEntryIdentifier: selected.identifier
+            ),
+            pinPlanBefore
+        )
+    }
+
     private func makeRecapPlan(session: SessionRecord) -> CinematicRunRecapPlan {
         CinematicRunRecapPlanner.plan(
             state: recapState(),
@@ -346,6 +567,73 @@ final class CinematicRunRecapEndCardPlanTests: XCTestCase {
             notes: [],
             verifyOutput: nil,
             feedback: nil
+        )
+    }
+
+    private func makeArtifactHistory(
+        caseIdentifier: String,
+        sessions: [Int],
+        bodyForSession: (Int) -> String
+    ) -> CinematicRunRecapShareArtifactHistoryPlan {
+        let entries = sessions.sorted(by: >).map { session in
+            let filename = "\(session)-recap-share-\(caseIdentifier).md"
+            let markdown = """
+            # Compass Run Recap Share
+
+            - Artifact: \(caseIdentifier)-artifact-\(session)
+            - Availability: available
+            - Session: \(session)
+            - Filename: \(filename)
+            - Share: share-id
+            - Recap: recap-id
+            - Focus: focus-id
+            - End card: end-card-id
+            - Title: \(caseIdentifier) \(session)
+            - Status: succeeded
+            - Detail: End card cue detail
+            - Commit: Cue commit \(session)
+
+            ## Events
+            - event
+
+            ## Share Text
+
+            ```text
+            \(bodyForSession(session))
+            ```
+            """
+            return CinematicRunRecapShareArtifactHistoryPlan.Entry(
+                identifier: "\(caseIdentifier)-entry-\(session)",
+                sessionNumber: session,
+                filename: filename,
+                url: URL(fileURLWithPath: "/tmp/\(filename)"),
+                pathDisplayText: "/tmp/\(filename)",
+                titleSnippet: "\(caseIdentifier) \(session)",
+                statusSnippet: "succeeded",
+                commitSnippet: "Cue commit \(session)",
+                markdownContents: markdown,
+                markdownLength: markdown.count
+            )
+        }
+
+        return CinematicRunRecapShareArtifactHistoryPlan(
+            identifier: "\(caseIdentifier)-history",
+            isAvailable: true,
+            availabilityReason: "available",
+            storageRootDisplayText: "/tmp/\(caseIdentifier)",
+            sessionsDisplayText: "/tmp/\(caseIdentifier)/sessions",
+            retentionLimit: CinematicRunRecapShareArtifactHistoryPlan.retentionLimit,
+            entries: entries,
+            totalCount: entries.count,
+            hiddenCount: 0,
+            cleanupCandidateCount: 0,
+            hiddenCleanupCandidateCount: 0,
+            cleanupCandidateIdentifiers: [],
+            warnings: [],
+            warningCount: 0,
+            hiddenWarningCount: 0,
+            exportIdentifier: "\(caseIdentifier)-history-export",
+            combinedMarkdownExport: entries.map(\.markdownContents).joined(separator: "\n\n")
         )
     }
 }

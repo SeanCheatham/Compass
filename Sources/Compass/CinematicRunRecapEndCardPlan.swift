@@ -8,6 +8,9 @@ struct CinematicRunRecapEndCardPlan: Equatable {
     static let titleMaxCharacters = CinematicRunRecapPlan.titleLimit
     static let detailMaxCharacters = CinematicRunRecapPlan.detailLimit
     static let statusMaxCharacters = CinematicRunRecapPlan.statusLimit
+    static let pinnedComparisonLabelMaxCharacters = 58
+    static let pinnedComparisonDetailMaxCharacters = 118
+    static let pinnedComparisonDeltaLabelMaxCharacters = 28
     static let scaleRange: ClosedRange<Float> = 0.78...1.22
     static let cadenceRange: ClosedRange<TimeInterval> = 2.2...5.4
 
@@ -41,6 +44,10 @@ struct CinematicRunRecapEndCardPlan: Equatable {
         var glyphIdentifier: String
         var layout: LayoutDescriptor
         var plaqueTreatment: PlaqueTreatmentDescriptor
+        var pinnedComparisonCue: PinnedComparisonCue?
+        var pinnedComparisonCueModeIdentifier: String
+        var pinnedComparisonCueStateIdentifier: String
+        var pinnedComparisonCueNoMatchStateIdentifier: String
 
         var anchorIdentifier: String { anchor.rawValue }
         var lightFamilyIdentifier: String { lightFamily.rawValue }
@@ -56,6 +63,35 @@ struct CinematicRunRecapEndCardPlan: Equatable {
         var titleLength: Int { title.count }
         var detailLength: Int { detail.count }
         var statusLength: Int { status.count }
+        var hasPinnedComparisonCue: Bool { pinnedComparisonCue != nil }
+    }
+
+    struct PinnedComparisonCue: Equatable {
+        var identifier: String
+        var comparisonIdentifier: String
+        var comparisonExportIdentifier: String
+        var modeIdentifier: String
+        var stateIdentifier: String
+        var targetDirectionIdentifier: String
+        var selectedEntryIdentifier: String
+        var targetEntryIdentifier: String
+        var selectedSessionNumber: Int
+        var targetSessionNumber: Int
+        var deltaLabel: String
+        var pinnedEntryCount: Int
+        var retainedPinnedEntryCount: Int
+        var missingPinnedEntryCount: Int
+        var filteredPinnedEntryCount: Int
+        var warningStateIdentifier: String
+        var noMatchStateIdentifier: String
+        var glyphIdentifier: String
+        var railTreatmentIdentifier: String
+        var label: String
+        var detail: String
+
+        var labelLength: Int { label.count }
+        var detailLength: Int { detail.count }
+        var deltaLabelLength: Int { deltaLabel.count }
     }
 
     fileprivate init(
@@ -73,7 +109,8 @@ enum CinematicRunRecapEndCardPlanner {
 
     static func plan(
         isRecapOverlaySelected: Bool,
-        recapPlan: CinematicRunRecapPlan
+        recapPlan: CinematicRunRecapPlan,
+        artifactComparisonPlan: CinematicRunRecapShareArtifactComparisonPlan? = nil
     ) -> CinematicRunRecapEndCardPlan {
         guard isRecapOverlaySelected, recapPlan.isAvailable else {
             return .none
@@ -96,27 +133,34 @@ enum CinematicRunRecapEndCardPlanner {
             for: treatment.anchor,
             style: recapPlan.style
         )
+        let pinnedComparisonCueState = pinnedComparisonCueState(
+            for: artifactComparisonPlan
+        )
         let copySignature = copyIdentifier(title, detail, status)
+        var descriptorIdentifierParts = ["run-recap-end-card"]
+        if let cue = pinnedComparisonCueState.cue {
+            descriptorIdentifierParts.append("pinned-cue:\(fingerprint(cue.identifier))")
+        }
+        descriptorIdentifierParts += [
+            "recap:\(fingerprint(recapPlan.identifier))",
+            "source:\(fingerprint(recapPlan.sourceIdentifier ?? "none"))",
+            "flavor:\(recapPlan.flavorStateIdentifier)",
+            "flavor-id:\(fingerprint(recapPlan.flavorIdentifier ?? "none"))",
+            "flavor-source:\(fingerprint(recapPlan.flavorSourceIdentifier ?? "none"))",
+            "title-source:\(recapPlan.titleSourceIdentifier)",
+            "copy:\(fingerprint(copySignature))",
+            "lengths:\(title.count),\(detail.count),\(status.count)",
+            "style:\(recapPlan.style.rawValue)",
+            "color:\(recapPlan.colorIdentifier)",
+            "anchor:\(treatment.anchor.rawValue)",
+            "scale:\(fixed(treatment.scale))",
+            "cadence:\(fixed(treatment.cadence))",
+            "glyph:\(treatment.glyphIdentifier)",
+            "layout:\(fingerprint(layout.identifier))",
+            "plate:\(fingerprint(treatment.plaqueTreatment.identifier))"
+        ]
         let descriptorIdentifier = bounded(
-            [
-                "run-recap-end-card",
-                "recap:\(fingerprint(recapPlan.identifier))",
-                "source:\(fingerprint(recapPlan.sourceIdentifier ?? "none"))",
-                "flavor:\(recapPlan.flavorStateIdentifier)",
-                "flavor-id:\(fingerprint(recapPlan.flavorIdentifier ?? "none"))",
-                "flavor-source:\(fingerprint(recapPlan.flavorSourceIdentifier ?? "none"))",
-                "title-source:\(recapPlan.titleSourceIdentifier)",
-                "copy:\(fingerprint(copySignature))",
-                "lengths:\(title.count),\(detail.count),\(status.count)",
-                "style:\(recapPlan.style.rawValue)",
-                "color:\(recapPlan.colorIdentifier)",
-                "anchor:\(treatment.anchor.rawValue)",
-                "scale:\(fixed(treatment.scale))",
-                "cadence:\(fixed(treatment.cadence))",
-                "glyph:\(treatment.glyphIdentifier)",
-                "layout:\(fingerprint(layout.identifier))",
-                "plate:\(fingerprint(treatment.plaqueTreatment.identifier))"
-            ].joined(separator: "|"),
+            descriptorIdentifierParts.joined(separator: "|"),
             limit: CinematicRunRecapEndCardPlan.identifierMaxCharacters
         )
         let descriptor = CinematicRunRecapEndCardPlan.Descriptor(
@@ -138,7 +182,11 @@ enum CinematicRunRecapEndCardPlanner {
             tintFamily: treatment.tintFamily,
             glyphIdentifier: treatment.glyphIdentifier,
             layout: layout,
-            plaqueTreatment: treatment.plaqueTreatment
+            plaqueTreatment: treatment.plaqueTreatment,
+            pinnedComparisonCue: pinnedComparisonCueState.cue,
+            pinnedComparisonCueModeIdentifier: pinnedComparisonCueState.modeIdentifier,
+            pinnedComparisonCueStateIdentifier: pinnedComparisonCueState.stateIdentifier,
+            pinnedComparisonCueNoMatchStateIdentifier: pinnedComparisonCueState.noMatchStateIdentifier
         )
 
         return CinematicRunRecapEndCardPlan(
@@ -151,6 +199,13 @@ enum CinematicRunRecapEndCardPlanner {
             ),
             descriptor: descriptor
         )
+    }
+
+    private struct PinnedComparisonCueState {
+        var modeIdentifier: String
+        var stateIdentifier: String
+        var noMatchStateIdentifier: String
+        var cue: CinematicRunRecapEndCardPlan.PinnedComparisonCue?
     }
 
     private struct Treatment {
@@ -328,6 +383,156 @@ enum CinematicRunRecapEndCardPlanner {
 
     private static func copyIdentifier(_ values: String...) -> String {
         values.map(normalizedText).joined(separator: "/")
+    }
+
+    private static func pinnedComparisonCueState(
+        for plan: CinematicRunRecapShareArtifactComparisonPlan?
+    ) -> PinnedComparisonCueState {
+        guard let plan else {
+            return PinnedComparisonCueState(
+                modeIdentifier: "none",
+                stateIdentifier: "inactive",
+                noMatchStateIdentifier: "none",
+                cue: nil
+            )
+        }
+
+        let modeIdentifier = plan.targetModeIdentifier
+        let stateIdentifier = plan.targetMode == .pinnedReference
+            ? plan.pinnedTargetStateIdentifier
+            : "inactive"
+        let noMatchStateIdentifier = plan.noMatchAvailabilityReason ?? "none"
+
+        guard plan.targetMode == .pinnedReference,
+              let selectedEntryIdentifier = plan.selectedEntryIdentifier,
+              let targetEntryIdentifier = plan.pinnedTargetEntryIdentifier,
+              targetEntryIdentifier != selectedEntryIdentifier,
+              plan.retainedPinnedEntryIdentifiers.contains(targetEntryIdentifier),
+              let selectedSessionNumber = plan.selectedSessionNumber,
+              let targetSessionNumber = plan.compareSessionNumber else {
+            return PinnedComparisonCueState(
+                modeIdentifier: modeIdentifier,
+                stateIdentifier: stateIdentifier,
+                noMatchStateIdentifier: noMatchStateIdentifier,
+                cue: nil
+            )
+        }
+
+        let deltaLabel = bounded(
+            deltaLabel(for: plan.sessionDelta),
+            limit: CinematicRunRecapEndCardPlan.pinnedComparisonDeltaLabelMaxCharacters
+        )
+        let label = bounded(
+            "Pinned compare S\(selectedSessionNumber) to S\(targetSessionNumber)",
+            limit: CinematicRunRecapEndCardPlan.pinnedComparisonLabelMaxCharacters
+        )
+        let detail = bounded(
+            [
+                deltaLabel,
+                "pins \(plan.retainedPinnedEntryCount)/\(plan.pinnedEntryCount)",
+                plan.filteredPinnedEntryCount > 0 ? "filtered \(plan.filteredPinnedEntryCount)" : nil,
+                plan.missingPinnedEntryCount > 0 ? "stale \(plan.missingPinnedEntryCount)" : nil,
+                plan.warningStateIdentifier == "warnings" ? "warnings" : nil
+            ].compactMap { $0 }.joined(separator: " | "),
+            limit: CinematicRunRecapEndCardPlan.pinnedComparisonDetailMaxCharacters
+        )
+        let glyphIdentifier = glyphIdentifier(for: plan)
+        let railTreatmentIdentifier = railTreatmentIdentifier(for: plan)
+        let cueIdentifier = bounded(
+            [
+                "run-recap-end-card-pinned-comparison",
+                "comparison:\(fingerprint(plan.identifier))",
+                "export:\(fingerprint(plan.exportIdentifier))",
+                "mode:\(modeIdentifier)",
+                "state:\(stateIdentifier)",
+                "selected:\(fingerprint(selectedEntryIdentifier))",
+                "target:\(fingerprint(targetEntryIdentifier))",
+                "sessions:\(selectedSessionNumber)-\(targetSessionNumber)",
+                "delta:\(plan.sessionDelta.map(String.init) ?? "none")",
+                "pins:\(plan.pinnedEntryCount),\(plan.retainedPinnedEntryCount),\(plan.missingPinnedEntryCount),\(plan.filteredPinnedEntryCount)",
+                "warning:\(plan.warningStateIdentifier)",
+                "no-match:\(noMatchStateIdentifier)",
+                "glyph:\(glyphIdentifier)",
+                "rail:\(railTreatmentIdentifier)"
+            ].joined(separator: "|"),
+            limit: CinematicRunRecapEndCardPlan.identifierMaxCharacters
+        )
+
+        return PinnedComparisonCueState(
+            modeIdentifier: modeIdentifier,
+            stateIdentifier: stateIdentifier,
+            noMatchStateIdentifier: noMatchStateIdentifier,
+            cue: CinematicRunRecapEndCardPlan.PinnedComparisonCue(
+                identifier: cueIdentifier,
+                comparisonIdentifier: bounded(
+                    plan.identifier,
+                    limit: CinematicRunRecapShareArtifactComparisonPlan.identifierMaxCharacters
+                ),
+                comparisonExportIdentifier: bounded(
+                    plan.exportIdentifier,
+                    limit: CinematicRunRecapShareArtifactComparisonPlan.identifierMaxCharacters
+                ),
+                modeIdentifier: modeIdentifier,
+                stateIdentifier: stateIdentifier,
+                targetDirectionIdentifier: plan.targetDirectionIdentifier,
+                selectedEntryIdentifier: bounded(
+                    selectedEntryIdentifier,
+                    limit: CinematicRunRecapEndCardPlan.identifierMaxCharacters
+                ),
+                targetEntryIdentifier: bounded(
+                    targetEntryIdentifier,
+                    limit: CinematicRunRecapEndCardPlan.identifierMaxCharacters
+                ),
+                selectedSessionNumber: selectedSessionNumber,
+                targetSessionNumber: targetSessionNumber,
+                deltaLabel: deltaLabel,
+                pinnedEntryCount: plan.pinnedEntryCount,
+                retainedPinnedEntryCount: plan.retainedPinnedEntryCount,
+                missingPinnedEntryCount: plan.missingPinnedEntryCount,
+                filteredPinnedEntryCount: plan.filteredPinnedEntryCount,
+                warningStateIdentifier: plan.warningStateIdentifier,
+                noMatchStateIdentifier: noMatchStateIdentifier,
+                glyphIdentifier: glyphIdentifier,
+                railTreatmentIdentifier: railTreatmentIdentifier,
+                label: label,
+                detail: detail
+            )
+        )
+    }
+
+    private static func deltaLabel(for delta: Int?) -> String {
+        guard let delta else { return "delta none" }
+        return delta == 1 ? "delta 1 session" : "delta \(delta) sessions"
+    }
+
+    private static func glyphIdentifier(
+        for plan: CinematicRunRecapShareArtifactComparisonPlan
+    ) -> String {
+        if plan.pinnedTargetStateIdentifier == "filtered-pinned-target" {
+            return "pin.bridge.filtered"
+        }
+        if plan.warningStateIdentifier == "warnings" {
+            return "pin.bridge.warning"
+        }
+        if plan.missingPinnedEntryCount > 0 {
+            return "pin.bridge.stale"
+        }
+        return "pin.bridge.active"
+    }
+
+    private static func railTreatmentIdentifier(
+        for plan: CinematicRunRecapShareArtifactComparisonPlan
+    ) -> String {
+        if plan.pinnedTargetStateIdentifier == "filtered-pinned-target" {
+            return "filtered-pin-rail"
+        }
+        if plan.warningStateIdentifier == "warnings" {
+            return "warning-pin-rail"
+        }
+        if plan.missingPinnedEntryCount > 0 {
+            return "stale-pin-rail"
+        }
+        return "pin-bridge-rail"
     }
 
     private static func normalizedText(_ value: String) -> String {

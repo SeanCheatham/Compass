@@ -246,6 +246,41 @@ final class CinematicIdleStoryCyclePlanTests: XCTestCase {
         XCTAssertEqual(context.recapEndCardPlan, recapEndCardBefore)
     }
 
+    func testRunRecapEndCardCandidateCarriesPinnedComparisonCue() throws {
+        var context = try makeContext()
+        let history = makePinnedComparisonHistory()
+        let selected = try XCTUnwrap(history.entries.first { $0.sessionNumber == 42 })
+        let target = try XCTUnwrap(history.entries.first { $0.sessionNumber == 40 })
+        let comparison = CinematicRunRecapShareArtifactComparisonPlanner.plan(
+            historyPlan: history,
+            selectedEntryIdentifier: selected.identifier,
+            targetMode: .pinnedReference,
+            pinnedEntryIdentifiers: [target.identifier]
+        )
+        context.recapEndCardPlan = CinematicRunRecapEndCardPlanner.plan(
+            isRecapOverlaySelected: true,
+            recapPlan: context.recapPlan,
+            artifactComparisonPlan: comparison
+        )
+
+        let descriptor = try descriptor(for: .runRecapEndCard, in: context)
+        let endCardPlan = try XCTUnwrap(descriptor.runRecapEndCardPlan)
+        let endCardDescriptor = try XCTUnwrap(endCardPlan.descriptor)
+        let cue = try XCTUnwrap(endCardDescriptor.pinnedComparisonCue)
+
+        XCTAssertEqual(descriptor.phase, .runRecapEndCard)
+        XCTAssertTrue(
+            descriptor.sourceDescriptorIdentifier.hasPrefix(
+                String(endCardDescriptor.identifier.prefix(64))
+            )
+        )
+        XCTAssertEqual(cue.modeIdentifier, "pinned_reference")
+        XCTAssertEqual(cue.stateIdentifier, "visible-pinned-target")
+        XCTAssertEqual(cue.selectedSessionNumber, 42)
+        XCTAssertEqual(cue.targetSessionNumber, 40)
+        XCTAssertEqual(cue.railTreatmentIdentifier, "pin-bridge-rail")
+    }
+
     private struct Context {
         var settings: CinematicInfluenceSettings
         var session: SessionRecord
@@ -427,6 +462,68 @@ final class CinematicIdleStoryCyclePlanTests: XCTestCase {
             notes: [],
             verifyOutput: nil,
             feedback: nil
+        )
+    }
+
+    private func makePinnedComparisonHistory() -> CinematicRunRecapShareArtifactHistoryPlan {
+        let entries = [42, 41, 40].map { session in
+            let filename = "\(session)-idle-pinned-comparison.md"
+            let markdown = """
+            # Compass Run Recap Share
+
+            - Artifact: idle-pinned-\(session)
+            - Availability: available
+            - Session: \(session)
+            - Filename: \(filename)
+            - Share: share-id
+            - Recap: recap-id
+            - Focus: focus-id
+            - End card: end-card-id
+            - Title: Idle pinned \(session)
+            - Status: succeeded
+            - Detail: Idle pinned comparison detail
+            - Commit: Idle pinned commit \(session)
+
+            ## Events
+            - event
+
+            ## Share Text
+
+            ```text
+            Idle pinned comparison body \(session)
+            ```
+            """
+            return CinematicRunRecapShareArtifactHistoryPlan.Entry(
+                identifier: "idle-pinned-entry-\(session)",
+                sessionNumber: session,
+                filename: filename,
+                url: URL(fileURLWithPath: "/tmp/\(filename)"),
+                pathDisplayText: "/tmp/\(filename)",
+                titleSnippet: "Idle pinned \(session)",
+                statusSnippet: "succeeded",
+                commitSnippet: "Idle pinned commit \(session)",
+                markdownContents: markdown,
+                markdownLength: markdown.count
+            )
+        }
+        return CinematicRunRecapShareArtifactHistoryPlan(
+            identifier: "idle-pinned-history",
+            isAvailable: true,
+            availabilityReason: "available",
+            storageRootDisplayText: "/tmp/idle-pinned",
+            sessionsDisplayText: "/tmp/idle-pinned/sessions",
+            retentionLimit: CinematicRunRecapShareArtifactHistoryPlan.retentionLimit,
+            entries: entries,
+            totalCount: entries.count,
+            hiddenCount: 0,
+            cleanupCandidateCount: 0,
+            hiddenCleanupCandidateCount: 0,
+            cleanupCandidateIdentifiers: [],
+            warnings: [],
+            warningCount: 0,
+            hiddenWarningCount: 0,
+            exportIdentifier: "idle-pinned-history-export",
+            combinedMarkdownExport: entries.map(\.markdownContents).joined(separator: "\n\n")
         )
     }
 

@@ -3391,6 +3391,15 @@ private final class CinematicSceneCoordinator {
             )
         }
 
+        if let cue = descriptor.pinnedComparisonCue {
+            addRunRecapPinnedComparisonCue(
+                cue,
+                to: runRecapEndCardNode,
+                layout: layout,
+                color: color
+            )
+        }
+
         if animated {
             runRecapEndCardNode.scale = SIMD3<Float>(repeating: max(0.001, descriptor.scale * 0.9))
             animate(
@@ -3400,6 +3409,105 @@ private final class CinematicSceneCoordinator {
                 timing: .easeOut
             )
         }
+    }
+
+    private func addRunRecapPinnedComparisonCue(
+        _ cue: CinematicRunRecapEndCardPlan.PinnedComparisonCue,
+        to node: Entity,
+        layout: CinematicRunRecapEndCardPlan.LayoutDescriptor,
+        color: NSColor
+    ) {
+        let cueRoot = Entity()
+        cueRoot.name = "\(cue.identifier).pin-bridge"
+        cueRoot.position = [
+            0,
+            -layout.plateSize.y * 0.5 - 0.18,
+            layout.plateZOffset + layout.plateDepth * 0.8 + 0.036
+        ]
+
+        let bridgeColor = pinnedComparisonCueColor(for: cue, base: color)
+        let bridgeWidth = min(layout.plateSize.x * 0.72, 2.64)
+        let railOpacity: Float = cue.stateIdentifier == "filtered-pinned-target" ? 0.5 : 0.42
+        let rail = beamEntity(
+            from: [-bridgeWidth * 0.5, 0.055, 0],
+            to: [bridgeWidth * 0.5, 0.055, 0],
+            radius: 0.0055,
+            color: bridgeColor,
+            opacity: railOpacity
+        )
+        rail.name = "\(cue.identifier).rail.\(cue.railTreatmentIdentifier)"
+        cueRoot.addChild(rail)
+
+        let selectedPin = ModelEntity(
+            mesh: .generateSphere(radius: 0.032),
+            materials: [glowMaterial(color, opacity: 0.56)]
+        )
+        selectedPin.name = "\(cue.identifier).pin.selected"
+        selectedPin.position = [-bridgeWidth * 0.5, 0.055, 0.004]
+        selectedPin.components.set(OpacityComponent(opacity: 0.56))
+        cueRoot.addChild(selectedPin)
+
+        let targetPin = ModelEntity(
+            mesh: .generateSphere(radius: 0.038),
+            materials: [glowMaterial(bridgeColor, opacity: 0.68)]
+        )
+        targetPin.name = "\(cue.identifier).pin.target"
+        targetPin.position = [bridgeWidth * 0.5, 0.055, 0.004]
+        targetPin.components.set(OpacityComponent(opacity: 0.68))
+        cueRoot.addChild(targetPin)
+
+        let glyph = ModelEntity(
+            mesh: torusMesh(ringRadius: 0.058, pipeRadius: 0.0045),
+            materials: [glowMaterial(bridgeColor, opacity: 0.46)]
+        )
+        glyph.name = "\(cue.identifier).glyph.\(cue.glyphIdentifier)"
+        glyph.position = [0, 0.055, 0.008]
+        glyph.orientation = simd_quatf(angle: .pi / 2, axis: [1, 0, 0])
+        glyph.components.set(OpacityComponent(opacity: 0.46))
+        cueRoot.addChild(glyph)
+
+        addNarrativeText(
+            cue.label,
+            to: cueRoot,
+            name: "\(cue.identifier).text.label",
+            width: min(layout.secondaryTextWidth, 2.54),
+            offset: [0, -0.028, 0.012],
+            fontSize: CGFloat(max(0.044, layout.secondaryFontSize * 0.68)),
+            weight: .semibold,
+            color: bridgeColor.withAlphaComponent(0.78),
+            opacity: 0.62
+        )
+        addNarrativeText(
+            cue.detail,
+            to: cueRoot,
+            name: "\(cue.identifier).text.detail",
+            width: min(layout.secondaryTextWidth, 2.7),
+            offset: [0, -0.102, 0.014],
+            fontSize: CGFloat(max(0.038, layout.secondaryFontSize * 0.56)),
+            weight: .medium,
+            color: bridgeColor.withAlphaComponent(0.64),
+            opacity: 0.5
+        )
+
+        node.addChild(cueRoot)
+    }
+
+    private func pinnedComparisonCueColor(
+        for cue: CinematicRunRecapEndCardPlan.PinnedComparisonCue,
+        base: NSColor
+    ) -> NSColor {
+        let accent: NSColor
+        switch cue.railTreatmentIdentifier {
+        case "filtered-pin-rail":
+            accent = themedColor(SpellSchool.scan.nsColor)
+        case "warning-pin-rail":
+            accent = themedColor(SpellSchool.pressure.nsColor)
+        case "stale-pin-rail":
+            accent = themedColor(SpellSchool.failure.nsColor)
+        default:
+            accent = themedColor(SpellSchool.git.nsColor)
+        }
+        return accent.mixing(with: base, fraction: 0.34)
     }
 
     private func recapEndCardColor(

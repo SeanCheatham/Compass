@@ -54,9 +54,18 @@ struct CinematicTab: View {
             let runRecapSceneFocusPlan = overlayMode == .recap
                 ? runRecapSceneFocusCandidatePlan
                 : .none
+            let recapArtifactLibraryContext = project.cinematicRunRecapShareArtifactLibraryContext
+            let recapArtifactComparisonPlan = CinematicRunRecapShareArtifactComparisonPlanner.plan(
+                historyPlan: project.cinematicRunRecapShareArtifactHistory,
+                selectedEntryIdentifier: recapArtifactLibraryContext.selectedEntryIdentifier,
+                searchQuery: recapArtifactLibraryContext.searchText,
+                targetMode: recapArtifactLibraryContext.comparisonTargetMode,
+                pinnedEntryIdentifiers: recapArtifactLibraryContext.pinnedEntryIdentifiers
+            )
             let runRecapEndCardCandidatePlan = CinematicRunRecapEndCardPlanner.plan(
                 isRecapOverlaySelected: true,
-                recapPlan: recapPlan
+                recapPlan: recapPlan,
+                artifactComparisonPlan: recapArtifactComparisonPlan
             )
             let runRecapEndCardPlan = overlayMode == .recap
                 ? runRecapEndCardCandidatePlan

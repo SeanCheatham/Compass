@@ -814,6 +814,31 @@ struct CinematicDiagnosticsReport: Equatable {
         var plaqueTreatmentRenderRecipeIdentifier: String
         var plaqueTreatmentRenderPrimitiveIdentifiers: [String]
         var plaqueTreatmentRenderPrimitiveCount: Int
+        var hasPinnedComparisonCue: Bool
+        var pinnedComparisonCueIdentifier: String?
+        var pinnedComparisonCueComparisonIdentifier: String?
+        var pinnedComparisonCueComparisonExportIdentifier: String?
+        var pinnedComparisonCueModeIdentifier: String
+        var pinnedComparisonCueStateIdentifier: String
+        var pinnedComparisonCueNoMatchStateIdentifier: String
+        var pinnedComparisonCueTargetDirectionIdentifier: String
+        var pinnedComparisonCueSelectedEntryIdentifier: String?
+        var pinnedComparisonCueTargetEntryIdentifier: String?
+        var pinnedComparisonCueSelectedSessionNumber: Int?
+        var pinnedComparisonCueTargetSessionNumber: Int?
+        var pinnedComparisonCueDeltaLabel: String
+        var pinnedComparisonCuePinnedEntryCount: Int
+        var pinnedComparisonCueRetainedPinnedEntryCount: Int
+        var pinnedComparisonCueMissingPinnedEntryCount: Int
+        var pinnedComparisonCueFilteredPinnedEntryCount: Int
+        var pinnedComparisonCueWarningStateIdentifier: String
+        var pinnedComparisonCueGlyphIdentifier: String
+        var pinnedComparisonCueRailTreatmentIdentifier: String
+        var pinnedComparisonCueLabel: String
+        var pinnedComparisonCueDetail: String
+        var pinnedComparisonCueLabelLength: Int
+        var pinnedComparisonCueDetailLength: Int
+        var pinnedComparisonCueDeltaLabelLength: Int
         var titleLength: Int
         var detailLength: Int
         var statusLength: Int
@@ -868,7 +893,10 @@ struct CinematicVisualSmokeReport: Equatable {
         }
         let nativeFeedbackReports = CinematicDiagnostics.representativeNativeFeedbackSmokeReports()
         let idleStoryReports = CinematicDiagnostics.representativeIdleStoryCycleSmokeReports()
-        return CinematicVisualSmokeReport(reports: reports + nativeFeedbackReports + idleStoryReports)
+        let pinnedCueReports = CinematicDiagnostics.representativePinnedComparisonCueSmokeReports()
+        return CinematicVisualSmokeReport(
+            reports: reports + nativeFeedbackReports + idleStoryReports + pinnedCueReports
+        )
     }
 
     private static func makeChecks(reports: [CinematicDiagnosticsReport]) -> [Check] {
@@ -889,7 +917,8 @@ struct CinematicVisualSmokeReport: Equatable {
             idleStoryCycleCoverageCheck(reports: reports),
             timelineFocusCoverageCheck(reports: reports),
             runRecapSceneFocusCoverageCheck(reports: reports),
-            runRecapEndCardCoverageCheck(reports: reports)
+            runRecapEndCardCoverageCheck(reports: reports),
+            runRecapPinnedComparisonCueCoverageCheck(reports: reports)
         ]
     }
 
@@ -1543,6 +1572,54 @@ struct CinematicVisualSmokeReport: Equatable {
                 "titles \(slashJoined(titleSources))",
                 "flavors \(slashJoined(flavorStates))",
                 "treat \(treatments.count)"
+            ].joined(separator: " ")
+        )
+    }
+
+    private static func runRecapPinnedComparisonCueCoverageCheck(
+        reports: [CinematicDiagnosticsReport]
+    ) -> Check {
+        let activeEndCardReports = reports.filter(\.runRecapEndCard.isActive)
+        let activeCueReports = activeEndCardReports.filter(\.runRecapEndCard.hasPinnedComparisonCue)
+        let inactiveCueCount = activeEndCardReports.filter {
+            $0.runRecapEndCard.pinnedComparisonCueStateIdentifier == "inactive"
+        }.count
+        let states = Set(activeEndCardReports.map(\.runRecapEndCard.pinnedComparisonCueStateIdentifier))
+        let noMatchStates = Set(activeEndCardReports.map(\.runRecapEndCard.pinnedComparisonCueNoMatchStateIdentifier))
+        let modes = Set(activeEndCardReports.map(\.runRecapEndCard.pinnedComparisonCueModeIdentifier))
+        let glyphs = Set(activeCueReports.map(\.runRecapEndCard.pinnedComparisonCueGlyphIdentifier))
+        let rails = Set(activeCueReports.map(\.runRecapEndCard.pinnedComparisonCueRailTreatmentIdentifier))
+        let boundedCount = reports.filter(runRecapEndCardPinnedComparisonCueIsBounded).count
+        let isPassing = !reports.isEmpty
+            && !activeCueReports.isEmpty
+            && inactiveCueCount > 0
+            && modes.contains("pinned_reference")
+            && states.isSuperset(of: [
+                "inactive",
+                "visible-pinned-target",
+                "filtered-pinned-target",
+                "selected-only-pinned-recap-share-artifact",
+                "no-selected-recap-share-artifact",
+                "pinned-recap-share-artifacts-missing"
+            ])
+            && noMatchStates.contains("no-matching-recap-share-artifacts")
+            && glyphs.isSuperset(of: ["pin.bridge.active", "pin.bridge.filtered"])
+            && rails.isSuperset(of: ["pin-bridge-rail", "filtered-pin-rail"])
+            && boundedCount == reports.count
+
+        return check(
+            id: "run-recap-pinned-comparison-cue",
+            label: "Pinned comparison cue",
+            isPassing: isPassing,
+            warningIdentifier: "visual-smoke.run-recap-pinned-cue",
+            detail: [
+                "active \(activeCueReports.count)",
+                "inactive \(inactiveCueCount)",
+                "selected-only \(states.contains("selected-only-pinned-recap-share-artifact"))",
+                "no-match \(noMatchStates.contains("no-matching-recap-share-artifacts"))",
+                "stale \(states.contains("pinned-recap-share-artifacts-missing"))",
+                "filtered-pin \(states.contains("filtered-pinned-target"))",
+                "bounded \(boundedCount)/\(reports.count)"
             ].joined(separator: " ")
         )
     }
@@ -2207,6 +2284,30 @@ struct CinematicVisualSmokeReport: Equatable {
             && snapshot.titleLength == snapshot.title.count
             && snapshot.detailLength == snapshot.detail.count
             && snapshot.statusLength == snapshot.status.count
+            && (!snapshot.hasPinnedComparisonCue
+                || (
+                    string(
+                        snapshot.pinnedComparisonCueLabel,
+                        maxCharacters: CinematicRunRecapEndCardPlan.pinnedComparisonLabelMaxCharacters
+                    )
+                    && string(
+                        snapshot.pinnedComparisonCueDetail,
+                        maxCharacters: CinematicRunRecapEndCardPlan.pinnedComparisonDetailMaxCharacters
+                    )
+                    && string(
+                        snapshot.pinnedComparisonCueDeltaLabel,
+                        maxCharacters: CinematicRunRecapEndCardPlan.pinnedComparisonDeltaLabelMaxCharacters
+                    )
+                    && snapshot.pinnedComparisonCueLabelLength == snapshot.pinnedComparisonCueLabel.count
+                    && snapshot.pinnedComparisonCueDetailLength == snapshot.pinnedComparisonCueDetail.count
+                    && snapshot.pinnedComparisonCueDeltaLabelLength == snapshot.pinnedComparisonCueDeltaLabel.count
+                ))
+    }
+
+    private static func runRecapEndCardPinnedComparisonCueIsBounded(
+        _ report: CinematicDiagnosticsReport
+    ) -> Bool {
+        runRecapEndCardCopyIsBounded(report)
     }
 
     private static func cueTextIsBounded(
@@ -3996,6 +4097,20 @@ struct CinematicDiagnosticsSummary: Equatable {
             "active",
             "descriptor \(bounded(snapshot.descriptorIdentifier, limit: 56))",
             "recap \(bounded(snapshot.recapIdentifier, limit: 56))",
+            "pin cue \(snapshot.pinnedComparisonCueStateIdentifier)",
+            "pin mode \(snapshot.pinnedComparisonCueModeIdentifier)",
+            snapshot.hasPinnedComparisonCue
+                ? "pin sessions S\(snapshot.pinnedComparisonCueSelectedSessionNumber ?? 0)->S\(snapshot.pinnedComparisonCueTargetSessionNumber ?? 0)"
+                : nil,
+            snapshot.hasPinnedComparisonCue
+                ? "pin \(snapshot.pinnedComparisonCueDeltaLabel) \(snapshot.pinnedComparisonCueRailTreatmentIdentifier)"
+                : nil,
+            snapshot.pinnedComparisonCueNoMatchStateIdentifier == "none"
+                ? nil
+                : "pin no-match \(snapshot.pinnedComparisonCueNoMatchStateIdentifier)",
+            snapshot.hasPinnedComparisonCue
+                ? "pin counts \(snapshot.pinnedComparisonCueRetainedPinnedEntryCount)/\(snapshot.pinnedComparisonCuePinnedEntryCount) stale \(snapshot.pinnedComparisonCueMissingPinnedEntryCount) filtered \(snapshot.pinnedComparisonCueFilteredPinnedEntryCount)"
+                : nil,
             "title-source \(snapshot.titleSourceIdentifier)",
             "flavor \(snapshot.flavorStateIdentifier)",
             "style \(snapshot.styleIdentifier)/\(snapshot.colorIdentifier)",
@@ -4461,7 +4576,11 @@ enum CinematicDiagnostics {
                 "run-recap-share-artifact-filtered-export:\(runRecapShareArtifactPreviewSnapshot.filteredExport.identifier)",
                 "run-recap-share-artifact-cleanup:\(runRecapShareArtifactHistorySnapshot.lastCleanupResultIdentifier)",
                 "run-recap-focus:\(runRecapSceneFocusSnapshot.identifier)",
-                "run-recap-end-card:\(runRecapEndCardSnapshot.identifier)"
+                "run-recap-end-card:\(runRecapEndCardSnapshot.identifier)",
+                "run-recap-end-card-pinned-cue:\(runRecapEndCardSnapshot.pinnedComparisonCueIdentifier ?? "none")",
+                "run-recap-end-card-pinned-cue-mode:\(runRecapEndCardSnapshot.pinnedComparisonCueModeIdentifier)",
+                "run-recap-end-card-pinned-cue-state:\(runRecapEndCardSnapshot.pinnedComparisonCueStateIdentifier)",
+                "run-recap-end-card-pinned-cue-no-match:\(runRecapEndCardSnapshot.pinnedComparisonCueNoMatchStateIdentifier)"
             ].joined(separator: "|"),
             repoName: repoName,
             phase: phase,
@@ -4689,6 +4808,63 @@ enum CinematicDiagnostics {
         return phaseReports + [suppressedReport]
     }
 
+    static func representativePinnedComparisonCueSmokeReports(
+        influenceSettings: CinematicInfluenceSettings = CinematicInfluenceSettings()
+    ) -> [CinematicDiagnosticsReport] {
+        let active = representativePinnedComparisonCueSmokeReport(
+            caseIdentifier: "active",
+            selectedSession: 12,
+            targetSession: 10,
+            searchQuery: nil,
+            pinnedSessions: [10],
+            missingPins: [],
+            warningCount: 0,
+            influenceSettings: influenceSettings
+        )
+        let selectedOnly = representativePinnedComparisonCueSmokeReport(
+            caseIdentifier: "selected-only",
+            selectedSession: 12,
+            targetSession: 10,
+            searchQuery: nil,
+            pinnedSessions: [12],
+            missingPins: [],
+            warningCount: 0,
+            influenceSettings: influenceSettings
+        )
+        let noMatch = representativePinnedComparisonCueSmokeReport(
+            caseIdentifier: "no-match",
+            selectedSession: 12,
+            targetSession: 10,
+            searchQuery: "missing pinned comparison smoke",
+            pinnedSessions: [10],
+            missingPins: [],
+            warningCount: 0,
+            influenceSettings: influenceSettings
+        )
+        let stale = representativePinnedComparisonCueSmokeReport(
+            caseIdentifier: "stale",
+            selectedSession: 12,
+            targetSession: 10,
+            searchQuery: nil,
+            pinnedSessions: [],
+            missingPins: ["missing-pinned-comparison-smoke"],
+            warningCount: 0,
+            influenceSettings: influenceSettings
+        )
+        let filteredPin = representativePinnedComparisonCueSmokeReport(
+            caseIdentifier: "filtered-pin",
+            selectedSession: 12,
+            targetSession: 10,
+            searchQuery: "selected bridge beacon",
+            pinnedSessions: [10],
+            missingPins: [],
+            warningCount: 1,
+            influenceSettings: influenceSettings
+        )
+
+        return [active, selectedOnly, noMatch, stale, filteredPin]
+    }
+
     static func representativeActivityCases() -> [ActivityCase] {
         [
             ActivityCase(
@@ -4875,6 +5051,193 @@ enum CinematicDiagnostics {
             runRecapPlan: recapPlan,
             runRecapSceneFocusPlan: focusPlan,
             runRecapEndCardPlan: endCardPlan
+        )
+    }
+
+    private static func representativePinnedComparisonCueSmokeReport(
+        caseIdentifier: String,
+        selectedSession: Int,
+        targetSession: Int,
+        searchQuery: String?,
+        pinnedSessions: [Int],
+        missingPins: [String],
+        warningCount: Int,
+        influenceSettings: CinematicInfluenceSettings
+    ) -> CinematicDiagnosticsReport {
+        let state = PlanState(
+            completed: ["Completed pinned comparison \(caseIdentifier)"],
+            immediate: nil,
+            midTerm: "",
+            longTerm: ""
+        )
+        let session = SessionRecord(
+            session: selectedSession,
+            startedAt: Double(selectedSession * 1_000),
+            endedAt: Double(selectedSession * 1_000 + 420),
+            plan: "Stage pinned comparison cue \(caseIdentifier)",
+            verify: "swift test --filter CinematicVisualSmokeReportTests",
+            beforeSha: nil,
+            afterSha: nil,
+            commits: [],
+            status: .succeeded,
+            notes: [],
+            verifyOutput: nil,
+            feedback: nil
+        )
+        let recapPlan = CinematicRunRecapPlanner.plan(
+            state: state,
+            sessions: [session],
+            isRunning: false,
+            isAutoPlaying: false,
+            recentRunCues: [:],
+            commitConstellationPlan: .empty,
+            nativeFeedbackLifecycle: CinematicNativeFeedbackCueLifecycle()
+        )
+        let historyPlan = representativePinnedComparisonHistoryPlan(
+            caseIdentifier: caseIdentifier,
+            selectedSession: selectedSession,
+            targetSession: targetSession,
+            warningCount: warningCount
+        )
+        let entryIdentifiersBySession = Dictionary(
+            uniqueKeysWithValues: historyPlan.entries.map { ($0.sessionNumber, $0.identifier) }
+        )
+        let selectedEntryIdentifier = entryIdentifiersBySession[selectedSession]
+        let pinnedEntryIdentifiers = pinnedSessions.compactMap {
+            entryIdentifiersBySession[$0]
+        } + missingPins
+        let comparisonPlan = CinematicRunRecapShareArtifactComparisonPlanner.plan(
+            historyPlan: historyPlan,
+            selectedEntryIdentifier: selectedEntryIdentifier,
+            searchQuery: searchQuery,
+            targetMode: .pinnedReference,
+            pinnedEntryIdentifiers: pinnedEntryIdentifiers
+        )
+        let endCardPlan = CinematicRunRecapEndCardPlanner.plan(
+            isRecapOverlaySelected: true,
+            recapPlan: recapPlan,
+            artifactComparisonPlan: comparisonPlan
+        )
+
+        return report(
+            repoName: "Pinned Cue \(caseIdentifier)",
+            phase: LoopPhase.succeeded.rawValue,
+            immediateTitle: "Cover pinned comparison cue \(caseIdentifier)",
+            completedCount: 1,
+            latestEvent: nil,
+            languageProfile: representativeLanguageProfile(for: .swift),
+            activityProfile: activityProfile(recentCommitCount: 1, lastTerminalStatus: .succeeded),
+            influenceSettings: influenceSettings,
+            isRunning: false,
+            runRecapPlan: recapPlan,
+            runRecapEndCardPlan: endCardPlan,
+            runRecapShareArtifactHistoryPlan: historyPlan,
+            runRecapShareArtifactPreviewSelectedEntryIdentifier: selectedEntryIdentifier,
+            runRecapShareArtifactPreviewSearchQuery: searchQuery,
+            runRecapShareArtifactComparisonTargetMode: .pinnedReference,
+            runRecapShareArtifactPinnedEntryIdentifiers: pinnedEntryIdentifiers
+        )
+    }
+
+    private static func representativePinnedComparisonHistoryPlan(
+        caseIdentifier: String,
+        selectedSession: Int,
+        targetSession: Int,
+        warningCount: Int
+    ) -> CinematicRunRecapShareArtifactHistoryPlan {
+        let sessions = Array(Set([selectedSession, targetSession, max(1, targetSession - 1)])).sorted(by: >)
+        let entries = sessions.map { session in
+            representativePinnedComparisonHistoryEntry(
+                caseIdentifier: caseIdentifier,
+                session: session,
+                selectedSession: selectedSession,
+                targetSession: targetSession
+            )
+        }
+        let warnings = (0..<warningCount).map { index in
+            CinematicRunRecapShareArtifactHistoryPlan.Warning(
+                identifier: "pinned-cue-warning-\(caseIdentifier)-\(index)",
+                fileDisplayText: "pinned-cue-\(caseIdentifier)-\(index).md",
+                message: "Representative pinned comparison warning"
+            )
+        }
+        return CinematicRunRecapShareArtifactHistoryPlan(
+            identifier: "pinned-cue-history-\(caseIdentifier)",
+            isAvailable: true,
+            availabilityReason: "available",
+            storageRootDisplayText: "/tmp/compass-pinned-cue-\(caseIdentifier)",
+            sessionsDisplayText: "/tmp/compass-pinned-cue-\(caseIdentifier)/sessions",
+            retentionLimit: CinematicRunRecapShareArtifactHistoryPlan.retentionLimit,
+            entries: entries,
+            totalCount: entries.count,
+            hiddenCount: 0,
+            cleanupCandidateCount: 0,
+            hiddenCleanupCandidateCount: 0,
+            cleanupCandidateIdentifiers: [],
+            warnings: warnings,
+            warningCount: warnings.count,
+            hiddenWarningCount: 0,
+            exportIdentifier: "pinned-cue-history-export-\(caseIdentifier)",
+            combinedMarkdownExport: entries.map(\.markdownContents).joined(separator: "\n\n")
+        )
+    }
+
+    private static func representativePinnedComparisonHistoryEntry(
+        caseIdentifier: String,
+        session: Int,
+        selectedSession: Int,
+        targetSession: Int
+    ) -> CinematicRunRecapShareArtifactHistoryPlan.Entry {
+        let role: String
+        let body: String
+        if session == selectedSession {
+            role = "selected"
+            body = "selected bridge beacon for pinned comparison cue \(caseIdentifier)"
+        } else if session == targetSession {
+            role = "target"
+            body = "target bridge archive for pinned comparison cue \(caseIdentifier)"
+        } else {
+            role = "adjacent"
+            body = "adjacent bridge archive for pinned comparison cue \(caseIdentifier)"
+        }
+        let filename = "\(session)-pinned-cue-\(caseIdentifier)-\(role).md"
+        let markdown = """
+        # Compass Run Recap Share
+
+        - Artifact: pinned-cue-\(caseIdentifier)-\(role)
+        - Availability: available
+        - Session: \(session)
+        - Filename: \(filename)
+        - Share: pinned-cue-share
+        - Recap: pinned-cue-recap
+        - Focus: none
+        - End card: none
+        - Title: Pinned cue \(role) \(session)
+        - Status: succeeded
+        - Detail: Pinned comparison smoke detail
+        - Commit: Pinned comparison cue commit \(session)
+
+        ## Events
+        - event
+
+        ## Share Text
+
+        ```text
+        \(body)
+        ```
+        """
+        let identifier = "pinned-cue-\(caseIdentifier)-entry-\(session)"
+        return CinematicRunRecapShareArtifactHistoryPlan.Entry(
+            identifier: identifier,
+            sessionNumber: session,
+            filename: filename,
+            url: URL(fileURLWithPath: "/tmp/\(filename)"),
+            pathDisplayText: "/tmp/\(filename)",
+            titleSnippet: "Pinned cue \(role) \(session)",
+            statusSnippet: "succeeded",
+            commitSnippet: "Pinned comparison cue commit \(session)",
+            markdownContents: markdown,
+            markdownLength: markdown.count
         )
     }
 
@@ -6264,12 +6627,38 @@ enum CinematicDiagnostics {
                 plaqueTreatmentRenderRecipeIdentifier: "none",
                 plaqueTreatmentRenderPrimitiveIdentifiers: [],
                 plaqueTreatmentRenderPrimitiveCount: 0,
+                hasPinnedComparisonCue: false,
+                pinnedComparisonCueIdentifier: nil,
+                pinnedComparisonCueComparisonIdentifier: nil,
+                pinnedComparisonCueComparisonExportIdentifier: nil,
+                pinnedComparisonCueModeIdentifier: "none",
+                pinnedComparisonCueStateIdentifier: "inactive",
+                pinnedComparisonCueNoMatchStateIdentifier: "none",
+                pinnedComparisonCueTargetDirectionIdentifier: "none",
+                pinnedComparisonCueSelectedEntryIdentifier: nil,
+                pinnedComparisonCueTargetEntryIdentifier: nil,
+                pinnedComparisonCueSelectedSessionNumber: nil,
+                pinnedComparisonCueTargetSessionNumber: nil,
+                pinnedComparisonCueDeltaLabel: "",
+                pinnedComparisonCuePinnedEntryCount: 0,
+                pinnedComparisonCueRetainedPinnedEntryCount: 0,
+                pinnedComparisonCueMissingPinnedEntryCount: 0,
+                pinnedComparisonCueFilteredPinnedEntryCount: 0,
+                pinnedComparisonCueWarningStateIdentifier: "none",
+                pinnedComparisonCueGlyphIdentifier: "none",
+                pinnedComparisonCueRailTreatmentIdentifier: "none",
+                pinnedComparisonCueLabel: "",
+                pinnedComparisonCueDetail: "",
+                pinnedComparisonCueLabelLength: 0,
+                pinnedComparisonCueDetailLength: 0,
+                pinnedComparisonCueDeltaLabelLength: 0,
                 titleLength: 0,
                 detailLength: 0,
                 statusLength: 0
             )
         }
 
+        let cue = descriptor.pinnedComparisonCue
         return CinematicDiagnosticsReport.RunRecapEndCardSnapshot(
             identifier: plan.identifier,
             isActive: true,
@@ -6299,6 +6688,31 @@ enum CinematicDiagnostics {
             plaqueTreatmentRenderRecipeIdentifier: descriptor.plaqueTreatmentRenderRecipeIdentifier,
             plaqueTreatmentRenderPrimitiveIdentifiers: descriptor.plaqueTreatmentRenderPrimitiveIdentifiers,
             plaqueTreatmentRenderPrimitiveCount: descriptor.plaqueTreatmentRenderPrimitiveCount,
+            hasPinnedComparisonCue: descriptor.hasPinnedComparisonCue,
+            pinnedComparisonCueIdentifier: cue?.identifier,
+            pinnedComparisonCueComparisonIdentifier: cue?.comparisonIdentifier,
+            pinnedComparisonCueComparisonExportIdentifier: cue?.comparisonExportIdentifier,
+            pinnedComparisonCueModeIdentifier: descriptor.pinnedComparisonCueModeIdentifier,
+            pinnedComparisonCueStateIdentifier: descriptor.pinnedComparisonCueStateIdentifier,
+            pinnedComparisonCueNoMatchStateIdentifier: descriptor.pinnedComparisonCueNoMatchStateIdentifier,
+            pinnedComparisonCueTargetDirectionIdentifier: cue?.targetDirectionIdentifier ?? "none",
+            pinnedComparisonCueSelectedEntryIdentifier: cue?.selectedEntryIdentifier,
+            pinnedComparisonCueTargetEntryIdentifier: cue?.targetEntryIdentifier,
+            pinnedComparisonCueSelectedSessionNumber: cue?.selectedSessionNumber,
+            pinnedComparisonCueTargetSessionNumber: cue?.targetSessionNumber,
+            pinnedComparisonCueDeltaLabel: cue?.deltaLabel ?? "",
+            pinnedComparisonCuePinnedEntryCount: cue?.pinnedEntryCount ?? 0,
+            pinnedComparisonCueRetainedPinnedEntryCount: cue?.retainedPinnedEntryCount ?? 0,
+            pinnedComparisonCueMissingPinnedEntryCount: cue?.missingPinnedEntryCount ?? 0,
+            pinnedComparisonCueFilteredPinnedEntryCount: cue?.filteredPinnedEntryCount ?? 0,
+            pinnedComparisonCueWarningStateIdentifier: cue?.warningStateIdentifier ?? "none",
+            pinnedComparisonCueGlyphIdentifier: cue?.glyphIdentifier ?? "none",
+            pinnedComparisonCueRailTreatmentIdentifier: cue?.railTreatmentIdentifier ?? "none",
+            pinnedComparisonCueLabel: cue?.label ?? "",
+            pinnedComparisonCueDetail: cue?.detail ?? "",
+            pinnedComparisonCueLabelLength: cue?.labelLength ?? 0,
+            pinnedComparisonCueDetailLength: cue?.detailLength ?? 0,
+            pinnedComparisonCueDeltaLabelLength: cue?.deltaLabelLength ?? 0,
             titleLength: descriptor.titleLength,
             detailLength: descriptor.detailLength,
             statusLength: descriptor.statusLength
