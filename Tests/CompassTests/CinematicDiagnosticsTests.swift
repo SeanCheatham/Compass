@@ -1064,6 +1064,56 @@ final class CinematicDiagnosticsTests: XCTestCase {
         XCTAssertTrue(summary.exportText.contains(report.cameraSnapshots[3].shotIdentifier))
     }
 
+    func testPlanCompassRowsCorrelateWithDiagnosticsExport() throws {
+        let state = PlanState(
+            completed: ["Added plan overview", "Bound diagnostics copy"],
+            immediate: PlanNext(
+                plan: "Render the plan compass overlay",
+                verify: "swift test --filter CinematicPlanCompassPlanTests",
+                verifyTimeoutMs: 120_000,
+                estimatedDifficulty: .medium
+            ),
+            midTerm: "Queue cinematic plan polish",
+            longTerm: "Make waiting time legible."
+        )
+        let planCompass = CinematicPlanCompassPlan(state: state)
+        let report = CinematicDiagnostics.report(
+            repoName: "Compass",
+            phase: "Developing",
+            immediateTitle: "Render the plan compass overlay",
+            completedCount: state.completed.count,
+            planCompassPlan: planCompass,
+            latestEvent: nil,
+            languageProfile: languageProfile(primaryLanguage: .swift),
+            activityProfile: activityProfile(recentCommitCount: 1),
+            influenceSettings: CinematicInfluenceSettings(cameraStyle: .steady, intensity: 0.35)
+        )
+        let summary = CinematicDiagnosticsSummary(
+            report: report,
+            visualSmoke: CinematicVisualSmokeReport(reports: [report])
+        )
+
+        XCTAssertEqual(report.planCompass, planCompass)
+        XCTAssertTrue(report.identifier.contains("plan-compass:\(planCompass.identifier)"))
+        XCTAssertTrue(report.identifier.contains("plan-compass-copy:\(planCompass.copyIdentifier)"))
+        XCTAssertTrue(report.identifier.contains("plan-compass-export:\(planCompass.exportIdentifier)"))
+
+        let immediateRow = try XCTUnwrap(summary.row(id: "plan-compass-immediate"))
+        let midTermRow = try XCTUnwrap(summary.row(id: "plan-compass-mid-term"))
+        let longTermRow = try XCTUnwrap(summary.row(id: "plan-compass-long-term"))
+
+        XCTAssertTrue(immediateRow.detail.contains(planCompass.immediate.copyIdentifier))
+        XCTAssertTrue(immediateRow.detail.contains(planCompass.immediate.exportIdentifier))
+        XCTAssertTrue(immediateRow.detail.contains("verify Timeout 2m"))
+        XCTAssertTrue(immediateRow.detail.contains("difficulty medium"))
+        XCTAssertTrue(midTermRow.detail.contains(planCompass.midTerm.displayText))
+        XCTAssertTrue(longTermRow.detail.contains(planCompass.longTerm.displayText))
+        XCTAssertTrue(summary.exportText.contains("Immediate direction:"))
+        XCTAssertTrue(summary.exportText.contains(planCompass.immediate.exportIdentifier))
+        XCTAssertTrue(summary.exportText.contains(planCompass.midTerm.copyIdentifier))
+        XCTAssertTrue(summary.exportText.contains(planCompass.longTerm.exportIdentifier))
+    }
+
     func testSummaryKeepsNarrativeAndOverlayRowsInOneTuningGroup() throws {
         let report = makeReport(
             CinematicDiagnosticsInput(
@@ -1292,6 +1342,10 @@ final class CinematicDiagnosticsTests: XCTestCase {
         project.recordCinematicNativeFeedback(.verifyStarted)
         let cueBefore = try XCTUnwrap(project.cinematicNativeFeedbackCue)
         let lifecycleBefore = project.cinematicNativeFeedbackCueLifecycle
+        let sessionsBefore = project.sessions
+        let recapArtifactContextBefore = project.cinematicRunRecapShareArtifactLibraryContext
+        let warningHistoryBefore = project.cinematicDiagnosticsWarningBundleHistory
+        let activeStorageBefore = project.activeStorage
         let deliveryBefore = NativeFeedbackService.shared.deliverySnapshot(mode: project.nativeFeedbackMode)
 
         let report = CinematicDiagnostics.currentReport(for: project)
@@ -1303,6 +1357,11 @@ final class CinematicDiagnosticsTests: XCTestCase {
 
         XCTAssertEqual(project.cinematicNativeFeedbackCue, cueBefore)
         XCTAssertEqual(project.cinematicNativeFeedbackCueLifecycle, lifecycleBefore)
+        XCTAssertEqual(project.sessions, sessionsBefore)
+        XCTAssertEqual(project.cinematicRunRecapShareArtifactLibraryContext, recapArtifactContextBefore)
+        XCTAssertEqual(project.cinematicDiagnosticsWarningBundleHistory, warningHistoryBefore)
+        XCTAssertEqual(project.activeStorage, activeStorageBefore)
+        XCTAssertEqual(report.planCompass, CinematicPlanCompassPlan(state: project.state))
         XCTAssertEqual(report.nativeFeedback.cueIdentifier, cueBefore.identifier)
         XCTAssertEqual(
             deliveryAfter.authorizationRequestStateIdentifier,
@@ -1351,6 +1410,7 @@ final class CinematicDiagnosticsTests: XCTestCase {
                 phase: "Developing",
                 immediateTitle: "Expose current cinematic diagnostics",
                 completedCount: 2,
+                planCompassPlan: CinematicPlanCompassPlan(state: project.state),
                 latestEvent: project.liveLog.last.map(CinematicBriefingEvent.init(line:)),
                 languageProfile: project.languageProfile,
                 activityProfile: project.activityProfile,
@@ -1367,6 +1427,7 @@ final class CinematicDiagnosticsTests: XCTestCase {
             XCTAssertEqual(report.phase, "Developing")
             XCTAssertEqual(report.immediateTitle, "Expose current cinematic diagnostics")
             XCTAssertEqual(report.completedCount, 2)
+            XCTAssertEqual(report.planCompass, CinematicPlanCompassPlan(state: project.state))
             XCTAssertEqual(report.languageMotif.sigilIdentifier, "language.python")
             XCTAssertEqual(report.activityMotif.eventKindIdentifier, "commit")
             XCTAssertEqual(report.stageBeat.phaseIdentifier, "Developing")
@@ -1408,6 +1469,7 @@ final class CinematicDiagnosticsTests: XCTestCase {
                 phase: "Verifying",
                 immediateTitle: "Thread native feedback into cinematic diagnostics",
                 completedCount: 1,
+                planCompassPlan: CinematicPlanCompassPlan(state: project.state),
                 latestEvent: nil,
                 languageProfile: project.languageProfile,
                 activityProfile: project.activityProfile,

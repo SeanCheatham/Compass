@@ -6,6 +6,7 @@ struct CinematicDiagnosticsReport: Equatable {
     var phase: String
     var immediateTitle: String
     var completedCount: Int
+    var planCompass: CinematicPlanCompassPlan?
     var influenceIdentifier: String
     var languageMotif: LanguageMotifSnapshot
     var activityMotif: ActivityMotifSnapshot
@@ -3430,6 +3431,9 @@ struct CinematicDiagnosticsSummary: Equatable {
             rowIDs: [
                 "repository",
                 "immediate",
+                "plan-compass-immediate",
+                "plan-compass-mid-term",
+                "plan-compass-long-term",
                 "commit-constellation",
                 "idle-story-cycle",
                 "timeline-focus",
@@ -3543,6 +3547,21 @@ struct CinematicDiagnosticsSummary: Equatable {
                 ].joined(separator: " | ")
             ),
             row(id: "immediate", label: "Immediate", detail: report.immediateTitle),
+        ]
+
+        if let planCompass = report.planCompass {
+            rows.append(
+                contentsOf: planCompass.sections.map { section in
+                    row(
+                        id: section.rowIdentifier,
+                        label: section.directionLabel,
+                        detail: planCompassDetail(section)
+                    )
+                }
+            )
+        }
+
+        rows.append(contentsOf: [
             row(
                 id: "commit-constellation",
                 label: "Commit constellation",
@@ -3868,7 +3887,7 @@ struct CinematicDiagnosticsSummary: Equatable {
                     "shake \(fixed(report.cameraTuning.shakeScale))"
                 ].joined(separator: " | ")
             )
-        ]
+        ])
 
         rows.append(contentsOf: report.cameraSnapshots.map { snapshot in
             row(
@@ -4707,6 +4726,12 @@ struct CinematicDiagnosticsSummary: Equatable {
             optionalIdentifier("recovery", snapshot.recoveryTreatmentIdentifier),
             snapshot.usesFallbackTarget ? "fallback target" : nil
         ].compactMap { $0 }.joined(separator: " | ")
+    }
+
+    private static func planCompassDetail(
+        _ section: CinematicPlanCompassPlan.SectionDescriptor
+    ) -> String {
+        section.diagnosticsDetail
     }
 
     private static func runRecapDetail(
@@ -6080,6 +6105,7 @@ enum CinematicDiagnostics {
             phase: (project.isPaused ? LoopPhase.paused : project.phase).rawValue,
             immediateTitle: project.immediateTitle,
             completedCount: project.state.completed.count,
+            planCompassPlan: CinematicPlanCompassPlan(state: project.state),
             latestEvent: project.liveLog.last.map(CinematicBriefingEvent.init(line:)),
             latestCommitSubject: commitConstellationPlan.newestSubject,
             languageProfile: project.languageProfile,
@@ -6126,6 +6152,7 @@ enum CinematicDiagnostics {
         phase: String,
         immediateTitle: String,
         completedCount: Int,
+        planCompassPlan: CinematicPlanCompassPlan? = nil,
         latestEvent: CinematicBriefingEvent?,
         latestCommitSubject: String? = nil,
         languageProfile: RepositoryLanguageProfile,
@@ -6404,8 +6431,7 @@ enum CinematicDiagnostics {
             cameraSnapshot(for: $0, settings: influenceSettings)
         }
 
-        return CinematicDiagnosticsReport(
-            identifier: [
+        var reportIdentifierParts = [
                 "repo:\(repoName)",
                 "phase:\(phase)",
                 "language:\(languageSnapshot.identifier)",
@@ -6457,11 +6483,20 @@ enum CinematicDiagnostics {
                 "run-recap-end-card-pinned-cue-state:\(runRecapEndCardSnapshot.pinnedComparisonCueStateIdentifier)",
                 "run-recap-end-card-pinned-cue-promoted-hold:\(runRecapEndCardSnapshot.pinnedComparisonCuePromotedHoldStateIdentifier)",
                 "run-recap-end-card-pinned-cue-no-match:\(runRecapEndCardSnapshot.pinnedComparisonCueNoMatchStateIdentifier)"
-            ].joined(separator: "|"),
+            ]
+        if let planCompassPlan {
+            reportIdentifierParts.append("plan-compass:\(planCompassPlan.identifier)")
+            reportIdentifierParts.append("plan-compass-copy:\(planCompassPlan.copyIdentifier)")
+            reportIdentifierParts.append("plan-compass-export:\(planCompassPlan.exportIdentifier)")
+        }
+
+        return CinematicDiagnosticsReport(
+            identifier: reportIdentifierParts.joined(separator: "|"),
             repoName: repoName,
             phase: phase,
             immediateTitle: immediateTitle,
             completedCount: completedCount,
+            planCompass: planCompassPlan,
             influenceIdentifier: influenceIdentifier,
             languageMotif: languageSnapshot,
             activityMotif: activitySnapshot,

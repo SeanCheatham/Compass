@@ -12,6 +12,7 @@ struct CinematicTab: View {
         GeometryReader { proxy in
             let caption = CinematicCaption(project: project)
             let displayPlan = cinematicOverlayDisplayPlan
+            let planCompassPlan = CinematicPlanCompassPlan(state: project.state)
             let nativeFeedbackCue = project.cinematicNativeFeedbackCue
             let displayedNativeFeedbackCue = displayPlan.showsNativeFeedbackBanner ? nativeFeedbackCue : nil
             let reliabilityFeedback = PlanReliabilityFeedback(
@@ -151,7 +152,12 @@ struct CinematicTab: View {
                         )
                     }
 
-                    if overlayMode == .timeline {
+                    if overlayMode == .plan {
+                        CinematicPlanCompassOverlay(
+                            plan: planCompassPlan,
+                            displayPlan: displayPlan
+                        )
+                    } else if overlayMode == .timeline {
                         CinematicTimelineOverlay(
                             plan: timelinePlan,
                             selectedBeatID: $selectedTimelineBeatID
@@ -252,6 +258,7 @@ struct CinematicTab: View {
 
 private enum CinematicTabOverlayMode: String, CaseIterable, Identifiable {
     case live
+    case plan
     case timeline
     case recap
 
@@ -261,6 +268,8 @@ private enum CinematicTabOverlayMode: String, CaseIterable, Identifiable {
         switch self {
         case .live:
             return "Live"
+        case .plan:
+            return "Plan"
         case .timeline:
             return "Timeline"
         case .recap:
@@ -281,9 +290,129 @@ private struct CinematicTabOverlayModePicker: View {
         .pickerStyle(.segmented)
         .labelsHidden()
         .controlSize(.small)
-        .frame(width: 246)
+        .frame(width: 318)
         .background(.black.opacity(0.28), in: RoundedRectangle(cornerRadius: 7))
         .help("Switch cinematic overlay mode")
+    }
+}
+
+private struct CinematicPlanCompassOverlay: View {
+    var plan: CinematicPlanCompassPlan
+    var displayPlan: CinematicOverlayDisplayPlan
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 9) {
+            HStack(alignment: .center, spacing: 8) {
+                Label("Plan Compass", systemImage: "safari")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.white.opacity(displayPlan.hudTitleEmphasis))
+
+                Spacer()
+
+                Text(plan.completedLabel)
+                    .font(.caption2.monospacedDigit().weight(.semibold))
+                    .foregroundStyle(.white.opacity(displayPlan.hudStatusTextEmphasis))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.76)
+            }
+
+            VStack(alignment: .leading, spacing: 7) {
+                ForEach(plan.sections) { section in
+                    CinematicPlanCompassSectionRow(
+                        section: section,
+                        displayPlan: displayPlan
+                    )
+                }
+            }
+        }
+        .padding(.horizontal, CGFloat(max(11, displayPlan.hudHorizontalPadding)))
+        .padding(.vertical, CGFloat(max(9, displayPlan.hudVerticalPadding - 1)))
+        .frame(width: 430, alignment: .leading)
+        .background(
+            .black.opacity(min(0.5, displayPlan.hudBackgroundOpacity + 0.1) * displayPlan.overlayOpacity),
+            in: RoundedRectangle(cornerRadius: CGFloat(displayPlan.hudCornerRadius))
+        )
+        .overlay {
+            RoundedRectangle(cornerRadius: CGFloat(displayPlan.hudCornerRadius))
+                .stroke(.white.opacity(max(0.12, displayPlan.hudStrokeOpacity)), lineWidth: 1)
+        }
+        .overlay(alignment: .leading) {
+            Rectangle()
+                .fill(.cyan.opacity(displayPlan.hudAccentOpacity))
+                .frame(width: 3)
+                .clipShape(RoundedRectangle(cornerRadius: 2))
+        }
+        .help(plan.copyText)
+        .accessibilityIdentifier("cinematic-plan-compass-\(plan.exportIdentifier)")
+    }
+}
+
+private struct CinematicPlanCompassSectionRow: View {
+    var section: CinematicPlanCompassPlan.SectionDescriptor
+    var displayPlan: CinematicOverlayDisplayPlan
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 8) {
+            Image(systemName: section.systemImage)
+                .font(.system(size: 12, weight: .bold))
+                .foregroundStyle(iconColor.opacity(section.isEmpty ? 0.48 : displayPlan.hudIconEmphasis))
+                .frame(width: 16)
+
+            VStack(alignment: .leading, spacing: 3) {
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                    Text(section.directionLabel)
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.white.opacity(section.isEmpty ? 0.62 : displayPlan.hudTitleEmphasis))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.78)
+
+                    Text(section.label)
+                        .font(.caption2.weight(.bold))
+                        .foregroundStyle(iconColor.opacity(section.isEmpty ? 0.5 : 0.88))
+                        .lineLimit(1)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(iconColor.opacity(section.isEmpty ? 0.08 : 0.14), in: Capsule())
+
+                    Spacer(minLength: 4)
+                }
+
+                Text(section.displayText)
+                    .font(.caption2)
+                    .foregroundStyle(.white.opacity(section.isEmpty ? 0.52 : displayPlan.hudDetailTextEmphasis))
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                Text(section.metadataSummary)
+                    .font(.caption2.monospacedDigit().weight(.semibold))
+                    .foregroundStyle(.white.opacity(displayPlan.hudStatusTextEmphasis))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.72)
+            }
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 6)
+        .background(
+            .white.opacity((section.isEmpty ? 0.025 : 0.045) * displayPlan.overlayOpacity),
+            in: RoundedRectangle(cornerRadius: 7)
+        )
+        .overlay {
+            RoundedRectangle(cornerRadius: 7)
+                .stroke(.white.opacity(section.isEmpty ? 0.06 : 0.1))
+        }
+        .help(section.copyText)
+        .accessibilityIdentifier("cinematic-\(section.rowIdentifier)-\(section.exportIdentifier)")
+    }
+
+    private var iconColor: Color {
+        switch section.kind {
+        case .immediate:
+            return .cyan
+        case .midTerm:
+            return .mint
+        case .longTerm:
+            return .indigo
+        }
     }
 }
 
