@@ -237,6 +237,67 @@ struct CinematicRunRecapShareArtifactSubsetExportPlan: Equatable, Identifiable {
     }
 }
 
+struct CinematicRunRecapShareArtifactRollupPlan: Equatable, Identifiable {
+    static let identifierMaxCharacters = CinematicRunRecapShareArtifactHistoryPlan.identifierMaxCharacters
+    static let snippetMaxCharacters = CinematicRunRecapShareArtifactHistoryPlan.snippetMaxCharacters
+    static let searchQuerySnippetMaxCharacters = CinematicRunRecapShareArtifactPreviewBrowserPlan.searchQuerySnippetMaxCharacters
+    static let statusBucketSummaryMaxCharacters = 160
+    static let insightTextMaxCharacters = 220
+    static let exportTextMaxCharacters = 2_800
+    static let copyLabelMaxCharacters = 32
+    static let copyHelpMaxCharacters = 240
+
+    var id: String { identifier }
+
+    var identifier: String
+    var exportIdentifier: String
+    var isAvailable: Bool
+    var availabilityReason: String
+    var isSearchActive: Bool
+    var searchQuerySnippet: String
+    var searchQueryFingerprint: String
+    var noMatchAvailabilityReason: String?
+    var retainedEntryCount: Int
+    var totalCount: Int
+    var hiddenCount: Int
+    var matchingEntryCount: Int
+    var unfilteredVisibleCount: Int
+    var selectedEntryIdentifier: String?
+    var selectedFallbackEntryIdentifier: String?
+    var selectedFallbackReasonIdentifier: String
+    var sessionRangeLabel: String
+    var newestEntryIdentifier: String?
+    var newestSessionNumber: Int?
+    var newestFilename: String?
+    var oldestEntryIdentifier: String?
+    var oldestSessionNumber: Int?
+    var oldestFilename: String?
+    var statusBuckets: [StatusBucket]
+    var statusBucketSummary: String
+    var cleanupCandidateCount: Int
+    var hiddenCleanupCandidateCount: Int
+    var cleanupCandidateIdentifiers: [String]
+    var warningStateIdentifier: String
+    var warningCount: Int
+    var hiddenWarningCount: Int
+    var warningIdentifiers: [String]
+    var hasWarnings: Bool
+    var insightText: String
+    var exportText: String
+    var copyLabel: String
+    var copyHelp: String
+
+    var exportTextLength: Int { exportText.count }
+
+    struct StatusBucket: Equatable, Identifiable {
+        var id: String { identifier }
+
+        var identifier: String
+        var label: String
+        var count: Int
+    }
+}
+
 enum CinematicRunRecapShareArtifactPreviewBrowserPlanner {
     static func plan(
         historyPlan: CinematicRunRecapShareArtifactHistoryPlan,
@@ -879,6 +940,518 @@ enum CinematicRunRecapShareArtifactSubsetExportPlanner {
         return bounded(
             "Copy \(exportEntryCount) retained recap share artifact\(exportEntryCount == 1 ? "" : "s")\(filteredDetail) from \(scope.rawValue) export \(exportIdentifier).",
             limit: CinematicRunRecapShareArtifactSubsetExportPlan.helpMaxCharacters
+        )
+    }
+
+    private static func previewSearchBody(from markdownContents: String) -> String? {
+        shareTextBody(in: markdownContents)
+            ?? fallbackBody(in: markdownContents)
+    }
+
+    private static func shareTextBody(in markdownContents: String) -> String? {
+        guard let range = markdownContents.range(of: "## Share Text") else {
+            return nil
+        }
+
+        let text = markdownContents[range.upperBound...]
+            .split(omittingEmptySubsequences: false, whereSeparator: \.isNewline)
+            .map { line in
+                String(line).trimmingCharacters(in: .whitespacesAndNewlines)
+            }
+            .filter { line in
+                !line.isEmpty && !line.hasPrefix("```")
+            }
+            .joined(separator: " ")
+        return text.isEmpty ? nil : text
+    }
+
+    private static func fallbackBody(in markdownContents: String) -> String? {
+        let text = markdownContents
+            .split(omittingEmptySubsequences: false, whereSeparator: \.isNewline)
+            .map { line in
+                String(line).trimmingCharacters(in: .whitespacesAndNewlines)
+            }
+            .filter { line in
+                !line.isEmpty
+                    && !line.hasPrefix("#")
+                    && !line.hasPrefix("- ")
+                    && !line.hasPrefix("```")
+            }
+            .joined(separator: " ")
+        return text.isEmpty ? nil : text
+    }
+
+    private static func normalizedSearchText(_ text: String) -> String {
+        text
+            .replacingOccurrences(of: "\r", with: " ")
+            .replacingOccurrences(of: "\n", with: " ")
+            .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+    }
+
+    private static func bounded(_ text: String, limit: Int) -> String {
+        guard limit > 0 else { return "" }
+        let normalized = text
+            .replacingOccurrences(of: "\r", with: " ")
+            .replacingOccurrences(of: "\n", with: " ")
+            .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalized.isEmpty else { return "none" }
+        guard normalized.count <= limit else {
+            let prefixLimit = max(1, limit - 3)
+            return normalized.prefix(prefixLimit)
+                .trimmingCharacters(in: .whitespacesAndNewlines) + "..."
+        }
+        return normalized
+    }
+
+    private static func boundedArtifactText(_ text: String, limit: Int) -> String {
+        guard limit > 0 else { return "" }
+        let normalized = text
+            .replacingOccurrences(of: "\r", with: "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalized.isEmpty else { return "none" }
+        guard normalized.count <= limit else {
+            let prefixLimit = max(1, limit - 3)
+            return normalized.prefix(prefixLimit)
+                .trimmingCharacters(in: .whitespacesAndNewlines) + "..."
+        }
+        return normalized
+    }
+
+    private static func fingerprint(_ value: String) -> String {
+        var hash: UInt64 = 0xcbf29ce484222325
+        for byte in value.utf8 {
+            hash ^= UInt64(byte)
+            hash = hash &* 0x100000001b3
+        }
+        return String(format: "%016llx", hash)
+    }
+}
+
+enum CinematicRunRecapShareArtifactRollupPlanner {
+    static func plan(
+        historyPlan: CinematicRunRecapShareArtifactHistoryPlan,
+        selectedEntryIdentifier: String? = nil,
+        searchQuery: String? = nil
+    ) -> CinematicRunRecapShareArtifactRollupPlan {
+        let previewPlan = CinematicRunRecapShareArtifactPreviewBrowserPlanner.plan(
+            historyPlan: historyPlan,
+            selectedEntryIdentifier: selectedEntryIdentifier,
+            searchQuery: searchQuery
+        )
+        let search = searchState(for: searchQuery)
+        let retainedEntries = historyPlan.entries
+        let matchingEntries = search.isActive
+            ? retainedEntries.filter { matches($0, normalizedQuery: search.normalizedQuery) }
+            : retainedEntries
+        let noMatchAvailabilityReason = search.isActive && !retainedEntries.isEmpty && matchingEntries.isEmpty
+            ? "no-matching-recap-share-artifacts"
+            : nil
+        let availabilityReason = noMatchAvailabilityReason
+            ?? (matchingEntries.isEmpty ? historyPlan.availabilityReason : "available")
+        let isAvailable = !matchingEntries.isEmpty
+        let warningStateIdentifier = historyPlan.hasWarnings ? "warnings" : "clear"
+        let newestEntry = matchingEntries.first
+        let oldestEntry = matchingEntries.last
+        let sessionRangeLabel = sessionRangeLabel(entries: matchingEntries)
+        let statusBuckets = statusBuckets(for: matchingEntries)
+        let statusBucketSummary = bucketSummary(statusBuckets)
+        let exportIdentifier = bounded(
+            [
+                "run-recap-share-artifact-rollup-export",
+                "availability:\(availabilityReason)",
+                "retained:\(retainedEntries.count)",
+                "total:\(historyPlan.totalCount)",
+                "hidden:\(historyPlan.hiddenCount)",
+                "matching:\(matchingEntries.count)",
+                "query:\(search.queryFingerprint)",
+                "query-snippet:\(search.querySnippet)",
+                "no-match:\(noMatchAvailabilityReason ?? "none")",
+                "selected:\(previewPlan.selectedEntryIdentifier ?? "none")",
+                "fallback:\(previewPlan.selectedFallbackEntryIdentifier ?? "none")",
+                "fallback-reason:\(previewPlan.selectedFallbackReasonIdentifier)",
+                "range:\(sessionRangeLabel)",
+                "buckets:\(statusBucketSummary)",
+                "cleanup:\(historyPlan.cleanupCandidateCount)",
+                "warnings:\(warningStateIdentifier)",
+                "warning-count:\(historyPlan.warningCount)",
+                "content:\(fingerprint(matchingEntries.map(\.identifier).joined(separator: "|")))"
+            ].joined(separator: "|"),
+            limit: CinematicRunRecapShareArtifactRollupPlan.identifierMaxCharacters
+        )
+        let insight = insightText(
+            isAvailable: isAvailable,
+            availabilityReason: availabilityReason,
+            retainedCount: retainedEntries.count,
+            matchingCount: matchingEntries.count,
+            totalCount: historyPlan.totalCount,
+            hiddenCount: historyPlan.hiddenCount,
+            sessionRangeLabel: sessionRangeLabel,
+            statusBucketSummary: statusBucketSummary,
+            cleanupCandidateCount: historyPlan.cleanupCandidateCount,
+            warningCount: historyPlan.warningCount,
+            search: search
+        )
+        let export = exportText(
+            exportIdentifier: exportIdentifier,
+            isAvailable: isAvailable,
+            availabilityReason: availabilityReason,
+            retainedEntries: retainedEntries,
+            matchingEntries: matchingEntries,
+            historyPlan: historyPlan,
+            search: search,
+            noMatchAvailabilityReason: noMatchAvailabilityReason,
+            previewPlan: previewPlan,
+            sessionRangeLabel: sessionRangeLabel,
+            statusBuckets: statusBuckets,
+            statusBucketSummary: statusBucketSummary,
+            insightText: insight,
+            warningStateIdentifier: warningStateIdentifier
+        )
+        let identifier = bounded(
+            [
+                "run-recap-share-artifact-rollup",
+                "availability:\(availabilityReason)",
+                "export:\(fingerprint(exportIdentifier))",
+                "retained:\(retainedEntries.count)",
+                "matching:\(matchingEntries.count)",
+                "query:\(search.queryFingerprint)",
+                "range:\(sessionRangeLabel)",
+                "buckets:\(statusBucketSummary)",
+                "cleanup:\(historyPlan.cleanupCandidateCount)",
+                "warnings:\(warningStateIdentifier)",
+                "copy:\(export.count)"
+            ].joined(separator: "|"),
+            limit: CinematicRunRecapShareArtifactRollupPlan.identifierMaxCharacters
+        )
+
+        return CinematicRunRecapShareArtifactRollupPlan(
+            identifier: identifier,
+            exportIdentifier: exportIdentifier,
+            isAvailable: isAvailable,
+            availabilityReason: availabilityReason,
+            isSearchActive: search.isActive,
+            searchQuerySnippet: search.querySnippet,
+            searchQueryFingerprint: search.queryFingerprint,
+            noMatchAvailabilityReason: noMatchAvailabilityReason,
+            retainedEntryCount: retainedEntries.count,
+            totalCount: historyPlan.totalCount,
+            hiddenCount: historyPlan.hiddenCount,
+            matchingEntryCount: matchingEntries.count,
+            unfilteredVisibleCount: retainedEntries.count,
+            selectedEntryIdentifier: previewPlan.selectedEntryIdentifier,
+            selectedFallbackEntryIdentifier: previewPlan.selectedFallbackEntryIdentifier,
+            selectedFallbackReasonIdentifier: previewPlan.selectedFallbackReasonIdentifier,
+            sessionRangeLabel: sessionRangeLabel,
+            newestEntryIdentifier: newestEntry?.identifier,
+            newestSessionNumber: newestEntry?.sessionNumber,
+            newestFilename: newestEntry?.filename,
+            oldestEntryIdentifier: oldestEntry?.identifier,
+            oldestSessionNumber: oldestEntry?.sessionNumber,
+            oldestFilename: oldestEntry?.filename,
+            statusBuckets: statusBuckets,
+            statusBucketSummary: statusBucketSummary,
+            cleanupCandidateCount: historyPlan.cleanupCandidateCount,
+            hiddenCleanupCandidateCount: historyPlan.hiddenCleanupCandidateCount,
+            cleanupCandidateIdentifiers: historyPlan.cleanupCandidateIdentifiers,
+            warningStateIdentifier: warningStateIdentifier,
+            warningCount: historyPlan.warningCount,
+            hiddenWarningCount: historyPlan.hiddenWarningCount,
+            warningIdentifiers: historyPlan.warnings.map(\.identifier),
+            hasWarnings: historyPlan.hasWarnings,
+            insightText: insight,
+            exportText: export,
+            copyLabel: copyLabel(isAvailable: isAvailable),
+            copyHelp: copyHelp(
+                isAvailable: isAvailable,
+                availabilityReason: availabilityReason,
+                matchingCount: matchingEntries.count,
+                retainedCount: retainedEntries.count,
+                search: search,
+                exportIdentifier: exportIdentifier
+            )
+        )
+    }
+
+    private struct SearchState {
+        var normalizedQuery: String
+        var querySnippet: String
+        var queryFingerprint: String
+        var isActive: Bool
+    }
+
+    private struct BucketDefinition {
+        var identifier: String
+        var label: String
+    }
+
+    private static let bucketDefinitions = [
+        BucketDefinition(identifier: "succeeded", label: "Succeeded"),
+        BucketDefinition(identifier: "failed", label: "Failed"),
+        BucketDefinition(identifier: "cancelled", label: "Cancelled"),
+        BucketDefinition(identifier: "skipped", label: "Skipped"),
+        BucketDefinition(identifier: "warning", label: "Warning"),
+        BucketDefinition(identifier: "other", label: "Other")
+    ]
+
+    private static func searchState(for query: String?) -> SearchState {
+        let normalizedQuery = normalizedSearchText(query ?? "")
+        let isActive = !normalizedQuery.isEmpty
+        return SearchState(
+            normalizedQuery: normalizedQuery,
+            querySnippet: isActive
+                ? bounded(
+                    normalizedQuery,
+                    limit: CinematicRunRecapShareArtifactRollupPlan.searchQuerySnippetMaxCharacters
+                )
+                : "none",
+            queryFingerprint: isActive ? fingerprint(normalizedQuery) : "none",
+            isActive: isActive
+        )
+    }
+
+    private static func matches(
+        _ entry: CinematicRunRecapShareArtifactHistoryPlan.Entry,
+        normalizedQuery query: String
+    ) -> Bool {
+        guard !query.isEmpty else { return true }
+        let fields = [
+            entry.filename,
+            entry.titleSnippet,
+            entry.statusSnippet,
+            entry.commitSnippet ?? "",
+            entry.pathDisplayText,
+            previewSearchBody(from: entry.markdownContents) ?? ""
+        ]
+        return fields.contains { normalizedSearchText($0).contains(query) }
+    }
+
+    private static func statusBuckets(
+        for entries: [CinematicRunRecapShareArtifactHistoryPlan.Entry]
+    ) -> [CinematicRunRecapShareArtifactRollupPlan.StatusBucket] {
+        let counts = Dictionary(grouping: entries, by: { bucketIdentifier(for: $0.statusSnippet) })
+            .mapValues(\.count)
+        return bucketDefinitions.map { definition in
+            CinematicRunRecapShareArtifactRollupPlan.StatusBucket(
+                identifier: definition.identifier,
+                label: definition.label,
+                count: counts[definition.identifier, default: 0]
+            )
+        }
+    }
+
+    private static func bucketIdentifier(for status: String) -> String {
+        let normalized = normalizedSearchText(status)
+        if normalized.contains("fail")
+            || normalized.contains("error")
+            || normalized.contains("crash")
+            || normalized.contains("broken") {
+            return "failed"
+        }
+        if normalized.contains("cancel")
+            || normalized.contains("canceled")
+            || normalized.contains("reject") {
+            return "cancelled"
+        }
+        if normalized.contains("skip") {
+            return "skipped"
+        }
+        if normalized.contains("warn")
+            || normalized.contains("retry")
+            || normalized.contains("dirty")
+            || normalized.contains("conflict") {
+            return "warning"
+        }
+        if normalized.contains("success")
+            || normalized.contains("succeed")
+            || normalized.contains("passed")
+            || normalized.contains("pass")
+            || normalized.contains("done")
+            || normalized.contains("clean") {
+            return "succeeded"
+        }
+        return "other"
+    }
+
+    private static func bucketSummary(
+        _ buckets: [CinematicRunRecapShareArtifactRollupPlan.StatusBucket]
+    ) -> String {
+        let summary = buckets
+            .filter { $0.count > 0 }
+            .map { "\($0.identifier) \($0.count)" }
+            .joined(separator: ", ")
+        return bounded(
+            summary.isEmpty ? "none" : summary,
+            limit: CinematicRunRecapShareArtifactRollupPlan.statusBucketSummaryMaxCharacters
+        )
+    }
+
+    private static func sessionRangeLabel(
+        entries: [CinematicRunRecapShareArtifactHistoryPlan.Entry]
+    ) -> String {
+        guard let newest = entries.first?.sessionNumber,
+              let oldest = entries.last?.sessionNumber else {
+            return "none"
+        }
+        if newest == oldest {
+            return "S\(newest)"
+        }
+        return "S\(oldest)-S\(newest)"
+    }
+
+    private static func insightText(
+        isAvailable: Bool,
+        availabilityReason: String,
+        retainedCount: Int,
+        matchingCount: Int,
+        totalCount: Int,
+        hiddenCount: Int,
+        sessionRangeLabel: String,
+        statusBucketSummary: String,
+        cleanupCandidateCount: Int,
+        warningCount: Int,
+        search: SearchState
+    ) -> String {
+        guard isAvailable else {
+            let searchDetail = search.isActive ? " for \(search.querySnippet)" : ""
+            return bounded(
+                "No recap artifact rollup\(searchDetail): \(availabilityReason). \(retainedCount)/\(totalCount) retained.",
+                limit: CinematicRunRecapShareArtifactRollupPlan.insightTextMaxCharacters
+            )
+        }
+
+        var parts = [
+            "\(matchingCount)/\(retainedCount) retained",
+            "sessions \(sessionRangeLabel)",
+            statusBucketSummary
+        ]
+        if search.isActive {
+            parts.append("search \(search.querySnippet)")
+        }
+        if hiddenCount > 0 {
+            parts.append("+\(hiddenCount) hidden")
+        }
+        if cleanupCandidateCount > 0 {
+            parts.append("\(cleanupCandidateCount) cleanup")
+        }
+        if warningCount > 0 {
+            parts.append("\(warningCount) warning")
+        }
+        return bounded(
+            parts.joined(separator: " | "),
+            limit: CinematicRunRecapShareArtifactRollupPlan.insightTextMaxCharacters
+        )
+    }
+
+    private static func exportText(
+        exportIdentifier: String,
+        isAvailable: Bool,
+        availabilityReason: String,
+        retainedEntries: [CinematicRunRecapShareArtifactHistoryPlan.Entry],
+        matchingEntries: [CinematicRunRecapShareArtifactHistoryPlan.Entry],
+        historyPlan: CinematicRunRecapShareArtifactHistoryPlan,
+        search: SearchState,
+        noMatchAvailabilityReason: String?,
+        previewPlan: CinematicRunRecapShareArtifactPreviewBrowserPlan,
+        sessionRangeLabel: String,
+        statusBuckets: [CinematicRunRecapShareArtifactRollupPlan.StatusBucket],
+        statusBucketSummary: String,
+        insightText: String,
+        warningStateIdentifier: String
+    ) -> String {
+        var lines = [
+            "# Compass Recap Artifact Rollup",
+            "",
+            "- Export: \(exportIdentifier)",
+            "- Availability: \(isAvailable ? "available" : "unavailable (\(availabilityReason))")",
+            "- Retention limit: \(historyPlan.retentionLimit)",
+            "- Total artifacts: \(historyPlan.totalCount)",
+            "- Retained artifacts: \(retainedEntries.count)",
+            "- Matching artifacts: \(matchingEntries.count)",
+            "- Hidden artifacts: \(historyPlan.hiddenCount)",
+            "- Session range: \(sessionRangeLabel)",
+            "- Search active: \(search.isActive)",
+            "- Search query: \(search.querySnippet)",
+            "- Search fingerprint: \(search.queryFingerprint)",
+            "- No-match reason: \(noMatchAvailabilityReason ?? "none")",
+            "- Selected entry: \(previewPlan.selectedEntryIdentifier ?? "none")",
+            "- Selection fallback: \(previewPlan.selectedFallbackEntryIdentifier ?? "none")",
+            "- Selection fallback reason: \(previewPlan.selectedFallbackReasonIdentifier)",
+            "- Status buckets: \(statusBucketSummary)",
+            "- Cleanup candidates: \(historyPlan.cleanupCandidateCount)",
+            "- Hidden cleanup candidates: \(historyPlan.hiddenCleanupCandidateCount)",
+            "- Cleanup candidate identifiers: \(historyPlan.cleanupCandidateIdentifiers.isEmpty ? "none" : historyPlan.cleanupCandidateIdentifiers.joined(separator: ", "))",
+            "- Warning state: \(warningStateIdentifier)",
+            "- Warnings: \(historyPlan.warningCount)",
+            "- Hidden warnings: \(historyPlan.hiddenWarningCount)",
+            "- Warning identifiers: \(historyPlan.warnings.isEmpty ? "none" : historyPlan.warnings.map(\.identifier).joined(separator: ", "))",
+            "",
+            "## Insight",
+            insightText,
+            "",
+            "## Status Buckets"
+        ]
+
+        lines.append(contentsOf: statusBuckets.map { "- \($0.identifier): \($0.count)" })
+
+        if !historyPlan.warnings.isEmpty {
+            lines.append("")
+            lines.append("## Warnings")
+            lines.append(contentsOf: historyPlan.warnings.map { warning in
+                "- \(warning.identifier): \(warning.fileDisplayText) - \(warning.message)"
+            })
+        }
+
+        lines.append("")
+        lines.append("## Matching Entries")
+        if matchingEntries.isEmpty {
+            lines.append("No retained recap share artifacts matched the current rollup context.")
+        } else {
+            lines.append(contentsOf: matchingEntries.map { entry in
+                [
+                    "- S\(entry.sessionNumber) \(entry.filename)",
+                    "title \(entry.titleSnippet)",
+                    "status \(entry.statusSnippet)",
+                    "commit \(entry.commitSnippet ?? "none")",
+                    "artifact \(entry.identifier)"
+                ].joined(separator: " | ")
+            })
+        }
+
+        return boundedArtifactText(
+            lines.joined(separator: "\n"),
+            limit: CinematicRunRecapShareArtifactRollupPlan.exportTextMaxCharacters
+        )
+    }
+
+    private static func copyLabel(isAvailable: Bool) -> String {
+        bounded(
+            isAvailable ? "Copy artifact rollup" : "Rollup unavailable",
+            limit: CinematicRunRecapShareArtifactRollupPlan.copyLabelMaxCharacters
+        )
+    }
+
+    private static func copyHelp(
+        isAvailable: Bool,
+        availabilityReason: String,
+        matchingCount: Int,
+        retainedCount: Int,
+        search: SearchState,
+        exportIdentifier: String
+    ) -> String {
+        if !isAvailable {
+            return bounded(
+                "No recap artifact rollup is available: \(availabilityReason).",
+                limit: CinematicRunRecapShareArtifactRollupPlan.copyHelpMaxCharacters
+            )
+        }
+
+        let searchDetail = search.isActive ? " matching \(search.querySnippet)" : ""
+        return bounded(
+            "Copy recap artifact rollup \(exportIdentifier) for \(matchingCount) of \(retainedCount) retained artifact\(retainedCount == 1 ? "" : "s")\(searchDetail).",
+            limit: CinematicRunRecapShareArtifactRollupPlan.copyHelpMaxCharacters
         )
     }
 

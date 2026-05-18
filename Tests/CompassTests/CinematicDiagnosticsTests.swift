@@ -633,6 +633,7 @@ final class CinematicDiagnosticsTests: XCTestCase {
                 "run-recap-share",
                 "run-recap-share-artifact",
                 "run-recap-share-artifact-history",
+                "run-recap-share-artifact-rollup",
                 "run-recap-share-artifact-preview",
                 "run-recap-focus",
                 "run-recap-end-card",
@@ -696,6 +697,7 @@ final class CinematicDiagnosticsTests: XCTestCase {
                     "run-recap-share",
                     "run-recap-share-artifact",
                     "run-recap-share-artifact-history",
+                    "run-recap-share-artifact-rollup",
                     "run-recap-share-artifact-preview",
                     "run-recap-focus",
                     "run-recap-end-card"
@@ -834,7 +836,7 @@ final class CinematicDiagnosticsTests: XCTestCase {
             .components(separatedBy: "\n")
             .filter { expectedSectionHeadings.contains($0) }
         XCTAssertEqual(actualSectionHeadings, expectedSectionHeadings)
-        XCTAssertTrue(summary.exportText.contains("Repository/context (12 rows)"))
+        XCTAssertTrue(summary.exportText.contains("Repository/context (13 rows)"))
         XCTAssertTrue(summary.exportText.contains("Motifs (2 rows)"))
         XCTAssertTrue(summary.exportText.contains("Stage motion/effects (9 rows)"))
         XCTAssertTrue(summary.exportText.contains("Narrative/overlay (7 rows)"))
@@ -1777,6 +1779,9 @@ final class CinematicDiagnosticsTests: XCTestCase {
         let previewPlan = CinematicRunRecapShareArtifactPreviewBrowserPlanner.plan(
             historyPlan: historyPlan
         )
+        let rollupPlan = CinematicRunRecapShareArtifactRollupPlanner.plan(
+            historyPlan: historyPlan
+        )
 
         let report = makeReport(
             CinematicDiagnosticsInput(
@@ -1796,6 +1801,7 @@ final class CinematicDiagnosticsTests: XCTestCase {
             visualSmoke: CinematicVisualSmokeReport(reports: [report])
         )
         let row = try XCTUnwrap(summary.rows.first { $0.id == "run-recap-share-artifact-history" })
+        let rollupRow = try XCTUnwrap(summary.rows.first { $0.id == "run-recap-share-artifact-rollup" })
         let previewRow = try XCTUnwrap(summary.rows.first { $0.id == "run-recap-share-artifact-preview" })
 
         XCTAssertTrue(report.runRecapShareArtifactHistory.isAvailable)
@@ -1815,6 +1821,23 @@ final class CinematicDiagnosticsTests: XCTestCase {
         XCTAssertEqual(report.runRecapShareArtifactHistory.exportIdentifier, historyPlan.exportIdentifier)
         XCTAssertEqual(report.runRecapShareArtifactHistory.exportMarkdownLength, historyPlan.combinedMarkdownLength)
         XCTAssertTrue(report.runRecapShareArtifactPreview.isAvailable)
+        XCTAssertTrue(report.runRecapShareArtifactRollup.isAvailable)
+        XCTAssertEqual(report.runRecapShareArtifactRollup.identifier, rollupPlan.identifier)
+        XCTAssertEqual(report.runRecapShareArtifactRollup.exportIdentifier, rollupPlan.exportIdentifier)
+        XCTAssertEqual(report.runRecapShareArtifactRollup.retainedEntryCount, 1)
+        XCTAssertEqual(report.runRecapShareArtifactRollup.matchingEntryCount, 1)
+        XCTAssertEqual(report.runRecapShareArtifactRollup.unfilteredVisibleCount, 1)
+        XCTAssertEqual(report.runRecapShareArtifactRollup.sessionRangeLabel, "S17")
+        XCTAssertEqual(report.runRecapShareArtifactRollup.newestSessionNumber, 17)
+        XCTAssertEqual(report.runRecapShareArtifactRollup.oldestSessionNumber, 17)
+        XCTAssertEqual(report.runRecapShareArtifactRollup.statusBuckets.first { $0.identifier == "succeeded" }?.count, 1)
+        XCTAssertEqual(report.runRecapShareArtifactRollup.warningStateIdentifier, "warnings")
+        XCTAssertEqual(report.runRecapShareArtifactRollup.warningCount, 1)
+        XCTAssertEqual(report.runRecapShareArtifactRollup.warningIdentifiers.count, 1)
+        XCTAssertLessThanOrEqual(
+            report.runRecapShareArtifactRollup.exportTextLength,
+            CinematicRunRecapShareArtifactRollupPlan.exportTextMaxCharacters
+        )
         XCTAssertEqual(report.runRecapShareArtifactPreview.identifier, previewPlan.identifier)
         XCTAssertEqual(report.runRecapShareArtifactPreview.selectedEntryIdentifier, historyPlan.latestEntry?.identifier)
         XCTAssertNil(report.runRecapShareArtifactPreview.previousEntryIdentifier)
@@ -1844,6 +1867,7 @@ final class CinematicDiagnosticsTests: XCTestCase {
         XCTAssertEqual(report.runRecapShareArtifactPreview.filteredExport.warningStateIdentifier, "warnings")
         XCTAssertEqual(report.runRecapShareArtifactPreview.filteredExport.warningCount, 1)
         XCTAssertTrue(report.identifier.contains("run-recap-share-artifact-preview:\(previewPlan.identifier)"))
+        XCTAssertTrue(report.identifier.contains("run-recap-share-artifact-rollup:\(rollupPlan.identifier)"))
         XCTAssertTrue(report.identifier.contains("run-recap-share-artifact-selected-export:"))
         XCTAssertTrue(report.identifier.contains("run-recap-share-artifact-filtered-export:"))
         XCTAssertTrue(row.detail.contains("available"))
@@ -1855,6 +1879,12 @@ final class CinematicDiagnosticsTests: XCTestCase {
         XCTAssertTrue(row.detail.contains("latest session 17"))
         XCTAssertTrue(row.detail.contains("17-recap-share-diagnostics.md"))
         XCTAssertTrue(row.detail.contains("warnings 1"))
+        XCTAssertTrue(rollupRow.detail.contains("available"))
+        XCTAssertTrue(rollupRow.detail.contains("matches 1/1"))
+        XCTAssertTrue(rollupRow.detail.contains("range S17"))
+        XCTAssertTrue(rollupRow.detail.contains("buckets succeeded 1"))
+        XCTAssertTrue(rollupRow.detail.contains("warning state warnings"))
+        XCTAssertTrue(rollupRow.detail.contains("copy \(rollupPlan.exportTextLength) chars"))
         XCTAssertTrue(previewRow.detail.contains("available"))
         XCTAssertTrue(previewRow.detail.contains("selection 1/1"))
         XCTAssertTrue(previewRow.detail.contains("session 17"))
@@ -1864,7 +1894,10 @@ final class CinematicDiagnosticsTests: XCTestCase {
         XCTAssertTrue(previewRow.detail.contains("warning state warnings"))
         XCTAssertTrue(previewRow.detail.contains("warnings 1"))
         XCTAssertTrue(summary.exportText.contains("Recap artifact library: available"))
+        XCTAssertTrue(summary.exportText.contains("Recap artifact rollup: available"))
         XCTAssertTrue(summary.exportText.contains("Recap artifact preview: available"))
+        XCTAssertTrue(summary.exportText.contains("matches 1/1"))
+        XCTAssertTrue(summary.exportText.contains("buckets succeeded 1"))
         XCTAssertTrue(summary.exportText.contains("selection 1/1"))
         XCTAssertTrue(summary.exportText.contains("selected export available"))
         XCTAssertTrue(summary.exportText.contains("filtered export available"))

@@ -29,6 +29,7 @@ struct CinematicDiagnosticsReport: Equatable {
     var runRecapShare: RunRecapShareSnapshot
     var runRecapShareArtifact: RunRecapShareArtifactSnapshot
     var runRecapShareArtifactHistory: RunRecapShareArtifactHistorySnapshot
+    var runRecapShareArtifactRollup: RunRecapShareArtifactRollupSnapshot
     var runRecapShareArtifactPreview: RunRecapShareArtifactPreviewSnapshot
     var runRecapSceneFocus: RunRecapSceneFocusSnapshot
     var runRecapEndCard: RunRecapEndCardSnapshot
@@ -547,6 +548,52 @@ struct CinematicDiagnosticsReport: Equatable {
         var warningStateIdentifier: String
         var lastCleanupResultIdentifier: String
         var lastCleanupResultStatus: String
+    }
+
+    struct RunRecapShareArtifactRollupStatusBucketSnapshot: Equatable {
+        var identifier: String
+        var label: String
+        var count: Int
+    }
+
+    struct RunRecapShareArtifactRollupSnapshot: Equatable {
+        var identifier: String
+        var exportIdentifier: String
+        var isAvailable: Bool
+        var availabilityReason: String
+        var isSearchActive: Bool
+        var searchQuerySnippet: String
+        var searchQueryFingerprint: String
+        var noMatchAvailabilityReason: String?
+        var retainedEntryCount: Int
+        var totalCount: Int
+        var hiddenCount: Int
+        var matchingEntryCount: Int
+        var unfilteredVisibleCount: Int
+        var selectedEntryIdentifier: String?
+        var selectedFallbackEntryIdentifier: String?
+        var selectedFallbackReasonIdentifier: String
+        var sessionRangeLabel: String
+        var newestEntryIdentifier: String?
+        var newestSessionNumber: Int?
+        var newestFilename: String?
+        var oldestEntryIdentifier: String?
+        var oldestSessionNumber: Int?
+        var oldestFilename: String?
+        var statusBuckets: [RunRecapShareArtifactRollupStatusBucketSnapshot]
+        var statusBucketSummary: String
+        var cleanupCandidateCount: Int
+        var hiddenCleanupCandidateCount: Int
+        var cleanupCandidateIdentifiers: [String]
+        var warningStateIdentifier: String
+        var warningCount: Int
+        var hiddenWarningCount: Int
+        var warningIdentifiers: [String]
+        var hasWarnings: Bool
+        var insightText: String
+        var exportTextLength: Int
+        var copyLabel: String
+        var copyHelp: String
     }
 
     struct RunRecapShareArtifactSubsetExportSnapshot: Equatable {
@@ -1600,6 +1647,7 @@ struct CinematicVisualSmokeReport: Equatable {
             && runRecapShareCopyIsBounded(report)
             && runRecapShareArtifactCopyIsBounded(report)
             && runRecapShareArtifactHistoryCopyIsBounded(report)
+            && runRecapShareArtifactRollupCopyIsBounded(report)
             && runRecapShareArtifactPreviewCopyIsBounded(report)
             && runRecapEndCardCopyIsBounded(report)
     }
@@ -1663,6 +1711,78 @@ struct CinematicVisualSmokeReport: Equatable {
             && string(
                 snapshot.lastCleanupResultIdentifier,
                 maxCharacters: CinematicRunRecapShareArtifactCleanupResult.identifierMaxCharacters
+            )
+    }
+
+    private static func runRecapShareArtifactRollupCopyIsBounded(_ report: CinematicDiagnosticsReport) -> Bool {
+        let snapshot = report.runRecapShareArtifactRollup
+        return string(
+            snapshot.identifier,
+            maxCharacters: CinematicRunRecapShareArtifactRollupPlan.identifierMaxCharacters
+        )
+            && string(
+                snapshot.exportIdentifier,
+                maxCharacters: CinematicRunRecapShareArtifactRollupPlan.identifierMaxCharacters
+            )
+            && string(
+                snapshot.searchQuerySnippet,
+                maxCharacters: CinematicRunRecapShareArtifactRollupPlan.searchQuerySnippetMaxCharacters
+            )
+            && snapshot.searchQueryFingerprint.count
+                <= CinematicRunRecapShareArtifactRollupPlan.identifierMaxCharacters
+            && (snapshot.noMatchAvailabilityReason?.count ?? 0)
+                <= CinematicRunRecapShareArtifactRollupPlan.snippetMaxCharacters
+            && (snapshot.selectedEntryIdentifier ?? "").count
+                <= CinematicRunRecapShareArtifactHistoryPlan.identifierMaxCharacters
+            && (snapshot.selectedFallbackEntryIdentifier ?? "").count
+                <= CinematicRunRecapShareArtifactHistoryPlan.identifierMaxCharacters
+            && snapshot.selectedFallbackReasonIdentifier.count
+                <= CinematicRunRecapShareArtifactRollupPlan.snippetMaxCharacters
+            && (snapshot.newestEntryIdentifier ?? "").count
+                <= CinematicRunRecapShareArtifactHistoryPlan.identifierMaxCharacters
+            && (snapshot.oldestEntryIdentifier ?? "").count
+                <= CinematicRunRecapShareArtifactHistoryPlan.identifierMaxCharacters
+            && (snapshot.newestFilename?.count ?? 0)
+                <= CinematicRunRecapShareArtifactHistoryPlan.filenameMaxCharacters
+            && (snapshot.oldestFilename?.count ?? 0)
+                <= CinematicRunRecapShareArtifactHistoryPlan.filenameMaxCharacters
+            && string(
+                snapshot.sessionRangeLabel,
+                maxCharacters: CinematicRunRecapShareArtifactRollupPlan.snippetMaxCharacters
+            )
+            && snapshot.statusBuckets.allSatisfy {
+                string($0.identifier, maxCharacters: CinematicRunRecapShareArtifactRollupPlan.snippetMaxCharacters)
+                    && string($0.label, maxCharacters: CinematicRunRecapShareArtifactRollupPlan.snippetMaxCharacters)
+            }
+            && string(
+                snapshot.statusBucketSummary,
+                maxCharacters: CinematicRunRecapShareArtifactRollupPlan.statusBucketSummaryMaxCharacters
+            )
+            && snapshot.cleanupCandidateIdentifiers.allSatisfy {
+                string(
+                    $0,
+                    maxCharacters: CinematicRunRecapShareArtifactHistoryPlan.identifierMaxCharacters
+                )
+            }
+            && snapshot.warningIdentifiers.allSatisfy {
+                string(
+                    $0,
+                    maxCharacters: CinematicRunRecapShareArtifactHistoryPlan.identifierMaxCharacters
+                )
+            }
+            && string(
+                snapshot.insightText,
+                maxCharacters: CinematicRunRecapShareArtifactRollupPlan.insightTextMaxCharacters
+            )
+            && snapshot.exportTextLength
+                <= CinematicRunRecapShareArtifactRollupPlan.exportTextMaxCharacters
+            && string(
+                snapshot.copyLabel,
+                maxCharacters: CinematicRunRecapShareArtifactRollupPlan.copyLabelMaxCharacters
+            )
+            && string(
+                snapshot.copyHelp,
+                maxCharacters: CinematicRunRecapShareArtifactRollupPlan.copyHelpMaxCharacters
             )
     }
 
@@ -2104,7 +2224,7 @@ struct CinematicVisualSmokeReport: Equatable {
 }
 
 struct CinematicDiagnosticsSummary: Equatable {
-    static let maxRows = 44
+    static let maxRows = 45
     static let labelMaxCharacters = 32
     static let detailMaxCharacters = 512
     static let headerDetailMaxCharacters = 128
@@ -2239,6 +2359,7 @@ struct CinematicDiagnosticsSummary: Equatable {
                 "run-recap-share",
                 "run-recap-share-artifact",
                 "run-recap-share-artifact-history",
+                "run-recap-share-artifact-rollup",
                 "run-recap-share-artifact-preview",
                 "run-recap-focus",
                 "run-recap-end-card"
@@ -2370,6 +2491,11 @@ struct CinematicDiagnosticsSummary: Equatable {
                 id: "run-recap-share-artifact-history",
                 label: "Recap artifact library",
                 detail: runRecapShareArtifactHistoryDetail(report.runRecapShareArtifactHistory)
+            ),
+            row(
+                id: "run-recap-share-artifact-rollup",
+                label: "Recap artifact rollup",
+                detail: runRecapShareArtifactRollupDetail(report.runRecapShareArtifactRollup)
             ),
             row(
                 id: "run-recap-share-artifact-preview",
@@ -3336,6 +3462,41 @@ struct CinematicDiagnosticsSummary: Equatable {
         ].compactMap { $0 }.joined(separator: " | ")
     }
 
+    private static func runRecapShareArtifactRollupDetail(
+        _ snapshot: CinematicDiagnosticsReport.RunRecapShareArtifactRollupSnapshot
+    ) -> String {
+        let availability = snapshot.isAvailable
+            ? "available"
+            : "empty \(snapshot.availabilityReason)"
+        return [
+            availability,
+            snapshot.isSearchActive
+                ? "search \(snapshot.searchQuerySnippet) \(snapshot.searchQueryFingerprint)"
+                : "search none",
+            "matches \(snapshot.matchingEntryCount)/\(snapshot.unfilteredVisibleCount)",
+            "retained \(snapshot.retainedEntryCount)/\(snapshot.totalCount)",
+            "hidden \(snapshot.hiddenCount)",
+            snapshot.noMatchAvailabilityReason.map { "no-match \($0)" },
+            "range \(snapshot.sessionRangeLabel)",
+            "buckets \(snapshot.statusBucketSummary)",
+            snapshot.newestSessionNumber.map { "newest S\($0)" },
+            snapshot.newestFilename.map { "newest file \(bounded($0, limit: 72))" },
+            snapshot.oldestSessionNumber.map { "oldest S\($0)" },
+            snapshot.oldestFilename.map { "oldest file \(bounded($0, limit: 72))" },
+            "cleanup candidates \(snapshot.cleanupCandidateCount)",
+            snapshot.hiddenCleanupCandidateCount > 0 ? "hidden cleanup \(snapshot.hiddenCleanupCandidateCount)" : nil,
+            "warning state \(snapshot.warningStateIdentifier)",
+            "warnings \(snapshot.warningCount)",
+            snapshot.hiddenWarningCount > 0 ? "hidden warnings \(snapshot.hiddenWarningCount)" : nil,
+            snapshot.warningIdentifiers.isEmpty
+                ? nil
+                : "warning ids \(bounded(snapshot.warningIdentifiers.joined(separator: ","), limit: 120))",
+            "copy \(snapshot.exportTextLength) chars",
+            "export \(bounded(snapshot.exportIdentifier, limit: 54))",
+            "id \(bounded(snapshot.identifier, limit: 54))"
+        ].compactMap { $0 }.joined(separator: " | ")
+    }
+
     private static func runRecapShareArtifactPreviewDetail(
         _ snapshot: CinematicDiagnosticsReport.RunRecapShareArtifactPreviewSnapshot
     ) -> String {
@@ -3813,6 +3974,14 @@ enum CinematicDiagnostics {
             searchQuery: runRecapShareArtifactPreviewSearchQuery,
             scope: .filtered
         )
+        let runRecapShareArtifactRollupPlan = CinematicRunRecapShareArtifactRollupPlanner.plan(
+            historyPlan: runRecapShareArtifactHistoryPlan,
+            selectedEntryIdentifier: runRecapShareArtifactPreviewSelectedEntryIdentifier,
+            searchQuery: runRecapShareArtifactPreviewSearchQuery
+        )
+        let runRecapShareArtifactRollupSnapshot = runRecapShareArtifactRollupSnapshot(
+            for: runRecapShareArtifactRollupPlan
+        )
         let runRecapShareArtifactPreviewSnapshot = runRecapShareArtifactPreviewSnapshot(
             for: runRecapShareArtifactPreviewPlan,
             selectedExportPlan: selectedRunRecapShareArtifactExportPlan,
@@ -3845,6 +4014,7 @@ enum CinematicDiagnostics {
                 "run-recap-share:\(runRecapShareSnapshot.identifier)",
                 "run-recap-share-artifact:\(runRecapShareArtifactSnapshot.identifier)",
                 "run-recap-share-artifact-history:\(runRecapShareArtifactHistorySnapshot.identifier)",
+                "run-recap-share-artifact-rollup:\(runRecapShareArtifactRollupSnapshot.identifier)",
                 "run-recap-share-artifact-preview:\(runRecapShareArtifactPreviewSnapshot.identifier)",
                 "run-recap-share-artifact-selected-export:\(runRecapShareArtifactPreviewSnapshot.selectedExport.identifier)",
                 "run-recap-share-artifact-filtered-export:\(runRecapShareArtifactPreviewSnapshot.filteredExport.identifier)",
@@ -3879,6 +4049,7 @@ enum CinematicDiagnostics {
             runRecapShare: runRecapShareSnapshot,
             runRecapShareArtifact: runRecapShareArtifactSnapshot,
             runRecapShareArtifactHistory: runRecapShareArtifactHistorySnapshot,
+            runRecapShareArtifactRollup: runRecapShareArtifactRollupSnapshot,
             runRecapShareArtifactPreview: runRecapShareArtifactPreviewSnapshot,
             runRecapSceneFocus: runRecapSceneFocusSnapshot,
             runRecapEndCard: runRecapEndCardSnapshot,
@@ -5335,6 +5506,56 @@ enum CinematicDiagnostics {
             warningStateIdentifier: plan.hasWarnings ? "warnings" : "clear",
             lastCleanupResultIdentifier: cleanupResult?.identifier ?? "none",
             lastCleanupResultStatus: cleanupResult?.status.rawValue ?? "none"
+        )
+    }
+
+    private static func runRecapShareArtifactRollupSnapshot(
+        for plan: CinematicRunRecapShareArtifactRollupPlan
+    ) -> CinematicDiagnosticsReport.RunRecapShareArtifactRollupSnapshot {
+        CinematicDiagnosticsReport.RunRecapShareArtifactRollupSnapshot(
+            identifier: plan.identifier,
+            exportIdentifier: plan.exportIdentifier,
+            isAvailable: plan.isAvailable,
+            availabilityReason: plan.availabilityReason,
+            isSearchActive: plan.isSearchActive,
+            searchQuerySnippet: plan.searchQuerySnippet,
+            searchQueryFingerprint: plan.searchQueryFingerprint,
+            noMatchAvailabilityReason: plan.noMatchAvailabilityReason,
+            retainedEntryCount: plan.retainedEntryCount,
+            totalCount: plan.totalCount,
+            hiddenCount: plan.hiddenCount,
+            matchingEntryCount: plan.matchingEntryCount,
+            unfilteredVisibleCount: plan.unfilteredVisibleCount,
+            selectedEntryIdentifier: plan.selectedEntryIdentifier,
+            selectedFallbackEntryIdentifier: plan.selectedFallbackEntryIdentifier,
+            selectedFallbackReasonIdentifier: plan.selectedFallbackReasonIdentifier,
+            sessionRangeLabel: plan.sessionRangeLabel,
+            newestEntryIdentifier: plan.newestEntryIdentifier,
+            newestSessionNumber: plan.newestSessionNumber,
+            newestFilename: plan.newestFilename,
+            oldestEntryIdentifier: plan.oldestEntryIdentifier,
+            oldestSessionNumber: plan.oldestSessionNumber,
+            oldestFilename: plan.oldestFilename,
+            statusBuckets: plan.statusBuckets.map { bucket in
+                CinematicDiagnosticsReport.RunRecapShareArtifactRollupStatusBucketSnapshot(
+                    identifier: bucket.identifier,
+                    label: bucket.label,
+                    count: bucket.count
+                )
+            },
+            statusBucketSummary: plan.statusBucketSummary,
+            cleanupCandidateCount: plan.cleanupCandidateCount,
+            hiddenCleanupCandidateCount: plan.hiddenCleanupCandidateCount,
+            cleanupCandidateIdentifiers: plan.cleanupCandidateIdentifiers,
+            warningStateIdentifier: plan.warningStateIdentifier,
+            warningCount: plan.warningCount,
+            hiddenWarningCount: plan.hiddenWarningCount,
+            warningIdentifiers: plan.warningIdentifiers,
+            hasWarnings: plan.hasWarnings,
+            insightText: plan.insightText,
+            exportTextLength: plan.exportTextLength,
+            copyLabel: plan.copyLabel,
+            copyHelp: plan.copyHelp
         )
     }
 
