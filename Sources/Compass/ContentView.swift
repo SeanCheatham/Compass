@@ -371,6 +371,9 @@ private struct WorkspaceHeader: View {
             assessment: storageAssessment,
             preflight: storagePreflight
         )
+        let activitySourceStatus = ProjectActivitySourceStatus(
+            snapshot: project.activitySourceSnapshot
+        )
         let storageMigrationPlan = project.storageMigrationPlan()
         let storageActivationPlan = project.activeStorageActivationPlan()
         let storageActivationIsIdle = !project.isRunning && !project.isAutoPlaying && !project.isPaused
@@ -404,6 +407,9 @@ private struct WorkspaceHeader: View {
                     migrationPlan: storageMigrationPlan,
                     activationPlan: storageActivationPlan
                 )
+                if activitySourceStatus.isVisible {
+                    ProjectActivitySourceStatusPill(status: activitySourceStatus)
+                }
                 if storageActions.showsCandidatePreparation {
                     ProjectStorageMigrationButton(
                         project: project,
@@ -584,6 +590,36 @@ private struct ProjectStorageAssessmentPill: View {
         _ candidate: CompassWorkspaceStoragePreflight.ApplicationSupportCandidate
     ) -> String {
         "\(candidate.kind.displayName) support candidate: \(candidate.occupancy.displayName) \(candidate.url.path)"
+    }
+}
+
+private struct ProjectActivitySourceStatusPill: View {
+    var status: ProjectActivitySourceStatus
+
+    var body: some View {
+        HStack(spacing: 5) {
+            Image(systemName: status.systemImage)
+                .font(.system(size: 12, weight: .semibold))
+            Text(status.label)
+                .lineLimit(1)
+        }
+        .font(.caption.weight(.semibold))
+        .foregroundStyle(color)
+        .padding(.horizontal, 9)
+        .padding(.vertical, 5)
+        .background(color.opacity(status.severity == .healthy ? 0.10 : 0.12), in: Capsule())
+        .overlay {
+            Capsule()
+                .stroke(color.opacity(status.severity == .healthy ? 0.20 : 0.28))
+        }
+        .help(status.helpText)
+        .accessibilityLabel(status.accessibilityLabel)
+        .accessibilityValue(status.accessibilityValue)
+        .accessibilityHint(status.accessibilityHint)
+    }
+
+    private var color: Color {
+        storageAssessmentColor(for: status.severity)
     }
 }
 
