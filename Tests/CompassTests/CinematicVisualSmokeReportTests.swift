@@ -304,6 +304,8 @@ final class CinematicVisualSmokeReportTests: XCTestCase {
         XCTAssertEqual(summary.visualSmoke.presentation.attentionState, .normal)
         XCTAssertEqual(summary.visualSmoke.presentation.warningIdentifiers, [])
         XCTAssertEqual(summary.visualSmoke.presentation.needsAttention, false)
+        XCTAssertEqual(summary.attentionSummary.targets, [])
+        XCTAssertTrue(summary.attentionSummary.isEmpty)
         XCTAssertLessThanOrEqual(
             summary.visualSmoke.warningCountLabel.count,
             CinematicDiagnosticsSummary.visualSmokeCountMaxCharacters
@@ -348,6 +350,7 @@ final class CinematicVisualSmokeReportTests: XCTestCase {
         XCTAssertTrue(summary.exportText.contains("recipe rail.top,rail.bottom,seal.left,seal.right"))
         XCTAssertTrue(summary.exportText.contains("retry-braces: accent retry-braces"))
         XCTAssertTrue(summary.exportText.contains("primitives 5 rail.top,rail.bottom,retry.brace.left,retry.brace.right,retry.cross"))
+        XCTAssertFalse(summary.exportText.contains("Warning summary"))
         XCTAssertFalse(summary.sections.contains { $0.id == "visual-smoke" })
         XCTAssertEqual(summary.rows.count, CinematicDiagnosticsSummary.maxRows)
         XCTAssertEqual(
@@ -375,7 +378,7 @@ final class CinematicVisualSmokeReportTests: XCTestCase {
         )
     }
 
-    func testSummaryVisualSmokeSectionSurfacesInjectedWarningsWithoutChangingExportShape() throws {
+    func testSummaryVisualSmokeSectionSurfacesInjectedWarningsWithWarningSummary() throws {
         let report = try XCTUnwrap(CinematicDiagnostics.representativeSmokeMatrix().first)
 
         var missingTextureReport = report
@@ -425,16 +428,64 @@ final class CinematicVisualSmokeReportTests: XCTestCase {
             XCTAssertLessThanOrEqual(check.detail.count, CinematicVisualSmokeReport.detailMaxCharacters)
         }
 
+        XCTAssertEqual(
+            summary.attentionSummary.targets.map(\.targetGroupID),
+            ["visual-smoke", "plaque-treatment-legend"]
+        )
+        let visualSmokeTarget = try XCTUnwrap(
+            summary.attentionSummary.targets.first { $0.targetGroupID == "visual-smoke" }
+        )
+        XCTAssertEqual(visualSmokeTarget.id, "visual-smoke")
+        XCTAssertEqual(visualSmokeTarget.label, "Visual smoke")
+        XCTAssertEqual(visualSmokeTarget.warningCount, smoke.warningIdentifiers.count)
+        XCTAssertEqual(
+            visualSmokeTarget.visibleWarningIdentifiers,
+            Array(smoke.warningIdentifiers.prefix(CinematicDiagnosticsSummary.attentionSummaryMaxVisibleWarnings))
+        )
+        XCTAssertLessThanOrEqual(
+            visualSmokeTarget.visibleWarningIdentifiers.count,
+            CinematicDiagnosticsSummary.attentionSummaryMaxVisibleWarnings
+        )
+        XCTAssertLessThanOrEqual(
+            visualSmokeTarget.detail.count,
+            CinematicDiagnosticsSummary.attentionSummaryDetailMaxCharacters
+        )
+        let plaqueTarget = try XCTUnwrap(
+            summary.attentionSummary.targets.first { $0.targetGroupID == "plaque-treatment-legend" }
+        )
+        XCTAssertEqual(plaqueTarget.id, "plaque-treatment-legend")
+        XCTAssertEqual(plaqueTarget.label, "Plaque treatments")
+        XCTAssertEqual(plaqueTarget.warningCount, 1)
+        XCTAssertEqual(
+            plaqueTarget.visibleWarningIdentifiers,
+            ["visual-smoke.native-feedback-treatment-coverage"]
+        )
+        XCTAssertLessThanOrEqual(
+            summary.attentionSummary.targets.count,
+            CinematicDiagnosticsSummary.attentionSummaryMaxTargets
+        )
+
         XCTAssertFalse(summary.sections.contains { $0.id == "visual-smoke" })
         XCTAssertEqual(summary.rows.count, CinematicDiagnosticsSummary.maxRows)
         XCTAssertEqual(
             summary.exportText.components(separatedBy: "\n").count,
             summary.rows.count
                 + summary.sections.count
+                + summary.attentionSummary.targets.count
                 + summary.visualSmoke.checks.count
                 + summary.plaqueTreatmentLegend.rows.count
-                + 4
+                + 5
         )
+        XCTAssertTrue(summary.exportText.contains("Warning summary (2 targets)"))
+        XCTAssertTrue(
+            summary.exportText.contains("Visual smoke -> visual-smoke (\(smoke.warningIdentifiers.count) warnings):")
+        )
+        XCTAssertTrue(
+            summary.exportText.contains("Plaque treatments -> plaque-treatment-legend (1 warning):")
+        )
+        XCTAssertTrue(summary.exportText.contains("visual-smoke.asset-availability"))
+        XCTAssertTrue(summary.exportText.contains("visual-smoke.texture-role-coverage"))
+        XCTAssertTrue(summary.exportText.contains("visual-smoke.native-feedback-treatment-coverage"))
         XCTAssertTrue(summary.exportText.contains("Visual smoke (warning, 14 checks)"))
         XCTAssertTrue(summary.exportText.contains("Asset availability: warning"))
         XCTAssertTrue(summary.exportText.contains("warning visual-smoke.asset-availability"))
@@ -518,10 +569,41 @@ final class CinematicVisualSmokeReportTests: XCTestCase {
             summary.plaqueTreatmentLegend.rows.map(\.label),
             ["verify-seal", "warning-rails", "failure-fracture", "retry-braces"]
         )
+        XCTAssertEqual(
+            summary.attentionSummary.targets.map(\.targetGroupID),
+            ["visual-smoke", "plaque-treatment-legend"]
+        )
+        let visualSmokeTarget = try XCTUnwrap(
+            summary.attentionSummary.targets.first { $0.targetGroupID == "visual-smoke" }
+        )
+        XCTAssertEqual(visualSmokeTarget.warningCount, smoke.warningIdentifiers.count)
+        XCTAssertEqual(
+            visualSmokeTarget.visibleWarningIdentifiers,
+            Array(smoke.warningIdentifiers.prefix(CinematicDiagnosticsSummary.attentionSummaryMaxVisibleWarnings))
+        )
+        let plaqueTarget = try XCTUnwrap(
+            summary.attentionSummary.targets.first { $0.targetGroupID == "plaque-treatment-legend" }
+        )
+        XCTAssertEqual(plaqueTarget.warningCount, 1)
+        XCTAssertEqual(
+            plaqueTarget.visibleWarningIdentifiers,
+            ["visual-smoke.native-feedback-treatment-coverage"]
+        )
         for row in summary.plaqueTreatmentLegend.rows {
             XCTAssertLessThanOrEqual(row.label.count, CinematicDiagnosticsSummary.labelMaxCharacters)
             XCTAssertLessThanOrEqual(row.detail.count, CinematicDiagnosticsSummary.detailMaxCharacters)
         }
+        XCTAssertTrue(summary.exportText.contains("Warning summary (2 targets)"))
+        XCTAssertTrue(
+            summary.exportText.contains(
+                "Visual smoke -> visual-smoke (\(smoke.warningIdentifiers.count) warnings):"
+            )
+        )
+        XCTAssertTrue(
+            summary.exportText.contains(
+                "Plaque treatments -> plaque-treatment-legend (1 warning): 4 recipes | Warning"
+            )
+        )
         XCTAssertTrue(summary.exportText.contains("Plaque treatments (warning, 4 recipes)"))
         XCTAssertTrue(summary.exportText.contains("warning visual-smoke.native-feedback-treatment-coverage"))
     }

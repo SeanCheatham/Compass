@@ -1496,11 +1496,15 @@ struct CinematicDiagnosticsSummary: Equatable {
     static let detailMaxCharacters = 512
     static let headerDetailMaxCharacters = 128
     static let visualSmokeCountMaxCharacters = 24
+    static let attentionSummaryMaxTargets = 4
+    static let attentionSummaryMaxVisibleWarnings = 3
+    static let attentionSummaryDetailMaxCharacters = 96
 
     var rows: [Row]
     var sections: [Section]
     var visualSmoke: VisualSmokeSection
     var plaqueTreatmentLegend: PlaqueTreatmentLegend
+    var attentionSummary: AttentionSummary
     var exportText: String
 
     struct Row: Identifiable, Equatable {
@@ -1566,6 +1570,26 @@ struct CinematicDiagnosticsSummary: Equatable {
 
         var rowCountLabel: String {
             rows.count == 1 ? "1 recipe" : "\(rows.count) recipes"
+        }
+    }
+
+    struct AttentionSummary: Equatable {
+        var targets: [AttentionTarget]
+
+        var isEmpty: Bool {
+            targets.isEmpty
+        }
+    }
+
+    struct AttentionTarget: Identifiable, Equatable {
+        var targetGroupID: String
+        var label: String
+        var detail: String
+        var warningCount: Int
+        var visibleWarningIdentifiers: [String]
+
+        var id: String {
+            targetGroupID
         }
     }
 
@@ -1661,8 +1685,13 @@ struct CinematicDiagnosticsSummary: Equatable {
         sections = Self.makeSections(rows: self.rows)
         self.visualSmoke = Self.makeVisualSmokeSection(visualSmoke)
         plaqueTreatmentLegend = Self.makePlaqueTreatmentLegend(visualSmoke: self.visualSmoke)
+        attentionSummary = Self.makeAttentionSummary(
+            visualSmoke: self.visualSmoke,
+            plaqueTreatmentLegend: plaqueTreatmentLegend
+        )
         exportText = Self.makeExportText(
             report: report,
+            attentionSummary: attentionSummary,
             sections: sections,
             visualSmoke: self.visualSmoke,
             plaqueTreatmentLegend: plaqueTreatmentLegend
@@ -2011,6 +2040,58 @@ struct CinematicDiagnosticsSummary: Equatable {
         return states
     }
 
+    private static func makeAttentionSummary(
+        visualSmoke: VisualSmokeSection,
+        plaqueTreatmentLegend: PlaqueTreatmentLegend
+    ) -> AttentionSummary {
+        let targets = [
+            attentionTarget(
+                targetGroupID: visualSmoke.id,
+                label: visualSmoke.label,
+                detail: [
+                    visualSmoke.checkCountLabel,
+                    visualSmoke.statusLabel
+                ].joined(separator: " | "),
+                presentation: visualSmoke.presentation
+            ),
+            attentionTarget(
+                targetGroupID: plaqueTreatmentLegend.id,
+                label: plaqueTreatmentLegend.label,
+                detail: [
+                    plaqueTreatmentLegend.rowCountLabel,
+                    plaqueTreatmentLegend.statusLabel
+                ].joined(separator: " | "),
+                presentation: plaqueTreatmentLegend.presentation
+            )
+        ]
+        .compactMap { $0 }
+        .prefix(attentionSummaryMaxTargets)
+
+        return AttentionSummary(targets: Array(targets))
+    }
+
+    private static func attentionTarget(
+        targetGroupID: String,
+        label: String,
+        detail: String,
+        presentation: PresentationMetadata
+    ) -> AttentionTarget? {
+        guard presentation.needsAttention else {
+            return nil
+        }
+
+        let warningCount = presentation.warningIdentifiers.isEmpty ? 1 : presentation.warningIdentifiers.count
+        return AttentionTarget(
+            targetGroupID: targetGroupID,
+            label: bounded(label, limit: labelMaxCharacters),
+            detail: bounded(detail, limit: attentionSummaryDetailMaxCharacters),
+            warningCount: warningCount,
+            visibleWarningIdentifiers: Array(
+                presentation.warningIdentifiers.prefix(attentionSummaryMaxVisibleWarnings)
+            )
+        )
+    }
+
     private static func makeVisualSmokeSection(
         _ report: CinematicVisualSmokeReport
     ) -> VisualSmokeSection {
@@ -2103,6 +2184,7 @@ struct CinematicDiagnosticsSummary: Equatable {
 
     private static func makeExportText(
         report: CinematicDiagnosticsReport,
+        attentionSummary: AttentionSummary,
         sections: [Section],
         visualSmoke: VisualSmokeSection,
         plaqueTreatmentLegend: PlaqueTreatmentLegend
@@ -2111,6 +2193,18 @@ struct CinematicDiagnosticsSummary: Equatable {
             "Cinematic Diagnostics",
             "Report: \(bounded(report.identifier, limit: detailMaxCharacters))"
         ]
+
+        if !attentionSummary.targets.isEmpty {
+            lines.append(
+                "Warning summary (\(rowCountCopy(attentionSummary.targets.count, singular: "target", plural: "targets")))"
+            )
+            lines.append(contentsOf: attentionSummary.targets.map { target in
+                let visibleWarnings = target.visibleWarningIdentifiers.isEmpty
+                    ? "no visible warning identifiers"
+                    : target.visibleWarningIdentifiers.joined(separator: ", ")
+                return "\(target.label) -> \(target.targetGroupID) (\(warningCountCopy(for: target.warningCount))): \(target.detail) | \(visibleWarnings)"
+            })
+        }
 
         for section in sections {
             lines.append("\(section.label) (\(section.rowCountLabel))")

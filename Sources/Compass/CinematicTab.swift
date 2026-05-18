@@ -581,6 +581,7 @@ private struct CinematicDiagnosticsPopover: View {
     var summary: CinematicDiagnosticsSummary
     @State private var copied = false
     @State private var groupExpansion: [String: Bool] = [:]
+    @FocusState private var focusedGroupID: String?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -600,29 +601,33 @@ private struct CinematicDiagnosticsPopover: View {
                 .help("Copy diagnostics report")
             }
 
-            ScrollView {
-                VStack(alignment: .leading, spacing: 12) {
-                    ForEach(summary.sections) { section in
-                        diagnosticsDisclosureGroup(
-                            id: section.id,
-                            presentation: section.presentation
-                        ) {
-                            diagnosticsHeader(
-                                title: section.label,
+            ScrollViewReader { scrollProxy in
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 12) {
+                        attentionSummarySection(scrollProxy: scrollProxy)
+
+                        ForEach(summary.sections) { section in
+                            diagnosticsDisclosureGroup(
+                                id: section.id,
                                 presentation: section.presentation
-                            )
-                        } content: {
-                            diagnosticsRows(section.rows)
+                            ) {
+                                diagnosticsHeader(
+                                    title: section.label,
+                                    presentation: section.presentation
+                                )
+                            } content: {
+                                diagnosticsRows(section.rows)
+                            }
                         }
+
+                        visualSmokeSection
+
+                        plaqueTreatmentLegendSection
                     }
-
-                    visualSmokeSection
-
-                    plaqueTreatmentLegendSection
+                    .padding(.trailing, 4)
                 }
-                .padding(.trailing, 4)
+                .frame(maxHeight: 360)
             }
-            .frame(maxHeight: 360)
         }
         .padding(14)
         .frame(width: 430, alignment: .leading)
@@ -632,6 +637,63 @@ private struct CinematicDiagnosticsPopover: View {
         }
         .onAppear {
             resetExpansionDefaults()
+        }
+    }
+
+    @ViewBuilder
+    private func attentionSummarySection(scrollProxy: ScrollViewProxy) -> some View {
+        if !summary.attentionSummary.isEmpty {
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Warnings")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.orange)
+
+                ForEach(summary.attentionSummary.targets) { target in
+                    Button {
+                        jumpToAttentionTarget(target, scrollProxy: scrollProxy)
+                    } label: {
+                        HStack(alignment: .center, spacing: 8) {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .font(.caption.weight(.bold))
+                                .foregroundStyle(.orange)
+                                .frame(width: 13)
+
+                            VStack(alignment: .leading, spacing: 2) {
+                                HStack(alignment: .firstTextBaseline, spacing: 5) {
+                                    Text(target.label)
+                                        .font(.caption.weight(.semibold))
+                                        .foregroundStyle(.primary)
+
+                                    Text(target.targetGroupID)
+                                        .font(.caption2.monospaced())
+                                        .foregroundStyle(.secondary)
+                                }
+
+                                Text(attentionTargetDetail(target))
+                                    .font(.caption2.monospaced())
+                                    .foregroundStyle(.secondary)
+                                    .lineLimit(2)
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+
+                            Text("\(target.warningCount)")
+                                .font(.caption2.monospacedDigit().weight(.bold))
+                                .foregroundStyle(.orange)
+                                .frame(minWidth: 16)
+                        }
+                        .padding(.horizontal, 7)
+                        .padding(.vertical, 6)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(.orange.opacity(0.12), in: RoundedRectangle(cornerRadius: 6))
+                        .overlay {
+                            RoundedRectangle(cornerRadius: 6)
+                                .stroke(.orange.opacity(0.35))
+                        }
+                    }
+                    .buttonStyle(.plain)
+                    .help("Show \(target.label)")
+                }
+            }
         }
     }
 
@@ -745,6 +807,9 @@ private struct CinematicDiagnosticsPopover: View {
         } label: {
             header()
         }
+        .id(id)
+        .focusable()
+        .focused($focusedGroupID, equals: id)
     }
 
     private func diagnosticsHeader(
@@ -800,11 +865,32 @@ private struct CinematicDiagnosticsPopover: View {
 
     private func resetExpansionDefaults() {
         groupExpansion = summary.defaultExpandedGroupStates
+        focusedGroupID = nil
     }
 
     private func copyToPasteboard(_ text: String) {
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(text, forType: .string)
+    }
+
+    private func jumpToAttentionTarget(
+        _ target: CinematicDiagnosticsSummary.AttentionTarget,
+        scrollProxy: ScrollViewProxy
+    ) {
+        groupExpansion[target.targetGroupID] = true
+        withAnimation(.easeInOut(duration: 0.16)) {
+            scrollProxy.scrollTo(target.targetGroupID, anchor: .top)
+        }
+        focusedGroupID = target.targetGroupID
+    }
+
+    private func attentionTargetDetail(
+        _ target: CinematicDiagnosticsSummary.AttentionTarget
+    ) -> String {
+        let warnings = target.visibleWarningIdentifiers.isEmpty
+            ? "warnings unavailable"
+            : target.visibleWarningIdentifiers.joined(separator: ", ")
+        return "\(target.detail) | \(warnings)"
     }
 
     private func detailLineLimit(for row: CinematicDiagnosticsSummary.Row) -> Int {

@@ -743,6 +743,9 @@ final class CinematicDiagnosticsTests: XCTestCase {
         let summary = CinematicDiagnosticsSummary(report: report)
 
         XCTAssertTrue(summary.exportText.hasPrefix("Cinematic Diagnostics\n"))
+        XCTAssertTrue(summary.attentionSummary.isEmpty)
+        XCTAssertEqual(summary.attentionSummary.targets, [])
+        XCTAssertFalse(summary.exportText.contains("Warning summary"))
         XCTAssertEqual(
             summary.exportText.components(separatedBy: "\n").count,
             summary.rows.count
