@@ -11,6 +11,7 @@ struct CinematicTab: View {
         GeometryReader { proxy in
             let caption = CinematicCaption(project: project)
             let displayPlan = cinematicOverlayDisplayPlan
+            let nativeFeedbackCue = project.cinematicNativeFeedbackCue
             let reliabilityFeedback = PlanReliabilityFeedback(
                 state: project.state,
                 sessions: project.sessions
@@ -61,6 +62,13 @@ struct CinematicTab: View {
                 VStack(alignment: .leading, spacing: 10) {
                     CinematicTabOverlayModePicker(selection: $overlayMode)
 
+                    if let nativeFeedbackCue {
+                        CinematicNativeFeedbackBanner(
+                            cue: nativeFeedbackCue,
+                            displayPlan: displayPlan
+                        )
+                    }
+
                     if overlayMode == .timeline {
                         CinematicTimelineOverlay(
                             plan: timelinePlan,
@@ -74,7 +82,11 @@ struct CinematicTab: View {
                                 displayPlan: displayPlan
                             )
                         }
-                        CinematicHUD(caption: caption, displayPlan: displayPlan)
+                        CinematicHUD(
+                            caption: caption,
+                            nativeFeedbackCue: nativeFeedbackCue,
+                            displayPlan: displayPlan
+                        )
                     }
                 }
                 .padding(18)
@@ -133,7 +145,8 @@ struct CinematicTab: View {
             languageProfile: project.languageProfile,
             activityProfile: project.activityProfile,
             influenceSettings: project.cinematicInfluenceSettings,
-            narrativeCueReadability: readability
+            narrativeCueReadability: readability,
+            nativeFeedbackCue: project.cinematicNativeFeedbackCue
         )
     }
 }
@@ -169,6 +182,71 @@ private struct CinematicTabOverlayModePicker: View {
         .frame(width: 174)
         .background(.black.opacity(0.28), in: RoundedRectangle(cornerRadius: 7))
         .help("Switch cinematic overlay mode")
+    }
+}
+
+private struct CinematicNativeFeedbackBanner: View {
+    var cue: CinematicNativeFeedbackCuePlan
+    var displayPlan: CinematicOverlayDisplayPlan
+
+    var body: some View {
+        let tint = cue.style.color
+
+        HStack(alignment: .top, spacing: 8) {
+            Image(systemName: cue.systemImage)
+                .font(.system(size: 13, weight: .bold))
+                .foregroundStyle(tint.opacity(displayPlan.hudIconEmphasis))
+                .frame(width: 17)
+
+            VStack(alignment: .leading, spacing: 3) {
+                HStack(alignment: .firstTextBaseline, spacing: 7) {
+                    Text(cue.title)
+                        .font(.callout.weight(.semibold))
+                        .foregroundStyle(.white.opacity(displayPlan.hudTitleEmphasis))
+                        .lineLimit(displayPlan.hudTitleLineLimit)
+                        .minimumScaleFactor(0.82)
+
+                    Text(cue.phaseLabel)
+                        .font(.caption2.weight(.bold))
+                        .foregroundStyle(tint.opacity(0.9))
+                        .lineLimit(1)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(tint.opacity(0.16), in: Capsule())
+                }
+
+                Text(cue.detail)
+                    .font(.caption)
+                    .foregroundStyle(.white.opacity(displayPlan.hudDetailTextEmphasis))
+                    .lineLimit(min(2, displayPlan.hudDetailLineLimit))
+                    .fixedSize(horizontal: false, vertical: true)
+
+                Text(cue.status)
+                    .font(.caption2.monospacedDigit().weight(.semibold))
+                    .foregroundStyle(.white.opacity(displayPlan.hudStatusTextEmphasis))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.82)
+            }
+        }
+        .padding(.horizontal, CGFloat(max(10, displayPlan.hudHorizontalPadding - 1)))
+        .padding(.vertical, CGFloat(max(7, displayPlan.hudVerticalPadding - 2)))
+        .frame(maxWidth: CGFloat(min(displayPlan.hudMaxWidth, 520)), alignment: .leading)
+        .background(
+            .black.opacity(min(0.54, displayPlan.hudBackgroundOpacity + 0.12) * displayPlan.overlayOpacity),
+            in: RoundedRectangle(cornerRadius: CGFloat(displayPlan.hudCornerRadius))
+        )
+        .overlay {
+            RoundedRectangle(cornerRadius: CGFloat(displayPlan.hudCornerRadius))
+                .stroke(tint.opacity(max(0.16, displayPlan.hudStrokeOpacity)), lineWidth: 1)
+        }
+        .overlay(alignment: .leading) {
+            Rectangle()
+                .fill(tint.opacity(displayPlan.hudAccentOpacity))
+                .frame(width: 3)
+                .clipShape(RoundedRectangle(cornerRadius: 2))
+        }
+        .help(cue.detail)
+        .accessibilityIdentifier("cinematic-native-feedback-\(cue.identifier)")
     }
 }
 
@@ -684,20 +762,28 @@ private struct CinematicWorldTextPill: View {
 
 private struct CinematicHUD: View {
     var caption: CinematicCaption
+    var nativeFeedbackCue: CinematicNativeFeedbackCuePlan?
     var displayPlan: CinematicOverlayDisplayPlan
 
     var body: some View {
+        let tint = nativeFeedbackCue?.style.color ?? caption.color
+        let systemImage = nativeFeedbackCue?.systemImage ?? caption.systemImage
+        let title = nativeFeedbackCue?.title ?? caption.title
+        let detail = nativeFeedbackCue?.detail ?? caption.detail
+        let phase = nativeFeedbackCue?.phaseLabel ?? caption.phase
+        let status = nativeFeedbackCue?.status ?? caption.status
+
         VStack(alignment: .leading, spacing: 7) {
             HStack(spacing: 8) {
-                Image(systemName: caption.systemImage)
+                Image(systemName: systemImage)
                     .font(.system(size: 15, weight: .semibold))
-                    .foregroundStyle(caption.color.opacity(displayPlan.hudIconEmphasis))
-                Text(caption.title)
+                    .foregroundStyle(tint.opacity(displayPlan.hudIconEmphasis))
+                Text(title)
                     .font(.headline.weight(.semibold))
                     .foregroundStyle(.white.opacity(displayPlan.hudTitleEmphasis))
                     .lineLimit(displayPlan.hudTitleLineLimit)
                     .minimumScaleFactor(0.82)
-                Text(caption.phase)
+                Text(phase)
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(.white.opacity(displayPlan.hudStatusTextEmphasis))
                     .padding(.horizontal, 7)
@@ -709,31 +795,35 @@ private struct CinematicHUD: View {
             }
 
             if displayPlan.showsHUDDetail {
-                Text(caption.detail)
+                Text(detail)
                     .font(.callout)
                     .foregroundStyle(.white.opacity(displayPlan.hudDetailTextEmphasis))
                     .lineLimit(displayPlan.hudDetailLineLimit)
                     .fixedSize(horizontal: false, vertical: true)
             }
 
-            if displayPlan.showsHUDProfiles, let repositoryProfile = caption.repositoryProfile {
+            if nativeFeedbackCue == nil,
+               displayPlan.showsHUDProfiles,
+               let repositoryProfile = caption.repositoryProfile {
                 Text(repositoryProfile)
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(caption.profileColor.opacity(displayPlan.hudDetailTextEmphasis))
                     .lineLimit(displayPlan.hudProfileLineLimit)
             }
 
-            if displayPlan.showsHUDProfiles, let activityProfile = caption.activityProfile {
+            if nativeFeedbackCue == nil,
+               displayPlan.showsHUDProfiles,
+               let activityProfile = caption.activityProfile {
                 Text(activityProfile)
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(caption.activityColor.opacity(displayPlan.hudStatusTextEmphasis))
                     .lineLimit(displayPlan.hudProfileLineLimit)
             }
 
-            if let status = caption.status {
+            if let status {
                 Text(status)
                     .font(.caption.weight(.semibold))
-                    .foregroundStyle(caption.color.opacity(displayPlan.hudStatusTextEmphasis))
+                    .foregroundStyle(tint.opacity(displayPlan.hudStatusTextEmphasis))
                     .lineLimit(displayPlan.hudStatusLineLimit)
             }
         }
@@ -750,7 +840,7 @@ private struct CinematicHUD: View {
         }
         .overlay(alignment: .leading) {
             Rectangle()
-                .fill(caption.color.opacity(displayPlan.hudAccentOpacity))
+                .fill(tint.opacity(displayPlan.hudAccentOpacity))
                 .frame(width: 3)
                 .clipShape(RoundedRectangle(cornerRadius: 2))
         }
@@ -865,6 +955,29 @@ private struct CinematicCaption {
                 .map(String.init)
         }
         return line.text.isEmpty ? nil : line.text
+    }
+}
+
+private extension CinematicNativeFeedbackCuePlan.Style {
+    var color: Color {
+        switch self {
+        case .plan:
+            return .indigo
+        case .develop:
+            return .cyan
+        case .verify:
+            return .yellow
+        case .success:
+            return .green
+        case .warning:
+            return .orange
+        case .failure:
+            return .red
+        case .paused:
+            return .blue
+        case .idle:
+            return .secondary
+        }
     }
 }
 

@@ -145,6 +145,7 @@ final class CinematicOverlayDisplayPlanTests: XCTestCase {
             XCTAssertFalse(plan.chromeStyleIdentifier.isEmpty)
             XCTAssertFalse(plan.reasonIdentifier.isEmpty)
             XCTAssertFalse(plan.narrativeCueReadabilityIdentifier.isEmpty)
+            XCTAssertFalse(plan.nativeFeedbackCueIdentifier.isEmpty)
         }
     }
 
@@ -165,6 +166,30 @@ final class CinematicOverlayDisplayPlanTests: XCTestCase {
         XCTAssertTrue(first.chromeStyleIdentifier.contains("pill:bg"))
         XCTAssertTrue(first.chromeStyleIdentifier.contains("hud:bg"))
         XCTAssertTrue(first.chromeStyleIdentifier.contains("status"))
+    }
+
+    func testOverlayIdentifierCarriesNativeFeedbackCue() throws {
+        let nativeCue = try XCTUnwrap(
+            CinematicNativeFeedbackCuePlanner.plan(
+                milestone: .verifyStarted,
+                content: NativeFeedbackContent(milestone: .verifyStarted, projectName: "Editor"),
+                phase: .verifying,
+                feedbackMode: .notifications,
+                recentRunCues: [:]
+            )
+        )
+
+        let plan = makeOverlayPlan(
+            phase: .verifying,
+            nativeFeedbackCue: nativeCue
+        )
+        let plain = makeOverlayPlan(phase: .verifying)
+
+        XCTAssertEqual(plan.nativeFeedbackCueIdentifier, nativeCue.identifier)
+        XCTAssertTrue(plan.identifier.contains("native:\(nativeCue.identifier)"))
+        XCTAssertEqual(plain.nativeFeedbackCueIdentifier, "none")
+        XCTAssertTrue(plain.identifier.contains("native:none"))
+        XCTAssertNotEqual(plan.identifier, plain.identifier)
     }
 
     func testNarrativeCueReadabilityFromPlannerEnablesCompactOverlay() {
@@ -215,7 +240,8 @@ private func makeOverlayPlan(
     languageProfile: RepositoryLanguageProfile = languageProfile(primaryLanguage: .swift),
     activityProfile: RepositoryActivityProfile = activityProfile(worktreeChanges: worktreeChanges(modified: 2)),
     influenceSettings: CinematicInfluenceSettings = CinematicInfluenceSettings(cameraStyle: .follow, intensity: 0.6),
-    readability: CinematicNarrativeCueReadabilitySignals = readableSignals()
+    readability: CinematicNarrativeCueReadabilitySignals = readableSignals(),
+    nativeFeedbackCue: CinematicNativeFeedbackCuePlan? = nil
 ) -> CinematicOverlayDisplayPlan {
     CinematicOverlayDisplayPlanner.plan(
         phase: phase,
@@ -228,7 +254,8 @@ private func makeOverlayPlan(
         languageProfile: languageProfile,
         activityProfile: activityProfile,
         influenceSettings: influenceSettings,
-        narrativeCueReadability: readability
+        narrativeCueReadability: readability,
+        nativeFeedbackCue: nativeFeedbackCue
     )
 }
 

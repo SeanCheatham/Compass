@@ -406,7 +406,13 @@ final class CompassProject: ObservableObject, Identifiable {
     @Published var languageProfile = RepositoryLanguageProfile.empty
     @Published var activityProfile = RepositoryActivityProfile.empty
     @Published var cinematicInfluenceSettings: CinematicInfluenceSettings
-    @Published var nativeFeedbackMode: NativeFeedbackMode
+    @Published var cinematicNativeFeedbackCue: CinematicNativeFeedbackCuePlan?
+    @Published var nativeFeedbackMode: NativeFeedbackMode {
+        didSet {
+            guard nativeFeedbackMode == .off else { return }
+            cinematicNativeFeedbackCue = nil
+        }
+    }
     @Published var liveLog: [LiveLine] = []
     @Published var phase: LoopPhase = .idle {
         didSet {
@@ -1759,7 +1765,22 @@ extension CompassProject {
             }
     }
 
+    func recordCinematicNativeFeedback(_ milestone: NativeFeedbackMilestone) {
+        let reliabilityFeedback = PlanReliabilityFeedback(
+            state: state,
+            sessions: sessions
+        )
+        cinematicNativeFeedbackCue = CinematicNativeFeedbackCuePlanner.plan(
+            milestone: milestone,
+            content: NativeFeedbackContent(milestone: milestone, projectName: displayName),
+            phase: isPaused ? .paused : phase,
+            feedbackMode: nativeFeedbackMode,
+            recentRunCues: reliabilityFeedback.recentRunCues
+        )
+    }
+
     private func feedback(_ milestone: NativeFeedbackMilestone) {
+        recordCinematicNativeFeedback(milestone)
         NativeFeedbackService.shared.emit(
             milestone,
             projectName: displayName,

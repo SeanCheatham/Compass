@@ -51,7 +51,7 @@ enum NativeFeedbackMode: String, CaseIterable, Codable, Identifiable {
     }
 }
 
-enum NativeFeedbackMilestone: String {
+enum NativeFeedbackMilestone: String, CaseIterable {
     case planAccepted
     case developStarted
     case verifyStarted
