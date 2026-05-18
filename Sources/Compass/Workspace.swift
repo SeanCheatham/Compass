@@ -1086,6 +1086,399 @@ struct CompassWorkspaceStorageBoundary: Equatable {
     }
 }
 
+struct CompassWorkspaceStorageDisplayStatus: Equatable {
+    static let labelLimit = 38
+    static let detailLimit = 220
+    static let recommendationLimit = 160
+
+    var repoURL: URL
+    var activeStorage: KnownProjectActiveStorage
+    var applicationSupportRoots: KnownProjectStore.ApplicationSupportRoots
+    var activeStorageRootURL: URL
+    var projectStorageIdentifier: String
+    var currentApplicationSupportCandidateURL: URL
+    var legacyApplicationSupportCandidateURL: URL
+    var assessmentKind: CompassWorkspaceStorageAssessment.Kind
+    var preflightKind: CompassWorkspaceStoragePreflight.Kind
+    var repoLocalReadiness: CompassWorkspaceStoragePreflight.RepoLocalReadiness
+    var migrationCouldBeTechnicallyEligible: Bool
+    var activeRootFacts: ActiveRootFacts
+    var status: Status
+
+    var kind: Kind { status.kind }
+    var severity: CompassWorkspaceStorageAssessment.Severity { status.severity }
+    var label: String { status.label }
+    var detail: String { status.detail }
+    var recommendation: String { status.recommendation }
+    var systemImage: String { status.systemImage }
+    var activeRootHealth: ActiveRootHealth { activeRootFacts.health }
+
+    var activeStorageDisplayName: String {
+        switch activeStorage {
+        case .repoLocal:
+            return "repo-local .compass/"
+        case .applicationSupport:
+            return "Application Support"
+        }
+    }
+
+    init(
+        repoURL: URL,
+        activeStorage: KnownProjectActiveStorage,
+        applicationSupportRoots: KnownProjectStore.ApplicationSupportRoots = KnownProjectStore.productionApplicationSupportRoots(),
+        fileManager: FileManager = .default
+    ) {
+        let standardizedRepoURL = repoURL.standardizedFileURL
+        let assessment = CompassWorkspaceStorageAssessment(
+            repoURL: standardizedRepoURL,
+            applicationSupportRoots: applicationSupportRoots,
+            fileManager: fileManager
+        )
+        let preflight = CompassWorkspaceStoragePreflight(assessment: assessment)
+        let activeStorageRootURL = CompassProjectStorageResolver.storageRootURL(
+            for: standardizedRepoURL,
+            activeStorage: activeStorage,
+            applicationSupportRoots: applicationSupportRoots
+        )
+        self.init(
+            repoURL: standardizedRepoURL,
+            activeStorage: activeStorage,
+            applicationSupportRoots: applicationSupportRoots,
+            activeStorageRootURL: activeStorageRootURL,
+            assessment: assessment,
+            preflight: preflight,
+            fileManager: fileManager
+        )
+    }
+
+    init(
+        repoURL: URL,
+        activeStorage: KnownProjectActiveStorage,
+        applicationSupportRoots: KnownProjectStore.ApplicationSupportRoots,
+        activeStorageRootURL: URL,
+        assessment: CompassWorkspaceStorageAssessment,
+        preflight: CompassWorkspaceStoragePreflight,
+        fileManager: FileManager = .default
+    ) {
+        let facts: ActiveRootFacts
+        switch activeStorage {
+        case .repoLocal:
+            facts = ActiveRootFacts(assessmentFacts: assessment.facts)
+        case .applicationSupport:
+            facts = Self.collectActiveRootFacts(
+                repoURL: assessment.repoURL,
+                activeStorageRootURL: activeStorageRootURL,
+                fileManager: fileManager
+            )
+        }
+        self.init(
+            repoURL: repoURL,
+            activeStorage: activeStorage,
+            applicationSupportRoots: applicationSupportRoots,
+            activeStorageRootURL: activeStorageRootURL,
+            assessment: assessment,
+            preflight: preflight,
+            activeRootFacts: facts
+        )
+    }
+
+    init(
+        repoURL: URL,
+        activeStorage: KnownProjectActiveStorage,
+        applicationSupportRoots: KnownProjectStore.ApplicationSupportRoots,
+        activeStorageRootURL: URL,
+        assessment: CompassWorkspaceStorageAssessment,
+        preflight: CompassWorkspaceStoragePreflight,
+        activeRootFacts: ActiveRootFacts
+    ) {
+        let standardizedRepoURL = repoURL.standardizedFileURL
+        let standardizedActiveRootURL = activeStorageRootURL.standardizedFileURL
+        let boundary = CompassWorkspaceStorageBoundary(assessment: assessment, preflight: preflight)
+
+        self.repoURL = standardizedRepoURL
+        self.activeStorage = activeStorage
+        self.applicationSupportRoots = applicationSupportRoots
+        self.activeStorageRootURL = standardizedActiveRootURL
+        projectStorageIdentifier = assessment.projectStorageIdentifier
+        currentApplicationSupportCandidateURL = assessment.currentApplicationSupportCandidateURL
+        legacyApplicationSupportCandidateURL = assessment.legacyApplicationSupportCandidateURL
+        assessmentKind = assessment.kind
+        preflightKind = preflight.kind
+        repoLocalReadiness = preflight.repoLocalReadiness
+        migrationCouldBeTechnicallyEligible = preflight.migrationWouldBeSafe
+        self.activeRootFacts = activeRootFacts
+        status = Self.status(
+            repoURL: standardizedRepoURL,
+            activeStorage: activeStorage,
+            activeStorageRootURL: standardizedActiveRootURL,
+            activeRootFacts: activeRootFacts,
+            preflight: preflight,
+            boundary: boundary
+        )
+    }
+
+    enum Kind: String, Equatable {
+        case repoLocalRecommended
+        case repoLocalRepairFirst
+        case applicationSupportInspectOnlyConflict
+        case applicationSupportActive
+        case applicationSupportActiveMissing
+        case applicationSupportActiveIncomplete
+    }
+
+    enum ActiveRootHealth: String, Equatable {
+        case healthy
+        case missing
+        case incomplete
+
+        var displayName: String {
+            switch self {
+            case .healthy:
+                return "healthy"
+            case .missing:
+                return "missing"
+            case .incomplete:
+                return "incomplete"
+            }
+        }
+    }
+
+    struct ActiveRootFacts: Equatable {
+        var directoryExists: Bool
+        var presentCoreFiles: Set<CompassWorkspaceStorageAssessment.CoreFile>
+        var sessionsDirectoryExists: Bool
+
+        var missingCoreFiles: [CompassWorkspaceStorageAssessment.CoreFile] {
+            CompassWorkspaceStorageAssessment.CoreFile.allCases.filter { !presentCoreFiles.contains($0) }
+        }
+
+        var missingItems: [String] {
+            missingCoreFiles.map(\.relativePath) + (sessionsDirectoryExists ? [] : ["sessions/"])
+        }
+
+        var health: ActiveRootHealth {
+            guard directoryExists else { return .missing }
+            return missingItems.isEmpty ? .healthy : .incomplete
+        }
+
+        init(
+            directoryExists: Bool,
+            presentCoreFiles: Set<CompassWorkspaceStorageAssessment.CoreFile>,
+            sessionsDirectoryExists: Bool
+        ) {
+            self.directoryExists = directoryExists
+            self.presentCoreFiles = presentCoreFiles
+            self.sessionsDirectoryExists = sessionsDirectoryExists
+        }
+
+        init(assessmentFacts: CompassWorkspaceStorageAssessment.Facts) {
+            self.init(
+                directoryExists: assessmentFacts.compassDirectoryExists,
+                presentCoreFiles: assessmentFacts.presentCoreFiles,
+                sessionsDirectoryExists: assessmentFacts.sessionsDirectoryExists
+            )
+        }
+    }
+
+    struct Status: Equatable {
+        var kind: Kind
+        var severity: CompassWorkspaceStorageAssessment.Severity
+        var label: String
+        var detail: String
+        var recommendation: String
+        var systemImage: String
+    }
+
+    private static func collectActiveRootFacts(
+        repoURL: URL,
+        activeStorageRootURL: URL,
+        fileManager: FileManager
+    ) -> ActiveRootFacts {
+        let workspace = CompassWorkspace(repoURL: repoURL, storageRootURL: activeStorageRootURL)
+        let rootDirectoryExists = directoryExists(activeStorageRootURL, fileManager: fileManager)
+        let presentCoreFiles = Set(CompassWorkspaceStorageAssessment.CoreFile.allCases.filter { coreFile in
+            fileExists(url(for: coreFile, in: workspace), fileManager: fileManager)
+        })
+
+        return ActiveRootFacts(
+            directoryExists: rootDirectoryExists,
+            presentCoreFiles: presentCoreFiles,
+            sessionsDirectoryExists: directoryExists(workspace.sessionsURL, fileManager: fileManager)
+        )
+    }
+
+    private static func status(
+        repoURL: URL,
+        activeStorage: KnownProjectActiveStorage,
+        activeStorageRootURL: URL,
+        activeRootFacts: ActiveRootFacts,
+        preflight: CompassWorkspaceStoragePreflight,
+        boundary: CompassWorkspaceStorageBoundary
+    ) -> Status {
+        switch activeStorage {
+        case .repoLocal:
+            return status(
+                kind: displayKind(for: boundary.kind),
+                severity: boundary.severity,
+                label: boundary.label,
+                detail: boundary.detail,
+                recommendation: boundary.recommendation,
+                systemImage: boundary.systemImage
+            )
+        case .applicationSupport:
+            return applicationSupportStatus(
+                repoURL: repoURL,
+                activeStorageRootURL: activeStorageRootURL,
+                activeRootFacts: activeRootFacts,
+                preflight: preflight
+            )
+        }
+    }
+
+    private static func applicationSupportStatus(
+        repoURL: URL,
+        activeStorageRootURL: URL,
+        activeRootFacts: ActiveRootFacts,
+        preflight: CompassWorkspaceStoragePreflight
+    ) -> Status {
+        switch activeRootFacts.health {
+        case .healthy:
+            return status(
+                kind: .applicationSupportActive,
+                severity: .healthy,
+                label: "Support storage active",
+                detail: "Current Compass state root is \(boundedPath(activeStorageRootURL.path, limit: 128)); repoURL remains \(boundedPath(repoURL.path, limit: 72)).",
+                recommendation: supportCompatibilityRecommendation(for: preflight.repoLocalReadiness),
+                systemImage: "externaldrive.fill.badge.checkmark"
+            )
+        case .missing:
+            return status(
+                kind: .applicationSupportActiveMissing,
+                severity: .warning,
+                label: "Support storage missing",
+                detail: "Active Application Support state root is missing at \(boundedPath(activeStorageRootURL.path, limit: 144)).",
+                recommendation: "Restore or initialize the active support root before running Compass.",
+                systemImage: "folder.badge.questionmark"
+            )
+        case .incomplete:
+            return status(
+                kind: .applicationSupportActiveIncomplete,
+                severity: .failure,
+                label: "Support storage incomplete",
+                detail: "Active Application Support state root is missing \(activeRootFacts.missingItems.joined(separator: ", ")) at \(boundedPath(activeStorageRootURL.path, limit: 112)).",
+                recommendation: "Restore the active support storage skeleton before running Compass.",
+                systemImage: "exclamationmark.triangle.fill"
+            )
+        }
+    }
+
+    private static func supportCompatibilityRecommendation(
+        for readiness: CompassWorkspaceStoragePreflight.RepoLocalReadiness
+    ) -> String {
+        switch readiness {
+        case .ready:
+            return "Repo-local compatibility is ready; Application Support remains the active state root."
+        case .missingWorkspace:
+            return "Repo-local .compass/ is absent; Application Support remains the active state root."
+        case .incompleteWorkspace:
+            return "Repo-local .compass/ is incomplete; Application Support remains the active state root."
+        }
+    }
+
+    private static func displayKind(for boundaryKind: CompassWorkspaceStorageBoundary.Kind) -> Kind {
+        switch boundaryKind {
+        case .repoLocalRecommended:
+            return .repoLocalRecommended
+        case .repoLocalRepairFirst:
+            return .repoLocalRepairFirst
+        case .applicationSupportInspectOnlyConflict:
+            return .applicationSupportInspectOnlyConflict
+        }
+    }
+
+    private static func status(
+        kind: Kind,
+        severity: CompassWorkspaceStorageAssessment.Severity,
+        label: String,
+        detail: String,
+        recommendation: String,
+        systemImage: String
+    ) -> Status {
+        Status(
+            kind: kind,
+            severity: severity,
+            label: boundedText(label, limit: labelLimit),
+            detail: boundedText(detail, limit: detailLimit),
+            recommendation: boundedText(recommendation, limit: recommendationLimit),
+            systemImage: systemImage
+        )
+    }
+
+    private static func url(
+        for coreFile: CompassWorkspaceStorageAssessment.CoreFile,
+        in workspace: CompassWorkspace
+    ) -> URL {
+        switch coreFile {
+        case .state:
+            return workspace.stateURL
+        case .drafts:
+            return workspace.draftsURL
+        case .lessons:
+            return workspace.lessonsURL
+        case .vision:
+            return workspace.visionURL
+        case .sessionsRecord:
+            return workspace.sessionsRecordURL
+        }
+    }
+
+    private static func directoryExists(_ url: URL, fileManager: FileManager) -> Bool {
+        var isDirectory = ObjCBool(false)
+        return fileManager.fileExists(atPath: url.path, isDirectory: &isDirectory) && isDirectory.boolValue
+    }
+
+    private static func fileExists(_ url: URL, fileManager: FileManager) -> Bool {
+        var isDirectory = ObjCBool(false)
+        return fileManager.fileExists(atPath: url.path, isDirectory: &isDirectory) && !isDirectory.boolValue
+    }
+
+    private static func boundedPath(_ value: String, limit: Int) -> String {
+        guard value.count > limit else { return value }
+        guard limit > 1 else { return String(value.prefix(max(0, limit))) }
+        return "..." + value.suffix(max(0, limit - 3))
+    }
+
+    private static func boundedText(_ value: String, limit: Int) -> String {
+        guard limit > 0 else { return "" }
+        guard value.count > limit else { return value }
+        guard limit > 3 else { return String(value.prefix(limit)) }
+        return value.prefix(limit - 3)
+            .trimmingCharacters(in: .whitespacesAndNewlines) + "..."
+    }
+}
+
+struct CompassWorkspaceStorageHeaderActions: Equatable {
+    var showsCandidatePreparation: Bool
+    var showsActivation: Bool
+    var showsRepoLocalRepair: Bool
+
+    init(
+        activeStorage: KnownProjectActiveStorage,
+        candidatePreparationIsAvailable: Bool,
+        candidatePreparationShouldShowFeedback: Bool,
+        activationIsAvailable: Bool,
+        activationShouldShowFeedback: Bool,
+        activationIsIdle: Bool,
+        repoLocalRepairActionIsAvailable: Bool
+    ) {
+        showsCandidatePreparation = candidatePreparationShouldShowFeedback
+            || (activeStorage == .repoLocal && candidatePreparationIsAvailable)
+        showsActivation = activationShouldShowFeedback
+            || (activeStorage == .repoLocal && activationIsAvailable && activationIsIdle)
+        showsRepoLocalRepair = activeStorage == .repoLocal && repoLocalRepairActionIsAvailable
+    }
+}
+
 struct CompassWorkspaceStorageActivationPlan: Equatable {
     static let labelLimit = 34
     static let detailLimit = 220

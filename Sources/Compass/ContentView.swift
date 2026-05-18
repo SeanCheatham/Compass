@@ -357,11 +357,31 @@ private struct WorkspaceHeader: View {
             assessment: storageAssessment,
             preflight: storagePreflight
         )
+        let activeStorageRootURL = CompassProjectStorageResolver.storageRootURL(
+            for: project.repoURL,
+            activeStorage: project.activeStorage,
+            applicationSupportRoots: project.storageApplicationSupportRoots
+        )
+        let storageDisplayStatus = CompassWorkspaceStorageDisplayStatus(
+            repoURL: project.repoURL,
+            activeStorage: project.activeStorage,
+            applicationSupportRoots: project.storageApplicationSupportRoots,
+            activeStorageRootURL: activeStorageRootURL,
+            assessment: storageAssessment,
+            preflight: storagePreflight
+        )
         let storageMigrationPlan = project.storageMigrationPlan()
         let storageActivationPlan = project.activeStorageActivationPlan()
         let storageActivationIsIdle = !project.isRunning && !project.isAutoPlaying && !project.isPaused
-        let shouldShowStorageActivation = (storageActivationPlan.isAvailable && storageActivationIsIdle)
-            || project.activeStorageActivationState.shouldShowFeedback
+        let storageActions = CompassWorkspaceStorageHeaderActions(
+            activeStorage: project.activeStorage,
+            candidatePreparationIsAvailable: storageMigrationPlan.isAvailable,
+            candidatePreparationShouldShowFeedback: project.storageMigrationState.shouldShowFeedback,
+            activationIsAvailable: storageActivationPlan.isAvailable,
+            activationShouldShowFeedback: project.activeStorageActivationState.shouldShowFeedback,
+            activationIsIdle: storageActivationIsIdle,
+            repoLocalRepairActionIsAvailable: storageAssessment.repairAction != nil
+        )
 
         VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .firstTextBaseline, spacing: 10) {
@@ -375,23 +395,26 @@ private struct WorkspaceHeader: View {
                     .truncationMode(.middle)
                 Spacer(minLength: 12)
                 ProjectStorageAssessmentPill(
+                    displayStatus: storageDisplayStatus,
                     assessment: storageAssessment,
                     preflight: storagePreflight,
-                    boundary: storageBoundary
+                    boundary: storageBoundary,
+                    migrationPlan: storageMigrationPlan,
+                    activationPlan: storageActivationPlan
                 )
-                if storageMigrationPlan.isAvailable || project.storageMigrationState.shouldShowFeedback {
+                if storageActions.showsCandidatePreparation {
                     ProjectStorageMigrationButton(
                         project: project,
                         plan: storageMigrationPlan
                     )
                 }
-                if shouldShowStorageActivation {
+                if storageActions.showsActivation {
                     ProjectStorageActivationButton(
                         project: project,
                         plan: storageActivationPlan
                     )
                 }
-                if let repairAction = storageAssessment.repairAction {
+                if storageActions.showsRepoLocalRepair, let repairAction = storageAssessment.repairAction {
                     ProjectStorageRepairButton(
                         repairAction: repairAction,
                         isDisabled: project.isRunning || project.isAutoPlaying
@@ -452,46 +475,60 @@ private extension CompassProject {
 }
 
 private struct ProjectStorageAssessmentPill: View {
+    var displayStatus: CompassWorkspaceStorageDisplayStatus
     var assessment: CompassWorkspaceStorageAssessment
     var preflight: CompassWorkspaceStoragePreflight
     var boundary: CompassWorkspaceStorageBoundary
+    var migrationPlan: CompassWorkspaceStorageMigrationPlan
+    var activationPlan: CompassWorkspaceStorageActivationPlan
 
     var body: some View {
         HStack(spacing: 5) {
-            Image(systemName: boundary.systemImage)
+            Image(systemName: displayStatus.systemImage)
                 .font(.system(size: 12, weight: .semibold))
-            Text(boundary.label)
+            Text(displayStatus.label)
                 .lineLimit(1)
         }
         .font(.caption.weight(.semibold))
         .foregroundStyle(color)
         .padding(.horizontal, 9)
         .padding(.vertical, 5)
-        .background(color.opacity(boundary.severity == .healthy ? 0.10 : 0.12), in: Capsule())
+        .background(color.opacity(displayStatus.severity == .healthy ? 0.10 : 0.12), in: Capsule())
         .overlay {
             Capsule()
-                .stroke(color.opacity(boundary.severity == .healthy ? 0.20 : 0.28))
+                .stroke(color.opacity(displayStatus.severity == .healthy ? 0.20 : 0.28))
         }
         .help(helpText)
-        .accessibilityLabel("Storage: \(boundary.label)")
-        .accessibilityValue(boundary.detail)
-        .accessibilityHint(boundary.recommendation)
+        .accessibilityLabel("Storage: \(displayStatus.label)")
+        .accessibilityValue(displayStatus.detail)
+        .accessibilityHint(displayStatus.recommendation)
     }
 
     private var color: Color {
-        storageAssessmentColor(for: boundary.severity)
+        storageAssessmentColor(for: displayStatus.severity)
     }
 
     private var helpText: String {
         [
-            "Boundary: \(boundary.label)",
+            "Current state root: \(displayStatus.activeStorageRootURL.path)",
+            "Active storage: \(displayStatus.activeStorageDisplayName)",
+            "Active root health: \(displayStatus.activeRootHealth.displayName)",
+            displayStatus.detail,
+            displayStatus.recommendation,
+            "Repo-local boundary: \(boundary.label)",
             boundary.detail,
             boundary.recommendation,
             "Technical migration eligible: \(boundary.migrationCouldBeTechnicallyEligible ? "yes" : "no")",
-            assessment.label,
+            "Repo-local assessment: \(assessment.label)",
             assessment.detail,
             assessment.recommendation,
-            "Preflight: \(preflight.label)",
+            "Candidate preparation: \(migrationPlan.label)",
+            migrationPlan.detail,
+            migrationPlan.recommendation,
+            "Activation: \(activationPlan.label)",
+            activationPlan.detail,
+            activationPlan.recommendation,
+            "Migration preflight: \(preflight.label)",
             preflight.detail,
             preflight.recommendation,
             "Repo-local readiness: \(preflight.repoLocalReadiness.displayName)",
