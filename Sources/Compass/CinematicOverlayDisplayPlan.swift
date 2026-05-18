@@ -223,6 +223,8 @@ struct CinematicOverlayDisplayPlan: Equatable {
     var reasonIdentifier: String
     var narrativeCueReadabilityIdentifier: String
     var nativeFeedbackCueIdentifier: String
+    var nativeFeedbackBannerPolicyIdentifier: String
+    var showsNativeFeedbackBanner: Bool
 
     var modeIdentifier: String { mode.rawValue }
     var hudProminenceIdentifier: String { hudProminence.rawValue }
@@ -277,6 +279,10 @@ struct CinematicOverlayDisplayPlan: Equatable {
         influenceSettings: CinematicInfluenceSettings,
         nativeFeedbackCue: CinematicNativeFeedbackCuePlan? = nil
     ) {
+        let nativeFeedbackPolicy = Self.nativeFeedbackBannerPolicy(
+            for: nativeFeedbackCue,
+            influenceSettings: influenceSettings
+        )
         self.mode = mode
         self.visiblePills = Self.uniquePills(visiblePills)
         self.hudProminence = hudProminence
@@ -355,8 +361,11 @@ struct CinematicOverlayDisplayPlan: Equatable {
         self.reasonIdentifier = reasonIdentifier
         narrativeCueReadabilityIdentifier = narrativeCueReadability.identifier
         nativeFeedbackCueIdentifier = nativeFeedbackCue?.identifier ?? "none"
+        nativeFeedbackBannerPolicyIdentifier = nativeFeedbackPolicy.identifier
+        showsNativeFeedbackBanner = nativeFeedbackPolicy.showsBanner
         identifier = [
             "mode:\(mode.rawValue)",
+            "comfort:\(influenceSettings.comfortMode.rawValue)",
             "reason:\(reasonIdentifier)",
             "pills:\(self.visiblePills.map(\.rawValue).joined(separator: ","))",
             "hud:\(hudProminence.rawValue)",
@@ -372,11 +381,12 @@ struct CinematicOverlayDisplayPlan: Equatable {
             "repo:\(Self.flag(hasRepository))",
             "language:\(languageProfile.primaryLanguage.rawValue)",
             "activity:\(Self.activityIdentifier(activityProfile))",
-            "influence:\(influenceSettings.cameraStyle.rawValue)|\(Self.fixed(influenceSettings.intensity))",
+            "influence:\(influenceSettings.cameraStyle.rawValue)|\(Self.fixed(influenceSettings.intensity))|\(influenceSettings.comfortMode.rawValue)",
             "world:\(Self.copyIdentifier(worldText.questLabel, worldText.arenaCallout, worldText.activityCallout))",
             "briefing:\(Self.copyIdentifier(briefing.title, briefing.detail))",
             "readability:\(narrativeCueReadability.identifier)",
-            "native:\(nativeFeedbackCueIdentifier)"
+            "native:\(nativeFeedbackCueIdentifier)",
+            "native-banner:\(nativeFeedbackBannerPolicyIdentifier)"
         ].joined(separator: "|")
     }
 
@@ -429,6 +439,26 @@ struct CinematicOverlayDisplayPlan: Equatable {
             "pill:bg\(fixed(worldTextPillBackgroundOpacity)):stroke\(fixed(worldTextPillStrokeOpacity)):pad\(fixed(worldTextPillHorizontalPadding))x\(fixed(worldTextPillVerticalPadding)):radius\(fixed(worldTextPillCornerRadius)):icon\(fixed(worldTextPillIconEmphasis)):text\(fixed(worldTextPillTextEmphasis))",
             "hud:bg\(fixed(hudBackgroundOpacity)):stroke\(fixed(hudStrokeOpacity)):pad\(fixed(hudHorizontalPadding))x\(fixed(hudVerticalPadding)):radius\(fixed(hudCornerRadius)):icon\(fixed(hudIconEmphasis)):title\(fixed(hudTitleEmphasis)):detail\(fixed(hudDetailTextEmphasis)):status\(fixed(hudStatusTextEmphasis)):phase\(fixed(hudPhaseBackgroundOpacity)):accent\(fixed(hudAccentOpacity))"
         ].joined(separator: "|")
+    }
+
+    private struct NativeFeedbackBannerPolicy {
+        var identifier: String
+        var showsBanner: Bool
+    }
+
+    private static func nativeFeedbackBannerPolicy(
+        for cue: CinematicNativeFeedbackCuePlan?,
+        influenceSettings: CinematicInfluenceSettings
+    ) -> NativeFeedbackBannerPolicy {
+        guard let cue else {
+            return NativeFeedbackBannerPolicy(identifier: "none", showsBanner: false)
+        }
+
+        if influenceSettings.comfortMode == .quiet && !cue.isCriticalCinematicBanner {
+            return NativeFeedbackBannerPolicy(identifier: "suppressed-quiet-noncritical", showsBanner: false)
+        }
+
+        return NativeFeedbackBannerPolicy(identifier: "visible", showsBanner: true)
     }
 
     private static func flag(_ value: Bool) -> String {
@@ -662,11 +692,12 @@ enum CinematicOverlayDisplayPlanner {
         phase: LoopPhase,
         influenceSettings: CinematicInfluenceSettings
     ) -> DisplayValues {
+        let values: DisplayValues
         switch mode {
         case .compact:
-            return compactDisplayValues(phase: phase, influenceSettings: influenceSettings)
+            values = compactDisplayValues(phase: phase, influenceSettings: influenceSettings)
         case .full:
-            return DisplayValues(
+            values = DisplayValues(
                 visiblePills: [.quest, .arena, .activity],
                 hudProminence: .full,
                 gradientStrength: 0.52,
@@ -681,7 +712,7 @@ enum CinematicOverlayDisplayPlanner {
                 chromeStyle: fullChromeStyle()
             )
         case .fallback:
-            return DisplayValues(
+            values = DisplayValues(
                 visiblePills: [.quest, .arena, .activity],
                 hudProminence: .full,
                 gradientStrength: reasonIdentifier == "missing-repository" ? 0.54 : 0.58,
@@ -696,6 +727,7 @@ enum CinematicOverlayDisplayPlanner {
                 chromeStyle: fallbackChromeStyle()
             )
         }
+        return comfortAdjustedDisplayValues(values, phase: phase, influenceSettings: influenceSettings)
     }
 
     private static func compactDisplayValues(
@@ -824,6 +856,107 @@ enum CinematicOverlayDisplayPlanner {
             hudStatusTextEmphasis: 0.9,
             hudPhaseBackgroundOpacity: 0.15,
             hudAccentOpacity: 1
+        )
+    }
+
+    private static func comfortAdjustedDisplayValues(
+        _ values: DisplayValues,
+        phase: LoopPhase,
+        influenceSettings: CinematicInfluenceSettings
+    ) -> DisplayValues {
+        switch influenceSettings.comfortMode {
+        case .standard:
+            return values
+        case .reducedMotion:
+            return adjustedDisplayValues(
+                values,
+                suffix: "reduced-motion",
+                gradientScale: 0.86,
+                widthScale: 0.94,
+                overlayScale: 0.94,
+                chromeScale: 0.90,
+                emphasisScale: 0.96,
+                phase: phase
+            )
+        case .quiet:
+            return adjustedDisplayValues(
+                values,
+                suffix: "quiet",
+                gradientScale: 0.72,
+                widthScale: 0.90,
+                overlayScale: 0.86,
+                chromeScale: 0.78,
+                emphasisScale: 0.90,
+                phase: phase
+            )
+        }
+    }
+
+    private static func adjustedDisplayValues(
+        _ values: DisplayValues,
+        suffix: String,
+        gradientScale: Double,
+        widthScale: Double,
+        overlayScale: Double,
+        chromeScale: Double,
+        emphasisScale: Double,
+        phase: LoopPhase
+    ) -> DisplayValues {
+        let terminalPhase = phase == .failed || phase == .succeeded
+        let hudProminence: CinematicHUDProminence
+        if suffix == "quiet", values.hudProminence == .full, !terminalPhase, phase != .paused {
+            hudProminence = .compact
+        } else {
+            hudProminence = values.hudProminence
+        }
+
+        return DisplayValues(
+            visiblePills: values.visiblePills,
+            hudProminence: hudProminence,
+            gradientStrength: values.gradientStrength * gradientScale,
+            worldTextMaxWidth: values.worldTextMaxWidth * widthScale,
+            hudMaxWidth: values.hudMaxWidth * widthScale,
+            pillLineLimit: values.pillLineLimit,
+            hudTitleLineLimit: values.hudTitleLineLimit,
+            hudDetailLineLimit: values.hudDetailLineLimit,
+            hudProfileLineLimit: values.hudProfileLineLimit,
+            hudStatusLineLimit: values.hudStatusLineLimit,
+            overlayOpacity: values.overlayOpacity * overlayScale,
+            chromeStyle: adjustedChromeStyle(
+                values.chromeStyle,
+                suffix: suffix,
+                chromeScale: chromeScale,
+                emphasisScale: emphasisScale
+            )
+        )
+    }
+
+    private static func adjustedChromeStyle(
+        _ style: ChromeStyleValues,
+        suffix: String,
+        chromeScale: Double,
+        emphasisScale: Double
+    ) -> ChromeStyleValues {
+        ChromeStyleValues(
+            styleName: "\(style.styleName)-\(suffix)",
+            worldTextPillBackgroundOpacity: style.worldTextPillBackgroundOpacity * chromeScale,
+            worldTextPillStrokeOpacity: style.worldTextPillStrokeOpacity * chromeScale,
+            worldTextPillHorizontalPadding: style.worldTextPillHorizontalPadding,
+            worldTextPillVerticalPadding: style.worldTextPillVerticalPadding,
+            worldTextPillCornerRadius: style.worldTextPillCornerRadius,
+            worldTextPillIconEmphasis: style.worldTextPillIconEmphasis * emphasisScale,
+            worldTextPillTextEmphasis: style.worldTextPillTextEmphasis * emphasisScale,
+            hudBackgroundOpacity: style.hudBackgroundOpacity * chromeScale,
+            hudStrokeOpacity: style.hudStrokeOpacity * chromeScale,
+            hudHorizontalPadding: style.hudHorizontalPadding,
+            hudVerticalPadding: style.hudVerticalPadding,
+            hudCornerRadius: style.hudCornerRadius,
+            hudIconEmphasis: style.hudIconEmphasis * emphasisScale,
+            hudTitleEmphasis: style.hudTitleEmphasis * emphasisScale,
+            hudDetailTextEmphasis: style.hudDetailTextEmphasis * emphasisScale,
+            hudStatusTextEmphasis: style.hudStatusTextEmphasis * emphasisScale,
+            hudPhaseBackgroundOpacity: style.hudPhaseBackgroundOpacity * chromeScale,
+            hudAccentOpacity: style.hudAccentOpacity * emphasisScale
         )
     }
 

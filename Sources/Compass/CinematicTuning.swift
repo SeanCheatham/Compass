@@ -164,19 +164,21 @@ enum CinematicTuning {
             multiplier = 0.86 - intensity * 0.18
         }
 
-        return max(0.16, shot.duration * multiplier)
+        return max(0.16, shot.duration * multiplier) * transitionComfortScale(settings)
     }
 
     static func cameraOrbitScale(settings: CinematicInfluenceSettings) -> Float {
         let intensity = clampedIntensity(settings)
+        let base: Float
         switch settings.cameraStyle {
         case .steady:
-            return 0.16 + intensity * 0.24
+            base = 0.16 + intensity * 0.24
         case .follow:
-            return 0.7 + intensity * 0.6
+            base = 0.7 + intensity * 0.6
         case .dramatic:
-            return 1.08 + intensity * 0.57
+            base = 1.08 + intensity * 0.57
         }
+        return max(0.04, base * motionComfortScale(settings))
     }
 
     static func cameraPullbackScale(settings: CinematicInfluenceSettings) -> Float {
@@ -205,14 +207,16 @@ enum CinematicTuning {
 
     static func cameraFollowResponsiveness(settings: CinematicInfluenceSettings) -> Float {
         let intensity = clampedIntensity(settings)
+        let base: Float
         switch settings.cameraStyle {
         case .steady:
-            return 2.2 + intensity * 0.6
+            base = 2.2 + intensity * 0.6
         case .follow:
-            return 3.2 + intensity * 2.0
+            base = 3.2 + intensity * 2.0
         case .dramatic:
-            return 4.7 + intensity * 1.6
+            base = 4.7 + intensity * 1.6
         }
+        return max(0.1, base * followComfortScale(settings))
     }
 
     static func cameraFollowFieldOfView(settings: CinematicInfluenceSettings) -> Float {
@@ -231,27 +235,30 @@ enum CinematicTuning {
 
     static func cameraDriftScale(settings: CinematicInfluenceSettings) -> Float {
         let intensity = clampedIntensity(settings)
+        let base: Float
         switch settings.cameraStyle {
         case .steady:
-            return 0.1 + intensity * 0.25
+            base = 0.1 + intensity * 0.25
         case .follow:
-            return 0.65 + intensity * 0.7
+            base = 0.65 + intensity * 0.7
         case .dramatic:
-            return 1.0 + intensity * 0.65
+            base = 1.0 + intensity * 0.65
         }
+        return max(0.03, base * motionComfortScale(settings))
     }
 
     static func cameraShakeScale(settings: CinematicInfluenceSettings) -> Float {
         let intensity = clampedIntensity(settings)
-        let adjusted: Float
+        let base: Float
         switch settings.cameraStyle {
         case .steady:
-            adjusted = 0.12 + intensity * 0.28
+            base = 0.12 + intensity * 0.28
         case .follow:
-            adjusted = 0.55 + intensity * 0.9
+            base = 0.55 + intensity * 0.9
         case .dramatic:
-            adjusted = 1.0 + intensity * 0.85
+            base = 1.0 + intensity * 0.85
         }
+        let adjusted = base * shakeComfortScale(settings)
         return clamp(adjusted, to: cameraShakeScaleRange)
     }
 
@@ -311,20 +318,24 @@ enum CinematicTuning {
         guard !activityProfile.isEmpty else { return 0 }
         let pressureBoost = min(Float(activityProfile.pressureScore) * 24, 440)
         let streakBoost = Float(max(activityProfile.successStreak - 1, 0)) * 18
-        let adjusted = (pressureBoost + streakBoost) * activityPressureScale(settings: settings)
+        let adjusted = (pressureBoost + streakBoost)
+            * activityPressureScale(settings: settings)
+            * activityLightComfortScale(settings)
         return clamp(adjusted, to: activityLightBoostRange)
     }
 
     static func activityPressureScale(settings: CinematicInfluenceSettings) -> Float {
         let intensity = clampedIntensity(settings)
+        let base: Float
         switch settings.cameraStyle {
         case .steady:
-            return 0.42 + intensity * 0.28
+            base = 0.42 + intensity * 0.28
         case .follow:
-            return 0.72 + intensity * 0.56
+            base = 0.72 + intensity * 0.56
         case .dramatic:
-            return 1.12 + intensity * 0.53
+            base = 1.12 + intensity * 0.53
         }
+        return max(0.18, base * pressureComfortScale(settings))
     }
 
     private static func clampedEnemyLimit(
@@ -341,7 +352,85 @@ enum CinematicTuning {
         case .dramatic:
             offset = 1 + intensity * 2
         }
-        return clamp(Int((Double(base) + offset).rounded()), to: ambientEnemyLimitRange)
+        let adjusted = Double(base) + offset + Double(enemyLimitComfortOffset(settings))
+        return clamp(Int(adjusted.rounded()), to: ambientEnemyLimitRange)
+    }
+
+    private static func motionComfortScale(_ settings: CinematicInfluenceSettings) -> Float {
+        switch settings.comfortMode {
+        case .standard:
+            return 1
+        case .reducedMotion:
+            return 0.58
+        case .quiet:
+            return 0.34
+        }
+    }
+
+    private static func followComfortScale(_ settings: CinematicInfluenceSettings) -> Float {
+        switch settings.comfortMode {
+        case .standard:
+            return 1
+        case .reducedMotion:
+            return 0.86
+        case .quiet:
+            return 0.68
+        }
+    }
+
+    private static func shakeComfortScale(_ settings: CinematicInfluenceSettings) -> Float {
+        switch settings.comfortMode {
+        case .standard:
+            return 1
+        case .reducedMotion:
+            return 0.56
+        case .quiet:
+            return 0.32
+        }
+    }
+
+    private static func pressureComfortScale(_ settings: CinematicInfluenceSettings) -> Float {
+        switch settings.comfortMode {
+        case .standard:
+            return 1
+        case .reducedMotion:
+            return 0.72
+        case .quiet:
+            return 0.48
+        }
+    }
+
+    private static func activityLightComfortScale(_ settings: CinematicInfluenceSettings) -> Float {
+        switch settings.comfortMode {
+        case .standard:
+            return 1
+        case .reducedMotion:
+            return 0.82
+        case .quiet:
+            return 0.64
+        }
+    }
+
+    private static func transitionComfortScale(_ settings: CinematicInfluenceSettings) -> Double {
+        switch settings.comfortMode {
+        case .standard:
+            return 1
+        case .reducedMotion:
+            return 1.18
+        case .quiet:
+            return 1.42
+        }
+    }
+
+    private static func enemyLimitComfortOffset(_ settings: CinematicInfluenceSettings) -> Int {
+        switch settings.comfortMode {
+        case .standard:
+            return 0
+        case .reducedMotion:
+            return -1
+        case .quiet:
+            return -3
+        }
     }
 
     private static func clampedIntensity(_ settings: CinematicInfluenceSettings) -> Float {

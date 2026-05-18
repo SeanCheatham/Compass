@@ -261,6 +261,8 @@ struct CinematicDiagnosticsReport: Equatable {
         var reasonIdentifier: String
         var narrativeCueReadabilityIdentifier: String
         var nativeFeedbackCueIdentifier: String
+        var nativeFeedbackBannerPolicyIdentifier: String
+        var showsNativeFeedbackBanner: Bool
     }
 
     struct NarrativeCueDescriptorSnapshot: Equatable {
@@ -1677,6 +1679,7 @@ struct CinematicDiagnosticsSummary: Equatable {
             "pills \(snapshot.visiblePillIdentifiers.isEmpty ? "none" : snapshot.visiblePillIdentifiers.joined(separator: ","))",
             "hud \(snapshot.hudProminenceIdentifier)",
             snapshot.nativeFeedbackCueIdentifier == "none" ? nil : "native \(snapshot.nativeFeedbackCueIdentifier)",
+            "native-banner \(snapshot.nativeFeedbackBannerPolicyIdentifier)",
             "chrome \(snapshot.chromeStyleIdentifier)",
             "gradient \(fixed(snapshot.gradientStrength))",
             "width \(fixed(snapshot.worldTextMaxWidth))/\(fixed(snapshot.hudMaxWidth))",
@@ -2606,7 +2609,9 @@ enum CinematicDiagnostics {
             overlayOpacity: plan.overlayOpacity,
             reasonIdentifier: plan.reasonIdentifier,
             narrativeCueReadabilityIdentifier: plan.narrativeCueReadabilityIdentifier,
-            nativeFeedbackCueIdentifier: plan.nativeFeedbackCueIdentifier
+            nativeFeedbackCueIdentifier: plan.nativeFeedbackCueIdentifier,
+            nativeFeedbackBannerPolicyIdentifier: plan.nativeFeedbackBannerPolicyIdentifier,
+            showsNativeFeedbackBanner: plan.showsNativeFeedbackBanner
         )
     }
 
@@ -2944,7 +2949,7 @@ enum CinematicDiagnostics {
     }
 
     private static func settingsIdentifier(_ settings: CinematicInfluenceSettings) -> String {
-        "\(settings.cameraStyle.rawValue)|\(fixed(settings.intensity))"
+        "\(settings.cameraStyle.rawValue)|\(fixed(settings.intensity))|\(settings.comfortMode.rawValue)"
     }
 
     private static func positionIdentifier(_ position: SIMD3<Float>) -> String {

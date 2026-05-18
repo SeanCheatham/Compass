@@ -146,6 +146,7 @@ final class CinematicOverlayDisplayPlanTests: XCTestCase {
             XCTAssertFalse(plan.reasonIdentifier.isEmpty)
             XCTAssertFalse(plan.narrativeCueReadabilityIdentifier.isEmpty)
             XCTAssertFalse(plan.nativeFeedbackCueIdentifier.isEmpty)
+            XCTAssertFalse(plan.nativeFeedbackBannerPolicyIdentifier.isEmpty)
         }
     }
 
@@ -285,6 +286,80 @@ final class CinematicOverlayDisplayPlanTests: XCTestCase {
         XCTAssertEqual(overlay.nativeFeedbackCueIdentifier, nativeCue.identifier)
         XCTAssertTrue(overlay.identifier.contains("native:\(nativeCue.identifier)"))
         XCTAssertEqual(overlay.mode, .compact)
+    }
+
+    func testQuietModeCalmsChromeAndSuppressesNonCriticalNativeFeedbackBanner() throws {
+        let nativeCue = try XCTUnwrap(
+            CinematicNativeFeedbackCuePlanner.plan(
+                milestone: .verifyStarted,
+                content: NativeFeedbackContent(milestone: .verifyStarted, projectName: "Editor"),
+                phase: .verifying,
+                feedbackMode: .notifications,
+                recentRunCues: [:]
+            )
+        )
+        let standard = makeOverlayPlan(
+            phase: .verifying,
+            nativeFeedbackCue: nativeCue
+        )
+        let quiet = makeOverlayPlan(
+            phase: .verifying,
+            influenceSettings: CinematicInfluenceSettings(
+                cameraStyle: .follow,
+                comfortMode: .quiet,
+                intensity: 0.6
+            ),
+            nativeFeedbackCue: nativeCue
+        )
+
+        XCTAssertTrue(standard.showsNativeFeedbackBanner)
+        XCTAssertEqual(standard.nativeFeedbackBannerPolicyIdentifier, "visible")
+        XCTAssertFalse(quiet.showsNativeFeedbackBanner)
+        XCTAssertEqual(quiet.nativeFeedbackBannerPolicyIdentifier, "suppressed-quiet-noncritical")
+        XCTAssertEqual(quiet.nativeFeedbackCueIdentifier, nativeCue.identifier)
+        XCTAssertLessThan(quiet.gradientStrength, standard.gradientStrength)
+        XCTAssertLessThan(quiet.hudBackgroundOpacity, standard.hudBackgroundOpacity)
+        XCTAssertLessThan(quiet.worldTextPillBackgroundOpacity, standard.worldTextPillBackgroundOpacity)
+        XCTAssertTrue(quiet.chromeStyleIdentifier.hasPrefix("compact-active-quiet|"))
+        XCTAssertTrue(quiet.identifier.contains("comfort:quiet"))
+        XCTAssertTrue(quiet.identifier.contains("native-banner:suppressed-quiet-noncritical"))
+    }
+
+    func testQuietModeStillAllowsRetryWarningAndFailureNativeFeedbackBanners() throws {
+        let retryCue = try XCTUnwrap(
+            CinematicNativeFeedbackCuePlanner.plan(
+                milestone: .developRetrying,
+                content: NativeFeedbackContent(milestone: .developRetrying, projectName: "Editor"),
+                phase: .developing,
+                feedbackMode: .notifications,
+                recentRunCues: [:]
+            )
+        )
+        let failureCue = try XCTUnwrap(
+            CinematicNativeFeedbackCuePlanner.plan(
+                milestone: .postChecksFailed,
+                content: NativeFeedbackContent(milestone: .postChecksFailed, projectName: "Editor"),
+                phase: .failed,
+                feedbackMode: .notifications,
+                recentRunCues: [:]
+            )
+        )
+
+        for cue in [retryCue, failureCue] {
+            let plan = makeOverlayPlan(
+                phase: cue.phase,
+                influenceSettings: CinematicInfluenceSettings(
+                    cameraStyle: .follow,
+                    comfortMode: .quiet,
+                    intensity: 0.6
+                ),
+                nativeFeedbackCue: cue
+            )
+
+            XCTAssertTrue(plan.showsNativeFeedbackBanner, cue.identifier)
+            XCTAssertEqual(plan.nativeFeedbackBannerPolicyIdentifier, "visible")
+            XCTAssertTrue(plan.identifier.contains("native-banner:visible"))
+        }
     }
 }
 

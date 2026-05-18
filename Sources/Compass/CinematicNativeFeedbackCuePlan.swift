@@ -26,6 +26,14 @@ struct CinematicNativeFeedbackCuePlan: Equatable, Identifiable {
     var feedbackModeIdentifier: String { feedbackMode.rawValue }
     var milestoneIdentifier: String { milestone.rawValue }
     var phaseLabel: String { phase.rawValue }
+    var isCriticalCinematicBanner: Bool {
+        switch style {
+        case .warning, .failure:
+            return true
+        case .plan, .develop, .verify, .success, .paused, .idle:
+            return milestone == .developRetrying || milestone == .postChecksFailed
+        }
+    }
 
     enum Style: String, Equatable {
         case plan

@@ -20,17 +20,61 @@ struct CinematicInfluenceSettings: Codable, Equatable {
         }
     }
 
+    enum ComfortMode: String, Codable, CaseIterable, Identifiable {
+        case standard
+        case reducedMotion = "reduced_motion"
+        case quiet
+
+        var id: Self { self }
+
+        var title: String {
+            switch self {
+            case .standard:
+                return "Standard"
+            case .reducedMotion:
+                return "Reduced Motion"
+            case .quiet:
+                return "Quiet"
+            }
+        }
+
+        var compactTitle: String {
+            switch self {
+            case .standard:
+                return "Std"
+            case .reducedMotion:
+                return "Reduce"
+            case .quiet:
+                return "Quiet"
+            }
+        }
+
+        var systemImage: String {
+            switch self {
+            case .standard:
+                return "sparkles"
+            case .reducedMotion:
+                return "figure.walk.motion"
+            case .quiet:
+                return "moon"
+            }
+        }
+    }
+
     static let defaultIntensity = 0.5
     static let intensityRange = 0.0...1.0
 
     var cameraStyle: CameraStyle
+    var comfortMode: ComfortMode
     var intensity: Double
 
     init(
         cameraStyle: CameraStyle = .follow,
+        comfortMode: ComfortMode = .standard,
         intensity: Double = Self.defaultIntensity
     ) {
         self.cameraStyle = cameraStyle
+        self.comfortMode = comfortMode
         self.intensity = Self.clampedIntensity(intensity)
     }
 
@@ -38,6 +82,8 @@ struct CinematicInfluenceSettings: Codable, Equatable {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         let rawCameraStyle = try container.decodeIfPresent(String.self, forKey: .cameraStyle)
         cameraStyle = rawCameraStyle.flatMap(CameraStyle.init(rawValue:)) ?? .follow
+        let rawComfortMode = try container.decodeIfPresent(String.self, forKey: .comfortMode)
+        comfortMode = rawComfortMode.flatMap(ComfortMode.init(rawValue:)) ?? .standard
         intensity = Self.clampedIntensity(
             try container.decodeIfPresent(Double.self, forKey: .intensity) ?? Self.defaultIntensity
         )
@@ -46,6 +92,7 @@ struct CinematicInfluenceSettings: Codable, Equatable {
     func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encode(cameraStyle.rawValue, forKey: .cameraStyle)
+        try container.encode(comfortMode.rawValue, forKey: .comfortMode)
         try container.encode(Self.clampedIntensity(intensity), forKey: .intensity)
     }
 
@@ -55,6 +102,7 @@ struct CinematicInfluenceSettings: Codable, Equatable {
 
     enum CodingKeys: String, CodingKey {
         case cameraStyle
+        case comfortMode
         case intensity
     }
 }

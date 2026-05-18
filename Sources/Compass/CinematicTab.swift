@@ -12,6 +12,7 @@ struct CinematicTab: View {
             let caption = CinematicCaption(project: project)
             let displayPlan = cinematicOverlayDisplayPlan
             let nativeFeedbackCue = project.cinematicNativeFeedbackCue
+            let displayedNativeFeedbackCue = displayPlan.showsNativeFeedbackBanner ? nativeFeedbackCue : nil
             let reliabilityFeedback = PlanReliabilityFeedback(
                 state: project.state,
                 sessions: project.sessions
@@ -63,7 +64,7 @@ struct CinematicTab: View {
                 VStack(alignment: .leading, spacing: 10) {
                     CinematicTabOverlayModePicker(selection: $overlayMode)
 
-                    if let nativeFeedbackCue {
+                    if let nativeFeedbackCue = displayedNativeFeedbackCue {
                         CinematicNativeFeedbackBanner(
                             cue: nativeFeedbackCue,
                             displayPlan: displayPlan
@@ -85,7 +86,7 @@ struct CinematicTab: View {
                         }
                         CinematicHUD(
                             caption: caption,
-                            nativeFeedbackCue: nativeFeedbackCue,
+                            nativeFeedbackCue: displayedNativeFeedbackCue,
                             displayPlan: displayPlan
                         )
                     }
@@ -476,6 +477,23 @@ private struct CinematicInfluenceControls: View {
                 .popover(isPresented: $isShowingDiagnostics, arrowEdge: .top) {
                     CinematicDiagnosticsPopover(summary: summary)
                 }
+            }
+
+            HStack(spacing: 8) {
+                Image(systemName: project.cinematicInfluenceSettings.comfortMode.systemImage)
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(.white.opacity(0.74))
+                    .frame(width: 18)
+
+                Picker("Motion comfort", selection: $project.cinematicInfluenceSettings.comfortMode) {
+                    ForEach(CinematicInfluenceSettings.ComfortMode.allCases) { mode in
+                        Text(mode.compactTitle).tag(mode)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .frame(width: 210)
+                .help("Motion comfort")
             }
 
             HStack(spacing: 8) {

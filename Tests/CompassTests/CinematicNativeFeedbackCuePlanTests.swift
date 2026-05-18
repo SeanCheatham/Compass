@@ -110,6 +110,60 @@ final class CinematicNativeFeedbackCuePlanTests: XCTestCase {
         XCTAssertEqual(retryCue.runCueKind, .failedVerify)
         XCTAssertEqual(retryCue.runCueSessionNumber, 7)
         XCTAssertEqual(retryCue.sourceIdentifier, "run-cue:7:failedVerify")
+        XCTAssertFalse(verifyCue.isCriticalCinematicBanner)
+        XCTAssertTrue(retryCue.isCriticalCinematicBanner)
+    }
+
+    func testCriticalBannerPolicyIncludesWarningFailureAndRetryCues() throws {
+        let retryCue = try XCTUnwrap(
+            CinematicNativeFeedbackCuePlanner.plan(
+                milestone: .developRetrying,
+                content: NativeFeedbackContent(milestone: .developRetrying, projectName: "Editor"),
+                phase: .developing,
+                feedbackMode: .notifications,
+                recentRunCues: [:]
+            )
+        )
+        let warningCue = try XCTUnwrap(
+            CinematicNativeFeedbackCuePlanner.plan(
+                milestone: .developRetrying,
+                content: NativeFeedbackContent(milestone: .developRetrying, projectName: "Editor"),
+                phase: .developing,
+                feedbackMode: .notifications,
+                recentRunCues: [
+                    1: runCue(
+                        kind: .dirtyWorktree,
+                        severity: .warning,
+                        label: "Clean Worktree",
+                        detail: "Pending changes need review",
+                        systemImage: "pencil.and.outline"
+                    )
+                ]
+            )
+        )
+        let failureCue = try XCTUnwrap(
+            CinematicNativeFeedbackCuePlanner.plan(
+                milestone: .postChecksFailed,
+                content: NativeFeedbackContent(milestone: .postChecksFailed, projectName: "Editor"),
+                phase: .failed,
+                feedbackMode: .notifications,
+                recentRunCues: [:]
+            )
+        )
+        let nonCriticalCue = try XCTUnwrap(
+            CinematicNativeFeedbackCuePlanner.plan(
+                milestone: .verifyPassed,
+                content: NativeFeedbackContent(milestone: .verifyPassed, projectName: "Editor"),
+                phase: .verifying,
+                feedbackMode: .notifications,
+                recentRunCues: [:]
+            )
+        )
+
+        XCTAssertTrue(retryCue.isCriticalCinematicBanner)
+        XCTAssertTrue(warningCue.isCriticalCinematicBanner)
+        XCTAssertTrue(failureCue.isCriticalCinematicBanner)
+        XCTAssertFalse(nonCriticalCue.isCriticalCinematicBanner)
     }
 
     func testRunCuePriorityBeatsNewestRetryCue() throws {

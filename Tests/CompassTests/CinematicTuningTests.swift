@@ -145,6 +145,51 @@ final class CinematicTuningCameraTests: XCTestCase {
             )
         }
     }
+
+    func testComfortModesDampCameraMotionAndTransitionUrgency() {
+        let standard = cinematicSettings(style: .dramatic, comfortMode: .standard, intensity: 1)
+        let reduced = cinematicSettings(style: .dramatic, comfortMode: .reducedMotion, intensity: 1)
+        let quiet = cinematicSettings(style: .dramatic, comfortMode: .quiet, intensity: 1)
+
+        XCTAssertEqual(
+            standard,
+            CinematicInfluenceSettings(cameraStyle: .dramatic, intensity: 1)
+        )
+        XCTAssertLessThan(CinematicTuning.cameraOrbitScale(settings: reduced), CinematicTuning.cameraOrbitScale(settings: standard))
+        XCTAssertLessThan(CinematicTuning.cameraOrbitScale(settings: quiet), CinematicTuning.cameraOrbitScale(settings: reduced))
+        XCTAssertLessThan(CinematicTuning.cameraDriftScale(settings: reduced), CinematicTuning.cameraDriftScale(settings: standard))
+        XCTAssertLessThan(CinematicTuning.cameraDriftScale(settings: quiet), CinematicTuning.cameraDriftScale(settings: reduced))
+        XCTAssertLessThan(CinematicTuning.cameraShakeScale(settings: reduced), CinematicTuning.cameraShakeScale(settings: standard))
+        XCTAssertLessThan(CinematicTuning.cameraShakeScale(settings: quiet), CinematicTuning.cameraShakeScale(settings: reduced))
+        XCTAssertLessThan(
+            CinematicTuning.cameraFollowResponsiveness(settings: quiet),
+            CinematicTuning.cameraFollowResponsiveness(settings: standard)
+        )
+
+        for shot in CinematicCameraShot.allCases {
+            XCTAssertGreaterThan(
+                CinematicTuning.cameraTransitionDuration(for: shot, settings: reduced),
+                CinematicTuning.cameraTransitionDuration(for: shot, settings: standard),
+                shot.identifier
+            )
+            XCTAssertGreaterThan(
+                CinematicTuning.cameraTransitionDuration(for: shot, settings: quiet),
+                CinematicTuning.cameraTransitionDuration(for: shot, settings: reduced),
+                shot.identifier
+            )
+            XCTAssertEqual(
+                CinematicTuning.cameraFieldOfView(for: shot, settings: quiet),
+                CinematicTuning.cameraFieldOfView(for: shot, settings: standard),
+                accuracy: 0.0001,
+                shot.identifier
+            )
+            XCTAssertEqual(
+                CinematicTuning.cameraPosition(for: shot, settings: quiet),
+                CinematicTuning.cameraPosition(for: shot, settings: standard),
+                shot.identifier
+            )
+        }
+    }
 }
 
 final class CinematicTuningActivityTests: XCTestCase {
@@ -260,6 +305,50 @@ final class CinematicTuningActivityTests: XCTestCase {
             accuracy: 0.0001
         )
     }
+
+    func testComfortModesReduceAmbientPressureAndActivityLightBoost() {
+        let heavy = cinematicActivityProfiles().last!.profile
+        let standard = cinematicSettings(style: .dramatic, comfortMode: .standard, intensity: 1)
+        let reduced = cinematicSettings(style: .dramatic, comfortMode: .reducedMotion, intensity: 1)
+        let quiet = cinematicSettings(style: .dramatic, comfortMode: .quiet, intensity: 1)
+
+        XCTAssertGreaterThan(
+            CinematicTuning.ambientSpawnCadence(activityProfile: heavy, settings: reduced),
+            CinematicTuning.ambientSpawnCadence(activityProfile: heavy, settings: standard)
+        )
+        XCTAssertGreaterThan(
+            CinematicTuning.ambientSpawnCadence(activityProfile: heavy, settings: quiet),
+            CinematicTuning.ambientSpawnCadence(activityProfile: heavy, settings: reduced)
+        )
+        XCTAssertLessThan(
+            CinematicTuning.ambientEnemyLimit(activityProfile: heavy, settings: reduced),
+            CinematicTuning.ambientEnemyLimit(activityProfile: heavy, settings: standard)
+        )
+        XCTAssertLessThan(
+            CinematicTuning.ambientEnemyLimit(activityProfile: heavy, settings: quiet),
+            CinematicTuning.ambientEnemyLimit(activityProfile: heavy, settings: reduced)
+        )
+        XCTAssertLessThan(
+            CinematicTuning.activityPressureScale(settings: reduced),
+            CinematicTuning.activityPressureScale(settings: standard)
+        )
+        XCTAssertLessThan(
+            CinematicTuning.activityPressureScale(settings: quiet),
+            CinematicTuning.activityPressureScale(settings: reduced)
+        )
+        XCTAssertLessThan(
+            CinematicTuning.activityLightBoost(activityProfile: heavy, settings: reduced),
+            CinematicTuning.activityLightBoost(activityProfile: heavy, settings: standard)
+        )
+        XCTAssertLessThan(
+            CinematicTuning.activityLightBoost(activityProfile: heavy, settings: quiet),
+            CinematicTuning.activityLightBoost(activityProfile: heavy, settings: reduced)
+        )
+
+        XCTAssertInRange(CinematicTuning.ambientSpawnCadence(activityProfile: heavy, settings: quiet), CinematicTuning.ambientSpawnCadenceRange)
+        XCTAssertInRange(CinematicTuning.ambientEnemyLimit(activityProfile: heavy, settings: quiet), CinematicTuning.ambientEnemyLimitRange)
+        XCTAssertInRange(CinematicTuning.activityLightBoost(activityProfile: heavy, settings: quiet), CinematicTuning.activityLightBoostRange)
+    }
 }
 
 private let cinematicIntensitySamples = [
@@ -270,9 +359,10 @@ private let cinematicIntensitySamples = [
 
 private func cinematicSettings(
     style: CinematicInfluenceSettings.CameraStyle,
+    comfortMode: CinematicInfluenceSettings.ComfortMode = .standard,
     intensity: Double
 ) -> CinematicInfluenceSettings {
-    CinematicInfluenceSettings(cameraStyle: style, intensity: intensity)
+    CinematicInfluenceSettings(cameraStyle: style, comfortMode: comfortMode, intensity: intensity)
 }
 
 private func fieldOfView(

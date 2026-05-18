@@ -29,7 +29,7 @@ final class CinematicDiagnosticsTests: XCTestCase {
         let repeated = makeReport(input)
 
         XCTAssertEqual(report, repeated)
-        XCTAssertEqual(report.influenceIdentifier, "dramatic|0.7500")
+        XCTAssertEqual(report.influenceIdentifier, "dramatic|0.7500|standard")
         XCTAssertEqual(report.languageMotif.sigilIdentifier, "language.swift")
         XCTAssertEqual(report.languageMotif.styleIdentifier, "swift-comet")
         XCTAssertEqual(report.languageMotif.ambientSpellIdentifier, "edit")
@@ -370,7 +370,7 @@ final class CinematicDiagnosticsTests: XCTestCase {
                 CinematicTuning.cameraTransitionDuration(for: shot, settings: settings),
                 accuracy: 0.0001
             )
-            XCTAssertTrue(snapshot.identifier.hasPrefix("\(shot.identifier)|steady|0.2500"))
+            XCTAssertTrue(snapshot.identifier.hasPrefix("\(shot.identifier)|steady|0.2500|standard"))
         }
     }
 
@@ -766,7 +766,7 @@ final class CinematicDiagnosticsTests: XCTestCase {
             XCTAssertEqual(report.stageBeat.cameraShotIdentifier, "cast-prep")
             XCTAssertEqual(report.stageBeat.activityEventKindIdentifier, "commit")
             XCTAssertTrue(report.stageBeat.shouldRunHistoryChains)
-            XCTAssertEqual(report.influenceIdentifier, "dramatic|0.7500")
+            XCTAssertEqual(report.influenceIdentifier, "dramatic|0.7500|standard")
         }
     }
 
@@ -837,6 +837,41 @@ final class CinematicDiagnosticsTests: XCTestCase {
             XCTAssertTrue(summary.exportText.contains("affects narrative.quest.plaque"))
             XCTAssertTrue(summary.exportText.contains("native \(cue.identifier)"))
         }
+    }
+
+    func testComfortModePropagatesToDiagnosticsIdentifiersAndExport() {
+        let settings = CinematicInfluenceSettings(
+            cameraStyle: .follow,
+            comfortMode: .quiet,
+            intensity: 0.4
+        )
+        let report = makeReport(
+            CinematicDiagnosticsInput(
+                repoName: "Compass",
+                phase: "Developing",
+                immediateTitle: "Expose quiet cinematic diagnostics",
+                completedCount: 2,
+                latestEvent: nil,
+                languageProfile: languageProfile(primaryLanguage: .swift),
+                activityProfile: activityProfile(worktreeChanges: worktreeChanges(modified: 4)),
+                influenceSettings: settings
+            )
+        )
+        let summary = CinematicDiagnosticsSummary(
+            report: report,
+            visualSmoke: CinematicVisualSmokeReport(reports: [report])
+        )
+
+        XCTAssertEqual(report.influenceIdentifier, "follow|0.4000|quiet")
+        XCTAssertTrue(report.identifier.contains("influence:follow|0.4000|quiet"))
+        XCTAssertTrue(report.overlayDisplay.identifier.contains("comfort:quiet"))
+        XCTAssertTrue(report.overlayDisplay.identifier.contains("influence:follow|0.4000|quiet"))
+        XCTAssertTrue(report.overlayDisplay.chromeStyleIdentifier.hasPrefix("compact-active-quiet|"))
+        XCTAssertTrue(report.cameraTuning.identifier.hasPrefix("follow|0.4000|quiet"))
+        XCTAssertTrue(report.activityTuning.identifier.hasPrefix("follow|0.4000|quiet"))
+        XCTAssertTrue(report.cameraSnapshots.allSatisfy { $0.identifier.contains("|quiet|") })
+        XCTAssertTrue(summary.exportText.contains("quiet"))
+        XCTAssertTrue(summary.exportText.contains("compact-active-quiet"))
     }
 
     func testSummaryOutputIsStableAcrossRepeatedCalls() {
