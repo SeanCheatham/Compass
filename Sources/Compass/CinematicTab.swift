@@ -42,6 +42,12 @@ struct CinematicTab: View {
                     recoveryCuePlan: recoveryCuePlan
                 )
                 : .none
+            let runRecapSceneFocusPlan = CinematicRunRecapSceneFocusPlanner.plan(
+                isRecapOverlaySelected: overlayMode == .recap,
+                recapPlan: recapPlan,
+                commitConstellationPlan: project.cinematicCommitConstellationPlan,
+                timelinePlan: timelinePlan
+            )
 
             ZStack(alignment: .bottomLeading) {
                 CinematicSceneView(
@@ -57,6 +63,7 @@ struct CinematicTab: View {
                     commitConstellationPlan: project.cinematicCommitConstellationPlan,
                     recoveryCuePlan: recoveryCuePlan,
                     timelineSceneFocusPlan: timelineSceneFocusPlan,
+                    runRecapSceneFocusPlan: runRecapSceneFocusPlan,
                     nativeFeedbackCue: nativeFeedbackCue
                 )
                 .frame(width: proxy.size.width, height: proxy.size.height)
@@ -123,7 +130,8 @@ struct CinematicTab: View {
                         Spacer()
                         CinematicInfluenceControls(
                             project: project,
-                            timelineSceneFocusPlan: timelineSceneFocusPlan
+                            timelineSceneFocusPlan: timelineSceneFocusPlan,
+                            runRecapSceneFocusPlan: runRecapSceneFocusPlan
                         )
                             .environmentObject(model)
                     }
@@ -583,6 +591,7 @@ private struct CinematicInfluenceControls: View {
     @EnvironmentObject private var model: AppModel
     @ObservedObject var project: CompassProject
     var timelineSceneFocusPlan: CinematicTimelineSceneFocusPlan = .none
+    var runRecapSceneFocusPlan: CinematicRunRecapSceneFocusPlan = .none
     @State private var isShowingDiagnostics = false
 
     private var trimmedDraft: String {
@@ -593,7 +602,8 @@ private struct CinematicInfluenceControls: View {
         CinematicDiagnosticsSummary(
             report: CinematicDiagnostics.currentReport(
                 for: project,
-                timelineFocusPlan: timelineSceneFocusPlan
+                timelineFocusPlan: timelineSceneFocusPlan,
+                runRecapSceneFocusPlan: runRecapSceneFocusPlan
             )
         )
     }

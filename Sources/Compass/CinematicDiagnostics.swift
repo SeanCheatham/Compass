@@ -25,6 +25,7 @@ struct CinematicDiagnosticsReport: Equatable {
     var commitConstellation: CommitConstellationSnapshot
     var timelineFocus: TimelineFocusSnapshot
     var runRecap: RunRecapSnapshot
+    var runRecapSceneFocus: RunRecapSceneFocusSnapshot
     var cameraSnapshots: [CameraSnapshot]
 
     struct LanguageMotifSnapshot: Equatable {
@@ -452,6 +453,24 @@ struct CinematicDiagnosticsReport: Equatable {
         var eventChipIdentifiers: [String]
     }
 
+    struct RunRecapSceneFocusSnapshot: Equatable {
+        var identifier: String
+        var isActive: Bool
+        var descriptorIdentifier: String
+        var recapIdentifier: String
+        var terminalBeatID: String?
+        var terminalStatusIdentifier: String
+        var terminalStyleIdentifier: String
+        var cameraShotIdentifier: String
+        var lookTarget: SIMD3<Float>?
+        var lightFamilyIdentifier: String
+        var arenaEffectIdentifier: String
+        var phaseLightIntensity: Float
+        var commitNodeIdentifier: String?
+        var fallbackTargetIdentifier: String?
+        var usesFallbackTarget: Bool
+    }
+
     struct CameraSnapshot: Equatable {
         var identifier: String
         var shotIdentifier: String
@@ -518,7 +537,8 @@ struct CinematicVisualSmokeReport: Equatable {
             recoveryCueCoverageCheck(reports: reports),
             nativeFeedbackCueCoverageCheck(reports: reports),
             nativeFeedbackTreatmentCoverageCheck(reports: reports),
-            timelineFocusCoverageCheck(reports: reports)
+            timelineFocusCoverageCheck(reports: reports),
+            runRecapSceneFocusCoverageCheck(reports: reports)
         ]
     }
 
@@ -994,6 +1014,45 @@ struct CinematicVisualSmokeReport: Equatable {
         )
     }
 
+    private static func runRecapSceneFocusCoverageCheck(reports: [CinematicDiagnosticsReport]) -> Check {
+        let activeReports = reports.filter(\.runRecapSceneFocus.isActive)
+        let emptyCount = reports.filter { !$0.runRecapSceneFocus.isActive }.count
+        let styles = Set(activeReports.map(\.runRecapSceneFocus.terminalStyleIdentifier))
+        let shots = Set(activeReports.map(\.runRecapSceneFocus.cameraShotIdentifier))
+        let lights = Set(activeReports.map(\.runRecapSceneFocus.lightFamilyIdentifier))
+        let effects = Set(activeReports.map(\.runRecapSceneFocus.arenaEffectIdentifier))
+        let descriptorCount = Set(activeReports.map(\.runRecapSceneFocus.descriptorIdentifier)).count
+        let commitNodeCount = activeReports.compactMap(\.runRecapSceneFocus.commitNodeIdentifier).count
+        let fallbackCount = activeReports.filter(\.runRecapSceneFocus.usesFallbackTarget).count
+        let lookTargetCount = activeReports.compactMap(\.runRecapSceneFocus.lookTarget).count
+        let isPassing = !reports.isEmpty
+            && !activeReports.isEmpty
+            && emptyCount > 0
+            && styles.isSuperset(of: ["success", "failure", "warning"])
+            && shots.isSuperset(of: ["victory", "failure", "wide"])
+            && lights.isSuperset(of: ["verify", "failure", "pressure"])
+            && effects.isSuperset(of: ["victory", "charge", "activity-pulse"])
+            && descriptorCount > 0
+            && commitNodeCount > 0
+            && fallbackCount > 0
+            && lookTargetCount == activeReports.count
+
+        return check(
+            id: "run-recap-focus-coverage",
+            label: "Run recap focus coverage",
+            isPassing: isPassing,
+            warningIdentifier: "visual-smoke.run-recap-focus-coverage",
+            detail: [
+                "active \(activeReports.count)",
+                "empty \(emptyCount)",
+                "styles \(slashJoined(styles))",
+                "shots \(slashJoined(shots))",
+                "l/e \(lights.count)/\(effects.count)",
+                "commit nodes \(commitNodeCount) fallbacks \(fallbackCount)"
+            ].joined(separator: " ")
+        )
+    }
+
     private struct ReadabilityMetrics {
         var isReadable: Bool
         var minimumScale: Float
@@ -1465,6 +1524,11 @@ struct CinematicVisualSmokeReport: Equatable {
         return sortedValues.isEmpty ? "none" : sortedValues.joined(separator: ",")
     }
 
+    private static func slashJoined<S: Sequence>(_ values: S) -> String where S.Element == String {
+        let sortedValues = values.sorted()
+        return sortedValues.isEmpty ? "none" : sortedValues.joined(separator: "/")
+    }
+
     private static func string(_ text: String, maxCharacters: Int) -> Bool {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         return !trimmed.isEmpty && trimmed.count <= maxCharacters
@@ -1512,7 +1576,7 @@ struct CinematicVisualSmokeReport: Equatable {
 }
 
 struct CinematicDiagnosticsSummary: Equatable {
-    static let maxRows = 38
+    static let maxRows = 39
     static let labelMaxCharacters = 32
     static let detailMaxCharacters = 512
     static let headerDetailMaxCharacters = 128
@@ -1637,7 +1701,14 @@ struct CinematicDiagnosticsSummary: Equatable {
         SectionDefinition(
             id: "repository-context",
             label: "Repository/context",
-            rowIDs: ["repository", "immediate", "commit-constellation", "timeline-focus", "run-recap"]
+            rowIDs: [
+                "repository",
+                "immediate",
+                "commit-constellation",
+                "timeline-focus",
+                "run-recap",
+                "run-recap-focus"
+            ]
         ),
         SectionDefinition(
             id: "motifs",
@@ -1745,6 +1816,11 @@ struct CinematicDiagnosticsSummary: Equatable {
                 id: "run-recap",
                 label: "Run recap",
                 detail: runRecapDetail(report.runRecap)
+            ),
+            row(
+                id: "run-recap-focus",
+                label: "Run recap focus",
+                detail: runRecapSceneFocusDetail(report.runRecapSceneFocus)
             ),
             row(
                 id: "language-motif",
@@ -2587,6 +2663,32 @@ struct CinematicDiagnosticsSummary: Equatable {
         ].compactMap { $0 }.joined(separator: " | ")
     }
 
+    private static func runRecapSceneFocusDetail(
+        _ snapshot: CinematicDiagnosticsReport.RunRecapSceneFocusSnapshot
+    ) -> String {
+        guard snapshot.isActive else {
+            return "empty"
+        }
+
+        return [
+            "active",
+            "descriptor \(snapshot.descriptorIdentifier)",
+            snapshot.terminalBeatID.map { "beat \($0)" },
+            "terminal \(snapshot.terminalStatusIdentifier)",
+            "style \(snapshot.terminalStyleIdentifier)",
+            "shot \(snapshot.cameraShotIdentifier)",
+            snapshot.lookTarget.map { "look \(position($0))" },
+            optionalIdentifier("node", snapshot.commitNodeIdentifier),
+            snapshot.usesFallbackTarget
+                ? "fallback \(snapshot.fallbackTargetIdentifier ?? "target")"
+                : nil,
+            "light \(snapshot.lightFamilyIdentifier)",
+            "effect \(snapshot.arenaEffectIdentifier)",
+            "phase \(fixed(snapshot.phaseLightIntensity))",
+            "id \(bounded(snapshot.identifier, limit: 180))"
+        ].compactMap { $0 }.joined(separator: " | ")
+    }
+
     private static func narrativeCueLayoutDescriptorDetail(
         _ label: String,
         _ layout: CinematicDiagnosticsReport.NarrativeCueLayoutSnapshot
@@ -2689,7 +2791,8 @@ enum CinematicDiagnostics {
     @MainActor
     static func currentReport(
         for project: CompassProject,
-        timelineFocusPlan: CinematicTimelineSceneFocusPlan = .none
+        timelineFocusPlan: CinematicTimelineSceneFocusPlan = .none,
+        runRecapSceneFocusPlan: CinematicRunRecapSceneFocusPlan = .none
     ) -> CinematicDiagnosticsReport {
         let commitConstellationPlan = project.cinematicCommitConstellationPlan
         let reliabilityFeedback = PlanReliabilityFeedback(
@@ -2727,6 +2830,7 @@ enum CinematicDiagnostics {
             recoveryCuePlan: recoveryCuePlan,
             timelineFocusPlan: timelineFocusPlan,
             runRecapPlan: runRecapPlan,
+            runRecapSceneFocusPlan: runRecapSceneFocusPlan,
             nativeFeedbackCue: project.cinematicNativeFeedbackCue,
             nativeFeedbackLifecycle: project.cinematicNativeFeedbackCueLifecycle
         )
@@ -2750,6 +2854,7 @@ enum CinematicDiagnostics {
         recoveryCuePlan: CinematicRecoveryCuePlan = .none,
         timelineFocusPlan: CinematicTimelineSceneFocusPlan = .none,
         runRecapPlan: CinematicRunRecapPlan = .empty(reason: "no-finished-session"),
+        runRecapSceneFocusPlan: CinematicRunRecapSceneFocusPlan = .none,
         nativeFeedbackCue: CinematicNativeFeedbackCuePlan? = nil,
         nativeFeedbackLifecycle: CinematicNativeFeedbackCueLifecycle = CinematicNativeFeedbackCueLifecycle()
     ) -> CinematicDiagnosticsReport {
@@ -2867,6 +2972,7 @@ enum CinematicDiagnostics {
         let commitConstellationSnapshot = commitConstellationSnapshot(for: commitConstellationPlan)
         let timelineFocusSnapshot = timelineFocusSnapshot(for: timelineFocusPlan)
         let runRecapSnapshot = runRecapSnapshot(for: runRecapPlan)
+        let runRecapSceneFocusSnapshot = runRecapSceneFocusSnapshot(for: runRecapSceneFocusPlan)
         let cameraSnapshots = CinematicCameraShot.allCases.map {
             cameraSnapshot(for: $0, settings: influenceSettings)
         }
@@ -2889,7 +2995,8 @@ enum CinematicDiagnostics {
                 "set-dressing:\(setDressingSnapshot.identifier)",
                 "commit-constellation:\(commitConstellationSnapshot.identifier)",
                 "timeline-focus:\(timelineFocusSnapshot.identifier)",
-                "run-recap:\(runRecapSnapshot.identifier)"
+                "run-recap:\(runRecapSnapshot.identifier)",
+                "run-recap-focus:\(runRecapSceneFocusSnapshot.identifier)"
             ].joined(separator: "|"),
             repoName: repoName,
             phase: phase,
@@ -2914,6 +3021,7 @@ enum CinematicDiagnostics {
             commitConstellation: commitConstellationSnapshot,
             timelineFocus: timelineFocusSnapshot,
             runRecap: runRecapSnapshot,
+            runRecapSceneFocus: runRecapSceneFocusSnapshot,
             cameraSnapshots: cameraSnapshots
         )
     }
@@ -2928,6 +3036,10 @@ enum CinematicDiagnostics {
                     let timelineFocusPlan = CinematicTimelineSceneFocusPlanner.representativePlan(
                         activityCaseIdentifier: activityCase.identifier,
                         recoveryCuePlan: recoveryCuePlan,
+                        commitConstellationPlan: commitConstellationPlan
+                    )
+                    let runRecapContext = representativeRunRecapFocusContext(
+                        for: activityCase,
                         commitConstellationPlan: commitConstellationPlan
                     )
                     return report(
@@ -2945,7 +3057,9 @@ enum CinematicDiagnostics {
                         hasRepository: activityCase.hasRepository,
                         commitConstellationPlan: commitConstellationPlan,
                         recoveryCuePlan: recoveryCuePlan,
-                        timelineFocusPlan: timelineFocusPlan
+                        timelineFocusPlan: timelineFocusPlan,
+                        runRecapPlan: runRecapContext.runRecapPlan,
+                        runRecapSceneFocusPlan: runRecapContext.runRecapSceneFocusPlan
                     )
                 }
             }
@@ -3133,6 +3247,80 @@ enum CinematicDiagnostics {
     ) -> CinematicCommitConstellationPlan {
         guard activityCase.identifier == "commit" else { return .empty }
         return CinematicTimelineSceneFocusPlanner.representativeCommitConstellationPlan()
+    }
+
+    private struct RunRecapFocusContext {
+        var runRecapPlan: CinematicRunRecapPlan
+        var runRecapSceneFocusPlan: CinematicRunRecapSceneFocusPlan
+    }
+
+    private static func representativeRunRecapFocusContext(
+        for activityCase: ActivityCase,
+        commitConstellationPlan: CinematicCommitConstellationPlan
+    ) -> RunRecapFocusContext {
+        guard let status = representativeRunRecapStatus(for: activityCase.identifier) else {
+            return RunRecapFocusContext(
+                runRecapPlan: .empty(reason: "no-finished-session"),
+                runRecapSceneFocusPlan: .none
+            )
+        }
+
+        let sessionNumber = 70 + activityCase.completedCount
+        let session = SessionRecord(
+            session: sessionNumber,
+            startedAt: Double(sessionNumber * 1_000),
+            endedAt: Double(sessionNumber * 1_000 + 620),
+            plan: activityCase.immediateTitle,
+            verify: "swift test --filter CinematicVisualSmokeReportTests",
+            beforeSha: nil,
+            afterSha: nil,
+            commits: [],
+            status: status,
+            notes: [],
+            verifyOutput: nil,
+            feedback: nil
+        )
+        let recapPlan = CinematicRunRecapPlanner.plan(
+            state: PlanState(
+                completed: ["Completed \(activityCase.immediateTitle.lowercased())"],
+                immediate: nil,
+                midTerm: "",
+                longTerm: ""
+            ),
+            sessions: [session],
+            isRunning: false,
+            isAutoPlaying: false,
+            recentRunCues: [:],
+            commitConstellationPlan: commitConstellationPlan,
+            nativeFeedbackLifecycle: CinematicNativeFeedbackCueLifecycle()
+        )
+        let timelinePlan = CinematicSessionTimelinePlan(sessions: [session])
+        let focusPlan = CinematicRunRecapSceneFocusPlanner.plan(
+            isRecapOverlaySelected: true,
+            recapPlan: recapPlan,
+            commitConstellationPlan: commitConstellationPlan,
+            timelinePlan: timelinePlan
+        )
+
+        return RunRecapFocusContext(
+            runRecapPlan: recapPlan,
+            runRecapSceneFocusPlan: focusPlan
+        )
+    }
+
+    private static func representativeRunRecapStatus(
+        for activityCaseIdentifier: String
+    ) -> SessionStatus? {
+        switch activityCaseIdentifier {
+        case "commit", "success", "recovery":
+            return .succeeded
+        case "failure":
+            return .failed
+        case "dirty-heavy":
+            return .cancelled
+        default:
+            return nil
+        }
     }
 
     private static func representativeNativeFeedbackSmokeReport(
@@ -4022,6 +4210,48 @@ enum CinematicDiagnostics {
             commitHighlightCount: plan.commitHighlightCount,
             eventChipCount: plan.eventChipCount,
             eventChipIdentifiers: plan.eventChips.map(\.identifier)
+        )
+    }
+
+    private static func runRecapSceneFocusSnapshot(
+        for plan: CinematicRunRecapSceneFocusPlan
+    ) -> CinematicDiagnosticsReport.RunRecapSceneFocusSnapshot {
+        guard let descriptor = plan.descriptor else {
+            return CinematicDiagnosticsReport.RunRecapSceneFocusSnapshot(
+                identifier: plan.identifier,
+                isActive: false,
+                descriptorIdentifier: "none",
+                recapIdentifier: "none",
+                terminalBeatID: nil,
+                terminalStatusIdentifier: "none",
+                terminalStyleIdentifier: "none",
+                cameraShotIdentifier: "none",
+                lookTarget: nil,
+                lightFamilyIdentifier: "none",
+                arenaEffectIdentifier: "none",
+                phaseLightIntensity: 0,
+                commitNodeIdentifier: nil,
+                fallbackTargetIdentifier: nil,
+                usesFallbackTarget: false
+            )
+        }
+
+        return CinematicDiagnosticsReport.RunRecapSceneFocusSnapshot(
+            identifier: plan.identifier,
+            isActive: true,
+            descriptorIdentifier: descriptor.identifier,
+            recapIdentifier: descriptor.recapIdentifier,
+            terminalBeatID: descriptor.terminalBeatID,
+            terminalStatusIdentifier: descriptor.terminalStatusIdentifier,
+            terminalStyleIdentifier: descriptor.terminalStyleIdentifier,
+            cameraShotIdentifier: descriptor.cameraShotIdentifier,
+            lookTarget: descriptor.lookTarget,
+            lightFamilyIdentifier: descriptor.lightFamilyIdentifier,
+            arenaEffectIdentifier: descriptor.arenaEffectIdentifier,
+            phaseLightIntensity: descriptor.phaseLightIntensity,
+            commitNodeIdentifier: descriptor.commitNodeIdentifier,
+            fallbackTargetIdentifier: descriptor.fallbackTargetIdentifier,
+            usesFallbackTarget: descriptor.usesFallbackTarget
         )
     }
 
