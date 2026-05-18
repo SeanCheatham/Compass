@@ -30,6 +30,7 @@ final class CinematicVisualSmokeReportTests: XCTestCase {
                 "recovery-cue-coverage",
                 "native-feedback-cue-coverage",
                 "native-feedback-treatment-coverage",
+                "activity-source-beacon-coverage",
                 "idle-story-cycle-coverage",
                 "plan-compass-focus-coverage",
                 "run-recap-saved-artifact-tour",
@@ -63,6 +64,9 @@ final class CinematicVisualSmokeReportTests: XCTestCase {
         let nativeFeedback = try XCTUnwrap(smoke.checks.first { $0.id == "native-feedback-cue-coverage" })
         let nativeFeedbackTreatment = try XCTUnwrap(
             smoke.checks.first { $0.id == "native-feedback-treatment-coverage" }
+        )
+        let activitySourceBeacon = try XCTUnwrap(
+            smoke.checks.first { $0.id == "activity-source-beacon-coverage" }
         )
         let idleStoryCycle = try XCTUnwrap(smoke.checks.first { $0.id == "idle-story-cycle-coverage" })
         let planCompassFocus = try XCTUnwrap(smoke.checks.first { $0.id == "plan-compass-focus-coverage" })
@@ -160,12 +164,19 @@ final class CinematicVisualSmokeReportTests: XCTestCase {
         XCTAssertTrue(nativeFeedbackTreatment.detail.contains("surfaces 6/6"))
         XCTAssertTrue(nativeFeedbackTreatment.detail.contains("params 6/6"))
         XCTAssertTrue(nativeFeedbackTreatment.detail.contains("prims 6/6"))
+        XCTAssertEqual(activitySourceBeacon.status, .pass)
+        XCTAssertTrue(activitySourceBeacon.detail.contains("hidden"))
+        XCTAssertTrue(activitySourceBeacon.detail.contains("support"))
+        XCTAssertTrue(activitySourceBeacon.detail.contains("warnings"))
+        XCTAssertTrue(activitySourceBeacon.detail.contains("quiet-warn"))
+        XCTAssertTrue(activitySourceBeacon.detail.contains("bounded"))
         XCTAssertEqual(idleStoryCycle.status, .pass)
         XCTAssertTrue(idleStoryCycle.detail.contains("commit-constellation"))
         XCTAssertTrue(idleStoryCycle.detail.contains("timeline-focus"))
         XCTAssertTrue(idleStoryCycle.detail.contains("native-feedback-plaque"))
         XCTAssertTrue(idleStoryCycle.detail.contains("diagnostics-warning-pulse"))
         XCTAssertTrue(idleStoryCycle.detail.contains("plan-compass-focus"))
+        XCTAssertTrue(idleStoryCycle.detail.contains("activity-source-beacon"))
         let idlePhaseCount = CinematicIdleStoryCyclePlan.Descriptor.Phase.allCases.count
         XCTAssertTrue(idleStoryCycle.detail.contains("phases \(idlePhaseCount)/\(idlePhaseCount)"))
         XCTAssertTrue(idleStoryCycle.detail.contains("routes"))
@@ -430,6 +441,41 @@ final class CinematicVisualSmokeReportTests: XCTestCase {
         XCTAssertTrue(check.detail.contains("pressure 1/\(expectedDistinctRoutes)"))
     }
 
+    func testActivitySourceBeaconCoverageWarnsForMissingQuietWarningRoute() throws {
+        let completeReports = CinematicDiagnostics.representativeActivitySourceBeaconSmokeReports()
+        let completeSmoke = CinematicVisualSmokeReport(reports: completeReports)
+        let completeCheck = try XCTUnwrap(
+            completeSmoke.checks.first { $0.id == "activity-source-beacon-coverage" }
+        )
+        XCTAssertEqual(completeCheck.status, .pass)
+        XCTAssertTrue(completeCheck.detail.contains("hidden"))
+        XCTAssertTrue(completeCheck.detail.contains("support"))
+        XCTAssertTrue(completeCheck.detail.contains("warnings"))
+        XCTAssertTrue(completeCheck.detail.contains("quiet-warn"))
+
+        var missingWarningReports = completeReports
+        let quietWarningIndex = try XCTUnwrap(
+            missingWarningReports.firstIndex {
+                $0.influenceIdentifier.contains("quiet") && $0.activitySourceBeacon.isCritical
+            }
+        )
+        missingWarningReports[quietWarningIndex].activitySourceBeacon.isVisible = false
+        missingWarningReports[quietWarningIndex].activitySourceBeacon.visibilityIdentifier = "suppressed-quiet-noncritical"
+        let missingWarningSmoke = CinematicVisualSmokeReport(reports: missingWarningReports)
+        let missingWarningCheck = try XCTUnwrap(
+            missingWarningSmoke.checks.first { $0.id == "activity-source-beacon-coverage" }
+        )
+
+        XCTAssertEqual(missingWarningCheck.status, .warning)
+        XCTAssertEqual(missingWarningCheck.warningIdentifier, "visual-smoke.activity-source-beacon")
+        XCTAssertTrue(missingWarningSmoke.warningIdentifiers.contains("visual-smoke.activity-source-beacon"))
+        XCTAssertTrue(missingWarningCheck.detail.contains("quiet-warn 0"))
+        XCTAssertLessThanOrEqual(
+            missingWarningCheck.detail.count,
+            CinematicVisualSmokeReport.detailMaxCharacters
+        )
+    }
+
     func testPlanCompassFocusCoverageWarnsForMissingWaypointCorrelation() throws {
         var reports = CinematicDiagnostics.representativePlanCompassFocusSmokeReports()
         let activeIndex = try XCTUnwrap(
@@ -543,8 +589,8 @@ final class CinematicVisualSmokeReportTests: XCTestCase {
         XCTAssertEqual(summary.visualSmoke.warningCountLabel, "No warnings")
         XCTAssertEqual(summary.visualSmoke.warningBadgeLabel, "0")
         XCTAssertEqual(summary.visualSmoke.warningIdentifiers, [])
-        XCTAssertEqual(summary.visualSmoke.checkCountLabel, "24 checks")
-        XCTAssertEqual(summary.visualSmoke.presentation.headerDetail, "24 checks | No warnings")
+        XCTAssertEqual(summary.visualSmoke.checkCountLabel, "25 checks")
+        XCTAssertEqual(summary.visualSmoke.presentation.headerDetail, "25 checks | No warnings")
         XCTAssertEqual(summary.visualSmoke.presentation.defaultExpanded, false)
         XCTAssertEqual(summary.visualSmoke.presentation.attentionState, .normal)
         XCTAssertEqual(summary.visualSmoke.presentation.warningIdentifiers, [])
@@ -562,7 +608,7 @@ final class CinematicVisualSmokeReportTests: XCTestCase {
             summary.visualSmoke.presentation.headerDetail.count,
             CinematicDiagnosticsSummary.headerDetailMaxCharacters
         )
-        XCTAssertTrue(summary.exportText.contains("Visual smoke (pass, 24 checks)"))
+        XCTAssertTrue(summary.exportText.contains("Visual smoke (pass, 25 checks)"))
         XCTAssertTrue(summary.exportText.contains("Recap command availability: pass"))
         XCTAssertTrue(summary.exportText.contains("Plan command availability: pass"))
         let commandCheck = summary.visualSmoke.checks.first {
@@ -662,7 +708,7 @@ final class CinematicVisualSmokeReportTests: XCTestCase {
         XCTAssertEqual(summary.visualSmoke.presentation.attentionState, .warning)
         XCTAssertEqual(summary.visualSmoke.presentation.warningIdentifiers, smoke.warningIdentifiers)
         XCTAssertEqual(summary.visualSmoke.presentation.needsAttention, true)
-        XCTAssertTrue(summary.visualSmoke.presentation.headerDetail.contains("24 checks"))
+        XCTAssertTrue(summary.visualSmoke.presentation.headerDetail.contains("25 checks"))
         for warningIdentifier in smoke.warningIdentifiers.prefix(2) {
             XCTAssertTrue(summary.visualSmoke.presentation.headerDetail.contains(warningIdentifier))
         }
@@ -916,7 +962,7 @@ final class CinematicVisualSmokeReportTests: XCTestCase {
         XCTAssertTrue(summary.exportText.contains("visual-smoke.asset-availability"))
         XCTAssertTrue(summary.exportText.contains("visual-smoke.texture-role-coverage"))
         XCTAssertTrue(summary.exportText.contains("visual-smoke.native-feedback-treatment-coverage"))
-        XCTAssertTrue(summary.exportText.contains("Visual smoke (warning, 24 checks)"))
+        XCTAssertTrue(summary.exportText.contains("Visual smoke (warning, 25 checks)"))
         XCTAssertTrue(summary.exportText.contains("Recap command availability: warning"))
         XCTAssertTrue(summary.exportText.contains("Asset availability: warning"))
         XCTAssertTrue(summary.exportText.contains("warning visual-smoke.asset-availability"))

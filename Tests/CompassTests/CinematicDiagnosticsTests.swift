@@ -103,6 +103,9 @@ final class CinematicDiagnosticsTests: XCTestCase {
         XCTAssertEqual(report.overlayDisplay.activitySourceCueSeverityIdentifier, "info")
         XCTAssertFalse(report.overlayDisplay.showsActivitySourceCue)
         XCTAssertTrue(report.overlayDisplay.identifier.contains("activity-source-policy:hidden"))
+        XCTAssertFalse(report.activitySourceBeacon.isVisible)
+        XCTAssertEqual(report.activitySourceBeacon.visibilityIdentifier, "hidden")
+        XCTAssertEqual(report.activitySourceBeacon.kindIdentifier, "hidden")
         XCTAssertTrue(report.worldText.identifier.contains(report.worldText.questLabel))
         XCTAssertTrue(report.briefing.identifier.contains(report.briefing.title))
 
@@ -1046,7 +1049,7 @@ final class CinematicDiagnosticsTests: XCTestCase {
         XCTAssertTrue(summary.exportText.contains("Assets/textures (2 rows)"))
         XCTAssertTrue(summary.exportText.contains("Tuning (4 rows)"))
         XCTAssertTrue(summary.exportText.contains("Camera shots (7 rows)"))
-        XCTAssertTrue(summary.exportText.contains("Visual smoke (pass, 24 checks)"))
+        XCTAssertTrue(summary.exportText.contains("Visual smoke (pass, 25 checks)"))
         XCTAssertTrue(summary.exportText.contains("Plaque treatments (pass, 4 recipes): smoke pass"))
         XCTAssertTrue(summary.exportText.contains("failure-fracture: accent failure-fracture"))
         XCTAssertTrue(summary.exportText.contains("Overlay fallback: pass"))
@@ -1194,6 +1197,17 @@ final class CinematicDiagnosticsTests: XCTestCase {
         XCTAssertEqual(report.overlayDisplay.activitySourceCueSeverityIdentifier, "info")
         XCTAssertEqual(report.overlayDisplay.activitySourceCueTintIdentifier, "blue")
         XCTAssertTrue(report.overlayDisplay.showsActivitySourceCue)
+        XCTAssertTrue(report.activitySourceBeacon.isVisible)
+        XCTAssertEqual(report.activitySourceBeacon.visibilityIdentifier, "visible")
+        XCTAssertEqual(report.activitySourceBeacon.kindIdentifier, "application-support-active")
+        XCTAssertEqual(report.activitySourceBeacon.lightFamilyIdentifier, "scan")
+        XCTAssertEqual(report.activitySourceBeacon.arenaEffectIdentifier, "seal")
+        XCTAssertEqual(report.activitySourceBeacon.cameraShotIdentifier, "cast-prep")
+        XCTAssertLessThanOrEqual(
+            report.activitySourceBeacon.identifier.count,
+            CinematicActivitySourceBeaconPlan.identifierLimit
+        )
+        XCTAssertTrue(report.identifier.contains("activity-source-beacon-visibility:visible"))
         XCTAssertTrue(report.identifier.contains("overlay-activity-source-policy:visible"))
         XCTAssertTrue(report.overlayDisplay.identifier.contains("activity-source-policy:visible"))
         XCTAssertNotEqual(report.identifier, staleReport.identifier)
@@ -1203,6 +1217,7 @@ final class CinematicDiagnosticsTests: XCTestCase {
         XCTAssertTrue(row.detail.contains("repo-local ignored-missing"))
         XCTAssertTrue(row.detail.contains("repo-local-mode ignored"))
         XCTAssertTrue(row.detail.contains("sessions.json"))
+        XCTAssertFalse(row.detail.contains("source-beacon"))
         XCTAssertLessThanOrEqual(row.detail.count, CinematicDiagnosticsSummary.detailMaxCharacters)
         XCTAssertTrue(summary.exportText.contains("Activity source:"))
         XCTAssertTrue(summary.exportText.contains("storage application_support"))
@@ -1278,6 +1293,12 @@ final class CinematicDiagnosticsTests: XCTestCase {
             "suppressed-quiet-noncritical"
         )
         XCTAssertEqual(quietSupportReport.overlayDisplay.activitySourceCueSeverityIdentifier, "info")
+        XCTAssertFalse(quietSupportReport.activitySourceBeacon.isVisible)
+        XCTAssertEqual(
+            quietSupportReport.activitySourceBeacon.visibilityIdentifier,
+            "suppressed-quiet-noncritical"
+        )
+        XCTAssertEqual(quietSupportReport.activitySourceBeacon.suppressionReason, "quiet-noncritical")
         XCTAssertTrue(supportSummary.exportText.contains("source-cue suppressed-quiet-noncritical"))
         XCTAssertTrue(supportSummary.exportText.contains("source-visible no"))
 
@@ -1285,9 +1306,15 @@ final class CinematicDiagnosticsTests: XCTestCase {
         XCTAssertEqual(quietMissingReport.overlayDisplay.activitySourceCuePolicyIdentifier, "visible-warning")
         XCTAssertEqual(quietMissingReport.overlayDisplay.activitySourceCueSeverityIdentifier, "warning")
         XCTAssertEqual(quietMissingReport.overlayDisplay.activitySourceCueTintIdentifier, "orange")
+        XCTAssertTrue(quietMissingReport.activitySourceBeacon.isVisible)
+        XCTAssertTrue(quietMissingReport.activitySourceBeacon.isCritical)
+        XCTAssertEqual(quietMissingReport.activitySourceBeacon.visibilityIdentifier, "visible-warning")
+        XCTAssertEqual(quietMissingReport.activitySourceBeacon.lightFamilyIdentifier, "pressure")
+        XCTAssertEqual(quietMissingReport.idleStoryCycle.phaseIdentifier, "activity-source-beacon")
         XCTAssertTrue(missingSummary.exportText.contains("source-cue visible-warning"))
         XCTAssertTrue(missingSummary.exportText.contains("source-visible yes"))
         XCTAssertTrue(missingSummary.exportText.contains("availability sessions-record-missing"))
+        XCTAssertTrue(missingSummary.exportText.contains("source-beacon visible-warning/application-support-unavailable"))
     }
 
     func testPlanCompassRowsCorrelateWithDiagnosticsExport() throws {

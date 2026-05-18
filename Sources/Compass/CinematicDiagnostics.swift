@@ -13,6 +13,7 @@ struct CinematicDiagnosticsReport: Equatable {
     var languageMotif: LanguageMotifSnapshot
     var activityMotif: ActivityMotifSnapshot
     var activitySource: RepositoryActivitySourceSnapshot
+    var activitySourceBeacon: ActivitySourceBeaconSnapshot
     var nativeFeedback: NativeFeedbackSnapshot
     var nativeFeedbackDelivery: NativeFeedbackDeliverySnapshot
     var recoveryCue: RecoveryCueSnapshot
@@ -67,6 +68,42 @@ struct CinematicDiagnosticsReport: Equatable {
         var usesCommitAmbient: Bool
         var usesSuccessAmbient: Bool
         var shouldShakeOnTransition: Bool
+    }
+
+    struct ActivitySourceBeaconSnapshot: Equatable {
+        var identifier: String
+        var cueIdentifier: String
+        var sourceIdentifier: String
+        var statusIdentifier: String
+        var kindIdentifier: String
+        var activeStorageIdentifier: String
+        var availabilityIdentifier: String
+        var repoLocalSessionsStateIdentifier: String
+        var repoLocalModeIdentifier: String
+        var severityIdentifier: String
+        var tintIdentifier: String
+        var visibilityIdentifier: String
+        var suppressionReason: String
+        var isVisible: Bool
+        var isCritical: Bool
+        var isQuietModeSuppressible: Bool
+        var descriptorIdentifier: String
+        var routeIdentifier: String
+        var entityNamePrefix: String
+        var rootEntityName: String
+        var ringEntityName: String
+        var coreEntityName: String
+        var labelEntityName: String
+        var detailEntityName: String
+        var label: String
+        var detail: String
+        var copyText: String
+        var lightFamilyIdentifier: String
+        var arenaEffectIdentifier: String
+        var cameraShotIdentifier: String
+        var lookTarget: SIMD3<Float>?
+        var anchorPosition: SIMD3<Float>?
+        var phaseLightIntensity: Float
     }
 
     struct PlanCompassHistorySnapshot: Equatable {
@@ -530,6 +567,14 @@ struct CinematicDiagnosticsReport: Equatable {
         var diagnosticsWarningRepeatedIdentifiers: [String]
         var diagnosticsWarningTargetAnchors: [String]
         var diagnosticsWarningRelatedRowAnchors: [String]
+        var activitySourceBeaconIdentifier: String
+        var activitySourceBeaconVisibilityIdentifier: String
+        var activitySourceBeaconKindIdentifier: String
+        var activitySourceBeaconSeverityIdentifier: String
+        var activitySourceBeaconTintIdentifier: String
+        var activitySourceBeaconEntityNamePrefix: String
+        var activitySourceBeaconLightFamilyIdentifier: String
+        var activitySourceBeaconCopyText: String
     }
 
     struct TimelineFocusSnapshot: Equatable {
@@ -1221,9 +1266,11 @@ struct CinematicVisualSmokeReport: Equatable {
         let savedArtifactTourReports = CinematicDiagnostics.representativeSavedRecapArtifactTourSmokeReports()
         let pinnedCueReports = CinematicDiagnostics.representativePinnedComparisonCueSmokeReports()
         let recapArtifactCommandReports = CinematicDiagnostics.representativeRunRecapArtifactCommandSmokeReports()
+        let activitySourceBeaconReports = CinematicDiagnostics.representativeActivitySourceBeaconSmokeReports()
         return CinematicVisualSmokeReport(
             reports: reports + nativeFeedbackReports + idleStoryReports + planFocusReports + savedArtifactTourReports
                 + planCommandReports + planReadinessReports + pinnedCueReports + recapArtifactCommandReports
+                + activitySourceBeaconReports
         )
     }
 
@@ -1246,6 +1293,7 @@ struct CinematicVisualSmokeReport: Equatable {
             recoveryCueCoverageCheck(reports: reports),
             nativeFeedbackCueCoverageCheck(reports: reports),
             nativeFeedbackTreatmentCoverageCheck(reports: reports),
+            activitySourceBeaconCoverageCheck(reports: reports),
             idleStoryCycleCoverageCheck(reports: reports),
             planCompassSceneFocusCoverageCheck(reports: reports),
             runRecapSavedArtifactTourCoverageCheck(reports: reports),
@@ -2166,6 +2214,107 @@ struct CinematicVisualSmokeReport: Equatable {
         )
     }
 
+    private static func activitySourceBeaconCoverageCheck(
+        reports: [CinematicDiagnosticsReport]
+    ) -> Check {
+        let hasActivitySourceSamples = reports.contains {
+            $0.activitySourceBeacon.visibilityIdentifier != "hidden"
+                || $0.idleStoryCycle.phaseIdentifier == "activity-source-beacon"
+                || ($0.activitySource.activeStorage == .repoLocal
+                    && $0.activitySource.sourceAvailability == .available
+                    && $0.activitySource.repoLocalSessionsState == .activeSource)
+        }
+        guard hasActivitySourceSamples else {
+            return check(
+                id: "activity-source-beacon-coverage",
+                label: "Activity source beacon",
+                isPassing: true,
+                warningIdentifier: "visual-smoke.activity-source-beacon",
+                detail: "not sampled"
+            )
+        }
+
+        let snapshots = reports.map(\.activitySourceBeacon)
+        let hiddenRepoLocalCount = reports.filter {
+            $0.activitySource.activeStorage == .repoLocal
+                && $0.activitySource.sourceAvailability == .available
+                && $0.activitySource.repoLocalSessionsState == .activeSource
+                && !$0.activitySourceBeacon.isVisible
+                && $0.activitySourceBeacon.visibilityIdentifier == "hidden"
+        }.count
+        let supportVisibleCount = snapshots.filter {
+            $0.isVisible
+                && $0.activeStorageIdentifier == KnownProjectActiveStorage.applicationSupport.rawValue
+                && $0.availabilityIdentifier == RepositoryActivitySourceSnapshot.SourceAvailability.available.rawValue
+                && $0.visibilityIdentifier == "visible"
+        }.count
+        let warningVisibleCount = snapshots.filter {
+            $0.isVisible
+                && $0.isCritical
+                && ["sessions-record-missing", "sessions-record-unreadable", "sessions-record-oversized"]
+                    .contains($0.availabilityIdentifier)
+        }.count
+        let quietSuppressedCount = snapshots.filter {
+            !$0.isVisible
+                && $0.visibilityIdentifier == "suppressed-quiet-noncritical"
+                && $0.suppressionReason == "quiet-noncritical"
+        }.count
+        let quietWarningVisibleCount = reports.filter {
+            $0.influenceIdentifier.contains("quiet")
+                && $0.activitySourceBeacon.isVisible
+                && $0.activitySourceBeacon.isCritical
+        }.count
+        let activeBeaconReports = reports.filter(\.activitySourceBeacon.isVisible)
+        let idleBeaconCount = reports.filter {
+            $0.idleStoryCycle.phaseIdentifier == "activity-source-beacon"
+                && $0.idleStoryCycle.activitySourceBeaconIdentifier != "none"
+                && $0.idleStoryCycle.targetKindIdentifier.contains("activity-source-beacon")
+        }.count
+        let boundedCount = snapshots.filter {
+            $0.identifier.count <= CinematicActivitySourceBeaconPlan.identifierLimit
+                && $0.descriptorIdentifier.count <= CinematicActivitySourceBeaconPlan.descriptorIdentifierLimit
+                && $0.entityNamePrefix.count <= CinematicActivitySourceBeaconPlan.entityNameLimit
+                && $0.label.count <= CinematicActivitySourceBeaconPlan.labelLimit
+                && $0.detail.count <= CinematicActivitySourceBeaconPlan.detailLimit
+                && $0.copyText.count <= CinematicActivitySourceBeaconPlan.copyTextLimit
+        }.count
+        let treatmentCount = activeBeaconReports.filter {
+            $0.activitySourceBeacon.lightFamilyIdentifier != "none"
+                && $0.activitySourceBeacon.arenaEffectIdentifier != "none"
+                && $0.activitySourceBeacon.cameraShotIdentifier != "none"
+                && $0.activitySourceBeacon.rootEntityName != "none"
+                && $0.activitySourceBeacon.ringEntityName != "none"
+                && $0.activitySourceBeacon.coreEntityName != "none"
+        }.count
+        let isPassing = !reports.isEmpty
+            && hiddenRepoLocalCount > 0
+            && supportVisibleCount > 0
+            && warningVisibleCount >= 3
+            && quietSuppressedCount > 0
+            && quietWarningVisibleCount > 0
+            && idleBeaconCount > 0
+            && boundedCount == snapshots.count
+            && treatmentCount == activeBeaconReports.count
+        let detail = [
+            "hidden \(hiddenRepoLocalCount)",
+            "support \(supportVisibleCount)",
+            "warnings \(warningVisibleCount)",
+            "quiet \(quietSuppressedCount)",
+            "quiet-warn \(quietWarningVisibleCount)",
+            "idle \(idleBeaconCount)",
+            "bounded \(boundedCount)/\(snapshots.count)",
+            "treatments \(treatmentCount)/\(activeBeaconReports.count)"
+        ].joined(separator: " ")
+
+        return check(
+            id: "activity-source-beacon-coverage",
+            label: "Activity source beacon",
+            isPassing: isPassing,
+            warningIdentifier: "visual-smoke.activity-source-beacon",
+            detail: detail
+        )
+    }
+
     private static func idleStoryCycleCoverageCheck(reports: [CinematicDiagnosticsReport]) -> Check {
         let expectedPhases = Set(
             CinematicIdleStoryCyclePlan.Descriptor.Phase.allCases.map(\.rawValue)
@@ -2233,7 +2382,8 @@ struct CinematicVisualSmokeReport: Equatable {
             "commit-constellation",
             "timeline-focus",
             "native-feedback-plaque",
-            "diagnostics-warning-pulse"
+            "diagnostics-warning-pulse",
+            "activity-source-beacon"
         ].filter(phases.contains).joined(separator: "/")
         let expectedDistinctRoutes = expectedPhases.count
         let isPassing = !reports.isEmpty
@@ -5542,6 +5692,21 @@ struct CinematicDiagnosticsSummary: Equatable {
             identifierListDetail("target ids", snapshot.diagnosticsWarningTargetIdentifiers),
             identifierListDetail("target anchors", snapshot.diagnosticsWarningTargetAnchors),
             identifierListDetail("related rows", snapshot.diagnosticsWarningRelatedRowAnchors),
+            snapshot.activitySourceBeaconIdentifier == "none"
+                ? nil
+                : "source-beacon \(snapshot.activitySourceBeaconVisibilityIdentifier)/\(snapshot.activitySourceBeaconKindIdentifier)",
+            snapshot.activitySourceBeaconIdentifier == "none"
+                ? nil
+                : "source-severity \(snapshot.activitySourceBeaconSeverityIdentifier)",
+            snapshot.activitySourceBeaconIdentifier == "none"
+                ? nil
+                : "source-tint \(snapshot.activitySourceBeaconTintIdentifier)",
+            snapshot.activitySourceBeaconIdentifier == "none"
+                ? nil
+                : "source-light \(snapshot.activitySourceBeaconLightFamilyIdentifier)",
+            snapshot.activitySourceBeaconIdentifier == "none"
+                ? nil
+                : "source-entity \(snapshot.activitySourceBeaconEntityNamePrefix)",
             "choreo \(bounded(snapshot.choreographyIdentifier, limit: 80))",
             "source \(bounded(snapshot.sourceDescriptorIdentifier, limit: 80))",
             "target \(snapshot.targetKindIdentifier)",
@@ -7425,11 +7590,16 @@ enum CinematicDiagnostics {
             libraryContext: runRecapShareArtifactLibraryContext,
             rotationSeed: idleStoryCycleSession.sessionOrdinal
         )
+        let activitySourceBeaconPlan = CinematicActivitySourceBeaconPlan(
+            snapshot: activitySourceSnapshot,
+            influenceSettings: influenceSettings
+        )
         let resolvedIdleStoryCyclePlan = idleStoryCyclePlan ?? CinematicIdleStoryCyclePlanner.plan(
             session: idleStoryCycleSession,
             isLiveFollowActive: isLiveFollowActive,
             hasExplicitUserFocus: hasExplicitUserFocus,
             influenceSettings: influenceSettings,
+            activitySourceBeaconPlan: activitySourceBeaconPlan,
             commitConstellationPlan: commitConstellationPlan,
             timelineSceneFocusPlan: timelineFocusPlan,
             planCompassSceneFocusPlan: planCompassSceneFocusPlan,
@@ -7451,6 +7621,7 @@ enum CinematicDiagnostics {
             lifecycle: nativeFeedbackLifecycle,
             narrativeCuePlan: narrativeCuePlan
         )
+        let activitySourceBeaconSnapshot = activitySourceBeaconSnapshot(for: activitySourceBeaconPlan)
         let narrativeCueReadability = CinematicNarrativeCueReadabilitySignals(plan: narrativeCuePlan)
         let nativeFeedbackLifecycleIdentifier = nativeFeedbackLifecycle.hasState
             ? nativeFeedbackLifecycle.identifier
@@ -7608,6 +7779,8 @@ enum CinematicDiagnostics {
                 "language:\(languageSnapshot.identifier)",
                 "activity:\(activitySnapshot.identifier)",
                 "activity-source:\(activitySourceSnapshot.identifier)",
+                "activity-source-beacon:\(activitySourceBeaconSnapshot.identifier)",
+                "activity-source-beacon-visibility:\(activitySourceBeaconSnapshot.visibilityIdentifier)",
                 "recovery:\(recoveryCueSnapshot.identifier)",
                 "stage:\(stageBeatSnapshot.identifier)",
                 "stage-effect:\(stageEffectSnapshot.identifier)",
@@ -7698,6 +7871,7 @@ enum CinematicDiagnostics {
             languageMotif: languageSnapshot,
             activityMotif: activitySnapshot,
             activitySource: activitySourceSnapshot,
+            activitySourceBeacon: activitySourceBeaconSnapshot,
             nativeFeedback: nativeFeedbackSnapshot,
             nativeFeedbackDelivery: nativeFeedbackDeliverySnapshot,
             recoveryCue: recoveryCueSnapshot,
@@ -7938,6 +8112,11 @@ enum CinematicDiagnostics {
             caseIdentifier: "idle-cycle",
             warningCount: 0
         )
+        let activitySourceSnapshot = representativeActivitySourceSnapshot(
+            activeStorage: .applicationSupport,
+            sourceAvailability: .available,
+            repoLocalSessionsState: .ignoredCompatible
+        )
         let nativeFeedbackCue = CinematicNativeFeedbackCuePlanner.plan(
             milestone: .verifyStarted,
             content: NativeFeedbackContent(milestone: .verifyStarted, projectName: "Idle Story Cycle"),
@@ -7958,6 +8137,7 @@ enum CinematicDiagnostics {
                 nativeFeedbackCue: nativeFeedbackCue,
                 recapContext: recapContext,
                 tourHistoryPlan: tourHistoryPlan,
+                activitySourceSnapshot: activitySourceSnapshot,
                 diagnosticsWarningBundleHistory: diagnosticsWarningBundleHistory,
                 session: CinematicIdleStoryCyclePlan.SessionInput(
                     elapsedTime: elapsedTime,
@@ -7978,6 +8158,7 @@ enum CinematicDiagnostics {
             nativeFeedbackCue: nativeFeedbackCue,
             recapContext: recapContext,
             tourHistoryPlan: tourHistoryPlan,
+            activitySourceSnapshot: activitySourceSnapshot,
             diagnosticsWarningBundleHistory: diagnosticsWarningBundleHistory,
             session: CinematicIdleStoryCyclePlan.SessionInput(),
             isLiveFollowActive: true,
@@ -7985,6 +8166,68 @@ enum CinematicDiagnostics {
         )
 
         return phaseReports + [suppressedReport]
+    }
+
+    static func representativeActivitySourceBeaconSmokeReports(
+        influenceSettings: CinematicInfluenceSettings = CinematicInfluenceSettings()
+    ) -> [CinematicDiagnosticsReport] {
+        let quietSettings = CinematicInfluenceSettings(
+            cameraStyle: influenceSettings.cameraStyle,
+            comfortMode: .quiet,
+            intensity: influenceSettings.intensity
+        )
+        let supportAvailable = representativeActivitySourceSnapshot(
+            activeStorage: .applicationSupport,
+            sourceAvailability: .available,
+            repoLocalSessionsState: .ignoredCompatible
+        )
+        let warningAvailabilities: [RepositoryActivitySourceSnapshot.SourceAvailability] = [
+            .sessionsRecordMissing,
+            .sessionsRecordUnreadable,
+            .sessionsRecordOversized
+        ]
+
+        let hiddenReport = representativeActivitySourceBeaconSmokeReport(
+            caseIdentifier: "repo-local-hidden",
+            snapshot: representativeActivitySourceSnapshot(
+                activeStorage: .repoLocal,
+                sourceAvailability: .available,
+                repoLocalSessionsState: .activeSource
+            ),
+            influenceSettings: influenceSettings
+        )
+        let supportReport = representativeActivitySourceBeaconSmokeReport(
+            caseIdentifier: "support-visible",
+            snapshot: supportAvailable,
+            influenceSettings: influenceSettings
+        )
+        let quietSupportReport = representativeActivitySourceBeaconSmokeReport(
+            caseIdentifier: "quiet-support-suppressed",
+            snapshot: supportAvailable,
+            influenceSettings: quietSettings
+        )
+        let warningReports = warningAvailabilities.map { availability in
+            representativeActivitySourceBeaconSmokeReport(
+                caseIdentifier: availability.rawValue,
+                snapshot: representativeActivitySourceSnapshot(
+                    activeStorage: .applicationSupport,
+                    sourceAvailability: availability,
+                    repoLocalSessionsState: .ignoredMissing
+                ),
+                influenceSettings: influenceSettings
+            )
+        }
+        let quietWarningReport = representativeActivitySourceBeaconSmokeReport(
+            caseIdentifier: "quiet-warning-visible",
+            snapshot: representativeActivitySourceSnapshot(
+                activeStorage: .applicationSupport,
+                sourceAvailability: .sessionsRecordMissing,
+                repoLocalSessionsState: .ignoredMissing
+            ),
+            influenceSettings: quietSettings
+        )
+
+        return [hiddenReport, supportReport, quietSupportReport] + warningReports + [quietWarningReport]
     }
 
     static func representativePlanCompassFocusSmokeReports(
@@ -9275,6 +9518,7 @@ enum CinematicDiagnostics {
         nativeFeedbackCue: CinematicNativeFeedbackCuePlan?,
         recapContext: RunRecapFocusContext,
         tourHistoryPlan: CinematicRunRecapShareArtifactHistoryPlan,
+        activitySourceSnapshot: RepositoryActivitySourceSnapshot,
         diagnosticsWarningBundleHistory: CinematicDiagnosticsWarningBundleHistory,
         session: CinematicIdleStoryCyclePlan.SessionInput,
         isLiveFollowActive: Bool,
@@ -9288,6 +9532,7 @@ enum CinematicDiagnostics {
             latestEvent: nil,
             languageProfile: representativeLanguageProfile(for: .swift),
             activityProfile: activityCase.profile,
+            activitySourceSnapshot: activitySourceSnapshot,
             influenceSettings: influenceSettings,
             isRunning: false,
             isAutoPlaying: false,
@@ -9305,6 +9550,60 @@ enum CinematicDiagnostics {
             runRecapShareArtifactHistoryPlan: tourHistoryPlan,
             diagnosticsWarningBundleHistory: diagnosticsWarningBundleHistory,
             nativeFeedbackCue: nativeFeedbackCue
+        )
+    }
+
+    private static func representativeActivitySourceBeaconSmokeReport(
+        caseIdentifier: String,
+        snapshot: RepositoryActivitySourceSnapshot,
+        influenceSettings: CinematicInfluenceSettings
+    ) -> CinematicDiagnosticsReport {
+        report(
+            repoName: "Activity Source Beacon \(caseIdentifier)",
+            phase: LoopPhase.idle.rawValue,
+            immediateTitle: "Render activity source beacon \(caseIdentifier)",
+            completedCount: 0,
+            latestEvent: nil,
+            languageProfile: representativeLanguageProfile(for: .swift),
+            activityProfile: .empty,
+            activitySourceSnapshot: snapshot,
+            influenceSettings: influenceSettings,
+            isRunning: false,
+            isAutoPlaying: false,
+            isPaused: false,
+            hasRepository: true,
+            commitConstellationPlan: .empty,
+            idleStoryCycleSession: CinematicIdleStoryCyclePlan.SessionInput(),
+            isLiveFollowActive: false,
+            hasExplicitUserFocus: false,
+            runRecapPlan: .empty(reason: "activity-source-beacon-smoke"),
+            runRecapSceneFocusPlan: .none,
+            runRecapEndCardPlan: .none
+        )
+    }
+
+    private static func representativeActivitySourceSnapshot(
+        activeStorage: KnownProjectActiveStorage,
+        sourceAvailability: RepositoryActivitySourceSnapshot.SourceAvailability,
+        repoLocalSessionsState: RepositoryActivitySourceSnapshot.RepoLocalSessionsState
+    ) -> RepositoryActivitySourceSnapshot {
+        let repoURL = URL(
+            fileURLWithPath: "/tmp/CompassActivitySourceBeaconSmoke",
+            isDirectory: true
+        )
+        let repoLocalRoot = repoURL.appending(path: ".compass", directoryHint: .isDirectory)
+        let supportRoot = repoURL
+            .appending(path: "Application Support", directoryHint: .isDirectory)
+            .appending(path: "Compass", directoryHint: .isDirectory)
+        let activeRoot = activeStorage == .repoLocal ? repoLocalRoot : supportRoot
+
+        return RepositoryActivitySourceSnapshot(
+            activeStorage: activeStorage,
+            storageRootURL: activeRoot,
+            sessionsRecordURL: activeRoot.appending(path: "sessions.json"),
+            sourceAvailability: sourceAvailability,
+            repoLocalSessionsRecordURL: repoLocalRoot.appending(path: "sessions.json"),
+            repoLocalSessionsState: repoLocalSessionsState
         )
     }
 
@@ -9940,6 +10239,47 @@ enum CinematicDiagnostics {
         )
     }
 
+    private static func activitySourceBeaconSnapshot(
+        for plan: CinematicActivitySourceBeaconPlan
+    ) -> CinematicDiagnosticsReport.ActivitySourceBeaconSnapshot {
+        let descriptor = plan.descriptor
+        return CinematicDiagnosticsReport.ActivitySourceBeaconSnapshot(
+            identifier: plan.identifier,
+            cueIdentifier: plan.cueIdentifier,
+            sourceIdentifier: plan.sourceIdentifier,
+            statusIdentifier: plan.statusIdentifier,
+            kindIdentifier: plan.kindIdentifier,
+            activeStorageIdentifier: plan.activeStorageIdentifier,
+            availabilityIdentifier: plan.availabilityIdentifier,
+            repoLocalSessionsStateIdentifier: plan.repoLocalSessionsStateIdentifier,
+            repoLocalModeIdentifier: plan.repoLocalModeIdentifier,
+            severityIdentifier: plan.severityIdentifier,
+            tintIdentifier: plan.tintIdentifier,
+            visibilityIdentifier: plan.visibilityIdentifier,
+            suppressionReason: plan.suppressionReason,
+            isVisible: plan.isVisible,
+            isCritical: plan.isCritical,
+            isQuietModeSuppressible: plan.isQuietModeSuppressible,
+            descriptorIdentifier: descriptor?.identifier ?? "none",
+            routeIdentifier: descriptor?.routeIdentifier ?? "none",
+            entityNamePrefix: descriptor?.entityNamePrefix ?? "none",
+            rootEntityName: descriptor?.rootEntityName ?? "none",
+            ringEntityName: descriptor?.ringEntityName ?? "none",
+            coreEntityName: descriptor?.coreEntityName ?? "none",
+            labelEntityName: descriptor?.labelEntityName ?? "none",
+            detailEntityName: descriptor?.detailEntityName ?? "none",
+            label: descriptor?.label ?? "",
+            detail: descriptor?.detail ?? "",
+            copyText: descriptor?.copyText ?? "",
+            lightFamilyIdentifier: descriptor?.lightFamilyIdentifier ?? "none",
+            arenaEffectIdentifier: descriptor?.arenaEffectIdentifier ?? "none",
+            cameraShotIdentifier: descriptor?.cameraShotIdentifier ?? "none",
+            lookTarget: descriptor?.lookTarget,
+            anchorPosition: descriptor?.anchorPosition,
+            phaseLightIntensity: descriptor?.phaseLightIntensity ?? 0
+        )
+    }
+
     private static func worldTextSnapshot(
         for worldText: CinematicWorldText
     ) -> CinematicDiagnosticsReport.WorldTextSnapshot {
@@ -10136,10 +10476,19 @@ enum CinematicDiagnostics {
                 diagnosticsWarningIdentifiers: [],
                 diagnosticsWarningRepeatedIdentifiers: [],
                 diagnosticsWarningTargetAnchors: [],
-                diagnosticsWarningRelatedRowAnchors: []
+                diagnosticsWarningRelatedRowAnchors: [],
+                activitySourceBeaconIdentifier: "none",
+                activitySourceBeaconVisibilityIdentifier: "none",
+                activitySourceBeaconKindIdentifier: "none",
+                activitySourceBeaconSeverityIdentifier: "none",
+                activitySourceBeaconTintIdentifier: "none",
+                activitySourceBeaconEntityNamePrefix: "none",
+                activitySourceBeaconLightFamilyIdentifier: "none",
+                activitySourceBeaconCopyText: ""
             )
         }
         let warningDescriptor = descriptor.diagnosticsWarningPulseDescriptor
+        let beaconDescriptor = descriptor.activitySourceBeaconDescriptor
 
         return CinematicDiagnosticsReport.IdleStoryCycleSnapshot(
             identifier: plan.identifier,
@@ -10172,7 +10521,15 @@ enum CinematicDiagnostics {
             diagnosticsWarningIdentifiers: warningDescriptor?.warningIdentifiers ?? [],
             diagnosticsWarningRepeatedIdentifiers: warningDescriptor?.repeatedWarningIdentifiers ?? [],
             diagnosticsWarningTargetAnchors: warningDescriptor?.targetAnchors ?? [],
-            diagnosticsWarningRelatedRowAnchors: warningDescriptor?.relatedRowAnchors ?? []
+            diagnosticsWarningRelatedRowAnchors: warningDescriptor?.relatedRowAnchors ?? [],
+            activitySourceBeaconIdentifier: beaconDescriptor?.identifier ?? "none",
+            activitySourceBeaconVisibilityIdentifier: beaconDescriptor?.visibilityIdentifier ?? "none",
+            activitySourceBeaconKindIdentifier: beaconDescriptor?.kindIdentifier ?? "none",
+            activitySourceBeaconSeverityIdentifier: beaconDescriptor?.severityIdentifier ?? "none",
+            activitySourceBeaconTintIdentifier: beaconDescriptor?.tintIdentifier ?? "none",
+            activitySourceBeaconEntityNamePrefix: beaconDescriptor?.entityNamePrefix ?? "none",
+            activitySourceBeaconLightFamilyIdentifier: beaconDescriptor?.lightFamilyIdentifier ?? "none",
+            activitySourceBeaconCopyText: beaconDescriptor?.copyText ?? ""
         )
     }
 

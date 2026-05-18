@@ -113,11 +113,16 @@ struct CinematicTab: View {
                 rotationSeed: idleStorySession.sessionOrdinal
                     + Int(idleStorySession.elapsedTime / (CinematicIdleStoryCyclePlan.defaultCadence * 2))
             )
+            let activitySourceBeaconPlan = CinematicActivitySourceBeaconPlan(
+                snapshot: project.activitySourceSnapshot,
+                influenceSettings: project.cinematicInfluenceSettings
+            )
             let idleStoryCyclePlan = CinematicIdleStoryCyclePlanner.plan(
                 session: idleStorySession,
                 isLiveFollowActive: CinematicIdleStoryCyclePlanner.hasLiveFollowTarget(lines: project.liveLog),
                 hasExplicitUserFocus: overlayMode != .live,
                 influenceSettings: project.cinematicInfluenceSettings,
+                activitySourceBeaconPlan: activitySourceBeaconPlan,
                 commitConstellationPlan: project.cinematicCommitConstellationPlan,
                 timelineSceneFocusPlan: timelineSceneFocusCandidatePlan,
                 planCompassSceneFocusPlan: planCompassSceneFocusCandidatePlan,

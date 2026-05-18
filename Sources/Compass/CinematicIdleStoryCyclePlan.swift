@@ -84,6 +84,7 @@ struct CinematicIdleStoryCyclePlan: Equatable {
             case runRecapFocus = "run-recap-focus"
             case runRecapEndCard = "run-recap-end-card"
             case savedRecapArtifactTour = "saved-recap-artifact-tour"
+            case activitySourceBeacon = "activity-source-beacon"
         }
 
         var identifier: String
@@ -110,6 +111,7 @@ struct CinematicIdleStoryCyclePlan: Equatable {
         var runRecapSceneFocusPlan: CinematicRunRecapSceneFocusPlan?
         var runRecapEndCardPlan: CinematicRunRecapEndCardPlan?
         var runRecapShareArtifactTourPlan: CinematicRunRecapShareArtifactTourPlan?
+        var activitySourceBeaconDescriptor: CinematicActivitySourceBeaconPlan.Descriptor?
 
         var phaseIdentifier: String { phase.rawValue }
         var cameraShotIdentifier: String { cameraShot.identifier }
@@ -206,6 +208,7 @@ enum CinematicIdleStoryCyclePlanner {
         isLiveFollowActive: Bool,
         hasExplicitUserFocus: Bool,
         influenceSettings: CinematicInfluenceSettings,
+        activitySourceBeaconPlan: CinematicActivitySourceBeaconPlan = .hidden,
         commitConstellationPlan: CinematicCommitConstellationPlan,
         timelineSceneFocusPlan: CinematicTimelineSceneFocusPlan,
         planCompassSceneFocusPlan: CinematicPlanCompassSceneFocusPlan = .none,
@@ -228,6 +231,7 @@ enum CinematicIdleStoryCyclePlanner {
         let boundedCadence = clamp(cadence, to: CinematicIdleStoryCyclePlan.cadenceRange)
         let candidates = candidates(
             influenceSettings: influenceSettings,
+            activitySourceBeaconPlan: activitySourceBeaconPlan,
             commitConstellationPlan: commitConstellationPlan,
             timelineSceneFocusPlan: timelineSceneFocusPlan,
             planCompassSceneFocusPlan: planCompassSceneFocusPlan,
@@ -255,6 +259,9 @@ enum CinematicIdleStoryCyclePlanner {
                influenceSettings.comfortMode == .quiet,
                !nativeFeedbackCue.isCriticalCinematicBanner {
                 return .inactive(reason: "quiet-noncritical-native-feedback")
+            }
+            if activitySourceBeaconPlan.suppressionReason == "quiet-noncritical" {
+                return .inactive(reason: "quiet-noncritical-activity-source")
             }
             return .inactive(reason: "no-descriptors")
         }
@@ -356,10 +363,12 @@ enum CinematicIdleStoryCyclePlanner {
         var runRecapSceneFocusPlan: CinematicRunRecapSceneFocusPlan?
         var runRecapEndCardPlan: CinematicRunRecapEndCardPlan?
         var runRecapShareArtifactTourPlan: CinematicRunRecapShareArtifactTourPlan?
+        var activitySourceBeaconDescriptor: CinematicActivitySourceBeaconPlan.Descriptor?
     }
 
     private static func candidates(
         influenceSettings: CinematicInfluenceSettings,
+        activitySourceBeaconPlan: CinematicActivitySourceBeaconPlan,
         commitConstellationPlan: CinematicCommitConstellationPlan,
         timelineSceneFocusPlan: CinematicTimelineSceneFocusPlan,
         planCompassSceneFocusPlan: CinematicPlanCompassSceneFocusPlan,
@@ -412,6 +421,11 @@ enum CinematicIdleStoryCyclePlanner {
             ),
             savedRecapArtifactTourCandidate(
                 tourPlan: runRecapShareArtifactTourPlan,
+                influenceSettings: influenceSettings,
+                cadence: cadence
+            ),
+            activitySourceBeaconCandidate(
+                beaconPlan: activitySourceBeaconPlan,
                 influenceSettings: influenceSettings,
                 cadence: cadence
             )
@@ -772,6 +786,55 @@ enum CinematicIdleStoryCyclePlanner {
         )
     }
 
+    private static func activitySourceBeaconCandidate(
+        beaconPlan: CinematicActivitySourceBeaconPlan,
+        influenceSettings: CinematicInfluenceSettings,
+        cadence: TimeInterval
+    ) -> Candidate? {
+        guard let descriptor = beaconPlan.descriptor else { return nil }
+        guard influenceSettings.comfortMode != .quiet || !descriptor.isQuietModeSuppressible else {
+            return nil
+        }
+
+        let targetKindIdentifier = bounded(
+            "activity-source-beacon-\(descriptor.kindIdentifier)-\(descriptor.availabilityIdentifier)",
+            limit: CinematicIdleStoryCyclePlan.choreographyTreatmentIdentifierMaxCharacters
+        )
+        let isCritical = descriptor.isCritical
+        let choreography = choreography(
+            phase: .activitySourceBeacon,
+            sourceDescriptorIdentifier: descriptor.identifier,
+            targetKindIdentifier: targetKindIdentifier,
+            cameraShot: descriptor.cameraShot,
+            influenceSettings: influenceSettings,
+            baseCadence: cadence,
+            cadenceScale: isCritical ? 0.9 : 1.12,
+            dwellScale: isCritical ? 0.78 : 0.88,
+            transitionDurationScale: isCritical ? 0.84 : 0.98,
+            cameraPressureIdentifier: isCritical ? "activity-source-warning" : "activity-source-beacon",
+            targetBias: isCritical ? 0.86 : 0.78,
+            pulseDuration: isCritical ? 0.52 : 0.64,
+            pulseIntensityScale: isCritical ? 1.12 : 1.04,
+            pulseOrbBoost: isCritical ? 0.14 : 0.08,
+            shakeScale: descriptor.severityIdentifier == "failure" ? 0.38 : nil
+        )
+
+        return Candidate(
+            phase: .activitySourceBeacon,
+            sourceDescriptorIdentifier: descriptor.identifier,
+            targetKindIdentifier: targetKindIdentifier,
+            anchorTreatmentIdentifier: "entity:\(descriptor.entityNamePrefix)",
+            cameraShot: descriptor.cameraShot,
+            lookTarget: descriptor.lookTarget,
+            lightFamily: descriptor.lightFamily,
+            arenaEffect: descriptor.arenaEffect,
+            phaseLightIntensity: descriptor.phaseLightIntensity,
+            phaseCopy: descriptor.label,
+            choreography: choreography,
+            activitySourceBeaconDescriptor: descriptor
+        )
+    }
+
     private static func activePlan(
         candidate: Candidate,
         phaseIndex: Int,
@@ -834,7 +897,8 @@ enum CinematicIdleStoryCyclePlanner {
             diagnosticsWarningPulseDescriptor: candidate.diagnosticsWarningPulseDescriptor,
             runRecapSceneFocusPlan: candidate.runRecapSceneFocusPlan,
             runRecapEndCardPlan: candidate.runRecapEndCardPlan,
-            runRecapShareArtifactTourPlan: candidate.runRecapShareArtifactTourPlan
+            runRecapShareArtifactTourPlan: candidate.runRecapShareArtifactTourPlan,
+            activitySourceBeaconDescriptor: candidate.activitySourceBeaconDescriptor
         )
 
         return CinematicIdleStoryCyclePlan(

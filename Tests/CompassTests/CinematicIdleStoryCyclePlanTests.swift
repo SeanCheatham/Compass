@@ -29,6 +29,7 @@ final class CinematicIdleStoryCyclePlanTests: XCTestCase {
         let recapFocus = try XCTUnwrap(byPhase[.runRecapFocus])
         let recapEnd = try XCTUnwrap(byPhase[.runRecapEndCard])
         let artifactTour = try XCTUnwrap(byPhase[.savedRecapArtifactTour])
+        let sourceBeacon = try XCTUnwrap(byPhase[.activitySourceBeacon])
 
         XCTAssertGreaterThan(commit.cadence, timeline.cadence)
         XCTAssertGreaterThan(recapEnd.cadence, recapFocus.cadence)
@@ -39,6 +40,8 @@ final class CinematicIdleStoryCyclePlanTests: XCTestCase {
         XCTAssertEqual(planFocus.choreography.cameraPressureIdentifier, "plan-compass-focus")
         XCTAssertGreaterThan(artifactTour.cadence, native.cadence)
         XCTAssertEqual(artifactTour.choreography.cameraPressureIdentifier, "archive-tour")
+        XCTAssertEqual(sourceBeacon.choreography.cameraPressureIdentifier, "activity-source-beacon")
+        XCTAssertEqual(sourceBeacon.activitySourceBeaconDescriptor?.visibilityIdentifier, "visible")
         XCTAssertGreaterThan(recapEnd.choreography.dwellDuration, native.choreography.dwellDuration)
         XCTAssertLessThan(timeline.choreography.transitionDurationScale, commit.choreography.transitionDurationScale)
         XCTAssertLessThan(native.choreography.transitionDurationScale, recapEnd.choreography.transitionDurationScale)
@@ -171,6 +174,7 @@ final class CinematicIdleStoryCyclePlanTests: XCTestCase {
         context.recapFocusPlan = .none
         context.recapEndCardPlan = .none
         context.tourPlan = nil
+        context.activitySourceBeaconPlan = .hidden
 
         let noHistory = plan(context: context)
         XCTAssertFalse(noHistory.isActive)
@@ -480,6 +484,7 @@ final class CinematicIdleStoryCyclePlanTests: XCTestCase {
         var recapFocusPlan: CinematicRunRecapSceneFocusPlan
         var recapEndCardPlan: CinematicRunRecapEndCardPlan
         var tourPlan: CinematicRunRecapShareArtifactTourPlan?
+        var activitySourceBeaconPlan: CinematicActivitySourceBeaconPlan
     }
 
     private func makeContext(
@@ -549,6 +554,14 @@ final class CinematicIdleStoryCyclePlanTests: XCTestCase {
             historyPlan: tourHistoryPlan,
             libraryContext: .empty
         )
+        let activitySourceBeaconPlan = CinematicActivitySourceBeaconPlan(
+            snapshot: makeActivitySourceSnapshot(
+                activeStorage: .applicationSupport,
+                sourceAvailability: .available,
+                repoLocalSessionsState: .ignoredCompatible
+            ),
+            influenceSettings: settings
+        )
 
         return Context(
             settings: settings,
@@ -565,7 +578,8 @@ final class CinematicIdleStoryCyclePlanTests: XCTestCase {
             recapPlan: recapPlan,
             recapFocusPlan: recapFocusPlan,
             recapEndCardPlan: recapEndCardPlan,
-            tourPlan: tourPlan
+            tourPlan: tourPlan,
+            activitySourceBeaconPlan: activitySourceBeaconPlan
         )
     }
 
@@ -585,6 +599,7 @@ final class CinematicIdleStoryCyclePlanTests: XCTestCase {
             isLiveFollowActive: isLiveFollowActive,
             hasExplicitUserFocus: hasExplicitUserFocus,
             influenceSettings: context.settings,
+            activitySourceBeaconPlan: context.activitySourceBeaconPlan,
             commitConstellationPlan: context.commitConstellationPlan,
             timelineSceneFocusPlan: context.timelineFocusPlan,
             planCompassSceneFocusPlan: context.planFocusPlan,
@@ -644,6 +659,7 @@ final class CinematicIdleStoryCyclePlanTests: XCTestCase {
         context.recapFocusPlan = .none
         context.recapEndCardPlan = .none
         context.tourPlan = nil
+        context.activitySourceBeaconPlan = .hidden
     }
 
     private func makeDiagnosticsWarningBundleHistory(
@@ -814,6 +830,28 @@ final class CinematicIdleStoryCyclePlanTests: XCTestCase {
                 metadata: nil,
                 systemImage: systemImage
             )
+        )
+    }
+
+    private func makeActivitySourceSnapshot(
+        activeStorage: KnownProjectActiveStorage,
+        sourceAvailability: RepositoryActivitySourceSnapshot.SourceAvailability,
+        repoLocalSessionsState: RepositoryActivitySourceSnapshot.RepoLocalSessionsState
+    ) -> RepositoryActivitySourceSnapshot {
+        let repoURL = URL(fileURLWithPath: "/tmp/CompassIdleStoryActivitySource", isDirectory: true)
+        let repoLocalRoot = repoURL.appending(path: ".compass", directoryHint: .isDirectory)
+        let supportRoot = repoURL
+            .appending(path: "Application Support", directoryHint: .isDirectory)
+            .appending(path: "Compass", directoryHint: .isDirectory)
+        let activeRoot = activeStorage == .repoLocal ? repoLocalRoot : supportRoot
+
+        return RepositoryActivitySourceSnapshot(
+            activeStorage: activeStorage,
+            storageRootURL: activeRoot,
+            sessionsRecordURL: activeRoot.appending(path: "sessions.json"),
+            sourceAvailability: sourceAvailability,
+            repoLocalSessionsRecordURL: repoLocalRoot.appending(path: "sessions.json"),
+            repoLocalSessionsState: repoLocalSessionsState
         )
     }
 }

@@ -296,6 +296,7 @@ private final class CinematicSceneCoordinator {
     private let planCompassFocusNode = Entity()
     private let runRecapEndCardNode = Entity()
     private let savedRecapArtifactTourNode = Entity()
+    private let activitySourceBeaconNode = Entity()
     private let keyLightNode = Entity()
     private let rimLightNode = Entity()
     private let phaseLightNode = Entity()
@@ -888,6 +889,7 @@ private final class CinematicSceneCoordinator {
         planCompassFocusNode.name = "plan-compass-focus"
         runRecapEndCardNode.name = "run-recap-end-card"
         savedRecapArtifactTourNode.name = "saved-recap-artifact-tour"
+        activitySourceBeaconNode.name = "activity-source-beacon"
 
         for node in [
             narrativeQuestPlaqueNode,
@@ -895,7 +897,8 @@ private final class CinematicSceneCoordinator {
             narrativeActivityBannerNode,
             planCompassFocusNode,
             runRecapEndCardNode,
-            savedRecapArtifactTourNode
+            savedRecapArtifactTourNode,
+            activitySourceBeaconNode
         ] {
             node.components.set(OpacityComponent(opacity: 0))
             narrativeCueRoot.addChild(node)
@@ -3305,6 +3308,10 @@ private final class CinematicSceneCoordinator {
            plan.descriptor?.phase != .savedRecapArtifactTour {
             clearSavedRecapArtifactTourNode()
         }
+        if previousDescriptor?.phase == .activitySourceBeacon,
+           plan.descriptor?.phase != .activitySourceBeacon {
+            clearActivitySourceBeaconNode()
+        }
 
         guard let descriptor = plan.descriptor else { return }
         guard !hasActiveLiveFollowTarget(lines: lines) else { return }
@@ -3357,6 +3364,10 @@ private final class CinematicSceneCoordinator {
                 activeIdleStoryCycleArtifactTourPlan = tourPlan
                 applySavedRecapArtifactTourPlan(tourPlan, animated: animated)
             }
+        case .activitySourceBeacon:
+            if let beaconDescriptor = descriptor.activitySourceBeaconDescriptor {
+                applyActivitySourceBeaconDescriptor(beaconDescriptor, animated: animated)
+            }
         case .timelineFocus:
             break
         case .runRecapFocus:
@@ -3382,6 +3393,103 @@ private final class CinematicSceneCoordinator {
         clearChildren(of: savedRecapArtifactTourNode)
         savedRecapArtifactTourNode.name = "saved-recap-artifact-tour.none"
         setOpacity(0, on: savedRecapArtifactTourNode)
+    }
+
+    private func clearActivitySourceBeaconNode() {
+        clearChildren(of: activitySourceBeaconNode)
+        activitySourceBeaconNode.name = "activity-source-beacon.none"
+        setOpacity(0, on: activitySourceBeaconNode)
+    }
+
+    private func applyActivitySourceBeaconDescriptor(
+        _ descriptor: CinematicActivitySourceBeaconPlan.Descriptor,
+        animated: Bool
+    ) {
+        clearChildren(of: activitySourceBeaconNode)
+        activitySourceBeaconNode.name = descriptor.rootEntityName
+        activitySourceBeaconNode.position = descriptor.anchorPosition
+        activitySourceBeaconNode.orientation = narrativeBillboardOrientation(
+            from: activitySourceBeaconNode.position(relativeTo: nil),
+            to: cameraPosition
+        )
+        activitySourceBeaconNode.scale = SIMD3<Float>(repeating: 1)
+        setOpacity(0.86, on: activitySourceBeaconNode)
+
+        let color = themedColor(descriptor.lightFamily.spell.nsColor)
+        let plate = ModelEntity(
+            mesh: .generateBox(
+                width: descriptor.plateWidth,
+                height: descriptor.plateHeight,
+                depth: 0.026,
+                cornerRadius: 0.018
+            ),
+            materials: [
+                material(
+                    diffuse: NSColor(calibratedRed: 0.01, green: 0.014, blue: 0.024, alpha: 1),
+                    emission: color.withAlphaComponent(descriptor.isCritical ? 0.22 : 0.14),
+                    opacity: descriptor.isCritical ? 0.78 : 0.64
+                )
+            ]
+        )
+        plate.name = descriptor.plateEntityName
+        plate.position = [0.34, 0, 0.016]
+        plate.components.set(OpacityComponent(opacity: descriptor.isCritical ? 0.78 : 0.64))
+        activitySourceBeaconNode.addChild(plate)
+
+        let ring = ModelEntity(
+            mesh: torusMesh(ringRadius: descriptor.ringRadius, pipeRadius: descriptor.ringPipeRadius),
+            materials: [glowMaterial(color.withAlphaComponent(0.82), opacity: descriptor.isCritical ? 0.78 : 0.58)]
+        )
+        ring.name = descriptor.ringEntityName
+        ring.position = [-descriptor.plateWidth * 0.42, 0, 0.045]
+        ring.orientation = simd_quatf(angle: .pi / 2, axis: [1, 0, 0])
+        ring.components.set(OpacityComponent(opacity: descriptor.isCritical ? 0.78 : 0.58))
+        activitySourceBeaconNode.addChild(ring)
+
+        let core = ModelEntity(
+            mesh: .generateSphere(radius: descriptor.coreRadius),
+            materials: [glowMaterial(color, opacity: descriptor.isCritical ? 0.92 : 0.74)]
+        )
+        core.name = descriptor.coreEntityName
+        core.position = ring.position + [0, 0, 0.018]
+        core.components.set(OpacityComponent(opacity: descriptor.isCritical ? 0.92 : 0.74))
+        activitySourceBeaconNode.addChild(core)
+
+        addNarrativeText(
+            descriptor.label,
+            to: activitySourceBeaconNode,
+            name: descriptor.labelEntityName,
+            width: descriptor.plateWidth * 0.66,
+            offset: [0.42, descriptor.detail.isEmpty ? 0 : 0.07, 0.043],
+            fontSize: 0.052,
+            weight: .semibold,
+            color: color,
+            opacity: descriptor.isCritical ? 0.9 : 0.78
+        )
+
+        if !descriptor.detail.isEmpty {
+            addNarrativeText(
+                descriptor.detail,
+                to: activitySourceBeaconNode,
+                name: descriptor.detailEntityName,
+                width: descriptor.plateWidth * 0.66,
+                offset: [0.42, -0.075, 0.045],
+                fontSize: 0.037,
+                weight: .medium,
+                color: color.withAlphaComponent(0.72),
+                opacity: descriptor.isCritical ? 0.72 : 0.58
+            )
+        }
+
+        if animated {
+            activitySourceBeaconNode.scale = SIMD3<Float>(repeating: 0.88)
+            animate(
+                activitySourceBeaconNode,
+                toScale: SIMD3<Float>(repeating: 1),
+                duration: 0.34,
+                timing: .easeOut
+            )
+        }
     }
 
     private func applyPlanCompassSceneFocusDescriptor(
