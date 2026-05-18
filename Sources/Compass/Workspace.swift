@@ -1090,6 +1090,8 @@ struct CompassWorkspaceStorageDisplayStatus: Equatable {
     static let labelLimit = 38
     static let detailLimit = 220
     static let recommendationLimit = 160
+    static let repairActionLabelLimit = 24
+    static let repairActionHelpLimit = 150
 
     var repoURL: URL
     var activeStorage: KnownProjectActiveStorage
@@ -1104,6 +1106,7 @@ struct CompassWorkspaceStorageDisplayStatus: Equatable {
     var migrationCouldBeTechnicallyEligible: Bool
     var activeRootFacts: ActiveRootFacts
     var status: Status
+    var supportRepairAction: RepairAction?
 
     var kind: Kind { status.kind }
     var severity: CompassWorkspaceStorageAssessment.Severity { status.severity }
@@ -1207,7 +1210,7 @@ struct CompassWorkspaceStorageDisplayStatus: Equatable {
         repoLocalReadiness = preflight.repoLocalReadiness
         migrationCouldBeTechnicallyEligible = preflight.migrationWouldBeSafe
         self.activeRootFacts = activeRootFacts
-        status = Self.status(
+        let derivedStatus = Self.status(
             repoURL: standardizedRepoURL,
             activeStorage: activeStorage,
             activeStorageRootURL: standardizedActiveRootURL,
@@ -1215,6 +1218,8 @@ struct CompassWorkspaceStorageDisplayStatus: Equatable {
             preflight: preflight,
             boundary: boundary
         )
+        status = derivedStatus
+        supportRepairAction = Self.supportRepairAction(for: derivedStatus.kind)
     }
 
     enum Kind: String, Equatable {
@@ -1287,6 +1292,20 @@ struct CompassWorkspaceStorageDisplayStatus: Equatable {
         var detail: String
         var recommendation: String
         var systemImage: String
+    }
+
+    enum RepairKind: String, Equatable {
+        case initializeApplicationSupportWorkspace
+    }
+
+    struct RepairAction: Identifiable, Equatable {
+        var kind: RepairKind
+        var issueKind: Kind
+        var label: String
+        var helpText: String
+        var systemImage: String
+
+        var id: String { "\(kind.rawValue)-\(issueKind.rawValue)" }
     }
 
     private static func collectActiveRootFacts(
@@ -1414,6 +1433,36 @@ struct CompassWorkspaceStorageDisplayStatus: Equatable {
         )
     }
 
+    private static func supportRepairAction(for kind: Kind) -> RepairAction? {
+        switch kind {
+        case .applicationSupportActiveMissing:
+            return supportRepairAction(
+                issueKind: kind,
+                helpText: "Create the active Application Support Compass root and core files without touching repo-local .compass/ or .gitignore."
+            )
+        case .applicationSupportActiveIncomplete:
+            return supportRepairAction(
+                issueKind: kind,
+                helpText: "Restore missing active Application Support Compass files and sessions without touching repo-local .compass/ or .gitignore."
+            )
+        case .repoLocalRecommended,
+             .repoLocalRepairFirst,
+             .applicationSupportInspectOnlyConflict,
+             .applicationSupportActive:
+            return nil
+        }
+    }
+
+    private static func supportRepairAction(issueKind: Kind, helpText: String) -> RepairAction {
+        RepairAction(
+            kind: .initializeApplicationSupportWorkspace,
+            issueKind: issueKind,
+            label: boundedText("Repair support storage", limit: repairActionLabelLimit),
+            helpText: boundedText(helpText, limit: repairActionHelpLimit),
+            systemImage: "externaldrive.badge.plus"
+        )
+    }
+
     private static func url(
         for coreFile: CompassWorkspaceStorageAssessment.CoreFile,
         in workspace: CompassWorkspace
@@ -1461,6 +1510,7 @@ struct CompassWorkspaceStorageHeaderActions: Equatable {
     var showsCandidatePreparation: Bool
     var showsActivation: Bool
     var showsRepoLocalRepair: Bool
+    var showsApplicationSupportRepair: Bool
 
     init(
         activeStorage: KnownProjectActiveStorage,
@@ -1469,13 +1519,16 @@ struct CompassWorkspaceStorageHeaderActions: Equatable {
         activationIsAvailable: Bool,
         activationShouldShowFeedback: Bool,
         activationIsIdle: Bool,
-        repoLocalRepairActionIsAvailable: Bool
+        repoLocalRepairActionIsAvailable: Bool,
+        applicationSupportRepairActionIsAvailable: Bool = false
     ) {
         showsCandidatePreparation = candidatePreparationShouldShowFeedback
             || (activeStorage == .repoLocal && candidatePreparationIsAvailable)
         showsActivation = activationShouldShowFeedback
             || (activeStorage == .repoLocal && activationIsAvailable && activationIsIdle)
         showsRepoLocalRepair = activeStorage == .repoLocal && repoLocalRepairActionIsAvailable
+        showsApplicationSupportRepair = activeStorage == .applicationSupport
+            && applicationSupportRepairActionIsAvailable
     }
 }
 

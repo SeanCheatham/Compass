@@ -139,6 +139,69 @@ final class CompassProjectActiveStorageTests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: workspace.repoLocalCompassURL.path))
     }
 
+    func testInitializeWorkspaceRepairsActiveSupportStorageWithoutRepoLocalSideEffects() async throws {
+        let repoURL = try makeTemporaryGitRepository()
+        let roots = try makeApplicationSupportRoots()
+        let project = CompassProject(
+            repoURL: repoURL,
+            activeStorage: .applicationSupport,
+            storageApplicationSupportRoots: roots
+        )
+        let workspace = applicationSupportWorkspace(repoURL: repoURL, roots: roots)
+
+        var display = CompassWorkspaceStorageDisplayStatus(
+            repoURL: repoURL,
+            activeStorage: .applicationSupport,
+            applicationSupportRoots: roots
+        )
+
+        XCTAssertEqual(display.supportRepairAction?.kind, .initializeApplicationSupportWorkspace)
+        XCTAssertEqual(display.supportRepairAction?.issueKind, .applicationSupportActiveMissing)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: workspace.compassURL.path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: workspace.repoLocalCompassURL.path))
+
+        await project.initializeWorkspace()
+
+        XCTAssertDirectoryExists(workspace.compassURL)
+        XCTAssertDirectoryExists(workspace.sessionsURL)
+        XCTAssertFileExists(workspace.stateURL)
+        XCTAssertFileExists(workspace.draftsURL)
+        XCTAssertFileExists(workspace.lessonsURL)
+        XCTAssertFileExists(workspace.visionURL)
+        XCTAssertFileExists(workspace.sessionsRecordURL)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: workspace.repoLocalCompassURL.path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: repoURL.appending(path: ".gitignore").path))
+
+        display = CompassWorkspaceStorageDisplayStatus(
+            repoURL: repoURL,
+            activeStorage: .applicationSupport,
+            applicationSupportRoots: roots
+        )
+        XCTAssertNil(display.supportRepairAction)
+
+        try write("- support lesson survives repair\n", to: workspace.lessonsURL)
+        try FileManager.default.removeItem(at: workspace.draftsURL)
+        try FileManager.default.removeItem(at: workspace.sessionsRecordURL)
+        try FileManager.default.removeItem(at: workspace.sessionsURL)
+
+        display = CompassWorkspaceStorageDisplayStatus(
+            repoURL: repoURL,
+            activeStorage: .applicationSupport,
+            applicationSupportRoots: roots
+        )
+        XCTAssertEqual(display.supportRepairAction?.kind, .initializeApplicationSupportWorkspace)
+        XCTAssertEqual(display.supportRepairAction?.issueKind, .applicationSupportActiveIncomplete)
+
+        await project.initializeWorkspace()
+
+        XCTAssertFileExists(workspace.draftsURL)
+        XCTAssertFileExists(workspace.sessionsRecordURL)
+        XCTAssertDirectoryExists(workspace.sessionsURL)
+        XCTAssertEqual(workspace.readLessons(), "- support lesson survives repair\n")
+        XCTAssertFalse(FileManager.default.fileExists(atPath: workspace.repoLocalCompassURL.path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: repoURL.appending(path: ".gitignore").path))
+    }
+
     func testActivationGatingRequiresIdleRepoLocalAndUsableCandidate() async throws {
         let repoURL = try makeTemporaryGitRepository()
         let roots = try makeApplicationSupportRoots()
@@ -347,6 +410,21 @@ final class CompassProjectActiveStorageTests: XCTestCase {
             line: line
         )
         XCTAssertTrue(isDirectory.boolValue, "Expected \(url.path) to be a directory.", file: file, line: line)
+    }
+
+    private func XCTAssertFileExists(
+        _ url: URL,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        var isDirectory = ObjCBool(false)
+        XCTAssertTrue(
+            FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory),
+            "Expected file to exist at \(url.path).",
+            file: file,
+            line: line
+        )
+        XCTAssertFalse(isDirectory.boolValue, "Expected \(url.path) to be a file.", file: file, line: line)
     }
 }
 

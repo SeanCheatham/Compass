@@ -380,7 +380,8 @@ private struct WorkspaceHeader: View {
             activationIsAvailable: storageActivationPlan.isAvailable,
             activationShouldShowFeedback: project.activeStorageActivationState.shouldShowFeedback,
             activationIsIdle: storageActivationIsIdle,
-            repoLocalRepairActionIsAvailable: storageAssessment.repairAction != nil
+            repoLocalRepairActionIsAvailable: storageAssessment.repairAction != nil,
+            applicationSupportRepairActionIsAvailable: storageDisplayStatus.supportRepairAction != nil
         )
 
         VStack(alignment: .leading, spacing: 10) {
@@ -416,7 +417,22 @@ private struct WorkspaceHeader: View {
                 }
                 if storageActions.showsRepoLocalRepair, let repairAction = storageAssessment.repairAction {
                     ProjectStorageRepairButton(
-                        repairAction: repairAction,
+                        label: repairAction.label,
+                        systemImage: repairAction.systemImage,
+                        helpText: repairAction.helpText,
+                        accessibilityLabel: repairAction.label,
+                        isDisabled: project.isRunning || project.isAutoPlaying
+                    ) {
+                        Task { await project.initializeWorkspace() }
+                    }
+                }
+                if storageActions.showsApplicationSupportRepair,
+                   let repairAction = storageDisplayStatus.supportRepairAction {
+                    ProjectStorageRepairButton(
+                        label: repairAction.label,
+                        systemImage: repairAction.systemImage,
+                        helpText: repairAction.helpText,
+                        accessibilityLabel: repairAction.label,
                         isDisabled: project.isRunning || project.isAutoPlaying
                     ) {
                         Task { await project.initializeWorkspace() }
@@ -670,22 +686,25 @@ private struct ProjectStorageActivationButton: View {
 }
 
 private struct ProjectStorageRepairButton: View {
-    var repairAction: CompassWorkspaceStorageAssessment.RepairAction
+    var label: String
+    var systemImage: String
+    var helpText: String
+    var accessibilityLabel: String
     var isDisabled: Bool
     var performRepair: () -> Void
 
     var body: some View {
         Button(action: performRepair) {
-            Label(repairAction.label, systemImage: repairAction.systemImage)
+            Label(label, systemImage: systemImage)
                 .labelStyle(.iconOnly)
                 .frame(width: 14, height: 14)
         }
         .buttonStyle(.bordered)
         .controlSize(.small)
         .disabled(isDisabled)
-        .help(repairAction.helpText)
-        .accessibilityLabel(repairAction.label)
-        .accessibilityHint(repairAction.helpText)
+        .help(helpText)
+        .accessibilityLabel(accessibilityLabel)
+        .accessibilityHint(helpText)
     }
 }
 
