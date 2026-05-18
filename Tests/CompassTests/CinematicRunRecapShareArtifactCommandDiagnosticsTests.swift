@@ -222,6 +222,38 @@ final class CinematicRunRecapShareArtifactCommandDiagnosticsTests: XCTestCase {
         XCTAssertTrue(summary.exportText.contains("promoted filtered-promoted-hold-target"))
     }
 
+    func testRepresentativeCommandSmokeReportsKeepDiagnosticsCorrelated() throws {
+        let reports = CinematicDiagnostics.representativeRunRecapArtifactCommandSmokeReports()
+
+        XCTAssertEqual(reports.count, 8)
+        for report in reports {
+            let snapshot = report.runRecapShareArtifactCommands
+            let sectionCommandCount = snapshot.sections.reduce(0) { $0 + $1.commandCount }
+
+            XCTAssertEqual(snapshot.sourceHistoryIdentifier, report.runRecapShareArtifactHistory.identifier)
+            XCTAssertEqual(snapshot.sourcePreviewIdentifier, report.runRecapShareArtifactPreview.identifier)
+            XCTAssertEqual(snapshot.sourceRollupIdentifier, report.runRecapShareArtifactRollup.identifier)
+            XCTAssertEqual(snapshot.sourceComparisonIdentifier, report.runRecapShareArtifactComparison.identifier)
+            XCTAssertEqual(snapshot.sourcePinsIdentifier, report.runRecapShareArtifactPins.identifier)
+            XCTAssertEqual(snapshot.sourceTourIdentifier, report.runRecapShareArtifactTour.identifier)
+            XCTAssertEqual(
+                snapshot.sourceSelectedExportIdentifier,
+                report.runRecapShareArtifactPreview.selectedExport.identifier
+            )
+            XCTAssertEqual(
+                snapshot.sourceFilteredExportIdentifier,
+                report.runRecapShareArtifactPreview.filteredExport.identifier
+            )
+            XCTAssertEqual(snapshot.commandCount + snapshot.omittedActionKindIdentifiers.count, snapshot.actionCount)
+            XCTAssertEqual(sectionCommandCount, snapshot.commandCount)
+            XCTAssertEqual(snapshot.omittedActionKindIdentifiers, ["cleanupOldArtifacts"])
+            XCTAssertEqual(snapshot.appLevelShortcutCollisionStateIdentifier, "clear")
+            XCTAssertTrue(report.identifier.contains("run-recap-share-artifact-commands:\(snapshot.identifier)"))
+            XCTAssertTrue(report.identifier.contains("run-recap-share-artifact-command-plan:"))
+            XCTAssertTrue(report.identifier.contains("run-recap-share-artifact-command-source-menu:"))
+        }
+    }
+
     func testDiagnosticsPathKeepsActionMenuAndCommandPlannerCompatibleWithoutMutatingContext() throws {
         let workspace = try makeInitializedWorkspace()
         for session in 1...3 {

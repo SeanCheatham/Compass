@@ -551,6 +551,53 @@ final class CinematicDiagnosticsTests: XCTestCase {
         XCTAssertTrue(summary.exportText.contains("filtered-hold"))
     }
 
+    func testRepresentativeRunRecapArtifactCommandSmokeReportsCoverAvailabilityStates() throws {
+        let reports = CinematicDiagnostics.representativeRunRecapArtifactCommandSmokeReports()
+        let snapshots = reports.map(\.runRecapShareArtifactCommands)
+
+        XCTAssertEqual(reports.count, 8)
+        XCTAssertTrue(snapshots.contains { $0.historyAvailabilityReason == "available" })
+        XCTAssertTrue(snapshots.contains { $0.historyAvailabilityReason == "command-smoke-unavailable" })
+        XCTAssertTrue(snapshots.contains {
+            $0.previewNoMatchAvailabilityReason == "no-matching-recap-share-artifacts"
+        })
+        XCTAssertTrue(snapshots.contains { $0.missingPinnedEntryCount > 0 })
+        XCTAssertTrue(snapshots.contains { $0.filteredPinnedEntryCount > 0 })
+        XCTAssertTrue(snapshots.contains { $0.tourSavedHoldStateIdentifier == "filtered-hold" })
+        XCTAssertTrue(snapshots.contains {
+            $0.comparisonPromotedHoldStateIdentifier == "retained-promoted-hold-target"
+        })
+        XCTAssertTrue(snapshots.contains {
+            $0.comparisonPromotedHoldStateIdentifier == "filtered-promoted-hold-target"
+        })
+        XCTAssertTrue(reports.contains {
+            $0.runRecapShareArtifactHistory.cleanupCandidateCount > 0
+                && $0.runRecapShareArtifactCommands.omittedActionKindIdentifiers == ["cleanupOldArtifacts"]
+        })
+        XCTAssertTrue(snapshots.allSatisfy {
+            $0.commandCount == CinematicRunRecapShareArtifactCommandPlan.commandLimit
+                && $0.actionCount == CinematicRunRecapShareArtifactActionMenuPlan.actionLimit
+                && $0.appLevelShortcutCollisionStateIdentifier == "clear"
+                && $0.appLevelShortcutCollisionIdentifiers.isEmpty
+                && $0.commandCount + $0.omittedActionKindIdentifiers.count == $0.actionCount
+        })
+
+        let smoke = CinematicVisualSmokeReport(reports: reports)
+        let check = try XCTUnwrap(
+            smoke.checks.first { $0.id == "run-recap-artifact-command-availability" }
+        )
+        XCTAssertEqual(check.status, .pass)
+        XCTAssertTrue(check.detail.contains("available"))
+        XCTAssertTrue(check.detail.contains("unavailable"))
+        XCTAssertTrue(check.detail.contains("no-match"))
+        XCTAssertTrue(check.detail.contains("stale-pin"))
+        XCTAssertTrue(check.detail.contains("filtered-hold"))
+        XCTAssertTrue(check.detail.contains("promoted-hold"))
+        XCTAssertTrue(check.detail.contains("cleanup-omitted"))
+        XCTAssertTrue(check.detail.contains("collisions clear"))
+        XCTAssertTrue(check.detail.contains("bounded"))
+    }
+
     func testReportContainsEveryCameraShotAndCameraTuningValue() throws {
         let settings = CinematicInfluenceSettings(cameraStyle: .steady, intensity: 0.25)
         let report = CinematicDiagnostics.representativeSmokeMatrix(influenceSettings: settings).first!
@@ -898,7 +945,7 @@ final class CinematicDiagnosticsTests: XCTestCase {
         XCTAssertTrue(summary.exportText.contains("Assets/textures (2 rows)"))
         XCTAssertTrue(summary.exportText.contains("Tuning (4 rows)"))
         XCTAssertTrue(summary.exportText.contains("Camera shots (7 rows)"))
-        XCTAssertTrue(summary.exportText.contains("Visual smoke (pass, 19 checks)"))
+        XCTAssertTrue(summary.exportText.contains("Visual smoke (pass, 20 checks)"))
         XCTAssertTrue(summary.exportText.contains("Plaque treatments (pass, 4 recipes): smoke pass"))
         XCTAssertTrue(summary.exportText.contains("failure-fracture: accent failure-fracture"))
         XCTAssertTrue(summary.exportText.contains("Overlay fallback: pass"))

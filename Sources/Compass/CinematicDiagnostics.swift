@@ -996,13 +996,16 @@ struct CinematicVisualSmokeReport: Equatable {
         let idleStoryReports = CinematicDiagnostics.representativeIdleStoryCycleSmokeReports()
         let savedArtifactTourReports = CinematicDiagnostics.representativeSavedRecapArtifactTourSmokeReports()
         let pinnedCueReports = CinematicDiagnostics.representativePinnedComparisonCueSmokeReports()
+        let recapArtifactCommandReports = CinematicDiagnostics.representativeRunRecapArtifactCommandSmokeReports()
         return CinematicVisualSmokeReport(
-            reports: reports + nativeFeedbackReports + idleStoryReports + savedArtifactTourReports + pinnedCueReports
+            reports: reports + nativeFeedbackReports + idleStoryReports + savedArtifactTourReports
+                + pinnedCueReports + recapArtifactCommandReports
         )
     }
 
     private static func makeChecks(reports: [CinematicDiagnosticsReport]) -> [Check] {
         [
+            runRecapArtifactCommandAvailabilityCheck(reports: reports),
             narrativeCueReadabilityCheck(reports: reports),
             overlayFallbackUsageCheck(reports: reports),
             chromeStrengthCheck(reports: reports),
@@ -1023,6 +1026,140 @@ struct CinematicVisualSmokeReport: Equatable {
             runRecapEndCardCoverageCheck(reports: reports),
             runRecapPinnedComparisonCueCoverageCheck(reports: reports)
         ]
+    }
+
+    private static func runRecapArtifactCommandAvailabilityCheck(
+        reports: [CinematicDiagnosticsReport]
+    ) -> Check {
+        let snapshots = reports.map(\.runRecapShareArtifactCommands)
+        guard !snapshots.isEmpty else {
+            return check(
+                id: "run-recap-artifact-command-availability",
+                label: "Recap command availability",
+                isPassing: false,
+                warningIdentifier: "visual-smoke.recap-artifact-commands",
+                detail: "no representative reports available"
+            )
+        }
+
+        let expectedSections = Set(CinematicRunRecapShareArtifactActionMenuPlan.Section.allCases.map(\.rawValue))
+        let expectedShortcuts = Set(recapArtifactCommandShortcutIdentifiers())
+        let expectedAppLevelShortcuts = Set(recapArtifactAppLevelShortcutIdentifiers())
+        let noMatchDisabledActionKinds: Set<String> = [
+            "navigatePrevious",
+            "navigateNext",
+            "revealSelected",
+            "copySelectedExport",
+            "copyFilteredExport",
+            "copyRollupExport",
+            "copyComparisonExport"
+        ]
+        let unavailableDisabledActionKinds: Set<String> = [
+            "copyLibraryExport",
+            "copySelectedExport"
+        ]
+
+        let boundedCount = reports.filter(runRecapShareArtifactCommandsCopyIsBounded).count
+        let countIntegrityCount = snapshots.filter { snapshot in
+            snapshot.actionCount <= CinematicRunRecapShareArtifactActionMenuPlan.actionLimit
+                && snapshot.commandCount <= CinematicRunRecapShareArtifactCommandPlan.commandLimit
+                && snapshot.enabledCommandCount + snapshot.disabledCommandCount == snapshot.commandCount
+                && snapshot.commandCount + snapshot.omittedActionKindIdentifiers.count == snapshot.actionCount
+        }.count
+        let sectionCoverageCount = snapshots.filter { snapshot in
+            let sectionIdentifiers = Set(snapshot.sections.map(\.sectionIdentifier))
+            let sectionCommandCount = snapshot.sections.reduce(0) { $0 + $1.commandCount }
+            let sectionEnabledCount = snapshot.sections.reduce(0) { $0 + $1.enabledCommandCount }
+            let sectionDisabledCount = snapshot.sections.reduce(0) { $0 + $1.disabledCommandCount }
+            return sectionIdentifiers == expectedSections
+                && snapshot.sectionCount == expectedSections.count
+                && sectionCommandCount == snapshot.commandCount
+                && sectionEnabledCount == snapshot.enabledCommandCount
+                && sectionDisabledCount == snapshot.disabledCommandCount
+        }.count
+        let shortcutCoverageCount = snapshots.filter { snapshot in
+            Set(snapshot.shortcutIdentifiers) == expectedShortcuts
+                && snapshot.shortcutIdentifiers.count == snapshot.commandCount
+                && snapshot.shortcutIdentifiers.count == Set(snapshot.shortcutIdentifiers).count
+        }.count
+        let cleanupOmissionCount = snapshots.filter {
+            $0.omittedActionKindIdentifiers == ["cleanupOldArtifacts"]
+        }.count
+        let cleanupActiveOmitted = reports.contains {
+            $0.runRecapShareArtifactHistory.cleanupCandidateCount > 0
+                && $0.runRecapShareArtifactCommands.omittedActionKindIdentifiers.contains("cleanupOldArtifacts")
+        }
+        let collisionClearCount = snapshots.filter { snapshot in
+            snapshot.appLevelShortcutCollisionStateIdentifier == "clear"
+                && snapshot.appLevelShortcutCollisionIdentifiers.isEmpty
+                && Set(snapshot.appLevelShortcutIdentifiers) == expectedAppLevelShortcuts
+        }.count
+        let correlatedCount = snapshots.filter { snapshot in
+            !snapshot.commandPlanIdentifier.isEmpty
+                && !snapshot.sourceActionMenuIdentifier.isEmpty
+                && snapshot.commandPlanIdentifier != snapshot.sourceActionMenuIdentifier
+                && snapshot.commandCount + snapshot.omittedActionKindIdentifiers.count == snapshot.actionCount
+        }.count
+        let hasAvailable = snapshots.contains {
+            $0.historyAvailabilityReason == "available"
+                && $0.previewNoMatchAvailabilityReason == nil
+                && $0.enabledCommandCount > 0
+        }
+        let hasUnavailable = snapshots.contains { snapshot in
+            snapshot.historyAvailabilityReason != "available"
+                && unavailableDisabledActionKinds.isSubset(of: Set(snapshot.disabledActionKindIdentifiers))
+        }
+        let hasNoMatch = snapshots.contains { snapshot in
+            snapshot.previewNoMatchAvailabilityReason == "no-matching-recap-share-artifacts"
+                && noMatchDisabledActionKinds.isSubset(of: Set(snapshot.disabledActionKindIdentifiers))
+        }
+        let hasStalePin = snapshots.contains { $0.missingPinnedEntryCount > 0 }
+        let hasFilteredPin = snapshots.contains { $0.filteredPinnedEntryCount > 0 }
+        let hasFilteredHold = snapshots.contains {
+            $0.tourSavedHoldStateIdentifier == "filtered-hold"
+                && $0.tourFilteredSavedHoldEntryIdentifier != nil
+        }
+        let hasPromotedHold = snapshots.contains {
+            $0.comparisonPromotedHoldStateIdentifier == "retained-promoted-hold-target"
+        }
+        let hasFilteredPromotedHold = snapshots.contains {
+            $0.comparisonPromotedHoldStateIdentifier == "filtered-promoted-hold-target"
+        }
+
+        let isPassing = hasAvailable
+            && hasUnavailable
+            && hasNoMatch
+            && hasStalePin
+            && hasFilteredPin
+            && hasFilteredHold
+            && hasPromotedHold
+            && hasFilteredPromotedHold
+            && cleanupActiveOmitted
+            && boundedCount == reports.count
+            && countIntegrityCount == snapshots.count
+            && sectionCoverageCount == snapshots.count
+            && shortcutCoverageCount == snapshots.count
+            && cleanupOmissionCount == snapshots.count
+            && collisionClearCount == snapshots.count
+            && correlatedCount == snapshots.count
+
+        return check(
+            id: "run-recap-artifact-command-availability",
+            label: "Recap command availability",
+            isPassing: isPassing,
+            warningIdentifier: "visual-smoke.recap-artifact-commands",
+            detail: [
+                hasAvailable ? "available" : "available-missing",
+                hasUnavailable ? "unavailable" : "unavailable-missing",
+                hasNoMatch ? "no-match" : "no-match-missing",
+                hasStalePin && hasFilteredPin ? "stale-pin" : "stale-pin-missing",
+                hasFilteredHold ? "filtered-hold" : "filtered-hold-missing",
+                hasPromotedHold && hasFilteredPromotedHold ? "promoted-hold" : "promoted-hold-missing",
+                cleanupActiveOmitted ? "cleanup-omitted" : "cleanup-missing",
+                collisionClearCount == snapshots.count ? "collisions clear" : "collisions \(snapshots.count - collisionClearCount)",
+                "bounded \(boundedCount)/\(reports.count)"
+            ].joined(separator: " ")
+        )
     }
 
     private static func narrativeCueReadabilityCheck(reports: [CinematicDiagnosticsReport]) -> Check {
@@ -1934,6 +2071,39 @@ struct CinematicVisualSmokeReport: Equatable {
             routeIdentifier: "developRetrying.failure.failedVerify",
             primitiveIdentifiers: ["rail.top", "rail.bottom", "retry.brace.left", "retry.brace.right", "retry.cross"]
         )
+    ]
+
+    private static func recapArtifactCommandShortcutIdentifiers() -> [String] {
+        recapArtifactCommandActionKinds.compactMap {
+            CinematicRunRecapShareArtifactCommandPlanner.shortcut(for: $0)?.identifier
+        }
+    }
+
+    private static func recapArtifactAppLevelShortcutIdentifiers() -> [String] {
+        typealias Shortcut = CinematicRunRecapShareArtifactCommandPlan.Shortcut
+        return [
+            Shortcut(key: .o, modifiers: [.command]),
+            Shortcut(key: .r, modifiers: [.command]),
+            Shortcut(key: .returnKey, modifiers: [.command])
+        ].map(\.identifier)
+    }
+
+    private static let recapArtifactCommandActionKinds: [CinematicRunRecapShareArtifactActionMenuPlan.ActionKind] = [
+        .navigatePrevious,
+        .navigateNext,
+        .revealSelected,
+        .copySelectedExport,
+        .copyFilteredExport,
+        .copyLibraryExport,
+        .copyRollupExport,
+        .copyComparisonExport,
+        .copyPinnedExport,
+        .copyTourExport,
+        .toggleComparisonTargetMode,
+        .toggleSelectedPin,
+        .toggleTourHold,
+        .toggleSelectedTourHold,
+        .promoteTourHold
     ]
 
     private static func readabilityMetrics(_ report: CinematicDiagnosticsReport) -> ReadabilityMetrics {
@@ -5575,6 +5745,98 @@ enum CinematicDiagnostics {
         return [active, selectedOnly, noMatch, stale, filteredPin, promotedHold, filteredPromotedHold]
     }
 
+    static func representativeRunRecapArtifactCommandSmokeReports(
+        influenceSettings: CinematicInfluenceSettings = CinematicInfluenceSettings()
+    ) -> [CinematicDiagnosticsReport] {
+        let unavailableHistory = CinematicRunRecapShareArtifactHistoryPlan.unavailable(
+            reason: "command-smoke-unavailable"
+        )
+        let cleanupHistory = representativeRunRecapArtifactCommandCleanupHistoryPlan()
+
+        return [
+            representativeRunRecapArtifactCommandSmokeReport(
+                caseIdentifier: "available",
+                historyPlan: representativeSavedRecapArtifactTourHistoryPlan(
+                    caseIdentifier: "command-available",
+                    warningCount: 0
+                ),
+                selectedSession: 21,
+                pinnedSessions: [20],
+                influenceSettings: influenceSettings
+            ),
+            representativeRunRecapArtifactCommandSmokeReport(
+                caseIdentifier: "unavailable",
+                historyPlan: unavailableHistory,
+                selectedSession: nil,
+                influenceSettings: influenceSettings
+            ),
+            representativeRunRecapArtifactCommandSmokeReport(
+                caseIdentifier: "no-match",
+                historyPlan: representativeSavedRecapArtifactTourHistoryPlan(
+                    caseIdentifier: "command-no-match",
+                    warningCount: 0
+                ),
+                searchQuery: "missing command availability smoke",
+                selectedSession: 22,
+                influenceSettings: influenceSettings
+            ),
+            representativeRunRecapArtifactCommandSmokeReport(
+                caseIdentifier: "stale-pin",
+                historyPlan: representativeSavedRecapArtifactTourHistoryPlan(
+                    caseIdentifier: "command-stale-pin",
+                    warningCount: 0
+                ),
+                selectedSession: 22,
+                missingPins: ["missing-command-smoke-pin"],
+                comparisonTargetMode: .pinnedReference,
+                influenceSettings: influenceSettings
+            ),
+            representativeRunRecapArtifactCommandSmokeReport(
+                caseIdentifier: "filtered-hold",
+                historyPlan: representativeSavedRecapArtifactTourHistoryPlan(
+                    caseIdentifier: "command-filtered-hold",
+                    warningCount: 0
+                ),
+                searchQuery: "selected archive beacon",
+                selectedSession: 22,
+                heldSession: 21,
+                influenceSettings: influenceSettings
+            ),
+            representativeRunRecapArtifactCommandSmokeReport(
+                caseIdentifier: "promoted-hold",
+                historyPlan: representativeSavedRecapArtifactTourHistoryPlan(
+                    caseIdentifier: "command-promoted-hold",
+                    warningCount: 0
+                ),
+                selectedSession: 22,
+                pinnedSessions: [21],
+                heldSession: 21,
+                comparisonTargetMode: .pinnedReference,
+                influenceSettings: influenceSettings
+            ),
+            representativeRunRecapArtifactCommandSmokeReport(
+                caseIdentifier: "filtered-promoted-hold",
+                historyPlan: representativeSavedRecapArtifactTourHistoryPlan(
+                    caseIdentifier: "command-filtered-promoted-hold",
+                    warningCount: 0
+                ),
+                searchQuery: "selected archive beacon",
+                selectedSession: 22,
+                pinnedSessions: [21],
+                heldSession: 21,
+                comparisonTargetMode: .pinnedReference,
+                influenceSettings: influenceSettings
+            ),
+            representativeRunRecapArtifactCommandSmokeReport(
+                caseIdentifier: "cleanup-omitted",
+                historyPlan: cleanupHistory,
+                selectedSession: 22,
+                pinnedSessions: [21],
+                influenceSettings: influenceSettings
+            )
+        ]
+    }
+
     static func representativeActivityCases() -> [ActivityCase] {
         [
             ActivityCase(
@@ -5834,6 +6096,74 @@ enum CinematicDiagnostics {
             runRecapShareArtifactPinnedEntryIdentifiers: pinnedEntryIdentifiers,
             runRecapShareArtifactSavedTourHoldEntryIdentifier: savedTourHoldEntryIdentifier
         )
+    }
+
+    private static func representativeRunRecapArtifactCommandSmokeReport(
+        caseIdentifier: String,
+        historyPlan: CinematicRunRecapShareArtifactHistoryPlan,
+        searchQuery: String? = nil,
+        selectedSession: Int? = 22,
+        pinnedSessions: [Int] = [],
+        missingPins: [String] = [],
+        heldSession: Int? = nil,
+        missingHold: String? = nil,
+        comparisonTargetMode: CinematicRunRecapShareArtifactComparisonTargetMode = .adjacent,
+        influenceSettings: CinematicInfluenceSettings
+    ) -> CinematicDiagnosticsReport {
+        let entryIdentifiersBySession = Dictionary(
+            uniqueKeysWithValues: historyPlan.entries.map { ($0.sessionNumber, $0.identifier) }
+        )
+        let selectedEntryIdentifier = selectedSession.flatMap {
+            entryIdentifiersBySession[$0]
+        } ?? historyPlan.entries.first?.identifier
+        let pinnedEntryIdentifiers = pinnedSessions.compactMap {
+            entryIdentifiersBySession[$0]
+        } + missingPins
+        let savedTourHoldEntryIdentifier = heldSession.flatMap {
+            entryIdentifiersBySession[$0]
+        } ?? missingHold
+        let context = CinematicRunRecapShareArtifactLibraryContext(
+            selectedEntryIdentifier: selectedEntryIdentifier,
+            searchText: searchQuery ?? "",
+            pinnedEntryIdentifiers: pinnedEntryIdentifiers,
+            comparisonTargetMode: comparisonTargetMode,
+            savedTourHoldEntryIdentifier: savedTourHoldEntryIdentifier
+        )
+
+        return report(
+            repoName: "Recap Commands \(caseIdentifier)",
+            phase: LoopPhase.succeeded.rawValue,
+            immediateTitle: "Cover recap artifact command availability \(caseIdentifier)",
+            completedCount: 1,
+            latestEvent: nil,
+            languageProfile: representativeLanguageProfile(for: .swift),
+            activityProfile: activityProfile(recentCommitCount: 1, lastTerminalStatus: .succeeded),
+            influenceSettings: influenceSettings,
+            isRunning: false,
+            runRecapShareArtifactHistoryPlan: historyPlan,
+            runRecapShareArtifactPreviewSelectedEntryIdentifier: context.selectedEntryIdentifier,
+            runRecapShareArtifactPreviewSearchQuery: context.searchText,
+            runRecapShareArtifactComparisonTargetMode: context.comparisonTargetMode,
+            runRecapShareArtifactPinnedEntryIdentifiers: context.pinnedEntryIdentifiers,
+            runRecapShareArtifactSavedTourHoldEntryIdentifier: context.savedTourHoldEntryIdentifier
+        )
+    }
+
+    private static func representativeRunRecapArtifactCommandCleanupHistoryPlan()
+        -> CinematicRunRecapShareArtifactHistoryPlan {
+        var history = representativeSavedRecapArtifactTourHistoryPlan(
+            caseIdentifier: "command-cleanup-omitted",
+            warningCount: 0
+        )
+        let cleanupIdentifiers = ["command-cleanup-omitted-candidate"]
+        history.identifier = "command-cleanup-history-\(fingerprint(history.identifier))"
+        history.totalCount = history.entries.count + cleanupIdentifiers.count
+        history.hiddenCount = cleanupIdentifiers.count
+        history.cleanupCandidateCount = cleanupIdentifiers.count
+        history.hiddenCleanupCandidateCount = 0
+        history.cleanupCandidateIdentifiers = cleanupIdentifiers
+        history.exportIdentifier = "command-cleanup-history-export-\(fingerprint(history.exportIdentifier))"
+        return history
     }
 
     private static func representativeSavedRecapArtifactTourHistoryPlan(

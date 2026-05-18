@@ -13,6 +13,7 @@ final class CinematicVisualSmokeReportTests: XCTestCase {
         XCTAssertEqual(
             first.checks.map(\.id),
             [
+                "run-recap-artifact-command-availability",
                 "narrative-cue-readability",
                 "overlay-fallback-usage",
                 "chrome-strength",
@@ -39,6 +40,9 @@ final class CinematicVisualSmokeReportTests: XCTestCase {
 
     func testRepresentativeReportCoversExpectedVisualPaths() throws {
         let smoke = CinematicVisualSmokeReport.representative()
+        let recapCommands = try XCTUnwrap(
+            smoke.checks.first { $0.id == "run-recap-artifact-command-availability" }
+        )
         let overlay = try XCTUnwrap(smoke.checks.first { $0.id == "overlay-fallback-usage" })
         let chrome = try XCTUnwrap(smoke.checks.first { $0.id == "chrome-strength" })
         let assets = try XCTUnwrap(smoke.checks.first { $0.id == "asset-availability" })
@@ -60,6 +64,16 @@ final class CinematicVisualSmokeReportTests: XCTestCase {
             smoke.checks.first { $0.id == "run-recap-pinned-comparison-cue" }
         )
 
+        XCTAssertEqual(recapCommands.status, .pass)
+        XCTAssertTrue(recapCommands.detail.contains("available"))
+        XCTAssertTrue(recapCommands.detail.contains("unavailable"))
+        XCTAssertTrue(recapCommands.detail.contains("no-match"))
+        XCTAssertTrue(recapCommands.detail.contains("stale-pin"))
+        XCTAssertTrue(recapCommands.detail.contains("filtered-hold"))
+        XCTAssertTrue(recapCommands.detail.contains("promoted-hold"))
+        XCTAssertTrue(recapCommands.detail.contains("cleanup-omitted"))
+        XCTAssertTrue(recapCommands.detail.contains("collisions clear"))
+        XCTAssertTrue(recapCommands.detail.contains("bounded"))
         XCTAssertEqual(overlay.status, .pass)
         XCTAssertTrue(overlay.detail.contains("compact"))
         XCTAssertTrue(overlay.detail.contains("full"))
@@ -270,6 +284,45 @@ final class CinematicVisualSmokeReportTests: XCTestCase {
         XCTAssertTrue(divergentPrimitiveCheck.detail.contains("prims 3/4"))
     }
 
+    func testRecapArtifactCommandAvailabilityWarnsForMissingCoverageAndCollisions() throws {
+        let completeReports = CinematicDiagnostics.representativeRunRecapArtifactCommandSmokeReports()
+        let completeSmoke = CinematicVisualSmokeReport(reports: completeReports)
+        let completeCheck = try XCTUnwrap(
+            completeSmoke.checks.first { $0.id == "run-recap-artifact-command-availability" }
+        )
+        XCTAssertEqual(completeCheck.status, .pass)
+        XCTAssertTrue(completeCheck.detail.contains("available"))
+        XCTAssertTrue(completeCheck.detail.contains("collisions clear"))
+
+        let missingNoMatchReports = completeReports.filter {
+            $0.runRecapShareArtifactCommands.previewNoMatchAvailabilityReason == nil
+        }
+        let missingNoMatchSmoke = CinematicVisualSmokeReport(reports: missingNoMatchReports)
+        let missingNoMatchCheck = try XCTUnwrap(
+            missingNoMatchSmoke.checks.first { $0.id == "run-recap-artifact-command-availability" }
+        )
+        XCTAssertEqual(missingNoMatchCheck.status, .warning)
+        XCTAssertEqual(missingNoMatchCheck.warningIdentifier, "visual-smoke.recap-artifact-commands")
+        XCTAssertTrue(missingNoMatchSmoke.warningIdentifiers.contains("visual-smoke.recap-artifact-commands"))
+        XCTAssertTrue(missingNoMatchCheck.detail.contains("no-match-missing"))
+
+        var collisionReports = completeReports
+        collisionReports[0].runRecapShareArtifactCommands.appLevelShortcutCollisionStateIdentifier = "collision"
+        collisionReports[0].runRecapShareArtifactCommands.appLevelShortcutCollisionIdentifiers = ["command:o"]
+        let collisionSmoke = CinematicVisualSmokeReport(reports: collisionReports)
+        let collisionCheck = try XCTUnwrap(
+            collisionSmoke.checks.first { $0.id == "run-recap-artifact-command-availability" }
+        )
+        XCTAssertEqual(collisionCheck.status, .warning)
+        XCTAssertEqual(collisionCheck.warningIdentifier, "visual-smoke.recap-artifact-commands")
+        XCTAssertTrue(collisionCheck.detail.contains("collisions 1"))
+        XCTAssertLessThanOrEqual(
+            collisionCheck.warningIdentifier?.count ?? 0,
+            CinematicVisualSmokeReport.warningIdentifierMaxCharacters
+        )
+        XCTAssertLessThanOrEqual(collisionCheck.detail.count, CinematicVisualSmokeReport.detailMaxCharacters)
+    }
+
     func testIdleStoryCycleCoverageWarnsForMissingDescriptorRoutes() throws {
         let completeReports = CinematicDiagnostics.representativeIdleStoryCycleSmokeReports()
         let completeSmoke = CinematicVisualSmokeReport(reports: completeReports)
@@ -344,6 +397,7 @@ final class CinematicVisualSmokeReportTests: XCTestCase {
         XCTAssertTrue(smoke.warningIdentifiers.contains("visual-smoke.native-feedback-cue-coverage"))
         XCTAssertTrue(smoke.warningIdentifiers.contains("visual-smoke.native-feedback-treatment-coverage"))
         XCTAssertTrue(smoke.warningIdentifiers.contains("visual-smoke.idle-story-cycle"))
+        XCTAssertTrue(smoke.warningIdentifiers.contains("visual-smoke.recap-artifact-commands"))
         XCTAssertTrue(smoke.warningIdentifiers.contains("visual-smoke.saved-artifact-tour"))
         XCTAssertTrue(smoke.warningIdentifiers.contains("visual-smoke.timeline-focus-coverage"))
         XCTAssertTrue(smoke.warningIdentifiers.contains("visual-smoke.run-recap-focus-coverage"))
@@ -412,8 +466,8 @@ final class CinematicVisualSmokeReportTests: XCTestCase {
         XCTAssertEqual(summary.visualSmoke.warningCountLabel, "No warnings")
         XCTAssertEqual(summary.visualSmoke.warningBadgeLabel, "0")
         XCTAssertEqual(summary.visualSmoke.warningIdentifiers, [])
-        XCTAssertEqual(summary.visualSmoke.checkCountLabel, "19 checks")
-        XCTAssertEqual(summary.visualSmoke.presentation.headerDetail, "19 checks | No warnings")
+        XCTAssertEqual(summary.visualSmoke.checkCountLabel, "20 checks")
+        XCTAssertEqual(summary.visualSmoke.presentation.headerDetail, "20 checks | No warnings")
         XCTAssertEqual(summary.visualSmoke.presentation.defaultExpanded, false)
         XCTAssertEqual(summary.visualSmoke.presentation.attentionState, .normal)
         XCTAssertEqual(summary.visualSmoke.presentation.warningIdentifiers, [])
@@ -428,7 +482,8 @@ final class CinematicVisualSmokeReportTests: XCTestCase {
             summary.visualSmoke.presentation.headerDetail.count,
             CinematicDiagnosticsSummary.headerDetailMaxCharacters
         )
-        XCTAssertTrue(summary.exportText.contains("Visual smoke (pass, 19 checks)"))
+        XCTAssertTrue(summary.exportText.contains("Visual smoke (pass, 20 checks)"))
+        XCTAssertTrue(summary.exportText.contains("Recap command availability: pass"))
         XCTAssertTrue(summary.exportText.contains("Narrative cue readability: pass"))
         XCTAssertTrue(summary.exportText.contains("Texture role coverage: pass"))
         XCTAssertTrue(summary.exportText.contains("Language layout coverage: pass"))
@@ -519,7 +574,7 @@ final class CinematicVisualSmokeReportTests: XCTestCase {
         XCTAssertEqual(summary.visualSmoke.presentation.attentionState, .warning)
         XCTAssertEqual(summary.visualSmoke.presentation.warningIdentifiers, smoke.warningIdentifiers)
         XCTAssertEqual(summary.visualSmoke.presentation.needsAttention, true)
-        XCTAssertTrue(summary.visualSmoke.presentation.headerDetail.contains("19 checks"))
+        XCTAssertTrue(summary.visualSmoke.presentation.headerDetail.contains("20 checks"))
         for warningIdentifier in smoke.warningIdentifiers.prefix(2) {
             XCTAssertTrue(summary.visualSmoke.presentation.headerDetail.contains(warningIdentifier))
         }
@@ -608,7 +663,8 @@ final class CinematicVisualSmokeReportTests: XCTestCase {
         XCTAssertTrue(summary.exportText.contains("visual-smoke.asset-availability"))
         XCTAssertTrue(summary.exportText.contains("visual-smoke.texture-role-coverage"))
         XCTAssertTrue(summary.exportText.contains("visual-smoke.native-feedback-treatment-coverage"))
-        XCTAssertTrue(summary.exportText.contains("Visual smoke (warning, 19 checks)"))
+        XCTAssertTrue(summary.exportText.contains("Visual smoke (warning, 20 checks)"))
+        XCTAssertTrue(summary.exportText.contains("Recap command availability: warning"))
         XCTAssertTrue(summary.exportText.contains("Asset availability: warning"))
         XCTAssertTrue(summary.exportText.contains("warning visual-smoke.asset-availability"))
         XCTAssertTrue(summary.exportText.contains("Texture role coverage: warning"))
