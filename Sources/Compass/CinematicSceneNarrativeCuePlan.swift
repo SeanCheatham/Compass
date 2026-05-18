@@ -76,6 +76,11 @@ struct CinematicSceneNarrativeCuePlan: Equatable {
         var plaqueTreatmentIdentifier: String { plaqueTreatment.identifier }
         var plaqueTreatmentAccentIdentifier: String { plaqueTreatment.accentIdentifier }
         var plaqueTreatmentRouteIdentifier: String { plaqueTreatment.routeIdentifier }
+        var plaqueTreatmentRenderRecipeIdentifier: String { plaqueTreatment.renderRecipe.identifier }
+        var plaqueTreatmentRenderPrimitiveIdentifiers: [String] {
+            plaqueTreatment.renderRecipe.primitiveIdentifiers
+        }
+        var plaqueTreatmentRenderPrimitiveCount: Int { plaqueTreatment.renderRecipe.primitiveCount }
 
         init(
             stableID: String,
@@ -134,6 +139,45 @@ struct CinematicSceneNarrativeCuePlan: Equatable {
                 case retryBraces = "retry-braces"
             }
 
+            enum RenderPrimitive: String, CaseIterable, Equatable {
+                case railTop = "rail.top"
+                case railBottom = "rail.bottom"
+                case sealLeft = "seal.left"
+                case sealRight = "seal.right"
+                case warningLeft = "warning.left"
+                case warningRight = "warning.right"
+                case fractureDiagonalA = "fracture.diagonal.a"
+                case fractureDiagonalB = "fracture.diagonal.b"
+                case retryBraceLeft = "retry.brace.left"
+                case retryBraceRight = "retry.brace.right"
+                case retryCross = "retry.cross"
+
+                var identifier: String { rawValue }
+            }
+
+            struct RenderRecipe: Equatable {
+                static let primitiveCountRange: ClosedRange<Int> = 0...6
+                static let primitiveIdentifierMaxCharacters = 32
+
+                var primitives: [RenderPrimitive]
+
+                var primitiveIdentifiers: [String] {
+                    primitives.map(\.identifier)
+                }
+
+                var primitiveCount: Int {
+                    primitives.count
+                }
+
+                var identifier: String {
+                    primitiveIdentifiers.isEmpty ? "none" : primitiveIdentifiers.joined(separator: ",")
+                }
+
+                init(primitives: [RenderPrimitive]) {
+                    self.primitives = Array(primitives.prefix(Self.primitiveCountRange.upperBound))
+                }
+            }
+
             static let none = PlaqueTreatmentDescriptor(
                 accent: .none,
                 routeIdentifier: "none",
@@ -153,16 +197,20 @@ struct CinematicSceneNarrativeCuePlan: Equatable {
             var pulseScale: Float
 
             var accentIdentifier: String { accent.rawValue }
+            var renderRecipe: RenderRecipe { Self.renderRecipe(for: accent) }
 
             var identifier: String {
-                [
+                let recipe = renderRecipe
+                return [
                     accent.rawValue,
                     "route:\(routeIdentifier)",
                     "emit\(CinematicSceneNarrativeCuePlanner.fixed(emissionBoost))",
                     "rails\(CinematicSceneNarrativeCuePlanner.fixed(edgeRailOpacity))",
                     "braces\(CinematicSceneNarrativeCuePlanner.fixed(braceOpacity))",
                     "fracture\(CinematicSceneNarrativeCuePlanner.fixed(fractureOpacity))",
-                    "pulse\(CinematicSceneNarrativeCuePlanner.fixed(pulseScale))"
+                    "pulse\(CinematicSceneNarrativeCuePlanner.fixed(pulseScale))",
+                    "primitives:\(recipe.identifier)",
+                    "primitive-count:\(recipe.primitiveCount)"
                 ].joined(separator: "|")
             }
 
@@ -188,6 +236,42 @@ struct CinematicSceneNarrativeCuePlan: Equatable {
 
             private static func clamp(_ value: Float, to range: ClosedRange<Float>) -> Float {
                 min(max(value, range.lowerBound), range.upperBound)
+            }
+
+            private static func renderRecipe(for accent: Accent) -> RenderRecipe {
+                switch accent {
+                case .verifySeal:
+                    return RenderRecipe(primitives: [
+                        .railTop,
+                        .railBottom,
+                        .sealLeft,
+                        .sealRight
+                    ])
+                case .warningRails:
+                    return RenderRecipe(primitives: [
+                        .railTop,
+                        .railBottom,
+                        .warningLeft,
+                        .warningRight
+                    ])
+                case .failureFracture:
+                    return RenderRecipe(primitives: [
+                        .railTop,
+                        .railBottom,
+                        .fractureDiagonalA,
+                        .fractureDiagonalB
+                    ])
+                case .retryBraces:
+                    return RenderRecipe(primitives: [
+                        .railTop,
+                        .railBottom,
+                        .retryBraceLeft,
+                        .retryBraceRight,
+                        .retryCross
+                    ])
+                case .none:
+                    return RenderRecipe(primitives: [])
+                }
             }
         }
 

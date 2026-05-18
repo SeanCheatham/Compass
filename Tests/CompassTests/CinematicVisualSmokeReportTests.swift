@@ -94,7 +94,7 @@ final class CinematicVisualSmokeReportTests: XCTestCase {
         XCTAssertTrue(nativeFeedbackTreatment.detail.contains("pairs 4/4"))
         XCTAssertTrue(nativeFeedbackTreatment.detail.contains("surfaces 4/4"))
         XCTAssertTrue(nativeFeedbackTreatment.detail.contains("params 4/4"))
-        XCTAssertTrue(nativeFeedbackTreatment.detail.contains("emit,rails,braces,fracture,pulse"))
+        XCTAssertTrue(nativeFeedbackTreatment.detail.contains("prims 4/4"))
         XCTAssertTrue(timelineFocus.detail.contains("commit"))
         XCTAssertTrue(timelineFocus.detail.contains("recovery"))
         XCTAssertTrue(timelineFocus.detail.contains("failed-verify"))
@@ -194,6 +194,23 @@ final class CinematicVisualSmokeReportTests: XCTestCase {
         XCTAssertEqual(malformedParameterCheck.status, .warning)
         XCTAssertTrue(malformedParameterCheck.detail.contains("surfaces 4/4"))
         XCTAssertTrue(malformedParameterCheck.detail.contains("params 3/4"))
+
+        var divergentPrimitiveReports = completeReports
+        let primitiveIndex = try XCTUnwrap(
+            divergentPrimitiveReports.firstIndex { $0.nativeFeedback.sourceIdentifier == "native:verifyStarted" }
+        )
+        divergentPrimitiveReports[primitiveIndex].narrativeCue.questPlaque
+            .plaqueTreatmentRenderPrimitiveIdentifiers = ["rail.top"]
+        divergentPrimitiveReports[primitiveIndex].narrativeCue.questPlaque
+            .plaqueTreatmentRenderPrimitiveCount = 1
+        let divergentPrimitiveSmoke = CinematicVisualSmokeReport(reports: divergentPrimitiveReports)
+        let divergentPrimitiveCheck = try XCTUnwrap(
+            divergentPrimitiveSmoke.checks.first { $0.id == "native-feedback-treatment-coverage" }
+        )
+        XCTAssertEqual(divergentPrimitiveCheck.status, .warning)
+        XCTAssertTrue(divergentPrimitiveCheck.detail.contains("surfaces 4/4"))
+        XCTAssertTrue(divergentPrimitiveCheck.detail.contains("params 4/4"))
+        XCTAssertTrue(divergentPrimitiveCheck.detail.contains("prims 3/4"))
     }
 
     func testWarningReportUsesBoundedIdentifiersAndDetails() throws {

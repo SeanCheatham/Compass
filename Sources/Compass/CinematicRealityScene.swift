@@ -2824,7 +2824,10 @@ private final class CinematicSceneCoordinator {
         layout: CinematicSceneNarrativeCuePlan.CueDescriptor.LayoutDescriptor,
         color: NSColor
     ) {
-        guard treatment.accent != .none else { return }
+        typealias PlaqueTreatmentDescriptor = CinematicSceneNarrativeCuePlan.CueDescriptor.PlaqueTreatmentDescriptor
+        typealias RenderPrimitive = PlaqueTreatmentDescriptor.RenderPrimitive
+        let recipe = treatment.renderRecipe
+        guard recipe.primitiveCount > 0 else { return }
 
         let accentRoot = Entity()
         accentRoot.name = name
@@ -2839,7 +2842,7 @@ private final class CinematicSceneCoordinator {
         let braceRadius = max(0.005, min(0.01, layout.plateDepth * 0.22))
 
         func addBeam(
-            _ suffix: String,
+            _ primitive: RenderPrimitive,
             from start: SIMD3<Float>,
             to end: SIMD3<Float>,
             radius: Float,
@@ -2854,100 +2857,103 @@ private final class CinematicSceneCoordinator {
                 color: beamColor ?? color,
                 opacity: opacity
             )
-            beam.name = "\(name).\(suffix)"
+            beam.name = "\(name).\(primitive.identifier)"
             accentRoot.addChild(beam)
         }
 
-        if treatment.edgeRailOpacity > 0 {
-            addBeam(
-                "rail.top",
-                from: [-halfWidth + inset, halfHeight - sideInset, z],
-                to: [halfWidth - inset, halfHeight - sideInset, z],
-                radius: railRadius,
-                opacity: treatment.edgeRailOpacity
-            )
-            addBeam(
-                "rail.bottom",
-                from: [-halfWidth + inset, -halfHeight + sideInset, z],
-                to: [halfWidth - inset, -halfHeight + sideInset, z],
-                radius: railRadius,
-                opacity: treatment.edgeRailOpacity * 0.82
-            )
-        }
-
-        switch treatment.accent {
-        case .verifySeal:
-            addBeam(
-                "seal.left",
-                from: [-halfWidth + inset, -halfHeight + sideInset, z],
-                to: [-halfWidth + inset, halfHeight - sideInset, z],
-                radius: railRadius,
-                opacity: treatment.edgeRailOpacity * 0.72
-            )
-            addBeam(
-                "seal.right",
-                from: [halfWidth - inset, -halfHeight + sideInset, z],
-                to: [halfWidth - inset, halfHeight - sideInset, z],
-                radius: railRadius,
-                opacity: treatment.edgeRailOpacity * 0.72
-            )
-        case .warningRails:
-            addBeam(
-                "warning.left",
-                from: [-halfWidth + sideInset, -halfHeight + sideInset, z],
-                to: [-halfWidth + sideInset, halfHeight - sideInset, z],
-                radius: braceRadius,
-                opacity: treatment.braceOpacity
-            )
-            addBeam(
-                "warning.right",
-                from: [halfWidth - sideInset, -halfHeight + sideInset, z],
-                to: [halfWidth - sideInset, halfHeight - sideInset, z],
-                radius: braceRadius,
-                opacity: treatment.braceOpacity
-            )
-        case .failureFracture:
-            let fractureColor = color.withAlphaComponent(0.9)
-            addBeam(
-                "fracture.diagonal.a",
-                from: [-halfWidth + inset, halfHeight - sideInset, z],
-                to: [halfWidth - inset, -halfHeight + sideInset, z],
-                radius: braceRadius,
-                opacity: treatment.fractureOpacity,
-                beamColor: fractureColor
-            )
-            addBeam(
-                "fracture.diagonal.b",
-                from: [-halfWidth * 0.28, -halfHeight + sideInset, z + 0.002],
-                to: [halfWidth * 0.34, halfHeight - sideInset, z + 0.002],
-                radius: railRadius,
-                opacity: treatment.braceOpacity,
-                beamColor: fractureColor
-            )
-        case .retryBraces:
-            addBeam(
-                "retry.brace.left",
-                from: [-halfWidth + inset, -halfHeight + sideInset, z],
-                to: [-halfWidth + inset * 1.45, halfHeight - sideInset, z],
-                radius: braceRadius,
-                opacity: treatment.braceOpacity
-            )
-            addBeam(
-                "retry.brace.right",
-                from: [halfWidth - inset * 1.45, -halfHeight + sideInset, z],
-                to: [halfWidth - inset, halfHeight - sideInset, z],
-                radius: braceRadius,
-                opacity: treatment.braceOpacity
-            )
-            addBeam(
-                "retry.cross",
-                from: [-halfWidth * 0.18, halfHeight - sideInset, z + 0.002],
-                to: [halfWidth * 0.18, -halfHeight + sideInset, z + 0.002],
-                radius: railRadius,
-                opacity: treatment.fractureOpacity
-            )
-        case .none:
-            break
+        for primitive in recipe.primitives {
+            switch primitive {
+            case .railTop:
+                addBeam(
+                    primitive,
+                    from: [-halfWidth + inset, halfHeight - sideInset, z],
+                    to: [halfWidth - inset, halfHeight - sideInset, z],
+                    radius: railRadius,
+                    opacity: treatment.edgeRailOpacity
+                )
+            case .railBottom:
+                addBeam(
+                    primitive,
+                    from: [-halfWidth + inset, -halfHeight + sideInset, z],
+                    to: [halfWidth - inset, -halfHeight + sideInset, z],
+                    radius: railRadius,
+                    opacity: treatment.edgeRailOpacity * 0.82
+                )
+            case .sealLeft:
+                addBeam(
+                    primitive,
+                    from: [-halfWidth + inset, -halfHeight + sideInset, z],
+                    to: [-halfWidth + inset, halfHeight - sideInset, z],
+                    radius: railRadius,
+                    opacity: treatment.edgeRailOpacity * 0.72
+                )
+            case .sealRight:
+                addBeam(
+                    primitive,
+                    from: [halfWidth - inset, -halfHeight + sideInset, z],
+                    to: [halfWidth - inset, halfHeight - sideInset, z],
+                    radius: railRadius,
+                    opacity: treatment.edgeRailOpacity * 0.72
+                )
+            case .warningLeft:
+                addBeam(
+                    primitive,
+                    from: [-halfWidth + sideInset, -halfHeight + sideInset, z],
+                    to: [-halfWidth + sideInset, halfHeight - sideInset, z],
+                    radius: braceRadius,
+                    opacity: treatment.braceOpacity
+                )
+            case .warningRight:
+                addBeam(
+                    primitive,
+                    from: [halfWidth - sideInset, -halfHeight + sideInset, z],
+                    to: [halfWidth - sideInset, halfHeight - sideInset, z],
+                    radius: braceRadius,
+                    opacity: treatment.braceOpacity
+                )
+            case .fractureDiagonalA:
+                addBeam(
+                    primitive,
+                    from: [-halfWidth + inset, halfHeight - sideInset, z],
+                    to: [halfWidth - inset, -halfHeight + sideInset, z],
+                    radius: braceRadius,
+                    opacity: treatment.fractureOpacity,
+                    beamColor: color.withAlphaComponent(0.9)
+                )
+            case .fractureDiagonalB:
+                addBeam(
+                    primitive,
+                    from: [-halfWidth * 0.28, -halfHeight + sideInset, z + 0.002],
+                    to: [halfWidth * 0.34, halfHeight - sideInset, z + 0.002],
+                    radius: railRadius,
+                    opacity: treatment.braceOpacity,
+                    beamColor: color.withAlphaComponent(0.9)
+                )
+            case .retryBraceLeft:
+                addBeam(
+                    primitive,
+                    from: [-halfWidth + inset, -halfHeight + sideInset, z],
+                    to: [-halfWidth + inset * 1.45, halfHeight - sideInset, z],
+                    radius: braceRadius,
+                    opacity: treatment.braceOpacity
+                )
+            case .retryBraceRight:
+                addBeam(
+                    primitive,
+                    from: [halfWidth - inset * 1.45, -halfHeight + sideInset, z],
+                    to: [halfWidth - inset, halfHeight - sideInset, z],
+                    radius: braceRadius,
+                    opacity: treatment.braceOpacity
+                )
+            case .retryCross:
+                addBeam(
+                    primitive,
+                    from: [-halfWidth * 0.18, halfHeight - sideInset, z + 0.002],
+                    to: [halfWidth * 0.18, -halfHeight + sideInset, z + 0.002],
+                    radius: railRadius,
+                    opacity: treatment.fractureOpacity
+                )
+            }
         }
 
         node.addChild(accentRoot)

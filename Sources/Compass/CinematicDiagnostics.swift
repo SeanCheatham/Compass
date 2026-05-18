@@ -304,6 +304,9 @@ struct CinematicDiagnosticsReport: Equatable {
         var plaqueTreatmentIdentifier: String
         var plaqueTreatmentAccentIdentifier: String
         var plaqueTreatmentRouteIdentifier: String
+        var plaqueTreatmentRenderRecipeIdentifier: String
+        var plaqueTreatmentRenderPrimitiveIdentifiers: [String]
+        var plaqueTreatmentRenderPrimitiveCount: Int
         var layout: NarrativeCueLayoutSnapshot
     }
 
@@ -912,6 +915,7 @@ struct CinematicVisualSmokeReport: Equatable {
         let expectedReportCount = activeReports.filter(nativeFeedbackTreatmentMatchesExpectedPair).count
         let consistentSurfaceCount = activeReports.filter(nativeFeedbackTreatmentSurfacesMatch).count
         let meaningfulParameterCount = activeReports.filter(nativeFeedbackTreatmentParametersAreMeaningful).count
+        let primitiveSetCount = activeReports.filter(nativeFeedbackTreatmentPrimitivesMatchExpected).count
 
         let isPassing = !activeReports.isEmpty
             && observedAccents.isSuperset(of: expectedAccents)
@@ -920,6 +924,7 @@ struct CinematicVisualSmokeReport: Equatable {
             && expectedReportCount == activeReports.count
             && consistentSurfaceCount == activeReports.count
             && meaningfulParameterCount == activeReports.count
+            && primitiveSetCount == activeReports.count
 
         return check(
             id: "native-feedback-treatment-coverage",
@@ -933,7 +938,7 @@ struct CinematicVisualSmokeReport: Equatable {
                 "pairs \(observedPairIdentifiers.intersection(expectedPairIdentifiers).count)/\(expectedPairIdentifiers.count)",
                 "surfaces \(consistentSurfaceCount)/\(activeReports.count)",
                 "params \(meaningfulParameterCount)/\(activeReports.count)",
-                "tokens emit,rails,braces,fracture,pulse"
+                "prims \(primitiveSetCount)/\(activeReports.count)"
             ].joined(separator: "|")
         )
     }
@@ -989,9 +994,14 @@ struct CinematicVisualSmokeReport: Equatable {
         var sourceIdentifier: String
         var accentIdentifier: String
         var routeIdentifier: String
+        var primitiveIdentifiers: [String]
 
         var pairIdentifier: String {
             "\(accentIdentifier)/\(routeIdentifier)"
+        }
+
+        var primitiveSetIdentifier: String {
+            primitiveIdentifiers.isEmpty ? "none" : primitiveIdentifiers.joined(separator: ",")
         }
     }
 
@@ -1075,22 +1085,26 @@ struct CinematicVisualSmokeReport: Equatable {
         NativeFeedbackTreatmentExpectation(
             sourceIdentifier: "native:verifyStarted",
             accentIdentifier: "verify-seal",
-            routeIdentifier: "verifyStarted.verify"
+            routeIdentifier: "verifyStarted.verify",
+            primitiveIdentifiers: ["rail.top", "rail.bottom", "seal.left", "seal.right"]
         ),
         NativeFeedbackTreatmentExpectation(
             sourceIdentifier: "run-cue:11:dirtyWorktree",
             accentIdentifier: "warning-rails",
-            routeIdentifier: "developRetrying.warning.dirtyWorktree"
+            routeIdentifier: "developRetrying.warning.dirtyWorktree",
+            primitiveIdentifiers: ["rail.top", "rail.bottom", "warning.left", "warning.right"]
         ),
         NativeFeedbackTreatmentExpectation(
             sourceIdentifier: "native:postChecksFailed",
             accentIdentifier: "failure-fracture",
-            routeIdentifier: "postChecksFailed.failure"
+            routeIdentifier: "postChecksFailed.failure",
+            primitiveIdentifiers: ["rail.top", "rail.bottom", "fracture.diagonal.a", "fracture.diagonal.b"]
         ),
         NativeFeedbackTreatmentExpectation(
             sourceIdentifier: "run-cue:7:failedVerify",
             accentIdentifier: "retry-braces",
-            routeIdentifier: "developRetrying.failure.failedVerify"
+            routeIdentifier: "developRetrying.failure.failedVerify",
+            primitiveIdentifiers: ["rail.top", "rail.bottom", "retry.brace.left", "retry.brace.right", "retry.cross"]
         )
     ]
 
@@ -1347,6 +1361,29 @@ struct CinematicVisualSmokeReport: Equatable {
             return parameters.routeIdentifier == descriptor.plaqueTreatmentRouteIdentifier
                 && parameters.hasMeaningfulValues(for: descriptor.plaqueTreatmentAccentIdentifier)
         }
+    }
+
+    private static func nativeFeedbackTreatmentPrimitivesMatchExpected(
+        _ report: CinematicDiagnosticsReport
+    ) -> Bool {
+        guard let expectation = nativeFeedbackTreatmentExpectations.first(where: {
+            $0.sourceIdentifier == report.nativeFeedback.sourceIdentifier
+        }) else {
+            return false
+        }
+
+        let descriptors = narrativeCueDescriptors(report)
+        let expectedPrimitiveCount = expectation.primitiveIdentifiers.count
+        let expectedRecipeIdentifier = expectation.primitiveSetIdentifier
+
+        return descriptors.count == 3
+            && descriptors.allSatisfy { descriptor in
+                descriptor.plaqueTreatmentRenderRecipeIdentifier == expectedRecipeIdentifier
+                    && descriptor.plaqueTreatmentRenderPrimitiveIdentifiers == expectation.primitiveIdentifiers
+                    && descriptor.plaqueTreatmentRenderPrimitiveCount == expectedPrimitiveCount
+                    && descriptor.plaqueTreatmentIdentifier.contains("primitives:\(expectedRecipeIdentifier)")
+                    && descriptor.plaqueTreatmentIdentifier.contains("primitive-count:\(expectedPrimitiveCount)")
+            }
     }
 
     private static func nativeFeedbackActiveRoutesAreConsistent(
@@ -2095,6 +2132,7 @@ struct CinematicDiagnosticsSummary: Equatable {
             ? "none"
             : snapshot.nativeFeedbackAffectedDescriptorIdentifiers.joined(separator: ",")
         let treatments = nativeFeedbackPlaqueTreatmentAccents(snapshot)
+        let primitiveSets = nativeFeedbackPlaqueTreatmentPrimitiveSets(snapshot)
         return [
             "native",
             "source \(snapshot.nativeFeedbackSourceIdentifier)",
@@ -2102,6 +2140,7 @@ struct CinematicDiagnosticsSummary: Equatable {
             "milestone \(snapshot.nativeFeedbackMilestoneIdentifier)",
             "lifecycle \(snapshot.nativeFeedbackLifecycleIdentifier)",
             "treatments \(treatments.isEmpty ? "none" : treatments.joined(separator: ","))",
+            "primitives \(primitiveSets.isEmpty ? "none" : primitiveSets.joined(separator: ","))",
             "affects \(affected)"
         ].joined(separator: " ")
     }
@@ -2114,6 +2153,18 @@ struct CinematicDiagnosticsSummary: Equatable {
                 snapshot.questPlaque.plaqueTreatmentAccentIdentifier,
                 snapshot.arenaInscription.plaqueTreatmentAccentIdentifier,
                 snapshot.activityBanner.plaqueTreatmentAccentIdentifier
+            ].filter { $0 != "none" })
+        ).sorted()
+    }
+
+    private static func nativeFeedbackPlaqueTreatmentPrimitiveSets(
+        _ snapshot: CinematicDiagnosticsReport.NarrativeCueSnapshot
+    ) -> [String] {
+        Array(
+            Set([
+                snapshot.questPlaque.plaqueTreatmentRenderRecipeIdentifier,
+                snapshot.arenaInscription.plaqueTreatmentRenderRecipeIdentifier,
+                snapshot.activityBanner.plaqueTreatmentRenderRecipeIdentifier
             ].filter { $0 != "none" })
         ).sorted()
     }
@@ -2196,7 +2247,14 @@ struct CinematicDiagnosticsSummary: Equatable {
         guard descriptor.plaqueTreatmentAccentIdentifier != "none" else {
             return "treatment none"
         }
-        return "treatment \(descriptor.plaqueTreatmentAccentIdentifier)/\(descriptor.plaqueTreatmentRouteIdentifier)"
+        let primitives = descriptor.plaqueTreatmentRenderPrimitiveIdentifiers.isEmpty
+            ? "none"
+            : descriptor.plaqueTreatmentRenderPrimitiveIdentifiers.joined(separator: ",")
+        return [
+            "treatment \(descriptor.plaqueTreatmentAccentIdentifier)/\(descriptor.plaqueTreatmentRouteIdentifier)",
+            "primitives \(primitives)",
+            "count \(descriptor.plaqueTreatmentRenderPrimitiveCount)"
+        ].joined(separator: " ")
     }
 
     private static func completedLabel(_ count: Int) -> String {
@@ -3288,6 +3346,9 @@ enum CinematicDiagnostics {
             plaqueTreatmentIdentifier: descriptor.plaqueTreatmentIdentifier,
             plaqueTreatmentAccentIdentifier: descriptor.plaqueTreatmentAccentIdentifier,
             plaqueTreatmentRouteIdentifier: descriptor.plaqueTreatmentRouteIdentifier,
+            plaqueTreatmentRenderRecipeIdentifier: descriptor.plaqueTreatmentRenderRecipeIdentifier,
+            plaqueTreatmentRenderPrimitiveIdentifiers: descriptor.plaqueTreatmentRenderPrimitiveIdentifiers,
+            plaqueTreatmentRenderPrimitiveCount: descriptor.plaqueTreatmentRenderPrimitiveCount,
             layout: narrativeCueLayoutSnapshot(for: descriptor.layout)
         )
     }

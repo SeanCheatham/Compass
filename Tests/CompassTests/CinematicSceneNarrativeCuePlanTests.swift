@@ -244,6 +244,8 @@ final class CinematicSceneNarrativeCuePlanTests: XCTestCase {
         XCTAssertEqual(omitted.questPlaque.plaqueTreatmentAccentIdentifier, "none")
         XCTAssertEqual(omitted.arenaInscription.plaqueTreatmentAccentIdentifier, "none")
         XCTAssertEqual(omitted.activityBanner.plaqueTreatmentAccentIdentifier, "none")
+        XCTAssertEqual(omitted.questPlaque.plaqueTreatmentRenderPrimitiveIdentifiers, [])
+        XCTAssertEqual(omitted.questPlaque.plaqueTreatmentRenderPrimitiveCount, 0)
         XCTAssertFalse(omitted.identifier.contains("native-feedback:"))
     }
 
@@ -289,6 +291,18 @@ final class CinematicSceneNarrativeCuePlanTests: XCTestCase {
         XCTAssertEqual(plan.questPlaque.plaqueTreatmentRouteIdentifier, "verifyStarted.verify")
         XCTAssertEqual(plan.arenaInscription.plaqueTreatmentIdentifier, plan.questPlaque.plaqueTreatmentIdentifier)
         XCTAssertEqual(plan.activityBanner.plaqueTreatmentIdentifier, plan.questPlaque.plaqueTreatmentIdentifier)
+        assertTreatmentPrimitives(
+            plan.questPlaque,
+            ["rail.top", "rail.bottom", "seal.left", "seal.right"]
+        )
+        assertTreatmentPrimitives(
+            plan.arenaInscription,
+            ["rail.top", "rail.bottom", "seal.left", "seal.right"]
+        )
+        assertTreatmentPrimitives(
+            plan.activityBanner,
+            ["rail.top", "rail.bottom", "seal.left", "seal.right"]
+        )
         XCTAssertTrue(plan.questPlaque.identifier.contains("treatment{\(plan.questPlaque.plaqueTreatmentIdentifier)}"))
         XCTAssertTrue(plan.identifier.contains(plan.questPlaque.plaqueTreatmentIdentifier))
         XCTAssertEqual(plan.questPlaque.visibility, .featured)
@@ -383,6 +397,10 @@ final class CinematicSceneNarrativeCuePlanTests: XCTestCase {
         XCTAssertEqual(plan.activityBanner.anchor, .rightWarningPylon)
         XCTAssertEqual(plan.questPlaque.plaqueTreatmentAccentIdentifier, "retry-braces")
         XCTAssertEqual(plan.questPlaque.plaqueTreatmentRouteIdentifier, "developRetrying.failure.failedVerify")
+        assertTreatmentPrimitives(
+            plan.questPlaque,
+            ["rail.top", "rail.bottom", "retry.brace.left", "retry.brace.right", "retry.cross"]
+        )
         XCTAssertEqual(plan.questPlaque.lightFamily, .failure)
         XCTAssertEqual(plan.activityBanner.tintFamily, .failure)
         XCTAssertEqual(plan.activityBanner.visibility, .featured)
@@ -424,6 +442,10 @@ final class CinematicSceneNarrativeCuePlanTests: XCTestCase {
         XCTAssertEqual(warningPlan.activityBanner.anchor, .rightWarningPylon)
         XCTAssertEqual(warningPlan.questPlaque.plaqueTreatmentAccentIdentifier, "warning-rails")
         XCTAssertEqual(warningPlan.questPlaque.plaqueTreatmentRouteIdentifier, "developRetrying.warning.dirtyWorktree")
+        assertTreatmentPrimitives(
+            warningPlan.questPlaque,
+            ["rail.top", "rail.bottom", "warning.left", "warning.right"]
+        )
         XCTAssertEqual(warningPlan.questPlaque.lightFamily, .pressure)
         XCTAssertEqual(warningPlan.activityBanner.tintFamily, .failure)
         assertNarrativeCuePlanInBounds(warningPlan)
@@ -453,6 +475,10 @@ final class CinematicSceneNarrativeCuePlanTests: XCTestCase {
         XCTAssertEqual(plan.questPlaque.plaqueTreatmentRouteIdentifier, "postChecksFailed.failure")
         XCTAssertEqual(plan.arenaInscription.plaqueTreatmentIdentifier, plan.questPlaque.plaqueTreatmentIdentifier)
         XCTAssertEqual(plan.activityBanner.plaqueTreatmentIdentifier, plan.questPlaque.plaqueTreatmentIdentifier)
+        assertTreatmentPrimitives(
+            plan.questPlaque,
+            ["rail.top", "rail.bottom", "fracture.diagonal.a", "fracture.diagonal.b"]
+        )
         XCTAssertTrue(plan.questPlaque.text.lowercased().contains("failure"))
         XCTAssertTrue(plan.identifier.contains(plan.questPlaque.plaqueTreatmentIdentifier))
         assertNarrativeCuePlanInBounds(plan)
@@ -605,6 +631,47 @@ private func assertCueTextBounds(
     XCTAssertLessThanOrEqual(descriptor.text.count, maxCharacters, file: file, line: line)
     XCTAssertLessThanOrEqual(wordCount(descriptor.text), maxWords, file: file, line: line)
     XCTAssertFalse(descriptor.text.isEmpty, file: file, line: line)
+}
+
+private func assertTreatmentPrimitives(
+    _ descriptor: CinematicSceneNarrativeCuePlan.CueDescriptor,
+    _ expectedIdentifiers: [String],
+    file: StaticString = #filePath,
+    line: UInt = #line
+) {
+    typealias RenderRecipe = CinematicSceneNarrativeCuePlan.CueDescriptor.PlaqueTreatmentDescriptor.RenderRecipe
+
+    XCTAssertEqual(descriptor.plaqueTreatmentRenderPrimitiveIdentifiers, expectedIdentifiers, file: file, line: line)
+    XCTAssertEqual(descriptor.plaqueTreatmentRenderPrimitiveCount, expectedIdentifiers.count, file: file, line: line)
+    XCTAssertEqual(
+        descriptor.plaqueTreatmentRenderRecipeIdentifier,
+        expectedIdentifiers.joined(separator: ","),
+        file: file,
+        line: line
+    )
+    XCTAssertLessThanOrEqual(
+        descriptor.plaqueTreatmentRenderPrimitiveCount,
+        RenderRecipe.primitiveCountRange.upperBound,
+        file: file,
+        line: line
+    )
+    XCTAssertTrue(
+        descriptor.plaqueTreatmentRenderPrimitiveIdentifiers.allSatisfy {
+            $0.count <= RenderRecipe.primitiveIdentifierMaxCharacters
+        },
+        file: file,
+        line: line
+    )
+    XCTAssertTrue(
+        descriptor.plaqueTreatmentIdentifier.contains("primitives:\(descriptor.plaqueTreatmentRenderRecipeIdentifier)"),
+        file: file,
+        line: line
+    )
+    XCTAssertTrue(
+        descriptor.plaqueTreatmentIdentifier.contains("primitive-count:\(expectedIdentifiers.count)"),
+        file: file,
+        line: line
+    )
 }
 
 private func assertNarrativeCuePlanInBounds(
