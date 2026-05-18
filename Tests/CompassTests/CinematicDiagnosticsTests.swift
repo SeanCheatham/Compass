@@ -770,6 +770,75 @@ final class CinematicDiagnosticsTests: XCTestCase {
         }
     }
 
+    func testCurrentReportPropagatesNativeFeedbackCueToNarrativeAndExport() async throws {
+        try await MainActor.run {
+            let repoURL = URL(fileURLWithPath: "/tmp/NativeDiagnosticsRepo", isDirectory: true)
+            let project = CompassProject(
+                repoURL: repoURL,
+                cinematicInfluenceSettings: CinematicInfluenceSettings(cameraStyle: .follow, intensity: 0.65),
+                nativeFeedbackMode: .notifications
+            )
+            project.state = PlanState(
+                completed: ["Implemented native cue"],
+                immediate: PlanNext(
+                    plan: "Thread native feedback into cinematic diagnostics",
+                    verify: "swift test"
+                ),
+                midTerm: "",
+                longTerm: ""
+            )
+            project.phase = .verifying
+            project.languageProfile = languageProfile(primaryLanguage: .swift)
+            project.activityProfile = activityProfile(recentCommitCount: 1)
+            project.recordCinematicNativeFeedback(.verifyStarted)
+            let cue = try XCTUnwrap(project.cinematicNativeFeedbackCue)
+
+            let report = CinematicDiagnostics.currentReport(for: project)
+            let expected = CinematicDiagnostics.report(
+                repoName: "NativeDiagnosticsRepo",
+                phase: "Verifying",
+                immediateTitle: "Thread native feedback into cinematic diagnostics",
+                completedCount: 1,
+                latestEvent: nil,
+                languageProfile: project.languageProfile,
+                activityProfile: project.activityProfile,
+                influenceSettings: project.cinematicInfluenceSettings,
+                isRunning: project.isRunning,
+                isAutoPlaying: project.isAutoPlaying,
+                isPaused: project.isPaused,
+                hasRepository: project.hasRepository,
+                nativeFeedbackCue: cue
+            )
+
+            XCTAssertEqual(report, expected)
+            XCTAssertEqual(report.nativeFeedback.cueIdentifier, cue.identifier)
+            XCTAssertEqual(report.nativeFeedback.sourceIdentifier, "native:verifyStarted")
+            XCTAssertEqual(report.nativeFeedback.styleIdentifier, "verify")
+            XCTAssertEqual(report.nativeFeedback.milestoneIdentifier, "verifyStarted")
+            XCTAssertEqual(
+                report.nativeFeedback.affectedNarrativeDescriptorIdentifiers,
+                ["narrative.quest.plaque", "narrative.arena.inscription", "narrative.activity.banner"]
+            )
+            XCTAssertEqual(report.narrativeCue.nativeFeedbackCueIdentifier, cue.identifier)
+            XCTAssertEqual(report.narrativeCue.nativeFeedbackSourceIdentifier, "native:verifyStarted")
+            XCTAssertEqual(report.overlayDisplay.nativeFeedbackCueIdentifier, cue.identifier)
+            XCTAssertEqual(report.narrativeCue.questPlaque.anchorIdentifier, "left-seal-pylon")
+            XCTAssertEqual(report.narrativeCue.arenaInscription.anchorIdentifier, "arena-rear")
+            XCTAssertTrue(report.narrativeCue.questPlaque.text.lowercased().contains("verify"))
+            XCTAssertTrue(report.narrativeCue.arenaInscription.text.lowercased().contains("seal"))
+
+            let summary = CinematicDiagnosticsSummary(
+                report: report,
+                visualSmoke: CinematicVisualSmokeReport(reports: [report])
+            )
+            XCTAssertTrue(summary.exportText.contains("source native:verifyStarted"))
+            XCTAssertTrue(summary.exportText.contains("style verify"))
+            XCTAssertTrue(summary.exportText.contains("milestone verifyStarted"))
+            XCTAssertTrue(summary.exportText.contains("affects narrative.quest.plaque"))
+            XCTAssertTrue(summary.exportText.contains("native \(cue.identifier)"))
+        }
+    }
+
     func testSummaryOutputIsStableAcrossRepeatedCalls() {
         let report = makeReport(
             CinematicDiagnosticsInput(

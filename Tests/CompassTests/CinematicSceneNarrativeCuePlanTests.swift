@@ -220,6 +220,154 @@ final class CinematicSceneNarrativeCuePlanTests: XCTestCase {
         XCTAssertLessThan(plan.activityBanner.layout.backingOpacity, plan.questPlaque.layout.backingOpacity)
         assertNarrativeCuePlanInBounds(plan)
     }
+
+    func testNilNativeFeedbackCueKeepsPlannerOutputUnchanged() {
+        let settings = CinematicInfluenceSettings(cameraStyle: .dramatic, intensity: 0.72)
+        let activity = activityProfile(worktreeChanges: worktreeChanges(modified: 4))
+        let omitted = narrativeCuePlan(
+            phase: .developing,
+            activityProfile: activity,
+            settings: settings
+        )
+        let explicitNil = narrativeCuePlan(
+            phase: .developing,
+            activityProfile: activity,
+            settings: settings,
+            nativeFeedbackCue: nil
+        )
+
+        XCTAssertEqual(omitted, explicitNil)
+        XCTAssertEqual(omitted.identifier, explicitNil.identifier)
+        XCTAssertEqual(omitted.nativeFeedbackCueIdentifier, "none")
+        XCTAssertEqual(omitted.nativeFeedbackAffectedDescriptorIdentifiers, [])
+        XCTAssertFalse(omitted.identifier.contains("native-feedback:"))
+    }
+
+    func testVerifyStartedNativeFeedbackFeedsSealPlaques() throws {
+        let nativeCue = try XCTUnwrap(
+            CinematicNativeFeedbackCuePlanner.plan(
+                milestone: .verifyStarted,
+                content: NativeFeedbackContent(milestone: .verifyStarted, projectName: "Editor"),
+                phase: .verifying,
+                feedbackMode: .notifications,
+                recentRunCues: [:]
+            )
+        )
+
+        let plan = narrativeCuePlan(
+            phase: .verifying,
+            activityProfile: activityProfile(),
+            settings: CinematicInfluenceSettings(cameraStyle: .follow, intensity: 0.6),
+            nativeFeedbackCue: nativeCue
+        )
+
+        XCTAssertEqual(plan.nativeFeedbackCueIdentifier, nativeCue.identifier)
+        XCTAssertEqual(plan.nativeFeedbackSourceIdentifier, "native:verifyStarted")
+        XCTAssertEqual(plan.nativeFeedbackStyleIdentifier, "verify")
+        XCTAssertEqual(plan.nativeFeedbackMilestoneIdentifier, "verifyStarted")
+        XCTAssertEqual(
+            plan.nativeFeedbackAffectedDescriptorIdentifiers,
+            ["narrative.quest.plaque", "narrative.arena.inscription", "narrative.activity.banner"]
+        )
+        XCTAssertTrue(plan.identifier.contains("native-feedback:\(nativeCue.identifier)"))
+        XCTAssertTrue(plan.questPlaque.text.lowercased().contains("verify"))
+        XCTAssertTrue(plan.questPlaque.text.lowercased().contains("seal"))
+        XCTAssertTrue(plan.questPlaque.secondaryText?.contains("native:verifyStarted") == true)
+        XCTAssertTrue(plan.arenaInscription.text.lowercased().contains("seal"))
+        XCTAssertTrue(plan.activityBanner.text.lowercased().contains("verify"))
+        XCTAssertEqual(plan.questPlaque.glyphIdentifier, "checkmark.seal")
+        XCTAssertEqual(plan.questPlaque.anchor, .leftSealPylon)
+        XCTAssertEqual(plan.arenaInscription.anchor, .arenaRear)
+        XCTAssertEqual(plan.activityBanner.anchor, .rightHistoryPylon)
+        XCTAssertEqual(plan.questPlaque.visibility, .featured)
+        XCTAssertEqual(plan.questPlaque.lightFamily, .verify)
+        XCTAssertEqual(plan.activityBanner.tintFamily, .verify)
+        assertCueTextBounds(plan.questPlaque, maxCharacters: CinematicWorldTextService.questLabelMaxCharacters, maxWords: CinematicWorldTextService.questLabelMaxWords)
+        assertCueTextBounds(plan.arenaInscription, maxCharacters: CinematicWorldTextService.arenaCalloutMaxCharacters, maxWords: CinematicWorldTextService.arenaCalloutMaxWords)
+        assertCueTextBounds(plan.activityBanner, maxCharacters: CinematicWorldTextService.activityCalloutMaxCharacters, maxWords: CinematicWorldTextService.activityCalloutMaxWords)
+        assertNarrativeCuePlanInBounds(plan)
+    }
+
+    func testDevelopRetryingRunCueFeedsFailureAnchorsAndMetadata() throws {
+        let nativeCue = try XCTUnwrap(
+            CinematicNativeFeedbackCuePlanner.plan(
+                milestone: .developRetrying,
+                content: NativeFeedbackContent(milestone: .developRetrying, projectName: "Editor"),
+                phase: .developing,
+                feedbackMode: .notifications,
+                recentRunCues: [
+                    7: runCue(
+                        kind: .failedVerify,
+                        severity: .failure,
+                        label: "Retry Develop",
+                        detail: "Expected true but got false",
+                        systemImage: "checkmark.seal.fill"
+                    )
+                ]
+            )
+        )
+
+        let plan = narrativeCuePlan(
+            phase: .developing,
+            activityProfile: activityProfile(worktreeChanges: worktreeChanges(modified: 3)),
+            settings: CinematicInfluenceSettings(cameraStyle: .dramatic, intensity: 0.9),
+            nativeFeedbackCue: nativeCue
+        )
+
+        XCTAssertEqual(plan.nativeFeedbackSourceIdentifier, "run-cue:7:failedVerify")
+        XCTAssertEqual(plan.nativeFeedbackStyleIdentifier, "failure")
+        XCTAssertEqual(plan.questPlaque.glyphIdentifier, "checkmark.seal.fill")
+        XCTAssertTrue(plan.questPlaque.text.lowercased().contains("failure"))
+        XCTAssertTrue(plan.questPlaque.text.lowercased().contains("anchor"))
+        XCTAssertTrue(plan.questPlaque.secondaryText?.contains("run-cue:7:failedVerify") == true)
+        XCTAssertTrue(plan.arenaInscription.text.contains("failedVerify"))
+        XCTAssertTrue(plan.activityBanner.text.contains("failedVerify"))
+        XCTAssertEqual(plan.questPlaque.anchor, .fractureGate)
+        XCTAssertEqual(plan.arenaInscription.anchor, .fractureGate)
+        XCTAssertEqual(plan.activityBanner.anchor, .rightWarningPylon)
+        XCTAssertEqual(plan.questPlaque.lightFamily, .failure)
+        XCTAssertEqual(plan.activityBanner.tintFamily, .failure)
+        XCTAssertEqual(plan.activityBanner.visibility, .featured)
+        assertCueTextBounds(plan.questPlaque, maxCharacters: CinematicWorldTextService.questLabelMaxCharacters, maxWords: CinematicWorldTextService.questLabelMaxWords)
+        assertCueTextBounds(plan.arenaInscription, maxCharacters: CinematicWorldTextService.arenaCalloutMaxCharacters, maxWords: CinematicWorldTextService.arenaCalloutMaxWords)
+        assertCueTextBounds(plan.activityBanner, maxCharacters: CinematicWorldTextService.activityCalloutMaxCharacters, maxWords: CinematicWorldTextService.activityCalloutMaxWords)
+        assertNarrativeCuePlanInBounds(plan)
+
+        let warningCue = try XCTUnwrap(
+            CinematicNativeFeedbackCuePlanner.plan(
+                milestone: .developRetrying,
+                content: NativeFeedbackContent(milestone: .developRetrying, projectName: "Editor"),
+                phase: .developing,
+                feedbackMode: .notifications,
+                recentRunCues: [
+                    11: runCue(
+                        kind: .dirtyWorktree,
+                        severity: .warning,
+                        label: "Clean Worktree",
+                        detail: "2 pending changes",
+                        systemImage: "pencil.and.outline"
+                    )
+                ]
+            )
+        )
+        let warningPlan = narrativeCuePlan(
+            phase: .developing,
+            activityProfile: activityProfile(worktreeChanges: worktreeChanges(modified: 2)),
+            settings: CinematicInfluenceSettings(cameraStyle: .follow, intensity: 0.6),
+            nativeFeedbackCue: warningCue
+        )
+
+        XCTAssertEqual(warningPlan.nativeFeedbackSourceIdentifier, "run-cue:11:dirtyWorktree")
+        XCTAssertEqual(warningPlan.nativeFeedbackStyleIdentifier, "warning")
+        XCTAssertTrue(warningPlan.questPlaque.text.lowercased().contains("warning"))
+        XCTAssertTrue(warningPlan.activityBanner.text.contains("dirtyWorktree"))
+        XCTAssertEqual(warningPlan.questPlaque.anchor, .rightWarningPylon)
+        XCTAssertEqual(warningPlan.arenaInscription.anchor, .fractureGate)
+        XCTAssertEqual(warningPlan.activityBanner.anchor, .rightWarningPylon)
+        XCTAssertEqual(warningPlan.questPlaque.lightFamily, .pressure)
+        XCTAssertEqual(warningPlan.activityBanner.tintFamily, .failure)
+        assertNarrativeCuePlanInBounds(warningPlan)
+    }
 }
 
 private func narrativeCuePlan(
@@ -228,7 +376,8 @@ private func narrativeCuePlan(
     briefing: CinematicBriefing? = nil,
     languageProfile: RepositoryLanguageProfile = languageProfile(primaryLanguage: .swift),
     activityProfile: RepositoryActivityProfile,
-    settings: CinematicInfluenceSettings
+    settings: CinematicInfluenceSettings,
+    nativeFeedbackCue: CinematicNativeFeedbackCuePlan? = nil
 ) -> CinematicSceneNarrativeCuePlan {
     let latestEvent: CinematicBriefingEvent? = nil
     let inputWorldText = worldText ?? CinematicWorldTextService.deterministicWorldText(
@@ -292,7 +441,8 @@ private func narrativeCuePlan(
         stagePhasePolishPlan: phasePolishPlan,
         languageMotif: languageMotif,
         activityMotif: activityMotif,
-        influenceSettings: settings
+        influenceSettings: settings,
+        nativeFeedbackCue: nativeFeedbackCue
     )
 }
 
@@ -453,6 +603,28 @@ private func assertActivityBannerSeparated(
 
 private func wordCount(_ text: String) -> Int {
     text.split(whereSeparator: \.isWhitespace).count
+}
+
+private func runCue(
+    kind: PlanReliabilityFeedback.Kind,
+    severity: PlanReliabilityFeedback.Severity,
+    label: String,
+    detail: String,
+    systemImage: String
+) -> PlanReliabilityFeedback.RunCue {
+    PlanReliabilityFeedback.RunCue(
+        notice: PlanReliabilityFeedback.Notice(
+            id: "\(kind.rawValue)-narrative-test",
+            kind: kind,
+            severity: severity,
+            sessionNumber: 0,
+            title: label,
+            detail: detail,
+            actionLabel: label,
+            metadata: nil,
+            systemImage: systemImage
+        )
+    )
 }
 
 private func XCTAssertInRange<T: Comparable>(

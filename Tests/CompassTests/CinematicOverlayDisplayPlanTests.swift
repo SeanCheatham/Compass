@@ -227,6 +227,65 @@ final class CinematicOverlayDisplayPlanTests: XCTestCase {
         XCTAssertEqual(plan.mode, .compact)
         XCTAssertEqual(plan.reasonIdentifier, "in-world-readable-cues")
     }
+
+    func testNativeFeedbackReadabilitySignalsStayReadableAndAffectOverlayIdentifier() throws {
+        let languageProfile = languageProfile(primaryLanguage: .swift)
+        let activityProfile = activityProfile(worktreeChanges: worktreeChanges(modified: 3))
+        let settings = CinematicInfluenceSettings(cameraStyle: .dramatic, intensity: 0.8)
+        let nativeCue = try XCTUnwrap(
+            CinematicNativeFeedbackCuePlanner.plan(
+                milestone: .verifyStarted,
+                content: NativeFeedbackContent(milestone: .verifyStarted, projectName: "Editor"),
+                phase: .verifying,
+                feedbackMode: .notifications,
+                recentRunCues: [:]
+            )
+        )
+        let plain = CinematicOverlayDisplayPlanner.narrativeCueReadabilitySignals(
+            phase: .verifying,
+            worldText: worldText(),
+            briefing: briefing(),
+            languageProfile: languageProfile,
+            activityProfile: activityProfile,
+            influenceSettings: settings
+        )
+        let withNativeCue = CinematicOverlayDisplayPlanner.narrativeCueReadabilitySignals(
+            phase: .verifying,
+            worldText: worldText(),
+            briefing: briefing(),
+            languageProfile: languageProfile,
+            activityProfile: activityProfile,
+            influenceSettings: settings,
+            nativeFeedbackCue: nativeCue
+        )
+
+        XCTAssertTrue(plain.isReadable)
+        XCTAssertTrue(withNativeCue.isReadable)
+        XCTAssertNotEqual(withNativeCue.identifier, plain.identifier)
+        XCTAssertGreaterThanOrEqual(withNativeCue.minimumScale, CinematicNarrativeCueReadabilitySignals.readableScaleThreshold)
+        XCTAssertGreaterThanOrEqual(withNativeCue.minimumOpacity, CinematicNarrativeCueReadabilitySignals.readableOpacityThreshold)
+        XCTAssertGreaterThanOrEqual(withNativeCue.minimumPrimaryFontSize, CinematicNarrativeCueReadabilitySignals.readablePrimaryFontSizeThreshold)
+        XCTAssertGreaterThanOrEqual(withNativeCue.minimumBackingOpacity, CinematicNarrativeCueReadabilitySignals.readableBackingOpacityThreshold)
+
+        let overlay = CinematicOverlayDisplayPlanner.plan(
+            phase: .verifying,
+            isRunning: true,
+            isAutoPlaying: false,
+            isPaused: false,
+            hasRepository: true,
+            worldText: worldText(),
+            briefing: briefing(),
+            languageProfile: languageProfile,
+            activityProfile: activityProfile,
+            influenceSettings: settings,
+            narrativeCueReadability: withNativeCue,
+            nativeFeedbackCue: nativeCue
+        )
+
+        XCTAssertEqual(overlay.nativeFeedbackCueIdentifier, nativeCue.identifier)
+        XCTAssertTrue(overlay.identifier.contains("native:\(nativeCue.identifier)"))
+        XCTAssertEqual(overlay.mode, .compact)
+    }
 }
 
 private func makeOverlayPlan(

@@ -16,6 +16,7 @@ struct CinematicSceneView: View {
     var commitConstellationPlan: CinematicCommitConstellationPlan
     var recoveryCuePlan: CinematicRecoveryCuePlan
     var timelineSceneFocusPlan: CinematicTimelineSceneFocusPlan
+    var nativeFeedbackCue: CinematicNativeFeedbackCuePlan?
 
     @StateObject private var host: CinematicRealitySceneHost
 
@@ -31,7 +32,8 @@ struct CinematicSceneView: View {
         briefing: CinematicBriefing,
         commitConstellationPlan: CinematicCommitConstellationPlan,
         recoveryCuePlan: CinematicRecoveryCuePlan = .none,
-        timelineSceneFocusPlan: CinematicTimelineSceneFocusPlan = .none
+        timelineSceneFocusPlan: CinematicTimelineSceneFocusPlan = .none,
+        nativeFeedbackCue: CinematicNativeFeedbackCuePlan? = nil
     ) {
         self.projectID = projectID
         self.lines = lines
@@ -45,6 +47,7 @@ struct CinematicSceneView: View {
         self.commitConstellationPlan = commitConstellationPlan
         self.recoveryCuePlan = recoveryCuePlan
         self.timelineSceneFocusPlan = timelineSceneFocusPlan
+        self.nativeFeedbackCue = nativeFeedbackCue
         _host = StateObject(wrappedValue: CinematicRealitySceneHost(projectID: projectID))
     }
 
@@ -62,7 +65,8 @@ struct CinematicSceneView: View {
                 briefing: briefing,
                 commitConstellationPlan: commitConstellationPlan,
                 recoveryCuePlan: recoveryCuePlan,
-                timelineSceneFocusPlan: timelineSceneFocusPlan
+                timelineSceneFocusPlan: timelineSceneFocusPlan,
+                nativeFeedbackCue: nativeFeedbackCue
             )
         } update: { content in
             host.install(in: &content)
@@ -77,7 +81,8 @@ struct CinematicSceneView: View {
                 briefing: briefing,
                 commitConstellationPlan: commitConstellationPlan,
                 recoveryCuePlan: recoveryCuePlan,
-                timelineSceneFocusPlan: timelineSceneFocusPlan
+                timelineSceneFocusPlan: timelineSceneFocusPlan,
+                nativeFeedbackCue: nativeFeedbackCue
             )
         } placeholder: {
             Color.black
@@ -124,7 +129,8 @@ private final class CinematicRealitySceneHost: ObservableObject {
         briefing: CinematicBriefing,
         commitConstellationPlan: CinematicCommitConstellationPlan,
         recoveryCuePlan: CinematicRecoveryCuePlan,
-        timelineSceneFocusPlan: CinematicTimelineSceneFocusPlan
+        timelineSceneFocusPlan: CinematicTimelineSceneFocusPlan,
+        nativeFeedbackCue: CinematicNativeFeedbackCuePlan?
     ) {
         coordinator.update(
             lines: lines,
@@ -137,7 +143,8 @@ private final class CinematicRealitySceneHost: ObservableObject {
             briefing: briefing,
             commitConstellationPlan: commitConstellationPlan,
             recoveryCuePlan: recoveryCuePlan,
-            timelineSceneFocusPlan: timelineSceneFocusPlan
+            timelineSceneFocusPlan: timelineSceneFocusPlan,
+            nativeFeedbackCue: nativeFeedbackCue
         )
     }
 
@@ -278,6 +285,7 @@ private final class CinematicSceneCoordinator {
     private var worldText = CinematicWorldText.placeholder
     private var briefing = CinematicBriefing.placeholder
     private var recoveryCuePlan = CinematicRecoveryCuePlan.none
+    private var nativeFeedbackCue: CinematicNativeFeedbackCuePlan?
     private var setDressingPlan = CinematicSetDressingPlanner.plan(
         languageProfile: .empty,
         activityProfile: .empty,
@@ -372,7 +380,8 @@ private final class CinematicSceneCoordinator {
         briefing: CinematicBriefing,
         commitConstellationPlan: CinematicCommitConstellationPlan,
         recoveryCuePlan: CinematicRecoveryCuePlan,
-        timelineSceneFocusPlan: CinematicTimelineSceneFocusPlan
+        timelineSceneFocusPlan: CinematicTimelineSceneFocusPlan,
+        nativeFeedbackCue: CinematicNativeFeedbackCuePlan?
     ) {
         let languageProfileChanged = languageProfile != self.languageProfile
         if languageProfileChanged {
@@ -399,6 +408,10 @@ private final class CinematicSceneCoordinator {
         let recoveryCueChanged = recoveryCuePlan != self.recoveryCuePlan
         if recoveryCueChanged {
             self.recoveryCuePlan = recoveryCuePlan
+        }
+        let nativeFeedbackCueChanged = nativeFeedbackCue?.identifier != self.nativeFeedbackCue?.identifier
+        if nativeFeedbackCueChanged {
+            self.nativeFeedbackCue = nativeFeedbackCue
         }
         let commitConstellationChanged = commitConstellationPlan != currentCommitConstellationPlan
         let timelineFocusChanged = timelineSceneFocusPlan != currentTimelineSceneFocusPlan
@@ -475,7 +488,7 @@ private final class CinematicSceneCoordinator {
 
         syncRunningEnemies(with: lines)
         setThinking(isActive && isWaitingForCodex(lines: lines))
-        if worldTextChanged || briefingChanged {
+        if worldTextChanged || briefingChanged || nativeFeedbackCueChanged {
             refreshNarrativeCues(animated: hasBuiltScene)
         }
         if commitConstellationChanged {
@@ -1167,7 +1180,8 @@ private final class CinematicSceneCoordinator {
             stagePhasePolishPlan: phasePolishPlan,
             languageMotif: languageMotif,
             activityMotif: activityMotif,
-            influenceSettings: influenceSettings
+            influenceSettings: influenceSettings,
+            nativeFeedbackCue: nativeFeedbackCue
         )
     }
 

@@ -46,7 +46,8 @@ struct CinematicTab: View {
                     briefing: project.cinematicBriefing,
                     commitConstellationPlan: project.cinematicCommitConstellationPlan,
                     recoveryCuePlan: recoveryCuePlan,
-                    timelineSceneFocusPlan: timelineSceneFocusPlan
+                    timelineSceneFocusPlan: timelineSceneFocusPlan,
+                    nativeFeedbackCue: nativeFeedbackCue
                 )
                 .frame(width: proxy.size.width, height: proxy.size.height)
 
@@ -132,7 +133,8 @@ struct CinematicTab: View {
             briefing: project.cinematicBriefing,
             languageProfile: project.languageProfile,
             activityProfile: project.activityProfile,
-            influenceSettings: project.cinematicInfluenceSettings
+            influenceSettings: project.cinematicInfluenceSettings,
+            nativeFeedbackCue: project.cinematicNativeFeedbackCue
         )
         return CinematicOverlayDisplayPlanner.plan(
             phase: project.phase,

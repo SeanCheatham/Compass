@@ -44,6 +44,11 @@ struct CinematicSceneNarrativeCuePlan: Equatable {
     var languageIdentifier: String
     var activityIdentifier: String
     var influenceIdentifier: String
+    var nativeFeedbackCueIdentifier: String
+    var nativeFeedbackSourceIdentifier: String
+    var nativeFeedbackStyleIdentifier: String
+    var nativeFeedbackMilestoneIdentifier: String
+    var nativeFeedbackAffectedDescriptorIdentifiers: [String]
     var questPlaque: CueDescriptor
     var arenaInscription: CueDescriptor
     var activityBanner: CueDescriptor
@@ -254,9 +259,12 @@ enum CinematicSceneNarrativeCuePlanner {
         stagePhasePolishPlan: CinematicStagePhasePolishPlan,
         languageMotif: CinematicLanguageMotif,
         activityMotif: CinematicActivityMotif,
-        influenceSettings: CinematicInfluenceSettings
+        influenceSettings: CinematicInfluenceSettings,
+        nativeFeedbackCue: CinematicNativeFeedbackCuePlan? = nil
     ) -> CinematicSceneNarrativeCuePlan {
         let isIdleUnavailable = stageBeat.kind == .idle && activityMotif.eventKind == .unavailable
+        let usesNativeFeedbackCue = nativeFeedbackCue != nil
+        let usesIdleFallback = isIdleUnavailable && !usesNativeFeedbackCue
         let boundedWorldText = isIdleUnavailable ? CinematicWorldText.placeholder : worldText
         let boundedBriefing = isIdleUnavailable ? CinematicBriefing.placeholder : briefing
         let influenceIntensity = Float(CinematicInfluenceSettings.clampedIntensity(influenceSettings.intensity))
@@ -295,57 +303,58 @@ enum CinematicSceneNarrativeCuePlanner {
             maxWords: CinematicWorldTextService.activityCalloutMaxWords,
             fallback: CinematicWorldText.placeholder.activityCallout
         )
+        let nativeCue = nativeFeedbackCue.map { nativeFeedbackCueDescriptorPlan(for: $0) }
         let questDescriptor = cueDescriptor(
             slot: .questPlaque,
             stableID: "narrative.quest.plaque",
-            text: questText,
-            secondaryText: questSecondary == questText ? nil : questSecondary,
-            glyphIdentifier: languageMotif.sigilIdentifier,
-            anchor: questAnchor(for: stageBeat, isIdleUnavailable: isIdleUnavailable),
-            visibility: visibility,
-            baseLightFamily: stagePhasePolishPlan.staffOrb.lightFamily,
-            tintFamily: stageBeat.lightFamily,
-            phaseEnergy: phaseEnergy,
+            text: nativeCue?.questPlaqueText ?? questText,
+            secondaryText: nativeCue?.questPlaqueSecondaryText ?? (questSecondary == questText ? nil : questSecondary),
+            glyphIdentifier: nativeCue?.glyphIdentifier ?? languageMotif.sigilIdentifier,
+            anchor: nativeCue?.questPlaqueAnchor ?? questAnchor(for: stageBeat, isIdleUnavailable: usesIdleFallback),
+            visibility: nativeCue?.visibility ?? visibility,
+            baseLightFamily: nativeCue?.lightFamily ?? stagePhasePolishPlan.staffOrb.lightFamily,
+            tintFamily: nativeCue?.tintFamily ?? stageBeat.lightFamily,
+            phaseEnergy: nativeCue?.phaseEnergy ?? phaseEnergy,
             influenceIntensity: influenceIntensity,
             influenceFraction: influenceFraction,
-            isIdleUnavailable: isIdleUnavailable
+            isIdleUnavailable: usesIdleFallback
         )
         let arenaDescriptor = cueDescriptor(
             slot: .arenaInscription,
             stableID: "narrative.arena.inscription",
-            text: arenaText,
+            text: nativeCue?.arenaInscriptionText ?? arenaText,
             secondaryText: nil,
-            glyphIdentifier: stageBeat.arenaEffect.rawValue,
-            anchor: arenaAnchor(for: stageBeat, isIdleUnavailable: isIdleUnavailable),
-            visibility: visibility,
-            baseLightFamily: stageBeat.lightFamily,
-            tintFamily: stagePhasePolishPlan.portalBackdrop.lightFamily,
-            phaseEnergy: phaseEnergy * 0.88,
+            glyphIdentifier: nativeCue?.glyphIdentifier ?? stageBeat.arenaEffect.rawValue,
+            anchor: nativeCue?.arenaInscriptionAnchor ?? arenaAnchor(for: stageBeat, isIdleUnavailable: usesIdleFallback),
+            visibility: nativeCue?.visibility ?? visibility,
+            baseLightFamily: nativeCue?.lightFamily ?? stageBeat.lightFamily,
+            tintFamily: nativeCue?.tintFamily ?? stagePhasePolishPlan.portalBackdrop.lightFamily,
+            phaseEnergy: nativeCue.map { $0.phaseEnergy * 0.94 } ?? (phaseEnergy * 0.88),
             influenceIntensity: influenceIntensity,
             influenceFraction: influenceFraction,
-            isIdleUnavailable: isIdleUnavailable
+            isIdleUnavailable: usesIdleFallback
         )
         let activityDescriptor = cueDescriptor(
             slot: .activityBanner,
             stableID: "narrative.activity.banner",
-            text: activityText,
+            text: nativeCue?.activityBannerText ?? activityText,
             secondaryText: nil,
-            glyphIdentifier: activityMotif.sigilIdentifier,
-            anchor: activityAnchor(for: activityMotif, isIdleUnavailable: isIdleUnavailable),
-            visibility: visibility,
-            baseLightFamily: activityLightFamily(stageBeat: stageBeat, activityMotif: activityMotif),
-            tintFamily: stagePhasePolishPlan.fractureRecovery.lightFamily,
-            phaseEnergy: phaseEnergy + activityUrgency(for: activityMotif.eventKind) * 0.1,
+            glyphIdentifier: nativeCue?.glyphIdentifier ?? activityMotif.sigilIdentifier,
+            anchor: nativeCue?.activityBannerAnchor ?? activityAnchor(for: activityMotif, isIdleUnavailable: usesIdleFallback),
+            visibility: nativeCue?.visibility ?? visibility,
+            baseLightFamily: nativeCue?.lightFamily ?? activityLightFamily(stageBeat: stageBeat, activityMotif: activityMotif),
+            tintFamily: nativeCue?.tintFamily ?? stagePhasePolishPlan.fractureRecovery.lightFamily,
+            phaseEnergy: nativeCue?.phaseEnergy ?? (phaseEnergy + activityUrgency(for: activityMotif.eventKind) * 0.1),
             influenceIntensity: influenceIntensity,
             influenceFraction: influenceFraction,
-            isIdleUnavailable: isIdleUnavailable
+            isIdleUnavailable: usesIdleFallback
         )
         let influenceIdentifier = [
             influenceSettings.cameraStyle.rawValue,
             fixed(influenceIntensity),
             fixed(influenceFraction)
         ].joined(separator: "|")
-        let identifier = [
+        var identifierParts = [
             "beat:\(stageBeat.identifier)",
             "phase-polish:\(stagePhasePolishPlan.identifier)",
             "language:\(languageMotif.sigilIdentifier)",
@@ -354,7 +363,11 @@ enum CinematicSceneNarrativeCuePlanner {
             "arena:\(arenaDescriptor.identifier)",
             "banner:\(activityDescriptor.identifier)",
             "influence:\(influenceIdentifier)"
-        ].joined(separator: "||")
+        ]
+        if let nativeFeedbackCue {
+            identifierParts.append("native-feedback:\(nativeFeedbackCue.identifier)")
+        }
+        let identifier = identifierParts.joined(separator: "||")
 
         return CinematicSceneNarrativeCuePlan(
             identifier: identifier,
@@ -363,6 +376,11 @@ enum CinematicSceneNarrativeCuePlanner {
             languageIdentifier: languageMotif.sigilIdentifier,
             activityIdentifier: activityMotif.sigilIdentifier,
             influenceIdentifier: influenceIdentifier,
+            nativeFeedbackCueIdentifier: nativeFeedbackCue?.identifier ?? "none",
+            nativeFeedbackSourceIdentifier: nativeFeedbackCue?.sourceIdentifier ?? "none",
+            nativeFeedbackStyleIdentifier: nativeFeedbackCue?.styleIdentifier ?? "none",
+            nativeFeedbackMilestoneIdentifier: nativeFeedbackCue?.milestoneIdentifier ?? "none",
+            nativeFeedbackAffectedDescriptorIdentifiers: nativeCue?.affectedDescriptorIdentifiers ?? [],
             questPlaque: questDescriptor,
             arenaInscription: arenaDescriptor,
             activityBanner: activityDescriptor
@@ -451,6 +469,251 @@ enum CinematicSceneNarrativeCuePlanner {
         case questPlaque
         case arenaInscription
         case activityBanner
+    }
+
+    private struct NativeFeedbackCueDescriptorPlan {
+        var questPlaqueText: String
+        var questPlaqueSecondaryText: String
+        var arenaInscriptionText: String
+        var activityBannerText: String
+        var glyphIdentifier: String
+        var questPlaqueAnchor: CinematicNarrativeCueAnchor
+        var arenaInscriptionAnchor: CinematicNarrativeCueAnchor
+        var activityBannerAnchor: CinematicNarrativeCueAnchor
+        var visibility: CinematicNarrativeCueVisibility
+        var lightFamily: CinematicStageLightFamily
+        var tintFamily: CinematicStageLightFamily
+        var phaseEnergy: Float
+        var affectedDescriptorIdentifiers: [String]
+    }
+
+    private struct NativeFeedbackTreatment {
+        var plaqueLabel: String
+        var inscriptionLabel: String
+        var bannerLabel: String
+        var questPlaqueAnchor: CinematicNarrativeCueAnchor
+        var arenaInscriptionAnchor: CinematicNarrativeCueAnchor
+        var activityBannerAnchor: CinematicNarrativeCueAnchor
+        var lightFamily: CinematicStageLightFamily
+        var tintFamily: CinematicStageLightFamily
+        var phaseEnergy: Float
+    }
+
+    private static func nativeFeedbackCueDescriptorPlan(
+        for cue: CinematicNativeFeedbackCuePlan
+    ) -> NativeFeedbackCueDescriptorPlan {
+        let treatment = nativeFeedbackTreatment(for: cue)
+        let glyphIdentifier = cue.systemImage.isEmpty ? "native-feedback" : cue.systemImage
+        let runCueMetadata = nativeFeedbackRunCueMetadata(for: cue)
+        let sourceCopy = nativeFeedbackSourceCopy(for: cue, runCueMetadata: runCueMetadata)
+
+        let questPlaqueText = boundedWorldTextValue(
+            "\(treatment.plaqueLabel): \(cue.title)",
+            maxCharacters: CinematicWorldTextService.questLabelMaxCharacters,
+            maxWords: CinematicWorldTextService.questLabelMaxWords,
+            fallback: treatment.plaqueLabel
+        )
+        let questPlaqueSecondaryText = boundedBriefingTextValue(
+            "\(cue.status) | \(sourceCopy)",
+            maxCharacters: CinematicBriefingService.titleMaxCharacters,
+            fallback: cue.status
+        )
+        let arenaInscriptionText = boundedWorldTextValue(
+            [
+                treatment.inscriptionLabel,
+                nativeFeedbackSystemImageCopy(glyphIdentifier),
+                nativeFeedbackArenaMetadata(for: cue, runCueMetadata: runCueMetadata)
+            ].joined(separator: " "),
+            maxCharacters: CinematicWorldTextService.arenaCalloutMaxCharacters,
+            maxWords: CinematicWorldTextService.arenaCalloutMaxWords,
+            fallback: treatment.inscriptionLabel
+        )
+        let activityBannerText = boundedWorldTextValue(
+            [
+                treatment.bannerLabel,
+                runCueMetadata,
+                cue.detail
+            ].compactMap { $0 }.joined(separator: ": "),
+            maxCharacters: CinematicWorldTextService.activityCalloutMaxCharacters,
+            maxWords: CinematicWorldTextService.activityCalloutMaxWords,
+            fallback: treatment.bannerLabel
+        )
+
+        return NativeFeedbackCueDescriptorPlan(
+            questPlaqueText: questPlaqueText,
+            questPlaqueSecondaryText: questPlaqueSecondaryText,
+            arenaInscriptionText: arenaInscriptionText,
+            activityBannerText: activityBannerText,
+            glyphIdentifier: glyphIdentifier,
+            questPlaqueAnchor: treatment.questPlaqueAnchor,
+            arenaInscriptionAnchor: treatment.arenaInscriptionAnchor,
+            activityBannerAnchor: treatment.activityBannerAnchor,
+            visibility: .featured,
+            lightFamily: treatment.lightFamily,
+            tintFamily: treatment.tintFamily,
+            phaseEnergy: treatment.phaseEnergy,
+            affectedDescriptorIdentifiers: [
+                "narrative.quest.plaque",
+                "narrative.arena.inscription",
+                "narrative.activity.banner"
+            ]
+        )
+    }
+
+    private static func nativeFeedbackTreatment(
+        for cue: CinematicNativeFeedbackCuePlan
+    ) -> NativeFeedbackTreatment {
+        if cue.milestone == .verifyStarted {
+            return NativeFeedbackTreatment(
+                plaqueLabel: "Verify seal",
+                inscriptionLabel: "Seal",
+                bannerLabel: "Verify started",
+                questPlaqueAnchor: .leftSealPylon,
+                arenaInscriptionAnchor: .arenaRear,
+                activityBannerAnchor: .rightHistoryPylon,
+                lightFamily: .verify,
+                tintFamily: .verify,
+                phaseEnergy: 0.78
+            )
+        }
+
+        switch cue.style {
+        case .failure:
+            return NativeFeedbackTreatment(
+                plaqueLabel: "Failure anchor",
+                inscriptionLabel: "Failure rune",
+                bannerLabel: "Failure run",
+                questPlaqueAnchor: .fractureGate,
+                arenaInscriptionAnchor: .fractureGate,
+                activityBannerAnchor: .rightWarningPylon,
+                lightFamily: .failure,
+                tintFamily: .failure,
+                phaseEnergy: 0.96
+            )
+        case .warning:
+            return NativeFeedbackTreatment(
+                plaqueLabel: "Warning anchor",
+                inscriptionLabel: "Warning rune",
+                bannerLabel: "Recovery run",
+                questPlaqueAnchor: .rightWarningPylon,
+                arenaInscriptionAnchor: .fractureGate,
+                activityBannerAnchor: .rightWarningPylon,
+                lightFamily: .pressure,
+                tintFamily: .failure,
+                phaseEnergy: 0.86
+            )
+        case .verify:
+            return NativeFeedbackTreatment(
+                plaqueLabel: "Verify seal",
+                inscriptionLabel: "Seal",
+                bannerLabel: "Verify cue",
+                questPlaqueAnchor: .leftSealPylon,
+                arenaInscriptionAnchor: .arenaRear,
+                activityBannerAnchor: .rightHistoryPylon,
+                lightFamily: .verify,
+                tintFamily: .verify,
+                phaseEnergy: 0.74
+            )
+        case .success:
+            return NativeFeedbackTreatment(
+                plaqueLabel: "Success arch",
+                inscriptionLabel: "Victory",
+                bannerLabel: "Success cue",
+                questPlaqueAnchor: .victoryArch,
+                arenaInscriptionAnchor: .victoryArch,
+                activityBannerAnchor: .rightHistoryPylon,
+                lightFamily: .verify,
+                tintFamily: .git,
+                phaseEnergy: 0.82
+            )
+        case .develop:
+            return NativeFeedbackTreatment(
+                plaqueLabel: "Develop forge",
+                inscriptionLabel: "Forge",
+                bannerLabel: "Develop cue",
+                questPlaqueAnchor: .leftForgePylon,
+                arenaInscriptionAnchor: .arenaFront,
+                activityBannerAnchor: .rightPylon,
+                lightFamily: .edit,
+                tintFamily: .shell,
+                phaseEnergy: 0.64
+            )
+        case .plan:
+            return NativeFeedbackTreatment(
+                plaqueLabel: "Plan scout",
+                inscriptionLabel: "Scout",
+                bannerLabel: "Plan cue",
+                questPlaqueAnchor: .leftScoutPylon,
+                arenaInscriptionAnchor: .arenaFront,
+                activityBannerAnchor: .rightPylon,
+                lightFamily: .scan,
+                tintFamily: .insight,
+                phaseEnergy: 0.48
+            )
+        case .paused:
+            return NativeFeedbackTreatment(
+                plaqueLabel: "Paused gate",
+                inscriptionLabel: "Gate",
+                bannerLabel: "Paused cue",
+                questPlaqueAnchor: .idleArchive,
+                arenaInscriptionAnchor: .arenaCenter,
+                activityBannerAnchor: .rightPylon,
+                lightFamily: .lifecycle,
+                tintFamily: .lifecycle,
+                phaseEnergy: 0.38
+            )
+        case .idle:
+            return NativeFeedbackTreatment(
+                plaqueLabel: "Idle archive",
+                inscriptionLabel: "Archive",
+                bannerLabel: "Idle cue",
+                questPlaqueAnchor: .idleArchive,
+                arenaInscriptionAnchor: .arenaCenter,
+                activityBannerAnchor: .idleArchive,
+                lightFamily: .lifecycle,
+                tintFamily: .lifecycle,
+                phaseEnergy: 0.28
+            )
+        }
+    }
+
+    private static func nativeFeedbackRunCueMetadata(
+        for cue: CinematicNativeFeedbackCuePlan
+    ) -> String? {
+        guard let kind = cue.runCueKind else { return nil }
+        if let sessionNumber = cue.runCueSessionNumber {
+            return "run \(sessionNumber) \(kind.rawValue)"
+        }
+        return "run \(kind.rawValue)"
+    }
+
+    private static func nativeFeedbackSourceCopy(
+        for cue: CinematicNativeFeedbackCuePlan,
+        runCueMetadata: String?
+    ) -> String {
+        [
+            cue.styleIdentifier,
+            cue.sourceIdentifier,
+            runCueMetadata
+        ].compactMap { $0 }.joined(separator: " ")
+    }
+
+    private static func nativeFeedbackArenaMetadata(
+        for cue: CinematicNativeFeedbackCuePlan,
+        runCueMetadata: String?
+    ) -> String {
+        if let kind = cue.runCueKind {
+            return kind.rawValue
+        }
+        return runCueMetadata ?? cue.milestoneIdentifier
+    }
+
+    private static func nativeFeedbackSystemImageCopy(_ systemImage: String) -> String {
+        systemImage
+            .split(separator: ".")
+            .first
+            .map(String.init)
+            ?? "symbol"
     }
 
     private static func cueLayoutDescriptor(

@@ -531,7 +531,8 @@ enum CinematicOverlayDisplayPlanner {
         briefing: CinematicBriefing,
         languageProfile: RepositoryLanguageProfile,
         activityProfile: RepositoryActivityProfile,
-        influenceSettings: CinematicInfluenceSettings
+        influenceSettings: CinematicInfluenceSettings,
+        nativeFeedbackCue: CinematicNativeFeedbackCuePlan? = nil
     ) -> CinematicNarrativeCueReadabilitySignals {
         let languageMotif = CinematicMotif.language(for: languageProfile)
         let activityMotif = CinematicMotif.activity(for: activityProfile)
@@ -573,7 +574,8 @@ enum CinematicOverlayDisplayPlanner {
             stagePhasePolishPlan: stagePhasePolishPlan,
             languageMotif: languageMotif,
             activityMotif: activityMotif,
-            influenceSettings: influenceSettings
+            influenceSettings: influenceSettings,
+            nativeFeedbackCue: nativeFeedbackCue
         )
 
         return CinematicNarrativeCueReadabilitySignals(plan: narrativeCuePlan)
