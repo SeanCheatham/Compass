@@ -8,6 +8,7 @@ struct CinematicTab: View {
     @State private var selectedTimelineBeatID: String?
 
     var body: some View {
+        TimelineView(.periodic(from: .now, by: 1.0)) { timeline in
         GeometryReader { proxy in
             let caption = CinematicCaption(project: project)
             let displayPlan = cinematicOverlayDisplayPlan
@@ -36,22 +37,54 @@ struct CinematicTab: View {
                 recentRunCues: reliabilityFeedback.recentRunCues,
                 influenceSettings: project.cinematicInfluenceSettings
             )
-            let timelineSceneFocusPlan = overlayMode == .timeline
-                ? CinematicTimelineSceneFocusPlanner.plan(
+            let timelineSceneFocusCandidatePlan = CinematicTimelineSceneFocusPlanner.plan(
                     selectedBeat: timelinePlan.selectedBeat,
                     commitConstellationPlan: project.cinematicCommitConstellationPlan,
                     recoveryCuePlan: recoveryCuePlan
                 )
+            let timelineSceneFocusPlan = overlayMode == .timeline
+                ? timelineSceneFocusCandidatePlan
                 : .none
-            let runRecapSceneFocusPlan = CinematicRunRecapSceneFocusPlanner.plan(
-                isRecapOverlaySelected: overlayMode == .recap,
+            let runRecapSceneFocusCandidatePlan = CinematicRunRecapSceneFocusPlanner.plan(
+                isRecapOverlaySelected: true,
                 recapPlan: recapPlan,
                 commitConstellationPlan: project.cinematicCommitConstellationPlan,
                 timelinePlan: timelinePlan
             )
-            let runRecapEndCardPlan = CinematicRunRecapEndCardPlanner.plan(
-                isRecapOverlaySelected: overlayMode == .recap,
+            let runRecapSceneFocusPlan = overlayMode == .recap
+                ? runRecapSceneFocusCandidatePlan
+                : .none
+            let runRecapEndCardCandidatePlan = CinematicRunRecapEndCardPlanner.plan(
+                isRecapOverlaySelected: true,
                 recapPlan: recapPlan
+            )
+            let runRecapEndCardPlan = overlayMode == .recap
+                ? runRecapEndCardCandidatePlan
+                : .none
+            let idleStoryCyclePlan = CinematicIdleStoryCyclePlanner.plan(
+                session: CinematicIdleStoryCyclePlan.SessionInput(
+                    elapsedTime: timeline.date.timeIntervalSinceReferenceDate,
+                    sessionOrdinal: project.sessions.last?.session ?? project.sessions.count
+                ),
+                isLiveFollowActive: CinematicIdleStoryCyclePlanner.hasLiveFollowTarget(lines: project.liveLog),
+                hasExplicitUserFocus: overlayMode != .live,
+                influenceSettings: project.cinematicInfluenceSettings,
+                commitConstellationPlan: project.cinematicCommitConstellationPlan,
+                timelineSceneFocusPlan: timelineSceneFocusCandidatePlan,
+                nativeFeedbackCue: nativeFeedbackCue,
+                nativeFeedbackPlaqueDescriptor: CinematicIdleStoryCyclePlanner.nativeFeedbackPlaqueDescriptor(
+                    phase: project.isPaused ? .paused : project.phase,
+                    languageProfile: project.languageProfile,
+                    activityProfile: project.activityProfile,
+                    influenceSettings: project.cinematicInfluenceSettings,
+                    worldText: project.cinematicWorldText,
+                    briefing: project.cinematicBriefing,
+                    recoveryCuePlan: recoveryCuePlan,
+                    nativeFeedbackCue: nativeFeedbackCue
+                ),
+                runRecapPlan: recapPlan,
+                runRecapSceneFocusPlan: runRecapSceneFocusCandidatePlan,
+                runRecapEndCardPlan: runRecapEndCardCandidatePlan
             )
 
             ZStack(alignment: .bottomLeading) {
@@ -67,6 +100,7 @@ struct CinematicTab: View {
                     briefing: project.cinematicBriefing,
                     commitConstellationPlan: project.cinematicCommitConstellationPlan,
                     recoveryCuePlan: recoveryCuePlan,
+                    idleStoryCyclePlan: idleStoryCyclePlan,
                     timelineSceneFocusPlan: timelineSceneFocusPlan,
                     runRecapSceneFocusPlan: runRecapSceneFocusPlan,
                     runRecapEndCardPlan: runRecapEndCardPlan,
@@ -136,6 +170,7 @@ struct CinematicTab: View {
                         Spacer()
                         CinematicInfluenceControls(
                             project: project,
+                            idleStoryCyclePlan: idleStoryCyclePlan,
                             timelineSceneFocusPlan: timelineSceneFocusPlan,
                             runRecapSceneFocusPlan: runRecapSceneFocusPlan,
                             runRecapEndCardPlan: runRecapEndCardPlan
@@ -153,6 +188,7 @@ struct CinematicTab: View {
             }
         }
         .frame(minHeight: 520)
+        }
     }
 
     private var cinematicOverlayDisplayPlan: CinematicOverlayDisplayPlan {
@@ -597,6 +633,7 @@ private extension CinematicSessionTimelinePlan.Beat.Style {
 private struct CinematicInfluenceControls: View {
     @EnvironmentObject private var model: AppModel
     @ObservedObject var project: CompassProject
+    var idleStoryCyclePlan: CinematicIdleStoryCyclePlan = .none
     var timelineSceneFocusPlan: CinematicTimelineSceneFocusPlan = .none
     var runRecapSceneFocusPlan: CinematicRunRecapSceneFocusPlan = .none
     var runRecapEndCardPlan: CinematicRunRecapEndCardPlan = .none
@@ -610,6 +647,7 @@ private struct CinematicInfluenceControls: View {
         CinematicDiagnosticsSummary(
             report: CinematicDiagnostics.currentReport(
                 for: project,
+                idleStoryCyclePlan: idleStoryCyclePlan,
                 timelineFocusPlan: timelineSceneFocusPlan,
                 runRecapSceneFocusPlan: runRecapSceneFocusPlan,
                 runRecapEndCardPlan: runRecapEndCardPlan

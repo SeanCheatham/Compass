@@ -23,6 +23,7 @@ struct CinematicDiagnosticsReport: Equatable {
     var activityTuning: ActivityTuningSnapshot
     var setDressing: SetDressingSnapshot
     var commitConstellation: CommitConstellationSnapshot
+    var idleStoryCycle: IdleStoryCycleSnapshot
     var timelineFocus: TimelineFocusSnapshot
     var runRecap: RunRecapSnapshot
     var runRecapSceneFocus: RunRecapSceneFocusSnapshot
@@ -416,6 +417,22 @@ struct CinematicDiagnosticsReport: Equatable {
         var usesFallbackFocus: Bool
     }
 
+    struct IdleStoryCycleSnapshot: Equatable {
+        var identifier: String
+        var isActive: Bool
+        var phaseIdentifier: String
+        var sourceDescriptorIdentifier: String
+        var targetKindIdentifier: String
+        var cadence: TimeInterval
+        var cameraTreatmentIdentifier: String
+        var anchorTreatmentIdentifier: String
+        var suppressionReason: String
+        var phaseCopy: String
+        var descriptorIdentifier: String
+        var cycleSlot: Int
+        var phaseIndex: Int
+    }
+
     struct TimelineFocusSnapshot: Equatable {
         var identifier: String
         var selectedBeatID: String?
@@ -559,7 +576,8 @@ struct CinematicVisualSmokeReport: Equatable {
             CinematicDiagnostics.representativeSmokeMatrix(influenceSettings: $0)
         }
         let nativeFeedbackReports = CinematicDiagnostics.representativeNativeFeedbackSmokeReports()
-        return CinematicVisualSmokeReport(reports: reports + nativeFeedbackReports)
+        let idleStoryReports = CinematicDiagnostics.representativeIdleStoryCycleSmokeReports()
+        return CinematicVisualSmokeReport(reports: reports + nativeFeedbackReports + idleStoryReports)
     }
 
     private static func makeChecks(reports: [CinematicDiagnosticsReport]) -> [Check] {
@@ -577,6 +595,7 @@ struct CinematicVisualSmokeReport: Equatable {
             recoveryCueCoverageCheck(reports: reports),
             nativeFeedbackCueCoverageCheck(reports: reports),
             nativeFeedbackTreatmentCoverageCheck(reports: reports),
+            idleStoryCycleCoverageCheck(reports: reports),
             timelineFocusCoverageCheck(reports: reports),
             runRecapSceneFocusCoverageCheck(reports: reports),
             runRecapEndCardCoverageCheck(reports: reports)
@@ -1022,6 +1041,56 @@ struct CinematicVisualSmokeReport: Equatable {
                 "params \(meaningfulParameterCount)/\(activeReports.count)",
                 "prims \(primitiveSetCount)/\(activeReports.count)"
             ].joined(separator: "|")
+        )
+    }
+
+    private static func idleStoryCycleCoverageCheck(reports: [CinematicDiagnosticsReport]) -> Check {
+        let expectedPhases = Set(
+            CinematicIdleStoryCyclePlan.Descriptor.Phase.allCases.map(\.rawValue)
+        )
+        let activeReports = reports.filter(\.idleStoryCycle.isActive)
+        let emptyCount = reports.filter { !$0.idleStoryCycle.isActive }.count
+        let phases = Set(activeReports.map(\.idleStoryCycle.phaseIdentifier))
+        let sourceRouteCount = activeReports.filter {
+            $0.idleStoryCycle.sourceDescriptorIdentifier != "none"
+                && !$0.idleStoryCycle.sourceDescriptorIdentifier.isEmpty
+        }.count
+        let cameraTreatmentCount = activeReports.filter {
+            $0.idleStoryCycle.cameraTreatmentIdentifier != "none"
+        }.count
+        let anchorTreatmentCount = activeReports.filter {
+            $0.idleStoryCycle.anchorTreatmentIdentifier != "none"
+        }.count
+        let boundedCopyCount = activeReports.filter {
+            !$0.idleStoryCycle.phaseCopy.isEmpty
+                && $0.idleStoryCycle.phaseCopy.count <= CinematicIdleStoryCyclePlan.phaseCopyMaxCharacters
+        }.count
+        let cadenceCount = activeReports.filter {
+            CinematicIdleStoryCyclePlan.cadenceRange.contains($0.idleStoryCycle.cadence)
+        }.count
+        let orderedPhaseDetail = CinematicIdleStoryCyclePlan.Descriptor.Phase.allCases
+            .map(\.rawValue)
+            .filter(phases.contains)
+            .joined(separator: "/")
+        let isPassing = !reports.isEmpty
+            && !activeReports.isEmpty
+            && emptyCount > 0
+            && phases.isSuperset(of: expectedPhases)
+            && sourceRouteCount == activeReports.count
+            && cameraTreatmentCount == activeReports.count
+            && anchorTreatmentCount == activeReports.count
+            && boundedCopyCount == activeReports.count
+            && cadenceCount == activeReports.count
+
+        return check(
+            id: "idle-story-cycle-coverage",
+            label: "Idle story cycle",
+            isPassing: isPassing,
+            warningIdentifier: "visual-smoke.idle-story-cycle",
+            detail: [
+                "routes \(sourceRouteCount)/\(activeReports.count)",
+                "phases \(orderedPhaseDetail)"
+            ].joined(separator: " ")
         )
     }
 
@@ -1671,7 +1740,7 @@ struct CinematicVisualSmokeReport: Equatable {
 }
 
 struct CinematicDiagnosticsSummary: Equatable {
-    static let maxRows = 40
+    static let maxRows = 41
     static let labelMaxCharacters = 32
     static let detailMaxCharacters = 512
     static let headerDetailMaxCharacters = 128
@@ -1800,6 +1869,7 @@ struct CinematicDiagnosticsSummary: Equatable {
                 "repository",
                 "immediate",
                 "commit-constellation",
+                "idle-story-cycle",
                 "timeline-focus",
                 "run-recap",
                 "run-recap-focus",
@@ -1902,6 +1972,11 @@ struct CinematicDiagnosticsSummary: Equatable {
                 id: "commit-constellation",
                 label: "Commit constellation",
                 detail: commitConstellationDetail(report.commitConstellation)
+            ),
+            row(
+                id: "idle-story-cycle",
+                label: "Idle story cycle",
+                detail: idleStoryCycleDetail(report.idleStoryCycle)
             ),
             row(
                 id: "timeline-focus",
@@ -2716,6 +2791,29 @@ struct CinematicDiagnosticsSummary: Equatable {
         ].compactMap { $0 }.joined(separator: " | ")
     }
 
+    private static func idleStoryCycleDetail(
+        _ snapshot: CinematicDiagnosticsReport.IdleStoryCycleSnapshot
+    ) -> String {
+        guard snapshot.isActive else {
+            return "empty \(snapshot.suppressionReason)"
+        }
+
+        return [
+            "active",
+            "phase \(snapshot.phaseIdentifier)",
+            "source \(bounded(snapshot.sourceDescriptorIdentifier, limit: 80))",
+            "target \(snapshot.targetKindIdentifier)",
+            "cadence \(fixed(snapshot.cadence))",
+            "camera \(snapshot.cameraTreatmentIdentifier)",
+            "anchor \(snapshot.anchorTreatmentIdentifier)",
+            "slot \(snapshot.cycleSlot)",
+            "index \(snapshot.phaseIndex)",
+            "suppression \(snapshot.suppressionReason)",
+            "copy \(bounded(snapshot.phaseCopy, limit: 96))",
+            "id \(bounded(snapshot.descriptorIdentifier, limit: 140))"
+        ].joined(separator: " | ")
+    }
+
     private static func timelineFocusDetail(
         _ snapshot: CinematicDiagnosticsReport.TimelineFocusSnapshot
     ) -> String {
@@ -2926,6 +3024,7 @@ enum CinematicDiagnostics {
     @MainActor
     static func currentReport(
         for project: CompassProject,
+        idleStoryCyclePlan: CinematicIdleStoryCyclePlan? = nil,
         timelineFocusPlan: CinematicTimelineSceneFocusPlan = .none,
         runRecapSceneFocusPlan: CinematicRunRecapSceneFocusPlan = .none,
         runRecapEndCardPlan: CinematicRunRecapEndCardPlan = .none
@@ -2965,6 +3064,11 @@ enum CinematicDiagnostics {
             hasRepository: project.hasRepository,
             commitConstellationPlan: commitConstellationPlan,
             recoveryCuePlan: recoveryCuePlan,
+            idleStoryCyclePlan: idleStoryCyclePlan,
+            isLiveFollowActive: CinematicIdleStoryCyclePlanner.hasLiveFollowTarget(lines: project.liveLog),
+            hasExplicitUserFocus: timelineFocusPlan.descriptor != nil
+                || runRecapSceneFocusPlan.descriptor != nil
+                || runRecapEndCardPlan.descriptor != nil,
             timelineFocusPlan: timelineFocusPlan,
             runRecapPlan: runRecapPlan,
             runRecapSceneFocusPlan: runRecapSceneFocusPlan,
@@ -2990,6 +3094,10 @@ enum CinematicDiagnostics {
         hasRepository: Bool = true,
         commitConstellationPlan: CinematicCommitConstellationPlan = .empty,
         recoveryCuePlan: CinematicRecoveryCuePlan = .none,
+        idleStoryCyclePlan: CinematicIdleStoryCyclePlan? = nil,
+        idleStoryCycleSession: CinematicIdleStoryCyclePlan.SessionInput = CinematicIdleStoryCyclePlan.SessionInput(),
+        isLiveFollowActive: Bool = false,
+        hasExplicitUserFocus: Bool = false,
         timelineFocusPlan: CinematicTimelineSceneFocusPlan = .none,
         runRecapPlan: CinematicRunRecapPlan = .empty(reason: "no-finished-session"),
         runRecapSceneFocusPlan: CinematicRunRecapSceneFocusPlan = .none,
@@ -3070,6 +3178,19 @@ enum CinematicDiagnostics {
             influenceSettings: influenceSettings,
             nativeFeedbackCue: nativeFeedbackCue
         )
+        let resolvedIdleStoryCyclePlan = idleStoryCyclePlan ?? CinematicIdleStoryCyclePlanner.plan(
+            session: idleStoryCycleSession,
+            isLiveFollowActive: isLiveFollowActive,
+            hasExplicitUserFocus: hasExplicitUserFocus,
+            influenceSettings: influenceSettings,
+            commitConstellationPlan: commitConstellationPlan,
+            timelineSceneFocusPlan: timelineFocusPlan,
+            nativeFeedbackCue: nativeFeedbackCue,
+            nativeFeedbackPlaqueDescriptor: nativeFeedbackCue == nil ? nil : narrativeCuePlan.questPlaque,
+            runRecapPlan: runRecapPlan,
+            runRecapSceneFocusPlan: runRecapSceneFocusPlan,
+            runRecapEndCardPlan: runRecapEndCardPlan
+        )
         let stageBeatSnapshot = stageBeatSnapshot(for: stageBeat)
         let stageEffectSnapshot = stageEffectSnapshot(for: stageEffectPlan)
         let stageAtmosphereSnapshot = stageAtmosphereSnapshot(for: stageAtmospherePlan)
@@ -3109,6 +3230,7 @@ enum CinematicDiagnostics {
         )
         let setDressingSnapshot = setDressingSnapshot(for: setDressingPlan)
         let commitConstellationSnapshot = commitConstellationSnapshot(for: commitConstellationPlan)
+        let idleStoryCycleSnapshot = idleStoryCycleSnapshot(for: resolvedIdleStoryCyclePlan)
         let timelineFocusSnapshot = timelineFocusSnapshot(for: timelineFocusPlan)
         let runRecapSnapshot = runRecapSnapshot(for: runRecapPlan)
         let runRecapSceneFocusSnapshot = runRecapSceneFocusSnapshot(for: runRecapSceneFocusPlan)
@@ -3134,6 +3256,7 @@ enum CinematicDiagnostics {
                 "influence:\(influenceIdentifier)",
                 "set-dressing:\(setDressingSnapshot.identifier)",
                 "commit-constellation:\(commitConstellationSnapshot.identifier)",
+                "idle-story-cycle:\(idleStoryCycleSnapshot.identifier)",
                 "timeline-focus:\(timelineFocusSnapshot.identifier)",
                 "run-recap:\(runRecapSnapshot.identifier)",
                 "run-recap-focus:\(runRecapSceneFocusSnapshot.identifier)",
@@ -3160,6 +3283,7 @@ enum CinematicDiagnostics {
             activityTuning: activityTuningSnapshot,
             setDressing: setDressingSnapshot,
             commitConstellation: commitConstellationSnapshot,
+            idleStoryCycle: idleStoryCycleSnapshot,
             timelineFocus: timelineFocusSnapshot,
             runRecap: runRecapSnapshot,
             runRecapSceneFocus: runRecapSceneFocusSnapshot,
@@ -3292,6 +3416,65 @@ enum CinematicDiagnostics {
         }
 
         return activeReports + [expiredReport]
+    }
+
+    static func representativeIdleStoryCycleSmokeReports(
+        influenceSettings: CinematicInfluenceSettings = CinematicInfluenceSettings()
+    ) -> [CinematicDiagnosticsReport] {
+        let commitConstellationPlan = CinematicTimelineSceneFocusPlanner.representativeCommitConstellationPlan()
+        let timelineFocusPlan = CinematicTimelineSceneFocusPlanner.representativePlan(
+            activityCaseIdentifier: "commit",
+            recoveryCuePlan: .none,
+            commitConstellationPlan: commitConstellationPlan
+        )
+        let activityCase = ActivityCase(
+            identifier: "commit",
+            phase: LoopPhase.succeeded.rawValue,
+            immediateTitle: "Cycle idle cinematic story",
+            completedCount: 5,
+            profile: activityProfile(recentCommitCount: 2, lastTerminalStatus: .succeeded, successStreak: 2),
+            isRunning: false
+        )
+        let recapContext = representativeRunRecapFocusContext(
+            for: activityCase,
+            commitConstellationPlan: commitConstellationPlan
+        )
+        let nativeFeedbackCue = CinematicNativeFeedbackCuePlanner.plan(
+            milestone: .verifyStarted,
+            content: NativeFeedbackContent(milestone: .verifyStarted, projectName: "Idle Story Cycle"),
+            phase: .verifying,
+            feedbackMode: .notifications,
+            recentRunCues: [:]
+        )
+        let phaseReports = CinematicIdleStoryCyclePlan.Descriptor.Phase.allCases.enumerated().map { index, _ in
+            representativeIdleStoryCycleSmokeReport(
+                influenceSettings: influenceSettings,
+                activityCase: activityCase,
+                commitConstellationPlan: commitConstellationPlan,
+                timelineFocusPlan: timelineFocusPlan,
+                nativeFeedbackCue: nativeFeedbackCue,
+                recapContext: recapContext,
+                session: CinematicIdleStoryCyclePlan.SessionInput(
+                    elapsedTime: Double(index) * CinematicIdleStoryCyclePlan.defaultCadence,
+                    sessionOrdinal: 0
+                ),
+                isLiveFollowActive: false,
+                hasExplicitUserFocus: false
+            )
+        }
+        let suppressedReport = representativeIdleStoryCycleSmokeReport(
+            influenceSettings: influenceSettings,
+            activityCase: activityCase,
+            commitConstellationPlan: commitConstellationPlan,
+            timelineFocusPlan: timelineFocusPlan,
+            nativeFeedbackCue: nativeFeedbackCue,
+            recapContext: recapContext,
+            session: CinematicIdleStoryCyclePlan.SessionInput(),
+            isLiveFollowActive: true,
+            hasExplicitUserFocus: false
+        )
+
+        return phaseReports + [suppressedReport]
     }
 
     static func representativeActivityCases() -> [ActivityCase] {
@@ -3533,6 +3716,42 @@ enum CinematicDiagnostics {
             influenceSettings: influenceSettings,
             nativeFeedbackCue: activeCue,
             nativeFeedbackLifecycle: lifecycle
+        )
+    }
+
+    private static func representativeIdleStoryCycleSmokeReport(
+        influenceSettings: CinematicInfluenceSettings,
+        activityCase: ActivityCase,
+        commitConstellationPlan: CinematicCommitConstellationPlan,
+        timelineFocusPlan: CinematicTimelineSceneFocusPlan,
+        nativeFeedbackCue: CinematicNativeFeedbackCuePlan?,
+        recapContext: RunRecapFocusContext,
+        session: CinematicIdleStoryCyclePlan.SessionInput,
+        isLiveFollowActive: Bool,
+        hasExplicitUserFocus: Bool
+    ) -> CinematicDiagnosticsReport {
+        report(
+            repoName: "Idle Story Cycle",
+            phase: activityCase.phase,
+            immediateTitle: activityCase.immediateTitle,
+            completedCount: activityCase.completedCount,
+            latestEvent: nil,
+            languageProfile: representativeLanguageProfile(for: .swift),
+            activityProfile: activityCase.profile,
+            influenceSettings: influenceSettings,
+            isRunning: false,
+            isAutoPlaying: false,
+            isPaused: false,
+            hasRepository: true,
+            commitConstellationPlan: commitConstellationPlan,
+            idleStoryCycleSession: session,
+            isLiveFollowActive: isLiveFollowActive,
+            hasExplicitUserFocus: hasExplicitUserFocus,
+            timelineFocusPlan: timelineFocusPlan,
+            runRecapPlan: recapContext.runRecapPlan,
+            runRecapSceneFocusPlan: recapContext.runRecapSceneFocusPlan,
+            runRecapEndCardPlan: recapContext.runRecapEndCardPlan,
+            nativeFeedbackCue: nativeFeedbackCue
         )
     }
 
@@ -4319,6 +4538,44 @@ enum CinematicDiagnostics {
             focusShotIdentifier: focusPlan.shot.identifier,
             focusLookTarget: focusPlan.lookTarget,
             usesFallbackFocus: focusPlan.isFallback
+        )
+    }
+
+    private static func idleStoryCycleSnapshot(
+        for plan: CinematicIdleStoryCyclePlan
+    ) -> CinematicDiagnosticsReport.IdleStoryCycleSnapshot {
+        guard let descriptor = plan.descriptor else {
+            return CinematicDiagnosticsReport.IdleStoryCycleSnapshot(
+                identifier: plan.identifier,
+                isActive: false,
+                phaseIdentifier: "none",
+                sourceDescriptorIdentifier: "none",
+                targetKindIdentifier: "none",
+                cadence: 0,
+                cameraTreatmentIdentifier: "none",
+                anchorTreatmentIdentifier: "none",
+                suppressionReason: plan.suppressionReason,
+                phaseCopy: "",
+                descriptorIdentifier: "none",
+                cycleSlot: 0,
+                phaseIndex: -1
+            )
+        }
+
+        return CinematicDiagnosticsReport.IdleStoryCycleSnapshot(
+            identifier: plan.identifier,
+            isActive: true,
+            phaseIdentifier: descriptor.phaseIdentifier,
+            sourceDescriptorIdentifier: descriptor.sourceDescriptorIdentifier,
+            targetKindIdentifier: descriptor.targetKindIdentifier,
+            cadence: descriptor.cadence,
+            cameraTreatmentIdentifier: descriptor.cameraTreatmentIdentifier,
+            anchorTreatmentIdentifier: descriptor.anchorTreatmentIdentifier,
+            suppressionReason: plan.suppressionReason,
+            phaseCopy: descriptor.phaseCopy,
+            descriptorIdentifier: descriptor.identifier,
+            cycleSlot: descriptor.cycleSlot,
+            phaseIndex: descriptor.phaseIndex
         )
     }
 

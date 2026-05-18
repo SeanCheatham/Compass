@@ -15,6 +15,7 @@ struct CinematicSceneView: View {
     var briefing: CinematicBriefing
     var commitConstellationPlan: CinematicCommitConstellationPlan
     var recoveryCuePlan: CinematicRecoveryCuePlan
+    var idleStoryCyclePlan: CinematicIdleStoryCyclePlan
     var timelineSceneFocusPlan: CinematicTimelineSceneFocusPlan
     var runRecapSceneFocusPlan: CinematicRunRecapSceneFocusPlan
     var runRecapEndCardPlan: CinematicRunRecapEndCardPlan
@@ -34,6 +35,7 @@ struct CinematicSceneView: View {
         briefing: CinematicBriefing,
         commitConstellationPlan: CinematicCommitConstellationPlan,
         recoveryCuePlan: CinematicRecoveryCuePlan = .none,
+        idleStoryCyclePlan: CinematicIdleStoryCyclePlan = .none,
         timelineSceneFocusPlan: CinematicTimelineSceneFocusPlan = .none,
         runRecapSceneFocusPlan: CinematicRunRecapSceneFocusPlan = .none,
         runRecapEndCardPlan: CinematicRunRecapEndCardPlan = .none,
@@ -50,6 +52,7 @@ struct CinematicSceneView: View {
         self.briefing = briefing
         self.commitConstellationPlan = commitConstellationPlan
         self.recoveryCuePlan = recoveryCuePlan
+        self.idleStoryCyclePlan = idleStoryCyclePlan
         self.timelineSceneFocusPlan = timelineSceneFocusPlan
         self.runRecapSceneFocusPlan = runRecapSceneFocusPlan
         self.runRecapEndCardPlan = runRecapEndCardPlan
@@ -71,6 +74,7 @@ struct CinematicSceneView: View {
                 briefing: briefing,
                 commitConstellationPlan: commitConstellationPlan,
                 recoveryCuePlan: recoveryCuePlan,
+                idleStoryCyclePlan: idleStoryCyclePlan,
                 timelineSceneFocusPlan: timelineSceneFocusPlan,
                 runRecapSceneFocusPlan: runRecapSceneFocusPlan,
                 runRecapEndCardPlan: runRecapEndCardPlan,
@@ -89,6 +93,7 @@ struct CinematicSceneView: View {
                 briefing: briefing,
                 commitConstellationPlan: commitConstellationPlan,
                 recoveryCuePlan: recoveryCuePlan,
+                idleStoryCyclePlan: idleStoryCyclePlan,
                 timelineSceneFocusPlan: timelineSceneFocusPlan,
                 runRecapSceneFocusPlan: runRecapSceneFocusPlan,
                 runRecapEndCardPlan: runRecapEndCardPlan,
@@ -139,6 +144,7 @@ private final class CinematicRealitySceneHost: ObservableObject {
         briefing: CinematicBriefing,
         commitConstellationPlan: CinematicCommitConstellationPlan,
         recoveryCuePlan: CinematicRecoveryCuePlan,
+        idleStoryCyclePlan: CinematicIdleStoryCyclePlan,
         timelineSceneFocusPlan: CinematicTimelineSceneFocusPlan,
         runRecapSceneFocusPlan: CinematicRunRecapSceneFocusPlan,
         runRecapEndCardPlan: CinematicRunRecapEndCardPlan,
@@ -155,6 +161,7 @@ private final class CinematicRealitySceneHost: ObservableObject {
             briefing: briefing,
             commitConstellationPlan: commitConstellationPlan,
             recoveryCuePlan: recoveryCuePlan,
+            idleStoryCyclePlan: idleStoryCyclePlan,
             timelineSceneFocusPlan: timelineSceneFocusPlan,
             runRecapSceneFocusPlan: runRecapSceneFocusPlan,
             runRecapEndCardPlan: runRecapEndCardPlan,
@@ -340,6 +347,9 @@ private final class CinematicSceneCoordinator {
     private var pendingCommitConstellationFocusPlan: CinematicCommitConstellationPlan.FocusPlan?
     private var activeCommitConstellationFocusPlan: CinematicCommitConstellationPlan.FocusPlan?
     private var commitConstellationFocusUntil = Date.distantPast
+    private var currentIdleStoryCyclePlan = CinematicIdleStoryCyclePlan.none
+    private var activeIdleStoryCycleDescriptor: CinematicIdleStoryCyclePlan.Descriptor?
+    private var activeIdleStoryCycleEndCardDescriptor: CinematicRunRecapEndCardPlan.Descriptor?
     private var currentTimelineSceneFocusPlan = CinematicTimelineSceneFocusPlan.none
     private var activeTimelineSceneFocusDescriptor: CinematicTimelineSceneFocusPlan.Descriptor?
     private var currentRunRecapSceneFocusPlan = CinematicRunRecapSceneFocusPlan.none
@@ -398,6 +408,7 @@ private final class CinematicSceneCoordinator {
         briefing: CinematicBriefing,
         commitConstellationPlan: CinematicCommitConstellationPlan,
         recoveryCuePlan: CinematicRecoveryCuePlan,
+        idleStoryCyclePlan: CinematicIdleStoryCyclePlan,
         timelineSceneFocusPlan: CinematicTimelineSceneFocusPlan,
         runRecapSceneFocusPlan: CinematicRunRecapSceneFocusPlan,
         runRecapEndCardPlan: CinematicRunRecapEndCardPlan,
@@ -434,6 +445,7 @@ private final class CinematicSceneCoordinator {
             self.nativeFeedbackCue = nativeFeedbackCue
         }
         let commitConstellationChanged = commitConstellationPlan != currentCommitConstellationPlan
+        let idleStoryCycleChanged = idleStoryCyclePlan != currentIdleStoryCyclePlan
         let timelineFocusChanged = timelineSceneFocusPlan != currentTimelineSceneFocusPlan
         let runRecapFocusChanged = runRecapSceneFocusPlan != currentRunRecapSceneFocusPlan
         let runRecapEndCardChanged = runRecapEndCardPlan != currentRunRecapEndCardPlan
@@ -474,6 +486,7 @@ private final class CinematicSceneCoordinator {
             applyTimelineSceneFocusPlan(timelineSceneFocusPlan, lines: lines, animated: false)
             applyRunRecapSceneFocusPlan(runRecapSceneFocusPlan, lines: lines, animated: false)
             applyRunRecapEndCardPlan(runRecapEndCardPlan, lines: lines, animated: false)
+            applyIdleStoryCyclePlan(idleStoryCyclePlan, lines: lines, animated: false)
             return
         }
 
@@ -527,6 +540,9 @@ private final class CinematicSceneCoordinator {
         }
         if runRecapEndCardChanged {
             applyRunRecapEndCardPlan(runRecapEndCardPlan, lines: lines, animated: hasBuiltScene)
+        }
+        if idleStoryCycleChanged || commitConstellationChanged {
+            applyIdleStoryCyclePlan(idleStoryCyclePlan, lines: lines, animated: hasBuiltScene)
         }
     }
 
@@ -3200,9 +3216,9 @@ private final class CinematicSceneCoordinator {
         currentRunRecapEndCardPlan = plan
 
         guard let descriptor = plan.descriptor else {
-            clearChildren(of: runRecapEndCardNode)
-            runRecapEndCardNode.name = "run-recap-end-card.none"
-            setOpacity(0, on: runRecapEndCardNode)
+            if activeIdleStoryCycleDescriptor?.phase != .runRecapEndCard {
+                clearRunRecapEndCardNode()
+            }
             return
         }
 
@@ -3210,6 +3226,75 @@ private final class CinematicSceneCoordinator {
         if !hasActiveLiveFollowTarget(lines: lines) {
             faceWizard(toward: descriptor.layout.anchorPosition)
         }
+    }
+
+    private func applyIdleStoryCyclePlan(
+        _ plan: CinematicIdleStoryCyclePlan,
+        lines: [LiveLine],
+        animated: Bool
+    ) {
+        guard plan != currentIdleStoryCyclePlan else { return }
+        let previousDescriptor = activeIdleStoryCycleDescriptor
+        currentIdleStoryCyclePlan = plan
+        activeIdleStoryCycleDescriptor = plan.descriptor
+        activeIdleStoryCycleEndCardDescriptor = nil
+
+        if previousDescriptor?.phase == .runRecapEndCard,
+           plan.descriptor?.phase != .runRecapEndCard,
+           currentRunRecapEndCardPlan.descriptor == nil {
+            clearRunRecapEndCardNode()
+        }
+
+        guard let descriptor = plan.descriptor else { return }
+        guard !hasActiveLiveFollowTarget(lines: lines) else { return }
+
+        let color = themedColor(descriptor.lightFamily.spell.nsColor)
+        stageCamera(descriptor.cameraShot, animated: animated)
+        setPhaseLight(color: color, intensity: descriptor.phaseLightIntensity)
+        applyIdleStoryCycleArenaEffect(
+            descriptor.arenaEffect,
+            color: color,
+            phaseLightIntensity: descriptor.phaseLightIntensity
+        )
+        faceWizard(toward: descriptor.lookTarget)
+
+        switch descriptor.phase {
+        case .nativeFeedbackPlaque:
+            if let plaqueDescriptor = descriptor.nativeFeedbackPlaqueDescriptor {
+                applyNarrativeCueDescriptor(
+                    plaqueDescriptor,
+                    to: narrativeQuestPlaqueNode,
+                    animated: animated
+                )
+            }
+            if descriptor.lightFamily == .failure {
+                shakeCamera()
+            }
+        case .runRecapEndCard:
+            if let endCardDescriptor = descriptor.runRecapEndCardPlan?.descriptor {
+                activeIdleStoryCycleEndCardDescriptor = endCardDescriptor
+                applyRunRecapEndCardDescriptor(endCardDescriptor, animated: animated)
+            }
+            if descriptor.lightFamily == .failure {
+                shakeCamera()
+            }
+        case .timelineFocus:
+            if descriptor.lightFamily == .failure {
+                shakeCamera()
+            }
+        case .runRecapFocus:
+            if descriptor.lightFamily == .failure {
+                shakeCamera()
+            }
+        case .commitConstellation:
+            break
+        }
+    }
+
+    private func clearRunRecapEndCardNode() {
+        clearChildren(of: runRecapEndCardNode)
+        runRecapEndCardNode.name = "run-recap-end-card.none"
+        setOpacity(0, on: runRecapEndCardNode)
     }
 
     private func applyRunRecapEndCardDescriptor(
@@ -3376,6 +3461,38 @@ private final class CinematicSceneCoordinator {
                 opacity: 0.44
             )
             pulsePhaseLight(color: color, intensity: descriptor.phaseLightIntensity, duration: 0.52)
+        case .historyChains:
+            historyChains(
+                CinematicStageEffectPlanner.historyChainsEffect(),
+                color: color
+            )
+        }
+    }
+
+    private func applyIdleStoryCycleArenaEffect(
+        _ arenaEffect: CinematicStageArenaEffect,
+        color: NSColor,
+        phaseLightIntensity: Float
+    ) {
+        switch arenaEffect {
+        case .none:
+            return
+        case .charge:
+            chargeArena(color: color)
+        case .seal:
+            sealArena(color: color)
+        case .victory:
+            sealArena(color: color)
+            portalPulse(color: color)
+        case .activityPulse:
+            arenaRing(
+                radius: 3.05,
+                color: color.withAlphaComponent(0.58),
+                duration: 0.78,
+                scale: 1.68,
+                opacity: 0.42
+            )
+            pulsePhaseLight(color: color, intensity: phaseLightIntensity, duration: 0.5)
         case .historyChains:
             historyChains(
                 CinematicStageEffectPlanner.historyChainsEffect(),
@@ -3923,6 +4040,9 @@ private final class CinematicSceneCoordinator {
         if let target = activeRunRecapSceneFocusTarget() {
             return target
         }
+        if let target = activeIdleStoryCycleTarget() {
+            return target
+        }
         if let target = activeCommitConstellationFocusTarget() {
             return target
         }
@@ -3940,6 +4060,9 @@ private final class CinematicSceneCoordinator {
             return nil
         }
         if activeRunRecapSceneFocusTarget() != nil {
+            return nil
+        }
+        if activeIdleStoryCycleTarget() != nil {
             return nil
         }
         if activeCommitConstellationFocusTarget() != nil {
@@ -3965,6 +4088,9 @@ private final class CinematicSceneCoordinator {
         if let target = activeRunRecapSceneFocusTarget() {
             return target
         }
+        if let target = activeIdleStoryCycleTarget() {
+            return target
+        }
         guard let target = activeCommitConstellationFocusTarget() else {
             return wizardPosition + [0, 0.9, 0]
         }
@@ -3982,6 +4108,14 @@ private final class CinematicSceneCoordinator {
     private func activeRunRecapSceneFocusTarget() -> SIMD3<Float>? {
         guard activeLiveFollowTarget() == nil,
               let descriptor = activeRunRecapSceneFocusDescriptor else {
+            return nil
+        }
+        return descriptor.lookTarget
+    }
+
+    private func activeIdleStoryCycleTarget() -> SIMD3<Float>? {
+        guard activeLiveFollowTarget() == nil,
+              let descriptor = activeIdleStoryCycleDescriptor else {
             return nil
         }
         return descriptor.lookTarget
@@ -4136,7 +4270,9 @@ private final class CinematicSceneCoordinator {
     }
 
     private func updateRunRecapEndCard() {
-        guard let descriptor = currentRunRecapEndCardPlan.descriptor else { return }
+        guard let descriptor = currentRunRecapEndCardPlan.descriptor ?? activeIdleStoryCycleEndCardDescriptor else {
+            return
+        }
         let cadence = max(descriptor.cadence, 0.1)
         let phase = Float(elapsedTime / cadence) * Float.pi * 2
         let offset = Float(0.18) * Float.pi * 2

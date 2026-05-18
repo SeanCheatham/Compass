@@ -441,6 +441,49 @@ final class CinematicDiagnosticsTests: XCTestCase {
         XCTAssertTrue(summary.exportText.contains(focusPlan.selectedBeatID ?? "missing-beat"))
     }
 
+    func testReportAndSummaryExportIdleStoryCycleState() throws {
+        let report = try XCTUnwrap(
+            CinematicDiagnostics.representativeIdleStoryCycleSmokeReports().first {
+                $0.idleStoryCycle.phaseIdentifier == "native-feedback-plaque"
+            }
+        )
+        let summary = CinematicDiagnosticsSummary(
+            report: report,
+            visualSmoke: CinematicVisualSmokeReport(reports: [report])
+        )
+        let row = try XCTUnwrap(summary.rows.first { $0.id == "idle-story-cycle" })
+
+        XCTAssertTrue(report.idleStoryCycle.isActive)
+        XCTAssertEqual(report.idleStoryCycle.phaseIdentifier, "native-feedback-plaque")
+        XCTAssertEqual(report.idleStoryCycle.suppressionReason, "none")
+        XCTAssertNotEqual(report.idleStoryCycle.sourceDescriptorIdentifier, "none")
+        XCTAssertTrue(report.idleStoryCycle.targetKindIdentifier.hasPrefix("native-feedback"))
+        XCTAssertInRange(report.idleStoryCycle.cadence, CinematicIdleStoryCyclePlan.cadenceRange)
+        XCTAssertLessThanOrEqual(
+            report.idleStoryCycle.phaseCopy.count,
+            CinematicIdleStoryCyclePlan.phaseCopyMaxCharacters
+        )
+        XCTAssertTrue(report.identifier.contains("idle-story-cycle:"))
+        XCTAssertTrue(row.detail.contains("active"))
+        XCTAssertTrue(row.detail.contains("phase native-feedback-plaque"))
+        XCTAssertTrue(row.detail.contains("camera shot:"))
+        XCTAssertTrue(row.detail.contains("anchor anchor:"))
+        XCTAssertTrue(summary.exportText.contains("Idle story cycle: active"))
+        XCTAssertTrue(summary.exportText.contains("native-feedback-plaque"))
+
+        let suppressed = try XCTUnwrap(
+            CinematicDiagnostics.representativeIdleStoryCycleSmokeReports().first {
+                !$0.idleStoryCycle.isActive
+            }
+        )
+        let suppressedSummary = CinematicDiagnosticsSummary(
+            report: suppressed,
+            visualSmoke: CinematicVisualSmokeReport(reports: [suppressed])
+        )
+        XCTAssertEqual(suppressed.idleStoryCycle.suppressionReason, "live-follow")
+        XCTAssertTrue(suppressedSummary.exportText.contains("Idle story cycle: empty live-follow"))
+    }
+
     func testReportContainsEveryCameraShotAndCameraTuningValue() throws {
         let settings = CinematicInfluenceSettings(cameraStyle: .steady, intensity: 0.25)
         let report = CinematicDiagnostics.representativeSmokeMatrix(influenceSettings: settings).first!
@@ -566,6 +609,7 @@ final class CinematicDiagnosticsTests: XCTestCase {
                 "repository",
                 "immediate",
                 "commit-constellation",
+                "idle-story-cycle",
                 "timeline-focus",
                 "run-recap",
                 "run-recap-focus",
@@ -625,6 +669,7 @@ final class CinematicDiagnosticsTests: XCTestCase {
                     "repository",
                     "immediate",
                     "commit-constellation",
+                    "idle-story-cycle",
                     "timeline-focus",
                     "run-recap",
                     "run-recap-focus",
@@ -765,19 +810,20 @@ final class CinematicDiagnosticsTests: XCTestCase {
             .components(separatedBy: "\n")
             .filter { expectedSectionHeadings.contains($0) }
         XCTAssertEqual(actualSectionHeadings, expectedSectionHeadings)
-        XCTAssertTrue(summary.exportText.contains("Repository/context (7 rows)"))
+        XCTAssertTrue(summary.exportText.contains("Repository/context (8 rows)"))
         XCTAssertTrue(summary.exportText.contains("Motifs (2 rows)"))
         XCTAssertTrue(summary.exportText.contains("Stage motion/effects (9 rows)"))
         XCTAssertTrue(summary.exportText.contains("Narrative/overlay (7 rows)"))
         XCTAssertTrue(summary.exportText.contains("Assets/textures (2 rows)"))
         XCTAssertTrue(summary.exportText.contains("Tuning (4 rows)"))
         XCTAssertTrue(summary.exportText.contains("Camera shots (9 rows)"))
-        XCTAssertTrue(summary.exportText.contains("Visual smoke (pass, 16 checks)"))
+        XCTAssertTrue(summary.exportText.contains("Visual smoke (pass, 17 checks)"))
         XCTAssertTrue(summary.exportText.contains("Plaque treatments (pass, 4 recipes): smoke pass"))
         XCTAssertTrue(summary.exportText.contains("failure-fracture: accent failure-fracture"))
         XCTAssertTrue(summary.exportText.contains("Overlay fallback: pass"))
         XCTAssertTrue(summary.exportText.contains("Native feedback coverage: pass"))
         XCTAssertTrue(summary.exportText.contains("Native feedback treatment: pass"))
+        XCTAssertTrue(summary.exportText.contains("Idle story cycle: pass"))
         XCTAssertTrue(summary.exportText.contains(report.languageMotif.sigilIdentifier))
         XCTAssertTrue(summary.exportText.contains(report.languageMotif.styleIdentifier))
         XCTAssertTrue(summary.exportText.contains(report.activityMotif.sigilIdentifier))
