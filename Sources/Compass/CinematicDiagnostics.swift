@@ -553,7 +553,15 @@ struct CinematicDiagnosticsReport: Equatable {
         var identifier: String
         var isAvailable: Bool
         var availabilityReason: String
+        var isSearchActive: Bool
+        var searchQuerySnippet: String
+        var searchQueryFingerprint: String
+        var matchCount: Int
+        var unfilteredVisibleCount: Int
+        var noMatchAvailabilityReason: String?
         var selectedEntryIdentifier: String?
+        var selectedFallbackEntryIdentifier: String?
+        var selectedFallbackReasonIdentifier: String
         var previousEntryIdentifier: String?
         var nextEntryIdentifier: String?
         var selectedIndex: Int?
@@ -1631,8 +1639,20 @@ struct CinematicVisualSmokeReport: Equatable {
             snapshot.identifier,
             maxCharacters: CinematicRunRecapShareArtifactPreviewBrowserPlan.identifierMaxCharacters
         )
+            && string(
+                snapshot.searchQuerySnippet,
+                maxCharacters: CinematicRunRecapShareArtifactPreviewBrowserPlan.searchQuerySnippetMaxCharacters
+            )
+            && snapshot.searchQueryFingerprint.count
+                <= CinematicRunRecapShareArtifactPreviewBrowserPlan.identifierMaxCharacters
+            && (snapshot.noMatchAvailabilityReason?.count ?? 0)
+                <= CinematicRunRecapShareArtifactPreviewBrowserPlan.snippetMaxCharacters
             && (snapshot.selectedEntryIdentifier ?? "").count
                 <= CinematicRunRecapShareArtifactHistoryPlan.identifierMaxCharacters
+            && (snapshot.selectedFallbackEntryIdentifier ?? "").count
+                <= CinematicRunRecapShareArtifactHistoryPlan.identifierMaxCharacters
+            && snapshot.selectedFallbackReasonIdentifier.count
+                <= CinematicRunRecapShareArtifactPreviewBrowserPlan.snippetMaxCharacters
             && (snapshot.previousEntryIdentifier ?? "").count
                 <= CinematicRunRecapShareArtifactHistoryPlan.identifierMaxCharacters
             && (snapshot.nextEntryIdentifier ?? "").count
@@ -3237,10 +3257,17 @@ struct CinematicDiagnosticsSummary: Equatable {
         let position = snapshot.selectedOrdinal.map { "\($0)/\(snapshot.entryCount)" } ?? "none/\(snapshot.entryCount)"
         return [
             availability,
+            snapshot.isSearchActive
+                ? "search \(snapshot.searchQuerySnippet) \(snapshot.searchQueryFingerprint)"
+                : "search none",
+            "matches \(snapshot.matchCount)/\(snapshot.unfilteredVisibleCount)",
+            snapshot.noMatchAvailabilityReason.map { "no-match \($0)" },
             "selection \(position)",
             snapshot.sessionNumber.map { "session \($0)" },
             snapshot.filename.map { "file \(bounded($0, limit: 72))" },
             snapshot.selectedEntryIdentifier.map { "entry \(bounded($0, limit: 54))" },
+            snapshot.selectedFallbackEntryIdentifier.map { "fallback \(bounded($0, limit: 54))" },
+            "fallback reason \(snapshot.selectedFallbackReasonIdentifier)",
             "previous \(bounded(snapshot.previousEntryIdentifier ?? "none", limit: 54))",
             "next \(bounded(snapshot.nextEntryIdentifier ?? "none", limit: 54))",
             "title \(snapshot.titleSnippet)",
@@ -3505,6 +3532,8 @@ enum CinematicDiagnostics {
         runRecapShareArtifactPlan providedRunRecapShareArtifactPlan: CinematicRunRecapShareArtifactPlan? = nil,
         runRecapShareArtifactHistoryPlan providedRunRecapShareArtifactHistoryPlan: CinematicRunRecapShareArtifactHistoryPlan? = nil,
         runRecapShareArtifactCleanupResult providedRunRecapShareArtifactCleanupResult: CinematicRunRecapShareArtifactCleanupResult? = nil,
+        runRecapShareArtifactPreviewSelectedEntryIdentifier: String? = nil,
+        runRecapShareArtifactPreviewSearchQuery: String? = nil,
         nativeFeedbackCue: CinematicNativeFeedbackCuePlan? = nil,
         nativeFeedbackLifecycle: CinematicNativeFeedbackCueLifecycle = CinematicNativeFeedbackCueLifecycle()
     ) -> CinematicDiagnosticsReport {
@@ -3657,7 +3686,9 @@ enum CinematicDiagnostics {
             cleanupResult: providedRunRecapShareArtifactCleanupResult
         )
         let runRecapShareArtifactPreviewPlan = CinematicRunRecapShareArtifactPreviewBrowserPlanner.plan(
-            historyPlan: runRecapShareArtifactHistoryPlan
+            historyPlan: runRecapShareArtifactHistoryPlan,
+            selectedEntryIdentifier: runRecapShareArtifactPreviewSelectedEntryIdentifier,
+            searchQuery: runRecapShareArtifactPreviewSearchQuery
         )
         let runRecapShareArtifactPreviewSnapshot = runRecapShareArtifactPreviewSnapshot(
             for: runRecapShareArtifactPreviewPlan
@@ -5187,7 +5218,15 @@ enum CinematicDiagnostics {
             identifier: plan.identifier,
             isAvailable: plan.isAvailable,
             availabilityReason: plan.availabilityReason,
+            isSearchActive: plan.isSearchActive,
+            searchQuerySnippet: plan.searchQuerySnippet,
+            searchQueryFingerprint: plan.searchQueryFingerprint,
+            matchCount: plan.matchCount,
+            unfilteredVisibleCount: plan.unfilteredVisibleCount,
+            noMatchAvailabilityReason: plan.noMatchAvailabilityReason,
             selectedEntryIdentifier: plan.selectedEntryIdentifier,
+            selectedFallbackEntryIdentifier: plan.selectedFallbackEntryIdentifier,
+            selectedFallbackReasonIdentifier: plan.selectedFallbackReasonIdentifier,
             previousEntryIdentifier: plan.previousEntryIdentifier,
             nextEntryIdentifier: plan.nextEntryIdentifier,
             selectedIndex: plan.selectedIndex,

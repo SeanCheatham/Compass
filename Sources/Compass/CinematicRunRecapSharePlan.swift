@@ -150,6 +150,7 @@ struct CinematicRunRecapShareArtifactHistoryPlan: Equatable, Identifiable {
 struct CinematicRunRecapShareArtifactPreviewBrowserPlan: Equatable, Identifiable {
     static let identifierMaxCharacters = CinematicRunRecapShareArtifactHistoryPlan.identifierMaxCharacters
     static let snippetMaxCharacters = CinematicRunRecapShareArtifactHistoryPlan.snippetMaxCharacters
+    static let searchQuerySnippetMaxCharacters = 80
     static let pathSnippetMaxCharacters = CinematicRunRecapShareArtifactHistoryPlan.pathDisplayMaxCharacters
     static let bodyPreviewMaxCharacters = 220
 
@@ -158,7 +159,15 @@ struct CinematicRunRecapShareArtifactPreviewBrowserPlan: Equatable, Identifiable
     var identifier: String
     var isAvailable: Bool
     var availabilityReason: String
+    var isSearchActive: Bool
+    var searchQuerySnippet: String
+    var searchQueryFingerprint: String
+    var matchCount: Int
+    var unfilteredVisibleCount: Int
+    var noMatchAvailabilityReason: String?
     var selectedEntryIdentifier: String?
+    var selectedFallbackEntryIdentifier: String?
+    var selectedFallbackReasonIdentifier: String
     var previousEntryIdentifier: String?
     var nextEntryIdentifier: String?
     var selectedIndex: Int?
@@ -183,15 +192,27 @@ struct CinematicRunRecapShareArtifactPreviewBrowserPlan: Equatable, Identifiable
 enum CinematicRunRecapShareArtifactPreviewBrowserPlanner {
     static func plan(
         historyPlan: CinematicRunRecapShareArtifactHistoryPlan,
-        selectedEntryIdentifier: String? = nil
+        selectedEntryIdentifier: String? = nil,
+        searchQuery: String? = nil
     ) -> CinematicRunRecapShareArtifactPreviewBrowserPlan {
-        let entries = historyPlan.entries
+        let unfilteredEntries = historyPlan.entries
+        let search = searchState(for: searchQuery)
+        let entries = search.isActive
+            ? unfilteredEntries.filter { matches($0, normalizedQuery: search.normalizedQuery) }
+            : unfilteredEntries
         let selectedPair = selectedEntry(
             in: entries,
             requestedIdentifier: selectedEntryIdentifier
         )
         let selectedIndex = selectedPair?.index
         let selectedEntry = selectedPair?.entry
+        let fallback = selectedFallback(
+            requestedIdentifier: selectedEntryIdentifier,
+            selectedEntry: selectedEntry,
+            unfilteredEntries: unfilteredEntries,
+            filteredEntries: entries,
+            isSearchActive: search.isActive
+        )
         let previousEntryIdentifier = selectedIndex.flatMap { index in
             index > entries.startIndex ? entries[index - 1].identifier : nil
         }
@@ -200,13 +221,24 @@ enum CinematicRunRecapShareArtifactPreviewBrowserPlanner {
             return nextIndex < entries.endIndex ? entries[nextIndex].identifier : nil
         }
         let warningStateIdentifier = historyPlan.hasWarnings ? "warnings" : "clear"
-        let availabilityReason = historyPlan.availabilityReason
+        let noMatchAvailabilityReason = search.isActive && !unfilteredEntries.isEmpty && entries.isEmpty
+            ? "no-matching-recap-share-artifacts"
+            : nil
+        let availabilityReason = noMatchAvailabilityReason ?? historyPlan.availabilityReason
         let identifier = bounded(
             [
                 "run-recap-share-artifact-preview",
                 "availability:\(availabilityReason)",
                 "history:\(fingerprint(historyPlan.identifier))",
+                "query:\(search.queryFingerprint)",
+                "query-snippet:\(search.querySnippet)",
+                "search-active:\(search.isActive)",
+                "matches:\(entries.count)",
+                "unfiltered:\(unfilteredEntries.count)",
+                "no-match:\(noMatchAvailabilityReason ?? "none")",
                 "selected:\(selectedEntry?.identifier ?? "none")",
+                "fallback:\(fallback.entryIdentifier ?? "none")",
+                "fallback-reason:\(fallback.reasonIdentifier)",
                 "index:\(selectedIndex.map(String.init) ?? "none")",
                 "count:\(entries.count)",
                 "previous:\(previousEntryIdentifier ?? "none")",
@@ -222,7 +254,15 @@ enum CinematicRunRecapShareArtifactPreviewBrowserPlanner {
                 identifier: identifier,
                 isAvailable: false,
                 availabilityReason: availabilityReason,
+                isSearchActive: search.isActive,
+                searchQuerySnippet: search.querySnippet,
+                searchQueryFingerprint: search.queryFingerprint,
+                matchCount: entries.count,
+                unfilteredVisibleCount: unfilteredEntries.count,
+                noMatchAvailabilityReason: noMatchAvailabilityReason,
                 selectedEntryIdentifier: nil,
+                selectedFallbackEntryIdentifier: fallback.entryIdentifier,
+                selectedFallbackReasonIdentifier: fallback.reasonIdentifier,
                 previousEntryIdentifier: nil,
                 nextEntryIdentifier: nil,
                 selectedIndex: nil,
@@ -241,7 +281,11 @@ enum CinematicRunRecapShareArtifactPreviewBrowserPlanner {
                     limit: CinematicRunRecapShareArtifactPreviewBrowserPlan.pathSnippetMaxCharacters
                 ),
                 bodyPreviewText: boundedBodyPreview(
-                    "No saved recap share artifacts are available for preview.",
+                    emptyBodyPreviewText(
+                        isSearchActive: search.isActive,
+                        querySnippet: search.querySnippet,
+                        noMatchAvailabilityReason: noMatchAvailabilityReason
+                    ),
                     limit: CinematicRunRecapShareArtifactPreviewBrowserPlan.bodyPreviewMaxCharacters
                 ),
                 markdownLength: 0,
@@ -255,7 +299,15 @@ enum CinematicRunRecapShareArtifactPreviewBrowserPlanner {
             identifier: identifier,
             isAvailable: true,
             availabilityReason: availabilityReason,
+            isSearchActive: search.isActive,
+            searchQuerySnippet: search.querySnippet,
+            searchQueryFingerprint: search.queryFingerprint,
+            matchCount: entries.count,
+            unfilteredVisibleCount: unfilteredEntries.count,
+            noMatchAvailabilityReason: noMatchAvailabilityReason,
             selectedEntryIdentifier: selectedEntry.identifier,
+            selectedFallbackEntryIdentifier: fallback.entryIdentifier,
+            selectedFallbackReasonIdentifier: fallback.reasonIdentifier,
             previousEntryIdentifier: previousEntryIdentifier,
             nextEntryIdentifier: nextEntryIdentifier,
             selectedIndex: selectedIndex,
@@ -289,6 +341,69 @@ enum CinematicRunRecapShareArtifactPreviewBrowserPlanner {
         )
     }
 
+    private struct SearchState {
+        var normalizedQuery: String
+        var querySnippet: String
+        var queryFingerprint: String
+        var isActive: Bool
+    }
+
+    private static func searchState(for query: String?) -> SearchState {
+        let normalizedQuery = normalizedSearchText(query ?? "")
+        let isActive = !normalizedQuery.isEmpty
+        return SearchState(
+            normalizedQuery: normalizedQuery,
+            querySnippet: isActive
+                ? bounded(
+                    normalizedQuery,
+                    limit: CinematicRunRecapShareArtifactPreviewBrowserPlan.searchQuerySnippetMaxCharacters
+                )
+                : "none",
+            queryFingerprint: isActive ? fingerprint(normalizedQuery) : "none",
+            isActive: isActive
+        )
+    }
+
+    private static func matches(
+        _ entry: CinematicRunRecapShareArtifactHistoryPlan.Entry,
+        normalizedQuery query: String
+    ) -> Bool {
+        guard !query.isEmpty else { return true }
+        let fields = [
+            entry.filename,
+            entry.titleSnippet,
+            entry.statusSnippet,
+            entry.commitSnippet ?? "",
+            entry.pathDisplayText,
+            previewSearchBody(from: entry.markdownContents) ?? ""
+        ]
+        return fields.contains { normalizedSearchText($0).contains(query) }
+    }
+
+    private static func selectedFallback(
+        requestedIdentifier: String?,
+        selectedEntry: CinematicRunRecapShareArtifactHistoryPlan.Entry?,
+        unfilteredEntries: [CinematicRunRecapShareArtifactHistoryPlan.Entry],
+        filteredEntries: [CinematicRunRecapShareArtifactHistoryPlan.Entry],
+        isSearchActive: Bool
+    ) -> (entryIdentifier: String?, reasonIdentifier: String) {
+        guard let requestedIdentifier else {
+            return (nil, "none")
+        }
+        if selectedEntry?.identifier == requestedIdentifier {
+            return (nil, "none")
+        }
+        guard let selectedEntry else {
+            let searchFilteredAllEntries = isSearchActive && !unfilteredEntries.isEmpty && filteredEntries.isEmpty
+            return (nil, searchFilteredAllEntries ? "no-match" : "missing-selection")
+        }
+        let requestedStillRetained = unfilteredEntries.contains { $0.identifier == requestedIdentifier }
+        return (
+            selectedEntry.identifier,
+            requestedStillRetained ? "filtered-selection" : "missing-selection"
+        )
+    }
+
     private static func selectedEntry(
         in entries: [CinematicRunRecapShareArtifactHistoryPlan.Entry],
         requestedIdentifier: String?
@@ -303,11 +418,26 @@ enum CinematicRunRecapShareArtifactPreviewBrowserPlanner {
 
     private static func previewBody(from markdownContents: String) -> String {
         boundedBodyPreview(
-            shareTextBody(in: markdownContents)
-                ?? fallbackBody(in: markdownContents)
+            previewSearchBody(from: markdownContents)
                 ?? "No preview text available.",
             limit: CinematicRunRecapShareArtifactPreviewBrowserPlan.bodyPreviewMaxCharacters
         )
+    }
+
+    private static func previewSearchBody(from markdownContents: String) -> String? {
+        shareTextBody(in: markdownContents)
+            ?? fallbackBody(in: markdownContents)
+    }
+
+    private static func emptyBodyPreviewText(
+        isSearchActive: Bool,
+        querySnippet: String,
+        noMatchAvailabilityReason: String?
+    ) -> String {
+        if isSearchActive, noMatchAvailabilityReason != nil {
+            return "No saved recap share artifacts match \(querySnippet)."
+        }
+        return "No saved recap share artifacts are available for preview."
     }
 
     private static func shareTextBody(in markdownContents: String) -> String? {
@@ -361,6 +491,15 @@ enum CinematicRunRecapShareArtifactPreviewBrowserPlanner {
 
     private static func boundedBodyPreview(_ text: String, limit: Int) -> String {
         bounded(text, limit: limit)
+    }
+
+    private static func normalizedSearchText(_ text: String) -> String {
+        text
+            .replacingOccurrences(of: "\r", with: " ")
+            .replacingOccurrences(of: "\n", with: " ")
+            .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
     }
 
     private static func fingerprint(_ value: String) -> String {

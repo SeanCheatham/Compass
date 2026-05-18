@@ -571,6 +571,7 @@ private struct CinematicRunRecapArtifactLibraryControl: View {
     @State private var feedbackStatus: CinematicRunRecapShareArtifactCleanupResult.Status?
     @State private var preservedFeedbackPlanIdentifier: String?
     @State private var selectedEntryIdentifier: String?
+    @State private var searchText = ""
 
     var body: some View {
         let previewPlan = currentPreviewPlan
@@ -610,6 +611,8 @@ private struct CinematicRunRecapArtifactLibraryControl: View {
                     .lineLimit(1)
                     .minimumScaleFactor(0.72)
             }
+
+            searchControl(previewPlan)
 
             Button {
                 selectArtifact(previewPlan.previousEntryIdentifier)
@@ -725,12 +728,19 @@ private struct CinematicRunRecapArtifactLibraryControl: View {
             feedbackStatus = nil
             preservedFeedbackPlanIdentifier = nil
         }
+        .onChange(of: searchText) {
+            selectedEntryIdentifier = currentPreviewPlan.selectedEntryIdentifier
+            feedback = nil
+            feedbackStatus = nil
+            preservedFeedbackPlanIdentifier = nil
+        }
     }
 
     private var currentPreviewPlan: CinematicRunRecapShareArtifactPreviewBrowserPlan {
         CinematicRunRecapShareArtifactPreviewBrowserPlanner.plan(
             historyPlan: plan,
-            selectedEntryIdentifier: selectedEntryIdentifier
+            selectedEntryIdentifier: selectedEntryIdentifier,
+            searchQuery: searchText
         )
     }
 
@@ -750,24 +760,90 @@ private struct CinematicRunRecapArtifactLibraryControl: View {
 
     private func selectedDetail(_ previewPlan: CinematicRunRecapShareArtifactPreviewBrowserPlan) -> String {
         guard previewPlan.isAvailable else {
+            if previewPlan.isSearchActive {
+                return "\(previewPlan.availabilityReason) | \(previewPlan.matchCount)/\(previewPlan.unfilteredVisibleCount) matches | \(previewPlan.searchQuerySnippet)"
+            }
             return previewPlan.availabilityReason
         }
         let commit = previewPlan.commitSnippet.map { " | \($0)" } ?? ""
         let hidden = plan.hiddenCount > 0 ? " | +\(plan.hiddenCount) hidden" : ""
         let cleanup = plan.cleanupCandidateCount > 0 ? " | \(plan.cleanupCandidateCount) cleanup" : ""
         let warnings = previewPlan.warningCount > 0 ? " | \(previewPlan.warningCount) warning" : ""
-        return "\(previewPlan.titleSnippet) | \(previewPlan.statusSnippet)\(commit)\(hidden)\(cleanup)\(warnings)"
+        let search = previewPlan.isSearchActive
+            ? " | \(previewPlan.matchCount)/\(previewPlan.unfilteredVisibleCount) matches"
+            : ""
+        return "\(previewPlan.titleSnippet) | \(previewPlan.statusSnippet)\(commit)\(search)\(hidden)\(cleanup)\(warnings)"
+    }
+
+    private func searchControl(_ previewPlan: CinematicRunRecapShareArtifactPreviewBrowserPlan) -> some View {
+        HStack(spacing: 4) {
+            Image(systemName: "magnifyingglass")
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundStyle(tint.opacity(previewPlan.isSearchActive ? 0.86 : 0.5))
+                .frame(width: 11)
+
+            TextField("", text: $searchText)
+                .textFieldStyle(.plain)
+                .font(.caption2)
+                .foregroundStyle(.white.opacity(0.76))
+                .frame(width: 66)
+                .accessibilityLabel("Search saved recap artifacts")
+
+            if !searchText.isEmpty {
+                Button {
+                    searchText = ""
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 10, weight: .semibold))
+                        .frame(width: 12, height: 18)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(tint.opacity(0.72))
+                .help("Clear recap artifact search")
+                .accessibilityLabel("Clear recap artifact search")
+            }
+        }
+        .padding(.horizontal, 5)
+        .frame(height: 22)
+        .background(
+            .white.opacity(previewPlan.isSearchActive ? 0.075 : 0.04),
+            in: RoundedRectangle(cornerRadius: 6)
+        )
+        .overlay {
+            RoundedRectangle(cornerRadius: 6)
+                .stroke(tint.opacity(previewPlan.isSearchActive ? 0.26 : 0.1), lineWidth: 1)
+        }
+        .help(searchHelp(previewPlan))
+        .accessibilityIdentifier("cinematic-run-recap-artifact-library-search")
+    }
+
+    private func searchHelp(_ previewPlan: CinematicRunRecapShareArtifactPreviewBrowserPlan) -> String {
+        guard previewPlan.isSearchActive else {
+            return "Filter saved recap artifacts by filename, title, status, commit, path, or preview text."
+        }
+        return "\(previewPlan.matchCount) of \(previewPlan.unfilteredVisibleCount) saved recap artifact\(previewPlan.unfilteredVisibleCount == 1 ? "" : "s") match \(previewPlan.searchQuerySnippet)."
     }
 
     private func previousHelp(_ previewPlan: CinematicRunRecapShareArtifactPreviewBrowserPlan) -> String {
-        previewPlan.canNavigatePrevious
-            ? "Show the newer saved recap share artifact."
+        if previewPlan.canNavigatePrevious {
+            return previewPlan.isSearchActive
+                ? "Show the newer matching saved recap share artifact."
+                : "Show the newer saved recap share artifact."
+        }
+        return previewPlan.isSearchActive
+            ? "Already showing the newest matching saved recap share artifact."
             : "Already showing the newest saved recap share artifact."
     }
 
     private func nextHelp(_ previewPlan: CinematicRunRecapShareArtifactPreviewBrowserPlan) -> String {
-        previewPlan.canNavigateNext
-            ? "Show the older saved recap share artifact."
+        if previewPlan.canNavigateNext {
+            return previewPlan.isSearchActive
+                ? "Show the older matching saved recap share artifact."
+                : "Show the older saved recap share artifact."
+        }
+        return previewPlan.isSearchActive
+            ? "Already showing the oldest matching saved recap share artifact."
             : "Already showing the oldest visible recap share artifact."
     }
 

@@ -2103,6 +2103,8 @@ private struct CinematicDiagnosticsInput {
     var runRecapEndCardPlan: CinematicRunRecapEndCardPlan = .none
     var runRecapShareArtifactHistoryPlan: CinematicRunRecapShareArtifactHistoryPlan?
     var runRecapShareArtifactCleanupResult: CinematicRunRecapShareArtifactCleanupResult?
+    var runRecapShareArtifactPreviewSelectedEntryIdentifier: String?
+    var runRecapShareArtifactPreviewSearchQuery: String?
 }
 
 private func makeReport(_ input: CinematicDiagnosticsInput) -> CinematicDiagnosticsReport {
@@ -2120,7 +2122,9 @@ private func makeReport(_ input: CinematicDiagnosticsInput) -> CinematicDiagnost
         runRecapSceneFocusPlan: input.runRecapSceneFocusPlan,
         runRecapEndCardPlan: input.runRecapEndCardPlan,
         runRecapShareArtifactHistoryPlan: input.runRecapShareArtifactHistoryPlan,
-        runRecapShareArtifactCleanupResult: input.runRecapShareArtifactCleanupResult
+        runRecapShareArtifactCleanupResult: input.runRecapShareArtifactCleanupResult,
+        runRecapShareArtifactPreviewSelectedEntryIdentifier: input.runRecapShareArtifactPreviewSelectedEntryIdentifier,
+        runRecapShareArtifactPreviewSearchQuery: input.runRecapShareArtifactPreviewSearchQuery
     )
 }
 
