@@ -64,14 +64,16 @@ struct CinematicPlanCompassSceneFocusPlan: Equatable {
 enum CinematicPlanCompassSceneFocusPlanner {
     static func plan(
         isPlanOverlaySelected: Bool,
-        planCompassPlan: CinematicPlanCompassPlan
+        planCompassPlan: CinematicPlanCompassPlan,
+        selectedKind: PlanWorkflowOverview.Kind? = nil
     ) -> CinematicPlanCompassSceneFocusPlan {
         guard isPlanOverlaySelected else { return .none }
 
-        let selectedSection = planCompassPlan.sections.first { !$0.isEmpty }
+        let selectedSection = selectedKind.map { planCompassPlan.section(for: $0) }
+            ?? planCompassPlan.sections.first { !$0.isEmpty }
             ?? planCompassPlan.immediate
         let selectedRoute = routeIdentifier(for: selectedSection.kind)
-        let usesFallbackSection = selectedSection.kind != .immediate
+        let usesFallbackSection = selectedKind == nil && selectedSection.kind != .immediate
         let treatment = treatment(for: selectedSection)
         let lookTarget = boundedTarget(treatment.lookTarget)
         let plaqueTitle = bounded(

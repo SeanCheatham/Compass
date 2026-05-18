@@ -783,6 +783,7 @@ final class CinematicDiagnosticsTests: XCTestCase {
                 "commit-constellation",
                 "idle-story-cycle",
                 "plan-compass-focus",
+                "plan-compass-commands",
                 "timeline-focus",
                 "run-recap",
                 "run-recap-share",
@@ -852,6 +853,7 @@ final class CinematicDiagnosticsTests: XCTestCase {
                     "commit-constellation",
                     "idle-story-cycle",
                     "plan-compass-focus",
+                    "plan-compass-commands",
                     "timeline-focus",
                     "run-recap",
                     "run-recap-share",
@@ -1000,14 +1002,14 @@ final class CinematicDiagnosticsTests: XCTestCase {
             .components(separatedBy: "\n")
             .filter { expectedSectionHeadings.contains($0) }
         XCTAssertEqual(actualSectionHeadings, expectedSectionHeadings)
-        XCTAssertTrue(summary.exportText.contains("Repository/context (18 rows)"))
+        XCTAssertTrue(summary.exportText.contains("Repository/context (19 rows)"))
         XCTAssertTrue(summary.exportText.contains("Motifs (2 rows)"))
         XCTAssertTrue(summary.exportText.contains("Stage motion/effects (9 rows)"))
         XCTAssertTrue(summary.exportText.contains("Narrative/overlay (8 rows)"))
         XCTAssertTrue(summary.exportText.contains("Assets/textures (2 rows)"))
         XCTAssertTrue(summary.exportText.contains("Tuning (4 rows)"))
         XCTAssertTrue(summary.exportText.contains("Camera shots (7 rows)"))
-        XCTAssertTrue(summary.exportText.contains("Visual smoke (pass, 21 checks)"))
+        XCTAssertTrue(summary.exportText.contains("Visual smoke (pass, 22 checks)"))
         XCTAssertTrue(summary.exportText.contains("Plaque treatments (pass, 4 recipes): smoke pass"))
         XCTAssertTrue(summary.exportText.contains("failure-fracture: accent failure-fracture"))
         XCTAssertTrue(summary.exportText.contains("Overlay fallback: pass"))

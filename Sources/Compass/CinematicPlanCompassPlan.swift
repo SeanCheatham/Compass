@@ -20,6 +20,17 @@ struct CinematicPlanCompassPlan: Equatable {
         [immediate, midTerm, longTerm]
     }
 
+    func section(for kind: PlanWorkflowOverview.Kind) -> SectionDescriptor {
+        switch kind {
+        case .immediate:
+            return immediate
+        case .midTerm:
+            return midTerm
+        case .longTerm:
+            return longTerm
+        }
+    }
+
     init(state: PlanState) {
         self.init(
             overview: PlanWorkflowOverview(
@@ -261,6 +272,504 @@ struct CinematicPlanCompassPlan: Equatable {
             hash = hash &* 0x100000001b3
         }
         return String(format: "%016llx", hash)
+    }
+}
+
+struct CinematicPlanCompassCommandPlan: Equatable, Identifiable {
+    static let identifierMaxCharacters = 320
+    static let commandLimit = 6
+    static let labelMaxCharacters = 34
+    static let helpMaxCharacters = 180
+    static let shortcutHintMaxCharacters = 20
+
+    var id: String { identifier }
+
+    var identifier: String
+    var sourcePlanIdentifier: String
+    var sourcePlanCopyIdentifier: String
+    var sourcePlanExportIdentifier: String
+    var selectedKind: PlanWorkflowOverview.Kind
+    var selectedRouteIdentifier: String
+    var selectedSectionID: String
+    var selectedSectionRowIdentifier: String
+    var selectedSectionContentIdentifier: String
+    var selectedSectionCopyIdentifier: String
+    var selectedSectionExportIdentifier: String
+    var selectedSectionStateIdentifier: String
+    var selectedSectionIsEmpty: Bool
+    var commands: [Command]
+    var appLevelShortcutIdentifiers: [String]
+    var appLevelShortcutCollisionIdentifiers: [String]
+    var recapCommandShortcutIdentifiers: [String]
+    var recapCommandShortcutCollisionIdentifiers: [String]
+
+    var commandCount: Int { commands.count }
+    var enabledCommandCount: Int { commands.filter(\.isEnabled).count }
+    var disabledCommandCount: Int { commands.filter { !$0.isEnabled }.count }
+    var appLevelShortcutCollisionStateIdentifier: String {
+        appLevelShortcutCollisionIdentifiers.isEmpty ? "clear" : "collision"
+    }
+    var recapCommandShortcutCollisionStateIdentifier: String {
+        recapCommandShortcutCollisionIdentifiers.isEmpty ? "clear" : "collision"
+    }
+
+    func commands(in section: Section) -> [Command] {
+        commands.filter { $0.section == section }
+    }
+
+    func command(for actionKind: ActionKind) -> Command? {
+        commands.first { $0.actionKind == actionKind }
+    }
+
+    enum Section: String, CaseIterable, Equatable, Identifiable {
+        case overlay
+        case focus
+        case copy
+
+        var id: String { rawValue }
+
+        var title: String {
+            switch self {
+            case .overlay:
+                return "Overlay"
+            case .focus:
+                return "Focus"
+            case .copy:
+                return "Copy"
+            }
+        }
+    }
+
+    enum ActionKind: String, CaseIterable, Equatable {
+        case showPlanOverlay
+        case focusImmediateRoute
+        case focusMidTermRoute
+        case focusLongTermRoute
+        case copyFullPlanCompass
+        case copySelectedRoute
+    }
+
+    struct Command: Equatable, Identifiable {
+        var id: String { identifier }
+
+        var identifier: String
+        var section: Section
+        var label: String
+        var help: String
+        var isEnabled: Bool
+        var actionKind: ActionKind
+        var shortcut: Shortcut
+    }
+
+    struct Shortcut: Equatable, Hashable {
+        var key: Key
+        var modifiers: [Modifier]
+
+        var identifier: String {
+            let modifierText = modifiers.map(\.rawValue).joined(separator: "+")
+            return "\(modifierText):\(key.rawValue)"
+        }
+
+        var displayText: String {
+            let modifierText = modifiers.map(\.displayText)
+            return (modifierText + [key.displayText]).joined(separator: "-")
+        }
+
+        enum Key: String, Equatable, Hashable {
+            case leftBracket = "["
+            case rightBracket = "]"
+            case one = "1"
+            case two = "2"
+            case three = "3"
+            case b = "b"
+            case c = "c"
+            case d = "d"
+            case e = "e"
+            case h = "h"
+            case m = "m"
+            case o = "o"
+            case p = "p"
+            case r = "r"
+            case returnKey = "return"
+            case t = "t"
+
+            var displayText: String {
+                switch self {
+                case .leftBracket, .rightBracket:
+                    return rawValue
+                case .returnKey:
+                    return "Return"
+                default:
+                    return rawValue.uppercased()
+                }
+            }
+        }
+
+        enum Modifier: String, Equatable, Hashable {
+            case command
+            case control
+            case option
+            case shift
+
+            var displayText: String {
+                switch self {
+                case .command:
+                    return "Cmd"
+                case .control:
+                    return "Ctrl"
+                case .option:
+                    return "Opt"
+                case .shift:
+                    return "Shift"
+                }
+            }
+        }
+    }
+}
+
+enum CinematicPlanCompassCommandPlanner {
+    static func plan(
+        planCompassPlan: CinematicPlanCompassPlan,
+        selectedKind: PlanWorkflowOverview.Kind
+    ) -> CinematicPlanCompassCommandPlan {
+        let selectedSection = planCompassPlan.section(for: selectedKind)
+        let commands = CinematicPlanCompassCommandPlan.ActionKind.allCases.compactMap { actionKind -> Command? in
+            guard let shortcut = shortcut(for: actionKind) else { return nil }
+            return command(
+                actionKind: actionKind,
+                planCompassPlan: planCompassPlan,
+                selectedSection: selectedSection,
+                shortcut: shortcut
+            )
+        }.prefix(CinematicPlanCompassCommandPlan.commandLimit)
+        let boundedCommands = Array(commands)
+        let shortcutIdentifiers = boundedCommands.map(\.shortcut.identifier)
+        let appLevelShortcutIdentifiers = appLevelShortcuts().map(\.identifier)
+        let appLevelShortcutIdentifierSet = Set(appLevelShortcutIdentifiers)
+        let appLevelShortcutCollisionIdentifiers = shortcutIdentifiers.filter(appLevelShortcutIdentifierSet.contains)
+        let recapCommandShortcutIdentifiers = recapCommandShortcuts().map(\.identifier)
+        let recapCommandShortcutIdentifierSet = Set(recapCommandShortcutIdentifiers)
+        let recapCommandShortcutCollisionIdentifiers = shortcutIdentifiers.filter(
+            recapCommandShortcutIdentifierSet.contains
+        )
+        let identifier = bounded(
+            [
+                "plan-compass-commands",
+                "commands:\(boundedCommands.count)",
+                "selected:\(selectedKind.planCompassCommandRouteIdentifier)",
+                "source:\(fingerprint(planCompassPlan.identifier))",
+                "content:\(fingerprint(boundedCommands.map(\.identifier).joined(separator: "|")))",
+                "app-collisions:\(fingerprint(appLevelShortcutCollisionIdentifiers.joined(separator: "|")))",
+                "recap-collisions:\(fingerprint(recapCommandShortcutCollisionIdentifiers.joined(separator: "|")))"
+            ].joined(separator: "|"),
+            limit: CommandPlan.identifierMaxCharacters
+        )
+
+        return CinematicPlanCompassCommandPlan(
+            identifier: identifier,
+            sourcePlanIdentifier: planCompassPlan.identifier,
+            sourcePlanCopyIdentifier: planCompassPlan.copyIdentifier,
+            sourcePlanExportIdentifier: planCompassPlan.exportIdentifier,
+            selectedKind: selectedKind,
+            selectedRouteIdentifier: selectedKind.planCompassCommandRouteIdentifier,
+            selectedSectionID: selectedSection.id,
+            selectedSectionRowIdentifier: selectedSection.rowIdentifier,
+            selectedSectionContentIdentifier: selectedSection.contentIdentifier,
+            selectedSectionCopyIdentifier: selectedSection.copyIdentifier,
+            selectedSectionExportIdentifier: selectedSection.exportIdentifier,
+            selectedSectionStateIdentifier: selectedSection.stateIdentifier,
+            selectedSectionIsEmpty: selectedSection.isEmpty,
+            commands: boundedCommands,
+            appLevelShortcutIdentifiers: appLevelShortcutIdentifiers,
+            appLevelShortcutCollisionIdentifiers: appLevelShortcutCollisionIdentifiers,
+            recapCommandShortcutIdentifiers: recapCommandShortcutIdentifiers,
+            recapCommandShortcutCollisionIdentifiers: recapCommandShortcutCollisionIdentifiers
+        )
+    }
+
+    static func shortcutHint(
+        for actionKind: CinematicPlanCompassCommandPlan.ActionKind
+    ) -> String? {
+        shortcut(for: actionKind)?.displayText
+    }
+
+    static func shortcut(
+        for actionKind: CinematicPlanCompassCommandPlan.ActionKind
+    ) -> CinematicPlanCompassCommandPlan.Shortcut? {
+        switch actionKind {
+        case .showPlanOverlay:
+            return Shortcut(key: .p, modifiers: [.command, .control])
+        case .focusImmediateRoute:
+            return Shortcut(key: .one, modifiers: [.command, .control])
+        case .focusMidTermRoute:
+            return Shortcut(key: .two, modifiers: [.command, .control])
+        case .focusLongTermRoute:
+            return Shortcut(key: .three, modifiers: [.command, .control])
+        case .copyFullPlanCompass:
+            return Shortcut(key: .c, modifiers: [.command, .control])
+        case .copySelectedRoute:
+            return Shortcut(key: .c, modifiers: [.command, .control, .shift])
+        }
+    }
+
+    static func appLevelShortcuts() -> [CinematicPlanCompassCommandPlan.Shortcut] {
+        [
+            Shortcut(key: .o, modifiers: [.command]),
+            Shortcut(key: .r, modifiers: [.command]),
+            Shortcut(key: .returnKey, modifiers: [.command])
+        ]
+    }
+
+    static func recapCommandShortcuts() -> [CinematicPlanCompassCommandPlan.Shortcut] {
+        recapActionKinds.compactMap { actionKind in
+            guard let shortcut = CinematicRunRecapShareArtifactCommandPlanner.shortcut(for: actionKind),
+                  let key = Shortcut.Key(recapShortcutKey: shortcut.key),
+                  shortcut.modifiers.allSatisfy({ Shortcut.Modifier(recapModifier: $0) != nil })
+            else {
+                return nil
+            }
+            let modifiers = shortcut.modifiers.compactMap(Shortcut.Modifier.init(recapModifier:))
+            return Shortcut(key: key, modifiers: modifiers)
+        }
+    }
+
+    private typealias CommandPlan = CinematicPlanCompassCommandPlan
+    private typealias Command = CinematicPlanCompassCommandPlan.Command
+    private typealias Shortcut = CinematicPlanCompassCommandPlan.Shortcut
+    private typealias ActionKind = CinematicPlanCompassCommandPlan.ActionKind
+
+    private static let recapActionKinds: [CinematicRunRecapShareArtifactActionMenuPlan.ActionKind] = [
+        .navigatePrevious,
+        .navigateNext,
+        .revealSelected,
+        .copySelectedExport,
+        .copyFilteredExport,
+        .copyLibraryExport,
+        .copyRollupExport,
+        .copyComparisonExport,
+        .copyPinnedExport,
+        .copyTourExport,
+        .toggleComparisonTargetMode,
+        .toggleSelectedPin,
+        .toggleTourHold,
+        .toggleSelectedTourHold,
+        .promoteTourHold
+    ]
+
+    private static func command(
+        actionKind: ActionKind,
+        planCompassPlan: CinematicPlanCompassPlan,
+        selectedSection: CinematicPlanCompassPlan.SectionDescriptor,
+        shortcut: Shortcut
+    ) -> Command {
+        let descriptor = commandDescriptor(
+            actionKind: actionKind,
+            planCompassPlan: planCompassPlan,
+            selectedSection: selectedSection
+        )
+        let identifier = bounded(
+            [
+                "plan-compass-command",
+                "kind:\(actionKind.rawValue)",
+                "section:\(descriptor.section.rawValue)",
+                "enabled:\(descriptor.isEnabled)",
+                "shortcut:\(shortcut.identifier)",
+                "state:\(fingerprint(descriptor.stateIdentifier))"
+            ].joined(separator: "|"),
+            limit: CommandPlan.identifierMaxCharacters
+        )
+
+        return Command(
+            identifier: identifier,
+            section: descriptor.section,
+            label: bounded(descriptor.label, limit: CommandPlan.labelMaxCharacters),
+            help: bounded(descriptor.help, limit: CommandPlan.helpMaxCharacters),
+            isEnabled: descriptor.isEnabled,
+            actionKind: actionKind,
+            shortcut: shortcut
+        )
+    }
+
+    private struct CommandDescriptor {
+        var section: CommandPlan.Section
+        var label: String
+        var help: String
+        var isEnabled: Bool
+        var stateIdentifier: String
+    }
+
+    private static func commandDescriptor(
+        actionKind: ActionKind,
+        planCompassPlan: CinematicPlanCompassPlan,
+        selectedSection: CinematicPlanCompassPlan.SectionDescriptor
+    ) -> CommandDescriptor {
+        switch actionKind {
+        case .showPlanOverlay:
+            return CommandDescriptor(
+                section: .overlay,
+                label: "Show Plan Compass",
+                help: "Show the Plan Compass overlay without changing the selected route.",
+                isEnabled: true,
+                stateIdentifier: planCompassPlan.exportIdentifier
+            )
+        case .focusImmediateRoute:
+            return focusDescriptor(
+                route: .immediate,
+                targetSection: planCompassPlan.immediate,
+                selectedSection: selectedSection
+            )
+        case .focusMidTermRoute:
+            return focusDescriptor(
+                route: .midTerm,
+                targetSection: planCompassPlan.midTerm,
+                selectedSection: selectedSection
+            )
+        case .focusLongTermRoute:
+            return focusDescriptor(
+                route: .longTerm,
+                targetSection: planCompassPlan.longTerm,
+                selectedSection: selectedSection
+            )
+        case .copyFullPlanCompass:
+            return CommandDescriptor(
+                section: .copy,
+                label: "Copy Plan Compass",
+                help: "Copy the full Plan Compass text \(planCompassPlan.copyIdentifier).",
+                isEnabled: !planCompassPlan.copyText.isEmpty,
+                stateIdentifier: planCompassPlan.copyIdentifier
+            )
+        case .copySelectedRoute:
+            return CommandDescriptor(
+                section: .copy,
+                label: "Copy Selected Route",
+                help: "Copy \(selectedSection.directionLabel.lowercased()) text \(selectedSection.copyIdentifier).",
+                isEnabled: !selectedSection.copyText.isEmpty,
+                stateIdentifier: selectedSection.copyIdentifier
+            )
+        }
+    }
+
+    private static func focusDescriptor(
+        route: PlanWorkflowOverview.Kind,
+        targetSection: CinematicPlanCompassPlan.SectionDescriptor,
+        selectedSection: CinematicPlanCompassPlan.SectionDescriptor
+    ) -> CommandDescriptor {
+        CommandDescriptor(
+            section: .focus,
+            label: "Focus \(route.planCompassCommandTitle)",
+            help: "Show the Plan Compass overlay and focus \(route.planCompassCommandHelpLabel).",
+            isEnabled: true,
+            stateIdentifier: [
+                targetSection.contentIdentifier,
+                selectedSection.kind == route ? "selected" : "available"
+            ].joined(separator: "|")
+        )
+    }
+
+    private static func bounded(_ text: String, limit: Int) -> String {
+        guard limit > 0 else { return "" }
+        let normalized = text
+            .replacingOccurrences(of: "\r", with: " ")
+            .replacingOccurrences(of: "\n", with: " ")
+            .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalized.isEmpty else { return "none" }
+        guard normalized.count <= limit else {
+            let prefixLimit = max(1, limit - 3)
+            return normalized.prefix(prefixLimit)
+                .trimmingCharacters(in: .whitespacesAndNewlines) + "..."
+        }
+        return normalized
+    }
+
+    private static func fingerprint(_ value: String) -> String {
+        var hash: UInt64 = 0xcbf29ce484222325
+        for byte in value.utf8 {
+            hash ^= UInt64(byte)
+            hash = hash &* 0x100000001b3
+        }
+        return String(format: "%016llx", hash)
+    }
+}
+
+private extension CinematicPlanCompassCommandPlan.Shortcut.Key {
+    init?(recapShortcutKey: CinematicRunRecapShareArtifactCommandPlan.Shortcut.Key) {
+        switch recapShortcutKey {
+        case .leftBracket:
+            self = .leftBracket
+        case .rightBracket:
+            self = .rightBracket
+        case .b:
+            self = .b
+        case .d:
+            self = .d
+        case .e:
+            self = .e
+        case .h:
+            self = .h
+        case .m:
+            self = .m
+        case .o:
+            self = .o
+        case .p:
+            self = .p
+        case .r:
+            self = .r
+        case .returnKey:
+            self = .returnKey
+        case .t:
+            self = .t
+        }
+    }
+}
+
+private extension CinematicPlanCompassCommandPlan.Shortcut.Modifier {
+    init?(recapModifier: CinematicRunRecapShareArtifactCommandPlan.Shortcut.Modifier) {
+        switch recapModifier {
+        case .command:
+            self = .command
+        case .control:
+            self = .control
+        case .option:
+            self = .option
+        case .shift:
+            self = .shift
+        }
+    }
+}
+
+extension PlanWorkflowOverview.Kind {
+    var planCompassCommandRouteIdentifier: String {
+        switch self {
+        case .immediate:
+            return "immediate"
+        case .midTerm:
+            return "mid-term"
+        case .longTerm:
+            return "long-term"
+        }
+    }
+
+    var planCompassCommandTitle: String {
+        switch self {
+        case .immediate:
+            return "Immediate"
+        case .midTerm:
+            return "Mid-Term"
+        case .longTerm:
+            return "Long-Term"
+        }
+    }
+
+    var planCompassCommandHelpLabel: String {
+        switch self {
+        case .immediate:
+            return "the immediate route"
+        case .midTerm:
+            return "the mid-term route"
+        case .longTerm:
+            return "the long-term route"
+        }
     }
 }
 

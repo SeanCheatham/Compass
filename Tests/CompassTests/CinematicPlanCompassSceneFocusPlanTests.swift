@@ -118,6 +118,45 @@ final class CinematicPlanCompassSceneFocusPlanTests: XCTestCase {
         XCTAssertNotEqual(long.lookTarget, empty.lookTarget)
     }
 
+    func testExplicitSelectedRouteOverridesFallbackAcrossActiveAndEmptySections() throws {
+        let state = PlanState(
+            completed: [],
+            immediate: nil,
+            midTerm: "Focus an explicitly selected mid-term route",
+            longTerm: ""
+        )
+        let planCompass = CinematicPlanCompassPlan(state: state)
+        let mid = try XCTUnwrap(
+            CinematicPlanCompassSceneFocusPlanner.plan(
+                isPlanOverlaySelected: true,
+                planCompassPlan: planCompass,
+                selectedKind: .midTerm
+            ).descriptor
+        )
+        let emptyLong = try XCTUnwrap(
+            CinematicPlanCompassSceneFocusPlanner.plan(
+                isPlanOverlaySelected: true,
+                planCompassPlan: planCompass,
+                selectedKind: .longTerm
+            ).descriptor
+        )
+
+        XCTAssertEqual(mid.selectedSectionRouteIdentifier, "mid-term")
+        XCTAssertEqual(mid.selectedSectionRowIdentifier, planCompass.midTerm.rowIdentifier)
+        XCTAssertEqual(mid.selectedSectionCopyIdentifier, planCompass.midTerm.copyIdentifier)
+        XCTAssertEqual(mid.selectedSectionExportIdentifier, planCompass.midTerm.exportIdentifier)
+        XCTAssertFalse(mid.selectedSectionIsEmpty)
+        XCTAssertFalse(mid.usesFallbackSection)
+        XCTAssertEqual(mid.cameraShot, .wide)
+
+        XCTAssertEqual(emptyLong.selectedSectionRouteIdentifier, "long-term")
+        XCTAssertEqual(emptyLong.selectedSectionRowIdentifier, planCompass.longTerm.rowIdentifier)
+        XCTAssertEqual(emptyLong.selectedSectionStateIdentifier, "empty")
+        XCTAssertTrue(emptyLong.selectedSectionIsEmpty)
+        XCTAssertFalse(emptyLong.usesFallbackSection)
+        XCTAssertEqual(emptyLong.cameraShot, .home)
+    }
+
     func testPlanningIsReadOnlyOverPlanState() throws {
         let state = PlanState(
             completed: ["Read-only"],

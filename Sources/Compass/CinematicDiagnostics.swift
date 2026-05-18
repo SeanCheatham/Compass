@@ -27,6 +27,7 @@ struct CinematicDiagnosticsReport: Equatable {
     var commitConstellation: CommitConstellationSnapshot
     var idleStoryCycle: IdleStoryCycleSnapshot
     var planCompassSceneFocus: PlanCompassSceneFocusSnapshot
+    var planCompassCommands: PlanCompassCommandSnapshot
     var timelineFocus: TimelineFocusSnapshot
     var runRecap: RunRecapSnapshot
     var runRecapShare: RunRecapShareSnapshot
@@ -509,6 +510,43 @@ struct CinematicDiagnosticsReport: Equatable {
         var triadIdentifiers: [String]
         var diagnosticsIdentifier: String
         var diagnosticsRowIdentifier: String
+    }
+
+    struct PlanCompassCommandSectionSnapshot: Equatable {
+        var sectionIdentifier: String
+        var commandCount: Int
+        var enabledCommandCount: Int
+        var disabledCommandCount: Int
+    }
+
+    struct PlanCompassCommandSnapshot: Equatable {
+        var identifier: String
+        var commandPlanIdentifier: String
+        var sourcePlanIdentifier: String
+        var sourcePlanCopyIdentifier: String
+        var sourcePlanExportIdentifier: String
+        var selectedRouteIdentifier: String
+        var selectedSectionID: String
+        var selectedSectionRowIdentifier: String
+        var selectedSectionContentIdentifier: String
+        var selectedSectionCopyIdentifier: String
+        var selectedSectionExportIdentifier: String
+        var selectedSectionStateIdentifier: String
+        var selectedSectionIsEmpty: Bool
+        var commandCount: Int
+        var enabledCommandCount: Int
+        var disabledCommandCount: Int
+        var sectionCount: Int
+        var sections: [PlanCompassCommandSectionSnapshot]
+        var shortcutIdentifiers: [String]
+        var disabledActionKindIdentifiers: [String]
+        var copyCommandIdentifiers: [String]
+        var appLevelShortcutCollisionStateIdentifier: String
+        var appLevelShortcutIdentifiers: [String]
+        var appLevelShortcutCollisionIdentifiers: [String]
+        var recapCommandShortcutCollisionStateIdentifier: String
+        var recapCommandShortcutIdentifiers: [String]
+        var recapCommandShortcutCollisionIdentifiers: [String]
     }
 
     struct RunRecapSnapshot: Equatable {
@@ -1049,18 +1087,20 @@ struct CinematicVisualSmokeReport: Equatable {
         let nativeFeedbackReports = CinematicDiagnostics.representativeNativeFeedbackSmokeReports()
         let idleStoryReports = CinematicDiagnostics.representativeIdleStoryCycleSmokeReports()
         let planFocusReports = CinematicDiagnostics.representativePlanCompassFocusSmokeReports()
+        let planCommandReports = CinematicDiagnostics.representativePlanCompassCommandSmokeReports()
         let savedArtifactTourReports = CinematicDiagnostics.representativeSavedRecapArtifactTourSmokeReports()
         let pinnedCueReports = CinematicDiagnostics.representativePinnedComparisonCueSmokeReports()
         let recapArtifactCommandReports = CinematicDiagnostics.representativeRunRecapArtifactCommandSmokeReports()
         return CinematicVisualSmokeReport(
             reports: reports + nativeFeedbackReports + idleStoryReports + planFocusReports + savedArtifactTourReports
-                + pinnedCueReports + recapArtifactCommandReports
+                + planCommandReports + pinnedCueReports + recapArtifactCommandReports
         )
     }
 
     private static func makeChecks(reports: [CinematicDiagnosticsReport]) -> [Check] {
         [
             runRecapArtifactCommandAvailabilityCheck(reports: reports),
+            planCompassCommandAvailabilityCheck(reports: reports),
             narrativeCueReadabilityCheck(reports: reports),
             overlayFallbackUsageCheck(reports: reports),
             chromeStrengthCheck(reports: reports),
@@ -1224,6 +1264,113 @@ struct CinematicVisualSmokeReport: Equatable {
                 relatedRowID: "run-recap-share-artifact-commands",
                 label: "Recap command availability",
                 detail: "Recap artifact command availability warning"
+            )
+        )
+    }
+
+    private static func planCompassCommandAvailabilityCheck(
+        reports: [CinematicDiagnosticsReport]
+    ) -> Check {
+        let snapshots = reports.map(\.planCompassCommands)
+        guard !snapshots.isEmpty else {
+            return check(
+                id: "plan-compass-command-availability",
+                label: "Plan command availability",
+                isPassing: false,
+                warningIdentifier: "visual-smoke.plan-compass-commands",
+                detail: "no representative reports available"
+            )
+        }
+
+        let expectedSections = Set(CinematicPlanCompassCommandPlan.Section.allCases.map(\.rawValue))
+        let expectedShortcuts = Set(CinematicPlanCompassCommandPlan.ActionKind.allCases.compactMap {
+            CinematicPlanCompassCommandPlanner.shortcut(for: $0)?.identifier
+        })
+        let expectedAppLevelShortcuts = Set(CinematicPlanCompassCommandPlanner.appLevelShortcuts().map(\.identifier))
+        let expectedRecapShortcuts = Set(CinematicPlanCompassCommandPlanner.recapCommandShortcuts().map(\.identifier))
+        let routes = Set(snapshots.map(\.selectedRouteIdentifier))
+        let states = Set(snapshots.map(\.selectedSectionStateIdentifier))
+
+        let boundedCount = reports.filter(planCompassCommandsCopyIsBounded).count
+        let countIntegrityCount = snapshots.filter { snapshot in
+            snapshot.commandCount == CinematicPlanCompassCommandPlan.commandLimit
+                && snapshot.commandCount <= CinematicPlanCompassCommandPlan.commandLimit
+                && snapshot.enabledCommandCount + snapshot.disabledCommandCount == snapshot.commandCount
+        }.count
+        let sectionCoverageCount = snapshots.filter { snapshot in
+            let sectionIdentifiers = Set(snapshot.sections.map(\.sectionIdentifier))
+            let sectionCommandCount = snapshot.sections.reduce(0) { $0 + $1.commandCount }
+            let sectionEnabledCount = snapshot.sections.reduce(0) { $0 + $1.enabledCommandCount }
+            let sectionDisabledCount = snapshot.sections.reduce(0) { $0 + $1.disabledCommandCount }
+            return sectionIdentifiers == expectedSections
+                && snapshot.sectionCount == expectedSections.count
+                && sectionCommandCount == snapshot.commandCount
+                && sectionEnabledCount == snapshot.enabledCommandCount
+                && sectionDisabledCount == snapshot.disabledCommandCount
+        }.count
+        let shortcutCoverageCount = snapshots.filter { snapshot in
+            Set(snapshot.shortcutIdentifiers) == expectedShortcuts
+                && snapshot.shortcutIdentifiers.count == snapshot.commandCount
+                && snapshot.shortcutIdentifiers.count == Set(snapshot.shortcutIdentifiers).count
+        }.count
+        let copyExportCount = snapshots.filter { snapshot in
+            snapshot.sourcePlanCopyIdentifier.hasPrefix("plan-compass.copy")
+                && snapshot.sourcePlanExportIdentifier.hasPrefix("plan-compass.export")
+                && snapshot.selectedSectionCopyIdentifier.contains("plan-compass.copy")
+                && snapshot.selectedSectionExportIdentifier.contains("plan-compass.export")
+                && snapshot.copyCommandIdentifiers.count == 2
+        }.count
+        let appCollisionClearCount = snapshots.filter { snapshot in
+            snapshot.appLevelShortcutCollisionStateIdentifier == "clear"
+                && snapshot.appLevelShortcutCollisionIdentifiers.isEmpty
+                && Set(snapshot.appLevelShortcutIdentifiers) == expectedAppLevelShortcuts
+        }.count
+        let recapCollisionClearCount = snapshots.filter { snapshot in
+            snapshot.recapCommandShortcutCollisionStateIdentifier == "clear"
+                && snapshot.recapCommandShortcutCollisionIdentifiers.isEmpty
+                && Set(snapshot.recapCommandShortcutIdentifiers) == expectedRecapShortcuts
+        }.count
+        let correlatedCount = snapshots.filter { snapshot in
+            !snapshot.commandPlanIdentifier.isEmpty
+                && !snapshot.sourcePlanIdentifier.isEmpty
+                && snapshot.commandPlanIdentifier != snapshot.sourcePlanIdentifier
+                && snapshot.selectedSectionRowIdentifier.hasPrefix("plan-compass-")
+        }.count
+
+        let isPassing = routes.isSuperset(of: ["immediate", "mid-term", "long-term"])
+            && states.isSuperset(of: ["active", "empty"])
+            && boundedCount == reports.count
+            && countIntegrityCount == snapshots.count
+            && sectionCoverageCount == snapshots.count
+            && shortcutCoverageCount == snapshots.count
+            && copyExportCount == snapshots.count
+            && appCollisionClearCount == snapshots.count
+            && recapCollisionClearCount == snapshots.count
+            && correlatedCount == snapshots.count
+
+        return check(
+            id: "plan-compass-command-availability",
+            label: "Plan command availability",
+            isPassing: isPassing,
+            warningIdentifier: "visual-smoke.plan-compass-commands",
+            detail: [
+                "routes \(slashJoined(routes))",
+                "states \(slashJoined(states))",
+                "shortcuts \(shortcutCoverageCount)/\(snapshots.count)",
+                "copy-export \(copyExportCount)/\(snapshots.count)",
+                "app-collisions \(appCollisionClearCount == snapshots.count ? "clear" : "\(snapshots.count - appCollisionClearCount)")",
+                "recap-collisions \(recapCollisionClearCount == snapshots.count ? "clear" : "\(snapshots.count - recapCollisionClearCount)")",
+                "bounded \(boundedCount)/\(reports.count)",
+                "correlated \(correlatedCount)/\(snapshots.count)"
+            ].joined(separator: " "),
+            warningTarget: Check.WarningTarget(
+                id: "visual-smoke-check-plan-compass-command-availability",
+                targetGroupID: "visual-smoke",
+                targetAnchorID: "visual-smoke-check-plan-compass-command-availability",
+                relatedGroupID: "repository-context",
+                relatedRowID: "plan-compass-commands",
+                label: "Plan command availability",
+                detail: "Plan Compass command availability warning"
             )
         )
     }
@@ -2314,6 +2461,7 @@ struct CinematicVisualSmokeReport: Equatable {
             && runRecapShareArtifactPinsCopyIsBounded(report)
             && runRecapShareArtifactTourCopyIsBounded(report)
             && runRecapShareArtifactPreviewCopyIsBounded(report)
+            && planCompassCommandsCopyIsBounded(report)
             && runRecapShareArtifactCommandsCopyIsBounded(report)
             && runRecapEndCardCopyIsBounded(report)
     }
@@ -2776,6 +2924,109 @@ struct CinematicVisualSmokeReport: Equatable {
             )
             && runRecapShareArtifactSubsetExportCopyIsBounded(snapshot.selectedExport)
             && runRecapShareArtifactSubsetExportCopyIsBounded(snapshot.filteredExport)
+    }
+
+    private static func planCompassCommandsCopyIsBounded(_ report: CinematicDiagnosticsReport) -> Bool {
+        let snapshot = report.planCompassCommands
+        return string(
+            snapshot.identifier,
+            maxCharacters: CinematicPlanCompassCommandPlan.identifierMaxCharacters
+        )
+            && string(
+                snapshot.commandPlanIdentifier,
+                maxCharacters: CinematicPlanCompassCommandPlan.identifierMaxCharacters
+            )
+            && string(
+                snapshot.sourcePlanIdentifier,
+                maxCharacters: CinematicPlanCompassPlan.identifierMaxCharacters
+            )
+            && string(
+                snapshot.sourcePlanCopyIdentifier,
+                maxCharacters: CinematicPlanCompassPlan.identifierMaxCharacters
+            )
+            && string(
+                snapshot.sourcePlanExportIdentifier,
+                maxCharacters: CinematicPlanCompassPlan.identifierMaxCharacters
+            )
+            && string(
+                snapshot.selectedRouteIdentifier,
+                maxCharacters: CinematicPlanCompassCommandPlan.identifierMaxCharacters
+            )
+            && string(
+                snapshot.selectedSectionID,
+                maxCharacters: CinematicPlanCompassCommandPlan.identifierMaxCharacters
+            )
+            && string(
+                snapshot.selectedSectionRowIdentifier,
+                maxCharacters: CinematicPlanCompassCommandPlan.identifierMaxCharacters
+            )
+            && string(
+                snapshot.selectedSectionContentIdentifier,
+                maxCharacters: CinematicPlanCompassPlan.identifierMaxCharacters
+            )
+            && string(
+                snapshot.selectedSectionCopyIdentifier,
+                maxCharacters: CinematicPlanCompassPlan.identifierMaxCharacters
+            )
+            && string(
+                snapshot.selectedSectionExportIdentifier,
+                maxCharacters: CinematicPlanCompassPlan.identifierMaxCharacters
+            )
+            && string(
+                snapshot.selectedSectionStateIdentifier,
+                maxCharacters: CinematicPlanCompassCommandPlan.identifierMaxCharacters
+            )
+            && snapshot.commandCount <= CinematicPlanCompassCommandPlan.commandLimit
+            && snapshot.enabledCommandCount <= snapshot.commandCount
+            && snapshot.disabledCommandCount <= snapshot.commandCount
+            && snapshot.enabledCommandCount + snapshot.disabledCommandCount == snapshot.commandCount
+            && snapshot.sectionCount == snapshot.sections.count
+            && snapshot.sectionCount <= CinematicPlanCompassCommandPlan.Section.allCases.count
+            && snapshot.sections.allSatisfy { section in
+                string(
+                    section.sectionIdentifier,
+                    maxCharacters: CinematicPlanCompassCommandPlan.identifierMaxCharacters
+                )
+                    && section.enabledCommandCount <= section.commandCount
+                    && section.disabledCommandCount <= section.commandCount
+                    && section.enabledCommandCount + section.disabledCommandCount == section.commandCount
+            }
+            && snapshot.shortcutIdentifiers.count <= CinematicPlanCompassCommandPlan.commandLimit
+            && snapshot.shortcutIdentifiers.allSatisfy {
+                string($0, maxCharacters: CinematicPlanCompassCommandPlan.identifierMaxCharacters)
+            }
+            && snapshot.disabledActionKindIdentifiers.count <= CinematicPlanCompassCommandPlan.commandLimit
+            && snapshot.disabledActionKindIdentifiers.allSatisfy {
+                string($0, maxCharacters: CinematicPlanCompassCommandPlan.identifierMaxCharacters)
+            }
+            && snapshot.copyCommandIdentifiers.count <= 2
+            && snapshot.copyCommandIdentifiers.allSatisfy {
+                string($0, maxCharacters: CinematicPlanCompassCommandPlan.identifierMaxCharacters)
+            }
+            && snapshot.appLevelShortcutIdentifiers.count == 3
+            && snapshot.appLevelShortcutIdentifiers.allSatisfy {
+                string($0, maxCharacters: CinematicPlanCompassCommandPlan.identifierMaxCharacters)
+            }
+            && snapshot.appLevelShortcutCollisionIdentifiers.count <= snapshot.appLevelShortcutIdentifiers.count
+            && snapshot.appLevelShortcutCollisionIdentifiers.allSatisfy {
+                string($0, maxCharacters: CinematicPlanCompassCommandPlan.identifierMaxCharacters)
+            }
+            && string(
+                snapshot.appLevelShortcutCollisionStateIdentifier,
+                maxCharacters: CinematicPlanCompassCommandPlan.identifierMaxCharacters
+            )
+            && snapshot.recapCommandShortcutIdentifiers.count <= CinematicRunRecapShareArtifactCommandPlan.commandLimit
+            && snapshot.recapCommandShortcutIdentifiers.allSatisfy {
+                string($0, maxCharacters: CinematicPlanCompassCommandPlan.identifierMaxCharacters)
+            }
+            && snapshot.recapCommandShortcutCollisionIdentifiers.count <= snapshot.recapCommandShortcutIdentifiers.count
+            && snapshot.recapCommandShortcutCollisionIdentifiers.allSatisfy {
+                string($0, maxCharacters: CinematicPlanCompassCommandPlan.identifierMaxCharacters)
+            }
+            && string(
+                snapshot.recapCommandShortcutCollisionStateIdentifier,
+                maxCharacters: CinematicPlanCompassCommandPlan.identifierMaxCharacters
+            )
     }
 
     private static func runRecapShareArtifactCommandsCopyIsBounded(_ report: CinematicDiagnosticsReport) -> Bool {
@@ -3350,7 +3601,7 @@ struct CinematicVisualSmokeReport: Equatable {
 }
 
 struct CinematicDiagnosticsSummary: Equatable {
-    static let maxRows = 50
+    static let maxRows = 51
     static let labelMaxCharacters = 32
     static let detailMaxCharacters = 512
     static let headerDetailMaxCharacters = 128
@@ -3526,6 +3777,7 @@ struct CinematicDiagnosticsSummary: Equatable {
                 "plan-compass-mid-term",
                 "plan-compass-long-term",
                 "plan-compass-focus",
+                "plan-compass-commands",
                 "commit-constellation",
                 "idle-story-cycle",
                 "timeline-focus",
@@ -3668,6 +3920,11 @@ struct CinematicDiagnosticsSummary: Equatable {
                 id: "plan-compass-focus",
                 label: "Plan compass focus",
                 detail: planCompassSceneFocusDetail(report.planCompassSceneFocus)
+            ),
+            row(
+                id: "plan-compass-commands",
+                label: "Plan compass commands",
+                detail: planCompassCommandsDetail(report.planCompassCommands)
             ),
             row(
                 id: "timeline-focus",
@@ -4855,6 +5112,27 @@ struct CinematicDiagnosticsSummary: Equatable {
         ].compactMap { $0 }.joined(separator: " | ")
     }
 
+    private static func planCompassCommandsDetail(
+        _ snapshot: CinematicDiagnosticsReport.PlanCompassCommandSnapshot
+    ) -> String {
+        [
+            "cmd \(snapshot.commandCount) e\(snapshot.enabledCommandCount) d\(snapshot.disabledCommandCount)",
+            "selected \(snapshot.selectedRouteIdentifier)",
+            "state \(snapshot.selectedSectionStateIdentifier)",
+            snapshot.selectedSectionIsEmpty ? "empty" : "active",
+            "plan-copy \(bounded(snapshot.sourcePlanCopyIdentifier, limit: 72))",
+            "plan-export \(bounded(snapshot.sourcePlanExportIdentifier, limit: 72))",
+            "section-copy \(bounded(snapshot.selectedSectionCopyIdentifier, limit: 72))",
+            "section-export \(bounded(snapshot.selectedSectionExportIdentifier, limit: 72))",
+            "shortcuts \(identifierListSummary(snapshot.shortcutIdentifiers, visibleLimit: 4))",
+            "copy-cmds \(snapshot.copyCommandIdentifiers.count)",
+            "app-collisions \(snapshot.appLevelShortcutCollisionStateIdentifier) \(identifierListSummary(snapshot.appLevelShortcutCollisionIdentifiers.isEmpty ? snapshot.appLevelShortcutIdentifiers : snapshot.appLevelShortcutCollisionIdentifiers, visibleLimit: 3))",
+            "recap-collisions \(snapshot.recapCommandShortcutCollisionStateIdentifier) \(identifierListSummary(snapshot.recapCommandShortcutCollisionIdentifiers.isEmpty ? snapshot.recapCommandShortcutIdentifiers : snapshot.recapCommandShortcutCollisionIdentifiers, visibleLimit: 3))",
+            "sections \(planCompassCommandSectionSummary(snapshot.sections))",
+            "id \(bounded(snapshot.identifier, limit: 30))"
+        ].compactMap { $0 }.joined(separator: " | ")
+    }
+
     private static func planCompassDetail(
         _ section: CinematicPlanCompassPlan.SectionDescriptor
     ) -> String {
@@ -5266,6 +5544,16 @@ struct CinematicDiagnosticsSummary: Equatable {
             return "\(prefix):\(section.commandCount)/\(section.enabledCommandCount)/\(section.disabledCommandCount)"
         }
         return identifierListSummary(summaries, visibleLimit: 5)
+    }
+
+    private static func planCompassCommandSectionSummary(
+        _ sections: [CinematicDiagnosticsReport.PlanCompassCommandSectionSnapshot]
+    ) -> String {
+        let summaries = sections.map { section in
+            let prefix = section.sectionIdentifier.prefix(3)
+            return "\(prefix):\(section.commandCount)/\(section.enabledCommandCount)/\(section.disabledCommandCount)"
+        }
+        return identifierListSummary(summaries, visibleLimit: 3)
     }
 
     private static func identifierListSummary(_ identifiers: [String], visibleLimit: Int) -> String {
@@ -6194,6 +6482,7 @@ enum CinematicDiagnostics {
     static func currentReport(
         for project: CompassProject,
         idleStoryCyclePlan: CinematicIdleStoryCyclePlan? = nil,
+        planCompassCommandSelectedKind: PlanWorkflowOverview.Kind = .immediate,
         planCompassSceneFocusPlan: CinematicPlanCompassSceneFocusPlan = .none,
         timelineFocusPlan: CinematicTimelineSceneFocusPlan = .none,
         runRecapSceneFocusPlan: CinematicRunRecapSceneFocusPlan = .none,
@@ -6251,6 +6540,7 @@ enum CinematicDiagnostics {
                 || timelineFocusPlan.descriptor != nil
                 || runRecapSceneFocusPlan.descriptor != nil
                 || runRecapEndCardPlan.descriptor != nil,
+            planCompassCommandSelectedKind: planCompassCommandSelectedKind,
             planCompassSceneFocusPlan: planCompassSceneFocusPlan,
             timelineFocusPlan: timelineFocusPlan,
             runRecapPlan: runRecapPlan,
@@ -6298,6 +6588,7 @@ enum CinematicDiagnostics {
         idleStoryCycleSession: CinematicIdleStoryCyclePlan.SessionInput = CinematicIdleStoryCyclePlan.SessionInput(),
         isLiveFollowActive: Bool = false,
         hasExplicitUserFocus: Bool = false,
+        planCompassCommandSelectedKind: PlanWorkflowOverview.Kind = .immediate,
         planCompassSceneFocusPlan: CinematicPlanCompassSceneFocusPlan = .none,
         timelineFocusPlan: CinematicTimelineSceneFocusPlan = .none,
         runRecapPlan: CinematicRunRecapPlan = .empty(reason: "no-finished-session"),
@@ -6461,7 +6752,16 @@ enum CinematicDiagnostics {
         let setDressingSnapshot = setDressingSnapshot(for: setDressingPlan)
         let commitConstellationSnapshot = commitConstellationSnapshot(for: commitConstellationPlan)
         let idleStoryCycleSnapshot = idleStoryCycleSnapshot(for: resolvedIdleStoryCyclePlan)
+        let resolvedPlanCompassPlan = planCompassPlan ?? fallbackPlanCompassPlan(
+            immediateTitle: immediateTitle,
+            completedCount: completedCount
+        )
+        let planCompassCommandPlan = CinematicPlanCompassCommandPlanner.plan(
+            planCompassPlan: resolvedPlanCompassPlan,
+            selectedKind: planCompassCommandSelectedKind
+        )
         let planCompassSceneFocusSnapshot = planCompassSceneFocusSnapshot(for: planCompassSceneFocusPlan)
+        let planCompassCommandSnapshot = planCompassCommandSnapshot(commandPlan: planCompassCommandPlan)
         let timelineFocusSnapshot = timelineFocusSnapshot(for: timelineFocusPlan)
         let runRecapSnapshot = runRecapSnapshot(for: runRecapPlan)
         let runRecapSceneFocusSnapshot = runRecapSceneFocusSnapshot(for: runRecapSceneFocusPlan)
@@ -6584,6 +6884,11 @@ enum CinematicDiagnostics {
                 "idle-story-cycle:\(idleStoryCycleSnapshot.identifier)",
                 "plan-compass-focus:\(planCompassSceneFocusSnapshot.identifier)",
                 "plan-compass-focus-diagnostics:\(planCompassSceneFocusSnapshot.diagnosticsIdentifier)",
+                "plan-compass-commands:\(planCompassCommandSnapshot.identifier)",
+                "plan-compass-command-plan:\(planCompassCommandSnapshot.commandPlanIdentifier)",
+                "plan-compass-command-selected:\(planCompassCommandSnapshot.selectedRouteIdentifier)",
+                "plan-compass-command-app-collisions:\(planCompassCommandSnapshot.appLevelShortcutCollisionStateIdentifier)",
+                "plan-compass-command-recap-collisions:\(planCompassCommandSnapshot.recapCommandShortcutCollisionStateIdentifier)",
                 "timeline-focus:\(timelineFocusSnapshot.identifier)",
                 "run-recap:\(runRecapSnapshot.identifier)",
                 "run-recap-share:\(runRecapShareSnapshot.identifier)",
@@ -6652,6 +6957,7 @@ enum CinematicDiagnostics {
             commitConstellation: commitConstellationSnapshot,
             idleStoryCycle: idleStoryCycleSnapshot,
             planCompassSceneFocus: planCompassSceneFocusSnapshot,
+            planCompassCommands: planCompassCommandSnapshot,
             timelineFocus: timelineFocusSnapshot,
             runRecap: runRecapSnapshot,
             runRecapShare: runRecapShareSnapshot,
@@ -6949,6 +7255,71 @@ enum CinematicDiagnostics {
                 planCompassSceneFocusPlan: .none
             )
         ]
+    }
+
+    static func representativePlanCompassCommandSmokeReports(
+        influenceSettings: CinematicInfluenceSettings = CinematicInfluenceSettings()
+    ) -> [CinematicDiagnosticsReport] {
+        let cases: [(PlanState, PlanWorkflowOverview.Kind)] = [
+            (
+                PlanState(
+                    completed: ["Mapped plan compass commands"],
+                    immediate: PlanNext(
+                        plan: "Focus the immediate Plan Compass route from the keyboard",
+                        verify: "swift test --filter CinematicPlanCompassCommandTests",
+                        verifyTimeoutMs: 120_000,
+                        estimatedDifficulty: .medium
+                    ),
+                    midTerm: "Queue command diagnostics polish",
+                    longTerm: "Make project direction keyboard reachable"
+                ),
+                .immediate
+            ),
+            (
+                PlanState(
+                    completed: [],
+                    immediate: nil,
+                    midTerm: "Stage the mid-term Plan Compass route",
+                    longTerm: "Sustain the long-term command arc"
+                ),
+                .midTerm
+            ),
+            (
+                PlanState(
+                    completed: [],
+                    immediate: nil,
+                    midTerm: "",
+                    longTerm: "Hold a long-term keyboard destination"
+                ),
+                .longTerm
+            ),
+            (.empty, .longTerm)
+        ]
+
+        return cases.enumerated().map { index, entry in
+            let (state, selectedKind) = entry
+            let planCompass = CinematicPlanCompassPlan(state: state)
+            let focusPlan = CinematicPlanCompassSceneFocusPlanner.plan(
+                isPlanOverlaySelected: true,
+                planCompassPlan: planCompass,
+                selectedKind: selectedKind
+            )
+            return report(
+                repoName: "Plan Compass Commands \(index)",
+                phase: LoopPhase.planning.rawValue,
+                immediateTitle: state.immediate?.plan ?? "No immediate plan",
+                completedCount: state.completed.count,
+                planCompassPlan: planCompass,
+                latestEvent: nil,
+                languageProfile: representativeLanguageProfile(for: .swift),
+                activityProfile: activityProfile(recentCommitCount: index == 0 ? 1 : 0),
+                influenceSettings: influenceSettings,
+                isRunning: false,
+                hasExplicitUserFocus: true,
+                planCompassCommandSelectedKind: selectedKind,
+                planCompassSceneFocusPlan: focusPlan
+            )
+        }
     }
 
     private static func representativeDiagnosticsWarningBundleHistory() -> CinematicDiagnosticsWarningBundleHistory {
@@ -8891,6 +9262,98 @@ enum CinematicDiagnostics {
             triadIdentifiers: descriptor.triadIdentifiers,
             diagnosticsIdentifier: descriptor.diagnosticsIdentifier,
             diagnosticsRowIdentifier: descriptor.diagnosticsRowIdentifier
+        )
+    }
+
+    private static func planCompassCommandSnapshot(
+        commandPlan: CinematicPlanCompassCommandPlan
+    ) -> CinematicDiagnosticsReport.PlanCompassCommandSnapshot {
+        typealias SectionSnapshot = CinematicDiagnosticsReport.PlanCompassCommandSectionSnapshot
+        let sections = CinematicPlanCompassCommandPlan.Section.allCases.map { section -> SectionSnapshot in
+            let sectionCommands = commandPlan.commands(in: section)
+            let enabledCommandCount = sectionCommands.filter(\.isEnabled).count
+            return SectionSnapshot(
+                sectionIdentifier: section.rawValue,
+                commandCount: sectionCommands.count,
+                enabledCommandCount: enabledCommandCount,
+                disabledCommandCount: sectionCommands.count - enabledCommandCount
+            )
+        }
+        let shortcutIdentifiers = commandPlan.commands.map(\.shortcut.identifier)
+        let disabledActionKindIdentifiers = commandPlan.commands
+            .filter { !$0.isEnabled }
+            .map(\.actionKind.rawValue)
+        let copyCommandIdentifiers = commandPlan.commands
+            .filter { $0.section == .copy }
+            .map(\.identifier)
+        let identifier = bounded(
+            [
+                "plan-compass-command-snapshot",
+                "plan:\(fingerprint(commandPlan.sourcePlanIdentifier))",
+                "commands:\(commandPlan.commandCount)",
+                "enabled:\(commandPlan.enabledCommandCount)",
+                "disabled:\(commandPlan.disabledCommandCount)",
+                "selected:\(commandPlan.selectedRouteIdentifier)",
+                "section-state:\(commandPlan.selectedSectionStateIdentifier)",
+                "shortcuts:\(fingerprint(shortcutIdentifiers.joined(separator: "|")))",
+                "copy:\(fingerprint(copyCommandIdentifiers.joined(separator: "|")))",
+                "app-collisions:\(commandPlan.appLevelShortcutCollisionStateIdentifier)",
+                "app-collision-ids:\(fingerprint(commandPlan.appLevelShortcutCollisionIdentifiers.joined(separator: "|")))",
+                "recap-collisions:\(commandPlan.recapCommandShortcutCollisionStateIdentifier)",
+                "recap-collision-ids:\(fingerprint(commandPlan.recapCommandShortcutCollisionIdentifiers.joined(separator: "|")))"
+            ].joined(separator: "|"),
+            limit: CinematicPlanCompassCommandPlan.identifierMaxCharacters
+        )
+
+        return CinematicDiagnosticsReport.PlanCompassCommandSnapshot(
+            identifier: identifier,
+            commandPlanIdentifier: commandPlan.identifier,
+            sourcePlanIdentifier: commandPlan.sourcePlanIdentifier,
+            sourcePlanCopyIdentifier: commandPlan.sourcePlanCopyIdentifier,
+            sourcePlanExportIdentifier: commandPlan.sourcePlanExportIdentifier,
+            selectedRouteIdentifier: commandPlan.selectedRouteIdentifier,
+            selectedSectionID: commandPlan.selectedSectionID,
+            selectedSectionRowIdentifier: commandPlan.selectedSectionRowIdentifier,
+            selectedSectionContentIdentifier: commandPlan.selectedSectionContentIdentifier,
+            selectedSectionCopyIdentifier: commandPlan.selectedSectionCopyIdentifier,
+            selectedSectionExportIdentifier: commandPlan.selectedSectionExportIdentifier,
+            selectedSectionStateIdentifier: commandPlan.selectedSectionStateIdentifier,
+            selectedSectionIsEmpty: commandPlan.selectedSectionIsEmpty,
+            commandCount: commandPlan.commandCount,
+            enabledCommandCount: commandPlan.enabledCommandCount,
+            disabledCommandCount: commandPlan.disabledCommandCount,
+            sectionCount: sections.count,
+            sections: sections,
+            shortcutIdentifiers: shortcutIdentifiers,
+            disabledActionKindIdentifiers: disabledActionKindIdentifiers,
+            copyCommandIdentifiers: copyCommandIdentifiers,
+            appLevelShortcutCollisionStateIdentifier: commandPlan.appLevelShortcutCollisionStateIdentifier,
+            appLevelShortcutIdentifiers: commandPlan.appLevelShortcutIdentifiers,
+            appLevelShortcutCollisionIdentifiers: commandPlan.appLevelShortcutCollisionIdentifiers,
+            recapCommandShortcutCollisionStateIdentifier: commandPlan.recapCommandShortcutCollisionStateIdentifier,
+            recapCommandShortcutIdentifiers: commandPlan.recapCommandShortcutIdentifiers,
+            recapCommandShortcutCollisionIdentifiers: commandPlan.recapCommandShortcutCollisionIdentifiers
+        )
+    }
+
+    private static func fallbackPlanCompassPlan(
+        immediateTitle: String,
+        completedCount: Int
+    ) -> CinematicPlanCompassPlan {
+        let completed = completedCount > 0
+            ? (1...completedCount).map { "Diagnostics completed \($0)" }
+            : []
+        let trimmedTitle = immediateTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+        let immediate = trimmedTitle.isEmpty
+            ? nil
+            : PlanNext(plan: trimmedTitle, verify: "diagnostic-only")
+        return CinematicPlanCompassPlan(
+            state: PlanState(
+                completed: completed,
+                immediate: immediate,
+                midTerm: "",
+                longTerm: ""
+            )
         )
     }
 

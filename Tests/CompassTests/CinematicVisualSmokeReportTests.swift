@@ -14,6 +14,7 @@ final class CinematicVisualSmokeReportTests: XCTestCase {
             first.checks.map(\.id),
             [
                 "run-recap-artifact-command-availability",
+                "plan-compass-command-availability",
                 "narrative-cue-readability",
                 "overlay-fallback-usage",
                 "chrome-strength",
@@ -43,6 +44,9 @@ final class CinematicVisualSmokeReportTests: XCTestCase {
         let smoke = CinematicVisualSmokeReport.representative()
         let recapCommands = try XCTUnwrap(
             smoke.checks.first { $0.id == "run-recap-artifact-command-availability" }
+        )
+        let planCommands = try XCTUnwrap(
+            smoke.checks.first { $0.id == "plan-compass-command-availability" }
         )
         let overlay = try XCTUnwrap(smoke.checks.first { $0.id == "overlay-fallback-usage" })
         let chrome = try XCTUnwrap(smoke.checks.first { $0.id == "chrome-strength" })
@@ -76,6 +80,16 @@ final class CinematicVisualSmokeReportTests: XCTestCase {
         XCTAssertTrue(recapCommands.detail.contains("cleanup-omitted"))
         XCTAssertTrue(recapCommands.detail.contains("collisions clear"))
         XCTAssertTrue(recapCommands.detail.contains("bounded"))
+        XCTAssertEqual(planCommands.status, .pass)
+        XCTAssertTrue(planCommands.detail.contains("immediate"))
+        XCTAssertTrue(planCommands.detail.contains("mid-term"))
+        XCTAssertTrue(planCommands.detail.contains("long-term"))
+        XCTAssertTrue(planCommands.detail.contains("active"))
+        XCTAssertTrue(planCommands.detail.contains("empty"))
+        XCTAssertTrue(planCommands.detail.contains("copy-export"))
+        XCTAssertTrue(planCommands.detail.contains("app-collisions clear"))
+        XCTAssertTrue(planCommands.detail.contains("recap-collisions clear"))
+        XCTAssertTrue(planCommands.detail.contains("bounded"))
         XCTAssertEqual(overlay.status, .pass)
         XCTAssertTrue(overlay.detail.contains("compact"))
         XCTAssertTrue(overlay.detail.contains("full"))
@@ -481,8 +495,8 @@ final class CinematicVisualSmokeReportTests: XCTestCase {
         XCTAssertEqual(summary.visualSmoke.warningCountLabel, "No warnings")
         XCTAssertEqual(summary.visualSmoke.warningBadgeLabel, "0")
         XCTAssertEqual(summary.visualSmoke.warningIdentifiers, [])
-        XCTAssertEqual(summary.visualSmoke.checkCountLabel, "21 checks")
-        XCTAssertEqual(summary.visualSmoke.presentation.headerDetail, "21 checks | No warnings")
+        XCTAssertEqual(summary.visualSmoke.checkCountLabel, "22 checks")
+        XCTAssertEqual(summary.visualSmoke.presentation.headerDetail, "22 checks | No warnings")
         XCTAssertEqual(summary.visualSmoke.presentation.defaultExpanded, false)
         XCTAssertEqual(summary.visualSmoke.presentation.attentionState, .normal)
         XCTAssertEqual(summary.visualSmoke.presentation.warningIdentifiers, [])
@@ -500,8 +514,9 @@ final class CinematicVisualSmokeReportTests: XCTestCase {
             summary.visualSmoke.presentation.headerDetail.count,
             CinematicDiagnosticsSummary.headerDetailMaxCharacters
         )
-        XCTAssertTrue(summary.exportText.contains("Visual smoke (pass, 21 checks)"))
+        XCTAssertTrue(summary.exportText.contains("Visual smoke (pass, 22 checks)"))
         XCTAssertTrue(summary.exportText.contains("Recap command availability: pass"))
+        XCTAssertTrue(summary.exportText.contains("Plan command availability: pass"))
         let commandCheck = summary.visualSmoke.checks.first {
             $0.id == "run-recap-artifact-command-availability"
         }
@@ -549,13 +564,14 @@ final class CinematicVisualSmokeReportTests: XCTestCase {
         XCTAssertFalse(summary.sections.contains { $0.id == "visual-smoke" })
         XCTAssertEqual(summary.rows.count, CinematicDiagnosticsSummary.maxRows)
         XCTAssertEqual(
-            summary.rows.map(\.id).prefix(11),
+            summary.rows.map(\.id).prefix(12),
             [
                 "repository",
                 "immediate",
                 "commit-constellation",
                 "idle-story-cycle",
                 "plan-compass-focus",
+                "plan-compass-commands",
                 "timeline-focus",
                 "run-recap",
                 "run-recap-share",
@@ -597,7 +613,7 @@ final class CinematicVisualSmokeReportTests: XCTestCase {
         XCTAssertEqual(summary.visualSmoke.presentation.attentionState, .warning)
         XCTAssertEqual(summary.visualSmoke.presentation.warningIdentifiers, smoke.warningIdentifiers)
         XCTAssertEqual(summary.visualSmoke.presentation.needsAttention, true)
-        XCTAssertTrue(summary.visualSmoke.presentation.headerDetail.contains("21 checks"))
+        XCTAssertTrue(summary.visualSmoke.presentation.headerDetail.contains("22 checks"))
         for warningIdentifier in smoke.warningIdentifiers.prefix(2) {
             XCTAssertTrue(summary.visualSmoke.presentation.headerDetail.contains(warningIdentifier))
         }
@@ -640,6 +656,7 @@ final class CinematicVisualSmokeReportTests: XCTestCase {
             summary.attentionSummary.targets.map(\.id),
             [
                 "visual-smoke-check-run-recap-artifact-command-availability",
+                "visual-smoke-check-plan-compass-command-availability",
                 "visual-smoke",
                 "plaque-treatment-legend"
             ]
@@ -727,7 +744,7 @@ final class CinematicVisualSmokeReportTests: XCTestCase {
         )
         XCTAssertEqual(
             summary.attentionSummary.targets.map { $0.copyText.contains("Cinematic diagnostics warning target") },
-            [true, true, true]
+            [true, true, true, true]
         )
         var warningHistory = CinematicDiagnosticsWarningBundleHistory()
         warningHistory.record(summary.attentionSummary)
@@ -757,10 +774,15 @@ final class CinematicVisualSmokeReportTests: XCTestCase {
                 + summary.plaqueTreatmentLegend.rows.count
                 + 5
         )
-        XCTAssertTrue(summary.exportText.contains("Warning summary (3 targets)"))
+        XCTAssertTrue(summary.exportText.contains("Warning summary (4 targets)"))
         XCTAssertTrue(
             summary.exportText.contains(
                 "Recap command availability -> visual-smoke-check-run-recap-artifact-command-availability"
+            )
+        )
+        XCTAssertTrue(
+            summary.exportText.contains(
+                "Plan command availability -> visual-smoke-check-plan-compass-command-availability"
             )
         )
         XCTAssertTrue(summary.exportText.contains("related run-recap-share-artifact-commands"))
@@ -773,7 +795,7 @@ final class CinematicVisualSmokeReportTests: XCTestCase {
         XCTAssertTrue(summary.exportText.contains("visual-smoke.asset-availability"))
         XCTAssertTrue(summary.exportText.contains("visual-smoke.texture-role-coverage"))
         XCTAssertTrue(summary.exportText.contains("visual-smoke.native-feedback-treatment-coverage"))
-        XCTAssertTrue(summary.exportText.contains("Visual smoke (warning, 21 checks)"))
+        XCTAssertTrue(summary.exportText.contains("Visual smoke (warning, 22 checks)"))
         XCTAssertTrue(summary.exportText.contains("Recap command availability: warning"))
         XCTAssertTrue(summary.exportText.contains("Asset availability: warning"))
         XCTAssertTrue(summary.exportText.contains("warning visual-smoke.asset-availability"))
@@ -861,6 +883,7 @@ final class CinematicVisualSmokeReportTests: XCTestCase {
             summary.attentionSummary.targets.map(\.id),
             [
                 "visual-smoke-check-run-recap-artifact-command-availability",
+                "visual-smoke-check-plan-compass-command-availability",
                 "visual-smoke",
                 "plaque-treatment-legend"
             ]
@@ -885,10 +908,15 @@ final class CinematicVisualSmokeReportTests: XCTestCase {
             XCTAssertLessThanOrEqual(row.label.count, CinematicDiagnosticsSummary.labelMaxCharacters)
             XCTAssertLessThanOrEqual(row.detail.count, CinematicDiagnosticsSummary.detailMaxCharacters)
         }
-        XCTAssertTrue(summary.exportText.contains("Warning summary (3 targets)"))
+        XCTAssertTrue(summary.exportText.contains("Warning summary (4 targets)"))
         XCTAssertTrue(
             summary.exportText.contains(
                 "Recap command availability -> visual-smoke-check-run-recap-artifact-command-availability"
+            )
+        )
+        XCTAssertTrue(
+            summary.exportText.contains(
+                "Plan command availability -> visual-smoke-check-plan-compass-command-availability"
             )
         )
         XCTAssertTrue(

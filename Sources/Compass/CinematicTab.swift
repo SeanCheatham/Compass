@@ -6,6 +6,7 @@ struct CinematicTab: View {
     @ObservedObject var project: CompassProject
     @State private var overlayMode = CinematicTabOverlayMode.live
     @State private var selectedTimelineBeatID: String?
+    @State private var selectedPlanCompassKind = PlanWorkflowOverview.Kind.immediate
 
     var body: some View {
         TimelineView(.periodic(from: .now, by: 1.0)) { timeline in
@@ -17,8 +18,16 @@ struct CinematicTab: View {
                 isPlanOverlaySelected: true,
                 planCompassPlan: planCompassPlan
             )
+            let planCompassCommandPlan = CinematicPlanCompassCommandPlanner.plan(
+                planCompassPlan: planCompassPlan,
+                selectedKind: selectedPlanCompassKind
+            )
             let planCompassSceneFocusPlan = overlayMode == .plan
-                ? planCompassSceneFocusCandidatePlan
+                ? CinematicPlanCompassSceneFocusPlanner.plan(
+                    isPlanOverlaySelected: true,
+                    planCompassPlan: planCompassPlan,
+                    selectedKind: selectedPlanCompassKind
+                )
                 : .none
             let nativeFeedbackCue = project.cinematicNativeFeedbackCue
             let displayedNativeFeedbackCue = displayPlan.showsNativeFeedbackBanner ? nativeFeedbackCue : nil
@@ -164,6 +173,8 @@ struct CinematicTab: View {
                     if overlayMode == .plan {
                         CinematicPlanCompassOverlay(
                             plan: planCompassPlan,
+                            selectedKind: selectedPlanCompassKind,
+                            selectKind: selectPlanCompassKind,
                             displayPlan: displayPlan
                         )
                     } else if overlayMode == .timeline {
@@ -214,6 +225,7 @@ struct CinematicTab: View {
                         CinematicInfluenceControls(
                             project: project,
                             idleStoryCyclePlan: idleStoryCyclePlan,
+                            selectedPlanCompassKind: selectedPlanCompassKind,
                             planCompassSceneFocusPlan: planCompassSceneFocusPlan,
                             timelineSceneFocusPlan: timelineSceneFocusPlan,
                             runRecapSceneFocusPlan: runRecapSceneFocusPlan,
@@ -230,6 +242,15 @@ struct CinematicTab: View {
                 RoundedRectangle(cornerRadius: 8)
                     .stroke(.white.opacity(0.08))
             }
+            .focusedValue(
+                \.cinematicPlanCompassCommandDispatch,
+                CinematicPlanCompassCommandDispatch(
+                    plan: planCompassCommandPlan,
+                    perform: { actionKind in
+                        performPlanCompassCommand(actionKind, plan: planCompassPlan)
+                    }
+                )
+            )
         }
         .frame(minHeight: 520)
         }
@@ -263,6 +284,44 @@ struct CinematicTab: View {
                 ? project.cinematicNativeFeedbackCueLifecycle.identifier
                 : nil
         )
+    }
+
+    private func selectPlanCompassKind(_ kind: PlanWorkflowOverview.Kind) {
+        selectedPlanCompassKind = kind
+    }
+
+    private func performPlanCompassCommand(
+        _ actionKind: CinematicPlanCompassCommandPlan.ActionKind,
+        plan: CinematicPlanCompassPlan
+    ) {
+        let commandPlan = CinematicPlanCompassCommandPlanner.plan(
+            planCompassPlan: plan,
+            selectedKind: selectedPlanCompassKind
+        )
+        guard commandPlan.command(for: actionKind)?.isEnabled == true else {
+            return
+        }
+
+        switch actionKind {
+        case .showPlanOverlay:
+            overlayMode = .plan
+        case .focusImmediateRoute:
+            selectedPlanCompassKind = .immediate
+            overlayMode = .plan
+        case .focusMidTermRoute:
+            selectedPlanCompassKind = .midTerm
+            overlayMode = .plan
+        case .focusLongTermRoute:
+            selectedPlanCompassKind = .longTerm
+            overlayMode = .plan
+        case .copyFullPlanCompass:
+            NSPasteboard.general.clearContents()
+            NSPasteboard.general.setString(plan.copyText, forType: .string)
+        case .copySelectedRoute:
+            let selectedSection = plan.section(for: selectedPlanCompassKind)
+            NSPasteboard.general.clearContents()
+            NSPasteboard.general.setString(selectedSection.copyText, forType: .string)
+        }
     }
 }
 
@@ -308,6 +367,8 @@ private struct CinematicTabOverlayModePicker: View {
 
 private struct CinematicPlanCompassOverlay: View {
     var plan: CinematicPlanCompassPlan
+    var selectedKind: PlanWorkflowOverview.Kind
+    var selectKind: (PlanWorkflowOverview.Kind) -> Void
     var displayPlan: CinematicOverlayDisplayPlan
 
     var body: some View {
@@ -330,6 +391,8 @@ private struct CinematicPlanCompassOverlay: View {
                 ForEach(plan.sections) { section in
                     CinematicPlanCompassSectionRow(
                         section: section,
+                        isSelected: section.kind == selectedKind,
+                        selectKind: selectKind,
                         displayPlan: displayPlan
                     )
                 }
@@ -359,6 +422,8 @@ private struct CinematicPlanCompassOverlay: View {
 
 private struct CinematicPlanCompassSectionRow: View {
     var section: CinematicPlanCompassPlan.SectionDescriptor
+    var isSelected: Bool
+    var selectKind: (PlanWorkflowOverview.Kind) -> Void
     var displayPlan: CinematicOverlayDisplayPlan
 
     var body: some View {
@@ -403,14 +468,21 @@ private struct CinematicPlanCompassSectionRow: View {
         .padding(.horizontal, 8)
         .padding(.vertical, 6)
         .background(
-            .white.opacity((section.isEmpty ? 0.025 : 0.045) * displayPlan.overlayOpacity),
+            .white.opacity(
+                (isSelected ? 0.095 : (section.isEmpty ? 0.025 : 0.045)) * displayPlan.overlayOpacity
+            ),
             in: RoundedRectangle(cornerRadius: 7)
         )
         .overlay {
             RoundedRectangle(cornerRadius: 7)
-                .stroke(.white.opacity(section.isEmpty ? 0.06 : 0.1))
+                .stroke(isSelected ? iconColor.opacity(0.58) : .white.opacity(section.isEmpty ? 0.06 : 0.1))
+        }
+        .contentShape(Rectangle())
+        .onTapGesture {
+            selectKind(section.kind)
         }
         .help(section.copyText)
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
         .accessibilityIdentifier("cinematic-\(section.rowIdentifier)-\(section.exportIdentifier)")
     }
 
@@ -2046,6 +2118,7 @@ private struct CinematicInfluenceControls: View {
     @EnvironmentObject private var model: AppModel
     @ObservedObject var project: CompassProject
     var idleStoryCyclePlan: CinematicIdleStoryCyclePlan = .none
+    var selectedPlanCompassKind: PlanWorkflowOverview.Kind = .immediate
     var planCompassSceneFocusPlan: CinematicPlanCompassSceneFocusPlan = .none
     var timelineSceneFocusPlan: CinematicTimelineSceneFocusPlan = .none
     var runRecapSceneFocusPlan: CinematicRunRecapSceneFocusPlan = .none
@@ -2061,6 +2134,7 @@ private struct CinematicInfluenceControls: View {
             report: CinematicDiagnostics.currentReport(
                 for: project,
                 idleStoryCyclePlan: idleStoryCyclePlan,
+                planCompassCommandSelectedKind: selectedPlanCompassKind,
                 planCompassSceneFocusPlan: planCompassSceneFocusPlan,
                 timelineFocusPlan: timelineSceneFocusPlan,
                 runRecapSceneFocusPlan: runRecapSceneFocusPlan,

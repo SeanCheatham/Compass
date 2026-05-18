@@ -1,0 +1,218 @@
+import Foundation
+@testable import Compass
+import XCTest
+
+final class CinematicPlanCompassCommandDiagnosticsTests: XCTestCase {
+    private var temporaryDirectories: [URL] = []
+
+    override func tearDownWithError() throws {
+        for url in temporaryDirectories {
+            try? FileManager.default.removeItem(at: url)
+        }
+        temporaryDirectories.removeAll()
+    }
+
+    func testSnapshotConstructionCorrelatesCommandPlanAndSelectedRoute() throws {
+        let plan = CinematicPlanCompassPlan(state: populatedState)
+        let commandPlan = CinematicPlanCompassCommandPlanner.plan(
+            planCompassPlan: plan,
+            selectedKind: .longTerm
+        )
+        let focusPlan = CinematicPlanCompassSceneFocusPlanner.plan(
+            isPlanOverlaySelected: true,
+            planCompassPlan: plan,
+            selectedKind: .longTerm
+        )
+        let report = makeReport(
+            plan: plan,
+            selectedKind: .longTerm,
+            focusPlan: focusPlan
+        )
+        let snapshot = report.planCompassCommands
+
+        XCTAssertEqual(snapshot.commandPlanIdentifier, commandPlan.identifier)
+        XCTAssertEqual(snapshot.sourcePlanIdentifier, plan.identifier)
+        XCTAssertEqual(snapshot.sourcePlanCopyIdentifier, plan.copyIdentifier)
+        XCTAssertEqual(snapshot.sourcePlanExportIdentifier, plan.exportIdentifier)
+        XCTAssertEqual(snapshot.selectedRouteIdentifier, "long-term")
+        XCTAssertEqual(snapshot.selectedSectionID, plan.longTerm.id)
+        XCTAssertEqual(snapshot.selectedSectionRowIdentifier, plan.longTerm.rowIdentifier)
+        XCTAssertEqual(snapshot.selectedSectionContentIdentifier, plan.longTerm.contentIdentifier)
+        XCTAssertEqual(snapshot.selectedSectionCopyIdentifier, plan.longTerm.copyIdentifier)
+        XCTAssertEqual(snapshot.selectedSectionExportIdentifier, plan.longTerm.exportIdentifier)
+        XCTAssertEqual(snapshot.selectedSectionStateIdentifier, "active")
+        XCTAssertFalse(snapshot.selectedSectionIsEmpty)
+        XCTAssertEqual(snapshot.commandCount, commandPlan.commandCount)
+        XCTAssertEqual(snapshot.enabledCommandCount, commandPlan.enabledCommandCount)
+        XCTAssertEqual(snapshot.disabledCommandCount, commandPlan.disabledCommandCount)
+        XCTAssertEqual(snapshot.shortcutIdentifiers, commandPlan.commands.map(\.shortcut.identifier))
+        XCTAssertEqual(snapshot.copyCommandIdentifiers.count, 2)
+        XCTAssertEqual(snapshot.appLevelShortcutCollisionStateIdentifier, "clear")
+        XCTAssertEqual(snapshot.appLevelShortcutCollisionIdentifiers, [])
+        XCTAssertEqual(snapshot.recapCommandShortcutCollisionStateIdentifier, "clear")
+        XCTAssertEqual(snapshot.recapCommandShortcutCollisionIdentifiers, [])
+        XCTAssertTrue(report.identifier.contains("plan-compass-commands:\(snapshot.identifier)"))
+        XCTAssertTrue(report.identifier.contains("plan-compass-command-selected:long-term"))
+        XCTAssertEqual(report.planCompassSceneFocus.selectedSectionRouteIdentifier, snapshot.selectedRouteIdentifier)
+    }
+
+    func testReportRowAndExportExposeCommandSummaryBoundsAndCorrelation() throws {
+        let plan = CinematicPlanCompassPlan(state: populatedState)
+        let report = makeReport(plan: plan, selectedKind: .midTerm)
+        let summary = CinematicDiagnosticsSummary(
+            report: report,
+            visualSmoke: CinematicVisualSmokeReport(reports: [report])
+        )
+        let row = try XCTUnwrap(summary.rows.first { $0.id == "plan-compass-commands" })
+
+        XCTAssertEqual(row.label, "Plan compass commands")
+        XCTAssertLessThanOrEqual(row.detail.count, CinematicDiagnosticsSummary.detailMaxCharacters)
+        XCTAssertTrue(row.detail.contains("selected mid-term"))
+        XCTAssertTrue(row.detail.contains("plan-copy"))
+        XCTAssertTrue(row.detail.contains("section-export"))
+        XCTAssertTrue(row.detail.contains("app-collisions clear"))
+        XCTAssertTrue(row.detail.contains("recap-collisions clear"))
+        XCTAssertTrue(row.detail.contains("copy-cmds 2"))
+        XCTAssertTrue(summary.exportText.contains("Plan compass commands"))
+        XCTAssertTrue(summary.exportText.contains("plan-compass-commands"))
+        XCTAssertTrue(summary.exportText.contains("recap-collisions clear"))
+        XCTAssertTrue(summary.exportText.contains("section-copy"))
+    }
+
+    func testRepresentativeCommandSmokeReportsKeepDiagnosticsCorrelated() throws {
+        let reports = CinematicDiagnostics.representativePlanCompassCommandSmokeReports()
+
+        XCTAssertEqual(reports.count, 4)
+        XCTAssertEqual(Set(reports.map(\.planCompassCommands.selectedRouteIdentifier)), Set([
+            "immediate",
+            "mid-term",
+            "long-term"
+        ]))
+        XCTAssertTrue(reports.contains { $0.planCompassCommands.selectedSectionStateIdentifier == "empty" })
+
+        for report in reports {
+            let snapshot = report.planCompassCommands
+            let sectionCommandCount = snapshot.sections.reduce(0) { $0 + $1.commandCount }
+
+            XCTAssertEqual(snapshot.commandCount, CinematicPlanCompassCommandPlan.commandLimit)
+            XCTAssertEqual(sectionCommandCount, snapshot.commandCount)
+            XCTAssertEqual(snapshot.sourcePlanIdentifier, report.planCompass?.identifier)
+            XCTAssertEqual(snapshot.sourcePlanCopyIdentifier, report.planCompass?.copyIdentifier)
+            XCTAssertEqual(snapshot.sourcePlanExportIdentifier, report.planCompass?.exportIdentifier)
+            XCTAssertEqual(snapshot.appLevelShortcutCollisionStateIdentifier, "clear")
+            XCTAssertEqual(snapshot.recapCommandShortcutCollisionStateIdentifier, "clear")
+            XCTAssertTrue(report.identifier.contains("plan-compass-command-plan:"))
+            XCTAssertTrue(report.identifier.contains("plan-compass-command-recap-collisions:clear"))
+        }
+    }
+
+    func testVisualSmokeWarnsForPlanCompassCommandCollisionDetails() throws {
+        var reports = CinematicDiagnostics.representativePlanCompassCommandSmokeReports()
+        reports[0].planCompassCommands.recapCommandShortcutCollisionStateIdentifier = "collision"
+        reports[0].planCompassCommands.recapCommandShortcutCollisionIdentifiers = [
+            reports[0].planCompassCommands.shortcutIdentifiers[0]
+        ]
+
+        let smoke = CinematicVisualSmokeReport(reports: reports)
+        let check = try XCTUnwrap(smoke.checks.first { $0.id == "plan-compass-command-availability" })
+
+        XCTAssertEqual(check.status, .warning)
+        XCTAssertEqual(check.warningIdentifier, "visual-smoke.plan-compass-commands")
+        XCTAssertEqual(
+            check.warningTarget?.targetAnchorID,
+            "visual-smoke-check-plan-compass-command-availability"
+        )
+        XCTAssertEqual(check.warningTarget?.relatedRowID, "plan-compass-commands")
+        XCTAssertTrue(check.detail.contains("recap-collisions"))
+        XCTAssertTrue(smoke.warningIdentifiers.contains("visual-smoke.plan-compass-commands"))
+    }
+
+    func testCurrentReportPlanCompassCommandsDoNotMutateProjectStateOrStorage() async throws {
+        let repoURL = try makeTemporaryDirectory(prefix: "PlanCompassCommandDiagnosticsProject")
+
+        await MainActor.run {
+            let project = CompassProject(repoURL: repoURL)
+            project.state = populatedState
+            project.sessions = [SessionRecord.started(1)]
+            project.cinematicRunRecapShareArtifactLibraryContext = CinematicRunRecapShareArtifactLibraryContext(
+                selectedEntryIdentifier: "recap-selection",
+                searchText: "recap search",
+                pinnedEntryIdentifiers: ["pinned-recap"],
+                comparisonTargetMode: .pinnedReference,
+                savedTourHoldEntryIdentifier: "held-recap"
+            )
+            project.cinematicRunRecapShareArtifactHistory = .unavailable(reason: "diagnostic-read-only")
+
+            let stateBefore = project.state
+            let sessionsBefore = project.sessions
+            let activeStorageBefore = project.activeStorage
+            let contextBefore = project.cinematicRunRecapShareArtifactLibraryContext
+            let historyBefore = project.cinematicRunRecapShareArtifactHistory
+            let warningHistoryBefore = project.cinematicDiagnosticsWarningBundleHistory
+            let focusPlan = CinematicPlanCompassSceneFocusPlanner.plan(
+                isPlanOverlaySelected: true,
+                planCompassPlan: CinematicPlanCompassPlan(state: project.state),
+                selectedKind: .midTerm
+            )
+
+            let report = CinematicDiagnostics.currentReport(
+                for: project,
+                planCompassCommandSelectedKind: .midTerm,
+                planCompassSceneFocusPlan: focusPlan
+            )
+
+            XCTAssertEqual(report.planCompassCommands.selectedRouteIdentifier, "mid-term")
+            XCTAssertEqual(project.state, stateBefore)
+            XCTAssertEqual(project.sessions, sessionsBefore)
+            XCTAssertEqual(project.activeStorage, activeStorageBefore)
+            XCTAssertEqual(project.cinematicRunRecapShareArtifactLibraryContext, contextBefore)
+            XCTAssertEqual(project.cinematicRunRecapShareArtifactHistory, historyBefore)
+            XCTAssertEqual(project.cinematicDiagnosticsWarningBundleHistory, warningHistoryBefore)
+        }
+    }
+
+    private var populatedState: PlanState {
+        PlanState(
+            completed: ["Mapped diagnostics", "Rendered plan overlay"],
+            immediate: PlanNext(
+                plan: "Expose Plan Compass command diagnostics",
+                verify: "swift test --filter CinematicPlanCompassCommandDiagnosticsTests",
+                verifyTimeoutMs: 90_000,
+                estimatedDifficulty: .high
+            ),
+            midTerm: "Queue selected route diagnostics",
+            longTerm: "Make keyboard command coverage visible in smoke reports"
+        )
+    }
+
+    private func makeReport(
+        plan: CinematicPlanCompassPlan,
+        selectedKind: PlanWorkflowOverview.Kind,
+        focusPlan: CinematicPlanCompassSceneFocusPlan = .none
+    ) -> CinematicDiagnosticsReport {
+        CinematicDiagnostics.report(
+            repoName: "Compass",
+            phase: LoopPhase.planning.rawValue,
+            immediateTitle: "Expose Plan Compass command diagnostics",
+            completedCount: 2,
+            planCompassPlan: plan,
+            latestEvent: nil,
+            languageProfile: .empty,
+            activityProfile: .empty,
+            influenceSettings: CinematicInfluenceSettings(),
+            hasExplicitUserFocus: focusPlan.isActive,
+            planCompassCommandSelectedKind: selectedKind,
+            planCompassSceneFocusPlan: focusPlan
+        )
+    }
+
+    private func makeTemporaryDirectory(prefix: String) throws -> URL {
+        let url = URL(
+            fileURLWithPath: "/tmp/\(prefix)-\(UUID().uuidString)",
+            isDirectory: true
+        )
+        try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+        temporaryDirectories.append(url)
+        return url
+    }
+}
