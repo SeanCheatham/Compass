@@ -459,6 +459,17 @@ final class CinematicDiagnosticsTests: XCTestCase {
         XCTAssertNotEqual(report.idleStoryCycle.sourceDescriptorIdentifier, "none")
         XCTAssertTrue(report.idleStoryCycle.targetKindIdentifier.hasPrefix("native-feedback"))
         XCTAssertInRange(report.idleStoryCycle.cadence, CinematicIdleStoryCyclePlan.cadenceRange)
+        XCTAssertInRange(report.idleStoryCycle.dwellDuration, CinematicIdleStoryCyclePlan.dwellDurationRange)
+        XCTAssertInRange(
+            report.idleStoryCycle.transitionDurationScale,
+            CinematicIdleStoryCyclePlan.transitionDurationScaleRange
+        )
+        XCTAssertInRange(report.idleStoryCycle.targetBias, CinematicIdleStoryCyclePlan.targetBiasRange)
+        XCTAssertInRange(report.idleStoryCycle.comfortDamping, CinematicIdleStoryCyclePlan.comfortDampingRange)
+        XCTAssertNotEqual(report.idleStoryCycle.choreographyIdentifier, "none")
+        XCTAssertNotEqual(report.idleStoryCycle.cameraPressureIdentifier, "none")
+        XCTAssertTrue(report.idleStoryCycle.cameraTreatmentIdentifier.contains("pressure:"))
+        XCTAssertNotEqual(report.idleStoryCycle.pulseHintIdentifier, "none")
         XCTAssertLessThanOrEqual(
             report.idleStoryCycle.phaseCopy.count,
             CinematicIdleStoryCyclePlan.phaseCopyMaxCharacters
@@ -467,9 +478,16 @@ final class CinematicDiagnosticsTests: XCTestCase {
         XCTAssertTrue(row.detail.contains("active"))
         XCTAssertTrue(row.detail.contains("phase native-feedback-plaque"))
         XCTAssertTrue(row.detail.contains("camera shot:"))
+        XCTAssertTrue(row.detail.contains("dwell"))
+        XCTAssertTrue(row.detail.contains("transition"))
+        XCTAssertTrue(row.detail.contains("pressure"))
+        XCTAssertTrue(row.detail.contains("bias"))
+        XCTAssertTrue(row.detail.contains("damping"))
         XCTAssertTrue(row.detail.contains("anchor anchor:"))
         XCTAssertTrue(summary.exportText.contains("Idle story cycle: active"))
         XCTAssertTrue(summary.exportText.contains("native-feedback-plaque"))
+        XCTAssertTrue(summary.exportText.contains("pressure"))
+        XCTAssertTrue(summary.exportText.contains("choreo"))
 
         let suppressed = try XCTUnwrap(
             CinematicDiagnostics.representativeIdleStoryCycleSmokeReports().first {

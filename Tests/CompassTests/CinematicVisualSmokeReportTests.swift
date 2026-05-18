@@ -265,10 +265,35 @@ final class CinematicVisualSmokeReportTests: XCTestCase {
         XCTAssertEqual(missingRouteCheck.warningIdentifier, "visual-smoke.idle-story-cycle")
         XCTAssertTrue(missingRouteSmoke.warningIdentifiers.contains("visual-smoke.idle-story-cycle"))
         XCTAssertTrue(missingRouteCheck.detail.contains("routes"))
+        XCTAssertTrue(missingRouteCheck.detail.contains("choreo"))
+        XCTAssertTrue(missingRouteCheck.detail.contains("timing"))
         XCTAssertLessThanOrEqual(
             missingRouteCheck.detail.count,
             CinematicVisualSmokeReport.detailMaxCharacters
         )
+    }
+
+    func testIdleStoryCycleCoverageWarnsForNonDistinctChoreographyRoutes() throws {
+        var reports = CinematicDiagnostics.representativeIdleStoryCycleSmokeReports()
+        for index in reports.indices where reports[index].idleStoryCycle.isActive {
+            reports[index].idleStoryCycle.choreographyIdentifier = "collapsed-choreography"
+            reports[index].idleStoryCycle.cameraPressureIdentifier = "collapsed-pressure"
+            reports[index].idleStoryCycle.transitionDurationScale = 1
+            reports[index].idleStoryCycle.targetBias = 0.6
+            reports[index].idleStoryCycle.dwellDuration = 4.8
+            reports[index].idleStoryCycle.cadence = 7.2
+        }
+
+        let smoke = CinematicVisualSmokeReport(reports: reports)
+        let check = try XCTUnwrap(
+            smoke.checks.first { $0.id == "idle-story-cycle-coverage" }
+        )
+
+        XCTAssertEqual(check.status, .warning)
+        XCTAssertEqual(check.warningIdentifier, "visual-smoke.idle-story-cycle")
+        XCTAssertTrue(check.detail.contains("choreo 1/5"))
+        XCTAssertTrue(check.detail.contains("timing 1/5"))
+        XCTAssertTrue(check.detail.contains("pressure 1/5"))
     }
 
     func testWarningReportUsesBoundedIdentifiersAndDetails() throws {

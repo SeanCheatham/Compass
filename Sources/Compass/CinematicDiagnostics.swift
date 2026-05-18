@@ -426,6 +426,14 @@ struct CinematicDiagnosticsReport: Equatable {
         var cadence: TimeInterval
         var cameraTreatmentIdentifier: String
         var anchorTreatmentIdentifier: String
+        var choreographyIdentifier: String
+        var dwellDuration: TimeInterval
+        var transitionDurationScale: Double
+        var cameraPressureIdentifier: String
+        var targetBias: Float
+        var comfortDamping: Float
+        var shakeHintIdentifier: String
+        var pulseHintIdentifier: String
         var suppressionReason: String
         var phaseCopy: String
         var descriptorIdentifier: String
@@ -1061,6 +1069,14 @@ struct CinematicVisualSmokeReport: Equatable {
         let anchorTreatmentCount = activeReports.filter {
             $0.idleStoryCycle.anchorTreatmentIdentifier != "none"
         }.count
+        let choreographyRouteCount = activeReports.filter {
+            $0.idleStoryCycle.choreographyIdentifier != "none"
+                && !$0.idleStoryCycle.choreographyIdentifier.isEmpty
+        }.count
+        let cameraPressureCount = activeReports.filter {
+            $0.idleStoryCycle.cameraPressureIdentifier != "none"
+                && !$0.idleStoryCycle.cameraPressureIdentifier.isEmpty
+        }.count
         let boundedCopyCount = activeReports.filter {
             !$0.idleStoryCycle.phaseCopy.isEmpty
                 && $0.idleStoryCycle.phaseCopy.count <= CinematicIdleStoryCyclePlan.phaseCopyMaxCharacters
@@ -1068,10 +1084,37 @@ struct CinematicVisualSmokeReport: Equatable {
         let cadenceCount = activeReports.filter {
             CinematicIdleStoryCyclePlan.cadenceRange.contains($0.idleStoryCycle.cadence)
         }.count
+        let dwellCount = activeReports.filter {
+            CinematicIdleStoryCyclePlan.dwellDurationRange.contains($0.idleStoryCycle.dwellDuration)
+        }.count
+        let transitionScaleCount = activeReports.filter {
+            CinematicIdleStoryCyclePlan.transitionDurationScaleRange.contains(
+                $0.idleStoryCycle.transitionDurationScale
+            )
+        }.count
+        let targetBiasCount = activeReports.filter {
+            CinematicIdleStoryCyclePlan.targetBiasRange.contains($0.idleStoryCycle.targetBias)
+        }.count
+        let comfortDampingCount = activeReports.filter {
+            CinematicIdleStoryCyclePlan.comfortDampingRange.contains($0.idleStoryCycle.comfortDamping)
+        }.count
+        let distinctChoreographyCount = Set(activeReports.map(\.idleStoryCycle.choreographyIdentifier)).count
+        let distinctCameraPressureCount = Set(activeReports.map(\.idleStoryCycle.cameraPressureIdentifier)).count
+        let distinctTimingCount = Set(
+            activeReports.map {
+                [
+                    fixed($0.idleStoryCycle.cadence),
+                    fixed($0.idleStoryCycle.dwellDuration),
+                    fixed($0.idleStoryCycle.transitionDurationScale),
+                    fixed($0.idleStoryCycle.targetBias)
+                ].joined(separator: "/")
+            }
+        ).count
         let orderedPhaseDetail = CinematicIdleStoryCyclePlan.Descriptor.Phase.allCases
             .map(\.rawValue)
             .filter(phases.contains)
             .joined(separator: "/")
+        let expectedDistinctRoutes = expectedPhases.count
         let isPassing = !reports.isEmpty
             && !activeReports.isEmpty
             && emptyCount > 0
@@ -1079,18 +1122,39 @@ struct CinematicVisualSmokeReport: Equatable {
             && sourceRouteCount == activeReports.count
             && cameraTreatmentCount == activeReports.count
             && anchorTreatmentCount == activeReports.count
+            && choreographyRouteCount == activeReports.count
+            && cameraPressureCount == activeReports.count
             && boundedCopyCount == activeReports.count
             && cadenceCount == activeReports.count
+            && dwellCount == activeReports.count
+            && transitionScaleCount == activeReports.count
+            && targetBiasCount == activeReports.count
+            && comfortDampingCount == activeReports.count
+            && distinctChoreographyCount >= expectedDistinctRoutes
+            && distinctCameraPressureCount >= expectedDistinctRoutes
+            && distinctTimingCount >= expectedDistinctRoutes
+        let detail = isPassing
+            ? [
+                orderedPhaseDetail,
+                "routes \(sourceRouteCount)/\(activeReports.count)",
+                "c\(distinctChoreographyCount)/\(expectedDistinctRoutes)",
+                "t\(distinctTimingCount)/\(expectedDistinctRoutes)",
+                "p\(distinctCameraPressureCount)/\(expectedDistinctRoutes)"
+            ].joined(separator: " ")
+            : [
+                "routes \(sourceRouteCount)/\(activeReports.count)",
+                "choreo \(distinctChoreographyCount)/\(expectedDistinctRoutes)",
+                "timing \(distinctTimingCount)/\(expectedDistinctRoutes)",
+                "pressure \(distinctCameraPressureCount)/\(expectedDistinctRoutes)",
+                "phases \(orderedPhaseDetail)"
+            ].joined(separator: " ")
 
         return check(
             id: "idle-story-cycle-coverage",
             label: "Idle story cycle",
             isPassing: isPassing,
             warningIdentifier: "visual-smoke.idle-story-cycle",
-            detail: [
-                "routes \(sourceRouteCount)/\(activeReports.count)",
-                "phases \(orderedPhaseDetail)"
-            ].joined(separator: " ")
+            detail: detail
         )
     }
 
@@ -1722,6 +1786,10 @@ struct CinematicVisualSmokeReport: Equatable {
 
     private static func fixed(_ value: Float) -> String {
         String(format: "%.2f", Double(value))
+    }
+
+    private static func fixed(_ value: Double) -> String {
+        String(format: "%.2f", value)
     }
 
     private static func bounded(_ text: String, limit: Int) -> String {
@@ -2801,11 +2869,19 @@ struct CinematicDiagnosticsSummary: Equatable {
         return [
             "active",
             "phase \(snapshot.phaseIdentifier)",
+            "choreo \(bounded(snapshot.choreographyIdentifier, limit: 80))",
             "source \(bounded(snapshot.sourceDescriptorIdentifier, limit: 80))",
             "target \(snapshot.targetKindIdentifier)",
             "cadence \(fixed(snapshot.cadence))",
-            "camera \(snapshot.cameraTreatmentIdentifier)",
+            "dwell \(fixed(snapshot.dwellDuration))",
+            "transition \(fixed(snapshot.transitionDurationScale))",
+            "camera \(bounded(snapshot.cameraTreatmentIdentifier, limit: 96))",
+            "pressure \(snapshot.cameraPressureIdentifier)",
             "anchor \(snapshot.anchorTreatmentIdentifier)",
+            "bias \(fixed(snapshot.targetBias))",
+            "damping \(fixed(snapshot.comfortDamping))",
+            "shake \(snapshot.shakeHintIdentifier)",
+            "pulse \(snapshot.pulseHintIdentifier)",
             "slot \(snapshot.cycleSlot)",
             "index \(snapshot.phaseIndex)",
             "suppression \(snapshot.suppressionReason)",
@@ -3446,8 +3522,10 @@ enum CinematicDiagnostics {
             feedbackMode: .notifications,
             recentRunCues: [:]
         )
-        let phaseReports = CinematicIdleStoryCyclePlan.Descriptor.Phase.allCases.enumerated().map { index, _ in
-            representativeIdleStoryCycleSmokeReport(
+        var elapsedTime: TimeInterval = 0
+        var phaseReports: [CinematicDiagnosticsReport] = []
+        for _ in CinematicIdleStoryCyclePlan.Descriptor.Phase.allCases {
+            let report = representativeIdleStoryCycleSmokeReport(
                 influenceSettings: influenceSettings,
                 activityCase: activityCase,
                 commitConstellationPlan: commitConstellationPlan,
@@ -3455,12 +3533,14 @@ enum CinematicDiagnostics {
                 nativeFeedbackCue: nativeFeedbackCue,
                 recapContext: recapContext,
                 session: CinematicIdleStoryCyclePlan.SessionInput(
-                    elapsedTime: Double(index) * CinematicIdleStoryCyclePlan.defaultCadence,
+                    elapsedTime: elapsedTime,
                     sessionOrdinal: 0
                 ),
                 isLiveFollowActive: false,
                 hasExplicitUserFocus: false
             )
+            phaseReports.append(report)
+            elapsedTime += max(report.idleStoryCycle.cadence, 0.1) + 0.01
         }
         let suppressedReport = representativeIdleStoryCycleSmokeReport(
             influenceSettings: influenceSettings,
@@ -4554,6 +4634,14 @@ enum CinematicDiagnostics {
                 cadence: 0,
                 cameraTreatmentIdentifier: "none",
                 anchorTreatmentIdentifier: "none",
+                choreographyIdentifier: "none",
+                dwellDuration: 0,
+                transitionDurationScale: 0,
+                cameraPressureIdentifier: "none",
+                targetBias: 0,
+                comfortDamping: 0,
+                shakeHintIdentifier: "none",
+                pulseHintIdentifier: "none",
                 suppressionReason: plan.suppressionReason,
                 phaseCopy: "",
                 descriptorIdentifier: "none",
@@ -4571,6 +4659,14 @@ enum CinematicDiagnostics {
             cadence: descriptor.cadence,
             cameraTreatmentIdentifier: descriptor.cameraTreatmentIdentifier,
             anchorTreatmentIdentifier: descriptor.anchorTreatmentIdentifier,
+            choreographyIdentifier: descriptor.choreography.identifier,
+            dwellDuration: descriptor.choreography.dwellDuration,
+            transitionDurationScale: descriptor.choreography.transitionDurationScale,
+            cameraPressureIdentifier: descriptor.choreography.cameraPressureIdentifier,
+            targetBias: descriptor.choreography.targetBias,
+            comfortDamping: descriptor.choreography.comfortDamping,
+            shakeHintIdentifier: descriptor.choreography.shakeHintIdentifier,
+            pulseHintIdentifier: descriptor.choreography.pulseHintIdentifier,
             suppressionReason: plan.suppressionReason,
             phaseCopy: descriptor.phaseCopy,
             descriptorIdentifier: descriptor.identifier,

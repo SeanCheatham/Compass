@@ -3249,14 +3249,26 @@ private final class CinematicSceneCoordinator {
         guard !hasActiveLiveFollowTarget(lines: lines) else { return }
 
         let color = themedColor(descriptor.lightFamily.spell.nsColor)
-        stageCamera(descriptor.cameraShot, animated: animated)
+        stageCamera(
+            descriptor.cameraShot,
+            animated: animated,
+            transitionDurationScale: descriptor.choreography.transitionDurationScale
+        )
         setPhaseLight(color: color, intensity: descriptor.phaseLightIntensity)
         applyIdleStoryCycleArenaEffect(
             descriptor.arenaEffect,
             color: color,
+            phaseLightIntensity: descriptor.phaseLightIntensity,
+            choreography: descriptor.choreography
+        )
+        let lookTarget = idleStoryCycleLookTarget(for: descriptor)
+        faceWizard(toward: lookTarget)
+        trackTarget(lookTarget, duration: descriptor.choreography.dwellDuration)
+        applyIdleStoryCycleChoreographyCues(
+            descriptor.choreography,
+            color: color,
             phaseLightIntensity: descriptor.phaseLightIntensity
         )
-        faceWizard(toward: descriptor.lookTarget)
 
         switch descriptor.phase {
         case .nativeFeedbackPlaque:
@@ -3267,25 +3279,15 @@ private final class CinematicSceneCoordinator {
                     animated: animated
                 )
             }
-            if descriptor.lightFamily == .failure {
-                shakeCamera()
-            }
         case .runRecapEndCard:
             if let endCardDescriptor = descriptor.runRecapEndCardPlan?.descriptor {
                 activeIdleStoryCycleEndCardDescriptor = endCardDescriptor
                 applyRunRecapEndCardDescriptor(endCardDescriptor, animated: animated)
             }
-            if descriptor.lightFamily == .failure {
-                shakeCamera()
-            }
         case .timelineFocus:
-            if descriptor.lightFamily == .failure {
-                shakeCamera()
-            }
+            break
         case .runRecapFocus:
-            if descriptor.lightFamily == .failure {
-                shakeCamera()
-            }
+            break
         case .commitConstellation:
             break
         }
@@ -3472,8 +3474,10 @@ private final class CinematicSceneCoordinator {
     private func applyIdleStoryCycleArenaEffect(
         _ arenaEffect: CinematicStageArenaEffect,
         color: NSColor,
-        phaseLightIntensity: Float
+        phaseLightIntensity: Float,
+        choreography: CinematicIdleStoryCyclePlan.Choreography
     ) {
+        let damping = choreography.comfortDamping
         switch arenaEffect {
         case .none:
             return
@@ -3488,15 +3492,44 @@ private final class CinematicSceneCoordinator {
             arenaRing(
                 radius: 3.05,
                 color: color.withAlphaComponent(0.58),
-                duration: 0.78,
-                scale: 1.68,
-                opacity: 0.42
+                duration: 0.78 * Double(0.82 + damping * 0.18),
+                scale: 1 + 0.68 * damping,
+                opacity: 0.24 + 0.18 * damping
             )
-            pulsePhaseLight(color: color, intensity: phaseLightIntensity, duration: 0.5)
+            pulsePhaseLight(
+                color: color,
+                intensity: phaseLightIntensity * (0.92 + damping * 0.08),
+                duration: 0.5 * Double(0.82 + damping * 0.18)
+            )
         case .historyChains:
             historyChains(
                 CinematicStageEffectPlanner.historyChainsEffect(),
                 color: color
+            )
+        }
+    }
+
+    private func applyIdleStoryCycleChoreographyCues(
+        _ choreography: CinematicIdleStoryCyclePlan.Choreography,
+        color: NSColor,
+        phaseLightIntensity: Float
+    ) {
+        if let pulse = choreography.pulseHint {
+            pulsePhaseLight(
+                color: color,
+                intensity: phaseLightIntensity * pulse.intensityScale,
+                duration: pulse.duration
+            )
+            staffOrbBoost = max(staffOrbBoost, pulse.orbBoost)
+        }
+
+        if let shake = choreography.shakeHint {
+            shakeCamera(
+                CinematicStageEffectPlan.CameraShake(
+                    shouldShake: true,
+                    duration: shake.duration,
+                    scale: shake.scale * cameraShakeScale()
+                )
             )
         }
     }
@@ -3842,11 +3875,18 @@ private final class CinematicSceneCoordinator {
         return NSColor(calibratedRed: 0.055, green: 0.052, blue: 0.074, alpha: 1)
     }
 
-    private func stageCamera(_ shot: CinematicCameraShot, animated: Bool = true) {
+    private func stageCamera(
+        _ shot: CinematicCameraShot,
+        animated: Bool = true,
+        transitionDurationScale: Double = 1
+    ) {
         currentCameraShot = shot
         let position = cameraPosition(for: shot)
         let fieldOfView = cameraFieldOfView(for: shot)
-        let duration = cameraTransitionDuration(for: shot)
+        let duration = cameraTransitionDuration(for: shot) * clamped(
+            transitionDurationScale,
+            to: CinematicIdleStoryCyclePlan.transitionDurationScaleRange
+        )
 
         if animated {
             cameraAnimation = CameraAnimation(
@@ -4118,7 +4158,18 @@ private final class CinematicSceneCoordinator {
               let descriptor = activeIdleStoryCycleDescriptor else {
             return nil
         }
-        return descriptor.lookTarget
+        return idleStoryCycleLookTarget(for: descriptor)
+    }
+
+    private func idleStoryCycleLookTarget(
+        for descriptor: CinematicIdleStoryCyclePlan.Descriptor
+    ) -> SIMD3<Float> {
+        let wizardEye = wizardNode.position(relativeTo: nil) + [0, 0.9, 0]
+        let targetBias = clamped(
+            descriptor.choreography.targetBias,
+            to: CinematicIdleStoryCyclePlan.targetBiasRange
+        )
+        return mix(wizardEye, descriptor.lookTarget, targetBias)
     }
 
     private func activeCommitConstellationFocusTarget() -> SIMD3<Float>? {
@@ -4460,6 +4511,10 @@ private final class CinematicSceneCoordinator {
     }
 
     private func clamped(_ value: Float, to range: ClosedRange<Float>) -> Float {
+        min(max(value, range.lowerBound), range.upperBound)
+    }
+
+    private func clamped(_ value: Double, to range: ClosedRange<Double>) -> Double {
         min(max(value, range.lowerBound), range.upperBound)
     }
 

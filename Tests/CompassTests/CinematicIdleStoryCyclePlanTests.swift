@@ -5,13 +5,36 @@ import XCTest
 final class CinematicIdleStoryCyclePlanTests: XCTestCase {
     func testPhaseOrderingRotatesThroughAvailableDescriptors() throws {
         let context = try makeContext()
+        let descriptors = try cycleDescriptors(context: context)
 
-        let phases = CinematicIdleStoryCyclePlan.Descriptor.Phase.allCases.enumerated().map { index, _ in
-            plan(context: context, elapsedMultiplier: index).descriptor?.phase
-        }
+        let phases = descriptors.map(\.phase)
+        let cycleDuration = descriptors.map(\.cadence).reduce(0, +)
 
         XCTAssertEqual(phases, CinematicIdleStoryCyclePlan.Descriptor.Phase.allCases)
-        XCTAssertEqual(plan(context: context, elapsedMultiplier: 5).descriptor?.phase, .commitConstellation)
+        XCTAssertEqual(
+            plan(context: context, elapsedTime: cycleDuration + 0.01).descriptor?.phase,
+            .commitConstellation
+        )
+    }
+
+    func testPhaseChoreographyTimingIsDistinctAndOrdered() throws {
+        let context = try makeContext()
+        let descriptors = try cycleDescriptors(context: context)
+        let byPhase = Dictionary(uniqueKeysWithValues: descriptors.map { ($0.phase, $0) })
+        let commit = try XCTUnwrap(byPhase[.commitConstellation])
+        let timeline = try XCTUnwrap(byPhase[.timelineFocus])
+        let native = try XCTUnwrap(byPhase[.nativeFeedbackPlaque])
+        let recapFocus = try XCTUnwrap(byPhase[.runRecapFocus])
+        let recapEnd = try XCTUnwrap(byPhase[.runRecapEndCard])
+
+        XCTAssertGreaterThan(commit.cadence, timeline.cadence)
+        XCTAssertGreaterThan(recapEnd.cadence, recapFocus.cadence)
+        XCTAssertGreaterThan(recapFocus.cadence, native.cadence)
+        XCTAssertGreaterThan(recapEnd.choreography.dwellDuration, native.choreography.dwellDuration)
+        XCTAssertLessThan(timeline.choreography.transitionDurationScale, commit.choreography.transitionDurationScale)
+        XCTAssertLessThan(native.choreography.transitionDurationScale, recapEnd.choreography.transitionDurationScale)
+        XCTAssertEqual(Set(descriptors.map(\.choreography.identifier)).count, descriptors.count)
+        XCTAssertEqual(Set(descriptors.map(\.choreography.cameraPressureIdentifier)).count, descriptors.count)
     }
 
     func testIdleOnlyActivationSuppressesLiveFollowAndExplicitUserFocus() throws {
@@ -141,6 +164,68 @@ final class CinematicIdleStoryCyclePlanTests: XCTestCase {
         )
         XCTAssertLessThanOrEqual(descriptor.phaseCopy.count, CinematicIdleStoryCyclePlan.phaseCopyMaxCharacters)
         XCTAssertInRange(descriptor.cadence, CinematicIdleStoryCyclePlan.cadenceRange)
+        XCTAssertLessThanOrEqual(
+            descriptor.choreography.identifier.count,
+            CinematicIdleStoryCyclePlan.choreographyIdentifierMaxCharacters
+        )
+        XCTAssertLessThanOrEqual(
+            descriptor.choreography.cameraTreatmentIdentifier.count,
+            CinematicIdleStoryCyclePlan.choreographyTreatmentIdentifierMaxCharacters
+        )
+        XCTAssertInRange(descriptor.choreography.phaseCadence, CinematicIdleStoryCyclePlan.cadenceRange)
+        XCTAssertInRange(descriptor.choreography.dwellDuration, CinematicIdleStoryCyclePlan.dwellDurationRange)
+        XCTAssertInRange(
+            descriptor.choreography.transitionDurationScale,
+            CinematicIdleStoryCyclePlan.transitionDurationScaleRange
+        )
+        XCTAssertInRange(descriptor.choreography.targetBias, CinematicIdleStoryCyclePlan.targetBiasRange)
+        XCTAssertInRange(descriptor.choreography.comfortDamping, CinematicIdleStoryCyclePlan.comfortDampingRange)
+        if let pulseHint = descriptor.choreography.pulseHint {
+            XCTAssertLessThanOrEqual(
+                pulseHint.identifier.count,
+                CinematicIdleStoryCyclePlan.choreographyHintIdentifierMaxCharacters
+            )
+            XCTAssertInRange(
+                pulseHint.intensityScale,
+                CinematicIdleStoryCyclePlan.pulseIntensityScaleRange
+            )
+            XCTAssertInRange(pulseHint.orbBoost, CinematicIdleStoryCyclePlan.pulseOrbBoostRange)
+        }
+    }
+
+    func testComfortModeDampsChoreographyWithoutSuppressingIdleRoutes() throws {
+        let standardContext = try makeContext(
+            settings: CinematicInfluenceSettings(cameraStyle: .dramatic, comfortMode: .standard, intensity: 1)
+        )
+        let reducedContext = try makeContext(
+            settings: CinematicInfluenceSettings(cameraStyle: .dramatic, comfortMode: .reducedMotion, intensity: 1)
+        )
+        let quietContext = try makeContext(
+            settings: CinematicInfluenceSettings(cameraStyle: .dramatic, comfortMode: .quiet, intensity: 1)
+        )
+        let standard = try descriptor(
+            for: .commitConstellation,
+            in: standardContext
+        ).choreography
+        let reduced = try descriptor(
+            for: .commitConstellation,
+            in: reducedContext
+        ).choreography
+        let quiet = try descriptor(
+            for: .commitConstellation,
+            in: quietContext
+        ).choreography
+
+        XCTAssertLessThan(reduced.comfortDamping, standard.comfortDamping)
+        XCTAssertLessThan(quiet.comfortDamping, reduced.comfortDamping)
+        XCTAssertGreaterThan(reduced.transitionDurationScale, standard.transitionDurationScale)
+        XCTAssertGreaterThan(quiet.transitionDurationScale, reduced.transitionDurationScale)
+        XCTAssertLessThan(reduced.targetBias, standard.targetBias)
+        XCTAssertLessThan(quiet.targetBias, reduced.targetBias)
+        XCTAssertLessThan(
+            try XCTUnwrap(quiet.pulseHint).orbBoost,
+            try XCTUnwrap(reduced.pulseHint).orbBoost
+        )
     }
 
     func testPlanningDoesNotMutateTimelineSelectionOrRecapPlanning() throws {
@@ -240,12 +325,14 @@ final class CinematicIdleStoryCyclePlanTests: XCTestCase {
     private func plan(
         context: Context,
         elapsedMultiplier: Int = 0,
+        elapsedTime: TimeInterval? = nil,
         isLiveFollowActive: Bool = false,
         hasExplicitUserFocus: Bool = false
     ) -> CinematicIdleStoryCyclePlan {
         CinematicIdleStoryCyclePlanner.plan(
             session: .init(
-                elapsedTime: Double(elapsedMultiplier) * CinematicIdleStoryCyclePlan.defaultCadence,
+                elapsedTime: elapsedTime
+                    ?? Double(elapsedMultiplier) * CinematicIdleStoryCyclePlan.defaultCadence,
                 sessionOrdinal: 0
             ),
             isLiveFollowActive: isLiveFollowActive,
@@ -259,6 +346,26 @@ final class CinematicIdleStoryCyclePlanTests: XCTestCase {
             runRecapSceneFocusPlan: context.recapFocusPlan,
             runRecapEndCardPlan: context.recapEndCardPlan
         )
+    }
+
+    private func cycleDescriptors(
+        context: Context
+    ) throws -> [CinematicIdleStoryCyclePlan.Descriptor] {
+        var elapsed: TimeInterval = 0
+        var descriptors: [CinematicIdleStoryCyclePlan.Descriptor] = []
+        for _ in CinematicIdleStoryCyclePlan.Descriptor.Phase.allCases {
+            let descriptor = try XCTUnwrap(plan(context: context, elapsedTime: elapsed).descriptor)
+            descriptors.append(descriptor)
+            elapsed += descriptor.cadence + 0.01
+        }
+        return descriptors
+    }
+
+    private func descriptor(
+        for phase: CinematicIdleStoryCyclePlan.Descriptor.Phase,
+        in context: Context
+    ) throws -> CinematicIdleStoryCyclePlan.Descriptor {
+        try XCTUnwrap(cycleDescriptors(context: context).first { $0.phase == phase })
     }
 
     private func nativeFeedbackPlaqueDescriptor(
