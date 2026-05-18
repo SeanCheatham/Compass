@@ -575,6 +575,8 @@ private struct CinematicRunRecapArtifactLibraryControl: View {
 
     var body: some View {
         let previewPlan = currentPreviewPlan
+        let selectedExportPlan = subsetExportPlan(scope: .selected)
+        let filteredExportPlan = subsetExportPlan(scope: .filtered)
 
         HStack(alignment: .center, spacing: 7) {
             Image(systemName: previewPlan.hasWarnings ? "archivebox.fill" : "archivebox")
@@ -660,7 +662,7 @@ private struct CinematicRunRecapArtifactLibraryControl: View {
             .accessibilityIdentifier("cinematic-run-recap-artifact-library-reveal")
 
             Button {
-                copySelectedArtifact()
+                copySubsetExport(selectedExportPlan)
             } label: {
                 Image(systemName: "doc.text")
                     .font(.system(size: 12, weight: .bold))
@@ -668,11 +670,26 @@ private struct CinematicRunRecapArtifactLibraryControl: View {
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .disabled(currentSelectedEntry == nil)
-            .foregroundStyle(tint.opacity(currentSelectedEntry == nil ? 0.32 : 0.86))
-            .help(copySelectedHelp(previewPlan))
-            .accessibilityLabel("Copy selected recap share artifact")
-            .accessibilityIdentifier("cinematic-run-recap-artifact-library-copy-selected")
+            .disabled(!selectedExportPlan.isAvailable)
+            .foregroundStyle(tint.opacity(selectedExportPlan.isAvailable ? 0.86 : 0.32))
+            .help(selectedExportPlan.copyHelp)
+            .accessibilityLabel(selectedExportPlan.copyLabel)
+            .accessibilityIdentifier("cinematic-run-recap-artifact-library-copy-selected-export")
+
+            Button {
+                copySubsetExport(filteredExportPlan)
+            } label: {
+                Image(systemName: "line.3.horizontal.decrease.circle")
+                    .font(.system(size: 12, weight: .bold))
+                    .frame(width: 22, height: 22)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .disabled(!filteredExportPlan.isAvailable)
+            .foregroundStyle(tint.opacity(filteredExportPlan.isAvailable ? 0.86 : 0.32))
+            .help(filteredExportPlan.copyHelp)
+            .accessibilityLabel(filteredExportPlan.copyLabel)
+            .accessibilityIdentifier("cinematic-run-recap-artifact-library-copy-filtered-export")
 
             Button {
                 cleanupArtifacts()
@@ -747,6 +764,17 @@ private struct CinematicRunRecapArtifactLibraryControl: View {
     private var currentSelectedEntry: CinematicRunRecapShareArtifactHistoryPlan.Entry? {
         guard let identifier = currentPreviewPlan.selectedEntryIdentifier else { return nil }
         return plan.entries.first { $0.identifier == identifier }
+    }
+
+    private func subsetExportPlan(
+        scope: CinematicRunRecapShareArtifactSubsetExportPlan.Scope
+    ) -> CinematicRunRecapShareArtifactSubsetExportPlan {
+        CinematicRunRecapShareArtifactSubsetExportPlanner.plan(
+            historyPlan: plan,
+            selectedEntryIdentifier: selectedEntryIdentifier,
+            searchQuery: searchText,
+            scope: scope
+        )
     }
 
     private func selectedLabel(_ previewPlan: CinematicRunRecapShareArtifactPreviewBrowserPlan) -> String {
@@ -854,13 +882,6 @@ private struct CinematicRunRecapArtifactLibraryControl: View {
         return "Reveal \(previewPlan.pathSnippet) in Finder."
     }
 
-    private func copySelectedHelp(_ previewPlan: CinematicRunRecapShareArtifactPreviewBrowserPlan) -> String {
-        guard previewPlan.isAvailable else {
-            return "No recap share artifact Markdown is available: \(previewPlan.availabilityReason)."
-        }
-        return "Copy \(previewPlan.markdownLength)-character Markdown from \(previewPlan.pathSnippet)."
-    }
-
     private var exportHelp: String {
         if !plan.isAvailable {
             return "No recap share artifact library export is available: \(plan.availabilityReason)."
@@ -904,13 +925,16 @@ private struct CinematicRunRecapArtifactLibraryControl: View {
         preservedFeedbackPlanIdentifier = plan.identifier
     }
 
-    private func copySelectedArtifact() {
-        guard let selected = currentSelectedEntry else { return }
-        let markdown = (try? String(contentsOf: selected.url, encoding: .utf8))
-            ?? selected.markdownContents
+    private func copySubsetExport(_ exportPlan: CinematicRunRecapShareArtifactSubsetExportPlan) {
+        guard exportPlan.isAvailable else { return }
         NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(markdown, forType: .string)
-        feedback = "Artifact copied"
+        NSPasteboard.general.setString(exportPlan.markdownContents, forType: .string)
+        switch exportPlan.scope {
+        case .selected:
+            feedback = "Selected export copied"
+        case .filtered:
+            feedback = "Filtered export copied"
+        }
         feedbackStatus = nil
         preservedFeedbackPlanIdentifier = plan.identifier
     }

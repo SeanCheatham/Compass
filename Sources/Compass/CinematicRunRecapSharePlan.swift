@@ -189,6 +189,54 @@ struct CinematicRunRecapShareArtifactPreviewBrowserPlan: Equatable, Identifiable
     var canNavigateNext: Bool { nextEntryIdentifier != nil }
 }
 
+struct CinematicRunRecapShareArtifactSubsetExportPlan: Equatable, Identifiable {
+    static let identifierMaxCharacters = CinematicRunRecapShareArtifactHistoryPlan.identifierMaxCharacters
+    static let markdownMaxCharacters = CinematicRunRecapShareArtifactHistoryPlan.combinedMarkdownMaxCharacters
+    static let snippetMaxCharacters = CinematicRunRecapShareArtifactHistoryPlan.snippetMaxCharacters
+    static let searchQuerySnippetMaxCharacters = CinematicRunRecapShareArtifactPreviewBrowserPlan.searchQuerySnippetMaxCharacters
+    static let labelMaxCharacters = 34
+    static let helpMaxCharacters = 260
+
+    var id: String { identifier }
+
+    var identifier: String
+    var exportIdentifier: String
+    var scope: Scope
+    var isAvailable: Bool
+    var availabilityReason: String
+    var isSearchActive: Bool
+    var searchQuerySnippet: String
+    var searchQueryFingerprint: String
+    var noMatchAvailabilityReason: String?
+    var retainedEntryCount: Int
+    var totalCount: Int
+    var hiddenCount: Int
+    var selectedCount: Int
+    var filteredCount: Int
+    var exportEntryCount: Int
+    var unfilteredVisibleCount: Int
+    var selectedEntryIdentifier: String?
+    var selectedFallbackEntryIdentifier: String?
+    var selectedFallbackReasonIdentifier: String
+    var exportedEntryIdentifiers: [String]
+    var warningStateIdentifier: String
+    var warningCount: Int
+    var hiddenWarningCount: Int
+    var warningIdentifiers: [String]
+    var hasWarnings: Bool
+    var markdownContents: String
+    var copyLabel: String
+    var copyHelp: String
+
+    var markdownLength: Int { markdownContents.count }
+    var scopeIdentifier: String { scope.rawValue }
+
+    enum Scope: String, Equatable {
+        case selected
+        case filtered
+    }
+}
+
 enum CinematicRunRecapShareArtifactPreviewBrowserPlanner {
     static func plan(
         historyPlan: CinematicRunRecapShareArtifactHistoryPlan,
@@ -500,6 +548,415 @@ enum CinematicRunRecapShareArtifactPreviewBrowserPlanner {
             .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .lowercased()
+    }
+
+    private static func fingerprint(_ value: String) -> String {
+        var hash: UInt64 = 0xcbf29ce484222325
+        for byte in value.utf8 {
+            hash ^= UInt64(byte)
+            hash = hash &* 0x100000001b3
+        }
+        return String(format: "%016llx", hash)
+    }
+}
+
+enum CinematicRunRecapShareArtifactSubsetExportPlanner {
+    typealias Scope = CinematicRunRecapShareArtifactSubsetExportPlan.Scope
+
+    static func plan(
+        historyPlan: CinematicRunRecapShareArtifactHistoryPlan,
+        selectedEntryIdentifier: String? = nil,
+        searchQuery: String? = nil,
+        scope: Scope
+    ) -> CinematicRunRecapShareArtifactSubsetExportPlan {
+        let previewPlan = CinematicRunRecapShareArtifactPreviewBrowserPlanner.plan(
+            historyPlan: historyPlan,
+            selectedEntryIdentifier: selectedEntryIdentifier,
+            searchQuery: searchQuery
+        )
+        let search = searchState(for: searchQuery)
+        let retainedEntries = historyPlan.entries
+        let filteredEntries = search.isActive
+            ? retainedEntries.filter { matches($0, normalizedQuery: search.normalizedQuery) }
+            : retainedEntries
+        let selectedEntry = previewPlan.selectedEntryIdentifier.flatMap { identifier in
+            retainedEntries.first { $0.identifier == identifier }
+        }
+        let exportEntries: [CinematicRunRecapShareArtifactHistoryPlan.Entry]
+        switch scope {
+        case .selected:
+            exportEntries = selectedEntry.map { [$0] } ?? []
+        case .filtered:
+            exportEntries = filteredEntries
+        }
+
+        let selectedCount = selectedEntry == nil ? 0 : 1
+        let filteredCount = filteredEntries.count
+        let noMatchAvailabilityReason = search.isActive && !retainedEntries.isEmpty && filteredEntries.isEmpty
+            ? "no-matching-recap-share-artifacts"
+            : nil
+        let availabilityReason = availabilityReason(
+            scope: scope,
+            exportEntries: exportEntries,
+            historyPlan: historyPlan,
+            previewPlan: previewPlan,
+            noMatchAvailabilityReason: noMatchAvailabilityReason
+        )
+        let warningStateIdentifier = historyPlan.hasWarnings ? "warnings" : "clear"
+        let exportedEntryIdentifiers = exportEntries.map(\.identifier)
+        let exportIdentifier = bounded(
+            [
+                "run-recap-share-artifact-subset-export",
+                "scope:\(scope.rawValue)",
+                "availability:\(availabilityReason)",
+                "retention:\(historyPlan.retentionLimit)",
+                "retained:\(retainedEntries.count)",
+                "total:\(historyPlan.totalCount)",
+                "hidden:\(historyPlan.hiddenCount)",
+                "selected:\(selectedCount)",
+                "filtered:\(filteredCount)",
+                "exported:\(exportEntries.count)",
+                "query:\(search.queryFingerprint)",
+                "query-snippet:\(search.querySnippet)",
+                "no-match:\(noMatchAvailabilityReason ?? "none")",
+                "selection:\(selectedEntry?.identifier ?? "none")",
+                "fallback:\(previewPlan.selectedFallbackEntryIdentifier ?? "none")",
+                "fallback-reason:\(previewPlan.selectedFallbackReasonIdentifier)",
+                "warnings:\(warningStateIdentifier)",
+                "warning-count:\(historyPlan.warningCount)",
+                "content:\(fingerprint(exportedEntryIdentifiers.joined(separator: "|")))"
+            ].joined(separator: "|"),
+            limit: CinematicRunRecapShareArtifactSubsetExportPlan.identifierMaxCharacters
+        )
+        let markdown = markdownExport(
+            exportIdentifier: exportIdentifier,
+            scope: scope,
+            availabilityReason: availabilityReason,
+            entries: exportEntries,
+            historyPlan: historyPlan,
+            search: search,
+            noMatchAvailabilityReason: noMatchAvailabilityReason,
+            selectedEntry: selectedEntry,
+            previewPlan: previewPlan,
+            selectedCount: selectedCount,
+            filteredCount: filteredCount,
+            warningStateIdentifier: warningStateIdentifier
+        )
+        let identifier = bounded(
+            [
+                "run-recap-share-artifact-subset",
+                "scope:\(scope.rawValue)",
+                "availability:\(availabilityReason)",
+                "export:\(fingerprint(exportIdentifier))",
+                "entries:\(exportEntries.count)",
+                "markdown:\(markdown.count)",
+                "query:\(search.queryFingerprint)",
+                "warnings:\(warningStateIdentifier)"
+            ].joined(separator: "|"),
+            limit: CinematicRunRecapShareArtifactSubsetExportPlan.identifierMaxCharacters
+        )
+
+        return CinematicRunRecapShareArtifactSubsetExportPlan(
+            identifier: identifier,
+            exportIdentifier: exportIdentifier,
+            scope: scope,
+            isAvailable: !exportEntries.isEmpty,
+            availabilityReason: availabilityReason,
+            isSearchActive: search.isActive,
+            searchQuerySnippet: search.querySnippet,
+            searchQueryFingerprint: search.queryFingerprint,
+            noMatchAvailabilityReason: noMatchAvailabilityReason,
+            retainedEntryCount: retainedEntries.count,
+            totalCount: historyPlan.totalCount,
+            hiddenCount: historyPlan.hiddenCount,
+            selectedCount: selectedCount,
+            filteredCount: filteredCount,
+            exportEntryCount: exportEntries.count,
+            unfilteredVisibleCount: retainedEntries.count,
+            selectedEntryIdentifier: selectedEntry?.identifier,
+            selectedFallbackEntryIdentifier: previewPlan.selectedFallbackEntryIdentifier,
+            selectedFallbackReasonIdentifier: previewPlan.selectedFallbackReasonIdentifier,
+            exportedEntryIdentifiers: exportedEntryIdentifiers,
+            warningStateIdentifier: warningStateIdentifier,
+            warningCount: historyPlan.warningCount,
+            hiddenWarningCount: historyPlan.hiddenWarningCount,
+            warningIdentifiers: historyPlan.warnings.map(\.identifier),
+            hasWarnings: historyPlan.hasWarnings,
+            markdownContents: markdown,
+            copyLabel: copyLabel(scope: scope, isAvailable: !exportEntries.isEmpty),
+            copyHelp: copyHelp(
+                scope: scope,
+                isAvailable: !exportEntries.isEmpty,
+                availabilityReason: availabilityReason,
+                exportEntryCount: exportEntries.count,
+                filteredCount: filteredCount,
+                retainedCount: retainedEntries.count,
+                search: search,
+                exportIdentifier: exportIdentifier
+            )
+        )
+    }
+
+    private struct SearchState {
+        var normalizedQuery: String
+        var querySnippet: String
+        var queryFingerprint: String
+        var isActive: Bool
+    }
+
+    private static func searchState(for query: String?) -> SearchState {
+        let normalizedQuery = normalizedSearchText(query ?? "")
+        let isActive = !normalizedQuery.isEmpty
+        return SearchState(
+            normalizedQuery: normalizedQuery,
+            querySnippet: isActive
+                ? bounded(
+                    normalizedQuery,
+                    limit: CinematicRunRecapShareArtifactSubsetExportPlan.searchQuerySnippetMaxCharacters
+                )
+                : "none",
+            queryFingerprint: isActive ? fingerprint(normalizedQuery) : "none",
+            isActive: isActive
+        )
+    }
+
+    private static func matches(
+        _ entry: CinematicRunRecapShareArtifactHistoryPlan.Entry,
+        normalizedQuery query: String
+    ) -> Bool {
+        guard !query.isEmpty else { return true }
+        let fields = [
+            entry.filename,
+            entry.titleSnippet,
+            entry.statusSnippet,
+            entry.commitSnippet ?? "",
+            entry.pathDisplayText,
+            previewSearchBody(from: entry.markdownContents) ?? ""
+        ]
+        return fields.contains { normalizedSearchText($0).contains(query) }
+    }
+
+    private static func availabilityReason(
+        scope: Scope,
+        exportEntries: [CinematicRunRecapShareArtifactHistoryPlan.Entry],
+        historyPlan: CinematicRunRecapShareArtifactHistoryPlan,
+        previewPlan: CinematicRunRecapShareArtifactPreviewBrowserPlan,
+        noMatchAvailabilityReason: String?
+    ) -> String {
+        guard exportEntries.isEmpty else { return "available" }
+        if let noMatchAvailabilityReason {
+            return noMatchAvailabilityReason
+        }
+        if historyPlan.entries.isEmpty {
+            return historyPlan.availabilityReason
+        }
+
+        switch scope {
+        case .selected:
+            return previewPlan.availabilityReason == "available"
+                ? "no-selected-recap-share-artifact"
+                : previewPlan.availabilityReason
+        case .filtered:
+            return "no-filtered-recap-share-artifacts"
+        }
+    }
+
+    private static func markdownExport(
+        exportIdentifier: String,
+        scope: Scope,
+        availabilityReason: String,
+        entries: [CinematicRunRecapShareArtifactHistoryPlan.Entry],
+        historyPlan: CinematicRunRecapShareArtifactHistoryPlan,
+        search: SearchState,
+        noMatchAvailabilityReason: String?,
+        selectedEntry: CinematicRunRecapShareArtifactHistoryPlan.Entry?,
+        previewPlan: CinematicRunRecapShareArtifactPreviewBrowserPlan,
+        selectedCount: Int,
+        filteredCount: Int,
+        warningStateIdentifier: String
+    ) -> String {
+        var lines = [
+            "# Compass Recap Share Artifact Subset",
+            "",
+            "- Export: \(exportIdentifier)",
+            "- Scope: \(scope.rawValue)",
+            "- Availability: \(entries.isEmpty ? "unavailable (\(availabilityReason))" : "available")",
+            "- Retention limit: \(historyPlan.retentionLimit)",
+            "- Total artifacts: \(historyPlan.totalCount)",
+            "- Hidden artifacts: \(historyPlan.hiddenCount)",
+            "- Retained artifacts: \(historyPlan.entries.count)",
+            "- Selected artifacts: \(selectedCount)",
+            "- Filtered artifacts: \(filteredCount)",
+            "- Exported artifacts: \(entries.count)",
+            "- Search active: \(search.isActive)",
+            "- Search query: \(search.querySnippet)",
+            "- Search fingerprint: \(search.queryFingerprint)",
+            "- No-match reason: \(noMatchAvailabilityReason ?? "none")",
+            "- Selected entry: \(selectedEntry?.identifier ?? "none")",
+            "- Selection fallback: \(previewPlan.selectedFallbackEntryIdentifier ?? "none")",
+            "- Selection fallback reason: \(previewPlan.selectedFallbackReasonIdentifier)",
+            "- Cleanup candidates: \(historyPlan.cleanupCandidateCount)",
+            "- Cleanup candidate identifiers: \(historyPlan.cleanupCandidateIdentifiers.isEmpty ? "none" : historyPlan.cleanupCandidateIdentifiers.joined(separator: ", "))",
+            "- Warning state: \(warningStateIdentifier)",
+            "- Warnings: \(historyPlan.warningCount)",
+            "- Hidden warnings: \(historyPlan.hiddenWarningCount)",
+            "- Warning identifiers: \(historyPlan.warnings.isEmpty ? "none" : historyPlan.warnings.map(\.identifier).joined(separator: ", "))"
+        ]
+
+        if !historyPlan.warnings.isEmpty {
+            lines.append("")
+            lines.append("## Warnings")
+            lines.append(contentsOf: historyPlan.warnings.map { warning in
+                "- \(warning.identifier): \(warning.fileDisplayText) - \(warning.message)"
+            })
+        }
+
+        if entries.isEmpty {
+            lines.append("")
+            lines.append("No retained recap share artifacts were available for \(scope.rawValue) export.")
+        } else {
+            for entry in entries {
+                lines.append("")
+                lines.append("## Session \(entry.sessionNumber) - \(entry.filename)")
+                lines.append("")
+                lines.append("- Artifact: \(entry.identifier)")
+                lines.append("- Path: \(entry.pathDisplayText)")
+                lines.append("- Title: \(entry.titleSnippet)")
+                lines.append("- Status: \(entry.statusSnippet)")
+                lines.append("- Commit: \(entry.commitSnippet ?? "none")")
+                lines.append("")
+                lines.append(entry.markdownContents)
+            }
+        }
+
+        return boundedArtifactText(
+            lines.joined(separator: "\n"),
+            limit: CinematicRunRecapShareArtifactSubsetExportPlan.markdownMaxCharacters
+        )
+    }
+
+    private static func copyLabel(scope: Scope, isAvailable: Bool) -> String {
+        let text: String
+        switch (scope, isAvailable) {
+        case (.selected, true):
+            text = "Copy selected export"
+        case (.selected, false):
+            text = "Selected export unavailable"
+        case (.filtered, true):
+            text = "Copy filtered export"
+        case (.filtered, false):
+            text = "Filtered export unavailable"
+        }
+        return bounded(
+            text,
+            limit: CinematicRunRecapShareArtifactSubsetExportPlan.labelMaxCharacters
+        )
+    }
+
+    private static func copyHelp(
+        scope: Scope,
+        isAvailable: Bool,
+        availabilityReason: String,
+        exportEntryCount: Int,
+        filteredCount: Int,
+        retainedCount: Int,
+        search: SearchState,
+        exportIdentifier: String
+    ) -> String {
+        if !isAvailable {
+            return bounded(
+                "No \(scope.rawValue) recap share artifact export is available: \(availabilityReason).",
+                limit: CinematicRunRecapShareArtifactSubsetExportPlan.helpMaxCharacters
+            )
+        }
+
+        let searchDetail = search.isActive
+            ? " matching \(search.querySnippet)"
+            : ""
+        let filteredDetail = scope == .filtered
+            ? " (\(filteredCount)/\(retainedCount) retained\(searchDetail))"
+            : ""
+        return bounded(
+            "Copy \(exportEntryCount) retained recap share artifact\(exportEntryCount == 1 ? "" : "s")\(filteredDetail) from \(scope.rawValue) export \(exportIdentifier).",
+            limit: CinematicRunRecapShareArtifactSubsetExportPlan.helpMaxCharacters
+        )
+    }
+
+    private static func previewSearchBody(from markdownContents: String) -> String? {
+        shareTextBody(in: markdownContents)
+            ?? fallbackBody(in: markdownContents)
+    }
+
+    private static func shareTextBody(in markdownContents: String) -> String? {
+        guard let range = markdownContents.range(of: "## Share Text") else {
+            return nil
+        }
+
+        let text = markdownContents[range.upperBound...]
+            .split(omittingEmptySubsequences: false, whereSeparator: \.isNewline)
+            .map { line in
+                String(line).trimmingCharacters(in: .whitespacesAndNewlines)
+            }
+            .filter { line in
+                !line.isEmpty && !line.hasPrefix("```")
+            }
+            .joined(separator: " ")
+        return text.isEmpty ? nil : text
+    }
+
+    private static func fallbackBody(in markdownContents: String) -> String? {
+        let text = markdownContents
+            .split(omittingEmptySubsequences: false, whereSeparator: \.isNewline)
+            .map { line in
+                String(line).trimmingCharacters(in: .whitespacesAndNewlines)
+            }
+            .filter { line in
+                !line.isEmpty
+                    && !line.hasPrefix("#")
+                    && !line.hasPrefix("- ")
+                    && !line.hasPrefix("```")
+            }
+            .joined(separator: " ")
+        return text.isEmpty ? nil : text
+    }
+
+    private static func normalizedSearchText(_ text: String) -> String {
+        text
+            .replacingOccurrences(of: "\r", with: " ")
+            .replacingOccurrences(of: "\n", with: " ")
+            .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+    }
+
+    private static func bounded(_ text: String, limit: Int) -> String {
+        guard limit > 0 else { return "" }
+        let normalized = text
+            .replacingOccurrences(of: "\r", with: " ")
+            .replacingOccurrences(of: "\n", with: " ")
+            .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalized.isEmpty else { return "none" }
+        guard normalized.count <= limit else {
+            let prefixLimit = max(1, limit - 3)
+            return normalized.prefix(prefixLimit)
+                .trimmingCharacters(in: .whitespacesAndNewlines) + "..."
+        }
+        return normalized
+    }
+
+    private static func boundedArtifactText(_ text: String, limit: Int) -> String {
+        guard limit > 0 else { return "" }
+        let normalized = text
+            .replacingOccurrences(of: "\r", with: "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalized.isEmpty else { return "none" }
+        guard normalized.count <= limit else {
+            let prefixLimit = max(1, limit - 3)
+            return normalized.prefix(prefixLimit)
+                .trimmingCharacters(in: .whitespacesAndNewlines) + "..."
+        }
+        return normalized
     }
 
     private static func fingerprint(_ value: String) -> String {
