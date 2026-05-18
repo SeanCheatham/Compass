@@ -780,6 +780,7 @@ final class CinematicDiagnosticsTests: XCTestCase {
             [
                 "repository",
                 "immediate",
+                "plan-compass-readiness",
                 "commit-constellation",
                 "idle-story-cycle",
                 "plan-compass-focus",
@@ -850,6 +851,7 @@ final class CinematicDiagnosticsTests: XCTestCase {
                 [
                     "repository",
                     "immediate",
+                    "plan-compass-readiness",
                     "commit-constellation",
                     "idle-story-cycle",
                     "plan-compass-focus",
@@ -1002,14 +1004,14 @@ final class CinematicDiagnosticsTests: XCTestCase {
             .components(separatedBy: "\n")
             .filter { expectedSectionHeadings.contains($0) }
         XCTAssertEqual(actualSectionHeadings, expectedSectionHeadings)
-        XCTAssertTrue(summary.exportText.contains("Repository/context (19 rows)"))
+        XCTAssertTrue(summary.exportText.contains("Repository/context (20 rows)"))
         XCTAssertTrue(summary.exportText.contains("Motifs (2 rows)"))
         XCTAssertTrue(summary.exportText.contains("Stage motion/effects (9 rows)"))
         XCTAssertTrue(summary.exportText.contains("Narrative/overlay (8 rows)"))
         XCTAssertTrue(summary.exportText.contains("Assets/textures (2 rows)"))
         XCTAssertTrue(summary.exportText.contains("Tuning (4 rows)"))
         XCTAssertTrue(summary.exportText.contains("Camera shots (7 rows)"))
-        XCTAssertTrue(summary.exportText.contains("Visual smoke (pass, 22 checks)"))
+        XCTAssertTrue(summary.exportText.contains("Visual smoke (pass, 23 checks)"))
         XCTAssertTrue(summary.exportText.contains("Plaque treatments (pass, 4 recipes): smoke pass"))
         XCTAssertTrue(summary.exportText.contains("failure-fracture: accent failure-fracture"))
         XCTAssertTrue(summary.exportText.contains("Overlay fallback: pass"))
@@ -1130,6 +1132,7 @@ final class CinematicDiagnosticsTests: XCTestCase {
         XCTAssertTrue(report.identifier.contains("plan-compass-action-surface:"))
 
         let historyRow = try XCTUnwrap(summary.row(id: "plan-compass-history"))
+        let readinessRow = try XCTUnwrap(summary.row(id: "plan-compass-readiness"))
         let immediateRow = try XCTUnwrap(summary.row(id: "plan-compass-immediate"))
         let midTermRow = try XCTUnwrap(summary.row(id: "plan-compass-mid-term"))
         let longTermRow = try XCTUnwrap(summary.row(id: "plan-compass-long-term"))
@@ -1141,6 +1144,9 @@ final class CinematicDiagnosticsTests: XCTestCase {
         XCTAssertTrue(historyRow.detail.contains("latest-label #5"))
         XCTAssertTrue(historyRow.detail.contains(planCompass.latestCompletedWaypoint?.copyIdentifier ?? "missing"))
         XCTAssertTrue(historyRow.detail.contains("correlated yes"))
+        XCTAssertTrue(readinessRow.detail.contains("status ready"))
+        XCTAssertTrue(readinessRow.detail.contains("drift clear"))
+        XCTAssertTrue(readinessRow.detail.contains("command swift test --filter CinematicPlanCompassPlanTests"))
         XCTAssertTrue(immediateRow.detail.contains(planCompass.immediate.copyIdentifier))
         XCTAssertTrue(immediateRow.detail.contains(planCompass.immediate.exportIdentifier))
         XCTAssertTrue(immediateRow.detail.contains("verify Timeout 2m"))
@@ -1157,6 +1163,7 @@ final class CinematicDiagnosticsTests: XCTestCase {
         XCTAssertTrue(commandsRow.detail.contains("selected-actions focusImmediateRoute"))
         XCTAssertTrue(commandsRow.detail.contains("action-correlated yes"))
         XCTAssertTrue(summary.exportText.contains("Immediate direction:"))
+        XCTAssertTrue(summary.exportText.contains("Plan readiness:"))
         XCTAssertTrue(summary.exportText.contains("Plan history:"))
         XCTAssertTrue(summary.exportText.contains(planCompass.immediate.exportIdentifier))
         XCTAssertTrue(summary.exportText.contains(planCompass.latestCompletedWaypoint?.exportIdentifier ?? "missing"))
@@ -1480,6 +1487,8 @@ final class CinematicDiagnosticsTests: XCTestCase {
         XCTAssertEqual(report.planCompass, planCompass)
         XCTAssertEqual(report.planCompassHistory.identifier, planCompass.completedWaypointStripIdentifier)
         XCTAssertEqual(report.planCompassHistory.hiddenCount, 2)
+        XCTAssertEqual(report.planCompassReadiness.rowIdentifier, "plan-compass-readiness")
+        XCTAssertEqual(report.planCompassReadiness.sourceImmediateContentIdentifier, planCompass.immediate.contentIdentifier)
         XCTAssertEqual(report.planCompassSceneFocus.identifier, planCompassFocus.identifier)
         XCTAssertEqual(report.planCompassSceneFocus.completedWaypointIdentifiers, planCompass.completedWaypoints.map(\.contentIdentifier))
     }

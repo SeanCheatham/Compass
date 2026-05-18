@@ -454,6 +454,425 @@ struct CinematicPlanCompassPlan: Equatable {
     }
 }
 
+struct CinematicPlanCompassReadinessPlan: Equatable, Identifiable {
+    static let identifierMaxCharacters = 320
+    static let labelMaxCharacters = 34
+    static let detailMaxCharacters = 160
+    static let copyTextMaxCharacters = 420
+    static let diagnosticsDetailMaxCharacters = 520
+    static let commandMaxCharacters = 96
+    static let focusRingCopyMaxCharacters = CinematicPlanCompassSceneFocusPlan.ringCopyMaxCharacters
+    static let warningIdentifierLimit = 5
+    static let retryCueIdentifierLimit = 4
+
+    var id: String { identifier }
+
+    var identifier: String
+    var copyIdentifier: String
+    var exportIdentifier: String
+    var rowIdentifier: String
+    var sourcePlanIdentifier: String
+    var sourceImmediateContentIdentifier: String
+    var immediateStateIdentifier: String
+    var statusIdentifier: String
+    var warningStateIdentifier: String
+    var metadataStateIdentifier: String
+    var verifyCommandStateIdentifier: String
+    var timeoutStateIdentifier: String
+    var difficultyStateIdentifier: String
+    var retryCueStateIdentifier: String
+    var warningIdentifiers: [String]
+    var label: String
+    var statusLabel: String
+    var systemImage: String
+    var verifyCommand: String?
+    var verifyCommandLabel: String
+    var verifyTimeoutLabel: String?
+    var estimatedDifficultyLabel: String?
+    var timeoutLabel: String
+    var difficultyLabel: String
+    var completedCount: Int
+    var completedLabel: String
+    var retryCueCount: Int
+    var retryCueIdentifiers: [String]
+    var retryCueSummary: String
+    var detailText: String
+    var focusRingCopy: String
+    var copyText: String
+    var diagnosticsDetail: String
+
+    var hasWarning: Bool {
+        warningStateIdentifier == "warning"
+    }
+
+    init(
+        state: PlanState,
+        planCompassPlan: CinematicPlanCompassPlan,
+        reliabilityFeedback: PlanReliabilityFeedback
+    ) {
+        self.init(
+            stateImmediate: state.immediate,
+            planCompassPlan: planCompassPlan,
+            notices: reliabilityFeedback.notices,
+            recentRunCues: reliabilityFeedback.recentRunCues
+        )
+    }
+
+    init(
+        planCompassPlan: CinematicPlanCompassPlan,
+        reliabilityFeedback: PlanReliabilityFeedback? = nil
+    ) {
+        self.init(
+            stateImmediate: nil,
+            planCompassPlan: planCompassPlan,
+            notices: reliabilityFeedback?.notices ?? [],
+            recentRunCues: reliabilityFeedback?.recentRunCues ?? [:]
+        )
+    }
+
+    private init(
+        stateImmediate: PlanNext?,
+        planCompassPlan: CinematicPlanCompassPlan,
+        notices: [PlanReliabilityFeedback.Notice],
+        recentRunCues: [Int: PlanReliabilityFeedback.RunCue]
+    ) {
+        let immediate = planCompassPlan.immediate
+        let hasImmediate = stateImmediate != nil || !immediate.isEmpty
+        let immediateStateIdentifier = hasImmediate ? immediate.stateIdentifier : "no-immediate"
+        let verifyCommand = Self.firstNonEmpty(immediate.verifyCommand, stateImmediate?.verify)
+        let verifyCommandStateIdentifier = verifyCommand == nil ? "missing" : "available"
+        let timeoutLabel = immediate.verifyTimeoutLabel
+            ?? stateImmediate.map { PlanVerifyMetadata(timeoutMs: $0.verifyTimeoutMs).label }
+        let estimatedDifficultyLabel = immediate.estimatedDifficultyLabel
+            ?? stateImmediate?.estimatedDifficulty?.rawValue.capitalized
+        let timeoutStateIdentifier = Self.timeoutStateIdentifier(
+            hasImmediate: hasImmediate,
+            stateImmediate: stateImmediate,
+            timeoutLabel: timeoutLabel
+        )
+        let difficultyStateIdentifier = hasImmediate
+            ? (estimatedDifficultyLabel == nil ? "missing" : "available")
+            : "none"
+        let metadataWarnings = hasImmediate
+            ? Self.metadataWarningIdentifiers(
+                verifyCommandStateIdentifier: verifyCommandStateIdentifier,
+                timeoutStateIdentifier: timeoutStateIdentifier,
+                difficultyStateIdentifier: difficultyStateIdentifier
+            )
+            : []
+        let retryCueIdentifiers = Self.retryCueIdentifiers(
+            notices: notices,
+            recentRunCues: recentRunCues
+        )
+        let retryCueStateIdentifier = retryCueIdentifiers.isEmpty ? "clear" : "active"
+        let warningIdentifiers = Array((
+            hasImmediate ? [] : ["plan-compass-readiness.no-immediate"]
+        ) + metadataWarnings + (
+            retryCueIdentifiers.isEmpty ? [] : ["plan-compass-readiness.retry-cue"]
+        )).prefix(Self.warningIdentifierLimit)
+        let metadataStateIdentifier: String
+        if !hasImmediate {
+            metadataStateIdentifier = "none"
+        } else if metadataWarnings.isEmpty {
+            metadataStateIdentifier = "complete"
+        } else {
+            metadataStateIdentifier = "missing"
+        }
+        let statusIdentifier: String
+        if !hasImmediate {
+            statusIdentifier = "no-immediate"
+        } else if !retryCueIdentifiers.isEmpty {
+            statusIdentifier = "retry-cue"
+        } else if !metadataWarnings.isEmpty {
+            statusIdentifier = "missing-metadata"
+        } else {
+            statusIdentifier = "ready"
+        }
+        let statusLabel = Self.statusLabel(for: statusIdentifier)
+        let label = Self.bounded(Self.label(for: statusIdentifier), limit: Self.labelMaxCharacters)
+        let systemImage = Self.systemImage(for: statusIdentifier)
+        let boundedVerifyCommand = verifyCommand.map {
+            Self.bounded($0, limit: Self.commandMaxCharacters)
+        }
+        let verifyCommandLabel = boundedVerifyCommand.map { "Prove: \($0)" }
+            ?? "Verify command missing"
+        let timeoutDisplay = timeoutLabel ?? "Timeout missing"
+        let difficultyDisplay = estimatedDifficultyLabel ?? "Difficulty missing"
+        let retryCueSummary = retryCueIdentifiers.isEmpty
+            ? "none"
+            : retryCueIdentifiers.joined(separator: ",")
+        let warningStateIdentifier = warningIdentifiers.isEmpty ? "clear" : "warning"
+        let detailText = Self.bounded(
+            [
+                statusLabel,
+                verifyCommandLabel,
+                timeoutDisplay,
+                difficultyDisplay,
+                "completed \(planCompassPlan.completedCount)"
+            ].joined(separator: " | "),
+            limit: Self.detailMaxCharacters
+        )
+        let focusRingCopy = Self.bounded(
+            [
+                statusLabel,
+                boundedVerifyCommand ?? "verify missing"
+            ].joined(separator: " | "),
+            limit: Self.focusRingCopyMaxCharacters
+        )
+        let copyText = Self.boundedMultiline(
+            [
+                "Plan Compass readiness",
+                "Status: \(statusLabel) (\(statusIdentifier))",
+                "Immediate: \(immediateStateIdentifier)",
+                "Verify: \(boundedVerifyCommand ?? "missing")",
+                "Timeout: \(timeoutDisplay)",
+                "Difficulty: \(difficultyDisplay)",
+                "Completed: \(planCompassPlan.completedLabel)",
+                "Warnings: \(warningIdentifiers.isEmpty ? "clear" : warningIdentifiers.joined(separator: ","))",
+                "Retry cues: \(retryCueSummary)"
+            ].joined(separator: "\n"),
+            limit: Self.copyTextMaxCharacters
+        )
+        let identifier = Self.bounded(
+            [
+                "plan-compass-readiness",
+                "plan:\(Self.fingerprint(planCompassPlan.identifier))",
+                "immediate:\(Self.fingerprint(immediate.contentIdentifier))",
+                "state:\(immediateStateIdentifier)",
+                "status:\(statusIdentifier)",
+                "metadata:\(metadataStateIdentifier)",
+                "verify:\(Self.fingerprint(verifyCommand ?? "none"))",
+                "timeout:\(timeoutStateIdentifier)",
+                "difficulty:\(difficultyStateIdentifier)",
+                "completed:\(planCompassPlan.completedCount)",
+                "warnings:\(Self.fingerprint(warningIdentifiers.joined(separator: "|")))",
+                "retry:\(Self.fingerprint(retryCueIdentifiers.joined(separator: "|")))"
+            ].joined(separator: "|"),
+            limit: Self.identifierMaxCharacters
+        )
+        let copyIdentifier = Self.bounded(
+            "plan-compass-readiness.copy|\(Self.fingerprint(copyText))",
+            limit: Self.identifierMaxCharacters
+        )
+        let exportIdentifier = Self.bounded(
+            "plan-compass-readiness.export|\(Self.fingerprint(identifier))|\(Self.fingerprint(copyText))",
+            limit: Self.identifierMaxCharacters
+        )
+        let diagnosticsDetail = Self.bounded(
+            [
+                "status \(statusIdentifier)",
+                "warning \(warningStateIdentifier)",
+                "metadata \(metadataStateIdentifier)",
+                "verify \(verifyCommandStateIdentifier)",
+                "timeout \(timeoutStateIdentifier)",
+                "difficulty \(difficultyStateIdentifier)",
+                "retry \(retryCueStateIdentifier) \(retryCueIdentifiers.count)",
+                "command \(boundedVerifyCommand ?? "missing")",
+                "copy \(copyIdentifier)",
+                "export \(exportIdentifier)",
+                "source \(Self.bounded(immediate.contentIdentifier, limit: 72))"
+            ].joined(separator: " | "),
+            limit: Self.diagnosticsDetailMaxCharacters
+        )
+
+        self.identifier = identifier
+        self.copyIdentifier = copyIdentifier
+        self.exportIdentifier = exportIdentifier
+        rowIdentifier = "plan-compass-readiness"
+        sourcePlanIdentifier = planCompassPlan.identifier
+        sourceImmediateContentIdentifier = immediate.contentIdentifier
+        self.immediateStateIdentifier = immediateStateIdentifier
+        self.statusIdentifier = statusIdentifier
+        self.warningStateIdentifier = warningStateIdentifier
+        self.metadataStateIdentifier = metadataStateIdentifier
+        self.verifyCommandStateIdentifier = verifyCommandStateIdentifier
+        self.timeoutStateIdentifier = timeoutStateIdentifier
+        self.difficultyStateIdentifier = difficultyStateIdentifier
+        self.retryCueStateIdentifier = retryCueStateIdentifier
+        self.warningIdentifiers = Array(warningIdentifiers)
+        self.label = label
+        self.statusLabel = statusLabel
+        self.systemImage = systemImage
+        self.verifyCommand = boundedVerifyCommand
+        self.verifyCommandLabel = verifyCommandLabel
+        verifyTimeoutLabel = timeoutLabel
+        self.estimatedDifficultyLabel = estimatedDifficultyLabel
+        self.timeoutLabel = timeoutDisplay
+        self.difficultyLabel = difficultyDisplay
+        completedCount = planCompassPlan.completedCount
+        completedLabel = planCompassPlan.completedLabel
+        retryCueCount = retryCueIdentifiers.count
+        self.retryCueIdentifiers = retryCueIdentifiers
+        self.retryCueSummary = retryCueSummary
+        self.detailText = detailText
+        self.focusRingCopy = focusRingCopy
+        self.copyText = copyText
+        self.diagnosticsDetail = diagnosticsDetail
+    }
+
+    private static let retryCueKinds: [PlanReliabilityFeedback.Kind] = [
+        .rejectedPlan,
+        .developBlocked,
+        .developFailed,
+        .failedVerify
+    ]
+
+    private static func retryCueIdentifiers(
+        notices: [PlanReliabilityFeedback.Notice],
+        recentRunCues: [Int: PlanReliabilityFeedback.RunCue]
+    ) -> [String] {
+        var identifiers: [String] = []
+        for notice in notices where isRetryCue(notice) {
+            identifiers.append("notice.\(notice.kind.rawValue).\(notice.sessionNumber)")
+        }
+        for entry in recentRunCues.sorted(by: { $0.key < $1.key }) where isRetryCue(entry.value) {
+            identifiers.append("run.\(entry.value.kind.rawValue).\(entry.key)")
+        }
+
+        var seen = Set<String>()
+        let deduped = identifiers.filter { identifier in
+            seen.insert(identifier).inserted
+        }
+        return Array(deduped.prefix(Self.retryCueIdentifierLimit))
+    }
+
+    private static func isRetryCue(_ notice: PlanReliabilityFeedback.Notice) -> Bool {
+        retryCueKinds.contains(notice.kind)
+            || notice.actionLabel.localizedCaseInsensitiveContains("retry")
+    }
+
+    private static func isRetryCue(_ cue: PlanReliabilityFeedback.RunCue) -> Bool {
+        retryCueKinds.contains(cue.kind)
+            || cue.label.localizedCaseInsensitiveContains("retry")
+    }
+
+    private static func metadataWarningIdentifiers(
+        verifyCommandStateIdentifier: String,
+        timeoutStateIdentifier: String,
+        difficultyStateIdentifier: String
+    ) -> [String] {
+        [
+            verifyCommandStateIdentifier == "missing" ? "plan-compass-readiness.missing-verify" : nil,
+            timeoutStateIdentifier == "missing" ? "plan-compass-readiness.missing-timeout" : nil,
+            difficultyStateIdentifier == "missing" ? "plan-compass-readiness.missing-difficulty" : nil
+        ].compactMap { $0 }
+    }
+
+    private static func timeoutStateIdentifier(
+        hasImmediate: Bool,
+        stateImmediate: PlanNext?,
+        timeoutLabel: String?
+    ) -> String {
+        guard hasImmediate else { return "none" }
+        if let stateImmediate {
+            return stateImmediate.verifyTimeoutMs == nil ? "missing" : "available"
+        }
+        guard let timeoutLabel else { return "missing" }
+        return timeoutLabel.hasPrefix("Default timeout") ? "missing" : "available"
+    }
+
+    private static func statusLabel(for statusIdentifier: String) -> String {
+        switch statusIdentifier {
+        case "ready":
+            return "Ready for Develop"
+        case "retry-cue":
+            return "Retry attention"
+        case "missing-metadata":
+            return "Metadata needed"
+        case "no-immediate":
+            return "Plan needed"
+        default:
+            return "Readiness unknown"
+        }
+    }
+
+    private static func label(for statusIdentifier: String) -> String {
+        switch statusIdentifier {
+        case "ready":
+            return "Develop ready"
+        case "retry-cue":
+            return "Retry cue"
+        case "missing-metadata":
+            return "Needs metadata"
+        case "no-immediate":
+            return "No immediate"
+        default:
+            return "Readiness"
+        }
+    }
+
+    private static func systemImage(for statusIdentifier: String) -> String {
+        switch statusIdentifier {
+        case "ready":
+            return "checkmark.seal.fill"
+        case "retry-cue":
+            return "arrow.clockwise.circle.fill"
+        case "missing-metadata":
+            return "exclamationmark.triangle.fill"
+        case "no-immediate":
+            return "target"
+        default:
+            return "questionmark.circle"
+        }
+    }
+
+    private static func firstNonEmpty(_ candidates: String?...) -> String? {
+        for candidate in candidates {
+            let normalized = candidate?
+                .components(separatedBy: .whitespacesAndNewlines)
+                .filter { !$0.isEmpty }
+                .joined(separator: " ") ?? ""
+            if !normalized.isEmpty {
+                return normalized
+            }
+        }
+        return nil
+    }
+
+    private static func bounded(_ text: String, limit: Int) -> String {
+        let normalized = text
+            .replacingOccurrences(of: "\r", with: " ")
+            .replacingOccurrences(of: "\n", with: " ")
+            .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalized.isEmpty else { return "" }
+        guard limit > 0, normalized.count > limit else { return normalized }
+        guard limit > 3 else { return String(normalized.prefix(limit)) }
+
+        return normalized.prefix(limit - 3)
+            .trimmingCharacters(in: .whitespacesAndNewlines) + "..."
+    }
+
+    private static func boundedMultiline(_ text: String, limit: Int) -> String {
+        let normalized = text
+            .replacingOccurrences(of: "\r\n", with: "\n")
+            .replacingOccurrences(of: "\r", with: "\n")
+            .components(separatedBy: "\n")
+            .map {
+                $0.components(separatedBy: .whitespaces)
+                    .filter { !$0.isEmpty }
+                    .joined(separator: " ")
+            }
+            .filter { !$0.isEmpty }
+            .joined(separator: "\n")
+        guard !normalized.isEmpty else { return "" }
+        guard limit > 0, normalized.count > limit else { return normalized }
+        guard limit > 3 else { return String(normalized.prefix(limit)) }
+
+        return normalized.prefix(limit - 3)
+            .trimmingCharacters(in: .whitespacesAndNewlines) + "..."
+    }
+
+    private static func fingerprint(_ value: String) -> String {
+        var hash: UInt64 = 0xcbf29ce484222325
+        for byte in value.utf8 {
+            hash ^= UInt64(byte)
+            hash = hash &* 0x100000001b3
+        }
+        return String(format: "%016llx", hash)
+    }
+}
+
 struct CinematicPlanCompassCommandPlan: Equatable, Identifiable {
     static let identifierMaxCharacters = 320
     static let commandLimit = 6

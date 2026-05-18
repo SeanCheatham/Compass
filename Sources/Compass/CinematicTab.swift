@@ -14,9 +14,19 @@ struct CinematicTab: View {
             let caption = CinematicCaption(project: project)
             let displayPlan = cinematicOverlayDisplayPlan
             let planCompassPlan = CinematicPlanCompassPlan(state: project.state)
+            let reliabilityFeedback = PlanReliabilityFeedback(
+                state: project.state,
+                sessions: project.sessions
+            )
+            let planCompassReadinessPlan = CinematicPlanCompassReadinessPlan(
+                state: project.state,
+                planCompassPlan: planCompassPlan,
+                reliabilityFeedback: reliabilityFeedback
+            )
             let planCompassSceneFocusCandidatePlan = CinematicPlanCompassSceneFocusPlanner.plan(
                 isPlanOverlaySelected: true,
-                planCompassPlan: planCompassPlan
+                planCompassPlan: planCompassPlan,
+                readinessPlan: planCompassReadinessPlan
             )
             let planCompassCommandPlan = CinematicPlanCompassCommandPlanner.plan(
                 planCompassPlan: planCompassPlan,
@@ -29,15 +39,12 @@ struct CinematicTab: View {
                 ? CinematicPlanCompassSceneFocusPlanner.plan(
                     isPlanOverlaySelected: true,
                     planCompassPlan: planCompassPlan,
+                    readinessPlan: planCompassReadinessPlan,
                     selectedKind: selectedPlanCompassKind
                 )
                 : .none
             let nativeFeedbackCue = project.cinematicNativeFeedbackCue
             let displayedNativeFeedbackCue = displayPlan.showsNativeFeedbackBanner ? nativeFeedbackCue : nil
-            let reliabilityFeedback = PlanReliabilityFeedback(
-                state: project.state,
-                sessions: project.sessions
-            )
             let recapPlan = CinematicRunRecapPlanner.plan(
                 state: project.state,
                 sessions: project.sessions,
@@ -176,6 +183,7 @@ struct CinematicTab: View {
                     if overlayMode == .plan {
                         CinematicPlanCompassOverlay(
                             plan: planCompassPlan,
+                            readinessPlan: planCompassReadinessPlan,
                             selectedKind: selectedPlanCompassKind,
                             actionSurface: planCompassActionSurface,
                             performAction: { actionKind in
@@ -369,6 +377,7 @@ private struct CinematicTabOverlayModePicker: View {
 
 private struct CinematicPlanCompassOverlay: View {
     var plan: CinematicPlanCompassPlan
+    var readinessPlan: CinematicPlanCompassReadinessPlan
     var selectedKind: PlanWorkflowOverview.Kind
     var actionSurface: CinematicPlanCompassActionSurfaceDescriptor
     var performAction: (CinematicPlanCompassCommandPlan.ActionKind) -> Void
@@ -389,6 +398,11 @@ private struct CinematicPlanCompassOverlay: View {
                     .lineLimit(1)
                     .minimumScaleFactor(0.76)
             }
+
+            CinematicPlanCompassReadinessStrip(
+                readinessPlan: readinessPlan,
+                displayPlan: displayPlan
+            )
 
             CinematicPlanCompassWaypointStrip(
                 plan: plan,
@@ -431,6 +445,65 @@ private struct CinematicPlanCompassOverlay: View {
         }
         .help(plan.copyText)
         .accessibilityIdentifier("cinematic-plan-compass-\(plan.exportIdentifier)")
+    }
+}
+
+private struct CinematicPlanCompassReadinessStrip: View {
+    var readinessPlan: CinematicPlanCompassReadinessPlan
+    var displayPlan: CinematicOverlayDisplayPlan
+
+    private var tint: Color {
+        switch readinessPlan.statusIdentifier {
+        case "ready":
+            return .green
+        case "retry-cue", "missing-metadata":
+            return .orange
+        case "no-immediate":
+            return .cyan
+        default:
+            return .white
+        }
+    }
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 7) {
+            Image(systemName: readinessPlan.systemImage)
+                .font(.system(size: 11, weight: .bold))
+                .foregroundStyle(tint.opacity(displayPlan.hudIconEmphasis))
+                .frame(width: 14)
+
+            Text(readinessPlan.label)
+                .font(.caption2.weight(.bold))
+                .foregroundStyle(.white.opacity(displayPlan.hudTitleEmphasis))
+                .lineLimit(1)
+                .minimumScaleFactor(0.78)
+                .frame(width: 92, alignment: .leading)
+
+            Text(readinessPlan.verifyCommandLabel)
+                .font(.caption2.monospacedDigit().weight(.semibold))
+                .foregroundStyle(.white.opacity(displayPlan.hudStatusTextEmphasis))
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+
+            Spacer(minLength: 4)
+
+            Text(readinessPlan.warningStateIdentifier)
+                .font(.system(size: 8.5, weight: .bold, design: .monospaced))
+                .foregroundStyle(tint.opacity(0.92))
+                .lineLimit(1)
+                .padding(.horizontal, 5)
+                .padding(.vertical, 1)
+                .background(tint.opacity(0.13 * displayPlan.overlayOpacity), in: Capsule())
+        }
+        .padding(.horizontal, 7)
+        .padding(.vertical, 5)
+        .background(.white.opacity(0.045 * displayPlan.overlayOpacity), in: RoundedRectangle(cornerRadius: 6))
+        .overlay {
+            RoundedRectangle(cornerRadius: 6)
+                .stroke(tint.opacity(readinessPlan.hasWarning ? 0.42 : 0.18), lineWidth: 1)
+        }
+        .help(readinessPlan.copyText)
+        .accessibilityIdentifier("cinematic-plan-compass-readiness-\(readinessPlan.exportIdentifier)")
     }
 }
 

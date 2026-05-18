@@ -99,6 +99,45 @@ final class CinematicPlanCompassCommandDiagnosticsTests: XCTestCase {
         XCTAssertTrue(summary.exportText.contains("section-copy"))
     }
 
+    func testReportRowAndExportExposeReadinessSummaryBoundsAndCorrelation() throws {
+        let plan = CinematicPlanCompassPlan(state: populatedState)
+        let readiness = CinematicPlanCompassReadinessPlan(
+            state: populatedState,
+            planCompassPlan: plan,
+            reliabilityFeedback: PlanReliabilityFeedback(state: populatedState, sessions: [])
+        )
+        let focusPlan = CinematicPlanCompassSceneFocusPlanner.plan(
+            isPlanOverlaySelected: true,
+            planCompassPlan: plan,
+            readinessPlan: readiness,
+            selectedKind: .immediate
+        )
+        let report = makeReport(plan: plan, selectedKind: .immediate, focusPlan: focusPlan)
+        let summary = CinematicDiagnosticsSummary(
+            report: report,
+            visualSmoke: CinematicVisualSmokeReport(reports: [report])
+        )
+        let row = try XCTUnwrap(summary.rows.first { $0.id == "plan-compass-readiness" })
+
+        XCTAssertEqual(report.planCompassReadiness.identifier, readiness.identifier)
+        XCTAssertEqual(report.planCompassReadiness.sourceImmediateContentIdentifier, plan.immediate.contentIdentifier)
+        XCTAssertEqual(report.planCompassReadiness.immediateContentIdentifier, plan.immediate.contentIdentifier)
+        XCTAssertEqual(report.planCompassReadiness.statusIdentifier, "ready")
+        XCTAssertEqual(report.planCompassReadiness.metadataDriftStateIdentifier, "clear")
+        XCTAssertEqual(report.planCompassSceneFocus.readinessIdentifier, readiness.identifier)
+        XCTAssertEqual(report.planCompassSceneFocus.readinessStatusIdentifier, "ready")
+        XCTAssertEqual(report.planCompassSceneFocus.readinessVerifyCommand, readiness.verifyCommand)
+        XCTAssertEqual(row.label, "Plan readiness")
+        XCTAssertLessThanOrEqual(row.detail.count, CinematicDiagnosticsSummary.detailMaxCharacters)
+        XCTAssertTrue(row.detail.contains("status ready"))
+        XCTAssertTrue(row.detail.contains("drift clear"))
+        XCTAssertTrue(row.detail.contains("command swift test"))
+        XCTAssertTrue(summary.exportText.contains("Plan readiness"))
+        XCTAssertTrue(summary.exportText.contains("plan-compass-readiness"))
+        XCTAssertTrue(summary.exportText.contains("status ready"))
+        XCTAssertTrue(summary.exportText.contains("drift clear"))
+    }
+
     func testRepresentativeCommandSmokeReportsKeepDiagnosticsCorrelated() throws {
         let reports = CinematicDiagnostics.representativePlanCompassCommandSmokeReports()
 
@@ -172,6 +211,67 @@ final class CinematicPlanCompassCommandDiagnosticsTests: XCTestCase {
             "visual-smoke-check-plan-compass-command-availability"
         )
         XCTAssertEqual(check.warningTarget?.relatedRowID, "plan-compass-commands")
+    }
+
+    func testVisualSmokeWarnsForPlanCompassReadinessDriftDetails() throws {
+        var reports = CinematicDiagnostics.representativePlanCompassReadinessSmokeReports()
+        reports[0].planCompassReadiness.verifyCommand = "swift test --filter DriftedReadiness"
+
+        let smoke = CinematicVisualSmokeReport(reports: reports)
+        let check = try XCTUnwrap(smoke.checks.first { $0.id == "plan-compass-readiness" })
+
+        XCTAssertEqual(check.status, .warning)
+        XCTAssertEqual(check.warningIdentifier, "visual-smoke.plan-compass-readiness")
+        XCTAssertEqual(
+            check.warningTarget?.targetAnchorID,
+            "visual-smoke-check-plan-compass-readiness"
+        )
+        XCTAssertEqual(check.warningTarget?.relatedRowID, "plan-compass-readiness")
+        XCTAssertTrue(check.detail.contains("drift"))
+        XCTAssertTrue(smoke.warningIdentifiers.contains("visual-smoke.plan-compass-readiness"))
+    }
+
+    func testWarningTargetUsesPlanCompassReadinessAttentionDetailAndCopyText() throws {
+        var reports = CinematicDiagnostics.representativePlanCompassReadinessSmokeReports()
+        reports[0].planCompassReadiness.verifyTimeoutLabel = "Timeout 99m"
+        reports[0].planCompassReadiness.metadataDriftStateIdentifier = "drift"
+
+        let report = reports[0]
+        let smoke = CinematicVisualSmokeReport(reports: reports)
+        let summary = CinematicDiagnosticsSummary(report: report, visualSmoke: smoke)
+        let check = try XCTUnwrap(summary.visualSmoke.checks.first { $0.id == "plan-compass-readiness" })
+        let warningTarget = try XCTUnwrap(check.warningTarget)
+        let target = try XCTUnwrap(
+            summary.attentionSummary.targets.first { $0.id == warningTarget.id }
+        )
+
+        XCTAssertEqual(warningTarget.id, "visual-smoke-check-plan-compass-readiness")
+        XCTAssertEqual(warningTarget.targetGroupID, "visual-smoke")
+        XCTAssertEqual(warningTarget.relatedGroupID, "repository-context")
+        XCTAssertEqual(warningTarget.relatedRowID, "plan-compass-readiness")
+        XCTAssertEqual(target.label, "Plan readiness")
+        XCTAssertEqual(target.targetAnchorID, "visual-smoke-check-plan-compass-readiness")
+        XCTAssertEqual(target.relatedRowID, "plan-compass-readiness")
+        XCTAssertEqual(target.visibleWarningIdentifiers, ["visual-smoke.plan-compass-readiness"])
+        XCTAssertTrue(target.detail.contains("status ready"))
+        XCTAssertTrue(target.detail.contains("drift drift"))
+        XCTAssertTrue(target.detail.contains("timeout available drift"))
+        XCTAssertLessThanOrEqual(
+            target.detail.count,
+            CinematicDiagnosticsSummary.attentionSummaryDetailMaxCharacters
+        )
+        XCTAssertLessThanOrEqual(
+            target.copyText.count,
+            CinematicDiagnosticsSummary.attentionTargetCopyMaxCharacters
+        )
+        XCTAssertTrue(target.copyText.contains("Label: Plan readiness"))
+        XCTAssertTrue(target.copyText.contains("Target anchor: visual-smoke-check-plan-compass-readiness"))
+        XCTAssertTrue(target.copyText.contains("Warnings: visual-smoke.plan-compass-readiness"))
+        XCTAssertTrue(target.copyText.contains("Related row: plan-compass-readiness"))
+        XCTAssertTrue(target.copyText.contains("Plan readiness"))
+        XCTAssertTrue(summary.exportText.contains("Plan readiness -> visual-smoke-check-plan-compass-readiness"))
+        XCTAssertTrue(summary.exportText.contains("related plan-compass-readiness"))
+        XCTAssertTrue(summary.exportText.contains("timeout available drift"))
     }
 
     func testWarningTargetUsesPlanCompassCommandAttentionDetailAndCopyText() throws {
@@ -304,6 +404,8 @@ final class CinematicPlanCompassCommandDiagnosticsTests: XCTestCase {
             )
 
             XCTAssertEqual(report.planCompassCommands.selectedRouteIdentifier, "mid-term")
+            XCTAssertEqual(report.planCompassReadiness.rowIdentifier, "plan-compass-readiness")
+            XCTAssertEqual(report.planCompassReadiness.statusIdentifier, "ready")
             XCTAssertEqual(project.state, stateBefore)
             XCTAssertEqual(project.sessions, sessionsBefore)
             XCTAssertEqual(project.activeStorage, activeStorageBefore)

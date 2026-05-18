@@ -33,6 +33,10 @@ struct CinematicPlanCompassSceneFocusPlan: Equatable {
         var selectedSectionExportIdentifier: String
         var selectedSectionStateIdentifier: String
         var selectedSectionIsEmpty: Bool
+        var readinessIdentifier: String?
+        var readinessStatusIdentifier: String?
+        var readinessWarningStateIdentifier: String?
+        var readinessVerifyCommand: String?
         var usesFallbackSection: Bool
         var cameraShot: CinematicCameraShot
         var lookTarget: SIMD3<Float>
@@ -76,6 +80,7 @@ enum CinematicPlanCompassSceneFocusPlanner {
     static func plan(
         isPlanOverlaySelected: Bool,
         planCompassPlan: CinematicPlanCompassPlan,
+        readinessPlan: CinematicPlanCompassReadinessPlan? = nil,
         selectedKind: PlanWorkflowOverview.Kind? = nil
     ) -> CinematicPlanCompassSceneFocusPlan {
         guard isPlanOverlaySelected else { return .none }
@@ -83,6 +88,7 @@ enum CinematicPlanCompassSceneFocusPlanner {
         let selectedSection = selectedKind.map { planCompassPlan.section(for: $0) }
             ?? planCompassPlan.sections.first { !$0.isEmpty }
             ?? planCompassPlan.immediate
+        let selectedReadiness = selectedSection.kind == .immediate ? readinessPlan : nil
         let selectedRoute = routeIdentifier(for: selectedSection.kind)
         let usesFallbackSection = selectedKind == nil && selectedSection.kind != .immediate
         let treatment = treatment(for: selectedSection)
@@ -99,16 +105,18 @@ enum CinematicPlanCompassSceneFocusPlanner {
             [
                 selectedSection.label,
                 selectedSection.selectedStateCopy,
+                selectedReadiness?.statusLabel,
                 planCompassPlan.completedLabel
-            ].joined(separator: " | "),
+            ].compactMap { $0 }.joined(separator: " | "),
             limit: CinematicPlanCompassSceneFocusPlan.plaqueStatusMaxCharacters
         )
         let ringCopy = bounded(
-            [
-                selectedSection.directionLabel,
-                selectedSection.stateIdentifier,
-                selectedSection.metadataSummary
-            ].joined(separator: " | "),
+            selectedReadiness?.focusRingCopy
+                ?? [
+                    selectedSection.directionLabel,
+                    selectedSection.stateIdentifier,
+                    selectedSection.metadataSummary
+                ].joined(separator: " | "),
             limit: CinematicPlanCompassSceneFocusPlan.ringCopyMaxCharacters
         )
         let triadIdentifiers = planCompassPlan.sections.map {
@@ -167,6 +175,8 @@ enum CinematicPlanCompassSceneFocusPlanner {
                 "phase:\(fixed(treatment.phaseLightIntensity))",
                 "waypoints:\(fingerprint(planCompassPlan.completedWaypointStripIdentifier))",
                 "waypoint-rail:\(fingerprint(waypointRailIdentifier))",
+                "readiness:\(fingerprint(selectedReadiness?.identifier ?? "none"))",
+                "readiness-status:\(selectedReadiness?.statusIdentifier ?? "none")",
                 "plaque:\(fingerprint([plaqueTitle, plaqueDetail, plaqueStatus, ringCopy].joined(separator: "|")))"
             ].joined(separator: "|"),
             limit: CinematicPlanCompassSceneFocusPlan.identifierMaxCharacters
@@ -185,6 +195,10 @@ enum CinematicPlanCompassSceneFocusPlanner {
             selectedSectionExportIdentifier: selectedSection.exportIdentifier,
             selectedSectionStateIdentifier: selectedSection.stateIdentifier,
             selectedSectionIsEmpty: selectedSection.isEmpty,
+            readinessIdentifier: selectedReadiness?.identifier,
+            readinessStatusIdentifier: selectedReadiness?.statusIdentifier,
+            readinessWarningStateIdentifier: selectedReadiness?.warningStateIdentifier,
+            readinessVerifyCommand: selectedReadiness?.verifyCommand,
             usesFallbackSection: usesFallbackSection,
             cameraShot: treatment.cameraShot,
             lookTarget: lookTarget,
