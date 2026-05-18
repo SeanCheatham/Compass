@@ -155,11 +155,15 @@ enum CinematicTextureAssetCatalog {
         "void-arches-v2"
     ]
     private static let backdropTextureNames = generatedBackdropTextureNames.union(fallbackBackdropTextureNames)
-    private static let arenaTextureNames: Set<String> = [
+    private static let generatedArenaTextureNames: Set<String> = Set(
+        CinematicActivityEventKind.allCases.map { generatedArenaTextureName(for: $0) }
+    )
+    private static let fallbackArenaTextureNames: Set<String> = [
         "arena-runes",
         "arena-runes-v2",
         "arena-runes-v3"
     ]
+    private static let arenaTextureNames = generatedArenaTextureNames.union(fallbackArenaTextureNames)
 
     static var bundledTextureNames: Set<String> {
         backdropTextureNames.union(arenaTextureNames)
@@ -171,6 +175,14 @@ enum CinematicTextureAssetCatalog {
 
     static var backdropFallbackNames: Set<String> {
         fallbackBackdropTextureNames
+    }
+
+    static var generatedArenaNames: Set<String> {
+        generatedArenaTextureNames
+    }
+
+    static var arenaFallbackNames: Set<String> {
+        fallbackArenaTextureNames
     }
 
     static func backdropAsset(for style: CinematicLanguageSigilStyle) -> CinematicTextureAsset {
@@ -203,25 +215,32 @@ enum CinematicTextureAssetCatalog {
     }
 
     static func arenaAsset(for kind: CinematicActivityEventKind) -> CinematicTextureAsset {
-        let textureName: String
-        switch kind {
-        case .conflicted, .failure:
-            textureName = "arena-runes-v3"
-        case .dirty:
-            textureName = "arena-runes-v3"
-        case .commit:
-            textureName = "arena-runes-v2"
-        case .success, .recovery:
-            textureName = "arena-runes-v2"
-        case .clean, .unavailable:
-            textureName = "arena-runes-v3"
-        }
-
         return asset(
             role: .arena,
             routeIdentifier: "activity.\(kind.rawValue)",
-            requestedTextureName: textureName
+            requestedTextureName: generatedArenaTextureName(for: kind)
         )
+    }
+
+    static func generatedArenaTextureName(for kind: CinematicActivityEventKind) -> String {
+        switch kind {
+        case .unavailable:
+            return "unavailable-arena"
+        case .clean:
+            return "clean-arena"
+        case .dirty:
+            return "dirty-arena"
+        case .conflicted:
+            return "conflicted-arena"
+        case .commit:
+            return "commit-arena"
+        case .success:
+            return "success-arena"
+        case .recovery:
+            return "recovery-arena"
+        case .failure:
+            return "failure-arena"
+        }
     }
 
     static func textureRoleCoverageIdentifier(
@@ -253,6 +272,10 @@ enum CinematicTextureAssetCatalog {
 
     static func isGeneratedBackdropTextureName(_ textureName: String) -> Bool {
         generatedBackdropTextureNames.contains(textureName)
+    }
+
+    static func isGeneratedArenaTextureName(_ textureName: String) -> Bool {
+        generatedArenaTextureNames.contains(textureName)
     }
 
     static func isPackagedResourceAvailable(

@@ -569,9 +569,17 @@ struct CinematicVisualSmokeReport: Equatable {
         let generatedBackdropTextures = Set(
             backdropTextures.filter(CinematicTextureAssetCatalog.isGeneratedBackdropTextureName)
         )
+        let generatedArenaTextures = Set(
+            arenaTextures.filter(CinematicTextureAssetCatalog.isGeneratedArenaTextureName)
+        )
         let packagedGeneratedBackdrops = Set(
             generatedBackdropTextures.filter {
                 CinematicTextureAssetCatalog.isPackagedResourceAvailable($0, role: .backdrop)
+            }
+        )
+        let packagedGeneratedArenas = Set(
+            generatedArenaTextures.filter {
+                CinematicTextureAssetCatalog.isPackagedResourceAvailable($0, role: .arena)
             }
         )
         let isPassing = !reports.isEmpty && availableCount == reports.count
@@ -584,9 +592,9 @@ struct CinematicVisualSmokeReport: Equatable {
             detail: [
                 "assets \(availableCount)/\(reports.count)",
                 "gen backdrops \(generatedBackdropTextures.count)/\(CinematicTextureAssetCatalog.generatedBackdropNames.count)",
-                "packaged \(packagedGeneratedBackdrops.count)/\(generatedBackdropTextures.count)",
-                "sample \(generatedBackdropTextures.sorted().first ?? "none")",
-                "arenas \(joined(arenaTextures))"
+                "gen arenas \(generatedArenaTextures.count)/\(CinematicTextureAssetCatalog.generatedArenaNames.count)",
+                "packaged backdrops \(packagedGeneratedBackdrops.count)/\(generatedBackdropTextures.count)",
+                "packaged arenas \(packagedGeneratedArenas.count)/\(generatedArenaTextures.count)"
             ].joined(separator: " | ")
         )
     }
@@ -601,11 +609,17 @@ struct CinematicVisualSmokeReport: Equatable {
                 ? report.setDressing.backdropTextureRouteIdentifier
                 : nil
         })
+        let generatedArenaRoutes = Set(reports.compactMap { report in
+            CinematicTextureAssetCatalog.isGeneratedArenaTextureName(report.setDressing.arenaTextureName)
+                ? report.setDressing.arenaTextureRouteIdentifier
+                : nil
+        })
         let directRouteCount = reports.filter { !$0.setDressing.usesFallbackTextureAsset }.count
         let isPassing = !reports.isEmpty
             && backdropRoutes.isSuperset(of: expectedBackdropRoutes)
             && generatedBackdropRoutes.isSuperset(of: expectedBackdropRoutes)
             && arenaRoutes.isSuperset(of: expectedArenaRoutes)
+            && generatedArenaRoutes.isSuperset(of: expectedArenaRoutes)
             && directRouteCount == reports.count
 
         return check(
@@ -615,8 +629,9 @@ struct CinematicVisualSmokeReport: Equatable {
             warningIdentifier: "visual-smoke.texture-role-coverage",
             detail: [
                 "backdrop \(backdropRoutes.intersection(expectedBackdropRoutes).count)/\(expectedBackdropRoutes.count)",
-                "generated \(generatedBackdropRoutes.intersection(expectedBackdropRoutes).count)/\(expectedBackdropRoutes.count)",
+                "gen backdrop \(generatedBackdropRoutes.intersection(expectedBackdropRoutes).count)/\(expectedBackdropRoutes.count)",
                 "arena \(arenaRoutes.intersection(expectedArenaRoutes).count)/\(expectedArenaRoutes.count)",
+                "gen arena \(generatedArenaRoutes.intersection(expectedArenaRoutes).count)/\(expectedArenaRoutes.count)",
                 "direct \(directRouteCount)/\(reports.count)"
             ].joined(separator: " | ")
         )
@@ -866,8 +881,15 @@ struct CinematicVisualSmokeReport: Equatable {
             report.setDressing.backdropTextureName,
             role: .backdrop
         )
+        let arenaTextureIsPackaged = CinematicTextureAssetCatalog.isPackagedResourceAvailable(
+            report.setDressing.arenaTextureName,
+            role: .arena
+        )
 
-        return identifiersArePresent && textureNamesAreRecognized && backdropTextureIsPackaged
+        return identifiersArePresent
+            && textureNamesAreRecognized
+            && backdropTextureIsPackaged
+            && arenaTextureIsPackaged
     }
 
     private static func activityCaseIdentifier(_ report: CinematicDiagnosticsReport) -> String? {
@@ -1295,10 +1317,20 @@ struct CinematicDiagnosticsSummary: Equatable {
                     "routes \(report.setDressing.textureRoleCoverageIdentifier)",
                     report.setDressing.backdropTextureName,
                     report.setDressing.arenaTextureName,
+                    CinematicTextureAssetCatalog.isGeneratedBackdropTextureName(
+                        report.setDressing.backdropTextureName
+                    ) ? "backdrop generated" : "backdrop fallback",
+                    CinematicTextureAssetCatalog.isGeneratedArenaTextureName(
+                        report.setDressing.arenaTextureName
+                    ) ? "arena generated" : "arena fallback",
                     CinematicTextureAssetCatalog.isPackagedResourceAvailable(
                         report.setDressing.backdropTextureName,
                         role: .backdrop
                     ) ? "backdrop packaged" : "backdrop missing",
+                    CinematicTextureAssetCatalog.isPackagedResourceAvailable(
+                        report.setDressing.arenaTextureName,
+                        role: .arena
+                    ) ? "arena packaged" : "arena missing",
                     report.setDressing.usesFallbackTextureAsset ? "fallback" : "direct"
                 ].joined(separator: " | ")
             ),

@@ -47,11 +47,13 @@ final class CinematicVisualSmokeReportTests: XCTestCase {
         XCTAssertTrue(chrome.detail.contains("full-readable"))
         XCTAssertTrue(chrome.detail.contains("fallback-readable"))
         XCTAssertTrue(assets.detail.contains("gen backdrops 8/8"))
-        XCTAssertTrue(assets.detail.contains("packaged 8/8"))
-        XCTAssertTrue(assets.detail.contains("arena-runes-v3"))
+        XCTAssertTrue(assets.detail.contains("gen arenas 8/8"))
+        XCTAssertTrue(assets.detail.contains("packaged backdrops 8/8"))
+        XCTAssertTrue(assets.detail.contains("packaged arenas 8/8"))
         XCTAssertTrue(textureRoles.detail.contains("backdrop 8/8"))
-        XCTAssertTrue(textureRoles.detail.contains("generated 8/8"))
+        XCTAssertTrue(textureRoles.detail.contains("gen backdrop 8/8"))
         XCTAssertTrue(textureRoles.detail.contains("arena 8/8"))
+        XCTAssertTrue(textureRoles.detail.contains("gen arena 8/8"))
         XCTAssertTrue(textureRoles.detail.contains("direct"))
         XCTAssertTrue(pressure.detail.contains("clean"))
         XCTAssertTrue(pressure.detail.contains("heavy"))
@@ -125,6 +127,12 @@ final class CinematicVisualSmokeReportTests: XCTestCase {
         let fallbackSmoke = CinematicVisualSmokeReport(reports: [fallbackBackdropReport])
         XCTAssertEqual(fallbackSmoke.checks.first { $0.id == "texture-role-coverage" }?.status, .warning)
         XCTAssertTrue(fallbackSmoke.warningIdentifiers.contains("visual-smoke.texture-role-coverage"))
+
+        var fallbackArenaReport = report
+        fallbackArenaReport.setDressing.arenaTextureName = "arena-runes"
+        let fallbackArenaSmoke = CinematicVisualSmokeReport(reports: [fallbackArenaReport])
+        XCTAssertEqual(fallbackArenaSmoke.checks.first { $0.id == "texture-role-coverage" }?.status, .warning)
+        XCTAssertTrue(fallbackArenaSmoke.warningIdentifiers.contains("visual-smoke.texture-role-coverage"))
     }
 
     func testSummaryExportIncludesVisualSmokeWithoutChangingRowsOrSections() {

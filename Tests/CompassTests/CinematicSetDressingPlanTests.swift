@@ -72,6 +72,10 @@ final class CinematicSetDressingPlanTests: XCTestCase {
             CinematicTextureAssetCatalog.expectedRouteIdentifiers(for: .arena)
         )
         XCTAssertEqual(
+            Set(activityPlans.map(\.materialTextureVariants.arenaTextureName)),
+            CinematicTextureAssetCatalog.generatedArenaNames
+        )
+        XCTAssertEqual(
             Set(activityPlans.map(\.activityMarker.identifier)).count,
             CinematicDiagnostics.representativeActivityCases().filter { $0.hasRepository }.count
         )
@@ -117,7 +121,13 @@ final class CinematicSetDressingPlanTests: XCTestCase {
             )
 
             XCTAssertEqual(plan.materialTextureVariants.arenaTextureAsset, expectedArena)
+            XCTAssertEqual(
+                plan.materialTextureVariants.arenaTextureName,
+                CinematicTextureAssetCatalog.generatedArenaTextureName(for: eventKind)
+            )
             assertTextureAssetIsBounded(expectedArena, file: #filePath, line: #line)
+            XCTAssertTrue(CinematicTextureAssetCatalog.isGeneratedArenaTextureName(expectedArena.textureName))
+            XCTAssertTrue(CinematicTextureAssetCatalog.isPackagedResourceAvailable(for: expectedArena))
             XCTAssertTrue(
                 CinematicTextureAssetCatalog.recognizes(plan.materialTextureVariants.arenaTextureName, role: .arena)
             )
@@ -147,7 +157,30 @@ final class CinematicSetDressingPlanTests: XCTestCase {
         }
     }
 
-    func testTextureCatalogPreservesExistingRealityKitTextureNames() {
+    func testGeneratedArenaAssetsAreUniquePackagedAndKeepFallbacks() {
+        let generatedAssets = CinematicActivityEventKind.allCases.map(CinematicTextureAssetCatalog.arenaAsset)
+        let generatedNames = Set(generatedAssets.map(\.textureName))
+
+        XCTAssertEqual(generatedNames, CinematicTextureAssetCatalog.generatedArenaNames)
+        XCTAssertEqual(generatedNames.count, CinematicActivityEventKind.allCases.count)
+        XCTAssertEqual(CinematicTextureAssetCatalog.arenaFallbackNames, ["arena-runes", "arena-runes-v2", "arena-runes-v3"])
+
+        for (kind, asset) in zip(CinematicActivityEventKind.allCases, generatedAssets) {
+            XCTAssertEqual(asset.textureName, CinematicTextureAssetCatalog.generatedArenaTextureName(for: kind))
+            XCTAssertTrue(CinematicTextureAssetCatalog.isGeneratedArenaTextureName(asset.textureName))
+            XCTAssertTrue(CinematicTextureAssetCatalog.isPackagedResourceAvailable(for: asset))
+            XCTAssertFalse(asset.usesFallback)
+            assertTextureAssetIsBounded(asset, file: #filePath, line: #line)
+        }
+
+        for fallbackName in CinematicTextureAssetCatalog.arenaFallbackNames {
+            XCTAssertTrue(CinematicTextureAssetCatalog.recognizes(fallbackName, role: .arena))
+            XCTAssertFalse(CinematicTextureAssetCatalog.isGeneratedArenaTextureName(fallbackName))
+            XCTAssertTrue(CinematicTextureAssetCatalog.isPackagedResourceAvailable(fallbackName, role: .arena))
+        }
+    }
+
+    func testTextureCatalogUsesExtensionlessRealityKitTextureNamesAndKeepsFallbacks() {
         let settings = CinematicInfluenceSettings()
         let dirtySwift = CinematicSetDressingPlanner.plan(
             languageProfile: languageProfile(primaryLanguage: .swift),
@@ -166,10 +199,10 @@ final class CinematicSetDressingPlanTests: XCTestCase {
         )
 
         XCTAssertEqual(dirtySwift.materialTextureVariants.backdropTextureName, "swift-comet-backdrop")
-        XCTAssertEqual(dirtySwift.materialTextureVariants.arenaTextureName, "arena-runes-v3")
+        XCTAssertEqual(dirtySwift.materialTextureVariants.arenaTextureName, "dirty-arena")
         XCTAssertEqual(cleanMarkdown.materialTextureVariants.backdropTextureName, "markdown-rune-backdrop")
-        XCTAssertEqual(cleanMarkdown.materialTextureVariants.arenaTextureName, "arena-runes-v3")
-        XCTAssertEqual(commitSwift.materialTextureVariants.arenaTextureName, "arena-runes-v2")
+        XCTAssertEqual(cleanMarkdown.materialTextureVariants.arenaTextureName, "clean-arena")
+        XCTAssertEqual(commitSwift.materialTextureVariants.arenaTextureName, "commit-arena")
 
         for textureName in [
             dirtySwift.materialTextureVariants.backdropTextureName,
@@ -185,6 +218,9 @@ final class CinematicSetDressingPlanTests: XCTestCase {
 
         XCTAssertTrue(CinematicTextureAssetCatalog.recognizesBundledTextureName("void-arches"))
         XCTAssertTrue(CinematicTextureAssetCatalog.recognizesBundledTextureName("void-arches-v2"))
+        XCTAssertTrue(CinematicTextureAssetCatalog.recognizesBundledTextureName("arena-runes"))
+        XCTAssertTrue(CinematicTextureAssetCatalog.recognizesBundledTextureName("arena-runes-v2"))
+        XCTAssertTrue(CinematicTextureAssetCatalog.recognizesBundledTextureName("arena-runes-v3"))
     }
 
     func testPlanValuesStayInsideBoundedRanges() {

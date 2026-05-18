@@ -163,14 +163,23 @@ final class CinematicDiagnosticsTests: XCTestCase {
             Set(reports.map(\.setDressing.arenaTextureRouteIdentifier)),
             CinematicTextureAssetCatalog.expectedRouteIdentifiers(for: .arena)
         )
+        XCTAssertEqual(
+            Set(reports.map(\.setDressing.arenaTextureName)),
+            CinematicTextureAssetCatalog.generatedArenaNames
+        )
         XCTAssertTrue(
             reports.allSatisfy {
                 CinematicTextureAssetCatalog.recognizes($0.setDressing.backdropTextureName, role: .backdrop)
                     && CinematicTextureAssetCatalog.recognizes($0.setDressing.arenaTextureName, role: .arena)
                     && CinematicTextureAssetCatalog.isGeneratedBackdropTextureName($0.setDressing.backdropTextureName)
+                    && CinematicTextureAssetCatalog.isGeneratedArenaTextureName($0.setDressing.arenaTextureName)
                     && CinematicTextureAssetCatalog.isPackagedResourceAvailable(
                         $0.setDressing.backdropTextureName,
                         role: .backdrop
+                    )
+                    && CinematicTextureAssetCatalog.isPackagedResourceAvailable(
+                        $0.setDressing.arenaTextureName,
+                        role: .arena
                     )
                     && !$0.setDressing.usesFallbackTextureAsset
             }
@@ -624,6 +633,10 @@ final class CinematicDiagnosticsTests: XCTestCase {
         XCTAssertTrue(summary.exportText.contains(report.setDressing.textureRoleCoverageIdentifier))
         XCTAssertTrue(summary.exportText.contains(report.setDressing.backdropTextureName))
         XCTAssertTrue(summary.exportText.contains(report.setDressing.arenaTextureName))
+        XCTAssertTrue(summary.exportText.contains("backdrop generated"))
+        XCTAssertTrue(summary.exportText.contains("arena generated"))
+        XCTAssertTrue(summary.exportText.contains("backdrop packaged"))
+        XCTAssertTrue(summary.exportText.contains("arena packaged"))
         XCTAssertTrue(summary.exportText.contains(report.cameraTuning.identifier))
         XCTAssertTrue(summary.exportText.contains(report.cameraSnapshots[0].identifier))
         XCTAssertTrue(summary.exportText.contains(report.cameraSnapshots[3].shotIdentifier))
