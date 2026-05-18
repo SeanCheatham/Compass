@@ -313,6 +313,23 @@ final class CinematicVisualSmokeReportTests: XCTestCase {
         XCTAssertTrue(summary.exportText.contains("Native feedback coverage: pass"))
         XCTAssertTrue(summary.exportText.contains("Native feedback treatment: pass"))
         XCTAssertTrue(summary.exportText.contains("Timeline focus coverage: pass"))
+        XCTAssertEqual(summary.plaqueTreatmentLegend.id, "plaque-treatment-legend")
+        XCTAssertEqual(summary.plaqueTreatmentLegend.label, "Plaque treatments")
+        XCTAssertEqual(summary.plaqueTreatmentLegend.status, .pass)
+        XCTAssertEqual(summary.plaqueTreatmentLegend.statusLabel, "Passing")
+        XCTAssertEqual(summary.plaqueTreatmentLegend.detail, "smoke pass")
+        XCTAssertNil(summary.plaqueTreatmentLegend.warningIdentifier)
+        XCTAssertEqual(summary.plaqueTreatmentLegend.rowCountLabel, "4 recipes")
+        XCTAssertEqual(
+            summary.plaqueTreatmentLegend.rows.map(\.label),
+            ["verify-seal", "warning-rails", "failure-fracture", "retry-braces"]
+        )
+        XCTAssertTrue(summary.exportText.contains("Plaque treatments (pass, 4 recipes): smoke pass"))
+        XCTAssertTrue(summary.exportText.contains("verify-seal: accent verify-seal"))
+        XCTAssertTrue(summary.exportText.contains("route verifyStarted.verify"))
+        XCTAssertTrue(summary.exportText.contains("recipe rail.top,rail.bottom,seal.left,seal.right"))
+        XCTAssertTrue(summary.exportText.contains("retry-braces: accent retry-braces"))
+        XCTAssertTrue(summary.exportText.contains("primitives 5 rail.top,rail.bottom,retry.brace.left,retry.brace.right,retry.cross"))
         XCTAssertFalse(summary.sections.contains { $0.id == "visual-smoke" })
         XCTAssertEqual(summary.rows.count, CinematicDiagnosticsSummary.maxRows)
         XCTAssertEqual(
@@ -378,12 +395,74 @@ final class CinematicVisualSmokeReportTests: XCTestCase {
         XCTAssertEqual(summary.rows.count, CinematicDiagnosticsSummary.maxRows)
         XCTAssertEqual(
             summary.exportText.components(separatedBy: "\n").count,
-            summary.rows.count + summary.sections.count + summary.visualSmoke.checks.count + 3
+            summary.rows.count
+                + summary.sections.count
+                + summary.visualSmoke.checks.count
+                + summary.plaqueTreatmentLegend.rows.count
+                + 4
         )
         XCTAssertTrue(summary.exportText.contains("Visual smoke (warning, 14 checks)"))
         XCTAssertTrue(summary.exportText.contains("Asset availability: warning"))
         XCTAssertTrue(summary.exportText.contains("warning visual-smoke.asset-availability"))
         XCTAssertTrue(summary.exportText.contains("Texture role coverage: warning"))
         XCTAssertTrue(summary.exportText.contains("warning visual-smoke.texture-role-coverage"))
+        XCTAssertEqual(summary.plaqueTreatmentLegend.status, .warning)
+        XCTAssertEqual(
+            summary.plaqueTreatmentLegend.warningIdentifier,
+            "visual-smoke.native-feedback-treatment-coverage"
+        )
+        XCTAssertTrue(
+            summary.plaqueTreatmentLegend.detail.contains("visual-smoke.native-feedback-treatment-coverage")
+        )
+        XCTAssertTrue(
+            summary.exportText.contains(
+                "Plaque treatments (warning, 4 recipes): smoke warning visual-smoke.native-feedback-treatment-coverage"
+            )
+        )
+    }
+
+    func testSummaryPlaqueTreatmentLegendSurfacesPrimitiveDivergenceWarning() throws {
+        let report = try XCTUnwrap(CinematicDiagnostics.representativeSmokeMatrix().first)
+        var divergentPrimitiveReports = CinematicDiagnostics.representativeNativeFeedbackSmokeReports()
+        let primitiveIndex = try XCTUnwrap(
+            divergentPrimitiveReports.firstIndex { $0.nativeFeedback.sourceIdentifier == "native:verifyStarted" }
+        )
+        divergentPrimitiveReports[primitiveIndex].narrativeCue.questPlaque
+            .plaqueTreatmentRenderPrimitiveIdentifiers = ["rail.top"]
+        divergentPrimitiveReports[primitiveIndex].narrativeCue.questPlaque
+            .plaqueTreatmentRenderPrimitiveCount = 1
+
+        let smoke = CinematicVisualSmokeReport(reports: divergentPrimitiveReports)
+        let treatmentCheck = try XCTUnwrap(
+            smoke.checks.first { $0.id == "native-feedback-treatment-coverage" }
+        )
+        XCTAssertEqual(treatmentCheck.status, .warning)
+        XCTAssertEqual(
+            treatmentCheck.warningIdentifier,
+            "visual-smoke.native-feedback-treatment-coverage"
+        )
+        XCTAssertTrue(smoke.warningIdentifiers.contains("visual-smoke.native-feedback-treatment-coverage"))
+        XCTAssertTrue(treatmentCheck.detail.contains("prims 3/4"))
+
+        let summary = CinematicDiagnosticsSummary(report: report, visualSmoke: smoke)
+        XCTAssertEqual(summary.plaqueTreatmentLegend.status, .warning)
+        XCTAssertEqual(summary.plaqueTreatmentLegend.statusLabel, "Warning")
+        XCTAssertEqual(
+            summary.plaqueTreatmentLegend.warningIdentifier,
+            "visual-smoke.native-feedback-treatment-coverage"
+        )
+        XCTAssertTrue(
+            summary.plaqueTreatmentLegend.detail.contains("visual-smoke.native-feedback-treatment-coverage")
+        )
+        XCTAssertEqual(
+            summary.plaqueTreatmentLegend.rows.map(\.label),
+            ["verify-seal", "warning-rails", "failure-fracture", "retry-braces"]
+        )
+        for row in summary.plaqueTreatmentLegend.rows {
+            XCTAssertLessThanOrEqual(row.label.count, CinematicDiagnosticsSummary.labelMaxCharacters)
+            XCTAssertLessThanOrEqual(row.detail.count, CinematicDiagnosticsSummary.detailMaxCharacters)
+        }
+        XCTAssertTrue(summary.exportText.contains("Plaque treatments (warning, 4 recipes)"))
+        XCTAssertTrue(summary.exportText.contains("warning visual-smoke.native-feedback-treatment-coverage"))
     }
 }

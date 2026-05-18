@@ -719,7 +719,11 @@ final class CinematicDiagnosticsTests: XCTestCase {
         XCTAssertTrue(summary.exportText.hasPrefix("Cinematic Diagnostics\n"))
         XCTAssertEqual(
             summary.exportText.components(separatedBy: "\n").count,
-            summary.rows.count + summary.sections.count + summary.visualSmoke.checks.count + 3
+            summary.rows.count
+                + summary.sections.count
+                + summary.visualSmoke.checks.count
+                + summary.plaqueTreatmentLegend.rows.count
+                + 4
         )
         let expectedSectionHeadings = summary.sections.map { "\($0.label) (\($0.rowCountLabel))" }
         let actualSectionHeadings = summary.exportText
@@ -734,6 +738,8 @@ final class CinematicDiagnosticsTests: XCTestCase {
         XCTAssertTrue(summary.exportText.contains("Tuning (4 rows)"))
         XCTAssertTrue(summary.exportText.contains("Camera shots (9 rows)"))
         XCTAssertTrue(summary.exportText.contains("Visual smoke (pass, 14 checks)"))
+        XCTAssertTrue(summary.exportText.contains("Plaque treatments (pass, 4 recipes): smoke pass"))
+        XCTAssertTrue(summary.exportText.contains("failure-fracture: accent failure-fracture"))
         XCTAssertTrue(summary.exportText.contains("Overlay fallback: pass"))
         XCTAssertTrue(summary.exportText.contains("Native feedback coverage: pass"))
         XCTAssertTrue(summary.exportText.contains("Native feedback treatment: pass"))

@@ -1499,6 +1499,7 @@ struct CinematicDiagnosticsSummary: Equatable {
     var rows: [Row]
     var sections: [Section]
     var visualSmoke: VisualSmokeSection
+    var plaqueTreatmentLegend: PlaqueTreatmentLegend
     var exportText: String
 
     struct Row: Identifiable, Equatable {
@@ -1532,6 +1533,28 @@ struct CinematicDiagnosticsSummary: Equatable {
         var checkCountLabel: String {
             checks.count == 1 ? "1 check" : "\(checks.count) checks"
         }
+    }
+
+    struct PlaqueTreatmentLegend: Identifiable, Equatable {
+        var id: String
+        var label: String
+        var status: CinematicVisualSmokeReport.Status
+        var statusLabel: String
+        var detail: String
+        var warningIdentifier: String?
+        var rows: [Row]
+
+        var rowCountLabel: String {
+            rows.count == 1 ? "1 recipe" : "\(rows.count) recipes"
+        }
+    }
+
+    private struct PlaqueTreatmentLegendEntry {
+        var accentIdentifier: String
+        var routeIdentifier: String
+        var renderRecipeIdentifier: String
+        var primitiveIdentifiers: [String]
+        var primitiveCount: Int
     }
 
     private struct SectionDefinition {
@@ -1612,7 +1635,13 @@ struct CinematicDiagnosticsSummary: Equatable {
         self.rows = Array(rows.prefix(Self.maxRows))
         sections = Self.makeSections(rows: self.rows)
         self.visualSmoke = Self.makeVisualSmokeSection(visualSmoke)
-        exportText = Self.makeExportText(report: report, sections: sections, visualSmoke: self.visualSmoke)
+        plaqueTreatmentLegend = Self.makePlaqueTreatmentLegend(visualSmoke: self.visualSmoke)
+        exportText = Self.makeExportText(
+            report: report,
+            sections: sections,
+            visualSmoke: self.visualSmoke,
+            plaqueTreatmentLegend: plaqueTreatmentLegend
+        )
     }
 
     private static func makeRows(report: CinematicDiagnosticsReport) -> [Row] {
@@ -1932,19 +1961,12 @@ struct CinematicDiagnosticsSummary: Equatable {
         _ report: CinematicVisualSmokeReport
     ) -> VisualSmokeSection {
         let warningCount = report.warningIdentifiers.count
-        let statusLabel: String
-        switch report.status {
-        case .pass:
-            statusLabel = "Passing"
-        case .warning:
-            statusLabel = "Warning"
-        }
 
         return VisualSmokeSection(
             id: "visual-smoke",
             label: bounded("Visual smoke", limit: labelMaxCharacters),
             status: report.status,
-            statusLabel: bounded(statusLabel, limit: labelMaxCharacters),
+            statusLabel: bounded(visualSmokeStatusLabel(for: report.status), limit: labelMaxCharacters),
             warningCount: warningCount,
             warningCountLabel: bounded(
                 warningCountCopy(for: warningCount),
@@ -1963,10 +1985,42 @@ struct CinematicDiagnosticsSummary: Equatable {
         )
     }
 
+    private static func makePlaqueTreatmentLegend(
+        visualSmoke: VisualSmokeSection
+    ) -> PlaqueTreatmentLegend {
+        let treatmentCheck = visualSmoke.checks.first { $0.id == "native-feedback-treatment-coverage" }
+        let status = treatmentCheck?.status ?? .warning
+        let statusLabel = visualSmokeStatusLabel(for: status)
+        let warningIdentifier = treatmentCheck?.warningIdentifier
+        let detail = warningIdentifier.map { "smoke \(status.rawValue) \($0)" }
+            ?? "smoke \(status.rawValue)"
+        let entries = plaqueTreatmentLegendEntries(
+            reports: CinematicDiagnostics.representativeNativeFeedbackSmokeReports()
+        )
+        let rows = entries.map { entry in
+            row(
+                id: "plaque-treatment-\(entry.accentIdentifier)",
+                label: entry.accentIdentifier,
+                detail: plaqueTreatmentLegendDetail(entry)
+            )
+        }
+
+        return PlaqueTreatmentLegend(
+            id: "plaque-treatment-legend",
+            label: bounded("Plaque treatments", limit: labelMaxCharacters),
+            status: status,
+            statusLabel: bounded(statusLabel, limit: labelMaxCharacters),
+            detail: bounded(detail, limit: detailMaxCharacters),
+            warningIdentifier: warningIdentifier,
+            rows: rows
+        )
+    }
+
     private static func makeExportText(
         report: CinematicDiagnosticsReport,
         sections: [Section],
-        visualSmoke: VisualSmokeSection
+        visualSmoke: VisualSmokeSection,
+        plaqueTreatmentLegend: PlaqueTreatmentLegend
     ) -> String {
         var lines = [
             "Cinematic Diagnostics",
@@ -1985,6 +2039,11 @@ struct CinematicDiagnosticsSummary: Equatable {
             let warning = check.warningIdentifier.map { " | warning \($0)" } ?? ""
             return "\(check.label): \(check.status.rawValue) | \(check.detail)\(warning)"
         })
+
+        lines.append(
+            "\(plaqueTreatmentLegend.label) (\(plaqueTreatmentLegend.status.rawValue), \(plaqueTreatmentLegend.rowCountLabel)): \(plaqueTreatmentLegend.detail)"
+        )
+        lines.append(contentsOf: plaqueTreatmentLegend.rows.map { "\($0.label): \($0.detail)" })
 
         return lines.joined(separator: "\n")
     }
@@ -2019,6 +2078,15 @@ struct CinematicDiagnosticsSummary: Equatable {
         }
     }
 
+    private static func visualSmokeStatusLabel(for status: CinematicVisualSmokeReport.Status) -> String {
+        switch status {
+        case .pass:
+            return "Passing"
+        case .warning:
+            return "Warning"
+        }
+    }
+
     private static func row(id: String, label: String, detail: String) -> Row {
         Row(
             id: id,
@@ -2030,6 +2098,71 @@ struct CinematicDiagnosticsSummary: Equatable {
     private static func optionalIdentifier(_ label: String, _ identifier: String?) -> String? {
         guard let identifier, !identifier.isEmpty else { return nil }
         return "\(label) \(identifier)"
+    }
+
+    private static func plaqueTreatmentLegendEntries(
+        reports: [CinematicDiagnosticsReport]
+    ) -> [PlaqueTreatmentLegendEntry] {
+        let entries = reports
+            .filter {
+                $0.nativeFeedback.cueIdentifier != "none"
+                    && $0.nativeFeedback.lifecycleStateIdentifier == "active"
+            }
+            .flatMap(narrativeCueDescriptors)
+            .filter { $0.plaqueTreatmentAccentIdentifier != "none" }
+            .reduce(into: [String: PlaqueTreatmentLegendEntry]()) { entries, descriptor in
+                let accent = descriptor.plaqueTreatmentAccentIdentifier
+                guard entries[accent] == nil else { return }
+                entries[accent] = PlaqueTreatmentLegendEntry(
+                    accentIdentifier: accent,
+                    routeIdentifier: descriptor.plaqueTreatmentRouteIdentifier,
+                    renderRecipeIdentifier: descriptor.plaqueTreatmentRenderRecipeIdentifier,
+                    primitiveIdentifiers: descriptor.plaqueTreatmentRenderPrimitiveIdentifiers,
+                    primitiveCount: descriptor.plaqueTreatmentRenderPrimitiveCount
+                )
+            }
+
+        return entries.values.sorted { lhs, rhs in
+            plaqueTreatmentLegendOrder(lhs.accentIdentifier)
+                < plaqueTreatmentLegendOrder(rhs.accentIdentifier)
+        }
+    }
+
+    private static func plaqueTreatmentLegendDetail(_ entry: PlaqueTreatmentLegendEntry) -> String {
+        let primitiveIdentifiers = entry.primitiveIdentifiers.isEmpty
+            ? "none"
+            : entry.primitiveIdentifiers.joined(separator: ",")
+        return [
+            "accent \(entry.accentIdentifier)",
+            "route \(entry.routeIdentifier)",
+            "recipe \(entry.renderRecipeIdentifier)",
+            "primitives \(entry.primitiveCount) \(primitiveIdentifiers)"
+        ].joined(separator: " | ")
+    }
+
+    private static func plaqueTreatmentLegendOrder(_ accentIdentifier: String) -> Int {
+        switch accentIdentifier {
+        case "verify-seal":
+            return 0
+        case "warning-rails":
+            return 1
+        case "failure-fracture":
+            return 2
+        case "retry-braces":
+            return 3
+        default:
+            return 100
+        }
+    }
+
+    private static func narrativeCueDescriptors(
+        _ report: CinematicDiagnosticsReport
+    ) -> [CinematicDiagnosticsReport.NarrativeCueDescriptorSnapshot] {
+        [
+            report.narrativeCue.questPlaque,
+            report.narrativeCue.arenaInscription,
+            report.narrativeCue.activityBanner
+        ]
     }
 
     private static func effectPulseDetail(_ snapshot: CinematicDiagnosticsReport.StageEffectSnapshot) -> String {

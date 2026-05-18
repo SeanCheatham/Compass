@@ -634,6 +634,8 @@ private struct CinematicDiagnosticsPopover: View {
                     }
 
                     visualSmokeSection
+
+                    plaqueTreatmentLegendSection
                 }
                 .padding(.trailing, 4)
             }
@@ -697,6 +699,52 @@ private struct CinematicDiagnosticsPopover: View {
                             }
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                }
+            }
+        }
+    }
+
+    private var plaqueTreatmentLegendSection: some View {
+        VStack(alignment: .leading, spacing: 7) {
+            HStack(spacing: 6) {
+                Image(systemName: visualSmokeSystemImage(for: summary.plaqueTreatmentLegend.status))
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(visualSmokeColor(for: summary.plaqueTreatmentLegend.status))
+
+                Text(summary.plaqueTreatmentLegend.label)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.primary)
+
+                Text(summary.plaqueTreatmentLegend.rowCountLabel)
+                    .font(.caption2.monospacedDigit())
+                    .foregroundStyle(.secondary)
+
+                Text(summary.plaqueTreatmentLegend.statusLabel)
+                    .font(.caption2.monospacedDigit().weight(.semibold))
+                    .foregroundStyle(visualSmokeColor(for: summary.plaqueTreatmentLegend.status))
+            }
+
+            Text(summary.plaqueTreatmentLegend.detail)
+                .font(.caption2.monospaced())
+                .foregroundStyle(summary.plaqueTreatmentLegend.status == .warning ? .orange : .secondary)
+                .lineLimit(2)
+                .textSelection(.enabled)
+
+            VStack(alignment: .leading, spacing: 8) {
+                ForEach(summary.plaqueTreatmentLegend.rows) { row in
+                    HStack(alignment: .top, spacing: 10) {
+                        Text(row.label)
+                            .font(.system(.caption, design: .monospaced).weight(.semibold))
+                            .foregroundStyle(.secondary)
+                            .frame(width: 108, alignment: .leading)
+
+                        Text(row.detail)
+                            .font(.caption)
+                            .foregroundStyle(.primary)
+                            .lineLimit(3)
+                            .textSelection(.enabled)
+                            .frame(maxWidth: .infinity, alignment: .leading)
                     }
                 }
             }
