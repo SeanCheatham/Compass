@@ -2473,6 +2473,23 @@ struct CinematicRunRecapShareArtifactLibraryContext: Codable, Equatable {
         return holdingSavedTourEntryIdentifier(boundedIdentifier)
     }
 
+    func promotingSavedTourHoldToPinnedReference(
+        in historyPlan: CinematicRunRecapShareArtifactHistoryPlan
+    ) -> CinematicRunRecapShareArtifactLibraryContext {
+        guard let savedTourHoldEntryIdentifier,
+              historyPlan.entries.contains(where: { $0.identifier == savedTourHoldEntryIdentifier }) else {
+            return self
+        }
+
+        return CinematicRunRecapShareArtifactLibraryContext(
+            selectedEntryIdentifier: selectedEntryIdentifier,
+            searchText: searchText,
+            pinnedEntryIdentifiers: [savedTourHoldEntryIdentifier] + pinnedEntryIdentifiers,
+            comparisonTargetMode: .pinnedReference,
+            savedTourHoldEntryIdentifier: savedTourHoldEntryIdentifier
+        )
+    }
+
     private func resolvedPinnedEntryIdentifiers(
         in historyPlan: CinematicRunRecapShareArtifactHistoryPlan
     ) -> [String] {

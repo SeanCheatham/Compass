@@ -1019,6 +1019,7 @@ private struct CinematicRunRecapArtifactLibraryControl: View {
         let hasSavedTourHold = artifactLibraryContext.savedTourHoldEntryIdentifier != nil
         let isSelectedHeld = previewPlan.selectedEntryIdentifier != nil
             && previewPlan.selectedEntryIdentifier == artifactLibraryContext.savedTourHoldEntryIdentifier
+        let canPromoteTourHold = tourPlan.retainedSavedTourHoldEntryIdentifier != nil
 
         return HStack(alignment: .center, spacing: 6) {
             Image(systemName: tourSystemImage(tourPlan))
@@ -1063,6 +1064,21 @@ private struct CinematicRunRecapArtifactLibraryControl: View {
             .help(selectedHoldHelp(previewPlan, isHeld: isSelectedHeld))
             .accessibilityLabel(isSelectedHeld ? "Release selected saved recap tour hold" : "Hold selected saved recap artifact for tour")
             .accessibilityIdentifier("cinematic-run-recap-artifact-library-toggle-selected-tour-hold")
+
+            Button {
+                promoteTourHoldToPinnedReference(tourPlan)
+            } label: {
+                Image(systemName: "pin.circle")
+                    .font(.system(size: 11, weight: .bold))
+                    .frame(width: 20, height: 18)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .disabled(!canPromoteTourHold)
+            .foregroundStyle(tint.opacity(canPromoteTourHold ? 0.82 : 0.3))
+            .help(promoteTourHoldHelp(tourPlan))
+            .accessibilityLabel("Promote saved recap tour hold to pinned comparison")
+            .accessibilityIdentifier("cinematic-run-recap-artifact-library-promote-tour-hold")
 
             Button {
                 copyTourExport(tourPlan)
@@ -1267,6 +1283,19 @@ private struct CinematicRunRecapArtifactLibraryControl: View {
         return "Hold the selected recap artifact for the idle saved artifact tour."
     }
 
+    private func promoteTourHoldHelp(_ tourPlan: CinematicRunRecapShareArtifactTourPlan) -> String {
+        guard let retainedSavedTourHoldEntryIdentifier = tourPlan.retainedSavedTourHoldEntryIdentifier else {
+            if tourPlan.requestedSavedTourHoldEntryIdentifier == nil {
+                return boundedHelp("No saved recap tour hold to promote.")
+            }
+            return boundedHelp("The saved recap tour hold is not retained, so it cannot be promoted to a pinned comparison.")
+        }
+        if tourPlan.filteredSavedTourHoldEntryIdentifier == retainedSavedTourHoldEntryIdentifier {
+            return boundedHelp("Promote this retained tour hold to pinned comparison even though the current search filters it.")
+        }
+        return boundedHelp("Promote this saved tour hold to pinned comparison.")
+    }
+
     private func pinnedReferenceHelp(
         _ reference: CinematicRunRecapShareArtifactPinnedReferencePlan.Reference,
         plan pinnedReferencePlan: CinematicRunRecapShareArtifactPinnedReferencePlan
@@ -1460,6 +1489,16 @@ private struct CinematicRunRecapArtifactLibraryControl: View {
         }
     }
 
+    private func boundedHelp(_ text: String) -> String {
+        let normalized = text
+            .replacingOccurrences(of: "\r", with: " ")
+            .replacingOccurrences(of: "\n", with: " ")
+            .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard normalized.count > 140 else { return normalized }
+        return String(normalized.prefix(137)).trimmingCharacters(in: .whitespacesAndNewlines) + "..."
+    }
+
     private func selectArtifact(_ identifier: String?) {
         guard let identifier else { return }
         persistContext(
@@ -1554,6 +1593,15 @@ private struct CinematicRunRecapArtifactLibraryControl: View {
                 preservedFeedbackPlanIdentifier = result.refreshedHistory.identifier
             }
         }
+    }
+
+    private func promoteTourHoldToPinnedReference(_ tourPlan: CinematicRunRecapShareArtifactTourPlan) {
+        guard tourPlan.retainedSavedTourHoldEntryIdentifier != nil else { return }
+        let promotedContext = artifactLibraryContext.promotingSavedTourHoldToPinnedReference(in: plan)
+        persistContext(promotedContext)
+        feedback = "Tour pinned"
+        feedbackStatus = nil
+        preservedFeedbackPlanIdentifier = plan.identifier
     }
 
     private func toggleSelectedPin(_ previewPlan: CinematicRunRecapShareArtifactPreviewBrowserPlan) {

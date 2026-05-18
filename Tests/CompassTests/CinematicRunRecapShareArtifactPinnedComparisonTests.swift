@@ -109,6 +109,171 @@ final class CinematicRunRecapShareArtifactPinnedComparisonTests: XCTestCase {
         XCTAssertTrue(comparison.exportText.contains("- Filtered pins: 1"))
     }
 
+    func testPromotedSavedTourHoldContextPinsFilteredHoldForPinnedComparisonAndPreservesSiblingPlanning() throws {
+        let workspace = try makeInitializedWorkspace()
+        for session in 1...3 {
+            _ = try workspace.writeSessionArtifact(
+                session: session,
+                name: "recap-share-promoted-hold-\(session).md",
+                contents: artifactMarkdown(
+                    session: session,
+                    title: "Promoted Hold \(session)",
+                    status: "succeeded",
+                    commit: "Promoted hold commit \(session)",
+                    body: session == 3 ? "promotion selected beacon" : "held tour reference body"
+                )
+            )
+        }
+        let history = workspace.refreshRunRecapShareArtifactHistory()
+        let selected = try XCTUnwrap(history.entries.first { $0.sessionNumber == 3 })
+        let held = try XCTUnwrap(history.entries.first { $0.sessionNumber == 2 })
+        let older = try XCTUnwrap(history.entries.first { $0.sessionNumber == 1 })
+        let stalePin = "promoted-stale-pinned-comparison"
+        let baseContext = CinematicRunRecapShareArtifactLibraryContext(
+            selectedEntryIdentifier: selected.identifier,
+            searchText: " PROMOTION   SELECTED ",
+            pinnedEntryIdentifiers: [
+                stalePin,
+                held.identifier,
+                held.identifier,
+                older.identifier
+            ],
+            savedTourHoldEntryIdentifier: held.identifier
+        )
+        let promotedContext = baseContext.promotingSavedTourHoldToPinnedReference(in: history)
+        let previewBefore = CinematicRunRecapShareArtifactPreviewBrowserPlanner.plan(
+            historyPlan: history,
+            selectedEntryIdentifier: baseContext.selectedEntryIdentifier,
+            searchQuery: baseContext.searchText
+        )
+        let previewAfter = CinematicRunRecapShareArtifactPreviewBrowserPlanner.plan(
+            historyPlan: history,
+            selectedEntryIdentifier: promotedContext.selectedEntryIdentifier,
+            searchQuery: promotedContext.searchText
+        )
+        let pinPlan = CinematicRunRecapShareArtifactPinnedReferencePlanner.plan(
+            historyPlan: history,
+            pinnedEntryIdentifiers: promotedContext.pinnedEntryIdentifiers,
+            selectedEntryIdentifier: promotedContext.selectedEntryIdentifier,
+            searchQuery: promotedContext.searchText
+        )
+        let tourPlan = CinematicRunRecapShareArtifactTourPlanner.plan(
+            historyPlan: history,
+            libraryContext: promotedContext
+        )
+        let comparison = CinematicRunRecapShareArtifactComparisonPlanner.plan(
+            historyPlan: history,
+            selectedEntryIdentifier: promotedContext.selectedEntryIdentifier,
+            searchQuery: promotedContext.searchText,
+            targetMode: promotedContext.comparisonTargetMode,
+            pinnedEntryIdentifiers: promotedContext.pinnedEntryIdentifiers
+        )
+        let session = SessionRecord(
+            session: selected.sessionNumber,
+            startedAt: 3_000,
+            endedAt: 3_420,
+            plan: "Promote held recap tour",
+            verify: "swift test",
+            beforeSha: nil,
+            afterSha: nil,
+            commits: [],
+            status: .succeeded,
+            notes: [],
+            verifyOutput: nil,
+            feedback: nil
+        )
+        let recapPlan = CinematicRunRecapPlanner.plan(
+            state: PlanState(
+                completed: ["Promoted held recap tour"],
+                immediate: nil,
+                midTerm: "",
+                longTerm: ""
+            ),
+            sessions: [session],
+            isRunning: false,
+            isAutoPlaying: false,
+            recentRunCues: [:],
+            commitConstellationPlan: .empty,
+            nativeFeedbackLifecycle: CinematicNativeFeedbackCueLifecycle()
+        )
+        let timelinePlan = CinematicSessionTimelinePlan(sessions: [session])
+        let idleInput = CinematicIdleStoryCyclePlan.SessionInput(
+            elapsedTime: 12,
+            sessionOrdinal: selected.sessionNumber
+        )
+        let idlePlan = CinematicIdleStoryCyclePlanner.plan(
+            session: idleInput,
+            isLiveFollowActive: false,
+            hasExplicitUserFocus: false,
+            influenceSettings: CinematicInfluenceSettings(),
+            commitConstellationPlan: .empty,
+            timelineSceneFocusPlan: .none,
+            nativeFeedbackCue: nil,
+            nativeFeedbackPlaqueDescriptor: nil,
+            runRecapPlan: recapPlan,
+            runRecapSceneFocusPlan: .none,
+            runRecapEndCardPlan: .none,
+            runRecapShareArtifactTourPlan: tourPlan
+        )
+
+        XCTAssertEqual(promotedContext.selectedEntryIdentifier, selected.identifier)
+        XCTAssertEqual(promotedContext.searchText, "PROMOTION SELECTED")
+        XCTAssertEqual(promotedContext.savedTourHoldEntryIdentifier, held.identifier)
+        XCTAssertEqual(promotedContext.comparisonTargetMode, .pinnedReference)
+        XCTAssertEqual(promotedContext.pinnedEntryIdentifiers, [held.identifier, stalePin, older.identifier])
+        XCTAssertEqual(previewAfter, previewBefore)
+        XCTAssertEqual(pinPlan.requestedPinnedEntryIdentifiers, [held.identifier, stalePin, older.identifier])
+        XCTAssertEqual(pinPlan.retainedPinnedEntryIdentifiers, [held.identifier, older.identifier])
+        XCTAssertEqual(pinPlan.missingPinnedEntryIdentifiers, [stalePin])
+        XCTAssertEqual(pinPlan.filteredPinnedEntryIdentifiers, [held.identifier, older.identifier])
+        XCTAssertEqual(tourPlan.savedTourHoldStateIdentifier, "filtered-hold")
+        XCTAssertEqual(tourPlan.retainedSavedTourHoldEntryIdentifier, held.identifier)
+        XCTAssertEqual(tourPlan.filteredSavedTourHoldEntryIdentifier, held.identifier)
+        XCTAssertEqual(tourPlan.selectedEntryIdentifier, selected.identifier)
+        XCTAssertTrue(comparison.isAvailable)
+        XCTAssertEqual(comparison.selectedEntryIdentifier, selected.identifier)
+        XCTAssertEqual(comparison.compareEntryIdentifier, held.identifier)
+        XCTAssertEqual(comparison.pinnedTargetEntryIdentifier, held.identifier)
+        XCTAssertEqual(comparison.pinnedTargetStateIdentifier, "filtered-pinned-target")
+        XCTAssertEqual(comparison.targetDirectionIdentifier, "pinned")
+        XCTAssertEqual(comparison.filteredPinnedEntryIdentifiers, [held.identifier, older.identifier])
+        XCTAssertEqual(
+            CinematicRunRecapPlanner.plan(
+                state: PlanState(
+                    completed: ["Promoted held recap tour"],
+                    immediate: nil,
+                    midTerm: "",
+                    longTerm: ""
+                ),
+                sessions: [session],
+                isRunning: false,
+                isAutoPlaying: false,
+                recentRunCues: [:],
+                commitConstellationPlan: .empty,
+                nativeFeedbackLifecycle: CinematicNativeFeedbackCueLifecycle()
+            ),
+            recapPlan
+        )
+        XCTAssertEqual(CinematicSessionTimelinePlan(sessions: [session]), timelinePlan)
+        XCTAssertEqual(
+            CinematicIdleStoryCyclePlanner.plan(
+                session: idleInput,
+                isLiveFollowActive: false,
+                hasExplicitUserFocus: false,
+                influenceSettings: CinematicInfluenceSettings(),
+                commitConstellationPlan: .empty,
+                timelineSceneFocusPlan: .none,
+                nativeFeedbackCue: nil,
+                nativeFeedbackPlaqueDescriptor: nil,
+                runRecapPlan: recapPlan,
+                runRecapSceneFocusPlan: .none,
+                runRecapEndCardPlan: .none,
+                runRecapShareArtifactTourPlan: tourPlan
+            ),
+            idlePlan
+        )
+    }
+
     func testPinnedModeReportsSelectedOnlyNoMatchAndStalePinStates() throws {
         let workspace = try makeInitializedWorkspace()
         for session in 1...2 {
@@ -148,6 +313,17 @@ final class CinematicRunRecapShareArtifactPinnedComparisonTests: XCTestCase {
             targetMode: .pinnedReference,
             pinnedEntryIdentifiers: [stalePin]
         )
+        let promotedSelectedOnlyContext = CinematicRunRecapShareArtifactLibraryContext(
+            selectedEntryIdentifier: selected.identifier,
+            pinnedEntryIdentifiers: [selected.identifier, selected.identifier, stalePin],
+            savedTourHoldEntryIdentifier: selected.identifier
+        ).promotingSavedTourHoldToPinnedReference(in: history)
+        let promotedSelectedOnly = CinematicRunRecapShareArtifactComparisonPlanner.plan(
+            historyPlan: history,
+            selectedEntryIdentifier: promotedSelectedOnlyContext.selectedEntryIdentifier,
+            targetMode: promotedSelectedOnlyContext.comparisonTargetMode,
+            pinnedEntryIdentifiers: promotedSelectedOnlyContext.pinnedEntryIdentifiers
+        )
 
         XCTAssertFalse(selectedOnly.isAvailable)
         XCTAssertEqual(selectedOnly.availabilityReason, "selected-only-pinned-recap-share-artifact")
@@ -164,6 +340,13 @@ final class CinematicRunRecapShareArtifactPinnedComparisonTests: XCTestCase {
         XCTAssertEqual(staleOnly.availabilityReason, "pinned-recap-share-artifacts-missing")
         XCTAssertEqual(staleOnly.missingPinnedEntryIdentifiers, [stalePin])
         XCTAssertEqual(staleOnly.pinnedTargetUnavailableReasonIdentifier, "pinned-recap-share-artifacts-missing")
+
+        XCTAssertEqual(promotedSelectedOnlyContext.pinnedEntryIdentifiers, [selected.identifier, stalePin])
+        XCTAssertEqual(promotedSelectedOnlyContext.comparisonTargetMode, .pinnedReference)
+        XCTAssertFalse(promotedSelectedOnly.isAvailable)
+        XCTAssertEqual(promotedSelectedOnly.availabilityReason, "selected-only-pinned-recap-share-artifact")
+        XCTAssertEqual(promotedSelectedOnly.pinnedTargetStateIdentifier, "selected-only-pinned-recap-share-artifact")
+        XCTAssertEqual(promotedSelectedOnly.missingPinnedEntryIdentifiers, [stalePin])
     }
 
     func testDiagnosticsExposePinnedComparisonSnapshotExportAndIdentifierCorrelation() throws {

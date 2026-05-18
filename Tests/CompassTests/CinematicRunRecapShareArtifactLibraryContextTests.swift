@@ -88,6 +88,73 @@ final class CinematicRunRecapShareArtifactLibraryContextTests: XCTestCase {
     }
 
     @MainActor
+    func testCurrentDiagnosticsReflectPromotedSavedTourHoldPinnedComparisonContext() throws {
+        let workspace = try makeInitializedWorkspace()
+        for session in 1...3 {
+            _ = try workspace.writeSessionArtifact(
+                session: session,
+                name: "recap-share-context-promoted-\(session).md",
+                contents: artifactMarkdown(
+                    session: session,
+                    title: "Promoted Context \(session)",
+                    status: "succeeded",
+                    commit: "Promoted context commit \(session)",
+                    body: session == 3 ? "promoted selected diagnostic beacon" : "promoted held diagnostic body"
+                )
+            )
+        }
+        let history = workspace.refreshRunRecapShareArtifactHistory()
+        let selected = try XCTUnwrap(history.entries.first { $0.sessionNumber == 3 })
+        let held = try XCTUnwrap(history.entries.first { $0.sessionNumber == 2 })
+        let context = CinematicRunRecapShareArtifactLibraryContext(
+            selectedEntryIdentifier: selected.identifier,
+            searchText: "promoted selected diagnostic",
+            savedTourHoldEntryIdentifier: held.identifier
+        ).promotingSavedTourHoldToPinnedReference(in: history)
+        let project = CompassProject(
+            repoURL: workspace.repoURL,
+            cinematicRunRecapShareArtifactLibraryContext: context
+        )
+        project.cinematicRunRecapShareArtifactHistory = history
+        let expectedComparison = CinematicRunRecapShareArtifactComparisonPlanner.plan(
+            historyPlan: history,
+            selectedEntryIdentifier: context.selectedEntryIdentifier,
+            searchQuery: context.searchText,
+            targetMode: context.comparisonTargetMode,
+            pinnedEntryIdentifiers: context.pinnedEntryIdentifiers
+        )
+        let expectedPins = CinematicRunRecapShareArtifactPinnedReferencePlanner.plan(
+            historyPlan: history,
+            pinnedEntryIdentifiers: context.pinnedEntryIdentifiers,
+            selectedEntryIdentifier: context.selectedEntryIdentifier,
+            searchQuery: context.searchText
+        )
+
+        let report = CinematicDiagnostics.currentReport(for: project)
+        let summary = CinematicDiagnosticsSummary(report: report)
+        let comparisonRow = try XCTUnwrap(summary.rows.first { $0.id == "run-recap-share-artifact-comparison" })
+        let pinsRow = try XCTUnwrap(summary.rows.first { $0.id == "run-recap-share-artifact-pins" })
+
+        XCTAssertEqual(project.cinematicRunRecapShareArtifactLibraryContext, context)
+        XCTAssertEqual(context.comparisonTargetMode, .pinnedReference)
+        XCTAssertEqual(context.pinnedEntryIdentifiers, [held.identifier])
+        XCTAssertEqual(report.runRecapShareArtifactComparison.identifier, expectedComparison.identifier)
+        XCTAssertEqual(report.runRecapShareArtifactComparison.compareEntryIdentifier, held.identifier)
+        XCTAssertEqual(report.runRecapShareArtifactComparison.pinnedTargetEntryIdentifier, held.identifier)
+        XCTAssertEqual(report.runRecapShareArtifactComparison.pinnedTargetStateIdentifier, "filtered-pinned-target")
+        XCTAssertEqual(report.runRecapShareArtifactComparison.filteredPinnedEntryIdentifiers, [held.identifier])
+        XCTAssertEqual(report.runRecapShareArtifactPins.identifier, expectedPins.identifier)
+        XCTAssertEqual(report.runRecapShareArtifactPins.retainedPinnedEntryIdentifiers, [held.identifier])
+        XCTAssertEqual(report.runRecapShareArtifactPins.filteredPinnedEntryIdentifiers, [held.identifier])
+        XCTAssertTrue(report.identifier.contains("run-recap-share-artifact-comparison-mode:pinned_reference"))
+        XCTAssertTrue(report.identifier.contains("run-recap-share-artifact-comparison-pinned-target:\(held.identifier)"))
+        XCTAssertTrue(comparisonRow.detail.contains("mode pinned_reference"))
+        XCTAssertTrue(comparisonRow.detail.contains("pinned state filtered-pinned-target"))
+        XCTAssertTrue(pinsRow.detail.contains("pins 1"))
+        XCTAssertTrue(pinsRow.detail.contains("filtered pins 1"))
+    }
+
+    @MainActor
     func testCurrentDiagnosticsExposePersistedNoMatchContextWithoutMutatingProject() throws {
         let workspace = try makeInitializedWorkspace()
         _ = try workspace.writeSessionArtifact(
