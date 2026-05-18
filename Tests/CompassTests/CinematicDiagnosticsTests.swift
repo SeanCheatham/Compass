@@ -805,6 +805,7 @@ final class CinematicDiagnosticsTests: XCTestCase {
             summary.rows.map(\.id),
             [
                 "repository",
+                "activity-source",
                 "immediate",
                 "plan-compass-readiness",
                 "plan-compass-verify-seal",
@@ -877,6 +878,7 @@ final class CinematicDiagnosticsTests: XCTestCase {
             [
                 [
                     "repository",
+                    "activity-source",
                     "immediate",
                     "plan-compass-readiness",
                     "plan-compass-verify-seal",
@@ -1032,7 +1034,7 @@ final class CinematicDiagnosticsTests: XCTestCase {
             .components(separatedBy: "\n")
             .filter { expectedSectionHeadings.contains($0) }
         XCTAssertEqual(actualSectionHeadings, expectedSectionHeadings)
-        XCTAssertTrue(summary.exportText.contains("Repository/context (21 rows)"))
+        XCTAssertTrue(summary.exportText.contains("Repository/context (22 rows)"))
         XCTAssertTrue(summary.exportText.contains("Motifs (2 rows)"))
         XCTAssertTrue(summary.exportText.contains("Stage motion/effects (9 rows)"))
         XCTAssertTrue(summary.exportText.contains("Narrative/overlay (8 rows)"))
@@ -1049,6 +1051,9 @@ final class CinematicDiagnosticsTests: XCTestCase {
         XCTAssertTrue(summary.exportText.contains("Saved artifact tour: pass"))
         XCTAssertTrue(summary.exportText.contains(report.languageMotif.sigilIdentifier))
         XCTAssertTrue(summary.exportText.contains(report.languageMotif.styleIdentifier))
+        XCTAssertTrue(summary.exportText.contains("Activity source:"))
+        XCTAssertTrue(summary.exportText.contains("availability \(report.activitySource.sourceAvailabilityIdentifier)"))
+        XCTAssertTrue(summary.exportText.contains("repo-local \(report.activitySource.repoLocalSessionsStateIdentifier)"))
         XCTAssertTrue(summary.exportText.contains(report.activityMotif.sigilIdentifier))
         XCTAssertTrue(summary.exportText.contains(report.activityMotif.styleIdentifier))
         XCTAssertTrue(summary.exportText.contains(report.stageBeat.kindIdentifier))
@@ -1096,6 +1101,100 @@ final class CinematicDiagnosticsTests: XCTestCase {
         XCTAssertTrue(summary.exportText.contains(report.cameraTuning.identifier))
         XCTAssertTrue(summary.exportText.contains(report.cameraSnapshots[0].identifier))
         XCTAssertTrue(summary.exportText.contains(report.cameraSnapshots[3].shotIdentifier))
+    }
+
+    func testActivitySourceDiagnosticsRowAndIdentifierTrackActiveStorageSource() throws {
+        let repoURL = URL(fileURLWithPath: "/tmp/CompassActivitySourceDiagnostics")
+        let supportRoot = repoURL
+            .appending(path: "Application Support", directoryHint: .isDirectory)
+            .appending(path: "Compass", directoryHint: .isDirectory)
+        let supportSnapshot = RepositoryActivitySourceSnapshot(
+            activeStorage: .applicationSupport,
+            storageRootURL: supportRoot,
+            sessionsRecordURL: supportRoot.appending(path: "sessions.json"),
+            sourceAvailability: .available,
+            repoLocalSessionsRecordURL: repoURL
+                .appending(path: ".compass", directoryHint: .isDirectory)
+                .appending(path: "sessions.json"),
+            repoLocalSessionsState: .ignoredMissing
+        )
+        let staleRepoLocalSnapshot = RepositoryActivitySourceSnapshot(
+            activeStorage: .applicationSupport,
+            storageRootURL: supportRoot,
+            sessionsRecordURL: supportRoot.appending(path: "sessions.json"),
+            sourceAvailability: .available,
+            repoLocalSessionsRecordURL: repoURL
+                .appending(path: ".compass", directoryHint: .isDirectory)
+                .appending(path: "sessions.json"),
+            repoLocalSessionsState: .ignoredCompatible
+        )
+        let movedRootSnapshot = RepositoryActivitySourceSnapshot(
+            activeStorage: .applicationSupport,
+            storageRootURL: supportRoot.appending(path: "Moved", directoryHint: .isDirectory),
+            sessionsRecordURL: supportRoot
+                .appending(path: "Moved", directoryHint: .isDirectory)
+                .appending(path: "sessions.json"),
+            sourceAvailability: .available,
+            repoLocalSessionsRecordURL: repoURL
+                .appending(path: ".compass", directoryHint: .isDirectory)
+                .appending(path: "sessions.json"),
+            repoLocalSessionsState: .ignoredMissing
+        )
+        let report = makeReport(
+            CinematicDiagnosticsInput(
+                repoName: "Compass",
+                phase: "Developing",
+                immediateTitle: "Expose active storage activity diagnostics",
+                completedCount: 2,
+                latestEvent: nil,
+                languageProfile: languageProfile(primaryLanguage: .swift),
+                activityProfile: activityProfile(recentCommitCount: 1),
+                activitySourceSnapshot: supportSnapshot,
+                influenceSettings: CinematicInfluenceSettings()
+            )
+        )
+        let staleReport = makeReport(
+            CinematicDiagnosticsInput(
+                repoName: "Compass",
+                phase: "Developing",
+                immediateTitle: "Expose active storage activity diagnostics",
+                completedCount: 2,
+                latestEvent: nil,
+                languageProfile: languageProfile(primaryLanguage: .swift),
+                activityProfile: activityProfile(recentCommitCount: 1),
+                activitySourceSnapshot: staleRepoLocalSnapshot,
+                influenceSettings: CinematicInfluenceSettings()
+            )
+        )
+        let movedReport = makeReport(
+            CinematicDiagnosticsInput(
+                repoName: "Compass",
+                phase: "Developing",
+                immediateTitle: "Expose active storage activity diagnostics",
+                completedCount: 2,
+                latestEvent: nil,
+                languageProfile: languageProfile(primaryLanguage: .swift),
+                activityProfile: activityProfile(recentCommitCount: 1),
+                activitySourceSnapshot: movedRootSnapshot,
+                influenceSettings: CinematicInfluenceSettings()
+            )
+        )
+        let summary = CinematicDiagnosticsSummary(report: report)
+        let row = try XCTUnwrap(summary.row(id: "activity-source"))
+
+        XCTAssertEqual(report.activitySource, supportSnapshot)
+        XCTAssertTrue(report.identifier.contains("activity-source:\(supportSnapshot.identifier)"))
+        XCTAssertNotEqual(report.identifier, staleReport.identifier)
+        XCTAssertNotEqual(report.identifier, movedReport.identifier)
+        XCTAssertTrue(row.detail.contains("storage application_support"))
+        XCTAssertTrue(row.detail.contains("availability available"))
+        XCTAssertTrue(row.detail.contains("repo-local ignored-missing"))
+        XCTAssertTrue(row.detail.contains("repo-local-mode ignored"))
+        XCTAssertTrue(row.detail.contains("sessions.json"))
+        XCTAssertLessThanOrEqual(row.detail.count, CinematicDiagnosticsSummary.detailMaxCharacters)
+        XCTAssertTrue(summary.exportText.contains("Activity source:"))
+        XCTAssertTrue(summary.exportText.contains("storage application_support"))
+        XCTAssertTrue(summary.exportText.contains("repo-local ignored-missing"))
     }
 
     func testPlanCompassRowsCorrelateWithDiagnosticsExport() throws {
@@ -3465,6 +3564,7 @@ private struct CinematicDiagnosticsInput {
     var latestEvent: CinematicBriefingEvent?
     var languageProfile: RepositoryLanguageProfile
     var activityProfile: RepositoryActivityProfile
+    var activitySourceSnapshot: RepositoryActivitySourceSnapshot = .notScanned()
     var influenceSettings: CinematicInfluenceSettings
     var commitConstellationPlan: CinematicCommitConstellationPlan = .empty
     var runRecapPlan: CinematicRunRecapPlan = .empty(reason: "no-finished-session")
@@ -3491,6 +3591,7 @@ private func makeReport(_ input: CinematicDiagnosticsInput) -> CinematicDiagnost
         latestEvent: input.latestEvent,
         languageProfile: input.languageProfile,
         activityProfile: input.activityProfile,
+        activitySourceSnapshot: input.activitySourceSnapshot,
         influenceSettings: input.influenceSettings,
         commitConstellationPlan: input.commitConstellationPlan,
         runRecapPlan: input.runRecapPlan,

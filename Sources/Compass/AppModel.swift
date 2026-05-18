@@ -410,6 +410,7 @@ final class CompassProject: ObservableObject, Identifiable {
     @Published var sessions: [SessionRecord] = []
     @Published var languageProfile = RepositoryLanguageProfile.empty
     @Published var activityProfile = RepositoryActivityProfile.empty
+    @Published var activitySourceSnapshot = RepositoryActivitySourceSnapshot.notScanned()
     @Published var cinematicInfluenceSettings: CinematicInfluenceSettings
     @Published private(set) var cinematicNativeFeedbackCueLifecycle = CinematicNativeFeedbackCueLifecycle()
     @Published var cinematicNativeFeedbackCue: CinematicNativeFeedbackCuePlan?
@@ -483,6 +484,7 @@ final class CompassProject: ObservableObject, Identifiable {
         self.id = id
         self.repoURL = repoURL.standardizedFileURL
         self.activeStorage = activeStorage
+        activitySourceSnapshot = RepositoryActivitySourceSnapshot.notScanned(activeStorage: activeStorage)
         self.addedAt = addedAt
         self.lastOpenedAt = lastOpenedAt
         self.cinematicInfluenceSettings = cinematicInfluenceSettings
@@ -611,6 +613,9 @@ extension CompassProject {
             lessons = ""
             vision = ""
             sessions = []
+            activitySourceSnapshot = RepositoryActivitySourceSnapshot.noRepository(
+                activeStorage: activeStorage
+            )
             cinematicRunRecapShareArtifactHistory = CinematicRunRecapShareArtifactHistoryPlan.unavailable(
                 reason: "no-repository"
             )
@@ -624,6 +629,10 @@ extension CompassProject {
         }
 
         languageProfile = RepositoryLanguageProfileService.scan(repoURL: workspace.repoURL)
+        activitySourceSnapshot = RepositoryActivitySourceSnapshot.snapshot(
+            activeStorage: activeStorage,
+            workspace: workspace
+        )
 
         if !FileManager.default.fileExists(atPath: workspace.compassURL.path) {
             state = .empty

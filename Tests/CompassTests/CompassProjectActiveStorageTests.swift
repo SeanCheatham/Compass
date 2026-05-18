@@ -180,6 +180,11 @@ final class CompassProjectActiveStorageTests: XCTestCase {
 
         await project.refresh()
 
+        let sourceSnapshot = project.activitySourceSnapshot
+        let diagnosticsReport = CinematicDiagnostics.currentReport(for: project)
+        let diagnosticsSummary = CinematicDiagnosticsSummary(report: diagnosticsReport)
+        let activitySourceRow = try XCTUnwrap(diagnosticsSummary.row(id: "activity-source"))
+
         XCTAssertTrue(project.activityProfile.isAvailable)
         XCTAssertEqual(project.activityProfile.recentSessionCount, 3)
         XCTAssertEqual(project.activityProfile.recentSucceededCount, 2)
@@ -192,6 +197,19 @@ final class CompassProjectActiveStorageTests: XCTestCase {
         XCTAssertEqual(project.activityProfile.failureStreak, 0)
         XCTAssertTrue(project.activityProfile.recoveredFromFailure)
         XCTAssertEqual(project.activityProfile.worktreeChanges.untracked, 1)
+        XCTAssertEqual(project.sessions, supportSessions)
+        XCTAssertEqual(sourceSnapshot.activeStorage, .applicationSupport)
+        XCTAssertEqual(sourceSnapshot.storageRootURL, workspace.compassURL.standardizedFileURL)
+        XCTAssertEqual(sourceSnapshot.sessionsRecordURL, workspace.sessionsRecordURL.standardizedFileURL)
+        XCTAssertEqual(sourceSnapshot.sourceAvailability, .available)
+        XCTAssertEqual(sourceSnapshot.repoLocalSessionsState, .ignoredMissing)
+        XCTAssertTrue(sourceSnapshot.ignoresRepoLocalSessions)
+        XCTAssertEqual(diagnosticsReport.activitySource, sourceSnapshot)
+        XCTAssertTrue(diagnosticsReport.identifier.contains("activity-source:\(sourceSnapshot.identifier)"))
+        XCTAssertTrue(activitySourceRow.detail.contains("storage application_support"))
+        XCTAssertTrue(activitySourceRow.detail.contains("availability available"))
+        XCTAssertTrue(activitySourceRow.detail.contains("repo-local ignored-missing"))
+        XCTAssertTrue(diagnosticsSummary.exportText.contains("Activity source:"))
         XCTAssertEqual(project.state, supportState)
         XCTAssertEqual(project.activeStorage, .applicationSupport)
         XCTAssertEqual(project.cinematicRunRecapShareArtifactLibraryContext, libraryContext)
@@ -226,6 +244,11 @@ final class CompassProjectActiveStorageTests: XCTestCase {
 
         await project.refresh()
 
+        let sourceSnapshot = project.activitySourceSnapshot
+        let diagnosticsReport = CinematicDiagnostics.currentReport(for: project)
+        let diagnosticsSummary = CinematicDiagnosticsSummary(report: diagnosticsReport)
+        let activitySourceRow = try XCTUnwrap(diagnosticsSummary.row(id: "activity-source"))
+
         XCTAssertTrue(project.activityProfile.isAvailable)
         XCTAssertEqual(project.activityProfile.recentSessionCount, 2)
         XCTAssertEqual(project.activityProfile.recentSucceededCount, 1)
@@ -238,10 +261,105 @@ final class CompassProjectActiveStorageTests: XCTestCase {
         XCTAssertEqual(project.activityProfile.failureStreak, 0)
         XCTAssertTrue(project.activityProfile.recoveredFromFailure)
         XCTAssertEqual(project.activeStorage, .applicationSupport)
+        XCTAssertEqual(project.sessions, supportSessions)
+        XCTAssertEqual(sourceSnapshot.sourceAvailability, .available)
+        XCTAssertEqual(sourceSnapshot.repoLocalSessionsState, .ignoredCompatible)
+        XCTAssertTrue(sourceSnapshot.ignoresRepoLocalSessions)
+        XCTAssertEqual(diagnosticsReport.activitySource, sourceSnapshot)
+        XCTAssertTrue(activitySourceRow.detail.contains("repo-local ignored-compatible"))
+        XCTAssertTrue(diagnosticsSummary.exportText.contains("repo-local ignored-compatible"))
         XCTAssertEqual(
             try String(contentsOf: repoLocalWorkspace.sessionsRecordURL, encoding: .utf8),
             staleRepoLocalText
         )
+    }
+
+    func testActivitySourceDiagnosticsReportMissingActiveSupportRootReadOnly() async throws {
+        let repoURL = try makeTemporaryGitRepository()
+        let roots = try makeApplicationSupportRoots()
+        let workspace = applicationSupportWorkspace(repoURL: repoURL, roots: roots)
+        let libraryContext = CinematicRunRecapShareArtifactLibraryContext(
+            selectedEntryIdentifier: "missing-root-selection",
+            searchText: "missing root",
+            pinnedEntryIdentifiers: ["missing-root-pin"],
+            comparisonTargetMode: .pinnedReference,
+            savedTourHoldEntryIdentifier: "missing-root-hold"
+        )
+        let project = CompassProject(
+            repoURL: repoURL,
+            activeStorage: .applicationSupport,
+            cinematicRunRecapShareArtifactLibraryContext: libraryContext,
+            storageApplicationSupportRoots: roots
+        )
+
+        project.recordCinematicDiagnosticsWarningBundle(makeWarningAttentionSummary())
+        await project.refresh()
+
+        let snapshot = project.activitySourceSnapshot
+        let stateBeforeDiagnostics = project.state
+        let activeStorageBeforeDiagnostics = project.activeStorage
+        let contextBeforeDiagnostics = project.cinematicRunRecapShareArtifactLibraryContext
+        let sessionsBeforeDiagnostics = project.sessions
+        let warningHistoryBeforeDiagnostics = project.cinematicDiagnosticsWarningBundleHistory
+        let report = CinematicDiagnostics.currentReport(for: project)
+        let summary = CinematicDiagnosticsSummary(report: report)
+        let row = try XCTUnwrap(summary.row(id: "activity-source"))
+
+        XCTAssertEqual(project.activityProfile, .empty)
+        XCTAssertEqual(snapshot.activeStorage, .applicationSupport)
+        XCTAssertEqual(snapshot.storageRootURL, workspace.compassURL.standardizedFileURL)
+        XCTAssertEqual(snapshot.sessionsRecordURL, workspace.sessionsRecordURL.standardizedFileURL)
+        XCTAssertEqual(snapshot.sourceAvailability, .storageRootMissing)
+        XCTAssertEqual(snapshot.repoLocalSessionsState, .ignoredMissing)
+        XCTAssertEqual(report.activitySource, snapshot)
+        XCTAssertTrue(row.detail.contains("availability storage-root-missing"))
+        XCTAssertTrue(row.detail.contains("repo-local ignored-missing"))
+        XCTAssertEqual(project.state, stateBeforeDiagnostics)
+        XCTAssertEqual(project.activeStorage, activeStorageBeforeDiagnostics)
+        XCTAssertEqual(project.cinematicRunRecapShareArtifactLibraryContext, contextBeforeDiagnostics)
+        XCTAssertEqual(project.sessions, sessionsBeforeDiagnostics)
+        XCTAssertEqual(project.cinematicDiagnosticsWarningBundleHistory, warningHistoryBeforeDiagnostics)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: workspace.compassURL.path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: workspace.repoLocalCompassURL.path))
+    }
+
+    func testActivitySourceDiagnosticsReportNoRepositoryFallbackReadOnly() async throws {
+        let parentURL = try makeTemporaryDirectory(prefix: "CompassProjectMissingRepoParent")
+        let missingRepoURL = parentURL.appending(path: "MissingRepo", directoryHint: .isDirectory)
+        let roots = try makeApplicationSupportRoots()
+        let project = CompassProject(
+            repoURL: missingRepoURL,
+            activeStorage: .applicationSupport,
+            storageApplicationSupportRoots: roots
+        )
+
+        project.recordCinematicDiagnosticsWarningBundle(makeWarningAttentionSummary())
+        await project.refresh()
+
+        let snapshot = project.activitySourceSnapshot
+        let stateBeforeDiagnostics = project.state
+        let activeStorageBeforeDiagnostics = project.activeStorage
+        let sessionsBeforeDiagnostics = project.sessions
+        let warningHistoryBeforeDiagnostics = project.cinematicDiagnosticsWarningBundleHistory
+        let report = CinematicDiagnostics.currentReport(for: project)
+        let summary = CinematicDiagnosticsSummary(report: report)
+        let row = try XCTUnwrap(summary.row(id: "activity-source"))
+
+        XCTAssertEqual(project.activityProfile, .empty)
+        XCTAssertEqual(snapshot.activeStorage, .applicationSupport)
+        XCTAssertNil(snapshot.storageRootURL)
+        XCTAssertNil(snapshot.sessionsRecordURL)
+        XCTAssertEqual(snapshot.sourceAvailability, .noRepository)
+        XCTAssertEqual(snapshot.repoLocalSessionsState, .ignoredMissing)
+        XCTAssertEqual(report.activitySource, snapshot)
+        XCTAssertTrue(row.detail.contains("availability no-repository"))
+        XCTAssertTrue(row.detail.contains("root none"))
+        XCTAssertTrue(row.detail.contains("sessions none"))
+        XCTAssertEqual(project.state, stateBeforeDiagnostics)
+        XCTAssertEqual(project.activeStorage, activeStorageBeforeDiagnostics)
+        XCTAssertEqual(project.sessions, sessionsBeforeDiagnostics)
+        XCTAssertEqual(project.cinematicDiagnosticsWarningBundleHistory, warningHistoryBeforeDiagnostics)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: missingRepoURL.path))
     }
 
     func testInitializeWorkspaceRepairsActiveSupportStorageWithoutRepoLocalSideEffects() async throws {

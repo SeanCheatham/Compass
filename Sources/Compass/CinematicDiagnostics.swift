@@ -12,6 +12,7 @@ struct CinematicDiagnosticsReport: Equatable {
     var influenceIdentifier: String
     var languageMotif: LanguageMotifSnapshot
     var activityMotif: ActivityMotifSnapshot
+    var activitySource: RepositoryActivitySourceSnapshot
     var nativeFeedback: NativeFeedbackSnapshot
     var nativeFeedbackDelivery: NativeFeedbackDeliverySnapshot
     var recoveryCue: RecoveryCueSnapshot
@@ -4033,7 +4034,7 @@ struct CinematicVisualSmokeReport: Equatable {
 }
 
 struct CinematicDiagnosticsSummary: Equatable {
-    static let maxRows = 53
+    static let maxRows = 54
     static let labelMaxCharacters = 32
     static let detailMaxCharacters = 512
     static let headerDetailMaxCharacters = 128
@@ -4204,6 +4205,7 @@ struct CinematicDiagnosticsSummary: Equatable {
             label: "Repository/context",
             rowIDs: [
                 "repository",
+                "activity-source",
                 "immediate",
                 "plan-compass-readiness",
                 "plan-compass-verify-seal",
@@ -4324,6 +4326,11 @@ struct CinematicDiagnosticsSummary: Equatable {
                     report.phase,
                     completedLabel(report.completedCount)
                 ].joined(separator: " | ")
+            ),
+            row(
+                id: "activity-source",
+                label: "Activity source",
+                detail: activitySourceDetail(report.activitySource)
             ),
             row(id: "immediate", label: "Immediate", detail: report.immediateTitle),
             row(
@@ -5156,6 +5163,26 @@ struct CinematicDiagnosticsSummary: Equatable {
             label: bounded(label, limit: labelMaxCharacters),
             detail: bounded(detail, limit: detailMaxCharacters)
         )
+    }
+
+    private static func activitySourceDetail(_ snapshot: RepositoryActivitySourceSnapshot) -> String {
+        [
+            "storage \(snapshot.activeStorageIdentifier)",
+            "availability \(snapshot.sourceAvailabilityIdentifier)",
+            "repo-local \(snapshot.repoLocalSessionsStateIdentifier)",
+            "repo-local-mode \(snapshot.repoLocalSessionsIgnoredIdentifier)",
+            "root \(activitySourcePath(snapshot.storageRootURL))",
+            "sessions \(activitySourcePath(snapshot.sessionsRecordURL))",
+            "repo-local-sessions \(activitySourcePath(snapshot.repoLocalSessionsRecordURL))"
+        ].joined(separator: " | ")
+    }
+
+    private static func activitySourcePath(_ url: URL?) -> String {
+        guard let url else { return "none" }
+        let path = url.standardizedFileURL.path
+        let limit = 112
+        guard path.count > limit else { return path }
+        return "..." + path.suffix(limit - 3)
     }
 
     private static func optionalIdentifier(_ label: String, _ identifier: String?) -> String? {
@@ -7214,6 +7241,7 @@ enum CinematicDiagnostics {
             latestCommitSubject: commitConstellationPlan.newestSubject,
             languageProfile: project.languageProfile,
             activityProfile: project.activityProfile,
+            activitySourceSnapshot: project.activitySourceSnapshot,
             influenceSettings: project.cinematicInfluenceSettings,
             isRunning: project.isRunning,
             isAutoPlaying: project.isAutoPlaying,
@@ -7265,6 +7293,7 @@ enum CinematicDiagnostics {
         latestCommitSubject: String? = nil,
         languageProfile: RepositoryLanguageProfile,
         activityProfile: RepositoryActivityProfile,
+        activitySourceSnapshot: RepositoryActivitySourceSnapshot = .notScanned(),
         influenceSettings: CinematicInfluenceSettings,
         isRunning: Bool = true,
         isAutoPlaying: Bool = false,
@@ -7565,6 +7594,7 @@ enum CinematicDiagnostics {
                 "phase:\(phase)",
                 "language:\(languageSnapshot.identifier)",
                 "activity:\(activitySnapshot.identifier)",
+                "activity-source:\(activitySourceSnapshot.identifier)",
                 "recovery:\(recoveryCueSnapshot.identifier)",
                 "stage:\(stageBeatSnapshot.identifier)",
                 "stage-effect:\(stageEffectSnapshot.identifier)",
@@ -7652,6 +7682,7 @@ enum CinematicDiagnostics {
             influenceIdentifier: influenceIdentifier,
             languageMotif: languageSnapshot,
             activityMotif: activitySnapshot,
+            activitySource: activitySourceSnapshot,
             nativeFeedback: nativeFeedbackSnapshot,
             nativeFeedbackDelivery: nativeFeedbackDeliverySnapshot,
             recoveryCue: recoveryCueSnapshot,
