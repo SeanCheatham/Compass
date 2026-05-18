@@ -1127,12 +1127,14 @@ final class CinematicDiagnosticsTests: XCTestCase {
         XCTAssertTrue(report.identifier.contains("plan-compass-history:\(planCompass.completedWaypointStripIdentifier)"))
         XCTAssertTrue(report.identifier.contains("plan-compass-history-hidden:1"))
         XCTAssertTrue(report.identifier.contains("plan-compass-focus:\(planFocus.identifier)"))
+        XCTAssertTrue(report.identifier.contains("plan-compass-action-surface:"))
 
         let historyRow = try XCTUnwrap(summary.row(id: "plan-compass-history"))
         let immediateRow = try XCTUnwrap(summary.row(id: "plan-compass-immediate"))
         let midTermRow = try XCTUnwrap(summary.row(id: "plan-compass-mid-term"))
         let longTermRow = try XCTUnwrap(summary.row(id: "plan-compass-long-term"))
         let focusRow = try XCTUnwrap(summary.row(id: "plan-compass-focus"))
+        let commandsRow = try XCTUnwrap(summary.row(id: "plan-compass-commands"))
 
         XCTAssertTrue(historyRow.detail.contains("waypoints \(planCompass.completedWaypointCount)"))
         XCTAssertTrue(historyRow.detail.contains("hidden 1"))
@@ -1151,6 +1153,9 @@ final class CinematicDiagnosticsTests: XCTestCase {
         XCTAssertTrue(focusRow.detail.contains("diagnostics plan-compass-focus.diagnostics"))
         XCTAssertTrue(focusRow.detail.contains("waypoints \(planCompass.completedWaypointCount)"))
         XCTAssertTrue(focusRow.detail.contains("waypoint-rail plan-compass-focus"))
+        XCTAssertTrue(commandsRow.detail.contains("actions 6 e6 d0"))
+        XCTAssertTrue(commandsRow.detail.contains("selected-actions focusImmediateRoute"))
+        XCTAssertTrue(commandsRow.detail.contains("action-correlated yes"))
         XCTAssertTrue(summary.exportText.contains("Immediate direction:"))
         XCTAssertTrue(summary.exportText.contains("Plan history:"))
         XCTAssertTrue(summary.exportText.contains(planCompass.immediate.exportIdentifier))
@@ -1159,6 +1164,8 @@ final class CinematicDiagnosticsTests: XCTestCase {
         XCTAssertTrue(summary.exportText.contains(planCompass.longTerm.exportIdentifier))
         XCTAssertTrue(summary.exportText.contains("Plan compass focus:"))
         XCTAssertTrue(summary.exportText.contains(planFocusDescriptor.selectedSectionCopyIdentifier))
+        XCTAssertTrue(summary.exportText.contains("Plan compass commands:"))
+        XCTAssertTrue(summary.exportText.contains("action-correlated yes"))
     }
 
     func testSummaryKeepsNarrativeAndOverlayRowsInOneTuningGroup() throws {

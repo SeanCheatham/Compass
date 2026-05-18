@@ -94,6 +94,7 @@ final class CinematicPlanCompassCommandTests: XCTestCase {
             planCompassPlan: plan,
             selectedKind: .immediate
         )
+        let actionSurface = CinematicPlanCompassActionSurfacePlanner.descriptor(commandPlan: commandPlan)
         var performed: [CinematicPlanCompassCommandPlan.ActionKind] = []
         let dispatch = CinematicPlanCompassCommandDispatch(
             plan: commandPlan,
@@ -103,10 +104,11 @@ final class CinematicPlanCompassCommandTests: XCTestCase {
         XCTAssertNotNil(dispatch.plan.command(for: .showPlanOverlay))
         XCTAssertTrue(dispatch.plan.command(for: .focusLongTermRoute)?.isEnabled == true)
 
-        dispatch.perform(.showPlanOverlay)
-        dispatch.perform(.focusLongTermRoute)
+        for action in actionSurface.actions where action.isEnabled {
+            dispatch.perform(action.sourceActionKind)
+        }
 
-        XCTAssertEqual(performed, [.showPlanOverlay, .focusLongTermRoute])
+        XCTAssertEqual(performed, commandPlan.commands.map(\.actionKind))
     }
 
     func testCommandPlannerDoesNotMutatePlanCompassDescriptors() {

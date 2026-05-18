@@ -569,8 +569,19 @@ struct CinematicDiagnosticsReport: Equatable {
         var sectionCount: Int
         var sections: [PlanCompassCommandSectionSnapshot]
         var shortcutIdentifiers: [String]
+        var commandActionKindIdentifiers: [String]
         var disabledActionKindIdentifiers: [String]
         var copyCommandIdentifiers: [String]
+        var actionSurfaceIdentifier: String
+        var actionSurfaceSourceCommandPlanIdentifier: String
+        var visibleActionCount: Int
+        var visibleEnabledActionCount: Int
+        var visibleDisabledActionCount: Int
+        var visibleActionIdentifiers: [String]
+        var visibleActionKindIdentifiers: [String]
+        var visibleActionSourceCommandIdentifiers: [String]
+        var visibleActionSelectedRouteStateIdentifiers: [String]
+        var selectedVisibleActionKindIdentifiers: [String]
         var appLevelShortcutCollisionStateIdentifier: String
         var appLevelShortcutIdentifiers: [String]
         var appLevelShortcutCollisionIdentifiers: [String]
@@ -1298,6 +1309,36 @@ struct CinematicVisualSmokeReport: Equatable {
         )
     }
 
+    private static func planCompassActionSurfaceIsCorrelated(
+        _ snapshot: CinematicDiagnosticsReport.PlanCompassCommandSnapshot
+    ) -> Bool {
+        let expectedSelectedActionKind: String?
+        switch snapshot.selectedRouteIdentifier {
+        case "immediate":
+            expectedSelectedActionKind = CinematicPlanCompassCommandPlan.ActionKind.focusImmediateRoute.rawValue
+        case "mid-term":
+            expectedSelectedActionKind = CinematicPlanCompassCommandPlan.ActionKind.focusMidTermRoute.rawValue
+        case "long-term":
+            expectedSelectedActionKind = CinematicPlanCompassCommandPlan.ActionKind.focusLongTermRoute.rawValue
+        default:
+            expectedSelectedActionKind = nil
+        }
+        let selectedKindsAreCorrelated = expectedSelectedActionKind.map {
+            snapshot.selectedVisibleActionKindIdentifiers == [$0]
+        } ?? snapshot.selectedVisibleActionKindIdentifiers.isEmpty
+
+        return snapshot.actionSurfaceIdentifier.hasPrefix("plan-compass-action-surface")
+            && snapshot.actionSurfaceSourceCommandPlanIdentifier == snapshot.commandPlanIdentifier
+            && snapshot.visibleActionCount == snapshot.commandCount
+            && snapshot.visibleEnabledActionCount == snapshot.enabledCommandCount
+            && snapshot.visibleDisabledActionCount == snapshot.disabledCommandCount
+            && snapshot.visibleActionKindIdentifiers == snapshot.commandActionKindIdentifiers
+            && snapshot.visibleActionSourceCommandIdentifiers.count == snapshot.visibleActionCount
+            && snapshot.visibleActionIdentifiers.count == snapshot.visibleActionCount
+            && snapshot.visibleActionSelectedRouteStateIdentifiers.count == snapshot.visibleActionCount
+            && selectedKindsAreCorrelated
+    }
+
     private static func planCompassCommandAvailabilityCheck(
         reports: [CinematicDiagnosticsReport]
     ) -> Check {
@@ -1343,6 +1384,7 @@ struct CinematicVisualSmokeReport: Equatable {
                 && snapshot.shortcutIdentifiers.count == snapshot.commandCount
                 && snapshot.shortcutIdentifiers.count == Set(snapshot.shortcutIdentifiers).count
         }.count
+        let actionSurfaceCorrelationCount = snapshots.filter(planCompassActionSurfaceIsCorrelated).count
         let copyExportCount = snapshots.filter { snapshot in
             snapshot.sourcePlanCopyIdentifier.hasPrefix("plan-compass.copy")
                 && snapshot.sourcePlanExportIdentifier.hasPrefix("plan-compass.export")
@@ -1373,6 +1415,7 @@ struct CinematicVisualSmokeReport: Equatable {
             && countIntegrityCount == snapshots.count
             && sectionCoverageCount == snapshots.count
             && shortcutCoverageCount == snapshots.count
+            && actionSurfaceCorrelationCount == snapshots.count
             && copyExportCount == snapshots.count
             && appCollisionClearCount == snapshots.count
             && recapCollisionClearCount == snapshots.count
@@ -1384,14 +1427,13 @@ struct CinematicVisualSmokeReport: Equatable {
             isPassing: isPassing,
             warningIdentifier: "visual-smoke.plan-compass-commands",
             detail: [
-                "routes \(slashJoined(routes))",
-                "states \(slashJoined(states))",
-                "shortcuts \(shortcutCoverageCount)/\(snapshots.count)",
+                slashJoined(routes),
+                slashJoined(states),
+                "action-surface \(actionSurfaceCorrelationCount)/\(snapshots.count)\(actionSurfaceCorrelationCount == snapshots.count ? "" : " drift \(snapshots.count - actionSurfaceCorrelationCount)")",
+                "bounded \(boundedCount)/\(reports.count)",
                 "copy-export \(copyExportCount)/\(snapshots.count)",
                 "app-collisions \(appCollisionClearCount == snapshots.count ? "clear" : "\(snapshots.count - appCollisionClearCount)")",
-                "recap-collisions \(recapCollisionClearCount == snapshots.count ? "clear" : "\(snapshots.count - recapCollisionClearCount)")",
-                "bounded \(boundedCount)/\(reports.count)",
-                "correlated \(correlatedCount)/\(snapshots.count)"
+                "recap-collisions \(recapCollisionClearCount == snapshots.count ? "clear" : "\(snapshots.count - recapCollisionClearCount)")"
             ].joined(separator: " "),
             warningTarget: Check.WarningTarget(
                 id: "visual-smoke-check-plan-compass-command-availability",
@@ -3065,12 +3107,48 @@ struct CinematicVisualSmokeReport: Equatable {
             && snapshot.shortcutIdentifiers.allSatisfy {
                 string($0, maxCharacters: CinematicPlanCompassCommandPlan.identifierMaxCharacters)
             }
+            && snapshot.commandActionKindIdentifiers.count <= CinematicPlanCompassCommandPlan.commandLimit
+            && snapshot.commandActionKindIdentifiers.allSatisfy {
+                string($0, maxCharacters: CinematicPlanCompassCommandPlan.identifierMaxCharacters)
+            }
             && snapshot.disabledActionKindIdentifiers.count <= CinematicPlanCompassCommandPlan.commandLimit
             && snapshot.disabledActionKindIdentifiers.allSatisfy {
                 string($0, maxCharacters: CinematicPlanCompassCommandPlan.identifierMaxCharacters)
             }
             && snapshot.copyCommandIdentifiers.count <= 2
             && snapshot.copyCommandIdentifiers.allSatisfy {
+                string($0, maxCharacters: CinematicPlanCompassCommandPlan.identifierMaxCharacters)
+            }
+            && string(
+                snapshot.actionSurfaceIdentifier,
+                maxCharacters: CinematicPlanCompassActionSurfaceDescriptor.identifierMaxCharacters
+            )
+            && string(
+                snapshot.actionSurfaceSourceCommandPlanIdentifier,
+                maxCharacters: CinematicPlanCompassCommandPlan.identifierMaxCharacters
+            )
+            && snapshot.visibleActionCount <= CinematicPlanCompassActionSurfaceDescriptor.actionLimit
+            && snapshot.visibleEnabledActionCount <= snapshot.visibleActionCount
+            && snapshot.visibleDisabledActionCount <= snapshot.visibleActionCount
+            && snapshot.visibleEnabledActionCount + snapshot.visibleDisabledActionCount == snapshot.visibleActionCount
+            && snapshot.visibleActionIdentifiers.count <= CinematicPlanCompassActionSurfaceDescriptor.actionLimit
+            && snapshot.visibleActionIdentifiers.allSatisfy {
+                string($0, maxCharacters: CinematicPlanCompassActionSurfaceDescriptor.identifierMaxCharacters)
+            }
+            && snapshot.visibleActionKindIdentifiers.count <= CinematicPlanCompassActionSurfaceDescriptor.actionLimit
+            && snapshot.visibleActionKindIdentifiers.allSatisfy {
+                string($0, maxCharacters: CinematicPlanCompassCommandPlan.identifierMaxCharacters)
+            }
+            && snapshot.visibleActionSourceCommandIdentifiers.count <= CinematicPlanCompassActionSurfaceDescriptor.actionLimit
+            && snapshot.visibleActionSourceCommandIdentifiers.allSatisfy {
+                string($0, maxCharacters: CinematicPlanCompassCommandPlan.identifierMaxCharacters)
+            }
+            && snapshot.visibleActionSelectedRouteStateIdentifiers.count <= CinematicPlanCompassActionSurfaceDescriptor.actionLimit
+            && snapshot.visibleActionSelectedRouteStateIdentifiers.allSatisfy {
+                string($0, maxCharacters: CinematicPlanCompassCommandPlan.identifierMaxCharacters)
+            }
+            && snapshot.selectedVisibleActionKindIdentifiers.count <= 1
+            && snapshot.selectedVisibleActionKindIdentifiers.allSatisfy {
                 string($0, maxCharacters: CinematicPlanCompassCommandPlan.identifierMaxCharacters)
             }
             && snapshot.appLevelShortcutIdentifiers.count == 3
@@ -5255,20 +5333,25 @@ struct CinematicDiagnosticsSummary: Equatable {
     private static func planCompassCommandsDetail(
         _ snapshot: CinematicDiagnosticsReport.PlanCompassCommandSnapshot
     ) -> String {
-        [
+        let actionSurfaceCorrelation = planCompassActionSurfaceIsCorrelated(snapshot) ? "yes" : "no"
+        return [
             "cmd \(snapshot.commandCount) e\(snapshot.enabledCommandCount) d\(snapshot.disabledCommandCount)",
             "selected \(snapshot.selectedRouteIdentifier)",
             "state \(snapshot.selectedSectionStateIdentifier)",
             snapshot.selectedSectionIsEmpty ? "empty" : "active",
-            "plan-copy \(bounded(snapshot.sourcePlanCopyIdentifier, limit: 72))",
-            "plan-export \(bounded(snapshot.sourcePlanExportIdentifier, limit: 72))",
-            "section-copy \(bounded(snapshot.selectedSectionCopyIdentifier, limit: 72))",
-            "section-export \(bounded(snapshot.selectedSectionExportIdentifier, limit: 72))",
-            "shortcuts \(identifierListSummary(snapshot.shortcutIdentifiers, visibleLimit: 4))",
+            "actions \(snapshot.visibleActionCount) e\(snapshot.visibleEnabledActionCount) d\(snapshot.visibleDisabledActionCount)",
+            "selected-actions \(identifierListSummary(snapshot.selectedVisibleActionKindIdentifiers, visibleLimit: 2))",
+            "action-correlated \(actionSurfaceCorrelation)",
+            "action-surface \(bounded(snapshot.actionSurfaceIdentifier, limit: 24))",
             "copy-cmds \(snapshot.copyCommandIdentifiers.count)",
-            "app-collisions \(snapshot.appLevelShortcutCollisionStateIdentifier) \(identifierListSummary(snapshot.appLevelShortcutCollisionIdentifiers.isEmpty ? snapshot.appLevelShortcutIdentifiers : snapshot.appLevelShortcutCollisionIdentifiers, visibleLimit: 3))",
-            "recap-collisions \(snapshot.recapCommandShortcutCollisionStateIdentifier) \(identifierListSummary(snapshot.recapCommandShortcutCollisionIdentifiers.isEmpty ? snapshot.recapCommandShortcutIdentifiers : snapshot.recapCommandShortcutCollisionIdentifiers, visibleLimit: 3))",
-            "sections \(planCompassCommandSectionSummary(snapshot.sections))",
+            "plan-copy \(bounded(snapshot.sourcePlanCopyIdentifier, limit: 30))",
+            "section-export \(bounded(snapshot.selectedSectionExportIdentifier, limit: 30))",
+            "app-collisions \(snapshot.appLevelShortcutCollisionStateIdentifier) \(identifierListSummary(snapshot.appLevelShortcutCollisionIdentifiers.isEmpty ? snapshot.appLevelShortcutIdentifiers : snapshot.appLevelShortcutCollisionIdentifiers, visibleLimit: 2))",
+            "recap-collisions \(snapshot.recapCommandShortcutCollisionStateIdentifier) \(identifierListSummary(snapshot.recapCommandShortcutCollisionIdentifiers.isEmpty ? snapshot.recapCommandShortcutIdentifiers : snapshot.recapCommandShortcutCollisionIdentifiers, visibleLimit: 2))",
+            "plan-export \(bounded(snapshot.sourcePlanExportIdentifier, limit: 30))",
+            "section-copy \(bounded(snapshot.selectedSectionCopyIdentifier, limit: 30))",
+            "shortcuts \(snapshot.shortcutIdentifiers.count)",
+            "sections \(snapshot.sectionCount)",
             "id \(bounded(snapshot.identifier, limit: 30))"
         ].compactMap { $0 }.joined(separator: " | ")
     }
@@ -5657,6 +5740,36 @@ struct CinematicDiagnosticsSummary: Equatable {
         ].joined(separator: " | ")
     }
 
+    private static func planCompassActionSurfaceIsCorrelated(
+        _ snapshot: CinematicDiagnosticsReport.PlanCompassCommandSnapshot
+    ) -> Bool {
+        let expectedSelectedActionKind: String?
+        switch snapshot.selectedRouteIdentifier {
+        case "immediate":
+            expectedSelectedActionKind = CinematicPlanCompassCommandPlan.ActionKind.focusImmediateRoute.rawValue
+        case "mid-term":
+            expectedSelectedActionKind = CinematicPlanCompassCommandPlan.ActionKind.focusMidTermRoute.rawValue
+        case "long-term":
+            expectedSelectedActionKind = CinematicPlanCompassCommandPlan.ActionKind.focusLongTermRoute.rawValue
+        default:
+            expectedSelectedActionKind = nil
+        }
+        let selectedKindsAreCorrelated = expectedSelectedActionKind.map {
+            snapshot.selectedVisibleActionKindIdentifiers == [$0]
+        } ?? snapshot.selectedVisibleActionKindIdentifiers.isEmpty
+
+        return snapshot.actionSurfaceIdentifier.hasPrefix("plan-compass-action-surface")
+            && snapshot.actionSurfaceSourceCommandPlanIdentifier == snapshot.commandPlanIdentifier
+            && snapshot.visibleActionCount == snapshot.commandCount
+            && snapshot.visibleEnabledActionCount == snapshot.enabledCommandCount
+            && snapshot.visibleDisabledActionCount == snapshot.disabledCommandCount
+            && snapshot.visibleActionKindIdentifiers == snapshot.commandActionKindIdentifiers
+            && snapshot.visibleActionSourceCommandIdentifiers.count == snapshot.visibleActionCount
+            && snapshot.visibleActionIdentifiers.count == snapshot.visibleActionCount
+            && snapshot.visibleActionSelectedRouteStateIdentifiers.count == snapshot.visibleActionCount
+            && selectedKindsAreCorrelated
+    }
+
     private static func planCompassCommandAvailabilityAttentionDetail(
         _ snapshot: CinematicDiagnosticsReport.PlanCompassCommandSnapshot
     ) -> String {
@@ -5671,12 +5784,14 @@ struct CinematicDiagnosticsSummary: Equatable {
 
         return [
             "selected \(snapshot.selectedRouteIdentifier) \(snapshot.selectedSectionStateIdentifier)",
-            "sections \(planCompassCommandSectionSummary(snapshot.sections))",
-            "shortcuts \(snapshot.shortcutIdentifiers.count) \(identifierListSummary(snapshot.shortcutIdentifiers, visibleLimit: 1))",
+            "sections \(snapshot.sectionCount)",
+            "shortcuts \(snapshot.shortcutIdentifiers.count)",
             "app-collisions \(snapshot.appLevelShortcutCollisionStateIdentifier)",
             "recap-collisions \(snapshot.recapCommandShortcutCollisionStateIdentifier)",
             "copy-cmds \(snapshot.copyCommandIdentifiers.count)",
-            "correlated \(isCorrelated ? "yes" : "no") source-plan \(sourcePlanState) selected-row \(bounded(selectedRowState, limit: 24))"
+            "actions \(snapshot.visibleActionCount)/\(snapshot.commandCount)",
+            "action-surface \(planCompassActionSurfaceIsCorrelated(snapshot) ? "correlated" : "drift")",
+            "correlated \(isCorrelated ? "yes" : "no") source \(sourcePlanState) selected-row \(bounded(selectedRowState, limit: 24))"
         ].joined(separator: " | ")
     }
 
@@ -7054,6 +7169,8 @@ enum CinematicDiagnostics {
                 "plan-compass-history-hidden:\(planCompassHistorySnapshot.hiddenCount)",
                 "plan-compass-commands:\(planCompassCommandSnapshot.identifier)",
                 "plan-compass-command-plan:\(planCompassCommandSnapshot.commandPlanIdentifier)",
+                "plan-compass-action-surface:\(planCompassCommandSnapshot.actionSurfaceIdentifier)",
+                "plan-compass-action-surface-source:\(planCompassCommandSnapshot.actionSurfaceSourceCommandPlanIdentifier)",
                 "plan-compass-command-selected:\(planCompassCommandSnapshot.selectedRouteIdentifier)",
                 "plan-compass-command-app-collisions:\(planCompassCommandSnapshot.appLevelShortcutCollisionStateIdentifier)",
                 "plan-compass-command-recap-collisions:\(planCompassCommandSnapshot.recapCommandShortcutCollisionStateIdentifier)",
@@ -9490,6 +9607,7 @@ enum CinematicDiagnostics {
         commandPlan: CinematicPlanCompassCommandPlan
     ) -> CinematicDiagnosticsReport.PlanCompassCommandSnapshot {
         typealias SectionSnapshot = CinematicDiagnosticsReport.PlanCompassCommandSectionSnapshot
+        let actionSurface = CinematicPlanCompassActionSurfacePlanner.descriptor(commandPlan: commandPlan)
         let sections = CinematicPlanCompassCommandPlan.Section.allCases.map { section -> SectionSnapshot in
             let sectionCommands = commandPlan.commands(in: section)
             let enabledCommandCount = sectionCommands.filter(\.isEnabled).count
@@ -9501,12 +9619,20 @@ enum CinematicDiagnostics {
             )
         }
         let shortcutIdentifiers = commandPlan.commands.map(\.shortcut.identifier)
+        let commandActionKindIdentifiers = commandPlan.commands.map(\.actionKind.rawValue)
         let disabledActionKindIdentifiers = commandPlan.commands
             .filter { !$0.isEnabled }
             .map(\.actionKind.rawValue)
         let copyCommandIdentifiers = commandPlan.commands
             .filter { $0.section == .copy }
             .map(\.identifier)
+        let visibleActionIdentifiers = actionSurface.actions.map(\.identifier)
+        let visibleActionKindIdentifiers = actionSurface.actions.map(\.sourceActionKind.rawValue)
+        let visibleActionSourceCommandIdentifiers = actionSurface.actions.map(\.sourceCommandIdentifier)
+        let visibleActionSelectedRouteStateIdentifiers = actionSurface.actions.map(\.selectedRouteStateIdentifier)
+        let selectedVisibleActionKindIdentifiers = actionSurface.actions
+            .filter(\.isSelectedRoute)
+            .map(\.sourceActionKind.rawValue)
         let identifier = bounded(
             [
                 "plan-compass-command-snapshot",
@@ -9518,6 +9644,10 @@ enum CinematicDiagnostics {
                 "section-state:\(commandPlan.selectedSectionStateIdentifier)",
                 "shortcuts:\(fingerprint(shortcutIdentifiers.joined(separator: "|")))",
                 "copy:\(fingerprint(copyCommandIdentifiers.joined(separator: "|")))",
+                "action-surface:\(fingerprint(actionSurface.identifier))",
+                "action-kinds:\(fingerprint(visibleActionKindIdentifiers.joined(separator: "|")))",
+                "action-sources:\(fingerprint(visibleActionSourceCommandIdentifiers.joined(separator: "|")))",
+                "action-selected:\(fingerprint(selectedVisibleActionKindIdentifiers.joined(separator: "|")))",
                 "app-collisions:\(commandPlan.appLevelShortcutCollisionStateIdentifier)",
                 "app-collision-ids:\(fingerprint(commandPlan.appLevelShortcutCollisionIdentifiers.joined(separator: "|")))",
                 "recap-collisions:\(commandPlan.recapCommandShortcutCollisionStateIdentifier)",
@@ -9546,8 +9676,19 @@ enum CinematicDiagnostics {
             sectionCount: sections.count,
             sections: sections,
             shortcutIdentifiers: shortcutIdentifiers,
+            commandActionKindIdentifiers: commandActionKindIdentifiers,
             disabledActionKindIdentifiers: disabledActionKindIdentifiers,
             copyCommandIdentifiers: copyCommandIdentifiers,
+            actionSurfaceIdentifier: actionSurface.identifier,
+            actionSurfaceSourceCommandPlanIdentifier: actionSurface.sourceCommandPlanIdentifier,
+            visibleActionCount: actionSurface.actionCount,
+            visibleEnabledActionCount: actionSurface.enabledActionCount,
+            visibleDisabledActionCount: actionSurface.disabledActionCount,
+            visibleActionIdentifiers: visibleActionIdentifiers,
+            visibleActionKindIdentifiers: visibleActionKindIdentifiers,
+            visibleActionSourceCommandIdentifiers: visibleActionSourceCommandIdentifiers,
+            visibleActionSelectedRouteStateIdentifiers: visibleActionSelectedRouteStateIdentifiers,
+            selectedVisibleActionKindIdentifiers: selectedVisibleActionKindIdentifiers,
             appLevelShortcutCollisionStateIdentifier: commandPlan.appLevelShortcutCollisionStateIdentifier,
             appLevelShortcutIdentifiers: commandPlan.appLevelShortcutIdentifiers,
             appLevelShortcutCollisionIdentifiers: commandPlan.appLevelShortcutCollisionIdentifiers,

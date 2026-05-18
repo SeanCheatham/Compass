@@ -87,6 +87,7 @@ final class CinematicVisualSmokeReportTests: XCTestCase {
         XCTAssertTrue(planCommands.detail.contains("active"))
         XCTAssertTrue(planCommands.detail.contains("empty"))
         XCTAssertTrue(planCommands.detail.contains("copy-export"))
+        XCTAssertTrue(planCommands.detail.contains("action-surface"))
         XCTAssertTrue(planCommands.detail.contains("app-collisions clear"))
         XCTAssertTrue(planCommands.detail.contains("recap-collisions clear"))
         XCTAssertTrue(planCommands.detail.contains("bounded"))
@@ -739,6 +740,7 @@ final class CinematicVisualSmokeReportTests: XCTestCase {
         XCTAssertTrue(planCommandTarget.detail.contains("app-collisions"))
         XCTAssertTrue(planCommandTarget.detail.contains("recap-collisions"))
         XCTAssertTrue(planCommandTarget.detail.contains("copy-cmds"))
+        XCTAssertTrue(planCommandTarget.detail.contains("action-surface"))
         XCTAssertTrue(planCommandTarget.detail.contains("correlated"))
         XCTAssertLessThanOrEqual(
             planCommandTarget.copyText.count,
@@ -753,6 +755,7 @@ final class CinematicVisualSmokeReportTests: XCTestCase {
         )
         XCTAssertTrue(planCommandTarget.copyText.contains("Target group: visual-smoke"))
         XCTAssertTrue(planCommandTarget.copyText.contains("Warnings: visual-smoke.plan-compass-commands"))
+        XCTAssertTrue(planCommandTarget.copyText.contains("action-surface"))
         XCTAssertTrue(planCommandTarget.copyText.contains("Related row: plan-compass-commands"))
         XCTAssertTrue(planCommandTarget.copyText.contains("Related detail:"))
         XCTAssertTrue(planCommandTarget.copyText.contains("Plan compass commands"))

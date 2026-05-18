@@ -18,6 +18,7 @@ final class CinematicPlanCompassCommandDiagnosticsTests: XCTestCase {
             planCompassPlan: plan,
             selectedKind: .longTerm
         )
+        let actionSurface = CinematicPlanCompassActionSurfacePlanner.descriptor(commandPlan: commandPlan)
         let focusPlan = CinematicPlanCompassSceneFocusPlanner.plan(
             isPlanOverlaySelected: true,
             planCompassPlan: plan,
@@ -46,12 +47,27 @@ final class CinematicPlanCompassCommandDiagnosticsTests: XCTestCase {
         XCTAssertEqual(snapshot.enabledCommandCount, commandPlan.enabledCommandCount)
         XCTAssertEqual(snapshot.disabledCommandCount, commandPlan.disabledCommandCount)
         XCTAssertEqual(snapshot.shortcutIdentifiers, commandPlan.commands.map(\.shortcut.identifier))
+        XCTAssertEqual(snapshot.commandActionKindIdentifiers, commandPlan.commands.map(\.actionKind.rawValue))
         XCTAssertEqual(snapshot.copyCommandIdentifiers.count, 2)
+        XCTAssertEqual(snapshot.actionSurfaceIdentifier, actionSurface.identifier)
+        XCTAssertEqual(snapshot.actionSurfaceSourceCommandPlanIdentifier, commandPlan.identifier)
+        XCTAssertEqual(snapshot.visibleActionCount, actionSurface.actionCount)
+        XCTAssertEqual(snapshot.visibleEnabledActionCount, actionSurface.enabledActionCount)
+        XCTAssertEqual(snapshot.visibleDisabledActionCount, actionSurface.disabledActionCount)
+        XCTAssertEqual(snapshot.visibleActionIdentifiers, actionSurface.actions.map(\.identifier))
+        XCTAssertEqual(snapshot.visibleActionKindIdentifiers, actionSurface.actions.map(\.sourceActionKind.rawValue))
+        XCTAssertEqual(snapshot.visibleActionSourceCommandIdentifiers, actionSurface.actions.map(\.sourceCommandIdentifier))
+        XCTAssertEqual(
+            snapshot.visibleActionSelectedRouteStateIdentifiers,
+            actionSurface.actions.map(\.selectedRouteStateIdentifier)
+        )
+        XCTAssertEqual(snapshot.selectedVisibleActionKindIdentifiers, ["focusLongTermRoute"])
         XCTAssertEqual(snapshot.appLevelShortcutCollisionStateIdentifier, "clear")
         XCTAssertEqual(snapshot.appLevelShortcutCollisionIdentifiers, [])
         XCTAssertEqual(snapshot.recapCommandShortcutCollisionStateIdentifier, "clear")
         XCTAssertEqual(snapshot.recapCommandShortcutCollisionIdentifiers, [])
         XCTAssertTrue(report.identifier.contains("plan-compass-commands:\(snapshot.identifier)"))
+        XCTAssertTrue(report.identifier.contains("plan-compass-action-surface:\(snapshot.actionSurfaceIdentifier)"))
         XCTAssertTrue(report.identifier.contains("plan-compass-command-selected:long-term"))
         XCTAssertEqual(report.planCompassSceneFocus.selectedSectionRouteIdentifier, snapshot.selectedRouteIdentifier)
     }
@@ -73,8 +89,12 @@ final class CinematicPlanCompassCommandDiagnosticsTests: XCTestCase {
         XCTAssertTrue(row.detail.contains("app-collisions clear"))
         XCTAssertTrue(row.detail.contains("recap-collisions clear"))
         XCTAssertTrue(row.detail.contains("copy-cmds 2"))
+        XCTAssertTrue(row.detail.contains("actions 6 e6 d0"))
+        XCTAssertTrue(row.detail.contains("action-surface"))
+        XCTAssertTrue(row.detail.contains("action-correlated yes"))
         XCTAssertTrue(summary.exportText.contains("Plan compass commands"))
         XCTAssertTrue(summary.exportText.contains("plan-compass-commands"))
+        XCTAssertTrue(summary.exportText.contains("action-correlated yes"))
         XCTAssertTrue(summary.exportText.contains("recap-collisions clear"))
         XCTAssertTrue(summary.exportText.contains("section-copy"))
     }
@@ -99,9 +119,17 @@ final class CinematicPlanCompassCommandDiagnosticsTests: XCTestCase {
             XCTAssertEqual(snapshot.sourcePlanIdentifier, report.planCompass?.identifier)
             XCTAssertEqual(snapshot.sourcePlanCopyIdentifier, report.planCompass?.copyIdentifier)
             XCTAssertEqual(snapshot.sourcePlanExportIdentifier, report.planCompass?.exportIdentifier)
+            XCTAssertEqual(snapshot.actionSurfaceSourceCommandPlanIdentifier, snapshot.commandPlanIdentifier)
+            XCTAssertEqual(snapshot.visibleActionCount, snapshot.commandCount)
+            XCTAssertEqual(snapshot.visibleEnabledActionCount, snapshot.enabledCommandCount)
+            XCTAssertEqual(snapshot.visibleDisabledActionCount, snapshot.disabledCommandCount)
+            XCTAssertEqual(snapshot.visibleActionKindIdentifiers, snapshot.commandActionKindIdentifiers)
+            XCTAssertEqual(snapshot.visibleActionSourceCommandIdentifiers.count, snapshot.commandCount)
+            XCTAssertEqual(snapshot.selectedVisibleActionKindIdentifiers.count, 1)
             XCTAssertEqual(snapshot.appLevelShortcutCollisionStateIdentifier, "clear")
             XCTAssertEqual(snapshot.recapCommandShortcutCollisionStateIdentifier, "clear")
             XCTAssertTrue(report.identifier.contains("plan-compass-command-plan:"))
+            XCTAssertTrue(report.identifier.contains("plan-compass-action-surface:"))
             XCTAssertTrue(report.identifier.contains("plan-compass-command-recap-collisions:clear"))
         }
     }
@@ -125,6 +153,25 @@ final class CinematicPlanCompassCommandDiagnosticsTests: XCTestCase {
         XCTAssertEqual(check.warningTarget?.relatedRowID, "plan-compass-commands")
         XCTAssertTrue(check.detail.contains("recap-collisions"))
         XCTAssertTrue(smoke.warningIdentifiers.contains("visual-smoke.plan-compass-commands"))
+    }
+
+    func testVisualSmokeWarnsForPlanCompassActionSurfaceDriftDetails() throws {
+        var reports = CinematicDiagnostics.representativePlanCompassCommandSmokeReports()
+        reports[0].planCompassCommands.visibleActionKindIdentifiers.removeLast()
+        reports[0].planCompassCommands.visibleActionCount -= 1
+
+        let smoke = CinematicVisualSmokeReport(reports: reports)
+        let check = try XCTUnwrap(smoke.checks.first { $0.id == "plan-compass-command-availability" })
+
+        XCTAssertEqual(check.status, .warning)
+        XCTAssertEqual(check.warningIdentifier, "visual-smoke.plan-compass-commands")
+        XCTAssertTrue(check.detail.contains("action-surface"))
+        XCTAssertTrue(check.detail.contains("drift"))
+        XCTAssertEqual(
+            check.warningTarget?.targetAnchorID,
+            "visual-smoke-check-plan-compass-command-availability"
+        )
+        XCTAssertEqual(check.warningTarget?.relatedRowID, "plan-compass-commands")
     }
 
     func testWarningTargetUsesPlanCompassCommandAttentionDetailAndCopyText() throws {
@@ -167,6 +214,8 @@ final class CinematicPlanCompassCommandDiagnosticsTests: XCTestCase {
         XCTAssertTrue(target.detail.contains("app-collisions collision"))
         XCTAssertTrue(target.detail.contains("recap-collisions clear"))
         XCTAssertTrue(target.detail.contains("copy-cmds 2"))
+        XCTAssertTrue(target.detail.contains("actions"))
+        XCTAssertTrue(target.detail.contains("action-surface correlated"))
         XCTAssertTrue(target.detail.contains("correlated yes"))
         XCTAssertTrue(target.detail.contains("selected-row \(snapshot.selectedSectionRowIdentifier)"))
         XCTAssertLessThanOrEqual(
@@ -190,6 +239,7 @@ final class CinematicPlanCompassCommandDiagnosticsTests: XCTestCase {
         XCTAssertTrue(target.copyText.contains("selected \(snapshot.selectedRouteIdentifier)"))
         XCTAssertTrue(target.copyText.contains("app-collisions collision"))
         XCTAssertTrue(target.copyText.contains("copy-cmds 2"))
+        XCTAssertTrue(target.copyText.contains("action-surface correlated"))
         XCTAssertTrue(target.copyText.contains("correlated yes"))
         XCTAssertTrue(target.copyText.contains("Related row: plan-compass-commands"))
         XCTAssertTrue(target.copyText.contains("Related detail:"))
@@ -205,6 +255,7 @@ final class CinematicPlanCompassCommandDiagnosticsTests: XCTestCase {
         XCTAssertTrue(summary.exportText.contains("related plan-compass-commands"))
         XCTAssertTrue(summary.exportText.contains("app-collisions collision"))
         XCTAssertTrue(summary.exportText.contains("copy-cmds 2"))
+        XCTAssertTrue(summary.exportText.contains("action-surface correlated"))
         XCTAssertTrue(summary.exportText.contains("correlated yes"))
 
         var warningHistory = CinematicDiagnosticsWarningBundleHistory()

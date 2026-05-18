@@ -606,6 +606,185 @@ struct CinematicPlanCompassCommandPlan: Equatable, Identifiable {
     }
 }
 
+struct CinematicPlanCompassActionSurfaceDescriptor: Equatable, Identifiable {
+    static let identifierMaxCharacters = CinematicPlanCompassCommandPlan.identifierMaxCharacters
+    static let actionLimit = CinematicPlanCompassCommandPlan.commandLimit
+    static let labelMaxCharacters = CinematicPlanCompassCommandPlan.labelMaxCharacters
+    static let helpMaxCharacters = CinematicPlanCompassCommandPlan.helpMaxCharacters
+    static let systemImageMaxCharacters = 64
+    static let shortcutHintMaxCharacters = CinematicPlanCompassCommandPlan.shortcutHintMaxCharacters
+
+    var id: String { identifier }
+
+    var identifier: String
+    var sourceCommandPlanIdentifier: String
+    var sourcePlanIdentifier: String
+    var selectedRouteIdentifier: String
+    var actions: [Action]
+
+    var actionCount: Int { actions.count }
+    var enabledActionCount: Int { actions.filter(\.isEnabled).count }
+    var disabledActionCount: Int { actions.filter { !$0.isEnabled }.count }
+
+    func actions(in section: CinematicPlanCompassCommandPlan.Section) -> [Action] {
+        actions.filter { $0.section == section }
+    }
+
+    func action(
+        for sourceActionKind: CinematicPlanCompassCommandPlan.ActionKind
+    ) -> Action? {
+        actions.first { $0.sourceActionKind == sourceActionKind }
+    }
+
+    struct Action: Equatable, Identifiable {
+        var id: String { identifier }
+
+        var identifier: String
+        var sourceCommandIdentifier: String
+        var section: CinematicPlanCompassCommandPlan.Section
+        var label: String
+        var systemImage: String
+        var help: String
+        var shortcutHint: String
+        var isEnabled: Bool
+        var isSelectedRoute: Bool
+        var selectedRouteStateIdentifier: String
+        var sourceActionKind: CinematicPlanCompassCommandPlan.ActionKind
+    }
+}
+
+enum CinematicPlanCompassActionSurfacePlanner {
+    static func descriptor(
+        commandPlan: CinematicPlanCompassCommandPlan
+    ) -> CinematicPlanCompassActionSurfaceDescriptor {
+        let actions = Array(commandPlan.commands.prefix(CinematicPlanCompassActionSurfaceDescriptor.actionLimit))
+            .map { action(command: $0, commandPlan: commandPlan) }
+        let identifier = bounded(
+            [
+                "plan-compass-action-surface",
+                "actions:\(actions.count)",
+                "enabled:\(actions.filter(\.isEnabled).count)",
+                "selected:\(commandPlan.selectedRouteIdentifier)",
+                "command-plan:\(fingerprint(commandPlan.identifier))",
+                "source-plan:\(fingerprint(commandPlan.sourcePlanIdentifier))",
+                "content:\(fingerprint(actions.map(\.identifier).joined(separator: "|")))"
+            ].joined(separator: "|"),
+            limit: CinematicPlanCompassActionSurfaceDescriptor.identifierMaxCharacters
+        )
+
+        return CinematicPlanCompassActionSurfaceDescriptor(
+            identifier: identifier,
+            sourceCommandPlanIdentifier: commandPlan.identifier,
+            sourcePlanIdentifier: commandPlan.sourcePlanIdentifier,
+            selectedRouteIdentifier: commandPlan.selectedRouteIdentifier,
+            actions: actions
+        )
+    }
+
+    private typealias Descriptor = CinematicPlanCompassActionSurfaceDescriptor
+    private typealias Action = CinematicPlanCompassActionSurfaceDescriptor.Action
+    private typealias Command = CinematicPlanCompassCommandPlan.Command
+    private typealias ActionKind = CinematicPlanCompassCommandPlan.ActionKind
+
+    private static func action(
+        command: Command,
+        commandPlan: CinematicPlanCompassCommandPlan
+    ) -> Action {
+        let selectedState = selectedRouteStateIdentifier(
+            actionKind: command.actionKind,
+            selectedKind: commandPlan.selectedKind,
+            selectedRouteIdentifier: commandPlan.selectedRouteIdentifier
+        )
+        let isSelectedRoute = selectedState == "selected-route"
+        let identifier = bounded(
+            [
+                "plan-compass-action",
+                "kind:\(command.actionKind.rawValue)",
+                "command:\(fingerprint(command.identifier))",
+                "enabled:\(command.isEnabled)",
+                "selected:\(selectedState)",
+                "shortcut:\(command.shortcut.identifier)"
+            ].joined(separator: "|"),
+            limit: Descriptor.identifierMaxCharacters
+        )
+
+        return Action(
+            identifier: identifier,
+            sourceCommandIdentifier: command.identifier,
+            section: command.section,
+            label: bounded(command.label, limit: Descriptor.labelMaxCharacters),
+            systemImage: bounded(systemImage(for: command.actionKind), limit: Descriptor.systemImageMaxCharacters),
+            help: bounded(command.help, limit: Descriptor.helpMaxCharacters),
+            shortcutHint: bounded(command.shortcut.displayText, limit: Descriptor.shortcutHintMaxCharacters),
+            isEnabled: command.isEnabled,
+            isSelectedRoute: isSelectedRoute,
+            selectedRouteStateIdentifier: selectedState,
+            sourceActionKind: command.actionKind
+        )
+    }
+
+    private static func systemImage(for actionKind: ActionKind) -> String {
+        switch actionKind {
+        case .showPlanOverlay:
+            return "safari"
+        case .focusImmediateRoute:
+            return "target"
+        case .focusMidTermRoute:
+            return "point.3.connected.trianglepath.dotted"
+        case .focusLongTermRoute:
+            return "mountain.2.fill"
+        case .copyFullPlanCompass:
+            return "doc.on.doc"
+        case .copySelectedRoute:
+            return "clipboard"
+        }
+    }
+
+    private static func selectedRouteStateIdentifier(
+        actionKind: ActionKind,
+        selectedKind: PlanWorkflowOverview.Kind,
+        selectedRouteIdentifier: String
+    ) -> String {
+        switch actionKind {
+        case .focusImmediateRoute:
+            return selectedKind == .immediate ? "selected-route" : "available-route"
+        case .focusMidTermRoute:
+            return selectedKind == .midTerm ? "selected-route" : "available-route"
+        case .focusLongTermRoute:
+            return selectedKind == .longTerm ? "selected-route" : "available-route"
+        case .copySelectedRoute:
+            return "selected-\(selectedRouteIdentifier)"
+        case .showPlanOverlay, .copyFullPlanCompass:
+            return "available"
+        }
+    }
+
+    private static func bounded(_ text: String, limit: Int) -> String {
+        guard limit > 0 else { return "" }
+        let normalized = text
+            .replacingOccurrences(of: "\r", with: " ")
+            .replacingOccurrences(of: "\n", with: " ")
+            .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalized.isEmpty else { return "none" }
+        guard normalized.count <= limit else {
+            let prefixLimit = max(1, limit - 3)
+            return normalized.prefix(prefixLimit)
+                .trimmingCharacters(in: .whitespacesAndNewlines) + "..."
+        }
+        return normalized
+    }
+
+    private static func fingerprint(_ value: String) -> String {
+        var hash: UInt64 = 0xcbf29ce484222325
+        for byte in value.utf8 {
+            hash ^= UInt64(byte)
+            hash = hash &* 0x100000001b3
+        }
+        return String(format: "%016llx", hash)
+    }
+}
+
 enum CinematicPlanCompassCommandPlanner {
     static func plan(
         planCompassPlan: CinematicPlanCompassPlan,
@@ -948,6 +1127,17 @@ extension PlanWorkflowOverview.Kind {
             return "the mid-term route"
         case .longTerm:
             return "the long-term route"
+        }
+    }
+
+    var planCompassFocusActionKind: CinematicPlanCompassCommandPlan.ActionKind {
+        switch self {
+        case .immediate:
+            return .focusImmediateRoute
+        case .midTerm:
+            return .focusMidTermRoute
+        case .longTerm:
+            return .focusLongTermRoute
         }
     }
 }

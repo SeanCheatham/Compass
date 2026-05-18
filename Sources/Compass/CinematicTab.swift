@@ -22,6 +22,9 @@ struct CinematicTab: View {
                 planCompassPlan: planCompassPlan,
                 selectedKind: selectedPlanCompassKind
             )
+            let planCompassActionSurface = CinematicPlanCompassActionSurfacePlanner.descriptor(
+                commandPlan: planCompassCommandPlan
+            )
             let planCompassSceneFocusPlan = overlayMode == .plan
                 ? CinematicPlanCompassSceneFocusPlanner.plan(
                     isPlanOverlaySelected: true,
@@ -174,7 +177,10 @@ struct CinematicTab: View {
                         CinematicPlanCompassOverlay(
                             plan: planCompassPlan,
                             selectedKind: selectedPlanCompassKind,
-                            selectKind: selectPlanCompassKind,
+                            actionSurface: planCompassActionSurface,
+                            performAction: { actionKind in
+                                performPlanCompassCommand(actionKind, plan: planCompassPlan)
+                            },
                             displayPlan: displayPlan
                         )
                     } else if overlayMode == .timeline {
@@ -286,10 +292,6 @@ struct CinematicTab: View {
         )
     }
 
-    private func selectPlanCompassKind(_ kind: PlanWorkflowOverview.Kind) {
-        selectedPlanCompassKind = kind
-    }
-
     private func performPlanCompassCommand(
         _ actionKind: CinematicPlanCompassCommandPlan.ActionKind,
         plan: CinematicPlanCompassPlan
@@ -368,7 +370,8 @@ private struct CinematicTabOverlayModePicker: View {
 private struct CinematicPlanCompassOverlay: View {
     var plan: CinematicPlanCompassPlan
     var selectedKind: PlanWorkflowOverview.Kind
-    var selectKind: (PlanWorkflowOverview.Kind) -> Void
+    var actionSurface: CinematicPlanCompassActionSurfaceDescriptor
+    var performAction: (CinematicPlanCompassCommandPlan.ActionKind) -> Void
     var displayPlan: CinematicOverlayDisplayPlan
 
     var body: some View {
@@ -392,12 +395,18 @@ private struct CinematicPlanCompassOverlay: View {
                 displayPlan: displayPlan
             )
 
+            CinematicPlanCompassActionSurfaceControls(
+                actionSurface: actionSurface,
+                performAction: performAction,
+                displayPlan: displayPlan
+            )
+
             VStack(alignment: .leading, spacing: 7) {
                 ForEach(plan.sections) { section in
                     CinematicPlanCompassSectionRow(
                         section: section,
                         isSelected: section.kind == selectedKind,
-                        selectKind: selectKind,
+                        performAction: performAction,
                         displayPlan: displayPlan
                     )
                 }
@@ -422,6 +431,128 @@ private struct CinematicPlanCompassOverlay: View {
         }
         .help(plan.copyText)
         .accessibilityIdentifier("cinematic-plan-compass-\(plan.exportIdentifier)")
+    }
+}
+
+private struct CinematicPlanCompassActionSurfaceControls: View {
+    var actionSurface: CinematicPlanCompassActionSurfaceDescriptor
+    var performAction: (CinematicPlanCompassCommandPlan.ActionKind) -> Void
+    var displayPlan: CinematicOverlayDisplayPlan
+
+    private var overlayActions: [CinematicPlanCompassActionSurfaceDescriptor.Action] {
+        actionSurface.actions(in: .overlay)
+    }
+
+    private var focusActions: [CinematicPlanCompassActionSurfaceDescriptor.Action] {
+        actionSurface.actions(in: .focus)
+    }
+
+    private var copyActions: [CinematicPlanCompassActionSurfaceDescriptor.Action] {
+        actionSurface.actions(in: .copy)
+    }
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 5) {
+            ForEach(overlayActions) { action in
+                actionButton(action, width: 48)
+            }
+
+            ForEach(focusActions) { action in
+                actionButton(action, width: 62)
+            }
+
+            Spacer(minLength: 4)
+
+            ForEach(copyActions) { action in
+                actionButton(action, width: 58)
+            }
+        }
+        .frame(height: 32)
+        .accessibilityIdentifier("cinematic-plan-compass-actions-\(actionSurface.identifier)")
+    }
+
+    private func actionButton(
+        _ action: CinematicPlanCompassActionSurfaceDescriptor.Action,
+        width: CGFloat
+    ) -> some View {
+        Button {
+            performAction(action.sourceActionKind)
+        } label: {
+            VStack(spacing: 1) {
+                HStack(spacing: 3) {
+                    Image(systemName: action.systemImage)
+                        .font(.system(size: 9.5, weight: .bold))
+                        .frame(width: 11, height: 11)
+                    Text(compactLabel(for: action))
+                        .font(.system(size: 9.5, weight: .bold))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.72)
+                }
+                Text(action.shortcutHint)
+                    .font(.system(size: 7.5, weight: .semibold, design: .monospaced))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.72)
+                    .foregroundStyle(.white.opacity(displayPlan.hudStatusTextEmphasis))
+            }
+            .frame(width: width, height: 28)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .disabled(!action.isEnabled)
+        .foregroundStyle(tint(for: action).opacity(action.isEnabled ? displayPlan.hudIconEmphasis : 0.42))
+        .background(
+            .white.opacity(
+                (action.isSelectedRoute ? 0.14 : 0.055) * displayPlan.overlayOpacity
+            ),
+            in: RoundedRectangle(cornerRadius: 6)
+        )
+        .overlay {
+            RoundedRectangle(cornerRadius: 6)
+                .stroke(
+                    action.isSelectedRoute
+                        ? tint(for: action).opacity(0.66)
+                        : .white.opacity(action.isEnabled ? 0.12 : 0.06),
+                    lineWidth: 1
+                )
+        }
+        .help(action.help)
+        .accessibilityLabel(action.label)
+        .accessibilityAddTraits(action.isSelectedRoute ? .isSelected : [])
+        .accessibilityIdentifier("cinematic-plan-compass-action-\(action.identifier)")
+    }
+
+    private func compactLabel(
+        for action: CinematicPlanCompassActionSurfaceDescriptor.Action
+    ) -> String {
+        switch action.sourceActionKind {
+        case .showPlanOverlay:
+            return "Show"
+        case .focusImmediateRoute:
+            return "Now"
+        case .focusMidTermRoute:
+            return "Mid"
+        case .focusLongTermRoute:
+            return "Long"
+        case .copyFullPlanCompass:
+            return "All"
+        case .copySelectedRoute:
+            return "Route"
+        }
+    }
+
+    private func tint(
+        for action: CinematicPlanCompassActionSurfaceDescriptor.Action
+    ) -> Color {
+        switch action.sourceActionKind {
+        case .showPlanOverlay, .copyFullPlanCompass, .copySelectedRoute:
+            return .cyan
+        case .focusImmediateRoute:
+            return .cyan
+        case .focusMidTermRoute:
+            return .mint
+        case .focusLongTermRoute:
+            return .indigo
+        }
     }
 }
 
@@ -507,7 +638,7 @@ private struct CinematicPlanCompassWaypointBead: View {
 private struct CinematicPlanCompassSectionRow: View {
     var section: CinematicPlanCompassPlan.SectionDescriptor
     var isSelected: Bool
-    var selectKind: (PlanWorkflowOverview.Kind) -> Void
+    var performAction: (CinematicPlanCompassCommandPlan.ActionKind) -> Void
     var displayPlan: CinematicOverlayDisplayPlan
 
     var body: some View {
@@ -563,7 +694,7 @@ private struct CinematicPlanCompassSectionRow: View {
         }
         .contentShape(Rectangle())
         .onTapGesture {
-            selectKind(section.kind)
+            performAction(section.kind.planCompassFocusActionKind)
         }
         .help(section.copyText)
         .accessibilityAddTraits(isSelected ? .isSelected : [])
