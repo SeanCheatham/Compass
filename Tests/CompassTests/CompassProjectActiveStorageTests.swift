@@ -354,6 +354,35 @@ final class CompassProjectActiveStorageTests: XCTestCase {
         XCTAssertLessThanOrEqual(invalidProject.activeStorageActivationState.detail.count, CompassProjectActiveStorageState.detailLimit)
     }
 
+    func testProjectRecordsRecapShareArtifactInActiveApplicationSupportStorageWithoutPasteboard() async throws {
+        let repoURL = try makeTemporaryGitRepository()
+        let roots = try makeApplicationSupportRoots()
+        let project = CompassProject(
+            repoURL: repoURL,
+            activeStorage: .applicationSupport,
+            storageApplicationSupportRoots: roots
+        )
+        let workspace = applicationSupportWorkspace(repoURL: repoURL, roots: roots)
+        let session = makeRecapSession(41, endedAt: 41_500)
+        let share = makeRecapSharePlan(
+            session: session,
+            completed: ["Record project recap share artifact"]
+        )
+
+        await project.initializeWorkspace()
+        project.sessions = [session]
+
+        let result = await project.recordRunRecapShareArtifact(sharePlan: share)
+
+        let url = try XCTUnwrap(result.artifactURL)
+        XCTAssertEqual(result.status, .recorded)
+        XCTAssertEqual(project.cinematicRunRecapShareArtifactRecording, result)
+        XCTAssertEqual(url, workspace.sessionsURL.appending(path: "41-\(result.artifactPlan.filename)"))
+        XCTAssertFileExists(url)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: workspace.repoLocalCompassURL.path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: repoURL.appending(path: ".gitignore").path))
+    }
+
     private func makeTemporaryGitRepository() throws -> URL {
         let directory = try makeTemporaryDirectory()
         try createDirectory(directory.appending(path: ".git", directoryHint: .isDirectory))
@@ -395,6 +424,62 @@ final class CompassProjectActiveStorageTests: XCTestCase {
             applicationSupportRoots: roots
         )
         .workspace
+    }
+
+    private func makeRecapSharePlan(
+        session: SessionRecord,
+        completed: [String]
+    ) -> CinematicRunRecapSharePlan {
+        let state = PlanState(completed: completed, immediate: nil, midTerm: "", longTerm: "")
+        let commitPlan = CinematicCommitConstellationPlan(sessions: [session])
+        let recapPlan = CinematicRunRecapPlanner.plan(
+            state: state,
+            sessions: [session],
+            isRunning: false,
+            isAutoPlaying: false,
+            recentRunCues: [:],
+            commitConstellationPlan: commitPlan,
+            nativeFeedbackLifecycle: CinematicNativeFeedbackCueLifecycle()
+        )
+        let timelinePlan = CinematicSessionTimelinePlan(sessions: [session])
+        let focusPlan = CinematicRunRecapSceneFocusPlanner.plan(
+            isRecapOverlaySelected: true,
+            recapPlan: recapPlan,
+            commitConstellationPlan: commitPlan,
+            timelinePlan: timelinePlan
+        )
+        let endCardPlan = CinematicRunRecapEndCardPlanner.plan(
+            isRecapOverlaySelected: true,
+            recapPlan: recapPlan
+        )
+        return CinematicRunRecapSharePlanner.plan(
+            recapPlan: recapPlan,
+            recapFocusDescriptor: focusPlan.descriptor,
+            endCardDescriptor: endCardPlan.descriptor
+        )
+    }
+
+    private func makeRecapSession(_ number: Int, endedAt: Double?) -> SessionRecord {
+        SessionRecord(
+            session: number,
+            startedAt: Double(number * 1_000),
+            endedAt: endedAt,
+            plan: "Record recap share artifact",
+            verify: "swift test --filter CompassProjectActiveStorageTests",
+            beforeSha: nil,
+            afterSha: nil,
+            commits: [
+                SessionCommit(
+                    sha: "abcdef1234567890",
+                    short: "abcdef1",
+                    subject: "Record project recap share artifact"
+                )
+            ],
+            status: .succeeded,
+            notes: [],
+            verifyOutput: nil,
+            feedback: nil
+        )
     }
 
     private func XCTAssertDirectoryExists(

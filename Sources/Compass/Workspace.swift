@@ -215,6 +215,31 @@ struct CompassWorkspace {
         return url
     }
 
+    func recordRunRecapShareArtifact(
+        sharePlan: CinematicRunRecapSharePlan,
+        sessions: [SessionRecord]
+    ) -> CinematicRunRecapShareArtifactRecordingResult {
+        let artifactPlan = CinematicRunRecapShareArtifactPlanner.plan(
+            sharePlan: sharePlan,
+            sessions: sessions
+        )
+
+        guard artifactPlan.isAvailable, let sessionNumber = artifactPlan.sessionNumber else {
+            return .skipped(plan: artifactPlan)
+        }
+
+        do {
+            let url = try writeSessionArtifact(
+                session: sessionNumber,
+                name: artifactPlan.filename,
+                contents: artifactPlan.markdownContents
+            )
+            return .recorded(plan: artifactPlan, url: url)
+        } catch {
+            return .failed(plan: artifactPlan, error: error)
+        }
+    }
+
     static func encodeState(_ state: PlanState) throws -> String {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]

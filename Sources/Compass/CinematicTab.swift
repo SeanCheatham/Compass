@@ -139,6 +139,7 @@ struct CinematicTab: View {
                         )
                     } else if overlayMode == .recap {
                         CinematicRunRecapOverlay(
+                            project: project,
                             plan: recapPlan,
                             sharePlan: runRecapSharePlan,
                             displayPlan: displayPlan
@@ -387,9 +388,13 @@ private struct CinematicTimelineOverlay: View {
 }
 
 private struct CinematicRunRecapOverlay: View {
+    @ObservedObject var project: CompassProject
     var plan: CinematicRunRecapPlan
     var sharePlan: CinematicRunRecapSharePlan
     var displayPlan: CinematicOverlayDisplayPlan
+    @State private var shareFeedbackLabel: String?
+    @State private var shareFeedbackHelp: String?
+    @State private var shareFeedbackStatus: CinematicRunRecapShareArtifactRecordingResult.Status?
 
     var body: some View {
         let tint = plan.style.color
@@ -418,7 +423,7 @@ private struct CinematicRunRecapOverlay: View {
                 Spacer()
 
                 Button {
-                    copyShareText(sharePlan.text)
+                    copyShareTextAndRecordArtifact()
                 } label: {
                     Image(systemName: "square.and.arrow.up")
                         .font(.system(size: 13, weight: .bold))
@@ -431,6 +436,16 @@ private struct CinematicRunRecapOverlay: View {
                 .help(shareHelp)
                 .accessibilityLabel("Copy recap share text")
                 .accessibilityIdentifier("cinematic-run-recap-share-\(sharePlan.identifier)")
+
+                if let shareFeedbackLabel {
+                    Text(shareFeedbackLabel)
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(shareFeedbackColor.opacity(0.9))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.78)
+                        .help(shareFeedbackHelp ?? shareFeedbackLabel)
+                        .accessibilityIdentifier("cinematic-run-recap-share-artifact-status")
+                }
 
                 Text(plan.statusIdentifier == "none" ? plan.availabilityIdentifier : plan.statusIdentifier)
                     .font(.caption2.weight(.bold))
@@ -485,18 +500,56 @@ private struct CinematicRunRecapOverlay: View {
         }
         .help(plan.detail)
         .accessibilityIdentifier("cinematic-run-recap-\(plan.identifier)")
+        .onChange(of: sharePlan.identifier) {
+            clearShareFeedback()
+        }
     }
 
     private var shareHelp: String {
-        sharePlan.isAvailable
-            ? "Copy recap share text"
-            : "Recap share unavailable: \(sharePlan.availabilityReason)"
+        if !sharePlan.isAvailable {
+            return "Recap share unavailable: \(sharePlan.availabilityReason)"
+        }
+        if let shareFeedbackHelp {
+            return shareFeedbackHelp
+        }
+        return "Copy recap share text and record a session artifact"
     }
 
-    private func copyShareText(_ text: String) {
+    private var shareFeedbackColor: Color {
+        switch shareFeedbackStatus {
+        case .recorded:
+            return .green
+        case .failed:
+            return .orange
+        case .skipped:
+            return .gray
+        case nil:
+            return plan.style.color
+        }
+    }
+
+    private func copyShareTextAndRecordArtifact() {
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
-        pasteboard.setString(text, forType: .string)
+        pasteboard.setString(sharePlan.text, forType: .string)
+        shareFeedbackLabel = "Copied"
+        shareFeedbackHelp = "Copied recap share text; recording the session artifact."
+        shareFeedbackStatus = nil
+
+        Task {
+            let result = await project.recordRunRecapShareArtifact(sharePlan: sharePlan)
+            await MainActor.run {
+                shareFeedbackLabel = result.label
+                shareFeedbackHelp = result.help
+                shareFeedbackStatus = result.status
+            }
+        }
+    }
+
+    private func clearShareFeedback() {
+        shareFeedbackLabel = nil
+        shareFeedbackHelp = nil
+        shareFeedbackStatus = nil
     }
 }
 

@@ -424,6 +424,7 @@ final class CompassProject: ObservableObject, Identifiable {
     @Published var cinematicBriefing = CinematicBriefing.placeholder
     @Published var cinematicWorldText = CinematicWorldText.placeholder
     @Published var cinematicRunRecapFlavor: CinematicRunRecapFlavor?
+    @Published var cinematicRunRecapShareArtifactRecording: CinematicRunRecapShareArtifactRecordingResult?
     @Published var isRunning = false
     @Published var isAutoPlaying = false
     @Published var isPaused = false
@@ -689,6 +690,38 @@ extension CompassProject {
         } catch {
             fail(error)
         }
+    }
+
+    @discardableResult
+    func recordRunRecapShareArtifact(
+        sharePlan: CinematicRunRecapSharePlan
+    ) async -> CinematicRunRecapShareArtifactRecordingResult {
+        let result: CinematicRunRecapShareArtifactRecordingResult
+        if let workspace {
+            result = workspace.recordRunRecapShareArtifact(
+                sharePlan: sharePlan,
+                sessions: sessions
+            )
+        } else {
+            let artifactPlan = CinematicRunRecapShareArtifactPlanner.plan(
+                sharePlan: sharePlan,
+                sessions: sessions
+            )
+            result = artifactPlan.isAvailable
+                ? .failed(plan: artifactPlan, error: AppModelError.noRepositorySelected)
+                : .skipped(plan: artifactPlan)
+        }
+
+        cinematicRunRecapShareArtifactRecording = result
+        switch result.status {
+        case .recorded:
+            log("Recap share artifact recorded: \(result.artifactURL?.path ?? result.artifactPlan.filename)", level: .success)
+        case .skipped:
+            log(result.detail, level: .info)
+        case .failed:
+            log(result.detail, level: .warning)
+        }
+        return result
     }
 
     func activeStorageActivationPlan() -> CompassWorkspaceStorageActivationPlan {
