@@ -1948,7 +1948,10 @@ private struct CinematicInfluenceControls: View {
                 }
                 .help(summary.visualSmoke.help)
                 .popover(isPresented: $isShowingDiagnostics, arrowEdge: .top) {
-                    CinematicDiagnosticsPopover(summary: summary)
+                    CinematicDiagnosticsPopover(
+                        summary: summary,
+                        warningBundleHistory: project.cinematicDiagnosticsWarningBundleHistory
+                    )
                 }
             }
 
@@ -2016,6 +2019,16 @@ private struct CinematicInfluenceControls: View {
         .onChange(of: project.cinematicInfluenceSettings) {
             model.saveProjects()
         }
+        .onChange(of: summary.attentionSummary) {
+            recordDiagnosticsWarningBundle(summary)
+        }
+        .onAppear {
+            recordDiagnosticsWarningBundle(summary)
+        }
+    }
+
+    private func recordDiagnosticsWarningBundle(_ summary: CinematicDiagnosticsSummary) {
+        project.recordCinematicDiagnosticsWarningBundle(summary.attentionSummary)
     }
 
     @ViewBuilder
@@ -2049,7 +2062,9 @@ private struct CinematicInfluenceControls: View {
 
 private struct CinematicDiagnosticsPopover: View {
     var summary: CinematicDiagnosticsSummary
+    var warningBundleHistory: CinematicDiagnosticsWarningBundleHistory
     @State private var copied = false
+    @State private var copiedWarningBundleHistory = false
     @State private var copiedNativeFeedbackHistory = false
     @State private var copiedTargetID: String?
     @State private var groupExpansion: [String: Bool] = [:]
@@ -2067,6 +2082,7 @@ private struct CinematicDiagnosticsPopover: View {
                     Button {
                         copyToPasteboard(summary.nativeFeedbackHistoryExport.copyText)
                         copied = false
+                        copiedWarningBundleHistory = false
                         copiedNativeFeedbackHistory = true
                         copiedTargetID = nil
                     } label: {
@@ -2082,6 +2098,7 @@ private struct CinematicDiagnosticsPopover: View {
                 Button {
                     copyToPasteboard(summary.exportText)
                     copied = true
+                    copiedWarningBundleHistory = false
                     copiedNativeFeedbackHistory = false
                     copiedTargetID = nil
                 } label: {
@@ -2123,9 +2140,13 @@ private struct CinematicDiagnosticsPopover: View {
         .frame(width: 430, alignment: .leading)
         .onChange(of: summary) {
             copied = false
+            copiedWarningBundleHistory = false
             copiedNativeFeedbackHistory = false
             copiedTargetID = nil
             resetExpansionDefaults()
+        }
+        .onChange(of: warningBundleHistory) {
+            copiedWarningBundleHistory = false
         }
         .onAppear {
             resetExpansionDefaults()
@@ -2134,11 +2155,37 @@ private struct CinematicDiagnosticsPopover: View {
 
     @ViewBuilder
     private func attentionSummarySection(scrollProxy: ScrollViewProxy) -> some View {
-        if !summary.attentionSummary.isEmpty {
+        if !summary.attentionSummary.isEmpty || warningBundleHistory.isAvailable {
             VStack(alignment: .leading, spacing: 6) {
-                Text("Warnings")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.orange)
+                HStack(spacing: 8) {
+                    Text(summary.attentionSummary.isEmpty ? "Warning history" : "Warnings")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.orange)
+
+                    Spacer()
+
+                    if warningBundleHistory.isAvailable {
+                        Button {
+                            copyToPasteboard(warningBundleHistory.copyText)
+                            copied = false
+                            copiedWarningBundleHistory = true
+                            copiedNativeFeedbackHistory = false
+                            copiedTargetID = nil
+                        } label: {
+                            Image(
+                                systemName: copiedWarningBundleHistory
+                                    ? "checkmark"
+                                    : "exclamationmark.triangle"
+                            )
+                            .font(.caption2.weight(.semibold))
+                            .foregroundStyle(copiedWarningBundleHistory ? .green : .secondary)
+                            .frame(width: 18, height: 18)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel(warningBundleHistory.copyLabel)
+                        .help(warningBundleHistory.copyHelp)
+                    }
+                }
 
                 ForEach(summary.attentionSummary.targets) { target in
                     HStack(alignment: .center, spacing: 6) {
@@ -2182,6 +2229,7 @@ private struct CinematicDiagnosticsPopover: View {
                         Button {
                             copyToPasteboard(target.copyText)
                             copied = false
+                            copiedWarningBundleHistory = false
                             copiedNativeFeedbackHistory = false
                             copiedTargetID = target.id
                         } label: {

@@ -2657,6 +2657,269 @@ final class CinematicDiagnosticsTests: XCTestCase {
         XCTAssertTrue(summary.exportText.contains("pressure heavy"))
         XCTAssertTrue(summary.exportText.contains("influence dramatic"))
     }
+
+    func testWarningBundleHistorySkipsPassingDiagnostics() throws {
+        let report = try XCTUnwrap(CinematicDiagnostics.representativeSmokeMatrix().first)
+        let summary = CinematicDiagnosticsSummary(report: report)
+        var history = CinematicDiagnosticsWarningBundleHistory()
+
+        history.record(summary.attentionSummary)
+
+        XCTAssertTrue(summary.attentionSummary.isEmpty)
+        XCTAssertFalse(history.isAvailable)
+        XCTAssertEqual(history.entries, [])
+        XCTAssertEqual(history.omittedCount, 0)
+        XCTAssertEqual(history.copyText, "")
+        XCTAssertEqual(history.copyLabel, "No warning bundles")
+        XCTAssertTrue(history.copyHelp.contains("No warning bundle history"))
+    }
+
+    func testWarningBundleHistoryCapturesFirstBundleWithRelatedAnchors() throws {
+        let attention = warningAttentionSummary(
+            "command",
+            warnings: ["visual-smoke.recap-artifact-commands"],
+            relatedRowID: "run-recap-share-artifact-commands"
+        )
+        var history = CinematicDiagnosticsWarningBundleHistory()
+
+        history.record(attention)
+
+        let entry = try XCTUnwrap(history.entries.first)
+        XCTAssertTrue(history.isAvailable)
+        XCTAssertEqual(history.entries.count, 1)
+        XCTAssertEqual(history.capturedCount, 1)
+        XCTAssertEqual(entry.sequence, 1)
+        XCTAssertEqual(entry.captureCount, 1)
+        XCTAssertEqual(entry.targetCount, 1)
+        XCTAssertEqual(entry.warningCount, 1)
+        XCTAssertEqual(entry.targetIdentifiers, ["target-command"])
+        XCTAssertEqual(entry.warningIdentifiers, ["visual-smoke.recap-artifact-commands"])
+        XCTAssertEqual(entry.targetAnchors, ["visual-smoke-check-command"])
+        XCTAssertEqual(entry.relatedRowAnchors, ["diagnostics-row-run-recap-share-artifact-commands"])
+        XCTAssertTrue(entry.bundleIdentifier.hasPrefix("warning-bundle-"))
+        XCTAssertTrue(history.copyText.contains("Cinematic diagnostics warning bundles"))
+        XCTAssertTrue(history.copyText.contains("Export correlation: warning summary targets"))
+        XCTAssertTrue(history.copyText.contains("related diagnostics row anchors"))
+        XCTAssertTrue(history.copyText.contains("visual-smoke.recap-artifact-commands"))
+        XCTAssertTrue(history.copyText.contains("diagnostics-row-run-recap-share-artifact-commands"))
+        XCTAssertFalse(history.copyText.contains("Cinematic Diagnostics\nReport:"))
+    }
+
+    func testWarningBundleHistoryCoalescesConsecutiveDuplicateBundles() throws {
+        let attention = warningAttentionSummary(
+            "duplicate",
+            warnings: ["visual-smoke.asset-availability"]
+        )
+        var history = CinematicDiagnosticsWarningBundleHistory()
+
+        history.record(attention)
+        history.record(attention)
+
+        let entry = try XCTUnwrap(history.entries.first)
+        XCTAssertEqual(history.entries.count, 1)
+        XCTAssertEqual(history.capturedCount, 2)
+        XCTAssertEqual(history.nextSequence, 2)
+        XCTAssertEqual(entry.sequence, 1)
+        XCTAssertEqual(entry.captureCount, 2)
+        XCTAssertTrue(entry.copyLine.contains("x2"))
+        XCTAssertTrue(history.copyText.contains("captures 2"))
+    }
+
+    func testWarningBundleHistoryKeepsMultipleDistinctBundles() {
+        let first = warningAttentionSummary("first", warnings: ["visual-smoke.asset-availability"])
+        let second = warningAttentionSummary("second", warnings: ["visual-smoke.texture-role-coverage"])
+        var history = CinematicDiagnosticsWarningBundleHistory()
+
+        history.record(first)
+        history.record(second)
+        history.record(first)
+
+        XCTAssertEqual(history.entries.count, 3)
+        XCTAssertEqual(history.capturedCount, 3)
+        XCTAssertEqual(history.entries.map(\.sequence), [1, 2, 3])
+        XCTAssertEqual(history.entries.map(\.captureCount), [1, 1, 1])
+        XCTAssertEqual(history.entries[0].bundleIdentifier, history.entries[2].bundleIdentifier)
+        XCTAssertNotEqual(history.entries[0].id, history.entries[2].id)
+        XCTAssertEqual(history.entries[1].warningIdentifiers, ["visual-smoke.texture-role-coverage"])
+    }
+
+    func testWarningBundleHistoryRetainsBoundedRecentEntriesAndOmittedCounts() {
+        var history = CinematicDiagnosticsWarningBundleHistory()
+
+        for index in 0..<(CinematicDiagnosticsWarningBundleHistory.maxEntries + 2) {
+            history.record(
+                warningAttentionSummary(
+                    "bundle-\(index)",
+                    warnings: ["visual-smoke.warning-\(index)"]
+                )
+            )
+        }
+
+        XCTAssertEqual(history.entries.count, CinematicDiagnosticsWarningBundleHistory.maxEntries)
+        XCTAssertEqual(history.omittedCount, 2)
+        XCTAssertEqual(
+            history.capturedCount,
+            CinematicDiagnosticsWarningBundleHistory.maxEntries + 2
+        )
+        XCTAssertEqual(history.entries.map(\.sequence), Array(3...8))
+        XCTAssertEqual(history.entries.first?.warningIdentifiers, ["visual-smoke.warning-2"])
+        XCTAssertTrue(history.copyText.contains("omitted 2"))
+    }
+
+    func testWarningBundleHistorySurfacesRepeatedWarningIdentifiers() throws {
+        let attention = CinematicDiagnosticsSummary.AttentionSummary(
+            targets: [
+                warningAttentionTarget(
+                    "shared-a",
+                    warnings: ["visual-smoke.shared-warning", "visual-smoke.asset-availability"]
+                ),
+                warningAttentionTarget(
+                    "shared-b",
+                    warnings: ["visual-smoke.shared-warning"],
+                    relatedRowID: "textures"
+                )
+            ]
+        )
+        var history = CinematicDiagnosticsWarningBundleHistory()
+
+        history.record(attention)
+
+        let entry = try XCTUnwrap(history.entries.first)
+        XCTAssertEqual(
+            entry.warningIdentifiers,
+            ["visual-smoke.shared-warning", "visual-smoke.asset-availability"]
+        )
+        XCTAssertEqual(entry.repeatedWarningIdentifiers, ["visual-smoke.shared-warning"])
+        XCTAssertEqual(history.repeatedWarningIdentifiers, ["visual-smoke.shared-warning"])
+        XCTAssertTrue(history.copyText.contains("Repeated warnings: visual-smoke.shared-warning"))
+        XCTAssertTrue(entry.copyLine.contains("repeated visual-smoke.shared-warning"))
+    }
+
+    func testWarningBundleHistoryCopyIsBounded() {
+        var history = CinematicDiagnosticsWarningBundleHistory()
+        let longToken = String(repeating: "warning-segment-", count: 16)
+
+        for index in 0..<(CinematicDiagnosticsWarningBundleHistory.maxEntries + 3) {
+            let warnings = (0..<12).map { "visual-smoke.\(longToken)\(index)-\($0)" }
+            history.record(
+                warningAttentionSummary(
+                    "\(longToken)\(index)",
+                    warnings: warnings,
+                    relatedRowID: "row-\(longToken)\(index)"
+                )
+            )
+        }
+
+        XCTAssertLessThanOrEqual(
+            history.copyText.count,
+            CinematicDiagnosticsWarningBundleHistory.copyTextMaxCharacters
+        )
+        for entry in history.entries {
+            XCTAssertLessThanOrEqual(
+                entry.copyLine.count,
+                CinematicDiagnosticsWarningBundleHistory.entryCopyLineMaxCharacters
+            )
+            XCTAssertTrue(
+                entry.warningIdentifiers.allSatisfy {
+                    $0.count <= CinematicDiagnosticsWarningBundleHistory.identifierMaxCharacters
+                }
+            )
+            XCTAssertTrue(
+                entry.relatedRowAnchors.allSatisfy {
+                    $0.count <= CinematicDiagnosticsWarningBundleHistory.identifierMaxCharacters
+                }
+            )
+        }
+    }
+
+    func testWarningBundleHistoryCopyDoesNotLeakNativeNotificationBodyText() throws {
+        let notificationBody = "SECRET_NATIVE_NOTIFICATION_BODY_SHOULD_NOT_LEAK"
+        let attention = CinematicDiagnosticsSummary.AttentionSummary(
+            targets: [
+                CinematicDiagnosticsSummary.AttentionTarget(
+                    id: "native-feedback-warning",
+                    targetGroupID: "visual-smoke",
+                    targetAnchorID: "visual-smoke-check-native-feedback",
+                    relatedGroupID: "narrative-overlay",
+                    relatedRowID: "native-feedback-delivery",
+                    label: "Native feedback warning",
+                    detail: "notification body \(notificationBody)",
+                    warningCount: 1,
+                    visibleWarningIdentifiers: ["visual-smoke.native-feedback-cue-coverage"],
+                    copyText: "Native notification body \(notificationBody)"
+                )
+            ]
+        )
+        var history = CinematicDiagnosticsWarningBundleHistory()
+
+        history.record(attention)
+
+        let entry = try XCTUnwrap(history.entries.first)
+        XCTAssertFalse(entry.copyLine.contains(notificationBody))
+        XCTAssertFalse(history.copyText.contains(notificationBody))
+        XCTAssertTrue(history.copyText.contains("visual-smoke.native-feedback-cue-coverage"))
+        XCTAssertTrue(history.copyText.contains("diagnostics-row-native-feedback-delivery"))
+    }
+
+    @MainActor
+    func testCompassProjectStoresWarningBundleHistoryInMemory() {
+        let project = CompassProject(
+            repoURL: URL(fileURLWithPath: "/tmp/DiagnosticsWarningBundleHistory", isDirectory: true)
+        )
+
+        project.recordCinematicDiagnosticsWarningBundle(
+            warningAttentionSummary(
+                "project",
+                warnings: ["visual-smoke.asset-availability"]
+            )
+        )
+
+        XCTAssertEqual(project.cinematicDiagnosticsWarningBundleHistory.entries.count, 1)
+        let record = KnownProjectRecord(
+            id: project.id,
+            path: project.repoURL.path,
+            addedAt: project.addedAt.timeIntervalSince1970,
+            lastOpenedAt: project.lastOpenedAt.timeIntervalSince1970
+        )
+        let data = try? JSONEncoder().encode(record)
+        let json = data.flatMap { String(data: $0, encoding: .utf8) } ?? ""
+        XCTAssertFalse(json.contains("cinematicDiagnosticsWarningBundleHistory"))
+    }
+
+    private func warningAttentionSummary(
+        _ suffix: String,
+        warnings: [String],
+        relatedRowID: String? = nil
+    ) -> CinematicDiagnosticsSummary.AttentionSummary {
+        CinematicDiagnosticsSummary.AttentionSummary(
+            targets: [
+                warningAttentionTarget(
+                    suffix,
+                    warnings: warnings,
+                    relatedRowID: relatedRowID
+                )
+            ]
+        )
+    }
+
+    private func warningAttentionTarget(
+        _ suffix: String,
+        warnings: [String],
+        relatedRowID: String? = nil
+    ) -> CinematicDiagnosticsSummary.AttentionTarget {
+        CinematicDiagnosticsSummary.AttentionTarget(
+            id: "target-\(suffix)",
+            targetGroupID: "visual-smoke",
+            targetAnchorID: "visual-smoke-check-\(suffix)",
+            relatedGroupID: relatedRowID == nil ? nil : "repository-context",
+            relatedRowID: relatedRowID,
+            label: "Warning \(suffix)",
+            detail: "detail \(suffix)",
+            warningCount: warnings.count,
+            visibleWarningIdentifiers: warnings,
+            copyText: "copy \(suffix)"
+        )
+    }
 }
 
 private struct CinematicDiagnosticsInput {

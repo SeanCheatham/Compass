@@ -5266,6 +5266,277 @@ struct CinematicDiagnosticsSummary: Equatable {
     }
 }
 
+struct CinematicDiagnosticsWarningBundleHistory: Equatable {
+    static let maxEntries = 6
+    static let copyTextMaxCharacters = 1_600
+    static let entryCopyLineMaxCharacters = 320
+    static let identifierMaxCharacters = CinematicVisualSmokeReport.warningIdentifierMaxCharacters
+    static let visibleWarningIdentifierLimit = 6
+    static let visibleAnchorLimit = 5
+
+    var entries: [Entry] = []
+    var omittedCount: Int = 0
+    var nextSequence: Int = 1
+
+    var isAvailable: Bool {
+        !entries.isEmpty
+    }
+
+    var capturedCount: Int {
+        entries.reduce(omittedCount) { $0 + $1.captureCount }
+    }
+
+    var repeatedWarningIdentifiers: [String] {
+        let repeatedAcrossCaptures = Self.repeatedIdentifiers(
+            entries.flatMap { entry in
+                Array(repeating: entry.warningIdentifiers, count: entry.captureCount).flatMap { $0 }
+            }
+        )
+        return Self.orderedUnique(entries.flatMap(\.repeatedWarningIdentifiers) + repeatedAcrossCaptures)
+    }
+
+    var copyLabel: String {
+        isAvailable ? "Copy warning bundles" : "No warning bundles"
+    }
+
+    var copyHelp: String {
+        guard isAvailable else { return "No warning bundle history to copy" }
+        return "Copy warning bundle history: entries \(entries.count), captures \(capturedCount), omitted \(omittedCount)"
+    }
+
+    var copyText: String {
+        Self.copyText(
+            entries: entries,
+            omittedCount: omittedCount,
+            capturedCount: capturedCount,
+            repeatedWarningIdentifiers: repeatedWarningIdentifiers
+        )
+    }
+
+    struct Entry: Identifiable, Equatable {
+        var id: String { "\(sequence)-\(bundleIdentifier)" }
+
+        var sequence: Int
+        var bundleIdentifier: String
+        var captureCount: Int
+        var targetCount: Int
+        var warningCount: Int
+        var targetIdentifiers: [String]
+        var warningIdentifiers: [String]
+        var repeatedWarningIdentifiers: [String]
+        var targetAnchors: [String]
+        var relatedRowAnchors: [String]
+
+        var copyLine: String {
+            CinematicDiagnosticsWarningBundleHistory.entryCopyLine(self)
+        }
+    }
+
+    func recording(
+        _ attentionSummary: CinematicDiagnosticsSummary.AttentionSummary
+    ) -> CinematicDiagnosticsWarningBundleHistory {
+        var history = self
+        history.record(attentionSummary)
+        return history
+    }
+
+    mutating func record(
+        _ attentionSummary: CinematicDiagnosticsSummary.AttentionSummary
+    ) {
+        guard let entry = Self.entry(
+            attentionSummary: attentionSummary,
+            sequence: nextSequence
+        ) else {
+            return
+        }
+
+        if var last = entries.last, last.bundleIdentifier == entry.bundleIdentifier {
+            last.captureCount += 1
+            entries[entries.count - 1] = last
+            return
+        }
+
+        entries.append(entry)
+        nextSequence += 1
+        trimToLimit()
+    }
+
+    private mutating func trimToLimit() {
+        let overflow = entries.count - Self.maxEntries
+        guard overflow > 0 else { return }
+        let removed = entries.prefix(overflow)
+        omittedCount += removed.reduce(0) { $0 + $1.captureCount }
+        entries.removeFirst(overflow)
+    }
+
+    private static func entry(
+        attentionSummary: CinematicDiagnosticsSummary.AttentionSummary,
+        sequence: Int
+    ) -> Entry? {
+        let targets = attentionSummary.targets
+        guard !targets.isEmpty else { return nil }
+
+        let targetIdentifiers = orderedUnique(targets.map(\.id))
+        let targetAnchors = orderedUnique(targets.map(\.targetAnchorID))
+        let warningIdentifiers = targets.flatMap(\.visibleWarningIdentifiers)
+        let relatedRowAnchors = orderedUnique(
+            targets.compactMap(\.relatedRowID).map { "diagnostics-row-\($0)" }
+        )
+        let bundleSeed = targets.map { target in
+            [
+                target.id,
+                target.targetGroupID,
+                target.targetAnchorID,
+                target.relatedGroupID ?? "none",
+                target.relatedRowID ?? "none",
+                target.visibleWarningIdentifiers.joined(separator: ",")
+            ].joined(separator: "/")
+        }.joined(separator: "|")
+
+        return Entry(
+            sequence: sequence,
+            bundleIdentifier: "warning-bundle-\(stableFingerprint(bundleSeed))",
+            captureCount: 1,
+            targetCount: targets.count,
+            warningCount: targets.reduce(0) { $0 + $1.warningCount },
+            targetIdentifiers: targetIdentifiers.map(safeToken),
+            warningIdentifiers: orderedUnique(warningIdentifiers).map(safeToken),
+            repeatedWarningIdentifiers: repeatedIdentifiers(warningIdentifiers).map(safeToken),
+            targetAnchors: targetAnchors.map(safeToken),
+            relatedRowAnchors: relatedRowAnchors.map(safeToken)
+        )
+    }
+
+    private static func copyText(
+        entries: [Entry],
+        omittedCount: Int,
+        capturedCount: Int,
+        repeatedWarningIdentifiers: [String]
+    ) -> String {
+        guard !entries.isEmpty else { return "" }
+
+        let repeated = repeatedWarningIdentifiers.isEmpty
+            ? "none"
+            : identifierSummary(repeatedWarningIdentifiers, visibleLimit: visibleWarningIdentifierLimit)
+        let lines = [
+            "Cinematic diagnostics warning bundles",
+            "Export correlation: warning summary targets, target anchors, and related diagnostics row anchors",
+            "Counts: entries \(entries.count) | captures \(capturedCount) | omitted \(omittedCount)",
+            "Repeated warnings: \(repeated)",
+            "Entries:"
+        ] + entries.map(\.copyLine)
+
+        return boundedMultiline(
+            lines.joined(separator: "\n"),
+            limit: copyTextMaxCharacters
+        )
+    }
+
+    private static func entryCopyLine(_ entry: Entry) -> String {
+        let repeated = entry.repeatedWarningIdentifiers.isEmpty
+            ? "none"
+            : identifierSummary(entry.repeatedWarningIdentifiers, visibleLimit: visibleWarningIdentifierLimit)
+        let related = entry.relatedRowAnchors.isEmpty
+            ? "none"
+            : identifierSummary(entry.relatedRowAnchors, visibleLimit: visibleAnchorLimit)
+        let line = [
+            "#\(entry.sequence)",
+            "x\(entry.captureCount)",
+            "\(entry.targetCount) targets",
+            "\(entry.warningCount) warnings",
+            "targets \(identifierSummary(entry.targetIdentifiers, visibleLimit: visibleAnchorLimit))",
+            "warnings \(identifierSummary(entry.warningIdentifiers, visibleLimit: visibleWarningIdentifierLimit))",
+            "repeated \(repeated)",
+            "anchors \(identifierSummary(entry.targetAnchors, visibleLimit: visibleAnchorLimit))",
+            "related \(related)"
+        ].joined(separator: " | ")
+
+        return bounded(line, limit: entryCopyLineMaxCharacters)
+    }
+
+    private static func identifierSummary(_ identifiers: [String], visibleLimit: Int) -> String {
+        guard !identifiers.isEmpty else { return "none" }
+        let visible = identifiers.prefix(max(0, visibleLimit))
+        let hiddenCount = identifiers.count - visible.count
+        let text = visible.joined(separator: ",")
+        guard hiddenCount > 0 else {
+            return bounded(text, limit: entryCopyLineMaxCharacters)
+        }
+        return bounded("\(text),+\(hiddenCount)", limit: entryCopyLineMaxCharacters)
+    }
+
+    private static func orderedUnique(_ values: [String]) -> [String] {
+        var seen = Set<String>()
+        var result: [String] = []
+        for value in values {
+            let token = safeToken(value)
+            guard !seen.contains(token) else { continue }
+            seen.insert(token)
+            result.append(token)
+        }
+        return result
+    }
+
+    private static func repeatedIdentifiers(_ values: [String]) -> [String] {
+        var counts: [String: Int] = [:]
+        var result: [String] = []
+        for value in values {
+            let token = safeToken(value)
+            counts[token, default: 0] += 1
+            if counts[token] == 2 {
+                result.append(token)
+            }
+        }
+        return result
+    }
+
+    private static func stableFingerprint(_ text: String) -> String {
+        var hash: UInt64 = 14_695_981_039_346_656_037
+        for byte in text.utf8 {
+            hash ^= UInt64(byte)
+            hash = hash &* 1_099_511_628_211
+        }
+        return String(hash, radix: 16)
+    }
+
+    private static func safeToken(_ text: String) -> String {
+        bounded(text, limit: identifierMaxCharacters)
+    }
+
+    private static func bounded(_ text: String, limit: Int) -> String {
+        let normalized = text
+            .replacingOccurrences(of: "\r", with: " ")
+            .replacingOccurrences(of: "\n", with: " ")
+            .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalized.isEmpty else { return "-" }
+        guard normalized.count > limit else { return normalized }
+
+        let prefixLimit = max(1, limit - 3)
+        let prefix = normalized.prefix(prefixLimit)
+        return String(prefix).trimmingCharacters(in: .whitespacesAndNewlines) + "..."
+    }
+
+    private static func boundedMultiline(_ text: String, limit: Int) -> String {
+        let normalized = text
+            .replacingOccurrences(of: "\r\n", with: "\n")
+            .replacingOccurrences(of: "\r", with: "\n")
+            .components(separatedBy: "\n")
+            .map {
+                $0.replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+            }
+            .filter { !$0.isEmpty }
+            .joined(separator: "\n")
+        guard !normalized.isEmpty else { return "" }
+        guard normalized.count > limit else { return normalized }
+
+        let prefixLimit = max(1, limit - 3)
+        let prefix = normalized.prefix(prefixLimit)
+        return String(prefix).trimmingCharacters(in: .whitespacesAndNewlines) + "..."
+    }
+}
+
 enum CinematicDiagnostics {
     struct ActivityCase: Equatable {
         var identifier: String

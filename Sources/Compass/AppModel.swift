@@ -430,6 +430,7 @@ final class CompassProject: ObservableObject, Identifiable {
     @Published var cinematicRunRecapShareArtifactHistory = CinematicRunRecapShareArtifactHistoryPlan.unavailable(
         reason: "not-scanned"
     )
+    @Published var cinematicDiagnosticsWarningBundleHistory = CinematicDiagnosticsWarningBundleHistory()
     @Published var isRunning = false
     @Published var isAutoPlaying = false
     @Published var isPaused = false
@@ -1881,6 +1882,14 @@ extension CompassProject {
         cinematicNativeFeedbackCue = activeCue
         scheduleCinematicNativeFeedbackCueExpiry(for: lifecycle.active, now: now)
         scheduleCinematicBriefingRefresh(reason: .projectRefresh)
+    }
+
+    func recordCinematicDiagnosticsWarningBundle(
+        _ attentionSummary: CinematicDiagnosticsSummary.AttentionSummary
+    ) {
+        let updatedHistory = cinematicDiagnosticsWarningBundleHistory.recording(attentionSummary)
+        guard updatedHistory != cinematicDiagnosticsWarningBundleHistory else { return }
+        cinematicDiagnosticsWarningBundleHistory = updatedHistory
     }
 
     private func feedback(_ milestone: NativeFeedbackMilestone) {
