@@ -493,6 +493,7 @@ struct CinematicVisualSmokeReport: Equatable {
             pressureInfluenceSpreadCheck(reports: reports),
             recoveryCueCoverageCheck(reports: reports),
             nativeFeedbackCueCoverageCheck(reports: reports),
+            nativeFeedbackTreatmentCoverageCheck(reports: reports),
             timelineFocusCoverageCheck(reports: reports)
         ]
     }
@@ -860,13 +861,6 @@ struct CinematicVisualSmokeReport: Equatable {
             "narrative.arena.inscription",
             "narrative.activity.banner"
         ])
-        let treatmentAccents = Set(activeReports.flatMap(nativeFeedbackPlaqueTreatmentAccentIdentifiers))
-        let expectedTreatmentAccents = Set([
-            "verify-seal",
-            "warning-rails",
-            "failure-fracture",
-            "retry-braces"
-        ])
         let anchorRoutes = Set(activeReports.flatMap(nativeFeedbackAnchorRouteIdentifiers))
         let expectedAnchorRoutes = Set(["seal", "warning", "fracture"])
         let visibleBannerReports = activeReports.filter {
@@ -880,7 +874,6 @@ struct CinematicVisualSmokeReport: Equatable {
             && styles.isSuperset(of: expectedStyles)
             && sourceFamilies.isSuperset(of: ["native", "run-cue"])
             && affectedDescriptors.isSuperset(of: expectedDescriptors)
-            && treatmentAccents.isSuperset(of: expectedTreatmentAccents)
             && anchorRoutes.isSuperset(of: expectedAnchorRoutes)
             && visibleBannerReports == activeReports.count
             && consistentActiveReports == activeReports.count
@@ -896,10 +889,51 @@ struct CinematicVisualSmokeReport: Equatable {
                 "styles \(styles.intersection(expectedStyles).count)/\(expectedStyles.count)",
                 "sources \(joined(sourceFamilies))",
                 "desc \(affectedDescriptors.intersection(expectedDescriptors).count)/\(expectedDescriptors.count)",
-                "treat \(treatmentAccents.intersection(expectedTreatmentAccents).count)/\(expectedTreatmentAccents.count)",
-                "anchors \(joined(anchorRoutes))",
+                "routes \(joined(anchorRoutes))",
                 "visible \(visibleBannerReports)/\(activeReports.count)",
+                "life \(consistentActiveReports)/\(activeReports.count)",
                 "expired \(expiredArchivedReports)"
+            ].joined(separator: "|")
+        )
+    }
+
+    private static func nativeFeedbackTreatmentCoverageCheck(reports: [CinematicDiagnosticsReport]) -> Check {
+        let activeReports = reports.filter {
+            $0.nativeFeedback.cueIdentifier != "none"
+                && $0.nativeFeedback.lifecycleStateIdentifier == "active"
+        }
+        let expectedPairs = nativeFeedbackTreatmentExpectations
+        let expectedAccents = Set(expectedPairs.map(\.accentIdentifier))
+        let expectedRoutes = Set(expectedPairs.map(\.routeIdentifier))
+        let expectedPairIdentifiers = Set(expectedPairs.map(\.pairIdentifier))
+        let observedAccents = Set(activeReports.map(\.narrativeCue.questPlaque.plaqueTreatmentAccentIdentifier))
+        let observedRoutes = Set(activeReports.map(\.narrativeCue.questPlaque.plaqueTreatmentRouteIdentifier))
+        let observedPairIdentifiers = Set(activeReports.compactMap(nativeFeedbackTreatmentPairIdentifier))
+        let expectedReportCount = activeReports.filter(nativeFeedbackTreatmentMatchesExpectedPair).count
+        let consistentSurfaceCount = activeReports.filter(nativeFeedbackTreatmentSurfacesMatch).count
+        let meaningfulParameterCount = activeReports.filter(nativeFeedbackTreatmentParametersAreMeaningful).count
+
+        let isPassing = !activeReports.isEmpty
+            && observedAccents.isSuperset(of: expectedAccents)
+            && observedRoutes.isSuperset(of: expectedRoutes)
+            && observedPairIdentifiers.isSuperset(of: expectedPairIdentifiers)
+            && expectedReportCount == activeReports.count
+            && consistentSurfaceCount == activeReports.count
+            && meaningfulParameterCount == activeReports.count
+
+        return check(
+            id: "native-feedback-treatment-coverage",
+            label: "Native feedback treatment",
+            isPassing: isPassing,
+            warningIdentifier: "visual-smoke.native-feedback-treatment-coverage",
+            detail: [
+                "active \(activeReports.count)",
+                "accents \(observedAccents.intersection(expectedAccents).count)/\(expectedAccents.count)",
+                "routes \(observedRoutes.intersection(expectedRoutes).count)/\(expectedRoutes.count)",
+                "pairs \(observedPairIdentifiers.intersection(expectedPairIdentifiers).count)/\(expectedPairIdentifiers.count)",
+                "surfaces \(consistentSurfaceCount)/\(activeReports.count)",
+                "params \(meaningfulParameterCount)/\(activeReports.count)",
+                "tokens emit,rails,braces,fracture,pulse"
             ].joined(separator: "|")
         )
     }
@@ -950,6 +984,115 @@ struct CinematicVisualSmokeReport: Equatable {
             maxValue > minValue
         }
     }
+
+    private struct NativeFeedbackTreatmentExpectation {
+        var sourceIdentifier: String
+        var accentIdentifier: String
+        var routeIdentifier: String
+
+        var pairIdentifier: String {
+            "\(accentIdentifier)/\(routeIdentifier)"
+        }
+    }
+
+    private struct NativeFeedbackTreatmentParameters {
+        var accentIdentifier: String
+        var routeIdentifier: String
+        var emissionBoost: Float
+        var edgeRailOpacity: Float
+        var braceOpacity: Float
+        var fractureOpacity: Float
+        var pulseScale: Float
+
+        var valuesAreBounded: Bool {
+            (Float(0)...Float(0.42)).contains(emissionBoost)
+                && (Float(0)...Float(0.9)).contains(edgeRailOpacity)
+                && (Float(0)...Float(0.9)).contains(braceOpacity)
+                && (Float(0)...Float(0.9)).contains(fractureOpacity)
+                && (Float(0.96)...Float(1.12)).contains(pulseScale)
+        }
+
+        init?(_ identifier: String) {
+            let pieces = identifier.split(separator: "|").map(String.init)
+            guard let accentIdentifier = pieces.first,
+                  accentIdentifier != "none",
+                  let routePiece = pieces.first(where: { $0.hasPrefix("route:") })
+            else {
+                return nil
+            }
+
+            func tokenValue(_ prefix: String) -> Float? {
+                guard let piece = pieces.first(where: { $0.hasPrefix(prefix) }) else {
+                    return nil
+                }
+                return Float(String(piece.dropFirst(prefix.count)))
+            }
+
+            let routeIdentifier = String(routePiece.dropFirst("route:".count))
+            guard !routeIdentifier.isEmpty,
+                  routeIdentifier != "none",
+                  let emissionBoost = tokenValue("emit"),
+                  let edgeRailOpacity = tokenValue("rails"),
+                  let braceOpacity = tokenValue("braces"),
+                  let fractureOpacity = tokenValue("fracture"),
+                  let pulseScale = tokenValue("pulse")
+            else {
+                return nil
+            }
+
+            self.accentIdentifier = accentIdentifier
+            self.routeIdentifier = routeIdentifier
+            self.emissionBoost = emissionBoost
+            self.edgeRailOpacity = edgeRailOpacity
+            self.braceOpacity = braceOpacity
+            self.fractureOpacity = fractureOpacity
+            self.pulseScale = pulseScale
+        }
+
+        func hasMeaningfulValues(for accentIdentifier: String) -> Bool {
+            guard valuesAreBounded,
+                  self.accentIdentifier == accentIdentifier,
+                  emissionBoost > 0,
+                  edgeRailOpacity > 0,
+                  braceOpacity > 0,
+                  pulseScale > 1
+            else {
+                return false
+            }
+
+            switch accentIdentifier {
+            case "verify-seal":
+                return fractureOpacity == 0
+            case "warning-rails", "failure-fracture", "retry-braces":
+                return fractureOpacity > 0
+            default:
+                return false
+            }
+        }
+    }
+
+    private static let nativeFeedbackTreatmentExpectations = [
+        NativeFeedbackTreatmentExpectation(
+            sourceIdentifier: "native:verifyStarted",
+            accentIdentifier: "verify-seal",
+            routeIdentifier: "verifyStarted.verify"
+        ),
+        NativeFeedbackTreatmentExpectation(
+            sourceIdentifier: "run-cue:11:dirtyWorktree",
+            accentIdentifier: "warning-rails",
+            routeIdentifier: "developRetrying.warning.dirtyWorktree"
+        ),
+        NativeFeedbackTreatmentExpectation(
+            sourceIdentifier: "native:postChecksFailed",
+            accentIdentifier: "failure-fracture",
+            routeIdentifier: "postChecksFailed.failure"
+        ),
+        NativeFeedbackTreatmentExpectation(
+            sourceIdentifier: "run-cue:7:failedVerify",
+            accentIdentifier: "retry-braces",
+            routeIdentifier: "developRetrying.failure.failedVerify"
+        )
+    ]
 
     private static func readabilityMetrics(_ report: CinematicDiagnosticsReport) -> ReadabilityMetrics {
         let descriptors = narrativeCueDescriptors(report)
@@ -1144,12 +1287,66 @@ struct CinematicVisualSmokeReport: Equatable {
         }
     }
 
-    private static func nativeFeedbackPlaqueTreatmentAccentIdentifiers(
+    private static func nativeFeedbackTreatmentPairIdentifier(
         _ report: CinematicDiagnosticsReport
-    ) -> [String] {
-        narrativeCueDescriptors(report)
-            .map(\.plaqueTreatmentAccentIdentifier)
-            .filter { $0 != "none" }
+    ) -> String? {
+        let descriptor = report.narrativeCue.questPlaque
+        guard descriptor.plaqueTreatmentAccentIdentifier != "none",
+              descriptor.plaqueTreatmentRouteIdentifier != "none"
+        else {
+            return nil
+        }
+
+        return "\(descriptor.plaqueTreatmentAccentIdentifier)/\(descriptor.plaqueTreatmentRouteIdentifier)"
+    }
+
+    private static func nativeFeedbackTreatmentMatchesExpectedPair(
+        _ report: CinematicDiagnosticsReport
+    ) -> Bool {
+        guard let expectation = nativeFeedbackTreatmentExpectations.first(where: {
+            $0.sourceIdentifier == report.nativeFeedback.sourceIdentifier
+        }) else {
+            return false
+        }
+
+        return narrativeCueDescriptors(report).allSatisfy {
+            $0.plaqueTreatmentAccentIdentifier == expectation.accentIdentifier
+                && $0.plaqueTreatmentRouteIdentifier == expectation.routeIdentifier
+        }
+    }
+
+    private static func nativeFeedbackTreatmentSurfacesMatch(
+        _ report: CinematicDiagnosticsReport
+    ) -> Bool {
+        let descriptors = narrativeCueDescriptors(report)
+        let treatmentIdentifiers = Set(descriptors.map(\.plaqueTreatmentIdentifier))
+        let accentIdentifiers = Set(descriptors.map(\.plaqueTreatmentAccentIdentifier))
+        let routeIdentifiers = Set(descriptors.map(\.plaqueTreatmentRouteIdentifier))
+
+        return descriptors.count == 3
+            && treatmentIdentifiers.count == 1
+            && accentIdentifiers.count == 1
+            && routeIdentifiers.count == 1
+            && !treatmentIdentifiers.contains("none")
+            && !accentIdentifiers.contains("none")
+            && !routeIdentifiers.contains("none")
+            && descriptors.allSatisfy {
+                !$0.plaqueTreatmentIdentifier.isEmpty
+                    && $0.identifier.contains($0.plaqueTreatmentIdentifier)
+            }
+    }
+
+    private static func nativeFeedbackTreatmentParametersAreMeaningful(
+        _ report: CinematicDiagnosticsReport
+    ) -> Bool {
+        narrativeCueDescriptors(report).allSatisfy { descriptor in
+            guard let parameters = NativeFeedbackTreatmentParameters(descriptor.plaqueTreatmentIdentifier) else {
+                return false
+            }
+
+            return parameters.routeIdentifier == descriptor.plaqueTreatmentRouteIdentifier
+                && parameters.hasMeaningfulValues(for: descriptor.plaqueTreatmentAccentIdentifier)
+        }
     }
 
     private static func nativeFeedbackActiveRoutesAreConsistent(
@@ -1166,7 +1363,6 @@ struct CinematicVisualSmokeReport: Equatable {
                 == report.narrativeCue.nativeFeedbackAffectedDescriptorIdentifiers
             && report.nativeFeedback.lifecycleIdentifier == report.overlayDisplay.nativeFeedbackLifecycleIdentifier
             && report.narrativeCue.nativeFeedbackLifecycleIdentifier != "none"
-            && nativeFeedbackPlaqueTreatmentAccentIdentifiers(report).count == 3
     }
 
     private static func nativeFeedbackExpiredLifecycleIsArchived(

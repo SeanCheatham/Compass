@@ -324,10 +324,19 @@ final class CinematicDiagnosticsTests: XCTestCase {
         let nativeFeedbackCheck = try XCTUnwrap(
             smoke.checks.first { $0.id == "native-feedback-cue-coverage" }
         )
+        let nativeFeedbackTreatmentCheck = try XCTUnwrap(
+            smoke.checks.first { $0.id == "native-feedback-treatment-coverage" }
+        )
         XCTAssertEqual(nativeFeedbackCheck.status, .pass)
         XCTAssertTrue(nativeFeedbackCheck.detail.contains("active 4"))
-        XCTAssertTrue(nativeFeedbackCheck.detail.contains("treat 4/4"))
+        XCTAssertTrue(nativeFeedbackCheck.detail.contains("routes fracture,seal,warning"))
         XCTAssertTrue(nativeFeedbackCheck.detail.contains("expired 1"))
+        XCTAssertEqual(nativeFeedbackTreatmentCheck.status, .pass)
+        XCTAssertTrue(nativeFeedbackTreatmentCheck.detail.contains("accents 4/4"))
+        XCTAssertTrue(nativeFeedbackTreatmentCheck.detail.contains("routes 4/4"))
+        XCTAssertTrue(nativeFeedbackTreatmentCheck.detail.contains("pairs 4/4"))
+        XCTAssertTrue(nativeFeedbackTreatmentCheck.detail.contains("surfaces 4/4"))
+        XCTAssertTrue(nativeFeedbackTreatmentCheck.detail.contains("params 4/4"))
     }
 
     func testReportAndSummaryExportSelectedRecoveryCue() throws {
@@ -701,9 +710,10 @@ final class CinematicDiagnosticsTests: XCTestCase {
         XCTAssertTrue(summary.exportText.contains("Assets/textures (2 rows)"))
         XCTAssertTrue(summary.exportText.contains("Tuning (4 rows)"))
         XCTAssertTrue(summary.exportText.contains("Camera shots (9 rows)"))
-        XCTAssertTrue(summary.exportText.contains("Visual smoke (pass, 13 checks)"))
+        XCTAssertTrue(summary.exportText.contains("Visual smoke (pass, 14 checks)"))
         XCTAssertTrue(summary.exportText.contains("Overlay fallback: pass"))
         XCTAssertTrue(summary.exportText.contains("Native feedback coverage: pass"))
+        XCTAssertTrue(summary.exportText.contains("Native feedback treatment: pass"))
         XCTAssertTrue(summary.exportText.contains(report.languageMotif.sigilIdentifier))
         XCTAssertTrue(summary.exportText.contains(report.languageMotif.styleIdentifier))
         XCTAssertTrue(summary.exportText.contains(report.activityMotif.sigilIdentifier))
