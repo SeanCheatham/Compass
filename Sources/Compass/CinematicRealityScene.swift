@@ -17,6 +17,7 @@ struct CinematicSceneView: View {
     var recoveryCuePlan: CinematicRecoveryCuePlan
     var timelineSceneFocusPlan: CinematicTimelineSceneFocusPlan
     var runRecapSceneFocusPlan: CinematicRunRecapSceneFocusPlan
+    var runRecapEndCardPlan: CinematicRunRecapEndCardPlan
     var nativeFeedbackCue: CinematicNativeFeedbackCuePlan?
 
     @StateObject private var host: CinematicRealitySceneHost
@@ -35,6 +36,7 @@ struct CinematicSceneView: View {
         recoveryCuePlan: CinematicRecoveryCuePlan = .none,
         timelineSceneFocusPlan: CinematicTimelineSceneFocusPlan = .none,
         runRecapSceneFocusPlan: CinematicRunRecapSceneFocusPlan = .none,
+        runRecapEndCardPlan: CinematicRunRecapEndCardPlan = .none,
         nativeFeedbackCue: CinematicNativeFeedbackCuePlan? = nil
     ) {
         self.projectID = projectID
@@ -50,6 +52,7 @@ struct CinematicSceneView: View {
         self.recoveryCuePlan = recoveryCuePlan
         self.timelineSceneFocusPlan = timelineSceneFocusPlan
         self.runRecapSceneFocusPlan = runRecapSceneFocusPlan
+        self.runRecapEndCardPlan = runRecapEndCardPlan
         self.nativeFeedbackCue = nativeFeedbackCue
         _host = StateObject(wrappedValue: CinematicRealitySceneHost(projectID: projectID))
     }
@@ -70,6 +73,7 @@ struct CinematicSceneView: View {
                 recoveryCuePlan: recoveryCuePlan,
                 timelineSceneFocusPlan: timelineSceneFocusPlan,
                 runRecapSceneFocusPlan: runRecapSceneFocusPlan,
+                runRecapEndCardPlan: runRecapEndCardPlan,
                 nativeFeedbackCue: nativeFeedbackCue
             )
         } update: { content in
@@ -87,6 +91,7 @@ struct CinematicSceneView: View {
                 recoveryCuePlan: recoveryCuePlan,
                 timelineSceneFocusPlan: timelineSceneFocusPlan,
                 runRecapSceneFocusPlan: runRecapSceneFocusPlan,
+                runRecapEndCardPlan: runRecapEndCardPlan,
                 nativeFeedbackCue: nativeFeedbackCue
             )
         } placeholder: {
@@ -136,6 +141,7 @@ private final class CinematicRealitySceneHost: ObservableObject {
         recoveryCuePlan: CinematicRecoveryCuePlan,
         timelineSceneFocusPlan: CinematicTimelineSceneFocusPlan,
         runRecapSceneFocusPlan: CinematicRunRecapSceneFocusPlan,
+        runRecapEndCardPlan: CinematicRunRecapEndCardPlan,
         nativeFeedbackCue: CinematicNativeFeedbackCuePlan?
     ) {
         coordinator.update(
@@ -151,6 +157,7 @@ private final class CinematicRealitySceneHost: ObservableObject {
             recoveryCuePlan: recoveryCuePlan,
             timelineSceneFocusPlan: timelineSceneFocusPlan,
             runRecapSceneFocusPlan: runRecapSceneFocusPlan,
+            runRecapEndCardPlan: runRecapEndCardPlan,
             nativeFeedbackCue: nativeFeedbackCue
         )
     }
@@ -272,6 +279,7 @@ private final class CinematicSceneCoordinator {
     private let narrativeQuestPlaqueNode = Entity()
     private let narrativeArenaInscriptionNode = Entity()
     private let narrativeActivityBannerNode = Entity()
+    private let runRecapEndCardNode = Entity()
     private let keyLightNode = Entity()
     private let rimLightNode = Entity()
     private let phaseLightNode = Entity()
@@ -336,6 +344,7 @@ private final class CinematicSceneCoordinator {
     private var activeTimelineSceneFocusDescriptor: CinematicTimelineSceneFocusPlan.Descriptor?
     private var currentRunRecapSceneFocusPlan = CinematicRunRecapSceneFocusPlan.none
     private var activeRunRecapSceneFocusDescriptor: CinematicRunRecapSceneFocusPlan.Descriptor?
+    private var currentRunRecapEndCardPlan = CinematicRunRecapEndCardPlan.none
     private var followCameraSource: CameraFollowSource?
     private var fractureAccentNodes: [Entity] = []
     private var phaseStaffOrientation = simd_quatf(angle: 0.18, axis: SIMD3<Float>(0, 0, 1))
@@ -391,6 +400,7 @@ private final class CinematicSceneCoordinator {
         recoveryCuePlan: CinematicRecoveryCuePlan,
         timelineSceneFocusPlan: CinematicTimelineSceneFocusPlan,
         runRecapSceneFocusPlan: CinematicRunRecapSceneFocusPlan,
+        runRecapEndCardPlan: CinematicRunRecapEndCardPlan,
         nativeFeedbackCue: CinematicNativeFeedbackCuePlan?
     ) {
         let languageProfileChanged = languageProfile != self.languageProfile
@@ -426,6 +436,7 @@ private final class CinematicSceneCoordinator {
         let commitConstellationChanged = commitConstellationPlan != currentCommitConstellationPlan
         let timelineFocusChanged = timelineSceneFocusPlan != currentTimelineSceneFocusPlan
         let runRecapFocusChanged = runRecapSceneFocusPlan != currentRunRecapSceneFocusPlan
+        let runRecapEndCardChanged = runRecapEndCardPlan != currentRunRecapEndCardPlan
         if languageProfileChanged || activityProfileChanged || influenceChanged {
             setDressingPlan = CinematicSetDressingPlanner.plan(
                 languageMotif: languageMotif,
@@ -462,6 +473,7 @@ private final class CinematicSceneCoordinator {
             setPhaseLight(color: themedColor(baseline.color), intensity: baseline.intensity)
             applyTimelineSceneFocusPlan(timelineSceneFocusPlan, lines: lines, animated: false)
             applyRunRecapSceneFocusPlan(runRecapSceneFocusPlan, lines: lines, animated: false)
+            applyRunRecapEndCardPlan(runRecapEndCardPlan, lines: lines, animated: false)
             return
         }
 
@@ -512,6 +524,9 @@ private final class CinematicSceneCoordinator {
         }
         if runRecapFocusChanged || commitConstellationChanged {
             applyRunRecapSceneFocusPlan(runRecapSceneFocusPlan, lines: lines, animated: hasBuiltScene)
+        }
+        if runRecapEndCardChanged {
+            applyRunRecapEndCardPlan(runRecapEndCardPlan, lines: lines, animated: hasBuiltScene)
         }
     }
 
@@ -835,11 +850,13 @@ private final class CinematicSceneCoordinator {
         narrativeQuestPlaqueNode.name = "narrative-quest-plaque"
         narrativeArenaInscriptionNode.name = "narrative-arena-inscription"
         narrativeActivityBannerNode.name = "narrative-activity-banner"
+        runRecapEndCardNode.name = "run-recap-end-card"
 
         for node in [
             narrativeQuestPlaqueNode,
             narrativeArenaInscriptionNode,
-            narrativeActivityBannerNode
+            narrativeActivityBannerNode,
+            runRecapEndCardNode
         ] {
             node.components.set(OpacityComponent(opacity: 0))
             narrativeCueRoot.addChild(node)
@@ -3174,6 +3191,137 @@ private final class CinematicSceneCoordinator {
         }
     }
 
+    private func applyRunRecapEndCardPlan(
+        _ plan: CinematicRunRecapEndCardPlan,
+        lines: [LiveLine],
+        animated: Bool
+    ) {
+        guard plan != currentRunRecapEndCardPlan else { return }
+        currentRunRecapEndCardPlan = plan
+
+        guard let descriptor = plan.descriptor else {
+            clearChildren(of: runRecapEndCardNode)
+            runRecapEndCardNode.name = "run-recap-end-card.none"
+            setOpacity(0, on: runRecapEndCardNode)
+            return
+        }
+
+        applyRunRecapEndCardDescriptor(descriptor, animated: animated)
+        if !hasActiveLiveFollowTarget(lines: lines) {
+            faceWizard(toward: descriptor.layout.anchorPosition)
+        }
+    }
+
+    private func applyRunRecapEndCardDescriptor(
+        _ descriptor: CinematicRunRecapEndCardPlan.Descriptor,
+        animated: Bool
+    ) {
+        clearChildren(of: runRecapEndCardNode)
+        runRecapEndCardNode.name = descriptor.identifier
+
+        let layout = descriptor.layout
+        runRecapEndCardNode.position = layout.anchorPosition
+        runRecapEndCardNode.orientation = narrativeOrientation(for: layout)
+        runRecapEndCardNode.scale = SIMD3<Float>(repeating: descriptor.scale)
+        setOpacity(0.9, on: runRecapEndCardNode)
+
+        let color = recapEndCardColor(for: descriptor)
+        let treatment = descriptor.plaqueTreatment
+        let plateEmissionAlpha = min(0.46, 0.16 + treatment.emissionBoost)
+        let plateOpacity = min(
+            CinematicSceneNarrativeCuePlan.cueBackingOpacityRange.upperBound,
+            layout.backingOpacity + treatment.emissionBoost * 0.16
+        )
+        let plate = ModelEntity(
+            mesh: .generateBox(
+                width: layout.plateSize.x,
+                height: layout.plateSize.y,
+                depth: layout.plateDepth,
+                cornerRadius: max(0.016, min(0.04, layout.plateDepth * 0.95))
+            ),
+            materials: [
+                material(
+                    diffuse: NSColor(calibratedRed: 0.014, green: 0.018, blue: 0.028, alpha: 1),
+                    emission: color.withAlphaComponent(CGFloat(plateEmissionAlpha)),
+                    opacity: plateOpacity
+                )
+            ]
+        )
+        plate.name = "\(descriptor.identifier).placard"
+        plate.position.z = layout.plateZOffset
+        plate.components.set(OpacityComponent(opacity: plateOpacity))
+        runRecapEndCardNode.addChild(plate)
+
+        addNarrativePlaqueTreatment(
+            treatment,
+            to: runRecapEndCardNode,
+            name: "\(descriptor.identifier).treatment",
+            layout: layout,
+            color: color
+        )
+
+        addNarrativeText(
+            descriptor.title,
+            to: runRecapEndCardNode,
+            name: "\(descriptor.identifier).text.title",
+            width: layout.primaryTextWidth,
+            offset: layout.primaryTextOffset,
+            fontSize: CGFloat(layout.primaryFontSize),
+            weight: .semibold,
+            color: color,
+            opacity: 0.96
+        )
+        addNarrativeText(
+            descriptor.detail,
+            to: runRecapEndCardNode,
+            name: "\(descriptor.identifier).text.detail",
+            width: layout.secondaryTextWidth,
+            offset: layout.secondaryTextOffset,
+            fontSize: CGFloat(layout.secondaryFontSize),
+            weight: .medium,
+            color: color.withAlphaComponent(0.8),
+            opacity: 0.78
+        )
+        addNarrativeText(
+            descriptor.status,
+            to: runRecapEndCardNode,
+            name: "\(descriptor.identifier).text.status",
+            width: layout.secondaryTextWidth,
+            offset: layout.secondaryTextOffset + [0, -0.13, 0.004],
+            fontSize: CGFloat(max(0.058, layout.secondaryFontSize * 0.88)),
+            weight: .medium,
+            color: color.withAlphaComponent(0.64),
+            opacity: 0.68
+        )
+
+        if !descriptor.glyphIdentifier.isEmpty, layout.glyphSide != .none {
+            addNarrativeGlyph(
+                to: runRecapEndCardNode,
+                name: "\(descriptor.identifier).glyph.\(descriptor.glyphIdentifier)",
+                layout: layout,
+                color: color,
+                opacity: 0.86
+            )
+        }
+
+        if animated {
+            runRecapEndCardNode.scale = SIMD3<Float>(repeating: max(0.001, descriptor.scale * 0.9))
+            animate(
+                runRecapEndCardNode,
+                toScale: SIMD3<Float>(repeating: descriptor.scale),
+                duration: min(0.56, descriptor.cadence * 0.18),
+                timing: .easeOut
+            )
+        }
+    }
+
+    private func recapEndCardColor(
+        for descriptor: CinematicRunRecapEndCardPlan.Descriptor
+    ) -> NSColor {
+        themedColor(descriptor.lightFamily.spell.nsColor)
+            .mixing(with: themedColor(descriptor.tintFamily.spell.nsColor), fraction: 0.28)
+    }
+
     private func applyTimelineSceneFocusArenaEffect(
         _ descriptor: CinematicTimelineSceneFocusPlan.Descriptor,
         color: NSColor
@@ -3670,6 +3818,7 @@ private final class CinematicSceneCoordinator {
         updateAtmosphere()
         updatePhasePolish()
         updateNarrativeCues()
+        updateRunRecapEndCard()
         updateCommitConstellation()
         updateSetDressing()
         updateAnimations(delta: delta)
@@ -3984,6 +4133,21 @@ private final class CinematicSceneCoordinator {
         let pulseScale = descriptor.scale * (1 + wave * 0.025)
         node.scale = SIMD3<Float>(repeating: max(0.001, pulseScale))
         setOpacity(descriptor.opacity * (0.82 + wave * 0.18), on: node)
+    }
+
+    private func updateRunRecapEndCard() {
+        guard let descriptor = currentRunRecapEndCardPlan.descriptor else { return }
+        let cadence = max(descriptor.cadence, 0.1)
+        let phase = Float(elapsedTime / cadence) * Float.pi * 2
+        let offset = Float(0.18) * Float.pi * 2
+        let wave = Float(0.5) + sin(phase + offset) * Float(0.5)
+        let pulseScale = descriptor.scale * (1 + wave * 0.032)
+        runRecapEndCardNode.scale = SIMD3<Float>(repeating: max(0.001, pulseScale))
+        runRecapEndCardNode.orientation = narrativeBillboardOrientation(
+            from: runRecapEndCardNode.position(relativeTo: nil),
+            to: cameraPosition
+        )
+        setOpacity(0.78 + wave * 0.16, on: runRecapEndCardNode)
     }
 
     private func updateCommitConstellation() {

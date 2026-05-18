@@ -49,6 +49,10 @@ struct CinematicTab: View {
                 commitConstellationPlan: project.cinematicCommitConstellationPlan,
                 timelinePlan: timelinePlan
             )
+            let runRecapEndCardPlan = CinematicRunRecapEndCardPlanner.plan(
+                isRecapOverlaySelected: overlayMode == .recap,
+                recapPlan: recapPlan
+            )
 
             ZStack(alignment: .bottomLeading) {
                 CinematicSceneView(
@@ -65,6 +69,7 @@ struct CinematicTab: View {
                     recoveryCuePlan: recoveryCuePlan,
                     timelineSceneFocusPlan: timelineSceneFocusPlan,
                     runRecapSceneFocusPlan: runRecapSceneFocusPlan,
+                    runRecapEndCardPlan: runRecapEndCardPlan,
                     nativeFeedbackCue: nativeFeedbackCue
                 )
                 .frame(width: proxy.size.width, height: proxy.size.height)
@@ -132,7 +137,8 @@ struct CinematicTab: View {
                         CinematicInfluenceControls(
                             project: project,
                             timelineSceneFocusPlan: timelineSceneFocusPlan,
-                            runRecapSceneFocusPlan: runRecapSceneFocusPlan
+                            runRecapSceneFocusPlan: runRecapSceneFocusPlan,
+                            runRecapEndCardPlan: runRecapEndCardPlan
                         )
                             .environmentObject(model)
                     }
@@ -593,6 +599,7 @@ private struct CinematicInfluenceControls: View {
     @ObservedObject var project: CompassProject
     var timelineSceneFocusPlan: CinematicTimelineSceneFocusPlan = .none
     var runRecapSceneFocusPlan: CinematicRunRecapSceneFocusPlan = .none
+    var runRecapEndCardPlan: CinematicRunRecapEndCardPlan = .none
     @State private var isShowingDiagnostics = false
 
     private var trimmedDraft: String {
@@ -604,7 +611,8 @@ private struct CinematicInfluenceControls: View {
             report: CinematicDiagnostics.currentReport(
                 for: project,
                 timelineFocusPlan: timelineSceneFocusPlan,
-                runRecapSceneFocusPlan: runRecapSceneFocusPlan
+                runRecapSceneFocusPlan: runRecapSceneFocusPlan,
+                runRecapEndCardPlan: runRecapEndCardPlan
             )
         )
     }

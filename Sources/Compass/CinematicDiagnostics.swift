@@ -26,6 +26,7 @@ struct CinematicDiagnosticsReport: Equatable {
     var timelineFocus: TimelineFocusSnapshot
     var runRecap: RunRecapSnapshot
     var runRecapSceneFocus: RunRecapSceneFocusSnapshot
+    var runRecapEndCard: RunRecapEndCardSnapshot
     var cameraSnapshots: [CameraSnapshot]
 
     struct LanguageMotifSnapshot: Equatable {
@@ -476,6 +477,40 @@ struct CinematicDiagnosticsReport: Equatable {
         var usesFallbackTarget: Bool
     }
 
+    struct RunRecapEndCardSnapshot: Equatable {
+        var identifier: String
+        var isActive: Bool
+        var descriptorIdentifier: String
+        var recapIdentifier: String
+        var title: String
+        var detail: String
+        var status: String
+        var titleSourceIdentifier: String
+        var flavorStateIdentifier: String
+        var flavorIdentifier: String?
+        var flavorSourceIdentifier: String?
+        var styleIdentifier: String
+        var colorIdentifier: String
+        var anchorIdentifier: String
+        var scale: Float
+        var cadence: TimeInterval
+        var lightFamilyIdentifier: String
+        var tintFamilyIdentifier: String
+        var glyphIdentifier: String
+        var layoutIdentifier: String
+        var plateWidth: Float
+        var plateHeight: Float
+        var plaqueTreatmentIdentifier: String
+        var plaqueTreatmentAccentIdentifier: String
+        var plaqueTreatmentRouteIdentifier: String
+        var plaqueTreatmentRenderRecipeIdentifier: String
+        var plaqueTreatmentRenderPrimitiveIdentifiers: [String]
+        var plaqueTreatmentRenderPrimitiveCount: Int
+        var titleLength: Int
+        var detailLength: Int
+        var statusLength: Int
+    }
+
     struct CameraSnapshot: Equatable {
         var identifier: String
         var shotIdentifier: String
@@ -543,7 +578,8 @@ struct CinematicVisualSmokeReport: Equatable {
             nativeFeedbackCueCoverageCheck(reports: reports),
             nativeFeedbackTreatmentCoverageCheck(reports: reports),
             timelineFocusCoverageCheck(reports: reports),
-            runRecapSceneFocusCoverageCheck(reports: reports)
+            runRecapSceneFocusCoverageCheck(reports: reports),
+            runRecapEndCardCoverageCheck(reports: reports)
         ]
     }
 
@@ -1058,6 +1094,43 @@ struct CinematicVisualSmokeReport: Equatable {
         )
     }
 
+    private static func runRecapEndCardCoverageCheck(reports: [CinematicDiagnosticsReport]) -> Check {
+        let activeReports = reports.filter(\.runRecapEndCard.isActive)
+        let emptyCount = reports.filter { !$0.runRecapEndCard.isActive }.count
+        let styles = Set(activeReports.map(\.runRecapEndCard.styleIdentifier))
+        let titleSources = Set(activeReports.map(\.runRecapEndCard.titleSourceIdentifier))
+        let flavorStates = Set(activeReports.map(\.runRecapEndCard.flavorStateIdentifier))
+        let anchors = Set(activeReports.map(\.runRecapEndCard.anchorIdentifier))
+        let treatments = Set(activeReports.map(\.runRecapEndCard.plaqueTreatmentAccentIdentifier))
+        let glyphs = Set(activeReports.map(\.runRecapEndCard.glyphIdentifier))
+        let boundedCount = reports.filter(runRecapEndCardCopyIsBounded).count
+        let isPassing = !reports.isEmpty
+            && !activeReports.isEmpty
+            && emptyCount > 0
+            && styles.isSuperset(of: ["success", "failure", "warning"])
+            && titleSources.isSuperset(of: ["deterministic", "generated"])
+            && flavorStates.isSuperset(of: ["deterministic", "applied"])
+            && anchors.isSuperset(of: ["victory-arch", "fracture-gate", "right-warning-pylon"])
+            && treatments.isSuperset(of: ["verify-seal", "failure-fracture", "warning-rails"])
+            && glyphs.isSuperset(of: ["recap.success.seal", "recap.failure.fracture", "recap.warning.rails"])
+            && boundedCount == reports.count
+
+        return check(
+            id: "run-recap-end-card-coverage",
+            label: "Run recap end card",
+            isPassing: isPassing,
+            warningIdentifier: "visual-smoke.run-recap-end-card",
+            detail: [
+                "active \(activeReports.count) empty \(emptyCount)",
+                "bounded \(boundedCount)/\(reports.count)",
+                "styles \(slashJoined(styles))",
+                "titles \(slashJoined(titleSources))",
+                "flavors \(slashJoined(flavorStates))",
+                "treat \(treatments.count)"
+            ].joined(separator: " ")
+        )
+    }
+
     private struct ReadabilityMetrics {
         var isReadable: Bool
         var minimumScale: Float
@@ -1262,6 +1335,23 @@ struct CinematicVisualSmokeReport: Equatable {
             )
             && (report.narrativeCue.questPlaque.secondaryText?.count ?? 0)
                 <= CinematicBriefingService.titleMaxCharacters
+            && runRecapEndCardCopyIsBounded(report)
+    }
+
+    private static func runRecapEndCardCopyIsBounded(_ report: CinematicDiagnosticsReport) -> Bool {
+        let snapshot = report.runRecapEndCard
+        guard snapshot.isActive else {
+            return snapshot.titleLength == 0
+                && snapshot.detailLength == 0
+                && snapshot.statusLength == 0
+        }
+
+        return string(snapshot.title, maxCharacters: CinematicRunRecapEndCardPlan.titleMaxCharacters)
+            && string(snapshot.detail, maxCharacters: CinematicRunRecapEndCardPlan.detailMaxCharacters)
+            && string(snapshot.status, maxCharacters: CinematicRunRecapEndCardPlan.statusMaxCharacters)
+            && snapshot.titleLength == snapshot.title.count
+            && snapshot.detailLength == snapshot.detail.count
+            && snapshot.statusLength == snapshot.status.count
     }
 
     private static func cueTextIsBounded(
@@ -1581,7 +1671,7 @@ struct CinematicVisualSmokeReport: Equatable {
 }
 
 struct CinematicDiagnosticsSummary: Equatable {
-    static let maxRows = 39
+    static let maxRows = 40
     static let labelMaxCharacters = 32
     static let detailMaxCharacters = 512
     static let headerDetailMaxCharacters = 128
@@ -1712,7 +1802,8 @@ struct CinematicDiagnosticsSummary: Equatable {
                 "commit-constellation",
                 "timeline-focus",
                 "run-recap",
-                "run-recap-focus"
+                "run-recap-focus",
+                "run-recap-end-card"
             ]
         ),
         SectionDefinition(
@@ -1826,6 +1917,11 @@ struct CinematicDiagnosticsSummary: Equatable {
                 id: "run-recap-focus",
                 label: "Run recap focus",
                 detail: runRecapSceneFocusDetail(report.runRecapSceneFocus)
+            ),
+            row(
+                id: "run-recap-end-card",
+                label: "Run recap end card",
+                detail: runRecapEndCardDetail(report.runRecapEndCard)
             ),
             row(
                 id: "language-motif",
@@ -2699,6 +2795,35 @@ struct CinematicDiagnosticsSummary: Equatable {
         ].compactMap { $0 }.joined(separator: " | ")
     }
 
+    private static func runRecapEndCardDetail(
+        _ snapshot: CinematicDiagnosticsReport.RunRecapEndCardSnapshot
+    ) -> String {
+        guard snapshot.isActive else {
+            return "empty"
+        }
+
+        return [
+            "active",
+            "descriptor \(bounded(snapshot.descriptorIdentifier, limit: 56))",
+            "recap \(bounded(snapshot.recapIdentifier, limit: 56))",
+            "title-source \(snapshot.titleSourceIdentifier)",
+            "flavor \(snapshot.flavorStateIdentifier)",
+            "style \(snapshot.styleIdentifier)/\(snapshot.colorIdentifier)",
+            "anchor \(snapshot.anchorIdentifier)",
+            "treatment \(snapshot.plaqueTreatmentAccentIdentifier)/\(snapshot.plaqueTreatmentRouteIdentifier)",
+            "lengths \(snapshot.titleLength)/\(snapshot.detailLength)/\(snapshot.statusLength)",
+            "title \(bounded(snapshot.title, limit: 64))",
+            "detail \(bounded(snapshot.detail, limit: 72))",
+            "status \(bounded(snapshot.status, limit: 72))",
+            "scale \(fixed(snapshot.scale))",
+            "cadence \(fixed(snapshot.cadence))",
+            "light \(snapshot.lightFamilyIdentifier)/\(snapshot.tintFamilyIdentifier)",
+            "glyph \(snapshot.glyphIdentifier)",
+            "plate \(fixed(snapshot.plateWidth))x\(fixed(snapshot.plateHeight))",
+            "recipe \(snapshot.plaqueTreatmentRenderRecipeIdentifier)"
+        ].compactMap { $0 }.joined(separator: " | ")
+    }
+
     private static func narrativeCueLayoutDescriptorDetail(
         _ label: String,
         _ layout: CinematicDiagnosticsReport.NarrativeCueLayoutSnapshot
@@ -2802,7 +2927,8 @@ enum CinematicDiagnostics {
     static func currentReport(
         for project: CompassProject,
         timelineFocusPlan: CinematicTimelineSceneFocusPlan = .none,
-        runRecapSceneFocusPlan: CinematicRunRecapSceneFocusPlan = .none
+        runRecapSceneFocusPlan: CinematicRunRecapSceneFocusPlan = .none,
+        runRecapEndCardPlan: CinematicRunRecapEndCardPlan = .none
     ) -> CinematicDiagnosticsReport {
         let commitConstellationPlan = project.cinematicCommitConstellationPlan
         let reliabilityFeedback = PlanReliabilityFeedback(
@@ -2842,6 +2968,7 @@ enum CinematicDiagnostics {
             timelineFocusPlan: timelineFocusPlan,
             runRecapPlan: runRecapPlan,
             runRecapSceneFocusPlan: runRecapSceneFocusPlan,
+            runRecapEndCardPlan: runRecapEndCardPlan,
             nativeFeedbackCue: project.cinematicNativeFeedbackCue,
             nativeFeedbackLifecycle: project.cinematicNativeFeedbackCueLifecycle
         )
@@ -2866,6 +2993,7 @@ enum CinematicDiagnostics {
         timelineFocusPlan: CinematicTimelineSceneFocusPlan = .none,
         runRecapPlan: CinematicRunRecapPlan = .empty(reason: "no-finished-session"),
         runRecapSceneFocusPlan: CinematicRunRecapSceneFocusPlan = .none,
+        runRecapEndCardPlan: CinematicRunRecapEndCardPlan = .none,
         nativeFeedbackCue: CinematicNativeFeedbackCuePlan? = nil,
         nativeFeedbackLifecycle: CinematicNativeFeedbackCueLifecycle = CinematicNativeFeedbackCueLifecycle()
     ) -> CinematicDiagnosticsReport {
@@ -2984,6 +3112,7 @@ enum CinematicDiagnostics {
         let timelineFocusSnapshot = timelineFocusSnapshot(for: timelineFocusPlan)
         let runRecapSnapshot = runRecapSnapshot(for: runRecapPlan)
         let runRecapSceneFocusSnapshot = runRecapSceneFocusSnapshot(for: runRecapSceneFocusPlan)
+        let runRecapEndCardSnapshot = runRecapEndCardSnapshot(for: runRecapEndCardPlan)
         let cameraSnapshots = CinematicCameraShot.allCases.map {
             cameraSnapshot(for: $0, settings: influenceSettings)
         }
@@ -3007,7 +3136,8 @@ enum CinematicDiagnostics {
                 "commit-constellation:\(commitConstellationSnapshot.identifier)",
                 "timeline-focus:\(timelineFocusSnapshot.identifier)",
                 "run-recap:\(runRecapSnapshot.identifier)",
-                "run-recap-focus:\(runRecapSceneFocusSnapshot.identifier)"
+                "run-recap-focus:\(runRecapSceneFocusSnapshot.identifier)",
+                "run-recap-end-card:\(runRecapEndCardSnapshot.identifier)"
             ].joined(separator: "|"),
             repoName: repoName,
             phase: phase,
@@ -3033,6 +3163,7 @@ enum CinematicDiagnostics {
             timelineFocus: timelineFocusSnapshot,
             runRecap: runRecapSnapshot,
             runRecapSceneFocus: runRecapSceneFocusSnapshot,
+            runRecapEndCard: runRecapEndCardSnapshot,
             cameraSnapshots: cameraSnapshots
         )
     }
@@ -3070,7 +3201,8 @@ enum CinematicDiagnostics {
                         recoveryCuePlan: recoveryCuePlan,
                         timelineFocusPlan: timelineFocusPlan,
                         runRecapPlan: runRecapContext.runRecapPlan,
-                        runRecapSceneFocusPlan: runRecapContext.runRecapSceneFocusPlan
+                        runRecapSceneFocusPlan: runRecapContext.runRecapSceneFocusPlan,
+                        runRecapEndCardPlan: runRecapContext.runRecapEndCardPlan
                     )
                 }
             }
@@ -3263,6 +3395,7 @@ enum CinematicDiagnostics {
     private struct RunRecapFocusContext {
         var runRecapPlan: CinematicRunRecapPlan
         var runRecapSceneFocusPlan: CinematicRunRecapSceneFocusPlan
+        var runRecapEndCardPlan: CinematicRunRecapEndCardPlan
     }
 
     private static func representativeRunRecapFocusContext(
@@ -3272,7 +3405,8 @@ enum CinematicDiagnostics {
         guard let status = representativeRunRecapStatus(for: activityCase.identifier) else {
             return RunRecapFocusContext(
                 runRecapPlan: .empty(reason: "no-finished-session"),
-                runRecapSceneFocusPlan: .none
+                runRecapSceneFocusPlan: .none,
+                runRecapEndCardPlan: .none
             )
         }
 
@@ -3291,7 +3425,7 @@ enum CinematicDiagnostics {
             verifyOutput: nil,
             feedback: nil
         )
-        let recapPlan = CinematicRunRecapPlanner.plan(
+        let flavorInput = CinematicRunRecapPlanner.flavorInput(
             state: PlanState(
                 completed: ["Completed \(activityCase.immediateTitle.lowercased())"],
                 immediate: nil,
@@ -3305,6 +3439,31 @@ enum CinematicDiagnostics {
             commitConstellationPlan: commitConstellationPlan,
             nativeFeedbackLifecycle: CinematicNativeFeedbackCueLifecycle()
         )
+        let generatedFlavor = activityCase.identifier == "recovery"
+            ? flavorInput.map {
+                CinematicRunRecapFlavor(
+                    sourceIdentifier: $0.sourceIdentifier,
+                    title: "Generated Recovery Recap",
+                    detail: "Recovered diagnostics are ready with a generated recap card.",
+                    titleSource: .generated
+                )
+            }
+            : nil
+        let recapPlan = CinematicRunRecapPlanner.plan(
+            state: PlanState(
+                completed: ["Completed \(activityCase.immediateTitle.lowercased())"],
+                immediate: nil,
+                midTerm: "",
+                longTerm: ""
+            ),
+            sessions: [session],
+            isRunning: false,
+            isAutoPlaying: false,
+            recentRunCues: [:],
+            commitConstellationPlan: commitConstellationPlan,
+            nativeFeedbackLifecycle: CinematicNativeFeedbackCueLifecycle(),
+            flavor: generatedFlavor
+        )
         let timelinePlan = CinematicSessionTimelinePlan(sessions: [session])
         let focusPlan = CinematicRunRecapSceneFocusPlanner.plan(
             isRecapOverlaySelected: true,
@@ -3312,10 +3471,15 @@ enum CinematicDiagnostics {
             commitConstellationPlan: commitConstellationPlan,
             timelinePlan: timelinePlan
         )
+        let endCardPlan = CinematicRunRecapEndCardPlanner.plan(
+            isRecapOverlaySelected: true,
+            recapPlan: recapPlan
+        )
 
         return RunRecapFocusContext(
             runRecapPlan: recapPlan,
-            runRecapSceneFocusPlan: focusPlan
+            runRecapSceneFocusPlan: focusPlan,
+            runRecapEndCardPlan: endCardPlan
         )
     }
 
@@ -4268,6 +4432,80 @@ enum CinematicDiagnostics {
             commitNodeIdentifier: descriptor.commitNodeIdentifier,
             fallbackTargetIdentifier: descriptor.fallbackTargetIdentifier,
             usesFallbackTarget: descriptor.usesFallbackTarget
+        )
+    }
+
+    private static func runRecapEndCardSnapshot(
+        for plan: CinematicRunRecapEndCardPlan
+    ) -> CinematicDiagnosticsReport.RunRecapEndCardSnapshot {
+        guard let descriptor = plan.descriptor else {
+            return CinematicDiagnosticsReport.RunRecapEndCardSnapshot(
+                identifier: plan.identifier,
+                isActive: false,
+                descriptorIdentifier: "none",
+                recapIdentifier: "none",
+                title: "",
+                detail: "",
+                status: "",
+                titleSourceIdentifier: "none",
+                flavorStateIdentifier: "none",
+                flavorIdentifier: nil,
+                flavorSourceIdentifier: nil,
+                styleIdentifier: "none",
+                colorIdentifier: "none",
+                anchorIdentifier: "none",
+                scale: 0,
+                cadence: 0,
+                lightFamilyIdentifier: "none",
+                tintFamilyIdentifier: "none",
+                glyphIdentifier: "none",
+                layoutIdentifier: "none",
+                plateWidth: 0,
+                plateHeight: 0,
+                plaqueTreatmentIdentifier: "none",
+                plaqueTreatmentAccentIdentifier: "none",
+                plaqueTreatmentRouteIdentifier: "none",
+                plaqueTreatmentRenderRecipeIdentifier: "none",
+                plaqueTreatmentRenderPrimitiveIdentifiers: [],
+                plaqueTreatmentRenderPrimitiveCount: 0,
+                titleLength: 0,
+                detailLength: 0,
+                statusLength: 0
+            )
+        }
+
+        return CinematicDiagnosticsReport.RunRecapEndCardSnapshot(
+            identifier: plan.identifier,
+            isActive: true,
+            descriptorIdentifier: descriptor.identifier,
+            recapIdentifier: descriptor.recapIdentifier,
+            title: descriptor.title,
+            detail: descriptor.detail,
+            status: descriptor.status,
+            titleSourceIdentifier: descriptor.titleSourceIdentifier,
+            flavorStateIdentifier: descriptor.flavorStateIdentifier,
+            flavorIdentifier: descriptor.flavorIdentifier,
+            flavorSourceIdentifier: descriptor.flavorSourceIdentifier,
+            styleIdentifier: descriptor.styleIdentifier,
+            colorIdentifier: descriptor.colorIdentifier,
+            anchorIdentifier: descriptor.anchorIdentifier,
+            scale: descriptor.scale,
+            cadence: descriptor.cadence,
+            lightFamilyIdentifier: descriptor.lightFamilyIdentifier,
+            tintFamilyIdentifier: descriptor.tintFamilyIdentifier,
+            glyphIdentifier: descriptor.glyphIdentifier,
+            layoutIdentifier: descriptor.layout.identifier,
+            plateWidth: descriptor.layout.plateSize.x,
+            plateHeight: descriptor.layout.plateSize.y,
+            plaqueTreatmentIdentifier: descriptor.plaqueTreatmentIdentifier,
+            plaqueTreatmentAccentIdentifier: descriptor.plaqueTreatmentAccentIdentifier,
+            plaqueTreatmentRouteIdentifier: descriptor.plaqueTreatmentRouteIdentifier,
+            plaqueTreatmentRenderRecipeIdentifier: descriptor.plaqueTreatmentRenderRecipeIdentifier,
+            plaqueTreatmentRenderPrimitiveIdentifiers: descriptor.plaqueTreatmentRenderPrimitiveIdentifiers,
+            plaqueTreatmentRenderPrimitiveCount: descriptor.plaqueTreatmentRenderPrimitiveCount,
+            titleLength: descriptor.titleLength,
+            detailLength: descriptor.detailLength,
+            statusLength: descriptor.statusLength
         )
     }
 
