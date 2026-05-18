@@ -144,22 +144,22 @@ final class CinematicVisualSmokeReportTests: XCTestCase {
         XCTAssertTrue(recoveryCue.detail.contains("dirtyWorktree"))
         XCTAssertTrue(recoveryCue.detail.contains("promotionFailed"))
         XCTAssertTrue(recoveryCue.detail.contains("history-chains"))
-        XCTAssertTrue(nativeFeedback.detail.contains("active 4"))
+        XCTAssertTrue(nativeFeedback.detail.contains("active 6"))
         XCTAssertTrue(nativeFeedback.detail.contains("styles 3/3"))
-        XCTAssertTrue(nativeFeedback.detail.contains("sources native,run-cue"))
+        XCTAssertTrue(nativeFeedback.detail.contains("sources native,plan-readiness,run-cue"))
         XCTAssertTrue(nativeFeedback.detail.contains("desc 3/3"))
         XCTAssertTrue(nativeFeedback.detail.contains("routes fracture,seal,warning"))
-        XCTAssertTrue(nativeFeedback.detail.contains("visible 4/4"))
-        XCTAssertTrue(nativeFeedback.detail.contains("life 4/4"))
+        XCTAssertTrue(nativeFeedback.detail.contains("visible 6/6"))
+        XCTAssertTrue(nativeFeedback.detail.contains("life 6/6"))
         XCTAssertTrue(nativeFeedback.detail.contains("expired 1"))
         XCTAssertEqual(nativeFeedbackTreatment.status, .pass)
-        XCTAssertTrue(nativeFeedbackTreatment.detail.contains("active 4"))
+        XCTAssertTrue(nativeFeedbackTreatment.detail.contains("active 6"))
         XCTAssertTrue(nativeFeedbackTreatment.detail.contains("accents 4/4"))
-        XCTAssertTrue(nativeFeedbackTreatment.detail.contains("routes 4/4"))
-        XCTAssertTrue(nativeFeedbackTreatment.detail.contains("pairs 4/4"))
-        XCTAssertTrue(nativeFeedbackTreatment.detail.contains("surfaces 4/4"))
-        XCTAssertTrue(nativeFeedbackTreatment.detail.contains("params 4/4"))
-        XCTAssertTrue(nativeFeedbackTreatment.detail.contains("prims 4/4"))
+        XCTAssertTrue(nativeFeedbackTreatment.detail.contains("routes 6/6"))
+        XCTAssertTrue(nativeFeedbackTreatment.detail.contains("pairs 6/6"))
+        XCTAssertTrue(nativeFeedbackTreatment.detail.contains("surfaces 6/6"))
+        XCTAssertTrue(nativeFeedbackTreatment.detail.contains("params 6/6"))
+        XCTAssertTrue(nativeFeedbackTreatment.detail.contains("prims 6/6"))
         XCTAssertEqual(idleStoryCycle.status, .pass)
         XCTAssertTrue(idleStoryCycle.detail.contains("commit-constellation"))
         XCTAssertTrue(idleStoryCycle.detail.contains("timeline-focus"))
@@ -281,9 +281,9 @@ final class CinematicVisualSmokeReportTests: XCTestCase {
         XCTAssertTrue(
             missingTreatmentSmoke.warningIdentifiers.contains("visual-smoke.native-feedback-treatment-coverage")
         )
-        XCTAssertTrue(missingTreatmentCheck.detail.contains("accents 3/4"))
-        XCTAssertTrue(missingTreatmentCheck.detail.contains("surfaces 3/4"))
-        XCTAssertTrue(missingTreatmentCheck.detail.contains("params 3/4"))
+        XCTAssertTrue(missingTreatmentCheck.detail.contains("accents 4/4"))
+        XCTAssertTrue(missingTreatmentCheck.detail.contains("surfaces 5/6"))
+        XCTAssertTrue(missingTreatmentCheck.detail.contains("params 5/6"))
 
         var malformedParameterReports = completeReports
         let parameterIndex = try XCTUnwrap(
@@ -316,8 +316,8 @@ final class CinematicVisualSmokeReportTests: XCTestCase {
             malformedParameterSmoke.checks.first { $0.id == "native-feedback-treatment-coverage" }
         )
         XCTAssertEqual(malformedParameterCheck.status, .warning)
-        XCTAssertTrue(malformedParameterCheck.detail.contains("surfaces 4/4"))
-        XCTAssertTrue(malformedParameterCheck.detail.contains("params 3/4"))
+        XCTAssertTrue(malformedParameterCheck.detail.contains("surfaces 6/6"))
+        XCTAssertTrue(malformedParameterCheck.detail.contains("params 5/6"))
 
         var divergentPrimitiveReports = completeReports
         let primitiveIndex = try XCTUnwrap(
@@ -332,9 +332,9 @@ final class CinematicVisualSmokeReportTests: XCTestCase {
             divergentPrimitiveSmoke.checks.first { $0.id == "native-feedback-treatment-coverage" }
         )
         XCTAssertEqual(divergentPrimitiveCheck.status, .warning)
-        XCTAssertTrue(divergentPrimitiveCheck.detail.contains("surfaces 4/4"))
-        XCTAssertTrue(divergentPrimitiveCheck.detail.contains("params 4/4"))
-        XCTAssertTrue(divergentPrimitiveCheck.detail.contains("prims 3/4"))
+        XCTAssertTrue(divergentPrimitiveCheck.detail.contains("surfaces 6/6"))
+        XCTAssertTrue(divergentPrimitiveCheck.detail.contains("params 6/6"))
+        XCTAssertTrue(divergentPrimitiveCheck.detail.contains("prims 5/6"))
     }
 
     func testRecapArtifactCommandAvailabilityWarnsForMissingCoverageAndCollisions() throws {
@@ -972,7 +972,7 @@ final class CinematicVisualSmokeReportTests: XCTestCase {
             "visual-smoke.native-feedback-treatment-coverage"
         )
         XCTAssertTrue(smoke.warningIdentifiers.contains("visual-smoke.native-feedback-treatment-coverage"))
-        XCTAssertTrue(treatmentCheck.detail.contains("prims 3/4"))
+        XCTAssertTrue(treatmentCheck.detail.contains("prims 5/6"))
 
         let summary = CinematicDiagnosticsSummary(report: report, visualSmoke: smoke)
         XCTAssertEqual(summary.plaqueTreatmentLegend.status, .warning)

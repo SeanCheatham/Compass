@@ -392,6 +392,11 @@ enum CompassProjectStorageMigrationActionError: LocalizedError, Equatable {
     }
 }
 
+enum PlanReadinessNativeFeedbackGate: String, Equatable {
+    case planOnly = "plan-only"
+    case pausedBeforeDevelop = "paused-before-develop"
+}
+
 @MainActor
 final class CompassProject: ObservableObject, Identifiable {
     let id: UUID
@@ -1187,7 +1192,7 @@ extension CompassProject {
                     try persistSessions()
                     phase = .paused
                     log("Paused before Develop.", level: .warning)
-                    feedback(.paused)
+                    feedbackPlanReadinessGate(for: nextState, gate: .pausedBeforeDevelop)
                     isRunning = false
                     executor = nil
                     await refresh()
@@ -1205,6 +1210,7 @@ extension CompassProject {
                 appendSessionNote("Plan-only run; Develop was not started.", to: sessionIndex)
                 endSession(sessionIndex, status: .awaitingApproval)
                 phase = .idle
+                feedbackPlanReadinessGate(for: nextState, gate: .planOnly)
                 isRunning = false
                 executor = nil
             }
@@ -1876,12 +1882,74 @@ extension CompassProject {
             return
         }
 
+        recordCinematicNativeFeedbackCue(cue, now: now)
+    }
+
+    @discardableResult
+    func recordPlanReadinessNativeFeedback(
+        state candidateState: PlanState? = nil,
+        gate _: PlanReadinessNativeFeedbackGate,
+        now: Date = Date()
+    ) -> CinematicNativeFeedbackCuePlan? {
+        guard let context = planReadinessNativeFeedbackContext(for: candidateState ?? state) else {
+            return nil
+        }
+        guard let cue = CinematicNativeFeedbackCuePlanner.plan(
+            milestone: .developReady,
+            content: context.content,
+            phase: isPaused ? .paused : phase,
+            feedbackMode: nativeFeedbackMode,
+            recentRunCues: context.reliabilityFeedback.recentRunCues,
+            readinessPlan: context.readinessPlan
+        ) else {
+            clearCinematicNativeFeedbackCue(reason: .cleared, now: now)
+            return nil
+        }
+
+        return recordCinematicNativeFeedbackCue(cue, now: now)
+    }
+
+    private struct PlanReadinessNativeFeedbackContext {
+        var readinessPlan: CinematicPlanCompassReadinessPlan
+        var reliabilityFeedback: PlanReliabilityFeedback
+        var content: NativeFeedbackContent
+    }
+
+    private func planReadinessNativeFeedbackContext(
+        for candidateState: PlanState
+    ) -> PlanReadinessNativeFeedbackContext? {
+        guard candidateState.immediate != nil else { return nil }
+
+        let planCompassPlan = CinematicPlanCompassPlan(state: candidateState)
+        let reliabilityFeedback = PlanReliabilityFeedback(
+            state: candidateState,
+            sessions: sessions
+        )
+        let readinessPlan = CinematicPlanCompassReadinessPlan(
+            state: candidateState,
+            planCompassPlan: planCompassPlan,
+            reliabilityFeedback: reliabilityFeedback
+        )
+
+        return PlanReadinessNativeFeedbackContext(
+            readinessPlan: readinessPlan,
+            reliabilityFeedback: reliabilityFeedback,
+            content: NativeFeedbackContent(readinessPlan: readinessPlan, projectName: displayName)
+        )
+    }
+
+    @discardableResult
+    private func recordCinematicNativeFeedbackCue(
+        _ cue: CinematicNativeFeedbackCuePlan,
+        now: Date
+    ) -> CinematicNativeFeedbackCuePlan {
         var lifecycle = cinematicNativeFeedbackCueLifecycle
         let activeCue = lifecycle.record(cue, now: now)
         cinematicNativeFeedbackCueLifecycle = lifecycle
         cinematicNativeFeedbackCue = activeCue
         scheduleCinematicNativeFeedbackCueExpiry(for: lifecycle.active, now: now)
         scheduleCinematicBriefingRefresh(reason: .projectRefresh)
+        return activeCue
     }
 
     func recordCinematicDiagnosticsWarningBundle(
@@ -1898,6 +1966,20 @@ extension CompassProject {
             milestone,
             projectName: displayName,
             mode: nativeFeedbackMode
+        )
+    }
+
+    private func feedbackPlanReadinessGate(
+        for candidateState: PlanState,
+        gate: PlanReadinessNativeFeedbackGate
+    ) {
+        guard let context = planReadinessNativeFeedbackContext(for: candidateState) else { return }
+        recordPlanReadinessNativeFeedback(state: candidateState, gate: gate)
+        NativeFeedbackService.shared.emit(
+            .developReady,
+            projectName: displayName,
+            mode: nativeFeedbackMode,
+            content: context.content
         )
     }
 

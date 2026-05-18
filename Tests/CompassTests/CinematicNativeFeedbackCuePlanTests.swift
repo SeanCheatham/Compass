@@ -202,6 +202,106 @@ final class CinematicNativeFeedbackCuePlanTests: XCTestCase {
         XCTAssertLessThan(cue.priority, 10 + PlanReliabilityFeedback.priority(for: .dirtyWorktree))
     }
 
+    func testDevelopReadyCueUsesReadinessCopyAndIsDeterministic() throws {
+        let state = PlanState(
+            completed: ["Mapped readiness cue"],
+            immediate: PlanNext(
+                plan: "Wait for Develop approval",
+                verify: "swift test",
+                verifyTimeoutMs: 120_000,
+                estimatedDifficulty: .medium
+            ),
+            midTerm: "",
+            longTerm: ""
+        )
+        let plan = CinematicPlanCompassPlan(state: state)
+        let feedback = PlanReliabilityFeedback(state: state, sessions: [])
+        let readiness = CinematicPlanCompassReadinessPlan(
+            state: state,
+            planCompassPlan: plan,
+            reliabilityFeedback: feedback
+        )
+        let content = NativeFeedbackContent(readinessPlan: readiness, projectName: "Editor")
+        let first = try XCTUnwrap(
+            CinematicNativeFeedbackCuePlanner.plan(
+                milestone: .developReady,
+                content: content,
+                phase: .paused,
+                feedbackMode: .notifications,
+                recentRunCues: feedback.recentRunCues,
+                readinessPlan: readiness
+            )
+        )
+        let repeated = try XCTUnwrap(
+            CinematicNativeFeedbackCuePlanner.plan(
+                milestone: .developReady,
+                content: content,
+                phase: .paused,
+                feedbackMode: .notifications,
+                recentRunCues: feedback.recentRunCues,
+                readinessPlan: readiness
+            )
+        )
+
+        XCTAssertEqual(first, repeated)
+        XCTAssertEqual(first.milestone, .developReady)
+        XCTAssertEqual(first.phase, .paused)
+        XCTAssertEqual(first.style, .verify)
+        XCTAssertEqual(first.colorIdentifier, "yellow")
+        XCTAssertEqual(first.systemImage, readiness.systemImage)
+        XCTAssertEqual(first.sourceIdentifier, "plan-readiness:ready")
+        XCTAssertEqual(first.priority, 56)
+        XCTAssertFalse(first.isCriticalCinematicBanner)
+        XCTAssertTrue(first.title.contains("Ready for Develop"))
+        XCTAssertTrue(first.status.contains("Ready for Develop"))
+        XCTAssertTrue(first.status.contains("1 completed"))
+        XCTAssertTrue(first.detail.contains("Prove: swift test"))
+        XCTAssertTrue(first.detail.contains("Timeout 2m"))
+        XCTAssertTrue(first.detail.contains("Medium"))
+        XCTAssertTrue(first.detail.contains("warnings clear"))
+        XCTAssertTrue(first.detail.contains("retry none"))
+        XCTAssertLessThanOrEqual(first.title.count, CinematicNativeFeedbackCuePlan.titleLimit)
+        XCTAssertLessThanOrEqual(first.detail.count, CinematicNativeFeedbackCuePlan.detailLimit)
+        XCTAssertLessThanOrEqual(first.status.count, CinematicNativeFeedbackCuePlan.statusLimit)
+        XCTAssertTrue(first.identifier.contains("native-feedback:developReady"))
+        XCTAssertTrue(first.identifier.contains("source:plan-readiness:ready"))
+    }
+
+    func testDevelopReadyWarningStylesStayCriticalForMissingMetadataAndRetryCues() throws {
+        let missingState = PlanState(
+            completed: ["Accepted incomplete metadata"],
+            immediate: PlanNext(plan: "Fill readiness metadata", verify: "swift test"),
+            midTerm: "",
+            longTerm: ""
+        )
+        let missingCue = try readinessCue(for: missingState, sessions: [])
+
+        XCTAssertEqual(missingCue.style, .warning)
+        XCTAssertEqual(missingCue.colorIdentifier, "orange")
+        XCTAssertEqual(missingCue.sourceIdentifier, "plan-readiness:missing-metadata")
+        XCTAssertEqual(missingCue.priority, 28)
+        XCTAssertTrue(missingCue.isCriticalCinematicBanner)
+        XCTAssertTrue(missingCue.detail.contains("warnings warning"))
+
+        let retryState = PlanState(
+            completed: ["Accepted retry metadata"],
+            immediate: PlanNext(
+                plan: "Retry readiness metadata",
+                verify: "swift test",
+                verifyTimeoutMs: 60_000,
+                estimatedDifficulty: .low
+            ),
+            midTerm: "",
+            longTerm: ""
+        )
+        let retryCue = try readinessCue(for: retryState, sessions: [failedVerifySession()])
+
+        XCTAssertEqual(retryCue.style, .warning)
+        XCTAssertEqual(retryCue.sourceIdentifier, "plan-readiness:retry-cue")
+        XCTAssertTrue(retryCue.isCriticalCinematicBanner)
+        XCTAssertTrue(retryCue.detail.contains("retry notice.failedVerify.4"))
+    }
+
     func testLifecycleDurationsAreDeterministicAndBoundedBySeverity() throws {
         let verifyCue = try XCTUnwrap(
             CinematicNativeFeedbackCuePlanner.plan(
@@ -283,6 +383,83 @@ final class CinematicNativeFeedbackCuePlanTests: XCTestCase {
         XCTAssertTrue(secondCue.identifier.contains("lifecycle:active"))
     }
 
+    @MainActor
+    func testProjectReadinessGateCueTriggersOnlyWithImmediateAndDoesNotMutatePlanContext() throws {
+        let now = Date(timeIntervalSinceReferenceDate: 8_000)
+        let readyState = PlanState(
+            completed: ["Prepared Plan-only readiness"],
+            immediate: PlanNext(
+                plan: "Wait at the Plan-only gate",
+                verify: "swift test",
+                verifyTimeoutMs: 90_000,
+                estimatedDifficulty: .medium
+            ),
+            midTerm: "Keep the plan untouched",
+            longTerm: "Keep storage untouched"
+        )
+        let project = CompassProject(
+            repoURL: URL(fileURLWithPath: "/tmp/ReadinessGate"),
+            nativeFeedbackMode: .notifications
+        )
+        project.state = readyState
+        project.sessions = [SessionRecord.started(1)]
+        let stateBefore = project.state
+        let sessionsBefore = project.sessions
+        let activeStorageBefore = project.activeStorage
+        let recapContextBefore = project.cinematicRunRecapShareArtifactLibraryContext
+        let warningHistoryBefore = project.cinematicDiagnosticsWarningBundleHistory
+
+        let planOnlyCue = try XCTUnwrap(
+            project.recordPlanReadinessNativeFeedback(
+                state: readyState,
+                gate: .planOnly,
+                now: now
+            )
+        )
+
+        XCTAssertEqual(planOnlyCue.milestone, .developReady)
+        XCTAssertEqual(planOnlyCue.sourceIdentifier, "plan-readiness:ready")
+        XCTAssertEqual(planOnlyCue.phase, .idle)
+        XCTAssertEqual(project.state, stateBefore)
+        XCTAssertEqual(project.sessions, sessionsBefore)
+        XCTAssertEqual(project.activeStorage, activeStorageBefore)
+        XCTAssertEqual(project.cinematicRunRecapShareArtifactLibraryContext, recapContextBefore)
+        XCTAssertEqual(project.cinematicDiagnosticsWarningBundleHistory, warningHistoryBefore)
+
+        project.isPaused = true
+        project.phase = .paused
+        let pausedCue = try XCTUnwrap(
+            project.recordPlanReadinessNativeFeedback(
+                state: readyState,
+                gate: .pausedBeforeDevelop,
+                now: now.addingTimeInterval(1)
+            )
+        )
+
+        XCTAssertEqual(pausedCue.milestone, .developReady)
+        XCTAssertEqual(pausedCue.phase, .paused)
+        XCTAssertEqual(project.cinematicNativeFeedbackCueLifecycle.recentArchive.first?.milestoneIdentifier, "developReady")
+        XCTAssertEqual(project.state, stateBefore)
+        XCTAssertEqual(project.sessions, sessionsBefore)
+        XCTAssertEqual(project.activeStorage, activeStorageBefore)
+
+        let noImmediateProject = CompassProject(
+            repoURL: URL(fileURLWithPath: "/tmp/ReadinessGateNoImmediate"),
+            nativeFeedbackMode: .notifications
+        )
+        let noImmediateState = PlanState(completed: [], immediate: nil, midTerm: "", longTerm: "")
+        noImmediateProject.state = noImmediateState
+        XCTAssertNil(
+            noImmediateProject.recordPlanReadinessNativeFeedback(
+                state: noImmediateState,
+                gate: .planOnly,
+                now: now
+            )
+        )
+        XCTAssertNil(noImmediateProject.cinematicNativeFeedbackCue)
+        XCTAssertEqual(noImmediateProject.state, noImmediateState)
+    }
+
     func testLifecycleExpiryArchivesAndBoundsRecentCueHistory() throws {
         let now = Date(timeIntervalSinceReferenceDate: 2_000)
         let cue = try XCTUnwrap(
@@ -322,6 +499,50 @@ final class CinematicNativeFeedbackCuePlanTests: XCTestCase {
         XCTAssertEqual(lifecycle.recentArchive.count, CinematicNativeFeedbackCueLifecycle.recentArchiveLimit)
         XCTAssertTrue(lifecycle.recentArchive.allSatisfy { $0.stateIdentifier == "archived" })
         XCTAssertTrue(lifecycle.identifier.contains("archive-count:\(CinematicNativeFeedbackCueLifecycle.recentArchiveLimit)"))
+    }
+
+    private func readinessCue(
+        for state: PlanState,
+        sessions: [SessionRecord]
+    ) throws -> CinematicNativeFeedbackCuePlan {
+        let plan = CinematicPlanCompassPlan(state: state)
+        let feedback = PlanReliabilityFeedback(state: state, sessions: sessions)
+        let readiness = CinematicPlanCompassReadinessPlan(
+            state: state,
+            planCompassPlan: plan,
+            reliabilityFeedback: feedback
+        )
+        return try XCTUnwrap(
+            CinematicNativeFeedbackCuePlanner.plan(
+                milestone: .developReady,
+                content: NativeFeedbackContent(readinessPlan: readiness, projectName: "Editor"),
+                phase: .idle,
+                feedbackMode: .notifications,
+                recentRunCues: feedback.recentRunCues,
+                readinessPlan: readiness
+            )
+        )
+    }
+
+    private func failedVerifySession() -> SessionRecord {
+        SessionRecord(
+            session: 4,
+            startedAt: 4_000,
+            endedAt: 4_500,
+            plan: "Retry readiness",
+            verify: "swift test",
+            beforeSha: nil,
+            afterSha: nil,
+            commits: [],
+            status: .failed,
+            notes: [],
+            verifyOutput: VerifyOutput(
+                command: "swift test",
+                exitCode: 65,
+                tail: "Tests failed"
+            ),
+            feedback: nil
+        )
     }
 }
 

@@ -53,6 +53,7 @@ enum NativeFeedbackMode: String, CaseIterable, Codable, Identifiable {
 
 enum NativeFeedbackMilestone: String, CaseIterable {
     case planAccepted
+    case developReady
     case developStarted
     case verifyStarted
     case verifyPassed
@@ -256,6 +257,10 @@ struct NativeFeedbackContent: Equatable {
             title = "\(projectName): Plan accepted"
             body = "Compass has accepted the next plan."
             spokenPhrase = "\(projectName). Plan accepted."
+        case .developReady:
+            title = "\(projectName): Develop ready"
+            body = "The accepted plan is waiting at the Develop gate."
+            spokenPhrase = "\(projectName). Develop ready."
         case .developStarted:
             title = "\(projectName): Develop started"
             body = "Codex is working on the selected plan."
@@ -297,6 +302,35 @@ struct NativeFeedbackContent: Equatable {
         self.title = Self.boundedText(title, limit: Self.titleLimit)
         self.body = Self.boundedText(body, limit: Self.bodyLimit)
         self.spokenPhrase = Self.boundedText(spokenPhrase, limit: Self.spokenPhraseLimit)
+    }
+
+    init(readinessPlan: CinematicPlanCompassReadinessPlan, projectName rawProjectName: String) {
+        let projectName = Self.sanitizedProjectName(rawProjectName)
+        self.projectName = projectName
+
+        title = Self.boundedText(
+            "\(projectName): \(readinessPlan.statusLabel)",
+            limit: Self.titleLimit
+        )
+        body = Self.boundedText(
+            [
+                readinessPlan.verifyCommandLabel,
+                readinessPlan.completedLabel,
+                readinessPlan.timeoutLabel,
+                readinessPlan.difficultyLabel,
+                "warnings \(readinessPlan.warningStateIdentifier)",
+                "retry \(readinessPlan.retryCueSummary)"
+            ].joined(separator: " | "),
+            limit: Self.bodyLimit
+        )
+        spokenPhrase = Self.boundedText(
+            [
+                projectName,
+                readinessPlan.statusLabel,
+                readinessPlan.completedLabel
+            ].joined(separator: ". ") + ".",
+            limit: Self.spokenPhraseLimit
+        )
     }
 
     static func sanitizedProjectName(_ rawName: String) -> String {
@@ -360,7 +394,12 @@ final class NativeFeedbackService: NSObject, UNUserNotificationCenterDelegate {
         }
     }
 
-    func emit(_ milestone: NativeFeedbackMilestone, projectName: String, mode: NativeFeedbackMode) {
+    func emit(
+        _ milestone: NativeFeedbackMilestone,
+        projectName: String,
+        mode: NativeFeedbackMode,
+        content providedContent: NativeFeedbackContent? = nil
+    ) {
         lastAttemptedMilestoneIdentifier = milestone.rawValue
         guard mode != .off else {
             lastAttemptResultIdentifier = "suppressed-off"
@@ -379,7 +418,7 @@ final class NativeFeedbackService: NSObject, UNUserNotificationCenterDelegate {
         recentMilestones[dedupeKey] = now
         pruneRecentMilestones(now: now)
 
-        let content = NativeFeedbackContent(milestone: milestone, projectName: projectName)
+        let content = providedContent ?? NativeFeedbackContent(milestone: milestone, projectName: projectName)
         if mode.sendsNotifications {
             lastAttemptResultIdentifier = mode.speaks ? "queued-notification-speech" : "queued-notification"
             Task { @MainActor in

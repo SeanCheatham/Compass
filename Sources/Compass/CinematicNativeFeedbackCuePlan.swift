@@ -166,7 +166,7 @@ struct CinematicNativeFeedbackCuePlan: Equatable, Identifiable {
             .joined(separator: "/")
     }
 
-    private static func boundedText(_ value: String, limit: Int) -> String {
+    fileprivate static func boundedText(_ value: String, limit: Int) -> String {
         guard limit > 0 else { return "" }
         let normalized = normalizedText(value)
         guard normalized.count > limit else { return normalized }
@@ -396,9 +396,19 @@ enum CinematicNativeFeedbackCuePlanner {
         content: NativeFeedbackContent,
         phase: LoopPhase,
         feedbackMode: NativeFeedbackMode,
-        recentRunCues: [Int: PlanReliabilityFeedback.RunCue]
+        recentRunCues: [Int: PlanReliabilityFeedback.RunCue],
+        readinessPlan: CinematicPlanCompassReadinessPlan? = nil
     ) -> CinematicNativeFeedbackCuePlan? {
         guard feedbackMode != .off else { return nil }
+
+        if milestone == .developReady, let readinessPlan {
+            return planReadinessCue(
+                content: content,
+                phase: phase,
+                feedbackMode: feedbackMode,
+                readinessPlan: readinessPlan
+            )
+        }
 
         let selectedRunCue = selectedRunCue(
             for: milestone,
@@ -434,6 +444,50 @@ enum CinematicNativeFeedbackCuePlanner {
             sourceIdentifier: sourceIdentifier,
             runCueKind: selectedRunCue?.cue.kind,
             runCueSessionNumber: selectedRunCue?.sessionNumber
+        )
+    }
+
+    private static func planReadinessCue(
+        content: NativeFeedbackContent,
+        phase: LoopPhase,
+        feedbackMode: NativeFeedbackMode,
+        readinessPlan: CinematicPlanCompassReadinessPlan
+    ) -> CinematicNativeFeedbackCuePlan {
+        let cueStyle = readinessStyle(for: readinessPlan)
+        let sourceIdentifier = [
+            "plan-readiness",
+            readinessPlan.statusIdentifier
+        ].joined(separator: ":")
+        let status = CinematicNativeFeedbackCuePlan.boundedText(
+            [
+                readinessPlan.statusLabel,
+                "\(readinessPlan.completedCount) completed"
+            ].joined(separator: " - "),
+            limit: CinematicNativeFeedbackCuePlan.statusLimit
+        )
+        let detail = CinematicNativeFeedbackCuePlan.boundedText(
+            [
+                readinessPlan.verifyCommandLabel,
+                readinessPlan.timeoutLabel,
+                readinessPlan.difficultyLabel,
+                "warnings \(readinessPlan.warningStateIdentifier)",
+                "retry \(readinessPlan.retryCueSummary)"
+            ].joined(separator: " | "),
+            limit: CinematicNativeFeedbackCuePlan.detailLimit
+        )
+        let priority = readinessPlan.hasWarning ? 28 : priority(for: .developReady)
+
+        return CinematicNativeFeedbackCuePlan(
+            milestone: .developReady,
+            phase: phase,
+            feedbackMode: feedbackMode,
+            title: content.title,
+            detail: detail,
+            status: status,
+            systemImage: readinessPlan.systemImage,
+            style: cueStyle,
+            priority: priority,
+            sourceIdentifier: sourceIdentifier
         )
     }
 
@@ -479,6 +533,8 @@ enum CinematicNativeFeedbackCuePlanner {
             return 46
         case .verifyPassed, .commitsPromoted:
             return 54
+        case .developReady:
+            return 56
         case .planAccepted:
             return 58
         case .noImmediateWork:
@@ -497,6 +553,8 @@ enum CinematicNativeFeedbackCuePlanner {
         switch milestone {
         case .planAccepted:
             return .plan
+        case .developReady:
+            return .verify
         case .developStarted, .developRetrying:
             return .develop
         case .verifyStarted:
@@ -529,6 +587,8 @@ enum CinematicNativeFeedbackCuePlanner {
         switch milestone {
         case .planAccepted:
             return "map.fill"
+        case .developReady:
+            return "checkmark.seal.fill"
         case .developStarted:
             return "hammer.fill"
         case .verifyStarted:
@@ -547,6 +607,21 @@ enum CinematicNativeFeedbackCuePlanner {
             return "stop.circle.fill"
         case .noImmediateWork:
             return "clock.badge.questionmark"
+        }
+    }
+
+    private static func readinessStyle(
+        for readinessPlan: CinematicPlanCompassReadinessPlan
+    ) -> CinematicNativeFeedbackCuePlan.Style {
+        switch readinessPlan.statusIdentifier {
+        case "ready":
+            return .verify
+        case "missing-metadata", "retry-cue":
+            return .warning
+        case "no-immediate":
+            return .idle
+        default:
+            return readinessPlan.hasWarning ? .warning : .verify
         }
     }
 

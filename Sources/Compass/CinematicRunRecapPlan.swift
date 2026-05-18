@@ -969,6 +969,8 @@ enum CinematicRunRecapPlanner {
         switch milestoneIdentifier {
         case NativeFeedbackMilestone.planAccepted.rawValue:
             return "map.fill"
+        case NativeFeedbackMilestone.developReady.rawValue:
+            return "checkmark.seal.fill"
         case NativeFeedbackMilestone.developStarted.rawValue:
             return "hammer.fill"
         case NativeFeedbackMilestone.verifyStarted.rawValue:

@@ -368,6 +368,55 @@ final class CinematicOverlayDisplayPlanTests: XCTestCase {
         }
     }
 
+    func testQuietModeSuppressesReadyReadinessCueButKeepsReadinessWarningsVisible() throws {
+        let readyCue = try makeReadinessCue(
+            state: PlanState(
+                completed: ["Prepared quiet readiness"],
+                immediate: PlanNext(
+                    plan: "Wait quietly at Develop gate",
+                    verify: "swift test",
+                    verifyTimeoutMs: 120_000,
+                    estimatedDifficulty: .medium
+                ),
+                midTerm: "",
+                longTerm: ""
+            )
+        )
+        let warningCue = try makeReadinessCue(
+            state: PlanState(
+                completed: ["Prepared warning readiness"],
+                immediate: PlanNext(plan: "Fill readiness metadata", verify: "swift test"),
+                midTerm: "",
+                longTerm: ""
+            )
+        )
+        let quietSettings = CinematicInfluenceSettings(
+            cameraStyle: .follow,
+            comfortMode: .quiet,
+            intensity: 0.6
+        )
+
+        let readyPlan = makeOverlayPlan(
+            phase: .paused,
+            influenceSettings: quietSettings,
+            nativeFeedbackCue: readyCue
+        )
+        let warningPlan = makeOverlayPlan(
+            phase: .idle,
+            influenceSettings: quietSettings,
+            nativeFeedbackCue: warningCue
+        )
+
+        XCTAssertEqual(readyCue.milestone, .developReady)
+        XCTAssertFalse(readyCue.isCriticalCinematicBanner)
+        XCTAssertFalse(readyPlan.showsNativeFeedbackBanner)
+        XCTAssertEqual(readyPlan.nativeFeedbackBannerPolicyIdentifier, "suppressed-quiet-noncritical")
+        XCTAssertEqual(warningCue.sourceIdentifier, "plan-readiness:missing-metadata")
+        XCTAssertTrue(warningCue.isCriticalCinematicBanner)
+        XCTAssertTrue(warningPlan.showsNativeFeedbackBanner)
+        XCTAssertEqual(warningPlan.nativeFeedbackBannerPolicyIdentifier, "visible")
+    }
+
     func testQuietModeHasNoNativeFeedbackBannerAfterCueExpires() throws {
         let now = Date(timeIntervalSinceReferenceDate: 3_000)
         let nativeCue = try XCTUnwrap(
@@ -437,6 +486,26 @@ private func makeOverlayPlan(
         narrativeCueReadability: readability,
         nativeFeedbackCue: nativeFeedbackCue,
         nativeFeedbackLifecycleIdentifier: nativeFeedbackLifecycleIdentifier
+    )
+}
+
+private func makeReadinessCue(state: PlanState) throws -> CinematicNativeFeedbackCuePlan {
+    let plan = CinematicPlanCompassPlan(state: state)
+    let feedback = PlanReliabilityFeedback(state: state, sessions: [])
+    let readiness = CinematicPlanCompassReadinessPlan(
+        state: state,
+        planCompassPlan: plan,
+        reliabilityFeedback: feedback
+    )
+    return try XCTUnwrap(
+        CinematicNativeFeedbackCuePlanner.plan(
+            milestone: .developReady,
+            content: NativeFeedbackContent(readinessPlan: readiness, projectName: "Overlay"),
+            phase: .idle,
+            feedbackMode: .notifications,
+            recentRunCues: feedback.recentRunCues,
+            readinessPlan: readiness
+        )
     )
 }
 

@@ -255,14 +255,16 @@ final class CinematicDiagnosticsTests: XCTestCase {
             reports.first { $0.nativeFeedback.lifecycleStateIdentifier == "expired" }
         )
 
-        XCTAssertEqual(reports.count, 5)
-        XCTAssertEqual(activeReports.count, 4)
+        XCTAssertEqual(reports.count, 7)
+        XCTAssertEqual(activeReports.count, 6)
         XCTAssertEqual(
             Set(activeReports.map(\.nativeFeedback.styleIdentifier)),
             Set(["verify", "warning", "failure"])
         )
         XCTAssertTrue(activeReports.contains { $0.nativeFeedback.sourceIdentifier == "native:verifyStarted" })
         XCTAssertTrue(activeReports.contains { $0.nativeFeedback.sourceIdentifier == "native:postChecksFailed" })
+        XCTAssertTrue(activeReports.contains { $0.nativeFeedback.sourceIdentifier == "plan-readiness:ready" })
+        XCTAssertTrue(activeReports.contains { $0.nativeFeedback.sourceIdentifier == "plan-readiness:missing-metadata" })
         XCTAssertTrue(activeReports.contains { $0.nativeFeedback.sourceIdentifier == "run-cue:11:dirtyWorktree" })
         XCTAssertTrue(activeReports.contains { $0.nativeFeedback.sourceIdentifier == "run-cue:7:failedVerify" })
         XCTAssertEqual(
@@ -288,11 +290,35 @@ final class CinematicDiagnosticsTests: XCTestCase {
         let retryReport = try XCTUnwrap(
             activeReports.first { $0.nativeFeedback.sourceIdentifier == "run-cue:7:failedVerify" }
         )
+        let readinessReport = try XCTUnwrap(
+            activeReports.first { $0.nativeFeedback.sourceIdentifier == "plan-readiness:ready" }
+        )
+        let readinessWarningReport = try XCTUnwrap(
+            activeReports.first { $0.nativeFeedback.sourceIdentifier == "plan-readiness:missing-metadata" }
+        )
         XCTAssertEqual(verifyReport.narrativeCue.questPlaque.plaqueTreatmentAccentIdentifier, "verify-seal")
         XCTAssertEqual(verifyReport.narrativeCue.questPlaque.plaqueTreatmentRouteIdentifier, "verifyStarted.verify")
         XCTAssertEqual(
             verifyReport.narrativeCue.questPlaque.plaqueTreatmentRenderPrimitiveIdentifiers,
             ["rail.top", "rail.bottom", "seal.left", "seal.right"]
+        )
+        XCTAssertEqual(readinessReport.narrativeCue.questPlaque.plaqueTreatmentAccentIdentifier, "verify-seal")
+        XCTAssertEqual(readinessReport.narrativeCue.questPlaque.plaqueTreatmentRouteIdentifier, "developReady.verify")
+        XCTAssertEqual(
+            readinessReport.narrativeCue.questPlaque.plaqueTreatmentRenderPrimitiveIdentifiers,
+            ["rail.top", "rail.bottom", "seal.left", "seal.right"]
+        )
+        XCTAssertEqual(
+            readinessWarningReport.narrativeCue.questPlaque.plaqueTreatmentAccentIdentifier,
+            "warning-rails"
+        )
+        XCTAssertEqual(
+            readinessWarningReport.narrativeCue.questPlaque.plaqueTreatmentRouteIdentifier,
+            "developReady.warning"
+        )
+        XCTAssertEqual(
+            readinessWarningReport.narrativeCue.questPlaque.plaqueTreatmentRenderPrimitiveIdentifiers,
+            ["rail.top", "rail.bottom", "warning.left", "warning.right"]
         )
         XCTAssertEqual(failedReport.narrativeCue.questPlaque.plaqueTreatmentAccentIdentifier, "failure-fracture")
         XCTAssertEqual(failedReport.narrativeCue.questPlaque.plaqueTreatmentRouteIdentifier, "postChecksFailed.failure")
@@ -350,16 +376,16 @@ final class CinematicDiagnosticsTests: XCTestCase {
             smoke.checks.first { $0.id == "native-feedback-treatment-coverage" }
         )
         XCTAssertEqual(nativeFeedbackCheck.status, .pass)
-        XCTAssertTrue(nativeFeedbackCheck.detail.contains("active 4"))
+        XCTAssertTrue(nativeFeedbackCheck.detail.contains("active 6"))
         XCTAssertTrue(nativeFeedbackCheck.detail.contains("routes fracture,seal,warning"))
         XCTAssertTrue(nativeFeedbackCheck.detail.contains("expired 1"))
         XCTAssertEqual(nativeFeedbackTreatmentCheck.status, .pass)
         XCTAssertTrue(nativeFeedbackTreatmentCheck.detail.contains("accents 4/4"))
-        XCTAssertTrue(nativeFeedbackTreatmentCheck.detail.contains("prims 4/4"))
-        XCTAssertTrue(nativeFeedbackTreatmentCheck.detail.contains("routes 4/4"))
-        XCTAssertTrue(nativeFeedbackTreatmentCheck.detail.contains("pairs 4/4"))
-        XCTAssertTrue(nativeFeedbackTreatmentCheck.detail.contains("surfaces 4/4"))
-        XCTAssertTrue(nativeFeedbackTreatmentCheck.detail.contains("params 4/4"))
+        XCTAssertTrue(nativeFeedbackTreatmentCheck.detail.contains("prims 6/6"))
+        XCTAssertTrue(nativeFeedbackTreatmentCheck.detail.contains("routes 6/6"))
+        XCTAssertTrue(nativeFeedbackTreatmentCheck.detail.contains("pairs 6/6"))
+        XCTAssertTrue(nativeFeedbackTreatmentCheck.detail.contains("surfaces 6/6"))
+        XCTAssertTrue(nativeFeedbackTreatmentCheck.detail.contains("params 6/6"))
     }
 
     func testReportAndSummaryExportSelectedRecoveryCue() throws {
@@ -1704,6 +1730,104 @@ final class CinematicDiagnosticsTests: XCTestCase {
                     cue.title,
                     cue.detail,
                     NativeFeedbackContent(milestone: .verifyStarted, projectName: "NativeDiagnosticsRepo").body
+                ]
+            )
+        }
+    }
+
+    func testCurrentReportPropagatesPlanReadinessNativeFeedbackCueToDiagnosticsAndExport() async throws {
+        try await MainActor.run {
+            let now = Date(timeIntervalSinceReferenceDate: 8_500)
+            let repoURL = URL(fileURLWithPath: "/tmp/ReadinessNativeDiagnosticsRepo", isDirectory: true)
+            let project = CompassProject(
+                repoURL: repoURL,
+                cinematicInfluenceSettings: CinematicInfluenceSettings(cameraStyle: .follow, intensity: 0.65),
+                nativeFeedbackMode: .notifications
+            )
+            project.state = PlanState(
+                completed: ["Accepted readiness cue"],
+                immediate: PlanNext(
+                    plan: "Wait at the Develop gate",
+                    verify: "swift test",
+                    verifyTimeoutMs: 120_000,
+                    estimatedDifficulty: .medium
+                ),
+                midTerm: "",
+                longTerm: ""
+            )
+            project.phase = .paused
+            project.isPaused = true
+            project.languageProfile = languageProfile(primaryLanguage: .swift)
+            project.activityProfile = activityProfile(worktreeChanges: worktreeChanges(modified: 1))
+            let cue = try XCTUnwrap(
+                project.recordPlanReadinessNativeFeedback(
+                    state: project.state,
+                    gate: .pausedBeforeDevelop,
+                    now: now
+                )
+            )
+
+            let report = CinematicDiagnostics.currentReport(for: project)
+
+            XCTAssertEqual(cue.milestone, .developReady)
+            XCTAssertEqual(cue.sourceIdentifier, "plan-readiness:ready")
+            XCTAssertEqual(cue.styleIdentifier, "verify")
+            XCTAssertEqual(report.nativeFeedback.cueIdentifier, cue.identifier)
+            XCTAssertEqual(report.nativeFeedback.sourceIdentifier, "plan-readiness:ready")
+            XCTAssertEqual(report.nativeFeedback.milestoneIdentifier, "developReady")
+            XCTAssertEqual(report.nativeFeedback.styleIdentifier, "verify")
+            XCTAssertEqual(report.narrativeCue.nativeFeedbackSourceIdentifier, "plan-readiness:ready")
+            XCTAssertEqual(report.narrativeCue.nativeFeedbackMilestoneIdentifier, "developReady")
+            XCTAssertEqual(report.narrativeCue.questPlaque.plaqueTreatmentAccentIdentifier, "verify-seal")
+            XCTAssertEqual(report.narrativeCue.questPlaque.plaqueTreatmentRouteIdentifier, "developReady.verify")
+            XCTAssertEqual(
+                report.narrativeCue.questPlaque.plaqueTreatmentRenderPrimitiveIdentifiers,
+                ["rail.top", "rail.bottom", "seal.left", "seal.right"]
+            )
+            XCTAssertEqual(report.overlayDisplay.nativeFeedbackCueIdentifier, cue.identifier)
+            XCTAssertEqual(
+                report.overlayDisplay.nativeFeedbackLifecycleIdentifier,
+                project.cinematicNativeFeedbackCueLifecycle.identifier
+            )
+            let activeHistory = try XCTUnwrap(report.nativeFeedback.lifecycleActiveHistoryEntry)
+            XCTAssertEqual(activeHistory.milestoneIdentifier, "developReady")
+            XCTAssertEqual(activeHistory.sourceIdentifier, "plan-readiness:ready")
+            XCTAssertEqual(activeHistory.styleIdentifier, "verify")
+
+            let summary = CinematicDiagnosticsSummary(
+                report: report,
+                visualSmoke: CinematicVisualSmokeReport(reports: [report])
+            )
+            XCTAssertTrue(summary.exportText.contains("source plan-readiness:ready"))
+            XCTAssertTrue(summary.exportText.contains("milestone developReady"))
+            XCTAssertTrue(summary.exportText.contains("treatment verify-seal/developReady.verify"))
+            XCTAssertTrue(summary.exportText.contains("primitives rail.top,rail.bottom,seal.left,seal.right"))
+            let historyRow = try XCTUnwrap(summary.rows.first { $0.id == "native-feedback-history" })
+            assertNativeFeedbackHistoryExport(
+                summary.nativeFeedbackHistoryExport,
+                row: historyRow,
+                activeCount: 1,
+                archivedCount: 0,
+                omittedCount: 0,
+                requiredTokens: [
+                    "#1 active",
+                    "milestone developReady",
+                    "source plan-readiness:ready",
+                    "style verify",
+                    "duration 8.0000s",
+                    "lifecycle \(cue.lifecycleIdentifier)"
+                ],
+                forbiddenTokens: [
+                    cue.title,
+                    cue.detail,
+                    NativeFeedbackContent(
+                        readinessPlan: CinematicPlanCompassReadinessPlan(
+                            state: project.state,
+                            planCompassPlan: CinematicPlanCompassPlan(state: project.state),
+                            reliabilityFeedback: PlanReliabilityFeedback(state: project.state, sessions: project.sessions)
+                        ),
+                        projectName: "ReadinessNativeDiagnosticsRepo"
+                    ).body
                 ]
             )
         }

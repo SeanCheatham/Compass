@@ -2090,7 +2090,7 @@ struct CinematicVisualSmokeReport: Equatable {
 
         let isPassing = !activeReports.isEmpty
             && styles.isSuperset(of: expectedStyles)
-            && sourceFamilies.isSuperset(of: ["native", "run-cue"])
+            && sourceFamilies.isSuperset(of: ["native", "plan-readiness", "run-cue"])
             && affectedDescriptors.isSuperset(of: expectedDescriptors)
             && anchorRoutes.isSuperset(of: expectedAnchorRoutes)
             && visibleBannerReports == activeReports.count
@@ -2711,6 +2711,18 @@ struct CinematicVisualSmokeReport: Equatable {
             accentIdentifier: "verify-seal",
             routeIdentifier: "verifyStarted.verify",
             primitiveIdentifiers: ["rail.top", "rail.bottom", "seal.left", "seal.right"]
+        ),
+        NativeFeedbackTreatmentExpectation(
+            sourceIdentifier: "plan-readiness:ready",
+            accentIdentifier: "verify-seal",
+            routeIdentifier: "developReady.verify",
+            primitiveIdentifiers: ["rail.top", "rail.bottom", "seal.left", "seal.right"]
+        ),
+        NativeFeedbackTreatmentExpectation(
+            sourceIdentifier: "plan-readiness:missing-metadata",
+            accentIdentifier: "warning-rails",
+            routeIdentifier: "developReady.warning",
+            primitiveIdentifiers: ["rail.top", "rail.bottom", "warning.left", "warning.right"]
         ),
         NativeFeedbackTreatmentExpectation(
             sourceIdentifier: "run-cue:11:dirtyWorktree",
@@ -3778,6 +3790,9 @@ struct CinematicVisualSmokeReport: Equatable {
         }
         if source.hasPrefix("run-cue:") {
             return "run-cue"
+        }
+        if source.hasPrefix("plan-readiness:") {
+            return "plan-readiness"
         }
         return nil
     }
@@ -7786,12 +7801,50 @@ enum CinematicDiagnostics {
                 milestone: .postChecksFailed,
                 recentRunCues: [:],
                 now: start.addingTimeInterval(3)
+            ),
+            representativePlanReadinessNativeFeedbackSmokeReport(
+                repoName: "Native Feedback Develop Ready",
+                state: PlanState(
+                    completed: ["Accepted readiness milestone", "Prepared Develop gate"],
+                    immediate: PlanNext(
+                        plan: "Start the gated Develop pass",
+                        verify: "swift test --filter CinematicNativeFeedbackCuePlanTests",
+                        verifyTimeoutMs: 180_000,
+                        estimatedDifficulty: .medium
+                    ),
+                    midTerm: "Keep readiness cues visible",
+                    longTerm: "Make gates legible"
+                ),
+                phase: .paused,
+                isPaused: true,
+                language: .swift,
+                activityProfile: activityProfile(worktreeChanges: worktreeChanges(modified: 1)),
+                influenceSettings: influenceSettings,
+                now: start.addingTimeInterval(4)
+            ),
+            representativePlanReadinessNativeFeedbackSmokeReport(
+                repoName: "Native Feedback Metadata Warning",
+                state: PlanState(
+                    completed: ["Accepted metadata warning milestone"],
+                    immediate: PlanNext(
+                        plan: "Fill in missing readiness metadata",
+                        verify: "swift test --filter CinematicNativeFeedbackCuePlanTests"
+                    ),
+                    midTerm: "Keep warning readiness visible",
+                    longTerm: "Make gates legible"
+                ),
+                phase: .idle,
+                isPaused: false,
+                language: .typeScriptJavaScript,
+                activityProfile: activityProfile(worktreeChanges: worktreeChanges(modified: 2)),
+                influenceSettings: influenceSettings,
+                now: start.addingTimeInterval(5)
             )
         ].compactMap { $0 }
 
         guard let expiredReport = representativeExpiredNativeFeedbackSmokeReport(
             influenceSettings: influenceSettings,
-            now: start.addingTimeInterval(4)
+            now: start.addingTimeInterval(6)
         ) else {
             return activeReports
         }
@@ -9112,6 +9165,56 @@ enum CinematicDiagnostics {
             languageProfile: representativeLanguageProfile(for: language),
             activityProfile: activityProfile,
             influenceSettings: influenceSettings,
+            nativeFeedbackCue: activeCue,
+            nativeFeedbackLifecycle: lifecycle
+        )
+    }
+
+    private static func representativePlanReadinessNativeFeedbackSmokeReport(
+        repoName: String,
+        state: PlanState,
+        phase: LoopPhase,
+        isPaused: Bool,
+        language: RepositoryLanguage,
+        activityProfile: RepositoryActivityProfile,
+        influenceSettings: CinematicInfluenceSettings,
+        now: Date
+    ) -> CinematicDiagnosticsReport? {
+        let planCompassPlan = CinematicPlanCompassPlan(state: state)
+        let reliabilityFeedback = PlanReliabilityFeedback(state: state, sessions: [])
+        let readinessPlan = CinematicPlanCompassReadinessPlan(
+            state: state,
+            planCompassPlan: planCompassPlan,
+            reliabilityFeedback: reliabilityFeedback
+        )
+        guard let cue = CinematicNativeFeedbackCuePlanner.plan(
+            milestone: .developReady,
+            content: NativeFeedbackContent(readinessPlan: readinessPlan, projectName: repoName),
+            phase: phase,
+            feedbackMode: .notifications,
+            recentRunCues: reliabilityFeedback.recentRunCues,
+            readinessPlan: readinessPlan
+        ) else {
+            return nil
+        }
+
+        var lifecycle = CinematicNativeFeedbackCueLifecycle()
+        let activeCue = lifecycle.record(cue, now: now)
+        return report(
+            repoName: repoName,
+            phase: phase.rawValue,
+            immediateTitle: state.immediate?.plan ?? "No immediate plan",
+            completedCount: state.completed.count,
+            planCompassPlan: planCompassPlan,
+            planCompassReadinessPlan: readinessPlan,
+            latestEvent: nil,
+            languageProfile: representativeLanguageProfile(for: language),
+            activityProfile: activityProfile,
+            influenceSettings: influenceSettings,
+            isRunning: false,
+            isAutoPlaying: false,
+            isPaused: isPaused,
+            hasRepository: true,
             nativeFeedbackCue: activeCue,
             nativeFeedbackLifecycle: lifecycle
         )
