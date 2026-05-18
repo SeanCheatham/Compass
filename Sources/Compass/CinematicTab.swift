@@ -13,6 +13,13 @@ struct CinematicTab: View {
             let caption = CinematicCaption(project: project)
             let displayPlan = cinematicOverlayDisplayPlan
             let planCompassPlan = CinematicPlanCompassPlan(state: project.state)
+            let planCompassSceneFocusCandidatePlan = CinematicPlanCompassSceneFocusPlanner.plan(
+                isPlanOverlaySelected: true,
+                planCompassPlan: planCompassPlan
+            )
+            let planCompassSceneFocusPlan = overlayMode == .plan
+                ? planCompassSceneFocusCandidatePlan
+                : .none
             let nativeFeedbackCue = project.cinematicNativeFeedbackCue
             let displayedNativeFeedbackCue = displayPlan.showsNativeFeedbackBanner ? nativeFeedbackCue : nil
             let reliabilityFeedback = PlanReliabilityFeedback(
@@ -94,6 +101,7 @@ struct CinematicTab: View {
                 influenceSettings: project.cinematicInfluenceSettings,
                 commitConstellationPlan: project.cinematicCommitConstellationPlan,
                 timelineSceneFocusPlan: timelineSceneFocusCandidatePlan,
+                planCompassSceneFocusPlan: planCompassSceneFocusCandidatePlan,
                 nativeFeedbackCue: nativeFeedbackCue,
                 nativeFeedbackPlaqueDescriptor: CinematicIdleStoryCyclePlanner.nativeFeedbackPlaqueDescriptor(
                     phase: project.isPaused ? .paused : project.phase,
@@ -126,6 +134,7 @@ struct CinematicTab: View {
                     commitConstellationPlan: project.cinematicCommitConstellationPlan,
                     recoveryCuePlan: recoveryCuePlan,
                     idleStoryCyclePlan: idleStoryCyclePlan,
+                    planCompassSceneFocusPlan: planCompassSceneFocusPlan,
                     timelineSceneFocusPlan: timelineSceneFocusPlan,
                     runRecapSceneFocusPlan: runRecapSceneFocusPlan,
                     runRecapEndCardPlan: runRecapEndCardPlan,
@@ -205,6 +214,7 @@ struct CinematicTab: View {
                         CinematicInfluenceControls(
                             project: project,
                             idleStoryCyclePlan: idleStoryCyclePlan,
+                            planCompassSceneFocusPlan: planCompassSceneFocusPlan,
                             timelineSceneFocusPlan: timelineSceneFocusPlan,
                             runRecapSceneFocusPlan: runRecapSceneFocusPlan,
                             runRecapEndCardPlan: runRecapEndCardPlan
@@ -2036,6 +2046,7 @@ private struct CinematicInfluenceControls: View {
     @EnvironmentObject private var model: AppModel
     @ObservedObject var project: CompassProject
     var idleStoryCyclePlan: CinematicIdleStoryCyclePlan = .none
+    var planCompassSceneFocusPlan: CinematicPlanCompassSceneFocusPlan = .none
     var timelineSceneFocusPlan: CinematicTimelineSceneFocusPlan = .none
     var runRecapSceneFocusPlan: CinematicRunRecapSceneFocusPlan = .none
     var runRecapEndCardPlan: CinematicRunRecapEndCardPlan = .none
@@ -2050,6 +2061,7 @@ private struct CinematicInfluenceControls: View {
             report: CinematicDiagnostics.currentReport(
                 for: project,
                 idleStoryCyclePlan: idleStoryCyclePlan,
+                planCompassSceneFocusPlan: planCompassSceneFocusPlan,
                 timelineFocusPlan: timelineSceneFocusPlan,
                 runRecapSceneFocusPlan: runRecapSceneFocusPlan,
                 runRecapEndCardPlan: runRecapEndCardPlan

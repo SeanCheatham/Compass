@@ -16,6 +16,7 @@ struct CinematicSceneView: View {
     var commitConstellationPlan: CinematicCommitConstellationPlan
     var recoveryCuePlan: CinematicRecoveryCuePlan
     var idleStoryCyclePlan: CinematicIdleStoryCyclePlan
+    var planCompassSceneFocusPlan: CinematicPlanCompassSceneFocusPlan
     var timelineSceneFocusPlan: CinematicTimelineSceneFocusPlan
     var runRecapSceneFocusPlan: CinematicRunRecapSceneFocusPlan
     var runRecapEndCardPlan: CinematicRunRecapEndCardPlan
@@ -36,6 +37,7 @@ struct CinematicSceneView: View {
         commitConstellationPlan: CinematicCommitConstellationPlan,
         recoveryCuePlan: CinematicRecoveryCuePlan = .none,
         idleStoryCyclePlan: CinematicIdleStoryCyclePlan = .none,
+        planCompassSceneFocusPlan: CinematicPlanCompassSceneFocusPlan = .none,
         timelineSceneFocusPlan: CinematicTimelineSceneFocusPlan = .none,
         runRecapSceneFocusPlan: CinematicRunRecapSceneFocusPlan = .none,
         runRecapEndCardPlan: CinematicRunRecapEndCardPlan = .none,
@@ -53,6 +55,7 @@ struct CinematicSceneView: View {
         self.commitConstellationPlan = commitConstellationPlan
         self.recoveryCuePlan = recoveryCuePlan
         self.idleStoryCyclePlan = idleStoryCyclePlan
+        self.planCompassSceneFocusPlan = planCompassSceneFocusPlan
         self.timelineSceneFocusPlan = timelineSceneFocusPlan
         self.runRecapSceneFocusPlan = runRecapSceneFocusPlan
         self.runRecapEndCardPlan = runRecapEndCardPlan
@@ -75,6 +78,7 @@ struct CinematicSceneView: View {
                 commitConstellationPlan: commitConstellationPlan,
                 recoveryCuePlan: recoveryCuePlan,
                 idleStoryCyclePlan: idleStoryCyclePlan,
+                planCompassSceneFocusPlan: planCompassSceneFocusPlan,
                 timelineSceneFocusPlan: timelineSceneFocusPlan,
                 runRecapSceneFocusPlan: runRecapSceneFocusPlan,
                 runRecapEndCardPlan: runRecapEndCardPlan,
@@ -94,6 +98,7 @@ struct CinematicSceneView: View {
                 commitConstellationPlan: commitConstellationPlan,
                 recoveryCuePlan: recoveryCuePlan,
                 idleStoryCyclePlan: idleStoryCyclePlan,
+                planCompassSceneFocusPlan: planCompassSceneFocusPlan,
                 timelineSceneFocusPlan: timelineSceneFocusPlan,
                 runRecapSceneFocusPlan: runRecapSceneFocusPlan,
                 runRecapEndCardPlan: runRecapEndCardPlan,
@@ -145,6 +150,7 @@ private final class CinematicRealitySceneHost: ObservableObject {
         commitConstellationPlan: CinematicCommitConstellationPlan,
         recoveryCuePlan: CinematicRecoveryCuePlan,
         idleStoryCyclePlan: CinematicIdleStoryCyclePlan,
+        planCompassSceneFocusPlan: CinematicPlanCompassSceneFocusPlan,
         timelineSceneFocusPlan: CinematicTimelineSceneFocusPlan,
         runRecapSceneFocusPlan: CinematicRunRecapSceneFocusPlan,
         runRecapEndCardPlan: CinematicRunRecapEndCardPlan,
@@ -162,6 +168,7 @@ private final class CinematicRealitySceneHost: ObservableObject {
             commitConstellationPlan: commitConstellationPlan,
             recoveryCuePlan: recoveryCuePlan,
             idleStoryCyclePlan: idleStoryCyclePlan,
+            planCompassSceneFocusPlan: planCompassSceneFocusPlan,
             timelineSceneFocusPlan: timelineSceneFocusPlan,
             runRecapSceneFocusPlan: runRecapSceneFocusPlan,
             runRecapEndCardPlan: runRecapEndCardPlan,
@@ -286,6 +293,7 @@ private final class CinematicSceneCoordinator {
     private let narrativeQuestPlaqueNode = Entity()
     private let narrativeArenaInscriptionNode = Entity()
     private let narrativeActivityBannerNode = Entity()
+    private let planCompassFocusNode = Entity()
     private let runRecapEndCardNode = Entity()
     private let savedRecapArtifactTourNode = Entity()
     private let keyLightNode = Entity()
@@ -350,8 +358,11 @@ private final class CinematicSceneCoordinator {
     private var commitConstellationFocusUntil = Date.distantPast
     private var currentIdleStoryCyclePlan = CinematicIdleStoryCyclePlan.none
     private var activeIdleStoryCycleDescriptor: CinematicIdleStoryCyclePlan.Descriptor?
+    private var activeIdleStoryCyclePlanCompassDescriptor: CinematicPlanCompassSceneFocusPlan.Descriptor?
     private var activeIdleStoryCycleEndCardDescriptor: CinematicRunRecapEndCardPlan.Descriptor?
     private var activeIdleStoryCycleArtifactTourPlan: CinematicRunRecapShareArtifactTourPlan?
+    private var currentPlanCompassSceneFocusPlan = CinematicPlanCompassSceneFocusPlan.none
+    private var activePlanCompassSceneFocusDescriptor: CinematicPlanCompassSceneFocusPlan.Descriptor?
     private var currentTimelineSceneFocusPlan = CinematicTimelineSceneFocusPlan.none
     private var activeTimelineSceneFocusDescriptor: CinematicTimelineSceneFocusPlan.Descriptor?
     private var currentRunRecapSceneFocusPlan = CinematicRunRecapSceneFocusPlan.none
@@ -411,6 +422,7 @@ private final class CinematicSceneCoordinator {
         commitConstellationPlan: CinematicCommitConstellationPlan,
         recoveryCuePlan: CinematicRecoveryCuePlan,
         idleStoryCyclePlan: CinematicIdleStoryCyclePlan,
+        planCompassSceneFocusPlan: CinematicPlanCompassSceneFocusPlan,
         timelineSceneFocusPlan: CinematicTimelineSceneFocusPlan,
         runRecapSceneFocusPlan: CinematicRunRecapSceneFocusPlan,
         runRecapEndCardPlan: CinematicRunRecapEndCardPlan,
@@ -448,6 +460,7 @@ private final class CinematicSceneCoordinator {
         }
         let commitConstellationChanged = commitConstellationPlan != currentCommitConstellationPlan
         let idleStoryCycleChanged = idleStoryCyclePlan != currentIdleStoryCyclePlan
+        let planCompassFocusChanged = planCompassSceneFocusPlan != currentPlanCompassSceneFocusPlan
         let timelineFocusChanged = timelineSceneFocusPlan != currentTimelineSceneFocusPlan
         let runRecapFocusChanged = runRecapSceneFocusPlan != currentRunRecapSceneFocusPlan
         let runRecapEndCardChanged = runRecapEndCardPlan != currentRunRecapEndCardPlan
@@ -485,6 +498,7 @@ private final class CinematicSceneCoordinator {
             stagePendingCommitConstellationFocusIfPossible(lines: lines, animated: false)
             let baseline = phaseLightBaseline(for: phase)
             setPhaseLight(color: themedColor(baseline.color), intensity: baseline.intensity)
+            applyPlanCompassSceneFocusPlan(planCompassSceneFocusPlan, lines: lines, animated: false)
             applyTimelineSceneFocusPlan(timelineSceneFocusPlan, lines: lines, animated: false)
             applyRunRecapSceneFocusPlan(runRecapSceneFocusPlan, lines: lines, animated: false)
             applyRunRecapEndCardPlan(runRecapEndCardPlan, lines: lines, animated: false)
@@ -534,6 +548,9 @@ private final class CinematicSceneCoordinator {
             applyCommitConstellationPlan(commitConstellationPlan, animated: hasBuiltScene)
         }
         stagePendingCommitConstellationFocusIfPossible(lines: lines, animated: hasBuiltScene)
+        if planCompassFocusChanged {
+            applyPlanCompassSceneFocusPlan(planCompassSceneFocusPlan, lines: lines, animated: hasBuiltScene)
+        }
         if timelineFocusChanged || commitConstellationChanged {
             applyTimelineSceneFocusPlan(timelineSceneFocusPlan, lines: lines, animated: hasBuiltScene)
         }
@@ -868,6 +885,7 @@ private final class CinematicSceneCoordinator {
         narrativeQuestPlaqueNode.name = "narrative-quest-plaque"
         narrativeArenaInscriptionNode.name = "narrative-arena-inscription"
         narrativeActivityBannerNode.name = "narrative-activity-banner"
+        planCompassFocusNode.name = "plan-compass-focus"
         runRecapEndCardNode.name = "run-recap-end-card"
         savedRecapArtifactTourNode.name = "saved-recap-artifact-tour"
 
@@ -875,6 +893,7 @@ private final class CinematicSceneCoordinator {
             narrativeQuestPlaqueNode,
             narrativeArenaInscriptionNode,
             narrativeActivityBannerNode,
+            planCompassFocusNode,
             runRecapEndCardNode,
             savedRecapArtifactTourNode
         ] {
@@ -3161,6 +3180,33 @@ private final class CinematicSceneCoordinator {
         stageCamera(focusPlan.shot, animated: animated)
     }
 
+    private func applyPlanCompassSceneFocusPlan(
+        _ plan: CinematicPlanCompassSceneFocusPlan,
+        lines: [LiveLine],
+        animated: Bool
+    ) {
+        guard plan != currentPlanCompassSceneFocusPlan else { return }
+        currentPlanCompassSceneFocusPlan = plan
+        activePlanCompassSceneFocusDescriptor = plan.descriptor
+
+        guard let descriptor = plan.descriptor else {
+            if activeIdleStoryCycleDescriptor?.phase != .planCompassFocus {
+                clearPlanCompassFocusNode()
+            }
+            return
+        }
+
+        applyPlanCompassSceneFocusDescriptor(descriptor, animated: animated)
+        guard !hasActiveLiveFollowTarget(lines: lines) else { return }
+
+        let color = themedColor(descriptor.lightFamily.spell.nsColor)
+        stageCamera(descriptor.cameraShot, animated: animated)
+        setPhaseLight(color: color, intensity: descriptor.phaseLightIntensity)
+        applyPlanCompassSceneFocusArenaEffect(descriptor, color: color)
+        faceWizard(toward: descriptor.lookTarget)
+        trackTarget(descriptor.lookTarget, duration: 2.2)
+    }
+
     private func applyTimelineSceneFocusPlan(
         _ plan: CinematicTimelineSceneFocusPlan,
         lines: [LiveLine],
@@ -3241,9 +3287,15 @@ private final class CinematicSceneCoordinator {
         let previousDescriptor = activeIdleStoryCycleDescriptor
         currentIdleStoryCyclePlan = plan
         activeIdleStoryCycleDescriptor = plan.descriptor
+        activeIdleStoryCyclePlanCompassDescriptor = nil
         activeIdleStoryCycleEndCardDescriptor = nil
         activeIdleStoryCycleArtifactTourPlan = nil
 
+        if previousDescriptor?.phase == .planCompassFocus,
+           plan.descriptor?.phase != .planCompassFocus,
+           currentPlanCompassSceneFocusPlan.descriptor == nil {
+            clearPlanCompassFocusNode()
+        }
         if previousDescriptor?.phase == .runRecapEndCard,
            plan.descriptor?.phase != .runRecapEndCard,
            currentRunRecapEndCardPlan.descriptor == nil {
@@ -3280,6 +3332,11 @@ private final class CinematicSceneCoordinator {
         )
 
         switch descriptor.phase {
+        case .planCompassFocus:
+            if let planCompassDescriptor = descriptor.planCompassSceneFocusPlan?.descriptor {
+                activeIdleStoryCyclePlanCompassDescriptor = planCompassDescriptor
+                applyPlanCompassSceneFocusDescriptor(planCompassDescriptor, animated: animated)
+            }
         case .nativeFeedbackPlaque:
             if let plaqueDescriptor = descriptor.nativeFeedbackPlaqueDescriptor {
                 applyNarrativeCueDescriptor(
@@ -3309,6 +3366,12 @@ private final class CinematicSceneCoordinator {
         }
     }
 
+    private func clearPlanCompassFocusNode() {
+        clearChildren(of: planCompassFocusNode)
+        planCompassFocusNode.name = "plan-compass-focus.none"
+        setOpacity(0, on: planCompassFocusNode)
+    }
+
     private func clearRunRecapEndCardNode() {
         clearChildren(of: runRecapEndCardNode)
         runRecapEndCardNode.name = "run-recap-end-card.none"
@@ -3319,6 +3382,158 @@ private final class CinematicSceneCoordinator {
         clearChildren(of: savedRecapArtifactTourNode)
         savedRecapArtifactTourNode.name = "saved-recap-artifact-tour.none"
         setOpacity(0, on: savedRecapArtifactTourNode)
+    }
+
+    private func applyPlanCompassSceneFocusDescriptor(
+        _ descriptor: CinematicPlanCompassSceneFocusPlan.Descriptor,
+        animated: Bool
+    ) {
+        clearChildren(of: planCompassFocusNode)
+        planCompassFocusNode.name = descriptor.identifier
+        planCompassFocusNode.position = descriptor.lookTarget
+        planCompassFocusNode.orientation = narrativeBillboardOrientation(
+            from: planCompassFocusNode.position(relativeTo: nil),
+            to: cameraPosition
+        )
+        planCompassFocusNode.scale = SIMD3<Float>(repeating: 1)
+        setOpacity(0.86, on: planCompassFocusNode)
+
+        let color = themedColor(descriptor.lightFamily.spell.nsColor)
+        let plateWidth: Float = 2.34
+        let plateHeight: Float = 0.78
+        let plateDepth: Float = 0.032
+        let plate = ModelEntity(
+            mesh: .generateBox(
+                width: plateWidth,
+                height: plateHeight,
+                depth: plateDepth,
+                cornerRadius: 0.024
+            ),
+            materials: [
+                material(
+                    diffuse: NSColor(calibratedRed: 0.012, green: 0.018, blue: 0.032, alpha: 1),
+                    emission: color.withAlphaComponent(descriptor.selectedSectionIsEmpty ? 0.14 : 0.24),
+                    opacity: descriptor.selectedSectionIsEmpty ? 0.72 : 0.84
+                )
+            ]
+        )
+        plate.name = "plan-compass-focus.\(descriptor.selectedSectionRouteIdentifier).plaque"
+        plate.position.z = 0
+        plate.components.set(OpacityComponent(opacity: descriptor.selectedSectionIsEmpty ? 0.72 : 0.84))
+        planCompassFocusNode.addChild(plate)
+
+        let railOpacity: Float = descriptor.selectedSectionIsEmpty ? 0.28 : 0.5
+        let topRail = beamEntity(
+            from: [-plateWidth * 0.42, plateHeight * 0.34, 0.034],
+            to: [plateWidth * 0.42, plateHeight * 0.34, 0.034],
+            radius: 0.0055,
+            color: color,
+            opacity: railOpacity
+        )
+        topRail.name = "plan-compass-focus.\(descriptor.selectedSectionRouteIdentifier).rail.top"
+        planCompassFocusNode.addChild(topRail)
+
+        let bottomRail = beamEntity(
+            from: [-plateWidth * 0.34, -plateHeight * 0.34, 0.034],
+            to: [plateWidth * 0.34, -plateHeight * 0.34, 0.034],
+            radius: 0.004,
+            color: color.withAlphaComponent(0.74),
+            opacity: railOpacity * 0.72
+        )
+        bottomRail.name = "plan-compass-focus.\(descriptor.selectedSectionRouteIdentifier).rail.bottom"
+        planCompassFocusNode.addChild(bottomRail)
+
+        addPlanCompassTriad(
+            descriptor,
+            to: planCompassFocusNode,
+            color: color
+        )
+
+        addNarrativeText(
+            descriptor.plaqueTitle,
+            to: planCompassFocusNode,
+            name: "plan-compass-focus.\(descriptor.selectedSectionRouteIdentifier).text.title",
+            width: 1.82,
+            offset: [0.14, 0.22, 0.048],
+            fontSize: 0.072,
+            weight: .semibold,
+            color: color,
+            opacity: descriptor.selectedSectionIsEmpty ? 0.72 : 0.94
+        )
+        addNarrativeText(
+            descriptor.plaqueDetail,
+            to: planCompassFocusNode,
+            name: "plan-compass-focus.\(descriptor.selectedSectionRouteIdentifier).text.detail",
+            width: 1.86,
+            offset: [0.14, 0.04, 0.05],
+            fontSize: 0.049,
+            weight: .medium,
+            color: color.withAlphaComponent(0.78),
+            opacity: descriptor.selectedSectionIsEmpty ? 0.5 : 0.7
+        )
+        addNarrativeText(
+            descriptor.plaqueStatus,
+            to: planCompassFocusNode,
+            name: "plan-compass-focus.\(descriptor.selectedSectionRouteIdentifier).text.status",
+            width: 1.72,
+            offset: [0.14, -0.22, 0.052],
+            fontSize: 0.046,
+            weight: .semibold,
+            color: color.withAlphaComponent(0.66),
+            opacity: 0.62
+        )
+
+        if animated {
+            planCompassFocusNode.scale = SIMD3<Float>(repeating: 0.92)
+            animate(
+                planCompassFocusNode,
+                toScale: SIMD3<Float>(repeating: 1),
+                duration: 0.4,
+                timing: .easeOut
+            )
+        }
+    }
+
+    private func addPlanCompassTriad(
+        _ descriptor: CinematicPlanCompassSceneFocusPlan.Descriptor,
+        to node: Entity,
+        color: NSColor
+    ) {
+        let routes = ["immediate", "mid-term", "long-term"]
+        for (index, route) in routes.enumerated() {
+            let isSelected = route == descriptor.selectedSectionRouteIdentifier
+            let y = Float(index - 1) * -0.16
+            let indicator = ModelEntity(
+                mesh: isSelected
+                    ? torusMesh(ringRadius: 0.052, pipeRadius: 0.005)
+                    : MeshResource.generateSphere(radius: 0.024),
+                materials: [
+                    glowMaterial(
+                        isSelected ? color : color.withAlphaComponent(0.54),
+                        opacity: isSelected ? 0.78 : 0.34
+                    )
+                ]
+            )
+            indicator.name = descriptor.triadIdentifiers.indices.contains(index)
+                ? descriptor.triadIdentifiers[index]
+                : "plan-compass-triad.\(route)"
+            indicator.position = [-0.92, y, 0.056]
+            if isSelected {
+                indicator.orientation = simd_quatf(angle: .pi / 2, axis: [1, 0, 0])
+            }
+            indicator.components.set(OpacityComponent(opacity: isSelected ? 0.78 : 0.34))
+            node.addChild(indicator)
+        }
+
+        let spine = beamEntity(
+            from: [-0.92, 0.18, 0.05],
+            to: [-0.92, -0.18, 0.05],
+            radius: 0.0035,
+            color: color.withAlphaComponent(0.64),
+            opacity: descriptor.selectedSectionIsEmpty ? 0.2 : 0.36
+        )
+        spine.name = "plan-compass-focus.\(descriptor.selectedSectionRouteIdentifier).triad.spine"
+        node.addChild(spine)
     }
 
     private func applySavedRecapArtifactTourPlan(
@@ -3734,6 +3949,44 @@ private final class CinematicSceneCoordinator {
                 opacity: 0.44
             )
             pulsePhaseLight(color: color, intensity: descriptor.phaseLightIntensity, duration: 0.5)
+        case .historyChains:
+            historyChains(
+                CinematicStageEffectPlanner.historyChainsEffect(),
+                color: color
+            )
+        }
+    }
+
+    private func applyPlanCompassSceneFocusArenaEffect(
+        _ descriptor: CinematicPlanCompassSceneFocusPlan.Descriptor,
+        color: NSColor
+    ) {
+        switch descriptor.arenaEffect {
+        case .none:
+            return
+        case .charge:
+            chargeArena(color: color)
+        case .seal:
+            sealArena(color: color)
+            arenaRing(
+                radius: descriptor.selectedSectionIsEmpty ? 2.15 : 2.85,
+                color: color.withAlphaComponent(0.5),
+                duration: 0.74,
+                scale: 1.48,
+                opacity: descriptor.selectedSectionIsEmpty ? 0.24 : 0.38
+            )
+        case .victory:
+            sealArena(color: color)
+            portalPulse(color: color)
+        case .activityPulse:
+            arenaRing(
+                radius: descriptor.selectedSectionIsEmpty ? 2.35 : 3.05,
+                color: color.withAlphaComponent(0.56),
+                duration: 0.78,
+                scale: descriptor.selectedSectionIsEmpty ? 1.38 : 1.62,
+                opacity: descriptor.selectedSectionIsEmpty ? 0.25 : 0.4
+            )
+            pulsePhaseLight(color: color, intensity: descriptor.phaseLightIntensity, duration: 0.48)
         case .historyChains:
             historyChains(
                 CinematicStageEffectPlanner.historyChainsEffect(),
@@ -4277,6 +4530,7 @@ private final class CinematicSceneCoordinator {
         updateAtmosphere()
         updatePhasePolish()
         updateNarrativeCues()
+        updatePlanCompassFocus()
         updateRunRecapEndCard()
         updateSavedRecapArtifactTour()
         updateCommitConstellation()
@@ -4377,6 +4631,9 @@ private final class CinematicSceneCoordinator {
         if Date() < wizardFacingUntil, let wizardFacingTarget {
             return wizardFacingTarget
         }
+        if let target = activePlanCompassSceneFocusTarget() {
+            return target
+        }
         if let target = activeTimelineSceneFocusTarget() {
             return target
         }
@@ -4398,6 +4655,9 @@ private final class CinematicSceneCoordinator {
     private func activeFollowTarget() -> SIMD3<Float>? {
         if let target = activeLiveFollowTarget() {
             return target
+        }
+        if activePlanCompassSceneFocusTarget() != nil {
+            return nil
         }
         if activeTimelineSceneFocusTarget() != nil {
             return nil
@@ -4425,6 +4685,9 @@ private final class CinematicSceneCoordinator {
         if let target = activeFollowTarget() {
             return mix(wizardPosition, target, 0.56) + [0, 0.84, 0]
         }
+        if let target = activePlanCompassSceneFocusTarget() {
+            return target
+        }
         if let target = activeTimelineSceneFocusTarget() {
             return target
         }
@@ -4446,6 +4709,18 @@ private final class CinematicSceneCoordinator {
             return nil
         }
         return descriptor.lookTarget
+    }
+
+    private func activePlanCompassSceneFocusTarget() -> SIMD3<Float>? {
+        guard activeLiveFollowTarget() == nil else { return nil }
+        if let descriptor = activePlanCompassSceneFocusDescriptor {
+            return descriptor.lookTarget
+        }
+        if activeIdleStoryCycleDescriptor?.phase == .planCompassFocus,
+           let descriptor = activeIdleStoryCyclePlanCompassDescriptor {
+            return descriptor.lookTarget
+        }
+        return nil
     }
 
     private func activeRunRecapSceneFocusTarget() -> SIMD3<Float>? {
@@ -4621,6 +4896,23 @@ private final class CinematicSceneCoordinator {
         let pulseScale = descriptor.scale * (1 + wave * 0.025)
         node.scale = SIMD3<Float>(repeating: max(0.001, pulseScale))
         setOpacity(descriptor.opacity * (0.82 + wave * 0.18), on: node)
+    }
+
+    private func updatePlanCompassFocus() {
+        guard let descriptor = currentPlanCompassSceneFocusPlan.descriptor
+            ?? activeIdleStoryCyclePlanCompassDescriptor else {
+            return
+        }
+        let cadence = max(currentIdleStoryCyclePlan.descriptor?.cadence ?? 6.2, 0.1)
+        let phase = Float(elapsedTime / cadence) * Float.pi * 2
+        let wave = Float(0.5) + sin(phase + 0.27 * Float.pi * 2) * Float(0.5)
+        let pulseScale: Float = 1 + wave * (descriptor.selectedSectionIsEmpty ? 0.018 : 0.03)
+        planCompassFocusNode.scale = SIMD3<Float>(repeating: max(0.001, pulseScale))
+        planCompassFocusNode.orientation = narrativeBillboardOrientation(
+            from: planCompassFocusNode.position(relativeTo: nil),
+            to: cameraPosition
+        )
+        setOpacity(descriptor.selectedSectionIsEmpty ? 0.62 + wave * 0.1 : 0.76 + wave * 0.14, on: planCompassFocusNode)
     }
 
     private func updateRunRecapEndCard() {

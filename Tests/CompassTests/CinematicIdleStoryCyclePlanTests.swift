@@ -25,6 +25,7 @@ final class CinematicIdleStoryCyclePlanTests: XCTestCase {
         let timeline = try XCTUnwrap(byPhase[.timelineFocus])
         let native = try XCTUnwrap(byPhase[.nativeFeedbackPlaque])
         let diagnostics = try XCTUnwrap(byPhase[.diagnosticsWarningPulse])
+        let planFocus = try XCTUnwrap(byPhase[.planCompassFocus])
         let recapFocus = try XCTUnwrap(byPhase[.runRecapFocus])
         let recapEnd = try XCTUnwrap(byPhase[.runRecapEndCard])
         let artifactTour = try XCTUnwrap(byPhase[.savedRecapArtifactTour])
@@ -34,6 +35,8 @@ final class CinematicIdleStoryCyclePlanTests: XCTestCase {
         XCTAssertGreaterThan(recapFocus.cadence, native.cadence)
         XCTAssertLessThan(diagnostics.cadence, commit.cadence)
         XCTAssertEqual(diagnostics.choreography.cameraPressureIdentifier, "diagnostics-warning")
+        XCTAssertGreaterThan(planFocus.cadence, diagnostics.cadence)
+        XCTAssertEqual(planFocus.choreography.cameraPressureIdentifier, "plan-compass-focus")
         XCTAssertGreaterThan(artifactTour.cadence, native.cadence)
         XCTAssertEqual(artifactTour.choreography.cameraPressureIdentifier, "archive-tour")
         XCTAssertGreaterThan(recapEnd.choreography.dwellDuration, native.choreography.dwellDuration)
@@ -56,6 +59,7 @@ final class CinematicIdleStoryCyclePlanTests: XCTestCase {
             influenceSettings: .init(),
             commitConstellationPlan: .empty,
             timelineSceneFocusPlan: .none,
+            planCompassSceneFocusPlan: .none,
             nativeFeedbackCue: nil,
             nativeFeedbackPlaqueDescriptor: nil,
             runRecapPlan: .empty(reason: "no-finished-session"),
@@ -131,6 +135,7 @@ final class CinematicIdleStoryCyclePlanTests: XCTestCase {
 
         context.commitConstellationPlan = .empty
         context.timelineFocusPlan = .none
+        context.planFocusPlan = .none
         context.recapPlan = .empty(reason: "no-finished-session")
         context.recapFocusPlan = .none
         context.recapEndCardPlan = .none
@@ -159,6 +164,7 @@ final class CinematicIdleStoryCyclePlanTests: XCTestCase {
         var context = try makeContext(diagnosticsWarningBundleHistory: CinematicDiagnosticsWarningBundleHistory())
         context.commitConstellationPlan = .empty
         context.timelineFocusPlan = .none
+        context.planFocusPlan = .none
         context.nativeFeedbackCue = nil
         context.nativeFeedbackPlaqueDescriptor = nil
         context.recapPlan = .empty(reason: "no-finished-session")
@@ -207,6 +213,7 @@ final class CinematicIdleStoryCyclePlanTests: XCTestCase {
         var context = try makeContext(diagnosticsWarningBundleHistory: history)
         context.commitConstellationPlan = .empty
         context.timelineFocusPlan = .none
+        context.planFocusPlan = .none
         context.nativeFeedbackCue = nil
         context.nativeFeedbackPlaqueDescriptor = nil
         context.recapPlan = .empty(reason: "no-finished-session")
@@ -261,6 +268,34 @@ final class CinematicIdleStoryCyclePlanTests: XCTestCase {
             try XCTUnwrap(quiet.choreography.pulseHint).orbBoost,
             try XCTUnwrap(reduced.choreography.pulseHint).orbBoost
         )
+    }
+
+    func testPlanCompassFocusCandidateCarriesDescriptorAndRespectsSuppression() throws {
+        var context = try makeContext()
+        context.commitConstellationPlan = .empty
+        context.timelineFocusPlan = .none
+        context.nativeFeedbackCue = nil
+        context.nativeFeedbackPlaqueDescriptor = nil
+        context.diagnosticsWarningBundleHistory = CinematicDiagnosticsWarningBundleHistory()
+        context.recapPlan = .empty(reason: "no-finished-session")
+        context.recapFocusPlan = .none
+        context.recapEndCardPlan = .none
+        context.tourPlan = nil
+
+        let active = plan(context: context)
+        let descriptor = try XCTUnwrap(active.descriptor)
+        let planFocusPlan = try XCTUnwrap(descriptor.planCompassSceneFocusPlan)
+        let planFocusDescriptor = try XCTUnwrap(planFocusPlan.descriptor)
+
+        XCTAssertEqual(descriptor.phase, .planCompassFocus)
+        XCTAssertTrue(descriptor.sourceDescriptorIdentifier.hasPrefix("plan-compass-focus"))
+        XCTAssertEqual(descriptor.targetKindIdentifier, "plan-compass-immediate-active")
+        XCTAssertEqual(descriptor.lightFamily, planFocusDescriptor.lightFamily)
+        XCTAssertEqual(descriptor.arenaEffect, planFocusDescriptor.arenaEffect)
+        XCTAssertEqual(descriptor.phaseCopy, planFocusDescriptor.plaqueTitle)
+        XCTAssertEqual(descriptor.choreography.cameraPressureIdentifier, "plan-compass-focus")
+        XCTAssertEqual(plan(context: context, isLiveFollowActive: true).suppressionReason, "live-follow")
+        XCTAssertEqual(plan(context: context, hasExplicitUserFocus: true).suppressionReason, "user-focus")
     }
 
     func testIdentifiersAreStableBoundedAndReflectSelectedPhase() throws {
@@ -353,6 +388,7 @@ final class CinematicIdleStoryCyclePlanTests: XCTestCase {
         let recapFocusBefore = context.recapFocusPlan
         let recapEndCardBefore = context.recapEndCardPlan
         let tourBefore = context.tourPlan
+        let planFocusBefore = context.planFocusPlan
 
         _ = plan(context: context, elapsedMultiplier: 4)
 
@@ -363,6 +399,7 @@ final class CinematicIdleStoryCyclePlanTests: XCTestCase {
         XCTAssertEqual(context.recapFocusPlan, recapFocusBefore)
         XCTAssertEqual(context.recapEndCardPlan, recapEndCardBefore)
         XCTAssertEqual(context.tourPlan, tourBefore)
+        XCTAssertEqual(context.planFocusPlan, planFocusBefore)
     }
 
     func testSavedRecapArtifactTourCandidateCarriesArtifactContext() throws {
@@ -435,6 +472,7 @@ final class CinematicIdleStoryCyclePlanTests: XCTestCase {
         var commitConstellationPlan: CinematicCommitConstellationPlan
         var timelinePlan: CinematicSessionTimelinePlan
         var timelineFocusPlan: CinematicTimelineSceneFocusPlan
+        var planFocusPlan: CinematicPlanCompassSceneFocusPlan
         var nativeFeedbackCue: CinematicNativeFeedbackCuePlan?
         var nativeFeedbackPlaqueDescriptor: CinematicIdleStoryCyclePlan.NativeFeedbackPlaqueDescriptor?
         var diagnosticsWarningBundleHistory: CinematicDiagnosticsWarningBundleHistory
@@ -471,6 +509,21 @@ final class CinematicIdleStoryCyclePlanTests: XCTestCase {
             commitConstellationPlan: commitConstellationPlan,
             recoveryCuePlan: .none
         )
+        let planCompassPlan = CinematicPlanCompassPlan(
+            state: PlanState(
+                completed: ["Completed idle story cycle"],
+                immediate: PlanNext(
+                    plan: "Stage idle plan compass focus",
+                    verify: "swift test --filter CinematicIdleStoryCyclePlanTests"
+                ),
+                midTerm: "Queue plan compass focus",
+                longTerm: "Keep long-term direction visible"
+            )
+        )
+        let planFocusPlan = CinematicPlanCompassSceneFocusPlanner.plan(
+            isPlanOverlaySelected: true,
+            planCompassPlan: planCompassPlan
+        )
         let nativeCue = try makeNativeFeedbackCue(milestone: .verifyStarted, recentRunCues: [:])
         let recapPlan = CinematicRunRecapPlanner.plan(
             state: recapState(),
@@ -503,6 +556,7 @@ final class CinematicIdleStoryCyclePlanTests: XCTestCase {
             commitConstellationPlan: commitConstellationPlan,
             timelinePlan: timelinePlan,
             timelineFocusPlan: timelineFocusPlan,
+            planFocusPlan: planFocusPlan,
             nativeFeedbackCue: nativeCue,
             nativeFeedbackPlaqueDescriptor: try XCTUnwrap(
                 nativeFeedbackPlaqueDescriptor(for: nativeCue, settings: settings)
@@ -533,6 +587,7 @@ final class CinematicIdleStoryCyclePlanTests: XCTestCase {
             influenceSettings: context.settings,
             commitConstellationPlan: context.commitConstellationPlan,
             timelineSceneFocusPlan: context.timelineFocusPlan,
+            planCompassSceneFocusPlan: context.planFocusPlan,
             nativeFeedbackCue: context.nativeFeedbackCue,
             nativeFeedbackPlaqueDescriptor: context.nativeFeedbackPlaqueDescriptor,
             diagnosticsWarningBundleHistory: context.diagnosticsWarningBundleHistory,
@@ -582,6 +637,7 @@ final class CinematicIdleStoryCyclePlanTests: XCTestCase {
     private func prepareDiagnosticsWarningOnlyContext(_ context: inout Context) {
         context.commitConstellationPlan = .empty
         context.timelineFocusPlan = .none
+        context.planFocusPlan = .none
         context.nativeFeedbackCue = nil
         context.nativeFeedbackPlaqueDescriptor = nil
         context.recapPlan = .empty(reason: "no-finished-session")

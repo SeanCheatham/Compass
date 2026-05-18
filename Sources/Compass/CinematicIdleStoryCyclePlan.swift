@@ -80,6 +80,7 @@ struct CinematicIdleStoryCyclePlan: Equatable {
             case timelineFocus = "timeline-focus"
             case nativeFeedbackPlaque = "native-feedback-plaque"
             case diagnosticsWarningPulse = "diagnostics-warning-pulse"
+            case planCompassFocus = "plan-compass-focus"
             case runRecapFocus = "run-recap-focus"
             case runRecapEndCard = "run-recap-end-card"
             case savedRecapArtifactTour = "saved-recap-artifact-tour"
@@ -103,6 +104,7 @@ struct CinematicIdleStoryCyclePlan: Equatable {
         var choreography: Choreography
         var commitConstellationFocusPlan: CinematicCommitConstellationPlan.FocusPlan?
         var timelineSceneFocusPlan: CinematicTimelineSceneFocusPlan?
+        var planCompassSceneFocusPlan: CinematicPlanCompassSceneFocusPlan?
         var nativeFeedbackPlaqueDescriptor: NativeFeedbackPlaqueDescriptor?
         var diagnosticsWarningPulseDescriptor: DiagnosticsWarningPulseDescriptor?
         var runRecapSceneFocusPlan: CinematicRunRecapSceneFocusPlan?
@@ -206,6 +208,7 @@ enum CinematicIdleStoryCyclePlanner {
         influenceSettings: CinematicInfluenceSettings,
         commitConstellationPlan: CinematicCommitConstellationPlan,
         timelineSceneFocusPlan: CinematicTimelineSceneFocusPlan,
+        planCompassSceneFocusPlan: CinematicPlanCompassSceneFocusPlan = .none,
         nativeFeedbackCue: CinematicNativeFeedbackCuePlan?,
         nativeFeedbackPlaqueDescriptor: NativeFeedbackPlaqueDescriptor?,
         diagnosticsWarningBundleHistory: CinematicDiagnosticsWarningBundleHistory = CinematicDiagnosticsWarningBundleHistory(),
@@ -227,6 +230,7 @@ enum CinematicIdleStoryCyclePlanner {
             influenceSettings: influenceSettings,
             commitConstellationPlan: commitConstellationPlan,
             timelineSceneFocusPlan: timelineSceneFocusPlan,
+            planCompassSceneFocusPlan: planCompassSceneFocusPlan,
             nativeFeedbackCue: nativeFeedbackCue,
             nativeFeedbackPlaqueDescriptor: nativeFeedbackPlaqueDescriptor,
             diagnosticsWarningBundle: diagnosticsWarningBundleHistory.currentUnresolvedBundle,
@@ -346,6 +350,7 @@ enum CinematicIdleStoryCyclePlanner {
         var isPriority: Bool = false
         var commitConstellationFocusPlan: CinematicCommitConstellationPlan.FocusPlan?
         var timelineSceneFocusPlan: CinematicTimelineSceneFocusPlan?
+        var planCompassSceneFocusPlan: CinematicPlanCompassSceneFocusPlan?
         var nativeFeedbackPlaqueDescriptor: NativeFeedbackPlaqueDescriptor?
         var diagnosticsWarningPulseDescriptor: CinematicIdleStoryCyclePlan.DiagnosticsWarningPulseDescriptor?
         var runRecapSceneFocusPlan: CinematicRunRecapSceneFocusPlan?
@@ -357,6 +362,7 @@ enum CinematicIdleStoryCyclePlanner {
         influenceSettings: CinematicInfluenceSettings,
         commitConstellationPlan: CinematicCommitConstellationPlan,
         timelineSceneFocusPlan: CinematicTimelineSceneFocusPlan,
+        planCompassSceneFocusPlan: CinematicPlanCompassSceneFocusPlan,
         nativeFeedbackCue: CinematicNativeFeedbackCuePlan?,
         nativeFeedbackPlaqueDescriptor: NativeFeedbackPlaqueDescriptor?,
         diagnosticsWarningBundle: CinematicDiagnosticsWarningBundleHistory.Entry?,
@@ -385,6 +391,11 @@ enum CinematicIdleStoryCyclePlanner {
             ),
             diagnosticsWarningPulseCandidate(
                 bundle: diagnosticsWarningBundle,
+                influenceSettings: influenceSettings,
+                cadence: cadence
+            ),
+            planCompassFocusCandidate(
+                planCompassSceneFocusPlan: planCompassSceneFocusPlan,
                 influenceSettings: influenceSettings,
                 cadence: cadence
             ),
@@ -589,6 +600,48 @@ enum CinematicIdleStoryCyclePlanner {
         )
     }
 
+    private static func planCompassFocusCandidate(
+        planCompassSceneFocusPlan: CinematicPlanCompassSceneFocusPlan,
+        influenceSettings: CinematicInfluenceSettings,
+        cadence: TimeInterval
+    ) -> Candidate? {
+        guard let descriptor = planCompassSceneFocusPlan.descriptor else { return nil }
+
+        let targetKindIdentifier = "plan-compass-\(descriptor.selectedSectionRouteIdentifier)-\(descriptor.selectedSectionStateIdentifier)"
+        let isEmpty = descriptor.selectedSectionIsEmpty
+        let choreography = choreography(
+            phase: .planCompassFocus,
+            sourceDescriptorIdentifier: descriptor.identifier,
+            targetKindIdentifier: targetKindIdentifier,
+            cameraShot: descriptor.cameraShot,
+            influenceSettings: influenceSettings,
+            baseCadence: cadence,
+            cadenceScale: isEmpty ? 1.16 : 1.04,
+            dwellScale: isEmpty ? 1.02 : 0.96,
+            transitionDurationScale: isEmpty ? 1.08 : 1.0,
+            cameraPressureIdentifier: isEmpty ? "plan-compass-empty" : "plan-compass-focus",
+            targetBias: isEmpty ? 0.72 : 0.78,
+            pulseDuration: 0.62,
+            pulseIntensityScale: isEmpty ? 1.02 : 1.06,
+            pulseOrbBoost: isEmpty ? 0.05 : 0.09
+        )
+
+        return Candidate(
+            phase: .planCompassFocus,
+            sourceDescriptorIdentifier: descriptor.identifier,
+            targetKindIdentifier: targetKindIdentifier,
+            anchorTreatmentIdentifier: "route:\(descriptor.selectedSectionRouteIdentifier)",
+            cameraShot: descriptor.cameraShot,
+            lookTarget: descriptor.lookTarget,
+            lightFamily: descriptor.lightFamily,
+            arenaEffect: descriptor.arenaEffect,
+            phaseLightIntensity: descriptor.phaseLightIntensity,
+            phaseCopy: descriptor.plaqueTitle,
+            choreography: choreography,
+            planCompassSceneFocusPlan: planCompassSceneFocusPlan
+        )
+    }
+
     private static func runRecapFocusCandidate(
         runRecapPlan: CinematicRunRecapPlan,
         runRecapSceneFocusPlan: CinematicRunRecapSceneFocusPlan,
@@ -776,6 +829,7 @@ enum CinematicIdleStoryCyclePlanner {
             choreography: candidate.choreography,
             commitConstellationFocusPlan: candidate.commitConstellationFocusPlan,
             timelineSceneFocusPlan: candidate.timelineSceneFocusPlan,
+            planCompassSceneFocusPlan: candidate.planCompassSceneFocusPlan,
             nativeFeedbackPlaqueDescriptor: candidate.nativeFeedbackPlaqueDescriptor,
             diagnosticsWarningPulseDescriptor: candidate.diagnosticsWarningPulseDescriptor,
             runRecapSceneFocusPlan: candidate.runRecapSceneFocusPlan,

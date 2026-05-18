@@ -782,6 +782,7 @@ final class CinematicDiagnosticsTests: XCTestCase {
                 "immediate",
                 "commit-constellation",
                 "idle-story-cycle",
+                "plan-compass-focus",
                 "timeline-focus",
                 "run-recap",
                 "run-recap-share",
@@ -850,6 +851,7 @@ final class CinematicDiagnosticsTests: XCTestCase {
                     "immediate",
                     "commit-constellation",
                     "idle-story-cycle",
+                    "plan-compass-focus",
                     "timeline-focus",
                     "run-recap",
                     "run-recap-share",
@@ -998,14 +1000,14 @@ final class CinematicDiagnosticsTests: XCTestCase {
             .components(separatedBy: "\n")
             .filter { expectedSectionHeadings.contains($0) }
         XCTAssertEqual(actualSectionHeadings, expectedSectionHeadings)
-        XCTAssertTrue(summary.exportText.contains("Repository/context (17 rows)"))
+        XCTAssertTrue(summary.exportText.contains("Repository/context (18 rows)"))
         XCTAssertTrue(summary.exportText.contains("Motifs (2 rows)"))
         XCTAssertTrue(summary.exportText.contains("Stage motion/effects (9 rows)"))
         XCTAssertTrue(summary.exportText.contains("Narrative/overlay (8 rows)"))
         XCTAssertTrue(summary.exportText.contains("Assets/textures (2 rows)"))
         XCTAssertTrue(summary.exportText.contains("Tuning (4 rows)"))
         XCTAssertTrue(summary.exportText.contains("Camera shots (7 rows)"))
-        XCTAssertTrue(summary.exportText.contains("Visual smoke (pass, 20 checks)"))
+        XCTAssertTrue(summary.exportText.contains("Visual smoke (pass, 21 checks)"))
         XCTAssertTrue(summary.exportText.contains("Plaque treatments (pass, 4 recipes): smoke pass"))
         XCTAssertTrue(summary.exportText.contains("failure-fracture: accent failure-fracture"))
         XCTAssertTrue(summary.exportText.contains("Overlay fallback: pass"))
@@ -1077,6 +1079,11 @@ final class CinematicDiagnosticsTests: XCTestCase {
             longTerm: "Make waiting time legible."
         )
         let planCompass = CinematicPlanCompassPlan(state: state)
+        let planFocus = CinematicPlanCompassSceneFocusPlanner.plan(
+            isPlanOverlaySelected: true,
+            planCompassPlan: planCompass
+        )
+        let planFocusDescriptor = try XCTUnwrap(planFocus.descriptor)
         let report = CinematicDiagnostics.report(
             repoName: "Compass",
             phase: "Developing",
@@ -1086,7 +1093,9 @@ final class CinematicDiagnosticsTests: XCTestCase {
             latestEvent: nil,
             languageProfile: languageProfile(primaryLanguage: .swift),
             activityProfile: activityProfile(recentCommitCount: 1),
-            influenceSettings: CinematicInfluenceSettings(cameraStyle: .steady, intensity: 0.35)
+            influenceSettings: CinematicInfluenceSettings(cameraStyle: .steady, intensity: 0.35),
+            hasExplicitUserFocus: true,
+            planCompassSceneFocusPlan: planFocus
         )
         let summary = CinematicDiagnosticsSummary(
             report: report,
@@ -1094,13 +1103,17 @@ final class CinematicDiagnosticsTests: XCTestCase {
         )
 
         XCTAssertEqual(report.planCompass, planCompass)
+        XCTAssertEqual(report.planCompassSceneFocus.descriptorIdentifier, planFocusDescriptor.identifier)
+        XCTAssertEqual(report.planCompassSceneFocus.selectedSectionRouteIdentifier, "immediate")
         XCTAssertTrue(report.identifier.contains("plan-compass:\(planCompass.identifier)"))
         XCTAssertTrue(report.identifier.contains("plan-compass-copy:\(planCompass.copyIdentifier)"))
         XCTAssertTrue(report.identifier.contains("plan-compass-export:\(planCompass.exportIdentifier)"))
+        XCTAssertTrue(report.identifier.contains("plan-compass-focus:\(planFocus.identifier)"))
 
         let immediateRow = try XCTUnwrap(summary.row(id: "plan-compass-immediate"))
         let midTermRow = try XCTUnwrap(summary.row(id: "plan-compass-mid-term"))
         let longTermRow = try XCTUnwrap(summary.row(id: "plan-compass-long-term"))
+        let focusRow = try XCTUnwrap(summary.row(id: "plan-compass-focus"))
 
         XCTAssertTrue(immediateRow.detail.contains(planCompass.immediate.copyIdentifier))
         XCTAssertTrue(immediateRow.detail.contains(planCompass.immediate.exportIdentifier))
@@ -1108,10 +1121,16 @@ final class CinematicDiagnosticsTests: XCTestCase {
         XCTAssertTrue(immediateRow.detail.contains("difficulty medium"))
         XCTAssertTrue(midTermRow.detail.contains(planCompass.midTerm.displayText))
         XCTAssertTrue(longTermRow.detail.contains(planCompass.longTerm.displayText))
+        XCTAssertTrue(focusRow.detail.contains(planFocusDescriptor.planCopyIdentifier))
+        XCTAssertTrue(focusRow.detail.contains(planFocusDescriptor.selectedSectionExportIdentifier))
+        XCTAssertTrue(focusRow.detail.contains("route immediate"))
+        XCTAssertTrue(focusRow.detail.contains("diagnostics plan-compass-focus.diagnostics"))
         XCTAssertTrue(summary.exportText.contains("Immediate direction:"))
         XCTAssertTrue(summary.exportText.contains(planCompass.immediate.exportIdentifier))
         XCTAssertTrue(summary.exportText.contains(planCompass.midTerm.copyIdentifier))
         XCTAssertTrue(summary.exportText.contains(planCompass.longTerm.exportIdentifier))
+        XCTAssertTrue(summary.exportText.contains("Plan compass focus:"))
+        XCTAssertTrue(summary.exportText.contains(planFocusDescriptor.selectedSectionCopyIdentifier))
     }
 
     func testSummaryKeepsNarrativeAndOverlayRowsInOneTuningGroup() throws {
@@ -1347,8 +1366,15 @@ final class CinematicDiagnosticsTests: XCTestCase {
         let warningHistoryBefore = project.cinematicDiagnosticsWarningBundleHistory
         let activeStorageBefore = project.activeStorage
         let deliveryBefore = NativeFeedbackService.shared.deliverySnapshot(mode: project.nativeFeedbackMode)
+        let planCompassFocus = CinematicPlanCompassSceneFocusPlanner.plan(
+            isPlanOverlaySelected: true,
+            planCompassPlan: CinematicPlanCompassPlan(state: project.state)
+        )
 
-        let report = CinematicDiagnostics.currentReport(for: project)
+        let report = CinematicDiagnostics.currentReport(
+            for: project,
+            planCompassSceneFocusPlan: planCompassFocus
+        )
         let deliveryAfter = NativeFeedbackService.shared.deliverySnapshot(mode: project.nativeFeedbackMode)
         let summary = CinematicDiagnosticsSummary(
             report: report,
@@ -1362,6 +1388,7 @@ final class CinematicDiagnosticsTests: XCTestCase {
         XCTAssertEqual(project.cinematicDiagnosticsWarningBundleHistory, warningHistoryBefore)
         XCTAssertEqual(project.activeStorage, activeStorageBefore)
         XCTAssertEqual(report.planCompass, CinematicPlanCompassPlan(state: project.state))
+        XCTAssertEqual(report.planCompassSceneFocus.identifier, planCompassFocus.identifier)
         XCTAssertEqual(report.nativeFeedback.cueIdentifier, cueBefore.identifier)
         XCTAssertEqual(
             deliveryAfter.authorizationRequestStateIdentifier,
