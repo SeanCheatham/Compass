@@ -19,6 +19,20 @@ struct CinematicSetDressingPlan: Equatable {
     static let shardBobAmplitudeRange: ClosedRange<Float> = 0.04...0.16
     static let shardRotationStepRange: ClosedRange<Float> = 0.003...0.018
     static let activityTintBlendRange: ClosedRange<Float> = 0...0.42
+    static let pedestalSlotXRange: ClosedRange<Float> = -8.8...8.8
+    static let pedestalSlotYRange: ClosedRange<Float> = 0...0
+    static let pedestalSlotZRange: ClosedRange<Float> = -9.2...3.3
+    static let shardSlotXRange: ClosedRange<Float> = -6.8...6.8
+    static let shardSlotYRange: ClosedRange<Float> = 1.2...3.25
+    static let shardSlotZRange: ClosedRange<Float> = -11.4...4.8
+    static let runeFloorEmissionOpacityRange: ClosedRange<Float> = 0.08...0.34
+    static let runePlinthOpacityRange: ClosedRange<Float> = 0.68...0.94
+    static let runeRingOpacityScaleRange: ClosedRange<Float> = 0.82...1.22
+    static let runeSegmentRadiusScaleRange: ClosedRange<Float> = 0.9...1.16
+    static let runeSegmentOpacityScaleRange: ClosedRange<Float> = 0.82...1.24
+    static let runeCoreOpacityRange: ClosedRange<Float> = 0.72...0.94
+    static let arenaAccentOpacityScaleRange: ClosedRange<Float> = 0.84...1.2
+    static let arenaAccentScaleRange: ClosedRange<Float> = 0.94...1.1
 
     var identifier: String
     var languageArchitecture: LanguageArchitecture
@@ -40,6 +54,20 @@ struct CinematicSetDressingPlan: Equatable {
         var architectureIdentifier: String
         var pedestalLayoutIdentifier: String
         var shardFormationIdentifier: String
+        var pedestalSlots: [PedestalSlotGeometry]
+        var shardSlots: [FloatingShardSlotGeometry]
+
+        var layoutCoverageIdentifier: String {
+            [
+                "pedestal:\(pedestalLayoutIdentifier)=\(pedestalSlots.count)",
+                "shards:\(shardFormationIdentifier)=\(shardSlots.count)"
+            ].joined(separator: "|")
+        }
+
+        var geometryIsBounded: Bool {
+            pedestalSlots.allSatisfy(\.isInsideArenaBounds)
+                && shardSlots.allSatisfy(\.isInsideArenaBounds)
+        }
     }
 
     struct ActivityMarker: Equatable {
@@ -107,6 +135,7 @@ struct CinematicSetDressingPlan: Equatable {
         var flameMaterialIdentifier: String
         var shardMaterialIdentifier: String
         var runeMaterialIdentifier: String
+        var runeMaterialTreatment: RuneMaterialTreatment
 
         var backdropTextureName: String {
             backdropTextureAsset.textureName
@@ -126,6 +155,55 @@ struct CinematicSetDressingPlan: Equatable {
         var usesFallbackTextureAsset: Bool {
             backdropTextureAsset.usesFallback || arenaTextureAsset.usesFallback
         }
+    }
+
+    struct PedestalSlotGeometry: Equatable {
+        var identifier: String
+        var layoutIdentifier: String
+        var position: SIMD3<Float>
+        var yawRadians: Float
+
+        var isInsideArenaBounds: Bool {
+            Self.isInBounds(position)
+        }
+
+        private static func isInBounds(_ position: SIMD3<Float>) -> Bool {
+            CinematicSetDressingPlan.pedestalSlotXRange.contains(position.x)
+                && CinematicSetDressingPlan.pedestalSlotYRange.contains(position.y)
+                && CinematicSetDressingPlan.pedestalSlotZRange.contains(position.z)
+        }
+    }
+
+    struct FloatingShardSlotGeometry: Equatable {
+        var identifier: String
+        var formationIdentifier: String
+        var position: SIMD3<Float>
+        var pitchRadians: Float
+        var yawRadians: Float
+        var rollRadians: Float
+
+        var isInsideArenaBounds: Bool {
+            Self.isInBounds(position)
+        }
+
+        private static func isInBounds(_ position: SIMD3<Float>) -> Bool {
+            CinematicSetDressingPlan.shardSlotXRange.contains(position.x)
+                && CinematicSetDressingPlan.shardSlotYRange.contains(position.y)
+                && CinematicSetDressingPlan.shardSlotZRange.contains(position.z)
+        }
+    }
+
+    struct RuneMaterialTreatment: Equatable {
+        var identifier: String
+        var runeMaterialIdentifier: String
+        var floorEmissionOpacity: Float
+        var plinthOpacity: Float
+        var ringOpacityScale: Float
+        var segmentRadiusScale: Float
+        var segmentOpacityScale: Float
+        var coreOpacity: Float
+        var arenaAccentOpacityScale: Float
+        var arenaAccentScale: Float
     }
 }
 
@@ -355,6 +433,368 @@ enum CinematicTextureAssetCatalog {
     }
 }
 
+enum CinematicSetDressingGeometryCatalog {
+    static let expectedPedestalLayoutIdentifiers: Set<String> = [
+        "balanced-flow",
+        "cardinal-forge",
+        "facet-ring",
+        "low-beacons",
+        "paired-relays",
+        "quiet-triad",
+        "six-point-anvil",
+        "spiral-wells"
+    ]
+
+    static let expectedShardFormationIdentifiers: Set<String> = [
+        "bus-trace",
+        "distant-watch",
+        "gear-teeth",
+        "helix",
+        "page-tabs",
+        "split-spectrum",
+        "stream",
+        "tailwind"
+    ]
+
+    static func pedestalSlots(
+        for layoutIdentifier: String
+    ) -> [CinematicSetDressingPlan.PedestalSlotGeometry] {
+        switch layoutIdentifier {
+        case "cardinal-forge":
+            return pedestalSlots(layoutIdentifier, [
+                [-7.7, 0, -6.3],
+                [7.7, 0, -6.3],
+                [-8.5, 0, 2.8],
+                [8.5, 0, 2.8],
+                [-3.4, 0, -8.9],
+                [3.4, 0, -8.9]
+            ])
+        case "paired-relays":
+            return pedestalSlots(layoutIdentifier, [
+                [-7.9, 0, -5.8],
+                [-6.6, 0, -1.8],
+                [7.9, 0, -5.8],
+                [6.6, 0, -1.8],
+                [-2.6, 0, -8.4],
+                [2.6, 0, -8.4]
+            ])
+        case "spiral-wells":
+            return pedestalSlots(layoutIdentifier, [
+                [-2.0, 0, -8.7],
+                [3.4, 0, -7.4],
+                [6.2, 0, -3.0],
+                [3.8, 0, 1.8],
+                [-3.1, 0, 2.4],
+                [-7.4, 0, -2.2]
+            ])
+        case "balanced-flow":
+            return pedestalSlots(layoutIdentifier, [
+                [-8.2, 0, -4.8],
+                [-5.0, 0, -7.6],
+                [-1.5, 0, -5.4],
+                [1.8, 0, -7.2],
+                [5.2, 0, -4.4],
+                [8.1, 0, -6.8]
+            ])
+        case "six-point-anvil":
+            return pedestalSlots(layoutIdentifier, [
+                [0.0, 0, -9.0],
+                [6.1, 0, -6.1],
+                [6.1, 0, 0.9],
+                [0.0, 0, 3.0],
+                [-6.1, 0, 0.9],
+                [-6.1, 0, -6.1]
+            ])
+        case "quiet-triad":
+            return pedestalSlots(layoutIdentifier, [
+                [-5.8, 0, -6.6],
+                [0.0, 0, -8.2],
+                [5.8, 0, -6.6],
+                [-7.4, 0, 1.2],
+                [0.0, 0, 2.6],
+                [7.4, 0, 1.2]
+            ])
+        case "facet-ring":
+            return pedestalSlots(layoutIdentifier, [
+                [-7.2, 0, -6.8],
+                [-2.4, 0, -8.6],
+                [4.8, 0, -7.4],
+                [8.2, 0, -2.2],
+                [2.8, 0, 2.8],
+                [-5.6, 0, 2.4]
+            ])
+        case "low-beacons":
+            return pedestalSlots(layoutIdentifier, [
+                [-5.4, 0, -5.2],
+                [0.0, 0, -6.8],
+                [5.4, 0, -5.2],
+                [-6.2, 0, 1.0],
+                [0.0, 0, 2.4],
+                [6.2, 0, 1.0]
+            ])
+        default:
+            return pedestalSlots(for: "low-beacons")
+        }
+    }
+
+    static func shardSlots(
+        for formationIdentifier: String
+    ) -> [CinematicSetDressingPlan.FloatingShardSlotGeometry] {
+        switch formationIdentifier {
+        case "tailwind":
+            return shardSlots(formationIdentifier, [
+                [-5.2, 1.9, -9.8],
+                [-2.7, 2.8, -10.4],
+                [2.8, 2.3, -9.4],
+                [5.4, 1.75, -8.6],
+                [-6.2, 1.3, -2.4],
+                [6.1, 1.5, -2.1],
+                [-4.4, 2.15, 4.4],
+                [0.0, 3.05, -11.2],
+                [4.4, 2.05, 4.3]
+            ])
+        case "bus-trace":
+            return shardSlots(formationIdentifier, [
+                [-6.0, 1.6, -8.6],
+                [-3.0, 2.2, -8.6],
+                [0.0, 1.7, -8.6],
+                [3.0, 2.3, -8.6],
+                [6.0, 1.6, -8.6],
+                [-4.8, 2.6, -3.8],
+                [0.0, 1.35, -3.8],
+                [4.8, 2.6, -3.8],
+                [0.0, 3.0, 1.4]
+            ])
+        case "helix":
+            return shardSlots(formationIdentifier, [
+                [-2.4, 1.4, -10.2],
+                [2.4, 1.7, -9.2],
+                [-3.4, 2.0, -7.5],
+                [3.4, 2.3, -6.0],
+                [-2.8, 2.6, -4.1],
+                [2.8, 2.9, -2.4],
+                [-1.7, 3.1, -0.6],
+                [1.7, 2.5, 1.2],
+                [0.0, 1.8, 3.2]
+            ])
+        case "stream":
+            return shardSlots(formationIdentifier, [
+                [-6.3, 1.35, -9.2],
+                [-4.2, 1.8, -7.5],
+                [-1.8, 2.3, -8.4],
+                [0.6, 1.55, -6.1],
+                [2.7, 2.0, -4.6],
+                [5.4, 1.48, -5.8],
+                [3.8, 2.6, -1.2],
+                [0.8, 3.05, 1.6],
+                [-2.8, 2.1, 3.9]
+            ])
+        case "gear-teeth":
+            return shardSlots(formationIdentifier, [
+                [0.0, 2.1, -9.4],
+                [3.8, 1.65, -8.0],
+                [5.8, 2.5, -4.5],
+                [5.0, 1.45, -0.5],
+                [2.0, 2.85, 2.1],
+                [-2.0, 1.75, 2.1],
+                [-5.0, 2.55, -0.5],
+                [-5.8, 1.5, -4.5],
+                [-3.8, 3.0, -8.0]
+            ])
+        case "page-tabs":
+            return shardSlots(formationIdentifier, [
+                [-5.8, 1.25, -6.2],
+                [-3.8, 1.32, -5.8],
+                [-1.8, 1.4, -5.4],
+                [0.2, 1.48, -5.0],
+                [-5.4, 2.1, -1.2],
+                [-2.7, 2.2, -0.8],
+                [0.0, 2.3, -0.4],
+                [2.7, 2.4, 0.0],
+                [5.4, 2.5, 0.4]
+            ])
+        case "split-spectrum":
+            return shardSlots(formationIdentifier, [
+                [-5.8, 1.6, -9.4],
+                [-2.9, 2.4, -8.2],
+                [0.0, 3.1, -6.9],
+                [2.9, 2.4, -8.2],
+                [5.8, 1.6, -9.4],
+                [-4.2, 2.0, -1.4],
+                [0.0, 2.8, 0.4],
+                [4.2, 2.0, -1.4],
+                [0.0, 1.4, 4.4]
+            ])
+        case "distant-watch":
+            return shardSlots(formationIdentifier, [
+                [-6.2, 1.25, -8.6],
+                [-2.1, 1.55, -9.5],
+                [2.1, 1.55, -9.5],
+                [6.2, 1.25, -8.6],
+                [-5.4, 2.2, -2.2],
+                [-1.8, 2.55, -2.8],
+                [1.8, 2.55, -2.8],
+                [5.4, 2.2, -2.2],
+                [0.0, 3.0, 2.8]
+            ])
+        default:
+            return shardSlots(for: "distant-watch")
+        }
+    }
+
+    private static func pedestalSlots(
+        _ layoutIdentifier: String,
+        _ positions: [SIMD3<Float>]
+    ) -> [CinematicSetDressingPlan.PedestalSlotGeometry] {
+        positions.enumerated().map { index, position in
+            CinematicSetDressingPlan.PedestalSlotGeometry(
+                identifier: "\(layoutIdentifier).pedestal-\(index)",
+                layoutIdentifier: layoutIdentifier,
+                position: position,
+                yawRadians: yawFacingCenter(from: position)
+            )
+        }
+    }
+
+    private static func shardSlots(
+        _ formationIdentifier: String,
+        _ positions: [SIMD3<Float>]
+    ) -> [CinematicSetDressingPlan.FloatingShardSlotGeometry] {
+        positions.enumerated().map { index, position in
+            CinematicSetDressingPlan.FloatingShardSlotGeometry(
+                identifier: "\(formationIdentifier).shard-\(index)",
+                formationIdentifier: formationIdentifier,
+                position: position,
+                pitchRadians: -0.18 + Float(index % 3) * 0.13,
+                yawRadians: yawFacingCenter(from: position) + Float(index) * 0.12,
+                rollRadians: -0.24 + Float(index % 5) * 0.12
+            )
+        }
+    }
+
+    private static func yawFacingCenter(from position: SIMD3<Float>) -> Float {
+        atan2(-position.x, -position.z)
+    }
+}
+
+enum CinematicRuneMaterialTreatmentCatalog {
+    static let expectedRuneMaterialIdentifiers: Set<String> = [
+        "fracture-runes",
+        "history-runes",
+        "pressure-runes",
+        "quiet-runes",
+        "seal-runes"
+    ]
+
+    static var expectedTreatmentIdentifiers: Set<String> {
+        Set(expectedRuneMaterialIdentifiers.map { treatment(for: $0).identifier })
+    }
+
+    static func treatment(
+        for runeMaterialIdentifier: String
+    ) -> CinematicSetDressingPlan.RuneMaterialTreatment {
+        switch runeMaterialIdentifier {
+        case "fracture-runes":
+            return runeTreatment(
+                runeMaterialIdentifier,
+                floorEmissionOpacity: 0.34,
+                plinthOpacity: 0.72,
+                ringOpacityScale: 1.22,
+                segmentRadiusScale: 1.16,
+                segmentOpacityScale: 1.24,
+                coreOpacity: 0.94,
+                arenaAccentOpacityScale: 1.2,
+                arenaAccentScale: 1.08
+            )
+        case "pressure-runes":
+            return runeTreatment(
+                runeMaterialIdentifier,
+                floorEmissionOpacity: 0.28,
+                plinthOpacity: 0.78,
+                ringOpacityScale: 1.14,
+                segmentRadiusScale: 1.08,
+                segmentOpacityScale: 1.16,
+                coreOpacity: 0.9,
+                arenaAccentOpacityScale: 1.12,
+                arenaAccentScale: 1.04
+            )
+        case "history-runes":
+            return runeTreatment(
+                runeMaterialIdentifier,
+                floorEmissionOpacity: 0.22,
+                plinthOpacity: 0.82,
+                ringOpacityScale: 1.02,
+                segmentRadiusScale: 1.0,
+                segmentOpacityScale: 1.04,
+                coreOpacity: 0.86,
+                arenaAccentOpacityScale: 1.02,
+                arenaAccentScale: 1.02
+            )
+        case "seal-runes":
+            return runeTreatment(
+                runeMaterialIdentifier,
+                floorEmissionOpacity: 0.24,
+                plinthOpacity: 0.88,
+                ringOpacityScale: 1.08,
+                segmentRadiusScale: 0.96,
+                segmentOpacityScale: 1.08,
+                coreOpacity: 0.92,
+                arenaAccentOpacityScale: 1.08,
+                arenaAccentScale: 1.0
+            )
+        case "quiet-runes":
+            return runeTreatment(
+                "quiet-runes",
+                floorEmissionOpacity: 0.12,
+                plinthOpacity: 0.9,
+                ringOpacityScale: 0.86,
+                segmentRadiusScale: 0.92,
+                segmentOpacityScale: 0.86,
+                coreOpacity: 0.76,
+                arenaAccentOpacityScale: 0.86,
+                arenaAccentScale: 0.96
+            )
+        default:
+            return runeTreatment(
+                "quiet-runes",
+                floorEmissionOpacity: 0.12,
+                plinthOpacity: 0.9,
+                ringOpacityScale: 0.86,
+                segmentRadiusScale: 0.92,
+                segmentOpacityScale: 0.86,
+                coreOpacity: 0.76,
+                arenaAccentOpacityScale: 0.86,
+                arenaAccentScale: 0.96
+            )
+        }
+    }
+
+    private static func runeTreatment(
+        _ runeMaterialIdentifier: String,
+        floorEmissionOpacity: Float,
+        plinthOpacity: Float,
+        ringOpacityScale: Float,
+        segmentRadiusScale: Float,
+        segmentOpacityScale: Float,
+        coreOpacity: Float,
+        arenaAccentOpacityScale: Float,
+        arenaAccentScale: Float
+    ) -> CinematicSetDressingPlan.RuneMaterialTreatment {
+        CinematicSetDressingPlan.RuneMaterialTreatment(
+            identifier: "rune-treatment.\(runeMaterialIdentifier)",
+            runeMaterialIdentifier: runeMaterialIdentifier,
+            floorEmissionOpacity: floorEmissionOpacity,
+            plinthOpacity: plinthOpacity,
+            ringOpacityScale: ringOpacityScale,
+            segmentRadiusScale: segmentRadiusScale,
+            segmentOpacityScale: segmentOpacityScale,
+            coreOpacity: coreOpacity,
+            arenaAccentOpacityScale: arenaAccentOpacityScale,
+            arenaAccentScale: arenaAccentScale
+        )
+    }
+}
+
 enum CinematicSetDressingPlanner {
     static func plan(
         languageProfile: RepositoryLanguageProfile,
@@ -551,6 +991,12 @@ enum CinematicSetDressingPlanner {
         }
 
         let languageIdentifier = profile.primaryLanguage.rawValue
+        let pedestalSlots = CinematicSetDressingGeometryCatalog.pedestalSlots(
+            for: pedestalLayoutIdentifier
+        )
+        let shardSlots = CinematicSetDressingGeometryCatalog.shardSlots(
+            for: shardFormationIdentifier
+        )
         return CinematicSetDressingPlan.LanguageArchitecture(
             identifier: [
                 "language:\(languageIdentifier)",
@@ -558,14 +1004,18 @@ enum CinematicSetDressingPlanner {
                 motif.styleIdentifier,
                 architectureIdentifier,
                 pedestalLayoutIdentifier,
-                shardFormationIdentifier
+                shardFormationIdentifier,
+                "pedestal-slots:\(pedestalSlots.count)",
+                "shard-slots:\(shardSlots.count)"
             ].joined(separator: "|"),
             languageIdentifier: languageIdentifier,
             sigilIdentifier: motif.sigilIdentifier,
             styleIdentifier: motif.styleIdentifier,
             architectureIdentifier: architectureIdentifier,
             pedestalLayoutIdentifier: pedestalLayoutIdentifier,
-            shardFormationIdentifier: shardFormationIdentifier
+            shardFormationIdentifier: shardFormationIdentifier,
+            pedestalSlots: pedestalSlots,
+            shardSlots: shardSlots
         )
     }
 
@@ -649,11 +1099,16 @@ enum CinematicSetDressingPlanner {
             runeMaterialIdentifier = "quiet-runes"
         }
 
+        let runeMaterialTreatment = CinematicRuneMaterialTreatmentCatalog.treatment(
+            for: runeMaterialIdentifier
+        )
+
         let identifier = [
             backdropTextureAsset.identifier,
             arenaTextureAsset.identifier,
             languageVariant,
-            runeMaterialIdentifier
+            runeMaterialIdentifier,
+            runeMaterialTreatment.identifier
         ].joined(separator: "|")
 
         return CinematicSetDressingPlan.MaterialTextureVariants(
@@ -663,7 +1118,8 @@ enum CinematicSetDressingPlanner {
             pedestalMaterialIdentifier: "\(languageVariant)-pedestal",
             flameMaterialIdentifier: "\(languageVariant)-flame",
             shardMaterialIdentifier: "\(languageVariant)-shard",
-            runeMaterialIdentifier: runeMaterialIdentifier
+            runeMaterialIdentifier: runeMaterialIdentifier,
+            runeMaterialTreatment: runeMaterialTreatment
         )
     }
 

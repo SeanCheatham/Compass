@@ -52,6 +52,15 @@ final class CinematicSetDressingPlanTests: XCTestCase {
             CinematicTextureAssetCatalog.generatedBackdropNames
         )
         XCTAssertGreaterThan(Set(languagePlans.map(\.languageArchitecture.architectureIdentifier)).count, 5)
+        XCTAssertEqual(
+            Set(languagePlans.map(\.languageArchitecture.pedestalLayoutIdentifier)),
+            CinematicSetDressingGeometryCatalog.expectedPedestalLayoutIdentifiers
+        )
+        XCTAssertEqual(
+            Set(languagePlans.map(\.languageArchitecture.shardFormationIdentifier)),
+            CinematicSetDressingGeometryCatalog.expectedShardFormationIdentifiers
+        )
+        XCTAssertTrue(languagePlans.allSatisfy(\.languageArchitecture.geometryIsBounded))
         XCTAssertGreaterThan(Set(languagePlans.map(\.pedestalFlames.pedestalCount)).count, 2)
         XCTAssertGreaterThan(Set(languagePlans.map(\.materialTextureVariants.pedestalMaterialIdentifier)).count, 5)
 
@@ -74,6 +83,14 @@ final class CinematicSetDressingPlanTests: XCTestCase {
         XCTAssertEqual(
             Set(activityPlans.map(\.materialTextureVariants.arenaTextureName)),
             CinematicTextureAssetCatalog.generatedArenaNames
+        )
+        XCTAssertEqual(
+            Set(activityPlans.map(\.materialTextureVariants.runeMaterialIdentifier)),
+            CinematicRuneMaterialTreatmentCatalog.expectedRuneMaterialIdentifiers
+        )
+        XCTAssertEqual(
+            Set(activityPlans.map(\.materialTextureVariants.runeMaterialTreatment.identifier)),
+            CinematicRuneMaterialTreatmentCatalog.expectedTreatmentIdentifiers
         )
         XCTAssertEqual(
             Set(activityPlans.map(\.activityMarker.identifier)).count,
@@ -223,6 +240,76 @@ final class CinematicSetDressingPlanTests: XCTestCase {
         XCTAssertTrue(CinematicTextureAssetCatalog.recognizesBundledTextureName("arena-runes-v3"))
     }
 
+    func testLanguageGeometryDescriptorsAreUniqueBoundedAndKeyedByLayoutIdentifiers() {
+        for language in RepositoryLanguage.allCases {
+            let plan = CinematicSetDressingPlanner.plan(
+                languageProfile: languageProfile(primaryLanguage: language),
+                activityProfile: activityProfile(),
+                influenceSettings: CinematicInfluenceSettings()
+            )
+            let architecture = plan.languageArchitecture
+
+            XCTAssertEqual(architecture.pedestalSlots.count, CinematicSetDressingPlan.pedestalCountRange.upperBound)
+            XCTAssertEqual(architecture.shardSlots.count, CinematicSetDressingPlan.shardCountRange.upperBound)
+            XCTAssertEqual(
+                Set(architecture.pedestalSlots.map(\.identifier)).count,
+                architecture.pedestalSlots.count
+            )
+            XCTAssertEqual(
+                Set(architecture.shardSlots.map(\.identifier)).count,
+                architecture.shardSlots.count
+            )
+            XCTAssertTrue(architecture.geometryIsBounded)
+            XCTAssertEqual(
+                Set(architecture.pedestalSlots.map(\.layoutIdentifier)),
+                Set([architecture.pedestalLayoutIdentifier])
+            )
+            XCTAssertEqual(
+                Set(architecture.shardSlots.map(\.formationIdentifier)),
+                Set([architecture.shardFormationIdentifier])
+            )
+            XCTAssertTrue(architecture.layoutCoverageIdentifier.contains(architecture.pedestalLayoutIdentifier))
+            XCTAssertTrue(architecture.layoutCoverageIdentifier.contains(architecture.shardFormationIdentifier))
+
+            for slot in architecture.pedestalSlots {
+                assertPedestalSlotInBounds(slot, file: #filePath, line: #line)
+            }
+            for slot in architecture.shardSlots {
+                assertShardSlotInBounds(slot, file: #filePath, line: #line)
+            }
+        }
+    }
+
+    func testRuneMaterialTreatmentsAreActivitySpecificAndBoundedWithoutChangingTextureRoutes() {
+        let settings = CinematicInfluenceSettings()
+        let plans = CinematicDiagnostics.representativeActivityCases().map { activityCase in
+            CinematicSetDressingPlanner.plan(
+                languageProfile: languageProfile(primaryLanguage: .swift),
+                activityProfile: activityCase.profile,
+                influenceSettings: settings
+            )
+        }
+
+        XCTAssertEqual(
+            Set(plans.map(\.materialTextureVariants.runeMaterialIdentifier)),
+            CinematicRuneMaterialTreatmentCatalog.expectedRuneMaterialIdentifiers
+        )
+        XCTAssertEqual(
+            Set(plans.map(\.materialTextureVariants.runeMaterialTreatment.identifier)),
+            CinematicRuneMaterialTreatmentCatalog.expectedTreatmentIdentifiers
+        )
+
+        for plan in plans {
+            let variants = plan.materialTextureVariants
+            XCTAssertEqual(variants.runeMaterialTreatment.runeMaterialIdentifier, variants.runeMaterialIdentifier)
+            XCTAssertFalse(variants.backdropTextureName.hasSuffix(".png"))
+            XCTAssertFalse(variants.arenaTextureName.hasSuffix(".png"))
+            XCTAssertTrue(CinematicTextureAssetCatalog.recognizes(variants.backdropTextureName, role: .backdrop))
+            XCTAssertTrue(CinematicTextureAssetCatalog.recognizes(variants.arenaTextureName, role: .arena))
+            assertRuneTreatmentInBounds(variants.runeMaterialTreatment, file: #filePath, line: #line)
+        }
+    }
+
     func testPlanValuesStayInsideBoundedRanges() {
         let settingsSamples = [
             CinematicInfluenceSettings(cameraStyle: .steady, intensity: 0),
@@ -271,6 +358,12 @@ final class CinematicSetDressingPlanTests: XCTestCase {
         XCTAssertEqual(report.setDressing.identifier, plan.identifier)
         XCTAssertEqual(report.setDressing.languageArchitectureIdentifier, plan.languageArchitecture.identifier)
         XCTAssertEqual(report.setDressing.activityMarkerIdentifier, plan.activityMarker.identifier)
+        XCTAssertEqual(report.setDressing.pedestalLayoutIdentifier, plan.languageArchitecture.pedestalLayoutIdentifier)
+        XCTAssertEqual(report.setDressing.shardFormationIdentifier, plan.languageArchitecture.shardFormationIdentifier)
+        XCTAssertEqual(report.setDressing.pedestalSlotCount, plan.languageArchitecture.pedestalSlots.count)
+        XCTAssertEqual(report.setDressing.shardSlotCount, plan.languageArchitecture.shardSlots.count)
+        XCTAssertEqual(report.setDressing.layoutGeometryCoverageIdentifier, plan.languageArchitecture.layoutCoverageIdentifier)
+        XCTAssertEqual(report.setDressing.layoutGeometryIsBounded, plan.languageArchitecture.geometryIsBounded)
         XCTAssertEqual(report.setDressing.pedestalCount, plan.pedestalFlames.pedestalCount)
         XCTAssertEqual(report.setDressing.shardCount, plan.floatingShards.shardCount)
         XCTAssertEqual(report.setDressing.ambientSpawnCadence, plan.ambientSpawnCadence)
@@ -286,6 +379,14 @@ final class CinematicSetDressingPlanTests: XCTestCase {
         XCTAssertEqual(
             report.setDressing.textureRoleCoverageIdentifier,
             plan.materialTextureVariants.textureRoleCoverageIdentifier
+        )
+        XCTAssertEqual(
+            report.setDressing.runeMaterialIdentifier,
+            plan.materialTextureVariants.runeMaterialIdentifier
+        )
+        XCTAssertEqual(
+            report.setDressing.runeMaterialTreatmentIdentifier,
+            plan.materialTextureVariants.runeMaterialTreatment.identifier
         )
         XCTAssertTrue(report.identifier.contains("set-dressing:\(plan.identifier)"))
     }
@@ -346,6 +447,59 @@ private func assertPlanInBounds(
     XCTAssertInRange(plan.ambientSpawnCadence, CinematicTuning.ambientSpawnCadenceRange, file: file, line: line)
     XCTAssertInRange(plan.ambientEnemyLimit, CinematicTuning.ambientEnemyLimitRange, file: file, line: line)
     XCTAssertInRange(plan.activityLightBoost, CinematicTuning.activityLightBoostRange, file: file, line: line)
+    XCTAssertEqual(plan.languageArchitecture.pedestalSlots.count, CinematicSetDressingPlan.pedestalCountRange.upperBound, file: file, line: line)
+    XCTAssertEqual(plan.languageArchitecture.shardSlots.count, CinematicSetDressingPlan.shardCountRange.upperBound, file: file, line: line)
+    XCTAssertTrue(plan.languageArchitecture.geometryIsBounded, file: file, line: line)
+    for slot in plan.languageArchitecture.pedestalSlots {
+        assertPedestalSlotInBounds(slot, file: file, line: line)
+    }
+    for slot in plan.languageArchitecture.shardSlots {
+        assertShardSlotInBounds(slot, file: file, line: line)
+    }
+    assertRuneTreatmentInBounds(plan.materialTextureVariants.runeMaterialTreatment, file: file, line: line)
+}
+
+private func assertPedestalSlotInBounds(
+    _ slot: CinematicSetDressingPlan.PedestalSlotGeometry,
+    file: StaticString = #filePath,
+    line: UInt = #line
+) {
+    XCTAssertInRange(slot.position.x, CinematicSetDressingPlan.pedestalSlotXRange, file: file, line: line)
+    XCTAssertInRange(slot.position.y, CinematicSetDressingPlan.pedestalSlotYRange, file: file, line: line)
+    XCTAssertInRange(slot.position.z, CinematicSetDressingPlan.pedestalSlotZRange, file: file, line: line)
+    XCTAssertTrue(slot.isInsideArenaBounds, file: file, line: line)
+    XCTAssertFalse(slot.identifier.isEmpty, file: file, line: line)
+    XCTAssertFalse(slot.layoutIdentifier.isEmpty, file: file, line: line)
+}
+
+private func assertShardSlotInBounds(
+    _ slot: CinematicSetDressingPlan.FloatingShardSlotGeometry,
+    file: StaticString = #filePath,
+    line: UInt = #line
+) {
+    XCTAssertInRange(slot.position.x, CinematicSetDressingPlan.shardSlotXRange, file: file, line: line)
+    XCTAssertInRange(slot.position.y, CinematicSetDressingPlan.shardSlotYRange, file: file, line: line)
+    XCTAssertInRange(slot.position.z, CinematicSetDressingPlan.shardSlotZRange, file: file, line: line)
+    XCTAssertTrue(slot.isInsideArenaBounds, file: file, line: line)
+    XCTAssertFalse(slot.identifier.isEmpty, file: file, line: line)
+    XCTAssertFalse(slot.formationIdentifier.isEmpty, file: file, line: line)
+}
+
+private func assertRuneTreatmentInBounds(
+    _ treatment: CinematicSetDressingPlan.RuneMaterialTreatment,
+    file: StaticString = #filePath,
+    line: UInt = #line
+) {
+    XCTAssertInRange(treatment.floorEmissionOpacity, CinematicSetDressingPlan.runeFloorEmissionOpacityRange, file: file, line: line)
+    XCTAssertInRange(treatment.plinthOpacity, CinematicSetDressingPlan.runePlinthOpacityRange, file: file, line: line)
+    XCTAssertInRange(treatment.ringOpacityScale, CinematicSetDressingPlan.runeRingOpacityScaleRange, file: file, line: line)
+    XCTAssertInRange(treatment.segmentRadiusScale, CinematicSetDressingPlan.runeSegmentRadiusScaleRange, file: file, line: line)
+    XCTAssertInRange(treatment.segmentOpacityScale, CinematicSetDressingPlan.runeSegmentOpacityScaleRange, file: file, line: line)
+    XCTAssertInRange(treatment.coreOpacity, CinematicSetDressingPlan.runeCoreOpacityRange, file: file, line: line)
+    XCTAssertInRange(treatment.arenaAccentOpacityScale, CinematicSetDressingPlan.arenaAccentOpacityScaleRange, file: file, line: line)
+    XCTAssertInRange(treatment.arenaAccentScale, CinematicSetDressingPlan.arenaAccentScaleRange, file: file, line: line)
+    XCTAssertFalse(treatment.identifier.isEmpty, file: file, line: line)
+    XCTAssertFalse(treatment.runeMaterialIdentifier.isEmpty, file: file, line: line)
 }
 
 private func assertTextureAssetIsBounded(

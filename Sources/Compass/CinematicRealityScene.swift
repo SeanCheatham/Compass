@@ -759,18 +759,12 @@ private final class CinematicSceneCoordinator {
     }
 
     private func buildSetDressing() {
-        let pedestalPositions: [SIMD3<Float>] = [
-            [-7.7, 0, -6.3],
-            [7.7, 0, -6.3],
-            [-8.5, 0, 2.8],
-            [8.5, 0, 2.8],
-            [-3.4, 0, -8.9],
-            [3.4, 0, -8.9]
-        ]
+        let pedestalSlots = setDressingPlan.languageArchitecture.pedestalSlots
 
-        for (index, position) in pedestalPositions
-            .prefix(CinematicSetDressingPlan.pedestalCountRange.upperBound)
-            .enumerated() {
+        for index in 0..<CinematicSetDressingPlan.pedestalCountRange.upperBound {
+            let position = pedestalSlots.indices.contains(index)
+                ? pedestalSlots[index].position
+                : .zero
             let pedestal = Entity()
             pedestal.name = "set-pedestal-\(index)"
             pedestal.position = position
@@ -823,21 +817,12 @@ private final class CinematicSceneCoordinator {
             setDressingRoot.addChild(pedestal)
         }
 
-        let shardPositions: [SIMD3<Float>] = [
-            [-5.2, 1.9, -9.8],
-            [-2.7, 2.8, -10.4],
-            [2.8, 2.3, -9.4],
-            [5.4, 1.75, -8.6],
-            [-6.2, 1.3, -2.4],
-            [6.1, 1.5, -2.1],
-            [-4.4, 2.15, 4.4],
-            [0.0, 3.05, -11.2],
-            [4.4, 2.05, 4.3]
-        ]
+        let shardSlots = setDressingPlan.languageArchitecture.shardSlots
 
-        for (index, position) in shardPositions
-            .prefix(CinematicSetDressingPlan.shardCountRange.upperBound)
-            .enumerated() {
+        for index in 0..<CinematicSetDressingPlan.shardCountRange.upperBound {
+            let position = shardSlots.indices.contains(index)
+                ? shardSlots[index].position
+                : .zero
             let shard = ModelEntity(
                 mesh: .generateBox(width: 0.22, height: 0.62, depth: 0.08, cornerRadius: 0.015),
                 materials: [
@@ -849,7 +834,11 @@ private final class CinematicSceneCoordinator {
             )
             shard.name = "floating-shard-\(index)"
             shard.position = position
-            shard.orientation = simd_quatf(angle: Float(index) * 0.83, axis: [0.2, 1, 0.12])
+            if shardSlots.indices.contains(index) {
+                shard.orientation = shardOrientation(for: shardSlots[index])
+            } else {
+                shard.orientation = simd_quatf(angle: Float(index) * 0.83, axis: [0.2, 1, 0.12])
+            }
             setDressingBaseHeights[ObjectIdentifier(shard)] = position.y
             setDressingRoot.addChild(shard)
         }
@@ -1368,14 +1357,17 @@ private final class CinematicSceneCoordinator {
     }
 
     private func arenaRing(radius: Float, color: NSColor, duration: TimeInterval, scale: Float, opacity: Float) {
+        let treatment = setDressingPlan.materialTextureVariants.runeMaterialTreatment
+        let treatedOpacity = clamped(opacity * treatment.arenaAccentOpacityScale, to: 0...1)
+        let treatedScale = max(0.001, scale * treatment.arenaAccentScale)
         let ring = ModelEntity(
             mesh: torusMesh(ringRadius: radius, pipeRadius: 0.018),
-            materials: [glowMaterial(color, opacity: opacity)]
+            materials: [glowMaterial(color, opacity: treatedOpacity)]
         )
         ring.position.y = 0.055
-        ring.components.set(OpacityComponent(opacity: opacity))
+        ring.components.set(OpacityComponent(opacity: treatedOpacity))
         effectsRoot.addChild(ring)
-        animate(ring, toScale: SIMD3<Float>(repeating: scale), toOpacity: 0, duration: duration, removeOnCompletion: true)
+        animate(ring, toScale: SIMD3<Float>(repeating: treatedScale), toOpacity: 0, duration: duration, removeOnCompletion: true)
     }
 
     private func pulsePhaseLight(color: NSColor, intensity: Float, duration: TimeInterval) {
@@ -2084,19 +2076,21 @@ private final class CinematicSceneCoordinator {
 
         let color = activityColor(for: activityMotif)
         let secondary = activityMotif.tintSource.map { themedColor($0.nsColor) } ?? languageMotif.secondaryAccent
+        let treatment = setDressingPlan.materialTextureVariants.runeMaterialTreatment
         addSigilBase(
             to: activitySigilRoot,
             color: color,
             secondary: secondary,
-            radius: setDressingPlan.runeIntensity.activityBaseRadius
+            radius: setDressingPlan.runeIntensity.activityBaseRadius,
+            treatment: treatment
         )
         addSigilSegments(
             activitySigilSegments(for: activityMotif.style),
             to: activitySigilRoot,
             color: color,
             secondary: secondary,
-            radiusScale: setDressingPlan.runeIntensity.segmentRadiusScale,
-            opacityScale: setDressingPlan.runeIntensity.segmentOpacityScale
+            radiusScale: setDressingPlan.runeIntensity.segmentRadiusScale * treatment.segmentRadiusScale,
+            opacityScale: setDressingPlan.runeIntensity.segmentOpacityScale * treatment.segmentOpacityScale
         )
         let activityCoreBaseScale: SIMD3<Float> = activityMotif.eventKind == .unavailable
             ? [0.62, 0.62, 0.62]
@@ -2104,7 +2098,8 @@ private final class CinematicSceneCoordinator {
         addSigilCore(
             to: activitySigilRoot,
             color: secondary,
-            scale: activityCoreBaseScale * setDressingPlan.runeIntensity.coreScale
+            scale: activityCoreBaseScale * setDressingPlan.runeIntensity.coreScale,
+            opacity: treatment.coreOpacity
         )
     }
 
@@ -2118,14 +2113,19 @@ private final class CinematicSceneCoordinator {
         to root: Entity,
         color: NSColor,
         secondary: NSColor,
-        radius: Float
+        radius: Float,
+        treatment: CinematicSetDressingPlan.RuneMaterialTreatment? = nil
     ) {
+        let floorEmissionOpacity = treatment?.floorEmissionOpacity ?? 0.12
+        let plinthOpacity = treatment?.plinthOpacity ?? 1
+        let ringOpacityScale = treatment?.ringOpacityScale ?? 1
         let plinth = ModelEntity(
             mesh: .generateCylinder(height: 0.1, radius: radius),
             materials: [
                 material(
                     diffuse: NSColor(calibratedRed: 0.028, green: 0.03, blue: 0.042, alpha: 1),
-                    emission: color.withAlphaComponent(0.12)
+                    emission: color.withAlphaComponent(CGFloat(floorEmissionOpacity)),
+                    opacity: plinthOpacity
                 )
             ]
         )
@@ -2135,7 +2135,12 @@ private final class CinematicSceneCoordinator {
 
         let outerRing = ModelEntity(
             mesh: torusMesh(ringRadius: radius * 1.05, pipeRadius: 0.012),
-            materials: [glowMaterial(color.withAlphaComponent(0.72), opacity: 0.58)]
+            materials: [
+                glowMaterial(
+                    color.withAlphaComponent(0.72),
+                    opacity: clamped(0.58 * ringOpacityScale, to: 0...1)
+                )
+            ]
         )
         outerRing.name = "sigil-outer-ring"
         outerRing.position.y = 0.12
@@ -2143,7 +2148,12 @@ private final class CinematicSceneCoordinator {
 
         let innerRing = ModelEntity(
             mesh: torusMesh(ringRadius: radius * 0.42, pipeRadius: 0.008),
-            materials: [glowMaterial(secondary.withAlphaComponent(0.64), opacity: 0.46)]
+            materials: [
+                glowMaterial(
+                    secondary.withAlphaComponent(0.64),
+                    opacity: clamped(0.46 * ringOpacityScale, to: 0...1)
+                )
+            ]
         )
         innerRing.name = "sigil-inner-ring"
         innerRing.position.y = 0.145
@@ -2153,11 +2163,12 @@ private final class CinematicSceneCoordinator {
     private func addSigilCore(
         to root: Entity,
         color: NSColor,
-        scale: SIMD3<Float>
+        scale: SIMD3<Float>,
+        opacity: Float = 0.84
     ) {
         let core = ModelEntity(
             mesh: .generateSphere(radius: 0.075),
-            materials: [glowMaterial(color, opacity: 0.84)]
+            materials: [glowMaterial(color, opacity: opacity)]
         )
         core.name = "sigil-core"
         core.scale = scale
@@ -2345,13 +2356,19 @@ private final class CinematicSceneCoordinator {
 
     private func applyPedestalFlames() {
         let plan = setDressingPlan.pedestalFlames
+        let slots = setDressingPlan.languageArchitecture.pedestalSlots
         let rimColor = setDressingTint(languageMotif.accent, fraction: plan.activityTintFraction)
         let flameColor = setDressingTint(languageMotif.secondaryAccent, fraction: plan.activityTintFraction)
         let stone = pedestalStoneColors()
 
         for pedestal in setDressingRoot.children where pedestal.name.hasPrefix("set-pedestal-") {
             let index = setDressingIndex(in: pedestal.name, prefix: "set-pedestal-") ?? 0
-            let isActive = index < plan.pedestalCount
+            if slots.indices.contains(index) {
+                let slot = slots[index]
+                pedestal.position = slot.position
+                pedestal.orientation = simd_quatf(angle: slot.yawRadians, axis: [0, 1, 0])
+            }
+            let isActive = index < plan.pedestalCount && slots.indices.contains(index)
             setOpacity(isActive ? 1 : 0, on: pedestal)
 
             for child in pedestal.children {
@@ -2383,12 +2400,19 @@ private final class CinematicSceneCoordinator {
 
     private func applyFloatingShards() {
         let plan = setDressingPlan.floatingShards
+        let slots = setDressingPlan.languageArchitecture.shardSlots
         let shardColor = setDressingTint(languageMotif.accent, fraction: plan.activityTintFraction)
         let shardDiffuse = shardStoneColor()
 
         for shard in setDressingRoot.children where shard.name.hasPrefix("floating-shard-") {
             let index = setDressingIndex(in: shard.name, prefix: "floating-shard-") ?? 0
-            let isActive = index < plan.shardCount
+            if slots.indices.contains(index) {
+                let slot = slots[index]
+                shard.position = slot.position
+                shard.orientation = shardOrientation(for: slot)
+                setDressingBaseHeights[ObjectIdentifier(shard)] = slot.position.y
+            }
+            let isActive = index < plan.shardCount && slots.indices.contains(index)
             setOpacity(isActive ? plan.opacity : 0, on: shard)
             shard.scale = SIMD3<Float>(repeating: isActive ? plan.scale : 0.001)
             setMaterial(
@@ -2503,8 +2527,12 @@ private final class CinematicSceneCoordinator {
 
         setGlow(atmosphereColor(plan.backdropTint), opacity: plan.backdropTint.opacity, on: backdropTintNode)
         setOpacity(plan.backdropTint.opacity, on: backdropTintNode)
-        setGlow(atmosphereColor(plan.floorTint), opacity: plan.floorTint.opacity, on: floorTintNode)
-        setOpacity(plan.floorTint.opacity, on: floorTintNode)
+        let runeTreatment = setDressingPlan.materialTextureVariants.runeMaterialTreatment
+        let floorOpacity = clamped(plan.floorTint.opacity * runeTreatment.ringOpacityScale, to: 0...1)
+        let floorColor = atmosphereColor(plan.floorTint)
+            .withAlphaComponent(CGFloat(runeTreatment.floorEmissionOpacity))
+        setGlow(floorColor, opacity: floorOpacity, on: floorTintNode)
+        setOpacity(floorOpacity, on: floorTintNode)
 
         let rimColor = themedColor(stageBeat().lightFamily.spell.nsColor)
             .mixing(with: atmosphereColor(plan.floorTint), fraction: CGFloat(plan.floorTint.blendFraction))
@@ -3193,6 +3221,14 @@ private final class CinematicSceneCoordinator {
         return Int(name.dropFirst(prefix.count))
     }
 
+    private func shardOrientation(
+        for slot: CinematicSetDressingPlan.FloatingShardSlotGeometry
+    ) -> simd_quatf {
+        simd_quatf(angle: slot.yawRadians, axis: [0, 1, 0])
+            * simd_quatf(angle: slot.pitchRadians, axis: [1, 0, 0])
+            * simd_quatf(angle: slot.rollRadians, axis: [0, 0, 1])
+    }
+
     private func pedestalStoneColors() -> (base: NSColor, column: NSColor, emission: NSColor) {
         let identifier = setDressingPlan.materialTextureVariants.pedestalMaterialIdentifier
         if identifier.contains("oxidized") {
@@ -3800,6 +3836,10 @@ private final class CinematicSceneCoordinator {
 
     private func mix(_ lhs: SIMD3<Float>, _ rhs: SIMD3<Float>, _ t: Float) -> SIMD3<Float> {
         lhs + (rhs - lhs) * t
+    }
+
+    private func clamped(_ value: Float, to range: ClosedRange<Float>) -> Float {
+        min(max(value, range.lowerBound), range.upperBound)
     }
 
     private func material(diffuse: NSColor, emission: NSColor? = nil, opacity: Float = 1) -> PhysicallyBasedMaterial {

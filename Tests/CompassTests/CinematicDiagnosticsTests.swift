@@ -167,6 +167,29 @@ final class CinematicDiagnosticsTests: XCTestCase {
             Set(reports.map(\.setDressing.arenaTextureName)),
             CinematicTextureAssetCatalog.generatedArenaNames
         )
+        XCTAssertEqual(
+            Set(reports.map(\.setDressing.pedestalLayoutIdentifier)),
+            CinematicSetDressingGeometryCatalog.expectedPedestalLayoutIdentifiers
+        )
+        XCTAssertEqual(
+            Set(reports.map(\.setDressing.shardFormationIdentifier)),
+            CinematicSetDressingGeometryCatalog.expectedShardFormationIdentifiers
+        )
+        XCTAssertTrue(
+            reports.allSatisfy {
+                $0.setDressing.pedestalSlotCount == CinematicSetDressingPlan.pedestalCountRange.upperBound
+                    && $0.setDressing.shardSlotCount == CinematicSetDressingPlan.shardCountRange.upperBound
+                    && $0.setDressing.layoutGeometryIsBounded
+            }
+        )
+        XCTAssertEqual(
+            Set(reports.map(\.setDressing.runeMaterialIdentifier)),
+            CinematicRuneMaterialTreatmentCatalog.expectedRuneMaterialIdentifiers
+        )
+        XCTAssertEqual(
+            Set(reports.map(\.setDressing.runeMaterialTreatmentIdentifier)),
+            CinematicRuneMaterialTreatmentCatalog.expectedTreatmentIdentifiers
+        )
         XCTAssertTrue(
             reports.allSatisfy {
                 CinematicTextureAssetCatalog.recognizes($0.setDressing.backdropTextureName, role: .backdrop)
@@ -594,7 +617,7 @@ final class CinematicDiagnosticsTests: XCTestCase {
         XCTAssertTrue(summary.exportText.contains("Assets/textures (2 rows)"))
         XCTAssertTrue(summary.exportText.contains("Tuning (4 rows)"))
         XCTAssertTrue(summary.exportText.contains("Camera shots (9 rows)"))
-        XCTAssertTrue(summary.exportText.contains("Visual smoke (pass, 10 checks)"))
+        XCTAssertTrue(summary.exportText.contains("Visual smoke (pass, 12 checks)"))
         XCTAssertTrue(summary.exportText.contains("Overlay fallback: pass"))
         XCTAssertTrue(summary.exportText.contains(report.languageMotif.sigilIdentifier))
         XCTAssertTrue(summary.exportText.contains(report.languageMotif.styleIdentifier))
@@ -627,10 +650,13 @@ final class CinematicDiagnosticsTests: XCTestCase {
         XCTAssertTrue(summary.exportText.contains(report.narrativeCue.activityBanner.layout.glyphSideIdentifier))
         XCTAssertTrue(summary.exportText.contains(report.setDressing.languageArchitectureIdentifier))
         XCTAssertTrue(summary.exportText.contains(report.setDressing.activityMarkerIdentifier))
+        XCTAssertTrue(summary.exportText.contains(report.setDressing.layoutGeometryCoverageIdentifier))
         XCTAssertTrue(summary.exportText.contains(report.setDressing.materialTextureVariantIdentifier))
         XCTAssertTrue(summary.exportText.contains(report.setDressing.backdropTextureAssetIdentifier))
         XCTAssertTrue(summary.exportText.contains(report.setDressing.arenaTextureAssetIdentifier))
         XCTAssertTrue(summary.exportText.contains(report.setDressing.textureRoleCoverageIdentifier))
+        XCTAssertTrue(summary.exportText.contains(report.setDressing.runeMaterialIdentifier))
+        XCTAssertTrue(summary.exportText.contains(report.setDressing.runeMaterialTreatmentIdentifier))
         XCTAssertTrue(summary.exportText.contains(report.setDressing.backdropTextureName))
         XCTAssertTrue(summary.exportText.contains(report.setDressing.arenaTextureName))
         XCTAssertTrue(summary.exportText.contains("backdrop generated"))

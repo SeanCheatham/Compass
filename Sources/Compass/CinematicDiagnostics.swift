@@ -319,6 +319,12 @@ struct CinematicDiagnosticsReport: Equatable {
         var identifier: String
         var languageArchitectureIdentifier: String
         var activityMarkerIdentifier: String
+        var pedestalLayoutIdentifier: String
+        var shardFormationIdentifier: String
+        var pedestalSlotCount: Int
+        var shardSlotCount: Int
+        var layoutGeometryCoverageIdentifier: String
+        var layoutGeometryIsBounded: Bool
         var pedestalCount: Int
         var flameLightIntensity: Float
         var flameOpacity: Float
@@ -338,6 +344,11 @@ struct CinematicDiagnosticsReport: Equatable {
         var backdropTextureRouteIdentifier: String
         var arenaTextureRouteIdentifier: String
         var textureRoleCoverageIdentifier: String
+        var runeMaterialIdentifier: String
+        var runeMaterialTreatmentIdentifier: String
+        var runeFloorEmissionOpacity: Float
+        var runeSegmentOpacityScale: Float
+        var arenaAccentOpacityScale: Float
         var backdropTextureName: String
         var arenaTextureName: String
         var usesFallbackTextureAsset: Bool
@@ -431,6 +442,8 @@ struct CinematicVisualSmokeReport: Equatable {
             textBoundsCheck(reports: reports),
             assetAvailabilityCheck(reports: reports),
             textureRoleCoverageCheck(reports: reports),
+            languageLayoutCoverageCheck(reports: reports),
+            activityMaterialTreatmentCoverageCheck(reports: reports),
             cameraPhaseCoverageCheck(reports: reports),
             pressureInfluenceSpreadCheck(reports: reports),
             recoveryCueCoverageCheck(reports: reports),
@@ -633,6 +646,67 @@ struct CinematicVisualSmokeReport: Equatable {
                 "arena \(arenaRoutes.intersection(expectedArenaRoutes).count)/\(expectedArenaRoutes.count)",
                 "gen arena \(generatedArenaRoutes.intersection(expectedArenaRoutes).count)/\(expectedArenaRoutes.count)",
                 "direct \(directRouteCount)/\(reports.count)"
+            ].joined(separator: " | ")
+        )
+    }
+
+    private static func languageLayoutCoverageCheck(reports: [CinematicDiagnosticsReport]) -> Check {
+        let expectedPedestalLayouts = CinematicSetDressingGeometryCatalog.expectedPedestalLayoutIdentifiers
+        let expectedShardFormations = CinematicSetDressingGeometryCatalog.expectedShardFormationIdentifiers
+        let pedestalLayouts = Set(reports.map(\.setDressing.pedestalLayoutIdentifier))
+        let shardFormations = Set(reports.map(\.setDressing.shardFormationIdentifier))
+        let completePedestalReports = reports.filter {
+            $0.setDressing.pedestalSlotCount == CinematicSetDressingPlan.pedestalCountRange.upperBound
+        }.count
+        let completeShardReports = reports.filter {
+            $0.setDressing.shardSlotCount == CinematicSetDressingPlan.shardCountRange.upperBound
+        }.count
+        let boundedReports = reports.filter(\.setDressing.layoutGeometryIsBounded).count
+        let isPassing = !reports.isEmpty
+            && pedestalLayouts.isSuperset(of: expectedPedestalLayouts)
+            && shardFormations.isSuperset(of: expectedShardFormations)
+            && completePedestalReports == reports.count
+            && completeShardReports == reports.count
+            && boundedReports == reports.count
+
+        return check(
+            id: "language-layout-coverage",
+            label: "Language layout coverage",
+            isPassing: isPassing,
+            warningIdentifier: "visual-smoke.language-layout-coverage",
+            detail: [
+                "pedestals \(pedestalLayouts.intersection(expectedPedestalLayouts).count)/\(expectedPedestalLayouts.count)",
+                "shards \(shardFormations.intersection(expectedShardFormations).count)/\(expectedShardFormations.count)",
+                "slot maps \(completePedestalReports)/\(completeShardReports)",
+                "bounds \(boundedReports)/\(reports.count)"
+            ].joined(separator: " | ")
+        )
+    }
+
+    private static func activityMaterialTreatmentCoverageCheck(reports: [CinematicDiagnosticsReport]) -> Check {
+        let expectedMaterials = CinematicRuneMaterialTreatmentCatalog.expectedRuneMaterialIdentifiers
+        let expectedTreatments = CinematicRuneMaterialTreatmentCatalog.expectedTreatmentIdentifiers
+        let materials = Set(reports.map(\.setDressing.runeMaterialIdentifier))
+        let treatments = Set(reports.map(\.setDressing.runeMaterialTreatmentIdentifier))
+        let treatmentValuesInBounds = reports.filter { report in
+            CinematicSetDressingPlan.runeFloorEmissionOpacityRange.contains(report.setDressing.runeFloorEmissionOpacity)
+                && CinematicSetDressingPlan.runeSegmentOpacityScaleRange.contains(report.setDressing.runeSegmentOpacityScale)
+                && CinematicSetDressingPlan.arenaAccentOpacityScaleRange.contains(report.setDressing.arenaAccentOpacityScale)
+        }.count
+        let isPassing = !reports.isEmpty
+            && materials.isSuperset(of: expectedMaterials)
+            && treatments.isSuperset(of: expectedTreatments)
+            && treatmentValuesInBounds == reports.count
+
+        return check(
+            id: "activity-material-treatment",
+            label: "Activity material treatment",
+            isPassing: isPassing,
+            warningIdentifier: "visual-smoke.activity-material-treatment",
+            detail: [
+                "materials \(materials.intersection(expectedMaterials).count)/\(expectedMaterials.count)",
+                "treatments \(treatments.intersection(expectedTreatments).count)/\(expectedTreatments.count)",
+                "bounds \(treatmentValuesInBounds)/\(reports.count)"
             ].joined(separator: " | ")
         )
     }
@@ -858,6 +932,9 @@ struct CinematicVisualSmokeReport: Equatable {
             report.setDressing.identifier,
             report.setDressing.languageArchitectureIdentifier,
             report.setDressing.activityMarkerIdentifier,
+            report.setDressing.pedestalLayoutIdentifier,
+            report.setDressing.shardFormationIdentifier,
+            report.setDressing.layoutGeometryCoverageIdentifier,
             report.setDressing.runeIntensityIdentifier,
             report.setDressing.animationCadenceIdentifier,
             report.setDressing.materialTextureVariantIdentifier,
@@ -866,6 +943,8 @@ struct CinematicVisualSmokeReport: Equatable {
             report.setDressing.backdropTextureRouteIdentifier,
             report.setDressing.arenaTextureRouteIdentifier,
             report.setDressing.textureRoleCoverageIdentifier,
+            report.setDressing.runeMaterialIdentifier,
+            report.setDressing.runeMaterialTreatmentIdentifier,
             report.setDressing.backdropTextureName,
             report.setDressing.arenaTextureName
         ]
@@ -1303,7 +1382,11 @@ struct CinematicDiagnosticsSummary: Equatable {
                 detail: [
                     report.setDressing.languageArchitectureIdentifier,
                     report.setDressing.activityMarkerIdentifier,
+                    "layout \(report.setDressing.layoutGeometryCoverageIdentifier)",
+                    report.setDressing.layoutGeometryIsBounded ? "layout bounded" : "layout out-of-bounds",
                     "runes \(report.setDressing.runeIntensityIdentifier)",
+                    "rune material \(report.setDressing.runeMaterialIdentifier)",
+                    "material \(report.setDressing.runeMaterialTreatmentIdentifier)",
                     "cadence \(report.setDressing.animationCadenceIdentifier)"
                 ].joined(separator: " | ")
             ),
@@ -2459,6 +2542,12 @@ enum CinematicDiagnostics {
             identifier: plan.identifier,
             languageArchitectureIdentifier: plan.languageArchitecture.identifier,
             activityMarkerIdentifier: plan.activityMarker.identifier,
+            pedestalLayoutIdentifier: plan.languageArchitecture.pedestalLayoutIdentifier,
+            shardFormationIdentifier: plan.languageArchitecture.shardFormationIdentifier,
+            pedestalSlotCount: plan.languageArchitecture.pedestalSlots.count,
+            shardSlotCount: plan.languageArchitecture.shardSlots.count,
+            layoutGeometryCoverageIdentifier: plan.languageArchitecture.layoutCoverageIdentifier,
+            layoutGeometryIsBounded: plan.languageArchitecture.geometryIsBounded,
             pedestalCount: plan.pedestalFlames.pedestalCount,
             flameLightIntensity: plan.pedestalFlames.flameLightIntensity,
             flameOpacity: plan.pedestalFlames.flameOpacity,
@@ -2478,6 +2567,11 @@ enum CinematicDiagnostics {
             backdropTextureRouteIdentifier: plan.materialTextureVariants.backdropTextureAsset.routeIdentifier,
             arenaTextureRouteIdentifier: plan.materialTextureVariants.arenaTextureAsset.routeIdentifier,
             textureRoleCoverageIdentifier: plan.materialTextureVariants.textureRoleCoverageIdentifier,
+            runeMaterialIdentifier: plan.materialTextureVariants.runeMaterialIdentifier,
+            runeMaterialTreatmentIdentifier: plan.materialTextureVariants.runeMaterialTreatment.identifier,
+            runeFloorEmissionOpacity: plan.materialTextureVariants.runeMaterialTreatment.floorEmissionOpacity,
+            runeSegmentOpacityScale: plan.materialTextureVariants.runeMaterialTreatment.segmentOpacityScale,
+            arenaAccentOpacityScale: plan.materialTextureVariants.runeMaterialTreatment.arenaAccentOpacityScale,
             backdropTextureName: plan.materialTextureVariants.backdropTextureName,
             arenaTextureName: plan.materialTextureVariants.arenaTextureName,
             usesFallbackTextureAsset: plan.materialTextureVariants.usesFallbackTextureAsset

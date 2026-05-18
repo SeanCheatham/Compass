@@ -19,6 +19,8 @@ final class CinematicVisualSmokeReportTests: XCTestCase {
                 "text-bounds",
                 "asset-availability",
                 "texture-role-coverage",
+                "language-layout-coverage",
+                "activity-material-treatment",
                 "camera-phase-coverage",
                 "pressure-influence-spread",
                 "recovery-cue-coverage",
@@ -34,6 +36,8 @@ final class CinematicVisualSmokeReportTests: XCTestCase {
         let chrome = try XCTUnwrap(smoke.checks.first { $0.id == "chrome-strength" })
         let assets = try XCTUnwrap(smoke.checks.first { $0.id == "asset-availability" })
         let textureRoles = try XCTUnwrap(smoke.checks.first { $0.id == "texture-role-coverage" })
+        let languageLayouts = try XCTUnwrap(smoke.checks.first { $0.id == "language-layout-coverage" })
+        let materialTreatments = try XCTUnwrap(smoke.checks.first { $0.id == "activity-material-treatment" })
         let pressure = try XCTUnwrap(smoke.checks.first { $0.id == "pressure-influence-spread" })
         let recoveryCue = try XCTUnwrap(smoke.checks.first { $0.id == "recovery-cue-coverage" })
         let timelineFocus = try XCTUnwrap(smoke.checks.first { $0.id == "timeline-focus-coverage" })
@@ -55,6 +59,12 @@ final class CinematicVisualSmokeReportTests: XCTestCase {
         XCTAssertTrue(textureRoles.detail.contains("arena 8/8"))
         XCTAssertTrue(textureRoles.detail.contains("gen arena 8/8"))
         XCTAssertTrue(textureRoles.detail.contains("direct"))
+        XCTAssertTrue(languageLayouts.detail.contains("pedestals 8/8"))
+        XCTAssertTrue(languageLayouts.detail.contains("shards 8/8"))
+        XCTAssertTrue(languageLayouts.detail.contains("bounds"))
+        XCTAssertTrue(materialTreatments.detail.contains("materials 5/5"))
+        XCTAssertTrue(materialTreatments.detail.contains("treatments 5/5"))
+        XCTAssertTrue(materialTreatments.detail.contains("bounds"))
         XCTAssertTrue(pressure.detail.contains("clean"))
         XCTAssertTrue(pressure.detail.contains("heavy"))
         XCTAssertTrue(pressure.detail.contains("steady"))
@@ -82,6 +92,8 @@ final class CinematicVisualSmokeReportTests: XCTestCase {
         XCTAssertTrue(smoke.warningIdentifiers.contains("visual-smoke.overlay-coverage"))
         XCTAssertTrue(smoke.warningIdentifiers.contains("visual-smoke.chrome-strength"))
         XCTAssertTrue(smoke.warningIdentifiers.contains("visual-smoke.texture-role-coverage"))
+        XCTAssertTrue(smoke.warningIdentifiers.contains("visual-smoke.language-layout-coverage"))
+        XCTAssertTrue(smoke.warningIdentifiers.contains("visual-smoke.activity-material-treatment"))
         XCTAssertTrue(smoke.warningIdentifiers.contains("visual-smoke.camera-phase-coverage"))
         XCTAssertTrue(smoke.warningIdentifiers.contains("visual-smoke.pressure-influence-spread"))
         XCTAssertTrue(smoke.warningIdentifiers.contains("visual-smoke.recovery-cue-coverage"))
@@ -142,9 +154,11 @@ final class CinematicVisualSmokeReportTests: XCTestCase {
             visualSmoke: CinematicVisualSmokeReport.representative()
         )
 
-        XCTAssertTrue(summary.exportText.contains("Visual smoke (pass, 10 checks)"))
+        XCTAssertTrue(summary.exportText.contains("Visual smoke (pass, 12 checks)"))
         XCTAssertTrue(summary.exportText.contains("Narrative cue readability: pass"))
         XCTAssertTrue(summary.exportText.contains("Texture role coverage: pass"))
+        XCTAssertTrue(summary.exportText.contains("Language layout coverage: pass"))
+        XCTAssertTrue(summary.exportText.contains("Activity material treatment: pass"))
         XCTAssertTrue(summary.exportText.contains("Pressure/influence spread: pass"))
         XCTAssertTrue(summary.exportText.contains("Recovery cue coverage: pass"))
         XCTAssertTrue(summary.exportText.contains("Timeline focus coverage: pass"))
