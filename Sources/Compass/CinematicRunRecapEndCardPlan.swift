@@ -82,6 +82,8 @@ struct CinematicRunRecapEndCardPlan: Equatable {
         var retainedPinnedEntryCount: Int
         var missingPinnedEntryCount: Int
         var filteredPinnedEntryCount: Int
+        var promotedHoldStateIdentifier: String
+        var promotedHoldEntryIdentifier: String?
         var warningStateIdentifier: String
         var noMatchStateIdentifier: String
         var glyphIdentifier: String
@@ -422,13 +424,18 @@ enum CinematicRunRecapEndCardPlanner {
             deltaLabel(for: plan.sessionDelta),
             limit: CinematicRunRecapEndCardPlan.pinnedComparisonDeltaLabelMaxCharacters
         )
+        let isPromotedHoldTarget = plan.promotedHoldStateIdentifier == "retained-promoted-hold-target"
+            || plan.promotedHoldStateIdentifier == "filtered-promoted-hold-target"
         let label = bounded(
-            "Pinned compare S\(selectedSessionNumber) to S\(targetSessionNumber)",
+            isPromotedHoldTarget
+                ? "Promoted hold S\(selectedSessionNumber) to S\(targetSessionNumber)"
+                : "Pinned compare S\(selectedSessionNumber) to S\(targetSessionNumber)",
             limit: CinematicRunRecapEndCardPlan.pinnedComparisonLabelMaxCharacters
         )
         let detail = bounded(
             [
                 deltaLabel,
+                isPromotedHoldTarget ? "held artifact" : nil,
                 "pins \(plan.retainedPinnedEntryCount)/\(plan.pinnedEntryCount)",
                 plan.filteredPinnedEntryCount > 0 ? "filtered \(plan.filteredPinnedEntryCount)" : nil,
                 plan.missingPinnedEntryCount > 0 ? "stale \(plan.missingPinnedEntryCount)" : nil,
@@ -450,6 +457,8 @@ enum CinematicRunRecapEndCardPlanner {
                 "sessions:\(selectedSessionNumber)-\(targetSessionNumber)",
                 "delta:\(plan.sessionDelta.map(String.init) ?? "none")",
                 "pins:\(plan.pinnedEntryCount),\(plan.retainedPinnedEntryCount),\(plan.missingPinnedEntryCount),\(plan.filteredPinnedEntryCount)",
+                "promoted-hold:\(plan.promotedHoldStateIdentifier)",
+                "promoted-hold-entry:\(fingerprint(plan.retainedSavedTourHoldEntryIdentifier ?? "none"))",
                 "warning:\(plan.warningStateIdentifier)",
                 "no-match:\(noMatchStateIdentifier)",
                 "glyph:\(glyphIdentifier)",
@@ -490,6 +499,8 @@ enum CinematicRunRecapEndCardPlanner {
                 retainedPinnedEntryCount: plan.retainedPinnedEntryCount,
                 missingPinnedEntryCount: plan.missingPinnedEntryCount,
                 filteredPinnedEntryCount: plan.filteredPinnedEntryCount,
+                promotedHoldStateIdentifier: plan.promotedHoldStateIdentifier,
+                promotedHoldEntryIdentifier: plan.retainedSavedTourHoldEntryIdentifier,
                 warningStateIdentifier: plan.warningStateIdentifier,
                 noMatchStateIdentifier: noMatchStateIdentifier,
                 glyphIdentifier: glyphIdentifier,
@@ -508,6 +519,14 @@ enum CinematicRunRecapEndCardPlanner {
     private static func glyphIdentifier(
         for plan: CinematicRunRecapShareArtifactComparisonPlan
     ) -> String {
+        if plan.promotedHoldStateIdentifier == "filtered-promoted-hold-target" {
+            return "hold.pin.bridge.filtered"
+        }
+        if plan.promotedHoldStateIdentifier == "retained-promoted-hold-target" {
+            return plan.warningStateIdentifier == "warnings"
+                ? "hold.pin.bridge.warning"
+                : "hold.pin.bridge.active"
+        }
         if plan.pinnedTargetStateIdentifier == "filtered-pinned-target" {
             return "pin.bridge.filtered"
         }
@@ -523,6 +542,14 @@ enum CinematicRunRecapEndCardPlanner {
     private static func railTreatmentIdentifier(
         for plan: CinematicRunRecapShareArtifactComparisonPlan
     ) -> String {
+        if plan.promotedHoldStateIdentifier == "filtered-promoted-hold-target" {
+            return "filtered-promoted-hold-rail"
+        }
+        if plan.promotedHoldStateIdentifier == "retained-promoted-hold-target" {
+            return plan.warningStateIdentifier == "warnings"
+                ? "warning-promoted-hold-rail"
+                : "promoted-hold-rail"
+        }
         if plan.pinnedTargetStateIdentifier == "filtered-pinned-target" {
             return "filtered-pin-rail"
         }

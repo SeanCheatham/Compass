@@ -3643,6 +3643,13 @@ private final class CinematicSceneCoordinator {
     ) -> NSColor {
         let accent: NSColor
         switch cue.railTreatmentIdentifier {
+        case "promoted-hold-rail", "warning-promoted-hold-rail":
+            accent = themedColor(SpellSchool.verify.nsColor)
+        case "filtered-promoted-hold-rail":
+            accent = themedColor(SpellSchool.scan.nsColor).mixing(
+                with: themedColor(SpellSchool.verify.nsColor),
+                fraction: 0.36
+            )
         case "filtered-pin-rail":
             accent = themedColor(SpellSchool.scan.nsColor)
         case "warning-pin-rail":

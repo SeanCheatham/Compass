@@ -166,7 +166,8 @@ final class CinematicRunRecapShareArtifactPinnedComparisonTests: XCTestCase {
             selectedEntryIdentifier: promotedContext.selectedEntryIdentifier,
             searchQuery: promotedContext.searchText,
             targetMode: promotedContext.comparisonTargetMode,
-            pinnedEntryIdentifiers: promotedContext.pinnedEntryIdentifiers
+            pinnedEntryIdentifiers: promotedContext.pinnedEntryIdentifiers,
+            savedTourHoldEntryIdentifier: promotedContext.savedTourHoldEntryIdentifier
         )
         let session = SessionRecord(
             session: selected.sessionNumber,
@@ -235,8 +236,13 @@ final class CinematicRunRecapShareArtifactPinnedComparisonTests: XCTestCase {
         XCTAssertEqual(comparison.compareEntryIdentifier, held.identifier)
         XCTAssertEqual(comparison.pinnedTargetEntryIdentifier, held.identifier)
         XCTAssertEqual(comparison.pinnedTargetStateIdentifier, "filtered-pinned-target")
+        XCTAssertEqual(comparison.promotedHoldStateIdentifier, "filtered-promoted-hold-target")
+        XCTAssertEqual(comparison.requestedSavedTourHoldEntryIdentifier, held.identifier)
+        XCTAssertEqual(comparison.retainedSavedTourHoldEntryIdentifier, held.identifier)
+        XCTAssertEqual(comparison.filteredSavedTourHoldEntryIdentifier, held.identifier)
         XCTAssertEqual(comparison.targetDirectionIdentifier, "pinned")
         XCTAssertEqual(comparison.filteredPinnedEntryIdentifiers, [held.identifier, older.identifier])
+        XCTAssertTrue(comparison.exportText.contains("- Promoted hold state: filtered-promoted-hold-target"))
         XCTAssertEqual(
             CinematicRunRecapPlanner.plan(
                 state: PlanState(
@@ -322,7 +328,8 @@ final class CinematicRunRecapShareArtifactPinnedComparisonTests: XCTestCase {
             historyPlan: history,
             selectedEntryIdentifier: promotedSelectedOnlyContext.selectedEntryIdentifier,
             targetMode: promotedSelectedOnlyContext.comparisonTargetMode,
-            pinnedEntryIdentifiers: promotedSelectedOnlyContext.pinnedEntryIdentifiers
+            pinnedEntryIdentifiers: promotedSelectedOnlyContext.pinnedEntryIdentifiers,
+            savedTourHoldEntryIdentifier: promotedSelectedOnlyContext.savedTourHoldEntryIdentifier
         )
 
         XCTAssertFalse(selectedOnly.isAvailable)
@@ -346,7 +353,115 @@ final class CinematicRunRecapShareArtifactPinnedComparisonTests: XCTestCase {
         XCTAssertFalse(promotedSelectedOnly.isAvailable)
         XCTAssertEqual(promotedSelectedOnly.availabilityReason, "selected-only-pinned-recap-share-artifact")
         XCTAssertEqual(promotedSelectedOnly.pinnedTargetStateIdentifier, "selected-only-pinned-recap-share-artifact")
+        XCTAssertEqual(promotedSelectedOnly.promotedHoldStateIdentifier, "selected-only-promoted-hold")
         XCTAssertEqual(promotedSelectedOnly.missingPinnedEntryIdentifiers, [stalePin])
+    }
+
+    func testPromotedHoldComparisonStatesCoverRetainedFilteredMissingSelectedOnlyAndNoMatch() throws {
+        let workspace = try makeInitializedWorkspace()
+        for session in 1...3 {
+            _ = try workspace.writeSessionArtifact(
+                session: session,
+                name: "recap-share-promoted-state-\(session).md",
+                contents: artifactMarkdown(
+                    session: session,
+                    title: "Promoted State \(session)",
+                    status: "succeeded",
+                    commit: "Promoted state commit \(session)",
+                    body: session == 3 ? "promoted state selected beacon" : "promoted hold comparison body"
+                )
+            )
+        }
+        let history = workspace.refreshRunRecapShareArtifactHistory()
+        let selected = try XCTUnwrap(history.entries.first { $0.sessionNumber == 3 })
+        let held = try XCTUnwrap(history.entries.first { $0.sessionNumber == 2 })
+        let staleHold = "missing-promoted-held-artifact"
+
+        let retained = CinematicRunRecapShareArtifactComparisonPlanner.plan(
+            historyPlan: history,
+            selectedEntryIdentifier: selected.identifier,
+            targetMode: .pinnedReference,
+            pinnedEntryIdentifiers: [held.identifier],
+            savedTourHoldEntryIdentifier: held.identifier
+        )
+        let filtered = CinematicRunRecapShareArtifactComparisonPlanner.plan(
+            historyPlan: history,
+            selectedEntryIdentifier: selected.identifier,
+            searchQuery: "promoted state selected",
+            targetMode: .pinnedReference,
+            pinnedEntryIdentifiers: [held.identifier],
+            savedTourHoldEntryIdentifier: held.identifier
+        )
+        let missing = CinematicRunRecapShareArtifactComparisonPlanner.plan(
+            historyPlan: history,
+            selectedEntryIdentifier: selected.identifier,
+            targetMode: .pinnedReference,
+            pinnedEntryIdentifiers: [staleHold],
+            savedTourHoldEntryIdentifier: staleHold
+        )
+        let selectedOnly = CinematicRunRecapShareArtifactComparisonPlanner.plan(
+            historyPlan: history,
+            selectedEntryIdentifier: selected.identifier,
+            targetMode: .pinnedReference,
+            pinnedEntryIdentifiers: [selected.identifier],
+            savedTourHoldEntryIdentifier: selected.identifier
+        )
+        let noMatch = CinematicRunRecapShareArtifactComparisonPlanner.plan(
+            historyPlan: history,
+            selectedEntryIdentifier: selected.identifier,
+            searchQuery: "missing promoted hold search",
+            targetMode: .pinnedReference,
+            pinnedEntryIdentifiers: [held.identifier],
+            savedTourHoldEntryIdentifier: held.identifier
+        )
+        let ordinaryPinned = CinematicRunRecapShareArtifactComparisonPlanner.plan(
+            historyPlan: history,
+            selectedEntryIdentifier: selected.identifier,
+            targetMode: .pinnedReference,
+            pinnedEntryIdentifiers: [held.identifier]
+        )
+        let adjacent = CinematicRunRecapShareArtifactComparisonPlanner.plan(
+            historyPlan: history,
+            selectedEntryIdentifier: selected.identifier,
+            targetMode: .adjacent,
+            pinnedEntryIdentifiers: [held.identifier],
+            savedTourHoldEntryIdentifier: held.identifier
+        )
+
+        XCTAssertTrue(retained.isAvailable)
+        XCTAssertEqual(retained.compareEntryIdentifier, held.identifier)
+        XCTAssertEqual(retained.promotedHoldStateIdentifier, "retained-promoted-hold-target")
+        XCTAssertEqual(retained.requestedSavedTourHoldEntryIdentifier, held.identifier)
+        XCTAssertEqual(retained.retainedSavedTourHoldEntryIdentifier, held.identifier)
+        XCTAssertNil(retained.filteredSavedTourHoldEntryIdentifier)
+        XCTAssertTrue(retained.exportText.contains("- Promoted hold state: retained-promoted-hold-target"))
+
+        XCTAssertTrue(filtered.isAvailable)
+        XCTAssertEqual(filtered.compareEntryIdentifier, held.identifier)
+        XCTAssertEqual(filtered.pinnedTargetStateIdentifier, "filtered-pinned-target")
+        XCTAssertEqual(filtered.promotedHoldStateIdentifier, "filtered-promoted-hold-target")
+        XCTAssertEqual(filtered.filteredSavedTourHoldEntryIdentifier, held.identifier)
+
+        XCTAssertFalse(missing.isAvailable)
+        XCTAssertEqual(missing.promotedHoldStateIdentifier, "missing-promoted-hold")
+        XCTAssertEqual(missing.requestedSavedTourHoldEntryIdentifier, staleHold)
+        XCTAssertNil(missing.retainedSavedTourHoldEntryIdentifier)
+        XCTAssertEqual(missing.missingPinnedEntryIdentifiers, [staleHold])
+
+        XCTAssertFalse(selectedOnly.isAvailable)
+        XCTAssertEqual(selectedOnly.promotedHoldStateIdentifier, "selected-only-promoted-hold")
+        XCTAssertEqual(selectedOnly.retainedSavedTourHoldEntryIdentifier, selected.identifier)
+        XCTAssertEqual(selectedOnly.pinnedTargetStateIdentifier, "selected-only-pinned-recap-share-artifact")
+
+        XCTAssertFalse(noMatch.isAvailable)
+        XCTAssertEqual(noMatch.promotedHoldStateIdentifier, "no-match-promoted-hold")
+        XCTAssertEqual(noMatch.retainedSavedTourHoldEntryIdentifier, held.identifier)
+        XCTAssertEqual(noMatch.noMatchAvailabilityReason, "no-matching-recap-share-artifacts")
+
+        XCTAssertEqual(ordinaryPinned.promotedHoldStateIdentifier, "none")
+        XCTAssertNil(ordinaryPinned.requestedSavedTourHoldEntryIdentifier)
+        XCTAssertEqual(adjacent.promotedHoldStateIdentifier, "none")
+        XCTAssertEqual(adjacent.pinnedTargetStateIdentifier, "adjacent-mode")
     }
 
     func testDiagnosticsExposePinnedComparisonSnapshotExportAndIdentifierCorrelation() throws {

@@ -1607,6 +1607,18 @@ final class CinematicDiagnosticsTests: XCTestCase {
         let filteredReport = try XCTUnwrap(
             reports.first { $0.runRecapEndCard.pinnedComparisonCueStateIdentifier == "filtered-pinned-target" }
         )
+        let promotedHoldReport = try XCTUnwrap(
+            reports.first {
+                $0.runRecapEndCard.pinnedComparisonCuePromotedHoldStateIdentifier
+                    == "retained-promoted-hold-target"
+            }
+        )
+        let filteredPromotedHoldReport = try XCTUnwrap(
+            reports.first {
+                $0.runRecapEndCard.pinnedComparisonCuePromotedHoldStateIdentifier
+                    == "filtered-promoted-hold-target"
+            }
+        )
         let noMatchReport = try XCTUnwrap(
             reports.first {
                 $0.runRecapEndCard.pinnedComparisonCueNoMatchStateIdentifier
@@ -1655,6 +1667,33 @@ final class CinematicDiagnosticsTests: XCTestCase {
         XCTAssertEqual(filteredReport.runRecapEndCard.pinnedComparisonCueFilteredPinnedEntryCount, 1)
         XCTAssertEqual(filteredReport.runRecapEndCard.pinnedComparisonCueGlyphIdentifier, "pin.bridge.filtered")
         XCTAssertEqual(filteredReport.runRecapEndCard.pinnedComparisonCueRailTreatmentIdentifier, "filtered-pin-rail")
+
+        XCTAssertTrue(promotedHoldReport.runRecapEndCard.hasPinnedComparisonCue)
+        XCTAssertEqual(
+            promotedHoldReport.runRecapEndCard.pinnedComparisonCueGlyphIdentifier,
+            "hold.pin.bridge.active"
+        )
+        XCTAssertEqual(
+            promotedHoldReport.runRecapEndCard.pinnedComparisonCueRailTreatmentIdentifier,
+            "promoted-hold-rail"
+        )
+        XCTAssertTrue(promotedHoldReport.runRecapEndCard.pinnedComparisonCueLabel.contains("Promoted hold"))
+        XCTAssertTrue(promotedHoldReport.runRecapEndCard.pinnedComparisonCueDetail.contains("held artifact"))
+        XCTAssertTrue(
+            promotedHoldReport.identifier.contains(
+                "run-recap-end-card-pinned-cue-promoted-hold:retained-promoted-hold-target"
+            )
+        )
+
+        XCTAssertTrue(filteredPromotedHoldReport.runRecapEndCard.hasPinnedComparisonCue)
+        XCTAssertEqual(
+            filteredPromotedHoldReport.runRecapEndCard.pinnedComparisonCueGlyphIdentifier,
+            "hold.pin.bridge.filtered"
+        )
+        XCTAssertEqual(
+            filteredPromotedHoldReport.runRecapEndCard.pinnedComparisonCueRailTreatmentIdentifier,
+            "filtered-promoted-hold-rail"
+        )
 
         XCTAssertFalse(noMatchReport.runRecapEndCard.hasPinnedComparisonCue)
         XCTAssertEqual(noMatchReport.runRecapEndCard.pinnedComparisonCueStateIdentifier, "no-selected-recap-share-artifact")

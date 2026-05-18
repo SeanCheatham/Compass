@@ -121,7 +121,8 @@ final class CinematicRunRecapShareArtifactLibraryContextTests: XCTestCase {
             selectedEntryIdentifier: context.selectedEntryIdentifier,
             searchQuery: context.searchText,
             targetMode: context.comparisonTargetMode,
-            pinnedEntryIdentifiers: context.pinnedEntryIdentifiers
+            pinnedEntryIdentifiers: context.pinnedEntryIdentifiers,
+            savedTourHoldEntryIdentifier: context.savedTourHoldEntryIdentifier
         )
         let expectedPins = CinematicRunRecapShareArtifactPinnedReferencePlanner.plan(
             historyPlan: history,
@@ -142,14 +143,26 @@ final class CinematicRunRecapShareArtifactLibraryContextTests: XCTestCase {
         XCTAssertEqual(report.runRecapShareArtifactComparison.compareEntryIdentifier, held.identifier)
         XCTAssertEqual(report.runRecapShareArtifactComparison.pinnedTargetEntryIdentifier, held.identifier)
         XCTAssertEqual(report.runRecapShareArtifactComparison.pinnedTargetStateIdentifier, "filtered-pinned-target")
+        XCTAssertEqual(
+            report.runRecapShareArtifactComparison.promotedHoldStateIdentifier,
+            "filtered-promoted-hold-target"
+        )
+        XCTAssertEqual(report.runRecapShareArtifactComparison.retainedSavedTourHoldEntryIdentifier, held.identifier)
+        XCTAssertEqual(report.runRecapShareArtifactComparison.filteredSavedTourHoldEntryIdentifier, held.identifier)
         XCTAssertEqual(report.runRecapShareArtifactComparison.filteredPinnedEntryIdentifiers, [held.identifier])
         XCTAssertEqual(report.runRecapShareArtifactPins.identifier, expectedPins.identifier)
         XCTAssertEqual(report.runRecapShareArtifactPins.retainedPinnedEntryIdentifiers, [held.identifier])
         XCTAssertEqual(report.runRecapShareArtifactPins.filteredPinnedEntryIdentifiers, [held.identifier])
         XCTAssertTrue(report.identifier.contains("run-recap-share-artifact-comparison-mode:pinned_reference"))
         XCTAssertTrue(report.identifier.contains("run-recap-share-artifact-comparison-pinned-target:\(held.identifier)"))
+        XCTAssertTrue(
+            report.identifier.contains(
+                "run-recap-share-artifact-comparison-promoted-hold:filtered-promoted-hold-target"
+            )
+        )
         XCTAssertTrue(comparisonRow.detail.contains("mode pinned_reference"))
         XCTAssertTrue(comparisonRow.detail.contains("pinned state filtered-pinned-target"))
+        XCTAssertTrue(comparisonRow.detail.contains("promoted hold filtered-promoted-hold-target"))
         XCTAssertTrue(pinsRow.detail.contains("pins 1"))
         XCTAssertTrue(pinsRow.detail.contains("filtered pins 1"))
     }

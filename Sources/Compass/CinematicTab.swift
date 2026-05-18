@@ -60,7 +60,8 @@ struct CinematicTab: View {
                 selectedEntryIdentifier: recapArtifactLibraryContext.selectedEntryIdentifier,
                 searchQuery: recapArtifactLibraryContext.searchText,
                 targetMode: recapArtifactLibraryContext.comparisonTargetMode,
-                pinnedEntryIdentifiers: recapArtifactLibraryContext.pinnedEntryIdentifiers
+                pinnedEntryIdentifiers: recapArtifactLibraryContext.pinnedEntryIdentifiers,
+                savedTourHoldEntryIdentifier: recapArtifactLibraryContext.savedTourHoldEntryIdentifier
             )
             let runRecapEndCardCandidatePlan = CinematicRunRecapEndCardPlanner.plan(
                 isRecapOverlaySelected: true,
@@ -799,7 +800,8 @@ private struct CinematicRunRecapArtifactLibraryControl: View {
             selectedEntryIdentifier: artifactLibraryContext.selectedEntryIdentifier,
             searchQuery: artifactLibraryContext.searchText,
             targetMode: artifactLibraryContext.comparisonTargetMode,
-            pinnedEntryIdentifiers: artifactLibraryContext.pinnedEntryIdentifiers
+            pinnedEntryIdentifiers: artifactLibraryContext.pinnedEntryIdentifiers,
+            savedTourHoldEntryIdentifier: artifactLibraryContext.savedTourHoldEntryIdentifier
         )
     }
 
@@ -1174,6 +1176,10 @@ private struct CinematicRunRecapArtifactLibraryControl: View {
     }
 
     private func comparisonTargetLabel(_ comparisonPlan: CinematicRunRecapShareArtifactComparisonPlan) -> String {
+        if comparisonPlan.promotedHoldStateIdentifier == "retained-promoted-hold-target"
+            || comparisonPlan.promotedHoldStateIdentifier == "filtered-promoted-hold-target" {
+            return "Held"
+        }
         if comparisonPlan.targetMode == .pinnedReference {
             return "Pinned"
         }
@@ -1193,16 +1199,24 @@ private struct CinematicRunRecapArtifactLibraryControl: View {
             return "\(mode) | \(comparisonPlan.availabilityReason)"
         }
         let delta = comparisonPlan.sessionDelta.map { "ΔS\($0)" } ?? "ΔS-"
+        let promotedHold = comparisonPlan.promotedHoldStateIdentifier == "retained-promoted-hold-target"
+            || comparisonPlan.promotedHoldStateIdentifier == "filtered-promoted-hold-target"
+            ? " | promoted hold"
+            : ""
         let search = comparisonPlan.isSearchActive
             ? " | \(comparisonPlan.matchingEntryCount)/\(comparisonPlan.unfilteredVisibleCount)"
             : ""
-        return "\(mode) | \(comparisonPlan.targetDirectionIdentifier) | \(delta)\(search)"
+        return "\(mode) | \(comparisonPlan.targetDirectionIdentifier) | \(delta)\(promotedHold)\(search)"
     }
 
     private func comparisonModeSystemImage(
         _ comparisonPlan: CinematicRunRecapShareArtifactComparisonPlan
     ) -> String {
-        comparisonPlan.targetMode == .pinnedReference ? "pin.fill" : "rectangle.split.2x1"
+        if comparisonPlan.promotedHoldStateIdentifier == "retained-promoted-hold-target"
+            || comparisonPlan.promotedHoldStateIdentifier == "filtered-promoted-hold-target" {
+            return "pin.circle.fill"
+        }
+        return comparisonPlan.targetMode == .pinnedReference ? "pin.fill" : "rectangle.split.2x1"
     }
 
     private func comparisonModeToggleHelp(
@@ -1231,6 +1245,9 @@ private struct CinematicRunRecapArtifactLibraryControl: View {
     }
 
     private func tourSystemImage(_ tourPlan: CinematicRunRecapShareArtifactTourPlan) -> String {
+        if tourPromotedHoldState(tourPlan) != "none" {
+            return "pin.circle.fill"
+        }
         switch tourPlan.savedTourHoldStateIdentifier {
         case "held":
             return "lock.fill"
@@ -1251,10 +1268,28 @@ private struct CinematicRunRecapArtifactLibraryControl: View {
         let hold = tourPlan.savedTourHoldStateIdentifier == "none"
             ? ""
             : " | \(tourPlan.savedTourHoldStateIdentifier)"
+        let promotedHold = tourPromotedHoldState(tourPlan) == "none"
+            ? ""
+            : " | promoted"
         let search = tourPlan.isSearchActive
             ? " | \(tourPlan.matchingEntryCount)/\(tourPlan.unfilteredVisibleCount)"
             : ""
-        return "Tour \(session) | \(tourPlan.selectionSourceIdentifier)\(hold)\(search)"
+        return "Tour \(session) | \(tourPlan.selectionSourceIdentifier)\(hold)\(promotedHold)\(search)"
+    }
+
+    private func tourPromotedHoldState(_ tourPlan: CinematicRunRecapShareArtifactTourPlan) -> String {
+        guard artifactLibraryContext.comparisonTargetMode == .pinnedReference,
+              let requestedHold = tourPlan.requestedSavedTourHoldEntryIdentifier,
+              artifactLibraryContext.pinnedEntryIdentifiers.contains(requestedHold) else {
+            return "none"
+        }
+        guard tourPlan.retainedSavedTourHoldEntryIdentifier != nil else {
+            return "missing-promoted-hold"
+        }
+        if tourPlan.filteredSavedTourHoldEntryIdentifier != nil {
+            return "filtered-promoted-hold"
+        }
+        return "retained-promoted-hold"
     }
 
     private func tourHoldHelp(

@@ -153,6 +153,8 @@ final class CinematicVisualSmokeReportTests: XCTestCase {
         XCTAssertTrue(pinnedComparisonCue.detail.contains("no-match"))
         XCTAssertTrue(pinnedComparisonCue.detail.contains("stale"))
         XCTAssertTrue(pinnedComparisonCue.detail.contains("filtered-pin"))
+        XCTAssertTrue(pinnedComparisonCue.detail.contains("promoted-hold"))
+        XCTAssertTrue(pinnedComparisonCue.detail.contains("filtered-promoted-hold"))
         XCTAssertTrue(pinnedComparisonCue.detail.contains("bounded"))
     }
 

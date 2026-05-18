@@ -332,6 +332,10 @@ struct CinematicRunRecapShareArtifactComparisonPlan: Equatable, Identifiable {
     var pinnedTargetEntryIdentifier: String?
     var pinnedTargetStateIdentifier: String
     var pinnedTargetUnavailableReasonIdentifier: String?
+    var promotedHoldStateIdentifier: String
+    var requestedSavedTourHoldEntryIdentifier: String?
+    var retainedSavedTourHoldEntryIdentifier: String?
+    var filteredSavedTourHoldEntryIdentifier: String?
     var requestedPinnedEntryIdentifiers: [String]
     var retainedPinnedEntryIdentifiers: [String]
     var missingPinnedEntryIdentifiers: [String]
@@ -2805,7 +2809,8 @@ enum CinematicRunRecapShareArtifactComparisonPlanner {
         selectedEntryIdentifier: String? = nil,
         searchQuery: String? = nil,
         targetMode: CinematicRunRecapShareArtifactComparisonTargetMode = .adjacent,
-        pinnedEntryIdentifiers: [String] = []
+        pinnedEntryIdentifiers: [String] = [],
+        savedTourHoldEntryIdentifier: String? = nil
     ) -> CinematicRunRecapShareArtifactComparisonPlan {
         let previewPlan = CinematicRunRecapShareArtifactPreviewBrowserPlanner.plan(
             historyPlan: historyPlan,
@@ -2825,9 +2830,18 @@ enum CinematicRunRecapShareArtifactComparisonPlanner {
         let retainedEntriesByIdentifier = Dictionary(
             uniqueKeysWithValues: retainedEntries.map { ($0.identifier, $0) }
         )
+        let requestedSavedTourHoldEntryIdentifier = boundedOptionalIdentifier(savedTourHoldEntryIdentifier)
+        let retainedSavedTourHoldEntry = requestedSavedTourHoldEntryIdentifier.flatMap {
+            retainedEntriesByIdentifier[$0]
+        }
+        let retainedSavedTourHoldEntryIdentifier = retainedSavedTourHoldEntry?.identifier
         let retainedPinnedEntries = requestedPinnedEntryIdentifiers.compactMap { retainedEntriesByIdentifier[$0] }
         let retainedPinnedEntryIdentifiers = retainedPinnedEntries.map(\.identifier)
         let matchingEntryIdentifiers = Set(matchingEntries.map(\.identifier))
+        let filteredSavedTourHoldEntryIdentifier = search.isActive
+            ? retainedSavedTourHoldEntry
+                .flatMap { matchingEntryIdentifiers.contains($0.identifier) ? nil : $0.identifier }
+            : nil
         let missingPinnedEntryIdentifiers = requestedPinnedEntryIdentifiers.filter {
             retainedEntriesByIdentifier[$0] == nil
         }
@@ -2872,6 +2886,15 @@ enum CinematicRunRecapShareArtifactComparisonPlanner {
         let noMatchAvailabilityReason = search.isActive && !retainedEntries.isEmpty && matchingEntries.isEmpty
             ? "no-matching-recap-share-artifacts"
             : nil
+        let promotedHoldStateIdentifier = promotedHoldStateIdentifier(
+            targetMode: targetMode,
+            requestedSavedTourHoldEntryIdentifier: requestedSavedTourHoldEntryIdentifier,
+            retainedSavedTourHoldEntryIdentifier: retainedSavedTourHoldEntryIdentifier,
+            filteredSavedTourHoldEntryIdentifier: filteredSavedTourHoldEntryIdentifier,
+            selectedEntry: selectedEntry,
+            compareEntry: compareEntry,
+            noMatchAvailabilityReason: noMatchAvailabilityReason
+        )
         let availabilityReason = availabilityReason(
             historyPlan: historyPlan,
             matchingEntries: matchingEntries,
@@ -2886,35 +2909,43 @@ enum CinematicRunRecapShareArtifactComparisonPlanner {
         let warningStateIdentifier = historyPlan.hasWarnings ? "warnings" : "clear"
         let selectedBodyPreviewText = selectedEntry.map { bodyPreview(from: $0.markdownContents) }
         let compareBodyPreviewText = compareEntry.map { bodyPreview(from: $0.markdownContents) }
+        var exportIdentifierParts = [
+            "run-recap-share-artifact-comparison-export",
+            "availability:\(availabilityReason)",
+            "retained:\(retainedEntries.count)",
+            "total:\(historyPlan.totalCount)",
+            "hidden:\(historyPlan.hiddenCount)",
+            "matching:\(matchingEntries.count)",
+            "mode:\(targetMode.rawValue)",
+            "query:\(search.queryFingerprint)",
+            "query-snippet:\(search.querySnippet)",
+            "no-match:\(noMatchAvailabilityReason ?? "none")",
+            "selected:\(selectedEntry?.identifier ?? "none")",
+            "compare:\(compareEntry?.identifier ?? "none")",
+            "direction:\(targetDirectionIdentifier)",
+            "pinned-target:\(pinnedTargetEntryIdentifier ?? "none")",
+            "pinned-state:\(pinnedTargetStateIdentifier)"
+        ]
+        if let requestedSavedTourHoldEntryIdentifier {
+            exportIdentifierParts.append(
+                "promoted-hold-state:\(promotedHoldStateIdentifier)|promoted-hold:\(requestedSavedTourHoldEntryIdentifier)|retained-promoted-hold:\(retainedSavedTourHoldEntryIdentifier ?? "none")|filtered-promoted-hold:\(filteredSavedTourHoldEntryIdentifier ?? "none")"
+            )
+        }
+        exportIdentifierParts += [
+            "pins:\(requestedPinnedEntryIdentifiers.count)",
+            "retained-pins:\(retainedPinnedEntryIdentifiers.count)",
+            "missing-pins:\(missingPinnedEntryIdentifiers.count)",
+            "filtered-pins:\(filteredPinnedEntryIdentifiers.count)",
+            "delta:\(sessionDelta.map(String.init) ?? "none")",
+            "fallback:\(previewPlan.selectedFallbackEntryIdentifier ?? "none")",
+            "fallback-reason:\(previewPlan.selectedFallbackReasonIdentifier)",
+            "cleanup:\(historyPlan.cleanupCandidateCount)",
+            "warnings:\(warningStateIdentifier)",
+            "warning-count:\(historyPlan.warningCount)",
+            "content:\(fingerprint([selectedEntry?.identifier, compareEntry?.identifier].compactMap { $0 }.joined(separator: "|")))"
+        ]
         let exportIdentifier = bounded(
-            [
-                "run-recap-share-artifact-comparison-export",
-                "availability:\(availabilityReason)",
-                "retained:\(retainedEntries.count)",
-                "total:\(historyPlan.totalCount)",
-                "hidden:\(historyPlan.hiddenCount)",
-                "matching:\(matchingEntries.count)",
-                "mode:\(targetMode.rawValue)",
-                "query:\(search.queryFingerprint)",
-                "query-snippet:\(search.querySnippet)",
-                "no-match:\(noMatchAvailabilityReason ?? "none")",
-                "selected:\(selectedEntry?.identifier ?? "none")",
-                "compare:\(compareEntry?.identifier ?? "none")",
-                "direction:\(targetDirectionIdentifier)",
-                "pinned-target:\(pinnedTargetEntryIdentifier ?? "none")",
-                "pinned-state:\(pinnedTargetStateIdentifier)",
-                "pins:\(requestedPinnedEntryIdentifiers.count)",
-                "retained-pins:\(retainedPinnedEntryIdentifiers.count)",
-                "missing-pins:\(missingPinnedEntryIdentifiers.count)",
-                "filtered-pins:\(filteredPinnedEntryIdentifiers.count)",
-                "delta:\(sessionDelta.map(String.init) ?? "none")",
-                "fallback:\(previewPlan.selectedFallbackEntryIdentifier ?? "none")",
-                "fallback-reason:\(previewPlan.selectedFallbackReasonIdentifier)",
-                "cleanup:\(historyPlan.cleanupCandidateCount)",
-                "warnings:\(warningStateIdentifier)",
-                "warning-count:\(historyPlan.warningCount)",
-                "content:\(fingerprint([selectedEntry?.identifier, compareEntry?.identifier].compactMap { $0 }.joined(separator: "|")))"
-            ].joined(separator: "|"),
+            exportIdentifierParts.joined(separator: "|"),
             limit: CinematicRunRecapShareArtifactComparisonPlan.identifierMaxCharacters
         )
         let export = exportText(
@@ -2933,6 +2964,10 @@ enum CinematicRunRecapShareArtifactComparisonPlanner {
             targetDirectionIdentifier: targetDirectionIdentifier,
             pinnedTargetStateIdentifier: pinnedTargetStateIdentifier,
             pinnedTargetUnavailableReasonIdentifier: pinnedTargetUnavailableReasonIdentifier,
+            promotedHoldStateIdentifier: promotedHoldStateIdentifier,
+            requestedSavedTourHoldEntryIdentifier: requestedSavedTourHoldEntryIdentifier,
+            retainedSavedTourHoldEntryIdentifier: retainedSavedTourHoldEntryIdentifier,
+            filteredSavedTourHoldEntryIdentifier: filteredSavedTourHoldEntryIdentifier,
             requestedPinnedEntryIdentifiers: requestedPinnedEntryIdentifiers,
             retainedPinnedEntryIdentifiers: retainedPinnedEntryIdentifiers,
             missingPinnedEntryIdentifiers: missingPinnedEntryIdentifiers,
@@ -2942,28 +2977,36 @@ enum CinematicRunRecapShareArtifactComparisonPlanner {
             compareBodyPreviewText: compareBodyPreviewText,
             warningStateIdentifier: warningStateIdentifier
         )
+        var identifierParts = [
+            "run-recap-share-artifact-comparison",
+            "availability:\(availabilityReason)",
+            "export:\(fingerprint(exportIdentifier))",
+            "retained:\(retainedEntries.count)",
+            "matching:\(matchingEntries.count)",
+            "mode:\(targetMode.rawValue)",
+            "query:\(search.queryFingerprint)",
+            "selected:\(selectedEntry?.identifier ?? "none")",
+            "compare:\(compareEntry?.identifier ?? "none")",
+            "direction:\(targetDirectionIdentifier)",
+            "pinned-state:\(pinnedTargetStateIdentifier)"
+        ]
+        if let requestedSavedTourHoldEntryIdentifier {
+            identifierParts.append(
+                "promoted-hold-state:\(promotedHoldStateIdentifier)|promoted-hold:\(requestedSavedTourHoldEntryIdentifier)"
+            )
+        }
+        identifierParts += [
+            "pins:\(requestedPinnedEntryIdentifiers.count)",
+            "retained-pins:\(retainedPinnedEntryIdentifiers.count)",
+            "missing-pins:\(missingPinnedEntryIdentifiers.count)",
+            "filtered-pins:\(filteredPinnedEntryIdentifiers.count)",
+            "delta:\(sessionDelta.map(String.init) ?? "none")",
+            "cleanup:\(historyPlan.cleanupCandidateCount)",
+            "warnings:\(warningStateIdentifier)",
+            "copy:\(export.count)"
+        ]
         let identifier = bounded(
-            [
-                "run-recap-share-artifact-comparison",
-                "availability:\(availabilityReason)",
-                "export:\(fingerprint(exportIdentifier))",
-                "retained:\(retainedEntries.count)",
-                "matching:\(matchingEntries.count)",
-                "mode:\(targetMode.rawValue)",
-                "query:\(search.queryFingerprint)",
-                "selected:\(selectedEntry?.identifier ?? "none")",
-                "compare:\(compareEntry?.identifier ?? "none")",
-                "direction:\(targetDirectionIdentifier)",
-                "pinned-state:\(pinnedTargetStateIdentifier)",
-                "pins:\(requestedPinnedEntryIdentifiers.count)",
-                "retained-pins:\(retainedPinnedEntryIdentifiers.count)",
-                "missing-pins:\(missingPinnedEntryIdentifiers.count)",
-                "filtered-pins:\(filteredPinnedEntryIdentifiers.count)",
-                "delta:\(sessionDelta.map(String.init) ?? "none")",
-                "cleanup:\(historyPlan.cleanupCandidateCount)",
-                "warnings:\(warningStateIdentifier)",
-                "copy:\(export.count)"
-            ].joined(separator: "|"),
+            identifierParts.joined(separator: "|"),
             limit: CinematicRunRecapShareArtifactComparisonPlan.identifierMaxCharacters
         )
 
@@ -2991,6 +3034,10 @@ enum CinematicRunRecapShareArtifactComparisonPlanner {
             pinnedTargetEntryIdentifier: pinnedTargetEntryIdentifier,
             pinnedTargetStateIdentifier: pinnedTargetStateIdentifier,
             pinnedTargetUnavailableReasonIdentifier: pinnedTargetUnavailableReasonIdentifier,
+            promotedHoldStateIdentifier: promotedHoldStateIdentifier,
+            requestedSavedTourHoldEntryIdentifier: requestedSavedTourHoldEntryIdentifier,
+            retainedSavedTourHoldEntryIdentifier: retainedSavedTourHoldEntryIdentifier,
+            filteredSavedTourHoldEntryIdentifier: filteredSavedTourHoldEntryIdentifier,
             requestedPinnedEntryIdentifiers: requestedPinnedEntryIdentifiers,
             retainedPinnedEntryIdentifiers: retainedPinnedEntryIdentifiers,
             missingPinnedEntryIdentifiers: missingPinnedEntryIdentifiers,
@@ -3148,6 +3195,40 @@ enum CinematicRunRecapShareArtifactComparisonPlanner {
         return "no-retained-pinned-recap-share-target"
     }
 
+    private static func promotedHoldStateIdentifier(
+        targetMode: CinematicRunRecapShareArtifactComparisonTargetMode,
+        requestedSavedTourHoldEntryIdentifier: String?,
+        retainedSavedTourHoldEntryIdentifier: String?,
+        filteredSavedTourHoldEntryIdentifier: String?,
+        selectedEntry: CinematicRunRecapShareArtifactHistoryPlan.Entry?,
+        compareEntry: CinematicRunRecapShareArtifactHistoryPlan.Entry?,
+        noMatchAvailabilityReason: String?
+    ) -> String {
+        guard targetMode == .pinnedReference,
+              requestedSavedTourHoldEntryIdentifier != nil else {
+            return "none"
+        }
+        guard let retainedSavedTourHoldEntryIdentifier else {
+            return "missing-promoted-hold"
+        }
+        guard let selectedEntry else {
+            return noMatchAvailabilityReason == nil
+                ? "no-selected-promoted-hold"
+                : "no-match-promoted-hold"
+        }
+        if retainedSavedTourHoldEntryIdentifier == selectedEntry.identifier,
+           compareEntry == nil {
+            return "selected-only-promoted-hold"
+        }
+        guard compareEntry?.identifier == retainedSavedTourHoldEntryIdentifier else {
+            return "retained-promoted-hold-not-target"
+        }
+        if filteredSavedTourHoldEntryIdentifier == retainedSavedTourHoldEntryIdentifier {
+            return "filtered-promoted-hold-target"
+        }
+        return "retained-promoted-hold-target"
+    }
+
     private static func availabilityReason(
         historyPlan: CinematicRunRecapShareArtifactHistoryPlan,
         matchingEntries: [CinematicRunRecapShareArtifactHistoryPlan.Entry],
@@ -3194,6 +3275,10 @@ enum CinematicRunRecapShareArtifactComparisonPlanner {
         targetDirectionIdentifier: String,
         pinnedTargetStateIdentifier: String,
         pinnedTargetUnavailableReasonIdentifier: String?,
+        promotedHoldStateIdentifier: String,
+        requestedSavedTourHoldEntryIdentifier: String?,
+        retainedSavedTourHoldEntryIdentifier: String?,
+        filteredSavedTourHoldEntryIdentifier: String?,
         requestedPinnedEntryIdentifiers: [String],
         retainedPinnedEntryIdentifiers: [String],
         missingPinnedEntryIdentifiers: [String],
@@ -3227,6 +3312,10 @@ enum CinematicRunRecapShareArtifactComparisonPlanner {
             "- Pinned target: \(pinnedTargetEntryIdentifier ?? "none")",
             "- Pinned target state: \(pinnedTargetStateIdentifier)",
             "- Pinned unavailable reason: \(pinnedTargetUnavailableReasonIdentifier ?? "none")",
+            "- Promoted hold state: \(promotedHoldStateIdentifier)",
+            "- Promoted hold requested: \(requestedSavedTourHoldEntryIdentifier ?? "none")",
+            "- Promoted hold retained: \(retainedSavedTourHoldEntryIdentifier ?? "none")",
+            "- Promoted hold filtered: \(filteredSavedTourHoldEntryIdentifier ?? "none")",
             "- Pinned artifacts: \(requestedPinnedEntryIdentifiers.count)",
             "- Retained pins: \(retainedPinnedEntryIdentifiers.count)",
             "- Missing pins: \(missingPinnedEntryIdentifiers.count)",

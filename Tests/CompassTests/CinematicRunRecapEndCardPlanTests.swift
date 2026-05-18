@@ -360,6 +360,21 @@ final class CinematicRunRecapEndCardPlanTests: XCTestCase {
             targetMode: .pinnedReference,
             pinnedEntryIdentifiers: [target.identifier]
         )
+        let promotedHoldComparison = CinematicRunRecapShareArtifactComparisonPlanner.plan(
+            historyPlan: history,
+            selectedEntryIdentifier: selected.identifier,
+            targetMode: .pinnedReference,
+            pinnedEntryIdentifiers: [target.identifier],
+            savedTourHoldEntryIdentifier: target.identifier
+        )
+        let filteredPromotedHoldComparison = CinematicRunRecapShareArtifactComparisonPlanner.plan(
+            historyPlan: history,
+            selectedEntryIdentifier: selected.identifier,
+            searchQuery: "selected bridge beacon",
+            targetMode: .pinnedReference,
+            pinnedEntryIdentifiers: [target.identifier],
+            savedTourHoldEntryIdentifier: target.identifier
+        )
 
         let noComparisonCard = CinematicRunRecapEndCardPlanner.plan(
             isRecapOverlaySelected: true,
@@ -395,6 +410,16 @@ final class CinematicRunRecapEndCardPlanTests: XCTestCase {
             recapPlan: recapPlan,
             artifactComparisonPlan: filteredComparison
         )
+        let promotedHoldCard = CinematicRunRecapEndCardPlanner.plan(
+            isRecapOverlaySelected: true,
+            recapPlan: recapPlan,
+            artifactComparisonPlan: promotedHoldComparison
+        )
+        let filteredPromotedHoldCard = CinematicRunRecapEndCardPlanner.plan(
+            isRecapOverlaySelected: true,
+            recapPlan: recapPlan,
+            artifactComparisonPlan: filteredPromotedHoldComparison
+        )
 
         let noComparisonDescriptor = try XCTUnwrap(noComparisonCard.descriptor)
         let adjacentDescriptor = try XCTUnwrap(adjacentCard.descriptor)
@@ -403,8 +428,12 @@ final class CinematicRunRecapEndCardPlanTests: XCTestCase {
         let noMatchDescriptor = try XCTUnwrap(noMatchCard.descriptor)
         let staleDescriptor = try XCTUnwrap(staleCard.descriptor)
         let filteredDescriptor = try XCTUnwrap(filteredCard.descriptor)
+        let promotedHoldDescriptor = try XCTUnwrap(promotedHoldCard.descriptor)
+        let filteredPromotedHoldDescriptor = try XCTUnwrap(filteredPromotedHoldCard.descriptor)
         let activeCue = try XCTUnwrap(activeDescriptor.pinnedComparisonCue)
         let filteredCue = try XCTUnwrap(filteredDescriptor.pinnedComparisonCue)
+        let promotedHoldCue = try XCTUnwrap(promotedHoldDescriptor.pinnedComparisonCue)
+        let filteredPromotedHoldCue = try XCTUnwrap(filteredPromotedHoldDescriptor.pinnedComparisonCue)
 
         XCTAssertNil(noComparisonDescriptor.pinnedComparisonCue)
         XCTAssertNil(adjacentDescriptor.pinnedComparisonCue)
@@ -456,6 +485,23 @@ final class CinematicRunRecapEndCardPlanTests: XCTestCase {
         XCTAssertEqual(filteredCue.filteredPinnedEntryCount, 1)
         XCTAssertEqual(filteredCue.glyphIdentifier, "pin.bridge.filtered")
         XCTAssertEqual(filteredCue.railTreatmentIdentifier, "filtered-pin-rail")
+
+        XCTAssertEqual(promotedHoldComparison.promotedHoldStateIdentifier, "retained-promoted-hold-target")
+        XCTAssertEqual(promotedHoldCue.promotedHoldStateIdentifier, "retained-promoted-hold-target")
+        XCTAssertEqual(promotedHoldCue.promotedHoldEntryIdentifier, target.identifier)
+        XCTAssertEqual(promotedHoldCue.glyphIdentifier, "hold.pin.bridge.active")
+        XCTAssertEqual(promotedHoldCue.railTreatmentIdentifier, "promoted-hold-rail")
+        XCTAssertTrue(promotedHoldCue.label.contains("Promoted hold"))
+        XCTAssertTrue(promotedHoldCue.detail.contains("held artifact"))
+        XCTAssertNotEqual(promotedHoldCue.identifier, activeCue.identifier)
+
+        XCTAssertEqual(
+            filteredPromotedHoldComparison.promotedHoldStateIdentifier,
+            "filtered-promoted-hold-target"
+        )
+        XCTAssertEqual(filteredPromotedHoldCue.promotedHoldStateIdentifier, "filtered-promoted-hold-target")
+        XCTAssertEqual(filteredPromotedHoldCue.glyphIdentifier, "hold.pin.bridge.filtered")
+        XCTAssertEqual(filteredPromotedHoldCue.railTreatmentIdentifier, "filtered-promoted-hold-rail")
     }
 
     func testAdjacentComparisonCuePathKeepsShareTextTimelineFocusAndPinPlannerStable() throws {

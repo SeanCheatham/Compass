@@ -653,6 +653,10 @@ struct CinematicDiagnosticsReport: Equatable {
         var pinnedTargetEntryIdentifier: String?
         var pinnedTargetStateIdentifier: String
         var pinnedTargetUnavailableReasonIdentifier: String?
+        var promotedHoldStateIdentifier: String
+        var requestedSavedTourHoldEntryIdentifier: String?
+        var retainedSavedTourHoldEntryIdentifier: String?
+        var filteredSavedTourHoldEntryIdentifier: String?
         var requestedPinnedEntryIdentifiers: [String]
         var retainedPinnedEntryIdentifiers: [String]
         var missingPinnedEntryIdentifiers: [String]
@@ -878,6 +882,8 @@ struct CinematicDiagnosticsReport: Equatable {
         var pinnedComparisonCueRetainedPinnedEntryCount: Int
         var pinnedComparisonCueMissingPinnedEntryCount: Int
         var pinnedComparisonCueFilteredPinnedEntryCount: Int
+        var pinnedComparisonCuePromotedHoldStateIdentifier: String
+        var pinnedComparisonCuePromotedHoldEntryIdentifier: String?
         var pinnedComparisonCueWarningStateIdentifier: String
         var pinnedComparisonCueGlyphIdentifier: String
         var pinnedComparisonCueRailTreatmentIdentifier: String
@@ -1712,8 +1718,18 @@ struct CinematicVisualSmokeReport: Equatable {
                 "pinned-recap-share-artifacts-missing"
             ])
             && noMatchStates.contains("no-matching-recap-share-artifacts")
-            && glyphs.isSuperset(of: ["pin.bridge.active", "pin.bridge.filtered"])
-            && rails.isSuperset(of: ["pin-bridge-rail", "filtered-pin-rail"])
+            && glyphs.isSuperset(of: [
+                "pin.bridge.active",
+                "pin.bridge.filtered",
+                "hold.pin.bridge.active",
+                "hold.pin.bridge.filtered"
+            ])
+            && rails.isSuperset(of: [
+                "pin-bridge-rail",
+                "filtered-pin-rail",
+                "promoted-hold-rail",
+                "filtered-promoted-hold-rail"
+            ])
             && boundedCount == reports.count
 
         return check(
@@ -1722,12 +1738,16 @@ struct CinematicVisualSmokeReport: Equatable {
             isPassing: isPassing,
             warningIdentifier: "visual-smoke.run-recap-pinned-cue",
             detail: [
-                "active \(activeCueReports.count)",
-                "inactive \(inactiveCueCount)",
-                "selected-only \(states.contains("selected-only-pinned-recap-share-artifact"))",
-                "no-match \(noMatchStates.contains("no-matching-recap-share-artifacts"))",
-                "stale \(states.contains("pinned-recap-share-artifacts-missing"))",
-                "filtered-pin \(states.contains("filtered-pinned-target"))",
+                "active\(activeCueReports.count)",
+                "inactive\(inactiveCueCount)",
+                states.contains("selected-only-pinned-recap-share-artifact") ? "selected-only" : "selected-only-missing",
+                noMatchStates.contains("no-matching-recap-share-artifacts") ? "no-match" : "no-match-missing",
+                states.contains("pinned-recap-share-artifacts-missing") ? "stale" : "stale-missing",
+                states.contains("filtered-pinned-target") ? "filtered-pin" : "filtered-pin-missing",
+                glyphs.contains("hold.pin.bridge.active") ? "promoted-hold" : "promoted-hold-missing",
+                glyphs.contains("hold.pin.bridge.filtered")
+                    ? "filtered-promoted-hold"
+                    : "filtered-promoted-hold-missing",
                 "bounded \(boundedCount)/\(reports.count)"
             ].joined(separator: " ")
         )
@@ -2124,6 +2144,16 @@ struct CinematicVisualSmokeReport: Equatable {
             )
             && (snapshot.pinnedTargetUnavailableReasonIdentifier ?? "").count
                 <= CinematicRunRecapShareArtifactComparisonPlan.snippetMaxCharacters
+            && string(
+                snapshot.promotedHoldStateIdentifier,
+                maxCharacters: CinematicRunRecapShareArtifactComparisonPlan.snippetMaxCharacters
+            )
+            && (snapshot.requestedSavedTourHoldEntryIdentifier ?? "").count
+                <= CinematicRunRecapShareArtifactHistoryPlan.identifierMaxCharacters
+            && (snapshot.retainedSavedTourHoldEntryIdentifier ?? "").count
+                <= CinematicRunRecapShareArtifactHistoryPlan.identifierMaxCharacters
+            && (snapshot.filteredSavedTourHoldEntryIdentifier ?? "").count
+                <= CinematicRunRecapShareArtifactHistoryPlan.identifierMaxCharacters
             && snapshot.requestedPinnedEntryIdentifiers.allSatisfy {
                 string(
                     $0,
@@ -2479,6 +2509,12 @@ struct CinematicVisualSmokeReport: Equatable {
                         snapshot.pinnedComparisonCueDeltaLabel,
                         maxCharacters: CinematicRunRecapEndCardPlan.pinnedComparisonDeltaLabelMaxCharacters
                     )
+                    && string(
+                        snapshot.pinnedComparisonCuePromotedHoldStateIdentifier,
+                        maxCharacters: CinematicRunRecapShareArtifactComparisonPlan.snippetMaxCharacters
+                    )
+                    && (snapshot.pinnedComparisonCuePromotedHoldEntryIdentifier ?? "").count
+                        <= CinematicRunRecapShareArtifactHistoryPlan.identifierMaxCharacters
                     && snapshot.pinnedComparisonCueLabelLength == snapshot.pinnedComparisonCueLabel.count
                     && snapshot.pinnedComparisonCueDetailLength == snapshot.pinnedComparisonCueDetail.count
                     && snapshot.pinnedComparisonCueDeltaLabelLength == snapshot.pinnedComparisonCueDeltaLabel.count
@@ -4131,6 +4167,16 @@ struct CinematicDiagnosticsSummary: Equatable {
             snapshot.pinnedTargetEntryIdentifier.map { "pinned target \(bounded($0, limit: 54))" },
             "pinned state \(snapshot.pinnedTargetStateIdentifier)",
             snapshot.pinnedTargetUnavailableReasonIdentifier.map { "pinned unavailable \($0)" },
+            "promoted hold \(snapshot.promotedHoldStateIdentifier)",
+            snapshot.requestedSavedTourHoldEntryIdentifier.map {
+                "promoted held id \(bounded($0, limit: 54))"
+            },
+            snapshot.retainedSavedTourHoldEntryIdentifier.map {
+                "retained promoted hold \(bounded($0, limit: 54))"
+            },
+            snapshot.filteredSavedTourHoldEntryIdentifier.map {
+                "filtered promoted hold \(bounded($0, limit: 54))"
+            },
             "pins \(snapshot.pinnedEntryCount)",
             "retained pins \(snapshot.retainedPinnedEntryCount)",
             "missing pins \(snapshot.missingPinnedEntryCount)",
@@ -4353,6 +4399,10 @@ struct CinematicDiagnosticsSummary: Equatable {
                 : nil,
             snapshot.hasPinnedComparisonCue
                 ? "pin \(snapshot.pinnedComparisonCueDeltaLabel) \(snapshot.pinnedComparisonCueRailTreatmentIdentifier)"
+                : nil,
+            snapshot.hasPinnedComparisonCue
+                && snapshot.pinnedComparisonCuePromotedHoldStateIdentifier != "none"
+                ? "pin promoted hold \(snapshot.pinnedComparisonCuePromotedHoldStateIdentifier)"
                 : nil,
             snapshot.pinnedComparisonCueNoMatchStateIdentifier == "none"
                 ? nil
@@ -4779,7 +4829,8 @@ enum CinematicDiagnostics {
             selectedEntryIdentifier: runRecapShareArtifactPreviewSelectedEntryIdentifier,
             searchQuery: runRecapShareArtifactPreviewSearchQuery,
             targetMode: runRecapShareArtifactComparisonTargetMode,
-            pinnedEntryIdentifiers: runRecapShareArtifactPinnedEntryIdentifiers
+            pinnedEntryIdentifiers: runRecapShareArtifactPinnedEntryIdentifiers,
+            savedTourHoldEntryIdentifier: runRecapShareArtifactSavedTourHoldEntryIdentifier
         )
         let runRecapShareArtifactPinnedReferencePlan = CinematicRunRecapShareArtifactPinnedReferencePlanner.plan(
             historyPlan: runRecapShareArtifactHistoryPlan,
@@ -4837,6 +4888,7 @@ enum CinematicDiagnostics {
                 "run-recap-share-artifact-comparison-mode:\(runRecapShareArtifactComparisonSnapshot.targetModeIdentifier)",
                 "run-recap-share-artifact-comparison-pinned-target:\(runRecapShareArtifactComparisonSnapshot.pinnedTargetEntryIdentifier ?? "none")",
                 "run-recap-share-artifact-comparison-pinned-state:\(runRecapShareArtifactComparisonSnapshot.pinnedTargetStateIdentifier)",
+                "run-recap-share-artifact-comparison-promoted-hold:\(runRecapShareArtifactComparisonSnapshot.promotedHoldStateIdentifier)",
                 "run-recap-share-artifact-pins:\(runRecapShareArtifactPinnedReferenceSnapshot.identifier)",
                 "run-recap-share-artifact-pins-export:\(runRecapShareArtifactPinnedReferenceSnapshot.exportIdentifier)",
                 "run-recap-share-artifact-tour:\(runRecapShareArtifactTourSnapshot.identifier)",
@@ -4853,6 +4905,7 @@ enum CinematicDiagnostics {
                 "run-recap-end-card-pinned-cue:\(runRecapEndCardSnapshot.pinnedComparisonCueIdentifier ?? "none")",
                 "run-recap-end-card-pinned-cue-mode:\(runRecapEndCardSnapshot.pinnedComparisonCueModeIdentifier)",
                 "run-recap-end-card-pinned-cue-state:\(runRecapEndCardSnapshot.pinnedComparisonCueStateIdentifier)",
+                "run-recap-end-card-pinned-cue-promoted-hold:\(runRecapEndCardSnapshot.pinnedComparisonCuePromotedHoldStateIdentifier)",
                 "run-recap-end-card-pinned-cue-no-match:\(runRecapEndCardSnapshot.pinnedComparisonCueNoMatchStateIdentifier)"
             ].joined(separator: "|"),
             repoName: repoName,
@@ -5235,8 +5288,30 @@ enum CinematicDiagnostics {
             warningCount: 1,
             influenceSettings: influenceSettings
         )
+        let promotedHold = representativePinnedComparisonCueSmokeReport(
+            caseIdentifier: "promoted-hold",
+            selectedSession: 12,
+            targetSession: 10,
+            searchQuery: nil,
+            pinnedSessions: [10],
+            missingPins: [],
+            savedTourHoldSession: 10,
+            warningCount: 0,
+            influenceSettings: influenceSettings
+        )
+        let filteredPromotedHold = representativePinnedComparisonCueSmokeReport(
+            caseIdentifier: "filtered-promoted-hold",
+            selectedSession: 12,
+            targetSession: 10,
+            searchQuery: "selected bridge beacon",
+            pinnedSessions: [10],
+            missingPins: [],
+            savedTourHoldSession: 10,
+            warningCount: 0,
+            influenceSettings: influenceSettings
+        )
 
-        return [active, selectedOnly, noMatch, stale, filteredPin]
+        return [active, selectedOnly, noMatch, stale, filteredPin, promotedHold, filteredPromotedHold]
     }
 
     static func representativeActivityCases() -> [ActivityCase] {
@@ -5602,6 +5677,8 @@ enum CinematicDiagnostics {
         searchQuery: String?,
         pinnedSessions: [Int],
         missingPins: [String],
+        savedTourHoldSession: Int? = nil,
+        missingSavedTourHold: String? = nil,
         warningCount: Int,
         influenceSettings: CinematicInfluenceSettings
     ) -> CinematicDiagnosticsReport {
@@ -5647,12 +5724,16 @@ enum CinematicDiagnostics {
         let pinnedEntryIdentifiers = pinnedSessions.compactMap {
             entryIdentifiersBySession[$0]
         } + missingPins
+        let savedTourHoldEntryIdentifier = savedTourHoldSession.flatMap {
+            entryIdentifiersBySession[$0]
+        } ?? missingSavedTourHold
         let comparisonPlan = CinematicRunRecapShareArtifactComparisonPlanner.plan(
             historyPlan: historyPlan,
             selectedEntryIdentifier: selectedEntryIdentifier,
             searchQuery: searchQuery,
             targetMode: .pinnedReference,
-            pinnedEntryIdentifiers: pinnedEntryIdentifiers
+            pinnedEntryIdentifiers: pinnedEntryIdentifiers,
+            savedTourHoldEntryIdentifier: savedTourHoldEntryIdentifier
         )
         let endCardPlan = CinematicRunRecapEndCardPlanner.plan(
             isRecapOverlaySelected: true,
@@ -5676,7 +5757,8 @@ enum CinematicDiagnostics {
             runRecapShareArtifactPreviewSelectedEntryIdentifier: selectedEntryIdentifier,
             runRecapShareArtifactPreviewSearchQuery: searchQuery,
             runRecapShareArtifactComparisonTargetMode: .pinnedReference,
-            runRecapShareArtifactPinnedEntryIdentifiers: pinnedEntryIdentifiers
+            runRecapShareArtifactPinnedEntryIdentifiers: pinnedEntryIdentifiers,
+            runRecapShareArtifactSavedTourHoldEntryIdentifier: savedTourHoldEntryIdentifier
         )
     }
 
@@ -6934,6 +7016,10 @@ enum CinematicDiagnostics {
             pinnedTargetEntryIdentifier: plan.pinnedTargetEntryIdentifier,
             pinnedTargetStateIdentifier: plan.pinnedTargetStateIdentifier,
             pinnedTargetUnavailableReasonIdentifier: plan.pinnedTargetUnavailableReasonIdentifier,
+            promotedHoldStateIdentifier: plan.promotedHoldStateIdentifier,
+            requestedSavedTourHoldEntryIdentifier: plan.requestedSavedTourHoldEntryIdentifier,
+            retainedSavedTourHoldEntryIdentifier: plan.retainedSavedTourHoldEntryIdentifier,
+            filteredSavedTourHoldEntryIdentifier: plan.filteredSavedTourHoldEntryIdentifier,
             requestedPinnedEntryIdentifiers: plan.requestedPinnedEntryIdentifiers,
             retainedPinnedEntryIdentifiers: plan.retainedPinnedEntryIdentifiers,
             missingPinnedEntryIdentifiers: plan.missingPinnedEntryIdentifiers,
@@ -7237,6 +7323,8 @@ enum CinematicDiagnostics {
                 pinnedComparisonCueRetainedPinnedEntryCount: 0,
                 pinnedComparisonCueMissingPinnedEntryCount: 0,
                 pinnedComparisonCueFilteredPinnedEntryCount: 0,
+                pinnedComparisonCuePromotedHoldStateIdentifier: "none",
+                pinnedComparisonCuePromotedHoldEntryIdentifier: nil,
                 pinnedComparisonCueWarningStateIdentifier: "none",
                 pinnedComparisonCueGlyphIdentifier: "none",
                 pinnedComparisonCueRailTreatmentIdentifier: "none",
@@ -7298,6 +7386,8 @@ enum CinematicDiagnostics {
             pinnedComparisonCueRetainedPinnedEntryCount: cue?.retainedPinnedEntryCount ?? 0,
             pinnedComparisonCueMissingPinnedEntryCount: cue?.missingPinnedEntryCount ?? 0,
             pinnedComparisonCueFilteredPinnedEntryCount: cue?.filteredPinnedEntryCount ?? 0,
+            pinnedComparisonCuePromotedHoldStateIdentifier: cue?.promotedHoldStateIdentifier ?? "none",
+            pinnedComparisonCuePromotedHoldEntryIdentifier: cue?.promotedHoldEntryIdentifier,
             pinnedComparisonCueWarningStateIdentifier: cue?.warningStateIdentifier ?? "none",
             pinnedComparisonCueGlyphIdentifier: cue?.glyphIdentifier ?? "none",
             pinnedComparisonCueRailTreatmentIdentifier: cue?.railTreatmentIdentifier ?? "none",
