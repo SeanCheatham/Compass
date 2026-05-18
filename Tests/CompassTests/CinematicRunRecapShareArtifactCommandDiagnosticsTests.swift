@@ -222,6 +222,78 @@ final class CinematicRunRecapShareArtifactCommandDiagnosticsTests: XCTestCase {
         XCTAssertTrue(summary.exportText.contains("promoted filtered-promoted-hold-target"))
     }
 
+    func testCommandAvailabilityWarningTargetDrillsIntoCommandsContext() throws {
+        let workspace = try makeInitializedWorkspace()
+        let artifactCount = CinematicRunRecapShareArtifactHistoryPlan.retentionLimit + 2
+        for session in 1...artifactCount {
+            _ = try workspace.writeSessionArtifact(
+                session: session,
+                name: "recap-share-command-target-\(session).md",
+                contents: artifactMarkdown(
+                    session: session,
+                    title: "Command Target \(session)",
+                    status: "succeeded",
+                    commit: "Command target commit \(session)",
+                    body: session == artifactCount ? "active command target beacon" : "retained target body"
+                )
+            )
+        }
+        let history = workspace.refreshRunRecapShareArtifactHistory()
+        let selected = try XCTUnwrap(history.entries.first { $0.sessionNumber == artifactCount })
+        let held = try XCTUnwrap(history.entries.first { $0.sessionNumber == artifactCount - 2 })
+        let context = CinematicRunRecapShareArtifactLibraryContext(
+            selectedEntryIdentifier: selected.identifier,
+            searchText: "ACTIVE COMMAND TARGET",
+            pinnedEntryIdentifiers: [held.identifier, selected.identifier, "stale-command-target-pin"],
+            comparisonTargetMode: .pinnedReference,
+            savedTourHoldEntryIdentifier: held.identifier
+        )
+        let report = makeReport(history: history, context: context)
+        let smoke = CinematicVisualSmokeReport(reports: [report])
+        let summary = CinematicDiagnosticsSummary(report: report, visualSmoke: smoke)
+        let check = try XCTUnwrap(
+            summary.visualSmoke.checks.first { $0.id == "run-recap-artifact-command-availability" }
+        )
+        let warningTarget = try XCTUnwrap(check.warningTarget)
+        let target = try XCTUnwrap(
+            summary.attentionSummary.targets.first { $0.id == warningTarget.id }
+        )
+
+        XCTAssertEqual(warningTarget.id, "visual-smoke-check-run-recap-artifact-command-availability")
+        XCTAssertEqual(warningTarget.targetGroupID, "visual-smoke")
+        XCTAssertEqual(warningTarget.targetAnchorID, "visual-smoke-check-run-recap-artifact-command-availability")
+        XCTAssertEqual(warningTarget.relatedGroupID, "repository-context")
+        XCTAssertEqual(warningTarget.relatedRowID, "run-recap-share-artifact-commands")
+        XCTAssertEqual(target.label, "Recap command availability")
+        XCTAssertEqual(target.targetGroupID, "visual-smoke")
+        XCTAssertEqual(target.targetAnchorID, warningTarget.targetAnchorID)
+        XCTAssertEqual(target.relatedGroupID, "repository-context")
+        XCTAssertEqual(target.relatedRowID, "run-recap-share-artifact-commands")
+        XCTAssertEqual(target.visibleWarningIdentifiers, ["visual-smoke.recap-artifact-commands"])
+        XCTAssertTrue(target.detail.contains("disabled"))
+        XCTAssertTrue(target.detail.contains("pins stale 1 filtered 1"))
+        XCTAssertTrue(target.detail.contains("hold filtered-hold"))
+        XCTAssertTrue(target.detail.contains("cleanup omitted"))
+        XCTAssertTrue(target.detail.contains("collisions clear"))
+        XCTAssertTrue(target.detail.contains("correlated yes"))
+        XCTAssertLessThanOrEqual(
+            target.detail.count,
+            CinematicDiagnosticsSummary.attentionSummaryDetailMaxCharacters
+        )
+        XCTAssertEqual(summary.defaultExpandedGroupStates["visual-smoke"], true)
+        XCTAssertEqual(summary.defaultExpandedGroupStates["repository-context"], true)
+        XCTAssertEqual(summary.relatedRow(for: warningTarget)?.id, "run-recap-share-artifact-commands")
+        XCTAssertTrue(
+            summary.exportText.contains(
+                "Recap command availability -> visual-smoke-check-run-recap-artifact-command-availability"
+            )
+        )
+        XCTAssertTrue(summary.exportText.contains("related run-recap-share-artifact-commands"))
+        XCTAssertTrue(summary.exportText.contains("pins stale 1 filtered 1"))
+        XCTAssertTrue(summary.exportText.contains("cleanup omitted"))
+        XCTAssertTrue(summary.exportText.contains("correlated yes"))
+    }
+
     func testRepresentativeCommandSmokeReportsKeepDiagnosticsCorrelated() throws {
         let reports = CinematicDiagnostics.representativeRunRecapArtifactCommandSmokeReports()
 

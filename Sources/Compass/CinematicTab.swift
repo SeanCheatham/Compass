@@ -2187,36 +2187,8 @@ private struct CinematicDiagnosticsPopover: View {
                     .textSelection(.enabled)
 
                 ForEach(summary.visualSmoke.checks) { check in
-                    HStack(alignment: .top, spacing: 10) {
-                        HStack(alignment: .firstTextBaseline, spacing: 5) {
-                            Image(systemName: visualSmokeSystemImage(for: check.status))
-                                .font(.caption2.weight(.bold))
-                                .foregroundStyle(visualSmokeColor(for: check.status))
-                                .frame(width: 12)
-
-                            Text(check.label)
-                                .font(.system(.caption, design: .monospaced).weight(.semibold))
-                                .foregroundStyle(check.status == .warning ? .orange : .secondary)
-                        }
-                        .frame(width: 108, alignment: .leading)
-
-                        VStack(alignment: .leading, spacing: 3) {
-                            Text(check.detail)
-                                .font(.caption)
-                                .foregroundStyle(.primary)
-                                .lineLimit(2)
-                                .textSelection(.enabled)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-
-                            if let warningIdentifier = check.warningIdentifier {
-                                Text(warningIdentifier)
-                                    .font(.caption2.monospaced())
-                                    .foregroundStyle(.orange)
-                                    .textSelection(.enabled)
-                            }
-                        }
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                    }
+                    visualSmokeCheckRow(check)
+                        .id(visualSmokeCheckAnchorID(for: check))
                 }
             }
         }
@@ -2322,7 +2294,51 @@ private struct CinematicDiagnosticsPopover: View {
                         .textSelection(.enabled)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
+                .id(diagnosticsRowAnchorID(for: row.id))
             }
+        }
+    }
+
+    private func visualSmokeCheckRow(
+        _ check: CinematicVisualSmokeReport.Check
+    ) -> some View {
+        HStack(alignment: .top, spacing: 10) {
+            HStack(alignment: .firstTextBaseline, spacing: 5) {
+                Image(systemName: visualSmokeSystemImage(for: check.status))
+                    .font(.caption2.weight(.bold))
+                    .foregroundStyle(visualSmokeColor(for: check.status))
+                    .frame(width: 12)
+
+                Text(check.label)
+                    .font(.system(.caption, design: .monospaced).weight(.semibold))
+                    .foregroundStyle(check.status == .warning ? .orange : .secondary)
+            }
+            .frame(width: 108, alignment: .leading)
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text(check.detail)
+                    .font(.caption)
+                    .foregroundStyle(.primary)
+                    .lineLimit(2)
+                    .textSelection(.enabled)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+
+                if let warningIdentifier = check.warningIdentifier {
+                    Text(warningIdentifier)
+                        .font(.caption2.monospaced())
+                        .foregroundStyle(.orange)
+                        .textSelection(.enabled)
+                }
+
+                if let context = relatedDiagnosticsContext(for: check) {
+                    Text(context)
+                        .font(.caption2.monospaced())
+                        .foregroundStyle(.secondary)
+                        .lineLimit(3)
+                        .textSelection(.enabled)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 
@@ -2348,8 +2364,11 @@ private struct CinematicDiagnosticsPopover: View {
         scrollProxy: ScrollViewProxy
     ) {
         groupExpansion[target.targetGroupID] = true
+        if let relatedGroupID = target.relatedGroupID {
+            groupExpansion[relatedGroupID] = true
+        }
         withAnimation(.easeInOut(duration: 0.16)) {
-            scrollProxy.scrollTo(target.targetGroupID, anchor: .top)
+            scrollProxy.scrollTo(target.targetAnchorID, anchor: .top)
         }
         focusedGroupID = target.targetGroupID
     }
@@ -2361,6 +2380,24 @@ private struct CinematicDiagnosticsPopover: View {
             ? "warnings unavailable"
             : target.visibleWarningIdentifiers.joined(separator: ", ")
         return "\(target.detail) | \(warnings)"
+    }
+
+    private func visualSmokeCheckAnchorID(for check: CinematicVisualSmokeReport.Check) -> String {
+        check.warningTarget?.targetAnchorID ?? "visual-smoke-check-\(check.id)"
+    }
+
+    private func diagnosticsRowAnchorID(for rowID: String) -> String {
+        "diagnostics-row-\(rowID)"
+    }
+
+    private func relatedDiagnosticsContext(for check: CinematicVisualSmokeReport.Check) -> String? {
+        guard let warningTarget = check.warningTarget,
+              let relatedRow = summary.relatedRow(for: warningTarget)
+        else {
+            return nil
+        }
+
+        return "Related \(relatedRow.label): \(relatedRow.detail)"
     }
 
     private func detailLineLimit(for row: CinematicDiagnosticsSummary.Row) -> Int {

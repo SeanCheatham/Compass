@@ -973,7 +973,18 @@ struct CinematicVisualSmokeReport: Equatable {
         var label: String
         var status: Status
         var warningIdentifier: String?
+        var warningTarget: WarningTarget?
         var detail: String
+
+        struct WarningTarget: Equatable {
+            var id: String
+            var targetGroupID: String
+            var targetAnchorID: String
+            var relatedGroupID: String?
+            var relatedRowID: String?
+            var label: String
+            var detail: String
+        }
     }
 
     init(reports: [CinematicDiagnosticsReport]) {
@@ -1157,8 +1168,18 @@ struct CinematicVisualSmokeReport: Equatable {
                 hasPromotedHold && hasFilteredPromotedHold ? "promoted-hold" : "promoted-hold-missing",
                 cleanupActiveOmitted ? "cleanup-omitted" : "cleanup-missing",
                 collisionClearCount == snapshots.count ? "collisions clear" : "collisions \(snapshots.count - collisionClearCount)",
-                "bounded \(boundedCount)/\(reports.count)"
-            ].joined(separator: " ")
+                "bounded \(boundedCount)/\(reports.count)",
+                "correlated \(correlatedCount)/\(snapshots.count)"
+            ].joined(separator: " "),
+            warningTarget: Check.WarningTarget(
+                id: "visual-smoke-check-run-recap-artifact-command-availability",
+                targetGroupID: "visual-smoke",
+                targetAnchorID: "visual-smoke-check-run-recap-artifact-command-availability",
+                relatedGroupID: "repository-context",
+                relatedRowID: "run-recap-share-artifact-commands",
+                label: "Recap command availability",
+                detail: "Recap artifact command availability warning"
+            )
         )
     }
 
@@ -3168,7 +3189,8 @@ struct CinematicVisualSmokeReport: Equatable {
         label: String,
         isPassing: Bool,
         warningIdentifier: String,
-        detail: String
+        detail: String,
+        warningTarget: Check.WarningTarget? = nil
     ) -> Check {
         Check(
             id: bounded(id, limit: warningIdentifierMaxCharacters),
@@ -3177,7 +3199,20 @@ struct CinematicVisualSmokeReport: Equatable {
             warningIdentifier: isPassing
                 ? nil
                 : bounded(warningIdentifier, limit: warningIdentifierMaxCharacters),
+            warningTarget: isPassing ? nil : warningTarget.map(boundedWarningTarget),
             detail: bounded(detail, limit: detailMaxCharacters)
+        )
+    }
+
+    private static func boundedWarningTarget(_ target: Check.WarningTarget) -> Check.WarningTarget {
+        Check.WarningTarget(
+            id: bounded(target.id, limit: warningIdentifierMaxCharacters),
+            targetGroupID: bounded(target.targetGroupID, limit: warningIdentifierMaxCharacters),
+            targetAnchorID: bounded(target.targetAnchorID, limit: warningIdentifierMaxCharacters),
+            relatedGroupID: target.relatedGroupID.map { bounded($0, limit: warningIdentifierMaxCharacters) },
+            relatedRowID: target.relatedRowID.map { bounded($0, limit: warningIdentifierMaxCharacters) },
+            label: bounded(target.label, limit: labelMaxCharacters),
+            detail: bounded(target.detail, limit: detailMaxCharacters)
         )
     }
 
@@ -3212,7 +3247,7 @@ struct CinematicDiagnosticsSummary: Equatable {
     static let visualSmokeCountMaxCharacters = 24
     static let attentionSummaryMaxTargets = 4
     static let attentionSummaryMaxVisibleWarnings = 3
-    static let attentionSummaryDetailMaxCharacters = 96
+    static let attentionSummaryDetailMaxCharacters = 256
 
     var rows: [Row]
     var sections: [Section]
@@ -3296,15 +3331,15 @@ struct CinematicDiagnosticsSummary: Equatable {
     }
 
     struct AttentionTarget: Identifiable, Equatable {
+        var id: String
         var targetGroupID: String
+        var targetAnchorID: String
+        var relatedGroupID: String?
+        var relatedRowID: String?
         var label: String
         var detail: String
         var warningCount: Int
         var visibleWarningIdentifiers: [String]
-
-        var id: String {
-            targetGroupID
-        }
     }
 
     private struct PlaqueTreatmentLegendEntry {
@@ -3418,6 +3453,8 @@ struct CinematicDiagnosticsSummary: Equatable {
         self.visualSmoke = Self.makeVisualSmokeSection(visualSmoke)
         plaqueTreatmentLegend = Self.makePlaqueTreatmentLegend(visualSmoke: self.visualSmoke)
         attentionSummary = Self.makeAttentionSummary(
+            report: report,
+            sections: sections,
             visualSmoke: self.visualSmoke,
             plaqueTreatmentLegend: plaqueTreatmentLegend
         )
@@ -3837,13 +3874,37 @@ struct CinematicDiagnosticsSummary: Equatable {
         return states
     }
 
+    func row(id: String) -> Row? {
+        rows.first { $0.id == id }
+    }
+
+    func relatedRow(for target: CinematicVisualSmokeReport.Check.WarningTarget) -> Row? {
+        target.relatedRowID.flatMap { row(id: $0) }
+    }
+
     private static func makeAttentionSummary(
+        report: CinematicDiagnosticsReport,
+        sections: [Section],
         visualSmoke: VisualSmokeSection,
         plaqueTreatmentLegend: PlaqueTreatmentLegend
     ) -> AttentionSummary {
-        let targets = [
+        let rowsByID = Dictionary(
+            uniqueKeysWithValues: sections.flatMap(\.rows).map { ($0.id, $0) }
+        )
+        let warningCheckTargets = visualSmoke.checks.compactMap { check in
+            warningCheckAttentionTarget(
+                check: check,
+                report: report,
+                rowsByID: rowsByID
+            )
+        }
+        let groupTargets = [
             attentionTarget(
+                id: visualSmoke.id,
                 targetGroupID: visualSmoke.id,
+                targetAnchorID: visualSmoke.id,
+                relatedGroupID: nil,
+                relatedRowID: nil,
                 label: visualSmoke.label,
                 detail: [
                     visualSmoke.checkCountLabel,
@@ -3852,7 +3913,11 @@ struct CinematicDiagnosticsSummary: Equatable {
                 presentation: visualSmoke.presentation
             ),
             attentionTarget(
+                id: plaqueTreatmentLegend.id,
                 targetGroupID: plaqueTreatmentLegend.id,
+                targetAnchorID: plaqueTreatmentLegend.id,
+                relatedGroupID: nil,
+                relatedRowID: nil,
                 label: plaqueTreatmentLegend.label,
                 detail: [
                     plaqueTreatmentLegend.rowCountLabel,
@@ -3862,13 +3927,49 @@ struct CinematicDiagnosticsSummary: Equatable {
             )
         ]
         .compactMap { $0 }
-        .prefix(attentionSummaryMaxTargets)
+        let targets = (warningCheckTargets + groupTargets).prefix(attentionSummaryMaxTargets)
 
         return AttentionSummary(targets: Array(targets))
     }
 
+    private static func warningCheckAttentionTarget(
+        check: CinematicVisualSmokeReport.Check,
+        report: CinematicDiagnosticsReport,
+        rowsByID: [String: Row]
+    ) -> AttentionTarget? {
+        guard check.status == .warning, let warningTarget = check.warningTarget else {
+            return nil
+        }
+
+        let relatedRow = warningTarget.relatedRowID.flatMap { rowsByID[$0] }
+        let detail: String
+        if check.id == "run-recap-artifact-command-availability" {
+            detail = runRecapCommandAvailabilityAttentionDetail(
+                report.runRecapShareArtifactCommands
+            )
+        } else {
+            detail = relatedRow.map { "\(check.detail) | \($0.detail)" } ?? check.detail
+        }
+
+        return AttentionTarget(
+            id: warningTarget.id,
+            targetGroupID: warningTarget.targetGroupID,
+            targetAnchorID: warningTarget.targetAnchorID,
+            relatedGroupID: warningTarget.relatedGroupID,
+            relatedRowID: warningTarget.relatedRowID,
+            label: bounded(warningTarget.label, limit: labelMaxCharacters),
+            detail: bounded(detail, limit: attentionSummaryDetailMaxCharacters),
+            warningCount: 1,
+            visibleWarningIdentifiers: check.warningIdentifier.map { [$0] } ?? []
+        )
+    }
+
     private static func attentionTarget(
+        id: String,
         targetGroupID: String,
+        targetAnchorID: String,
+        relatedGroupID: String?,
+        relatedRowID: String?,
         label: String,
         detail: String,
         presentation: PresentationMetadata
@@ -3879,7 +3980,11 @@ struct CinematicDiagnosticsSummary: Equatable {
 
         let warningCount = presentation.warningIdentifiers.isEmpty ? 1 : presentation.warningIdentifiers.count
         return AttentionTarget(
+            id: bounded(id, limit: CinematicVisualSmokeReport.warningIdentifierMaxCharacters),
             targetGroupID: targetGroupID,
+            targetAnchorID: targetAnchorID,
+            relatedGroupID: relatedGroupID,
+            relatedRowID: relatedRowID,
             label: bounded(label, limit: labelMaxCharacters),
             detail: bounded(detail, limit: attentionSummaryDetailMaxCharacters),
             warningCount: warningCount,
@@ -3999,7 +4104,9 @@ struct CinematicDiagnosticsSummary: Equatable {
                 let visibleWarnings = target.visibleWarningIdentifiers.isEmpty
                     ? "no visible warning identifiers"
                     : target.visibleWarningIdentifiers.joined(separator: ", ")
-                return "\(target.label) -> \(target.targetGroupID) (\(warningCountCopy(for: target.warningCount))): \(target.detail) | \(visibleWarnings)"
+                let anchor = target.targetAnchorID == target.id ? "" : " | anchor \(target.targetAnchorID)"
+                let related = target.relatedRowID.map { " | related \($0)" } ?? ""
+                return "\(target.label) -> \(target.id) (\(warningCountCopy(for: target.warningCount))): \(target.detail)\(anchor)\(related) | \(visibleWarnings)"
             })
         }
 
@@ -4714,6 +4821,31 @@ struct CinematicDiagnosticsSummary: Equatable {
             snapshot.tourFilteredSavedHoldEntryIdentifier.map { "filtered hold \(bounded($0, limit: 32))" },
             "id \(bounded(snapshot.identifier, limit: 30))"
         ].compactMap { $0 }.joined(separator: " | ")
+    }
+
+    private static func runRecapCommandAvailabilityAttentionDetail(
+        _ snapshot: CinematicDiagnosticsReport.RunRecapShareArtifactCommandSnapshot
+    ) -> String {
+        let collisionIdentifiers = snapshot.appLevelShortcutCollisionIdentifiers.isEmpty
+            ? snapshot.appLevelShortcutIdentifiers
+            : snapshot.appLevelShortcutCollisionIdentifiers
+        let cleanupState = snapshot.omittedActionKindIdentifiers.contains("cleanupOldArtifacts")
+            ? "omitted"
+            : identifierListSummary(snapshot.omittedActionKindIdentifiers, visibleLimit: 2)
+        let isCorrelated = !snapshot.commandPlanIdentifier.isEmpty
+            && !snapshot.sourceActionMenuIdentifier.isEmpty
+            && snapshot.commandPlanIdentifier != snapshot.sourceActionMenuIdentifier
+            && snapshot.commandCount + snapshot.omittedActionKindIdentifiers.count == snapshot.actionCount
+
+        return [
+            "disabled \(identifierListSummary(snapshot.disabledActionKindIdentifiers, visibleLimit: 2))",
+            "pins stale \(snapshot.missingPinnedEntryCount) filtered \(snapshot.filteredPinnedEntryCount)",
+            "hold \(snapshot.tourSavedHoldStateIdentifier)",
+            "promoted \(snapshot.comparisonPromotedHoldStateIdentifier)",
+            "cleanup \(cleanupState)",
+            "collisions \(snapshot.appLevelShortcutCollisionStateIdentifier) \(identifierListSummary(collisionIdentifiers, visibleLimit: 2))",
+            "correlated \(isCorrelated ? "yes" : "no") \(snapshot.commandCount)+\(snapshot.omittedActionKindIdentifiers.count)/\(snapshot.actionCount)"
+        ].joined(separator: " | ")
     }
 
     private static func subsetExportDetail(

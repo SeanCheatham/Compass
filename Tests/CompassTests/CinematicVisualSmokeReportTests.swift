@@ -484,6 +484,11 @@ final class CinematicVisualSmokeReportTests: XCTestCase {
         )
         XCTAssertTrue(summary.exportText.contains("Visual smoke (pass, 20 checks)"))
         XCTAssertTrue(summary.exportText.contains("Recap command availability: pass"))
+        let commandCheck = summary.visualSmoke.checks.first {
+            $0.id == "run-recap-artifact-command-availability"
+        }
+        XCTAssertNil(commandCheck?.warningTarget)
+        XCTAssertFalse(summary.exportText.contains("Recap command availability ->"))
         XCTAssertTrue(summary.exportText.contains("Narrative cue readability: pass"))
         XCTAssertTrue(summary.exportText.contains("Texture role coverage: pass"))
         XCTAssertTrue(summary.exportText.contains("Language layout coverage: pass"))
@@ -595,10 +600,18 @@ final class CinematicVisualSmokeReportTests: XCTestCase {
 
         let assetCheck = try XCTUnwrap(summary.visualSmoke.checks.first { $0.id == "asset-availability" })
         let textureCheck = try XCTUnwrap(summary.visualSmoke.checks.first { $0.id == "texture-role-coverage" })
+        let commandCheck = try XCTUnwrap(
+            summary.visualSmoke.checks.first { $0.id == "run-recap-artifact-command-availability" }
+        )
         XCTAssertEqual(assetCheck.status, .warning)
         XCTAssertEqual(assetCheck.warningIdentifier, "visual-smoke.asset-availability")
         XCTAssertEqual(textureCheck.status, .warning)
         XCTAssertEqual(textureCheck.warningIdentifier, "visual-smoke.texture-role-coverage")
+        XCTAssertEqual(commandCheck.status, .warning)
+        XCTAssertEqual(
+            commandCheck.warningTarget?.targetAnchorID,
+            "visual-smoke-check-run-recap-artifact-command-availability"
+        )
 
         for check in summary.visualSmoke.checks {
             XCTAssertLessThanOrEqual(check.label.count, CinematicVisualSmokeReport.labelMaxCharacters)
@@ -606,11 +619,28 @@ final class CinematicVisualSmokeReportTests: XCTestCase {
         }
 
         XCTAssertEqual(
-            summary.attentionSummary.targets.map(\.targetGroupID),
-            ["visual-smoke", "plaque-treatment-legend"]
+            summary.attentionSummary.targets.map(\.id),
+            [
+                "visual-smoke-check-run-recap-artifact-command-availability",
+                "visual-smoke",
+                "plaque-treatment-legend"
+            ]
         )
+        let commandTarget = try XCTUnwrap(
+            summary.attentionSummary.targets.first {
+                $0.id == "visual-smoke-check-run-recap-artifact-command-availability"
+            }
+        )
+        XCTAssertEqual(commandTarget.label, "Recap command availability")
+        XCTAssertEqual(commandTarget.targetGroupID, "visual-smoke")
+        XCTAssertEqual(commandTarget.relatedGroupID, "repository-context")
+        XCTAssertEqual(commandTarget.relatedRowID, "run-recap-share-artifact-commands")
+        XCTAssertTrue(commandTarget.detail.contains("disabled"))
+        XCTAssertTrue(commandTarget.detail.contains("cleanup"))
+        XCTAssertTrue(commandTarget.detail.contains("collisions"))
+        XCTAssertTrue(commandTarget.detail.contains("correlated"))
         let visualSmokeTarget = try XCTUnwrap(
-            summary.attentionSummary.targets.first { $0.targetGroupID == "visual-smoke" }
+            summary.attentionSummary.targets.first { $0.id == "visual-smoke" }
         )
         XCTAssertEqual(visualSmokeTarget.id, "visual-smoke")
         XCTAssertEqual(visualSmokeTarget.label, "Visual smoke")
@@ -653,7 +683,13 @@ final class CinematicVisualSmokeReportTests: XCTestCase {
                 + summary.plaqueTreatmentLegend.rows.count
                 + 5
         )
-        XCTAssertTrue(summary.exportText.contains("Warning summary (2 targets)"))
+        XCTAssertTrue(summary.exportText.contains("Warning summary (3 targets)"))
+        XCTAssertTrue(
+            summary.exportText.contains(
+                "Recap command availability -> visual-smoke-check-run-recap-artifact-command-availability"
+            )
+        )
+        XCTAssertTrue(summary.exportText.contains("related run-recap-share-artifact-commands"))
         XCTAssertTrue(
             summary.exportText.contains("Visual smoke -> visual-smoke (\(smoke.warningIdentifiers.count) warnings):")
         )
@@ -748,11 +784,15 @@ final class CinematicVisualSmokeReportTests: XCTestCase {
             ["verify-seal", "warning-rails", "failure-fracture", "retry-braces"]
         )
         XCTAssertEqual(
-            summary.attentionSummary.targets.map(\.targetGroupID),
-            ["visual-smoke", "plaque-treatment-legend"]
+            summary.attentionSummary.targets.map(\.id),
+            [
+                "visual-smoke-check-run-recap-artifact-command-availability",
+                "visual-smoke",
+                "plaque-treatment-legend"
+            ]
         )
         let visualSmokeTarget = try XCTUnwrap(
-            summary.attentionSummary.targets.first { $0.targetGroupID == "visual-smoke" }
+            summary.attentionSummary.targets.first { $0.id == "visual-smoke" }
         )
         XCTAssertEqual(visualSmokeTarget.warningCount, smoke.warningIdentifiers.count)
         XCTAssertEqual(
@@ -771,7 +811,12 @@ final class CinematicVisualSmokeReportTests: XCTestCase {
             XCTAssertLessThanOrEqual(row.label.count, CinematicDiagnosticsSummary.labelMaxCharacters)
             XCTAssertLessThanOrEqual(row.detail.count, CinematicDiagnosticsSummary.detailMaxCharacters)
         }
-        XCTAssertTrue(summary.exportText.contains("Warning summary (2 targets)"))
+        XCTAssertTrue(summary.exportText.contains("Warning summary (3 targets)"))
+        XCTAssertTrue(
+            summary.exportText.contains(
+                "Recap command availability -> visual-smoke-check-run-recap-artifact-command-availability"
+            )
+        )
         XCTAssertTrue(
             summary.exportText.contains(
                 "Visual smoke -> visual-smoke (\(smoke.warningIdentifiers.count) warnings):"
