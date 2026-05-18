@@ -134,7 +134,18 @@ struct RepositoryActivityProfile: Codable, Equatable {
 
 enum RepositoryActivityProfileService {
     static func scan(repoURL: URL) async -> RepositoryActivityProfile {
-        let scanner = RepositoryActivityProfileScanner(repoURL: repoURL)
+        let scanner = RepositoryActivityProfileScanner(
+            repoURL: repoURL,
+            sessionsRecordURL: CompassWorkspace(repoURL: repoURL).sessionsRecordURL
+        )
+        return await scanner.scan()
+    }
+
+    static func scan(workspace: CompassWorkspace) async -> RepositoryActivityProfile {
+        let scanner = RepositoryActivityProfileScanner(
+            repoURL: workspace.repoURL,
+            sessionsRecordURL: workspace.sessionsRecordURL
+        )
         return await scanner.scan()
     }
 }
@@ -229,10 +240,12 @@ private struct RepositoryActivityProfileScanner {
     private static let maxSessionsFileBytes: UInt64 = 2 * 1024 * 1024
 
     private let repoURL: URL
+    private let sessionsRecordURL: URL
     private let fileManager = FileManager.default
 
-    init(repoURL: URL) {
+    init(repoURL: URL, sessionsRecordURL: URL) {
         self.repoURL = repoURL.standardizedFileURL
+        self.sessionsRecordURL = sessionsRecordURL.standardizedFileURL
     }
 
     func scan() async -> RepositoryActivityProfile {
@@ -250,15 +263,11 @@ private struct RepositoryActivityProfileScanner {
     }
 
     private func loadSessions() -> [SessionRecord]? {
-        let sessionsURL = repoURL
-            .appending(path: ".compass", directoryHint: .isDirectory)
-            .appending(path: "sessions.json")
-
-        guard fileManager.fileExists(atPath: sessionsURL.path),
-              let attributes = try? fileManager.attributesOfItem(atPath: sessionsURL.path),
+        guard fileManager.fileExists(atPath: sessionsRecordURL.path),
+              let attributes = try? fileManager.attributesOfItem(atPath: sessionsRecordURL.path),
               let size = attributes[.size] as? NSNumber,
               size.uint64Value <= Self.maxSessionsFileBytes,
-              let data = try? Data(contentsOf: sessionsURL) else {
+              let data = try? Data(contentsOf: sessionsRecordURL) else {
             return nil
         }
 

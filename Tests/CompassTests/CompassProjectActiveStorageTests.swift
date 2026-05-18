@@ -139,6 +139,111 @@ final class CompassProjectActiveStorageTests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: workspace.repoLocalCompassURL.path))
     }
 
+    func testApplicationSupportActiveStorageDerivesActivityProfileFromSupportSessionsWhenRepoLocalSessionsMissing() async throws {
+        let repoURL = try await makeInitializedGitRepository()
+        let roots = try makeApplicationSupportRoots()
+        let workspace = applicationSupportWorkspace(repoURL: repoURL, roots: roots)
+        let supportState = PlanState(
+            completed: ["scan support sessions"],
+            immediate: PlanNext(plan: "Keep Plan state stable", verify: "swift test"),
+            midTerm: "support activity",
+            longTerm: "factory"
+        )
+        let supportSessions = [
+            makeActivitySession(21, status: .failed, endedAt: 21_000, commits: 1),
+            makeActivitySession(22, status: .succeeded, endedAt: 22_000, commits: 2),
+            makeActivitySession(23, status: .succeeded, endedAt: 23_000, commits: 3)
+        ]
+        let libraryContext = CinematicRunRecapShareArtifactLibraryContext(
+            selectedEntryIdentifier: "support-selected-artifact",
+            searchText: "support activity",
+            pinnedEntryIdentifiers: ["support-pinned-artifact"],
+            comparisonTargetMode: .pinnedReference,
+            savedTourHoldEntryIdentifier: "support-held-artifact"
+        )
+        let project = CompassProject(
+            repoURL: repoURL,
+            activeStorage: .applicationSupport,
+            cinematicRunRecapShareArtifactLibraryContext: libraryContext,
+            storageApplicationSupportRoots: roots
+        )
+
+        try workspace.initialize()
+        try workspace.writeState(supportState)
+        try workspace.writeSessions(supportSessions)
+        try write("pending repo worktree\n", to: repoURL.appending(path: "pending.txt"))
+        project.state = supportState
+        project.recordCinematicDiagnosticsWarningBundle(makeWarningAttentionSummary())
+        let warningHistory = project.cinematicDiagnosticsWarningBundleHistory
+
+        XCTAssertFalse(FileManager.default.fileExists(atPath: workspace.repoLocalCompassURL.path))
+
+        await project.refresh()
+
+        XCTAssertTrue(project.activityProfile.isAvailable)
+        XCTAssertEqual(project.activityProfile.recentSessionCount, 3)
+        XCTAssertEqual(project.activityProfile.recentSucceededCount, 2)
+        XCTAssertEqual(project.activityProfile.recentFailedCount, 1)
+        XCTAssertEqual(project.activityProfile.recentCommitCount, 6)
+        XCTAssertEqual(project.activityProfile.lastTerminalStatus, .succeeded)
+        XCTAssertEqual(project.activityProfile.lastSuccessfulSession, 23)
+        XCTAssertEqual(project.activityProfile.lastFailedSession, 21)
+        XCTAssertEqual(project.activityProfile.successStreak, 2)
+        XCTAssertEqual(project.activityProfile.failureStreak, 0)
+        XCTAssertTrue(project.activityProfile.recoveredFromFailure)
+        XCTAssertEqual(project.activityProfile.worktreeChanges.untracked, 1)
+        XCTAssertEqual(project.state, supportState)
+        XCTAssertEqual(project.activeStorage, .applicationSupport)
+        XCTAssertEqual(project.cinematicRunRecapShareArtifactLibraryContext, libraryContext)
+        XCTAssertEqual(project.cinematicDiagnosticsWarningBundleHistory, warningHistory)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: workspace.repoLocalCompassURL.path))
+    }
+
+    func testApplicationSupportActiveStorageIgnoresStaleRepoLocalSessionsForActivityProfile() async throws {
+        let repoURL = try await makeInitializedGitRepository()
+        let roots = try makeApplicationSupportRoots()
+        let workspace = applicationSupportWorkspace(repoURL: repoURL, roots: roots)
+        let repoLocalWorkspace = CompassWorkspace(repoURL: repoURL)
+        let supportSessions = [
+            makeActivitySession(31, status: .failed, endedAt: 31_000, commits: 1),
+            makeActivitySession(32, status: .succeeded, endedAt: 32_000, commits: 2)
+        ]
+        let staleRepoLocalSessions = [
+            makeActivitySession(2, status: .failed, endedAt: 2_000, commits: 8),
+            makeActivitySession(3, status: .failed, endedAt: 3_000, commits: 8)
+        ]
+        let project = CompassProject(
+            repoURL: repoURL,
+            activeStorage: .applicationSupport,
+            storageApplicationSupportRoots: roots
+        )
+
+        try workspace.initialize()
+        try workspace.writeSessions(supportSessions)
+        try createDirectory(repoLocalWorkspace.compassURL)
+        try repoLocalWorkspace.writeSessions(staleRepoLocalSessions)
+        let staleRepoLocalText = try String(contentsOf: repoLocalWorkspace.sessionsRecordURL, encoding: .utf8)
+
+        await project.refresh()
+
+        XCTAssertTrue(project.activityProfile.isAvailable)
+        XCTAssertEqual(project.activityProfile.recentSessionCount, 2)
+        XCTAssertEqual(project.activityProfile.recentSucceededCount, 1)
+        XCTAssertEqual(project.activityProfile.recentFailedCount, 1)
+        XCTAssertEqual(project.activityProfile.recentCommitCount, 3)
+        XCTAssertEqual(project.activityProfile.lastTerminalStatus, .succeeded)
+        XCTAssertEqual(project.activityProfile.lastSuccessfulSession, 32)
+        XCTAssertEqual(project.activityProfile.lastFailedSession, 31)
+        XCTAssertEqual(project.activityProfile.successStreak, 1)
+        XCTAssertEqual(project.activityProfile.failureStreak, 0)
+        XCTAssertTrue(project.activityProfile.recoveredFromFailure)
+        XCTAssertEqual(project.activeStorage, .applicationSupport)
+        XCTAssertEqual(
+            try String(contentsOf: repoLocalWorkspace.sessionsRecordURL, encoding: .utf8),
+            staleRepoLocalText
+        )
+    }
+
     func testInitializeWorkspaceRepairsActiveSupportStorageWithoutRepoLocalSideEffects() async throws {
         let repoURL = try makeTemporaryGitRepository()
         let roots = try makeApplicationSupportRoots()
@@ -441,6 +546,19 @@ final class CompassProjectActiveStorageTests: XCTestCase {
         return directory
     }
 
+    private func makeInitializedGitRepository() async throws -> URL {
+        let directory = try makeTemporaryDirectory()
+        let result = try await ProcessRunner.runEnv(
+            "git",
+            ["init", "-q"],
+            workingDirectory: directory
+        )
+        guard result.exitCode == 0 else {
+            throw ActiveStoragePersistenceTestError.failed(result.stderr)
+        }
+        return directory
+    }
+
     private func makeApplicationSupportRoots() throws -> KnownProjectStore.ApplicationSupportRoots {
         let base = try makeTemporaryDirectory(prefix: "CompassProjectActiveStorageSupport")
         return KnownProjectStore.ApplicationSupportRoots(
@@ -531,6 +649,53 @@ final class CompassProjectActiveStorageTests: XCTestCase {
             notes: [],
             verifyOutput: nil,
             feedback: nil
+        )
+    }
+
+    private func makeActivitySession(
+        _ number: Int,
+        status: SessionStatus,
+        endedAt: Double,
+        commits: Int
+    ) -> SessionRecord {
+        SessionRecord(
+            session: number,
+            startedAt: endedAt - 300,
+            endedAt: endedAt,
+            plan: "Activity scan \(number)",
+            verify: "swift test",
+            beforeSha: nil,
+            afterSha: nil,
+            commits: (0..<commits).map {
+                SessionCommit(
+                    sha: "activity-\(number)-\($0)-abcdef1234567890",
+                    short: "a\(number)\($0)",
+                    subject: "Activity commit \(number)-\($0)"
+                )
+            },
+            status: status,
+            notes: [],
+            verifyOutput: nil,
+            feedback: nil
+        )
+    }
+
+    private func makeWarningAttentionSummary() -> CinematicDiagnosticsSummary.AttentionSummary {
+        CinematicDiagnosticsSummary.AttentionSummary(
+            targets: [
+                CinematicDiagnosticsSummary.AttentionTarget(
+                    id: "support-warning-target",
+                    targetGroupID: "support-warning-group",
+                    targetAnchorID: "support-warning-anchor",
+                    relatedGroupID: "support-related-group",
+                    relatedRowID: "support-related-row",
+                    label: "Support warning",
+                    detail: "Support warning detail",
+                    warningCount: 1,
+                    visibleWarningIdentifiers: ["support-warning"],
+                    copyText: "Support warning copy"
+                )
+            ]
         )
     }
 

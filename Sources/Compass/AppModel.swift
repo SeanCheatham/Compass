@@ -652,7 +652,7 @@ extension CompassProject {
         vision = workspace.readVision()
         sessions = workspace.readSessions()
         cinematicRunRecapShareArtifactHistory = workspace.refreshRunRecapShareArtifactHistory()
-        activityProfile = await RepositoryActivityProfileService.scan(repoURL: workspace.repoURL)
+        activityProfile = await RepositoryActivityProfileService.scan(workspace: workspace)
         scheduleCinematicBriefingRefresh(reason: .projectRefresh)
     }
 
