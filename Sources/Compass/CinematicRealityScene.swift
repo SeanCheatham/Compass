@@ -3288,6 +3288,8 @@ private final class CinematicSceneCoordinator {
                     animated: animated
                 )
             }
+        case .diagnosticsWarningPulse:
+            break
         case .runRecapEndCard:
             if let endCardDescriptor = descriptor.runRecapEndCardPlan?.descriptor {
                 activeIdleStoryCycleEndCardDescriptor = endCardDescriptor

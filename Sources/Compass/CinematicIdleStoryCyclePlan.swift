@@ -42,6 +42,15 @@ struct CinematicIdleStoryCyclePlan: Equatable {
     var shakeHintIdentifier: String { descriptor?.choreography.shakeHintIdentifier ?? "none" }
     var pulseHintIdentifier: String { descriptor?.choreography.pulseHintIdentifier ?? "none" }
     var phaseCopy: String { descriptor?.phaseCopy ?? "" }
+    var diagnosticsWarningBundleIdentifier: String {
+        descriptor?.diagnosticsWarningPulseDescriptor?.bundleIdentifier ?? "none"
+    }
+    var diagnosticsWarningIdentifiers: [String] {
+        descriptor?.diagnosticsWarningPulseDescriptor?.warningIdentifiers ?? []
+    }
+    var diagnosticsWarningTargetAnchors: [String] {
+        descriptor?.diagnosticsWarningPulseDescriptor?.targetAnchors ?? []
+    }
 
     struct SessionInput: Equatable {
         static let elapsedTimeRange: ClosedRange<TimeInterval> = 0...(24 * 60 * 60)
@@ -70,6 +79,7 @@ struct CinematicIdleStoryCyclePlan: Equatable {
             case commitConstellation = "commit-constellation"
             case timelineFocus = "timeline-focus"
             case nativeFeedbackPlaque = "native-feedback-plaque"
+            case diagnosticsWarningPulse = "diagnostics-warning-pulse"
             case runRecapFocus = "run-recap-focus"
             case runRecapEndCard = "run-recap-end-card"
             case savedRecapArtifactTour = "saved-recap-artifact-tour"
@@ -94,6 +104,7 @@ struct CinematicIdleStoryCyclePlan: Equatable {
         var commitConstellationFocusPlan: CinematicCommitConstellationPlan.FocusPlan?
         var timelineSceneFocusPlan: CinematicTimelineSceneFocusPlan?
         var nativeFeedbackPlaqueDescriptor: NativeFeedbackPlaqueDescriptor?
+        var diagnosticsWarningPulseDescriptor: DiagnosticsWarningPulseDescriptor?
         var runRecapSceneFocusPlan: CinematicRunRecapSceneFocusPlan?
         var runRecapEndCardPlan: CinematicRunRecapEndCardPlan?
         var runRecapShareArtifactTourPlan: CinematicRunRecapShareArtifactTourPlan?
@@ -118,6 +129,20 @@ struct CinematicIdleStoryCyclePlan: Equatable {
 
         var shakeHintIdentifier: String { shakeHint?.identifier ?? "none" }
         var pulseHintIdentifier: String { pulseHint?.identifier ?? "none" }
+    }
+
+    struct DiagnosticsWarningPulseDescriptor: Equatable {
+        var identifier: String
+        var bundleIdentifier: String
+        var sequence: Int
+        var captureCount: Int
+        var targetCount: Int
+        var warningCount: Int
+        var targetIdentifiers: [String]
+        var warningIdentifiers: [String]
+        var repeatedWarningIdentifiers: [String]
+        var targetAnchors: [String]
+        var relatedRowAnchors: [String]
     }
 
     struct ShakeHint: Equatable {
@@ -183,6 +208,7 @@ enum CinematicIdleStoryCyclePlanner {
         timelineSceneFocusPlan: CinematicTimelineSceneFocusPlan,
         nativeFeedbackCue: CinematicNativeFeedbackCuePlan?,
         nativeFeedbackPlaqueDescriptor: NativeFeedbackPlaqueDescriptor?,
+        diagnosticsWarningBundleHistory: CinematicDiagnosticsWarningBundleHistory = CinematicDiagnosticsWarningBundleHistory(),
         runRecapPlan: CinematicRunRecapPlan,
         runRecapSceneFocusPlan: CinematicRunRecapSceneFocusPlan,
         runRecapEndCardPlan: CinematicRunRecapEndCardPlan,
@@ -203,6 +229,7 @@ enum CinematicIdleStoryCyclePlanner {
             timelineSceneFocusPlan: timelineSceneFocusPlan,
             nativeFeedbackCue: nativeFeedbackCue,
             nativeFeedbackPlaqueDescriptor: nativeFeedbackPlaqueDescriptor,
+            diagnosticsWarningBundle: diagnosticsWarningBundleHistory.currentUnresolvedBundle,
             runRecapPlan: runRecapPlan,
             runRecapSceneFocusPlan: runRecapSceneFocusPlan,
             runRecapEndCardPlan: runRecapEndCardPlan,
@@ -320,6 +347,7 @@ enum CinematicIdleStoryCyclePlanner {
         var commitConstellationFocusPlan: CinematicCommitConstellationPlan.FocusPlan?
         var timelineSceneFocusPlan: CinematicTimelineSceneFocusPlan?
         var nativeFeedbackPlaqueDescriptor: NativeFeedbackPlaqueDescriptor?
+        var diagnosticsWarningPulseDescriptor: CinematicIdleStoryCyclePlan.DiagnosticsWarningPulseDescriptor?
         var runRecapSceneFocusPlan: CinematicRunRecapSceneFocusPlan?
         var runRecapEndCardPlan: CinematicRunRecapEndCardPlan?
         var runRecapShareArtifactTourPlan: CinematicRunRecapShareArtifactTourPlan?
@@ -331,6 +359,7 @@ enum CinematicIdleStoryCyclePlanner {
         timelineSceneFocusPlan: CinematicTimelineSceneFocusPlan,
         nativeFeedbackCue: CinematicNativeFeedbackCuePlan?,
         nativeFeedbackPlaqueDescriptor: NativeFeedbackPlaqueDescriptor?,
+        diagnosticsWarningBundle: CinematicDiagnosticsWarningBundleHistory.Entry?,
         runRecapPlan: CinematicRunRecapPlan,
         runRecapSceneFocusPlan: CinematicRunRecapSceneFocusPlan,
         runRecapEndCardPlan: CinematicRunRecapEndCardPlan,
@@ -351,6 +380,11 @@ enum CinematicIdleStoryCyclePlanner {
             nativeFeedbackPlaqueCandidate(
                 nativeFeedbackCue: nativeFeedbackCue,
                 plaqueDescriptor: nativeFeedbackPlaqueDescriptor,
+                influenceSettings: influenceSettings,
+                cadence: cadence
+            ),
+            diagnosticsWarningPulseCandidate(
+                bundle: diagnosticsWarningBundle,
                 influenceSettings: influenceSettings,
                 cadence: cadence
             ),
@@ -502,6 +536,56 @@ enum CinematicIdleStoryCyclePlanner {
             choreography: choreography,
             isPriority: nativeFeedbackCue.isCriticalCinematicBanner,
             nativeFeedbackPlaqueDescriptor: plaqueDescriptor
+        )
+    }
+
+    private static func diagnosticsWarningPulseCandidate(
+        bundle: CinematicDiagnosticsWarningBundleHistory.Entry?,
+        influenceSettings: CinematicInfluenceSettings,
+        cadence: TimeInterval
+    ) -> Candidate? {
+        guard let bundle else { return nil }
+
+        let warningDescriptor = diagnosticsWarningPulseDescriptor(for: bundle)
+        let isHighPressure = warningDescriptor.warningCount > 1
+            || warningDescriptor.targetCount > 1
+            || !warningDescriptor.repeatedWarningIdentifiers.isEmpty
+        let targetKindIdentifier = bounded(
+            "diagnostics-warning-\(warningDescriptor.bundleIdentifier)",
+            limit: CinematicIdleStoryCyclePlan.choreographyTreatmentIdentifierMaxCharacters
+        )
+        let cameraShot = diagnosticsWarningCameraShot(for: warningDescriptor)
+        let choreography = choreography(
+            phase: .diagnosticsWarningPulse,
+            sourceDescriptorIdentifier: warningDescriptor.identifier,
+            targetKindIdentifier: targetKindIdentifier,
+            cameraShot: cameraShot,
+            influenceSettings: influenceSettings,
+            baseCadence: cadence,
+            cadenceScale: isHighPressure ? 0.74 : 0.82,
+            dwellScale: isHighPressure ? 0.62 : 0.7,
+            transitionDurationScale: isHighPressure ? 0.72 : 0.78,
+            cameraPressureIdentifier: isHighPressure ? "diagnostics-warning-hot" : "diagnostics-warning",
+            targetBias: isHighPressure ? 0.89 : 0.86,
+            pulseDuration: isHighPressure ? 0.4 : 0.46,
+            pulseIntensityScale: isHighPressure ? 1.14 : 1.1,
+            pulseOrbBoost: isHighPressure ? 0.16 : 0.12,
+            shakeScale: isHighPressure ? 0.36 : nil
+        )
+
+        return Candidate(
+            phase: .diagnosticsWarningPulse,
+            sourceDescriptorIdentifier: warningDescriptor.identifier,
+            targetKindIdentifier: targetKindIdentifier,
+            anchorTreatmentIdentifier: "anchor:\(warningDescriptor.targetAnchors.first ?? warningDescriptor.bundleIdentifier)",
+            cameraShot: cameraShot,
+            lookTarget: diagnosticsWarningLookTarget(for: warningDescriptor),
+            lightFamily: .pressure,
+            arenaEffect: .activityPulse,
+            phaseLightIntensity: isHighPressure ? 740 : 700,
+            phaseCopy: diagnosticsWarningPulseCopy(for: warningDescriptor),
+            choreography: choreography,
+            diagnosticsWarningPulseDescriptor: warningDescriptor
         )
     }
 
@@ -693,6 +777,7 @@ enum CinematicIdleStoryCyclePlanner {
             commitConstellationFocusPlan: candidate.commitConstellationFocusPlan,
             timelineSceneFocusPlan: candidate.timelineSceneFocusPlan,
             nativeFeedbackPlaqueDescriptor: candidate.nativeFeedbackPlaqueDescriptor,
+            diagnosticsWarningPulseDescriptor: candidate.diagnosticsWarningPulseDescriptor,
             runRecapSceneFocusPlan: candidate.runRecapSceneFocusPlan,
             runRecapEndCardPlan: candidate.runRecapEndCardPlan,
             runRecapShareArtifactTourPlan: candidate.runRecapShareArtifactTourPlan
@@ -1055,6 +1140,89 @@ enum CinematicIdleStoryCyclePlanner {
         }
     }
 
+    private static func diagnosticsWarningPulseDescriptor(
+        for entry: CinematicDiagnosticsWarningBundleHistory.Entry
+    ) -> CinematicIdleStoryCyclePlan.DiagnosticsWarningPulseDescriptor {
+        let targetIdentifiers = boundedIdentifiers(
+            entry.targetIdentifiers,
+            limit: CinematicDiagnosticsWarningBundleHistory.visibleAnchorLimit
+        )
+        let warningIdentifiers = boundedIdentifiers(
+            entry.warningIdentifiers,
+            limit: CinematicDiagnosticsWarningBundleHistory.visibleWarningIdentifierLimit
+        )
+        let repeatedWarningIdentifiers = boundedIdentifiers(
+            entry.repeatedWarningIdentifiers,
+            limit: CinematicDiagnosticsWarningBundleHistory.visibleWarningIdentifierLimit
+        )
+        let targetAnchors = boundedIdentifiers(
+            entry.targetAnchors,
+            limit: CinematicDiagnosticsWarningBundleHistory.visibleAnchorLimit
+        )
+        let relatedRowAnchors = boundedIdentifiers(
+            entry.relatedRowAnchors,
+            limit: CinematicDiagnosticsWarningBundleHistory.visibleAnchorLimit
+        )
+        let identifier = bounded(
+            [
+                "diagnostics-warning-pulse",
+                "bundle:\(entry.bundleIdentifier)",
+                "sequence:\(entry.sequence)",
+                "captures:\(entry.captureCount)",
+                "targets:\(entry.targetCount)",
+                "warnings:\(entry.warningCount)",
+                "warning-ids:\(fingerprint(warningIdentifiers.joined(separator: ",")))",
+                "target-anchors:\(fingerprint(targetAnchors.joined(separator: ",")))"
+            ].joined(separator: "|"),
+            limit: CinematicIdleStoryCyclePlan.sourceDescriptorMaxCharacters
+        )
+
+        return CinematicIdleStoryCyclePlan.DiagnosticsWarningPulseDescriptor(
+            identifier: identifier,
+            bundleIdentifier: bounded(
+                entry.bundleIdentifier,
+                limit: CinematicDiagnosticsWarningBundleHistory.identifierMaxCharacters
+            ),
+            sequence: entry.sequence,
+            captureCount: entry.captureCount,
+            targetCount: entry.targetCount,
+            warningCount: entry.warningCount,
+            targetIdentifiers: targetIdentifiers,
+            warningIdentifiers: warningIdentifiers,
+            repeatedWarningIdentifiers: repeatedWarningIdentifiers,
+            targetAnchors: targetAnchors,
+            relatedRowAnchors: relatedRowAnchors
+        )
+    }
+
+    private static func diagnosticsWarningCameraShot(
+        for descriptor: CinematicIdleStoryCyclePlan.DiagnosticsWarningPulseDescriptor
+    ) -> CinematicCameraShot {
+        if descriptor.warningCount >= 3 || !descriptor.repeatedWarningIdentifiers.isEmpty {
+            return .wide
+        }
+        return descriptor.targetCount > 1 ? .overhead : .castPrep
+    }
+
+    private static func diagnosticsWarningLookTarget(
+        for descriptor: CinematicIdleStoryCyclePlan.DiagnosticsWarningPulseDescriptor
+    ) -> SIMD3<Float> {
+        let warningOffset = Float(min(descriptor.warningCount, 5)) * 0.08
+        let targetOffset = Float(min(descriptor.targetCount, 4)) * 0.05
+        return [-0.74 - targetOffset, 1.12 + warningOffset, 1.34]
+    }
+
+    private static func diagnosticsWarningPulseCopy(
+        for descriptor: CinematicIdleStoryCyclePlan.DiagnosticsWarningPulseDescriptor
+    ) -> String {
+        let warningCopy = descriptor.warningCount == 1 ? "1 warning" : "\(descriptor.warningCount) warnings"
+        let targetCopy = descriptor.targetCount == 1 ? "1 target" : "\(descriptor.targetCount) targets"
+        return bounded(
+            "Diagnostics warning pulse: \(warningCopy) across \(targetCopy)",
+            limit: CinematicIdleStoryCyclePlan.phaseCopyMaxCharacters
+        )
+    }
+
     private static func runRecapEndCardCameraShot(
         for descriptor: CinematicRunRecapEndCardPlan.Descriptor
     ) -> CinematicCameraShot {
@@ -1200,6 +1368,12 @@ enum CinematicIdleStoryCyclePlanner {
         _ phase: CinematicIdleStoryCyclePlan.Descriptor.Phase
     ) -> Int {
         CinematicIdleStoryCyclePlan.Descriptor.Phase.allCases.firstIndex(of: phase) ?? 0
+    }
+
+    private static func boundedIdentifiers(_ values: [String], limit: Int) -> [String] {
+        values.prefix(max(0, limit)).map {
+            bounded($0, limit: CinematicDiagnosticsWarningBundleHistory.identifierMaxCharacters)
+        }
     }
 
     private static func positionIdentifier(_ value: SIMD3<Float>) -> String {

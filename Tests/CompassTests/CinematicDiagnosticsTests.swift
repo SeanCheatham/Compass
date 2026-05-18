@@ -502,6 +502,64 @@ final class CinematicDiagnosticsTests: XCTestCase {
         XCTAssertTrue(suppressedSummary.exportText.contains("Idle story cycle: empty live-follow"))
     }
 
+    func testReportAndSummaryExportDiagnosticsWarningPulseMetadata() throws {
+        var history = CinematicDiagnosticsWarningBundleHistory()
+        history.record(
+            CinematicDiagnosticsSummary.AttentionSummary(
+                targets: [
+                    warningAttentionTarget(
+                        "idle-pulse-a",
+                        warnings: ["visual-smoke.shared-warning", "visual-smoke.shared-warning"],
+                        relatedRowID: "idle-story-cycle"
+                    ),
+                    warningAttentionTarget(
+                        "idle-pulse-b",
+                        warnings: ["visual-smoke.recap-artifact-commands"],
+                        relatedRowID: "run-recap-share-artifact-commands"
+                    )
+                ]
+            )
+        )
+        let report = CinematicDiagnostics.report(
+            repoName: "Diagnostics Warning Pulse",
+            phase: LoopPhase.succeeded.rawValue,
+            immediateTitle: "Surface active diagnostics warning",
+            completedCount: 1,
+            latestEvent: nil,
+            languageProfile: languageProfile(primaryLanguage: .swift),
+            activityProfile: activityProfile(lastTerminalStatus: .succeeded),
+            influenceSettings: CinematicInfluenceSettings(),
+            diagnosticsWarningBundleHistory: history
+        )
+        let summary = CinematicDiagnosticsSummary(
+            report: report,
+            visualSmoke: CinematicVisualSmokeReport(reports: [report])
+        )
+        let row = try XCTUnwrap(summary.rows.first { $0.id == "idle-story-cycle" })
+
+        XCTAssertEqual(report.idleStoryCycle.phaseIdentifier, "diagnostics-warning-pulse")
+        XCTAssertEqual(report.idleStoryCycle.diagnosticsWarningWarningCount, 3)
+        XCTAssertEqual(report.idleStoryCycle.diagnosticsWarningTargetCount, 2)
+        XCTAssertEqual(report.idleStoryCycle.diagnosticsWarningIdentifiers, [
+            "visual-smoke.shared-warning",
+            "visual-smoke.recap-artifact-commands"
+        ])
+        XCTAssertEqual(report.idleStoryCycle.diagnosticsWarningRepeatedIdentifiers, [
+            "visual-smoke.shared-warning"
+        ])
+        XCTAssertTrue(
+            report.idleStoryCycle.diagnosticsWarningRelatedRowAnchors.contains(
+                "diagnostics-row-run-recap-share-artifact-commands"
+            )
+        )
+        XCTAssertTrue(row.detail.contains("diagnostics-warning-pulse"))
+        XCTAssertTrue(row.detail.contains("warning-bundle"))
+        XCTAssertTrue(row.detail.contains("visual-smoke.shared-warning"))
+        XCTAssertTrue(summary.exportText.contains("Idle story cycle: active"))
+        XCTAssertTrue(summary.exportText.contains("warning ids visual-smoke.shared-warning"))
+        XCTAssertFalse(summary.exportText.contains("copy idle-pulse"))
+    }
+
     func testReportAndSummaryExportSavedRecapArtifactTourState() throws {
         let report = try XCTUnwrap(
             CinematicDiagnostics.representativeSavedRecapArtifactTourSmokeReports().first {
@@ -2669,6 +2727,8 @@ final class CinematicDiagnosticsTests: XCTestCase {
         XCTAssertFalse(history.isAvailable)
         XCTAssertEqual(history.entries, [])
         XCTAssertEqual(history.omittedCount, 0)
+        XCTAssertNil(history.currentUnresolvedBundle)
+        XCTAssertFalse(history.hasCurrentUnresolvedBundle)
         XCTAssertEqual(history.copyText, "")
         XCTAssertEqual(history.copyLabel, "No warning bundles")
         XCTAssertTrue(history.copyHelp.contains("No warning bundle history"))
@@ -2697,6 +2757,8 @@ final class CinematicDiagnosticsTests: XCTestCase {
         XCTAssertEqual(entry.targetAnchors, ["visual-smoke-check-command"])
         XCTAssertEqual(entry.relatedRowAnchors, ["diagnostics-row-run-recap-share-artifact-commands"])
         XCTAssertTrue(entry.bundleIdentifier.hasPrefix("warning-bundle-"))
+        XCTAssertEqual(history.currentUnresolvedBundle, entry)
+        XCTAssertTrue(history.hasCurrentUnresolvedBundle)
         XCTAssertTrue(history.copyText.contains("Cinematic diagnostics warning bundles"))
         XCTAssertTrue(history.copyText.contains("Export correlation: warning summary targets"))
         XCTAssertTrue(history.copyText.contains("related diagnostics row anchors"))
@@ -2721,8 +2783,35 @@ final class CinematicDiagnosticsTests: XCTestCase {
         XCTAssertEqual(history.nextSequence, 2)
         XCTAssertEqual(entry.sequence, 1)
         XCTAssertEqual(entry.captureCount, 2)
+        XCTAssertEqual(history.currentUnresolvedBundle?.captureCount, 2)
         XCTAssertTrue(entry.copyLine.contains("x2"))
         XCTAssertTrue(history.copyText.contains("captures 2"))
+    }
+
+    func testWarningBundleHistoryClearsCurrentWithoutDroppingHistory() throws {
+        let attention = warningAttentionSummary(
+            "cleared",
+            warnings: ["visual-smoke.idle-story-cycle"]
+        )
+        var history = CinematicDiagnosticsWarningBundleHistory()
+
+        history.record(attention)
+        let firstEntry = try XCTUnwrap(history.currentUnresolvedBundle)
+        history.record(CinematicDiagnosticsSummary.AttentionSummary(targets: []))
+
+        XCTAssertEqual(history.entries.count, 1)
+        XCTAssertEqual(history.entries.first, firstEntry)
+        XCTAssertNil(history.currentUnresolvedBundle)
+        XCTAssertFalse(history.hasCurrentUnresolvedBundle)
+        XCTAssertTrue(history.isAvailable)
+
+        history.record(attention)
+
+        XCTAssertEqual(history.entries.count, 2)
+        XCTAssertEqual(history.entries.map(\.sequence), [1, 2])
+        XCTAssertEqual(history.entries.map(\.captureCount), [1, 1])
+        XCTAssertEqual(history.entries[0].bundleIdentifier, history.entries[1].bundleIdentifier)
+        XCTAssertEqual(history.currentUnresolvedBundle?.sequence, 2)
     }
 
     func testWarningBundleHistoryKeepsMultipleDistinctBundles() {
@@ -2875,6 +2964,12 @@ final class CinematicDiagnosticsTests: XCTestCase {
         )
 
         XCTAssertEqual(project.cinematicDiagnosticsWarningBundleHistory.entries.count, 1)
+        XCTAssertNotNil(project.cinematicDiagnosticsWarningBundleHistory.currentUnresolvedBundle)
+        project.recordCinematicDiagnosticsWarningBundle(
+            CinematicDiagnosticsSummary.AttentionSummary(targets: [])
+        )
+        XCTAssertEqual(project.cinematicDiagnosticsWarningBundleHistory.entries.count, 1)
+        XCTAssertNil(project.cinematicDiagnosticsWarningBundleHistory.currentUnresolvedBundle)
         let record = KnownProjectRecord(
             id: project.id,
             path: project.repoURL.path,

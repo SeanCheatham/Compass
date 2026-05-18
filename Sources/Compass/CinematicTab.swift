@@ -104,6 +104,7 @@ struct CinematicTab: View {
                     recoveryCuePlan: recoveryCuePlan,
                     nativeFeedbackCue: nativeFeedbackCue
                 ),
+                diagnosticsWarningBundleHistory: project.cinematicDiagnosticsWarningBundleHistory,
                 runRecapPlan: recapPlan,
                 runRecapSceneFocusPlan: runRecapSceneFocusCandidatePlan,
                 runRecapEndCardPlan: runRecapEndCardCandidatePlan,

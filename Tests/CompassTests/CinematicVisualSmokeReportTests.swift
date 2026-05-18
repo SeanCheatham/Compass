@@ -125,8 +125,9 @@ final class CinematicVisualSmokeReportTests: XCTestCase {
         XCTAssertTrue(idleStoryCycle.detail.contains("commit-constellation"))
         XCTAssertTrue(idleStoryCycle.detail.contains("timeline-focus"))
         XCTAssertTrue(idleStoryCycle.detail.contains("native-feedback-plaque"))
-        XCTAssertTrue(idleStoryCycle.detail.contains("run-recap-focus"))
-        XCTAssertTrue(idleStoryCycle.detail.contains("run-recap-end-card"))
+        XCTAssertTrue(idleStoryCycle.detail.contains("diagnostics-warning-pulse"))
+        let idlePhaseCount = CinematicIdleStoryCyclePlan.Descriptor.Phase.allCases.count
+        XCTAssertTrue(idleStoryCycle.detail.contains("phases \(idlePhaseCount)/\(idlePhaseCount)"))
         XCTAssertTrue(idleStoryCycle.detail.contains("routes"))
         XCTAssertEqual(savedArtifactTour.status, .pass)
         XCTAssertTrue(savedArtifactTour.detail.contains("recent"))
@@ -371,9 +372,10 @@ final class CinematicVisualSmokeReportTests: XCTestCase {
 
         XCTAssertEqual(check.status, .warning)
         XCTAssertEqual(check.warningIdentifier, "visual-smoke.idle-story-cycle")
-        XCTAssertTrue(check.detail.contains("choreo 1/6"))
-        XCTAssertTrue(check.detail.contains("timing 1/6"))
-        XCTAssertTrue(check.detail.contains("pressure 1/6"))
+        let expectedDistinctRoutes = CinematicIdleStoryCyclePlan.Descriptor.Phase.allCases.count
+        XCTAssertTrue(check.detail.contains("choreo 1/\(expectedDistinctRoutes)"))
+        XCTAssertTrue(check.detail.contains("timing 1/\(expectedDistinctRoutes)"))
+        XCTAssertTrue(check.detail.contains("pressure 1/\(expectedDistinctRoutes)"))
     }
 
     func testWarningReportUsesBoundedIdentifiersAndDetails() throws {

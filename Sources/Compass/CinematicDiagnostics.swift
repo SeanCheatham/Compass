@@ -449,6 +449,16 @@ struct CinematicDiagnosticsReport: Equatable {
         var descriptorIdentifier: String
         var cycleSlot: Int
         var phaseIndex: Int
+        var diagnosticsWarningBundleIdentifier: String
+        var diagnosticsWarningSequence: Int
+        var diagnosticsWarningCaptureCount: Int
+        var diagnosticsWarningTargetCount: Int
+        var diagnosticsWarningWarningCount: Int
+        var diagnosticsWarningTargetIdentifiers: [String]
+        var diagnosticsWarningIdentifiers: [String]
+        var diagnosticsWarningRepeatedIdentifiers: [String]
+        var diagnosticsWarningTargetAnchors: [String]
+        var diagnosticsWarningRelatedRowAnchors: [String]
     }
 
     struct TimelineFocusSnapshot: Equatable {
@@ -1688,6 +1698,12 @@ struct CinematicVisualSmokeReport: Equatable {
             .map(\.rawValue)
             .filter(phases.contains)
             .joined(separator: "/")
+        let featuredPhaseDetail = [
+            "commit-constellation",
+            "timeline-focus",
+            "native-feedback-plaque",
+            "diagnostics-warning-pulse"
+        ].filter(phases.contains).joined(separator: "/")
         let expectedDistinctRoutes = expectedPhases.count
         let isPassing = !reports.isEmpty
             && !activeReports.isEmpty
@@ -1710,10 +1726,11 @@ struct CinematicVisualSmokeReport: Equatable {
         let detail = isPassing
             ? [
                 "routes \(sourceRouteCount)/\(activeReports.count)",
-                orderedPhaseDetail,
-                "c\(distinctChoreographyCount)/\(expectedDistinctRoutes)",
-                "t\(distinctTimingCount)/\(expectedDistinctRoutes)",
-                "p\(distinctCameraPressureCount)/\(expectedDistinctRoutes)"
+                "phases \(phases.count)/\(expectedPhases.count)",
+                featuredPhaseDetail,
+                "c\(distinctChoreographyCount)",
+                "t\(distinctTimingCount)",
+                "p\(distinctCameraPressureCount)"
             ].joined(separator: " ")
             : [
                 "routes \(sourceRouteCount)/\(activeReports.count)",
@@ -4309,6 +4326,11 @@ struct CinematicDiagnosticsSummary: Equatable {
         return "\(label) \(identifier)"
     }
 
+    private static func identifierListDetail(_ label: String, _ identifiers: [String]) -> String? {
+        guard !identifiers.isEmpty else { return nil }
+        return "\(label) \(bounded(identifiers.joined(separator: ","), limit: 160))"
+    }
+
     private static func plaqueTreatmentLegendEntries(
         reports: [CinematicDiagnosticsReport]
     ) -> [PlaqueTreatmentLegendEntry] {
@@ -4627,6 +4649,23 @@ struct CinematicDiagnosticsSummary: Equatable {
         return [
             "active",
             "phase \(snapshot.phaseIdentifier)",
+            snapshot.diagnosticsWarningBundleIdentifier == "none"
+                ? nil
+                : "warning-bundle \(bounded(snapshot.diagnosticsWarningBundleIdentifier, limit: 72))",
+            snapshot.diagnosticsWarningBundleIdentifier == "none"
+                ? nil
+                : "warning-captures \(snapshot.diagnosticsWarningCaptureCount)",
+            snapshot.diagnosticsWarningBundleIdentifier == "none"
+                ? nil
+                : "warning-targets \(snapshot.diagnosticsWarningTargetCount)",
+            snapshot.diagnosticsWarningBundleIdentifier == "none"
+                ? nil
+                : "warning-count \(snapshot.diagnosticsWarningWarningCount)",
+            identifierListDetail("warning ids", snapshot.diagnosticsWarningIdentifiers),
+            identifierListDetail("repeated warnings", snapshot.diagnosticsWarningRepeatedIdentifiers),
+            identifierListDetail("target ids", snapshot.diagnosticsWarningTargetIdentifiers),
+            identifierListDetail("target anchors", snapshot.diagnosticsWarningTargetAnchors),
+            identifierListDetail("related rows", snapshot.diagnosticsWarningRelatedRowAnchors),
             "choreo \(bounded(snapshot.choreographyIdentifier, limit: 80))",
             "source \(bounded(snapshot.sourceDescriptorIdentifier, limit: 80))",
             "target \(snapshot.targetKindIdentifier)",
@@ -4645,7 +4684,7 @@ struct CinematicDiagnosticsSummary: Equatable {
             "suppression \(snapshot.suppressionReason)",
             "copy \(bounded(snapshot.phaseCopy, limit: 96))",
             "id \(bounded(snapshot.descriptorIdentifier, limit: 140))"
-        ].joined(separator: " | ")
+        ].compactMap { $0 }.joined(separator: " | ")
     }
 
     private static func timelineFocusDetail(
@@ -5277,9 +5316,14 @@ struct CinematicDiagnosticsWarningBundleHistory: Equatable {
     var entries: [Entry] = []
     var omittedCount: Int = 0
     var nextSequence: Int = 1
+    private(set) var currentUnresolvedBundle: Entry?
 
     var isAvailable: Bool {
         !entries.isEmpty
+    }
+
+    var hasCurrentUnresolvedBundle: Bool {
+        currentUnresolvedBundle != nil
     }
 
     var capturedCount: Int {
@@ -5347,18 +5391,23 @@ struct CinematicDiagnosticsWarningBundleHistory: Equatable {
             attentionSummary: attentionSummary,
             sequence: nextSequence
         ) else {
+            currentUnresolvedBundle = nil
             return
         }
 
-        if var last = entries.last, last.bundleIdentifier == entry.bundleIdentifier {
+        if currentUnresolvedBundle?.bundleIdentifier == entry.bundleIdentifier,
+           var last = entries.last,
+           last.bundleIdentifier == entry.bundleIdentifier {
             last.captureCount += 1
             entries[entries.count - 1] = last
+            currentUnresolvedBundle = last
             return
         }
 
         entries.append(entry)
         nextSequence += 1
         trimToLimit()
+        currentUnresolvedBundle = entries.last
     }
 
     private mutating func trimToLimit() {
@@ -5625,6 +5674,7 @@ enum CinematicDiagnostics {
                 project.cinematicRunRecapShareArtifactLibraryContext.pinnedEntryIdentifiers,
             runRecapShareArtifactSavedTourHoldEntryIdentifier:
                 project.cinematicRunRecapShareArtifactLibraryContext.savedTourHoldEntryIdentifier,
+            diagnosticsWarningBundleHistory: project.cinematicDiagnosticsWarningBundleHistory,
             nativeFeedbackCue: project.cinematicNativeFeedbackCue,
             nativeFeedbackLifecycle: project.cinematicNativeFeedbackCueLifecycle,
             nativeFeedbackDeliverySnapshot: nativeFeedbackDeliverySnapshot
@@ -5664,6 +5714,7 @@ enum CinematicDiagnostics {
         runRecapShareArtifactComparisonTargetMode: CinematicRunRecapShareArtifactComparisonTargetMode = .adjacent,
         runRecapShareArtifactPinnedEntryIdentifiers: [String] = [],
         runRecapShareArtifactSavedTourHoldEntryIdentifier: String? = nil,
+        diagnosticsWarningBundleHistory: CinematicDiagnosticsWarningBundleHistory = CinematicDiagnosticsWarningBundleHistory(),
         nativeFeedbackCue: CinematicNativeFeedbackCuePlan? = nil,
         nativeFeedbackLifecycle: CinematicNativeFeedbackCueLifecycle = CinematicNativeFeedbackCueLifecycle(),
         nativeFeedbackDeliverySnapshot: NativeFeedbackDeliverySnapshot = NativeFeedbackDeliverySnapshot(
@@ -5766,6 +5817,7 @@ enum CinematicDiagnostics {
             timelineSceneFocusPlan: timelineFocusPlan,
             nativeFeedbackCue: nativeFeedbackCue,
             nativeFeedbackPlaqueDescriptor: nativeFeedbackCue == nil ? nil : narrativeCuePlan.questPlaque,
+            diagnosticsWarningBundleHistory: diagnosticsWarningBundleHistory,
             runRecapPlan: runRecapPlan,
             runRecapSceneFocusPlan: runRecapSceneFocusPlan,
             runRecapEndCardPlan: runRecapEndCardPlan,
@@ -6165,6 +6217,7 @@ enum CinematicDiagnostics {
             feedbackMode: .notifications,
             recentRunCues: [:]
         )
+        let diagnosticsWarningBundleHistory = representativeDiagnosticsWarningBundleHistory()
         var elapsedTime: TimeInterval = 0
         var phaseReports: [CinematicDiagnosticsReport] = []
         for _ in CinematicIdleStoryCyclePlan.Descriptor.Phase.allCases {
@@ -6176,6 +6229,7 @@ enum CinematicDiagnostics {
                 nativeFeedbackCue: nativeFeedbackCue,
                 recapContext: recapContext,
                 tourHistoryPlan: tourHistoryPlan,
+                diagnosticsWarningBundleHistory: diagnosticsWarningBundleHistory,
                 session: CinematicIdleStoryCyclePlan.SessionInput(
                     elapsedTime: elapsedTime,
                     sessionOrdinal: 0
@@ -6194,12 +6248,51 @@ enum CinematicDiagnostics {
             nativeFeedbackCue: nativeFeedbackCue,
             recapContext: recapContext,
             tourHistoryPlan: tourHistoryPlan,
+            diagnosticsWarningBundleHistory: diagnosticsWarningBundleHistory,
             session: CinematicIdleStoryCyclePlan.SessionInput(),
             isLiveFollowActive: true,
             hasExplicitUserFocus: false
         )
 
         return phaseReports + [suppressedReport]
+    }
+
+    private static func representativeDiagnosticsWarningBundleHistory() -> CinematicDiagnosticsWarningBundleHistory {
+        var history = CinematicDiagnosticsWarningBundleHistory()
+        history.record(
+            CinematicDiagnosticsSummary.AttentionSummary(
+                targets: [
+                    CinematicDiagnosticsSummary.AttentionTarget(
+                        id: "visual-smoke-idle-warning-pulse",
+                        targetGroupID: "visual-smoke",
+                        targetAnchorID: "visual-smoke-check-idle-story-cycle-coverage",
+                        relatedGroupID: "repository-context",
+                        relatedRowID: "idle-story-cycle",
+                        label: "Idle warning pulse",
+                        detail: "visual smoke warning pulse",
+                        warningCount: 2,
+                        visibleWarningIdentifiers: [
+                            "visual-smoke.idle-story-cycle",
+                            "visual-smoke.idle-story-cycle"
+                        ],
+                        copyText: "Idle warning pulse"
+                    ),
+                    CinematicDiagnosticsSummary.AttentionTarget(
+                        id: "visual-smoke-idle-warning-anchor",
+                        targetGroupID: "visual-smoke",
+                        targetAnchorID: "visual-smoke-check-run-recap-artifact-command-availability",
+                        relatedGroupID: "repository-context",
+                        relatedRowID: "run-recap-share-artifact-commands",
+                        label: "Command warning pulse",
+                        detail: "visual smoke command warning",
+                        warningCount: 1,
+                        visibleWarningIdentifiers: ["visual-smoke.recap-artifact-commands"],
+                        copyText: "Command warning pulse"
+                    )
+                ]
+            )
+        )
+        return history
     }
 
     static func representativeSavedRecapArtifactTourSmokeReports(
@@ -7146,6 +7239,7 @@ enum CinematicDiagnostics {
         nativeFeedbackCue: CinematicNativeFeedbackCuePlan?,
         recapContext: RunRecapFocusContext,
         tourHistoryPlan: CinematicRunRecapShareArtifactHistoryPlan,
+        diagnosticsWarningBundleHistory: CinematicDiagnosticsWarningBundleHistory,
         session: CinematicIdleStoryCyclePlan.SessionInput,
         isLiveFollowActive: Bool,
         hasExplicitUserFocus: Bool
@@ -7172,6 +7266,7 @@ enum CinematicDiagnostics {
             runRecapSceneFocusPlan: recapContext.runRecapSceneFocusPlan,
             runRecapEndCardPlan: recapContext.runRecapEndCardPlan,
             runRecapShareArtifactHistoryPlan: tourHistoryPlan,
+            diagnosticsWarningBundleHistory: diagnosticsWarningBundleHistory,
             nativeFeedbackCue: nativeFeedbackCue
         )
     }
@@ -7987,9 +8082,20 @@ enum CinematicDiagnostics {
                 phaseCopy: "",
                 descriptorIdentifier: "none",
                 cycleSlot: 0,
-                phaseIndex: -1
+                phaseIndex: -1,
+                diagnosticsWarningBundleIdentifier: "none",
+                diagnosticsWarningSequence: 0,
+                diagnosticsWarningCaptureCount: 0,
+                diagnosticsWarningTargetCount: 0,
+                diagnosticsWarningWarningCount: 0,
+                diagnosticsWarningTargetIdentifiers: [],
+                diagnosticsWarningIdentifiers: [],
+                diagnosticsWarningRepeatedIdentifiers: [],
+                diagnosticsWarningTargetAnchors: [],
+                diagnosticsWarningRelatedRowAnchors: []
             )
         }
+        let warningDescriptor = descriptor.diagnosticsWarningPulseDescriptor
 
         return CinematicDiagnosticsReport.IdleStoryCycleSnapshot(
             identifier: plan.identifier,
@@ -8012,7 +8118,17 @@ enum CinematicDiagnostics {
             phaseCopy: descriptor.phaseCopy,
             descriptorIdentifier: descriptor.identifier,
             cycleSlot: descriptor.cycleSlot,
-            phaseIndex: descriptor.phaseIndex
+            phaseIndex: descriptor.phaseIndex,
+            diagnosticsWarningBundleIdentifier: warningDescriptor?.bundleIdentifier ?? "none",
+            diagnosticsWarningSequence: warningDescriptor?.sequence ?? 0,
+            diagnosticsWarningCaptureCount: warningDescriptor?.captureCount ?? 0,
+            diagnosticsWarningTargetCount: warningDescriptor?.targetCount ?? 0,
+            diagnosticsWarningWarningCount: warningDescriptor?.warningCount ?? 0,
+            diagnosticsWarningTargetIdentifiers: warningDescriptor?.targetIdentifiers ?? [],
+            diagnosticsWarningIdentifiers: warningDescriptor?.warningIdentifiers ?? [],
+            diagnosticsWarningRepeatedIdentifiers: warningDescriptor?.repeatedWarningIdentifiers ?? [],
+            diagnosticsWarningTargetAnchors: warningDescriptor?.targetAnchors ?? [],
+            diagnosticsWarningRelatedRowAnchors: warningDescriptor?.relatedRowAnchors ?? []
         )
     }
 

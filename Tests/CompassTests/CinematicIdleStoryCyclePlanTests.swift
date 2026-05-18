@@ -24,6 +24,7 @@ final class CinematicIdleStoryCyclePlanTests: XCTestCase {
         let commit = try XCTUnwrap(byPhase[.commitConstellation])
         let timeline = try XCTUnwrap(byPhase[.timelineFocus])
         let native = try XCTUnwrap(byPhase[.nativeFeedbackPlaque])
+        let diagnostics = try XCTUnwrap(byPhase[.diagnosticsWarningPulse])
         let recapFocus = try XCTUnwrap(byPhase[.runRecapFocus])
         let recapEnd = try XCTUnwrap(byPhase[.runRecapEndCard])
         let artifactTour = try XCTUnwrap(byPhase[.savedRecapArtifactTour])
@@ -31,6 +32,8 @@ final class CinematicIdleStoryCyclePlanTests: XCTestCase {
         XCTAssertGreaterThan(commit.cadence, timeline.cadence)
         XCTAssertGreaterThan(recapEnd.cadence, recapFocus.cadence)
         XCTAssertGreaterThan(recapFocus.cadence, native.cadence)
+        XCTAssertLessThan(diagnostics.cadence, commit.cadence)
+        XCTAssertEqual(diagnostics.choreography.cameraPressureIdentifier, "diagnostics-warning")
         XCTAssertGreaterThan(artifactTour.cadence, native.cadence)
         XCTAssertEqual(artifactTour.choreography.cameraPressureIdentifier, "archive-tour")
         XCTAssertGreaterThan(recapEnd.choreography.dwellDuration, native.choreography.dwellDuration)
@@ -75,7 +78,7 @@ final class CinematicIdleStoryCyclePlanTests: XCTestCase {
         context.recapFocusPlan = .none
         context.recapEndCardPlan = .none
 
-        let phases = (0..<6).compactMap {
+        let phases = (0..<CinematicIdleStoryCyclePlan.Descriptor.Phase.allCases.count).compactMap {
             plan(context: context, elapsedMultiplier: $0).descriptor?.phase
         }
 
@@ -113,12 +116,14 @@ final class CinematicIdleStoryCyclePlanTests: XCTestCase {
         XCTAssertEqual(descriptor.cameraShot, .failure)
         XCTAssertEqual(descriptor.lightFamily, .failure)
         XCTAssertTrue(descriptor.phaseCopy.contains("Retry"))
+        XCTAssertNotEqual(descriptor.phase, .diagnosticsWarningPulse)
     }
 
     func testQuietModeSuppressesOnlyNonCriticalNativeFeedbackPlaques() throws {
         var context = try makeContext(
             settings: CinematicInfluenceSettings(cameraStyle: .follow, comfortMode: .quiet)
         )
+        context.diagnosticsWarningBundleHistory = CinematicDiagnosticsWarningBundleHistory()
 
         let nativeSlot = plan(context: context, elapsedMultiplier: 2)
         XCTAssertNotEqual(nativeSlot.descriptor?.phase, .nativeFeedbackPlaque)
@@ -148,6 +153,114 @@ final class CinematicIdleStoryCyclePlanTests: XCTestCase {
         let critical = plan(context: context, elapsedMultiplier: 0)
         XCTAssertEqual(critical.descriptor?.phase, .nativeFeedbackPlaque)
         XCTAssertEqual(critical.suppressionReason, "none")
+    }
+
+    func testDiagnosticsWarningPulseRequiresCurrentBundle() throws {
+        var context = try makeContext(diagnosticsWarningBundleHistory: CinematicDiagnosticsWarningBundleHistory())
+        context.commitConstellationPlan = .empty
+        context.timelineFocusPlan = .none
+        context.nativeFeedbackCue = nil
+        context.nativeFeedbackPlaqueDescriptor = nil
+        context.recapPlan = .empty(reason: "no-finished-session")
+        context.recapFocusPlan = .none
+        context.recapEndCardPlan = .none
+        context.tourPlan = nil
+
+        let noHistory = plan(context: context)
+        XCTAssertFalse(noHistory.isActive)
+        XCTAssertEqual(noHistory.suppressionReason, "no-descriptors")
+
+        var staleHistory = makeDiagnosticsWarningBundleHistory()
+        staleHistory.record(CinematicDiagnosticsSummary.AttentionSummary(targets: []))
+        context.diagnosticsWarningBundleHistory = staleHistory
+        let stale = plan(context: context)
+        XCTAssertFalse(stale.isActive)
+        XCTAssertEqual(stale.suppressionReason, "no-descriptors")
+
+        context.diagnosticsWarningBundleHistory = makeDiagnosticsWarningBundleHistory()
+        let active = plan(context: context)
+        let descriptor = try XCTUnwrap(active.descriptor)
+        let warningDescriptor = try XCTUnwrap(descriptor.diagnosticsWarningPulseDescriptor)
+
+        XCTAssertEqual(descriptor.phase, .diagnosticsWarningPulse)
+        XCTAssertEqual(descriptor.lightFamily, .pressure)
+        XCTAssertEqual(descriptor.arenaEffect, .activityPulse)
+        XCTAssertEqual(descriptor.targetKindIdentifier, "diagnostics-warning-\(warningDescriptor.bundleIdentifier)")
+        XCTAssertEqual(warningDescriptor.warningIdentifiers, ["visual-smoke.idle-story-cycle"])
+    }
+
+    func testDiagnosticsWarningPulseCarriesBoundedDuplicateMetadataWithoutBodyText() throws {
+        let secret = "SECRET_NATIVE_NOTIFICATION_BODY_SHOULD_NOT_LEAK"
+        var history = makeDiagnosticsWarningBundleHistory(
+            warnings: ["visual-smoke.shared-warning", "visual-smoke.shared-warning"],
+            detail: "body \(secret)",
+            copyText: "copy \(secret)"
+        )
+        history.record(
+            diagnosticsWarningAttentionSummary(
+                "idle-warning",
+                warnings: ["visual-smoke.shared-warning", "visual-smoke.shared-warning"],
+                detail: "body \(secret)",
+                copyText: "copy \(secret)"
+            )
+        )
+        var context = try makeContext(diagnosticsWarningBundleHistory: history)
+        context.commitConstellationPlan = .empty
+        context.timelineFocusPlan = .none
+        context.nativeFeedbackCue = nil
+        context.nativeFeedbackPlaqueDescriptor = nil
+        context.recapPlan = .empty(reason: "no-finished-session")
+        context.recapFocusPlan = .none
+        context.recapEndCardPlan = .none
+        context.tourPlan = nil
+
+        let descriptor = try XCTUnwrap(plan(context: context).descriptor)
+        let warningDescriptor = try XCTUnwrap(descriptor.diagnosticsWarningPulseDescriptor)
+
+        XCTAssertEqual(warningDescriptor.captureCount, 2)
+        XCTAssertEqual(warningDescriptor.warningCount, 2)
+        XCTAssertEqual(warningDescriptor.warningIdentifiers, ["visual-smoke.shared-warning"])
+        XCTAssertEqual(warningDescriptor.repeatedWarningIdentifiers, ["visual-smoke.shared-warning"])
+        XCTAssertEqual(warningDescriptor.targetAnchors, ["visual-smoke-check-idle-warning"])
+        XCTAssertEqual(warningDescriptor.relatedRowAnchors, ["diagnostics-row-idle-story-cycle"])
+        XCTAssertFalse(descriptor.identifier.contains(secret))
+        XCTAssertFalse(descriptor.phaseCopy.contains(secret))
+        XCTAssertLessThanOrEqual(
+            warningDescriptor.warningIdentifiers.first?.count ?? 0,
+            CinematicDiagnosticsWarningBundleHistory.identifierMaxCharacters
+        )
+    }
+
+    func testDiagnosticsWarningPulseUsesComfortDampingWithoutQuietSuppression() throws {
+        var standardContext = try makeContext(
+            settings: CinematicInfluenceSettings(cameraStyle: .dramatic, comfortMode: .standard, intensity: 1)
+        )
+        var reducedContext = try makeContext(
+            settings: CinematicInfluenceSettings(cameraStyle: .dramatic, comfortMode: .reducedMotion, intensity: 1)
+        )
+        var quietContext = try makeContext(
+            settings: CinematicInfluenceSettings(cameraStyle: .dramatic, comfortMode: .quiet, intensity: 1)
+        )
+
+        prepareDiagnosticsWarningOnlyContext(&standardContext)
+        prepareDiagnosticsWarningOnlyContext(&reducedContext)
+        prepareDiagnosticsWarningOnlyContext(&quietContext)
+
+        let standard = try XCTUnwrap(plan(context: standardContext).descriptor)
+        let reduced = try XCTUnwrap(plan(context: reducedContext).descriptor)
+        let quiet = try XCTUnwrap(plan(context: quietContext).descriptor)
+
+        XCTAssertEqual(standard.phase, .diagnosticsWarningPulse)
+        XCTAssertEqual(reduced.phase, .diagnosticsWarningPulse)
+        XCTAssertEqual(quiet.phase, .diagnosticsWarningPulse)
+        XCTAssertLessThan(reduced.choreography.comfortDamping, standard.choreography.comfortDamping)
+        XCTAssertLessThan(quiet.choreography.comfortDamping, reduced.choreography.comfortDamping)
+        XCTAssertGreaterThan(reduced.choreography.transitionDurationScale, standard.choreography.transitionDurationScale)
+        XCTAssertGreaterThan(quiet.choreography.transitionDurationScale, reduced.choreography.transitionDurationScale)
+        XCTAssertLessThan(
+            try XCTUnwrap(quiet.choreography.pulseHint).orbBoost,
+            try XCTUnwrap(reduced.choreography.pulseHint).orbBoost
+        )
     }
 
     func testIdentifiersAreStableBoundedAndReflectSelectedPhase() throws {
@@ -324,6 +437,7 @@ final class CinematicIdleStoryCyclePlanTests: XCTestCase {
         var timelineFocusPlan: CinematicTimelineSceneFocusPlan
         var nativeFeedbackCue: CinematicNativeFeedbackCuePlan?
         var nativeFeedbackPlaqueDescriptor: CinematicIdleStoryCyclePlan.NativeFeedbackPlaqueDescriptor?
+        var diagnosticsWarningBundleHistory: CinematicDiagnosticsWarningBundleHistory
         var recapPlan: CinematicRunRecapPlan
         var recapFocusPlan: CinematicRunRecapSceneFocusPlan
         var recapEndCardPlan: CinematicRunRecapEndCardPlan
@@ -332,7 +446,8 @@ final class CinematicIdleStoryCyclePlanTests: XCTestCase {
 
     private func makeContext(
         selectedBeatID: String? = nil,
-        settings: CinematicInfluenceSettings = CinematicInfluenceSettings()
+        settings: CinematicInfluenceSettings = CinematicInfluenceSettings(),
+        diagnosticsWarningBundleHistory: CinematicDiagnosticsWarningBundleHistory? = nil
     ) throws -> Context {
         let session = makeSession(
             42,
@@ -392,6 +507,7 @@ final class CinematicIdleStoryCyclePlanTests: XCTestCase {
             nativeFeedbackPlaqueDescriptor: try XCTUnwrap(
                 nativeFeedbackPlaqueDescriptor(for: nativeCue, settings: settings)
             ),
+            diagnosticsWarningBundleHistory: diagnosticsWarningBundleHistory ?? makeDiagnosticsWarningBundleHistory(),
             recapPlan: recapPlan,
             recapFocusPlan: recapFocusPlan,
             recapEndCardPlan: recapEndCardPlan,
@@ -419,6 +535,7 @@ final class CinematicIdleStoryCyclePlanTests: XCTestCase {
             timelineSceneFocusPlan: context.timelineFocusPlan,
             nativeFeedbackCue: context.nativeFeedbackCue,
             nativeFeedbackPlaqueDescriptor: context.nativeFeedbackPlaqueDescriptor,
+            diagnosticsWarningBundleHistory: context.diagnosticsWarningBundleHistory,
             runRecapPlan: context.recapPlan,
             runRecapSceneFocusPlan: context.recapFocusPlan,
             runRecapEndCardPlan: context.recapEndCardPlan,
@@ -459,6 +576,58 @@ final class CinematicIdleStoryCyclePlanTests: XCTestCase {
             briefing: .placeholder,
             recoveryCuePlan: .none,
             nativeFeedbackCue: cue
+        )
+    }
+
+    private func prepareDiagnosticsWarningOnlyContext(_ context: inout Context) {
+        context.commitConstellationPlan = .empty
+        context.timelineFocusPlan = .none
+        context.nativeFeedbackCue = nil
+        context.nativeFeedbackPlaqueDescriptor = nil
+        context.recapPlan = .empty(reason: "no-finished-session")
+        context.recapFocusPlan = .none
+        context.recapEndCardPlan = .none
+        context.tourPlan = nil
+    }
+
+    private func makeDiagnosticsWarningBundleHistory(
+        warnings: [String] = ["visual-smoke.idle-story-cycle"],
+        detail: String = "diagnostics warning",
+        copyText: String = "diagnostics warning copy"
+    ) -> CinematicDiagnosticsWarningBundleHistory {
+        var history = CinematicDiagnosticsWarningBundleHistory()
+        history.record(
+            diagnosticsWarningAttentionSummary(
+                "idle-warning",
+                warnings: warnings,
+                detail: detail,
+                copyText: copyText
+            )
+        )
+        return history
+    }
+
+    private func diagnosticsWarningAttentionSummary(
+        _ suffix: String,
+        warnings: [String],
+        detail: String,
+        copyText: String
+    ) -> CinematicDiagnosticsSummary.AttentionSummary {
+        CinematicDiagnosticsSummary.AttentionSummary(
+            targets: [
+                CinematicDiagnosticsSummary.AttentionTarget(
+                    id: "target-\(suffix)",
+                    targetGroupID: "visual-smoke",
+                    targetAnchorID: "visual-smoke-check-\(suffix)",
+                    relatedGroupID: "repository-context",
+                    relatedRowID: "idle-story-cycle",
+                    label: "Warning \(suffix)",
+                    detail: detail,
+                    warningCount: warnings.count,
+                    visibleWarningIdentifiers: warnings,
+                    copyText: copyText
+                )
+            ]
         )
     }
 
