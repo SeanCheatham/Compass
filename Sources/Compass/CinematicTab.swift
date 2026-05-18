@@ -601,6 +601,16 @@ private struct CinematicRunRecapArtifactLibraryControl: View {
         let pinnedReferencePlan = currentPinnedReferencePlan
         let selectedExportPlan = subsetExportPlan(scope: .selected)
         let filteredExportPlan = subsetExportPlan(scope: .filtered)
+        let actionMenuPlan = CinematicRunRecapShareArtifactActionMenuPlanner.plan(
+            previewPlan: previewPlan,
+            rollupPlan: rollupPlan,
+            comparisonPlan: comparisonPlan,
+            pinnedReferencePlan: pinnedReferencePlan,
+            tourPlan: tourPlan,
+            selectedExportPlan: selectedExportPlan,
+            filteredExportPlan: filteredExportPlan,
+            historyPlan: plan
+        )
 
         VStack(alignment: .leading, spacing: 4) {
             rollupScanline(rollupPlan)
@@ -676,80 +686,7 @@ private struct CinematicRunRecapArtifactLibraryControl: View {
                 .accessibilityLabel("Next recap share artifact")
                 .accessibilityIdentifier("cinematic-run-recap-artifact-library-next")
 
-                Button {
-                    revealSelectedArtifact()
-                } label: {
-                    Image(systemName: "folder")
-                        .font(.system(size: 12, weight: .bold))
-                        .frame(width: 22, height: 22)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .disabled(currentSelectedEntry == nil)
-                .foregroundStyle(tint.opacity(currentSelectedEntry == nil ? 0.32 : 0.86))
-                .help(revealHelp(previewPlan))
-                .accessibilityLabel("Reveal selected recap share artifact")
-                .accessibilityIdentifier("cinematic-run-recap-artifact-library-reveal")
-
-                Button {
-                    copySubsetExport(selectedExportPlan)
-                } label: {
-                    Image(systemName: "doc.text")
-                        .font(.system(size: 12, weight: .bold))
-                        .frame(width: 22, height: 22)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .disabled(!selectedExportPlan.isAvailable)
-                .foregroundStyle(tint.opacity(selectedExportPlan.isAvailable ? 0.86 : 0.32))
-                .help(selectedExportPlan.copyHelp)
-                .accessibilityLabel(selectedExportPlan.copyLabel)
-                .accessibilityIdentifier("cinematic-run-recap-artifact-library-copy-selected-export")
-
-                Button {
-                    copySubsetExport(filteredExportPlan)
-                } label: {
-                    Image(systemName: "line.3.horizontal.decrease.circle")
-                        .font(.system(size: 12, weight: .bold))
-                        .frame(width: 22, height: 22)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .disabled(!filteredExportPlan.isAvailable)
-                .foregroundStyle(tint.opacity(filteredExportPlan.isAvailable ? 0.86 : 0.32))
-                .help(filteredExportPlan.copyHelp)
-                .accessibilityLabel(filteredExportPlan.copyLabel)
-                .accessibilityIdentifier("cinematic-run-recap-artifact-library-copy-filtered-export")
-
-                Button {
-                    cleanupArtifacts()
-                } label: {
-                    Image(systemName: "trash")
-                        .font(.system(size: 12, weight: .bold))
-                        .frame(width: 22, height: 22)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .disabled(plan.cleanupCandidateCount == 0)
-                .foregroundStyle(tint.opacity(plan.cleanupCandidateCount == 0 ? 0.32 : 0.86))
-                .help(cleanupHelp)
-                .accessibilityLabel("Clean up old recap share artifacts")
-                .accessibilityIdentifier("cinematic-run-recap-artifact-library-cleanup")
-
-                Button {
-                    copyExport()
-                } label: {
-                    Image(systemName: "doc.on.doc")
-                        .font(.system(size: 12, weight: .bold))
-                        .frame(width: 22, height: 22)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .disabled(!plan.isAvailable)
-                .foregroundStyle(tint.opacity(plan.isAvailable ? 0.86 : 0.32))
-                .help(exportHelp)
-                .accessibilityLabel("Copy recap share artifact library")
-                .accessibilityIdentifier("cinematic-run-recap-artifact-library-copy")
+                actionMenu(actionMenuPlan)
             }
         }
         .padding(.horizontal, 8)
@@ -839,21 +776,6 @@ private struct CinematicRunRecapArtifactLibraryControl: View {
                 .foregroundStyle(.white.opacity(0.48))
                 .lineLimit(1)
                 .minimumScaleFactor(0.68)
-
-            Button {
-                copyRollup(rollupPlan)
-            } label: {
-                Image(systemName: "doc.on.doc")
-                    .font(.system(size: 11, weight: .bold))
-                    .frame(width: 20, height: 18)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .disabled(!rollupPlan.isAvailable)
-            .foregroundStyle(tint.opacity(rollupPlan.isAvailable ? 0.82 : 0.3))
-            .help(rollupPlan.copyHelp)
-            .accessibilityLabel(rollupPlan.copyLabel)
-            .accessibilityIdentifier("cinematic-run-recap-artifact-library-copy-rollup")
         }
         .padding(.horizontal, 6)
         .padding(.vertical, 3)
@@ -918,21 +840,6 @@ private struct CinematicRunRecapArtifactLibraryControl: View {
             .help(comparisonModeToggleHelp(comparisonPlan))
             .accessibilityLabel("Switch recap artifact comparison target mode")
             .accessibilityIdentifier("cinematic-run-recap-artifact-library-toggle-comparison-mode")
-
-            Button {
-                copyComparison(comparisonPlan)
-            } label: {
-                Image(systemName: "doc.on.doc")
-                    .font(.system(size: 11, weight: .bold))
-                    .frame(width: 20, height: 18)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .disabled(!comparisonPlan.isAvailable)
-            .foregroundStyle(tint.opacity(comparisonPlan.isAvailable ? 0.82 : 0.3))
-            .help(comparisonPlan.copyHelp)
-            .accessibilityLabel(comparisonPlan.copyLabel)
-            .accessibilityIdentifier("cinematic-run-recap-artifact-library-copy-comparison")
         }
         .padding(.horizontal, 6)
         .padding(.vertical, 3)
@@ -983,21 +890,6 @@ private struct CinematicRunRecapArtifactLibraryControl: View {
             .help(togglePinHelp(pinnedReferencePlan, previewPlan: previewPlan))
             .accessibilityLabel(pinnedReferencePlan.selectedEntryIsPinned ? "Unpin selected recap share artifact" : "Pin selected recap share artifact")
             .accessibilityIdentifier("cinematic-run-recap-artifact-library-toggle-pin")
-
-            Button {
-                copyPinnedExport(pinnedReferencePlan)
-            } label: {
-                Image(systemName: "doc.on.doc")
-                    .font(.system(size: 11, weight: .bold))
-                    .frame(width: 20, height: 18)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .disabled(!pinnedReferencePlan.isAvailable)
-            .foregroundStyle(tint.opacity(pinnedReferencePlan.isAvailable ? 0.82 : 0.3))
-            .help(pinnedReferencePlan.copyHelp)
-            .accessibilityLabel(pinnedReferencePlan.copyLabel)
-            .accessibilityIdentifier("cinematic-run-recap-artifact-library-copy-pinned-export")
         }
         .padding(.horizontal, 6)
         .padding(.vertical, 3)
@@ -1017,7 +909,6 @@ private struct CinematicRunRecapArtifactLibraryControl: View {
         _ tourPlan: CinematicRunRecapShareArtifactTourPlan,
         previewPlan: CinematicRunRecapShareArtifactPreviewBrowserPlan
     ) -> some View {
-        let tourExportPlan = tourSubsetExportPlan(tourPlan)
         let hasSavedTourHold = artifactLibraryContext.savedTourHoldEntryIdentifier != nil
         let isSelectedHeld = previewPlan.selectedEntryIdentifier != nil
             && previewPlan.selectedEntryIdentifier == artifactLibraryContext.savedTourHoldEntryIdentifier
@@ -1081,21 +972,6 @@ private struct CinematicRunRecapArtifactLibraryControl: View {
             .help(promoteTourHoldHelp(tourPlan))
             .accessibilityLabel("Promote saved recap tour hold to pinned comparison")
             .accessibilityIdentifier("cinematic-run-recap-artifact-library-promote-tour-hold")
-
-            Button {
-                copyTourExport(tourPlan)
-            } label: {
-                Image(systemName: "doc.on.doc")
-                    .font(.system(size: 11, weight: .bold))
-                    .frame(width: 20, height: 18)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .disabled(!tourExportPlan.isAvailable)
-            .foregroundStyle(tint.opacity(tourExportPlan.isAvailable ? 0.82 : 0.3))
-            .help(tourExportPlan.copyHelp)
-            .accessibilityLabel("Copy currently toured recap artifact")
-            .accessibilityIdentifier("cinematic-run-recap-artifact-library-copy-tour-export")
         }
         .padding(.horizontal, 6)
         .padding(.vertical, 3)
@@ -1446,6 +1322,57 @@ private struct CinematicRunRecapArtifactLibraryControl: View {
         .accessibilityIdentifier("cinematic-run-recap-artifact-library-search")
     }
 
+    private func actionMenu(_ actionMenuPlan: CinematicRunRecapShareArtifactActionMenuPlan) -> some View {
+        Menu {
+            ForEach(CinematicRunRecapShareArtifactActionMenuPlan.Section.allCases) { section in
+                if !actionMenuPlan.actions(in: section).isEmpty {
+                    Section {
+                        ForEach(actionMenuPlan.actions(in: section)) { action in
+                            Button {
+                                performMenuAction(action)
+                            } label: {
+                                Label {
+                                    actionMenuLabel(action)
+                                } icon: {
+                                    Image(systemName: action.systemImage)
+                                }
+                            }
+                            .disabled(!action.isEnabled)
+                            .help(action.help)
+                            .accessibilityLabel(action.label)
+                            .accessibilityIdentifier("cinematic-run-recap-artifact-library-menu-\(action.identifier)")
+                        }
+                    } header: {
+                        Text(section.title)
+                    }
+                }
+            }
+        } label: {
+            Image(systemName: "ellipsis.circle")
+                .font(.system(size: 12, weight: .bold))
+                .frame(width: 22, height: 22)
+                .contentShape(Rectangle())
+        }
+        .menuStyle(.borderlessButton)
+        .foregroundStyle(tint.opacity(0.86))
+        .help("More recap artifact actions")
+        .accessibilityLabel("More recap artifact actions")
+        .accessibilityIdentifier("cinematic-run-recap-artifact-library-action-menu-\(actionMenuPlan.identifier)")
+    }
+
+    private func actionMenuLabel(
+        _ action: CinematicRunRecapShareArtifactActionMenuPlan.Action
+    ) -> some View {
+        HStack {
+            Text(action.label)
+            if let shortcutHint = action.shortcutHint {
+                Spacer()
+                Text(shortcutHint)
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+
     private var artifactLibraryContext: CinematicRunRecapShareArtifactLibraryContext {
         project.cinematicRunRecapShareArtifactLibraryContext
     }
@@ -1532,6 +1459,47 @@ private struct CinematicRunRecapArtifactLibraryControl: View {
             .trimmingCharacters(in: .whitespacesAndNewlines)
         guard normalized.count > 140 else { return normalized }
         return String(normalized.prefix(137)).trimmingCharacters(in: .whitespacesAndNewlines) + "..."
+    }
+
+    private func performMenuAction(
+        _ action: CinematicRunRecapShareArtifactActionMenuPlan.Action
+    ) {
+        guard action.isEnabled else { return }
+
+        switch action.actionKind {
+        case .navigatePrevious:
+            selectArtifact(currentPreviewPlan.previousEntryIdentifier)
+        case .navigateNext:
+            selectArtifact(currentPreviewPlan.nextEntryIdentifier)
+        case .revealSelected:
+            revealSelectedArtifact()
+        case .copySelectedExport:
+            copySubsetExport(subsetExportPlan(scope: .selected))
+        case .copyFilteredExport:
+            copySubsetExport(subsetExportPlan(scope: .filtered))
+        case .copyLibraryExport:
+            copyExport()
+        case .copyRollupExport:
+            copyRollup(currentRollupPlan)
+        case .copyComparisonExport:
+            copyComparison(currentComparisonPlan)
+        case .copyPinnedExport:
+            copyPinnedExport(currentPinnedReferencePlan)
+        case .copyTourExport:
+            copyTourExport(tourPlan)
+        case .cleanupOldArtifacts:
+            cleanupArtifacts()
+        case .toggleComparisonTargetMode:
+            toggleComparisonTargetMode()
+        case .toggleSelectedPin:
+            toggleSelectedPin(currentPreviewPlan)
+        case .toggleTourHold:
+            holdOrReleaseCurrentTour(tourPlan.selectedEntryIdentifier)
+        case .toggleSelectedTourHold:
+            toggleTourHold(currentPreviewPlan.selectedEntryIdentifier)
+        case .promoteTourHold:
+            promoteTourHoldToPinnedReference(tourPlan)
+        }
     }
 
     private func selectArtifact(_ identifier: String?) {

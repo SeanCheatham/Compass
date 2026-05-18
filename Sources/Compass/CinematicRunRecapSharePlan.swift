@@ -495,6 +495,500 @@ struct CinematicRunRecapShareArtifactTourPlan: Equatable, Identifiable {
     }
 }
 
+struct CinematicRunRecapShareArtifactActionMenuPlan: Equatable, Identifiable {
+    static let identifierMaxCharacters = CinematicRunRecapShareArtifactHistoryPlan.identifierMaxCharacters
+    static let actionLimit = 16
+    static let labelMaxCharacters = 34
+    static let helpMaxCharacters = 180
+    static let systemImageMaxCharacters = 64
+    static let shortcutHintMaxCharacters = 20
+
+    var id: String { identifier }
+
+    var identifier: String
+    var actions: [Action]
+
+    var actionCount: Int { actions.count }
+
+    func actions(in section: Section) -> [Action] {
+        actions.filter { $0.section == section }
+    }
+
+    enum Section: String, CaseIterable, Equatable, Identifiable {
+        case navigate
+        case exports
+        case organize
+        case tour
+        case maintain
+
+        var id: String { rawValue }
+
+        var title: String {
+            switch self {
+            case .navigate:
+                return "Navigate"
+            case .exports:
+                return "Exports"
+            case .organize:
+                return "Organize"
+            case .tour:
+                return "Tour"
+            case .maintain:
+                return "Maintain"
+            }
+        }
+    }
+
+    enum ActionKind: String, Equatable {
+        case navigatePrevious
+        case navigateNext
+        case revealSelected
+        case copySelectedExport
+        case copyFilteredExport
+        case copyLibraryExport
+        case copyRollupExport
+        case copyComparisonExport
+        case copyPinnedExport
+        case copyTourExport
+        case cleanupOldArtifacts
+        case toggleComparisonTargetMode
+        case toggleSelectedPin
+        case toggleTourHold
+        case toggleSelectedTourHold
+        case promoteTourHold
+    }
+
+    struct Action: Equatable, Identifiable {
+        var id: String { identifier }
+
+        var identifier: String
+        var section: Section
+        var label: String
+        var systemImage: String
+        var help: String
+        var isEnabled: Bool
+        var actionKind: ActionKind
+        var shortcutHint: String?
+    }
+}
+
+enum CinematicRunRecapShareArtifactActionMenuPlanner {
+    static func plan(
+        previewPlan: CinematicRunRecapShareArtifactPreviewBrowserPlan,
+        rollupPlan: CinematicRunRecapShareArtifactRollupPlan,
+        comparisonPlan: CinematicRunRecapShareArtifactComparisonPlan,
+        pinnedReferencePlan: CinematicRunRecapShareArtifactPinnedReferencePlan,
+        tourPlan: CinematicRunRecapShareArtifactTourPlan,
+        selectedExportPlan: CinematicRunRecapShareArtifactSubsetExportPlan,
+        filteredExportPlan: CinematicRunRecapShareArtifactSubsetExportPlan,
+        historyPlan: CinematicRunRecapShareArtifactHistoryPlan
+    ) -> CinematicRunRecapShareArtifactActionMenuPlan {
+        var actions: [CinematicRunRecapShareArtifactActionMenuPlan.Action] = [
+            action(
+                kind: .navigatePrevious,
+                section: .navigate,
+                label: "Previous Artifact",
+                systemImage: "chevron.left",
+                help: previousHelp(previewPlan),
+                isEnabled: previewPlan.canNavigatePrevious,
+                shortcutHint: "Left",
+                stateIdentifier: previewPlan.previousEntryIdentifier ?? previewPlan.availabilityReason
+            ),
+            action(
+                kind: .navigateNext,
+                section: .navigate,
+                label: "Next Artifact",
+                systemImage: "chevron.right",
+                help: nextHelp(previewPlan),
+                isEnabled: previewPlan.canNavigateNext,
+                shortcutHint: "Right",
+                stateIdentifier: previewPlan.nextEntryIdentifier ?? previewPlan.availabilityReason
+            ),
+            action(
+                kind: .revealSelected,
+                section: .navigate,
+                label: "Reveal in Finder",
+                systemImage: "folder",
+                help: revealHelp(previewPlan),
+                isEnabled: previewPlan.selectedEntryIdentifier != nil,
+                shortcutHint: "Cmd-R",
+                stateIdentifier: previewPlan.selectedEntryIdentifier ?? previewPlan.availabilityReason
+            ),
+            action(
+                kind: .copySelectedExport,
+                section: .exports,
+                label: selectedExportPlan.copyLabel,
+                systemImage: "doc.text",
+                help: selectedExportPlan.copyHelp,
+                isEnabled: selectedExportPlan.isAvailable,
+                stateIdentifier: selectedExportPlan.exportIdentifier
+            ),
+            action(
+                kind: .copyFilteredExport,
+                section: .exports,
+                label: filteredExportPlan.copyLabel,
+                systemImage: "line.3.horizontal.decrease.circle",
+                help: filteredExportPlan.copyHelp,
+                isEnabled: filteredExportPlan.isAvailable,
+                stateIdentifier: filteredExportPlan.exportIdentifier
+            ),
+            action(
+                kind: .copyLibraryExport,
+                section: .exports,
+                label: historyPlan.isAvailable ? "Copy Library Export" : "Library Export Unavailable",
+                systemImage: "doc.on.doc",
+                help: libraryExportHelp(historyPlan),
+                isEnabled: historyPlan.isAvailable,
+                stateIdentifier: historyPlan.exportIdentifier
+            ),
+            action(
+                kind: .copyRollupExport,
+                section: .exports,
+                label: rollupPlan.copyLabel,
+                systemImage: "chart.bar",
+                help: rollupPlan.copyHelp,
+                isEnabled: rollupPlan.isAvailable,
+                stateIdentifier: rollupPlan.exportIdentifier
+            ),
+            action(
+                kind: .copyComparisonExport,
+                section: .exports,
+                label: comparisonPlan.copyLabel,
+                systemImage: comparisonPlan.targetMode == .pinnedReference ? "pin.square" : "rectangle.split.2x1",
+                help: comparisonPlan.copyHelp,
+                isEnabled: comparisonPlan.isAvailable,
+                stateIdentifier: comparisonPlan.exportIdentifier
+            ),
+            action(
+                kind: .copyPinnedExport,
+                section: .exports,
+                label: pinnedReferencePlan.copyLabel,
+                systemImage: "pin",
+                help: pinnedExportHelp(pinnedReferencePlan),
+                isEnabled: pinnedReferencePlan.isAvailable,
+                stateIdentifier: pinnedReferencePlan.exportIdentifier
+            ),
+            action(
+                kind: .copyTourExport,
+                section: .exports,
+                label: tourPlan.isAvailable ? "Copy Tour Export" : "Tour Export Unavailable",
+                systemImage: "sparkles",
+                help: tourExportHelp(tourPlan),
+                isEnabled: tourPlan.isAvailable && tourPlan.selectedEntryIdentifier != nil,
+                stateIdentifier: tourPlan.identifier
+            ),
+            action(
+                kind: .toggleComparisonTargetMode,
+                section: .organize,
+                label: "Use \(comparisonPlan.targetMode.toggled.title) Compare",
+                systemImage: comparisonPlan.targetMode.toggled == .pinnedReference ? "pin" : "rectangle.split.2x1",
+                help: comparisonModeToggleHelp(comparisonPlan),
+                isEnabled: true,
+                stateIdentifier: comparisonPlan.targetModeIdentifier
+            ),
+            action(
+                kind: .toggleSelectedPin,
+                section: .organize,
+                label: pinnedReferencePlan.selectedEntryIsPinned ? "Unpin Selected" : "Pin Selected",
+                systemImage: pinnedReferencePlan.selectedEntryIsPinned ? "pin.slash" : "pin",
+                help: togglePinHelp(pinnedReferencePlan, previewPlan: previewPlan),
+                isEnabled: previewPlan.selectedEntryIdentifier != nil,
+                stateIdentifier: pinnedReferencePlan.selectedPinStateIdentifier
+            ),
+            action(
+                kind: .toggleTourHold,
+                section: .tour,
+                label: tourPlan.requestedSavedTourHoldEntryIdentifier == nil ? "Hold Tour Artifact" : "Release Tour Hold",
+                systemImage: tourPlan.requestedSavedTourHoldEntryIdentifier == nil ? "lock" : "lock.open",
+                help: tourHoldHelp(tourPlan),
+                isEnabled: tourPlan.requestedSavedTourHoldEntryIdentifier != nil || tourPlan.selectedEntryIdentifier != nil,
+                stateIdentifier: tourPlan.savedTourHoldStateIdentifier
+            ),
+            action(
+                kind: .toggleSelectedTourHold,
+                section: .tour,
+                label: selectedHoldIsActive(previewPlan: previewPlan, tourPlan: tourPlan)
+                    ? "Release Selected Hold"
+                    : "Hold Selected Artifact",
+                systemImage: selectedHoldIsActive(previewPlan: previewPlan, tourPlan: tourPlan)
+                    ? "bookmark.slash"
+                    : "bookmark",
+                help: selectedHoldHelp(previewPlan, tourPlan: tourPlan),
+                isEnabled: previewPlan.selectedEntryIdentifier != nil,
+                stateIdentifier: previewPlan.selectedEntryIdentifier ?? tourPlan.savedTourHoldStateIdentifier
+            ),
+            action(
+                kind: .promoteTourHold,
+                section: .tour,
+                label: promoteTourHoldLabel(comparisonPlan),
+                systemImage: comparisonPlan.promotedHoldStateIdentifier == "none" ? "pin.circle" : "pin.circle.fill",
+                help: promoteTourHoldHelp(tourPlan, comparisonPlan: comparisonPlan),
+                isEnabled: tourPlan.retainedSavedTourHoldEntryIdentifier != nil,
+                stateIdentifier: comparisonPlan.promotedHoldStateIdentifier
+            ),
+            action(
+                kind: .cleanupOldArtifacts,
+                section: .maintain,
+                label: historyPlan.cleanupCandidateCount > 0 ? "Clean Up Old Artifacts" : "Cleanup Unavailable",
+                systemImage: "trash",
+                help: cleanupHelp(historyPlan),
+                isEnabled: historyPlan.cleanupCandidateCount > 0,
+                stateIdentifier: "cleanup:\(historyPlan.cleanupCandidateCount)|hidden:\(historyPlan.hiddenCleanupCandidateCount)"
+            )
+        ]
+
+        actions = Array(actions.prefix(CinematicRunRecapShareArtifactActionMenuPlan.actionLimit))
+        let identifier = bounded(
+            [
+                "run-recap-share-artifact-action-menu",
+                "actions:\(actions.count)",
+                "content:\(fingerprint(actions.map(\.identifier).joined(separator: "|")))"
+            ].joined(separator: "|"),
+            limit: CinematicRunRecapShareArtifactActionMenuPlan.identifierMaxCharacters
+        )
+
+        return CinematicRunRecapShareArtifactActionMenuPlan(
+            identifier: identifier,
+            actions: actions
+        )
+    }
+
+    private typealias MenuPlan = CinematicRunRecapShareArtifactActionMenuPlan
+    private typealias Action = CinematicRunRecapShareArtifactActionMenuPlan.Action
+    private typealias ActionKind = CinematicRunRecapShareArtifactActionMenuPlan.ActionKind
+    private typealias ActionSection = CinematicRunRecapShareArtifactActionMenuPlan.Section
+
+    private static func action(
+        kind: ActionKind,
+        section: ActionSection,
+        label: String,
+        systemImage: String,
+        help: String,
+        isEnabled: Bool,
+        shortcutHint: String? = nil,
+        stateIdentifier: String
+    ) -> Action {
+        let identifier = bounded(
+            [
+                "run-recap-share-artifact-action",
+                "kind:\(kind.rawValue)",
+                "section:\(section.rawValue)",
+                "enabled:\(isEnabled)",
+                "state:\(fingerprint(stateIdentifier))"
+            ].joined(separator: "|"),
+            limit: MenuPlan.identifierMaxCharacters
+        )
+
+        return Action(
+            identifier: identifier,
+            section: section,
+            label: bounded(label, limit: MenuPlan.labelMaxCharacters),
+            systemImage: bounded(systemImage, limit: MenuPlan.systemImageMaxCharacters),
+            help: bounded(help, limit: MenuPlan.helpMaxCharacters),
+            isEnabled: isEnabled,
+            actionKind: kind,
+            shortcutHint: boundedOptional(shortcutHint, limit: MenuPlan.shortcutHintMaxCharacters)
+        )
+    }
+
+    private static func previousHelp(_ previewPlan: CinematicRunRecapShareArtifactPreviewBrowserPlan) -> String {
+        if previewPlan.canNavigatePrevious {
+            return previewPlan.isSearchActive
+                ? "Show the newer matching saved recap share artifact."
+                : "Show the newer saved recap share artifact."
+        }
+        return previewPlan.isSearchActive
+            ? "Already showing the newest matching saved recap share artifact."
+            : "Already showing the newest saved recap share artifact."
+    }
+
+    private static func nextHelp(_ previewPlan: CinematicRunRecapShareArtifactPreviewBrowserPlan) -> String {
+        if previewPlan.canNavigateNext {
+            return previewPlan.isSearchActive
+                ? "Show the older matching saved recap share artifact."
+                : "Show the older saved recap share artifact."
+        }
+        return previewPlan.isSearchActive
+            ? "Already showing the oldest matching saved recap share artifact."
+            : "Already showing the oldest visible recap share artifact."
+    }
+
+    private static func revealHelp(_ previewPlan: CinematicRunRecapShareArtifactPreviewBrowserPlan) -> String {
+        guard previewPlan.selectedEntryIdentifier != nil else {
+            return "No saved recap share artifact to reveal."
+        }
+        return "Reveal \(previewPlan.pathSnippet) in Finder."
+    }
+
+    private static func libraryExportHelp(_ historyPlan: CinematicRunRecapShareArtifactHistoryPlan) -> String {
+        if !historyPlan.isAvailable {
+            return "No recap share artifact library export is available: \(historyPlan.availabilityReason)."
+        }
+        return "Copy combined Markdown export \(historyPlan.exportIdentifier)."
+    }
+
+    private static func cleanupHelp(_ historyPlan: CinematicRunRecapShareArtifactHistoryPlan) -> String {
+        guard historyPlan.cleanupCandidateCount > 0 else {
+            return "No old recap share artifacts to clean up; retaining newest \(historyPlan.retentionLimit)."
+        }
+        return "Delete \(historyPlan.cleanupCandidateCount) old recap share artifact\(historyPlan.cleanupCandidateCount == 1 ? "" : "s") while retaining newest \(historyPlan.retentionLimit)."
+    }
+
+    private static func comparisonModeToggleHelp(
+        _ comparisonPlan: CinematicRunRecapShareArtifactComparisonPlan
+    ) -> String {
+        let nextMode = comparisonPlan.targetMode.toggled.title
+        if comparisonPlan.promotedHoldStateIdentifier != "none" {
+            return "Switch comparison target mode to \(nextMode); the saved tour hold remains in context."
+        }
+        return "Switch recap artifact comparison target mode to \(nextMode)."
+    }
+
+    private static func togglePinHelp(
+        _ pinnedReferencePlan: CinematicRunRecapShareArtifactPinnedReferencePlan,
+        previewPlan: CinematicRunRecapShareArtifactPreviewBrowserPlan
+    ) -> String {
+        guard previewPlan.selectedEntryIdentifier != nil else {
+            return "No selected recap share artifact to pin."
+        }
+        if pinnedReferencePlan.selectedEntryIsPinned {
+            return "Unpin the selected recap share artifact from the pinned reference strip."
+        }
+        let stale = pinnedReferencePlan.missingPinnedEntryCount > 0
+            ? " \(pinnedReferencePlan.missingPinnedEntryCount) stale pin\(pinnedReferencePlan.missingPinnedEntryCount == 1 ? "" : "s") remain reported."
+            : ""
+        return "Pin the selected recap share artifact for quick selection and pinned export.\(stale)"
+    }
+
+    private static func pinnedExportHelp(
+        _ pinnedReferencePlan: CinematicRunRecapShareArtifactPinnedReferencePlan
+    ) -> String {
+        guard pinnedReferencePlan.isAvailable else {
+            return pinnedReferencePlan.copyHelp
+        }
+
+        let stale = pinnedReferencePlan.missingPinnedEntryCount > 0
+            ? "; \(pinnedReferencePlan.missingPinnedEntryCount) stale"
+            : ""
+        let filtered = pinnedReferencePlan.filteredPinnedEntryCount > 0
+            ? "; \(pinnedReferencePlan.filteredPinnedEntryCount) filtered"
+            : ""
+        let search = pinnedReferencePlan.isSearchActive
+            ? "; \(pinnedReferencePlan.quickSelectEntryCount) quick visible for \(pinnedReferencePlan.searchQuerySnippet)"
+            : ""
+        return "Copy pinned export for \(pinnedReferencePlan.retainedPinnedEntryCount) retained pin\(pinnedReferencePlan.retainedPinnedEntryCount == 1 ? "" : "s")\(stale)\(filtered)\(search)."
+    }
+
+    private static func tourHoldHelp(_ tourPlan: CinematicRunRecapShareArtifactTourPlan) -> String {
+        switch tourPlan.savedTourHoldStateIdentifier {
+        case "held":
+            return "Release the saved recap artifact tour hold."
+        case "filtered-hold":
+            return "Release the saved recap artifact tour hold hidden by search \(tourPlan.searchQuerySnippet)."
+        case "missing-hold":
+            return "Release the saved recap artifact tour hold that is no longer retained."
+        default:
+            guard tourPlan.selectedEntryIdentifier != nil else {
+                return "No currently toured recap artifact to hold."
+            }
+            return "Hold the currently toured recap artifact so the idle tour keeps returning to it."
+        }
+    }
+
+    private static func selectedHoldHelp(
+        _ previewPlan: CinematicRunRecapShareArtifactPreviewBrowserPlan,
+        tourPlan: CinematicRunRecapShareArtifactTourPlan
+    ) -> String {
+        guard previewPlan.selectedEntryIdentifier != nil else {
+            return "No selected recap artifact to hold for the idle tour."
+        }
+        if selectedHoldIsActive(previewPlan: previewPlan, tourPlan: tourPlan) {
+            return "Release the selected recap artifact from the saved tour hold."
+        }
+        return "Hold the selected recap artifact for the idle saved artifact tour."
+    }
+
+    private static func selectedHoldIsActive(
+        previewPlan: CinematicRunRecapShareArtifactPreviewBrowserPlan,
+        tourPlan: CinematicRunRecapShareArtifactTourPlan
+    ) -> Bool {
+        previewPlan.selectedEntryIdentifier != nil
+            && previewPlan.selectedEntryIdentifier == tourPlan.requestedSavedTourHoldEntryIdentifier
+    }
+
+    private static func promoteTourHoldLabel(
+        _ comparisonPlan: CinematicRunRecapShareArtifactComparisonPlan
+    ) -> String {
+        switch comparisonPlan.promotedHoldStateIdentifier {
+        case "retained-promoted-hold-target", "filtered-promoted-hold-target":
+            return "Hold Promoted"
+        case "missing-promoted-hold":
+            return "Promote Hold Missing"
+        default:
+            return "Promote Tour Hold"
+        }
+    }
+
+    private static func promoteTourHoldHelp(
+        _ tourPlan: CinematicRunRecapShareArtifactTourPlan,
+        comparisonPlan: CinematicRunRecapShareArtifactComparisonPlan
+    ) -> String {
+        if comparisonPlan.promotedHoldStateIdentifier == "retained-promoted-hold-target" {
+            return "The saved recap tour hold is already the pinned comparison target."
+        }
+        if comparisonPlan.promotedHoldStateIdentifier == "filtered-promoted-hold-target" {
+            return "The saved recap tour hold is promoted and filtered by the current search."
+        }
+        guard let retainedSavedTourHoldEntryIdentifier = tourPlan.retainedSavedTourHoldEntryIdentifier else {
+            if tourPlan.requestedSavedTourHoldEntryIdentifier == nil {
+                return "No saved recap tour hold to promote."
+            }
+            return "The saved recap tour hold is not retained, so it cannot be promoted to a pinned comparison."
+        }
+        if tourPlan.filteredSavedTourHoldEntryIdentifier == retainedSavedTourHoldEntryIdentifier {
+            return "Promote this retained tour hold to pinned comparison even though the current search filters it."
+        }
+        return "Promote this saved tour hold to pinned comparison."
+    }
+
+    private static func tourExportHelp(_ tourPlan: CinematicRunRecapShareArtifactTourPlan) -> String {
+        guard tourPlan.isAvailable, let sessionNumber = tourPlan.sessionNumber else {
+            return "No currently toured recap artifact export is available: \(tourPlan.availabilityReason)."
+        }
+        return "Copy the currently toured recap artifact export for S\(sessionNumber) from \(tourPlan.selectionSourceIdentifier) tour state."
+    }
+
+    private static func boundedOptional(_ text: String?, limit: Int) -> String? {
+        let boundedText = bounded(text ?? "", limit: limit)
+        return boundedText == "none" ? nil : boundedText
+    }
+
+    private static func bounded(_ text: String, limit: Int) -> String {
+        guard limit > 0 else { return "" }
+        let normalized = text
+            .replacingOccurrences(of: "\r", with: " ")
+            .replacingOccurrences(of: "\n", with: " ")
+            .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalized.isEmpty else { return "none" }
+        guard normalized.count <= limit else {
+            let prefixLimit = max(1, limit - 3)
+            return normalized.prefix(prefixLimit)
+                .trimmingCharacters(in: .whitespacesAndNewlines) + "..."
+        }
+        return normalized
+    }
+
+    private static func fingerprint(_ value: String) -> String {
+        var hash: UInt64 = 0xcbf29ce484222325
+        for byte in value.utf8 {
+            hash ^= UInt64(byte)
+            hash = hash &* 0x100000001b3
+        }
+        return String(format: "%016llx", hash)
+    }
+}
+
 enum CinematicRunRecapShareArtifactPinnedReferencePlanner {
     static func plan(
         historyPlan: CinematicRunRecapShareArtifactHistoryPlan,
