@@ -8,6 +8,7 @@ struct CinematicNativeFeedbackCuePlan: Equatable, Identifiable {
     var id: String { identifier }
 
     var identifier: String
+    var baseIdentifier: String
     var milestone: NativeFeedbackMilestone
     var phase: LoopPhase
     var feedbackMode: NativeFeedbackMode
@@ -18,6 +19,11 @@ struct CinematicNativeFeedbackCuePlan: Equatable, Identifiable {
     var style: Style
     var priority: Int
     var sourceIdentifier: String
+    var lifecycleIdentifier: String
+    var lifecycleStateIdentifier: String
+    var lifecycleDisplayDuration: TimeInterval
+    var lifecycleRecordedAt: Date?
+    var lifecycleExpiresAt: Date?
     var runCueKind: PlanReliabilityFeedback.Kind?
     var runCueSessionNumber: Int?
 
@@ -91,9 +97,14 @@ struct CinematicNativeFeedbackCuePlan: Equatable, Identifiable {
         self.style = style
         self.priority = priority
         self.sourceIdentifier = sourceIdentifier
+        lifecycleIdentifier = "detached"
+        lifecycleStateIdentifier = "detached"
+        lifecycleDisplayDuration = 0
+        lifecycleRecordedAt = nil
+        lifecycleExpiresAt = nil
         self.runCueKind = runCueKind
         self.runCueSessionNumber = runCueSessionNumber
-        identifier = Self.makeIdentifier(
+        baseIdentifier = Self.makeIdentifier(
             milestone: milestone,
             phase: phase,
             feedbackMode: feedbackMode,
@@ -105,6 +116,23 @@ struct CinematicNativeFeedbackCuePlan: Equatable, Identifiable {
             priority: priority,
             sourceIdentifier: sourceIdentifier
         )
+        identifier = baseIdentifier
+    }
+
+    func applyingLifecycle(
+        _ metadata: CinematicNativeFeedbackCueLifecycle.Metadata
+    ) -> CinematicNativeFeedbackCuePlan {
+        var copy = self
+        copy.lifecycleIdentifier = metadata.identifier
+        copy.lifecycleStateIdentifier = metadata.state.rawValue
+        copy.lifecycleDisplayDuration = metadata.displayDuration
+        copy.lifecycleRecordedAt = metadata.recordedAt
+        copy.lifecycleExpiresAt = metadata.expiresAt
+        copy.identifier = [
+            copy.baseIdentifier,
+            metadata.identifier
+        ].joined(separator: "|")
+        return copy
     }
 
     private static func makeIdentifier(
@@ -154,6 +182,205 @@ struct CinematicNativeFeedbackCuePlan: Equatable, Identifiable {
             .replacingOccurrences(of: "\n", with: " ")
             .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
             .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+}
+
+struct CinematicNativeFeedbackCueLifecycle: Equatable {
+    static let standardDisplayDuration: TimeInterval = 8
+    static let criticalDisplayDuration: TimeInterval = 24
+    static let displayDurationRange: ClosedRange<TimeInterval> = 4...30
+    static let recentArchiveLimit = 5
+
+    var active: ActiveCue?
+    var recentArchive: [ArchivedCue]
+    var sequenceCounter: Int
+
+    init(
+        active: ActiveCue? = nil,
+        recentArchive: [ArchivedCue] = [],
+        sequenceCounter: Int = 0
+    ) {
+        self.active = active
+        self.recentArchive = Array(recentArchive.prefix(Self.recentArchiveLimit))
+        self.sequenceCounter = max(0, sequenceCounter)
+    }
+
+    var activeCue: CinematicNativeFeedbackCuePlan? {
+        active?.cue
+    }
+
+    var hasState: Bool {
+        active != nil || !recentArchive.isEmpty
+    }
+
+    var stateIdentifier: String {
+        if active != nil {
+            return Metadata.State.active.rawValue
+        }
+        if let latestArchive = recentArchive.first {
+            return latestArchive.archiveReason == .expired
+                ? ArchiveReason.expired.rawValue
+                : Metadata.State.archived.rawValue
+        }
+        return "empty"
+    }
+
+    var identifier: String {
+        [
+            "native-feedback-cue-lifecycle",
+            "state:\(stateIdentifier)",
+            "active:\(active?.lifecycleIdentifier ?? "none")",
+            "archive-count:\(recentArchive.count)",
+            "archive:\(recentArchive.map(\.lifecycleIdentifier).joined(separator: ","))"
+        ].joined(separator: "|")
+    }
+
+    var recentArchiveIdentifiers: [String] {
+        recentArchive.map(\.lifecycleIdentifier)
+    }
+
+    @discardableResult
+    mutating func record(
+        _ cue: CinematicNativeFeedbackCuePlan,
+        now: Date
+    ) -> CinematicNativeFeedbackCuePlan {
+        archiveActive(reason: .replaced, now: now)
+        sequenceCounter += 1
+
+        let duration = Self.displayDuration(for: cue)
+        let metadata = Metadata(
+            state: .active,
+            sequence: sequenceCounter,
+            displayDuration: duration,
+            recordedAt: now,
+            expiresAt: now.addingTimeInterval(duration),
+            archivedAt: nil,
+            archiveReason: nil
+        )
+        let activeCue = cue.applyingLifecycle(metadata)
+        active = ActiveCue(cue: activeCue, metadata: metadata)
+        return activeCue
+    }
+
+    @discardableResult
+    mutating func expire(now: Date) -> Bool {
+        guard let active, now >= active.expiresAt else { return false }
+        archiveActive(reason: .expired, now: now)
+        return true
+    }
+
+    mutating func clear(reason: ArchiveReason, now: Date) {
+        archiveActive(reason: reason, now: now)
+    }
+
+    static func displayDuration(for cue: CinematicNativeFeedbackCuePlan) -> TimeInterval {
+        let duration = cue.isCriticalCinematicBanner
+            ? criticalDisplayDuration
+            : standardDisplayDuration
+        return min(max(duration, displayDurationRange.lowerBound), displayDurationRange.upperBound)
+    }
+
+    private mutating func archiveActive(reason: ArchiveReason, now: Date) {
+        guard let active else { return }
+        let archivedMetadata = active.metadata.archived(reason: reason, at: now)
+        recentArchive.insert(
+            ArchivedCue(cue: active.cue, metadata: archivedMetadata),
+            at: 0
+        )
+        recentArchive = Array(recentArchive.prefix(Self.recentArchiveLimit))
+        self.active = nil
+    }
+
+    struct ActiveCue: Equatable {
+        var cue: CinematicNativeFeedbackCuePlan
+        var metadata: Metadata
+
+        var lifecycleIdentifier: String { metadata.identifier }
+        var cueIdentifier: String { cue.identifier }
+        var expiresAt: Date { metadata.expiresAt }
+        var displayDuration: TimeInterval { metadata.displayDuration }
+    }
+
+    struct ArchivedCue: Equatable {
+        var cueIdentifier: String
+        var baseCueIdentifier: String
+        var lifecycleIdentifier: String
+        var stateIdentifier: String
+        var archiveReason: ArchiveReason
+        var milestoneIdentifier: String
+        var displayDuration: TimeInterval
+        var recordedAt: Date
+        var expiresAt: Date
+        var archivedAt: Date
+        var sequence: Int
+
+        init(cue: CinematicNativeFeedbackCuePlan, metadata: Metadata) {
+            cueIdentifier = cue.identifier
+            baseCueIdentifier = cue.baseIdentifier
+            lifecycleIdentifier = metadata.identifier
+            stateIdentifier = metadata.state.rawValue
+            archiveReason = metadata.archiveReason ?? .cleared
+            milestoneIdentifier = cue.milestoneIdentifier
+            displayDuration = metadata.displayDuration
+            recordedAt = metadata.recordedAt
+            expiresAt = metadata.expiresAt
+            archivedAt = metadata.archivedAt ?? metadata.expiresAt
+            sequence = metadata.sequence
+        }
+    }
+
+    struct Metadata: Equatable {
+        enum State: String, Equatable {
+            case active
+            case archived
+        }
+
+        var state: State
+        var sequence: Int
+        var displayDuration: TimeInterval
+        var recordedAt: Date
+        var expiresAt: Date
+        var archivedAt: Date?
+        var archiveReason: ArchiveReason?
+
+        var identifier: String {
+            [
+                "lifecycle:\(state.rawValue)",
+                "seq:\(sequence)",
+                "duration:\(Self.fixed(displayDuration))",
+                "recorded:\(Self.dateIdentifier(recordedAt))",
+                "expires:\(Self.dateIdentifier(expiresAt))",
+                archiveReason.map { "reason:\($0.rawValue)" },
+                archivedAt.map { "archived:\(Self.dateIdentifier($0))" }
+            ].compactMap { $0 }.joined(separator: ":")
+        }
+
+        func archived(reason: ArchiveReason, at archivedAt: Date) -> Metadata {
+            Metadata(
+                state: .archived,
+                sequence: sequence,
+                displayDuration: displayDuration,
+                recordedAt: recordedAt,
+                expiresAt: expiresAt,
+                archivedAt: archivedAt,
+                archiveReason: reason
+            )
+        }
+
+        private static func dateIdentifier(_ date: Date) -> String {
+            fixed(date.timeIntervalSinceReferenceDate)
+        }
+
+        private static func fixed(_ value: TimeInterval) -> String {
+            String(format: "%.4f", value)
+        }
+    }
+
+    enum ArchiveReason: String, Equatable {
+        case replaced
+        case expired
+        case modeOff = "mode-off"
+        case cleared
     }
 }
 

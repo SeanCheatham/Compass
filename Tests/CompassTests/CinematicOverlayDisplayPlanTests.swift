@@ -146,6 +146,7 @@ final class CinematicOverlayDisplayPlanTests: XCTestCase {
             XCTAssertFalse(plan.reasonIdentifier.isEmpty)
             XCTAssertFalse(plan.narrativeCueReadabilityIdentifier.isEmpty)
             XCTAssertFalse(plan.nativeFeedbackCueIdentifier.isEmpty)
+            XCTAssertFalse(plan.nativeFeedbackLifecycleIdentifier.isEmpty)
             XCTAssertFalse(plan.nativeFeedbackBannerPolicyIdentifier.isEmpty)
         }
     }
@@ -187,8 +188,11 @@ final class CinematicOverlayDisplayPlanTests: XCTestCase {
         let plain = makeOverlayPlan(phase: .verifying)
 
         XCTAssertEqual(plan.nativeFeedbackCueIdentifier, nativeCue.identifier)
+        XCTAssertEqual(plan.nativeFeedbackLifecycleIdentifier, nativeCue.lifecycleIdentifier)
         XCTAssertTrue(plan.identifier.contains("native:\(nativeCue.identifier)"))
+        XCTAssertTrue(plan.identifier.contains("native-lifecycle:\(nativeCue.lifecycleIdentifier)"))
         XCTAssertEqual(plain.nativeFeedbackCueIdentifier, "none")
+        XCTAssertEqual(plain.nativeFeedbackLifecycleIdentifier, "none")
         XCTAssertTrue(plain.identifier.contains("native:none"))
         XCTAssertNotEqual(plan.identifier, plain.identifier)
     }
@@ -284,6 +288,7 @@ final class CinematicOverlayDisplayPlanTests: XCTestCase {
         )
 
         XCTAssertEqual(overlay.nativeFeedbackCueIdentifier, nativeCue.identifier)
+        XCTAssertEqual(overlay.nativeFeedbackLifecycleIdentifier, nativeCue.lifecycleIdentifier)
         XCTAssertTrue(overlay.identifier.contains("native:\(nativeCue.identifier)"))
         XCTAssertEqual(overlay.mode, .compact)
     }
@@ -317,6 +322,7 @@ final class CinematicOverlayDisplayPlanTests: XCTestCase {
         XCTAssertFalse(quiet.showsNativeFeedbackBanner)
         XCTAssertEqual(quiet.nativeFeedbackBannerPolicyIdentifier, "suppressed-quiet-noncritical")
         XCTAssertEqual(quiet.nativeFeedbackCueIdentifier, nativeCue.identifier)
+        XCTAssertEqual(quiet.nativeFeedbackLifecycleIdentifier, nativeCue.lifecycleIdentifier)
         XCTAssertLessThan(quiet.gradientStrength, standard.gradientStrength)
         XCTAssertLessThan(quiet.hudBackgroundOpacity, standard.hudBackgroundOpacity)
         XCTAssertLessThan(quiet.worldTextPillBackgroundOpacity, standard.worldTextPillBackgroundOpacity)
@@ -361,6 +367,45 @@ final class CinematicOverlayDisplayPlanTests: XCTestCase {
             XCTAssertTrue(plan.identifier.contains("native-banner:visible"))
         }
     }
+
+    func testQuietModeHasNoNativeFeedbackBannerAfterCueExpires() throws {
+        let now = Date(timeIntervalSinceReferenceDate: 3_000)
+        let nativeCue = try XCTUnwrap(
+            CinematicNativeFeedbackCuePlanner.plan(
+                milestone: .verifyStarted,
+                content: NativeFeedbackContent(milestone: .verifyStarted, projectName: "Editor"),
+                phase: .verifying,
+                feedbackMode: .notifications,
+                recentRunCues: [:]
+            )
+        )
+        var lifecycle = CinematicNativeFeedbackCueLifecycle()
+        _ = lifecycle.record(nativeCue, now: now)
+        XCTAssertTrue(
+            lifecycle.expire(
+                now: now.addingTimeInterval(CinematicNativeFeedbackCueLifecycle.standardDisplayDuration)
+            )
+        )
+
+        let plan = makeOverlayPlan(
+            phase: .verifying,
+            influenceSettings: CinematicInfluenceSettings(
+                cameraStyle: .follow,
+                comfortMode: .quiet,
+                intensity: 0.6
+            ),
+            nativeFeedbackCue: lifecycle.activeCue,
+            nativeFeedbackLifecycleIdentifier: lifecycle.identifier
+        )
+
+        XCTAssertFalse(plan.showsNativeFeedbackBanner)
+        XCTAssertEqual(plan.nativeFeedbackCueIdentifier, "none")
+        XCTAssertEqual(plan.nativeFeedbackLifecycleIdentifier, lifecycle.identifier)
+        XCTAssertEqual(plan.nativeFeedbackBannerPolicyIdentifier, "none")
+        XCTAssertTrue(plan.nativeFeedbackLifecycleIdentifier.contains("state:expired"))
+        XCTAssertTrue(plan.identifier.contains("native:none"))
+        XCTAssertTrue(plan.identifier.contains("native-lifecycle:\(lifecycle.identifier)"))
+    }
 }
 
 private func makeOverlayPlan(
@@ -375,7 +420,8 @@ private func makeOverlayPlan(
     activityProfile: RepositoryActivityProfile = activityProfile(worktreeChanges: worktreeChanges(modified: 2)),
     influenceSettings: CinematicInfluenceSettings = CinematicInfluenceSettings(cameraStyle: .follow, intensity: 0.6),
     readability: CinematicNarrativeCueReadabilitySignals = readableSignals(),
-    nativeFeedbackCue: CinematicNativeFeedbackCuePlan? = nil
+    nativeFeedbackCue: CinematicNativeFeedbackCuePlan? = nil,
+    nativeFeedbackLifecycleIdentifier: String? = nil
 ) -> CinematicOverlayDisplayPlan {
     CinematicOverlayDisplayPlanner.plan(
         phase: phase,
@@ -389,7 +435,8 @@ private func makeOverlayPlan(
         activityProfile: activityProfile,
         influenceSettings: influenceSettings,
         narrativeCueReadability: readability,
-        nativeFeedbackCue: nativeFeedbackCue
+        nativeFeedbackCue: nativeFeedbackCue,
+        nativeFeedbackLifecycleIdentifier: nativeFeedbackLifecycleIdentifier
     )
 }
 

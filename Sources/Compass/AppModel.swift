@@ -406,11 +406,12 @@ final class CompassProject: ObservableObject, Identifiable {
     @Published var languageProfile = RepositoryLanguageProfile.empty
     @Published var activityProfile = RepositoryActivityProfile.empty
     @Published var cinematicInfluenceSettings: CinematicInfluenceSettings
+    @Published private(set) var cinematicNativeFeedbackCueLifecycle = CinematicNativeFeedbackCueLifecycle()
     @Published var cinematicNativeFeedbackCue: CinematicNativeFeedbackCuePlan?
     @Published var nativeFeedbackMode: NativeFeedbackMode {
         didSet {
             guard nativeFeedbackMode == .off else { return }
-            cinematicNativeFeedbackCue = nil
+            clearCinematicNativeFeedbackCue(reason: .modeOff)
         }
     }
     @Published var liveLog: [LiveLine] = []
@@ -445,6 +446,7 @@ final class CompassProject: ObservableObject, Identifiable {
     private var executor: CodexExecutor?
     private var stopRequested = false
     private var cinematicBriefingTask: Task<Void, Never>?
+    private var cinematicNativeFeedbackCueExpiryTask: Task<Void, Never>?
     private var lastCinematicRefreshInput: CinematicRefreshInput?
     private var lastCinematicBriefingGeneratedAt = Date.distantPast
     private let storageMigrationAction: CompassWorkspaceStorageMigrationAction
@@ -496,6 +498,7 @@ final class CompassProject: ObservableObject, Identifiable {
 
     deinit {
         cinematicBriefingTask?.cancel()
+        cinematicNativeFeedbackCueExpiryTask?.cancel()
     }
 }
 
@@ -1765,18 +1768,30 @@ extension CompassProject {
             }
     }
 
-    func recordCinematicNativeFeedback(_ milestone: NativeFeedbackMilestone) {
+    func recordCinematicNativeFeedback(
+        _ milestone: NativeFeedbackMilestone,
+        now: Date = Date()
+    ) {
         let reliabilityFeedback = PlanReliabilityFeedback(
             state: state,
             sessions: sessions
         )
-        cinematicNativeFeedbackCue = CinematicNativeFeedbackCuePlanner.plan(
+        guard let cue = CinematicNativeFeedbackCuePlanner.plan(
             milestone: milestone,
             content: NativeFeedbackContent(milestone: milestone, projectName: displayName),
             phase: isPaused ? .paused : phase,
             feedbackMode: nativeFeedbackMode,
             recentRunCues: reliabilityFeedback.recentRunCues
-        )
+        ) else {
+            clearCinematicNativeFeedbackCue(reason: .cleared, now: now)
+            return
+        }
+
+        var lifecycle = cinematicNativeFeedbackCueLifecycle
+        let activeCue = lifecycle.record(cue, now: now)
+        cinematicNativeFeedbackCueLifecycle = lifecycle
+        cinematicNativeFeedbackCue = activeCue
+        scheduleCinematicNativeFeedbackCueExpiry(for: lifecycle.active, now: now)
     }
 
     private func feedback(_ milestone: NativeFeedbackMilestone) {
@@ -1786,6 +1801,67 @@ extension CompassProject {
             projectName: displayName,
             mode: nativeFeedbackMode
         )
+    }
+
+    @discardableResult
+    func expireCinematicNativeFeedbackCue(
+        now: Date = Date(),
+        expectedLifecycleIdentifier: String? = nil
+    ) -> Bool {
+        if let expectedLifecycleIdentifier,
+           cinematicNativeFeedbackCueLifecycle.active?.lifecycleIdentifier != expectedLifecycleIdentifier {
+            return false
+        }
+
+        var lifecycle = cinematicNativeFeedbackCueLifecycle
+        guard lifecycle.expire(now: now) else {
+            if expectedLifecycleIdentifier != nil {
+                scheduleCinematicNativeFeedbackCueExpiry(for: lifecycle.active, now: now)
+            }
+            return false
+        }
+        cinematicNativeFeedbackCueLifecycle = lifecycle
+        cinematicNativeFeedbackCue = lifecycle.activeCue
+        if lifecycle.active == nil {
+            cinematicNativeFeedbackCueExpiryTask?.cancel()
+            cinematicNativeFeedbackCueExpiryTask = nil
+        }
+        return true
+    }
+
+    private func clearCinematicNativeFeedbackCue(
+        reason: CinematicNativeFeedbackCueLifecycle.ArchiveReason,
+        now: Date = Date()
+    ) {
+        cinematicNativeFeedbackCueExpiryTask?.cancel()
+        cinematicNativeFeedbackCueExpiryTask = nil
+        var lifecycle = cinematicNativeFeedbackCueLifecycle
+        lifecycle.clear(reason: reason, now: now)
+        cinematicNativeFeedbackCueLifecycle = lifecycle
+        cinematicNativeFeedbackCue = nil
+    }
+
+    private func scheduleCinematicNativeFeedbackCueExpiry(
+        for activeCue: CinematicNativeFeedbackCueLifecycle.ActiveCue?,
+        now: Date
+    ) {
+        cinematicNativeFeedbackCueExpiryTask?.cancel()
+        guard let activeCue else {
+            cinematicNativeFeedbackCueExpiryTask = nil
+            return
+        }
+
+        let delay = max(0, activeCue.expiresAt.timeIntervalSince(now))
+        let lifecycleIdentifier = activeCue.lifecycleIdentifier
+        cinematicNativeFeedbackCueExpiryTask = Task { @MainActor [weak self, delay, lifecycleIdentifier] in
+            if delay > 0 {
+                let nanoseconds = UInt64(delay * 1_000_000_000)
+                try? await Task.sleep(nanoseconds: nanoseconds)
+            }
+
+            guard !Task.isCancelled, let self else { return }
+            expireCinematicNativeFeedbackCue(expectedLifecycleIdentifier: lifecycleIdentifier)
+        }
     }
 
     private func log(_ text: String, level: LiveLine.Level) {

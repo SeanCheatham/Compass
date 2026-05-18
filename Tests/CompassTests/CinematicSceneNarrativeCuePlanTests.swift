@@ -239,6 +239,7 @@ final class CinematicSceneNarrativeCuePlanTests: XCTestCase {
         XCTAssertEqual(omitted, explicitNil)
         XCTAssertEqual(omitted.identifier, explicitNil.identifier)
         XCTAssertEqual(omitted.nativeFeedbackCueIdentifier, "none")
+        XCTAssertEqual(omitted.nativeFeedbackLifecycleIdentifier, "none")
         XCTAssertEqual(omitted.nativeFeedbackAffectedDescriptorIdentifiers, [])
         XCTAssertFalse(omitted.identifier.contains("native-feedback:"))
     }
@@ -262,6 +263,7 @@ final class CinematicSceneNarrativeCuePlanTests: XCTestCase {
         )
 
         XCTAssertEqual(plan.nativeFeedbackCueIdentifier, nativeCue.identifier)
+        XCTAssertEqual(plan.nativeFeedbackLifecycleIdentifier, nativeCue.lifecycleIdentifier)
         XCTAssertEqual(plan.nativeFeedbackSourceIdentifier, "native:verifyStarted")
         XCTAssertEqual(plan.nativeFeedbackStyleIdentifier, "verify")
         XCTAssertEqual(plan.nativeFeedbackMilestoneIdentifier, "verifyStarted")
@@ -270,6 +272,7 @@ final class CinematicSceneNarrativeCuePlanTests: XCTestCase {
             ["narrative.quest.plaque", "narrative.arena.inscription", "narrative.activity.banner"]
         )
         XCTAssertTrue(plan.identifier.contains("native-feedback:\(nativeCue.identifier)"))
+        XCTAssertTrue(plan.identifier.contains("native-lifecycle:\(nativeCue.lifecycleIdentifier)"))
         XCTAssertTrue(plan.questPlaque.text.lowercased().contains("verify"))
         XCTAssertTrue(plan.questPlaque.text.lowercased().contains("seal"))
         XCTAssertTrue(plan.questPlaque.secondaryText?.contains("native:verifyStarted") == true)
@@ -286,6 +289,50 @@ final class CinematicSceneNarrativeCuePlanTests: XCTestCase {
         assertCueTextBounds(plan.arenaInscription, maxCharacters: CinematicWorldTextService.arenaCalloutMaxCharacters, maxWords: CinematicWorldTextService.arenaCalloutMaxWords)
         assertCueTextBounds(plan.activityBanner, maxCharacters: CinematicWorldTextService.activityCalloutMaxCharacters, maxWords: CinematicWorldTextService.activityCalloutMaxWords)
         assertNarrativeCuePlanInBounds(plan)
+    }
+
+    func testLifecycleIdentifierChangesNarrativePlanForRepeatedSameCueAndExpiry() throws {
+        let now = Date(timeIntervalSinceReferenceDate: 4_000)
+        let cue = try XCTUnwrap(
+            CinematicNativeFeedbackCuePlanner.plan(
+                milestone: .verifyStarted,
+                content: NativeFeedbackContent(milestone: .verifyStarted, projectName: "Editor"),
+                phase: .verifying,
+                feedbackMode: .notifications,
+                recentRunCues: [:]
+            )
+        )
+        var lifecycle = CinematicNativeFeedbackCueLifecycle()
+        let firstCue = lifecycle.record(cue, now: now)
+        let firstPlan = narrativeCuePlan(
+            phase: .verifying,
+            activityProfile: activityProfile(),
+            settings: CinematicInfluenceSettings(cameraStyle: .follow, intensity: 0.6),
+            nativeFeedbackCue: firstCue
+        )
+        let secondCue = lifecycle.record(cue, now: now.addingTimeInterval(1))
+        let secondPlan = narrativeCuePlan(
+            phase: .verifying,
+            activityProfile: activityProfile(),
+            settings: CinematicInfluenceSettings(cameraStyle: .follow, intensity: 0.6),
+            nativeFeedbackCue: secondCue
+        )
+        let expiredPlan = narrativeCuePlan(
+            phase: .verifying,
+            activityProfile: activityProfile(),
+            settings: CinematicInfluenceSettings(cameraStyle: .follow, intensity: 0.6),
+            nativeFeedbackCue: nil
+        )
+
+        XCTAssertEqual(firstCue.baseIdentifier, secondCue.baseIdentifier)
+        XCTAssertNotEqual(firstCue.identifier, secondCue.identifier)
+        XCTAssertNotEqual(firstPlan.identifier, secondPlan.identifier)
+        XCTAssertEqual(firstPlan.nativeFeedbackLifecycleIdentifier, firstCue.lifecycleIdentifier)
+        XCTAssertEqual(secondPlan.nativeFeedbackLifecycleIdentifier, secondCue.lifecycleIdentifier)
+        XCTAssertEqual(expiredPlan.nativeFeedbackCueIdentifier, "none")
+        XCTAssertEqual(expiredPlan.nativeFeedbackLifecycleIdentifier, "none")
+        XCTAssertNotEqual(secondPlan.identifier, expiredPlan.identifier)
+        XCTAssertFalse(expiredPlan.identifier.contains("native-feedback:"))
     }
 
     func testDevelopRetryingRunCueFeedsFailureAnchorsAndMetadata() throws {

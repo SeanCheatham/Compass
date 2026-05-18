@@ -223,6 +223,7 @@ struct CinematicOverlayDisplayPlan: Equatable {
     var reasonIdentifier: String
     var narrativeCueReadabilityIdentifier: String
     var nativeFeedbackCueIdentifier: String
+    var nativeFeedbackLifecycleIdentifier: String
     var nativeFeedbackBannerPolicyIdentifier: String
     var showsNativeFeedbackBanner: Bool
 
@@ -277,7 +278,8 @@ struct CinematicOverlayDisplayPlan: Equatable {
         languageProfile: RepositoryLanguageProfile,
         activityProfile: RepositoryActivityProfile,
         influenceSettings: CinematicInfluenceSettings,
-        nativeFeedbackCue: CinematicNativeFeedbackCuePlan? = nil
+        nativeFeedbackCue: CinematicNativeFeedbackCuePlan? = nil,
+        nativeFeedbackLifecycleIdentifier: String? = nil
     ) {
         let nativeFeedbackPolicy = Self.nativeFeedbackBannerPolicy(
             for: nativeFeedbackCue,
@@ -361,6 +363,9 @@ struct CinematicOverlayDisplayPlan: Equatable {
         self.reasonIdentifier = reasonIdentifier
         narrativeCueReadabilityIdentifier = narrativeCueReadability.identifier
         nativeFeedbackCueIdentifier = nativeFeedbackCue?.identifier ?? "none"
+        self.nativeFeedbackLifecycleIdentifier = nativeFeedbackLifecycleIdentifier
+            ?? nativeFeedbackCue?.lifecycleIdentifier
+            ?? "none"
         nativeFeedbackBannerPolicyIdentifier = nativeFeedbackPolicy.identifier
         showsNativeFeedbackBanner = nativeFeedbackPolicy.showsBanner
         identifier = [
@@ -386,6 +391,7 @@ struct CinematicOverlayDisplayPlan: Equatable {
             "briefing:\(Self.copyIdentifier(briefing.title, briefing.detail))",
             "readability:\(narrativeCueReadability.identifier)",
             "native:\(nativeFeedbackCueIdentifier)",
+            "native-lifecycle:\(self.nativeFeedbackLifecycleIdentifier)",
             "native-banner:\(nativeFeedbackBannerPolicyIdentifier)"
         ].joined(separator: "|")
     }
@@ -487,7 +493,8 @@ enum CinematicOverlayDisplayPlanner {
         activityProfile: RepositoryActivityProfile,
         influenceSettings: CinematicInfluenceSettings,
         narrativeCueReadability: CinematicNarrativeCueReadabilitySignals,
-        nativeFeedbackCue: CinematicNativeFeedbackCuePlan? = nil
+        nativeFeedbackCue: CinematicNativeFeedbackCuePlan? = nil,
+        nativeFeedbackLifecycleIdentifier: String? = nil
     ) -> CinematicOverlayDisplayPlan {
         let currentPhase: LoopPhase = isPaused ? .paused : phase
         let copyAvailable = hasRenderableCopy(worldText: worldText, briefing: briefing)
@@ -551,7 +558,8 @@ enum CinematicOverlayDisplayPlanner {
             languageProfile: languageProfile,
             activityProfile: activityProfile,
             influenceSettings: influenceSettings,
-            nativeFeedbackCue: nativeFeedbackCue
+            nativeFeedbackCue: nativeFeedbackCue,
+            nativeFeedbackLifecycleIdentifier: nativeFeedbackLifecycleIdentifier
         )
     }
 

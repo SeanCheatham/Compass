@@ -60,9 +60,12 @@ final class CinematicNativeFeedbackCuePlanTests: XCTestCase {
 
         project.nativeFeedbackMode = .off
         XCTAssertNil(project.cinematicNativeFeedbackCue)
+        XCTAssertNil(project.cinematicNativeFeedbackCueLifecycle.activeCue)
+        XCTAssertEqual(project.cinematicNativeFeedbackCueLifecycle.recentArchive.first?.archiveReason, .modeOff)
 
         project.recordCinematicNativeFeedback(.verifyStarted)
         XCTAssertNil(project.cinematicNativeFeedbackCue)
+        XCTAssertNil(project.cinematicNativeFeedbackCueLifecycle.activeCue)
     }
 
     func testVerifyStartedAndDevelopRetryingStyles() throws {
@@ -197,6 +200,118 @@ final class CinematicNativeFeedbackCuePlanTests: XCTestCase {
         XCTAssertEqual(cue.title, "Retry Develop")
         XCTAssertEqual(cue.priority, 10 + PlanReliabilityFeedback.priority(for: .failedVerify))
         XCTAssertLessThan(cue.priority, 10 + PlanReliabilityFeedback.priority(for: .dirtyWorktree))
+    }
+
+    func testLifecycleDurationsAreDeterministicAndBoundedBySeverity() throws {
+        let verifyCue = try XCTUnwrap(
+            CinematicNativeFeedbackCuePlanner.plan(
+                milestone: .verifyStarted,
+                content: NativeFeedbackContent(milestone: .verifyStarted, projectName: "Editor"),
+                phase: .verifying,
+                feedbackMode: .notifications,
+                recentRunCues: [:]
+            )
+        )
+        let retryCue = try XCTUnwrap(
+            CinematicNativeFeedbackCuePlanner.plan(
+                milestone: .developRetrying,
+                content: NativeFeedbackContent(milestone: .developRetrying, projectName: "Editor"),
+                phase: .developing,
+                feedbackMode: .notifications,
+                recentRunCues: [:]
+            )
+        )
+
+        XCTAssertEqual(
+            CinematicNativeFeedbackCueLifecycle.displayDuration(for: verifyCue),
+            CinematicNativeFeedbackCueLifecycle.standardDisplayDuration
+        )
+        XCTAssertEqual(
+            CinematicNativeFeedbackCueLifecycle.displayDuration(for: retryCue),
+            CinematicNativeFeedbackCueLifecycle.criticalDisplayDuration
+        )
+        XCTAssertGreaterThan(
+            CinematicNativeFeedbackCueLifecycle.criticalDisplayDuration,
+            CinematicNativeFeedbackCueLifecycle.standardDisplayDuration
+        )
+        XCTAssertTrue(
+            CinematicNativeFeedbackCueLifecycle.displayDurationRange.contains(
+                CinematicNativeFeedbackCueLifecycle.standardDisplayDuration
+            )
+        )
+        XCTAssertTrue(
+            CinematicNativeFeedbackCueLifecycle.displayDurationRange.contains(
+                CinematicNativeFeedbackCueLifecycle.criticalDisplayDuration
+            )
+        )
+    }
+
+    @MainActor
+    func testRepeatedMilestoneReplacesAndArchivesPreviousActiveCue() throws {
+        let now = Date(timeIntervalSinceReferenceDate: 1_000)
+        let project = CompassProject(
+            repoURL: URL(fileURLWithPath: "/tmp/Editor"),
+            nativeFeedbackMode: .notifications
+        )
+        project.phase = .verifying
+
+        project.recordCinematicNativeFeedback(.verifyStarted, now: now)
+        let firstCue = try XCTUnwrap(project.cinematicNativeFeedbackCue)
+        project.recordCinematicNativeFeedback(.verifyStarted, now: now.addingTimeInterval(1))
+        let secondCue = try XCTUnwrap(project.cinematicNativeFeedbackCue)
+
+        XCTAssertNotEqual(firstCue.identifier, secondCue.identifier)
+        XCTAssertEqual(firstCue.baseIdentifier, secondCue.baseIdentifier)
+        XCTAssertEqual(project.cinematicNativeFeedbackCueLifecycle.recentArchive.count, 1)
+        XCTAssertEqual(
+            project.cinematicNativeFeedbackCueLifecycle.recentArchive.first?.cueIdentifier,
+            firstCue.identifier
+        )
+        XCTAssertEqual(
+            project.cinematicNativeFeedbackCueLifecycle.recentArchive.first?.archiveReason,
+            .replaced
+        )
+        XCTAssertEqual(project.cinematicNativeFeedbackCueLifecycle.stateIdentifier, "active")
+        XCTAssertTrue(secondCue.identifier.contains("lifecycle:active"))
+    }
+
+    func testLifecycleExpiryArchivesAndBoundsRecentCueHistory() throws {
+        let now = Date(timeIntervalSinceReferenceDate: 2_000)
+        let cue = try XCTUnwrap(
+            CinematicNativeFeedbackCuePlanner.plan(
+                milestone: .verifyStarted,
+                content: NativeFeedbackContent(milestone: .verifyStarted, projectName: "Editor"),
+                phase: .verifying,
+                feedbackMode: .notifications,
+                recentRunCues: [:]
+            )
+        )
+        var lifecycle = CinematicNativeFeedbackCueLifecycle()
+        let activeCue = lifecycle.record(cue, now: now)
+
+        XCTAssertEqual(activeCue.lifecycleStateIdentifier, "active")
+        XCTAssertEqual(activeCue.lifecycleDisplayDuration, CinematicNativeFeedbackCueLifecycle.standardDisplayDuration)
+        XCTAssertFalse(
+            lifecycle.expire(
+                now: now.addingTimeInterval(CinematicNativeFeedbackCueLifecycle.standardDisplayDuration - 0.1)
+            )
+        )
+        XCTAssertTrue(
+            lifecycle.expire(
+                now: now.addingTimeInterval(CinematicNativeFeedbackCueLifecycle.standardDisplayDuration)
+            )
+        )
+        XCTAssertNil(lifecycle.activeCue)
+        XCTAssertEqual(lifecycle.stateIdentifier, "expired")
+        XCTAssertEqual(lifecycle.recentArchive.first?.archiveReason, .expired)
+
+        for offset in 1...(CinematicNativeFeedbackCueLifecycle.recentArchiveLimit + 3) {
+            _ = lifecycle.record(cue, now: now.addingTimeInterval(Double(offset * 10)))
+        }
+
+        XCTAssertEqual(lifecycle.recentArchive.count, CinematicNativeFeedbackCueLifecycle.recentArchiveLimit)
+        XCTAssertTrue(lifecycle.recentArchive.allSatisfy { $0.stateIdentifier == "archived" })
+        XCTAssertTrue(lifecycle.identifier.contains("archive-count:\(CinematicNativeFeedbackCueLifecycle.recentArchiveLimit)"))
     }
 }
 

@@ -45,6 +45,7 @@ struct CinematicSceneNarrativeCuePlan: Equatable {
     var activityIdentifier: String
     var influenceIdentifier: String
     var nativeFeedbackCueIdentifier: String
+    var nativeFeedbackLifecycleIdentifier: String
     var nativeFeedbackSourceIdentifier: String
     var nativeFeedbackStyleIdentifier: String
     var nativeFeedbackMilestoneIdentifier: String
@@ -366,6 +367,7 @@ enum CinematicSceneNarrativeCuePlanner {
         ]
         if let nativeFeedbackCue {
             identifierParts.append("native-feedback:\(nativeFeedbackCue.identifier)")
+            identifierParts.append("native-lifecycle:\(nativeFeedbackCue.lifecycleIdentifier)")
         }
         let identifier = identifierParts.joined(separator: "||")
 
@@ -377,6 +379,7 @@ enum CinematicSceneNarrativeCuePlanner {
             activityIdentifier: activityMotif.sigilIdentifier,
             influenceIdentifier: influenceIdentifier,
             nativeFeedbackCueIdentifier: nativeFeedbackCue?.identifier ?? "none",
+            nativeFeedbackLifecycleIdentifier: nativeFeedbackCue?.lifecycleIdentifier ?? "none",
             nativeFeedbackSourceIdentifier: nativeFeedbackCue?.sourceIdentifier ?? "none",
             nativeFeedbackStyleIdentifier: nativeFeedbackCue?.styleIdentifier ?? "none",
             nativeFeedbackMilestoneIdentifier: nativeFeedbackCue?.milestoneIdentifier ?? "none",

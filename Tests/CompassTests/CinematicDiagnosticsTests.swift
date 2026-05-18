@@ -807,11 +807,16 @@ final class CinematicDiagnosticsTests: XCTestCase {
                 isAutoPlaying: project.isAutoPlaying,
                 isPaused: project.isPaused,
                 hasRepository: project.hasRepository,
-                nativeFeedbackCue: cue
+                nativeFeedbackCue: cue,
+                nativeFeedbackLifecycle: project.cinematicNativeFeedbackCueLifecycle
             )
 
             XCTAssertEqual(report, expected)
             XCTAssertEqual(report.nativeFeedback.cueIdentifier, cue.identifier)
+            XCTAssertEqual(report.nativeFeedback.lifecycleIdentifier, project.cinematicNativeFeedbackCueLifecycle.identifier)
+            XCTAssertEqual(report.nativeFeedback.lifecycleStateIdentifier, "active")
+            XCTAssertEqual(report.nativeFeedback.lifecycleActiveCueIdentifier, cue.identifier)
+            XCTAssertEqual(report.nativeFeedback.lifecycleRecentArchiveCount, 0)
             XCTAssertEqual(report.nativeFeedback.sourceIdentifier, "native:verifyStarted")
             XCTAssertEqual(report.nativeFeedback.styleIdentifier, "verify")
             XCTAssertEqual(report.nativeFeedback.milestoneIdentifier, "verifyStarted")
@@ -820,8 +825,13 @@ final class CinematicDiagnosticsTests: XCTestCase {
                 ["narrative.quest.plaque", "narrative.arena.inscription", "narrative.activity.banner"]
             )
             XCTAssertEqual(report.narrativeCue.nativeFeedbackCueIdentifier, cue.identifier)
+            XCTAssertEqual(report.narrativeCue.nativeFeedbackLifecycleIdentifier, cue.lifecycleIdentifier)
             XCTAssertEqual(report.narrativeCue.nativeFeedbackSourceIdentifier, "native:verifyStarted")
             XCTAssertEqual(report.overlayDisplay.nativeFeedbackCueIdentifier, cue.identifier)
+            XCTAssertEqual(
+                report.overlayDisplay.nativeFeedbackLifecycleIdentifier,
+                project.cinematicNativeFeedbackCueLifecycle.identifier
+            )
             XCTAssertEqual(report.narrativeCue.questPlaque.anchorIdentifier, "left-seal-pylon")
             XCTAssertEqual(report.narrativeCue.arenaInscription.anchorIdentifier, "arena-rear")
             XCTAssertTrue(report.narrativeCue.questPlaque.text.lowercased().contains("verify"))
@@ -834,8 +844,70 @@ final class CinematicDiagnosticsTests: XCTestCase {
             XCTAssertTrue(summary.exportText.contains("source native:verifyStarted"))
             XCTAssertTrue(summary.exportText.contains("style verify"))
             XCTAssertTrue(summary.exportText.contains("milestone verifyStarted"))
+            XCTAssertTrue(summary.exportText.contains("lifecycle \(cue.lifecycleIdentifier)"))
+            XCTAssertTrue(summary.exportText.contains("native-lifecycle native-feedback-cue-lifecycle"))
+            XCTAssertTrue(summary.exportText.contains("state:active"))
             XCTAssertTrue(summary.exportText.contains("affects narrative.quest.plaque"))
             XCTAssertTrue(summary.exportText.contains("native \(cue.identifier)"))
+        }
+    }
+
+    func testCurrentReportExportsExpiredNativeFeedbackLifecycleArchive() async throws {
+        try await MainActor.run {
+            let now = Date(timeIntervalSinceReferenceDate: 5_000)
+            let repoURL = URL(fileURLWithPath: "/tmp/ExpiredNativeDiagnosticsRepo", isDirectory: true)
+            let project = CompassProject(
+                repoURL: repoURL,
+                cinematicInfluenceSettings: CinematicInfluenceSettings(
+                    cameraStyle: .follow,
+                    comfortMode: .quiet,
+                    intensity: 0.65
+                ),
+                nativeFeedbackMode: .notifications
+            )
+            project.state = PlanState(
+                completed: ["Implemented native cue lifecycle"],
+                immediate: PlanNext(
+                    plan: "Expire native feedback cue",
+                    verify: "swift test"
+                ),
+                midTerm: "",
+                longTerm: ""
+            )
+            project.phase = .verifying
+            project.languageProfile = languageProfile(primaryLanguage: .swift)
+            project.activityProfile = activityProfile(recentCommitCount: 1)
+            project.recordCinematicNativeFeedback(.verifyStarted, now: now)
+            let activeCue = try XCTUnwrap(project.cinematicNativeFeedbackCue)
+
+            XCTAssertTrue(
+                project.expireCinematicNativeFeedbackCue(
+                    now: now.addingTimeInterval(CinematicNativeFeedbackCueLifecycle.standardDisplayDuration)
+                )
+            )
+
+            let report = CinematicDiagnostics.currentReport(for: project)
+            let archive = try XCTUnwrap(project.cinematicNativeFeedbackCueLifecycle.recentArchive.first)
+            XCTAssertNil(project.cinematicNativeFeedbackCue)
+            XCTAssertEqual(archive.cueIdentifier, activeCue.identifier)
+            XCTAssertEqual(archive.archiveReason, .expired)
+            XCTAssertEqual(report.nativeFeedback.cueIdentifier, "none")
+            XCTAssertEqual(report.nativeFeedback.lifecycleStateIdentifier, "expired")
+            XCTAssertEqual(report.nativeFeedback.lifecycleRecentArchiveCount, 1)
+            XCTAssertEqual(report.nativeFeedback.lifecycleRecentArchiveIdentifiers, [archive.lifecycleIdentifier])
+            XCTAssertEqual(report.overlayDisplay.nativeFeedbackCueIdentifier, "none")
+            XCTAssertEqual(report.overlayDisplay.nativeFeedbackLifecycleIdentifier, project.cinematicNativeFeedbackCueLifecycle.identifier)
+            XCTAssertFalse(report.overlayDisplay.showsNativeFeedbackBanner)
+            XCTAssertEqual(report.overlayDisplay.nativeFeedbackBannerPolicyIdentifier, "none")
+            XCTAssertEqual(report.narrativeCue.nativeFeedbackCueIdentifier, "none")
+
+            let summary = CinematicDiagnosticsSummary(
+                report: report,
+                visualSmoke: CinematicVisualSmokeReport(reports: [report])
+            )
+            XCTAssertTrue(summary.exportText.contains("native-lifecycle \(project.cinematicNativeFeedbackCueLifecycle.identifier)"))
+            XCTAssertTrue(summary.exportText.contains("state:expired"))
+            XCTAssertTrue(summary.exportText.contains("reason:expired"))
         }
     }
 

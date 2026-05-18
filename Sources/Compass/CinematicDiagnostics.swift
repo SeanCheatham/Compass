@@ -51,6 +51,11 @@ struct CinematicDiagnosticsReport: Equatable {
     struct NativeFeedbackSnapshot: Equatable {
         var identifier: String
         var cueIdentifier: String
+        var lifecycleIdentifier: String
+        var lifecycleStateIdentifier: String
+        var lifecycleActiveCueIdentifier: String
+        var lifecycleRecentArchiveIdentifiers: [String]
+        var lifecycleRecentArchiveCount: Int
         var sourceIdentifier: String
         var styleIdentifier: String
         var milestoneIdentifier: String
@@ -234,6 +239,7 @@ struct CinematicDiagnosticsReport: Equatable {
         var activityIdentifier: String
         var influenceIdentifier: String
         var nativeFeedbackCueIdentifier: String
+        var nativeFeedbackLifecycleIdentifier: String
         var nativeFeedbackSourceIdentifier: String
         var nativeFeedbackStyleIdentifier: String
         var nativeFeedbackMilestoneIdentifier: String
@@ -261,6 +267,7 @@ struct CinematicDiagnosticsReport: Equatable {
         var reasonIdentifier: String
         var narrativeCueReadabilityIdentifier: String
         var nativeFeedbackCueIdentifier: String
+        var nativeFeedbackLifecycleIdentifier: String
         var nativeFeedbackBannerPolicyIdentifier: String
         var showsNativeFeedbackBanner: Bool
     }
@@ -1679,6 +1686,9 @@ struct CinematicDiagnosticsSummary: Equatable {
             "pills \(snapshot.visiblePillIdentifiers.isEmpty ? "none" : snapshot.visiblePillIdentifiers.joined(separator: ","))",
             "hud \(snapshot.hudProminenceIdentifier)",
             snapshot.nativeFeedbackCueIdentifier == "none" ? nil : "native \(snapshot.nativeFeedbackCueIdentifier)",
+            snapshot.nativeFeedbackLifecycleIdentifier == "none"
+                ? nil
+                : "native-lifecycle \(snapshot.nativeFeedbackLifecycleIdentifier)",
             "native-banner \(snapshot.nativeFeedbackBannerPolicyIdentifier)",
             "chrome \(snapshot.chromeStyleIdentifier)",
             "gradient \(fixed(snapshot.gradientStrength))",
@@ -1701,6 +1711,7 @@ struct CinematicDiagnosticsSummary: Equatable {
             "source \(snapshot.nativeFeedbackSourceIdentifier)",
             "style \(snapshot.nativeFeedbackStyleIdentifier)",
             "milestone \(snapshot.nativeFeedbackMilestoneIdentifier)",
+            "lifecycle \(snapshot.nativeFeedbackLifecycleIdentifier)",
             "affects \(affected)"
         ].joined(separator: " ")
     }
@@ -1855,7 +1866,8 @@ enum CinematicDiagnostics {
             commitConstellationPlan: commitConstellationPlan,
             recoveryCuePlan: recoveryCuePlan,
             timelineFocusPlan: timelineFocusPlan,
-            nativeFeedbackCue: project.cinematicNativeFeedbackCue
+            nativeFeedbackCue: project.cinematicNativeFeedbackCue,
+            nativeFeedbackLifecycle: project.cinematicNativeFeedbackCueLifecycle
         )
     }
 
@@ -1876,7 +1888,8 @@ enum CinematicDiagnostics {
         commitConstellationPlan: CinematicCommitConstellationPlan = .empty,
         recoveryCuePlan: CinematicRecoveryCuePlan = .none,
         timelineFocusPlan: CinematicTimelineSceneFocusPlan = .none,
-        nativeFeedbackCue: CinematicNativeFeedbackCuePlan? = nil
+        nativeFeedbackCue: CinematicNativeFeedbackCuePlan? = nil,
+        nativeFeedbackLifecycle: CinematicNativeFeedbackCueLifecycle = CinematicNativeFeedbackCueLifecycle()
     ) -> CinematicDiagnosticsReport {
         let languageMotif = CinematicMotif.language(for: languageProfile)
         let activityMotif = CinematicMotif.activity(for: activityProfile)
@@ -1958,9 +1971,13 @@ enum CinematicDiagnostics {
         let narrativeCueSnapshot = narrativeCueSnapshot(for: narrativeCuePlan)
         let nativeFeedbackSnapshot = nativeFeedbackSnapshot(
             for: nativeFeedbackCue,
+            lifecycle: nativeFeedbackLifecycle,
             narrativeCuePlan: narrativeCuePlan
         )
         let narrativeCueReadability = CinematicNarrativeCueReadabilitySignals(plan: narrativeCuePlan)
+        let nativeFeedbackLifecycleIdentifier = nativeFeedbackLifecycle.hasState
+            ? nativeFeedbackLifecycle.identifier
+            : nil
         let overlayDisplayPlan = CinematicOverlayDisplayPlanner.plan(
             phase: loopPhase,
             isRunning: isRunning,
@@ -1973,7 +1990,8 @@ enum CinematicDiagnostics {
             activityProfile: activityProfile,
             influenceSettings: influenceSettings,
             narrativeCueReadability: narrativeCueReadability,
-            nativeFeedbackCue: nativeFeedbackCue
+            nativeFeedbackCue: nativeFeedbackCue,
+            nativeFeedbackLifecycleIdentifier: nativeFeedbackLifecycleIdentifier
         )
         let overlayDisplaySnapshot = overlayDisplaySnapshot(for: overlayDisplayPlan)
         let worldTextSnapshot = worldTextSnapshot(for: worldText)
@@ -2491,7 +2509,8 @@ enum CinematicDiagnostics {
             "arena:\(arena.identifier)",
             "banner:\(activity.identifier)",
             "influence:\(plan.influenceIdentifier)",
-            "native:\(plan.nativeFeedbackCueIdentifier)"
+            "native:\(plan.nativeFeedbackCueIdentifier)",
+            "native-lifecycle:\(plan.nativeFeedbackLifecycleIdentifier)"
         ].joined(separator: "|")
 
         return CinematicDiagnosticsReport.NarrativeCueSnapshot(
@@ -2502,6 +2521,7 @@ enum CinematicDiagnostics {
             activityIdentifier: plan.activityIdentifier,
             influenceIdentifier: plan.influenceIdentifier,
             nativeFeedbackCueIdentifier: plan.nativeFeedbackCueIdentifier,
+            nativeFeedbackLifecycleIdentifier: plan.nativeFeedbackLifecycleIdentifier,
             nativeFeedbackSourceIdentifier: plan.nativeFeedbackSourceIdentifier,
             nativeFeedbackStyleIdentifier: plan.nativeFeedbackStyleIdentifier,
             nativeFeedbackMilestoneIdentifier: plan.nativeFeedbackMilestoneIdentifier,
@@ -2514,12 +2534,32 @@ enum CinematicDiagnostics {
 
     private static func nativeFeedbackSnapshot(
         for cue: CinematicNativeFeedbackCuePlan?,
+        lifecycle: CinematicNativeFeedbackCueLifecycle,
         narrativeCuePlan: CinematicSceneNarrativeCuePlan
     ) -> CinematicDiagnosticsReport.NativeFeedbackSnapshot {
+        let lifecycleIdentifier = lifecycle.hasState
+            ? lifecycle.identifier
+            : cue?.lifecycleIdentifier ?? "none"
+        let lifecycleStateIdentifier = lifecycle.hasState
+            ? lifecycle.stateIdentifier
+            : cue?.lifecycleStateIdentifier ?? "none"
+        let activeCueIdentifier = lifecycle.active?.cueIdentifier ?? "none"
+        let archiveIdentifiers = lifecycle.recentArchiveIdentifiers
+
         guard let cue else {
             return CinematicDiagnosticsReport.NativeFeedbackSnapshot(
-                identifier: "native-feedback.none",
+                identifier: [
+                    "native-feedback.none",
+                    "lifecycle:\(lifecycleIdentifier)",
+                    "state:\(lifecycleStateIdentifier)",
+                    "archives:\(archiveIdentifiers.isEmpty ? "none" : archiveIdentifiers.joined(separator: ","))"
+                ].joined(separator: "|"),
                 cueIdentifier: "none",
+                lifecycleIdentifier: lifecycleIdentifier,
+                lifecycleStateIdentifier: lifecycleStateIdentifier,
+                lifecycleActiveCueIdentifier: activeCueIdentifier,
+                lifecycleRecentArchiveIdentifiers: archiveIdentifiers,
+                lifecycleRecentArchiveCount: archiveIdentifiers.count,
                 sourceIdentifier: "none",
                 styleIdentifier: "none",
                 milestoneIdentifier: "none",
@@ -2533,12 +2573,20 @@ enum CinematicDiagnostics {
             "source:\(cue.sourceIdentifier)",
             "style:\(cue.styleIdentifier)",
             "milestone:\(cue.milestoneIdentifier)",
+            "lifecycle:\(lifecycleIdentifier)",
+            "state:\(lifecycleStateIdentifier)",
+            "archives:\(archiveIdentifiers.count)",
             "affects:\(affectedDescriptors.isEmpty ? "none" : affectedDescriptors.joined(separator: ","))"
         ].joined(separator: "|")
 
         return CinematicDiagnosticsReport.NativeFeedbackSnapshot(
             identifier: identifier,
             cueIdentifier: cue.identifier,
+            lifecycleIdentifier: lifecycleIdentifier,
+            lifecycleStateIdentifier: lifecycleStateIdentifier,
+            lifecycleActiveCueIdentifier: activeCueIdentifier,
+            lifecycleRecentArchiveIdentifiers: archiveIdentifiers,
+            lifecycleRecentArchiveCount: archiveIdentifiers.count,
             sourceIdentifier: cue.sourceIdentifier,
             styleIdentifier: cue.styleIdentifier,
             milestoneIdentifier: cue.milestoneIdentifier,
@@ -2610,6 +2658,7 @@ enum CinematicDiagnostics {
             reasonIdentifier: plan.reasonIdentifier,
             narrativeCueReadabilityIdentifier: plan.narrativeCueReadabilityIdentifier,
             nativeFeedbackCueIdentifier: plan.nativeFeedbackCueIdentifier,
+            nativeFeedbackLifecycleIdentifier: plan.nativeFeedbackLifecycleIdentifier,
             nativeFeedbackBannerPolicyIdentifier: plan.nativeFeedbackBannerPolicyIdentifier,
             showsNativeFeedbackBanner: plan.showsNativeFeedbackBanner
         )

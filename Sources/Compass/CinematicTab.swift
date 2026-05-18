@@ -149,7 +149,10 @@ struct CinematicTab: View {
             activityProfile: project.activityProfile,
             influenceSettings: project.cinematicInfluenceSettings,
             narrativeCueReadability: readability,
-            nativeFeedbackCue: project.cinematicNativeFeedbackCue
+            nativeFeedbackCue: project.cinematicNativeFeedbackCue,
+            nativeFeedbackLifecycleIdentifier: project.cinematicNativeFeedbackCueLifecycle.hasState
+                ? project.cinematicNativeFeedbackCueLifecycle.identifier
+                : nil
         )
     }
 }
