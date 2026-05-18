@@ -878,6 +878,9 @@ struct CinematicDiagnosticsReport: Equatable {
         var hiddenWarningCount: Int
         var warningIdentifiers: [String]
         var hasWarnings: Bool
+        var sourceExportAuditIncluded: Bool
+        var sourceExportAuditIdentifier: String?
+        var sourceExportAuditMarkdownLength: Int
         var insightText: String
         var exportTextLength: Int
         var copyLabel: String
@@ -910,6 +913,9 @@ struct CinematicDiagnosticsReport: Equatable {
         var hiddenWarningCount: Int
         var warningIdentifiers: [String]
         var hasWarnings: Bool
+        var sourceExportAuditIncluded: Bool
+        var sourceExportAuditIdentifier: String?
+        var sourceExportAuditMarkdownLength: Int
         var markdownLength: Int
         var copyLabel: String
         var copyHelp: String
@@ -3220,6 +3226,10 @@ struct CinematicVisualSmokeReport: Equatable {
             )
             && snapshot.exportTextLength
                 <= CinematicRunRecapShareArtifactRollupPlan.exportTextMaxCharacters
+            && (snapshot.sourceExportAuditIdentifier ?? "").count
+                <= CinematicRunRecapShareArtifactSourceExportAuditPlan.identifierMaxCharacters
+            && snapshot.sourceExportAuditMarkdownLength
+                <= CinematicRunRecapShareArtifactSourceExportAuditPlan.markdownMaxCharacters
             && string(
                 snapshot.copyLabel,
                 maxCharacters: CinematicRunRecapShareArtifactRollupPlan.copyLabelMaxCharacters
@@ -3870,6 +3880,10 @@ struct CinematicVisualSmokeReport: Equatable {
             }
             && snapshot.markdownLength
                 <= CinematicRunRecapShareArtifactSubsetExportPlan.markdownMaxCharacters
+            && (snapshot.sourceExportAuditIdentifier ?? "").count
+                <= CinematicRunRecapShareArtifactSourceExportAuditPlan.identifierMaxCharacters
+            && snapshot.sourceExportAuditMarkdownLength
+                <= CinematicRunRecapShareArtifactSourceExportAuditPlan.markdownMaxCharacters
             && string(
                 snapshot.copyLabel,
                 maxCharacters: CinematicRunRecapShareArtifactSubsetExportPlan.labelMaxCharacters
@@ -6361,6 +6375,9 @@ struct CinematicDiagnosticsSummary: Equatable {
             snapshot.warningIdentifiers.isEmpty
                 ? nil
                 : "warning ids \(bounded(snapshot.warningIdentifiers.joined(separator: ","), limit: 120))",
+            snapshot.sourceExportAuditIncluded
+                ? "source audit \(snapshot.sourceExportAuditMarkdownLength) \(bounded(snapshot.sourceExportAuditIdentifier ?? "none", limit: 42))"
+                : "source audit hidden",
             "copy \(snapshot.exportTextLength) chars",
             "export \(bounded(snapshot.exportIdentifier, limit: 54))",
             "id \(bounded(snapshot.identifier, limit: 54))"
@@ -6718,6 +6735,9 @@ struct CinematicDiagnosticsSummary: Equatable {
             "selected \(snapshot.selectedCount)",
             "filtered \(snapshot.filteredCount)/\(snapshot.unfilteredVisibleCount)",
             "copy \(snapshot.markdownLength) chars",
+            snapshot.sourceExportAuditIncluded
+                ? "source-audit \(snapshot.sourceExportAuditMarkdownLength)"
+                : "source-audit hidden",
             "q \(snapshot.searchQuerySnippet)",
             "warn \(snapshot.warningStateIdentifier)",
             "id \(bounded(snapshot.exportIdentifier, limit: 24))"
@@ -8008,6 +8028,10 @@ enum CinematicDiagnostics {
             runRecapShareArtifactSourceReconciliationSnapshot(
                 for: runRecapShareArtifactSourceReconciliationPlan
             )
+        let runRecapShareArtifactSourceExportAuditPlan =
+            CinematicRunRecapShareArtifactSourceExportAuditPlanner.plan(
+                reconciliationPlan: runRecapShareArtifactSourceReconciliationPlan
+            )
         let runRecapShareArtifactPreviewPlan = CinematicRunRecapShareArtifactPreviewBrowserPlanner.plan(
             historyPlan: runRecapShareArtifactHistoryPlan,
             selectedEntryIdentifier: runRecapShareArtifactPreviewSelectedEntryIdentifier,
@@ -8017,18 +8041,21 @@ enum CinematicDiagnostics {
             historyPlan: runRecapShareArtifactHistoryPlan,
             selectedEntryIdentifier: runRecapShareArtifactPreviewSelectedEntryIdentifier,
             searchQuery: runRecapShareArtifactPreviewSearchQuery,
-            scope: .selected
+            scope: .selected,
+            sourceExportAuditPlan: runRecapShareArtifactSourceExportAuditPlan
         )
         let filteredRunRecapShareArtifactExportPlan = CinematicRunRecapShareArtifactSubsetExportPlanner.plan(
             historyPlan: runRecapShareArtifactHistoryPlan,
             selectedEntryIdentifier: runRecapShareArtifactPreviewSelectedEntryIdentifier,
             searchQuery: runRecapShareArtifactPreviewSearchQuery,
-            scope: .filtered
+            scope: .filtered,
+            sourceExportAuditPlan: runRecapShareArtifactSourceExportAuditPlan
         )
         let runRecapShareArtifactRollupPlan = CinematicRunRecapShareArtifactRollupPlanner.plan(
             historyPlan: runRecapShareArtifactHistoryPlan,
             selectedEntryIdentifier: runRecapShareArtifactPreviewSelectedEntryIdentifier,
-            searchQuery: runRecapShareArtifactPreviewSearchQuery
+            searchQuery: runRecapShareArtifactPreviewSearchQuery,
+            sourceExportAuditPlan: runRecapShareArtifactSourceExportAuditPlan
         )
         let runRecapShareArtifactComparisonPlan = CinematicRunRecapShareArtifactComparisonPlanner.plan(
             historyPlan: runRecapShareArtifactHistoryPlan,
@@ -11443,6 +11470,9 @@ enum CinematicDiagnostics {
             hiddenWarningCount: plan.hiddenWarningCount,
             warningIdentifiers: plan.warningIdentifiers,
             hasWarnings: plan.hasWarnings,
+            sourceExportAuditIncluded: plan.sourceExportAuditIncluded,
+            sourceExportAuditIdentifier: plan.sourceExportAuditIdentifier,
+            sourceExportAuditMarkdownLength: plan.sourceExportAuditMarkdownLength,
             insightText: plan.insightText,
             exportTextLength: plan.exportTextLength,
             copyLabel: plan.copyLabel,
@@ -11685,6 +11715,9 @@ enum CinematicDiagnostics {
             hiddenWarningCount: plan.hiddenWarningCount,
             warningIdentifiers: plan.warningIdentifiers,
             hasWarnings: plan.hasWarnings,
+            sourceExportAuditIncluded: plan.sourceExportAuditIncluded,
+            sourceExportAuditIdentifier: plan.sourceExportAuditIdentifier,
+            sourceExportAuditMarkdownLength: plan.sourceExportAuditMarkdownLength,
             markdownLength: plan.markdownLength,
             copyLabel: plan.copyLabel,
             copyHelp: plan.copyHelp

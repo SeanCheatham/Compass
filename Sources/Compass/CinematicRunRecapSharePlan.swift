@@ -181,6 +181,34 @@ struct CinematicRunRecapShareArtifactSourceReconciliationPlan: Equatable, Identi
     var isApplicationSupportComparison: Bool
 }
 
+struct CinematicRunRecapShareArtifactSourceExportAuditPlan: Equatable, Identifiable {
+    static let identifierMaxCharacters = CinematicRunRecapShareArtifactHistoryPlan.identifierMaxCharacters
+    static let representativeEntryLimit = CinematicRunRecapShareArtifactSourceReconciliationPlan.representativeEntryLimit
+    static let markdownMaxCharacters = 1_800
+    static let readOnlyDisclaimerMaxCharacters = 220
+
+    var id: String { identifier }
+
+    var identifier: String
+    var sourceReconciliationIdentifier: String
+    var stateIdentifier: String
+    var activeStorageIdentifier: String
+    var activeTotalCount: Int
+    var repoLocalTotalCount: Int
+    var activeLatestSessionNumber: Int?
+    var repoLocalLatestSessionNumber: Int?
+    var activeWarningCount: Int
+    var repoLocalWarningCount: Int
+    var representativeActiveEntryIdentifiers: [String]
+    var representativeRepoLocalEntryIdentifiers: [String]
+    var representativeRepoLocalExtraEntryIdentifiers: [String]
+    var readOnlyDisclaimer: String
+    var markdownSection: String
+    var isVisible: Bool
+
+    var markdownLength: Int { markdownSection.count }
+}
+
 struct CinematicRunRecapShareArtifactSourceBadgePlan: Equatable, Identifiable {
     static let identifierMaxCharacters = CinematicRunRecapShareArtifactHistoryPlan.identifierMaxCharacters
     static let labelMaxCharacters = 38
@@ -288,6 +316,9 @@ struct CinematicRunRecapShareArtifactSubsetExportPlan: Equatable, Identifiable {
     var hiddenWarningCount: Int
     var warningIdentifiers: [String]
     var hasWarnings: Bool
+    var sourceExportAuditIncluded: Bool
+    var sourceExportAuditIdentifier: String?
+    var sourceExportAuditMarkdownLength: Int
     var markdownContents: String
     var copyLabel: String
     var copyHelp: String
@@ -346,6 +377,9 @@ struct CinematicRunRecapShareArtifactRollupPlan: Equatable, Identifiable {
     var hiddenWarningCount: Int
     var warningIdentifiers: [String]
     var hasWarnings: Bool
+    var sourceExportAuditIncluded: Bool
+    var sourceExportAuditIdentifier: String?
+    var sourceExportAuditMarkdownLength: Int
     var insightText: String
     var exportText: String
     var copyLabel: String
@@ -2686,7 +2720,8 @@ enum CinematicRunRecapShareArtifactSubsetExportPlanner {
         historyPlan: CinematicRunRecapShareArtifactHistoryPlan,
         selectedEntryIdentifier: String? = nil,
         searchQuery: String? = nil,
-        scope: Scope
+        scope: Scope,
+        sourceExportAuditPlan: CinematicRunRecapShareArtifactSourceExportAuditPlan? = nil
     ) -> CinematicRunRecapShareArtifactSubsetExportPlan {
         let previewPlan = CinematicRunRecapShareArtifactPreviewBrowserPlanner.plan(
             historyPlan: historyPlan,
@@ -2723,28 +2758,36 @@ enum CinematicRunRecapShareArtifactSubsetExportPlanner {
         )
         let warningStateIdentifier = historyPlan.hasWarnings ? "warnings" : "clear"
         let exportedEntryIdentifiers = exportEntries.map(\.identifier)
+        let includedSourceExportAuditPlan = visibleSourceExportAuditPlan(sourceExportAuditPlan)
+        var exportIdentifierParts = [
+            "run-recap-share-artifact-subset-export",
+            "scope:\(scope.rawValue)",
+            "availability:\(availabilityReason)"
+        ]
+        if let includedSourceExportAuditPlan {
+            exportIdentifierParts.append("source-audit:\(fingerprint(includedSourceExportAuditPlan.identifier))")
+            exportIdentifierParts.append("source-audit-length:\(includedSourceExportAuditPlan.markdownLength)")
+        }
+        exportIdentifierParts.append(contentsOf: [
+            "retention:\(historyPlan.retentionLimit)",
+            "retained:\(retainedEntries.count)",
+            "total:\(historyPlan.totalCount)",
+            "hidden:\(historyPlan.hiddenCount)",
+            "selected:\(selectedCount)",
+            "filtered:\(filteredCount)",
+            "exported:\(exportEntries.count)",
+            "query:\(search.queryFingerprint)",
+            "query-snippet:\(search.querySnippet)",
+            "no-match:\(noMatchAvailabilityReason ?? "none")",
+            "selection:\(selectedEntry?.identifier ?? "none")",
+            "fallback:\(previewPlan.selectedFallbackEntryIdentifier ?? "none")",
+            "fallback-reason:\(previewPlan.selectedFallbackReasonIdentifier)",
+            "warnings:\(warningStateIdentifier)",
+            "warning-count:\(historyPlan.warningCount)",
+            "content:\(fingerprint(exportedEntryIdentifiers.joined(separator: "|")))"
+        ])
         let exportIdentifier = bounded(
-            [
-                "run-recap-share-artifact-subset-export",
-                "scope:\(scope.rawValue)",
-                "availability:\(availabilityReason)",
-                "retention:\(historyPlan.retentionLimit)",
-                "retained:\(retainedEntries.count)",
-                "total:\(historyPlan.totalCount)",
-                "hidden:\(historyPlan.hiddenCount)",
-                "selected:\(selectedCount)",
-                "filtered:\(filteredCount)",
-                "exported:\(exportEntries.count)",
-                "query:\(search.queryFingerprint)",
-                "query-snippet:\(search.querySnippet)",
-                "no-match:\(noMatchAvailabilityReason ?? "none")",
-                "selection:\(selectedEntry?.identifier ?? "none")",
-                "fallback:\(previewPlan.selectedFallbackEntryIdentifier ?? "none")",
-                "fallback-reason:\(previewPlan.selectedFallbackReasonIdentifier)",
-                "warnings:\(warningStateIdentifier)",
-                "warning-count:\(historyPlan.warningCount)",
-                "content:\(fingerprint(exportedEntryIdentifiers.joined(separator: "|")))"
-            ].joined(separator: "|"),
+            exportIdentifierParts.joined(separator: "|"),
             limit: CinematicRunRecapShareArtifactSubsetExportPlan.identifierMaxCharacters
         )
         let markdown = markdownExport(
@@ -2759,19 +2802,24 @@ enum CinematicRunRecapShareArtifactSubsetExportPlanner {
             previewPlan: previewPlan,
             selectedCount: selectedCount,
             filteredCount: filteredCount,
-            warningStateIdentifier: warningStateIdentifier
+            warningStateIdentifier: warningStateIdentifier,
+            sourceExportAuditPlan: includedSourceExportAuditPlan
         )
+        var identifierParts = [
+            "run-recap-share-artifact-subset",
+            "scope:\(scope.rawValue)",
+            "availability:\(availabilityReason)",
+            "export:\(fingerprint(exportIdentifier))",
+            "entries:\(exportEntries.count)",
+            "markdown:\(markdown.count)",
+            "query:\(search.queryFingerprint)",
+            "warnings:\(warningStateIdentifier)"
+        ]
+        if let includedSourceExportAuditPlan {
+            identifierParts.append("source-audit:\(fingerprint(includedSourceExportAuditPlan.identifier))")
+        }
         let identifier = bounded(
-            [
-                "run-recap-share-artifact-subset",
-                "scope:\(scope.rawValue)",
-                "availability:\(availabilityReason)",
-                "export:\(fingerprint(exportIdentifier))",
-                "entries:\(exportEntries.count)",
-                "markdown:\(markdown.count)",
-                "query:\(search.queryFingerprint)",
-                "warnings:\(warningStateIdentifier)"
-            ].joined(separator: "|"),
+            identifierParts.joined(separator: "|"),
             limit: CinematicRunRecapShareArtifactSubsetExportPlan.identifierMaxCharacters
         )
 
@@ -2801,6 +2849,9 @@ enum CinematicRunRecapShareArtifactSubsetExportPlanner {
             hiddenWarningCount: historyPlan.hiddenWarningCount,
             warningIdentifiers: historyPlan.warnings.map(\.identifier),
             hasWarnings: historyPlan.hasWarnings,
+            sourceExportAuditIncluded: includedSourceExportAuditPlan != nil,
+            sourceExportAuditIdentifier: includedSourceExportAuditPlan?.identifier,
+            sourceExportAuditMarkdownLength: includedSourceExportAuditPlan?.markdownLength ?? 0,
             markdownContents: markdown,
             copyLabel: copyLabel(scope: scope, isAvailable: !exportEntries.isEmpty),
             copyHelp: copyHelp(
@@ -2892,7 +2943,8 @@ enum CinematicRunRecapShareArtifactSubsetExportPlanner {
         previewPlan: CinematicRunRecapShareArtifactPreviewBrowserPlan,
         selectedCount: Int,
         filteredCount: Int,
-        warningStateIdentifier: String
+        warningStateIdentifier: String,
+        sourceExportAuditPlan: CinematicRunRecapShareArtifactSourceExportAuditPlan?
     ) -> String {
         var lines = [
             "# Compass Recap Share Artifact Subset",
@@ -2948,10 +3000,22 @@ enum CinematicRunRecapShareArtifactSubsetExportPlanner {
             }
         }
 
-        return boundedArtifactText(
-            lines.joined(separator: "\n"),
+        return CinematicRunRecapShareArtifactSourceExportAuditPlanner.markdownExport(
+            baseMarkdown: lines.joined(separator: "\n"),
+            sourceExportAuditPlan: sourceExportAuditPlan,
             limit: CinematicRunRecapShareArtifactSubsetExportPlan.markdownMaxCharacters
         )
+    }
+
+    private static func visibleSourceExportAuditPlan(
+        _ sourceExportAuditPlan: CinematicRunRecapShareArtifactSourceExportAuditPlan?
+    ) -> CinematicRunRecapShareArtifactSourceExportAuditPlan? {
+        guard let sourceExportAuditPlan,
+              sourceExportAuditPlan.isVisible,
+              !sourceExportAuditPlan.markdownSection.isEmpty else {
+            return nil
+        }
+        return sourceExportAuditPlan
     }
 
     private static func copyLabel(scope: Scope, isAvailable: Bool) -> String {
@@ -3092,7 +3156,8 @@ enum CinematicRunRecapShareArtifactRollupPlanner {
     static func plan(
         historyPlan: CinematicRunRecapShareArtifactHistoryPlan,
         selectedEntryIdentifier: String? = nil,
-        searchQuery: String? = nil
+        searchQuery: String? = nil,
+        sourceExportAuditPlan: CinematicRunRecapShareArtifactSourceExportAuditPlan? = nil
     ) -> CinematicRunRecapShareArtifactRollupPlan {
         let previewPlan = CinematicRunRecapShareArtifactPreviewBrowserPlanner.plan(
             historyPlan: historyPlan,
@@ -3116,27 +3181,35 @@ enum CinematicRunRecapShareArtifactRollupPlanner {
         let sessionRangeLabel = sessionRangeLabel(entries: matchingEntries)
         let statusBuckets = statusBuckets(for: matchingEntries)
         let statusBucketSummary = bucketSummary(statusBuckets)
+        let includedSourceExportAuditPlan = visibleSourceExportAuditPlan(sourceExportAuditPlan)
+        var exportIdentifierParts = [
+            "run-recap-share-artifact-rollup-export",
+            "availability:\(availabilityReason)"
+        ]
+        if let includedSourceExportAuditPlan {
+            exportIdentifierParts.append("source-audit:\(fingerprint(includedSourceExportAuditPlan.identifier))")
+            exportIdentifierParts.append("source-audit-length:\(includedSourceExportAuditPlan.markdownLength)")
+        }
+        exportIdentifierParts.append(contentsOf: [
+            "retained:\(retainedEntries.count)",
+            "total:\(historyPlan.totalCount)",
+            "hidden:\(historyPlan.hiddenCount)",
+            "matching:\(matchingEntries.count)",
+            "query:\(search.queryFingerprint)",
+            "query-snippet:\(search.querySnippet)",
+            "no-match:\(noMatchAvailabilityReason ?? "none")",
+            "selected:\(previewPlan.selectedEntryIdentifier ?? "none")",
+            "fallback:\(previewPlan.selectedFallbackEntryIdentifier ?? "none")",
+            "fallback-reason:\(previewPlan.selectedFallbackReasonIdentifier)",
+            "range:\(sessionRangeLabel)",
+            "buckets:\(statusBucketSummary)",
+            "cleanup:\(historyPlan.cleanupCandidateCount)",
+            "warnings:\(warningStateIdentifier)",
+            "warning-count:\(historyPlan.warningCount)",
+            "content:\(fingerprint(matchingEntries.map(\.identifier).joined(separator: "|")))"
+        ])
         let exportIdentifier = bounded(
-            [
-                "run-recap-share-artifact-rollup-export",
-                "availability:\(availabilityReason)",
-                "retained:\(retainedEntries.count)",
-                "total:\(historyPlan.totalCount)",
-                "hidden:\(historyPlan.hiddenCount)",
-                "matching:\(matchingEntries.count)",
-                "query:\(search.queryFingerprint)",
-                "query-snippet:\(search.querySnippet)",
-                "no-match:\(noMatchAvailabilityReason ?? "none")",
-                "selected:\(previewPlan.selectedEntryIdentifier ?? "none")",
-                "fallback:\(previewPlan.selectedFallbackEntryIdentifier ?? "none")",
-                "fallback-reason:\(previewPlan.selectedFallbackReasonIdentifier)",
-                "range:\(sessionRangeLabel)",
-                "buckets:\(statusBucketSummary)",
-                "cleanup:\(historyPlan.cleanupCandidateCount)",
-                "warnings:\(warningStateIdentifier)",
-                "warning-count:\(historyPlan.warningCount)",
-                "content:\(fingerprint(matchingEntries.map(\.identifier).joined(separator: "|")))"
-            ].joined(separator: "|"),
+            exportIdentifierParts.joined(separator: "|"),
             limit: CinematicRunRecapShareArtifactRollupPlan.identifierMaxCharacters
         )
         let insight = insightText(
@@ -3166,22 +3239,27 @@ enum CinematicRunRecapShareArtifactRollupPlanner {
             statusBuckets: statusBuckets,
             statusBucketSummary: statusBucketSummary,
             insightText: insight,
-            warningStateIdentifier: warningStateIdentifier
+            warningStateIdentifier: warningStateIdentifier,
+            sourceExportAuditPlan: includedSourceExportAuditPlan
         )
+        var identifierParts = [
+            "run-recap-share-artifact-rollup",
+            "availability:\(availabilityReason)",
+            "export:\(fingerprint(exportIdentifier))",
+            "retained:\(retainedEntries.count)",
+            "matching:\(matchingEntries.count)",
+            "query:\(search.queryFingerprint)",
+            "range:\(sessionRangeLabel)",
+            "buckets:\(statusBucketSummary)",
+            "cleanup:\(historyPlan.cleanupCandidateCount)",
+            "warnings:\(warningStateIdentifier)",
+            "copy:\(export.count)"
+        ]
+        if let includedSourceExportAuditPlan {
+            identifierParts.append("source-audit:\(fingerprint(includedSourceExportAuditPlan.identifier))")
+        }
         let identifier = bounded(
-            [
-                "run-recap-share-artifact-rollup",
-                "availability:\(availabilityReason)",
-                "export:\(fingerprint(exportIdentifier))",
-                "retained:\(retainedEntries.count)",
-                "matching:\(matchingEntries.count)",
-                "query:\(search.queryFingerprint)",
-                "range:\(sessionRangeLabel)",
-                "buckets:\(statusBucketSummary)",
-                "cleanup:\(historyPlan.cleanupCandidateCount)",
-                "warnings:\(warningStateIdentifier)",
-                "copy:\(export.count)"
-            ].joined(separator: "|"),
+            identifierParts.joined(separator: "|"),
             limit: CinematicRunRecapShareArtifactRollupPlan.identifierMaxCharacters
         )
 
@@ -3219,6 +3297,9 @@ enum CinematicRunRecapShareArtifactRollupPlanner {
             hiddenWarningCount: historyPlan.hiddenWarningCount,
             warningIdentifiers: historyPlan.warnings.map(\.identifier),
             hasWarnings: historyPlan.hasWarnings,
+            sourceExportAuditIncluded: includedSourceExportAuditPlan != nil,
+            sourceExportAuditIdentifier: includedSourceExportAuditPlan?.identifier,
+            sourceExportAuditMarkdownLength: includedSourceExportAuditPlan?.markdownLength ?? 0,
             insightText: insight,
             exportText: export,
             copyLabel: copyLabel(isAvailable: isAvailable),
@@ -3417,7 +3498,8 @@ enum CinematicRunRecapShareArtifactRollupPlanner {
         statusBuckets: [CinematicRunRecapShareArtifactRollupPlan.StatusBucket],
         statusBucketSummary: String,
         insightText: String,
-        warningStateIdentifier: String
+        warningStateIdentifier: String,
+        sourceExportAuditPlan: CinematicRunRecapShareArtifactSourceExportAuditPlan?
     ) -> String {
         var lines = [
             "# Compass Recap Artifact Rollup",
@@ -3478,10 +3560,22 @@ enum CinematicRunRecapShareArtifactRollupPlanner {
             })
         }
 
-        return boundedArtifactText(
-            lines.joined(separator: "\n"),
+        return CinematicRunRecapShareArtifactSourceExportAuditPlanner.markdownExport(
+            baseMarkdown: lines.joined(separator: "\n"),
+            sourceExportAuditPlan: sourceExportAuditPlan,
             limit: CinematicRunRecapShareArtifactRollupPlan.exportTextMaxCharacters
         )
+    }
+
+    private static func visibleSourceExportAuditPlan(
+        _ sourceExportAuditPlan: CinematicRunRecapShareArtifactSourceExportAuditPlan?
+    ) -> CinematicRunRecapShareArtifactSourceExportAuditPlan? {
+        guard let sourceExportAuditPlan,
+              sourceExportAuditPlan.isVisible,
+              !sourceExportAuditPlan.markdownSection.isEmpty else {
+            return nil
+        }
+        return sourceExportAuditPlan
     }
 
     private static func copyLabel(isAvailable: Bool) -> String {
@@ -5201,6 +5295,194 @@ enum CinematicRunRecapShareArtifactSourceReconciliationPlanner {
             .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
             .trimmingCharacters(in: .whitespacesAndNewlines)
         guard !normalized.isEmpty else { return "none" }
+        guard normalized.count <= limit else {
+            let prefixLimit = max(1, limit - 3)
+            return normalized.prefix(prefixLimit)
+                .trimmingCharacters(in: .whitespacesAndNewlines) + "..."
+        }
+        return normalized
+    }
+
+    private static func fingerprint(_ value: String) -> String {
+        var hash: UInt64 = 0xcbf29ce484222325
+        for byte in value.utf8 {
+            hash ^= UInt64(byte)
+            hash = hash &* 0x100000001b3
+        }
+        return String(format: "%016llx", hash)
+    }
+}
+
+enum CinematicRunRecapShareArtifactSourceExportAuditPlanner {
+    static func plan(
+        reconciliationPlan: CinematicRunRecapShareArtifactSourceReconciliationPlan
+    ) -> CinematicRunRecapShareArtifactSourceExportAuditPlan {
+        let isVisible = CinematicRunRecapShareArtifactSourceBadgePlanner.plan(
+            reconciliationPlan: reconciliationPlan
+        ).isVisible
+        let readOnlyDisclaimer = bounded(
+            "Read-only: export audit only; no repair, migration, deletion, pin, hold, search, session, active-storage, or artifact-history mutation.",
+            limit: CinematicRunRecapShareArtifactSourceExportAuditPlan.readOnlyDisclaimerMaxCharacters
+        )
+        let representativeActiveEntryIdentifiers = Array(
+            reconciliationPlan.representativeActiveEntryIdentifiers
+                .map { bounded($0, limit: CinematicRunRecapShareArtifactHistoryPlan.identifierMaxCharacters) }
+                .prefix(CinematicRunRecapShareArtifactSourceExportAuditPlan.representativeEntryLimit)
+        )
+        let representativeRepoLocalEntryIdentifiers = Array(
+            reconciliationPlan.representativeRepoLocalEntryIdentifiers
+                .map { bounded($0, limit: CinematicRunRecapShareArtifactHistoryPlan.identifierMaxCharacters) }
+                .prefix(CinematicRunRecapShareArtifactSourceExportAuditPlan.representativeEntryLimit)
+        )
+        let representativeRepoLocalExtraEntryIdentifiers = Array(
+            reconciliationPlan.representativeRepoLocalExtraEntryIdentifiers
+                .map { bounded($0, limit: CinematicRunRecapShareArtifactHistoryPlan.identifierMaxCharacters) }
+                .prefix(CinematicRunRecapShareArtifactSourceExportAuditPlan.representativeEntryLimit)
+        )
+        let markdownSection = isVisible
+            ? markdownSection(
+                reconciliationPlan: reconciliationPlan,
+                representativeActiveEntryIdentifiers: representativeActiveEntryIdentifiers,
+                representativeRepoLocalEntryIdentifiers: representativeRepoLocalEntryIdentifiers,
+                representativeRepoLocalExtraEntryIdentifiers: representativeRepoLocalExtraEntryIdentifiers,
+                readOnlyDisclaimer: readOnlyDisclaimer
+            )
+            : ""
+        let identifier = bounded(
+            [
+                "run-recap-share-artifact-source-export-audit",
+                "visible:\(isVisible)",
+                "state:\(reconciliationPlan.stateIdentifier)",
+                "source:\(fingerprint(reconciliationPlan.identifier))",
+                "storage:\(reconciliationPlan.activeStorageIdentifier)",
+                "active-total:\(reconciliationPlan.activeTotalCount)",
+                "repo-local-total:\(reconciliationPlan.repoLocalTotalCount)",
+                "active-latest:\(sessionIdentifier(reconciliationPlan.activeLatestSessionNumber))",
+                "repo-local-latest:\(sessionIdentifier(reconciliationPlan.repoLocalLatestSessionNumber))",
+                "active-warnings:\(reconciliationPlan.activeWarningCount)",
+                "repo-local-warnings:\(reconciliationPlan.repoLocalWarningCount)",
+                "active-ids:\(fingerprint(representativeActiveEntryIdentifiers.joined(separator: "|")))",
+                "repo-local-ids:\(fingerprint(representativeRepoLocalEntryIdentifiers.joined(separator: "|")))",
+                "repo-local-extra-ids:\(fingerprint(representativeRepoLocalExtraEntryIdentifiers.joined(separator: "|")))",
+                "markdown:\(markdownSection.count)"
+            ].joined(separator: "|"),
+            limit: CinematicRunRecapShareArtifactSourceExportAuditPlan.identifierMaxCharacters
+        )
+
+        return CinematicRunRecapShareArtifactSourceExportAuditPlan(
+            identifier: identifier,
+            sourceReconciliationIdentifier: reconciliationPlan.identifier,
+            stateIdentifier: reconciliationPlan.stateIdentifier,
+            activeStorageIdentifier: reconciliationPlan.activeStorageIdentifier,
+            activeTotalCount: reconciliationPlan.activeTotalCount,
+            repoLocalTotalCount: reconciliationPlan.repoLocalTotalCount,
+            activeLatestSessionNumber: reconciliationPlan.activeLatestSessionNumber,
+            repoLocalLatestSessionNumber: reconciliationPlan.repoLocalLatestSessionNumber,
+            activeWarningCount: reconciliationPlan.activeWarningCount,
+            repoLocalWarningCount: reconciliationPlan.repoLocalWarningCount,
+            representativeActiveEntryIdentifiers: representativeActiveEntryIdentifiers,
+            representativeRepoLocalEntryIdentifiers: representativeRepoLocalEntryIdentifiers,
+            representativeRepoLocalExtraEntryIdentifiers: representativeRepoLocalExtraEntryIdentifiers,
+            readOnlyDisclaimer: readOnlyDisclaimer,
+            markdownSection: markdownSection,
+            isVisible: isVisible
+        )
+    }
+
+    static func markdownExport(
+        baseMarkdown: String,
+        sourceExportAuditPlan: CinematicRunRecapShareArtifactSourceExportAuditPlan?,
+        limit: Int
+    ) -> String {
+        guard let sourceExportAuditPlan,
+              sourceExportAuditPlan.isVisible,
+              !sourceExportAuditPlan.markdownSection.isEmpty else {
+            return boundedArtifactText(baseMarkdown, limit: limit)
+        }
+
+        let separator = "\n\n"
+        let section = sourceExportAuditPlan.markdownSection
+        let baseLimit = max(0, limit - section.count - separator.count)
+        let boundedBase = boundedArtifactText(baseMarkdown, limit: baseLimit)
+        guard !boundedBase.isEmpty else {
+            return boundedArtifactText(section, limit: limit)
+        }
+        return boundedArtifactText(
+            [boundedBase, section].joined(separator: separator),
+            limit: limit
+        )
+    }
+
+    private static func markdownSection(
+        reconciliationPlan: CinematicRunRecapShareArtifactSourceReconciliationPlan,
+        representativeActiveEntryIdentifiers: [String],
+        representativeRepoLocalEntryIdentifiers: [String],
+        representativeRepoLocalExtraEntryIdentifiers: [String],
+        readOnlyDisclaimer: String
+    ) -> String {
+        let lines = [
+            "## Storage Source",
+            "",
+            "- Reconciliation: \(reconciliationPlan.identifier)",
+            "- State: \(reconciliationPlan.stateIdentifier)",
+            "- \(readOnlyDisclaimer)",
+            "- Active storage: \(reconciliationPlan.activeStorageIdentifier)",
+            "- Active artifacts: \(reconciliationPlan.activeTotalCount)",
+            "- Repo-local artifacts: \(reconciliationPlan.repoLocalTotalCount)",
+            "- Active latest session: \(sessionLabel(reconciliationPlan.activeLatestSessionNumber))",
+            "- Repo-local latest session: \(sessionLabel(reconciliationPlan.repoLocalLatestSessionNumber))",
+            "- Active warnings: \(reconciliationPlan.activeWarningCount)",
+            "- Repo-local warnings: \(reconciliationPlan.repoLocalWarningCount)",
+            "- Warning state: \(reconciliationPlan.warningStateIdentifier)",
+            "- Active availability: \(reconciliationPlan.activeAvailabilityReason)",
+            "- Repo-local availability: \(reconciliationPlan.repoLocalAvailabilityReason)",
+            "- Active sessions: \(reconciliationPlan.activeSessionsDisplayText)",
+            "- Repo-local sessions: \(reconciliationPlan.repoLocalSessionsDisplayText)",
+            "- Active ids: \(identifierList(representativeActiveEntryIdentifiers))",
+            "- Repo-local ids: \(identifierList(representativeRepoLocalEntryIdentifiers))",
+            "- Repo-local extra ids: \(identifierList(representativeRepoLocalExtraEntryIdentifiers))"
+        ]
+
+        return boundedArtifactText(
+            lines.joined(separator: "\n"),
+            limit: CinematicRunRecapShareArtifactSourceExportAuditPlan.markdownMaxCharacters
+        )
+    }
+
+    private static func sessionIdentifier(_ sessionNumber: Int?) -> String {
+        sessionNumber.map(String.init) ?? "none"
+    }
+
+    private static func sessionLabel(_ sessionNumber: Int?) -> String {
+        sessionNumber.map { "S\($0)" } ?? "none"
+    }
+
+    private static func identifierList(_ identifiers: [String]) -> String {
+        identifiers.isEmpty ? "none" : identifiers.joined(separator: ", ")
+    }
+
+    private static func bounded(_ text: String, limit: Int) -> String {
+        guard limit > 0 else { return "" }
+        let normalized = text
+            .replacingOccurrences(of: "\r", with: " ")
+            .replacingOccurrences(of: "\n", with: " ")
+            .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalized.isEmpty else { return "" }
+        guard normalized.count <= limit else {
+            let prefixLimit = max(1, limit - 3)
+            return normalized.prefix(prefixLimit)
+                .trimmingCharacters(in: .whitespacesAndNewlines) + "..."
+        }
+        return normalized
+    }
+
+    private static func boundedArtifactText(_ text: String, limit: Int) -> String {
+        guard limit > 0 else { return "" }
+        let normalized = text
+            .replacingOccurrences(of: "\r", with: "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalized.isEmpty else { return "" }
         guard normalized.count <= limit else {
             let prefixLimit = max(1, limit - 3)
             return normalized.prefix(prefixLimit)

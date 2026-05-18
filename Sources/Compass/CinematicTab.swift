@@ -1263,12 +1263,19 @@ private struct CinematicRunRecapArtifactLibraryControl: View {
         CinematicRunRecapShareArtifactRollupPlanner.plan(
             historyPlan: plan,
             selectedEntryIdentifier: artifactLibraryContext.selectedEntryIdentifier,
-            searchQuery: artifactLibraryContext.searchText
+            searchQuery: artifactLibraryContext.searchText,
+            sourceExportAuditPlan: currentSourceExportAuditPlan
         )
     }
 
     private var currentSourceBadgePlan: CinematicRunRecapShareArtifactSourceBadgePlan {
         CinematicRunRecapShareArtifactSourceBadgePlanner.plan(
+            reconciliationPlan: sourceReconciliationPlan
+        )
+    }
+
+    private var currentSourceExportAuditPlan: CinematicRunRecapShareArtifactSourceExportAuditPlan {
+        CinematicRunRecapShareArtifactSourceExportAuditPlanner.plan(
             reconciliationPlan: sourceReconciliationPlan
         )
     }
@@ -1859,7 +1866,8 @@ private struct CinematicRunRecapArtifactLibraryControl: View {
             historyPlan: plan,
             selectedEntryIdentifier: artifactLibraryContext.selectedEntryIdentifier,
             searchQuery: artifactLibraryContext.searchText,
-            scope: scope
+            scope: scope,
+            sourceExportAuditPlan: currentSourceExportAuditPlan
         )
     }
 
@@ -1870,7 +1878,8 @@ private struct CinematicRunRecapArtifactLibraryControl: View {
             historyPlan: plan,
             selectedEntryIdentifier: tourPlan.selectedEntryIdentifier,
             searchQuery: artifactLibraryContext.searchText,
-            scope: .selected
+            scope: .selected,
+            sourceExportAuditPlan: currentSourceExportAuditPlan
         )
     }
 
@@ -2264,7 +2273,12 @@ private struct CinematicRunRecapArtifactLibraryControl: View {
     private func copyExport() {
         guard plan.isAvailable else { return }
         NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(plan.combinedMarkdownExport, forType: .string)
+        let export = CinematicRunRecapShareArtifactSourceExportAuditPlanner.markdownExport(
+            baseMarkdown: plan.combinedMarkdownExport,
+            sourceExportAuditPlan: currentSourceExportAuditPlan,
+            limit: CinematicRunRecapShareArtifactHistoryPlan.combinedMarkdownMaxCharacters
+        )
+        NSPasteboard.general.setString(export, forType: .string)
         feedback = "Export copied"
         feedbackStatus = nil
         preservedFeedbackPlanIdentifier = plan.identifier
