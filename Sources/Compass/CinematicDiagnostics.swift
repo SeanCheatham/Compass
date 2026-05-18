@@ -29,6 +29,7 @@ struct CinematicDiagnosticsReport: Equatable {
     var commitConstellation: CommitConstellationSnapshot
     var idleStoryCycle: IdleStoryCycleSnapshot
     var planCompassSceneFocus: PlanCompassSceneFocusSnapshot
+    var planCompassVerifySeal: PlanCompassVerifySealSnapshot
     var planCompassCommands: PlanCompassCommandSnapshot
     var timelineFocus: TimelineFocusSnapshot
     var runRecap: RunRecapSnapshot
@@ -584,6 +585,41 @@ struct CinematicDiagnosticsReport: Equatable {
         var waypointRailIdentifier: String
         var diagnosticsIdentifier: String
         var diagnosticsRowIdentifier: String
+    }
+
+    struct PlanCompassVerifySealSnapshot: Equatable {
+        var identifier: String
+        var isVisible: Bool
+        var copyIdentifier: String
+        var exportIdentifier: String
+        var diagnosticsIdentifier: String
+        var rowIdentifier: String
+        var readinessIdentifier: String
+        var readinessStatusIdentifier: String
+        var focusDescriptorIdentifier: String
+        var focusDiagnosticsIdentifier: String
+        var focusRowIdentifier: String
+        var sourcePlanIdentifier: String
+        var immediateContentIdentifier: String
+        var selectedSectionRouteIdentifier: String
+        var statusIdentifier: String
+        var treatmentIdentifier: String
+        var warningStateIdentifier: String
+        var metadataStateIdentifier: String
+        var verifyCommandStateIdentifier: String
+        var timeoutStateIdentifier: String
+        var difficultyStateIdentifier: String
+        var retryCueStateIdentifier: String
+        var verifyCommandHashIdentifier: String
+        var completedCount: Int
+        var completedLabel: String
+        var displayTitle: String
+        var displayDetail: String
+        var compactCopy: String
+        var tintIdentifier: String
+        var segmentIdentifiers: [String]
+        var warningIdentifiers: [String]
+        var diagnosticsDetail: String
     }
 
     struct PlanCompassCommandSectionSnapshot: Equatable {
@@ -1188,6 +1224,7 @@ struct CinematicVisualSmokeReport: Equatable {
             runRecapArtifactCommandAvailabilityCheck(reports: reports),
             planCompassCommandAvailabilityCheck(reports: reports),
             planCompassReadinessCheck(reports: reports),
+            planCompassVerifySealCheck(reports: reports),
             narrativeCueReadabilityCheck(reports: reports),
             overlayFallbackUsageCheck(reports: reports),
             chromeStrengthCheck(reports: reports),
@@ -1569,6 +1606,112 @@ struct CinematicVisualSmokeReport: Equatable {
                 relatedRowID: "plan-compass-readiness",
                 label: "Plan readiness",
                 detail: "Plan Compass readiness warning"
+            )
+        )
+    }
+
+    private static func planCompassVerifySealIsCorrelated(
+        _ report: CinematicDiagnosticsReport
+    ) -> Bool {
+        let snapshot = report.planCompassVerifySeal
+        guard snapshot.isVisible else { return true }
+
+        return snapshot.rowIdentifier == "plan-compass-verify-seal"
+            && snapshot.focusRowIdentifier == "plan-compass-focus"
+            && snapshot.selectedSectionRouteIdentifier == "immediate"
+            && snapshot.readinessIdentifier == report.planCompassReadiness.identifier
+            && snapshot.readinessStatusIdentifier == report.planCompassReadiness.statusIdentifier
+            && snapshot.focusDescriptorIdentifier == report.planCompassSceneFocus.descriptorIdentifier
+            && snapshot.focusDiagnosticsIdentifier == report.planCompassSceneFocus.diagnosticsIdentifier
+            && snapshot.sourcePlanIdentifier == report.planCompassReadiness.sourcePlanIdentifier
+            && snapshot.immediateContentIdentifier == report.planCompassReadiness.immediateContentIdentifier
+            && snapshot.statusIdentifier == report.planCompassReadiness.statusIdentifier
+            && snapshot.warningStateIdentifier == report.planCompassReadiness.warningStateIdentifier
+            && snapshot.metadataStateIdentifier == report.planCompassReadiness.metadataStateIdentifier
+            && snapshot.verifyCommandStateIdentifier == report.planCompassReadiness.verifyCommandStateIdentifier
+            && snapshot.timeoutStateIdentifier == report.planCompassReadiness.timeoutStateIdentifier
+            && snapshot.difficultyStateIdentifier == report.planCompassReadiness.difficultyStateIdentifier
+            && snapshot.retryCueStateIdentifier == report.planCompassReadiness.retryCueStateIdentifier
+            && snapshot.completedCount == report.planCompassReadiness.completedCount
+            && report.planCompassSceneFocus.readinessIdentifier == snapshot.readinessIdentifier
+    }
+
+    private static func planCompassVerifySealCheck(
+        reports: [CinematicDiagnosticsReport]
+    ) -> Check {
+        let snapshots = reports.map(\.planCompassVerifySeal)
+        let visibleSnapshots = snapshots.filter(\.isVisible)
+        guard !visibleSnapshots.isEmpty else {
+            return check(
+                id: "plan-compass-verify-seal",
+                label: "Verify seal",
+                isPassing: true,
+                warningIdentifier: "visual-smoke.plan-compass-verify-seal",
+                detail: "no visible verify seal reports available"
+            )
+        }
+
+        let statuses = Set(visibleSnapshots.map(\.statusIdentifier))
+        let treatments = Set(visibleSnapshots.map(\.treatmentIdentifier))
+        let warningStates = Set(visibleSnapshots.map(\.warningStateIdentifier))
+        let metadataStates = Set(visibleSnapshots.map(\.metadataStateIdentifier))
+        let segmentStates = Set(visibleSnapshots.flatMap(\.segmentIdentifiers))
+        let correlatedCount = reports.filter(planCompassVerifySealIsCorrelated).count
+        let boundedCount = visibleSnapshots.filter { snapshot in
+            snapshot.identifier.count <= CinematicPlanCompassVerifySealPlan.identifierMaxCharacters
+                && snapshot.copyIdentifier.count <= CinematicPlanCompassVerifySealPlan.identifierMaxCharacters
+                && snapshot.exportIdentifier.count <= CinematicPlanCompassVerifySealPlan.identifierMaxCharacters
+                && snapshot.diagnosticsIdentifier.count <= CinematicPlanCompassVerifySealPlan.identifierMaxCharacters
+                && snapshot.displayTitle.count <= CinematicPlanCompassVerifySealPlan.displayTitleMaxCharacters
+                && snapshot.displayDetail.count <= CinematicPlanCompassVerifySealPlan.displayDetailMaxCharacters
+                && snapshot.compactCopy.count <= CinematicPlanCompassVerifySealPlan.compactCopyMaxCharacters
+                && snapshot.diagnosticsDetail.count
+                    <= CinematicPlanCompassVerifySealPlan.diagnosticsDetailMaxCharacters
+                && snapshot.segmentIdentifiers.count <= CinematicPlanCompassVerifySealPlan.segmentIdentifierLimit
+        }.count
+        let identifierCount = visibleSnapshots.filter { snapshot in
+            snapshot.identifier.hasPrefix("plan-compass-verify-seal")
+                && snapshot.copyIdentifier.hasPrefix("plan-compass-verify-seal.copy")
+                && snapshot.exportIdentifier.hasPrefix("plan-compass-verify-seal.export")
+                && snapshot.diagnosticsIdentifier.hasPrefix("plan-compass-verify-seal.diagnostics")
+                && snapshot.verifyCommandHashIdentifier.hasPrefix("verify:")
+        }.count
+        let isPassing = statuses.isSuperset(of: ["ready", "no-immediate", "missing-metadata", "retry-cue"])
+            && treatments.isSuperset(of: [
+                "verify-seal.ready-ring",
+                "verify-seal.retry-braces",
+                "verify-seal.metadata-segments",
+                "verify-seal.empty-target"
+            ])
+            && warningStates.isSuperset(of: ["clear", "warning"])
+            && metadataStates.isSuperset(of: ["complete", "missing", "none"])
+            && segmentStates.contains("plan-compass-verify-seal.segment.retry.active")
+            && correlatedCount == reports.count
+            && boundedCount == visibleSnapshots.count
+            && identifierCount == visibleSnapshots.count
+
+        return check(
+            id: "plan-compass-verify-seal",
+            label: "Verify seal",
+            isPassing: isPassing,
+            warningIdentifier: "visual-smoke.plan-compass-verify-seal",
+            detail: [
+                "statuses \(slashJoined(statuses))",
+                "treatments \(treatments.count)",
+                "segments \(visibleSnapshots.reduce(0) { $0 + $1.segmentIdentifiers.count })",
+                "correlated \(correlatedCount)/\(reports.count)\(correlatedCount == reports.count ? "" : " drift \(reports.count - correlatedCount)")",
+                "bounded \(boundedCount)/\(visibleSnapshots.count)",
+                "warnings \(slashJoined(warningStates))",
+                "metadata \(slashJoined(metadataStates))"
+            ].joined(separator: " "),
+            warningTarget: Check.WarningTarget(
+                id: "visual-smoke-check-plan-compass-verify-seal",
+                targetGroupID: "visual-smoke",
+                targetAnchorID: "visual-smoke-check-plan-compass-verify-seal",
+                relatedGroupID: "repository-context",
+                relatedRowID: "plan-compass-verify-seal",
+                label: "Verify seal",
+                detail: "Plan Compass verify seal warning"
             )
         )
     }
@@ -3875,7 +4018,7 @@ struct CinematicVisualSmokeReport: Equatable {
 }
 
 struct CinematicDiagnosticsSummary: Equatable {
-    static let maxRows = 52
+    static let maxRows = 53
     static let labelMaxCharacters = 32
     static let detailMaxCharacters = 512
     static let headerDetailMaxCharacters = 128
@@ -4048,6 +4191,7 @@ struct CinematicDiagnosticsSummary: Equatable {
                 "repository",
                 "immediate",
                 "plan-compass-readiness",
+                "plan-compass-verify-seal",
                 "plan-compass-history",
                 "plan-compass-immediate",
                 "plan-compass-mid-term",
@@ -4171,6 +4315,11 @@ struct CinematicDiagnosticsSummary: Equatable {
                 id: "plan-compass-readiness",
                 label: "Plan readiness",
                 detail: planCompassReadinessDetail(report.planCompassReadiness)
+            ),
+            row(
+                id: "plan-compass-verify-seal",
+                label: "Verify seal",
+                detail: planCompassVerifySealDetail(report.planCompassVerifySeal)
             ),
         ]
 
@@ -4684,6 +4833,10 @@ struct CinematicDiagnosticsSummary: Equatable {
         } else if check.id == "plan-compass-readiness" {
             detail = planCompassReadinessAttentionDetail(
                 report.planCompassReadiness
+            )
+        } else if check.id == "plan-compass-verify-seal" {
+            detail = planCompassVerifySealAttentionDetail(
+                report.planCompassVerifySeal
             )
         } else {
             detail = relatedRow.map { "\(check.detail) | \($0.detail)" } ?? check.detail
@@ -5449,6 +5602,34 @@ struct CinematicDiagnosticsSummary: Equatable {
         ].joined(separator: " | ")
     }
 
+    private static func planCompassVerifySealDetail(
+        _ snapshot: CinematicDiagnosticsReport.PlanCompassVerifySealSnapshot
+    ) -> String {
+        guard snapshot.isVisible else {
+            return "none | row \(snapshot.rowIdentifier)"
+        }
+
+        return [
+            "status \(snapshot.statusIdentifier)",
+            "treatment \(snapshot.treatmentIdentifier)",
+            "warning \(snapshot.warningStateIdentifier)",
+            "metadata \(snapshot.metadataStateIdentifier)",
+            "verify \(snapshot.verifyCommandStateIdentifier)",
+            "timeout \(snapshot.timeoutStateIdentifier)",
+            "difficulty \(snapshot.difficultyStateIdentifier)",
+            "retry \(snapshot.retryCueStateIdentifier)",
+            "hash \(snapshot.verifyCommandHashIdentifier)",
+            "completed \(snapshot.completedCount)",
+            "tint \(snapshot.tintIdentifier)",
+            "segments \(identifierListSummary(snapshot.segmentIdentifiers, visibleLimit: 4))",
+            "warnings \(identifierListSummary(snapshot.warningIdentifiers, visibleLimit: 3))",
+            "readiness \(bounded(snapshot.readinessIdentifier, limit: 72))",
+            "focus \(bounded(snapshot.focusDescriptorIdentifier, limit: 72))",
+            "copy \(bounded(snapshot.copyIdentifier, limit: 48))",
+            "export \(bounded(snapshot.exportIdentifier, limit: 48))"
+        ].joined(separator: " | ")
+    }
+
     private static func planCompassSceneFocusDetail(
         _ snapshot: CinematicDiagnosticsReport.PlanCompassSceneFocusSnapshot
     ) -> String {
@@ -5976,6 +6157,27 @@ struct CinematicDiagnosticsSummary: Equatable {
             "difficulty \(snapshot.difficultyStateIdentifier) \(difficultyState)",
             "retry \(snapshot.retryCueStateIdentifier) \(snapshot.retryCueCount)",
             "warnings \(identifierListSummary(snapshot.warningIdentifiers, visibleLimit: 3))",
+            "row \(snapshot.rowIdentifier)"
+        ].joined(separator: " | ")
+    }
+
+    private static func planCompassVerifySealAttentionDetail(
+        _ snapshot: CinematicDiagnosticsReport.PlanCompassVerifySealSnapshot
+    ) -> String {
+        guard snapshot.isVisible else {
+            return "seal none | row \(snapshot.rowIdentifier)"
+        }
+
+        return [
+            "status \(snapshot.statusIdentifier)",
+            "treatment \(snapshot.treatmentIdentifier)",
+            "warning \(snapshot.warningStateIdentifier)",
+            "metadata \(snapshot.metadataStateIdentifier)",
+            "verify \(snapshot.verifyCommandStateIdentifier)",
+            "hash \(snapshot.verifyCommandHashIdentifier)",
+            "segments \(identifierListSummary(snapshot.segmentIdentifiers, visibleLimit: 4))",
+            "readiness \(bounded(snapshot.readinessIdentifier, limit: 72))",
+            "focus \(bounded(snapshot.focusDescriptorIdentifier, limit: 72))",
             "row \(snapshot.rowIdentifier)"
         ].joined(separator: " | ")
     }
@@ -7239,6 +7441,7 @@ enum CinematicDiagnostics {
             plan: resolvedPlanCompassPlan
         )
         let planCompassSceneFocusSnapshot = planCompassSceneFocusSnapshot(for: planCompassSceneFocusPlan)
+        let planCompassVerifySealSnapshot = planCompassVerifySealSnapshot(for: planCompassSceneFocusPlan)
         let planCompassCommandSnapshot = planCompassCommandSnapshot(commandPlan: planCompassCommandPlan)
         let timelineFocusSnapshot = timelineFocusSnapshot(for: timelineFocusPlan)
         let runRecapSnapshot = runRecapSnapshot(for: runRecapPlan)
@@ -7362,6 +7565,10 @@ enum CinematicDiagnostics {
                 "idle-story-cycle:\(idleStoryCycleSnapshot.identifier)",
                 "plan-compass-focus:\(planCompassSceneFocusSnapshot.identifier)",
                 "plan-compass-focus-diagnostics:\(planCompassSceneFocusSnapshot.diagnosticsIdentifier)",
+                "plan-compass-verify-seal:\(planCompassVerifySealSnapshot.identifier)",
+                "plan-compass-verify-seal-status:\(planCompassVerifySealSnapshot.statusIdentifier)",
+                "plan-compass-verify-seal-warning:\(planCompassVerifySealSnapshot.warningStateIdentifier)",
+                "plan-compass-verify-seal-treatment:\(planCompassVerifySealSnapshot.treatmentIdentifier)",
                 "plan-compass-history:\(planCompassHistorySnapshot.identifier)",
                 "plan-compass-history-state:\(planCompassHistorySnapshot.historyStateIdentifier)",
                 "plan-compass-history-latest:\(planCompassHistorySnapshot.latestWaypointIdentifier ?? "none")",
@@ -7447,6 +7654,7 @@ enum CinematicDiagnostics {
             commitConstellation: commitConstellationSnapshot,
             idleStoryCycle: idleStoryCycleSnapshot,
             planCompassSceneFocus: planCompassSceneFocusSnapshot,
+            planCompassVerifySeal: planCompassVerifySealSnapshot,
             planCompassCommands: planCompassCommandSnapshot,
             timelineFocus: timelineFocusSnapshot,
             runRecap: runRecapSnapshot,
@@ -7727,7 +7935,8 @@ enum CinematicDiagnostics {
             let focusPlan = CinematicPlanCompassSceneFocusPlanner.plan(
                 isPlanOverlaySelected: true,
                 planCompassPlan: planCompass,
-                readinessPlan: readiness
+                readinessPlan: readiness,
+                selectedKind: .immediate
             )
             return report(
                 repoName: "Plan Compass Focus \(index)",
@@ -9983,6 +10192,82 @@ enum CinematicDiagnostics {
             waypointRailIdentifier: descriptor.waypointRailIdentifier,
             diagnosticsIdentifier: descriptor.diagnosticsIdentifier,
             diagnosticsRowIdentifier: descriptor.diagnosticsRowIdentifier
+        )
+    }
+
+    private static func planCompassVerifySealSnapshot(
+        for plan: CinematicPlanCompassSceneFocusPlan
+    ) -> CinematicDiagnosticsReport.PlanCompassVerifySealSnapshot {
+        guard let descriptor = plan.descriptor?.verifySealDescriptor else {
+            return CinematicDiagnosticsReport.PlanCompassVerifySealSnapshot(
+                identifier: "plan-compass-verify-seal.none",
+                isVisible: false,
+                copyIdentifier: "none",
+                exportIdentifier: "none",
+                diagnosticsIdentifier: "none",
+                rowIdentifier: "plan-compass-verify-seal",
+                readinessIdentifier: "none",
+                readinessStatusIdentifier: "none",
+                focusDescriptorIdentifier: "none",
+                focusDiagnosticsIdentifier: "none",
+                focusRowIdentifier: "plan-compass-focus",
+                sourcePlanIdentifier: "none",
+                immediateContentIdentifier: "none",
+                selectedSectionRouteIdentifier: "none",
+                statusIdentifier: "none",
+                treatmentIdentifier: "none",
+                warningStateIdentifier: "none",
+                metadataStateIdentifier: "none",
+                verifyCommandStateIdentifier: "none",
+                timeoutStateIdentifier: "none",
+                difficultyStateIdentifier: "none",
+                retryCueStateIdentifier: "none",
+                verifyCommandHashIdentifier: "verify:none",
+                completedCount: 0,
+                completedLabel: "none",
+                displayTitle: "",
+                displayDetail: "",
+                compactCopy: "",
+                tintIdentifier: "none",
+                segmentIdentifiers: [],
+                warningIdentifiers: [],
+                diagnosticsDetail: "none"
+            )
+        }
+
+        return CinematicDiagnosticsReport.PlanCompassVerifySealSnapshot(
+            identifier: descriptor.identifier,
+            isVisible: true,
+            copyIdentifier: descriptor.copyIdentifier,
+            exportIdentifier: descriptor.exportIdentifier,
+            diagnosticsIdentifier: descriptor.diagnosticsIdentifier,
+            rowIdentifier: descriptor.rowIdentifier,
+            readinessIdentifier: descriptor.readinessIdentifier,
+            readinessStatusIdentifier: descriptor.readinessStatusIdentifier,
+            focusDescriptorIdentifier: descriptor.focusDescriptorIdentifier,
+            focusDiagnosticsIdentifier: descriptor.focusDiagnosticsIdentifier,
+            focusRowIdentifier: descriptor.focusRowIdentifier,
+            sourcePlanIdentifier: descriptor.sourcePlanIdentifier,
+            immediateContentIdentifier: descriptor.immediateContentIdentifier,
+            selectedSectionRouteIdentifier: descriptor.selectedSectionRouteIdentifier,
+            statusIdentifier: descriptor.statusIdentifier,
+            treatmentIdentifier: descriptor.treatmentIdentifier,
+            warningStateIdentifier: descriptor.warningStateIdentifier,
+            metadataStateIdentifier: descriptor.metadataStateIdentifier,
+            verifyCommandStateIdentifier: descriptor.verifyCommandStateIdentifier,
+            timeoutStateIdentifier: descriptor.timeoutStateIdentifier,
+            difficultyStateIdentifier: descriptor.difficultyStateIdentifier,
+            retryCueStateIdentifier: descriptor.retryCueStateIdentifier,
+            verifyCommandHashIdentifier: descriptor.verifyCommandHashIdentifier,
+            completedCount: descriptor.completedCount,
+            completedLabel: descriptor.completedLabel,
+            displayTitle: descriptor.displayTitle,
+            displayDetail: descriptor.displayDetail,
+            compactCopy: descriptor.compactCopy,
+            tintIdentifier: descriptor.tintIdentifier,
+            segmentIdentifiers: descriptor.segmentIdentifiers,
+            warningIdentifiers: descriptor.warningIdentifiers,
+            diagnosticsDetail: descriptor.diagnosticsDetail
         )
     }
 

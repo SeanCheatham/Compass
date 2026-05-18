@@ -138,6 +138,8 @@ final class CinematicPlanCompassReadinessPlanTests: XCTestCase {
         XCTAssertEqual(immediateFocus.readinessStatusIdentifier, "ready")
         XCTAssertEqual(immediateFocus.readinessWarningStateIdentifier, "clear")
         XCTAssertEqual(immediateFocus.readinessVerifyCommand, readiness.verifyCommand)
+        XCTAssertEqual(immediateFocus.verifySealDescriptor?.readinessIdentifier, readiness.identifier)
+        XCTAssertEqual(immediateFocus.verifySealDescriptor?.statusIdentifier, "ready")
         XCTAssertTrue(immediateFocus.plaqueStatus.contains("Ready for Develop"))
         XCTAssertEqual(immediateFocus.ringCopy, readiness.focusRingCopy)
         XCTAssertTrue(immediateFocus.ringCopy.contains("swift test"))
@@ -145,6 +147,7 @@ final class CinematicPlanCompassReadinessPlanTests: XCTestCase {
 
         XCTAssertNil(midTermFocus.readinessIdentifier)
         XCTAssertNil(midTermFocus.readinessStatusIdentifier)
+        XCTAssertNil(midTermFocus.verifySealDescriptor)
         XCTAssertFalse(midTermFocus.ringCopy.contains("Ready for Develop"))
     }
 

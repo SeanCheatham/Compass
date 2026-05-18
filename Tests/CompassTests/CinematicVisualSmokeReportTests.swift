@@ -16,6 +16,7 @@ final class CinematicVisualSmokeReportTests: XCTestCase {
                 "run-recap-artifact-command-availability",
                 "plan-compass-command-availability",
                 "plan-compass-readiness",
+                "plan-compass-verify-seal",
                 "narrative-cue-readability",
                 "overlay-fallback-usage",
                 "chrome-strength",
@@ -50,6 +51,7 @@ final class CinematicVisualSmokeReportTests: XCTestCase {
             smoke.checks.first { $0.id == "plan-compass-command-availability" }
         )
         let planReadiness = try XCTUnwrap(smoke.checks.first { $0.id == "plan-compass-readiness" })
+        let verifySeal = try XCTUnwrap(smoke.checks.first { $0.id == "plan-compass-verify-seal" })
         let overlay = try XCTUnwrap(smoke.checks.first { $0.id == "overlay-fallback-usage" })
         let chrome = try XCTUnwrap(smoke.checks.first { $0.id == "chrome-strength" })
         let assets = try XCTUnwrap(smoke.checks.first { $0.id == "asset-availability" })
@@ -102,6 +104,15 @@ final class CinematicVisualSmokeReportTests: XCTestCase {
         XCTAssertTrue(planReadiness.detail.contains("retry active/clear"))
         XCTAssertTrue(planReadiness.detail.contains("correlated"))
         XCTAssertTrue(planReadiness.detail.contains("bounded"))
+        XCTAssertEqual(verifySeal.status, .pass)
+        XCTAssertTrue(verifySeal.detail.contains("ready"))
+        XCTAssertTrue(verifySeal.detail.contains("no-immediate"))
+        XCTAssertTrue(verifySeal.detail.contains("missing-metadata"))
+        XCTAssertTrue(verifySeal.detail.contains("retry-cue"))
+        XCTAssertTrue(verifySeal.detail.contains("treatments"))
+        XCTAssertTrue(verifySeal.detail.contains("segments"))
+        XCTAssertTrue(verifySeal.detail.contains("correlated"))
+        XCTAssertTrue(verifySeal.detail.contains("bounded"))
         XCTAssertEqual(overlay.status, .pass)
         XCTAssertTrue(overlay.detail.contains("compact"))
         XCTAssertTrue(overlay.detail.contains("full"))
@@ -532,8 +543,8 @@ final class CinematicVisualSmokeReportTests: XCTestCase {
         XCTAssertEqual(summary.visualSmoke.warningCountLabel, "No warnings")
         XCTAssertEqual(summary.visualSmoke.warningBadgeLabel, "0")
         XCTAssertEqual(summary.visualSmoke.warningIdentifiers, [])
-        XCTAssertEqual(summary.visualSmoke.checkCountLabel, "23 checks")
-        XCTAssertEqual(summary.visualSmoke.presentation.headerDetail, "23 checks | No warnings")
+        XCTAssertEqual(summary.visualSmoke.checkCountLabel, "24 checks")
+        XCTAssertEqual(summary.visualSmoke.presentation.headerDetail, "24 checks | No warnings")
         XCTAssertEqual(summary.visualSmoke.presentation.defaultExpanded, false)
         XCTAssertEqual(summary.visualSmoke.presentation.attentionState, .normal)
         XCTAssertEqual(summary.visualSmoke.presentation.warningIdentifiers, [])
@@ -551,7 +562,7 @@ final class CinematicVisualSmokeReportTests: XCTestCase {
             summary.visualSmoke.presentation.headerDetail.count,
             CinematicDiagnosticsSummary.headerDetailMaxCharacters
         )
-        XCTAssertTrue(summary.exportText.contains("Visual smoke (pass, 23 checks)"))
+        XCTAssertTrue(summary.exportText.contains("Visual smoke (pass, 24 checks)"))
         XCTAssertTrue(summary.exportText.contains("Recap command availability: pass"))
         XCTAssertTrue(summary.exportText.contains("Plan command availability: pass"))
         let commandCheck = summary.visualSmoke.checks.first {
@@ -606,6 +617,7 @@ final class CinematicVisualSmokeReportTests: XCTestCase {
                 "repository",
                 "immediate",
                 "plan-compass-readiness",
+                "plan-compass-verify-seal",
                 "commit-constellation",
                 "idle-story-cycle",
                 "plan-compass-focus",
@@ -613,8 +625,7 @@ final class CinematicVisualSmokeReportTests: XCTestCase {
                 "timeline-focus",
                 "run-recap",
                 "run-recap-share",
-                "run-recap-share-artifact",
-                "run-recap-share-artifact-history"
+                "run-recap-share-artifact"
             ]
         )
         XCTAssertEqual(
@@ -650,7 +661,7 @@ final class CinematicVisualSmokeReportTests: XCTestCase {
         XCTAssertEqual(summary.visualSmoke.presentation.attentionState, .warning)
         XCTAssertEqual(summary.visualSmoke.presentation.warningIdentifiers, smoke.warningIdentifiers)
         XCTAssertEqual(summary.visualSmoke.presentation.needsAttention, true)
-        XCTAssertTrue(summary.visualSmoke.presentation.headerDetail.contains("23 checks"))
+        XCTAssertTrue(summary.visualSmoke.presentation.headerDetail.contains("24 checks"))
         for warningIdentifier in smoke.warningIdentifiers.prefix(2) {
             XCTAssertTrue(summary.visualSmoke.presentation.headerDetail.contains(warningIdentifier))
         }
@@ -904,7 +915,7 @@ final class CinematicVisualSmokeReportTests: XCTestCase {
         XCTAssertTrue(summary.exportText.contains("visual-smoke.asset-availability"))
         XCTAssertTrue(summary.exportText.contains("visual-smoke.texture-role-coverage"))
         XCTAssertTrue(summary.exportText.contains("visual-smoke.native-feedback-treatment-coverage"))
-        XCTAssertTrue(summary.exportText.contains("Visual smoke (warning, 23 checks)"))
+        XCTAssertTrue(summary.exportText.contains("Visual smoke (warning, 24 checks)"))
         XCTAssertTrue(summary.exportText.contains("Recap command availability: warning"))
         XCTAssertTrue(summary.exportText.contains("Asset availability: warning"))
         XCTAssertTrue(summary.exportText.contains("warning visual-smoke.asset-availability"))

@@ -3455,6 +3455,15 @@ private final class CinematicSceneCoordinator {
             plateWidth: plateWidth,
             plateHeight: plateHeight
         )
+        if let verifySealDescriptor = descriptor.verifySealDescriptor {
+            addPlanCompassVerifySeal(
+                verifySealDescriptor,
+                to: planCompassFocusNode,
+                baseColor: color,
+                plateWidth: plateWidth,
+                plateHeight: plateHeight
+            )
+        }
 
         addNarrativeText(
             descriptor.plaqueTitle,
@@ -3602,6 +3611,136 @@ private final class CinematicSceneCoordinator {
             hiddenCap.components.set(OpacityComponent(opacity: 0.34))
             node.addChild(hiddenCap)
         }
+    }
+
+    private func addPlanCompassVerifySeal(
+        _ descriptor: CinematicPlanCompassVerifySealPlan.Descriptor,
+        to node: Entity,
+        baseColor: NSColor,
+        plateWidth: Float,
+        plateHeight: Float
+    ) {
+        let root = Entity()
+        root.name = descriptor.identifier
+        root.position = [plateWidth * 0.5 + 0.14, plateHeight * 0.18, 0.068]
+        root.scale = SIMD3<Float>(repeating: descriptor.warningStateIdentifier == "warning" ? 1.05 : 1)
+
+        let sealColor = planCompassVerifySealColor(descriptor, fallback: baseColor)
+        let ring = ModelEntity(
+            mesh: torusMesh(ringRadius: 0.088, pipeRadius: 0.006),
+            materials: [
+                glowMaterial(
+                    sealColor,
+                    opacity: descriptor.warningStateIdentifier == "warning" ? 0.82 : 0.7
+                )
+            ]
+        )
+        ring.name = "\(descriptor.identifier).ring.\(descriptor.treatmentIdentifier)"
+        ring.orientation = simd_quatf(angle: .pi / 2, axis: [1, 0, 0])
+        ring.components.set(OpacityComponent(opacity: descriptor.warningStateIdentifier == "warning" ? 0.82 : 0.7))
+        root.addChild(ring)
+
+        let core = ModelEntity(
+            mesh: MeshResource.generateSphere(radius: descriptor.statusIdentifier == "ready" ? 0.025 : 0.021),
+            materials: [glowMaterial(sealColor.withAlphaComponent(0.9), opacity: 0.76)]
+        )
+        core.name = "\(descriptor.identifier).core.\(descriptor.statusIdentifier)"
+        core.components.set(OpacityComponent(opacity: 0.76))
+        root.addChild(core)
+
+        let segmentCount = min(
+            descriptor.segmentIdentifiers.count,
+            CinematicPlanCompassVerifySealPlan.segmentIdentifierLimit
+        )
+        for index in 0..<segmentCount {
+            let identifier = descriptor.segmentIdentifiers[index]
+            let theta = (Float(index) / Float(segmentCount)) * .pi * 2 + .pi * 0.12
+            let radial = SIMD2<Float>(cos(theta), sin(theta))
+            let tangent = SIMD2<Float>(-sin(theta), cos(theta))
+            let center = radial * 0.088
+            let halfLength: Float = descriptor.warningStateIdentifier == "warning" ? 0.028 : 0.023
+            let segmentColor = planCompassVerifySealSegmentColor(
+                identifier: identifier,
+                descriptor: descriptor,
+                fallback: sealColor
+            )
+            let segment = beamEntity(
+                from: [
+                    center.x - tangent.x * halfLength,
+                    center.y - tangent.y * halfLength,
+                    0.016
+                ],
+                to: [
+                    center.x + tangent.x * halfLength,
+                    center.y + tangent.y * halfLength,
+                    0.016
+                ],
+                radius: descriptor.warningStateIdentifier == "warning" ? 0.006 : 0.0045,
+                color: segmentColor,
+                opacity: descriptor.warningStateIdentifier == "warning" ? 0.78 : 0.54
+            )
+            segment.name = identifier
+            root.addChild(segment)
+        }
+
+        if descriptor.warningStateIdentifier == "warning" {
+            let brace = beamEntity(
+                from: [-0.062, -0.062, 0.02],
+                to: [0.062, 0.062, 0.02],
+                radius: 0.005,
+                color: SpellSchool.failure.nsColor.withAlphaComponent(0.84),
+                opacity: 0.66
+            )
+            brace.name = "\(descriptor.identifier).warning.segment"
+            root.addChild(brace)
+        }
+
+        addNarrativeText(
+            descriptor.displayTitle,
+            to: root,
+            name: "\(descriptor.identifier).copy.\(descriptor.statusIdentifier)",
+            width: 0.46,
+            offset: [0, -0.145, 0.02],
+            fontSize: 0.028,
+            weight: .semibold,
+            color: sealColor.withAlphaComponent(0.82),
+            opacity: 0.62
+        )
+
+        node.addChild(root)
+    }
+
+    private func planCompassVerifySealColor(
+        _ descriptor: CinematicPlanCompassVerifySealPlan.Descriptor,
+        fallback: NSColor
+    ) -> NSColor {
+        switch descriptor.tintIdentifier {
+        case "verify":
+            return SpellSchool.verify.nsColor
+        case "pressure":
+            return SpellSchool.pressure.nsColor
+        case "warning":
+            return SpellSchool.failure.nsColor
+        case "scan":
+            return SpellSchool.scan.nsColor
+        default:
+            return fallback
+        }
+    }
+
+    private func planCompassVerifySealSegmentColor(
+        identifier: String,
+        descriptor: CinematicPlanCompassVerifySealPlan.Descriptor,
+        fallback: NSColor
+    ) -> NSColor {
+        let isWarningSegment = identifier.contains(".warning.")
+            || identifier.contains(".retry.active")
+            || identifier.contains(".metadata.missing")
+            || identifier.contains(".no-immediate")
+        if descriptor.warningStateIdentifier == "warning", isWarningSegment {
+            return SpellSchool.failure.nsColor
+        }
+        return fallback
     }
 
     private func applySavedRecapArtifactTourPlan(

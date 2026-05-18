@@ -873,6 +873,339 @@ struct CinematicPlanCompassReadinessPlan: Equatable, Identifiable {
     }
 }
 
+struct CinematicPlanCompassVerifySealPlan: Equatable {
+    static let identifierMaxCharacters = 320
+    static let displayTitleMaxCharacters = 28
+    static let displayDetailMaxCharacters = 72
+    static let compactCopyMaxCharacters = 124
+    static let diagnosticsDetailMaxCharacters = 460
+    static let segmentIdentifierLimit = 4
+
+    struct Descriptor: Equatable, Identifiable {
+        var id: String { identifier }
+
+        var identifier: String
+        var copyIdentifier: String
+        var exportIdentifier: String
+        var diagnosticsIdentifier: String
+        var rowIdentifier: String
+        var readinessIdentifier: String
+        var readinessStatusIdentifier: String
+        var focusDescriptorIdentifier: String
+        var focusDiagnosticsIdentifier: String
+        var focusRowIdentifier: String
+        var sourcePlanIdentifier: String
+        var immediateContentIdentifier: String
+        var selectedSectionRouteIdentifier: String
+        var statusIdentifier: String
+        var treatmentIdentifier: String
+        var warningStateIdentifier: String
+        var metadataStateIdentifier: String
+        var verifyCommandStateIdentifier: String
+        var timeoutStateIdentifier: String
+        var difficultyStateIdentifier: String
+        var retryCueStateIdentifier: String
+        var verifyCommandHashIdentifier: String
+        var completedCount: Int
+        var completedLabel: String
+        var displayTitle: String
+        var displayDetail: String
+        var compactCopy: String
+        var tintIdentifier: String
+        var segmentIdentifiers: [String]
+        var warningIdentifiers: [String]
+        var diagnosticsDetail: String
+    }
+
+    static func descriptor(
+        readinessPlan: CinematicPlanCompassReadinessPlan?,
+        focusDescriptor: CinematicPlanCompassSceneFocusPlan.Descriptor
+    ) -> Descriptor? {
+        guard let readinessPlan,
+              focusDescriptor.selectedSectionRouteIdentifier == "immediate" else {
+            return nil
+        }
+
+        let statusIdentifier = readinessPlan.statusIdentifier
+        let treatmentIdentifier = treatmentIdentifier(for: statusIdentifier)
+        let tintIdentifier = tintIdentifier(for: statusIdentifier)
+        let verifyCommandHashIdentifier = "verify:\(fingerprint(readinessPlan.verifyCommand ?? "none"))"
+        let displayCopy = displayCopy(
+            statusIdentifier: statusIdentifier,
+            verifyCommand: readinessPlan.verifyCommand,
+            completedLabel: readinessPlan.completedLabel,
+            retryCueCount: readinessPlan.retryCueCount
+        )
+        let segmentIdentifiers = segmentIdentifiers(
+            readinessPlan: readinessPlan,
+            treatmentIdentifier: treatmentIdentifier
+        )
+        let warningIdentifiers = Array(readinessPlan.warningIdentifiers.prefix(Self.segmentIdentifierLimit))
+        let displayTitle = bounded(
+            displayTitle(for: statusIdentifier),
+            limit: Self.displayTitleMaxCharacters
+        )
+        let displayDetail = bounded(
+            displayDetail(
+                statusIdentifier: statusIdentifier,
+                verifyCommandStateIdentifier: readinessPlan.verifyCommandStateIdentifier,
+                timeoutStateIdentifier: readinessPlan.timeoutStateIdentifier,
+                difficultyStateIdentifier: readinessPlan.difficultyStateIdentifier,
+                retryCueCount: readinessPlan.retryCueCount
+            ),
+            limit: Self.displayDetailMaxCharacters
+        )
+        let compactCopy = bounded(
+            displayCopy,
+            limit: Self.compactCopyMaxCharacters
+        )
+        let identifier = bounded(
+            [
+                "plan-compass-verify-seal",
+                "readiness:\(fingerprint(readinessPlan.identifier))",
+                "focus:\(fingerprint(focusDescriptor.identifier))",
+                "focus-diagnostics:\(fingerprint(focusDescriptor.diagnosticsIdentifier))",
+                "status:\(statusIdentifier)",
+                "treatment:\(treatmentIdentifier)",
+                "warning:\(readinessPlan.warningStateIdentifier)",
+                "metadata:\(readinessPlan.metadataStateIdentifier)",
+                "verify-state:\(readinessPlan.verifyCommandStateIdentifier)",
+                verifyCommandHashIdentifier,
+                "completed:\(readinessPlan.completedCount)",
+                "segments:\(fingerprint(segmentIdentifiers.joined(separator: "|")))"
+            ].joined(separator: "|"),
+            limit: Self.identifierMaxCharacters
+        )
+        let copyIdentifier = bounded(
+            "plan-compass-verify-seal.copy|\(fingerprint(compactCopy))",
+            limit: Self.identifierMaxCharacters
+        )
+        let exportIdentifier = bounded(
+            "plan-compass-verify-seal.export|\(fingerprint(identifier))|\(fingerprint(compactCopy))",
+            limit: Self.identifierMaxCharacters
+        )
+        let diagnosticsIdentifier = bounded(
+            [
+                "plan-compass-verify-seal.diagnostics",
+                "status:\(statusIdentifier)",
+                "treatment:\(treatmentIdentifier)",
+                "warning:\(readinessPlan.warningStateIdentifier)",
+                "metadata:\(readinessPlan.metadataStateIdentifier)",
+                "verify:\(readinessPlan.verifyCommandStateIdentifier)",
+                "timeout:\(readinessPlan.timeoutStateIdentifier)",
+                "difficulty:\(readinessPlan.difficultyStateIdentifier)",
+                "retry:\(readinessPlan.retryCueStateIdentifier)",
+                "focus:\(fingerprint(focusDescriptor.identifier))",
+                "readiness:\(fingerprint(readinessPlan.identifier))"
+            ].joined(separator: "|"),
+            limit: Self.identifierMaxCharacters
+        )
+        let diagnosticsDetail = bounded(
+            [
+                "status \(statusIdentifier)",
+                "treatment \(treatmentIdentifier)",
+                "warning \(readinessPlan.warningStateIdentifier)",
+                "metadata \(readinessPlan.metadataStateIdentifier)",
+                "verify \(readinessPlan.verifyCommandStateIdentifier)",
+                "timeout \(readinessPlan.timeoutStateIdentifier)",
+                "difficulty \(readinessPlan.difficultyStateIdentifier)",
+                "retry \(readinessPlan.retryCueStateIdentifier) \(readinessPlan.retryCueCount)",
+                "hash \(verifyCommandHashIdentifier)",
+                "completed \(readinessPlan.completedCount)",
+                "segments \(segmentIdentifiers.joined(separator: ","))",
+                "readiness \(bounded(readinessPlan.identifier, limit: 56))",
+                "focus \(bounded(focusDescriptor.identifier, limit: 56))",
+                "copy \(copyIdentifier)",
+                "export \(exportIdentifier)"
+            ].joined(separator: " | "),
+            limit: Self.diagnosticsDetailMaxCharacters
+        )
+
+        return Descriptor(
+            identifier: identifier,
+            copyIdentifier: copyIdentifier,
+            exportIdentifier: exportIdentifier,
+            diagnosticsIdentifier: diagnosticsIdentifier,
+            rowIdentifier: "plan-compass-verify-seal",
+            readinessIdentifier: readinessPlan.identifier,
+            readinessStatusIdentifier: readinessPlan.statusIdentifier,
+            focusDescriptorIdentifier: focusDescriptor.identifier,
+            focusDiagnosticsIdentifier: focusDescriptor.diagnosticsIdentifier,
+            focusRowIdentifier: focusDescriptor.diagnosticsRowIdentifier,
+            sourcePlanIdentifier: readinessPlan.sourcePlanIdentifier,
+            immediateContentIdentifier: readinessPlan.sourceImmediateContentIdentifier,
+            selectedSectionRouteIdentifier: focusDescriptor.selectedSectionRouteIdentifier,
+            statusIdentifier: statusIdentifier,
+            treatmentIdentifier: treatmentIdentifier,
+            warningStateIdentifier: readinessPlan.warningStateIdentifier,
+            metadataStateIdentifier: readinessPlan.metadataStateIdentifier,
+            verifyCommandStateIdentifier: readinessPlan.verifyCommandStateIdentifier,
+            timeoutStateIdentifier: readinessPlan.timeoutStateIdentifier,
+            difficultyStateIdentifier: readinessPlan.difficultyStateIdentifier,
+            retryCueStateIdentifier: readinessPlan.retryCueStateIdentifier,
+            verifyCommandHashIdentifier: verifyCommandHashIdentifier,
+            completedCount: readinessPlan.completedCount,
+            completedLabel: readinessPlan.completedLabel,
+            displayTitle: displayTitle,
+            displayDetail: displayDetail,
+            compactCopy: compactCopy,
+            tintIdentifier: tintIdentifier,
+            segmentIdentifiers: segmentIdentifiers,
+            warningIdentifiers: warningIdentifiers,
+            diagnosticsDetail: diagnosticsDetail
+        )
+    }
+
+    private static func treatmentIdentifier(for statusIdentifier: String) -> String {
+        switch statusIdentifier {
+        case "ready":
+            return "verify-seal.ready-ring"
+        case "retry-cue":
+            return "verify-seal.retry-braces"
+        case "missing-metadata":
+            return "verify-seal.metadata-segments"
+        case "no-immediate":
+            return "verify-seal.empty-target"
+        default:
+            return "verify-seal.unknown"
+        }
+    }
+
+    private static func tintIdentifier(for statusIdentifier: String) -> String {
+        switch statusIdentifier {
+        case "ready":
+            return "verify"
+        case "retry-cue":
+            return "pressure"
+        case "missing-metadata":
+            return "warning"
+        case "no-immediate":
+            return "scan"
+        default:
+            return "neutral"
+        }
+    }
+
+    private static func displayTitle(for statusIdentifier: String) -> String {
+        switch statusIdentifier {
+        case "ready":
+            return "Seal ready"
+        case "retry-cue":
+            return "Retry seal"
+        case "missing-metadata":
+            return "Metadata seal"
+        case "no-immediate":
+            return "No plan seal"
+        default:
+            return "Verify seal"
+        }
+    }
+
+    private static func displayDetail(
+        statusIdentifier: String,
+        verifyCommandStateIdentifier: String,
+        timeoutStateIdentifier: String,
+        difficultyStateIdentifier: String,
+        retryCueCount: Int
+    ) -> String {
+        switch statusIdentifier {
+        case "ready":
+            return "Develop gate clear"
+        case "retry-cue":
+            return "Retry cue active \(retryCueCount)"
+        case "missing-metadata":
+            let missingCopy = missingMetadataCopy(
+                verifyCommandStateIdentifier: verifyCommandStateIdentifier,
+                timeoutStateIdentifier: timeoutStateIdentifier,
+                difficultyStateIdentifier: difficultyStateIdentifier
+            )
+            return "Missing \(missingCopy)"
+        case "no-immediate":
+            return "Immediate plan missing"
+        default:
+            return "Readiness unknown"
+        }
+    }
+
+    private static func displayCopy(
+        statusIdentifier: String,
+        verifyCommand: String?,
+        completedLabel: String,
+        retryCueCount: Int
+    ) -> String {
+        let commandCopy = verifyCommand.map { bounded($0, limit: 42) } ?? "verify missing"
+        switch statusIdentifier {
+        case "ready":
+            return "Ready | \(commandCopy) | \(completedLabel)"
+        case "retry-cue":
+            return "Retry cue | \(retryCueCount) cues | \(commandCopy)"
+        case "missing-metadata":
+            return "Metadata needed | \(commandCopy)"
+        case "no-immediate":
+            return "No immediate plan | verify missing"
+        default:
+            return "Verify seal | \(commandCopy)"
+        }
+    }
+
+    private static func segmentIdentifiers(
+        readinessPlan: CinematicPlanCompassReadinessPlan,
+        treatmentIdentifier: String
+    ) -> [String] {
+        let base = [
+            "plan-compass-verify-seal.segment.\(readinessPlan.statusIdentifier)",
+            "plan-compass-verify-seal.segment.verify.\(readinessPlan.verifyCommandStateIdentifier)",
+            "plan-compass-verify-seal.segment.metadata.\(readinessPlan.metadataStateIdentifier)",
+            "plan-compass-verify-seal.segment.retry.\(readinessPlan.retryCueStateIdentifier)"
+        ]
+        let warnings = readinessPlan.warningIdentifiers.map {
+            "plan-compass-verify-seal.segment.warning.\(fingerprint($0))"
+        }
+        let treatment = "plan-compass-verify-seal.segment.treatment.\(fingerprint(treatmentIdentifier))"
+        var seen = Set<String>()
+        let all = (base + warnings + [treatment]).filter { identifier in
+            seen.insert(identifier).inserted
+        }
+        return Array(all.prefix(Self.segmentIdentifierLimit))
+    }
+
+    private static func missingMetadataCopy(
+        verifyCommandStateIdentifier: String,
+        timeoutStateIdentifier: String,
+        difficultyStateIdentifier: String
+    ) -> String {
+        let missing = [
+            verifyCommandStateIdentifier == "missing" ? "verify" : nil,
+            timeoutStateIdentifier == "missing" ? "timeout" : nil,
+            difficultyStateIdentifier == "missing" ? "difficulty" : nil
+        ].compactMap { $0 }
+        return missing.isEmpty ? "metadata" : missing.joined(separator: "/")
+    }
+
+    private static func bounded(_ text: String, limit: Int) -> String {
+        let normalized = text
+            .replacingOccurrences(of: "\r", with: " ")
+            .replacingOccurrences(of: "\n", with: " ")
+            .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalized.isEmpty else { return "" }
+        guard limit > 0, normalized.count > limit else { return normalized }
+        guard limit > 3 else { return String(normalized.prefix(limit)) }
+
+        return normalized.prefix(limit - 3)
+            .trimmingCharacters(in: .whitespacesAndNewlines) + "..."
+    }
+
+    private static func fingerprint(_ value: String) -> String {
+        var hash: UInt64 = 0xcbf29ce484222325
+        for byte in value.utf8 {
+            hash ^= UInt64(byte)
+            hash = hash &* 0x100000001b3
+        }
+        return String(format: "%016llx", hash)
+    }
+}
+
 struct CinematicPlanCompassCommandPlan: Equatable, Identifiable {
     static let identifierMaxCharacters = 320
     static let commandLimit = 6

@@ -37,6 +37,7 @@ struct CinematicPlanCompassSceneFocusPlan: Equatable {
         var readinessStatusIdentifier: String?
         var readinessWarningStateIdentifier: String?
         var readinessVerifyCommand: String?
+        var verifySealDescriptor: CinematicPlanCompassVerifySealPlan.Descriptor?
         var usesFallbackSection: Bool
         var cameraShot: CinematicCameraShot
         var lookTarget: SIMD3<Float>
@@ -182,7 +183,7 @@ enum CinematicPlanCompassSceneFocusPlanner {
             limit: CinematicPlanCompassSceneFocusPlan.identifierMaxCharacters
         )
 
-        let descriptor = CinematicPlanCompassSceneFocusPlan.Descriptor(
+        var descriptor = CinematicPlanCompassSceneFocusPlan.Descriptor(
             identifier: descriptorIdentifier,
             planIdentifier: planCompassPlan.identifier,
             planCopyIdentifier: planCompassPlan.copyIdentifier,
@@ -199,6 +200,7 @@ enum CinematicPlanCompassSceneFocusPlanner {
             readinessStatusIdentifier: selectedReadiness?.statusIdentifier,
             readinessWarningStateIdentifier: selectedReadiness?.warningStateIdentifier,
             readinessVerifyCommand: selectedReadiness?.verifyCommand,
+            verifySealDescriptor: nil,
             usesFallbackSection: usesFallbackSection,
             cameraShot: treatment.cameraShot,
             lookTarget: lookTarget,
@@ -226,6 +228,10 @@ enum CinematicPlanCompassSceneFocusPlanner {
             waypointRailIdentifier: waypointRailIdentifier,
             diagnosticsIdentifier: diagnosticsIdentifier,
             diagnosticsRowIdentifier: "plan-compass-focus"
+        )
+        descriptor.verifySealDescriptor = CinematicPlanCompassVerifySealPlan.descriptor(
+            readinessPlan: selectedReadiness,
+            focusDescriptor: descriptor
         )
 
         return CinematicPlanCompassSceneFocusPlan(

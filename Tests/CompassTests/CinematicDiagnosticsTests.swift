@@ -781,6 +781,7 @@ final class CinematicDiagnosticsTests: XCTestCase {
                 "repository",
                 "immediate",
                 "plan-compass-readiness",
+                "plan-compass-verify-seal",
                 "commit-constellation",
                 "idle-story-cycle",
                 "plan-compass-focus",
@@ -852,6 +853,7 @@ final class CinematicDiagnosticsTests: XCTestCase {
                     "repository",
                     "immediate",
                     "plan-compass-readiness",
+                    "plan-compass-verify-seal",
                     "commit-constellation",
                     "idle-story-cycle",
                     "plan-compass-focus",
@@ -1004,14 +1006,14 @@ final class CinematicDiagnosticsTests: XCTestCase {
             .components(separatedBy: "\n")
             .filter { expectedSectionHeadings.contains($0) }
         XCTAssertEqual(actualSectionHeadings, expectedSectionHeadings)
-        XCTAssertTrue(summary.exportText.contains("Repository/context (20 rows)"))
+        XCTAssertTrue(summary.exportText.contains("Repository/context (21 rows)"))
         XCTAssertTrue(summary.exportText.contains("Motifs (2 rows)"))
         XCTAssertTrue(summary.exportText.contains("Stage motion/effects (9 rows)"))
         XCTAssertTrue(summary.exportText.contains("Narrative/overlay (8 rows)"))
         XCTAssertTrue(summary.exportText.contains("Assets/textures (2 rows)"))
         XCTAssertTrue(summary.exportText.contains("Tuning (4 rows)"))
         XCTAssertTrue(summary.exportText.contains("Camera shots (7 rows)"))
-        XCTAssertTrue(summary.exportText.contains("Visual smoke (pass, 23 checks)"))
+        XCTAssertTrue(summary.exportText.contains("Visual smoke (pass, 24 checks)"))
         XCTAssertTrue(summary.exportText.contains("Plaque treatments (pass, 4 recipes): smoke pass"))
         XCTAssertTrue(summary.exportText.contains("failure-fracture: accent failure-fracture"))
         XCTAssertTrue(summary.exportText.contains("Overlay fallback: pass"))
@@ -1469,9 +1471,16 @@ final class CinematicDiagnosticsTests: XCTestCase {
         let warningHistoryBefore = project.cinematicDiagnosticsWarningBundleHistory
         let activeStorageBefore = project.activeStorage
         let planCompass = CinematicPlanCompassPlan(state: project.state)
+        let readiness = CinematicPlanCompassReadinessPlan(
+            state: project.state,
+            planCompassPlan: planCompass,
+            reliabilityFeedback: PlanReliabilityFeedback(state: project.state, sessions: project.sessions)
+        )
         let planCompassFocus = CinematicPlanCompassSceneFocusPlanner.plan(
             isPlanOverlaySelected: true,
-            planCompassPlan: planCompass
+            planCompassPlan: planCompass,
+            readinessPlan: readiness,
+            selectedKind: .immediate
         )
 
         let report = CinematicDiagnostics.currentReport(
@@ -1491,6 +1500,10 @@ final class CinematicDiagnosticsTests: XCTestCase {
         XCTAssertEqual(report.planCompassReadiness.sourceImmediateContentIdentifier, planCompass.immediate.contentIdentifier)
         XCTAssertEqual(report.planCompassSceneFocus.identifier, planCompassFocus.identifier)
         XCTAssertEqual(report.planCompassSceneFocus.completedWaypointIdentifiers, planCompass.completedWaypoints.map(\.contentIdentifier))
+        XCTAssertTrue(report.planCompassVerifySeal.isVisible)
+        XCTAssertEqual(report.planCompassVerifySeal.rowIdentifier, "plan-compass-verify-seal")
+        XCTAssertEqual(report.planCompassVerifySeal.focusDescriptorIdentifier, planCompassFocus.descriptor?.identifier)
+        XCTAssertEqual(report.planCompassVerifySeal.readinessIdentifier, report.planCompassReadiness.identifier)
     }
 
     func testCurrentReportUsesCompassProjectInputs() async {
