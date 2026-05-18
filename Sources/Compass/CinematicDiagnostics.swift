@@ -1494,6 +1494,7 @@ struct CinematicDiagnosticsSummary: Equatable {
     static let maxRows = 37
     static let labelMaxCharacters = 32
     static let detailMaxCharacters = 512
+    static let headerDetailMaxCharacters = 128
     static let visualSmokeCountMaxCharacters = 24
 
     var rows: [Row]
@@ -1508,10 +1509,27 @@ struct CinematicDiagnosticsSummary: Equatable {
         var detail: String
     }
 
+    enum AttentionState: String, Equatable {
+        case normal
+        case warning
+    }
+
+    struct PresentationMetadata: Equatable {
+        var headerDetail: String
+        var defaultExpanded: Bool
+        var attentionState: AttentionState
+        var warningIdentifiers: [String]
+
+        var needsAttention: Bool {
+            attentionState == .warning || !warningIdentifiers.isEmpty
+        }
+    }
+
     struct Section: Identifiable, Equatable {
         var id: String
         var label: String
         var rows: [Row]
+        var presentation: PresentationMetadata
 
         var rowCountLabel: String {
             rows.count == 1 ? "1 row" : "\(rows.count) rows"
@@ -1529,6 +1547,7 @@ struct CinematicDiagnosticsSummary: Equatable {
         var help: String
         var warningIdentifiers: [String]
         var checks: [CinematicVisualSmokeReport.Check]
+        var presentation: PresentationMetadata
 
         var checkCountLabel: String {
             checks.count == 1 ? "1 check" : "\(checks.count) checks"
@@ -1543,6 +1562,7 @@ struct CinematicDiagnosticsSummary: Equatable {
         var detail: String
         var warningIdentifier: String?
         var rows: [Row]
+        var presentation: PresentationMetadata
 
         var rowCountLabel: String {
             rows.count == 1 ? "1 recipe" : "\(rows.count) recipes"
@@ -1628,6 +1648,11 @@ struct CinematicDiagnosticsSummary: Equatable {
             rowIDs: [],
             rowIDPrefixes: ["camera-shot-"]
         )
+    ]
+
+    private static let collapsedByDefaultSectionIDs: Set<String> = [
+        "stage-motion-effects",
+        "camera-shots"
     ]
 
     init(report: CinematicDiagnosticsReport, visualSmoke: CinematicVisualSmokeReport = .representative()) {
@@ -1939,7 +1964,11 @@ struct CinematicDiagnosticsSummary: Equatable {
             return Section(
                 id: definition.id,
                 label: bounded(definition.label, limit: labelMaxCharacters),
-                rows: sectionRows
+                rows: sectionRows,
+                presentation: sectionPresentation(
+                    id: definition.id,
+                    rowCount: sectionRows.count
+                )
             )
         }
 
@@ -1949,7 +1978,11 @@ struct CinematicDiagnosticsSummary: Equatable {
                 Section(
                     id: "other",
                     label: bounded("Other", limit: labelMaxCharacters),
-                    rows: unmatchedRows
+                    rows: unmatchedRows,
+                    presentation: sectionPresentation(
+                        id: "other",
+                        rowCount: unmatchedRows.count
+                    )
                 )
             )
         }
@@ -1957,10 +1990,45 @@ struct CinematicDiagnosticsSummary: Equatable {
         return sections
     }
 
+    private static func sectionPresentation(id: String, rowCount: Int) -> PresentationMetadata {
+        PresentationMetadata(
+            headerDetail: bounded(
+                rowCountCopy(rowCount, singular: "row", plural: "rows"),
+                limit: headerDetailMaxCharacters
+            ),
+            defaultExpanded: !collapsedByDefaultSectionIDs.contains(id),
+            attentionState: .normal,
+            warningIdentifiers: []
+        )
+    }
+
+    var defaultExpandedGroupStates: [String: Bool] {
+        var states = Dictionary(uniqueKeysWithValues: sections.map { section in
+            (section.id, section.presentation.defaultExpanded)
+        })
+        states[visualSmoke.id] = visualSmoke.presentation.defaultExpanded
+        states[plaqueTreatmentLegend.id] = plaqueTreatmentLegend.presentation.defaultExpanded
+        return states
+    }
+
     private static func makeVisualSmokeSection(
         _ report: CinematicVisualSmokeReport
     ) -> VisualSmokeSection {
         let warningCount = report.warningIdentifiers.count
+        let checkCountLabel = report.checks.count == 1 ? "1 check" : "\(report.checks.count) checks"
+        let warningIdentifiers = report.warningIdentifiers
+        let presentation = PresentationMetadata(
+            headerDetail: bounded(
+                [
+                    checkCountLabel,
+                    warningHeaderDetail(warningIdentifiers)
+                ].joined(separator: " | "),
+                limit: headerDetailMaxCharacters
+            ),
+            defaultExpanded: !warningIdentifiers.isEmpty,
+            attentionState: warningIdentifiers.isEmpty ? .normal : .warning,
+            warningIdentifiers: warningIdentifiers
+        )
 
         return VisualSmokeSection(
             id: "visual-smoke",
@@ -1980,8 +2048,9 @@ struct CinematicDiagnosticsSummary: Equatable {
                 visualSmokeHelp(status: report.status, warningIdentifiers: report.warningIdentifiers),
                 limit: detailMaxCharacters
             ),
-            warningIdentifiers: report.warningIdentifiers,
-            checks: report.checks
+            warningIdentifiers: warningIdentifiers,
+            checks: report.checks,
+            presentation: presentation
         )
     }
 
@@ -2004,6 +2073,21 @@ struct CinematicDiagnosticsSummary: Equatable {
                 detail: plaqueTreatmentLegendDetail(entry)
             )
         }
+        let warningIdentifiers = warningIdentifier.map { [$0] } ?? []
+        let rowCountLabel = rows.count == 1 ? "1 recipe" : "\(rows.count) recipes"
+        let presentation = PresentationMetadata(
+            headerDetail: bounded(
+                [
+                    rowCountLabel,
+                    statusLabel,
+                    warningHeaderDetail(warningIdentifiers)
+                ].joined(separator: " | "),
+                limit: headerDetailMaxCharacters
+            ),
+            defaultExpanded: status == .warning || !warningIdentifiers.isEmpty,
+            attentionState: status == .warning || !warningIdentifiers.isEmpty ? .warning : .normal,
+            warningIdentifiers: warningIdentifiers
+        )
 
         return PlaqueTreatmentLegend(
             id: "plaque-treatment-legend",
@@ -2012,7 +2096,8 @@ struct CinematicDiagnosticsSummary: Equatable {
             statusLabel: bounded(statusLabel, limit: labelMaxCharacters),
             detail: bounded(detail, limit: detailMaxCharacters),
             warningIdentifier: warningIdentifier,
-            rows: rows
+            rows: rows,
+            presentation: presentation
         )
     }
 
@@ -2061,6 +2146,23 @@ struct CinematicDiagnosticsSummary: Equatable {
 
     private static func warningBadgeCopy(for count: Int) -> String {
         count > 99 ? "99+" : "\(count)"
+    }
+
+    private static func rowCountCopy(_ count: Int, singular: String, plural: String) -> String {
+        count == 1 ? "1 \(singular)" : "\(count) \(plural)"
+    }
+
+    private static func warningHeaderDetail(_ warningIdentifiers: [String]) -> String {
+        guard !warningIdentifiers.isEmpty else {
+            return "No warnings"
+        }
+
+        let visibleWarnings = warningIdentifiers.prefix(2).joined(separator: ", ")
+        if warningIdentifiers.count <= 2 {
+            return "\(warningCountCopy(for: warningIdentifiers.count)) | \(visibleWarnings)"
+        }
+
+        return "\(warningCountCopy(for: warningIdentifiers.count)) | \(visibleWarnings) +\(warningIdentifiers.count - 2)"
     }
 
     private static func visualSmokeHelp(

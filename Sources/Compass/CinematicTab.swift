@@ -580,6 +580,7 @@ private struct CinematicInfluenceControls: View {
 private struct CinematicDiagnosticsPopover: View {
     var summary: CinematicDiagnosticsSummary
     @State private var copied = false
+    @State private var groupExpansion: [String: Bool] = [:]
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -602,34 +603,16 @@ private struct CinematicDiagnosticsPopover: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 12) {
                     ForEach(summary.sections) { section in
-                        VStack(alignment: .leading, spacing: 7) {
-                            HStack(spacing: 6) {
-                                Text(section.label)
-                                    .font(.caption.weight(.semibold))
-                                    .foregroundStyle(.primary)
-
-                                Text(section.rowCountLabel)
-                                    .font(.caption2.monospacedDigit())
-                                    .foregroundStyle(.secondary)
-                            }
-
-                            VStack(alignment: .leading, spacing: 8) {
-                                ForEach(section.rows) { row in
-                                    HStack(alignment: .top, spacing: 10) {
-                                        Text(row.label)
-                                            .font(.system(.caption, design: .monospaced).weight(.semibold))
-                                            .foregroundStyle(.secondary)
-                                            .frame(width: 108, alignment: .leading)
-
-                                        Text(row.detail)
-                                            .font(.caption)
-                                            .foregroundStyle(.primary)
-                                            .lineLimit(detailLineLimit(for: row))
-                                            .textSelection(.enabled)
-                                            .frame(maxWidth: .infinity, alignment: .leading)
-                                    }
-                                }
-                            }
+                        diagnosticsDisclosureGroup(
+                            id: section.id,
+                            presentation: section.presentation
+                        ) {
+                            diagnosticsHeader(
+                                title: section.label,
+                                presentation: section.presentation
+                            )
+                        } content: {
+                            diagnosticsRows(section.rows)
                         }
                     }
 
@@ -645,30 +628,32 @@ private struct CinematicDiagnosticsPopover: View {
         .frame(width: 430, alignment: .leading)
         .onChange(of: summary.exportText) {
             copied = false
+            resetExpansionDefaults()
+        }
+        .onAppear {
+            resetExpansionDefaults()
         }
     }
 
     private var visualSmokeSection: some View {
-        VStack(alignment: .leading, spacing: 7) {
-            HStack(spacing: 6) {
-                Image(systemName: visualSmokeSystemImage(for: summary.visualSmoke.status))
-                    .font(.caption.weight(.bold))
-                    .foregroundStyle(visualSmokeColor(for: summary.visualSmoke.status))
-
-                Text(summary.visualSmoke.label)
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.primary)
-
-                Text(summary.visualSmoke.checkCountLabel)
-                    .font(.caption2.monospacedDigit())
-                    .foregroundStyle(.secondary)
-
-                Text(summary.visualSmoke.warningCountLabel)
-                    .font(.caption2.monospacedDigit().weight(.semibold))
-                    .foregroundStyle(visualSmokeColor(for: summary.visualSmoke.status))
-            }
-
+        diagnosticsDisclosureGroup(
+            id: summary.visualSmoke.id,
+            presentation: summary.visualSmoke.presentation
+        ) {
+            diagnosticsHeader(
+                title: summary.visualSmoke.label,
+                presentation: summary.visualSmoke.presentation,
+                systemImage: visualSmokeSystemImage(for: summary.visualSmoke.status),
+                tint: visualSmokeColor(for: summary.visualSmoke.status)
+            )
+        } content: {
             VStack(alignment: .leading, spacing: 8) {
+                Text(summary.visualSmoke.help)
+                    .font(.caption2.monospaced())
+                    .foregroundStyle(summary.visualSmoke.presentation.needsAttention ? .orange : .secondary)
+                    .lineLimit(2)
+                    .textSelection(.enabled)
+
                 ForEach(summary.visualSmoke.checks) { check in
                     HStack(alignment: .top, spacing: 10) {
                         HStack(alignment: .firstTextBaseline, spacing: 5) {
@@ -706,32 +691,24 @@ private struct CinematicDiagnosticsPopover: View {
     }
 
     private var plaqueTreatmentLegendSection: some View {
-        VStack(alignment: .leading, spacing: 7) {
-            HStack(spacing: 6) {
-                Image(systemName: visualSmokeSystemImage(for: summary.plaqueTreatmentLegend.status))
-                    .font(.caption.weight(.bold))
-                    .foregroundStyle(visualSmokeColor(for: summary.plaqueTreatmentLegend.status))
-
-                Text(summary.plaqueTreatmentLegend.label)
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.primary)
-
-                Text(summary.plaqueTreatmentLegend.rowCountLabel)
-                    .font(.caption2.monospacedDigit())
-                    .foregroundStyle(.secondary)
-
-                Text(summary.plaqueTreatmentLegend.statusLabel)
-                    .font(.caption2.monospacedDigit().weight(.semibold))
-                    .foregroundStyle(visualSmokeColor(for: summary.plaqueTreatmentLegend.status))
-            }
-
-            Text(summary.plaqueTreatmentLegend.detail)
-                .font(.caption2.monospaced())
-                .foregroundStyle(summary.plaqueTreatmentLegend.status == .warning ? .orange : .secondary)
-                .lineLimit(2)
-                .textSelection(.enabled)
-
+        diagnosticsDisclosureGroup(
+            id: summary.plaqueTreatmentLegend.id,
+            presentation: summary.plaqueTreatmentLegend.presentation
+        ) {
+            diagnosticsHeader(
+                title: summary.plaqueTreatmentLegend.label,
+                presentation: summary.plaqueTreatmentLegend.presentation,
+                systemImage: visualSmokeSystemImage(for: summary.plaqueTreatmentLegend.status),
+                tint: visualSmokeColor(for: summary.plaqueTreatmentLegend.status)
+            )
+        } content: {
             VStack(alignment: .leading, spacing: 8) {
+                Text(summary.plaqueTreatmentLegend.detail)
+                    .font(.caption2.monospaced())
+                    .foregroundStyle(summary.plaqueTreatmentLegend.presentation.needsAttention ? .orange : .secondary)
+                    .lineLimit(2)
+                    .textSelection(.enabled)
+
                 ForEach(summary.plaqueTreatmentLegend.rows) { row in
                     HStack(alignment: .top, spacing: 10) {
                         Text(row.label)
@@ -749,6 +726,80 @@ private struct CinematicDiagnosticsPopover: View {
                 }
             }
         }
+    }
+
+    private func diagnosticsDisclosureGroup<Header: View, Content: View>(
+        id: String,
+        presentation: CinematicDiagnosticsSummary.PresentationMetadata,
+        @ViewBuilder header: @escaping () -> Header,
+        @ViewBuilder content: @escaping () -> Content
+    ) -> some View {
+        DisclosureGroup(
+            isExpanded: groupExpansionBinding(
+                id: id,
+                defaultExpanded: presentation.defaultExpanded
+            )
+        ) {
+            content()
+                .padding(.top, 7)
+        } label: {
+            header()
+        }
+    }
+
+    private func diagnosticsHeader(
+        title: String,
+        presentation: CinematicDiagnosticsSummary.PresentationMetadata,
+        systemImage: String? = nil,
+        tint: Color = .secondary
+    ) -> some View {
+        HStack(spacing: 6) {
+            if let systemImage {
+                Image(systemName: systemImage)
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(tint)
+            }
+
+            Text(title)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.primary)
+
+            Text(presentation.headerDetail)
+                .font(.caption2.monospacedDigit())
+                .foregroundStyle(presentation.needsAttention ? .orange : .secondary)
+                .lineLimit(1)
+        }
+    }
+
+    private func diagnosticsRows(_ rows: [CinematicDiagnosticsSummary.Row]) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            ForEach(rows) { row in
+                HStack(alignment: .top, spacing: 10) {
+                    Text(row.label)
+                        .font(.system(.caption, design: .monospaced).weight(.semibold))
+                        .foregroundStyle(.secondary)
+                        .frame(width: 108, alignment: .leading)
+
+                    Text(row.detail)
+                        .font(.caption)
+                        .foregroundStyle(.primary)
+                        .lineLimit(detailLineLimit(for: row))
+                        .textSelection(.enabled)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+            }
+        }
+    }
+
+    private func groupExpansionBinding(id: String, defaultExpanded: Bool) -> Binding<Bool> {
+        Binding(
+            get: { groupExpansion[id] ?? defaultExpanded },
+            set: { groupExpansion[id] = $0 }
+        )
+    }
+
+    private func resetExpansionDefaults() {
+        groupExpansion = summary.defaultExpandedGroupStates
     }
 
     private func copyToPasteboard(_ text: String) {

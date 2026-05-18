@@ -299,9 +299,18 @@ final class CinematicVisualSmokeReportTests: XCTestCase {
         XCTAssertEqual(summary.visualSmoke.warningBadgeLabel, "0")
         XCTAssertEqual(summary.visualSmoke.warningIdentifiers, [])
         XCTAssertEqual(summary.visualSmoke.checkCountLabel, "14 checks")
+        XCTAssertEqual(summary.visualSmoke.presentation.headerDetail, "14 checks | No warnings")
+        XCTAssertEqual(summary.visualSmoke.presentation.defaultExpanded, false)
+        XCTAssertEqual(summary.visualSmoke.presentation.attentionState, .normal)
+        XCTAssertEqual(summary.visualSmoke.presentation.warningIdentifiers, [])
+        XCTAssertEqual(summary.visualSmoke.presentation.needsAttention, false)
         XCTAssertLessThanOrEqual(
             summary.visualSmoke.warningCountLabel.count,
             CinematicDiagnosticsSummary.visualSmokeCountMaxCharacters
+        )
+        XCTAssertLessThanOrEqual(
+            summary.visualSmoke.presentation.headerDetail.count,
+            CinematicDiagnosticsSummary.headerDetailMaxCharacters
         )
         XCTAssertTrue(summary.exportText.contains("Visual smoke (pass, 14 checks)"))
         XCTAssertTrue(summary.exportText.contains("Narrative cue readability: pass"))
@@ -320,6 +329,15 @@ final class CinematicVisualSmokeReportTests: XCTestCase {
         XCTAssertEqual(summary.plaqueTreatmentLegend.detail, "smoke pass")
         XCTAssertNil(summary.plaqueTreatmentLegend.warningIdentifier)
         XCTAssertEqual(summary.plaqueTreatmentLegend.rowCountLabel, "4 recipes")
+        XCTAssertEqual(summary.plaqueTreatmentLegend.presentation.headerDetail, "4 recipes | Passing | No warnings")
+        XCTAssertEqual(summary.plaqueTreatmentLegend.presentation.defaultExpanded, false)
+        XCTAssertEqual(summary.plaqueTreatmentLegend.presentation.attentionState, .normal)
+        XCTAssertEqual(summary.plaqueTreatmentLegend.presentation.warningIdentifiers, [])
+        XCTAssertEqual(summary.plaqueTreatmentLegend.presentation.needsAttention, false)
+        XCTAssertLessThanOrEqual(
+            summary.plaqueTreatmentLegend.presentation.headerDetail.count,
+            CinematicDiagnosticsSummary.headerDetailMaxCharacters
+        )
         XCTAssertEqual(
             summary.plaqueTreatmentLegend.rows.map(\.label),
             ["verify-seal", "warning-rails", "failure-fracture", "retry-braces"]
@@ -372,11 +390,27 @@ final class CinematicVisualSmokeReportTests: XCTestCase {
         XCTAssertEqual(summary.visualSmoke.warningBadgeLabel, "\(smoke.warningIdentifiers.count)")
         XCTAssertEqual(summary.visualSmoke.warningIdentifiers, smoke.warningIdentifiers)
         XCTAssertEqual(summary.visualSmoke.checks, smoke.checks)
+        XCTAssertEqual(summary.visualSmoke.presentation.defaultExpanded, true)
+        XCTAssertEqual(summary.visualSmoke.presentation.attentionState, .warning)
+        XCTAssertEqual(summary.visualSmoke.presentation.warningIdentifiers, smoke.warningIdentifiers)
+        XCTAssertEqual(summary.visualSmoke.presentation.needsAttention, true)
+        XCTAssertTrue(summary.visualSmoke.presentation.headerDetail.contains("14 checks"))
+        for warningIdentifier in smoke.warningIdentifiers.prefix(2) {
+            XCTAssertTrue(summary.visualSmoke.presentation.headerDetail.contains(warningIdentifier))
+        }
         XCTAssertTrue(summary.visualSmoke.help.contains("visual-smoke.asset-availability"))
         XCTAssertTrue(summary.visualSmoke.help.contains("visual-smoke.texture-role-coverage"))
         XCTAssertLessThanOrEqual(
             summary.visualSmoke.warningCountLabel.count,
             CinematicDiagnosticsSummary.visualSmokeCountMaxCharacters
+        )
+        XCTAssertLessThanOrEqual(
+            summary.visualSmoke.presentation.headerDetail.count,
+            CinematicDiagnosticsSummary.headerDetailMaxCharacters
+        )
+        XCTAssertLessThanOrEqual(
+            summary.visualSmoke.help.count,
+            CinematicDiagnosticsSummary.detailMaxCharacters
         )
 
         let assetCheck = try XCTUnwrap(summary.visualSmoke.checks.first { $0.id == "asset-availability" })
@@ -410,6 +444,21 @@ final class CinematicVisualSmokeReportTests: XCTestCase {
         XCTAssertEqual(
             summary.plaqueTreatmentLegend.warningIdentifier,
             "visual-smoke.native-feedback-treatment-coverage"
+        )
+        XCTAssertEqual(summary.plaqueTreatmentLegend.presentation.defaultExpanded, true)
+        XCTAssertEqual(summary.plaqueTreatmentLegend.presentation.attentionState, .warning)
+        XCTAssertEqual(
+            summary.plaqueTreatmentLegend.presentation.warningIdentifiers,
+            ["visual-smoke.native-feedback-treatment-coverage"]
+        )
+        XCTAssertTrue(
+            summary.plaqueTreatmentLegend.presentation.headerDetail.contains(
+                "visual-smoke.native-feedback-treatment-coverage"
+            )
+        )
+        XCTAssertLessThanOrEqual(
+            summary.plaqueTreatmentLegend.presentation.headerDetail.count,
+            CinematicDiagnosticsSummary.headerDetailMaxCharacters
         )
         XCTAssertTrue(
             summary.plaqueTreatmentLegend.detail.contains("visual-smoke.native-feedback-treatment-coverage")
@@ -450,6 +499,17 @@ final class CinematicVisualSmokeReportTests: XCTestCase {
         XCTAssertEqual(
             summary.plaqueTreatmentLegend.warningIdentifier,
             "visual-smoke.native-feedback-treatment-coverage"
+        )
+        XCTAssertEqual(summary.plaqueTreatmentLegend.presentation.defaultExpanded, true)
+        XCTAssertEqual(summary.plaqueTreatmentLegend.presentation.attentionState, .warning)
+        XCTAssertEqual(
+            summary.plaqueTreatmentLegend.presentation.warningIdentifiers,
+            ["visual-smoke.native-feedback-treatment-coverage"]
+        )
+        XCTAssertTrue(
+            summary.plaqueTreatmentLegend.presentation.headerDetail.contains(
+                "visual-smoke.native-feedback-treatment-coverage"
+            )
         )
         XCTAssertTrue(
             summary.plaqueTreatmentLegend.detail.contains("visual-smoke.native-feedback-treatment-coverage")

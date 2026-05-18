@@ -692,6 +692,32 @@ final class CinematicDiagnosticsTests: XCTestCase {
         }
     }
 
+    func testSummaryPresentationMetadataKeepsContextVisibleAndCollapsesDensePassingGroups() throws {
+        let report = try XCTUnwrap(CinematicDiagnostics.representativeSmokeMatrix().first)
+        let summary = CinematicDiagnosticsSummary(report: report)
+
+        XCTAssertEqual(summary.defaultExpandedGroupStates["repository-context"], true)
+        XCTAssertEqual(summary.defaultExpandedGroupStates["motifs"], true)
+        XCTAssertEqual(summary.defaultExpandedGroupStates["narrative-overlay"], true)
+        XCTAssertEqual(summary.defaultExpandedGroupStates["assets-textures"], true)
+        XCTAssertEqual(summary.defaultExpandedGroupStates["tuning"], true)
+        XCTAssertEqual(summary.defaultExpandedGroupStates["stage-motion-effects"], false)
+        XCTAssertEqual(summary.defaultExpandedGroupStates["camera-shots"], false)
+        XCTAssertEqual(summary.defaultExpandedGroupStates["visual-smoke"], false)
+        XCTAssertEqual(summary.defaultExpandedGroupStates["plaque-treatment-legend"], false)
+
+        for section in summary.sections {
+            XCTAssertEqual(section.presentation.headerDetail, section.rowCountLabel)
+            XCTAssertEqual(section.presentation.attentionState, .normal)
+            XCTAssertEqual(section.presentation.warningIdentifiers, [])
+            XCTAssertEqual(section.presentation.needsAttention, false)
+            XCTAssertLessThanOrEqual(
+                section.presentation.headerDetail.count,
+                CinematicDiagnosticsSummary.headerDetailMaxCharacters
+            )
+        }
+    }
+
     func testSummaryExportIncludesMotifSetDressingAndCameraIdentifiers() {
         let report = makeReport(
             CinematicDiagnosticsInput(
