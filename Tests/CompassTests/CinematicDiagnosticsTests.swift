@@ -151,6 +151,21 @@ final class CinematicDiagnosticsTests: XCTestCase {
             Set(reports.map(\.activityMotif.sigilIdentifier)),
             Set(CinematicActivityEventKind.allCases.map { "activity.\($0.rawValue)" })
         )
+        XCTAssertEqual(
+            Set(reports.map(\.setDressing.backdropTextureRouteIdentifier)),
+            CinematicTextureAssetCatalog.expectedRouteIdentifiers(for: .backdrop)
+        )
+        XCTAssertEqual(
+            Set(reports.map(\.setDressing.arenaTextureRouteIdentifier)),
+            CinematicTextureAssetCatalog.expectedRouteIdentifiers(for: .arena)
+        )
+        XCTAssertTrue(
+            reports.allSatisfy {
+                CinematicTextureAssetCatalog.recognizes($0.setDressing.backdropTextureName, role: .backdrop)
+                    && CinematicTextureAssetCatalog.recognizes($0.setDressing.arenaTextureName, role: .arena)
+                    && !$0.setDressing.usesFallbackTextureAsset
+            }
+        )
         XCTAssertTrue(
             Set(reports.map(\.activityTuning.pressureLevelIdentifier))
                 .isSuperset(of: ["clean", "light", "moderate", "heavy"])
@@ -561,7 +576,7 @@ final class CinematicDiagnosticsTests: XCTestCase {
         XCTAssertTrue(summary.exportText.contains("Assets/textures (2 rows)"))
         XCTAssertTrue(summary.exportText.contains("Tuning (4 rows)"))
         XCTAssertTrue(summary.exportText.contains("Camera shots (9 rows)"))
-        XCTAssertTrue(summary.exportText.contains("Visual smoke (pass, 9 checks)"))
+        XCTAssertTrue(summary.exportText.contains("Visual smoke (pass, 10 checks)"))
         XCTAssertTrue(summary.exportText.contains("Overlay fallback: pass"))
         XCTAssertTrue(summary.exportText.contains(report.languageMotif.sigilIdentifier))
         XCTAssertTrue(summary.exportText.contains(report.languageMotif.styleIdentifier))
@@ -595,6 +610,9 @@ final class CinematicDiagnosticsTests: XCTestCase {
         XCTAssertTrue(summary.exportText.contains(report.setDressing.languageArchitectureIdentifier))
         XCTAssertTrue(summary.exportText.contains(report.setDressing.activityMarkerIdentifier))
         XCTAssertTrue(summary.exportText.contains(report.setDressing.materialTextureVariantIdentifier))
+        XCTAssertTrue(summary.exportText.contains(report.setDressing.backdropTextureAssetIdentifier))
+        XCTAssertTrue(summary.exportText.contains(report.setDressing.arenaTextureAssetIdentifier))
+        XCTAssertTrue(summary.exportText.contains(report.setDressing.textureRoleCoverageIdentifier))
         XCTAssertTrue(summary.exportText.contains(report.setDressing.backdropTextureName))
         XCTAssertTrue(summary.exportText.contains(report.setDressing.arenaTextureName))
         XCTAssertTrue(summary.exportText.contains(report.cameraTuning.identifier))

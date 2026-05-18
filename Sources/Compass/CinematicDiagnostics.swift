@@ -333,8 +333,14 @@ struct CinematicDiagnosticsReport: Equatable {
         var ambientEnemyLimit: Int
         var activityLightBoost: Float
         var materialTextureVariantIdentifier: String
+        var backdropTextureAssetIdentifier: String
+        var arenaTextureAssetIdentifier: String
+        var backdropTextureRouteIdentifier: String
+        var arenaTextureRouteIdentifier: String
+        var textureRoleCoverageIdentifier: String
         var backdropTextureName: String
         var arenaTextureName: String
+        var usesFallbackTextureAsset: Bool
     }
 
     struct CommitConstellationSnapshot: Equatable {
@@ -424,6 +430,7 @@ struct CinematicVisualSmokeReport: Equatable {
             chromeStrengthCheck(reports: reports),
             textBoundsCheck(reports: reports),
             assetAvailabilityCheck(reports: reports),
+            textureRoleCoverageCheck(reports: reports),
             cameraPhaseCoverageCheck(reports: reports),
             pressureInfluenceSpreadCheck(reports: reports),
             recoveryCueCoverageCheck(reports: reports),
@@ -558,6 +565,8 @@ struct CinematicVisualSmokeReport: Equatable {
     private static func assetAvailabilityCheck(reports: [CinematicDiagnosticsReport]) -> Check {
         let availableCount = reports.filter(assetsAreAvailable).count
         let textureVariants = Set(reports.map(\.setDressing.materialTextureVariantIdentifier))
+        let backdropTextures = Set(reports.map(\.setDressing.backdropTextureName))
+        let arenaTextures = Set(reports.map(\.setDressing.arenaTextureName))
         let architectureCount = Set(reports.map(\.setDressing.languageArchitectureIdentifier)).count
         let markerCount = Set(reports.map(\.setDressing.activityMarkerIdentifier)).count
         let isPassing = !reports.isEmpty && availableCount == reports.count
@@ -570,8 +579,34 @@ struct CinematicVisualSmokeReport: Equatable {
             detail: [
                 "assets \(availableCount)/\(reports.count)",
                 "texture variants \(textureVariants.count)",
+                "backdrops \(joined(backdropTextures))",
+                "arenas \(joined(arenaTextures))",
                 "architecture \(architectureCount)",
                 "markers \(markerCount)"
+            ].joined(separator: " | ")
+        )
+    }
+
+    private static func textureRoleCoverageCheck(reports: [CinematicDiagnosticsReport]) -> Check {
+        let expectedBackdropRoutes = CinematicTextureAssetCatalog.expectedRouteIdentifiers(for: .backdrop)
+        let expectedArenaRoutes = CinematicTextureAssetCatalog.expectedRouteIdentifiers(for: .arena)
+        let backdropRoutes = Set(reports.map(\.setDressing.backdropTextureRouteIdentifier))
+        let arenaRoutes = Set(reports.map(\.setDressing.arenaTextureRouteIdentifier))
+        let directRouteCount = reports.filter { !$0.setDressing.usesFallbackTextureAsset }.count
+        let isPassing = !reports.isEmpty
+            && backdropRoutes.isSuperset(of: expectedBackdropRoutes)
+            && arenaRoutes.isSuperset(of: expectedArenaRoutes)
+            && directRouteCount == reports.count
+
+        return check(
+            id: "texture-role-coverage",
+            label: "Texture role coverage",
+            isPassing: isPassing,
+            warningIdentifier: "visual-smoke.texture-role-coverage",
+            detail: [
+                "backdrop \(backdropRoutes.intersection(expectedBackdropRoutes).count)/\(expectedBackdropRoutes.count)",
+                "arena \(arenaRoutes.intersection(expectedArenaRoutes).count)/\(expectedArenaRoutes.count)",
+                "direct \(directRouteCount)/\(reports.count)"
             ].joined(separator: " | ")
         )
     }
@@ -793,17 +828,31 @@ struct CinematicVisualSmokeReport: Equatable {
     }
 
     private static func assetsAreAvailable(_ report: CinematicDiagnosticsReport) -> Bool {
-        [
+        let identifiersArePresent = [
             report.setDressing.identifier,
             report.setDressing.languageArchitectureIdentifier,
             report.setDressing.activityMarkerIdentifier,
             report.setDressing.runeIntensityIdentifier,
             report.setDressing.animationCadenceIdentifier,
             report.setDressing.materialTextureVariantIdentifier,
+            report.setDressing.backdropTextureAssetIdentifier,
+            report.setDressing.arenaTextureAssetIdentifier,
+            report.setDressing.backdropTextureRouteIdentifier,
+            report.setDressing.arenaTextureRouteIdentifier,
+            report.setDressing.textureRoleCoverageIdentifier,
             report.setDressing.backdropTextureName,
             report.setDressing.arenaTextureName
         ]
         .allSatisfy { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+        let textureNamesAreRecognized = CinematicTextureAssetCatalog.recognizes(
+            report.setDressing.backdropTextureName,
+            role: .backdrop
+        ) && CinematicTextureAssetCatalog.recognizes(
+            report.setDressing.arenaTextureName,
+            role: .arena
+        )
+
+        return identifiersArePresent && textureNamesAreRecognized
     }
 
     private static func activityCaseIdentifier(_ report: CinematicDiagnosticsReport) -> String? {
@@ -1226,8 +1275,12 @@ struct CinematicDiagnosticsSummary: Equatable {
                 label: "Textures",
                 detail: [
                     report.setDressing.materialTextureVariantIdentifier,
+                    report.setDressing.backdropTextureAssetIdentifier,
+                    report.setDressing.arenaTextureAssetIdentifier,
+                    "routes \(report.setDressing.textureRoleCoverageIdentifier)",
                     report.setDressing.backdropTextureName,
-                    report.setDressing.arenaTextureName
+                    report.setDressing.arenaTextureName,
+                    report.setDressing.usesFallbackTextureAsset ? "fallback" : "direct"
                 ].joined(separator: " | ")
             ),
             row(
@@ -2369,8 +2422,14 @@ enum CinematicDiagnostics {
             ambientEnemyLimit: plan.ambientEnemyLimit,
             activityLightBoost: plan.activityLightBoost,
             materialTextureVariantIdentifier: plan.materialTextureVariants.identifier,
+            backdropTextureAssetIdentifier: plan.materialTextureVariants.backdropTextureAsset.identifier,
+            arenaTextureAssetIdentifier: plan.materialTextureVariants.arenaTextureAsset.identifier,
+            backdropTextureRouteIdentifier: plan.materialTextureVariants.backdropTextureAsset.routeIdentifier,
+            arenaTextureRouteIdentifier: plan.materialTextureVariants.arenaTextureAsset.routeIdentifier,
+            textureRoleCoverageIdentifier: plan.materialTextureVariants.textureRoleCoverageIdentifier,
             backdropTextureName: plan.materialTextureVariants.backdropTextureName,
-            arenaTextureName: plan.materialTextureVariants.arenaTextureName
+            arenaTextureName: plan.materialTextureVariants.arenaTextureName,
+            usesFallbackTextureAsset: plan.materialTextureVariants.usesFallbackTextureAsset
         )
     }
 

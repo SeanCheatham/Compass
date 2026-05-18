@@ -43,6 +43,10 @@ final class CinematicSetDressingPlanTests: XCTestCase {
             Set(languagePlans.map(\.languageArchitecture.sigilIdentifier)).count,
             RepositoryLanguage.allCases.count
         )
+        XCTAssertEqual(
+            Set(languagePlans.map(\.materialTextureVariants.backdropTextureAsset.routeIdentifier)),
+            CinematicTextureAssetCatalog.expectedRouteIdentifiers(for: .backdrop)
+        )
         XCTAssertGreaterThan(Set(languagePlans.map(\.languageArchitecture.architectureIdentifier)).count, 5)
         XCTAssertGreaterThan(Set(languagePlans.map(\.pedestalFlames.pedestalCount)).count, 2)
         XCTAssertGreaterThan(Set(languagePlans.map(\.materialTextureVariants.pedestalMaterialIdentifier)).count, 5)
@@ -60,6 +64,10 @@ final class CinematicSetDressingPlanTests: XCTestCase {
             Set(CinematicActivityEventKind.allCases.map(\.rawValue))
         )
         XCTAssertEqual(
+            Set(activityPlans.map(\.materialTextureVariants.arenaTextureAsset.routeIdentifier)),
+            CinematicTextureAssetCatalog.expectedRouteIdentifiers(for: .arena)
+        )
+        XCTAssertEqual(
             Set(activityPlans.map(\.activityMarker.identifier)).count,
             CinematicDiagnostics.representativeActivityCases().filter { $0.hasRepository }.count
         )
@@ -67,6 +75,81 @@ final class CinematicSetDressingPlanTests: XCTestCase {
             Set(activityPlans.map(\.activityMarker.pressureLevelIdentifier))
                 .isSuperset(of: ["clean", "light", "moderate", "heavy"])
         )
+    }
+
+    func testTextureCatalogRoutesEveryRepresentativeCaseToBundledNames() {
+        let settings = CinematicInfluenceSettings()
+
+        for language in RepositoryLanguage.allCases {
+            let motif = CinematicMotif.language(for: language)
+            let expectedBackdrop = CinematicTextureAssetCatalog.backdropAsset(for: motif.style)
+            let plan = CinematicSetDressingPlanner.plan(
+                languageProfile: languageProfile(primaryLanguage: language),
+                activityProfile: activityProfile(),
+                influenceSettings: settings
+            )
+
+            XCTAssertEqual(plan.materialTextureVariants.backdropTextureAsset, expectedBackdrop)
+            assertTextureAssetIsBounded(expectedBackdrop, file: #filePath, line: #line)
+            XCTAssertTrue(
+                CinematicTextureAssetCatalog.recognizes(plan.materialTextureVariants.backdropTextureName, role: .backdrop)
+            )
+            XCTAssertFalse(plan.materialTextureVariants.usesFallbackTextureAsset)
+        }
+
+        for activityCase in CinematicDiagnostics.representativeActivityCases() {
+            let eventKind = CinematicMotif.activity(for: activityCase.profile).eventKind
+            let expectedArena = CinematicTextureAssetCatalog.arenaAsset(for: eventKind)
+            let plan = CinematicSetDressingPlanner.plan(
+                languageProfile: languageProfile(primaryLanguage: .swift),
+                activityProfile: activityCase.profile,
+                influenceSettings: settings
+            )
+
+            XCTAssertEqual(plan.materialTextureVariants.arenaTextureAsset, expectedArena)
+            assertTextureAssetIsBounded(expectedArena, file: #filePath, line: #line)
+            XCTAssertTrue(
+                CinematicTextureAssetCatalog.recognizes(plan.materialTextureVariants.arenaTextureName, role: .arena)
+            )
+            XCTAssertFalse(plan.materialTextureVariants.usesFallbackTextureAsset)
+        }
+    }
+
+    func testTextureCatalogPreservesExistingRealityKitTextureNames() {
+        let settings = CinematicInfluenceSettings()
+        let dirtySwift = CinematicSetDressingPlanner.plan(
+            languageProfile: languageProfile(primaryLanguage: .swift),
+            activityProfile: activityProfile(worktreeChanges: worktreeChanges(modified: 2)),
+            influenceSettings: settings
+        )
+        let cleanMarkdown = CinematicSetDressingPlanner.plan(
+            languageProfile: languageProfile(primaryLanguage: .markdown),
+            activityProfile: activityProfile(),
+            influenceSettings: settings
+        )
+        let commitSwift = CinematicSetDressingPlanner.plan(
+            languageProfile: languageProfile(primaryLanguage: .swift),
+            activityProfile: activityProfile(recentCommitCount: 1),
+            influenceSettings: settings
+        )
+
+        XCTAssertEqual(dirtySwift.materialTextureVariants.backdropTextureName, "void-arches-v2")
+        XCTAssertEqual(dirtySwift.materialTextureVariants.arenaTextureName, "arena-runes-v3")
+        XCTAssertEqual(cleanMarkdown.materialTextureVariants.backdropTextureName, "void-arches")
+        XCTAssertEqual(cleanMarkdown.materialTextureVariants.arenaTextureName, "arena-runes-v3")
+        XCTAssertEqual(commitSwift.materialTextureVariants.arenaTextureName, "arena-runes-v2")
+
+        for textureName in [
+            dirtySwift.materialTextureVariants.backdropTextureName,
+            dirtySwift.materialTextureVariants.arenaTextureName,
+            cleanMarkdown.materialTextureVariants.backdropTextureName,
+            cleanMarkdown.materialTextureVariants.arenaTextureName,
+            commitSwift.materialTextureVariants.arenaTextureName
+        ] {
+            XCTAssertFalse(textureName.contains("/"))
+            XCTAssertFalse(textureName.hasSuffix(".png"))
+            XCTAssertTrue(CinematicTextureAssetCatalog.recognizesBundledTextureName(textureName))
+        }
     }
 
     func testPlanValuesStayInsideBoundedRanges() {
@@ -121,6 +204,18 @@ final class CinematicSetDressingPlanTests: XCTestCase {
         XCTAssertEqual(report.setDressing.shardCount, plan.floatingShards.shardCount)
         XCTAssertEqual(report.setDressing.ambientSpawnCadence, plan.ambientSpawnCadence)
         XCTAssertEqual(report.setDressing.ambientEnemyLimit, plan.ambientEnemyLimit)
+        XCTAssertEqual(
+            report.setDressing.backdropTextureAssetIdentifier,
+            plan.materialTextureVariants.backdropTextureAsset.identifier
+        )
+        XCTAssertEqual(
+            report.setDressing.arenaTextureAssetIdentifier,
+            plan.materialTextureVariants.arenaTextureAsset.identifier
+        )
+        XCTAssertEqual(
+            report.setDressing.textureRoleCoverageIdentifier,
+            plan.materialTextureVariants.textureRoleCoverageIdentifier
+        )
         XCTAssertTrue(report.identifier.contains("set-dressing:\(plan.identifier)"))
     }
 
@@ -180,6 +275,31 @@ private func assertPlanInBounds(
     XCTAssertInRange(plan.ambientSpawnCadence, CinematicTuning.ambientSpawnCadenceRange, file: file, line: line)
     XCTAssertInRange(plan.ambientEnemyLimit, CinematicTuning.ambientEnemyLimitRange, file: file, line: line)
     XCTAssertInRange(plan.activityLightBoost, CinematicTuning.activityLightBoostRange, file: file, line: line)
+}
+
+private func assertTextureAssetIsBounded(
+    _ asset: CinematicTextureAsset,
+    file: StaticString = #filePath,
+    line: UInt = #line
+) {
+    XCTAssertLessThanOrEqual(asset.identifier.count, CinematicTextureAssetCatalog.identifierMaxCharacters, file: file, line: line)
+    XCTAssertFalse(asset.identifier.isEmpty, file: file, line: line)
+    XCTAssertFalse(asset.routeIdentifier.isEmpty, file: file, line: line)
+    XCTAssertFalse(asset.requestedTextureName.isEmpty, file: file, line: line)
+    XCTAssertFalse(asset.textureName.isEmpty, file: file, line: line)
+    XCTAssertFalse(asset.fallbackTextureName.isEmpty, file: file, line: line)
+    XCTAssertFalse(asset.textureName.contains("/"), file: file, line: line)
+    XCTAssertFalse(asset.textureName.hasSuffix(".png"), file: file, line: line)
+    XCTAssertTrue(
+        CinematicTextureAssetCatalog.recognizes(asset.textureName, role: asset.role),
+        file: file,
+        line: line
+    )
+    XCTAssertTrue(
+        CinematicTextureAssetCatalog.recognizes(asset.fallbackTextureName, role: asset.role),
+        file: file,
+        line: line
+    )
 }
 
 private func languageProfile(primaryLanguage: RepositoryLanguage) -> RepositoryLanguageProfile {

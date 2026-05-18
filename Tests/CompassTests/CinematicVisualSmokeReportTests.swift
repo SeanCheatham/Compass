@@ -18,6 +18,7 @@ final class CinematicVisualSmokeReportTests: XCTestCase {
                 "chrome-strength",
                 "text-bounds",
                 "asset-availability",
+                "texture-role-coverage",
                 "camera-phase-coverage",
                 "pressure-influence-spread",
                 "recovery-cue-coverage",
@@ -31,6 +32,8 @@ final class CinematicVisualSmokeReportTests: XCTestCase {
         let smoke = CinematicVisualSmokeReport.representative()
         let overlay = try XCTUnwrap(smoke.checks.first { $0.id == "overlay-fallback-usage" })
         let chrome = try XCTUnwrap(smoke.checks.first { $0.id == "chrome-strength" })
+        let assets = try XCTUnwrap(smoke.checks.first { $0.id == "asset-availability" })
+        let textureRoles = try XCTUnwrap(smoke.checks.first { $0.id == "texture-role-coverage" })
         let pressure = try XCTUnwrap(smoke.checks.first { $0.id == "pressure-influence-spread" })
         let recoveryCue = try XCTUnwrap(smoke.checks.first { $0.id == "recovery-cue-coverage" })
         let timelineFocus = try XCTUnwrap(smoke.checks.first { $0.id == "timeline-focus-coverage" })
@@ -43,6 +46,11 @@ final class CinematicVisualSmokeReportTests: XCTestCase {
         XCTAssertTrue(chrome.detail.contains("compact-active"))
         XCTAssertTrue(chrome.detail.contains("full-readable"))
         XCTAssertTrue(chrome.detail.contains("fallback-readable"))
+        XCTAssertTrue(assets.detail.contains("void-arches"))
+        XCTAssertTrue(assets.detail.contains("arena-runes-v3"))
+        XCTAssertTrue(textureRoles.detail.contains("backdrop 8/8"))
+        XCTAssertTrue(textureRoles.detail.contains("arena 8/8"))
+        XCTAssertTrue(textureRoles.detail.contains("direct"))
         XCTAssertTrue(pressure.detail.contains("clean"))
         XCTAssertTrue(pressure.detail.contains("heavy"))
         XCTAssertTrue(pressure.detail.contains("steady"))
@@ -69,6 +77,7 @@ final class CinematicVisualSmokeReportTests: XCTestCase {
         XCTAssertEqual(smoke.status, .warning)
         XCTAssertTrue(smoke.warningIdentifiers.contains("visual-smoke.overlay-coverage"))
         XCTAssertTrue(smoke.warningIdentifiers.contains("visual-smoke.chrome-strength"))
+        XCTAssertTrue(smoke.warningIdentifiers.contains("visual-smoke.texture-role-coverage"))
         XCTAssertTrue(smoke.warningIdentifiers.contains("visual-smoke.camera-phase-coverage"))
         XCTAssertTrue(smoke.warningIdentifiers.contains("visual-smoke.pressure-influence-spread"))
         XCTAssertTrue(smoke.warningIdentifiers.contains("visual-smoke.recovery-cue-coverage"))
@@ -94,6 +103,22 @@ final class CinematicVisualSmokeReportTests: XCTestCase {
         }
     }
 
+    func testAssetAvailabilityWarnsForEmptyOrUnrecognizedTextureNames() throws {
+        let report = try XCTUnwrap(CinematicDiagnostics.representativeSmokeMatrix().first)
+
+        var emptyTextureReport = report
+        emptyTextureReport.setDressing.backdropTextureName = ""
+        let emptySmoke = CinematicVisualSmokeReport(reports: [emptyTextureReport])
+        XCTAssertEqual(emptySmoke.checks.first { $0.id == "asset-availability" }?.status, .warning)
+        XCTAssertTrue(emptySmoke.warningIdentifiers.contains("visual-smoke.asset-availability"))
+
+        var unrecognizedTextureReport = report
+        unrecognizedTextureReport.setDressing.arenaTextureName = "missing-arena-runes"
+        let unrecognizedSmoke = CinematicVisualSmokeReport(reports: [unrecognizedTextureReport])
+        XCTAssertEqual(unrecognizedSmoke.checks.first { $0.id == "asset-availability" }?.status, .warning)
+        XCTAssertTrue(unrecognizedSmoke.warningIdentifiers.contains("visual-smoke.asset-availability"))
+    }
+
     func testSummaryExportIncludesVisualSmokeWithoutChangingRowsOrSections() {
         let report = CinematicDiagnostics.representativeSmokeMatrix().first!
         let summary = CinematicDiagnosticsSummary(
@@ -101,8 +126,9 @@ final class CinematicVisualSmokeReportTests: XCTestCase {
             visualSmoke: CinematicVisualSmokeReport.representative()
         )
 
-        XCTAssertTrue(summary.exportText.contains("Visual smoke (pass, 9 checks)"))
+        XCTAssertTrue(summary.exportText.contains("Visual smoke (pass, 10 checks)"))
         XCTAssertTrue(summary.exportText.contains("Narrative cue readability: pass"))
+        XCTAssertTrue(summary.exportText.contains("Texture role coverage: pass"))
         XCTAssertTrue(summary.exportText.contains("Pressure/influence spread: pass"))
         XCTAssertTrue(summary.exportText.contains("Recovery cue coverage: pass"))
         XCTAssertTrue(summary.exportText.contains("Timeline focus coverage: pass"))

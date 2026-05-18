@@ -101,12 +101,197 @@ struct CinematicSetDressingPlan: Equatable {
 
     struct MaterialTextureVariants: Equatable {
         var identifier: String
-        var backdropTextureName: String
-        var arenaTextureName: String
+        var backdropTextureAsset: CinematicTextureAsset
+        var arenaTextureAsset: CinematicTextureAsset
         var pedestalMaterialIdentifier: String
         var flameMaterialIdentifier: String
         var shardMaterialIdentifier: String
         var runeMaterialIdentifier: String
+
+        var backdropTextureName: String {
+            backdropTextureAsset.textureName
+        }
+
+        var arenaTextureName: String {
+            arenaTextureAsset.textureName
+        }
+
+        var textureRoleCoverageIdentifier: String {
+            CinematicTextureAssetCatalog.textureRoleCoverageIdentifier(
+                backdrop: backdropTextureAsset,
+                arena: arenaTextureAsset
+            )
+        }
+
+        var usesFallbackTextureAsset: Bool {
+            backdropTextureAsset.usesFallback || arenaTextureAsset.usesFallback
+        }
+    }
+}
+
+enum CinematicTextureAssetRole: String, CaseIterable, Equatable {
+    case backdrop
+    case arena
+}
+
+struct CinematicTextureAsset: Equatable {
+    var role: CinematicTextureAssetRole
+    var routeIdentifier: String
+    var requestedTextureName: String
+    var textureName: String
+    var fallbackTextureName: String
+    var usesFallback: Bool
+    var identifier: String
+}
+
+enum CinematicTextureAssetCatalog {
+    static let identifierMaxCharacters = 72
+
+    private static let backdropTextureNames: Set<String> = [
+        "void-arches",
+        "void-arches-v2"
+    ]
+    private static let arenaTextureNames: Set<String> = [
+        "arena-runes",
+        "arena-runes-v2",
+        "arena-runes-v3"
+    ]
+
+    static var bundledTextureNames: Set<String> {
+        backdropTextureNames.union(arenaTextureNames)
+    }
+
+    static func backdropAsset(for style: CinematicLanguageSigilStyle) -> CinematicTextureAsset {
+        let textureName: String
+        switch style {
+        case .swiftComet:
+            textureName = "void-arches-v2"
+        case .scriptCircuit:
+            textureName = "void-arches-v2"
+        case .pythonCoil:
+            textureName = "void-arches-v2"
+        case .goCurrent:
+            textureName = "void-arches-v2"
+        case .rustGear:
+            textureName = "void-arches-v2"
+        case .markdownRune:
+            textureName = "void-arches"
+        case .polyglotPrism:
+            textureName = "void-arches-v2"
+        case .unknownGate:
+            textureName = "void-arches"
+        }
+
+        return asset(
+            role: .backdrop,
+            routeIdentifier: "language.\(style.rawValue)",
+            requestedTextureName: textureName
+        )
+    }
+
+    static func arenaAsset(for kind: CinematicActivityEventKind) -> CinematicTextureAsset {
+        let textureName: String
+        switch kind {
+        case .conflicted, .failure:
+            textureName = "arena-runes-v3"
+        case .dirty:
+            textureName = "arena-runes-v3"
+        case .commit:
+            textureName = "arena-runes-v2"
+        case .success, .recovery:
+            textureName = "arena-runes-v2"
+        case .clean, .unavailable:
+            textureName = "arena-runes-v3"
+        }
+
+        return asset(
+            role: .arena,
+            routeIdentifier: "activity.\(kind.rawValue)",
+            requestedTextureName: textureName
+        )
+    }
+
+    static func textureRoleCoverageIdentifier(
+        backdrop: CinematicTextureAsset,
+        arena: CinematicTextureAsset
+    ) -> String {
+        [
+            "backdrop:\(backdrop.routeIdentifier)=\(backdrop.textureName)",
+            "arena:\(arena.routeIdentifier)=\(arena.textureName)"
+        ].joined(separator: "|")
+    }
+
+    static func expectedRouteIdentifiers(for role: CinematicTextureAssetRole) -> Set<String> {
+        switch role {
+        case .backdrop:
+            return Set(CinematicLanguageSigilStyle.allCases.map { backdropAsset(for: $0).routeIdentifier })
+        case .arena:
+            return Set(CinematicActivityEventKind.allCases.map { arenaAsset(for: $0).routeIdentifier })
+        }
+    }
+
+    static func recognizes(_ textureName: String, role: CinematicTextureAssetRole) -> Bool {
+        recognizedTextureNames(for: role).contains(textureName)
+    }
+
+    static func recognizesBundledTextureName(_ textureName: String) -> Bool {
+        bundledTextureNames.contains(textureName)
+    }
+
+    private static func asset(
+        role: CinematicTextureAssetRole,
+        routeIdentifier: String,
+        requestedTextureName: String
+    ) -> CinematicTextureAsset {
+        let requested = requestedTextureName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let fallback = fallbackTextureName(for: role)
+        let recognizedNames = recognizedTextureNames(for: role)
+        let textureName = recognizedNames.contains(requested) ? requested : fallback
+        let usesFallback = textureName != requested
+        let identifier = boundedIdentifier(
+            [
+                "texture",
+                role.rawValue,
+                routeIdentifier,
+                textureName,
+                usesFallback ? "fallback" : "direct"
+            ].joined(separator: ".")
+        )
+
+        return CinematicTextureAsset(
+            role: role,
+            routeIdentifier: routeIdentifier,
+            requestedTextureName: requested,
+            textureName: textureName,
+            fallbackTextureName: fallback,
+            usesFallback: usesFallback,
+            identifier: identifier
+        )
+    }
+
+    private static func recognizedTextureNames(for role: CinematicTextureAssetRole) -> Set<String> {
+        switch role {
+        case .backdrop:
+            return backdropTextureNames
+        case .arena:
+            return arenaTextureNames
+        }
+    }
+
+    private static func fallbackTextureName(for role: CinematicTextureAssetRole) -> String {
+        switch role {
+        case .backdrop:
+            return "void-arches"
+        case .arena:
+            return "arena-runes"
+        }
+    }
+
+    private static func boundedIdentifier(_ identifier: String) -> String {
+        guard identifier.count > identifierMaxCharacters else { return identifier }
+
+        let prefixLimit = max(1, identifierMaxCharacters - 3)
+        return String(identifier.prefix(prefixLimit)).trimmingCharacters(in: .whitespacesAndNewlines) + "..."
     }
 }
 
@@ -388,40 +573,33 @@ enum CinematicSetDressingPlanner {
             languageVariant = "dim-basalt"
         }
 
-        let arenaTextureName: String
+        let arenaTextureAsset = CinematicTextureAssetCatalog.arenaAsset(for: activityKind)
+        let backdropTextureAsset = CinematicTextureAssetCatalog.backdropAsset(for: languageStyle)
         let runeMaterialIdentifier: String
         switch activityKind {
         case .conflicted, .failure:
-            arenaTextureName = "arena-runes-v3"
             runeMaterialIdentifier = "fracture-runes"
         case .dirty:
-            arenaTextureName = "arena-runes-v3"
             runeMaterialIdentifier = "pressure-runes"
         case .commit:
-            arenaTextureName = "arena-runes-v2"
             runeMaterialIdentifier = "history-runes"
         case .success, .recovery:
-            arenaTextureName = "arena-runes-v2"
             runeMaterialIdentifier = "seal-runes"
         case .clean, .unavailable:
-            arenaTextureName = "arena-runes-v3"
             runeMaterialIdentifier = "quiet-runes"
         }
 
-        let backdropTextureName = languageStyle == .markdownRune || languageStyle == .unknownGate
-            ? "void-arches"
-            : "void-arches-v2"
         let identifier = [
-            backdropTextureName,
-            arenaTextureName,
+            backdropTextureAsset.identifier,
+            arenaTextureAsset.identifier,
             languageVariant,
             runeMaterialIdentifier
         ].joined(separator: "|")
 
         return CinematicSetDressingPlan.MaterialTextureVariants(
             identifier: identifier,
-            backdropTextureName: backdropTextureName,
-            arenaTextureName: arenaTextureName,
+            backdropTextureAsset: backdropTextureAsset,
+            arenaTextureAsset: arenaTextureAsset,
             pedestalMaterialIdentifier: "\(languageVariant)-pedestal",
             flameMaterialIdentifier: "\(languageVariant)-flame",
             shardMaterialIdentifier: "\(languageVariant)-shard",
