@@ -298,6 +298,63 @@ struct CinematicRunRecapShareArtifactRollupPlan: Equatable, Identifiable {
     }
 }
 
+struct CinematicRunRecapShareArtifactComparisonPlan: Equatable, Identifiable {
+    static let identifierMaxCharacters = CinematicRunRecapShareArtifactHistoryPlan.identifierMaxCharacters
+    static let snippetMaxCharacters = CinematicRunRecapShareArtifactHistoryPlan.snippetMaxCharacters
+    static let searchQuerySnippetMaxCharacters = CinematicRunRecapShareArtifactPreviewBrowserPlan.searchQuerySnippetMaxCharacters
+    static let bodyPreviewMaxCharacters = 180
+    static let exportTextMaxCharacters = 2_800
+    static let copyLabelMaxCharacters = 34
+    static let copyHelpMaxCharacters = 260
+
+    var id: String { identifier }
+
+    var identifier: String
+    var exportIdentifier: String
+    var isAvailable: Bool
+    var availabilityReason: String
+    var isSearchActive: Bool
+    var searchQuerySnippet: String
+    var searchQueryFingerprint: String
+    var noMatchAvailabilityReason: String?
+    var retainedEntryCount: Int
+    var totalCount: Int
+    var hiddenCount: Int
+    var matchingEntryCount: Int
+    var unfilteredVisibleCount: Int
+    var selectedEntryIdentifier: String?
+    var selectedFallbackEntryIdentifier: String?
+    var selectedFallbackReasonIdentifier: String
+    var compareEntryIdentifier: String?
+    var targetDirectionIdentifier: String
+    var sessionDelta: Int?
+    var selectedSessionNumber: Int?
+    var compareSessionNumber: Int?
+    var selectedFilename: String?
+    var compareFilename: String?
+    var selectedTitleSnippet: String?
+    var compareTitleSnippet: String?
+    var selectedStatusSnippet: String?
+    var compareStatusSnippet: String?
+    var selectedCommitSnippet: String?
+    var compareCommitSnippet: String?
+    var selectedBodyPreviewText: String?
+    var compareBodyPreviewText: String?
+    var cleanupCandidateCount: Int
+    var hiddenCleanupCandidateCount: Int
+    var cleanupCandidateIdentifiers: [String]
+    var warningStateIdentifier: String
+    var warningCount: Int
+    var hiddenWarningCount: Int
+    var warningIdentifiers: [String]
+    var hasWarnings: Bool
+    var exportText: String
+    var copyLabel: String
+    var copyHelp: String
+
+    var exportTextLength: Int { exportText.count }
+}
+
 enum CinematicRunRecapShareArtifactPreviewBrowserPlanner {
     static func plan(
         historyPlan: CinematicRunRecapShareArtifactHistoryPlan,
@@ -1516,6 +1573,472 @@ enum CinematicRunRecapShareArtifactRollupPlanner {
                 .trimmingCharacters(in: .whitespacesAndNewlines) + "..."
         }
         return normalized
+    }
+
+    private static func boundedArtifactText(_ text: String, limit: Int) -> String {
+        guard limit > 0 else { return "" }
+        let normalized = text
+            .replacingOccurrences(of: "\r", with: "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalized.isEmpty else { return "none" }
+        guard normalized.count <= limit else {
+            let prefixLimit = max(1, limit - 3)
+            return normalized.prefix(prefixLimit)
+                .trimmingCharacters(in: .whitespacesAndNewlines) + "..."
+        }
+        return normalized
+    }
+
+    private static func fingerprint(_ value: String) -> String {
+        var hash: UInt64 = 0xcbf29ce484222325
+        for byte in value.utf8 {
+            hash ^= UInt64(byte)
+            hash = hash &* 0x100000001b3
+        }
+        return String(format: "%016llx", hash)
+    }
+}
+
+enum CinematicRunRecapShareArtifactComparisonPlanner {
+    static func plan(
+        historyPlan: CinematicRunRecapShareArtifactHistoryPlan,
+        selectedEntryIdentifier: String? = nil,
+        searchQuery: String? = nil
+    ) -> CinematicRunRecapShareArtifactComparisonPlan {
+        let previewPlan = CinematicRunRecapShareArtifactPreviewBrowserPlanner.plan(
+            historyPlan: historyPlan,
+            selectedEntryIdentifier: selectedEntryIdentifier,
+            searchQuery: searchQuery
+        )
+        let search = searchState(for: searchQuery)
+        let retainedEntries = historyPlan.entries
+        let matchingEntries = search.isActive
+            ? retainedEntries.filter { matches($0, normalizedQuery: search.normalizedQuery) }
+            : retainedEntries
+        let selectedIndex = previewPlan.selectedEntryIdentifier.flatMap { identifier in
+            matchingEntries.firstIndex { $0.identifier == identifier }
+        }
+        let selectedEntry = selectedIndex.map { matchingEntries[$0] }
+        let comparisonTarget = selectedIndex.flatMap { target(for: $0, in: matchingEntries) }
+        let compareEntry = comparisonTarget?.entry
+        let targetDirectionIdentifier = comparisonTarget?.directionIdentifier ?? "none"
+        let sessionDelta = selectedEntry.flatMap { selected in
+            compareEntry.map { abs(selected.sessionNumber - $0.sessionNumber) }
+        }
+        let noMatchAvailabilityReason = search.isActive && !retainedEntries.isEmpty && matchingEntries.isEmpty
+            ? "no-matching-recap-share-artifacts"
+            : nil
+        let availabilityReason = availabilityReason(
+            historyPlan: historyPlan,
+            matchingEntries: matchingEntries,
+            compareEntry: compareEntry,
+            previewPlan: previewPlan,
+            search: search,
+            noMatchAvailabilityReason: noMatchAvailabilityReason
+        )
+        let isAvailable = compareEntry != nil
+        let warningStateIdentifier = historyPlan.hasWarnings ? "warnings" : "clear"
+        let selectedBodyPreviewText = selectedEntry.map { bodyPreview(from: $0.markdownContents) }
+        let compareBodyPreviewText = compareEntry.map { bodyPreview(from: $0.markdownContents) }
+        let exportIdentifier = bounded(
+            [
+                "run-recap-share-artifact-comparison-export",
+                "availability:\(availabilityReason)",
+                "retained:\(retainedEntries.count)",
+                "total:\(historyPlan.totalCount)",
+                "hidden:\(historyPlan.hiddenCount)",
+                "matching:\(matchingEntries.count)",
+                "query:\(search.queryFingerprint)",
+                "query-snippet:\(search.querySnippet)",
+                "no-match:\(noMatchAvailabilityReason ?? "none")",
+                "selected:\(selectedEntry?.identifier ?? "none")",
+                "compare:\(compareEntry?.identifier ?? "none")",
+                "direction:\(targetDirectionIdentifier)",
+                "delta:\(sessionDelta.map(String.init) ?? "none")",
+                "fallback:\(previewPlan.selectedFallbackEntryIdentifier ?? "none")",
+                "fallback-reason:\(previewPlan.selectedFallbackReasonIdentifier)",
+                "cleanup:\(historyPlan.cleanupCandidateCount)",
+                "warnings:\(warningStateIdentifier)",
+                "warning-count:\(historyPlan.warningCount)",
+                "content:\(fingerprint([selectedEntry?.identifier, compareEntry?.identifier].compactMap { $0 }.joined(separator: "|")))"
+            ].joined(separator: "|"),
+            limit: CinematicRunRecapShareArtifactComparisonPlan.identifierMaxCharacters
+        )
+        let export = exportText(
+            exportIdentifier: exportIdentifier,
+            isAvailable: isAvailable,
+            availabilityReason: availabilityReason,
+            historyPlan: historyPlan,
+            retainedEntries: retainedEntries,
+            matchingEntries: matchingEntries,
+            search: search,
+            noMatchAvailabilityReason: noMatchAvailabilityReason,
+            previewPlan: previewPlan,
+            selectedEntry: selectedEntry,
+            compareEntry: compareEntry,
+            targetDirectionIdentifier: targetDirectionIdentifier,
+            sessionDelta: sessionDelta,
+            selectedBodyPreviewText: selectedBodyPreviewText,
+            compareBodyPreviewText: compareBodyPreviewText,
+            warningStateIdentifier: warningStateIdentifier
+        )
+        let identifier = bounded(
+            [
+                "run-recap-share-artifact-comparison",
+                "availability:\(availabilityReason)",
+                "export:\(fingerprint(exportIdentifier))",
+                "retained:\(retainedEntries.count)",
+                "matching:\(matchingEntries.count)",
+                "query:\(search.queryFingerprint)",
+                "selected:\(selectedEntry?.identifier ?? "none")",
+                "compare:\(compareEntry?.identifier ?? "none")",
+                "direction:\(targetDirectionIdentifier)",
+                "delta:\(sessionDelta.map(String.init) ?? "none")",
+                "cleanup:\(historyPlan.cleanupCandidateCount)",
+                "warnings:\(warningStateIdentifier)",
+                "copy:\(export.count)"
+            ].joined(separator: "|"),
+            limit: CinematicRunRecapShareArtifactComparisonPlan.identifierMaxCharacters
+        )
+
+        return CinematicRunRecapShareArtifactComparisonPlan(
+            identifier: identifier,
+            exportIdentifier: exportIdentifier,
+            isAvailable: isAvailable,
+            availabilityReason: availabilityReason,
+            isSearchActive: search.isActive,
+            searchQuerySnippet: search.querySnippet,
+            searchQueryFingerprint: search.queryFingerprint,
+            noMatchAvailabilityReason: noMatchAvailabilityReason,
+            retainedEntryCount: retainedEntries.count,
+            totalCount: historyPlan.totalCount,
+            hiddenCount: historyPlan.hiddenCount,
+            matchingEntryCount: matchingEntries.count,
+            unfilteredVisibleCount: retainedEntries.count,
+            selectedEntryIdentifier: selectedEntry?.identifier,
+            selectedFallbackEntryIdentifier: previewPlan.selectedFallbackEntryIdentifier,
+            selectedFallbackReasonIdentifier: previewPlan.selectedFallbackReasonIdentifier,
+            compareEntryIdentifier: compareEntry?.identifier,
+            targetDirectionIdentifier: targetDirectionIdentifier,
+            sessionDelta: sessionDelta,
+            selectedSessionNumber: selectedEntry?.sessionNumber,
+            compareSessionNumber: compareEntry?.sessionNumber,
+            selectedFilename: selectedEntry?.filename,
+            compareFilename: compareEntry?.filename,
+            selectedTitleSnippet: selectedEntry.map { entrySnippet($0.titleSnippet) },
+            compareTitleSnippet: compareEntry.map { entrySnippet($0.titleSnippet) },
+            selectedStatusSnippet: selectedEntry.map { entrySnippet($0.statusSnippet) },
+            compareStatusSnippet: compareEntry.map { entrySnippet($0.statusSnippet) },
+            selectedCommitSnippet: selectedEntry?.commitSnippet.map(entrySnippet),
+            compareCommitSnippet: compareEntry?.commitSnippet.map(entrySnippet),
+            selectedBodyPreviewText: selectedBodyPreviewText,
+            compareBodyPreviewText: compareBodyPreviewText,
+            cleanupCandidateCount: historyPlan.cleanupCandidateCount,
+            hiddenCleanupCandidateCount: historyPlan.hiddenCleanupCandidateCount,
+            cleanupCandidateIdentifiers: historyPlan.cleanupCandidateIdentifiers,
+            warningStateIdentifier: warningStateIdentifier,
+            warningCount: historyPlan.warningCount,
+            hiddenWarningCount: historyPlan.hiddenWarningCount,
+            warningIdentifiers: historyPlan.warnings.map(\.identifier),
+            hasWarnings: historyPlan.hasWarnings,
+            exportText: export,
+            copyLabel: copyLabel(isAvailable: isAvailable),
+            copyHelp: copyHelp(
+                isAvailable: isAvailable,
+                availabilityReason: availabilityReason,
+                selectedEntry: selectedEntry,
+                compareEntry: compareEntry,
+                targetDirectionIdentifier: targetDirectionIdentifier,
+                search: search,
+                exportIdentifier: exportIdentifier
+            )
+        )
+    }
+
+    private struct SearchState {
+        var normalizedQuery: String
+        var querySnippet: String
+        var queryFingerprint: String
+        var isActive: Bool
+    }
+
+    private struct ComparisonTarget {
+        var entry: CinematicRunRecapShareArtifactHistoryPlan.Entry
+        var directionIdentifier: String
+    }
+
+    private static func searchState(for query: String?) -> SearchState {
+        let normalizedQuery = normalizedSearchText(query ?? "")
+        let isActive = !normalizedQuery.isEmpty
+        return SearchState(
+            normalizedQuery: normalizedQuery,
+            querySnippet: isActive
+                ? bounded(
+                    normalizedQuery,
+                    limit: CinematicRunRecapShareArtifactComparisonPlan.searchQuerySnippetMaxCharacters
+                )
+                : "none",
+            queryFingerprint: isActive ? fingerprint(normalizedQuery) : "none",
+            isActive: isActive
+        )
+    }
+
+    private static func matches(
+        _ entry: CinematicRunRecapShareArtifactHistoryPlan.Entry,
+        normalizedQuery query: String
+    ) -> Bool {
+        guard !query.isEmpty else { return true }
+        let fields = [
+            entry.filename,
+            entry.titleSnippet,
+            entry.statusSnippet,
+            entry.commitSnippet ?? "",
+            entry.pathDisplayText,
+            previewSearchBody(from: entry.markdownContents) ?? ""
+        ]
+        return fields.contains { normalizedSearchText($0).contains(query) }
+    }
+
+    private static func target(
+        for selectedIndex: Int,
+        in entries: [CinematicRunRecapShareArtifactHistoryPlan.Entry]
+    ) -> ComparisonTarget? {
+        let olderIndex = selectedIndex + 1
+        if olderIndex < entries.endIndex {
+            return ComparisonTarget(entry: entries[olderIndex], directionIdentifier: "older")
+        }
+        if selectedIndex > entries.startIndex {
+            return ComparisonTarget(entry: entries[selectedIndex - 1], directionIdentifier: "newer")
+        }
+        return nil
+    }
+
+    private static func availabilityReason(
+        historyPlan: CinematicRunRecapShareArtifactHistoryPlan,
+        matchingEntries: [CinematicRunRecapShareArtifactHistoryPlan.Entry],
+        compareEntry: CinematicRunRecapShareArtifactHistoryPlan.Entry?,
+        previewPlan: CinematicRunRecapShareArtifactPreviewBrowserPlan,
+        search: SearchState,
+        noMatchAvailabilityReason: String?
+    ) -> String {
+        guard compareEntry == nil else { return "available" }
+        if let noMatchAvailabilityReason {
+            return noMatchAvailabilityReason
+        }
+        if historyPlan.entries.isEmpty {
+            return historyPlan.availabilityReason
+        }
+        if matchingEntries.count == 1 {
+            return search.isActive
+                ? "single-matching-recap-share-artifact"
+                : "single-recap-share-artifact"
+        }
+        return previewPlan.availabilityReason == "available"
+            ? "no-comparison-target"
+            : previewPlan.availabilityReason
+    }
+
+    private static func exportText(
+        exportIdentifier: String,
+        isAvailable: Bool,
+        availabilityReason: String,
+        historyPlan: CinematicRunRecapShareArtifactHistoryPlan,
+        retainedEntries: [CinematicRunRecapShareArtifactHistoryPlan.Entry],
+        matchingEntries: [CinematicRunRecapShareArtifactHistoryPlan.Entry],
+        search: SearchState,
+        noMatchAvailabilityReason: String?,
+        previewPlan: CinematicRunRecapShareArtifactPreviewBrowserPlan,
+        selectedEntry: CinematicRunRecapShareArtifactHistoryPlan.Entry?,
+        compareEntry: CinematicRunRecapShareArtifactHistoryPlan.Entry?,
+        targetDirectionIdentifier: String,
+        sessionDelta: Int?,
+        selectedBodyPreviewText: String?,
+        compareBodyPreviewText: String?,
+        warningStateIdentifier: String
+    ) -> String {
+        var lines = [
+            "# Compass Recap Artifact Comparison",
+            "",
+            "- Export: \(exportIdentifier)",
+            "- Availability: \(isAvailable ? "available" : "unavailable (\(availabilityReason))")",
+            "- Retention limit: \(historyPlan.retentionLimit)",
+            "- Total artifacts: \(historyPlan.totalCount)",
+            "- Retained artifacts: \(retainedEntries.count)",
+            "- Matching artifacts: \(matchingEntries.count)",
+            "- Hidden artifacts: \(historyPlan.hiddenCount)",
+            "- Search active: \(search.isActive)",
+            "- Search query: \(search.querySnippet)",
+            "- Search fingerprint: \(search.queryFingerprint)",
+            "- No-match reason: \(noMatchAvailabilityReason ?? "none")",
+            "- Selected entry: \(selectedEntry?.identifier ?? "none")",
+            "- Compare entry: \(compareEntry?.identifier ?? "none")",
+            "- Target direction: \(targetDirectionIdentifier)",
+            "- Session delta: \(sessionDelta.map(String.init) ?? "none")",
+            "- Selection fallback: \(previewPlan.selectedFallbackEntryIdentifier ?? "none")",
+            "- Selection fallback reason: \(previewPlan.selectedFallbackReasonIdentifier)",
+            "- Cleanup candidates: \(historyPlan.cleanupCandidateCount)",
+            "- Hidden cleanup candidates: \(historyPlan.hiddenCleanupCandidateCount)",
+            "- Cleanup candidate identifiers: \(historyPlan.cleanupCandidateIdentifiers.isEmpty ? "none" : historyPlan.cleanupCandidateIdentifiers.joined(separator: ", "))",
+            "- Warning state: \(warningStateIdentifier)",
+            "- Warnings: \(historyPlan.warningCount)",
+            "- Hidden warnings: \(historyPlan.hiddenWarningCount)",
+            "- Warning identifiers: \(historyPlan.warnings.isEmpty ? "none" : historyPlan.warnings.map(\.identifier).joined(separator: ", "))"
+        ]
+
+        if !historyPlan.warnings.isEmpty {
+            lines.append("")
+            lines.append("## Warnings")
+            lines.append(contentsOf: historyPlan.warnings.map { warning in
+                "- \(warning.identifier): \(warning.fileDisplayText) - \(warning.message)"
+            })
+        }
+
+        guard let selectedEntry, let compareEntry else {
+            lines.append("")
+            lines.append("No retained recap share artifact comparison target is available: \(availabilityReason).")
+            return boundedArtifactText(
+                lines.joined(separator: "\n"),
+                limit: CinematicRunRecapShareArtifactComparisonPlan.exportTextMaxCharacters
+            )
+        }
+
+        lines.append("")
+        lines.append("## Selected Artifact")
+        lines.append(contentsOf: entryLines(entry: selectedEntry, bodyPreviewText: selectedBodyPreviewText))
+        lines.append("")
+        lines.append("## Comparison Target")
+        lines.append(contentsOf: entryLines(entry: compareEntry, bodyPreviewText: compareBodyPreviewText))
+
+        return boundedArtifactText(
+            lines.joined(separator: "\n"),
+            limit: CinematicRunRecapShareArtifactComparisonPlan.exportTextMaxCharacters
+        )
+    }
+
+    private static func entryLines(
+        entry: CinematicRunRecapShareArtifactHistoryPlan.Entry,
+        bodyPreviewText: String?
+    ) -> [String] {
+        [
+            "- Artifact: \(entry.identifier)",
+            "- Session: \(entry.sessionNumber)",
+            "- Filename: \(entry.filename)",
+            "- Title: \(entrySnippet(entry.titleSnippet))",
+            "- Status: \(entrySnippet(entry.statusSnippet))",
+            "- Commit: \(entry.commitSnippet.map(entrySnippet) ?? "none")",
+            "- Body preview: \(bodyPreviewText ?? "none")"
+        ]
+    }
+
+    private static func copyLabel(isAvailable: Bool) -> String {
+        bounded(
+            isAvailable ? "Copy comparison" : "Comparison unavailable",
+            limit: CinematicRunRecapShareArtifactComparisonPlan.copyLabelMaxCharacters
+        )
+    }
+
+    private static func copyHelp(
+        isAvailable: Bool,
+        availabilityReason: String,
+        selectedEntry: CinematicRunRecapShareArtifactHistoryPlan.Entry?,
+        compareEntry: CinematicRunRecapShareArtifactHistoryPlan.Entry?,
+        targetDirectionIdentifier: String,
+        search: SearchState,
+        exportIdentifier: String
+    ) -> String {
+        guard isAvailable, let selectedEntry, let compareEntry else {
+            return bounded(
+                "No recap artifact comparison is available: \(availabilityReason).",
+                limit: CinematicRunRecapShareArtifactComparisonPlan.copyHelpMaxCharacters
+            )
+        }
+
+        let searchDetail = search.isActive ? " matching \(search.querySnippet)" : ""
+        return bounded(
+            "Copy recap artifact comparison \(exportIdentifier) for S\(selectedEntry.sessionNumber) against \(targetDirectionIdentifier) S\(compareEntry.sessionNumber)\(searchDetail).",
+            limit: CinematicRunRecapShareArtifactComparisonPlan.copyHelpMaxCharacters
+        )
+    }
+
+    private static func bodyPreview(from markdownContents: String) -> String {
+        boundedBodyPreview(
+            previewSearchBody(from: markdownContents) ?? "No preview text available.",
+            limit: CinematicRunRecapShareArtifactComparisonPlan.bodyPreviewMaxCharacters
+        )
+    }
+
+    private static func previewSearchBody(from markdownContents: String) -> String? {
+        shareTextBody(in: markdownContents)
+            ?? fallbackBody(in: markdownContents)
+    }
+
+    private static func shareTextBody(in markdownContents: String) -> String? {
+        guard let range = markdownContents.range(of: "## Share Text") else {
+            return nil
+        }
+
+        let text = markdownContents[range.upperBound...]
+            .split(omittingEmptySubsequences: false, whereSeparator: \.isNewline)
+            .map { line in
+                String(line).trimmingCharacters(in: .whitespacesAndNewlines)
+            }
+            .filter { line in
+                !line.isEmpty && !line.hasPrefix("```")
+            }
+            .joined(separator: " ")
+        return text.isEmpty ? nil : text
+    }
+
+    private static func fallbackBody(in markdownContents: String) -> String? {
+        let text = markdownContents
+            .split(omittingEmptySubsequences: false, whereSeparator: \.isNewline)
+            .map { line in
+                String(line).trimmingCharacters(in: .whitespacesAndNewlines)
+            }
+            .filter { line in
+                !line.isEmpty
+                    && !line.hasPrefix("#")
+                    && !line.hasPrefix("- ")
+                    && !line.hasPrefix("```")
+            }
+            .joined(separator: " ")
+        return text.isEmpty ? nil : text
+    }
+
+    private static func normalizedSearchText(_ text: String) -> String {
+        text
+            .replacingOccurrences(of: "\r", with: " ")
+            .replacingOccurrences(of: "\n", with: " ")
+            .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+    }
+
+    private static func entrySnippet(_ text: String) -> String {
+        bounded(
+            text,
+            limit: CinematicRunRecapShareArtifactComparisonPlan.snippetMaxCharacters
+        )
+    }
+
+    private static func bounded(_ text: String, limit: Int) -> String {
+        guard limit > 0 else { return "" }
+        let normalized = text
+            .replacingOccurrences(of: "\r", with: " ")
+            .replacingOccurrences(of: "\n", with: " ")
+            .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalized.isEmpty else { return "none" }
+        guard normalized.count <= limit else {
+            let prefixLimit = max(1, limit - 3)
+            return normalized.prefix(prefixLimit)
+                .trimmingCharacters(in: .whitespacesAndNewlines) + "..."
+        }
+        return normalized
+    }
+
+    private static func boundedBodyPreview(_ text: String, limit: Int) -> String {
+        bounded(text, limit: limit)
     }
 
     private static func boundedArtifactText(_ text: String, limit: Int) -> String {

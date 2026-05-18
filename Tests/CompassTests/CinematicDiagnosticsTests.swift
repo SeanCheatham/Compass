@@ -634,6 +634,7 @@ final class CinematicDiagnosticsTests: XCTestCase {
                 "run-recap-share-artifact",
                 "run-recap-share-artifact-history",
                 "run-recap-share-artifact-rollup",
+                "run-recap-share-artifact-comparison",
                 "run-recap-share-artifact-preview",
                 "run-recap-focus",
                 "run-recap-end-card",
@@ -698,6 +699,7 @@ final class CinematicDiagnosticsTests: XCTestCase {
                     "run-recap-share-artifact",
                     "run-recap-share-artifact-history",
                     "run-recap-share-artifact-rollup",
+                    "run-recap-share-artifact-comparison",
                     "run-recap-share-artifact-preview",
                     "run-recap-focus",
                     "run-recap-end-card"
@@ -836,7 +838,7 @@ final class CinematicDiagnosticsTests: XCTestCase {
             .components(separatedBy: "\n")
             .filter { expectedSectionHeadings.contains($0) }
         XCTAssertEqual(actualSectionHeadings, expectedSectionHeadings)
-        XCTAssertTrue(summary.exportText.contains("Repository/context (13 rows)"))
+        XCTAssertTrue(summary.exportText.contains("Repository/context (14 rows)"))
         XCTAssertTrue(summary.exportText.contains("Motifs (2 rows)"))
         XCTAssertTrue(summary.exportText.contains("Stage motion/effects (9 rows)"))
         XCTAssertTrue(summary.exportText.contains("Narrative/overlay (7 rows)"))

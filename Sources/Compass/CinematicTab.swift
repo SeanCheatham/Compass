@@ -575,11 +575,13 @@ private struct CinematicRunRecapArtifactLibraryControl: View {
     var body: some View {
         let previewPlan = currentPreviewPlan
         let rollupPlan = currentRollupPlan
+        let comparisonPlan = currentComparisonPlan
         let selectedExportPlan = subsetExportPlan(scope: .selected)
         let filteredExportPlan = subsetExportPlan(scope: .filtered)
 
         VStack(alignment: .leading, spacing: 4) {
             rollupScanline(rollupPlan)
+            comparisonStrip(comparisonPlan)
 
             HStack(alignment: .center, spacing: 7) {
                 Image(systemName: previewPlan.hasWarnings ? "archivebox.fill" : "archivebox")
@@ -767,6 +769,14 @@ private struct CinematicRunRecapArtifactLibraryControl: View {
         )
     }
 
+    private var currentComparisonPlan: CinematicRunRecapShareArtifactComparisonPlan {
+        CinematicRunRecapShareArtifactComparisonPlanner.plan(
+            historyPlan: plan,
+            selectedEntryIdentifier: artifactLibraryContext.selectedEntryIdentifier,
+            searchQuery: artifactLibraryContext.searchText
+        )
+    }
+
     private var currentSelectedEntry: CinematicRunRecapShareArtifactHistoryPlan.Entry? {
         guard let identifier = currentPreviewPlan.selectedEntryIdentifier else { return nil }
         return plan.entries.first { $0.identifier == identifier }
@@ -820,6 +830,116 @@ private struct CinematicRunRecapArtifactLibraryControl: View {
         }
         .help(rollupPlan.copyHelp)
         .accessibilityIdentifier("cinematic-run-recap-artifact-library-rollup-\(rollupPlan.identifier)")
+    }
+
+    private func comparisonStrip(_ comparisonPlan: CinematicRunRecapShareArtifactComparisonPlan) -> some View {
+        HStack(alignment: .center, spacing: 6) {
+            Image(systemName: comparisonPlan.isAvailable ? "rectangle.split.2x1" : "rectangle.split.2x1.slash")
+                .font(.system(size: 10, weight: .bold))
+                .foregroundStyle(tint.opacity(comparisonPlan.isAvailable ? 0.78 : 0.38))
+                .frame(width: 14)
+
+            comparisonColumn(
+                label: "Selected",
+                sessionNumber: comparisonPlan.selectedSessionNumber,
+                titleSnippet: comparisonPlan.selectedTitleSnippet,
+                statusSnippet: comparisonPlan.selectedStatusSnippet,
+                isAvailable: comparisonPlan.selectedEntryIdentifier != nil
+            )
+
+            Image(systemName: comparisonPlan.targetDirectionIdentifier == "newer" ? "arrow.left" : "arrow.right")
+                .font(.system(size: 9, weight: .bold))
+                .foregroundStyle(tint.opacity(comparisonPlan.isAvailable ? 0.6 : 0.28))
+                .frame(width: 12)
+
+            comparisonColumn(
+                label: comparisonTargetLabel(comparisonPlan),
+                sessionNumber: comparisonPlan.compareSessionNumber,
+                titleSnippet: comparisonPlan.compareTitleSnippet,
+                statusSnippet: comparisonPlan.compareStatusSnippet,
+                isAvailable: comparisonPlan.compareEntryIdentifier != nil
+            )
+
+            Spacer(minLength: 4)
+
+            Text(comparisonSummary(comparisonPlan))
+                .font(.caption2)
+                .foregroundStyle(.white.opacity(comparisonPlan.isAvailable ? 0.5 : 0.42))
+                .lineLimit(1)
+                .minimumScaleFactor(0.68)
+
+            Button {
+                copyComparison(comparisonPlan)
+            } label: {
+                Image(systemName: "doc.on.doc")
+                    .font(.system(size: 11, weight: .bold))
+                    .frame(width: 20, height: 18)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .disabled(!comparisonPlan.isAvailable)
+            .foregroundStyle(tint.opacity(comparisonPlan.isAvailable ? 0.82 : 0.3))
+            .help(comparisonPlan.copyHelp)
+            .accessibilityLabel(comparisonPlan.copyLabel)
+            .accessibilityIdentifier("cinematic-run-recap-artifact-library-copy-comparison")
+        }
+        .padding(.horizontal, 6)
+        .padding(.vertical, 3)
+        .background(
+            tint.opacity(comparisonPlan.isSearchActive ? 0.075 : 0.045),
+            in: RoundedRectangle(cornerRadius: 5)
+        )
+        .overlay {
+            RoundedRectangle(cornerRadius: 5)
+                .stroke(tint.opacity(comparisonPlan.hasWarnings ? 0.2 : 0.09), lineWidth: 1)
+        }
+        .help(comparisonPlan.copyHelp)
+        .accessibilityIdentifier("cinematic-run-recap-artifact-library-comparison-\(comparisonPlan.identifier)")
+    }
+
+    private func comparisonColumn(
+        label: String,
+        sessionNumber: Int?,
+        titleSnippet: String?,
+        statusSnippet: String?,
+        isAvailable: Bool
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text("\(label) \(sessionNumber.map { "S\($0)" } ?? "S-")")
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(.white.opacity(isAvailable ? 0.68 : 0.4))
+                .lineLimit(1)
+                .minimumScaleFactor(0.68)
+
+            Text([titleSnippet, statusSnippet].compactMap { $0 }.joined(separator: " | "))
+                .font(.caption2)
+                .foregroundStyle(.white.opacity(isAvailable ? 0.44 : 0.32))
+                .lineLimit(1)
+                .minimumScaleFactor(0.64)
+        }
+        .frame(maxWidth: 150, alignment: .leading)
+    }
+
+    private func comparisonTargetLabel(_ comparisonPlan: CinematicRunRecapShareArtifactComparisonPlan) -> String {
+        switch comparisonPlan.targetDirectionIdentifier {
+        case "older":
+            return "Older"
+        case "newer":
+            return "Newer"
+        default:
+            return "Target"
+        }
+    }
+
+    private func comparisonSummary(_ comparisonPlan: CinematicRunRecapShareArtifactComparisonPlan) -> String {
+        guard comparisonPlan.isAvailable else {
+            return comparisonPlan.availabilityReason
+        }
+        let delta = comparisonPlan.sessionDelta.map { "ΔS\($0)" } ?? "ΔS-"
+        let search = comparisonPlan.isSearchActive
+            ? " | \(comparisonPlan.matchingEntryCount)/\(comparisonPlan.unfilteredVisibleCount)"
+            : ""
+        return "\(comparisonPlan.targetDirectionIdentifier) | \(delta)\(search)"
     }
 
     private func subsetExportPlan(
@@ -1020,6 +1140,15 @@ private struct CinematicRunRecapArtifactLibraryControl: View {
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(rollupPlan.exportText, forType: .string)
         feedback = "Rollup copied"
+        feedbackStatus = nil
+        preservedFeedbackPlanIdentifier = plan.identifier
+    }
+
+    private func copyComparison(_ comparisonPlan: CinematicRunRecapShareArtifactComparisonPlan) {
+        guard comparisonPlan.isAvailable else { return }
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(comparisonPlan.exportText, forType: .string)
+        feedback = "Comparison copied"
         feedbackStatus = nil
         preservedFeedbackPlanIdentifier = plan.identifier
     }
