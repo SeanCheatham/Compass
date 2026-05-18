@@ -54,12 +54,122 @@ enum NativeFeedbackMode: String, CaseIterable, Codable, Identifiable {
 enum NativeFeedbackMilestone: String {
     case planAccepted
     case developStarted
+    case verifyStarted
     case verifyPassed
+    case developRetrying
     case postChecksFailed
     case commitsPromoted
     case paused
     case stopped
     case noImmediateWork
+}
+
+struct NativeFeedbackModeMenuItem: Identifiable, Equatable {
+    var mode: NativeFeedbackMode
+    var title: String
+    var systemImage: String
+    var isSelected: Bool
+
+    var id: NativeFeedbackMode { mode }
+}
+
+struct NativeFeedbackModeMenu: Equatable {
+    var labelSystemImage: String
+    var helpText: String
+    var items: [NativeFeedbackModeMenuItem]
+
+    init(selectedMode: NativeFeedbackMode) {
+        labelSystemImage = selectedMode.systemImage
+        helpText = "Feedback: \(selectedMode.title)"
+        items = NativeFeedbackMode.allCases.map { mode in
+            NativeFeedbackModeMenuItem(
+                mode: mode,
+                title: mode.title,
+                systemImage: selectedMode == mode ? "checkmark" : mode.systemImage,
+                isSelected: selectedMode == mode
+            )
+        }
+    }
+}
+
+struct NativeFeedbackContent: Equatable {
+    static let projectNameLimit = 48
+    static let titleLimit = 80
+    static let bodyLimit = 120
+    static let spokenPhraseLimit = 120
+
+    var projectName: String
+    var title: String
+    var body: String
+    var spokenPhrase: String
+
+    init(milestone: NativeFeedbackMilestone, projectName rawProjectName: String) {
+        let projectName = Self.sanitizedProjectName(rawProjectName)
+        self.projectName = projectName
+
+        let title: String
+        let body: String
+        let spokenPhrase: String
+
+        switch milestone {
+        case .planAccepted:
+            title = "\(projectName): Plan accepted"
+            body = "Compass has accepted the next plan."
+            spokenPhrase = "\(projectName). Plan accepted."
+        case .developStarted:
+            title = "\(projectName): Develop started"
+            body = "Codex is working on the selected plan."
+            spokenPhrase = "\(projectName). Develop started."
+        case .verifyStarted:
+            title = "\(projectName): Verify started"
+            body = "Compass is running the verify command."
+            spokenPhrase = "\(projectName). Verify started."
+        case .verifyPassed:
+            title = "\(projectName): Verify passed"
+            body = "The verify command passed."
+            spokenPhrase = "\(projectName). Verify passed."
+        case .developRetrying:
+            title = "\(projectName): Develop retrying"
+            body = "Post-checks need another Codex pass."
+            spokenPhrase = "\(projectName). Develop retrying."
+        case .postChecksFailed:
+            title = "\(projectName): Post-checks failed"
+            body = "Compass needs another pass before promotion."
+            spokenPhrase = "\(projectName). Post-checks failed."
+        case .commitsPromoted:
+            title = "\(projectName): Commits promoted"
+            body = "Develop changes reached the main worktree."
+            spokenPhrase = "\(projectName). Commits promoted."
+        case .paused:
+            title = "\(projectName): Paused"
+            body = "Compass is waiting at a gate."
+            spokenPhrase = "\(projectName). Paused."
+        case .stopped:
+            title = "\(projectName): Stopped"
+            body = "The current Compass run stopped."
+            spokenPhrase = "\(projectName). Stopped."
+        case .noImmediateWork:
+            title = "\(projectName): No immediate work"
+            body = "Plan returned no ready next task."
+            spokenPhrase = "\(projectName). No immediate work."
+        }
+
+        self.title = Self.boundedText(title, limit: Self.titleLimit)
+        self.body = Self.boundedText(body, limit: Self.bodyLimit)
+        self.spokenPhrase = Self.boundedText(spokenPhrase, limit: Self.spokenPhraseLimit)
+    }
+
+    static func sanitizedProjectName(_ rawName: String) -> String {
+        let trimmed = rawName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return "Compass project" }
+        return String(trimmed.prefix(projectNameLimit))
+    }
+
+    private static func boundedText(_ rawValue: String, limit: Int) -> String {
+        guard limit > 0 else { return "" }
+        guard rawValue.count > limit else { return rawValue }
+        return String(rawValue.prefix(limit))
+    }
 }
 
 @MainActor
@@ -104,7 +214,7 @@ final class NativeFeedbackService: NSObject, UNUserNotificationCenterDelegate {
     func emit(_ milestone: NativeFeedbackMilestone, projectName: String, mode: NativeFeedbackMode) {
         guard mode != .off else { return }
 
-        let projectName = sanitizedProjectName(projectName)
+        let projectName = NativeFeedbackContent.sanitizedProjectName(projectName)
         let dedupeKey = "\(projectName)|\(milestone.rawValue)"
         let now = Date()
         if let last = recentMilestones[dedupeKey], now.timeIntervalSince(last) < duplicateWindow {
@@ -176,57 +286,8 @@ final class NativeFeedbackService: NSObject, UNUserNotificationCenterDelegate {
         recentMilestones = recentMilestones.filter { now.timeIntervalSince($0.value) < 60 }
     }
 
-    private func sanitizedProjectName(_ rawName: String) -> String {
-        let trimmed = rawName.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return "Compass project" }
-        return String(trimmed.prefix(48))
-    }
-
     // UserNotifications asserts for SwiftPM-launched executables outside an app bundle.
     private static var supportsUserNotifications: Bool {
         Bundle.main.bundleURL.pathExtension == "app" && Bundle.main.bundleIdentifier != nil
-    }
-}
-
-private struct NativeFeedbackContent {
-    var title: String
-    var body: String
-    var spokenPhrase: String
-
-    init(milestone: NativeFeedbackMilestone, projectName: String) {
-        switch milestone {
-        case .planAccepted:
-            title = "\(projectName): Plan accepted"
-            body = "Compass has accepted the next plan."
-            spokenPhrase = "\(projectName). Plan accepted."
-        case .developStarted:
-            title = "\(projectName): Develop started"
-            body = "Codex is working on the selected plan."
-            spokenPhrase = "\(projectName). Develop started."
-        case .verifyPassed:
-            title = "\(projectName): Verify passed"
-            body = "The verify command passed."
-            spokenPhrase = "\(projectName). Verify passed."
-        case .postChecksFailed:
-            title = "\(projectName): Post-checks failed"
-            body = "Compass needs another pass before promotion."
-            spokenPhrase = "\(projectName). Post-checks failed."
-        case .commitsPromoted:
-            title = "\(projectName): Commits promoted"
-            body = "Develop changes reached the main worktree."
-            spokenPhrase = "\(projectName). Commits promoted."
-        case .paused:
-            title = "\(projectName): Paused"
-            body = "Compass is waiting at a gate."
-            spokenPhrase = "\(projectName). Paused."
-        case .stopped:
-            title = "\(projectName): Stopped"
-            body = "The current Compass run stopped."
-            spokenPhrase = "\(projectName). Stopped."
-        case .noImmediateWork:
-            title = "\(projectName): No immediate work"
-            body = "Plan returned no ready next task."
-            spokenPhrase = "\(projectName). No immediate work."
-        }
     }
 }

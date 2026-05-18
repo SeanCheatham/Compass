@@ -81,7 +81,7 @@ final class KnownProjectRecordDecodingTests: XCTestCase {
     }
 }
 
-final class KnownProjectStorePersistenceTests: XCTestCase {
+final class KnownProjectStoreTests: XCTestCase {
     private var temporaryDirectories: [URL] = []
 
     override func tearDownWithError() throws {
@@ -178,6 +178,29 @@ final class KnownProjectStorePersistenceTests: XCTestCase {
             in: saved
         )
         assertSortedKeys(["\"cameraStyle\"", "\"intensity\""], in: saved)
+    }
+
+    func testSavePersistsNativeFeedbackModeRawValue() throws {
+        let roots = try makeApplicationSupportRoots()
+        let records = [
+            makeRecord(
+                id: "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+                path: "/tmp/off",
+                nativeFeedbackMode: .off
+            ),
+            makeRecord(
+                id: "cccccccc-cccc-cccc-cccc-cccccccccccc",
+                path: "/tmp/speech",
+                nativeFeedbackMode: .speechAndNotifications
+            )
+        ]
+
+        try KnownProjectStore.save(records, applicationSupportRoots: roots)
+
+        let saved = try read(currentProjectsURL(for: roots))
+        XCTAssertTrue(saved.contains("\"nativeFeedbackMode\" : \"off\""))
+        XCTAssertTrue(saved.contains("\"nativeFeedbackMode\" : \"speech_and_notifications\""))
+        XCTAssertEqual(KnownProjectStore.load(applicationSupportRoots: roots), records)
     }
 
     private func makeApplicationSupportRoots() throws -> KnownProjectStore.ApplicationSupportRoots {

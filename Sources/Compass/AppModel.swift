@@ -1268,6 +1268,7 @@ extension CompassProject {
 
                 priorIssues = post.retryIssues
                 if attempt < maxDevelopAttempts {
+                    feedback(.developRetrying)
                     log("Develop post-checks failed; retrying with failure context.", level: .warning)
                 }
             }
@@ -1545,6 +1546,7 @@ extension CompassProject {
             phase = .verifying
             let timeoutMs = verifyTimeoutMs(for: next)
             log("Post-check: running verify command `\(next.verify)` (timeout \(timeoutMs)ms).", level: .info)
+            feedback(.verifyStarted)
             let verify = try await ProcessRunner.runShell(
                 next.verify,
                 workingDirectory: workingDirectory,

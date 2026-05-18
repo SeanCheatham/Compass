@@ -809,26 +809,28 @@ private struct ProjectRunControls: View {
     @ObservedObject var project: CompassProject
 
     var body: some View {
+        let feedbackMenu = NativeFeedbackModeMenu(selectedMode: project.nativeFeedbackMode)
+
         HStack(spacing: 5) {
             Menu {
-                ForEach(NativeFeedbackMode.allCases) { mode in
+                ForEach(feedbackMenu.items) { item in
                     Button {
-                        project.nativeFeedbackMode = mode
-                        NativeFeedbackService.shared.applyModeChange(mode)
+                        project.nativeFeedbackMode = item.mode
+                        NativeFeedbackService.shared.applyModeChange(item.mode)
                         model.saveProjects()
                     } label: {
                         Label(
-                            mode.title,
-                            systemImage: project.nativeFeedbackMode == mode ? "checkmark" : mode.systemImage
+                            item.title,
+                            systemImage: item.systemImage
                         )
                     }
                 }
             } label: {
-                Image(systemName: project.nativeFeedbackMode.systemImage)
+                Image(systemName: feedbackMenu.labelSystemImage)
                     .frame(width: 18, height: 18)
             }
             .menuStyle(.borderlessButton)
-            .help("Feedback: \(project.nativeFeedbackMode.title)")
+            .help(feedbackMenu.helpText)
 
             Button {
                 Task {
