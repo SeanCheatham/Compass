@@ -2066,6 +2066,7 @@ private struct CinematicDiagnosticsPopover: View {
     var warningBundleHistory: CinematicDiagnosticsWarningBundleHistory
     @State private var copied = false
     @State private var copiedWarningBundleHistory = false
+    @State private var copiedWarningBundleHistoryRowID: String?
     @State private var copiedNativeFeedbackHistory = false
     @State private var copiedTargetID: String?
     @State private var groupExpansion: [String: Bool] = [:]
@@ -2084,6 +2085,7 @@ private struct CinematicDiagnosticsPopover: View {
                         copyToPasteboard(summary.nativeFeedbackHistoryExport.copyText)
                         copied = false
                         copiedWarningBundleHistory = false
+                        copiedWarningBundleHistoryRowID = nil
                         copiedNativeFeedbackHistory = true
                         copiedTargetID = nil
                     } label: {
@@ -2100,6 +2102,7 @@ private struct CinematicDiagnosticsPopover: View {
                     copyToPasteboard(summary.exportText)
                     copied = true
                     copiedWarningBundleHistory = false
+                    copiedWarningBundleHistoryRowID = nil
                     copiedNativeFeedbackHistory = false
                     copiedTargetID = nil
                 } label: {
@@ -2142,12 +2145,14 @@ private struct CinematicDiagnosticsPopover: View {
         .onChange(of: summary) {
             copied = false
             copiedWarningBundleHistory = false
+            copiedWarningBundleHistoryRowID = nil
             copiedNativeFeedbackHistory = false
             copiedTargetID = nil
             resetExpansionDefaults()
         }
         .onChange(of: warningBundleHistory) {
             copiedWarningBundleHistory = false
+            copiedWarningBundleHistoryRowID = nil
         }
         .onAppear {
             resetExpansionDefaults()
@@ -2156,7 +2161,8 @@ private struct CinematicDiagnosticsPopover: View {
 
     @ViewBuilder
     private func attentionSummarySection(scrollProxy: ScrollViewProxy) -> some View {
-        if !summary.attentionSummary.isEmpty || warningBundleHistory.isAvailable {
+        let warningRollup = warningBundleHistory.rollup
+        if !summary.attentionSummary.isEmpty || warningRollup.isAvailable {
             VStack(alignment: .leading, spacing: 6) {
                 HStack(spacing: 8) {
                     Text(summary.attentionSummary.isEmpty ? "Warning history" : "Warnings")
@@ -2165,11 +2171,12 @@ private struct CinematicDiagnosticsPopover: View {
 
                     Spacer()
 
-                    if warningBundleHistory.isAvailable {
+                    if warningRollup.isAvailable {
                         Button {
-                            copyToPasteboard(warningBundleHistory.copyText)
+                            copyToPasteboard(warningRollup.copyText)
                             copied = false
                             copiedWarningBundleHistory = true
+                            copiedWarningBundleHistoryRowID = nil
                             copiedNativeFeedbackHistory = false
                             copiedTargetID = nil
                         } label: {
@@ -2183,8 +2190,8 @@ private struct CinematicDiagnosticsPopover: View {
                             .frame(width: 18, height: 18)
                         }
                         .buttonStyle(.plain)
-                        .accessibilityLabel(warningBundleHistory.copyLabel)
-                        .help(warningBundleHistory.copyHelp)
+                        .accessibilityLabel(warningRollup.copyLabel)
+                        .help(warningRollup.copyHelp)
                     }
                 }
 
@@ -2231,6 +2238,7 @@ private struct CinematicDiagnosticsPopover: View {
                             copyToPasteboard(target.copyText)
                             copied = false
                             copiedWarningBundleHistory = false
+                            copiedWarningBundleHistoryRowID = nil
                             copiedNativeFeedbackHistory = false
                             copiedTargetID = target.id
                         } label: {
@@ -2252,8 +2260,101 @@ private struct CinematicDiagnosticsPopover: View {
                             .stroke(.orange.opacity(0.35))
                     }
                 }
+
+                if warningRollup.isAvailable {
+                    warningBundleHistoryRollup(warningRollup)
+                }
             }
         }
+    }
+
+    private func warningBundleHistoryRollup(
+        _ rollup: CinematicDiagnosticsWarningBundleHistory.RollupDescriptor
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 7) {
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                Image(systemName: rollup.stateIdentifier == "current-unresolved" ? "bolt.trianglebadge.exclamationmark" : "clock.arrow.circlepath")
+                    .font(.caption2.weight(.bold))
+                    .foregroundStyle(.orange)
+                    .frame(width: 14)
+
+                Text(rollup.stateLabel)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.primary)
+
+                Text(rollup.countsLabel)
+                    .font(.caption2.monospacedDigit())
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+
+            Text(rollup.stateDetail)
+                .font(.caption2.monospaced())
+                .foregroundStyle(.secondary)
+                .lineLimit(2)
+                .textSelection(.enabled)
+
+            ForEach(rollup.rows) { row in
+                warningBundleHistoryRollupRow(row)
+            }
+        }
+        .padding(.horizontal, 7)
+        .padding(.vertical, 7)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(.orange.opacity(0.07), in: RoundedRectangle(cornerRadius: 6))
+        .overlay {
+            RoundedRectangle(cornerRadius: 6)
+                .stroke(.orange.opacity(0.2))
+        }
+        .accessibilityIdentifier(rollup.id)
+    }
+
+    private func warningBundleHistoryRollupRow(
+        _ row: CinematicDiagnosticsWarningBundleHistory.RollupDescriptor.RowDescriptor
+    ) -> some View {
+        HStack(alignment: .top, spacing: 7) {
+            Image(systemName: warningBundleHistoryRollupRowImage(for: row.kind))
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(.orange.opacity(0.82))
+                .frame(width: 13)
+
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(alignment: .firstTextBaseline, spacing: 5) {
+                    Text(row.label)
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(.primary)
+
+                    Text(row.countLabel)
+                        .font(.caption2.monospacedDigit())
+                        .foregroundStyle(.secondary)
+                }
+
+                Text(row.detail)
+                    .font(.caption2.monospaced())
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+                    .textSelection(.enabled)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+            Button {
+                copyToPasteboard(row.copyText)
+                copied = false
+                copiedWarningBundleHistory = false
+                copiedWarningBundleHistoryRowID = row.id
+                copiedNativeFeedbackHistory = false
+                copiedTargetID = nil
+            } label: {
+                Image(systemName: copiedWarningBundleHistoryRowID == row.id ? "checkmark" : "doc.on.doc")
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(copiedWarningBundleHistoryRowID == row.id ? .green : .secondary)
+                    .frame(width: 18, height: 18)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(row.copyLabel)
+            .help(row.copyHelp)
+        }
+        .accessibilityIdentifier(row.id)
     }
 
     private var visualSmokeSection: some View {
@@ -2469,6 +2570,23 @@ private struct CinematicDiagnosticsPopover: View {
             ? "warnings unavailable"
             : target.visibleWarningIdentifiers.joined(separator: ", ")
         return "\(target.detail) | \(warnings)"
+    }
+
+    private func warningBundleHistoryRollupRowImage(
+        for kind: CinematicDiagnosticsWarningBundleHistory.RollupDescriptor.RowDescriptor.Kind
+    ) -> String {
+        switch kind {
+        case .recentBundle:
+            return "clock.arrow.circlepath"
+        case .warningIdentifierGroup:
+            return "number"
+        case .repeatedIdentifiers:
+            return "repeat"
+        case .targetAnchors:
+            return "scope"
+        case .relatedRowAnchors:
+            return "link"
+        }
     }
 
     private func visualSmokeCheckAnchorID(for check: CinematicVisualSmokeReport.Check) -> String {

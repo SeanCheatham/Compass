@@ -2732,6 +2732,11 @@ final class CinematicDiagnosticsTests: XCTestCase {
         XCTAssertEqual(history.copyText, "")
         XCTAssertEqual(history.copyLabel, "No warning bundles")
         XCTAssertTrue(history.copyHelp.contains("No warning bundle history"))
+        XCTAssertFalse(history.rollup.isAvailable)
+        XCTAssertEqual(history.rollup.stateIdentifier, "empty")
+        XCTAssertEqual(history.rollup.stateLabel, "No warning history")
+        XCTAssertEqual(history.rollup.rows, [])
+        XCTAssertEqual(history.rollup.countsLabel, "entries 0 | captures 0 | omitted 0")
     }
 
     func testWarningBundleHistoryCapturesFirstBundleWithRelatedAnchors() throws {
@@ -2765,6 +2770,27 @@ final class CinematicDiagnosticsTests: XCTestCase {
         XCTAssertTrue(history.copyText.contains("visual-smoke.recap-artifact-commands"))
         XCTAssertTrue(history.copyText.contains("diagnostics-row-run-recap-share-artifact-commands"))
         XCTAssertFalse(history.copyText.contains("Cinematic Diagnostics\nReport:"))
+        XCTAssertEqual(history.copyText, history.rollup.copyText)
+
+        let rollup = history.rollup
+        XCTAssertTrue(rollup.isAvailable)
+        XCTAssertEqual(rollup.stateIdentifier, "current-unresolved")
+        XCTAssertEqual(rollup.stateLabel, "Current unresolved")
+        XCTAssertEqual(rollup.currentBundleIdentifier, entry.bundleIdentifier)
+        XCTAssertTrue(rollup.stateDetail.contains(entry.bundleIdentifier))
+        XCTAssertEqual(rollup.entryCount, 1)
+        XCTAssertEqual(rollup.capturedCount, 1)
+        XCTAssertEqual(rollup.omittedCount, 0)
+        XCTAssertEqual(rollup.recentBundleRows.map(\.label), ["#1 current"])
+        XCTAssertEqual(rollup.groupedWarningIdentifierRows.map(\.countLabel), ["x1"])
+        XCTAssertEqual(rollup.repeatedIdentifierRows, [])
+        XCTAssertEqual(rollup.anchorSummaryRows.map(\.kind), [.targetAnchors, .relatedRowAnchors])
+        XCTAssertTrue(rollup.targetAnchorSummary.contains("visual-smoke-check-command"))
+        XCTAssertTrue(
+            rollup.relatedRowAnchorSummary.contains(
+                "diagnostics-row-run-recap-share-artifact-commands"
+            )
+        )
     }
 
     func testWarningBundleHistoryCoalescesConsecutiveDuplicateBundles() throws {
@@ -2804,6 +2830,11 @@ final class CinematicDiagnosticsTests: XCTestCase {
         XCTAssertNil(history.currentUnresolvedBundle)
         XCTAssertFalse(history.hasCurrentUnresolvedBundle)
         XCTAssertTrue(history.isAvailable)
+        XCTAssertEqual(history.rollup.stateIdentifier, "cleared-retained")
+        XCTAssertEqual(history.rollup.stateLabel, "Cleared, retained")
+        XCTAssertNil(history.rollup.currentBundleIdentifier)
+        XCTAssertEqual(history.rollup.recentBundleRows.map(\.label), ["#1 retained"])
+        XCTAssertTrue(history.rollup.copyText.contains("State: cleared-retained"))
 
         history.record(attention)
 
@@ -2812,6 +2843,8 @@ final class CinematicDiagnosticsTests: XCTestCase {
         XCTAssertEqual(history.entries.map(\.captureCount), [1, 1])
         XCTAssertEqual(history.entries[0].bundleIdentifier, history.entries[1].bundleIdentifier)
         XCTAssertEqual(history.currentUnresolvedBundle?.sequence, 2)
+        XCTAssertEqual(history.rollup.stateIdentifier, "current-unresolved")
+        XCTAssertEqual(history.rollup.recentBundleRows.map(\.label), ["#2 current", "#1 retained"])
     }
 
     func testWarningBundleHistoryKeepsMultipleDistinctBundles() {
@@ -2853,6 +2886,16 @@ final class CinematicDiagnosticsTests: XCTestCase {
         XCTAssertEqual(history.entries.map(\.sequence), Array(3...8))
         XCTAssertEqual(history.entries.first?.warningIdentifiers, ["visual-smoke.warning-2"])
         XCTAssertTrue(history.copyText.contains("omitted 2"))
+        XCTAssertEqual(history.rollup.omittedCount, 2)
+        XCTAssertEqual(history.rollup.capturedCount, CinematicDiagnosticsWarningBundleHistory.maxEntries + 2)
+        XCTAssertEqual(
+            history.rollup.recentBundleRows.map(\.label),
+            ["#8 current", "#7 retained", "#6 retained"]
+        )
+        XCTAssertLessThanOrEqual(
+            history.rollup.recentBundleRows.count,
+            CinematicDiagnosticsWarningBundleHistory.recentEntryRollupLimit
+        )
     }
 
     func testWarningBundleHistorySurfacesRepeatedWarningIdentifiers() throws {
@@ -2882,6 +2925,65 @@ final class CinematicDiagnosticsTests: XCTestCase {
         XCTAssertEqual(history.repeatedWarningIdentifiers, ["visual-smoke.shared-warning"])
         XCTAssertTrue(history.copyText.contains("Repeated warnings: visual-smoke.shared-warning"))
         XCTAssertTrue(entry.copyLine.contains("repeated visual-smoke.shared-warning"))
+        XCTAssertEqual(
+            history.rollup.groupedWarningIdentifierRows.map {
+                $0.detail.components(separatedBy: " | ").first ?? ""
+            },
+            ["visual-smoke.shared-warning", "visual-smoke.asset-availability"]
+        )
+        XCTAssertEqual(history.rollup.repeatedWarningIdentifiers, ["visual-smoke.shared-warning"])
+        XCTAssertEqual(history.rollup.repeatedIdentifierRows.map(\.countLabel), ["1"])
+        XCTAssertTrue(
+            history.rollup.repeatedIdentifierRows.first?.copyText.contains(
+                "visual-smoke.shared-warning"
+            ) ?? false
+        )
+    }
+
+    func testWarningBundleHistoryRollupOrdersGroupedAndRepeatedWarningRows() {
+        var history = CinematicDiagnosticsWarningBundleHistory()
+
+        history.record(
+            CinematicDiagnosticsSummary.AttentionSummary(
+                targets: [
+                    warningAttentionTarget(
+                        "ordered-a",
+                        warnings: ["visual-smoke.shared-warning", "visual-smoke.unique-a"]
+                    ),
+                    warningAttentionTarget(
+                        "ordered-b",
+                        warnings: ["visual-smoke.shared-warning"]
+                    )
+                ]
+            )
+        )
+        history.record(
+            warningAttentionSummary(
+                "ordered-c",
+                warnings: ["visual-smoke.unique-a", "visual-smoke.unique-b"]
+            )
+        )
+
+        let rollup = history.rollup
+        XCTAssertEqual(
+            rollup.groupedWarningIdentifierRows.map {
+                $0.detail.components(separatedBy: " | ").first ?? ""
+            },
+            [
+                "visual-smoke.shared-warning",
+                "visual-smoke.unique-a",
+                "visual-smoke.unique-b"
+            ]
+        )
+        XCTAssertEqual(
+            rollup.repeatedWarningIdentifiers,
+            ["visual-smoke.shared-warning", "visual-smoke.unique-a"]
+        )
+        XCTAssertTrue(
+            rollup.repeatedIdentifierRows.first?.detail.hasPrefix(
+                "visual-smoke.shared-warning x2, visual-smoke.unique-a x2"
+            ) ?? false
+        )
     }
 
     func testWarningBundleHistoryCopyIsBounded() {
@@ -2919,6 +3021,20 @@ final class CinematicDiagnosticsTests: XCTestCase {
                 }
             )
         }
+        for row in history.rollup.rows {
+            XCTAssertLessThanOrEqual(
+                row.detail.count,
+                CinematicDiagnosticsWarningBundleHistory.rollupRowDetailMaxCharacters
+            )
+            XCTAssertLessThanOrEqual(
+                row.copyLine.count,
+                CinematicDiagnosticsWarningBundleHistory.entryCopyLineMaxCharacters
+            )
+            XCTAssertLessThanOrEqual(
+                row.copyText.count,
+                CinematicDiagnosticsWarningBundleHistory.rollupRowCopyTextMaxCharacters
+            )
+        }
     }
 
     func testWarningBundleHistoryCopyDoesNotLeakNativeNotificationBodyText() throws {
@@ -2946,6 +3062,12 @@ final class CinematicDiagnosticsTests: XCTestCase {
         let entry = try XCTUnwrap(history.entries.first)
         XCTAssertFalse(entry.copyLine.contains(notificationBody))
         XCTAssertFalse(history.copyText.contains(notificationBody))
+        XCTAssertFalse(history.rollup.copyText.contains(notificationBody))
+        XCTAssertFalse(history.rollup.rows.contains { row in
+            row.detail.contains(notificationBody)
+                || row.copyLine.contains(notificationBody)
+                || row.copyText.contains(notificationBody)
+        })
         XCTAssertTrue(history.copyText.contains("visual-smoke.native-feedback-cue-coverage"))
         XCTAssertTrue(history.copyText.contains("diagnostics-row-native-feedback-delivery"))
     }

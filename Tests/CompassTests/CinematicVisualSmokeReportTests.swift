@@ -716,6 +716,22 @@ final class CinematicVisualSmokeReportTests: XCTestCase {
             summary.attentionSummary.targets.map { $0.copyText.contains("Cinematic diagnostics warning target") },
             [true, true, true]
         )
+        var warningHistory = CinematicDiagnosticsWarningBundleHistory()
+        warningHistory.record(summary.attentionSummary)
+        let warningRollup = warningHistory.rollup
+        XCTAssertEqual(warningHistory.copyText, warningRollup.copyText)
+        XCTAssertTrue(warningRollup.copyText.contains("Export correlation: warning summary targets"))
+        XCTAssertTrue(warningRollup.copyText.contains(commandTarget.targetAnchorID))
+        XCTAssertTrue(warningRollup.copyText.contains("diagnostics-row-run-recap-share-artifact-commands"))
+        XCTAssertTrue(summary.exportText.contains("related run-recap-share-artifact-commands"))
+        XCTAssertFalse(warningRollup.copyText.contains(commandTarget.detail))
+        XCTAssertFalse(warningRollup.rows.contains { row in
+            row.copyText.contains(commandTarget.detail)
+                || row.copyText.contains("Cinematic diagnostics warning target")
+        })
+        XCTAssertTrue(warningRollup.rows.allSatisfy { row in
+            row.copyText.contains("Warning bundle history row")
+        })
 
         XCTAssertFalse(summary.sections.contains { $0.id == "visual-smoke" })
         XCTAssertEqual(summary.rows.count, CinematicDiagnosticsSummary.maxRows)

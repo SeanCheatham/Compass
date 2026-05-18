@@ -5309,6 +5309,9 @@ struct CinematicDiagnosticsWarningBundleHistory: Equatable {
     static let maxEntries = 6
     static let copyTextMaxCharacters = 1_600
     static let entryCopyLineMaxCharacters = 320
+    static let rollupRowCopyTextMaxCharacters = 640
+    static let rollupRowDetailMaxCharacters = 220
+    static let recentEntryRollupLimit = 3
     static let identifierMaxCharacters = CinematicVisualSmokeReport.warningIdentifierMaxCharacters
     static let visibleWarningIdentifierLimit = 6
     static let visibleAnchorLimit = 5
@@ -5339,22 +5342,26 @@ struct CinematicDiagnosticsWarningBundleHistory: Equatable {
         return Self.orderedUnique(entries.flatMap(\.repeatedWarningIdentifiers) + repeatedAcrossCaptures)
     }
 
-    var copyLabel: String {
-        isAvailable ? "Copy warning bundles" : "No warning bundles"
-    }
-
-    var copyHelp: String {
-        guard isAvailable else { return "No warning bundle history to copy" }
-        return "Copy warning bundle history: entries \(entries.count), captures \(capturedCount), omitted \(omittedCount)"
-    }
-
-    var copyText: String {
-        Self.copyText(
+    var rollup: RollupDescriptor {
+        Self.rollupDescriptor(
             entries: entries,
             omittedCount: omittedCount,
             capturedCount: capturedCount,
+            currentUnresolvedBundle: currentUnresolvedBundle,
             repeatedWarningIdentifiers: repeatedWarningIdentifiers
         )
+    }
+
+    var copyLabel: String {
+        rollup.copyLabel
+    }
+
+    var copyHelp: String {
+        rollup.copyHelp
+    }
+
+    var copyText: String {
+        rollup.copyText
     }
 
     struct Entry: Identifiable, Equatable {
@@ -5373,6 +5380,68 @@ struct CinematicDiagnosticsWarningBundleHistory: Equatable {
 
         var copyLine: String {
             CinematicDiagnosticsWarningBundleHistory.entryCopyLine(self)
+        }
+    }
+
+    struct RollupDescriptor: Equatable {
+        var id: String
+        var stateIdentifier: String
+        var stateLabel: String
+        var stateDetail: String
+        var entryCount: Int
+        var capturedCount: Int
+        var omittedCount: Int
+        var currentBundleIdentifier: String?
+        var repeatedWarningIdentifiers: [String]
+        var targetAnchorSummary: String
+        var relatedRowAnchorSummary: String
+        var rows: [RowDescriptor]
+        var copyLabel: String
+        var copyHelp: String
+        var copyText: String
+
+        var isAvailable: Bool {
+            entryCount > 0 && !copyText.isEmpty
+        }
+
+        var countsLabel: String {
+            "entries \(entryCount) | captures \(capturedCount) | omitted \(omittedCount)"
+        }
+
+        var recentBundleRows: [RowDescriptor] {
+            rows.filter { $0.kind == .recentBundle }
+        }
+
+        var groupedWarningIdentifierRows: [RowDescriptor] {
+            rows.filter { $0.kind == .warningIdentifierGroup }
+        }
+
+        var repeatedIdentifierRows: [RowDescriptor] {
+            rows.filter { $0.kind == .repeatedIdentifiers }
+        }
+
+        var anchorSummaryRows: [RowDescriptor] {
+            rows.filter { $0.kind == .targetAnchors || $0.kind == .relatedRowAnchors }
+        }
+
+        struct RowDescriptor: Identifiable, Equatable {
+            var id: String
+            var kind: Kind
+            var label: String
+            var detail: String
+            var countLabel: String
+            var copyLabel: String
+            var copyHelp: String
+            var copyLine: String
+            var copyText: String
+
+            enum Kind: String, Equatable {
+                case recentBundle = "recent-bundle"
+                case warningIdentifierGroup = "warning-identifier-group"
+                case repeatedIdentifiers = "repeated-identifiers"
+                case targetAnchors = "target-anchors"
+                case relatedRowAnchors = "related-row-anchors"
+            }
         }
     }
 
@@ -5456,13 +5525,373 @@ struct CinematicDiagnosticsWarningBundleHistory: Equatable {
         )
     }
 
-    private static func copyText(
+    private struct WarningIdentifierGroup: Equatable {
+        var identifier: String
+        var captureCount: Int
+        var bundleCount: Int
+        var sequences: [Int]
+    }
+
+    private static func rollupDescriptor(
         entries: [Entry],
         omittedCount: Int,
         capturedCount: Int,
+        currentUnresolvedBundle: Entry?,
         repeatedWarningIdentifiers: [String]
+    ) -> RollupDescriptor {
+        let state = rollupStateDescriptor(
+            entries: entries,
+            currentUnresolvedBundle: currentUnresolvedBundle
+        )
+        let targetAnchors = orderedUnique(entries.flatMap(\.targetAnchors))
+        let relatedRowAnchors = orderedUnique(entries.flatMap(\.relatedRowAnchors))
+        let warningGroups = warningIdentifierGroups(entries: entries)
+        let currentSequence = currentUnresolvedBundle?.sequence
+        let rows = entries.isEmpty
+            ? []
+            : recentEntryRollupRows(entries: entries, currentSequence: currentSequence)
+                + warningIdentifierGroupRows(warningGroups)
+                + repeatedWarningIdentifierRows(
+                    repeatedWarningIdentifiers,
+                    warningGroups: warningGroups
+                )
+                + anchorSummaryRows(
+                    targetAnchors: targetAnchors,
+                    relatedRowAnchors: relatedRowAnchors
+                )
+        let targetAnchorSummary = identifierSummary(
+            targetAnchors,
+            visibleLimit: visibleAnchorLimit
+        )
+        let relatedRowAnchorSummary = identifierSummary(
+            relatedRowAnchors,
+            visibleLimit: visibleAnchorLimit
+        )
+        let copyText = rollupCopyText(
+            stateIdentifier: state.identifier,
+            stateLabel: state.label,
+            stateDetail: state.detail,
+            entryCount: entries.count,
+            capturedCount: capturedCount,
+            omittedCount: omittedCount,
+            repeatedWarningIdentifiers: repeatedWarningIdentifiers,
+            targetAnchorSummary: targetAnchorSummary,
+            relatedRowAnchorSummary: relatedRowAnchorSummary,
+            rows: rows
+        )
+
+        return RollupDescriptor(
+            id: "cinematic-diagnostics-warning-bundle-history-rollup",
+            stateIdentifier: state.identifier,
+            stateLabel: state.label,
+            stateDetail: state.detail,
+            entryCount: entries.count,
+            capturedCount: capturedCount,
+            omittedCount: max(0, omittedCount),
+            currentBundleIdentifier: currentUnresolvedBundle?.bundleIdentifier,
+            repeatedWarningIdentifiers: repeatedWarningIdentifiers,
+            targetAnchorSummary: targetAnchorSummary,
+            relatedRowAnchorSummary: relatedRowAnchorSummary,
+            rows: rows,
+            copyLabel: entries.isEmpty ? "No warning bundles" : "Copy warning bundles",
+            copyHelp: rollupCopyHelp(
+                stateLabel: state.label,
+                entryCount: entries.count,
+                capturedCount: capturedCount,
+                omittedCount: omittedCount
+            ),
+            copyText: copyText
+        )
+    }
+
+    private static func rollupStateDescriptor(
+        entries: [Entry],
+        currentUnresolvedBundle: Entry?
+    ) -> (identifier: String, label: String, detail: String) {
+        guard !entries.isEmpty else {
+            return (
+                "empty",
+                "No warning history",
+                "No warning bundles have been captured."
+            )
+        }
+
+        if let currentUnresolvedBundle {
+            let detail = [
+                "#\(currentUnresolvedBundle.sequence)",
+                currentUnresolvedBundle.bundleIdentifier,
+                "captures \(currentUnresolvedBundle.captureCount)",
+                "targets \(currentUnresolvedBundle.targetCount)",
+                "warnings \(currentUnresolvedBundle.warningCount)"
+            ].joined(separator: " | ")
+            return (
+                "current-unresolved",
+                "Current unresolved",
+                bounded(detail, limit: rollupRowDetailMaxCharacters)
+            )
+        }
+
+        let latestSequence = entries.last?.sequence ?? 0
+        let detail = [
+            "current diagnostics clear",
+            "retained \(entries.count)",
+            "latest #\(latestSequence)"
+        ].joined(separator: " | ")
+        return (
+            "cleared-retained",
+            "Cleared, retained",
+            bounded(detail, limit: rollupRowDetailMaxCharacters)
+        )
+    }
+
+    private static func rollupCopyHelp(
+        stateLabel: String,
+        entryCount: Int,
+        capturedCount: Int,
+        omittedCount: Int
     ) -> String {
-        guard !entries.isEmpty else { return "" }
+        guard entryCount > 0 else { return "No warning bundle history to copy" }
+        return bounded(
+            "Copy warning bundle history: \(stateLabel.lowercased()), entries \(entryCount), captures \(capturedCount), omitted \(max(0, omittedCount))",
+            limit: rollupRowDetailMaxCharacters
+        )
+    }
+
+    private static func recentEntryRollupRows(
+        entries: [Entry],
+        currentSequence: Int?
+    ) -> [RollupDescriptor.RowDescriptor] {
+        let recentEntries = Array(entries.suffix(recentEntryRollupLimit).reversed())
+        return recentEntries.map { entry in
+            let isCurrent = currentSequence == entry.sequence
+            let stateLabel = isCurrent ? "current" : "retained"
+            let warnings = identifierSummary(
+                entry.warningIdentifiers,
+                visibleLimit: visibleWarningIdentifierLimit
+            )
+            let anchors = identifierSummary(
+                entry.targetAnchors,
+                visibleLimit: visibleAnchorLimit
+            )
+            let detail = bounded(
+                "\(entry.bundleIdentifier) | \(entry.targetCount) targets | \(entry.warningCount) warnings | \(warnings) | anchors \(anchors)",
+                limit: rollupRowDetailMaxCharacters
+            )
+            let copyText = rollupRowCopyText(
+                lines: [
+                    "Warning bundle history row",
+                    "Kind: recent-bundle",
+                    "State: \(stateLabel)",
+                    "Bundle: \(entry.bundleIdentifier)",
+                    "Sequence: #\(entry.sequence)",
+                    "Counts: captures \(entry.captureCount) | targets \(entry.targetCount) | warnings \(entry.warningCount)",
+                    "Target identifiers: \(identifierSummary(entry.targetIdentifiers, visibleLimit: visibleAnchorLimit))",
+                    "Warning identifiers: \(warnings)",
+                    "Repeated warning identifiers: \(entry.repeatedWarningIdentifiers.isEmpty ? "none" : identifierSummary(entry.repeatedWarningIdentifiers, visibleLimit: visibleWarningIdentifierLimit))",
+                    "Target anchors: \(anchors)",
+                    "Related row anchors: \(identifierSummary(entry.relatedRowAnchors, visibleLimit: visibleAnchorLimit))"
+                ]
+            )
+
+            return RollupDescriptor.RowDescriptor(
+                id: "warning-bundle-history-entry-\(entry.sequence)",
+                kind: .recentBundle,
+                label: "#\(entry.sequence) \(stateLabel)",
+                detail: detail,
+                countLabel: "x\(entry.captureCount)",
+                copyLabel: "Copy warning bundle #\(entry.sequence)",
+                copyHelp: bounded(
+                    "Copy warning bundle #\(entry.sequence) anchors and warning identifiers",
+                    limit: rollupRowDetailMaxCharacters
+                ),
+                copyLine: entry.copyLine,
+                copyText: copyText
+            )
+        }
+    }
+
+    private static func warningIdentifierGroups(entries: [Entry]) -> [WarningIdentifierGroup] {
+        var order: [String] = []
+        var groups: [String: WarningIdentifierGroup] = [:]
+        for entry in entries {
+            for identifier in entry.warningIdentifiers {
+                if groups[identifier] == nil {
+                    order.append(identifier)
+                    groups[identifier] = WarningIdentifierGroup(
+                        identifier: identifier,
+                        captureCount: 0,
+                        bundleCount: 0,
+                        sequences: []
+                    )
+                }
+                if var group = groups[identifier] {
+                    group.captureCount += entry.captureCount
+                    group.bundleCount += 1
+                    group.sequences.append(entry.sequence)
+                    groups[identifier] = group
+                }
+            }
+        }
+
+        return order.compactMap { groups[$0] }
+    }
+
+    private static func warningIdentifierGroupRows(
+        _ groups: [WarningIdentifierGroup]
+    ) -> [RollupDescriptor.RowDescriptor] {
+        groups.prefix(visibleWarningIdentifierLimit).map { group in
+            let sequenceSummary = identifierSummary(
+                group.sequences.map { "#\($0)" },
+                visibleLimit: visibleAnchorLimit
+            )
+            let detail = bounded(
+                "\(group.identifier) | captures \(group.captureCount) | bundles \(group.bundleCount) | seq \(sequenceSummary)",
+                limit: rollupRowDetailMaxCharacters
+            )
+            let copyLine = bounded(
+                "warning-group \(group.identifier) | captures \(group.captureCount) | bundles \(group.bundleCount) | sequences \(sequenceSummary)",
+                limit: entryCopyLineMaxCharacters
+            )
+            let copyText = rollupRowCopyText(
+                lines: [
+                    "Warning bundle history row",
+                    "Kind: warning-identifier-group",
+                    "Warning identifier: \(group.identifier)",
+                    "Counts: captures \(group.captureCount) | bundles \(group.bundleCount)",
+                    "Sequences: \(sequenceSummary)"
+                ]
+            )
+
+            return RollupDescriptor.RowDescriptor(
+                id: "warning-bundle-history-warning-\(stableFingerprint(group.identifier))",
+                kind: .warningIdentifierGroup,
+                label: "Warning id",
+                detail: detail,
+                countLabel: "x\(group.captureCount)",
+                copyLabel: "Copy warning identifier \(group.identifier)",
+                copyHelp: bounded(
+                    "Copy warning identifier group captures for \(group.identifier)",
+                    limit: rollupRowDetailMaxCharacters
+                ),
+                copyLine: copyLine,
+                copyText: copyText
+            )
+        }
+    }
+
+    private static func repeatedWarningIdentifierRows(
+        _ repeatedWarningIdentifiers: [String],
+        warningGroups: [WarningIdentifierGroup]
+    ) -> [RollupDescriptor.RowDescriptor] {
+        guard !repeatedWarningIdentifiers.isEmpty else { return [] }
+        let groupsByIdentifier = Dictionary(uniqueKeysWithValues: warningGroups.map { ($0.identifier, $0) })
+        let detailTokens = repeatedWarningIdentifiers.prefix(visibleWarningIdentifierLimit).map { identifier in
+            let captureCount = max(2, groupsByIdentifier[identifier]?.captureCount ?? 2)
+            return "\(identifier) x\(captureCount)"
+        }
+        let hiddenCount = repeatedWarningIdentifiers.count - detailTokens.count
+        let detail = bounded(
+            detailTokens.joined(separator: ", ") + (hiddenCount > 0 ? ", +\(hiddenCount)" : ""),
+            limit: rollupRowDetailMaxCharacters
+        )
+        let repeatedSummary = identifierSummary(
+            repeatedWarningIdentifiers,
+            visibleLimit: visibleWarningIdentifierLimit
+        )
+        let copyLine = bounded(
+            "repeated-warnings \(repeatedSummary)",
+            limit: entryCopyLineMaxCharacters
+        )
+        let copyText = rollupRowCopyText(
+            lines: [
+                "Warning bundle history row",
+                "Kind: repeated-identifiers",
+                "Repeated warning identifiers: \(repeatedSummary)"
+            ]
+        )
+
+        return [
+            RollupDescriptor.RowDescriptor(
+                id: "warning-bundle-history-repeated-warnings",
+                kind: .repeatedIdentifiers,
+                label: "Repeated ids",
+                detail: detail,
+                countLabel: "\(repeatedWarningIdentifiers.count)",
+                copyLabel: "Copy repeated warning identifiers",
+                copyHelp: "Copy repeated warning identifiers from retained warning bundles",
+                copyLine: copyLine,
+                copyText: copyText
+            )
+        ]
+    }
+
+    private static func anchorSummaryRows(
+        targetAnchors: [String],
+        relatedRowAnchors: [String]
+    ) -> [RollupDescriptor.RowDescriptor] {
+        let targetRow = anchorSummaryRow(
+            id: "warning-bundle-history-target-anchors",
+            kind: .targetAnchors,
+            label: "Target anchors",
+            anchors: targetAnchors
+        )
+        guard !relatedRowAnchors.isEmpty else { return [targetRow] }
+        return [
+            targetRow,
+            anchorSummaryRow(
+                id: "warning-bundle-history-related-row-anchors",
+                kind: .relatedRowAnchors,
+                label: "Related rows",
+                anchors: relatedRowAnchors
+            )
+        ]
+    }
+
+    private static func anchorSummaryRow(
+        id: String,
+        kind: RollupDescriptor.RowDescriptor.Kind,
+        label: String,
+        anchors: [String]
+    ) -> RollupDescriptor.RowDescriptor {
+        let summary = identifierSummary(anchors, visibleLimit: visibleAnchorLimit)
+        let copyLine = bounded(
+            "\(kind.rawValue) \(summary)",
+            limit: entryCopyLineMaxCharacters
+        )
+        let copyText = rollupRowCopyText(
+            lines: [
+                "Warning bundle history row",
+                "Kind: \(kind.rawValue)",
+                "Anchors: \(summary)"
+            ]
+        )
+
+        return RollupDescriptor.RowDescriptor(
+            id: id,
+            kind: kind,
+            label: label,
+            detail: bounded(summary, limit: rollupRowDetailMaxCharacters),
+            countLabel: "\(anchors.count)",
+            copyLabel: "Copy \(label.lowercased())",
+            copyHelp: "Copy \(label.lowercased()) from retained warning bundles",
+            copyLine: copyLine,
+            copyText: copyText
+        )
+    }
+
+    private static func rollupCopyText(
+        stateIdentifier: String,
+        stateLabel: String,
+        stateDetail: String,
+        entryCount: Int,
+        capturedCount: Int,
+        omittedCount: Int,
+        repeatedWarningIdentifiers: [String],
+        targetAnchorSummary: String,
+        relatedRowAnchorSummary: String,
+        rows: [RollupDescriptor.RowDescriptor]
+    ) -> String {
+        guard entryCount > 0 else { return "" }
 
         let repeated = repeatedWarningIdentifiers.isEmpty
             ? "none"
@@ -5470,14 +5899,24 @@ struct CinematicDiagnosticsWarningBundleHistory: Equatable {
         let lines = [
             "Cinematic diagnostics warning bundles",
             "Export correlation: warning summary targets, target anchors, and related diagnostics row anchors",
-            "Counts: entries \(entries.count) | captures \(capturedCount) | omitted \(omittedCount)",
+            "State: \(stateIdentifier) | \(stateLabel) | \(stateDetail)",
+            "Counts: entries \(entryCount) | captures \(capturedCount) | omitted \(max(0, omittedCount))",
             "Repeated warnings: \(repeated)",
-            "Entries:"
-        ] + entries.map(\.copyLine)
+            "Target anchors: \(targetAnchorSummary)",
+            "Related row anchors: \(relatedRowAnchorSummary)",
+            "Rows:"
+        ] + rows.map(\.copyLine)
 
         return boundedMultiline(
             lines.joined(separator: "\n"),
             limit: copyTextMaxCharacters
+        )
+    }
+
+    private static func rollupRowCopyText(lines: [String]) -> String {
+        boundedMultiline(
+            lines.joined(separator: "\n"),
+            limit: rollupRowCopyTextMaxCharacters
         )
     }
 
