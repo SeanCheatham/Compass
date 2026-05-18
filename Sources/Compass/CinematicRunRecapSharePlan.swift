@@ -181,6 +181,36 @@ struct CinematicRunRecapShareArtifactSourceReconciliationPlan: Equatable, Identi
     var isApplicationSupportComparison: Bool
 }
 
+struct CinematicRunRecapShareArtifactSourceBadgePlan: Equatable, Identifiable {
+    static let identifierMaxCharacters = CinematicRunRecapShareArtifactHistoryPlan.identifierMaxCharacters
+    static let labelMaxCharacters = 38
+    static let detailMaxCharacters = 190
+    static let helpMaxCharacters = 280
+    static let copyTextMaxCharacters = 1_600
+    static let copyLabelMaxCharacters = 32
+    static let systemImageMaxCharacters = 64
+    static let tintIdentifierMaxCharacters = 24
+
+    var id: String { identifier }
+
+    var identifier: String
+    var sourceReconciliationIdentifier: String
+    var stateIdentifier: String
+    var isVisible: Bool
+    var label: String
+    var detail: String
+    var help: String
+    var copyText: String
+    var copyLabel: String
+    var severity: CompassWorkspaceStorageAssessment.Severity
+    var tintIdentifier: String
+    var systemImage: String
+    var accessibilityIdentifier: String
+    var copyAccessibilityIdentifier: String
+
+    var copyTextLength: Int { copyText.count }
+}
+
 struct CinematicRunRecapShareArtifactPreviewBrowserPlan: Equatable, Identifiable {
     static let identifierMaxCharacters = CinematicRunRecapShareArtifactHistoryPlan.identifierMaxCharacters
     static let snippetMaxCharacters = CinematicRunRecapShareArtifactHistoryPlan.snippetMaxCharacters
@@ -5171,6 +5201,249 @@ enum CinematicRunRecapShareArtifactSourceReconciliationPlanner {
             .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
             .trimmingCharacters(in: .whitespacesAndNewlines)
         guard !normalized.isEmpty else { return "none" }
+        guard normalized.count <= limit else {
+            let prefixLimit = max(1, limit - 3)
+            return normalized.prefix(prefixLimit)
+                .trimmingCharacters(in: .whitespacesAndNewlines) + "..."
+        }
+        return normalized
+    }
+
+    private static func fingerprint(_ value: String) -> String {
+        var hash: UInt64 = 0xcbf29ce484222325
+        for byte in value.utf8 {
+            hash ^= UInt64(byte)
+            hash = hash &* 0x100000001b3
+        }
+        return String(format: "%016llx", hash)
+    }
+}
+
+enum CinematicRunRecapShareArtifactSourceBadgePlanner {
+    static func plan(
+        reconciliationPlan: CinematicRunRecapShareArtifactSourceReconciliationPlan
+    ) -> CinematicRunRecapShareArtifactSourceBadgePlan {
+        let presentation = presentation(for: reconciliationPlan)
+        let copyText = presentation.isVisible
+            ? copyText(for: reconciliationPlan)
+            : ""
+        let identifier = bounded(
+            [
+                "run-recap-share-artifact-source-badge",
+                "visible:\(presentation.isVisible)",
+                "state:\(reconciliationPlan.stateIdentifier)",
+                "source:\(fingerprint(reconciliationPlan.identifier))",
+                "active:\(fingerprint(reconciliationPlan.activeHistoryIdentifier))",
+                "repo-local:\(fingerprint(reconciliationPlan.repoLocalHistoryIdentifier))",
+                "severity:\(presentation.severity.rawValue)",
+                "copy:\(copyText.count)"
+            ].joined(separator: "|"),
+            limit: CinematicRunRecapShareArtifactSourceBadgePlan.identifierMaxCharacters
+        )
+
+        return CinematicRunRecapShareArtifactSourceBadgePlan(
+            identifier: identifier,
+            sourceReconciliationIdentifier: reconciliationPlan.identifier,
+            stateIdentifier: reconciliationPlan.stateIdentifier,
+            isVisible: presentation.isVisible,
+            label: bounded(presentation.label, limit: CinematicRunRecapShareArtifactSourceBadgePlan.labelMaxCharacters),
+            detail: bounded(presentation.detail, limit: CinematicRunRecapShareArtifactSourceBadgePlan.detailMaxCharacters),
+            help: bounded(presentation.help, limit: CinematicRunRecapShareArtifactSourceBadgePlan.helpMaxCharacters),
+            copyText: copyText,
+            copyLabel: bounded(presentation.copyLabel, limit: CinematicRunRecapShareArtifactSourceBadgePlan.copyLabelMaxCharacters),
+            severity: presentation.severity,
+            tintIdentifier: bounded(
+                presentation.tintIdentifier,
+                limit: CinematicRunRecapShareArtifactSourceBadgePlan.tintIdentifierMaxCharacters
+            ),
+            systemImage: bounded(
+                presentation.systemImage,
+                limit: CinematicRunRecapShareArtifactSourceBadgePlan.systemImageMaxCharacters
+            ),
+            accessibilityIdentifier: "cinematic-run-recap-artifact-source-badge-\(identifier)",
+            copyAccessibilityIdentifier: "cinematic-run-recap-artifact-source-badge-copy-\(identifier)"
+        )
+    }
+
+    private struct Presentation {
+        var isVisible: Bool
+        var label: String
+        var detail: String
+        var help: String
+        var copyLabel: String
+        var severity: CompassWorkspaceStorageAssessment.Severity
+        var tintIdentifier: String
+        var systemImage: String
+    }
+
+    private static func presentation(
+        for plan: CinematicRunRecapShareArtifactSourceReconciliationPlan
+    ) -> Presentation {
+        guard plan.isApplicationSupportComparison else {
+            return Presentation(
+                isVisible: false,
+                label: "",
+                detail: "",
+                help: "",
+                copyLabel: "",
+                severity: .healthy,
+                tintIdentifier: "hidden",
+                systemImage: "checkmark.circle"
+            )
+        }
+
+        let presentation: Presentation
+        switch plan.stateIdentifier {
+        case "compatible":
+            presentation = Presentation(
+                isVisible: true,
+                label: "Application Support source",
+                detail: "Application Support and repo-local recap artifacts match at \(plan.activeTotalCount) saved\(latestSuffix(plan.activeLatestSessionNumber)).",
+                help: visibleHelp(for: plan, stateLabel: "matching Application Support recap artifacts"),
+                copyLabel: "Copy source details",
+                severity: .info,
+                tintIdentifier: "teal",
+                systemImage: "externaldrive.fill.badge.checkmark"
+            )
+        case "repo-local-missing":
+            presentation = Presentation(
+                isVisible: true,
+                label: "Repo-local source missing",
+                detail: "Active storage has \(plan.activeTotalCount) saved; repo-local .compass/sessions is \(plan.repoLocalAvailabilityReason).",
+                help: visibleHelp(for: plan, stateLabel: "missing repo-local recap artifacts"),
+                copyLabel: "Copy source details",
+                severity: .info,
+                tintIdentifier: "blue",
+                systemImage: "folder.badge.questionmark"
+            )
+        case "repo-local-extra":
+            let extraCount = max(0, plan.repoLocalTotalCount - plan.activeTotalCount)
+            presentation = Presentation(
+                isVisible: true,
+                label: "Repo-local has extras",
+                detail: "Active storage has \(plan.activeTotalCount) saved; repo-local has \(plan.repoLocalTotalCount) saved\(extraCount > 0 ? " with \(extraCount) extra" : "").",
+                help: visibleHelp(for: plan, stateLabel: "repo-local-only recap artifacts"),
+                copyLabel: "Copy source details",
+                severity: .warning,
+                tintIdentifier: "orange",
+                systemImage: "archivebox.badge.plus"
+            )
+        case "active-missing-repo-local-available":
+            presentation = Presentation(
+                isVisible: true,
+                label: "Active source missing",
+                detail: "Active Application Support artifacts are \(plan.activeAvailabilityReason); repo-local still has \(plan.repoLocalTotalCount) saved.",
+                help: visibleHelp(for: plan, stateLabel: "repo-local artifacts while active storage is missing"),
+                copyLabel: "Copy source details",
+                severity: .failure,
+                tintIdentifier: "red",
+                systemImage: "externaldrive.badge.xmark"
+            )
+        case "scan-warnings":
+            presentation = Presentation(
+                isVisible: true,
+                label: "Artifact scan warning",
+                detail: "Recap artifact scan reported warnings active \(plan.activeWarningCount), repo-local \(plan.repoLocalWarningCount).",
+                help: visibleHelp(for: plan, stateLabel: "recap artifact scan warnings"),
+                copyLabel: "Copy source details",
+                severity: .warning,
+                tintIdentifier: "yellow",
+                systemImage: "exclamationmark.triangle.fill"
+            )
+        default:
+            presentation = Presentation(
+                isVisible: true,
+                label: "Application Support only",
+                detail: "Application Support has \(plan.activeTotalCount) saved; repo-local comparison state is \(plan.stateIdentifier).",
+                help: visibleHelp(for: plan, stateLabel: "Application Support recap artifacts"),
+                copyLabel: "Copy source details",
+                severity: .info,
+                tintIdentifier: "purple",
+                systemImage: "externaldrive.fill"
+            )
+        }
+
+        return presentation
+    }
+
+    private static func visibleHelp(
+        for plan: CinematicRunRecapShareArtifactSourceReconciliationPlan,
+        stateLabel: String
+    ) -> String {
+        bounded(
+            "Copy read-only source details for \(stateLabel). This badge is derived from reconciliation \(fingerprint(plan.identifier)) and does not repair, migrate, delete, or change saved recap artifacts.",
+            limit: CinematicRunRecapShareArtifactSourceBadgePlan.helpMaxCharacters
+        )
+    }
+
+    private static func copyText(
+        for plan: CinematicRunRecapShareArtifactSourceReconciliationPlan
+    ) -> String {
+        let lines = [
+            "Recap artifact source reconciliation",
+            "Reconciliation: \(plan.identifier)",
+            "State: \(plan.stateIdentifier)",
+            "Storage: \(plan.activeStorageIdentifier)",
+            "Activity source: \(plan.activitySourceIdentifier)",
+            "Active history: \(plan.activeHistoryIdentifier)",
+            "Repo-local history: \(plan.repoLocalHistoryIdentifier)",
+            "Active availability: \(plan.activeAvailabilityReason)",
+            "Repo-local availability: \(plan.repoLocalAvailabilityReason)",
+            "Active total: \(plan.activeTotalCount)",
+            "Repo-local total: \(plan.repoLocalTotalCount)",
+            "Active latest: \(sessionLabel(plan.activeLatestSessionNumber))",
+            "Repo-local latest: \(sessionLabel(plan.repoLocalLatestSessionNumber))",
+            "Warnings: active \(plan.activeWarningCount), repo-local \(plan.repoLocalWarningCount)",
+            "Warning state: \(plan.warningStateIdentifier)",
+            "Active sessions: \(plan.activeSessionsDisplayText)",
+            "Repo-local sessions: \(plan.repoLocalSessionsDisplayText)",
+            identifierLine("Active ids", plan.representativeActiveEntryIdentifiers),
+            identifierLine("Repo-local ids", plan.representativeRepoLocalEntryIdentifiers),
+            identifierLine("Repo-local extra ids", plan.representativeRepoLocalExtraEntryIdentifiers),
+            "Read-only: copy only; no repair, migration, deletion, pin, hold, search, session, active-storage, or artifact-history mutation."
+        ]
+
+        return boundedArtifactText(
+            lines.joined(separator: "\n"),
+            limit: CinematicRunRecapShareArtifactSourceBadgePlan.copyTextMaxCharacters
+        )
+    }
+
+    private static func latestSuffix(_ sessionNumber: Int?) -> String {
+        sessionNumber.map { "; latest S\($0)" } ?? ""
+    }
+
+    private static func sessionLabel(_ sessionNumber: Int?) -> String {
+        sessionNumber.map { "S\($0)" } ?? "none"
+    }
+
+    private static func identifierLine(_ label: String, _ identifiers: [String]) -> String {
+        guard !identifiers.isEmpty else { return "\(label): none" }
+        return "\(label): \(identifiers.joined(separator: ", "))"
+    }
+
+    private static func bounded(_ text: String, limit: Int) -> String {
+        guard limit > 0 else { return "" }
+        let normalized = text
+            .replacingOccurrences(of: "\r", with: " ")
+            .replacingOccurrences(of: "\n", with: " ")
+            .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalized.isEmpty else { return "" }
+        guard normalized.count <= limit else {
+            let prefixLimit = max(1, limit - 3)
+            return normalized.prefix(prefixLimit)
+                .trimmingCharacters(in: .whitespacesAndNewlines) + "..."
+        }
+        return normalized
+    }
+
+    private static func boundedArtifactText(_ text: String, limit: Int) -> String {
+        guard limit > 0 else { return "" }
+        let normalized = text
+            .replacingOccurrences(of: "\r", with: "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalized.isEmpty else { return "" }
         guard normalized.count <= limit else {
             let prefixLimit = max(1, limit - 3)
             return normalized.prefix(prefixLimit)

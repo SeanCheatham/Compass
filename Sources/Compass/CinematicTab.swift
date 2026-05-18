@@ -207,6 +207,8 @@ struct CinematicTab: View {
                             plan: recapPlan,
                             sharePlan: runRecapSharePlan,
                             artifactHistoryPlan: project.cinematicRunRecapShareArtifactHistory,
+                            artifactSourceReconciliationPlan:
+                                project.cinematicRunRecapShareArtifactSourceReconciliation,
                             artifactTourPlan: recapArtifactTourPlan,
                             displayPlan: displayPlan
                         )
@@ -924,6 +926,7 @@ private struct CinematicRunRecapOverlay: View {
     var plan: CinematicRunRecapPlan
     var sharePlan: CinematicRunRecapSharePlan
     var artifactHistoryPlan: CinematicRunRecapShareArtifactHistoryPlan
+    var artifactSourceReconciliationPlan: CinematicRunRecapShareArtifactSourceReconciliationPlan
     var artifactTourPlan: CinematicRunRecapShareArtifactTourPlan
     var displayPlan: CinematicOverlayDisplayPlan
     @State private var shareFeedbackLabel: String?
@@ -1010,6 +1013,7 @@ private struct CinematicRunRecapOverlay: View {
             CinematicRunRecapArtifactLibraryControl(
                 project: project,
                 plan: artifactHistoryPlan,
+                sourceReconciliationPlan: artifactSourceReconciliationPlan,
                 tourPlan: artifactTourPlan,
                 tint: tint,
                 displayPlan: displayPlan
@@ -1099,18 +1103,22 @@ private struct CinematicRunRecapArtifactLibraryControl: View {
     @EnvironmentObject private var model: AppModel
     @ObservedObject var project: CompassProject
     var plan: CinematicRunRecapShareArtifactHistoryPlan
+    var sourceReconciliationPlan: CinematicRunRecapShareArtifactSourceReconciliationPlan
     var tourPlan: CinematicRunRecapShareArtifactTourPlan
     var tint: Color
     var displayPlan: CinematicOverlayDisplayPlan
     @State private var feedback: String?
     @State private var feedbackStatus: CinematicRunRecapShareArtifactCleanupResult.Status?
     @State private var preservedFeedbackPlanIdentifier: String?
+    @State private var sourceBadgeFeedback: String?
+    @State private var preservedSourceBadgeIdentifier: String?
 
     var body: some View {
         let previewPlan = currentPreviewPlan
         let rollupPlan = currentRollupPlan
         let comparisonPlan = currentComparisonPlan
         let pinnedReferencePlan = currentPinnedReferencePlan
+        let sourceBadgePlan = currentSourceBadgePlan
         let selectedExportPlan = subsetExportPlan(scope: .selected)
         let filteredExportPlan = subsetExportPlan(scope: .filtered)
         let actionMenuPlan = actionMenuPlan(
@@ -1126,6 +1134,7 @@ private struct CinematicRunRecapArtifactLibraryControl: View {
 
         VStack(alignment: .leading, spacing: 4) {
             rollupScanline(rollupPlan)
+            sourceBadgeStrip(sourceBadgePlan)
             comparisonStrip(comparisonPlan)
             pinnedReferenceStrip(pinnedReferencePlan, previewPlan: previewPlan)
             tourStrip(tourPlan, previewPlan: previewPlan)
@@ -1232,6 +1241,14 @@ private struct CinematicRunRecapArtifactLibraryControl: View {
             feedbackStatus = nil
             preservedFeedbackPlanIdentifier = nil
         }
+        .onChange(of: sourceReconciliationPlan.identifier) {
+            let sourceBadgePlan = currentSourceBadgePlan
+            if preservedSourceBadgeIdentifier == sourceBadgePlan.identifier {
+                return
+            }
+            sourceBadgeFeedback = nil
+            preservedSourceBadgeIdentifier = nil
+        }
     }
 
     private var currentPreviewPlan: CinematicRunRecapShareArtifactPreviewBrowserPlan {
@@ -1247,6 +1264,12 @@ private struct CinematicRunRecapArtifactLibraryControl: View {
             historyPlan: plan,
             selectedEntryIdentifier: artifactLibraryContext.selectedEntryIdentifier,
             searchQuery: artifactLibraryContext.searchText
+        )
+    }
+
+    private var currentSourceBadgePlan: CinematicRunRecapShareArtifactSourceBadgePlan {
+        CinematicRunRecapShareArtifactSourceBadgePlanner.plan(
+            reconciliationPlan: sourceReconciliationPlan
         )
     }
 
@@ -1320,6 +1343,73 @@ private struct CinematicRunRecapArtifactLibraryControl: View {
         }
         .help(rollupPlan.copyHelp)
         .accessibilityIdentifier("cinematic-run-recap-artifact-library-rollup-\(rollupPlan.identifier)")
+    }
+
+    @ViewBuilder
+    private func sourceBadgeStrip(
+        _ sourceBadgePlan: CinematicRunRecapShareArtifactSourceBadgePlan
+    ) -> some View {
+        if sourceBadgePlan.isVisible {
+            HStack(alignment: .center, spacing: 6) {
+                Image(systemName: sourceBadgePlan.systemImage)
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundStyle(sourceBadgeTint(sourceBadgePlan).opacity(0.82))
+                    .frame(width: 14)
+
+                VStack(alignment: .leading, spacing: 0) {
+                    Text(sourceBadgePlan.label)
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(.white.opacity(0.7))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.68)
+
+                    Text(sourceBadgePlan.detail)
+                        .font(.caption2)
+                        .foregroundStyle(.white.opacity(0.48))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.62)
+                }
+
+                Spacer(minLength: 4)
+
+                if let sourceBadgeFeedback {
+                    Text(sourceBadgeFeedback)
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(sourceBadgeTint(sourceBadgePlan).opacity(0.78))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.68)
+                }
+
+                Button {
+                    copySourceBadge(sourceBadgePlan)
+                } label: {
+                    Image(systemName: "doc.on.clipboard")
+                        .font(.system(size: 11, weight: .bold))
+                        .frame(width: 20, height: 18)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .disabled(sourceBadgePlan.copyText.isEmpty)
+                .foregroundStyle(sourceBadgeTint(sourceBadgePlan).opacity(sourceBadgePlan.copyText.isEmpty ? 0.3 : 0.84))
+                .help(sourceBadgePlan.help)
+                .accessibilityLabel(sourceBadgePlan.copyLabel)
+                .accessibilityIdentifier(sourceBadgePlan.copyAccessibilityIdentifier)
+            }
+            .padding(.horizontal, 6)
+            .padding(.vertical, 3)
+            .background(
+                sourceBadgeTint(sourceBadgePlan).opacity(sourceBadgePlan.severity == .info ? 0.055 : 0.08),
+                in: RoundedRectangle(cornerRadius: 5)
+            )
+            .overlay {
+                RoundedRectangle(cornerRadius: 5)
+                    .stroke(sourceBadgeTint(sourceBadgePlan).opacity(sourceBadgePlan.severity == .info ? 0.12 : 0.22), lineWidth: 1)
+            }
+            .help(sourceBadgePlan.help)
+            .accessibilityLabel(sourceBadgePlan.label)
+            .accessibilityValue(sourceBadgePlan.detail)
+            .accessibilityIdentifier(sourceBadgePlan.accessibilityIdentifier)
+        }
     }
 
     private func comparisonStrip(_ comparisonPlan: CinematicRunRecapShareArtifactComparisonPlan) -> some View {
@@ -2008,6 +2098,27 @@ private struct CinematicRunRecapArtifactLibraryControl: View {
         }
     }
 
+    private func sourceBadgeTint(
+        _ sourceBadgePlan: CinematicRunRecapShareArtifactSourceBadgePlan
+    ) -> Color {
+        switch sourceBadgePlan.tintIdentifier {
+        case "teal":
+            return .teal
+        case "blue":
+            return .blue
+        case "orange":
+            return .orange
+        case "red":
+            return .red
+        case "yellow":
+            return .yellow
+        case "purple":
+            return .purple
+        default:
+            return tint
+        }
+    }
+
     private func boundedHelp(_ text: String) -> String {
         let normalized = text
             .replacingOccurrences(of: "\r", with: " ")
@@ -2138,6 +2249,16 @@ private struct CinematicRunRecapArtifactLibraryControl: View {
         feedback = "Tour export copied"
         feedbackStatus = nil
         preservedFeedbackPlanIdentifier = plan.identifier
+    }
+
+    private func copySourceBadge(
+        _ sourceBadgePlan: CinematicRunRecapShareArtifactSourceBadgePlan
+    ) {
+        guard sourceBadgePlan.isVisible, !sourceBadgePlan.copyText.isEmpty else { return }
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(sourceBadgePlan.copyText, forType: .string)
+        sourceBadgeFeedback = "Source copied"
+        preservedSourceBadgeIdentifier = sourceBadgePlan.identifier
     }
 
     private func copyExport() {
