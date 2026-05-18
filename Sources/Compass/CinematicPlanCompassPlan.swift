@@ -3,7 +3,11 @@ import Foundation
 struct CinematicPlanCompassPlan: Equatable {
     static let sectionExcerptMaxCharacters = 96
     static let sectionCopyMaxCharacters = 220
-    static let copyTextMaxCharacters = 760
+    static let completedWaypointLimit = 4
+    static let completedWaypointExcerptMaxCharacters = 58
+    static let completedWaypointCopyMaxCharacters = 112
+    static let completedWaypointStripCopyMaxCharacters = 260
+    static let copyTextMaxCharacters = 860
     static let identifierMaxCharacters = 360
 
     var identifier: String
@@ -11,6 +15,14 @@ struct CinematicPlanCompassPlan: Equatable {
     var exportIdentifier: String
     var completedCount: Int
     var completedLabel: String
+    var completedWaypoints: [CompletedWaypointDescriptor]
+    var completedWaypointCount: Int
+    var latestCompletedWaypoint: CompletedWaypointDescriptor?
+    var hiddenCompletedWaypointCount: Int
+    var completedWaypointStripIdentifier: String
+    var completedWaypointCopyText: String
+    var latestWaypointStateIdentifier: String
+    var historyStateIdentifier: String
     var immediate: SectionDescriptor
     var midTerm: SectionDescriptor
     var longTerm: SectionDescriptor
@@ -36,23 +48,34 @@ struct CinematicPlanCompassPlan: Equatable {
             overview: PlanWorkflowOverview(
                 state: state,
                 excerptLimit: Self.sectionExcerptMaxCharacters
-            )
+            ),
+            completed: state.completed
         )
     }
 
     init(overview: PlanWorkflowOverview) {
+        self.init(overview: overview, completed: [])
+    }
+
+    private init(overview: PlanWorkflowOverview, completed: [String]) {
         let completedLabel = Self.completedLabel(for: overview.completedCount)
         let sections = overview.sections.map {
             SectionDescriptor(section: $0)
         }
+        let completedHistory = Self.completedWaypointHistory(
+            completed: completed,
+            completedCount: overview.completedCount
+        )
         let copyText = Self.copyText(
             completedLabel: completedLabel,
+            completedWaypointCopyText: completedHistory.copyText,
             sections: sections
         )
         let identifier = Self.bounded(
             [
                 "plan-compass",
                 "completed:\(overview.completedCount)",
+                "history:\(completedHistory.stripIdentifier)",
                 sections.map(\.contentIdentifier).joined(separator: ";")
             ].joined(separator: "|"),
             limit: Self.identifierMaxCharacters
@@ -71,10 +94,82 @@ struct CinematicPlanCompassPlan: Equatable {
         self.exportIdentifier = exportIdentifier
         completedCount = overview.completedCount
         self.completedLabel = completedLabel
+        completedWaypoints = completedHistory.waypoints
+        completedWaypointCount = completedHistory.waypoints.count
+        latestCompletedWaypoint = completedHistory.latestWaypoint
+        hiddenCompletedWaypointCount = completedHistory.hiddenCount
+        completedWaypointStripIdentifier = completedHistory.stripIdentifier
+        completedWaypointCopyText = completedHistory.copyText
+        latestWaypointStateIdentifier = completedHistory.latestStateIdentifier
+        historyStateIdentifier = completedHistory.historyStateIdentifier
         immediate = sections.first { $0.kind == .immediate } ?? SectionDescriptor.fallback(kind: .immediate)
         midTerm = sections.first { $0.kind == .midTerm } ?? SectionDescriptor.fallback(kind: .midTerm)
         longTerm = sections.first { $0.kind == .longTerm } ?? SectionDescriptor.fallback(kind: .longTerm)
         self.copyText = copyText
+    }
+
+    struct CompletedWaypointDescriptor: Identifiable, Equatable {
+        var id: String
+        var ordinal: Int
+        var ordinalLabel: String
+        var stateIdentifier: String
+        var displayText: String
+        var contentIdentifier: String
+        var copyIdentifier: String
+        var exportIdentifier: String
+        var copyText: String
+        var diagnosticsDetail: String
+
+        init(item: String, ordinal: Int, isLatest: Bool) {
+            let stateIdentifier = isLatest ? "latest" : "history"
+            let ordinalLabel = "#\(ordinal)"
+            let displayText = CinematicPlanCompassPlan.boundedMultiline(
+                item,
+                limit: CinematicPlanCompassPlan.completedWaypointExcerptMaxCharacters
+            )
+            let contentIdentifier = CinematicPlanCompassPlan.bounded(
+                [
+                    "plan-compass.waypoint",
+                    "ordinal:\(ordinal)",
+                    "state:\(stateIdentifier)",
+                    "text:\(CinematicPlanCompassPlan.fingerprint(displayText))"
+                ].joined(separator: "|"),
+                limit: CinematicPlanCompassPlan.identifierMaxCharacters
+            )
+            let copyText = CinematicPlanCompassPlan.boundedMultiline(
+                "\(ordinalLabel) \(stateIdentifier): \(displayText)",
+                limit: CinematicPlanCompassPlan.completedWaypointCopyMaxCharacters
+            )
+            let copyIdentifier = CinematicPlanCompassPlan.bounded(
+                "plan-compass.copy.waypoint.\(ordinal)|\(CinematicPlanCompassPlan.fingerprint(copyText))",
+                limit: CinematicPlanCompassPlan.identifierMaxCharacters
+            )
+            let exportIdentifier = CinematicPlanCompassPlan.bounded(
+                "plan-compass.export.waypoint.\(ordinal)|\(CinematicPlanCompassPlan.fingerprint(contentIdentifier))",
+                limit: CinematicPlanCompassPlan.identifierMaxCharacters
+            )
+            let diagnosticsDetail = CinematicPlanCompassPlan.boundedMultiline(
+                [
+                    ordinalLabel,
+                    stateIdentifier,
+                    "copy \(copyIdentifier)",
+                    "export \(exportIdentifier)",
+                    "text \(displayText)"
+                ].joined(separator: " | "),
+                limit: 360
+            )
+
+            id = "plan-compass-waypoint-\(ordinal)"
+            self.ordinal = ordinal
+            self.ordinalLabel = ordinalLabel
+            self.stateIdentifier = stateIdentifier
+            self.displayText = displayText
+            self.contentIdentifier = contentIdentifier
+            self.copyIdentifier = copyIdentifier
+            self.exportIdentifier = exportIdentifier
+            self.copyText = copyText
+            self.diagnosticsDetail = diagnosticsDetail
+        }
     }
 
     struct SectionDescriptor: Identifiable, Equatable {
@@ -204,11 +299,13 @@ struct CinematicPlanCompassPlan: Equatable {
 
     private static func copyText(
         completedLabel: String,
+        completedWaypointCopyText: String,
         sections: [SectionDescriptor]
     ) -> String {
         let lines = [
             "Plan compass",
-            "Completed: \(completedLabel)"
+            "Completed: \(completedLabel)",
+            completedWaypointCopyText
         ] + sections.map(\.copyText)
 
         return boundedMultiline(
@@ -226,6 +323,88 @@ struct CinematicPlanCompassPlan: Equatable {
         default:
             return "\(count) completed iterations"
         }
+    }
+
+    private struct CompletedWaypointHistory {
+        var waypoints: [CompletedWaypointDescriptor]
+        var hiddenCount: Int
+        var stripIdentifier: String
+        var copyText: String
+        var latestStateIdentifier: String
+        var historyStateIdentifier: String
+
+        var latestWaypoint: CompletedWaypointDescriptor? {
+            waypoints.last { $0.stateIdentifier == "latest" }
+        }
+    }
+
+    private static func completedWaypointHistory(
+        completed: [String],
+        completedCount: Int
+    ) -> CompletedWaypointHistory {
+        let sanitized = completed.map {
+            boundedMultiline($0, limit: completedWaypointExcerptMaxCharacters)
+        }
+        let effectiveCount = max(completedCount, sanitized.count)
+        let visibleStart = max(0, sanitized.count - completedWaypointLimit)
+        let visibleItems = Array(sanitized.enumerated().dropFirst(visibleStart))
+        let waypoints = visibleItems.map { index, item in
+            CompletedWaypointDescriptor(
+                item: item,
+                ordinal: index + 1,
+                isLatest: index == sanitized.count - 1
+            )
+        }
+        let hiddenCount = max(0, effectiveCount - waypoints.count)
+        let latestStateIdentifier = waypoints.isEmpty ? "none" : "latest"
+        let historyStateIdentifier: String
+        if waypoints.isEmpty {
+            historyStateIdentifier = "empty"
+        } else if hiddenCount > 0 {
+            historyStateIdentifier = "truncated"
+        } else {
+            historyStateIdentifier = "complete"
+        }
+        let waypointIdentifierSummary = waypoints.map(\.contentIdentifier).joined(separator: ";")
+        let stripIdentifier = bounded(
+            [
+                "plan-compass.history",
+                "count:\(effectiveCount)",
+                "visible:\(waypoints.count)",
+                "hidden:\(hiddenCount)",
+                "latest:\(latestStateIdentifier)",
+                "state:\(historyStateIdentifier)",
+                "items:\(fingerprint(waypointIdentifierSummary.isEmpty ? "none" : waypointIdentifierSummary))"
+            ].joined(separator: "|"),
+            limit: identifierMaxCharacters
+        )
+        let copyLines: [String]
+        if waypoints.isEmpty {
+            copyLines = [
+                "History state: empty | latest none | hidden 0",
+                "Completed history: none"
+            ]
+        } else {
+            let latestWaypoint = waypoints.last { $0.stateIdentifier == "latest" }
+            copyLines = [
+                "History state: \(historyStateIdentifier) | latest \(latestStateIdentifier) | hidden \(hiddenCount)",
+                latestWaypoint.map { "Latest waypoint: \($0.copyText)" },
+                "Completed history: \(waypoints.map(\.copyText).joined(separator: " / "))"
+            ].compactMap { $0 }
+        }
+        let copyText = boundedMultiline(
+            copyLines.joined(separator: "\n"),
+            limit: completedWaypointStripCopyMaxCharacters
+        )
+
+        return CompletedWaypointHistory(
+            waypoints: waypoints,
+            hiddenCount: hiddenCount,
+            stripIdentifier: stripIdentifier,
+            copyText: copyText,
+            latestStateIdentifier: latestStateIdentifier,
+            historyStateIdentifier: historyStateIdentifier
+        )
     }
 
     private static func bounded(_ text: String, limit: Int) -> String {

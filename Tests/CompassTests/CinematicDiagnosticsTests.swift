@@ -1070,7 +1070,13 @@ final class CinematicDiagnosticsTests: XCTestCase {
 
     func testPlanCompassRowsCorrelateWithDiagnosticsExport() throws {
         let state = PlanState(
-            completed: ["Added plan overview", "Bound diagnostics copy"],
+            completed: [
+                "Added plan overview",
+                "Bound diagnostics copy",
+                "Rendered completed strip",
+                "Fed scene focus waypoints",
+                "Covered export correlation"
+            ],
             immediate: PlanNext(
                 plan: "Render the plan compass overlay",
                 verify: "swift test --filter CinematicPlanCompassPlanTests",
@@ -1105,18 +1111,34 @@ final class CinematicDiagnosticsTests: XCTestCase {
         )
 
         XCTAssertEqual(report.planCompass, planCompass)
+        XCTAssertEqual(report.planCompassHistory.identifier, planCompass.completedWaypointStripIdentifier)
+        XCTAssertEqual(report.planCompassHistory.completedCount, state.completed.count)
+        XCTAssertEqual(report.planCompassHistory.waypointCount, planCompass.completedWaypointCount)
+        XCTAssertEqual(report.planCompassHistory.hiddenCount, planCompass.hiddenCompletedWaypointCount)
+        XCTAssertEqual(report.planCompassHistory.latestWaypointIdentifier, planCompass.latestCompletedWaypoint?.contentIdentifier)
+        XCTAssertEqual(report.planCompassHistory.latestWaypointCopyIdentifier, planCompass.latestCompletedWaypoint?.copyIdentifier)
+        XCTAssertEqual(report.planCompassHistory.latestWaypointExportIdentifier, planCompass.latestCompletedWaypoint?.exportIdentifier)
+        XCTAssertEqual(report.planCompassHistory.historyStateIdentifier, "truncated")
         XCTAssertEqual(report.planCompassSceneFocus.descriptorIdentifier, planFocusDescriptor.identifier)
         XCTAssertEqual(report.planCompassSceneFocus.selectedSectionRouteIdentifier, "immediate")
         XCTAssertTrue(report.identifier.contains("plan-compass:\(planCompass.identifier)"))
         XCTAssertTrue(report.identifier.contains("plan-compass-copy:\(planCompass.copyIdentifier)"))
         XCTAssertTrue(report.identifier.contains("plan-compass-export:\(planCompass.exportIdentifier)"))
+        XCTAssertTrue(report.identifier.contains("plan-compass-history:\(planCompass.completedWaypointStripIdentifier)"))
+        XCTAssertTrue(report.identifier.contains("plan-compass-history-hidden:1"))
         XCTAssertTrue(report.identifier.contains("plan-compass-focus:\(planFocus.identifier)"))
 
+        let historyRow = try XCTUnwrap(summary.row(id: "plan-compass-history"))
         let immediateRow = try XCTUnwrap(summary.row(id: "plan-compass-immediate"))
         let midTermRow = try XCTUnwrap(summary.row(id: "plan-compass-mid-term"))
         let longTermRow = try XCTUnwrap(summary.row(id: "plan-compass-long-term"))
         let focusRow = try XCTUnwrap(summary.row(id: "plan-compass-focus"))
 
+        XCTAssertTrue(historyRow.detail.contains("waypoints \(planCompass.completedWaypointCount)"))
+        XCTAssertTrue(historyRow.detail.contains("hidden 1"))
+        XCTAssertTrue(historyRow.detail.contains("latest-label #5"))
+        XCTAssertTrue(historyRow.detail.contains(planCompass.latestCompletedWaypoint?.copyIdentifier ?? "missing"))
+        XCTAssertTrue(historyRow.detail.contains("correlated yes"))
         XCTAssertTrue(immediateRow.detail.contains(planCompass.immediate.copyIdentifier))
         XCTAssertTrue(immediateRow.detail.contains(planCompass.immediate.exportIdentifier))
         XCTAssertTrue(immediateRow.detail.contains("verify Timeout 2m"))
@@ -1127,8 +1149,12 @@ final class CinematicDiagnosticsTests: XCTestCase {
         XCTAssertTrue(focusRow.detail.contains(planFocusDescriptor.selectedSectionExportIdentifier))
         XCTAssertTrue(focusRow.detail.contains("route immediate"))
         XCTAssertTrue(focusRow.detail.contains("diagnostics plan-compass-focus.diagnostics"))
+        XCTAssertTrue(focusRow.detail.contains("waypoints \(planCompass.completedWaypointCount)"))
+        XCTAssertTrue(focusRow.detail.contains("waypoint-rail plan-compass-focus"))
         XCTAssertTrue(summary.exportText.contains("Immediate direction:"))
+        XCTAssertTrue(summary.exportText.contains("Plan history:"))
         XCTAssertTrue(summary.exportText.contains(planCompass.immediate.exportIdentifier))
+        XCTAssertTrue(summary.exportText.contains(planCompass.latestCompletedWaypoint?.exportIdentifier ?? "missing"))
         XCTAssertTrue(summary.exportText.contains(planCompass.midTerm.copyIdentifier))
         XCTAssertTrue(summary.exportText.contains(planCompass.longTerm.exportIdentifier))
         XCTAssertTrue(summary.exportText.contains("Plan compass focus:"))
@@ -1401,6 +1427,54 @@ final class CinematicDiagnosticsTests: XCTestCase {
             deliveryBefore.notificationAuthorizationStatusIdentifier
         )
         XCTAssertNotNil(summary.rows.first { $0.id == "native-feedback-delivery" })
+    }
+
+    @MainActor
+    func testCurrentReportPlanCompassHistoryIsReadOnlyAcrossProjectStateAndStorageContext() throws {
+        let project = CompassProject(
+            repoURL: URL(fileURLWithPath: "/tmp/PlanCompassHistoryReadOnly", isDirectory: true)
+        )
+        project.state = PlanState(
+            completed: (1...6).map { "Completed read-only waypoint \($0)" },
+            immediate: PlanNext(plan: "Expose read-only plan history", verify: "swift test"),
+            midTerm: "Queue read-only diagnostics",
+            longTerm: "Preserve cinematic context"
+        )
+        project.sessions = [SessionRecord.started(1)]
+        project.cinematicRunRecapShareArtifactLibraryContext = CinematicRunRecapShareArtifactLibraryContext(
+            selectedEntryIdentifier: "selected-history-entry",
+            searchText: "history",
+            pinnedEntryIdentifiers: ["selected-history-entry", "pinned-history-entry"],
+            comparisonTargetMode: .pinnedReference,
+            savedTourHoldEntryIdentifier: "held-history-entry"
+        )
+
+        let stateBefore = project.state
+        let sessionsBefore = project.sessions
+        let recapArtifactContextBefore = project.cinematicRunRecapShareArtifactLibraryContext
+        let warningHistoryBefore = project.cinematicDiagnosticsWarningBundleHistory
+        let activeStorageBefore = project.activeStorage
+        let planCompass = CinematicPlanCompassPlan(state: project.state)
+        let planCompassFocus = CinematicPlanCompassSceneFocusPlanner.plan(
+            isPlanOverlaySelected: true,
+            planCompassPlan: planCompass
+        )
+
+        let report = CinematicDiagnostics.currentReport(
+            for: project,
+            planCompassSceneFocusPlan: planCompassFocus
+        )
+
+        XCTAssertEqual(project.state, stateBefore)
+        XCTAssertEqual(project.sessions, sessionsBefore)
+        XCTAssertEqual(project.cinematicRunRecapShareArtifactLibraryContext, recapArtifactContextBefore)
+        XCTAssertEqual(project.cinematicDiagnosticsWarningBundleHistory, warningHistoryBefore)
+        XCTAssertEqual(project.activeStorage, activeStorageBefore)
+        XCTAssertEqual(report.planCompass, planCompass)
+        XCTAssertEqual(report.planCompassHistory.identifier, planCompass.completedWaypointStripIdentifier)
+        XCTAssertEqual(report.planCompassHistory.hiddenCount, 2)
+        XCTAssertEqual(report.planCompassSceneFocus.identifier, planCompassFocus.identifier)
+        XCTAssertEqual(report.planCompassSceneFocus.completedWaypointIdentifiers, planCompass.completedWaypoints.map(\.contentIdentifier))
     }
 
     func testCurrentReportUsesCompassProjectInputs() async {

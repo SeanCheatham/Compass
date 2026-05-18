@@ -387,6 +387,11 @@ private struct CinematicPlanCompassOverlay: View {
                     .minimumScaleFactor(0.76)
             }
 
+            CinematicPlanCompassWaypointStrip(
+                plan: plan,
+                displayPlan: displayPlan
+            )
+
             VStack(alignment: .leading, spacing: 7) {
                 ForEach(plan.sections) { section in
                     CinematicPlanCompassSectionRow(
@@ -417,6 +422,85 @@ private struct CinematicPlanCompassOverlay: View {
         }
         .help(plan.copyText)
         .accessibilityIdentifier("cinematic-plan-compass-\(plan.exportIdentifier)")
+    }
+}
+
+private struct CinematicPlanCompassWaypointStrip: View {
+    var plan: CinematicPlanCompassPlan
+    var displayPlan: CinematicOverlayDisplayPlan
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 6) {
+            Text(plan.historyStateIdentifier)
+                .font(.caption2.monospacedDigit().weight(.semibold))
+                .foregroundStyle(.white.opacity(displayPlan.hudStatusTextEmphasis))
+                .lineLimit(1)
+                .frame(width: 58, alignment: .leading)
+
+            HStack(alignment: .center, spacing: 5) {
+                ForEach(plan.completedWaypoints) { waypoint in
+                    CinematicPlanCompassWaypointBead(
+                        waypoint: waypoint,
+                        overlayOpacity: displayPlan.overlayOpacity
+                    )
+                }
+            }
+            .frame(minHeight: 18, alignment: .leading)
+
+            if plan.hiddenCompletedWaypointCount > 0 {
+                Text("+\(plan.hiddenCompletedWaypointCount)")
+                    .font(.caption2.monospacedDigit().weight(.bold))
+                    .foregroundStyle(.white.opacity(displayPlan.hudStatusTextEmphasis))
+                    .lineLimit(1)
+                    .padding(.horizontal, 5)
+                    .padding(.vertical, 1)
+                    .background(.white.opacity(0.08 * displayPlan.overlayOpacity), in: Capsule())
+                    .help("\(plan.hiddenCompletedWaypointCount) older completed iterations hidden")
+            }
+
+            Spacer(minLength: 0)
+        }
+        .frame(height: 20, alignment: .leading)
+        .help(plan.completedWaypointCopyText)
+        .accessibilityIdentifier("cinematic-plan-compass-history-\(plan.completedWaypointStripIdentifier)")
+    }
+}
+
+private struct CinematicPlanCompassWaypointBead: View {
+    var waypoint: CinematicPlanCompassPlan.CompletedWaypointDescriptor
+    var overlayOpacity: Double
+
+    private var isLatest: Bool {
+        waypoint.stateIdentifier == "latest"
+    }
+
+    private var fillColor: Color {
+        isLatest
+            ? Color.cyan.opacity(0.72 * overlayOpacity)
+            : Color.white.opacity(0.1 * overlayOpacity)
+    }
+
+    private var strokeColor: Color {
+        isLatest
+            ? Color.cyan.opacity(0.82)
+            : Color.white.opacity(0.16)
+    }
+
+    var body: some View {
+        let accessibilityID = "cinematic-" + waypoint.id + "-" + waypoint.exportIdentifier
+
+        Text(waypoint.ordinalLabel)
+            .font(.system(size: 8.5, weight: .bold, design: .monospaced))
+            .foregroundStyle(isLatest ? .black.opacity(0.82) : .white.opacity(0.72))
+            .lineLimit(1)
+            .minimumScaleFactor(0.68)
+            .frame(width: 28, height: 17)
+            .background(Capsule().fill(fillColor))
+            .overlay {
+                Capsule().stroke(strokeColor, lineWidth: 1)
+            }
+            .help(waypoint.copyText)
+            .accessibilityIdentifier(accessibilityID)
     }
 }
 

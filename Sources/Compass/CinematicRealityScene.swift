@@ -3448,6 +3448,13 @@ private final class CinematicSceneCoordinator {
             to: planCompassFocusNode,
             color: color
         )
+        addPlanCompassCompletedWaypoints(
+            descriptor,
+            to: planCompassFocusNode,
+            color: color,
+            plateWidth: plateWidth,
+            plateHeight: plateHeight
+        )
 
         addNarrativeText(
             descriptor.plaqueTitle,
@@ -3534,6 +3541,67 @@ private final class CinematicSceneCoordinator {
         )
         spine.name = "plan-compass-focus.\(descriptor.selectedSectionRouteIdentifier).triad.spine"
         node.addChild(spine)
+    }
+
+    private func addPlanCompassCompletedWaypoints(
+        _ descriptor: CinematicPlanCompassSceneFocusPlan.Descriptor,
+        to node: Entity,
+        color: NSColor,
+        plateWidth: Float,
+        plateHeight: Float
+    ) {
+        let visibleCount = min(descriptor.completedWaypointCount, descriptor.completedWaypointIdentifiers.count)
+        guard visibleCount > 0 else { return }
+
+        let y = -plateHeight * 0.43
+        let z: Float = 0.062
+        let startX = -plateWidth * 0.18
+        let step: Float = visibleCount > 1 ? min(0.19, (plateWidth * 0.38) / Float(visibleCount - 1)) : 0
+        let positions = (0..<visibleCount).map { index in
+            SIMD3<Float>(startX + (Float(index) * step), y, z)
+        }
+
+        if let first = positions.first, let last = positions.last, visibleCount > 1 {
+            let rail = beamEntity(
+                from: first,
+                to: last,
+                radius: 0.0035,
+                color: color.withAlphaComponent(
+                    descriptor.hiddenCompletedWaypointCount > 0 ? 0.72 : 0.58
+                ),
+                opacity: descriptor.hiddenCompletedWaypointCount > 0 ? 0.4 : 0.32
+            )
+            rail.name = descriptor.waypointRailIdentifier
+            node.addChild(rail)
+        }
+
+        for index in 0..<visibleCount {
+            let isLatest = index == visibleCount - 1
+            let bead = ModelEntity(
+                mesh: .generateSphere(radius: isLatest ? 0.024 : 0.017),
+                materials: [
+                    glowMaterial(
+                        isLatest ? color : color.withAlphaComponent(0.58),
+                        opacity: isLatest ? 0.78 : 0.42
+                    )
+                ]
+            )
+            bead.name = descriptor.completedWaypointIdentifiers[index]
+            bead.position = positions[index]
+            bead.components.set(OpacityComponent(opacity: isLatest ? 0.78 : 0.42))
+            node.addChild(bead)
+        }
+
+        if descriptor.hiddenCompletedWaypointCount > 0, let last = positions.last {
+            let hiddenCap = ModelEntity(
+                mesh: .generateSphere(radius: 0.013),
+                materials: [glowMaterial(color.withAlphaComponent(0.44), opacity: 0.34)]
+            )
+            hiddenCap.name = "\(descriptor.waypointRailIdentifier).hidden.\(descriptor.hiddenCompletedWaypointCount)"
+            hiddenCap.position = [last.x + 0.055, last.y, last.z]
+            hiddenCap.components.set(OpacityComponent(opacity: 0.34))
+            node.addChild(hiddenCap)
+        }
     }
 
     private func applySavedRecapArtifactTourPlan(

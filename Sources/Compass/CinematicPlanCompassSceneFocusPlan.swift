@@ -44,6 +44,17 @@ struct CinematicPlanCompassSceneFocusPlan: Equatable {
         var plaqueStatus: String
         var ringCopy: String
         var triadIdentifiers: [String]
+        var completedWaypointCount: Int
+        var latestCompletedWaypointID: String?
+        var latestCompletedWaypointOrdinalLabel: String?
+        var latestCompletedWaypointText: String?
+        var hiddenCompletedWaypointCount: Int
+        var completedWaypointIdentifiers: [String]
+        var completedWaypointCopyIdentifiers: [String]
+        var completedWaypointExportIdentifiers: [String]
+        var waypointHistoryStateIdentifier: String
+        var waypointLatestStateIdentifier: String
+        var waypointRailIdentifier: String
         var diagnosticsIdentifier: String
         var diagnosticsRowIdentifier: String
 
@@ -111,13 +122,32 @@ enum CinematicPlanCompassSceneFocusPlanner {
                 limit: CinematicPlanCompassSceneFocusPlan.identifierMaxCharacters
             )
         }
+        let waypointIdentifiers = planCompassPlan.completedWaypoints.map(\.contentIdentifier)
+        let waypointCopyIdentifiers = planCompassPlan.completedWaypoints.map(\.copyIdentifier)
+        let waypointExportIdentifiers = planCompassPlan.completedWaypoints.map(\.exportIdentifier)
+        let waypointRailIdentifier = bounded(
+            [
+                "plan-compass-focus",
+                selectedRoute,
+                "waypoints",
+                planCompassPlan.historyStateIdentifier,
+                "visible:\(planCompassPlan.completedWaypointCount)",
+                "hidden:\(planCompassPlan.hiddenCompletedWaypointCount)",
+                "ids:\(fingerprint(waypointIdentifiers.joined(separator: "|")))"
+            ].joined(separator: "."),
+            limit: CinematicPlanCompassSceneFocusPlan.identifierMaxCharacters
+        )
         let diagnosticsIdentifier = bounded(
             [
                 "plan-compass-focus.diagnostics",
                 "route:\(selectedRoute)",
                 "state:\(selectedSection.stateIdentifier)",
                 "copy:\(fingerprint(selectedSection.copyIdentifier))",
-                "export:\(fingerprint(selectedSection.exportIdentifier))"
+                "export:\(fingerprint(selectedSection.exportIdentifier))",
+                "waypoints:\(planCompassPlan.completedWaypointCount)",
+                "hidden:\(planCompassPlan.hiddenCompletedWaypointCount)",
+                "history:\(planCompassPlan.historyStateIdentifier)",
+                "latest:\(planCompassPlan.latestWaypointStateIdentifier)"
             ].joined(separator: "|"),
             limit: CinematicPlanCompassSceneFocusPlan.identifierMaxCharacters
         )
@@ -135,6 +165,8 @@ enum CinematicPlanCompassSceneFocusPlanner {
                 "light:\(treatment.lightFamily.rawValue)",
                 "effect:\(treatment.arenaEffect.rawValue)",
                 "phase:\(fixed(treatment.phaseLightIntensity))",
+                "waypoints:\(fingerprint(planCompassPlan.completedWaypointStripIdentifier))",
+                "waypoint-rail:\(fingerprint(waypointRailIdentifier))",
                 "plaque:\(fingerprint([plaqueTitle, plaqueDetail, plaqueStatus, ringCopy].joined(separator: "|")))"
             ].joined(separator: "|"),
             limit: CinematicPlanCompassSceneFocusPlan.identifierMaxCharacters
@@ -167,6 +199,17 @@ enum CinematicPlanCompassSceneFocusPlanner {
             plaqueStatus: plaqueStatus,
             ringCopy: ringCopy,
             triadIdentifiers: triadIdentifiers,
+            completedWaypointCount: planCompassPlan.completedWaypointCount,
+            latestCompletedWaypointID: planCompassPlan.latestCompletedWaypoint?.contentIdentifier,
+            latestCompletedWaypointOrdinalLabel: planCompassPlan.latestCompletedWaypoint?.ordinalLabel,
+            latestCompletedWaypointText: planCompassPlan.latestCompletedWaypoint?.displayText,
+            hiddenCompletedWaypointCount: planCompassPlan.hiddenCompletedWaypointCount,
+            completedWaypointIdentifiers: waypointIdentifiers,
+            completedWaypointCopyIdentifiers: waypointCopyIdentifiers,
+            completedWaypointExportIdentifiers: waypointExportIdentifiers,
+            waypointHistoryStateIdentifier: planCompassPlan.historyStateIdentifier,
+            waypointLatestStateIdentifier: planCompassPlan.latestWaypointStateIdentifier,
+            waypointRailIdentifier: waypointRailIdentifier,
             diagnosticsIdentifier: diagnosticsIdentifier,
             diagnosticsRowIdentifier: "plan-compass-focus"
         )

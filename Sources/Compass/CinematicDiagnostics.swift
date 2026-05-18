@@ -7,6 +7,7 @@ struct CinematicDiagnosticsReport: Equatable {
     var immediateTitle: String
     var completedCount: Int
     var planCompass: CinematicPlanCompassPlan?
+    var planCompassHistory: PlanCompassHistorySnapshot
     var influenceIdentifier: String
     var languageMotif: LanguageMotifSnapshot
     var activityMotif: ActivityMotifSnapshot
@@ -63,6 +64,24 @@ struct CinematicDiagnosticsReport: Equatable {
         var usesCommitAmbient: Bool
         var usesSuccessAmbient: Bool
         var shouldShakeOnTransition: Bool
+    }
+
+    struct PlanCompassHistorySnapshot: Equatable {
+        var identifier: String
+        var completedCount: Int
+        var waypointCount: Int
+        var hiddenCount: Int
+        var latestWaypointIdentifier: String?
+        var latestWaypointOrdinalLabel: String?
+        var latestWaypointText: String?
+        var latestWaypointCopyIdentifier: String?
+        var latestWaypointExportIdentifier: String?
+        var waypointIdentifiers: [String]
+        var waypointCopyIdentifiers: [String]
+        var waypointExportIdentifiers: [String]
+        var latestStateIdentifier: String
+        var historyStateIdentifier: String
+        var copyText: String
     }
 
     struct NativeFeedbackSnapshot: Equatable {
@@ -508,6 +527,17 @@ struct CinematicDiagnosticsReport: Equatable {
         var plaqueStatus: String
         var ringCopy: String
         var triadIdentifiers: [String]
+        var completedWaypointCount: Int
+        var latestCompletedWaypointID: String?
+        var latestCompletedWaypointOrdinalLabel: String?
+        var latestCompletedWaypointText: String?
+        var hiddenCompletedWaypointCount: Int
+        var completedWaypointIdentifiers: [String]
+        var completedWaypointCopyIdentifiers: [String]
+        var completedWaypointExportIdentifiers: [String]
+        var waypointHistoryStateIdentifier: String
+        var waypointLatestStateIdentifier: String
+        var waypointRailIdentifier: String
         var diagnosticsIdentifier: String
         var diagnosticsRowIdentifier: String
     }
@@ -1941,6 +1971,13 @@ struct CinematicVisualSmokeReport: Equatable {
         let effects = Set(activeReports.map(\.planCompassSceneFocus.arenaEffectIdentifier))
         let fallbackCount = activeReports.filter(\.planCompassSceneFocus.usesFallbackSection).count
         let emptyCount = activeReports.filter(\.planCompassSceneFocus.selectedSectionIsEmpty).count
+        let waypointReports = activeReports.filter { $0.planCompassSceneFocus.completedWaypointCount > 0 }
+        let hiddenWaypointCount = activeReports.filter {
+            $0.planCompassSceneFocus.hiddenCompletedWaypointCount > 0
+        }.count
+        let waypointCorrelationCount = activeReports.filter {
+            planCompassFocusWaypointMetadataIsCorrelated($0.planCompassSceneFocus)
+        }.count
         let boundedCopyCount = activeReports.filter {
             !$0.planCompassSceneFocus.plaqueTitle.isEmpty
                 && $0.planCompassSceneFocus.plaqueTitle.count <= CinematicPlanCompassSceneFocusPlan.plaqueTitleMaxCharacters
@@ -1969,6 +2006,9 @@ struct CinematicVisualSmokeReport: Equatable {
             && effects.isSuperset(of: ["activity-pulse", "seal", "history-chains"])
             && fallbackCount > 0
             && emptyCount > 0
+            && !waypointReports.isEmpty
+            && hiddenWaypointCount > 0
+            && waypointCorrelationCount == activeReports.count
             && boundedCopyCount == activeReports.count
             && diagnosticRouteCount == activeReports.count
             && copyExportCount == activeReports.count
@@ -1982,10 +2022,40 @@ struct CinematicVisualSmokeReport: Equatable {
                 "states \(slashJoined(states))",
                 "fallbacks \(fallbackCount)",
                 "empty \(emptyCount)",
+                "waypoints \(waypointReports.count)/\(activeReports.count)",
+                "hidden \(hiddenWaypointCount)",
+                "waypoint-correlation \(waypointCorrelationCount)/\(activeReports.count)",
                 "copy-export \(copyExportCount)/\(activeReports.count)",
                 "bounded \(boundedCopyCount)/\(activeReports.count)"
             ].joined(separator: " ")
         )
+    }
+
+    private static func planCompassFocusWaypointMetadataIsCorrelated(
+        _ snapshot: CinematicDiagnosticsReport.PlanCompassSceneFocusSnapshot
+    ) -> Bool {
+        let countsMatch = snapshot.completedWaypointCount == snapshot.completedWaypointIdentifiers.count
+            && snapshot.completedWaypointCount == snapshot.completedWaypointCopyIdentifiers.count
+            && snapshot.completedWaypointCount == snapshot.completedWaypointExportIdentifiers.count
+        guard countsMatch else { return false }
+
+        if snapshot.completedWaypointCount == 0 {
+            return snapshot.completedWaypointIdentifiers.isEmpty
+                && snapshot.completedWaypointCopyIdentifiers.isEmpty
+                && snapshot.completedWaypointExportIdentifiers.isEmpty
+                && snapshot.latestCompletedWaypointID == nil
+                && snapshot.waypointHistoryStateIdentifier == "empty"
+                && snapshot.waypointLatestStateIdentifier == "none"
+        }
+
+        return ["complete", "truncated"].contains(snapshot.waypointHistoryStateIdentifier)
+            && snapshot.waypointLatestStateIdentifier == "latest"
+            && snapshot.latestCompletedWaypointID == snapshot.completedWaypointIdentifiers.last
+            && snapshot.latestCompletedWaypointOrdinalLabel?.hasPrefix("#") == true
+            && snapshot.latestCompletedWaypointText?.isEmpty == false
+            && snapshot.completedWaypointCopyIdentifiers.allSatisfy { $0.hasPrefix("plan-compass.copy.waypoint") }
+            && snapshot.completedWaypointExportIdentifiers.allSatisfy { $0.hasPrefix("plan-compass.export.waypoint") }
+            && snapshot.waypointRailIdentifier.contains("waypoints")
     }
 
     private static func runRecapSavedArtifactTourCoverageCheck(
@@ -3773,6 +3843,7 @@ struct CinematicDiagnosticsSummary: Equatable {
             rowIDs: [
                 "repository",
                 "immediate",
+                "plan-compass-history",
                 "plan-compass-immediate",
                 "plan-compass-mid-term",
                 "plan-compass-long-term",
@@ -3894,6 +3965,13 @@ struct CinematicDiagnosticsSummary: Equatable {
         ]
 
         if let planCompass = report.planCompass {
+            rows.append(
+                row(
+                    id: "plan-compass-history",
+                    label: "Plan history",
+                    detail: planCompassHistoryDetail(report.planCompassHistory)
+                )
+            )
             rows.append(
                 contentsOf: planCompass.sections.map { section in
                     row(
@@ -5082,6 +5160,54 @@ struct CinematicDiagnosticsSummary: Equatable {
         ].compactMap { $0 }.joined(separator: " | ")
     }
 
+    private static func planCompassHistoryIdentifiersAreCorrelated(
+        _ snapshot: CinematicDiagnosticsReport.PlanCompassHistorySnapshot
+    ) -> Bool {
+        let countsMatch = snapshot.waypointCount == snapshot.waypointIdentifiers.count
+            && snapshot.waypointCount == snapshot.waypointCopyIdentifiers.count
+            && snapshot.waypointCount == snapshot.waypointExportIdentifiers.count
+            && snapshot.hiddenCount + snapshot.waypointCount == snapshot.completedCount
+        guard countsMatch else { return false }
+
+        if snapshot.waypointCount == 0 {
+            return snapshot.latestStateIdentifier == "none"
+                && snapshot.historyStateIdentifier == "empty"
+                && snapshot.latestWaypointIdentifier == nil
+                && snapshot.latestWaypointCopyIdentifier == nil
+                && snapshot.latestWaypointExportIdentifier == nil
+        }
+
+        return snapshot.latestStateIdentifier == "latest"
+            && ["complete", "truncated"].contains(snapshot.historyStateIdentifier)
+            && snapshot.latestWaypointIdentifier == snapshot.waypointIdentifiers.last
+            && snapshot.latestWaypointCopyIdentifier == snapshot.waypointCopyIdentifiers.last
+            && snapshot.latestWaypointExportIdentifier == snapshot.waypointExportIdentifiers.last
+            && snapshot.waypointCopyIdentifiers.allSatisfy { $0.hasPrefix("plan-compass.copy.waypoint") }
+            && snapshot.waypointExportIdentifiers.allSatisfy { $0.hasPrefix("plan-compass.export.waypoint") }
+    }
+
+    private static func planCompassHistoryDetail(
+        _ snapshot: CinematicDiagnosticsReport.PlanCompassHistorySnapshot
+    ) -> String {
+        [
+            "completed \(snapshot.completedCount)",
+            "waypoints \(snapshot.waypointCount)",
+            "hidden \(snapshot.hiddenCount)",
+            "history \(snapshot.historyStateIdentifier)",
+            "latest \(snapshot.latestStateIdentifier)",
+            "correlated \(planCompassHistoryIdentifiersAreCorrelated(snapshot) ? "yes" : "no")",
+            snapshot.latestWaypointOrdinalLabel.map { "latest-label \($0)" },
+            snapshot.latestWaypointText.map { "latest-text \(bounded($0, limit: 96))" },
+            snapshot.latestWaypointIdentifier.map { "latest-id \(bounded($0, limit: 96))" },
+            snapshot.latestWaypointCopyIdentifier.map { "latest-copy \(bounded($0, limit: 72))" },
+            snapshot.latestWaypointExportIdentifier.map { "latest-export \(bounded($0, limit: 72))" },
+            "ids \(identifierListSummary(snapshot.waypointIdentifiers, visibleLimit: 4))",
+            "copy \(identifierListSummary(snapshot.waypointCopyIdentifiers, visibleLimit: 3))",
+            "export \(identifierListSummary(snapshot.waypointExportIdentifiers, visibleLimit: 3))",
+            "id \(bounded(snapshot.identifier, limit: 120))"
+        ].compactMap { $0 }.joined(separator: " | ")
+    }
+
     private static func planCompassSceneFocusDetail(
         _ snapshot: CinematicDiagnosticsReport.PlanCompassSceneFocusSnapshot
     ) -> String {
@@ -5094,12 +5220,19 @@ struct CinematicDiagnosticsSummary: Equatable {
             "route \(snapshot.selectedSectionRouteIdentifier)",
             "state \(snapshot.selectedSectionStateIdentifier)",
             "diagnostics \(bounded(snapshot.diagnosticsIdentifier, limit: 96))",
-            snapshot.usesFallbackSection ? "fallback section" : nil,
-            snapshot.selectedSectionRowIdentifier.map { "row \($0)" },
+            "waypoint-rail \(bounded(snapshot.waypointRailIdentifier, limit: 72))",
             "plan-copy \(bounded(snapshot.planCopyIdentifier, limit: 72))",
             "plan-export \(bounded(snapshot.planExportIdentifier, limit: 72))",
             "section-copy \(bounded(snapshot.selectedSectionCopyIdentifier, limit: 72))",
             "section-export \(bounded(snapshot.selectedSectionExportIdentifier, limit: 72))",
+            "waypoints \(snapshot.completedWaypointCount)",
+            "history \(snapshot.waypointHistoryStateIdentifier)",
+            "latest \(snapshot.waypointLatestStateIdentifier)",
+            "hidden \(snapshot.hiddenCompletedWaypointCount)",
+            snapshot.latestCompletedWaypointOrdinalLabel.map { "latest-label \($0)" },
+            snapshot.latestCompletedWaypointText.map { "latest-text \(bounded($0, limit: 80))" },
+            snapshot.usesFallbackSection ? "fallback section" : nil,
+            snapshot.selectedSectionRowIdentifier.map { "row \($0)" },
             "shot \(snapshot.cameraShotIdentifier)",
             snapshot.lookTarget.map { "look \(position($0))" },
             "light \(snapshot.lightFamilyIdentifier)",
@@ -5108,6 +5241,9 @@ struct CinematicDiagnosticsSummary: Equatable {
             "plaque \(bounded(snapshot.plaqueTitle, limit: 72))",
             "ring \(bounded(snapshot.ringCopy, limit: 96))",
             "triad \(snapshot.triadIdentifiers.count)",
+            "beads \(identifierListSummary(snapshot.completedWaypointIdentifiers, visibleLimit: 4))",
+            "waypoint-copy \(identifierListSummary(snapshot.completedWaypointCopyIdentifiers, visibleLimit: 3))",
+            "waypoint-export \(identifierListSummary(snapshot.completedWaypointExportIdentifiers, visibleLimit: 3))",
             "id \(bounded(snapshot.descriptorIdentifier, limit: 120))"
         ].compactMap { $0 }.joined(separator: " | ")
     }
@@ -6760,6 +6896,7 @@ enum CinematicDiagnostics {
             planCompassPlan: resolvedPlanCompassPlan,
             selectedKind: planCompassCommandSelectedKind
         )
+        let planCompassHistorySnapshot = planCompassHistorySnapshot(for: resolvedPlanCompassPlan)
         let planCompassSceneFocusSnapshot = planCompassSceneFocusSnapshot(for: planCompassSceneFocusPlan)
         let planCompassCommandSnapshot = planCompassCommandSnapshot(commandPlan: planCompassCommandPlan)
         let timelineFocusSnapshot = timelineFocusSnapshot(for: timelineFocusPlan)
@@ -6884,6 +7021,10 @@ enum CinematicDiagnostics {
                 "idle-story-cycle:\(idleStoryCycleSnapshot.identifier)",
                 "plan-compass-focus:\(planCompassSceneFocusSnapshot.identifier)",
                 "plan-compass-focus-diagnostics:\(planCompassSceneFocusSnapshot.diagnosticsIdentifier)",
+                "plan-compass-history:\(planCompassHistorySnapshot.identifier)",
+                "plan-compass-history-state:\(planCompassHistorySnapshot.historyStateIdentifier)",
+                "plan-compass-history-latest:\(planCompassHistorySnapshot.latestWaypointIdentifier ?? "none")",
+                "plan-compass-history-hidden:\(planCompassHistorySnapshot.hiddenCount)",
                 "plan-compass-commands:\(planCompassCommandSnapshot.identifier)",
                 "plan-compass-command-plan:\(planCompassCommandSnapshot.commandPlanIdentifier)",
                 "plan-compass-command-selected:\(planCompassCommandSnapshot.selectedRouteIdentifier)",
@@ -6937,6 +7078,7 @@ enum CinematicDiagnostics {
             immediateTitle: immediateTitle,
             completedCount: completedCount,
             planCompass: planCompassPlan,
+            planCompassHistory: planCompassHistorySnapshot,
             influenceIdentifier: influenceIdentifier,
             languageMotif: languageSnapshot,
             activityMotif: activitySnapshot,
@@ -7195,7 +7337,14 @@ enum CinematicDiagnostics {
     ) -> [CinematicDiagnosticsReport] {
         let states: [PlanState] = [
             PlanState(
-                completed: ["Mapped plan compass"],
+                completed: [
+                    "Mapped plan compass",
+                    "Bounded history descriptors",
+                    "Rendered overlay waypoints",
+                    "Correlated diagnostics export",
+                    "Fed scene focus beads",
+                    "Covered visual smoke history"
+                ],
                 immediate: PlanNext(
                     plan: "Focus the immediate plan compass route",
                     verify: "swift test --filter CinematicPlanCompassSceneFocusPlanTests",
@@ -9199,6 +9348,29 @@ enum CinematicDiagnostics {
         )
     }
 
+    private static func planCompassHistorySnapshot(
+        for plan: CinematicPlanCompassPlan
+    ) -> CinematicDiagnosticsReport.PlanCompassHistorySnapshot {
+        let latest = plan.latestCompletedWaypoint
+        return CinematicDiagnosticsReport.PlanCompassHistorySnapshot(
+            identifier: plan.completedWaypointStripIdentifier,
+            completedCount: plan.completedCount,
+            waypointCount: plan.completedWaypointCount,
+            hiddenCount: plan.hiddenCompletedWaypointCount,
+            latestWaypointIdentifier: latest?.contentIdentifier,
+            latestWaypointOrdinalLabel: latest?.ordinalLabel,
+            latestWaypointText: latest?.displayText,
+            latestWaypointCopyIdentifier: latest?.copyIdentifier,
+            latestWaypointExportIdentifier: latest?.exportIdentifier,
+            waypointIdentifiers: plan.completedWaypoints.map(\.contentIdentifier),
+            waypointCopyIdentifiers: plan.completedWaypoints.map(\.copyIdentifier),
+            waypointExportIdentifiers: plan.completedWaypoints.map(\.exportIdentifier),
+            latestStateIdentifier: plan.latestWaypointStateIdentifier,
+            historyStateIdentifier: plan.historyStateIdentifier,
+            copyText: plan.completedWaypointCopyText
+        )
+    }
+
     private static func planCompassSceneFocusSnapshot(
         for plan: CinematicPlanCompassSceneFocusPlan
     ) -> CinematicDiagnosticsReport.PlanCompassSceneFocusSnapshot {
@@ -9229,6 +9401,17 @@ enum CinematicDiagnostics {
                 plaqueStatus: "",
                 ringCopy: "",
                 triadIdentifiers: [],
+                completedWaypointCount: 0,
+                latestCompletedWaypointID: nil,
+                latestCompletedWaypointOrdinalLabel: nil,
+                latestCompletedWaypointText: nil,
+                hiddenCompletedWaypointCount: 0,
+                completedWaypointIdentifiers: [],
+                completedWaypointCopyIdentifiers: [],
+                completedWaypointExportIdentifiers: [],
+                waypointHistoryStateIdentifier: "none",
+                waypointLatestStateIdentifier: "none",
+                waypointRailIdentifier: "none",
                 diagnosticsIdentifier: "none",
                 diagnosticsRowIdentifier: "plan-compass-focus"
             )
@@ -9260,6 +9443,17 @@ enum CinematicDiagnostics {
             plaqueStatus: descriptor.plaqueStatus,
             ringCopy: descriptor.ringCopy,
             triadIdentifiers: descriptor.triadIdentifiers,
+            completedWaypointCount: descriptor.completedWaypointCount,
+            latestCompletedWaypointID: descriptor.latestCompletedWaypointID,
+            latestCompletedWaypointOrdinalLabel: descriptor.latestCompletedWaypointOrdinalLabel,
+            latestCompletedWaypointText: descriptor.latestCompletedWaypointText,
+            hiddenCompletedWaypointCount: descriptor.hiddenCompletedWaypointCount,
+            completedWaypointIdentifiers: descriptor.completedWaypointIdentifiers,
+            completedWaypointCopyIdentifiers: descriptor.completedWaypointCopyIdentifiers,
+            completedWaypointExportIdentifiers: descriptor.completedWaypointExportIdentifiers,
+            waypointHistoryStateIdentifier: descriptor.waypointHistoryStateIdentifier,
+            waypointLatestStateIdentifier: descriptor.waypointLatestStateIdentifier,
+            waypointRailIdentifier: descriptor.waypointRailIdentifier,
             diagnosticsIdentifier: descriptor.diagnosticsIdentifier,
             diagnosticsRowIdentifier: descriptor.diagnosticsRowIdentifier
         )

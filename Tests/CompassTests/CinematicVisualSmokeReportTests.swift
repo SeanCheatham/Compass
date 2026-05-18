@@ -153,6 +153,9 @@ final class CinematicVisualSmokeReportTests: XCTestCase {
         XCTAssertTrue(planCompassFocus.detail.contains("active"))
         XCTAssertTrue(planCompassFocus.detail.contains("empty"))
         XCTAssertTrue(planCompassFocus.detail.contains("fallbacks"))
+        XCTAssertTrue(planCompassFocus.detail.contains("waypoints"))
+        XCTAssertTrue(planCompassFocus.detail.contains("hidden"))
+        XCTAssertTrue(planCompassFocus.detail.contains("waypoint-correlation"))
         XCTAssertTrue(planCompassFocus.detail.contains("copy-export"))
         XCTAssertTrue(planCompassFocus.detail.contains("bounded"))
         XCTAssertEqual(savedArtifactTour.status, .pass)
@@ -402,6 +405,28 @@ final class CinematicVisualSmokeReportTests: XCTestCase {
         XCTAssertTrue(check.detail.contains("choreo 1/\(expectedDistinctRoutes)"))
         XCTAssertTrue(check.detail.contains("timing 1/\(expectedDistinctRoutes)"))
         XCTAssertTrue(check.detail.contains("pressure 1/\(expectedDistinctRoutes)"))
+    }
+
+    func testPlanCompassFocusCoverageWarnsForMissingWaypointCorrelation() throws {
+        var reports = CinematicDiagnostics.representativePlanCompassFocusSmokeReports()
+        let activeIndex = try XCTUnwrap(
+            reports.firstIndex { $0.planCompassSceneFocus.completedWaypointCount > 0 }
+        )
+        reports[activeIndex].planCompassSceneFocus.completedWaypointIdentifiers = []
+        reports[activeIndex].planCompassSceneFocus.completedWaypointCopyIdentifiers = []
+        reports[activeIndex].planCompassSceneFocus.completedWaypointExportIdentifiers = []
+        reports[activeIndex].planCompassSceneFocus.latestCompletedWaypointID = nil
+
+        let smoke = CinematicVisualSmokeReport(reports: reports)
+        let check = try XCTUnwrap(
+            smoke.checks.first { $0.id == "plan-compass-focus-coverage" }
+        )
+
+        XCTAssertEqual(check.status, .warning)
+        XCTAssertEqual(check.warningIdentifier, "visual-smoke.plan-compass-focus")
+        XCTAssertTrue(smoke.warningIdentifiers.contains("visual-smoke.plan-compass-focus"))
+        XCTAssertTrue(check.detail.contains("waypoint-correlation"))
+        XCTAssertLessThanOrEqual(check.detail.count, CinematicVisualSmokeReport.detailMaxCharacters)
     }
 
     func testWarningReportUsesBoundedIdentifiersAndDetails() throws {

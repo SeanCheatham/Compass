@@ -55,8 +55,19 @@ final class CinematicPlanCompassSceneFocusPlanTests: XCTestCase {
         XCTAssertLessThanOrEqual(descriptor.plaqueStatus.count, CinematicPlanCompassSceneFocusPlan.plaqueStatusMaxCharacters)
         XCTAssertLessThanOrEqual(descriptor.ringCopy.count, CinematicPlanCompassSceneFocusPlan.ringCopyMaxCharacters)
         XCTAssertEqual(descriptor.triadIdentifiers.count, 3)
+        XCTAssertEqual(descriptor.completedWaypointCount, planCompass.completedWaypointCount)
+        XCTAssertEqual(descriptor.hiddenCompletedWaypointCount, planCompass.hiddenCompletedWaypointCount)
+        XCTAssertEqual(descriptor.completedWaypointIdentifiers, planCompass.completedWaypoints.map(\.contentIdentifier))
+        XCTAssertEqual(descriptor.completedWaypointCopyIdentifiers, planCompass.completedWaypoints.map(\.copyIdentifier))
+        XCTAssertEqual(descriptor.completedWaypointExportIdentifiers, planCompass.completedWaypoints.map(\.exportIdentifier))
+        XCTAssertEqual(descriptor.latestCompletedWaypointID, planCompass.latestCompletedWaypoint?.contentIdentifier)
+        XCTAssertEqual(descriptor.latestCompletedWaypointOrdinalLabel, "#2")
+        XCTAssertEqual(descriptor.waypointHistoryStateIdentifier, "complete")
+        XCTAssertEqual(descriptor.waypointLatestStateIdentifier, "latest")
+        XCTAssertTrue(descriptor.waypointRailIdentifier.contains("waypoints"))
         XCTAssertEqual(descriptor.diagnosticsRowIdentifier, "plan-compass-focus")
         XCTAssertTrue(descriptor.diagnosticsIdentifier.contains("route:immediate"))
+        XCTAssertTrue(descriptor.diagnosticsIdentifier.contains("waypoints:2"))
     }
 
     func testPlanOverlayActivationGatesFocusWithoutDroppingCandidateDeterminism() throws {
