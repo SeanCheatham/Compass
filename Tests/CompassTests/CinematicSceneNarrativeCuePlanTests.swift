@@ -241,6 +241,9 @@ final class CinematicSceneNarrativeCuePlanTests: XCTestCase {
         XCTAssertEqual(omitted.nativeFeedbackCueIdentifier, "none")
         XCTAssertEqual(omitted.nativeFeedbackLifecycleIdentifier, "none")
         XCTAssertEqual(omitted.nativeFeedbackAffectedDescriptorIdentifiers, [])
+        XCTAssertEqual(omitted.questPlaque.plaqueTreatmentAccentIdentifier, "none")
+        XCTAssertEqual(omitted.arenaInscription.plaqueTreatmentAccentIdentifier, "none")
+        XCTAssertEqual(omitted.activityBanner.plaqueTreatmentAccentIdentifier, "none")
         XCTAssertFalse(omitted.identifier.contains("native-feedback:"))
     }
 
@@ -282,6 +285,12 @@ final class CinematicSceneNarrativeCuePlanTests: XCTestCase {
         XCTAssertEqual(plan.questPlaque.anchor, .leftSealPylon)
         XCTAssertEqual(plan.arenaInscription.anchor, .arenaRear)
         XCTAssertEqual(plan.activityBanner.anchor, .rightHistoryPylon)
+        XCTAssertEqual(plan.questPlaque.plaqueTreatmentAccentIdentifier, "verify-seal")
+        XCTAssertEqual(plan.questPlaque.plaqueTreatmentRouteIdentifier, "verifyStarted.verify")
+        XCTAssertEqual(plan.arenaInscription.plaqueTreatmentIdentifier, plan.questPlaque.plaqueTreatmentIdentifier)
+        XCTAssertEqual(plan.activityBanner.plaqueTreatmentIdentifier, plan.questPlaque.plaqueTreatmentIdentifier)
+        XCTAssertTrue(plan.questPlaque.identifier.contains("treatment{\(plan.questPlaque.plaqueTreatmentIdentifier)}"))
+        XCTAssertTrue(plan.identifier.contains(plan.questPlaque.plaqueTreatmentIdentifier))
         XCTAssertEqual(plan.questPlaque.visibility, .featured)
         XCTAssertEqual(plan.questPlaque.lightFamily, .verify)
         XCTAssertEqual(plan.activityBanner.tintFamily, .verify)
@@ -364,14 +373,16 @@ final class CinematicSceneNarrativeCuePlanTests: XCTestCase {
         XCTAssertEqual(plan.nativeFeedbackSourceIdentifier, "run-cue:7:failedVerify")
         XCTAssertEqual(plan.nativeFeedbackStyleIdentifier, "failure")
         XCTAssertEqual(plan.questPlaque.glyphIdentifier, "checkmark.seal.fill")
-        XCTAssertTrue(plan.questPlaque.text.lowercased().contains("failure"))
-        XCTAssertTrue(plan.questPlaque.text.lowercased().contains("anchor"))
+        XCTAssertTrue(plan.questPlaque.text.lowercased().contains("retry"))
+        XCTAssertTrue(plan.questPlaque.text.lowercased().contains("braces"))
         XCTAssertTrue(plan.questPlaque.secondaryText?.contains("run-cue:7:failedVerify") == true)
         XCTAssertTrue(plan.arenaInscription.text.contains("failedVerify"))
         XCTAssertTrue(plan.activityBanner.text.contains("failedVerify"))
         XCTAssertEqual(plan.questPlaque.anchor, .fractureGate)
         XCTAssertEqual(plan.arenaInscription.anchor, .fractureGate)
         XCTAssertEqual(plan.activityBanner.anchor, .rightWarningPylon)
+        XCTAssertEqual(plan.questPlaque.plaqueTreatmentAccentIdentifier, "retry-braces")
+        XCTAssertEqual(plan.questPlaque.plaqueTreatmentRouteIdentifier, "developRetrying.failure.failedVerify")
         XCTAssertEqual(plan.questPlaque.lightFamily, .failure)
         XCTAssertEqual(plan.activityBanner.tintFamily, .failure)
         XCTAssertEqual(plan.activityBanner.visibility, .featured)
@@ -411,9 +422,40 @@ final class CinematicSceneNarrativeCuePlanTests: XCTestCase {
         XCTAssertEqual(warningPlan.questPlaque.anchor, .rightWarningPylon)
         XCTAssertEqual(warningPlan.arenaInscription.anchor, .fractureGate)
         XCTAssertEqual(warningPlan.activityBanner.anchor, .rightWarningPylon)
+        XCTAssertEqual(warningPlan.questPlaque.plaqueTreatmentAccentIdentifier, "warning-rails")
+        XCTAssertEqual(warningPlan.questPlaque.plaqueTreatmentRouteIdentifier, "developRetrying.warning.dirtyWorktree")
         XCTAssertEqual(warningPlan.questPlaque.lightFamily, .pressure)
         XCTAssertEqual(warningPlan.activityBanner.tintFamily, .failure)
         assertNarrativeCuePlanInBounds(warningPlan)
+    }
+
+    func testPostChecksFailedNativeFeedbackUsesFailurePlaqueTreatment() throws {
+        let nativeCue = try XCTUnwrap(
+            CinematicNativeFeedbackCuePlanner.plan(
+                milestone: .postChecksFailed,
+                content: NativeFeedbackContent(milestone: .postChecksFailed, projectName: "Editor"),
+                phase: .failed,
+                feedbackMode: .notifications,
+                recentRunCues: [:]
+            )
+        )
+
+        let plan = narrativeCuePlan(
+            phase: .failed,
+            activityProfile: activityProfile(recentFailedCount: 1, lastTerminalStatus: .failed, failureStreak: 1),
+            settings: CinematicInfluenceSettings(cameraStyle: .dramatic, intensity: 0.8),
+            nativeFeedbackCue: nativeCue
+        )
+
+        XCTAssertEqual(plan.nativeFeedbackStyleIdentifier, "failure")
+        XCTAssertEqual(plan.nativeFeedbackMilestoneIdentifier, "postChecksFailed")
+        XCTAssertEqual(plan.questPlaque.plaqueTreatmentAccentIdentifier, "failure-fracture")
+        XCTAssertEqual(plan.questPlaque.plaqueTreatmentRouteIdentifier, "postChecksFailed.failure")
+        XCTAssertEqual(plan.arenaInscription.plaqueTreatmentIdentifier, plan.questPlaque.plaqueTreatmentIdentifier)
+        XCTAssertEqual(plan.activityBanner.plaqueTreatmentIdentifier, plan.questPlaque.plaqueTreatmentIdentifier)
+        XCTAssertTrue(plan.questPlaque.text.lowercased().contains("failure"))
+        XCTAssertTrue(plan.identifier.contains(plan.questPlaque.plaqueTreatmentIdentifier))
+        assertNarrativeCuePlanInBounds(plan)
     }
 }
 

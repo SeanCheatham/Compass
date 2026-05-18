@@ -67,11 +67,15 @@ struct CinematicSceneNarrativeCuePlan: Equatable {
         var tintFamily: CinematicStageLightFamily
         var cadence: TimeInterval
         var layout: LayoutDescriptor
+        var plaqueTreatment: PlaqueTreatmentDescriptor
 
         var anchorIdentifier: String { anchor.rawValue }
         var visibilityIdentifier: String { visibility.rawValue }
         var lightFamilyIdentifier: String { lightFamily.rawValue }
         var tintFamilyIdentifier: String { tintFamily.rawValue }
+        var plaqueTreatmentIdentifier: String { plaqueTreatment.identifier }
+        var plaqueTreatmentAccentIdentifier: String { plaqueTreatment.accentIdentifier }
+        var plaqueTreatmentRouteIdentifier: String { plaqueTreatment.routeIdentifier }
 
         init(
             stableID: String,
@@ -85,7 +89,8 @@ struct CinematicSceneNarrativeCuePlan: Equatable {
             lightFamily: CinematicStageLightFamily,
             tintFamily: CinematicStageLightFamily,
             cadence: TimeInterval,
-            layout: LayoutDescriptor? = nil
+            layout: LayoutDescriptor? = nil,
+            plaqueTreatment: PlaqueTreatmentDescriptor = .none
         ) {
             self.stableID = stableID
             self.text = text
@@ -99,6 +104,7 @@ struct CinematicSceneNarrativeCuePlan: Equatable {
             self.tintFamily = tintFamily
             self.cadence = cadence
             self.layout = layout ?? Self.fallbackLayout(anchor: anchor, opacity: opacity)
+            self.plaqueTreatment = plaqueTreatment
         }
 
         var identifier: String {
@@ -114,8 +120,75 @@ struct CinematicSceneNarrativeCuePlan: Equatable {
                 "light\(lightFamily.rawValue)",
                 "tint\(tintFamily.rawValue)",
                 "cadence\(CinematicSceneNarrativeCuePlanner.fixed(cadence))",
-                "layout{\(layout.identifier)}"
+                "layout{\(layout.identifier)}",
+                "treatment{\(plaqueTreatment.identifier)}"
             ].joined(separator: "|")
+        }
+
+        struct PlaqueTreatmentDescriptor: Equatable {
+            enum Accent: String, CaseIterable, Equatable {
+                case none
+                case verifySeal = "verify-seal"
+                case warningRails = "warning-rails"
+                case failureFracture = "failure-fracture"
+                case retryBraces = "retry-braces"
+            }
+
+            static let none = PlaqueTreatmentDescriptor(
+                accent: .none,
+                routeIdentifier: "none",
+                emissionBoost: 0,
+                edgeRailOpacity: 0,
+                braceOpacity: 0,
+                fractureOpacity: 0,
+                pulseScale: 1
+            )
+
+            var accent: Accent
+            var routeIdentifier: String
+            var emissionBoost: Float
+            var edgeRailOpacity: Float
+            var braceOpacity: Float
+            var fractureOpacity: Float
+            var pulseScale: Float
+
+            var accentIdentifier: String { accent.rawValue }
+
+            var identifier: String {
+                [
+                    accent.rawValue,
+                    "route:\(routeIdentifier)",
+                    "emit\(CinematicSceneNarrativeCuePlanner.fixed(emissionBoost))",
+                    "rails\(CinematicSceneNarrativeCuePlanner.fixed(edgeRailOpacity))",
+                    "braces\(CinematicSceneNarrativeCuePlanner.fixed(braceOpacity))",
+                    "fracture\(CinematicSceneNarrativeCuePlanner.fixed(fractureOpacity))",
+                    "pulse\(CinematicSceneNarrativeCuePlanner.fixed(pulseScale))"
+                ].joined(separator: "|")
+            }
+
+            init(
+                accent: Accent,
+                routeIdentifier: String,
+                emissionBoost: Float,
+                edgeRailOpacity: Float,
+                braceOpacity: Float,
+                fractureOpacity: Float,
+                pulseScale: Float
+            ) {
+                self.accent = accent
+                self.routeIdentifier = routeIdentifier.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                    ? "none"
+                    : routeIdentifier
+                self.emissionBoost = Self.clamp(emissionBoost, to: 0...0.42)
+                self.edgeRailOpacity = Self.clamp(edgeRailOpacity, to: 0...0.9)
+                self.braceOpacity = Self.clamp(braceOpacity, to: 0...0.9)
+                self.fractureOpacity = Self.clamp(fractureOpacity, to: 0...0.9)
+                self.pulseScale = Self.clamp(pulseScale, to: 0.96...1.12)
+            }
+
+            private static func clamp(_ value: Float, to range: ClosedRange<Float>) -> Float {
+                min(max(value, range.lowerBound), range.upperBound)
+            }
         }
 
         struct LayoutDescriptor: Equatable {
@@ -253,6 +326,8 @@ struct CinematicSceneNarrativeCuePlan: Equatable {
 }
 
 enum CinematicSceneNarrativeCuePlanner {
+    private typealias PlaqueTreatmentDescriptor = CinematicSceneNarrativeCuePlan.CueDescriptor.PlaqueTreatmentDescriptor
+
     static func plan(
         worldText: CinematicWorldText,
         briefing: CinematicBriefing,
@@ -318,7 +393,8 @@ enum CinematicSceneNarrativeCuePlanner {
             phaseEnergy: nativeCue?.phaseEnergy ?? phaseEnergy,
             influenceIntensity: influenceIntensity,
             influenceFraction: influenceFraction,
-            isIdleUnavailable: usesIdleFallback
+            isIdleUnavailable: usesIdleFallback,
+            plaqueTreatment: nativeCue?.plaqueTreatment ?? .none
         )
         let arenaDescriptor = cueDescriptor(
             slot: .arenaInscription,
@@ -333,7 +409,8 @@ enum CinematicSceneNarrativeCuePlanner {
             phaseEnergy: nativeCue.map { $0.phaseEnergy * 0.94 } ?? (phaseEnergy * 0.88),
             influenceIntensity: influenceIntensity,
             influenceFraction: influenceFraction,
-            isIdleUnavailable: usesIdleFallback
+            isIdleUnavailable: usesIdleFallback,
+            plaqueTreatment: nativeCue?.plaqueTreatment ?? .none
         )
         let activityDescriptor = cueDescriptor(
             slot: .activityBanner,
@@ -348,7 +425,8 @@ enum CinematicSceneNarrativeCuePlanner {
             phaseEnergy: nativeCue?.phaseEnergy ?? (phaseEnergy + activityUrgency(for: activityMotif.eventKind) * 0.1),
             influenceIntensity: influenceIntensity,
             influenceFraction: influenceFraction,
-            isIdleUnavailable: usesIdleFallback
+            isIdleUnavailable: usesIdleFallback,
+            plaqueTreatment: nativeCue?.plaqueTreatment ?? .none
         )
         let influenceIdentifier = [
             influenceSettings.cameraStyle.rawValue,
@@ -411,7 +489,8 @@ enum CinematicSceneNarrativeCuePlanner {
         phaseEnergy: Float,
         influenceIntensity: Float,
         influenceFraction: Float,
-        isIdleUnavailable: Bool
+        isIdleUnavailable: Bool,
+        plaqueTreatment: CinematicSceneNarrativeCuePlan.CueDescriptor.PlaqueTreatmentDescriptor = .none
     ) -> CinematicSceneNarrativeCuePlan.CueDescriptor {
         let visibilityBoost: Float
         switch visibility {
@@ -464,7 +543,8 @@ enum CinematicSceneNarrativeCuePlanner {
             lightFamily: isIdleUnavailable ? .lifecycle : baseLightFamily,
             tintFamily: isIdleUnavailable ? .lifecycle : tintFamily,
             cadence: cadence,
-            layout: layout
+            layout: layout,
+            plaqueTreatment: plaqueTreatment
         )
     }
 
@@ -487,6 +567,7 @@ enum CinematicSceneNarrativeCuePlanner {
         var lightFamily: CinematicStageLightFamily
         var tintFamily: CinematicStageLightFamily
         var phaseEnergy: Float
+        var plaqueTreatment: CinematicSceneNarrativeCuePlan.CueDescriptor.PlaqueTreatmentDescriptor
         var affectedDescriptorIdentifiers: [String]
     }
 
@@ -500,6 +581,7 @@ enum CinematicSceneNarrativeCuePlanner {
         var lightFamily: CinematicStageLightFamily
         var tintFamily: CinematicStageLightFamily
         var phaseEnergy: Float
+        var plaqueTreatment: CinematicSceneNarrativeCuePlan.CueDescriptor.PlaqueTreatmentDescriptor
     }
 
     private static func nativeFeedbackCueDescriptorPlan(
@@ -555,6 +637,7 @@ enum CinematicSceneNarrativeCuePlanner {
             lightFamily: treatment.lightFamily,
             tintFamily: treatment.tintFamily,
             phaseEnergy: treatment.phaseEnergy,
+            plaqueTreatment: treatment.plaqueTreatment,
             affectedDescriptorIdentifiers: [
                 "narrative.quest.plaque",
                 "narrative.arena.inscription",
@@ -576,22 +659,27 @@ enum CinematicSceneNarrativeCuePlanner {
                 activityBannerAnchor: .rightHistoryPylon,
                 lightFamily: .verify,
                 tintFamily: .verify,
-                phaseEnergy: 0.78
+                phaseEnergy: 0.78,
+                plaqueTreatment: nativeFeedbackPlaqueTreatment(for: cue, accent: .verifySeal)
             )
         }
 
         switch cue.style {
         case .failure:
+            let accent: PlaqueTreatmentDescriptor.Accent = cue.milestone == .developRetrying
+                ? .retryBraces
+                : .failureFracture
             return NativeFeedbackTreatment(
-                plaqueLabel: "Failure anchor",
+                plaqueLabel: accent == .retryBraces ? "Retry braces" : "Failure anchor",
                 inscriptionLabel: "Failure rune",
-                bannerLabel: "Failure run",
+                bannerLabel: accent == .retryBraces ? "Retry run" : "Failure run",
                 questPlaqueAnchor: .fractureGate,
                 arenaInscriptionAnchor: .fractureGate,
                 activityBannerAnchor: .rightWarningPylon,
                 lightFamily: .failure,
                 tintFamily: .failure,
-                phaseEnergy: 0.96
+                phaseEnergy: 0.96,
+                plaqueTreatment: nativeFeedbackPlaqueTreatment(for: cue, accent: accent)
             )
         case .warning:
             return NativeFeedbackTreatment(
@@ -603,7 +691,8 @@ enum CinematicSceneNarrativeCuePlanner {
                 activityBannerAnchor: .rightWarningPylon,
                 lightFamily: .pressure,
                 tintFamily: .failure,
-                phaseEnergy: 0.86
+                phaseEnergy: 0.86,
+                plaqueTreatment: nativeFeedbackPlaqueTreatment(for: cue, accent: .warningRails)
             )
         case .verify:
             return NativeFeedbackTreatment(
@@ -615,7 +704,8 @@ enum CinematicSceneNarrativeCuePlanner {
                 activityBannerAnchor: .rightHistoryPylon,
                 lightFamily: .verify,
                 tintFamily: .verify,
-                phaseEnergy: 0.74
+                phaseEnergy: 0.74,
+                plaqueTreatment: nativeFeedbackPlaqueTreatment(for: cue, accent: .verifySeal)
             )
         case .success:
             return NativeFeedbackTreatment(
@@ -627,19 +717,24 @@ enum CinematicSceneNarrativeCuePlanner {
                 activityBannerAnchor: .rightHistoryPylon,
                 lightFamily: .verify,
                 tintFamily: .git,
-                phaseEnergy: 0.82
+                phaseEnergy: 0.82,
+                plaqueTreatment: nativeFeedbackPlaqueTreatment(for: cue, accent: .none)
             )
         case .develop:
+            let accent: PlaqueTreatmentDescriptor.Accent = cue.milestone == .developRetrying
+                ? .retryBraces
+                : .none
             return NativeFeedbackTreatment(
-                plaqueLabel: "Develop forge",
+                plaqueLabel: accent == .retryBraces ? "Retry braces" : "Develop forge",
                 inscriptionLabel: "Forge",
-                bannerLabel: "Develop cue",
+                bannerLabel: accent == .retryBraces ? "Retry cue" : "Develop cue",
                 questPlaqueAnchor: .leftForgePylon,
                 arenaInscriptionAnchor: .arenaFront,
                 activityBannerAnchor: .rightPylon,
                 lightFamily: .edit,
                 tintFamily: .shell,
-                phaseEnergy: 0.64
+                phaseEnergy: 0.64,
+                plaqueTreatment: nativeFeedbackPlaqueTreatment(for: cue, accent: accent)
             )
         case .plan:
             return NativeFeedbackTreatment(
@@ -651,7 +746,8 @@ enum CinematicSceneNarrativeCuePlanner {
                 activityBannerAnchor: .rightPylon,
                 lightFamily: .scan,
                 tintFamily: .insight,
-                phaseEnergy: 0.48
+                phaseEnergy: 0.48,
+                plaqueTreatment: nativeFeedbackPlaqueTreatment(for: cue, accent: .none)
             )
         case .paused:
             return NativeFeedbackTreatment(
@@ -663,7 +759,8 @@ enum CinematicSceneNarrativeCuePlanner {
                 activityBannerAnchor: .rightPylon,
                 lightFamily: .lifecycle,
                 tintFamily: .lifecycle,
-                phaseEnergy: 0.38
+                phaseEnergy: 0.38,
+                plaqueTreatment: nativeFeedbackPlaqueTreatment(for: cue, accent: .none)
             )
         case .idle:
             return NativeFeedbackTreatment(
@@ -675,8 +772,67 @@ enum CinematicSceneNarrativeCuePlanner {
                 activityBannerAnchor: .idleArchive,
                 lightFamily: .lifecycle,
                 tintFamily: .lifecycle,
-                phaseEnergy: 0.28
+                phaseEnergy: 0.28,
+                plaqueTreatment: nativeFeedbackPlaqueTreatment(for: cue, accent: .none)
             )
+        }
+    }
+
+    private static func nativeFeedbackPlaqueTreatment(
+        for cue: CinematicNativeFeedbackCuePlan,
+        accent: PlaqueTreatmentDescriptor.Accent
+    ) -> PlaqueTreatmentDescriptor {
+        guard accent != .none else { return .none }
+
+        let routeIdentifier = [
+            cue.milestoneIdentifier,
+            cue.styleIdentifier,
+            cue.runCueKind?.rawValue
+        ].compactMap { $0 }.joined(separator: ".")
+
+        switch accent {
+        case .verifySeal:
+            return PlaqueTreatmentDescriptor(
+                accent: accent,
+                routeIdentifier: routeIdentifier,
+                emissionBoost: 0.08,
+                edgeRailOpacity: 0.44,
+                braceOpacity: 0.16,
+                fractureOpacity: 0,
+                pulseScale: 1.02
+            )
+        case .warningRails:
+            return PlaqueTreatmentDescriptor(
+                accent: accent,
+                routeIdentifier: routeIdentifier,
+                emissionBoost: 0.14,
+                edgeRailOpacity: 0.62,
+                braceOpacity: 0.28,
+                fractureOpacity: 0.18,
+                pulseScale: 1.04
+            )
+        case .failureFracture:
+            return PlaqueTreatmentDescriptor(
+                accent: accent,
+                routeIdentifier: routeIdentifier,
+                emissionBoost: 0.24,
+                edgeRailOpacity: 0.72,
+                braceOpacity: 0.54,
+                fractureOpacity: 0.62,
+                pulseScale: 1.08
+            )
+        case .retryBraces:
+            return PlaqueTreatmentDescriptor(
+                accent: accent,
+                routeIdentifier: routeIdentifier,
+                emissionBoost: 0.2,
+                edgeRailOpacity: 0.66,
+                braceOpacity: 0.74,
+                fractureOpacity: 0.36,
+                pulseScale: 1.06
+            )
+        case .none:
+            return .none
         }
     }
 

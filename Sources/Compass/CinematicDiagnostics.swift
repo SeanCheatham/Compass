@@ -301,6 +301,9 @@ struct CinematicDiagnosticsReport: Equatable {
         var lightFamilyIdentifier: String
         var tintFamilyIdentifier: String
         var cadence: TimeInterval
+        var plaqueTreatmentIdentifier: String
+        var plaqueTreatmentAccentIdentifier: String
+        var plaqueTreatmentRouteIdentifier: String
         var layout: NarrativeCueLayoutSnapshot
     }
 
@@ -857,6 +860,13 @@ struct CinematicVisualSmokeReport: Equatable {
             "narrative.arena.inscription",
             "narrative.activity.banner"
         ])
+        let treatmentAccents = Set(activeReports.flatMap(nativeFeedbackPlaqueTreatmentAccentIdentifiers))
+        let expectedTreatmentAccents = Set([
+            "verify-seal",
+            "warning-rails",
+            "failure-fracture",
+            "retry-braces"
+        ])
         let anchorRoutes = Set(activeReports.flatMap(nativeFeedbackAnchorRouteIdentifiers))
         let expectedAnchorRoutes = Set(["seal", "warning", "fracture"])
         let visibleBannerReports = activeReports.filter {
@@ -870,6 +880,7 @@ struct CinematicVisualSmokeReport: Equatable {
             && styles.isSuperset(of: expectedStyles)
             && sourceFamilies.isSuperset(of: ["native", "run-cue"])
             && affectedDescriptors.isSuperset(of: expectedDescriptors)
+            && treatmentAccents.isSuperset(of: expectedTreatmentAccents)
             && anchorRoutes.isSuperset(of: expectedAnchorRoutes)
             && visibleBannerReports == activeReports.count
             && consistentActiveReports == activeReports.count
@@ -885,10 +896,11 @@ struct CinematicVisualSmokeReport: Equatable {
                 "styles \(styles.intersection(expectedStyles).count)/\(expectedStyles.count)",
                 "sources \(joined(sourceFamilies))",
                 "desc \(affectedDescriptors.intersection(expectedDescriptors).count)/\(expectedDescriptors.count)",
+                "treat \(treatmentAccents.intersection(expectedTreatmentAccents).count)/\(expectedTreatmentAccents.count)",
                 "anchors \(joined(anchorRoutes))",
                 "visible \(visibleBannerReports)/\(activeReports.count)",
                 "expired \(expiredArchivedReports)"
-            ].joined(separator: " | ")
+            ].joined(separator: "|")
         )
     }
 
@@ -1132,6 +1144,14 @@ struct CinematicVisualSmokeReport: Equatable {
         }
     }
 
+    private static func nativeFeedbackPlaqueTreatmentAccentIdentifiers(
+        _ report: CinematicDiagnosticsReport
+    ) -> [String] {
+        narrativeCueDescriptors(report)
+            .map(\.plaqueTreatmentAccentIdentifier)
+            .filter { $0 != "none" }
+    }
+
     private static func nativeFeedbackActiveRoutesAreConsistent(
         _ report: CinematicDiagnosticsReport
     ) -> Bool {
@@ -1146,6 +1166,7 @@ struct CinematicVisualSmokeReport: Equatable {
                 == report.narrativeCue.nativeFeedbackAffectedDescriptorIdentifiers
             && report.nativeFeedback.lifecycleIdentifier == report.overlayDisplay.nativeFeedbackLifecycleIdentifier
             && report.narrativeCue.nativeFeedbackLifecycleIdentifier != "none"
+            && nativeFeedbackPlaqueTreatmentAccentIdentifiers(report).count == 3
     }
 
     private static func nativeFeedbackExpiredLifecycleIsArchived(
@@ -1877,14 +1898,28 @@ struct CinematicDiagnosticsSummary: Equatable {
         let affected = snapshot.nativeFeedbackAffectedDescriptorIdentifiers.isEmpty
             ? "none"
             : snapshot.nativeFeedbackAffectedDescriptorIdentifiers.joined(separator: ",")
+        let treatments = nativeFeedbackPlaqueTreatmentAccents(snapshot)
         return [
             "native",
             "source \(snapshot.nativeFeedbackSourceIdentifier)",
             "style \(snapshot.nativeFeedbackStyleIdentifier)",
             "milestone \(snapshot.nativeFeedbackMilestoneIdentifier)",
             "lifecycle \(snapshot.nativeFeedbackLifecycleIdentifier)",
+            "treatments \(treatments.isEmpty ? "none" : treatments.joined(separator: ","))",
             "affects \(affected)"
         ].joined(separator: " ")
+    }
+
+    private static func nativeFeedbackPlaqueTreatmentAccents(
+        _ snapshot: CinematicDiagnosticsReport.NarrativeCueSnapshot
+    ) -> [String] {
+        Array(
+            Set([
+                snapshot.questPlaque.plaqueTreatmentAccentIdentifier,
+                snapshot.arenaInscription.plaqueTreatmentAccentIdentifier,
+                snapshot.activityBanner.plaqueTreatmentAccentIdentifier
+            ].filter { $0 != "none" })
+        ).sorted()
     }
 
     private static func commitConstellationDetail(
@@ -1951,11 +1986,21 @@ struct CinematicDiagnosticsSummary: Equatable {
             descriptor.visibilityIdentifier,
             descriptor.lightFamilyIdentifier,
             "tint \(descriptor.tintFamilyIdentifier)",
+            narrativeCueTreatmentDetail(descriptor),
             "scale \(fixed(descriptor.scale))",
             "opacity \(fixed(descriptor.opacity))",
             "cadence \(fixed(descriptor.cadence))s",
             "\"\(descriptor.text)\""
         ].joined(separator: " ")
+    }
+
+    private static func narrativeCueTreatmentDetail(
+        _ descriptor: CinematicDiagnosticsReport.NarrativeCueDescriptorSnapshot
+    ) -> String {
+        guard descriptor.plaqueTreatmentAccentIdentifier != "none" else {
+            return "treatment none"
+        }
+        return "treatment \(descriptor.plaqueTreatmentAccentIdentifier)/\(descriptor.plaqueTreatmentRouteIdentifier)"
     }
 
     private static func completedLabel(_ count: Int) -> String {
@@ -3044,6 +3089,9 @@ enum CinematicDiagnostics {
             lightFamilyIdentifier: descriptor.lightFamilyIdentifier,
             tintFamilyIdentifier: descriptor.tintFamilyIdentifier,
             cadence: descriptor.cadence,
+            plaqueTreatmentIdentifier: descriptor.plaqueTreatmentIdentifier,
+            plaqueTreatmentAccentIdentifier: descriptor.plaqueTreatmentAccentIdentifier,
+            plaqueTreatmentRouteIdentifier: descriptor.plaqueTreatmentRouteIdentifier,
             layout: narrativeCueLayoutSnapshot(for: descriptor.layout)
         )
     }

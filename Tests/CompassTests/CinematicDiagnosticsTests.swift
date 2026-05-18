@@ -276,6 +276,33 @@ final class CinematicDiagnosticsTests: XCTestCase {
         XCTAssertTrue(activeReports.contains { $0.narrativeCue.questPlaque.anchorIdentifier == "left-seal-pylon" })
         XCTAssertTrue(activeReports.contains { $0.narrativeCue.questPlaque.anchorIdentifier == "right-warning-pylon" })
         XCTAssertTrue(activeReports.contains { $0.narrativeCue.questPlaque.anchorIdentifier == "fracture-gate" })
+        let verifyReport = try XCTUnwrap(
+            activeReports.first { $0.nativeFeedback.sourceIdentifier == "native:verifyStarted" }
+        )
+        let failedReport = try XCTUnwrap(
+            activeReports.first { $0.nativeFeedback.sourceIdentifier == "native:postChecksFailed" }
+        )
+        let warningReport = try XCTUnwrap(
+            activeReports.first { $0.nativeFeedback.sourceIdentifier == "run-cue:11:dirtyWorktree" }
+        )
+        let retryReport = try XCTUnwrap(
+            activeReports.first { $0.nativeFeedback.sourceIdentifier == "run-cue:7:failedVerify" }
+        )
+        XCTAssertEqual(verifyReport.narrativeCue.questPlaque.plaqueTreatmentAccentIdentifier, "verify-seal")
+        XCTAssertEqual(verifyReport.narrativeCue.questPlaque.plaqueTreatmentRouteIdentifier, "verifyStarted.verify")
+        XCTAssertEqual(failedReport.narrativeCue.questPlaque.plaqueTreatmentAccentIdentifier, "failure-fracture")
+        XCTAssertEqual(failedReport.narrativeCue.questPlaque.plaqueTreatmentRouteIdentifier, "postChecksFailed.failure")
+        XCTAssertEqual(warningReport.narrativeCue.questPlaque.plaqueTreatmentAccentIdentifier, "warning-rails")
+        XCTAssertEqual(warningReport.narrativeCue.questPlaque.plaqueTreatmentRouteIdentifier, "developRetrying.warning.dirtyWorktree")
+        XCTAssertEqual(retryReport.narrativeCue.questPlaque.plaqueTreatmentAccentIdentifier, "retry-braces")
+        XCTAssertEqual(retryReport.narrativeCue.questPlaque.plaqueTreatmentRouteIdentifier, "developRetrying.failure.failedVerify")
+        XCTAssertTrue(activeReports.allSatisfy {
+            $0.narrativeCue.questPlaque.plaqueTreatmentAccentIdentifier
+                == $0.narrativeCue.arenaInscription.plaqueTreatmentAccentIdentifier
+                && $0.narrativeCue.questPlaque.plaqueTreatmentAccentIdentifier
+                    == $0.narrativeCue.activityBanner.plaqueTreatmentAccentIdentifier
+                && $0.narrativeCue.questPlaque.identifier.contains($0.narrativeCue.questPlaque.plaqueTreatmentIdentifier)
+        })
         XCTAssertTrue(
             activeReports.allSatisfy {
                 $0.nativeFeedback.cueIdentifier == $0.overlayDisplay.nativeFeedbackCueIdentifier
@@ -299,6 +326,7 @@ final class CinematicDiagnosticsTests: XCTestCase {
         )
         XCTAssertEqual(nativeFeedbackCheck.status, .pass)
         XCTAssertTrue(nativeFeedbackCheck.detail.contains("active 4"))
+        XCTAssertTrue(nativeFeedbackCheck.detail.contains("treat 4/4"))
         XCTAssertTrue(nativeFeedbackCheck.detail.contains("expired 1"))
     }
 
@@ -904,6 +932,8 @@ final class CinematicDiagnosticsTests: XCTestCase {
             )
             XCTAssertEqual(report.narrativeCue.questPlaque.anchorIdentifier, "left-seal-pylon")
             XCTAssertEqual(report.narrativeCue.arenaInscription.anchorIdentifier, "arena-rear")
+            XCTAssertEqual(report.narrativeCue.questPlaque.plaqueTreatmentAccentIdentifier, "verify-seal")
+            XCTAssertEqual(report.narrativeCue.questPlaque.plaqueTreatmentRouteIdentifier, "verifyStarted.verify")
             XCTAssertTrue(report.narrativeCue.questPlaque.text.lowercased().contains("verify"))
             XCTAssertTrue(report.narrativeCue.arenaInscription.text.lowercased().contains("seal"))
 
@@ -917,6 +947,8 @@ final class CinematicDiagnosticsTests: XCTestCase {
             XCTAssertTrue(summary.exportText.contains("lifecycle \(cue.lifecycleIdentifier)"))
             XCTAssertTrue(summary.exportText.contains("native-lifecycle native-feedback-cue-lifecycle"))
             XCTAssertTrue(summary.exportText.contains("state:active"))
+            XCTAssertTrue(summary.exportText.contains("treatments verify-seal"))
+            XCTAssertTrue(summary.exportText.contains("treatment verify-seal/verifyStarted.verify"))
             XCTAssertTrue(summary.exportText.contains("affects narrative.quest.plaque"))
             XCTAssertTrue(summary.exportText.contains("native \(cue.identifier)"))
             let historyRow = try XCTUnwrap(summary.rows.first { $0.id == "native-feedback-history" })
@@ -1595,6 +1627,10 @@ private func assertNarrativeCueDescriptorBounds(
     XCTAssertFalse(descriptor.visibilityIdentifier.isEmpty, file: file, line: line)
     XCTAssertFalse(descriptor.lightFamilyIdentifier.isEmpty, file: file, line: line)
     XCTAssertFalse(descriptor.tintFamilyIdentifier.isEmpty, file: file, line: line)
+    XCTAssertFalse(descriptor.plaqueTreatmentIdentifier.isEmpty, file: file, line: line)
+    XCTAssertFalse(descriptor.plaqueTreatmentAccentIdentifier.isEmpty, file: file, line: line)
+    XCTAssertFalse(descriptor.plaqueTreatmentRouteIdentifier.isEmpty, file: file, line: line)
+    XCTAssertTrue(descriptor.identifier.contains(descriptor.plaqueTreatmentIdentifier), file: file, line: line)
     assertNarrativeCueLayoutBounds(descriptor.layout, file: file, line: line)
 }
 

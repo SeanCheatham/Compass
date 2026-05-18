@@ -79,6 +79,7 @@ final class CinematicVisualSmokeReportTests: XCTestCase {
         XCTAssertTrue(nativeFeedback.detail.contains("styles 3/3"))
         XCTAssertTrue(nativeFeedback.detail.contains("sources native,run-cue"))
         XCTAssertTrue(nativeFeedback.detail.contains("desc 3/3"))
+        XCTAssertTrue(nativeFeedback.detail.contains("treat 4/4"))
         XCTAssertTrue(nativeFeedback.detail.contains("anchors fracture,seal,warning"))
         XCTAssertTrue(nativeFeedback.detail.contains("visible 4/4"))
         XCTAssertTrue(nativeFeedback.detail.contains("expired 1"))
@@ -122,6 +123,18 @@ final class CinematicVisualSmokeReportTests: XCTestCase {
             inconsistentCheck.detail.count,
             CinematicVisualSmokeReport.detailMaxCharacters
         )
+
+        var missingTreatmentReports = completeReports
+        let treatmentIndex = try XCTUnwrap(
+            missingTreatmentReports.firstIndex { $0.nativeFeedback.lifecycleStateIdentifier == "active" }
+        )
+        missingTreatmentReports[treatmentIndex].narrativeCue.questPlaque.plaqueTreatmentAccentIdentifier = "none"
+        let missingTreatmentSmoke = CinematicVisualSmokeReport(reports: missingTreatmentReports)
+        let missingTreatmentCheck = try XCTUnwrap(
+            missingTreatmentSmoke.checks.first { $0.id == "native-feedback-cue-coverage" }
+        )
+        XCTAssertEqual(missingTreatmentCheck.status, .warning)
+        XCTAssertTrue(missingTreatmentCheck.detail.contains("treat"))
     }
 
     func testWarningReportUsesBoundedIdentifiersAndDetails() throws {

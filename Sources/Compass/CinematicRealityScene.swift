@@ -2735,6 +2735,12 @@ private final class CinematicSceneCoordinator {
         setOpacity(descriptor.opacity, on: node)
 
         let color = narrativeColor(for: descriptor)
+        let treatment = descriptor.plaqueTreatment
+        let plateEmissionAlpha = min(0.42, 0.14 + treatment.emissionBoost)
+        let plateOpacity = min(
+            CinematicSceneNarrativeCuePlan.cueBackingOpacityRange.upperBound,
+            layout.backingOpacity + treatment.emissionBoost * 0.18
+        )
         let plate = ModelEntity(
             mesh: .generateBox(
                 width: layout.plateSize.x,
@@ -2745,15 +2751,23 @@ private final class CinematicSceneCoordinator {
             materials: [
                 material(
                     diffuse: NSColor(calibratedRed: 0.018, green: 0.02, blue: 0.032, alpha: 1),
-                    emission: color.withAlphaComponent(0.14),
-                    opacity: layout.backingOpacity
+                    emission: color.withAlphaComponent(CGFloat(plateEmissionAlpha)),
+                    opacity: plateOpacity
                 )
             ]
         )
         plate.name = "\(descriptor.stableID).placard"
         plate.position.z = layout.plateZOffset
-        plate.components.set(OpacityComponent(opacity: layout.backingOpacity))
+        plate.components.set(OpacityComponent(opacity: plateOpacity))
         node.addChild(plate)
+
+        addNarrativePlaqueTreatment(
+            treatment,
+            to: node,
+            name: "\(descriptor.stableID).treatment",
+            layout: layout,
+            color: color
+        )
 
         addNarrativeText(
             descriptor.text,
@@ -2801,6 +2815,142 @@ private final class CinematicSceneCoordinator {
                 timing: .easeOut
             )
         }
+    }
+
+    private func addNarrativePlaqueTreatment(
+        _ treatment: CinematicSceneNarrativeCuePlan.CueDescriptor.PlaqueTreatmentDescriptor,
+        to node: Entity,
+        name: String,
+        layout: CinematicSceneNarrativeCuePlan.CueDescriptor.LayoutDescriptor,
+        color: NSColor
+    ) {
+        guard treatment.accent != .none else { return }
+
+        let accentRoot = Entity()
+        accentRoot.name = name
+        accentRoot.scale = SIMD3<Float>(repeating: treatment.pulseScale)
+
+        let halfWidth = layout.plateSize.x * 0.5
+        let halfHeight = layout.plateSize.y * 0.5
+        let inset = max(0.1, min(0.18, layout.plateSize.y * 0.28))
+        let sideInset = max(0.05, min(0.1, layout.plateSize.y * 0.16))
+        let z = max(0.022, layout.plateZOffset + layout.plateDepth * 0.66 + 0.018)
+        let railRadius = max(0.0045, min(0.0085, layout.plateDepth * 0.18))
+        let braceRadius = max(0.005, min(0.01, layout.plateDepth * 0.22))
+
+        func addBeam(
+            _ suffix: String,
+            from start: SIMD3<Float>,
+            to end: SIMD3<Float>,
+            radius: Float,
+            opacity: Float,
+            beamColor: NSColor? = nil
+        ) {
+            guard opacity > 0.001 else { return }
+            let beam = beamEntity(
+                from: start,
+                to: end,
+                radius: radius,
+                color: beamColor ?? color,
+                opacity: opacity
+            )
+            beam.name = "\(name).\(suffix)"
+            accentRoot.addChild(beam)
+        }
+
+        if treatment.edgeRailOpacity > 0 {
+            addBeam(
+                "rail.top",
+                from: [-halfWidth + inset, halfHeight - sideInset, z],
+                to: [halfWidth - inset, halfHeight - sideInset, z],
+                radius: railRadius,
+                opacity: treatment.edgeRailOpacity
+            )
+            addBeam(
+                "rail.bottom",
+                from: [-halfWidth + inset, -halfHeight + sideInset, z],
+                to: [halfWidth - inset, -halfHeight + sideInset, z],
+                radius: railRadius,
+                opacity: treatment.edgeRailOpacity * 0.82
+            )
+        }
+
+        switch treatment.accent {
+        case .verifySeal:
+            addBeam(
+                "seal.left",
+                from: [-halfWidth + inset, -halfHeight + sideInset, z],
+                to: [-halfWidth + inset, halfHeight - sideInset, z],
+                radius: railRadius,
+                opacity: treatment.edgeRailOpacity * 0.72
+            )
+            addBeam(
+                "seal.right",
+                from: [halfWidth - inset, -halfHeight + sideInset, z],
+                to: [halfWidth - inset, halfHeight - sideInset, z],
+                radius: railRadius,
+                opacity: treatment.edgeRailOpacity * 0.72
+            )
+        case .warningRails:
+            addBeam(
+                "warning.left",
+                from: [-halfWidth + sideInset, -halfHeight + sideInset, z],
+                to: [-halfWidth + sideInset, halfHeight - sideInset, z],
+                radius: braceRadius,
+                opacity: treatment.braceOpacity
+            )
+            addBeam(
+                "warning.right",
+                from: [halfWidth - sideInset, -halfHeight + sideInset, z],
+                to: [halfWidth - sideInset, halfHeight - sideInset, z],
+                radius: braceRadius,
+                opacity: treatment.braceOpacity
+            )
+        case .failureFracture:
+            let fractureColor = color.withAlphaComponent(0.9)
+            addBeam(
+                "fracture.diagonal.a",
+                from: [-halfWidth + inset, halfHeight - sideInset, z],
+                to: [halfWidth - inset, -halfHeight + sideInset, z],
+                radius: braceRadius,
+                opacity: treatment.fractureOpacity,
+                beamColor: fractureColor
+            )
+            addBeam(
+                "fracture.diagonal.b",
+                from: [-halfWidth * 0.28, -halfHeight + sideInset, z + 0.002],
+                to: [halfWidth * 0.34, halfHeight - sideInset, z + 0.002],
+                radius: railRadius,
+                opacity: treatment.braceOpacity,
+                beamColor: fractureColor
+            )
+        case .retryBraces:
+            addBeam(
+                "retry.brace.left",
+                from: [-halfWidth + inset, -halfHeight + sideInset, z],
+                to: [-halfWidth + inset * 1.45, halfHeight - sideInset, z],
+                radius: braceRadius,
+                opacity: treatment.braceOpacity
+            )
+            addBeam(
+                "retry.brace.right",
+                from: [halfWidth - inset * 1.45, -halfHeight + sideInset, z],
+                to: [halfWidth - inset, halfHeight - sideInset, z],
+                radius: braceRadius,
+                opacity: treatment.braceOpacity
+            )
+            addBeam(
+                "retry.cross",
+                from: [-halfWidth * 0.18, halfHeight - sideInset, z + 0.002],
+                to: [halfWidth * 0.18, -halfHeight + sideInset, z + 0.002],
+                radius: railRadius,
+                opacity: treatment.fractureOpacity
+            )
+        case .none:
+            break
+        }
+
+        node.addChild(accentRoot)
     }
 
     private func addNarrativeText(
