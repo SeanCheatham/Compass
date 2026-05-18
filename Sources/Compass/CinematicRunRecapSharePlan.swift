@@ -326,7 +326,20 @@ struct CinematicRunRecapShareArtifactComparisonPlan: Equatable, Identifiable {
     var selectedFallbackEntryIdentifier: String?
     var selectedFallbackReasonIdentifier: String
     var compareEntryIdentifier: String?
+    var targetMode: CinematicRunRecapShareArtifactComparisonTargetMode
+    var targetModeIdentifier: String
     var targetDirectionIdentifier: String
+    var pinnedTargetEntryIdentifier: String?
+    var pinnedTargetStateIdentifier: String
+    var pinnedTargetUnavailableReasonIdentifier: String?
+    var requestedPinnedEntryIdentifiers: [String]
+    var retainedPinnedEntryIdentifiers: [String]
+    var missingPinnedEntryIdentifiers: [String]
+    var filteredPinnedEntryIdentifiers: [String]
+    var pinnedEntryCount: Int
+    var retainedPinnedEntryCount: Int
+    var missingPinnedEntryCount: Int
+    var filteredPinnedEntryCount: Int
     var sessionDelta: Int?
     var selectedSessionNumber: Int?
     var compareSessionNumber: Int?
@@ -2157,7 +2170,9 @@ enum CinematicRunRecapShareArtifactComparisonPlanner {
     static func plan(
         historyPlan: CinematicRunRecapShareArtifactHistoryPlan,
         selectedEntryIdentifier: String? = nil,
-        searchQuery: String? = nil
+        searchQuery: String? = nil,
+        targetMode: CinematicRunRecapShareArtifactComparisonTargetMode = .adjacent,
+        pinnedEntryIdentifiers: [String] = []
     ) -> CinematicRunRecapShareArtifactComparisonPlan {
         let previewPlan = CinematicRunRecapShareArtifactPreviewBrowserPlanner.plan(
             historyPlan: historyPlan,
@@ -2173,9 +2188,51 @@ enum CinematicRunRecapShareArtifactComparisonPlanner {
             matchingEntries.firstIndex { $0.identifier == identifier }
         }
         let selectedEntry = selectedIndex.map { matchingEntries[$0] }
-        let comparisonTarget = selectedIndex.flatMap { target(for: $0, in: matchingEntries) }
+        let requestedPinnedEntryIdentifiers = boundedIdentifierList(pinnedEntryIdentifiers)
+        let retainedEntriesByIdentifier = Dictionary(
+            uniqueKeysWithValues: retainedEntries.map { ($0.identifier, $0) }
+        )
+        let retainedPinnedEntries = requestedPinnedEntryIdentifiers.compactMap { retainedEntriesByIdentifier[$0] }
+        let retainedPinnedEntryIdentifiers = retainedPinnedEntries.map(\.identifier)
+        let matchingEntryIdentifiers = Set(matchingEntries.map(\.identifier))
+        let missingPinnedEntryIdentifiers = requestedPinnedEntryIdentifiers.filter {
+            retainedEntriesByIdentifier[$0] == nil
+        }
+        let filteredPinnedEntryIdentifiers = search.isActive
+            ? retainedPinnedEntryIdentifiers.filter { !matchingEntryIdentifiers.contains($0) }
+            : []
+        let comparisonTarget: ComparisonTarget?
+        switch targetMode {
+        case .adjacent:
+            comparisonTarget = selectedIndex.flatMap { target(for: $0, in: matchingEntries) }
+        case .pinnedReference:
+            comparisonTarget = selectedEntry.flatMap {
+                pinnedTarget(
+                    for: $0,
+                    retainedPinnedEntries: retainedPinnedEntries,
+                    matchingEntryIdentifiers: matchingEntryIdentifiers,
+                    search: search
+                )
+            }
+        }
         let compareEntry = comparisonTarget?.entry
+        let pinnedTargetEntryIdentifier = targetMode == .pinnedReference
+            ? compareEntry?.identifier
+            : nil
         let targetDirectionIdentifier = comparisonTarget?.directionIdentifier ?? "none"
+        let pinnedTargetStateIdentifier = pinnedTargetStateIdentifier(
+            targetMode: targetMode,
+            compareEntry: compareEntry,
+            selectedEntry: selectedEntry,
+            requestedPinnedEntryIdentifiers: requestedPinnedEntryIdentifiers,
+            retainedPinnedEntryIdentifiers: retainedPinnedEntryIdentifiers,
+            missingPinnedEntryIdentifiers: missingPinnedEntryIdentifiers,
+            filteredPinnedEntryIdentifiers: filteredPinnedEntryIdentifiers,
+            search: search
+        )
+        let pinnedTargetUnavailableReasonIdentifier = targetMode == .pinnedReference && compareEntry == nil
+            ? pinnedTargetStateIdentifier
+            : nil
         let sessionDelta = selectedEntry.flatMap { selected in
             compareEntry.map { abs(selected.sessionNumber - $0.sessionNumber) }
         }
@@ -2187,6 +2244,8 @@ enum CinematicRunRecapShareArtifactComparisonPlanner {
             matchingEntries: matchingEntries,
             compareEntry: compareEntry,
             previewPlan: previewPlan,
+            targetMode: targetMode,
+            pinnedTargetStateIdentifier: pinnedTargetStateIdentifier,
             search: search,
             noMatchAvailabilityReason: noMatchAvailabilityReason
         )
@@ -2202,12 +2261,19 @@ enum CinematicRunRecapShareArtifactComparisonPlanner {
                 "total:\(historyPlan.totalCount)",
                 "hidden:\(historyPlan.hiddenCount)",
                 "matching:\(matchingEntries.count)",
+                "mode:\(targetMode.rawValue)",
                 "query:\(search.queryFingerprint)",
                 "query-snippet:\(search.querySnippet)",
                 "no-match:\(noMatchAvailabilityReason ?? "none")",
                 "selected:\(selectedEntry?.identifier ?? "none")",
                 "compare:\(compareEntry?.identifier ?? "none")",
                 "direction:\(targetDirectionIdentifier)",
+                "pinned-target:\(pinnedTargetEntryIdentifier ?? "none")",
+                "pinned-state:\(pinnedTargetStateIdentifier)",
+                "pins:\(requestedPinnedEntryIdentifiers.count)",
+                "retained-pins:\(retainedPinnedEntryIdentifiers.count)",
+                "missing-pins:\(missingPinnedEntryIdentifiers.count)",
+                "filtered-pins:\(filteredPinnedEntryIdentifiers.count)",
                 "delta:\(sessionDelta.map(String.init) ?? "none")",
                 "fallback:\(previewPlan.selectedFallbackEntryIdentifier ?? "none")",
                 "fallback-reason:\(previewPlan.selectedFallbackReasonIdentifier)",
@@ -2228,9 +2294,16 @@ enum CinematicRunRecapShareArtifactComparisonPlanner {
             search: search,
             noMatchAvailabilityReason: noMatchAvailabilityReason,
             previewPlan: previewPlan,
+            targetMode: targetMode,
             selectedEntry: selectedEntry,
             compareEntry: compareEntry,
             targetDirectionIdentifier: targetDirectionIdentifier,
+            pinnedTargetStateIdentifier: pinnedTargetStateIdentifier,
+            pinnedTargetUnavailableReasonIdentifier: pinnedTargetUnavailableReasonIdentifier,
+            requestedPinnedEntryIdentifiers: requestedPinnedEntryIdentifiers,
+            retainedPinnedEntryIdentifiers: retainedPinnedEntryIdentifiers,
+            missingPinnedEntryIdentifiers: missingPinnedEntryIdentifiers,
+            filteredPinnedEntryIdentifiers: filteredPinnedEntryIdentifiers,
             sessionDelta: sessionDelta,
             selectedBodyPreviewText: selectedBodyPreviewText,
             compareBodyPreviewText: compareBodyPreviewText,
@@ -2243,10 +2316,16 @@ enum CinematicRunRecapShareArtifactComparisonPlanner {
                 "export:\(fingerprint(exportIdentifier))",
                 "retained:\(retainedEntries.count)",
                 "matching:\(matchingEntries.count)",
+                "mode:\(targetMode.rawValue)",
                 "query:\(search.queryFingerprint)",
                 "selected:\(selectedEntry?.identifier ?? "none")",
                 "compare:\(compareEntry?.identifier ?? "none")",
                 "direction:\(targetDirectionIdentifier)",
+                "pinned-state:\(pinnedTargetStateIdentifier)",
+                "pins:\(requestedPinnedEntryIdentifiers.count)",
+                "retained-pins:\(retainedPinnedEntryIdentifiers.count)",
+                "missing-pins:\(missingPinnedEntryIdentifiers.count)",
+                "filtered-pins:\(filteredPinnedEntryIdentifiers.count)",
                 "delta:\(sessionDelta.map(String.init) ?? "none")",
                 "cleanup:\(historyPlan.cleanupCandidateCount)",
                 "warnings:\(warningStateIdentifier)",
@@ -2273,7 +2352,20 @@ enum CinematicRunRecapShareArtifactComparisonPlanner {
             selectedFallbackEntryIdentifier: previewPlan.selectedFallbackEntryIdentifier,
             selectedFallbackReasonIdentifier: previewPlan.selectedFallbackReasonIdentifier,
             compareEntryIdentifier: compareEntry?.identifier,
+            targetMode: targetMode,
+            targetModeIdentifier: targetMode.rawValue,
             targetDirectionIdentifier: targetDirectionIdentifier,
+            pinnedTargetEntryIdentifier: pinnedTargetEntryIdentifier,
+            pinnedTargetStateIdentifier: pinnedTargetStateIdentifier,
+            pinnedTargetUnavailableReasonIdentifier: pinnedTargetUnavailableReasonIdentifier,
+            requestedPinnedEntryIdentifiers: requestedPinnedEntryIdentifiers,
+            retainedPinnedEntryIdentifiers: retainedPinnedEntryIdentifiers,
+            missingPinnedEntryIdentifiers: missingPinnedEntryIdentifiers,
+            filteredPinnedEntryIdentifiers: filteredPinnedEntryIdentifiers,
+            pinnedEntryCount: requestedPinnedEntryIdentifiers.count,
+            retainedPinnedEntryCount: retainedPinnedEntryIdentifiers.count,
+            missingPinnedEntryCount: missingPinnedEntryIdentifiers.count,
+            filteredPinnedEntryCount: filteredPinnedEntryIdentifiers.count,
             sessionDelta: sessionDelta,
             selectedSessionNumber: selectedEntry?.sessionNumber,
             compareSessionNumber: compareEntry?.sessionNumber,
@@ -2296,10 +2388,12 @@ enum CinematicRunRecapShareArtifactComparisonPlanner {
             warningIdentifiers: historyPlan.warnings.map(\.identifier),
             hasWarnings: historyPlan.hasWarnings,
             exportText: export,
-            copyLabel: copyLabel(isAvailable: isAvailable),
+            copyLabel: copyLabel(isAvailable: isAvailable, targetMode: targetMode),
             copyHelp: copyHelp(
                 isAvailable: isAvailable,
                 availabilityReason: availabilityReason,
+                targetMode: targetMode,
+                pinnedTargetStateIdentifier: pinnedTargetStateIdentifier,
                 selectedEntry: selectedEntry,
                 compareEntry: compareEntry,
                 targetDirectionIdentifier: targetDirectionIdentifier,
@@ -2367,11 +2461,67 @@ enum CinematicRunRecapShareArtifactComparisonPlanner {
         return nil
     }
 
+    private static func pinnedTarget(
+        for selectedEntry: CinematicRunRecapShareArtifactHistoryPlan.Entry,
+        retainedPinnedEntries: [CinematicRunRecapShareArtifactHistoryPlan.Entry],
+        matchingEntryIdentifiers: Set<String>,
+        search: SearchState
+    ) -> ComparisonTarget? {
+        let nonSelectedPinnedEntries = retainedPinnedEntries.filter {
+            $0.identifier != selectedEntry.identifier
+        }
+        let visiblePinnedEntries = search.isActive
+            ? nonSelectedPinnedEntries.filter { matchingEntryIdentifiers.contains($0.identifier) }
+            : nonSelectedPinnedEntries
+        if let visiblePinnedEntry = visiblePinnedEntries.first {
+            return ComparisonTarget(entry: visiblePinnedEntry, directionIdentifier: "pinned")
+        }
+        return nonSelectedPinnedEntries.first.map {
+            ComparisonTarget(entry: $0, directionIdentifier: "pinned")
+        }
+    }
+
+    private static func pinnedTargetStateIdentifier(
+        targetMode: CinematicRunRecapShareArtifactComparisonTargetMode,
+        compareEntry: CinematicRunRecapShareArtifactHistoryPlan.Entry?,
+        selectedEntry: CinematicRunRecapShareArtifactHistoryPlan.Entry?,
+        requestedPinnedEntryIdentifiers: [String],
+        retainedPinnedEntryIdentifiers: [String],
+        missingPinnedEntryIdentifiers: [String],
+        filteredPinnedEntryIdentifiers: [String],
+        search: SearchState
+    ) -> String {
+        guard targetMode == .pinnedReference else {
+            return "adjacent-mode"
+        }
+        guard let selectedEntry else {
+            return "no-selected-recap-share-artifact"
+        }
+        if let compareEntry {
+            return search.isActive && filteredPinnedEntryIdentifiers.contains(compareEntry.identifier)
+                ? "filtered-pinned-target"
+                : "visible-pinned-target"
+        }
+        guard !requestedPinnedEntryIdentifiers.isEmpty else {
+            return "no-pinned-recap-share-artifacts"
+        }
+        if retainedPinnedEntryIdentifiers.isEmpty,
+           missingPinnedEntryIdentifiers.count == requestedPinnedEntryIdentifiers.count {
+            return "pinned-recap-share-artifacts-missing"
+        }
+        if retainedPinnedEntryIdentifiers.allSatisfy({ $0 == selectedEntry.identifier }) {
+            return "selected-only-pinned-recap-share-artifact"
+        }
+        return "no-retained-pinned-recap-share-target"
+    }
+
     private static func availabilityReason(
         historyPlan: CinematicRunRecapShareArtifactHistoryPlan,
         matchingEntries: [CinematicRunRecapShareArtifactHistoryPlan.Entry],
         compareEntry: CinematicRunRecapShareArtifactHistoryPlan.Entry?,
         previewPlan: CinematicRunRecapShareArtifactPreviewBrowserPlan,
+        targetMode: CinematicRunRecapShareArtifactComparisonTargetMode,
+        pinnedTargetStateIdentifier: String,
         search: SearchState,
         noMatchAvailabilityReason: String?
     ) -> String {
@@ -2386,6 +2536,9 @@ enum CinematicRunRecapShareArtifactComparisonPlanner {
             return search.isActive
                 ? "single-matching-recap-share-artifact"
                 : "single-recap-share-artifact"
+        }
+        if targetMode == .pinnedReference {
+            return pinnedTargetStateIdentifier
         }
         return previewPlan.availabilityReason == "available"
             ? "no-comparison-target"
@@ -2402,14 +2555,24 @@ enum CinematicRunRecapShareArtifactComparisonPlanner {
         search: SearchState,
         noMatchAvailabilityReason: String?,
         previewPlan: CinematicRunRecapShareArtifactPreviewBrowserPlan,
+        targetMode: CinematicRunRecapShareArtifactComparisonTargetMode,
         selectedEntry: CinematicRunRecapShareArtifactHistoryPlan.Entry?,
         compareEntry: CinematicRunRecapShareArtifactHistoryPlan.Entry?,
         targetDirectionIdentifier: String,
+        pinnedTargetStateIdentifier: String,
+        pinnedTargetUnavailableReasonIdentifier: String?,
+        requestedPinnedEntryIdentifiers: [String],
+        retainedPinnedEntryIdentifiers: [String],
+        missingPinnedEntryIdentifiers: [String],
+        filteredPinnedEntryIdentifiers: [String],
         sessionDelta: Int?,
         selectedBodyPreviewText: String?,
         compareBodyPreviewText: String?,
         warningStateIdentifier: String
     ) -> String {
+        let pinnedTargetEntryIdentifier = targetMode == .pinnedReference
+            ? compareEntry?.identifier
+            : nil
         var lines = [
             "# Compass Recap Artifact Comparison",
             "",
@@ -2420,6 +2583,7 @@ enum CinematicRunRecapShareArtifactComparisonPlanner {
             "- Retained artifacts: \(retainedEntries.count)",
             "- Matching artifacts: \(matchingEntries.count)",
             "- Hidden artifacts: \(historyPlan.hiddenCount)",
+            "- Comparison mode: \(targetMode.rawValue)",
             "- Search active: \(search.isActive)",
             "- Search query: \(search.querySnippet)",
             "- Search fingerprint: \(search.queryFingerprint)",
@@ -2427,6 +2591,17 @@ enum CinematicRunRecapShareArtifactComparisonPlanner {
             "- Selected entry: \(selectedEntry?.identifier ?? "none")",
             "- Compare entry: \(compareEntry?.identifier ?? "none")",
             "- Target direction: \(targetDirectionIdentifier)",
+            "- Pinned target: \(pinnedTargetEntryIdentifier ?? "none")",
+            "- Pinned target state: \(pinnedTargetStateIdentifier)",
+            "- Pinned unavailable reason: \(pinnedTargetUnavailableReasonIdentifier ?? "none")",
+            "- Pinned artifacts: \(requestedPinnedEntryIdentifiers.count)",
+            "- Retained pins: \(retainedPinnedEntryIdentifiers.count)",
+            "- Missing pins: \(missingPinnedEntryIdentifiers.count)",
+            "- Filtered pins: \(filteredPinnedEntryIdentifiers.count)",
+            "- Pinned identifiers: \(requestedPinnedEntryIdentifiers.isEmpty ? "none" : requestedPinnedEntryIdentifiers.joined(separator: ", "))",
+            "- Retained pin identifiers: \(retainedPinnedEntryIdentifiers.isEmpty ? "none" : retainedPinnedEntryIdentifiers.joined(separator: ", "))",
+            "- Missing pin identifiers: \(missingPinnedEntryIdentifiers.isEmpty ? "none" : missingPinnedEntryIdentifiers.joined(separator: ", "))",
+            "- Filtered pin identifiers: \(filteredPinnedEntryIdentifiers.isEmpty ? "none" : filteredPinnedEntryIdentifiers.joined(separator: ", "))",
             "- Session delta: \(sessionDelta.map(String.init) ?? "none")",
             "- Selection fallback: \(previewPlan.selectedFallbackEntryIdentifier ?? "none")",
             "- Selection fallback reason: \(previewPlan.selectedFallbackReasonIdentifier)",
@@ -2484,9 +2659,15 @@ enum CinematicRunRecapShareArtifactComparisonPlanner {
         ]
     }
 
-    private static func copyLabel(isAvailable: Bool) -> String {
-        bounded(
-            isAvailable ? "Copy comparison" : "Comparison unavailable",
+    private static func copyLabel(
+        isAvailable: Bool,
+        targetMode: CinematicRunRecapShareArtifactComparisonTargetMode
+    ) -> String {
+        let availableLabel = targetMode == .pinnedReference
+            ? "Copy pinned comparison"
+            : "Copy comparison"
+        return bounded(
+            isAvailable ? availableLabel : "Comparison unavailable",
             limit: CinematicRunRecapShareArtifactComparisonPlan.copyLabelMaxCharacters
         )
     }
@@ -2494,6 +2675,8 @@ enum CinematicRunRecapShareArtifactComparisonPlanner {
     private static func copyHelp(
         isAvailable: Bool,
         availabilityReason: String,
+        targetMode: CinematicRunRecapShareArtifactComparisonTargetMode,
+        pinnedTargetStateIdentifier: String,
         selectedEntry: CinematicRunRecapShareArtifactHistoryPlan.Entry?,
         compareEntry: CinematicRunRecapShareArtifactHistoryPlan.Entry?,
         targetDirectionIdentifier: String,
@@ -2501,15 +2684,19 @@ enum CinematicRunRecapShareArtifactComparisonPlanner {
         exportIdentifier: String
     ) -> String {
         guard isAvailable, let selectedEntry, let compareEntry else {
+            let modeDetail = targetMode == .pinnedReference
+                ? " pinned target state \(pinnedTargetStateIdentifier)"
+                : ""
             return bounded(
-                "No recap artifact comparison is available: \(availabilityReason).",
+                "No recap artifact comparison is available: \(availabilityReason)\(modeDetail).",
                 limit: CinematicRunRecapShareArtifactComparisonPlan.copyHelpMaxCharacters
             )
         }
 
+        let modeDetail = targetMode == .pinnedReference ? " pinned-reference" : ""
         let searchDetail = search.isActive ? " matching \(search.querySnippet)" : ""
         return bounded(
-            "Copy recap artifact comparison \(exportIdentifier) for S\(selectedEntry.sessionNumber) against \(targetDirectionIdentifier) S\(compareEntry.sessionNumber)\(searchDetail).",
+            "Copy\(modeDetail) recap artifact comparison \(exportIdentifier) for S\(selectedEntry.sessionNumber) against \(targetDirectionIdentifier) S\(compareEntry.sessionNumber)\(searchDetail).",
             limit: CinematicRunRecapShareArtifactComparisonPlan.copyHelpMaxCharacters
         )
     }
@@ -2593,6 +2780,32 @@ enum CinematicRunRecapShareArtifactComparisonPlanner {
 
     private static func boundedBodyPreview(_ text: String, limit: Int) -> String {
         bounded(text, limit: limit)
+    }
+
+    private static func boundedIdentifierList(_ identifiers: [String]) -> [String] {
+        var seen = Set<String>()
+        var boundedIdentifiers: [String] = []
+
+        for identifier in identifiers {
+            guard let boundedIdentifier = boundedOptionalIdentifier(identifier),
+                  seen.insert(boundedIdentifier).inserted else {
+                continue
+            }
+            boundedIdentifiers.append(boundedIdentifier)
+            if boundedIdentifiers.count == CinematicRunRecapShareArtifactPinnedReferencePlan.pinIdentifierLimit {
+                break
+            }
+        }
+
+        return boundedIdentifiers
+    }
+
+    private static func boundedOptionalIdentifier(_ identifier: String?) -> String? {
+        let boundedIdentifier = bounded(
+            identifier ?? "",
+            limit: CinematicRunRecapShareArtifactComparisonPlan.identifierMaxCharacters
+        )
+        return boundedIdentifier == "none" ? nil : boundedIdentifier
     }
 
     private static func boundedArtifactText(_ text: String, limit: Int) -> String {

@@ -2281,6 +2281,42 @@ enum KnownProjectActiveStorage: String, Codable, CaseIterable, Identifiable {
     }
 }
 
+enum CinematicRunRecapShareArtifactComparisonTargetMode: String, Codable, CaseIterable, Identifiable {
+    case adjacent
+    case pinnedReference = "pinned_reference"
+
+    var id: Self { self }
+
+    var title: String {
+        switch self {
+        case .adjacent:
+            return "Adjacent"
+        case .pinnedReference:
+            return "Pinned"
+        }
+    }
+
+    var toggled: Self {
+        switch self {
+        case .adjacent:
+            return .pinnedReference
+        case .pinnedReference:
+            return .adjacent
+        }
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        let rawValue = try container.decode(String.self)
+        self = CinematicRunRecapShareArtifactComparisonTargetMode(rawValue: rawValue) ?? .adjacent
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        try container.encode(rawValue)
+    }
+}
+
 struct CinematicRunRecapShareArtifactLibraryContext: Codable, Equatable {
     static let selectedEntryIdentifierMaxCharacters = CinematicRunRecapShareArtifactHistoryPlan.identifierMaxCharacters
     static let searchTextMaxCharacters = CinematicRunRecapShareArtifactPreviewBrowserPlan.searchQuerySnippetMaxCharacters
@@ -2290,17 +2326,20 @@ struct CinematicRunRecapShareArtifactLibraryContext: Codable, Equatable {
     var selectedEntryIdentifier: String?
     var searchText: String
     var pinnedEntryIdentifiers: [String]
+    var comparisonTargetMode: CinematicRunRecapShareArtifactComparisonTargetMode
 
     enum CodingKeys: String, CodingKey {
         case selectedEntryIdentifier
         case searchText
         case pinnedEntryIdentifiers
+        case comparisonTargetMode
     }
 
     init(
         selectedEntryIdentifier: String? = nil,
         searchText: String = "",
-        pinnedEntryIdentifiers: [String] = []
+        pinnedEntryIdentifiers: [String] = [],
+        comparisonTargetMode: CinematicRunRecapShareArtifactComparisonTargetMode = .adjacent
     ) {
         self.selectedEntryIdentifier = Self.boundedOptionalText(
             selectedEntryIdentifier,
@@ -2311,6 +2350,7 @@ struct CinematicRunRecapShareArtifactLibraryContext: Codable, Equatable {
             limit: Self.searchTextMaxCharacters
         )
         self.pinnedEntryIdentifiers = Self.boundedIdentifierList(pinnedEntryIdentifiers)
+        self.comparisonTargetMode = comparisonTargetMode
     }
 
     init(from decoder: Decoder) throws {
@@ -2318,7 +2358,11 @@ struct CinematicRunRecapShareArtifactLibraryContext: Codable, Equatable {
         self.init(
             selectedEntryIdentifier: try container.decodeIfPresent(String.self, forKey: .selectedEntryIdentifier),
             searchText: try container.decodeIfPresent(String.self, forKey: .searchText) ?? "",
-            pinnedEntryIdentifiers: try container.decodeIfPresent([String].self, forKey: .pinnedEntryIdentifiers) ?? []
+            pinnedEntryIdentifiers: try container.decodeIfPresent([String].self, forKey: .pinnedEntryIdentifiers) ?? [],
+            comparisonTargetMode: try container.decodeIfPresent(
+                CinematicRunRecapShareArtifactComparisonTargetMode.self,
+                forKey: .comparisonTargetMode
+            ) ?? .adjacent
         )
     }
 
@@ -2329,17 +2373,22 @@ struct CinematicRunRecapShareArtifactLibraryContext: Codable, Equatable {
         if !pinnedEntryIdentifiers.isEmpty {
             try container.encode(pinnedEntryIdentifiers, forKey: .pinnedEntryIdentifiers)
         }
+        if comparisonTargetMode != .adjacent {
+            try container.encode(comparisonTargetMode, forKey: .comparisonTargetMode)
+        }
     }
 
     func replacing(
         selectedEntryIdentifier: String?,
         searchText: String,
-        pinnedEntryIdentifiers: [String]? = nil
+        pinnedEntryIdentifiers: [String]? = nil,
+        comparisonTargetMode: CinematicRunRecapShareArtifactComparisonTargetMode? = nil
     ) -> CinematicRunRecapShareArtifactLibraryContext {
         CinematicRunRecapShareArtifactLibraryContext(
             selectedEntryIdentifier: selectedEntryIdentifier,
             searchText: searchText,
-            pinnedEntryIdentifiers: pinnedEntryIdentifiers ?? self.pinnedEntryIdentifiers
+            pinnedEntryIdentifiers: pinnedEntryIdentifiers ?? self.pinnedEntryIdentifiers,
+            comparisonTargetMode: comparisonTargetMode ?? self.comparisonTargetMode
         )
     }
 

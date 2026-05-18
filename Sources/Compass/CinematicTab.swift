@@ -775,7 +775,9 @@ private struct CinematicRunRecapArtifactLibraryControl: View {
         CinematicRunRecapShareArtifactComparisonPlanner.plan(
             historyPlan: plan,
             selectedEntryIdentifier: artifactLibraryContext.selectedEntryIdentifier,
-            searchQuery: artifactLibraryContext.searchText
+            searchQuery: artifactLibraryContext.searchText,
+            targetMode: artifactLibraryContext.comparisonTargetMode,
+            pinnedEntryIdentifiers: artifactLibraryContext.pinnedEntryIdentifiers
         )
     }
 
@@ -878,6 +880,20 @@ private struct CinematicRunRecapArtifactLibraryControl: View {
                 .foregroundStyle(.white.opacity(comparisonPlan.isAvailable ? 0.5 : 0.42))
                 .lineLimit(1)
                 .minimumScaleFactor(0.68)
+
+            Button {
+                toggleComparisonTargetMode()
+            } label: {
+                Image(systemName: comparisonModeSystemImage(comparisonPlan))
+                    .font(.system(size: 11, weight: .bold))
+                    .frame(width: 20, height: 18)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(tint.opacity(0.82))
+            .help(comparisonModeToggleHelp(comparisonPlan))
+            .accessibilityLabel("Switch recap artifact comparison target mode")
+            .accessibilityIdentifier("cinematic-run-recap-artifact-library-toggle-comparison-mode")
 
             Button {
                 copyComparison(comparisonPlan)
@@ -1038,6 +1054,9 @@ private struct CinematicRunRecapArtifactLibraryControl: View {
     }
 
     private func comparisonTargetLabel(_ comparisonPlan: CinematicRunRecapShareArtifactComparisonPlan) -> String {
+        if comparisonPlan.targetMode == .pinnedReference {
+            return "Pinned"
+        }
         switch comparisonPlan.targetDirectionIdentifier {
         case "older":
             return "Older"
@@ -1049,14 +1068,28 @@ private struct CinematicRunRecapArtifactLibraryControl: View {
     }
 
     private func comparisonSummary(_ comparisonPlan: CinematicRunRecapShareArtifactComparisonPlan) -> String {
+        let mode = comparisonPlan.targetMode.title
         guard comparisonPlan.isAvailable else {
-            return comparisonPlan.availabilityReason
+            return "\(mode) | \(comparisonPlan.availabilityReason)"
         }
         let delta = comparisonPlan.sessionDelta.map { "ΔS\($0)" } ?? "ΔS-"
         let search = comparisonPlan.isSearchActive
             ? " | \(comparisonPlan.matchingEntryCount)/\(comparisonPlan.unfilteredVisibleCount)"
             : ""
-        return "\(comparisonPlan.targetDirectionIdentifier) | \(delta)\(search)"
+        return "\(mode) | \(comparisonPlan.targetDirectionIdentifier) | \(delta)\(search)"
+    }
+
+    private func comparisonModeSystemImage(
+        _ comparisonPlan: CinematicRunRecapShareArtifactComparisonPlan
+    ) -> String {
+        comparisonPlan.targetMode == .pinnedReference ? "pin.fill" : "rectangle.split.2x1"
+    }
+
+    private func comparisonModeToggleHelp(
+        _ comparisonPlan: CinematicRunRecapShareArtifactComparisonPlan
+    ) -> String {
+        let nextMode = comparisonPlan.targetMode.toggled.title
+        return "Switch recap artifact comparison target mode to \(nextMode)."
     }
 
     private func pinnedReferenceSummary(
@@ -1358,6 +1391,20 @@ private struct CinematicRunRecapArtifactLibraryControl: View {
             .resolvingSelection(in: plan)
         persistContext(resolvedContext)
         feedback = pinPlan.selectedEntryIsPinned ? "Unpinned" : "Pinned"
+        feedbackStatus = nil
+        preservedFeedbackPlanIdentifier = plan.identifier
+    }
+
+    private func toggleComparisonTargetMode() {
+        let nextMode = artifactLibraryContext.comparisonTargetMode.toggled
+        persistContext(
+            artifactLibraryContext.replacing(
+                selectedEntryIdentifier: artifactLibraryContext.selectedEntryIdentifier,
+                searchText: artifactLibraryContext.searchText,
+                comparisonTargetMode: nextMode
+            ).resolvingSelection(in: plan)
+        )
+        feedback = "Compare \(nextMode.title)"
         feedbackStatus = nil
         preservedFeedbackPlanIdentifier = plan.identifier
     }

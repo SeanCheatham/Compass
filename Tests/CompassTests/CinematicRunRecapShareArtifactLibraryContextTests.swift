@@ -137,7 +137,8 @@ final class CinematicRunRecapShareArtifactLibraryContextTests: XCTestCase {
         let oldest = try XCTUnwrap(history.entries.last)
         let context = CinematicRunRecapShareArtifactLibraryContext(
             selectedEntryIdentifier: oldest.identifier,
-            searchText: "fallback body"
+            searchText: "fallback body",
+            comparisonTargetMode: .pinnedReference
         )
 
         try FileManager.default.removeItem(at: oldest.url)
@@ -150,6 +151,7 @@ final class CinematicRunRecapShareArtifactLibraryContextTests: XCTestCase {
         )
 
         XCTAssertEqual(resolvedContext.searchText, "fallback body")
+        XCTAssertEqual(resolvedContext.comparisonTargetMode, .pinnedReference)
         XCTAssertEqual(resolvedContext.selectedEntryIdentifier, refreshedHistory.entries.first?.identifier)
         XCTAssertEqual(resolvedPreview.selectedFallbackReasonIdentifier, "none")
         XCTAssertEqual(resolvedPreview.selectedEntryIdentifier, refreshedHistory.entries.first?.identifier)

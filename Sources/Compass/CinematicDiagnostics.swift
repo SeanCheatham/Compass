@@ -647,7 +647,19 @@ struct CinematicDiagnosticsReport: Equatable {
         var selectedFallbackEntryIdentifier: String?
         var selectedFallbackReasonIdentifier: String
         var compareEntryIdentifier: String?
+        var targetModeIdentifier: String
         var targetDirectionIdentifier: String
+        var pinnedTargetEntryIdentifier: String?
+        var pinnedTargetStateIdentifier: String
+        var pinnedTargetUnavailableReasonIdentifier: String?
+        var requestedPinnedEntryIdentifiers: [String]
+        var retainedPinnedEntryIdentifiers: [String]
+        var missingPinnedEntryIdentifiers: [String]
+        var filteredPinnedEntryIdentifiers: [String]
+        var pinnedEntryCount: Int
+        var retainedPinnedEntryCount: Int
+        var missingPinnedEntryCount: Int
+        var filteredPinnedEntryCount: Int
         var sessionDelta: Int?
         var selectedSessionNumber: Int?
         var compareSessionNumber: Int?
@@ -1910,9 +1922,45 @@ struct CinematicVisualSmokeReport: Equatable {
             && (snapshot.compareEntryIdentifier ?? "").count
                 <= CinematicRunRecapShareArtifactHistoryPlan.identifierMaxCharacters
             && string(
+                snapshot.targetModeIdentifier,
+                maxCharacters: CinematicRunRecapShareArtifactComparisonPlan.snippetMaxCharacters
+            )
+            && string(
                 snapshot.targetDirectionIdentifier,
                 maxCharacters: CinematicRunRecapShareArtifactComparisonPlan.snippetMaxCharacters
             )
+            && (snapshot.pinnedTargetEntryIdentifier ?? "").count
+                <= CinematicRunRecapShareArtifactHistoryPlan.identifierMaxCharacters
+            && string(
+                snapshot.pinnedTargetStateIdentifier,
+                maxCharacters: CinematicRunRecapShareArtifactComparisonPlan.snippetMaxCharacters
+            )
+            && (snapshot.pinnedTargetUnavailableReasonIdentifier ?? "").count
+                <= CinematicRunRecapShareArtifactComparisonPlan.snippetMaxCharacters
+            && snapshot.requestedPinnedEntryIdentifiers.allSatisfy {
+                string(
+                    $0,
+                    maxCharacters: CinematicRunRecapShareArtifactHistoryPlan.identifierMaxCharacters
+                )
+            }
+            && snapshot.retainedPinnedEntryIdentifiers.allSatisfy {
+                string(
+                    $0,
+                    maxCharacters: CinematicRunRecapShareArtifactHistoryPlan.identifierMaxCharacters
+                )
+            }
+            && snapshot.missingPinnedEntryIdentifiers.allSatisfy {
+                string(
+                    $0,
+                    maxCharacters: CinematicRunRecapShareArtifactHistoryPlan.identifierMaxCharacters
+                )
+            }
+            && snapshot.filteredPinnedEntryIdentifiers.allSatisfy {
+                string(
+                    $0,
+                    maxCharacters: CinematicRunRecapShareArtifactHistoryPlan.identifierMaxCharacters
+                )
+            }
             && (snapshot.selectedFilename?.count ?? 0)
                 <= CinematicRunRecapShareArtifactHistoryPlan.filenameMaxCharacters
             && (snapshot.compareFilename?.count ?? 0)
@@ -3780,11 +3828,25 @@ struct CinematicDiagnosticsSummary: Equatable {
                 : "search none",
             "matches \(snapshot.matchingEntryCount)/\(snapshot.unfilteredVisibleCount)",
             snapshot.noMatchAvailabilityReason.map { "no-match \($0)" },
+            "mode \(snapshot.targetModeIdentifier)",
             snapshot.selectedSessionNumber.map { "selected S\($0)" },
             snapshot.selectedFilename.map { "selected file \(bounded($0, limit: 72))" },
             snapshot.compareSessionNumber.map { "target S\($0)" },
             snapshot.compareFilename.map { "target file \(bounded($0, limit: 72))" },
             "direction \(snapshot.targetDirectionIdentifier)",
+            snapshot.pinnedTargetEntryIdentifier.map { "pinned target \(bounded($0, limit: 54))" },
+            "pinned state \(snapshot.pinnedTargetStateIdentifier)",
+            snapshot.pinnedTargetUnavailableReasonIdentifier.map { "pinned unavailable \($0)" },
+            "pins \(snapshot.pinnedEntryCount)",
+            "retained pins \(snapshot.retainedPinnedEntryCount)",
+            "missing pins \(snapshot.missingPinnedEntryCount)",
+            "filtered pins \(snapshot.filteredPinnedEntryCount)",
+            snapshot.missingPinnedEntryIdentifiers.isEmpty
+                ? nil
+                : "stale ids \(bounded(snapshot.missingPinnedEntryIdentifiers.joined(separator: ","), limit: 120))",
+            snapshot.filteredPinnedEntryIdentifiers.isEmpty
+                ? nil
+                : "filtered ids \(bounded(snapshot.filteredPinnedEntryIdentifiers.joined(separator: ","), limit: 120))",
             "delta \(snapshot.sessionDelta.map(String.init) ?? "none")",
             "fallback reason \(snapshot.selectedFallbackReasonIdentifier)",
             "cleanup candidates \(snapshot.cleanupCandidateCount)",
@@ -4119,6 +4181,8 @@ enum CinematicDiagnostics {
                 project.cinematicRunRecapShareArtifactLibraryContext.selectedEntryIdentifier,
             runRecapShareArtifactPreviewSearchQuery:
                 project.cinematicRunRecapShareArtifactLibraryContext.searchText,
+            runRecapShareArtifactComparisonTargetMode:
+                project.cinematicRunRecapShareArtifactLibraryContext.comparisonTargetMode,
             runRecapShareArtifactPinnedEntryIdentifiers:
                 project.cinematicRunRecapShareArtifactLibraryContext.pinnedEntryIdentifiers,
             nativeFeedbackCue: project.cinematicNativeFeedbackCue,
@@ -4155,6 +4219,7 @@ enum CinematicDiagnostics {
         runRecapShareArtifactCleanupResult providedRunRecapShareArtifactCleanupResult: CinematicRunRecapShareArtifactCleanupResult? = nil,
         runRecapShareArtifactPreviewSelectedEntryIdentifier: String? = nil,
         runRecapShareArtifactPreviewSearchQuery: String? = nil,
+        runRecapShareArtifactComparisonTargetMode: CinematicRunRecapShareArtifactComparisonTargetMode = .adjacent,
         runRecapShareArtifactPinnedEntryIdentifiers: [String] = [],
         nativeFeedbackCue: CinematicNativeFeedbackCuePlan? = nil,
         nativeFeedbackLifecycle: CinematicNativeFeedbackCueLifecycle = CinematicNativeFeedbackCueLifecycle()
@@ -4332,7 +4397,9 @@ enum CinematicDiagnostics {
         let runRecapShareArtifactComparisonPlan = CinematicRunRecapShareArtifactComparisonPlanner.plan(
             historyPlan: runRecapShareArtifactHistoryPlan,
             selectedEntryIdentifier: runRecapShareArtifactPreviewSelectedEntryIdentifier,
-            searchQuery: runRecapShareArtifactPreviewSearchQuery
+            searchQuery: runRecapShareArtifactPreviewSearchQuery,
+            targetMode: runRecapShareArtifactComparisonTargetMode,
+            pinnedEntryIdentifiers: runRecapShareArtifactPinnedEntryIdentifiers
         )
         let runRecapShareArtifactPinnedReferencePlan = CinematicRunRecapShareArtifactPinnedReferencePlanner.plan(
             historyPlan: runRecapShareArtifactHistoryPlan,
@@ -4384,6 +4451,9 @@ enum CinematicDiagnostics {
                 "run-recap-share-artifact-rollup:\(runRecapShareArtifactRollupSnapshot.identifier)",
                 "run-recap-share-artifact-comparison:\(runRecapShareArtifactComparisonSnapshot.identifier)",
                 "run-recap-share-artifact-comparison-export:\(runRecapShareArtifactComparisonSnapshot.exportIdentifier)",
+                "run-recap-share-artifact-comparison-mode:\(runRecapShareArtifactComparisonSnapshot.targetModeIdentifier)",
+                "run-recap-share-artifact-comparison-pinned-target:\(runRecapShareArtifactComparisonSnapshot.pinnedTargetEntryIdentifier ?? "none")",
+                "run-recap-share-artifact-comparison-pinned-state:\(runRecapShareArtifactComparisonSnapshot.pinnedTargetStateIdentifier)",
                 "run-recap-share-artifact-pins:\(runRecapShareArtifactPinnedReferenceSnapshot.identifier)",
                 "run-recap-share-artifact-pins-export:\(runRecapShareArtifactPinnedReferenceSnapshot.exportIdentifier)",
                 "run-recap-share-artifact-preview:\(runRecapShareArtifactPreviewSnapshot.identifier)",
@@ -5953,7 +6023,19 @@ enum CinematicDiagnostics {
             selectedFallbackEntryIdentifier: plan.selectedFallbackEntryIdentifier,
             selectedFallbackReasonIdentifier: plan.selectedFallbackReasonIdentifier,
             compareEntryIdentifier: plan.compareEntryIdentifier,
+            targetModeIdentifier: plan.targetModeIdentifier,
             targetDirectionIdentifier: plan.targetDirectionIdentifier,
+            pinnedTargetEntryIdentifier: plan.pinnedTargetEntryIdentifier,
+            pinnedTargetStateIdentifier: plan.pinnedTargetStateIdentifier,
+            pinnedTargetUnavailableReasonIdentifier: plan.pinnedTargetUnavailableReasonIdentifier,
+            requestedPinnedEntryIdentifiers: plan.requestedPinnedEntryIdentifiers,
+            retainedPinnedEntryIdentifiers: plan.retainedPinnedEntryIdentifiers,
+            missingPinnedEntryIdentifiers: plan.missingPinnedEntryIdentifiers,
+            filteredPinnedEntryIdentifiers: plan.filteredPinnedEntryIdentifiers,
+            pinnedEntryCount: plan.pinnedEntryCount,
+            retainedPinnedEntryCount: plan.retainedPinnedEntryCount,
+            missingPinnedEntryCount: plan.missingPinnedEntryCount,
+            filteredPinnedEntryCount: plan.filteredPinnedEntryCount,
             sessionDelta: plan.sessionDelta,
             selectedSessionNumber: plan.selectedSessionNumber,
             compareSessionNumber: plan.compareSessionNumber,

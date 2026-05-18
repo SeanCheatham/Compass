@@ -24,7 +24,8 @@ final class CinematicRunRecapShareArtifactPinningTests: XCTestCase {
                 "duplicate-pin",
                 "\n\t ",
                 longIdentifier
-            ] + overflowIdentifiers
+            ] + overflowIdentifiers,
+            comparisonTargetMode: .pinnedReference
         )
 
         let data = try JSONEncoder().encode(context)
@@ -43,6 +44,7 @@ final class CinematicRunRecapShareArtifactPinningTests: XCTestCase {
         XCTAssertEqual(decoded, context)
         XCTAssertEqual(context.selectedEntryIdentifier, "selected-pin")
         XCTAssertEqual(context.searchText, "Pinned Search")
+        XCTAssertEqual(context.comparisonTargetMode, .pinnedReference)
         XCTAssertEqual(
             context.pinnedEntryIdentifiers.count,
             CinematicRunRecapShareArtifactLibraryContext.pinnedEntryIdentifierLimit
@@ -54,6 +56,7 @@ final class CinematicRunRecapShareArtifactPinningTests: XCTestCase {
             CinematicRunRecapShareArtifactLibraryContext.selectedEntryIdentifierMaxCharacters
         )
         XCTAssertEqual(olderContext.pinnedEntryIdentifiers, [])
+        XCTAssertEqual(olderContext.comparisonTargetMode, .adjacent)
     }
 
     func testContextResolutionDropsStalePinsAgainstActiveStorageHistory() throws {
