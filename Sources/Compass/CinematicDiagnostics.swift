@@ -22,6 +22,7 @@ struct CinematicDiagnosticsReport: Equatable {
     var activityTuning: ActivityTuningSnapshot
     var setDressing: SetDressingSnapshot
     var commitConstellation: CommitConstellationSnapshot
+    var timelineFocus: TimelineFocusSnapshot
     var cameraSnapshots: [CameraSnapshot]
 
     struct LanguageMotifSnapshot: Equatable {
@@ -348,6 +349,24 @@ struct CinematicDiagnosticsReport: Equatable {
         var usesFallbackFocus: Bool
     }
 
+    struct TimelineFocusSnapshot: Equatable {
+        var identifier: String
+        var selectedBeatID: String?
+        var isActive: Bool
+        var kindIdentifier: String
+        var descriptorIdentifier: String
+        var label: String?
+        var cameraShotIdentifier: String
+        var lookTarget: SIMD3<Float>?
+        var lightFamilyIdentifier: String
+        var arenaEffectIdentifier: String
+        var phaseLightIntensity: Float
+        var commitNodeIdentifier: String?
+        var recoveryTreatmentIdentifier: String?
+        var recoveryVisualIdentifier: String?
+        var usesFallbackTarget: Bool
+    }
+
     struct CameraSnapshot: Equatable {
         var identifier: String
         var shotIdentifier: String
@@ -407,7 +426,8 @@ struct CinematicVisualSmokeReport: Equatable {
             assetAvailabilityCheck(reports: reports),
             cameraPhaseCoverageCheck(reports: reports),
             pressureInfluenceSpreadCheck(reports: reports),
-            recoveryCueCoverageCheck(reports: reports)
+            recoveryCueCoverageCheck(reports: reports),
+            timelineFocusCoverageCheck(reports: reports)
         ]
     }
 
@@ -645,6 +665,36 @@ struct CinematicVisualSmokeReport: Equatable {
         )
     }
 
+    private static func timelineFocusCoverageCheck(reports: [CinematicDiagnosticsReport]) -> Check {
+        let expectedKinds = Set(["none", "plan", "develop", "verify", "outcome", "commit", "recovery", "failed-verify"])
+        let kinds = Set(reports.map(\.timelineFocus.kindIdentifier))
+        let shots = Set(reports.map(\.timelineFocus.cameraShotIdentifier))
+        let lights = Set(reports.map(\.timelineFocus.lightFamilyIdentifier))
+        let recoveryTreatments = Set(reports.compactMap(\.timelineFocus.recoveryTreatmentIdentifier))
+        let commitNodeCount = reports.compactMap(\.timelineFocus.commitNodeIdentifier).count
+        let fallbackCount = reports.filter(\.timelineFocus.usesFallbackTarget).count
+        let isPassing = !reports.isEmpty
+            && kinds.isSuperset(of: expectedKinds)
+            && shots.isSuperset(of: ["none", "wide", "cast-prep", "overhead", "victory", "commit-constellation", "failure"])
+            && lights.isSuperset(of: ["none", "scan", "shell", "verify", "git", "failure"])
+            && recoveryTreatments.isSuperset(of: ["verify-failure", "dirty-cleanup", "promotion-branch"])
+            && commitNodeCount > 0
+
+        return check(
+            id: "timeline-focus-coverage",
+            label: "Timeline focus coverage",
+            isPassing: isPassing,
+            warningIdentifier: "visual-smoke.timeline-focus-coverage",
+            detail: [
+                "kinds \(joined(kinds))",
+                "shots \(joined(shots))",
+                "recovery \(joined(recoveryTreatments))",
+                "commit nodes \(commitNodeCount)",
+                "fallbacks \(fallbackCount)"
+            ].joined(separator: " | ")
+        )
+    }
+
     private struct ReadabilityMetrics {
         var isReadable: Bool
         var minimumScale: Float
@@ -866,7 +916,7 @@ struct CinematicVisualSmokeReport: Equatable {
 }
 
 struct CinematicDiagnosticsSummary: Equatable {
-    static let maxRows = 35
+    static let maxRows = 36
     static let labelMaxCharacters = 32
     static let detailMaxCharacters = 512
 
@@ -906,7 +956,7 @@ struct CinematicDiagnosticsSummary: Equatable {
         SectionDefinition(
             id: "repository-context",
             label: "Repository/context",
-            rowIDs: ["repository", "immediate", "commit-constellation"]
+            rowIDs: ["repository", "immediate", "commit-constellation", "timeline-focus"]
         ),
         SectionDefinition(
             id: "motifs",
@@ -987,6 +1037,11 @@ struct CinematicDiagnosticsSummary: Equatable {
                 id: "commit-constellation",
                 label: "Commit constellation",
                 detail: commitConstellationDetail(report.commitConstellation)
+            ),
+            row(
+                id: "timeline-focus",
+                label: "Timeline focus",
+                detail: timelineFocusDetail(report.timelineFocus)
             ),
             row(
                 id: "language-motif",
@@ -1353,6 +1408,28 @@ struct CinematicDiagnosticsSummary: Equatable {
         ].compactMap { $0 }.joined(separator: " | ")
     }
 
+    private static func timelineFocusDetail(
+        _ snapshot: CinematicDiagnosticsReport.TimelineFocusSnapshot
+    ) -> String {
+        guard snapshot.isActive else {
+            return "none"
+        }
+
+        return [
+            snapshot.selectedBeatID.map { "beat \($0)" },
+            "kind \(snapshot.kindIdentifier)",
+            snapshot.label.map { "label \($0)" },
+            "shot \(snapshot.cameraShotIdentifier)",
+            snapshot.lookTarget.map { "look \(position($0))" },
+            "light \(snapshot.lightFamilyIdentifier)",
+            "effect \(snapshot.arenaEffectIdentifier)",
+            "phase \(fixed(snapshot.phaseLightIntensity))",
+            optionalIdentifier("node", snapshot.commitNodeIdentifier),
+            optionalIdentifier("recovery", snapshot.recoveryTreatmentIdentifier),
+            snapshot.usesFallbackTarget ? "fallback target" : nil
+        ].compactMap { $0 }.joined(separator: " | ")
+    }
+
     private static func narrativeCueLayoutDescriptorDetail(
         _ label: String,
         _ layout: CinematicDiagnosticsReport.NarrativeCueLayoutSnapshot
@@ -1436,7 +1513,10 @@ enum CinematicDiagnostics {
     }
 
     @MainActor
-    static func currentReport(for project: CompassProject) -> CinematicDiagnosticsReport {
+    static func currentReport(
+        for project: CompassProject,
+        timelineFocusPlan: CinematicTimelineSceneFocusPlan = .none
+    ) -> CinematicDiagnosticsReport {
         let commitConstellationPlan = project.cinematicCommitConstellationPlan
         let reliabilityFeedback = PlanReliabilityFeedback(
             state: project.state,
@@ -1461,7 +1541,8 @@ enum CinematicDiagnostics {
             isPaused: project.isPaused,
             hasRepository: project.hasRepository,
             commitConstellationPlan: commitConstellationPlan,
-            recoveryCuePlan: recoveryCuePlan
+            recoveryCuePlan: recoveryCuePlan,
+            timelineFocusPlan: timelineFocusPlan
         )
     }
 
@@ -1480,7 +1561,8 @@ enum CinematicDiagnostics {
         isPaused: Bool = false,
         hasRepository: Bool = true,
         commitConstellationPlan: CinematicCommitConstellationPlan = .empty,
-        recoveryCuePlan: CinematicRecoveryCuePlan = .none
+        recoveryCuePlan: CinematicRecoveryCuePlan = .none,
+        timelineFocusPlan: CinematicTimelineSceneFocusPlan = .none
     ) -> CinematicDiagnosticsReport {
         let languageMotif = CinematicMotif.language(for: languageProfile)
         let activityMotif = CinematicMotif.activity(for: activityProfile)
@@ -1583,6 +1665,7 @@ enum CinematicDiagnostics {
         )
         let setDressingSnapshot = setDressingSnapshot(for: setDressingPlan)
         let commitConstellationSnapshot = commitConstellationSnapshot(for: commitConstellationPlan)
+        let timelineFocusSnapshot = timelineFocusSnapshot(for: timelineFocusPlan)
         let cameraSnapshots = CinematicCameraShot.allCases.map {
             cameraSnapshot(for: $0, settings: influenceSettings)
         }
@@ -1602,7 +1685,8 @@ enum CinematicDiagnostics {
                 "overlay:\(overlayDisplaySnapshot.identifier)",
                 "influence:\(influenceIdentifier)",
                 "set-dressing:\(setDressingSnapshot.identifier)",
-                "commit-constellation:\(commitConstellationSnapshot.identifier)"
+                "commit-constellation:\(commitConstellationSnapshot.identifier)",
+                "timeline-focus:\(timelineFocusSnapshot.identifier)"
             ].joined(separator: "|"),
             repoName: repoName,
             phase: phase,
@@ -1624,6 +1708,7 @@ enum CinematicDiagnostics {
             activityTuning: activityTuningSnapshot,
             setDressing: setDressingSnapshot,
             commitConstellation: commitConstellationSnapshot,
+            timelineFocus: timelineFocusSnapshot,
             cameraSnapshots: cameraSnapshots
         )
     }
@@ -1634,7 +1719,13 @@ enum CinematicDiagnostics {
         RepositoryLanguage.allCases.flatMap { language in
             representativeActivityCases().flatMap { activityCase in
                 CinematicRecoveryCuePlanner.representativePlans(influenceSettings: influenceSettings).map { recoveryCuePlan in
-                    report(
+                    let commitConstellationPlan = representativeCommitConstellationPlan(for: activityCase)
+                    let timelineFocusPlan = CinematicTimelineSceneFocusPlanner.representativePlan(
+                        activityCaseIdentifier: activityCase.identifier,
+                        recoveryCuePlan: recoveryCuePlan,
+                        commitConstellationPlan: commitConstellationPlan
+                    )
+                    return report(
                         repoName: "Diagnostics \(language.displayName)",
                         phase: activityCase.phase,
                         immediateTitle: activityCase.immediateTitle,
@@ -1647,7 +1738,9 @@ enum CinematicDiagnostics {
                         isAutoPlaying: activityCase.isAutoPlaying,
                         isPaused: activityCase.isPaused,
                         hasRepository: activityCase.hasRepository,
-                        recoveryCuePlan: recoveryCuePlan
+                        commitConstellationPlan: commitConstellationPlan,
+                        recoveryCuePlan: recoveryCuePlan,
+                        timelineFocusPlan: timelineFocusPlan
                     )
                 }
             }
@@ -1743,6 +1836,13 @@ enum CinematicDiagnostics {
                 )
             )
         ]
+    }
+
+    private static func representativeCommitConstellationPlan(
+        for activityCase: ActivityCase
+    ) -> CinematicCommitConstellationPlan {
+        guard activityCase.identifier == "commit" else { return .empty }
+        return CinematicTimelineSceneFocusPlanner.representativeCommitConstellationPlan()
     }
 
     private static func languageSnapshot(
@@ -2291,6 +2391,48 @@ enum CinematicDiagnostics {
             focusShotIdentifier: focusPlan.shot.identifier,
             focusLookTarget: focusPlan.lookTarget,
             usesFallbackFocus: focusPlan.isFallback
+        )
+    }
+
+    private static func timelineFocusSnapshot(
+        for plan: CinematicTimelineSceneFocusPlan
+    ) -> CinematicDiagnosticsReport.TimelineFocusSnapshot {
+        guard let descriptor = plan.descriptor else {
+            return CinematicDiagnosticsReport.TimelineFocusSnapshot(
+                identifier: plan.identifier,
+                selectedBeatID: plan.selectedBeatID,
+                isActive: false,
+                kindIdentifier: "none",
+                descriptorIdentifier: "none",
+                label: nil,
+                cameraShotIdentifier: "none",
+                lookTarget: nil,
+                lightFamilyIdentifier: "none",
+                arenaEffectIdentifier: "none",
+                phaseLightIntensity: 0,
+                commitNodeIdentifier: nil,
+                recoveryTreatmentIdentifier: nil,
+                recoveryVisualIdentifier: nil,
+                usesFallbackTarget: false
+            )
+        }
+
+        return CinematicDiagnosticsReport.TimelineFocusSnapshot(
+            identifier: plan.identifier,
+            selectedBeatID: plan.selectedBeatID,
+            isActive: true,
+            kindIdentifier: descriptor.kindIdentifier,
+            descriptorIdentifier: descriptor.identifier,
+            label: descriptor.label,
+            cameraShotIdentifier: descriptor.cameraShotIdentifier,
+            lookTarget: descriptor.lookTarget,
+            lightFamilyIdentifier: descriptor.lightFamilyIdentifier,
+            arenaEffectIdentifier: descriptor.arenaEffectIdentifier,
+            phaseLightIntensity: descriptor.phaseLightIntensity,
+            commitNodeIdentifier: descriptor.commitNodeIdentifier,
+            recoveryTreatmentIdentifier: descriptor.recoveryTreatmentIdentifier,
+            recoveryVisualIdentifier: descriptor.recoveryVisualIdentifier,
+            usesFallbackTarget: descriptor.usesFallbackTarget
         )
     }
 

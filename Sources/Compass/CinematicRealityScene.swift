@@ -15,6 +15,7 @@ struct CinematicSceneView: View {
     var briefing: CinematicBriefing
     var commitConstellationPlan: CinematicCommitConstellationPlan
     var recoveryCuePlan: CinematicRecoveryCuePlan
+    var timelineSceneFocusPlan: CinematicTimelineSceneFocusPlan
 
     @StateObject private var host: CinematicRealitySceneHost
 
@@ -29,7 +30,8 @@ struct CinematicSceneView: View {
         worldText: CinematicWorldText,
         briefing: CinematicBriefing,
         commitConstellationPlan: CinematicCommitConstellationPlan,
-        recoveryCuePlan: CinematicRecoveryCuePlan = .none
+        recoveryCuePlan: CinematicRecoveryCuePlan = .none,
+        timelineSceneFocusPlan: CinematicTimelineSceneFocusPlan = .none
     ) {
         self.projectID = projectID
         self.lines = lines
@@ -42,6 +44,7 @@ struct CinematicSceneView: View {
         self.briefing = briefing
         self.commitConstellationPlan = commitConstellationPlan
         self.recoveryCuePlan = recoveryCuePlan
+        self.timelineSceneFocusPlan = timelineSceneFocusPlan
         _host = StateObject(wrappedValue: CinematicRealitySceneHost(projectID: projectID))
     }
 
@@ -58,7 +61,8 @@ struct CinematicSceneView: View {
                 worldText: worldText,
                 briefing: briefing,
                 commitConstellationPlan: commitConstellationPlan,
-                recoveryCuePlan: recoveryCuePlan
+                recoveryCuePlan: recoveryCuePlan,
+                timelineSceneFocusPlan: timelineSceneFocusPlan
             )
         } update: { content in
             host.install(in: &content)
@@ -72,7 +76,8 @@ struct CinematicSceneView: View {
                 worldText: worldText,
                 briefing: briefing,
                 commitConstellationPlan: commitConstellationPlan,
-                recoveryCuePlan: recoveryCuePlan
+                recoveryCuePlan: recoveryCuePlan,
+                timelineSceneFocusPlan: timelineSceneFocusPlan
             )
         } placeholder: {
             Color.black
@@ -118,7 +123,8 @@ private final class CinematicRealitySceneHost: ObservableObject {
         worldText: CinematicWorldText,
         briefing: CinematicBriefing,
         commitConstellationPlan: CinematicCommitConstellationPlan,
-        recoveryCuePlan: CinematicRecoveryCuePlan
+        recoveryCuePlan: CinematicRecoveryCuePlan,
+        timelineSceneFocusPlan: CinematicTimelineSceneFocusPlan
     ) {
         coordinator.update(
             lines: lines,
@@ -130,7 +136,8 @@ private final class CinematicRealitySceneHost: ObservableObject {
             worldText: worldText,
             briefing: briefing,
             commitConstellationPlan: commitConstellationPlan,
-            recoveryCuePlan: recoveryCuePlan
+            recoveryCuePlan: recoveryCuePlan,
+            timelineSceneFocusPlan: timelineSceneFocusPlan
         )
     }
 
@@ -307,6 +314,8 @@ private final class CinematicSceneCoordinator {
     private var pendingCommitConstellationFocusPlan: CinematicCommitConstellationPlan.FocusPlan?
     private var activeCommitConstellationFocusPlan: CinematicCommitConstellationPlan.FocusPlan?
     private var commitConstellationFocusUntil = Date.distantPast
+    private var currentTimelineSceneFocusPlan = CinematicTimelineSceneFocusPlan.none
+    private var activeTimelineSceneFocusDescriptor: CinematicTimelineSceneFocusPlan.Descriptor?
     private var followCameraSource: CameraFollowSource?
     private var fractureAccentNodes: [Entity] = []
     private var phaseStaffOrientation = simd_quatf(angle: 0.18, axis: SIMD3<Float>(0, 0, 1))
@@ -359,7 +368,8 @@ private final class CinematicSceneCoordinator {
         worldText: CinematicWorldText,
         briefing: CinematicBriefing,
         commitConstellationPlan: CinematicCommitConstellationPlan,
-        recoveryCuePlan: CinematicRecoveryCuePlan
+        recoveryCuePlan: CinematicRecoveryCuePlan,
+        timelineSceneFocusPlan: CinematicTimelineSceneFocusPlan
     ) {
         let languageProfileChanged = languageProfile != self.languageProfile
         if languageProfileChanged {
@@ -388,6 +398,7 @@ private final class CinematicSceneCoordinator {
             self.recoveryCuePlan = recoveryCuePlan
         }
         let commitConstellationChanged = commitConstellationPlan != currentCommitConstellationPlan
+        let timelineFocusChanged = timelineSceneFocusPlan != currentTimelineSceneFocusPlan
         if languageProfileChanged || activityProfileChanged || influenceChanged {
             setDressingPlan = CinematicSetDressingPlanner.plan(
                 languageMotif: languageMotif,
@@ -421,6 +432,7 @@ private final class CinematicSceneCoordinator {
             stagePendingCommitConstellationFocusIfPossible(lines: lines, animated: false)
             let baseline = phaseLightBaseline(for: phase)
             setPhaseLight(color: themedColor(baseline.color), intensity: baseline.intensity)
+            applyTimelineSceneFocusPlan(timelineSceneFocusPlan, lines: lines, animated: false)
             return
         }
 
@@ -466,6 +478,9 @@ private final class CinematicSceneCoordinator {
             applyCommitConstellationPlan(commitConstellationPlan, animated: hasBuiltScene)
         }
         stagePendingCommitConstellationFocusIfPossible(lines: lines, animated: hasBuiltScene)
+        if timelineFocusChanged || commitConstellationChanged {
+            applyTimelineSceneFocusPlan(timelineSceneFocusPlan, lines: lines, animated: hasBuiltScene)
+        }
     }
 
     func stop() {
@@ -2836,6 +2851,65 @@ private final class CinematicSceneCoordinator {
         stageCamera(focusPlan.shot, animated: animated)
     }
 
+    private func applyTimelineSceneFocusPlan(
+        _ plan: CinematicTimelineSceneFocusPlan,
+        lines: [LiveLine],
+        animated: Bool
+    ) {
+        guard plan != currentTimelineSceneFocusPlan else { return }
+        currentTimelineSceneFocusPlan = plan
+        activeTimelineSceneFocusDescriptor = plan.descriptor
+
+        guard let descriptor = plan.descriptor else { return }
+        if !hasActiveLiveFollowTarget(lines: lines) {
+            stageCamera(descriptor.cameraShot, animated: animated)
+        }
+
+        let color = themedColor(descriptor.lightFamily.spell.nsColor)
+        setPhaseLight(color: color, intensity: descriptor.phaseLightIntensity)
+
+        switch descriptor.kind {
+        case .recovery:
+            applyRecoveryCueTraits(animated: animated)
+        case .failedVerify:
+            applyTimelineSceneFocusArenaEffect(descriptor, color: color)
+            shakeCamera()
+        case .commit, .plan, .develop, .verify, .outcome:
+            applyTimelineSceneFocusArenaEffect(descriptor, color: color)
+        }
+    }
+
+    private func applyTimelineSceneFocusArenaEffect(
+        _ descriptor: CinematicTimelineSceneFocusPlan.Descriptor,
+        color: NSColor
+    ) {
+        switch descriptor.arenaEffect {
+        case .none:
+            return
+        case .charge:
+            chargeArena(color: color)
+        case .seal:
+            sealArena(color: color)
+        case .victory:
+            sealArena(color: color)
+            portalPulse(color: color)
+        case .activityPulse:
+            arenaRing(
+                radius: 3.2,
+                color: color.withAlphaComponent(0.58),
+                duration: 0.78,
+                scale: 1.75,
+                opacity: 0.44
+            )
+            pulsePhaseLight(color: color, intensity: descriptor.phaseLightIntensity, duration: 0.5)
+        case .historyChains:
+            historyChains(
+                CinematicStageEffectPlanner.historyChainsEffect(),
+                color: color
+            )
+        }
+    }
+
     private func hasActiveLiveFollowTarget(lines: [LiveLine]) -> Bool {
         lines.contains {
             $0.status == .running && ($0.kind == .command || $0.kind == .fileChange)
@@ -3354,6 +3428,9 @@ private final class CinematicSceneCoordinator {
         if Date() < wizardFacingUntil, let wizardFacingTarget {
             return wizardFacingTarget
         }
+        if let target = activeTimelineSceneFocusTarget() {
+            return target
+        }
         if let target = activeCommitConstellationFocusTarget() {
             return target
         }
@@ -3366,6 +3443,9 @@ private final class CinematicSceneCoordinator {
     private func activeFollowTarget() -> SIMD3<Float>? {
         if let target = activeLiveFollowTarget() {
             return target
+        }
+        if activeTimelineSceneFocusTarget() != nil {
+            return nil
         }
         if activeCommitConstellationFocusTarget() != nil {
             return nil
@@ -3384,10 +3464,21 @@ private final class CinematicSceneCoordinator {
         if let target = activeFollowTarget() {
             return mix(wizardPosition, target, 0.56) + [0, 0.84, 0]
         }
+        if let target = activeTimelineSceneFocusTarget() {
+            return target
+        }
         guard let target = activeCommitConstellationFocusTarget() else {
             return wizardPosition + [0, 0.9, 0]
         }
         return target
+    }
+
+    private func activeTimelineSceneFocusTarget() -> SIMD3<Float>? {
+        guard activeLiveFollowTarget() == nil,
+              let descriptor = activeTimelineSceneFocusDescriptor else {
+            return nil
+        }
+        return descriptor.lookTarget
     }
 
     private func activeCommitConstellationFocusTarget() -> SIMD3<Float>? {

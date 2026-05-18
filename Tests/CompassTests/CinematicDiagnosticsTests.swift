@@ -42,6 +42,9 @@ final class CinematicDiagnosticsTests: XCTestCase {
         XCTAssertEqual(report.recoveryCue.treatmentIdentifier, "none")
         XCTAssertEqual(report.recoveryCue.visualIdentifier, "none")
         XCTAssertEqual(report.recoveryCue.lightFamilyIdentifier, "none")
+        XCTAssertFalse(report.timelineFocus.isActive)
+        XCTAssertEqual(report.timelineFocus.kindIdentifier, "none")
+        XCTAssertEqual(report.timelineFocus.identifier, "timeline-focus.none")
         XCTAssertEqual(report.stageBeat.kindIdentifier, "developing")
         XCTAssertEqual(report.stageBeat.cameraShotIdentifier, "cast-prep")
         XCTAssertEqual(report.stageBeat.lightFamilyIdentifier, "shell")
@@ -173,6 +176,12 @@ final class CinematicDiagnosticsTests: XCTestCase {
             Set(["none", "verify-failure", "dirty-cleanup", "promotion-branch"])
         )
         XCTAssertTrue(
+            Set(reports.map(\.timelineFocus.kindIdentifier))
+                .isSuperset(of: ["none", "plan", "develop", "verify", "outcome", "commit", "recovery", "failed-verify"])
+        )
+        XCTAssertTrue(reports.contains { $0.timelineFocus.commitNodeIdentifier != nil })
+        XCTAssertTrue(reports.contains { $0.timelineFocus.recoveryTreatmentIdentifier == "promotion-branch" })
+        XCTAssertTrue(
             Set(reports.map(\.overlayDisplay.modeIdentifier))
                 .isSuperset(of: ["full", "compact"])
         )
@@ -217,6 +226,49 @@ final class CinematicDiagnosticsTests: XCTestCase {
         XCTAssertTrue(summary.rows.contains { $0.id == "recovery-cue" })
         XCTAssertTrue(summary.exportText.contains("Recovery cue: promotionFailed"))
         XCTAssertTrue(summary.exportText.contains("git-failure-branch"))
+    }
+
+    func testReportAndSummaryExportSelectedTimelineFocus() throws {
+        let commitConstellationPlan = CinematicTimelineSceneFocusPlanner.representativeCommitConstellationPlan()
+        let focusPlan = CinematicTimelineSceneFocusPlanner.representativePlan(
+            activityCaseIdentifier: "commit",
+            recoveryCuePlan: .none,
+            commitConstellationPlan: commitConstellationPlan
+        )
+        let descriptor = try XCTUnwrap(focusPlan.descriptor)
+        let report = CinematicDiagnostics.report(
+            repoName: "Compass",
+            phase: LoopPhase.verifying.rawValue,
+            immediateTitle: "Preview selected timeline beat",
+            completedCount: 5,
+            latestEvent: nil,
+            languageProfile: languageProfile(primaryLanguage: .swift),
+            activityProfile: activityProfile(recentCommitCount: 2),
+            influenceSettings: CinematicInfluenceSettings(),
+            commitConstellationPlan: commitConstellationPlan,
+            timelineFocusPlan: focusPlan
+        )
+
+        XCTAssertTrue(report.timelineFocus.isActive)
+        XCTAssertEqual(report.timelineFocus.kindIdentifier, "commit")
+        XCTAssertEqual(report.timelineFocus.selectedBeatID, focusPlan.selectedBeatID)
+        XCTAssertEqual(report.timelineFocus.descriptorIdentifier, descriptor.identifier)
+        XCTAssertEqual(report.timelineFocus.commitNodeIdentifier, descriptor.commitNodeIdentifier)
+        XCTAssertEqual(report.timelineFocus.cameraShotIdentifier, CinematicCameraShot.commitConstellation.identifier)
+        XCTAssertEqual(report.timelineFocus.lightFamilyIdentifier, "git")
+        XCTAssertTrue(report.identifier.contains(focusPlan.identifier))
+
+        let summary = CinematicDiagnosticsSummary(
+            report: report,
+            visualSmoke: CinematicVisualSmokeReport(reports: [report])
+        )
+        let row = try XCTUnwrap(summary.rows.first { $0.id == "timeline-focus" })
+        XCTAssertEqual(row.label, "Timeline focus")
+        XCTAssertTrue(row.detail.contains("kind commit"))
+        XCTAssertTrue(row.detail.contains("shot commit-constellation"))
+        XCTAssertTrue(row.detail.contains(descriptor.commitNodeIdentifier ?? "missing-node"))
+        XCTAssertTrue(summary.exportText.contains("Timeline focus:"))
+        XCTAssertTrue(summary.exportText.contains(focusPlan.selectedBeatID ?? "missing-beat"))
     }
 
     func testReportContainsEveryCameraShotAndCameraTuningValue() throws {
@@ -344,6 +396,7 @@ final class CinematicDiagnosticsTests: XCTestCase {
                 "repository",
                 "immediate",
                 "commit-constellation",
+                "timeline-focus",
                 "language-motif",
                 "activity-motif",
                 "recovery-cue",
@@ -397,7 +450,8 @@ final class CinematicDiagnosticsTests: XCTestCase {
                 [
                     "repository",
                     "immediate",
-                    "commit-constellation"
+                    "commit-constellation",
+                    "timeline-focus"
                 ],
                 [
                     "language-motif",
@@ -500,14 +554,14 @@ final class CinematicDiagnosticsTests: XCTestCase {
             .components(separatedBy: "\n")
             .filter { expectedSectionHeadings.contains($0) }
         XCTAssertEqual(actualSectionHeadings, expectedSectionHeadings)
-        XCTAssertTrue(summary.exportText.contains("Repository/context (3 rows)"))
+        XCTAssertTrue(summary.exportText.contains("Repository/context (4 rows)"))
         XCTAssertTrue(summary.exportText.contains("Motifs (2 rows)"))
         XCTAssertTrue(summary.exportText.contains("Stage motion/effects (9 rows)"))
         XCTAssertTrue(summary.exportText.contains("Narrative/overlay (6 rows)"))
         XCTAssertTrue(summary.exportText.contains("Assets/textures (2 rows)"))
         XCTAssertTrue(summary.exportText.contains("Tuning (4 rows)"))
         XCTAssertTrue(summary.exportText.contains("Camera shots (9 rows)"))
-        XCTAssertTrue(summary.exportText.contains("Visual smoke (pass, 8 checks)"))
+        XCTAssertTrue(summary.exportText.contains("Visual smoke (pass, 9 checks)"))
         XCTAssertTrue(summary.exportText.contains("Overlay fallback: pass"))
         XCTAssertTrue(summary.exportText.contains(report.languageMotif.sigilIdentifier))
         XCTAssertTrue(summary.exportText.contains(report.languageMotif.styleIdentifier))

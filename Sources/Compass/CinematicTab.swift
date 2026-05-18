@@ -24,6 +24,13 @@ struct CinematicTab: View {
                 recentRunCues: reliabilityFeedback.recentRunCues,
                 influenceSettings: project.cinematicInfluenceSettings
             )
+            let timelineSceneFocusPlan = overlayMode == .timeline
+                ? CinematicTimelineSceneFocusPlanner.plan(
+                    selectedBeat: timelinePlan.selectedBeat,
+                    commitConstellationPlan: project.cinematicCommitConstellationPlan,
+                    recoveryCuePlan: recoveryCuePlan
+                )
+                : .none
 
             ZStack(alignment: .bottomLeading) {
                 CinematicSceneView(
@@ -37,7 +44,8 @@ struct CinematicTab: View {
                     worldText: project.cinematicWorldText,
                     briefing: project.cinematicBriefing,
                     commitConstellationPlan: project.cinematicCommitConstellationPlan,
-                    recoveryCuePlan: recoveryCuePlan
+                    recoveryCuePlan: recoveryCuePlan,
+                    timelineSceneFocusPlan: timelineSceneFocusPlan
                 )
                 .frame(width: proxy.size.width, height: proxy.size.height)
 
@@ -85,7 +93,10 @@ struct CinematicTab: View {
                 VStack {
                     HStack {
                         Spacer()
-                        CinematicInfluenceControls(project: project)
+                        CinematicInfluenceControls(
+                            project: project,
+                            timelineSceneFocusPlan: timelineSceneFocusPlan
+                        )
                             .environmentObject(model)
                     }
                     Spacer()
@@ -346,6 +357,7 @@ private extension CinematicSessionTimelinePlan.Beat.Style {
 private struct CinematicInfluenceControls: View {
     @EnvironmentObject private var model: AppModel
     @ObservedObject var project: CompassProject
+    var timelineSceneFocusPlan: CinematicTimelineSceneFocusPlan = .none
     @State private var isShowingDiagnostics = false
 
     private var trimmedDraft: String {
@@ -353,7 +365,12 @@ private struct CinematicInfluenceControls: View {
     }
 
     private var diagnosticsSummary: CinematicDiagnosticsSummary {
-        CinematicDiagnosticsSummary(report: CinematicDiagnostics.currentReport(for: project))
+        CinematicDiagnosticsSummary(
+            report: CinematicDiagnostics.currentReport(
+                for: project,
+                timelineFocusPlan: timelineSceneFocusPlan
+            )
+        )
     }
 
     var body: some View {
