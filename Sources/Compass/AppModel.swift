@@ -2321,25 +2321,29 @@ struct CinematicRunRecapShareArtifactLibraryContext: Codable, Equatable {
     static let selectedEntryIdentifierMaxCharacters = CinematicRunRecapShareArtifactHistoryPlan.identifierMaxCharacters
     static let searchTextMaxCharacters = CinematicRunRecapShareArtifactPreviewBrowserPlan.searchQuerySnippetMaxCharacters
     static let pinnedEntryIdentifierLimit = CinematicRunRecapShareArtifactPinnedReferencePlan.pinIdentifierLimit
+    static let savedTourHoldEntryIdentifierMaxCharacters = selectedEntryIdentifierMaxCharacters
     static let empty = CinematicRunRecapShareArtifactLibraryContext()
 
     var selectedEntryIdentifier: String?
     var searchText: String
     var pinnedEntryIdentifiers: [String]
     var comparisonTargetMode: CinematicRunRecapShareArtifactComparisonTargetMode
+    var savedTourHoldEntryIdentifier: String?
 
     enum CodingKeys: String, CodingKey {
         case selectedEntryIdentifier
         case searchText
         case pinnedEntryIdentifiers
         case comparisonTargetMode
+        case savedTourHoldEntryIdentifier
     }
 
     init(
         selectedEntryIdentifier: String? = nil,
         searchText: String = "",
         pinnedEntryIdentifiers: [String] = [],
-        comparisonTargetMode: CinematicRunRecapShareArtifactComparisonTargetMode = .adjacent
+        comparisonTargetMode: CinematicRunRecapShareArtifactComparisonTargetMode = .adjacent,
+        savedTourHoldEntryIdentifier: String? = nil
     ) {
         self.selectedEntryIdentifier = Self.boundedOptionalText(
             selectedEntryIdentifier,
@@ -2351,6 +2355,10 @@ struct CinematicRunRecapShareArtifactLibraryContext: Codable, Equatable {
         )
         self.pinnedEntryIdentifiers = Self.boundedIdentifierList(pinnedEntryIdentifiers)
         self.comparisonTargetMode = comparisonTargetMode
+        self.savedTourHoldEntryIdentifier = Self.boundedOptionalText(
+            savedTourHoldEntryIdentifier,
+            limit: Self.savedTourHoldEntryIdentifierMaxCharacters
+        )
     }
 
     init(from decoder: Decoder) throws {
@@ -2362,7 +2370,11 @@ struct CinematicRunRecapShareArtifactLibraryContext: Codable, Equatable {
             comparisonTargetMode: try container.decodeIfPresent(
                 CinematicRunRecapShareArtifactComparisonTargetMode.self,
                 forKey: .comparisonTargetMode
-            ) ?? .adjacent
+            ) ?? .adjacent,
+            savedTourHoldEntryIdentifier: try container.decodeIfPresent(
+                String.self,
+                forKey: .savedTourHoldEntryIdentifier
+            )
         )
     }
 
@@ -2376,6 +2388,7 @@ struct CinematicRunRecapShareArtifactLibraryContext: Codable, Equatable {
         if comparisonTargetMode != .adjacent {
             try container.encode(comparisonTargetMode, forKey: .comparisonTargetMode)
         }
+        try container.encodeIfPresent(savedTourHoldEntryIdentifier, forKey: .savedTourHoldEntryIdentifier)
     }
 
     func replacing(
@@ -2388,7 +2401,8 @@ struct CinematicRunRecapShareArtifactLibraryContext: Codable, Equatable {
             selectedEntryIdentifier: selectedEntryIdentifier,
             searchText: searchText,
             pinnedEntryIdentifiers: pinnedEntryIdentifiers ?? self.pinnedEntryIdentifiers,
-            comparisonTargetMode: comparisonTargetMode ?? self.comparisonTargetMode
+            comparisonTargetMode: comparisonTargetMode ?? self.comparisonTargetMode,
+            savedTourHoldEntryIdentifier: savedTourHoldEntryIdentifier
         )
     }
 
@@ -2428,6 +2442,35 @@ struct CinematicRunRecapShareArtifactLibraryContext: Codable, Equatable {
             searchText: searchText,
             pinnedEntryIdentifiers: nextPinnedEntryIdentifiers
         )
+    }
+
+    func holdingSavedTourEntryIdentifier(
+        _ identifier: String?
+    ) -> CinematicRunRecapShareArtifactLibraryContext {
+        CinematicRunRecapShareArtifactLibraryContext(
+            selectedEntryIdentifier: selectedEntryIdentifier,
+            searchText: searchText,
+            pinnedEntryIdentifiers: pinnedEntryIdentifiers,
+            comparisonTargetMode: comparisonTargetMode,
+            savedTourHoldEntryIdentifier: identifier
+        )
+    }
+
+    func releasingSavedTourHold() -> CinematicRunRecapShareArtifactLibraryContext {
+        holdingSavedTourEntryIdentifier(nil)
+    }
+
+    func togglingSavedTourHoldEntryIdentifier(
+        _ identifier: String?
+    ) -> CinematicRunRecapShareArtifactLibraryContext {
+        let boundedIdentifier = Self.boundedOptionalText(
+            identifier,
+            limit: Self.savedTourHoldEntryIdentifierMaxCharacters
+        )
+        guard savedTourHoldEntryIdentifier != boundedIdentifier else {
+            return releasingSavedTourHold()
+        }
+        return holdingSavedTourEntryIdentifier(boundedIdentifier)
     }
 
     private func resolvedPinnedEntryIdentifiers(

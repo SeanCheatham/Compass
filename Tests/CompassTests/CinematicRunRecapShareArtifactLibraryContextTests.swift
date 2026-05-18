@@ -152,16 +152,32 @@ final class CinematicRunRecapShareArtifactLibraryContextTests: XCTestCase {
         }
         let history = workspace.refreshRunRecapShareArtifactHistory()
         let newest = try XCTUnwrap(history.entries.first { $0.sessionNumber == 3 })
+        let held = try XCTUnwrap(history.entries.first { $0.sessionNumber == 2 })
         let filteredPin = try XCTUnwrap(history.entries.first { $0.sessionNumber == 1 })
         let pinnedContext = CinematicRunRecapShareArtifactLibraryContext(
             selectedEntryIdentifier: newest.identifier,
             searchText: "visible archive",
             pinnedEntryIdentifiers: [filteredPin.identifier, "missing-tour-pin"]
         )
+        let heldContext = pinnedContext.holdingSavedTourEntryIdentifier(held.identifier)
+        let filteredHoldContext = pinnedContext.holdingSavedTourEntryIdentifier(filteredPin.identifier)
+        let missingHoldContext = pinnedContext.holdingSavedTourEntryIdentifier("missing-tour-hold")
 
         let filteredPlan = CinematicRunRecapShareArtifactTourPlanner.plan(
             historyPlan: history,
             libraryContext: pinnedContext
+        )
+        let heldPlan = CinematicRunRecapShareArtifactTourPlanner.plan(
+            historyPlan: history,
+            libraryContext: heldContext
+        )
+        let filteredHoldPlan = CinematicRunRecapShareArtifactTourPlanner.plan(
+            historyPlan: history,
+            libraryContext: filteredHoldContext
+        )
+        let missingHoldPlan = CinematicRunRecapShareArtifactTourPlanner.plan(
+            historyPlan: history,
+            libraryContext: missingHoldContext
         )
         let staleOnlyPlan = CinematicRunRecapShareArtifactTourPlanner.plan(
             historyPlan: history,
@@ -176,10 +192,25 @@ final class CinematicRunRecapShareArtifactLibraryContextTests: XCTestCase {
         XCTAssertEqual(filteredPlan.selectedEntryIdentifier, newest.identifier)
         XCTAssertEqual(filteredPlan.filteredPinnedEntryIdentifiers, [filteredPin.identifier])
         XCTAssertEqual(filteredPlan.missingPinnedEntryIdentifiers, ["missing-tour-pin"])
+        XCTAssertEqual(heldPlan.stateIdentifier, "held")
+        XCTAssertEqual(heldPlan.savedTourHoldStateIdentifier, "held")
+        XCTAssertEqual(heldPlan.selectionSourceIdentifier, "held")
+        XCTAssertEqual(heldPlan.selectedEntryIdentifier, held.identifier)
+        XCTAssertEqual(heldPlan.retainedSavedTourHoldEntryIdentifier, held.identifier)
+        XCTAssertEqual(filteredHoldPlan.stateIdentifier, "filtered-hold")
+        XCTAssertEqual(filteredHoldPlan.savedTourHoldStateIdentifier, "filtered-hold")
+        XCTAssertEqual(filteredHoldPlan.filteredSavedTourHoldEntryIdentifier, filteredPin.identifier)
+        XCTAssertEqual(filteredHoldPlan.selectedEntryIdentifier, newest.identifier)
+        XCTAssertEqual(missingHoldPlan.stateIdentifier, "missing-hold")
+        XCTAssertEqual(missingHoldPlan.savedTourHoldStateIdentifier, "missing-hold")
+        XCTAssertEqual(missingHoldPlan.requestedSavedTourHoldEntryIdentifier, "missing-tour-hold")
+        XCTAssertEqual(missingHoldPlan.selectedEntryIdentifier, newest.identifier)
         XCTAssertEqual(staleOnlyPlan.stateIdentifier, "missing-pin")
         XCTAssertEqual(staleOnlyPlan.selectedEntryIdentifier, newest.identifier)
         XCTAssertEqual(pinnedContext.pinnedEntryIdentifiers, [filteredPin.identifier, "missing-tour-pin"])
         XCTAssertEqual(pinnedContext.searchText, "visible archive")
+        XCTAssertNil(pinnedContext.savedTourHoldEntryIdentifier)
+        XCTAssertEqual(filteredHoldContext.savedTourHoldEntryIdentifier, filteredPin.identifier)
     }
 
     func testContextResolvesSelectionFallbackAfterRetainedEntriesChange() throws {
@@ -202,7 +233,8 @@ final class CinematicRunRecapShareArtifactLibraryContextTests: XCTestCase {
         let context = CinematicRunRecapShareArtifactLibraryContext(
             selectedEntryIdentifier: oldest.identifier,
             searchText: "fallback body",
-            comparisonTargetMode: .pinnedReference
+            comparisonTargetMode: .pinnedReference,
+            savedTourHoldEntryIdentifier: "stale-held-tour"
         )
 
         try FileManager.default.removeItem(at: oldest.url)
@@ -216,6 +248,7 @@ final class CinematicRunRecapShareArtifactLibraryContextTests: XCTestCase {
 
         XCTAssertEqual(resolvedContext.searchText, "fallback body")
         XCTAssertEqual(resolvedContext.comparisonTargetMode, .pinnedReference)
+        XCTAssertEqual(resolvedContext.savedTourHoldEntryIdentifier, "stale-held-tour")
         XCTAssertEqual(resolvedContext.selectedEntryIdentifier, refreshedHistory.entries.first?.identifier)
         XCTAssertEqual(resolvedPreview.selectedFallbackReasonIdentifier, "none")
         XCTAssertEqual(resolvedPreview.selectedEntryIdentifier, refreshedHistory.entries.first?.identifier)
@@ -242,7 +275,8 @@ final class CinematicRunRecapShareArtifactLibraryContextTests: XCTestCase {
         let selected = try XCTUnwrap(history.entries.first { $0.sessionNumber == 1 })
         let context = CinematicRunRecapShareArtifactLibraryContext(
             selectedEntryIdentifier: selected.identifier,
-            searchText: "restored search"
+            searchText: "restored search",
+            savedTourHoldEntryIdentifier: selected.identifier
         )
         let record = KnownProjectRecord(
             id: UUID(uuidString: "71717171-7171-7171-7171-717171717171")!,
@@ -273,6 +307,8 @@ final class CinematicRunRecapShareArtifactLibraryContextTests: XCTestCase {
         XCTAssertEqual(report.runRecapShareArtifactPreview.selectedEntryIdentifier, selected.identifier)
         XCTAssertEqual(report.runRecapShareArtifactPreview.searchQuerySnippet, "restored search")
         XCTAssertEqual(report.runRecapShareArtifactPreview.filteredExport.exportedEntryIdentifiers, [selected.identifier])
+        XCTAssertEqual(report.runRecapShareArtifactTour.savedTourHoldStateIdentifier, "held")
+        XCTAssertEqual(report.runRecapShareArtifactTour.selectionSourceIdentifier, "held")
     }
 
     private func artifactMarkdown(

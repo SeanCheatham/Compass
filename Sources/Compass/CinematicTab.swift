@@ -160,6 +160,7 @@ struct CinematicTab: View {
                             plan: recapPlan,
                             sharePlan: runRecapSharePlan,
                             artifactHistoryPlan: project.cinematicRunRecapShareArtifactHistory,
+                            artifactTourPlan: recapArtifactTourPlan,
                             displayPlan: displayPlan
                         )
                     } else {
@@ -410,6 +411,7 @@ private struct CinematicRunRecapOverlay: View {
     var plan: CinematicRunRecapPlan
     var sharePlan: CinematicRunRecapSharePlan
     var artifactHistoryPlan: CinematicRunRecapShareArtifactHistoryPlan
+    var artifactTourPlan: CinematicRunRecapShareArtifactTourPlan
     var displayPlan: CinematicOverlayDisplayPlan
     @State private var shareFeedbackLabel: String?
     @State private var shareFeedbackHelp: String?
@@ -495,6 +497,7 @@ private struct CinematicRunRecapOverlay: View {
             CinematicRunRecapArtifactLibraryControl(
                 project: project,
                 plan: artifactHistoryPlan,
+                tourPlan: artifactTourPlan,
                 tint: tint,
                 displayPlan: displayPlan
             )
@@ -583,6 +586,7 @@ private struct CinematicRunRecapArtifactLibraryControl: View {
     @EnvironmentObject private var model: AppModel
     @ObservedObject var project: CompassProject
     var plan: CinematicRunRecapShareArtifactHistoryPlan
+    var tourPlan: CinematicRunRecapShareArtifactTourPlan
     var tint: Color
     var displayPlan: CinematicOverlayDisplayPlan
     @State private var feedback: String?
@@ -601,6 +605,7 @@ private struct CinematicRunRecapArtifactLibraryControl: View {
             rollupScanline(rollupPlan)
             comparisonStrip(comparisonPlan)
             pinnedReferenceStrip(pinnedReferencePlan, previewPlan: previewPlan)
+            tourStrip(tourPlan, previewPlan: previewPlan)
 
             HStack(alignment: .center, spacing: 7) {
                 Image(systemName: previewPlan.hasWarnings ? "archivebox.fill" : "archivebox")
@@ -1006,6 +1011,88 @@ private struct CinematicRunRecapArtifactLibraryControl: View {
         .accessibilityIdentifier("cinematic-run-recap-artifact-library-pins-\(pinnedReferencePlan.identifier)")
     }
 
+    private func tourStrip(
+        _ tourPlan: CinematicRunRecapShareArtifactTourPlan,
+        previewPlan: CinematicRunRecapShareArtifactPreviewBrowserPlan
+    ) -> some View {
+        let tourExportPlan = tourSubsetExportPlan(tourPlan)
+        let hasSavedTourHold = artifactLibraryContext.savedTourHoldEntryIdentifier != nil
+        let isSelectedHeld = previewPlan.selectedEntryIdentifier != nil
+            && previewPlan.selectedEntryIdentifier == artifactLibraryContext.savedTourHoldEntryIdentifier
+
+        return HStack(alignment: .center, spacing: 6) {
+            Image(systemName: tourSystemImage(tourPlan))
+                .font(.system(size: 10, weight: .bold))
+                .foregroundStyle(tint.opacity(tourPlan.isAvailable ? 0.78 : 0.38))
+                .frame(width: 14)
+
+            Text(tourSummary(tourPlan))
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(.white.opacity(tourPlan.isAvailable ? 0.68 : 0.44))
+                .lineLimit(1)
+                .minimumScaleFactor(0.68)
+
+            Spacer(minLength: 4)
+
+            Button {
+                holdOrReleaseCurrentTour(tourPlan.selectedEntryIdentifier)
+            } label: {
+                Image(systemName: hasSavedTourHold ? "lock.open" : "lock")
+                    .font(.system(size: 11, weight: .bold))
+                    .frame(width: 20, height: 18)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .disabled(!hasSavedTourHold && tourPlan.selectedEntryIdentifier == nil)
+            .foregroundStyle(tint.opacity((hasSavedTourHold || tourPlan.selectedEntryIdentifier != nil) ? 0.82 : 0.3))
+            .help(tourHoldHelp(tourPlan, hasHold: hasSavedTourHold))
+            .accessibilityLabel(hasSavedTourHold ? "Release saved recap tour hold" : "Hold current saved recap tour")
+            .accessibilityIdentifier("cinematic-run-recap-artifact-library-toggle-tour-hold")
+
+            Button {
+                toggleTourHold(previewPlan.selectedEntryIdentifier)
+            } label: {
+                Image(systemName: isSelectedHeld ? "bookmark.slash" : "bookmark")
+                    .font(.system(size: 11, weight: .bold))
+                    .frame(width: 20, height: 18)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .disabled(previewPlan.selectedEntryIdentifier == nil)
+            .foregroundStyle(tint.opacity(previewPlan.selectedEntryIdentifier == nil ? 0.3 : 0.82))
+            .help(selectedHoldHelp(previewPlan, isHeld: isSelectedHeld))
+            .accessibilityLabel(isSelectedHeld ? "Release selected saved recap tour hold" : "Hold selected saved recap artifact for tour")
+            .accessibilityIdentifier("cinematic-run-recap-artifact-library-toggle-selected-tour-hold")
+
+            Button {
+                copyTourExport(tourPlan)
+            } label: {
+                Image(systemName: "doc.on.doc")
+                    .font(.system(size: 11, weight: .bold))
+                    .frame(width: 20, height: 18)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .disabled(!tourExportPlan.isAvailable)
+            .foregroundStyle(tint.opacity(tourExportPlan.isAvailable ? 0.82 : 0.3))
+            .help(tourExportPlan.copyHelp)
+            .accessibilityLabel("Copy currently toured recap artifact")
+            .accessibilityIdentifier("cinematic-run-recap-artifact-library-copy-tour-export")
+        }
+        .padding(.horizontal, 6)
+        .padding(.vertical, 3)
+        .background(
+            tint.opacity(tourPlan.savedTourHoldStateIdentifier == "none" ? 0.045 : 0.075),
+            in: RoundedRectangle(cornerRadius: 5)
+        )
+        .overlay {
+            RoundedRectangle(cornerRadius: 5)
+                .stroke(tint.opacity(tourPlan.savedTourHoldStateIdentifier == "none" ? 0.09 : 0.2), lineWidth: 1)
+        }
+        .help(tourSummary(tourPlan))
+        .accessibilityIdentifier("cinematic-run-recap-artifact-library-tour-\(tourPlan.identifier)")
+    }
+
     private func pinnedReferenceQuickSelectButtons(
         _ pinnedReferencePlan: CinematicRunRecapShareArtifactPinnedReferencePlan,
         previewPlan: CinematicRunRecapShareArtifactPreviewBrowserPlan
@@ -1127,6 +1214,59 @@ private struct CinematicRunRecapArtifactLibraryControl: View {
         return "Pins \(pinnedReferencePlan.retainedPinnedEntryCount)/\(pinnedReferencePlan.pinnedEntryCount)\(search)\(filtered)\(missing)"
     }
 
+    private func tourSystemImage(_ tourPlan: CinematicRunRecapShareArtifactTourPlan) -> String {
+        switch tourPlan.savedTourHoldStateIdentifier {
+        case "held":
+            return "lock.fill"
+        case "missing-hold":
+            return "exclamationmark.triangle"
+        case "filtered-hold":
+            return "magnifyingglass.circle"
+        default:
+            return tourPlan.selectionSourceIdentifier == "pinned" ? "pin.fill" : "sparkles"
+        }
+    }
+
+    private func tourSummary(_ tourPlan: CinematicRunRecapShareArtifactTourPlan) -> String {
+        guard tourPlan.isAvailable else {
+            return "Tour \(tourPlan.savedTourHoldStateIdentifier) | \(tourPlan.availabilityReason)"
+        }
+        let session = tourPlan.sessionNumber.map { "S\($0)" } ?? "S-"
+        let hold = tourPlan.savedTourHoldStateIdentifier == "none"
+            ? ""
+            : " | \(tourPlan.savedTourHoldStateIdentifier)"
+        let search = tourPlan.isSearchActive
+            ? " | \(tourPlan.matchingEntryCount)/\(tourPlan.unfilteredVisibleCount)"
+            : ""
+        return "Tour \(session) | \(tourPlan.selectionSourceIdentifier)\(hold)\(search)"
+    }
+
+    private func tourHoldHelp(
+        _ tourPlan: CinematicRunRecapShareArtifactTourPlan,
+        hasHold: Bool
+    ) -> String {
+        if hasHold {
+            return "Release the saved recap artifact tour hold."
+        }
+        guard tourPlan.selectedEntryIdentifier != nil else {
+            return "No currently toured recap artifact to hold."
+        }
+        return "Hold the currently toured recap artifact so the idle tour keeps returning to it."
+    }
+
+    private func selectedHoldHelp(
+        _ previewPlan: CinematicRunRecapShareArtifactPreviewBrowserPlan,
+        isHeld: Bool
+    ) -> String {
+        guard previewPlan.selectedEntryIdentifier != nil else {
+            return "No selected recap artifact to hold for the idle tour."
+        }
+        if isHeld {
+            return "Release the selected recap artifact from the saved tour hold."
+        }
+        return "Hold the selected recap artifact for the idle saved artifact tour."
+    }
+
     private func pinnedReferenceHelp(
         _ reference: CinematicRunRecapShareArtifactPinnedReferencePlan.Reference,
         plan pinnedReferencePlan: CinematicRunRecapShareArtifactPinnedReferencePlan
@@ -1159,6 +1299,17 @@ private struct CinematicRunRecapArtifactLibraryControl: View {
             selectedEntryIdentifier: artifactLibraryContext.selectedEntryIdentifier,
             searchQuery: artifactLibraryContext.searchText,
             scope: scope
+        )
+    }
+
+    private func tourSubsetExportPlan(
+        _ tourPlan: CinematicRunRecapShareArtifactTourPlan
+    ) -> CinematicRunRecapShareArtifactSubsetExportPlan {
+        CinematicRunRecapShareArtifactSubsetExportPlanner.plan(
+            historyPlan: plan,
+            selectedEntryIdentifier: tourPlan.selectedEntryIdentifier,
+            searchQuery: artifactLibraryContext.searchText,
+            scope: .selected
         )
     }
 
@@ -1371,6 +1522,16 @@ private struct CinematicRunRecapArtifactLibraryControl: View {
         preservedFeedbackPlanIdentifier = plan.identifier
     }
 
+    private func copyTourExport(_ tourPlan: CinematicRunRecapShareArtifactTourPlan) {
+        let exportPlan = tourSubsetExportPlan(tourPlan)
+        guard exportPlan.isAvailable else { return }
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(exportPlan.markdownContents, forType: .string)
+        feedback = "Tour export copied"
+        feedbackStatus = nil
+        preservedFeedbackPlanIdentifier = plan.identifier
+    }
+
     private func copyExport() {
         guard plan.isAvailable else { return }
         NSPasteboard.general.clearContents()
@@ -1410,6 +1571,30 @@ private struct CinematicRunRecapArtifactLibraryControl: View {
         feedback = pinPlan.selectedEntryIsPinned ? "Unpinned" : "Pinned"
         feedbackStatus = nil
         preservedFeedbackPlanIdentifier = plan.identifier
+    }
+
+    private func toggleTourHold(_ identifier: String?) {
+        guard identifier != nil else { return }
+        let wasHeld = artifactLibraryContext.savedTourHoldEntryIdentifier == identifier
+        persistContext(
+            artifactLibraryContext
+                .togglingSavedTourHoldEntryIdentifier(identifier)
+                .resolvingSelection(in: plan)
+        )
+        feedback = wasHeld ? "Tour released" : "Tour held"
+        feedbackStatus = nil
+        preservedFeedbackPlanIdentifier = plan.identifier
+    }
+
+    private func holdOrReleaseCurrentTour(_ identifier: String?) {
+        if artifactLibraryContext.savedTourHoldEntryIdentifier != nil {
+            persistContext(artifactLibraryContext.releasingSavedTourHold().resolvingSelection(in: plan))
+            feedback = "Tour released"
+            feedbackStatus = nil
+            preservedFeedbackPlanIdentifier = plan.identifier
+            return
+        }
+        toggleTourHold(identifier)
     }
 
     private func toggleComparisonTargetMode() {

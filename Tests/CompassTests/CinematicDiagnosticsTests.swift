@@ -525,6 +525,32 @@ final class CinematicDiagnosticsTests: XCTestCase {
         XCTAssertTrue(summary.exportText.contains("state pinned"))
     }
 
+    func testReportAndSummaryExportHeldSavedRecapArtifactTourState() throws {
+        let report = try XCTUnwrap(
+            CinematicDiagnostics.representativeSavedRecapArtifactTourSmokeReports().first {
+                $0.runRecapShareArtifactTour.stateIdentifier == "held"
+            }
+        )
+        let filteredHoldReport = try XCTUnwrap(
+            CinematicDiagnostics.representativeSavedRecapArtifactTourSmokeReports().first {
+                $0.runRecapShareArtifactTour.stateIdentifier == "filtered-hold"
+            }
+        )
+        let summary = CinematicDiagnosticsSummary(
+            report: report,
+            visualSmoke: CinematicVisualSmokeReport(reports: [report, filteredHoldReport])
+        )
+        let row = try XCTUnwrap(summary.rows.first { $0.id == "run-recap-share-artifact-tour" })
+
+        XCTAssertEqual(report.runRecapShareArtifactTour.savedTourHoldStateIdentifier, "held")
+        XCTAssertEqual(report.runRecapShareArtifactTour.selectionSourceIdentifier, "held")
+        XCTAssertEqual(filteredHoldReport.runRecapShareArtifactTour.savedTourHoldStateIdentifier, "filtered-hold")
+        XCTAssertTrue(report.identifier.contains("run-recap-share-artifact-tour-hold:held"))
+        XCTAssertTrue(row.detail.contains("hold held"))
+        XCTAssertTrue(summary.exportText.contains("hold held"))
+        XCTAssertTrue(summary.exportText.contains("filtered-hold"))
+    }
+
     func testReportContainsEveryCameraShotAndCameraTuningValue() throws {
         let settings = CinematicInfluenceSettings(cameraStyle: .steady, intensity: 0.25)
         let report = CinematicDiagnostics.representativeSmokeMatrix(influenceSettings: settings).first!

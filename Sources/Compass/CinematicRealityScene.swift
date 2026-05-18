@@ -3324,7 +3324,7 @@ private final class CinematicSceneCoordinator {
         animated: Bool
     ) {
         clearChildren(of: savedRecapArtifactTourNode)
-        savedRecapArtifactTourNode.name = "saved-recap-artifact-tour.\(tourPlan.stateIdentifier)"
+        savedRecapArtifactTourNode.name = "saved-recap-artifact-tour.\(tourPlan.stateIdentifier).\(tourPlan.savedTourHoldStateIdentifier)"
         savedRecapArtifactTourNode.position = savedRecapArtifactTourPosition(for: tourPlan)
         savedRecapArtifactTourNode.orientation = narrativeBillboardOrientation(
             from: savedRecapArtifactTourNode.position(relativeTo: nil),
@@ -3372,16 +3372,18 @@ private final class CinematicSceneCoordinator {
             to: [-plateWidth * 0.43, plateHeight * 0.3, 0.034],
             radius: 0.0045,
             color: color.withAlphaComponent(0.82),
-            opacity: tourPlan.selectionSourceIdentifier == "pinned" ? 0.54 : 0.34
+            opacity: tourPlan.selectionSourceIdentifier == "held"
+                ? 0.62
+                : (tourPlan.selectionSourceIdentifier == "pinned" ? 0.54 : 0.34)
         )
-        sideRail.name = "saved-recap-artifact-tour.rail.pin"
+        sideRail.name = "saved-recap-artifact-tour.rail.\(tourPlan.selectionSourceIdentifier).\(tourPlan.savedTourHoldStateIdentifier)"
         savedRecapArtifactTourNode.addChild(sideRail)
 
         let orb = ModelEntity(
             mesh: .generateSphere(radius: 0.046),
             materials: [glowMaterial(color, opacity: tourPlan.hasWarnings ? 0.78 : 0.62)]
         )
-        orb.name = "saved-recap-artifact-tour.orb.\(tourPlan.stateIdentifier)"
+        orb.name = "saved-recap-artifact-tour.orb.\(tourPlan.stateIdentifier).\(tourPlan.savedTourHoldStateIdentifier)"
         orb.position = [-plateWidth * 0.43, plateHeight * 0.36, 0.058]
         orb.components.set(OpacityComponent(opacity: tourPlan.hasWarnings ? 0.78 : 0.62))
         savedRecapArtifactTourNode.addChild(orb)
@@ -3664,22 +3666,35 @@ private final class CinematicSceneCoordinator {
         for tourPlan: CinematicRunRecapShareArtifactTourPlan
     ) -> SIMD3<Float> {
         let sessionOffset = Float((tourPlan.sessionNumber ?? 0) % 5) * 0.035
-        let pinOffset: Float = tourPlan.selectionSourceIdentifier == "pinned" ? -0.08 : 0.08
+        let pinOffset: Float
+        switch tourPlan.selectionSourceIdentifier {
+        case "held":
+            pinOffset = -0.02
+        case "pinned":
+            pinOffset = -0.08
+        default:
+            pinOffset = 0.08
+        }
         return [-1.68 + pinOffset, 1.18 + sessionOffset, 1.58]
     }
 
     private func savedRecapArtifactTourColor(
         for tourPlan: CinematicRunRecapShareArtifactTourPlan
     ) -> NSColor {
-        if tourPlan.stateIdentifier.contains("missing-pin") {
+        if tourPlan.stateIdentifier.contains("missing-pin")
+            || tourPlan.stateIdentifier.contains("missing-hold") {
             return themedColor(SpellSchool.failure.nsColor)
         }
         if tourPlan.stateIdentifier.contains("filtered-pin")
+            || tourPlan.stateIdentifier.contains("filtered-hold")
             || tourPlan.stateIdentifier.contains("no-match") {
             return themedColor(SpellSchool.scan.nsColor)
         }
         if tourPlan.hasWarnings {
             return themedColor(SpellSchool.pressure.nsColor)
+        }
+        if tourPlan.selectionSourceIdentifier == "held" {
+            return themedColor(SpellSchool.verify.nsColor)
         }
         if tourPlan.selectionSourceIdentifier == "pinned" {
             return themedColor(SpellSchool.git.nsColor)

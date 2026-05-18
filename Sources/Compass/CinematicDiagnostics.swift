@@ -741,6 +741,10 @@ struct CinematicDiagnosticsReport: Equatable {
         var availabilityReason: String
         var stateIdentifier: String
         var selectionSourceIdentifier: String
+        var savedTourHoldStateIdentifier: String
+        var requestedSavedTourHoldEntryIdentifier: String?
+        var retainedSavedTourHoldEntryIdentifier: String?
+        var filteredSavedTourHoldEntryIdentifier: String?
         var isSearchActive: Bool
         var searchQuerySnippet: String
         var searchQueryFingerprint: String
@@ -1524,6 +1528,7 @@ struct CinematicVisualSmokeReport: Equatable {
         }
         let states = Set(displayReports.map(\.runRecapShareArtifactTour.stateIdentifier))
         let sources = Set(displayReports.map(\.runRecapShareArtifactTour.selectionSourceIdentifier))
+        let holdStates = Set(displayReports.map(\.runRecapShareArtifactTour.savedTourHoldStateIdentifier))
         let noMatchCount = displayReports.filter {
             $0.runRecapShareArtifactTour.noMatchAvailabilityReason == "no-matching-recap-share-artifacts"
         }.count
@@ -1537,15 +1542,19 @@ struct CinematicVisualSmokeReport: Equatable {
         let isPassing = !reports.isEmpty
             && !displayReports.isEmpty
             && !activeIdleTourReports.isEmpty
-            && sources.isSuperset(of: ["recent", "pinned"])
+            && sources.isSuperset(of: ["recent", "pinned", "held"])
             && states.isSuperset(of: [
                 "recent",
                 "pinned",
+                "held",
                 "filtered-pin",
+                "filtered-hold",
                 "no-match",
                 "missing-pin",
+                "missing-hold",
                 "recent-warning"
             ])
+            && holdStates.isSuperset(of: ["none", "held", "filtered-hold", "missing-hold"])
             && noMatchCount > 0
             && warningCount > 0
             && boundedCount == reports.count
@@ -1556,14 +1565,16 @@ struct CinematicVisualSmokeReport: Equatable {
             isPassing: isPassing,
             warningIdentifier: "visual-smoke.saved-artifact-tour",
             detail: [
-                "warnings \(warningCount)",
-                "bounded \(boundedCount)/\(reports.count)",
-                "recent \(states.contains("recent"))",
-                "pinned \(states.contains("pinned"))",
-                "filtered-pin \(states.contains("filtered-pin"))",
+                "recent",
+                "pinned",
+                "held",
+                "filtered-pin",
+                "filtered-hold",
                 "no-match \(noMatchCount)",
-                "missing-pin \(states.contains("missing-pin"))",
-                "src \(slashJoined(sources))"
+                "missing-pin",
+                "missing-hold",
+                "warnings \(warningCount)",
+                "bounded \(boundedCount)/\(reports.count)"
             ].joined(separator: " ")
         )
     }
@@ -2282,6 +2293,16 @@ struct CinematicVisualSmokeReport: Equatable {
                 snapshot.selectionSourceIdentifier,
                 maxCharacters: CinematicRunRecapShareArtifactTourPlan.snippetMaxCharacters
             )
+            && string(
+                snapshot.savedTourHoldStateIdentifier,
+                maxCharacters: CinematicRunRecapShareArtifactTourPlan.snippetMaxCharacters
+            )
+            && (snapshot.requestedSavedTourHoldEntryIdentifier ?? "").count
+                <= CinematicRunRecapShareArtifactHistoryPlan.identifierMaxCharacters
+            && (snapshot.retainedSavedTourHoldEntryIdentifier ?? "").count
+                <= CinematicRunRecapShareArtifactHistoryPlan.identifierMaxCharacters
+            && (snapshot.filteredSavedTourHoldEntryIdentifier ?? "").count
+                <= CinematicRunRecapShareArtifactHistoryPlan.identifierMaxCharacters
             && string(
                 snapshot.searchQuerySnippet,
                 maxCharacters: CinematicRunRecapShareArtifactTourPlan.searchQuerySnippetMaxCharacters
@@ -4190,6 +4211,16 @@ struct CinematicDiagnosticsSummary: Equatable {
             availability,
             "state \(snapshot.stateIdentifier)",
             "source \(snapshot.selectionSourceIdentifier)",
+            "hold \(snapshot.savedTourHoldStateIdentifier)",
+            snapshot.requestedSavedTourHoldEntryIdentifier.map {
+                "held id \(bounded($0, limit: 54))"
+            },
+            snapshot.retainedSavedTourHoldEntryIdentifier.map {
+                "retained held \(bounded($0, limit: 54))"
+            },
+            snapshot.filteredSavedTourHoldEntryIdentifier.map {
+                "filtered held \(bounded($0, limit: 54))"
+            },
             snapshot.isSearchActive
                 ? "search \(snapshot.searchQuerySnippet) \(snapshot.searchQueryFingerprint)"
                 : "search none",
@@ -4518,6 +4549,8 @@ enum CinematicDiagnostics {
                 project.cinematicRunRecapShareArtifactLibraryContext.comparisonTargetMode,
             runRecapShareArtifactPinnedEntryIdentifiers:
                 project.cinematicRunRecapShareArtifactLibraryContext.pinnedEntryIdentifiers,
+            runRecapShareArtifactSavedTourHoldEntryIdentifier:
+                project.cinematicRunRecapShareArtifactLibraryContext.savedTourHoldEntryIdentifier,
             nativeFeedbackCue: project.cinematicNativeFeedbackCue,
             nativeFeedbackLifecycle: project.cinematicNativeFeedbackCueLifecycle
         )
@@ -4554,6 +4587,7 @@ enum CinematicDiagnostics {
         runRecapShareArtifactPreviewSearchQuery: String? = nil,
         runRecapShareArtifactComparisonTargetMode: CinematicRunRecapShareArtifactComparisonTargetMode = .adjacent,
         runRecapShareArtifactPinnedEntryIdentifiers: [String] = [],
+        runRecapShareArtifactSavedTourHoldEntryIdentifier: String? = nil,
         nativeFeedbackCue: CinematicNativeFeedbackCuePlan? = nil,
         nativeFeedbackLifecycle: CinematicNativeFeedbackCueLifecycle = CinematicNativeFeedbackCueLifecycle()
     ) -> CinematicDiagnosticsReport {
@@ -4636,7 +4670,8 @@ enum CinematicDiagnostics {
             selectedEntryIdentifier: runRecapShareArtifactPreviewSelectedEntryIdentifier,
             searchText: runRecapShareArtifactPreviewSearchQuery ?? "",
             pinnedEntryIdentifiers: runRecapShareArtifactPinnedEntryIdentifiers,
-            comparisonTargetMode: runRecapShareArtifactComparisonTargetMode
+            comparisonTargetMode: runRecapShareArtifactComparisonTargetMode,
+            savedTourHoldEntryIdentifier: runRecapShareArtifactSavedTourHoldEntryIdentifier
         )
         let runRecapShareArtifactTourPlan = CinematicRunRecapShareArtifactTourPlanner.plan(
             historyPlan: runRecapShareArtifactHistoryPlan,
@@ -4807,6 +4842,8 @@ enum CinematicDiagnostics {
                 "run-recap-share-artifact-tour:\(runRecapShareArtifactTourSnapshot.identifier)",
                 "run-recap-share-artifact-tour-state:\(runRecapShareArtifactTourSnapshot.stateIdentifier)",
                 "run-recap-share-artifact-tour-source:\(runRecapShareArtifactTourSnapshot.selectionSourceIdentifier)",
+                "run-recap-share-artifact-tour-hold:\(runRecapShareArtifactTourSnapshot.savedTourHoldStateIdentifier)",
+                "run-recap-share-artifact-tour-held-entry:\(runRecapShareArtifactTourSnapshot.requestedSavedTourHoldEntryIdentifier ?? "none")",
                 "run-recap-share-artifact-preview:\(runRecapShareArtifactPreviewSnapshot.identifier)",
                 "run-recap-share-artifact-selected-export:\(runRecapShareArtifactPreviewSnapshot.selectedExport.identifier)",
                 "run-recap-share-artifact-filtered-export:\(runRecapShareArtifactPreviewSnapshot.filteredExport.identifier)",
@@ -5074,10 +5111,32 @@ enum CinematicDiagnostics {
                 influenceSettings: influenceSettings
             ),
             representativeSavedRecapArtifactTourSmokeReport(
+                caseIdentifier: "held",
+                searchQuery: nil,
+                pinnedSessions: [22],
+                missingPins: [],
+                heldSession: 21,
+                missingHold: nil,
+                warningCount: 0,
+                rotationSeed: 0,
+                influenceSettings: influenceSettings
+            ),
+            representativeSavedRecapArtifactTourSmokeReport(
                 caseIdentifier: "search-filtered",
                 searchQuery: "selected archive beacon",
                 pinnedSessions: [21],
                 missingPins: [],
+                warningCount: 0,
+                rotationSeed: 0,
+                influenceSettings: influenceSettings
+            ),
+            representativeSavedRecapArtifactTourSmokeReport(
+                caseIdentifier: "filtered-hold",
+                searchQuery: "selected archive beacon",
+                pinnedSessions: [22],
+                missingPins: [],
+                heldSession: 21,
+                missingHold: nil,
                 warningCount: 0,
                 rotationSeed: 0,
                 influenceSettings: influenceSettings
@@ -5096,6 +5155,17 @@ enum CinematicDiagnostics {
                 searchQuery: nil,
                 pinnedSessions: [],
                 missingPins: ["missing-saved-tour-pin"],
+                warningCount: 0,
+                rotationSeed: 0,
+                influenceSettings: influenceSettings
+            ),
+            representativeSavedRecapArtifactTourSmokeReport(
+                caseIdentifier: "stale-hold",
+                searchQuery: nil,
+                pinnedSessions: [21],
+                missingPins: [],
+                heldSession: nil,
+                missingHold: "missing-saved-tour-hold",
                 warningCount: 0,
                 rotationSeed: 0,
                 influenceSettings: influenceSettings
@@ -5363,6 +5433,8 @@ enum CinematicDiagnostics {
         searchQuery: String?,
         pinnedSessions: [Int],
         missingPins: [String],
+        heldSession: Int? = nil,
+        missingHold: String? = nil,
         warningCount: Int,
         rotationSeed: Int,
         influenceSettings: CinematicInfluenceSettings
@@ -5377,12 +5449,16 @@ enum CinematicDiagnostics {
         let pinnedEntryIdentifiers = pinnedSessions.compactMap {
             entryIdentifiersBySession[$0]
         } + missingPins
+        let savedTourHoldEntryIdentifier = heldSession.flatMap {
+            entryIdentifiersBySession[$0]
+        } ?? missingHold
         let tourPlan = CinematicRunRecapShareArtifactTourPlanner.plan(
             historyPlan: historyPlan,
             libraryContext: CinematicRunRecapShareArtifactLibraryContext(
                 selectedEntryIdentifier: historyPlan.entries.first?.identifier,
                 searchText: searchQuery ?? "",
-                pinnedEntryIdentifiers: pinnedEntryIdentifiers
+                pinnedEntryIdentifiers: pinnedEntryIdentifiers,
+                savedTourHoldEntryIdentifier: savedTourHoldEntryIdentifier
             ),
             rotationSeed: rotationSeed
         )
@@ -5419,7 +5495,8 @@ enum CinematicDiagnostics {
             runRecapShareArtifactHistoryPlan: historyPlan,
             runRecapShareArtifactPreviewSelectedEntryIdentifier: historyPlan.entries.first?.identifier,
             runRecapShareArtifactPreviewSearchQuery: searchQuery,
-            runRecapShareArtifactPinnedEntryIdentifiers: pinnedEntryIdentifiers
+            runRecapShareArtifactPinnedEntryIdentifiers: pinnedEntryIdentifiers,
+            runRecapShareArtifactSavedTourHoldEntryIdentifier: savedTourHoldEntryIdentifier
         )
     }
 
@@ -6953,6 +7030,10 @@ enum CinematicDiagnostics {
             availabilityReason: plan.availabilityReason,
             stateIdentifier: plan.stateIdentifier,
             selectionSourceIdentifier: plan.selectionSourceIdentifier,
+            savedTourHoldStateIdentifier: plan.savedTourHoldStateIdentifier,
+            requestedSavedTourHoldEntryIdentifier: plan.requestedSavedTourHoldEntryIdentifier,
+            retainedSavedTourHoldEntryIdentifier: plan.retainedSavedTourHoldEntryIdentifier,
+            filteredSavedTourHoldEntryIdentifier: plan.filteredSavedTourHoldEntryIdentifier,
             isSearchActive: plan.isSearchActive,
             searchQuerySnippet: plan.searchQuerySnippet,
             searchQueryFingerprint: plan.searchQueryFingerprint,

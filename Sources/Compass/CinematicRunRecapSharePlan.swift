@@ -444,6 +444,10 @@ struct CinematicRunRecapShareArtifactTourPlan: Equatable, Identifiable {
     var availabilityReason: String
     var stateIdentifier: String
     var selectionSourceIdentifier: String
+    var savedTourHoldStateIdentifier: String
+    var requestedSavedTourHoldEntryIdentifier: String?
+    var retainedSavedTourHoldEntryIdentifier: String?
+    var filteredSavedTourHoldEntryIdentifier: String?
     var isSearchActive: Bool
     var searchQuerySnippet: String
     var searchQueryFingerprint: String
@@ -479,7 +483,11 @@ struct CinematicRunRecapShareArtifactTourPlan: Equatable, Identifiable {
     var hasWarnings: Bool
 
     var shouldDisplay: Bool {
-        isAvailable || isSearchActive || pinnedEntryCount > 0 || hasWarnings
+        isAvailable
+            || isSearchActive
+            || pinnedEntryCount > 0
+            || requestedSavedTourHoldEntryIdentifier != nil
+            || hasWarnings
     }
 }
 
@@ -991,6 +999,25 @@ enum CinematicRunRecapShareArtifactTourPlanner {
         let retainedEntriesByIdentifier = Dictionary(
             uniqueKeysWithValues: retainedEntries.map { ($0.identifier, $0) }
         )
+        let requestedSavedTourHoldEntryIdentifier = boundedOptionalIdentifier(
+            libraryContext.savedTourHoldEntryIdentifier
+        )
+        let retainedSavedTourHoldEntry = requestedSavedTourHoldEntryIdentifier.flatMap {
+            retainedEntriesByIdentifier[$0]
+        }
+        let retainedSavedTourHoldEntryIdentifier = retainedSavedTourHoldEntry?.identifier
+        let filteredSavedTourHoldEntryIdentifier = search.isActive
+            ? retainedSavedTourHoldEntry
+                .flatMap { matchingEntryIdentifiers.contains($0.identifier) ? nil : $0.identifier }
+            : nil
+        let visibleSavedTourHoldEntry = filteredSavedTourHoldEntryIdentifier == nil
+            ? retainedSavedTourHoldEntry
+            : nil
+        let savedTourHoldStateIdentifier = savedTourHoldStateIdentifier(
+            requestedEntryIdentifier: requestedSavedTourHoldEntryIdentifier,
+            retainedEntryIdentifier: retainedSavedTourHoldEntryIdentifier,
+            filteredEntryIdentifier: filteredSavedTourHoldEntryIdentifier
+        )
         let retainedPinnedEntries = requestedPinnedEntryIdentifiers.compactMap { retainedEntriesByIdentifier[$0] }
         let retainedPinnedEntryIdentifiers = retainedPinnedEntries.map(\.identifier)
         let missingPinnedEntryIdentifiers = requestedPinnedEntryIdentifiers.filter {
@@ -1004,7 +1031,10 @@ enum CinematicRunRecapShareArtifactTourPlanner {
             : retainedPinnedEntries
         let selectionPool: [CinematicRunRecapShareArtifactHistoryPlan.Entry]
         let selectionSourceIdentifier: String
-        if !visiblePinnedEntries.isEmpty {
+        if let visibleSavedTourHoldEntry {
+            selectionPool = [visibleSavedTourHoldEntry]
+            selectionSourceIdentifier = "held"
+        } else if !visiblePinnedEntries.isEmpty {
             selectionPool = visiblePinnedEntries
             selectionSourceIdentifier = "pinned"
         } else {
@@ -1022,6 +1052,7 @@ enum CinematicRunRecapShareArtifactTourPlanner {
             historyPlan: historyPlan,
             search: search,
             noMatchAvailabilityReason: noMatchAvailabilityReason,
+            savedTourHoldStateIdentifier: savedTourHoldStateIdentifier,
             requestedPinnedEntryIdentifiers: requestedPinnedEntryIdentifiers,
             retainedPinnedEntryIdentifiers: retainedPinnedEntryIdentifiers,
             missingPinnedEntryIdentifiers: missingPinnedEntryIdentifiers,
@@ -1047,6 +1078,10 @@ enum CinematicRunRecapShareArtifactTourPlanner {
                 "query:\(search.queryFingerprint)",
                 "query-snippet:\(search.querySnippet)",
                 "no-match:\(noMatchAvailabilityReason ?? "none")",
+                "hold-state:\(savedTourHoldStateIdentifier)",
+                "hold:\(requestedSavedTourHoldEntryIdentifier ?? "none")",
+                "retained-hold:\(retainedSavedTourHoldEntryIdentifier ?? "none")",
+                "filtered-hold:\(filteredSavedTourHoldEntryIdentifier ?? "none")",
                 "selected:\(selectedEntry?.identifier ?? "none")",
                 "ordinal:\(selectedIndex.map { String($0 + 1) } ?? "none")",
                 "entries:\(selectionPool.count)",
@@ -1068,6 +1103,10 @@ enum CinematicRunRecapShareArtifactTourPlanner {
                 availabilityReason: availabilityReason,
                 stateIdentifier: stateIdentifier,
                 selectionSourceIdentifier: selectionSourceIdentifier,
+                savedTourHoldStateIdentifier: savedTourHoldStateIdentifier,
+                requestedSavedTourHoldEntryIdentifier: requestedSavedTourHoldEntryIdentifier,
+                retainedSavedTourHoldEntryIdentifier: retainedSavedTourHoldEntryIdentifier,
+                filteredSavedTourHoldEntryIdentifier: filteredSavedTourHoldEntryIdentifier,
                 isSearchActive: search.isActive,
                 searchQuerySnippet: search.querySnippet,
                 searchQueryFingerprint: search.queryFingerprint,
@@ -1117,6 +1156,10 @@ enum CinematicRunRecapShareArtifactTourPlanner {
             availabilityReason: availabilityReason,
             stateIdentifier: stateIdentifier,
             selectionSourceIdentifier: selectionSourceIdentifier,
+            savedTourHoldStateIdentifier: savedTourHoldStateIdentifier,
+            requestedSavedTourHoldEntryIdentifier: requestedSavedTourHoldEntryIdentifier,
+            retainedSavedTourHoldEntryIdentifier: retainedSavedTourHoldEntryIdentifier,
+            filteredSavedTourHoldEntryIdentifier: filteredSavedTourHoldEntryIdentifier,
             isSearchActive: search.isActive,
             searchQuerySnippet: search.querySnippet,
             searchQueryFingerprint: search.queryFingerprint,
@@ -1218,11 +1261,21 @@ enum CinematicRunRecapShareArtifactTourPlanner {
         historyPlan: CinematicRunRecapShareArtifactHistoryPlan,
         search: SearchState,
         noMatchAvailabilityReason: String?,
+        savedTourHoldStateIdentifier: String,
         requestedPinnedEntryIdentifiers: [String],
         retainedPinnedEntryIdentifiers: [String],
         missingPinnedEntryIdentifiers: [String],
         filteredPinnedEntryIdentifiers: [String]
     ) -> String {
+        if savedTourHoldStateIdentifier == "held" {
+            return "held"
+        }
+        if savedTourHoldStateIdentifier == "missing-hold" {
+            return "missing-hold"
+        }
+        if savedTourHoldStateIdentifier == "filtered-hold" {
+            return "filtered-hold"
+        }
         if selectedEntry == nil {
             if noMatchAvailabilityReason != nil {
                 return "no-match"
@@ -1256,6 +1309,21 @@ enum CinematicRunRecapShareArtifactTourPlanner {
         return historyPlan.hasWarnings ? "recent-warning" : "recent"
     }
 
+    private static func savedTourHoldStateIdentifier(
+        requestedEntryIdentifier: String?,
+        retainedEntryIdentifier: String?,
+        filteredEntryIdentifier: String?
+    ) -> String {
+        guard requestedEntryIdentifier != nil else { return "none" }
+        if retainedEntryIdentifier == nil {
+            return "missing-hold"
+        }
+        if filteredEntryIdentifier != nil {
+            return "filtered-hold"
+        }
+        return "held"
+    }
+
     private static func availabilityReason(
         selectedEntry: CinematicRunRecapShareArtifactHistoryPlan.Entry?,
         historyPlan: CinematicRunRecapShareArtifactHistoryPlan,
@@ -1270,6 +1338,10 @@ enum CinematicRunRecapShareArtifactTourPlanner {
             return historyPlan.availabilityReason
         }
         switch stateIdentifier {
+        case "missing-hold":
+            return "saved-tour-hold-missing"
+        case "filtered-hold":
+            return "saved-tour-hold-filtered"
         case "missing-pin":
             return "pinned-recap-share-artifacts-missing"
         case "filtered-pin":
@@ -1286,6 +1358,12 @@ enum CinematicRunRecapShareArtifactTourPlanner {
     ) -> String {
         let suffix: String
         switch stateIdentifier {
+        case "held":
+            suffix = "held archive"
+        case "missing-hold":
+            suffix = "hold missing, fallback archive"
+        case "filtered-hold":
+            suffix = "hold filtered, search archive"
         case "pinned", "pinned-warning":
             suffix = "pinned archive"
         case "missing-pin", "missing-pin-warning":
@@ -1316,6 +1394,10 @@ enum CinematicRunRecapShareArtifactTourPlanner {
 
     private static func emptyTitle(stateIdentifier: String) -> String {
         switch stateIdentifier {
+        case "missing-hold":
+            return "Held recap no longer retained"
+        case "filtered-hold":
+            return "Held recap hidden by search"
         case "no-match":
             return "No matching saved recap"
         case "missing-pin":
@@ -1336,6 +1418,10 @@ enum CinematicRunRecapShareArtifactTourPlanner {
     ) -> String {
         let text: String
         switch stateIdentifier {
+        case "missing-hold":
+            text = "The held recap artifact is no longer retained; \(retainedCount) artifacts remain."
+        case "filtered-hold":
+            text = "The held recap artifact is hidden by the active archive search."
         case "no-match":
             text = "No retained recap artifacts match \(search.querySnippet)."
         case "missing-pin":

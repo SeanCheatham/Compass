@@ -1104,10 +1104,12 @@ enum CinematicIdleStoryCyclePlanner {
         for tourPlan: CinematicRunRecapShareArtifactTourPlan
     ) -> CinematicCameraShot {
         if tourPlan.stateIdentifier.contains("no-match")
-            || tourPlan.stateIdentifier.contains("filtered-pin") {
+            || tourPlan.stateIdentifier.contains("filtered-pin")
+            || tourPlan.stateIdentifier.contains("filtered-hold") {
             return .overhead
         }
         if tourPlan.stateIdentifier.contains("missing-pin")
+            || tourPlan.stateIdentifier.contains("missing-hold")
             || tourPlan.hasWarnings {
             return .wide
         }
@@ -1118,22 +1120,35 @@ enum CinematicIdleStoryCyclePlanner {
         for tourPlan: CinematicRunRecapShareArtifactTourPlan
     ) -> SIMD3<Float> {
         let sessionOffset = Float((tourPlan.sessionNumber ?? 0) % 5) * 0.12
-        let pinOffset: Float = tourPlan.selectionSourceIdentifier == "pinned" ? -0.18 : 0.18
+        let pinOffset: Float
+        switch tourPlan.selectionSourceIdentifier {
+        case "held":
+            pinOffset = -0.04
+        case "pinned":
+            pinOffset = -0.18
+        default:
+            pinOffset = 0.18
+        }
         return [-1.62 + pinOffset, 1.18 + sessionOffset, 1.62]
     }
 
     private static func savedRecapArtifactTourLightFamily(
         for tourPlan: CinematicRunRecapShareArtifactTourPlan
     ) -> CinematicStageLightFamily {
-        if tourPlan.stateIdentifier.contains("missing-pin") {
+        if tourPlan.stateIdentifier.contains("missing-pin")
+            || tourPlan.stateIdentifier.contains("missing-hold") {
             return .failure
         }
         if tourPlan.stateIdentifier.contains("filtered-pin")
+            || tourPlan.stateIdentifier.contains("filtered-hold")
             || tourPlan.stateIdentifier.contains("no-match") {
             return .scan
         }
         if tourPlan.hasWarnings {
             return .pressure
+        }
+        if tourPlan.selectionSourceIdentifier == "held" {
+            return .verify
         }
         if tourPlan.selectionSourceIdentifier == "pinned" {
             return .git
@@ -1144,13 +1159,18 @@ enum CinematicIdleStoryCyclePlanner {
     private static func savedRecapArtifactTourArenaEffect(
         for tourPlan: CinematicRunRecapShareArtifactTourPlan
     ) -> CinematicStageArenaEffect {
-        if tourPlan.stateIdentifier.contains("missing-pin") {
+        if tourPlan.stateIdentifier.contains("missing-pin")
+            || tourPlan.stateIdentifier.contains("missing-hold") {
             return .charge
         }
         if tourPlan.stateIdentifier.contains("filtered-pin")
+            || tourPlan.stateIdentifier.contains("filtered-hold")
             || tourPlan.stateIdentifier.contains("no-match")
             || tourPlan.hasWarnings {
             return .activityPulse
+        }
+        if tourPlan.selectionSourceIdentifier == "held" {
+            return .seal
         }
         return tourPlan.selectionSourceIdentifier == "pinned" ? .historyChains : .seal
     }
@@ -1158,15 +1178,20 @@ enum CinematicIdleStoryCyclePlanner {
     private static func savedRecapArtifactTourPhaseLightIntensity(
         for tourPlan: CinematicRunRecapShareArtifactTourPlan
     ) -> Float {
-        if tourPlan.stateIdentifier.contains("missing-pin") {
+        if tourPlan.stateIdentifier.contains("missing-pin")
+            || tourPlan.stateIdentifier.contains("missing-hold") {
             return 720
         }
         if tourPlan.stateIdentifier.contains("filtered-pin")
+            || tourPlan.stateIdentifier.contains("filtered-hold")
             || tourPlan.stateIdentifier.contains("no-match") {
             return 620
         }
         if tourPlan.hasWarnings {
             return 700
+        }
+        if tourPlan.selectionSourceIdentifier == "held" {
+            return 720
         }
         return tourPlan.selectionSourceIdentifier == "pinned" ? 680 : 560
     }
