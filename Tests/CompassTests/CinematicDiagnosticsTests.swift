@@ -156,6 +156,10 @@ final class CinematicDiagnosticsTests: XCTestCase {
             CinematicTextureAssetCatalog.expectedRouteIdentifiers(for: .backdrop)
         )
         XCTAssertEqual(
+            Set(reports.map(\.setDressing.backdropTextureName)),
+            CinematicTextureAssetCatalog.generatedBackdropNames
+        )
+        XCTAssertEqual(
             Set(reports.map(\.setDressing.arenaTextureRouteIdentifier)),
             CinematicTextureAssetCatalog.expectedRouteIdentifiers(for: .arena)
         )
@@ -163,6 +167,11 @@ final class CinematicDiagnosticsTests: XCTestCase {
             reports.allSatisfy {
                 CinematicTextureAssetCatalog.recognizes($0.setDressing.backdropTextureName, role: .backdrop)
                     && CinematicTextureAssetCatalog.recognizes($0.setDressing.arenaTextureName, role: .arena)
+                    && CinematicTextureAssetCatalog.isGeneratedBackdropTextureName($0.setDressing.backdropTextureName)
+                    && CinematicTextureAssetCatalog.isPackagedResourceAvailable(
+                        $0.setDressing.backdropTextureName,
+                        role: .backdrop
+                    )
                     && !$0.setDressing.usesFallbackTextureAsset
             }
         )

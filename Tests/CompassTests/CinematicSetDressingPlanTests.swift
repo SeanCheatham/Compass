@@ -47,6 +47,10 @@ final class CinematicSetDressingPlanTests: XCTestCase {
             Set(languagePlans.map(\.materialTextureVariants.backdropTextureAsset.routeIdentifier)),
             CinematicTextureAssetCatalog.expectedRouteIdentifiers(for: .backdrop)
         )
+        XCTAssertEqual(
+            Set(languagePlans.map(\.materialTextureVariants.backdropTextureName)),
+            CinematicTextureAssetCatalog.generatedBackdropNames
+        )
         XCTAssertGreaterThan(Set(languagePlans.map(\.languageArchitecture.architectureIdentifier)).count, 5)
         XCTAssertGreaterThan(Set(languagePlans.map(\.pedestalFlames.pedestalCount)).count, 2)
         XCTAssertGreaterThan(Set(languagePlans.map(\.materialTextureVariants.pedestalMaterialIdentifier)).count, 5)
@@ -90,7 +94,13 @@ final class CinematicSetDressingPlanTests: XCTestCase {
             )
 
             XCTAssertEqual(plan.materialTextureVariants.backdropTextureAsset, expectedBackdrop)
+            XCTAssertEqual(
+                plan.materialTextureVariants.backdropTextureName,
+                CinematicTextureAssetCatalog.generatedBackdropTextureName(for: motif.style)
+            )
             assertTextureAssetIsBounded(expectedBackdrop, file: #filePath, line: #line)
+            XCTAssertTrue(CinematicTextureAssetCatalog.isGeneratedBackdropTextureName(expectedBackdrop.textureName))
+            XCTAssertTrue(CinematicTextureAssetCatalog.isPackagedResourceAvailable(for: expectedBackdrop))
             XCTAssertTrue(
                 CinematicTextureAssetCatalog.recognizes(plan.materialTextureVariants.backdropTextureName, role: .backdrop)
             )
@@ -115,6 +125,28 @@ final class CinematicSetDressingPlanTests: XCTestCase {
         }
     }
 
+    func testGeneratedBackdropAssetsAreUniquePackagedAndKeepFallbacks() {
+        let generatedAssets = CinematicLanguageSigilStyle.allCases.map(CinematicTextureAssetCatalog.backdropAsset)
+        let generatedNames = Set(generatedAssets.map(\.textureName))
+
+        XCTAssertEqual(generatedNames, CinematicTextureAssetCatalog.generatedBackdropNames)
+        XCTAssertEqual(generatedNames.count, CinematicLanguageSigilStyle.allCases.count)
+        XCTAssertEqual(CinematicTextureAssetCatalog.backdropFallbackNames, ["void-arches", "void-arches-v2"])
+
+        for asset in generatedAssets {
+            XCTAssertTrue(CinematicTextureAssetCatalog.isGeneratedBackdropTextureName(asset.textureName))
+            XCTAssertTrue(CinematicTextureAssetCatalog.isPackagedResourceAvailable(for: asset))
+            XCTAssertFalse(asset.usesFallback)
+            assertTextureAssetIsBounded(asset, file: #filePath, line: #line)
+        }
+
+        for fallbackName in CinematicTextureAssetCatalog.backdropFallbackNames {
+            XCTAssertTrue(CinematicTextureAssetCatalog.recognizes(fallbackName, role: .backdrop))
+            XCTAssertFalse(CinematicTextureAssetCatalog.isGeneratedBackdropTextureName(fallbackName))
+            XCTAssertTrue(CinematicTextureAssetCatalog.isPackagedResourceAvailable(fallbackName, role: .backdrop))
+        }
+    }
+
     func testTextureCatalogPreservesExistingRealityKitTextureNames() {
         let settings = CinematicInfluenceSettings()
         let dirtySwift = CinematicSetDressingPlanner.plan(
@@ -133,9 +165,9 @@ final class CinematicSetDressingPlanTests: XCTestCase {
             influenceSettings: settings
         )
 
-        XCTAssertEqual(dirtySwift.materialTextureVariants.backdropTextureName, "void-arches-v2")
+        XCTAssertEqual(dirtySwift.materialTextureVariants.backdropTextureName, "swift-comet-backdrop")
         XCTAssertEqual(dirtySwift.materialTextureVariants.arenaTextureName, "arena-runes-v3")
-        XCTAssertEqual(cleanMarkdown.materialTextureVariants.backdropTextureName, "void-arches")
+        XCTAssertEqual(cleanMarkdown.materialTextureVariants.backdropTextureName, "markdown-rune-backdrop")
         XCTAssertEqual(cleanMarkdown.materialTextureVariants.arenaTextureName, "arena-runes-v3")
         XCTAssertEqual(commitSwift.materialTextureVariants.arenaTextureName, "arena-runes-v2")
 
@@ -150,6 +182,9 @@ final class CinematicSetDressingPlanTests: XCTestCase {
             XCTAssertFalse(textureName.hasSuffix(".png"))
             XCTAssertTrue(CinematicTextureAssetCatalog.recognizesBundledTextureName(textureName))
         }
+
+        XCTAssertTrue(CinematicTextureAssetCatalog.recognizesBundledTextureName("void-arches"))
+        XCTAssertTrue(CinematicTextureAssetCatalog.recognizesBundledTextureName("void-arches-v2"))
     }
 
     func testPlanValuesStayInsideBoundedRanges() {
@@ -300,6 +335,7 @@ private func assertTextureAssetIsBounded(
         file: file,
         line: line
     )
+    XCTAssertTrue(CinematicTextureAssetCatalog.isPackagedResourceAvailable(for: asset), file: file, line: line)
 }
 
 private func languageProfile(primaryLanguage: RepositoryLanguage) -> RepositoryLanguageProfile {

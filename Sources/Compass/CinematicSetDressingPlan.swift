@@ -147,10 +147,14 @@ struct CinematicTextureAsset: Equatable {
 enum CinematicTextureAssetCatalog {
     static let identifierMaxCharacters = 72
 
-    private static let backdropTextureNames: Set<String> = [
+    private static let generatedBackdropTextureNames: Set<String> = Set(
+        CinematicLanguageSigilStyle.allCases.map { generatedBackdropTextureName(for: $0) }
+    )
+    private static let fallbackBackdropTextureNames: Set<String> = [
         "void-arches",
         "void-arches-v2"
     ]
+    private static let backdropTextureNames = generatedBackdropTextureNames.union(fallbackBackdropTextureNames)
     private static let arenaTextureNames: Set<String> = [
         "arena-runes",
         "arena-runes-v2",
@@ -161,32 +165,41 @@ enum CinematicTextureAssetCatalog {
         backdropTextureNames.union(arenaTextureNames)
     }
 
-    static func backdropAsset(for style: CinematicLanguageSigilStyle) -> CinematicTextureAsset {
-        let textureName: String
-        switch style {
-        case .swiftComet:
-            textureName = "void-arches-v2"
-        case .scriptCircuit:
-            textureName = "void-arches-v2"
-        case .pythonCoil:
-            textureName = "void-arches-v2"
-        case .goCurrent:
-            textureName = "void-arches-v2"
-        case .rustGear:
-            textureName = "void-arches-v2"
-        case .markdownRune:
-            textureName = "void-arches"
-        case .polyglotPrism:
-            textureName = "void-arches-v2"
-        case .unknownGate:
-            textureName = "void-arches"
-        }
+    static var generatedBackdropNames: Set<String> {
+        generatedBackdropTextureNames
+    }
 
+    static var backdropFallbackNames: Set<String> {
+        fallbackBackdropTextureNames
+    }
+
+    static func backdropAsset(for style: CinematicLanguageSigilStyle) -> CinematicTextureAsset {
         return asset(
             role: .backdrop,
             routeIdentifier: "language.\(style.rawValue)",
-            requestedTextureName: textureName
+            requestedTextureName: generatedBackdropTextureName(for: style)
         )
+    }
+
+    static func generatedBackdropTextureName(for style: CinematicLanguageSigilStyle) -> String {
+        switch style {
+        case .swiftComet:
+            return "swift-comet-backdrop"
+        case .scriptCircuit:
+            return "script-circuit-backdrop"
+        case .pythonCoil:
+            return "python-coil-backdrop"
+        case .goCurrent:
+            return "go-current-backdrop"
+        case .rustGear:
+            return "rust-gear-backdrop"
+        case .markdownRune:
+            return "markdown-rune-backdrop"
+        case .polyglotPrism:
+            return "polyglot-prism-backdrop"
+        case .unknownGate:
+            return "unknown-gate-backdrop"
+        }
     }
 
     static func arenaAsset(for kind: CinematicActivityEventKind) -> CinematicTextureAsset {
@@ -238,6 +251,22 @@ enum CinematicTextureAssetCatalog {
         bundledTextureNames.contains(textureName)
     }
 
+    static func isGeneratedBackdropTextureName(_ textureName: String) -> Bool {
+        generatedBackdropTextureNames.contains(textureName)
+    }
+
+    static func isPackagedResourceAvailable(
+        _ textureName: String,
+        role: CinematicTextureAssetRole
+    ) -> Bool {
+        guard recognizes(textureName, role: role) else { return false }
+        return packagedResourceURL(for: textureName) != nil
+    }
+
+    static func isPackagedResourceAvailable(for asset: CinematicTextureAsset) -> Bool {
+        isPackagedResourceAvailable(asset.textureName, role: asset.role)
+    }
+
     private static func asset(
         role: CinematicTextureAssetRole,
         routeIdentifier: String,
@@ -285,6 +314,14 @@ enum CinematicTextureAssetCatalog {
         case .arena:
             return "arena-runes"
         }
+    }
+
+    private static func packagedResourceURL(for textureName: String) -> URL? {
+        Bundle.module.url(
+            forResource: textureName,
+            withExtension: "png",
+            subdirectory: "Cinematic"
+        ) ?? Bundle.module.url(forResource: textureName, withExtension: "png")
     }
 
     private static func boundedIdentifier(_ identifier: String) -> String {
