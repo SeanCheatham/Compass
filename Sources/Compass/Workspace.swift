@@ -222,6 +222,17 @@ struct CompassWorkspace {
         )
     }
 
+    func refreshRunRecapShareArtifactSourceReconciliation(
+        activeHistoryPlan: CinematicRunRecapShareArtifactHistoryPlan,
+        activitySourceSnapshot: RepositoryActivitySourceSnapshot
+    ) -> CinematicRunRecapShareArtifactSourceReconciliationPlan {
+        CinematicRunRecapShareArtifactSourceReconciliationPlanner.plan(
+            activeHistoryPlan: activeHistoryPlan,
+            activitySourceSnapshot: activitySourceSnapshot,
+            workspace: self
+        )
+    }
+
     func cleanupRunRecapShareArtifacts() -> CinematicRunRecapShareArtifactCleanupResult {
         let candidates = CinematicRunRecapShareArtifactHistoryPlanner.cleanupCandidates(
             storageRootURL: compassURL,

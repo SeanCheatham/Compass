@@ -826,6 +826,7 @@ final class CinematicDiagnosticsTests: XCTestCase {
                 "run-recap-share",
                 "run-recap-share-artifact",
                 "run-recap-share-artifact-history",
+                "run-recap-share-artifact-sources",
                 "run-recap-share-artifact-rollup",
                 "run-recap-share-artifact-comparison",
                 "run-recap-share-artifact-pins",
@@ -899,6 +900,7 @@ final class CinematicDiagnosticsTests: XCTestCase {
                     "run-recap-share",
                     "run-recap-share-artifact",
                     "run-recap-share-artifact-history",
+                    "run-recap-share-artifact-sources",
                     "run-recap-share-artifact-rollup",
                     "run-recap-share-artifact-comparison",
                     "run-recap-share-artifact-pins",
@@ -1042,7 +1044,7 @@ final class CinematicDiagnosticsTests: XCTestCase {
             .components(separatedBy: "\n")
             .filter { expectedSectionHeadings.contains($0) }
         XCTAssertEqual(actualSectionHeadings, expectedSectionHeadings)
-        XCTAssertTrue(summary.exportText.contains("Repository/context (22 rows)"))
+        XCTAssertTrue(summary.exportText.contains("Repository/context (23 rows)"))
         XCTAssertTrue(summary.exportText.contains("Motifs (2 rows)"))
         XCTAssertTrue(summary.exportText.contains("Stage motion/effects (9 rows)"))
         XCTAssertTrue(summary.exportText.contains("Narrative/overlay (8 rows)"))
@@ -3899,6 +3901,8 @@ private struct CinematicDiagnosticsInput {
     var runRecapSceneFocusPlan: CinematicRunRecapSceneFocusPlan = .none
     var runRecapEndCardPlan: CinematicRunRecapEndCardPlan = .none
     var runRecapShareArtifactHistoryPlan: CinematicRunRecapShareArtifactHistoryPlan?
+    var runRecapShareArtifactSourceReconciliationPlan:
+        CinematicRunRecapShareArtifactSourceReconciliationPlan?
     var runRecapShareArtifactCleanupResult: CinematicRunRecapShareArtifactCleanupResult?
     var runRecapShareArtifactPreviewSelectedEntryIdentifier: String?
     var runRecapShareArtifactPreviewSearchQuery: String?
@@ -3926,6 +3930,7 @@ private func makeReport(_ input: CinematicDiagnosticsInput) -> CinematicDiagnost
         runRecapSceneFocusPlan: input.runRecapSceneFocusPlan,
         runRecapEndCardPlan: input.runRecapEndCardPlan,
         runRecapShareArtifactHistoryPlan: input.runRecapShareArtifactHistoryPlan,
+        runRecapShareArtifactSourceReconciliationPlan: input.runRecapShareArtifactSourceReconciliationPlan,
         runRecapShareArtifactCleanupResult: input.runRecapShareArtifactCleanupResult,
         runRecapShareArtifactPreviewSelectedEntryIdentifier: input.runRecapShareArtifactPreviewSelectedEntryIdentifier,
         runRecapShareArtifactPreviewSearchQuery: input.runRecapShareArtifactPreviewSearchQuery,

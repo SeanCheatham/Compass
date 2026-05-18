@@ -436,6 +436,11 @@ final class CompassProject: ObservableObject, Identifiable {
     @Published var cinematicRunRecapShareArtifactHistory = CinematicRunRecapShareArtifactHistoryPlan.unavailable(
         reason: "not-scanned"
     )
+    @Published var cinematicRunRecapShareArtifactSourceReconciliation =
+        CinematicRunRecapShareArtifactSourceReconciliationPlanner.plan(
+            activeHistoryPlan: CinematicRunRecapShareArtifactHistoryPlan.unavailable(reason: "not-scanned"),
+            activitySourceSnapshot: RepositoryActivitySourceSnapshot.notScanned()
+        )
     @Published var cinematicDiagnosticsWarningBundleHistory = CinematicDiagnosticsWarningBundleHistory()
     @Published var isRunning = false
     @Published var isAutoPlaying = false
@@ -484,7 +489,13 @@ final class CompassProject: ObservableObject, Identifiable {
         self.id = id
         self.repoURL = repoURL.standardizedFileURL
         self.activeStorage = activeStorage
-        activitySourceSnapshot = RepositoryActivitySourceSnapshot.notScanned(activeStorage: activeStorage)
+        let initialActivitySourceSnapshot = RepositoryActivitySourceSnapshot.notScanned(activeStorage: activeStorage)
+        activitySourceSnapshot = initialActivitySourceSnapshot
+        cinematicRunRecapShareArtifactSourceReconciliation =
+            CinematicRunRecapShareArtifactSourceReconciliationPlanner.plan(
+                activeHistoryPlan: CinematicRunRecapShareArtifactHistoryPlan.unavailable(reason: "not-scanned"),
+                activitySourceSnapshot: initialActivitySourceSnapshot
+            )
         self.addedAt = addedAt
         self.lastOpenedAt = lastOpenedAt
         self.cinematicInfluenceSettings = cinematicInfluenceSettings
@@ -619,6 +630,7 @@ extension CompassProject {
             cinematicRunRecapShareArtifactHistory = CinematicRunRecapShareArtifactHistoryPlan.unavailable(
                 reason: "no-repository"
             )
+            refreshRunRecapShareArtifactSourceReconciliation(workspace: nil)
             languageProfile = .empty
             activityProfile = .empty
             scheduleCinematicBriefingRefresh(reason: .projectRefresh)
@@ -645,6 +657,7 @@ extension CompassProject {
                 storageRootURL: workspace.compassURL,
                 sessionsURL: workspace.sessionsURL
             )
+            refreshRunRecapShareArtifactSourceReconciliation(workspace: workspace)
             activityProfile = .empty
             scheduleCinematicBriefingRefresh(reason: .projectRefresh)
             if requireStorageRoot {
@@ -661,8 +674,25 @@ extension CompassProject {
         vision = workspace.readVision()
         sessions = workspace.readSessions()
         cinematicRunRecapShareArtifactHistory = workspace.refreshRunRecapShareArtifactHistory()
+        refreshRunRecapShareArtifactSourceReconciliation(workspace: workspace)
         activityProfile = await RepositoryActivityProfileService.scan(workspace: workspace)
         scheduleCinematicBriefingRefresh(reason: .projectRefresh)
+    }
+
+    private func refreshRunRecapShareArtifactSourceReconciliation(workspace: CompassWorkspace?) {
+        if let workspace {
+            cinematicRunRecapShareArtifactSourceReconciliation =
+                workspace.refreshRunRecapShareArtifactSourceReconciliation(
+                    activeHistoryPlan: cinematicRunRecapShareArtifactHistory,
+                    activitySourceSnapshot: activitySourceSnapshot
+                )
+        } else {
+            cinematicRunRecapShareArtifactSourceReconciliation =
+                CinematicRunRecapShareArtifactSourceReconciliationPlanner.plan(
+                    activeHistoryPlan: cinematicRunRecapShareArtifactHistory,
+                    activitySourceSnapshot: activitySourceSnapshot
+                )
+        }
     }
 
     func saveVision() async {
@@ -734,6 +764,7 @@ extension CompassProject {
                 sessions: sessions
             )
             cinematicRunRecapShareArtifactHistory = workspace.refreshRunRecapShareArtifactHistory()
+            refreshRunRecapShareArtifactSourceReconciliation(workspace: workspace)
         } else {
             let artifactPlan = CinematicRunRecapShareArtifactPlanner.plan(
                 sharePlan: sharePlan,
@@ -745,6 +776,7 @@ extension CompassProject {
             cinematicRunRecapShareArtifactHistory = CinematicRunRecapShareArtifactHistoryPlan.unavailable(
                 reason: "no-repository"
             )
+            refreshRunRecapShareArtifactSourceReconciliation(workspace: nil)
         }
 
         cinematicRunRecapShareArtifactRecording = result
@@ -765,6 +797,7 @@ extension CompassProject {
         if let workspace {
             result = workspace.cleanupRunRecapShareArtifacts()
             cinematicRunRecapShareArtifactHistory = result.refreshedHistory
+            refreshRunRecapShareArtifactSourceReconciliation(workspace: workspace)
         } else {
             let history = CinematicRunRecapShareArtifactHistoryPlan.unavailable(
                 reason: "no-repository"
@@ -778,6 +811,7 @@ extension CompassProject {
                 refreshedHistory: history
             )
             cinematicRunRecapShareArtifactHistory = history
+            refreshRunRecapShareArtifactSourceReconciliation(workspace: nil)
         }
 
         cinematicRunRecapShareArtifactCleanup = result

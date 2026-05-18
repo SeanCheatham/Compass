@@ -147,6 +147,40 @@ struct CinematicRunRecapShareArtifactHistoryPlan: Equatable, Identifiable {
     }
 }
 
+struct CinematicRunRecapShareArtifactSourceReconciliationPlan: Equatable, Identifiable {
+    static let identifierMaxCharacters = CinematicRunRecapShareArtifactHistoryPlan.identifierMaxCharacters
+    static let representativeEntryLimit = 3
+    static let pathDisplayMaxCharacters = CinematicRunRecapShareArtifactHistoryPlan.pathDisplayMaxCharacters
+
+    var id: String { identifier }
+
+    var identifier: String
+    var stateIdentifier: String
+    var activeStorageIdentifier: String
+    var activitySourceIdentifier: String
+    var activeHistoryIdentifier: String
+    var repoLocalHistoryIdentifier: String
+    var activeAvailabilityReason: String
+    var repoLocalAvailabilityReason: String
+    var activeTotalCount: Int
+    var repoLocalTotalCount: Int
+    var activeWarningCount: Int
+    var repoLocalWarningCount: Int
+    var activeLatestSessionNumber: Int?
+    var repoLocalLatestSessionNumber: Int?
+    var activeLatestEntryIdentifier: String?
+    var repoLocalLatestEntryIdentifier: String?
+    var representativeActiveEntryIdentifiers: [String]
+    var representativeRepoLocalEntryIdentifiers: [String]
+    var representativeRepoLocalExtraEntryIdentifiers: [String]
+    var activeStorageRootDisplayText: String
+    var activeSessionsDisplayText: String
+    var repoLocalStorageRootDisplayText: String
+    var repoLocalSessionsDisplayText: String
+    var warningStateIdentifier: String
+    var isApplicationSupportComparison: Bool
+}
+
 struct CinematicRunRecapShareArtifactPreviewBrowserPlan: Equatable, Identifiable {
     static let identifierMaxCharacters = CinematicRunRecapShareArtifactHistoryPlan.identifierMaxCharacters
     static let snippetMaxCharacters = CinematicRunRecapShareArtifactHistoryPlan.snippetMaxCharacters
@@ -4945,6 +4979,196 @@ enum CinematicRunRecapShareArtifactHistoryPlanner {
         guard limit > 0 else { return "" }
         let normalized = text
             .replacingOccurrences(of: "\r", with: "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalized.isEmpty else { return "none" }
+        guard normalized.count <= limit else {
+            let prefixLimit = max(1, limit - 3)
+            return normalized.prefix(prefixLimit)
+                .trimmingCharacters(in: .whitespacesAndNewlines) + "..."
+        }
+        return normalized
+    }
+
+    private static func fingerprint(_ value: String) -> String {
+        var hash: UInt64 = 0xcbf29ce484222325
+        for byte in value.utf8 {
+            hash ^= UInt64(byte)
+            hash = hash &* 0x100000001b3
+        }
+        return String(format: "%016llx", hash)
+    }
+}
+
+enum CinematicRunRecapShareArtifactSourceReconciliationPlanner {
+    static func plan(
+        activeHistoryPlan: CinematicRunRecapShareArtifactHistoryPlan,
+        activitySourceSnapshot: RepositoryActivitySourceSnapshot,
+        workspace: CompassWorkspace,
+        fileManager: FileManager = .default
+    ) -> CinematicRunRecapShareArtifactSourceReconciliationPlan {
+        let repoLocalHistoryPlan: CinematicRunRecapShareArtifactHistoryPlan?
+        if activitySourceSnapshot.activeStorage == .applicationSupport {
+            let repoLocalStorageRootURL = workspace.repoLocalCompassURL
+            repoLocalHistoryPlan = CinematicRunRecapShareArtifactHistoryPlanner.plan(
+                storageRootURL: repoLocalStorageRootURL,
+                sessionsURL: repoLocalStorageRootURL.appending(path: "sessions", directoryHint: .isDirectory),
+                fileManager: fileManager
+            )
+        } else {
+            repoLocalHistoryPlan = nil
+        }
+
+        return plan(
+            activeHistoryPlan: activeHistoryPlan,
+            repoLocalHistoryPlan: repoLocalHistoryPlan,
+            activitySourceSnapshot: activitySourceSnapshot
+        )
+    }
+
+    static func plan(
+        activeHistoryPlan: CinematicRunRecapShareArtifactHistoryPlan,
+        repoLocalHistoryPlan: CinematicRunRecapShareArtifactHistoryPlan? = nil,
+        activitySourceSnapshot: RepositoryActivitySourceSnapshot
+    ) -> CinematicRunRecapShareArtifactSourceReconciliationPlan {
+        let state = stateIdentifier(
+            activeHistoryPlan: activeHistoryPlan,
+            repoLocalHistoryPlan: repoLocalHistoryPlan,
+            activitySourceSnapshot: activitySourceSnapshot
+        )
+        let repoLocalAvailabilityReason = repoLocalHistoryPlan?.availabilityReason ?? "not-scanned"
+        let activeEntryIdentifiers = representativeEntryIdentifiers(activeHistoryPlan.entries)
+        let repoLocalEntryIdentifiers = representativeEntryIdentifiers(repoLocalHistoryPlan?.entries ?? [])
+        let repoLocalExtraEntryIdentifiers = representativeRepoLocalExtraEntryIdentifiers(
+            activeHistoryPlan: activeHistoryPlan,
+            repoLocalHistoryPlan: repoLocalHistoryPlan
+        )
+        let warningStateIdentifier = activeHistoryPlan.hasWarnings || (repoLocalHistoryPlan?.hasWarnings ?? false)
+            ? "warnings"
+            : "clear"
+        let repoLocalHistoryIdentifier = repoLocalHistoryPlan?.identifier ?? "not-scanned"
+        let identifier = bounded(
+            [
+                "run-recap-share-artifact-source-reconciliation",
+                "state:\(state)",
+                "storage:\(activitySourceSnapshot.activeStorageIdentifier)",
+                "active:\(fingerprint(activeHistoryPlan.identifier))",
+                "repo-local:\(fingerprint(repoLocalHistoryIdentifier))",
+                "activity-source:\(fingerprint(activitySourceSnapshot.identifier))",
+                "active-total:\(activeHistoryPlan.totalCount)",
+                "repo-local-total:\(repoLocalHistoryPlan?.totalCount ?? 0)",
+                "active-latest:\(activeHistoryPlan.latestEntry?.sessionNumber.description ?? "none")",
+                "repo-local-latest:\(repoLocalHistoryPlan?.latestEntry?.sessionNumber.description ?? "none")",
+                "warnings:\(warningStateIdentifier)"
+            ].joined(separator: "|"),
+            limit: CinematicRunRecapShareArtifactSourceReconciliationPlan.identifierMaxCharacters
+        )
+
+        return CinematicRunRecapShareArtifactSourceReconciliationPlan(
+            identifier: identifier,
+            stateIdentifier: state,
+            activeStorageIdentifier: activitySourceSnapshot.activeStorageIdentifier,
+            activitySourceIdentifier: activitySourceSnapshot.identifier,
+            activeHistoryIdentifier: activeHistoryPlan.identifier,
+            repoLocalHistoryIdentifier: repoLocalHistoryIdentifier,
+            activeAvailabilityReason: activeHistoryPlan.availabilityReason,
+            repoLocalAvailabilityReason: repoLocalAvailabilityReason,
+            activeTotalCount: activeHistoryPlan.totalCount,
+            repoLocalTotalCount: repoLocalHistoryPlan?.totalCount ?? 0,
+            activeWarningCount: activeHistoryPlan.warningCount,
+            repoLocalWarningCount: repoLocalHistoryPlan?.warningCount ?? 0,
+            activeLatestSessionNumber: activeHistoryPlan.latestEntry?.sessionNumber,
+            repoLocalLatestSessionNumber: repoLocalHistoryPlan?.latestEntry?.sessionNumber,
+            activeLatestEntryIdentifier: activeHistoryPlan.latestEntry?.identifier,
+            repoLocalLatestEntryIdentifier: repoLocalHistoryPlan?.latestEntry?.identifier,
+            representativeActiveEntryIdentifiers: activeEntryIdentifiers,
+            representativeRepoLocalEntryIdentifiers: repoLocalEntryIdentifiers,
+            representativeRepoLocalExtraEntryIdentifiers: repoLocalExtraEntryIdentifiers,
+            activeStorageRootDisplayText: activeHistoryPlan.storageRootDisplayText,
+            activeSessionsDisplayText: activeHistoryPlan.sessionsDisplayText,
+            repoLocalStorageRootDisplayText: repoLocalHistoryPlan?.storageRootDisplayText ?? "not-scanned",
+            repoLocalSessionsDisplayText: repoLocalHistoryPlan?.sessionsDisplayText ?? "not-scanned",
+            warningStateIdentifier: warningStateIdentifier,
+            isApplicationSupportComparison: activitySourceSnapshot.activeStorage == .applicationSupport
+        )
+    }
+
+    private static func stateIdentifier(
+        activeHistoryPlan: CinematicRunRecapShareArtifactHistoryPlan,
+        repoLocalHistoryPlan: CinematicRunRecapShareArtifactHistoryPlan?,
+        activitySourceSnapshot: RepositoryActivitySourceSnapshot
+    ) -> String {
+        guard activitySourceSnapshot.activeStorage == .applicationSupport else {
+            return "active-only"
+        }
+        guard let repoLocalHistoryPlan else {
+            return "repo-local-missing"
+        }
+        if activeHistoryPlan.hasWarnings || repoLocalHistoryPlan.hasWarnings {
+            return "scan-warnings"
+        }
+        if !activeHistoryPlan.isAvailable, repoLocalHistoryPlan.isAvailable {
+            return "active-missing-repo-local-available"
+        }
+        if repoLocalHistoryPlan.availabilityReason == "sessions-directory-unavailable" {
+            return "repo-local-missing"
+        }
+        if historiesAreCompatible(activeHistoryPlan, repoLocalHistoryPlan) {
+            return "compatible"
+        }
+        if repoLocalHasExtra(activeHistoryPlan: activeHistoryPlan, repoLocalHistoryPlan: repoLocalHistoryPlan) {
+            return "repo-local-extra"
+        }
+        return "active-only"
+    }
+
+    private static func historiesAreCompatible(
+        _ activeHistoryPlan: CinematicRunRecapShareArtifactHistoryPlan,
+        _ repoLocalHistoryPlan: CinematicRunRecapShareArtifactHistoryPlan
+    ) -> Bool {
+        activeHistoryPlan.totalCount == repoLocalHistoryPlan.totalCount
+            && activeHistoryPlan.availabilityReason == repoLocalHistoryPlan.availabilityReason
+            && activeHistoryPlan.entries.map(\.identifier) == repoLocalHistoryPlan.entries.map(\.identifier)
+    }
+
+    private static func repoLocalHasExtra(
+        activeHistoryPlan: CinematicRunRecapShareArtifactHistoryPlan,
+        repoLocalHistoryPlan: CinematicRunRecapShareArtifactHistoryPlan
+    ) -> Bool {
+        let activeEntryIdentifiers = Set(activeHistoryPlan.entries.map(\.identifier))
+        return repoLocalHistoryPlan.totalCount > activeHistoryPlan.totalCount
+            || repoLocalHistoryPlan.entries.contains { !activeEntryIdentifiers.contains($0.identifier) }
+    }
+
+    private static func representativeEntryIdentifiers(
+        _ entries: [CinematicRunRecapShareArtifactHistoryPlan.Entry]
+    ) -> [String] {
+        Array(
+            entries
+                .map(\.identifier)
+                .prefix(CinematicRunRecapShareArtifactSourceReconciliationPlan.representativeEntryLimit)
+        )
+    }
+
+    private static func representativeRepoLocalExtraEntryIdentifiers(
+        activeHistoryPlan: CinematicRunRecapShareArtifactHistoryPlan,
+        repoLocalHistoryPlan: CinematicRunRecapShareArtifactHistoryPlan?
+    ) -> [String] {
+        guard let repoLocalHistoryPlan else { return [] }
+        let activeEntryIdentifiers = Set(activeHistoryPlan.entries.map(\.identifier))
+        return Array(
+            repoLocalHistoryPlan.entries
+                .map(\.identifier)
+                .filter { !activeEntryIdentifiers.contains($0) }
+                .prefix(CinematicRunRecapShareArtifactSourceReconciliationPlan.representativeEntryLimit)
+        )
+    }
+
+    private static func bounded(_ text: String, limit: Int) -> String {
+        guard limit > 0 else { return "" }
+        let normalized = text
+            .replacingOccurrences(of: "\r", with: " ")
+            .replacingOccurrences(of: "\n", with: " ")
+            .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
             .trimmingCharacters(in: .whitespacesAndNewlines)
         guard !normalized.isEmpty else { return "none" }
         guard normalized.count <= limit else {

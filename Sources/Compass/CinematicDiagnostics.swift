@@ -38,6 +38,7 @@ struct CinematicDiagnosticsReport: Equatable {
     var runRecapShare: RunRecapShareSnapshot
     var runRecapShareArtifact: RunRecapShareArtifactSnapshot
     var runRecapShareArtifactHistory: RunRecapShareArtifactHistorySnapshot
+    var runRecapShareArtifactSourceReconciliation: RunRecapShareArtifactSourceReconciliationSnapshot
     var runRecapShareArtifactRollup: RunRecapShareArtifactRollupSnapshot
     var runRecapShareArtifactComparison: RunRecapShareArtifactComparisonSnapshot
     var runRecapShareArtifactPins: RunRecapShareArtifactPinnedReferenceSnapshot
@@ -807,6 +808,34 @@ struct CinematicDiagnosticsReport: Equatable {
         var warningStateIdentifier: String
         var lastCleanupResultIdentifier: String
         var lastCleanupResultStatus: String
+    }
+
+    struct RunRecapShareArtifactSourceReconciliationSnapshot: Equatable {
+        var identifier: String
+        var stateIdentifier: String
+        var activeStorageIdentifier: String
+        var activitySourceIdentifier: String
+        var activeHistoryIdentifier: String
+        var repoLocalHistoryIdentifier: String
+        var activeAvailabilityReason: String
+        var repoLocalAvailabilityReason: String
+        var activeTotalCount: Int
+        var repoLocalTotalCount: Int
+        var activeWarningCount: Int
+        var repoLocalWarningCount: Int
+        var activeLatestSessionNumber: Int?
+        var repoLocalLatestSessionNumber: Int?
+        var activeLatestEntryIdentifier: String?
+        var repoLocalLatestEntryIdentifier: String?
+        var representativeActiveEntryIdentifiers: [String]
+        var representativeRepoLocalEntryIdentifiers: [String]
+        var representativeRepoLocalExtraEntryIdentifiers: [String]
+        var activeStorageRootDisplayText: String
+        var activeSessionsDisplayText: String
+        var repoLocalStorageRootDisplayText: String
+        var repoLocalSessionsDisplayText: String
+        var warningStateIdentifier: String
+        var isApplicationSupportComparison: Bool
     }
 
     struct RunRecapShareArtifactRollupStatusBucketSnapshot: Equatable {
@@ -3007,6 +3036,7 @@ struct CinematicVisualSmokeReport: Equatable {
             && runRecapShareCopyIsBounded(report)
             && runRecapShareArtifactCopyIsBounded(report)
             && runRecapShareArtifactHistoryCopyIsBounded(report)
+            && runRecapShareArtifactSourceReconciliationCopyIsBounded(report)
             && runRecapShareArtifactRollupCopyIsBounded(report)
             && runRecapShareArtifactComparisonCopyIsBounded(report)
             && runRecapShareArtifactPinsCopyIsBounded(report)
@@ -3076,6 +3106,55 @@ struct CinematicVisualSmokeReport: Equatable {
             && string(
                 snapshot.lastCleanupResultIdentifier,
                 maxCharacters: CinematicRunRecapShareArtifactCleanupResult.identifierMaxCharacters
+            )
+    }
+
+    private static func runRecapShareArtifactSourceReconciliationCopyIsBounded(
+        _ report: CinematicDiagnosticsReport
+    ) -> Bool {
+        let snapshot = report.runRecapShareArtifactSourceReconciliation
+        return string(
+            snapshot.identifier,
+            maxCharacters: CinematicRunRecapShareArtifactSourceReconciliationPlan.identifierMaxCharacters
+        )
+            && string(
+                snapshot.activeHistoryIdentifier,
+                maxCharacters: CinematicRunRecapShareArtifactHistoryPlan.identifierMaxCharacters
+            )
+            && string(
+                snapshot.repoLocalHistoryIdentifier,
+                maxCharacters: CinematicRunRecapShareArtifactHistoryPlan.identifierMaxCharacters
+            )
+            && snapshot.representativeActiveEntryIdentifiers.count
+                <= CinematicRunRecapShareArtifactSourceReconciliationPlan.representativeEntryLimit
+            && snapshot.representativeRepoLocalEntryIdentifiers.count
+                <= CinematicRunRecapShareArtifactSourceReconciliationPlan.representativeEntryLimit
+            && snapshot.representativeRepoLocalExtraEntryIdentifiers.count
+                <= CinematicRunRecapShareArtifactSourceReconciliationPlan.representativeEntryLimit
+            && snapshot.representativeActiveEntryIdentifiers.allSatisfy {
+                string($0, maxCharacters: CinematicRunRecapShareArtifactHistoryPlan.identifierMaxCharacters)
+            }
+            && snapshot.representativeRepoLocalEntryIdentifiers.allSatisfy {
+                string($0, maxCharacters: CinematicRunRecapShareArtifactHistoryPlan.identifierMaxCharacters)
+            }
+            && snapshot.representativeRepoLocalExtraEntryIdentifiers.allSatisfy {
+                string($0, maxCharacters: CinematicRunRecapShareArtifactHistoryPlan.identifierMaxCharacters)
+            }
+            && string(
+                snapshot.activeStorageRootDisplayText,
+                maxCharacters: CinematicRunRecapShareArtifactSourceReconciliationPlan.pathDisplayMaxCharacters
+            )
+            && string(
+                snapshot.activeSessionsDisplayText,
+                maxCharacters: CinematicRunRecapShareArtifactSourceReconciliationPlan.pathDisplayMaxCharacters
+            )
+            && string(
+                snapshot.repoLocalStorageRootDisplayText,
+                maxCharacters: CinematicRunRecapShareArtifactSourceReconciliationPlan.pathDisplayMaxCharacters
+            )
+            && string(
+                snapshot.repoLocalSessionsDisplayText,
+                maxCharacters: CinematicRunRecapShareArtifactSourceReconciliationPlan.pathDisplayMaxCharacters
             )
     }
 
@@ -4191,7 +4270,7 @@ struct CinematicVisualSmokeReport: Equatable {
 }
 
 struct CinematicDiagnosticsSummary: Equatable {
-    static let maxRows = 54
+    static let maxRows = 55
     static let labelMaxCharacters = 32
     static let detailMaxCharacters = 512
     static let headerDetailMaxCharacters = 128
@@ -4379,6 +4458,7 @@ struct CinematicDiagnosticsSummary: Equatable {
                 "run-recap-share",
                 "run-recap-share-artifact",
                 "run-recap-share-artifact-history",
+                "run-recap-share-artifact-sources",
                 "run-recap-share-artifact-rollup",
                 "run-recap-share-artifact-comparison",
                 "run-recap-share-artifact-pins",
@@ -4566,6 +4646,13 @@ struct CinematicDiagnosticsSummary: Equatable {
                 id: "run-recap-share-artifact-history",
                 label: "Recap artifact library",
                 detail: runRecapShareArtifactHistoryDetail(report.runRecapShareArtifactHistory)
+            ),
+            row(
+                id: "run-recap-share-artifact-sources",
+                label: "Recap artifact sources",
+                detail: runRecapShareArtifactSourceReconciliationDetail(
+                    report.runRecapShareArtifactSourceReconciliation
+                )
             ),
             row(
                 id: "run-recap-share-artifact-rollup",
@@ -6212,6 +6299,39 @@ struct CinematicDiagnosticsSummary: Equatable {
         ].compactMap { $0 }.joined(separator: " | ")
     }
 
+    private static func runRecapShareArtifactSourceReconciliationDetail(
+        _ snapshot: CinematicDiagnosticsReport.RunRecapShareArtifactSourceReconciliationSnapshot
+    ) -> String {
+        [
+            "state \(snapshot.stateIdentifier)",
+            "storage \(snapshot.activeStorageIdentifier)",
+            "compare \(snapshot.isApplicationSupportComparison ? "application-support" : "active-only")",
+            "active total \(snapshot.activeTotalCount)",
+            "repo-local total \(snapshot.repoLocalTotalCount)",
+            "active availability \(snapshot.activeAvailabilityReason)",
+            "repo-local availability \(snapshot.repoLocalAvailabilityReason)",
+            snapshot.activeLatestSessionNumber.map { "active latest S\($0)" },
+            snapshot.repoLocalLatestSessionNumber.map { "repo-local latest S\($0)" },
+            "warnings \(snapshot.activeWarningCount)/\(snapshot.repoLocalWarningCount)",
+            "warning state \(snapshot.warningStateIdentifier)",
+            snapshot.representativeActiveEntryIdentifiers.isEmpty
+                ? "active ids none"
+                : "active ids \(bounded(snapshot.representativeActiveEntryIdentifiers.joined(separator: ","), limit: 110))",
+            snapshot.representativeRepoLocalEntryIdentifiers.isEmpty
+                ? "repo-local ids none"
+                : "repo-local ids \(bounded(snapshot.representativeRepoLocalEntryIdentifiers.joined(separator: ","), limit: 110))",
+            snapshot.representativeRepoLocalExtraEntryIdentifiers.isEmpty
+                ? nil
+                : "repo-local extra \(bounded(snapshot.representativeRepoLocalExtraEntryIdentifiers.joined(separator: ","), limit: 110))",
+            "active history \(bounded(snapshot.activeHistoryIdentifier, limit: 42))",
+            "repo-local history \(bounded(snapshot.repoLocalHistoryIdentifier, limit: 42))",
+            "activity-source \(bounded(snapshot.activitySourceIdentifier, limit: 42))",
+            "active path \(bounded(snapshot.activeSessionsDisplayText, limit: 64))",
+            "repo-local path \(bounded(snapshot.repoLocalSessionsDisplayText, limit: 64))",
+            "id \(bounded(snapshot.identifier, limit: 42))"
+        ].compactMap { $0 }.joined(separator: " | ")
+    }
+
     private static func runRecapShareArtifactRollupDetail(
         _ snapshot: CinematicDiagnosticsReport.RunRecapShareArtifactRollupSnapshot
     ) -> String {
@@ -7624,6 +7744,8 @@ enum CinematicDiagnostics {
             runRecapEndCardPlan: runRecapEndCardPlan,
             runRecapShareArtifactPlan: runRecapShareArtifactPlan,
             runRecapShareArtifactHistoryPlan: project.cinematicRunRecapShareArtifactHistory,
+            runRecapShareArtifactSourceReconciliationPlan:
+                project.cinematicRunRecapShareArtifactSourceReconciliation,
             runRecapShareArtifactCleanupResult: project.cinematicRunRecapShareArtifactCleanup,
             runRecapShareArtifactPreviewSelectedEntryIdentifier:
                 project.cinematicRunRecapShareArtifactLibraryContext.selectedEntryIdentifier,
@@ -7674,6 +7796,7 @@ enum CinematicDiagnostics {
         runRecapEndCardPlan: CinematicRunRecapEndCardPlan = .none,
         runRecapShareArtifactPlan providedRunRecapShareArtifactPlan: CinematicRunRecapShareArtifactPlan? = nil,
         runRecapShareArtifactHistoryPlan providedRunRecapShareArtifactHistoryPlan: CinematicRunRecapShareArtifactHistoryPlan? = nil,
+        runRecapShareArtifactSourceReconciliationPlan providedRunRecapShareArtifactSourceReconciliationPlan: CinematicRunRecapShareArtifactSourceReconciliationPlan? = nil,
         runRecapShareArtifactCleanupResult providedRunRecapShareArtifactCleanupResult: CinematicRunRecapShareArtifactCleanupResult? = nil,
         runRecapShareArtifactPreviewSelectedEntryIdentifier: String? = nil,
         runRecapShareArtifactPreviewSearchQuery: String? = nil,
@@ -7762,6 +7885,12 @@ enum CinematicDiagnostics {
         )
         let runRecapShareArtifactHistoryPlan = providedRunRecapShareArtifactHistoryPlan
             ?? CinematicRunRecapShareArtifactHistoryPlan.unavailable(reason: "not-scanned")
+        let runRecapShareArtifactSourceReconciliationPlan =
+            providedRunRecapShareArtifactSourceReconciliationPlan
+            ?? CinematicRunRecapShareArtifactSourceReconciliationPlanner.plan(
+                activeHistoryPlan: runRecapShareArtifactHistoryPlan,
+                activitySourceSnapshot: activitySourceSnapshot
+            )
         let runRecapShareArtifactLibraryContext = CinematicRunRecapShareArtifactLibraryContext(
             selectedEntryIdentifier: runRecapShareArtifactPreviewSelectedEntryIdentifier,
             searchText: runRecapShareArtifactPreviewSearchQuery ?? "",
@@ -7875,6 +8004,10 @@ enum CinematicDiagnostics {
             for: runRecapShareArtifactHistoryPlan,
             cleanupResult: providedRunRecapShareArtifactCleanupResult
         )
+        let runRecapShareArtifactSourceReconciliationSnapshot =
+            runRecapShareArtifactSourceReconciliationSnapshot(
+                for: runRecapShareArtifactSourceReconciliationPlan
+            )
         let runRecapShareArtifactPreviewPlan = CinematicRunRecapShareArtifactPreviewBrowserPlanner.plan(
             historyPlan: runRecapShareArtifactHistoryPlan,
             selectedEntryIdentifier: runRecapShareArtifactPreviewSelectedEntryIdentifier,
@@ -8006,6 +8139,11 @@ enum CinematicDiagnostics {
                 "run-recap-share:\(runRecapShareSnapshot.identifier)",
                 "run-recap-share-artifact:\(runRecapShareArtifactSnapshot.identifier)",
                 "run-recap-share-artifact-history:\(runRecapShareArtifactHistorySnapshot.identifier)",
+                "run-recap-share-artifact-sources:\(runRecapShareArtifactSourceReconciliationSnapshot.identifier)",
+                "run-recap-share-artifact-sources-state:\(runRecapShareArtifactSourceReconciliationSnapshot.stateIdentifier)",
+                "run-recap-share-artifact-sources-active:\(runRecapShareArtifactSourceReconciliationSnapshot.activeHistoryIdentifier)",
+                "run-recap-share-artifact-sources-repo-local:\(runRecapShareArtifactSourceReconciliationSnapshot.repoLocalHistoryIdentifier)",
+                "run-recap-share-artifact-sources-activity-source:\(runRecapShareArtifactSourceReconciliationSnapshot.activitySourceIdentifier)",
                 "run-recap-share-artifact-rollup:\(runRecapShareArtifactRollupSnapshot.identifier)",
                 "run-recap-share-artifact-comparison:\(runRecapShareArtifactComparisonSnapshot.identifier)",
                 "run-recap-share-artifact-comparison-export:\(runRecapShareArtifactComparisonSnapshot.exportIdentifier)",
@@ -8080,6 +8218,7 @@ enum CinematicDiagnostics {
             runRecapShare: runRecapShareSnapshot,
             runRecapShareArtifact: runRecapShareArtifactSnapshot,
             runRecapShareArtifactHistory: runRecapShareArtifactHistorySnapshot,
+            runRecapShareArtifactSourceReconciliation: runRecapShareArtifactSourceReconciliationSnapshot,
             runRecapShareArtifactRollup: runRecapShareArtifactRollupSnapshot,
             runRecapShareArtifactComparison: runRecapShareArtifactComparisonSnapshot,
             runRecapShareArtifactPins: runRecapShareArtifactPinnedReferenceSnapshot,
@@ -11226,6 +11365,38 @@ enum CinematicDiagnostics {
             warningStateIdentifier: plan.hasWarnings ? "warnings" : "clear",
             lastCleanupResultIdentifier: cleanupResult?.identifier ?? "none",
             lastCleanupResultStatus: cleanupResult?.status.rawValue ?? "none"
+        )
+    }
+
+    private static func runRecapShareArtifactSourceReconciliationSnapshot(
+        for plan: CinematicRunRecapShareArtifactSourceReconciliationPlan
+    ) -> CinematicDiagnosticsReport.RunRecapShareArtifactSourceReconciliationSnapshot {
+        CinematicDiagnosticsReport.RunRecapShareArtifactSourceReconciliationSnapshot(
+            identifier: plan.identifier,
+            stateIdentifier: plan.stateIdentifier,
+            activeStorageIdentifier: plan.activeStorageIdentifier,
+            activitySourceIdentifier: plan.activitySourceIdentifier,
+            activeHistoryIdentifier: plan.activeHistoryIdentifier,
+            repoLocalHistoryIdentifier: plan.repoLocalHistoryIdentifier,
+            activeAvailabilityReason: plan.activeAvailabilityReason,
+            repoLocalAvailabilityReason: plan.repoLocalAvailabilityReason,
+            activeTotalCount: plan.activeTotalCount,
+            repoLocalTotalCount: plan.repoLocalTotalCount,
+            activeWarningCount: plan.activeWarningCount,
+            repoLocalWarningCount: plan.repoLocalWarningCount,
+            activeLatestSessionNumber: plan.activeLatestSessionNumber,
+            repoLocalLatestSessionNumber: plan.repoLocalLatestSessionNumber,
+            activeLatestEntryIdentifier: plan.activeLatestEntryIdentifier,
+            repoLocalLatestEntryIdentifier: plan.repoLocalLatestEntryIdentifier,
+            representativeActiveEntryIdentifiers: plan.representativeActiveEntryIdentifiers,
+            representativeRepoLocalEntryIdentifiers: plan.representativeRepoLocalEntryIdentifiers,
+            representativeRepoLocalExtraEntryIdentifiers: plan.representativeRepoLocalExtraEntryIdentifiers,
+            activeStorageRootDisplayText: plan.activeStorageRootDisplayText,
+            activeSessionsDisplayText: plan.activeSessionsDisplayText,
+            repoLocalStorageRootDisplayText: plan.repoLocalStorageRootDisplayText,
+            repoLocalSessionsDisplayText: plan.repoLocalSessionsDisplayText,
+            warningStateIdentifier: plan.warningStateIdentifier,
+            isApplicationSupportComparison: plan.isApplicationSupportComparison
         )
     }
 
