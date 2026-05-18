@@ -1092,6 +1092,9 @@ struct CompassWorkspaceStorageDisplayStatus: Equatable {
     static let recommendationLimit = 160
     static let repairActionLabelLimit = 24
     static let repairActionHelpLimit = 150
+    static let compatibilityDetailLimit = 180
+    static let compatibilityRecommendationLimit = 160
+    static let compatibilityHelpLimit = 180
 
     var repoURL: URL
     var activeStorage: KnownProjectActiveStorage
@@ -1105,6 +1108,7 @@ struct CompassWorkspaceStorageDisplayStatus: Equatable {
     var repoLocalReadiness: CompassWorkspaceStoragePreflight.RepoLocalReadiness
     var migrationCouldBeTechnicallyEligible: Bool
     var activeRootFacts: ActiveRootFacts
+    var applicationSupportCompatibility: ApplicationSupportCompatibility?
     var status: Status
     var supportRepairAction: RepairAction?
 
@@ -1210,13 +1214,21 @@ struct CompassWorkspaceStorageDisplayStatus: Equatable {
         repoLocalReadiness = preflight.repoLocalReadiness
         migrationCouldBeTechnicallyEligible = preflight.migrationWouldBeSafe
         self.activeRootFacts = activeRootFacts
+        let supportCompatibility = activeStorage == .applicationSupport
+            ? Self.makeApplicationSupportCompatibility(
+                activeStorageRootURL: standardizedActiveRootURL,
+                preflight: preflight
+            )
+            : nil
+        applicationSupportCompatibility = supportCompatibility
         let derivedStatus = Self.status(
             repoURL: standardizedRepoURL,
             activeStorage: activeStorage,
             activeStorageRootURL: standardizedActiveRootURL,
             activeRootFacts: activeRootFacts,
             preflight: preflight,
-            boundary: boundary
+            boundary: boundary,
+            applicationSupportCompatibility: supportCompatibility
         )
         status = derivedStatus
         supportRepairAction = Self.supportRepairAction(for: derivedStatus.kind)
@@ -1240,6 +1252,23 @@ struct CompassWorkspaceStorageDisplayStatus: Equatable {
             switch self {
             case .healthy:
                 return "healthy"
+            case .missing:
+                return "missing"
+            case .incomplete:
+                return "incomplete"
+            }
+        }
+    }
+
+    enum RepoLocalCompatibilityKind: String, Equatable {
+        case retainedStale
+        case missing
+        case incomplete
+
+        var displayName: String {
+            switch self {
+            case .retainedStale:
+                return "retained stale"
             case .missing:
                 return "missing"
             case .incomplete:
@@ -1282,6 +1311,26 @@ struct CompassWorkspaceStorageDisplayStatus: Equatable {
                 presentCoreFiles: assessmentFacts.presentCoreFiles,
                 sessionsDirectoryExists: assessmentFacts.sessionsDirectoryExists
             )
+        }
+    }
+
+    struct RepoLocalCompatibilityContext: Equatable {
+        var kind: RepoLocalCompatibilityKind
+        var missingItems: [String]
+        var detail: String
+        var recommendation: String
+        var helpText: String
+    }
+
+    struct ApplicationSupportCompatibility: Equatable {
+        var repoLocalContext: RepoLocalCompatibilityContext
+        var inspectOnlyApplicationSupportDrift: [CompassWorkspaceStoragePreflight.ApplicationSupportCandidate]
+        var detail: String
+        var recommendation: String
+        var helpText: String
+
+        var hasInspectOnlyDrift: Bool {
+            !inspectOnlyApplicationSupportDrift.isEmpty
         }
     }
 
@@ -1332,7 +1381,8 @@ struct CompassWorkspaceStorageDisplayStatus: Equatable {
         activeStorageRootURL: URL,
         activeRootFacts: ActiveRootFacts,
         preflight: CompassWorkspaceStoragePreflight,
-        boundary: CompassWorkspaceStorageBoundary
+        boundary: CompassWorkspaceStorageBoundary,
+        applicationSupportCompatibility: ApplicationSupportCompatibility?
     ) -> Status {
         switch activeStorage {
         case .repoLocal:
@@ -1349,7 +1399,10 @@ struct CompassWorkspaceStorageDisplayStatus: Equatable {
                 repoURL: repoURL,
                 activeStorageRootURL: activeStorageRootURL,
                 activeRootFacts: activeRootFacts,
-                preflight: preflight
+                compatibility: applicationSupportCompatibility ?? makeApplicationSupportCompatibility(
+                    activeStorageRootURL: activeStorageRootURL,
+                    preflight: preflight
+                )
             )
         }
     }
@@ -1358,17 +1411,23 @@ struct CompassWorkspaceStorageDisplayStatus: Equatable {
         repoURL: URL,
         activeStorageRootURL: URL,
         activeRootFacts: ActiveRootFacts,
-        preflight: CompassWorkspaceStoragePreflight
+        compatibility: ApplicationSupportCompatibility
     ) -> Status {
         switch activeRootFacts.health {
         case .healthy:
             return status(
                 kind: .applicationSupportActive,
-                severity: .healthy,
-                label: "Support storage active",
-                detail: "Current Compass state root is \(boundedPath(activeStorageRootURL.path, limit: 128)); repoURL remains \(boundedPath(repoURL.path, limit: 72)).",
-                recommendation: supportCompatibilityRecommendation(for: preflight.repoLocalReadiness),
-                systemImage: "externaldrive.fill.badge.checkmark"
+                severity: compatibility.hasInspectOnlyDrift ? .info : .healthy,
+                label: compatibility.hasInspectOnlyDrift ? "Support drift noted" : "Support storage active",
+                detail: applicationSupportActiveDetail(
+                    activeStorageRootURL: activeStorageRootURL,
+                    repoURL: repoURL,
+                    compatibility: compatibility
+                ),
+                recommendation: compatibility.recommendation,
+                systemImage: compatibility.hasInspectOnlyDrift
+                    ? "externaldrive.badge.exclamationmark"
+                    : "externaldrive.fill.badge.checkmark"
             )
         case .missing:
             return status(
@@ -1391,17 +1450,143 @@ struct CompassWorkspaceStorageDisplayStatus: Equatable {
         }
     }
 
-    private static func supportCompatibilityRecommendation(
-        for readiness: CompassWorkspaceStoragePreflight.RepoLocalReadiness
-    ) -> String {
-        switch readiness {
+    private static func makeApplicationSupportCompatibility(
+        activeStorageRootURL: URL,
+        preflight: CompassWorkspaceStoragePreflight
+    ) -> ApplicationSupportCompatibility {
+        let repoLocalContext = repoLocalCompatibilityContext(from: preflight)
+        let inspectOnlyDrift = inspectOnlyApplicationSupportDrift(
+            activeStorageRootURL: activeStorageRootURL,
+            preflight: preflight
+        )
+        return ApplicationSupportCompatibility(
+            repoLocalContext: repoLocalContext,
+            inspectOnlyApplicationSupportDrift: inspectOnlyDrift,
+            detail: applicationSupportCompatibilityDetail(
+                repoLocalContext: repoLocalContext,
+                inspectOnlyDrift: inspectOnlyDrift
+            ),
+            recommendation: applicationSupportCompatibilityRecommendation(
+                repoLocalContext: repoLocalContext,
+                inspectOnlyDrift: inspectOnlyDrift
+            ),
+            helpText: applicationSupportCompatibilityHelpText(
+                activeStorageRootURL: activeStorageRootURL,
+                repoLocalContext: repoLocalContext,
+                inspectOnlyDrift: inspectOnlyDrift
+            )
+        )
+    }
+
+    private static func repoLocalCompatibilityContext(
+        from preflight: CompassWorkspaceStoragePreflight
+    ) -> RepoLocalCompatibilityContext {
+        let missingItems = preflight.missingCoreFiles.map(\.relativePath)
+            + (preflight.sessionsDirectoryExists ? [] : ["sessions/"])
+
+        let kind: RepoLocalCompatibilityKind
+        let detail: String
+        let recommendation: String
+        let helpText: String
+
+        switch preflight.repoLocalReadiness {
         case .ready:
-            return "Repo-local compatibility is ready; Application Support remains the active state root."
+            kind = .retainedStale
+            detail = "Repo-local .compass/ is retained stale compatibility context."
+            recommendation = "Leave repo-local state unchanged unless explicitly reverting to repo-local storage."
+            helpText = "Repo-local .compass/ is not active while Application Support is selected; treat it as stale compatibility context."
         case .missingWorkspace:
-            return "Repo-local .compass/ is absent; Application Support remains the active state root."
+            kind = .missing
+            detail = "Repo-local .compass/ is absent; Application Support has the active state."
+            recommendation = "No repo-local storage action is needed by default."
+            helpText = "Missing repo-local .compass/ does not block an Application Support-active project."
         case .incompleteWorkspace:
-            return "Repo-local .compass/ is incomplete; Application Support remains the active state root."
+            kind = .incomplete
+            detail = ".compass/ is incomplete stale compatibility context: \(missingItems.joined(separator: ", "))."
+            recommendation = "Leave incomplete repo-local state unchanged unless explicitly reverting storage."
+            helpText = "Incomplete repo-local .compass/ is compatibility context only while Application Support is active."
         }
+
+        return RepoLocalCompatibilityContext(
+            kind: kind,
+            missingItems: missingItems,
+            detail: boundedText(detail, limit: compatibilityDetailLimit),
+            recommendation: boundedText(recommendation, limit: compatibilityRecommendationLimit),
+            helpText: boundedText(helpText, limit: compatibilityHelpLimit)
+        )
+    }
+
+    private static func inspectOnlyApplicationSupportDrift(
+        activeStorageRootURL: URL,
+        preflight: CompassWorkspaceStoragePreflight
+    ) -> [CompassWorkspaceStoragePreflight.ApplicationSupportCandidate] {
+        let activeRootPath = activeStorageRootURL.standardizedFileURL.path
+        return [
+            preflight.currentApplicationSupportCandidate,
+            preflight.legacyApplicationSupportCandidate
+        ].filter { candidate in
+            candidate.isOccupied && candidate.url.standardizedFileURL.path != activeRootPath
+        }
+    }
+
+    private static func applicationSupportActiveDetail(
+        activeStorageRootURL: URL,
+        repoURL: URL,
+        compatibility: ApplicationSupportCompatibility
+    ) -> String {
+        let rootText = "Active Compass state root: \(boundedPath(activeStorageRootURL.path, limit: 76)); repoURL: \(boundedPath(repoURL.path, limit: 44))."
+        return boundedText(
+            "\(compatibility.detail) \(rootText)",
+            limit: detailLimit
+        )
+    }
+
+    private static func applicationSupportCompatibilityDetail(
+        repoLocalContext: RepoLocalCompatibilityContext,
+        inspectOnlyDrift: [CompassWorkspaceStoragePreflight.ApplicationSupportCandidate]
+    ) -> String {
+        let drift = inspectOnlyDriftText(inspectOnlyDrift, pathLimit: 64)
+        let detail = drift.isEmpty
+            ? repoLocalContext.detail
+            : "\(repoLocalContext.detail) Inspect-only support drift: \(drift)."
+        return boundedText(detail, limit: compatibilityDetailLimit)
+    }
+
+    private static func applicationSupportCompatibilityRecommendation(
+        repoLocalContext: RepoLocalCompatibilityContext,
+        inspectOnlyDrift: [CompassWorkspaceStoragePreflight.ApplicationSupportCandidate]
+    ) -> String {
+        let driftNames = inspectOnlyDrift
+            .map { $0.kind.displayName.lowercased() }
+            .joined(separator: ", ")
+        let recommendation = inspectOnlyDrift.isEmpty
+            ? repoLocalContext.recommendation
+            : "\(repoLocalContext.recommendation) Inspect \(driftNames) support data separately; keep Application Support active."
+        return boundedText(recommendation, limit: compatibilityRecommendationLimit)
+    }
+
+    private static func applicationSupportCompatibilityHelpText(
+        activeStorageRootURL: URL,
+        repoLocalContext: RepoLocalCompatibilityContext,
+        inspectOnlyDrift: [CompassWorkspaceStoragePreflight.ApplicationSupportCandidate]
+    ) -> String {
+        let drift = inspectOnlyDriftText(inspectOnlyDrift, pathLimit: 72)
+        let supportText = drift.isEmpty
+            ? "Active root: \(boundedPath(activeStorageRootURL.path, limit: 84))."
+            : "Inspect-only drift: \(drift); active root remains \(boundedPath(activeStorageRootURL.path, limit: 64))."
+        return boundedText(
+            "\(repoLocalContext.helpText) \(supportText)",
+            limit: compatibilityHelpLimit
+        )
+    }
+
+    private static func inspectOnlyDriftText(
+        _ candidates: [CompassWorkspaceStoragePreflight.ApplicationSupportCandidate],
+        pathLimit: Int
+    ) -> String {
+        candidates
+            .map { "\($0.kind.displayName): \(boundedPath($0.url.path, limit: pathLimit))" }
+            .joined(separator: "; ")
     }
 
     private static func displayKind(for boundaryKind: CompassWorkspaceStorageBoundary.Kind) -> Kind {

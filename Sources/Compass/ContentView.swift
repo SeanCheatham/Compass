@@ -525,35 +525,49 @@ private struct ProjectStorageAssessmentPill: View {
     }
 
     private var helpText: String {
-        [
+        var lines = [
             "Current state root: \(displayStatus.activeStorageRootURL.path)",
             "Active storage: \(displayStatus.activeStorageDisplayName)",
             "Active root health: \(displayStatus.activeRootHealth.displayName)",
             displayStatus.detail,
-            displayStatus.recommendation,
-            "Repo-local boundary: \(boundary.label)",
-            boundary.detail,
-            boundary.recommendation,
-            "Technical migration eligible: \(boundary.migrationCouldBeTechnicallyEligible ? "yes" : "no")",
-            "Repo-local assessment: \(assessment.label)",
-            assessment.detail,
-            assessment.recommendation,
-            "Candidate preparation: \(migrationPlan.label)",
-            migrationPlan.detail,
-            migrationPlan.recommendation,
-            "Activation: \(activationPlan.label)",
-            activationPlan.detail,
-            activationPlan.recommendation,
-            "Migration preflight: \(preflight.label)",
-            preflight.detail,
-            preflight.recommendation,
-            "Repo-local readiness: \(preflight.repoLocalReadiness.displayName)",
-            missingCoreFilesText,
-            "Sessions directory: \(preflight.sessionsDirectoryExists ? "present" : "missing")",
-            "Project storage ID: \(preflight.projectStorageIdentifier)",
-            candidateText(preflight.currentApplicationSupportCandidate),
-            candidateText(preflight.legacyApplicationSupportCandidate)
+            displayStatus.recommendation
         ]
+
+        if displayStatus.activeStorage == .applicationSupport {
+            if let compatibility = displayStatus.applicationSupportCompatibility {
+                lines.append("Repo-local compatibility: \(compatibility.repoLocalContext.kind.displayName)")
+                lines.append(compatibility.detail)
+                lines.append(compatibility.helpText)
+            }
+            lines.append("Project storage ID: \(displayStatus.projectStorageIdentifier)")
+        } else {
+            lines += [
+                "Repo-local boundary: \(boundary.label)",
+                boundary.detail,
+                boundary.recommendation,
+                "Technical migration eligible: \(boundary.migrationCouldBeTechnicallyEligible ? "yes" : "no")",
+                "Repo-local assessment: \(assessment.label)",
+                assessment.detail,
+                assessment.recommendation,
+                "Candidate preparation: \(migrationPlan.label)",
+                migrationPlan.detail,
+                migrationPlan.recommendation,
+                "Activation: \(activationPlan.label)",
+                activationPlan.detail,
+                activationPlan.recommendation,
+                "Migration preflight: \(preflight.label)",
+                preflight.detail,
+                preflight.recommendation,
+                "Repo-local readiness: \(preflight.repoLocalReadiness.displayName)",
+                missingCoreFilesText,
+                "Sessions directory: \(preflight.sessionsDirectoryExists ? "present" : "missing")",
+                "Project storage ID: \(preflight.projectStorageIdentifier)",
+                candidateText(preflight.currentApplicationSupportCandidate),
+                candidateText(preflight.legacyApplicationSupportCandidate)
+            ]
+        }
+
+        return lines
             .filter { !$0.isEmpty }
             .joined(separator: " · ")
     }
