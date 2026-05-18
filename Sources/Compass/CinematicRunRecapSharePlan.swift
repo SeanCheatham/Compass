@@ -147,6 +147,232 @@ struct CinematicRunRecapShareArtifactHistoryPlan: Equatable, Identifiable {
     }
 }
 
+struct CinematicRunRecapShareArtifactPreviewBrowserPlan: Equatable, Identifiable {
+    static let identifierMaxCharacters = CinematicRunRecapShareArtifactHistoryPlan.identifierMaxCharacters
+    static let snippetMaxCharacters = CinematicRunRecapShareArtifactHistoryPlan.snippetMaxCharacters
+    static let pathSnippetMaxCharacters = CinematicRunRecapShareArtifactHistoryPlan.pathDisplayMaxCharacters
+    static let bodyPreviewMaxCharacters = 220
+
+    var id: String { identifier }
+
+    var identifier: String
+    var isAvailable: Bool
+    var availabilityReason: String
+    var selectedEntryIdentifier: String?
+    var previousEntryIdentifier: String?
+    var nextEntryIdentifier: String?
+    var selectedIndex: Int?
+    var selectedOrdinal: Int?
+    var entryCount: Int
+    var sessionNumber: Int?
+    var filename: String?
+    var titleSnippet: String
+    var statusSnippet: String
+    var commitSnippet: String?
+    var pathSnippet: String
+    var bodyPreviewText: String
+    var markdownLength: Int
+    var warningStateIdentifier: String
+    var warningCount: Int
+    var hasWarnings: Bool
+
+    var canNavigatePrevious: Bool { previousEntryIdentifier != nil }
+    var canNavigateNext: Bool { nextEntryIdentifier != nil }
+}
+
+enum CinematicRunRecapShareArtifactPreviewBrowserPlanner {
+    static func plan(
+        historyPlan: CinematicRunRecapShareArtifactHistoryPlan,
+        selectedEntryIdentifier: String? = nil
+    ) -> CinematicRunRecapShareArtifactPreviewBrowserPlan {
+        let entries = historyPlan.entries
+        let selectedPair = selectedEntry(
+            in: entries,
+            requestedIdentifier: selectedEntryIdentifier
+        )
+        let selectedIndex = selectedPair?.index
+        let selectedEntry = selectedPair?.entry
+        let previousEntryIdentifier = selectedIndex.flatMap { index in
+            index > entries.startIndex ? entries[index - 1].identifier : nil
+        }
+        let nextEntryIdentifier = selectedIndex.flatMap { index in
+            let nextIndex = index + 1
+            return nextIndex < entries.endIndex ? entries[nextIndex].identifier : nil
+        }
+        let warningStateIdentifier = historyPlan.hasWarnings ? "warnings" : "clear"
+        let availabilityReason = historyPlan.availabilityReason
+        let identifier = bounded(
+            [
+                "run-recap-share-artifact-preview",
+                "availability:\(availabilityReason)",
+                "history:\(fingerprint(historyPlan.identifier))",
+                "selected:\(selectedEntry?.identifier ?? "none")",
+                "index:\(selectedIndex.map(String.init) ?? "none")",
+                "count:\(entries.count)",
+                "previous:\(previousEntryIdentifier ?? "none")",
+                "next:\(nextEntryIdentifier ?? "none")",
+                "warnings:\(warningStateIdentifier)",
+                "warning-count:\(historyPlan.warningCount)"
+            ].joined(separator: "|"),
+            limit: CinematicRunRecapShareArtifactPreviewBrowserPlan.identifierMaxCharacters
+        )
+
+        guard let selectedEntry else {
+            return CinematicRunRecapShareArtifactPreviewBrowserPlan(
+                identifier: identifier,
+                isAvailable: false,
+                availabilityReason: availabilityReason,
+                selectedEntryIdentifier: nil,
+                previousEntryIdentifier: nil,
+                nextEntryIdentifier: nil,
+                selectedIndex: nil,
+                selectedOrdinal: nil,
+                entryCount: entries.count,
+                sessionNumber: nil,
+                filename: nil,
+                titleSnippet: "No recap artifact selected",
+                statusSnippet: bounded(
+                    availabilityReason,
+                    limit: CinematicRunRecapShareArtifactPreviewBrowserPlan.snippetMaxCharacters
+                ),
+                commitSnippet: nil,
+                pathSnippet: bounded(
+                    historyPlan.sessionsDisplayText,
+                    limit: CinematicRunRecapShareArtifactPreviewBrowserPlan.pathSnippetMaxCharacters
+                ),
+                bodyPreviewText: boundedBodyPreview(
+                    "No saved recap share artifacts are available for preview.",
+                    limit: CinematicRunRecapShareArtifactPreviewBrowserPlan.bodyPreviewMaxCharacters
+                ),
+                markdownLength: 0,
+                warningStateIdentifier: warningStateIdentifier,
+                warningCount: historyPlan.warningCount,
+                hasWarnings: historyPlan.hasWarnings
+            )
+        }
+
+        return CinematicRunRecapShareArtifactPreviewBrowserPlan(
+            identifier: identifier,
+            isAvailable: true,
+            availabilityReason: availabilityReason,
+            selectedEntryIdentifier: selectedEntry.identifier,
+            previousEntryIdentifier: previousEntryIdentifier,
+            nextEntryIdentifier: nextEntryIdentifier,
+            selectedIndex: selectedIndex,
+            selectedOrdinal: selectedIndex.map { $0 + 1 },
+            entryCount: entries.count,
+            sessionNumber: selectedEntry.sessionNumber,
+            filename: selectedEntry.filename,
+            titleSnippet: bounded(
+                selectedEntry.titleSnippet,
+                limit: CinematicRunRecapShareArtifactPreviewBrowserPlan.snippetMaxCharacters
+            ),
+            statusSnippet: bounded(
+                selectedEntry.statusSnippet,
+                limit: CinematicRunRecapShareArtifactPreviewBrowserPlan.snippetMaxCharacters
+            ),
+            commitSnippet: selectedEntry.commitSnippet.map {
+                bounded(
+                    $0,
+                    limit: CinematicRunRecapShareArtifactPreviewBrowserPlan.snippetMaxCharacters
+                )
+            },
+            pathSnippet: bounded(
+                selectedEntry.pathDisplayText,
+                limit: CinematicRunRecapShareArtifactPreviewBrowserPlan.pathSnippetMaxCharacters
+            ),
+            bodyPreviewText: previewBody(from: selectedEntry.markdownContents),
+            markdownLength: selectedEntry.markdownLength,
+            warningStateIdentifier: warningStateIdentifier,
+            warningCount: historyPlan.warningCount,
+            hasWarnings: historyPlan.hasWarnings
+        )
+    }
+
+    private static func selectedEntry(
+        in entries: [CinematicRunRecapShareArtifactHistoryPlan.Entry],
+        requestedIdentifier: String?
+    ) -> (index: Int, entry: CinematicRunRecapShareArtifactHistoryPlan.Entry)? {
+        if let requestedIdentifier,
+           let index = entries.firstIndex(where: { $0.identifier == requestedIdentifier }) {
+            return (index, entries[index])
+        }
+        guard let first = entries.first else { return nil }
+        return (entries.startIndex, first)
+    }
+
+    private static func previewBody(from markdownContents: String) -> String {
+        boundedBodyPreview(
+            shareTextBody(in: markdownContents)
+                ?? fallbackBody(in: markdownContents)
+                ?? "No preview text available.",
+            limit: CinematicRunRecapShareArtifactPreviewBrowserPlan.bodyPreviewMaxCharacters
+        )
+    }
+
+    private static func shareTextBody(in markdownContents: String) -> String? {
+        guard let range = markdownContents.range(of: "## Share Text") else {
+            return nil
+        }
+
+        let text = markdownContents[range.upperBound...]
+            .split(omittingEmptySubsequences: false, whereSeparator: \.isNewline)
+            .map { line in
+                String(line).trimmingCharacters(in: .whitespacesAndNewlines)
+            }
+            .filter { line in
+                !line.isEmpty && !line.hasPrefix("```")
+            }
+            .joined(separator: " ")
+        return text.isEmpty ? nil : text
+    }
+
+    private static func fallbackBody(in markdownContents: String) -> String? {
+        let text = markdownContents
+            .split(omittingEmptySubsequences: false, whereSeparator: \.isNewline)
+            .map { line in
+                String(line).trimmingCharacters(in: .whitespacesAndNewlines)
+            }
+            .filter { line in
+                !line.isEmpty
+                    && !line.hasPrefix("#")
+                    && !line.hasPrefix("- ")
+                    && !line.hasPrefix("```")
+            }
+            .joined(separator: " ")
+        return text.isEmpty ? nil : text
+    }
+
+    private static func bounded(_ text: String, limit: Int) -> String {
+        guard limit > 0 else { return "" }
+        let normalized = text
+            .replacingOccurrences(of: "\r", with: " ")
+            .replacingOccurrences(of: "\n", with: " ")
+            .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalized.isEmpty else { return "none" }
+        guard normalized.count <= limit else {
+            let prefixLimit = max(1, limit - 3)
+            return normalized.prefix(prefixLimit)
+                .trimmingCharacters(in: .whitespacesAndNewlines) + "..."
+        }
+        return normalized
+    }
+
+    private static func boundedBodyPreview(_ text: String, limit: Int) -> String {
+        bounded(text, limit: limit)
+    }
+
+    private static func fingerprint(_ value: String) -> String {
+        var hash: UInt64 = 0xcbf29ce484222325
+        for byte in value.utf8 {
+            hash ^= UInt64(byte)
+            hash = hash &* 0x100000001b3
+        }
+        return String(format: "%016llx", hash)
+    }
+}
+
 struct CinematicRunRecapShareArtifactCleanupResult: Equatable, Identifiable {
     static let identifierMaxCharacters = 320
     static let labelMaxCharacters = 34

@@ -570,26 +570,35 @@ private struct CinematicRunRecapArtifactLibraryControl: View {
     @State private var feedback: String?
     @State private var feedbackStatus: CinematicRunRecapShareArtifactCleanupResult.Status?
     @State private var preservedFeedbackPlanIdentifier: String?
+    @State private var selectedEntryIdentifier: String?
 
     var body: some View {
-        HStack(spacing: 7) {
-            Image(systemName: plan.hasWarnings ? "archivebox.fill" : "archivebox")
+        let previewPlan = currentPreviewPlan
+
+        HStack(alignment: .center, spacing: 7) {
+            Image(systemName: previewPlan.hasWarnings ? "archivebox.fill" : "archivebox")
                 .font(.system(size: 11, weight: .bold))
-                .foregroundStyle(tint.opacity(plan.isAvailable ? 0.84 : 0.42))
+                .foregroundStyle(tint.opacity(previewPlan.isAvailable ? 0.84 : 0.42))
                 .frame(width: 14)
 
             VStack(alignment: .leading, spacing: 1) {
-                Text(latestLabel)
+                Text(selectedLabel(previewPlan))
                     .font(.caption2.weight(.semibold))
-                    .foregroundStyle(.white.opacity(plan.isAvailable ? 0.78 : 0.52))
+                    .foregroundStyle(.white.opacity(previewPlan.isAvailable ? 0.78 : 0.52))
                     .lineLimit(1)
                     .minimumScaleFactor(0.72)
 
-                Text(detailLabel)
+                Text(selectedDetail(previewPlan))
                     .font(.caption2)
-                    .foregroundStyle(.white.opacity(0.48))
+                    .foregroundStyle(.white.opacity(0.52))
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
+
+                Text(previewPlan.bodyPreviewText)
+                    .font(.caption2)
+                    .foregroundStyle(.white.opacity(0.42))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.68)
             }
 
             Spacer(minLength: 4)
@@ -603,7 +612,37 @@ private struct CinematicRunRecapArtifactLibraryControl: View {
             }
 
             Button {
-                revealLatestArtifact()
+                selectArtifact(previewPlan.previousEntryIdentifier)
+            } label: {
+                Image(systemName: "chevron.left")
+                    .font(.system(size: 12, weight: .bold))
+                    .frame(width: 20, height: 22)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .disabled(!previewPlan.canNavigatePrevious)
+            .foregroundStyle(tint.opacity(previewPlan.canNavigatePrevious ? 0.86 : 0.32))
+            .help(previousHelp(previewPlan))
+            .accessibilityLabel("Previous recap share artifact")
+            .accessibilityIdentifier("cinematic-run-recap-artifact-library-previous")
+
+            Button {
+                selectArtifact(previewPlan.nextEntryIdentifier)
+            } label: {
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 12, weight: .bold))
+                    .frame(width: 20, height: 22)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .disabled(!previewPlan.canNavigateNext)
+            .foregroundStyle(tint.opacity(previewPlan.canNavigateNext ? 0.86 : 0.32))
+            .help(nextHelp(previewPlan))
+            .accessibilityLabel("Next recap share artifact")
+            .accessibilityIdentifier("cinematic-run-recap-artifact-library-next")
+
+            Button {
+                revealSelectedArtifact()
             } label: {
                 Image(systemName: "folder")
                     .font(.system(size: 12, weight: .bold))
@@ -611,11 +650,26 @@ private struct CinematicRunRecapArtifactLibraryControl: View {
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .disabled(plan.latestEntry == nil)
-            .foregroundStyle(tint.opacity(plan.latestEntry == nil ? 0.32 : 0.86))
-            .help(revealHelp)
-            .accessibilityLabel("Reveal latest recap share artifact")
+            .disabled(currentSelectedEntry == nil)
+            .foregroundStyle(tint.opacity(currentSelectedEntry == nil ? 0.32 : 0.86))
+            .help(revealHelp(previewPlan))
+            .accessibilityLabel("Reveal selected recap share artifact")
             .accessibilityIdentifier("cinematic-run-recap-artifact-library-reveal")
+
+            Button {
+                copySelectedArtifact()
+            } label: {
+                Image(systemName: "doc.text")
+                    .font(.system(size: 12, weight: .bold))
+                    .frame(width: 22, height: 22)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .disabled(currentSelectedEntry == nil)
+            .foregroundStyle(tint.opacity(currentSelectedEntry == nil ? 0.32 : 0.86))
+            .help(copySelectedHelp(previewPlan))
+            .accessibilityLabel("Copy selected recap share artifact")
+            .accessibilityIdentifier("cinematic-run-recap-artifact-library-copy-selected")
 
             Button {
                 cleanupArtifacts()
@@ -659,7 +713,11 @@ private struct CinematicRunRecapArtifactLibraryControl: View {
         }
         .help(exportHelp)
         .accessibilityIdentifier("cinematic-run-recap-artifact-library-\(plan.identifier)")
+        .onAppear {
+            selectedEntryIdentifier = currentPreviewPlan.selectedEntryIdentifier
+        }
         .onChange(of: plan.identifier) {
+            selectedEntryIdentifier = currentPreviewPlan.selectedEntryIdentifier
             if preservedFeedbackPlanIdentifier == plan.identifier {
                 return
             }
@@ -669,28 +727,62 @@ private struct CinematicRunRecapArtifactLibraryControl: View {
         }
     }
 
-    private var latestLabel: String {
-        guard let latest = plan.latestEntry else {
-            return "Artifact library unavailable"
-        }
-        return "Latest S\(latest.sessionNumber) \(latest.filename)"
+    private var currentPreviewPlan: CinematicRunRecapShareArtifactPreviewBrowserPlan {
+        CinematicRunRecapShareArtifactPreviewBrowserPlanner.plan(
+            historyPlan: plan,
+            selectedEntryIdentifier: selectedEntryIdentifier
+        )
     }
 
-    private var detailLabel: String {
-        if !plan.isAvailable {
-            return plan.availabilityReason
+    private var currentSelectedEntry: CinematicRunRecapShareArtifactHistoryPlan.Entry? {
+        guard let identifier = currentPreviewPlan.selectedEntryIdentifier else { return nil }
+        return plan.entries.first { $0.identifier == identifier }
+    }
+
+    private func selectedLabel(_ previewPlan: CinematicRunRecapShareArtifactPreviewBrowserPlan) -> String {
+        guard previewPlan.isAvailable else {
+            return "Artifact preview unavailable"
         }
-        let hidden = plan.hiddenCount > 0 ? " +\(plan.hiddenCount) hidden" : ""
+        let position = previewPlan.selectedOrdinal.map { "\($0)/\(previewPlan.entryCount)" } ?? "0/\(previewPlan.entryCount)"
+        let session = previewPlan.sessionNumber.map { "S\($0)" } ?? "S-"
+        return "\(session) \(previewPlan.filename ?? "artifact") (\(position))"
+    }
+
+    private func selectedDetail(_ previewPlan: CinematicRunRecapShareArtifactPreviewBrowserPlan) -> String {
+        guard previewPlan.isAvailable else {
+            return previewPlan.availabilityReason
+        }
+        let commit = previewPlan.commitSnippet.map { " | \($0)" } ?? ""
+        let hidden = plan.hiddenCount > 0 ? " | +\(plan.hiddenCount) hidden" : ""
         let cleanup = plan.cleanupCandidateCount > 0 ? " | \(plan.cleanupCandidateCount) cleanup" : ""
-        let warnings = plan.warningCount > 0 ? " | \(plan.warningCount) warning" : ""
-        return "\(plan.totalCount) saved\(hidden)\(cleanup)\(warnings)"
+        let warnings = previewPlan.warningCount > 0 ? " | \(previewPlan.warningCount) warning" : ""
+        return "\(previewPlan.titleSnippet) | \(previewPlan.statusSnippet)\(commit)\(hidden)\(cleanup)\(warnings)"
     }
 
-    private var revealHelp: String {
-        guard let latest = plan.latestEntry else {
+    private func previousHelp(_ previewPlan: CinematicRunRecapShareArtifactPreviewBrowserPlan) -> String {
+        previewPlan.canNavigatePrevious
+            ? "Show the newer saved recap share artifact."
+            : "Already showing the newest saved recap share artifact."
+    }
+
+    private func nextHelp(_ previewPlan: CinematicRunRecapShareArtifactPreviewBrowserPlan) -> String {
+        previewPlan.canNavigateNext
+            ? "Show the older saved recap share artifact."
+            : "Already showing the oldest visible recap share artifact."
+    }
+
+    private func revealHelp(_ previewPlan: CinematicRunRecapShareArtifactPreviewBrowserPlan) -> String {
+        guard currentSelectedEntry != nil else {
             return "No saved recap share artifact to reveal."
         }
-        return "Reveal \(latest.pathDisplayText) in Finder."
+        return "Reveal \(previewPlan.pathSnippet) in Finder."
+    }
+
+    private func copySelectedHelp(_ previewPlan: CinematicRunRecapShareArtifactPreviewBrowserPlan) -> String {
+        guard previewPlan.isAvailable else {
+            return "No recap share artifact Markdown is available: \(previewPlan.availabilityReason)."
+        }
+        return "Copy \(previewPlan.markdownLength)-character Markdown from \(previewPlan.pathSnippet)."
     }
 
     private var exportHelp: String {
@@ -720,10 +812,29 @@ private struct CinematicRunRecapArtifactLibraryControl: View {
         }
     }
 
-    private func revealLatestArtifact() {
-        guard let latest = plan.latestEntry else { return }
-        NSWorkspace.shared.activateFileViewerSelecting([latest.url])
+    private func selectArtifact(_ identifier: String?) {
+        guard let identifier else { return }
+        selectedEntryIdentifier = identifier
+        feedback = nil
+        feedbackStatus = nil
+        preservedFeedbackPlanIdentifier = nil
+    }
+
+    private func revealSelectedArtifact() {
+        guard let selected = currentSelectedEntry else { return }
+        NSWorkspace.shared.activateFileViewerSelecting([selected.url])
         feedback = "Revealed"
+        feedbackStatus = nil
+        preservedFeedbackPlanIdentifier = plan.identifier
+    }
+
+    private func copySelectedArtifact() {
+        guard let selected = currentSelectedEntry else { return }
+        let markdown = (try? String(contentsOf: selected.url, encoding: .utf8))
+            ?? selected.markdownContents
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(markdown, forType: .string)
+        feedback = "Artifact copied"
         feedbackStatus = nil
         preservedFeedbackPlanIdentifier = plan.identifier
     }

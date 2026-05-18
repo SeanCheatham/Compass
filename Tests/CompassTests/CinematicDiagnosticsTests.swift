@@ -633,6 +633,7 @@ final class CinematicDiagnosticsTests: XCTestCase {
                 "run-recap-share",
                 "run-recap-share-artifact",
                 "run-recap-share-artifact-history",
+                "run-recap-share-artifact-preview",
                 "run-recap-focus",
                 "run-recap-end-card",
                 "language-motif",
@@ -695,6 +696,7 @@ final class CinematicDiagnosticsTests: XCTestCase {
                     "run-recap-share",
                     "run-recap-share-artifact",
                     "run-recap-share-artifact-history",
+                    "run-recap-share-artifact-preview",
                     "run-recap-focus",
                     "run-recap-end-card"
                 ],
@@ -832,7 +834,7 @@ final class CinematicDiagnosticsTests: XCTestCase {
             .components(separatedBy: "\n")
             .filter { expectedSectionHeadings.contains($0) }
         XCTAssertEqual(actualSectionHeadings, expectedSectionHeadings)
-        XCTAssertTrue(summary.exportText.contains("Repository/context (11 rows)"))
+        XCTAssertTrue(summary.exportText.contains("Repository/context (12 rows)"))
         XCTAssertTrue(summary.exportText.contains("Motifs (2 rows)"))
         XCTAssertTrue(summary.exportText.contains("Stage motion/effects (9 rows)"))
         XCTAssertTrue(summary.exportText.contains("Narrative/overlay (7 rows)"))
@@ -1772,6 +1774,9 @@ final class CinematicDiagnosticsTests: XCTestCase {
             contents: "corrupt diagnostics artifact"
         )
         let historyPlan = workspace.refreshRunRecapShareArtifactHistory()
+        let previewPlan = CinematicRunRecapShareArtifactPreviewBrowserPlanner.plan(
+            historyPlan: historyPlan
+        )
 
         let report = makeReport(
             CinematicDiagnosticsInput(
@@ -1791,6 +1796,7 @@ final class CinematicDiagnosticsTests: XCTestCase {
             visualSmoke: CinematicVisualSmokeReport(reports: [report])
         )
         let row = try XCTUnwrap(summary.rows.first { $0.id == "run-recap-share-artifact-history" })
+        let previewRow = try XCTUnwrap(summary.rows.first { $0.id == "run-recap-share-artifact-preview" })
 
         XCTAssertTrue(report.runRecapShareArtifactHistory.isAvailable)
         XCTAssertEqual(report.runRecapShareArtifactHistory.totalCount, 1)
@@ -1808,6 +1814,26 @@ final class CinematicDiagnosticsTests: XCTestCase {
         XCTAssertEqual(report.runRecapShareArtifactHistory.lastCleanupResultStatus, "none")
         XCTAssertEqual(report.runRecapShareArtifactHistory.exportIdentifier, historyPlan.exportIdentifier)
         XCTAssertEqual(report.runRecapShareArtifactHistory.exportMarkdownLength, historyPlan.combinedMarkdownLength)
+        XCTAssertTrue(report.runRecapShareArtifactPreview.isAvailable)
+        XCTAssertEqual(report.runRecapShareArtifactPreview.identifier, previewPlan.identifier)
+        XCTAssertEqual(report.runRecapShareArtifactPreview.selectedEntryIdentifier, historyPlan.latestEntry?.identifier)
+        XCTAssertNil(report.runRecapShareArtifactPreview.previousEntryIdentifier)
+        XCTAssertNil(report.runRecapShareArtifactPreview.nextEntryIdentifier)
+        XCTAssertEqual(report.runRecapShareArtifactPreview.selectedIndex, 0)
+        XCTAssertEqual(report.runRecapShareArtifactPreview.selectedOrdinal, 1)
+        XCTAssertEqual(report.runRecapShareArtifactPreview.entryCount, 1)
+        XCTAssertEqual(report.runRecapShareArtifactPreview.sessionNumber, 17)
+        XCTAssertEqual(report.runRecapShareArtifactPreview.filename, "17-recap-share-diagnostics.md")
+        XCTAssertEqual(report.runRecapShareArtifactPreview.titleSnippet, "Diagnostics Recap")
+        XCTAssertEqual(report.runRecapShareArtifactPreview.statusSnippet, "succeeded")
+        XCTAssertEqual(report.runRecapShareArtifactPreview.commitSnippet, "Diagnostics commit")
+        XCTAssertEqual(report.runRecapShareArtifactPreview.warningStateIdentifier, "warnings")
+        XCTAssertEqual(report.runRecapShareArtifactPreview.warningCount, 1)
+        XCTAssertEqual(
+            report.runRecapShareArtifactPreview.markdownLength,
+            try XCTUnwrap(historyPlan.latestEntry?.markdownLength)
+        )
+        XCTAssertTrue(report.identifier.contains("run-recap-share-artifact-preview:\(previewPlan.identifier)"))
         XCTAssertTrue(row.detail.contains("available"))
         XCTAssertTrue(row.detail.contains("total 1"))
         XCTAssertTrue(row.detail.contains("retention \(historyPlan.retentionLimit)"))
@@ -1817,7 +1843,15 @@ final class CinematicDiagnosticsTests: XCTestCase {
         XCTAssertTrue(row.detail.contains("latest session 17"))
         XCTAssertTrue(row.detail.contains("17-recap-share-diagnostics.md"))
         XCTAssertTrue(row.detail.contains("warnings 1"))
+        XCTAssertTrue(previewRow.detail.contains("available"))
+        XCTAssertTrue(previewRow.detail.contains("selection 1/1"))
+        XCTAssertTrue(previewRow.detail.contains("session 17"))
+        XCTAssertTrue(previewRow.detail.contains("17-recap-share-diagnostics.md"))
+        XCTAssertTrue(previewRow.detail.contains("warning state warnings"))
+        XCTAssertTrue(previewRow.detail.contains("warnings 1"))
         XCTAssertTrue(summary.exportText.contains("Recap artifact library: available"))
+        XCTAssertTrue(summary.exportText.contains("Recap artifact preview: available"))
+        XCTAssertTrue(summary.exportText.contains("selection 1/1"))
         XCTAssertTrue(summary.exportText.contains("retention \(historyPlan.retentionLimit)"))
         XCTAssertTrue(summary.exportText.contains("cleanup candidates 0"))
         XCTAssertTrue(summary.exportText.contains("warning state warnings"))

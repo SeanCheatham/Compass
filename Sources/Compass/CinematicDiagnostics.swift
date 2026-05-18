@@ -29,6 +29,7 @@ struct CinematicDiagnosticsReport: Equatable {
     var runRecapShare: RunRecapShareSnapshot
     var runRecapShareArtifact: RunRecapShareArtifactSnapshot
     var runRecapShareArtifactHistory: RunRecapShareArtifactHistorySnapshot
+    var runRecapShareArtifactPreview: RunRecapShareArtifactPreviewSnapshot
     var runRecapSceneFocus: RunRecapSceneFocusSnapshot
     var runRecapEndCard: RunRecapEndCardSnapshot
     var cameraSnapshots: [CameraSnapshot]
@@ -546,6 +547,29 @@ struct CinematicDiagnosticsReport: Equatable {
         var warningStateIdentifier: String
         var lastCleanupResultIdentifier: String
         var lastCleanupResultStatus: String
+    }
+
+    struct RunRecapShareArtifactPreviewSnapshot: Equatable {
+        var identifier: String
+        var isAvailable: Bool
+        var availabilityReason: String
+        var selectedEntryIdentifier: String?
+        var previousEntryIdentifier: String?
+        var nextEntryIdentifier: String?
+        var selectedIndex: Int?
+        var selectedOrdinal: Int?
+        var entryCount: Int
+        var sessionNumber: Int?
+        var filename: String?
+        var titleSnippet: String
+        var statusSnippet: String
+        var commitSnippet: String?
+        var pathSnippet: String
+        var bodyPreviewText: String
+        var markdownLength: Int
+        var warningStateIdentifier: String
+        var warningCount: Int
+        var hasWarnings: Bool
     }
 
     struct RunRecapSceneFocusSnapshot: Equatable {
@@ -1535,6 +1559,7 @@ struct CinematicVisualSmokeReport: Equatable {
             && runRecapShareCopyIsBounded(report)
             && runRecapShareArtifactCopyIsBounded(report)
             && runRecapShareArtifactHistoryCopyIsBounded(report)
+            && runRecapShareArtifactPreviewCopyIsBounded(report)
             && runRecapEndCardCopyIsBounded(report)
     }
 
@@ -1597,6 +1622,40 @@ struct CinematicVisualSmokeReport: Equatable {
             && string(
                 snapshot.lastCleanupResultIdentifier,
                 maxCharacters: CinematicRunRecapShareArtifactCleanupResult.identifierMaxCharacters
+            )
+    }
+
+    private static func runRecapShareArtifactPreviewCopyIsBounded(_ report: CinematicDiagnosticsReport) -> Bool {
+        let snapshot = report.runRecapShareArtifactPreview
+        return string(
+            snapshot.identifier,
+            maxCharacters: CinematicRunRecapShareArtifactPreviewBrowserPlan.identifierMaxCharacters
+        )
+            && (snapshot.selectedEntryIdentifier ?? "").count
+                <= CinematicRunRecapShareArtifactHistoryPlan.identifierMaxCharacters
+            && (snapshot.previousEntryIdentifier ?? "").count
+                <= CinematicRunRecapShareArtifactHistoryPlan.identifierMaxCharacters
+            && (snapshot.nextEntryIdentifier ?? "").count
+                <= CinematicRunRecapShareArtifactHistoryPlan.identifierMaxCharacters
+            && (snapshot.filename?.count ?? 0)
+                <= CinematicRunRecapShareArtifactHistoryPlan.filenameMaxCharacters
+            && string(
+                snapshot.titleSnippet,
+                maxCharacters: CinematicRunRecapShareArtifactPreviewBrowserPlan.snippetMaxCharacters
+            )
+            && string(
+                snapshot.statusSnippet,
+                maxCharacters: CinematicRunRecapShareArtifactPreviewBrowserPlan.snippetMaxCharacters
+            )
+            && (snapshot.commitSnippet?.count ?? 0)
+                <= CinematicRunRecapShareArtifactPreviewBrowserPlan.snippetMaxCharacters
+            && string(
+                snapshot.pathSnippet,
+                maxCharacters: CinematicRunRecapShareArtifactPreviewBrowserPlan.pathSnippetMaxCharacters
+            )
+            && string(
+                snapshot.bodyPreviewText,
+                maxCharacters: CinematicRunRecapShareArtifactPreviewBrowserPlan.bodyPreviewMaxCharacters
             )
     }
 
@@ -1937,7 +1996,7 @@ struct CinematicVisualSmokeReport: Equatable {
 }
 
 struct CinematicDiagnosticsSummary: Equatable {
-    static let maxRows = 43
+    static let maxRows = 44
     static let labelMaxCharacters = 32
     static let detailMaxCharacters = 512
     static let headerDetailMaxCharacters = 128
@@ -2072,6 +2131,7 @@ struct CinematicDiagnosticsSummary: Equatable {
                 "run-recap-share",
                 "run-recap-share-artifact",
                 "run-recap-share-artifact-history",
+                "run-recap-share-artifact-preview",
                 "run-recap-focus",
                 "run-recap-end-card"
             ]
@@ -2202,6 +2262,11 @@ struct CinematicDiagnosticsSummary: Equatable {
                 id: "run-recap-share-artifact-history",
                 label: "Recap artifact library",
                 detail: runRecapShareArtifactHistoryDetail(report.runRecapShareArtifactHistory)
+            ),
+            row(
+                id: "run-recap-share-artifact-preview",
+                label: "Recap artifact preview",
+                detail: runRecapShareArtifactPreviewDetail(report.runRecapShareArtifactPreview)
             ),
             row(
                 id: "run-recap-focus",
@@ -3163,6 +3228,33 @@ struct CinematicDiagnosticsSummary: Equatable {
         ].compactMap { $0 }.joined(separator: " | ")
     }
 
+    private static func runRecapShareArtifactPreviewDetail(
+        _ snapshot: CinematicDiagnosticsReport.RunRecapShareArtifactPreviewSnapshot
+    ) -> String {
+        let availability = snapshot.isAvailable
+            ? "available"
+            : "empty \(snapshot.availabilityReason)"
+        let position = snapshot.selectedOrdinal.map { "\($0)/\(snapshot.entryCount)" } ?? "none/\(snapshot.entryCount)"
+        return [
+            availability,
+            "selection \(position)",
+            snapshot.sessionNumber.map { "session \($0)" },
+            snapshot.filename.map { "file \(bounded($0, limit: 72))" },
+            snapshot.selectedEntryIdentifier.map { "entry \(bounded($0, limit: 54))" },
+            "previous \(bounded(snapshot.previousEntryIdentifier ?? "none", limit: 54))",
+            "next \(bounded(snapshot.nextEntryIdentifier ?? "none", limit: 54))",
+            "title \(snapshot.titleSnippet)",
+            "status \(snapshot.statusSnippet)",
+            optionalIdentifier("commit", snapshot.commitSnippet),
+            "path \(bounded(snapshot.pathSnippet, limit: 74))",
+            "preview \(bounded(snapshot.bodyPreviewText, limit: 100))",
+            "markdown \(snapshot.markdownLength) chars",
+            "warning state \(snapshot.warningStateIdentifier)",
+            "warnings \(snapshot.warningCount)",
+            "id \(bounded(snapshot.identifier, limit: 54))"
+        ].compactMap { $0 }.joined(separator: " | ")
+    }
+
     private static func runRecapSceneFocusDetail(
         _ snapshot: CinematicDiagnosticsReport.RunRecapSceneFocusSnapshot
     ) -> String {
@@ -3564,6 +3656,12 @@ enum CinematicDiagnostics {
             for: runRecapShareArtifactHistoryPlan,
             cleanupResult: providedRunRecapShareArtifactCleanupResult
         )
+        let runRecapShareArtifactPreviewPlan = CinematicRunRecapShareArtifactPreviewBrowserPlanner.plan(
+            historyPlan: runRecapShareArtifactHistoryPlan
+        )
+        let runRecapShareArtifactPreviewSnapshot = runRecapShareArtifactPreviewSnapshot(
+            for: runRecapShareArtifactPreviewPlan
+        )
         let cameraSnapshots = CinematicCameraShot.allCases.map {
             cameraSnapshot(for: $0, settings: influenceSettings)
         }
@@ -3591,6 +3689,7 @@ enum CinematicDiagnostics {
                 "run-recap-share:\(runRecapShareSnapshot.identifier)",
                 "run-recap-share-artifact:\(runRecapShareArtifactSnapshot.identifier)",
                 "run-recap-share-artifact-history:\(runRecapShareArtifactHistorySnapshot.identifier)",
+                "run-recap-share-artifact-preview:\(runRecapShareArtifactPreviewSnapshot.identifier)",
                 "run-recap-share-artifact-cleanup:\(runRecapShareArtifactHistorySnapshot.lastCleanupResultIdentifier)",
                 "run-recap-focus:\(runRecapSceneFocusSnapshot.identifier)",
                 "run-recap-end-card:\(runRecapEndCardSnapshot.identifier)"
@@ -3622,6 +3721,7 @@ enum CinematicDiagnostics {
             runRecapShare: runRecapShareSnapshot,
             runRecapShareArtifact: runRecapShareArtifactSnapshot,
             runRecapShareArtifactHistory: runRecapShareArtifactHistorySnapshot,
+            runRecapShareArtifactPreview: runRecapShareArtifactPreviewSnapshot,
             runRecapSceneFocus: runRecapSceneFocusSnapshot,
             runRecapEndCard: runRecapEndCardSnapshot,
             cameraSnapshots: cameraSnapshots
@@ -5077,6 +5177,33 @@ enum CinematicDiagnostics {
             warningStateIdentifier: plan.hasWarnings ? "warnings" : "clear",
             lastCleanupResultIdentifier: cleanupResult?.identifier ?? "none",
             lastCleanupResultStatus: cleanupResult?.status.rawValue ?? "none"
+        )
+    }
+
+    private static func runRecapShareArtifactPreviewSnapshot(
+        for plan: CinematicRunRecapShareArtifactPreviewBrowserPlan
+    ) -> CinematicDiagnosticsReport.RunRecapShareArtifactPreviewSnapshot {
+        CinematicDiagnosticsReport.RunRecapShareArtifactPreviewSnapshot(
+            identifier: plan.identifier,
+            isAvailable: plan.isAvailable,
+            availabilityReason: plan.availabilityReason,
+            selectedEntryIdentifier: plan.selectedEntryIdentifier,
+            previousEntryIdentifier: plan.previousEntryIdentifier,
+            nextEntryIdentifier: plan.nextEntryIdentifier,
+            selectedIndex: plan.selectedIndex,
+            selectedOrdinal: plan.selectedOrdinal,
+            entryCount: plan.entryCount,
+            sessionNumber: plan.sessionNumber,
+            filename: plan.filename,
+            titleSnippet: plan.titleSnippet,
+            statusSnippet: plan.statusSnippet,
+            commitSnippet: plan.commitSnippet,
+            pathSnippet: plan.pathSnippet,
+            bodyPreviewText: plan.bodyPreviewText,
+            markdownLength: plan.markdownLength,
+            warningStateIdentifier: plan.warningStateIdentifier,
+            warningCount: plan.warningCount,
+            hasWarnings: plan.hasWarnings
         )
     }
 
