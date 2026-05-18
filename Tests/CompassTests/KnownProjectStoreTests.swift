@@ -105,6 +105,8 @@ final class KnownProjectStoreTestsRecordDecoding: XCTestCase {
     func testRecapShareArtifactLibraryContextDecodingBoundsPersistedText() throws {
         let longIdentifier = String(repeating: "selected-entry-", count: 40)
         let longSearch = String(repeating: "Search Needle ", count: 20)
+        let duplicatePin = "pinned-entry-1"
+        let longPin = String(repeating: "pinned-entry-", count: 40)
         let records = try decodeRecords("""
         [
           {
@@ -114,7 +116,13 @@ final class KnownProjectStoreTestsRecordDecoding: XCTestCase {
             "lastOpenedAt": 2,
             "cinematicRunRecapShareArtifactLibraryContext": {
               "selectedEntryIdentifier": "  \(longIdentifier)  ",
-              "searchText": "  \(longSearch)  "
+              "searchText": "  \(longSearch)  ",
+              "pinnedEntryIdentifiers": [
+                "  \(duplicatePin)  ",
+                "\(duplicatePin)",
+                "   ",
+                "\(longPin)"
+              ]
             }
           },
           {
@@ -139,8 +147,21 @@ final class KnownProjectStoreTestsRecordDecoding: XCTestCase {
             CinematicRunRecapShareArtifactLibraryContext.searchTextMaxCharacters
         )
         XCTAssertFalse(records[0].cinematicRunRecapShareArtifactLibraryContext.searchText.hasPrefix(" "))
+        XCTAssertEqual(
+            records[0].cinematicRunRecapShareArtifactLibraryContext.pinnedEntryIdentifiers.count,
+            2
+        )
+        XCTAssertEqual(
+            records[0].cinematicRunRecapShareArtifactLibraryContext.pinnedEntryIdentifiers.first,
+            duplicatePin
+        )
+        XCTAssertLessThanOrEqual(
+            records[0].cinematicRunRecapShareArtifactLibraryContext.pinnedEntryIdentifiers.last?.count ?? 0,
+            CinematicRunRecapShareArtifactLibraryContext.selectedEntryIdentifierMaxCharacters
+        )
         XCTAssertNil(records[1].cinematicRunRecapShareArtifactLibraryContext.selectedEntryIdentifier)
         XCTAssertEqual(records[1].cinematicRunRecapShareArtifactLibraryContext.searchText, "")
+        XCTAssertEqual(records[1].cinematicRunRecapShareArtifactLibraryContext.pinnedEntryIdentifiers, [])
     }
 
     private func decodeRecords(_ json: String) throws -> [KnownProjectRecord] {
@@ -229,7 +250,8 @@ final class KnownProjectStoreTests: XCTestCase {
             nativeFeedbackMode: .speechAndNotifications,
             cinematicRunRecapShareArtifactLibraryContext: CinematicRunRecapShareArtifactLibraryContext(
                 selectedEntryIdentifier: "artifact-selected",
-                searchText: "Selected Search"
+                searchText: "Selected Search",
+                pinnedEntryIdentifiers: ["artifact-selected", "artifact-other"]
             )
         )
 
@@ -255,8 +277,13 @@ final class KnownProjectStoreTests: XCTestCase {
             in: saved
         )
         assertSortedKeys(["\"cameraStyle\"", "\"comfortMode\"", "\"intensity\""], in: saved)
-        assertSortedKeys(["\"searchText\"", "\"selectedEntryIdentifier\""], in: saved)
+        assertSortedKeys(
+            ["\"pinnedEntryIdentifiers\"", "\"searchText\"", "\"selectedEntryIdentifier\""],
+            in: saved
+        )
         XCTAssertTrue(saved.contains("\"comfortMode\" : \"quiet\""))
+        XCTAssertTrue(saved.contains("\"pinnedEntryIdentifiers\" : ["))
+        XCTAssertTrue(saved.contains("\"artifact-other\""))
         XCTAssertTrue(saved.contains("\"searchText\" : \"Selected Search\""))
         XCTAssertTrue(saved.contains("\"selectedEntryIdentifier\" : \"artifact-selected\""))
     }

@@ -635,6 +635,7 @@ final class CinematicDiagnosticsTests: XCTestCase {
                 "run-recap-share-artifact-history",
                 "run-recap-share-artifact-rollup",
                 "run-recap-share-artifact-comparison",
+                "run-recap-share-artifact-pins",
                 "run-recap-share-artifact-preview",
                 "run-recap-focus",
                 "run-recap-end-card",
@@ -668,8 +669,7 @@ final class CinematicDiagnosticsTests: XCTestCase {
                 "camera-shot-over-shoulder",
                 "camera-shot-impact",
                 "camera-shot-overhead",
-                "camera-shot-commit-constellation",
-                "camera-shot-failure"
+                "camera-shot-commit-constellation"
             ]
         )
         XCTAssertEqual(summary.rows.count, CinematicDiagnosticsSummary.maxRows)
@@ -700,6 +700,7 @@ final class CinematicDiagnosticsTests: XCTestCase {
                     "run-recap-share-artifact-history",
                     "run-recap-share-artifact-rollup",
                     "run-recap-share-artifact-comparison",
+                    "run-recap-share-artifact-pins",
                     "run-recap-share-artifact-preview",
                     "run-recap-focus",
                     "run-recap-end-card"
@@ -745,8 +746,7 @@ final class CinematicDiagnosticsTests: XCTestCase {
                     "camera-shot-over-shoulder",
                     "camera-shot-impact",
                     "camera-shot-overhead",
-                    "camera-shot-commit-constellation",
-                    "camera-shot-failure"
+                    "camera-shot-commit-constellation"
                 ]
             ]
         )
@@ -838,13 +838,13 @@ final class CinematicDiagnosticsTests: XCTestCase {
             .components(separatedBy: "\n")
             .filter { expectedSectionHeadings.contains($0) }
         XCTAssertEqual(actualSectionHeadings, expectedSectionHeadings)
-        XCTAssertTrue(summary.exportText.contains("Repository/context (14 rows)"))
+        XCTAssertTrue(summary.exportText.contains("Repository/context (15 rows)"))
         XCTAssertTrue(summary.exportText.contains("Motifs (2 rows)"))
         XCTAssertTrue(summary.exportText.contains("Stage motion/effects (9 rows)"))
         XCTAssertTrue(summary.exportText.contains("Narrative/overlay (7 rows)"))
         XCTAssertTrue(summary.exportText.contains("Assets/textures (2 rows)"))
         XCTAssertTrue(summary.exportText.contains("Tuning (4 rows)"))
-        XCTAssertTrue(summary.exportText.contains("Camera shots (8 rows)"))
+        XCTAssertTrue(summary.exportText.contains("Camera shots (7 rows)"))
         XCTAssertTrue(summary.exportText.contains("Visual smoke (pass, 17 checks)"))
         XCTAssertTrue(summary.exportText.contains("Plaque treatments (pass, 4 recipes): smoke pass"))
         XCTAssertTrue(summary.exportText.contains("failure-fracture: accent failure-fracture"))

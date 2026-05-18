@@ -2284,19 +2284,23 @@ enum KnownProjectActiveStorage: String, Codable, CaseIterable, Identifiable {
 struct CinematicRunRecapShareArtifactLibraryContext: Codable, Equatable {
     static let selectedEntryIdentifierMaxCharacters = CinematicRunRecapShareArtifactHistoryPlan.identifierMaxCharacters
     static let searchTextMaxCharacters = CinematicRunRecapShareArtifactPreviewBrowserPlan.searchQuerySnippetMaxCharacters
+    static let pinnedEntryIdentifierLimit = CinematicRunRecapShareArtifactPinnedReferencePlan.pinIdentifierLimit
     static let empty = CinematicRunRecapShareArtifactLibraryContext()
 
     var selectedEntryIdentifier: String?
     var searchText: String
+    var pinnedEntryIdentifiers: [String]
 
     enum CodingKeys: String, CodingKey {
         case selectedEntryIdentifier
         case searchText
+        case pinnedEntryIdentifiers
     }
 
     init(
         selectedEntryIdentifier: String? = nil,
-        searchText: String = ""
+        searchText: String = "",
+        pinnedEntryIdentifiers: [String] = []
     ) {
         self.selectedEntryIdentifier = Self.boundedOptionalText(
             selectedEntryIdentifier,
@@ -2306,13 +2310,15 @@ struct CinematicRunRecapShareArtifactLibraryContext: Codable, Equatable {
             searchText,
             limit: Self.searchTextMaxCharacters
         )
+        self.pinnedEntryIdentifiers = Self.boundedIdentifierList(pinnedEntryIdentifiers)
     }
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         self.init(
             selectedEntryIdentifier: try container.decodeIfPresent(String.self, forKey: .selectedEntryIdentifier),
-            searchText: try container.decodeIfPresent(String.self, forKey: .searchText) ?? ""
+            searchText: try container.decodeIfPresent(String.self, forKey: .searchText) ?? "",
+            pinnedEntryIdentifiers: try container.decodeIfPresent([String].self, forKey: .pinnedEntryIdentifiers) ?? []
         )
     }
 
@@ -2320,15 +2326,20 @@ struct CinematicRunRecapShareArtifactLibraryContext: Codable, Equatable {
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encode(searchText, forKey: .searchText)
         try container.encodeIfPresent(selectedEntryIdentifier, forKey: .selectedEntryIdentifier)
+        if !pinnedEntryIdentifiers.isEmpty {
+            try container.encode(pinnedEntryIdentifiers, forKey: .pinnedEntryIdentifiers)
+        }
     }
 
     func replacing(
         selectedEntryIdentifier: String?,
-        searchText: String
+        searchText: String,
+        pinnedEntryIdentifiers: [String]? = nil
     ) -> CinematicRunRecapShareArtifactLibraryContext {
         CinematicRunRecapShareArtifactLibraryContext(
             selectedEntryIdentifier: selectedEntryIdentifier,
-            searchText: searchText
+            searchText: searchText,
+            pinnedEntryIdentifiers: pinnedEntryIdentifiers ?? self.pinnedEntryIdentifiers
         )
     }
 
@@ -2342,8 +2353,39 @@ struct CinematicRunRecapShareArtifactLibraryContext: Codable, Equatable {
         )
         return replacing(
             selectedEntryIdentifier: previewPlan.selectedEntryIdentifier,
-            searchText: searchText
+            searchText: searchText,
+            pinnedEntryIdentifiers: resolvedPinnedEntryIdentifiers(in: historyPlan)
         )
+    }
+
+    func togglingPinnedEntryIdentifier(
+        _ identifier: String?
+    ) -> CinematicRunRecapShareArtifactLibraryContext {
+        guard let identifier = Self.boundedOptionalText(
+            identifier,
+            limit: Self.selectedEntryIdentifierMaxCharacters
+        ) else {
+            return self
+        }
+
+        let nextPinnedEntryIdentifiers: [String]
+        if pinnedEntryIdentifiers.contains(identifier) {
+            nextPinnedEntryIdentifiers = pinnedEntryIdentifiers.filter { $0 != identifier }
+        } else {
+            nextPinnedEntryIdentifiers = [identifier] + pinnedEntryIdentifiers
+        }
+        return replacing(
+            selectedEntryIdentifier: selectedEntryIdentifier,
+            searchText: searchText,
+            pinnedEntryIdentifiers: nextPinnedEntryIdentifiers
+        )
+    }
+
+    private func resolvedPinnedEntryIdentifiers(
+        in historyPlan: CinematicRunRecapShareArtifactHistoryPlan
+    ) -> [String] {
+        let retainedEntryIdentifiers = Set(historyPlan.entries.map(\.identifier))
+        return pinnedEntryIdentifiers.filter { retainedEntryIdentifiers.contains($0) }
     }
 
     private static func boundedOptionalText(_ text: String?, limit: Int) -> String? {
@@ -2360,6 +2402,29 @@ struct CinematicRunRecapShareArtifactLibraryContext: Codable, Equatable {
             .trimmingCharacters(in: .whitespacesAndNewlines)
         guard normalized.count > limit else { return normalized }
         return String(normalized.prefix(limit)).trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private static func boundedIdentifierList(_ identifiers: [String]) -> [String] {
+        var seen = Set<String>()
+        var boundedIdentifiers: [String] = []
+
+        for identifier in identifiers {
+            guard let boundedIdentifier = boundedOptionalText(
+                identifier,
+                limit: selectedEntryIdentifierMaxCharacters
+            ) else {
+                continue
+            }
+            guard seen.insert(boundedIdentifier).inserted else {
+                continue
+            }
+            boundedIdentifiers.append(boundedIdentifier)
+            if boundedIdentifiers.count == pinnedEntryIdentifierLimit {
+                break
+            }
+        }
+
+        return boundedIdentifiers
     }
 }
 

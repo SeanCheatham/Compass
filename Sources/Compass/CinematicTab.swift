@@ -576,12 +576,14 @@ private struct CinematicRunRecapArtifactLibraryControl: View {
         let previewPlan = currentPreviewPlan
         let rollupPlan = currentRollupPlan
         let comparisonPlan = currentComparisonPlan
+        let pinnedReferencePlan = currentPinnedReferencePlan
         let selectedExportPlan = subsetExportPlan(scope: .selected)
         let filteredExportPlan = subsetExportPlan(scope: .filtered)
 
         VStack(alignment: .leading, spacing: 4) {
             rollupScanline(rollupPlan)
             comparisonStrip(comparisonPlan)
+            pinnedReferenceStrip(pinnedReferencePlan, previewPlan: previewPlan)
 
             HStack(alignment: .center, spacing: 7) {
                 Image(systemName: previewPlan.hasWarnings ? "archivebox.fill" : "archivebox")
@@ -777,6 +779,15 @@ private struct CinematicRunRecapArtifactLibraryControl: View {
         )
     }
 
+    private var currentPinnedReferencePlan: CinematicRunRecapShareArtifactPinnedReferencePlan {
+        CinematicRunRecapShareArtifactPinnedReferencePlanner.plan(
+            historyPlan: plan,
+            pinnedEntryIdentifiers: artifactLibraryContext.pinnedEntryIdentifiers,
+            selectedEntryIdentifier: artifactLibraryContext.selectedEntryIdentifier,
+            searchQuery: artifactLibraryContext.searchText
+        )
+    }
+
     private var currentSelectedEntry: CinematicRunRecapShareArtifactHistoryPlan.Entry? {
         guard let identifier = currentPreviewPlan.selectedEntryIdentifier else { return nil }
         return plan.entries.first { $0.identifier == identifier }
@@ -897,6 +908,112 @@ private struct CinematicRunRecapArtifactLibraryControl: View {
         .accessibilityIdentifier("cinematic-run-recap-artifact-library-comparison-\(comparisonPlan.identifier)")
     }
 
+    private func pinnedReferenceStrip(
+        _ pinnedReferencePlan: CinematicRunRecapShareArtifactPinnedReferencePlan,
+        previewPlan: CinematicRunRecapShareArtifactPreviewBrowserPlan
+    ) -> some View {
+        HStack(alignment: .center, spacing: 6) {
+            Image(systemName: pinnedReferencePlan.isAvailable ? "pin.fill" : "pin")
+                .font(.system(size: 10, weight: .bold))
+                .foregroundStyle(tint.opacity(pinnedReferencePlan.isAvailable ? 0.78 : 0.38))
+                .frame(width: 14)
+
+            Text(pinnedReferenceSummary(pinnedReferencePlan))
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(.white.opacity(pinnedReferencePlan.isAvailable ? 0.68 : 0.44))
+                .lineLimit(1)
+                .minimumScaleFactor(0.68)
+
+            pinnedReferenceQuickSelectButtons(pinnedReferencePlan, previewPlan: previewPlan)
+                .frame(minWidth: 0, maxWidth: 190, alignment: .leading)
+
+            Spacer(minLength: 4)
+
+            Button {
+                toggleSelectedPin(previewPlan)
+            } label: {
+                Image(systemName: pinnedReferencePlan.selectedEntryIsPinned ? "pin.slash" : "pin")
+                    .font(.system(size: 11, weight: .bold))
+                    .frame(width: 20, height: 18)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .disabled(previewPlan.selectedEntryIdentifier == nil)
+            .foregroundStyle(tint.opacity(previewPlan.selectedEntryIdentifier == nil ? 0.3 : 0.82))
+            .help(togglePinHelp(pinnedReferencePlan, previewPlan: previewPlan))
+            .accessibilityLabel(pinnedReferencePlan.selectedEntryIsPinned ? "Unpin selected recap share artifact" : "Pin selected recap share artifact")
+            .accessibilityIdentifier("cinematic-run-recap-artifact-library-toggle-pin")
+
+            Button {
+                copyPinnedExport(pinnedReferencePlan)
+            } label: {
+                Image(systemName: "doc.on.doc")
+                    .font(.system(size: 11, weight: .bold))
+                    .frame(width: 20, height: 18)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .disabled(!pinnedReferencePlan.isAvailable)
+            .foregroundStyle(tint.opacity(pinnedReferencePlan.isAvailable ? 0.82 : 0.3))
+            .help(pinnedReferencePlan.copyHelp)
+            .accessibilityLabel(pinnedReferencePlan.copyLabel)
+            .accessibilityIdentifier("cinematic-run-recap-artifact-library-copy-pinned-export")
+        }
+        .padding(.horizontal, 6)
+        .padding(.vertical, 3)
+        .background(
+            tint.opacity(pinnedReferencePlan.isSearchActive ? 0.07 : 0.045),
+            in: RoundedRectangle(cornerRadius: 5)
+        )
+        .overlay {
+            RoundedRectangle(cornerRadius: 5)
+                .stroke(tint.opacity(pinnedReferencePlan.hasWarnings ? 0.2 : 0.09), lineWidth: 1)
+        }
+        .help(pinnedReferencePlan.copyHelp)
+        .accessibilityIdentifier("cinematic-run-recap-artifact-library-pins-\(pinnedReferencePlan.identifier)")
+    }
+
+    private func pinnedReferenceQuickSelectButtons(
+        _ pinnedReferencePlan: CinematicRunRecapShareArtifactPinnedReferencePlan,
+        previewPlan: CinematicRunRecapShareArtifactPreviewBrowserPlan
+    ) -> some View {
+        let references = pinnedReferencePlan.references.filter { $0.isQuickSelectable }
+        return HStack(spacing: 3) {
+            ForEach(references) { reference in
+                pinnedReferenceQuickSelectButton(
+                    reference,
+                    isSelected: reference.identifier == previewPlan.selectedEntryIdentifier,
+                    plan: pinnedReferencePlan
+                )
+            }
+        }
+    }
+
+    private func pinnedReferenceQuickSelectButton(
+        _ reference: CinematicRunRecapShareArtifactPinnedReferencePlan.Reference,
+        isSelected: Bool,
+        plan pinnedReferencePlan: CinematicRunRecapShareArtifactPinnedReferencePlan
+    ) -> some View {
+        let label = "S\(reference.sessionNumber)"
+        return Button {
+            selectArtifact(reference.identifier)
+        } label: {
+            Text(verbatim: label)
+                .font(.caption2.weight(.bold))
+                .frame(width: 24, height: 18)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(tint.opacity(isSelected ? 0.9 : 0.68))
+        .background(
+            .white.opacity(isSelected ? 0.09 : 0.04),
+            in: RoundedRectangle(cornerRadius: 5)
+        )
+        .help(pinnedReferenceHelp(reference, plan: pinnedReferencePlan))
+        .accessibilityLabel("Select pinned recap share artifact session \(reference.sessionNumber)")
+        .accessibilityIdentifier("cinematic-run-recap-artifact-library-select-pin-\(reference.identifier)")
+    }
+
     private func comparisonColumn(
         label: String,
         sessionNumber: Int?,
@@ -940,6 +1057,48 @@ private struct CinematicRunRecapArtifactLibraryControl: View {
             ? " | \(comparisonPlan.matchingEntryCount)/\(comparisonPlan.unfilteredVisibleCount)"
             : ""
         return "\(comparisonPlan.targetDirectionIdentifier) | \(delta)\(search)"
+    }
+
+    private func pinnedReferenceSummary(
+        _ pinnedReferencePlan: CinematicRunRecapShareArtifactPinnedReferencePlan
+    ) -> String {
+        guard pinnedReferencePlan.isAvailable else {
+            return "Pins \(pinnedReferencePlan.pinnedEntryCount) | \(pinnedReferencePlan.availabilityReason)"
+        }
+        let missing = pinnedReferencePlan.missingPinnedEntryCount > 0
+            ? " | \(pinnedReferencePlan.missingPinnedEntryCount) stale"
+            : ""
+        let filtered = pinnedReferencePlan.filteredPinnedEntryCount > 0
+            ? " | \(pinnedReferencePlan.filteredPinnedEntryCount) filtered"
+            : ""
+        let search = pinnedReferencePlan.isSearchActive
+            ? " | \(pinnedReferencePlan.quickSelectEntryCount) quick"
+            : ""
+        return "Pins \(pinnedReferencePlan.retainedPinnedEntryCount)/\(pinnedReferencePlan.pinnedEntryCount)\(search)\(filtered)\(missing)"
+    }
+
+    private func pinnedReferenceHelp(
+        _ reference: CinematicRunRecapShareArtifactPinnedReferencePlan.Reference,
+        plan pinnedReferencePlan: CinematicRunRecapShareArtifactPinnedReferencePlan
+    ) -> String {
+        let commit = reference.commitSnippet.map { " Commit: \($0)." } ?? ""
+        let search = pinnedReferencePlan.isSearchActive
+            ? " Visible under search \(pinnedReferencePlan.searchQuerySnippet)."
+            : ""
+        return "Select pinned recap artifact S\(reference.sessionNumber): \(reference.titleSnippet) | \(reference.statusSnippet).\(commit)\(search)"
+    }
+
+    private func togglePinHelp(
+        _ pinnedReferencePlan: CinematicRunRecapShareArtifactPinnedReferencePlan,
+        previewPlan: CinematicRunRecapShareArtifactPreviewBrowserPlan
+    ) -> String {
+        guard previewPlan.selectedEntryIdentifier != nil else {
+            return "No selected recap share artifact to pin."
+        }
+        if pinnedReferencePlan.selectedEntryIsPinned {
+            return "Unpin the selected recap share artifact from the pinned reference strip."
+        }
+        return "Pin the selected recap share artifact for quick selection and pinned export."
     }
 
     private func subsetExportPlan(
@@ -1153,6 +1312,15 @@ private struct CinematicRunRecapArtifactLibraryControl: View {
         preservedFeedbackPlanIdentifier = plan.identifier
     }
 
+    private func copyPinnedExport(_ pinnedReferencePlan: CinematicRunRecapShareArtifactPinnedReferencePlan) {
+        guard pinnedReferencePlan.isAvailable else { return }
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(pinnedReferencePlan.exportText, forType: .string)
+        feedback = "Pinned export copied"
+        feedbackStatus = nil
+        preservedFeedbackPlanIdentifier = plan.identifier
+    }
+
     private func copyExport() {
         guard plan.isAvailable else { return }
         NSPasteboard.general.clearContents()
@@ -1175,6 +1343,23 @@ private struct CinematicRunRecapArtifactLibraryControl: View {
                 preservedFeedbackPlanIdentifier = result.refreshedHistory.identifier
             }
         }
+    }
+
+    private func toggleSelectedPin(_ previewPlan: CinematicRunRecapShareArtifactPreviewBrowserPlan) {
+        guard previewPlan.selectedEntryIdentifier != nil else { return }
+        let pinPlan = CinematicRunRecapShareArtifactPinnedReferencePlanner.plan(
+            historyPlan: plan,
+            pinnedEntryIdentifiers: artifactLibraryContext.pinnedEntryIdentifiers,
+            selectedEntryIdentifier: previewPlan.selectedEntryIdentifier,
+            searchQuery: artifactLibraryContext.searchText
+        )
+        let resolvedContext = artifactLibraryContext
+            .togglingPinnedEntryIdentifier(previewPlan.selectedEntryIdentifier)
+            .resolvingSelection(in: plan)
+        persistContext(resolvedContext)
+        feedback = pinPlan.selectedEntryIsPinned ? "Unpinned" : "Pinned"
+        feedbackStatus = nil
+        preservedFeedbackPlanIdentifier = plan.identifier
     }
 
     private func updateSearchText(_ text: String) {

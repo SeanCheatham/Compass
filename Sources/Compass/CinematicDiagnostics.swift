@@ -31,6 +31,7 @@ struct CinematicDiagnosticsReport: Equatable {
     var runRecapShareArtifactHistory: RunRecapShareArtifactHistorySnapshot
     var runRecapShareArtifactRollup: RunRecapShareArtifactRollupSnapshot
     var runRecapShareArtifactComparison: RunRecapShareArtifactComparisonSnapshot
+    var runRecapShareArtifactPins: RunRecapShareArtifactPinnedReferenceSnapshot
     var runRecapShareArtifactPreview: RunRecapShareArtifactPreviewSnapshot
     var runRecapSceneFocus: RunRecapSceneFocusSnapshot
     var runRecapEndCard: RunRecapEndCardSnapshot
@@ -663,6 +664,54 @@ struct CinematicDiagnosticsReport: Equatable {
         var cleanupCandidateCount: Int
         var hiddenCleanupCandidateCount: Int
         var cleanupCandidateIdentifiers: [String]
+        var warningStateIdentifier: String
+        var warningCount: Int
+        var hiddenWarningCount: Int
+        var warningIdentifiers: [String]
+        var hasWarnings: Bool
+        var exportTextLength: Int
+        var copyLabel: String
+        var copyHelp: String
+    }
+
+    struct RunRecapShareArtifactPinnedReferenceEntrySnapshot: Equatable {
+        var identifier: String
+        var sessionNumber: Int
+        var filename: String
+        var titleSnippet: String
+        var statusSnippet: String
+        var commitSnippet: String?
+        var isQuickSelectable: Bool
+    }
+
+    struct RunRecapShareArtifactPinnedReferenceSnapshot: Equatable {
+        var identifier: String
+        var exportIdentifier: String
+        var isAvailable: Bool
+        var availabilityReason: String
+        var isSearchActive: Bool
+        var searchQuerySnippet: String
+        var searchQueryFingerprint: String
+        var noMatchAvailabilityReason: String?
+        var retainedEntryCount: Int
+        var totalCount: Int
+        var hiddenCount: Int
+        var matchingEntryCount: Int
+        var unfilteredVisibleCount: Int
+        var selectedEntryIdentifier: String?
+        var selectedEntryIsPinned: Bool
+        var selectedPinStateIdentifier: String
+        var requestedPinnedEntryIdentifiers: [String]
+        var retainedPinnedEntryIdentifiers: [String]
+        var missingPinnedEntryIdentifiers: [String]
+        var filteredPinnedEntryIdentifiers: [String]
+        var quickSelectEntryIdentifiers: [String]
+        var pinnedEntryCount: Int
+        var retainedPinnedEntryCount: Int
+        var missingPinnedEntryCount: Int
+        var filteredPinnedEntryCount: Int
+        var quickSelectEntryCount: Int
+        var references: [RunRecapShareArtifactPinnedReferenceEntrySnapshot]
         var warningStateIdentifier: String
         var warningCount: Int
         var hiddenWarningCount: Int
@@ -1695,6 +1744,7 @@ struct CinematicVisualSmokeReport: Equatable {
             && runRecapShareArtifactHistoryCopyIsBounded(report)
             && runRecapShareArtifactRollupCopyIsBounded(report)
             && runRecapShareArtifactComparisonCopyIsBounded(report)
+            && runRecapShareArtifactPinsCopyIsBounded(report)
             && runRecapShareArtifactPreviewCopyIsBounded(report)
             && runRecapEndCardCopyIsBounded(report)
     }
@@ -1904,6 +1954,93 @@ struct CinematicVisualSmokeReport: Equatable {
             && string(
                 snapshot.copyHelp,
                 maxCharacters: CinematicRunRecapShareArtifactComparisonPlan.copyHelpMaxCharacters
+            )
+    }
+
+    private static func runRecapShareArtifactPinsCopyIsBounded(_ report: CinematicDiagnosticsReport) -> Bool {
+        let snapshot = report.runRecapShareArtifactPins
+        return string(
+            snapshot.identifier,
+            maxCharacters: CinematicRunRecapShareArtifactPinnedReferencePlan.identifierMaxCharacters
+        )
+            && string(
+                snapshot.exportIdentifier,
+                maxCharacters: CinematicRunRecapShareArtifactPinnedReferencePlan.identifierMaxCharacters
+            )
+            && string(
+                snapshot.searchQuerySnippet,
+                maxCharacters: CinematicRunRecapShareArtifactPinnedReferencePlan.searchQuerySnippetMaxCharacters
+            )
+            && snapshot.searchQueryFingerprint.count
+                <= CinematicRunRecapShareArtifactPinnedReferencePlan.identifierMaxCharacters
+            && (snapshot.noMatchAvailabilityReason?.count ?? 0)
+                <= CinematicRunRecapShareArtifactPinnedReferencePlan.snippetMaxCharacters
+            && (snapshot.selectedEntryIdentifier ?? "").count
+                <= CinematicRunRecapShareArtifactHistoryPlan.identifierMaxCharacters
+            && snapshot.selectedPinStateIdentifier.count
+                <= CinematicRunRecapShareArtifactPinnedReferencePlan.snippetMaxCharacters
+            && snapshot.requestedPinnedEntryIdentifiers.allSatisfy {
+                string(
+                    $0,
+                    maxCharacters: CinematicRunRecapShareArtifactHistoryPlan.identifierMaxCharacters
+                )
+            }
+            && snapshot.retainedPinnedEntryIdentifiers.allSatisfy {
+                string(
+                    $0,
+                    maxCharacters: CinematicRunRecapShareArtifactHistoryPlan.identifierMaxCharacters
+                )
+            }
+            && snapshot.missingPinnedEntryIdentifiers.allSatisfy {
+                string(
+                    $0,
+                    maxCharacters: CinematicRunRecapShareArtifactHistoryPlan.identifierMaxCharacters
+                )
+            }
+            && snapshot.filteredPinnedEntryIdentifiers.allSatisfy {
+                string(
+                    $0,
+                    maxCharacters: CinematicRunRecapShareArtifactHistoryPlan.identifierMaxCharacters
+                )
+            }
+            && snapshot.quickSelectEntryIdentifiers.allSatisfy {
+                string(
+                    $0,
+                    maxCharacters: CinematicRunRecapShareArtifactHistoryPlan.identifierMaxCharacters
+                )
+            }
+            && snapshot.references.allSatisfy { reference in
+                string(
+                    reference.identifier,
+                    maxCharacters: CinematicRunRecapShareArtifactHistoryPlan.identifierMaxCharacters
+                )
+                    && reference.filename.count <= CinematicRunRecapShareArtifactHistoryPlan.filenameMaxCharacters
+                    && string(
+                        reference.titleSnippet,
+                        maxCharacters: CinematicRunRecapShareArtifactPinnedReferencePlan.snippetMaxCharacters
+                    )
+                    && string(
+                        reference.statusSnippet,
+                        maxCharacters: CinematicRunRecapShareArtifactPinnedReferencePlan.snippetMaxCharacters
+                    )
+                    && (reference.commitSnippet?.count ?? 0)
+                        <= CinematicRunRecapShareArtifactPinnedReferencePlan.snippetMaxCharacters
+            }
+            && snapshot.warningIdentifiers.allSatisfy {
+                string(
+                    $0,
+                    maxCharacters: CinematicRunRecapShareArtifactHistoryPlan.identifierMaxCharacters
+                )
+            }
+            && snapshot.exportTextLength
+                <= CinematicRunRecapShareArtifactPinnedReferencePlan.exportTextMaxCharacters
+            && string(
+                snapshot.copyLabel,
+                maxCharacters: CinematicRunRecapShareArtifactPinnedReferencePlan.copyLabelMaxCharacters
+            )
+            && string(
+                snapshot.copyHelp,
+                maxCharacters: CinematicRunRecapShareArtifactPinnedReferencePlan.copyHelpMaxCharacters
             )
     }
 
@@ -2482,6 +2619,7 @@ struct CinematicDiagnosticsSummary: Equatable {
                 "run-recap-share-artifact-history",
                 "run-recap-share-artifact-rollup",
                 "run-recap-share-artifact-comparison",
+                "run-recap-share-artifact-pins",
                 "run-recap-share-artifact-preview",
                 "run-recap-focus",
                 "run-recap-end-card"
@@ -2623,6 +2761,11 @@ struct CinematicDiagnosticsSummary: Equatable {
                 id: "run-recap-share-artifact-comparison",
                 label: "Recap artifact compare",
                 detail: runRecapShareArtifactComparisonDetail(report.runRecapShareArtifactComparison)
+            ),
+            row(
+                id: "run-recap-share-artifact-pins",
+                label: "Recap artifact pins",
+                detail: runRecapShareArtifactPinsDetail(report.runRecapShareArtifactPins)
             ),
             row(
                 id: "run-recap-share-artifact-preview",
@@ -3660,6 +3803,47 @@ struct CinematicDiagnosticsSummary: Equatable {
         ].compactMap { $0 }.joined(separator: " | ")
     }
 
+    private static func runRecapShareArtifactPinsDetail(
+        _ snapshot: CinematicDiagnosticsReport.RunRecapShareArtifactPinnedReferenceSnapshot
+    ) -> String {
+        let availability = snapshot.isAvailable
+            ? "available"
+            : "empty \(snapshot.availabilityReason)"
+        return [
+            availability,
+            snapshot.isSearchActive
+                ? "search \(snapshot.searchQuerySnippet) \(snapshot.searchQueryFingerprint)"
+                : "search none",
+            "matches \(snapshot.matchingEntryCount)/\(snapshot.unfilteredVisibleCount)",
+            snapshot.noMatchAvailabilityReason.map { "no-match \($0)" },
+            "pins \(snapshot.pinnedEntryCount)",
+            "retained pins \(snapshot.retainedPinnedEntryCount)",
+            "missing pins \(snapshot.missingPinnedEntryCount)",
+            "filtered pins \(snapshot.filteredPinnedEntryCount)",
+            "quick \(snapshot.quickSelectEntryCount)",
+            "selected pin \(snapshot.selectedPinStateIdentifier)",
+            "copy \(snapshot.exportTextLength) chars",
+            snapshot.missingPinnedEntryIdentifiers.isEmpty
+                ? nil
+                : "stale ids \(bounded(snapshot.missingPinnedEntryIdentifiers.joined(separator: ","), limit: 120))",
+            snapshot.filteredPinnedEntryIdentifiers.isEmpty
+                ? nil
+                : "filtered ids \(bounded(snapshot.filteredPinnedEntryIdentifiers.joined(separator: ","), limit: 120))",
+            snapshot.quickSelectEntryIdentifiers.isEmpty
+                ? nil
+                : "quick ids \(bounded(snapshot.quickSelectEntryIdentifiers.joined(separator: ","), limit: 120))",
+            snapshot.selectedEntryIdentifier.map { "selected \(bounded($0, limit: 54))" },
+            snapshot.references.isEmpty
+                ? nil
+                : "refs \(bounded(snapshot.references.map { "S\($0.sessionNumber)" }.joined(separator: ","), limit: 80))",
+            "warning state \(snapshot.warningStateIdentifier)",
+            "warnings \(snapshot.warningCount)",
+            snapshot.hiddenWarningCount > 0 ? "hidden warnings \(snapshot.hiddenWarningCount)" : nil,
+            "export \(bounded(snapshot.exportIdentifier, limit: 54))",
+            "id \(bounded(snapshot.identifier, limit: 54))"
+        ].compactMap { $0 }.joined(separator: " | ")
+    }
+
     private static func runRecapShareArtifactPreviewDetail(
         _ snapshot: CinematicDiagnosticsReport.RunRecapShareArtifactPreviewSnapshot
     ) -> String {
@@ -3935,6 +4119,8 @@ enum CinematicDiagnostics {
                 project.cinematicRunRecapShareArtifactLibraryContext.selectedEntryIdentifier,
             runRecapShareArtifactPreviewSearchQuery:
                 project.cinematicRunRecapShareArtifactLibraryContext.searchText,
+            runRecapShareArtifactPinnedEntryIdentifiers:
+                project.cinematicRunRecapShareArtifactLibraryContext.pinnedEntryIdentifiers,
             nativeFeedbackCue: project.cinematicNativeFeedbackCue,
             nativeFeedbackLifecycle: project.cinematicNativeFeedbackCueLifecycle
         )
@@ -3969,6 +4155,7 @@ enum CinematicDiagnostics {
         runRecapShareArtifactCleanupResult providedRunRecapShareArtifactCleanupResult: CinematicRunRecapShareArtifactCleanupResult? = nil,
         runRecapShareArtifactPreviewSelectedEntryIdentifier: String? = nil,
         runRecapShareArtifactPreviewSearchQuery: String? = nil,
+        runRecapShareArtifactPinnedEntryIdentifiers: [String] = [],
         nativeFeedbackCue: CinematicNativeFeedbackCuePlan? = nil,
         nativeFeedbackLifecycle: CinematicNativeFeedbackCueLifecycle = CinematicNativeFeedbackCueLifecycle()
     ) -> CinematicDiagnosticsReport {
@@ -4147,11 +4334,20 @@ enum CinematicDiagnostics {
             selectedEntryIdentifier: runRecapShareArtifactPreviewSelectedEntryIdentifier,
             searchQuery: runRecapShareArtifactPreviewSearchQuery
         )
+        let runRecapShareArtifactPinnedReferencePlan = CinematicRunRecapShareArtifactPinnedReferencePlanner.plan(
+            historyPlan: runRecapShareArtifactHistoryPlan,
+            pinnedEntryIdentifiers: runRecapShareArtifactPinnedEntryIdentifiers,
+            selectedEntryIdentifier: runRecapShareArtifactPreviewSelectedEntryIdentifier,
+            searchQuery: runRecapShareArtifactPreviewSearchQuery
+        )
         let runRecapShareArtifactRollupSnapshot = runRecapShareArtifactRollupSnapshot(
             for: runRecapShareArtifactRollupPlan
         )
         let runRecapShareArtifactComparisonSnapshot = runRecapShareArtifactComparisonSnapshot(
             for: runRecapShareArtifactComparisonPlan
+        )
+        let runRecapShareArtifactPinnedReferenceSnapshot = runRecapShareArtifactPinnedReferenceSnapshot(
+            for: runRecapShareArtifactPinnedReferencePlan
         )
         let runRecapShareArtifactPreviewSnapshot = runRecapShareArtifactPreviewSnapshot(
             for: runRecapShareArtifactPreviewPlan,
@@ -4188,6 +4384,8 @@ enum CinematicDiagnostics {
                 "run-recap-share-artifact-rollup:\(runRecapShareArtifactRollupSnapshot.identifier)",
                 "run-recap-share-artifact-comparison:\(runRecapShareArtifactComparisonSnapshot.identifier)",
                 "run-recap-share-artifact-comparison-export:\(runRecapShareArtifactComparisonSnapshot.exportIdentifier)",
+                "run-recap-share-artifact-pins:\(runRecapShareArtifactPinnedReferenceSnapshot.identifier)",
+                "run-recap-share-artifact-pins-export:\(runRecapShareArtifactPinnedReferenceSnapshot.exportIdentifier)",
                 "run-recap-share-artifact-preview:\(runRecapShareArtifactPreviewSnapshot.identifier)",
                 "run-recap-share-artifact-selected-export:\(runRecapShareArtifactPreviewSnapshot.selectedExport.identifier)",
                 "run-recap-share-artifact-filtered-export:\(runRecapShareArtifactPreviewSnapshot.filteredExport.identifier)",
@@ -4224,6 +4422,7 @@ enum CinematicDiagnostics {
             runRecapShareArtifactHistory: runRecapShareArtifactHistorySnapshot,
             runRecapShareArtifactRollup: runRecapShareArtifactRollupSnapshot,
             runRecapShareArtifactComparison: runRecapShareArtifactComparisonSnapshot,
+            runRecapShareArtifactPins: runRecapShareArtifactPinnedReferenceSnapshot,
             runRecapShareArtifactPreview: runRecapShareArtifactPreviewSnapshot,
             runRecapSceneFocus: runRecapSceneFocusSnapshot,
             runRecapEndCard: runRecapEndCardSnapshot,
@@ -5771,6 +5970,58 @@ enum CinematicDiagnostics {
             cleanupCandidateCount: plan.cleanupCandidateCount,
             hiddenCleanupCandidateCount: plan.hiddenCleanupCandidateCount,
             cleanupCandidateIdentifiers: plan.cleanupCandidateIdentifiers,
+            warningStateIdentifier: plan.warningStateIdentifier,
+            warningCount: plan.warningCount,
+            hiddenWarningCount: plan.hiddenWarningCount,
+            warningIdentifiers: plan.warningIdentifiers,
+            hasWarnings: plan.hasWarnings,
+            exportTextLength: plan.exportTextLength,
+            copyLabel: plan.copyLabel,
+            copyHelp: plan.copyHelp
+        )
+    }
+
+    private static func runRecapShareArtifactPinnedReferenceSnapshot(
+        for plan: CinematicRunRecapShareArtifactPinnedReferencePlan
+    ) -> CinematicDiagnosticsReport.RunRecapShareArtifactPinnedReferenceSnapshot {
+        CinematicDiagnosticsReport.RunRecapShareArtifactPinnedReferenceSnapshot(
+            identifier: plan.identifier,
+            exportIdentifier: plan.exportIdentifier,
+            isAvailable: plan.isAvailable,
+            availabilityReason: plan.availabilityReason,
+            isSearchActive: plan.isSearchActive,
+            searchQuerySnippet: plan.searchQuerySnippet,
+            searchQueryFingerprint: plan.searchQueryFingerprint,
+            noMatchAvailabilityReason: plan.noMatchAvailabilityReason,
+            retainedEntryCount: plan.retainedEntryCount,
+            totalCount: plan.totalCount,
+            hiddenCount: plan.hiddenCount,
+            matchingEntryCount: plan.matchingEntryCount,
+            unfilteredVisibleCount: plan.unfilteredVisibleCount,
+            selectedEntryIdentifier: plan.selectedEntryIdentifier,
+            selectedEntryIsPinned: plan.selectedEntryIsPinned,
+            selectedPinStateIdentifier: plan.selectedPinStateIdentifier,
+            requestedPinnedEntryIdentifiers: plan.requestedPinnedEntryIdentifiers,
+            retainedPinnedEntryIdentifiers: plan.retainedPinnedEntryIdentifiers,
+            missingPinnedEntryIdentifiers: plan.missingPinnedEntryIdentifiers,
+            filteredPinnedEntryIdentifiers: plan.filteredPinnedEntryIdentifiers,
+            quickSelectEntryIdentifiers: plan.quickSelectEntryIdentifiers,
+            pinnedEntryCount: plan.pinnedEntryCount,
+            retainedPinnedEntryCount: plan.retainedPinnedEntryCount,
+            missingPinnedEntryCount: plan.missingPinnedEntryCount,
+            filteredPinnedEntryCount: plan.filteredPinnedEntryCount,
+            quickSelectEntryCount: plan.quickSelectEntryCount,
+            references: plan.references.map { reference in
+                CinematicDiagnosticsReport.RunRecapShareArtifactPinnedReferenceEntrySnapshot(
+                    identifier: reference.identifier,
+                    sessionNumber: reference.sessionNumber,
+                    filename: reference.filename,
+                    titleSnippet: reference.titleSnippet,
+                    statusSnippet: reference.statusSnippet,
+                    commitSnippet: reference.commitSnippet,
+                    isQuickSelectable: reference.isQuickSelectable
+                )
+            },
             warningStateIdentifier: plan.warningStateIdentifier,
             warningCount: plan.warningCount,
             hiddenWarningCount: plan.hiddenWarningCount,
