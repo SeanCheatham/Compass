@@ -139,6 +139,29 @@ final class CompassWorkspaceStorageMigrationTests: XCTestCase {
         }
     }
 
+    func testMigrationPlanKeepsRepoLocalSourceWhenExternalStorageIsInjected() throws {
+        let repoURL = try makeTemporaryGitRepository()
+        let roots = try makeApplicationSupportRoots()
+        let repoLocalWorkspace = CompassWorkspace(repoURL: repoURL)
+        try repoLocalWorkspace.initialize()
+        try repoLocalWorkspace.writeLessons("repo-local lesson\n")
+
+        let seedPlan = makeMigrationPlan(repoURL: repoURL, roots: roots)
+        let externalWorkspace = CompassWorkspace(repoURL: repoURL, storageRootURL: seedPlan.destinationURL)
+        try externalWorkspace.initialize()
+        try externalWorkspace.writeLessons("external lesson\n")
+
+        let plan = makeMigrationPlan(repoURL: repoURL, roots: roots)
+
+        XCTAssertEqual(plan.sourceCompassURL, repoLocalWorkspace.compassURL)
+        XCTAssertEqual(plan.kind, .applicationSupportOccupied)
+        XCTAssertFalse(plan.isAvailable)
+        XCTAssertEqual(try read(repoLocalWorkspace.lessonsURL), "repo-local lesson\n")
+        XCTAssertEqual(try read(externalWorkspace.lessonsURL), "external lesson\n")
+        XCTAssertTrue(FileManager.default.fileExists(atPath: repoLocalWorkspace.compassURL.path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: externalWorkspace.compassURL.path))
+    }
+
     func testRollbackCleansStagingAfterInjectedCopyFailureAndPreservesSource() throws {
         let repoURL = try makeTemporaryGitRepository()
         let roots = try makeApplicationSupportRoots()

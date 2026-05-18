@@ -20,6 +20,9 @@ final class CompassWorkspacePersistenceTests: XCTestCase {
         try workspace.initialize()
         try workspace.initialize()
 
+        XCTAssertEqual(workspace.storageRootURL, repoURL.appending(path: ".compass", directoryHint: .isDirectory))
+        XCTAssertEqual(workspace.compassURL, workspace.repoLocalCompassURL)
+        XCTAssertTrue(workspace.isRepoLocalStorage)
         XCTAssertDirectoryExists(workspace.compassURL)
         XCTAssertDirectoryExists(workspace.sessionsURL)
         XCTAssertFileExists(workspace.stateURL)
@@ -36,6 +39,56 @@ final class CompassWorkspacePersistenceTests: XCTestCase {
 
         let gitignore = try read(repoURL.appending(path: ".gitignore"))
         XCTAssertEqual(gitignore.components(separatedBy: ".compass/").count - 1, 1)
+    }
+
+    func testInjectedStorageRootRoundTripsFilesAndDoesNotCreateRepoLocalCompass() throws {
+        let repoURL = try makeTemporaryGitRepository()
+        let storageRootURL = try makeTemporaryDirectory(prefix: "CompassWorkspaceExternalStorage")
+            .appending(path: "Compass", directoryHint: .isDirectory)
+            .appending(path: "Projects", directoryHint: .isDirectory)
+            .appending(path: "project-storage", directoryHint: .isDirectory)
+        let workspace = CompassWorkspace(repoURL: repoURL, storageRootURL: storageRootURL)
+        let state = makeState(
+            completed: ["external"],
+            immediate: PlanNext(plan: "Use injected storage", verify: "swift test"),
+            midTerm: "next",
+            longTerm: "later"
+        )
+        let records = [SessionRecord.started(4)]
+
+        try workspace.initialize()
+        try workspace.writeState(state)
+        try workspace.backupStateFile()
+        try workspace.writeDrafts("draft entry\n")
+        try workspace.writeLessons("- old lesson\n")
+        try workspace.applyLessonEdits([
+            LessonEdit(find: "old lesson", replace: "new lesson", replaceAll: nil)
+        ])
+        try workspace.writeVision("vision entry\n")
+        try workspace.writeSessions(records)
+        let artifactURL = try workspace.writeSessionArtifact(
+            session: 4,
+            name: "plan/prompt:1.md",
+            contents: "artifact body\n"
+        )
+
+        XCTAssertEqual(workspace.repoURL, repoURL)
+        XCTAssertEqual(workspace.storageRootURL, storageRootURL)
+        XCTAssertEqual(workspace.compassURL, storageRootURL)
+        XCTAssertFalse(workspace.isRepoLocalStorage)
+        XCTAssertDirectoryExists(storageRootURL)
+        XCTAssertDirectoryExists(workspace.sessionsURL)
+        XCTAssertEqual(try workspace.readState(), state)
+        XCTAssertEqual(try read(workspace.stateBackupURL), try CompassWorkspace.encodeState(state))
+        XCTAssertEqual(workspace.readDrafts(), "draft entry\n")
+        XCTAssertEqual(workspace.readLessons(), "- new lesson\n")
+        XCTAssertEqual(workspace.readVision(), "vision entry\n")
+        XCTAssertEqual(workspace.readSessions(), records)
+        XCTAssertEqual(try read(artifactURL), "artifact body\n")
+        XCTAssertEqual(artifactURL, workspace.sessionsURL.appending(path: "4-plan-prompt-1.md"))
+
+        XCTAssertFalse(FileManager.default.fileExists(atPath: workspace.repoLocalCompassURL.path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: repoURL.appending(path: ".gitignore").path))
     }
 
     func testInitializePreservesExistingCompassFilesAndRecognizesIgnoredCompassVariants() throws {
@@ -260,11 +313,16 @@ final class CompassWorkspacePersistenceTests: XCTestCase {
     }
 
     private func makeTemporaryGitRepository() throws -> URL {
+        let directory = try makeTemporaryDirectory()
+        try createDirectory(directory.appending(path: ".git", directoryHint: .isDirectory))
+        return directory
+    }
+
+    private func makeTemporaryDirectory(prefix: String = "CompassWorkspaceTests") throws -> URL {
         let directory = FileManager.default.temporaryDirectory
-            .appending(path: "CompassWorkspaceTests-\(UUID().uuidString)", directoryHint: .isDirectory)
+            .appending(path: "\(prefix)-\(UUID().uuidString)", directoryHint: .isDirectory)
         temporaryDirectories.append(directory)
         try createDirectory(directory)
-        try createDirectory(directory.appending(path: ".git", directoryHint: .isDirectory))
         return directory
     }
 

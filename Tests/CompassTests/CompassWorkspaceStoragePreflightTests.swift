@@ -118,6 +118,32 @@ final class CompassWorkspaceStoragePreflightTests: XCTestCase {
         )
     }
 
+    func testInjectedApplicationSupportWorkspaceDoesNotSatisfyRepoLocalPreflight() throws {
+        let repoURL = try makeTemporaryGitRepository()
+        let roots = try makeApplicationSupportRoots()
+        let candidateURL = CompassWorkspaceStorageAssessment.currentApplicationSupportCandidateURL(
+            for: repoURL,
+            applicationSupportRoots: roots
+        )
+        let externalWorkspace = CompassWorkspace(repoURL: repoURL, storageRootURL: candidateURL)
+        try externalWorkspace.initialize()
+        try externalWorkspace.writeDrafts("external draft\n")
+
+        let preflight = CompassWorkspaceStoragePreflight(
+            repoURL: repoURL,
+            applicationSupportRoots: roots
+        )
+
+        XCTAssertEqual(preflight.repoLocalReadiness, .missingWorkspace)
+        XCTAssertEqual(preflight.kind, .repoLocalMissing)
+        XCTAssertFalse(preflight.migrationWouldBeSafe)
+        XCTAssertTrue(preflight.currentApplicationSupportCandidateIsOccupied)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: externalWorkspace.compassURL.path))
+        XCTAssertEqual(try String(contentsOf: externalWorkspace.draftsURL, encoding: .utf8), "external draft\n")
+        XCTAssertFalse(FileManager.default.fileExists(atPath: CompassWorkspace(repoURL: repoURL).compassURL.path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: repoURL.appending(path: ".gitignore").path))
+    }
+
     func testPreflightDisplayTextAndIdentifiersStayBounded() throws {
         let longName = "Storage Migration Project " + String(repeating: "Segment ", count: 18)
         let repoURL = try makeTemporaryGitRepository(name: longName)

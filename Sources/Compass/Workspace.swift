@@ -2,8 +2,20 @@ import Foundation
 
 struct CompassWorkspace {
     var repoURL: URL
+    private var injectedStorageRootURL: URL?
 
-    var compassURL: URL { repoURL.appending(path: ".compass", directoryHint: .isDirectory) }
+    init(repoURL: URL, storageRootURL: URL? = nil) {
+        self.repoURL = repoURL
+        self.injectedStorageRootURL = storageRootURL
+    }
+
+    static func repoLocalStorageRootURL(for repoURL: URL) -> URL {
+        repoURL.appending(path: ".compass", directoryHint: .isDirectory)
+    }
+
+    var repoLocalCompassURL: URL { Self.repoLocalStorageRootURL(for: repoURL) }
+    var storageRootURL: URL { injectedStorageRootURL ?? repoLocalCompassURL }
+    var compassURL: URL { storageRootURL }
     var stateURL: URL { compassURL.appending(path: "state.json") }
     var stateBackupURL: URL { compassURL.appending(path: "state.json.bak") }
     var draftsURL: URL { compassURL.appending(path: "drafts.md") }
@@ -11,6 +23,9 @@ struct CompassWorkspace {
     var visionURL: URL { compassURL.appending(path: "COMPASS.md") }
     var sessionsURL: URL { compassURL.appending(path: "sessions", directoryHint: .isDirectory) }
     var sessionsRecordURL: URL { compassURL.appending(path: "sessions.json") }
+    var isRepoLocalStorage: Bool {
+        compassURL.standardizedFileURL.path == repoLocalCompassURL.standardizedFileURL.path
+    }
 
     static func isGitRepository(_ url: URL) -> Bool {
         FileManager.default.fileExists(atPath: url.appending(path: ".git").path)
@@ -45,7 +60,9 @@ struct CompassWorkspace {
         try createFileIfMissing(lessonsURL, contents: "")
         try createFileIfMissing(visionURL, contents: "")
         try createFileIfMissing(sessionsRecordURL, contents: "[]\n")
-        try ensureCompassIsIgnored()
+        if isRepoLocalStorage {
+            try ensureCompassIsIgnored()
+        }
     }
 
     func readState() throws -> PlanState {
