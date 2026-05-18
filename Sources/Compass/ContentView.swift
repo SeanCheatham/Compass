@@ -810,13 +810,19 @@ private struct ProjectRunControls: View {
     @ObservedObject var project: CompassProject
 
     var body: some View {
+        let deliverySnapshot = NativeFeedbackService.shared.deliverySnapshot(
+            mode: project.nativeFeedbackMode
+        )
         let feedbackMenu = NativeFeedbackModeMenu(
             selectedMode: project.nativeFeedbackMode,
-            projectName: project.displayName
+            projectName: project.displayName,
+            deliverySnapshot: deliverySnapshot
         )
 
         HStack(spacing: 5) {
             Menu {
+                Text(feedbackMenu.deliveryStatusText)
+                Divider()
                 ForEach(Array(feedbackMenu.items.enumerated()), id: \.element.id) { index, item in
                     Button {
                         project.nativeFeedbackMode = item.mode

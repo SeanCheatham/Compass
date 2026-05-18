@@ -82,4 +82,93 @@ final class NativeFeedbackServiceTests: XCTestCase {
             "Speech uses local audio; notifications for Editor ask permission only when needed."
         )
     }
+
+    func testDeliverySnapshotBoundsIdentifiersAndDedupeCount() {
+        let longIdentifier = String(repeating: "native-feedback-delivery-status-", count: 8)
+        let snapshot = NativeFeedbackDeliverySnapshot(
+            mode: .speechAndNotifications,
+            notificationSupportIdentifier: longIdentifier,
+            authorizationRequestStateIdentifier: longIdentifier,
+            notificationAuthorizationStatusIdentifier: longIdentifier,
+            notificationsAllowed: true,
+            recentDedupeCount: 1_000,
+            lastAttemptedMilestoneIdentifier: longIdentifier,
+            lastAttemptResultIdentifier: longIdentifier,
+            speechStateIdentifier: longIdentifier
+        )
+
+        XCTAssertLessThanOrEqual(
+            snapshot.notificationSupportIdentifier.count,
+            NativeFeedbackDeliverySnapshot.identifierLimit
+        )
+        XCTAssertLessThanOrEqual(
+            snapshot.authorizationRequestStateIdentifier.count,
+            NativeFeedbackDeliverySnapshot.identifierLimit
+        )
+        XCTAssertLessThanOrEqual(
+            snapshot.notificationAuthorizationStatusIdentifier.count,
+            NativeFeedbackDeliverySnapshot.identifierLimit
+        )
+        XCTAssertLessThanOrEqual(
+            snapshot.lastAttemptedMilestoneIdentifier.count,
+            NativeFeedbackDeliverySnapshot.identifierLimit
+        )
+        XCTAssertLessThanOrEqual(
+            snapshot.lastAttemptResultIdentifier.count,
+            NativeFeedbackDeliverySnapshot.identifierLimit
+        )
+        XCTAssertLessThanOrEqual(
+            snapshot.speechStateIdentifier.count,
+            NativeFeedbackDeliverySnapshot.identifierLimit
+        )
+        XCTAssertEqual(snapshot.recentDedupeCount, NativeFeedbackDeliverySnapshot.recentDedupeCountLimit)
+        XCTAssertFalse(snapshot.identifier.contains("Compass has accepted"))
+    }
+
+    func testModeMenuSurfacesInjectedDeliveryStatusAndBoundsIt() {
+        let snapshot = NativeFeedbackDeliverySnapshot(
+            mode: .speechAndNotifications,
+            notificationSupportIdentifier: "available",
+            authorizationRequestStateIdentifier: "requested",
+            notificationAuthorizationStatusIdentifier: "allowed",
+            notificationsAllowed: true,
+            recentDedupeCount: 7,
+            lastAttemptedMilestoneIdentifier: "verifyStarted",
+            lastAttemptResultIdentifier: "notification-delivered",
+            speechStateIdentifier: "suppressed-speaking"
+        )
+        let menu = NativeFeedbackModeMenu(
+            selectedMode: .speechAndNotifications,
+            projectName: "Editor",
+            deliverySnapshot: snapshot
+        )
+
+        XCTAssertLessThanOrEqual(
+            menu.deliveryStatusText.count,
+            NativeFeedbackDeliverySnapshot.menuStatusLimit
+        )
+        XCTAssertTrue(menu.deliveryStatusText.contains("mode speech_and_notifications"))
+        XCTAssertTrue(menu.deliveryStatusText.contains("notifications"))
+        XCTAssertTrue(menu.deliveryStatusText.contains("speech"))
+        XCTAssertTrue(menu.deliveryStatusText.contains("notification-status allowed"))
+        XCTAssertTrue(menu.deliveryStatusText.contains("last verifyStarted/notification-delivered"))
+        XCTAssertTrue(menu.deliveryStatusText.contains("speech suppressed-speaking"))
+    }
+
+    @MainActor
+    func testReadOnlySnapshotDoesNotRequestNotificationAuthorization() {
+        let service = NativeFeedbackService.shared
+        let before = service.deliverySnapshot(mode: .notifications)
+
+        _ = NativeFeedbackModeMenu(
+            selectedMode: .notifications,
+            projectName: "Editor",
+            deliverySnapshot: before
+        )
+        let after = service.deliverySnapshot(mode: .notifications)
+
+        XCTAssertEqual(after.authorizationRequestStateIdentifier, before.authorizationRequestStateIdentifier)
+        XCTAssertEqual(after.notificationAuthorizationStatusIdentifier, before.notificationAuthorizationStatusIdentifier)
+        XCTAssertEqual(after.lastAttemptedMilestoneIdentifier, before.lastAttemptedMilestoneIdentifier)
+    }
 }

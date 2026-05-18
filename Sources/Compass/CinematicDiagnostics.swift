@@ -10,6 +10,7 @@ struct CinematicDiagnosticsReport: Equatable {
     var languageMotif: LanguageMotifSnapshot
     var activityMotif: ActivityMotifSnapshot
     var nativeFeedback: NativeFeedbackSnapshot
+    var nativeFeedbackDelivery: NativeFeedbackDeliverySnapshot
     var recoveryCue: RecoveryCueSnapshot
     var stageBeat: StageBeatSnapshot
     var stageEffect: StageEffectSnapshot
@@ -3240,7 +3241,7 @@ struct CinematicVisualSmokeReport: Equatable {
 }
 
 struct CinematicDiagnosticsSummary: Equatable {
-    static let maxRows = 48
+    static let maxRows = 49
     static let labelMaxCharacters = 32
     static let detailMaxCharacters = 512
     static let headerDetailMaxCharacters = 128
@@ -3416,6 +3417,7 @@ struct CinematicDiagnosticsSummary: Equatable {
                 "narrative-layout",
                 "overlay-display",
                 "native-feedback-history",
+                "native-feedback-delivery",
                 "world-quest",
                 "world-arena",
                 "world-activity"
@@ -3726,6 +3728,11 @@ struct CinematicDiagnosticsSummary: Equatable {
                 id: "native-feedback-history",
                 label: "Native feedback history",
                 detail: nativeFeedbackHistoryDetail(report.nativeFeedback)
+            ),
+            row(
+                id: "native-feedback-delivery",
+                label: "Native feedback delivery",
+                detail: nativeFeedbackDeliveryDetail(report.nativeFeedbackDelivery)
             ),
             row(id: "world-quest", label: "World quest", detail: report.worldText.questLabel),
             row(id: "world-arena", label: "World arena", detail: report.worldText.arenaCallout),
@@ -4392,6 +4399,23 @@ struct CinematicDiagnosticsSummary: Equatable {
         return entries
             .map(nativeFeedbackHistoryEntryDetail)
             .joined(separator: " | ")
+    }
+
+    private static func nativeFeedbackDeliveryDetail(
+        _ snapshot: NativeFeedbackDeliverySnapshot
+    ) -> String {
+        [
+            "mode \(snapshot.mode.rawValue)",
+            snapshot.notificationModeIdentifier,
+            snapshot.speechModeIdentifier,
+            "support \(snapshot.notificationSupportIdentifier)",
+            "authorization \(snapshot.authorizationRequestStateIdentifier)",
+            "notification-status \(snapshot.notificationAuthorizationStatusIdentifier)",
+            "notification-allowed \(snapshot.notificationsAllowed ? "true" : "false")",
+            "dedupe \(snapshot.recentDedupeCount)",
+            "last \(snapshot.lastAttemptedMilestoneIdentifier)/\(snapshot.lastAttemptResultIdentifier)",
+            "speech \(snapshot.speechStateIdentifier)"
+        ].joined(separator: " | ")
     }
 
     private static func nativeFeedbackHistoryEntryDetail(
@@ -5126,7 +5150,8 @@ enum CinematicDiagnostics {
         idleStoryCyclePlan: CinematicIdleStoryCyclePlan? = nil,
         timelineFocusPlan: CinematicTimelineSceneFocusPlan = .none,
         runRecapSceneFocusPlan: CinematicRunRecapSceneFocusPlan = .none,
-        runRecapEndCardPlan: CinematicRunRecapEndCardPlan = .none
+        runRecapEndCardPlan: CinematicRunRecapEndCardPlan = .none,
+        nativeFeedbackDeliverySnapshot: NativeFeedbackDeliverySnapshot? = nil
     ) -> CinematicDiagnosticsReport {
         let commitConstellationPlan = project.cinematicCommitConstellationPlan
         let reliabilityFeedback = PlanReliabilityFeedback(
@@ -5195,7 +5220,9 @@ enum CinematicDiagnostics {
             runRecapShareArtifactSavedTourHoldEntryIdentifier:
                 project.cinematicRunRecapShareArtifactLibraryContext.savedTourHoldEntryIdentifier,
             nativeFeedbackCue: project.cinematicNativeFeedbackCue,
-            nativeFeedbackLifecycle: project.cinematicNativeFeedbackCueLifecycle
+            nativeFeedbackLifecycle: project.cinematicNativeFeedbackCueLifecycle,
+            nativeFeedbackDeliverySnapshot: nativeFeedbackDeliverySnapshot
+                ?? NativeFeedbackService.shared.deliverySnapshot(mode: project.nativeFeedbackMode)
         )
     }
 
@@ -5232,7 +5259,10 @@ enum CinematicDiagnostics {
         runRecapShareArtifactPinnedEntryIdentifiers: [String] = [],
         runRecapShareArtifactSavedTourHoldEntryIdentifier: String? = nil,
         nativeFeedbackCue: CinematicNativeFeedbackCuePlan? = nil,
-        nativeFeedbackLifecycle: CinematicNativeFeedbackCueLifecycle = CinematicNativeFeedbackCueLifecycle()
+        nativeFeedbackLifecycle: CinematicNativeFeedbackCueLifecycle = CinematicNativeFeedbackCueLifecycle(),
+        nativeFeedbackDeliverySnapshot: NativeFeedbackDeliverySnapshot = NativeFeedbackDeliverySnapshot(
+            mode: .notifications
+        )
     ) -> CinematicDiagnosticsReport {
         let languageMotif = CinematicMotif.language(for: languageProfile)
         let activityMotif = CinematicMotif.activity(for: activityProfile)
@@ -5490,6 +5520,7 @@ enum CinematicDiagnostics {
                 "phase-polish:\(stagePhasePolishSnapshot.identifier)",
                 "narrative-cues:\(narrativeCueSnapshot.identifier)",
                 "native-feedback:\(nativeFeedbackSnapshot.identifier)",
+                "native-feedback-delivery:\(nativeFeedbackDeliverySnapshot.identifier)",
                 "overlay:\(overlayDisplaySnapshot.identifier)",
                 "influence:\(influenceIdentifier)",
                 "set-dressing:\(setDressingSnapshot.identifier)",
@@ -5538,6 +5569,7 @@ enum CinematicDiagnostics {
             languageMotif: languageSnapshot,
             activityMotif: activitySnapshot,
             nativeFeedback: nativeFeedbackSnapshot,
+            nativeFeedbackDelivery: nativeFeedbackDeliverySnapshot,
             recoveryCue: recoveryCueSnapshot,
             stageBeat: stageBeatSnapshot,
             stageEffect: stageEffectSnapshot,

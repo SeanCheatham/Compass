@@ -753,6 +753,7 @@ final class CinematicDiagnosticsTests: XCTestCase {
                 "narrative-layout",
                 "overlay-display",
                 "native-feedback-history",
+                "native-feedback-delivery",
                 "world-quest",
                 "world-arena",
                 "world-activity",
@@ -825,6 +826,7 @@ final class CinematicDiagnosticsTests: XCTestCase {
                     "narrative-layout",
                     "overlay-display",
                     "native-feedback-history",
+                    "native-feedback-delivery",
                     "world-quest",
                     "world-arena",
                     "world-activity"
@@ -941,7 +943,7 @@ final class CinematicDiagnosticsTests: XCTestCase {
         XCTAssertTrue(summary.exportText.contains("Repository/context (17 rows)"))
         XCTAssertTrue(summary.exportText.contains("Motifs (2 rows)"))
         XCTAssertTrue(summary.exportText.contains("Stage motion/effects (9 rows)"))
-        XCTAssertTrue(summary.exportText.contains("Narrative/overlay (7 rows)"))
+        XCTAssertTrue(summary.exportText.contains("Narrative/overlay (8 rows)"))
         XCTAssertTrue(summary.exportText.contains("Assets/textures (2 rows)"))
         XCTAssertTrue(summary.exportText.contains("Tuning (4 rows)"))
         XCTAssertTrue(summary.exportText.contains("Camera shots (7 rows)"))
@@ -978,6 +980,8 @@ final class CinematicDiagnosticsTests: XCTestCase {
         XCTAssertTrue(summary.exportText.contains("Overlay display:"))
         XCTAssertTrue(summary.exportText.contains("mode \(report.overlayDisplay.modeIdentifier)"))
         XCTAssertTrue(summary.exportText.contains("chrome \(report.overlayDisplay.chromeStyleIdentifier)"))
+        XCTAssertTrue(summary.exportText.contains("Native feedback delivery:"))
+        XCTAssertTrue(summary.exportText.contains("notification-status not-requested"))
         XCTAssertTrue(summary.exportText.contains(report.narrativeCue.questPlaque.anchorIdentifier))
         XCTAssertTrue(summary.exportText.contains(report.narrativeCue.activityBanner.text))
         XCTAssertTrue(summary.exportText.contains(report.narrativeCue.arenaInscription.layout.facingModeIdentifier))
@@ -1028,13 +1032,20 @@ final class CinematicDiagnosticsTests: XCTestCase {
                 "narrative-layout",
                 "overlay-display",
                 "native-feedback-history",
+                "native-feedback-delivery",
                 "world-quest",
                 "world-arena",
                 "world-activity"
             ]
         )
 
-        for rowID in ["narrative-cues", "narrative-layout", "overlay-display", "native-feedback-history"] {
+        for rowID in [
+            "narrative-cues",
+            "narrative-layout",
+            "overlay-display",
+            "native-feedback-history",
+            "native-feedback-delivery"
+        ] {
             XCTAssertEqual(
                 summary.sections.filter { section in
                     section.rows.contains { $0.id == rowID }
@@ -1042,6 +1053,181 @@ final class CinematicDiagnosticsTests: XCTestCase {
                 ["narrative-overlay"]
             )
         }
+    }
+
+    func testNativeFeedbackDeliveryDiagnosticsRowsCoverAuthorizationStates() throws {
+        let cases: [(String, NativeFeedbackDeliverySnapshot, [String])] = [
+            (
+                "not-requested",
+                NativeFeedbackDeliverySnapshot(
+                    mode: .notifications,
+                    notificationSupportIdentifier: "available",
+                    authorizationRequestStateIdentifier: "not-requested",
+                    notificationAuthorizationStatusIdentifier: "not-requested",
+                    notificationsAllowed: false,
+                    recentDedupeCount: 1,
+                    lastAttemptedMilestoneIdentifier: "verifyStarted",
+                    lastAttemptResultIdentifier: "queued-notification",
+                    speechStateIdentifier: "suppressed-mode"
+                ),
+                [
+                    "mode notifications",
+                    "notifications",
+                    "speech-off",
+                    "support available",
+                    "authorization not-requested",
+                    "notification-status not-requested",
+                    "notification-allowed false",
+                    "dedupe 1",
+                    "last verifyStarted/queued-notification",
+                    "speech suppressed-mode"
+                ]
+            ),
+            (
+                "allowed",
+                NativeFeedbackDeliverySnapshot(
+                    mode: .speechAndNotifications,
+                    notificationSupportIdentifier: "available",
+                    authorizationRequestStateIdentifier: "requested",
+                    notificationAuthorizationStatusIdentifier: "allowed",
+                    notificationsAllowed: true,
+                    recentDedupeCount: 2,
+                    lastAttemptedMilestoneIdentifier: "verifyPassed",
+                    lastAttemptResultIdentifier: "notification-delivered",
+                    speechStateIdentifier: "speaking"
+                ),
+                [
+                    "mode speech_and_notifications",
+                    "notifications",
+                    "speech",
+                    "notification-status allowed",
+                    "notification-allowed true",
+                    "last verifyPassed/notification-delivered",
+                    "speech speaking"
+                ]
+            ),
+            (
+                "denied",
+                NativeFeedbackDeliverySnapshot(
+                    mode: .notifications,
+                    notificationSupportIdentifier: "available",
+                    authorizationRequestStateIdentifier: "requested",
+                    notificationAuthorizationStatusIdentifier: "denied",
+                    notificationsAllowed: false,
+                    recentDedupeCount: 3,
+                    lastAttemptedMilestoneIdentifier: "postChecksFailed",
+                    lastAttemptResultIdentifier: "notification-suppressed-denied",
+                    speechStateIdentifier: "suppressed-mode"
+                ),
+                [
+                    "mode notifications",
+                    "authorization requested",
+                    "notification-status denied",
+                    "last postChecksFailed/notification-suppressed-denied"
+                ]
+            ),
+            (
+                "unavailable",
+                NativeFeedbackDeliverySnapshot(
+                    mode: .notifications,
+                    notificationSupportIdentifier: "unavailable-app-bundle",
+                    authorizationRequestStateIdentifier: "not-requested",
+                    notificationAuthorizationStatusIdentifier: "unavailable-app-bundle",
+                    notificationsAllowed: false,
+                    recentDedupeCount: 4,
+                    lastAttemptedMilestoneIdentifier: "developStarted",
+                    lastAttemptResultIdentifier: "notification-suppressed-unavailable",
+                    speechStateIdentifier: "suppressed-mode"
+                ),
+                [
+                    "support unavailable-app-bundle",
+                    "notification-status unavailable-app-bundle",
+                    "last developStarted/notification-suppressed-unavailable"
+                ]
+            ),
+            (
+                "off",
+                NativeFeedbackDeliverySnapshot(
+                    mode: .off,
+                    notificationSupportIdentifier: "available",
+                    authorizationRequestStateIdentifier: "not-requested",
+                    notificationAuthorizationStatusIdentifier: "not-requested",
+                    notificationsAllowed: false,
+                    recentDedupeCount: 0,
+                    lastAttemptedMilestoneIdentifier: "paused",
+                    lastAttemptResultIdentifier: "suppressed-off",
+                    speechStateIdentifier: "suppressed-mode"
+                ),
+                [
+                    "mode off",
+                    "notifications-off",
+                    "speech-off",
+                    "last paused/suppressed-off",
+                    "speech suppressed-mode"
+                ]
+            )
+        ]
+
+        for (name, snapshot, expectedTokens) in cases {
+            let report = makeReport(
+                CinematicDiagnosticsInput(
+                    repoName: "Native Delivery \(name)",
+                    phase: "Verifying",
+                    immediateTitle: "Expose native delivery diagnostics",
+                    completedCount: 1,
+                    latestEvent: nil,
+                    languageProfile: languageProfile(primaryLanguage: .swift),
+                    activityProfile: activityProfile(recentCommitCount: 1),
+                    influenceSettings: CinematicInfluenceSettings(),
+                    nativeFeedbackDeliverySnapshot: snapshot
+                )
+            )
+            let summary = CinematicDiagnosticsSummary(report: report)
+            let row = try XCTUnwrap(summary.rows.first { $0.id == "native-feedback-delivery" })
+
+            XCTAssertTrue(report.identifier.contains("native-feedback-delivery:\(snapshot.identifier)"))
+            XCTAssertEqual(row.label, "Native feedback delivery")
+            for token in expectedTokens {
+                XCTAssertTrue(row.detail.contains(token), "\(name) missing row token \(token)")
+                XCTAssertTrue(summary.exportText.contains(token), "\(name) missing export token \(token)")
+            }
+            XCTAssertTrue(summary.exportText.contains("Native feedback delivery:"))
+        }
+    }
+
+    @MainActor
+    func testCurrentReportDeliveryDiagnosticsAreReadOnlyAndLeaveCueLifecycleUnchanged() throws {
+        let project = CompassProject(
+            repoURL: URL(fileURLWithPath: "/tmp/NativeDeliveryReadOnly", isDirectory: true),
+            nativeFeedbackMode: .notifications
+        )
+        project.phase = .verifying
+        project.languageProfile = languageProfile(primaryLanguage: .swift)
+        project.activityProfile = activityProfile(recentCommitCount: 1)
+        project.recordCinematicNativeFeedback(.verifyStarted)
+        let cueBefore = try XCTUnwrap(project.cinematicNativeFeedbackCue)
+        let lifecycleBefore = project.cinematicNativeFeedbackCueLifecycle
+        let deliveryBefore = NativeFeedbackService.shared.deliverySnapshot(mode: project.nativeFeedbackMode)
+
+        let report = CinematicDiagnostics.currentReport(for: project)
+        let deliveryAfter = NativeFeedbackService.shared.deliverySnapshot(mode: project.nativeFeedbackMode)
+        let summary = CinematicDiagnosticsSummary(
+            report: report,
+            visualSmoke: CinematicVisualSmokeReport(reports: [report])
+        )
+
+        XCTAssertEqual(project.cinematicNativeFeedbackCue, cueBefore)
+        XCTAssertEqual(project.cinematicNativeFeedbackCueLifecycle, lifecycleBefore)
+        XCTAssertEqual(report.nativeFeedback.cueIdentifier, cueBefore.identifier)
+        XCTAssertEqual(
+            deliveryAfter.authorizationRequestStateIdentifier,
+            deliveryBefore.authorizationRequestStateIdentifier
+        )
+        XCTAssertEqual(
+            deliveryAfter.notificationAuthorizationStatusIdentifier,
+            deliveryBefore.notificationAuthorizationStatusIdentifier
+        )
+        XCTAssertNotNil(summary.rows.first { $0.id == "native-feedback-delivery" })
     }
 
     func testCurrentReportUsesCompassProjectInputs() async {
@@ -1073,6 +1259,7 @@ final class CinematicDiagnosticsTests: XCTestCase {
                 )
             ]
 
+            let deliverySnapshot = NativeFeedbackService.shared.deliverySnapshot(mode: project.nativeFeedbackMode)
             let report = CinematicDiagnostics.currentReport(for: project)
             let expected = CinematicDiagnostics.report(
                 repoName: "CurrentDiagnosticsRepo",
@@ -1086,7 +1273,8 @@ final class CinematicDiagnosticsTests: XCTestCase {
                 isRunning: project.isRunning,
                 isAutoPlaying: project.isAutoPlaying,
                 isPaused: project.isPaused,
-                hasRepository: project.hasRepository
+                hasRepository: project.hasRepository,
+                nativeFeedbackDeliverySnapshot: deliverySnapshot
             )
 
             XCTAssertEqual(report, expected)
@@ -1128,6 +1316,7 @@ final class CinematicDiagnosticsTests: XCTestCase {
             project.recordCinematicNativeFeedback(.verifyStarted)
             let cue = try XCTUnwrap(project.cinematicNativeFeedbackCue)
 
+            let deliverySnapshot = NativeFeedbackService.shared.deliverySnapshot(mode: project.nativeFeedbackMode)
             let report = CinematicDiagnostics.currentReport(for: project)
             let expected = CinematicDiagnostics.report(
                 repoName: "NativeDiagnosticsRepo",
@@ -1143,7 +1332,8 @@ final class CinematicDiagnosticsTests: XCTestCase {
                 isPaused: project.isPaused,
                 hasRepository: project.hasRepository,
                 nativeFeedbackCue: cue,
-                nativeFeedbackLifecycle: project.cinematicNativeFeedbackCueLifecycle
+                nativeFeedbackLifecycle: project.cinematicNativeFeedbackCueLifecycle,
+                nativeFeedbackDeliverySnapshot: deliverySnapshot
             )
 
             XCTAssertEqual(report, expected)
@@ -2364,6 +2554,9 @@ private struct CinematicDiagnosticsInput {
     var runRecapShareArtifactComparisonTargetMode: CinematicRunRecapShareArtifactComparisonTargetMode = .adjacent
     var runRecapShareArtifactPinnedEntryIdentifiers: [String] = []
     var runRecapShareArtifactSavedTourHoldEntryIdentifier: String?
+    var nativeFeedbackDeliverySnapshot: NativeFeedbackDeliverySnapshot = NativeFeedbackDeliverySnapshot(
+        mode: .notifications
+    )
 }
 
 private func makeReport(_ input: CinematicDiagnosticsInput) -> CinematicDiagnosticsReport {
@@ -2386,7 +2579,8 @@ private func makeReport(_ input: CinematicDiagnosticsInput) -> CinematicDiagnost
         runRecapShareArtifactPreviewSearchQuery: input.runRecapShareArtifactPreviewSearchQuery,
         runRecapShareArtifactComparisonTargetMode: input.runRecapShareArtifactComparisonTargetMode,
         runRecapShareArtifactPinnedEntryIdentifiers: input.runRecapShareArtifactPinnedEntryIdentifiers,
-        runRecapShareArtifactSavedTourHoldEntryIdentifier: input.runRecapShareArtifactSavedTourHoldEntryIdentifier
+        runRecapShareArtifactSavedTourHoldEntryIdentifier: input.runRecapShareArtifactSavedTourHoldEntryIdentifier,
+        nativeFeedbackDeliverySnapshot: input.nativeFeedbackDeliverySnapshot
     )
 }
 

@@ -78,17 +78,95 @@ struct NativeFeedbackModeMenuItem: Identifiable, Equatable {
     var id: NativeFeedbackMode { mode }
 }
 
+struct NativeFeedbackDeliverySnapshot: Equatable {
+    static let identifierLimit = 80
+    static let menuStatusLimit = 280
+    static let recentDedupeCountLimit = 99
+
+    var mode: NativeFeedbackMode
+    var notificationSupportIdentifier: String
+    var authorizationRequestStateIdentifier: String
+    var notificationAuthorizationStatusIdentifier: String
+    var notificationsAllowed: Bool
+    var recentDedupeCount: Int
+    var lastAttemptedMilestoneIdentifier: String
+    var lastAttemptResultIdentifier: String
+    var speechStateIdentifier: String
+
+    init(
+        mode: NativeFeedbackMode,
+        notificationSupportIdentifier: String = "available",
+        authorizationRequestStateIdentifier: String = "not-requested",
+        notificationAuthorizationStatusIdentifier: String = "not-requested",
+        notificationsAllowed: Bool = false,
+        recentDedupeCount: Int = 0,
+        lastAttemptedMilestoneIdentifier: String = "none",
+        lastAttemptResultIdentifier: String = "none",
+        speechStateIdentifier: String = "idle"
+    ) {
+        self.mode = mode
+        self.notificationSupportIdentifier = Self.boundedIdentifier(notificationSupportIdentifier)
+        self.authorizationRequestStateIdentifier = Self.boundedIdentifier(authorizationRequestStateIdentifier)
+        self.notificationAuthorizationStatusIdentifier = Self.boundedIdentifier(
+            notificationAuthorizationStatusIdentifier
+        )
+        self.notificationsAllowed = notificationsAllowed
+        self.recentDedupeCount = min(max(0, recentDedupeCount), Self.recentDedupeCountLimit)
+        self.lastAttemptedMilestoneIdentifier = Self.boundedIdentifier(lastAttemptedMilestoneIdentifier)
+        self.lastAttemptResultIdentifier = Self.boundedIdentifier(lastAttemptResultIdentifier)
+        self.speechStateIdentifier = Self.boundedIdentifier(speechStateIdentifier)
+    }
+
+    var notificationModeIdentifier: String {
+        mode.sendsNotifications ? "notifications" : "notifications-off"
+    }
+
+    var speechModeIdentifier: String {
+        mode.speaks ? "speech" : "speech-off"
+    }
+
+    var identifier: String {
+        [
+            "mode:\(mode.rawValue)",
+            "support:\(notificationSupportIdentifier)",
+            "request:\(authorizationRequestStateIdentifier)",
+            "status:\(notificationAuthorizationStatusIdentifier)",
+            "allowed:\(notificationsAllowed ? "true" : "false")",
+            "dedupe:\(recentDedupeCount)",
+            "last:\(lastAttemptedMilestoneIdentifier):\(lastAttemptResultIdentifier)",
+            "speech:\(speechStateIdentifier)"
+        ].joined(separator: "|")
+    }
+
+    private static func boundedIdentifier(_ rawValue: String) -> String {
+        let normalized = rawValue
+            .replacingOccurrences(of: "\r", with: " ")
+            .replacingOccurrences(of: "\n", with: " ")
+            .replacingOccurrences(of: #"\s+"#, with: "-", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let fallback = normalized.isEmpty ? "none" : normalized
+        guard fallback.count > identifierLimit else { return fallback }
+        return String(fallback.prefix(identifierLimit))
+    }
+}
+
 struct NativeFeedbackModeMenu: Equatable {
     var projectName: String
     var labelSystemImage: String
     var helpText: String
+    var deliveryStatusText: String
     var items: [NativeFeedbackModeMenuItem]
 
-    init(selectedMode: NativeFeedbackMode, projectName rawProjectName: String = "Compass project") {
+    init(
+        selectedMode: NativeFeedbackMode,
+        projectName rawProjectName: String = "Compass project",
+        deliverySnapshot: NativeFeedbackDeliverySnapshot? = nil
+    ) {
         let projectName = NativeFeedbackContent.sanitizedProjectName(rawProjectName)
         self.projectName = projectName
         labelSystemImage = selectedMode.systemImage
         helpText = "Feedback: \(selectedMode.title)"
+        deliveryStatusText = Self.deliveryStatusText(for: deliverySnapshot)
         items = NativeFeedbackMode.allCases.map { mode in
             NativeFeedbackModeMenuItem(
                 mode: mode,
@@ -125,6 +203,26 @@ struct NativeFeedbackModeMenu: Equatable {
             copy = "Speech uses local audio; notifications for \(projectName) ask permission only when needed."
         }
         return bounded(copy, limit: NativeFeedbackModeMenuItem.permissionHintLimit)
+    }
+
+    private static func deliveryStatusText(for snapshot: NativeFeedbackDeliverySnapshot?) -> String {
+        guard let snapshot else {
+            return bounded("Delivery diagnostics unavailable", limit: NativeFeedbackDeliverySnapshot.menuStatusLimit)
+        }
+
+        let copy = [
+            "mode \(snapshot.mode.rawValue)",
+            snapshot.notificationModeIdentifier,
+            snapshot.speechModeIdentifier,
+            "support \(snapshot.notificationSupportIdentifier)",
+            "authorization \(snapshot.authorizationRequestStateIdentifier)",
+            "notification-status \(snapshot.notificationAuthorizationStatusIdentifier)",
+            "notification-allowed \(snapshot.notificationsAllowed ? "true" : "false")",
+            "dedupe \(snapshot.recentDedupeCount)",
+            "last \(snapshot.lastAttemptedMilestoneIdentifier)/\(snapshot.lastAttemptResultIdentifier)",
+            "speech \(snapshot.speechStateIdentifier)"
+        ].joined(separator: " | ")
+        return bounded(copy, limit: NativeFeedbackDeliverySnapshot.menuStatusLimit)
     }
 
     private static func bounded(_ rawValue: String, limit: Int) -> String {
@@ -222,11 +320,19 @@ final class NativeFeedbackService: NSObject, UNUserNotificationCenterDelegate {
     private let speechSynthesizer = AVSpeechSynthesizer()
     private var authorizationRequested = false
     private var notificationsAllowed = false
+    private var notificationAuthorizationStatusIdentifier = "not-requested"
     private var recentMilestones: [String: Date] = [:]
+    private var lastAttemptedMilestoneIdentifier = "none"
+    private var lastAttemptResultIdentifier = "none"
+    private var lastSpeechStateIdentifier = "idle"
     private let duplicateWindow: TimeInterval = 8
 
     private override init() {
-        notificationCenter = Self.supportsUserNotifications ? UNUserNotificationCenter.current() : nil
+        let center = Self.supportsUserNotifications ? UNUserNotificationCenter.current() : nil
+        notificationCenter = center
+        if center == nil {
+            notificationAuthorizationStatusIdentifier = "unavailable-app-bundle"
+        }
 
         super.init()
         notificationCenter?.delegate = self
@@ -248,18 +354,25 @@ final class NativeFeedbackService: NSObject, UNUserNotificationCenterDelegate {
     func applyModeChange(_ mode: NativeFeedbackMode) {
         if mode == .off {
             speechSynthesizer.stopSpeaking(at: .immediate)
+            lastSpeechStateIdentifier = "suppressed-mode"
         } else {
             prepare()
         }
     }
 
     func emit(_ milestone: NativeFeedbackMilestone, projectName: String, mode: NativeFeedbackMode) {
-        guard mode != .off else { return }
+        lastAttemptedMilestoneIdentifier = milestone.rawValue
+        guard mode != .off else {
+            lastAttemptResultIdentifier = "suppressed-off"
+            lastSpeechStateIdentifier = "suppressed-mode"
+            return
+        }
 
         let projectName = NativeFeedbackContent.sanitizedProjectName(projectName)
         let dedupeKey = "\(projectName)|\(milestone.rawValue)"
         let now = Date()
         if let last = recentMilestones[dedupeKey], now.timeIntervalSince(last) < duplicateWindow {
+            lastAttemptResultIdentifier = "deduped"
             return
         }
 
@@ -268,13 +381,30 @@ final class NativeFeedbackService: NSObject, UNUserNotificationCenterDelegate {
 
         let content = NativeFeedbackContent(milestone: milestone, projectName: projectName)
         if mode.sendsNotifications {
+            lastAttemptResultIdentifier = mode.speaks ? "queued-notification-speech" : "queued-notification"
             Task { @MainActor in
                 await deliverNotification(content)
             }
         }
         if mode.speaks {
             speak(content.spokenPhrase)
+        } else {
+            lastSpeechStateIdentifier = "suppressed-mode"
         }
+    }
+
+    func deliverySnapshot(mode: NativeFeedbackMode) -> NativeFeedbackDeliverySnapshot {
+        NativeFeedbackDeliverySnapshot(
+            mode: mode,
+            notificationSupportIdentifier: notificationCenter == nil ? "unavailable-app-bundle" : "available",
+            authorizationRequestStateIdentifier: authorizationRequested ? "requested" : "not-requested",
+            notificationAuthorizationStatusIdentifier: notificationAuthorizationStatusIdentifier,
+            notificationsAllowed: notificationsAllowed,
+            recentDedupeCount: recentMilestones.count,
+            lastAttemptedMilestoneIdentifier: lastAttemptedMilestoneIdentifier,
+            lastAttemptResultIdentifier: lastAttemptResultIdentifier,
+            speechStateIdentifier: speechStateIdentifier(for: mode)
+        )
     }
 
     private func requestNotificationAuthorizationIfNeeded() async {
@@ -283,6 +413,7 @@ final class NativeFeedbackService: NSObject, UNUserNotificationCenterDelegate {
 
         guard let notificationCenter else {
             notificationsAllowed = false
+            notificationAuthorizationStatusIdentifier = "unavailable-app-bundle"
             return
         }
 
@@ -290,18 +421,29 @@ final class NativeFeedbackService: NSObject, UNUserNotificationCenterDelegate {
         switch settings.authorizationStatus {
         case .authorized, .provisional, .ephemeral:
             notificationsAllowed = true
+            notificationAuthorizationStatusIdentifier = "allowed"
         case .denied:
             notificationsAllowed = false
+            notificationAuthorizationStatusIdentifier = "denied"
         case .notDetermined:
             notificationsAllowed = (try? await notificationCenter.requestAuthorization(options: [.alert, .sound])) ?? false
+            notificationAuthorizationStatusIdentifier = notificationsAllowed ? "allowed" : "denied"
         @unknown default:
             notificationsAllowed = false
+            notificationAuthorizationStatusIdentifier = "unknown"
         }
     }
 
     private func deliverNotification(_ content: NativeFeedbackContent) async {
         await requestNotificationAuthorizationIfNeeded()
-        guard notificationsAllowed, let notificationCenter else { return }
+        guard let notificationCenter else {
+            lastAttemptResultIdentifier = "notification-suppressed-unavailable"
+            return
+        }
+        guard notificationsAllowed else {
+            lastAttemptResultIdentifier = "notification-suppressed-\(notificationAuthorizationStatusIdentifier)"
+            return
+        }
 
         let notification = UNMutableNotificationContent()
         notification.title = content.title
@@ -313,19 +455,36 @@ final class NativeFeedbackService: NSObject, UNUserNotificationCenterDelegate {
             content: notification,
             trigger: nil
         )
-        try? await notificationCenter.add(request)
+        do {
+            try await notificationCenter.add(request)
+            lastAttemptResultIdentifier = "notification-delivered"
+        } catch {
+            lastAttemptResultIdentifier = "notification-failed"
+        }
     }
 
     private func speak(_ phrase: String) {
-        guard !speechSynthesizer.isSpeaking else { return }
+        guard !speechSynthesizer.isSpeaking else {
+            lastSpeechStateIdentifier = "suppressed-speaking"
+            return
+        }
         let utterance = AVSpeechUtterance(string: phrase)
         utterance.rate = AVSpeechUtteranceDefaultSpeechRate
         utterance.volume = 0.8
         speechSynthesizer.speak(utterance)
+        lastSpeechStateIdentifier = "speaking"
     }
 
     private func pruneRecentMilestones(now: Date) {
         recentMilestones = recentMilestones.filter { now.timeIntervalSince($0.value) < 60 }
+    }
+
+    private func speechStateIdentifier(for mode: NativeFeedbackMode) -> String {
+        guard mode.speaks else { return "suppressed-mode" }
+        if speechSynthesizer.isSpeaking {
+            return "speaking"
+        }
+        return lastSpeechStateIdentifier
     }
 
     // UserNotifications asserts for SwiftPM-launched executables outside an app bundle.
