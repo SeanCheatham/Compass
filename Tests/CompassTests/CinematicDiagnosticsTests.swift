@@ -522,6 +522,7 @@ final class CinematicDiagnosticsTests: XCTestCase {
                 "narrative-cues",
                 "narrative-layout",
                 "overlay-display",
+                "native-feedback-history",
                 "world-quest",
                 "world-arena",
                 "world-activity",
@@ -582,6 +583,7 @@ final class CinematicDiagnosticsTests: XCTestCase {
                     "narrative-cues",
                     "narrative-layout",
                     "overlay-display",
+                    "native-feedback-history",
                     "world-quest",
                     "world-arena",
                     "world-activity"
@@ -667,7 +669,7 @@ final class CinematicDiagnosticsTests: XCTestCase {
         XCTAssertTrue(summary.exportText.contains("Repository/context (4 rows)"))
         XCTAssertTrue(summary.exportText.contains("Motifs (2 rows)"))
         XCTAssertTrue(summary.exportText.contains("Stage motion/effects (9 rows)"))
-        XCTAssertTrue(summary.exportText.contains("Narrative/overlay (6 rows)"))
+        XCTAssertTrue(summary.exportText.contains("Narrative/overlay (7 rows)"))
         XCTAssertTrue(summary.exportText.contains("Assets/textures (2 rows)"))
         XCTAssertTrue(summary.exportText.contains("Tuning (4 rows)"))
         XCTAssertTrue(summary.exportText.contains("Camera shots (9 rows)"))
@@ -748,13 +750,14 @@ final class CinematicDiagnosticsTests: XCTestCase {
                 "narrative-cues",
                 "narrative-layout",
                 "overlay-display",
+                "native-feedback-history",
                 "world-quest",
                 "world-arena",
                 "world-activity"
             ]
         )
 
-        for rowID in ["narrative-cues", "narrative-layout", "overlay-display"] {
+        for rowID in ["narrative-cues", "narrative-layout", "overlay-display", "native-feedback-history"] {
             XCTAssertEqual(
                 summary.sections.filter { section in
                     section.rows.contains { $0.id == rowID }
@@ -872,6 +875,18 @@ final class CinematicDiagnosticsTests: XCTestCase {
             XCTAssertEqual(report.nativeFeedback.lifecycleStateIdentifier, "active")
             XCTAssertEqual(report.nativeFeedback.lifecycleActiveCueIdentifier, cue.identifier)
             XCTAssertEqual(report.nativeFeedback.lifecycleRecentArchiveCount, 0)
+            let activeHistory = try XCTUnwrap(report.nativeFeedback.lifecycleActiveHistoryEntry)
+            XCTAssertEqual(activeHistory.sequence, 1)
+            XCTAssertEqual(activeHistory.stateIdentifier, "active")
+            XCTAssertNil(activeHistory.reasonIdentifier)
+            XCTAssertEqual(activeHistory.milestoneIdentifier, "verifyStarted")
+            XCTAssertEqual(activeHistory.sourceIdentifier, "native:verifyStarted")
+            XCTAssertEqual(activeHistory.styleIdentifier, "verify")
+            XCTAssertEqual(activeHistory.displayDuration, CinematicNativeFeedbackCueLifecycle.standardDisplayDuration)
+            XCTAssertEqual(activeHistory.lifecycleIdentifier, cue.lifecycleIdentifier)
+            XCTAssertEqual(activeHistory.cueIdentifier, cue.identifier)
+            XCTAssertEqual(report.nativeFeedback.lifecycleArchiveHistoryEntries, [])
+            XCTAssertEqual(report.nativeFeedback.lifecycleHistoryEntryCount, 1)
             XCTAssertEqual(report.nativeFeedback.sourceIdentifier, "native:verifyStarted")
             XCTAssertEqual(report.nativeFeedback.styleIdentifier, "verify")
             XCTAssertEqual(report.nativeFeedback.milestoneIdentifier, "verifyStarted")
@@ -904,6 +919,72 @@ final class CinematicDiagnosticsTests: XCTestCase {
             XCTAssertTrue(summary.exportText.contains("state:active"))
             XCTAssertTrue(summary.exportText.contains("affects narrative.quest.plaque"))
             XCTAssertTrue(summary.exportText.contains("native \(cue.identifier)"))
+            let historyRow = try XCTUnwrap(summary.rows.first { $0.id == "native-feedback-history" })
+            XCTAssertTrue(historyRow.detail.contains("#1 active"))
+            XCTAssertTrue(historyRow.detail.contains("source native:verifyStarted"))
+            XCTAssertTrue(historyRow.detail.contains("style verify"))
+            XCTAssertTrue(historyRow.detail.contains("duration 8.0000s"))
+            XCTAssertTrue(summary.exportText.contains("Native feedback history:"))
+        }
+    }
+
+    func testCurrentReportExportsReplacedNativeFeedbackHistory() async throws {
+        try await MainActor.run {
+            let now = Date(timeIntervalSinceReferenceDate: 5_500)
+            let repoURL = URL(fileURLWithPath: "/tmp/ReplacedNativeDiagnosticsRepo", isDirectory: true)
+            let project = CompassProject(
+                repoURL: repoURL,
+                nativeFeedbackMode: .notifications
+            )
+            project.state = PlanState(
+                completed: ["Recorded first cue"],
+                immediate: PlanNext(
+                    plan: "Replace native feedback cue",
+                    verify: "swift test"
+                ),
+                midTerm: "",
+                longTerm: ""
+            )
+            project.phase = .verifying
+            project.languageProfile = languageProfile(primaryLanguage: .swift)
+            project.activityProfile = activityProfile(recentCommitCount: 1)
+            project.recordCinematicNativeFeedback(.verifyStarted, now: now)
+            let firstCue = try XCTUnwrap(project.cinematicNativeFeedbackCue)
+            project.phase = .developing
+            project.recordCinematicNativeFeedback(.developStarted, now: now.addingTimeInterval(1))
+            let secondCue = try XCTUnwrap(project.cinematicNativeFeedbackCue)
+
+            let report = CinematicDiagnostics.currentReport(for: project)
+            let activeHistory = try XCTUnwrap(report.nativeFeedback.lifecycleActiveHistoryEntry)
+            let archivedHistory = try XCTUnwrap(report.nativeFeedback.lifecycleArchiveHistoryEntries.first)
+
+            XCTAssertEqual(activeHistory.sequence, 2)
+            XCTAssertEqual(activeHistory.stateIdentifier, "active")
+            XCTAssertNil(activeHistory.reasonIdentifier)
+            XCTAssertEqual(activeHistory.milestoneIdentifier, "developStarted")
+            XCTAssertEqual(activeHistory.sourceIdentifier, "native:developStarted")
+            XCTAssertEqual(activeHistory.styleIdentifier, "develop")
+            XCTAssertEqual(activeHistory.cueIdentifier, secondCue.identifier)
+            XCTAssertEqual(archivedHistory.sequence, 1)
+            XCTAssertEqual(archivedHistory.stateIdentifier, "archived")
+            XCTAssertEqual(archivedHistory.reasonIdentifier, "replaced")
+            XCTAssertEqual(archivedHistory.milestoneIdentifier, "verifyStarted")
+            XCTAssertEqual(archivedHistory.sourceIdentifier, "native:verifyStarted")
+            XCTAssertEqual(archivedHistory.styleIdentifier, "verify")
+            XCTAssertEqual(archivedHistory.cueIdentifier, firstCue.identifier)
+            XCTAssertEqual(report.nativeFeedback.lifecycleHistoryEntryCount, 2)
+
+            let summary = CinematicDiagnosticsSummary(
+                report: report,
+                visualSmoke: CinematicVisualSmokeReport(reports: [report])
+            )
+            let historyRow = try XCTUnwrap(summary.rows.first { $0.id == "native-feedback-history" })
+            XCTAssertTrue(historyRow.detail.contains("#2 active"))
+            XCTAssertTrue(historyRow.detail.contains("#1 archived/replaced"))
+            XCTAssertTrue(historyRow.detail.contains("milestone developStarted"))
+            XCTAssertTrue(historyRow.detail.contains("milestone verifyStarted"))
+            XCTAssertTrue(summary.exportText.contains("Native feedback history:"))
+            XCTAssertTrue(summary.exportText.contains("archived/replaced"))
         }
     }
 
@@ -950,6 +1031,18 @@ final class CinematicDiagnosticsTests: XCTestCase {
             XCTAssertEqual(report.nativeFeedback.lifecycleStateIdentifier, "expired")
             XCTAssertEqual(report.nativeFeedback.lifecycleRecentArchiveCount, 1)
             XCTAssertEqual(report.nativeFeedback.lifecycleRecentArchiveIdentifiers, [archive.lifecycleIdentifier])
+            XCTAssertNil(report.nativeFeedback.lifecycleActiveHistoryEntry)
+            let archivedHistory = try XCTUnwrap(report.nativeFeedback.lifecycleArchiveHistoryEntries.first)
+            XCTAssertEqual(archivedHistory.sequence, 1)
+            XCTAssertEqual(archivedHistory.stateIdentifier, "archived")
+            XCTAssertEqual(archivedHistory.reasonIdentifier, "expired")
+            XCTAssertEqual(archivedHistory.milestoneIdentifier, "verifyStarted")
+            XCTAssertEqual(archivedHistory.sourceIdentifier, "native:verifyStarted")
+            XCTAssertEqual(archivedHistory.styleIdentifier, "verify")
+            XCTAssertEqual(archivedHistory.displayDuration, CinematicNativeFeedbackCueLifecycle.standardDisplayDuration)
+            XCTAssertEqual(archivedHistory.lifecycleIdentifier, archive.lifecycleIdentifier)
+            XCTAssertEqual(archivedHistory.cueIdentifier, activeCue.identifier)
+            XCTAssertEqual(report.nativeFeedback.lifecycleHistoryEntryCount, 1)
             XCTAssertEqual(report.overlayDisplay.nativeFeedbackCueIdentifier, "none")
             XCTAssertEqual(report.overlayDisplay.nativeFeedbackLifecycleIdentifier, project.cinematicNativeFeedbackCueLifecycle.identifier)
             XCTAssertFalse(report.overlayDisplay.showsNativeFeedbackBanner)
@@ -963,7 +1056,103 @@ final class CinematicDiagnosticsTests: XCTestCase {
             XCTAssertTrue(summary.exportText.contains("native-lifecycle \(project.cinematicNativeFeedbackCueLifecycle.identifier)"))
             XCTAssertTrue(summary.exportText.contains("state:expired"))
             XCTAssertTrue(summary.exportText.contains("reason:expired"))
+            XCTAssertTrue(summary.exportText.contains("Native feedback history:"))
+            XCTAssertTrue(summary.exportText.contains("#1 archived/expired"))
         }
+    }
+
+    func testCurrentReportExportsModeOffNativeFeedbackHistory() async throws {
+        try await MainActor.run {
+            let now = Date(timeIntervalSinceReferenceDate: 6_000)
+            let repoURL = URL(fileURLWithPath: "/tmp/ModeOffNativeDiagnosticsRepo", isDirectory: true)
+            let project = CompassProject(
+                repoURL: repoURL,
+                nativeFeedbackMode: .notifications
+            )
+            project.phase = .verifying
+            project.languageProfile = languageProfile(primaryLanguage: .swift)
+            project.activityProfile = activityProfile(recentCommitCount: 1)
+            project.recordCinematicNativeFeedback(.verifyStarted, now: now)
+            project.nativeFeedbackMode = .off
+
+            let report = CinematicDiagnostics.currentReport(for: project)
+            XCTAssertEqual(report.nativeFeedback.lifecycleStateIdentifier, "archived")
+            XCTAssertEqual(report.nativeFeedback.lifecycleRecentArchiveCount, 1)
+            let archivedHistory = try XCTUnwrap(report.nativeFeedback.lifecycleArchiveHistoryEntries.first)
+            XCTAssertEqual(archivedHistory.stateIdentifier, "archived")
+            XCTAssertEqual(archivedHistory.reasonIdentifier, "mode-off")
+            XCTAssertEqual(archivedHistory.milestoneIdentifier, "verifyStarted")
+            XCTAssertEqual(archivedHistory.sourceIdentifier, "native:verifyStarted")
+            XCTAssertEqual(archivedHistory.styleIdentifier, "verify")
+
+            let summary = CinematicDiagnosticsSummary(
+                report: report,
+                visualSmoke: CinematicVisualSmokeReport(reports: [report])
+            )
+            let historyRow = try XCTUnwrap(summary.rows.first { $0.id == "native-feedback-history" })
+            XCTAssertTrue(historyRow.detail.contains("archived/mode-off"))
+            XCTAssertTrue(summary.exportText.contains("archived/mode-off"))
+        }
+    }
+
+    func testNativeFeedbackHistoryBoundsArchiveEntriesAndSummaryDetail() throws {
+        let now = Date(timeIntervalSinceReferenceDate: 6_500)
+        let cue = try XCTUnwrap(
+            CinematicNativeFeedbackCuePlanner.plan(
+                milestone: .verifyStarted,
+                content: NativeFeedbackContent(milestone: .verifyStarted, projectName: "Bounded History"),
+                phase: .verifying,
+                feedbackMode: .notifications,
+                recentRunCues: [:]
+            )
+        )
+        let recordCount = CinematicNativeFeedbackCueLifecycle.recentArchiveLimit + 4
+        var lifecycle = CinematicNativeFeedbackCueLifecycle()
+        var activeCue: CinematicNativeFeedbackCuePlan?
+
+        for offset in 0..<recordCount {
+            activeCue = lifecycle.record(cue, now: now.addingTimeInterval(Double(offset)))
+        }
+
+        let report = CinematicDiagnostics.report(
+            repoName: "Bounded History",
+            phase: LoopPhase.verifying.rawValue,
+            immediateTitle: "Bound native feedback archive diagnostics",
+            completedCount: 2,
+            latestEvent: nil,
+            languageProfile: languageProfile(primaryLanguage: .swift),
+            activityProfile: activityProfile(recentCommitCount: 1),
+            influenceSettings: CinematicInfluenceSettings(),
+            nativeFeedbackCue: try XCTUnwrap(activeCue),
+            nativeFeedbackLifecycle: lifecycle
+        )
+
+        XCTAssertEqual(
+            report.nativeFeedback.lifecycleArchiveHistoryEntries.count,
+            CinematicNativeFeedbackCueLifecycle.recentArchiveLimit
+        )
+        XCTAssertEqual(
+            report.nativeFeedback.lifecycleHistoryEntryCount,
+            CinematicNativeFeedbackCueLifecycle.recentArchiveLimit + 1
+        )
+        XCTAssertEqual(report.nativeFeedback.lifecycleActiveHistoryEntry?.sequence, recordCount)
+        XCTAssertEqual(
+            report.nativeFeedback.lifecycleArchiveHistoryEntries.map(\.sequence),
+            Array(
+                Array((recordCount - CinematicNativeFeedbackCueLifecycle.recentArchiveLimit)..<recordCount)
+                    .reversed()
+            )
+        )
+
+        let summary = CinematicDiagnosticsSummary(
+            report: report,
+            visualSmoke: CinematicVisualSmokeReport(reports: [report])
+        )
+        let historyRow = try XCTUnwrap(summary.rows.first { $0.id == "native-feedback-history" })
+        XCTAssertLessThanOrEqual(historyRow.detail.count, CinematicDiagnosticsSummary.detailMaxCharacters)
+        XCTAssertTrue(historyRow.detail.contains("#\(recordCount) active"))
+        XCTAssertTrue(historyRow.detail.contains("#\(recordCount - 1) archived/replaced"))
+        XCTAssertTrue(summary.exportText.contains("Native feedback history:"))
     }
 
     func testComfortModePropagatesToDiagnosticsIdentifiersAndExport() {

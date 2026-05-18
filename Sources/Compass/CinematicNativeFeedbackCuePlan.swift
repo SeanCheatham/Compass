@@ -308,6 +308,8 @@ struct CinematicNativeFeedbackCueLifecycle: Equatable {
         var stateIdentifier: String
         var archiveReason: ArchiveReason
         var milestoneIdentifier: String
+        var sourceIdentifier: String
+        var styleIdentifier: String
         var displayDuration: TimeInterval
         var recordedAt: Date
         var expiresAt: Date
@@ -321,6 +323,8 @@ struct CinematicNativeFeedbackCueLifecycle: Equatable {
             stateIdentifier = metadata.state.rawValue
             archiveReason = metadata.archiveReason ?? .cleared
             milestoneIdentifier = cue.milestoneIdentifier
+            sourceIdentifier = cue.sourceIdentifier
+            styleIdentifier = cue.styleIdentifier
             displayDuration = metadata.displayDuration
             recordedAt = metadata.recordedAt
             expiresAt = metadata.expiresAt

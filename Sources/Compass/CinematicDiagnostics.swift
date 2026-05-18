@@ -56,10 +56,26 @@ struct CinematicDiagnosticsReport: Equatable {
         var lifecycleActiveCueIdentifier: String
         var lifecycleRecentArchiveIdentifiers: [String]
         var lifecycleRecentArchiveCount: Int
+        var lifecycleActiveHistoryEntry: NativeFeedbackHistoryEntrySnapshot?
+        var lifecycleArchiveHistoryEntries: [NativeFeedbackHistoryEntrySnapshot]
+        var lifecycleHistoryEntryCount: Int
         var sourceIdentifier: String
         var styleIdentifier: String
         var milestoneIdentifier: String
         var affectedNarrativeDescriptorIdentifiers: [String]
+    }
+
+    struct NativeFeedbackHistoryEntrySnapshot: Equatable {
+        var identifier: String
+        var cueIdentifier: String
+        var lifecycleIdentifier: String
+        var sequence: Int
+        var stateIdentifier: String
+        var reasonIdentifier: String?
+        var milestoneIdentifier: String
+        var sourceIdentifier: String?
+        var styleIdentifier: String?
+        var displayDuration: TimeInterval
     }
 
     struct RecoveryCueSnapshot: Equatable {
@@ -1221,7 +1237,7 @@ struct CinematicVisualSmokeReport: Equatable {
 }
 
 struct CinematicDiagnosticsSummary: Equatable {
-    static let maxRows = 36
+    static let maxRows = 37
     static let labelMaxCharacters = 32
     static let detailMaxCharacters = 512
     static let visualSmokeCountMaxCharacters = 24
@@ -1308,6 +1324,7 @@ struct CinematicDiagnosticsSummary: Equatable {
                 "narrative-cues",
                 "narrative-layout",
                 "overlay-display",
+                "native-feedback-history",
                 "world-quest",
                 "world-arena",
                 "world-activity"
@@ -1530,6 +1547,11 @@ struct CinematicDiagnosticsSummary: Equatable {
                 id: "overlay-display",
                 label: "Overlay display",
                 detail: overlayDisplayDetail(report.overlayDisplay)
+            ),
+            row(
+                id: "native-feedback-history",
+                label: "Native feedback history",
+                detail: nativeFeedbackHistoryDetail(report.nativeFeedback)
             ),
             row(id: "world-quest", label: "World quest", detail: report.worldText.questLabel),
             row(id: "world-arena", label: "World arena", detail: report.worldText.arenaCallout),
@@ -1812,6 +1834,40 @@ struct CinematicDiagnosticsSummary: Equatable {
             "opacity \(fixed(snapshot.overlayOpacity))"
         ].compactMap { $0 }
         return details.joined(separator: " | ")
+    }
+
+    private static func nativeFeedbackHistoryDetail(
+        _ snapshot: CinematicDiagnosticsReport.NativeFeedbackSnapshot
+    ) -> String {
+        let entries = [snapshot.lifecycleActiveHistoryEntry].compactMap { $0 }
+            + snapshot.lifecycleArchiveHistoryEntries
+        guard !entries.isEmpty else { return "none" }
+        return entries
+            .map(nativeFeedbackHistoryEntryDetail)
+            .joined(separator: " | ")
+    }
+
+    private static func nativeFeedbackHistoryEntryDetail(
+        _ entry: CinematicDiagnosticsReport.NativeFeedbackHistoryEntrySnapshot
+    ) -> String {
+        [
+            "#\(entry.sequence)",
+            stateAndReasonDetail(entry),
+            "milestone \(entry.milestoneIdentifier)",
+            entry.sourceIdentifier.map { "source \($0)" },
+            entry.styleIdentifier.map { "style \($0)" },
+            "duration \(fixed(entry.displayDuration))s",
+            "lifecycle \(entry.lifecycleIdentifier)"
+        ].compactMap { $0 }.joined(separator: " ")
+    }
+
+    private static func stateAndReasonDetail(
+        _ entry: CinematicDiagnosticsReport.NativeFeedbackHistoryEntrySnapshot
+    ) -> String {
+        if let reason = entry.reasonIdentifier {
+            return "\(entry.stateIdentifier)/\(reason)"
+        }
+        return entry.stateIdentifier
     }
 
     private static func nativeFeedbackNarrativeDetail(
@@ -2839,6 +2895,12 @@ enum CinematicDiagnostics {
             : cue?.lifecycleStateIdentifier ?? "none"
         let activeCueIdentifier = lifecycle.active?.cueIdentifier ?? "none"
         let archiveIdentifiers = lifecycle.recentArchiveIdentifiers
+        let activeHistoryEntry = lifecycle.active.map(nativeFeedbackHistoryEntry)
+        let archiveHistoryEntries = lifecycle.recentArchive.map(nativeFeedbackHistoryEntry)
+        let historyEntries = [activeHistoryEntry].compactMap { $0 } + archiveHistoryEntries
+        let historyIdentifier = historyEntries.isEmpty
+            ? "none"
+            : historyEntries.map(\.identifier).joined(separator: ",")
 
         guard let cue else {
             return CinematicDiagnosticsReport.NativeFeedbackSnapshot(
@@ -2846,7 +2908,8 @@ enum CinematicDiagnostics {
                     "native-feedback.none",
                     "lifecycle:\(lifecycleIdentifier)",
                     "state:\(lifecycleStateIdentifier)",
-                    "archives:\(archiveIdentifiers.isEmpty ? "none" : archiveIdentifiers.joined(separator: ","))"
+                    "archives:\(archiveIdentifiers.isEmpty ? "none" : archiveIdentifiers.joined(separator: ","))",
+                    "history:\(historyIdentifier)"
                 ].joined(separator: "|"),
                 cueIdentifier: "none",
                 lifecycleIdentifier: lifecycleIdentifier,
@@ -2854,6 +2917,9 @@ enum CinematicDiagnostics {
                 lifecycleActiveCueIdentifier: activeCueIdentifier,
                 lifecycleRecentArchiveIdentifiers: archiveIdentifiers,
                 lifecycleRecentArchiveCount: archiveIdentifiers.count,
+                lifecycleActiveHistoryEntry: activeHistoryEntry,
+                lifecycleArchiveHistoryEntries: archiveHistoryEntries,
+                lifecycleHistoryEntryCount: historyEntries.count,
                 sourceIdentifier: "none",
                 styleIdentifier: "none",
                 milestoneIdentifier: "none",
@@ -2870,6 +2936,7 @@ enum CinematicDiagnostics {
             "lifecycle:\(lifecycleIdentifier)",
             "state:\(lifecycleStateIdentifier)",
             "archives:\(archiveIdentifiers.count)",
+            "history:\(historyIdentifier)",
             "affects:\(affectedDescriptors.isEmpty ? "none" : affectedDescriptors.joined(separator: ","))"
         ].joined(separator: "|")
 
@@ -2881,10 +2948,83 @@ enum CinematicDiagnostics {
             lifecycleActiveCueIdentifier: activeCueIdentifier,
             lifecycleRecentArchiveIdentifiers: archiveIdentifiers,
             lifecycleRecentArchiveCount: archiveIdentifiers.count,
+            lifecycleActiveHistoryEntry: activeHistoryEntry,
+            lifecycleArchiveHistoryEntries: archiveHistoryEntries,
+            lifecycleHistoryEntryCount: historyEntries.count,
             sourceIdentifier: cue.sourceIdentifier,
             styleIdentifier: cue.styleIdentifier,
             milestoneIdentifier: cue.milestoneIdentifier,
             affectedNarrativeDescriptorIdentifiers: affectedDescriptors
+        )
+    }
+
+    private static func nativeFeedbackHistoryEntry(
+        _ active: CinematicNativeFeedbackCueLifecycle.ActiveCue
+    ) -> CinematicDiagnosticsReport.NativeFeedbackHistoryEntrySnapshot {
+        let cue = active.cue
+        let metadata = active.metadata
+        return nativeFeedbackHistoryEntry(
+            cueIdentifier: cue.identifier,
+            lifecycleIdentifier: metadata.identifier,
+            sequence: metadata.sequence,
+            stateIdentifier: metadata.state.rawValue,
+            reasonIdentifier: nil,
+            milestoneIdentifier: cue.milestoneIdentifier,
+            sourceIdentifier: cue.sourceIdentifier,
+            styleIdentifier: cue.styleIdentifier,
+            displayDuration: metadata.displayDuration
+        )
+    }
+
+    private static func nativeFeedbackHistoryEntry(
+        _ archived: CinematicNativeFeedbackCueLifecycle.ArchivedCue
+    ) -> CinematicDiagnosticsReport.NativeFeedbackHistoryEntrySnapshot {
+        nativeFeedbackHistoryEntry(
+            cueIdentifier: archived.cueIdentifier,
+            lifecycleIdentifier: archived.lifecycleIdentifier,
+            sequence: archived.sequence,
+            stateIdentifier: archived.stateIdentifier,
+            reasonIdentifier: archived.archiveReason.rawValue,
+            milestoneIdentifier: archived.milestoneIdentifier,
+            sourceIdentifier: archived.sourceIdentifier,
+            styleIdentifier: archived.styleIdentifier,
+            displayDuration: archived.displayDuration
+        )
+    }
+
+    private static func nativeFeedbackHistoryEntry(
+        cueIdentifier: String,
+        lifecycleIdentifier: String,
+        sequence: Int,
+        stateIdentifier: String,
+        reasonIdentifier: String?,
+        milestoneIdentifier: String,
+        sourceIdentifier: String?,
+        styleIdentifier: String?,
+        displayDuration: TimeInterval
+    ) -> CinematicDiagnosticsReport.NativeFeedbackHistoryEntrySnapshot {
+        let identifier = [
+            "seq:\(sequence)",
+            "state:\(stateIdentifier)",
+            reasonIdentifier.map { "reason:\($0)" },
+            "milestone:\(milestoneIdentifier)",
+            sourceIdentifier.map { "source:\($0)" },
+            styleIdentifier.map { "style:\($0)" },
+            "duration:\(fixed(displayDuration))",
+            "lifecycle:\(lifecycleIdentifier)"
+        ].compactMap { $0 }.joined(separator: "|")
+
+        return CinematicDiagnosticsReport.NativeFeedbackHistoryEntrySnapshot(
+            identifier: identifier,
+            cueIdentifier: cueIdentifier,
+            lifecycleIdentifier: lifecycleIdentifier,
+            sequence: sequence,
+            stateIdentifier: stateIdentifier,
+            reasonIdentifier: reasonIdentifier,
+            milestoneIdentifier: milestoneIdentifier,
+            sourceIdentifier: sourceIdentifier,
+            styleIdentifier: styleIdentifier,
+            displayDuration: displayDuration
         )
     }
 

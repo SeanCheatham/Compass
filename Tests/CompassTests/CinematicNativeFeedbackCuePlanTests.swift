@@ -271,6 +271,14 @@ final class CinematicNativeFeedbackCuePlanTests: XCTestCase {
             project.cinematicNativeFeedbackCueLifecycle.recentArchive.first?.archiveReason,
             .replaced
         )
+        XCTAssertEqual(
+            project.cinematicNativeFeedbackCueLifecycle.recentArchive.first?.sourceIdentifier,
+            "native:verifyStarted"
+        )
+        XCTAssertEqual(
+            project.cinematicNativeFeedbackCueLifecycle.recentArchive.first?.styleIdentifier,
+            "verify"
+        )
         XCTAssertEqual(project.cinematicNativeFeedbackCueLifecycle.stateIdentifier, "active")
         XCTAssertTrue(secondCue.identifier.contains("lifecycle:active"))
     }
@@ -304,6 +312,8 @@ final class CinematicNativeFeedbackCuePlanTests: XCTestCase {
         XCTAssertNil(lifecycle.activeCue)
         XCTAssertEqual(lifecycle.stateIdentifier, "expired")
         XCTAssertEqual(lifecycle.recentArchive.first?.archiveReason, .expired)
+        XCTAssertEqual(lifecycle.recentArchive.first?.sourceIdentifier, "native:verifyStarted")
+        XCTAssertEqual(lifecycle.recentArchive.first?.styleIdentifier, "verify")
 
         for offset in 1...(CinematicNativeFeedbackCueLifecycle.recentArchiveLimit + 3) {
             _ = lifecycle.record(cue, now: now.addingTimeInterval(Double(offset * 10)))
