@@ -1,5 +1,9 @@
 import Foundation
 
+#if canImport(FoundationModels)
+import FoundationModels
+#endif
+
 struct CinematicRunRecapPlan: Equatable, Identifiable {
     static let titleLimit = 64
     static let detailLimit = 128
@@ -27,6 +31,11 @@ struct CinematicRunRecapPlan: Equatable, Identifiable {
     var commitHighlightCount: Int
     var completedCount: Int
     var eventChips: [EventChip]
+    var sourceIdentifier: String?
+    var flavorStateIdentifier: String
+    var flavorIdentifier: String?
+    var flavorSourceIdentifier: String?
+    var titleSourceIdentifier: String
 
     var colorIdentifier: String {
         style.colorIdentifier
@@ -88,7 +97,12 @@ struct CinematicRunRecapPlan: Equatable, Identifiable {
             newestCommitHighlight: nil,
             commitHighlightCount: 0,
             completedCount: 0,
-            eventChips: []
+            eventChips: [],
+            sourceIdentifier: nil,
+            flavorStateIdentifier: CinematicRunRecapFlavorApplication.deterministic.rawValue,
+            flavorIdentifier: nil,
+            flavorSourceIdentifier: nil,
+            titleSourceIdentifier: CinematicRunRecapFlavor.TitleSource.deterministic.rawValue
         )
     }
 
@@ -98,7 +112,8 @@ struct CinematicRunRecapPlan: Equatable, Identifiable {
         newestCommitHighlight: String?,
         commitHighlightCount: Int,
         completedCount: Int,
-        eventChips: [EventChip]
+        eventChips: [EventChip],
+        flavor: CinematicRunRecapFlavor? = nil
     ) -> CinematicRunRecapPlan {
         let statusCopy = statusText(for: session.status)
         let boundedCompletedSummary = boundedText(latestCompletedSummary, limit: completedSummaryLimit)
@@ -106,10 +121,11 @@ struct CinematicRunRecapPlan: Equatable, Identifiable {
             boundedText($0, limit: commitHighlightLimit)
         }
         let boundedEventChips = Array(eventChips.prefix(eventChipLimit))
-        let title = boundedText(
+        let deterministicTitle = boundedText(
             "Run #\(session.session) \(statusCopy.lowercased())",
             limit: titleLimit
         )
+        let deterministicDetail = boundedText(boundedCompletedSummary, limit: detailLimit)
         let status = boundedText(
             [
                 countCopy(commitHighlightCount, singular: "commit highlight", plural: "commit highlights"),
@@ -119,7 +135,25 @@ struct CinematicRunRecapPlan: Equatable, Identifiable {
             limit: statusLimit
         )
         let style = style(for: session.status)
-        let identifier = [
+        let sourceIdentifier = recapSourceIdentifier(
+            session: session,
+            latestCompletedSummary: boundedCompletedSummary,
+            newestCommitHighlight: boundedCommitHighlight,
+            commitHighlightCount: commitHighlightCount,
+            completedCount: completedCount,
+            eventChipIdentifiers: boundedEventChips.map(\.identifier)
+        )
+        let flavorApplication = flavorApplication(
+            flavor,
+            sourceIdentifier: sourceIdentifier
+        )
+        let title = flavorApplication.appliedFlavor.map {
+            boundedText($0.title, limit: titleLimit)
+        } ?? deterministicTitle
+        let detail = flavorApplication.appliedFlavor.map {
+            boundedText($0.detail, limit: detailLimit)
+        } ?? deterministicDetail
+        var identifierComponents = [
             "run-recap",
             "session:\(session.session)",
             "status:\(session.status.rawValue)",
@@ -129,7 +163,11 @@ struct CinematicRunRecapPlan: Equatable, Identifiable {
             "commit-count:\(max(0, commitHighlightCount))",
             "commit:\(copyIdentifier(boundedCommitHighlight ?? "none"))",
             "events:\(boundedEventChips.map(\.identifier).joined(separator: ","))"
-        ].joined(separator: "|")
+        ]
+        if let appliedFlavor = flavorApplication.appliedFlavor {
+            identifierComponents.append("flavor:\(appliedFlavor.tokenIdentifier)")
+        }
+        let identifier = identifierComponents.joined(separator: "|")
 
         return CinematicRunRecapPlan(
             identifier: identifier,
@@ -138,7 +176,7 @@ struct CinematicRunRecapPlan: Equatable, Identifiable {
             sessionNumber: session.session,
             statusIdentifier: session.status.rawValue,
             title: title,
-            detail: boundedText(boundedCompletedSummary, limit: detailLimit),
+            detail: detail,
             status: status,
             systemImage: systemImage(for: session.status),
             style: style,
@@ -146,7 +184,12 @@ struct CinematicRunRecapPlan: Equatable, Identifiable {
             newestCommitHighlight: boundedCommitHighlight,
             commitHighlightCount: max(0, commitHighlightCount),
             completedCount: max(0, completedCount),
-            eventChips: boundedEventChips
+            eventChips: boundedEventChips,
+            sourceIdentifier: sourceIdentifier,
+            flavorStateIdentifier: flavorApplication.state.rawValue,
+            flavorIdentifier: flavorApplication.flavor?.identifier,
+            flavorSourceIdentifier: flavorApplication.flavor?.sourceIdentifier,
+            titleSourceIdentifier: flavorApplication.titleSourceIdentifier
         )
     }
 
@@ -265,6 +308,65 @@ struct CinematicRunRecapPlan: Equatable, Identifiable {
         count == 1 ? "1 \(singular)" : "\(max(0, count)) \(plural)"
     }
 
+    static func recapSourceIdentifier(
+        session: SessionRecord,
+        latestCompletedSummary: String,
+        newestCommitHighlight: String?,
+        commitHighlightCount: Int,
+        completedCount: Int,
+        eventChipIdentifiers: [String]
+    ) -> String {
+        [
+            "run-recap-source",
+            "session:\(session.session)",
+            "status:\(session.status.rawValue)",
+            "completed:\(max(0, completedCount))",
+            "summary:\(copyIdentifier(boundedText(latestCompletedSummary, limit: completedSummaryLimit)))",
+            "commit-count:\(max(0, commitHighlightCount))",
+            "commit:\(copyIdentifier(newestCommitHighlight ?? "none"))",
+            "events:\(eventChipIdentifiers.joined(separator: ","))"
+        ].joined(separator: "|")
+    }
+
+    private static func flavorApplication(
+        _ flavor: CinematicRunRecapFlavor?,
+        sourceIdentifier: String
+    ) -> (state: CinematicRunRecapFlavorApplication, flavor: CinematicRunRecapFlavor?, appliedFlavor: CinematicRunRecapFlavor?, titleSourceIdentifier: String) {
+        guard let flavor else {
+            return (
+                .deterministic,
+                nil,
+                nil,
+                CinematicRunRecapFlavor.TitleSource.deterministic.rawValue
+            )
+        }
+
+        guard flavor.sourceIdentifier == sourceIdentifier else {
+            return (
+                .stale,
+                flavor,
+                nil,
+                CinematicRunRecapFlavor.TitleSource.deterministic.rawValue
+            )
+        }
+
+        guard flavor.titleSource == .generated else {
+            return (
+                .deterministic,
+                flavor,
+                nil,
+                CinematicRunRecapFlavor.TitleSource.deterministic.rawValue
+            )
+        }
+
+        return (
+            .applied,
+            flavor,
+            flavor,
+            flavor.titleSource.rawValue
+        )
+    }
+
     private static func normalizedSourceIdentifier(_ value: String) -> String {
         let normalized = normalizedText(value)
         return normalized.isEmpty ? "source:unknown" : normalized
@@ -298,6 +400,304 @@ struct CinematicRunRecapPlan: Equatable, Identifiable {
     }
 }
 
+enum CinematicRunRecapFlavorApplication: String, Equatable {
+    case applied
+    case deterministic
+    case stale
+}
+
+struct CinematicRunRecapFlavorInput: Equatable, Sendable {
+    var sourceIdentifier: String
+    var sessionNumber: Int
+    var statusIdentifier: String
+    var statusCopy: String
+    var deterministicTitle: String
+    var deterministicDetail: String
+    var latestCompletedSummary: String
+    var newestCommitHighlight: String?
+    var commitHighlightCount: Int
+    var completedCount: Int
+    var eventSummaries: [String]
+}
+
+struct CinematicRunRecapFlavor: Equatable, Sendable {
+    static let titleMaxCharacters = 58
+    static let detailMaxCharacters = 118
+    static let titleMaxWords = 8
+    static let detailMaxWords = 20
+    static let tokenMaxCharacters = 84
+
+    var identifier: String
+    var sourceIdentifier: String
+    var tokenIdentifier: String
+    var title: String
+    var detail: String
+    var titleSource: TitleSource
+
+    var titleSourceIdentifier: String { titleSource.rawValue }
+
+    enum TitleSource: String, Equatable, Sendable {
+        case deterministic
+        case generated
+    }
+
+    init(
+        sourceIdentifier: String,
+        title: String,
+        detail: String,
+        titleSource: TitleSource
+    ) {
+        let cleanTitle = CinematicRunRecapFlavorService.fittedPlainText(
+            title,
+            maxCharacters: Self.titleMaxCharacters
+        )
+        let cleanDetail = CinematicRunRecapFlavorService.fittedPlainText(
+            detail,
+            maxCharacters: Self.detailMaxCharacters
+        )
+        let token = CinematicRunRecapFlavorService.tokenIdentifier(
+            title: cleanTitle,
+            detail: cleanDetail,
+            titleSource: titleSource
+        )
+        self.sourceIdentifier = sourceIdentifier
+        self.title = cleanTitle
+        self.detail = cleanDetail
+        self.titleSource = titleSource
+        self.tokenIdentifier = token
+        self.identifier = [
+            "run-recap-flavor",
+            "source:\(CinematicRunRecapFlavorService.sourceToken(sourceIdentifier))",
+            "title-source:\(titleSource.rawValue)",
+            "copy:\(token)"
+        ].joined(separator: "|")
+    }
+}
+
+enum CinematicRunRecapFlavorService {
+    static func makeFlavor(input: CinematicRunRecapFlavorInput) async -> CinematicRunRecapFlavor {
+        #if canImport(FoundationModels)
+        if #available(macOS 26.0, *) {
+            if let generated = try? await FoundationModelCinematicRunRecapFlavorGenerator.generate(input: input) {
+                return generated
+            }
+        }
+        #endif
+
+        return deterministicFlavor(for: input)
+    }
+
+    static func deterministicFlavor(for input: CinematicRunRecapFlavorInput) -> CinematicRunRecapFlavor {
+        CinematicRunRecapFlavor(
+            sourceIdentifier: input.sourceIdentifier,
+            title: input.deterministicTitle,
+            detail: input.deterministicDetail,
+            titleSource: .deterministic
+        )
+    }
+
+    static func parseGeneratedFlavor(
+        _ raw: String,
+        sourceIdentifier: String
+    ) -> CinematicRunRecapFlavor? {
+        let lines = raw
+            .replacingOccurrences(of: "\r", with: "\n")
+            .split(whereSeparator: \.isNewline)
+            .map { String($0).trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+
+        guard lines.count == 2 else { return nil }
+
+        var title: String?
+        var detail: String?
+        for line in lines {
+            let lowercased = line.lowercased()
+            if lowercased.hasPrefix("title:") {
+                guard title == nil else { return nil }
+                title = stripLabel(from: line)
+            } else if lowercased.hasPrefix("detail:") {
+                guard detail == nil else { return nil }
+                detail = stripLabel(from: line)
+            } else {
+                return nil
+            }
+        }
+
+        guard let title, let detail else { return nil }
+        return validateGenerated(
+            title: title,
+            detail: detail,
+            sourceIdentifier: sourceIdentifier
+        )
+    }
+
+    static func fittedPlainText(_ text: String, maxCharacters: Int) -> String {
+        let normalized = normalizePlainText(text)
+        guard normalized.count > maxCharacters else { return normalized }
+
+        let prefix = normalized.prefix(maxCharacters)
+        if let lastSpace = prefix.lastIndex(where: { $0 == " " }), lastSpace > prefix.startIndex {
+            return String(prefix[..<lastSpace]).trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        return String(prefix).trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    static func tokenIdentifier(
+        title: String,
+        detail: String,
+        titleSource: CinematicRunRecapFlavor.TitleSource
+    ) -> String {
+        boundedIdentifierComponent(
+            [
+                titleSource.rawValue,
+                title,
+                detail
+            ].joined(separator: "-"),
+            fallback: titleSource.rawValue,
+            limit: CinematicRunRecapFlavor.tokenMaxCharacters
+        )
+    }
+
+    static func sourceToken(_ sourceIdentifier: String) -> String {
+        boundedIdentifierComponent(sourceIdentifier, fallback: "source", limit: 96)
+    }
+
+    private static func validateGenerated(
+        title: String,
+        detail: String,
+        sourceIdentifier: String
+    ) -> CinematicRunRecapFlavor? {
+        let cleanTitle = normalizeGeneratedText(title)
+        let cleanDetail = normalizeGeneratedText(detail)
+
+        guard (4...CinematicRunRecapFlavor.titleMaxCharacters).contains(cleanTitle.count),
+              (8...CinematicRunRecapFlavor.detailMaxCharacters).contains(cleanDetail.count),
+              wordCount(cleanTitle) <= CinematicRunRecapFlavor.titleMaxWords,
+              wordCount(cleanDetail) <= CinematicRunRecapFlavor.detailMaxWords,
+              cleanTitle != cleanDetail,
+              isUsableGeneratedText(cleanTitle),
+              isUsableGeneratedText(cleanDetail) else {
+            return nil
+        }
+
+        return CinematicRunRecapFlavor(
+            sourceIdentifier: sourceIdentifier,
+            title: cleanTitle,
+            detail: cleanDetail,
+            titleSource: .generated
+        )
+    }
+
+    private static func stripLabel(from line: String) -> String {
+        guard let colon = line.firstIndex(of: ":") else { return line }
+        return String(line[line.index(after: colon)...])
+    }
+
+    private static func normalizeGeneratedText(_ text: String) -> String {
+        normalizePlainText(text)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private static func normalizePlainText(_ text: String) -> String {
+        text
+            .replacingOccurrences(of: "\r", with: " ")
+            .replacingOccurrences(of: "\n", with: " ")
+            .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private static func wordCount(_ text: String) -> Int {
+        text.split(whereSeparator: \.isWhitespace).count
+    }
+
+    private static func isUsableGeneratedText(_ text: String) -> Bool {
+        let lowercased = text.lowercased()
+        let disallowedScalars = CharacterSet(charactersIn: "\"'“”‘’`{}[]#*")
+        guard text.rangeOfCharacter(from: disallowedScalars) == nil,
+              !lowercased.contains("http://"),
+              !lowercased.contains("https://"),
+              !lowercased.contains("www."),
+              !lowercased.contains("```"),
+              !lowercased.contains("title:"),
+              !lowercased.contains("detail:"),
+              !lowercased.contains("json"),
+              !lowercased.contains("rm -rf"),
+              !lowercased.contains("sudo "),
+              !lowercased.contains("password"),
+              !lowercased.contains("secret"),
+              !lowercased.contains("api key"),
+              !lowercased.contains("private key") else {
+            return false
+        }
+        return true
+    }
+
+    private static func boundedIdentifierComponent(
+        _ value: String,
+        fallback: String,
+        limit: Int
+    ) -> String {
+        let normalized = normalizePlainText(value)
+            .lowercased()
+            .map { character -> Character in
+                if character.isLetter || character.isNumber || character == "-" || character == "_" || character == "." {
+                    return character
+                }
+                return "-"
+            }
+        let collapsed = String(normalized)
+            .replacingOccurrences(of: #"-+"#, with: "-", options: .regularExpression)
+            .trimmingCharacters(in: CharacterSet(charactersIn: "-"))
+        let candidate = collapsed.isEmpty ? fallback : collapsed
+        guard candidate.count > limit else { return candidate }
+        return String(candidate.prefix(limit))
+            .trimmingCharacters(in: CharacterSet(charactersIn: "-"))
+    }
+}
+
+#if canImport(FoundationModels)
+@available(macOS 26.0, *)
+private enum FoundationModelCinematicRunRecapFlavorGenerator {
+    static func generate(input: CinematicRunRecapFlavorInput) async throws -> CinematicRunRecapFlavor? {
+        let model = SystemLanguageModel.default
+        guard model.isAvailable else { return nil }
+
+        let session = LanguageModelSession(instructions: """
+        You write bounded cinematic recap copy for a macOS software factory after a terminal agent run.
+        Return exactly two plain-text lines in this format:
+        Title: ...
+        Detail: ...
+        Use only the supplied status, completed summary, commit highlight, counts, and event summaries.
+        Do not invent files, outcomes, people, metrics, commands, markdown, URLs, JSON, code, bullets, or quotes.
+        """)
+
+        let response = try await session.respond(
+            to: """
+            Source identifier: \(input.sourceIdentifier)
+            Session: \(input.sessionNumber)
+            Status: \(input.statusCopy)
+            Deterministic title: \(input.deterministicTitle)
+            Deterministic detail: \(input.deterministicDetail)
+            Latest completed summary: \(input.latestCompletedSummary)
+            Latest commit highlight: \(input.newestCommitHighlight ?? "none")
+            Commit highlight count: \(input.commitHighlightCount)
+            Completed count: \(input.completedCount)
+            Event summaries: \(input.eventSummaries.isEmpty ? "none" : input.eventSummaries.joined(separator: " | "))
+
+            Title under \(CinematicRunRecapFlavor.titleMaxWords) words.
+            Detail under \(CinematicRunRecapFlavor.detailMaxWords) words.
+            """,
+            options: GenerationOptions(temperature: 0.45, maximumResponseTokens: 70)
+        )
+
+        return CinematicRunRecapFlavorService.parseGeneratedFlavor(
+            response.content,
+            sourceIdentifier: input.sourceIdentifier
+        )
+    }
+}
+#endif
+
 enum CinematicRunRecapPlanner {
     static func plan(
         state: PlanState,
@@ -306,7 +706,8 @@ enum CinematicRunRecapPlanner {
         isAutoPlaying: Bool,
         recentRunCues: [Int: PlanReliabilityFeedback.RunCue],
         commitConstellationPlan: CinematicCommitConstellationPlan,
-        nativeFeedbackLifecycle: CinematicNativeFeedbackCueLifecycle
+        nativeFeedbackLifecycle: CinematicNativeFeedbackCueLifecycle,
+        flavor: CinematicRunRecapFlavor? = nil
     ) -> CinematicRunRecapPlan {
         guard !isRunning && !isAutoPlaying else {
             return .empty(reason: "active-run")
@@ -333,7 +734,76 @@ enum CinematicRunRecapPlanner {
             newestCommitHighlight: commitConstellationPlan.newestSubject,
             commitHighlightCount: commitConstellationPlan.count,
             completedCount: state.completed.count,
-            eventChips: eventChips
+            eventChips: eventChips,
+            flavor: flavor
+        )
+    }
+
+    static func flavorInput(
+        state: PlanState,
+        sessions: [SessionRecord],
+        isRunning: Bool,
+        isAutoPlaying: Bool,
+        recentRunCues: [Int: PlanReliabilityFeedback.RunCue],
+        commitConstellationPlan: CinematicCommitConstellationPlan,
+        nativeFeedbackLifecycle: CinematicNativeFeedbackCueLifecycle
+    ) -> CinematicRunRecapFlavorInput? {
+        guard !isRunning && !isAutoPlaying,
+              let session = latestFinishedSession(in: sessions) else {
+            return nil
+        }
+
+        let latestCompletedSummary = state.completed.last.map {
+            CinematicRunRecapPlan.boundedText(
+                $0,
+                limit: CinematicRunRecapPlan.completedSummaryLimit
+            )
+        } ?? "No completed plan items recorded."
+        let newestCommitHighlight = commitConstellationPlan.newestSubject.map {
+            CinematicRunRecapPlan.boundedText(
+                $0,
+                limit: CinematicRunRecapPlan.commitHighlightLimit
+            )
+        }
+        let boundedEventChips = Array(
+            eventChips(
+                recentRunCues: recentRunCues,
+                nativeFeedbackLifecycle: nativeFeedbackLifecycle
+            )
+            .prefix(CinematicRunRecapPlan.eventChipLimit)
+        )
+        let statusCopy = CinematicRunRecapPlan.statusText(for: session.status)
+        let deterministicTitle = CinematicRunRecapPlan.boundedText(
+            "Run #\(session.session) \(statusCopy.lowercased())",
+            limit: CinematicRunRecapPlan.titleLimit
+        )
+        let deterministicDetail = CinematicRunRecapPlan.boundedText(
+            latestCompletedSummary,
+            limit: CinematicRunRecapPlan.detailLimit
+        )
+        let sourceIdentifier = CinematicRunRecapPlan.recapSourceIdentifier(
+            session: session,
+            latestCompletedSummary: latestCompletedSummary,
+            newestCommitHighlight: newestCommitHighlight,
+            commitHighlightCount: commitConstellationPlan.count,
+            completedCount: state.completed.count,
+            eventChipIdentifiers: boundedEventChips.map(\.identifier)
+        )
+
+        return CinematicRunRecapFlavorInput(
+            sourceIdentifier: sourceIdentifier,
+            sessionNumber: session.session,
+            statusIdentifier: session.status.rawValue,
+            statusCopy: statusCopy,
+            deterministicTitle: deterministicTitle,
+            deterministicDetail: deterministicDetail,
+            latestCompletedSummary: latestCompletedSummary,
+            newestCommitHighlight: newestCommitHighlight,
+            commitHighlightCount: commitConstellationPlan.count,
+            completedCount: state.completed.count,
+            eventSummaries: boundedEventChips.map {
+                "\($0.label): \($0.detail)"
+            }
         )
     }
 

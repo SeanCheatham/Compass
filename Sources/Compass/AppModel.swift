@@ -423,6 +423,7 @@ final class CompassProject: ObservableObject, Identifiable {
     }
     @Published var cinematicBriefing = CinematicBriefing.placeholder
     @Published var cinematicWorldText = CinematicWorldText.placeholder
+    @Published var cinematicRunRecapFlavor: CinematicRunRecapFlavor?
     @Published var isRunning = false
     @Published var isAutoPlaying = false
     @Published var isPaused = false
@@ -513,6 +514,7 @@ struct CinematicRefreshInput: Equatable {
     var briefing: CinematicBriefingInput
     var worldText: CinematicWorldTextInput
     var commitConstellationIdentifier: String
+    var runRecapFlavor: CinematicRunRecapFlavorInput? = nil
 }
 
 private enum CodexBinaryLocator {
@@ -1792,6 +1794,7 @@ extension CompassProject {
         cinematicNativeFeedbackCueLifecycle = lifecycle
         cinematicNativeFeedbackCue = activeCue
         scheduleCinematicNativeFeedbackCueExpiry(for: lifecycle.active, now: now)
+        scheduleCinematicBriefingRefresh(reason: .projectRefresh)
     }
 
     private func feedback(_ milestone: NativeFeedbackMilestone) {
@@ -1826,6 +1829,7 @@ extension CompassProject {
             cinematicNativeFeedbackCueExpiryTask?.cancel()
             cinematicNativeFeedbackCueExpiryTask = nil
         }
+        scheduleCinematicBriefingRefresh(reason: .projectRefresh)
         return true
     }
 
@@ -1839,6 +1843,7 @@ extension CompassProject {
         lifecycle.clear(reason: reason, now: now)
         cinematicNativeFeedbackCueLifecycle = lifecycle
         cinematicNativeFeedbackCue = nil
+        scheduleCinematicBriefingRefresh(reason: .projectRefresh)
     }
 
     private func scheduleCinematicNativeFeedbackCueExpiry(
@@ -1921,6 +1926,9 @@ extension CompassProject {
         let input = makeCinematicRefreshInput()
         guard input != lastCinematicRefreshInput else { return }
         lastCinematicRefreshInput = input
+        if input.runRecapFlavor == nil {
+            cinematicRunRecapFlavor = nil
+        }
 
         cinematicBriefingTask?.cancel()
         let delay = cinematicBriefingDelay(for: reason)
@@ -1934,14 +1942,25 @@ extension CompassProject {
             lastCinematicBriefingGeneratedAt = Date()
             let briefing = await CinematicBriefingService.makeBriefing(input: input.briefing)
             let worldText = await CinematicWorldTextService.makeWorldText(input: input.worldText)
+            let runRecapFlavor: CinematicRunRecapFlavor?
+            if let runRecapFlavorInput = input.runRecapFlavor {
+                runRecapFlavor = await CinematicRunRecapFlavorService.makeFlavor(input: runRecapFlavorInput)
+            } else {
+                runRecapFlavor = nil
+            }
             guard !Task.isCancelled else { return }
             cinematicBriefing = briefing
             cinematicWorldText = worldText
+            cinematicRunRecapFlavor = runRecapFlavor
         }
     }
 
     private func makeCinematicRefreshInput() -> CinematicRefreshInput {
         let commitConstellationPlan = cinematicCommitConstellationPlan
+        let reliabilityFeedback = PlanReliabilityFeedback(
+            state: state,
+            sessions: sessions
+        )
         let latestCommitSubject = commitConstellationPlan.newestSubject
         let briefing = CinematicBriefingInput(
             repoName: displayName,
@@ -1963,7 +1982,16 @@ extension CompassProject {
                 languageProfile: languageProfile,
                 activityProfile: activityProfile
             ),
-            commitConstellationIdentifier: commitConstellationPlan.focusPlan.identifier
+            commitConstellationIdentifier: commitConstellationPlan.focusPlan.identifier,
+            runRecapFlavor: CinematicRunRecapPlanner.flavorInput(
+                state: state,
+                sessions: sessions,
+                isRunning: isRunning,
+                isAutoPlaying: isAutoPlaying,
+                recentRunCues: reliabilityFeedback.recentRunCues,
+                commitConstellationPlan: commitConstellationPlan,
+                nativeFeedbackLifecycle: cinematicNativeFeedbackCueLifecycle
+            )
         )
     }
 

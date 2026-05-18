@@ -1375,6 +1375,123 @@ final class CinematicDiagnosticsTests: XCTestCase {
         XCTAssertTrue(summary.exportText.contains("status 1 commit highlight"))
     }
 
+    func testRunRecapDiagnosticsExposeAppliedAndStaleFlavorState() throws {
+        let session = diagnosticsSession(
+            13,
+            status: .succeeded,
+            commits: [
+                SessionCommit(
+                    sha: "abcdef1234567890",
+                    short: "abcdef1",
+                    subject: "Add recap flavor diagnostics"
+                )
+            ],
+            endedAt: 13_500
+        )
+        let state = PlanState(
+            completed: ["Completed recap flavor diagnostics"],
+            immediate: nil,
+            midTerm: "",
+            longTerm: ""
+        )
+        let commitPlan = CinematicCommitConstellationPlan(sessions: [session])
+        let flavorInput = try XCTUnwrap(
+            CinematicRunRecapPlanner.flavorInput(
+                state: state,
+                sessions: [session],
+                isRunning: false,
+                isAutoPlaying: false,
+                recentRunCues: [:],
+                commitConstellationPlan: commitPlan,
+                nativeFeedbackLifecycle: CinematicNativeFeedbackCueLifecycle()
+            )
+        )
+        let flavor = try XCTUnwrap(
+            CinematicRunRecapFlavorService.parseGeneratedFlavor(
+                """
+                Title: Flavor Diagnostics Sealed
+                Detail: Compass completed recap flavor diagnostics with the newest commit signal.
+                """,
+                sourceIdentifier: flavorInput.sourceIdentifier
+            )
+        )
+        let recapPlan = CinematicRunRecapPlanner.plan(
+            state: state,
+            sessions: [session],
+            isRunning: false,
+            isAutoPlaying: false,
+            recentRunCues: [:],
+            commitConstellationPlan: commitPlan,
+            nativeFeedbackLifecycle: CinematicNativeFeedbackCueLifecycle(),
+            flavor: flavor
+        )
+        let report = makeReport(
+            CinematicDiagnosticsInput(
+                repoName: "Compass",
+                phase: "Succeeded",
+                immediateTitle: "Expose recap flavor diagnostics",
+                completedCount: state.completed.count,
+                latestEvent: nil,
+                languageProfile: languageProfile(primaryLanguage: .swift),
+                activityProfile: activityProfile(recentCommitCount: 1, lastTerminalStatus: .succeeded),
+                influenceSettings: CinematicInfluenceSettings(),
+                commitConstellationPlan: commitPlan,
+                runRecapPlan: recapPlan
+            )
+        )
+        let summary = CinematicDiagnosticsSummary(report: report)
+        let row = try XCTUnwrap(summary.rows.first { $0.id == "run-recap" })
+
+        XCTAssertEqual(report.runRecap.title, "Flavor Diagnostics Sealed")
+        XCTAssertEqual(report.runRecap.flavorStateIdentifier, "applied")
+        XCTAssertEqual(report.runRecap.flavorIdentifier, flavor.identifier)
+        XCTAssertEqual(report.runRecap.flavorSourceIdentifier, flavorInput.sourceIdentifier)
+        XCTAssertEqual(report.runRecap.titleSourceIdentifier, "generated")
+        XCTAssertTrue(row.detail.contains("flavor applied"))
+        XCTAssertTrue(row.detail.contains("title-source generated"))
+        XCTAssertTrue(summary.exportText.contains("Run recap: available"))
+        XCTAssertTrue(summary.exportText.contains("flavor applied"))
+
+        let staleFlavor = CinematicRunRecapFlavor(
+            sourceIdentifier: "\(flavorInput.sourceIdentifier)|old",
+            title: "Older Flavor Diagnostics",
+            detail: "Older flavor should stay diagnostic only.",
+            titleSource: .generated
+        )
+        let stalePlan = CinematicRunRecapPlanner.plan(
+            state: state,
+            sessions: [session],
+            isRunning: false,
+            isAutoPlaying: false,
+            recentRunCues: [:],
+            commitConstellationPlan: commitPlan,
+            nativeFeedbackLifecycle: CinematicNativeFeedbackCueLifecycle(),
+            flavor: staleFlavor
+        )
+        let staleReport = makeReport(
+            CinematicDiagnosticsInput(
+                repoName: "Compass",
+                phase: "Succeeded",
+                immediateTitle: "Expose stale recap flavor diagnostics",
+                completedCount: state.completed.count,
+                latestEvent: nil,
+                languageProfile: languageProfile(primaryLanguage: .swift),
+                activityProfile: activityProfile(recentCommitCount: 1, lastTerminalStatus: .succeeded),
+                influenceSettings: CinematicInfluenceSettings(),
+                commitConstellationPlan: commitPlan,
+                runRecapPlan: stalePlan
+            )
+        )
+        let staleSummary = CinematicDiagnosticsSummary(report: staleReport)
+
+        XCTAssertEqual(staleReport.runRecap.title, "Run #13 succeeded")
+        XCTAssertEqual(staleReport.runRecap.flavorStateIdentifier, "stale")
+        XCTAssertEqual(staleReport.runRecap.flavorIdentifier, staleFlavor.identifier)
+        XCTAssertEqual(staleReport.runRecap.titleSourceIdentifier, "deterministic")
+        XCTAssertTrue(staleSummary.exportText.contains("flavor stale"))
+        XCTAssertTrue(staleSummary.exportText.contains("title-source deterministic"))
+    }
+
     func testEmptyRunRecapDiagnosticsExplainWhyRecapIsUnavailable() {
         let report = makeReport(
             CinematicDiagnosticsInput(

@@ -451,6 +451,11 @@ struct CinematicDiagnosticsReport: Equatable {
         var commitHighlightCount: Int
         var eventChipCount: Int
         var eventChipIdentifiers: [String]
+        var sourceIdentifier: String?
+        var flavorStateIdentifier: String
+        var flavorIdentifier: String?
+        var flavorSourceIdentifier: String?
+        var titleSourceIdentifier: String
     }
 
     struct RunRecapSceneFocusSnapshot: Equatable {
@@ -2651,10 +2656,15 @@ struct CinematicDiagnosticsSummary: Equatable {
             "status \(snapshot.status)",
             "terminal \(snapshot.statusIdentifier)",
             "style \(snapshot.styleIdentifier)/\(snapshot.colorIdentifier)",
-            "image \(snapshot.systemImage)",
+            "flavor \(snapshot.flavorStateIdentifier)",
+            "title-source \(snapshot.titleSourceIdentifier)",
             "completed \(snapshot.completedCount)",
             "commits \(snapshot.commitHighlightCount)",
             "events \(snapshot.eventChipCount)",
+            "image \(snapshot.systemImage)",
+            snapshot.flavorIdentifier.map { "flavor-id \(bounded($0, limit: 96))" },
+            snapshot.flavorSourceIdentifier.map { "flavor-source \(bounded($0, limit: 96))" },
+            snapshot.sourceIdentifier.map { "source \(bounded($0, limit: 96))" },
             optionalIdentifier("newest", snapshot.newestCommitHighlight),
             snapshot.eventChipIdentifiers.isEmpty
                 ? "chips none"
@@ -2810,7 +2820,8 @@ enum CinematicDiagnostics {
             isAutoPlaying: project.isAutoPlaying,
             recentRunCues: reliabilityFeedback.recentRunCues,
             commitConstellationPlan: commitConstellationPlan,
-            nativeFeedbackLifecycle: project.cinematicNativeFeedbackCueLifecycle
+            nativeFeedbackLifecycle: project.cinematicNativeFeedbackCueLifecycle,
+            flavor: project.cinematicRunRecapFlavor
         )
         return report(
             repoName: project.displayName,
@@ -4209,7 +4220,12 @@ enum CinematicDiagnostics {
             completedCount: plan.completedCount,
             commitHighlightCount: plan.commitHighlightCount,
             eventChipCount: plan.eventChipCount,
-            eventChipIdentifiers: plan.eventChips.map(\.identifier)
+            eventChipIdentifiers: plan.eventChips.map(\.identifier),
+            sourceIdentifier: plan.sourceIdentifier,
+            flavorStateIdentifier: plan.flavorStateIdentifier,
+            flavorIdentifier: plan.flavorIdentifier,
+            flavorSourceIdentifier: plan.flavorSourceIdentifier,
+            titleSourceIdentifier: plan.titleSourceIdentifier
         )
     }
 

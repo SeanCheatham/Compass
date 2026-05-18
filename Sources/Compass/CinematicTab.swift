@@ -24,7 +24,8 @@ struct CinematicTab: View {
                 isAutoPlaying: project.isAutoPlaying,
                 recentRunCues: reliabilityFeedback.recentRunCues,
                 commitConstellationPlan: project.cinematicCommitConstellationPlan,
-                nativeFeedbackLifecycle: project.cinematicNativeFeedbackCueLifecycle
+                nativeFeedbackLifecycle: project.cinematicNativeFeedbackCueLifecycle,
+                flavor: project.cinematicRunRecapFlavor
             )
             let timelinePlan = CinematicSessionTimelinePlan(
                 sessions: project.sessions,

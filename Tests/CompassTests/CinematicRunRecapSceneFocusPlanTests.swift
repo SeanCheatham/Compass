@@ -177,10 +177,41 @@ final class CinematicRunRecapSceneFocusPlanTests: XCTestCase {
             commitConstellationPlan: commitPlan,
             recoveryCuePlan: .none
         )
+        let state = recapState()
+        let flavorInput = try XCTUnwrap(
+            CinematicRunRecapPlanner.flavorInput(
+                state: state,
+                sessions: [session],
+                isRunning: false,
+                isAutoPlaying: false,
+                recentRunCues: [:],
+                commitConstellationPlan: commitPlan,
+                nativeFeedbackLifecycle: CinematicNativeFeedbackCueLifecycle()
+            )
+        )
+        let flavor = try XCTUnwrap(
+            CinematicRunRecapFlavorService.parseGeneratedFlavor(
+                """
+                Title: Timeline Focus Preserved
+                Detail: Compass preserved timeline focus while applying recap flavor.
+                """,
+                sourceIdentifier: flavorInput.sourceIdentifier
+            )
+        )
+        let flavoredRecapPlan = CinematicRunRecapPlanner.plan(
+            state: state,
+            sessions: [session],
+            isRunning: false,
+            isAutoPlaying: false,
+            recentRunCues: [:],
+            commitConstellationPlan: commitPlan,
+            nativeFeedbackLifecycle: CinematicNativeFeedbackCueLifecycle(),
+            flavor: flavor
+        )
 
         _ = CinematicRunRecapSceneFocusPlanner.plan(
             isRecapOverlaySelected: true,
-            recapPlan: makeRecapPlan(session: session, commitPlan: commitPlan),
+            recapPlan: flavoredRecapPlan,
             commitConstellationPlan: commitPlan,
             timelinePlan: timelineBefore
         )

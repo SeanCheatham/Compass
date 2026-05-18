@@ -215,6 +215,171 @@ final class CinematicRunRecapPlanTests: XCTestCase {
         XCTAssertTrue(first.identifier.contains("commit-count:1"))
     }
 
+    func testMatchingGeneratedFlavorAppliesBoundedCopyAndIdentifierToken() throws {
+        let session = makeSession(
+            12,
+            commits: [
+                SessionCommit(
+                    sha: "abcdef1234567890",
+                    short: "abcdef1",
+                    subject: "Ship generated recap flavor"
+                )
+            ],
+            endedAt: 12_500
+        )
+        let state = PlanState(
+            completed: ["Completed generated recap flavor"],
+            immediate: nil,
+            midTerm: "",
+            longTerm: ""
+        )
+        let commitPlan = CinematicCommitConstellationPlan(sessions: [session])
+        let input = try XCTUnwrap(
+            CinematicRunRecapPlanner.flavorInput(
+                state: state,
+                sessions: [session],
+                isRunning: false,
+                isAutoPlaying: false,
+                recentRunCues: [:],
+                commitConstellationPlan: commitPlan,
+                nativeFeedbackLifecycle: CinematicNativeFeedbackCueLifecycle()
+            )
+        )
+        let flavor = try XCTUnwrap(
+            CinematicRunRecapFlavorService.parseGeneratedFlavor(
+                """
+                Title: Flavor Gate Sealed
+                Detail: Compass completed generated recap flavor with the newest commit signal.
+                """,
+                sourceIdentifier: input.sourceIdentifier
+            )
+        )
+
+        let plan = CinematicRunRecapPlanner.plan(
+            state: state,
+            sessions: [session],
+            isRunning: false,
+            isAutoPlaying: false,
+            recentRunCues: [:],
+            commitConstellationPlan: commitPlan,
+            nativeFeedbackLifecycle: CinematicNativeFeedbackCueLifecycle(),
+            flavor: flavor
+        )
+
+        XCTAssertEqual(plan.title, "Flavor Gate Sealed")
+        XCTAssertEqual(
+            plan.detail,
+            "Compass completed generated recap flavor with the newest commit signal."
+        )
+        XCTAssertEqual(plan.flavorStateIdentifier, "applied")
+        XCTAssertEqual(plan.flavorIdentifier, flavor.identifier)
+        XCTAssertEqual(plan.flavorSourceIdentifier, input.sourceIdentifier)
+        XCTAssertEqual(plan.titleSourceIdentifier, "generated")
+        XCTAssertTrue(plan.identifier.contains("flavor:\(flavor.tokenIdentifier)"))
+    }
+
+    func testStaleFlavorKeepsDeterministicCopyAndDoesNotTokenizeIdentifier() throws {
+        let session = makeSession(13, endedAt: 13_500)
+        let state = PlanState(
+            completed: ["Completed stale recap flavor"],
+            immediate: nil,
+            midTerm: "",
+            longTerm: ""
+        )
+        let commitPlan = CinematicCommitConstellationPlan(sessions: [session])
+        let input = try XCTUnwrap(
+            CinematicRunRecapPlanner.flavorInput(
+                state: state,
+                sessions: [session],
+                isRunning: false,
+                isAutoPlaying: false,
+                recentRunCues: [:],
+                commitConstellationPlan: commitPlan,
+                nativeFeedbackLifecycle: CinematicNativeFeedbackCueLifecycle()
+            )
+        )
+        let staleFlavor = CinematicRunRecapFlavor(
+            sourceIdentifier: "\(input.sourceIdentifier)|older",
+            title: "Older Gate Sealed",
+            detail: "Older recap copy should not be applied.",
+            titleSource: .generated
+        )
+
+        let plan = CinematicRunRecapPlanner.plan(
+            state: state,
+            sessions: [session],
+            isRunning: false,
+            isAutoPlaying: false,
+            recentRunCues: [:],
+            commitConstellationPlan: commitPlan,
+            nativeFeedbackLifecycle: CinematicNativeFeedbackCueLifecycle(),
+            flavor: staleFlavor
+        )
+
+        XCTAssertEqual(plan.title, "Run #13 succeeded")
+        XCTAssertEqual(plan.detail, "Completed stale recap flavor")
+        XCTAssertEqual(plan.flavorStateIdentifier, "stale")
+        XCTAssertEqual(plan.flavorIdentifier, staleFlavor.identifier)
+        XCTAssertEqual(plan.flavorSourceIdentifier, staleFlavor.sourceIdentifier)
+        XCTAssertEqual(plan.titleSourceIdentifier, "deterministic")
+        XCTAssertFalse(plan.identifier.contains("flavor:"))
+    }
+
+    func testActiveRunIgnoresStoredFlavorAndProducesNoFlavorInput() throws {
+        let session = makeSession(14, endedAt: 14_500)
+        let state = PlanState(
+            completed: ["Completed before active run"],
+            immediate: nil,
+            midTerm: "",
+            longTerm: ""
+        )
+        let commitPlan = CinematicCommitConstellationPlan(sessions: [session])
+        let input = try XCTUnwrap(
+            CinematicRunRecapPlanner.flavorInput(
+                state: state,
+                sessions: [session],
+                isRunning: false,
+                isAutoPlaying: false,
+                recentRunCues: [:],
+                commitConstellationPlan: commitPlan,
+                nativeFeedbackLifecycle: CinematicNativeFeedbackCueLifecycle()
+            )
+        )
+        let flavor = CinematicRunRecapFlavor(
+            sourceIdentifier: input.sourceIdentifier,
+            title: "Active Gate Ignored",
+            detail: "Active run copy should not be applied.",
+            titleSource: .generated
+        )
+
+        let plan = CinematicRunRecapPlanner.plan(
+            state: state,
+            sessions: [session],
+            isRunning: true,
+            isAutoPlaying: false,
+            recentRunCues: [:],
+            commitConstellationPlan: commitPlan,
+            nativeFeedbackLifecycle: CinematicNativeFeedbackCueLifecycle(),
+            flavor: flavor
+        )
+
+        XCTAssertFalse(plan.isAvailable)
+        XCTAssertEqual(plan.availabilityIdentifier, "active-run")
+        XCTAssertEqual(plan.flavorStateIdentifier, "deterministic")
+        XCTAssertNil(plan.flavorIdentifier)
+        XCTAssertNil(
+            CinematicRunRecapPlanner.flavorInput(
+                state: state,
+                sessions: [session],
+                isRunning: true,
+                isAutoPlaying: false,
+                recentRunCues: [:],
+                commitConstellationPlan: commitPlan,
+                nativeFeedbackLifecycle: CinematicNativeFeedbackCueLifecycle()
+            )
+        )
+    }
+
     func testRecapPlanningDoesNotChangeTimelineOrNativeFeedbackLifecycle() throws {
         let now = Date(timeIntervalSinceReferenceDate: 9_500)
         let session = makeSession(11, status: .succeeded, endedAt: 11_500)
