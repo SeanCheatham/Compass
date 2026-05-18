@@ -2,7 +2,7 @@ import Foundation
 @testable import Compass
 import XCTest
 
-final class KnownProjectRecordDecodingTests: XCTestCase {
+final class KnownProjectStoreTestsRecordDecoding: XCTestCase {
     func testDecodingDefaultsFieldsAddedAfterOriginalRegistryFormat() throws {
         let records = try decodeRecords("""
         [
@@ -19,6 +19,28 @@ final class KnownProjectRecordDecodingTests: XCTestCase {
         XCTAssertEqual(record.activeStorage, .repoLocal)
         XCTAssertEqual(record.cinematicInfluenceSettings, CinematicInfluenceSettings())
         XCTAssertEqual(record.nativeFeedbackMode, .notifications)
+    }
+
+    func testNativeFeedbackModeDecodingDefaultsMissingAndFutureValues() throws {
+        let records = try decodeRecords("""
+        [
+          {
+            "id": "12121212-1212-1212-1212-121212121212",
+            "path": "/tmp/missing-native-feedback",
+            "addedAt": 1,
+            "lastOpenedAt": 2
+          },
+          {
+            "id": "13131313-1313-1313-1313-131313131313",
+            "path": "/tmp/future-native-feedback",
+            "addedAt": 3,
+            "lastOpenedAt": 4,
+            "nativeFeedbackMode": "future_native_feedback_mode"
+          }
+        ]
+        """)
+
+        XCTAssertEqual(records.map(\.nativeFeedbackMode), [.notifications, .notifications])
     }
 
     func testDecodingClampsDefaultsAndFallsBackForUnknownValues() throws {

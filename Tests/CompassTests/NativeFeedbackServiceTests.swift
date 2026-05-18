@@ -34,8 +34,9 @@ final class NativeFeedbackServiceTests: XCTestCase {
         XCTAssertEqual(retry.body, "Post-checks need another Codex pass.")
         XCTAssertEqual(retry.spokenPhrase, "Editor. Develop retrying.")
     }
+
     func testModeMenuSelectedStateAndOrder() {
-        let menu = NativeFeedbackModeMenu(selectedMode: .speechAndNotifications)
+        let menu = NativeFeedbackModeMenu(selectedMode: .speechAndNotifications, projectName: "Editor")
 
         XCTAssertEqual(menu.labelSystemImage, "speaker.wave.2")
         XCTAssertEqual(menu.helpText, "Feedback: Speech + Notifications")
@@ -43,5 +44,42 @@ final class NativeFeedbackServiceTests: XCTestCase {
         XCTAssertEqual(menu.items.map(\.title), ["Off", "Notifications", "Speech + Notifications"])
         XCTAssertEqual(menu.items.map(\.systemImage), ["bell.slash", "bell", "checkmark"])
         XCTAssertEqual(menu.items.map(\.isSelected), [false, false, true])
+    }
+
+    func testModeMenuProjectScopedCopyIsBounded() {
+        let rawProjectName = "  \(String(repeating: "Compass Factory ", count: 8))  "
+        let projectName = NativeFeedbackContent.sanitizedProjectName(rawProjectName)
+        let menu = NativeFeedbackModeMenu(selectedMode: .notifications, projectName: rawProjectName)
+
+        XCTAssertEqual(menu.projectName, projectName)
+        XCTAssertEqual(
+            menu.items.map(\.description),
+            [
+                "No macOS alerts or spoken updates for \(projectName).",
+                "Show macOS banners when \(projectName) reaches plan, verify, or promotion milestones.",
+                "Speak updates for \(projectName) and show macOS banners for key milestones."
+            ]
+        )
+        XCTAssertTrue(menu.items.allSatisfy { $0.description.contains(projectName) })
+        XCTAssertTrue(menu.items.allSatisfy { $0.permissionHint.contains(projectName) })
+        XCTAssertTrue(menu.items.allSatisfy {
+            $0.description.count <= NativeFeedbackModeMenuItem.descriptionLimit
+                && $0.permissionHint.count <= NativeFeedbackModeMenuItem.permissionHintLimit
+        })
+    }
+
+    func testModeMenuPermissionHintsExplainAuthorizationTiming() {
+        let menu = NativeFeedbackModeMenu(selectedMode: .off, projectName: "Editor")
+        let hints = Dictionary(uniqueKeysWithValues: menu.items.map { ($0.mode, $0.permissionHint) })
+
+        XCTAssertEqual(hints[.off], "No notification permission request for Editor.")
+        XCTAssertEqual(
+            hints[.notifications],
+            "Compass asks notification permission for Editor only when enabled or first delivered."
+        )
+        XCTAssertEqual(
+            hints[.speechAndNotifications],
+            "Speech uses local audio; notifications for Editor ask permission only when needed."
+        )
     }
 }

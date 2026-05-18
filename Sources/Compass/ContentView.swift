@@ -810,11 +810,14 @@ private struct ProjectRunControls: View {
     @ObservedObject var project: CompassProject
 
     var body: some View {
-        let feedbackMenu = NativeFeedbackModeMenu(selectedMode: project.nativeFeedbackMode)
+        let feedbackMenu = NativeFeedbackModeMenu(
+            selectedMode: project.nativeFeedbackMode,
+            projectName: project.displayName
+        )
 
         HStack(spacing: 5) {
             Menu {
-                ForEach(feedbackMenu.items) { item in
+                ForEach(Array(feedbackMenu.items.enumerated()), id: \.element.id) { index, item in
                     Button {
                         project.nativeFeedbackMode = item.mode
                         NativeFeedbackService.shared.applyModeChange(item.mode)
@@ -824,6 +827,11 @@ private struct ProjectRunControls: View {
                             item.title,
                             systemImage: item.systemImage
                         )
+                    }
+                    Text(item.description)
+                    Text(item.permissionHint)
+                    if index < feedbackMenu.items.count - 1 {
+                        Divider()
                     }
                 }
             } label: {

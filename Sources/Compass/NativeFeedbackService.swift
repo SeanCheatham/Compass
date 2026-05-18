@@ -65,20 +65,28 @@ enum NativeFeedbackMilestone: String, CaseIterable {
 }
 
 struct NativeFeedbackModeMenuItem: Identifiable, Equatable {
+    static let descriptionLimit = 140
+    static let permissionHintLimit = 140
+
     var mode: NativeFeedbackMode
     var title: String
     var systemImage: String
     var isSelected: Bool
+    var description: String
+    var permissionHint: String
 
     var id: NativeFeedbackMode { mode }
 }
 
 struct NativeFeedbackModeMenu: Equatable {
+    var projectName: String
     var labelSystemImage: String
     var helpText: String
     var items: [NativeFeedbackModeMenuItem]
 
-    init(selectedMode: NativeFeedbackMode) {
+    init(selectedMode: NativeFeedbackMode, projectName rawProjectName: String = "Compass project") {
+        let projectName = NativeFeedbackContent.sanitizedProjectName(rawProjectName)
+        self.projectName = projectName
         labelSystemImage = selectedMode.systemImage
         helpText = "Feedback: \(selectedMode.title)"
         items = NativeFeedbackMode.allCases.map { mode in
@@ -86,9 +94,43 @@ struct NativeFeedbackModeMenu: Equatable {
                 mode: mode,
                 title: mode.title,
                 systemImage: selectedMode == mode ? "checkmark" : mode.systemImage,
-                isSelected: selectedMode == mode
+                isSelected: selectedMode == mode,
+                description: Self.description(for: mode, projectName: projectName),
+                permissionHint: Self.permissionHint(for: mode, projectName: projectName)
             )
         }
+    }
+
+    private static func description(for mode: NativeFeedbackMode, projectName: String) -> String {
+        let copy: String
+        switch mode {
+        case .off:
+            copy = "No macOS alerts or spoken updates for \(projectName)."
+        case .notifications:
+            copy = "Show macOS banners when \(projectName) reaches plan, verify, or promotion milestones."
+        case .speechAndNotifications:
+            copy = "Speak updates for \(projectName) and show macOS banners for key milestones."
+        }
+        return bounded(copy, limit: NativeFeedbackModeMenuItem.descriptionLimit)
+    }
+
+    private static func permissionHint(for mode: NativeFeedbackMode, projectName: String) -> String {
+        let copy: String
+        switch mode {
+        case .off:
+            copy = "No notification permission request for \(projectName)."
+        case .notifications:
+            copy = "Compass asks notification permission for \(projectName) only when enabled or first delivered."
+        case .speechAndNotifications:
+            copy = "Speech uses local audio; notifications for \(projectName) ask permission only when needed."
+        }
+        return bounded(copy, limit: NativeFeedbackModeMenuItem.permissionHintLimit)
+    }
+
+    private static func bounded(_ rawValue: String, limit: Int) -> String {
+        guard limit > 0 else { return "" }
+        guard rawValue.count > limit else { return rawValue }
+        return String(rawValue.prefix(limit))
     }
 }
 

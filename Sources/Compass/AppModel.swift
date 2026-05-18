@@ -2035,7 +2035,6 @@ final class AppModel: ObservableObject {
     }
 
     func bootstrap() async {
-        NativeFeedbackService.shared.prepare()
         projects = KnownProjectStore.load().map(CompassProject.init(record:))
         selectedProjectID = projects.sorted { $0.lastOpenedAt > $1.lastOpenedAt }.first?.id
 
