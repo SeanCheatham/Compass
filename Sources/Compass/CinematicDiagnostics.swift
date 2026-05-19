@@ -881,6 +881,8 @@ struct CinematicDiagnosticsReport: Equatable {
         var sourceExportAuditIncluded: Bool
         var sourceExportAuditIdentifier: String?
         var sourceExportAuditMarkdownLength: Int
+        var mutationTestingAuditCount: Int
+        var mutationTestingSummary: String
         var insightText: String
         var exportTextLength: Int
         var copyLabel: String
@@ -3261,6 +3263,10 @@ struct CinematicVisualSmokeReport: Equatable {
                 <= CinematicRunRecapShareArtifactSourceExportAuditPlan.identifierMaxCharacters
             && snapshot.sourceExportAuditMarkdownLength
                 <= CinematicRunRecapShareArtifactSourceExportAuditPlan.markdownMaxCharacters
+            && string(
+                snapshot.mutationTestingSummary,
+                maxCharacters: CinematicRunRecapShareArtifactRollupPlan.statusBucketSummaryMaxCharacters
+            )
             && string(
                 snapshot.copyLabel,
                 maxCharacters: CinematicRunRecapShareArtifactRollupPlan.copyLabelMaxCharacters
@@ -6877,6 +6883,7 @@ struct CinematicDiagnosticsSummary: Equatable {
             snapshot.noMatchAvailabilityReason.map { "no-match \($0)" },
             "range \(snapshot.sessionRangeLabel)",
             "buckets \(snapshot.statusBucketSummary)",
+            "mutation tests \(snapshot.mutationTestingAuditCount) \(snapshot.mutationTestingSummary)",
             snapshot.newestSessionNumber.map { "newest S\($0)" },
             snapshot.newestFilename.map { "newest file \(bounded($0, limit: 72))" },
             snapshot.oldestSessionNumber.map { "oldest S\($0)" },
@@ -12101,6 +12108,8 @@ enum CinematicDiagnostics {
             sourceExportAuditIncluded: plan.sourceExportAuditIncluded,
             sourceExportAuditIdentifier: plan.sourceExportAuditIdentifier,
             sourceExportAuditMarkdownLength: plan.sourceExportAuditMarkdownLength,
+            mutationTestingAuditCount: plan.mutationTestingAuditCount,
+            mutationTestingSummary: plan.mutationTestingSummary,
             insightText: plan.insightText,
             exportTextLength: plan.exportTextLength,
             copyLabel: plan.copyLabel,

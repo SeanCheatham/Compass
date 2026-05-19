@@ -55,12 +55,176 @@ struct CinematicRunRecapShareArtifactPlan: Equatable, Identifiable {
     var eventSummaries: [String]
     var visualDescriptorTokens: [String]
     var runtimeRouteAudit: CinematicRunRecapShareArtifactRuntimeRouteAudit?
+    var mutationTestingAudit: CinematicRunRecapShareArtifactMutationTestingAudit?
     var markdownContents: String
     var feedback: String
 
     var eventSummaryCount: Int { eventSummaries.count }
     var visualDescriptorTokenCount: Int { visualDescriptorTokens.count }
     var markdownLength: Int { markdownContents.count }
+}
+
+struct CinematicRunRecapShareArtifactMutationTestingAudit: Equatable, Identifiable {
+    static let identifierMaxCharacters = CinematicRunRecapShareArtifactPlan.identifierMaxCharacters
+    static let markdownMaxCharacters = 1_200
+    static let fieldMaxCharacters = SessionMutationTestingExecution.fieldLimit
+    static let commandMaxCharacters = SessionMutationTestingExecution.commandLimit
+    static let tailSummaryMaxCharacters = 360
+    static let tailLineLimit = 5
+
+    var id: String { identifier }
+
+    var identifier: String
+    var statusIdentifier: String
+    var statusLabel: String
+    var routeIdentifier: String
+    var routeLabel: String
+    var languageIdentifier: String
+    var languageLabel: String
+    var seedCommandLabel: String
+    var exitCodeLabel: String
+    var durationLabel: String
+    var tailSummary: String
+    var runtimeRouteAuditIdentifier: String
+    var runtimeRouteCorrelationIdentifier: String
+    var markdownSection: String
+
+    var markdownLength: Int { markdownSection.count }
+
+    init?(
+        execution: SessionMutationTestingExecution?,
+        runtimeRouteAudit: CinematicRunRecapShareArtifactRuntimeRouteAudit?
+    ) {
+        guard let execution else { return nil }
+
+        let statusIdentifier = MutationTestingPresentationSanitizer.statusIdentifier(
+            execution.statusIdentifier
+        )
+        let statusLabel = MutationTestingPresentationSanitizer.statusLabel(statusIdentifier)
+        let routeIdentifier = MutationTestingPresentationSanitizer.routeIdentifier(
+            execution.routeIdentifier
+        )
+        let routeLabel = MutationTestingPresentationSanitizer.routeLabel(routeIdentifier)
+        let languageIdentifier = MutationTestingPresentationSanitizer.languageIdentifier(
+            execution.languageIdentifier
+        )
+        let languageLabel = MutationTestingPresentationSanitizer.languageLabel(languageIdentifier)
+        let seedCommandLabel = MutationTestingPresentationSanitizer.field(
+            execution.seedCommandLabel,
+            limit: Self.commandMaxCharacters
+        )
+        let exitCodeLabel = MutationTestingPresentationSanitizer.exitCodeLabel(execution.exitCode)
+        let durationLabel = MutationTestingPresentationSanitizer.durationLabel(
+            startedAt: execution.startedAt,
+            endedAt: execution.endedAt
+        )
+        let tailSummary = MutationTestingPresentationSanitizer.outputTail(
+            execution.outputTail,
+            limit: Self.tailSummaryMaxCharacters,
+            lineLimit: Self.tailLineLimit
+        )
+        let tailSummaryMarkdown = MutationTestingPresentationSanitizer.field(
+            tailSummary,
+            limit: Self.tailSummaryMaxCharacters
+        )
+        let runtimeRouteAuditIdentifier = MutationTestingPresentationSanitizer.field(
+            runtimeRouteAudit?.identifier ?? "none",
+            limit: CinematicRunRecapShareArtifactRuntimeRouteAudit.identifierMaxCharacters
+        )
+        let runtimeRouteCorrelationIdentifier = Self.runtimeRouteCorrelationIdentifier(
+            mutationRouteIdentifier: routeIdentifier,
+            runtimeRouteAudit: runtimeRouteAudit
+        )
+        let identifier = MutationTestingPresentationSanitizer.bounded(
+            [
+                "run-recap-share-artifact-mutation-testing",
+                "status:\(statusIdentifier)",
+                "route:\(routeIdentifier)",
+                "language:\(languageIdentifier)",
+                "seed:\(MutationTestingPresentationSanitizer.fingerprint(seedCommandLabel))",
+                "exit:\(exitCodeLabel)",
+                "duration:\(durationLabel)",
+                "tail:\(MutationTestingPresentationSanitizer.fingerprint(tailSummary))",
+                "runtime:\(MutationTestingPresentationSanitizer.fingerprint(runtimeRouteAuditIdentifier))",
+                "correlation:\(runtimeRouteCorrelationIdentifier)"
+            ].joined(separator: "|"),
+            limit: Self.identifierMaxCharacters
+        )
+        let markdownSection = MutationTestingPresentationSanitizer.markdownSection(
+            [
+                "## Mutation Tests",
+                "",
+                "- Mutation audit: \(identifier)",
+                "- Status: \(statusIdentifier) (\(statusLabel))",
+                "- Route: \(routeIdentifier) (\(routeLabel))",
+                "- Language: \(languageIdentifier) (\(languageLabel))",
+                "- Seed command: \(seedCommandLabel)",
+                "- Exit code: \(exitCodeLabel)",
+                "- Duration: \(durationLabel)",
+                "- Runtime route audit: \(runtimeRouteAuditIdentifier)",
+                "- Runtime route correlation: \(runtimeRouteCorrelationIdentifier)",
+                "- Output tail: \(tailSummaryMarkdown.isEmpty ? "none" : tailSummaryMarkdown)"
+            ].joined(separator: "\n"),
+            limit: Self.markdownMaxCharacters
+        )
+
+        self.identifier = identifier
+        self.statusIdentifier = statusIdentifier
+        self.statusLabel = statusLabel
+        self.routeIdentifier = routeIdentifier
+        self.routeLabel = routeLabel
+        self.languageIdentifier = languageIdentifier
+        self.languageLabel = languageLabel
+        self.seedCommandLabel = seedCommandLabel
+        self.exitCodeLabel = exitCodeLabel
+        self.durationLabel = durationLabel
+        self.tailSummary = tailSummary
+        self.runtimeRouteAuditIdentifier = runtimeRouteAuditIdentifier
+        self.runtimeRouteCorrelationIdentifier = runtimeRouteCorrelationIdentifier
+        self.markdownSection = markdownSection
+    }
+
+    private static func runtimeRouteCorrelationIdentifier(
+        mutationRouteIdentifier: String,
+        runtimeRouteAudit: CinematicRunRecapShareArtifactRuntimeRouteAudit?
+    ) -> String {
+        guard let runtimeRouteAudit else {
+            return "missing-runtime-route"
+        }
+        let expectedRuntimeRoute: String
+        switch mutationRouteIdentifier {
+        case CodexMutationTestingPlan.RouteState.appleContainerRoute.rawValue:
+            expectedRuntimeRoute = "apple-container"
+        case CodexMutationTestingPlan.RouteState.nativeRoute.rawValue,
+            CodexMutationTestingPlan.RouteState.nativeFallback.rawValue:
+            expectedRuntimeRoute = "native-macos"
+        default:
+            expectedRuntimeRoute = "unknown"
+        }
+
+        let routeState = runtimeRouteAudit.effectiveRouteIdentifier == expectedRuntimeRoute
+            ? "route-aligned"
+            : "route-diverged"
+        let fallbackState: String
+        if mutationRouteIdentifier == CodexMutationTestingPlan.RouteState.nativeFallback.rawValue {
+            fallbackState = runtimeRouteAudit.fallbackStateIdentifier == "fallback"
+                ? "fallback-aligned"
+                : "fallback-missing"
+        } else {
+            fallbackState = "fallback-not-required"
+        }
+
+        return MutationTestingPresentationSanitizer.identifier(
+            [
+                routeState,
+                fallbackState,
+                "mutation:\(mutationRouteIdentifier)",
+                "runtime:\(runtimeRouteAudit.effectiveRouteIdentifier)"
+            ].joined(separator: "|"),
+            fallback: "runtime-route-correlation",
+            limit: Self.fieldMaxCharacters
+        )
+    }
 }
 
 struct CinematicRunRecapShareArtifactRuntimeRouteAudit: Equatable, Identifiable {
@@ -638,6 +802,170 @@ struct CinematicRunRecapShareArtifactRuntimeRouteCue: Equatable, Identifiable {
     }
 }
 
+struct CinematicRunRecapShareArtifactMutationTestingCue: Equatable, Identifiable {
+    static let identifierMaxCharacters = CinematicRunRecapShareArtifactPlan.identifierMaxCharacters
+    static let fieldMaxCharacters = SessionMutationTestingExecution.fieldLimit
+    static let copyMaxCharacters = 120
+    static let detailMaxCharacters = 220
+    static let sectionLineLimit = 32
+
+    var id: String { identifier }
+
+    var identifier: String
+    var auditIdentifier: String
+    var statusIdentifier: String
+    var routeIdentifier: String
+    var languageIdentifier: String
+    var exitCodeLabel: String
+    var durationLabel: String
+    var runtimeRouteAuditIdentifier: String
+    var runtimeRouteCorrelationIdentifier: String
+    var compactCopy: String
+    var detailCopy: String
+
+    init?(markdownContents: String) {
+        guard let sectionLines = Self.mutationTestingSectionLines(in: markdownContents) else {
+            return nil
+        }
+
+        let auditIdentifier = Self.sanitizedField(
+            Self.markdownField("Mutation audit", in: sectionLines) ?? "unknown",
+            fallback: "unknown",
+            limit: CinematicRunRecapShareArtifactMutationTestingAudit.identifierMaxCharacters
+        )
+        let statusIdentifier = MutationTestingPresentationSanitizer.statusIdentifier(
+            Self.leadingIdentifier(Self.markdownField("Status", in: sectionLines)) ?? "unknown"
+        )
+        let routeIdentifier = MutationTestingPresentationSanitizer.routeIdentifier(
+            Self.leadingIdentifier(Self.markdownField("Route", in: sectionLines)) ?? "unknown"
+        )
+        let languageIdentifier = MutationTestingPresentationSanitizer.languageIdentifier(
+            Self.leadingIdentifier(Self.markdownField("Language", in: sectionLines)) ?? "unknown"
+        )
+        let exitCodeLabel = Self.sanitizedField(
+            Self.markdownField("Exit code", in: sectionLines) ?? "exit unknown",
+            fallback: "exit unknown",
+            limit: Self.fieldMaxCharacters
+        )
+        let durationLabel = Self.sanitizedField(
+            Self.markdownField("Duration", in: sectionLines) ?? "unknown",
+            fallback: "unknown",
+            limit: Self.fieldMaxCharacters
+        )
+        let runtimeRouteAuditIdentifier = Self.sanitizedField(
+            Self.markdownField("Runtime route audit", in: sectionLines) ?? "none",
+            fallback: "none",
+            limit: CinematicRunRecapShareArtifactRuntimeRouteAudit.identifierMaxCharacters
+        )
+        let runtimeRouteCorrelationIdentifier = MutationTestingPresentationSanitizer.identifier(
+            Self.markdownField("Runtime route correlation", in: sectionLines) ?? "unknown",
+            fallback: "unknown",
+            limit: Self.fieldMaxCharacters
+        )
+        let compactCopy = Self.compactCopy(statusIdentifier: statusIdentifier)
+        let detailCopy = MutationTestingPresentationSanitizer.bounded(
+            [
+                "mutation \(statusIdentifier)",
+                "route \(routeIdentifier)",
+                "language \(languageIdentifier)",
+                exitCodeLabel,
+                durationLabel,
+                "runtime \(runtimeRouteCorrelationIdentifier)"
+            ].joined(separator: " | "),
+            limit: Self.detailMaxCharacters
+        )
+        let identifier = MutationTestingPresentationSanitizer.bounded(
+            [
+                "run-recap-share-artifact-mutation-testing-cue",
+                "audit:\(MutationTestingPresentationSanitizer.fingerprint(auditIdentifier))",
+                "status:\(statusIdentifier)",
+                "route:\(routeIdentifier)",
+                "language:\(languageIdentifier)",
+                "exit:\(exitCodeLabel)",
+                "duration:\(durationLabel)",
+                "runtime:\(MutationTestingPresentationSanitizer.fingerprint(runtimeRouteAuditIdentifier))",
+                "correlation:\(runtimeRouteCorrelationIdentifier)"
+            ].joined(separator: "|"),
+            limit: Self.identifierMaxCharacters
+        )
+
+        self.identifier = identifier
+        self.auditIdentifier = auditIdentifier
+        self.statusIdentifier = statusIdentifier
+        self.routeIdentifier = routeIdentifier
+        self.languageIdentifier = languageIdentifier
+        self.exitCodeLabel = exitCodeLabel
+        self.durationLabel = durationLabel
+        self.runtimeRouteAuditIdentifier = runtimeRouteAuditIdentifier
+        self.runtimeRouteCorrelationIdentifier = runtimeRouteCorrelationIdentifier
+        self.compactCopy = compactCopy
+        self.detailCopy = detailCopy
+    }
+
+    static func mutationTestingSectionLines(in markdownContents: String) -> [String]? {
+        let lines = markdownContents
+            .replacingOccurrences(of: "\r", with: "")
+            .split(omittingEmptySubsequences: false, whereSeparator: \.isNewline)
+            .map(String.init)
+        guard let headerIndex = lines.firstIndex(where: {
+            $0.trimmingCharacters(in: .whitespacesAndNewlines) == "## Mutation Tests"
+        }) else {
+            return nil
+        }
+
+        var sectionLines: [String] = []
+        for line in lines.dropFirst(headerIndex + 1) {
+            let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+            if trimmed.hasPrefix("## ") {
+                break
+            }
+            sectionLines.append(line)
+            if sectionLines.count == sectionLineLimit {
+                break
+            }
+        }
+        return sectionLines.isEmpty ? nil : sectionLines
+    }
+
+    private static func markdownField(_ name: String, in lines: [String]) -> String? {
+        let prefix = "- \(name): "
+        return lines
+            .lazy
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .first { $0.hasPrefix(prefix) }
+            .map { line in
+                String(line.dropFirst(prefix.count))
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+            }
+            .flatMap { $0.isEmpty ? nil : $0 }
+    }
+
+    private static func compactCopy(statusIdentifier: String) -> String {
+        switch statusIdentifier {
+        case "succeeded":
+            return "Mutation passed"
+        case "failed":
+            return "Mutation failed"
+        default:
+            return "Mutation recorded"
+        }
+    }
+
+    private static func leadingIdentifier(_ text: String?) -> String? {
+        guard let text else { return nil }
+        let prefix = text.split(separator: " ", maxSplits: 1).first.map(String.init) ?? text
+        return prefix.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private static func sanitizedField(
+        _ text: String,
+        fallback: String,
+        limit: Int
+    ) -> String {
+        MutationTestingPresentationSanitizer.field(text, limit: limit, fallback: fallback)
+    }
+}
+
 struct CinematicRunRecapShareArtifactRuntimeRouteTreatmentDescriptor: Equatable {
     static let identifierMaxCharacters = 160
     static let componentMaxCharacters = 48
@@ -1043,6 +1371,8 @@ struct CinematicRunRecapShareArtifactRollupPlan: Equatable, Identifiable {
     var sourceExportAuditIncluded: Bool
     var sourceExportAuditIdentifier: String?
     var sourceExportAuditMarkdownLength: Int
+    var mutationTestingAuditCount: Int
+    var mutationTestingSummary: String
     var insightText: String
     var exportText: String
     var copyLabel: String
@@ -3910,6 +4240,10 @@ enum CinematicRunRecapShareArtifactRollupPlanner {
         let sessionRangeLabel = sessionRangeLabel(entries: matchingEntries)
         let statusBuckets = statusBuckets(for: matchingEntries)
         let statusBucketSummary = bucketSummary(statusBuckets)
+        let mutationTestingCues = matchingEntries.compactMap {
+            CinematicRunRecapShareArtifactMutationTestingCue(markdownContents: $0.markdownContents)
+        }
+        let mutationTestingSummary = mutationTestingSummary(mutationTestingCues)
         let includedSourceExportAuditPlan = visibleSourceExportAuditPlan(sourceExportAuditPlan)
         var exportIdentifierParts = [
             "run-recap-share-artifact-rollup-export",
@@ -3932,6 +4266,8 @@ enum CinematicRunRecapShareArtifactRollupPlanner {
             "fallback-reason:\(previewPlan.selectedFallbackReasonIdentifier)",
             "range:\(sessionRangeLabel)",
             "buckets:\(statusBucketSummary)",
+            "mutation-tests:\(mutationTestingCues.count)",
+            "mutation-summary:\(mutationTestingSummary)",
             "cleanup:\(historyPlan.cleanupCandidateCount)",
             "warnings:\(warningStateIdentifier)",
             "warning-count:\(historyPlan.warningCount)",
@@ -3950,6 +4286,8 @@ enum CinematicRunRecapShareArtifactRollupPlanner {
             hiddenCount: historyPlan.hiddenCount,
             sessionRangeLabel: sessionRangeLabel,
             statusBucketSummary: statusBucketSummary,
+            mutationTestingAuditCount: mutationTestingCues.count,
+            mutationTestingSummary: mutationTestingSummary,
             cleanupCandidateCount: historyPlan.cleanupCandidateCount,
             warningCount: historyPlan.warningCount,
             search: search
@@ -3967,6 +4305,8 @@ enum CinematicRunRecapShareArtifactRollupPlanner {
             sessionRangeLabel: sessionRangeLabel,
             statusBuckets: statusBuckets,
             statusBucketSummary: statusBucketSummary,
+            mutationTestingCues: mutationTestingCues,
+            mutationTestingSummary: mutationTestingSummary,
             insightText: insight,
             warningStateIdentifier: warningStateIdentifier,
             sourceExportAuditPlan: includedSourceExportAuditPlan
@@ -3980,6 +4320,7 @@ enum CinematicRunRecapShareArtifactRollupPlanner {
             "query:\(search.queryFingerprint)",
             "range:\(sessionRangeLabel)",
             "buckets:\(statusBucketSummary)",
+            "mutation-tests:\(mutationTestingCues.count)",
             "cleanup:\(historyPlan.cleanupCandidateCount)",
             "warnings:\(warningStateIdentifier)",
             "copy:\(export.count)"
@@ -4029,6 +4370,8 @@ enum CinematicRunRecapShareArtifactRollupPlanner {
             sourceExportAuditIncluded: includedSourceExportAuditPlan != nil,
             sourceExportAuditIdentifier: includedSourceExportAuditPlan?.identifier,
             sourceExportAuditMarkdownLength: includedSourceExportAuditPlan?.markdownLength ?? 0,
+            mutationTestingAuditCount: mutationTestingCues.count,
+            mutationTestingSummary: mutationTestingSummary,
             insightText: insight,
             exportText: export,
             copyLabel: copyLabel(isAvailable: isAvailable),
@@ -4178,6 +4521,8 @@ enum CinematicRunRecapShareArtifactRollupPlanner {
         hiddenCount: Int,
         sessionRangeLabel: String,
         statusBucketSummary: String,
+        mutationTestingAuditCount: Int,
+        mutationTestingSummary: String,
         cleanupCandidateCount: Int,
         warningCount: Int,
         search: SearchState
@@ -4195,6 +4540,9 @@ enum CinematicRunRecapShareArtifactRollupPlanner {
             "sessions \(sessionRangeLabel)",
             statusBucketSummary
         ]
+        if mutationTestingAuditCount > 0 {
+            parts.append("mutation \(mutationTestingSummary)")
+        }
         if search.isActive {
             parts.append("search \(search.querySnippet)")
         }
@@ -4226,6 +4574,8 @@ enum CinematicRunRecapShareArtifactRollupPlanner {
         sessionRangeLabel: String,
         statusBuckets: [CinematicRunRecapShareArtifactRollupPlan.StatusBucket],
         statusBucketSummary: String,
+        mutationTestingCues: [CinematicRunRecapShareArtifactMutationTestingCue],
+        mutationTestingSummary: String,
         insightText: String,
         warningStateIdentifier: String,
         sourceExportAuditPlan: CinematicRunRecapShareArtifactSourceExportAuditPlan?
@@ -4249,6 +4599,8 @@ enum CinematicRunRecapShareArtifactRollupPlanner {
             "- Selection fallback: \(previewPlan.selectedFallbackEntryIdentifier ?? "none")",
             "- Selection fallback reason: \(previewPlan.selectedFallbackReasonIdentifier)",
             "- Status buckets: \(statusBucketSummary)",
+            "- Mutation test audits: \(mutationTestingCues.count)",
+            "- Mutation test summary: \(mutationTestingSummary)",
             "- Cleanup candidates: \(historyPlan.cleanupCandidateCount)",
             "- Hidden cleanup candidates: \(historyPlan.hiddenCleanupCandidateCount)",
             "- Cleanup candidate identifiers: \(historyPlan.cleanupCandidateIdentifiers.isEmpty ? "none" : historyPlan.cleanupCandidateIdentifiers.joined(separator: ", "))",
@@ -4296,6 +4648,13 @@ enum CinematicRunRecapShareArtifactRollupPlanner {
             lines.append(contentsOf: runtimeRouteLines)
         }
 
+        let mutationTestingLines = matchingEntries.compactMap(mutationTestingLine)
+        if !mutationTestingLines.isEmpty {
+            lines.append("")
+            lines.append("## Mutation Tests")
+            lines.append(contentsOf: mutationTestingLines)
+        }
+
         return CinematicRunRecapShareArtifactSourceExportAuditPlanner.markdownExport(
             baseMarkdown: lines.joined(separator: "\n"),
             sourceExportAuditPlan: sourceExportAuditPlan,
@@ -4307,6 +4666,43 @@ enum CinematicRunRecapShareArtifactRollupPlanner {
         for entry: CinematicRunRecapShareArtifactHistoryPlan.Entry
     ) -> String? {
         guard let cue = CinematicRunRecapShareArtifactRuntimeRouteCue(
+            markdownContents: entry.markdownContents
+        ) else {
+            return nil
+        }
+        return bounded(
+            "- S\(entry.sessionNumber) \(entry.filename): \(cue.detailCopy)",
+            limit: CinematicRunRecapShareArtifactRollupPlan.exportTextMaxCharacters
+        )
+    }
+
+    private static func mutationTestingSummary(
+        _ cues: [CinematicRunRecapShareArtifactMutationTestingCue]
+    ) -> String {
+        guard !cues.isEmpty else { return "none" }
+        let succeeded = cues.filter { $0.statusIdentifier == "succeeded" }.count
+        let failed = cues.filter { $0.statusIdentifier == "failed" }.count
+        let unknown = max(0, cues.count - succeeded - failed)
+        var parts: [String] = []
+        if succeeded > 0 {
+            parts.append("succeeded \(succeeded)")
+        }
+        if failed > 0 {
+            parts.append("failed \(failed)")
+        }
+        if unknown > 0 {
+            parts.append("unknown \(unknown)")
+        }
+        return bounded(
+            parts.joined(separator: ", "),
+            limit: CinematicRunRecapShareArtifactRollupPlan.statusBucketSummaryMaxCharacters
+        )
+    }
+
+    private static func mutationTestingLine(
+        for entry: CinematicRunRecapShareArtifactHistoryPlan.Entry
+    ) -> String? {
+        guard let cue = CinematicRunRecapShareArtifactMutationTestingCue(
             markdownContents: entry.markdownContents
         ) else {
             return nil
@@ -6573,11 +6969,16 @@ enum CinematicRunRecapShareArtifactPlanner {
         sessions: [SessionRecord]
     ) -> CinematicRunRecapShareArtifactPlan {
         let latestSession = latestFinishedSession(in: sessions)
+        let runtimeRouteAudit = CinematicRunRecapShareArtifactRuntimeRouteAudit(
+            snapshot: latestSession?.latestExecutionEnvironmentSnapshot
+        )
         return plan(
             sharePlan: sharePlan,
             sessionNumber: latestSession?.session,
-            runtimeRouteAudit: CinematicRunRecapShareArtifactRuntimeRouteAudit(
-                snapshot: latestSession?.latestExecutionEnvironmentSnapshot
+            runtimeRouteAudit: runtimeRouteAudit,
+            mutationTestingAudit: CinematicRunRecapShareArtifactMutationTestingAudit(
+                execution: latestSession?.mutationTestingExecutions.last,
+                runtimeRouteAudit: runtimeRouteAudit
             )
         )
     }
@@ -6589,18 +6990,21 @@ enum CinematicRunRecapShareArtifactPlanner {
         plan(
             sharePlan: sharePlan,
             sessionNumber: sessionNumber,
-            runtimeRouteAudit: nil
+            runtimeRouteAudit: nil,
+            mutationTestingAudit: nil
         )
     }
 
     private static func plan(
         sharePlan: CinematicRunRecapSharePlan,
         sessionNumber: Int?,
-        runtimeRouteAudit providedRuntimeRouteAudit: CinematicRunRecapShareArtifactRuntimeRouteAudit?
+        runtimeRouteAudit providedRuntimeRouteAudit: CinematicRunRecapShareArtifactRuntimeRouteAudit?,
+        mutationTestingAudit providedMutationTestingAudit: CinematicRunRecapShareArtifactMutationTestingAudit?
     ) -> CinematicRunRecapShareArtifactPlan {
         let latestSessionNumber = sessionNumber.flatMap { $0 > 0 ? $0 : nil }
         let artifactSessionNumber = sharePlan.isAvailable ? latestSessionNumber : nil
         let runtimeRouteAudit = artifactSessionNumber == nil ? nil : providedRuntimeRouteAudit
+        let mutationTestingAudit = artifactSessionNumber == nil ? nil : providedMutationTestingAudit
         let availabilityReason: String
         let isAvailable: Bool
 
@@ -6627,6 +7031,9 @@ enum CinematicRunRecapShareArtifactPlanner {
         if let runtimeRouteAudit {
             hashParts.append("runtime:\(runtimeRouteAudit.identifier)")
         }
+        if let mutationTestingAudit {
+            hashParts.append("mutation:\(mutationTestingAudit.identifier)")
+        }
         let hash = fingerprint(hashParts.joined(separator: "|"))
         let filename = safeFilename(
             "recap-share-\(String(hash.prefix(12))).md",
@@ -6645,6 +7052,9 @@ enum CinematicRunRecapShareArtifactPlanner {
         if let runtimeRouteAudit {
             identifierParts.append("runtime:\(fingerprint(runtimeRouteAudit.identifier))")
         }
+        if let mutationTestingAudit {
+            identifierParts.append("mutation:\(fingerprint(mutationTestingAudit.identifier))")
+        }
         let identifier = bounded(
             identifierParts.joined(separator: "|"),
             limit: CinematicRunRecapShareArtifactPlan.identifierMaxCharacters
@@ -6656,7 +7066,8 @@ enum CinematicRunRecapShareArtifactPlanner {
             sessionNumber: artifactSessionNumber,
             filename: filename,
             sharePlan: sharePlan,
-            runtimeRouteAudit: runtimeRouteAudit
+            runtimeRouteAudit: runtimeRouteAudit,
+            mutationTestingAudit: mutationTestingAudit
         )
         let feedback = feedbackText(
             availabilityReason: availabilityReason,
@@ -6682,6 +7093,7 @@ enum CinematicRunRecapShareArtifactPlanner {
             eventSummaries: sharePlan.eventSummaries,
             visualDescriptorTokens: sharePlan.visualDescriptorTokens,
             runtimeRouteAudit: runtimeRouteAudit,
+            mutationTestingAudit: mutationTestingAudit,
             markdownContents: markdown,
             feedback: feedback
         )
@@ -6722,7 +7134,8 @@ enum CinematicRunRecapShareArtifactPlanner {
         sessionNumber: Int?,
         filename: String,
         sharePlan: CinematicRunRecapSharePlan,
-        runtimeRouteAudit: CinematicRunRecapShareArtifactRuntimeRouteAudit?
+        runtimeRouteAudit: CinematicRunRecapShareArtifactRuntimeRouteAudit?,
+        mutationTestingAudit: CinematicRunRecapShareArtifactMutationTestingAudit?
     ) -> String {
         let eventLines = sharePlan.eventSummaries.isEmpty
             ? ["- none"]
@@ -6768,6 +7181,13 @@ enum CinematicRunRecapShareArtifactPlanner {
         ]
         if let runtimeRouteAudit, !runtimeRouteAudit.markdownSection.isEmpty {
             sections.insert([""] + runtimeRouteAudit.markdownSection.components(separatedBy: "\n"), at: 1)
+        }
+        if let mutationTestingAudit, !mutationTestingAudit.markdownSection.isEmpty {
+            let insertionIndex = runtimeRouteAudit?.markdownSection.isEmpty == false ? 2 : 1
+            sections.insert(
+                [""] + mutationTestingAudit.markdownSection.components(separatedBy: "\n"),
+                at: insertionIndex
+            )
         }
         let lines = sections.flatMap { $0 }
 

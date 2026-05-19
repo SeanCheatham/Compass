@@ -314,6 +314,139 @@ final class PlanSessionHistoryTests: XCTestCase {
         XCTAssertFalse(displayText.contains("compose.yml"))
     }
 
+    func testLatestMutationTestingDescriptorUsesLatestExecution() throws {
+        let first = makeMutationExecution(
+            verify: "swift test --filter OldMutation",
+            exitCode: 0,
+            startedAt: 1_000,
+            endedAt: 1_250,
+            outputTail: "old mutation ok"
+        )
+        let latest = makeMutationExecution(
+            verify: "swift test --filter LatestMutation",
+            exitCode: 12,
+            startedAt: 2_000,
+            endedAt: 3_500,
+            outputTail: """
+            failed in /Users/private/project
+            secret-tail-token
+            latest mutation failure
+            """
+        )
+
+        let descriptor = try XCTUnwrap(
+            PlanSessionHistory.displayItems(
+                for: [
+                    makeSession(
+                        1,
+                        startedAt: 1_000,
+                        mutationTestingExecutions: [first, latest]
+                    )
+                ]
+            ).first?.mutationTestingDescriptor
+        )
+
+        XCTAssertEqual(descriptor.statusIdentifier, "failed")
+        XCTAssertEqual(descriptor.routeIdentifier, "native-route")
+        XCTAssertEqual(descriptor.languageIdentifier, "swift")
+        XCTAssertEqual(descriptor.seedCommandLabel, "swift test --filter LatestMutation")
+        XCTAssertEqual(descriptor.exitCodeText, "exit 12")
+        XCTAssertEqual(descriptor.durationText, "1.5 s")
+        XCTAssertTrue(descriptor.badgeText.contains("Mutation failed"))
+        XCTAssertTrue(descriptor.tailSummary.contains("latest mutation failure"))
+        XCTAssertFalse(descriptor.tailSummary.contains("/Users/private/project"))
+        XCTAssertFalse(descriptor.tailSummary.contains("secret-tail-token"))
+        XCTAssertLessThanOrEqual(
+            descriptor.badgeText.count,
+            PlanSessionHistoryItem.MutationTestingDescriptor.badgeTextLimit
+        )
+        XCTAssertLessThanOrEqual(
+            descriptor.helpText.count,
+            PlanSessionHistoryItem.MutationTestingDescriptor.helpTextLimit
+        )
+        XCTAssertLessThanOrEqual(
+            descriptor.tailSummary.count,
+            PlanSessionHistoryItem.MutationTestingDescriptor.tailSummaryLimit
+        )
+    }
+
+    func testMutationTestingDescriptorStaysEmptyForOldAndExecutionlessSessions() throws {
+        let executionless = makeSession(1, startedAt: 1_000)
+        let legacyJSON = """
+        {
+          "session": 2,
+          "startedAt": 2000,
+          "endedAt": 2500,
+          "commits": [],
+          "status": "succeeded",
+          "notes": []
+        }
+        """
+        let legacy = try JSONDecoder().decode(SessionRecord.self, from: Data(legacyJSON.utf8))
+
+        let items = PlanSessionHistory.displayItems(for: [executionless, legacy])
+
+        XCTAssertEqual(items.map(\.sessionNumber), [2, 1])
+        XCTAssertNil(items[0].mutationTestingDescriptor)
+        XCTAssertNil(items[1].mutationTestingDescriptor)
+    }
+
+    func testMutationTestingDescriptorSanitizesLegacyRawExecutionFields() throws {
+        let repoPath = "/Users/private/project"
+        let containerToolPath = "/private/tooling/container"
+        let secretEnv = "secret-mutation-container-env"
+        let featureValue = "secret-mutation-feature-option"
+        let legacyJSON = """
+        {
+          "session": 7,
+          "startedAt": 7000,
+          "endedAt": 7500,
+          "commits": [],
+          "status": "failed",
+          "notes": [],
+          "mutationTestingExecutions": [
+            {
+              "readinessIdentifier": "legacy",
+              "statusIdentifier": "failed",
+              "routeIdentifier": "native-fallback",
+              "languageIdentifier": "swift",
+              "seedCommandLabel": "swift test \(repoPath) \(containerToolPath) .devcontainer/devcontainer.json \(secretEnv)",
+              "exitCode": 65,
+              "startedAt": 7000,
+              "endedAt": 8200,
+              "outputTail": "failure \(repoPath) \(containerToolPath) ../compose.yml ghcr.io/devcontainers/features/node:1 \(secretEnv) \(featureValue)"
+            }
+          ]
+        }
+        """
+        let session = try JSONDecoder().decode(SessionRecord.self, from: Data(legacyJSON.utf8))
+
+        let descriptor = try XCTUnwrap(
+            PlanSessionHistory.displayItems(for: [session]).first?.mutationTestingDescriptor
+        )
+        let exposedText = [
+            descriptor.seedCommandLabel,
+            descriptor.tailSummary,
+            descriptor.badgeText,
+            descriptor.helpText
+        ].joined(separator: "\n")
+
+        XCTAssertEqual(descriptor.statusIdentifier, "failed")
+        XCTAssertEqual(descriptor.routeIdentifier, "native-fallback")
+        XCTAssertTrue(exposedText.contains("[path]"))
+        for leaked in [
+            repoPath,
+            containerToolPath,
+            ".devcontainer/devcontainer.json",
+            "../compose.yml",
+            "ghcr.io/devcontainers/features/node:1",
+            secretEnv,
+            featureValue
+        ] {
+            XCTAssertFalse(exposedText.contains(leaked), "Leaked \(leaked)")
+        }
+    }
+
     func testBoundsPlanExcerpt() {
         let items = PlanSessionHistory.displayItems(
             for: [
@@ -710,7 +843,8 @@ final class PlanSessionHistoryTests: XCTestCase {
         notes: [String] = [],
         verifyOutput: VerifyOutput? = nil,
         feedback: String? = nil,
-        executionEnvironmentSnapshots: [SessionExecutionEnvironmentSnapshot] = []
+        executionEnvironmentSnapshots: [SessionExecutionEnvironmentSnapshot] = [],
+        mutationTestingExecutions: [SessionMutationTestingExecution] = []
     ) -> SessionRecord {
         SessionRecord(
             session: number,
@@ -725,7 +859,49 @@ final class PlanSessionHistoryTests: XCTestCase {
             notes: notes,
             verifyOutput: verifyOutput,
             feedback: feedback,
-            executionEnvironmentSnapshots: executionEnvironmentSnapshots
+            executionEnvironmentSnapshots: executionEnvironmentSnapshots,
+            mutationTestingExecutions: mutationTestingExecutions
+        )
+    }
+
+    private func makeMutationExecution(
+        verify: String,
+        exitCode: Int?,
+        startedAt: Double,
+        endedAt: Double,
+        outputTail: String
+    ) -> SessionMutationTestingExecution {
+        let launchPlan = CodexExecutionLaunchPlan.native()
+        let readiness = CodexMutationTestingPlan(
+            state: PlanState(
+                completed: [],
+                immediate: PlanNext(plan: "Run mutation testing", verify: verify),
+                midTerm: "",
+                longTerm: ""
+            ),
+            languageProfile: profile(.swift),
+            launchPlan: launchPlan
+        )
+        return SessionMutationTestingExecution(
+            readiness: readiness,
+            exitCode: exitCode,
+            startedAt: startedAt,
+            endedAt: endedAt,
+            outputTail: outputTail,
+            launchPlan: launchPlan
+        )
+    }
+
+    private func profile(_ language: RepositoryLanguage) -> RepositoryLanguageProfile {
+        var counts = RepositoryLanguageCounts()
+        counts[language] = language == .unknown ? 0 : 1
+        return RepositoryLanguageProfile(
+            counts: counts,
+            manifestHints: [],
+            primaryLanguage: language,
+            scannedFileCount: language == .unknown ? 0 : 1,
+            scannedDirectoryCount: 1,
+            wasTruncated: false
         )
     }
 

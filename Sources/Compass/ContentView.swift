@@ -1779,6 +1779,10 @@ private struct PlanSessionHistoryCard: View {
                 RuntimeRouteBadge(descriptor: item.runtimeRouteDescriptor)
             }
 
+            if let mutationTestingDescriptor = item.mutationTestingDescriptor {
+                MutationTestingHistoryBadge(descriptor: mutationTestingDescriptor)
+            }
+
             if let feedback = item.feedback {
                 LabeledHistoryBlock(title: "Feedback", systemImage: "text.bubble") {
                     MarkdownContent(feedback, compact: true)
@@ -1894,6 +1898,49 @@ private struct RuntimeRouteBadge: View {
             .padding(.vertical, 4)
             .background(.quaternary.opacity(0.5), in: Capsule())
             .help(descriptor.helpText)
+    }
+}
+
+private struct MutationTestingHistoryBadge: View {
+    var descriptor: PlanSessionHistoryItem.MutationTestingDescriptor
+
+    var body: some View {
+        DisclosureGroup {
+            VStack(alignment: .leading, spacing: 6) {
+                Label(
+                    "\(descriptor.routeLabel) · \(descriptor.languageLabel) · \(descriptor.exitCodeText) · \(descriptor.durationText)",
+                    systemImage: "point.3.connected.trianglepath.dotted"
+                )
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+                Text(descriptor.seedCommandLabel)
+                    .font(.caption.monospaced())
+                    .foregroundStyle(.secondary)
+                    .textSelection(.enabled)
+
+                if !descriptor.tailSummary.isEmpty {
+                    Text(descriptor.tailSummary)
+                        .font(.caption.monospaced())
+                        .textSelection(.enabled)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(8)
+                        .background(.black.opacity(0.045), in: RoundedRectangle(cornerRadius: 6))
+                }
+            }
+            .padding(.top, 4)
+        } label: {
+            Label(descriptor.badgeText, systemImage: descriptor.systemImage)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(color)
+                .lineLimit(2)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .help(descriptor.helpText)
+    }
+
+    private var color: Color {
+        descriptor.isSuccessful ? .green : .red
     }
 }
 
