@@ -808,6 +808,13 @@ struct CinematicDiagnosticsReport: Equatable {
         var commitHighlight: String?
         var eventSummaryCount: Int
         var visualDescriptorTokenCount: Int
+        var warningPulseAuditIdentifier: String?
+        var warningPulseAuditStateIdentifier: String
+        var warningPulseAuditBundleIdentifier: String?
+        var warningPulseAuditCaptureCount: Int
+        var warningPulseAuditTargetCount: Int
+        var warningPulseAuditWarningCount: Int
+        var warningPulseAuditOmittedCount: Int
         var markdownLength: Int
     }
 
@@ -829,6 +836,13 @@ struct CinematicDiagnosticsReport: Equatable {
         var hiddenWarningCount: Int
         var warningIdentifiers: [String]
         var warningStateIdentifier: String
+        var warningPulseAuditCount: Int
+        var latestWarningPulseAuditIdentifier: String?
+        var latestWarningPulseAuditStateIdentifier: String
+        var latestWarningPulseAuditBundleIdentifier: String?
+        var latestWarningPulseAuditCaptureCount: Int
+        var latestWarningPulseAuditWarningCount: Int
+        var latestWarningPulseAuditOmittedCount: Int
         var lastCleanupResultIdentifier: String
         var lastCleanupResultStatus: String
     }
@@ -906,6 +920,9 @@ struct CinematicDiagnosticsReport: Equatable {
         var sourceExportAuditMarkdownLength: Int
         var mutationTestingAuditCount: Int
         var mutationTestingSummary: String
+        var warningPulseAuditCount: Int
+        var warningPulseStateSummary: String
+        var warningPulseAuditIdentifiers: [String]
         var insightText: String
         var exportTextLength: Int
         var copyLabel: String
@@ -941,6 +958,9 @@ struct CinematicDiagnosticsReport: Equatable {
         var sourceExportAuditIncluded: Bool
         var sourceExportAuditIdentifier: String?
         var sourceExportAuditMarkdownLength: Int
+        var warningPulseAuditCount: Int
+        var warningPulseStateSummary: String
+        var warningPulseAuditIdentifiers: [String]
         var markdownLength: Int
         var copyLabel: String
         var copyHelp: String
@@ -3230,6 +3250,14 @@ struct CinematicVisualSmokeReport: Equatable {
             && string(snapshot.title, maxCharacters: CinematicRunRecapPlan.titleLimit)
             && string(snapshot.detail, maxCharacters: CinematicRunRecapPlan.detailLimit)
             && string(snapshot.status, maxCharacters: CinematicRunRecapPlan.statusLimit)
+            && (snapshot.warningPulseAuditIdentifier ?? "").count
+                <= CinematicRunRecapShareArtifactWarningPulseAudit.identifierMaxCharacters
+            && string(
+                snapshot.warningPulseAuditStateIdentifier,
+                maxCharacters: CinematicRunRecapShareArtifactWarningPulseAudit.fieldMaxCharacters
+            )
+            && (snapshot.warningPulseAuditBundleIdentifier ?? "").count
+                <= CinematicRunRecapShareArtifactWarningPulseAudit.fieldMaxCharacters
             && snapshot.markdownLength <= CinematicRunRecapShareArtifactPlan.markdownMaxCharacters
     }
 
@@ -3253,6 +3281,14 @@ struct CinematicVisualSmokeReport: Equatable {
                     maxCharacters: CinematicRunRecapShareArtifactHistoryPlan.identifierMaxCharacters
                 )
             }
+            && (snapshot.latestWarningPulseAuditIdentifier ?? "").count
+                <= CinematicRunRecapShareArtifactWarningPulseAudit.identifierMaxCharacters
+            && string(
+                snapshot.latestWarningPulseAuditStateIdentifier,
+                maxCharacters: CinematicRunRecapShareArtifactWarningPulseAudit.fieldMaxCharacters
+            )
+            && (snapshot.latestWarningPulseAuditBundleIdentifier ?? "").count
+                <= CinematicRunRecapShareArtifactWarningPulseAudit.fieldMaxCharacters
             && snapshot.cleanupCandidateIdentifiers.allSatisfy {
                 string(
                     $0,
@@ -3384,6 +3420,13 @@ struct CinematicVisualSmokeReport: Equatable {
                 snapshot.mutationTestingSummary,
                 maxCharacters: CinematicRunRecapShareArtifactRollupPlan.statusBucketSummaryMaxCharacters
             )
+            && string(
+                snapshot.warningPulseStateSummary,
+                maxCharacters: CinematicRunRecapShareArtifactRollupPlan.statusBucketSummaryMaxCharacters
+            )
+            && snapshot.warningPulseAuditIdentifiers.allSatisfy {
+                string($0, maxCharacters: CinematicRunRecapShareArtifactWarningPulseAudit.identifierMaxCharacters)
+            }
             && string(
                 snapshot.copyLabel,
                 maxCharacters: CinematicRunRecapShareArtifactRollupPlan.copyLabelMaxCharacters
@@ -4130,6 +4173,13 @@ struct CinematicVisualSmokeReport: Equatable {
                 <= CinematicRunRecapShareArtifactSourceExportAuditPlan.identifierMaxCharacters
             && snapshot.sourceExportAuditMarkdownLength
                 <= CinematicRunRecapShareArtifactSourceExportAuditPlan.markdownMaxCharacters
+            && string(
+                snapshot.warningPulseStateSummary,
+                maxCharacters: CinematicRunRecapShareArtifactRollupPlan.statusBucketSummaryMaxCharacters
+            )
+            && snapshot.warningPulseAuditIdentifiers.allSatisfy {
+                string($0, maxCharacters: CinematicRunRecapShareArtifactWarningPulseAudit.identifierMaxCharacters)
+            }
             && string(
                 snapshot.copyLabel,
                 maxCharacters: CinematicRunRecapShareArtifactSubsetExportPlan.labelMaxCharacters
@@ -7482,6 +7532,13 @@ struct CinematicDiagnosticsSummary: Equatable {
             "copy \(snapshot.markdownLength) chars",
             "events \(snapshot.eventSummaryCount)",
             "visual \(snapshot.visualDescriptorTokenCount)",
+            snapshot.warningPulseAuditIdentifier.map {
+                "warning pulse \(snapshot.warningPulseAuditStateIdentifier) \(bounded($0, limit: 54))"
+            } ?? "warning pulse none",
+            snapshot.warningPulseAuditBundleIdentifier.map { "pulse bundle \(bounded($0, limit: 54))" },
+            snapshot.warningPulseAuditIdentifier == nil
+                ? nil
+                : "pulse counts c\(snapshot.warningPulseAuditCaptureCount) t\(snapshot.warningPulseAuditTargetCount) w\(snapshot.warningPulseAuditWarningCount) omitted \(snapshot.warningPulseAuditOmittedCount)",
             optionalIdentifier("commit", snapshot.commitHighlight)
         ].compactMap { $0 }.joined(separator: " | ")
     }
@@ -7508,6 +7565,16 @@ struct CinematicDiagnosticsSummary: Equatable {
             snapshot.warningIdentifiers.isEmpty
                 ? nil
                 : "warning ids \(bounded(snapshot.warningIdentifiers.joined(separator: ","), limit: 120))",
+            "warning pulse audits \(snapshot.warningPulseAuditCount)",
+            snapshot.latestWarningPulseAuditIdentifier.map {
+                "latest pulse \(snapshot.latestWarningPulseAuditStateIdentifier) \(bounded($0, limit: 54))"
+            },
+            snapshot.latestWarningPulseAuditBundleIdentifier.map {
+                "pulse bundle \(bounded($0, limit: 54))"
+            },
+            snapshot.latestWarningPulseAuditIdentifier == nil
+                ? nil
+                : "pulse counts c\(snapshot.latestWarningPulseAuditCaptureCount) w\(snapshot.latestWarningPulseAuditWarningCount) omitted \(snapshot.latestWarningPulseAuditOmittedCount)",
             "last cleanup \(snapshot.lastCleanupResultStatus) \(bounded(snapshot.lastCleanupResultIdentifier, limit: 54))",
             snapshot.latestSessionNumber.map { "latest session \($0)" },
             snapshot.latestFilename.map { "latest file \(bounded($0, limit: 72))" },
@@ -7583,6 +7650,10 @@ struct CinematicDiagnosticsSummary: Equatable {
             snapshot.sourceExportAuditIncluded
                 ? "source audit \(snapshot.sourceExportAuditMarkdownLength) \(bounded(snapshot.sourceExportAuditIdentifier ?? "none", limit: 42))"
                 : "source audit hidden",
+            "warning pulse audits \(snapshot.warningPulseAuditCount) \(snapshot.warningPulseStateSummary)",
+            snapshot.warningPulseAuditIdentifiers.isEmpty
+                ? nil
+                : "pulse ids \(bounded(snapshot.warningPulseAuditIdentifiers.joined(separator: ","), limit: 120))",
             "copy \(snapshot.exportTextLength) chars",
             "export \(bounded(snapshot.exportIdentifier, limit: 54))",
             "id \(bounded(snapshot.identifier, limit: 54))"
@@ -7961,6 +8032,7 @@ struct CinematicDiagnosticsSummary: Equatable {
             snapshot.sourceExportAuditIncluded
                 ? "source-audit \(snapshot.sourceExportAuditMarkdownLength)"
                 : "source-audit hidden",
+            "pulse \(snapshot.warningPulseAuditCount) \(snapshot.warningPulseStateSummary)",
             "q \(snapshot.searchQuerySnippet)",
             "warn \(snapshot.warningStateIdentifier)",
             "id \(bounded(snapshot.exportIdentifier, limit: 24))"
@@ -9660,13 +9732,18 @@ enum CinematicDiagnostics {
                 "run-recap:\(runRecapSnapshot.identifier)",
                 "run-recap-share:\(runRecapShareSnapshot.identifier)",
                 "run-recap-share-artifact:\(runRecapShareArtifactSnapshot.identifier)",
+                "run-recap-share-artifact-warning-pulse:\(runRecapShareArtifactSnapshot.warningPulseAuditIdentifier ?? "none")",
+                "run-recap-share-artifact-warning-pulse-state:\(runRecapShareArtifactSnapshot.warningPulseAuditStateIdentifier)",
                 "run-recap-share-artifact-history:\(runRecapShareArtifactHistorySnapshot.identifier)",
+                "run-recap-share-artifact-history-warning-pulses:\(runRecapShareArtifactHistorySnapshot.warningPulseAuditCount)",
+                "run-recap-share-artifact-history-warning-pulse-latest:\(runRecapShareArtifactHistorySnapshot.latestWarningPulseAuditIdentifier ?? "none")",
                 "run-recap-share-artifact-sources:\(runRecapShareArtifactSourceReconciliationSnapshot.identifier)",
                 "run-recap-share-artifact-sources-state:\(runRecapShareArtifactSourceReconciliationSnapshot.stateIdentifier)",
                 "run-recap-share-artifact-sources-active:\(runRecapShareArtifactSourceReconciliationSnapshot.activeHistoryIdentifier)",
                 "run-recap-share-artifact-sources-repo-local:\(runRecapShareArtifactSourceReconciliationSnapshot.repoLocalHistoryIdentifier)",
                 "run-recap-share-artifact-sources-activity-source:\(runRecapShareArtifactSourceReconciliationSnapshot.activitySourceIdentifier)",
                 "run-recap-share-artifact-rollup:\(runRecapShareArtifactRollupSnapshot.identifier)",
+                "run-recap-share-artifact-rollup-warning-pulses:\(runRecapShareArtifactRollupSnapshot.warningPulseAuditCount)",
                 "run-recap-share-artifact-comparison:\(runRecapShareArtifactComparisonSnapshot.identifier)",
                 "run-recap-share-artifact-comparison-export:\(runRecapShareArtifactComparisonSnapshot.exportIdentifier)",
                 "run-recap-share-artifact-comparison-mode:\(runRecapShareArtifactComparisonSnapshot.targetModeIdentifier)",
@@ -13155,6 +13232,13 @@ enum CinematicDiagnostics {
             commitHighlight: plan.commitHighlight,
             eventSummaryCount: plan.eventSummaryCount,
             visualDescriptorTokenCount: plan.visualDescriptorTokenCount,
+            warningPulseAuditIdentifier: plan.warningPulseAudit?.identifier,
+            warningPulseAuditStateIdentifier: plan.warningPulseAudit?.stateIdentifier ?? "none",
+            warningPulseAuditBundleIdentifier: plan.warningPulseAudit?.bundleIdentifier,
+            warningPulseAuditCaptureCount: plan.warningPulseAudit?.captureCount ?? 0,
+            warningPulseAuditTargetCount: plan.warningPulseAudit?.targetCount ?? 0,
+            warningPulseAuditWarningCount: plan.warningPulseAudit?.warningCount ?? 0,
+            warningPulseAuditOmittedCount: plan.warningPulseAudit?.totalOmittedCount ?? 0,
             markdownLength: plan.markdownLength
         )
     }
@@ -13163,7 +13247,13 @@ enum CinematicDiagnostics {
         for plan: CinematicRunRecapShareArtifactHistoryPlan,
         cleanupResult: CinematicRunRecapShareArtifactCleanupResult?
     ) -> CinematicDiagnosticsReport.RunRecapShareArtifactHistorySnapshot {
-        CinematicDiagnosticsReport.RunRecapShareArtifactHistorySnapshot(
+        let warningPulseCues = plan.entries.compactMap {
+            CinematicRunRecapShareArtifactWarningPulseCue(markdownContents: $0.markdownContents)
+        }
+        let latestWarningPulseCue = plan.latestEntry.flatMap {
+            CinematicRunRecapShareArtifactWarningPulseCue(markdownContents: $0.markdownContents)
+        }
+        return CinematicDiagnosticsReport.RunRecapShareArtifactHistorySnapshot(
             identifier: plan.identifier,
             isAvailable: plan.isAvailable,
             availabilityReason: plan.availabilityReason,
@@ -13181,6 +13271,13 @@ enum CinematicDiagnostics {
             hiddenWarningCount: plan.hiddenWarningCount,
             warningIdentifiers: plan.warnings.map(\.identifier),
             warningStateIdentifier: plan.hasWarnings ? "warnings" : "clear",
+            warningPulseAuditCount: warningPulseCues.count,
+            latestWarningPulseAuditIdentifier: latestWarningPulseCue?.auditIdentifier,
+            latestWarningPulseAuditStateIdentifier: latestWarningPulseCue?.stateIdentifier ?? "none",
+            latestWarningPulseAuditBundleIdentifier: latestWarningPulseCue?.bundleIdentifier,
+            latestWarningPulseAuditCaptureCount: latestWarningPulseCue?.captureCount ?? 0,
+            latestWarningPulseAuditWarningCount: latestWarningPulseCue?.warningCount ?? 0,
+            latestWarningPulseAuditOmittedCount: latestWarningPulseCue?.totalOmittedCount ?? 0,
             lastCleanupResultIdentifier: cleanupResult?.identifier ?? "none",
             lastCleanupResultStatus: cleanupResult?.status.rawValue ?? "none"
         )
@@ -13266,6 +13363,9 @@ enum CinematicDiagnostics {
             sourceExportAuditMarkdownLength: plan.sourceExportAuditMarkdownLength,
             mutationTestingAuditCount: plan.mutationTestingAuditCount,
             mutationTestingSummary: plan.mutationTestingSummary,
+            warningPulseAuditCount: plan.warningPulseAuditCount,
+            warningPulseStateSummary: plan.warningPulseStateSummary,
+            warningPulseAuditIdentifiers: plan.warningPulseAuditIdentifiers,
             insightText: plan.insightText,
             exportTextLength: plan.exportTextLength,
             copyLabel: plan.copyLabel,
@@ -13542,6 +13642,9 @@ enum CinematicDiagnostics {
             sourceExportAuditIncluded: plan.sourceExportAuditIncluded,
             sourceExportAuditIdentifier: plan.sourceExportAuditIdentifier,
             sourceExportAuditMarkdownLength: plan.sourceExportAuditMarkdownLength,
+            warningPulseAuditCount: plan.warningPulseAuditCount,
+            warningPulseStateSummary: plan.warningPulseStateSummary,
+            warningPulseAuditIdentifiers: plan.warningPulseAuditIdentifiers,
             markdownLength: plan.markdownLength,
             copyLabel: plan.copyLabel,
             copyHelp: plan.copyHelp

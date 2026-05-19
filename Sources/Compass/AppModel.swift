@@ -830,18 +830,21 @@ extension CompassProject {
     func recordRunRecapShareArtifact(
         sharePlan: CinematicRunRecapSharePlan
     ) async -> CinematicRunRecapShareArtifactRecordingResult {
+        let warningPulseAudit = currentRunRecapShareArtifactWarningPulseAudit()
         let result: CinematicRunRecapShareArtifactRecordingResult
         if let workspace {
             result = workspace.recordRunRecapShareArtifact(
                 sharePlan: sharePlan,
-                sessions: sessions
+                sessions: sessions,
+                warningPulseAudit: warningPulseAudit
             )
             cinematicRunRecapShareArtifactHistory = workspace.refreshRunRecapShareArtifactHistory()
             refreshRunRecapShareArtifactSourceReconciliation(workspace: workspace)
         } else {
             let artifactPlan = CinematicRunRecapShareArtifactPlanner.plan(
                 sharePlan: sharePlan,
-                sessions: sessions
+                sessions: sessions,
+                warningPulseAudit: warningPulseAudit
             )
             result = artifactPlan.isAvailable
                 ? .failed(plan: artifactPlan, error: AppModelError.noRepositorySelected)
@@ -865,6 +868,21 @@ extension CompassProject {
             log(result.detail, level: .warning)
         }
         return result
+    }
+
+    private func currentRunRecapShareArtifactWarningPulseAudit()
+        -> CinematicRunRecapShareArtifactWarningPulseAudit? {
+        guard let currentBundle = cinematicDiagnosticsWarningBundleHistory.currentUnresolvedBundle else {
+            return nil
+        }
+        let status = CinematicDiagnosticsWarningPulseQuietingStatusDescriptor(
+            currentBundle: currentBundle,
+            quietingDescriptor: cinematicDiagnosticsWarningPulseQuietingDescriptor
+        )
+        return CinematicRunRecapShareArtifactWarningPulseAudit(
+            entry: currentBundle,
+            status: status
+        )
     }
 
     @discardableResult

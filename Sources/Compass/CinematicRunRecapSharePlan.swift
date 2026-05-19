@@ -56,12 +56,191 @@ struct CinematicRunRecapShareArtifactPlan: Equatable, Identifiable {
     var visualDescriptorTokens: [String]
     var runtimeRouteAudit: CinematicRunRecapShareArtifactRuntimeRouteAudit?
     var mutationTestingAudit: CinematicRunRecapShareArtifactMutationTestingAudit?
+    var warningPulseAudit: CinematicRunRecapShareArtifactWarningPulseAudit?
     var markdownContents: String
     var feedback: String
 
     var eventSummaryCount: Int { eventSummaries.count }
     var visualDescriptorTokenCount: Int { visualDescriptorTokens.count }
     var markdownLength: Int { markdownContents.count }
+}
+
+struct CinematicRunRecapShareArtifactWarningPulseAudit: Equatable, Identifiable {
+    static let identifierMaxCharacters = CinematicRunRecapShareArtifactPlan.identifierMaxCharacters
+    static let markdownMaxCharacters = 1_200
+    static let fieldMaxCharacters = CinematicDiagnosticsWarningBundleHistory.identifierMaxCharacters
+    static let warningIdentifierLimit = CinematicDiagnosticsWarningBundleHistory.visibleWarningIdentifierLimit
+    static let anchorLimit = CinematicDiagnosticsWarningBundleHistory.visibleAnchorLimit
+
+    var id: String { identifier }
+
+    var identifier: String
+    var stateIdentifier: String
+    var quietingStatusIdentifier: String
+    var bundleIdentifier: String
+    var sequence: Int
+    var captureCount: Int
+    var targetCount: Int
+    var warningCount: Int
+    var warningIdentifiers: [String]
+    var omittedWarningIdentifierCount: Int
+    var targetAnchors: [String]
+    var omittedTargetAnchorCount: Int
+    var relatedRowAnchors: [String]
+    var omittedRelatedRowAnchorCount: Int
+    var markdownSection: String
+
+    var markdownLength: Int { markdownSection.count }
+    var totalOmittedCount: Int {
+        omittedWarningIdentifierCount + omittedTargetAnchorCount + omittedRelatedRowAnchorCount
+    }
+
+    init(
+        entry: CinematicDiagnosticsWarningBundleHistory.Entry,
+        status: CinematicDiagnosticsWarningPulseQuietingStatusDescriptor
+    ) {
+        let bundleIdentifier = Self.safeToken(entry.bundleIdentifier)
+        let stateIdentifier = status.stateIdentifier == "snoozed" ? "snoozed" : "active"
+        let quietingStatusIdentifier = Self.safeToken(status.id)
+        let warningIdentifiers = Self.visibleTokens(
+            entry.warningIdentifiers,
+            limit: Self.warningIdentifierLimit
+        )
+        let targetAnchors = Self.visibleTokens(
+            entry.targetAnchors,
+            limit: Self.anchorLimit
+        )
+        let relatedRowAnchors = Self.visibleTokens(
+            entry.relatedRowAnchors,
+            limit: Self.anchorLimit
+        )
+        let sequence = max(0, entry.sequence)
+        let captureCount = max(0, entry.captureCount)
+        let targetCount = max(0, entry.targetCount)
+        let warningCount = max(0, entry.warningCount)
+        let omittedWarningIdentifierCount = max(0, entry.warningIdentifiers.count - warningIdentifiers.count)
+        let omittedTargetAnchorCount = max(0, entry.targetAnchors.count - targetAnchors.count)
+        let omittedRelatedRowAnchorCount = max(0, entry.relatedRowAnchors.count - relatedRowAnchors.count)
+        let totalOmittedCount = omittedWarningIdentifierCount
+            + omittedTargetAnchorCount
+            + omittedRelatedRowAnchorCount
+        let identifier = Self.bounded(
+            [
+                "run-recap-share-artifact-warning-pulse",
+                "state:\(stateIdentifier)",
+                "bundle:\(bundleIdentifier)",
+                "sequence:\(sequence)",
+                "captures:\(captureCount)",
+                "targets:\(targetCount)",
+                "warnings:\(warningCount)",
+                "warning-ids:\(Self.fingerprint(warningIdentifiers.joined(separator: "|")))",
+                "target-anchors:\(Self.fingerprint(targetAnchors.joined(separator: "|")))",
+                "related-rows:\(Self.fingerprint(relatedRowAnchors.joined(separator: "|")))",
+                "omitted:\(totalOmittedCount)"
+            ].joined(separator: "|"),
+            limit: Self.identifierMaxCharacters
+        )
+        let markdownSection = Self.boundedArtifactText(
+            [
+                "## Diagnostics Warning Pulse",
+                "",
+                "- Warning pulse audit: \(identifier)",
+                "- State: \(stateIdentifier)",
+                "- Bundle: \(bundleIdentifier)",
+                "- Quieting status: \(quietingStatusIdentifier)",
+                "- Sequence: \(sequence)",
+                "- Capture count: \(captureCount)",
+                "- Target count: \(targetCount)",
+                "- Warning count: \(warningCount)",
+                "- Warning identifiers: \(Self.identifierList(warningIdentifiers))",
+                "- Omitted warning identifiers: \(omittedWarningIdentifierCount)",
+                "- Target anchors: \(Self.identifierList(targetAnchors))",
+                "- Omitted target anchors: \(omittedTargetAnchorCount)",
+                "- Related rows: \(Self.identifierList(relatedRowAnchors))",
+                "- Omitted related rows: \(omittedRelatedRowAnchorCount)",
+                "- Copy safety: notification-body-free; target-text-free; read-only"
+            ].joined(separator: "\n"),
+            limit: Self.markdownMaxCharacters
+        )
+
+        self.identifier = identifier
+        self.stateIdentifier = stateIdentifier
+        self.quietingStatusIdentifier = quietingStatusIdentifier
+        self.bundleIdentifier = bundleIdentifier
+        self.sequence = sequence
+        self.captureCount = captureCount
+        self.targetCount = targetCount
+        self.warningCount = warningCount
+        self.warningIdentifiers = warningIdentifiers
+        self.omittedWarningIdentifierCount = omittedWarningIdentifierCount
+        self.targetAnchors = targetAnchors
+        self.omittedTargetAnchorCount = omittedTargetAnchorCount
+        self.relatedRowAnchors = relatedRowAnchors
+        self.omittedRelatedRowAnchorCount = omittedRelatedRowAnchorCount
+        self.markdownSection = markdownSection
+    }
+
+    private static func visibleTokens(_ values: [String], limit: Int) -> [String] {
+        var seen = Set<String>()
+        var result: [String] = []
+        for value in values {
+            let token = safeToken(value)
+            guard !token.isEmpty, !seen.contains(token) else { continue }
+            seen.insert(token)
+            result.append(token)
+            if result.count >= max(0, limit) {
+                break
+            }
+        }
+        return result
+    }
+
+    private static func identifierList(_ values: [String]) -> String {
+        values.isEmpty ? "none" : values.joined(separator: ", ")
+    }
+
+    private static func safeToken(_ text: String) -> String {
+        bounded(text, limit: Self.fieldMaxCharacters)
+    }
+
+    private static func bounded(_ text: String, limit: Int) -> String {
+        guard limit > 0 else { return "" }
+        let normalized = text
+            .replacingOccurrences(of: "\r", with: " ")
+            .replacingOccurrences(of: "\n", with: " ")
+            .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalized.isEmpty else { return "none" }
+        guard normalized.count <= limit else {
+            let prefixLimit = max(1, limit - 3)
+            return normalized.prefix(prefixLimit)
+                .trimmingCharacters(in: .whitespacesAndNewlines) + "..."
+        }
+        return normalized
+    }
+
+    private static func boundedArtifactText(_ text: String, limit: Int) -> String {
+        guard limit > 0 else { return "" }
+        let normalized = text
+            .replacingOccurrences(of: "\r", with: "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalized.isEmpty else { return "none" }
+        guard normalized.count <= limit else {
+            let prefixLimit = max(1, limit - 3)
+            return normalized.prefix(prefixLimit)
+                .trimmingCharacters(in: .whitespacesAndNewlines) + "..."
+        }
+        return normalized
+    }
+
+    private static func fingerprint(_ value: String) -> String {
+        var hash: UInt64 = 0xcbf29ce484222325
+        for byte in value.utf8 {
+            hash ^= UInt64(byte)
+            hash = hash &* 0x100000001b3
+        }
+        return String(format: "%016llx", hash)
+    }
 }
 
 struct CinematicRunRecapShareArtifactMutationTestingAudit: Equatable, Identifiable {
@@ -973,6 +1152,279 @@ struct CinematicRunRecapShareArtifactMutationTestingCue: Equatable, Identifiable
     }
 }
 
+struct CinematicRunRecapShareArtifactWarningPulseCue: Equatable, Identifiable {
+    static let identifierMaxCharacters = CinematicRunRecapShareArtifactPlan.identifierMaxCharacters
+    static let fieldMaxCharacters = CinematicRunRecapShareArtifactWarningPulseAudit.fieldMaxCharacters
+    static let copyMaxCharacters = 120
+    static let detailMaxCharacters = 220
+    static let helpMaxCharacters = 240
+    static let sectionLineLimit = 32
+
+    var id: String { identifier }
+
+    var identifier: String
+    var auditIdentifier: String
+    var stateIdentifier: String
+    var bundleIdentifier: String
+    var quietingStatusIdentifier: String
+    var sequence: Int
+    var captureCount: Int
+    var targetCount: Int
+    var warningCount: Int
+    var warningIdentifiers: [String]
+    var omittedWarningIdentifierCount: Int
+    var targetAnchors: [String]
+    var omittedTargetAnchorCount: Int
+    var relatedRowAnchors: [String]
+    var omittedRelatedRowAnchorCount: Int
+    var compactCopy: String
+    var detailCopy: String
+    var helpCopy: String
+
+    var totalOmittedCount: Int {
+        omittedWarningIdentifierCount + omittedTargetAnchorCount + omittedRelatedRowAnchorCount
+    }
+
+    init?(markdownContents: String) {
+        guard let sectionLines = Self.warningPulseSectionLines(in: markdownContents) else {
+            return nil
+        }
+
+        let auditIdentifier = Self.sanitizedField(
+            Self.markdownField("Warning pulse audit", in: sectionLines) ?? "unknown",
+            fallback: "unknown",
+            limit: CinematicRunRecapShareArtifactWarningPulseAudit.identifierMaxCharacters
+        )
+        let stateIdentifier = Self.knownIdentifier(
+            Self.markdownField("State", in: sectionLines),
+            allowed: ["active", "snoozed"],
+            fallback: "unknown"
+        )
+        let bundleIdentifier = Self.sanitizedField(
+            Self.markdownField("Bundle", in: sectionLines) ?? "unknown",
+            fallback: "unknown",
+            limit: Self.fieldMaxCharacters
+        )
+        let quietingStatusIdentifier = Self.sanitizedField(
+            Self.markdownField("Quieting status", in: sectionLines) ?? "unknown",
+            fallback: "unknown",
+            limit: CinematicDiagnosticsWarningPulseQuietingStatusDescriptor.identifierMaxCharacters
+        )
+        let sequence = Self.nonnegativeInt(Self.markdownField("Sequence", in: sectionLines))
+        let captureCount = Self.nonnegativeInt(Self.markdownField("Capture count", in: sectionLines))
+        let targetCount = Self.nonnegativeInt(Self.markdownField("Target count", in: sectionLines))
+        let warningCount = Self.nonnegativeInt(Self.markdownField("Warning count", in: sectionLines))
+        let warningIdentifiers = Self.identifierList(
+            Self.markdownField("Warning identifiers", in: sectionLines),
+            limit: CinematicRunRecapShareArtifactWarningPulseAudit.warningIdentifierLimit
+        )
+        let omittedWarningIdentifierCount = Self.nonnegativeInt(
+            Self.markdownField("Omitted warning identifiers", in: sectionLines)
+        )
+        let targetAnchors = Self.identifierList(
+            Self.markdownField("Target anchors", in: sectionLines),
+            limit: CinematicRunRecapShareArtifactWarningPulseAudit.anchorLimit
+        )
+        let omittedTargetAnchorCount = Self.nonnegativeInt(
+            Self.markdownField("Omitted target anchors", in: sectionLines)
+        )
+        let relatedRowAnchors = Self.identifierList(
+            Self.markdownField("Related rows", in: sectionLines),
+            limit: CinematicRunRecapShareArtifactWarningPulseAudit.anchorLimit
+        )
+        let omittedRelatedRowAnchorCount = Self.nonnegativeInt(
+            Self.markdownField("Omitted related rows", in: sectionLines)
+        )
+        let compactCopy = stateIdentifier == "snoozed"
+            ? "Warning pulse snoozed"
+            : "Warning pulse active"
+        let detailCopy = Self.bounded(
+            [
+                "pulse \(stateIdentifier)",
+                "bundle \(bundleIdentifier)",
+                "captures \(captureCount)",
+                "targets \(targetCount)",
+                "warnings \(warningCount)",
+                "omitted \(omittedWarningIdentifierCount + omittedTargetAnchorCount + omittedRelatedRowAnchorCount)"
+            ].joined(separator: " | "),
+            limit: Self.detailMaxCharacters
+        )
+        let helpCopy = Self.bounded(
+            "Diagnostics warning pulse cue from saved recap artifact Markdown. It is read-only and only shows bounded bundle, state, warning identifier, target anchor, and related row identifiers.",
+            limit: Self.helpMaxCharacters
+        )
+        let identifier = Self.bounded(
+            [
+                "run-recap-share-artifact-warning-pulse-cue",
+                "audit:\(Self.fingerprint(auditIdentifier))",
+                "state:\(stateIdentifier)",
+                "bundle:\(Self.fingerprint(bundleIdentifier))",
+                "sequence:\(sequence)",
+                "captures:\(captureCount)",
+                "targets:\(targetCount)",
+                "warnings:\(warningCount)",
+                "warning-ids:\(Self.fingerprint(warningIdentifiers.joined(separator: "|")))",
+                "target-anchors:\(Self.fingerprint(targetAnchors.joined(separator: "|")))",
+                "related:\(Self.fingerprint(relatedRowAnchors.joined(separator: "|")))",
+                "omitted:\(omittedWarningIdentifierCount + omittedTargetAnchorCount + omittedRelatedRowAnchorCount)"
+            ].joined(separator: "|"),
+            limit: Self.identifierMaxCharacters
+        )
+
+        self.identifier = identifier
+        self.auditIdentifier = auditIdentifier
+        self.stateIdentifier = stateIdentifier
+        self.bundleIdentifier = bundleIdentifier
+        self.quietingStatusIdentifier = quietingStatusIdentifier
+        self.sequence = sequence
+        self.captureCount = captureCount
+        self.targetCount = targetCount
+        self.warningCount = warningCount
+        self.warningIdentifiers = warningIdentifiers
+        self.omittedWarningIdentifierCount = omittedWarningIdentifierCount
+        self.targetAnchors = targetAnchors
+        self.omittedTargetAnchorCount = omittedTargetAnchorCount
+        self.relatedRowAnchors = relatedRowAnchors
+        self.omittedRelatedRowAnchorCount = omittedRelatedRowAnchorCount
+        self.compactCopy = Self.bounded(compactCopy, limit: Self.copyMaxCharacters)
+        self.detailCopy = detailCopy
+        self.helpCopy = helpCopy
+    }
+
+    static func warningPulseSectionLines(in markdownContents: String) -> [String]? {
+        let lines = markdownContents
+            .replacingOccurrences(of: "\r", with: "")
+            .split(omittingEmptySubsequences: false, whereSeparator: \.isNewline)
+            .map(String.init)
+        guard let headerIndex = lines.firstIndex(where: {
+            $0.trimmingCharacters(in: .whitespacesAndNewlines) == "## Diagnostics Warning Pulse"
+        }) else {
+            return nil
+        }
+
+        var sectionLines: [String] = []
+        for line in lines.dropFirst(headerIndex + 1) {
+            let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+            if trimmed.hasPrefix("## ") {
+                break
+            }
+            sectionLines.append(line)
+            if sectionLines.count == sectionLineLimit {
+                break
+            }
+        }
+        return sectionLines.isEmpty ? nil : sectionLines
+    }
+
+    private static func markdownField(_ name: String, in lines: [String]) -> String? {
+        let prefix = "- \(name): "
+        return lines
+            .lazy
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .first { $0.hasPrefix(prefix) }
+            .map { line in
+                String(line.dropFirst(prefix.count))
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+            }
+            .flatMap { $0.isEmpty ? nil : $0 }
+    }
+
+    private static func identifierList(_ text: String?, limit: Int) -> [String] {
+        guard let text else { return [] }
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, trimmed != "none" else { return [] }
+
+        var seen = Set<String>()
+        var result: [String] = []
+        for value in trimmed.components(separatedBy: ",") {
+            let token = sanitizedField(value, fallback: "", limit: Self.fieldMaxCharacters)
+            guard !token.isEmpty, !seen.contains(token) else { continue }
+            seen.insert(token)
+            result.append(token)
+            if result.count >= max(0, limit) {
+                break
+            }
+        }
+        return result
+    }
+
+    private static func knownIdentifier(
+        _ text: String?,
+        allowed: Set<String>,
+        fallback: String
+    ) -> String {
+        let identifier = sanitizedIdentifier(text ?? "", fallback: fallback, limit: Self.fieldMaxCharacters)
+        return allowed.contains(identifier) ? identifier : fallback
+    }
+
+    private static func nonnegativeInt(_ text: String?) -> Int {
+        max(0, Int(text?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "") ?? 0)
+    }
+
+    private static func sanitizedIdentifier(
+        _ text: String,
+        fallback: String,
+        limit: Int
+    ) -> String {
+        let normalized = bounded(text, limit: limit).lowercased()
+        let filtered = String(normalized.unicodeScalars.map { scalar in
+            if isASCIILetter(scalar)
+                || isASCIIDigit(scalar)
+                || scalar == "-"
+                || scalar == "_"
+                || scalar == "." {
+                return Character(scalar)
+            }
+            return "-"
+        })
+        .replacingOccurrences(of: #"-+"#, with: "-", options: .regularExpression)
+        .trimmingCharacters(in: CharacterSet(charactersIn: "-_."))
+        return filtered.isEmpty ? fallback : filtered
+    }
+
+    private static func sanitizedField(
+        _ text: String,
+        fallback: String,
+        limit: Int
+    ) -> String {
+        let normalized = bounded(text, limit: limit)
+        return normalized.isEmpty ? fallback : normalized
+    }
+
+    private static func bounded(_ text: String, limit: Int) -> String {
+        guard limit > 0 else { return "" }
+        let normalized = text
+            .replacingOccurrences(of: "\r", with: " ")
+            .replacingOccurrences(of: "\n", with: " ")
+            .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalized.isEmpty else { return "" }
+        guard normalized.count <= limit else {
+            let prefixLimit = max(1, limit - 3)
+            return normalized.prefix(prefixLimit)
+                .trimmingCharacters(in: .whitespacesAndNewlines) + "..."
+        }
+        return normalized
+    }
+
+    private static func isASCIILetter(_ scalar: UnicodeScalar) -> Bool {
+        (65...90).contains(Int(scalar.value)) || (97...122).contains(Int(scalar.value))
+    }
+
+    private static func isASCIIDigit(_ scalar: UnicodeScalar) -> Bool {
+        (48...57).contains(Int(scalar.value))
+    }
+
+    private static func fingerprint(_ value: String) -> String {
+        var hash: UInt64 = 0xcbf29ce484222325
+        for byte in value.utf8 {
+            hash ^= UInt64(byte)
+            hash = hash &* 0x100000001b3
+        }
+        return String(format: "%016llx", hash)
+    }
+}
+
 struct CinematicRunRecapShareArtifactMutationTestingTreatmentDescriptor: Equatable {
     static let identifierMaxCharacters = 180
     static let componentMaxCharacters = 48
@@ -1473,6 +1925,9 @@ struct CinematicRunRecapShareArtifactSubsetExportPlan: Equatable, Identifiable {
     var sourceExportAuditIncluded: Bool
     var sourceExportAuditIdentifier: String?
     var sourceExportAuditMarkdownLength: Int
+    var warningPulseAuditCount: Int
+    var warningPulseStateSummary: String
+    var warningPulseAuditIdentifiers: [String]
     var markdownContents: String
     var copyLabel: String
     var copyHelp: String
@@ -1536,6 +1991,9 @@ struct CinematicRunRecapShareArtifactRollupPlan: Equatable, Identifiable {
     var sourceExportAuditMarkdownLength: Int
     var mutationTestingAuditCount: Int
     var mutationTestingSummary: String
+    var warningPulseAuditCount: Int
+    var warningPulseStateSummary: String
+    var warningPulseAuditIdentifiers: [String]
     var insightText: String
     var exportText: String
     var copyLabel: String
@@ -4007,6 +4465,11 @@ enum CinematicRunRecapShareArtifactSubsetExportPlanner {
         )
         let warningStateIdentifier = historyPlan.hasWarnings ? "warnings" : "clear"
         let exportedEntryIdentifiers = exportEntries.map(\.identifier)
+        let warningPulseCues = exportEntries.compactMap {
+            CinematicRunRecapShareArtifactWarningPulseCue(markdownContents: $0.markdownContents)
+        }
+        let warningPulseStateSummary = warningPulseSummary(warningPulseCues)
+        let warningPulseAuditIdentifiers = warningPulseCues.map(\.auditIdentifier)
         let includedSourceExportAuditPlan = visibleSourceExportAuditPlan(sourceExportAuditPlan)
         var exportIdentifierParts = [
             "run-recap-share-artifact-subset-export",
@@ -4033,6 +4496,9 @@ enum CinematicRunRecapShareArtifactSubsetExportPlanner {
             "fallback-reason:\(previewPlan.selectedFallbackReasonIdentifier)",
             "warnings:\(warningStateIdentifier)",
             "warning-count:\(historyPlan.warningCount)",
+            "warning-pulses:\(warningPulseCues.count)",
+            "warning-pulse-summary:\(warningPulseStateSummary)",
+            "warning-pulse-ids:\(fingerprint(warningPulseAuditIdentifiers.joined(separator: "|")))",
             "content:\(fingerprint(exportedEntryIdentifiers.joined(separator: "|")))"
         ])
         let exportIdentifier = bounded(
@@ -4052,6 +4518,8 @@ enum CinematicRunRecapShareArtifactSubsetExportPlanner {
             selectedCount: selectedCount,
             filteredCount: filteredCount,
             warningStateIdentifier: warningStateIdentifier,
+            warningPulseCues: warningPulseCues,
+            warningPulseStateSummary: warningPulseStateSummary,
             sourceExportAuditPlan: includedSourceExportAuditPlan
         )
         var identifierParts = [
@@ -4062,7 +4530,8 @@ enum CinematicRunRecapShareArtifactSubsetExportPlanner {
             "entries:\(exportEntries.count)",
             "markdown:\(markdown.count)",
             "query:\(search.queryFingerprint)",
-            "warnings:\(warningStateIdentifier)"
+            "warnings:\(warningStateIdentifier)",
+            "warning-pulses:\(warningPulseCues.count)"
         ]
         if let includedSourceExportAuditPlan {
             identifierParts.append("source-audit:\(fingerprint(includedSourceExportAuditPlan.identifier))")
@@ -4101,6 +4570,9 @@ enum CinematicRunRecapShareArtifactSubsetExportPlanner {
             sourceExportAuditIncluded: includedSourceExportAuditPlan != nil,
             sourceExportAuditIdentifier: includedSourceExportAuditPlan?.identifier,
             sourceExportAuditMarkdownLength: includedSourceExportAuditPlan?.markdownLength ?? 0,
+            warningPulseAuditCount: warningPulseCues.count,
+            warningPulseStateSummary: warningPulseStateSummary,
+            warningPulseAuditIdentifiers: warningPulseAuditIdentifiers,
             markdownContents: markdown,
             copyLabel: copyLabel(scope: scope, isAvailable: !exportEntries.isEmpty),
             copyHelp: copyHelp(
@@ -4193,6 +4665,8 @@ enum CinematicRunRecapShareArtifactSubsetExportPlanner {
         selectedCount: Int,
         filteredCount: Int,
         warningStateIdentifier: String,
+        warningPulseCues: [CinematicRunRecapShareArtifactWarningPulseCue],
+        warningPulseStateSummary: String,
         sourceExportAuditPlan: CinematicRunRecapShareArtifactSourceExportAuditPlan?
     ) -> String {
         var lines = [
@@ -4220,7 +4694,10 @@ enum CinematicRunRecapShareArtifactSubsetExportPlanner {
             "- Warning state: \(warningStateIdentifier)",
             "- Warnings: \(historyPlan.warningCount)",
             "- Hidden warnings: \(historyPlan.hiddenWarningCount)",
-            "- Warning identifiers: \(historyPlan.warnings.isEmpty ? "none" : historyPlan.warnings.map(\.identifier).joined(separator: ", "))"
+            "- Warning identifiers: \(historyPlan.warnings.isEmpty ? "none" : historyPlan.warnings.map(\.identifier).joined(separator: ", "))",
+            "- Warning pulse audits: \(warningPulseCues.count)",
+            "- Warning pulse summary: \(warningPulseStateSummary)",
+            "- Warning pulse audit identifiers: \(warningPulseCues.isEmpty ? "none" : warningPulseCues.map(\.auditIdentifier).joined(separator: ", "))"
         ]
 
         if !historyPlan.warnings.isEmpty {
@@ -4265,6 +4742,29 @@ enum CinematicRunRecapShareArtifactSubsetExportPlanner {
             return nil
         }
         return sourceExportAuditPlan
+    }
+
+    private static func warningPulseSummary(
+        _ cues: [CinematicRunRecapShareArtifactWarningPulseCue]
+    ) -> String {
+        guard !cues.isEmpty else { return "none" }
+        let active = cues.filter { $0.stateIdentifier == "active" }.count
+        let snoozed = cues.filter { $0.stateIdentifier == "snoozed" }.count
+        let unknown = max(0, cues.count - active - snoozed)
+        var parts: [String] = []
+        if active > 0 {
+            parts.append("active \(active)")
+        }
+        if snoozed > 0 {
+            parts.append("snoozed \(snoozed)")
+        }
+        if unknown > 0 {
+            parts.append("unknown \(unknown)")
+        }
+        return bounded(
+            parts.joined(separator: ", "),
+            limit: CinematicRunRecapShareArtifactRollupPlan.statusBucketSummaryMaxCharacters
+        )
     }
 
     private static func copyLabel(scope: Scope, isAvailable: Bool) -> String {
@@ -4434,6 +4934,11 @@ enum CinematicRunRecapShareArtifactRollupPlanner {
             CinematicRunRecapShareArtifactMutationTestingCue(markdownContents: $0.markdownContents)
         }
         let mutationTestingSummary = mutationTestingSummary(mutationTestingCues)
+        let warningPulseCues = matchingEntries.compactMap {
+            CinematicRunRecapShareArtifactWarningPulseCue(markdownContents: $0.markdownContents)
+        }
+        let warningPulseStateSummary = warningPulseSummary(warningPulseCues)
+        let warningPulseAuditIdentifiers = warningPulseCues.map(\.auditIdentifier)
         let includedSourceExportAuditPlan = visibleSourceExportAuditPlan(sourceExportAuditPlan)
         var exportIdentifierParts = [
             "run-recap-share-artifact-rollup-export",
@@ -4458,6 +4963,9 @@ enum CinematicRunRecapShareArtifactRollupPlanner {
             "buckets:\(statusBucketSummary)",
             "mutation-tests:\(mutationTestingCues.count)",
             "mutation-summary:\(mutationTestingSummary)",
+            "warning-pulses:\(warningPulseCues.count)",
+            "warning-pulse-summary:\(warningPulseStateSummary)",
+            "warning-pulse-ids:\(fingerprint(warningPulseAuditIdentifiers.joined(separator: "|")))",
             "cleanup:\(historyPlan.cleanupCandidateCount)",
             "warnings:\(warningStateIdentifier)",
             "warning-count:\(historyPlan.warningCount)",
@@ -4478,6 +4986,8 @@ enum CinematicRunRecapShareArtifactRollupPlanner {
             statusBucketSummary: statusBucketSummary,
             mutationTestingAuditCount: mutationTestingCues.count,
             mutationTestingSummary: mutationTestingSummary,
+            warningPulseAuditCount: warningPulseCues.count,
+            warningPulseStateSummary: warningPulseStateSummary,
             cleanupCandidateCount: historyPlan.cleanupCandidateCount,
             warningCount: historyPlan.warningCount,
             search: search
@@ -4497,6 +5007,8 @@ enum CinematicRunRecapShareArtifactRollupPlanner {
             statusBucketSummary: statusBucketSummary,
             mutationTestingCues: mutationTestingCues,
             mutationTestingSummary: mutationTestingSummary,
+            warningPulseCues: warningPulseCues,
+            warningPulseStateSummary: warningPulseStateSummary,
             insightText: insight,
             warningStateIdentifier: warningStateIdentifier,
             sourceExportAuditPlan: includedSourceExportAuditPlan
@@ -4511,6 +5023,7 @@ enum CinematicRunRecapShareArtifactRollupPlanner {
             "range:\(sessionRangeLabel)",
             "buckets:\(statusBucketSummary)",
             "mutation-tests:\(mutationTestingCues.count)",
+            "warning-pulses:\(warningPulseCues.count)",
             "cleanup:\(historyPlan.cleanupCandidateCount)",
             "warnings:\(warningStateIdentifier)",
             "copy:\(export.count)"
@@ -4562,6 +5075,9 @@ enum CinematicRunRecapShareArtifactRollupPlanner {
             sourceExportAuditMarkdownLength: includedSourceExportAuditPlan?.markdownLength ?? 0,
             mutationTestingAuditCount: mutationTestingCues.count,
             mutationTestingSummary: mutationTestingSummary,
+            warningPulseAuditCount: warningPulseCues.count,
+            warningPulseStateSummary: warningPulseStateSummary,
+            warningPulseAuditIdentifiers: warningPulseAuditIdentifiers,
             insightText: insight,
             exportText: export,
             copyLabel: copyLabel(isAvailable: isAvailable),
@@ -4713,6 +5229,8 @@ enum CinematicRunRecapShareArtifactRollupPlanner {
         statusBucketSummary: String,
         mutationTestingAuditCount: Int,
         mutationTestingSummary: String,
+        warningPulseAuditCount: Int,
+        warningPulseStateSummary: String,
         cleanupCandidateCount: Int,
         warningCount: Int,
         search: SearchState
@@ -4732,6 +5250,9 @@ enum CinematicRunRecapShareArtifactRollupPlanner {
         ]
         if mutationTestingAuditCount > 0 {
             parts.append("mutation \(mutationTestingSummary)")
+        }
+        if warningPulseAuditCount > 0 {
+            parts.append("warning pulse \(warningPulseStateSummary)")
         }
         if search.isActive {
             parts.append("search \(search.querySnippet)")
@@ -4766,6 +5287,8 @@ enum CinematicRunRecapShareArtifactRollupPlanner {
         statusBucketSummary: String,
         mutationTestingCues: [CinematicRunRecapShareArtifactMutationTestingCue],
         mutationTestingSummary: String,
+        warningPulseCues: [CinematicRunRecapShareArtifactWarningPulseCue],
+        warningPulseStateSummary: String,
         insightText: String,
         warningStateIdentifier: String,
         sourceExportAuditPlan: CinematicRunRecapShareArtifactSourceExportAuditPlan?
@@ -4791,6 +5314,9 @@ enum CinematicRunRecapShareArtifactRollupPlanner {
             "- Status buckets: \(statusBucketSummary)",
             "- Mutation test audits: \(mutationTestingCues.count)",
             "- Mutation test summary: \(mutationTestingSummary)",
+            "- Warning pulse audits: \(warningPulseCues.count)",
+            "- Warning pulse summary: \(warningPulseStateSummary)",
+            "- Warning pulse audit identifiers: \(warningPulseCues.isEmpty ? "none" : warningPulseCues.map(\.auditIdentifier).joined(separator: ", "))",
             "- Cleanup candidates: \(historyPlan.cleanupCandidateCount)",
             "- Hidden cleanup candidates: \(historyPlan.hiddenCleanupCandidateCount)",
             "- Cleanup candidate identifiers: \(historyPlan.cleanupCandidateIdentifiers.isEmpty ? "none" : historyPlan.cleanupCandidateIdentifiers.joined(separator: ", "))",
@@ -4845,6 +5371,13 @@ enum CinematicRunRecapShareArtifactRollupPlanner {
             lines.append(contentsOf: mutationTestingLines)
         }
 
+        let warningPulseLines = matchingEntries.compactMap(warningPulseLine)
+        if !warningPulseLines.isEmpty {
+            lines.append("")
+            lines.append("## Diagnostics Warning Pulses")
+            lines.append(contentsOf: warningPulseLines)
+        }
+
         return CinematicRunRecapShareArtifactSourceExportAuditPlanner.markdownExport(
             baseMarkdown: lines.joined(separator: "\n"),
             sourceExportAuditPlan: sourceExportAuditPlan,
@@ -4889,10 +5422,47 @@ enum CinematicRunRecapShareArtifactRollupPlanner {
         )
     }
 
+    private static func warningPulseSummary(
+        _ cues: [CinematicRunRecapShareArtifactWarningPulseCue]
+    ) -> String {
+        guard !cues.isEmpty else { return "none" }
+        let active = cues.filter { $0.stateIdentifier == "active" }.count
+        let snoozed = cues.filter { $0.stateIdentifier == "snoozed" }.count
+        let unknown = max(0, cues.count - active - snoozed)
+        var parts: [String] = []
+        if active > 0 {
+            parts.append("active \(active)")
+        }
+        if snoozed > 0 {
+            parts.append("snoozed \(snoozed)")
+        }
+        if unknown > 0 {
+            parts.append("unknown \(unknown)")
+        }
+        return bounded(
+            parts.joined(separator: ", "),
+            limit: CinematicRunRecapShareArtifactRollupPlan.statusBucketSummaryMaxCharacters
+        )
+    }
+
     private static func mutationTestingLine(
         for entry: CinematicRunRecapShareArtifactHistoryPlan.Entry
     ) -> String? {
         guard let cue = CinematicRunRecapShareArtifactMutationTestingCue(
+            markdownContents: entry.markdownContents
+        ) else {
+            return nil
+        }
+        return bounded(
+            "- S\(entry.sessionNumber) \(entry.filename): \(cue.detailCopy)",
+            limit: CinematicRunRecapShareArtifactRollupPlan.exportTextMaxCharacters
+        )
+    }
+
+    private static func warningPulseLine(
+        for entry: CinematicRunRecapShareArtifactHistoryPlan.Entry
+    ) -> String? {
+        guard let cue = CinematicRunRecapShareArtifactWarningPulseCue(
             markdownContents: entry.markdownContents
         ) else {
             return nil
@@ -7156,7 +7726,8 @@ enum CinematicRunRecapShareArtifactSourceBadgePlanner {
 enum CinematicRunRecapShareArtifactPlanner {
     static func plan(
         sharePlan: CinematicRunRecapSharePlan,
-        sessions: [SessionRecord]
+        sessions: [SessionRecord],
+        warningPulseAudit: CinematicRunRecapShareArtifactWarningPulseAudit? = nil
     ) -> CinematicRunRecapShareArtifactPlan {
         let latestSession = latestFinishedSession(in: sessions)
         let runtimeRouteAudit = CinematicRunRecapShareArtifactRuntimeRouteAudit(
@@ -7169,19 +7740,22 @@ enum CinematicRunRecapShareArtifactPlanner {
             mutationTestingAudit: CinematicRunRecapShareArtifactMutationTestingAudit(
                 execution: latestSession?.mutationTestingExecutions.last,
                 runtimeRouteAudit: runtimeRouteAudit
-            )
+            ),
+            warningPulseAudit: warningPulseAudit
         )
     }
 
     static func plan(
         sharePlan: CinematicRunRecapSharePlan,
-        sessionNumber: Int?
+        sessionNumber: Int?,
+        warningPulseAudit: CinematicRunRecapShareArtifactWarningPulseAudit? = nil
     ) -> CinematicRunRecapShareArtifactPlan {
         plan(
             sharePlan: sharePlan,
             sessionNumber: sessionNumber,
             runtimeRouteAudit: nil,
-            mutationTestingAudit: nil
+            mutationTestingAudit: nil,
+            warningPulseAudit: warningPulseAudit
         )
     }
 
@@ -7189,12 +7763,14 @@ enum CinematicRunRecapShareArtifactPlanner {
         sharePlan: CinematicRunRecapSharePlan,
         sessionNumber: Int?,
         runtimeRouteAudit providedRuntimeRouteAudit: CinematicRunRecapShareArtifactRuntimeRouteAudit?,
-        mutationTestingAudit providedMutationTestingAudit: CinematicRunRecapShareArtifactMutationTestingAudit?
+        mutationTestingAudit providedMutationTestingAudit: CinematicRunRecapShareArtifactMutationTestingAudit?,
+        warningPulseAudit providedWarningPulseAudit: CinematicRunRecapShareArtifactWarningPulseAudit?
     ) -> CinematicRunRecapShareArtifactPlan {
         let latestSessionNumber = sessionNumber.flatMap { $0 > 0 ? $0 : nil }
         let artifactSessionNumber = sharePlan.isAvailable ? latestSessionNumber : nil
         let runtimeRouteAudit = artifactSessionNumber == nil ? nil : providedRuntimeRouteAudit
         let mutationTestingAudit = artifactSessionNumber == nil ? nil : providedMutationTestingAudit
+        let warningPulseAudit = artifactSessionNumber == nil ? nil : providedWarningPulseAudit
         let availabilityReason: String
         let isAvailable: Bool
 
@@ -7224,6 +7800,9 @@ enum CinematicRunRecapShareArtifactPlanner {
         if let mutationTestingAudit {
             hashParts.append("mutation:\(mutationTestingAudit.identifier)")
         }
+        if let warningPulseAudit {
+            hashParts.append("warning-pulse:\(warningPulseAudit.identifier)")
+        }
         let hash = fingerprint(hashParts.joined(separator: "|"))
         let filename = safeFilename(
             "recap-share-\(String(hash.prefix(12))).md",
@@ -7245,6 +7824,9 @@ enum CinematicRunRecapShareArtifactPlanner {
         if let mutationTestingAudit {
             identifierParts.append("mutation:\(fingerprint(mutationTestingAudit.identifier))")
         }
+        if let warningPulseAudit {
+            identifierParts.append("warning-pulse:\(fingerprint(warningPulseAudit.identifier))")
+        }
         let identifier = bounded(
             identifierParts.joined(separator: "|"),
             limit: CinematicRunRecapShareArtifactPlan.identifierMaxCharacters
@@ -7257,7 +7839,8 @@ enum CinematicRunRecapShareArtifactPlanner {
             filename: filename,
             sharePlan: sharePlan,
             runtimeRouteAudit: runtimeRouteAudit,
-            mutationTestingAudit: mutationTestingAudit
+            mutationTestingAudit: mutationTestingAudit,
+            warningPulseAudit: warningPulseAudit
         )
         let feedback = feedbackText(
             availabilityReason: availabilityReason,
@@ -7284,6 +7867,7 @@ enum CinematicRunRecapShareArtifactPlanner {
             visualDescriptorTokens: sharePlan.visualDescriptorTokens,
             runtimeRouteAudit: runtimeRouteAudit,
             mutationTestingAudit: mutationTestingAudit,
+            warningPulseAudit: warningPulseAudit,
             markdownContents: markdown,
             feedback: feedback
         )
@@ -7325,7 +7909,8 @@ enum CinematicRunRecapShareArtifactPlanner {
         filename: String,
         sharePlan: CinematicRunRecapSharePlan,
         runtimeRouteAudit: CinematicRunRecapShareArtifactRuntimeRouteAudit?,
-        mutationTestingAudit: CinematicRunRecapShareArtifactMutationTestingAudit?
+        mutationTestingAudit: CinematicRunRecapShareArtifactMutationTestingAudit?,
+        warningPulseAudit: CinematicRunRecapShareArtifactWarningPulseAudit?
     ) -> String {
         let eventLines = sharePlan.eventSummaries.isEmpty
             ? ["- none"]
@@ -7377,6 +7962,12 @@ enum CinematicRunRecapShareArtifactPlanner {
             sections.insert(
                 [""] + mutationTestingAudit.markdownSection.components(separatedBy: "\n"),
                 at: insertionIndex
+            )
+        }
+        if let warningPulseAudit, !warningPulseAudit.markdownSection.isEmpty {
+            sections.insert(
+                [""] + warningPulseAudit.markdownSection.components(separatedBy: "\n"),
+                at: 1
             )
         }
         let lines = sections.flatMap { $0 }

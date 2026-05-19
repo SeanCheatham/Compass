@@ -273,11 +273,13 @@ struct CompassWorkspace {
 
     func recordRunRecapShareArtifact(
         sharePlan: CinematicRunRecapSharePlan,
-        sessions: [SessionRecord]
+        sessions: [SessionRecord],
+        warningPulseAudit: CinematicRunRecapShareArtifactWarningPulseAudit? = nil
     ) -> CinematicRunRecapShareArtifactRecordingResult {
         let artifactPlan = CinematicRunRecapShareArtifactPlanner.plan(
             sharePlan: sharePlan,
-            sessions: sessions
+            sessions: sessions,
+            warningPulseAudit: warningPulseAudit
         )
 
         guard artifactPlan.isAvailable, let sessionNumber = artifactPlan.sessionNumber else {

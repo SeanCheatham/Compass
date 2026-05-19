@@ -464,6 +464,134 @@ final class CinematicRunRecapShareArtifactTests: XCTestCase {
         }
     }
 
+    func testWarningPulseAuditWritesActiveSnoozedAndSkipsClearedBundles() throws {
+        let session = makeSession(50, endedAt: 50_500)
+        let share = makeSharePlan(session: session, completed: ["Persist warning pulse audit"])
+        let targetText = "RAW_TARGET_TEXT_SHOULD_NOT_LEAK"
+        let notificationBody = "SECRET_NATIVE_NOTIFICATION_BODY_SHOULD_NOT_LEAK"
+        let entry = makeWarningPulseEntry(
+            suffix: "active",
+            targetIdentifiers: ["target-\(targetText)"],
+            warningIdentifiers: (0..<8).map { "visual-smoke.warning-pulse-\($0)" },
+            targetAnchors: (0..<7).map { "visual-smoke-check-warning-pulse-\($0)" },
+            relatedRowAnchors: (0..<6).map { "diagnostics-row-warning-pulse-\($0)" }
+        )
+        let activeAudit = makeWarningPulseAudit(entry: entry, snoozed: false)
+        let activeArtifact = CinematicRunRecapShareArtifactPlanner.plan(
+            sharePlan: share,
+            sessions: [session],
+            warningPulseAudit: activeAudit
+        )
+        let activeCue = try XCTUnwrap(
+            CinematicRunRecapShareArtifactWarningPulseCue(
+                markdownContents: activeArtifact.markdownContents
+            )
+        )
+
+        XCTAssertEqual(activeArtifact.warningPulseAudit, activeAudit)
+        XCTAssertTrue(activeArtifact.markdownContents.contains("## Diagnostics Warning Pulse"))
+        XCTAssertTrue(activeArtifact.markdownContents.contains("- State: active"))
+        XCTAssertTrue(activeArtifact.markdownContents.contains("- Bundle: \(entry.bundleIdentifier)"))
+        XCTAssertTrue(activeArtifact.markdownContents.contains("- Capture count: 3"))
+        XCTAssertTrue(activeArtifact.markdownContents.contains("- Warning count: 8"))
+        XCTAssertTrue(activeArtifact.markdownContents.contains("- Omitted warning identifiers: 2"))
+        XCTAssertTrue(activeArtifact.markdownContents.contains("- Omitted target anchors: 2"))
+        XCTAssertTrue(activeArtifact.markdownContents.contains("- Omitted related rows: 1"))
+        XCTAssertEqual(activeCue.stateIdentifier, "active")
+        XCTAssertEqual(activeCue.captureCount, 3)
+        XCTAssertEqual(activeCue.warningIdentifiers.count, CinematicRunRecapShareArtifactWarningPulseAudit.warningIdentifierLimit)
+        XCTAssertEqual(activeCue.targetAnchors.count, CinematicRunRecapShareArtifactWarningPulseAudit.anchorLimit)
+        XCTAssertEqual(activeCue.relatedRowAnchors.count, CinematicRunRecapShareArtifactWarningPulseAudit.anchorLimit)
+        XCTAssertFalse(activeArtifact.markdownContents.contains(targetText))
+        XCTAssertFalse(activeArtifact.markdownContents.contains(notificationBody))
+        XCTAssertLessThanOrEqual(
+            activeAudit.identifier.count,
+            CinematicRunRecapShareArtifactWarningPulseAudit.identifierMaxCharacters
+        )
+        XCTAssertLessThanOrEqual(
+            activeAudit.markdownLength,
+            CinematicRunRecapShareArtifactWarningPulseAudit.markdownMaxCharacters
+        )
+        XCTAssertLessThanOrEqual(
+            activeArtifact.markdownLength,
+            CinematicRunRecapShareArtifactPlan.markdownMaxCharacters
+        )
+
+        let snoozedAudit = makeWarningPulseAudit(entry: entry, snoozed: true)
+        let snoozedArtifact = CinematicRunRecapShareArtifactPlanner.plan(
+            sharePlan: share,
+            sessions: [session],
+            warningPulseAudit: snoozedAudit
+        )
+        let snoozedCue = try XCTUnwrap(
+            CinematicRunRecapShareArtifactWarningPulseCue(
+                markdownContents: snoozedArtifact.markdownContents
+            )
+        )
+        XCTAssertTrue(snoozedArtifact.markdownContents.contains("- State: snoozed"))
+        XCTAssertEqual(snoozedCue.stateIdentifier, "snoozed")
+
+        let clearedArtifact = CinematicRunRecapShareArtifactPlanner.plan(
+            sharePlan: share,
+            sessions: [session]
+        )
+        XCTAssertNil(clearedArtifact.warningPulseAudit)
+        XCTAssertNil(CinematicRunRecapShareArtifactWarningPulseCue(markdownContents: clearedArtifact.markdownContents))
+        XCTAssertFalse(clearedArtifact.markdownContents.contains("## Diagnostics Warning Pulse"))
+
+        let unavailable = CinematicRunRecapShareArtifactPlanner.plan(
+            sharePlan: CinematicRunRecapSharePlanner.plan(recapPlan: .empty(reason: "active-run")),
+            sessions: [session],
+            warningPulseAudit: activeAudit
+        )
+        XCTAssertFalse(unavailable.isAvailable)
+        XCTAssertNil(unavailable.warningPulseAudit)
+        XCTAssertFalse(unavailable.markdownContents.contains("## Diagnostics Warning Pulse"))
+    }
+
+    func testWarningPulseAuditPropagatesThroughSavedHistorySubsetAndRollupExports() throws {
+        let workspace = try makeInitializedWorkspace()
+        let session = makeSession(51, endedAt: 51_500)
+        let entry = makeWarningPulseEntry(suffix: "propagation")
+        let audit = makeWarningPulseAudit(entry: entry, snoozed: false)
+
+        let result = workspace.recordRunRecapShareArtifact(
+            sharePlan: makeSharePlan(session: session, completed: ["Propagate warning pulse audit"]),
+            sessions: [session],
+            warningPulseAudit: audit
+        )
+
+        let savedMarkdown = try read(try XCTUnwrap(result.artifactURL))
+        let history = workspace.refreshRunRecapShareArtifactHistory()
+        let selectedExport = CinematicRunRecapShareArtifactSubsetExportPlanner.plan(
+            historyPlan: history,
+            selectedEntryIdentifier: history.latestEntry?.identifier,
+            scope: .selected
+        )
+        let filteredExport = CinematicRunRecapShareArtifactSubsetExportPlanner.plan(
+            historyPlan: history,
+            scope: .filtered
+        )
+        let rollup = CinematicRunRecapShareArtifactRollupPlanner.plan(historyPlan: history)
+
+        XCTAssertEqual(result.status, .recorded)
+        XCTAssertTrue(savedMarkdown.contains("## Diagnostics Warning Pulse"))
+        XCTAssertTrue(try XCTUnwrap(history.latestEntry).markdownContents.contains("## Diagnostics Warning Pulse"))
+        XCTAssertTrue(history.combinedMarkdownExport.contains("## Diagnostics Warning Pulse"))
+        XCTAssertTrue(selectedExport.markdownContents.contains("## Diagnostics Warning Pulse"))
+        XCTAssertTrue(filteredExport.markdownContents.contains("## Diagnostics Warning Pulse"))
+        XCTAssertEqual(selectedExport.warningPulseAuditCount, 1)
+        XCTAssertEqual(filteredExport.warningPulseAuditCount, 1)
+        XCTAssertEqual(selectedExport.warningPulseStateSummary, "active 1")
+        XCTAssertEqual(rollup.warningPulseAuditCount, 1)
+        XCTAssertEqual(rollup.warningPulseStateSummary, "active 1")
+        XCTAssertEqual(rollup.warningPulseAuditIdentifiers, [audit.identifier])
+        XCTAssertTrue(rollup.insightText.contains("warning pulse active 1"))
+        XCTAssertTrue(rollup.exportText.contains("## Diagnostics Warning Pulses"))
+        XCTAssertTrue(rollup.exportText.contains("pulse active"))
+        XCTAssertTrue(rollup.exportText.contains("warnings 2"))
+    }
+
     func testRuntimeRouteAuditMarkdownAndExportsDoNotLeakRuntimeInternals() throws {
         let imageRepoURL = try makeTemporaryGitRepository(prefix: "RuntimeRouteLeakImage")
         let envSecret = "secret-runtime-route-container-env-value"
@@ -963,6 +1091,44 @@ final class CinematicRunRecapShareArtifactTests: XCTestCase {
                 metadata: nil,
                 systemImage: systemImage
             )
+        )
+    }
+
+    private func makeWarningPulseEntry(
+        suffix: String,
+        targetIdentifiers: [String] = ["target-warning-pulse"],
+        warningIdentifiers: [String] = ["visual-smoke.warning-pulse-a", "visual-smoke.warning-pulse-b"],
+        targetAnchors: [String] = ["visual-smoke-check-warning-pulse"],
+        relatedRowAnchors: [String] = ["diagnostics-row-warning-pulse"]
+    ) -> CinematicDiagnosticsWarningBundleHistory.Entry {
+        CinematicDiagnosticsWarningBundleHistory.Entry(
+            sequence: 4,
+            bundleIdentifier: "warning-bundle-\(suffix)",
+            captureCount: 3,
+            targetCount: targetIdentifiers.count,
+            warningCount: warningIdentifiers.count,
+            targetIdentifiers: targetIdentifiers,
+            warningIdentifiers: warningIdentifiers,
+            repeatedWarningIdentifiers: [],
+            targetAnchors: targetAnchors,
+            relatedRowAnchors: relatedRowAnchors
+        )
+    }
+
+    private func makeWarningPulseAudit(
+        entry: CinematicDiagnosticsWarningBundleHistory.Entry,
+        snoozed: Bool
+    ) -> CinematicRunRecapShareArtifactWarningPulseAudit {
+        let quieting = snoozed
+            ? CinematicDiagnosticsWarningPulseQuietingDescriptor(entry: entry)
+            : nil
+        let status = CinematicDiagnosticsWarningPulseQuietingStatusDescriptor(
+            currentBundle: entry,
+            quietingDescriptor: quieting
+        )
+        return CinematicRunRecapShareArtifactWarningPulseAudit(
+            entry: entry,
+            status: status
         )
     }
 

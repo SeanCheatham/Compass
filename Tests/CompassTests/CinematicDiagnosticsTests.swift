@@ -5080,6 +5080,123 @@ final class CinematicDiagnosticsTests: XCTestCase {
         XCTAssertTrue(snoozedStatus.canResume)
     }
 
+    func testDiagnosticsReportCorrelatesSavedWarningPulseAuditWithCurrentBundle() throws {
+        var warningHistory = CinematicDiagnosticsWarningBundleHistory()
+        warningHistory.record(
+            warningAttentionSummary(
+                "recap-warning-pulse-audit",
+                warnings: [
+                    "visual-smoke.warning-pulse-a",
+                    "visual-smoke.warning-pulse-b"
+                ],
+                relatedRowID: "run-recap-share-artifact-tour"
+            )
+        )
+        let currentBundle = try XCTUnwrap(warningHistory.currentUnresolvedBundle)
+        let status = CinematicDiagnosticsWarningPulseQuietingStatusDescriptor(
+            currentBundle: currentBundle,
+            quietingDescriptor: nil
+        )
+        let audit = CinematicRunRecapShareArtifactWarningPulseAudit(
+            entry: currentBundle,
+            status: status
+        )
+        let session = diagnosticsSession(72, status: .succeeded, endedAt: 72_500)
+        let runRecapPlan = diagnosticsRunRecapPlan(session: session)
+        let commitPlan = CinematicCommitConstellationPlan(sessions: [session])
+        let timelinePlan = CinematicSessionTimelinePlan(sessions: [session])
+        let focusPlan = CinematicRunRecapSceneFocusPlanner.plan(
+            isRecapOverlaySelected: true,
+            recapPlan: runRecapPlan,
+            commitConstellationPlan: commitPlan,
+            timelinePlan: timelinePlan
+        )
+        let endCardPlan = CinematicRunRecapEndCardPlanner.plan(
+            isRecapOverlaySelected: true,
+            recapPlan: runRecapPlan
+        )
+        let sharePlan = CinematicRunRecapSharePlanner.plan(
+            recapPlan: runRecapPlan,
+            recapFocusDescriptor: focusPlan.descriptor,
+            endCardDescriptor: endCardPlan.descriptor
+        )
+        let artifactPlan = CinematicRunRecapShareArtifactPlanner.plan(
+            sharePlan: sharePlan,
+            sessions: [session],
+            warningPulseAudit: audit
+        )
+        let artifactEntry = CinematicRunRecapShareArtifactHistoryPlan.Entry(
+            identifier: "diagnostics-warning-pulse-artifact-entry",
+            sessionNumber: 72,
+            filename: "72-\(artifactPlan.filename)",
+            url: URL(fileURLWithPath: "/tmp/diagnostics-warning-pulse/72-\(artifactPlan.filename)"),
+            pathDisplayText: "sessions/72-\(artifactPlan.filename)",
+            titleSnippet: artifactPlan.title,
+            statusSnippet: artifactPlan.status,
+            commitSnippet: artifactPlan.commitHighlight,
+            markdownContents: artifactPlan.markdownContents,
+            markdownLength: artifactPlan.markdownLength
+        )
+        let historyPlan = CinematicRunRecapShareArtifactHistoryPlan(
+            identifier: "diagnostics-warning-pulse-history",
+            isAvailable: true,
+            availabilityReason: "available",
+            storageRootDisplayText: ".compass",
+            sessionsDisplayText: ".compass/sessions",
+            retentionLimit: CinematicRunRecapShareArtifactHistoryPlan.retentionLimit,
+            entries: [artifactEntry],
+            totalCount: 1,
+            hiddenCount: 0,
+            cleanupCandidateCount: 0,
+            hiddenCleanupCandidateCount: 0,
+            cleanupCandidateIdentifiers: [],
+            warnings: [],
+            warningCount: 0,
+            hiddenWarningCount: 0,
+            exportIdentifier: "diagnostics-warning-pulse-history-export",
+            combinedMarkdownExport: artifactPlan.markdownContents
+        )
+        let report = CinematicDiagnostics.report(
+            repoName: "Diagnostics Warning Pulse",
+            phase: "Develop",
+            immediateTitle: "Correlate warning pulse audit",
+            completedCount: 1,
+            latestEvent: nil,
+            languageProfile: languageProfile(primaryLanguage: .swift),
+            activityProfile: activityProfile(),
+            influenceSettings: CinematicInfluenceSettings(),
+            commitConstellationPlan: commitPlan,
+            runRecapPlan: runRecapPlan,
+            runRecapSceneFocusPlan: focusPlan,
+            runRecapEndCardPlan: endCardPlan,
+            runRecapShareArtifactPlan: artifactPlan,
+            runRecapShareArtifactHistoryPlan: historyPlan,
+            diagnosticsWarningBundleHistory: warningHistory
+        )
+        let summary = CinematicDiagnosticsSummary(report: report)
+        let artifactRow = try XCTUnwrap(summary.rows.first { $0.id == "run-recap-share-artifact" })
+        let historyRow = try XCTUnwrap(summary.rows.first { $0.id == "run-recap-share-artifact-history" })
+        let rollupRow = try XCTUnwrap(summary.rows.first { $0.id == "run-recap-share-artifact-rollup" })
+
+        XCTAssertEqual(report.runRecapShareArtifact.warningPulseAuditIdentifier, audit.identifier)
+        XCTAssertEqual(report.runRecapShareArtifact.warningPulseAuditBundleIdentifier, currentBundle.bundleIdentifier)
+        XCTAssertEqual(report.runRecapShareArtifact.warningPulseAuditCaptureCount, currentBundle.captureCount)
+        XCTAssertEqual(report.runRecapShareArtifactHistory.warningPulseAuditCount, 1)
+        XCTAssertEqual(report.runRecapShareArtifactHistory.latestWarningPulseAuditIdentifier, audit.identifier)
+        XCTAssertEqual(report.runRecapShareArtifactRollup.warningPulseAuditCount, 1)
+        XCTAssertEqual(report.runRecapShareArtifactRollup.warningPulseStateSummary, "active 1")
+        XCTAssertEqual(report.runRecapShareArtifactRollup.warningPulseAuditIdentifiers, [audit.identifier])
+        XCTAssertTrue(report.identifier.contains("run-recap-share-artifact-warning-pulse:\(audit.identifier)"))
+        XCTAssertTrue(report.identifier.contains("run-recap-share-artifact-history-warning-pulses:1"))
+        XCTAssertTrue(report.identifier.contains("run-recap-share-artifact-rollup-warning-pulses:1"))
+        XCTAssertTrue(artifactRow.detail.contains("warning pulse active"))
+        XCTAssertTrue(historyRow.detail.contains("warning pulse audits 1"))
+        XCTAssertTrue(rollupRow.detail.contains("warning pulse audits 1 active 1"))
+        XCTAssertTrue(summary.exportText.contains("Recap share artifact:"))
+        XCTAssertTrue(summary.exportText.contains("warning pulse active"))
+        XCTAssertEqual(warningHistory.currentUnresolvedBundle, currentBundle)
+    }
+
     private func warningAttentionSummary(
         _ suffix: String,
         warnings: [String],
@@ -5497,6 +5614,23 @@ private func diagnosticsRunCue(
             metadata: nil,
             systemImage: systemImage
         )
+    )
+}
+
+private func diagnosticsRunRecapPlan(session: SessionRecord) -> CinematicRunRecapPlan {
+    CinematicRunRecapPlanner.plan(
+        state: PlanState(
+            completed: ["Complete diagnostics warning pulse audit"],
+            immediate: nil,
+            midTerm: "",
+            longTerm: ""
+        ),
+        sessions: [session],
+        isRunning: false,
+        isAutoPlaying: false,
+        recentRunCues: [:],
+        commitConstellationPlan: CinematicCommitConstellationPlan(sessions: [session]),
+        nativeFeedbackLifecycle: CinematicNativeFeedbackCueLifecycle()
     )
 }
 
