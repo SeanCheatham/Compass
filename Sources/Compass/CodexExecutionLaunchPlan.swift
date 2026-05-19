@@ -29,6 +29,61 @@ struct CodexDevcontainerEnvironmentVariable: Equatable {
     }
 }
 
+struct CodexDevcontainerBuildDescriptor: Equatable {
+    static let labelLimit = 48
+    static let buildArgNameLimit = 128
+    static let buildArgCountLimit = 32
+    static let buildArgValueLimit = 4096
+    static let buildArgTotalValueLimit = 16_384
+
+    var dockerfileLabel: String?
+    var contextLabel: String?
+    var targetLabel: String?
+    var buildArgNames: [String]
+
+    init(
+        dockerfileLabel: String? = nil,
+        contextLabel: String? = nil,
+        targetLabel: String? = nil,
+        buildArgNames: [String] = []
+    ) {
+        self.dockerfileLabel = Self.boundedOptionalText(dockerfileLabel, limit: Self.labelLimit)
+        self.contextLabel = Self.boundedOptionalText(contextLabel, limit: Self.labelLimit)
+        self.targetLabel = Self.boundedOptionalText(targetLabel, limit: Self.labelLimit)
+        self.buildArgNames = buildArgNames
+            .map { Self.boundedText($0, limit: Self.buildArgNameLimit) }
+            .filter { !$0.isEmpty }
+            .sorted()
+    }
+
+    var supportTokens: [String] {
+        var tokens: [String] = []
+        if let dockerfileLabel {
+            tokens.append("dockerfile:\(dockerfileLabel)")
+        }
+        if let contextLabel {
+            tokens.append("context:\(contextLabel)")
+        }
+        if let targetLabel {
+            tokens.append("target:\(targetLabel)")
+        }
+        if !buildArgNames.isEmpty {
+            tokens.append("buildArgs:\(buildArgNames.count)")
+            tokens += buildArgNames.map { "arg:\($0)" }
+        }
+        return tokens
+    }
+
+    private static func boundedOptionalText(_ text: String?, limit: Int) -> String? {
+        let bounded = boundedText(text ?? "", limit: limit)
+        return bounded.isEmpty ? nil : bounded
+    }
+
+    private static func boundedText(_ text: String, limit: Int) -> String {
+        CodexExecutionLaunchPlan.boundedText(text, limit: limit)
+    }
+}
+
 struct CodexDevcontainerImageConfiguration: Equatable {
     static let imageLabelLimit = 80
     static let workspaceLabelLimit = 80
@@ -86,6 +141,7 @@ struct CodexDevcontainerSupportReport: Equatable {
     var configURL: URL
     var name: String?
     var imageConfiguration: CodexDevcontainerImageConfiguration?
+    var buildDescriptor: CodexDevcontainerBuildDescriptor?
     var supportTokens: [String]
     var omittedTokenCount: Int
     var reason: String?
@@ -95,6 +151,7 @@ struct CodexDevcontainerSupportReport: Equatable {
         configURL: URL,
         name: String? = nil,
         imageConfiguration: CodexDevcontainerImageConfiguration? = nil,
+        buildDescriptor: CodexDevcontainerBuildDescriptor? = nil,
         supportTokens: [String] = [],
         omittedTokenCount: Int = 0,
         reason: String? = nil
@@ -103,6 +160,7 @@ struct CodexDevcontainerSupportReport: Equatable {
         self.configURL = configURL.standardizedFileURL
         self.name = Self.boundedOptionalText(name, limit: Self.nameLimit)
         self.imageConfiguration = imageConfiguration
+        self.buildDescriptor = buildDescriptor
         self.supportTokens = supportTokens.map { Self.boundedText($0, limit: Self.tokenLimit) }
         self.omittedTokenCount = max(0, omittedTokenCount)
         self.reason = Self.boundedOptionalText(reason, limit: Self.reasonLimit)
@@ -283,9 +341,30 @@ struct CodexDevcontainerSupportReport: Equatable {
             )
         }
 
+        let buildDescriptor: CodexDevcontainerBuildDescriptor?
+        let hasMalformedBuildDescriptor: Bool
+        switch parseBuildDescriptor(dictionary) {
+        case let .success(parsedBuildDescriptor):
+            buildDescriptor = parsedBuildDescriptor
+            hasMalformedBuildDescriptor = false
+        case let .failure(reason):
+            if composeKeys.isEmpty {
+                return Self(
+                    classification: .malformed,
+                    configURL: configURL,
+                    name: name,
+                    reason: reason
+                )
+            }
+            buildDescriptor = nil
+            hasMalformedBuildDescriptor = true
+        }
+
         let supportTokenResult = supportTokens(
             hasCompose: !composeKeys.isEmpty,
             hasBuild: !buildKeys.isEmpty,
+            buildDescriptor: buildDescriptor,
+            hasMalformedBuildDescriptor: hasMalformedBuildDescriptor,
             hasFeatures: !featureKeys.isEmpty,
             unsupportedKeys: unsupportedKeys,
             containerEnvNames: containerEnv.map(\.name)
@@ -296,6 +375,7 @@ struct CodexDevcontainerSupportReport: Equatable {
                 classification: .composeBased,
                 configURL: configURL,
                 name: name,
+                buildDescriptor: buildDescriptor,
                 supportTokens: supportTokenResult.tokens,
                 omittedTokenCount: supportTokenResult.omittedCount,
                 reason: "Compose devcontainer fields require unsupported routing."
@@ -307,6 +387,7 @@ struct CodexDevcontainerSupportReport: Equatable {
                 classification: .buildBased,
                 configURL: configURL,
                 name: name,
+                buildDescriptor: buildDescriptor,
                 supportTokens: supportTokenResult.tokens,
                 omittedTokenCount: supportTokenResult.omittedCount,
                 reason: "Build devcontainer fields require unsupported routing."
@@ -427,6 +508,21 @@ struct CodexDevcontainerSupportReport: Equatable {
         case failure(String)
     }
 
+    private enum BuildDescriptorParseResult {
+        case success(CodexDevcontainerBuildDescriptor?)
+        case failure(String)
+    }
+
+    private enum BuildLabelParseResult {
+        case success(String)
+        case failure(String)
+    }
+
+    private enum BuildArgsParseResult {
+        case success(names: [String], totalValueLength: Int)
+        case failure(String)
+    }
+
     private static func parseContainerEnv(_ rawValue: Any?) -> ContainerEnvParseResult {
         guard let rawValue else {
             return .success([])
@@ -476,9 +572,187 @@ struct CodexDevcontainerSupportReport: Equatable {
         return .success(variables)
     }
 
+    private static func parseBuildDescriptor(_ dictionary: [String: Any]) -> BuildDescriptorParseResult {
+        let buildKeys = presentKeys(["build", "dockerFile", "dockerfile"], in: dictionary)
+        guard !buildKeys.isEmpty else {
+            return .success(nil)
+        }
+
+        var dockerfileLabel: String?
+        var contextLabel: String?
+        var targetLabel: String?
+        var buildArgNames: [String] = []
+        var buildArgTotalValueLength = 0
+
+        for key in ["dockerFile", "dockerfile"] where dictionary[key] != nil {
+            switch parseBuildPathLabel(dictionary[key], fieldName: key) {
+            case let .success(label):
+                if dockerfileLabel == nil {
+                    dockerfileLabel = label
+                }
+            case let .failure(reason):
+                return .failure(reason)
+            }
+        }
+
+        if let rawBuild = dictionary["build"] {
+            if let stringBuild = rawBuild as? String {
+                switch parseBuildPathLabel(stringBuild, fieldName: "build") {
+                case let .success(label):
+                    if dockerfileLabel == nil {
+                        dockerfileLabel = label
+                    }
+                case let .failure(reason):
+                    return .failure(reason)
+                }
+            } else if let buildObject = rawBuild as? [String: Any] {
+                for key in ["dockerfile", "dockerFile"] where buildObject[key] != nil {
+                    switch parseBuildPathLabel(buildObject[key], fieldName: "build.\(key)") {
+                    case let .success(label):
+                        if dockerfileLabel == nil {
+                            dockerfileLabel = label
+                        }
+                    case let .failure(reason):
+                        return .failure(reason)
+                    }
+                }
+
+                if buildObject["context"] != nil {
+                    switch parseBuildPathLabel(buildObject["context"], fieldName: "build.context") {
+                    case let .success(label):
+                        contextLabel = label
+                    case let .failure(reason):
+                        return .failure(reason)
+                    }
+                }
+
+                if buildObject["target"] != nil {
+                    switch parseBuildNameLabel(buildObject["target"], fieldName: "build.target") {
+                    case let .success(label):
+                        targetLabel = label
+                    case let .failure(reason):
+                        return .failure(reason)
+                    }
+                }
+
+                for key in ["args", "buildArgs"] where buildObject[key] != nil {
+                    switch parseBuildArgNames(
+                        buildObject[key],
+                        existingNames: buildArgNames,
+                        totalValueLength: buildArgTotalValueLength
+                    ) {
+                    case let .success(names, totalValueLength):
+                        buildArgNames = names
+                        buildArgTotalValueLength = totalValueLength
+                    case let .failure(reason):
+                        return .failure(reason)
+                    }
+                }
+            } else {
+                return .failure("build must be a string or object.")
+            }
+        }
+
+        return .success(CodexDevcontainerBuildDescriptor(
+            dockerfileLabel: dockerfileLabel,
+            contextLabel: contextLabel,
+            targetLabel: targetLabel,
+            buildArgNames: buildArgNames
+        ))
+    }
+
+    private static func parseBuildPathLabel(_ rawValue: Any?, fieldName: String) -> BuildLabelParseResult {
+        guard let value = rawValue as? String else {
+            return .failure("\(fieldName) must be a string.")
+        }
+
+        guard !value.contains("\0") else {
+            return .failure("\(fieldName) must not contain NUL characters.")
+        }
+
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            return .failure("\(fieldName) must not be empty.")
+        }
+
+        return .success(sanitizedBuildPathLabel(trimmed))
+    }
+
+    private static func parseBuildNameLabel(_ rawValue: Any?, fieldName: String) -> BuildLabelParseResult {
+        guard let value = rawValue as? String else {
+            return .failure("\(fieldName) must be a string.")
+        }
+
+        guard !value.contains("\0") else {
+            return .failure("\(fieldName) must not contain NUL characters.")
+        }
+
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            return .failure("\(fieldName) must not be empty.")
+        }
+
+        let bounded = boundedText(trimmed, limit: CodexDevcontainerBuildDescriptor.labelLimit)
+        guard isSafeBuildLabel(bounded) else {
+            return .success("present")
+        }
+        return .success(bounded)
+    }
+
+    private static func parseBuildArgNames(
+        _ rawValue: Any?,
+        existingNames: [String],
+        totalValueLength: Int
+    ) -> BuildArgsParseResult {
+        guard let dictionary = rawValue as? [String: Any] else {
+            return .failure("build args must be an object with string values.")
+        }
+
+        var names = Set(existingNames)
+        var runningValueLength = totalValueLength
+        guard names.count + dictionary.count <= CodexDevcontainerBuildDescriptor.buildArgCountLimit else {
+            return .failure(
+                "build args may include at most \(CodexDevcontainerBuildDescriptor.buildArgCountLimit) variables."
+            )
+        }
+
+        for name in dictionary.keys.sorted() {
+            guard isSafeBuildArgName(name) else {
+                return .failure("build args contain an unsafe name.")
+            }
+
+            guard let value = dictionary[name] as? String else {
+                return .failure("build args values must be strings.")
+            }
+
+            guard !value.contains("\0") else {
+                return .failure("build args values must not contain NUL characters.")
+            }
+
+            guard value.count <= CodexDevcontainerBuildDescriptor.buildArgValueLimit else {
+                return .failure(
+                    "build arg value exceeds \(CodexDevcontainerBuildDescriptor.buildArgValueLimit) characters."
+                )
+            }
+
+            runningValueLength += value.count
+            guard runningValueLength <= CodexDevcontainerBuildDescriptor.buildArgTotalValueLimit else {
+                return .failure(
+                    "build arg values exceed \(CodexDevcontainerBuildDescriptor.buildArgTotalValueLimit) total characters."
+                )
+            }
+
+            names.insert(name)
+        }
+
+        return .success(names: names.sorted(), totalValueLength: runningValueLength)
+    }
+
     private static func supportTokens(
         hasCompose: Bool,
         hasBuild: Bool,
+        buildDescriptor: CodexDevcontainerBuildDescriptor? = nil,
+        hasMalformedBuildDescriptor: Bool = false,
         hasFeatures: Bool,
         unsupportedKeys: [String],
         containerEnvNames: [String] = []
@@ -489,6 +763,11 @@ struct CodexDevcontainerSupportReport: Equatable {
         }
         if hasBuild {
             rawTokens.append("build")
+            if hasMalformedBuildDescriptor {
+                rawTokens.append("build:malformed")
+            } else {
+                rawTokens += buildDescriptor?.supportTokens ?? []
+            }
         }
         if hasFeatures {
             rawTokens.append("features")
@@ -515,6 +794,67 @@ struct CodexDevcontainerSupportReport: Equatable {
         in dictionary: [String: Any]
     ) -> [String] {
         keys.filter { dictionary[$0] != nil }
+    }
+
+    private static func sanitizedBuildPathLabel(_ value: String) -> String {
+        let normalized = value.replacingOccurrences(of: "\\", with: "/")
+        if normalized == "." {
+            return "dot"
+        }
+        if normalized == ".." {
+            return "parent"
+        }
+        if normalized.hasPrefix("/") || isWindowsAbsolutePath(normalized) {
+            return "absolute"
+        }
+
+        let components = normalized
+            .split(separator: "/")
+            .map(String.init)
+            .filter { !$0.isEmpty && $0 != "." && $0 != ".." }
+        guard let last = components.last else {
+            return "relative"
+        }
+
+        let bounded = boundedText(last, limit: CodexDevcontainerBuildDescriptor.labelLimit)
+        guard isSafeBuildLabel(bounded) else {
+            return "relative"
+        }
+        return bounded
+    }
+
+    private static func isWindowsAbsolutePath(_ value: String) -> Bool {
+        let scalars = Array(value.unicodeScalars)
+        guard scalars.count >= 3 else { return false }
+        return isASCIILetter(scalars[0]) && scalars[1] == ":" && scalars[2] == "/"
+    }
+
+    private static func isSafeBuildLabel(_ label: String) -> Bool {
+        guard !label.isEmpty,
+              label.count <= CodexDevcontainerBuildDescriptor.labelLimit else {
+            return false
+        }
+
+        return label.unicodeScalars.allSatisfy { scalar in
+            isASCIILetter(scalar)
+                || isASCIIDigit(scalar)
+                || scalar == "_"
+                || scalar == "-"
+                || scalar == "."
+        }
+    }
+
+    private static func isSafeBuildArgName(_ name: String) -> Bool {
+        guard !name.isEmpty,
+              name.count <= CodexDevcontainerBuildDescriptor.buildArgNameLimit,
+              let first = name.unicodeScalars.first,
+              isASCIILetter(first) || first == "_" else {
+            return false
+        }
+
+        return name.unicodeScalars.allSatisfy { scalar in
+            isASCIILetter(scalar) || isASCIIDigit(scalar) || scalar == "_"
+        }
     }
 
     private static func boundedOptionalText(_ text: String?, limit: Int) -> String? {

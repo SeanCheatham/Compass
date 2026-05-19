@@ -156,10 +156,243 @@ final class CodexExecutionLaunchPlanTests: XCTestCase {
         XCTAssertFalse(plan.isContainerRoute)
         XCTAssertEqual(
             plan.fallbackReason,
-            "Unsupported devcontainer route: build-based tokens build."
+            "Unsupported devcontainer route: build-based tokens build,dockerfile:Dockerfile."
         )
         XCTAssertEqual(plan.devcontainerSupportReport?.classification, .buildBased)
-        XCTAssertEqual(plan.devcontainerSupportReport?.supportTokens, ["build"])
+        XCTAssertEqual(plan.devcontainerSupportReport?.supportTokens, ["build", "dockerfile:Dockerfile"])
+    }
+
+    func testBuildStringAndTopLevelDockerfileFormsExposeSanitizedDescriptorTokens() throws {
+        let cases: [(prefix: String, json: String, expectedTokens: [String], expectedDockerfile: String?)] = [
+            (
+                "CodexExecutionLaunchPlanBuildString",
+                #"{"build":"docker/Dockerfile.dev"}"#,
+                ["build", "dockerfile:Dockerfile.dev"],
+                "Dockerfile.dev"
+            ),
+            (
+                "CodexExecutionLaunchPlanTopLevelDockerFile",
+                #"{"dockerFile":"../Dockerfile"}"#,
+                ["build", "dockerfile:Dockerfile"],
+                "Dockerfile"
+            ),
+            (
+                "CodexExecutionLaunchPlanTopLevelDockerfile",
+                #"{"dockerfile":"/tmp/private-repo/Dockerfile.secret"}"#,
+                ["build", "dockerfile:absolute"],
+                "absolute"
+            )
+        ]
+
+        for testCase in cases {
+            let repoURL = try makeTemporaryDirectory(prefix: testCase.prefix)
+            try write(testCase.json, to: devcontainerURL(in: repoURL))
+
+            let plan = CodexExecutionLaunchPlan.plan(
+                repoURL: repoURL,
+                preference: .devcontainerPreferred,
+                containerToolResolver: { _ in "/usr/local/bin/container" }
+            )
+            let report = try XCTUnwrap(plan.devcontainerSupportReport)
+
+            XCTAssertFalse(plan.isContainerRoute)
+            XCTAssertEqual(report.classification, .buildBased)
+            XCTAssertEqual(report.supportTokens, testCase.expectedTokens)
+            XCTAssertEqual(report.buildDescriptor?.dockerfileLabel, testCase.expectedDockerfile)
+            XCTAssertFalse(report.supportSummary.contains("/tmp/private-repo"))
+        }
+    }
+
+    func testBuildObjectExposesSortedBuildArgNamesWithoutValues() throws {
+        let repoURL = try makeTemporaryDirectory(prefix: "CodexExecutionLaunchPlanBuildObject")
+        let secretValue = "secret-build-arg-value"
+        try write(
+            #"{"build":{"dockerfile":"docker/Dockerfile.runtime","context":"..","target":"runtime","args":{"ZETA":"\#(secretValue)","ALPHA":"plain"}}}"#,
+            to: devcontainerURL(in: repoURL)
+        )
+
+        let plan = CodexExecutionLaunchPlan.plan(
+            repoURL: repoURL,
+            preference: .devcontainerPreferred,
+            containerToolResolver: { _ in "/usr/local/bin/container" }
+        )
+        let report = try XCTUnwrap(plan.devcontainerSupportReport)
+        let descriptor = try XCTUnwrap(report.buildDescriptor)
+        let diagnosticsText = [
+            report.supportSummary,
+            plan.preflightSummary(phase: "Develop"),
+            plan.routeDetail()
+        ].joined(separator: " ")
+
+        XCTAssertFalse(plan.isContainerRoute)
+        XCTAssertNil(plan.devcontainer)
+        XCTAssertEqual(report.classification, .buildBased)
+        XCTAssertEqual(descriptor.dockerfileLabel, "Dockerfile.runtime")
+        XCTAssertEqual(descriptor.contextLabel, "parent")
+        XCTAssertEqual(descriptor.targetLabel, "runtime")
+        XCTAssertEqual(descriptor.buildArgNames, ["ALPHA", "ZETA"])
+        XCTAssertEqual(report.supportTokens, [
+            "build",
+            "dockerfile:Dockerfile.runtime",
+            "context:parent",
+            "target:runtime",
+            "buildArgs:2",
+            "arg:ALPHA",
+            "arg:ZETA"
+        ])
+        XCTAssertTrue(diagnosticsText.contains("buildArgs:2"))
+        XCTAssertTrue(diagnosticsText.contains("arg:ALPHA"))
+        XCTAssertTrue(diagnosticsText.contains("arg:ZETA"))
+        XCTAssertFalse(diagnosticsText.contains(secretValue))
+    }
+
+    func testBuildDescriptorTokensAreDeterministicallyOrderedAndBounded() throws {
+        let repoURL = try makeTemporaryDirectory(prefix: "CodexExecutionLaunchPlanBuildBounded")
+        let args = (0..<10)
+            .map { #""ARG\#(String(format: "%02d", $0))":"value""# }
+            .joined(separator: ",")
+        try write(
+            #"{"build":{"dockerfile":"Dockerfile","context":".","target":"builder","args":{\#(args)}}}"#,
+            to: devcontainerURL(in: repoURL)
+        )
+
+        let plan = CodexExecutionLaunchPlan.plan(
+            repoURL: repoURL,
+            preference: .devcontainerPreferred,
+            containerToolResolver: { _ in "/usr/local/bin/container" }
+        )
+        let report = try XCTUnwrap(plan.devcontainerSupportReport)
+
+        XCTAssertEqual(report.supportTokens, [
+            "build",
+            "dockerfile:Dockerfile",
+            "context:dot",
+            "target:builder",
+            "buildArgs:10",
+            "arg:ARG00",
+            "arg:ARG01",
+            "arg:ARG02"
+        ])
+        XCTAssertEqual(report.omittedTokenCount, 7)
+        XCTAssertTrue(report.tokenSummary.contains("+7-more"))
+    }
+
+    func testMalformedBuildArgsFallBackWithoutLeakingValues() throws {
+        let cases: [(prefix: String, json: String, reasonToken: String, leakedValue: String)] = [
+            (
+                "CodexExecutionLaunchPlanBuildArgsArray",
+                #"{"build":{"dockerfile":"Dockerfile","args":["SECRET_TOKEN"]}}"#,
+                "build args must be an object",
+                "SECRET_TOKEN"
+            ),
+            (
+                "CodexExecutionLaunchPlanBuildArgsValue",
+                #"{"build":{"dockerfile":"Dockerfile","args":{"SAFE_ARG":true}}}"#,
+                "build args values must be strings",
+                "true"
+            ),
+            (
+                "CodexExecutionLaunchPlanBuildArgsName",
+                #"{"build":{"dockerfile":"Dockerfile","args":{"BAD-NAME":"secret-value"}}}"#,
+                "build args contain an unsafe name",
+                "secret-value"
+            )
+        ]
+
+        for testCase in cases {
+            let repoURL = try makeTemporaryDirectory(prefix: testCase.prefix)
+            try write(testCase.json, to: devcontainerURL(in: repoURL))
+
+            let plan = CodexExecutionLaunchPlan.plan(
+                repoURL: repoURL,
+                preference: .devcontainerPreferred,
+                containerToolResolver: { _ in "/usr/local/bin/container" }
+            )
+            let report = try XCTUnwrap(plan.devcontainerSupportReport)
+
+            XCTAssertFalse(plan.isContainerRoute)
+            XCTAssertEqual(report.classification, .malformed)
+            XCTAssertTrue(plan.fallbackReason?.contains(testCase.reasonToken) == true)
+            XCTAssertFalse(plan.fallbackReason?.contains(testCase.leakedValue) == true)
+            XCTAssertLessThanOrEqual(
+                plan.fallbackReason?.count ?? 0,
+                CodexExecutionLaunchPlan.fallbackReasonLimit
+            )
+        }
+    }
+
+    func testMalformedBuildShapesFallBackWithBoundedReasons() throws {
+        let cases: [(prefix: String, json: String, reasonToken: String)] = [
+            (
+                "CodexExecutionLaunchPlanBuildBoolean",
+                #"{"build":true}"#,
+                "build must be a string or object"
+            ),
+            (
+                "CodexExecutionLaunchPlanBuildContextArray",
+                #"{"build":{"dockerfile":"Dockerfile","context":["/tmp/secret-context"]}}"#,
+                "build.context must be a string"
+            ),
+            (
+                "CodexExecutionLaunchPlanBuildTargetEmpty",
+                #"{"build":{"dockerfile":"Dockerfile","target":" "}}"#,
+                "build.target must not be empty"
+            )
+        ]
+
+        for testCase in cases {
+            let repoURL = try makeTemporaryDirectory(prefix: testCase.prefix)
+            try write(testCase.json, to: devcontainerURL(in: repoURL))
+
+            let plan = CodexExecutionLaunchPlan.plan(
+                repoURL: repoURL,
+                preference: .devcontainerPreferred,
+                containerToolResolver: { _ in "/usr/local/bin/container" }
+            )
+
+            XCTAssertFalse(plan.isContainerRoute)
+            XCTAssertEqual(plan.devcontainerSupportReport?.classification, .malformed)
+            XCTAssertTrue(plan.fallbackReason?.contains(testCase.reasonToken) == true)
+            XCTAssertFalse(plan.fallbackReason?.contains("/tmp/secret-context") == true)
+            XCTAssertLessThanOrEqual(
+                plan.fallbackReason?.count ?? 0,
+                CodexExecutionLaunchPlan.fallbackReasonLimit
+            )
+        }
+    }
+
+    func testBuildContextDiagnosticsDoNotExposeAbsoluteRepoPaths() throws {
+        let repoURL = try makeTemporaryDirectory(prefix: "CodexExecutionLaunchPlanBuildPath")
+        let rawContext = repoURL
+            .appending(path: "secret-context", directoryHint: .isDirectory)
+            .path
+        try write(
+            #"{"build":{"dockerfile":"\#(rawContext)/Dockerfile","context":"\#(rawContext)","target":"runtime","args":{"TOKEN":"secret-value"}}}"#,
+            to: devcontainerURL(in: repoURL)
+        )
+
+        let plan = CodexExecutionLaunchPlan.plan(
+            repoURL: repoURL,
+            preference: .devcontainerPreferred,
+            containerToolResolver: { _ in "/usr/local/bin/container" }
+        )
+        let report = try XCTUnwrap(plan.devcontainerSupportReport)
+        let diagnosticsText = [
+            report.supportSummary,
+            plan.preflightSummary(phase: "Verify"),
+            plan.routeDetail()
+        ].joined(separator: " ")
+
+        XCTAssertEqual(report.supportTokens, [
+            "build",
+            "dockerfile:absolute",
+            "context:absolute",
+            "target:runtime",
+            "buildArgs:1",
+            "arg:TOKEN"
+        ])
+        XCTAssertFalse(diagnosticsText.contains(rawContext))
+        XCTAssertFalse(diagnosticsText.contains("secret-value"))
     }
 
     func testUnsupportedComposeConfigFallsBackToNative() throws {
@@ -201,12 +434,12 @@ final class CodexExecutionLaunchPlanTests: XCTestCase {
         XCTAssertEqual(plan.devcontainerSupportReport?.classification, .composeBased)
         XCTAssertEqual(
             plan.devcontainerSupportReport?.supportTokens,
-            ["compose", "build", "features", "extra:postCreateCommand", "extra:remoteUser"]
+            ["compose", "build", "dockerfile:Dockerfile", "features", "extra:postCreateCommand", "extra:remoteUser"]
         )
-        XCTAssertTrue(plan.fallbackReason?.contains("compose-based tokens compose,build,features") == true)
+        XCTAssertTrue(plan.fallbackReason?.contains("compose-based tokens compose,build,dockerfile:Dockerfile") == true)
 
         let preflight = plan.preflightSummary(phase: "Develop")
-        XCTAssertTrue(preflight.contains("devcontainer compose-based tokens compose,build,features"))
+        XCTAssertTrue(preflight.contains("devcontainer compose-based tokens compose,build,dockerfile:Dockerfile"))
         XCTAssertTrue(preflight.contains("extra:postCreateCommand"))
         XCTAssertTrue(preflight.contains("extra:remoteUser"))
     }

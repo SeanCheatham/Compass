@@ -67,11 +67,12 @@ final class CodexExecutionEnvironmentTests: XCTestCase {
 
         XCTAssertEqual(environment.devcontainerDiscovery.supportReport.classification, .buildBased)
         XCTAssertTrue(menu.statusText.contains("build-based"))
+        XCTAssertTrue(menu.statusText.contains("dockerfile:Dockerfile"))
         XCTAssertTrue(menu.statusText.contains("features"))
         XCTAssertTrue(menu.statusText.contains("extra:postCreateCommand"))
         XCTAssertTrue(menu.items.first { $0.preference == .devcontainerPreferred }?.description.contains("build-based") == true)
-        XCTAssertTrue(preflight.contains("devcontainer build-based tokens build,features,extra:postCreateCommand"))
-        XCTAssertTrue(detail.contains("Unsupported devcontainer route: build-based tokens build,features,extra:postCreateCommand."))
+        XCTAssertTrue(preflight.contains("devcontainer build-based tokens build,dockerfile:Dockerfile,features,extra:postCreateCommand"))
+        XCTAssertTrue(detail.contains("Unsupported devcontainer route: build-based tokens build,dockerfile:Dockerfile,features,extra:postCreateCommand."))
     }
 
     func testContainerEnvDiagnosticsExposeNamesWithoutValues() throws {
