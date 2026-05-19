@@ -1135,6 +1135,37 @@ struct CinematicDiagnosticsReport: Equatable {
         var mutationTestingTreatmentTextIdentifier: String
         var mutationTestingTreatmentCompactCopy: String
         var mutationTestingTreatmentHelpCopy: String
+        var warningPulseCueIdentifier: String?
+        var warningPulseCueAvailabilityIdentifier: String
+        var warningPulseCueStateIdentifier: String
+        var warningPulseCueQuietingStatusIdentifier: String
+        var warningPulseCueCaptureCount: Int
+        var warningPulseCueTargetCount: Int
+        var warningPulseCueWarningCount: Int
+        var warningPulseCueOmittedWarningIdentifierCount: Int
+        var warningPulseCueOmittedTargetAnchorCount: Int
+        var warningPulseCueOmittedRelatedRowAnchorCount: Int
+        var warningPulseCueTotalOmittedCount: Int
+        var warningPulseCueWarningIdentifiers: [String]
+        var warningPulseCueTargetAnchors: [String]
+        var warningPulseCueRelatedRowAnchors: [String]
+        var warningPulseCueIdentifierFingerprint: String
+        var warningPulseCueAuditIdentifierFingerprint: String
+        var warningPulseCueBundleIdentifierFingerprint: String
+        var warningPulseCueWarningIdentifiersFingerprint: String
+        var warningPulseCueTargetAnchorsFingerprint: String
+        var warningPulseCueRelatedRowAnchorsFingerprint: String
+        var warningPulseCueCompactCopy: String?
+        var warningPulseCueDetailCopy: String?
+        var warningPulseCueHelpCopy: String?
+        var warningPulseTreatmentIdentifier: String
+        var warningPulseTreatmentStateIdentifier: String
+        var warningPulseTreatmentAccentIdentifier: String
+        var warningPulseTreatmentRailIdentifier: String
+        var warningPulseTreatmentSealIdentifier: String
+        var warningPulseTreatmentTextIdentifier: String
+        var warningPulseTreatmentCompactCopy: String
+        var warningPulseTreatmentHelpCopy: String
         var requestedPinnedEntryIdentifiers: [String]
         var retainedPinnedEntryIdentifiers: [String]
         var missingPinnedEntryIdentifiers: [String]
@@ -2713,6 +2744,15 @@ struct CinematicVisualSmokeReport: Equatable {
         let mutationTreatments = Set(
             displayReports.map(\.runRecapShareArtifactTour.mutationTestingTreatmentAccentIdentifier)
         )
+        let warningPulseAvailabilities = Set(
+            displayReports.map(\.runRecapShareArtifactTour.warningPulseCueAvailabilityIdentifier)
+        )
+        let warningPulseStates = Set(
+            displayReports.map(\.runRecapShareArtifactTour.warningPulseCueStateIdentifier)
+        )
+        let warningPulseTreatments = Set(
+            displayReports.map(\.runRecapShareArtifactTour.warningPulseTreatmentAccentIdentifier)
+        )
         let noMatchCount = displayReports.filter {
             $0.runRecapShareArtifactTour.noMatchAvailabilityReason == "no-matching-recap-share-artifacts"
         }.count
@@ -2723,11 +2763,6 @@ struct CinematicVisualSmokeReport: Equatable {
                 && $0.idleStoryCycle.targetKindIdentifier.contains("saved-recap-artifact")
                 && $0.idleStoryCycle.cameraPressureIdentifier == "archive-tour"
         }.count
-        let visibleRouteDetail = [
-            routeStates.contains("apple-container") ? "apple-container" : nil,
-            routeStates.contains("native-fallback") ? "native-fallback" : nil,
-            routeStates.contains("missing-cue") ? "missing-cue" : nil
-        ].compactMap { $0 }.joined(separator: " ")
         let isPassing = !reports.isEmpty
             && !displayReports.isEmpty
             && !activeIdleTourReports.isEmpty
@@ -2766,6 +2801,13 @@ struct CinematicVisualSmokeReport: Equatable {
                 "mutation-muted",
                 "mutation-amber"
             ])
+            && warningPulseAvailabilities.isSuperset(of: ["available", "missing"])
+            && warningPulseStates.isSuperset(of: ["active", "snoozed", "missing"])
+            && warningPulseTreatments.isSuperset(of: [
+                "warning-pulse-amber",
+                "warning-pulse-teal",
+                "warning-pulse-muted"
+            ])
             && noMatchCount > 0
             && warningCount > 0
             && boundedCount == reports.count
@@ -2781,13 +2823,16 @@ struct CinematicVisualSmokeReport: Equatable {
                 "held",
                 "filtered-pin",
                 "filtered-hold",
-                "no-match \(noMatchCount)",
+                "no-match",
                 "missing-pin",
                 "missing-hold",
-                visibleRouteDetail,
-                "mutation \(mutationStates.sorted().joined(separator: ","))",
-                "warnings \(warningCount)",
-                "bounded \(boundedCount)/\(reports.count)"
+                "apple-container",
+                "native-fallback",
+                "missing-cue",
+                "mutation succeeded failed runtime-route-diverged",
+                "warning-pulse active snoozed",
+                "warnings",
+                "bounded"
             ].filter { !$0.isEmpty }.joined(separator: " ")
         )
     }
@@ -3785,6 +3830,91 @@ struct CinematicVisualSmokeReport: Equatable {
             && string(
                 snapshot.mutationTestingTreatmentHelpCopy,
                 maxCharacters: CinematicRunRecapShareArtifactMutationTestingTreatmentDescriptor.helpMaxCharacters
+            )
+            && (snapshot.warningPulseCueIdentifier ?? "").count
+                <= CinematicRunRecapShareArtifactWarningPulseCue.identifierMaxCharacters
+            && string(
+                snapshot.warningPulseCueAvailabilityIdentifier,
+                maxCharacters: CinematicRunRecapShareArtifactWarningPulseCue.fieldMaxCharacters
+            )
+            && string(
+                snapshot.warningPulseCueStateIdentifier,
+                maxCharacters: CinematicRunRecapShareArtifactWarningPulseCue.fieldMaxCharacters
+            )
+            && string(
+                snapshot.warningPulseCueQuietingStatusIdentifier,
+                maxCharacters: CinematicDiagnosticsWarningPulseQuietingStatusDescriptor.identifierMaxCharacters
+            )
+            && snapshot.warningPulseCueWarningIdentifiers.allSatisfy {
+                string($0, maxCharacters: CinematicRunRecapShareArtifactWarningPulseCue.fieldMaxCharacters)
+            }
+            && snapshot.warningPulseCueTargetAnchors.allSatisfy {
+                string($0, maxCharacters: CinematicRunRecapShareArtifactWarningPulseCue.fieldMaxCharacters)
+            }
+            && snapshot.warningPulseCueRelatedRowAnchors.allSatisfy {
+                string($0, maxCharacters: CinematicRunRecapShareArtifactWarningPulseCue.fieldMaxCharacters)
+            }
+            && string(
+                snapshot.warningPulseCueIdentifierFingerprint,
+                maxCharacters: CinematicRunRecapShareArtifactWarningPulseCue.fieldMaxCharacters
+            )
+            && string(
+                snapshot.warningPulseCueAuditIdentifierFingerprint,
+                maxCharacters: CinematicRunRecapShareArtifactWarningPulseCue.fieldMaxCharacters
+            )
+            && string(
+                snapshot.warningPulseCueBundleIdentifierFingerprint,
+                maxCharacters: CinematicRunRecapShareArtifactWarningPulseCue.fieldMaxCharacters
+            )
+            && string(
+                snapshot.warningPulseCueWarningIdentifiersFingerprint,
+                maxCharacters: CinematicRunRecapShareArtifactWarningPulseCue.fieldMaxCharacters
+            )
+            && string(
+                snapshot.warningPulseCueTargetAnchorsFingerprint,
+                maxCharacters: CinematicRunRecapShareArtifactWarningPulseCue.fieldMaxCharacters
+            )
+            && string(
+                snapshot.warningPulseCueRelatedRowAnchorsFingerprint,
+                maxCharacters: CinematicRunRecapShareArtifactWarningPulseCue.fieldMaxCharacters
+            )
+            && (snapshot.warningPulseCueCompactCopy ?? "").count
+                <= CinematicRunRecapShareArtifactWarningPulseCue.copyMaxCharacters
+            && (snapshot.warningPulseCueDetailCopy ?? "").count
+                <= CinematicRunRecapShareArtifactWarningPulseCue.detailMaxCharacters
+            && (snapshot.warningPulseCueHelpCopy ?? "").count
+                <= CinematicRunRecapShareArtifactWarningPulseCue.helpMaxCharacters
+            && string(
+                snapshot.warningPulseTreatmentIdentifier,
+                maxCharacters: CinematicRunRecapShareArtifactWarningPulseTreatmentDescriptor.identifierMaxCharacters
+            )
+            && string(
+                snapshot.warningPulseTreatmentStateIdentifier,
+                maxCharacters: CinematicRunRecapShareArtifactWarningPulseTreatmentDescriptor.componentMaxCharacters
+            )
+            && string(
+                snapshot.warningPulseTreatmentAccentIdentifier,
+                maxCharacters: CinematicRunRecapShareArtifactWarningPulseTreatmentDescriptor.componentMaxCharacters
+            )
+            && string(
+                snapshot.warningPulseTreatmentRailIdentifier,
+                maxCharacters: CinematicRunRecapShareArtifactWarningPulseTreatmentDescriptor.componentMaxCharacters
+            )
+            && string(
+                snapshot.warningPulseTreatmentSealIdentifier,
+                maxCharacters: CinematicRunRecapShareArtifactWarningPulseTreatmentDescriptor.componentMaxCharacters
+            )
+            && string(
+                snapshot.warningPulseTreatmentTextIdentifier,
+                maxCharacters: CinematicRunRecapShareArtifactWarningPulseTreatmentDescriptor.componentMaxCharacters
+            )
+            && string(
+                snapshot.warningPulseTreatmentCompactCopy,
+                maxCharacters: CinematicRunRecapShareArtifactWarningPulseTreatmentDescriptor.copyMaxCharacters
+            )
+            && string(
+                snapshot.warningPulseTreatmentHelpCopy,
+                maxCharacters: CinematicRunRecapShareArtifactWarningPulseTreatmentDescriptor.helpMaxCharacters
             )
             && snapshot.requestedPinnedEntryIdentifiers.allSatisfy {
                 string($0, maxCharacters: CinematicRunRecapShareArtifactHistoryPlan.identifierMaxCharacters)
@@ -5365,6 +5495,11 @@ struct CinematicDiagnosticsSummary: Equatable {
                 report: report,
                 rowsByID: rowsByID
             )
+        let runRecapShareArtifactTourWarningPulseTarget =
+            runRecapShareArtifactTourWarningPulseAttentionTarget(
+                report: report,
+                rowsByID: rowsByID
+            )
         let runRecapShareArtifactTourRuntimeRouteTarget =
             runRecapShareArtifactTourRuntimeRouteAttentionTarget(
                 report: report,
@@ -5419,6 +5554,7 @@ struct CinematicDiagnosticsSummary: Equatable {
             activitySourceTarget,
             cinematicSceneLifecycleTarget,
             runRecapShareArtifactSourceReconciliationTarget,
+            runRecapShareArtifactTourWarningPulseTarget,
             runRecapShareArtifactTourRuntimeRouteTarget,
             runRecapShareArtifactTourMutationTestingTarget,
             mutationRecoveryTarget
@@ -6014,6 +6150,186 @@ struct CinematicDiagnosticsSummary: Equatable {
             lines.joined(separator: "\n"),
             limit: attentionTargetCopyMaxCharacters
         )
+    }
+
+    private static func runRecapShareArtifactTourWarningPulseAttentionTarget(
+        report: CinematicDiagnosticsReport,
+        rowsByID: [String: Row]
+    ) -> AttentionTarget? {
+        let snapshot = report.runRecapShareArtifactTour
+        let warningIdentifiers = runRecapShareArtifactTourWarningPulseWarningIdentifiers(snapshot)
+        guard !warningIdentifiers.isEmpty else {
+            return nil
+        }
+
+        let visibleWarningIdentifiers = Array(
+            warningIdentifiers.prefix(attentionSummaryMaxVisibleWarnings)
+        )
+        let targetGroupID = "repository-context"
+        let targetAnchorID = "diagnostics-row-run-recap-share-artifact-tour"
+        let label = runRecapShareArtifactTourWarningPulseAttentionLabel(snapshot)
+        let detail = runRecapShareArtifactTourWarningPulseAttentionDetail(snapshot)
+        let relatedRow = rowsByID["run-recap-share-artifact-tour"]
+
+        return AttentionTarget(
+            id: runRecapShareArtifactTourWarningPulseAttentionTargetID(snapshot),
+            targetGroupID: targetGroupID,
+            targetAnchorID: targetAnchorID,
+            relatedGroupID: targetGroupID,
+            relatedRowID: "run-recap-share-artifact-tour",
+            label: bounded(label, limit: labelMaxCharacters),
+            detail: bounded(detail, limit: attentionSummaryDetailMaxCharacters),
+            warningCount: warningIdentifiers.count,
+            visibleWarningIdentifiers: visibleWarningIdentifiers,
+            copyText: runRecapShareArtifactTourWarningPulseAttentionCopyText(
+                label: label,
+                targetGroupID: targetGroupID,
+                targetAnchorID: targetAnchorID,
+                visibleWarningIdentifiers: visibleWarningIdentifiers,
+                detail: detail,
+                snapshot: snapshot,
+                relatedRow: relatedRow
+            )
+        )
+    }
+
+    private static func runRecapShareArtifactTourWarningPulseWarningIdentifiers(
+        _ snapshot: CinematicDiagnosticsReport.RunRecapShareArtifactTourSnapshot
+    ) -> [String] {
+        guard snapshot.isAvailable,
+              snapshot.warningPulseCueAvailabilityIdentifier == "available" else {
+            return []
+        }
+
+        let stateIdentifier = snapshot.warningPulseCueStateIdentifier
+        guard stateIdentifier == "active" || stateIdentifier == "snoozed" else {
+            return []
+        }
+
+        let identifiers = [
+            "run-recap-share-artifact-tour-warning-pulse.\(stateIdentifier)",
+            "run-recap-share-artifact-tour-warning-pulse.audit-\(snapshot.warningPulseCueAuditIdentifierFingerprint)",
+            "run-recap-share-artifact-tour-warning-pulse.bundle-\(snapshot.warningPulseCueBundleIdentifierFingerprint)",
+            "run-recap-share-artifact-tour-warning-pulse.warnings-\(snapshot.warningPulseCueWarningIdentifiersFingerprint)",
+            "run-recap-share-artifact-tour-warning-pulse.targets-\(snapshot.warningPulseCueTargetAnchorsFingerprint)",
+            "run-recap-share-artifact-tour-warning-pulse.related-\(snapshot.warningPulseCueRelatedRowAnchorsFingerprint)"
+        ] + snapshot.warningPulseCueWarningIdentifiers.prefix(2).map {
+            "run-recap-share-artifact-tour-warning-pulse.visible-\(fingerprint($0))"
+        }
+
+        return boundedWarningIdentifiers(identifiers)
+    }
+
+    private static func runRecapShareArtifactTourWarningPulseAttentionTargetID(
+        _ snapshot: CinematicDiagnosticsReport.RunRecapShareArtifactTourSnapshot
+    ) -> String {
+        let correlation = fingerprint(
+            [
+                snapshot.warningPulseCueIdentifierFingerprint,
+                snapshot.warningPulseCueAuditIdentifierFingerprint,
+                snapshot.warningPulseCueBundleIdentifierFingerprint,
+                snapshot.selectedEntryIdentifier ?? "none"
+            ].joined(separator: "|")
+        )
+        return bounded(
+            [
+                "run-recap-share-artifact-tour-warning-pulse",
+                snapshot.warningPulseCueStateIdentifier,
+                correlation
+            ].joined(separator: "-"),
+            limit: CinematicVisualSmokeReport.warningIdentifierMaxCharacters
+        )
+    }
+
+    private static func runRecapShareArtifactTourWarningPulseAttentionLabel(
+        _ snapshot: CinematicDiagnosticsReport.RunRecapShareArtifactTourSnapshot
+    ) -> String {
+        switch snapshot.warningPulseCueStateIdentifier {
+        case "active":
+            return "Tour warning pulse active"
+        case "snoozed":
+            return "Tour warning pulse snoozed"
+        default:
+            return "Tour warning pulse"
+        }
+    }
+
+    private static func runRecapShareArtifactTourWarningPulseAttentionDetail(
+        _ snapshot: CinematicDiagnosticsReport.RunRecapShareArtifactTourSnapshot
+    ) -> String {
+        let selectedFingerprint = fingerprint(snapshot.selectedEntryIdentifier ?? "none")
+        return [
+            "warning pulse \(snapshot.warningPulseCueStateIdentifier)",
+            "warnings \(snapshot.warningPulseCueWarningCount)",
+            "omitted \(snapshot.warningPulseCueTotalOmittedCount)",
+            "audit \(snapshot.warningPulseCueAuditIdentifierFingerprint)",
+            "bundle \(snapshot.warningPulseCueBundleIdentifierFingerprint)",
+            "selection \(snapshot.selectionSourceIdentifier)",
+            "hold \(snapshot.savedTourHoldStateIdentifier)",
+            "selected fingerprint \(selectedFingerprint)"
+        ].joined(separator: " | ")
+    }
+
+    private static func runRecapShareArtifactTourWarningPulseAttentionCopyText(
+        label: String,
+        targetGroupID: String,
+        targetAnchorID: String,
+        visibleWarningIdentifiers: [String],
+        detail: String,
+        snapshot: CinematicDiagnosticsReport.RunRecapShareArtifactTourSnapshot,
+        relatedRow: Row?
+    ) -> String {
+        let warnings = visibleWarningIdentifiers.isEmpty
+            ? "none"
+            : visibleWarningIdentifiers.joined(separator: ", ")
+        var lines = [
+            "Cinematic diagnostics warning target",
+            "Label: \(bounded(label, limit: labelMaxCharacters))",
+            "Target anchor: \(bounded(targetAnchorID, limit: CinematicVisualSmokeReport.warningIdentifierMaxCharacters))",
+            "Target group: \(bounded(targetGroupID, limit: CinematicVisualSmokeReport.warningIdentifierMaxCharacters))",
+            relatedRow.map {
+                "Related row: \(bounded($0.id, limit: CinematicVisualSmokeReport.warningIdentifierMaxCharacters)) (\(bounded($0.label, limit: labelMaxCharacters)))"
+            },
+            "Warnings: \(bounded(warnings, limit: detailMaxCharacters))",
+            "Detail: \(bounded(detail, limit: attentionSummaryDetailMaxCharacters))",
+            "Warning pulse state: \(snapshot.warningPulseCueStateIdentifier)",
+            "Warning pulse quieting: \(snapshot.warningPulseCueQuietingStatusIdentifier)",
+            "Warning pulse cue fingerprint: \(snapshot.warningPulseCueIdentifierFingerprint)",
+            "Warning pulse audit fingerprint: \(snapshot.warningPulseCueAuditIdentifierFingerprint)",
+            "Warning pulse bundle fingerprint: \(snapshot.warningPulseCueBundleIdentifierFingerprint)",
+            "Visible warning identifiers: \(warningPulseAttentionJoined(snapshot.warningPulseCueWarningIdentifiers))",
+            "Target anchors: \(warningPulseAttentionJoined(snapshot.warningPulseCueTargetAnchors))",
+            "Related anchors: \(warningPulseAttentionJoined(snapshot.warningPulseCueRelatedRowAnchors))",
+            "No mutation guarantee: warning-pulse cue snapshot only; no diagnostics warning history, quieting, recap library, sessions, artifacts, pins, holds, search, or storage mutation.",
+            "Warning counts: warnings \(snapshot.warningPulseCueWarningCount), targets \(snapshot.warningPulseCueTargetCount), captures \(snapshot.warningPulseCueCaptureCount), omitted \(snapshot.warningPulseCueTotalOmittedCount)",
+            "Tour state: \(snapshot.stateIdentifier)",
+            "Selection source: \(snapshot.selectionSourceIdentifier)",
+            "Hold state: \(snapshot.savedTourHoldStateIdentifier)",
+            "Selected artifact fingerprint: \(fingerprint(snapshot.selectedEntryIdentifier ?? "none"))"
+        ].compactMap { $0 }
+
+        lines.append(contentsOf: [
+            "Warning pulse compact: \(warningPulseAttentionCopy(snapshot.warningPulseCueCompactCopy, fallback: snapshot.warningPulseTreatmentCompactCopy, limit: CinematicRunRecapShareArtifactWarningPulseCue.copyMaxCharacters))",
+            "Warning pulse treatment: \(snapshot.warningPulseTreatmentAccentIdentifier)/\(snapshot.warningPulseTreatmentRailIdentifier)/\(snapshot.warningPulseTreatmentSealIdentifier)/\(snapshot.warningPulseTreatmentTextIdentifier)"
+        ])
+
+        return boundedMultiline(
+            lines.joined(separator: "\n"),
+            limit: attentionTargetCopyMaxCharacters
+        )
+    }
+
+    private static func warningPulseAttentionJoined(_ values: [String]) -> String {
+        let joined = values.isEmpty ? "none" : values.joined(separator: ", ")
+        return bounded(joined, limit: 180)
+    }
+
+    private static func warningPulseAttentionCopy(
+        _ text: String?,
+        fallback: String,
+        limit: Int
+    ) -> String {
+        bounded(text ?? fallback, limit: limit)
     }
 
     private static func runRecapShareArtifactTourMutationTestingAttentionTarget(
@@ -7796,6 +8112,18 @@ struct CinematicDiagnosticsSummary: Equatable {
             "selection \(position)",
             snapshot.sessionNumber.map { "session \($0)" },
             snapshot.filename.map { "file \(bounded($0, limit: 72))" },
+            snapshot.warningPulseCueAvailabilityIdentifier == "available"
+                ? "warning pulse \(snapshot.warningPulseCueStateIdentifier)"
+                : nil,
+            snapshot.warningPulseCueAvailabilityIdentifier == "available"
+                ? "warning pulse warnings \(snapshot.warningPulseCueWarningCount)"
+                : nil,
+            snapshot.warningPulseCueAvailabilityIdentifier == "available"
+                ? "warning pulse audit \(snapshot.warningPulseCueAuditIdentifierFingerprint)"
+                : nil,
+            snapshot.warningPulseCueAvailabilityIdentifier == "available"
+                ? "warning pulse bundle \(snapshot.warningPulseCueBundleIdentifierFingerprint)"
+                : nil,
             "runtime route \(snapshot.runtimeRouteCueStateIdentifier)",
             snapshot.runtimeRouteCueCompactCopy.map { "route copy \($0)" },
             snapshot.runtimeRouteCueDetailCopy.map { "route detail \($0)" },
@@ -7807,6 +8135,11 @@ struct CinematicDiagnosticsSummary: Equatable {
             snapshot.mutationTestingCueCompactCopy.map { "mutation copy \($0)" },
             snapshot.mutationTestingCueDetailCopy.map { "mutation detail \($0)" },
             "mutation treatment \(snapshot.mutationTestingTreatmentAccentIdentifier)/\(snapshot.mutationTestingTreatmentRailIdentifier)/\(snapshot.mutationTestingTreatmentSealIdentifier)/\(snapshot.mutationTestingTreatmentTextIdentifier)",
+            snapshot.warningPulseCueCompactCopy.map { "warning pulse copy \($0)" },
+            snapshot.warningPulseCueDetailCopy.map { "warning pulse detail \($0)" },
+            snapshot.warningPulseCueAvailabilityIdentifier == "available"
+                ? "warning pulse treatment \(snapshot.warningPulseTreatmentAccentIdentifier)/\(snapshot.warningPulseTreatmentRailIdentifier)/\(snapshot.warningPulseTreatmentSealIdentifier)/\(snapshot.warningPulseTreatmentTextIdentifier)"
+                : nil,
             "pins \(snapshot.pinnedEntryCount)",
             "retained pins \(snapshot.retainedPinnedEntryCount)",
             "missing pins \(snapshot.missingPinnedEntryCount)",
@@ -9763,6 +10096,13 @@ enum CinematicDiagnostics {
                 "run-recap-share-artifact-tour-mutation:\(runRecapShareArtifactTourSnapshot.mutationTestingTreatmentStateIdentifier)",
                 "run-recap-share-artifact-tour-mutation-status:\(runRecapShareArtifactTourSnapshot.mutationTestingCueStatusIdentifier)",
                 "run-recap-share-artifact-tour-mutation-treatment:\(runRecapShareArtifactTourSnapshot.mutationTestingTreatmentIdentifier)",
+                "run-recap-share-artifact-tour-warning-pulse:\(runRecapShareArtifactTourSnapshot.warningPulseCueAvailabilityIdentifier)",
+                "run-recap-share-artifact-tour-warning-pulse-state:\(runRecapShareArtifactTourSnapshot.warningPulseCueStateIdentifier)",
+                "run-recap-share-artifact-tour-warning-pulse-count:\(runRecapShareArtifactTourSnapshot.warningPulseCueWarningCount)",
+                "run-recap-share-artifact-tour-warning-pulse-cue:\(runRecapShareArtifactTourSnapshot.warningPulseCueIdentifierFingerprint)",
+                "run-recap-share-artifact-tour-warning-pulse-audit:\(runRecapShareArtifactTourSnapshot.warningPulseCueAuditIdentifierFingerprint)",
+                "run-recap-share-artifact-tour-warning-pulse-bundle:\(runRecapShareArtifactTourSnapshot.warningPulseCueBundleIdentifierFingerprint)",
+                "run-recap-share-artifact-tour-warning-pulse-treatment:\(runRecapShareArtifactTourSnapshot.warningPulseTreatmentIdentifier)",
                 "run-recap-share-artifact-preview:\(runRecapShareArtifactPreviewSnapshot.identifier)",
                 "run-recap-share-artifact-selected-export:\(runRecapShareArtifactPreviewSnapshot.selectedExport.identifier)",
                 "run-recap-share-artifact-filtered-export:\(runRecapShareArtifactPreviewSnapshot.filteredExport.identifier)",
@@ -10542,6 +10882,15 @@ enum CinematicDiagnostics {
                 warningCount: 1,
                 rotationSeed: 0,
                 influenceSettings: influenceSettings
+            ),
+            representativeSavedRecapArtifactTourSmokeReport(
+                caseIdentifier: "warning-pulse-snoozed",
+                searchQuery: nil,
+                pinnedSessions: [],
+                missingPins: [],
+                warningCount: 0,
+                rotationSeed: 0,
+                influenceSettings: influenceSettings
             )
         ]
     }
@@ -11108,6 +11457,9 @@ enum CinematicDiagnostics {
         let mutationTestingSection = representativeSavedRecapArtifactTourMutationTestingSection(
             caseIdentifier: caseIdentifier
         )
+        let warningPulseSection = representativeSavedRecapArtifactTourWarningPulseSection(
+            caseIdentifier: caseIdentifier
+        )
         let markdown = [
             """
             # Compass Run Recap Share
@@ -11127,6 +11479,7 @@ enum CinematicDiagnostics {
             """,
             runtimeRouteSection,
             mutationTestingSection,
+            warningPulseSection,
             """
             ## Events
             - event
@@ -11231,6 +11584,40 @@ enum CinematicDiagnostics {
         - Provisioning availability: none
         - Provisioning status: none
         - Provisioning action: none
+        """
+    }
+
+    private static func representativeSavedRecapArtifactTourWarningPulseSection(
+        caseIdentifier: String
+    ) -> String {
+        let state: String?
+        switch caseIdentifier {
+        case "warning":
+            state = "active"
+        case "warning-pulse-snoozed":
+            state = "snoozed"
+        default:
+            state = nil
+        }
+        guard let state else { return "" }
+        let quietingStatus = state == "snoozed" ? "snoozed" : "active"
+        return """
+        ## Diagnostics Warning Pulse
+
+        - Warning pulse audit: representative-warning-pulse-\(caseIdentifier)-\(state)
+        - State: \(state)
+        - Bundle: representative-warning-bundle-\(caseIdentifier)
+        - Quieting status: \(quietingStatus)
+        - Sequence: 3
+        - Capture count: 2
+        - Target count: 1
+        - Warning count: 2
+        - Warning identifiers: visual-smoke.saved-tour-warning-pulse, visual-smoke.saved-tour-warning-pulse-\(state)
+        - Omitted warning identifiers: 0
+        - Target anchors: visual-smoke-check-run-recap-saved-artifact-tour
+        - Omitted target anchors: 0
+        - Related rows: diagnostics-row-run-recap-share-artifact-tour
+        - Omitted related rows: 0
         """
     }
 
@@ -13554,6 +13941,41 @@ enum CinematicDiagnostics {
             mutationTestingTreatmentTextIdentifier: plan.mutationTestingTreatment.textIdentifier,
             mutationTestingTreatmentCompactCopy: plan.mutationTestingTreatment.compactCopy,
             mutationTestingTreatmentHelpCopy: plan.mutationTestingTreatment.helpCopy,
+            warningPulseCueIdentifier: plan.warningPulseCue?.identifier,
+            warningPulseCueAvailabilityIdentifier: plan.warningPulseCueAvailabilityIdentifier,
+            warningPulseCueStateIdentifier: plan.warningPulseCueStateIdentifier,
+            warningPulseCueQuietingStatusIdentifier:
+                plan.warningPulseCue?.quietingStatusIdentifier ?? "missing",
+            warningPulseCueCaptureCount: plan.warningPulseCue?.captureCount ?? 0,
+            warningPulseCueTargetCount: plan.warningPulseCue?.targetCount ?? 0,
+            warningPulseCueWarningCount: plan.warningPulseCue?.warningCount ?? 0,
+            warningPulseCueOmittedWarningIdentifierCount:
+                plan.warningPulseCue?.omittedWarningIdentifierCount ?? 0,
+            warningPulseCueOmittedTargetAnchorCount:
+                plan.warningPulseCue?.omittedTargetAnchorCount ?? 0,
+            warningPulseCueOmittedRelatedRowAnchorCount:
+                plan.warningPulseCue?.omittedRelatedRowAnchorCount ?? 0,
+            warningPulseCueTotalOmittedCount: plan.warningPulseCue?.totalOmittedCount ?? 0,
+            warningPulseCueWarningIdentifiers: plan.warningPulseCue?.warningIdentifiers ?? [],
+            warningPulseCueTargetAnchors: plan.warningPulseCue?.targetAnchors ?? [],
+            warningPulseCueRelatedRowAnchors: plan.warningPulseCue?.relatedRowAnchors ?? [],
+            warningPulseCueIdentifierFingerprint: plan.warningPulseCueIdentifierFingerprint,
+            warningPulseCueAuditIdentifierFingerprint: plan.warningPulseCueAuditIdentifierFingerprint,
+            warningPulseCueBundleIdentifierFingerprint: plan.warningPulseCueBundleIdentifierFingerprint,
+            warningPulseCueWarningIdentifiersFingerprint: plan.warningPulseCueWarningIdentifiersFingerprint,
+            warningPulseCueTargetAnchorsFingerprint: plan.warningPulseCueTargetAnchorsFingerprint,
+            warningPulseCueRelatedRowAnchorsFingerprint: plan.warningPulseCueRelatedRowAnchorsFingerprint,
+            warningPulseCueCompactCopy: plan.warningPulseCue?.compactCopy,
+            warningPulseCueDetailCopy: plan.warningPulseCue?.detailCopy,
+            warningPulseCueHelpCopy: plan.warningPulseCue?.helpCopy,
+            warningPulseTreatmentIdentifier: plan.warningPulseTreatment.identifier,
+            warningPulseTreatmentStateIdentifier: plan.warningPulseTreatment.stateIdentifier,
+            warningPulseTreatmentAccentIdentifier: plan.warningPulseTreatment.accentIdentifier,
+            warningPulseTreatmentRailIdentifier: plan.warningPulseTreatment.railIdentifier,
+            warningPulseTreatmentSealIdentifier: plan.warningPulseTreatment.sealIdentifier,
+            warningPulseTreatmentTextIdentifier: plan.warningPulseTreatment.textIdentifier,
+            warningPulseTreatmentCompactCopy: plan.warningPulseTreatment.compactCopy,
+            warningPulseTreatmentHelpCopy: plan.warningPulseTreatment.helpCopy,
             requestedPinnedEntryIdentifiers: plan.requestedPinnedEntryIdentifiers,
             retainedPinnedEntryIdentifiers: plan.retainedPinnedEntryIdentifiers,
             missingPinnedEntryIdentifiers: plan.missingPinnedEntryIdentifiers,

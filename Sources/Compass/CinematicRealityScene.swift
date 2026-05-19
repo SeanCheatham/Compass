@@ -4034,7 +4034,11 @@ final class CinematicSceneCoordinator {
         clearChildren(of: savedRecapArtifactTourNode)
         let treatment = tourPlan.runtimeRouteTreatment
         let mutationTreatment = tourPlan.mutationTestingTreatment
-        savedRecapArtifactTourNode.name = "saved-recap-artifact-tour.\(tourPlan.stateIdentifier).\(tourPlan.savedTourHoldStateIdentifier).\(treatment.routeKindIdentifier).mutation.\(mutationTreatment.stateIdentifier)"
+        let warningPulseTreatment = tourPlan.warningPulseTreatment
+        let warningPulseName = savedRecapArtifactWarningPulseIsVisible(tourPlan)
+            ? ".warning-pulse.\(warningPulseTreatment.stateIdentifier)"
+            : ""
+        savedRecapArtifactTourNode.name = "saved-recap-artifact-tour.\(tourPlan.stateIdentifier).\(tourPlan.savedTourHoldStateIdentifier).\(treatment.routeKindIdentifier).mutation.\(mutationTreatment.stateIdentifier)\(warningPulseName)"
         savedRecapArtifactTourNode.position = savedRecapArtifactTourPosition(for: tourPlan)
         savedRecapArtifactTourNode.orientation = narrativeBillboardOrientation(
             from: savedRecapArtifactTourNode.position(relativeTo: nil),
@@ -4048,7 +4052,10 @@ final class CinematicSceneCoordinator {
         let plateWidth: Float = 2.62
         let plateHeight: Float = 0.94
         let plateDepth: Float = 0.034
-        let plateOpacity = min(0.9, 0.84 + Float(treatment.plateOpacityBoost))
+        let warningPlateBoost = savedRecapArtifactWarningPulseIsVisible(tourPlan)
+            ? Float(warningPulseTreatment.plateOpacityBoost)
+            : 0
+        let plateOpacity = min(0.9, 0.84 + Float(treatment.plateOpacityBoost) + warningPlateBoost)
         let plate = ModelEntity(
             mesh: .generateBox(
                 width: plateWidth,
@@ -4133,6 +4140,52 @@ final class CinematicSceneCoordinator {
         mutationSeal.position = [plateWidth * 0.36, plateHeight * 0.33, 0.06]
         mutationSeal.components.set(OpacityComponent(opacity: mutationSealOpacity))
         savedRecapArtifactTourNode.addChild(mutationSeal)
+
+        if let warningPulseCue = tourPlan.warningPulseCue,
+           savedRecapArtifactWarningPulseIsVisible(tourPlan) {
+            let warningPulseColor = savedRecapArtifactWarningPulseColor(for: warningPulseTreatment)
+            let warningPulseRail = beamEntity(
+                from: [plateWidth * 0.2, plateHeight * 0.36, 0.04],
+                to: [plateWidth * 0.43, plateHeight * 0.36, 0.04],
+                radius: 0.0045,
+                color: warningPulseColor.withAlphaComponent(0.86),
+                opacity: min(0.76, 0.42 * Float(warningPulseTreatment.railOpacityScale))
+            )
+            warningPulseRail.name = "saved-recap-artifact-tour.warning-pulse.rail.\(warningPulseTreatment.railIdentifier)"
+            savedRecapArtifactTourNode.addChild(warningPulseRail)
+
+            let warningPulseSealOpacity = min(0.82, 0.5 * Float(warningPulseTreatment.sealOpacityScale))
+            let warningPulseSeal = ModelEntity(
+                mesh: .generateBox(
+                    width: 0.16,
+                    height: 0.046,
+                    depth: 0.016,
+                    cornerRadius: 0.01
+                ),
+                materials: [
+                    glowMaterial(
+                        warningPulseColor,
+                        opacity: warningPulseSealOpacity
+                    )
+                ]
+            )
+            warningPulseSeal.name = "saved-recap-artifact-tour.warning-pulse.seal.\(warningPulseTreatment.sealIdentifier)"
+            warningPulseSeal.position = [plateWidth * 0.24, plateHeight * 0.33, 0.058]
+            warningPulseSeal.components.set(OpacityComponent(opacity: warningPulseSealOpacity))
+            savedRecapArtifactTourNode.addChild(warningPulseSeal)
+
+            addNarrativeText(
+                warningPulseCue.compactCopy,
+                to: savedRecapArtifactTourNode,
+                name: "saved-recap-artifact-tour.text.warning-pulse.\(warningPulseTreatment.textIdentifier)",
+                width: 0.88,
+                offset: [0.78, -0.1, 0.058],
+                fontSize: 0.041,
+                weight: .semibold,
+                color: warningPulseColor.withAlphaComponent(0.84),
+                opacity: min(0.74, 0.54 * Float(warningPulseTreatment.textOpacityScale))
+            )
+        }
 
         addNarrativeText(
             tourPlan.titleSnippet,
@@ -4503,6 +4556,28 @@ final class CinematicSceneCoordinator {
         default:
             return themedColor(SpellSchool.insight.nsColor)
                 .mixing(with: NSColor(calibratedWhite: 0.7, alpha: 1), fraction: 0.34)
+        }
+    }
+
+    private func savedRecapArtifactWarningPulseIsVisible(
+        _ tourPlan: CinematicRunRecapShareArtifactTourPlan
+    ) -> Bool {
+        tourPlan.warningPulseCueStateIdentifier == "active"
+            || tourPlan.warningPulseCueStateIdentifier == "snoozed"
+    }
+
+    private func savedRecapArtifactWarningPulseColor(
+        for treatment: CinematicRunRecapShareArtifactWarningPulseTreatmentDescriptor
+    ) -> NSColor {
+        switch treatment.stateIdentifier {
+        case "active":
+            return themedColor(SpellSchool.pressure.nsColor)
+        case "snoozed":
+            return themedColor(SpellSchool.scan.nsColor)
+                .mixing(with: themedColor(SpellSchool.insight.nsColor), fraction: 0.3)
+        default:
+            return themedColor(SpellSchool.insight.nsColor)
+                .mixing(with: NSColor(calibratedWhite: 0.66, alpha: 1), fraction: 0.4)
         }
     }
 

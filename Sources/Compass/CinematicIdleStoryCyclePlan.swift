@@ -1497,7 +1497,16 @@ enum CinematicIdleStoryCyclePlanner {
         default:
             mutationOffset = 0
         }
-        return [-1.62 + pinOffset + routeOffset + mutationOffset, 1.18 + sessionOffset, 1.62]
+        let warningPulseOffset: Float
+        switch tourPlan.warningPulseCueStateIdentifier {
+        case "active":
+            warningPulseOffset = 0.07
+        case "snoozed":
+            warningPulseOffset = -0.04
+        default:
+            warningPulseOffset = 0
+        }
+        return [-1.62 + pinOffset + routeOffset + mutationOffset + warningPulseOffset, 1.18 + sessionOffset, 1.62]
     }
 
     private static func savedRecapArtifactTourLightFamily(
@@ -1514,6 +1523,14 @@ enum CinematicIdleStoryCyclePlanner {
         }
         if tourPlan.hasWarnings {
             return .pressure
+        }
+        switch tourPlan.warningPulseCueStateIdentifier {
+        case "active":
+            return .pressure
+        case "snoozed":
+            return .scan
+        default:
+            break
         }
         switch tourPlan.mutationTestingCueStateIdentifier {
         case "failed", "runtime-route-diverged":
@@ -1555,6 +1572,9 @@ enum CinematicIdleStoryCyclePlanner {
             || tourPlan.hasWarnings {
             return .activityPulse
         }
+        if savedRecapArtifactTourWarningPulseIsVisible(tourPlan) {
+            return .activityPulse
+        }
         if tourPlan.selectionSourceIdentifier == "held" {
             return .seal
         }
@@ -1590,6 +1610,14 @@ enum CinematicIdleStoryCyclePlanner {
         if tourPlan.hasWarnings {
             return 700
         }
+        switch tourPlan.warningPulseCueStateIdentifier {
+        case "active":
+            return 720
+        case "snoozed":
+            return 640
+        default:
+            break
+        }
         switch tourPlan.mutationTestingCueStateIdentifier {
         case "failed", "runtime-route-diverged":
             return 720
@@ -1617,6 +1645,9 @@ enum CinematicIdleStoryCyclePlanner {
     private static func savedRecapArtifactTourPulseIntensityScale(
         for tourPlan: CinematicRunRecapShareArtifactTourPlan
     ) -> Float {
+        if tourPlan.warningPulseCueStateIdentifier == "active" {
+            return 1.14
+        }
         switch tourPlan.mutationTestingCueStateIdentifier {
         case "failed", "runtime-route-diverged":
             return 1.12
@@ -1630,6 +1661,9 @@ enum CinematicIdleStoryCyclePlanner {
     private static func savedRecapArtifactTourPulseOrbBoost(
         for tourPlan: CinematicRunRecapShareArtifactTourPlan
     ) -> Float {
+        if tourPlan.warningPulseCueStateIdentifier == "active" {
+            return 0.15
+        }
         switch tourPlan.mutationTestingCueStateIdentifier {
         case "failed", "runtime-route-diverged":
             return 0.14
@@ -1643,6 +1677,9 @@ enum CinematicIdleStoryCyclePlanner {
     private static func savedRecapArtifactTourShakeScale(
         for tourPlan: CinematicRunRecapShareArtifactTourPlan
     ) -> Float? {
+        if tourPlan.warningPulseCueStateIdentifier == "active" {
+            return 0.24
+        }
         if tourPlan.hasWarnings {
             return 0.28
         }
@@ -1657,6 +1694,12 @@ enum CinematicIdleStoryCyclePlanner {
     private static func savedRecapArtifactTourPhaseCopy(
         for tourPlan: CinematicRunRecapShareArtifactTourPlan
     ) -> String {
+        if savedRecapArtifactTourWarningPulseIsVisible(tourPlan) {
+            return bounded(
+                "\(tourPlan.titleSnippet) | \(tourPlan.warningPulseTreatment.compactCopy)",
+                limit: CinematicRunRecapShareArtifactTourPlan.snippetMaxCharacters
+            )
+        }
         if tourPlan.mutationTestingCueStateIdentifier == "missing" {
             return tourPlan.titleSnippet
         }
@@ -1664,6 +1707,13 @@ enum CinematicIdleStoryCyclePlanner {
             "\(tourPlan.titleSnippet) | \(tourPlan.mutationTestingTreatment.compactCopy)",
             limit: CinematicRunRecapShareArtifactTourPlan.snippetMaxCharacters
         )
+    }
+
+    private static func savedRecapArtifactTourWarningPulseIsVisible(
+        _ tourPlan: CinematicRunRecapShareArtifactTourPlan
+    ) -> Bool {
+        tourPlan.warningPulseCueStateIdentifier == "active"
+            || tourPlan.warningPulseCueStateIdentifier == "snoozed"
     }
 
     private static func phaseOrder(

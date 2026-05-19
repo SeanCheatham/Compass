@@ -381,6 +381,117 @@ final class CinematicRunRecapShareArtifactLibraryContextTests: XCTestCase {
         }
     }
 
+    func testArtifactTourParsesWarningPulseCueWithoutMutatingLibraryContext() throws {
+        let workspace = try makeInitializedWorkspace()
+        let targetText = "RAW_WARNING_TARGET_TEXT_SHOULD_NOT_LEAK"
+        _ = try workspace.writeSessionArtifact(
+            session: 1,
+            name: "recap-share-context-warning-quiet.md",
+            contents: artifactMarkdown(
+                session: 1,
+                title: "Quiet Warning Pulse Recap",
+                status: "succeeded",
+                commit: "Quiet warning pulse commit",
+                body: "quiet body \(targetText)"
+            )
+        )
+        _ = try workspace.writeSessionArtifact(
+            session: 2,
+            name: "recap-share-context-warning-active.md",
+            contents: artifactMarkdown(
+                session: 2,
+                title: "Active Warning Pulse Recap",
+                status: "succeeded",
+                commit: "Active warning pulse commit",
+                body: "active body \(targetText)",
+                warningPulseSection: warningPulseSection(state: "active", suffix: "active")
+            )
+        )
+        _ = try workspace.writeSessionArtifact(
+            session: 3,
+            name: "recap-share-context-warning-snoozed.md",
+            contents: artifactMarkdown(
+                session: 3,
+                title: "Snoozed Warning Pulse Recap",
+                status: "succeeded",
+                commit: "Snoozed warning pulse commit",
+                body: "snoozed body \(targetText)",
+                warningPulseSection: warningPulseSection(state: "snoozed", suffix: "snoozed")
+            )
+        )
+        let history = workspace.refreshRunRecapShareArtifactHistory()
+        let quietEntry = try XCTUnwrap(history.entries.first { $0.sessionNumber == 1 })
+        let activeEntry = try XCTUnwrap(history.entries.first { $0.sessionNumber == 2 })
+        let snoozedEntry = try XCTUnwrap(history.entries.first { $0.sessionNumber == 3 })
+        let pinnedIdentifiers = [quietEntry.identifier, "missing-warning-pulse-pin"]
+        let activeContext = CinematicRunRecapShareArtifactLibraryContext(
+            selectedEntryIdentifier: snoozedEntry.identifier,
+            searchText: "warning pulse",
+            pinnedEntryIdentifiers: pinnedIdentifiers,
+            savedTourHoldEntryIdentifier: activeEntry.identifier
+        )
+        let snoozedContext = CinematicRunRecapShareArtifactLibraryContext(
+            selectedEntryIdentifier: activeEntry.identifier,
+            pinnedEntryIdentifiers: pinnedIdentifiers,
+            savedTourHoldEntryIdentifier: snoozedEntry.identifier
+        )
+        let quietContext = CinematicRunRecapShareArtifactLibraryContext(
+            selectedEntryIdentifier: quietEntry.identifier,
+            pinnedEntryIdentifiers: pinnedIdentifiers,
+            savedTourHoldEntryIdentifier: quietEntry.identifier
+        )
+
+        let activePlan = CinematicRunRecapShareArtifactTourPlanner.plan(
+            historyPlan: history,
+            libraryContext: activeContext
+        )
+        let snoozedPlan = CinematicRunRecapShareArtifactTourPlanner.plan(
+            historyPlan: history,
+            libraryContext: snoozedContext
+        )
+        let quietPlan = CinematicRunRecapShareArtifactTourPlanner.plan(
+            historyPlan: history,
+            libraryContext: quietContext
+        )
+
+        let activeCue = try XCTUnwrap(activePlan.warningPulseCue)
+        XCTAssertEqual(activePlan.selectedEntryIdentifier, activeEntry.identifier)
+        XCTAssertEqual(activePlan.selectionSourceIdentifier, "held")
+        XCTAssertEqual(activePlan.savedTourHoldStateIdentifier, "held")
+        XCTAssertEqual(activePlan.warningPulseCueAvailabilityIdentifier, "available")
+        XCTAssertEqual(activePlan.warningPulseCueStateIdentifier, "active")
+        XCTAssertEqual(activePlan.warningPulseCueWarningCountIdentifier, "2")
+        XCTAssertEqual(activeCue.warningIdentifiers, [
+            "visual-smoke.warning-pulse-active-a",
+            "visual-smoke.warning-pulse-active-b"
+        ])
+        XCTAssertEqual(activePlan.warningPulseTreatment.accentIdentifier, "warning-pulse-amber")
+        XCTAssertNotEqual(activePlan.warningPulseCueIdentifierFingerprint, activePlan.warningPulseCueAuditIdentifierFingerprint)
+        XCTAssertTrue(activePlan.identifier.contains("warning-pulse-state:active"))
+
+        let snoozedCue = try XCTUnwrap(snoozedPlan.warningPulseCue)
+        XCTAssertEqual(snoozedPlan.selectedEntryIdentifier, snoozedEntry.identifier)
+        XCTAssertEqual(snoozedPlan.warningPulseCueStateIdentifier, "snoozed")
+        XCTAssertEqual(snoozedCue.compactCopy, "Warning pulse snoozed")
+        XCTAssertEqual(snoozedPlan.warningPulseTreatment.accentIdentifier, "warning-pulse-teal")
+
+        XCTAssertNil(quietPlan.warningPulseCue)
+        XCTAssertEqual(quietPlan.warningPulseCueAvailabilityIdentifier, "missing")
+        XCTAssertEqual(quietPlan.warningPulseCueStateIdentifier, "missing")
+        XCTAssertEqual(quietPlan.warningPulseTreatment.accentIdentifier, "warning-pulse-muted")
+        XCTAssertEqual(activeContext.pinnedEntryIdentifiers, pinnedIdentifiers)
+        XCTAssertEqual(activeContext.searchText, "warning pulse")
+        XCTAssertEqual(activeContext.savedTourHoldEntryIdentifier, activeEntry.identifier)
+
+        let exposedText = [
+            activeCue.identifier,
+            activeCue.detailCopy,
+            activeCue.helpCopy,
+            activePlan.identifier
+        ].joined(separator: "\n")
+        XCTAssertFalse(exposedText.contains(targetText))
+    }
+
     func testContextResolvesSelectionFallbackAfterRetainedEntriesChange() throws {
         let workspace = try makeInitializedWorkspace()
         for session in 1...3 {
@@ -485,7 +596,8 @@ final class CinematicRunRecapShareArtifactLibraryContextTests: XCTestCase {
         status: String,
         commit: String,
         body: String,
-        runtimeRouteSection: String = ""
+        runtimeRouteSection: String = "",
+        warningPulseSection: String = ""
     ) -> String {
         [
             """
@@ -505,6 +617,7 @@ final class CinematicRunRecapShareArtifactLibraryContextTests: XCTestCase {
         - Commit: \(commit)
         """,
             runtimeRouteSection,
+            warningPulseSection,
             """
 
         ## Events
@@ -519,6 +632,27 @@ final class CinematicRunRecapShareArtifactLibraryContextTests: XCTestCase {
         ]
         .filter { !$0.isEmpty }
         .joined(separator: "\n\n")
+    }
+
+    private func warningPulseSection(state: String, suffix: String) -> String {
+        """
+        ## Diagnostics Warning Pulse
+
+        - Warning pulse audit: library-warning-pulse-\(suffix)
+        - State: \(state)
+        - Bundle: library-warning-bundle-\(suffix)
+        - Quieting status: \(state)
+        - Sequence: 2
+        - Capture count: 2
+        - Target count: 1
+        - Warning count: 2
+        - Warning identifiers: visual-smoke.warning-pulse-\(suffix)-a, visual-smoke.warning-pulse-\(suffix)-b
+        - Omitted warning identifiers: 0
+        - Target anchors: visual-smoke-check-warning-pulse-\(suffix)
+        - Omitted target anchors: 0
+        - Related rows: diagnostics-row-run-recap-share-artifact-tour
+        - Omitted related rows: 0
+        """
     }
 
     private func makeInitializedWorkspace() throws -> CompassWorkspace {

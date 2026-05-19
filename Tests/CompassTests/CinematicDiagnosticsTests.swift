@@ -659,11 +659,15 @@ final class CinematicDiagnosticsTests: XCTestCase {
         XCTAssertEqual(report.runRecapShareArtifactTour.mutationTestingCueAvailabilityIdentifier, "available")
         XCTAssertEqual(report.runRecapShareArtifactTour.mutationTestingTreatmentStateIdentifier, "succeeded")
         XCTAssertEqual(report.runRecapShareArtifactTour.mutationTestingTreatmentAccentIdentifier, "mutation-green")
+        XCTAssertEqual(report.runRecapShareArtifactTour.warningPulseCueAvailabilityIdentifier, "missing")
+        XCTAssertEqual(report.runRecapShareArtifactTour.warningPulseCueStateIdentifier, "missing")
+        XCTAssertEqual(report.runRecapShareArtifactTour.warningPulseTreatmentAccentIdentifier, "warning-pulse-muted")
         XCTAssertEqual(report.idleStoryCycle.phaseIdentifier, "saved-recap-artifact-tour")
         XCTAssertEqual(report.idleStoryCycle.cameraPressureIdentifier, "archive-tour")
         XCTAssertTrue(report.identifier.contains("run-recap-share-artifact-tour-state:pinned"))
         XCTAssertTrue(report.identifier.contains("run-recap-share-artifact-tour-runtime-route:apple-container"))
         XCTAssertTrue(report.identifier.contains("run-recap-share-artifact-tour-mutation:succeeded"))
+        XCTAssertTrue(report.identifier.contains("run-recap-share-artifact-tour-warning-pulse-state:missing"))
         XCTAssertTrue(row.detail.contains("state pinned"))
         XCTAssertTrue(row.detail.contains("source pinned"))
         XCTAssertTrue(row.detail.contains("runtime route apple-container"))
@@ -1054,6 +1058,182 @@ final class CinematicDiagnosticsTests: XCTestCase {
             XCTAssertFalse(exposedText.contains(leaked), "Leaked mutation diagnostics text: \(leaked)")
             XCTAssertFalse(warningHistory.copyText.contains(leaked), "Leaked warning history text: \(leaked)")
             XCTAssertFalse(warningHistory.rollup.copyText.contains(leaked), "Leaked warning rollup text: \(leaked)")
+        }
+    }
+
+    func testRunRecapSavedArtifactTourWarningPulseAttentionTargetIsBoundedReadOnlyAndSanitized() throws {
+        let history = diagnosticsRuntimeRouteHistory(
+            seed: "warning-pulse-attention",
+            runtimeRouteSection: diagnosticsRuntimeRouteSection(
+                effectiveRoute: "apple-container",
+                effectiveRouteTitle: "Apple container",
+                fallbackState: "direct",
+                supportClassification: "image-routeable"
+            ),
+            warningPulseSection: diagnosticsWarningPulseSection(
+                state: "active",
+                suffix: "active-attention",
+                warningIdentifiers: [
+                    "visual-smoke.warning-pulse-a",
+                    "visual-smoke.warning-pulse-b"
+                ],
+                targetAnchors: ["visual-smoke-check-warning-pulse"],
+                relatedRows: ["diagnostics-row-run-recap-share-artifact-tour"]
+            )
+        )
+        let selected = try XCTUnwrap(history.entries.first)
+        let report = makeReport(
+            CinematicDiagnosticsInput(
+                repoName: "Compass",
+                phase: "Developing",
+                immediateTitle: "Inspect warning pulse tour cue",
+                completedCount: 1,
+                latestEvent: nil,
+                languageProfile: languageProfile(primaryLanguage: .swift),
+                activityProfile: activityProfile(recentCommitCount: 1),
+                influenceSettings: CinematicInfluenceSettings(),
+                runRecapShareArtifactHistoryPlan: history,
+                runRecapShareArtifactSavedTourHoldEntryIdentifier: selected.identifier
+            )
+        )
+        let summary = CinematicDiagnosticsSummary(report: report)
+        let row = try XCTUnwrap(summary.rows.first { $0.id == "run-recap-share-artifact-tour" })
+        let target = try XCTUnwrap(
+            summary.attentionSummary.targets.first {
+                $0.id.hasPrefix("run-recap-share-artifact-tour-warning-pulse-active")
+            }
+        )
+        let snapshot = report.runRecapShareArtifactTour
+
+        XCTAssertEqual(snapshot.warningPulseCueAvailabilityIdentifier, "available")
+        XCTAssertEqual(snapshot.warningPulseCueStateIdentifier, "active")
+        XCTAssertEqual(snapshot.warningPulseCueWarningCount, 2)
+        XCTAssertEqual(snapshot.warningPulseTreatmentAccentIdentifier, "warning-pulse-amber")
+        XCTAssertTrue(report.identifier.contains("run-recap-share-artifact-tour-warning-pulse:available"))
+        XCTAssertTrue(report.identifier.contains("run-recap-share-artifact-tour-warning-pulse-state:active"))
+        XCTAssertTrue(row.detail.contains("warning pulse active"))
+        XCTAssertTrue(row.detail.contains("warning pulse warnings 2"))
+        XCTAssertTrue(summary.exportText.contains("warning pulse active"))
+        XCTAssertEqual(target.relatedGroupID, "repository-context")
+        XCTAssertEqual(target.relatedRowID, "run-recap-share-artifact-tour")
+        XCTAssertEqual(target.targetAnchorID, "diagnostics-row-run-recap-share-artifact-tour")
+        XCTAssertEqual(target.label, "Tour warning pulse active")
+        XCTAssertEqual(
+            target.visibleWarningIdentifiers.first,
+            "run-recap-share-artifact-tour-warning-pulse.active"
+        )
+        XCTAssertTrue(target.visibleWarningIdentifiers.contains {
+            $0.contains(".audit-\(snapshot.warningPulseCueAuditIdentifierFingerprint)")
+        })
+        XCTAssertTrue(target.detail.contains("warning pulse active"))
+        XCTAssertTrue(target.detail.contains("audit \(snapshot.warningPulseCueAuditIdentifierFingerprint)"))
+        XCTAssertTrue(target.detail.contains("bundle \(snapshot.warningPulseCueBundleIdentifierFingerprint)"))
+        XCTAssertTrue(target.copyText.contains("Warning pulse state: active"))
+        XCTAssertTrue(target.copyText.contains("Warning pulse audit fingerprint: \(snapshot.warningPulseCueAuditIdentifierFingerprint)"))
+        XCTAssertTrue(target.copyText.contains("Warning pulse bundle fingerprint: \(snapshot.warningPulseCueBundleIdentifierFingerprint)"))
+        XCTAssertTrue(target.copyText.contains("Visible warning identifiers: visual-smoke.warning-pulse-a"))
+        XCTAssertTrue(target.copyText.contains("Target anchors: visual-smoke-check-warning-pulse"))
+        XCTAssertTrue(target.copyText.contains("Related anchors: diagnostics-row-run-recap-share-artifact-tour"))
+        XCTAssertTrue(target.copyText.contains("No mutation guarantee"))
+        XCTAssertTrue(target.copyText.contains("Related row: run-recap-share-artifact-tour"))
+        XCTAssertTrue(summary.exportText.contains("Tour warning pulse active -> \(target.id)"))
+        XCTAssertTrue(summary.exportText.contains("anchor diagnostics-row-run-recap-share-artifact-tour"))
+        XCTAssertTrue(summary.exportText.contains("related run-recap-share-artifact-tour"))
+        XCTAssertTrue(summary.exportText.contains("run-recap-share-artifact-tour-warning-pulse.active"))
+        XCTAssertLessThanOrEqual(row.detail.count, CinematicDiagnosticsSummary.detailMaxCharacters)
+        XCTAssertLessThanOrEqual(
+            target.detail.count,
+            CinematicDiagnosticsSummary.attentionSummaryDetailMaxCharacters
+        )
+        XCTAssertLessThanOrEqual(
+            target.copyText.count,
+            CinematicDiagnosticsSummary.attentionTargetCopyMaxCharacters
+        )
+
+        var warningHistory = CinematicDiagnosticsWarningBundleHistory()
+        warningHistory.record(summary.attentionSummary)
+        let entry = try XCTUnwrap(warningHistory.entries.first)
+        XCTAssertTrue(entry.targetAnchors.contains("diagnostics-row-run-recap-share-artifact-tour"))
+        XCTAssertTrue(entry.relatedRowAnchors.contains("diagnostics-row-run-recap-share-artifact-tour"))
+        XCTAssertTrue(entry.warningIdentifiers.contains("run-recap-share-artifact-tour-warning-pulse.active"))
+        XCTAssertTrue(warningHistory.rollup.copyText.contains("run-recap-share-artifact-tour-warning-pulse.active"))
+    }
+
+    func testRunRecapSavedArtifactTourWarningPulseAttentionCoversSnoozedAndIgnoresQuietStates() throws {
+        let activeReports = CinematicDiagnostics.representativeSavedRecapArtifactTourSmokeReports()
+        let snoozedReport = try XCTUnwrap(
+            activeReports.first {
+                $0.runRecapShareArtifactTour.warningPulseCueStateIdentifier == "snoozed"
+            }
+        )
+        let snoozedSummary = CinematicDiagnosticsSummary(report: snoozedReport)
+        let snoozedTarget = try XCTUnwrap(
+            snoozedSummary.attentionSummary.targets.first {
+                $0.id.hasPrefix("run-recap-share-artifact-tour-warning-pulse-snoozed")
+            }
+        )
+        XCTAssertEqual(snoozedTarget.label, "Tour warning pulse snoozed")
+        XCTAssertEqual(
+            snoozedTarget.visibleWarningIdentifiers.first,
+            "run-recap-share-artifact-tour-warning-pulse.snoozed"
+        )
+        XCTAssertTrue(snoozedTarget.copyText.contains("Warning pulse state: snoozed"))
+        XCTAssertTrue(snoozedSummary.exportText.contains("Tour warning pulse snoozed -> \(snoozedTarget.id)"))
+
+        let cases: [(seed: String, section: String?, expectedState: String, entries: [CinematicRunRecapShareArtifactHistoryPlan.Entry]?)] = [
+            ("missing", nil, "missing", nil),
+            (
+                "unknown",
+                diagnosticsWarningPulseSection(state: "paused", suffix: "unknown"),
+                "unknown",
+                nil
+            ),
+            ("unavailable", nil, "missing", [])
+        ]
+
+        for testCase in cases {
+            let history = diagnosticsRuntimeRouteHistory(
+                seed: "warning-pulse-\(testCase.seed)",
+                runtimeRouteSection: diagnosticsRuntimeRouteSection(
+                    effectiveRoute: "apple-container",
+                    effectiveRouteTitle: "Apple container",
+                    fallbackState: "direct",
+                    supportClassification: "image-routeable"
+                ),
+                warningPulseSection: testCase.section,
+                entries: testCase.entries
+            )
+            let report = makeReport(
+                CinematicDiagnosticsInput(
+                    repoName: "Compass",
+                    phase: "Developing",
+                    immediateTitle: "Ignore quiet tour warning pulse",
+                    completedCount: 1,
+                    latestEvent: nil,
+                    languageProfile: languageProfile(primaryLanguage: .swift),
+                    activityProfile: activityProfile(recentCommitCount: 1),
+                    influenceSettings: CinematicInfluenceSettings(),
+                    runRecapShareArtifactHistoryPlan: history,
+                    runRecapShareArtifactSavedTourHoldEntryIdentifier: history.entries.first?.identifier
+                )
+            )
+            let summary = CinematicDiagnosticsSummary(report: report)
+
+            XCTAssertEqual(
+                report.runRecapShareArtifactTour.warningPulseCueStateIdentifier,
+                testCase.expectedState,
+                testCase.seed
+            )
+            XCTAssertFalse(
+                summary.attentionSummary.targets.contains {
+                    $0.id.hasPrefix("run-recap-share-artifact-tour-warning-pulse")
+                },
+                testCase.seed
+            )
+            XCTAssertFalse(
+                summary.exportText.contains("run-recap-share-artifact-tour-warning-pulse.\(testCase.expectedState)"),
+                testCase.seed
+            )
         }
     }
 
@@ -5268,6 +5448,7 @@ final class CinematicDiagnosticsTests: XCTestCase {
         seed: String,
         runtimeRouteSection: String? = nil,
         mutationTestingSection: String? = nil,
+        warningPulseSection: String? = nil,
         entries: [CinematicRunRecapShareArtifactHistoryPlan.Entry]? = nil
     ) -> CinematicRunRecapShareArtifactHistoryPlan {
         let resolvedEntries = entries ?? [
@@ -5275,7 +5456,8 @@ final class CinematicDiagnosticsTests: XCTestCase {
                 seed: seed,
                 session: 42,
                 runtimeRouteSection: runtimeRouteSection,
-                mutationTestingSection: mutationTestingSection
+                mutationTestingSection: mutationTestingSection,
+                warningPulseSection: warningPulseSection
             )
         ]
         return CinematicRunRecapShareArtifactHistoryPlan(
@@ -5303,7 +5485,8 @@ final class CinematicDiagnosticsTests: XCTestCase {
         seed: String,
         session: Int,
         runtimeRouteSection: String?,
-        mutationTestingSection: String? = nil
+        mutationTestingSection: String? = nil,
+        warningPulseSection: String? = nil
     ) -> CinematicRunRecapShareArtifactHistoryPlan.Entry {
         let filename = "\(session)-runtime-route-\(seed).md"
         let markdown = [
@@ -5325,6 +5508,7 @@ final class CinematicDiagnosticsTests: XCTestCase {
             """,
             runtimeRouteSection ?? "",
             mutationTestingSection ?? "",
+            warningPulseSection ?? "",
             """
             ## Events
             - event
@@ -5383,6 +5567,36 @@ final class CinematicDiagnosticsTests: XCTestCase {
             "- Provisioning action: none"
         ]
         return (baseLines + extraLines).joined(separator: "\n")
+    }
+
+    private func diagnosticsWarningPulseSection(
+        state: String,
+        suffix: String,
+        warningIdentifiers: [String] = [
+            "visual-smoke.warning-pulse-a",
+            "visual-smoke.warning-pulse-b"
+        ],
+        targetAnchors: [String] = ["visual-smoke-check-warning-pulse"],
+        relatedRows: [String] = ["diagnostics-row-run-recap-share-artifact-tour"]
+    ) -> String {
+        """
+        ## Diagnostics Warning Pulse
+
+        - Warning pulse audit: diagnostics-warning-pulse-\(suffix)
+        - State: \(state)
+        - Bundle: diagnostics-warning-bundle-\(suffix)
+        - Quieting status: \(state)
+        - Sequence: 5
+        - Capture count: 3
+        - Target count: \(targetAnchors.count)
+        - Warning count: \(warningIdentifiers.count)
+        - Warning identifiers: \(warningIdentifiers.joined(separator: ", "))
+        - Omitted warning identifiers: 0
+        - Target anchors: \(targetAnchors.joined(separator: ", "))
+        - Omitted target anchors: 0
+        - Related rows: \(relatedRows.joined(separator: ", "))
+        - Omitted related rows: 0
+        """
     }
 
     private func diagnosticsSourceHistory(

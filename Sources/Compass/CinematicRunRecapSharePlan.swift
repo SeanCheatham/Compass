@@ -1387,7 +1387,11 @@ struct CinematicRunRecapShareArtifactWarningPulseCue: Equatable, Identifiable {
         fallback: String,
         limit: Int
     ) -> String {
-        let normalized = bounded(text, limit: limit)
+        let normalized = MutationTestingPresentationSanitizer.field(
+            text,
+            limit: limit,
+            fallback: fallback
+        )
         return normalized.isEmpty ? fallback : normalized
     }
 
@@ -1413,6 +1417,168 @@ struct CinematicRunRecapShareArtifactWarningPulseCue: Equatable, Identifiable {
 
     private static func isASCIIDigit(_ scalar: UnicodeScalar) -> Bool {
         (48...57).contains(Int(scalar.value))
+    }
+
+    private static func fingerprint(_ value: String) -> String {
+        var hash: UInt64 = 0xcbf29ce484222325
+        for byte in value.utf8 {
+            hash ^= UInt64(byte)
+            hash = hash &* 0x100000001b3
+        }
+        return String(format: "%016llx", hash)
+    }
+}
+
+struct CinematicRunRecapShareArtifactWarningPulseTreatmentDescriptor: Equatable {
+    static let identifierMaxCharacters = 180
+    static let componentMaxCharacters = 48
+    static let copyMaxCharacters = CinematicRunRecapShareArtifactWarningPulseCue.copyMaxCharacters
+    static let helpMaxCharacters = CinematicRunRecapShareArtifactWarningPulseCue.helpMaxCharacters
+
+    var identifier: String
+    var stateIdentifier: String
+    var accentIdentifier: String
+    var railIdentifier: String
+    var sealIdentifier: String
+    var textIdentifier: String
+    var compactCopy: String
+    var helpCopy: String
+    var plateOpacityBoost: Double
+    var railOpacityScale: Double
+    var sealOpacityScale: Double
+    var textOpacityScale: Double
+
+    init(cue: CinematicRunRecapShareArtifactWarningPulseCue?) {
+        let stateIdentifier = Self.stateIdentifier(cue?.stateIdentifier, hasCue: cue != nil)
+        let presentation = Self.presentation(stateIdentifier: stateIdentifier)
+
+        self.stateIdentifier = stateIdentifier
+        accentIdentifier = presentation.accentIdentifier
+        railIdentifier = presentation.railIdentifier
+        sealIdentifier = presentation.sealIdentifier
+        textIdentifier = presentation.textIdentifier
+        compactCopy = Self.bounded(
+            cue?.compactCopy ?? presentation.compactCopy,
+            limit: Self.copyMaxCharacters
+        )
+        helpCopy = Self.bounded(
+            cue?.helpCopy ?? presentation.helpCopy,
+            limit: Self.helpMaxCharacters
+        )
+        plateOpacityBoost = presentation.plateOpacityBoost
+        railOpacityScale = presentation.railOpacityScale
+        sealOpacityScale = presentation.sealOpacityScale
+        textOpacityScale = presentation.textOpacityScale
+        identifier = Self.bounded(
+            [
+                "warning-pulse-treatment",
+                "state:\(stateIdentifier)",
+                "accent:\(accentIdentifier)",
+                "rail:\(railIdentifier)",
+                "seal:\(sealIdentifier)",
+                "text:\(textIdentifier)",
+                "cue:\(Self.fingerprint(cue?.identifier ?? "missing-cue"))"
+            ].joined(separator: "|"),
+            limit: Self.identifierMaxCharacters
+        )
+    }
+
+    private struct Presentation {
+        var accentIdentifier: String
+        var railIdentifier: String
+        var sealIdentifier: String
+        var textIdentifier: String
+        var compactCopy: String
+        var helpCopy: String
+        var plateOpacityBoost: Double
+        var railOpacityScale: Double
+        var sealOpacityScale: Double
+        var textOpacityScale: Double
+    }
+
+    private static func stateIdentifier(_ cueStateIdentifier: String?, hasCue: Bool) -> String {
+        guard hasCue else { return "missing" }
+        switch cueStateIdentifier {
+        case "active":
+            return "active"
+        case "snoozed":
+            return "snoozed"
+        default:
+            return "unknown"
+        }
+    }
+
+    private static func presentation(stateIdentifier: String) -> Presentation {
+        switch stateIdentifier {
+        case "active":
+            return Presentation(
+                accentIdentifier: "warning-pulse-amber",
+                railIdentifier: "warning-pulse-active-rail",
+                sealIdentifier: "warning-pulse-active-seal",
+                textIdentifier: "warning-pulse-active-text",
+                compactCopy: "Warning pulse active",
+                helpCopy: "Saved artifact warning-pulse cue is active and read-only.",
+                plateOpacityBoost: 0.055,
+                railOpacityScale: 1.28,
+                sealOpacityScale: 1.2,
+                textOpacityScale: 1.12
+            )
+        case "snoozed":
+            return Presentation(
+                accentIdentifier: "warning-pulse-teal",
+                railIdentifier: "warning-pulse-snoozed-rail",
+                sealIdentifier: "warning-pulse-snoozed-seal",
+                textIdentifier: "warning-pulse-snoozed-text",
+                compactCopy: "Warning pulse snoozed",
+                helpCopy: "Saved artifact warning-pulse cue is snoozed and read-only.",
+                plateOpacityBoost: 0.035,
+                railOpacityScale: 1.04,
+                sealOpacityScale: 0.94,
+                textOpacityScale: 0.96
+            )
+        case "unknown":
+            return Presentation(
+                accentIdentifier: "warning-pulse-violet",
+                railIdentifier: "warning-pulse-unknown-rail",
+                sealIdentifier: "warning-pulse-unknown-seal",
+                textIdentifier: "warning-pulse-unknown-text",
+                compactCopy: "Warning pulse unknown",
+                helpCopy: "Saved artifact warning-pulse cue was present but its bounded state was unknown.",
+                plateOpacityBoost: 0.02,
+                railOpacityScale: 0.9,
+                sealOpacityScale: 0.84,
+                textOpacityScale: 0.82
+            )
+        default:
+            return Presentation(
+                accentIdentifier: "warning-pulse-muted",
+                railIdentifier: "warning-pulse-missing-rail",
+                sealIdentifier: "warning-pulse-missing-seal",
+                textIdentifier: "warning-pulse-missing-text",
+                compactCopy: "Warning pulse missing",
+                helpCopy: "No warning-pulse cue was found in the selected saved recap artifact.",
+                plateOpacityBoost: 0,
+                railOpacityScale: 0.72,
+                sealOpacityScale: 0.66,
+                textOpacityScale: 0.7
+            )
+        }
+    }
+
+    private static func bounded(_ text: String, limit: Int) -> String {
+        guard limit > 0 else { return "" }
+        let normalized = text
+            .replacingOccurrences(of: "\r", with: " ")
+            .replacingOccurrences(of: "\n", with: " ")
+            .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalized.isEmpty else { return "" }
+        guard normalized.count <= limit else {
+            let prefixLimit = max(1, limit - 3)
+            return normalized.prefix(prefixLimit)
+                .trimmingCharacters(in: .whitespacesAndNewlines) + "..."
+        }
+        return normalized
     }
 
     private static func fingerprint(_ value: String) -> String {
@@ -2194,6 +2360,8 @@ struct CinematicRunRecapShareArtifactTourPlan: Equatable, Identifiable {
     var runtimeRouteTreatment: CinematicRunRecapShareArtifactRuntimeRouteTreatmentDescriptor
     var mutationTestingCue: CinematicRunRecapShareArtifactMutationTestingCue?
     var mutationTestingTreatment: CinematicRunRecapShareArtifactMutationTestingTreatmentDescriptor
+    var warningPulseCue: CinematicRunRecapShareArtifactWarningPulseCue?
+    var warningPulseTreatment: CinematicRunRecapShareArtifactWarningPulseTreatmentDescriptor
     var requestedPinnedEntryIdentifiers: [String]
     var retainedPinnedEntryIdentifiers: [String]
     var missingPinnedEntryIdentifiers: [String]
@@ -2230,6 +2398,51 @@ struct CinematicRunRecapShareArtifactTourPlan: Equatable, Identifiable {
 
     var mutationTestingCueStateIdentifier: String {
         mutationTestingTreatment.stateIdentifier
+    }
+
+    var warningPulseCueAvailabilityIdentifier: String {
+        warningPulseCue == nil ? "missing" : "available"
+    }
+
+    var warningPulseCueStateIdentifier: String {
+        warningPulseTreatment.stateIdentifier
+    }
+
+    var warningPulseCueWarningCountIdentifier: String {
+        String(warningPulseCue?.warningCount ?? 0)
+    }
+
+    var warningPulseCueIdentifierFingerprint: String {
+        Self.fingerprint(warningPulseCue?.identifier ?? "missing-cue")
+    }
+
+    var warningPulseCueAuditIdentifierFingerprint: String {
+        Self.fingerprint(warningPulseCue?.auditIdentifier ?? "missing-audit")
+    }
+
+    var warningPulseCueBundleIdentifierFingerprint: String {
+        Self.fingerprint(warningPulseCue?.bundleIdentifier ?? "missing-bundle")
+    }
+
+    var warningPulseCueWarningIdentifiersFingerprint: String {
+        Self.fingerprint(warningPulseCue?.warningIdentifiers.joined(separator: "|") ?? "none")
+    }
+
+    var warningPulseCueTargetAnchorsFingerprint: String {
+        Self.fingerprint(warningPulseCue?.targetAnchors.joined(separator: "|") ?? "none")
+    }
+
+    var warningPulseCueRelatedRowAnchorsFingerprint: String {
+        Self.fingerprint(warningPulseCue?.relatedRowAnchors.joined(separator: "|") ?? "none")
+    }
+
+    private static func fingerprint(_ value: String) -> String {
+        var hash: UInt64 = 0xcbf29ce484222325
+        for byte in value.utf8 {
+            hash ^= UInt64(byte)
+            hash = hash &* 0x100000001b3
+        }
+        return String(format: "%016llx", hash)
     }
 }
 
@@ -3592,6 +3805,12 @@ enum CinematicRunRecapShareArtifactTourPlanner {
         let mutationTestingTreatment = CinematicRunRecapShareArtifactMutationTestingTreatmentDescriptor(
             cue: mutationTestingCue
         )
+        let warningPulseCue = selectedEntry.flatMap {
+            CinematicRunRecapShareArtifactWarningPulseCue(markdownContents: $0.markdownContents)
+        }
+        let warningPulseTreatment = CinematicRunRecapShareArtifactWarningPulseTreatmentDescriptor(
+            cue: warningPulseCue
+        )
         var identifierParts = [
             "run-recap-share-artifact-tour",
             "availability:\(availabilityReason)",
@@ -3600,6 +3819,16 @@ enum CinematicRunRecapShareArtifactTourPlanner {
             "mutation-state:\(mutationTestingTreatment.stateIdentifier)",
             "mutation-cue:\(fingerprint(mutationTestingCue?.identifier ?? "missing"))",
             "mutation-treatment:\(fingerprint(mutationTestingTreatment.identifier))",
+            "warning-pulse-availability:\(warningPulseCue == nil ? "missing" : "available")",
+            "warning-pulse-state:\(warningPulseTreatment.stateIdentifier)",
+            "warning-pulse-count:\(warningPulseCue?.warningCount ?? 0)",
+            "warning-pulse-cue:\(fingerprint(warningPulseCue?.identifier ?? "missing"))",
+            "warning-pulse-audit:\(fingerprint(warningPulseCue?.auditIdentifier ?? "missing"))",
+            "warning-pulse-bundle:\(fingerprint(warningPulseCue?.bundleIdentifier ?? "missing"))",
+            "warning-pulse-warning-ids:\(fingerprint(warningPulseCue?.warningIdentifiers.joined(separator: "|") ?? "none"))",
+            "warning-pulse-targets:\(fingerprint(warningPulseCue?.targetAnchors.joined(separator: "|") ?? "none"))",
+            "warning-pulse-related:\(fingerprint(warningPulseCue?.relatedRowAnchors.joined(separator: "|") ?? "none"))",
+            "warning-pulse-treatment:\(fingerprint(warningPulseTreatment.identifier))",
             "retained:\(retainedEntries.count)",
             "total:\(historyPlan.totalCount)",
             "hidden:\(historyPlan.hiddenCount)",
@@ -3672,6 +3901,8 @@ enum CinematicRunRecapShareArtifactTourPlanner {
                 runtimeRouteTreatment: runtimeRouteTreatment,
                 mutationTestingCue: mutationTestingCue,
                 mutationTestingTreatment: mutationTestingTreatment,
+                warningPulseCue: warningPulseCue,
+                warningPulseTreatment: warningPulseTreatment,
                 requestedPinnedEntryIdentifiers: requestedPinnedEntryIdentifiers,
                 retainedPinnedEntryIdentifiers: retainedPinnedEntryIdentifiers,
                 missingPinnedEntryIdentifiers: missingPinnedEntryIdentifiers,
@@ -3742,6 +3973,8 @@ enum CinematicRunRecapShareArtifactTourPlanner {
             runtimeRouteTreatment: runtimeRouteTreatment,
             mutationTestingCue: mutationTestingCue,
             mutationTestingTreatment: mutationTestingTreatment,
+            warningPulseCue: warningPulseCue,
+            warningPulseTreatment: warningPulseTreatment,
             requestedPinnedEntryIdentifiers: requestedPinnedEntryIdentifiers,
             retainedPinnedEntryIdentifiers: retainedPinnedEntryIdentifiers,
             missingPinnedEntryIdentifiers: missingPinnedEntryIdentifiers,

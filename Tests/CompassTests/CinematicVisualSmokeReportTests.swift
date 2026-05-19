@@ -215,6 +215,9 @@ final class CinematicVisualSmokeReportTests: XCTestCase {
         XCTAssertTrue(savedArtifactTour.detail.contains("succeeded"))
         XCTAssertTrue(savedArtifactTour.detail.contains("failed"))
         XCTAssertTrue(savedArtifactTour.detail.contains("runtime-route-diverged"))
+        XCTAssertTrue(savedArtifactTour.detail.contains("warning-pulse"))
+        XCTAssertTrue(savedArtifactTour.detail.contains("active"))
+        XCTAssertTrue(savedArtifactTour.detail.contains("snoozed"))
         XCTAssertTrue(savedArtifactTour.detail.contains("warnings"))
         XCTAssertTrue(savedArtifactTour.detail.contains("bounded"))
         XCTAssertTrue(timelineFocus.detail.contains("commit"))
@@ -269,6 +272,11 @@ final class CinematicVisualSmokeReportTests: XCTestCase {
                 $0.runRecapShareArtifactTour.isAvailable
                     && $0.runRecapShareArtifactTour.runtimeRouteCueStateIdentifier == "missing-cue"
                     && $0.runRecapShareArtifactTour.mutationTestingTreatmentStateIdentifier == "runtime-route-diverged"
+            }
+        )
+        let snoozedWarningPulse = try XCTUnwrap(
+            reports.first {
+                $0.runRecapShareArtifactTour.warningPulseCueStateIdentifier == "snoozed"
             }
         )
         let appleContainer = try XCTUnwrap(
@@ -329,6 +337,22 @@ final class CinematicVisualSmokeReportTests: XCTestCase {
         )
         XCTAssertTrue(missingCueTarget.copyText.contains("Route compact: Missing cue"))
 
+        let snoozedWarningPulseSummary = CinematicDiagnosticsSummary(
+            report: snoozedWarningPulse,
+            visualSmoke: smoke
+        )
+        let snoozedWarningPulseTarget = try XCTUnwrap(
+            snoozedWarningPulseSummary.attentionSummary.targets.first {
+                $0.id.hasPrefix("run-recap-share-artifact-tour-warning-pulse-snoozed")
+            }
+        )
+        XCTAssertEqual(snoozedWarningPulseTarget.label, "Tour warning pulse snoozed")
+        XCTAssertEqual(
+            snoozedWarningPulseTarget.visibleWarningIdentifiers.first,
+            "run-recap-share-artifact-tour-warning-pulse.snoozed"
+        )
+        XCTAssertTrue(snoozedWarningPulseTarget.copyText.contains("Warning pulse state: snoozed"))
+
         let mutationWarningSummary = CinematicDiagnosticsSummary(
             report: mutationWarning,
             visualSmoke: smoke
@@ -338,11 +362,19 @@ final class CinematicVisualSmokeReportTests: XCTestCase {
         }
         XCTAssertEqual(
             sharedRowTargets.map(\.label),
-            ["Tour route cue missing", "Tour mutation route diverged"]
+            ["Tour warning pulse active", "Tour route cue missing", "Tour mutation route diverged"]
         )
         XCTAssertEqual(
             sharedRowTargets.map(\.relatedRowID),
-            ["run-recap-share-artifact-tour", "run-recap-share-artifact-tour"]
+            [
+                "run-recap-share-artifact-tour",
+                "run-recap-share-artifact-tour",
+                "run-recap-share-artifact-tour"
+            ]
+        )
+        XCTAssertEqual(
+            sharedRowTargets.first?.visibleWarningIdentifiers.first,
+            "run-recap-share-artifact-tour-warning-pulse.active"
         )
         XCTAssertTrue(
             mutationWarningSummary.exportText.contains(
@@ -361,6 +393,14 @@ final class CinematicVisualSmokeReportTests: XCTestCase {
                 summary.attentionSummary.targets.contains {
                     $0.visibleWarningIdentifiers.contains {
                         $0.hasPrefix("run-recap-share-artifact-tour-runtime-route.")
+                    }
+                },
+                quietReport.runRecapShareArtifactTour.runtimeRouteCueStateIdentifier
+            )
+            XCTAssertFalse(
+                summary.attentionSummary.targets.contains {
+                    $0.visibleWarningIdentifiers.contains {
+                        $0.hasPrefix("run-recap-share-artifact-tour-warning-pulse.")
                     }
                 },
                 quietReport.runRecapShareArtifactTour.runtimeRouteCueStateIdentifier

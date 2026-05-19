@@ -1605,6 +1605,25 @@ private struct CinematicRunRecapArtifactLibraryControl: View {
                     .accessibilityIdentifier("cinematic-run-recap-artifact-library-tour-mutation-\(tourPlan.mutationTestingCueStateIdentifier)")
             }
 
+            if let warningPulseCue = tourPlan.warningPulseCue,
+               tourPlan.warningPulseCueStateIdentifier == "active"
+                || tourPlan.warningPulseCueStateIdentifier == "snoozed" {
+                Text(warningPulseCue.compactCopy)
+                    .font(.caption2.weight(.bold))
+                    .foregroundStyle(warningPulseCueColor(tourPlan).opacity(0.82))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.62)
+                    .padding(.horizontal, 4)
+                    .frame(minWidth: 48, maxWidth: 104, minHeight: 16)
+                    .background(
+                        warningPulseCueColor(tourPlan).opacity(0.08),
+                        in: RoundedRectangle(cornerRadius: 4)
+                    )
+                    .help(warningPulseCueHelp(tourPlan))
+                    .accessibilityLabel("Warning pulse cue \(warningPulseCue.compactCopy)")
+                    .accessibilityIdentifier("cinematic-run-recap-artifact-library-tour-warning-pulse-\(tourPlan.warningPulseCueStateIdentifier)")
+            }
+
             Spacer(minLength: 4)
 
             Button {
@@ -1840,6 +1859,11 @@ private struct CinematicRunRecapArtifactLibraryControl: View {
         if tourPlan.isAvailable {
             parts.append("Mutation: \(tourPlan.mutationTestingCue?.detailCopy ?? tourPlan.mutationTestingTreatment.compactCopy). \(tourPlan.mutationTestingCue?.helpCopy ?? tourPlan.mutationTestingTreatment.helpCopy)")
         }
+        if let warningPulseCue = tourPlan.warningPulseCue,
+           tourPlan.warningPulseCueStateIdentifier == "active"
+            || tourPlan.warningPulseCueStateIdentifier == "snoozed" {
+            parts.append("Warning pulse: \(warningPulseCue.detailCopy). \(warningPulseCue.helpCopy)")
+        }
         return boundedHelp(parts.joined(separator: " "))
     }
 
@@ -1861,6 +1885,18 @@ private struct CinematicRunRecapArtifactLibraryControl: View {
         )
     }
 
+    private func warningPulseCueHelp(_ tourPlan: CinematicRunRecapShareArtifactTourPlan) -> String {
+        boundedHelp(
+            [
+                tourPlan.warningPulseCue?.detailCopy,
+                tourPlan.warningPulseCue?.helpCopy,
+                tourPlan.warningPulseTreatment.helpCopy
+            ]
+                .compactMap { $0?.isEmpty == false ? $0 : nil }
+                .joined(separator: " ")
+        )
+    }
+
     private func mutationTreatmentColor(_ tourPlan: CinematicRunRecapShareArtifactTourPlan) -> Color {
         switch tourPlan.mutationTestingCueStateIdentifier {
         case "succeeded":
@@ -1871,6 +1907,17 @@ private struct CinematicRunRecapArtifactLibraryControl: View {
             return .orange
         case "unknown":
             return .purple
+        default:
+            return .secondary
+        }
+    }
+
+    private func warningPulseCueColor(_ tourPlan: CinematicRunRecapShareArtifactTourPlan) -> Color {
+        switch tourPlan.warningPulseCueStateIdentifier {
+        case "active":
+            return .orange
+        case "snoozed":
+            return .teal
         default:
             return .secondary
         }
