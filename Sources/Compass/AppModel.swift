@@ -835,7 +835,10 @@ extension CompassProject {
         cinematicRunRecapShareArtifactRecording = result
         switch result.status {
         case .recorded:
-            log("Recap share artifact recorded: \(result.artifactURL?.path ?? result.artifactPlan.filename)", level: .success)
+            log(
+                "Recap share artifact recorded: \(result.artifactURL?.lastPathComponent ?? result.artifactPlan.filename)",
+                level: .success
+            )
         case .skipped:
             log(result.detail, level: .info)
         case .failed:
