@@ -187,6 +187,46 @@ final class CodexExecutorLaunchRouteTests: XCTestCase {
         XCTAssertFalse(context.invocation.arguments.contains("container"))
     }
 
+    func testBuildDevcontainerConfigurationKeepsCodexInvocationNativeForNow() async throws {
+        let repoURL = try makeTemporaryDirectory(prefix: "CodexExecutorBuildFallback")
+        try write(
+            #"{"build":{"dockerfile":"Dockerfile","context":"..","target":"develop"}}"#,
+            to: devcontainerURL(in: repoURL)
+        )
+        let launchPlan = CodexExecutionLaunchPlan.plan(
+            repoURL: repoURL,
+            preference: .devcontainerPreferred,
+            containerToolResolver: { _ in "/usr/local/bin/container" }
+        )
+        var capturedContext: CodexExecutorLaunchContext?
+        let executor = CodexExecutor { context, _ in
+            capturedContext = context
+            try #"{"ok":true}"#.write(to: context.outputFile, atomically: true, encoding: .utf8)
+            return ProcessResult(exitCode: 0, stdout: "", stderr: "")
+        }
+
+        _ = try await executor.run(
+            CodexRunConfiguration(
+                codexBinary: "/opt/codex/bin/codex",
+                repoURL: repoURL,
+                sandbox: "danger-full-access",
+                model: nil,
+                schema: #"{"type":"object"}"#,
+                prompt: "Develop prompt",
+                launchPlan: launchPlan
+            ),
+            decode: StubCodexResponse.self,
+            onEvent: { _ in }
+        )
+
+        let context = try XCTUnwrap(capturedContext)
+        XCTAssertNotNil(launchPlan.devcontainerSupportReport?.buildConfiguration)
+        XCTAssertEqual(launchPlan.devcontainerSupportReport?.classification, .buildBased)
+        XCTAssertEqual(context.invocation.executable, "/opt/codex/bin/codex")
+        XCTAssertEqual(try argument(after: "--cd", in: context.invocation.arguments), repoURL.standardizedFileURL.path)
+        XCTAssertFalse(context.invocation.arguments.contains("container"))
+    }
+
     func testContainerCommandUsesWorkspaceFolderForCodexCd() async throws {
         let repoURL = try makeTemporaryDirectory(prefix: "CodexExecutorWorkspace")
         try write(

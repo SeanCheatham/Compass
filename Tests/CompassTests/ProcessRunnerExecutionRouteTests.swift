@@ -137,6 +137,38 @@ final class ProcessRunnerExecutionRouteTests: XCTestCase {
         XCTAssertFalse(launchPlan.preflightSummary(phase: "Verify").contains(repoURL.standardizedFileURL.path))
     }
 
+    func testBuildDevcontainerPlanKeepsVerifyShellOnNativeRoute() async throws {
+        let repoURL = try makeTemporaryDirectory(prefix: "ProcessRunnerBuildFallback")
+        try write(
+            #"{"build":{"dockerfile":"Dockerfile","context":"..","target":"verify"}}"#,
+            to: devcontainerURL(in: repoURL)
+        )
+        let launchPlan = CodexExecutionLaunchPlan.plan(
+            repoURL: repoURL,
+            preference: .devcontainerPreferred,
+            containerToolResolver: { _ in "/usr/local/bin/container" }
+        )
+        var capturedInvocation: CodexExecutionInvocation?
+
+        _ = try await ProcessRunner.runShell(
+            "swift test",
+            workingDirectory: repoURL,
+            launchPlan: launchPlan,
+            runner: { invocation, _, _, _, _ in
+                capturedInvocation = invocation
+                return ProcessResult(exitCode: 0, stdout: "", stderr: "")
+            }
+        )
+
+        let invocation = try XCTUnwrap(capturedInvocation)
+        XCTAssertNotNil(launchPlan.devcontainerSupportReport?.buildConfiguration)
+        XCTAssertFalse(launchPlan.isContainerRoute)
+        XCTAssertEqual(launchPlan.devcontainerSupportReport?.classification, .buildBased)
+        XCTAssertEqual(invocation.executable, "/bin/zsh")
+        XCTAssertEqual(invocation.arguments, ["-lc", "swift test"])
+        XCTAssertFalse(invocation.arguments.contains("container"))
+    }
+
     private func makeTemporaryDirectory(prefix: String) throws -> URL {
         let url = FileManager.default.temporaryDirectory
             .appending(path: "\(prefix)-\(UUID().uuidString)", directoryHint: .isDirectory)

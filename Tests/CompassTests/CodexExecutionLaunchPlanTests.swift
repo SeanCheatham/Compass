@@ -163,24 +163,39 @@ final class CodexExecutionLaunchPlanTests: XCTestCase {
     }
 
     func testBuildStringAndTopLevelDockerfileFormsExposeSanitizedDescriptorTokens() throws {
-        let cases: [(prefix: String, json: String, expectedTokens: [String], expectedDockerfile: String?)] = [
+        let cases: [
+            (
+                prefix: String,
+                json: String,
+                expectedTokens: [String],
+                expectedDockerfile: String?,
+                expectedDockerfilePath: String?,
+                expectsBuildConfiguration: Bool
+            )
+        ] = [
             (
                 "CodexExecutionLaunchPlanBuildString",
                 #"{"build":"docker/Dockerfile.dev"}"#,
                 ["build", "dockerfile:Dockerfile.dev"],
-                "Dockerfile.dev"
+                "Dockerfile.dev",
+                ".devcontainer/docker/Dockerfile.dev",
+                true
             ),
             (
                 "CodexExecutionLaunchPlanTopLevelDockerFile",
                 #"{"dockerFile":"../Dockerfile"}"#,
                 ["build", "dockerfile:Dockerfile"],
-                "Dockerfile"
+                "Dockerfile",
+                "Dockerfile",
+                true
             ),
             (
                 "CodexExecutionLaunchPlanTopLevelDockerfile",
                 #"{"dockerfile":"/tmp/private-repo/Dockerfile.secret"}"#,
                 ["build", "dockerfile:absolute"],
-                "absolute"
+                "absolute",
+                nil,
+                false
             )
         ]
 
@@ -199,15 +214,70 @@ final class CodexExecutionLaunchPlanTests: XCTestCase {
             XCTAssertEqual(report.classification, .buildBased)
             XCTAssertEqual(report.supportTokens, testCase.expectedTokens)
             XCTAssertEqual(report.buildDescriptor?.dockerfileLabel, testCase.expectedDockerfile)
+            XCTAssertEqual(report.buildConfiguration != nil, testCase.expectsBuildConfiguration)
+            if let expectedDockerfilePath = testCase.expectedDockerfilePath {
+                XCTAssertEqual(
+                    report.buildConfiguration?.dockerfileURL,
+                    repoRelativeURL(expectedDockerfilePath, in: repoURL)
+                )
+                XCTAssertEqual(
+                    report.buildConfiguration?.contextURL,
+                    repoURL.appending(path: ".devcontainer", directoryHint: .isDirectory).standardizedFileURL
+                )
+            }
             XCTAssertFalse(report.supportSummary.contains("/tmp/private-repo"))
         }
+    }
+
+    func testSafeBuildObjectCreatesDeterministicBuildConfigurationWithoutRoutingCodex() throws {
+        let repoURL = try makeTemporaryDirectory(prefix: "CodexExecutionLaunchPlanBuildPlan")
+        try write(
+            #"{"build":{"target":"runtime","context":"..","dockerfile":"Dockerfile"}}"#,
+            to: devcontainerURL(in: repoURL)
+        )
+
+        let firstPlan = CodexExecutionLaunchPlan.plan(
+            repoURL: repoURL,
+            preference: .devcontainerPreferred,
+            containerToolResolver: { _ in "/usr/local/bin/container" }
+        )
+        let secondPlan = CodexExecutionLaunchPlan.plan(
+            repoURL: repoURL,
+            preference: .devcontainerPreferred,
+            containerToolResolver: { _ in "/usr/local/bin/container" }
+        )
+        let report = try XCTUnwrap(firstPlan.devcontainerSupportReport)
+        let buildConfiguration = try XCTUnwrap(report.buildConfiguration)
+        let repeatedConfiguration = try XCTUnwrap(secondPlan.devcontainerSupportReport?.buildConfiguration)
+        let invocation = buildConfiguration.buildInvocation(containerToolPath: "/usr/local/bin/container")
+
+        XCTAssertFalse(firstPlan.isContainerRoute)
+        XCTAssertEqual(report.classification, .buildBased)
+        XCTAssertEqual(report.buildDescriptor?.dockerfileLabel, "Dockerfile")
+        XCTAssertEqual(report.buildDescriptor?.contextLabel, "repo-root")
+        XCTAssertEqual(report.buildDescriptor?.targetLabel, "runtime")
+        XCTAssertEqual(buildConfiguration.dockerfileURL, repoRelativeURL(".devcontainer/Dockerfile", in: repoURL))
+        XCTAssertEqual(buildConfiguration.contextURL, repoURL.standardizedFileURL)
+        XCTAssertEqual(buildConfiguration.target, "runtime")
+        XCTAssertEqual(buildConfiguration.localImageTag, repeatedConfiguration.localImageTag)
+        XCTAssertTrue(buildConfiguration.localImageTag.hasPrefix("compass-devcontainer:"))
+        XCTAssertEqual(invocation.executable, "/usr/local/bin/container")
+        XCTAssertEqual(invocation.workingDirectory, repoURL.standardizedFileURL)
+        XCTAssertEqual(invocation.arguments, [
+            "build",
+            "--tag", buildConfiguration.localImageTag,
+            "--file", repoRelativeURL(".devcontainer/Dockerfile", in: repoURL).path,
+            "--target", "runtime",
+            repoURL.standardizedFileURL.path
+        ])
     }
 
     func testBuildObjectExposesSortedBuildArgNamesWithoutValues() throws {
         let repoURL = try makeTemporaryDirectory(prefix: "CodexExecutionLaunchPlanBuildObject")
         let secretValue = "secret-build-arg-value"
+        let secondSecretValue = "second-secret-build-value"
         try write(
-            #"{"build":{"dockerfile":"docker/Dockerfile.runtime","context":"..","target":"runtime","args":{"ZETA":"\#(secretValue)","ALPHA":"plain"}}}"#,
+            #"{"build":{"dockerfile":"docker/Dockerfile.runtime","context":"..","target":"runtime","args":{"ZETA":"\#(secretValue)","ALPHA":"plain"},"buildArgs":{"BETA":"\#(secondSecretValue)"}}}"#,
             to: devcontainerURL(in: repoURL)
         )
 
@@ -228,22 +298,26 @@ final class CodexExecutionLaunchPlanTests: XCTestCase {
         XCTAssertNil(plan.devcontainer)
         XCTAssertEqual(report.classification, .buildBased)
         XCTAssertEqual(descriptor.dockerfileLabel, "Dockerfile.runtime")
-        XCTAssertEqual(descriptor.contextLabel, "parent")
+        XCTAssertEqual(descriptor.contextLabel, "repo-root")
         XCTAssertEqual(descriptor.targetLabel, "runtime")
-        XCTAssertEqual(descriptor.buildArgNames, ["ALPHA", "ZETA"])
+        XCTAssertNil(report.buildConfiguration)
+        XCTAssertEqual(descriptor.buildArgNames, ["ALPHA", "BETA", "ZETA"])
         XCTAssertEqual(report.supportTokens, [
             "build",
             "dockerfile:Dockerfile.runtime",
-            "context:parent",
+            "context:repo-root",
             "target:runtime",
-            "buildArgs:2",
+            "buildArgs:3",
             "arg:ALPHA",
+            "arg:BETA",
             "arg:ZETA"
         ])
-        XCTAssertTrue(diagnosticsText.contains("buildArgs:2"))
+        XCTAssertTrue(diagnosticsText.contains("buildArgs:3"))
         XCTAssertTrue(diagnosticsText.contains("arg:ALPHA"))
+        XCTAssertTrue(diagnosticsText.contains("arg:BETA"))
         XCTAssertTrue(diagnosticsText.contains("arg:ZETA"))
         XCTAssertFalse(diagnosticsText.contains(secretValue))
+        XCTAssertFalse(diagnosticsText.contains(secondSecretValue))
     }
 
     func testBuildDescriptorTokensAreDeterministicallyOrderedAndBounded() throws {
@@ -266,7 +340,7 @@ final class CodexExecutionLaunchPlanTests: XCTestCase {
         XCTAssertEqual(report.supportTokens, [
             "build",
             "dockerfile:Dockerfile",
-            "context:dot",
+            "context:.devcontainer",
             "target:builder",
             "buildArgs:10",
             "arg:ARG00",
@@ -393,6 +467,47 @@ final class CodexExecutionLaunchPlanTests: XCTestCase {
         ])
         XCTAssertFalse(diagnosticsText.contains(rawContext))
         XCTAssertFalse(diagnosticsText.contains("secret-value"))
+    }
+
+    func testUnsafeBuildPathsDisableBuildConfigurationWithoutLeakingPaths() throws {
+        let cases: [(prefix: String, json: String, expectedTokens: [String], leakedPathToken: String)] = [
+            (
+                "CodexExecutionLaunchPlanBuildAbsolutePath",
+                #"{"build":{"dockerfile":"/tmp/private/Dockerfile","context":".."}}"#,
+                ["build", "dockerfile:absolute", "context:repo-root"],
+                "/tmp/private"
+            ),
+            (
+                "CodexExecutionLaunchPlanBuildOutOfRepoContext",
+                #"{"build":{"dockerfile":"Dockerfile","context":"../.."}}"#,
+                ["build", "dockerfile:Dockerfile", "context:out-of-repo"],
+                "../.."
+            )
+        ]
+
+        for testCase in cases {
+            let repoURL = try makeTemporaryDirectory(prefix: testCase.prefix)
+            try write(testCase.json, to: devcontainerURL(in: repoURL))
+
+            let plan = CodexExecutionLaunchPlan.plan(
+                repoURL: repoURL,
+                preference: .devcontainerPreferred,
+                containerToolResolver: { _ in "/usr/local/bin/container" }
+            )
+            let report = try XCTUnwrap(plan.devcontainerSupportReport)
+            let diagnosticsText = [
+                report.supportSummary,
+                plan.preflightSummary(phase: "Develop"),
+                plan.routeDetail()
+            ].joined(separator: " ")
+
+            XCTAssertFalse(plan.isContainerRoute)
+            XCTAssertEqual(report.classification, .buildBased)
+            XCTAssertNil(report.buildConfiguration)
+            XCTAssertEqual(report.supportTokens, testCase.expectedTokens)
+            XCTAssertFalse(diagnosticsText.contains(testCase.leakedPathToken))
+            XCTAssertFalse(diagnosticsText.contains(repoURL.deletingLastPathComponent().standardizedFileURL.path))
+        }
     }
 
     func testUnsupportedComposeConfigFallsBackToNative() throws {
@@ -652,5 +767,10 @@ final class CodexExecutionLaunchPlanTests: XCTestCase {
             withIntermediateDirectories: true
         )
         try contents.write(to: url, atomically: true, encoding: .utf8)
+    }
+
+    private func repoRelativeURL(_ relativePath: String, in repoURL: URL) -> URL {
+        URL(fileURLWithPath: relativePath, relativeTo: repoURL)
+            .standardizedFileURL
     }
 }

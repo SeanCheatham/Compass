@@ -39,17 +39,20 @@ struct CodexDevcontainerBuildDescriptor: Equatable {
     var dockerfileLabel: String?
     var contextLabel: String?
     var targetLabel: String?
+    var hasBuildArgs: Bool
     var buildArgNames: [String]
 
     init(
         dockerfileLabel: String? = nil,
         contextLabel: String? = nil,
         targetLabel: String? = nil,
+        hasBuildArgs: Bool = false,
         buildArgNames: [String] = []
     ) {
         self.dockerfileLabel = Self.boundedOptionalText(dockerfileLabel, limit: Self.labelLimit)
         self.contextLabel = Self.boundedOptionalText(contextLabel, limit: Self.labelLimit)
         self.targetLabel = Self.boundedOptionalText(targetLabel, limit: Self.labelLimit)
+        self.hasBuildArgs = hasBuildArgs
         self.buildArgNames = buildArgNames
             .map { Self.boundedText($0, limit: Self.buildArgNameLimit) }
             .filter { !$0.isEmpty }
@@ -67,7 +70,7 @@ struct CodexDevcontainerBuildDescriptor: Equatable {
         if let targetLabel {
             tokens.append("target:\(targetLabel)")
         }
-        if !buildArgNames.isEmpty {
+        if hasBuildArgs {
             tokens.append("buildArgs:\(buildArgNames.count)")
             tokens += buildArgNames.map { "arg:\($0)" }
         }
@@ -81,6 +84,99 @@ struct CodexDevcontainerBuildDescriptor: Equatable {
 
     private static func boundedText(_ text: String, limit: Int) -> String {
         CodexExecutionLaunchPlan.boundedText(text, limit: limit)
+    }
+}
+
+struct CodexDevcontainerBuildConfiguration: Equatable {
+    static let localImageName = "compass-devcontainer"
+
+    var configURL: URL
+    var repoURL: URL
+    var dockerfileURL: URL
+    var contextURL: URL
+    var target: String?
+
+    init(
+        configURL: URL,
+        repoURL: URL,
+        dockerfileURL: URL,
+        contextURL: URL,
+        target: String? = nil
+    ) {
+        self.configURL = configURL.standardizedFileURL
+        self.repoURL = repoURL.standardizedFileURL
+        self.dockerfileURL = dockerfileURL.standardizedFileURL
+        self.contextURL = contextURL.standardizedFileURL
+        self.target = Self.boundedOptionalText(
+            target,
+            limit: CodexDevcontainerBuildDescriptor.labelLimit
+        )
+    }
+
+    var localImageTag: String {
+        let fingerprint = [
+            repoURL.path,
+            relativePath(for: dockerfileURL) ?? dockerfileURL.path,
+            relativePath(for: contextURL) ?? contextURL.path,
+            target ?? ""
+        ].joined(separator: "\n")
+        return "\(Self.localImageName):\(Self.stableHexDigest(fingerprint))"
+    }
+
+    var buildArguments: [String] {
+        var arguments = [
+            "build",
+            "--tag", localImageTag,
+            "--file", dockerfileURL.path
+        ]
+        if let target {
+            arguments += ["--target", target]
+        }
+        arguments.append(contextURL.path)
+        return arguments
+    }
+
+    func buildInvocation(containerToolPath: String) -> CodexExecutionInvocation {
+        let trimmedToolPath = containerToolPath.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmedToolPath.contains("/") {
+            return CodexExecutionInvocation(
+                executable: trimmedToolPath,
+                arguments: buildArguments,
+                workingDirectory: repoURL
+            )
+        }
+
+        return CodexExecutionInvocation(
+            executable: "/usr/bin/env",
+            arguments: [trimmedToolPath] + buildArguments,
+            workingDirectory: repoURL
+        )
+    }
+
+    private func relativePath(for url: URL) -> String? {
+        let rootPath = repoURL.standardizedFileURL.path
+        let targetPath = url.standardizedFileURL.path
+        if targetPath == rootPath {
+            return "."
+        }
+
+        let rootPrefix = rootPath.hasSuffix("/") ? rootPath : rootPath + "/"
+        guard targetPath.hasPrefix(rootPrefix) else { return nil }
+        return String(targetPath.dropFirst(rootPrefix.count))
+    }
+
+    private static func stableHexDigest(_ text: String) -> String {
+        var hash: UInt64 = 14_695_981_039_346_656_037
+        for byte in text.utf8 {
+            hash ^= UInt64(byte)
+            hash &*= 1_099_511_628_211
+        }
+        return String(format: "%016llx", hash)
+    }
+
+    private static func boundedOptionalText(_ text: String?, limit: Int) -> String? {
+        let bounded = CodexExecutionLaunchPlan.boundedText(text ?? "", limit: limit)
+        return bounded.isEmpty ? nil : bounded
     }
 }
 
@@ -142,6 +238,7 @@ struct CodexDevcontainerSupportReport: Equatable {
     var name: String?
     var imageConfiguration: CodexDevcontainerImageConfiguration?
     var buildDescriptor: CodexDevcontainerBuildDescriptor?
+    var buildConfiguration: CodexDevcontainerBuildConfiguration?
     var supportTokens: [String]
     var omittedTokenCount: Int
     var reason: String?
@@ -152,6 +249,7 @@ struct CodexDevcontainerSupportReport: Equatable {
         name: String? = nil,
         imageConfiguration: CodexDevcontainerImageConfiguration? = nil,
         buildDescriptor: CodexDevcontainerBuildDescriptor? = nil,
+        buildConfiguration: CodexDevcontainerBuildConfiguration? = nil,
         supportTokens: [String] = [],
         omittedTokenCount: Int = 0,
         reason: String? = nil
@@ -161,6 +259,7 @@ struct CodexDevcontainerSupportReport: Equatable {
         self.name = Self.boundedOptionalText(name, limit: Self.nameLimit)
         self.imageConfiguration = imageConfiguration
         self.buildDescriptor = buildDescriptor
+        self.buildConfiguration = buildConfiguration
         self.supportTokens = supportTokens.map { Self.boundedText($0, limit: Self.tokenLimit) }
         self.omittedTokenCount = max(0, omittedTokenCount)
         self.reason = Self.boundedOptionalText(reason, limit: Self.reasonLimit)
@@ -341,11 +440,11 @@ struct CodexDevcontainerSupportReport: Equatable {
             )
         }
 
-        let buildDescriptor: CodexDevcontainerBuildDescriptor?
+        let parsedBuildPlan: ParsedBuildPlan?
         let hasMalformedBuildDescriptor: Bool
-        switch parseBuildDescriptor(dictionary) {
-        case let .success(parsedBuildDescriptor):
-            buildDescriptor = parsedBuildDescriptor
+        switch parseBuildPlan(dictionary, configURL: configURL) {
+        case let .success(buildPlan):
+            parsedBuildPlan = buildPlan
             hasMalformedBuildDescriptor = false
         case let .failure(reason):
             if composeKeys.isEmpty {
@@ -356,14 +455,24 @@ struct CodexDevcontainerSupportReport: Equatable {
                     reason: reason
                 )
             }
-            buildDescriptor = nil
+            parsedBuildPlan = nil
             hasMalformedBuildDescriptor = true
+        }
+        let buildDescriptor = parsedBuildPlan?.descriptor
+        let buildConfiguration: CodexDevcontainerBuildConfiguration?
+        if composeKeys.isEmpty,
+           featureKeys.isEmpty,
+           unsupportedKeys.isEmpty {
+            buildConfiguration = parsedBuildPlan?.configuration
+        } else {
+            buildConfiguration = nil
         }
 
         let supportTokenResult = supportTokens(
             hasCompose: !composeKeys.isEmpty,
             hasBuild: !buildKeys.isEmpty,
             buildDescriptor: buildDescriptor,
+            buildExtraSupportTokens: parsedBuildPlan?.extraSupportTokens ?? [],
             hasMalformedBuildDescriptor: hasMalformedBuildDescriptor,
             hasFeatures: !featureKeys.isEmpty,
             unsupportedKeys: unsupportedKeys,
@@ -376,6 +485,7 @@ struct CodexDevcontainerSupportReport: Equatable {
                 configURL: configURL,
                 name: name,
                 buildDescriptor: buildDescriptor,
+                buildConfiguration: buildConfiguration,
                 supportTokens: supportTokenResult.tokens,
                 omittedTokenCount: supportTokenResult.omittedCount,
                 reason: "Compose devcontainer fields require unsupported routing."
@@ -388,6 +498,7 @@ struct CodexDevcontainerSupportReport: Equatable {
                 configURL: configURL,
                 name: name,
                 buildDescriptor: buildDescriptor,
+                buildConfiguration: buildConfiguration,
                 supportTokens: supportTokenResult.tokens,
                 omittedTokenCount: supportTokenResult.omittedCount,
                 reason: "Build devcontainer fields require unsupported routing."
@@ -508,14 +619,31 @@ struct CodexDevcontainerSupportReport: Equatable {
         case failure(String)
     }
 
-    private enum BuildDescriptorParseResult {
-        case success(CodexDevcontainerBuildDescriptor?)
+    private struct ParsedBuildPlan {
+        var descriptor: CodexDevcontainerBuildDescriptor
+        var configuration: CodexDevcontainerBuildConfiguration?
+        var extraSupportTokens: [String]
+    }
+
+    private enum BuildPlanParseResult {
+        case success(ParsedBuildPlan?)
         case failure(String)
     }
 
     private enum BuildLabelParseResult {
         case success(String)
         case failure(String)
+    }
+
+    private enum BuildPathParseResult {
+        case success(url: URL, label: String)
+        case unsupported(label: String)
+        case failure(String)
+    }
+
+    private enum BuildPathKind {
+        case dockerfile
+        case context
     }
 
     private enum BuildArgsParseResult {
@@ -572,24 +700,53 @@ struct CodexDevcontainerSupportReport: Equatable {
         return .success(variables)
     }
 
-    private static func parseBuildDescriptor(_ dictionary: [String: Any]) -> BuildDescriptorParseResult {
+    private static func parseBuildPlan(
+        _ dictionary: [String: Any],
+        configURL: URL
+    ) -> BuildPlanParseResult {
         let buildKeys = presentKeys(["build", "dockerFile", "dockerfile"], in: dictionary)
         guard !buildKeys.isEmpty else {
             return .success(nil)
         }
 
+        let standardizedConfigURL = configURL.standardizedFileURL
+        let configDirectoryURL = standardizedConfigURL
+            .deletingLastPathComponent()
+            .standardizedFileURL
+        let repoURL = configDirectoryURL
+            .deletingLastPathComponent()
+            .standardizedFileURL
+
         var dockerfileLabel: String?
+        var dockerfileURL: URL?
         var contextLabel: String?
+        var contextURL: URL?
         var targetLabel: String?
+        var target: String?
+        var hasBuildArgs = false
         var buildArgNames: [String] = []
         var buildArgTotalValueLength = 0
+        var hasUnsupportedBuildComponent = false
+        var extraSupportTokens: [String] = []
 
         for key in ["dockerFile", "dockerfile"] where dictionary[key] != nil {
-            switch parseBuildPathLabel(dictionary[key], fieldName: key) {
-            case let .success(label):
+            switch parseBuildPath(
+                dictionary[key],
+                fieldName: key,
+                configDirectoryURL: configDirectoryURL,
+                repoURL: repoURL,
+                kind: .dockerfile
+            ) {
+            case let .success(url, label):
+                if dockerfileLabel == nil {
+                    dockerfileLabel = label
+                    dockerfileURL = url
+                }
+            case let .unsupported(label):
                 if dockerfileLabel == nil {
                     dockerfileLabel = label
                 }
+                hasUnsupportedBuildComponent = true
             case let .failure(reason):
                 return .failure(reason)
             }
@@ -597,30 +754,80 @@ struct CodexDevcontainerSupportReport: Equatable {
 
         if let rawBuild = dictionary["build"] {
             if let stringBuild = rawBuild as? String {
-                switch parseBuildPathLabel(stringBuild, fieldName: "build") {
-                case let .success(label):
+                switch parseBuildPath(
+                    stringBuild,
+                    fieldName: "build",
+                    configDirectoryURL: configDirectoryURL,
+                    repoURL: repoURL,
+                    kind: .dockerfile
+                ) {
+                case let .success(url, label):
+                    if dockerfileLabel == nil {
+                        dockerfileLabel = label
+                        dockerfileURL = url
+                    }
+                case let .unsupported(label):
                     if dockerfileLabel == nil {
                         dockerfileLabel = label
                     }
+                    hasUnsupportedBuildComponent = true
                 case let .failure(reason):
                     return .failure(reason)
                 }
             } else if let buildObject = rawBuild as? [String: Any] {
+                let supportedBuildObjectKeys: Set<String> = [
+                    "dockerfile",
+                    "dockerFile",
+                    "context",
+                    "target",
+                    "args",
+                    "buildArgs"
+                ]
+                let unsupportedBuildObjectKeys = Set(buildObject.keys)
+                    .subtracting(supportedBuildObjectKeys)
+                    .sorted()
+                if !unsupportedBuildObjectKeys.isEmpty {
+                    extraSupportTokens += unsupportedBuildObjectKeys.map { "extra:build.\($0)" }
+                    hasUnsupportedBuildComponent = true
+                }
+
                 for key in ["dockerfile", "dockerFile"] where buildObject[key] != nil {
-                    switch parseBuildPathLabel(buildObject[key], fieldName: "build.\(key)") {
-                    case let .success(label):
+                    switch parseBuildPath(
+                        buildObject[key],
+                        fieldName: "build.\(key)",
+                        configDirectoryURL: configDirectoryURL,
+                        repoURL: repoURL,
+                        kind: .dockerfile
+                    ) {
+                    case let .success(url, label):
+                        if dockerfileLabel == nil {
+                            dockerfileLabel = label
+                            dockerfileURL = url
+                        }
+                    case let .unsupported(label):
                         if dockerfileLabel == nil {
                             dockerfileLabel = label
                         }
+                        hasUnsupportedBuildComponent = true
                     case let .failure(reason):
                         return .failure(reason)
                     }
                 }
 
                 if buildObject["context"] != nil {
-                    switch parseBuildPathLabel(buildObject["context"], fieldName: "build.context") {
-                    case let .success(label):
+                    switch parseBuildPath(
+                        buildObject["context"],
+                        fieldName: "build.context",
+                        configDirectoryURL: configDirectoryURL,
+                        repoURL: repoURL,
+                        kind: .context
+                    ) {
+                    case let .success(url, label):
                         contextLabel = label
+                        contextURL = url
+                    case let .unsupported(label):
+                        contextLabel = label
+                        hasUnsupportedBuildComponent = true
                     case let .failure(reason):
                         return .failure(reason)
                     }
@@ -630,12 +837,15 @@ struct CodexDevcontainerSupportReport: Equatable {
                     switch parseBuildNameLabel(buildObject["target"], fieldName: "build.target") {
                     case let .success(label):
                         targetLabel = label
+                        target = label
                     case let .failure(reason):
                         return .failure(reason)
                     }
                 }
 
                 for key in ["args", "buildArgs"] where buildObject[key] != nil {
+                    hasBuildArgs = true
+                    hasUnsupportedBuildComponent = true
                     switch parseBuildArgNames(
                         buildObject[key],
                         existingNames: buildArgNames,
@@ -653,15 +863,49 @@ struct CodexDevcontainerSupportReport: Equatable {
             }
         }
 
-        return .success(CodexDevcontainerBuildDescriptor(
+        if dockerfileURL != nil, contextURL == nil {
+            contextURL = configDirectoryURL
+        }
+        if dockerfileURL == nil {
+            hasUnsupportedBuildComponent = true
+        }
+
+        let descriptor = CodexDevcontainerBuildDescriptor(
             dockerfileLabel: dockerfileLabel,
             contextLabel: contextLabel,
             targetLabel: targetLabel,
+            hasBuildArgs: hasBuildArgs,
             buildArgNames: buildArgNames
+        )
+        let configuration: CodexDevcontainerBuildConfiguration?
+        if let dockerfileURL,
+           let contextURL,
+           !hasUnsupportedBuildComponent {
+            configuration = CodexDevcontainerBuildConfiguration(
+                configURL: standardizedConfigURL,
+                repoURL: repoURL,
+                dockerfileURL: dockerfileURL,
+                contextURL: contextURL,
+                target: target
+            )
+        } else {
+            configuration = nil
+        }
+
+        return .success(ParsedBuildPlan(
+            descriptor: descriptor,
+            configuration: configuration,
+            extraSupportTokens: extraSupportTokens
         ))
     }
 
-    private static func parseBuildPathLabel(_ rawValue: Any?, fieldName: String) -> BuildLabelParseResult {
+    private static func parseBuildPath(
+        _ rawValue: Any?,
+        fieldName: String,
+        configDirectoryURL: URL,
+        repoURL: URL,
+        kind: BuildPathKind
+    ) -> BuildPathParseResult {
         guard let value = rawValue as? String else {
             return .failure("\(fieldName) must be a string.")
         }
@@ -670,12 +914,32 @@ struct CodexDevcontainerSupportReport: Equatable {
             return .failure("\(fieldName) must not contain NUL characters.")
         }
 
+        guard !value.contains("\n"), !value.contains("\r") else {
+            return .failure("\(fieldName) must not contain line breaks.")
+        }
+
         let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else {
             return .failure("\(fieldName) must not be empty.")
         }
 
-        return .success(sanitizedBuildPathLabel(trimmed))
+        let normalized = trimmed.replacingOccurrences(of: "\\", with: "/")
+        if normalized.hasPrefix("/") || isWindowsAbsolutePath(normalized) {
+            return .unsupported(label: "absolute")
+        }
+
+        let resolvedURL = URL(fileURLWithPath: normalized, relativeTo: configDirectoryURL)
+            .standardizedFileURL
+        guard isURL(resolvedURL, containedIn: repoURL) else {
+            return .unsupported(label: "out-of-repo")
+        }
+
+        return .success(url: resolvedURL, label: buildPathLabel(
+            for: resolvedURL,
+            repoURL: repoURL,
+            configDirectoryURL: configDirectoryURL,
+            kind: kind
+        ))
     }
 
     private static func parseBuildNameLabel(_ rawValue: Any?, fieldName: String) -> BuildLabelParseResult {
@@ -694,7 +958,7 @@ struct CodexDevcontainerSupportReport: Equatable {
 
         let bounded = boundedText(trimmed, limit: CodexDevcontainerBuildDescriptor.labelLimit)
         guard isSafeBuildLabel(bounded) else {
-            return .success("present")
+            return .failure("\(fieldName) contains unsupported characters.")
         }
         return .success(bounded)
     }
@@ -752,6 +1016,7 @@ struct CodexDevcontainerSupportReport: Equatable {
         hasCompose: Bool,
         hasBuild: Bool,
         buildDescriptor: CodexDevcontainerBuildDescriptor? = nil,
+        buildExtraSupportTokens: [String] = [],
         hasMalformedBuildDescriptor: Bool = false,
         hasFeatures: Bool,
         unsupportedKeys: [String],
@@ -767,6 +1032,7 @@ struct CodexDevcontainerSupportReport: Equatable {
                 rawTokens.append("build:malformed")
             } else {
                 rawTokens += buildDescriptor?.supportTokens ?? []
+                rawTokens += buildExtraSupportTokens
             }
         }
         if hasFeatures {
@@ -796,31 +1062,44 @@ struct CodexDevcontainerSupportReport: Equatable {
         keys.filter { dictionary[$0] != nil }
     }
 
-    private static func sanitizedBuildPathLabel(_ value: String) -> String {
-        let normalized = value.replacingOccurrences(of: "\\", with: "/")
-        if normalized == "." {
-            return "dot"
-        }
-        if normalized == ".." {
-            return "parent"
-        }
-        if normalized.hasPrefix("/") || isWindowsAbsolutePath(normalized) {
-            return "absolute"
-        }
-
-        let components = normalized
-            .split(separator: "/")
-            .map(String.init)
-            .filter { !$0.isEmpty && $0 != "." && $0 != ".." }
-        guard let last = components.last else {
-            return "relative"
+    private static func buildPathLabel(
+        for url: URL,
+        repoURL: URL,
+        configDirectoryURL: URL,
+        kind: BuildPathKind
+    ) -> String {
+        let standardizedURL = url.standardizedFileURL
+        if kind == .context {
+            if standardizedURL.path == repoURL.standardizedFileURL.path {
+                return "repo-root"
+            }
+            if standardizedURL.path == configDirectoryURL.standardizedFileURL.path {
+                return ".devcontainer"
+            }
         }
 
+        let last = standardizedURL.lastPathComponent
         let bounded = boundedText(last, limit: CodexDevcontainerBuildDescriptor.labelLimit)
         guard isSafeBuildLabel(bounded) else {
-            return "relative"
+            switch kind {
+            case .dockerfile:
+                return "dockerfile"
+            case .context:
+                return "context"
+            }
         }
         return bounded
+    }
+
+    private static func isURL(_ url: URL, containedIn rootURL: URL) -> Bool {
+        let rootPath = rootURL.standardizedFileURL.path
+        let targetPath = url.standardizedFileURL.path
+        if targetPath == rootPath {
+            return true
+        }
+
+        let rootPrefix = rootPath.hasSuffix("/") ? rootPath : rootPath + "/"
+        return targetPath.hasPrefix(rootPrefix)
     }
 
     private static func isWindowsAbsolutePath(_ value: String) -> Bool {
