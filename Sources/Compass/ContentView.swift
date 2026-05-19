@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 struct ContentView: View {
@@ -15,6 +16,11 @@ struct ContentView: View {
             }
         }
     }
+}
+
+private func copyRuntimeDiagnosticsToPasteboard(_ text: String) {
+    NSPasteboard.general.clearContents()
+    NSPasteboard.general.setString(text, forType: .string)
 }
 
 private struct SidebarView: View {
@@ -84,6 +90,14 @@ private struct SidebarView: View {
                         .textFieldStyle(.roundedBorder)
                     TextField("model override", text: $model.modelOverride)
                         .textFieldStyle(.roundedBorder)
+                    if let diagnosticsAction = model.selectedProject?.runtimeDiagnosticsMenu.copyDiagnosticsAction {
+                        Button {
+                            copyRuntimeDiagnosticsToPasteboard(diagnosticsAction.copyText)
+                        } label: {
+                            Label(diagnosticsAction.title, systemImage: diagnosticsAction.systemImage)
+                        }
+                        .help(diagnosticsAction.helpText)
+                    }
                 }
                 .padding(.top, 8)
             } label: {
@@ -827,12 +841,7 @@ private struct ProjectRunControls: View {
             projectName: project.displayName,
             deliverySnapshot: deliverySnapshot
         )
-        let executionEnvironment = project.codexExecutionEnvironment
-        let devcontainerProvisioningPlan = project.devcontainerProvisioningPlan()
-        let executionEnvironmentMenu = CodexExecutionEnvironmentMenu(
-            environment: executionEnvironment,
-            provisioningPlan: devcontainerProvisioningPlan
-        )
+        let executionEnvironmentMenu = project.runtimeDiagnosticsMenu
 
         HStack(spacing: 5) {
             Menu {
@@ -841,6 +850,14 @@ private struct ProjectRunControls: View {
                     Text(project.devcontainerProvisioningState.detail)
                     Divider()
                 }
+                Divider()
+                let diagnosticsAction = executionEnvironmentMenu.copyDiagnosticsAction
+                Button {
+                    copyRuntimeDiagnosticsToPasteboard(diagnosticsAction.copyText)
+                } label: {
+                    Label(diagnosticsAction.title, systemImage: diagnosticsAction.systemImage)
+                }
+                Text(diagnosticsAction.description)
                 Divider()
                 ForEach(Array(executionEnvironmentMenu.items.enumerated()), id: \.element.id) { index, item in
                     Button {

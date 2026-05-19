@@ -592,6 +592,16 @@ extension CompassProject {
         )
     }
 
+    var runtimeDiagnosticsMenu: CodexExecutionEnvironmentMenu {
+        let environment = codexExecutionEnvironment
+        let launchPlan = environment.launchPlan(repoURL: repoURL)
+        return CodexExecutionEnvironmentMenu(
+            environment: environment,
+            provisioningPlan: devcontainerProvisioningPlan(),
+            launchPlan: launchPlan
+        )
+    }
+
     var hasRepository: Bool {
         workspace != nil
     }

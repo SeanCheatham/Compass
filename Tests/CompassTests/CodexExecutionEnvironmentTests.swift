@@ -245,6 +245,253 @@ final class CodexExecutionEnvironmentTests: XCTestCase {
         XCTAssertFalse(diagnosticsText.contains(secretValue))
     }
 
+    func testRuntimeDiagnosticsReportForImageRouteIsCopyableSanitizedAndStable() throws {
+        let repoURL = try makeTemporaryDirectory(prefix: "CodexExecutionEnvironmentRuntimeImage")
+        let secretValue = "secret-runtime-container-env"
+        try write(
+            #"{"image":"swift:6.0","workspaceFolder":"/workspace/app","containerEnv":{"ZETA":"\#(secretValue)","ALPHA":"plain"}}"#,
+            to: repoURL
+                .appending(path: ".devcontainer", directoryHint: .isDirectory)
+                .appending(path: "devcontainer.json")
+        )
+
+        let environment = CodexExecutionEnvironment.discover(
+            repoURL: repoURL,
+            preference: .devcontainerPreferred
+        )
+        let launchPlan = environment.launchPlan(
+            repoURL: repoURL,
+            containerToolResolver: { name in name == "container" ? "/usr/local/bin/container" : nil }
+        )
+        let provisioningPlan = CodexDevcontainerProvisioningPlan.plan(
+            repoURL: repoURL,
+            languageProfile: .empty
+        )
+        let menu = CodexExecutionEnvironmentMenu(
+            environment: environment,
+            provisioningPlan: provisioningPlan,
+            launchPlan: launchPlan
+        )
+        let action = menu.copyDiagnosticsAction
+        let report = action.report
+
+        XCTAssertEqual(action.id, CodexExecutionEnvironmentCopyDiagnosticsAction.actionIdentifier)
+        XCTAssertEqual(action.title, "Copy Runtime Diagnostics")
+        XCTAssertEqual(report.copyActionIdentifier, "runtime-diagnostics.copy")
+        XCTAssertEqual(
+            report.copyIdentifier,
+            "runtime-diagnostics.copy.v1.devcontainer_preferred.apple-container.image-routeable.already-present"
+        )
+        XCTAssertEqual(report.selectedPreferenceIdentifier, "devcontainer_preferred")
+        XCTAssertEqual(report.effectiveRouteIdentifier, "apple-container")
+        XCTAssertEqual(report.supportClassificationIdentifier, "image-routeable")
+        XCTAssertEqual(report.visibleSupportTokens, ["image", "containerEnv:2", "env:ALPHA", "env:ZETA"])
+        XCTAssertEqual(report.omittedSupportTokenCount, 0)
+        XCTAssertEqual(report.imageLabel, "swift:6.0")
+        XCTAssertEqual(report.workspaceLabel, "/workspace/app")
+        XCTAssertEqual(report.fallbackReason, "none")
+        XCTAssertEqual(report.provisioningAvailabilityIdentifier, "unavailable")
+        XCTAssertEqual(report.provisioningStatusIdentifier, "already-present")
+        XCTAssertEqual(report.provisioningActionIdentifier, "devcontainer-provisioning.create")
+
+        let copyText = action.copyText
+        XCTAssertTrue(copyText.contains("copy-id: \(report.copyIdentifier)"))
+        XCTAssertTrue(copyText.contains("effective-route: apple-container"))
+        XCTAssertTrue(copyText.contains("support-tokens: image,containerEnv:2,env:ALPHA,env:ZETA"))
+        XCTAssertFalse(copyText.contains(secretValue))
+        XCTAssertFalse(copyText.contains(repoURL.standardizedFileURL.path))
+        XCTAssertLessThanOrEqual(copyText.count, CodexExecutionEnvironmentDiagnosticsReport.copyTextLimit)
+    }
+
+    func testRuntimeDiagnosticsReportForBuildRouteHidesBuildArgValuesAndPaths() throws {
+        let repoURL = try makeTemporaryDirectory(prefix: "CodexExecutionEnvironmentRuntimeBuild")
+        let secretBuildArg = "secret-runtime-build-arg"
+        try write(
+            #"{"build":{"dockerfile":"Dockerfile","context":"..","target":"runtime","args":{"TOKEN":"\#(secretBuildArg)"}}}"#,
+            to: repoURL
+                .appending(path: ".devcontainer", directoryHint: .isDirectory)
+                .appending(path: "devcontainer.json")
+        )
+
+        let environment = CodexExecutionEnvironment.discover(
+            repoURL: repoURL,
+            preference: .devcontainerPreferred
+        )
+        let launchPlan = environment.launchPlan(
+            repoURL: repoURL,
+            containerToolResolver: { _ in "/usr/local/bin/container" }
+        )
+        let report = CodexExecutionEnvironmentDiagnosticsReport(
+            environment: environment,
+            launchPlan: launchPlan,
+            provisioningPlan: CodexDevcontainerProvisioningPlan.plan(repoURL: repoURL, languageProfile: .empty)
+        )
+
+        XCTAssertTrue(launchPlan.isContainerRoute)
+        XCTAssertEqual(report.effectiveRouteIdentifier, "apple-container")
+        XCTAssertEqual(report.supportClassificationIdentifier, "build-based")
+        XCTAssertTrue(report.imageLabel.hasPrefix("compass-devcontainer:"))
+        XCTAssertEqual(report.workspaceLabel, "/workspace")
+        XCTAssertTrue(report.visibleSupportTokens.contains("buildArgs:1"))
+        XCTAssertTrue(report.visibleSupportTokens.contains("arg:TOKEN"))
+        XCTAssertTrue(report.copyText.contains("target:runtime"))
+        XCTAssertFalse(report.copyText.contains(secretBuildArg))
+        XCTAssertFalse(report.copyText.contains(repoURL.standardizedFileURL.path))
+    }
+
+    func testRuntimeDiagnosticsReportCoversMissingAndMalformedProvisioningStates() throws {
+        let missingRepoURL = try makeTemporaryDirectory(prefix: "CodexExecutionEnvironmentRuntimeMissing")
+        let missingEnvironment = CodexExecutionEnvironment.discover(
+            repoURL: missingRepoURL,
+            preference: .devcontainerPreferred
+        )
+        let missingLaunchPlan = missingEnvironment.launchPlan(
+            repoURL: missingRepoURL,
+            containerToolResolver: { _ in "/usr/local/bin/container" }
+        )
+        let missingReport = CodexExecutionEnvironmentDiagnosticsReport(
+            environment: missingEnvironment,
+            launchPlan: missingLaunchPlan,
+            provisioningPlan: CodexDevcontainerProvisioningPlan.plan(repoURL: missingRepoURL, languageProfile: .empty)
+        )
+
+        XCTAssertEqual(missingReport.effectiveRouteIdentifier, "native-macos")
+        XCTAssertEqual(missingReport.supportClassificationIdentifier, "missing")
+        XCTAssertEqual(missingReport.provisioningAvailabilityIdentifier, "available")
+        XCTAssertEqual(missingReport.provisioningStatusIdentifier, "available")
+        XCTAssertEqual(
+            missingReport.copyIdentifier,
+            "runtime-diagnostics.copy.v1.devcontainer_preferred.native-macos.missing.available"
+        )
+        XCTAssertTrue(missingReport.copyText.contains("fallback: No .devcontainer/devcontainer.json was found."))
+        XCTAssertFalse(missingReport.copyText.contains(missingRepoURL.standardizedFileURL.path))
+
+        let malformedRepoURL = try makeTemporaryDirectory(prefix: "CodexExecutionEnvironmentRuntimeMalformed")
+        try write(
+            "{",
+            to: malformedRepoURL
+                .appending(path: ".devcontainer", directoryHint: .isDirectory)
+                .appending(path: "devcontainer.json")
+        )
+        let malformedEnvironment = CodexExecutionEnvironment.discover(
+            repoURL: malformedRepoURL,
+            preference: .devcontainerPreferred
+        )
+        let malformedReport = CodexExecutionEnvironmentDiagnosticsReport(
+            environment: malformedEnvironment,
+            launchPlan: malformedEnvironment.launchPlan(repoURL: malformedRepoURL),
+            provisioningPlan: CodexDevcontainerProvisioningPlan.plan(repoURL: malformedRepoURL, languageProfile: .empty)
+        )
+
+        XCTAssertEqual(malformedReport.effectiveRouteIdentifier, "native-macos")
+        XCTAssertEqual(malformedReport.supportClassificationIdentifier, "malformed")
+        XCTAssertEqual(malformedReport.provisioningAvailabilityIdentifier, "unavailable")
+        XCTAssertEqual(malformedReport.provisioningStatusIdentifier, "malformed")
+        XCTAssertTrue(malformedReport.copyText.contains("support-classification: malformed"))
+        XCTAssertFalse(malformedReport.copyText.contains(malformedRepoURL.standardizedFileURL.path))
+        XCTAssertLessThanOrEqual(
+            malformedReport.copyText.count,
+            CodexExecutionEnvironmentDiagnosticsReport.copyTextLimit
+        )
+    }
+
+    func testRuntimeDiagnosticsReportSanitizesFallbackConfigsWithoutUnsupportedValues() throws {
+        let absoluteComposePath = "/Users/private/project/compose.override.yml"
+        let cases: [
+            (
+                prefix: String,
+                json: String,
+                classification: String,
+                expectedToken: String,
+                leakedValues: [String]
+            )
+        ] = [
+            (
+                "CodexExecutionEnvironmentRuntimeCompose",
+                #"{"dockerComposeFile":["../compose.yml","\#(absoluteComposePath)"],"service":"api","runServices":["redis"]}"#,
+                "compose-based",
+                "composeFiles:2",
+                [absoluteComposePath, "../compose.yml"]
+            ),
+            (
+                "CodexExecutionEnvironmentRuntimeFeatures",
+                #"{"image":"swift:6.0","features":{"ghcr.io/devcontainers/features/node:1":{"version":"secret-feature-version","nested":{"token":"secret-nested-token"}}}}"#,
+                "feature-based",
+                "featureOptions:2",
+                ["secret-feature-version", "secret-nested-token", "nested"]
+            ),
+            (
+                "CodexExecutionEnvironmentRuntimeUnsupported",
+                #"{"image":"swift:6.0","remoteEnv":{"API_TOKEN":"secret-remote-token"}}"#,
+                "unsupported-extra-fields",
+                "extra:remoteEnv",
+                ["secret-remote-token", "API_TOKEN"]
+            )
+        ]
+
+        for testCase in cases {
+            let repoURL = try makeTemporaryDirectory(prefix: testCase.prefix)
+            try write(
+                testCase.json,
+                to: repoURL
+                    .appending(path: ".devcontainer", directoryHint: .isDirectory)
+                    .appending(path: "devcontainer.json")
+            )
+
+            let environment = CodexExecutionEnvironment.discover(
+                repoURL: repoURL,
+                preference: .devcontainerPreferred
+            )
+            let report = CodexExecutionEnvironmentDiagnosticsReport(
+                environment: environment,
+                launchPlan: environment.launchPlan(
+                    repoURL: repoURL,
+                    containerToolResolver: { _ in "/usr/local/bin/container" }
+                ),
+                provisioningPlan: CodexDevcontainerProvisioningPlan.plan(repoURL: repoURL, languageProfile: .empty)
+            )
+
+            XCTAssertEqual(report.effectiveRouteIdentifier, "native-macos")
+            XCTAssertEqual(report.supportClassificationIdentifier, testCase.classification)
+            XCTAssertTrue(report.copyText.contains(testCase.expectedToken))
+            XCTAssertTrue(report.copyText.contains("fallback:"))
+            XCTAssertFalse(report.copyText.contains(repoURL.standardizedFileURL.path))
+            for leakedValue in testCase.leakedValues {
+                XCTAssertFalse(report.copyText.contains(leakedValue), "Leaked \(leakedValue)")
+            }
+        }
+    }
+
+    func testRuntimeDiagnosticsReportIncludesOmittedSupportTokenCounts() throws {
+        let repoURL = try makeTemporaryDirectory(prefix: "CodexExecutionEnvironmentRuntimeOmitted")
+        let features = (0..<10)
+            .reversed()
+            .map { #""ghcr.io/devcontainers/features/feature-\#(String(format: "%02d", $0)):1":{"enabled":true}"# }
+            .joined(separator: ",")
+        try write(
+            #"{"features":{\#(features)}}"#,
+            to: repoURL
+                .appending(path: ".devcontainer", directoryHint: .isDirectory)
+                .appending(path: "devcontainer.json")
+        )
+
+        let environment = CodexExecutionEnvironment.discover(
+            repoURL: repoURL,
+            preference: .devcontainerPreferred
+        )
+        let report = CodexExecutionEnvironmentDiagnosticsReport(
+            environment: environment,
+            launchPlan: environment.launchPlan(repoURL: repoURL),
+            provisioningPlan: CodexDevcontainerProvisioningPlan.plan(repoURL: repoURL, languageProfile: .empty)
+        )
+
+        XCTAssertEqual(report.visibleSupportTokens.count, CodexDevcontainerSupportReport.maxTokenCount)
+        XCTAssertEqual(report.omittedSupportTokenCount, 4)
+        XCTAssertTrue(report.copyText.contains("omitted-support-token-count: 4"))
+        XCTAssertTrue(report.copyText.contains("feature:feature-05:1"))
+        XCTAssertFalse(report.copyText.contains("feature:feature-09:1"))
+    }
+
     func testMissingDevcontainerPresentationFallsBackToNativeMacOS() throws {
         let repoURL = try makeTemporaryDirectory(prefix: "CodexExecutionEnvironmentMissing")
 

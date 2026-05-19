@@ -52,6 +52,18 @@ struct CompassApp: App {
                 .keyboardShortcut(.return, modifiers: [.command])
                 .disabled((model.selectedProject?.isRunning ?? true) || (model.selectedProject?.isAutoPlaying ?? true))
             }
+            CommandMenu("Runtime") {
+                if let diagnosticsAction = model.selectedProject?.runtimeDiagnosticsMenu.copyDiagnosticsAction {
+                    Button(diagnosticsAction.title) {
+                        NSPasteboard.general.clearContents()
+                        NSPasteboard.general.setString(diagnosticsAction.copyText, forType: .string)
+                    }
+                    .help(diagnosticsAction.helpText)
+                } else {
+                    Button("Copy Runtime Diagnostics") {}
+                        .disabled(true)
+                }
+            }
             CinematicPlanCompassFocusedCommands()
             CinematicRunRecapShareArtifactFocusedCommands()
         }

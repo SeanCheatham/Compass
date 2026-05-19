@@ -119,10 +119,17 @@ final class CodexDevcontainerProvisioningTests: XCTestCase {
         )
 
         let action = try XCTUnwrap(missingMenu.createDevcontainerAction)
+        XCTAssertEqual(action.id, CodexDevcontainerProvisioningMenuAction.actionIdentifier)
         XCTAssertEqual(action.title, "Create Dev Container")
         XCTAssertTrue(action.description.contains("Python image starter"))
         XCTAssertTrue(action.description.contains("python:3.12-bookworm"))
         XCTAssertTrue(action.description.contains("/workspace"))
+        XCTAssertEqual(missingMenu.copyDiagnosticsAction.report.provisioningAvailabilityIdentifier, "available")
+        XCTAssertEqual(missingMenu.copyDiagnosticsAction.report.provisioningStatusIdentifier, "available")
+        XCTAssertEqual(
+            missingMenu.copyDiagnosticsAction.report.provisioningActionIdentifier,
+            CodexDevcontainerProvisioningMenuAction.actionIdentifier
+        )
 
         _ = try CodexDevcontainerProvisioner.write(plan: missingPlan)
         let readyEnvironment = CodexExecutionEnvironment.discover(
@@ -143,6 +150,8 @@ final class CodexDevcontainerProvisioningTests: XCTestCase {
         )
 
         XCTAssertNil(readyMenu.createDevcontainerAction)
+        XCTAssertEqual(readyMenu.copyDiagnosticsAction.report.provisioningAvailabilityIdentifier, "unavailable")
+        XCTAssertEqual(readyMenu.copyDiagnosticsAction.report.provisioningStatusIdentifier, "already-present")
         XCTAssertEqual(readyEnvironment.devcontainerDiscovery.status, .ready)
         XCTAssertTrue(launchPlan.isContainerRoute)
         XCTAssertEqual(launchPlan.imageLabel, "python:3.12-bookworm")

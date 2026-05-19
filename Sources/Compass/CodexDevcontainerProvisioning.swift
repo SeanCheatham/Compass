@@ -516,11 +516,13 @@ struct CompassProjectDevcontainerProvisioningState: Equatable {
     }
 }
 
-struct CodexDevcontainerProvisioningMenuAction: Equatable {
+struct CodexDevcontainerProvisioningMenuAction: Equatable, Identifiable {
+    static let actionIdentifier = "devcontainer-provisioning.create"
     static let titleLimit = 34
     static let descriptionLimit = 220
     static let helpLimit = 320
 
+    var id: String
     var title: String
     var systemImage: String
     var description: String
@@ -528,6 +530,7 @@ struct CodexDevcontainerProvisioningMenuAction: Equatable {
 
     init?(plan: CodexDevcontainerProvisioningPlan) {
         guard plan.isAvailable else { return nil }
+        id = Self.actionIdentifier
         title = CodexDevcontainerProvisioningPlan.boundedText(
             "Create Dev Container",
             limit: Self.titleLimit

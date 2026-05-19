@@ -215,7 +215,10 @@ struct CodexExecutionEnvironment: Equatable {
     }
 
     var presentation: CodexExecutionEnvironmentPresentation {
-        let plan = launchPlan()
+        presentation(launchPlan: launchPlan())
+    }
+
+    func presentation(launchPlan plan: CodexExecutionLaunchPlan) -> CodexExecutionEnvironmentPresentation {
         switch preference {
         case .nativeMacOS:
             switch devcontainerDiscovery.status {
@@ -338,6 +341,279 @@ struct CodexExecutionEnvironment: Equatable {
     }
 }
 
+struct CodexExecutionEnvironmentDiagnosticsReport: Equatable, Identifiable {
+    static let copyTextLimit = 1_600
+    static let fieldLimit = 120
+    static let helpLimit = 240
+    static let stableCopyActionIdentifier = "runtime-diagnostics.copy"
+    static let copyIdentifierPrefix = "runtime-diagnostics.copy.v1"
+
+    var selectedPreferenceIdentifier: String
+    var selectedPreferenceTitle: String
+    var effectiveRouteIdentifier: String
+    var effectiveRouteTitle: String
+    var supportClassificationIdentifier: String
+    var visibleSupportTokens: [String]
+    var omittedSupportTokenCount: Int
+    var imageLabel: String
+    var workspaceLabel: String
+    var fallbackReason: String
+    var provisioningStatusIdentifier: String
+    var provisioningAvailabilityIdentifier: String
+    var provisioningActionIdentifier: String
+    var provisioningTemplateIdentifier: String
+    var provisioningImageLabel: String
+    var provisioningWorkspaceLabel: String
+    var copyActionIdentifier: String
+    var copyIdentifier: String
+
+    var id: String { copyIdentifier }
+
+    init(
+        environment: CodexExecutionEnvironment,
+        launchPlan: CodexExecutionLaunchPlan,
+        provisioningPlan: CodexDevcontainerProvisioningPlan? = nil
+    ) {
+        let supportReport = launchPlan.devcontainerSupportReport ?? environment.devcontainerDiscovery.supportReport
+        let configURL = supportReport.configURL
+        let repoURL = configURL
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .standardizedFileURL
+
+        selectedPreferenceIdentifier = environment.preference.rawValue
+        selectedPreferenceTitle = Self.sanitizedField(
+            environment.preference.title,
+            repoURL: repoURL,
+            configURL: configURL,
+            limit: Self.fieldLimit
+        )
+        effectiveRouteIdentifier = launchPlan.effectiveRouteIdentifier
+        effectiveRouteTitle = Self.sanitizedField(
+            launchPlan.effectiveRouteTitle,
+            repoURL: repoURL,
+            configURL: configURL,
+            limit: Self.fieldLimit
+        )
+        supportClassificationIdentifier = supportReport.classification.rawValue
+        visibleSupportTokens = supportReport.supportTokens
+            .map {
+                Self.sanitizedField(
+                    $0,
+                    repoURL: repoURL,
+                    configURL: configURL,
+                    limit: CodexDevcontainerSupportReport.tokenLimit
+                )
+            }
+            .filter { !$0.isEmpty }
+        omittedSupportTokenCount = supportReport.omittedTokenCount
+        imageLabel = Self.sanitizedField(
+            launchPlan.imageLabel,
+            repoURL: repoURL,
+            configURL: configURL,
+            limit: Self.fieldLimit
+        )
+        workspaceLabel = Self.sanitizedField(
+            launchPlan.workspaceLabel,
+            repoURL: repoURL,
+            configURL: configURL,
+            limit: Self.fieldLimit
+        )
+        fallbackReason = Self.sanitizedField(
+            launchPlan.fallbackReasonLabel,
+            repoURL: repoURL,
+            configURL: configURL,
+            limit: CodexExecutionLaunchPlan.fallbackReasonLimit
+        )
+
+        if let provisioningPlan {
+            provisioningStatusIdentifier = Self.provisioningStatusIdentifier(provisioningPlan.status)
+            provisioningAvailabilityIdentifier = provisioningPlan.isAvailable ? "available" : "unavailable"
+            provisioningTemplateIdentifier = Self.sanitizedField(
+                provisioningPlan.template.id,
+                repoURL: repoURL,
+                configURL: configURL,
+                limit: Self.fieldLimit
+            )
+            provisioningImageLabel = Self.sanitizedField(
+                provisioningPlan.template.imageLabel,
+                repoURL: repoURL,
+                configURL: configURL,
+                limit: Self.fieldLimit
+            )
+            provisioningWorkspaceLabel = Self.sanitizedField(
+                provisioningPlan.template.workspaceLabel,
+                repoURL: repoURL,
+                configURL: configURL,
+                limit: Self.fieldLimit
+            )
+        } else {
+            provisioningStatusIdentifier = "not-evaluated"
+            provisioningAvailabilityIdentifier = "unknown"
+            provisioningTemplateIdentifier = "none"
+            provisioningImageLabel = "none"
+            provisioningWorkspaceLabel = "none"
+        }
+
+        provisioningActionIdentifier = CodexDevcontainerProvisioningMenuAction.actionIdentifier
+        copyActionIdentifier = Self.stableCopyActionIdentifier
+        copyIdentifier = [
+            Self.copyIdentifierPrefix,
+            selectedPreferenceIdentifier,
+            effectiveRouteIdentifier,
+            supportClassificationIdentifier,
+            provisioningStatusIdentifier
+        ].joined(separator: ".")
+    }
+
+    var copyText: String {
+        let tokenText = visibleSupportTokens.isEmpty
+            ? "none"
+            : visibleSupportTokens.joined(separator: ",")
+        return Self.boundedCopyText(
+            [
+                "Runtime Diagnostics",
+                "copy-id: \(copyIdentifier)",
+                "copy-action-id: \(copyActionIdentifier)",
+                "selected-preference: \(selectedPreferenceIdentifier) (\(selectedPreferenceTitle))",
+                "effective-route: \(effectiveRouteIdentifier) (\(effectiveRouteTitle))",
+                "support-classification: \(supportClassificationIdentifier)",
+                "support-tokens: \(tokenText)",
+                "omitted-support-token-count: \(omittedSupportTokenCount)",
+                "image: \(imageLabel)",
+                "workspace: \(workspaceLabel)",
+                "fallback: \(fallbackReason)",
+                "provisioning: \(provisioningAvailabilityIdentifier) (\(provisioningStatusIdentifier))",
+                "provisioning-action-id: \(provisioningActionIdentifier)",
+                "provisioning-template: \(provisioningTemplateIdentifier)",
+                "provisioning-image: \(provisioningImageLabel)",
+                "provisioning-workspace: \(provisioningWorkspaceLabel)"
+            ].joined(separator: "\n"),
+            limit: Self.copyTextLimit
+        )
+    }
+
+    var helpText: String {
+        Self.boundedField(
+            "Copy sanitized runtime diagnostics using \(copyActionIdentifier). No runtime preference, provisioning action, discovery mutation, or project state is changed.",
+            limit: Self.helpLimit
+        )
+    }
+
+    private static func provisioningStatusIdentifier(_ status: CodexDevcontainerProvisioningPlan.Status) -> String {
+        switch status {
+        case .available:
+            return "available"
+        case .alreadyPresent:
+            return "already-present"
+        case .malformed:
+            return "malformed"
+        }
+    }
+
+    private static func sanitizedField(
+        _ text: String,
+        repoURL: URL,
+        configURL: URL,
+        limit: Int
+    ) -> String {
+        let repoPath = repoURL.standardizedFileURL.path
+        let configPath = configURL.standardizedFileURL.path
+        let configDirectoryPath = configURL.deletingLastPathComponent().standardizedFileURL.path
+        var sanitized = text
+            .replacingOccurrences(of: "\r", with: " ")
+            .replacingOccurrences(of: "\n", with: " ")
+            .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        let replacements = [
+            (configPath, "[devcontainer-json]"),
+            (configDirectoryPath, "[devcontainer-dir]"),
+            (repoPath, "[repo]")
+        ].sorted { $0.0.count > $1.0.count }
+
+        for (path, replacement) in replacements where !path.isEmpty {
+            let pathPrefix = path.hasSuffix("/") ? path : path + "/"
+            sanitized = sanitized.replacingOccurrences(of: pathPrefix, with: "\(replacement)/")
+            sanitized = sanitized.replacingOccurrences(of: path, with: replacement)
+        }
+
+        return boundedField(sanitized, limit: limit)
+    }
+
+    private static func boundedField(_ text: String, limit: Int) -> String {
+        guard limit > 0 else { return "" }
+        let normalized = text
+            .replacingOccurrences(of: "\r", with: " ")
+            .replacingOccurrences(of: "\n", with: " ")
+            .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard normalized.count > limit else { return normalized }
+        return String(normalized.prefix(limit)).trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private static func boundedCopyText(_ text: String, limit: Int) -> String {
+        guard limit > 0 else { return "" }
+        let normalized = text
+            .replacingOccurrences(of: "\r\n", with: "\n")
+            .replacingOccurrences(of: "\r", with: "\n")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard normalized.count > limit else { return normalized }
+        return String(normalized.prefix(limit)).trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+}
+
+struct CodexExecutionEnvironmentCopyDiagnosticsAction: Identifiable, Equatable {
+    static let actionIdentifier = CodexExecutionEnvironmentDiagnosticsReport.stableCopyActionIdentifier
+    static let titleLimit = 34
+    static let descriptionLimit = 220
+
+    var report: CodexExecutionEnvironmentDiagnosticsReport
+
+    var id: String { Self.actionIdentifier }
+
+    var title: String {
+        Self.boundedText(
+            "Copy Runtime Diagnostics",
+            limit: Self.titleLimit
+        )
+    }
+
+    var systemImage: String {
+        "doc.on.doc"
+    }
+
+    var description: String {
+        Self.boundedText(
+            "Copy a bounded sanitized runtime report for the selected route, devcontainer support, and provisioning availability.",
+            limit: Self.descriptionLimit
+        )
+    }
+
+    var helpText: String {
+        report.helpText
+    }
+
+    var copyIdentifier: String {
+        report.copyIdentifier
+    }
+
+    var copyText: String {
+        report.copyText
+    }
+
+    private static func boundedText(_ text: String, limit: Int) -> String {
+        guard limit > 0 else { return "" }
+        let normalized = text
+            .replacingOccurrences(of: "\r", with: " ")
+            .replacingOccurrences(of: "\n", with: " ")
+            .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard normalized.count > limit else { return normalized }
+        return String(normalized.prefix(limit)).trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+}
+
 struct CodexExecutionEnvironmentMenuItem: Identifiable, Equatable {
     static let descriptionLimit = 180
 
@@ -407,12 +683,15 @@ struct CodexExecutionEnvironmentMenu: Equatable {
     var statusText: String
     var items: [CodexExecutionEnvironmentMenuItem]
     var createDevcontainerAction: CodexDevcontainerProvisioningMenuAction?
+    var copyDiagnosticsAction: CodexExecutionEnvironmentCopyDiagnosticsAction
 
     init(
         environment: CodexExecutionEnvironment,
-        provisioningPlan: CodexDevcontainerProvisioningPlan? = nil
+        provisioningPlan: CodexDevcontainerProvisioningPlan? = nil,
+        launchPlan: CodexExecutionLaunchPlan? = nil
     ) {
-        let presentation = environment.presentation
+        let effectiveLaunchPlan = launchPlan ?? environment.launchPlan()
+        let presentation = environment.presentation(launchPlan: effectiveLaunchPlan)
         labelSystemImage = presentation.systemImage
         helpText = "Execution environment: \(presentation.title). \(presentation.detail)"
         statusText = [presentation.status, presentation.detail]
@@ -426,5 +705,12 @@ struct CodexExecutionEnvironmentMenu: Equatable {
             )
         }
         createDevcontainerAction = provisioningPlan.flatMap(CodexDevcontainerProvisioningMenuAction.init(plan:))
+        copyDiagnosticsAction = CodexExecutionEnvironmentCopyDiagnosticsAction(
+            report: CodexExecutionEnvironmentDiagnosticsReport(
+                environment: environment,
+                launchPlan: effectiveLaunchPlan,
+                provisioningPlan: provisioningPlan
+            )
+        )
     }
 }
