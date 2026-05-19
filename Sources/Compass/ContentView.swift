@@ -252,6 +252,7 @@ private struct SidebarSharedVMStatusButton: View {
 /// Per-project picker for the Develop sandbox preference. The `.sharedVM`
 /// option is disabled when the shared VM is unavailable.
 private struct DevelopSandboxPicker: View {
+    @EnvironmentObject var model: AppModel
     @ObservedObject var project: CompassProject
     let readiness: SharedCompassVMReadiness
 
@@ -265,13 +266,11 @@ private struct DevelopSandboxPicker: View {
             .pickerStyle(.menu)
             .help(pickerHelpText)
             .onChange(of: project.developSandbox) { _, newValue in
-                // If the user picks .sharedVM while it is unavailable, snap
-                // back to .host. Persistence is handled by Phase 5 — the
-                // change still flows to the `@Published` field which lives
-                // for the lifetime of the project object.
                 if newValue == .sharedVM, readiness.isUnavailable {
                     project.developSandbox = .host
+                    return
                 }
+                model.saveProjects()
             }
             if readiness.isUnavailable, case .unavailable(let reason) = readiness {
                 Text("Shared VM unavailable: \(reason)")
