@@ -1552,7 +1552,7 @@ final class CinematicDiagnosticsTests: XCTestCase {
         XCTAssertTrue(summary.exportText.contains("Assets/textures (2 rows)"))
         XCTAssertTrue(summary.exportText.contains("Tuning (4 rows)"))
         XCTAssertTrue(summary.exportText.contains("Camera shots (7 rows)"))
-        XCTAssertTrue(summary.exportText.contains("Visual smoke (pass, 25 checks)"))
+        XCTAssertTrue(summary.exportText.contains("Visual smoke (pass, 26 checks)"))
         XCTAssertTrue(summary.exportText.contains("Plaque treatments (pass, 4 recipes): smoke pass"))
         XCTAssertTrue(summary.exportText.contains("failure-fracture: accent failure-fracture"))
         XCTAssertTrue(summary.exportText.contains("Overlay fallback: pass"))
@@ -2669,6 +2669,7 @@ final class CinematicDiagnosticsTests: XCTestCase {
             phase: .developing,
             isThinking: true
         )
+        let activeCacheSnapshot = try XCTUnwrap(cache.lifecycleSnapshot(for: projectID))
         defer {
             cache.release(projectID)
             cache.expireReleasedCoordinator(for: projectID)
@@ -2683,11 +2684,12 @@ final class CinematicDiagnosticsTests: XCTestCase {
                 latestEvent: nil,
                 languageProfile: languageProfile(primaryLanguage: .swift),
                 activityProfile: activityProfile(recentCommitCount: 1),
-                sceneCacheLifecycleSnapshot: cache.lifecycleSnapshot(for: projectID),
+                sceneCacheLifecycleSnapshot: activeCacheSnapshot,
                 influenceSettings: CinematicInfluenceSettings()
             )
         )
-        let activeSummary = CinematicDiagnosticsSummary(report: activeReport)
+        let passingVisualSmoke = CinematicVisualSmokeReport.representative()
+        let activeSummary = CinematicDiagnosticsSummary(report: activeReport, visualSmoke: passingVisualSmoke)
         let activeRow = try XCTUnwrap(activeSummary.row(id: "cinematic-scene-lifecycle"))
 
         XCTAssertEqual(activeReport.cinematicSceneLifecycle.stateIdentifier, "active")
@@ -2707,6 +2709,100 @@ final class CinematicDiagnosticsTests: XCTestCase {
         XCTAssertTrue(activeSummary.exportText.contains("Scene lifecycle: active"))
         XCTAssertTrue(activeSummary.attentionSummary.isEmpty)
 
+        let invariantSnapshot = CinematicSceneCacheLifecycleSnapshot(
+            retainCount: 0,
+            hasScheduledExpiry: false,
+            coordinator: activeCacheSnapshot.coordinator
+        )
+        let invariantReport = makeReport(
+            CinematicDiagnosticsInput(
+                repoName: "Lifecycle Diagnostics",
+                phase: "Developing",
+                immediateTitle: "Inspect invariant lifecycle diagnostics",
+                completedCount: 1,
+                latestEvent: nil,
+                languageProfile: languageProfile(primaryLanguage: .swift),
+                activityProfile: activityProfile(recentCommitCount: 1),
+                sceneCacheLifecycleSnapshot: invariantSnapshot,
+                influenceSettings: CinematicInfluenceSettings()
+            )
+        )
+        let invariantSummary = CinematicDiagnosticsSummary(report: invariantReport, visualSmoke: passingVisualSmoke)
+        let invariantTarget = try XCTUnwrap(
+            invariantSummary.attentionSummary.targets.first {
+                $0.id == "cinematic-scene-lifecycle-lifecycle-invariant"
+            }
+        )
+
+        XCTAssertEqual(invariantReport.cinematicSceneLifecycle.stateIdentifier, "lifecycle-invariant")
+        XCTAssertEqual(invariantTarget.targetGroupID, "repository-context")
+        XCTAssertEqual(invariantTarget.targetAnchorID, "diagnostics-row-cinematic-scene-lifecycle")
+        XCTAssertEqual(invariantTarget.relatedGroupID, "repository-context")
+        XCTAssertEqual(invariantTarget.relatedRowID, "cinematic-scene-lifecycle")
+        XCTAssertEqual(invariantTarget.visibleWarningIdentifiers.first, "cinematic-scene-lifecycle.lifecycle-invariant")
+        XCTAssertTrue(invariantTarget.detail.contains("retain 0"))
+        XCTAssertTrue(invariantTarget.detail.contains("onscreen"))
+        XCTAssertTrue(invariantTarget.copyText.contains("Related row: cinematic-scene-lifecycle"))
+        XCTAssertTrue(invariantTarget.copyText.contains("Related detail: lifecycle-invariant"))
+        XCTAssertTrue(
+            invariantTarget.copyText.contains(
+                "no RealityKit scene coordinator is mounted, retained, reacquired, expired, or resurrected"
+            )
+        )
+        XCTAssertLessThanOrEqual(
+            invariantTarget.detail.count,
+            CinematicDiagnosticsSummary.attentionSummaryDetailMaxCharacters
+        )
+        XCTAssertLessThanOrEqual(
+            invariantTarget.copyText.count,
+            CinematicDiagnosticsSummary.attentionTargetCopyMaxCharacters
+        )
+        XCTAssertTrue(
+            invariantSummary.exportText.contains(
+                "Scene lifecycle invariant -> cinematic-scene-lifecycle-lifecycle-invariant"
+            )
+        )
+
+        var warningHistory = CinematicDiagnosticsWarningBundleHistory()
+        warningHistory.record(invariantSummary.attentionSummary)
+        let warningEntry = try XCTUnwrap(warningHistory.entries.first)
+        XCTAssertEqual(warningEntry.targetIdentifiers, ["cinematic-scene-lifecycle-lifecycle-invariant"])
+        XCTAssertEqual(warningEntry.targetAnchors, ["diagnostics-row-cinematic-scene-lifecycle"])
+        XCTAssertEqual(warningEntry.relatedRowAnchors, ["diagnostics-row-cinematic-scene-lifecycle"])
+        XCTAssertEqual(warningEntry.warningIdentifiers, [
+            "cinematic-scene-lifecycle.lifecycle-invariant",
+            "cinematic-scene-lifecycle.retain-0",
+            "cinematic-scene-lifecycle.onscreen"
+        ])
+
+        let idlePulseReport = CinematicDiagnostics.report(
+            repoName: "Lifecycle Diagnostics",
+            phase: LoopPhase.succeeded.rawValue,
+            immediateTitle: "Pulse lifecycle diagnostics warning",
+            completedCount: 1,
+            latestEvent: nil,
+            languageProfile: languageProfile(primaryLanguage: .swift),
+            activityProfile: activityProfile(lastTerminalStatus: .succeeded),
+            influenceSettings: CinematicInfluenceSettings(),
+            diagnosticsWarningBundleHistory: warningHistory
+        )
+        XCTAssertEqual(idlePulseReport.idleStoryCycle.phaseIdentifier, "diagnostics-warning-pulse")
+        XCTAssertEqual(idlePulseReport.idleStoryCycle.diagnosticsWarningTargetCount, 1)
+        XCTAssertEqual(idlePulseReport.idleStoryCycle.diagnosticsWarningWarningCount, 4)
+        XCTAssertEqual(
+            idlePulseReport.idleStoryCycle.diagnosticsWarningTargetAnchors,
+            ["diagnostics-row-cinematic-scene-lifecycle"]
+        )
+        XCTAssertEqual(
+            idlePulseReport.idleStoryCycle.diagnosticsWarningRelatedRowAnchors,
+            ["diagnostics-row-cinematic-scene-lifecycle"]
+        )
+        XCTAssertTrue(
+            idlePulseReport.idleStoryCycle.diagnosticsWarningIdentifiers.contains(
+                "cinematic-scene-lifecycle.lifecycle-invariant"
+            )
+        )
+
         cache.release(projectID)
         let suspendedSnapshot = try XCTUnwrap(cache.lifecycleSnapshot(for: projectID))
         let suspendedReport = makeReport(
@@ -2722,9 +2818,8 @@ final class CinematicDiagnosticsTests: XCTestCase {
                 influenceSettings: CinematicInfluenceSettings()
             )
         )
-        let suspendedRow = try XCTUnwrap(
-            CinematicDiagnosticsSummary(report: suspendedReport).row(id: "cinematic-scene-lifecycle")
-        )
+        let suspendedSummary = CinematicDiagnosticsSummary(report: suspendedReport, visualSmoke: passingVisualSmoke)
+        let suspendedRow = try XCTUnwrap(suspendedSummary.row(id: "cinematic-scene-lifecycle"))
 
         XCTAssertEqual(suspendedReport.cinematicSceneLifecycle.stateIdentifier, "cached-offscreen")
         XCTAssertEqual(suspendedReport.cinematicSceneLifecycle.retainCount, 0)
@@ -2735,6 +2830,7 @@ final class CinematicDiagnosticsTests: XCTestCase {
         XCTAssertTrue(suspendedRow.detail.contains("expiry scheduled"))
         XCTAssertTrue(suspendedRow.detail.contains("timers suspended"))
         XCTAssertTrue(suspendedRow.detail.contains("offscreen"))
+        XCTAssertTrue(suspendedSummary.attentionSummary.isEmpty)
 
         let expiredStyleSnapshot = CinematicSceneCacheLifecycleSnapshot(
             retainCount: 0,
@@ -2755,6 +2851,12 @@ final class CinematicDiagnosticsTests: XCTestCase {
             )
         )
         XCTAssertEqual(expiredStyleReport.cinematicSceneLifecycle.stateIdentifier, "expired-style")
+        XCTAssertTrue(
+            CinematicDiagnosticsSummary(
+                report: expiredStyleReport,
+                visualSmoke: passingVisualSmoke
+            ).attentionSummary.isEmpty
+        )
 
         let reacquired = cache.coordinator(for: projectID)
         XCTAssertTrue(reacquired === coordinator)
@@ -2790,7 +2892,7 @@ final class CinematicDiagnosticsTests: XCTestCase {
                 influenceSettings: CinematicInfluenceSettings()
             )
         )
-        let expiredSummary = CinematicDiagnosticsSummary(report: expiredReport)
+        let expiredSummary = CinematicDiagnosticsSummary(report: expiredReport, visualSmoke: passingVisualSmoke)
         let expiredRow = try XCTUnwrap(expiredSummary.row(id: "cinematic-scene-lifecycle"))
 
         XCTAssertEqual(expiredReport.cinematicSceneLifecycle.stateIdentifier, "not-mounted-or-expired")
@@ -2798,6 +2900,7 @@ final class CinematicDiagnosticsTests: XCTestCase {
         XCTAssertFalse(expiredReport.cinematicSceneLifecycle.hasScheduledExpiry)
         XCTAssertTrue(expiredRow.detail.contains("not-mounted-or-expired"))
         XCTAssertTrue(expiredSummary.exportText.contains("Scene lifecycle: not-mounted-or-expired"))
+        XCTAssertTrue(expiredSummary.attentionSummary.isEmpty)
     }
 
     @MainActor
@@ -2813,6 +2916,15 @@ final class CinematicDiagnosticsTests: XCTestCase {
         XCTAssertNil(CinematicSceneCache.shared.lifecycleSnapshot(for: project.id))
         let notMountedReport = CinematicDiagnostics.currentReport(for: project)
         XCTAssertEqual(notMountedReport.cinematicSceneLifecycle.stateIdentifier, "not-mounted-or-expired")
+        XCTAssertNil(CinematicSceneCache.shared.lifecycleSnapshot(for: project.id))
+        let notMountedSummary = CinematicDiagnosticsSummary(
+            report: notMountedReport,
+            visualSmoke: CinematicVisualSmokeReport(reports: [notMountedReport])
+        )
+        XCTAssertEqual(notMountedSummary.row(id: "cinematic-scene-lifecycle")?.id, "cinematic-scene-lifecycle")
+        XCTAssertFalse(
+            notMountedSummary.visualSmoke.warningIdentifiers.contains("visual-smoke.cinematic-scene-lifecycle")
+        )
         XCTAssertNil(CinematicSceneCache.shared.lifecycleSnapshot(for: project.id))
 
         let coordinator = CinematicSceneCache.shared.coordinator(for: project.id)
@@ -2842,6 +2954,10 @@ final class CinematicDiagnosticsTests: XCTestCase {
         XCTAssertNil(CinematicSceneCache.shared.lifecycleSnapshot(for: project.id))
         let expiredReport = CinematicDiagnostics.currentReport(for: project)
         XCTAssertEqual(expiredReport.cinematicSceneLifecycle.stateIdentifier, "not-mounted-or-expired")
+        _ = CinematicDiagnosticsSummary(
+            report: expiredReport,
+            visualSmoke: CinematicVisualSmokeReport(reports: [expiredReport])
+        )
         XCTAssertNil(CinematicSceneCache.shared.lifecycleSnapshot(for: project.id))
     }
 

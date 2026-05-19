@@ -1371,6 +1371,7 @@ struct CinematicVisualSmokeReport: Equatable {
             planCompassCommandAvailabilityCheck(reports: reports),
             planCompassReadinessCheck(reports: reports),
             planCompassVerifySealCheck(reports: reports),
+            cinematicSceneLifecycleCheck(reports: reports),
             narrativeCueReadabilityCheck(reports: reports),
             overlayFallbackUsageCheck(reports: reports),
             chromeStrengthCheck(reports: reports),
@@ -1860,6 +1861,59 @@ struct CinematicVisualSmokeReport: Equatable {
                 label: "Verify seal",
                 detail: "Plan Compass verify seal warning"
             )
+        )
+    }
+
+    private static func cinematicSceneLifecycleCheck(reports: [CinematicDiagnosticsReport]) -> Check {
+        guard !reports.isEmpty else {
+            return check(
+                id: "cinematic-scene-lifecycle",
+                label: "Scene lifecycle",
+                isPassing: false,
+                warningIdentifier: "visual-smoke.cinematic-scene-lifecycle",
+                detail: "no representative reports available",
+                warningTarget: cinematicSceneLifecycleWarningTarget()
+            )
+        }
+
+        let states = Set(reports.map(\.cinematicSceneLifecycle.stateIdentifier))
+        let invariantReports = reports.filter {
+            $0.cinematicSceneLifecycle.stateIdentifier == "lifecycle-invariant"
+        }
+        let cachedOffscreenCount = reports.filter {
+            $0.cinematicSceneLifecycle.stateIdentifier == "cached-offscreen"
+        }.count
+        let expiredStyleCount = reports.filter {
+            $0.cinematicSceneLifecycle.stateIdentifier == "expired-style"
+                || $0.cinematicSceneLifecycle.stateIdentifier == "not-mounted-or-expired"
+        }.count
+        let detail = [
+            "states \(slashJoined(states))",
+            "invariant \(invariantReports.count)",
+            "suspended \(cachedOffscreenCount)",
+            "expired \(expiredStyleCount)",
+            "reports \(reports.count)"
+        ].joined(separator: " | ")
+
+        return check(
+            id: "cinematic-scene-lifecycle",
+            label: "Scene lifecycle",
+            isPassing: invariantReports.isEmpty,
+            warningIdentifier: "visual-smoke.cinematic-scene-lifecycle",
+            detail: detail,
+            warningTarget: cinematicSceneLifecycleWarningTarget()
+        )
+    }
+
+    private static func cinematicSceneLifecycleWarningTarget() -> Check.WarningTarget {
+        Check.WarningTarget(
+            id: "visual-smoke-check-cinematic-scene-lifecycle",
+            targetGroupID: "visual-smoke",
+            targetAnchorID: "visual-smoke-check-cinematic-scene-lifecycle",
+            relatedGroupID: "repository-context",
+            relatedRowID: "cinematic-scene-lifecycle",
+            label: "Scene lifecycle",
+            detail: "Lifecycle invariant samples require diagnostics drill-in"
         )
     }
 
@@ -5252,6 +5306,10 @@ struct CinematicDiagnosticsSummary: Equatable {
             report: report,
             rowsByID: rowsByID
         )
+        let cinematicSceneLifecycleTarget = cinematicSceneLifecycleAttentionTarget(
+            report: report,
+            rowsByID: rowsByID
+        )
         let runRecapShareArtifactSourceReconciliationTarget =
             runRecapShareArtifactSourceReconciliationAttentionTarget(
                 report: report,
@@ -5309,6 +5367,7 @@ struct CinematicDiagnosticsSummary: Equatable {
         .compactMap { $0 }
         let targets = ([
             activitySourceTarget,
+            cinematicSceneLifecycleTarget,
             runRecapShareArtifactSourceReconciliationTarget,
             runRecapShareArtifactTourRuntimeRouteTarget,
             runRecapShareArtifactTourMutationTestingTarget,
@@ -5319,6 +5378,122 @@ struct CinematicDiagnosticsSummary: Equatable {
             .prefix(attentionSummaryMaxTargets)
 
         return AttentionSummary(targets: Array(targets))
+    }
+
+    private static func cinematicSceneLifecycleAttentionTarget(
+        report: CinematicDiagnosticsReport,
+        rowsByID: [String: Row]
+    ) -> AttentionTarget? {
+        let snapshot = report.cinematicSceneLifecycle
+        let warningIdentifiers = cinematicSceneLifecycleWarningIdentifiers(snapshot)
+        guard !warningIdentifiers.isEmpty else {
+            return nil
+        }
+
+        let visibleWarningIdentifiers = Array(
+            warningIdentifiers.prefix(attentionSummaryMaxVisibleWarnings)
+        )
+        let targetGroupID = "repository-context"
+        let targetAnchorID = "diagnostics-row-cinematic-scene-lifecycle"
+        let label = "Scene lifecycle invariant"
+        let detail = cinematicSceneLifecycleAttentionDetail(snapshot)
+        let relatedRow = rowsByID["cinematic-scene-lifecycle"]
+
+        return AttentionTarget(
+            id: "cinematic-scene-lifecycle-lifecycle-invariant",
+            targetGroupID: targetGroupID,
+            targetAnchorID: targetAnchorID,
+            relatedGroupID: targetGroupID,
+            relatedRowID: "cinematic-scene-lifecycle",
+            label: bounded(label, limit: labelMaxCharacters),
+            detail: bounded(detail, limit: attentionSummaryDetailMaxCharacters),
+            warningCount: warningIdentifiers.count,
+            visibleWarningIdentifiers: visibleWarningIdentifiers,
+            copyText: cinematicSceneLifecycleAttentionCopyText(
+                label: label,
+                targetGroupID: targetGroupID,
+                targetAnchorID: targetAnchorID,
+                visibleWarningIdentifiers: visibleWarningIdentifiers,
+                detail: detail,
+                snapshot: snapshot,
+                relatedRow: relatedRow
+            )
+        )
+    }
+
+    private static func cinematicSceneLifecycleWarningIdentifiers(
+        _ snapshot: CinematicDiagnosticsReport.CinematicSceneLifecycleSnapshot
+    ) -> [String] {
+        guard snapshot.stateIdentifier == "lifecycle-invariant" else {
+            return []
+        }
+
+        return boundedWarningIdentifiers([
+            "cinematic-scene-lifecycle.lifecycle-invariant",
+            "cinematic-scene-lifecycle.retain-\(max(0, snapshot.retainCount))",
+            "cinematic-scene-lifecycle.\(snapshot.isOffscreen ? "offscreen" : "onscreen")",
+            "cinematic-scene-lifecycle.expiry-\(snapshot.hasScheduledExpiry ? "scheduled" : "none")"
+        ])
+    }
+
+    private static func cinematicSceneLifecycleAttentionDetail(
+        _ snapshot: CinematicDiagnosticsReport.CinematicSceneLifecycleSnapshot
+    ) -> String {
+        [
+            "state \(snapshot.stateIdentifier)",
+            "retain \(snapshot.retainCount)",
+            snapshot.hasScheduledExpiry ? "expiry scheduled" : "expiry none",
+            snapshot.isOffscreen ? "offscreen" : "onscreen",
+            "timers \(snapshot.timerSuspensionIdentifier)",
+            "installed \(snapshot.installedStateIdentifier)",
+            "phase \(snapshot.phaseIdentifier)"
+        ].joined(separator: " | ")
+    }
+
+    private static func cinematicSceneLifecycleAttentionCopyText(
+        label: String,
+        targetGroupID: String,
+        targetAnchorID: String,
+        visibleWarningIdentifiers: [String],
+        detail: String,
+        snapshot: CinematicDiagnosticsReport.CinematicSceneLifecycleSnapshot,
+        relatedRow: Row?
+    ) -> String {
+        let warnings = visibleWarningIdentifiers.isEmpty
+            ? "none"
+            : visibleWarningIdentifiers.joined(separator: ", ")
+        var lines = [
+            "Cinematic diagnostics warning target",
+            "Label: \(bounded(label, limit: labelMaxCharacters))",
+            "Target anchor: \(bounded(targetAnchorID, limit: CinematicVisualSmokeReport.warningIdentifierMaxCharacters))",
+            "Target group: \(bounded(targetGroupID, limit: CinematicVisualSmokeReport.warningIdentifierMaxCharacters))",
+            "Warnings: \(bounded(warnings, limit: detailMaxCharacters))",
+            "Detail: \(bounded(detail, limit: attentionSummaryDetailMaxCharacters))",
+            "Lifecycle state: \(snapshot.stateIdentifier)",
+            "Retain count: \(snapshot.retainCount)",
+            "Expiry: \(snapshot.hasScheduledExpiry ? "scheduled" : "none")",
+            "Scene visibility: \(snapshot.isOffscreen ? "offscreen" : "onscreen")",
+            "Timer suspension: \(snapshot.timerSuspensionIdentifier)",
+            "Read-only: diagnostics snapshot only; no RealityKit scene coordinator is mounted, retained, reacquired, expired, or resurrected."
+        ]
+
+        if let relatedRow {
+            lines.append(
+                [
+                    "Related row:",
+                    bounded(relatedRow.id, limit: CinematicVisualSmokeReport.warningIdentifierMaxCharacters),
+                    "(\(bounded(relatedRow.label, limit: labelMaxCharacters)))"
+                ].joined(separator: " ")
+            )
+            lines.append(
+                "Related detail: \(bounded(relatedRow.detail, limit: attentionTargetCopyRelatedDetailMaxCharacters))"
+            )
+        }
+
+        return boundedMultiline(
+            lines.joined(separator: "\n"),
+            limit: attentionTargetCopyMaxCharacters
+        )
     }
 
     private static func mutationRecoveryAttentionTarget(

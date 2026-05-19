@@ -17,6 +17,7 @@ final class CinematicVisualSmokeReportTests: XCTestCase {
                 "plan-compass-command-availability",
                 "plan-compass-readiness",
                 "plan-compass-verify-seal",
+                "cinematic-scene-lifecycle",
                 "narrative-cue-readability",
                 "overlay-fallback-usage",
                 "chrome-strength",
@@ -53,6 +54,7 @@ final class CinematicVisualSmokeReportTests: XCTestCase {
         )
         let planReadiness = try XCTUnwrap(smoke.checks.first { $0.id == "plan-compass-readiness" })
         let verifySeal = try XCTUnwrap(smoke.checks.first { $0.id == "plan-compass-verify-seal" })
+        let sceneLifecycle = try XCTUnwrap(smoke.checks.first { $0.id == "cinematic-scene-lifecycle" })
         let overlay = try XCTUnwrap(smoke.checks.first { $0.id == "overlay-fallback-usage" })
         let chrome = try XCTUnwrap(smoke.checks.first { $0.id == "chrome-strength" })
         let assets = try XCTUnwrap(smoke.checks.first { $0.id == "asset-availability" })
@@ -117,6 +119,10 @@ final class CinematicVisualSmokeReportTests: XCTestCase {
         XCTAssertTrue(verifySeal.detail.contains("segments"))
         XCTAssertTrue(verifySeal.detail.contains("correlated"))
         XCTAssertTrue(verifySeal.detail.contains("bounded"))
+        XCTAssertEqual(sceneLifecycle.status, .pass)
+        XCTAssertTrue(sceneLifecycle.detail.contains("not-mounted-or-expired"))
+        XCTAssertTrue(sceneLifecycle.detail.contains("invariant 0"))
+        XCTAssertTrue(sceneLifecycle.detail.contains("reports"))
         XCTAssertEqual(overlay.status, .pass)
         XCTAssertTrue(overlay.detail.contains("compact"))
         XCTAssertTrue(overlay.detail.contains("full"))
@@ -700,6 +706,77 @@ final class CinematicVisualSmokeReportTests: XCTestCase {
         XCTAssertTrue(fallbackArenaSmoke.warningIdentifiers.contains("visual-smoke.texture-role-coverage"))
     }
 
+    func testSceneLifecycleSmokeWarnsOnlyForLifecycleInvariant() throws {
+        let baseReport = try XCTUnwrap(CinematicDiagnostics.representativeSmokeMatrix().first)
+        let normalReports = [
+            lifecycleSmokeReport(
+                baseReport,
+                stateIdentifier: "not-mounted-or-expired",
+                retainCount: 0,
+                hasScheduledExpiry: false,
+                isOffscreen: true
+            ),
+            lifecycleSmokeReport(
+                baseReport,
+                stateIdentifier: "active",
+                retainCount: 1,
+                hasScheduledExpiry: false,
+                isOffscreen: false
+            ),
+            lifecycleSmokeReport(
+                baseReport,
+                stateIdentifier: "cached-offscreen",
+                retainCount: 0,
+                hasScheduledExpiry: true,
+                isOffscreen: true
+            ),
+            lifecycleSmokeReport(
+                baseReport,
+                stateIdentifier: "expired-style",
+                retainCount: 0,
+                hasScheduledExpiry: false,
+                isOffscreen: true
+            )
+        ]
+        let normalSmoke = CinematicVisualSmokeReport(reports: normalReports)
+        let normalCheck = try XCTUnwrap(normalSmoke.checks.first { $0.id == "cinematic-scene-lifecycle" })
+
+        XCTAssertEqual(normalCheck.status, .pass)
+        XCTAssertNil(normalCheck.warningIdentifier)
+        XCTAssertNil(normalCheck.warningTarget)
+        XCTAssertTrue(normalCheck.detail.contains("active"))
+        XCTAssertTrue(normalCheck.detail.contains("cached-offscreen"))
+        XCTAssertTrue(normalCheck.detail.contains("expired-style"))
+        XCTAssertTrue(normalCheck.detail.contains("not-mounted-or-expired"))
+        XCTAssertTrue(normalCheck.detail.contains("invariant 0"))
+        XCTAssertTrue(normalCheck.detail.contains("suspended 1"))
+        XCTAssertTrue(normalCheck.detail.contains("expired 2"))
+        XCTAssertFalse(normalSmoke.warningIdentifiers.contains("visual-smoke.cinematic-scene-lifecycle"))
+
+        let invariantReport = lifecycleSmokeReport(
+            baseReport,
+            stateIdentifier: "lifecycle-invariant",
+            retainCount: 0,
+            hasScheduledExpiry: false,
+            isOffscreen: false
+        )
+        let invariantSmoke = CinematicVisualSmokeReport(reports: normalReports + [invariantReport])
+        let invariantCheck = try XCTUnwrap(
+            invariantSmoke.checks.first { $0.id == "cinematic-scene-lifecycle" }
+        )
+
+        XCTAssertEqual(invariantCheck.status, .warning)
+        XCTAssertEqual(invariantCheck.warningIdentifier, "visual-smoke.cinematic-scene-lifecycle")
+        XCTAssertEqual(
+            invariantCheck.warningTarget?.targetAnchorID,
+            "visual-smoke-check-cinematic-scene-lifecycle"
+        )
+        XCTAssertEqual(invariantCheck.warningTarget?.relatedRowID, "cinematic-scene-lifecycle")
+        XCTAssertTrue(invariantCheck.detail.contains("lifecycle-invariant"))
+        XCTAssertTrue(invariantCheck.detail.contains("invariant 1"))
+        XCTAssertTrue(invariantSmoke.warningIdentifiers.contains("visual-smoke.cinematic-scene-lifecycle"))
+    }
+
     func testSummaryExportIncludesVisualSmokeWithoutChangingRowsOrSections() {
         let report = CinematicDiagnostics.representativeSmokeMatrix().first!
         let summary = CinematicDiagnosticsSummary(
@@ -715,8 +792,8 @@ final class CinematicVisualSmokeReportTests: XCTestCase {
         XCTAssertEqual(summary.visualSmoke.warningCountLabel, "No warnings")
         XCTAssertEqual(summary.visualSmoke.warningBadgeLabel, "0")
         XCTAssertEqual(summary.visualSmoke.warningIdentifiers, [])
-        XCTAssertEqual(summary.visualSmoke.checkCountLabel, "25 checks")
-        XCTAssertEqual(summary.visualSmoke.presentation.headerDetail, "25 checks | No warnings")
+        XCTAssertEqual(summary.visualSmoke.checkCountLabel, "26 checks")
+        XCTAssertEqual(summary.visualSmoke.presentation.headerDetail, "26 checks | No warnings")
         XCTAssertEqual(summary.visualSmoke.presentation.defaultExpanded, false)
         XCTAssertEqual(summary.visualSmoke.presentation.attentionState, .normal)
         XCTAssertEqual(summary.visualSmoke.presentation.warningIdentifiers, [])
@@ -734,7 +811,7 @@ final class CinematicVisualSmokeReportTests: XCTestCase {
             summary.visualSmoke.presentation.headerDetail.count,
             CinematicDiagnosticsSummary.headerDetailMaxCharacters
         )
-        XCTAssertTrue(summary.exportText.contains("Visual smoke (pass, 25 checks)"))
+        XCTAssertTrue(summary.exportText.contains("Visual smoke (pass, 26 checks)"))
         XCTAssertTrue(summary.exportText.contains("Recap command availability: pass"))
         XCTAssertTrue(summary.exportText.contains("Plan command availability: pass"))
         let commandCheck = summary.visualSmoke.checks.first {
@@ -834,7 +911,7 @@ final class CinematicVisualSmokeReportTests: XCTestCase {
         XCTAssertEqual(summary.visualSmoke.presentation.attentionState, .warning)
         XCTAssertEqual(summary.visualSmoke.presentation.warningIdentifiers, smoke.warningIdentifiers)
         XCTAssertEqual(summary.visualSmoke.presentation.needsAttention, true)
-        XCTAssertTrue(summary.visualSmoke.presentation.headerDetail.contains("25 checks"))
+        XCTAssertTrue(summary.visualSmoke.presentation.headerDetail.contains("26 checks"))
         for warningIdentifier in smoke.warningIdentifiers.prefix(2) {
             XCTAssertTrue(summary.visualSmoke.presentation.headerDetail.contains(warningIdentifier))
         }
@@ -1088,7 +1165,7 @@ final class CinematicVisualSmokeReportTests: XCTestCase {
         XCTAssertTrue(summary.exportText.contains("visual-smoke.asset-availability"))
         XCTAssertTrue(summary.exportText.contains("visual-smoke.texture-role-coverage"))
         XCTAssertTrue(summary.exportText.contains("visual-smoke.native-feedback-treatment-coverage"))
-        XCTAssertTrue(summary.exportText.contains("Visual smoke (warning, 25 checks)"))
+        XCTAssertTrue(summary.exportText.contains("Visual smoke (warning, 26 checks)"))
         XCTAssertTrue(summary.exportText.contains("Recap command availability: warning"))
         XCTAssertTrue(summary.exportText.contains("Asset availability: warning"))
         XCTAssertTrue(summary.exportText.contains("warning visual-smoke.asset-availability"))
@@ -1231,4 +1308,37 @@ final class CinematicVisualSmokeReportTests: XCTestCase {
         XCTAssertTrue(summary.exportText.contains("Plaque treatments (warning, 4 recipes)"))
         XCTAssertTrue(summary.exportText.contains("warning visual-smoke.native-feedback-treatment-coverage"))
     }
+}
+
+private func lifecycleSmokeReport(
+    _ report: CinematicDiagnosticsReport,
+    stateIdentifier: String,
+    retainCount: Int,
+    hasScheduledExpiry: Bool,
+    isOffscreen: Bool
+) -> CinematicDiagnosticsReport {
+    var report = report
+    var lifecycle = report.cinematicSceneLifecycle
+    let timerIdentifier = isOffscreen ? "suspended" : "running"
+    let timerStateIdentifier = isOffscreen ? "timer-suspended" : "timer-active"
+    lifecycle.identifier = [
+        "state:\(stateIdentifier)",
+        "retain:\(retainCount)",
+        hasScheduledExpiry ? "expiry:scheduled" : "expiry:none",
+        "timers:\(timerIdentifier)"
+    ].joined(separator: "|")
+    lifecycle.stateIdentifier = stateIdentifier
+    lifecycle.retainCount = retainCount
+    lifecycle.hasScheduledExpiry = hasScheduledExpiry
+    lifecycle.timerSuspensionIdentifier = timerIdentifier
+    lifecycle.displayTimerStateIdentifier = timerStateIdentifier
+    lifecycle.thinkingTimerStateIdentifier = timerStateIdentifier
+    lifecycle.defenseTimerStateIdentifier = timerStateIdentifier
+    lifecycle.installedStateIdentifier = stateIdentifier == "not-mounted-or-expired"
+        ? "not-installed"
+        : "installed"
+    lifecycle.isOffscreen = isOffscreen
+    report.cinematicSceneLifecycle = lifecycle
+    report.identifier += "|lifecycle-smoke:\(stateIdentifier)"
+    return report
 }
