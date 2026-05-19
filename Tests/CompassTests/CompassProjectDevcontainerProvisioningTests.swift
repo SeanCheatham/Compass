@@ -109,6 +109,32 @@ final class CompassProjectDevcontainerProvisioningTests: XCTestCase {
         XCTAssertEqual(try read(configURL), original)
     }
 
+    func testExistingComposeConfigBlocksProvisioningWithoutMutation() throws {
+        let repoURL = try makeTemporaryGitRepository()
+        let configURL = devcontainerURL(in: repoURL)
+        try write(
+            #"{"dockerComposeFile":"compose.yml","service":"app","runServices":["db"]}"#,
+            to: configURL
+        )
+        let original = try read(configURL)
+        let project = CompassProject(
+            repoURL: repoURL,
+            devcontainerProvisioningAction: { _ in
+                XCTFail("Compose configs must block before provisioning action.")
+                throw CodexDevcontainerProvisioningError.unavailable("unexpected")
+            }
+        )
+        project.languageProfile = languageProfile(primaryLanguage: .typeScriptJavaScript)
+
+        project.prepareDevcontainerProvisioningConfirmation()
+
+        XCTAssertNil(project.devcontainerProvisioningConfirmation)
+        XCTAssertEqual(project.devcontainerProvisioningState.phase, .blocked)
+        XCTAssertTrue(project.devcontainerProvisioningState.detail.contains("will not overwrite"))
+        XCTAssertEqual(project.codexExecutionEnvironmentPreference, .nativeMacOS)
+        XCTAssertEqual(try read(configURL), original)
+    }
+
     func testConfirmingStaleMissingPlanRefusesToOverwriteNewConfig() async throws {
         let repoURL = try makeTemporaryGitRepository()
         let configURL = devcontainerURL(in: repoURL)

@@ -149,6 +149,40 @@ final class CodexDevcontainerProvisioningTests: XCTestCase {
         XCTAssertEqual(launchPlan.workspaceLabel, "/workspace")
     }
 
+    func testExistingComposeConfigKeepsProvisioningUnavailable() throws {
+        let repoURL = try makeTemporaryDirectory(prefix: "CodexDevcontainerProvisioningCompose")
+        try write(
+            #"{"dockerComposeFile":"compose.yml","service":"app"}"#,
+            to: repoURL
+                .appending(path: ".devcontainer", directoryHint: .isDirectory)
+                .appending(path: "devcontainer.json")
+        )
+
+        let plan = CodexDevcontainerProvisioningPlan.plan(
+            repoURL: repoURL,
+            languageProfile: languageProfile(primaryLanguage: .typeScriptJavaScript)
+        )
+        let environment = CodexExecutionEnvironment.discover(
+            repoURL: repoURL,
+            preference: .devcontainerPreferred
+        )
+        let menu = CodexExecutionEnvironmentMenu(
+            environment: environment,
+            provisioningPlan: plan
+        )
+
+        XCTAssertFalse(plan.isAvailable)
+        XCTAssertEqual(plan.status, .alreadyPresent)
+        XCTAssertNil(menu.createDevcontainerAction)
+        XCTAssertTrue(plan.detail.contains("will not overwrite"))
+        XCTAssertEqual(environment.devcontainerDiscovery.supportReport.classification, .composeBased)
+        XCTAssertEqual(environment.devcontainerDiscovery.supportReport.supportTokens, [
+            "compose",
+            "composeFile:compose.yml",
+            "service:app"
+        ])
+    }
+
     private func languageProfile(
         primaryLanguage: RepositoryLanguage,
         manifestHints: [RepositoryManifestHint] = []
@@ -171,5 +205,13 @@ final class CodexDevcontainerProvisioningTests: XCTestCase {
         try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
         temporaryDirectories.append(url)
         return url.standardizedFileURL
+    }
+
+    private func write(_ contents: String, to url: URL) throws {
+        try FileManager.default.createDirectory(
+            at: url.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try contents.write(to: url, atomically: true, encoding: .utf8)
     }
 }

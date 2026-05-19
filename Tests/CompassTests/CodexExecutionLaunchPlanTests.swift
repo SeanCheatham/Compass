@@ -609,16 +609,67 @@ final class CodexExecutionLaunchPlanTests: XCTestCase {
         XCTAssertFalse(plan.isContainerRoute)
         XCTAssertEqual(
             plan.fallbackReason,
-            "Unsupported devcontainer route: compose-based tokens compose,extra:service."
+            "Unsupported devcontainer route: compose-based tokens compose,composeFile:compose.yml,service:app."
         )
         XCTAssertEqual(plan.devcontainerSupportReport?.classification, .composeBased)
-        XCTAssertEqual(plan.devcontainerSupportReport?.supportTokens, ["compose", "extra:service"])
+        XCTAssertEqual(plan.devcontainerSupportReport?.composeDescriptor?.composeFileLabels, ["compose.yml"])
+        XCTAssertEqual(plan.devcontainerSupportReport?.composeDescriptor?.serviceLabel, "app")
+        XCTAssertEqual(
+            plan.devcontainerSupportReport?.supportTokens,
+            ["compose", "composeFile:compose.yml", "service:app"]
+        )
+        XCTAssertFalse(plan.preflightSummary(phase: "Develop").contains(repoURL.standardizedFileURL.path))
+    }
+
+    func testComposeArrayAndRunServicesExposeSanitizedTokensWithoutRouting() throws {
+        let repoURL = try makeTemporaryDirectory(prefix: "CodexExecutionLaunchPlanComposeArray")
+        let absoluteComposePath = "/Users/example/private/docker-compose.override.yml"
+        try write(
+            #"{"image":"swift:6.0","composeFile":["../docker-compose.yml","\#(absoluteComposePath)"],"service":"web-app","runServices":["redis","db"]}"#,
+            to: devcontainerURL(in: repoURL)
+        )
+
+        let plan = CodexExecutionLaunchPlan.plan(
+            repoURL: repoURL,
+            preference: .devcontainerPreferred,
+            containerToolResolver: { _ in "/usr/local/bin/container" }
+        )
+        let report = try XCTUnwrap(plan.devcontainerSupportReport)
+        let diagnosticsText = [
+            report.supportSummary,
+            plan.preflightSummary(phase: "Develop"),
+            plan.routeDetail()
+        ].joined(separator: " ")
+
+        XCTAssertFalse(plan.isContainerRoute)
+        XCTAssertEqual(report.classification, .composeBased)
+        XCTAssertNil(report.imageConfiguration)
+        XCTAssertEqual(report.composeDescriptor?.composeFileLabels, [
+            "docker-compose.yml",
+            "docker-compose.override.yml"
+        ])
+        XCTAssertEqual(report.composeDescriptor?.serviceLabel, "web-app")
+        XCTAssertEqual(report.composeDescriptor?.runServiceLabels, ["db", "redis"])
+        XCTAssertEqual(report.supportTokens, [
+            "compose",
+            "composeFiles:2",
+            "composeFile:docker-compose.yml",
+            "composeFile:docker-compose.override.yml",
+            "service:web-app",
+            "runServices:2",
+            "runService:db",
+            "runService:redis"
+        ])
+        XCTAssertTrue(plan.fallbackReason?.contains("composeFiles:2") == true)
+        XCTAssertFalse(diagnosticsText.contains("../docker-compose.yml"))
+        XCTAssertFalse(diagnosticsText.contains(absoluteComposePath))
+        XCTAssertFalse(diagnosticsText.contains(repoURL.deletingLastPathComponent().standardizedFileURL.path))
     }
 
     func testMixedUnsupportedConfigReportsDeterministicSupportTokens() throws {
         let repoURL = try makeTemporaryDirectory(prefix: "CodexExecutionLaunchPlanMixed")
         try write(
-            #"{"image":"swift:6.0","dockerComposeFile":"compose.yml","build":{"dockerfile":"Dockerfile"},"features":{"ghcr.io/devcontainers/features/git:1":{}},"postCreateCommand":"swift test","remoteUser":"vscode"}"#,
+            #"{"image":"swift:6.0","dockerComposeFile":"compose.yml","service":"app","build":{"dockerfile":"Dockerfile"},"features":{"ghcr.io/devcontainers/features/git:1":{}},"postCreateCommand":"swift test","remoteUser":"vscode"}"#,
             to: devcontainerURL(in: repoURL)
         )
 
@@ -632,14 +683,87 @@ final class CodexExecutionLaunchPlanTests: XCTestCase {
         XCTAssertEqual(plan.devcontainerSupportReport?.classification, .composeBased)
         XCTAssertEqual(
             plan.devcontainerSupportReport?.supportTokens,
-            ["compose", "build", "dockerfile:Dockerfile", "features", "extra:postCreateCommand", "extra:remoteUser"]
+            ["compose", "composeFile:compose.yml", "service:app", "build", "dockerfile:Dockerfile", "features", "extra:postCreateCommand", "extra:remoteUser"]
         )
-        XCTAssertTrue(plan.fallbackReason?.contains("compose-based tokens compose,build,dockerfile:Dockerfile") == true)
+        XCTAssertNil(plan.devcontainerSupportReport?.buildConfiguration)
+        XCTAssertTrue(plan.fallbackReason?.contains("compose-based tokens compose,composeFile:compose.yml,service:app") == true)
 
         let preflight = plan.preflightSummary(phase: "Develop")
-        XCTAssertTrue(preflight.contains("devcontainer compose-based tokens compose,build,dockerfile:Dockerfile"))
+        XCTAssertTrue(preflight.contains("devcontainer compose-based tokens compose,composeFile:compose.yml,service:app"))
         XCTAssertTrue(preflight.contains("extra:postCreateCommand"))
         XCTAssertTrue(preflight.contains("extra:remoteUser"))
+    }
+
+    func testMalformedAndUnsafeComposeShapesDoNotLeakValues() throws {
+        let malformedCases: [(prefix: String, json: String, reasonToken: String)] = [
+            (
+                "CodexExecutionLaunchPlanComposeObject",
+                #"{"dockerComposeFile":{"path":"/Users/private/compose.yml"},"service":"app"}"#,
+                "dockerComposeFile must be a string or array"
+            ),
+            (
+                "CodexExecutionLaunchPlanComposeRunServicesString",
+                #"{"composeFile":"compose.yml","runServices":"db-secret"}"#,
+                "runServices must be an array"
+            ),
+            (
+                "CodexExecutionLaunchPlanComposeServiceNumber",
+                #"{"composeFile":"compose.yml","service":42}"#,
+                "service must be a string"
+            ),
+            (
+                "CodexExecutionLaunchPlanComposeEmptyFile",
+                #"{"composeFile":"","service":"app"}"#,
+                "composeFile must not be empty"
+            )
+        ]
+
+        for testCase in malformedCases {
+            let repoURL = try makeTemporaryDirectory(prefix: testCase.prefix)
+            try write(testCase.json, to: devcontainerURL(in: repoURL))
+
+            let plan = CodexExecutionLaunchPlan.plan(
+                repoURL: repoURL,
+                preference: .devcontainerPreferred,
+                containerToolResolver: { _ in "/usr/local/bin/container" }
+            )
+
+            XCTAssertFalse(plan.isContainerRoute)
+            XCTAssertEqual(plan.devcontainerSupportReport?.classification, .malformed)
+            XCTAssertTrue(plan.fallbackReason?.contains(testCase.reasonToken) == true)
+            XCTAssertFalse(plan.fallbackReason?.contains("/Users/private") == true)
+            XCTAssertFalse(plan.fallbackReason?.contains("db-secret") == true)
+        }
+
+        let repoURL = try makeTemporaryDirectory(prefix: "CodexExecutionLaunchPlanComposeUnsafe")
+        try write(
+            #"{"composeFile":"/Users/private/compose.yml","service":"api service","runServices":["db service"]}"#,
+            to: devcontainerURL(in: repoURL)
+        )
+
+        let plan = CodexExecutionLaunchPlan.plan(
+            repoURL: repoURL,
+            preference: .devcontainerPreferred,
+            containerToolResolver: { _ in "/usr/local/bin/container" }
+        )
+        let diagnosticsText = [
+            plan.devcontainerSupportReport?.supportSummary ?? "",
+            plan.preflightSummary(phase: "Develop"),
+            plan.routeDetail()
+        ].joined(separator: " ")
+
+        XCTAssertFalse(plan.isContainerRoute)
+        XCTAssertEqual(plan.devcontainerSupportReport?.classification, .composeBased)
+        XCTAssertEqual(plan.devcontainerSupportReport?.supportTokens, [
+            "compose",
+            "composeFile:compose.yml",
+            "service:service",
+            "runServices:1",
+            "runService:service"
+        ])
+        XCTAssertFalse(diagnosticsText.contains("/Users/private"))
+        XCTAssertFalse(diagnosticsText.contains("api service"))
+        XCTAssertFalse(diagnosticsText.contains("db service"))
     }
 
     func testFeaturesOnlyConfigFallsBackWithoutRouting() throws {

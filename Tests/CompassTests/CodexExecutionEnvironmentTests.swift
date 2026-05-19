@@ -75,6 +75,51 @@ final class CodexExecutionEnvironmentTests: XCTestCase {
         XCTAssertTrue(detail.contains("Unsupported devcontainer route: build-based tokens build,dockerfile:Dockerfile,features,extra:postCreateCommand."))
     }
 
+    func testComposeDiscoveryMenusExposeSanitizedComposeTokensWithoutPaths() throws {
+        let repoURL = try makeTemporaryDirectory(prefix: "CodexExecutionEnvironmentCompose")
+        let absoluteComposePath = "/Users/private/project/compose.override.yml"
+        try write(
+            #"{"dockerComposeFile":["../compose.yml","\#(absoluteComposePath)"],"service":"api","runServices":["redis","db"]}"#,
+            to: repoURL
+                .appending(path: ".devcontainer", directoryHint: .isDirectory)
+                .appending(path: "devcontainer.json")
+        )
+
+        let environment = CodexExecutionEnvironment.discover(
+            repoURL: repoURL,
+            preference: .devcontainerPreferred
+        )
+        let menu = CodexExecutionEnvironmentMenu(environment: environment)
+        let preflight = environment.launchPreflightSummary(
+            phase: "Verify",
+            nativeExecutionURL: repoURL
+        )
+        let detail = environment.launchPreflightDetail
+        let diagnosticsText = [menu.helpText, menu.statusText, preflight, detail]
+            .joined(separator: " ")
+
+        XCTAssertEqual(environment.effectivePreference, .nativeMacOS)
+        XCTAssertEqual(environment.devcontainerDiscovery.supportReport.classification, .composeBased)
+        XCTAssertEqual(environment.devcontainerDiscovery.supportReport.supportTokens, [
+            "compose",
+            "composeFiles:2",
+            "composeFile:compose.yml",
+            "composeFile:compose.override.yml",
+            "service:api",
+            "runServices:2",
+            "runService:db",
+            "runService:redis"
+        ])
+        XCTAssertTrue(menu.statusText.contains("compose-based"))
+        XCTAssertTrue(menu.statusText.contains("composeFiles:2"))
+        XCTAssertTrue(menu.items.first { $0.preference == .devcontainerPreferred }?.description.contains("service:api") == true)
+        XCTAssertTrue(preflight.contains("devcontainer compose-based tokens compose,composeFiles:2"))
+        XCTAssertTrue(detail.contains("Unsupported devcontainer route: compose-based tokens compose,composeFiles:2"))
+        XCTAssertFalse(diagnosticsText.contains("../compose.yml"))
+        XCTAssertFalse(diagnosticsText.contains(absoluteComposePath))
+        XCTAssertFalse(diagnosticsText.contains(repoURL.deletingLastPathComponent().standardizedFileURL.path))
+    }
+
     func testBuildRouteableDiscoveryAndPreflightExposeLocalImageWithoutPaths() throws {
         let repoURL = try makeTemporaryDirectory(prefix: "CodexExecutionEnvironmentBuildRoute")
         let secretBuildArg = "secret-build-arg-menu-value"

@@ -137,6 +137,44 @@ final class ProcessRunnerExecutionRouteTests: XCTestCase {
         XCTAssertFalse(launchPlan.preflightSummary(phase: "Verify").contains(repoURL.standardizedFileURL.path))
     }
 
+    func testComposeDevcontainerShellRouteFallsBackToNativeWithSanitizedTokens() async throws {
+        let repoURL = try makeTemporaryDirectory(prefix: "ProcessRunnerComposeFallback")
+        try write(
+            #"{"dockerComposeFile":"../compose.yml","service":"app","runServices":["db"]}"#,
+            to: devcontainerURL(in: repoURL)
+        )
+        let launchPlan = CodexExecutionLaunchPlan.plan(
+            repoURL: repoURL,
+            preference: .devcontainerPreferred,
+            containerToolResolver: { _ in "/usr/local/bin/container" }
+        )
+        var capturedInvocation: CodexExecutionInvocation?
+
+        _ = try await ProcessRunner.runShell(
+            "swift test",
+            workingDirectory: repoURL,
+            launchPlan: launchPlan,
+            runner: { invocation, _, _, _, _ in
+                capturedInvocation = invocation
+                return ProcessResult(exitCode: 0, stdout: "", stderr: "")
+            }
+        )
+
+        let invocation = try XCTUnwrap(capturedInvocation)
+        XCTAssertFalse(launchPlan.isContainerRoute)
+        XCTAssertEqual(invocation.executable, "/bin/zsh")
+        XCTAssertEqual(invocation.arguments, ["-lc", "swift test"])
+        XCTAssertEqual(launchPlan.devcontainerSupportReport?.classification, .composeBased)
+        XCTAssertEqual(launchPlan.devcontainerSupportReport?.supportTokens, [
+            "compose",
+            "composeFile:compose.yml",
+            "service:app",
+            "runServices:1",
+            "runService:db"
+        ])
+        XCTAssertFalse(launchPlan.routeDetail().contains("../compose.yml"))
+    }
+
     func testBuildDevcontainerShellRouteBuildsThenRunsLocalImage() async throws {
         let repoURL = try makeTemporaryDirectory(prefix: "ProcessRunnerBuildRoute")
         try write(

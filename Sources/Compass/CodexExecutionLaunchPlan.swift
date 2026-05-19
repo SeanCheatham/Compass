@@ -87,6 +87,58 @@ struct CodexDevcontainerBuildDescriptor: Equatable {
     }
 }
 
+struct CodexDevcontainerComposeDescriptor: Equatable {
+    static let labelLimit = 48
+    static let composeFileCountLimit = 16
+    static let runServiceCountLimit = 32
+
+    var composeFileLabels: [String]
+    var serviceLabel: String?
+    var runServiceLabels: [String]
+
+    init(
+        composeFileLabels: [String] = [],
+        serviceLabel: String? = nil,
+        runServiceLabels: [String] = []
+    ) {
+        self.composeFileLabels = composeFileLabels
+            .map { Self.boundedText($0, limit: Self.labelLimit) }
+            .filter { !$0.isEmpty }
+        self.serviceLabel = Self.boundedOptionalText(serviceLabel, limit: Self.labelLimit)
+        self.runServiceLabels = runServiceLabels
+            .map { Self.boundedText($0, limit: Self.labelLimit) }
+            .filter { !$0.isEmpty }
+            .sorted()
+    }
+
+    var supportTokens: [String] {
+        var tokens: [String] = []
+        if composeFileLabels.count == 1, let composeFileLabel = composeFileLabels.first {
+            tokens.append("composeFile:\(composeFileLabel)")
+        } else if composeFileLabels.count > 1 {
+            tokens.append("composeFiles:\(composeFileLabels.count)")
+            tokens += composeFileLabels.map { "composeFile:\($0)" }
+        }
+        if let serviceLabel {
+            tokens.append("service:\(serviceLabel)")
+        }
+        if !runServiceLabels.isEmpty {
+            tokens.append("runServices:\(runServiceLabels.count)")
+            tokens += runServiceLabels.map { "runService:\($0)" }
+        }
+        return tokens
+    }
+
+    private static func boundedOptionalText(_ text: String?, limit: Int) -> String? {
+        let bounded = boundedText(text ?? "", limit: limit)
+        return bounded.isEmpty ? nil : bounded
+    }
+
+    private static func boundedText(_ text: String, limit: Int) -> String {
+        CodexExecutionLaunchPlan.boundedText(text, limit: limit)
+    }
+}
+
 struct CodexDevcontainerBuildArgument: Equatable {
     static let nameLimit = CodexDevcontainerBuildDescriptor.buildArgNameLimit
     static let valueLimit = CodexDevcontainerBuildDescriptor.buildArgValueLimit
@@ -269,6 +321,7 @@ struct CodexDevcontainerSupportReport: Equatable {
     var configURL: URL
     var name: String?
     var imageConfiguration: CodexDevcontainerImageConfiguration?
+    var composeDescriptor: CodexDevcontainerComposeDescriptor?
     var buildDescriptor: CodexDevcontainerBuildDescriptor?
     var buildConfiguration: CodexDevcontainerBuildConfiguration?
     var supportTokens: [String]
@@ -280,6 +333,7 @@ struct CodexDevcontainerSupportReport: Equatable {
         configURL: URL,
         name: String? = nil,
         imageConfiguration: CodexDevcontainerImageConfiguration? = nil,
+        composeDescriptor: CodexDevcontainerComposeDescriptor? = nil,
         buildDescriptor: CodexDevcontainerBuildDescriptor? = nil,
         buildConfiguration: CodexDevcontainerBuildConfiguration? = nil,
         supportTokens: [String] = [],
@@ -290,6 +344,7 @@ struct CodexDevcontainerSupportReport: Equatable {
         self.configURL = configURL.standardizedFileURL
         self.name = Self.boundedOptionalText(name, limit: Self.nameLimit)
         self.imageConfiguration = imageConfiguration
+        self.composeDescriptor = composeDescriptor
         self.buildDescriptor = buildDescriptor
         self.buildConfiguration = buildConfiguration
         self.supportTokens = supportTokens.map { Self.boundedText($0, limit: Self.tokenLimit) }
@@ -455,7 +510,7 @@ struct CodexDevcontainerSupportReport: Equatable {
     ) -> Self {
         let name = (dictionary["name"] as? String)?
             .trimmingCharacters(in: .whitespacesAndNewlines)
-        let composeKeys = presentKeys(["composeFile", "dockerComposeFile"], in: dictionary)
+        let composeKeys = presentKeys(["composeFile", "dockerComposeFile", "service", "runServices"], in: dictionary)
         let buildKeys = presentKeys(["build", "dockerFile", "dockerfile"], in: dictionary)
         let featureKeys = presentKeys(["features"], in: dictionary)
         let routeableKeys: Set<String> = ["image", "workspaceFolder", "name", "containerEnv"]
@@ -478,6 +533,19 @@ struct CodexDevcontainerSupportReport: Equatable {
             )
         }
 
+        let composeDescriptor: CodexDevcontainerComposeDescriptor?
+        switch parseComposeDescriptor(dictionary) {
+        case let .success(parsedComposeDescriptor):
+            composeDescriptor = parsedComposeDescriptor
+        case let .failure(reason):
+            return Self(
+                classification: .malformed,
+                configURL: configURL,
+                name: name,
+                reason: reason
+            )
+        }
+
         let parsedBuildPlan: ParsedBuildPlan?
         let hasMalformedBuildDescriptor: Bool
         switch parseBuildPlan(dictionary, configURL: configURL, containerEnv: containerEnv) {
@@ -485,7 +553,7 @@ struct CodexDevcontainerSupportReport: Equatable {
             parsedBuildPlan = buildPlan
             hasMalformedBuildDescriptor = false
         case let .failure(reason):
-            if composeKeys.isEmpty {
+            if composeDescriptor == nil {
                 return Self(
                     classification: .malformed,
                     configURL: configURL,
@@ -498,7 +566,7 @@ struct CodexDevcontainerSupportReport: Equatable {
         }
         let buildDescriptor = parsedBuildPlan?.descriptor
         let buildConfiguration: CodexDevcontainerBuildConfiguration?
-        if composeKeys.isEmpty,
+        if composeDescriptor == nil,
            featureKeys.isEmpty,
            unsupportedKeys.isEmpty {
             buildConfiguration = parsedBuildPlan?.configuration
@@ -507,7 +575,7 @@ struct CodexDevcontainerSupportReport: Equatable {
         }
 
         let supportTokenResult = supportTokens(
-            hasCompose: !composeKeys.isEmpty,
+            composeDescriptor: composeDescriptor,
             hasBuild: !buildKeys.isEmpty,
             buildDescriptor: buildDescriptor,
             buildExtraSupportTokens: parsedBuildPlan?.extraSupportTokens ?? [],
@@ -517,11 +585,12 @@ struct CodexDevcontainerSupportReport: Equatable {
             containerEnvNames: containerEnv.map(\.name)
         )
 
-        if !composeKeys.isEmpty {
+        if let composeDescriptor {
             return Self(
                 classification: .composeBased,
                 configURL: configURL,
                 name: name,
+                composeDescriptor: composeDescriptor,
                 buildDescriptor: buildDescriptor,
                 buildConfiguration: buildConfiguration,
                 supportTokens: supportTokenResult.tokens,
@@ -659,6 +728,31 @@ struct CodexDevcontainerSupportReport: Equatable {
         case failure(String)
     }
 
+    private enum ComposeDescriptorParseResult {
+        case success(CodexDevcontainerComposeDescriptor?)
+        case failure(String)
+    }
+
+    private enum ComposeFileLabelsParseResult {
+        case success([String])
+        case failure(String)
+    }
+
+    private enum ComposeFileLabelParseResult {
+        case success(String)
+        case failure(String)
+    }
+
+    private enum ComposeServiceLabelsParseResult {
+        case success([String])
+        case failure(String)
+    }
+
+    private enum ComposeServiceLabelParseResult {
+        case success(String)
+        case failure(String)
+    }
+
     private struct ParsedBuildPlan {
         var descriptor: CodexDevcontainerBuildDescriptor
         var configuration: CodexDevcontainerBuildConfiguration?
@@ -738,6 +832,178 @@ struct CodexDevcontainerSupportReport: Equatable {
         }
 
         return .success(variables)
+    }
+
+    private static func parseComposeDescriptor(
+        _ dictionary: [String: Any]
+    ) -> ComposeDescriptorParseResult {
+        let composeKeys = presentKeys(["composeFile", "dockerComposeFile", "service", "runServices"], in: dictionary)
+        guard !composeKeys.isEmpty else {
+            return .success(nil)
+        }
+
+        var composeFileLabels: [String] = []
+        for key in ["composeFile", "dockerComposeFile"] where dictionary[key] != nil {
+            switch parseComposeFileLabels(dictionary[key], fieldName: key) {
+            case let .success(labels):
+                composeFileLabels += labels
+            case let .failure(reason):
+                return .failure(reason)
+            }
+        }
+
+        let serviceLabel: String?
+        if dictionary["service"] != nil {
+            switch parseComposeServiceLabel(dictionary["service"], fieldName: "service") {
+            case let .success(label):
+                serviceLabel = label
+            case let .failure(reason):
+                return .failure(reason)
+            }
+        } else {
+            serviceLabel = nil
+        }
+
+        let runServiceLabels: [String]
+        if dictionary["runServices"] != nil {
+            switch parseComposeServiceLabels(dictionary["runServices"], fieldName: "runServices") {
+            case let .success(labels):
+                runServiceLabels = labels
+            case let .failure(reason):
+                return .failure(reason)
+            }
+        } else {
+            runServiceLabels = []
+        }
+
+        return .success(CodexDevcontainerComposeDescriptor(
+            composeFileLabels: composeFileLabels,
+            serviceLabel: serviceLabel,
+            runServiceLabels: runServiceLabels
+        ))
+    }
+
+    private static func parseComposeFileLabels(
+        _ rawValue: Any?,
+        fieldName: String
+    ) -> ComposeFileLabelsParseResult {
+        if let stringValue = rawValue as? String {
+            switch composeFileLabel(from: stringValue, fieldName: fieldName) {
+            case let .success(label):
+                return .success([label])
+            case let .failure(reason):
+                return .failure(reason)
+            }
+        }
+
+        guard let values = rawValue as? [Any] else {
+            return .failure("\(fieldName) must be a string or array of strings.")
+        }
+
+        guard values.count <= CodexDevcontainerComposeDescriptor.composeFileCountLimit else {
+            return .failure(
+                "\(fieldName) may include at most \(CodexDevcontainerComposeDescriptor.composeFileCountLimit) files."
+            )
+        }
+
+        var labels: [String] = []
+        for value in values {
+            guard let stringValue = value as? String else {
+                return .failure("\(fieldName) entries must be strings.")
+            }
+            switch composeFileLabel(from: stringValue, fieldName: fieldName) {
+            case let .success(label):
+                labels.append(label)
+            case let .failure(reason):
+                return .failure(reason)
+            }
+        }
+        return .success(labels)
+    }
+
+    private static func composeFileLabel(
+        from value: String,
+        fieldName: String
+    ) -> ComposeFileLabelParseResult {
+        guard !value.contains("\0") else {
+            return .failure("\(fieldName) must not contain NUL characters.")
+        }
+
+        guard !value.contains("\n"),
+              !value.contains("\r") else {
+            return .failure("\(fieldName) must not contain line breaks.")
+        }
+
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            return .failure("\(fieldName) must not be empty.")
+        }
+
+        let normalized = trimmed.replacingOccurrences(of: "\\", with: "/")
+        let components = normalized
+            .split(separator: "/", omittingEmptySubsequences: true)
+            .map(String.init)
+        let rawBasename = components.last ?? fieldName
+        let bounded = boundedText(rawBasename, limit: CodexDevcontainerComposeDescriptor.labelLimit)
+        guard isSafeComposeLabel(bounded), bounded != ".", bounded != ".." else {
+            return .success("compose-file")
+        }
+        return .success(bounded)
+    }
+
+    private static func parseComposeServiceLabels(
+        _ rawValue: Any?,
+        fieldName: String
+    ) -> ComposeServiceLabelsParseResult {
+        guard let values = rawValue as? [Any] else {
+            return .failure("\(fieldName) must be an array of strings.")
+        }
+
+        guard values.count <= CodexDevcontainerComposeDescriptor.runServiceCountLimit else {
+            return .failure(
+                "\(fieldName) may include at most \(CodexDevcontainerComposeDescriptor.runServiceCountLimit) services."
+            )
+        }
+
+        var labels: [String] = []
+        for value in values {
+            switch parseComposeServiceLabel(value, fieldName: fieldName) {
+            case let .success(label):
+                labels.append(label)
+            case let .failure(reason):
+                return .failure(reason)
+            }
+        }
+        return .success(labels)
+    }
+
+    private static func parseComposeServiceLabel(
+        _ rawValue: Any?,
+        fieldName: String
+    ) -> ComposeServiceLabelParseResult {
+        guard let value = rawValue as? String else {
+            return .failure("\(fieldName) must be a string.")
+        }
+
+        guard !value.contains("\0") else {
+            return .failure("\(fieldName) must not contain NUL characters.")
+        }
+
+        guard !value.contains("\n"),
+              !value.contains("\r") else {
+            return .failure("\(fieldName) must not contain line breaks.")
+        }
+
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            return .failure("\(fieldName) must not be empty.")
+        }
+
+        let bounded = boundedText(trimmed, limit: CodexDevcontainerComposeDescriptor.labelLimit)
+        guard isSafeComposeLabel(bounded) else {
+            return .success("service")
+        }
+        return .success(bounded)
     }
 
     private static func parseBuildPlan(
@@ -1061,7 +1327,7 @@ struct CodexDevcontainerSupportReport: Equatable {
     }
 
     private static func supportTokens(
-        hasCompose: Bool,
+        composeDescriptor: CodexDevcontainerComposeDescriptor? = nil,
         hasBuild: Bool,
         buildDescriptor: CodexDevcontainerBuildDescriptor? = nil,
         buildExtraSupportTokens: [String] = [],
@@ -1071,8 +1337,9 @@ struct CodexDevcontainerSupportReport: Equatable {
         containerEnvNames: [String] = []
     ) -> (tokens: [String], omittedCount: Int) {
         var rawTokens: [String] = []
-        if hasCompose {
+        if let composeDescriptor {
             rawTokens.append("compose")
+            rawTokens += composeDescriptor.supportTokens
         }
         if hasBuild {
             rawTokens.append("build")
@@ -1159,6 +1426,21 @@ struct CodexDevcontainerSupportReport: Equatable {
     private static func isSafeBuildLabel(_ label: String) -> Bool {
         guard !label.isEmpty,
               label.count <= CodexDevcontainerBuildDescriptor.labelLimit else {
+            return false
+        }
+
+        return label.unicodeScalars.allSatisfy { scalar in
+            isASCIILetter(scalar)
+                || isASCIIDigit(scalar)
+                || scalar == "_"
+                || scalar == "-"
+                || scalar == "."
+        }
+    }
+
+    private static func isSafeComposeLabel(_ label: String) -> Bool {
+        guard !label.isEmpty,
+              label.count <= CodexDevcontainerComposeDescriptor.labelLimit else {
             return false
         }
 

@@ -187,6 +187,55 @@ final class CodexExecutorLaunchRouteTests: XCTestCase {
         XCTAssertFalse(context.invocation.arguments.contains("container"))
     }
 
+    func testComposeDevcontainerFallbackKeepsNativeCodexInvocation() async throws {
+        let repoURL = try makeTemporaryDirectory(prefix: "CodexExecutorComposeFallback")
+        try write(
+            #"{"dockerComposeFile":["compose.yml","compose.override.yml"],"service":"develop","runServices":["db"]}"#,
+            to: devcontainerURL(in: repoURL)
+        )
+        let launchPlan = CodexExecutionLaunchPlan.plan(
+            repoURL: repoURL,
+            preference: .devcontainerPreferred,
+            containerToolResolver: { _ in "/usr/local/bin/container" }
+        )
+        var capturedContext: CodexExecutorLaunchContext?
+        let executor = CodexExecutor { context, _ in
+            capturedContext = context
+            try #"{"ok":true}"#.write(to: context.outputFile, atomically: true, encoding: .utf8)
+            return ProcessResult(exitCode: 0, stdout: "", stderr: "")
+        }
+
+        _ = try await executor.run(
+            CodexRunConfiguration(
+                codexBinary: "/opt/codex/bin/codex",
+                repoURL: repoURL,
+                sandbox: "danger-full-access",
+                model: nil,
+                schema: #"{"type":"object"}"#,
+                prompt: "Develop prompt",
+                launchPlan: launchPlan
+            ),
+            decode: StubCodexResponse.self,
+            onEvent: { _ in }
+        )
+
+        let context = try XCTUnwrap(capturedContext)
+        XCTAssertFalse(launchPlan.isContainerRoute)
+        XCTAssertEqual(launchPlan.devcontainerSupportReport?.classification, .composeBased)
+        XCTAssertEqual(launchPlan.devcontainerSupportReport?.supportTokens, [
+            "compose",
+            "composeFiles:2",
+            "composeFile:compose.yml",
+            "composeFile:compose.override.yml",
+            "service:develop",
+            "runServices:1",
+            "runService:db"
+        ])
+        XCTAssertEqual(context.invocation.executable, "/opt/codex/bin/codex")
+        XCTAssertEqual(try argument(after: "--cd", in: context.invocation.arguments), repoURL.standardizedFileURL.path)
+        XCTAssertFalse(context.invocation.arguments.contains("container"))
+    }
+
     func testBuildDevcontainerConfigurationBuildsThenUsesContainerCodex() async throws {
         let repoURL = try makeTemporaryDirectory(prefix: "CodexExecutorBuildRoute")
         try write(
