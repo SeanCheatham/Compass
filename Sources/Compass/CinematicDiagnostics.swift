@@ -889,6 +889,13 @@ struct CinematicDiagnosticsReport: Equatable {
         var isSearchActive: Bool
         var searchQuerySnippet: String
         var searchQueryFingerprint: String
+        var warningPulseFilterIdentifier: String
+        var isWarningPulseFilterActive: Bool
+        var warningPulseFilterMatchCount: Int
+        var warningPulseAnyCount: Int
+        var warningPulseActiveCount: Int
+        var warningPulseSnoozedCount: Int
+        var warningPulseUnknownCount: Int
         var noMatchAvailabilityReason: String?
         var retainedEntryCount: Int
         var totalCount: Int
@@ -938,6 +945,13 @@ struct CinematicDiagnosticsReport: Equatable {
         var isSearchActive: Bool
         var searchQuerySnippet: String
         var searchQueryFingerprint: String
+        var warningPulseFilterIdentifier: String
+        var isWarningPulseFilterActive: Bool
+        var warningPulseFilterMatchCount: Int
+        var warningPulseAnyCount: Int
+        var warningPulseActiveCount: Int
+        var warningPulseSnoozedCount: Int
+        var warningPulseUnknownCount: Int
         var noMatchAvailabilityReason: String?
         var retainedEntryCount: Int
         var totalCount: Int
@@ -974,6 +988,13 @@ struct CinematicDiagnosticsReport: Equatable {
         var isSearchActive: Bool
         var searchQuerySnippet: String
         var searchQueryFingerprint: String
+        var warningPulseFilterIdentifier: String
+        var isWarningPulseFilterActive: Bool
+        var warningPulseFilterMatchCount: Int
+        var warningPulseAnyCount: Int
+        var warningPulseActiveCount: Int
+        var warningPulseSnoozedCount: Int
+        var warningPulseUnknownCount: Int
         var noMatchAvailabilityReason: String?
         var retainedEntryCount: Int
         var totalCount: Int
@@ -1048,6 +1069,13 @@ struct CinematicDiagnosticsReport: Equatable {
         var isSearchActive: Bool
         var searchQuerySnippet: String
         var searchQueryFingerprint: String
+        var warningPulseFilterIdentifier: String
+        var isWarningPulseFilterActive: Bool
+        var warningPulseFilterMatchCount: Int
+        var warningPulseAnyCount: Int
+        var warningPulseActiveCount: Int
+        var warningPulseSnoozedCount: Int
+        var warningPulseUnknownCount: Int
         var noMatchAvailabilityReason: String?
         var retainedEntryCount: Int
         var totalCount: Int
@@ -1094,6 +1122,13 @@ struct CinematicDiagnosticsReport: Equatable {
         var isSearchActive: Bool
         var searchQuerySnippet: String
         var searchQueryFingerprint: String
+        var warningPulseFilterIdentifier: String
+        var isWarningPulseFilterActive: Bool
+        var warningPulseFilterMatchCount: Int
+        var warningPulseAnyCount: Int
+        var warningPulseActiveCount: Int
+        var warningPulseSnoozedCount: Int
+        var warningPulseUnknownCount: Int
         var noMatchAvailabilityReason: String?
         var retainedEntryCount: Int
         var totalCount: Int
@@ -1189,6 +1224,13 @@ struct CinematicDiagnosticsReport: Equatable {
         var isSearchActive: Bool
         var searchQuerySnippet: String
         var searchQueryFingerprint: String
+        var warningPulseFilterIdentifier: String
+        var isWarningPulseFilterActive: Bool
+        var warningPulseFilterMatchCount: Int
+        var warningPulseAnyCount: Int
+        var warningPulseActiveCount: Int
+        var warningPulseSnoozedCount: Int
+        var warningPulseUnknownCount: Int
         var matchCount: Int
         var unfilteredVisibleCount: Int
         var noMatchAvailabilityReason: String?
@@ -3395,6 +3437,15 @@ struct CinematicVisualSmokeReport: Equatable {
             )
     }
 
+    private static func runRecapShareArtifactWarningPulseFilterCopyIsBounded(
+        identifier: String
+    ) -> Bool {
+        string(
+            identifier,
+            maxCharacters: CinematicRunRecapShareArtifactWarningPulseCue.fieldMaxCharacters
+        )
+    }
+
     private static func runRecapShareArtifactRollupCopyIsBounded(_ report: CinematicDiagnosticsReport) -> Bool {
         let snapshot = report.runRecapShareArtifactRollup
         return string(
@@ -3411,6 +3462,9 @@ struct CinematicVisualSmokeReport: Equatable {
             )
             && snapshot.searchQueryFingerprint.count
                 <= CinematicRunRecapShareArtifactRollupPlan.identifierMaxCharacters
+            && runRecapShareArtifactWarningPulseFilterCopyIsBounded(
+                identifier: snapshot.warningPulseFilterIdentifier
+            )
             && (snapshot.noMatchAvailabilityReason?.count ?? 0)
                 <= CinematicRunRecapShareArtifactRollupPlan.snippetMaxCharacters
             && (snapshot.selectedEntryIdentifier ?? "").count
@@ -3498,6 +3552,9 @@ struct CinematicVisualSmokeReport: Equatable {
             )
             && snapshot.searchQueryFingerprint.count
                 <= CinematicRunRecapShareArtifactComparisonPlan.identifierMaxCharacters
+            && runRecapShareArtifactWarningPulseFilterCopyIsBounded(
+                identifier: snapshot.warningPulseFilterIdentifier
+            )
             && (snapshot.noMatchAvailabilityReason?.count ?? 0)
                 <= CinematicRunRecapShareArtifactComparisonPlan.snippetMaxCharacters
             && (snapshot.selectedEntryIdentifier ?? "").count
@@ -3622,6 +3679,9 @@ struct CinematicVisualSmokeReport: Equatable {
             )
             && snapshot.searchQueryFingerprint.count
                 <= CinematicRunRecapShareArtifactPinnedReferencePlan.identifierMaxCharacters
+            && runRecapShareArtifactWarningPulseFilterCopyIsBounded(
+                identifier: snapshot.warningPulseFilterIdentifier
+            )
             && (snapshot.noMatchAvailabilityReason?.count ?? 0)
                 <= CinematicRunRecapShareArtifactPinnedReferencePlan.snippetMaxCharacters
             && (snapshot.selectedEntryIdentifier ?? "").count
@@ -3727,6 +3787,9 @@ struct CinematicVisualSmokeReport: Equatable {
             )
             && snapshot.searchQueryFingerprint.count
                 <= CinematicRunRecapShareArtifactTourPlan.identifierMaxCharacters
+            && runRecapShareArtifactWarningPulseFilterCopyIsBounded(
+                identifier: snapshot.warningPulseFilterIdentifier
+            )
             && (snapshot.noMatchAvailabilityReason?.count ?? 0)
                 <= CinematicRunRecapShareArtifactTourPlan.snippetMaxCharacters
             && (snapshot.selectedEntryIdentifier ?? "").count
@@ -3945,6 +4008,9 @@ struct CinematicVisualSmokeReport: Equatable {
             )
             && snapshot.searchQueryFingerprint.count
                 <= CinematicRunRecapShareArtifactPreviewBrowserPlan.identifierMaxCharacters
+            && runRecapShareArtifactWarningPulseFilterCopyIsBounded(
+                identifier: snapshot.warningPulseFilterIdentifier
+            )
             && (snapshot.noMatchAvailabilityReason?.count ?? 0)
                 <= CinematicRunRecapShareArtifactPreviewBrowserPlan.snippetMaxCharacters
             && (snapshot.selectedEntryIdentifier ?? "").count
@@ -4277,6 +4343,9 @@ struct CinematicVisualSmokeReport: Equatable {
             )
             && snapshot.searchQueryFingerprint.count
                 <= CinematicRunRecapShareArtifactSubsetExportPlan.identifierMaxCharacters
+            && runRecapShareArtifactWarningPulseFilterCopyIsBounded(
+                identifier: snapshot.warningPulseFilterIdentifier
+            )
             && (snapshot.noMatchAvailabilityReason?.count ?? 0)
                 <= CinematicRunRecapShareArtifactSubsetExportPlan.snippetMaxCharacters
             && (snapshot.selectedEntryIdentifier ?? "").count
@@ -8050,6 +8119,15 @@ struct CinematicDiagnosticsSummary: Equatable {
             snapshot.isSearchActive
                 ? "search \(snapshot.searchQuerySnippet) \(snapshot.searchQueryFingerprint)"
                 : "search none",
+            warningPulseFilterDetail(
+                identifier: snapshot.warningPulseFilterIdentifier,
+                isActive: snapshot.isWarningPulseFilterActive,
+                matchingCount: snapshot.warningPulseFilterMatchCount,
+                anyCount: snapshot.warningPulseAnyCount,
+                activeCount: snapshot.warningPulseActiveCount,
+                snoozedCount: snapshot.warningPulseSnoozedCount,
+                unknownCount: snapshot.warningPulseUnknownCount
+            ),
             "matches \(snapshot.matchingEntryCount)/\(snapshot.unfilteredVisibleCount)",
             snapshot.noMatchAvailabilityReason.map { "no-match \($0)" },
             "pins \(snapshot.pinnedEntryCount)",
@@ -8135,6 +8213,15 @@ struct CinematicDiagnosticsSummary: Equatable {
             snapshot.mutationTestingCueCompactCopy.map { "mutation copy \($0)" },
             snapshot.mutationTestingCueDetailCopy.map { "mutation detail \($0)" },
             "mutation treatment \(snapshot.mutationTestingTreatmentAccentIdentifier)/\(snapshot.mutationTestingTreatmentRailIdentifier)/\(snapshot.mutationTestingTreatmentSealIdentifier)/\(snapshot.mutationTestingTreatmentTextIdentifier)",
+            warningPulseFilterDetail(
+                identifier: snapshot.warningPulseFilterIdentifier,
+                isActive: snapshot.isWarningPulseFilterActive,
+                matchingCount: snapshot.warningPulseFilterMatchCount,
+                anyCount: snapshot.warningPulseAnyCount,
+                activeCount: snapshot.warningPulseActiveCount,
+                snoozedCount: snapshot.warningPulseSnoozedCount,
+                unknownCount: snapshot.warningPulseUnknownCount
+            ),
             snapshot.warningPulseCueCompactCopy.map { "warning pulse copy \($0)" },
             snapshot.warningPulseCueDetailCopy.map { "warning pulse detail \($0)" },
             snapshot.warningPulseCueAvailabilityIdentifier == "available"
@@ -8179,16 +8266,25 @@ struct CinematicDiagnosticsSummary: Equatable {
             snapshot.isSearchActive
                 ? "search \(snapshot.searchQuerySnippet) \(snapshot.searchQueryFingerprint)"
                 : "search none",
+            warningPulseFilterDetail(
+                identifier: snapshot.warningPulseFilterIdentifier,
+                isActive: snapshot.isWarningPulseFilterActive,
+                matchingCount: snapshot.warningPulseFilterMatchCount,
+                anyCount: snapshot.warningPulseAnyCount,
+                activeCount: snapshot.warningPulseActiveCount,
+                snoozedCount: snapshot.warningPulseSnoozedCount,
+                unknownCount: snapshot.warningPulseUnknownCount
+            ),
             "matches \(snapshot.matchCount)/\(snapshot.unfilteredVisibleCount)",
             snapshot.noMatchAvailabilityReason.map { "no-match \($0)" },
             "selection \(position)",
             snapshot.sessionNumber.map { "session \($0)" },
             snapshot.filename.map { "file \(bounded($0, limit: 72))" },
             "fallback reason \(snapshot.selectedFallbackReasonIdentifier)",
-            subsetExportDetail("selected export", snapshot.selectedExport),
-            subsetExportDetail("filtered export", snapshot.filteredExport),
             "warning state \(snapshot.warningStateIdentifier)",
             "warnings \(snapshot.warningCount)",
+            subsetExportDetail("selected export", snapshot.selectedExport),
+            subsetExportDetail("filtered export", snapshot.filteredExport),
             snapshot.selectedEntryIdentifier.map { "entry \(bounded($0, limit: 54))" },
             snapshot.selectedFallbackEntryIdentifier.map { "fallback \(bounded($0, limit: 54))" },
             "previous \(bounded(snapshot.previousEntryIdentifier ?? "none", limit: 54))",
@@ -8360,6 +8456,15 @@ struct CinematicDiagnosticsSummary: Equatable {
             "\(label) \(availability)",
             "e \(snapshot.exportEntryCount)",
             "selected \(snapshot.selectedCount)",
+            warningPulseFilterDetail(
+                identifier: snapshot.warningPulseFilterIdentifier,
+                isActive: snapshot.isWarningPulseFilterActive,
+                matchingCount: snapshot.warningPulseFilterMatchCount,
+                anyCount: snapshot.warningPulseAnyCount,
+                activeCount: snapshot.warningPulseActiveCount,
+                snoozedCount: snapshot.warningPulseSnoozedCount,
+                unknownCount: snapshot.warningPulseUnknownCount
+            ),
             "filtered \(snapshot.filteredCount)/\(snapshot.unfilteredVisibleCount)",
             "copy \(snapshot.markdownLength) chars",
             snapshot.sourceExportAuditIncluded
@@ -8369,6 +8474,26 @@ struct CinematicDiagnosticsSummary: Equatable {
             "q \(snapshot.searchQuerySnippet)",
             "warn \(snapshot.warningStateIdentifier)",
             "id \(bounded(snapshot.exportIdentifier, limit: 24))"
+        ].joined(separator: " ")
+    }
+
+    private static func warningPulseFilterDetail(
+        identifier: String,
+        isActive: Bool,
+        matchingCount: Int,
+        anyCount: Int,
+        activeCount: Int,
+        snoozedCount: Int,
+        unknownCount: Int
+    ) -> String {
+        [
+            "pulse filter \(identifier)",
+            isActive ? "on" : "off",
+            "m\(matchingCount)",
+            "any\(anyCount)",
+            "a\(activeCount)",
+            "s\(snoozedCount)",
+            "u\(unknownCount)"
         ].joined(separator: " ")
     }
 
@@ -9650,6 +9775,8 @@ enum CinematicDiagnostics {
                 project.cinematicRunRecapShareArtifactLibraryContext.selectedEntryIdentifier,
             runRecapShareArtifactPreviewSearchQuery:
                 project.cinematicRunRecapShareArtifactLibraryContext.searchText,
+            runRecapShareArtifactWarningPulseFilter:
+                project.cinematicRunRecapShareArtifactLibraryContext.warningPulseFilter,
             runRecapShareArtifactComparisonTargetMode:
                 project.cinematicRunRecapShareArtifactLibraryContext.comparisonTargetMode,
             runRecapShareArtifactPinnedEntryIdentifiers:
@@ -9702,6 +9829,7 @@ enum CinematicDiagnostics {
         runRecapShareArtifactCleanupResult providedRunRecapShareArtifactCleanupResult: CinematicRunRecapShareArtifactCleanupResult? = nil,
         runRecapShareArtifactPreviewSelectedEntryIdentifier: String? = nil,
         runRecapShareArtifactPreviewSearchQuery: String? = nil,
+        runRecapShareArtifactWarningPulseFilter: CinematicRunRecapShareArtifactWarningPulseFilter = .all,
         runRecapShareArtifactComparisonTargetMode: CinematicRunRecapShareArtifactComparisonTargetMode = .adjacent,
         runRecapShareArtifactPinnedEntryIdentifiers: [String] = [],
         runRecapShareArtifactSavedTourHoldEntryIdentifier: String? = nil,
@@ -9799,7 +9927,8 @@ enum CinematicDiagnostics {
             searchText: runRecapShareArtifactPreviewSearchQuery ?? "",
             pinnedEntryIdentifiers: runRecapShareArtifactPinnedEntryIdentifiers,
             comparisonTargetMode: runRecapShareArtifactComparisonTargetMode,
-            savedTourHoldEntryIdentifier: runRecapShareArtifactSavedTourHoldEntryIdentifier
+            savedTourHoldEntryIdentifier: runRecapShareArtifactSavedTourHoldEntryIdentifier,
+            warningPulseFilter: runRecapShareArtifactWarningPulseFilter
         )
         let runRecapShareArtifactTourPlan = CinematicRunRecapShareArtifactTourPlanner.plan(
             historyPlan: runRecapShareArtifactHistoryPlan,
@@ -9923,13 +10052,15 @@ enum CinematicDiagnostics {
         let runRecapShareArtifactPreviewPlan = CinematicRunRecapShareArtifactPreviewBrowserPlanner.plan(
             historyPlan: runRecapShareArtifactHistoryPlan,
             selectedEntryIdentifier: runRecapShareArtifactPreviewSelectedEntryIdentifier,
-            searchQuery: runRecapShareArtifactPreviewSearchQuery
+            searchQuery: runRecapShareArtifactPreviewSearchQuery,
+            warningPulseFilter: runRecapShareArtifactWarningPulseFilter
         )
         let selectedRunRecapShareArtifactExportPlan = CinematicRunRecapShareArtifactSubsetExportPlanner.plan(
             historyPlan: runRecapShareArtifactHistoryPlan,
             selectedEntryIdentifier: runRecapShareArtifactPreviewSelectedEntryIdentifier,
             searchQuery: runRecapShareArtifactPreviewSearchQuery,
             scope: .selected,
+            warningPulseFilter: runRecapShareArtifactWarningPulseFilter,
             sourceExportAuditPlan: runRecapShareArtifactSourceExportAuditPlan
         )
         let filteredRunRecapShareArtifactExportPlan = CinematicRunRecapShareArtifactSubsetExportPlanner.plan(
@@ -9937,6 +10068,7 @@ enum CinematicDiagnostics {
             selectedEntryIdentifier: runRecapShareArtifactPreviewSelectedEntryIdentifier,
             searchQuery: runRecapShareArtifactPreviewSearchQuery,
             scope: .filtered,
+            warningPulseFilter: runRecapShareArtifactWarningPulseFilter,
             sourceExportAuditPlan: runRecapShareArtifactSourceExportAuditPlan
         )
         let tourRunRecapShareArtifactExportPlan = CinematicRunRecapShareArtifactSubsetExportPlanner.plan(
@@ -9944,12 +10076,14 @@ enum CinematicDiagnostics {
             selectedEntryIdentifier: runRecapShareArtifactTourPlan.selectedEntryIdentifier,
             searchQuery: runRecapShareArtifactPreviewSearchQuery,
             scope: .selected,
+            warningPulseFilter: runRecapShareArtifactWarningPulseFilter,
             sourceExportAuditPlan: runRecapShareArtifactSourceExportAuditPlan
         )
         let runRecapShareArtifactRollupPlan = CinematicRunRecapShareArtifactRollupPlanner.plan(
             historyPlan: runRecapShareArtifactHistoryPlan,
             selectedEntryIdentifier: runRecapShareArtifactPreviewSelectedEntryIdentifier,
             searchQuery: runRecapShareArtifactPreviewSearchQuery,
+            warningPulseFilter: runRecapShareArtifactWarningPulseFilter,
             sourceExportAuditPlan: runRecapShareArtifactSourceExportAuditPlan
         )
         let runRecapShareArtifactComparisonPlan = CinematicRunRecapShareArtifactComparisonPlanner.plan(
@@ -9959,6 +10093,7 @@ enum CinematicDiagnostics {
             targetMode: runRecapShareArtifactComparisonTargetMode,
             pinnedEntryIdentifiers: runRecapShareArtifactPinnedEntryIdentifiers,
             savedTourHoldEntryIdentifier: runRecapShareArtifactSavedTourHoldEntryIdentifier,
+            warningPulseFilter: runRecapShareArtifactWarningPulseFilter,
             sourceExportAuditPlan: runRecapShareArtifactSourceExportAuditPlan
         )
         let runRecapShareArtifactPinnedReferencePlan = CinematicRunRecapShareArtifactPinnedReferencePlanner.plan(
@@ -9966,6 +10101,7 @@ enum CinematicDiagnostics {
             pinnedEntryIdentifiers: runRecapShareArtifactPinnedEntryIdentifiers,
             selectedEntryIdentifier: runRecapShareArtifactPreviewSelectedEntryIdentifier,
             searchQuery: runRecapShareArtifactPreviewSearchQuery,
+            warningPulseFilter: runRecapShareArtifactWarningPulseFilter,
             sourceExportAuditPlan: runRecapShareArtifactSourceExportAuditPlan
         )
         let runRecapShareArtifactActionMenuPlan = CinematicRunRecapShareArtifactActionMenuPlanner.plan(
@@ -10077,17 +10213,25 @@ enum CinematicDiagnostics {
                 "run-recap-share-artifact-sources-activity-source:\(runRecapShareArtifactSourceReconciliationSnapshot.activitySourceIdentifier)",
                 "run-recap-share-artifact-rollup:\(runRecapShareArtifactRollupSnapshot.identifier)",
                 "run-recap-share-artifact-rollup-warning-pulses:\(runRecapShareArtifactRollupSnapshot.warningPulseAuditCount)",
+                "run-recap-share-artifact-rollup-warning-filter:\(runRecapShareArtifactRollupSnapshot.warningPulseFilterIdentifier)",
+                "run-recap-share-artifact-rollup-warning-filter-matches:\(runRecapShareArtifactRollupSnapshot.warningPulseFilterMatchCount)",
                 "run-recap-share-artifact-comparison:\(runRecapShareArtifactComparisonSnapshot.identifier)",
                 "run-recap-share-artifact-comparison-export:\(runRecapShareArtifactComparisonSnapshot.exportIdentifier)",
                 "run-recap-share-artifact-comparison-mode:\(runRecapShareArtifactComparisonSnapshot.targetModeIdentifier)",
+                "run-recap-share-artifact-comparison-warning-filter:\(runRecapShareArtifactComparisonSnapshot.warningPulseFilterIdentifier)",
+                "run-recap-share-artifact-comparison-warning-filter-matches:\(runRecapShareArtifactComparisonSnapshot.warningPulseFilterMatchCount)",
                 "run-recap-share-artifact-comparison-pinned-target:\(runRecapShareArtifactComparisonSnapshot.pinnedTargetEntryIdentifier ?? "none")",
                 "run-recap-share-artifact-comparison-pinned-state:\(runRecapShareArtifactComparisonSnapshot.pinnedTargetStateIdentifier)",
                 "run-recap-share-artifact-comparison-promoted-hold:\(runRecapShareArtifactComparisonSnapshot.promotedHoldStateIdentifier)",
                 "run-recap-share-artifact-pins:\(runRecapShareArtifactPinnedReferenceSnapshot.identifier)",
                 "run-recap-share-artifact-pins-export:\(runRecapShareArtifactPinnedReferenceSnapshot.exportIdentifier)",
+                "run-recap-share-artifact-pins-warning-filter:\(runRecapShareArtifactPinnedReferenceSnapshot.warningPulseFilterIdentifier)",
+                "run-recap-share-artifact-pins-warning-filter-matches:\(runRecapShareArtifactPinnedReferenceSnapshot.warningPulseFilterMatchCount)",
                 "run-recap-share-artifact-tour:\(runRecapShareArtifactTourSnapshot.identifier)",
                 "run-recap-share-artifact-tour-export:\(tourRunRecapShareArtifactExportPlan.identifier)",
                 "run-recap-share-artifact-tour-state:\(runRecapShareArtifactTourSnapshot.stateIdentifier)",
+                "run-recap-share-artifact-tour-warning-filter:\(runRecapShareArtifactTourSnapshot.warningPulseFilterIdentifier)",
+                "run-recap-share-artifact-tour-warning-filter-matches:\(runRecapShareArtifactTourSnapshot.warningPulseFilterMatchCount)",
                 "run-recap-share-artifact-tour-source:\(runRecapShareArtifactTourSnapshot.selectionSourceIdentifier)",
                 "run-recap-share-artifact-tour-hold:\(runRecapShareArtifactTourSnapshot.savedTourHoldStateIdentifier)",
                 "run-recap-share-artifact-tour-held-entry:\(runRecapShareArtifactTourSnapshot.requestedSavedTourHoldEntryIdentifier ?? "none")",
@@ -10104,6 +10248,8 @@ enum CinematicDiagnostics {
                 "run-recap-share-artifact-tour-warning-pulse-bundle:\(runRecapShareArtifactTourSnapshot.warningPulseCueBundleIdentifierFingerprint)",
                 "run-recap-share-artifact-tour-warning-pulse-treatment:\(runRecapShareArtifactTourSnapshot.warningPulseTreatmentIdentifier)",
                 "run-recap-share-artifact-preview:\(runRecapShareArtifactPreviewSnapshot.identifier)",
+                "run-recap-share-artifact-preview-warning-filter:\(runRecapShareArtifactPreviewSnapshot.warningPulseFilterIdentifier)",
+                "run-recap-share-artifact-preview-warning-filter-matches:\(runRecapShareArtifactPreviewSnapshot.warningPulseFilterMatchCount)",
                 "run-recap-share-artifact-selected-export:\(runRecapShareArtifactPreviewSnapshot.selectedExport.identifier)",
                 "run-recap-share-artifact-filtered-export:\(runRecapShareArtifactPreviewSnapshot.filteredExport.identifier)",
                 "run-recap-share-artifact-cleanup:\(runRecapShareArtifactHistorySnapshot.lastCleanupResultIdentifier)",
@@ -13713,6 +13859,13 @@ enum CinematicDiagnostics {
             isSearchActive: plan.isSearchActive,
             searchQuerySnippet: plan.searchQuerySnippet,
             searchQueryFingerprint: plan.searchQueryFingerprint,
+            warningPulseFilterIdentifier: plan.warningPulseFilterIdentifier,
+            isWarningPulseFilterActive: plan.isWarningPulseFilterActive,
+            warningPulseFilterMatchCount: plan.warningPulseFilterMatchCount,
+            warningPulseAnyCount: plan.warningPulseAnyCount,
+            warningPulseActiveCount: plan.warningPulseActiveCount,
+            warningPulseSnoozedCount: plan.warningPulseSnoozedCount,
+            warningPulseUnknownCount: plan.warningPulseUnknownCount,
             noMatchAvailabilityReason: plan.noMatchAvailabilityReason,
             retainedEntryCount: plan.retainedEntryCount,
             totalCount: plan.totalCount,
@@ -13771,6 +13924,13 @@ enum CinematicDiagnostics {
             isSearchActive: plan.isSearchActive,
             searchQuerySnippet: plan.searchQuerySnippet,
             searchQueryFingerprint: plan.searchQueryFingerprint,
+            warningPulseFilterIdentifier: plan.warningPulseFilterIdentifier,
+            isWarningPulseFilterActive: plan.isWarningPulseFilterActive,
+            warningPulseFilterMatchCount: plan.warningPulseFilterMatchCount,
+            warningPulseAnyCount: plan.warningPulseAnyCount,
+            warningPulseActiveCount: plan.warningPulseActiveCount,
+            warningPulseSnoozedCount: plan.warningPulseSnoozedCount,
+            warningPulseUnknownCount: plan.warningPulseUnknownCount,
             noMatchAvailabilityReason: plan.noMatchAvailabilityReason,
             retainedEntryCount: plan.retainedEntryCount,
             totalCount: plan.totalCount,
@@ -13839,6 +13999,13 @@ enum CinematicDiagnostics {
             isSearchActive: plan.isSearchActive,
             searchQuerySnippet: plan.searchQuerySnippet,
             searchQueryFingerprint: plan.searchQueryFingerprint,
+            warningPulseFilterIdentifier: plan.warningPulseFilterIdentifier,
+            isWarningPulseFilterActive: plan.isWarningPulseFilterActive,
+            warningPulseFilterMatchCount: plan.warningPulseFilterMatchCount,
+            warningPulseAnyCount: plan.warningPulseAnyCount,
+            warningPulseActiveCount: plan.warningPulseActiveCount,
+            warningPulseSnoozedCount: plan.warningPulseSnoozedCount,
+            warningPulseUnknownCount: plan.warningPulseUnknownCount,
             noMatchAvailabilityReason: plan.noMatchAvailabilityReason,
             retainedEntryCount: plan.retainedEntryCount,
             totalCount: plan.totalCount,
@@ -13899,6 +14066,13 @@ enum CinematicDiagnostics {
             isSearchActive: plan.isSearchActive,
             searchQuerySnippet: plan.searchQuerySnippet,
             searchQueryFingerprint: plan.searchQueryFingerprint,
+            warningPulseFilterIdentifier: plan.warningPulseFilterIdentifier,
+            isWarningPulseFilterActive: plan.isWarningPulseFilterActive,
+            warningPulseFilterMatchCount: plan.warningPulseFilterMatchCount,
+            warningPulseAnyCount: plan.warningPulseAnyCount,
+            warningPulseActiveCount: plan.warningPulseActiveCount,
+            warningPulseSnoozedCount: plan.warningPulseSnoozedCount,
+            warningPulseUnknownCount: plan.warningPulseUnknownCount,
             noMatchAvailabilityReason: plan.noMatchAvailabilityReason,
             retainedEntryCount: plan.retainedEntryCount,
             totalCount: plan.totalCount,
@@ -14005,6 +14179,13 @@ enum CinematicDiagnostics {
             isSearchActive: plan.isSearchActive,
             searchQuerySnippet: plan.searchQuerySnippet,
             searchQueryFingerprint: plan.searchQueryFingerprint,
+            warningPulseFilterIdentifier: plan.warningPulseFilterIdentifier,
+            isWarningPulseFilterActive: plan.isWarningPulseFilterActive,
+            warningPulseFilterMatchCount: plan.warningPulseFilterMatchCount,
+            warningPulseAnyCount: plan.warningPulseAnyCount,
+            warningPulseActiveCount: plan.warningPulseActiveCount,
+            warningPulseSnoozedCount: plan.warningPulseSnoozedCount,
+            warningPulseUnknownCount: plan.warningPulseUnknownCount,
             matchCount: plan.matchCount,
             unfilteredVisibleCount: plan.unfilteredVisibleCount,
             noMatchAvailabilityReason: plan.noMatchAvailabilityReason,
@@ -14044,6 +14225,13 @@ enum CinematicDiagnostics {
             isSearchActive: plan.isSearchActive,
             searchQuerySnippet: plan.searchQuerySnippet,
             searchQueryFingerprint: plan.searchQueryFingerprint,
+            warningPulseFilterIdentifier: plan.warningPulseFilterIdentifier,
+            isWarningPulseFilterActive: plan.isWarningPulseFilterActive,
+            warningPulseFilterMatchCount: plan.warningPulseFilterMatchCount,
+            warningPulseAnyCount: plan.warningPulseAnyCount,
+            warningPulseActiveCount: plan.warningPulseActiveCount,
+            warningPulseSnoozedCount: plan.warningPulseSnoozedCount,
+            warningPulseUnknownCount: plan.warningPulseUnknownCount,
             noMatchAvailabilityReason: plan.noMatchAvailabilityReason,
             retainedEntryCount: plan.retainedEntryCount,
             totalCount: plan.totalCount,

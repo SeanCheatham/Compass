@@ -2959,6 +2959,43 @@ enum CinematicRunRecapShareArtifactComparisonTargetMode: String, Codable, CaseIt
     }
 }
 
+enum CinematicRunRecapShareArtifactWarningPulseFilter: String, Codable, CaseIterable, Identifiable {
+    case all
+    case any
+    case active
+    case snoozed
+
+    var id: Self { self }
+
+    var title: String {
+        switch self {
+        case .all:
+            return "All"
+        case .any:
+            return "Any pulse"
+        case .active:
+            return "Active"
+        case .snoozed:
+            return "Snoozed"
+        }
+    }
+
+    var isActive: Bool {
+        self != .all
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        let rawValue = try container.decode(String.self)
+        self = CinematicRunRecapShareArtifactWarningPulseFilter(rawValue: rawValue) ?? .all
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        try container.encode(rawValue)
+    }
+}
+
 struct CinematicRunRecapShareArtifactLibraryContext: Codable, Equatable {
     static let selectedEntryIdentifierMaxCharacters = CinematicRunRecapShareArtifactHistoryPlan.identifierMaxCharacters
     static let searchTextMaxCharacters = CinematicRunRecapShareArtifactPreviewBrowserPlan.searchQuerySnippetMaxCharacters
@@ -2971,6 +3008,7 @@ struct CinematicRunRecapShareArtifactLibraryContext: Codable, Equatable {
     var pinnedEntryIdentifiers: [String]
     var comparisonTargetMode: CinematicRunRecapShareArtifactComparisonTargetMode
     var savedTourHoldEntryIdentifier: String?
+    var warningPulseFilter: CinematicRunRecapShareArtifactWarningPulseFilter
 
     enum CodingKeys: String, CodingKey {
         case selectedEntryIdentifier
@@ -2978,6 +3016,7 @@ struct CinematicRunRecapShareArtifactLibraryContext: Codable, Equatable {
         case pinnedEntryIdentifiers
         case comparisonTargetMode
         case savedTourHoldEntryIdentifier
+        case warningPulseFilter
     }
 
     init(
@@ -2985,7 +3024,8 @@ struct CinematicRunRecapShareArtifactLibraryContext: Codable, Equatable {
         searchText: String = "",
         pinnedEntryIdentifiers: [String] = [],
         comparisonTargetMode: CinematicRunRecapShareArtifactComparisonTargetMode = .adjacent,
-        savedTourHoldEntryIdentifier: String? = nil
+        savedTourHoldEntryIdentifier: String? = nil,
+        warningPulseFilter: CinematicRunRecapShareArtifactWarningPulseFilter = .all
     ) {
         self.selectedEntryIdentifier = Self.boundedOptionalText(
             selectedEntryIdentifier,
@@ -3001,6 +3041,7 @@ struct CinematicRunRecapShareArtifactLibraryContext: Codable, Equatable {
             savedTourHoldEntryIdentifier,
             limit: Self.savedTourHoldEntryIdentifierMaxCharacters
         )
+        self.warningPulseFilter = warningPulseFilter
     }
 
     init(from decoder: Decoder) throws {
@@ -3016,7 +3057,11 @@ struct CinematicRunRecapShareArtifactLibraryContext: Codable, Equatable {
             savedTourHoldEntryIdentifier: try container.decodeIfPresent(
                 String.self,
                 forKey: .savedTourHoldEntryIdentifier
-            )
+            ),
+            warningPulseFilter: try container.decodeIfPresent(
+                CinematicRunRecapShareArtifactWarningPulseFilter.self,
+                forKey: .warningPulseFilter
+            ) ?? .all
         )
     }
 
@@ -3031,20 +3076,25 @@ struct CinematicRunRecapShareArtifactLibraryContext: Codable, Equatable {
             try container.encode(comparisonTargetMode, forKey: .comparisonTargetMode)
         }
         try container.encodeIfPresent(savedTourHoldEntryIdentifier, forKey: .savedTourHoldEntryIdentifier)
+        if warningPulseFilter != .all {
+            try container.encode(warningPulseFilter, forKey: .warningPulseFilter)
+        }
     }
 
     func replacing(
         selectedEntryIdentifier: String?,
         searchText: String,
         pinnedEntryIdentifiers: [String]? = nil,
-        comparisonTargetMode: CinematicRunRecapShareArtifactComparisonTargetMode? = nil
+        comparisonTargetMode: CinematicRunRecapShareArtifactComparisonTargetMode? = nil,
+        warningPulseFilter: CinematicRunRecapShareArtifactWarningPulseFilter? = nil
     ) -> CinematicRunRecapShareArtifactLibraryContext {
         CinematicRunRecapShareArtifactLibraryContext(
             selectedEntryIdentifier: selectedEntryIdentifier,
             searchText: searchText,
             pinnedEntryIdentifiers: pinnedEntryIdentifiers ?? self.pinnedEntryIdentifiers,
             comparisonTargetMode: comparisonTargetMode ?? self.comparisonTargetMode,
-            savedTourHoldEntryIdentifier: savedTourHoldEntryIdentifier
+            savedTourHoldEntryIdentifier: savedTourHoldEntryIdentifier,
+            warningPulseFilter: warningPulseFilter ?? self.warningPulseFilter
         )
     }
 
@@ -3054,7 +3104,8 @@ struct CinematicRunRecapShareArtifactLibraryContext: Codable, Equatable {
         let previewPlan = CinematicRunRecapShareArtifactPreviewBrowserPlanner.plan(
             historyPlan: historyPlan,
             selectedEntryIdentifier: selectedEntryIdentifier,
-            searchQuery: searchText
+            searchQuery: searchText,
+            warningPulseFilter: warningPulseFilter
         )
         return replacing(
             selectedEntryIdentifier: previewPlan.selectedEntryIdentifier,
@@ -3094,7 +3145,8 @@ struct CinematicRunRecapShareArtifactLibraryContext: Codable, Equatable {
             searchText: searchText,
             pinnedEntryIdentifiers: pinnedEntryIdentifiers,
             comparisonTargetMode: comparisonTargetMode,
-            savedTourHoldEntryIdentifier: identifier
+            savedTourHoldEntryIdentifier: identifier,
+            warningPulseFilter: warningPulseFilter
         )
     }
 
@@ -3128,7 +3180,8 @@ struct CinematicRunRecapShareArtifactLibraryContext: Codable, Equatable {
             searchText: searchText,
             pinnedEntryIdentifiers: [savedTourHoldEntryIdentifier] + pinnedEntryIdentifiers,
             comparisonTargetMode: .pinnedReference,
-            savedTourHoldEntryIdentifier: savedTourHoldEntryIdentifier
+            savedTourHoldEntryIdentifier: savedTourHoldEntryIdentifier,
+            warningPulseFilter: warningPulseFilter
         )
     }
 

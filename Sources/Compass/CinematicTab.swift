@@ -91,6 +91,7 @@ struct CinematicTab: View {
                 targetMode: recapArtifactLibraryContext.comparisonTargetMode,
                 pinnedEntryIdentifiers: recapArtifactLibraryContext.pinnedEntryIdentifiers,
                 savedTourHoldEntryIdentifier: recapArtifactLibraryContext.savedTourHoldEntryIdentifier,
+                warningPulseFilter: recapArtifactLibraryContext.warningPulseFilter,
                 sourceExportAuditPlan: recapArtifactSourceExportAuditPlan
             )
             let runRecapEndCardCandidatePlan = CinematicRunRecapEndCardPlanner.plan(
@@ -1190,6 +1191,7 @@ private struct CinematicRunRecapArtifactLibraryControl: View {
                 }
 
                 searchControl(previewPlan)
+                warningPulseFilterControl(previewPlan)
 
                 Button {
                     selectArtifact(previewPlan.previousEntryIdentifier)
@@ -1269,7 +1271,8 @@ private struct CinematicRunRecapArtifactLibraryControl: View {
         CinematicRunRecapShareArtifactPreviewBrowserPlanner.plan(
             historyPlan: plan,
             selectedEntryIdentifier: artifactLibraryContext.selectedEntryIdentifier,
-            searchQuery: artifactLibraryContext.searchText
+            searchQuery: artifactLibraryContext.searchText,
+            warningPulseFilter: artifactLibraryContext.warningPulseFilter
         )
     }
 
@@ -1278,6 +1281,7 @@ private struct CinematicRunRecapArtifactLibraryControl: View {
             historyPlan: plan,
             selectedEntryIdentifier: artifactLibraryContext.selectedEntryIdentifier,
             searchQuery: artifactLibraryContext.searchText,
+            warningPulseFilter: artifactLibraryContext.warningPulseFilter,
             sourceExportAuditPlan: currentSourceExportAuditPlan
         )
     }
@@ -1302,6 +1306,7 @@ private struct CinematicRunRecapArtifactLibraryControl: View {
             targetMode: artifactLibraryContext.comparisonTargetMode,
             pinnedEntryIdentifiers: artifactLibraryContext.pinnedEntryIdentifiers,
             savedTourHoldEntryIdentifier: artifactLibraryContext.savedTourHoldEntryIdentifier,
+            warningPulseFilter: artifactLibraryContext.warningPulseFilter,
             sourceExportAuditPlan: currentSourceExportAuditPlan
         )
     }
@@ -1312,6 +1317,7 @@ private struct CinematicRunRecapArtifactLibraryControl: View {
             pinnedEntryIdentifiers: artifactLibraryContext.pinnedEntryIdentifiers,
             selectedEntryIdentifier: artifactLibraryContext.selectedEntryIdentifier,
             searchQuery: artifactLibraryContext.searchText,
+            warningPulseFilter: artifactLibraryContext.warningPulseFilter,
             sourceExportAuditPlan: currentSourceExportAuditPlan
         )
     }
@@ -1780,7 +1786,10 @@ private struct CinematicRunRecapArtifactLibraryControl: View {
         let search = comparisonPlan.isSearchActive
             ? " | \(comparisonPlan.matchingEntryCount)/\(comparisonPlan.unfilteredVisibleCount)"
             : ""
-        return "\(mode) | \(comparisonPlan.targetDirectionIdentifier) | \(delta)\(promotedHold)\(search)"
+        let pulseFilter = comparisonPlan.isWarningPulseFilterActive
+            ? " | pulse \(comparisonPlan.warningPulseFilterIdentifier)"
+            : ""
+        return "\(mode) | \(comparisonPlan.targetDirectionIdentifier) | \(delta)\(promotedHold)\(search)\(pulseFilter)"
     }
 
     private func comparisonModeSystemImage(
@@ -1815,7 +1824,10 @@ private struct CinematicRunRecapArtifactLibraryControl: View {
         let search = pinnedReferencePlan.isSearchActive
             ? " | \(pinnedReferencePlan.quickSelectEntryCount) quick"
             : ""
-        return "Pins \(pinnedReferencePlan.retainedPinnedEntryCount)/\(pinnedReferencePlan.pinnedEntryCount)\(search)\(filtered)\(missing)"
+        let pulseFilter = pinnedReferencePlan.isWarningPulseFilterActive
+            ? " | pulse \(pinnedReferencePlan.warningPulseFilterIdentifier)"
+            : ""
+        return "Pins \(pinnedReferencePlan.retainedPinnedEntryCount)/\(pinnedReferencePlan.pinnedEntryCount)\(search)\(pulseFilter)\(filtered)\(missing)"
     }
 
     private func tourSystemImage(_ tourPlan: CinematicRunRecapShareArtifactTourPlan) -> String {
@@ -1848,7 +1860,10 @@ private struct CinematicRunRecapArtifactLibraryControl: View {
         let search = tourPlan.isSearchActive
             ? " | \(tourPlan.matchingEntryCount)/\(tourPlan.unfilteredVisibleCount)"
             : ""
-        return "Tour \(session) | \(tourPlan.selectionSourceIdentifier)\(hold)\(promotedHold)\(search)"
+        let pulseFilter = tourPlan.isWarningPulseFilterActive
+            ? " | pulse \(tourPlan.warningPulseFilterIdentifier)"
+            : ""
+        return "Tour \(session) | \(tourPlan.selectionSourceIdentifier)\(hold)\(promotedHold)\(search)\(pulseFilter)"
     }
 
     private func tourStripHelp(_ tourPlan: CinematicRunRecapShareArtifactTourPlan) -> String {
@@ -1923,6 +1938,21 @@ private struct CinematicRunRecapArtifactLibraryControl: View {
         }
     }
 
+    private func warningPulseFilterTint(
+        _ filter: CinematicRunRecapShareArtifactWarningPulseFilter
+    ) -> Color {
+        switch filter {
+        case .active:
+            return .orange
+        case .snoozed:
+            return .teal
+        case .any:
+            return .yellow
+        case .all:
+            return tint
+        }
+    }
+
     private func tourPromotedHoldState(_ tourPlan: CinematicRunRecapShareArtifactTourPlan) -> String {
         guard artifactLibraryContext.comparisonTargetMode == .pinnedReference,
               let requestedHold = tourPlan.requestedSavedTourHoldEntryIdentifier,
@@ -1972,7 +2002,7 @@ private struct CinematicRunRecapArtifactLibraryControl: View {
             return boundedHelp("The saved recap tour hold is not retained, so it cannot be promoted to a pinned comparison.")
         }
         if tourPlan.filteredSavedTourHoldEntryIdentifier == retainedSavedTourHoldEntryIdentifier {
-            return boundedHelp("Promote this retained tour hold to pinned comparison even though the current search filters it.")
+            return boundedHelp("Promote this retained tour hold to pinned comparison even though the current library filters hide it.")
         }
         return boundedHelp("Promote this saved tour hold to pinned comparison.")
     }
@@ -2009,6 +2039,7 @@ private struct CinematicRunRecapArtifactLibraryControl: View {
             selectedEntryIdentifier: artifactLibraryContext.selectedEntryIdentifier,
             searchQuery: artifactLibraryContext.searchText,
             scope: scope,
+            warningPulseFilter: artifactLibraryContext.warningPulseFilter,
             sourceExportAuditPlan: currentSourceExportAuditPlan
         )
     }
@@ -2021,6 +2052,7 @@ private struct CinematicRunRecapArtifactLibraryControl: View {
             selectedEntryIdentifier: tourPlan.selectedEntryIdentifier,
             searchQuery: artifactLibraryContext.searchText,
             scope: .selected,
+            warningPulseFilter: artifactLibraryContext.warningPulseFilter,
             sourceExportAuditPlan: currentSourceExportAuditPlan
         )
     }
@@ -2036,6 +2068,9 @@ private struct CinematicRunRecapArtifactLibraryControl: View {
 
     private func selectedDetail(_ previewPlan: CinematicRunRecapShareArtifactPreviewBrowserPlan) -> String {
         guard previewPlan.isAvailable else {
+            if previewPlan.isWarningPulseFilterActive {
+                return "\(previewPlan.availabilityReason) | pulse \(previewPlan.warningPulseFilterIdentifier) \(previewPlan.warningPulseFilterMatchCount)/\(plan.entries.count)"
+            }
             if previewPlan.isSearchActive {
                 return "\(previewPlan.availabilityReason) | \(previewPlan.matchCount)/\(previewPlan.unfilteredVisibleCount) matches | \(previewPlan.searchQuerySnippet)"
             }
@@ -2048,7 +2083,10 @@ private struct CinematicRunRecapArtifactLibraryControl: View {
         let search = previewPlan.isSearchActive
             ? " | \(previewPlan.matchCount)/\(previewPlan.unfilteredVisibleCount) matches"
             : ""
-        return "\(previewPlan.titleSnippet) | \(previewPlan.statusSnippet)\(commit)\(search)\(hidden)\(cleanup)\(warnings)"
+        let pulseFilter = previewPlan.isWarningPulseFilterActive
+            ? " | pulse \(previewPlan.warningPulseFilterIdentifier) \(previewPlan.warningPulseFilterMatchCount)"
+            : ""
+        return "\(previewPlan.titleSnippet) | \(previewPlan.statusSnippet)\(commit)\(search)\(pulseFilter)\(hidden)\(cleanup)\(warnings)"
     }
 
     private func searchControl(_ previewPlan: CinematicRunRecapShareArtifactPreviewBrowserPlan) -> some View {
@@ -2092,6 +2130,89 @@ private struct CinematicRunRecapArtifactLibraryControl: View {
         }
         .help(searchHelp(previewPlan))
         .accessibilityIdentifier("cinematic-run-recap-artifact-library-search")
+    }
+
+    private func warningPulseFilterControl(
+        _ previewPlan: CinematicRunRecapShareArtifactPreviewBrowserPlan
+    ) -> some View {
+        let currentFilter = artifactLibraryContext.warningPulseFilter
+        let currentCount = warningPulseFilterCount(currentFilter, previewPlan: previewPlan)
+        let currentIconName = currentFilter.isActive
+            ? "exclamationmark.triangle.fill"
+            : "exclamationmark.triangle"
+        let currentLabel = "\(currentFilter.title) \(currentCount)"
+
+        return HStack(spacing: 3) {
+            Menu {
+                ForEach(CinematicRunRecapShareArtifactWarningPulseFilter.allCases) { filter in
+                    warningPulseFilterMenuButton(filter, previewPlan: previewPlan)
+                }
+            } label: {
+                warningPulseFilterLabel(iconName: currentIconName, title: currentLabel)
+            }
+            .menuStyle(.borderlessButton)
+            .buttonStyle(.plain)
+            .foregroundStyle(warningPulseFilterTint(currentFilter).opacity(currentFilter.isActive ? 0.84 : 0.56))
+            .help(warningPulseFilterHelp(currentFilter, previewPlan: previewPlan))
+            .accessibilityLabel("Warning pulse artifact filter")
+            .accessibilityValue("\(currentFilter.title), \(currentCount)")
+            .accessibilityIdentifier("cinematic-run-recap-artifact-library-warning-pulse-filter")
+
+            if currentFilter.isActive {
+                Button {
+                    updateWarningPulseFilter(.all)
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 10, weight: .semibold))
+                        .frame(width: 12, height: 18)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(warningPulseFilterTint(currentFilter).opacity(0.72))
+                .help("Clear warning-pulse artifact filter")
+                .accessibilityLabel("Clear warning pulse artifact filter")
+                .accessibilityIdentifier("cinematic-run-recap-artifact-library-warning-pulse-filter-clear")
+            }
+        }
+        .padding(.horizontal, 5)
+        .frame(height: 22)
+        .background(
+            warningPulseFilterTint(currentFilter).opacity(currentFilter.isActive ? 0.075 : 0.04),
+            in: RoundedRectangle(cornerRadius: 6)
+        )
+        .overlay {
+            RoundedRectangle(cornerRadius: 6)
+                .stroke(warningPulseFilterTint(currentFilter).opacity(currentFilter.isActive ? 0.26 : 0.1), lineWidth: 1)
+        }
+    }
+
+    private func warningPulseFilterMenuButton(
+        _ filter: CinematicRunRecapShareArtifactWarningPulseFilter,
+        previewPlan: CinematicRunRecapShareArtifactPreviewBrowserPlan
+    ) -> some View {
+        let title = warningPulseFilterMenuTitle(filter, previewPlan: previewPlan)
+        let help = warningPulseFilterHelp(filter, previewPlan: previewPlan)
+        let identifier = warningPulseFilterAccessibilityIdentifier(filter)
+
+        return Button(title) {
+            updateWarningPulseFilter(filter)
+        }
+        .help(help)
+        .accessibilityIdentifier(identifier)
+    }
+
+    private func warningPulseFilterLabel(iconName: String, title: String) -> some View {
+        HStack(spacing: 3) {
+            Image(systemName: iconName)
+                .font(.system(size: 9, weight: .bold))
+            Text(title)
+                .font(.caption2.weight(.semibold))
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+        }
+        .frame(minWidth: 46)
+        .frame(height: 22)
+        .contentShape(Rectangle())
     }
 
     private func actionMenu(
@@ -2170,6 +2291,53 @@ private struct CinematicRunRecapArtifactLibraryControl: View {
             return "Filter saved recap artifacts by filename, title, status, commit, path, or preview text."
         }
         return "\(previewPlan.matchCount) of \(previewPlan.unfilteredVisibleCount) saved recap artifact\(previewPlan.unfilteredVisibleCount == 1 ? "" : "s") match \(previewPlan.searchQuerySnippet)."
+    }
+
+    private func warningPulseFilterHelp(
+        _ filter: CinematicRunRecapShareArtifactWarningPulseFilter,
+        previewPlan: CinematicRunRecapShareArtifactPreviewBrowserPlan
+    ) -> String {
+        let count = warningPulseFilterCount(filter, previewPlan: previewPlan)
+        switch filter {
+        case .all:
+            return "Show all \(plan.entries.count) retained saved recap artifacts."
+        case .any:
+            return "Show \(count) saved recap artifact\(count == 1 ? "" : "s") with a diagnostics warning-pulse cue."
+        case .active:
+            return "Show \(count) saved recap artifact\(count == 1 ? "" : "s") with active diagnostics warning pulses."
+        case .snoozed:
+            return "Show \(count) saved recap artifact\(count == 1 ? "" : "s") with snoozed diagnostics warning pulses."
+        }
+    }
+
+    private func warningPulseFilterMenuTitle(
+        _ filter: CinematicRunRecapShareArtifactWarningPulseFilter,
+        previewPlan: CinematicRunRecapShareArtifactPreviewBrowserPlan
+    ) -> String {
+        let count = warningPulseFilterCount(filter, previewPlan: previewPlan)
+        return "\(filter.title) (\(count))"
+    }
+
+    private func warningPulseFilterAccessibilityIdentifier(
+        _ filter: CinematicRunRecapShareArtifactWarningPulseFilter
+    ) -> String {
+        "cinematic-run-recap-artifact-library-warning-pulse-filter-\(filter.rawValue)"
+    }
+
+    private func warningPulseFilterCount(
+        _ filter: CinematicRunRecapShareArtifactWarningPulseFilter,
+        previewPlan: CinematicRunRecapShareArtifactPreviewBrowserPlan
+    ) -> Int {
+        switch filter {
+        case .all:
+            return plan.entries.count
+        case .any:
+            return previewPlan.warningPulseAnyCount
+        case .active:
+            return previewPlan.warningPulseActiveCount
+        case .snoozed:
+            return previewPlan.warningPulseSnoozedCount
+        }
     }
 
     private func previousHelp(_ previewPlan: CinematicRunRecapShareArtifactPreviewBrowserPlan) -> String {
@@ -2458,7 +2626,8 @@ private struct CinematicRunRecapArtifactLibraryControl: View {
             historyPlan: plan,
             pinnedEntryIdentifiers: artifactLibraryContext.pinnedEntryIdentifiers,
             selectedEntryIdentifier: previewPlan.selectedEntryIdentifier,
-            searchQuery: artifactLibraryContext.searchText
+            searchQuery: artifactLibraryContext.searchText,
+            warningPulseFilter: artifactLibraryContext.warningPulseFilter
         )
         let resolvedContext = artifactLibraryContext
             .togglingPinnedEntryIdentifier(previewPlan.selectedEntryIdentifier)
@@ -2511,6 +2680,23 @@ private struct CinematicRunRecapArtifactLibraryControl: View {
         let requestedContext = artifactLibraryContext.replacing(
             selectedEntryIdentifier: artifactLibraryContext.selectedEntryIdentifier,
             searchText: text
+        )
+        persistContext(requestedContext.resolvingSelection(in: plan))
+        feedback = nil
+        feedbackStatus = nil
+        preservedFeedbackPlanIdentifier = nil
+    }
+
+    private func updateWarningPulseFilter(
+        _ filter: CinematicRunRecapShareArtifactWarningPulseFilter
+    ) {
+        let nextFilter = artifactLibraryContext.warningPulseFilter == filter && filter != .all
+            ? CinematicRunRecapShareArtifactWarningPulseFilter.all
+            : filter
+        let requestedContext = artifactLibraryContext.replacing(
+            selectedEntryIdentifier: artifactLibraryContext.selectedEntryIdentifier,
+            searchText: artifactLibraryContext.searchText,
+            warningPulseFilter: nextFilter
         )
         persistContext(requestedContext.resolvingSelection(in: plan))
         feedback = nil

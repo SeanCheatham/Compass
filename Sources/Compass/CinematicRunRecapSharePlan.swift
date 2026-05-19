@@ -2026,6 +2026,13 @@ struct CinematicRunRecapShareArtifactPreviewBrowserPlan: Equatable, Identifiable
     var isSearchActive: Bool
     var searchQuerySnippet: String
     var searchQueryFingerprint: String
+    var warningPulseFilterIdentifier: String
+    var isWarningPulseFilterActive: Bool
+    var warningPulseFilterMatchCount: Int
+    var warningPulseAnyCount: Int
+    var warningPulseActiveCount: Int
+    var warningPulseSnoozedCount: Int
+    var warningPulseUnknownCount: Int
     var matchCount: Int
     var unfilteredVisibleCount: Int
     var noMatchAvailabilityReason: String?
@@ -2071,6 +2078,13 @@ struct CinematicRunRecapShareArtifactSubsetExportPlan: Equatable, Identifiable {
     var isSearchActive: Bool
     var searchQuerySnippet: String
     var searchQueryFingerprint: String
+    var warningPulseFilterIdentifier: String
+    var isWarningPulseFilterActive: Bool
+    var warningPulseFilterMatchCount: Int
+    var warningPulseAnyCount: Int
+    var warningPulseActiveCount: Int
+    var warningPulseSnoozedCount: Int
+    var warningPulseUnknownCount: Int
     var noMatchAvailabilityReason: String?
     var retainedEntryCount: Int
     var totalCount: Int
@@ -2126,6 +2140,13 @@ struct CinematicRunRecapShareArtifactRollupPlan: Equatable, Identifiable {
     var isSearchActive: Bool
     var searchQuerySnippet: String
     var searchQueryFingerprint: String
+    var warningPulseFilterIdentifier: String
+    var isWarningPulseFilterActive: Bool
+    var warningPulseFilterMatchCount: Int
+    var warningPulseAnyCount: Int
+    var warningPulseActiveCount: Int
+    var warningPulseSnoozedCount: Int
+    var warningPulseUnknownCount: Int
     var noMatchAvailabilityReason: String?
     var retainedEntryCount: Int
     var totalCount: Int
@@ -2194,6 +2215,13 @@ struct CinematicRunRecapShareArtifactComparisonPlan: Equatable, Identifiable {
     var isSearchActive: Bool
     var searchQuerySnippet: String
     var searchQueryFingerprint: String
+    var warningPulseFilterIdentifier: String
+    var isWarningPulseFilterActive: Bool
+    var warningPulseFilterMatchCount: Int
+    var warningPulseAnyCount: Int
+    var warningPulseActiveCount: Int
+    var warningPulseSnoozedCount: Int
+    var warningPulseUnknownCount: Int
     var noMatchAvailabilityReason: String?
     var retainedEntryCount: Int
     var totalCount: Int
@@ -2271,6 +2299,13 @@ struct CinematicRunRecapShareArtifactPinnedReferencePlan: Equatable, Identifiabl
     var isSearchActive: Bool
     var searchQuerySnippet: String
     var searchQueryFingerprint: String
+    var warningPulseFilterIdentifier: String
+    var isWarningPulseFilterActive: Bool
+    var warningPulseFilterMatchCount: Int
+    var warningPulseAnyCount: Int
+    var warningPulseActiveCount: Int
+    var warningPulseSnoozedCount: Int
+    var warningPulseUnknownCount: Int
     var noMatchAvailabilityReason: String?
     var retainedEntryCount: Int
     var totalCount: Int
@@ -2339,6 +2374,13 @@ struct CinematicRunRecapShareArtifactTourPlan: Equatable, Identifiable {
     var isSearchActive: Bool
     var searchQuerySnippet: String
     var searchQueryFingerprint: String
+    var warningPulseFilterIdentifier: String
+    var isWarningPulseFilterActive: Bool
+    var warningPulseFilterMatchCount: Int
+    var warningPulseAnyCount: Int
+    var warningPulseActiveCount: Int
+    var warningPulseSnoozedCount: Int
+    var warningPulseUnknownCount: Int
     var noMatchAvailabilityReason: String?
     var retainedEntryCount: Int
     var totalCount: Int
@@ -2443,6 +2485,102 @@ struct CinematicRunRecapShareArtifactTourPlan: Equatable, Identifiable {
             hash = hash &* 0x100000001b3
         }
         return String(format: "%016llx", hash)
+    }
+}
+
+struct CinematicRunRecapShareArtifactWarningPulseFilterState: Equatable {
+    var filter: CinematicRunRecapShareArtifactWarningPulseFilter
+    var retainedCount: Int
+    var matchingCount: Int
+    var anyCount: Int
+    var activeCount: Int
+    var snoozedCount: Int
+    var unknownCount: Int
+
+    var filterIdentifier: String { filter.rawValue }
+    var isActive: Bool { filter.isActive }
+}
+
+enum CinematicRunRecapShareArtifactWarningPulseFiltering {
+    static func state(
+        filter: CinematicRunRecapShareArtifactWarningPulseFilter,
+        entries: [CinematicRunRecapShareArtifactHistoryPlan.Entry]
+    ) -> CinematicRunRecapShareArtifactWarningPulseFilterState {
+        let cues = entries.compactMap {
+            CinematicRunRecapShareArtifactWarningPulseCue(markdownContents: $0.markdownContents)
+        }
+        let activeCount = cues.filter { $0.stateIdentifier == "active" }.count
+        let snoozedCount = cues.filter { $0.stateIdentifier == "snoozed" }.count
+        let unknownCount = max(0, cues.count - activeCount - snoozedCount)
+        return CinematicRunRecapShareArtifactWarningPulseFilterState(
+            filter: filter,
+            retainedCount: entries.count,
+            matchingCount: count(for: filter, retainedCount: entries.count, anyCount: cues.count, activeCount: activeCount, snoozedCount: snoozedCount),
+            anyCount: cues.count,
+            activeCount: activeCount,
+            snoozedCount: snoozedCount,
+            unknownCount: unknownCount
+        )
+    }
+
+    static func filteredEntries(
+        _ entries: [CinematicRunRecapShareArtifactHistoryPlan.Entry],
+        filter: CinematicRunRecapShareArtifactWarningPulseFilter
+    ) -> [CinematicRunRecapShareArtifactHistoryPlan.Entry] {
+        guard filter != .all else { return entries }
+        return entries.filter { entry in
+            guard let cue = CinematicRunRecapShareArtifactWarningPulseCue(
+                markdownContents: entry.markdownContents
+            ) else {
+                return false
+            }
+            switch filter {
+            case .all:
+                return true
+            case .any:
+                return true
+            case .active:
+                return cue.stateIdentifier == "active"
+            case .snoozed:
+                return cue.stateIdentifier == "snoozed"
+            }
+        }
+    }
+
+    static func noMatchAvailabilityReason(
+        retainedEntries: [CinematicRunRecapShareArtifactHistoryPlan.Entry],
+        warningFilteredEntries: [CinematicRunRecapShareArtifactHistoryPlan.Entry],
+        matchingEntries: [CinematicRunRecapShareArtifactHistoryPlan.Entry],
+        searchIsActive: Bool,
+        filter: CinematicRunRecapShareArtifactWarningPulseFilter
+    ) -> String? {
+        guard !retainedEntries.isEmpty, matchingEntries.isEmpty else { return nil }
+        if filter.isActive, warningFilteredEntries.isEmpty {
+            return "no-matching-warning-pulse-artifacts"
+        }
+        if searchIsActive, !warningFilteredEntries.isEmpty {
+            return "no-matching-recap-share-artifacts"
+        }
+        return nil
+    }
+
+    private static func count(
+        for filter: CinematicRunRecapShareArtifactWarningPulseFilter,
+        retainedCount: Int,
+        anyCount: Int,
+        activeCount: Int,
+        snoozedCount: Int
+    ) -> Int {
+        switch filter {
+        case .all:
+            return retainedCount
+        case .any:
+            return anyCount
+        case .active:
+            return activeCount
+        case .snoozed:
+            return snoozedCount
+        }
     }
 }
 
@@ -3186,13 +3324,22 @@ enum CinematicRunRecapShareArtifactPinnedReferencePlanner {
         pinnedEntryIdentifiers: [String] = [],
         selectedEntryIdentifier: String? = nil,
         searchQuery: String? = nil,
+        warningPulseFilter: CinematicRunRecapShareArtifactWarningPulseFilter = .all,
         sourceExportAuditPlan: CinematicRunRecapShareArtifactSourceExportAuditPlan? = nil
     ) -> CinematicRunRecapShareArtifactPinnedReferencePlan {
         let search = searchState(for: searchQuery)
         let retainedEntries = historyPlan.entries
+        let filterState = CinematicRunRecapShareArtifactWarningPulseFiltering.state(
+            filter: warningPulseFilter,
+            entries: retainedEntries
+        )
+        let warningFilteredEntries = CinematicRunRecapShareArtifactWarningPulseFiltering.filteredEntries(
+            retainedEntries,
+            filter: warningPulseFilter
+        )
         let matchingEntries = search.isActive
-            ? retainedEntries.filter { matches($0, normalizedQuery: search.normalizedQuery) }
-            : retainedEntries
+            ? warningFilteredEntries.filter { matches($0, normalizedQuery: search.normalizedQuery) }
+            : warningFilteredEntries
         let matchingEntryIdentifiers = Set(matchingEntries.map(\.identifier))
         let requestedPinnedEntryIdentifiers = boundedIdentifierList(pinnedEntryIdentifiers)
         let retainedEntriesByIdentifier = Dictionary(
@@ -3204,11 +3351,11 @@ enum CinematicRunRecapShareArtifactPinnedReferencePlanner {
         let missingPinnedEntryIdentifiers = requestedPinnedEntryIdentifiers.filter {
             retainedEntriesByIdentifier[$0] == nil
         }
-        let filteredPinnedEntryIdentifiers = search.isActive
+        let filteredPinnedEntryIdentifiers = (search.isActive || filterState.isActive)
             ? retainedPinnedEntryIdentifiers.filter { !matchingEntryIdentifiers.contains($0) }
             : []
         let quickSelectEntryIdentifiers = retainedPinnedEntryIdentifiers.filter {
-            !search.isActive || matchingEntryIdentifiers.contains($0)
+            !(search.isActive || filterState.isActive) || matchingEntryIdentifiers.contains($0)
         }
         let quickSelectEntryIdentifierSet = Set(quickSelectEntryIdentifiers)
         let boundedSelectedEntryIdentifier = boundedOptionalIdentifier(selectedEntryIdentifier)
@@ -3220,9 +3367,14 @@ enum CinematicRunRecapShareArtifactPinnedReferencePlanner {
             selectedEntryIsPinned: selectedEntryIsPinned,
             missingPinnedEntryIdentifiers: missingPinnedEntryIdentifiers
         )
-        let noMatchAvailabilityReason = search.isActive && !retainedEntries.isEmpty && matchingEntries.isEmpty
-            ? "no-matching-recap-share-artifacts"
-            : nil
+        let noMatchAvailabilityReason = CinematicRunRecapShareArtifactWarningPulseFiltering
+            .noMatchAvailabilityReason(
+                retainedEntries: retainedEntries,
+                warningFilteredEntries: warningFilteredEntries,
+                matchingEntries: matchingEntries,
+                searchIsActive: search.isActive,
+                filter: warningPulseFilter
+            )
         let isAvailable = !retainedPinnedEntries.isEmpty
         let availabilityReason = availabilityReason(
             isAvailable: isAvailable,
@@ -3258,6 +3410,13 @@ enum CinematicRunRecapShareArtifactPinnedReferencePlanner {
             "quick:\(quickSelectEntryIdentifiers.count)",
             "query:\(search.queryFingerprint)",
             "query-snippet:\(search.querySnippet)",
+            "warning-pulse-filter:\(filterState.filterIdentifier)",
+            "warning-pulse-filter-active:\(filterState.isActive)",
+            "warning-pulse-filter-matches:\(filterState.matchingCount)",
+            "warning-pulse-any:\(filterState.anyCount)",
+            "warning-pulse-active:\(filterState.activeCount)",
+            "warning-pulse-snoozed:\(filterState.snoozedCount)",
+            "warning-pulse-unknown:\(filterState.unknownCount)",
             "no-match:\(noMatchAvailabilityReason ?? "none")",
             "selected:\(boundedSelectedEntryIdentifier ?? "none")",
             "selected-pin:\(selectedPinStateIdentifier)",
@@ -3277,6 +3436,7 @@ enum CinematicRunRecapShareArtifactPinnedReferencePlanner {
             retainedEntries: retainedEntries,
             matchingEntries: matchingEntries,
             search: search,
+            filterState: filterState,
             noMatchAvailabilityReason: noMatchAvailabilityReason,
             selectedEntryIdentifier: boundedSelectedEntryIdentifier,
             selectedPinStateIdentifier: selectedPinStateIdentifier,
@@ -3299,6 +3459,7 @@ enum CinematicRunRecapShareArtifactPinnedReferencePlanner {
             "filtered-pins:\(filteredPinnedEntryIdentifiers.count)",
             "quick:\(quickSelectEntryIdentifiers.count)",
             "query:\(search.queryFingerprint)",
+            "warning-pulse-filter:\(filterState.filterIdentifier)",
             "selected-pin:\(selectedPinStateIdentifier)",
             "warnings:\(warningStateIdentifier)",
             "copy:\(export.count)"
@@ -3319,12 +3480,19 @@ enum CinematicRunRecapShareArtifactPinnedReferencePlanner {
             isSearchActive: search.isActive,
             searchQuerySnippet: search.querySnippet,
             searchQueryFingerprint: search.queryFingerprint,
+            warningPulseFilterIdentifier: filterState.filterIdentifier,
+            isWarningPulseFilterActive: filterState.isActive,
+            warningPulseFilterMatchCount: filterState.matchingCount,
+            warningPulseAnyCount: filterState.anyCount,
+            warningPulseActiveCount: filterState.activeCount,
+            warningPulseSnoozedCount: filterState.snoozedCount,
+            warningPulseUnknownCount: filterState.unknownCount,
             noMatchAvailabilityReason: noMatchAvailabilityReason,
             retainedEntryCount: retainedEntries.count,
             totalCount: historyPlan.totalCount,
             hiddenCount: historyPlan.hiddenCount,
             matchingEntryCount: matchingEntries.count,
-            unfilteredVisibleCount: retainedEntries.count,
+            unfilteredVisibleCount: warningFilteredEntries.count,
             selectedEntryIdentifier: boundedSelectedEntryIdentifier,
             selectedEntryIsPinned: selectedEntryIsPinned,
             selectedPinStateIdentifier: selectedPinStateIdentifier,
@@ -3473,6 +3641,7 @@ enum CinematicRunRecapShareArtifactPinnedReferencePlanner {
         retainedEntries: [CinematicRunRecapShareArtifactHistoryPlan.Entry],
         matchingEntries: [CinematicRunRecapShareArtifactHistoryPlan.Entry],
         search: SearchState,
+        filterState: CinematicRunRecapShareArtifactWarningPulseFilterState,
         noMatchAvailabilityReason: String?,
         selectedEntryIdentifier: String?,
         selectedPinStateIdentifier: String,
@@ -3512,6 +3681,13 @@ enum CinematicRunRecapShareArtifactPinnedReferencePlanner {
             "- Search active: \(search.isActive)",
             "- Search query: \(search.querySnippet)",
             "- Search fingerprint: \(search.queryFingerprint)",
+            "- Warning pulse filter: \(filterState.filterIdentifier)",
+            "- Warning pulse filter active: \(filterState.isActive)",
+            "- Warning pulse filter matches: \(filterState.matchingCount)",
+            "- Warning pulse any artifacts: \(filterState.anyCount)",
+            "- Warning pulse active artifacts: \(filterState.activeCount)",
+            "- Warning pulse snoozed artifacts: \(filterState.snoozedCount)",
+            "- Warning pulse unknown artifacts: \(filterState.unknownCount)",
             "- No-match reason: \(noMatchAvailabilityReason ?? "none")",
             "- Selected entry: \(selectedEntryIdentifier ?? "none")",
             "- Selected pin state: \(selectedPinStateIdentifier)",
@@ -3719,9 +3895,17 @@ enum CinematicRunRecapShareArtifactTourPlanner {
     ) -> CinematicRunRecapShareArtifactTourPlan {
         let search = searchState(for: libraryContext.searchText)
         let retainedEntries = historyPlan.entries
+        let filterState = CinematicRunRecapShareArtifactWarningPulseFiltering.state(
+            filter: libraryContext.warningPulseFilter,
+            entries: retainedEntries
+        )
+        let warningFilteredEntries = CinematicRunRecapShareArtifactWarningPulseFiltering.filteredEntries(
+            retainedEntries,
+            filter: libraryContext.warningPulseFilter
+        )
         let matchingEntries = search.isActive
-            ? retainedEntries.filter { matches($0, normalizedQuery: search.normalizedQuery) }
-            : retainedEntries
+            ? warningFilteredEntries.filter { matches($0, normalizedQuery: search.normalizedQuery) }
+            : warningFilteredEntries
         let matchingEntryIdentifiers = Set(matchingEntries.map(\.identifier))
         let requestedPinnedEntryIdentifiers = boundedIdentifierList(libraryContext.pinnedEntryIdentifiers)
         let retainedEntriesByIdentifier = Dictionary(
@@ -3734,7 +3918,7 @@ enum CinematicRunRecapShareArtifactTourPlanner {
             retainedEntriesByIdentifier[$0]
         }
         let retainedSavedTourHoldEntryIdentifier = retainedSavedTourHoldEntry?.identifier
-        let filteredSavedTourHoldEntryIdentifier = search.isActive
+        let filteredSavedTourHoldEntryIdentifier = (search.isActive || filterState.isActive)
             ? retainedSavedTourHoldEntry
                 .flatMap { matchingEntryIdentifiers.contains($0.identifier) ? nil : $0.identifier }
             : nil
@@ -3751,10 +3935,10 @@ enum CinematicRunRecapShareArtifactTourPlanner {
         let missingPinnedEntryIdentifiers = requestedPinnedEntryIdentifiers.filter {
             retainedEntriesByIdentifier[$0] == nil
         }
-        let filteredPinnedEntryIdentifiers = search.isActive
+        let filteredPinnedEntryIdentifiers = (search.isActive || filterState.isActive)
             ? retainedPinnedEntryIdentifiers.filter { !matchingEntryIdentifiers.contains($0) }
             : []
-        let visiblePinnedEntries = search.isActive
+        let visiblePinnedEntries = (search.isActive || filterState.isActive)
             ? retainedPinnedEntries.filter { matchingEntryIdentifiers.contains($0.identifier) }
             : retainedPinnedEntries
         let selectionPool: [CinematicRunRecapShareArtifactHistoryPlan.Entry]
@@ -3771,14 +3955,20 @@ enum CinematicRunRecapShareArtifactTourPlanner {
         }
         let selectedIndex = rotatedIndex(seed: rotationSeed, count: selectionPool.count)
         let selectedEntry = selectedIndex.map { selectionPool[$0] }
-        let noMatchAvailabilityReason = search.isActive && !retainedEntries.isEmpty && matchingEntries.isEmpty
-            ? "no-matching-recap-share-artifacts"
-            : nil
+        let noMatchAvailabilityReason = CinematicRunRecapShareArtifactWarningPulseFiltering
+            .noMatchAvailabilityReason(
+                retainedEntries: retainedEntries,
+                warningFilteredEntries: warningFilteredEntries,
+                matchingEntries: matchingEntries,
+                searchIsActive: search.isActive,
+                filter: libraryContext.warningPulseFilter
+            )
         let stateIdentifier = stateIdentifier(
             selectedEntry: selectedEntry,
             selectionSourceIdentifier: selectionSourceIdentifier,
             historyPlan: historyPlan,
             search: search,
+            isWarningPulseFilterActive: filterState.isActive,
             noMatchAvailabilityReason: noMatchAvailabilityReason,
             savedTourHoldStateIdentifier: savedTourHoldStateIdentifier,
             requestedPinnedEntryIdentifiers: requestedPinnedEntryIdentifiers,
@@ -3835,6 +4025,13 @@ enum CinematicRunRecapShareArtifactTourPlanner {
             "matching:\(matchingEntries.count)",
             "query:\(search.queryFingerprint)",
             "query-snippet:\(search.querySnippet)",
+            "warning-pulse-filter:\(filterState.filterIdentifier)",
+            "warning-pulse-filter-active:\(filterState.isActive)",
+            "warning-pulse-filter-matches:\(filterState.matchingCount)",
+            "warning-pulse-any:\(filterState.anyCount)",
+            "warning-pulse-active:\(filterState.activeCount)",
+            "warning-pulse-snoozed:\(filterState.snoozedCount)",
+            "warning-pulse-unknown:\(filterState.unknownCount)",
             "no-match:\(noMatchAvailabilityReason ?? "none")",
             "hold-state:\(savedTourHoldStateIdentifier)",
             "hold:\(requestedSavedTourHoldEntryIdentifier ?? "none")",
@@ -3873,12 +4070,19 @@ enum CinematicRunRecapShareArtifactTourPlanner {
                 isSearchActive: search.isActive,
                 searchQuerySnippet: search.querySnippet,
                 searchQueryFingerprint: search.queryFingerprint,
+                warningPulseFilterIdentifier: filterState.filterIdentifier,
+                isWarningPulseFilterActive: filterState.isActive,
+                warningPulseFilterMatchCount: filterState.matchingCount,
+                warningPulseAnyCount: filterState.anyCount,
+                warningPulseActiveCount: filterState.activeCount,
+                warningPulseSnoozedCount: filterState.snoozedCount,
+                warningPulseUnknownCount: filterState.unknownCount,
                 noMatchAvailabilityReason: noMatchAvailabilityReason,
                 retainedEntryCount: retainedEntries.count,
                 totalCount: historyPlan.totalCount,
                 hiddenCount: historyPlan.hiddenCount,
                 matchingEntryCount: matchingEntries.count,
-                unfilteredVisibleCount: retainedEntries.count,
+                unfilteredVisibleCount: warningFilteredEntries.count,
                 selectedEntryIdentifier: nil,
                 selectedOrdinal: nil,
                 entryCount: selectionPool.count,
@@ -3894,6 +4098,7 @@ enum CinematicRunRecapShareArtifactTourPlanner {
                 bodyPreviewText: emptyBodyPreviewText(
                     stateIdentifier: stateIdentifier,
                     search: search,
+                    filter: libraryContext.warningPulseFilter,
                     retainedCount: retainedEntries.count
                 ),
                 sessionText: "No saved session",
@@ -3932,12 +4137,19 @@ enum CinematicRunRecapShareArtifactTourPlanner {
             isSearchActive: search.isActive,
             searchQuerySnippet: search.querySnippet,
             searchQueryFingerprint: search.queryFingerprint,
+            warningPulseFilterIdentifier: filterState.filterIdentifier,
+            isWarningPulseFilterActive: filterState.isActive,
+            warningPulseFilterMatchCount: filterState.matchingCount,
+            warningPulseAnyCount: filterState.anyCount,
+            warningPulseActiveCount: filterState.activeCount,
+            warningPulseSnoozedCount: filterState.snoozedCount,
+            warningPulseUnknownCount: filterState.unknownCount,
             noMatchAvailabilityReason: noMatchAvailabilityReason,
             retainedEntryCount: retainedEntries.count,
             totalCount: historyPlan.totalCount,
             hiddenCount: historyPlan.hiddenCount,
             matchingEntryCount: matchingEntries.count,
-            unfilteredVisibleCount: retainedEntries.count,
+            unfilteredVisibleCount: warningFilteredEntries.count,
             selectedEntryIdentifier: selectedEntry.identifier,
             selectedOrdinal: selectedIndex.map { $0 + 1 },
             entryCount: selectionPool.count,
@@ -4035,6 +4247,7 @@ enum CinematicRunRecapShareArtifactTourPlanner {
         selectionSourceIdentifier: String,
         historyPlan: CinematicRunRecapShareArtifactHistoryPlan,
         search: SearchState,
+        isWarningPulseFilterActive: Bool,
         noMatchAvailabilityReason: String?,
         savedTourHoldStateIdentifier: String,
         requestedPinnedEntryIdentifiers: [String],
@@ -4062,7 +4275,7 @@ enum CinematicRunRecapShareArtifactTourPlanner {
                missingPinnedEntryIdentifiers.count == requestedPinnedEntryIdentifiers.count {
                 return "missing-pin"
             }
-            if search.isActive,
+            if search.isActive || isWarningPulseFilterActive,
                !retainedPinnedEntryIdentifiers.isEmpty,
                filteredPinnedEntryIdentifiers.count == retainedPinnedEntryIdentifiers.count {
                 return "filtered-pin"
@@ -4076,7 +4289,7 @@ enum CinematicRunRecapShareArtifactTourPlanner {
            missingPinnedEntryIdentifiers.count == requestedPinnedEntryIdentifiers.count {
             return historyPlan.hasWarnings ? "missing-pin-warning" : "missing-pin"
         }
-        if search.isActive,
+        if search.isActive || isWarningPulseFilterActive,
            !retainedPinnedEntryIdentifiers.isEmpty,
            filteredPinnedEntryIdentifiers.count == retainedPinnedEntryIdentifiers.count {
             return historyPlan.hasWarnings ? "filtered-pin-warning" : "filtered-pin"
@@ -4189,6 +4402,7 @@ enum CinematicRunRecapShareArtifactTourPlanner {
     private static func emptyBodyPreviewText(
         stateIdentifier: String,
         search: SearchState,
+        filter: CinematicRunRecapShareArtifactWarningPulseFilter,
         retainedCount: Int
     ) -> String {
         let text: String
@@ -4198,7 +4412,13 @@ enum CinematicRunRecapShareArtifactTourPlanner {
         case "filtered-hold":
             text = "The held recap artifact is hidden by the active archive search."
         case "no-match":
-            text = "No retained recap artifacts match \(search.querySnippet)."
+            if filter.isActive {
+                text = search.isActive
+                    ? "No retained \(filter.title.lowercased()) warning-pulse recap artifacts match \(search.querySnippet)."
+                    : "No retained recap artifacts match the \(filter.title.lowercased()) warning-pulse filter."
+            } else {
+                text = "No retained recap artifacts match \(search.querySnippet)."
+            }
         case "missing-pin":
             text = "Pinned recap artifacts are no longer retained; \(retainedCount) artifacts remain."
         case "filtered-pin":
@@ -4334,13 +4554,22 @@ enum CinematicRunRecapShareArtifactPreviewBrowserPlanner {
     static func plan(
         historyPlan: CinematicRunRecapShareArtifactHistoryPlan,
         selectedEntryIdentifier: String? = nil,
-        searchQuery: String? = nil
+        searchQuery: String? = nil,
+        warningPulseFilter: CinematicRunRecapShareArtifactWarningPulseFilter = .all
     ) -> CinematicRunRecapShareArtifactPreviewBrowserPlan {
         let unfilteredEntries = historyPlan.entries
         let search = searchState(for: searchQuery)
+        let filterState = CinematicRunRecapShareArtifactWarningPulseFiltering.state(
+            filter: warningPulseFilter,
+            entries: unfilteredEntries
+        )
+        let warningFilteredEntries = CinematicRunRecapShareArtifactWarningPulseFiltering.filteredEntries(
+            unfilteredEntries,
+            filter: warningPulseFilter
+        )
         let entries = search.isActive
-            ? unfilteredEntries.filter { matches($0, normalizedQuery: search.normalizedQuery) }
-            : unfilteredEntries
+            ? warningFilteredEntries.filter { matches($0, normalizedQuery: search.normalizedQuery) }
+            : warningFilteredEntries
         let selectedPair = selectedEntry(
             in: entries,
             requestedIdentifier: selectedEntryIdentifier
@@ -4352,7 +4581,8 @@ enum CinematicRunRecapShareArtifactPreviewBrowserPlanner {
             selectedEntry: selectedEntry,
             unfilteredEntries: unfilteredEntries,
             filteredEntries: entries,
-            isSearchActive: search.isActive
+            isSearchActive: search.isActive,
+            isWarningPulseFilterActive: filterState.isActive
         )
         let previousEntryIdentifier = selectedIndex.flatMap { index in
             index > entries.startIndex ? entries[index - 1].identifier : nil
@@ -4362,9 +4592,14 @@ enum CinematicRunRecapShareArtifactPreviewBrowserPlanner {
             return nextIndex < entries.endIndex ? entries[nextIndex].identifier : nil
         }
         let warningStateIdentifier = historyPlan.hasWarnings ? "warnings" : "clear"
-        let noMatchAvailabilityReason = search.isActive && !unfilteredEntries.isEmpty && entries.isEmpty
-            ? "no-matching-recap-share-artifacts"
-            : nil
+        let noMatchAvailabilityReason = CinematicRunRecapShareArtifactWarningPulseFiltering
+            .noMatchAvailabilityReason(
+                retainedEntries: unfilteredEntries,
+                warningFilteredEntries: warningFilteredEntries,
+                matchingEntries: entries,
+                searchIsActive: search.isActive,
+                filter: warningPulseFilter
+            )
         let availabilityReason = noMatchAvailabilityReason ?? historyPlan.availabilityReason
         let identifier = bounded(
             [
@@ -4375,7 +4610,14 @@ enum CinematicRunRecapShareArtifactPreviewBrowserPlanner {
                 "query-snippet:\(search.querySnippet)",
                 "search-active:\(search.isActive)",
                 "matches:\(entries.count)",
-                "unfiltered:\(unfilteredEntries.count)",
+                "unfiltered:\(warningFilteredEntries.count)",
+                "warning-pulse-filter:\(filterState.filterIdentifier)",
+                "warning-pulse-filter-active:\(filterState.isActive)",
+                "warning-pulse-filter-matches:\(filterState.matchingCount)",
+                "warning-pulse-any:\(filterState.anyCount)",
+                "warning-pulse-active:\(filterState.activeCount)",
+                "warning-pulse-snoozed:\(filterState.snoozedCount)",
+                "warning-pulse-unknown:\(filterState.unknownCount)",
                 "no-match:\(noMatchAvailabilityReason ?? "none")",
                 "selected:\(selectedEntry?.identifier ?? "none")",
                 "fallback:\(fallback.entryIdentifier ?? "none")",
@@ -4398,8 +4640,15 @@ enum CinematicRunRecapShareArtifactPreviewBrowserPlanner {
                 isSearchActive: search.isActive,
                 searchQuerySnippet: search.querySnippet,
                 searchQueryFingerprint: search.queryFingerprint,
+                warningPulseFilterIdentifier: filterState.filterIdentifier,
+                isWarningPulseFilterActive: filterState.isActive,
+                warningPulseFilterMatchCount: filterState.matchingCount,
+                warningPulseAnyCount: filterState.anyCount,
+                warningPulseActiveCount: filterState.activeCount,
+                warningPulseSnoozedCount: filterState.snoozedCount,
+                warningPulseUnknownCount: filterState.unknownCount,
                 matchCount: entries.count,
-                unfilteredVisibleCount: unfilteredEntries.count,
+                unfilteredVisibleCount: warningFilteredEntries.count,
                 noMatchAvailabilityReason: noMatchAvailabilityReason,
                 selectedEntryIdentifier: nil,
                 selectedFallbackEntryIdentifier: fallback.entryIdentifier,
@@ -4425,7 +4674,8 @@ enum CinematicRunRecapShareArtifactPreviewBrowserPlanner {
                     emptyBodyPreviewText(
                         isSearchActive: search.isActive,
                         querySnippet: search.querySnippet,
-                        noMatchAvailabilityReason: noMatchAvailabilityReason
+                        noMatchAvailabilityReason: noMatchAvailabilityReason,
+                        warningPulseFilter: warningPulseFilter
                     ),
                     limit: CinematicRunRecapShareArtifactPreviewBrowserPlan.bodyPreviewMaxCharacters
                 ),
@@ -4443,8 +4693,15 @@ enum CinematicRunRecapShareArtifactPreviewBrowserPlanner {
             isSearchActive: search.isActive,
             searchQuerySnippet: search.querySnippet,
             searchQueryFingerprint: search.queryFingerprint,
+            warningPulseFilterIdentifier: filterState.filterIdentifier,
+            isWarningPulseFilterActive: filterState.isActive,
+            warningPulseFilterMatchCount: filterState.matchingCount,
+            warningPulseAnyCount: filterState.anyCount,
+            warningPulseActiveCount: filterState.activeCount,
+            warningPulseSnoozedCount: filterState.snoozedCount,
+            warningPulseUnknownCount: filterState.unknownCount,
             matchCount: entries.count,
-            unfilteredVisibleCount: unfilteredEntries.count,
+            unfilteredVisibleCount: warningFilteredEntries.count,
             noMatchAvailabilityReason: noMatchAvailabilityReason,
             selectedEntryIdentifier: selectedEntry.identifier,
             selectedFallbackEntryIdentifier: fallback.entryIdentifier,
@@ -4526,7 +4783,8 @@ enum CinematicRunRecapShareArtifactPreviewBrowserPlanner {
         selectedEntry: CinematicRunRecapShareArtifactHistoryPlan.Entry?,
         unfilteredEntries: [CinematicRunRecapShareArtifactHistoryPlan.Entry],
         filteredEntries: [CinematicRunRecapShareArtifactHistoryPlan.Entry],
-        isSearchActive: Bool
+        isSearchActive: Bool,
+        isWarningPulseFilterActive: Bool
     ) -> (entryIdentifier: String?, reasonIdentifier: String) {
         guard let requestedIdentifier else {
             return (nil, "none")
@@ -4535,8 +4793,10 @@ enum CinematicRunRecapShareArtifactPreviewBrowserPlanner {
             return (nil, "none")
         }
         guard let selectedEntry else {
-            let searchFilteredAllEntries = isSearchActive && !unfilteredEntries.isEmpty && filteredEntries.isEmpty
-            return (nil, searchFilteredAllEntries ? "no-match" : "missing-selection")
+            let filteredAllEntries = (isSearchActive || isWarningPulseFilterActive)
+                && !unfilteredEntries.isEmpty
+                && filteredEntries.isEmpty
+            return (nil, filteredAllEntries ? "no-match" : "missing-selection")
         }
         let requestedStillRetained = unfilteredEntries.contains { $0.identifier == requestedIdentifier }
         return (
@@ -4573,8 +4833,12 @@ enum CinematicRunRecapShareArtifactPreviewBrowserPlanner {
     private static func emptyBodyPreviewText(
         isSearchActive: Bool,
         querySnippet: String,
-        noMatchAvailabilityReason: String?
+        noMatchAvailabilityReason: String?,
+        warningPulseFilter: CinematicRunRecapShareArtifactWarningPulseFilter
     ) -> String {
+        if noMatchAvailabilityReason == "no-matching-warning-pulse-artifacts" {
+            return "No saved recap share artifacts match the \(warningPulseFilter.title.lowercased()) warning-pulse filter."
+        }
         if isSearchActive, noMatchAvailabilityReason != nil {
             return "No saved recap share artifacts match \(querySnippet)."
         }
@@ -4661,20 +4925,30 @@ enum CinematicRunRecapShareArtifactSubsetExportPlanner {
         selectedEntryIdentifier: String? = nil,
         searchQuery: String? = nil,
         scope: Scope,
+        warningPulseFilter: CinematicRunRecapShareArtifactWarningPulseFilter = .all,
         sourceExportAuditPlan: CinematicRunRecapShareArtifactSourceExportAuditPlan? = nil
     ) -> CinematicRunRecapShareArtifactSubsetExportPlan {
         let previewPlan = CinematicRunRecapShareArtifactPreviewBrowserPlanner.plan(
             historyPlan: historyPlan,
             selectedEntryIdentifier: selectedEntryIdentifier,
-            searchQuery: searchQuery
+            searchQuery: searchQuery,
+            warningPulseFilter: warningPulseFilter
         )
         let search = searchState(for: searchQuery)
         let retainedEntries = historyPlan.entries
+        let filterState = CinematicRunRecapShareArtifactWarningPulseFiltering.state(
+            filter: warningPulseFilter,
+            entries: retainedEntries
+        )
+        let warningFilteredEntries = CinematicRunRecapShareArtifactWarningPulseFiltering.filteredEntries(
+            retainedEntries,
+            filter: warningPulseFilter
+        )
         let filteredEntries = search.isActive
-            ? retainedEntries.filter { matches($0, normalizedQuery: search.normalizedQuery) }
-            : retainedEntries
+            ? warningFilteredEntries.filter { matches($0, normalizedQuery: search.normalizedQuery) }
+            : warningFilteredEntries
         let selectedEntry = previewPlan.selectedEntryIdentifier.flatMap { identifier in
-            retainedEntries.first { $0.identifier == identifier }
+            filteredEntries.first { $0.identifier == identifier }
         }
         let exportEntries: [CinematicRunRecapShareArtifactHistoryPlan.Entry]
         switch scope {
@@ -4686,9 +4960,14 @@ enum CinematicRunRecapShareArtifactSubsetExportPlanner {
 
         let selectedCount = selectedEntry == nil ? 0 : 1
         let filteredCount = filteredEntries.count
-        let noMatchAvailabilityReason = search.isActive && !retainedEntries.isEmpty && filteredEntries.isEmpty
-            ? "no-matching-recap-share-artifacts"
-            : nil
+        let noMatchAvailabilityReason = CinematicRunRecapShareArtifactWarningPulseFiltering
+            .noMatchAvailabilityReason(
+                retainedEntries: retainedEntries,
+                warningFilteredEntries: warningFilteredEntries,
+                matchingEntries: filteredEntries,
+                searchIsActive: search.isActive,
+                filter: warningPulseFilter
+            )
         let availabilityReason = availabilityReason(
             scope: scope,
             exportEntries: exportEntries,
@@ -4718,6 +4997,13 @@ enum CinematicRunRecapShareArtifactSubsetExportPlanner {
             "retained:\(retainedEntries.count)",
             "total:\(historyPlan.totalCount)",
             "hidden:\(historyPlan.hiddenCount)",
+            "warning-pulse-filter:\(filterState.filterIdentifier)",
+            "warning-pulse-filter-active:\(filterState.isActive)",
+            "warning-pulse-filter-matches:\(filterState.matchingCount)",
+            "warning-pulse-any:\(filterState.anyCount)",
+            "warning-pulse-active:\(filterState.activeCount)",
+            "warning-pulse-snoozed:\(filterState.snoozedCount)",
+            "warning-pulse-unknown:\(filterState.unknownCount)",
             "selected:\(selectedCount)",
             "filtered:\(filteredCount)",
             "exported:\(exportEntries.count)",
@@ -4745,6 +5031,7 @@ enum CinematicRunRecapShareArtifactSubsetExportPlanner {
             entries: exportEntries,
             historyPlan: historyPlan,
             search: search,
+            filterState: filterState,
             noMatchAvailabilityReason: noMatchAvailabilityReason,
             selectedEntry: selectedEntry,
             previewPlan: previewPlan,
@@ -4763,6 +5050,7 @@ enum CinematicRunRecapShareArtifactSubsetExportPlanner {
             "entries:\(exportEntries.count)",
             "markdown:\(markdown.count)",
             "query:\(search.queryFingerprint)",
+            "warning-pulse-filter:\(filterState.filterIdentifier)",
             "warnings:\(warningStateIdentifier)",
             "warning-pulses:\(warningPulseCues.count)"
         ]
@@ -4783,6 +5071,13 @@ enum CinematicRunRecapShareArtifactSubsetExportPlanner {
             isSearchActive: search.isActive,
             searchQuerySnippet: search.querySnippet,
             searchQueryFingerprint: search.queryFingerprint,
+            warningPulseFilterIdentifier: filterState.filterIdentifier,
+            isWarningPulseFilterActive: filterState.isActive,
+            warningPulseFilterMatchCount: filterState.matchingCount,
+            warningPulseAnyCount: filterState.anyCount,
+            warningPulseActiveCount: filterState.activeCount,
+            warningPulseSnoozedCount: filterState.snoozedCount,
+            warningPulseUnknownCount: filterState.unknownCount,
             noMatchAvailabilityReason: noMatchAvailabilityReason,
             retainedEntryCount: retainedEntries.count,
             totalCount: historyPlan.totalCount,
@@ -4790,7 +5085,7 @@ enum CinematicRunRecapShareArtifactSubsetExportPlanner {
             selectedCount: selectedCount,
             filteredCount: filteredCount,
             exportEntryCount: exportEntries.count,
-            unfilteredVisibleCount: retainedEntries.count,
+            unfilteredVisibleCount: warningFilteredEntries.count,
             selectedEntryIdentifier: selectedEntry?.identifier,
             selectedFallbackEntryIdentifier: previewPlan.selectedFallbackEntryIdentifier,
             selectedFallbackReasonIdentifier: previewPlan.selectedFallbackReasonIdentifier,
@@ -4892,6 +5187,7 @@ enum CinematicRunRecapShareArtifactSubsetExportPlanner {
         entries: [CinematicRunRecapShareArtifactHistoryPlan.Entry],
         historyPlan: CinematicRunRecapShareArtifactHistoryPlan,
         search: SearchState,
+        filterState: CinematicRunRecapShareArtifactWarningPulseFilterState,
         noMatchAvailabilityReason: String?,
         selectedEntry: CinematicRunRecapShareArtifactHistoryPlan.Entry?,
         previewPlan: CinematicRunRecapShareArtifactPreviewBrowserPlan,
@@ -4918,6 +5214,13 @@ enum CinematicRunRecapShareArtifactSubsetExportPlanner {
             "- Search active: \(search.isActive)",
             "- Search query: \(search.querySnippet)",
             "- Search fingerprint: \(search.queryFingerprint)",
+            "- Warning pulse filter: \(filterState.filterIdentifier)",
+            "- Warning pulse filter active: \(filterState.isActive)",
+            "- Warning pulse filter matches: \(filterState.matchingCount)",
+            "- Warning pulse any artifacts: \(filterState.anyCount)",
+            "- Warning pulse active artifacts: \(filterState.activeCount)",
+            "- Warning pulse snoozed artifacts: \(filterState.snoozedCount)",
+            "- Warning pulse unknown artifacts: \(filterState.unknownCount)",
             "- No-match reason: \(noMatchAvailabilityReason ?? "none")",
             "- Selected entry: \(selectedEntry?.identifier ?? "none")",
             "- Selection fallback: \(previewPlan.selectedFallbackEntryIdentifier ?? "none")",
@@ -5139,21 +5442,36 @@ enum CinematicRunRecapShareArtifactRollupPlanner {
         historyPlan: CinematicRunRecapShareArtifactHistoryPlan,
         selectedEntryIdentifier: String? = nil,
         searchQuery: String? = nil,
+        warningPulseFilter: CinematicRunRecapShareArtifactWarningPulseFilter = .all,
         sourceExportAuditPlan: CinematicRunRecapShareArtifactSourceExportAuditPlan? = nil
     ) -> CinematicRunRecapShareArtifactRollupPlan {
         let previewPlan = CinematicRunRecapShareArtifactPreviewBrowserPlanner.plan(
             historyPlan: historyPlan,
             selectedEntryIdentifier: selectedEntryIdentifier,
-            searchQuery: searchQuery
+            searchQuery: searchQuery,
+            warningPulseFilter: warningPulseFilter
         )
         let search = searchState(for: searchQuery)
         let retainedEntries = historyPlan.entries
+        let filterState = CinematicRunRecapShareArtifactWarningPulseFiltering.state(
+            filter: warningPulseFilter,
+            entries: retainedEntries
+        )
+        let warningFilteredEntries = CinematicRunRecapShareArtifactWarningPulseFiltering.filteredEntries(
+            retainedEntries,
+            filter: warningPulseFilter
+        )
         let matchingEntries = search.isActive
-            ? retainedEntries.filter { matches($0, normalizedQuery: search.normalizedQuery) }
-            : retainedEntries
-        let noMatchAvailabilityReason = search.isActive && !retainedEntries.isEmpty && matchingEntries.isEmpty
-            ? "no-matching-recap-share-artifacts"
-            : nil
+            ? warningFilteredEntries.filter { matches($0, normalizedQuery: search.normalizedQuery) }
+            : warningFilteredEntries
+        let noMatchAvailabilityReason = CinematicRunRecapShareArtifactWarningPulseFiltering
+            .noMatchAvailabilityReason(
+                retainedEntries: retainedEntries,
+                warningFilteredEntries: warningFilteredEntries,
+                matchingEntries: matchingEntries,
+                searchIsActive: search.isActive,
+                filter: warningPulseFilter
+            )
         let availabilityReason = noMatchAvailabilityReason
             ?? (matchingEntries.isEmpty ? historyPlan.availabilityReason : "available")
         let isAvailable = !matchingEntries.isEmpty
@@ -5188,6 +5506,13 @@ enum CinematicRunRecapShareArtifactRollupPlanner {
             "matching:\(matchingEntries.count)",
             "query:\(search.queryFingerprint)",
             "query-snippet:\(search.querySnippet)",
+            "warning-pulse-filter:\(filterState.filterIdentifier)",
+            "warning-pulse-filter-active:\(filterState.isActive)",
+            "warning-pulse-filter-matches:\(filterState.matchingCount)",
+            "warning-pulse-any:\(filterState.anyCount)",
+            "warning-pulse-active:\(filterState.activeCount)",
+            "warning-pulse-snoozed:\(filterState.snoozedCount)",
+            "warning-pulse-unknown:\(filterState.unknownCount)",
             "no-match:\(noMatchAvailabilityReason ?? "none")",
             "selected:\(previewPlan.selectedEntryIdentifier ?? "none")",
             "fallback:\(previewPlan.selectedFallbackEntryIdentifier ?? "none")",
@@ -5223,7 +5548,8 @@ enum CinematicRunRecapShareArtifactRollupPlanner {
             warningPulseStateSummary: warningPulseStateSummary,
             cleanupCandidateCount: historyPlan.cleanupCandidateCount,
             warningCount: historyPlan.warningCount,
-            search: search
+            search: search,
+            filterState: filterState
         )
         let export = exportText(
             exportIdentifier: exportIdentifier,
@@ -5233,6 +5559,7 @@ enum CinematicRunRecapShareArtifactRollupPlanner {
             matchingEntries: matchingEntries,
             historyPlan: historyPlan,
             search: search,
+            filterState: filterState,
             noMatchAvailabilityReason: noMatchAvailabilityReason,
             previewPlan: previewPlan,
             sessionRangeLabel: sessionRangeLabel,
@@ -5253,6 +5580,7 @@ enum CinematicRunRecapShareArtifactRollupPlanner {
             "retained:\(retainedEntries.count)",
             "matching:\(matchingEntries.count)",
             "query:\(search.queryFingerprint)",
+            "warning-pulse-filter:\(filterState.filterIdentifier)",
             "range:\(sessionRangeLabel)",
             "buckets:\(statusBucketSummary)",
             "mutation-tests:\(mutationTestingCues.count)",
@@ -5277,12 +5605,19 @@ enum CinematicRunRecapShareArtifactRollupPlanner {
             isSearchActive: search.isActive,
             searchQuerySnippet: search.querySnippet,
             searchQueryFingerprint: search.queryFingerprint,
+            warningPulseFilterIdentifier: filterState.filterIdentifier,
+            isWarningPulseFilterActive: filterState.isActive,
+            warningPulseFilterMatchCount: filterState.matchingCount,
+            warningPulseAnyCount: filterState.anyCount,
+            warningPulseActiveCount: filterState.activeCount,
+            warningPulseSnoozedCount: filterState.snoozedCount,
+            warningPulseUnknownCount: filterState.unknownCount,
             noMatchAvailabilityReason: noMatchAvailabilityReason,
             retainedEntryCount: retainedEntries.count,
             totalCount: historyPlan.totalCount,
             hiddenCount: historyPlan.hiddenCount,
             matchingEntryCount: matchingEntries.count,
-            unfilteredVisibleCount: retainedEntries.count,
+            unfilteredVisibleCount: warningFilteredEntries.count,
             selectedEntryIdentifier: previewPlan.selectedEntryIdentifier,
             selectedFallbackEntryIdentifier: previewPlan.selectedFallbackEntryIdentifier,
             selectedFallbackReasonIdentifier: previewPlan.selectedFallbackReasonIdentifier,
@@ -5466,12 +5801,14 @@ enum CinematicRunRecapShareArtifactRollupPlanner {
         warningPulseStateSummary: String,
         cleanupCandidateCount: Int,
         warningCount: Int,
-        search: SearchState
+        search: SearchState,
+        filterState: CinematicRunRecapShareArtifactWarningPulseFilterState
     ) -> String {
         guard isAvailable else {
             let searchDetail = search.isActive ? " for \(search.querySnippet)" : ""
+            let filterDetail = filterState.isActive ? " with \(filterState.filter.title.lowercased()) pulse filter" : ""
             return bounded(
-                "No recap artifact rollup\(searchDetail): \(availabilityReason). \(retainedCount)/\(totalCount) retained.",
+                "No recap artifact rollup\(searchDetail)\(filterDetail): \(availabilityReason). \(retainedCount)/\(totalCount) retained.",
                 limit: CinematicRunRecapShareArtifactRollupPlan.insightTextMaxCharacters
             )
         }
@@ -5489,6 +5826,9 @@ enum CinematicRunRecapShareArtifactRollupPlanner {
         }
         if search.isActive {
             parts.append("search \(search.querySnippet)")
+        }
+        if filterState.isActive {
+            parts.append("\(filterState.filter.title.lowercased()) pulse \(filterState.matchingCount)")
         }
         if hiddenCount > 0 {
             parts.append("+\(hiddenCount) hidden")
@@ -5513,6 +5853,7 @@ enum CinematicRunRecapShareArtifactRollupPlanner {
         matchingEntries: [CinematicRunRecapShareArtifactHistoryPlan.Entry],
         historyPlan: CinematicRunRecapShareArtifactHistoryPlan,
         search: SearchState,
+        filterState: CinematicRunRecapShareArtifactWarningPulseFilterState,
         noMatchAvailabilityReason: String?,
         previewPlan: CinematicRunRecapShareArtifactPreviewBrowserPlan,
         sessionRangeLabel: String,
@@ -5540,6 +5881,13 @@ enum CinematicRunRecapShareArtifactRollupPlanner {
             "- Search active: \(search.isActive)",
             "- Search query: \(search.querySnippet)",
             "- Search fingerprint: \(search.queryFingerprint)",
+            "- Warning pulse filter: \(filterState.filterIdentifier)",
+            "- Warning pulse filter active: \(filterState.isActive)",
+            "- Warning pulse filter matches: \(filterState.matchingCount)",
+            "- Warning pulse any artifacts: \(filterState.anyCount)",
+            "- Warning pulse active artifacts: \(filterState.activeCount)",
+            "- Warning pulse snoozed artifacts: \(filterState.snoozedCount)",
+            "- Warning pulse unknown artifacts: \(filterState.unknownCount)",
             "- No-match reason: \(noMatchAvailabilityReason ?? "none")",
             "- Selected entry: \(previewPlan.selectedEntryIdentifier ?? "none")",
             "- Selection fallback: \(previewPlan.selectedFallbackEntryIdentifier ?? "none")",
@@ -5853,18 +6201,28 @@ enum CinematicRunRecapShareArtifactComparisonPlanner {
         targetMode: CinematicRunRecapShareArtifactComparisonTargetMode = .adjacent,
         pinnedEntryIdentifiers: [String] = [],
         savedTourHoldEntryIdentifier: String? = nil,
+        warningPulseFilter: CinematicRunRecapShareArtifactWarningPulseFilter = .all,
         sourceExportAuditPlan: CinematicRunRecapShareArtifactSourceExportAuditPlan? = nil
     ) -> CinematicRunRecapShareArtifactComparisonPlan {
         let previewPlan = CinematicRunRecapShareArtifactPreviewBrowserPlanner.plan(
             historyPlan: historyPlan,
             selectedEntryIdentifier: selectedEntryIdentifier,
-            searchQuery: searchQuery
+            searchQuery: searchQuery,
+            warningPulseFilter: warningPulseFilter
         )
         let search = searchState(for: searchQuery)
         let retainedEntries = historyPlan.entries
+        let filterState = CinematicRunRecapShareArtifactWarningPulseFiltering.state(
+            filter: warningPulseFilter,
+            entries: retainedEntries
+        )
+        let warningFilteredEntries = CinematicRunRecapShareArtifactWarningPulseFiltering.filteredEntries(
+            retainedEntries,
+            filter: warningPulseFilter
+        )
         let matchingEntries = search.isActive
-            ? retainedEntries.filter { matches($0, normalizedQuery: search.normalizedQuery) }
-            : retainedEntries
+            ? warningFilteredEntries.filter { matches($0, normalizedQuery: search.normalizedQuery) }
+            : warningFilteredEntries
         let selectedIndex = previewPlan.selectedEntryIdentifier.flatMap { identifier in
             matchingEntries.firstIndex { $0.identifier == identifier }
         }
@@ -5881,14 +6239,14 @@ enum CinematicRunRecapShareArtifactComparisonPlanner {
         let retainedPinnedEntries = requestedPinnedEntryIdentifiers.compactMap { retainedEntriesByIdentifier[$0] }
         let retainedPinnedEntryIdentifiers = retainedPinnedEntries.map(\.identifier)
         let matchingEntryIdentifiers = Set(matchingEntries.map(\.identifier))
-        let filteredSavedTourHoldEntryIdentifier = search.isActive
+        let filteredSavedTourHoldEntryIdentifier = (search.isActive || filterState.isActive)
             ? retainedSavedTourHoldEntry
                 .flatMap { matchingEntryIdentifiers.contains($0.identifier) ? nil : $0.identifier }
             : nil
         let missingPinnedEntryIdentifiers = requestedPinnedEntryIdentifiers.filter {
             retainedEntriesByIdentifier[$0] == nil
         }
-        let filteredPinnedEntryIdentifiers = search.isActive
+        let filteredPinnedEntryIdentifiers = (search.isActive || filterState.isActive)
             ? retainedPinnedEntryIdentifiers.filter { !matchingEntryIdentifiers.contains($0) }
             : []
         let comparisonTarget: ComparisonTarget?
@@ -5901,7 +6259,8 @@ enum CinematicRunRecapShareArtifactComparisonPlanner {
                     for: $0,
                     retainedPinnedEntries: retainedPinnedEntries,
                     matchingEntryIdentifiers: matchingEntryIdentifiers,
-                    search: search
+                    search: search,
+                    isWarningPulseFilterActive: filterState.isActive
                 )
             }
         }
@@ -5918,7 +6277,8 @@ enum CinematicRunRecapShareArtifactComparisonPlanner {
             retainedPinnedEntryIdentifiers: retainedPinnedEntryIdentifiers,
             missingPinnedEntryIdentifiers: missingPinnedEntryIdentifiers,
             filteredPinnedEntryIdentifiers: filteredPinnedEntryIdentifiers,
-            search: search
+            search: search,
+            isWarningPulseFilterActive: filterState.isActive
         )
         let pinnedTargetUnavailableReasonIdentifier = targetMode == .pinnedReference && compareEntry == nil
             ? pinnedTargetStateIdentifier
@@ -5926,9 +6286,14 @@ enum CinematicRunRecapShareArtifactComparisonPlanner {
         let sessionDelta = selectedEntry.flatMap { selected in
             compareEntry.map { abs(selected.sessionNumber - $0.sessionNumber) }
         }
-        let noMatchAvailabilityReason = search.isActive && !retainedEntries.isEmpty && matchingEntries.isEmpty
-            ? "no-matching-recap-share-artifacts"
-            : nil
+        let noMatchAvailabilityReason = CinematicRunRecapShareArtifactWarningPulseFiltering
+            .noMatchAvailabilityReason(
+                retainedEntries: retainedEntries,
+                warningFilteredEntries: warningFilteredEntries,
+                matchingEntries: matchingEntries,
+                searchIsActive: search.isActive,
+                filter: warningPulseFilter
+            )
         let promotedHoldStateIdentifier = promotedHoldStateIdentifier(
             targetMode: targetMode,
             requestedSavedTourHoldEntryIdentifier: requestedSavedTourHoldEntryIdentifier,
@@ -5946,6 +6311,7 @@ enum CinematicRunRecapShareArtifactComparisonPlanner {
             targetMode: targetMode,
             pinnedTargetStateIdentifier: pinnedTargetStateIdentifier,
             search: search,
+            isWarningPulseFilterActive: filterState.isActive,
             noMatchAvailabilityReason: noMatchAvailabilityReason
         )
         let isAvailable = compareEntry != nil
@@ -5969,6 +6335,13 @@ enum CinematicRunRecapShareArtifactComparisonPlanner {
             "mode:\(targetMode.rawValue)",
             "query:\(search.queryFingerprint)",
             "query-snippet:\(search.querySnippet)",
+            "warning-pulse-filter:\(filterState.filterIdentifier)",
+            "warning-pulse-filter-active:\(filterState.isActive)",
+            "warning-pulse-filter-matches:\(filterState.matchingCount)",
+            "warning-pulse-any:\(filterState.anyCount)",
+            "warning-pulse-active:\(filterState.activeCount)",
+            "warning-pulse-snoozed:\(filterState.snoozedCount)",
+            "warning-pulse-unknown:\(filterState.unknownCount)",
             "no-match:\(noMatchAvailabilityReason ?? "none")",
             "selected:\(selectedEntry?.identifier ?? "none")",
             "compare:\(compareEntry?.identifier ?? "none")",
@@ -6006,6 +6379,7 @@ enum CinematicRunRecapShareArtifactComparisonPlanner {
             retainedEntries: retainedEntries,
             matchingEntries: matchingEntries,
             search: search,
+            filterState: filterState,
             noMatchAvailabilityReason: noMatchAvailabilityReason,
             previewPlan: previewPlan,
             targetMode: targetMode,
@@ -6036,6 +6410,7 @@ enum CinematicRunRecapShareArtifactComparisonPlanner {
             "matching:\(matchingEntries.count)",
             "mode:\(targetMode.rawValue)",
             "query:\(search.queryFingerprint)",
+            "warning-pulse-filter:\(filterState.filterIdentifier)",
             "selected:\(selectedEntry?.identifier ?? "none")",
             "compare:\(compareEntry?.identifier ?? "none")",
             "direction:\(targetDirectionIdentifier)",
@@ -6072,12 +6447,19 @@ enum CinematicRunRecapShareArtifactComparisonPlanner {
             isSearchActive: search.isActive,
             searchQuerySnippet: search.querySnippet,
             searchQueryFingerprint: search.queryFingerprint,
+            warningPulseFilterIdentifier: filterState.filterIdentifier,
+            isWarningPulseFilterActive: filterState.isActive,
+            warningPulseFilterMatchCount: filterState.matchingCount,
+            warningPulseAnyCount: filterState.anyCount,
+            warningPulseActiveCount: filterState.activeCount,
+            warningPulseSnoozedCount: filterState.snoozedCount,
+            warningPulseUnknownCount: filterState.unknownCount,
             noMatchAvailabilityReason: noMatchAvailabilityReason,
             retainedEntryCount: retainedEntries.count,
             totalCount: historyPlan.totalCount,
             hiddenCount: historyPlan.hiddenCount,
             matchingEntryCount: matchingEntries.count,
-            unfilteredVisibleCount: retainedEntries.count,
+            unfilteredVisibleCount: warningFilteredEntries.count,
             selectedEntryIdentifier: selectedEntry?.identifier,
             selectedFallbackEntryIdentifier: previewPlan.selectedFallbackEntryIdentifier,
             selectedFallbackReasonIdentifier: previewPlan.selectedFallbackReasonIdentifier,
@@ -6202,12 +6584,13 @@ enum CinematicRunRecapShareArtifactComparisonPlanner {
         for selectedEntry: CinematicRunRecapShareArtifactHistoryPlan.Entry,
         retainedPinnedEntries: [CinematicRunRecapShareArtifactHistoryPlan.Entry],
         matchingEntryIdentifiers: Set<String>,
-        search: SearchState
+        search: SearchState,
+        isWarningPulseFilterActive: Bool
     ) -> ComparisonTarget? {
         let nonSelectedPinnedEntries = retainedPinnedEntries.filter {
             $0.identifier != selectedEntry.identifier
         }
-        let visiblePinnedEntries = search.isActive
+        let visiblePinnedEntries = (search.isActive || isWarningPulseFilterActive)
             ? nonSelectedPinnedEntries.filter { matchingEntryIdentifiers.contains($0.identifier) }
             : nonSelectedPinnedEntries
         if let visiblePinnedEntry = visiblePinnedEntries.first {
@@ -6226,7 +6609,8 @@ enum CinematicRunRecapShareArtifactComparisonPlanner {
         retainedPinnedEntryIdentifiers: [String],
         missingPinnedEntryIdentifiers: [String],
         filteredPinnedEntryIdentifiers: [String],
-        search: SearchState
+        search: SearchState,
+        isWarningPulseFilterActive: Bool
     ) -> String {
         guard targetMode == .pinnedReference else {
             return "adjacent-mode"
@@ -6235,7 +6619,8 @@ enum CinematicRunRecapShareArtifactComparisonPlanner {
             return "no-selected-recap-share-artifact"
         }
         if let compareEntry {
-            return search.isActive && filteredPinnedEntryIdentifiers.contains(compareEntry.identifier)
+            return (search.isActive || isWarningPulseFilterActive)
+                && filteredPinnedEntryIdentifiers.contains(compareEntry.identifier)
                 ? "filtered-pinned-target"
                 : "visible-pinned-target"
         }
@@ -6294,6 +6679,7 @@ enum CinematicRunRecapShareArtifactComparisonPlanner {
         targetMode: CinematicRunRecapShareArtifactComparisonTargetMode,
         pinnedTargetStateIdentifier: String,
         search: SearchState,
+        isWarningPulseFilterActive: Bool,
         noMatchAvailabilityReason: String?
     ) -> String {
         guard compareEntry == nil else { return "available" }
@@ -6304,7 +6690,7 @@ enum CinematicRunRecapShareArtifactComparisonPlanner {
             return historyPlan.availabilityReason
         }
         if matchingEntries.count == 1 {
-            return search.isActive
+            return search.isActive || isWarningPulseFilterActive
                 ? "single-matching-recap-share-artifact"
                 : "single-recap-share-artifact"
         }
@@ -6324,6 +6710,7 @@ enum CinematicRunRecapShareArtifactComparisonPlanner {
         retainedEntries: [CinematicRunRecapShareArtifactHistoryPlan.Entry],
         matchingEntries: [CinematicRunRecapShareArtifactHistoryPlan.Entry],
         search: SearchState,
+        filterState: CinematicRunRecapShareArtifactWarningPulseFilterState,
         noMatchAvailabilityReason: String?,
         previewPlan: CinematicRunRecapShareArtifactPreviewBrowserPlan,
         targetMode: CinematicRunRecapShareArtifactComparisonTargetMode,
@@ -6372,6 +6759,13 @@ enum CinematicRunRecapShareArtifactComparisonPlanner {
             "- Search active: \(search.isActive)",
             "- Search query: \(search.querySnippet)",
             "- Search fingerprint: \(search.queryFingerprint)",
+            "- Warning pulse filter: \(filterState.filterIdentifier)",
+            "- Warning pulse filter active: \(filterState.isActive)",
+            "- Warning pulse filter matches: \(filterState.matchingCount)",
+            "- Warning pulse any artifacts: \(filterState.anyCount)",
+            "- Warning pulse active artifacts: \(filterState.activeCount)",
+            "- Warning pulse snoozed artifacts: \(filterState.snoozedCount)",
+            "- Warning pulse unknown artifacts: \(filterState.unknownCount)",
             "- No-match reason: \(noMatchAvailabilityReason ?? "none")",
             "- Selected entry: \(selectedEntry?.identifier ?? "none")",
             "- Compare entry: \(compareEntry?.identifier ?? "none")",

@@ -546,7 +546,10 @@ final class CinematicRunRecapShareArtifactLibraryContextTests: XCTestCase {
                     title: "Relaunch Recap \(session)",
                     status: "succeeded",
                     commit: "Relaunch commit \(session)",
-                    body: session == 1 ? "restored search body" : "ordinary body"
+                    body: session == 1 ? "restored search body" : "ordinary body",
+                    warningPulseSection: session == 1
+                        ? warningPulseSection(state: "active", suffix: "relaunch")
+                        : ""
                 )
             )
         }
@@ -555,7 +558,8 @@ final class CinematicRunRecapShareArtifactLibraryContextTests: XCTestCase {
         let context = CinematicRunRecapShareArtifactLibraryContext(
             selectedEntryIdentifier: selected.identifier,
             searchText: "restored search",
-            savedTourHoldEntryIdentifier: selected.identifier
+            savedTourHoldEntryIdentifier: selected.identifier,
+            warningPulseFilter: .active
         )
         let record = KnownProjectRecord(
             id: UUID(uuidString: "71717171-7171-7171-7171-717171717171")!,
@@ -585,9 +589,12 @@ final class CinematicRunRecapShareArtifactLibraryContextTests: XCTestCase {
         XCTAssertEqual(reconstructed.cinematicRunRecapShareArtifactLibraryContext, context)
         XCTAssertEqual(report.runRecapShareArtifactPreview.selectedEntryIdentifier, selected.identifier)
         XCTAssertEqual(report.runRecapShareArtifactPreview.searchQuerySnippet, "restored search")
+        XCTAssertEqual(report.runRecapShareArtifactPreview.warningPulseFilterIdentifier, "active")
         XCTAssertEqual(report.runRecapShareArtifactPreview.filteredExport.exportedEntryIdentifiers, [selected.identifier])
+        XCTAssertEqual(report.runRecapShareArtifactPreview.filteredExport.warningPulseFilterIdentifier, "active")
         XCTAssertEqual(report.runRecapShareArtifactTour.savedTourHoldStateIdentifier, "held")
         XCTAssertEqual(report.runRecapShareArtifactTour.selectionSourceIdentifier, "held")
+        XCTAssertEqual(report.runRecapShareArtifactTour.warningPulseFilterIdentifier, "active")
     }
 
     private func artifactMarkdown(

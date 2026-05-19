@@ -23,6 +23,7 @@ final class KnownProjectStoreTestsRecordDecoding: XCTestCase {
         XCTAssertEqual(record.cinematicRunRecapShareArtifactLibraryContext, .empty)
         XCTAssertEqual(record.cinematicRunRecapShareArtifactLibraryContext.comparisonTargetMode, .adjacent)
         XCTAssertNil(record.cinematicRunRecapShareArtifactLibraryContext.savedTourHoldEntryIdentifier)
+        XCTAssertEqual(record.cinematicRunRecapShareArtifactLibraryContext.warningPulseFilter, .all)
     }
 
     func testNativeFeedbackAndExecutionEnvironmentDecodingDefaultsMissingAndFutureValues() throws {
@@ -129,6 +130,7 @@ final class KnownProjectStoreTestsRecordDecoding: XCTestCase {
               "selectedEntryIdentifier": "  \(longIdentifier)  ",
               "searchText": "  \(longSearch)  ",
               "comparisonTargetMode": "pinned_reference",
+              "warningPulseFilter": "active",
               "savedTourHoldEntryIdentifier": "  \(longHold)  ",
               "pinnedEntryIdentifiers": [
                 "  \(duplicatePin)  ",
@@ -145,6 +147,7 @@ final class KnownProjectStoreTestsRecordDecoding: XCTestCase {
             "lastOpenedAt": 4,
             "cinematicRunRecapShareArtifactLibraryContext": {
               "comparisonTargetMode": "future_comparison_mode",
+              "warningPulseFilter": "future_warning_pulse_filter",
               "selectedEntryIdentifier": "   ",
               "searchText": "  \\n\\t  "
             }
@@ -173,6 +176,10 @@ final class KnownProjectStoreTestsRecordDecoding: XCTestCase {
             records[0].cinematicRunRecapShareArtifactLibraryContext.comparisonTargetMode,
             .pinnedReference
         )
+        XCTAssertEqual(
+            records[0].cinematicRunRecapShareArtifactLibraryContext.warningPulseFilter,
+            .active
+        )
         XCTAssertLessThanOrEqual(
             records[0].cinematicRunRecapShareArtifactLibraryContext.pinnedEntryIdentifiers.last?.count ?? 0,
             CinematicRunRecapShareArtifactLibraryContext.selectedEntryIdentifierMaxCharacters
@@ -185,6 +192,7 @@ final class KnownProjectStoreTestsRecordDecoding: XCTestCase {
         XCTAssertEqual(records[1].cinematicRunRecapShareArtifactLibraryContext.searchText, "")
         XCTAssertEqual(records[1].cinematicRunRecapShareArtifactLibraryContext.pinnedEntryIdentifiers, [])
         XCTAssertEqual(records[1].cinematicRunRecapShareArtifactLibraryContext.comparisonTargetMode, .adjacent)
+        XCTAssertEqual(records[1].cinematicRunRecapShareArtifactLibraryContext.warningPulseFilter, .all)
         XCTAssertNil(records[1].cinematicRunRecapShareArtifactLibraryContext.savedTourHoldEntryIdentifier)
     }
 

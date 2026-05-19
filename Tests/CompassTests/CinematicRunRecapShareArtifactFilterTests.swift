@@ -137,6 +137,186 @@ final class CinematicRunRecapShareArtifactFilterTests: XCTestCase {
         XCTAssertEqual(empty.unfilteredVisibleCount, 0)
     }
 
+    func testWarningPulseFilterScopesPreviewExportsPinsAndTours() throws {
+        let workspace = try makeInitializedWorkspace()
+        _ = try workspace.writeSessionArtifact(
+            session: 1,
+            name: "recap-share-quiet-warning-pulse.md",
+            contents: artifactMarkdown(
+                title: "Quiet Pulse Recap",
+                status: "succeeded",
+                commit: "Quiet pulse commit",
+                body: "Quiet body"
+            )
+        )
+        _ = try workspace.writeSessionArtifact(
+            session: 2,
+            name: "recap-share-active-warning-pulse.md",
+            contents: artifactMarkdown(
+                title: "Active Pulse Recap",
+                status: "succeeded",
+                commit: "Active pulse commit",
+                body: "Active warning pulse body",
+                warningPulseSection: warningPulseSection(state: "active", suffix: "active")
+            )
+        )
+        _ = try workspace.writeSessionArtifact(
+            session: 3,
+            name: "recap-share-snoozed-warning-pulse.md",
+            contents: artifactMarkdown(
+                title: "Snoozed Pulse Recap",
+                status: "succeeded",
+                commit: "Snoozed pulse commit",
+                body: "Snoozed warning pulse body",
+                warningPulseSection: warningPulseSection(state: "snoozed", suffix: "snoozed")
+            )
+        )
+        let history = workspace.refreshRunRecapShareArtifactHistory()
+        let quietEntry = try XCTUnwrap(history.entries.first { $0.sessionNumber == 1 })
+        let activeEntry = try XCTUnwrap(history.entries.first { $0.sessionNumber == 2 })
+        let snoozedEntry = try XCTUnwrap(history.entries.first { $0.sessionNumber == 3 })
+
+        let anyPreview = CinematicRunRecapShareArtifactPreviewBrowserPlanner.plan(
+            historyPlan: history,
+            warningPulseFilter: .any
+        )
+        XCTAssertEqual(anyPreview.warningPulseFilterIdentifier, "any")
+        XCTAssertEqual(anyPreview.warningPulseFilterMatchCount, 2)
+        XCTAssertEqual(anyPreview.warningPulseAnyCount, 2)
+        XCTAssertEqual(anyPreview.warningPulseActiveCount, 1)
+        XCTAssertEqual(anyPreview.warningPulseSnoozedCount, 1)
+        XCTAssertEqual(anyPreview.warningPulseUnknownCount, 0)
+        XCTAssertEqual(anyPreview.matchCount, 2)
+        XCTAssertEqual(anyPreview.unfilteredVisibleCount, 2)
+        XCTAssertEqual(anyPreview.selectedEntryIdentifier, snoozedEntry.identifier)
+
+        let activePreview = CinematicRunRecapShareArtifactPreviewBrowserPlanner.plan(
+            historyPlan: history,
+            selectedEntryIdentifier: snoozedEntry.identifier,
+            warningPulseFilter: .active
+        )
+        XCTAssertEqual(activePreview.warningPulseFilterIdentifier, "active")
+        XCTAssertEqual(activePreview.matchCount, 1)
+        XCTAssertEqual(activePreview.selectedEntryIdentifier, activeEntry.identifier)
+        XCTAssertEqual(activePreview.selectedFallbackEntryIdentifier, activeEntry.identifier)
+        XCTAssertEqual(activePreview.selectedFallbackReasonIdentifier, "filtered-selection")
+
+        let activeSearchNoMatch = CinematicRunRecapShareArtifactPreviewBrowserPlanner.plan(
+            historyPlan: history,
+            searchQuery: "snoozed",
+            warningPulseFilter: .active
+        )
+        XCTAssertEqual(activeSearchNoMatch.availabilityReason, "no-matching-recap-share-artifacts")
+        XCTAssertEqual(activeSearchNoMatch.noMatchAvailabilityReason, "no-matching-recap-share-artifacts")
+        XCTAssertEqual(activeSearchNoMatch.warningPulseFilterMatchCount, 1)
+
+        let filteredExport = CinematicRunRecapShareArtifactSubsetExportPlanner.plan(
+            historyPlan: history,
+            scope: .filtered,
+            warningPulseFilter: .active
+        )
+        XCTAssertEqual(filteredExport.warningPulseFilterIdentifier, "active")
+        XCTAssertEqual(filteredExport.exportedEntryIdentifiers, [activeEntry.identifier])
+        XCTAssertEqual(filteredExport.warningPulseAuditCount, 1)
+        XCTAssertTrue(filteredExport.markdownContents.contains("- Warning pulse filter: active"))
+
+        let rollup = CinematicRunRecapShareArtifactRollupPlanner.plan(
+            historyPlan: history,
+            warningPulseFilter: .any
+        )
+        XCTAssertEqual(rollup.warningPulseFilterIdentifier, "any")
+        XCTAssertEqual(rollup.matchingEntryCount, 2)
+        XCTAssertEqual(rollup.warningPulseAuditCount, 2)
+        XCTAssertTrue(rollup.exportText.contains("- Warning pulse filter: any"))
+
+        let comparison = CinematicRunRecapShareArtifactComparisonPlanner.plan(
+            historyPlan: history,
+            selectedEntryIdentifier: snoozedEntry.identifier,
+            warningPulseFilter: .any
+        )
+        XCTAssertEqual(comparison.warningPulseFilterIdentifier, "any")
+        XCTAssertEqual(comparison.matchingEntryCount, 2)
+        XCTAssertEqual(comparison.compareEntryIdentifier, activeEntry.identifier)
+        XCTAssertTrue(comparison.exportText.contains("- Warning pulse filter: any"))
+
+        let pins = CinematicRunRecapShareArtifactPinnedReferencePlanner.plan(
+            historyPlan: history,
+            pinnedEntryIdentifiers: [quietEntry.identifier, activeEntry.identifier, snoozedEntry.identifier],
+            warningPulseFilter: .active
+        )
+        XCTAssertEqual(pins.warningPulseFilterIdentifier, "active")
+        XCTAssertEqual(pins.retainedPinnedEntryCount, 3)
+        XCTAssertEqual(pins.quickSelectEntryIdentifiers, [activeEntry.identifier])
+        XCTAssertEqual(Set(pins.filteredPinnedEntryIdentifiers), Set([quietEntry.identifier, snoozedEntry.identifier]))
+        XCTAssertTrue(pins.exportText.contains("- Warning pulse filter: active"))
+
+        let tour = CinematicRunRecapShareArtifactTourPlanner.plan(
+            historyPlan: history,
+            libraryContext: CinematicRunRecapShareArtifactLibraryContext(
+                selectedEntryIdentifier: quietEntry.identifier,
+                pinnedEntryIdentifiers: [quietEntry.identifier, activeEntry.identifier, snoozedEntry.identifier],
+                savedTourHoldEntryIdentifier: quietEntry.identifier,
+                warningPulseFilter: .active
+            )
+        )
+        XCTAssertEqual(tour.warningPulseFilterIdentifier, "active")
+        XCTAssertEqual(tour.selectedEntryIdentifier, activeEntry.identifier)
+        XCTAssertEqual(tour.selectionSourceIdentifier, "pinned")
+        XCTAssertEqual(tour.filteredSavedTourHoldEntryIdentifier, quietEntry.identifier)
+        XCTAssertEqual(Set(tour.filteredPinnedEntryIdentifiers), Set([quietEntry.identifier, snoozedEntry.identifier]))
+
+        let report = CinematicDiagnostics.report(
+            repoName: "Compass",
+            phase: "Succeeded",
+            immediateTitle: "Filter warning pulse artifacts",
+            completedCount: 3,
+            latestEvent: nil,
+            languageProfile: .empty,
+            activityProfile: .empty,
+            influenceSettings: CinematicInfluenceSettings(),
+            runRecapShareArtifactHistoryPlan: history,
+            runRecapShareArtifactPreviewSelectedEntryIdentifier: quietEntry.identifier,
+            runRecapShareArtifactWarningPulseFilter: .active,
+            runRecapShareArtifactPinnedEntryIdentifiers: [
+                quietEntry.identifier,
+                activeEntry.identifier,
+                snoozedEntry.identifier
+            ],
+            runRecapShareArtifactSavedTourHoldEntryIdentifier: quietEntry.identifier
+        )
+        let summary = CinematicDiagnosticsSummary(
+            report: report,
+            visualSmoke: CinematicVisualSmokeReport(reports: [report])
+        )
+        let previewRow = try XCTUnwrap(summary.rows.first { $0.id == "run-recap-share-artifact-preview" })
+        XCTAssertEqual(report.runRecapShareArtifactPreview.warningPulseFilterIdentifier, "active")
+        XCTAssertEqual(report.runRecapShareArtifactPreview.warningPulseFilterMatchCount, 1)
+        XCTAssertEqual(report.runRecapShareArtifactRollup.warningPulseFilterIdentifier, "active")
+        XCTAssertEqual(report.runRecapShareArtifactTour.warningPulseFilterIdentifier, "active")
+        XCTAssertTrue(report.identifier.contains("run-recap-share-artifact-preview-warning-filter:active"))
+        XCTAssertTrue(previewRow.detail.contains("pulse filter active on m1"))
+        XCTAssertTrue(summary.exportText.contains("pulse filter active on m1"))
+
+        let quietOnlyWorkspace = try makeInitializedWorkspace()
+        _ = try quietOnlyWorkspace.writeSessionArtifact(
+            session: 1,
+            name: "recap-share-quiet-only.md",
+            contents: artifactMarkdown(
+                title: "Quiet Only",
+                status: "succeeded",
+                commit: "Quiet only commit",
+                body: "No warning pulse"
+            )
+        )
+        let quietOnlyPreview = CinematicRunRecapShareArtifactPreviewBrowserPlanner.plan(
+            historyPlan: quietOnlyWorkspace.refreshRunRecapShareArtifactHistory(),
+            warningPulseFilter: .active
+        )
+        XCTAssertEqual(quietOnlyPreview.availabilityReason, "no-matching-warning-pulse-artifacts")
+        XCTAssertEqual(quietOnlyPreview.noMatchAvailabilityReason, "no-matching-warning-pulse-artifacts")
+        XCTAssertTrue(quietOnlyPreview.bodyPreviewText.contains("active warning-pulse filter"))
+    }
+
     func testSearchPreservesMatchingSelectionAndFallsBackToNewestMatchingArtifact() throws {
         let workspace = try makeInitializedWorkspace()
         for session in 1...4 {
@@ -498,7 +678,8 @@ final class CinematicRunRecapShareArtifactFilterTests: XCTestCase {
         title: String,
         status: String,
         commit: String,
-        body: String
+        body: String,
+        warningPulseSection: String = ""
     ) -> String {
         """
         # Compass Run Recap Share
@@ -524,6 +705,29 @@ final class CinematicRunRecapShareArtifactFilterTests: XCTestCase {
         ```text
         \(body)
         ```
+
+        \(warningPulseSection)
+        """
+    }
+
+    private func warningPulseSection(state: String, suffix: String) -> String {
+        """
+        ## Diagnostics Warning Pulse
+
+        - Warning pulse audit: filter-warning-pulse-\(suffix)
+        - State: \(state)
+        - Bundle: filter-warning-bundle-\(suffix)
+        - Quieting status: \(state)
+        - Sequence: 1
+        - Capture count: 2
+        - Target count: 1
+        - Warning count: 2
+        - Warning identifiers: visual-smoke.filter-warning-pulse-\(suffix)-a, visual-smoke.filter-warning-pulse-\(suffix)-b
+        - Omitted warning identifiers: 0
+        - Target anchors: visual-smoke-check-filter-warning-pulse-\(suffix)
+        - Omitted target anchors: 0
+        - Related rows: diagnostics-row-run-recap-share-artifact-tour
+        - Omitted related rows: 0
         """
     }
 
