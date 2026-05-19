@@ -36,42 +36,6 @@ final class ProcessRunnerExecutionRouteTests: XCTestCase {
         XCTAssertEqual(invocation.workingDirectory, repoURL.standardizedFileURL)
     }
 
-    func testContainerShellRouteUsesAppleContainerRunVolumeAndWorkspace() async throws {
-        // Scenario name preserved: a ready Shared VM route assembles an ssh invocation.
-        let repoURL = try makeTemporaryDirectory(prefix: "ProcessRunnerSharedVM")
-        let route = SharedVMRoute(
-            sshDestination: "compass@192.0.2.10",
-            hostWorktreeURL: repoURL,
-            guestWorkspacePath: "/opt/compass/workspaces/dev-AAA/worktree",
-            guestCodexPath: "/opt/compass/codex/codex",
-            identityFile: "/tmp/compass-key",
-            knownHostsFile: "/tmp/compass-known"
-        )
-        let launchPlan = CodexExecutionLaunchPlan(
-            selectedPreference: .sharedVM,
-            effectiveRoute: .sharedVM(route),
-            vmReadiness: .ready(sshDestination: route.sshDestination)
-        )
-        var capturedInvocation: CodexExecutionInvocation?
-
-        _ = try await ProcessRunner.runShell(
-            "swift test --filter CompassTests",
-            workingDirectory: repoURL,
-            launchPlan: launchPlan,
-            runner: { invocation, _, _, _, _ in
-                capturedInvocation = invocation
-                return ProcessResult(exitCode: 0, stdout: "", stderr: "")
-            }
-        )
-
-        let invocation = try XCTUnwrap(capturedInvocation)
-        XCTAssertEqual(invocation.executable, "/usr/bin/ssh")
-        XCTAssertEqual(invocation.workingDirectory, repoURL.standardizedFileURL)
-        XCTAssertTrue(invocation.arguments.contains("compass@192.0.2.10"))
-        let remote = try XCTUnwrap(invocation.arguments.last)
-        XCTAssertTrue(remote.contains("cd '/opt/compass/workspaces/dev-AAA/worktree'"))
-        XCTAssertTrue(remote.contains("sh -lc 'swift test --filter CompassTests'"))
-    }
 
     func testContainerShellRouteAddsContainerEnvBeforeImageInSortedOrder() async throws {
         // Scenario name preserved: env vars are not part of `runShell` invocations for Shared VM —

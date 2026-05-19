@@ -35,6 +35,36 @@ final class SharedCompassVM: ObservableObject {
     private var sleepObserver: SharedCompassVMSleepObserver?
     private var lastResolvedSSHDestination: String?
 
+    /// Pipe attached to the guest's virtio console port. The guest's first-boot
+    /// script writes its IP here as `COMPASS_GUEST_IP=<addr>\n`. The host
+    /// keeps the pipe alive for the lifetime of the running VM so the buffer
+    /// is never closed mid-read. See `attachConsolePipeIfNeeded`.
+    private var consolePipe: Pipe?
+    private var consoleReadTask: Task<Void, Never>?
+
+    // MARK: - Shared singleton
+
+    /// Process-wide host instance. AppModel binds to this so the launch-plan
+    /// integration can reach the same readiness state from any call site.
+    /// `makeDefault()` returns nil if its dependencies (e.g. Application
+    /// Support / Caches directory creation) cannot be satisfied — in that case
+    /// `shared.readiness` reports `.unavailable(...)` and downstream callers
+    /// fall back to host execution.
+    static let shared: SharedCompassVM = {
+        do {
+            return try SharedCompassVM.makeDefault()
+        } catch {
+            let detail = SharedCompassVMAvailabilityCheck.describe(error: error)
+            return SharedCompassVM(
+                bundle: SharedCompassVMBundle(rootURL: FileManager.default.temporaryDirectory
+                    .appendingPathComponent("compass-shared-vm-fallback", isDirectory: true)),
+                workspacesRootURL: FileManager.default.temporaryDirectory
+                    .appendingPathComponent("compass-shared-vm-workspaces", isDirectory: true),
+                fallbackUnavailableReason: "Shared VM bundle could not be initialised: \(detail)"
+            )
+        }
+    }()
+
     // MARK: - Dependencies (injection seam)
 
     struct Dependencies {
@@ -53,14 +83,24 @@ final class SharedCompassVM: ObservableObject {
 
     // MARK: - Init
 
+    /// When non-nil, every lifecycle method is short-circuited and `readiness`
+    /// reports `.unavailable(reason:)`. Used by `SharedCompassVM.shared` when
+    /// even constructing the canonical bundle fails (e.g. unwritable home).
+    private let fallbackUnavailableReason: String?
+
     init(
         bundle: SharedCompassVMBundle,
         workspacesRootURL: URL,
-        dependencies: Dependencies = .live()
+        dependencies: Dependencies = .live(),
+        fallbackUnavailableReason: String? = nil
     ) {
         self.bundle = bundle
         self.workspacesRootURL = workspacesRootURL.standardizedFileURL
         self.dependencies = dependencies
+        self.fallbackUnavailableReason = fallbackUnavailableReason
+        if let reason = fallbackUnavailableReason {
+            readiness = .unavailable(reason: reason)
+        }
         installSleepObserver()
     }
 
@@ -87,6 +127,10 @@ final class SharedCompassVM: ObservableObject {
     /// Quick "is the host capable + is anything cached?" check. Does NOT start
     /// the VM. Safe to call from `AppModel.bootstrap`.
     func warmup() async throws {
+        if let reason = fallbackUnavailableReason {
+            readiness = .unavailable(reason: reason)
+            return
+        }
         let availability = dependencies.availability()
         if case .unavailable(let reason) = availability {
             readiness = .unavailable(reason: reason)
@@ -129,10 +173,26 @@ final class SharedCompassVM: ObservableObject {
     /// Pumps progress into `readiness`. Idempotent against re-invocation if
     /// install completed previously.
     func provisionIfNeeded() async throws {
+        if let reason = fallbackUnavailableReason {
+            readiness = .unavailable(reason: reason)
+            return
+        }
         let availability = dependencies.availability()
         if case .unavailable(let reason) = availability {
             readiness = .unavailable(reason: reason)
             return
+        }
+
+        // Ensure the bundle directory exists and the Compass-owned SSH keypair
+        // is generated *before* we kick off the IPSW install. The public half
+        // is later planted into the guest's `~/.ssh/authorized_keys` during
+        // guest-prep, so it must exist by the time the guest is bootable.
+        try bundle.ensureExists(fileManager: dependencies.fileManager)
+        do {
+            try bundle.ensureSSHKeypair(fileManager: dependencies.fileManager)
+        } catch {
+            readiness = .error(detail: SharedCompassVMAvailabilityCheck.describe(error: error))
+            throw error
         }
 
         // If we already have a disk image and state says ready, skip.
@@ -186,6 +246,7 @@ final class SharedCompassVM: ObservableObject {
     /// Caller is responsible for first calling `provisionIfNeeded` if the
     /// bundle is empty. Idempotent if the VM is already running.
     func start() async throws {
+        if fallbackUnavailableReason != nil { return }
         if let virtualMachine, virtualMachine.state == .running {
             return
         }
@@ -199,6 +260,13 @@ final class SharedCompassVM: ObservableObject {
             for: inputs,
             fileManager: dependencies.fileManager
         )
+
+        // Attach a host-owned Pipe to the virtio console so first-boot guest
+        // scripts can publish `COMPASS_GUEST_IP=<addr>` lines back to us.
+        // Phase 3 keeps this hook live for the full VM lifetime; the read
+        // task discards anything that doesn't match the known prefix.
+        attachConsolePipe(to: configuration)
+
         try configuration.validate()
 
         let machine = VZVirtualMachine(configuration: configuration)
@@ -238,6 +306,7 @@ final class SharedCompassVM: ObservableObject {
         guard let machine = virtualMachine else { return }
         if machine.state == .stopped {
             virtualMachine = nil
+            tearDownConsolePipe()
             return
         }
         do {
@@ -254,6 +323,7 @@ final class SharedCompassVM: ObservableObject {
             // Stop failures are non-fatal; the VM may already be halted.
         }
         virtualMachine = nil
+        tearDownConsolePipe()
     }
 
     /// Marks the user-driven first-boot Setup Assistant as complete. Transitions
@@ -304,6 +374,67 @@ final class SharedCompassVM: ObservableObject {
         }
     }
 
+    /// Phase 3 post-setup hook: probes the guest's codex CLI auth state and
+    /// (if unauthenticated) copies the host's `~/.codex` directory across as a
+    /// best-effort fallback. Re-probes; if still not authenticated, transitions
+    /// readiness to `.codexLoginPending` so the UI can prompt the user.
+    ///
+    /// Intended to be called after `markSetupComplete()` reports SSH is up.
+    /// Safe to call multiple times — it never overwrites an already-good
+    /// credential set on the guest (scp will refresh files in place, which is
+    /// the desired behaviour when host credentials are newer).
+    func ensureCodexAuthenticated() async {
+        if fallbackUnavailableReason != nil { return }
+        guard let destination = lastResolvedSSHDestination else {
+            // We can't probe without an SSH destination. Surface as a soft
+            // failure (.codexLoginPending) and let the caller try again.
+            readiness = .codexLoginPending
+            return
+        }
+        let options = SharedCompassVMGuestBridge.ConnectionOptions(
+            identityFile: bundle.privateKeyURL.path,
+            knownHostsFile: bundle.knownHostsURL.path,
+            connectTimeoutSeconds: 5
+        )
+
+        let initialState = await SharedCompassVMCodexAuthBridge.checkGuestCodexAuth(
+            destination: destination,
+            options: options
+        )
+        switch initialState {
+        case .authenticated:
+            markCodexLoginComplete()
+            return
+        case .indeterminate:
+            // Treat indeterminate as login-pending so the user is prompted.
+            readiness = .codexLoginPending
+            return
+        case .unauthenticated:
+            break
+        }
+
+        do {
+            try await SharedCompassVMCodexAuthBridge.copyHostCodexCredentialsToGuest(
+                destination: destination,
+                options: options
+            )
+        } catch {
+            readiness = .codexLoginPending
+            return
+        }
+
+        let recheck = await SharedCompassVMCodexAuthBridge.checkGuestCodexAuth(
+            destination: destination,
+            options: options
+        )
+        switch recheck {
+        case .authenticated:
+            markCodexLoginComplete()
+        case .unauthenticated, .indeterminate:
+            readiness = .codexLoginPending
+        }
+    }
+
     /// Hook for future per-project ephemeral mounts. Today the parent
     /// `compass-workspaces` share is permanent and host-managed subdirectories
     /// suffice, so this is a no-op. Phase 3 callers may invoke it for symmetry.
@@ -346,5 +477,77 @@ final class SharedCompassVM: ObservableObject {
 
     private func updateInstallProgress(_ fraction: Double) {
         readiness = .installing(fractionCompleted: fraction)
+    }
+
+    // MARK: - Console pipe (guest IP discovery)
+
+    /// Wires a host-owned `Pipe()` to the virtio console device so the guest's
+    /// first-boot script can report its IP back to Compass. We hold the pipe
+    /// in `self.consolePipe` for the entire VM lifetime; closing it mid-run
+    /// would close the read side from under the guest.
+    ///
+    /// First-boot script contract (delivered into the VirtioFS workspace as a
+    /// post-Setup-Assistant prep step — see Phase 4 TODO): the script writes
+    /// one line of the form `COMPASS_GUEST_IP=<addr>` to `/dev/cu.virtio-portN`
+    /// (`compass.guest.report`). Anything else on the port is ignored. Until
+    /// the first-boot script ships, this hook simply discards traffic; the
+    /// pipe is still useful for forward-compat readiness and lets us drop the
+    /// `port.attachment = nil` placeholder.
+    private func attachConsolePipe(to configuration: VZVirtualMachineConfiguration) {
+        let pipe = Pipe()
+        let attachment = VZFileHandleSerialPortAttachment(
+            fileHandleForReading: pipe.fileHandleForWriting,
+            fileHandleForWriting: pipe.fileHandleForReading
+        )
+        do {
+            try SharedCompassVMConfiguration.replaceConsoleAttachment(attachment, on: configuration)
+        } catch {
+            // No console device on this configuration — bail without retaining
+            // the pipe. Nothing else relies on it being live.
+            return
+        }
+        self.consolePipe = pipe
+
+        let readHandle = pipe.fileHandleForReading
+        consoleReadTask = Task.detached { [weak self] in
+            var buffer = ""
+            while !Task.isCancelled {
+                let data = readHandle.availableData
+                if data.isEmpty {
+                    // The far side closed; the VM has likely stopped.
+                    break
+                }
+                if let chunk = String(data: data, encoding: .utf8) {
+                    buffer += chunk
+                    while let newlineRange = buffer.range(of: "\n") {
+                        let line = String(buffer[..<newlineRange.lowerBound])
+                        buffer.removeSubrange(buffer.startIndex..<newlineRange.upperBound)
+                        await Self.handleConsoleLine(line, host: self)
+                    }
+                }
+            }
+        }
+    }
+
+    private func tearDownConsolePipe() {
+        consoleReadTask?.cancel()
+        consoleReadTask = nil
+        if let pipe = consolePipe {
+            try? pipe.fileHandleForReading.close()
+            try? pipe.fileHandleForWriting.close()
+        }
+        consolePipe = nil
+    }
+
+    @MainActor
+    private static func handleConsoleLine(_ line: String, host: SharedCompassVM?) async {
+        guard let host else { return }
+        let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.hasPrefix("COMPASS_GUEST_IP=") else { return }
+        let ip = String(trimmed.dropFirst("COMPASS_GUEST_IP=".count))
+        guard !ip.isEmpty else { return }
+        _ = try? host.bundle.mutateState(fileManager: host.dependencies.fileManager) {
+            $0.lastKnownGoodIP = ip
+        }
     }
 }

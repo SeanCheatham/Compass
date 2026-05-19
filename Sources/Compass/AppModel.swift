@@ -1784,10 +1784,69 @@ extension CompassProject {
     }
 
     private func codexLaunchPlan(for nativeExecutionURL: URL) -> CodexExecutionLaunchPlan {
-        CodexExecutionLaunchPlan.plan(
+        // Phase 3: a project's `developSandbox` is the authoritative per-project
+        // toggle. Translate to the planner-level `CodexExecutionEnvironmentPreference`
+        // so the existing readiness-gated planner can route to the shared VM when
+        // the readiness snapshot is .ready, and fall back to host otherwise.
+        let preference: CodexExecutionEnvironmentPreference
+        switch developSandbox {
+        case .host:
+            preference = .host
+        case .sharedVM:
+            preference = .sharedVM
+        }
+        let host = SharedCompassVM.shared
+        let readiness = host.readiness
+        return CodexExecutionLaunchPlan.plan(
             repoURL: nativeExecutionURL,
-            preference: codexExecutionEnvironmentPreference,
-            vmReadiness: nil
+            preference: preference,
+            vmReadiness: readiness,
+            sharedVMRouteFactory: { hostURL in
+                Self.makeSharedVMRoute(
+                    hostWorktreeURL: hostURL,
+                    readiness: readiness,
+                    bundle: host.bundle,
+                    workspacesRootURL: host.workspacesRootURL
+                )
+            }
+        )
+    }
+
+    /// Builds a `SharedVMRoute` for a given on-host worktree URL by mapping the
+    /// path under the `compass-workspaces` mount point to its `/opt/compass`
+    /// guest equivalent. Returns nil if the readiness is not `.ready` or if
+    /// the worktree does not sit under the workspaces root (in which case the
+    /// planner falls back to host).
+    private static func makeSharedVMRoute(
+        hostWorktreeURL: URL,
+        readiness: SharedCompassVMReadiness,
+        bundle: SharedCompassVMBundle,
+        workspacesRootURL: URL
+    ) -> SharedVMRoute? {
+        guard case let .ready(sshDestination) = readiness else { return nil }
+
+        let hostPath = hostWorktreeURL.standardizedFileURL.path
+        let rootPath = workspacesRootURL.standardizedFileURL.path
+        let rootPrefix = rootPath.hasSuffix("/") ? rootPath : rootPath + "/"
+        let guestWorkspacePath: String
+        if hostPath == rootPath {
+            guestWorkspacePath = "/opt/compass/workspaces"
+        } else if hostPath.hasPrefix(rootPrefix) {
+            let relative = String(hostPath.dropFirst(rootPrefix.count))
+            guestWorkspacePath = "/opt/compass/workspaces/\(relative)"
+        } else {
+            // Worktree is outside the VirtioFS share — planner falls back to host.
+            return nil
+        }
+
+        return SharedVMRoute(
+            sshDestination: sshDestination,
+            hostWorktreeURL: hostWorktreeURL,
+            guestWorkspacePath: guestWorkspacePath,
+            guestCodexPath: "/opt/compass/codex/codex",
+            environmentVariables: [:],
+            identityFile: bundle.privateKeyURL.path,
+            knownHostsFile: bundle.knownHostsURL.path
         )
     }
 
@@ -2122,8 +2181,18 @@ extension CompassProject {
             )
         }
 
-        let parentURL = FileManager.default.temporaryDirectory
-            .appending(path: "compass-dev-\(UUID().uuidString)", directoryHint: .isDirectory)
+        let worktreesRoot = try FileManager.default
+            .url(
+                for: .cachesDirectory,
+                in: .userDomainMask,
+                appropriateFor: nil,
+                create: true
+            )
+            .appending(path: "Compass", directoryHint: .isDirectory)
+            .appending(path: "Worktrees", directoryHint: .isDirectory)
+        try FileManager.default.createDirectory(at: worktreesRoot, withIntermediateDirectories: true)
+        let parentURL = worktreesRoot
+            .appending(path: "dev-\(UUID().uuidString)", directoryHint: .isDirectory)
         let worktreeURL = parentURL.appending(path: "worktree", directoryHint: .isDirectory)
         let timestamp = Int(Date().timeIntervalSince1970 * 1000)
         let suffix = UUID().uuidString.prefix(8).lowercased()
@@ -2642,6 +2711,12 @@ final class AppModel: ObservableObject {
     @Published var modelOverride = ""
     @Published var errorMessage: String?
 
+    /// Process-wide shared VM host. Bound to the singleton in
+    /// `SharedCompassVM.shared` so every call site sees the same readiness
+    /// snapshot. UI binds to its `@Published` properties via the singleton's
+    /// own `ObservableObject` surface — there is no per-AppModel mirror.
+    let sharedVMHost: SharedCompassVM = SharedCompassVM.shared
+
     var selectedProject: CompassProject? {
         projects.first { $0.id == selectedProjectID }
     }
@@ -2656,6 +2731,45 @@ final class AppModel: ObservableObject {
             for project in projects {
                 await project.refresh()
             }
+        }
+
+        // Phase 3 always-on lifecycle: warm up the shared VM, and if the
+        // bundle is already provisioned, kick off the live VZ instance so
+        // codex execs against `.sharedVM` projects don't pay a cold-start
+        // tax. Failures are non-fatal — the readiness state captures any
+        // problem and Develop falls back to `.host` automatically.
+        Task { [weak self] in
+            guard let self else { return }
+            do {
+                try await self.sharedVMHost.warmup()
+            } catch {
+                self.log(error.localizedDescription, level: .warning)
+                return
+            }
+            if self.sharedVMHost.bundle.existsOnDisk() {
+                do {
+                    try await self.sharedVMHost.start()
+                } catch {
+                    self.log(
+                        "Shared VM start failed: \(error.localizedDescription)",
+                        level: .warning
+                    )
+                }
+            }
+        }
+    }
+
+    /// Surface for AppModel-level log lines (the per-project loggers route
+    /// through `CompassProject`). Used by the warmup task.
+    private func log(_ message: String, level: LiveLine.Level) {
+        // No global log buffer at the AppModel layer today; surface via
+        // `errorMessage` for warnings/errors so the UI shows them and discard
+        // info lines.
+        switch level {
+        case .warning, .error:
+            errorMessage = message
+        default:
+            break
         }
     }
 

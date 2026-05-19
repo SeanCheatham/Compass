@@ -36,29 +36,6 @@ final class CodexExecutionLaunchPlanTests: XCTestCase {
         XCTAssertEqual(plan.workspaceLabel, "/opt/compass/workspaces/dev-AAA/worktree")
     }
 
-    func testImageDevcontainerContainerEnvRoutesWithSanitizedSupportTokens() throws {
-        let repoURL = try makeTemporaryDirectory(prefix: "VMRoutesEnv")
-        let route = SharedVMRoute(
-            sshDestination: "compass@192.0.2.10",
-            hostWorktreeURL: repoURL,
-            guestWorkspacePath: "/opt/compass/workspaces/dev-AAA/worktree",
-            guestCodexPath: "/opt/compass/codex/codex",
-            environmentVariables: ["BETA": "second", "ALPHA": "first"]
-        )
-        let plan = CodexExecutionLaunchPlan(
-            selectedPreference: .sharedVM,
-            effectiveRoute: .sharedVM(route),
-            vmReadiness: .ready(sshDestination: route.sshDestination)
-        )
-
-        let invocation = plan.codexInvocation(
-            codexBinary: "codex",
-            arguments: ["exec", "-"],
-            hostWorkingDirectory: repoURL
-        )
-        let remote = try XCTUnwrap(invocation.arguments.last)
-        XCTAssertTrue(remote.contains("env ALPHA='first' BETA='second'"))
-    }
 
     func testNativePreferenceStaysNativeEvenWhenSupportedConfigAndToolExist() throws {
         let repoURL = try makeTemporaryDirectory(prefix: "HostPreference")

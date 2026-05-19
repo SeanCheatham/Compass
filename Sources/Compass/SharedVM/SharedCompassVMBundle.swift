@@ -65,6 +65,80 @@ struct SharedCompassVMBundle: Equatable {
         cacheDirectoryURL.appendingPathComponent("RestoreImage-\(version).ipsw", isDirectory: false)
     }
 
+    /// Host-side stash for a copy of the user's `~/.codex` directory, used by
+    /// the codex-auth fallback path when the guest is not yet authenticated.
+    /// The directory is created lazily by the auth bridge; callers should not
+    /// assume it exists.
+    var codexCredentialsStashURL: URL {
+        rootURL.appendingPathComponent("codex-credentials", isDirectory: true)
+    }
+
+    // MARK: SSH keypair
+
+    /// Errors produced by `ensureSSHKeypair`.
+    enum SSHKeypairError: Error, CustomStringConvertible {
+        case sshKeygenMissing
+        case sshKeygenFailed(exitCode: Int32, stderr: String)
+
+        var description: String {
+            switch self {
+            case .sshKeygenMissing:
+                return "/usr/bin/ssh-keygen is not available on this host"
+            case let .sshKeygenFailed(code, stderr):
+                let trimmed = stderr.trimmingCharacters(in: .whitespacesAndNewlines)
+                return "ssh-keygen exited \(code): \(trimmed)"
+            }
+        }
+    }
+
+    /// Generates the Compass-owned Ed25519 keypair (no passphrase) at
+    /// `id_ed25519` / `id_ed25519.pub` if either half is missing. Idempotent:
+    /// when both halves already exist this returns without spawning a process.
+    ///
+    /// Used by `provisionIfNeeded` before the IPSW install so the public key
+    /// is on disk by the time the guest is bootable (and ready to be planted
+    /// into the guest's `~/.ssh/authorized_keys` during first-boot prep).
+    @discardableResult
+    func ensureSSHKeypair(fileManager: FileManager = .default) throws -> Bool {
+        if fileManager.fileExists(atPath: privateKeyURL.path),
+           fileManager.fileExists(atPath: publicKeyURL.path) {
+            return false
+        }
+        try ensureExists(fileManager: fileManager)
+        // ssh-keygen refuses to overwrite, so remove any half-generated state.
+        try? fileManager.removeItem(at: privateKeyURL)
+        try? fileManager.removeItem(at: publicKeyURL)
+
+        let keygenPath = "/usr/bin/ssh-keygen"
+        guard fileManager.fileExists(atPath: keygenPath) else {
+            throw SSHKeypairError.sshKeygenMissing
+        }
+
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: keygenPath)
+        process.arguments = [
+            "-t", "ed25519",
+            "-N", "",
+            "-C", "compass-shared-vm",
+            "-f", privateKeyURL.path
+        ]
+        let stderrPipe = Pipe()
+        let stdoutPipe = Pipe()
+        process.standardOutput = stdoutPipe
+        process.standardError = stderrPipe
+        try process.run()
+        process.waitUntilExit()
+        if process.terminationStatus != 0 {
+            let data = (try? stderrPipe.fileHandleForReading.readToEnd()) ?? Data()
+            let message = String(data: data, encoding: .utf8) ?? ""
+            throw SSHKeypairError.sshKeygenFailed(
+                exitCode: process.terminationStatus,
+                stderr: message
+            )
+        }
+        return true
+    }
+
     // MARK: Layout materialization
 
     /// Creates the bundle root and its known subdirectories if absent.

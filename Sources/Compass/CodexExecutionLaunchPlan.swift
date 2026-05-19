@@ -267,37 +267,37 @@ struct CodexExecutionLaunchPlan: Equatable {
                 workingDirectory: hostWorkingDirectory
             )
         case let .sharedVM(route):
-            var remoteCommand = "cd \(Self.shellQuote(route.guestWorkspacePath))"
-            if !route.environmentVariables.isEmpty {
-                let envParts = route.environmentVariables
-                    .sorted { $0.key < $1.key }
-                    .map { "\($0.key)=\(Self.shellQuote($0.value))" }
-                    .joined(separator: " ")
-                remoteCommand += " && env \(envParts) \(Self.shellQuote(route.guestCodexPath))"
-            } else {
-                remoteCommand += " && \(Self.shellQuote(route.guestCodexPath))"
+            // Translate any host-path arguments to their guest counterparts
+            // (schema/last-message files live inside the worktree subtree
+            // because CodexExecutor.makeTemporaryDirectory places them there
+            // for sharedVM routes, so they map cleanly through VirtioFS).
+            let translatedArguments = arguments.map { argument -> String in
+                if argument.hasPrefix("/") {
+                    let url = URL(fileURLWithPath: argument)
+                    return route.guestPath(forHostURL: url) ?? argument
+                }
+                return argument
             }
-            for argument in arguments {
-                remoteCommand += " \(Self.shellQuote(argument))"
-            }
-
-            var sshArguments: [String] = []
-            if let identityFile = route.identityFile, !identityFile.isEmpty {
-                sshArguments += ["-i", identityFile]
-            }
-            if let knownHostsFile = route.knownHostsFile, !knownHostsFile.isEmpty {
-                sshArguments += ["-o", "UserKnownHostsFile=\(knownHostsFile)"]
-            }
-            sshArguments += [
-                "-o", "StrictHostKeyChecking=yes",
-                "-o", "BatchMode=yes",
-                "-T",
-                route.sshDestination,
-                remoteCommand
-            ]
-
+            let remoteCommand = SharedCompassVMGuestBridge.buildRemoteCodexCommand(
+                guestWorkspacePath: route.guestWorkspacePath,
+                guestCodexPath: route.guestCodexPath,
+                environmentVariables: route.environmentVariables,
+                codexArguments: translatedArguments
+            )
+            let options = SharedCompassVMGuestBridge.ConnectionOptions(
+                identityFile: route.identityFile,
+                knownHostsFile: route.knownHostsFile,
+                strictHostKeyChecking: true,
+                batchMode: true,
+                disablePseudoTerminal: true
+            )
+            let sshArguments = SharedCompassVMGuestBridge.sshArguments(
+                destination: route.sshDestination,
+                remoteCommand: remoteCommand,
+                options: options
+            )
             return CodexExecutionInvocation(
-                executable: "/usr/bin/ssh",
+                executable: options.executablePath,
                 arguments: sshArguments,
                 workingDirectory: hostWorkingDirectory
             )
@@ -313,23 +313,21 @@ struct CodexExecutionLaunchPlan: Equatable {
                 workingDirectory: hostWorkingDirectory
             )
         case let .sharedVM(route):
-            let remoteCommand = "cd \(Self.shellQuote(route.guestWorkspacePath)) && sh -lc \(Self.shellQuote(command))"
-            var sshArguments: [String] = []
-            if let identityFile = route.identityFile, !identityFile.isEmpty {
-                sshArguments += ["-i", identityFile]
-            }
-            if let knownHostsFile = route.knownHostsFile, !knownHostsFile.isEmpty {
-                sshArguments += ["-o", "UserKnownHostsFile=\(knownHostsFile)"]
-            }
-            sshArguments += [
-                "-o", "StrictHostKeyChecking=yes",
-                "-o", "BatchMode=yes",
-                "-T",
-                route.sshDestination,
-                remoteCommand
-            ]
+            let remoteCommand = "cd \(SharedCompassVMGuestBridge.posixQuote(route.guestWorkspacePath)) && sh -lc \(SharedCompassVMGuestBridge.posixQuote(command))"
+            let options = SharedCompassVMGuestBridge.ConnectionOptions(
+                identityFile: route.identityFile,
+                knownHostsFile: route.knownHostsFile,
+                strictHostKeyChecking: true,
+                batchMode: true,
+                disablePseudoTerminal: true
+            )
+            let sshArguments = SharedCompassVMGuestBridge.sshArguments(
+                destination: route.sshDestination,
+                remoteCommand: remoteCommand,
+                options: options
+            )
             return CodexExecutionInvocation(
-                executable: "/usr/bin/ssh",
+                executable: options.executablePath,
                 arguments: sshArguments,
                 workingDirectory: hostWorkingDirectory
             )

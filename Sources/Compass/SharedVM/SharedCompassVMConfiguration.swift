@@ -151,6 +151,53 @@ struct SharedCompassVMConfiguration {
         SharedCompassVMFileShare.validatedTag(tag)
     }
 
+    /// Errors produced by `replaceConsoleAttachment`.
+    enum ConsoleAttachmentError: Error, CustomStringConvertible {
+        case noConsoleDevice
+        case noConsolePorts
+
+        var description: String {
+            switch self {
+            case .noConsoleDevice:
+                return "Configuration has no virtio console device"
+            case .noConsolePorts:
+                return "Console device has no ports configured"
+            }
+        }
+    }
+
+    /// Replaces the first virtio console device's first port attachment in
+    /// place. Used by Phase 3's first-boot pipeline to swap the default
+    /// `nil` attachment for a `VZFileHandleSerialPortAttachment` backed by a
+    /// host-owned `Pipe()` so Compass can read the guest's IP-reporting
+    /// output line by line.
+    ///
+    /// Callers typically construct the attachment from a `Pipe` like so:
+    ///
+    /// ```swift
+    /// let pipe = Pipe()
+    /// let attachment = VZFileHandleSerialPortAttachment(
+    ///     fileHandleForReading: pipe.fileHandleForReading,
+    ///     fileHandleForWriting: pipe.fileHandleForWriting
+    /// )
+    /// try SharedCompassVMConfiguration.replaceConsoleAttachment(attachment, on: configuration)
+    /// ```
+    ///
+    /// The configuration retains the reference, so callers must keep the
+    /// `Pipe` alive for the lifetime of the running VM.
+    static func replaceConsoleAttachment(
+        _ attachment: VZSerialPortAttachment,
+        on configuration: VZVirtualMachineConfiguration
+    ) throws {
+        guard let device = configuration.consoleDevices.first as? VZVirtioConsoleDeviceConfiguration else {
+            throw ConsoleAttachmentError.noConsoleDevice
+        }
+        guard let port = device.ports[0] else {
+            throw ConsoleAttachmentError.noConsolePorts
+        }
+        port.attachment = attachment
+    }
+
     // MARK: - Component builders
 
     private static func makePlatform(

@@ -218,17 +218,180 @@ final class CodexExecutor {
         }
     }
 
+    /// Phase 3 readiness gate for the shared-VM execution route. Inspects
+    /// `SharedCompassVM.shared.readiness` and either:
+    ///
+    ///   * returns `launchPlan` unchanged when the route is already `.host` or
+    ///     the VM reports `.ready`;
+    ///   * kicks off `provisionIfNeeded` and awaits readiness (with progress
+    ///     bridged to the live log) when the VM is `.notProvisioned`;
+    ///   * falls back to a host launch plan with a structured
+    ///     `fallbackReason` for every other state (unavailable, error,
+    ///     first-boot pending, codex login pending, …).
+    ///
+    /// Provisioning runs once per process; concurrent callers see the same
+    /// readiness transition through the singleton's `@Published` state.
     private func prepareVMIfNeeded(
         _ launchPlan: CodexExecutionLaunchPlan,
         onEvent: @escaping (LiveEvent) -> Void
     ) async throws -> CodexExecutionLaunchPlan {
-        // Shared VM lifecycle is owned by `SharedCompassVM` and surfaced through
-        // `vmReadiness`. The launch-plan planner already falls back to the host route
-        // when the VM is not `.ready`, so the executor's hot path doesn't need to wait
-        // here. Future work (Phase 3) will bridge readiness progress events into the
-        // live log via `onEvent`.
-        _ = onEvent
-        return launchPlan
+        guard case .sharedVM = launchPlan.effectiveRoute else {
+            return launchPlan
+        }
+
+        let host = await MainActor.run { SharedCompassVM.shared }
+        let initialReadiness = await MainActor.run { host.readiness }
+
+        switch initialReadiness {
+        case .ready:
+            return launchPlan
+
+        case let .unavailable(reason):
+            onEvent(LiveEvent(
+                level: .warning,
+                text: "Shared VM unavailable",
+                detail: reason,
+                kind: .message
+            ))
+            return Self.hostFallback(from: launchPlan, reason: "Shared VM unavailable: \(reason)")
+
+        case let .error(detail):
+            onEvent(LiveEvent(
+                level: .error,
+                text: "Shared VM error",
+                detail: detail,
+                kind: .message
+            ))
+            return Self.hostFallback(from: launchPlan, reason: "Shared VM error: \(detail)")
+
+        case .firstBootPending:
+            onEvent(LiveEvent(
+                level: .warning,
+                text: "Shared VM needs first-boot setup",
+                detail: "Open the Sandbox tab and complete the macOS Setup Assistant inside the guest, then click Mark setup complete.",
+                kind: .message
+            ))
+            return Self.hostFallback(from: launchPlan, reason: "Shared VM is awaiting first-boot setup.")
+
+        case .codexLoginPending:
+            onEvent(LiveEvent(
+                level: .warning,
+                text: "Shared VM needs codex login",
+                detail: "Open the Sandbox tab and run `codex login` inside the guest.",
+                kind: .message
+            ))
+            return Self.hostFallback(from: launchPlan, reason: "Shared VM is awaiting codex login.")
+
+        case .guestPrepping:
+            onEvent(LiveEvent(
+                level: .info,
+                text: "Shared VM guest preparation in progress",
+                kind: .message
+            ))
+            return Self.hostFallback(from: launchPlan, reason: "Shared VM guest preparation is in progress.")
+
+        case .downloadingIPSW, .installing:
+            onEvent(LiveEvent(
+                level: .info,
+                text: "Shared VM build in progress",
+                detail: CodexExecutionLaunchPlan.readinessSummary(initialReadiness),
+                kind: .message
+            ))
+            return Self.hostFallback(
+                from: launchPlan,
+                reason: "Shared VM is still building: \(CodexExecutionLaunchPlan.readinessSummary(initialReadiness))"
+            )
+
+        case .notProvisioned:
+            onEvent(LiveEvent(
+                level: .info,
+                text: "Provisioning Shared VM",
+                detail: "Downloading the macOS restore image and installing the guest. This typically takes 30-50 minutes the first time.",
+                kind: .lifecycle,
+                status: .running
+            ))
+            return await provisionAndWait(host: host, launchPlan: launchPlan, onEvent: onEvent)
+        }
+    }
+
+    /// Kicks off provisioning and watches `readiness` transitions, bridging
+    /// progress into the live log. Bounded by a generous overall timeout so a
+    /// hung install can't wedge the develop loop indefinitely. On any failure
+    /// or timeout, falls back to host.
+    private func provisionAndWait(
+        host: SharedCompassVM,
+        launchPlan: CodexExecutionLaunchPlan,
+        onEvent: @escaping (LiveEvent) -> Void
+    ) async -> CodexExecutionLaunchPlan {
+        // 60 minutes covers IPSW download + install in one budget. Set via
+        // env var for QA / large-network forks. Bumping above 60 minutes is
+        // intentionally inconvenient — true installs take ~30-50.
+        let timeoutSeconds: TimeInterval = Self.provisionTimeoutSeconds()
+        let deadline = Date().addingTimeInterval(timeoutSeconds)
+
+        let provisionTask = Task.detached {
+            try await MainActor.run { host }.provisionIfNeeded()
+        }
+        defer { provisionTask.cancel() }
+
+        var lastSummary = ""
+        while Date() < deadline {
+            let readiness = await MainActor.run { host.readiness }
+            let summary = CodexExecutionLaunchPlan.readinessSummary(readiness)
+            if summary != lastSummary {
+                onEvent(LiveEvent(
+                    level: .info,
+                    text: "Shared VM \(summary)",
+                    kind: .lifecycle,
+                    status: .running
+                ))
+                lastSummary = summary
+            }
+            switch readiness {
+            case .ready:
+                onEvent(LiveEvent(
+                    level: .success,
+                    text: "Shared VM ready",
+                    kind: .lifecycle,
+                    status: .completed
+                ))
+                return launchPlan
+            case let .unavailable(reason):
+                return Self.hostFallback(from: launchPlan, reason: "Shared VM unavailable: \(reason)")
+            case let .error(detail):
+                return Self.hostFallback(from: launchPlan, reason: "Shared VM error: \(detail)")
+            case .firstBootPending, .codexLoginPending:
+                // First-boot/codex-login require user interaction; don't block
+                // the develop loop waiting for it.
+                return Self.hostFallback(
+                    from: launchPlan,
+                    reason: "Shared VM needs user setup: \(summary)"
+                )
+            case .notProvisioned, .downloadingIPSW, .installing, .guestPrepping:
+                try? await Task.sleep(nanoseconds: 1_000_000_000)
+            }
+        }
+
+        return Self.hostFallback(from: launchPlan, reason: "Shared VM provisioning timed out after \(Int(timeoutSeconds))s.")
+    }
+
+    private static func hostFallback(
+        from launchPlan: CodexExecutionLaunchPlan,
+        reason: String
+    ) -> CodexExecutionLaunchPlan {
+        CodexExecutionLaunchPlan.host(
+            selectedPreference: launchPlan.selectedPreference,
+            vmReadiness: launchPlan.vmReadiness,
+            fallbackReason: reason
+        )
+    }
+
+    private static func provisionTimeoutSeconds() -> TimeInterval {
+        if let raw = ProcessInfo.processInfo.environment["COMPASS_SHARED_VM_PROVISION_TIMEOUT_S"],
+           let value = TimeInterval(raw), value > 0 {
+            return value
+        }
+        return 60 * 60
     }
 
     private static func makeTemporaryDirectory(

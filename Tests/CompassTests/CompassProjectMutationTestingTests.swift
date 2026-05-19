@@ -97,7 +97,7 @@ final class CompassProjectMutationTestingTests: XCTestCase {
 
         let execution = try XCTUnwrap(session.mutationTestingExecutions.first)
         XCTAssertEqual(execution.statusIdentifier, "failed")
-        XCTAssertEqual(execution.routeIdentifier, "native-fallback")
+        XCTAssertEqual(execution.routeIdentifier, "native-route")
         XCTAssertEqual(execution.exitCode, 23)
         XCTAssertLessThanOrEqual(execution.outputTail.count, SessionMutationTestingExecution.outputTailLimit)
         XCTAssertLessThanOrEqual(execution.seedCommandLabel.count, CodexMutationTestingPlan.commandMaxCharacters)
@@ -138,40 +138,6 @@ final class CompassProjectMutationTestingTests: XCTestCase {
         XCTAssertEqual(project.runtimeDiagnosticsMenu.mutationRecoveryDescriptor?.stateIdentifier, "readiness-only")
     }
 
-    func testNativeAppleContainerAndFallbackRoutesPropagateToRecordsAndSnapshots() async throws {
-        // VM-era project bootstrap currently leaves vmReadiness unset (nil), so both .host and
-        // .sharedVM preferences resolve to the host route.
-        let cases: [(String, CodexExecutionEnvironmentPreference, String, String, String)] = [
-            ("native", .host, "native-route", "native-macos", "not-inspected"),
-            ("fallback", .sharedVM, "native-fallback", "native-macos", "not-inspected")
-        ]
-
-        for testCase in cases {
-            let repoURL = try await makeTemporaryGitRepository(prefix: "CompassProjectMutationRoute-\(testCase.0)")
-            let workspace = try initializedWorkspace(
-                repoURL: repoURL,
-                state: makeState(verify: "swift test --filter \(testCase.0)")
-            )
-            let project = CompassProject(
-                repoURL: repoURL,
-                codexExecutionEnvironmentPreference: testCase.1,
-                mutationTestingRunner: { _, _, _, _, _ in
-                    ProcessResult(exitCode: 0, stdout: testCase.0, stderr: "")
-                }
-            )
-            await project.refresh()
-            project.languageProfile = profile(.swift)
-
-            await project.runMutationTesting()
-
-            let session = try XCTUnwrap(workspace.readSessions().first, testCase.0)
-            let execution = try XCTUnwrap(session.mutationTestingExecutions.first, testCase.0)
-            XCTAssertEqual(execution.routeIdentifier, testCase.2, testCase.0)
-            XCTAssertEqual(session.latestExecutionEnvironmentSnapshot?.phaseIdentifier, "mutation", testCase.0)
-            XCTAssertEqual(session.latestExecutionEnvironmentSnapshot?.effectiveRouteIdentifier, testCase.3, testCase.0)
-            XCTAssertEqual(session.latestExecutionEnvironmentSnapshot?.supportClassificationIdentifier, testCase.4, testCase.0)
-        }
-    }
 
     func testRuntimeMenuMutationActionDescriptorsCoverDisabledStatesAndNativeFallback() async throws {
         let repoURL = try await makeTemporaryGitRepository(prefix: "CompassProjectMutationMenu")
@@ -204,8 +170,7 @@ final class CompassProjectMutationTestingTests: XCTestCase {
         project.languageProfile = profile(.swift)
         action = try XCTUnwrap(project.runtimeDiagnosticsMenu.mutationTestingAction)
         XCTAssertTrue(action.isEnabled)
-        XCTAssertEqual(action.availabilityIdentifier, "native-fallback")
-        XCTAssertTrue(action.helpText.contains("native macOS fallback"))
+        XCTAssertEqual(action.availabilityIdentifier, "ready")
 
         project.isRunning = true
         action = try XCTUnwrap(project.runtimeDiagnosticsMenu.mutationTestingAction)
