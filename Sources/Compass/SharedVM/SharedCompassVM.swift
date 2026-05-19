@@ -278,10 +278,15 @@ final class SharedCompassVM: ObservableObject {
             return
         }
 
+        // Generate (or load) a stable MAC for the guest NIC so host-side
+        // IP discovery can find this guest across host reboots.
+        let macAddress = try? bundle.ensureGuestMACAddress(fileManager: dependencies.fileManager)
+
         // Compose configuration from on-disk artifacts.
         let inputs = SharedCompassVMConfiguration.Inputs.standard(
             bundle: bundle,
-            workspacesRootURL: workspacesRootURL
+            workspacesRootURL: workspacesRootURL,
+            guestMACAddress: macAddress
         )
         let configuration = try SharedCompassVMConfiguration.makeConfiguration(
             for: inputs,
@@ -374,12 +379,27 @@ final class SharedCompassVM: ObservableObject {
             $0.provisionStep = .guestPrepping
         }
 
-        let state = (try? bundle.loadState(fileManager: dependencies.fileManager)) ?? SharedCompassVMBundle.State()
+        var state = (try? bundle.loadState(fileManager: dependencies.fileManager)) ?? SharedCompassVMBundle.State()
+
+        // Resolve guest IP via dhcpd_leases/arp using the pinned MAC if
+        // we don't already have one cached. Without this, the readiness
+        // pipeline would stall here permanently.
+        if state.lastKnownGoodIP == nil, let mac = state.guestMACAddress {
+            if let discovered = await SharedCompassVMGuestIPDiscovery.waitForGuestIP(
+                macAddress: mac,
+                timeout: 60,
+                pollInterval: 2
+            ) {
+                state.lastKnownGoodIP = discovered.ip
+                _ = try? bundle.mutateState(fileManager: dependencies.fileManager) {
+                    $0.lastKnownGoodIP = discovered.ip
+                }
+            }
+        }
+
         guard let ip = state.lastKnownGoodIP else {
-            // The guest-prep stage is responsible for discovering and
-            // persisting the guest IP before this is called. If it's still
-            // missing, leave readiness in .guestPrepping and let the caller
-            // surface a retry.
+            // No IP yet — leave readiness in .guestPrepping; the user can
+            // retry from the Sandbox UI.
             return
         }
         let destination = "\(state.guestUserName)@\(ip)"
@@ -521,10 +541,7 @@ final class SharedCompassVM: ObservableObject {
 
     // MARK: - Console pipe (guest IP discovery)
 
-    /// Wires a host-owned `Pipe()` to the virtio console device so the guest's
-    /// first-boot script can report its IP back to Compass. We hold the pipe
-    /// in `self.consoleOutputPipe` for the entire VM lifetime; closing it
-    /// mid-run would close the read side from under the guest.
+    /// Wires a host-owned `Pipe()` to the virtio console device.
     ///
     /// Per Apple's docs / sample (see `Running Linux in a Virtual Machine`):
     /// `fileHandleForReading` is what VZ reads from (host→guest input) and
@@ -532,11 +549,11 @@ final class SharedCompassVM: ObservableObject {
     /// guest output we pass `nullDevice` for the read side and the write end
     /// of our pipe for the write side, then read from the matching read end.
     ///
-    /// First-boot script contract: the script writes one line of the form
-    /// `COMPASS_GUEST_IP=<addr>` to the named virtio console port
-    /// `compass.guest.report`. Anything else on the port is ignored. The
-    /// first-boot script is delivered later; until then this hook simply
-    /// discards traffic.
+    /// IP discovery itself runs host-side via dhcpd_leases / `arp -an`
+    /// keyed on the guest's pinned MAC (`SharedCompassVMGuestIPDiscovery`),
+    /// so the guest does not need a serial-reporting agent. The pipe stays
+    /// wired so future guest-side telemetry has a place to land; any line
+    /// matching `COMPASS_GUEST_IP=<addr>` is still treated as authoritative.
     private func attachConsolePipe(to configuration: VZVirtualMachineConfiguration) {
         let pipe = Pipe()
         let attachment = VZFileHandleSerialPortAttachment(

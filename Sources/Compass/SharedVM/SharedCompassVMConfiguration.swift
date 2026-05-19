@@ -23,6 +23,10 @@ struct SharedCompassVMConfiguration {
         var cpuCount: Int
         var memorySize: UInt64
         var shareTargets: [SharedCompassVMFileShare.ShareTarget]
+        /// Optional MAC address (e.g. `52:8a:01:02:03:04`) to pin on the
+        /// virtio network device so the guest's DHCP-assigned IP can be
+        /// discovered host-side. Nil → VZ assigns a random MAC each boot.
+        var guestMACAddress: String?
 
         /// Default config: 4 vCPUs, 8 GiB RAM, the single permanent
         /// `compass-workspaces` share pointing at the supplied host root.
@@ -30,7 +34,8 @@ struct SharedCompassVMConfiguration {
             bundle: SharedCompassVMBundle,
             workspacesRootURL: URL,
             cpuCount: Int = 4,
-            memorySize: UInt64 = 8 * 1024 * 1024 * 1024
+            memorySize: UInt64 = 8 * 1024 * 1024 * 1024,
+            guestMACAddress: String? = nil
         ) -> Inputs {
             Inputs(
                 bundle: bundle,
@@ -42,7 +47,8 @@ struct SharedCompassVMConfiguration {
                         hostDirectoryURL: workspacesRootURL,
                         readOnly: false
                     )
-                ]
+                ],
+                guestMACAddress: guestMACAddress
             )
         }
     }
@@ -89,7 +95,7 @@ struct SharedCompassVMConfiguration {
         configuration.bootLoader = VZMacOSBootLoader()
         configuration.graphicsDevices = [makeGraphicsDevice()]
         configuration.storageDevices = [try makeStorageDevice(bundle: inputs.bundle)]
-        configuration.networkDevices = [makeNetworkDevice()]
+        configuration.networkDevices = [makeNetworkDevice(macAddress: inputs.guestMACAddress)]
         configuration.directorySharingDevices = try makeShareDevices(inputs.shareTargets)
         configuration.serialPorts = []
         configuration.entropyDevices = [VZVirtioEntropyDeviceConfiguration()]
@@ -130,7 +136,7 @@ struct SharedCompassVMConfiguration {
         configuration.bootLoader = VZMacOSBootLoader()
         configuration.graphicsDevices = [makeGraphicsDevice()]
         configuration.storageDevices = [try makeStorageDevice(bundle: inputs.bundle)]
-        configuration.networkDevices = [makeNetworkDevice()]
+        configuration.networkDevices = [makeNetworkDevice(macAddress: inputs.guestMACAddress)]
         configuration.directorySharingDevices = try makeShareDevices(inputs.shareTargets)
         configuration.entropyDevices = [VZVirtioEntropyDeviceConfiguration()]
         configuration.memoryBalloonDevices = [VZVirtioTraditionalMemoryBalloonDeviceConfiguration()]
@@ -260,9 +266,12 @@ struct SharedCompassVMConfiguration {
         return VZVirtioBlockDeviceConfiguration(attachment: attachment)
     }
 
-    private static func makeNetworkDevice() -> VZVirtioNetworkDeviceConfiguration {
+    private static func makeNetworkDevice(macAddress: String? = nil) -> VZVirtioNetworkDeviceConfiguration {
         let network = VZVirtioNetworkDeviceConfiguration()
         network.attachment = VZNATNetworkDeviceAttachment()
+        if let macAddress, let parsed = VZMACAddress(string: macAddress) {
+            network.macAddress = parsed
+        }
         return network
     }
 

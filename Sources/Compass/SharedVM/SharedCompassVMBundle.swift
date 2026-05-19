@@ -179,6 +179,11 @@ struct SharedCompassVMBundle: Equatable {
         var codexLoginCompleted: Bool
         var bootAttemptCounter: Int
         var lastBundleSize: UInt64?
+        /// MAC address Compass pinned on the guest's virtio network device.
+        /// Persisted so subsequent boots reuse the same address, which lets
+        /// `SharedCompassVMGuestIPDiscovery` find the guest's IP across host
+        /// reboots via `/var/db/dhcpd_leases` and `arp -an`.
+        var guestMACAddress: String?
 
         static let defaultGuestUserName = "compass"
 
@@ -189,7 +194,8 @@ struct SharedCompassVMBundle: Equatable {
             guestOSVersion: String? = nil,
             codexLoginCompleted: Bool = false,
             bootAttemptCounter: Int = 0,
-            lastBundleSize: UInt64? = nil
+            lastBundleSize: UInt64? = nil,
+            guestMACAddress: String? = nil
         ) {
             self.provisionStep = provisionStep
             self.lastKnownGoodIP = lastKnownGoodIP
@@ -198,7 +204,41 @@ struct SharedCompassVMBundle: Equatable {
             self.codexLoginCompleted = codexLoginCompleted
             self.bootAttemptCounter = bootAttemptCounter
             self.lastBundleSize = lastBundleSize
+            self.guestMACAddress = guestMACAddress
         }
+    }
+
+    /// Returns the persisted guest MAC, or generates one (and persists it)
+    /// if none exists yet. Stable across host reboots so dhcpd_leases / arp
+    /// lookups can find the guest by MAC.
+    @discardableResult
+    func ensureGuestMACAddress(fileManager: FileManager = .default) throws -> String {
+        var state = try loadState(fileManager: fileManager)
+        if let existing = state.guestMACAddress,
+           !SharedCompassVMGuestIPDiscovery.canonicalize(mac: existing).isEmpty {
+            return SharedCompassVMGuestIPDiscovery.canonicalize(mac: existing)
+        }
+        let mac = SharedCompassVMBundle.randomGuestMAC()
+        state.guestMACAddress = mac
+        try saveState(state, fileManager: fileManager)
+        return mac
+    }
+
+    /// Generates a locally-administered unicast MAC. Sets bit 1 of the first
+    /// octet (locally-administered) and clears bit 0 (unicast) so the
+    /// address won't collide with manufacturer-assigned MACs and won't be
+    /// misinterpreted as multicast.
+    static func randomGuestMAC() -> String {
+        var octets: [UInt8] = []
+        octets.reserveCapacity(6)
+        var firstOctet = UInt8.random(in: 0...255)
+        firstOctet |= 0b0000_0010 // locally administered
+        firstOctet &= 0b1111_1110 // unicast
+        octets.append(firstOctet)
+        for _ in 1..<6 {
+            octets.append(UInt8.random(in: 0...255))
+        }
+        return octets.map { String(format: "%02x", $0) }.joined(separator: ":")
     }
 
     /// Reads `state.json`. Returns a fresh default state if the file does not exist.
