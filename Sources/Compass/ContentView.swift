@@ -98,6 +98,15 @@ private struct SidebarView: View {
                         }
                         .help(diagnosticsAction.helpText)
                     }
+                    if let mutationAction = model.selectedProject?.runtimeDiagnosticsMenu.mutationTestingAction {
+                        Button {
+                            Task { await model.runMutationTestingForSelectedProject() }
+                        } label: {
+                            Label(mutationAction.title, systemImage: mutationAction.systemImage)
+                        }
+                        .disabled(!mutationAction.isEnabled)
+                        .help(mutationAction.helpText)
+                    }
                 }
                 .padding(.top, 8)
             } label: {
@@ -858,6 +867,18 @@ private struct ProjectRunControls: View {
                     Label(diagnosticsAction.title, systemImage: diagnosticsAction.systemImage)
                 }
                 Text(diagnosticsAction.description)
+                if let mutationAction = executionEnvironmentMenu.mutationTestingAction {
+                    Divider()
+                    Button {
+                        Task { await project.runMutationTesting() }
+                    } label: {
+                        Label(mutationAction.title, systemImage: mutationAction.systemImage)
+                    }
+                    .disabled(!mutationAction.isEnabled)
+                    .help(mutationAction.helpText)
+                    Text(mutationAction.description)
+                    Text(mutationAction.helpText)
+                }
                 Divider()
                 ForEach(Array(executionEnvironmentMenu.items.enumerated()), id: \.element.id) { index, item in
                     Button {

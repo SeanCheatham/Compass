@@ -53,15 +53,27 @@ struct CompassApp: App {
                 .disabled((model.selectedProject?.isRunning ?? true) || (model.selectedProject?.isAutoPlaying ?? true))
             }
             CommandMenu("Runtime") {
-                if let diagnosticsAction = model.selectedProject?.runtimeDiagnosticsMenu.copyDiagnosticsAction {
+                if let runtimeMenu = model.selectedProject?.runtimeDiagnosticsMenu {
+                    let diagnosticsAction = runtimeMenu.copyDiagnosticsAction
                     Button(diagnosticsAction.title) {
                         NSPasteboard.general.clearContents()
                         NSPasteboard.general.setString(diagnosticsAction.copyText, forType: .string)
                     }
                     .help(diagnosticsAction.helpText)
+                    if let mutationAction = runtimeMenu.mutationTestingAction {
+                        Divider()
+                        Button(mutationAction.title) {
+                            Task { await model.runMutationTestingForSelectedProject() }
+                        }
+                        .disabled(!mutationAction.isEnabled)
+                        .help(mutationAction.helpText)
+                    }
                 } else {
                     Button("Copy Runtime Diagnostics") {}
                         .disabled(true)
+                    Button("Run Mutation Test") {}
+                        .disabled(true)
+                        .help("Select a project before running mutation testing.")
                 }
             }
             CinematicPlanCompassFocusedCommands()

@@ -116,10 +116,12 @@ final class CompassWorkspacePersistenceTests: XCTestCase {
         XCTAssertEqual(records[0].status, .succeeded)
         XCTAssertEqual(records[0].notes, ["legacy"])
         XCTAssertTrue(records[0].executionEnvironmentSnapshots.isEmpty)
+        XCTAssertTrue(records[0].mutationTestingExecutions.isEmpty)
 
         try workspace.writeSessions(records)
         let rewritten = try read(workspace.sessionsRecordURL)
         XCTAssertFalse(rewritten.contains("executionEnvironmentSnapshots"))
+        XCTAssertFalse(rewritten.contains("mutationTestingExecutions"))
     }
 
     func testSessionsJsonRoundTripsExecutionEnvironmentSnapshotsWithoutLeakingRuntimePaths() throws {

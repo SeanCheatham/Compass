@@ -743,12 +743,14 @@ struct CodexExecutionEnvironmentMenu: Equatable {
     var items: [CodexExecutionEnvironmentMenuItem]
     var createDevcontainerAction: CodexDevcontainerProvisioningMenuAction?
     var copyDiagnosticsAction: CodexExecutionEnvironmentCopyDiagnosticsAction
+    var mutationTestingAction: CodexMutationTestingMenuAction?
 
     init(
         environment: CodexExecutionEnvironment,
         provisioningPlan: CodexDevcontainerProvisioningPlan? = nil,
         launchPlan: CodexExecutionLaunchPlan? = nil,
-        mutationTestingPlan: CodexMutationTestingPlan? = nil
+        mutationTestingPlan: CodexMutationTestingPlan? = nil,
+        mutationExecutionState: CodexMutationTestingMenuAction.ExecutionState = .idle
     ) {
         let effectiveLaunchPlan = launchPlan ?? environment.launchPlan()
         let presentation = environment.presentation(launchPlan: effectiveLaunchPlan)
@@ -773,5 +775,11 @@ struct CodexExecutionEnvironmentMenu: Equatable {
                 mutationTestingPlan: mutationTestingPlan
             )
         )
+        mutationTestingAction = mutationTestingPlan.map {
+            CodexMutationTestingMenuAction(
+                readiness: $0,
+                executionState: mutationExecutionState
+            )
+        }
     }
 }

@@ -1,5 +1,222 @@
 import Foundation
 
+enum CodexMutationTestingMetadataSanitizer {
+    static func sanitizedCommand(
+        _ command: String,
+        launchPlan: CodexExecutionLaunchPlan,
+        limit: Int
+    ) -> String {
+        sanitizedText(
+            command,
+            launchPlan: launchPlan,
+            limit: limit,
+            preservesNewlines: false,
+            takesTail: false
+        )
+    }
+
+    static func sanitizedOutputTail(
+        _ output: String,
+        launchPlan: CodexExecutionLaunchPlan,
+        limit: Int
+    ) -> String {
+        sanitizedText(
+            output,
+            launchPlan: launchPlan,
+            limit: limit,
+            preservesNewlines: true,
+            takesTail: true
+        )
+    }
+
+    private static func sanitizedText(
+        _ text: String,
+        launchPlan: CodexExecutionLaunchPlan,
+        limit: Int,
+        preservesNewlines: Bool,
+        takesTail: Bool
+    ) -> String {
+        guard limit > 0 else { return "" }
+        let input: String
+        if takesTail, text.count > limit {
+            let truncationMarker = "...(truncated)...\n"
+            let suffixLimit = max(0, limit - truncationMarker.count)
+            input = truncationMarker + String(text.suffix(suffixLimit))
+        } else {
+            input = text
+        }
+
+        var sanitized = input
+            .replacingOccurrences(of: "\r\n", with: "\n")
+            .replacingOccurrences(of: "\r", with: preservesNewlines ? "\n" : " ")
+
+        if preservesNewlines {
+            sanitized = sanitized
+                .replacingOccurrences(of: #"[ \t\f\v]+"#, with: " ", options: .regularExpression)
+                .replacingOccurrences(of: #"\n{4,}"#, with: "\n\n\n", options: .regularExpression)
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+        } else {
+            sanitized = sanitized
+                .replacingOccurrences(of: "\n", with: " ")
+                .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+
+        for value in sensitiveValues(from: launchPlan).sorted(by: { $0.count > $1.count }) where !value.isEmpty {
+            sanitized = sanitized.replacingOccurrences(of: value, with: "[redacted]")
+        }
+
+        let replacements: [(pattern: String, template: String)] = [
+            (#"(^|[\s"'=:/])(?:\./)?\.devcontainer/[^\s"']+"#, "$1[devcontainer-path]"),
+            (#"(^|[\s"'=:/])/[^\s"']+"#, "$1[path]")
+        ]
+
+        for replacement in replacements {
+            sanitized = sanitized.replacingOccurrences(
+                of: replacement.pattern,
+                with: replacement.template,
+                options: .regularExpression
+            )
+        }
+
+        return bounded(
+            sanitized,
+            limit: limit,
+            preservesNewlines: preservesNewlines,
+            usesSuffix: false
+        )
+    }
+
+    private static func sensitiveValues(from launchPlan: CodexExecutionLaunchPlan) -> [String] {
+        var values: [String] = []
+
+        if let supportReport = launchPlan.devcontainerSupportReport {
+            let configURL = supportReport.configURL.standardizedFileURL
+            let configDirectoryURL = configURL.deletingLastPathComponent().standardizedFileURL
+            let repoURL = configDirectoryURL.deletingLastPathComponent().standardizedFileURL
+            values += [
+                configURL.path,
+                configDirectoryURL.path,
+                repoURL.path
+            ]
+            values += devcontainerConfigSensitiveValues(configURL: configURL)
+
+            if let imageConfiguration = supportReport.imageConfiguration {
+                values += imageConfiguration.containerEnv.map(\.value)
+            }
+            if let buildConfiguration = supportReport.buildConfiguration {
+                values += [
+                    buildConfiguration.configURL.path,
+                    buildConfiguration.repoURL.path,
+                    buildConfiguration.dockerfileURL.path,
+                    buildConfiguration.contextURL.path
+                ]
+                values += buildConfiguration.buildArgs.map(\.value)
+                values += buildConfiguration.containerEnv.map(\.value)
+            }
+        }
+
+        switch launchPlan.effectiveRoute {
+        case .nativeMacOS:
+            break
+        case let .appleContainer(route):
+            values += [
+                route.toolPath,
+                route.hostWorkspaceURL.path,
+                route.volumeArgument,
+                route.workspaceFolder
+            ]
+            values += route.containerEnv.map(\.value)
+            if let buildConfiguration = route.buildConfiguration {
+                values += [
+                    buildConfiguration.configURL.path,
+                    buildConfiguration.repoURL.path,
+                    buildConfiguration.dockerfileURL.path,
+                    buildConfiguration.contextURL.path
+                ]
+                values += buildConfiguration.buildArgs.map(\.value)
+                values += buildConfiguration.containerEnv.map(\.value)
+            }
+        }
+
+        return values
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+    }
+
+    private static func devcontainerConfigSensitiveValues(configURL: URL) -> [String] {
+        guard let data = try? Data(contentsOf: configURL),
+              !data.isEmpty,
+              data.count <= 256_000,
+              let object = try? JSONSerialization.jsonObject(with: data)
+        else { return [] }
+
+        var values: [String] = []
+        collectSensitiveJSONStrings(object, values: &values, isFeatureTree: false)
+        return values
+    }
+
+    private static func collectSensitiveJSONStrings(
+        _ value: Any,
+        values: inout [String],
+        isFeatureTree: Bool
+    ) {
+        guard values.count < 256 else { return }
+
+        if let string = value as? String {
+            appendSensitiveValue(string, values: &values)
+            return
+        }
+
+        if let array = value as? [Any] {
+            for item in array {
+                collectSensitiveJSONStrings(item, values: &values, isFeatureTree: isFeatureTree)
+            }
+            return
+        }
+
+        guard let dictionary = value as? [String: Any] else { return }
+        for key in dictionary.keys.sorted() {
+            let childIsFeatureTree = isFeatureTree || key == "features"
+            if childIsFeatureTree {
+                appendSensitiveValue(key, values: &values)
+            }
+            if let child = dictionary[key] {
+                collectSensitiveJSONStrings(child, values: &values, isFeatureTree: childIsFeatureTree)
+            }
+        }
+    }
+
+    private static func appendSensitiveValue(_ rawValue: String, values: inout [String]) {
+        let value = rawValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard value.count >= 3 else { return }
+        values.append(String(value.prefix(4_096)))
+    }
+
+    private static func bounded(
+        _ text: String,
+        limit: Int,
+        preservesNewlines: Bool,
+        usesSuffix: Bool
+    ) -> String {
+        guard limit > 0 else { return "" }
+        let normalized: String
+        if preservesNewlines {
+            normalized = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        } else {
+            normalized = text
+                .replacingOccurrences(of: "\r", with: " ")
+                .replacingOccurrences(of: "\n", with: " ")
+                .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+
+        guard normalized.count > limit else { return normalized }
+        let bounded = usesSuffix ? normalized.suffix(limit) : normalized.prefix(limit)
+        return String(bounded).trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+}
+
 struct CodexMutationTestingPlan: Equatable, Identifiable {
     static let identifierMaxCharacters = 260
     static let labelMaxCharacters = 34
@@ -62,7 +279,11 @@ struct CodexMutationTestingPlan: Equatable, Identifiable {
         let routeState = Self.routeState(for: launchPlan)
         let rawSeedCommand = immediate?.verify.trimmingCharacters(in: .whitespacesAndNewlines)
         let sanitizedSeedCommand = rawSeedCommand.flatMap {
-            Self.sanitizedCommand($0, launchPlan: launchPlan)
+            CodexMutationTestingMetadataSanitizer.sanitizedCommand(
+                $0,
+                launchPlan: launchPlan,
+                limit: Self.commandMaxCharacters
+            )
         }.flatMap(Self.nilIfEmpty)
 
         let readinessState: ReadinessState
@@ -218,92 +439,6 @@ struct CodexMutationTestingPlan: Equatable, Identifiable {
         return bounded(detail, limit: detailMaxCharacters)
     }
 
-    private static func sanitizedCommand(
-        _ command: String,
-        launchPlan: CodexExecutionLaunchPlan
-    ) -> String {
-        var sanitized = command
-            .replacingOccurrences(of: "\r", with: " ")
-            .replacingOccurrences(of: "\n", with: " ")
-            .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-
-        for value in sensitiveValues(from: launchPlan).sorted(by: { $0.count > $1.count }) where !value.isEmpty {
-            sanitized = sanitized.replacingOccurrences(of: value, with: "[redacted]")
-        }
-
-        let replacements: [(pattern: String, template: String)] = [
-            (#"(^|\s)(?:\./)?\.devcontainer/[^\s"']+"#, "$1[devcontainer-path]"),
-            (#"([=:])(?:\./)?\.devcontainer/[^\s"']+"#, "$1[devcontainer-path]"),
-            (#"(^|\s)/[^\s"']+"#, "$1[path]"),
-            (#"([=:])/[^\s"']+"#, "$1[path]")
-        ]
-
-        for replacement in replacements {
-            sanitized = sanitized.replacingOccurrences(
-                of: replacement.pattern,
-                with: replacement.template,
-                options: .regularExpression
-            )
-        }
-
-        return bounded(sanitized, limit: commandMaxCharacters)
-    }
-
-    private static func sensitiveValues(from launchPlan: CodexExecutionLaunchPlan) -> [String] {
-        var values: [String] = []
-
-        if let supportReport = launchPlan.devcontainerSupportReport {
-            let configURL = supportReport.configURL.standardizedFileURL
-            let configDirectoryURL = configURL.deletingLastPathComponent().standardizedFileURL
-            let repoURL = configDirectoryURL.deletingLastPathComponent().standardizedFileURL
-            values += [
-                configURL.path,
-                configDirectoryURL.path,
-                repoURL.path
-            ]
-
-            if let imageConfiguration = supportReport.imageConfiguration {
-                values += imageConfiguration.containerEnv.map(\.value)
-            }
-            if let buildConfiguration = supportReport.buildConfiguration {
-                values += [
-                    buildConfiguration.configURL.path,
-                    buildConfiguration.repoURL.path,
-                    buildConfiguration.dockerfileURL.path,
-                    buildConfiguration.contextURL.path
-                ]
-                values += buildConfiguration.buildArgs.map(\.value)
-                values += buildConfiguration.containerEnv.map(\.value)
-            }
-        }
-
-        switch launchPlan.effectiveRoute {
-        case .nativeMacOS:
-            break
-        case let .appleContainer(route):
-            values += [
-                route.toolPath,
-                route.hostWorkspaceURL.path,
-                route.volumeArgument,
-                route.workspaceFolder
-            ]
-            values += route.containerEnv.map(\.value)
-            if let buildConfiguration = route.buildConfiguration {
-                values += [
-                    buildConfiguration.configURL.path,
-                    buildConfiguration.repoURL.path,
-                    buildConfiguration.dockerfileURL.path,
-                    buildConfiguration.contextURL.path
-                ]
-                values += buildConfiguration.buildArgs.map(\.value)
-                values += buildConfiguration.containerEnv.map(\.value)
-            }
-        }
-
-        return values
-    }
-
     private static func bounded(_ text: String, limit: Int) -> String {
         guard limit > 0 else { return "" }
         let normalized = text
@@ -336,5 +471,108 @@ struct CodexMutationTestingPlan: Equatable, Identifiable {
             hash = hash &* 0x100000001b3
         }
         return String(format: "%016llx", hash)
+    }
+}
+
+struct CodexMutationTestingMenuAction: Equatable, Identifiable {
+    static let actionIdentifier = "mutation-testing.run"
+    static let titleLimit = 34
+    static let descriptionLimit = 220
+    static let helpLimit = 420
+    static let fieldLimit = 120
+
+    enum ExecutionState: String, Equatable {
+        case idle
+        case running
+        case paused
+    }
+
+    var readinessIdentifier: String
+    var readinessStatusIdentifier: String
+    var routeIdentifier: String
+    var languageIdentifier: String
+    var seedCommandIdentifier: String
+    var seedCommandLabel: String
+    var executionStateIdentifier: String
+    var availabilityIdentifier: String
+    var isEnabled: Bool
+    var title: String
+    var systemImage: String
+    var description: String
+    var helpText: String
+
+    var id: String { Self.actionIdentifier }
+
+    init(
+        readiness: CodexMutationTestingPlan,
+        executionState: ExecutionState = .idle
+    ) {
+        readinessIdentifier = Self.bounded(readiness.identifier, limit: Self.fieldLimit)
+        readinessStatusIdentifier = Self.bounded(readiness.statusIdentifier, limit: Self.fieldLimit)
+        routeIdentifier = Self.bounded(readiness.routeIdentifier, limit: Self.fieldLimit)
+        languageIdentifier = Self.bounded(readiness.languageIdentifier, limit: Self.fieldLimit)
+        seedCommandIdentifier = Self.bounded(readiness.seedCommandIdentifier, limit: Self.fieldLimit)
+        seedCommandLabel = Self.bounded(readiness.seedCommandLabel, limit: CodexMutationTestingPlan.commandMaxCharacters)
+        executionStateIdentifier = executionState.rawValue
+        title = Self.bounded("Run Mutation Test", limit: Self.titleLimit)
+        systemImage = readiness.systemImage
+
+        let availability: String
+        let enabled: Bool
+        let help: String
+        switch executionState {
+        case .running:
+            availability = "running"
+            enabled = false
+            help = "Mutation testing is disabled while Compass is running another Plan, Develop, verify, or mutation command."
+        case .paused:
+            availability = "paused"
+            enabled = false
+            help = "Mutation testing is disabled while this project is paused; resume or stop before running the opt-in mutation command."
+        case .idle:
+            if readiness.isReady {
+                if readiness.routeIdentifier == CodexMutationTestingPlan.RouteState.nativeFallback.rawValue {
+                    availability = "native-fallback"
+                    enabled = true
+                    help = "Run the current immediate verify command through native macOS fallback. Native execution remains available when devcontainer routing cannot be used."
+                } else {
+                    availability = "ready"
+                    enabled = true
+                    help = "Run the current immediate verify command as an opt-in mutation test seed through \(readiness.routeLabel)."
+                }
+            } else {
+                availability = readiness.statusIdentifier
+                enabled = false
+                switch readiness.statusIdentifier {
+                case CodexMutationTestingPlan.ReadinessState.missingImmediate.rawValue:
+                    help = "Mutation testing needs a current immediate Plan item before it can run."
+                case CodexMutationTestingPlan.ReadinessState.missingVerify.rawValue:
+                    help = "Mutation testing needs the current immediate Plan item to include a verify command."
+                case CodexMutationTestingPlan.ReadinessState.unsupportedLanguage.rawValue:
+                    help = "Mutation testing is unavailable for \(readiness.languageLabel); supported seed languages are Swift, TypeScript/JavaScript, Python, Go, and Rust."
+                default:
+                    help = readiness.detailText
+                }
+            }
+        }
+
+        availabilityIdentifier = Self.bounded(availability, limit: Self.fieldLimit)
+        isEnabled = enabled
+        description = Self.bounded(
+            "Opt-in only. Executes the current immediate verify command and records bounded sanitized mutation metadata plus a Mutation runtime route snapshot.",
+            limit: Self.descriptionLimit
+        )
+        helpText = Self.bounded(help, limit: Self.helpLimit)
+    }
+
+    private static func bounded(_ text: String, limit: Int) -> String {
+        guard limit > 0 else { return "" }
+        let normalized = text
+            .replacingOccurrences(of: "\r", with: " ")
+            .replacingOccurrences(of: "\n", with: " ")
+            .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard normalized.count > limit else { return normalized }
+        return String(normalized.prefix(limit)).trimmingCharacters(in: .whitespacesAndNewlines)
     }
 }

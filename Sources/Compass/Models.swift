@@ -170,6 +170,79 @@ struct VerifyOutput: Codable, Equatable {
     var tail: String
 }
 
+struct SessionMutationTestingExecution: Codable, Equatable, Identifiable {
+    static let fieldLimit = 120
+    static let commandLimit = CodexMutationTestingPlan.commandMaxCharacters
+    static let outputTailLimit = 2_000
+
+    var readinessIdentifier: String
+    var statusIdentifier: String
+    var routeIdentifier: String
+    var languageIdentifier: String
+    var seedCommandLabel: String
+    var exitCode: Int?
+    var startedAt: Double
+    var endedAt: Double
+    var outputTail: String
+
+    var id: String {
+        [
+            readinessIdentifier,
+            statusIdentifier,
+            routeIdentifier,
+            languageIdentifier,
+            String(Int(startedAt)),
+            exitCode.map(String.init) ?? "none"
+        ].joined(separator: ".")
+    }
+
+    init(
+        readiness: CodexMutationTestingPlan,
+        exitCode: Int?,
+        startedAt: Double,
+        endedAt: Double,
+        outputTail: String,
+        launchPlan: CodexExecutionLaunchPlan
+    ) {
+        readinessIdentifier = Self.boundedField(
+            readiness.identifier,
+            limit: Self.fieldLimit
+        )
+        statusIdentifier = exitCode == 0 ? "succeeded" : "failed"
+        routeIdentifier = Self.boundedField(
+            readiness.routeIdentifier,
+            limit: Self.fieldLimit
+        )
+        languageIdentifier = Self.boundedField(
+            readiness.languageIdentifier,
+            limit: Self.fieldLimit
+        )
+        seedCommandLabel = Self.boundedField(
+            readiness.seedCommandLabel,
+            limit: Self.commandLimit
+        )
+        self.exitCode = exitCode
+        self.startedAt = max(0, startedAt)
+        self.endedAt = max(self.startedAt, endedAt)
+        self.outputTail = CodexMutationTestingMetadataSanitizer.sanitizedOutputTail(
+            outputTail,
+            launchPlan: launchPlan,
+            limit: Self.outputTailLimit
+        )
+    }
+
+    private static func boundedField(_ text: String, limit: Int) -> String {
+        guard limit > 0 else { return "" }
+        let normalized = text
+            .replacingOccurrences(of: "\r", with: " ")
+            .replacingOccurrences(of: "\n", with: " ")
+            .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard normalized.count > limit else { return normalized }
+        return String(normalized.prefix(limit)).trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+}
+
 struct SessionExecutionEnvironmentSnapshot: Codable, Equatable, Identifiable {
     static let phaseLimit = 24
     static let fieldLimit = 120
@@ -466,6 +539,7 @@ struct SessionRecord: Codable, Identifiable, Equatable {
     var verifyOutput: VerifyOutput?
     var feedback: String?
     var executionEnvironmentSnapshots: [SessionExecutionEnvironmentSnapshot]
+    var mutationTestingExecutions: [SessionMutationTestingExecution]
 
     static func started(_ number: Int) -> SessionRecord {
         SessionRecord(
@@ -481,11 +555,13 @@ struct SessionRecord: Codable, Identifiable, Equatable {
             notes: [],
             verifyOutput: nil,
             feedback: nil,
-            executionEnvironmentSnapshots: []
+            executionEnvironmentSnapshots: [],
+            mutationTestingExecutions: []
         )
     }
 
     static let executionEnvironmentSnapshotLimit = 24
+    static let mutationTestingExecutionLimit = 12
 
     enum CodingKeys: String, CodingKey {
         case session
@@ -501,6 +577,7 @@ struct SessionRecord: Codable, Identifiable, Equatable {
         case verifyOutput
         case feedback
         case executionEnvironmentSnapshots
+        case mutationTestingExecutions
     }
 
     init(
@@ -516,7 +593,8 @@ struct SessionRecord: Codable, Identifiable, Equatable {
         notes: [String],
         verifyOutput: VerifyOutput?,
         feedback: String?,
-        executionEnvironmentSnapshots: [SessionExecutionEnvironmentSnapshot] = []
+        executionEnvironmentSnapshots: [SessionExecutionEnvironmentSnapshot] = [],
+        mutationTestingExecutions: [SessionMutationTestingExecution] = []
     ) {
         self.session = session
         self.startedAt = startedAt
@@ -532,6 +610,9 @@ struct SessionRecord: Codable, Identifiable, Equatable {
         self.feedback = feedback
         self.executionEnvironmentSnapshots = Self.normalizedExecutionEnvironmentSnapshots(
             executionEnvironmentSnapshots
+        )
+        self.mutationTestingExecutions = Self.normalizedMutationTestingExecutions(
+            mutationTestingExecutions
         )
     }
 
@@ -555,6 +636,12 @@ struct SessionRecord: Codable, Identifiable, Equatable {
                 forKey: .executionEnvironmentSnapshots
             ) ?? []
         )
+        mutationTestingExecutions = Self.normalizedMutationTestingExecutions(
+            try container.decodeIfPresent(
+                [SessionMutationTestingExecution].self,
+                forKey: .mutationTestingExecutions
+            ) ?? []
+        )
     }
 
     func encode(to encoder: Encoder) throws {
@@ -574,6 +661,9 @@ struct SessionRecord: Codable, Identifiable, Equatable {
         if !executionEnvironmentSnapshots.isEmpty {
             try container.encode(executionEnvironmentSnapshots, forKey: .executionEnvironmentSnapshots)
         }
+        if !mutationTestingExecutions.isEmpty {
+            try container.encode(mutationTestingExecutions, forKey: .mutationTestingExecutions)
+        }
     }
 
     var latestExecutionEnvironmentSnapshot: SessionExecutionEnvironmentSnapshot? {
@@ -584,6 +674,12 @@ struct SessionRecord: Codable, Identifiable, Equatable {
         executionEnvironmentSnapshots = Self.recording(
             snapshot,
             in: executionEnvironmentSnapshots
+        )
+    }
+
+    mutating func recordMutationTestingExecution(_ execution: SessionMutationTestingExecution) {
+        mutationTestingExecutions = Self.normalizedMutationTestingExecutions(
+            mutationTestingExecutions + [execution]
         )
     }
 
@@ -606,6 +702,12 @@ struct SessionRecord: Codable, Identifiable, Equatable {
         snapshots.reduce(into: []) { partialResult, snapshot in
             partialResult = recording(snapshot, in: partialResult)
         }
+    }
+
+    private static func normalizedMutationTestingExecutions(
+        _ executions: [SessionMutationTestingExecution]
+    ) -> [SessionMutationTestingExecution] {
+        Array(executions.suffix(Self.mutationTestingExecutionLimit))
     }
 }
 
