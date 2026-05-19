@@ -738,16 +738,42 @@ extension CompassProject {
     }
 
     func addDraft() async {
+        await queueDraft(
+            draftEntry,
+            clearsDraftEntry: true,
+            feedback: "Draft queued."
+        )
+    }
+
+    func acceptDraftRefinement(_ refinement: DraftRefinement) async {
+        await queueDraft(
+            refinement.refinedText,
+            clearsDraftEntry: true,
+            feedback: "Refined draft queued."
+        )
+    }
+
+    func modifyDraft(with refinement: DraftRefinement) {
+        draftEntry = refinement.refinedText
+    }
+
+    private func queueDraft(
+        _ text: String,
+        clearsDraftEntry: Bool,
+        feedback: String
+    ) async {
         do {
             guard let workspace else {
                 fail(AppModelError.noRepositorySelected)
                 return
             }
             try await initializeIfNeeded(workspace)
-            try workspace.appendDraft(draftEntry)
-            draftEntry = ""
+            try workspace.appendDraft(text)
+            if clearsDraftEntry {
+                draftEntry = ""
+            }
             drafts = workspace.readDrafts()
-            log("Draft queued.", level: .success)
+            log(feedback, level: .success)
         } catch {
             fail(error)
         }
