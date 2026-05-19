@@ -2154,10 +2154,22 @@ private struct DraftRefinementPreviewCard: View {
 
 private struct LiveTab: View {
     @ObservedObject var project: CompassProject
+    @State private var liveActivitySummaryCache: [String: LiveActivitySummary] = [:]
+    @State private var liveActivitySummaryInFlightKeys: Set<String> = []
+    @State private var expandedLiveActivityClusterKeys: Set<String> = []
+    @State private var liveActivityPlanningNow = Date()
     private static let thinkingRowID = "live-thinking-row"
 
     var body: some View {
         let reliabilityStatus = project.reliabilityStatus
+        let liveActivityInputIdentifier = LiveActivitySummaryPlanner.inputIdentifier(for: project.liveLog)
+        let liveActivityPlan = LiveActivitySummaryPlanner.plan(
+            lines: project.liveLog,
+            now: liveActivityPlanningNow
+        )
+        let liveActivitySummaryIdentifier = liveActivityPlan.frozenClusters
+            .map(\.key)
+            .joined(separator: "|")
 
         VStack(alignment: .leading, spacing: 10) {
             if !reliabilityStatus.isEmpty {
@@ -2167,9 +2179,21 @@ private struct LiveTab: View {
             ScrollViewReader { proxy in
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 4) {
-                        ForEach(project.liveLog) { line in
-                            LiveRow(line: line)
-                                .id(line.id)
+                        ForEach(liveActivityPlan.items) { item in
+                            switch item {
+                            case .frozenCluster(let cluster):
+                                LiveActivityClusterRow(
+                                    cluster: cluster,
+                                    summary: liveActivitySummaryCache[cluster.key]
+                                        ?? LiveActivitySummaryService.deterministicSummary(for: cluster),
+                                    isGenerating: liveActivitySummaryInFlightKeys.contains(cluster.key),
+                                    isExpanded: expansionBinding(for: cluster.key)
+                                )
+                                .id(item.id)
+                            case .line(let line):
+                                LiveRow(line: line)
+                                    .id(item.id)
+                            }
                         }
                         if showsThinkingIndicator {
                             ThinkingLiveRow(phase: project.phase)
@@ -2180,13 +2204,22 @@ private struct LiveTab: View {
                 }
                 .background(.black.opacity(0.06), in: RoundedRectangle(cornerRadius: 8))
                 .onChange(of: project.liveLog.count) {
-                    scrollToLiveEnd(proxy)
+                    scrollToLiveEnd(proxy, liveActivityPlan: liveActivityPlan)
+                }
+                .onChange(of: liveActivitySummaryIdentifier) {
+                    scrollToLiveEnd(proxy, liveActivityPlan: liveActivityPlan)
                 }
                 .onChange(of: project.isRunning) {
-                    scrollToLiveEnd(proxy)
+                    scrollToLiveEnd(proxy, liveActivityPlan: liveActivityPlan)
                 }
                 .onChange(of: showsThinkingIndicator) {
-                    scrollToLiveEnd(proxy)
+                    scrollToLiveEnd(proxy, liveActivityPlan: liveActivityPlan)
+                }
+                .task(id: liveActivityInputIdentifier) {
+                    await refreshLiveActivityPlanningClock()
+                }
+                .task(id: liveActivitySummaryIdentifier) {
+                    refreshLiveActivitySummaries(for: liveActivityPlan.frozenClusters)
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -2200,12 +2233,174 @@ private struct LiveTab: View {
         }
     }
 
-    private func scrollToLiveEnd(_ proxy: ScrollViewProxy) {
+    @MainActor
+    private func refreshLiveActivityPlanningClock() async {
+        liveActivityPlanningNow = Date()
+        let delay = LiveActivitySummaryPlanner.quietGap + 0.25
+        try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+        guard !Task.isCancelled else { return }
+        liveActivityPlanningNow = Date()
+    }
+
+    @MainActor
+    private func refreshLiveActivitySummaries(for clusters: [LiveActivityCluster]) {
+        let cachePlan = LiveActivitySummaryCachePlanner.plan(
+            clusters: clusters,
+            cachedKeys: Set(liveActivitySummaryCache.keys),
+            inFlightKeys: liveActivitySummaryInFlightKeys
+        )
+
+        for staleKey in cachePlan.staleCacheKeys {
+            liveActivitySummaryCache.removeValue(forKey: staleKey)
+        }
+        liveActivitySummaryInFlightKeys.subtract(cachePlan.staleInFlightKeys)
+
+        for cluster in cachePlan.requestedClusters {
+            liveActivitySummaryInFlightKeys.insert(cluster.key)
+            Task { [cluster] in
+                let summary = await LiveActivitySummaryService.makeSummary(for: cluster)
+                await MainActor.run {
+                    guard liveActivitySummaryInFlightKeys.contains(cluster.key) else { return }
+                    liveActivitySummaryCache[cluster.key] = summary
+                    liveActivitySummaryInFlightKeys.remove(cluster.key)
+                }
+            }
+        }
+    }
+
+    private func expansionBinding(for key: String) -> Binding<Bool> {
+        Binding {
+            expandedLiveActivityClusterKeys.contains(key)
+        } set: { isExpanded in
+            if isExpanded {
+                expandedLiveActivityClusterKeys.insert(key)
+            } else {
+                expandedLiveActivityClusterKeys.remove(key)
+            }
+        }
+    }
+
+    private func scrollToLiveEnd(
+        _ proxy: ScrollViewProxy,
+        liveActivityPlan: LiveActivitySummaryPlan
+    ) {
         if showsThinkingIndicator {
             proxy.scrollTo(Self.thinkingRowID, anchor: .bottom)
-        } else if let last = project.liveLog.last {
+        } else if let last = liveActivityPlan.items.last {
             proxy.scrollTo(last.id, anchor: .bottom)
         }
+    }
+}
+
+private struct LiveActivityClusterRow: View {
+    var cluster: LiveActivityCluster
+    var summary: LiveActivitySummary
+    var isGenerating: Bool
+    @Binding var isExpanded: Bool
+
+    var body: some View {
+        DisclosureGroup(isExpanded: $isExpanded) {
+            VStack(alignment: .leading, spacing: 4) {
+                ForEach(cluster.lines) { line in
+                    LiveRow(line: line)
+                        .id(line.id)
+                }
+            }
+            .padding(.top, 5)
+            .padding(.leading, 10)
+        } label: {
+            HStack(alignment: .top, spacing: 10) {
+                Text(timestamp(cluster.startDate))
+                    .font(.caption.monospacedDigit())
+                    .foregroundStyle(.secondary)
+                    .frame(width: 74, alignment: .leading)
+
+                Image(systemName: iconName)
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(iconColor)
+                    .frame(width: 18, height: 18)
+                    .padding(.top, 1)
+
+                VStack(alignment: .leading, spacing: 3) {
+                    HStack(alignment: .firstTextBaseline, spacing: 7) {
+                        Text(summary.title)
+                            .font(.callout.weight(.semibold))
+                            .foregroundStyle(.primary)
+                            .lineLimit(2)
+                            .textSelection(.enabled)
+
+                        if isGenerating {
+                            ProgressView()
+                                .controlSize(.small)
+                                .scaleEffect(0.72)
+                        }
+
+                        Spacer(minLength: 6)
+                    }
+
+                    HStack(spacing: 6) {
+                        Text(countLabel)
+                        if let durationLabel {
+                            Text(durationLabel)
+                        }
+                    }
+                    .font(.caption.monospacedDigit())
+                    .foregroundStyle(.secondary)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .padding(.vertical, 2)
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 6)
+        .background(.secondary.opacity(0.055), in: RoundedRectangle(cornerRadius: 6))
+        .overlay {
+            RoundedRectangle(cornerRadius: 6)
+                .stroke(.secondary.opacity(0.12))
+        }
+    }
+
+    private var countLabel: String {
+        let count = cluster.lines.count
+        return count == 1 ? "1 event" : "\(count) events"
+    }
+
+    private var durationLabel: String? {
+        guard let startDate = cluster.startDate,
+              let endDate = cluster.endDate else {
+            return nil
+        }
+        let seconds = max(0, endDate.timeIntervalSince(startDate))
+        if seconds < 1 {
+            return "\(Int((seconds * 1000).rounded()))ms"
+        }
+        return String(format: "%.1fs", seconds)
+    }
+
+    private var iconName: String {
+        switch cluster.freezeReason {
+        case .lifecycleBoundary:
+            return "flag.checkered"
+        case .quietGap:
+            return "rectangle.stack.fill"
+        }
+    }
+
+    private var iconColor: Color {
+        if cluster.lines.contains(where: { $0.status == .failed || $0.level == .error }) {
+            return .red
+        }
+        if cluster.lines.contains(where: { $0.level == .warning }) {
+            return .orange
+        }
+        return .blue
+    }
+
+    private func timestamp(_ date: Date?) -> String {
+        guard let date else { return "batch" }
+        let formatter = DateFormatter()
+        formatter.dateFormat = "HH:mm:ss"
+        return formatter.string(from: date)
     }
 }
 
