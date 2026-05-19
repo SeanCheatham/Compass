@@ -4032,7 +4032,8 @@ final class CinematicSceneCoordinator {
         animated: Bool
     ) {
         clearChildren(of: savedRecapArtifactTourNode)
-        savedRecapArtifactTourNode.name = "saved-recap-artifact-tour.\(tourPlan.stateIdentifier).\(tourPlan.savedTourHoldStateIdentifier)"
+        let treatment = tourPlan.runtimeRouteTreatment
+        savedRecapArtifactTourNode.name = "saved-recap-artifact-tour.\(tourPlan.stateIdentifier).\(tourPlan.savedTourHoldStateIdentifier).\(treatment.routeKindIdentifier)"
         savedRecapArtifactTourNode.position = savedRecapArtifactTourPosition(for: tourPlan)
         savedRecapArtifactTourNode.orientation = narrativeBillboardOrientation(
             from: savedRecapArtifactTourNode.position(relativeTo: nil),
@@ -4045,6 +4046,7 @@ final class CinematicSceneCoordinator {
         let plateWidth: Float = 2.62
         let plateHeight: Float = 0.94
         let plateDepth: Float = 0.034
+        let plateOpacity = min(0.9, 0.84 + Float(treatment.plateOpacityBoost))
         let plate = ModelEntity(
             mesh: .generateBox(
                 width: plateWidth,
@@ -4056,44 +4058,48 @@ final class CinematicSceneCoordinator {
                 material(
                     diffuse: NSColor(calibratedRed: 0.012, green: 0.017, blue: 0.028, alpha: 1),
                     emission: color.withAlphaComponent(0.22),
-                    opacity: 0.84
+                    opacity: plateOpacity
                 )
             ]
         )
-        plate.name = "saved-recap-artifact-tour.card"
+        plate.name = "saved-recap-artifact-tour.card.\(treatment.accentIdentifier)"
         plate.position.z = 0
-        plate.components.set(OpacityComponent(opacity: 0.84))
+        plate.components.set(OpacityComponent(opacity: plateOpacity))
         savedRecapArtifactTourNode.addChild(plate)
 
+        let railOpacityScale = Float(treatment.railOpacityScale)
         let topRail = beamEntity(
             from: [-plateWidth * 0.43, plateHeight * 0.36, 0.032],
             to: [plateWidth * 0.43, plateHeight * 0.36, 0.032],
             radius: 0.005,
             color: color,
-            opacity: 0.48
+            opacity: min(0.72, 0.48 * railOpacityScale)
         )
-        topRail.name = "saved-recap-artifact-tour.rail.top"
+        topRail.name = "saved-recap-artifact-tour.rail.top.\(treatment.railIdentifier)"
         savedRecapArtifactTourNode.addChild(topRail)
 
+        let sideRailBaseOpacity: Float = tourPlan.selectionSourceIdentifier == "held"
+            ? 0.62
+            : (tourPlan.selectionSourceIdentifier == "pinned" ? 0.54 : 0.34)
         let sideRail = beamEntity(
             from: [-plateWidth * 0.43, -plateHeight * 0.3, 0.034],
             to: [-plateWidth * 0.43, plateHeight * 0.3, 0.034],
             radius: 0.0045,
             color: color.withAlphaComponent(0.82),
-            opacity: tourPlan.selectionSourceIdentifier == "held"
-                ? 0.62
-                : (tourPlan.selectionSourceIdentifier == "pinned" ? 0.54 : 0.34)
+            opacity: min(0.78, sideRailBaseOpacity * railOpacityScale)
         )
-        sideRail.name = "saved-recap-artifact-tour.rail.\(tourPlan.selectionSourceIdentifier).\(tourPlan.savedTourHoldStateIdentifier)"
+        sideRail.name = "saved-recap-artifact-tour.rail.\(tourPlan.selectionSourceIdentifier).\(tourPlan.savedTourHoldStateIdentifier).\(treatment.railIdentifier)"
         savedRecapArtifactTourNode.addChild(sideRail)
 
+        let orbBaseOpacity: Float = tourPlan.hasWarnings ? 0.78 : 0.62
+        let orbOpacity = min(0.9, orbBaseOpacity * Float(treatment.orbOpacityScale))
         let orb = ModelEntity(
             mesh: .generateSphere(radius: 0.046),
-            materials: [glowMaterial(color, opacity: tourPlan.hasWarnings ? 0.78 : 0.62)]
+            materials: [glowMaterial(color, opacity: orbOpacity)]
         )
-        orb.name = "saved-recap-artifact-tour.orb.\(tourPlan.stateIdentifier).\(tourPlan.savedTourHoldStateIdentifier)"
+        orb.name = "saved-recap-artifact-tour.orb.\(tourPlan.stateIdentifier).\(tourPlan.savedTourHoldStateIdentifier).\(treatment.orbIdentifier)"
         orb.position = [-plateWidth * 0.43, plateHeight * 0.36, 0.058]
-        orb.components.set(OpacityComponent(opacity: tourPlan.hasWarnings ? 0.78 : 0.62))
+        orb.components.set(OpacityComponent(opacity: orbOpacity))
         savedRecapArtifactTourNode.addChild(orb)
 
         addNarrativeText(
@@ -4140,6 +4146,19 @@ final class CinematicSceneCoordinator {
             color: color.withAlphaComponent(0.84),
             opacity: 0.68
         )
+        if let runtimeRouteCopy = tourPlan.runtimeRouteCue?.compactCopy {
+            addNarrativeText(
+                runtimeRouteCopy,
+                to: savedRecapArtifactTourNode,
+                name: "saved-recap-artifact-tour.text.runtime-route.\(treatment.routeKindIdentifier)",
+                width: 0.78,
+                offset: [0.78, -0.3, 0.054],
+                fontSize: 0.047,
+                weight: .semibold,
+                color: color.withAlphaComponent(0.78),
+                opacity: 0.66
+            )
+        }
 
         if animated {
             savedRecapArtifactTourNode.scale = SIMD3<Float>(repeating: 0.92)
@@ -4396,25 +4415,34 @@ final class CinematicSceneCoordinator {
     private func savedRecapArtifactTourColor(
         for tourPlan: CinematicRunRecapShareArtifactTourPlan
     ) -> NSColor {
+        let baseColor: NSColor
         if tourPlan.stateIdentifier.contains("missing-pin")
             || tourPlan.stateIdentifier.contains("missing-hold") {
-            return themedColor(SpellSchool.failure.nsColor)
-        }
-        if tourPlan.stateIdentifier.contains("filtered-pin")
+            baseColor = themedColor(SpellSchool.failure.nsColor)
+        } else if tourPlan.stateIdentifier.contains("filtered-pin")
             || tourPlan.stateIdentifier.contains("filtered-hold")
             || tourPlan.stateIdentifier.contains("no-match") {
-            return themedColor(SpellSchool.scan.nsColor)
+            baseColor = themedColor(SpellSchool.scan.nsColor)
+        } else if tourPlan.hasWarnings {
+            baseColor = themedColor(SpellSchool.pressure.nsColor)
+        } else if tourPlan.selectionSourceIdentifier == "held" {
+            baseColor = themedColor(SpellSchool.verify.nsColor)
+        } else if tourPlan.selectionSourceIdentifier == "pinned" {
+            baseColor = themedColor(SpellSchool.git.nsColor)
+        } else {
+            baseColor = themedColor(SpellSchool.insight.nsColor)
         }
-        if tourPlan.hasWarnings {
-            return themedColor(SpellSchool.pressure.nsColor)
+
+        switch tourPlan.runtimeRouteCueStateIdentifier {
+        case "apple-container":
+            return baseColor.mixing(with: themedColor(SpellSchool.scan.nsColor), fraction: 0.3)
+        case "native-fallback":
+            return baseColor.mixing(with: themedColor(SpellSchool.pressure.nsColor), fraction: 0.38)
+        case "native":
+            return baseColor.mixing(with: themedColor(SpellSchool.insight.nsColor), fraction: 0.18)
+        default:
+            return baseColor
         }
-        if tourPlan.selectionSourceIdentifier == "held" {
-            return themedColor(SpellSchool.verify.nsColor)
-        }
-        if tourPlan.selectionSourceIdentifier == "pinned" {
-            return themedColor(SpellSchool.git.nsColor)
-        }
-        return themedColor(SpellSchool.insight.nsColor)
     }
 
     private func applyTimelineSceneFocusArenaEffect(

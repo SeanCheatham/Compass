@@ -749,7 +749,7 @@ enum CinematicIdleStoryCyclePlanner {
         cadence: TimeInterval
     ) -> Candidate? {
         guard let tourPlan, tourPlan.shouldDisplay else { return nil }
-        let targetKindIdentifier = "saved-recap-artifact-\(tourPlan.stateIdentifier)"
+        let targetKindIdentifier = "saved-recap-artifact-\(tourPlan.stateIdentifier).\(tourPlan.runtimeRouteCueStateIdentifier)"
         let cameraShot = savedRecapArtifactTourCameraShot(for: tourPlan)
         let lookTarget = savedRecapArtifactTourLookTarget(for: tourPlan)
         let choreography = choreography(
@@ -1415,7 +1415,18 @@ enum CinematicIdleStoryCyclePlanner {
         default:
             pinOffset = 0.18
         }
-        return [-1.62 + pinOffset, 1.18 + sessionOffset, 1.62]
+        let routeOffset: Float
+        switch tourPlan.runtimeRouteCueStateIdentifier {
+        case "apple-container":
+            routeOffset = -0.08
+        case "native-fallback":
+            routeOffset = 0.1
+        case "native":
+            routeOffset = 0.02
+        default:
+            routeOffset = 0
+        }
+        return [-1.62 + pinOffset + routeOffset, 1.18 + sessionOffset, 1.62]
     }
 
     private static func savedRecapArtifactTourLightFamily(
@@ -1439,6 +1450,16 @@ enum CinematicIdleStoryCyclePlanner {
         if tourPlan.selectionSourceIdentifier == "pinned" {
             return .git
         }
+        switch tourPlan.runtimeRouteCueStateIdentifier {
+        case "apple-container":
+            return .scan
+        case "native-fallback":
+            return .pressure
+        case "native":
+            return .insight
+        default:
+            break
+        }
         return .insight
     }
 
@@ -1457,6 +1478,12 @@ enum CinematicIdleStoryCyclePlanner {
         }
         if tourPlan.selectionSourceIdentifier == "held" {
             return .seal
+        }
+        if tourPlan.runtimeRouteCueStateIdentifier == "native-fallback" {
+            return .activityPulse
+        }
+        if tourPlan.runtimeRouteCueStateIdentifier == "apple-container" {
+            return .historyChains
         }
         return tourPlan.selectionSourceIdentifier == "pinned" ? .historyChains : .seal
     }
@@ -1478,6 +1505,16 @@ enum CinematicIdleStoryCyclePlanner {
         }
         if tourPlan.selectionSourceIdentifier == "held" {
             return 720
+        }
+        switch tourPlan.runtimeRouteCueStateIdentifier {
+        case "apple-container":
+            return 640
+        case "native-fallback":
+            return 700
+        case "native":
+            return 590
+        default:
+            break
         }
         return tourPlan.selectionSourceIdentifier == "pinned" ? 680 : 560
     }

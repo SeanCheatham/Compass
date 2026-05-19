@@ -1066,6 +1066,15 @@ struct CinematicDiagnosticsReport: Equatable {
         var commitSnippet: String?
         var bodyPreviewText: String
         var sessionText: String
+        var runtimeRouteCueIdentifier: String?
+        var runtimeRouteCueStateIdentifier: String
+        var runtimeRouteCueCompactCopy: String?
+        var runtimeRouteCueDetailCopy: String?
+        var runtimeRouteCueHelpCopy: String?
+        var runtimeRouteTreatmentIdentifier: String
+        var runtimeRouteTreatmentAccentIdentifier: String
+        var runtimeRouteTreatmentRailIdentifier: String
+        var runtimeRouteTreatmentOrbIdentifier: String
         var requestedPinnedEntryIdentifiers: [String]
         var retainedPinnedEntryIdentifiers: [String]
         var missingPinnedEntryIdentifiers: [String]
@@ -2579,6 +2588,8 @@ struct CinematicVisualSmokeReport: Equatable {
         let states = Set(displayReports.map(\.runRecapShareArtifactTour.stateIdentifier))
         let sources = Set(displayReports.map(\.runRecapShareArtifactTour.selectionSourceIdentifier))
         let holdStates = Set(displayReports.map(\.runRecapShareArtifactTour.savedTourHoldStateIdentifier))
+        let routeStates = Set(displayReports.map(\.runRecapShareArtifactTour.runtimeRouteCueStateIdentifier))
+        let routeTreatments = Set(displayReports.map(\.runRecapShareArtifactTour.runtimeRouteTreatmentAccentIdentifier))
         let noMatchCount = displayReports.filter {
             $0.runRecapShareArtifactTour.noMatchAvailabilityReason == "no-matching-recap-share-artifacts"
         }.count
@@ -2589,6 +2600,11 @@ struct CinematicVisualSmokeReport: Equatable {
                 && $0.idleStoryCycle.targetKindIdentifier.contains("saved-recap-artifact")
                 && $0.idleStoryCycle.cameraPressureIdentifier == "archive-tour"
         }.count
+        let visibleRouteDetail = [
+            routeStates.contains("apple-container") ? "apple-container" : nil,
+            routeStates.contains("native-fallback") ? "native-fallback" : nil,
+            routeStates.contains("missing-cue") ? "missing-cue" : nil
+        ].compactMap { $0 }.joined(separator: " ")
         let isPassing = !reports.isEmpty
             && !displayReports.isEmpty
             && !activeIdleTourReports.isEmpty
@@ -2605,6 +2621,13 @@ struct CinematicVisualSmokeReport: Equatable {
                 "recent-warning"
             ])
             && holdStates.isSuperset(of: ["none", "held", "filtered-hold", "missing-hold"])
+            && routeStates.isSuperset(of: ["apple-container", "native", "native-fallback", "missing-cue"])
+            && routeTreatments.isSuperset(of: [
+                "container-blue",
+                "native-green",
+                "fallback-amber",
+                "missing-muted"
+            ])
             && noMatchCount > 0
             && warningCount > 0
             && boundedCount == reports.count
@@ -2623,9 +2646,10 @@ struct CinematicVisualSmokeReport: Equatable {
                 "no-match \(noMatchCount)",
                 "missing-pin",
                 "missing-hold",
+                visibleRouteDetail,
                 "warnings \(warningCount)",
                 "bounded \(boundedCount)/\(reports.count)"
-            ].joined(separator: " ")
+            ].filter { !$0.isEmpty }.joined(separator: " ")
         )
     }
 
@@ -3515,6 +3539,34 @@ struct CinematicVisualSmokeReport: Equatable {
             && string(
                 snapshot.sessionText,
                 maxCharacters: CinematicRunRecapShareArtifactTourPlan.snippetMaxCharacters
+            )
+            && (snapshot.runtimeRouteCueIdentifier ?? "").count
+                <= CinematicRunRecapShareArtifactRuntimeRouteCue.identifierMaxCharacters
+            && string(
+                snapshot.runtimeRouteCueStateIdentifier,
+                maxCharacters: CinematicRunRecapShareArtifactRuntimeRouteCue.fieldMaxCharacters
+            )
+            && (snapshot.runtimeRouteCueCompactCopy ?? "").count
+                <= CinematicRunRecapShareArtifactRuntimeRouteCue.copyMaxCharacters
+            && (snapshot.runtimeRouteCueDetailCopy ?? "").count
+                <= CinematicRunRecapShareArtifactRuntimeRouteCue.detailMaxCharacters
+            && (snapshot.runtimeRouteCueHelpCopy ?? "").count
+                <= CinematicRunRecapShareArtifactRuntimeRouteCue.helpMaxCharacters
+            && string(
+                snapshot.runtimeRouteTreatmentIdentifier,
+                maxCharacters: CinematicRunRecapShareArtifactRuntimeRouteTreatmentDescriptor.identifierMaxCharacters
+            )
+            && string(
+                snapshot.runtimeRouteTreatmentAccentIdentifier,
+                maxCharacters: CinematicRunRecapShareArtifactRuntimeRouteTreatmentDescriptor.componentMaxCharacters
+            )
+            && string(
+                snapshot.runtimeRouteTreatmentRailIdentifier,
+                maxCharacters: CinematicRunRecapShareArtifactRuntimeRouteTreatmentDescriptor.componentMaxCharacters
+            )
+            && string(
+                snapshot.runtimeRouteTreatmentOrbIdentifier,
+                maxCharacters: CinematicRunRecapShareArtifactRuntimeRouteTreatmentDescriptor.componentMaxCharacters
             )
             && snapshot.requestedPinnedEntryIdentifiers.allSatisfy {
                 string($0, maxCharacters: CinematicRunRecapShareArtifactHistoryPlan.identifierMaxCharacters)
@@ -6725,6 +6777,10 @@ struct CinematicDiagnosticsSummary: Equatable {
             "selection \(position)",
             snapshot.sessionNumber.map { "session \($0)" },
             snapshot.filename.map { "file \(bounded($0, limit: 72))" },
+            "runtime route \(snapshot.runtimeRouteCueStateIdentifier)",
+            snapshot.runtimeRouteCueCompactCopy.map { "route copy \($0)" },
+            snapshot.runtimeRouteCueDetailCopy.map { "route detail \($0)" },
+            "route treatment \(snapshot.runtimeRouteTreatmentAccentIdentifier)/\(snapshot.runtimeRouteTreatmentRailIdentifier)/\(snapshot.runtimeRouteTreatmentOrbIdentifier)",
             "pins \(snapshot.pinnedEntryCount)",
             "retained pins \(snapshot.retainedPinnedEntryCount)",
             "missing pins \(snapshot.missingPinnedEntryCount)",
@@ -8409,6 +8465,8 @@ enum CinematicDiagnostics {
                 "run-recap-share-artifact-tour-source:\(runRecapShareArtifactTourSnapshot.selectionSourceIdentifier)",
                 "run-recap-share-artifact-tour-hold:\(runRecapShareArtifactTourSnapshot.savedTourHoldStateIdentifier)",
                 "run-recap-share-artifact-tour-held-entry:\(runRecapShareArtifactTourSnapshot.requestedSavedTourHoldEntryIdentifier ?? "none")",
+                "run-recap-share-artifact-tour-runtime-route:\(runRecapShareArtifactTourSnapshot.runtimeRouteCueStateIdentifier)",
+                "run-recap-share-artifact-tour-runtime-treatment:\(runRecapShareArtifactTourSnapshot.runtimeRouteTreatmentIdentifier)",
                 "run-recap-share-artifact-preview:\(runRecapShareArtifactPreviewSnapshot.identifier)",
                 "run-recap-share-artifact-selected-export:\(runRecapShareArtifactPreviewSnapshot.selectedExport.identifier)",
                 "run-recap-share-artifact-filtered-export:\(runRecapShareArtifactPreviewSnapshot.filteredExport.identifier)",
@@ -9747,31 +9805,40 @@ enum CinematicDiagnostics {
             body = "recent archive body for saved tour \(caseIdentifier)"
         }
         let filename = "\(session)-saved-tour-\(caseIdentifier)-\(role).md"
-        let markdown = """
-        # Compass Run Recap Share
+        let runtimeRouteSection = representativeSavedRecapArtifactTourRuntimeRouteSection(
+            caseIdentifier: caseIdentifier
+        )
+        let markdown = [
+            """
+            # Compass Run Recap Share
 
-        - Artifact: saved-tour-\(caseIdentifier)-\(role)
-        - Availability: available
-        - Session: \(session)
-        - Filename: \(filename)
-        - Share: saved-tour-share
-        - Recap: saved-tour-recap
-        - Focus: none
-        - End card: none
-        - Title: Saved tour \(role) \(session)
-        - Status: succeeded
-        - Detail: Saved tour smoke detail
-        - Commit: Saved tour commit \(session)
+            - Artifact: saved-tour-\(caseIdentifier)-\(role)
+            - Availability: available
+            - Session: \(session)
+            - Filename: \(filename)
+            - Share: saved-tour-share
+            - Recap: saved-tour-recap
+            - Focus: none
+            - End card: none
+            - Title: Saved tour \(role) \(session)
+            - Status: succeeded
+            - Detail: Saved tour smoke detail
+            - Commit: Saved tour commit \(session)
+            """,
+            runtimeRouteSection,
+            """
+            ## Events
+            - event
 
-        ## Events
-        - event
+            ## Share Text
 
-        ## Share Text
-
-        ```text
-        \(body)
-        ```
-        """
+            ```text
+            \(body)
+            ```
+            """
+        ]
+        .filter { !$0.isEmpty }
+        .joined(separator: "\n\n")
         return CinematicRunRecapShareArtifactHistoryPlan.Entry(
             identifier: "saved-tour-\(caseIdentifier)-entry-\(session)",
             sessionNumber: session,
@@ -9784,6 +9851,86 @@ enum CinematicDiagnostics {
             markdownContents: markdown,
             markdownLength: markdown.count
         )
+    }
+
+    private static func representativeSavedRecapArtifactTourRuntimeRouteSection(
+        caseIdentifier: String
+    ) -> String {
+        let route: (
+            phase: String,
+            phaseIdentifier: String,
+            attempt: String,
+            preference: String,
+            preferenceTitle: String,
+            effectiveRoute: String,
+            effectiveRouteTitle: String,
+            support: String,
+            fallbackState: String,
+            fallbackReason: String
+        )?
+        switch caseIdentifier {
+        case "pinned":
+            route = (
+                "Verify",
+                "verify",
+                "1",
+                CodexExecutionEnvironmentPreference.devcontainerPreferred.rawValue,
+                CodexExecutionEnvironmentPreference.devcontainerPreferred.title,
+                "apple-container",
+                "Apple container",
+                "image-routeable",
+                "direct",
+                "none"
+            )
+        case "held":
+            route = (
+                "Develop",
+                "develop",
+                "1",
+                CodexExecutionEnvironmentPreference.nativeMacOS.rawValue,
+                CodexExecutionEnvironmentPreference.nativeMacOS.title,
+                "native-macos",
+                "Native macOS",
+                "not-inspected",
+                "direct",
+                "none"
+            )
+        case "search-filtered", "filtered-hold":
+            route = (
+                "Plan",
+                "plan",
+                "2",
+                CodexExecutionEnvironmentPreference.devcontainerPreferred.rawValue,
+                CodexExecutionEnvironmentPreference.devcontainerPreferred.title,
+                "native-macos",
+                "Native macOS",
+                "feature-based",
+                "fallback",
+                "unsupported devcontainer metadata"
+            )
+        default:
+            route = nil
+        }
+        guard let route else { return "" }
+        return """
+        ## Runtime Route
+
+        - Runtime audit: representative-runtime-route-\(caseIdentifier)
+        - Phase: \(route.phase) (\(route.phaseIdentifier))
+        - Attempt: \(route.attempt)
+        - Selected preference: \(route.preference) (\(route.preferenceTitle))
+        - Effective route: \(route.effectiveRoute) (\(route.effectiveRouteTitle))
+        - Support classification: \(route.support)
+        - Visible support tokens: none
+        - Omitted support tokens: 0
+        - Image label: none
+        - Workspace label: none
+        - Fallback state: \(route.fallbackState)
+        - Fallback reason: \(route.fallbackReason)
+        - Provisioning availability: none
+        - Provisioning status: none
+        - Provisioning action: none
+        """
     }
 
     private static func representativePinnedComparisonCueSmokeReport(
@@ -11860,6 +12007,15 @@ enum CinematicDiagnostics {
             commitSnippet: plan.commitSnippet,
             bodyPreviewText: plan.bodyPreviewText,
             sessionText: plan.sessionText,
+            runtimeRouteCueIdentifier: plan.runtimeRouteCue?.identifier,
+            runtimeRouteCueStateIdentifier: plan.runtimeRouteCueStateIdentifier,
+            runtimeRouteCueCompactCopy: plan.runtimeRouteCue?.compactCopy,
+            runtimeRouteCueDetailCopy: plan.runtimeRouteCue?.detailCopy,
+            runtimeRouteCueHelpCopy: plan.runtimeRouteCue?.helpCopy,
+            runtimeRouteTreatmentIdentifier: plan.runtimeRouteTreatment.identifier,
+            runtimeRouteTreatmentAccentIdentifier: plan.runtimeRouteTreatment.accentIdentifier,
+            runtimeRouteTreatmentRailIdentifier: plan.runtimeRouteTreatment.railIdentifier,
+            runtimeRouteTreatmentOrbIdentifier: plan.runtimeRouteTreatment.orbIdentifier,
             requestedPinnedEntryIdentifiers: plan.requestedPinnedEntryIdentifiers,
             retainedPinnedEntryIdentifiers: plan.retainedPinnedEntryIdentifiers,
             missingPinnedEntryIdentifiers: plan.missingPinnedEntryIdentifiers,

@@ -608,13 +608,19 @@ final class CinematicDiagnosticsTests: XCTestCase {
 
         XCTAssertTrue(report.runRecapShareArtifactTour.isAvailable)
         XCTAssertEqual(report.runRecapShareArtifactTour.selectionSourceIdentifier, "pinned")
+        XCTAssertEqual(report.runRecapShareArtifactTour.runtimeRouteCueStateIdentifier, "apple-container")
+        XCTAssertEqual(report.runRecapShareArtifactTour.runtimeRouteCueCompactCopy, "Container")
+        XCTAssertEqual(report.runRecapShareArtifactTour.runtimeRouteTreatmentAccentIdentifier, "container-blue")
         XCTAssertEqual(report.idleStoryCycle.phaseIdentifier, "saved-recap-artifact-tour")
         XCTAssertEqual(report.idleStoryCycle.cameraPressureIdentifier, "archive-tour")
         XCTAssertTrue(report.identifier.contains("run-recap-share-artifact-tour-state:pinned"))
+        XCTAssertTrue(report.identifier.contains("run-recap-share-artifact-tour-runtime-route:apple-container"))
         XCTAssertTrue(row.detail.contains("state pinned"))
         XCTAssertTrue(row.detail.contains("source pinned"))
+        XCTAssertTrue(row.detail.contains("runtime route apple-container"))
         XCTAssertTrue(summary.exportText.contains("Recap artifact tour: available"))
         XCTAssertTrue(summary.exportText.contains("state pinned"))
+        XCTAssertTrue(summary.exportText.contains("route copy Container"))
     }
 
     func testReportAndSummaryExportHeldSavedRecapArtifactTourState() throws {
@@ -636,11 +642,17 @@ final class CinematicDiagnosticsTests: XCTestCase {
 
         XCTAssertEqual(report.runRecapShareArtifactTour.savedTourHoldStateIdentifier, "held")
         XCTAssertEqual(report.runRecapShareArtifactTour.selectionSourceIdentifier, "held")
+        XCTAssertEqual(report.runRecapShareArtifactTour.runtimeRouteCueStateIdentifier, "native")
+        XCTAssertEqual(report.runRecapShareArtifactTour.runtimeRouteTreatmentAccentIdentifier, "native-green")
         XCTAssertEqual(filteredHoldReport.runRecapShareArtifactTour.savedTourHoldStateIdentifier, "filtered-hold")
+        XCTAssertEqual(filteredHoldReport.runRecapShareArtifactTour.runtimeRouteCueStateIdentifier, "native-fallback")
+        XCTAssertEqual(filteredHoldReport.runRecapShareArtifactTour.runtimeRouteTreatmentAccentIdentifier, "fallback-amber")
         XCTAssertTrue(report.identifier.contains("run-recap-share-artifact-tour-hold:held"))
         XCTAssertTrue(row.detail.contains("hold held"))
+        XCTAssertTrue(row.detail.contains("runtime route native"))
         XCTAssertTrue(summary.exportText.contains("hold held"))
         XCTAssertTrue(summary.exportText.contains("filtered-hold"))
+        XCTAssertTrue(summary.exportText.contains("native-fallback"))
     }
 
     func testRepresentativeRunRecapArtifactCommandSmokeReportsCoverAvailabilityStates() throws {

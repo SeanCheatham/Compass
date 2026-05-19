@@ -1568,6 +1568,23 @@ private struct CinematicRunRecapArtifactLibraryControl: View {
                 .lineLimit(1)
                 .minimumScaleFactor(0.68)
 
+            if let runtimeRouteCue = tourPlan.runtimeRouteCue {
+                Text(runtimeRouteCue.compactCopy)
+                    .font(.caption2.weight(.bold))
+                    .foregroundStyle(tint.opacity(tourPlan.isAvailable ? 0.72 : 0.42))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.68)
+                    .padding(.horizontal, 4)
+                    .frame(minWidth: 42, maxWidth: 78, minHeight: 16)
+                    .background(
+                        tint.opacity(0.055),
+                        in: RoundedRectangle(cornerRadius: 4)
+                    )
+                    .help(runtimeRouteCueHelp(runtimeRouteCue))
+                    .accessibilityLabel("Runtime route \(runtimeRouteCue.compactCopy)")
+                    .accessibilityIdentifier("cinematic-run-recap-artifact-library-tour-runtime-route-\(runtimeRouteCue.routeKindIdentifier)")
+            }
+
             Spacer(minLength: 4)
 
             Button {
@@ -1625,7 +1642,7 @@ private struct CinematicRunRecapArtifactLibraryControl: View {
             RoundedRectangle(cornerRadius: 5)
                 .stroke(tint.opacity(tourPlan.savedTourHoldStateIdentifier == "none" ? 0.09 : 0.2), lineWidth: 1)
         }
-        .help(tourSummary(tourPlan))
+        .help(tourStripHelp(tourPlan))
         .accessibilityIdentifier("cinematic-run-recap-artifact-library-tour-\(tourPlan.identifier)")
     }
 
@@ -1793,6 +1810,19 @@ private struct CinematicRunRecapArtifactLibraryControl: View {
             ? " | \(tourPlan.matchingEntryCount)/\(tourPlan.unfilteredVisibleCount)"
             : ""
         return "Tour \(session) | \(tourPlan.selectionSourceIdentifier)\(hold)\(promotedHold)\(search)"
+    }
+
+    private func tourStripHelp(_ tourPlan: CinematicRunRecapShareArtifactTourPlan) -> String {
+        guard let runtimeRouteCue = tourPlan.runtimeRouteCue else {
+            return tourSummary(tourPlan)
+        }
+        return boundedHelp("\(tourSummary(tourPlan)). Runtime route: \(runtimeRouteCue.detailCopy). \(runtimeRouteCue.helpCopy)")
+    }
+
+    private func runtimeRouteCueHelp(
+        _ runtimeRouteCue: CinematicRunRecapShareArtifactRuntimeRouteCue
+    ) -> String {
+        boundedHelp("\(runtimeRouteCue.detailCopy). \(runtimeRouteCue.helpCopy)")
     }
 
     private func tourPromotedHoldState(_ tourPlan: CinematicRunRecapShareArtifactTourPlan) -> String {

@@ -424,15 +424,42 @@ final class CinematicIdleStoryCyclePlanTests: XCTestCase {
         let tourPlan = try XCTUnwrap(descriptor.runRecapShareArtifactTourPlan)
 
         XCTAssertEqual(descriptor.phase, .savedRecapArtifactTour)
-        XCTAssertEqual(descriptor.targetKindIdentifier, "saved-recap-artifact-pinned")
+        XCTAssertEqual(descriptor.targetKindIdentifier, "saved-recap-artifact-pinned.missing-cue")
         XCTAssertEqual(descriptor.cameraShot, .overShoulder)
         XCTAssertEqual(descriptor.lightFamily, .git)
         XCTAssertEqual(descriptor.arenaEffect, .historyChains)
+        XCTAssertEqual(tourPlan.runtimeRouteCueStateIdentifier, "missing-cue")
+        XCTAssertEqual(tourPlan.runtimeRouteTreatment.accentIdentifier, "missing-muted")
         XCTAssertEqual(tourPlan.selectedEntryIdentifier, pinned.identifier)
         XCTAssertEqual(tourPlan.retainedPinnedEntryIdentifiers, [pinned.identifier])
         XCTAssertEqual(tourPlan.missingPinnedEntryIdentifiers, ["stale-idle-tour-pin"])
         XCTAssertEqual(libraryContext.pinnedEntryIdentifiers, [pinned.identifier, "stale-idle-tour-pin"])
         XCTAssertEqual(libraryContext.searchText, "idle pinned comparison body")
+    }
+
+    func testSavedRecapArtifactTourRuntimeRouteMetadataDrivesIdleDescriptor() throws {
+        var context = try makeContext()
+        let cases: [(String, String, String, CinematicStageLightFamily, CinematicStageArenaEffect)] = [
+            ("apple-container", "apple-container", "container-blue", .scan, .historyChains),
+            ("native", "native", "native-green", .insight, .seal),
+            ("native-fallback", "native-fallback", "fallback-amber", .pressure, .activityPulse),
+            ("missing-cue", "missing-cue", "missing-muted", .insight, .seal)
+        ]
+
+        for testCase in cases {
+            context.tourPlan = CinematicRunRecapShareArtifactTourPlanner.plan(
+                historyPlan: makeRuntimeRouteHistory(routeKind: testCase.0),
+                libraryContext: .empty
+            )
+            let descriptor = try descriptor(for: .savedRecapArtifactTour, in: context)
+            let tourPlan = try XCTUnwrap(descriptor.runRecapShareArtifactTourPlan)
+
+            XCTAssertTrue(descriptor.targetKindIdentifier.hasSuffix(".\(testCase.1)"))
+            XCTAssertEqual(tourPlan.runtimeRouteCueStateIdentifier, testCase.1)
+            XCTAssertEqual(tourPlan.runtimeRouteTreatment.accentIdentifier, testCase.2)
+            XCTAssertEqual(descriptor.lightFamily, testCase.3)
+            XCTAssertEqual(descriptor.arenaEffect, testCase.4)
+        }
     }
 
     func testRunRecapEndCardCandidateCarriesPinnedComparisonCue() throws {
@@ -809,6 +836,150 @@ final class CinematicIdleStoryCyclePlanTests: XCTestCase {
             exportIdentifier: "idle-pinned-history-export",
             combinedMarkdownExport: entries.map(\.markdownContents).joined(separator: "\n\n")
         )
+    }
+
+    private func makeRuntimeRouteHistory(routeKind: String) -> CinematicRunRecapShareArtifactHistoryPlan {
+        let session = 50
+        let filename = "\(session)-idle-runtime-route-\(routeKind).md"
+        let routeSection: String
+        switch routeKind {
+        case "apple-container":
+            routeSection = runtimeRouteSection(
+                phase: "Verify",
+                phaseIdentifier: "verify",
+                attempt: "1",
+                preference: CodexExecutionEnvironmentPreference.devcontainerPreferred.rawValue,
+                preferenceTitle: CodexExecutionEnvironmentPreference.devcontainerPreferred.title,
+                effectiveRoute: "apple-container",
+                effectiveRouteTitle: "Apple container",
+                support: "image-routeable",
+                fallbackState: "direct",
+                fallbackReason: "none"
+            )
+        case "native":
+            routeSection = runtimeRouteSection(
+                phase: "Develop",
+                phaseIdentifier: "develop",
+                attempt: "1",
+                preference: CodexExecutionEnvironmentPreference.nativeMacOS.rawValue,
+                preferenceTitle: CodexExecutionEnvironmentPreference.nativeMacOS.title,
+                effectiveRoute: "native-macos",
+                effectiveRouteTitle: "Native macOS",
+                support: "not-inspected",
+                fallbackState: "direct",
+                fallbackReason: "none"
+            )
+        case "native-fallback":
+            routeSection = runtimeRouteSection(
+                phase: "Plan",
+                phaseIdentifier: "plan",
+                attempt: "2",
+                preference: CodexExecutionEnvironmentPreference.devcontainerPreferred.rawValue,
+                preferenceTitle: CodexExecutionEnvironmentPreference.devcontainerPreferred.title,
+                effectiveRoute: "native-macos",
+                effectiveRouteTitle: "Native macOS",
+                support: "feature-based",
+                fallbackState: "fallback",
+                fallbackReason: "unsupported devcontainer metadata"
+            )
+        default:
+            routeSection = ""
+        }
+        let markdown = [
+            """
+            # Compass Run Recap Share
+
+            - Artifact: idle-runtime-route-\(routeKind)
+            - Availability: available
+            - Session: \(session)
+            - Filename: \(filename)
+            - Share: share-id
+            - Recap: recap-id
+            - Focus: focus-id
+            - End card: end-card-id
+            - Title: Idle runtime \(routeKind)
+            - Status: succeeded
+            - Detail: Idle runtime route detail
+            - Commit: Idle runtime route commit
+            """,
+            routeSection,
+            """
+            ## Events
+            - event
+
+            ## Share Text
+
+            ```text
+            Idle runtime route body \(routeKind)
+            ```
+            """
+        ]
+        .filter { !$0.isEmpty }
+        .joined(separator: "\n\n")
+        let entry = CinematicRunRecapShareArtifactHistoryPlan.Entry(
+            identifier: "idle-runtime-route-entry-\(routeKind)",
+            sessionNumber: session,
+            filename: filename,
+            url: URL(fileURLWithPath: "/tmp/\(filename)"),
+            pathDisplayText: "/tmp/\(filename)",
+            titleSnippet: "Idle runtime \(routeKind)",
+            statusSnippet: "succeeded",
+            commitSnippet: "Idle runtime route commit",
+            markdownContents: markdown,
+            markdownLength: markdown.count
+        )
+        return CinematicRunRecapShareArtifactHistoryPlan(
+            identifier: "idle-runtime-route-history-\(routeKind)",
+            isAvailable: true,
+            availabilityReason: "available",
+            storageRootDisplayText: "/tmp/idle-runtime-route",
+            sessionsDisplayText: "/tmp/idle-runtime-route/sessions",
+            retentionLimit: CinematicRunRecapShareArtifactHistoryPlan.retentionLimit,
+            entries: [entry],
+            totalCount: 1,
+            hiddenCount: 0,
+            cleanupCandidateCount: 0,
+            hiddenCleanupCandidateCount: 0,
+            cleanupCandidateIdentifiers: [],
+            warnings: [],
+            warningCount: 0,
+            hiddenWarningCount: 0,
+            exportIdentifier: "idle-runtime-route-history-export-\(routeKind)",
+            combinedMarkdownExport: markdown
+        )
+    }
+
+    private func runtimeRouteSection(
+        phase: String,
+        phaseIdentifier: String,
+        attempt: String,
+        preference: String,
+        preferenceTitle: String,
+        effectiveRoute: String,
+        effectiveRouteTitle: String,
+        support: String,
+        fallbackState: String,
+        fallbackReason: String
+    ) -> String {
+        """
+        ## Runtime Route
+
+        - Runtime audit: idle-runtime-route-audit
+        - Phase: \(phase) (\(phaseIdentifier))
+        - Attempt: \(attempt)
+        - Selected preference: \(preference) (\(preferenceTitle))
+        - Effective route: \(effectiveRoute) (\(effectiveRouteTitle))
+        - Support classification: \(support)
+        - Visible support tokens: none
+        - Omitted support tokens: 0
+        - Image label: none
+        - Workspace label: none
+        - Fallback state: \(fallbackState)
+        - Fallback reason: \(fallbackReason)
+        - Provisioning availability: none
+        - Provisioning status: none
+        - Provisioning action: none
+        """
     }
 
     private func runCue(

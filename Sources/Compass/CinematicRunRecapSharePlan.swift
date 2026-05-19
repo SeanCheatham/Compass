@@ -362,6 +362,369 @@ struct CinematicRunRecapShareArtifactRuntimeRouteAudit: Equatable, Identifiable 
     }
 }
 
+struct CinematicRunRecapShareArtifactRuntimeRouteCue: Equatable, Identifiable {
+    static let identifierMaxCharacters = CinematicRunRecapShareArtifactPlan.identifierMaxCharacters
+    static let fieldMaxCharacters = SessionExecutionEnvironmentSnapshot.fieldLimit
+    static let copyMaxCharacters = 96
+    static let detailMaxCharacters = 180
+    static let helpMaxCharacters = 220
+    static let sectionLineLimit = 32
+
+    var id: String { identifier }
+
+    var identifier: String
+    var routeKindIdentifier: String
+    var effectiveRouteIdentifier: String
+    var fallbackStateIdentifier: String
+    var selectedPreferenceIdentifier: String
+    var supportClassificationIdentifier: String
+    var phaseIdentifier: String
+    var attemptLabel: String
+    var compactCopy: String
+    var detailCopy: String
+    var helpCopy: String
+
+    init?(markdownContents: String) {
+        guard let sectionLines = Self.runtimeRouteSectionLines(in: markdownContents) else {
+            return nil
+        }
+        let effectiveRouteIdentifier = Self.knownIdentifier(
+            Self.leadingIdentifier(Self.markdownField("Effective route", in: sectionLines)),
+            allowed: ["apple-container", "native-macos"],
+            fallback: "unknown"
+        )
+        let fallbackStateIdentifier = Self.knownIdentifier(
+            Self.markdownField("Fallback state", in: sectionLines),
+            allowed: ["direct", "fallback"],
+            fallback: "unknown"
+        )
+        let selectedPreferenceIdentifier = Self.knownIdentifier(
+            Self.leadingIdentifier(Self.markdownField("Selected preference", in: sectionLines)),
+            allowed: [
+                CodexExecutionEnvironmentPreference.nativeMacOS.rawValue,
+                CodexExecutionEnvironmentPreference.devcontainerPreferred.rawValue
+            ],
+            fallback: "unknown"
+        )
+        let supportClassificationIdentifier = Self.knownIdentifier(
+            Self.markdownField("Support classification", in: sectionLines),
+            allowed: [
+                "not-inspected",
+                "image-routeable",
+                "build-based",
+                "compose-based",
+                "feature-based",
+                "missing",
+                "malformed"
+            ],
+            fallback: "not-inspected"
+        )
+        let phaseIdentifier = Self.sanitizedIdentifier(
+            Self.parenthesizedSuffix(Self.markdownField("Phase", in: sectionLines))
+                ?? Self.markdownField("Phase", in: sectionLines)
+                ?? "phase",
+            fallback: "phase",
+            limit: CinematicRunRecapShareArtifactRuntimeRouteAudit.phaseMaxCharacters
+        )
+        let attemptLabel = Self.sanitizedAttemptLabel(
+            Self.markdownField("Attempt", in: sectionLines)
+        )
+        let routeKindIdentifier = Self.routeKindIdentifier(
+            effectiveRouteIdentifier: effectiveRouteIdentifier,
+            fallbackStateIdentifier: fallbackStateIdentifier
+        )
+        let compactCopy = Self.compactCopy(routeKindIdentifier: routeKindIdentifier)
+        let detailCopy = Self.bounded(
+            [
+                "route \(compactCopy.lowercased())",
+                "support \(supportClassificationIdentifier)",
+                "phase \(phaseIdentifier)",
+                "attempt \(attemptLabel)"
+            ].joined(separator: " | "),
+            limit: Self.detailMaxCharacters
+        )
+        let helpCopy = Self.bounded(
+            "Runtime route cue from the saved recap artifact Markdown. It is read-only and only shows sanitized route, support, phase, and attempt identifiers.",
+            limit: Self.helpMaxCharacters
+        )
+        let identifier = Self.bounded(
+            [
+                "run-recap-share-artifact-runtime-route-cue",
+                "kind:\(routeKindIdentifier)",
+                "effective:\(effectiveRouteIdentifier)",
+                "fallback:\(fallbackStateIdentifier)",
+                "preference:\(selectedPreferenceIdentifier)",
+                "support:\(supportClassificationIdentifier)",
+                "phase:\(phaseIdentifier)",
+                "attempt:\(attemptLabel)"
+            ].joined(separator: "|"),
+            limit: Self.identifierMaxCharacters
+        )
+
+        self.identifier = identifier
+        self.routeKindIdentifier = routeKindIdentifier
+        self.effectiveRouteIdentifier = effectiveRouteIdentifier
+        self.fallbackStateIdentifier = fallbackStateIdentifier
+        self.selectedPreferenceIdentifier = selectedPreferenceIdentifier
+        self.supportClassificationIdentifier = supportClassificationIdentifier
+        self.phaseIdentifier = phaseIdentifier
+        self.attemptLabel = attemptLabel
+        self.compactCopy = compactCopy
+        self.detailCopy = detailCopy
+        self.helpCopy = helpCopy
+    }
+
+    static func runtimeRouteSectionLines(in markdownContents: String) -> [String]? {
+        let lines = markdownContents
+            .replacingOccurrences(of: "\r", with: "")
+            .split(omittingEmptySubsequences: false, whereSeparator: \.isNewline)
+            .map(String.init)
+        guard let headerIndex = lines.firstIndex(where: {
+            $0.trimmingCharacters(in: .whitespacesAndNewlines) == "## Runtime Route"
+        }) else {
+            return nil
+        }
+
+        var sectionLines: [String] = []
+        for line in lines.dropFirst(headerIndex + 1) {
+            let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+            if trimmed.hasPrefix("## ") {
+                break
+            }
+            sectionLines.append(line)
+            if sectionLines.count == sectionLineLimit {
+                break
+            }
+        }
+        return sectionLines.isEmpty ? nil : sectionLines
+    }
+
+    private static func markdownField(_ name: String, in lines: [String]) -> String? {
+        let prefix = "- \(name): "
+        return lines
+            .lazy
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .first { $0.hasPrefix(prefix) }
+            .map { line in
+                String(line.dropFirst(prefix.count))
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+            }
+            .flatMap { $0.isEmpty ? nil : $0 }
+    }
+
+    private static func routeKindIdentifier(
+        effectiveRouteIdentifier: String,
+        fallbackStateIdentifier: String
+    ) -> String {
+        if effectiveRouteIdentifier == "apple-container" {
+            return "apple-container"
+        }
+        if effectiveRouteIdentifier == "native-macos", fallbackStateIdentifier == "fallback" {
+            return "native-fallback"
+        }
+        if effectiveRouteIdentifier == "native-macos" {
+            return "native"
+        }
+        return "unknown"
+    }
+
+    private static func compactCopy(routeKindIdentifier: String) -> String {
+        switch routeKindIdentifier {
+        case "apple-container":
+            return "Container"
+        case "native":
+            return "Native"
+        case "native-fallback":
+            return "Native fallback"
+        default:
+            return "Runtime route"
+        }
+    }
+
+    private static func leadingIdentifier(_ text: String?) -> String? {
+        guard let text else { return nil }
+        let prefix = text.split(separator: " ", maxSplits: 1).first.map(String.init) ?? text
+        return prefix.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private static func parenthesizedSuffix(_ text: String?) -> String? {
+        guard let text,
+              let open = text.lastIndex(of: "("),
+              text.hasSuffix(")") else {
+            return nil
+        }
+        let suffix = text[text.index(after: open)..<text.index(before: text.endIndex)]
+        let normalized = String(suffix).trimmingCharacters(in: .whitespacesAndNewlines)
+        return normalized.isEmpty ? nil : normalized
+    }
+
+    private static func knownIdentifier(
+        _ text: String?,
+        allowed: Set<String>,
+        fallback: String
+    ) -> String {
+        let identifier = sanitizedIdentifier(
+            text ?? "",
+            fallback: fallback,
+            limit: Self.fieldMaxCharacters
+        )
+        return allowed.contains(identifier) ? identifier : fallback
+    }
+
+    private static func sanitizedAttemptLabel(_ text: String?) -> String {
+        let identifier = sanitizedIdentifier(
+            text ?? "none",
+            fallback: "none",
+            limit: Self.fieldMaxCharacters
+        )
+        if identifier == "none" {
+            return identifier
+        }
+        return identifier.allSatisfy(\.isNumber) ? identifier : "unknown"
+    }
+
+    private static func sanitizedIdentifier(
+        _ text: String,
+        fallback: String,
+        limit: Int
+    ) -> String {
+        let normalized = bounded(redactHostPaths(in: text), limit: limit).lowercased()
+        let filtered = String(normalized.unicodeScalars.map { scalar in
+            if isASCIILetter(scalar)
+                || isASCIIDigit(scalar)
+                || scalar == "-"
+                || scalar == "_"
+                || scalar == "." {
+                return Character(scalar)
+            }
+            return "-"
+        })
+        .replacingOccurrences(of: #"-+"#, with: "-", options: .regularExpression)
+        .trimmingCharacters(in: CharacterSet(charactersIn: "-_."))
+        return filtered.isEmpty ? fallback : filtered
+    }
+
+    private static func redactHostPaths(in text: String) -> String {
+        let hostPathPattern = #"(?:(?:file://)?/(?:Users|private|var|tmp|opt|usr|bin|sbin|Library|Applications|Volumes)/[^\s,;)`"]+)|(?:\.\./[^\s,;)`"]+)"#
+        return text.replacingOccurrences(
+            of: hostPathPattern,
+            with: "[path]",
+            options: .regularExpression
+        )
+    }
+
+    private static func bounded(_ text: String, limit: Int) -> String {
+        guard limit > 0 else { return "" }
+        let normalized = text
+            .replacingOccurrences(of: "\r", with: " ")
+            .replacingOccurrences(of: "\n", with: " ")
+            .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalized.isEmpty else { return "" }
+        guard normalized.count <= limit else {
+            let prefixLimit = max(1, limit - 3)
+            return normalized.prefix(prefixLimit)
+                .trimmingCharacters(in: .whitespacesAndNewlines) + "..."
+        }
+        return normalized
+    }
+
+    private static func isASCIILetter(_ scalar: UnicodeScalar) -> Bool {
+        (65...90).contains(Int(scalar.value)) || (97...122).contains(Int(scalar.value))
+    }
+
+    private static func isASCIIDigit(_ scalar: UnicodeScalar) -> Bool {
+        (48...57).contains(Int(scalar.value))
+    }
+}
+
+struct CinematicRunRecapShareArtifactRuntimeRouteTreatmentDescriptor: Equatable {
+    static let identifierMaxCharacters = 160
+    static let componentMaxCharacters = 48
+
+    var identifier: String
+    var routeKindIdentifier: String
+    var accentIdentifier: String
+    var railIdentifier: String
+    var orbIdentifier: String
+    var plateOpacityBoost: Double
+    var railOpacityScale: Double
+    var orbOpacityScale: Double
+
+    init(cue: CinematicRunRecapShareArtifactRuntimeRouteCue?) {
+        let routeKindIdentifier = cue?.routeKindIdentifier ?? "missing-cue"
+        let accentIdentifier: String
+        let railIdentifier: String
+        let orbIdentifier: String
+        let plateOpacityBoost: Double
+        let railOpacityScale: Double
+        let orbOpacityScale: Double
+        switch routeKindIdentifier {
+        case "apple-container":
+            accentIdentifier = "container-blue"
+            railIdentifier = "container-rail"
+            orbIdentifier = "container-orb"
+            plateOpacityBoost = 0.04
+            railOpacityScale = 1.18
+            orbOpacityScale = 1.12
+        case "native":
+            accentIdentifier = "native-green"
+            railIdentifier = "native-rail"
+            orbIdentifier = "native-orb"
+            plateOpacityBoost = 0.02
+            railOpacityScale = 1.06
+            orbOpacityScale = 1.02
+        case "native-fallback":
+            accentIdentifier = "fallback-amber"
+            railIdentifier = "fallback-rail"
+            orbIdentifier = "fallback-orb"
+            plateOpacityBoost = 0.06
+            railOpacityScale = 1.28
+            orbOpacityScale = 1.22
+        default:
+            accentIdentifier = "missing-muted"
+            railIdentifier = "missing-rail"
+            orbIdentifier = "missing-orb"
+            plateOpacityBoost = 0
+            railOpacityScale = 0.9
+            orbOpacityScale = 0.86
+        }
+        self.routeKindIdentifier = routeKindIdentifier
+        self.accentIdentifier = accentIdentifier
+        self.railIdentifier = railIdentifier
+        self.orbIdentifier = orbIdentifier
+        self.plateOpacityBoost = plateOpacityBoost
+        self.railOpacityScale = railOpacityScale
+        self.orbOpacityScale = orbOpacityScale
+        identifier = Self.bounded(
+            [
+                "runtime-route-treatment",
+                "route:\(routeKindIdentifier)",
+                "accent:\(accentIdentifier)",
+                "rail:\(railIdentifier)",
+                "orb:\(orbIdentifier)"
+            ].joined(separator: "|"),
+            limit: Self.identifierMaxCharacters
+        )
+    }
+
+    private static func bounded(_ text: String, limit: Int) -> String {
+        guard limit > 0 else { return "" }
+        let normalized = text
+            .replacingOccurrences(of: "\r", with: " ")
+            .replacingOccurrences(of: "\n", with: " ")
+            .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalized.isEmpty else { return "" }
+        guard normalized.count <= limit else {
+            let prefixLimit = max(1, limit - 3)
+            return normalized.prefix(prefixLimit)
+                .trimmingCharacters(in: .whitespacesAndNewlines) + "..."
+        }
+        return normalized
+    }
+}
+
 struct CinematicRunRecapShareArtifactHistoryPlan: Equatable, Identifiable {
     static let identifierMaxCharacters = 320
     static let entryLimit = 8
@@ -876,6 +1239,8 @@ struct CinematicRunRecapShareArtifactTourPlan: Equatable, Identifiable {
     var commitSnippet: String?
     var bodyPreviewText: String
     var sessionText: String
+    var runtimeRouteCue: CinematicRunRecapShareArtifactRuntimeRouteCue?
+    var runtimeRouteTreatment: CinematicRunRecapShareArtifactRuntimeRouteTreatmentDescriptor
     var requestedPinnedEntryIdentifiers: [String]
     var retainedPinnedEntryIdentifiers: [String]
     var missingPinnedEntryIdentifiers: [String]
@@ -896,6 +1261,10 @@ struct CinematicRunRecapShareArtifactTourPlan: Equatable, Identifiable {
             || pinnedEntryCount > 0
             || requestedSavedTourHoldEntryIdentifier != nil
             || hasWarnings
+    }
+
+    var runtimeRouteCueStateIdentifier: String {
+        runtimeRouteCue?.routeKindIdentifier ?? "missing-cue"
     }
 }
 
@@ -2246,34 +2615,44 @@ enum CinematicRunRecapShareArtifactTourPlanner {
             stateIdentifier: stateIdentifier
         )
         let warningStateIdentifier = historyPlan.hasWarnings ? "warnings" : "clear"
+        let runtimeRouteCue = selectedEntry.flatMap {
+            CinematicRunRecapShareArtifactRuntimeRouteCue(markdownContents: $0.markdownContents)
+        }
+        let runtimeRouteTreatment = CinematicRunRecapShareArtifactRuntimeRouteTreatmentDescriptor(
+            cue: runtimeRouteCue
+        )
+        var identifierParts = [
+            "run-recap-share-artifact-tour",
+            "availability:\(availabilityReason)",
+            "state:\(stateIdentifier)",
+            "source:\(selectionSourceIdentifier)",
+            "retained:\(retainedEntries.count)",
+            "total:\(historyPlan.totalCount)",
+            "hidden:\(historyPlan.hiddenCount)",
+            "matching:\(matchingEntries.count)",
+            "query:\(search.queryFingerprint)",
+            "query-snippet:\(search.querySnippet)",
+            "no-match:\(noMatchAvailabilityReason ?? "none")",
+            "hold-state:\(savedTourHoldStateIdentifier)",
+            "hold:\(requestedSavedTourHoldEntryIdentifier ?? "none")",
+            "retained-hold:\(retainedSavedTourHoldEntryIdentifier ?? "none")",
+            "filtered-hold:\(filteredSavedTourHoldEntryIdentifier ?? "none")",
+            "selected:\(selectedEntry?.identifier ?? "none")",
+            "ordinal:\(selectedIndex.map { String($0 + 1) } ?? "none")",
+            "entries:\(selectionPool.count)",
+            "seed:\(boundedRotationSeed(rotationSeed))",
+            "pins:\(requestedPinnedEntryIdentifiers.count)",
+            "retained-pins:\(retainedPinnedEntryIdentifiers.count)",
+            "missing-pins:\(missingPinnedEntryIdentifiers.count)",
+            "filtered-pins:\(filteredPinnedEntryIdentifiers.count)",
+            "warnings:\(warningStateIdentifier)",
+            "warning-count:\(historyPlan.warningCount)"
+        ]
+        if let runtimeRouteCue {
+            identifierParts.append("runtime-route:\(runtimeRouteCue.identifier)")
+        }
         let identifier = bounded(
-            [
-                "run-recap-share-artifact-tour",
-                "availability:\(availabilityReason)",
-                "state:\(stateIdentifier)",
-                "source:\(selectionSourceIdentifier)",
-                "retained:\(retainedEntries.count)",
-                "total:\(historyPlan.totalCount)",
-                "hidden:\(historyPlan.hiddenCount)",
-                "matching:\(matchingEntries.count)",
-                "query:\(search.queryFingerprint)",
-                "query-snippet:\(search.querySnippet)",
-                "no-match:\(noMatchAvailabilityReason ?? "none")",
-                "hold-state:\(savedTourHoldStateIdentifier)",
-                "hold:\(requestedSavedTourHoldEntryIdentifier ?? "none")",
-                "retained-hold:\(retainedSavedTourHoldEntryIdentifier ?? "none")",
-                "filtered-hold:\(filteredSavedTourHoldEntryIdentifier ?? "none")",
-                "selected:\(selectedEntry?.identifier ?? "none")",
-                "ordinal:\(selectedIndex.map { String($0 + 1) } ?? "none")",
-                "entries:\(selectionPool.count)",
-                "seed:\(boundedRotationSeed(rotationSeed))",
-                "pins:\(requestedPinnedEntryIdentifiers.count)",
-                "retained-pins:\(retainedPinnedEntryIdentifiers.count)",
-                "missing-pins:\(missingPinnedEntryIdentifiers.count)",
-                "filtered-pins:\(filteredPinnedEntryIdentifiers.count)",
-                "warnings:\(warningStateIdentifier)",
-                "warning-count:\(historyPlan.warningCount)"
-            ].joined(separator: "|"),
+            identifierParts.joined(separator: "|"),
             limit: CinematicRunRecapShareArtifactTourPlan.identifierMaxCharacters
         )
 
@@ -2315,6 +2694,8 @@ enum CinematicRunRecapShareArtifactTourPlanner {
                     retainedCount: retainedEntries.count
                 ),
                 sessionText: "No saved session",
+                runtimeRouteCue: runtimeRouteCue,
+                runtimeRouteTreatment: runtimeRouteTreatment,
                 requestedPinnedEntryIdentifiers: requestedPinnedEntryIdentifiers,
                 retainedPinnedEntryIdentifiers: retainedPinnedEntryIdentifiers,
                 missingPinnedEntryIdentifiers: missingPinnedEntryIdentifiers,
@@ -2381,6 +2762,8 @@ enum CinematicRunRecapShareArtifactTourPlanner {
                 entryCount: selectionPool.count,
                 selectionSourceIdentifier: selectionSourceIdentifier
             ),
+            runtimeRouteCue: runtimeRouteCue,
+            runtimeRouteTreatment: runtimeRouteTreatment,
             requestedPinnedEntryIdentifiers: requestedPinnedEntryIdentifiers,
             retainedPinnedEntryIdentifiers: retainedPinnedEntryIdentifiers,
             missingPinnedEntryIdentifiers: missingPinnedEntryIdentifiers,
@@ -3923,18 +4306,13 @@ enum CinematicRunRecapShareArtifactRollupPlanner {
     private static func runtimeRouteLine(
         for entry: CinematicRunRecapShareArtifactHistoryPlan.Entry
     ) -> String? {
-        guard entry.markdownContents.contains("## Runtime Route") else { return nil }
-        let pieces = [
-            markdownField("Phase", in: entry.markdownContents).map { "phase \($0)" },
-            markdownField("Attempt", in: entry.markdownContents).map { "attempt \($0)" },
-            markdownField("Selected preference", in: entry.markdownContents).map { "selected \($0)" },
-            markdownField("Effective route", in: entry.markdownContents).map { "route \($0)" },
-            markdownField("Support classification", in: entry.markdownContents).map { "support \($0)" },
-            markdownField("Fallback state", in: entry.markdownContents).map { "fallback \($0)" }
-        ].compactMap { $0 }
-        guard !pieces.isEmpty else { return nil }
+        guard let cue = CinematicRunRecapShareArtifactRuntimeRouteCue(
+            markdownContents: entry.markdownContents
+        ) else {
+            return nil
+        }
         return bounded(
-            "- S\(entry.sessionNumber) \(entry.filename): \(pieces.joined(separator: " | "))",
+            "- S\(entry.sessionNumber) \(entry.filename): \(cue.detailCopy)",
             limit: CinematicRunRecapShareArtifactRollupPlan.exportTextMaxCharacters
         )
     }

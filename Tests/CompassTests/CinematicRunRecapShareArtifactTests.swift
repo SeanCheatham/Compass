@@ -244,7 +244,8 @@ final class CinematicRunRecapShareArtifactTests: XCTestCase {
         XCTAssertTrue(selectedExport.markdownContents.contains("## Runtime Route"))
         XCTAssertTrue(filteredExport.markdownContents.contains("## Runtime Route"))
         XCTAssertTrue(rollup.exportText.contains("## Runtime Routes"))
-        XCTAssertTrue(rollup.exportText.contains("route apple-container (Apple container)"))
+        XCTAssertTrue(rollup.exportText.contains("route container"))
+        XCTAssertTrue(rollup.exportText.contains("support image-routeable"))
         XCTAssertLessThanOrEqual(
             result.artifactPlan.runtimeRouteAudit?.identifier.count ?? 0,
             CinematicRunRecapShareArtifactRuntimeRouteAudit.identifierMaxCharacters
