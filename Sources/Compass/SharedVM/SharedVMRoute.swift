@@ -1,0 +1,52 @@
+import Foundation
+
+struct SharedVMRoute: Equatable {
+    var sshDestination: String
+    var hostWorktreeURL: URL
+    var guestWorkspacePath: String
+    var guestCodexPath: String
+    var environmentVariables: [String: String]
+    var identityFile: String?
+    var knownHostsFile: String?
+
+    init(
+        sshDestination: String,
+        hostWorktreeURL: URL,
+        guestWorkspacePath: String,
+        guestCodexPath: String,
+        environmentVariables: [String: String] = [:],
+        identityFile: String? = nil,
+        knownHostsFile: String? = nil
+    ) {
+        self.sshDestination = sshDestination
+        self.hostWorktreeURL = hostWorktreeURL.standardizedFileURL
+        self.guestWorkspacePath = guestWorkspacePath
+        self.guestCodexPath = guestCodexPath
+        self.environmentVariables = environmentVariables
+        self.identityFile = identityFile
+        self.knownHostsFile = knownHostsFile
+    }
+
+    /// Maps a host filesystem URL into the guest's workspace path, if the URL lives under the
+    /// host worktree mount root. Returns nil for URLs outside the shared mount.
+    func guestPath(forHostURL hostURL: URL) -> String? {
+        let root = hostWorktreeURL.standardizedFileURL
+        let target = hostURL.standardizedFileURL
+        let rootPath = root.path
+        let targetPath = target.path
+
+        if targetPath == rootPath {
+            return guestWorkspacePath
+        }
+
+        let rootPrefix = rootPath.hasSuffix("/") ? rootPath : rootPath + "/"
+        guard targetPath.hasPrefix(rootPrefix) else {
+            return nil
+        }
+
+        let relativePath = String(targetPath.dropFirst(rootPrefix.count))
+        guard !relativePath.isEmpty else { return guestWorkspacePath }
+        let workspacePrefix = guestWorkspacePath.hasSuffix("/") ? guestWorkspacePath : guestWorkspacePath + "/"
+        return "\(workspacePrefix)\(relativePath)"
+    }
+}
