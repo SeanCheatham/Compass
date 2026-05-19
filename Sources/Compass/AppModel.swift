@@ -2729,7 +2729,12 @@ final class AppModel: ObservableObject {
     @Published var projects: [CompassProject] = []
     @Published var selectedProjectID: UUID?
     @Published var workspaceSelection: WorkspaceSelection = .sandbox
-    @Published var codexBinary = CodexBinaryLocator.defaultBinary()
+    @Published var codexBinary = CodexBinaryLocator.defaultBinary() {
+        didSet {
+            guard oldValue != codexBinary else { return }
+            sharedVMHost.refreshFirstBootArtifacts(codexBinaryPath: codexBinary)
+        }
+    }
     @Published var modelOverride = ""
     @Published var errorMessage: String?
 
@@ -2779,6 +2784,10 @@ final class AppModel: ObservableObject {
                 self.log(error.localizedDescription, level: .warning)
                 return
             }
+            // Re-stage the bootstrap artifacts on every launch so the
+            // VirtioFS share carries the current codex binary even if the
+            // user installed a new one between sessions.
+            self.sharedVMHost.refreshFirstBootArtifacts(codexBinaryPath: self.codexBinary)
             if self.sharedVMHost.bundle.existsOnDisk() {
                 do {
                     try await self.sharedVMHost.start()

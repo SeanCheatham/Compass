@@ -227,17 +227,17 @@ private struct SandboxFirstBootChecklist: View {
     @ObservedObject var vmHost: SharedCompassVM
 
     private let steps: [String] = [
-        "Decline Apple ID sign-in.",
-        "Create a local user named compass with any password.",
-        "Select language and region.",
-        "Open System Settings -> General -> Sharing and enable Remote Login."
+        "Walk through Setup Assistant in the embedded window. Decline Apple ID; create a local user named compass.",
+        "Inside the guest, open Terminal (Spotlight -> 'Terminal').",
+        "Paste the command below, press return, and enter your guest password when sudo asks.",
+        "When the script prints 'bootstrap complete', click Mark setup complete here."
     ]
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             Label("First-boot checklist", systemImage: "checklist")
                 .font(.subheadline.weight(.semibold))
-            Text("Complete the macOS Setup Assistant in the embedded window:")
+            Text("This finishes guest-side prep that VZ alone can't do: SSH key, /opt/compass symlink, Remote Login, codex.")
                 .font(.callout)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -256,6 +256,8 @@ private struct SandboxFirstBootChecklist: View {
                 }
             }
 
+            SandboxFirstBootCommandBlock(command: SharedCompassVMFirstBootScript.guestRunCommand)
+
             Button {
                 Task { await vmHost.markSetupComplete() }
             } label: {
@@ -263,11 +265,44 @@ private struct SandboxFirstBootChecklist: View {
                     .frame(maxWidth: .infinity)
             }
             .buttonStyle(.borderedProminent)
-            .help("Tell Compass the Setup Assistant has finished so it can probe SSH and finish guest prep.")
+            .help("Tell Compass the bootstrap script has finished so it can probe SSH and finish guest prep.")
         }
         .padding(12)
         .background(.tint.opacity(0.10), in: RoundedRectangle(cornerRadius: 10))
         .overlay(RoundedRectangle(cornerRadius: 10).stroke(.tint.opacity(0.25)))
+    }
+}
+
+/// Selectable monospaced command block with a "Copy" affordance. Used by
+/// the first-boot checklist so users can paste the bootstrap-script
+/// invocation into the guest's Terminal without retyping.
+private struct SandboxFirstBootCommandBlock: View {
+    let command: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack {
+                Text("Run inside the guest")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Button {
+                    NSPasteboard.general.clearContents()
+                    NSPasteboard.general.setString(command, forType: .string)
+                } label: {
+                    Label("Copy", systemImage: "doc.on.doc")
+                        .labelStyle(.iconOnly)
+                }
+                .buttonStyle(.borderless)
+                .help("Copy command to clipboard")
+            }
+            Text(command)
+                .font(.caption.monospaced())
+                .textSelection(.enabled)
+                .padding(8)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(.quaternary.opacity(0.45), in: RoundedRectangle(cornerRadius: 6))
+        }
     }
 }
 

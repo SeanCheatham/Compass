@@ -245,7 +245,28 @@ final class SharedCompassVM: ObservableObject {
         try bundle.mutateState(fileManager: dependencies.fileManager) {
             $0.provisionStep = .firstBootPending
         }
+        // Drop the bootstrap script + public key into the VirtioFS share so
+        // the user can run it from Terminal.app on first boot. The codex
+        // binary is staged separately by `refreshFirstBootArtifacts`
+        // (AppModel calls in with the user-facing codexBinary path so the
+        // script can include the codex copy step).
+        refreshFirstBootArtifacts(codexBinaryPath: nil)
         readiness = .firstBootPending
+    }
+
+    /// Re-materializes the first-boot script + public key + codex copy.
+    /// Safe to call at any time; the script is idempotent so callers can
+    /// re-invoke when the user changes the codex binary or after a fresh
+    /// install. Best-effort: failures are swallowed because the readiness
+    /// state machine is unaffected and the user will see a clear error
+    /// inside the guest if the artifacts are missing.
+    func refreshFirstBootArtifacts(codexBinaryPath: String?) {
+        _ = try? SharedCompassVMFirstBootScript.materialize(
+            workspacesRootURL: workspacesRootURL,
+            publicKeyURL: bundle.publicKeyURL,
+            codexBinaryPath: codexBinaryPath,
+            fileManager: dependencies.fileManager
+        )
     }
 
     /// Boots (or re-boots) the guest from the currently-installed bundle.
