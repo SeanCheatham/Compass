@@ -2703,10 +2703,32 @@ extension CompassProject {
     }
 }
 
+/// Top-level workspace selection driven by the sidebar.
+///
+/// The sidebar has two kinds of entries: the singleton Sandbox section (hosting
+/// the shared VM view + first-boot checklist + provisioning UI) and the
+/// per-project list. `WorkspaceSelection` lets the detail pane swap between
+/// them without losing track of which project was last viewed.
+enum WorkspaceSelection: Equatable {
+    case sandbox
+    case project(UUID)
+
+    var projectID: UUID? {
+        if case .project(let id) = self { return id }
+        return nil
+    }
+
+    var isSandbox: Bool {
+        if case .sandbox = self { return true }
+        return false
+    }
+}
+
 @MainActor
 final class AppModel: ObservableObject {
     @Published var projects: [CompassProject] = []
     @Published var selectedProjectID: UUID?
+    @Published var workspaceSelection: WorkspaceSelection = .sandbox
     @Published var codexBinary = CodexBinaryLocator.defaultBinary()
     @Published var modelOverride = ""
     @Published var errorMessage: String?
@@ -2721,9 +2743,20 @@ final class AppModel: ObservableObject {
         projects.first { $0.id == selectedProjectID }
     }
 
+    /// Switches the detail pane to the Sandbox section.
+    func selectSandbox() {
+        workspaceSelection = .sandbox
+        errorMessage = nil
+    }
+
     func bootstrap() async {
         projects = KnownProjectStore.load().map(CompassProject.init(record:))
         selectedProjectID = projects.sorted { $0.lastOpenedAt > $1.lastOpenedAt }.first?.id
+        if let id = selectedProjectID {
+            workspaceSelection = .project(id)
+        } else {
+            workspaceSelection = .sandbox
+        }
 
         if projects.isEmpty {
             errorMessage = nil
@@ -2795,6 +2828,7 @@ final class AppModel: ObservableObject {
 
     func selectProject(_ project: CompassProject) {
         selectedProjectID = project.id
+        workspaceSelection = .project(project.id)
         project.lastOpenedAt = Date()
         errorMessage = nil
         saveProjects()
@@ -2808,6 +2842,11 @@ final class AppModel: ObservableObject {
         projects.removeAll { $0.id == project.id }
         if selectedProjectID == project.id {
             selectedProjectID = projects.sorted { $0.lastOpenedAt > $1.lastOpenedAt }.first?.id
+            if let newID = selectedProjectID {
+                workspaceSelection = .project(newID)
+            } else {
+                workspaceSelection = .sandbox
+            }
         }
         saveProjects()
     }

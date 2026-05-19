@@ -31,7 +31,7 @@ final class SharedCompassVM: ObservableObject {
     let workspacesRootURL: URL
 
     private let dependencies: Dependencies
-    private var virtualMachine: VZVirtualMachine?
+    @Published private(set) var virtualMachine: VZVirtualMachine?
     private var sleepObserver: SharedCompassVMSleepObserver?
     private var lastResolvedSSHDestination: String?
 

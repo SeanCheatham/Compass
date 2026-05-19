@@ -8,11 +8,16 @@ struct ContentView: View {
         NavigationSplitView {
             SidebarView()
         } detail: {
-            if let project = model.selectedProject {
-                MainWorkspaceView(project: project)
-                    .id(project.id)
-            } else {
-                NoProjectView()
+            switch model.workspaceSelection {
+            case .sandbox:
+                SandboxView()
+            case .project:
+                if let project = model.selectedProject {
+                    MainWorkspaceView(project: project)
+                        .id(project.id)
+                } else {
+                    NoProjectView()
+                }
             }
         }
     }
@@ -25,17 +30,31 @@ private func copyRuntimeDiagnosticsToPasteboard(_ text: String) {
 
 private struct SidebarView: View {
     @EnvironmentObject private var model: AppModel
+    @ObservedObject private var sharedVMHost: SharedCompassVM = .shared
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             VStack(alignment: .leading, spacing: 6) {
-                Label("Compass", systemImage: "safari")
-                    .font(.title2.weight(.semibold))
+                HStack(spacing: 8) {
+                    Label("Compass", systemImage: "safari")
+                        .font(.title2.weight(.semibold))
+                    Spacer()
+                    SidebarSharedVMStatusButton(readiness: sharedVMHost.readiness) {
+                        model.selectSandbox()
+                    }
+                }
                 Text("Codex-powered macOS workspace")
                     .font(.callout)
                     .foregroundStyle(.secondary)
             }
             .padding(.bottom, 4)
+
+            SidebarSandboxRow(
+                readiness: sharedVMHost.readiness,
+                isSelected: model.workspaceSelection.isSandbox
+            ) {
+                model.selectSandbox()
+            }
 
             HStack {
                 Text("Projects")
@@ -59,7 +78,7 @@ private struct SidebarView: View {
                         ForEach(model.projects) { project in
                             ProjectListRow(
                                 project: project,
-                                isSelected: project.id == model.selectedProjectID
+                                isSelected: model.workspaceSelection == .project(project.id)
                             )
                             .onTapGesture {
                                 model.selectProject(project)
@@ -90,6 +109,12 @@ private struct SidebarView: View {
                         .textFieldStyle(.roundedBorder)
                     TextField("model override", text: $model.modelOverride)
                         .textFieldStyle(.roundedBorder)
+                    if let selectedProject = model.selectedProject {
+                        DevelopSandboxPicker(
+                            project: selectedProject,
+                            readiness: sharedVMHost.readiness
+                        )
+                    }
                     if let diagnosticsAction = model.selectedProject?.runtimeDiagnosticsMenu.copyDiagnosticsAction {
                         Button {
                             copyRuntimeDiagnosticsToPasteboard(diagnosticsAction.copyText)
@@ -151,6 +176,121 @@ private struct EmptyProjectList: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(14)
         .background(.quaternary.opacity(0.45), in: RoundedRectangle(cornerRadius: 8))
+    }
+}
+
+/// Sidebar entry for the singleton Sandbox section. Selecting it sets
+/// `workspaceSelection = .sandbox` and swaps the detail pane to `SandboxView`.
+private struct SidebarSandboxRow: View {
+    let readiness: SharedCompassVMReadiness
+    let isSelected: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 10) {
+                SandboxReadinessDot(readiness: readiness, size: 10)
+                    .padding(.top, 1)
+                VStack(alignment: .leading, spacing: 2) {
+                    HStack(spacing: 6) {
+                        Image(systemName: "shippingbox")
+                            .font(.callout)
+                        Text("Sandbox")
+                            .font(.callout.weight(.semibold))
+                    }
+                    Text(readiness.statusSummary)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer()
+            }
+            .padding(10)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(
+                isSelected ? Color.accentColor.opacity(0.16) : Color.clear,
+                in: RoundedRectangle(cornerRadius: 8)
+            )
+            .overlay {
+                RoundedRectangle(cornerRadius: 8)
+                    .stroke(isSelected ? Color.accentColor.opacity(0.35) : Color.clear)
+            }
+            .contentShape(RoundedRectangle(cornerRadius: 8))
+        }
+        .buttonStyle(.plain)
+        .help("Open the shared macOS VM sandbox")
+        .accessibilityLabel("Sandbox, \(readiness.statusSummary)")
+    }
+}
+
+/// Status indicator next to the sidebar title. Tapping it activates the
+/// Sandbox detail pane.
+private struct SidebarSharedVMStatusButton: View {
+    let readiness: SharedCompassVMReadiness
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 4) {
+                SandboxReadinessDot(readiness: readiness, size: 8)
+                Image(systemName: readiness.systemImage)
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(readiness.tintColor)
+            }
+            .padding(.horizontal, 6)
+            .padding(.vertical, 3)
+            .background(readiness.tintColor.opacity(0.12), in: Capsule())
+            .overlay(Capsule().stroke(readiness.tintColor.opacity(0.30)))
+        }
+        .buttonStyle(.plain)
+        .help("Shared VM status: \(readiness.statusSummary)")
+        .accessibilityLabel("Shared VM status, \(readiness.statusSummary)")
+    }
+}
+
+/// Per-project picker for the Develop sandbox preference. The `.sharedVM`
+/// option is disabled when the shared VM is unavailable.
+private struct DevelopSandboxPicker: View {
+    @ObservedObject var project: CompassProject
+    let readiness: SharedCompassVMReadiness
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Picker("Develop sandbox", selection: $project.developSandbox) {
+                ForEach(DevelopSandboxPreference.allCases, id: \.self) { preference in
+                    Text(preference.displayLabel).tag(preference)
+                }
+            }
+            .pickerStyle(.menu)
+            .help(pickerHelpText)
+            .onChange(of: project.developSandbox) { _, newValue in
+                // If the user picks .sharedVM while it is unavailable, snap
+                // back to .host. Persistence is handled by Phase 5 — the
+                // change still flows to the `@Published` field which lives
+                // for the lifetime of the project object.
+                if newValue == .sharedVM, readiness.isUnavailable {
+                    project.developSandbox = .host
+                }
+            }
+            if readiness.isUnavailable, case .unavailable(let reason) = readiness {
+                Text("Shared VM unavailable: \(reason)")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+
+    private var pickerHelpText: String {
+        switch readiness {
+        case .unavailable(let reason):
+            return "Shared VM is unavailable (\(reason)). Develop runs on the host."
+        case .ready:
+            return "Choose whether Develop iterations run on the host or inside the shared macOS VM."
+        default:
+            return "Develop iterations route to the Shared VM once it reaches the Ready state."
+        }
     }
 }
 
