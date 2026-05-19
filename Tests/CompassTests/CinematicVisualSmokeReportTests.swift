@@ -239,6 +239,89 @@ final class CinematicVisualSmokeReportTests: XCTestCase {
         XCTAssertTrue(pinnedComparisonCue.detail.contains("bounded"))
     }
 
+    func testRepresentativeSavedArtifactTourRouteAttentionCoverage() throws {
+        let reports = CinematicDiagnostics.representativeSavedRecapArtifactTourSmokeReports()
+        let fallback = try XCTUnwrap(
+            reports.first {
+                $0.runRecapShareArtifactTour.isAvailable
+                    && $0.runRecapShareArtifactTour.runtimeRouteCueStateIdentifier == "native-fallback"
+            }
+        )
+        let missingCue = try XCTUnwrap(
+            reports.first {
+                $0.runRecapShareArtifactTour.isAvailable
+                    && $0.runRecapShareArtifactTour.runtimeRouteCueStateIdentifier == "missing-cue"
+            }
+        )
+        let appleContainer = try XCTUnwrap(
+            reports.first {
+                $0.runRecapShareArtifactTour.runtimeRouteCueStateIdentifier == "apple-container"
+            }
+        )
+        let native = try XCTUnwrap(
+            reports.first {
+                $0.runRecapShareArtifactTour.runtimeRouteCueStateIdentifier == "native"
+            }
+        )
+
+        let smoke = CinematicVisualSmokeReport(reports: reports)
+        XCTAssertEqual(
+            try XCTUnwrap(smoke.checks.first { $0.id == "run-recap-saved-artifact-tour" }).status,
+            .pass
+        )
+
+        let fallbackSummary = CinematicDiagnosticsSummary(report: fallback, visualSmoke: smoke)
+        let fallbackTarget = try XCTUnwrap(
+            fallbackSummary.attentionSummary.targets.first {
+                $0.targetAnchorID == "diagnostics-row-run-recap-share-artifact-tour"
+            }
+        )
+        XCTAssertEqual(fallbackTarget.relatedRowID, "run-recap-share-artifact-tour")
+        XCTAssertEqual(fallbackTarget.label, "Tour route fallback")
+        XCTAssertEqual(
+            fallbackTarget.visibleWarningIdentifiers.first,
+            "run-recap-share-artifact-tour-runtime-route.native-fallback"
+        )
+        XCTAssertTrue(
+            fallbackTarget.detail.contains(
+                "selection \(fallback.runRecapShareArtifactTour.selectionSourceIdentifier)"
+            )
+        )
+        XCTAssertTrue(
+            fallbackTarget.detail.contains(
+                "hold \(fallback.runRecapShareArtifactTour.savedTourHoldStateIdentifier)"
+            )
+        )
+        XCTAssertLessThanOrEqual(
+            fallbackTarget.copyText.count,
+            CinematicDiagnosticsSummary.attentionTargetCopyMaxCharacters
+        )
+        XCTAssertTrue(fallbackSummary.exportText.contains("related run-recap-share-artifact-tour"))
+
+        let missingCueSummary = CinematicDiagnosticsSummary(report: missingCue, visualSmoke: smoke)
+        let missingCueTarget = try XCTUnwrap(
+            missingCueSummary.attentionSummary.targets.first {
+                $0.targetAnchorID == "diagnostics-row-run-recap-share-artifact-tour"
+            }
+        )
+        XCTAssertEqual(missingCueTarget.label, "Tour route cue missing")
+        XCTAssertEqual(
+            missingCueTarget.visibleWarningIdentifiers.first,
+            "run-recap-share-artifact-tour-runtime-route.missing-cue"
+        )
+        XCTAssertTrue(missingCueTarget.copyText.contains("Route compact: Missing cue"))
+
+        for quietReport in [appleContainer, native] {
+            let summary = CinematicDiagnosticsSummary(report: quietReport, visualSmoke: smoke)
+            XCTAssertFalse(
+                summary.attentionSummary.targets.contains {
+                    $0.targetAnchorID == "diagnostics-row-run-recap-share-artifact-tour"
+                },
+                quietReport.runRecapShareArtifactTour.runtimeRouteCueStateIdentifier
+            )
+        }
+    }
+
     func testNativeFeedbackCoverageWarnsForMissingOrInconsistentRouteData() throws {
         let completeReports = CinematicDiagnostics.representativeNativeFeedbackSmokeReports()
         let completeSmoke = CinematicVisualSmokeReport(reports: completeReports)

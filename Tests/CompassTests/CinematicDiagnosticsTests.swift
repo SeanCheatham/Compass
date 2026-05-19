@@ -655,6 +655,201 @@ final class CinematicDiagnosticsTests: XCTestCase {
         XCTAssertTrue(summary.exportText.contains("native-fallback"))
     }
 
+    func testRunRecapSavedArtifactTourRuntimeRouteFallbackAttentionTargetIsBoundedAndSanitized() throws {
+        let secret = "secret-runtime-route-value"
+        let repoPath = "/Users/example/project/.devcontainer/devcontainer.json"
+        let history = diagnosticsRuntimeRouteHistory(
+            seed: "fallback-attention",
+            runtimeRouteSection: diagnosticsRuntimeRouteSection(
+                effectiveRoute: "native-macos",
+                effectiveRouteTitle: "Native macOS",
+                fallbackState: "fallback",
+                supportClassification: "feature-based",
+                phase: "Develop (\(repoPath))",
+                extraLines: [
+                    "- Runtime audit: \(repoPath)-\(secret)",
+                    "- Visible support tokens: arg:TOKEN, feature:node",
+                    "- Image label: \(secret)",
+                    "- Workspace label: \(repoPath)"
+                ]
+            )
+        )
+        let selected = try XCTUnwrap(history.entries.first)
+        let report = makeReport(
+            CinematicDiagnosticsInput(
+                repoName: "Compass",
+                phase: "Developing",
+                immediateTitle: "Inspect fallback tour route",
+                completedCount: 2,
+                latestEvent: nil,
+                languageProfile: languageProfile(primaryLanguage: .swift),
+                activityProfile: activityProfile(recentCommitCount: 1),
+                influenceSettings: CinematicInfluenceSettings(),
+                runRecapShareArtifactHistoryPlan: history,
+                runRecapShareArtifactSavedTourHoldEntryIdentifier: selected.identifier
+            )
+        )
+        let summary = CinematicDiagnosticsSummary(report: report)
+        let target = try XCTUnwrap(
+            summary.attentionSummary.targets.first {
+                $0.targetAnchorID == "diagnostics-row-run-recap-share-artifact-tour"
+            }
+        )
+
+        XCTAssertEqual(report.runRecapShareArtifactTour.runtimeRouteCueStateIdentifier, "native-fallback")
+        XCTAssertEqual(target.relatedGroupID, "repository-context")
+        XCTAssertEqual(target.relatedRowID, "run-recap-share-artifact-tour")
+        XCTAssertEqual(target.label, "Tour route fallback")
+        XCTAssertTrue(target.id.hasPrefix("run-recap-share-artifact-tour-route-native-fallback"))
+        XCTAssertEqual(target.visibleWarningIdentifiers.first, "run-recap-share-artifact-tour-runtime-route.native-fallback")
+        XCTAssertTrue(target.visibleWarningIdentifiers.contains { $0.contains(".cue-") })
+        XCTAssertTrue(target.visibleWarningIdentifiers.contains { $0.contains(".selected-") })
+        XCTAssertTrue(target.detail.contains("route Native fallback"))
+        XCTAssertTrue(target.detail.contains("support feature-based"))
+        XCTAssertTrue(target.detail.contains("selection held"))
+        XCTAssertTrue(target.detail.contains("hold held"))
+        XCTAssertTrue(target.detail.contains("selected \(selected.identifier)"))
+        XCTAssertLessThanOrEqual(
+            target.detail.count,
+            CinematicDiagnosticsSummary.attentionSummaryDetailMaxCharacters
+        )
+        XCTAssertLessThanOrEqual(
+            target.copyText.count,
+            CinematicDiagnosticsSummary.attentionTargetCopyMaxCharacters
+        )
+        XCTAssertTrue(target.copyText.contains("Route compact: Native fallback"))
+        XCTAssertTrue(target.copyText.contains("Route detail: route native fallback"))
+        XCTAssertTrue(target.copyText.contains("Selection source: held"))
+        XCTAssertTrue(target.copyText.contains("Hold state: held"))
+        XCTAssertTrue(target.copyText.contains("Selected artifact: \(selected.identifier)"))
+        XCTAssertTrue(target.copyText.contains("Related row: run-recap-share-artifact-tour"))
+        XCTAssertTrue(target.copyText.contains("Read-only: route cue snapshot only"))
+        XCTAssertTrue(summary.exportText.contains("Tour route fallback -> \(target.id)"))
+        XCTAssertTrue(summary.exportText.contains("anchor diagnostics-row-run-recap-share-artifact-tour"))
+        XCTAssertTrue(summary.exportText.contains("related run-recap-share-artifact-tour"))
+        XCTAssertTrue(summary.exportText.contains("run-recap-share-artifact-tour-runtime-route.native-fallback"))
+
+        var warningHistory = CinematicDiagnosticsWarningBundleHistory()
+        warningHistory.record(summary.attentionSummary)
+        let entry = try XCTUnwrap(warningHistory.entries.first)
+        XCTAssertTrue(entry.targetAnchors.contains("diagnostics-row-run-recap-share-artifact-tour"))
+        XCTAssertTrue(entry.relatedRowAnchors.contains("diagnostics-row-run-recap-share-artifact-tour"))
+        XCTAssertTrue(entry.warningIdentifiers.contains("run-recap-share-artifact-tour-runtime-route.native-fallback"))
+        XCTAssertTrue(warningHistory.rollup.copyText.contains("diagnostics-row-run-recap-share-artifact-tour"))
+        XCTAssertTrue(warningHistory.rollup.copyText.contains("run-recap-share-artifact-tour-runtime-route.native-fallback"))
+
+        for leaked in [secret, repoPath, "arg:TOKEN", "feature:node"] {
+            XCTAssertFalse(target.id.contains(leaked))
+            XCTAssertFalse(target.detail.contains(leaked))
+            XCTAssertFalse(target.copyText.contains(leaked))
+            XCTAssertFalse(summary.exportText.contains(leaked))
+            XCTAssertFalse(warningHistory.copyText.contains(leaked))
+            XCTAssertFalse(warningHistory.rollup.copyText.contains(leaked))
+        }
+    }
+
+    func testRunRecapSavedArtifactTourRuntimeRouteMissingCueAttentionTarget() throws {
+        let history = diagnosticsRuntimeRouteHistory(seed: "missing-cue-attention")
+        let selected = try XCTUnwrap(history.entries.first)
+        let report = makeReport(
+            CinematicDiagnosticsInput(
+                repoName: "Compass",
+                phase: "Developing",
+                immediateTitle: "Inspect missing tour route cue",
+                completedCount: 1,
+                latestEvent: nil,
+                languageProfile: languageProfile(primaryLanguage: .swift),
+                activityProfile: activityProfile(recentCommitCount: 1),
+                influenceSettings: CinematicInfluenceSettings(),
+                runRecapShareArtifactHistoryPlan: history,
+                runRecapShareArtifactSavedTourHoldEntryIdentifier: selected.identifier
+            )
+        )
+        let summary = CinematicDiagnosticsSummary(report: report)
+        let target = try XCTUnwrap(
+            summary.attentionSummary.targets.first {
+                $0.targetAnchorID == "diagnostics-row-run-recap-share-artifact-tour"
+            }
+        )
+
+        XCTAssertEqual(report.runRecapShareArtifactTour.runtimeRouteCueStateIdentifier, "missing-cue")
+        XCTAssertEqual(target.relatedRowID, "run-recap-share-artifact-tour")
+        XCTAssertEqual(target.label, "Tour route cue missing")
+        XCTAssertTrue(target.id.hasPrefix("run-recap-share-artifact-tour-route-missing-cue"))
+        XCTAssertEqual(target.visibleWarningIdentifiers.first, "run-recap-share-artifact-tour-runtime-route.missing-cue")
+        XCTAssertTrue(target.visibleWarningIdentifiers.contains("run-recap-share-artifact-tour-runtime-route.cue-missing"))
+        XCTAssertTrue(target.detail.contains("state missing-cue"))
+        XCTAssertTrue(target.detail.contains("route Missing cue"))
+        XCTAssertTrue(target.detail.contains("selected \(selected.identifier)"))
+        XCTAssertTrue(target.copyText.contains("Route compact: Missing cue"))
+        XCTAssertTrue(target.copyText.contains("Route help: No runtime route cue was found"))
+        XCTAssertLessThanOrEqual(
+            target.copyText.count,
+            CinematicDiagnosticsSummary.attentionTargetCopyMaxCharacters
+        )
+        XCTAssertTrue(summary.exportText.contains("Tour route cue missing -> \(target.id)"))
+        XCTAssertTrue(summary.exportText.contains("run-recap-share-artifact-tour-runtime-route.missing-cue"))
+    }
+
+    func testRunRecapSavedArtifactTourRuntimeRouteAttentionIgnoresContainerNativeAndUnavailable() throws {
+        let cases: [(String, String?, String)] = [
+            (
+                "apple",
+                diagnosticsRuntimeRouteSection(
+                    effectiveRoute: "apple-container",
+                    effectiveRouteTitle: "Apple container",
+                    fallbackState: "direct",
+                    supportClassification: "image-routeable"
+                ),
+                "apple-container"
+            ),
+            (
+                "native",
+                diagnosticsRuntimeRouteSection(
+                    effectiveRoute: "native-macos",
+                    effectiveRouteTitle: "Native macOS",
+                    fallbackState: "direct",
+                    supportClassification: "not-inspected"
+                ),
+                "native"
+            ),
+            ("unavailable", nil, "missing-cue")
+        ]
+
+        for (seed, runtimeRouteSection, expectedRouteState) in cases {
+            let history = seed == "unavailable"
+                ? diagnosticsRuntimeRouteHistory(seed: seed, entries: [])
+                : diagnosticsRuntimeRouteHistory(seed: seed, runtimeRouteSection: runtimeRouteSection)
+            let report = makeReport(
+                CinematicDiagnosticsInput(
+                    repoName: "Compass",
+                    phase: "Developing",
+                    immediateTitle: "Ignore quiet tour route state",
+                    completedCount: 1,
+                    latestEvent: nil,
+                    languageProfile: languageProfile(primaryLanguage: .swift),
+                    activityProfile: activityProfile(recentCommitCount: 1),
+                    influenceSettings: CinematicInfluenceSettings(),
+                    runRecapShareArtifactHistoryPlan: history,
+                    runRecapShareArtifactSavedTourHoldEntryIdentifier: history.entries.first?.identifier
+                )
+            )
+            let summary = CinematicDiagnosticsSummary(report: report)
+
+            XCTAssertEqual(report.runRecapShareArtifactTour.runtimeRouteCueStateIdentifier, expectedRouteState, seed)
+            XCTAssertFalse(
+                summary.attentionSummary.targets.contains {
+                    $0.targetAnchorID == "diagnostics-row-run-recap-share-artifact-tour"
+                },
+                seed
+            )
+            XCTAssertFalse(
+                summary.exportText.contains("run-recap-share-artifact-tour-runtime-route.\(expectedRouteState)"),
+                seed
+            )
+        }
+    }
+
     func testRepresentativeRunRecapArtifactCommandSmokeReportsCoverAvailabilityStates() throws {
         let reports = CinematicDiagnostics.representativeRunRecapArtifactCommandSmokeReports()
         let snapshots = reports.map(\.runRecapShareArtifactCommands)
@@ -4183,6 +4378,123 @@ final class CinematicDiagnosticsTests: XCTestCase {
                 .appending(path: "sessions.json"),
             repoLocalSessionsState: repoLocalState
         )
+    }
+
+    private func diagnosticsRuntimeRouteHistory(
+        seed: String,
+        runtimeRouteSection: String? = nil,
+        entries: [CinematicRunRecapShareArtifactHistoryPlan.Entry]? = nil
+    ) -> CinematicRunRecapShareArtifactHistoryPlan {
+        let resolvedEntries = entries ?? [
+            diagnosticsRuntimeRouteEntry(
+                seed: seed,
+                session: 42,
+                runtimeRouteSection: runtimeRouteSection
+            )
+        ]
+        return CinematicRunRecapShareArtifactHistoryPlan(
+            identifier: "runtime-route-history-\(seed)-entries:\(resolvedEntries.count)",
+            isAvailable: !resolvedEntries.isEmpty,
+            availabilityReason: resolvedEntries.isEmpty ? "runtime-route-empty" : "available",
+            storageRootDisplayText: "/tmp/\(seed)/.compass",
+            sessionsDisplayText: "/tmp/\(seed)/.compass/sessions",
+            retentionLimit: CinematicRunRecapShareArtifactHistoryPlan.retentionLimit,
+            entries: resolvedEntries,
+            totalCount: resolvedEntries.count,
+            hiddenCount: 0,
+            cleanupCandidateCount: 0,
+            hiddenCleanupCandidateCount: 0,
+            cleanupCandidateIdentifiers: [],
+            warnings: [],
+            warningCount: 0,
+            hiddenWarningCount: 0,
+            exportIdentifier: "runtime-route-export-\(seed)",
+            combinedMarkdownExport: "runtime route export \(seed)"
+        )
+    }
+
+    private func diagnosticsRuntimeRouteEntry(
+        seed: String,
+        session: Int,
+        runtimeRouteSection: String?
+    ) -> CinematicRunRecapShareArtifactHistoryPlan.Entry {
+        let filename = "\(session)-runtime-route-\(seed).md"
+        let markdown = [
+            """
+            # Compass Run Recap Share
+
+            - Artifact: runtime-route-\(seed)-\(session)
+            - Availability: available
+            - Session: \(session)
+            - Filename: \(filename)
+            - Share: share-id
+            - Recap: recap-id
+            - Focus: focus-id
+            - End card: end-card-id
+            - Title: Runtime route \(seed)
+            - Status: succeeded
+            - Detail: Runtime route detail
+            - Commit: Runtime route commit
+            """,
+            runtimeRouteSection ?? "",
+            """
+            ## Events
+            - event
+
+            ## Share Text
+
+            ```text
+            runtime route body
+            ```
+            """
+        ]
+        .filter { !$0.isEmpty }
+        .joined(separator: "\n\n")
+        return CinematicRunRecapShareArtifactHistoryPlan.Entry(
+            identifier: "runtime-route-entry-\(seed)-session:\(session)",
+            sessionNumber: session,
+            filename: filename,
+            url: URL(fileURLWithPath: "/tmp/\(seed)/.compass/sessions/\(filename)"),
+            pathDisplayText: "/tmp/\(seed)/.compass/sessions/\(filename)",
+            titleSnippet: "Runtime route \(seed)",
+            statusSnippet: "succeeded",
+            commitSnippet: "Runtime route commit",
+            markdownContents: markdown,
+            markdownLength: markdown.count
+        )
+    }
+
+    private func diagnosticsRuntimeRouteSection(
+        effectiveRoute: String,
+        effectiveRouteTitle: String,
+        fallbackState: String,
+        supportClassification: String,
+        phase: String = "Develop (develop)",
+        attempt: String = "1",
+        selectedPreference: CodexExecutionEnvironmentPreference = .devcontainerPreferred,
+        fallbackReason: String = "none",
+        extraLines: [String] = []
+    ) -> String {
+        let baseLines = [
+            "## Runtime Route",
+            "",
+            "- Runtime audit: runtime-route-audit",
+            "- Phase: \(phase)",
+            "- Attempt: \(attempt)",
+            "- Selected preference: \(selectedPreference.rawValue) (\(selectedPreference.title))",
+            "- Effective route: \(effectiveRoute) (\(effectiveRouteTitle))",
+            "- Support classification: \(supportClassification)",
+            "- Visible support tokens: none",
+            "- Omitted support tokens: 0",
+            "- Image label: none",
+            "- Workspace label: none",
+            "- Fallback state: \(fallbackState)",
+            "- Fallback reason: \(fallbackReason)",
+            "- Provisioning availability: none",
+            "- Provisioning status: none",
+            "- Provisioning action: none"
+        ]
+        return (baseLines + extraLines).joined(separator: "\n")
     }
 
     private func diagnosticsSourceHistory(

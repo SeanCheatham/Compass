@@ -5130,6 +5130,11 @@ struct CinematicDiagnosticsSummary: Equatable {
                 report: report,
                 rowsByID: rowsByID
             )
+        let runRecapShareArtifactTourRuntimeRouteTarget =
+            runRecapShareArtifactTourRuntimeRouteAttentionTarget(
+                report: report,
+                rowsByID: rowsByID
+            )
         let warningCheckTargets = visualSmoke.checks.compactMap { check in
             warningCheckAttentionTarget(
                 check: check,
@@ -5166,7 +5171,11 @@ struct CinematicDiagnosticsSummary: Equatable {
             )
         ]
         .compactMap { $0 }
-        let targets = ([activitySourceTarget, runRecapShareArtifactSourceReconciliationTarget].compactMap { $0 }
+        let targets = ([
+            activitySourceTarget,
+            runRecapShareArtifactSourceReconciliationTarget,
+            runRecapShareArtifactTourRuntimeRouteTarget
+        ].compactMap { $0 }
             + warningCheckTargets
             + groupTargets)
             .prefix(attentionSummaryMaxTargets)
@@ -5521,6 +5530,254 @@ struct CinematicDiagnosticsSummary: Equatable {
 
     private static func sourceReconciliationSessionLabel(_ sessionNumber: Int?) -> String {
         sessionNumber.map { "S\($0)" } ?? "none"
+    }
+
+    private static func runRecapShareArtifactTourRuntimeRouteAttentionTarget(
+        report: CinematicDiagnosticsReport,
+        rowsByID: [String: Row]
+    ) -> AttentionTarget? {
+        let snapshot = report.runRecapShareArtifactTour
+        let warningIdentifiers = runRecapShareArtifactTourRuntimeRouteWarningIdentifiers(snapshot)
+        guard !warningIdentifiers.isEmpty else {
+            return nil
+        }
+
+        let visibleWarningIdentifiers = Array(
+            warningIdentifiers.prefix(attentionSummaryMaxVisibleWarnings)
+        )
+        let targetGroupID = "repository-context"
+        let targetAnchorID = "diagnostics-row-run-recap-share-artifact-tour"
+        let label = runRecapShareArtifactTourRuntimeRouteAttentionLabel(snapshot)
+        let detail = runRecapShareArtifactTourRuntimeRouteAttentionDetail(snapshot)
+        let relatedRow = rowsByID["run-recap-share-artifact-tour"]
+
+        return AttentionTarget(
+            id: runRecapShareArtifactTourRuntimeRouteAttentionTargetID(snapshot),
+            targetGroupID: targetGroupID,
+            targetAnchorID: targetAnchorID,
+            relatedGroupID: targetGroupID,
+            relatedRowID: "run-recap-share-artifact-tour",
+            label: bounded(label, limit: labelMaxCharacters),
+            detail: bounded(detail, limit: attentionSummaryDetailMaxCharacters),
+            warningCount: warningIdentifiers.count,
+            visibleWarningIdentifiers: visibleWarningIdentifiers,
+            copyText: runRecapShareArtifactTourRuntimeRouteAttentionCopyText(
+                label: label,
+                targetGroupID: targetGroupID,
+                targetAnchorID: targetAnchorID,
+                visibleWarningIdentifiers: visibleWarningIdentifiers,
+                detail: detail,
+                snapshot: snapshot,
+                relatedRow: relatedRow
+            )
+        )
+    }
+
+    private static func runRecapShareArtifactTourRuntimeRouteWarningIdentifiers(
+        _ snapshot: CinematicDiagnosticsReport.RunRecapShareArtifactTourSnapshot
+    ) -> [String] {
+        guard snapshot.isAvailable else {
+            return []
+        }
+
+        let stateIdentifier = snapshot.runtimeRouteCueStateIdentifier
+        guard stateIdentifier == "native-fallback" || stateIdentifier == "missing-cue" else {
+            return []
+        }
+
+        var identifiers = [
+            "run-recap-share-artifact-tour-runtime-route.\(stateIdentifier)"
+        ]
+        if let runtimeRouteCueIdentifier = snapshot.runtimeRouteCueIdentifier {
+            identifiers.append(
+                "run-recap-share-artifact-tour-runtime-route.cue-\(fingerprint(runtimeRouteCueIdentifier))"
+            )
+        } else {
+            identifiers.append("run-recap-share-artifact-tour-runtime-route.cue-missing")
+        }
+        if let selectedEntryIdentifier = snapshot.selectedEntryIdentifier {
+            identifiers.append(
+                "run-recap-share-artifact-tour-runtime-route.selected-\(fingerprint(selectedEntryIdentifier))"
+            )
+        }
+
+        var seen = Set<String>()
+        return identifiers.compactMap { identifier in
+            let boundedIdentifier = bounded(
+                identifier,
+                limit: CinematicVisualSmokeReport.warningIdentifierMaxCharacters
+            )
+            return seen.insert(boundedIdentifier).inserted ? boundedIdentifier : nil
+        }
+    }
+
+    private static func runRecapShareArtifactTourRuntimeRouteAttentionTargetID(
+        _ snapshot: CinematicDiagnosticsReport.RunRecapShareArtifactTourSnapshot
+    ) -> String {
+        let correlation = fingerprint(
+            [
+                snapshot.runtimeRouteCueIdentifier ?? "missing-cue",
+                snapshot.selectedEntryIdentifier ?? "none"
+            ].joined(separator: "|")
+        )
+        return bounded(
+            [
+                "run-recap-share-artifact-tour-route",
+                snapshot.runtimeRouteCueStateIdentifier,
+                correlation
+            ].joined(separator: "-"),
+            limit: CinematicVisualSmokeReport.warningIdentifierMaxCharacters
+        )
+    }
+
+    private static func runRecapShareArtifactTourRuntimeRouteAttentionLabel(
+        _ snapshot: CinematicDiagnosticsReport.RunRecapShareArtifactTourSnapshot
+    ) -> String {
+        switch snapshot.runtimeRouteCueStateIdentifier {
+        case "native-fallback":
+            return "Tour route fallback"
+        case "missing-cue":
+            return "Tour route cue missing"
+        default:
+            return "Tour runtime route"
+        }
+    }
+
+    private static func runRecapShareArtifactTourRuntimeRouteAttentionDetail(
+        _ snapshot: CinematicDiagnosticsReport.RunRecapShareArtifactTourSnapshot
+    ) -> String {
+        [
+            "state \(snapshot.runtimeRouteCueStateIdentifier)",
+            "route \(runtimeRouteAttentionCompactCopy(snapshot))",
+            "detail \(runtimeRouteAttentionDetailCopy(snapshot))",
+            "selection \(snapshot.selectionSourceIdentifier)",
+            "hold \(snapshot.savedTourHoldStateIdentifier)",
+            "selected \(runtimeRouteAttentionDisplayIdentifier(snapshot.selectedEntryIdentifier, fallback: "none", limit: 72))"
+        ].joined(separator: " | ")
+    }
+
+    private static func runRecapShareArtifactTourRuntimeRouteAttentionCopyText(
+        label: String,
+        targetGroupID: String,
+        targetAnchorID: String,
+        visibleWarningIdentifiers: [String],
+        detail: String,
+        snapshot: CinematicDiagnosticsReport.RunRecapShareArtifactTourSnapshot,
+        relatedRow: Row?
+    ) -> String {
+        let warnings = visibleWarningIdentifiers.isEmpty
+            ? "none"
+            : visibleWarningIdentifiers.joined(separator: ", ")
+        let selectedArtifact = runtimeRouteAttentionDisplayIdentifier(
+            snapshot.selectedEntryIdentifier,
+            fallback: "none",
+            limit: 96
+        )
+        var lines = [
+            "Cinematic diagnostics warning target",
+            "Label: \(bounded(label, limit: labelMaxCharacters))",
+            "Target anchor: \(bounded(targetAnchorID, limit: CinematicVisualSmokeReport.warningIdentifierMaxCharacters))",
+            "Target group: \(bounded(targetGroupID, limit: CinematicVisualSmokeReport.warningIdentifierMaxCharacters))",
+            "Warnings: \(bounded(warnings, limit: detailMaxCharacters))",
+            "Detail: \(bounded(detail, limit: attentionSummaryDetailMaxCharacters))",
+            "Runtime route state: \(snapshot.runtimeRouteCueStateIdentifier)",
+            "Route compact: \(runtimeRouteAttentionCompactCopy(snapshot))",
+            "Route detail: \(runtimeRouteAttentionDetailCopy(snapshot))",
+            "Route help: \(runtimeRouteAttentionHelpCopy(snapshot))",
+            "Tour state: \(snapshot.stateIdentifier)",
+            "Selection source: \(snapshot.selectionSourceIdentifier)",
+            "Hold state: \(snapshot.savedTourHoldStateIdentifier)",
+            "Selected artifact: \(selectedArtifact)",
+            "Read-only: route cue snapshot only; no discovery, preferences, provisioning, sessions, artifacts, pins, holds, search, or storage mutation."
+        ]
+
+        if let relatedRow {
+            lines.append(
+                [
+                    "Related row:",
+                    bounded(relatedRow.id, limit: CinematicVisualSmokeReport.warningIdentifierMaxCharacters),
+                    "(\(bounded(relatedRow.label, limit: labelMaxCharacters)))"
+                ].joined(separator: " ")
+            )
+            lines.append(
+                "Related detail: \(bounded(relatedRow.detail, limit: 180))"
+            )
+        }
+
+        return boundedMultiline(
+            lines.joined(separator: "\n"),
+            limit: attentionTargetCopyMaxCharacters
+        )
+    }
+
+    private static func runtimeRouteAttentionCompactCopy(
+        _ snapshot: CinematicDiagnosticsReport.RunRecapShareArtifactTourSnapshot
+    ) -> String {
+        snapshot.runtimeRouteCueCompactCopy.map {
+            bounded($0, limit: CinematicRunRecapShareArtifactRuntimeRouteCue.copyMaxCharacters)
+        } ?? runtimeRouteAttentionFallbackCopy(snapshot.runtimeRouteCueStateIdentifier)
+    }
+
+    private static func runtimeRouteAttentionDetailCopy(
+        _ snapshot: CinematicDiagnosticsReport.RunRecapShareArtifactTourSnapshot
+    ) -> String {
+        snapshot.runtimeRouteCueDetailCopy.map {
+            bounded($0, limit: CinematicRunRecapShareArtifactRuntimeRouteCue.detailMaxCharacters)
+        } ?? runtimeRouteAttentionFallbackCopy(snapshot.runtimeRouteCueStateIdentifier)
+    }
+
+    private static func runtimeRouteAttentionHelpCopy(
+        _ snapshot: CinematicDiagnosticsReport.RunRecapShareArtifactTourSnapshot
+    ) -> String {
+        snapshot.runtimeRouteCueHelpCopy.map {
+            bounded($0, limit: 120)
+        } ?? "No runtime route cue was found in the selected saved recap artifact Markdown."
+    }
+
+    private static func runtimeRouteAttentionFallbackCopy(_ stateIdentifier: String) -> String {
+        switch stateIdentifier {
+        case "native-fallback":
+            return "Native fallback"
+        case "missing-cue":
+            return "Missing cue"
+        default:
+            return bounded(stateIdentifier, limit: CinematicRunRecapShareArtifactRuntimeRouteCue.copyMaxCharacters)
+        }
+    }
+
+    private static func runtimeRouteAttentionDisplayIdentifier(
+        _ identifier: String?,
+        fallback: String,
+        limit: Int
+    ) -> String {
+        guard let identifier else { return fallback }
+        let normalized = identifier
+            .replacingOccurrences(of: "\r", with: " ")
+            .replacingOccurrences(of: "\n", with: " ")
+            .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalized.isEmpty else { return fallback }
+        guard !runtimeRouteAttentionIdentifierLooksSensitive(normalized) else {
+            return "\(fallback)-\(fingerprint(normalized))"
+        }
+        return bounded(normalized, limit: limit)
+    }
+
+    private static func runtimeRouteAttentionIdentifierLooksSensitive(_ identifier: String) -> Bool {
+        let lowercased = identifier.lowercased()
+        return identifier.contains("/")
+            || identifier.contains("\\")
+            || identifier.contains("~")
+            || lowercased.contains("containerenv")
+            || lowercased.contains("container-env")
+            || lowercased.contains("build-arg")
+            || lowercased.contains("buildarg")
+            || lowercased.contains("feature-option")
+            || lowercased.contains("feature option")
+            || lowercased.contains("composefile")
+            || lowercased.contains("dockercomposefile")
+            || lowercased.contains(".devcontainer")
+            || lowercased.contains("container-tool")
     }
 
     private static func fingerprint(_ value: String) -> String {
