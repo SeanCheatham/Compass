@@ -135,6 +135,33 @@ final class CompassProjectDevcontainerProvisioningTests: XCTestCase {
         XCTAssertEqual(try read(configURL), original)
     }
 
+    func testExistingFeatureConfigBlocksProvisioningWithoutMutation() throws {
+        let repoURL = try makeTemporaryGitRepository()
+        let configURL = devcontainerURL(in: repoURL)
+        try write(
+            #"{"image":"swift:6.0","features":{"ghcr.io/devcontainers/features/git:1":{"version":"secret-feature-project-value"}}}"#,
+            to: configURL
+        )
+        let original = try read(configURL)
+        let project = CompassProject(
+            repoURL: repoURL,
+            devcontainerProvisioningAction: { _ in
+                XCTFail("Feature configs must block before provisioning action.")
+                throw CodexDevcontainerProvisioningError.unavailable("unexpected")
+            }
+        )
+        project.languageProfile = languageProfile(primaryLanguage: .swift)
+
+        project.prepareDevcontainerProvisioningConfirmation()
+
+        XCTAssertNil(project.devcontainerProvisioningConfirmation)
+        XCTAssertEqual(project.devcontainerProvisioningState.phase, .blocked)
+        XCTAssertTrue(project.devcontainerProvisioningState.detail.contains("will not overwrite"))
+        XCTAssertFalse(project.devcontainerProvisioningState.detail.contains("secret-feature-project-value"))
+        XCTAssertEqual(project.codexExecutionEnvironmentPreference, .nativeMacOS)
+        XCTAssertEqual(try read(configURL), original)
+    }
+
     func testConfirmingStaleMissingPlanRefusesToOverwriteNewConfig() async throws {
         let repoURL = try makeTemporaryGitRepository()
         let configURL = devcontainerURL(in: repoURL)

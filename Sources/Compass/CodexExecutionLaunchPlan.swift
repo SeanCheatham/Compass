@@ -139,6 +139,99 @@ struct CodexDevcontainerComposeDescriptor: Equatable {
     }
 }
 
+struct CodexDevcontainerFeatureDescriptor: Equatable {
+    static let labelLimit = 32
+    static let featureCountLimit = 32
+    static let optionKeyCountLimit = 32
+
+    struct FeatureSummary: Equatable {
+        var label: String
+        var optionKeyCount: Int
+
+        init(label: String, optionKeyCount: Int) {
+            self.label = CodexDevcontainerFeatureDescriptor.boundedText(
+                label,
+                limit: CodexDevcontainerFeatureDescriptor.labelLimit
+            )
+            self.optionKeyCount = max(0, optionKeyCount)
+        }
+    }
+
+    var featureSummaries: [FeatureSummary]
+
+    init(features: [(identifier: String, optionKeyCount: Int)]) {
+        featureSummaries = features
+            .sorted { $0.identifier < $1.identifier }
+            .enumerated()
+            .map { index, feature in
+                FeatureSummary(
+                    label: Self.featureLabel(for: feature.identifier, index: index + 1),
+                    optionKeyCount: feature.optionKeyCount
+                )
+            }
+    }
+
+    var featureCount: Int {
+        featureSummaries.count
+    }
+
+    var optionKeyCount: Int {
+        featureSummaries.reduce(0) { $0 + $1.optionKeyCount }
+    }
+
+    var supportTokens: [String] {
+        var tokens = ["features:\(featureCount)"]
+        if optionKeyCount > 0 {
+            tokens.append("featureOptions:\(optionKeyCount)")
+        }
+        tokens += featureSummaries.map { "feature:\($0.label)" }
+        return tokens
+    }
+
+    private static func featureLabel(for identifier: String, index: Int) -> String {
+        let normalized = identifier.replacingOccurrences(of: "\\", with: "/")
+        let rawLabel = normalized
+            .split(separator: "/", omittingEmptySubsequences: true)
+            .last
+            .map(String.init) ?? "feature-\(index)"
+        let bounded = boundedText(rawLabel, limit: Self.labelLimit)
+        guard isSafeFeatureLabel(bounded), bounded != ".", bounded != ".." else {
+            return "feature-\(index)"
+        }
+        return bounded
+    }
+
+    private static func isSafeFeatureLabel(_ label: String) -> Bool {
+        guard !label.isEmpty,
+              label.count <= Self.labelLimit else {
+            return false
+        }
+
+        return label.unicodeScalars.allSatisfy { scalar in
+            isASCIILetter(scalar)
+                || isASCIIDigit(scalar)
+                || scalar == "_"
+                || scalar == "-"
+                || scalar == "."
+                || scalar == ":"
+                || scalar == "@"
+                || scalar == "+"
+        }
+    }
+
+    private static func boundedText(_ text: String, limit: Int) -> String {
+        CodexExecutionLaunchPlan.boundedText(text, limit: limit)
+    }
+
+    private static func isASCIILetter(_ scalar: UnicodeScalar) -> Bool {
+        (65...90).contains(Int(scalar.value)) || (97...122).contains(Int(scalar.value))
+    }
+
+    private static func isASCIIDigit(_ scalar: UnicodeScalar) -> Bool {
+        (48...57).contains(Int(scalar.value))
+    }
+}
+
 struct CodexDevcontainerBuildArgument: Equatable {
     static let nameLimit = CodexDevcontainerBuildDescriptor.buildArgNameLimit
     static let valueLimit = CodexDevcontainerBuildDescriptor.buildArgValueLimit
@@ -324,6 +417,7 @@ struct CodexDevcontainerSupportReport: Equatable {
     var composeDescriptor: CodexDevcontainerComposeDescriptor?
     var buildDescriptor: CodexDevcontainerBuildDescriptor?
     var buildConfiguration: CodexDevcontainerBuildConfiguration?
+    var featureDescriptor: CodexDevcontainerFeatureDescriptor?
     var supportTokens: [String]
     var omittedTokenCount: Int
     var reason: String?
@@ -336,6 +430,7 @@ struct CodexDevcontainerSupportReport: Equatable {
         composeDescriptor: CodexDevcontainerComposeDescriptor? = nil,
         buildDescriptor: CodexDevcontainerBuildDescriptor? = nil,
         buildConfiguration: CodexDevcontainerBuildConfiguration? = nil,
+        featureDescriptor: CodexDevcontainerFeatureDescriptor? = nil,
         supportTokens: [String] = [],
         omittedTokenCount: Int = 0,
         reason: String? = nil
@@ -347,6 +442,7 @@ struct CodexDevcontainerSupportReport: Equatable {
         self.composeDescriptor = composeDescriptor
         self.buildDescriptor = buildDescriptor
         self.buildConfiguration = buildConfiguration
+        self.featureDescriptor = featureDescriptor
         self.supportTokens = supportTokens.map { Self.boundedText($0, limit: Self.tokenLimit) }
         self.omittedTokenCount = max(0, omittedTokenCount)
         self.reason = Self.boundedOptionalText(reason, limit: Self.reasonLimit)
@@ -546,6 +642,19 @@ struct CodexDevcontainerSupportReport: Equatable {
             )
         }
 
+        let featureDescriptor: CodexDevcontainerFeatureDescriptor?
+        switch parseFeatureDescriptor(dictionary["features"]) {
+        case let .success(parsedFeatureDescriptor):
+            featureDescriptor = parsedFeatureDescriptor
+        case let .failure(reason):
+            return Self(
+                classification: .malformed,
+                configURL: configURL,
+                name: name,
+                reason: reason
+            )
+        }
+
         let parsedBuildPlan: ParsedBuildPlan?
         let hasMalformedBuildDescriptor: Bool
         switch parseBuildPlan(dictionary, configURL: configURL, containerEnv: containerEnv) {
@@ -580,7 +689,7 @@ struct CodexDevcontainerSupportReport: Equatable {
             buildDescriptor: buildDescriptor,
             buildExtraSupportTokens: parsedBuildPlan?.extraSupportTokens ?? [],
             hasMalformedBuildDescriptor: hasMalformedBuildDescriptor,
-            hasFeatures: !featureKeys.isEmpty,
+            featureDescriptor: featureDescriptor,
             unsupportedKeys: unsupportedKeys,
             containerEnvNames: containerEnv.map(\.name)
         )
@@ -593,6 +702,7 @@ struct CodexDevcontainerSupportReport: Equatable {
                 composeDescriptor: composeDescriptor,
                 buildDescriptor: buildDescriptor,
                 buildConfiguration: buildConfiguration,
+                featureDescriptor: featureDescriptor,
                 supportTokens: supportTokenResult.tokens,
                 omittedTokenCount: supportTokenResult.omittedCount,
                 reason: "Compose devcontainer fields require unsupported routing."
@@ -606,6 +716,7 @@ struct CodexDevcontainerSupportReport: Equatable {
                 name: name,
                 buildDescriptor: buildDescriptor,
                 buildConfiguration: buildConfiguration,
+                featureDescriptor: featureDescriptor,
                 supportTokens: supportTokenResult.tokens,
                 omittedTokenCount: supportTokenResult.omittedCount,
                 reason: buildConfiguration == nil
@@ -619,6 +730,7 @@ struct CodexDevcontainerSupportReport: Equatable {
                 classification: .featureBased,
                 configURL: configURL,
                 name: name,
+                featureDescriptor: featureDescriptor,
                 supportTokens: supportTokenResult.tokens,
                 omittedTokenCount: supportTokenResult.omittedCount,
                 reason: "Devcontainer features require unsupported routing."
@@ -753,6 +865,11 @@ struct CodexDevcontainerSupportReport: Equatable {
         case failure(String)
     }
 
+    private enum FeatureDescriptorParseResult {
+        case success(CodexDevcontainerFeatureDescriptor?)
+        case failure(String)
+    }
+
     private struct ParsedBuildPlan {
         var descriptor: CodexDevcontainerBuildDescriptor
         var configuration: CodexDevcontainerBuildConfiguration?
@@ -881,6 +998,63 @@ struct CodexDevcontainerSupportReport: Equatable {
             serviceLabel: serviceLabel,
             runServiceLabels: runServiceLabels
         ))
+    }
+
+    private static func parseFeatureDescriptor(_ rawValue: Any?) -> FeatureDescriptorParseResult {
+        guard let rawValue else {
+            return .success(nil)
+        }
+
+        guard let dictionary = rawValue as? [String: Any] else {
+            return .failure("features must be an object.")
+        }
+
+        guard dictionary.count <= CodexDevcontainerFeatureDescriptor.featureCountLimit else {
+            return .failure(
+                "features may include at most \(CodexDevcontainerFeatureDescriptor.featureCountLimit) entries."
+            )
+        }
+
+        var features: [(identifier: String, optionKeyCount: Int)] = []
+        for identifier in dictionary.keys.sorted() {
+            let trimmedIdentifier = identifier.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmedIdentifier.isEmpty else {
+                return .failure("feature identifiers must not be empty.")
+            }
+
+            guard !trimmedIdentifier.contains("\0"),
+                  !trimmedIdentifier.contains("\n"),
+                  !trimmedIdentifier.contains("\r") else {
+                return .failure("feature identifiers must not contain control characters.")
+            }
+
+            guard let optionDictionary = dictionary[identifier] as? [String: Any] else {
+                return .failure("feature options must be objects.")
+            }
+
+            guard optionDictionary.count <= CodexDevcontainerFeatureDescriptor.optionKeyCountLimit else {
+                return .failure(
+                    "feature options may include at most \(CodexDevcontainerFeatureDescriptor.optionKeyCountLimit) keys per feature."
+                )
+            }
+
+            for optionKey in optionDictionary.keys {
+                let trimmedOptionKey = optionKey.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !trimmedOptionKey.isEmpty else {
+                    return .failure("feature option keys must not be empty.")
+                }
+
+                guard !trimmedOptionKey.contains("\0"),
+                      !trimmedOptionKey.contains("\n"),
+                      !trimmedOptionKey.contains("\r") else {
+                    return .failure("feature option keys must not contain control characters.")
+                }
+            }
+
+            features.append((identifier: trimmedIdentifier, optionKeyCount: optionDictionary.count))
+        }
+
+        return .success(CodexDevcontainerFeatureDescriptor(features: features))
     }
 
     private static func parseComposeFileLabels(
@@ -1332,7 +1506,7 @@ struct CodexDevcontainerSupportReport: Equatable {
         buildDescriptor: CodexDevcontainerBuildDescriptor? = nil,
         buildExtraSupportTokens: [String] = [],
         hasMalformedBuildDescriptor: Bool = false,
-        hasFeatures: Bool,
+        featureDescriptor: CodexDevcontainerFeatureDescriptor? = nil,
         unsupportedKeys: [String],
         containerEnvNames: [String] = []
     ) -> (tokens: [String], omittedCount: Int) {
@@ -1350,8 +1524,8 @@ struct CodexDevcontainerSupportReport: Equatable {
                 rawTokens += buildExtraSupportTokens
             }
         }
-        if hasFeatures {
-            rawTokens.append("features")
+        if let featureDescriptor {
+            rawTokens += featureDescriptor.supportTokens
         }
         rawTokens += containerEnvSupportTokens(names: containerEnvNames)
         rawTokens += unsupportedKeys.map { "extra:\($0)" }

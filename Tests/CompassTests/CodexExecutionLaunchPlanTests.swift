@@ -683,15 +683,28 @@ final class CodexExecutionLaunchPlanTests: XCTestCase {
         XCTAssertEqual(plan.devcontainerSupportReport?.classification, .composeBased)
         XCTAssertEqual(
             plan.devcontainerSupportReport?.supportTokens,
-            ["compose", "composeFile:compose.yml", "service:app", "build", "dockerfile:Dockerfile", "features", "extra:postCreateCommand", "extra:remoteUser"]
+            [
+                "compose",
+                "composeFile:compose.yml",
+                "service:app",
+                "build",
+                "dockerfile:Dockerfile",
+                "features:1",
+                "feature:git:1",
+                "extra:postCreateCommand"
+            ]
         )
+        XCTAssertEqual(plan.devcontainerSupportReport?.omittedTokenCount, 1)
+        XCTAssertEqual(plan.devcontainerSupportReport?.featureDescriptor?.featureSummaries.map(\.label), ["git:1"])
         XCTAssertNil(plan.devcontainerSupportReport?.buildConfiguration)
         XCTAssertTrue(plan.fallbackReason?.contains("compose-based tokens compose,composeFile:compose.yml,service:app") == true)
 
         let preflight = plan.preflightSummary(phase: "Develop")
         XCTAssertTrue(preflight.contains("devcontainer compose-based tokens compose,composeFile:compose.yml,service:app"))
+        XCTAssertTrue(preflight.contains("features:1"))
+        XCTAssertTrue(preflight.contains("feature:git:1"))
         XCTAssertTrue(preflight.contains("extra:postCreateCommand"))
-        XCTAssertTrue(preflight.contains("extra:remoteUser"))
+        XCTAssertTrue(preflight.contains("+1-more"))
     }
 
     func testMalformedAndUnsafeComposeShapesDoNotLeakValues() throws {
@@ -781,8 +794,150 @@ final class CodexExecutionLaunchPlanTests: XCTestCase {
 
         XCTAssertFalse(plan.isContainerRoute)
         XCTAssertEqual(plan.devcontainerSupportReport?.classification, .featureBased)
-        XCTAssertEqual(plan.devcontainerSupportReport?.supportTokens, ["features"])
-        XCTAssertEqual(plan.fallbackReason, "Unsupported devcontainer route: feature-based tokens features.")
+        XCTAssertEqual(plan.devcontainerSupportReport?.featureDescriptor?.featureCount, 1)
+        XCTAssertEqual(plan.devcontainerSupportReport?.featureDescriptor?.optionKeyCount, 0)
+        XCTAssertEqual(plan.devcontainerSupportReport?.featureDescriptor?.featureSummaries.map(\.label), ["node:1"])
+        XCTAssertEqual(plan.devcontainerSupportReport?.supportTokens, ["features:1", "feature:node:1"])
+        XCTAssertEqual(plan.fallbackReason, "Unsupported devcontainer route: feature-based tokens features:1,feature:node:1.")
+    }
+
+    func testImageWithFeaturesFallsBackWithFeatureCountsWithoutLeakingOptionValues() throws {
+        let repoURL = try makeTemporaryDirectory(prefix: "CodexExecutionLaunchPlanFeatureImage")
+        let secretVersion = "secret-node-version"
+        let nestedSecret = "secret-nested-option-value"
+        try write(
+            #"{"image":"swift:6.0","features":{"ghcr.io/devcontainers/features/node:1":{"version":"\#(secretVersion)"},"ghcr.io/devcontainers/features/common-utils:2":{"nested":{"token":"\#(nestedSecret)"}}}}"#,
+            to: devcontainerURL(in: repoURL)
+        )
+
+        let plan = CodexExecutionLaunchPlan.plan(
+            repoURL: repoURL,
+            preference: .devcontainerPreferred,
+            containerToolResolver: { _ in "/usr/local/bin/container" }
+        )
+        let report = try XCTUnwrap(plan.devcontainerSupportReport)
+        let diagnosticsText = [
+            report.supportSummary,
+            plan.preflightSummary(phase: "Develop"),
+            plan.routeDetail()
+        ].joined(separator: " ")
+
+        XCTAssertFalse(plan.isContainerRoute)
+        XCTAssertNil(report.imageConfiguration)
+        XCTAssertEqual(report.classification, .featureBased)
+        XCTAssertEqual(report.featureDescriptor?.featureCount, 2)
+        XCTAssertEqual(report.featureDescriptor?.optionKeyCount, 2)
+        XCTAssertEqual(report.featureDescriptor?.featureSummaries.map(\.label), ["common-utils:2", "node:1"])
+        XCTAssertEqual(report.supportTokens, [
+            "features:2",
+            "featureOptions:2",
+            "feature:common-utils:2",
+            "feature:node:1"
+        ])
+        XCTAssertTrue(diagnosticsText.contains("features:2"))
+        XCTAssertTrue(diagnosticsText.contains("featureOptions:2"))
+        XCTAssertTrue(diagnosticsText.contains("feature:common-utils:2"))
+        XCTAssertTrue(diagnosticsText.contains("feature:node:1"))
+        XCTAssertFalse(diagnosticsText.contains(secretVersion))
+        XCTAssertFalse(diagnosticsText.contains(nestedSecret))
+        XCTAssertFalse(diagnosticsText.contains("nested"))
+    }
+
+    func testMalformedFeatureShapesFallBackWithoutLeakingValues() throws {
+        let oversizedFeatures = (0...CodexDevcontainerFeatureDescriptor.featureCountLimit)
+            .map { #""ghcr.io/devcontainers/features/feature-\#($0):1":{}"# }
+            .joined(separator: ",")
+        let oversizedOptions = (0...CodexDevcontainerFeatureDescriptor.optionKeyCountLimit)
+            .map { #""OPTION_\#($0)":"secret-option-\#($0)""# }
+            .joined(separator: ",")
+        let cases: [(prefix: String, json: String, reasonToken: String, leakedValue: String)] = [
+            (
+                "CodexExecutionLaunchPlanFeaturesArray",
+                #"{"features":["ghcr.io/devcontainers/features/node:1"]}"#,
+                "features must be an object",
+                "ghcr.io/devcontainers/features/node:1"
+            ),
+            (
+                "CodexExecutionLaunchPlanFeatureValue",
+                #"{"features":{"ghcr.io/devcontainers/features/node:1":"secret-feature-value"}}"#,
+                "feature options must be objects",
+                "secret-feature-value"
+            ),
+            (
+                "CodexExecutionLaunchPlanFeatureEmptyID",
+                #"{"features":{" ":{"version":"secret-version"}}}"#,
+                "feature identifiers must not be empty",
+                "secret-version"
+            ),
+            (
+                "CodexExecutionLaunchPlanFeaturesOversized",
+                #"{"features":{\#(oversizedFeatures)}}"#,
+                "features may include at most",
+                "feature-32"
+            ),
+            (
+                "CodexExecutionLaunchPlanFeatureOptionsOversized",
+                #"{"features":{"ghcr.io/devcontainers/features/node:1":{\#(oversizedOptions)}}}"#,
+                "feature options may include at most",
+                "secret-option"
+            )
+        ]
+
+        for testCase in cases {
+            let repoURL = try makeTemporaryDirectory(prefix: testCase.prefix)
+            try write(testCase.json, to: devcontainerURL(in: repoURL))
+
+            let plan = CodexExecutionLaunchPlan.plan(
+                repoURL: repoURL,
+                preference: .devcontainerPreferred,
+                containerToolResolver: { _ in "/usr/local/bin/container" }
+            )
+
+            XCTAssertFalse(plan.isContainerRoute)
+            XCTAssertEqual(plan.devcontainerSupportReport?.classification, .malformed)
+            XCTAssertTrue(plan.fallbackReason?.contains(testCase.reasonToken) == true)
+            XCTAssertFalse(plan.fallbackReason?.contains(testCase.leakedValue) == true)
+            XCTAssertLessThanOrEqual(
+                plan.fallbackReason?.count ?? 0,
+                CodexExecutionLaunchPlan.fallbackReasonLimit
+            )
+        }
+    }
+
+    func testFeatureTokensAreDeterministicallyOrderedAndBounded() throws {
+        let repoURL = try makeTemporaryDirectory(prefix: "CodexExecutionLaunchPlanFeatureTokens")
+        let features = (0..<10)
+            .reversed()
+            .map { #""ghcr.io/devcontainers/features/feature-\#(String(format: "%02d", $0)):1":{"enabled":true}"# }
+            .joined(separator: ",")
+        try write(
+            #"{"features":{\#(features)}}"#,
+            to: devcontainerURL(in: repoURL)
+        )
+
+        let plan = CodexExecutionLaunchPlan.plan(
+            repoURL: repoURL,
+            preference: .devcontainerPreferred,
+            containerToolResolver: { _ in "/usr/local/bin/container" }
+        )
+        let report = try XCTUnwrap(plan.devcontainerSupportReport)
+
+        XCTAssertFalse(plan.isContainerRoute)
+        XCTAssertEqual(report.classification, .featureBased)
+        XCTAssertEqual(report.featureDescriptor?.featureCount, 10)
+        XCTAssertEqual(report.featureDescriptor?.optionKeyCount, 10)
+        XCTAssertEqual(report.supportTokens, [
+            "features:10",
+            "featureOptions:10",
+            "feature:feature-00:1",
+            "feature:feature-01:1",
+            "feature:feature-02:1",
+            "feature:feature-03:1",
+            "feature:feature-04:1",
+            "feature:feature-05:1"
+        ])
+        XCTAssertEqual(report.omittedTokenCount, 4)
+        XCTAssertTrue(report.tokenSummary.contains("+4-more"))
     }
 
     func testOversizedContainerEnvValueIsMalformedWithoutLeakingValue() throws {

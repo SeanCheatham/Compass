@@ -183,6 +183,47 @@ final class CodexDevcontainerProvisioningTests: XCTestCase {
         ])
     }
 
+    func testExistingFeatureConfigKeepsProvisioningUnavailable() throws {
+        let repoURL = try makeTemporaryDirectory(prefix: "CodexDevcontainerProvisioningFeatures")
+        let secretFeatureValue = "secret-feature-provisioning-value"
+        try write(
+            #"{"image":"swift:6.0","features":{"ghcr.io/devcontainers/features/git:1":{"version":"\#(secretFeatureValue)"}}}"#,
+            to: repoURL
+                .appending(path: ".devcontainer", directoryHint: .isDirectory)
+                .appending(path: "devcontainer.json")
+        )
+
+        let plan = CodexDevcontainerProvisioningPlan.plan(
+            repoURL: repoURL,
+            languageProfile: languageProfile(primaryLanguage: .swift)
+        )
+        let environment = CodexExecutionEnvironment.discover(
+            repoURL: repoURL,
+            preference: .devcontainerPreferred
+        )
+        let menu = CodexExecutionEnvironmentMenu(
+            environment: environment,
+            provisioningPlan: plan
+        )
+        let diagnosticsText = [
+            plan.detail,
+            environment.devcontainerDiscovery.detail,
+            menu.statusText
+        ].joined(separator: " ")
+
+        XCTAssertFalse(plan.isAvailable)
+        XCTAssertEqual(plan.status, .alreadyPresent)
+        XCTAssertNil(menu.createDevcontainerAction)
+        XCTAssertTrue(plan.detail.contains("will not overwrite"))
+        XCTAssertEqual(environment.devcontainerDiscovery.supportReport.classification, .featureBased)
+        XCTAssertEqual(environment.devcontainerDiscovery.supportReport.supportTokens, [
+            "features:1",
+            "featureOptions:1",
+            "feature:git:1"
+        ])
+        XCTAssertFalse(diagnosticsText.contains(secretFeatureValue))
+    }
+
     private func languageProfile(
         primaryLanguage: RepositoryLanguage,
         manifestHints: [RepositoryManifestHint] = []

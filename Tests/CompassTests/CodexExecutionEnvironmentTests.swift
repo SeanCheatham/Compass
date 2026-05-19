@@ -47,8 +47,9 @@ final class CodexExecutionEnvironmentTests: XCTestCase {
 
     func testMenuAndPreflightExposeUnsupportedFallbackTokens() throws {
         let repoURL = try makeTemporaryDirectory(prefix: "CodexExecutionEnvironmentMenuFallback")
+        let secretFeatureValue = "secret-feature-menu-value"
         try write(
-            #"{"image":"swift:6.0","build":{"dockerfile":"Dockerfile"},"features":{"ghcr.io/devcontainers/features/git:1":{}},"postCreateCommand":"swift test"}"#,
+            #"{"image":"swift:6.0","build":{"dockerfile":"Dockerfile"},"features":{"ghcr.io/devcontainers/features/git:1":{"version":"\#(secretFeatureValue)"}},"postCreateCommand":"swift test"}"#,
             to: repoURL
                 .appending(path: ".devcontainer", directoryHint: .isDirectory)
                 .appending(path: "devcontainer.json")
@@ -68,11 +69,57 @@ final class CodexExecutionEnvironmentTests: XCTestCase {
         XCTAssertEqual(environment.devcontainerDiscovery.supportReport.classification, .buildBased)
         XCTAssertTrue(menu.statusText.contains("build-based"))
         XCTAssertTrue(menu.statusText.contains("dockerfile:Dockerfile"))
-        XCTAssertTrue(menu.statusText.contains("features"))
+        XCTAssertTrue(menu.statusText.contains("features:1"))
+        XCTAssertTrue(menu.statusText.contains("featureOptions:1"))
+        XCTAssertTrue(menu.statusText.contains("feature:git:1"))
         XCTAssertTrue(menu.statusText.contains("extra:postCreateCommand"))
         XCTAssertTrue(menu.items.first { $0.preference == .devcontainerPreferred }?.description.contains("build-based") == true)
-        XCTAssertTrue(preflight.contains("devcontainer build-based tokens build,dockerfile:Dockerfile,features,extra:postCreateCommand"))
-        XCTAssertTrue(detail.contains("Unsupported devcontainer route: build-based tokens build,dockerfile:Dockerfile,features,extra:postCreateCommand."))
+        XCTAssertTrue(preflight.contains("devcontainer build-based tokens build,dockerfile:Dockerfile,features:1,featureOptions:1,feature:git:1,extra:postCreateCommand"))
+        XCTAssertTrue(detail.contains("Unsupported devcontainer route: build-based tokens build,dockerfile:Dockerfile,features:1,featureOptions:1,feature:git:1,extra:postCreateCommand."))
+        XCTAssertFalse([menu.helpText, menu.statusText, preflight, detail].joined(separator: " ").contains(secretFeatureValue))
+    }
+
+    func testFeatureDiscoveryMenusExposeSanitizedFeatureCountsWithoutValues() throws {
+        let repoURL = try makeTemporaryDirectory(prefix: "CodexExecutionEnvironmentFeatures")
+        let secretValue = "secret-feature-environment-value"
+        try write(
+            #"{"image":"swift:6.0","features":{"aaa.example/custom/private feature":{"token":"hidden"},"ghcr.io/devcontainers/features/node:1":{"version":"\#(secretValue)"}}}"#,
+            to: repoURL
+                .appending(path: ".devcontainer", directoryHint: .isDirectory)
+                .appending(path: "devcontainer.json")
+        )
+
+        let environment = CodexExecutionEnvironment.discover(
+            repoURL: repoURL,
+            preference: .devcontainerPreferred
+        )
+        let menu = CodexExecutionEnvironmentMenu(environment: environment)
+        let preflight = environment.launchPreflightSummary(
+            phase: "Verify",
+            nativeExecutionURL: repoURL
+        )
+        let detail = environment.launchPreflightDetail
+        let diagnosticsText = [menu.helpText, menu.statusText, preflight, detail]
+            .joined(separator: " ")
+
+        XCTAssertEqual(environment.effectivePreference, .nativeMacOS)
+        XCTAssertEqual(environment.devcontainerDiscovery.supportReport.classification, .featureBased)
+        XCTAssertEqual(environment.devcontainerDiscovery.supportReport.featureDescriptor?.featureCount, 2)
+        XCTAssertEqual(environment.devcontainerDiscovery.supportReport.featureDescriptor?.optionKeyCount, 2)
+        XCTAssertEqual(environment.devcontainerDiscovery.supportReport.supportTokens, [
+            "features:2",
+            "featureOptions:2",
+            "feature:feature-1",
+            "feature:node:1"
+        ])
+        XCTAssertTrue(menu.statusText.contains("feature-based"))
+        XCTAssertTrue(menu.statusText.contains("features:2"))
+        XCTAssertTrue(menu.items.first { $0.preference == .devcontainerPreferred }?.description.contains("feature:node:1") == true)
+        XCTAssertTrue(preflight.contains("devcontainer feature-based tokens features:2"))
+        XCTAssertTrue(detail.contains("Unsupported devcontainer route: feature-based tokens features:2"))
+        XCTAssertFalse(diagnosticsText.contains(secretValue))
+        XCTAssertFalse(diagnosticsText.contains("hidden"))
+        XCTAssertFalse(diagnosticsText.contains("private feature"))
     }
 
     func testComposeDiscoveryMenusExposeSanitizedComposeTokensWithoutPaths() throws {

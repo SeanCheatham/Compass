@@ -148,8 +148,9 @@ final class CodexExecutorLaunchRouteTests: XCTestCase {
 
     func testUnsupportedDevcontainerFallbackKeepsNativeCodexInvocation() async throws {
         let repoURL = try makeTemporaryDirectory(prefix: "CodexExecutorUnsupportedFallback")
+        let secretFeatureValue = "secret-feature-executor-value"
         try write(
-            #"{"features":{"ghcr.io/devcontainers/features/git:1":{}}}"#,
+            #"{"features":{"ghcr.io/devcontainers/features/git:1":{"version":"\#(secretFeatureValue)"}}}"#,
             to: devcontainerURL(in: repoURL)
         )
         let launchPlan = CodexExecutionLaunchPlan.plan(
@@ -180,11 +181,17 @@ final class CodexExecutorLaunchRouteTests: XCTestCase {
 
         let context = try XCTUnwrap(capturedContext)
         XCTAssertEqual(launchPlan.devcontainerSupportReport?.classification, .featureBased)
+        XCTAssertEqual(launchPlan.devcontainerSupportReport?.supportTokens, [
+            "features:1",
+            "featureOptions:1",
+            "feature:git:1"
+        ])
         XCTAssertEqual(context.invocation.executable, "/opt/codex/bin/codex")
         XCTAssertEqual(context.invocation.workingDirectory, repoURL.standardizedFileURL)
         XCTAssertEqual(try argument(after: "--cd", in: context.invocation.arguments), repoURL.standardizedFileURL.path)
         XCTAssertEqual(try argument(after: "--output-schema", in: context.invocation.arguments), context.schemaFile.path)
         XCTAssertFalse(context.invocation.arguments.contains("container"))
+        XCTAssertFalse(launchPlan.routeDetail().contains(secretFeatureValue))
     }
 
     func testComposeDevcontainerFallbackKeepsNativeCodexInvocation() async throws {

@@ -175,6 +175,43 @@ final class ProcessRunnerExecutionRouteTests: XCTestCase {
         XCTAssertFalse(launchPlan.routeDetail().contains("../compose.yml"))
     }
 
+    func testFeatureDevcontainerShellRouteFallsBackToNativeWithSanitizedTokens() async throws {
+        let repoURL = try makeTemporaryDirectory(prefix: "ProcessRunnerFeatureFallback")
+        let secretFeatureValue = "secret-feature-runner-value"
+        try write(
+            #"{"image":"swift:6.0","features":{"ghcr.io/devcontainers/features/node:1":{"version":"\#(secretFeatureValue)"}}}"#,
+            to: devcontainerURL(in: repoURL)
+        )
+        let launchPlan = CodexExecutionLaunchPlan.plan(
+            repoURL: repoURL,
+            preference: .devcontainerPreferred,
+            containerToolResolver: { _ in "/usr/local/bin/container" }
+        )
+        var capturedInvocation: CodexExecutionInvocation?
+
+        _ = try await ProcessRunner.runShell(
+            "swift test",
+            workingDirectory: repoURL,
+            launchPlan: launchPlan,
+            runner: { invocation, _, _, _, _ in
+                capturedInvocation = invocation
+                return ProcessResult(exitCode: 0, stdout: "", stderr: "")
+            }
+        )
+
+        let invocation = try XCTUnwrap(capturedInvocation)
+        XCTAssertFalse(launchPlan.isContainerRoute)
+        XCTAssertEqual(invocation.executable, "/bin/zsh")
+        XCTAssertEqual(invocation.arguments, ["-lc", "swift test"])
+        XCTAssertEqual(launchPlan.devcontainerSupportReport?.classification, .featureBased)
+        XCTAssertEqual(launchPlan.devcontainerSupportReport?.supportTokens, [
+            "features:1",
+            "featureOptions:1",
+            "feature:node:1"
+        ])
+        XCTAssertFalse(launchPlan.routeDetail().contains(secretFeatureValue))
+    }
+
     func testBuildDevcontainerShellRouteBuildsThenRunsLocalImage() async throws {
         let repoURL = try makeTemporaryDirectory(prefix: "ProcessRunnerBuildRoute")
         try write(
