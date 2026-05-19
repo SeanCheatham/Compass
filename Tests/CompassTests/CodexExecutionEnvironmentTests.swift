@@ -29,6 +29,7 @@ final class CodexExecutionEnvironmentTests: XCTestCase {
         XCTAssertEqual(environment.devcontainerDiscovery.status, .ready)
         XCTAssertEqual(environment.devcontainerDiscovery.name, "Compass Dev")
         XCTAssertEqual(environment.devcontainerDiscovery.configURL, configURL.standardizedFileURL)
+        XCTAssertEqual(environment.devcontainerDiscovery.supportReport.classification, .unsupportedExtraFields)
         XCTAssertTrue(environment.presentation.status.contains("falling back to native macOS"))
         XCTAssertTrue(environment.presentation.status.contains("native macOS"))
         XCTAssertTrue(environment.presentation.isWarning)
@@ -38,9 +39,39 @@ final class CodexExecutionEnvironmentTests: XCTestCase {
             nativeExecutionURL: repoURL
         )
         XCTAssertTrue(preflight.contains("selected Dev Container Preferred"))
+        XCTAssertTrue(preflight.contains("devcontainer unsupported-extra-fields tokens missing-image"))
         XCTAssertTrue(preflight.contains("effective route Native macOS"))
-        XCTAssertTrue(preflight.contains("fallback Only image-based devcontainer configs are supported."))
+        XCTAssertTrue(preflight.contains("fallback Only image-based devcontainer configs are supported. Tokens: missing-image."))
         XCTAssertFalse(preflight.contains(repoURL.standardizedFileURL.path))
+    }
+
+    func testMenuAndPreflightExposeUnsupportedFallbackTokens() throws {
+        let repoURL = try makeTemporaryDirectory(prefix: "CodexExecutionEnvironmentMenuFallback")
+        try write(
+            #"{"image":"swift:6.0","build":{"dockerfile":"Dockerfile"},"features":{"ghcr.io/devcontainers/features/git:1":{}},"postCreateCommand":"swift test"}"#,
+            to: repoURL
+                .appending(path: ".devcontainer", directoryHint: .isDirectory)
+                .appending(path: "devcontainer.json")
+        )
+
+        let environment = CodexExecutionEnvironment.discover(
+            repoURL: repoURL,
+            preference: .devcontainerPreferred
+        )
+        let menu = CodexExecutionEnvironmentMenu(environment: environment)
+        let preflight = environment.launchPreflightSummary(
+            phase: "Verify",
+            nativeExecutionURL: repoURL
+        )
+        let detail = environment.launchPreflightDetail
+
+        XCTAssertEqual(environment.devcontainerDiscovery.supportReport.classification, .buildBased)
+        XCTAssertTrue(menu.statusText.contains("build-based"))
+        XCTAssertTrue(menu.statusText.contains("features"))
+        XCTAssertTrue(menu.statusText.contains("extra:postCreateCommand"))
+        XCTAssertTrue(menu.items.first { $0.preference == .devcontainerPreferred }?.description.contains("build-based") == true)
+        XCTAssertTrue(preflight.contains("devcontainer build-based tokens build,features,extra:postCreateCommand"))
+        XCTAssertTrue(detail.contains("Unsupported devcontainer route: build-based tokens build,features,extra:postCreateCommand."))
     }
 
     func testMissingDevcontainerPresentationFallsBackToNativeMacOS() throws {
@@ -96,7 +127,7 @@ final class CodexExecutionEnvironmentTests: XCTestCase {
     func testNativePreferenceKeepsDevcontainerOptionalWhenConfigIsPresent() throws {
         let repoURL = try makeTemporaryDirectory(prefix: "CodexExecutionEnvironmentNative")
         try write(
-            #"{"name":"Optional Devcontainer"}"#,
+            #"{"name":"Optional Devcontainer","image":"swift:6.0"}"#,
             to: repoURL
                 .appending(path: ".devcontainer", directoryHint: .isDirectory)
                 .appending(path: "devcontainer.json")
@@ -107,8 +138,9 @@ final class CodexExecutionEnvironmentTests: XCTestCase {
         XCTAssertEqual(environment.preference, .nativeMacOS)
         XCTAssertEqual(environment.effectivePreference, .nativeMacOS)
         XCTAssertEqual(environment.devcontainerDiscovery.status, .ready)
+        XCTAssertEqual(environment.devcontainerDiscovery.supportReport.classification, .imageRouteable)
         XCTAssertTrue(environment.presentation.status.contains("Running on native macOS"))
-        XCTAssertTrue(environment.presentation.status.contains("recommended"))
+        XCTAssertTrue(environment.presentation.status.contains("image-routeable"))
     }
 
     func testDiscoveryDoesNotCreateDevcontainerFilesWhenConfigIsMissing() throws {

@@ -39,6 +39,401 @@ struct CodexDevcontainerImageConfiguration: Equatable {
     }
 }
 
+struct CodexDevcontainerSupportReport: Equatable {
+    static let nameLimit = 80
+    static let reasonLimit = 180
+    static let supportSummaryLimit = 180
+    static let tokenLimit = 48
+    static let maxTokenCount = 8
+
+    enum Classification: String, Equatable {
+        case missing
+        case malformed
+        case imageRouteable = "image-routeable"
+        case buildBased = "build-based"
+        case composeBased = "compose-based"
+        case featureBased = "feature-based"
+        case unsupportedExtraFields = "unsupported-extra-fields"
+    }
+
+    var classification: Classification
+    var configURL: URL
+    var name: String?
+    var imageConfiguration: CodexDevcontainerImageConfiguration?
+    var supportTokens: [String]
+    var omittedTokenCount: Int
+    var reason: String?
+
+    init(
+        classification: Classification,
+        configURL: URL,
+        name: String? = nil,
+        imageConfiguration: CodexDevcontainerImageConfiguration? = nil,
+        supportTokens: [String] = [],
+        omittedTokenCount: Int = 0,
+        reason: String? = nil
+    ) {
+        self.classification = classification
+        self.configURL = configURL.standardizedFileURL
+        self.name = Self.boundedOptionalText(name, limit: Self.nameLimit)
+        self.imageConfiguration = imageConfiguration
+        self.supportTokens = supportTokens.map { Self.boundedText($0, limit: Self.tokenLimit) }
+        self.omittedTokenCount = max(0, omittedTokenCount)
+        self.reason = Self.boundedOptionalText(reason, limit: Self.reasonLimit)
+    }
+
+    var isImageRouteable: Bool {
+        classification == .imageRouteable && imageConfiguration != nil
+    }
+
+    var tokenSummary: String {
+        var tokens = supportTokens
+        if omittedTokenCount > 0 {
+            tokens.append("+\(omittedTokenCount)-more")
+        }
+        let summary = tokens.isEmpty ? "none" : tokens.joined(separator: ",")
+        return Self.boundedText(summary, limit: Self.supportSummaryLimit)
+    }
+
+    var supportSummary: String {
+        let text: String
+        switch classification {
+        case .missing:
+            text = "missing"
+        case .malformed:
+            if let reason {
+                text = "malformed reason \(reason)"
+            } else {
+                text = "malformed"
+            }
+        case .imageRouteable:
+            if let imageConfiguration {
+                text = "image-routeable image \(imageConfiguration.imageLabel) workspace \(imageConfiguration.workspaceLabel)"
+            } else {
+                text = "image-routeable"
+            }
+        case .buildBased, .composeBased, .featureBased, .unsupportedExtraFields:
+            text = "\(classification.rawValue) tokens \(tokenSummary)"
+        }
+        return Self.boundedText(text, limit: Self.supportSummaryLimit)
+    }
+
+    var unsupportedRouteReason: String? {
+        switch classification {
+        case .missing:
+            return "No .devcontainer/devcontainer.json was found."
+        case .malformed:
+            let detail = reason ?? "Unreadable devcontainer config."
+            return Self.boundedText(
+                "The devcontainer config is malformed: \(detail)",
+                limit: CodexExecutionLaunchPlan.fallbackReasonLimit
+            )
+        case .imageRouteable:
+            return nil
+        case .composeBased, .buildBased, .featureBased:
+            return Self.boundedText(
+                "Unsupported devcontainer route: \(classification.rawValue) tokens \(tokenSummary).",
+                limit: CodexExecutionLaunchPlan.fallbackReasonLimit
+            )
+        case .unsupportedExtraFields:
+            if let reason {
+                return Self.boundedText(
+                    "\(reason) Tokens: \(tokenSummary).",
+                    limit: CodexExecutionLaunchPlan.fallbackReasonLimit
+                )
+            }
+            return Self.boundedText(
+                "Unsupported devcontainer route: \(classification.rawValue) tokens \(tokenSummary).",
+                limit: CodexExecutionLaunchPlan.fallbackReasonLimit
+            )
+        }
+    }
+
+    var parseOutcome: CodexExecutionLaunchPlan.ParseOutcome {
+        switch classification {
+        case .missing:
+            return .missing(configURL: configURL)
+        case .malformed:
+            return .malformed(
+                configURL: configURL,
+                reason: reason ?? "Unreadable devcontainer config."
+            )
+        case .imageRouteable:
+            if let imageConfiguration {
+                return .ready(imageConfiguration)
+            }
+            return .unsupported(
+                configURL: configURL,
+                reason: unsupportedRouteReason ?? "Only image-based devcontainer configs are supported."
+            )
+        case .buildBased, .composeBased, .featureBased, .unsupportedExtraFields:
+            return .unsupported(
+                configURL: configURL,
+                reason: unsupportedRouteReason ?? "Unsupported devcontainer route: \(classification.rawValue)."
+            )
+        }
+    }
+
+    static func inspect(
+        repoURL: URL,
+        fileManager: FileManager = .default
+    ) -> Self {
+        let configURL = repoURL.standardizedFileURL
+            .appending(path: ".devcontainer", directoryHint: .isDirectory)
+            .appending(path: "devcontainer.json")
+
+        guard fileManager.fileExists(atPath: configURL.path) else {
+            return Self(
+                classification: .missing,
+                configURL: configURL,
+                reason: "No .devcontainer/devcontainer.json was found."
+            )
+        }
+
+        let data: Data
+        do {
+            data = try Data(contentsOf: configURL)
+        } catch {
+            return Self(
+                classification: .malformed,
+                configURL: configURL,
+                reason: error.localizedDescription
+            )
+        }
+
+        let object: Any
+        do {
+            object = try JSONSerialization.jsonObject(with: data)
+        } catch {
+            return Self(
+                classification: .malformed,
+                configURL: configURL,
+                reason: error.localizedDescription
+            )
+        }
+
+        guard let dictionary = object as? [String: Any] else {
+            return Self(
+                classification: .malformed,
+                configURL: configURL,
+                reason: "Expected a JSON object."
+            )
+        }
+
+        return inspectDictionary(dictionary, configURL: configURL)
+    }
+
+    private static func inspectDictionary(
+        _ dictionary: [String: Any],
+        configURL: URL
+    ) -> Self {
+        let name = (dictionary["name"] as? String)?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let composeKeys = presentKeys(["composeFile", "dockerComposeFile"], in: dictionary)
+        let buildKeys = presentKeys(["build", "dockerFile", "dockerfile"], in: dictionary)
+        let featureKeys = presentKeys(["features"], in: dictionary)
+        let routeableKeys: Set<String> = ["image", "workspaceFolder", "name"]
+        let classifiedKeys = Set(composeKeys + buildKeys + featureKeys)
+        let unsupportedKeys = Set(dictionary.keys)
+            .subtracting(routeableKeys)
+            .subtracting(classifiedKeys)
+            .sorted()
+        let supportTokenResult = supportTokens(
+            hasCompose: !composeKeys.isEmpty,
+            hasBuild: !buildKeys.isEmpty,
+            hasFeatures: !featureKeys.isEmpty,
+            unsupportedKeys: unsupportedKeys
+        )
+
+        if !composeKeys.isEmpty {
+            return Self(
+                classification: .composeBased,
+                configURL: configURL,
+                name: name,
+                supportTokens: supportTokenResult.tokens,
+                omittedTokenCount: supportTokenResult.omittedCount,
+                reason: "Compose devcontainer fields require unsupported routing."
+            )
+        }
+
+        if !buildKeys.isEmpty {
+            return Self(
+                classification: .buildBased,
+                configURL: configURL,
+                name: name,
+                supportTokens: supportTokenResult.tokens,
+                omittedTokenCount: supportTokenResult.omittedCount,
+                reason: "Build devcontainer fields require unsupported routing."
+            )
+        }
+
+        if !featureKeys.isEmpty {
+            return Self(
+                classification: .featureBased,
+                configURL: configURL,
+                name: name,
+                supportTokens: supportTokenResult.tokens,
+                omittedTokenCount: supportTokenResult.omittedCount,
+                reason: "Devcontainer features require unsupported routing."
+            )
+        }
+
+        if !unsupportedKeys.isEmpty {
+            return Self(
+                classification: .unsupportedExtraFields,
+                configURL: configURL,
+                name: name,
+                supportTokens: supportTokenResult.tokens,
+                omittedTokenCount: supportTokenResult.omittedCount,
+                reason: "Only image, workspaceFolder, and name are routeable."
+            )
+        }
+
+        guard let rawImage = dictionary["image"] else {
+            let tokens = boundedTokenList(["missing-image"])
+            return Self(
+                classification: .unsupportedExtraFields,
+                configURL: configURL,
+                name: name,
+                supportTokens: tokens.tokens,
+                omittedTokenCount: tokens.omittedCount,
+                reason: "Only image-based devcontainer configs are supported."
+            )
+        }
+
+        guard let image = rawImage as? String else {
+            return Self(
+                classification: .malformed,
+                configURL: configURL,
+                name: name,
+                reason: "The devcontainer image must be a string."
+            )
+        }
+
+        let trimmedImage = image.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedImage.isEmpty else {
+            return Self(
+                classification: .malformed,
+                configURL: configURL,
+                name: name,
+                reason: "The devcontainer image must not be empty."
+            )
+        }
+
+        let workspaceFolder: String
+        if let rawWorkspaceFolder = dictionary["workspaceFolder"] {
+            guard let rawWorkspaceFolder = rawWorkspaceFolder as? String else {
+                return Self(
+                    classification: .malformed,
+                    configURL: configURL,
+                    name: name,
+                    reason: "workspaceFolder must be a string."
+                )
+            }
+
+            let trimmedWorkspaceFolder = rawWorkspaceFolder.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmedWorkspaceFolder.isEmpty else {
+                return Self(
+                    classification: .malformed,
+                    configURL: configURL,
+                    name: name,
+                    reason: "workspaceFolder must not be empty."
+                )
+            }
+
+            guard isSafelyMountedWorkspaceFolder(trimmedWorkspaceFolder) else {
+                let tokens = boundedTokenList(["workspaceFolder"])
+                return Self(
+                    classification: .unsupportedExtraFields,
+                    configURL: configURL,
+                    name: name,
+                    supportTokens: tokens.tokens,
+                    omittedTokenCount: tokens.omittedCount,
+                    reason: "workspaceFolder must be an absolute /workspace path for Apple container routing."
+                )
+            }
+
+            workspaceFolder = trimmedWorkspaceFolder
+        } else {
+            workspaceFolder = "/workspace"
+        }
+
+        let imageConfiguration = CodexDevcontainerImageConfiguration(
+            configURL: configURL,
+            image: trimmedImage,
+            workspaceFolder: workspaceFolder
+        )
+        return Self(
+            classification: .imageRouteable,
+            configURL: configURL,
+            name: name,
+            imageConfiguration: imageConfiguration,
+            supportTokens: ["image"],
+            reason: "Image-based devcontainer can be routed through Apple container."
+        )
+    }
+
+    private static func supportTokens(
+        hasCompose: Bool,
+        hasBuild: Bool,
+        hasFeatures: Bool,
+        unsupportedKeys: [String]
+    ) -> (tokens: [String], omittedCount: Int) {
+        var rawTokens: [String] = []
+        if hasCompose {
+            rawTokens.append("compose")
+        }
+        if hasBuild {
+            rawTokens.append("build")
+        }
+        if hasFeatures {
+            rawTokens.append("features")
+        }
+        rawTokens += unsupportedKeys.map { "extra:\($0)" }
+        return boundedTokenList(rawTokens)
+    }
+
+    private static func boundedTokenList(_ rawTokens: [String]) -> (tokens: [String], omittedCount: Int) {
+        let visibleTokens = Array(rawTokens.prefix(Self.maxTokenCount))
+            .map { boundedText($0, limit: Self.tokenLimit) }
+        return (visibleTokens, max(0, rawTokens.count - visibleTokens.count))
+    }
+
+    private static func presentKeys(
+        _ keys: [String],
+        in dictionary: [String: Any]
+    ) -> [String] {
+        keys.filter { dictionary[$0] != nil }
+    }
+
+    private static func boundedOptionalText(_ text: String?, limit: Int) -> String? {
+        let bounded = boundedText(text ?? "", limit: limit)
+        return bounded.isEmpty ? nil : bounded
+    }
+
+    private static func boundedText(_ text: String, limit: Int) -> String {
+        CodexExecutionLaunchPlan.boundedText(text, limit: limit)
+    }
+
+    private static func isSafelyMountedWorkspaceFolder(_ workspaceFolder: String) -> Bool {
+        guard workspaceFolder == "/workspace" || workspaceFolder.hasPrefix("/workspace/") else {
+            return false
+        }
+
+        guard !workspaceFolder.contains("\0"),
+              !workspaceFolder.contains("\n"),
+              !workspaceFolder.contains("\r"),
+              !workspaceFolder.contains("$") else {
+            return false
+        }
+
+        return !workspaceFolder
+            .split(separator: "/")
+            .contains("..")
+    }
+
+}
+
 struct CodexExecutionLaunchPlan: Equatable {
     static let fallbackReasonLimit = 180
     static let labelLimit = 80
@@ -96,29 +491,34 @@ struct CodexExecutionLaunchPlan: Equatable {
     var selectedPreference: CodexExecutionEnvironmentPreference
     var effectiveRoute: Route
     var devcontainer: CodexDevcontainerImageConfiguration?
+    var devcontainerSupportReport: CodexDevcontainerSupportReport?
     var fallbackReason: String?
 
     init(
         selectedPreference: CodexExecutionEnvironmentPreference,
         effectiveRoute: Route,
         devcontainer: CodexDevcontainerImageConfiguration? = nil,
+        devcontainerSupportReport: CodexDevcontainerSupportReport? = nil,
         fallbackReason: String? = nil
     ) {
         self.selectedPreference = selectedPreference
         self.effectiveRoute = effectiveRoute
         self.devcontainer = devcontainer
+        self.devcontainerSupportReport = devcontainerSupportReport
         self.fallbackReason = Self.boundedOptionalText(fallbackReason, limit: Self.fallbackReasonLimit)
     }
 
     static func native(
         selectedPreference: CodexExecutionEnvironmentPreference = .nativeMacOS,
         devcontainer: CodexDevcontainerImageConfiguration? = nil,
+        devcontainerSupportReport: CodexDevcontainerSupportReport? = nil,
         fallbackReason: String? = nil
     ) -> Self {
         Self(
             selectedPreference: selectedPreference,
             effectiveRoute: .nativeMacOS,
             devcontainer: devcontainer,
+            devcontainerSupportReport: devcontainerSupportReport,
             fallbackReason: fallbackReason
         )
     }
@@ -130,10 +530,11 @@ struct CodexExecutionLaunchPlan: Equatable {
         containerToolResolver: (String) -> String? = defaultContainerToolResolver
     ) -> Self {
         let standardizedRepoURL = repoURL.standardizedFileURL
-        let parseOutcome = parseDevcontainerImageConfig(
+        let supportReport = CodexDevcontainerSupportReport.inspect(
             repoURL: standardizedRepoURL,
             fileManager: fileManager
         )
+        let parseOutcome = supportReport.parseOutcome
 
         switch preference {
         case .nativeMacOS:
@@ -143,23 +544,30 @@ struct CodexExecutionLaunchPlan: Equatable {
             } else {
                 config = nil
             }
-            return native(selectedPreference: preference, devcontainer: config)
+            return native(
+                selectedPreference: preference,
+                devcontainer: config,
+                devcontainerSupportReport: supportReport
+            )
         case .devcontainerPreferred:
             switch parseOutcome {
             case .missing:
                 return native(
                     selectedPreference: preference,
-                    fallbackReason: "No .devcontainer/devcontainer.json was found."
+                    devcontainerSupportReport: supportReport,
+                    fallbackReason: supportReport.unsupportedRouteReason
                 )
-            case let .malformed(_, reason):
+            case .malformed:
                 return native(
                     selectedPreference: preference,
-                    fallbackReason: "The devcontainer config is malformed: \(reason)"
+                    devcontainerSupportReport: supportReport,
+                    fallbackReason: supportReport.unsupportedRouteReason
                 )
-            case let .unsupported(_, reason):
+            case .unsupported:
                 return native(
                     selectedPreference: preference,
-                    fallbackReason: reason
+                    devcontainerSupportReport: supportReport,
+                    fallbackReason: supportReport.unsupportedRouteReason
                 )
             case let .ready(config):
                 guard let containerToolPath = containerToolResolver("container")?
@@ -169,6 +577,7 @@ struct CodexExecutionLaunchPlan: Equatable {
                     return native(
                         selectedPreference: preference,
                         devcontainer: config,
+                        devcontainerSupportReport: supportReport,
                         fallbackReason: "Apple container CLI is unavailable."
                     )
                 }
@@ -181,7 +590,8 @@ struct CodexExecutionLaunchPlan: Equatable {
                         image: config.image,
                         workspaceFolder: config.workspaceFolder
                     )),
-                    devcontainer: config
+                    devcontainer: config,
+                    devcontainerSupportReport: supportReport
                 )
             }
         }
@@ -191,105 +601,10 @@ struct CodexExecutionLaunchPlan: Equatable {
         repoURL: URL,
         fileManager: FileManager = .default
     ) -> ParseOutcome {
-        let configURL = repoURL.standardizedFileURL
-            .appending(path: ".devcontainer", directoryHint: .isDirectory)
-            .appending(path: "devcontainer.json")
-
-        guard fileManager.fileExists(atPath: configURL.path) else {
-            return .missing(configURL: configURL)
-        }
-
-        let data: Data
-        do {
-            data = try Data(contentsOf: configURL)
-        } catch {
-            return .malformed(
-                configURL: configURL,
-                reason: boundedText(error.localizedDescription, limit: fallbackReasonLimit)
-            )
-        }
-
-        let object: Any
-        do {
-            object = try JSONSerialization.jsonObject(with: data)
-        } catch {
-            return .malformed(
-                configURL: configURL,
-                reason: boundedText(error.localizedDescription, limit: fallbackReasonLimit)
-            )
-        }
-
-        guard let dictionary = object as? [String: Any] else {
-            return .malformed(configURL: configURL, reason: "Expected a JSON object.")
-        }
-
-        if dictionary["dockerComposeFile"] != nil || dictionary["composeFile"] != nil {
-            return .unsupported(
-                configURL: configURL,
-                reason: "Docker Compose devcontainer configs are not supported by Apple container routing."
-            )
-        }
-
-        if dictionary["build"] != nil || dictionary["dockerFile"] != nil || dictionary["dockerfile"] != nil {
-            return .unsupported(
-                configURL: configURL,
-                reason: "Build-based devcontainer configs are not supported by Apple container routing."
-            )
-        }
-
-        let supportedKeys: Set<String> = ["image", "workspaceFolder", "name"]
-        let unsupportedKeys = Set(dictionary.keys).subtracting(supportedKeys)
-        if let firstUnsupportedKey = unsupportedKeys.sorted().first {
-            return .unsupported(
-                configURL: configURL,
-                reason: "Only image and workspaceFolder devcontainer fields are supported; found \(firstUnsupportedKey)."
-            )
-        }
-
-        guard let rawImage = dictionary["image"] else {
-            return .unsupported(
-                configURL: configURL,
-                reason: "Only image-based devcontainer configs are supported."
-            )
-        }
-
-        guard let image = rawImage as? String else {
-            return .malformed(configURL: configURL, reason: "The devcontainer image must be a string.")
-        }
-
-        let trimmedImage = image.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmedImage.isEmpty else {
-            return .malformed(configURL: configURL, reason: "The devcontainer image must not be empty.")
-        }
-
-        let workspaceFolder: String
-        if let rawWorkspaceFolder = dictionary["workspaceFolder"] {
-            guard let rawWorkspaceFolder = rawWorkspaceFolder as? String else {
-                return .malformed(configURL: configURL, reason: "workspaceFolder must be a string.")
-            }
-
-            let trimmedWorkspaceFolder = rawWorkspaceFolder.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !trimmedWorkspaceFolder.isEmpty else {
-                return .malformed(configURL: configURL, reason: "workspaceFolder must not be empty.")
-            }
-
-            guard isSafelyMountedWorkspaceFolder(trimmedWorkspaceFolder) else {
-                return .unsupported(
-                    configURL: configURL,
-                    reason: "workspaceFolder must be an absolute /workspace path for Apple container routing."
-                )
-            }
-
-            workspaceFolder = trimmedWorkspaceFolder
-        } else {
-            workspaceFolder = "/workspace"
-        }
-
-        return .ready(CodexDevcontainerImageConfiguration(
-            configURL: configURL,
-            image: trimmedImage,
-            workspaceFolder: workspaceFolder
-        ))
+        CodexDevcontainerSupportReport.inspect(
+            repoURL: repoURL,
+            fileManager: fileManager
+        ).parseOutcome
     }
 
     var isContainerRoute: Bool {
@@ -337,9 +652,14 @@ struct CodexExecutionLaunchPlan: Equatable {
         fallbackReason ?? "none"
     }
 
+    var devcontainerSupportLabel: String {
+        devcontainerSupportReport?.supportSummary ?? "not-inspected"
+    }
+
     func preflightSummary(phase: String) -> String {
         [
             "\(phase) execution environment: selected \(selectedPreference.title)",
+            "devcontainer \(devcontainerSupportLabel)",
             "effective route \(effectiveRouteTitle)",
             "image \(imageLabel)",
             "workspace \(workspaceLabel)",
@@ -351,11 +671,11 @@ struct CodexExecutionLaunchPlan: Equatable {
         switch effectiveRoute {
         case .nativeMacOS:
             if let fallbackReason {
-                return "Using native macOS execution because \(fallbackReason)"
+                return "Using native macOS execution because \(fallbackReason) Devcontainer support: \(devcontainerSupportLabel)."
             }
             return "Using native macOS execution."
         case let .appleContainer(route):
-            return "Using Apple container image \(Self.boundedText(route.image, limit: Self.labelLimit)) at workspace \(Self.boundedText(route.workspaceFolder, limit: Self.labelLimit))."
+            return "Using Apple container image \(Self.boundedText(route.image, limit: Self.labelLimit)) at workspace \(Self.boundedText(route.workspaceFolder, limit: Self.labelLimit)) because devcontainer support is \(devcontainerSupportLabel)."
         }
     }
 
@@ -489,22 +809,5 @@ struct CodexExecutionLaunchPlan: Equatable {
     private static func boundedOptionalText(_ text: String?, limit: Int) -> String? {
         let bounded = boundedText(text ?? "", limit: limit)
         return bounded.isEmpty ? nil : bounded
-    }
-
-    private static func isSafelyMountedWorkspaceFolder(_ workspaceFolder: String) -> Bool {
-        guard workspaceFolder == "/workspace" || workspaceFolder.hasPrefix("/workspace/") else {
-            return false
-        }
-
-        guard !workspaceFolder.contains("\0"),
-              !workspaceFolder.contains("\n"),
-              !workspaceFolder.contains("\r"),
-              !workspaceFolder.contains("$") else {
-            return false
-        }
-
-        return !workspaceFolder
-            .split(separator: "/")
-            .contains("..")
     }
 }

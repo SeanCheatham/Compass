@@ -52,72 +52,71 @@ struct CodexExecutionEnvironmentDiscovery: Equatable {
     var name: String?
     var detail: String
     var reason: String?
+    var supportReport: CodexDevcontainerSupportReport
 
     init(
         status: Status,
         configURL: URL,
         name: String? = nil,
         detail: String,
-        reason: String? = nil
+        reason: String? = nil,
+        supportReport: CodexDevcontainerSupportReport? = nil
     ) {
         self.status = status
         self.configURL = configURL.standardizedFileURL
         self.name = Self.boundedOptionalText(name, limit: Self.nameLimit)
         self.detail = Self.boundedText(detail, limit: Self.detailLimit)
         self.reason = Self.boundedOptionalText(reason, limit: Self.reasonLimit)
+        self.supportReport = supportReport ?? CodexDevcontainerSupportReport(
+            classification: status == .missing ? .missing : .malformed,
+            configURL: configURL,
+            name: name,
+            reason: reason
+        )
     }
 
     static func inspect(repoURL: URL, fileManager: FileManager = .default) -> Self {
         let standardizedRepoURL = repoURL.standardizedFileURL
-        let configURL = standardizedRepoURL
-            .appending(path: ".devcontainer", directoryHint: .isDirectory)
-            .appending(path: "devcontainer.json")
+        let supportReport = CodexDevcontainerSupportReport.inspect(
+            repoURL: standardizedRepoURL,
+            fileManager: fileManager
+        )
 
-        guard fileManager.fileExists(atPath: configURL.path) else {
+        switch supportReport.classification {
+        case .missing:
             return Self(
                 status: .missing,
-                configURL: configURL,
-                detail: "No .devcontainer/devcontainer.json was found. Native macOS execution remains available."
+                configURL: supportReport.configURL,
+                detail: "No .devcontainer/devcontainer.json was found. Native macOS execution remains available.",
+                reason: supportReport.reason,
+                supportReport: supportReport
             )
-        }
-
-        let data: Data
-        do {
-            data = try Data(contentsOf: configURL)
-        } catch {
+        case .malformed:
             return Self(
                 status: .malformed,
-                configURL: configURL,
-                detail: "Found devcontainer.json, but Compass could not read it. Native macOS execution remains available.",
-                reason: error.localizedDescription
+                configURL: supportReport.configURL,
+                name: supportReport.name,
+                detail: "Found devcontainer.json, but it is malformed. Native macOS execution remains available. Support: \(supportReport.supportSummary).",
+                reason: supportReport.reason,
+                supportReport: supportReport
             )
-        }
-
-        do {
-            let object = try JSONSerialization.jsonObject(with: data)
-            guard let dictionary = object as? [String: Any] else {
-                return Self(
-                    status: .malformed,
-                    configURL: configURL,
-                    detail: "Found devcontainer.json, but it must be a JSON object. Native macOS execution remains available.",
-                    reason: "Expected a JSON object."
-                )
-            }
-
-            let rawName = dictionary["name"] as? String
-            let name = rawName?.trimmingCharacters(in: .whitespacesAndNewlines)
+        case .imageRouteable:
             return Self(
                 status: .ready,
-                configURL: configURL,
-                name: name,
-                detail: "Found .devcontainer/devcontainer.json. Dev containers are recommended for dependency isolation, while native macOS remains available."
+                configURL: supportReport.configURL,
+                name: supportReport.name,
+                detail: "Found image-routeable .devcontainer/devcontainer.json. Dev Container Preferred can use Apple container when the CLI is available; native macOS remains available. Support: \(supportReport.supportSummary).",
+                reason: supportReport.reason,
+                supportReport: supportReport
             )
-        } catch {
+        case .buildBased, .composeBased, .featureBased, .unsupportedExtraFields:
             return Self(
-                status: .malformed,
-                configURL: configURL,
-                detail: "Found devcontainer.json, but it is malformed. Native macOS execution remains available.",
-                reason: error.localizedDescription
+                status: .ready,
+                configURL: supportReport.configURL,
+                name: supportReport.name,
+                detail: "Found .devcontainer/devcontainer.json, but Apple container routing cannot use this config. Native macOS execution remains available. Support: \(supportReport.supportSummary).",
+                reason: supportReport.unsupportedRouteReason,
+                supportReport: supportReport
             )
         }
     }
@@ -212,9 +211,17 @@ struct CodexExecutionEnvironment: Equatable {
         case .nativeMacOS:
             switch devcontainerDiscovery.status {
             case .ready:
+                if devcontainerDiscovery.supportReport.isImageRouteable {
+                    return CodexExecutionEnvironmentPresentation(
+                        title: "Native macOS",
+                        status: "Running on native macOS. An image-routeable devcontainer is present when container execution is enabled.",
+                        detail: devcontainerDiscovery.detail,
+                        systemImage: preference.systemImage
+                    )
+                }
                 return CodexExecutionEnvironmentPresentation(
                     title: "Native macOS",
-                    status: "Running on native macOS. A devcontainer is present and recommended when container execution is enabled.",
+                    status: "Running on native macOS. The devcontainer is present but not Apple-container routeable.",
                     detail: devcontainerDiscovery.detail,
                     systemImage: preference.systemImage
                 )
@@ -280,7 +287,7 @@ struct CodexExecutionEnvironment: Equatable {
     var launchPreflightDetail: String {
         let plan = launchPlan()
         let presentation = presentation
-        return [presentation.status, presentation.detail, plan.routeDetail()]
+        return [presentation.status, presentation.detail, "Support: \(plan.devcontainerSupportLabel).", plan.routeDetail()]
             .filter { !$0.isEmpty }
             .joined(separator: " ")
     }
@@ -313,7 +320,7 @@ struct CodexExecutionEnvironment: Equatable {
     }
 
     private func fallbackDetail(plan: CodexExecutionLaunchPlan, prefix: String) -> String {
-        [prefix, plan.fallbackReason.map { "Fallback: \($0)" }]
+        [prefix, "Support: \(devcontainerDiscovery.supportReport.supportSummary).", plan.fallbackReason.map { "Fallback: \($0)" }]
             .compactMap { $0 }
             .filter { !$0.isEmpty }
             .joined(separator: " ")
@@ -356,7 +363,10 @@ struct CodexExecutionEnvironmentMenuItem: Identifiable, Equatable {
         case .devcontainerPreferred:
             switch discovery.status {
             case .ready:
-                return "Prefer supported image-based devcontainers through Apple container; unsupported configs fall back to native macOS."
+                if discovery.supportReport.isImageRouteable {
+                    return "Prefer image-routeable devcontainers through Apple container; missing tooling falls back to native macOS."
+                }
+                return "This \(discovery.supportReport.classification.rawValue) config falls back to native macOS; tokens \(discovery.supportReport.tokenSummary)."
             case .missing:
                 return "Prefer devcontainers when .devcontainer/devcontainer.json exists; until then Compass runs on native macOS."
             case .malformed:
@@ -390,8 +400,10 @@ struct CodexExecutionEnvironmentMenu: Equatable {
     ) {
         let presentation = environment.presentation
         labelSystemImage = presentation.systemImage
-        helpText = "Execution environment: \(presentation.title)"
-        statusText = presentation.status
+        helpText = "Execution environment: \(presentation.title). \(presentation.detail)"
+        statusText = [presentation.status, presentation.detail]
+            .filter { !$0.isEmpty }
+            .joined(separator: " ")
         items = CodexExecutionEnvironmentPreference.allCases.map {
             CodexExecutionEnvironmentMenuItem(
                 preference: $0,

@@ -101,6 +101,47 @@ final class CodexExecutorLaunchRouteTests: XCTestCase {
         XCTAssertTrue(try argument(after: "--output-last-message", in: context.invocation.arguments).hasPrefix("/workspace/.compass-codex-run-"))
     }
 
+    func testUnsupportedDevcontainerFallbackKeepsNativeCodexInvocation() async throws {
+        let repoURL = try makeTemporaryDirectory(prefix: "CodexExecutorUnsupportedFallback")
+        try write(
+            #"{"features":{"ghcr.io/devcontainers/features/git:1":{}}}"#,
+            to: devcontainerURL(in: repoURL)
+        )
+        let launchPlan = CodexExecutionLaunchPlan.plan(
+            repoURL: repoURL,
+            preference: .devcontainerPreferred,
+            containerToolResolver: { _ in "/usr/local/bin/container" }
+        )
+        var capturedContext: CodexExecutorLaunchContext?
+        let executor = CodexExecutor { context, _ in
+            capturedContext = context
+            try #"{"ok":true}"#.write(to: context.outputFile, atomically: true, encoding: .utf8)
+            return ProcessResult(exitCode: 0, stdout: "", stderr: "")
+        }
+
+        _ = try await executor.run(
+            CodexRunConfiguration(
+                codexBinary: "/opt/codex/bin/codex",
+                repoURL: repoURL,
+                sandbox: "danger-full-access",
+                model: nil,
+                schema: #"{"type":"object"}"#,
+                prompt: "Develop prompt",
+                launchPlan: launchPlan
+            ),
+            decode: StubCodexResponse.self,
+            onEvent: { _ in }
+        )
+
+        let context = try XCTUnwrap(capturedContext)
+        XCTAssertEqual(launchPlan.devcontainerSupportReport?.classification, .featureBased)
+        XCTAssertEqual(context.invocation.executable, "/opt/codex/bin/codex")
+        XCTAssertEqual(context.invocation.workingDirectory, repoURL.standardizedFileURL)
+        XCTAssertEqual(try argument(after: "--cd", in: context.invocation.arguments), repoURL.standardizedFileURL.path)
+        XCTAssertEqual(try argument(after: "--output-schema", in: context.invocation.arguments), context.schemaFile.path)
+        XCTAssertFalse(context.invocation.arguments.contains("container"))
+    }
+
     func testContainerCommandUsesWorkspaceFolderForCodexCd() async throws {
         let repoURL = try makeTemporaryDirectory(prefix: "CodexExecutorWorkspace")
         try write(

@@ -59,6 +59,7 @@ final class ProcessRunnerExecutionRouteTests: XCTestCase {
         let invocation = try XCTUnwrap(capturedInvocation)
         XCTAssertEqual(invocation.executable, "/usr/local/bin/container")
         XCTAssertEqual(invocation.workingDirectory, repoURL.standardizedFileURL)
+        XCTAssertEqual(launchPlan.devcontainerSupportReport?.classification, .imageRouteable)
         XCTAssertEqual(invocation.arguments, [
             "run",
             "--rm",
@@ -94,6 +95,7 @@ final class ProcessRunnerExecutionRouteTests: XCTestCase {
         XCTAssertEqual(invocation.executable, "/bin/zsh")
         XCTAssertEqual(invocation.arguments, ["-lc", "swift test"])
         XCTAssertEqual(launchPlan.fallbackReason, "No .devcontainer/devcontainer.json was found.")
+        XCTAssertEqual(launchPlan.devcontainerSupportReport?.classification, .missing)
         XCTAssertFalse(launchPlan.preflightSummary(phase: "Verify").contains(repoURL.standardizedFileURL.path))
     }
 

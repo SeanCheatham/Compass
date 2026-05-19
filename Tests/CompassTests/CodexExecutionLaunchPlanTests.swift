@@ -74,6 +74,7 @@ final class CodexExecutionLaunchPlanTests: XCTestCase {
         XCTAssertFalse(plan.isContainerRoute)
         XCTAssertEqual(plan.effectiveRouteTitle, "Native macOS")
         XCTAssertEqual(plan.fallbackReason, "No .devcontainer/devcontainer.json was found.")
+        XCTAssertEqual(plan.devcontainerSupportReport?.classification, .missing)
         XCTAssertLessThanOrEqual(
             plan.fallbackReason?.count ?? 0,
             CodexExecutionLaunchPlan.fallbackReasonLimit
@@ -114,8 +115,10 @@ final class CodexExecutionLaunchPlanTests: XCTestCase {
         XCTAssertFalse(plan.isContainerRoute)
         XCTAssertEqual(
             plan.fallbackReason,
-            "Build-based devcontainer configs are not supported by Apple container routing."
+            "Unsupported devcontainer route: build-based tokens build."
         )
+        XCTAssertEqual(plan.devcontainerSupportReport?.classification, .buildBased)
+        XCTAssertEqual(plan.devcontainerSupportReport?.supportTokens, ["build"])
     }
 
     func testUnsupportedComposeConfigFallsBackToNative() throws {
@@ -134,8 +137,81 @@ final class CodexExecutionLaunchPlanTests: XCTestCase {
         XCTAssertFalse(plan.isContainerRoute)
         XCTAssertEqual(
             plan.fallbackReason,
-            "Docker Compose devcontainer configs are not supported by Apple container routing."
+            "Unsupported devcontainer route: compose-based tokens compose,extra:service."
         )
+        XCTAssertEqual(plan.devcontainerSupportReport?.classification, .composeBased)
+        XCTAssertEqual(plan.devcontainerSupportReport?.supportTokens, ["compose", "extra:service"])
+    }
+
+    func testMixedUnsupportedConfigReportsDeterministicSupportTokens() throws {
+        let repoURL = try makeTemporaryDirectory(prefix: "CodexExecutionLaunchPlanMixed")
+        try write(
+            #"{"image":"swift:6.0","dockerComposeFile":"compose.yml","build":{"dockerfile":"Dockerfile"},"features":{"ghcr.io/devcontainers/features/git:1":{}},"postCreateCommand":"swift test","remoteUser":"vscode"}"#,
+            to: devcontainerURL(in: repoURL)
+        )
+
+        let plan = CodexExecutionLaunchPlan.plan(
+            repoURL: repoURL,
+            preference: .devcontainerPreferred,
+            containerToolResolver: { _ in "/usr/local/bin/container" }
+        )
+
+        XCTAssertFalse(plan.isContainerRoute)
+        XCTAssertEqual(plan.devcontainerSupportReport?.classification, .composeBased)
+        XCTAssertEqual(
+            plan.devcontainerSupportReport?.supportTokens,
+            ["compose", "build", "features", "extra:postCreateCommand", "extra:remoteUser"]
+        )
+        XCTAssertTrue(plan.fallbackReason?.contains("compose-based tokens compose,build,features") == true)
+
+        let preflight = plan.preflightSummary(phase: "Develop")
+        XCTAssertTrue(preflight.contains("devcontainer compose-based tokens compose,build,features"))
+        XCTAssertTrue(preflight.contains("extra:postCreateCommand"))
+        XCTAssertTrue(preflight.contains("extra:remoteUser"))
+    }
+
+    func testFeaturesOnlyConfigFallsBackWithoutRouting() throws {
+        let repoURL = try makeTemporaryDirectory(prefix: "CodexExecutionLaunchPlanFeatures")
+        try write(
+            #"{"features":{"ghcr.io/devcontainers/features/node:1":{}}}"#,
+            to: devcontainerURL(in: repoURL)
+        )
+
+        let plan = CodexExecutionLaunchPlan.plan(
+            repoURL: repoURL,
+            preference: .devcontainerPreferred,
+            containerToolResolver: { _ in "/usr/local/bin/container" }
+        )
+
+        XCTAssertFalse(plan.isContainerRoute)
+        XCTAssertEqual(plan.devcontainerSupportReport?.classification, .featureBased)
+        XCTAssertEqual(plan.devcontainerSupportReport?.supportTokens, ["features"])
+        XCTAssertEqual(plan.fallbackReason, "Unsupported devcontainer route: feature-based tokens features.")
+    }
+
+    func testSupportSummaryAndReasonsStayBoundedForManyUnsupportedKeys() throws {
+        let repoURL = try makeTemporaryDirectory(prefix: "CodexExecutionLaunchPlanBounded")
+        let extraFields = (0..<18)
+            .map { #""custom\#(String(format: "%02d", $0))":true"# }
+            .joined(separator: ",")
+        try write(
+            #"{"image":"swift:6.0",\#(extraFields)}"#,
+            to: devcontainerURL(in: repoURL)
+        )
+
+        let plan = CodexExecutionLaunchPlan.plan(
+            repoURL: repoURL,
+            preference: .devcontainerPreferred,
+            containerToolResolver: { _ in "/usr/local/bin/container" }
+        )
+        let report = try XCTUnwrap(plan.devcontainerSupportReport)
+
+        XCTAssertFalse(plan.isContainerRoute)
+        XCTAssertEqual(report.classification, .unsupportedExtraFields)
+        XCTAssertEqual(report.omittedTokenCount, 10)
+        XCTAssertTrue(report.tokenSummary.contains("+10-more"))
+        XCTAssertLessThanOrEqual(report.supportSummary.count, CodexDevcontainerSupportReport.supportSummaryLimit)
+        XCTAssertLessThanOrEqual(plan.fallbackReason?.count ?? 0, CodexExecutionLaunchPlan.fallbackReasonLimit)
     }
 
     func testNoContainerToolFallsBackToNative() throws {
@@ -151,6 +227,7 @@ final class CodexExecutionLaunchPlanTests: XCTestCase {
         XCTAssertFalse(plan.isContainerRoute)
         XCTAssertEqual(plan.imageLabel, "swift:6.0")
         XCTAssertEqual(plan.fallbackReason, "Apple container CLI is unavailable.")
+        XCTAssertEqual(plan.devcontainerSupportReport?.classification, .imageRouteable)
     }
 
     func testWorkspaceOutsideMountedWorkspaceFallsBackToNative() throws {
@@ -169,7 +246,7 @@ final class CodexExecutionLaunchPlanTests: XCTestCase {
         XCTAssertFalse(plan.isContainerRoute)
         XCTAssertEqual(
             plan.fallbackReason,
-            "workspaceFolder must be an absolute /workspace path for Apple container routing."
+            "workspaceFolder must be an absolute /workspace path for Apple container routing. Tokens: workspaceFolder."
         )
     }
 
