@@ -101,6 +101,51 @@ final class CodexExecutorLaunchRouteTests: XCTestCase {
         XCTAssertTrue(try argument(after: "--output-last-message", in: context.invocation.arguments).hasPrefix("/workspace/.compass-codex-run-"))
     }
 
+    func testDevelopCommandAddsContainerEnvBeforeImageInSortedOrder() async throws {
+        let repoURL = try makeTemporaryDirectory(prefix: "CodexExecutorContainerEnv")
+        try write(
+            #"{"image":"swift:6.0","containerEnv":{"ZETA":"last","ALPHA":"first"}}"#,
+            to: devcontainerURL(in: repoURL)
+        )
+        let launchPlan = CodexExecutionLaunchPlan.plan(
+            repoURL: repoURL,
+            preference: .devcontainerPreferred,
+            containerToolResolver: { _ in "/usr/local/bin/container" }
+        )
+        var capturedContext: CodexExecutorLaunchContext?
+        let executor = CodexExecutor { context, _ in
+            capturedContext = context
+            try #"{"ok":true}"#.write(to: context.outputFile, atomically: true, encoding: .utf8)
+            return ProcessResult(exitCode: 0, stdout: "", stderr: "")
+        }
+
+        _ = try await executor.run(
+            CodexRunConfiguration(
+                codexBinary: "codex",
+                repoURL: repoURL,
+                sandbox: "read-only",
+                model: nil,
+                schema: #"{"type":"object"}"#,
+                prompt: "Develop prompt",
+                launchPlan: launchPlan
+            ),
+            decode: StubCodexResponse.self,
+            onEvent: { _ in }
+        )
+
+        let context = try XCTUnwrap(capturedContext)
+        let imageIndex = try XCTUnwrap(context.invocation.arguments.firstIndex(of: "swift:6.0"))
+        XCTAssertEqual(Array(context.invocation.arguments.prefix(imageIndex)), [
+            "run",
+            "--rm",
+            "--volume", "\(repoURL.standardizedFileURL.path):/workspace",
+            "--workdir", "/workspace",
+            "--env", "ALPHA=first",
+            "--env", "ZETA=last"
+        ])
+        XCTAssertEqual(context.invocation.arguments[imageIndex + 1], "codex")
+    }
+
     func testUnsupportedDevcontainerFallbackKeepsNativeCodexInvocation() async throws {
         let repoURL = try makeTemporaryDirectory(prefix: "CodexExecutorUnsupportedFallback")
         try write(

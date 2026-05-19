@@ -12,18 +12,44 @@ struct CodexExecutionInvocation: Equatable {
     }
 }
 
+struct CodexDevcontainerEnvironmentVariable: Equatable {
+    static let nameLimit = 128
+    static let valueLimit = 4096
+
+    var name: String
+    var value: String
+
+    init(name: String, value: String) {
+        self.name = String(name.prefix(Self.nameLimit))
+        self.value = String(value.prefix(Self.valueLimit))
+    }
+
+    var argumentValue: String {
+        "\(name)=\(value)"
+    }
+}
+
 struct CodexDevcontainerImageConfiguration: Equatable {
     static let imageLabelLimit = 80
     static let workspaceLabelLimit = 80
+    static let containerEnvCountLimit = 32
+    static let containerEnvTotalValueLimit = 16_384
 
     var configURL: URL
     var image: String
     var workspaceFolder: String
+    var containerEnv: [CodexDevcontainerEnvironmentVariable]
 
-    init(configURL: URL, image: String, workspaceFolder: String) {
+    init(
+        configURL: URL,
+        image: String,
+        workspaceFolder: String,
+        containerEnv: [CodexDevcontainerEnvironmentVariable] = []
+    ) {
         self.configURL = configURL.standardizedFileURL
         self.image = image
         self.workspaceFolder = workspaceFolder
+        self.containerEnv = containerEnv.sorted { $0.name < $1.name }
     }
 
     var imageLabel: String {
@@ -108,7 +134,12 @@ struct CodexDevcontainerSupportReport: Equatable {
             }
         case .imageRouteable:
             if let imageConfiguration {
-                text = "image-routeable image \(imageConfiguration.imageLabel) workspace \(imageConfiguration.workspaceLabel)"
+                let base = "image-routeable image \(imageConfiguration.imageLabel) workspace \(imageConfiguration.workspaceLabel)"
+                if imageConfiguration.containerEnv.isEmpty {
+                    text = base
+                } else {
+                    text = "\(base) tokens \(tokenSummary)"
+                }
             } else {
                 text = "image-routeable"
             }
@@ -232,17 +263,32 @@ struct CodexDevcontainerSupportReport: Equatable {
         let composeKeys = presentKeys(["composeFile", "dockerComposeFile"], in: dictionary)
         let buildKeys = presentKeys(["build", "dockerFile", "dockerfile"], in: dictionary)
         let featureKeys = presentKeys(["features"], in: dictionary)
-        let routeableKeys: Set<String> = ["image", "workspaceFolder", "name"]
+        let routeableKeys: Set<String> = ["image", "workspaceFolder", "name", "containerEnv"]
         let classifiedKeys = Set(composeKeys + buildKeys + featureKeys)
         let unsupportedKeys = Set(dictionary.keys)
             .subtracting(routeableKeys)
             .subtracting(classifiedKeys)
             .sorted()
+
+        let containerEnv: [CodexDevcontainerEnvironmentVariable]
+        switch parseContainerEnv(dictionary["containerEnv"]) {
+        case let .success(parsedContainerEnv):
+            containerEnv = parsedContainerEnv
+        case let .failure(reason):
+            return Self(
+                classification: .malformed,
+                configURL: configURL,
+                name: name,
+                reason: reason
+            )
+        }
+
         let supportTokenResult = supportTokens(
             hasCompose: !composeKeys.isEmpty,
             hasBuild: !buildKeys.isEmpty,
             hasFeatures: !featureKeys.isEmpty,
-            unsupportedKeys: unsupportedKeys
+            unsupportedKeys: unsupportedKeys,
+            containerEnvNames: containerEnv.map(\.name)
         )
 
         if !composeKeys.isEmpty {
@@ -285,12 +331,12 @@ struct CodexDevcontainerSupportReport: Equatable {
                 name: name,
                 supportTokens: supportTokenResult.tokens,
                 omittedTokenCount: supportTokenResult.omittedCount,
-                reason: "Only image, workspaceFolder, and name are routeable."
+                reason: "Only image, workspaceFolder, name, and containerEnv are routeable."
             )
         }
 
         guard let rawImage = dictionary["image"] else {
-            let tokens = boundedTokenList(["missing-image"])
+            let tokens = boundedTokenList(["missing-image"] + containerEnvSupportTokens(names: containerEnv.map(\.name)))
             return Self(
                 classification: .unsupportedExtraFields,
                 configURL: configURL,
@@ -361,23 +407,81 @@ struct CodexDevcontainerSupportReport: Equatable {
         let imageConfiguration = CodexDevcontainerImageConfiguration(
             configURL: configURL,
             image: trimmedImage,
-            workspaceFolder: workspaceFolder
+            workspaceFolder: workspaceFolder,
+            containerEnv: containerEnv
         )
+        let routeableTokens = boundedTokenList(["image"] + containerEnvSupportTokens(names: containerEnv.map(\.name)))
         return Self(
             classification: .imageRouteable,
             configURL: configURL,
             name: name,
             imageConfiguration: imageConfiguration,
-            supportTokens: ["image"],
+            supportTokens: routeableTokens.tokens,
+            omittedTokenCount: routeableTokens.omittedCount,
             reason: "Image-based devcontainer can be routed through Apple container."
         )
+    }
+
+    private enum ContainerEnvParseResult {
+        case success([CodexDevcontainerEnvironmentVariable])
+        case failure(String)
+    }
+
+    private static func parseContainerEnv(_ rawValue: Any?) -> ContainerEnvParseResult {
+        guard let rawValue else {
+            return .success([])
+        }
+
+        guard let dictionary = rawValue as? [String: Any] else {
+            return .failure("containerEnv must be an object with string values.")
+        }
+
+        guard dictionary.count <= CodexDevcontainerImageConfiguration.containerEnvCountLimit else {
+            return .failure(
+                "containerEnv may include at most \(CodexDevcontainerImageConfiguration.containerEnvCountLimit) variables."
+            )
+        }
+
+        var variables: [CodexDevcontainerEnvironmentVariable] = []
+        var totalValueLength = 0
+        for name in dictionary.keys.sorted() {
+            guard isSafeContainerEnvName(name) else {
+                return .failure("containerEnv contains an unsafe variable name.")
+            }
+
+            guard let value = dictionary[name] as? String else {
+                return .failure("containerEnv values must be strings.")
+            }
+
+            guard !value.contains("\0") else {
+                return .failure("containerEnv values must not contain NUL characters.")
+            }
+
+            guard value.count <= CodexDevcontainerEnvironmentVariable.valueLimit else {
+                return .failure(
+                    "containerEnv value exceeds \(CodexDevcontainerEnvironmentVariable.valueLimit) characters."
+                )
+            }
+
+            totalValueLength += value.count
+            guard totalValueLength <= CodexDevcontainerImageConfiguration.containerEnvTotalValueLimit else {
+                return .failure(
+                    "containerEnv values exceed \(CodexDevcontainerImageConfiguration.containerEnvTotalValueLimit) total characters."
+                )
+            }
+
+            variables.append(CodexDevcontainerEnvironmentVariable(name: name, value: value))
+        }
+
+        return .success(variables)
     }
 
     private static func supportTokens(
         hasCompose: Bool,
         hasBuild: Bool,
         hasFeatures: Bool,
-        unsupportedKeys: [String]
+        unsupportedKeys: [String],
+        containerEnvNames: [String] = []
     ) -> (tokens: [String], omittedCount: Int) {
         var rawTokens: [String] = []
         if hasCompose {
@@ -389,8 +493,15 @@ struct CodexDevcontainerSupportReport: Equatable {
         if hasFeatures {
             rawTokens.append("features")
         }
+        rawTokens += containerEnvSupportTokens(names: containerEnvNames)
         rawTokens += unsupportedKeys.map { "extra:\($0)" }
         return boundedTokenList(rawTokens)
+    }
+
+    private static func containerEnvSupportTokens(names: [String]) -> [String] {
+        guard !names.isEmpty else { return [] }
+        let sortedNames = names.sorted()
+        return ["containerEnv:\(sortedNames.count)"] + sortedNames.map { "env:\($0)" }
     }
 
     private static func boundedTokenList(_ rawTokens: [String]) -> (tokens: [String], omittedCount: Int) {
@@ -432,6 +543,26 @@ struct CodexDevcontainerSupportReport: Equatable {
             .contains("..")
     }
 
+    private static func isSafeContainerEnvName(_ name: String) -> Bool {
+        guard !name.isEmpty,
+              name.count <= CodexDevcontainerEnvironmentVariable.nameLimit,
+              let first = name.unicodeScalars.first,
+              isASCIILetter(first) || first == "_" else {
+            return false
+        }
+
+        return name.unicodeScalars.allSatisfy { scalar in
+            isASCIILetter(scalar) || isASCIIDigit(scalar) || scalar == "_"
+        }
+    }
+
+    private static func isASCIILetter(_ scalar: UnicodeScalar) -> Bool {
+        (65...90).contains(Int(scalar.value)) || (97...122).contains(Int(scalar.value))
+    }
+
+    private static func isASCIIDigit(_ scalar: UnicodeScalar) -> Bool {
+        (48...57).contains(Int(scalar.value))
+    }
 }
 
 struct CodexExecutionLaunchPlan: Equatable {
@@ -443,16 +574,28 @@ struct CodexExecutionLaunchPlan: Equatable {
         var hostWorkspaceURL: URL
         var image: String
         var workspaceFolder: String
+        var containerEnv: [CodexDevcontainerEnvironmentVariable]
 
-        init(toolPath: String, hostWorkspaceURL: URL, image: String, workspaceFolder: String) {
+        init(
+            toolPath: String,
+            hostWorkspaceURL: URL,
+            image: String,
+            workspaceFolder: String,
+            containerEnv: [CodexDevcontainerEnvironmentVariable] = []
+        ) {
             self.toolPath = toolPath
             self.hostWorkspaceURL = hostWorkspaceURL.standardizedFileURL
             self.image = image
             self.workspaceFolder = workspaceFolder
+            self.containerEnv = containerEnv.sorted { $0.name < $1.name }
         }
 
         var volumeArgument: String {
             "\(hostWorkspaceURL.path):/workspace"
+        }
+
+        var environmentArguments: [String] {
+            containerEnv.flatMap { ["--env", $0.argumentValue] }
         }
 
         func containerPath(for hostURL: URL) -> String? {
@@ -588,7 +731,8 @@ struct CodexExecutionLaunchPlan: Equatable {
                         toolPath: containerToolPath,
                         hostWorkspaceURL: standardizedRepoURL,
                         image: config.image,
-                        workspaceFolder: config.workspaceFolder
+                        workspaceFolder: config.workspaceFolder,
+                        containerEnv: config.containerEnv
                     )),
                     devcontainer: config,
                     devcontainerSupportReport: supportReport
@@ -712,7 +856,8 @@ struct CodexExecutionLaunchPlan: Equatable {
                     "run",
                     "--rm",
                     "--volume", route.volumeArgument,
-                    "--workdir", route.workspaceFolder,
+                    "--workdir", route.workspaceFolder
+                ] + route.environmentArguments + [
                     route.image,
                     "codex"
                 ] + arguments,
@@ -736,7 +881,8 @@ struct CodexExecutionLaunchPlan: Equatable {
                     "run",
                     "--rm",
                     "--volume", route.volumeArgument,
-                    "--workdir", route.workspaceFolder,
+                    "--workdir", route.workspaceFolder
+                ] + route.environmentArguments + [
                     route.image,
                     "sh",
                     "-lc",

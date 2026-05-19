@@ -74,6 +74,45 @@ final class CodexExecutionEnvironmentTests: XCTestCase {
         XCTAssertTrue(detail.contains("Unsupported devcontainer route: build-based tokens build,features,extra:postCreateCommand."))
     }
 
+    func testContainerEnvDiagnosticsExposeNamesWithoutValues() throws {
+        let repoURL = try makeTemporaryDirectory(prefix: "CodexExecutionEnvironmentEnv")
+        let secretValue = "secret-menu-value"
+        try write(
+            #"{"image":"swift:6.0","containerEnv":{"ZETA":"\#(secretValue)","ALPHA":"plain"}}"#,
+            to: repoURL
+                .appending(path: ".devcontainer", directoryHint: .isDirectory)
+                .appending(path: "devcontainer.json")
+        )
+
+        let environment = CodexExecutionEnvironment.discover(
+            repoURL: repoURL,
+            preference: .devcontainerPreferred
+        )
+        let menu = CodexExecutionEnvironmentMenu(environment: environment)
+        let plan = environment.launchPlan(
+            repoURL: repoURL,
+            containerToolResolver: { name in name == "container" ? "/usr/local/bin/container" : nil }
+        )
+        let diagnosticsText = [
+            menu.helpText,
+            menu.statusText,
+            plan.preflightSummary(phase: "Verify"),
+            plan.routeDetail()
+        ].joined(separator: " ")
+
+        XCTAssertEqual(environment.devcontainerDiscovery.status, .ready)
+        XCTAssertEqual(environment.devcontainerDiscovery.supportReport.supportTokens, [
+            "image",
+            "containerEnv:2",
+            "env:ALPHA",
+            "env:ZETA"
+        ])
+        XCTAssertTrue(diagnosticsText.contains("containerEnv:2"))
+        XCTAssertTrue(diagnosticsText.contains("env:ALPHA"))
+        XCTAssertTrue(diagnosticsText.contains("env:ZETA"))
+        XCTAssertFalse(diagnosticsText.contains(secretValue))
+    }
+
     func testMissingDevcontainerPresentationFallsBackToNativeMacOS() throws {
         let repoURL = try makeTemporaryDirectory(prefix: "CodexExecutionEnvironmentMissing")
 

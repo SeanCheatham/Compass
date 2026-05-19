@@ -72,6 +72,44 @@ final class ProcessRunnerExecutionRouteTests: XCTestCase {
         ])
     }
 
+    func testContainerShellRouteAddsContainerEnvBeforeImageInSortedOrder() async throws {
+        let repoURL = try makeTemporaryDirectory(prefix: "ProcessRunnerContainerEnv")
+        try write(
+            #"{"image":"swift:6.0","workspaceFolder":"/workspace/app","containerEnv":{"ZETA":"last","ALPHA":"first"}}"#,
+            to: devcontainerURL(in: repoURL)
+        )
+        let launchPlan = CodexExecutionLaunchPlan.plan(
+            repoURL: repoURL,
+            preference: .devcontainerPreferred,
+            containerToolResolver: { _ in "/usr/local/bin/container" }
+        )
+        var capturedInvocation: CodexExecutionInvocation?
+
+        _ = try await ProcessRunner.runShell(
+            "swift test --filter CompassTests",
+            workingDirectory: repoURL,
+            launchPlan: launchPlan,
+            runner: { invocation, _, _, _, _ in
+                capturedInvocation = invocation
+                return ProcessResult(exitCode: 0, stdout: "", stderr: "")
+            }
+        )
+
+        let invocation = try XCTUnwrap(capturedInvocation)
+        XCTAssertEqual(invocation.arguments, [
+            "run",
+            "--rm",
+            "--volume", "\(repoURL.standardizedFileURL.path):/workspace",
+            "--workdir", "/workspace/app",
+            "--env", "ALPHA=first",
+            "--env", "ZETA=last",
+            "swift:6.0",
+            "sh",
+            "-lc",
+            "swift test --filter CompassTests"
+        ])
+    }
+
     func testNativeFallbackPlanFeedsNativeVerifyInvocationAndBoundedDiagnostics() async throws {
         let repoURL = try makeTemporaryDirectory(prefix: "ProcessRunnerFallback")
         let launchPlan = CodexExecutionLaunchPlan.plan(
