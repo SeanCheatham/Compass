@@ -463,6 +463,9 @@ struct CinematicRunRecapShareArtifactComparisonPlan: Equatable, Identifiable {
     var hiddenWarningCount: Int
     var warningIdentifiers: [String]
     var hasWarnings: Bool
+    var sourceExportAuditIncluded: Bool
+    var sourceExportAuditIdentifier: String?
+    var sourceExportAuditMarkdownLength: Int
     var exportText: String
     var copyLabel: String
     var copyHelp: String
@@ -513,6 +516,9 @@ struct CinematicRunRecapShareArtifactPinnedReferencePlan: Equatable, Identifiabl
     var hiddenWarningCount: Int
     var warningIdentifiers: [String]
     var hasWarnings: Bool
+    var sourceExportAuditIncluded: Bool
+    var sourceExportAuditIdentifier: String?
+    var sourceExportAuditMarkdownLength: Int
     var exportText: String
     var copyLabel: String
     var copyHelp: String
@@ -777,7 +783,8 @@ enum CinematicRunRecapShareArtifactActionMenuPlanner {
         tourPlan: CinematicRunRecapShareArtifactTourPlan,
         selectedExportPlan: CinematicRunRecapShareArtifactSubsetExportPlan,
         filteredExportPlan: CinematicRunRecapShareArtifactSubsetExportPlan,
-        historyPlan: CinematicRunRecapShareArtifactHistoryPlan
+        historyPlan: CinematicRunRecapShareArtifactHistoryPlan,
+        tourExportPlan: CinematicRunRecapShareArtifactSubsetExportPlan? = nil
     ) -> CinematicRunRecapShareArtifactActionMenuPlan {
         var actions: [CinematicRunRecapShareArtifactActionMenuPlan.Action] = [
             action(
@@ -878,7 +885,7 @@ enum CinematicRunRecapShareArtifactActionMenuPlanner {
                 help: tourExportHelp(tourPlan),
                 isEnabled: tourPlan.isAvailable && tourPlan.selectedEntryIdentifier != nil,
                 shortcutHint: CinematicRunRecapShareArtifactCommandPlanner.shortcutHint(for: .copyTourExport),
-                stateIdentifier: tourPlan.identifier
+                stateIdentifier: tourExportPlan?.exportIdentifier ?? tourPlan.identifier
             ),
             action(
                 kind: .toggleComparisonTargetMode,
@@ -1331,7 +1338,8 @@ enum CinematicRunRecapShareArtifactPinnedReferencePlanner {
         historyPlan: CinematicRunRecapShareArtifactHistoryPlan,
         pinnedEntryIdentifiers: [String] = [],
         selectedEntryIdentifier: String? = nil,
-        searchQuery: String? = nil
+        searchQuery: String? = nil,
+        sourceExportAuditPlan: CinematicRunRecapShareArtifactSourceExportAuditPlan? = nil
     ) -> CinematicRunRecapShareArtifactPinnedReferencePlan {
         let search = searchState(for: searchQuery)
         let retainedEntries = historyPlan.entries
@@ -1382,28 +1390,36 @@ enum CinematicRunRecapShareArtifactPinnedReferencePlanner {
                 isQuickSelectable: quickSelectEntryIdentifierSet.contains(entry.identifier)
             )
         }
+        let includedSourceExportAuditPlan = visibleSourceExportAuditPlan(sourceExportAuditPlan)
+        var exportIdentifierParts = [
+            "run-recap-share-artifact-pins-export",
+            "availability:\(availabilityReason)"
+        ]
+        if let includedSourceExportAuditPlan {
+            exportIdentifierParts.append("source-audit:\(fingerprint(includedSourceExportAuditPlan.identifier))")
+            exportIdentifierParts.append("source-audit-length:\(includedSourceExportAuditPlan.markdownLength)")
+        }
+        exportIdentifierParts.append(contentsOf: [
+            "retained:\(retainedEntries.count)",
+            "total:\(historyPlan.totalCount)",
+            "hidden:\(historyPlan.hiddenCount)",
+            "matching:\(matchingEntries.count)",
+            "pins:\(requestedPinnedEntryIdentifiers.count)",
+            "retained-pins:\(retainedPinnedEntryIdentifiers.count)",
+            "missing-pins:\(missingPinnedEntryIdentifiers.count)",
+            "filtered-pins:\(filteredPinnedEntryIdentifiers.count)",
+            "quick:\(quickSelectEntryIdentifiers.count)",
+            "query:\(search.queryFingerprint)",
+            "query-snippet:\(search.querySnippet)",
+            "no-match:\(noMatchAvailabilityReason ?? "none")",
+            "selected:\(boundedSelectedEntryIdentifier ?? "none")",
+            "selected-pin:\(selectedPinStateIdentifier)",
+            "warnings:\(warningStateIdentifier)",
+            "warning-count:\(historyPlan.warningCount)",
+            "content:\(fingerprint(retainedPinnedEntryIdentifiers.joined(separator: "|")))"
+        ])
         let exportIdentifier = bounded(
-            [
-                "run-recap-share-artifact-pins-export",
-                "availability:\(availabilityReason)",
-                "retained:\(retainedEntries.count)",
-                "total:\(historyPlan.totalCount)",
-                "hidden:\(historyPlan.hiddenCount)",
-                "matching:\(matchingEntries.count)",
-                "pins:\(requestedPinnedEntryIdentifiers.count)",
-                "retained-pins:\(retainedPinnedEntryIdentifiers.count)",
-                "missing-pins:\(missingPinnedEntryIdentifiers.count)",
-                "filtered-pins:\(filteredPinnedEntryIdentifiers.count)",
-                "quick:\(quickSelectEntryIdentifiers.count)",
-                "query:\(search.queryFingerprint)",
-                "query-snippet:\(search.querySnippet)",
-                "no-match:\(noMatchAvailabilityReason ?? "none")",
-                "selected:\(boundedSelectedEntryIdentifier ?? "none")",
-                "selected-pin:\(selectedPinStateIdentifier)",
-                "warnings:\(warningStateIdentifier)",
-                "warning-count:\(historyPlan.warningCount)",
-                "content:\(fingerprint(retainedPinnedEntryIdentifiers.joined(separator: "|")))"
-            ].joined(separator: "|"),
+            exportIdentifierParts.joined(separator: "|"),
             limit: CinematicRunRecapShareArtifactPinnedReferencePlan.identifierMaxCharacters
         )
         let export = exportText(
@@ -1423,23 +1439,28 @@ enum CinematicRunRecapShareArtifactPinnedReferencePlanner {
             filteredPinnedEntryIdentifiers: filteredPinnedEntryIdentifiers,
             quickSelectEntryIdentifiers: quickSelectEntryIdentifiers,
             references: references,
-            warningStateIdentifier: warningStateIdentifier
+            warningStateIdentifier: warningStateIdentifier,
+            sourceExportAuditPlan: includedSourceExportAuditPlan
         )
+        var identifierParts = [
+            "run-recap-share-artifact-pins",
+            "availability:\(availabilityReason)",
+            "export:\(fingerprint(exportIdentifier))",
+            "pins:\(requestedPinnedEntryIdentifiers.count)",
+            "retained-pins:\(retainedPinnedEntryIdentifiers.count)",
+            "missing-pins:\(missingPinnedEntryIdentifiers.count)",
+            "filtered-pins:\(filteredPinnedEntryIdentifiers.count)",
+            "quick:\(quickSelectEntryIdentifiers.count)",
+            "query:\(search.queryFingerprint)",
+            "selected-pin:\(selectedPinStateIdentifier)",
+            "warnings:\(warningStateIdentifier)",
+            "copy:\(export.count)"
+        ]
+        if let includedSourceExportAuditPlan {
+            identifierParts.append("source-audit:\(fingerprint(includedSourceExportAuditPlan.identifier))")
+        }
         let identifier = bounded(
-            [
-                "run-recap-share-artifact-pins",
-                "availability:\(availabilityReason)",
-                "export:\(fingerprint(exportIdentifier))",
-                "pins:\(requestedPinnedEntryIdentifiers.count)",
-                "retained-pins:\(retainedPinnedEntryIdentifiers.count)",
-                "missing-pins:\(missingPinnedEntryIdentifiers.count)",
-                "filtered-pins:\(filteredPinnedEntryIdentifiers.count)",
-                "quick:\(quickSelectEntryIdentifiers.count)",
-                "query:\(search.queryFingerprint)",
-                "selected-pin:\(selectedPinStateIdentifier)",
-                "warnings:\(warningStateIdentifier)",
-                "copy:\(export.count)"
-            ].joined(separator: "|"),
+            identifierParts.joined(separator: "|"),
             limit: CinematicRunRecapShareArtifactPinnedReferencePlan.identifierMaxCharacters
         )
 
@@ -1476,6 +1497,9 @@ enum CinematicRunRecapShareArtifactPinnedReferencePlanner {
             hiddenWarningCount: historyPlan.hiddenWarningCount,
             warningIdentifiers: historyPlan.warnings.map(\.identifier),
             hasWarnings: historyPlan.hasWarnings,
+            sourceExportAuditIncluded: includedSourceExportAuditPlan != nil,
+            sourceExportAuditIdentifier: includedSourceExportAuditPlan?.identifier,
+            sourceExportAuditMarkdownLength: includedSourceExportAuditPlan?.markdownLength ?? 0,
             exportText: export,
             copyLabel: copyLabel(isAvailable: isAvailable),
             copyHelp: copyHelp(
@@ -1611,7 +1635,8 @@ enum CinematicRunRecapShareArtifactPinnedReferencePlanner {
         filteredPinnedEntryIdentifiers: [String],
         quickSelectEntryIdentifiers: [String],
         references: [CinematicRunRecapShareArtifactPinnedReferencePlan.Reference],
-        warningStateIdentifier: String
+        warningStateIdentifier: String,
+        sourceExportAuditPlan: CinematicRunRecapShareArtifactSourceExportAuditPlan?
     ) -> String {
         var lines = [
             "# Compass Recap Artifact Pins",
@@ -1619,7 +1644,16 @@ enum CinematicRunRecapShareArtifactPinnedReferencePlanner {
             "- Export: \(exportIdentifier)",
             "- Availability: \(isAvailable ? "available" : "unavailable (\(availabilityReason))")",
             "- Retention limit: \(historyPlan.retentionLimit)",
-            "- Total artifacts: \(historyPlan.totalCount)",
+            "- Total artifacts: \(historyPlan.totalCount)"
+        ]
+
+        if let sourceExportAuditPlan {
+            lines.append("- Source audit included: true")
+            lines.append("- Source audit identifier: \(sourceExportAuditPlan.identifier)")
+            lines.append("- Source audit markdown length: \(sourceExportAuditPlan.markdownLength)")
+        }
+
+        lines.append(contentsOf: [
             "- Retained artifacts: \(retainedEntries.count)",
             "- Matching artifacts: \(matchingEntries.count)",
             "- Hidden artifacts: \(historyPlan.hiddenCount)",
@@ -1645,7 +1679,7 @@ enum CinematicRunRecapShareArtifactPinnedReferencePlanner {
             "- Warning identifiers: \(historyPlan.warnings.isEmpty ? "none" : historyPlan.warnings.map(\.identifier).joined(separator: ", "))",
             "",
             "## Pinned References"
-        ]
+        ])
 
         if references.isEmpty {
             lines.append("No retained pinned recap share artifacts are available.")
@@ -1662,10 +1696,22 @@ enum CinematicRunRecapShareArtifactPinnedReferencePlanner {
             })
         }
 
-        return boundedArtifactText(
-            lines.joined(separator: "\n"),
+        return CinematicRunRecapShareArtifactSourceExportAuditPlanner.markdownExport(
+            baseMarkdown: lines.joined(separator: "\n"),
+            sourceExportAuditPlan: sourceExportAuditPlan,
             limit: CinematicRunRecapShareArtifactPinnedReferencePlan.exportTextMaxCharacters
         )
+    }
+
+    private static func visibleSourceExportAuditPlan(
+        _ sourceExportAuditPlan: CinematicRunRecapShareArtifactSourceExportAuditPlan?
+    ) -> CinematicRunRecapShareArtifactSourceExportAuditPlan? {
+        guard let sourceExportAuditPlan,
+              sourceExportAuditPlan.isVisible,
+              !sourceExportAuditPlan.markdownSection.isEmpty else {
+            return nil
+        }
+        return sourceExportAuditPlan
     }
 
     private static func copyLabel(isAvailable: Bool) -> String {
@@ -3701,7 +3747,8 @@ enum CinematicRunRecapShareArtifactComparisonPlanner {
         searchQuery: String? = nil,
         targetMode: CinematicRunRecapShareArtifactComparisonTargetMode = .adjacent,
         pinnedEntryIdentifiers: [String] = [],
-        savedTourHoldEntryIdentifier: String? = nil
+        savedTourHoldEntryIdentifier: String? = nil,
+        sourceExportAuditPlan: CinematicRunRecapShareArtifactSourceExportAuditPlan? = nil
     ) -> CinematicRunRecapShareArtifactComparisonPlan {
         let previewPlan = CinematicRunRecapShareArtifactPreviewBrowserPlanner.plan(
             historyPlan: historyPlan,
@@ -3800,9 +3847,16 @@ enum CinematicRunRecapShareArtifactComparisonPlanner {
         let warningStateIdentifier = historyPlan.hasWarnings ? "warnings" : "clear"
         let selectedBodyPreviewText = selectedEntry.map { bodyPreview(from: $0.markdownContents) }
         let compareBodyPreviewText = compareEntry.map { bodyPreview(from: $0.markdownContents) }
+        let includedSourceExportAuditPlan = visibleSourceExportAuditPlan(sourceExportAuditPlan)
         var exportIdentifierParts = [
             "run-recap-share-artifact-comparison-export",
             "availability:\(availabilityReason)",
+        ]
+        if let includedSourceExportAuditPlan {
+            exportIdentifierParts.append("source-audit:\(fingerprint(includedSourceExportAuditPlan.identifier))")
+            exportIdentifierParts.append("source-audit-length:\(includedSourceExportAuditPlan.markdownLength)")
+        }
+        exportIdentifierParts.append(contentsOf: [
             "retained:\(retainedEntries.count)",
             "total:\(historyPlan.totalCount)",
             "hidden:\(historyPlan.hiddenCount)",
@@ -3816,7 +3870,7 @@ enum CinematicRunRecapShareArtifactComparisonPlanner {
             "direction:\(targetDirectionIdentifier)",
             "pinned-target:\(pinnedTargetEntryIdentifier ?? "none")",
             "pinned-state:\(pinnedTargetStateIdentifier)"
-        ]
+        ])
         if let requestedSavedTourHoldEntryIdentifier {
             exportIdentifierParts.append(
                 "promoted-hold-state:\(promotedHoldStateIdentifier)|promoted-hold:\(requestedSavedTourHoldEntryIdentifier)|retained-promoted-hold:\(retainedSavedTourHoldEntryIdentifier ?? "none")|filtered-promoted-hold:\(filteredSavedTourHoldEntryIdentifier ?? "none")"
@@ -3866,7 +3920,8 @@ enum CinematicRunRecapShareArtifactComparisonPlanner {
             sessionDelta: sessionDelta,
             selectedBodyPreviewText: selectedBodyPreviewText,
             compareBodyPreviewText: compareBodyPreviewText,
-            warningStateIdentifier: warningStateIdentifier
+            warningStateIdentifier: warningStateIdentifier,
+            sourceExportAuditPlan: includedSourceExportAuditPlan
         )
         var identifierParts = [
             "run-recap-share-artifact-comparison",
@@ -3896,6 +3951,9 @@ enum CinematicRunRecapShareArtifactComparisonPlanner {
             "warnings:\(warningStateIdentifier)",
             "copy:\(export.count)"
         ]
+        if let includedSourceExportAuditPlan {
+            identifierParts.append("source-audit:\(fingerprint(includedSourceExportAuditPlan.identifier))")
+        }
         let identifier = bounded(
             identifierParts.joined(separator: "|"),
             limit: CinematicRunRecapShareArtifactComparisonPlan.identifierMaxCharacters
@@ -3958,6 +4016,9 @@ enum CinematicRunRecapShareArtifactComparisonPlanner {
             hiddenWarningCount: historyPlan.hiddenWarningCount,
             warningIdentifiers: historyPlan.warnings.map(\.identifier),
             hasWarnings: historyPlan.hasWarnings,
+            sourceExportAuditIncluded: includedSourceExportAuditPlan != nil,
+            sourceExportAuditIdentifier: includedSourceExportAuditPlan?.identifier,
+            sourceExportAuditMarkdownLength: includedSourceExportAuditPlan?.markdownLength ?? 0,
             exportText: export,
             copyLabel: copyLabel(isAvailable: isAvailable, targetMode: targetMode),
             copyHelp: copyHelp(
@@ -4177,7 +4238,8 @@ enum CinematicRunRecapShareArtifactComparisonPlanner {
         sessionDelta: Int?,
         selectedBodyPreviewText: String?,
         compareBodyPreviewText: String?,
-        warningStateIdentifier: String
+        warningStateIdentifier: String,
+        sourceExportAuditPlan: CinematicRunRecapShareArtifactSourceExportAuditPlan?
     ) -> String {
         let pinnedTargetEntryIdentifier = targetMode == .pinnedReference
             ? compareEntry?.identifier
@@ -4188,7 +4250,16 @@ enum CinematicRunRecapShareArtifactComparisonPlanner {
             "- Export: \(exportIdentifier)",
             "- Availability: \(isAvailable ? "available" : "unavailable (\(availabilityReason))")",
             "- Retention limit: \(historyPlan.retentionLimit)",
-            "- Total artifacts: \(historyPlan.totalCount)",
+            "- Total artifacts: \(historyPlan.totalCount)"
+        ]
+
+        if let sourceExportAuditPlan {
+            lines.append("- Source audit included: true")
+            lines.append("- Source audit identifier: \(sourceExportAuditPlan.identifier)")
+            lines.append("- Source audit markdown length: \(sourceExportAuditPlan.markdownLength)")
+        }
+
+        lines.append(contentsOf: [
             "- Retained artifacts: \(retainedEntries.count)",
             "- Matching artifacts: \(matchingEntries.count)",
             "- Hidden artifacts: \(historyPlan.hiddenCount)",
@@ -4225,7 +4296,7 @@ enum CinematicRunRecapShareArtifactComparisonPlanner {
             "- Warnings: \(historyPlan.warningCount)",
             "- Hidden warnings: \(historyPlan.hiddenWarningCount)",
             "- Warning identifiers: \(historyPlan.warnings.isEmpty ? "none" : historyPlan.warnings.map(\.identifier).joined(separator: ", "))"
-        ]
+        ])
 
         if !historyPlan.warnings.isEmpty {
             lines.append("")
@@ -4238,8 +4309,9 @@ enum CinematicRunRecapShareArtifactComparisonPlanner {
         guard let selectedEntry, let compareEntry else {
             lines.append("")
             lines.append("No retained recap share artifact comparison target is available: \(availabilityReason).")
-            return boundedArtifactText(
-                lines.joined(separator: "\n"),
+            return CinematicRunRecapShareArtifactSourceExportAuditPlanner.markdownExport(
+                baseMarkdown: lines.joined(separator: "\n"),
+                sourceExportAuditPlan: sourceExportAuditPlan,
                 limit: CinematicRunRecapShareArtifactComparisonPlan.exportTextMaxCharacters
             )
         }
@@ -4251,10 +4323,22 @@ enum CinematicRunRecapShareArtifactComparisonPlanner {
         lines.append("## Comparison Target")
         lines.append(contentsOf: entryLines(entry: compareEntry, bodyPreviewText: compareBodyPreviewText))
 
-        return boundedArtifactText(
-            lines.joined(separator: "\n"),
+        return CinematicRunRecapShareArtifactSourceExportAuditPlanner.markdownExport(
+            baseMarkdown: lines.joined(separator: "\n"),
+            sourceExportAuditPlan: sourceExportAuditPlan,
             limit: CinematicRunRecapShareArtifactComparisonPlan.exportTextMaxCharacters
         )
+    }
+
+    private static func visibleSourceExportAuditPlan(
+        _ sourceExportAuditPlan: CinematicRunRecapShareArtifactSourceExportAuditPlan?
+    ) -> CinematicRunRecapShareArtifactSourceExportAuditPlan? {
+        guard let sourceExportAuditPlan,
+              sourceExportAuditPlan.isVisible,
+              !sourceExportAuditPlan.markdownSection.isEmpty else {
+            return nil
+        }
+        return sourceExportAuditPlan
     }
 
     private static func entryLines(

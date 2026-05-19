@@ -80,13 +80,18 @@ struct CinematicTab: View {
                 ? runRecapSceneFocusCandidatePlan
                 : .none
             let recapArtifactLibraryContext = project.cinematicRunRecapShareArtifactLibraryContext
+            let recapArtifactSourceExportAuditPlan =
+                CinematicRunRecapShareArtifactSourceExportAuditPlanner.plan(
+                    reconciliationPlan: project.cinematicRunRecapShareArtifactSourceReconciliation
+                )
             let recapArtifactComparisonPlan = CinematicRunRecapShareArtifactComparisonPlanner.plan(
                 historyPlan: project.cinematicRunRecapShareArtifactHistory,
                 selectedEntryIdentifier: recapArtifactLibraryContext.selectedEntryIdentifier,
                 searchQuery: recapArtifactLibraryContext.searchText,
                 targetMode: recapArtifactLibraryContext.comparisonTargetMode,
                 pinnedEntryIdentifiers: recapArtifactLibraryContext.pinnedEntryIdentifiers,
-                savedTourHoldEntryIdentifier: recapArtifactLibraryContext.savedTourHoldEntryIdentifier
+                savedTourHoldEntryIdentifier: recapArtifactLibraryContext.savedTourHoldEntryIdentifier,
+                sourceExportAuditPlan: recapArtifactSourceExportAuditPlan
             )
             let runRecapEndCardCandidatePlan = CinematicRunRecapEndCardPlanner.plan(
                 isRecapOverlaySelected: true,
@@ -1125,6 +1130,7 @@ private struct CinematicRunRecapArtifactLibraryControl: View {
         let sourceBadgePlan = currentSourceBadgePlan
         let selectedExportPlan = subsetExportPlan(scope: .selected)
         let filteredExportPlan = subsetExportPlan(scope: .filtered)
+        let tourExportPlan = tourSubsetExportPlan(tourPlan)
         let actionMenuPlan = actionMenuPlan(
             previewPlan: previewPlan,
             rollupPlan: rollupPlan,
@@ -1132,7 +1138,8 @@ private struct CinematicRunRecapArtifactLibraryControl: View {
             pinnedReferencePlan: pinnedReferencePlan,
             tourPlan: tourPlan,
             selectedExportPlan: selectedExportPlan,
-            filteredExportPlan: filteredExportPlan
+            filteredExportPlan: filteredExportPlan,
+            tourExportPlan: tourExportPlan
         )
         let commandPlan = CinematicRunRecapShareArtifactCommandPlanner.plan(actionMenuPlan: actionMenuPlan)
 
@@ -1291,7 +1298,8 @@ private struct CinematicRunRecapArtifactLibraryControl: View {
             searchQuery: artifactLibraryContext.searchText,
             targetMode: artifactLibraryContext.comparisonTargetMode,
             pinnedEntryIdentifiers: artifactLibraryContext.pinnedEntryIdentifiers,
-            savedTourHoldEntryIdentifier: artifactLibraryContext.savedTourHoldEntryIdentifier
+            savedTourHoldEntryIdentifier: artifactLibraryContext.savedTourHoldEntryIdentifier,
+            sourceExportAuditPlan: currentSourceExportAuditPlan
         )
     }
 
@@ -1300,7 +1308,8 @@ private struct CinematicRunRecapArtifactLibraryControl: View {
             historyPlan: plan,
             pinnedEntryIdentifiers: artifactLibraryContext.pinnedEntryIdentifiers,
             selectedEntryIdentifier: artifactLibraryContext.selectedEntryIdentifier,
-            searchQuery: artifactLibraryContext.searchText
+            searchQuery: artifactLibraryContext.searchText,
+            sourceExportAuditPlan: currentSourceExportAuditPlan
         )
     }
 
@@ -1312,7 +1321,8 @@ private struct CinematicRunRecapArtifactLibraryControl: View {
             pinnedReferencePlan: currentPinnedReferencePlan,
             tourPlan: tourPlan,
             selectedExportPlan: subsetExportPlan(scope: .selected),
-            filteredExportPlan: subsetExportPlan(scope: .filtered)
+            filteredExportPlan: subsetExportPlan(scope: .filtered),
+            tourExportPlan: tourSubsetExportPlan(tourPlan)
         )
     }
 
@@ -2084,7 +2094,8 @@ private struct CinematicRunRecapArtifactLibraryControl: View {
         pinnedReferencePlan: CinematicRunRecapShareArtifactPinnedReferencePlan,
         tourPlan: CinematicRunRecapShareArtifactTourPlan,
         selectedExportPlan: CinematicRunRecapShareArtifactSubsetExportPlan,
-        filteredExportPlan: CinematicRunRecapShareArtifactSubsetExportPlan
+        filteredExportPlan: CinematicRunRecapShareArtifactSubsetExportPlan,
+        tourExportPlan: CinematicRunRecapShareArtifactSubsetExportPlan
     ) -> CinematicRunRecapShareArtifactActionMenuPlan {
         CinematicRunRecapShareArtifactActionMenuPlanner.plan(
             previewPlan: previewPlan,
@@ -2094,7 +2105,8 @@ private struct CinematicRunRecapArtifactLibraryControl: View {
             tourPlan: tourPlan,
             selectedExportPlan: selectedExportPlan,
             filteredExportPlan: filteredExportPlan,
-            historyPlan: plan
+            historyPlan: plan,
+            tourExportPlan: tourExportPlan
         )
     }
 

@@ -977,6 +977,9 @@ struct CinematicDiagnosticsReport: Equatable {
         var hiddenWarningCount: Int
         var warningIdentifiers: [String]
         var hasWarnings: Bool
+        var sourceExportAuditIncluded: Bool
+        var sourceExportAuditIdentifier: String?
+        var sourceExportAuditMarkdownLength: Int
         var exportTextLength: Int
         var copyLabel: String
         var copyHelp: String
@@ -1025,6 +1028,9 @@ struct CinematicDiagnosticsReport: Equatable {
         var hiddenWarningCount: Int
         var warningIdentifiers: [String]
         var hasWarnings: Bool
+        var sourceExportAuditIncluded: Bool
+        var sourceExportAuditIdentifier: String?
+        var sourceExportAuditMarkdownLength: Int
         var exportTextLength: Int
         var copyLabel: String
         var copyHelp: String
@@ -1126,6 +1132,7 @@ struct CinematicDiagnosticsReport: Equatable {
         var sourceComparisonIdentifier: String
         var sourcePinsIdentifier: String
         var sourceTourIdentifier: String
+        var sourceTourExportIdentifier: String
         var sourceSelectedExportIdentifier: String
         var sourceFilteredExportIdentifier: String
         var actionCount: Int
@@ -3350,6 +3357,10 @@ struct CinematicVisualSmokeReport: Equatable {
             }
             && snapshot.exportTextLength
                 <= CinematicRunRecapShareArtifactComparisonPlan.exportTextMaxCharacters
+            && (snapshot.sourceExportAuditIdentifier ?? "").count
+                <= CinematicRunRecapShareArtifactSourceExportAuditPlan.identifierMaxCharacters
+            && snapshot.sourceExportAuditMarkdownLength
+                <= CinematicRunRecapShareArtifactSourceExportAuditPlan.markdownMaxCharacters
             && string(
                 snapshot.copyLabel,
                 maxCharacters: CinematicRunRecapShareArtifactComparisonPlan.copyLabelMaxCharacters
@@ -3437,6 +3448,10 @@ struct CinematicVisualSmokeReport: Equatable {
             }
             && snapshot.exportTextLength
                 <= CinematicRunRecapShareArtifactPinnedReferencePlan.exportTextMaxCharacters
+            && (snapshot.sourceExportAuditIdentifier ?? "").count
+                <= CinematicRunRecapShareArtifactSourceExportAuditPlan.identifierMaxCharacters
+            && snapshot.sourceExportAuditMarkdownLength
+                <= CinematicRunRecapShareArtifactSourceExportAuditPlan.markdownMaxCharacters
             && string(
                 snapshot.copyLabel,
                 maxCharacters: CinematicRunRecapShareArtifactPinnedReferencePlan.copyLabelMaxCharacters
@@ -3742,6 +3757,10 @@ struct CinematicVisualSmokeReport: Equatable {
             && string(
                 snapshot.sourceTourIdentifier,
                 maxCharacters: CinematicRunRecapShareArtifactTourPlan.identifierMaxCharacters
+            )
+            && string(
+                snapshot.sourceTourExportIdentifier,
+                maxCharacters: CinematicRunRecapShareArtifactSubsetExportPlan.identifierMaxCharacters
             )
             && string(
                 snapshot.sourceSelectedExportIdentifier,
@@ -6436,6 +6455,9 @@ struct CinematicDiagnosticsSummary: Equatable {
             snapshot.warningIdentifiers.isEmpty
                 ? nil
                 : "warning ids \(bounded(snapshot.warningIdentifiers.joined(separator: ","), limit: 120))",
+            snapshot.sourceExportAuditIncluded
+                ? "source audit \(snapshot.sourceExportAuditMarkdownLength) \(bounded(snapshot.sourceExportAuditIdentifier ?? "none", limit: 42))"
+                : "source audit hidden",
             "copy \(snapshot.exportTextLength) chars",
             "export \(bounded(snapshot.exportIdentifier, limit: 54))",
             snapshot.selectedEntryIdentifier.map { "selected \(bounded($0, limit: 54))" },
@@ -6480,6 +6502,9 @@ struct CinematicDiagnosticsSummary: Equatable {
             "warning state \(snapshot.warningStateIdentifier)",
             "warnings \(snapshot.warningCount)",
             snapshot.hiddenWarningCount > 0 ? "hidden warnings \(snapshot.hiddenWarningCount)" : nil,
+            snapshot.sourceExportAuditIncluded
+                ? "source audit \(snapshot.sourceExportAuditMarkdownLength) \(bounded(snapshot.sourceExportAuditIdentifier ?? "none", limit: 42))"
+                : "source audit hidden",
             "export \(bounded(snapshot.exportIdentifier, limit: 54))",
             "id \(bounded(snapshot.identifier, limit: 54))"
         ].compactMap { $0 }.joined(separator: " | ")
@@ -6582,6 +6607,7 @@ struct CinematicDiagnosticsSummary: Equatable {
             "cmd \(snapshot.commandCount)/\(snapshot.actionCount) e\(snapshot.enabledCommandCount) d\(snapshot.disabledCommandCount)",
             "source-menu \(bounded(snapshot.sourceActionMenuIdentifier, limit: 24))",
             "command-plan \(bounded(snapshot.commandPlanIdentifier, limit: 24))",
+            "tour-export \(bounded(snapshot.sourceTourExportIdentifier, limit: 24))",
             "history \(snapshot.historyAvailabilityReason)",
             "no-match \(snapshot.previewNoMatchAvailabilityReason ?? snapshot.tourNoMatchAvailabilityReason ?? "none")",
             "disabled \(identifierListSummary(snapshot.disabledActionKindIdentifiers, visibleLimit: 5))",
@@ -8051,6 +8077,13 @@ enum CinematicDiagnostics {
             scope: .filtered,
             sourceExportAuditPlan: runRecapShareArtifactSourceExportAuditPlan
         )
+        let tourRunRecapShareArtifactExportPlan = CinematicRunRecapShareArtifactSubsetExportPlanner.plan(
+            historyPlan: runRecapShareArtifactHistoryPlan,
+            selectedEntryIdentifier: runRecapShareArtifactTourPlan.selectedEntryIdentifier,
+            searchQuery: runRecapShareArtifactPreviewSearchQuery,
+            scope: .selected,
+            sourceExportAuditPlan: runRecapShareArtifactSourceExportAuditPlan
+        )
         let runRecapShareArtifactRollupPlan = CinematicRunRecapShareArtifactRollupPlanner.plan(
             historyPlan: runRecapShareArtifactHistoryPlan,
             selectedEntryIdentifier: runRecapShareArtifactPreviewSelectedEntryIdentifier,
@@ -8063,13 +8096,15 @@ enum CinematicDiagnostics {
             searchQuery: runRecapShareArtifactPreviewSearchQuery,
             targetMode: runRecapShareArtifactComparisonTargetMode,
             pinnedEntryIdentifiers: runRecapShareArtifactPinnedEntryIdentifiers,
-            savedTourHoldEntryIdentifier: runRecapShareArtifactSavedTourHoldEntryIdentifier
+            savedTourHoldEntryIdentifier: runRecapShareArtifactSavedTourHoldEntryIdentifier,
+            sourceExportAuditPlan: runRecapShareArtifactSourceExportAuditPlan
         )
         let runRecapShareArtifactPinnedReferencePlan = CinematicRunRecapShareArtifactPinnedReferencePlanner.plan(
             historyPlan: runRecapShareArtifactHistoryPlan,
             pinnedEntryIdentifiers: runRecapShareArtifactPinnedEntryIdentifiers,
             selectedEntryIdentifier: runRecapShareArtifactPreviewSelectedEntryIdentifier,
-            searchQuery: runRecapShareArtifactPreviewSearchQuery
+            searchQuery: runRecapShareArtifactPreviewSearchQuery,
+            sourceExportAuditPlan: runRecapShareArtifactSourceExportAuditPlan
         )
         let runRecapShareArtifactActionMenuPlan = CinematicRunRecapShareArtifactActionMenuPlanner.plan(
             previewPlan: runRecapShareArtifactPreviewPlan,
@@ -8079,7 +8114,8 @@ enum CinematicDiagnostics {
             tourPlan: runRecapShareArtifactTourPlan,
             selectedExportPlan: selectedRunRecapShareArtifactExportPlan,
             filteredExportPlan: filteredRunRecapShareArtifactExportPlan,
-            historyPlan: runRecapShareArtifactHistoryPlan
+            historyPlan: runRecapShareArtifactHistoryPlan,
+            tourExportPlan: tourRunRecapShareArtifactExportPlan
         )
         let runRecapShareArtifactCommandPlan = CinematicRunRecapShareArtifactCommandPlanner.plan(
             actionMenuPlan: runRecapShareArtifactActionMenuPlan
@@ -8111,7 +8147,8 @@ enum CinematicDiagnostics {
             pinnedReferencePlan: runRecapShareArtifactPinnedReferencePlan,
             tourPlan: runRecapShareArtifactTourPlan,
             selectedExportPlan: selectedRunRecapShareArtifactExportPlan,
-            filteredExportPlan: filteredRunRecapShareArtifactExportPlan
+            filteredExportPlan: filteredRunRecapShareArtifactExportPlan,
+            tourExportPlan: tourRunRecapShareArtifactExportPlan
         )
         let cameraSnapshots = CinematicCameraShot.allCases.map {
             cameraSnapshot(for: $0, settings: influenceSettings)
@@ -8181,6 +8218,7 @@ enum CinematicDiagnostics {
                 "run-recap-share-artifact-pins:\(runRecapShareArtifactPinnedReferenceSnapshot.identifier)",
                 "run-recap-share-artifact-pins-export:\(runRecapShareArtifactPinnedReferenceSnapshot.exportIdentifier)",
                 "run-recap-share-artifact-tour:\(runRecapShareArtifactTourSnapshot.identifier)",
+                "run-recap-share-artifact-tour-export:\(tourRunRecapShareArtifactExportPlan.identifier)",
                 "run-recap-share-artifact-tour-state:\(runRecapShareArtifactTourSnapshot.stateIdentifier)",
                 "run-recap-share-artifact-tour-source:\(runRecapShareArtifactTourSnapshot.selectionSourceIdentifier)",
                 "run-recap-share-artifact-tour-hold:\(runRecapShareArtifactTourSnapshot.savedTourHoldStateIdentifier)",
@@ -11539,6 +11577,9 @@ enum CinematicDiagnostics {
             hiddenWarningCount: plan.hiddenWarningCount,
             warningIdentifiers: plan.warningIdentifiers,
             hasWarnings: plan.hasWarnings,
+            sourceExportAuditIncluded: plan.sourceExportAuditIncluded,
+            sourceExportAuditIdentifier: plan.sourceExportAuditIdentifier,
+            sourceExportAuditMarkdownLength: plan.sourceExportAuditMarkdownLength,
             exportTextLength: plan.exportTextLength,
             copyLabel: plan.copyLabel,
             copyHelp: plan.copyHelp
@@ -11591,6 +11632,9 @@ enum CinematicDiagnostics {
             hiddenWarningCount: plan.hiddenWarningCount,
             warningIdentifiers: plan.warningIdentifiers,
             hasWarnings: plan.hasWarnings,
+            sourceExportAuditIncluded: plan.sourceExportAuditIncluded,
+            sourceExportAuditIdentifier: plan.sourceExportAuditIdentifier,
+            sourceExportAuditMarkdownLength: plan.sourceExportAuditMarkdownLength,
             exportTextLength: plan.exportTextLength,
             copyLabel: plan.copyLabel,
             copyHelp: plan.copyHelp
@@ -11734,7 +11778,8 @@ enum CinematicDiagnostics {
         pinnedReferencePlan: CinematicRunRecapShareArtifactPinnedReferencePlan,
         tourPlan: CinematicRunRecapShareArtifactTourPlan,
         selectedExportPlan: CinematicRunRecapShareArtifactSubsetExportPlan,
-        filteredExportPlan: CinematicRunRecapShareArtifactSubsetExportPlan
+        filteredExportPlan: CinematicRunRecapShareArtifactSubsetExportPlan,
+        tourExportPlan: CinematicRunRecapShareArtifactSubsetExportPlan
     ) -> CinematicDiagnosticsReport.RunRecapShareArtifactCommandSnapshot {
         typealias Section = CinematicRunRecapShareArtifactActionMenuPlan.Section
         typealias Snapshot = CinematicDiagnosticsReport.RunRecapShareArtifactCommandSnapshot
@@ -11781,6 +11826,7 @@ enum CinematicDiagnostics {
                 "comparison:\(fingerprint(comparisonPlan.identifier))",
                 "pins:\(fingerprint(pinnedReferencePlan.identifier))",
                 "tour:\(fingerprint(tourPlan.identifier))",
+                "tour-export:\(fingerprint(tourExportPlan.identifier))",
                 "selected-export:\(fingerprint(selectedExportPlan.identifier))",
                 "filtered-export:\(fingerprint(filteredExportPlan.identifier))",
                 "shortcuts:\(fingerprint(shortcutIdentifiers.joined(separator: "|")))",
@@ -11817,6 +11863,7 @@ enum CinematicDiagnostics {
             sourceComparisonIdentifier: comparisonPlan.identifier,
             sourcePinsIdentifier: pinnedReferencePlan.identifier,
             sourceTourIdentifier: tourPlan.identifier,
+            sourceTourExportIdentifier: tourExportPlan.identifier,
             sourceSelectedExportIdentifier: selectedExportPlan.identifier,
             sourceFilteredExportIdentifier: filteredExportPlan.identifier,
             actionCount: actionMenuPlan.actionCount,
