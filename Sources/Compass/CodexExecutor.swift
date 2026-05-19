@@ -218,7 +218,7 @@ final class CodexExecutor {
         }
     }
 
-    /// Phase 3 readiness gate for the shared-VM execution route. Inspects
+    /// Readiness gate for the shared-VM execution route. Inspects
     /// `SharedCompassVM.shared.readiness` and either:
     ///
     ///   * returns `launchPlan` unchanged when the route is already `.host` or

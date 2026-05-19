@@ -167,24 +167,28 @@ struct SharedCompassVMConfiguration {
     }
 
     /// Replaces the first virtio console device's first port attachment in
-    /// place. Used by Phase 3's first-boot pipeline to swap the default
-    /// `nil` attachment for a `VZFileHandleSerialPortAttachment` backed by a
+    /// place. Used by the first-boot pipeline to swap the default `nil`
+    /// attachment for a `VZFileHandleSerialPortAttachment` backed by a
     /// host-owned `Pipe()` so Compass can read the guest's IP-reporting
     /// output line by line.
     ///
-    /// Callers typically construct the attachment from a `Pipe` like so:
+    /// Per Apple's docs, `VZFileHandleSerialPortAttachment.fileHandleForReading`
+    /// is what VZ reads from (data going *into* the guest) and
+    /// `fileHandleForWriting` is what VZ writes guest output to. To capture
+    /// guest output, wire it like this:
     ///
     /// ```swift
     /// let pipe = Pipe()
     /// let attachment = VZFileHandleSerialPortAttachment(
-    ///     fileHandleForReading: pipe.fileHandleForReading,
+    ///     fileHandleForReading: FileHandle.nullDevice,
     ///     fileHandleForWriting: pipe.fileHandleForWriting
     /// )
+    /// // Read guest output from pipe.fileHandleForReading.
     /// try SharedCompassVMConfiguration.replaceConsoleAttachment(attachment, on: configuration)
     /// ```
     ///
-    /// The configuration retains the reference, so callers must keep the
-    /// `Pipe` alive for the lifetime of the running VM.
+    /// The configuration retains the attachment reference, so callers must
+    /// keep the `Pipe` alive for the lifetime of the running VM.
     static func replaceConsoleAttachment(
         _ attachment: VZSerialPortAttachment,
         on configuration: VZVirtualMachineConfiguration

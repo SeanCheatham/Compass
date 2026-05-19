@@ -1784,10 +1784,10 @@ extension CompassProject {
     }
 
     private func codexLaunchPlan(for nativeExecutionURL: URL) -> CodexExecutionLaunchPlan {
-        // Phase 3: a project's `developSandbox` is the authoritative per-project
-        // toggle. Translate to the planner-level `CodexExecutionEnvironmentPreference`
-        // so the existing readiness-gated planner can route to the shared VM when
-        // the readiness snapshot is .ready, and fall back to host otherwise.
+        // The project's `developSandbox` is the authoritative per-project
+        // toggle. Translate it into a `CodexExecutionEnvironmentPreference`
+        // so the readiness-gated planner can route to the shared VM when
+        // readiness is .ready and fall back to host otherwise.
         let preference: CodexExecutionEnvironmentPreference
         switch developSandbox {
         case .host:
@@ -2766,11 +2766,11 @@ final class AppModel: ObservableObject {
             }
         }
 
-        // Phase 3 always-on lifecycle: warm up the shared VM, and if the
-        // bundle is already provisioned, kick off the live VZ instance so
-        // codex execs against `.sharedVM` projects don't pay a cold-start
-        // tax. Failures are non-fatal — the readiness state captures any
-        // problem and Develop falls back to `.host` automatically.
+        // Always-on lifecycle: warm up the shared VM, and if the bundle is
+        // already provisioned, kick off the live VZ instance so codex execs
+        // against `.sharedVM` projects don't pay a cold-start tax. Failures
+        // are non-fatal — readiness captures any problem and Develop falls
+        // back to `.host` automatically.
         Task { [weak self] in
             guard let self else { return }
             do {

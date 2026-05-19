@@ -164,20 +164,22 @@ enum SharedCompassVMCodexAuthBridge {
         scpArguments.append("\(hostCodex.path)/")
         scpArguments.append("\(destination):.codex/")
 
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: scpExecutablePath)
-        process.arguments = scpArguments
-        let stderrPipe = Pipe()
-        let stdoutPipe = Pipe()
-        process.standardError = stderrPipe
-        process.standardOutput = stdoutPipe
-        try process.run()
-        process.waitUntilExit()
-        if process.terminationStatus != 0 {
-            let data = (try? stderrPipe.fileHandleForReading.readToEnd()) ?? Data()
-            let message = String(data: data, encoding: .utf8) ?? ""
-            throw CopyError.scpFailed(exitCode: process.terminationStatus, stderr: message)
-        }
+        try await Task.detached { [scpExecutablePath, scpArguments] () throws -> Void in
+            let process = Process()
+            process.executableURL = URL(fileURLWithPath: scpExecutablePath)
+            process.arguments = scpArguments
+            let stderrPipe = Pipe()
+            let stdoutPipe = Pipe()
+            process.standardError = stderrPipe
+            process.standardOutput = stdoutPipe
+            try process.run()
+            process.waitUntilExit()
+            if process.terminationStatus != 0 {
+                let data = (try? stderrPipe.fileHandleForReading.readToEnd()) ?? Data()
+                let message = String(data: data, encoding: .utf8) ?? ""
+                throw CopyError.scpFailed(exitCode: process.terminationStatus, stderr: message)
+            }
+        }.value
     }
 
     // MARK: - Internals

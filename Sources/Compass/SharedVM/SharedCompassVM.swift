@@ -35,12 +35,18 @@ final class SharedCompassVM: ObservableObject {
     private var sleepObserver: SharedCompassVMSleepObserver?
     private var lastResolvedSSHDestination: String?
 
-    /// Pipe attached to the guest's virtio console port. The guest's first-boot
-    /// script writes its IP here as `COMPASS_GUEST_IP=<addr>\n`. The host
-    /// keeps the pipe alive for the lifetime of the running VM so the buffer
-    /// is never closed mid-read. See `attachConsolePipeIfNeeded`.
-    private var consolePipe: Pipe?
+    /// Pipe attached to the guest's virtio console port. VZ writes guest serial
+    /// output into `consoleOutputPipe.fileHandleForWriting`; the host's read
+    /// task drains `consoleOutputPipe.fileHandleForReading`. The host keeps
+    /// the pipe alive for the lifetime of the running VM so the buffer is
+    /// never closed mid-read. The guest's first-boot script writes its IP as
+    /// `COMPASS_GUEST_IP=<addr>\n` for IP discovery; other traffic is dropped.
+    private var consoleOutputPipe: Pipe?
     private var consoleReadTask: Task<Void, Never>?
+
+    /// Serializes concurrent `start()` calls so two simultaneous callers cannot
+    /// each construct their own `VZVirtualMachine`.
+    private var startInFlight: Task<Void, Error>?
 
     // MARK: - Shared singleton
 
@@ -245,8 +251,29 @@ final class SharedCompassVM: ObservableObject {
     /// Boots (or re-boots) the guest from the currently-installed bundle.
     /// Caller is responsible for first calling `provisionIfNeeded` if the
     /// bundle is empty. Idempotent if the VM is already running.
+    ///
+    /// Concurrent calls share a single in-flight start so two callers cannot
+    /// race to construct two VZVirtualMachine instances.
     func start() async throws {
         if fallbackUnavailableReason != nil { return }
+        if let virtualMachine, virtualMachine.state == .running {
+            return
+        }
+        if let existing = startInFlight {
+            try await existing.value
+            return
+        }
+
+        let task = Task { [weak self] () -> Void in
+            guard let self else { return }
+            try await self.performStart()
+        }
+        startInFlight = task
+        defer { startInFlight = nil }
+        try await task.value
+    }
+
+    private func performStart() async throws {
         if let virtualMachine, virtualMachine.state == .running {
             return
         }
@@ -263,25 +290,36 @@ final class SharedCompassVM: ObservableObject {
 
         // Attach a host-owned Pipe to the virtio console so first-boot guest
         // scripts can publish `COMPASS_GUEST_IP=<addr>` lines back to us.
-        // Phase 3 keeps this hook live for the full VM lifetime; the read
-        // task discards anything that doesn't match the known prefix.
+        // The hook stays live for the full VM lifetime; the read task drops
+        // anything that doesn't match the known prefix.
         attachConsolePipe(to: configuration)
 
-        try configuration.validate()
+        do {
+            try configuration.validate()
+        } catch {
+            tearDownConsolePipe()
+            throw error
+        }
 
         let machine = VZVirtualMachine(configuration: configuration)
-        self.virtualMachine = machine
 
-        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
-            machine.start { result in
-                switch result {
-                case .success:
-                    continuation.resume(returning: ())
-                case .failure(let error):
-                    continuation.resume(throwing: error)
+        do {
+            try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+                machine.start { result in
+                    switch result {
+                    case .success:
+                        continuation.resume(returning: ())
+                    case .failure(let error):
+                        continuation.resume(throwing: error)
+                    }
                 }
             }
+        } catch {
+            tearDownConsolePipe()
+            throw error
         }
+
+        self.virtualMachine = machine
     }
 
     /// Pauses the live VM. No-op if no VM is running.
@@ -326,10 +364,10 @@ final class SharedCompassVM: ObservableObject {
         tearDownConsolePipe()
     }
 
-    /// Marks the user-driven first-boot Setup Assistant as complete. Transitions
-    /// readiness to `.guestPrepping` and then to `.ready` once the SSH probe
-    /// succeeds. Caller (Phase 4 UI) is responsible for invoking this when the
-    /// "Mark setup complete" button is pressed.
+    /// Marks the user-driven first-boot Setup Assistant as complete.
+    /// Transitions readiness to `.guestPrepping` and then to `.ready` once
+    /// the SSH probe succeeds. The Sandbox view invokes this when the user
+    /// taps "Mark setup complete".
     func markSetupComplete() async {
         readiness = .guestPrepping
         _ = try? bundle.mutateState(fileManager: dependencies.fileManager) {
@@ -338,9 +376,10 @@ final class SharedCompassVM: ObservableObject {
 
         let state = (try? bundle.loadState(fileManager: dependencies.fileManager)) ?? SharedCompassVMBundle.State()
         guard let ip = state.lastKnownGoodIP else {
-            // We expect Phase 3's guest-prep stage to discover and persist
-            // the guest IP before this is called. If it's still missing, leave
-            // readiness in .guestPrepping and let the caller surface a retry.
+            // The guest-prep stage is responsible for discovering and
+            // persisting the guest IP before this is called. If it's still
+            // missing, leave readiness in .guestPrepping and let the caller
+            // surface a retry.
             return
         }
         let destination = "\(state.guestUserName)@\(ip)"
@@ -374,8 +413,8 @@ final class SharedCompassVM: ObservableObject {
         }
     }
 
-    /// Phase 3 post-setup hook: probes the guest's codex CLI auth state and
-    /// (if unauthenticated) copies the host's `~/.codex` directory across as a
+    /// Post-setup hook: probes the guest's codex CLI auth state and (if
+    /// unauthenticated) copies the host's `~/.codex` directory across as a
     /// best-effort fallback. Re-probes; if still not authenticated, transitions
     /// readiness to `.codexLoginPending` so the UI can prompt the user.
     ///
@@ -435,13 +474,14 @@ final class SharedCompassVM: ObservableObject {
         }
     }
 
-    /// Hook for future per-project ephemeral mounts. Today the parent
-    /// `compass-workspaces` share is permanent and host-managed subdirectories
-    /// suffice, so this is a no-op. Phase 3 callers may invoke it for symmetry.
+    /// Hook for future per-project ephemeral mounts. The parent
+    /// `compass-workspaces` share is permanent and host-managed
+    /// subdirectories suffice, so this is a no-op today. Validates the tag
+    /// up-front so callers get the same error surface they would once
+    /// real attach/detach exists.
     func attachWorkspace(at hostURL: URL, tag: String) throws {
         _ = try SharedCompassVMFileShare.ensureValidTag(tag)
         _ = hostURL
-        // Intentionally empty — see the doc-comment.
     }
 
     // MARK: - Internals
@@ -483,21 +523,25 @@ final class SharedCompassVM: ObservableObject {
 
     /// Wires a host-owned `Pipe()` to the virtio console device so the guest's
     /// first-boot script can report its IP back to Compass. We hold the pipe
-    /// in `self.consolePipe` for the entire VM lifetime; closing it mid-run
-    /// would close the read side from under the guest.
+    /// in `self.consoleOutputPipe` for the entire VM lifetime; closing it
+    /// mid-run would close the read side from under the guest.
     ///
-    /// First-boot script contract (delivered into the VirtioFS workspace as a
-    /// post-Setup-Assistant prep step — see Phase 4 TODO): the script writes
-    /// one line of the form `COMPASS_GUEST_IP=<addr>` to `/dev/cu.virtio-portN`
-    /// (`compass.guest.report`). Anything else on the port is ignored. Until
-    /// the first-boot script ships, this hook simply discards traffic; the
-    /// pipe is still useful for forward-compat readiness and lets us drop the
-    /// `port.attachment = nil` placeholder.
+    /// Per Apple's docs / sample (see `Running Linux in a Virtual Machine`):
+    /// `fileHandleForReading` is what VZ reads from (host→guest input) and
+    /// `fileHandleForWriting` is what VZ writes guest output to. To capture
+    /// guest output we pass `nullDevice` for the read side and the write end
+    /// of our pipe for the write side, then read from the matching read end.
+    ///
+    /// First-boot script contract: the script writes one line of the form
+    /// `COMPASS_GUEST_IP=<addr>` to the named virtio console port
+    /// `compass.guest.report`. Anything else on the port is ignored. The
+    /// first-boot script is delivered later; until then this hook simply
+    /// discards traffic.
     private func attachConsolePipe(to configuration: VZVirtualMachineConfiguration) {
         let pipe = Pipe()
         let attachment = VZFileHandleSerialPortAttachment(
-            fileHandleForReading: pipe.fileHandleForWriting,
-            fileHandleForWriting: pipe.fileHandleForReading
+            fileHandleForReading: FileHandle.nullDevice,
+            fileHandleForWriting: pipe.fileHandleForWriting
         )
         do {
             try SharedCompassVMConfiguration.replaceConsoleAttachment(attachment, on: configuration)
@@ -506,7 +550,7 @@ final class SharedCompassVM: ObservableObject {
             // the pipe. Nothing else relies on it being live.
             return
         }
-        self.consolePipe = pipe
+        self.consoleOutputPipe = pipe
 
         let readHandle = pipe.fileHandleForReading
         consoleReadTask = Task.detached { [weak self] in
@@ -532,11 +576,11 @@ final class SharedCompassVM: ObservableObject {
     private func tearDownConsolePipe() {
         consoleReadTask?.cancel()
         consoleReadTask = nil
-        if let pipe = consolePipe {
+        if let pipe = consoleOutputPipe {
             try? pipe.fileHandleForReading.close()
             try? pipe.fileHandleForWriting.close()
         }
-        consolePipe = nil
+        consoleOutputPipe = nil
     }
 
     @MainActor

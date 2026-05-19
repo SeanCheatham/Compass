@@ -267,22 +267,16 @@ struct CodexExecutionLaunchPlan: Equatable {
                 workingDirectory: hostWorkingDirectory
             )
         case let .sharedVM(route):
-            // Translate any host-path arguments to their guest counterparts
-            // (schema/last-message files live inside the worktree subtree
-            // because CodexExecutor.makeTemporaryDirectory places them there
-            // for sharedVM routes, so they map cleanly through VirtioFS).
-            let translatedArguments = arguments.map { argument -> String in
-                if argument.hasPrefix("/") {
-                    let url = URL(fileURLWithPath: argument)
-                    return route.guestPath(forHostURL: url) ?? argument
-                }
-                return argument
-            }
+            // `arguments` already contains guest paths for any
+            // workspace-relative files: `CodexExecutor` invokes
+            // `commandPath(forHostURL:)` upstream when building the argv,
+            // which maps host worktree URLs to their `/opt/compass/...`
+            // guest counterparts via VirtioFS.
             let remoteCommand = SharedCompassVMGuestBridge.buildRemoteCodexCommand(
                 guestWorkspacePath: route.guestWorkspacePath,
                 guestCodexPath: route.guestCodexPath,
                 environmentVariables: route.environmentVariables,
-                codexArguments: translatedArguments
+                codexArguments: arguments
             )
             let options = SharedCompassVMGuestBridge.ConnectionOptions(
                 identityFile: route.identityFile,
@@ -313,7 +307,7 @@ struct CodexExecutionLaunchPlan: Equatable {
                 workingDirectory: hostWorkingDirectory
             )
         case let .sharedVM(route):
-            let remoteCommand = "cd \(SharedCompassVMGuestBridge.posixQuote(route.guestWorkspacePath)) && sh -lc \(SharedCompassVMGuestBridge.posixQuote(command))"
+            let remoteCommand = "cd \(SharedCompassVMGuestBridge.posixQuote(route.guestWorkspacePath)) && zsh -lc \(SharedCompassVMGuestBridge.posixQuote(command))"
             let options = SharedCompassVMGuestBridge.ConnectionOptions(
                 identityFile: route.identityFile,
                 knownHostsFile: route.knownHostsFile,
@@ -369,11 +363,5 @@ struct CodexExecutionLaunchPlan: Equatable {
     private static func boundedOptionalText(_ text: String?, limit: Int) -> String? {
         let bounded = boundedText(text ?? "", limit: limit)
         return bounded.isEmpty ? nil : bounded
-    }
-
-    private static func shellQuote(_ value: String) -> String {
-        // Single-quote and escape any embedded single quotes.
-        let escaped = value.replacingOccurrences(of: "'", with: "'\\''")
-        return "'\(escaped)'"
     }
 }

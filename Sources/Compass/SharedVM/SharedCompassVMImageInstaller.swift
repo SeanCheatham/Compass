@@ -172,10 +172,10 @@ protocol IPSWDownloading {
 }
 
 struct DefaultIPSWDownloader: IPSWDownloading {
-    let session: URLSession
+    let sessionConfiguration: URLSessionConfiguration
 
-    init(session: URLSession = .shared) {
-        self.session = session
+    init(sessionConfiguration: URLSessionConfiguration = .default) {
+        self.sessionConfiguration = sessionConfiguration
     }
 
     func download(
@@ -189,11 +189,15 @@ struct DefaultIPSWDownloader: IPSWDownloading {
             withIntermediateDirectories: true
         )
 
-        // Determine total size + starting offset for resume.
+        // Probe HEAD once to see whether a cached file is already complete.
+        // We don't need a separate session for the HEAD — it's a single
+        // request and we discard the session immediately after.
+        let probeSession = URLSession(configuration: sessionConfiguration)
+        defer { probeSession.finishTasksAndInvalidate() }
         let (totalSize, existingSize) = try await Self.probeSizes(
             remoteURL: remoteURL,
             destinationURL: destinationURL,
-            session: session,
+            session: probeSession,
             fileManager: fileManager
         )
 
@@ -202,62 +206,32 @@ struct DefaultIPSWDownloader: IPSWDownloading {
             return
         }
 
-        var request = URLRequest(url: remoteURL)
-        if existingSize > 0 {
-            request.setValue("bytes=\(existingSize)-", forHTTPHeaderField: "Range")
-        }
+        // Use a delegate-driven download task: it streams bytes to a tempfile
+        // via the URL loading system (no per-byte async overhead) and emits
+        // chunked progress callbacks suitable for a 14 GB file. We move the
+        // tempfile into place on completion. Range-resume across launches
+        // is best-effort: if the partial file's size matches what the
+        // server reports as `Content-Length`, we treat it as complete; we
+        // do not yet stitch ranged bodies together, because the IPSW
+        // download is short-lived per app session.
+        let delegate = IPSWDownloadDelegate(
+            progress: progress,
+            destinationURL: destinationURL,
+            fileManager: fileManager,
+            existingSize: existingSize,
+            totalSize: totalSize
+        )
+        let session = URLSession(
+            configuration: sessionConfiguration,
+            delegate: delegate,
+            delegateQueue: nil
+        )
+        defer { session.finishTasksAndInvalidate() }
 
-        let (asyncBytes, response) = try await session.bytes(for: request)
-        let httpResponse = response as? HTTPURLResponse
-        if let httpResponse, httpResponse.statusCode >= 400 {
-            throw NSError(
-                domain: "SharedCompassVMImageInstaller",
-                code: httpResponse.statusCode,
-                userInfo: [NSLocalizedDescriptionKey: "IPSW HEAD/GET failed (\(httpResponse.statusCode))"]
-            )
-        }
-
-        // If the server didn't honour Range, restart the download from 0.
-        let serverHonouredRange = httpResponse?.statusCode == 206
-        if existingSize > 0, !serverHonouredRange {
-            try? fileManager.removeItem(at: destinationURL)
-        }
-
-        if !fileManager.fileExists(atPath: destinationURL.path) {
-            _ = fileManager.createFile(atPath: destinationURL.path, contents: nil)
-        }
-
-        let handle = try FileHandle(forWritingTo: destinationURL)
-        defer { try? handle.close() }
-        if serverHonouredRange {
-            try handle.seekToEnd()
-        } else {
-            try handle.truncate(atOffset: 0)
-        }
-
-        let advertisedRemaining = max(httpResponse?.expectedContentLength ?? 0, 0)
-        let total = totalSize > 0 ? totalSize : (existingSize + UInt64(advertisedRemaining))
-        var written: Int64 = serverHonouredRange ? Int64(existingSize) : 0
-        let chunkSize = 1 * 1024 * 1024
-        var buffer = Data(capacity: chunkSize)
-
-        for try await byte in asyncBytes {
-            buffer.append(byte)
-            if buffer.count >= chunkSize {
-                try handle.write(contentsOf: buffer)
-                written += Int64(buffer.count)
-                buffer.removeAll(keepingCapacity: true)
-                if total > 0 {
-                    progress?.send(min(1.0, Double(written) / Double(total)))
-                }
-            }
-        }
-        if !buffer.isEmpty {
-            try handle.write(contentsOf: buffer)
-            written += Int64(buffer.count)
-        }
-        if total > 0 {
-            progress?.send(1.0)
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            delegate.continuation = continuation
+            let task = session.downloadTask(with: remoteURL)
+            task.resume()
         }
     }
 
@@ -285,6 +259,88 @@ struct DefaultIPSWDownloader: IPSWDownloading {
             total = 0
         }
         return (total, existing)
+    }
+}
+
+/// `URLSessionDownloadDelegate` adapter that bridges chunked download
+/// progress to a `SharedCompassVMImageInstaller.ProgressSink` and resumes
+/// a checked continuation on completion or failure.
+///
+/// Marked `@unchecked Sendable` because the delegate is exclusively driven
+/// from URLSession's internal serial queue and `FileManager`'s methods we
+/// call (`fileExists`, `moveItem`, `removeItem`) are thread-safe on the
+/// shared default instance.
+private final class IPSWDownloadDelegate: NSObject, URLSessionDownloadDelegate, @unchecked Sendable {
+    let progress: SharedCompassVMImageInstaller.ProgressSink?
+    let destinationURL: URL
+    let fileManager: FileManager
+    let existingSize: UInt64
+    let totalSize: UInt64
+    var continuation: CheckedContinuation<Void, Error>?
+
+    init(
+        progress: SharedCompassVMImageInstaller.ProgressSink?,
+        destinationURL: URL,
+        fileManager: FileManager,
+        existingSize: UInt64,
+        totalSize: UInt64
+    ) {
+        self.progress = progress
+        self.destinationURL = destinationURL
+        self.fileManager = fileManager
+        self.existingSize = existingSize
+        self.totalSize = totalSize
+    }
+
+    func urlSession(
+        _ session: URLSession,
+        downloadTask: URLSessionDownloadTask,
+        didWriteData bytesWritten: Int64,
+        totalBytesWritten: Int64,
+        totalBytesExpectedToWrite: Int64
+    ) {
+        // Prefer the task's expected length, fall back to the HEAD-derived
+        // total. A negative expected length means "unknown" — emit nothing
+        // rather than divide-by-zero.
+        let expected: Int64
+        if totalBytesExpectedToWrite > 0 {
+            expected = totalBytesExpectedToWrite
+        } else if totalSize > 0 {
+            expected = Int64(totalSize)
+        } else {
+            return
+        }
+        let fraction = max(0.0, min(1.0, Double(totalBytesWritten) / Double(expected)))
+        progress?.send(fraction)
+    }
+
+    func urlSession(
+        _ session: URLSession,
+        downloadTask: URLSessionDownloadTask,
+        didFinishDownloadingTo location: URL
+    ) {
+        do {
+            if fileManager.fileExists(atPath: destinationURL.path) {
+                try fileManager.removeItem(at: destinationURL)
+            }
+            try fileManager.moveItem(at: location, to: destinationURL)
+            progress?.send(1.0)
+            continuation?.resume(returning: ())
+            continuation = nil
+        } catch {
+            continuation?.resume(throwing: error)
+            continuation = nil
+        }
+    }
+
+    func urlSession(
+        _ session: URLSession,
+        task: URLSessionTask,
+        didCompleteWithError error: Error?
+    ) {
+        guard let error else { return }
+        continuation?.resume(throwing: error)
+        continuation = nil
     }
 }
 

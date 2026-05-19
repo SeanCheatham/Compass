@@ -209,11 +209,9 @@ private struct SandboxProgressSection: View {
                 }
             }
 
-            // TODO(Phase 4 cancel hook): SharedCompassVM does not currently
-            // expose a cancellable handle for the IPSW download / VZ installer.
-            // When such an API ships, render a "Cancel" button here that calls
-            // it and returns the bundle to `.notProvisioned`. Until then, the
-            // button is intentionally hidden per the Phase 4 brief.
+            // No cancel button while SharedCompassVM lacks a cancellation handle
+            // for the IPSW download / VZ installer. Surface one here when the
+            // host exposes it.
         }
         .padding(12)
         .background(.quaternary.opacity(0.45), in: RoundedRectangle(cornerRadius: 10))

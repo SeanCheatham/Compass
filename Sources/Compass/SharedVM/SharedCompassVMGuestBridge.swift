@@ -8,9 +8,8 @@ import Foundation
 /// `Process` wrapper internally for the readiness gate; that is the only
 /// `Process` use in this file.
 ///
-/// The whole point of building argv at this layer is so that Phase 3's
-/// `codexInvocation(...)` for `.sharedVM` doesn't need to know any
-/// SSH-specific options.
+/// Building argv at this layer keeps `codexInvocation(...)` for `.sharedVM`
+/// out of the SSH-options business.
 struct SharedCompassVMGuestBridge {
     /// Where Compass-managed `ssh` binaries / config live by default.
     static let defaultSSHExecutablePath = "/usr/bin/ssh"

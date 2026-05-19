@@ -32,9 +32,9 @@ enum SharedCompassVMFramebufferSampler {
         return renderLayer(layer, fallbackSize: view.bounds.size)
     }
 
-    /// Renders an arbitrary CALayer into an NSImage. Exposed for unit-tests
-    /// (Phase 6) so callers can build a deterministic CALayer offscreen and
-    /// assert the rendered output has the expected dimensions.
+    /// Renders an arbitrary CALayer into an NSImage. Exposed so unit tests
+    /// can build a deterministic CALayer offscreen and assert the rendered
+    /// output has the expected dimensions.
     @MainActor
     static func renderLayer(_ layer: CALayer, fallbackSize: CGSize) -> NSImage? {
         var size = layer.bounds.size
