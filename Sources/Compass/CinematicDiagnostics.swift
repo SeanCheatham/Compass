@@ -5233,6 +5233,11 @@ struct CinematicDiagnosticsSummary: Equatable {
                 report: report,
                 rowsByID: rowsByID
             )
+        let runRecapShareArtifactTourMutationTestingTarget =
+            runRecapShareArtifactTourMutationTestingAttentionTarget(
+                report: report,
+                rowsByID: rowsByID
+            )
         let warningCheckTargets = visualSmoke.checks.compactMap { check in
             warningCheckAttentionTarget(
                 check: check,
@@ -5272,7 +5277,8 @@ struct CinematicDiagnosticsSummary: Equatable {
         let targets = ([
             activitySourceTarget,
             runRecapShareArtifactSourceReconciliationTarget,
-            runRecapShareArtifactTourRuntimeRouteTarget
+            runRecapShareArtifactTourRuntimeRouteTarget,
+            runRecapShareArtifactTourMutationTestingTarget
         ].compactMap { $0 }
             + warningCheckTargets
             + groupTargets)
@@ -5624,6 +5630,236 @@ struct CinematicDiagnosticsSummary: Equatable {
             lines.joined(separator: "\n"),
             limit: attentionTargetCopyMaxCharacters
         )
+    }
+
+    private static func runRecapShareArtifactTourMutationTestingAttentionTarget(
+        report: CinematicDiagnosticsReport,
+        rowsByID: [String: Row]
+    ) -> AttentionTarget? {
+        let snapshot = report.runRecapShareArtifactTour
+        let warningIdentifiers = runRecapShareArtifactTourMutationTestingWarningIdentifiers(snapshot)
+        guard !warningIdentifiers.isEmpty else {
+            return nil
+        }
+
+        let visibleWarningIdentifiers = Array(
+            warningIdentifiers.prefix(attentionSummaryMaxVisibleWarnings)
+        )
+        let targetGroupID = "repository-context"
+        let targetAnchorID = "diagnostics-row-run-recap-share-artifact-tour"
+        let label = runRecapShareArtifactTourMutationTestingAttentionLabel(snapshot)
+        let detail = runRecapShareArtifactTourMutationTestingAttentionDetail(snapshot)
+        let relatedRow = rowsByID["run-recap-share-artifact-tour"]
+
+        return AttentionTarget(
+            id: runRecapShareArtifactTourMutationTestingAttentionTargetID(snapshot),
+            targetGroupID: targetGroupID,
+            targetAnchorID: targetAnchorID,
+            relatedGroupID: targetGroupID,
+            relatedRowID: "run-recap-share-artifact-tour",
+            label: bounded(label, limit: labelMaxCharacters),
+            detail: bounded(detail, limit: attentionSummaryDetailMaxCharacters),
+            warningCount: warningIdentifiers.count,
+            visibleWarningIdentifiers: visibleWarningIdentifiers,
+            copyText: runRecapShareArtifactTourMutationTestingAttentionCopyText(
+                label: label,
+                targetGroupID: targetGroupID,
+                targetAnchorID: targetAnchorID,
+                visibleWarningIdentifiers: visibleWarningIdentifiers,
+                detail: detail,
+                snapshot: snapshot,
+                relatedRow: relatedRow
+            )
+        )
+    }
+
+    private static func runRecapShareArtifactTourMutationTestingWarningIdentifiers(
+        _ snapshot: CinematicDiagnosticsReport.RunRecapShareArtifactTourSnapshot
+    ) -> [String] {
+        guard snapshot.isAvailable,
+              snapshot.mutationTestingCueAvailabilityIdentifier == "available" else {
+            return []
+        }
+
+        let stateIdentifier = snapshot.mutationTestingTreatmentStateIdentifier
+        guard stateIdentifier == "failed" || stateIdentifier == "runtime-route-diverged" else {
+            return []
+        }
+
+        let selectedFingerprint = mutationTestingAttentionFingerprint(
+            snapshot.selectedEntryIdentifier ?? "none"
+        )
+        let correlationFingerprint = mutationTestingAttentionFingerprint(
+            snapshot.mutationTestingCueRuntimeRouteCorrelationIdentifier
+        )
+        let cueFingerprint = mutationTestingAttentionFingerprint(
+            snapshot.mutationTestingCueIdentifier ?? "missing-cue"
+        )
+        let treatmentFingerprint = mutationTestingAttentionFingerprint(
+            snapshot.mutationTestingTreatmentIdentifier
+        )
+        let identifiers = [
+            "run-recap-share-artifact-tour-mutation-testing.\(stateIdentifier)",
+            "run-recap-share-artifact-tour-mutation-testing.selected-\(selectedFingerprint)",
+            "run-recap-share-artifact-tour-mutation-testing.corr-\(correlationFingerprint)",
+            "run-recap-share-artifact-tour-mutation-testing.cue-\(cueFingerprint)",
+            "run-recap-share-artifact-tour-mutation-testing.treat-\(treatmentFingerprint)",
+            "run-recap-share-artifact-tour-mutation-testing.status-\(snapshot.mutationTestingCueStatusIdentifier)"
+        ]
+
+        return boundedWarningIdentifiers(identifiers)
+    }
+
+    private static func runRecapShareArtifactTourMutationTestingAttentionTargetID(
+        _ snapshot: CinematicDiagnosticsReport.RunRecapShareArtifactTourSnapshot
+    ) -> String {
+        let correlation = mutationTestingAttentionFingerprint(
+            [
+                snapshot.mutationTestingCueIdentifier ?? "missing-cue",
+                snapshot.mutationTestingTreatmentIdentifier,
+                snapshot.selectedEntryIdentifier ?? "none",
+                snapshot.mutationTestingCueRuntimeRouteCorrelationIdentifier
+            ].joined(separator: "|")
+        )
+        return bounded(
+            [
+                "run-recap-share-artifact-tour-mutation",
+                snapshot.mutationTestingTreatmentStateIdentifier,
+                correlation
+            ].joined(separator: "-"),
+            limit: CinematicVisualSmokeReport.warningIdentifierMaxCharacters
+        )
+    }
+
+    private static func runRecapShareArtifactTourMutationTestingAttentionLabel(
+        _ snapshot: CinematicDiagnosticsReport.RunRecapShareArtifactTourSnapshot
+    ) -> String {
+        switch snapshot.mutationTestingTreatmentStateIdentifier {
+        case "failed":
+            return "Tour mutation failed"
+        case "runtime-route-diverged":
+            return "Tour mutation route diverged"
+        default:
+            return "Tour mutation warning"
+        }
+    }
+
+    private static func runRecapShareArtifactTourMutationTestingAttentionDetail(
+        _ snapshot: CinematicDiagnosticsReport.RunRecapShareArtifactTourSnapshot
+    ) -> String {
+        let selectedFingerprint = mutationTestingAttentionFingerprint(
+            snapshot.selectedEntryIdentifier ?? "none"
+        )
+        return [
+            "mutation \(snapshot.mutationTestingTreatmentStateIdentifier)",
+            "status \(snapshot.mutationTestingCueStatusIdentifier)",
+            "correlation \(mutationTestingAttentionRouteCorrelation(snapshot))",
+            "runtime route \(snapshot.runtimeRouteCueStateIdentifier)",
+            "selection \(snapshot.selectionSourceIdentifier)",
+            "hold \(snapshot.savedTourHoldStateIdentifier)",
+            "selected fingerprint \(selectedFingerprint)"
+        ].joined(separator: " | ")
+    }
+
+    private static func runRecapShareArtifactTourMutationTestingAttentionCopyText(
+        label: String,
+        targetGroupID: String,
+        targetAnchorID: String,
+        visibleWarningIdentifiers: [String],
+        detail: String,
+        snapshot: CinematicDiagnosticsReport.RunRecapShareArtifactTourSnapshot,
+        relatedRow: Row?
+    ) -> String {
+        let warnings = visibleWarningIdentifiers.isEmpty
+            ? "none"
+            : visibleWarningIdentifiers.joined(separator: ", ")
+        let selectedFingerprint = mutationTestingAttentionFingerprint(
+            snapshot.selectedEntryIdentifier ?? "none"
+        )
+        let routeCorrelation = mutationTestingAttentionRouteCorrelation(snapshot)
+        var lines = [
+            "Cinematic diagnostics warning target",
+            "Label: \(bounded(label, limit: labelMaxCharacters))",
+            "Target anchor: \(bounded(targetAnchorID, limit: CinematicVisualSmokeReport.warningIdentifierMaxCharacters))",
+            "Target group: \(bounded(targetGroupID, limit: CinematicVisualSmokeReport.warningIdentifierMaxCharacters))",
+            "Warnings: \(bounded(warnings, limit: detailMaxCharacters))",
+            "Detail: \(bounded(detail, limit: attentionSummaryDetailMaxCharacters))",
+            "Mutation treatment state: \(snapshot.mutationTestingTreatmentStateIdentifier)",
+            "Mutation cue status: \(snapshot.mutationTestingCueStatusIdentifier)",
+            "Route correlation: \(routeCorrelation)",
+            "Route correlation fingerprint: \(mutationTestingAttentionFingerprint(snapshot.mutationTestingCueRuntimeRouteCorrelationIdentifier))",
+            "Selected artifact fingerprint: \(selectedFingerprint)",
+            "Runtime route state: \(snapshot.runtimeRouteCueStateIdentifier)",
+            "Tour state: \(snapshot.stateIdentifier)",
+            "Selection source: \(snapshot.selectionSourceIdentifier)",
+            "Hold state: \(snapshot.savedTourHoldStateIdentifier)"
+        ]
+
+        if let relatedRow {
+            lines.append(
+                [
+                    "Related row:",
+                    bounded(relatedRow.id, limit: CinematicVisualSmokeReport.warningIdentifierMaxCharacters),
+                    "(\(bounded(relatedRow.label, limit: labelMaxCharacters)))"
+                ].joined(separator: " ")
+            )
+        }
+
+        lines.append(
+            "Read-only: mutation cue snapshot only; no mutation rerun, runtime discovery, preferences, provisioning, sessions, artifacts, pins, holds, search, or storage mutation."
+        )
+        lines.append(contentsOf: [
+            "Mutation cue availability: \(snapshot.mutationTestingCueAvailabilityIdentifier)",
+            "Mutation compact: \(mutationTestingAttentionCopy(snapshot.mutationTestingCueCompactCopy, fallback: snapshot.mutationTestingTreatmentCompactCopy, limit: CinematicRunRecapShareArtifactMutationTestingCue.copyMaxCharacters))",
+            "Mutation treatment: \(snapshot.mutationTestingTreatmentAccentIdentifier)/\(snapshot.mutationTestingTreatmentRailIdentifier)/\(snapshot.mutationTestingTreatmentSealIdentifier)/\(snapshot.mutationTestingTreatmentTextIdentifier)",
+            "Mutation cue fingerprint: \(mutationTestingAttentionFingerprint(snapshot.mutationTestingCueIdentifier ?? "missing-cue"))",
+            "Mutation treatment fingerprint: \(mutationTestingAttentionFingerprint(snapshot.mutationTestingTreatmentIdentifier))",
+            "Runtime route treatment: \(snapshot.runtimeRouteTreatmentAccentIdentifier)/\(snapshot.runtimeRouteTreatmentRailIdentifier)/\(snapshot.runtimeRouteTreatmentOrbIdentifier)",
+            "Mutation detail: \(mutationTestingAttentionCopy(snapshot.mutationTestingCueDetailCopy, fallback: snapshot.mutationTestingTreatmentCompactCopy, limit: 140))",
+            "Mutation help: \(mutationTestingAttentionCopy(snapshot.mutationTestingCueHelpCopy, fallback: snapshot.mutationTestingTreatmentHelpCopy, limit: 120))"
+        ])
+
+        return boundedMultiline(
+            lines.joined(separator: "\n"),
+            limit: attentionTargetCopyMaxCharacters
+        )
+    }
+
+    private static func mutationTestingAttentionRouteCorrelation(
+        _ snapshot: CinematicDiagnosticsReport.RunRecapShareArtifactTourSnapshot
+    ) -> String {
+        mutationTestingAttentionCopy(
+            snapshot.mutationTestingCueRuntimeRouteCorrelationIdentifier,
+            fallback: "missing-cue",
+            limit: 120
+        )
+    }
+
+    private static func mutationTestingAttentionCopy(
+        _ text: String?,
+        fallback: String,
+        limit: Int
+    ) -> String {
+        MutationTestingPresentationSanitizer.field(
+            text ?? fallback,
+            limit: limit,
+            fallback: fallback
+        )
+    }
+
+    private static func mutationTestingAttentionFingerprint(_ value: String) -> String {
+        MutationTestingPresentationSanitizer.fingerprint(value)
+    }
+
+    private static func boundedWarningIdentifiers(_ identifiers: [String]) -> [String] {
+        var seen = Set<String>()
+        return identifiers.compactMap { identifier in
+            let boundedIdentifier = bounded(
+                identifier,
+                limit: CinematicVisualSmokeReport.warningIdentifierMaxCharacters
+            )
+            return seen.insert(boundedIdentifier).inserted ? boundedIdentifier : nil
+        }
     }
 
     private static func sourceReconciliationSessionLabel(_ sessionNumber: Int?) -> String {

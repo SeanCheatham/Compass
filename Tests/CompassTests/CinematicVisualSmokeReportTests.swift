@@ -257,6 +257,13 @@ final class CinematicVisualSmokeReportTests: XCTestCase {
                     && $0.runRecapShareArtifactTour.runtimeRouteCueStateIdentifier == "missing-cue"
             }
         )
+        let mutationWarning = try XCTUnwrap(
+            reports.first {
+                $0.runRecapShareArtifactTour.isAvailable
+                    && $0.runRecapShareArtifactTour.runtimeRouteCueStateIdentifier == "missing-cue"
+                    && $0.runRecapShareArtifactTour.mutationTestingTreatmentStateIdentifier == "runtime-route-diverged"
+            }
+        )
         let appleContainer = try XCTUnwrap(
             reports.first {
                 $0.runRecapShareArtifactTour.runtimeRouteCueStateIdentifier == "apple-container"
@@ -315,11 +322,39 @@ final class CinematicVisualSmokeReportTests: XCTestCase {
         )
         XCTAssertTrue(missingCueTarget.copyText.contains("Route compact: Missing cue"))
 
+        let mutationWarningSummary = CinematicDiagnosticsSummary(
+            report: mutationWarning,
+            visualSmoke: smoke
+        )
+        let sharedRowTargets = mutationWarningSummary.attentionSummary.targets.filter {
+            $0.targetAnchorID == "diagnostics-row-run-recap-share-artifact-tour"
+        }
+        XCTAssertEqual(
+            sharedRowTargets.map(\.label),
+            ["Tour route cue missing", "Tour mutation route diverged"]
+        )
+        XCTAssertEqual(
+            sharedRowTargets.map(\.relatedRowID),
+            ["run-recap-share-artifact-tour", "run-recap-share-artifact-tour"]
+        )
+        XCTAssertTrue(
+            mutationWarningSummary.exportText.contains(
+                "Tour mutation route diverged -> run-recap-share-artifact-tour-mutation-runtime-route-diverged"
+            )
+        )
+        XCTAssertTrue(
+            mutationWarningSummary.exportText.contains(
+                "run-recap-share-artifact-tour-mutation-testing.runtime-route-diverged"
+            )
+        )
+
         for quietReport in [appleContainer, native] {
             let summary = CinematicDiagnosticsSummary(report: quietReport, visualSmoke: smoke)
             XCTAssertFalse(
                 summary.attentionSummary.targets.contains {
-                    $0.targetAnchorID == "diagnostics-row-run-recap-share-artifact-tour"
+                    $0.visibleWarningIdentifiers.contains {
+                        $0.hasPrefix("run-recap-share-artifact-tour-runtime-route.")
+                    }
                 },
                 quietReport.runRecapShareArtifactTour.runtimeRouteCueStateIdentifier
             )

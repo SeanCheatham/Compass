@@ -904,10 +904,23 @@ final class CinematicDiagnosticsTests: XCTestCase {
         )
         let summary = CinematicDiagnosticsSummary(report: report)
         let row = try XCTUnwrap(summary.rows.first { $0.id == "run-recap-share-artifact-tour" })
+        let target = try XCTUnwrap(
+            summary.attentionSummary.targets.first {
+                $0.id.hasPrefix("run-recap-share-artifact-tour-mutation-runtime-route-diverged")
+            }
+        )
+        let selectedFingerprint = MutationTestingPresentationSanitizer.fingerprint(selected.identifier)
+        let correlationFingerprint = MutationTestingPresentationSanitizer.fingerprint(
+            report.runRecapShareArtifactTour.mutationTestingCueRuntimeRouteCorrelationIdentifier
+        )
         let exposedText = [
             report.identifier,
             row.detail,
             summary.exportText,
+            target.id,
+            target.detail,
+            target.copyText,
+            target.visibleWarningIdentifiers.joined(separator: "\n"),
             report.runRecapShareArtifactTour.mutationTestingCueIdentifier ?? "",
             report.runRecapShareArtifactTour.mutationTestingCueDetailCopy ?? "",
             report.runRecapShareArtifactTour.mutationTestingTreatmentIdentifier,
@@ -920,9 +933,68 @@ final class CinematicDiagnosticsTests: XCTestCase {
         XCTAssertEqual(report.runRecapShareArtifactTour.mutationTestingTreatmentAccentIdentifier, "mutation-amber")
         XCTAssertTrue(row.detail.contains("mutation runtime-route-diverged"))
         XCTAssertTrue(summary.exportText.contains("mutation runtime-route-diverged"))
+        XCTAssertEqual(target.relatedGroupID, "repository-context")
+        XCTAssertEqual(target.relatedRowID, "run-recap-share-artifact-tour")
+        XCTAssertEqual(target.targetAnchorID, "diagnostics-row-run-recap-share-artifact-tour")
+        XCTAssertEqual(target.label, "Tour mutation route diverged")
+        XCTAssertEqual(
+            target.visibleWarningIdentifiers.first,
+            "run-recap-share-artifact-tour-mutation-testing.runtime-route-diverged"
+        )
+        XCTAssertTrue(
+            target.visibleWarningIdentifiers.contains(
+                "run-recap-share-artifact-tour-mutation-testing.selected-\(selectedFingerprint)"
+            )
+        )
+        XCTAssertTrue(
+            target.visibleWarningIdentifiers.contains(
+                "run-recap-share-artifact-tour-mutation-testing.corr-\(correlationFingerprint)"
+            )
+        )
+        XCTAssertTrue(target.detail.contains("mutation runtime-route-diverged"))
+        XCTAssertTrue(target.detail.contains("status failed"))
+        XCTAssertTrue(target.detail.contains("selected fingerprint \(selectedFingerprint)"))
+        XCTAssertTrue(target.copyText.contains("Mutation cue status: failed"))
+        XCTAssertTrue(target.copyText.contains("Mutation treatment state: runtime-route-diverged"))
+        XCTAssertTrue(target.copyText.contains("Route correlation: route-diverged"))
+        XCTAssertTrue(target.copyText.contains("Selected artifact fingerprint: \(selectedFingerprint)"))
+        XCTAssertTrue(target.copyText.contains("Related row: run-recap-share-artifact-tour"))
+        XCTAssertTrue(target.copyText.contains("Read-only: mutation cue snapshot only"))
+        XCTAssertTrue(summary.exportText.contains("Tour mutation route diverged -> \(target.id)"))
+        XCTAssertTrue(summary.exportText.contains("anchor diagnostics-row-run-recap-share-artifact-tour"))
+        XCTAssertTrue(summary.exportText.contains("related run-recap-share-artifact-tour"))
+        XCTAssertTrue(
+            summary.exportText.contains(
+                "run-recap-share-artifact-tour-mutation-testing.runtime-route-diverged"
+            )
+        )
         XCTAssertLessThanOrEqual(
             row.detail.count,
             CinematicDiagnosticsSummary.detailMaxCharacters
+        )
+        XCTAssertLessThanOrEqual(
+            target.detail.count,
+            CinematicDiagnosticsSummary.attentionSummaryDetailMaxCharacters
+        )
+        XCTAssertLessThanOrEqual(
+            target.copyText.count,
+            CinematicDiagnosticsSummary.attentionTargetCopyMaxCharacters
+        )
+
+        var warningHistory = CinematicDiagnosticsWarningBundleHistory()
+        warningHistory.record(summary.attentionSummary)
+        let entry = try XCTUnwrap(warningHistory.entries.first)
+        XCTAssertTrue(entry.targetAnchors.contains("diagnostics-row-run-recap-share-artifact-tour"))
+        XCTAssertTrue(entry.relatedRowAnchors.contains("diagnostics-row-run-recap-share-artifact-tour"))
+        XCTAssertTrue(
+            entry.warningIdentifiers.contains(
+                "run-recap-share-artifact-tour-mutation-testing.runtime-route-diverged"
+            )
+        )
+        XCTAssertTrue(
+            warningHistory.rollup.copyText.contains(
+                "run-recap-share-artifact-tour-mutation-testing.runtime-route-diverged"
+            )
         )
         for leaked in [
             secret,
@@ -935,6 +1007,93 @@ final class CinematicDiagnosticsTests: XCTestCase {
             "raw failure"
         ] {
             XCTAssertFalse(exposedText.contains(leaked), "Leaked mutation diagnostics text: \(leaked)")
+            XCTAssertFalse(warningHistory.copyText.contains(leaked), "Leaked warning history text: \(leaked)")
+            XCTAssertFalse(warningHistory.rollup.copyText.contains(leaked), "Leaked warning rollup text: \(leaked)")
+        }
+    }
+
+    func testRunRecapSavedArtifactTourMutationTestingAttentionIgnoresQuietStates() throws {
+        let cases: [(seed: String, mutationSection: String?, expectedState: String, entries: [CinematicRunRecapShareArtifactHistoryPlan.Entry]?)] = [
+            (
+                "succeeded",
+                """
+                ## Mutation Tests
+
+                - Mutation audit: quiet-succeeded
+                - Status: succeeded (Succeeded)
+                - Route: apple-container-route (Apple container)
+                - Language: swift (Swift)
+                - Seed command: swift test
+                - Exit code: exit 0
+                - Duration: 1.1 s
+                - Runtime route audit: quiet-runtime
+                - Runtime route correlation: route-aligned|fallback-not-required|mutation:apple-container-route|runtime:apple-container
+                - Output tail: mutation ok
+                """,
+                "succeeded",
+                nil
+            ),
+            (
+                "unknown",
+                """
+                ## Mutation Tests
+
+                - Mutation audit: quiet-unknown
+                - Status: cancelled (Cancelled)
+                - Route: unknown (Unknown)
+                - Language: swift (Swift)
+                - Seed command: swift test
+                - Exit code: exit unknown
+                - Duration: unknown
+                - Runtime route audit: quiet-runtime
+                - Runtime route correlation: route-aligned|fallback-not-required|mutation:unknown|runtime:native-macos
+                - Output tail: mutation inconclusive
+                """,
+                "unknown",
+                nil
+            ),
+            ("missing", nil, "missing", nil),
+            ("unavailable", nil, "missing", [])
+        ]
+
+        for testCase in cases {
+            let history = diagnosticsRuntimeRouteHistory(
+                seed: testCase.seed,
+                mutationTestingSection: testCase.mutationSection,
+                entries: testCase.entries
+            )
+            let report = makeReport(
+                CinematicDiagnosticsInput(
+                    repoName: "Compass",
+                    phase: "Developing",
+                    immediateTitle: "Ignore quiet tour mutation state",
+                    completedCount: 1,
+                    latestEvent: nil,
+                    languageProfile: languageProfile(primaryLanguage: .swift),
+                    activityProfile: activityProfile(recentCommitCount: 1),
+                    influenceSettings: CinematicInfluenceSettings(),
+                    runRecapShareArtifactHistoryPlan: history,
+                    runRecapShareArtifactSavedTourHoldEntryIdentifier: history.entries.first?.identifier
+                )
+            )
+            let summary = CinematicDiagnosticsSummary(report: report)
+
+            XCTAssertEqual(
+                report.runRecapShareArtifactTour.mutationTestingTreatmentStateIdentifier,
+                testCase.expectedState,
+                testCase.seed
+            )
+            XCTAssertTrue(summary.exportText.contains("mutation \(testCase.expectedState)"), testCase.seed)
+            XCTAssertFalse(
+                summary.attentionSummary.targets.contains {
+                    $0.id.hasPrefix("run-recap-share-artifact-tour-mutation")
+                },
+                testCase.seed
+            )
+            XCTAssertFalse(
+                summary.exportText.contains("run-recap-share-artifact-tour-mutation-testing.\(testCase.expectedState)"),
+                testCase.seed
+            )
         }
     }
 
