@@ -137,8 +137,8 @@ final class ProcessRunnerExecutionRouteTests: XCTestCase {
         XCTAssertFalse(launchPlan.preflightSummary(phase: "Verify").contains(repoURL.standardizedFileURL.path))
     }
 
-    func testBuildDevcontainerPlanKeepsVerifyShellOnNativeRoute() async throws {
-        let repoURL = try makeTemporaryDirectory(prefix: "ProcessRunnerBuildFallback")
+    func testBuildDevcontainerShellRouteBuildsThenRunsLocalImage() async throws {
+        let repoURL = try makeTemporaryDirectory(prefix: "ProcessRunnerBuildRoute")
         try write(
             #"{"build":{"dockerfile":"Dockerfile","context":"..","target":"verify"}}"#,
             to: devcontainerURL(in: repoURL)
@@ -148,25 +148,70 @@ final class ProcessRunnerExecutionRouteTests: XCTestCase {
             preference: .devcontainerPreferred,
             containerToolResolver: { _ in "/usr/local/bin/container" }
         )
-        var capturedInvocation: CodexExecutionInvocation?
+        let buildConfiguration = try XCTUnwrap(launchPlan.devcontainerSupportReport?.buildConfiguration)
+        var capturedInvocations: [CodexExecutionInvocation] = []
 
         _ = try await ProcessRunner.runShell(
             "swift test",
             workingDirectory: repoURL,
             launchPlan: launchPlan,
             runner: { invocation, _, _, _, _ in
-                capturedInvocation = invocation
+                capturedInvocations.append(invocation)
                 return ProcessResult(exitCode: 0, stdout: "", stderr: "")
             }
         )
 
-        let invocation = try XCTUnwrap(capturedInvocation)
-        XCTAssertNotNil(launchPlan.devcontainerSupportReport?.buildConfiguration)
-        XCTAssertFalse(launchPlan.isContainerRoute)
+        XCTAssertEqual(capturedInvocations.count, 2)
+        let buildInvocation = capturedInvocations[0]
+        let shellInvocation = capturedInvocations[1]
+        XCTAssertTrue(launchPlan.isContainerRoute)
         XCTAssertEqual(launchPlan.devcontainerSupportReport?.classification, .buildBased)
-        XCTAssertEqual(invocation.executable, "/bin/zsh")
-        XCTAssertEqual(invocation.arguments, ["-lc", "swift test"])
-        XCTAssertFalse(invocation.arguments.contains("container"))
+        XCTAssertEqual(buildInvocation.executable, "/usr/local/bin/container")
+        XCTAssertEqual(buildInvocation.arguments, buildConfiguration.buildArguments)
+        XCTAssertEqual(shellInvocation.executable, "/usr/local/bin/container")
+        XCTAssertEqual(shellInvocation.arguments, [
+            "run",
+            "--rm",
+            "--volume", "\(repoURL.standardizedFileURL.path):/workspace",
+            "--workdir", "/workspace",
+            buildConfiguration.localImageTag,
+            "sh",
+            "-lc",
+            "swift test"
+        ])
+    }
+
+    func testBuildDevcontainerShellRouteFallsBackToNativeWhenBuildFails() async throws {
+        let repoURL = try makeTemporaryDirectory(prefix: "ProcessRunnerBuildFailure")
+        try write(
+            #"{"build":{"dockerfile":"Dockerfile","context":"..","target":"verify"}}"#,
+            to: devcontainerURL(in: repoURL)
+        )
+        let launchPlan = CodexExecutionLaunchPlan.plan(
+            repoURL: repoURL,
+            preference: .devcontainerPreferred,
+            containerToolResolver: { _ in "/usr/local/bin/container" }
+        )
+        var capturedInvocations: [CodexExecutionInvocation] = []
+
+        let result = try await ProcessRunner.runShell(
+            "swift test",
+            workingDirectory: repoURL,
+            launchPlan: launchPlan,
+            runner: { invocation, _, _, _, _ in
+                capturedInvocations.append(invocation)
+                if capturedInvocations.count == 1 {
+                    return ProcessResult(exitCode: 77, stdout: "ignored", stderr: "private failure")
+                }
+                return ProcessResult(exitCode: 0, stdout: "native-ok", stderr: "")
+            }
+        )
+
+        XCTAssertEqual(result.stdout, "native-ok")
+        XCTAssertEqual(capturedInvocations.count, 2)
+        XCTAssertEqual(capturedInvocations[0].executable, "/usr/local/bin/container")
+        XCTAssertEqual(capturedInvocations[1].executable, "/bin/zsh")
+        XCTAssertEqual(capturedInvocations[1].arguments, ["-lc", "swift test"])
     }
 
     private func makeTemporaryDirectory(prefix: String) throws -> URL {

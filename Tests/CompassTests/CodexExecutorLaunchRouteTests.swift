@@ -187,8 +187,8 @@ final class CodexExecutorLaunchRouteTests: XCTestCase {
         XCTAssertFalse(context.invocation.arguments.contains("container"))
     }
 
-    func testBuildDevcontainerConfigurationKeepsCodexInvocationNativeForNow() async throws {
-        let repoURL = try makeTemporaryDirectory(prefix: "CodexExecutorBuildFallback")
+    func testBuildDevcontainerConfigurationBuildsThenUsesContainerCodex() async throws {
+        let repoURL = try makeTemporaryDirectory(prefix: "CodexExecutorBuildRoute")
         try write(
             #"{"build":{"dockerfile":"Dockerfile","context":"..","target":"develop"}}"#,
             to: devcontainerURL(in: repoURL)
@@ -198,12 +198,23 @@ final class CodexExecutorLaunchRouteTests: XCTestCase {
             preference: .devcontainerPreferred,
             containerToolResolver: { _ in "/usr/local/bin/container" }
         )
+        let buildConfiguration = try XCTUnwrap(launchPlan.devcontainerSupportReport?.buildConfiguration)
         var capturedContext: CodexExecutorLaunchContext?
-        let executor = CodexExecutor { context, _ in
-            capturedContext = context
-            try #"{"ok":true}"#.write(to: context.outputFile, atomically: true, encoding: .utf8)
-            return ProcessResult(exitCode: 0, stdout: "", stderr: "")
-        }
+        var processOrder: [String] = []
+        let executor = CodexExecutor(
+            launchRunner: { context, _ in
+                processOrder.append("codex")
+                capturedContext = context
+                try #"{"ok":true}"#.write(to: context.outputFile, atomically: true, encoding: .utf8)
+                return ProcessResult(exitCode: 0, stdout: "", stderr: "")
+            },
+            invocationRunner: { invocation, _, _, _, _ in
+                processOrder.append("build")
+                XCTAssertEqual(invocation.executable, "/usr/local/bin/container")
+                XCTAssertEqual(invocation.arguments, buildConfiguration.buildArguments)
+                return ProcessResult(exitCode: 0, stdout: "", stderr: "")
+            }
+        )
 
         _ = try await executor.run(
             CodexRunConfiguration(
@@ -220,11 +231,67 @@ final class CodexExecutorLaunchRouteTests: XCTestCase {
         )
 
         let context = try XCTUnwrap(capturedContext)
-        XCTAssertNotNil(launchPlan.devcontainerSupportReport?.buildConfiguration)
+        XCTAssertEqual(processOrder, ["build", "codex"])
+        XCTAssertTrue(launchPlan.isContainerRoute)
         XCTAssertEqual(launchPlan.devcontainerSupportReport?.classification, .buildBased)
+        XCTAssertEqual(context.invocation.executable, "/usr/local/bin/container")
+        XCTAssertEqual(try argument(after: "--workdir", in: context.invocation.arguments), "/workspace")
+        XCTAssertEqual(try argument(after: "--cd", in: context.invocation.arguments), "/workspace")
+        XCTAssertTrue(context.invocation.arguments.contains(buildConfiguration.localImageTag))
+        XCTAssertFalse(context.invocation.arguments.contains("/opt/codex/bin/codex"))
+    }
+
+    func testBuildDevcontainerFailureFallsBackToNativeCodexWithBoundedFeedback() async throws {
+        let repoURL = try makeTemporaryDirectory(prefix: "CodexExecutorBuildFailure")
+        let secretValue = "secret-build-arg-value"
+        try write(
+            #"{"build":{"dockerfile":"Dockerfile","context":"..","target":"develop"},"containerEnv":{"TOKEN":"\#(secretValue)"}}"#,
+            to: devcontainerURL(in: repoURL)
+        )
+        let launchPlan = CodexExecutionLaunchPlan.plan(
+            repoURL: repoURL,
+            preference: .devcontainerPreferred,
+            containerToolResolver: { _ in "/usr/local/bin/container" }
+        )
+        let buildConfiguration = try XCTUnwrap(launchPlan.devcontainerSupportReport?.buildConfiguration)
+        var capturedContext: CodexExecutorLaunchContext?
+        var events: [LiveEvent] = []
+        let executor = CodexExecutor(
+            launchRunner: { context, _ in
+                capturedContext = context
+                try #"{"ok":true}"#.write(to: context.outputFile, atomically: true, encoding: .utf8)
+                return ProcessResult(exitCode: 0, stdout: "", stderr: "")
+            },
+            invocationRunner: { invocation, _, _, _, _ in
+                XCTAssertEqual(invocation.arguments, buildConfiguration.buildArguments)
+                return ProcessResult(exitCode: 70, stdout: "ignored", stderr: "secret failure")
+            }
+        )
+
+        _ = try await executor.run(
+            CodexRunConfiguration(
+                codexBinary: "/opt/codex/bin/codex",
+                repoURL: repoURL,
+                sandbox: "danger-full-access",
+                model: nil,
+                schema: #"{"type":"object"}"#,
+                prompt: "Develop prompt",
+                launchPlan: launchPlan
+            ),
+            decode: StubCodexResponse.self,
+            onEvent: { events.append($0) }
+        )
+
+        let context = try XCTUnwrap(capturedContext)
+        let feedbackText = events.compactMap(\.detail).joined(separator: " ")
         XCTAssertEqual(context.invocation.executable, "/opt/codex/bin/codex")
         XCTAssertEqual(try argument(after: "--cd", in: context.invocation.arguments), repoURL.standardizedFileURL.path)
-        XCTAssertFalse(context.invocation.arguments.contains("container"))
+        XCTAssertTrue(feedbackText.contains("devcontainer build-based tokens build,dockerfile:Dockerfile,context:repo-root,target:develop"))
+        XCTAssertTrue(feedbackText.contains("local image \(buildConfiguration.localImageTag)"))
+        XCTAssertTrue(feedbackText.contains("fallback Apple container build failed for local image \(buildConfiguration.localImageTag) (exit 70)."))
+        XCTAssertFalse(feedbackText.contains(repoURL.standardizedFileURL.path))
+        XCTAssertFalse(feedbackText.contains(secretValue))
+        XCTAssertFalse(feedbackText.contains("secret failure"))
     }
 
     func testContainerCommandUsesWorkspaceFolderForCodexCd() async throws {

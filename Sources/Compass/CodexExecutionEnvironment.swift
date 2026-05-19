@@ -109,6 +109,15 @@ struct CodexExecutionEnvironmentDiscovery: Equatable {
                 reason: supportReport.reason,
                 supportReport: supportReport
             )
+        case .buildBased where supportReport.isBuildRouteable:
+            return Self(
+                status: .ready,
+                configURL: supportReport.configURL,
+                name: supportReport.name,
+                detail: "Found build-based .devcontainer/devcontainer.json. Dev Container Preferred can build a local Apple container image when the CLI is available; native macOS remains available. Support: \(supportReport.supportSummary).",
+                reason: supportReport.reason,
+                supportReport: supportReport
+            )
         case .buildBased, .composeBased, .featureBased, .unsupportedExtraFields:
             return Self(
                 status: .ready,
@@ -245,7 +254,9 @@ struct CodexExecutionEnvironment: Equatable {
             if plan.isContainerRoute {
                 return CodexExecutionEnvironmentPresentation(
                     title: "Dev Container Preferred",
-                    status: "Running Codex through Apple container for the detected image-based devcontainer.",
+                    status: plan.devcontainerSupportReport?.isBuildRouteable == true
+                        ? "Running Codex through Apple container for the detected build-based devcontainer."
+                        : "Running Codex through Apple container for the detected image-based devcontainer.",
                     detail: plan.routeDetail(),
                     systemImage: preference.systemImage
                 )
@@ -365,6 +376,9 @@ struct CodexExecutionEnvironmentMenuItem: Identifiable, Equatable {
             case .ready:
                 if discovery.supportReport.isImageRouteable {
                     return "Prefer image-routeable devcontainers through Apple container; missing tooling falls back to native macOS."
+                }
+                if discovery.supportReport.isBuildRouteable {
+                    return "Build a local Apple container image for this build-based devcontainer; missing tooling falls back to native macOS."
                 }
                 return "This \(discovery.supportReport.classification.rawValue) config falls back to native macOS; tokens \(discovery.supportReport.tokenSummary)."
             case .missing:

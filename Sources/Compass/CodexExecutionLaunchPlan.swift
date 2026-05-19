@@ -95,13 +95,15 @@ struct CodexDevcontainerBuildConfiguration: Equatable {
     var dockerfileURL: URL
     var contextURL: URL
     var target: String?
+    var containerEnv: [CodexDevcontainerEnvironmentVariable]
 
     init(
         configURL: URL,
         repoURL: URL,
         dockerfileURL: URL,
         contextURL: URL,
-        target: String? = nil
+        target: String? = nil,
+        containerEnv: [CodexDevcontainerEnvironmentVariable] = []
     ) {
         self.configURL = configURL.standardizedFileURL
         self.repoURL = repoURL.standardizedFileURL
@@ -111,6 +113,7 @@ struct CodexDevcontainerBuildConfiguration: Equatable {
             target,
             limit: CodexDevcontainerBuildDescriptor.labelLimit
         )
+        self.containerEnv = containerEnv.sorted { $0.name < $1.name }
     }
 
     var localImageTag: String {
@@ -269,6 +272,10 @@ struct CodexDevcontainerSupportReport: Equatable {
         classification == .imageRouteable && imageConfiguration != nil
     }
 
+    var isBuildRouteable: Bool {
+        classification == .buildBased && buildConfiguration != nil
+    }
+
     var tokenSummary: String {
         var tokens = supportTokens
         if omittedTokenCount > 0 {
@@ -318,6 +325,8 @@ struct CodexDevcontainerSupportReport: Equatable {
             )
         case .imageRouteable:
             return nil
+        case .buildBased where buildConfiguration != nil:
+            return nil
         case .composeBased, .buildBased, .featureBased:
             return Self.boundedText(
                 "Unsupported devcontainer route: \(classification.rawValue) tokens \(tokenSummary).",
@@ -357,7 +366,7 @@ struct CodexDevcontainerSupportReport: Equatable {
         case .buildBased, .composeBased, .featureBased, .unsupportedExtraFields:
             return .unsupported(
                 configURL: configURL,
-                reason: unsupportedRouteReason ?? "Unsupported devcontainer route: \(classification.rawValue)."
+                reason: unsupportedRouteReason ?? "\(classification.rawValue) devcontainer can be routed through Apple container."
             )
         }
     }
@@ -442,7 +451,7 @@ struct CodexDevcontainerSupportReport: Equatable {
 
         let parsedBuildPlan: ParsedBuildPlan?
         let hasMalformedBuildDescriptor: Bool
-        switch parseBuildPlan(dictionary, configURL: configURL) {
+        switch parseBuildPlan(dictionary, configURL: configURL, containerEnv: containerEnv) {
         case let .success(buildPlan):
             parsedBuildPlan = buildPlan
             hasMalformedBuildDescriptor = false
@@ -501,7 +510,9 @@ struct CodexDevcontainerSupportReport: Equatable {
                 buildConfiguration: buildConfiguration,
                 supportTokens: supportTokenResult.tokens,
                 omittedTokenCount: supportTokenResult.omittedCount,
-                reason: "Build devcontainer fields require unsupported routing."
+                reason: buildConfiguration == nil
+                    ? "Build devcontainer fields require unsupported routing."
+                    : "Build-based devcontainer can be routed through Apple container."
             )
         }
 
@@ -702,7 +713,8 @@ struct CodexDevcontainerSupportReport: Equatable {
 
     private static func parseBuildPlan(
         _ dictionary: [String: Any],
-        configURL: URL
+        configURL: URL,
+        containerEnv: [CodexDevcontainerEnvironmentVariable]
     ) -> BuildPlanParseResult {
         let buildKeys = presentKeys(["build", "dockerFile", "dockerfile"], in: dictionary)
         guard !buildKeys.isEmpty else {
@@ -886,7 +898,8 @@ struct CodexDevcontainerSupportReport: Equatable {
                 repoURL: repoURL,
                 dockerfileURL: dockerfileURL,
                 contextURL: contextURL,
-                target: target
+                target: target,
+                containerEnv: containerEnv
             )
         } else {
             configuration = nil
@@ -1194,19 +1207,22 @@ struct CodexExecutionLaunchPlan: Equatable {
         var image: String
         var workspaceFolder: String
         var containerEnv: [CodexDevcontainerEnvironmentVariable]
+        var buildConfiguration: CodexDevcontainerBuildConfiguration?
 
         init(
             toolPath: String,
             hostWorkspaceURL: URL,
             image: String,
             workspaceFolder: String,
-            containerEnv: [CodexDevcontainerEnvironmentVariable] = []
+            containerEnv: [CodexDevcontainerEnvironmentVariable] = [],
+            buildConfiguration: CodexDevcontainerBuildConfiguration? = nil
         ) {
             self.toolPath = toolPath
             self.hostWorkspaceURL = hostWorkspaceURL.standardizedFileURL
             self.image = image
             self.workspaceFolder = workspaceFolder
             self.containerEnv = containerEnv.sorted { $0.name < $1.name }
+            self.buildConfiguration = buildConfiguration
         }
 
         var volumeArgument: String {
@@ -1312,6 +1328,33 @@ struct CodexExecutionLaunchPlan: Equatable {
                 devcontainerSupportReport: supportReport
             )
         case .devcontainerPreferred:
+            if let buildConfiguration = supportReport.buildConfiguration,
+               supportReport.classification == .buildBased {
+                guard let containerToolPath = containerToolResolver("container")?
+                    .trimmingCharacters(in: .whitespacesAndNewlines),
+                    !containerToolPath.isEmpty
+                else {
+                    return native(
+                        selectedPreference: preference,
+                        devcontainerSupportReport: supportReport,
+                        fallbackReason: "Apple container CLI is unavailable."
+                    )
+                }
+
+                return Self(
+                    selectedPreference: preference,
+                    effectiveRoute: .appleContainer(AppleContainerRoute(
+                        toolPath: containerToolPath,
+                        hostWorkspaceURL: standardizedRepoURL,
+                        image: buildConfiguration.localImageTag,
+                        workspaceFolder: "/workspace",
+                        containerEnv: buildConfiguration.containerEnv,
+                        buildConfiguration: buildConfiguration
+                    )),
+                    devcontainerSupportReport: supportReport
+                )
+            }
+
             switch parseOutcome {
             case .missing:
                 return native(
@@ -1375,6 +1418,15 @@ struct CodexExecutionLaunchPlan: Equatable {
         return false
     }
 
+    var buildInvocation: CodexExecutionInvocation? {
+        switch effectiveRoute {
+        case .nativeMacOS:
+            return nil
+        case let .appleContainer(route):
+            return route.buildConfiguration?.buildInvocation(containerToolPath: route.toolPath)
+        }
+    }
+
     var effectiveRouteTitle: String {
         switch effectiveRoute {
         case .nativeMacOS:
@@ -1430,6 +1482,23 @@ struct CodexExecutionLaunchPlan: Equatable {
         ].joined(separator: "; ")
     }
 
+    func buildFeedbackSummary(fallbackReason: String? = nil) -> String {
+        [
+            "devcontainer \(devcontainerSupportLabel)",
+            "local image \(imageLabel)",
+            "fallback \(Self.boundedText(fallbackReason ?? fallbackReasonLabel, limit: Self.fallbackReasonLimit))"
+        ].joined(separator: "; ")
+    }
+
+    func buildFailureFallback(exitCode: Int32?) -> Self {
+        Self.native(
+            selectedPreference: selectedPreference,
+            devcontainer: devcontainer,
+            devcontainerSupportReport: devcontainerSupportReport,
+            fallbackReason: buildFailureFallbackReason(exitCode: exitCode)
+        )
+    }
+
     func routeDetail() -> String {
         switch effectiveRoute {
         case .nativeMacOS:
@@ -1449,6 +1518,16 @@ struct CodexExecutionLaunchPlan: Equatable {
         case let .appleContainer(route):
             return route.containerPath(for: url) ?? url.standardizedFileURL.path
         }
+    }
+
+    private func buildFailureFallbackReason(exitCode: Int32?) -> String {
+        let detail: String
+        if let exitCode {
+            detail = "Apple container build failed for local image \(imageLabel) (exit \(exitCode))."
+        } else {
+            detail = "Apple container build could not start for local image \(imageLabel)."
+        }
+        return Self.boundedText(detail, limit: Self.fallbackReasonLimit)
     }
 
     func codexWorkingDirectoryPath(forHostURL url: URL) -> String {

@@ -37,6 +37,7 @@ struct CodexExecutorLaunchContext {
 }
 
 final class CodexExecutor {
+    typealias InvocationRunner = ProcessRunner.InvocationRunner
     typealias LaunchRunner = (
         _ context: CodexExecutorLaunchContext,
         _ onEvent: @escaping (LiveEvent) -> Void
@@ -44,9 +45,14 @@ final class CodexExecutor {
 
     private var process: Process?
     private let launchRunner: LaunchRunner?
+    private let invocationRunner: InvocationRunner?
 
-    init(launchRunner: LaunchRunner? = nil) {
+    init(
+        launchRunner: LaunchRunner? = nil,
+        invocationRunner: InvocationRunner? = nil
+    ) {
         self.launchRunner = launchRunner
+        self.invocationRunner = invocationRunner
     }
 
     func cancel() {
@@ -58,7 +64,11 @@ final class CodexExecutor {
         decode type: T.Type,
         onEvent: @escaping (LiveEvent) -> Void
     ) async throws -> T {
-        let launchPlan = configuration.launchPlan ?? .native()
+        var launchPlan = configuration.launchPlan ?? .native()
+        launchPlan = try await prepareBuildIfNeeded(
+            launchPlan,
+            onEvent: onEvent
+        )
         let tempDirectory = try Self.makeTemporaryDirectory(
             route: launchPlan,
             repoURL: configuration.repoURL
@@ -206,6 +216,68 @@ final class CodexExecutor {
                 finish(.failure(error))
             }
         }
+    }
+
+    private func prepareBuildIfNeeded(
+        _ launchPlan: CodexExecutionLaunchPlan,
+        onEvent: @escaping (LiveEvent) -> Void
+    ) async throws -> CodexExecutionLaunchPlan {
+        guard let buildInvocation = launchPlan.buildInvocation else {
+            return launchPlan
+        }
+
+        let correlationID = "devcontainer-build"
+        onEvent(LiveEvent(
+            level: .info,
+            text: "Building devcontainer image",
+            detail: launchPlan.buildFeedbackSummary(),
+            kind: .command,
+            status: .running,
+            correlationID: correlationID
+        ))
+
+        let buildResult: ProcessResult
+        do {
+            if let invocationRunner {
+                buildResult = try await invocationRunner(buildInvocation, nil, nil, nil, nil)
+            } else {
+                buildResult = try await ProcessRunner.run(invocation: buildInvocation)
+            }
+        } catch {
+            let fallbackPlan = launchPlan.buildFailureFallback(exitCode: nil)
+            onEvent(LiveEvent(
+                level: .warning,
+                text: "Devcontainer build fallback",
+                detail: launchPlan.buildFeedbackSummary(fallbackReason: fallbackPlan.fallbackReason),
+                kind: .command,
+                status: .failed,
+                correlationID: correlationID
+            ))
+            return fallbackPlan
+        }
+
+        guard buildResult.exitCode == 0 else {
+            let fallbackPlan = launchPlan.buildFailureFallback(exitCode: buildResult.exitCode)
+            onEvent(LiveEvent(
+                level: .warning,
+                text: "Devcontainer build fallback",
+                detail: launchPlan.buildFeedbackSummary(fallbackReason: fallbackPlan.fallbackReason),
+                kind: .command,
+                status: .failed,
+                correlationID: correlationID
+            ))
+            return fallbackPlan
+        }
+
+        onEvent(LiveEvent(
+            level: .success,
+            text: "Devcontainer image built",
+            detail: launchPlan.buildFeedbackSummary(),
+            kind: .command,
+            status: .completed,
+            correlationID: correlationID
+        ))
+        return launchPlan
     }
 
     private static func makeTemporaryDirectory(

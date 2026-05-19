@@ -194,11 +194,49 @@ enum ProcessRunner {
         launchPlan: CodexExecutionLaunchPlan? = nil,
         runner: InvocationRunner? = nil
     ) async throws -> ProcessResult {
-        let effectiveLaunchPlan = launchPlan ?? .native()
+        var effectiveLaunchPlan = launchPlan ?? .native()
+        if let buildInvocation = effectiveLaunchPlan.buildInvocation {
+            let buildResult: ProcessResult
+            do {
+                buildResult = try await runInvocation(
+                    buildInvocation,
+                    timeout: timeout,
+                    runner: runner
+                )
+            } catch {
+                effectiveLaunchPlan = effectiveLaunchPlan.buildFailureFallback(exitCode: nil)
+                let invocation = effectiveLaunchPlan.shellInvocation(
+                    command: command,
+                    hostWorkingDirectory: workingDirectory
+                )
+                return try await runInvocation(
+                    invocation,
+                    timeout: timeout,
+                    runner: runner
+                )
+            }
+
+            if buildResult.exitCode != 0 {
+                effectiveLaunchPlan = effectiveLaunchPlan.buildFailureFallback(exitCode: buildResult.exitCode)
+            }
+        }
+
         let invocation = effectiveLaunchPlan.shellInvocation(
             command: command,
             hostWorkingDirectory: workingDirectory
         )
+        return try await runInvocation(
+            invocation,
+            timeout: timeout,
+            runner: runner
+        )
+    }
+
+    private static func runInvocation(
+        _ invocation: CodexExecutionInvocation,
+        timeout: TimeInterval?,
+        runner: InvocationRunner?
+    ) async throws -> ProcessResult {
         if let runner {
             return try await runner(invocation, nil, timeout, nil, nil)
         }

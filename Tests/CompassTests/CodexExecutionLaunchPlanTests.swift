@@ -140,7 +140,7 @@ final class CodexExecutionLaunchPlanTests: XCTestCase {
         )
     }
 
-    func testUnsupportedBuildConfigFallsBackToNative() throws {
+    func testBuildConfigRoutesThroughAppleContainerWhenToolIsAvailable() throws {
         let repoURL = try makeTemporaryDirectory(prefix: "CodexExecutionLaunchPlanBuild")
         try write(
             #"{"build":{"dockerfile":"Dockerfile"}}"#,
@@ -152,14 +152,24 @@ final class CodexExecutionLaunchPlanTests: XCTestCase {
             preference: .devcontainerPreferred,
             containerToolResolver: { _ in "/usr/local/bin/container" }
         )
+        let report = try XCTUnwrap(plan.devcontainerSupportReport)
+        let buildConfiguration = try XCTUnwrap(report.buildConfiguration)
 
-        XCTAssertFalse(plan.isContainerRoute)
-        XCTAssertEqual(
-            plan.fallbackReason,
-            "Unsupported devcontainer route: build-based tokens build,dockerfile:Dockerfile."
-        )
-        XCTAssertEqual(plan.devcontainerSupportReport?.classification, .buildBased)
-        XCTAssertEqual(plan.devcontainerSupportReport?.supportTokens, ["build", "dockerfile:Dockerfile"])
+        XCTAssertTrue(plan.isContainerRoute)
+        XCTAssertNil(plan.fallbackReason)
+        XCTAssertEqual(plan.imageLabel, buildConfiguration.localImageTag)
+        XCTAssertEqual(plan.workspaceLabel, "/workspace")
+        XCTAssertEqual(report.classification, .buildBased)
+        XCTAssertEqual(report.supportTokens, ["build", "dockerfile:Dockerfile"])
+        XCTAssertTrue(plan.preflightSummary(phase: "Develop").contains("image compass-devcontainer:"))
+        XCTAssertFalse(plan.preflightSummary(phase: "Develop").contains(repoURL.standardizedFileURL.path))
+
+        guard case let .appleContainer(route) = plan.effectiveRoute else {
+            return XCTFail("Expected Apple container route.")
+        }
+        XCTAssertEqual(route.image, buildConfiguration.localImageTag)
+        XCTAssertEqual(route.workspaceFolder, "/workspace")
+        XCTAssertEqual(route.buildConfiguration, buildConfiguration)
     }
 
     func testBuildStringAndTopLevelDockerfileFormsExposeSanitizedDescriptorTokens() throws {
@@ -210,7 +220,7 @@ final class CodexExecutionLaunchPlanTests: XCTestCase {
             )
             let report = try XCTUnwrap(plan.devcontainerSupportReport)
 
-            XCTAssertFalse(plan.isContainerRoute)
+            XCTAssertEqual(plan.isContainerRoute, testCase.expectsBuildConfiguration)
             XCTAssertEqual(report.classification, .buildBased)
             XCTAssertEqual(report.supportTokens, testCase.expectedTokens)
             XCTAssertEqual(report.buildDescriptor?.dockerfileLabel, testCase.expectedDockerfile)
@@ -224,12 +234,15 @@ final class CodexExecutionLaunchPlanTests: XCTestCase {
                     report.buildConfiguration?.contextURL,
                     repoURL.appending(path: ".devcontainer", directoryHint: .isDirectory).standardizedFileURL
                 )
+                XCTAssertEqual(plan.imageLabel, report.buildConfiguration?.localImageTag)
+            } else {
+                XCTAssertFalse(plan.isContainerRoute)
             }
             XCTAssertFalse(report.supportSummary.contains("/tmp/private-repo"))
         }
     }
 
-    func testSafeBuildObjectCreatesDeterministicBuildConfigurationWithoutRoutingCodex() throws {
+    func testSafeBuildObjectCreatesDeterministicBuildConfigurationAndRoutesLocalImage() throws {
         let repoURL = try makeTemporaryDirectory(prefix: "CodexExecutionLaunchPlanBuildPlan")
         try write(
             #"{"build":{"target":"runtime","context":"..","dockerfile":"Dockerfile"}}"#,
@@ -251,7 +264,7 @@ final class CodexExecutionLaunchPlanTests: XCTestCase {
         let repeatedConfiguration = try XCTUnwrap(secondPlan.devcontainerSupportReport?.buildConfiguration)
         let invocation = buildConfiguration.buildInvocation(containerToolPath: "/usr/local/bin/container")
 
-        XCTAssertFalse(firstPlan.isContainerRoute)
+        XCTAssertTrue(firstPlan.isContainerRoute)
         XCTAssertEqual(report.classification, .buildBased)
         XCTAssertEqual(report.buildDescriptor?.dockerfileLabel, "Dockerfile")
         XCTAssertEqual(report.buildDescriptor?.contextLabel, "repo-root")
@@ -261,6 +274,8 @@ final class CodexExecutionLaunchPlanTests: XCTestCase {
         XCTAssertEqual(buildConfiguration.target, "runtime")
         XCTAssertEqual(buildConfiguration.localImageTag, repeatedConfiguration.localImageTag)
         XCTAssertTrue(buildConfiguration.localImageTag.hasPrefix("compass-devcontainer:"))
+        XCTAssertEqual(firstPlan.imageLabel, buildConfiguration.localImageTag)
+        XCTAssertEqual(firstPlan.workspaceLabel, "/workspace")
         XCTAssertEqual(invocation.executable, "/usr/local/bin/container")
         XCTAssertEqual(invocation.workingDirectory, repoURL.standardizedFileURL)
         XCTAssertEqual(invocation.arguments, [
@@ -270,6 +285,12 @@ final class CodexExecutionLaunchPlanTests: XCTestCase {
             "--target", "runtime",
             repoURL.standardizedFileURL.path
         ])
+
+        guard case let .appleContainer(route) = firstPlan.effectiveRoute else {
+            return XCTFail("Expected Apple container route.")
+        }
+        XCTAssertEqual(route.image, buildConfiguration.localImageTag)
+        XCTAssertEqual(route.buildConfiguration, buildConfiguration)
     }
 
     func testBuildObjectExposesSortedBuildArgNamesWithoutValues() throws {
@@ -725,6 +746,25 @@ final class CodexExecutionLaunchPlanTests: XCTestCase {
         XCTAssertEqual(plan.imageLabel, "swift:6.0")
         XCTAssertEqual(plan.fallbackReason, "Apple container CLI is unavailable.")
         XCTAssertEqual(plan.devcontainerSupportReport?.classification, .imageRouteable)
+    }
+
+    func testBuildConfigFallsBackToNativeWhenContainerToolIsUnavailable() throws {
+        let repoURL = try makeTemporaryDirectory(prefix: "CodexExecutionLaunchPlanBuildNoTool")
+        try write(
+            #"{"build":{"dockerfile":"Dockerfile","context":"..","target":"runtime"}}"#,
+            to: devcontainerURL(in: repoURL)
+        )
+
+        let plan = CodexExecutionLaunchPlan.plan(
+            repoURL: repoURL,
+            preference: .devcontainerPreferred,
+            containerToolResolver: { _ in nil }
+        )
+
+        XCTAssertFalse(plan.isContainerRoute)
+        XCTAssertEqual(plan.fallbackReason, "Apple container CLI is unavailable.")
+        XCTAssertEqual(plan.devcontainerSupportReport?.classification, .buildBased)
+        XCTAssertNotNil(plan.devcontainerSupportReport?.buildConfiguration)
     }
 
     func testWorkspaceOutsideMountedWorkspaceFallsBackToNative() throws {

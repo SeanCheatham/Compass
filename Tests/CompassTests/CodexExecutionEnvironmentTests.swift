@@ -75,6 +75,41 @@ final class CodexExecutionEnvironmentTests: XCTestCase {
         XCTAssertTrue(detail.contains("Unsupported devcontainer route: build-based tokens build,dockerfile:Dockerfile,features,extra:postCreateCommand."))
     }
 
+    func testBuildRouteableDiscoveryAndPreflightExposeLocalImageWithoutPaths() throws {
+        let repoURL = try makeTemporaryDirectory(prefix: "CodexExecutionEnvironmentBuildRoute")
+        try write(
+            #"{"build":{"dockerfile":"Dockerfile","context":"..","target":"runtime"}}"#,
+            to: repoURL
+                .appending(path: ".devcontainer", directoryHint: .isDirectory)
+                .appending(path: "devcontainer.json")
+        )
+
+        let environment = CodexExecutionEnvironment.discover(
+            repoURL: repoURL,
+            preference: .devcontainerPreferred
+        )
+        let plan = environment.launchPlan(
+            repoURL: repoURL,
+            containerToolResolver: { _ in "/usr/local/bin/container" }
+        )
+        let menu = CodexExecutionEnvironmentMenu(environment: environment)
+        let buildConfiguration = try XCTUnwrap(environment.devcontainerDiscovery.supportReport.buildConfiguration)
+        let diagnosticsText = [
+            environment.devcontainerDiscovery.detail,
+            menu.items.first { $0.preference == .devcontainerPreferred }?.description ?? "",
+            plan.preflightSummary(phase: "Develop"),
+            plan.routeDetail()
+        ].joined(separator: " ")
+
+        XCTAssertTrue(plan.isContainerRoute)
+        XCTAssertEqual(environment.devcontainerDiscovery.supportReport.classification, .buildBased)
+        XCTAssertTrue(environment.devcontainerDiscovery.supportReport.isBuildRouteable)
+        XCTAssertTrue(diagnosticsText.contains("build-based"))
+        XCTAssertTrue(diagnosticsText.contains("local Apple container image"))
+        XCTAssertTrue(diagnosticsText.contains(buildConfiguration.localImageTag))
+        XCTAssertFalse(diagnosticsText.contains(repoURL.standardizedFileURL.path))
+    }
+
     func testContainerEnvDiagnosticsExposeNamesWithoutValues() throws {
         let repoURL = try makeTemporaryDirectory(prefix: "CodexExecutionEnvironmentEnv")
         let secretValue = "secret-menu-value"
