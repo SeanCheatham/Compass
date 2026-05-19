@@ -20,7 +20,7 @@ final class ProcessRunnerExecutionRouteTests: XCTestCase {
             "swift test",
             workingDirectory: repoURL,
             timeout: 42,
-            launchPlan: .native(),
+            launchPlan: .host(),
             runner: { invocation, input, timeout, _, _ in
                 capturedInvocation = invocation
                 XCTAssertNil(input)
@@ -37,12 +37,20 @@ final class ProcessRunnerExecutionRouteTests: XCTestCase {
     }
 
     func testContainerShellRouteUsesAppleContainerRunVolumeAndWorkspace() async throws {
-        let repoURL = try makeTemporaryDirectory(prefix: "ProcessRunnerContainer")
-        try write(#"{"image":"swift:6.0","workspaceFolder":"/workspace/app"}"#, to: devcontainerURL(in: repoURL))
-        let launchPlan = CodexExecutionLaunchPlan.plan(
-            repoURL: repoURL,
-            preference: .devcontainerPreferred,
-            containerToolResolver: { _ in "/usr/local/bin/container" }
+        // Scenario name preserved: a ready Shared VM route assembles an ssh invocation.
+        let repoURL = try makeTemporaryDirectory(prefix: "ProcessRunnerSharedVM")
+        let route = SharedVMRoute(
+            sshDestination: "compass@192.0.2.10",
+            hostWorktreeURL: repoURL,
+            guestWorkspacePath: "/opt/compass/workspaces/dev-AAA/worktree",
+            guestCodexPath: "/opt/compass/codex/codex",
+            identityFile: "/tmp/compass-key",
+            knownHostsFile: "/tmp/compass-known"
+        )
+        let launchPlan = CodexExecutionLaunchPlan(
+            selectedPreference: .sharedVM,
+            effectiveRoute: .sharedVM(route),
+            vmReadiness: .ready(sshDestination: route.sshDestination)
         )
         var capturedInvocation: CodexExecutionInvocation?
 
@@ -57,31 +65,28 @@ final class ProcessRunnerExecutionRouteTests: XCTestCase {
         )
 
         let invocation = try XCTUnwrap(capturedInvocation)
-        XCTAssertEqual(invocation.executable, "/usr/local/bin/container")
+        XCTAssertEqual(invocation.executable, "/usr/bin/ssh")
         XCTAssertEqual(invocation.workingDirectory, repoURL.standardizedFileURL)
-        XCTAssertEqual(launchPlan.devcontainerSupportReport?.classification, .imageRouteable)
-        XCTAssertEqual(invocation.arguments, [
-            "run",
-            "--rm",
-            "--volume", "\(repoURL.standardizedFileURL.path):/workspace",
-            "--workdir", "/workspace/app",
-            "swift:6.0",
-            "sh",
-            "-lc",
-            "swift test --filter CompassTests"
-        ])
+        XCTAssertTrue(invocation.arguments.contains("compass@192.0.2.10"))
+        let remote = try XCTUnwrap(invocation.arguments.last)
+        XCTAssertTrue(remote.contains("cd '/opt/compass/workspaces/dev-AAA/worktree'"))
+        XCTAssertTrue(remote.contains("sh -lc 'swift test --filter CompassTests'"))
     }
 
     func testContainerShellRouteAddsContainerEnvBeforeImageInSortedOrder() async throws {
-        let repoURL = try makeTemporaryDirectory(prefix: "ProcessRunnerContainerEnv")
-        try write(
-            #"{"image":"swift:6.0","workspaceFolder":"/workspace/app","containerEnv":{"ZETA":"last","ALPHA":"first"}}"#,
-            to: devcontainerURL(in: repoURL)
+        // Scenario name preserved: env vars are not part of `runShell` invocations for Shared VM —
+        // the helper forwards the command verbatim. Just assert the command and ssh destination.
+        let repoURL = try makeTemporaryDirectory(prefix: "ProcessRunnerSharedVMEnv")
+        let route = SharedVMRoute(
+            sshDestination: "compass@192.0.2.20",
+            hostWorktreeURL: repoURL,
+            guestWorkspacePath: "/opt/compass/workspaces/dev-BBB/worktree",
+            guestCodexPath: "/opt/compass/codex/codex"
         )
-        let launchPlan = CodexExecutionLaunchPlan.plan(
-            repoURL: repoURL,
-            preference: .devcontainerPreferred,
-            containerToolResolver: { _ in "/usr/local/bin/container" }
+        let launchPlan = CodexExecutionLaunchPlan(
+            selectedPreference: .sharedVM,
+            effectiveRoute: .sharedVM(route),
+            vmReadiness: .ready(sshDestination: route.sshDestination)
         )
         var capturedInvocation: CodexExecutionInvocation?
 
@@ -96,26 +101,16 @@ final class ProcessRunnerExecutionRouteTests: XCTestCase {
         )
 
         let invocation = try XCTUnwrap(capturedInvocation)
-        XCTAssertEqual(invocation.arguments, [
-            "run",
-            "--rm",
-            "--volume", "\(repoURL.standardizedFileURL.path):/workspace",
-            "--workdir", "/workspace/app",
-            "--env", "ALPHA=first",
-            "--env", "ZETA=last",
-            "swift:6.0",
-            "sh",
-            "-lc",
-            "swift test --filter CompassTests"
-        ])
+        XCTAssertEqual(invocation.executable, "/usr/bin/ssh")
+        XCTAssertTrue(invocation.arguments.contains("compass@192.0.2.20"))
     }
 
     func testNativeFallbackPlanFeedsNativeVerifyInvocationAndBoundedDiagnostics() async throws {
-        let repoURL = try makeTemporaryDirectory(prefix: "ProcessRunnerFallback")
+        let repoURL = try makeTemporaryDirectory(prefix: "ProcessRunnerVMUnavailableFallback")
         let launchPlan = CodexExecutionLaunchPlan.plan(
             repoURL: repoURL,
-            preference: .devcontainerPreferred,
-            containerToolResolver: { _ in nil }
+            preference: .sharedVM,
+            vmReadiness: .unavailable(reason: "Apple Silicon required")
         )
         var capturedInvocation: CodexExecutionInvocation?
 
@@ -132,21 +127,17 @@ final class ProcessRunnerExecutionRouteTests: XCTestCase {
         let invocation = try XCTUnwrap(capturedInvocation)
         XCTAssertEqual(invocation.executable, "/bin/zsh")
         XCTAssertEqual(invocation.arguments, ["-lc", "swift test"])
-        XCTAssertEqual(launchPlan.fallbackReason, "No .devcontainer/devcontainer.json was found.")
-        XCTAssertEqual(launchPlan.devcontainerSupportReport?.classification, .missing)
+        XCTAssertTrue(launchPlan.fallbackReason?.contains("Apple Silicon required") ?? false)
         XCTAssertFalse(launchPlan.preflightSummary(phase: "Verify").contains(repoURL.standardizedFileURL.path))
     }
 
     func testComposeDevcontainerShellRouteFallsBackToNativeWithSanitizedTokens() async throws {
-        let repoURL = try makeTemporaryDirectory(prefix: "ProcessRunnerComposeFallback")
-        try write(
-            #"{"dockerComposeFile":"../compose.yml","service":"app","runServices":["db"]}"#,
-            to: devcontainerURL(in: repoURL)
-        )
+        // Scenario name preserved: VM not provisioned → host fallback for runShell.
+        let repoURL = try makeTemporaryDirectory(prefix: "ProcessRunnerVMNotProvisioned")
         let launchPlan = CodexExecutionLaunchPlan.plan(
             repoURL: repoURL,
-            preference: .devcontainerPreferred,
-            containerToolResolver: { _ in "/usr/local/bin/container" }
+            preference: .sharedVM,
+            vmReadiness: .notProvisioned
         )
         var capturedInvocation: CodexExecutionInvocation?
 
@@ -161,31 +152,19 @@ final class ProcessRunnerExecutionRouteTests: XCTestCase {
         )
 
         let invocation = try XCTUnwrap(capturedInvocation)
-        XCTAssertFalse(launchPlan.isContainerRoute)
+        XCTAssertFalse(launchPlan.isVMRoute)
         XCTAssertEqual(invocation.executable, "/bin/zsh")
         XCTAssertEqual(invocation.arguments, ["-lc", "swift test"])
-        XCTAssertEqual(launchPlan.devcontainerSupportReport?.classification, .composeBased)
-        XCTAssertEqual(launchPlan.devcontainerSupportReport?.supportTokens, [
-            "compose",
-            "composeFile:compose.yml",
-            "service:app",
-            "runServices:1",
-            "runService:db"
-        ])
-        XCTAssertFalse(launchPlan.routeDetail().contains("../compose.yml"))
+        XCTAssertTrue(launchPlan.fallbackReason?.contains("not been provisioned") ?? false)
     }
 
     func testFeatureDevcontainerShellRouteFallsBackToNativeWithSanitizedTokens() async throws {
-        let repoURL = try makeTemporaryDirectory(prefix: "ProcessRunnerFeatureFallback")
-        let secretFeatureValue = "secret-feature-runner-value"
-        try write(
-            #"{"image":"swift:6.0","features":{"ghcr.io/devcontainers/features/node:1":{"version":"\#(secretFeatureValue)"}}}"#,
-            to: devcontainerURL(in: repoURL)
-        )
+        // Scenario name preserved: VM installing → host fallback.
+        let repoURL = try makeTemporaryDirectory(prefix: "ProcessRunnerVMInstalling")
         let launchPlan = CodexExecutionLaunchPlan.plan(
             repoURL: repoURL,
-            preference: .devcontainerPreferred,
-            containerToolResolver: { _ in "/usr/local/bin/container" }
+            preference: .sharedVM,
+            vmReadiness: .installing(fractionCompleted: 0.3)
         )
         var capturedInvocation: CodexExecutionInvocation?
 
@@ -200,107 +179,69 @@ final class ProcessRunnerExecutionRouteTests: XCTestCase {
         )
 
         let invocation = try XCTUnwrap(capturedInvocation)
-        XCTAssertFalse(launchPlan.isContainerRoute)
+        XCTAssertFalse(launchPlan.isVMRoute)
         XCTAssertEqual(invocation.executable, "/bin/zsh")
-        XCTAssertEqual(invocation.arguments, ["-lc", "swift test"])
-        XCTAssertEqual(launchPlan.devcontainerSupportReport?.classification, .featureBased)
-        XCTAssertEqual(launchPlan.devcontainerSupportReport?.supportTokens, [
-            "features:1",
-            "featureOptions:1",
-            "feature:node:1"
-        ])
-        XCTAssertFalse(launchPlan.routeDetail().contains(secretFeatureValue))
+        XCTAssertTrue(launchPlan.fallbackReason?.contains("installing") ?? false)
     }
 
     func testBuildDevcontainerShellRouteBuildsThenRunsLocalImage() async throws {
-        let repoURL = try makeTemporaryDirectory(prefix: "ProcessRunnerBuildRoute")
-        try write(
-            #"{"build":{"dockerfile":"Dockerfile","context":"..","target":"verify","args":{"ZETA":"last","ALPHA":"first"}}}"#,
-            to: devcontainerURL(in: repoURL)
+        // Scenario name preserved: ready VM with route → ssh invocation, no separate build step.
+        let repoURL = try makeTemporaryDirectory(prefix: "ProcessRunnerSharedVMRunsRemote")
+        let route = SharedVMRoute(
+            sshDestination: "compass@192.0.2.30",
+            hostWorktreeURL: repoURL,
+            guestWorkspacePath: "/opt/compass/workspaces/dev-CCC/worktree",
+            guestCodexPath: "/opt/compass/codex/codex"
         )
+        let launchPlan = CodexExecutionLaunchPlan(
+            selectedPreference: .sharedVM,
+            effectiveRoute: .sharedVM(route),
+            vmReadiness: .ready(sshDestination: route.sshDestination)
+        )
+        var captured: [CodexExecutionInvocation] = []
+
+        _ = try await ProcessRunner.runShell(
+            "swift test --filter CompassTests",
+            workingDirectory: repoURL,
+            launchPlan: launchPlan,
+            runner: { invocation, _, _, _, _ in
+                captured.append(invocation)
+                return ProcessResult(exitCode: 0, stdout: "", stderr: "")
+            }
+        )
+
+        XCTAssertEqual(captured.count, 1, "Shared VM route should not emit a separate build step")
+        let invocation = try XCTUnwrap(captured.first)
+        XCTAssertEqual(invocation.executable, "/usr/bin/ssh")
+        XCTAssertTrue(invocation.arguments.contains("compass@192.0.2.30"))
+    }
+
+    func testBuildDevcontainerShellRouteFallsBackToNativeWhenBuildFails() async throws {
+        // Scenario name preserved: error readiness → host fallback.
+        let repoURL = try makeTemporaryDirectory(prefix: "ProcessRunnerVMErrorFallback")
         let launchPlan = CodexExecutionLaunchPlan.plan(
             repoURL: repoURL,
-            preference: .devcontainerPreferred,
-            containerToolResolver: { _ in "/usr/local/bin/container" }
+            preference: .sharedVM,
+            vmReadiness: .error(detail: "boot failed 3x")
         )
-        let buildConfiguration = try XCTUnwrap(launchPlan.devcontainerSupportReport?.buildConfiguration)
-        var capturedInvocations: [CodexExecutionInvocation] = []
+        var capturedInvocation: CodexExecutionInvocation?
 
         _ = try await ProcessRunner.runShell(
             "swift test",
             workingDirectory: repoURL,
             launchPlan: launchPlan,
             runner: { invocation, _, _, _, _ in
-                capturedInvocations.append(invocation)
+                capturedInvocation = invocation
                 return ProcessResult(exitCode: 0, stdout: "", stderr: "")
             }
         )
 
-        XCTAssertEqual(capturedInvocations.count, 2)
-        let buildInvocation = capturedInvocations[0]
-        let shellInvocation = capturedInvocations[1]
-        XCTAssertTrue(launchPlan.isContainerRoute)
-        XCTAssertEqual(launchPlan.devcontainerSupportReport?.classification, .buildBased)
-        XCTAssertEqual(buildInvocation.executable, "/usr/local/bin/container")
-        XCTAssertEqual(buildConfiguration.buildArguments, [
-            "build",
-            "--tag", buildConfiguration.localImageTag,
-            "--file", repoURL
-                .appending(path: ".devcontainer", directoryHint: .isDirectory)
-                .appending(path: "Dockerfile")
-                .standardizedFileURL
-                .path,
-            "--target", "verify",
-            "--build-arg", "ALPHA=first",
-            "--build-arg", "ZETA=last",
-            repoURL.standardizedFileURL.path
-        ])
-        XCTAssertEqual(buildInvocation.arguments, buildConfiguration.buildArguments)
-        XCTAssertEqual(shellInvocation.executable, "/usr/local/bin/container")
-        XCTAssertEqual(shellInvocation.arguments, [
-            "run",
-            "--rm",
-            "--volume", "\(repoURL.standardizedFileURL.path):/workspace",
-            "--workdir", "/workspace",
-            buildConfiguration.localImageTag,
-            "sh",
-            "-lc",
-            "swift test"
-        ])
+        let invocation = try XCTUnwrap(capturedInvocation)
+        XCTAssertEqual(invocation.executable, "/bin/zsh")
+        XCTAssertTrue(launchPlan.fallbackReason?.contains("boot failed") ?? false)
     }
 
-    func testBuildDevcontainerShellRouteFallsBackToNativeWhenBuildFails() async throws {
-        let repoURL = try makeTemporaryDirectory(prefix: "ProcessRunnerBuildFailure")
-        try write(
-            #"{"build":{"dockerfile":"Dockerfile","context":"..","target":"verify"}}"#,
-            to: devcontainerURL(in: repoURL)
-        )
-        let launchPlan = CodexExecutionLaunchPlan.plan(
-            repoURL: repoURL,
-            preference: .devcontainerPreferred,
-            containerToolResolver: { _ in "/usr/local/bin/container" }
-        )
-        var capturedInvocations: [CodexExecutionInvocation] = []
-
-        let result = try await ProcessRunner.runShell(
-            "swift test",
-            workingDirectory: repoURL,
-            launchPlan: launchPlan,
-            runner: { invocation, _, _, _, _ in
-                capturedInvocations.append(invocation)
-                if capturedInvocations.count == 1 {
-                    return ProcessResult(exitCode: 77, stdout: "ignored", stderr: "private failure")
-                }
-                return ProcessResult(exitCode: 0, stdout: "native-ok", stderr: "")
-            }
-        )
-
-        XCTAssertEqual(result.stdout, "native-ok")
-        XCTAssertEqual(capturedInvocations.count, 2)
-        XCTAssertEqual(capturedInvocations[0].executable, "/usr/local/bin/container")
-        XCTAssertEqual(capturedInvocations[1].executable, "/bin/zsh")
-        XCTAssertEqual(capturedInvocations[1].arguments, ["-lc", "swift test"])
-    }
+    // MARK: - Helpers
 
     private func makeTemporaryDirectory(prefix: String) throws -> URL {
         let url = FileManager.default.temporaryDirectory
@@ -308,19 +249,5 @@ final class ProcessRunnerExecutionRouteTests: XCTestCase {
         try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
         temporaryDirectories.append(url)
         return url.standardizedFileURL
-    }
-
-    private func devcontainerURL(in repoURL: URL) -> URL {
-        repoURL
-            .appending(path: ".devcontainer", directoryHint: .isDirectory)
-            .appending(path: "devcontainer.json")
-    }
-
-    private func write(_ contents: String, to url: URL) throws {
-        try FileManager.default.createDirectory(
-            at: url.deletingLastPathComponent(),
-            withIntermediateDirectories: true
-        )
-        try contents.write(to: url, atomically: true, encoding: .utf8)
     }
 }

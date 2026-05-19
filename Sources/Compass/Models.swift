@@ -247,6 +247,9 @@ struct SessionExecutionEnvironmentSnapshot: Codable, Equatable, Identifiable {
     static let phaseLimit = 24
     static let fieldLimit = 120
     static let summaryLimit = 280
+    /// Stable identifier the snapshot reports for the VM-build action surface. Retained as a
+    /// constant so consumers don't grow another magic string.
+    static let vmBuildActionIdentifier = "shared-vm.build"
 
     var phase: String
     var phaseIdentifier: String
@@ -255,14 +258,22 @@ struct SessionExecutionEnvironmentSnapshot: Codable, Equatable, Identifiable {
     var selectedPreferenceTitle: String
     var effectiveRouteIdentifier: String
     var effectiveRouteTitle: String
+    /// Captures the shared VM readiness classification. Field name retained from the previous
+    /// devcontainer support classification slot so on-disk snapshots remain decodable.
     var supportClassificationIdentifier: String
+    /// Retained for forward-compatibility with the previous snapshot schema; always empty
+    /// for shared-VM-era snapshots.
     var visibleSupportTokens: [String]
     var omittedSupportTokenCount: Int
     var imageLabel: String
     var workspaceLabel: String
     var fallbackReason: String?
+    /// VM-build availability ("available" when the bundle is provisioned and ready to use,
+    /// "unavailable" otherwise). Field name retained from the devcontainer provisioning slot.
     var provisioningAvailabilityIdentifier: String?
+    /// VM-build status (mirrors `SharedCompassVMReadiness` cases). Field name retained.
     var provisioningStatusIdentifier: String?
+    /// VM-build action identifier (the menu action that surfaces "Build VM"). Field name retained.
     var provisioningActionIdentifier: String?
 
     var id: String {
@@ -282,73 +293,35 @@ struct SessionExecutionEnvironmentSnapshot: Codable, Equatable, Identifiable {
     init(
         phase: String,
         attempt: Int? = nil,
-        launchPlan: CodexExecutionLaunchPlan,
-        provisioningPlan: CodexDevcontainerProvisioningPlan? = nil
+        launchPlan: CodexExecutionLaunchPlan
     ) {
-        let supportReport = launchPlan.devcontainerSupportReport
-        let configURL = supportReport?.configURL
-        let repoURL = configURL?
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .standardizedFileURL
-
-        self.phase = Self.sanitizedField(
-            phase,
-            repoURL: repoURL,
-            configURL: configURL,
-            limit: Self.phaseLimit
-        )
+        self.phase = Self.sanitizedField(phase, limit: Self.phaseLimit)
         phaseIdentifier = Self.phaseIdentifier(for: phase)
         self.attempt = attempt.flatMap { $0 > 0 ? $0 : nil }
         selectedPreferenceIdentifier = launchPlan.selectedPreference.rawValue
         selectedPreferenceTitle = Self.sanitizedField(
             launchPlan.selectedPreference.title,
-            repoURL: repoURL,
-            configURL: configURL,
             limit: Self.fieldLimit
         )
         effectiveRouteIdentifier = launchPlan.effectiveRouteIdentifier
         effectiveRouteTitle = Self.sanitizedField(
             launchPlan.effectiveRouteTitle,
-            repoURL: repoURL,
-            configURL: configURL,
             limit: Self.fieldLimit
         )
-        supportClassificationIdentifier = supportReport?.classification.rawValue ?? "not-inspected"
-        visibleSupportTokens = (supportReport?.supportTokens ?? [])
-            .prefix(CodexDevcontainerSupportReport.maxTokenCount)
-            .map {
-                Self.sanitizedSupportToken(
-                    $0,
-                    repoURL: repoURL,
-                    configURL: configURL
-                )
-            }
-            .filter { !$0.isEmpty }
-        omittedSupportTokenCount = max(0, supportReport?.omittedTokenCount ?? 0)
-        imageLabel = Self.sanitizedField(
-            launchPlan.imageLabel,
-            repoURL: repoURL,
-            configURL: configURL,
-            limit: Self.fieldLimit
-        )
-        workspaceLabel = Self.sanitizedField(
-            launchPlan.workspaceLabel,
-            repoURL: repoURL,
-            configURL: configURL,
-            limit: Self.fieldLimit
-        )
+        supportClassificationIdentifier = Self.vmSupportClassification(launchPlan.vmReadiness)
+        visibleSupportTokens = []
+        omittedSupportTokenCount = 0
+        imageLabel = Self.sanitizedField(launchPlan.imageLabel, limit: Self.fieldLimit)
+        workspaceLabel = Self.sanitizedField(launchPlan.workspaceLabel, limit: Self.fieldLimit)
         fallbackReason = Self.sanitizedOptionalField(
             launchPlan.fallbackReason,
-            repoURL: repoURL,
-            configURL: configURL,
             limit: CodexExecutionLaunchPlan.fallbackReasonLimit
         )
 
-        if let provisioningPlan {
-            provisioningAvailabilityIdentifier = provisioningPlan.isAvailable ? "available" : "unavailable"
-            provisioningStatusIdentifier = Self.provisioningStatusIdentifier(provisioningPlan.status)
-            provisioningActionIdentifier = CodexDevcontainerProvisioningMenuAction.actionIdentifier
+        if let readiness = launchPlan.vmReadiness {
+            provisioningAvailabilityIdentifier = Self.vmAvailability(for: readiness)
+            provisioningStatusIdentifier = Self.vmStatusIdentifier(for: readiness)
+            provisioningActionIdentifier = Self.vmBuildActionIdentifier
         } else {
             provisioningAvailabilityIdentifier = nil
             provisioningStatusIdentifier = nil
@@ -361,7 +334,7 @@ struct SessionExecutionEnvironmentSnapshot: Codable, Equatable, Identifiable {
             "\(phase)\(attempt.map { " attempt \($0)" } ?? "")",
             effectiveRouteTitle,
             "selected \(selectedPreferenceTitle)",
-            "support \(supportClassificationIdentifier)"
+            "vm \(supportClassificationIdentifier)"
         ]
 
         if !imageLabel.isEmpty, imageLabel != "none" {
@@ -371,36 +344,52 @@ struct SessionExecutionEnvironmentSnapshot: Codable, Equatable, Identifiable {
             pieces.append("workspace \(workspaceLabel)")
         }
 
-        if !visibleSupportTokens.isEmpty {
-            var tokenText = visibleSupportTokens.joined(separator: ",")
-            if omittedSupportTokenCount > 0 {
-                tokenText += ",+\(omittedSupportTokenCount)-more"
-            }
-            pieces.append("tokens \(tokenText)")
-        } else if omittedSupportTokenCount > 0 {
-            pieces.append("tokens +\(omittedSupportTokenCount)-more")
-        }
-
         if let fallbackReason, !fallbackReason.isEmpty {
             pieces.append("fallback \(fallbackReason)")
         }
 
         if let provisioningAvailabilityIdentifier, let provisioningStatusIdentifier {
-            pieces.append("provisioning \(provisioningAvailabilityIdentifier)/\(provisioningStatusIdentifier)")
+            pieces.append("vm-build \(provisioningAvailabilityIdentifier)/\(provisioningStatusIdentifier)")
         }
 
         return Self.boundedField(pieces.joined(separator: "; "), limit: Self.summaryLimit)
     }
 
-    private static func provisioningStatusIdentifier(_ status: CodexDevcontainerProvisioningPlan.Status) -> String {
-        switch status {
-        case .available:
-            return "available"
-        case .alreadyPresent:
-            return "already-present"
-        case .malformed:
-            return "malformed"
+    private static func vmSupportClassification(_ readiness: SharedCompassVMReadiness?) -> String {
+        guard let readiness else { return "not-inspected" }
+        switch readiness {
+        case .unavailable:
+            return "unavailable"
+        case .notProvisioned:
+            return "not-provisioned"
+        case .downloadingIPSW:
+            return "downloading-ipsw"
+        case .installing:
+            return "installing"
+        case .firstBootPending:
+            return "first-boot-pending"
+        case .guestPrepping:
+            return "guest-prepping"
+        case .codexLoginPending:
+            return "codex-login-pending"
+        case .ready:
+            return "ready"
+        case .error:
+            return "error"
         }
+    }
+
+    private static func vmAvailability(for readiness: SharedCompassVMReadiness) -> String {
+        switch readiness {
+        case .ready:
+            return "available"
+        default:
+            return "unavailable"
+        }
+    }
+
+    private static func vmStatusIdentifier(for readiness: SharedCompassVMReadiness) -> String {
+        vmSupportClassification(readiness)
     }
 
     private static func phaseIdentifier(for phase: String) -> String {
@@ -419,66 +408,23 @@ struct SessionExecutionEnvironmentSnapshot: Codable, Equatable, Identifiable {
         return filtered.isEmpty ? "phase" : String(filtered.prefix(Self.phaseLimit))
     }
 
-    private static func sanitizedSupportToken(
-        _ token: String,
-        repoURL: URL?,
-        configURL: URL?
-    ) -> String {
-        let sanitized = sanitizedField(
-            token,
-            repoURL: repoURL,
-            configURL: configURL,
-            limit: CodexDevcontainerSupportReport.tokenLimit
-        )
-        guard !sanitized.isEmpty else { return "" }
-        guard sanitized.unicodeScalars.allSatisfy(isStableTokenScalar) else {
-            return "token"
-        }
-        return sanitized
-    }
-
     private static func sanitizedOptionalField(
         _ text: String?,
-        repoURL: URL?,
-        configURL: URL?,
         limit: Int
     ) -> String? {
-        let sanitized = sanitizedField(
-            text ?? "",
-            repoURL: repoURL,
-            configURL: configURL,
-            limit: limit
-        )
+        let sanitized = sanitizedField(text ?? "", limit: limit)
         return sanitized.isEmpty ? nil : sanitized
     }
 
     private static func sanitizedField(
         _ text: String,
-        repoURL: URL?,
-        configURL: URL?,
         limit: Int
     ) -> String {
-        var sanitized = text
+        let sanitized = text
             .replacingOccurrences(of: "\r", with: " ")
             .replacingOccurrences(of: "\n", with: " ")
             .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
             .trimmingCharacters(in: .whitespacesAndNewlines)
-
-        var replacements: [(String, String)] = []
-        if let configURL {
-            replacements.append((configURL.standardizedFileURL.path, "[devcontainer-json]"))
-            replacements.append((configURL.deletingLastPathComponent().standardizedFileURL.path, "[devcontainer-dir]"))
-        }
-        if let repoURL {
-            replacements.append((repoURL.standardizedFileURL.path, "[repo]"))
-        }
-
-        for (path, replacement) in replacements.sorted(by: { $0.0.count > $1.0.count }) where !path.isEmpty {
-            let pathPrefix = path.hasSuffix("/") ? path : path + "/"
-            sanitized = sanitized.replacingOccurrences(of: pathPrefix, with: "\(replacement)/")
-            sanitized = sanitized.replacingOccurrences(of: path, with: replacement)
-        }
-
         return boundedField(sanitized, limit: limit)
     }
 
@@ -491,17 +437,6 @@ struct SessionExecutionEnvironmentSnapshot: Codable, Equatable, Identifiable {
             .trimmingCharacters(in: .whitespacesAndNewlines)
         guard normalized.count > limit else { return normalized }
         return String(normalized.prefix(limit)).trimmingCharacters(in: .whitespacesAndNewlines)
-    }
-
-    private static func isStableTokenScalar(_ scalar: UnicodeScalar) -> Bool {
-        isASCIILetter(scalar)
-            || isASCIIDigit(scalar)
-            || scalar == ":"
-            || scalar == "."
-            || scalar == "_"
-            || scalar == "-"
-            || scalar == "@"
-            || scalar == "+"
     }
 
     private static func isASCIILetter(_ scalar: UnicodeScalar) -> Bool {

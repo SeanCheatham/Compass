@@ -98,7 +98,7 @@ enum MutationTestingPresentationSanitizer {
         let identifier = identifier(text, fallback: "unknown", limit: SessionMutationTestingExecution.fieldLimit)
         switch identifier {
         case CodexMutationTestingPlan.RouteState.nativeRoute.rawValue,
-            CodexMutationTestingPlan.RouteState.appleContainerRoute.rawValue,
+            CodexMutationTestingPlan.RouteState.sharedVMRoute.rawValue,
             CodexMutationTestingPlan.RouteState.nativeFallback.rawValue:
             return identifier
         default:
@@ -110,8 +110,8 @@ enum MutationTestingPresentationSanitizer {
         switch identifier {
         case CodexMutationTestingPlan.RouteState.nativeRoute.rawValue:
             return "Native"
-        case CodexMutationTestingPlan.RouteState.appleContainerRoute.rawValue:
-            return "Apple container"
+        case CodexMutationTestingPlan.RouteState.sharedVMRoute.rawValue:
+            return "Shared VM"
         case CodexMutationTestingPlan.RouteState.nativeFallback.rawValue:
             return "Native fallback"
         default:

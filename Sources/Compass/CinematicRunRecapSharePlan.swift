@@ -372,8 +372,8 @@ struct CinematicRunRecapShareArtifactMutationTestingAudit: Equatable, Identifiab
         }
         let expectedRuntimeRoute: String
         switch mutationRouteIdentifier {
-        case CodexMutationTestingPlan.RouteState.appleContainerRoute.rawValue:
-            expectedRuntimeRoute = "apple-container"
+        case CodexMutationTestingPlan.RouteState.sharedVMRoute.rawValue:
+            expectedRuntimeRoute = "shared-vm"
         case CodexMutationTestingPlan.RouteState.nativeRoute.rawValue,
             CodexMutationTestingPlan.RouteState.nativeFallback.rawValue:
             expectedRuntimeRoute = "native-macos"
@@ -411,8 +411,11 @@ struct CinematicRunRecapShareArtifactRuntimeRouteAudit: Equatable, Identifiable 
     static let markdownMaxCharacters = 1_200
     static let fieldMaxCharacters = SessionExecutionEnvironmentSnapshot.fieldLimit
     static let phaseMaxCharacters = SessionExecutionEnvironmentSnapshot.phaseLimit
-    static let tokenMaxCharacters = CodexDevcontainerSupportReport.tokenLimit
-    static let tokenLimit = CodexDevcontainerSupportReport.maxTokenCount
+    // Retained limits originally sourced from the devcontainer support report. Tokens are
+    // no longer populated for shared-VM-era snapshots; the limits remain so any decoded
+    // historical artifact still gets the same bounded handling.
+    static let tokenMaxCharacters = 48
+    static let tokenLimit = 8
 
     var id: String { identifier }
 
@@ -461,10 +464,12 @@ struct CinematicRunRecapShareArtifactRuntimeRouteAudit: Equatable, Identifiable 
             identifier: selectedPreferenceIdentifier,
             fallback: snapshot.selectedPreferenceTitle,
             knownTitles: [
-                CodexExecutionEnvironmentPreference.nativeMacOS.rawValue:
-                    CodexExecutionEnvironmentPreference.nativeMacOS.title,
-                CodexExecutionEnvironmentPreference.devcontainerPreferred.rawValue:
-                    CodexExecutionEnvironmentPreference.devcontainerPreferred.title
+                CodexExecutionEnvironmentPreference.host.rawValue:
+                    CodexExecutionEnvironmentPreference.host.title,
+                CodexExecutionEnvironmentPreference.sharedVM.rawValue:
+                    CodexExecutionEnvironmentPreference.sharedVM.title,
+                // Legacy preference rawValues — preserved for recap baselines from prior runs.
+                "devcontainer_preferred": "Native macOS"
             ],
             defaultTitle: "Unknown"
         )
@@ -477,8 +482,10 @@ struct CinematicRunRecapShareArtifactRuntimeRouteAudit: Equatable, Identifiable 
             identifier: effectiveRouteIdentifier,
             fallback: snapshot.effectiveRouteTitle,
             knownTitles: [
-                "apple-container": "Apple container",
-                "native-macos": "Native macOS"
+                "shared-vm": "Shared VM",
+                "native-macos": "Native macOS",
+                // Legacy route identifier — surfaced for recap artifact decoding.
+                "apple-container": "Shared VM"
             ],
             defaultTitle: "Unknown route"
         )
@@ -733,7 +740,7 @@ struct CinematicRunRecapShareArtifactRuntimeRouteCue: Equatable, Identifiable {
         }
         let effectiveRouteIdentifier = Self.knownIdentifier(
             Self.leadingIdentifier(Self.markdownField("Effective route", in: sectionLines)),
-            allowed: ["apple-container", "native-macos"],
+            allowed: ["shared-vm", "native-macos", "apple-container"],
             fallback: "unknown"
         )
         let fallbackStateIdentifier = Self.knownIdentifier(
@@ -744,8 +751,11 @@ struct CinematicRunRecapShareArtifactRuntimeRouteCue: Equatable, Identifiable {
         let selectedPreferenceIdentifier = Self.knownIdentifier(
             Self.leadingIdentifier(Self.markdownField("Selected preference", in: sectionLines)),
             allowed: [
-                CodexExecutionEnvironmentPreference.nativeMacOS.rawValue,
-                CodexExecutionEnvironmentPreference.devcontainerPreferred.rawValue
+                CodexExecutionEnvironmentPreference.host.rawValue,
+                CodexExecutionEnvironmentPreference.sharedVM.rawValue,
+                // Legacy preference identifier — preserved so older saved recap artifacts
+                // continue to decode.
+                "devcontainer_preferred"
             ],
             fallback: "unknown"
         )
@@ -753,12 +763,15 @@ struct CinematicRunRecapShareArtifactRuntimeRouteCue: Equatable, Identifiable {
             Self.markdownField("Support classification", in: sectionLines),
             allowed: [
                 "not-inspected",
-                "image-routeable",
-                "build-based",
-                "compose-based",
-                "feature-based",
-                "missing",
-                "malformed"
+                "unavailable",
+                "not-provisioned",
+                "downloading-ipsw",
+                "installing",
+                "first-boot-pending",
+                "guest-prepping",
+                "codex-login-pending",
+                "ready",
+                "error"
             ],
             fallback: "not-inspected"
         )
@@ -859,8 +872,8 @@ struct CinematicRunRecapShareArtifactRuntimeRouteCue: Equatable, Identifiable {
         effectiveRouteIdentifier: String,
         fallbackStateIdentifier: String
     ) -> String {
-        if effectiveRouteIdentifier == "apple-container" {
-            return "apple-container"
+        if effectiveRouteIdentifier == "shared-vm" || effectiveRouteIdentifier == "apple-container" {
+            return "shared-vm"
         }
         if effectiveRouteIdentifier == "native-macos", fallbackStateIdentifier == "fallback" {
             return "native-fallback"
@@ -873,8 +886,8 @@ struct CinematicRunRecapShareArtifactRuntimeRouteCue: Equatable, Identifiable {
 
     private static func compactCopy(routeKindIdentifier: String) -> String {
         switch routeKindIdentifier {
-        case "apple-container":
-            return "Container"
+        case "shared-vm":
+            return "Shared VM"
         case "native":
             return "Native"
         case "native-fallback":
@@ -1769,7 +1782,7 @@ struct CinematicRunRecapShareArtifactRuntimeRouteTreatmentDescriptor: Equatable 
         let railOpacityScale: Double
         let orbOpacityScale: Double
         switch routeKindIdentifier {
-        case "apple-container":
+        case "shared-vm":
             accentIdentifier = "container-blue"
             railIdentifier = "container-rail"
             orbIdentifier = "container-orb"

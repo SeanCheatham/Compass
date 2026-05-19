@@ -374,7 +374,7 @@ final class PlanReliabilityFeedbackTests: XCTestCase {
         endedAt: Double,
         outputTail: String
     ) -> SessionMutationTestingExecution {
-        let launchPlan = CodexExecutionLaunchPlan.native()
+        let launchPlan = CodexExecutionLaunchPlan.host()
         let readiness = CodexMutationTestingPlan(
             state: PlanState(
                 completed: [],

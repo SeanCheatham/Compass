@@ -1479,7 +1479,7 @@ enum CinematicIdleStoryCyclePlanner {
         }
         let routeOffset: Float
         switch tourPlan.runtimeRouteCueStateIdentifier {
-        case "apple-container":
+        case "shared-vm":
             routeOffset = -0.08
         case "native-fallback":
             routeOffset = 0.1
@@ -1547,7 +1547,7 @@ enum CinematicIdleStoryCyclePlanner {
             return .git
         }
         switch tourPlan.runtimeRouteCueStateIdentifier {
-        case "apple-container":
+        case "shared-vm":
             return .scan
         case "native-fallback":
             return .pressure
@@ -1589,7 +1589,7 @@ enum CinematicIdleStoryCyclePlanner {
         if tourPlan.runtimeRouteCueStateIdentifier == "native-fallback" {
             return .activityPulse
         }
-        if tourPlan.runtimeRouteCueStateIdentifier == "apple-container" {
+        if tourPlan.runtimeRouteCueStateIdentifier == "shared-vm" {
             return .historyChains
         }
         return tourPlan.selectionSourceIdentifier == "pinned" ? .historyChains : .seal
@@ -1630,7 +1630,7 @@ enum CinematicIdleStoryCyclePlanner {
             return 720
         }
         switch tourPlan.runtimeRouteCueStateIdentifier {
-        case "apple-container":
+        case "shared-vm":
             return 640
         case "native-fallback":
             return 700

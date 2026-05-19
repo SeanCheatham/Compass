@@ -2821,7 +2821,7 @@ struct CinematicVisualSmokeReport: Equatable {
                 "recent-warning"
             ])
             && holdStates.isSuperset(of: ["none", "held", "filtered-hold", "missing-hold"])
-            && routeStates.isSuperset(of: ["apple-container", "native", "native-fallback", "missing-cue"])
+            && routeStates.isSuperset(of: ["shared-vm", "native", "native-fallback", "missing-cue"])
             && routeTreatments.isSuperset(of: [
                 "container-blue",
                 "native-green",
@@ -2868,7 +2868,7 @@ struct CinematicVisualSmokeReport: Equatable {
                 "no-match",
                 "missing-pin",
                 "missing-hold",
-                "apple-container",
+                "shared-vm",
                 "native-fallback",
                 "missing-cue",
                 "mutation succeeded failed runtime-route-diverged",
@@ -6879,7 +6879,7 @@ struct CinematicDiagnosticsSummary: Equatable {
             || lowercased.contains("feature option")
             || lowercased.contains("composefile")
             || lowercased.contains("dockercomposefile")
-            || lowercased.contains(".devcontainer")
+            || lowercased.contains("shared-vm-private")
             || lowercased.contains("container-tool")
     }
 
@@ -11674,11 +11674,11 @@ enum CinematicDiagnostics {
                 "Verify",
                 "verify",
                 "1",
-                CodexExecutionEnvironmentPreference.devcontainerPreferred.rawValue,
-                CodexExecutionEnvironmentPreference.devcontainerPreferred.title,
-                "apple-container",
-                "Apple container",
-                "image-routeable",
+                CodexExecutionEnvironmentPreference.sharedVM.rawValue,
+                CodexExecutionEnvironmentPreference.sharedVM.title,
+                "shared-vm",
+                "Shared VM",
+                "ready",
                 "direct",
                 "none"
             )
@@ -11687,8 +11687,8 @@ enum CinematicDiagnostics {
                 "Develop",
                 "develop",
                 "1",
-                CodexExecutionEnvironmentPreference.nativeMacOS.rawValue,
-                CodexExecutionEnvironmentPreference.nativeMacOS.title,
+                CodexExecutionEnvironmentPreference.host.rawValue,
+                CodexExecutionEnvironmentPreference.host.title,
                 "native-macos",
                 "Native macOS",
                 "not-inspected",
@@ -11700,13 +11700,13 @@ enum CinematicDiagnostics {
                 "Plan",
                 "plan",
                 "2",
-                CodexExecutionEnvironmentPreference.devcontainerPreferred.rawValue,
-                CodexExecutionEnvironmentPreference.devcontainerPreferred.title,
+                CodexExecutionEnvironmentPreference.sharedVM.rawValue,
+                CodexExecutionEnvironmentPreference.sharedVM.title,
                 "native-macos",
                 "Native macOS",
-                "feature-based",
+                "not-provisioned",
                 "fallback",
-                "unsupported devcontainer metadata"
+                "Shared VM unavailable"
             )
         default:
             route = nil
@@ -11786,13 +11786,13 @@ enum CinematicDiagnostics {
             cue = (
                 "succeeded",
                 "Succeeded",
-                CodexMutationTestingPlan.RouteState.appleContainerRoute.rawValue,
-                "Apple container",
+                CodexMutationTestingPlan.RouteState.sharedVMRoute.rawValue,
+                "Shared VM",
                 "swift",
                 "Swift",
                 "exit 0",
                 "1.2 s",
-                "route-aligned|fallback-not-required|mutation:apple-container-route|runtime:apple-container"
+                "route-aligned|fallback-not-required|mutation:shared-vm-route|runtime:shared-vm"
             )
         case "held":
             cue = (
@@ -11822,13 +11822,13 @@ enum CinematicDiagnostics {
             cue = (
                 "succeeded",
                 "Succeeded",
-                CodexMutationTestingPlan.RouteState.appleContainerRoute.rawValue,
-                "Apple container",
+                CodexMutationTestingPlan.RouteState.sharedVMRoute.rawValue,
+                "Shared VM",
                 "swift",
                 "Swift",
                 "exit 0",
                 "1.8 s",
-                "route-diverged|fallback-not-required|mutation:apple-container-route|runtime:native-macos"
+                "route-diverged|fallback-not-required|mutation:shared-vm-route|runtime:native-macos"
             )
         case "filtered-hold":
             cue = (

@@ -97,14 +97,14 @@ final class PlanSessionHistoryTests: XCTestCase {
     func testUsesLatestRuntimeRouteSummaryForHistoryItems() throws {
         let planSnapshot = SessionExecutionEnvironmentSnapshot(
             phase: "Plan",
-            launchPlan: CodexExecutionLaunchPlan.native()
+            launchPlan: CodexExecutionLaunchPlan.host()
         )
         let verifySnapshot = SessionExecutionEnvironmentSnapshot(
             phase: "Verify",
             attempt: 2,
-            launchPlan: CodexExecutionLaunchPlan.native(
-                selectedPreference: .devcontainerPreferred,
-                fallbackReason: "Apple container CLI is unavailable."
+            launchPlan: CodexExecutionLaunchPlan.host(
+                selectedPreference: .sharedVM,
+                fallbackReason: "Shared VM unavailable: 2-guest cap."
             )
         )
 
@@ -127,191 +127,11 @@ final class PlanSessionHistoryTests: XCTestCase {
         XCTAssertEqual(items[0].runtimeRouteSummary, planSnapshot.routeSummary)
         XCTAssertEqual(items[1].runtimeRouteSummary, verifySnapshot.routeSummary)
         XCTAssertTrue(items[1].runtimeRouteSummary?.contains("Verify attempt 2") == true)
-        XCTAssertTrue(items[1].runtimeRouteSummary?.contains("fallback Apple container CLI is unavailable.") == true)
+        XCTAssertTrue(items[1].runtimeRouteSummary?.contains("fallback Shared VM unavailable: 2-guest cap.") == true)
         XCTAssertLessThanOrEqual(
             items[1].runtimeRouteSummary?.count ?? 0,
             SessionExecutionEnvironmentSnapshot.summaryLimit
         )
-    }
-
-    func testRuntimeDescriptorsCoverAppleContainerNativeAndFallbackRoutes() throws {
-        let imageSnapshot = try makeRuntimeSnapshot(
-            repoPrefix: "PlanSessionHistoryRuntimeImage",
-            devcontainerJSON: #"{"image":"swift:6.0","workspaceFolder":"/workspace/app"}"#,
-            preference: .devcontainerPreferred,
-            containerToolPath: "/usr/local/bin/container"
-        )
-        let buildSnapshot = try makeRuntimeSnapshot(
-            repoPrefix: "PlanSessionHistoryRuntimeBuild",
-            devcontainerJSON: #"{"build":{"dockerfile":"Dockerfile","context":"..","target":"runtime","args":{"TOKEN":"secret-build-arg"}}}"#,
-            preference: .devcontainerPreferred,
-            containerToolPath: "/usr/local/bin/container"
-        )
-        let nativeSnapshot = try makeRuntimeSnapshot(
-            repoPrefix: "PlanSessionHistoryRuntimeNative",
-            devcontainerJSON: #"{"image":"swift:6.0"}"#,
-            preference: .nativeMacOS,
-            containerToolPath: "/usr/local/bin/container"
-        )
-        let fallbackSnapshot = try makeRuntimeSnapshot(
-            repoPrefix: "PlanSessionHistoryRuntimeFallback",
-            devcontainerJSON: #"{"image":"swift:6.0"}"#,
-            preference: .devcontainerPreferred,
-            containerToolPath: nil
-        )
-
-        let items = PlanSessionHistory.displayItems(
-            for: [
-                makeSession(1, startedAt: 1_000, executionEnvironmentSnapshots: [imageSnapshot]),
-                makeSession(2, startedAt: 2_000, executionEnvironmentSnapshots: [buildSnapshot]),
-                makeSession(3, startedAt: 3_000, executionEnvironmentSnapshots: [nativeSnapshot]),
-                makeSession(4, startedAt: 4_000, executionEnvironmentSnapshots: [fallbackSnapshot])
-            ]
-        )
-
-        let descriptorsBySession = Dictionary(
-            uniqueKeysWithValues: items.map { ($0.sessionNumber, $0.runtimeRouteDescriptor) }
-        )
-        XCTAssertEqual(descriptorsBySession[1]?.snapshotAvailabilityIdentifier, "available")
-        XCTAssertEqual(descriptorsBySession[1]?.selectedPreferenceIdentifier, "devcontainer_preferred")
-        XCTAssertEqual(descriptorsBySession[1]?.effectiveRouteIdentifier, "apple-container")
-        XCTAssertEqual(descriptorsBySession[1]?.supportClassificationIdentifier, "image-routeable")
-        XCTAssertEqual(descriptorsBySession[1]?.fallbackStateIdentifier, "direct")
-
-        XCTAssertEqual(descriptorsBySession[2]?.effectiveRouteIdentifier, "apple-container")
-        XCTAssertEqual(descriptorsBySession[2]?.supportClassificationIdentifier, "build-based")
-        XCTAssertEqual(descriptorsBySession[2]?.fallbackStateIdentifier, "direct")
-
-        XCTAssertEqual(descriptorsBySession[3]?.selectedPreferenceIdentifier, "native_macos")
-        XCTAssertEqual(descriptorsBySession[3]?.effectiveRouteIdentifier, "native-macos")
-        XCTAssertEqual(descriptorsBySession[3]?.supportClassificationIdentifier, "image-routeable")
-        XCTAssertEqual(descriptorsBySession[3]?.fallbackStateIdentifier, "direct")
-
-        XCTAssertEqual(descriptorsBySession[4]?.selectedPreferenceIdentifier, "devcontainer_preferred")
-        XCTAssertEqual(descriptorsBySession[4]?.effectiveRouteIdentifier, "native-macos")
-        XCTAssertEqual(descriptorsBySession[4]?.supportClassificationIdentifier, "image-routeable")
-        XCTAssertEqual(descriptorsBySession[4]?.fallbackStateIdentifier, "fallback")
-    }
-
-    func testRuntimeFiltersUseLatestSnapshotAndPreserveOrdering() throws {
-        let appleImageSnapshot = try makeRuntimeSnapshot(
-            repoPrefix: "PlanSessionHistoryFilterImage",
-            devcontainerJSON: #"{"image":"swift:6.0","workspaceFolder":"/workspace/app"}"#,
-            preference: .devcontainerPreferred,
-            containerToolPath: "/usr/local/bin/container"
-        )
-        let appleBuildSnapshot = try makeRuntimeSnapshot(
-            repoPrefix: "PlanSessionHistoryFilterBuild",
-            devcontainerJSON: #"{"build":{"dockerfile":"Dockerfile","context":"..","target":"runtime"}}"#,
-            preference: .devcontainerPreferred,
-            containerToolPath: "/usr/local/bin/container"
-        )
-        let nativeSnapshot = try makeRuntimeSnapshot(
-            repoPrefix: "PlanSessionHistoryFilterNative",
-            devcontainerJSON: #"{"image":"swift:6.0"}"#,
-            preference: .nativeMacOS,
-            containerToolPath: "/usr/local/bin/container"
-        )
-        let nativeFallbackSnapshot = try makeRuntimeSnapshot(
-            repoPrefix: "PlanSessionHistoryFilterFallback",
-            devcontainerJSON: #"{"image":"swift:6.0"}"#,
-            preference: .devcontainerPreferred,
-            containerToolPath: nil
-        )
-
-        let items = PlanSessionHistory.displayItems(
-            for: [
-                makeSession(1, startedAt: 1_000),
-                makeSession(2, startedAt: 2_000, executionEnvironmentSnapshots: [nativeSnapshot]),
-                makeSession(3, startedAt: 3_000, executionEnvironmentSnapshots: [appleImageSnapshot]),
-                makeSession(4, startedAt: 4_000, executionEnvironmentSnapshots: [nativeFallbackSnapshot]),
-                makeSession(5, startedAt: 5_000, executionEnvironmentSnapshots: [appleBuildSnapshot]),
-                makeSession(
-                    6,
-                    startedAt: 6_000,
-                    executionEnvironmentSnapshots: [appleImageSnapshot, nativeFallbackSnapshot]
-                )
-            ]
-        )
-
-        let allDisplay = PlanSessionHistoryDisplay(items: items, mode: .all)
-        XCTAssertEqual(allDisplay.visibleItems.map(\.sessionNumber), [6, 5, 4, 3, 2, 1])
-        XCTAssertEqual(
-            allDisplay.visibleItems.last?.runtimeRouteDescriptor.snapshotAvailabilityIdentifier,
-            "missing"
-        )
-
-        let appleDisplay = PlanSessionHistoryDisplay(items: items, mode: .all, filter: .appleContainer)
-        XCTAssertEqual(appleDisplay.visibleItems.map(\.sessionNumber), [5, 3])
-        XCTAssertEqual(appleDisplay.totalCount, 2)
-
-        let nativeDisplay = PlanSessionHistoryDisplay(items: items, mode: .all, filter: .nativeRuntime)
-        XCTAssertEqual(nativeDisplay.visibleItems.map(\.sessionNumber), [6, 4, 2])
-        XCTAssertEqual(nativeDisplay.totalCount, 3)
-
-        XCTAssertEqual(
-            allDisplay.filterOptions.first { $0.filter == .appleContainer }?.count,
-            2
-        )
-        XCTAssertEqual(
-            allDisplay.filterOptions.first { $0.filter == .nativeRuntime }?.count,
-            3
-        )
-        XCTAssertEqual(
-            allDisplay.filterOptions.first { $0.filter == .all }?.count,
-            6
-        )
-    }
-
-    func testRuntimeBadgeSummariesAreBoundedAndDoNotLeakSnapshotDetails() throws {
-        let secretPath = "/Users/private/project"
-        let secretValue = "secret-container-value"
-        let snapshotJSON = """
-        {
-          "phase": "Plan",
-          "phaseIdentifier": "plan",
-          "attempt": 1,
-          "selectedPreferenceIdentifier": "devcontainer_preferred",
-          "selectedPreferenceTitle": "\(secretPath)",
-          "effectiveRouteIdentifier": "apple-container",
-          "effectiveRouteTitle": "\(secretPath)",
-          "supportClassificationIdentifier": "build-based",
-          "visibleSupportTokens": ["env:TOKEN", "arg:SECRET", "composeFile:\(secretPath)/compose.yml"],
-          "omittedSupportTokenCount": 17,
-          "imageLabel": "\(secretValue)",
-          "workspaceLabel": "\(secretPath)",
-          "fallbackReason": "Fallback includes \(secretPath) and \(secretValue)"
-        }
-        """
-        let snapshot = try JSONDecoder().decode(
-            SessionExecutionEnvironmentSnapshot.self,
-            from: Data(snapshotJSON.utf8)
-        )
-        let descriptor = PlanSessionHistory.displayItems(
-            for: [
-                makeSession(1, startedAt: 1_000, executionEnvironmentSnapshots: [snapshot])
-            ]
-        )[0].runtimeRouteDescriptor
-        let displayText = [descriptor.badgeText, descriptor.helpText].joined(separator: "\n")
-
-        XCTAssertLessThanOrEqual(
-            descriptor.badgeText.count,
-            PlanSessionHistoryItem.RuntimeRouteDescriptor.badgeTextLimit
-        )
-        XCTAssertLessThanOrEqual(
-            descriptor.helpText.count,
-            PlanSessionHistoryItem.RuntimeRouteDescriptor.helpTextLimit
-        )
-        XCTAssertTrue(displayText.contains("Dev Container Preferred"))
-        XCTAssertTrue(displayText.contains("Apple container"))
-        XCTAssertTrue(displayText.contains("build-based"))
-        XCTAssertTrue(displayText.contains("omitted 17"))
-        XCTAssertTrue(displayText.contains("Fallback: fallback"))
-        XCTAssertFalse(displayText.contains(secretPath))
-        XCTAssertFalse(displayText.contains(secretValue))
-        XCTAssertFalse(displayText.contains("env:TOKEN"))
-        XCTAssertFalse(displayText.contains("arg:SECRET"))
-        XCTAssertFalse(displayText.contains("compose.yml"))
     }
 
     func testLatestMutationTestingDescriptorUsesLatestExecution() throws {
@@ -980,7 +800,7 @@ final class PlanSessionHistoryTests: XCTestCase {
         endedAt: Double,
         outputTail: String
     ) -> SessionMutationTestingExecution {
-        let launchPlan = CodexExecutionLaunchPlan.native()
+        let launchPlan = CodexExecutionLaunchPlan.host()
         let readiness = CodexMutationTestingPlan(
             state: PlanState(
                 completed: [],
@@ -1016,17 +836,21 @@ final class PlanSessionHistoryTests: XCTestCase {
 
     private func makeRuntimeSnapshot(
         repoPrefix: String,
-        devcontainerJSON: String,
+        devcontainerJSON: String = "",
         preference: CodexExecutionEnvironmentPreference,
-        containerToolPath: String?,
-        phase: String = "Plan"
+        containerToolPath: String? = nil,
+        phase: String = "Plan",
+        vmReadiness: SharedCompassVMReadiness? = nil,
+        sharedVMRouteFactory: (URL) -> SharedVMRoute? = { _ in nil }
     ) throws -> SessionExecutionEnvironmentSnapshot {
         let repoURL = try makeTemporaryDirectory(prefix: repoPrefix)
-        try write(devcontainerJSON, to: devcontainerURL(in: repoURL))
+        _ = devcontainerJSON
+        _ = containerToolPath
         let plan = CodexExecutionLaunchPlan.plan(
             repoURL: repoURL,
             preference: preference,
-            containerToolResolver: { _ in containerToolPath }
+            vmReadiness: vmReadiness,
+            sharedVMRouteFactory: sharedVMRouteFactory
         )
         return SessionExecutionEnvironmentSnapshot(phase: phase, launchPlan: plan)
     }

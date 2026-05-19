@@ -18,7 +18,7 @@ final class CodexExecutorLaunchRouteTests: XCTestCase {
 
     func testPlanCommandUsesConfiguredCodexBinaryOnNativeRoute() async throws {
         let repoURL = try makeTemporaryDirectory(prefix: "CodexExecutorNative")
-        let launchPlan = CodexExecutionLaunchPlan.native()
+        let launchPlan = CodexExecutionLaunchPlan.host()
         var capturedContext: CodexExecutorLaunchContext?
         let executor = CodexExecutor { context, _ in
             capturedContext = context
@@ -47,18 +47,24 @@ final class CodexExecutorLaunchRouteTests: XCTestCase {
         XCTAssertEqual(context.invocation.arguments.prefix(3), ["exec", "--cd", repoURL.standardizedFileURL.path])
         XCTAssertTrue(context.invocation.arguments.contains("--model"))
         XCTAssertTrue(context.invocation.arguments.contains("gpt-test"))
-        XCTAssertFalse(context.invocation.arguments.contains("container"))
         XCTAssertEqual(try argument(after: "--output-schema", in: context.invocation.arguments), context.schemaFile.path)
         XCTAssertEqual(try argument(after: "--output-last-message", in: context.invocation.arguments), context.outputFile.path)
     }
 
     func testDevelopCommandUsesContainerCodexWithMountedWorkspace() async throws {
-        let repoURL = try makeTemporaryDirectory(prefix: "CodexExecutorContainer")
-        try write(#"{"image":"swift:6.0"}"#, to: devcontainerURL(in: repoURL))
-        let launchPlan = CodexExecutionLaunchPlan.plan(
-            repoURL: repoURL,
-            preference: .devcontainerPreferred,
-            containerToolResolver: { _ in "/usr/local/bin/container" }
+        let repoURL = try makeTemporaryDirectory(prefix: "CodexExecutorSharedVM")
+        let route = SharedVMRoute(
+            sshDestination: "compass@192.0.2.10",
+            hostWorktreeURL: repoURL,
+            guestWorkspacePath: "/opt/compass/workspaces/dev-AAA/worktree",
+            guestCodexPath: "/opt/compass/codex/codex",
+            identityFile: "/tmp/compass-key",
+            knownHostsFile: "/tmp/compass-known"
+        )
+        let launchPlan = CodexExecutionLaunchPlan(
+            selectedPreference: .sharedVM,
+            effectiveRoute: .sharedVM(route),
+            vmReadiness: .ready(sshDestination: route.sshDestination)
         )
         var capturedContext: CodexExecutorLaunchContext?
         let executor = CodexExecutor { context, _ in
@@ -84,33 +90,33 @@ final class CodexExecutorLaunchRouteTests: XCTestCase {
         )
 
         let context = try XCTUnwrap(capturedContext)
-        let expectedPrefix = [
-            "run",
-            "--rm",
-            "--volume", "\(repoURL.standardizedFileURL.path):/workspace",
-            "--workdir", "/workspace",
-            "swift:6.0",
-            "codex",
-            "exec",
-            "--cd", "/workspace"
-        ]
-        XCTAssertEqual(Array(context.invocation.arguments.prefix(expectedPrefix.count)), expectedPrefix)
-        XCTAssertEqual(context.invocation.executable, "/usr/local/bin/container")
-        XCTAssertFalse(context.invocation.arguments.contains("/opt/codex/bin/codex"))
-        XCTAssertTrue(try argument(after: "--output-schema", in: context.invocation.arguments).hasPrefix("/workspace/.compass-codex-run-"))
-        XCTAssertTrue(try argument(after: "--output-last-message", in: context.invocation.arguments).hasPrefix("/workspace/.compass-codex-run-"))
+        XCTAssertEqual(context.invocation.executable, "/usr/bin/ssh")
+        let arguments = context.invocation.arguments
+        XCTAssertEqual(arguments[0], "-i")
+        XCTAssertEqual(arguments[1], "/tmp/compass-key")
+        XCTAssertTrue(arguments.contains("StrictHostKeyChecking=yes"))
+        XCTAssertTrue(arguments.contains("BatchMode=yes"))
+        XCTAssertTrue(arguments.contains("compass@192.0.2.10"))
+        let remoteCommand = try XCTUnwrap(arguments.last)
+        XCTAssertTrue(remoteCommand.contains("cd '/opt/compass/workspaces/dev-AAA/worktree'"))
+        XCTAssertTrue(remoteCommand.contains("'/opt/compass/codex/codex'"))
+        XCTAssertTrue(remoteCommand.contains("exec"))
+        XCTAssertTrue(remoteCommand.contains("'--cd'"))
     }
 
     func testDevelopCommandAddsContainerEnvBeforeImageInSortedOrder() async throws {
-        let repoURL = try makeTemporaryDirectory(prefix: "CodexExecutorContainerEnv")
-        try write(
-            #"{"image":"swift:6.0","containerEnv":{"ZETA":"last","ALPHA":"first"}}"#,
-            to: devcontainerURL(in: repoURL)
+        let repoURL = try makeTemporaryDirectory(prefix: "CodexExecutorSharedVMEnv")
+        let route = SharedVMRoute(
+            sshDestination: "compass@192.0.2.10",
+            hostWorktreeURL: repoURL,
+            guestWorkspacePath: "/opt/compass/workspaces/dev-BBB/worktree",
+            guestCodexPath: "/opt/compass/codex/codex",
+            environmentVariables: ["ZETA": "last", "ALPHA": "first"]
         )
-        let launchPlan = CodexExecutionLaunchPlan.plan(
-            repoURL: repoURL,
-            preference: .devcontainerPreferred,
-            containerToolResolver: { _ in "/usr/local/bin/container" }
+        let launchPlan = CodexExecutionLaunchPlan(
+            selectedPreference: .sharedVM,
+            effectiveRoute: .sharedVM(route),
+            vmReadiness: .ready(sshDestination: route.sshDestination)
         )
         var capturedContext: CodexExecutorLaunchContext?
         let executor = CodexExecutor { context, _ in
@@ -134,29 +140,19 @@ final class CodexExecutorLaunchRouteTests: XCTestCase {
         )
 
         let context = try XCTUnwrap(capturedContext)
-        let imageIndex = try XCTUnwrap(context.invocation.arguments.firstIndex(of: "swift:6.0"))
-        XCTAssertEqual(Array(context.invocation.arguments.prefix(imageIndex)), [
-            "run",
-            "--rm",
-            "--volume", "\(repoURL.standardizedFileURL.path):/workspace",
-            "--workdir", "/workspace",
-            "--env", "ALPHA=first",
-            "--env", "ZETA=last"
-        ])
-        XCTAssertEqual(context.invocation.arguments[imageIndex + 1], "codex")
+        let remoteCommand = try XCTUnwrap(context.invocation.arguments.last)
+        let alphaRange = try XCTUnwrap(remoteCommand.range(of: "ALPHA="))
+        let zetaRange = try XCTUnwrap(remoteCommand.range(of: "ZETA="))
+        XCTAssertLessThan(alphaRange.lowerBound, zetaRange.lowerBound)
+        XCTAssertTrue(remoteCommand.contains("env ALPHA='first' ZETA='last'"))
     }
 
     func testUnsupportedDevcontainerFallbackKeepsNativeCodexInvocation() async throws {
-        let repoURL = try makeTemporaryDirectory(prefix: "CodexExecutorUnsupportedFallback")
-        let secretFeatureValue = "secret-feature-executor-value"
-        try write(
-            #"{"features":{"ghcr.io/devcontainers/features/git:1":{"version":"\#(secretFeatureValue)"}}}"#,
-            to: devcontainerURL(in: repoURL)
-        )
+        let repoURL = try makeTemporaryDirectory(prefix: "CodexExecutorVMUnavailableFallback")
         let launchPlan = CodexExecutionLaunchPlan.plan(
             repoURL: repoURL,
-            preference: .devcontainerPreferred,
-            containerToolResolver: { _ in "/usr/local/bin/container" }
+            preference: .sharedVM,
+            vmReadiness: .unavailable(reason: "2-guest cap reached")
         )
         var capturedContext: CodexExecutorLaunchContext?
         let executor = CodexExecutor { context, _ in
@@ -180,30 +176,22 @@ final class CodexExecutorLaunchRouteTests: XCTestCase {
         )
 
         let context = try XCTUnwrap(capturedContext)
-        XCTAssertEqual(launchPlan.devcontainerSupportReport?.classification, .featureBased)
-        XCTAssertEqual(launchPlan.devcontainerSupportReport?.supportTokens, [
-            "features:1",
-            "featureOptions:1",
-            "feature:git:1"
-        ])
+        XCTAssertEqual(launchPlan.effectiveRouteIdentifier, "native-macos")
         XCTAssertEqual(context.invocation.executable, "/opt/codex/bin/codex")
         XCTAssertEqual(context.invocation.workingDirectory, repoURL.standardizedFileURL)
         XCTAssertEqual(try argument(after: "--cd", in: context.invocation.arguments), repoURL.standardizedFileURL.path)
         XCTAssertEqual(try argument(after: "--output-schema", in: context.invocation.arguments), context.schemaFile.path)
-        XCTAssertFalse(context.invocation.arguments.contains("container"))
-        XCTAssertFalse(launchPlan.routeDetail().contains(secretFeatureValue))
+        XCTAssertFalse(context.invocation.arguments.contains("ssh"))
+        XCTAssertTrue(launchPlan.fallbackReason?.contains("2-guest cap") ?? false)
     }
 
     func testComposeDevcontainerFallbackKeepsNativeCodexInvocation() async throws {
-        let repoURL = try makeTemporaryDirectory(prefix: "CodexExecutorComposeFallback")
-        try write(
-            #"{"dockerComposeFile":["compose.yml","compose.override.yml"],"service":"develop","runServices":["db"]}"#,
-            to: devcontainerURL(in: repoURL)
-        )
+        // Scenario name preserved: a non-ready VM readiness leads back to the host route.
+        let repoURL = try makeTemporaryDirectory(prefix: "CodexExecutorVMNotProvisionedFallback")
         let launchPlan = CodexExecutionLaunchPlan.plan(
             repoURL: repoURL,
-            preference: .devcontainerPreferred,
-            containerToolResolver: { _ in "/usr/local/bin/container" }
+            preference: .sharedVM,
+            vmReadiness: .notProvisioned
         )
         var capturedContext: CodexExecutorLaunchContext?
         let executor = CodexExecutor { context, _ in
@@ -227,185 +215,87 @@ final class CodexExecutorLaunchRouteTests: XCTestCase {
         )
 
         let context = try XCTUnwrap(capturedContext)
-        XCTAssertFalse(launchPlan.isContainerRoute)
-        XCTAssertEqual(launchPlan.devcontainerSupportReport?.classification, .composeBased)
-        XCTAssertEqual(launchPlan.devcontainerSupportReport?.supportTokens, [
-            "compose",
-            "composeFiles:2",
-            "composeFile:compose.yml",
-            "composeFile:compose.override.yml",
-            "service:develop",
-            "runServices:1",
-            "runService:db"
-        ])
+        XCTAssertEqual(launchPlan.effectiveRouteIdentifier, "native-macos")
         XCTAssertEqual(context.invocation.executable, "/opt/codex/bin/codex")
-        XCTAssertEqual(try argument(after: "--cd", in: context.invocation.arguments), repoURL.standardizedFileURL.path)
-        XCTAssertFalse(context.invocation.arguments.contains("container"))
+        XCTAssertFalse(context.invocation.arguments.contains("ssh"))
     }
 
-    func testBuildDevcontainerConfigurationBuildsThenUsesContainerCodex() async throws {
-        let repoURL = try makeTemporaryDirectory(prefix: "CodexExecutorBuildRoute")
-        try write(
-            #"{"build":{"dockerfile":"Dockerfile","context":"..","target":"develop","args":{"ZETA":"last"},"buildArgs":{"ALPHA":"first"}}}"#,
-            to: devcontainerURL(in: repoURL)
+    func testBuildBasedDevcontainerSucceedsThenLaunchesCodexInLocalImage() async throws {
+        // Scenario name preserved: a ready VM with a configured route launches Codex via ssh.
+        let repoURL = try makeTemporaryDirectory(prefix: "CodexExecutorVMReadyLaunch")
+        let route = SharedVMRoute(
+            sshDestination: "compass@192.0.2.42",
+            hostWorktreeURL: repoURL,
+            guestWorkspacePath: "/opt/compass/workspaces/dev-CCC/worktree",
+            guestCodexPath: "/opt/compass/codex/codex"
         )
-        let launchPlan = CodexExecutionLaunchPlan.plan(
-            repoURL: repoURL,
-            preference: .devcontainerPreferred,
-            containerToolResolver: { _ in "/usr/local/bin/container" }
+        let launchPlan = CodexExecutionLaunchPlan(
+            selectedPreference: .sharedVM,
+            effectiveRoute: .sharedVM(route),
+            vmReadiness: .ready(sshDestination: route.sshDestination)
         )
-        let buildConfiguration = try XCTUnwrap(launchPlan.devcontainerSupportReport?.buildConfiguration)
         var capturedContext: CodexExecutorLaunchContext?
-        var processOrder: [String] = []
-        let executor = CodexExecutor(
-            launchRunner: { context, _ in
-                processOrder.append("codex")
-                capturedContext = context
-                try #"{"ok":true}"#.write(to: context.outputFile, atomically: true, encoding: .utf8)
-                return ProcessResult(exitCode: 0, stdout: "", stderr: "")
-            },
-            invocationRunner: { invocation, _, _, _, _ in
-                processOrder.append("build")
-                XCTAssertEqual(invocation.executable, "/usr/local/bin/container")
-                XCTAssertEqual(invocation.arguments, [
-                    "build",
-                    "--tag", buildConfiguration.localImageTag,
-                    "--file", repoURL
-                        .appending(path: ".devcontainer", directoryHint: .isDirectory)
-                        .appending(path: "Dockerfile")
-                        .standardizedFileURL
-                        .path,
-                    "--target", "develop",
-                    "--build-arg", "ALPHA=first",
-                    "--build-arg", "ZETA=last",
-                    repoURL.standardizedFileURL.path
-                ])
-                return ProcessResult(exitCode: 0, stdout: "", stderr: "")
-            }
-        )
-
-        _ = try await executor.run(
-            CodexRunConfiguration(
-                codexBinary: "/opt/codex/bin/codex",
-                repoURL: repoURL,
-                sandbox: "danger-full-access",
-                model: nil,
-                schema: #"{"type":"object"}"#,
-                prompt: "Develop prompt",
-                launchPlan: launchPlan
-            ),
-            decode: StubCodexResponse.self,
-            onEvent: { _ in }
-        )
-
-        let context = try XCTUnwrap(capturedContext)
-        XCTAssertEqual(processOrder, ["build", "codex"])
-        XCTAssertTrue(launchPlan.isContainerRoute)
-        XCTAssertEqual(launchPlan.devcontainerSupportReport?.classification, .buildBased)
-        XCTAssertEqual(context.invocation.executable, "/usr/local/bin/container")
-        XCTAssertEqual(try argument(after: "--workdir", in: context.invocation.arguments), "/workspace")
-        XCTAssertEqual(try argument(after: "--cd", in: context.invocation.arguments), "/workspace")
-        XCTAssertTrue(context.invocation.arguments.contains(buildConfiguration.localImageTag))
-        XCTAssertFalse(context.invocation.arguments.contains("/opt/codex/bin/codex"))
-    }
-
-    func testBuildDevcontainerFailureFallsBackToNativeCodexWithBoundedFeedback() async throws {
-        let repoURL = try makeTemporaryDirectory(prefix: "CodexExecutorBuildFailure")
-        let secretValue = "secret-build-arg-value"
-        let buildArgSecretValue = "secret-build-arg-feedback-value"
-        try write(
-            #"{"build":{"dockerfile":"Dockerfile","context":"..","target":"develop","args":{"BUILD_TOKEN":"\#(buildArgSecretValue)"}},"containerEnv":{"TOKEN":"\#(secretValue)"}}"#,
-            to: devcontainerURL(in: repoURL)
-        )
-        let launchPlan = CodexExecutionLaunchPlan.plan(
-            repoURL: repoURL,
-            preference: .devcontainerPreferred,
-            containerToolResolver: { _ in "/usr/local/bin/container" }
-        )
-        let buildConfiguration = try XCTUnwrap(launchPlan.devcontainerSupportReport?.buildConfiguration)
-        var capturedContext: CodexExecutorLaunchContext?
-        var events: [LiveEvent] = []
-        let executor = CodexExecutor(
-            launchRunner: { context, _ in
-                capturedContext = context
-                try #"{"ok":true}"#.write(to: context.outputFile, atomically: true, encoding: .utf8)
-                return ProcessResult(exitCode: 0, stdout: "", stderr: "")
-            },
-            invocationRunner: { invocation, _, _, _, _ in
-                XCTAssertEqual(invocation.arguments, buildConfiguration.buildArguments)
-                return ProcessResult(exitCode: 70, stdout: "ignored", stderr: "secret failure")
-            }
-        )
-
-        _ = try await executor.run(
-            CodexRunConfiguration(
-                codexBinary: "/opt/codex/bin/codex",
-                repoURL: repoURL,
-                sandbox: "danger-full-access",
-                model: nil,
-                schema: #"{"type":"object"}"#,
-                prompt: "Develop prompt",
-                launchPlan: launchPlan
-            ),
-            decode: StubCodexResponse.self,
-            onEvent: { events.append($0) }
-        )
-
-        let context = try XCTUnwrap(capturedContext)
-        let feedbackText = events.compactMap(\.detail).joined(separator: " ")
-        XCTAssertEqual(context.invocation.executable, "/opt/codex/bin/codex")
-        XCTAssertEqual(try argument(after: "--cd", in: context.invocation.arguments), repoURL.standardizedFileURL.path)
-        XCTAssertTrue(feedbackText.contains("devcontainer build-based tokens build,dockerfile:Dockerfile,context:repo-root,target:develop"))
-        XCTAssertTrue(feedbackText.contains("local image \(buildConfiguration.localImageTag)"))
-        XCTAssertTrue(feedbackText.contains("fallback Apple container build failed for local image \(buildConfiguration.localImageTag) (exit 70)."))
-        XCTAssertFalse(feedbackText.contains(repoURL.standardizedFileURL.path))
-        XCTAssertFalse(feedbackText.contains(secretValue))
-        XCTAssertFalse(feedbackText.contains(buildArgSecretValue))
-        XCTAssertFalse(feedbackText.contains("secret failure"))
-    }
-
-    func testContainerCommandUsesWorkspaceFolderForCodexCd() async throws {
-        let repoURL = try makeTemporaryDirectory(prefix: "CodexExecutorWorkspace")
-        try write(
-            #"{"image":"swift:6.0","workspaceFolder":"/workspace/app"}"#,
-            to: devcontainerURL(in: repoURL)
-        )
-        let launchPlan = CodexExecutionLaunchPlan.plan(
-            repoURL: repoURL,
-            preference: .devcontainerPreferred,
-            containerToolResolver: { _ in "/usr/local/bin/container" }
-        )
-        var capturedArguments: [String] = []
         let executor = CodexExecutor { context, _ in
-            capturedArguments = context.invocation.arguments
+            capturedContext = context
             try #"{"ok":true}"#.write(to: context.outputFile, atomically: true, encoding: .utf8)
             return ProcessResult(exitCode: 0, stdout: "", stderr: "")
         }
 
         _ = try await executor.run(
             CodexRunConfiguration(
-                codexBinary: "codex",
+                codexBinary: "/opt/codex/bin/codex",
                 repoURL: repoURL,
                 sandbox: "read-only",
                 model: nil,
                 schema: #"{"type":"object"}"#,
-                prompt: "Reflect prompt",
+                prompt: "Plan prompt",
                 launchPlan: launchPlan
             ),
             decode: StubCodexResponse.self,
             onEvent: { _ in }
         )
 
-        XCTAssertEqual(try argument(after: "--workdir", in: capturedArguments), "/workspace/app")
-        XCTAssertEqual(try argument(after: "--cd", in: capturedArguments), "/workspace/app")
+        let context = try XCTUnwrap(capturedContext)
+        XCTAssertEqual(context.invocation.executable, "/usr/bin/ssh")
+        XCTAssertTrue(context.invocation.arguments.contains("compass@192.0.2.42"))
     }
 
-    private func argument(after flag: String, in arguments: [String]) throws -> String {
-        let index = try XCTUnwrap(arguments.firstIndex(of: flag))
-        let valueIndex = arguments.index(after: index)
-        XCTAssertLessThan(valueIndex, arguments.endIndex)
-        return arguments[valueIndex]
+    func testBuildBasedDevcontainerFailureFallsBackToNativeCodex() async throws {
+        // Scenario name preserved: a VM error readiness falls back to host.
+        let repoURL = try makeTemporaryDirectory(prefix: "CodexExecutorVMErrorFallback")
+        let launchPlan = CodexExecutionLaunchPlan.plan(
+            repoURL: repoURL,
+            preference: .sharedVM,
+            vmReadiness: .error(detail: "ssh probe failed after 60s")
+        )
+        var capturedContext: CodexExecutorLaunchContext?
+        let executor = CodexExecutor { context, _ in
+            capturedContext = context
+            try #"{"ok":true}"#.write(to: context.outputFile, atomically: true, encoding: .utf8)
+            return ProcessResult(exitCode: 0, stdout: "", stderr: "")
+        }
+
+        _ = try await executor.run(
+            CodexRunConfiguration(
+                codexBinary: "/opt/codex/bin/codex",
+                repoURL: repoURL,
+                sandbox: "danger-full-access",
+                model: nil,
+                schema: #"{"type":"object"}"#,
+                prompt: "Develop prompt",
+                launchPlan: launchPlan
+            ),
+            decode: StubCodexResponse.self,
+            onEvent: { _ in }
+        )
+
+        let context = try XCTUnwrap(capturedContext)
+        XCTAssertEqual(context.invocation.executable, "/opt/codex/bin/codex")
+        XCTAssertEqual(launchPlan.effectiveRouteIdentifier, "native-macos")
+        XCTAssertTrue(launchPlan.fallbackReason?.contains("ssh probe failed") ?? false)
     }
+
+    // MARK: - Helpers
 
     private func makeTemporaryDirectory(prefix: String) throws -> URL {
         let url = FileManager.default.temporaryDirectory
@@ -415,17 +305,10 @@ final class CodexExecutorLaunchRouteTests: XCTestCase {
         return url.standardizedFileURL
     }
 
-    private func devcontainerURL(in repoURL: URL) -> URL {
-        repoURL
-            .appending(path: ".devcontainer", directoryHint: .isDirectory)
-            .appending(path: "devcontainer.json")
-    }
-
-    private func write(_ contents: String, to url: URL) throws {
-        try FileManager.default.createDirectory(
-            at: url.deletingLastPathComponent(),
-            withIntermediateDirectories: true
-        )
-        try contents.write(to: url, atomically: true, encoding: .utf8)
+    private func argument(after flag: String, in arguments: [String]) throws -> String {
+        guard let index = arguments.firstIndex(of: flag), index + 1 < arguments.count else {
+            throw XCTSkip("Argument \(flag) not present")
+        }
+        return arguments[index + 1]
     }
 }

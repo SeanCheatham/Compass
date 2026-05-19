@@ -19,7 +19,7 @@ final class KnownProjectStoreTestsRecordDecoding: XCTestCase {
         XCTAssertEqual(record.activeStorage, .repoLocal)
         XCTAssertEqual(record.cinematicInfluenceSettings, CinematicInfluenceSettings())
         XCTAssertEqual(record.nativeFeedbackMode, .notifications)
-        XCTAssertEqual(record.codexExecutionEnvironmentPreference, .nativeMacOS)
+        XCTAssertEqual(record.codexExecutionEnvironmentPreference, .host)
         XCTAssertEqual(record.cinematicRunRecapShareArtifactLibraryContext, .empty)
         XCTAssertEqual(record.cinematicRunRecapShareArtifactLibraryContext.comparisonTargetMode, .adjacent)
         XCTAssertNil(record.cinematicRunRecapShareArtifactLibraryContext.savedTourHoldEntryIdentifier)
@@ -47,7 +47,7 @@ final class KnownProjectStoreTestsRecordDecoding: XCTestCase {
         """)
 
         XCTAssertEqual(records.map(\.nativeFeedbackMode), [.notifications, .notifications])
-        XCTAssertEqual(records.map(\.codexExecutionEnvironmentPreference), [.nativeMacOS, .nativeMacOS])
+        XCTAssertEqual(records.map(\.codexExecutionEnvironmentPreference), [.host, .host])
     }
 
     func testDecodingClampsDefaultsAndFallsBackForUnknownValues() throws {
@@ -97,20 +97,20 @@ final class KnownProjectStoreTestsRecordDecoding: XCTestCase {
         XCTAssertEqual(records[0].cinematicInfluenceSettings.intensity, 0)
         XCTAssertEqual(records[0].activeStorage, .repoLocal)
         XCTAssertEqual(records[0].nativeFeedbackMode, .notifications)
-        XCTAssertEqual(records[0].codexExecutionEnvironmentPreference, .nativeMacOS)
+        XCTAssertEqual(records[0].codexExecutionEnvironmentPreference, .host)
         XCTAssertEqual(records[0].cinematicRunRecapShareArtifactLibraryContext, .empty)
 
         XCTAssertEqual(records[1].cinematicInfluenceSettings, CinematicInfluenceSettings())
         XCTAssertEqual(records[1].activeStorage, .applicationSupport)
         XCTAssertEqual(records[1].nativeFeedbackMode, .speechAndNotifications)
-        XCTAssertEqual(records[1].codexExecutionEnvironmentPreference, .devcontainerPreferred)
+        XCTAssertEqual(records[1].codexExecutionEnvironmentPreference, .host)
 
         XCTAssertEqual(records[2].cinematicInfluenceSettings.cameraStyle, .dramatic)
         XCTAssertEqual(records[2].cinematicInfluenceSettings.comfortMode, .standard)
         XCTAssertEqual(records[2].cinematicInfluenceSettings.intensity, 1)
         XCTAssertEqual(records[2].activeStorage, .repoLocal)
         XCTAssertEqual(records[2].nativeFeedbackMode, .off)
-        XCTAssertEqual(records[2].codexExecutionEnvironmentPreference, .nativeMacOS)
+        XCTAssertEqual(records[2].codexExecutionEnvironmentPreference, .host)
     }
 
     func testRecapShareArtifactLibraryContextDecodingBoundsPersistedText() throws {
@@ -280,7 +280,7 @@ final class KnownProjectStoreTests: XCTestCase {
                 intensity: 0.8
             ),
             nativeFeedbackMode: .speechAndNotifications,
-            codexExecutionEnvironmentPreference: .devcontainerPreferred,
+            codexExecutionEnvironmentPreference: .sharedVM,
             cinematicRunRecapShareArtifactLibraryContext: CinematicRunRecapShareArtifactLibraryContext(
                 selectedEntryIdentifier: "artifact-selected",
                 searchText: "Selected Search",
@@ -324,7 +324,7 @@ final class KnownProjectStoreTests: XCTestCase {
             in: saved
         )
         XCTAssertTrue(saved.contains("\"comparisonTargetMode\" : \"pinned_reference\""))
-        XCTAssertTrue(saved.contains("\"codexExecutionEnvironmentPreference\" : \"devcontainer_preferred\""))
+        XCTAssertTrue(saved.contains("\"codexExecutionEnvironmentPreference\" : \"shared_vm\""))
         XCTAssertTrue(saved.contains("\"comfortMode\" : \"quiet\""))
         XCTAssertTrue(saved.contains("\"pinnedEntryIdentifiers\" : ["))
         XCTAssertTrue(saved.contains("\"artifact-other\""))
@@ -381,12 +381,12 @@ final class KnownProjectStoreTests: XCTestCase {
             makeRecord(
                 id: "eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee",
                 path: "/tmp/native",
-                codexExecutionEnvironmentPreference: .nativeMacOS
+                codexExecutionEnvironmentPreference: .host
             ),
             makeRecord(
                 id: "ffffffff-ffff-ffff-ffff-ffffffffffff",
                 path: "/tmp/devcontainer",
-                codexExecutionEnvironmentPreference: .devcontainerPreferred
+                codexExecutionEnvironmentPreference: .sharedVM
             )
         ]
 
@@ -394,7 +394,7 @@ final class KnownProjectStoreTests: XCTestCase {
 
         let saved = try read(currentProjectsURL(for: roots))
         XCTAssertTrue(saved.contains("\"codexExecutionEnvironmentPreference\" : \"native_macos\""))
-        XCTAssertTrue(saved.contains("\"codexExecutionEnvironmentPreference\" : \"devcontainer_preferred\""))
+        XCTAssertTrue(saved.contains("\"codexExecutionEnvironmentPreference\" : \"shared_vm\""))
         XCTAssertEqual(KnownProjectStore.load(applicationSupportRoots: roots), records)
     }
 
@@ -428,7 +428,7 @@ final class KnownProjectStoreTests: XCTestCase {
         lastOpenedAt: Double = 20,
         cinematicInfluenceSettings: CinematicInfluenceSettings = CinematicInfluenceSettings(),
         nativeFeedbackMode: NativeFeedbackMode = .notifications,
-        codexExecutionEnvironmentPreference: CodexExecutionEnvironmentPreference = .nativeMacOS,
+        codexExecutionEnvironmentPreference: CodexExecutionEnvironmentPreference = .host,
         cinematicRunRecapShareArtifactLibraryContext: CinematicRunRecapShareArtifactLibraryContext = .empty
     ) -> KnownProjectRecord {
         KnownProjectRecord(

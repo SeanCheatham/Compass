@@ -128,23 +128,23 @@ final class CompassWorkspacePersistenceTests: XCTestCase {
         let repoURL = try makeTemporaryGitRepository()
         let workspace = CompassWorkspace(repoURL: repoURL)
         try workspace.initialize()
-        let secretValue = "secret-workspace-session-env"
-        try writeDevcontainer(
-            #"{"image":"swift:6.0","containerEnv":{"TOKEN":"\#(secretValue)"}}"#,
-            in: repoURL
+        let route = SharedVMRoute(
+            sshDestination: "compass@192.0.2.10",
+            hostWorktreeURL: repoURL,
+            guestWorkspacePath: "/opt/compass/workspaces/dev-AAA/worktree",
+            guestCodexPath: "/opt/compass/codex/codex"
         )
-        let launchPlan = CodexExecutionLaunchPlan.plan(
-            repoURL: repoURL,
-            preference: .devcontainerPreferred,
-            containerToolResolver: { _ in "/usr/local/bin/container" }
+        let launchPlan = CodexExecutionLaunchPlan(
+            selectedPreference: .sharedVM,
+            effectiveRoute: .sharedVM(route),
+            vmReadiness: .ready(sshDestination: route.sshDestination)
         )
         var record = SessionRecord.started(9)
         record.recordExecutionEnvironmentSnapshot(
             SessionExecutionEnvironmentSnapshot(
                 phase: "Verify",
                 attempt: 1,
-                launchPlan: launchPlan,
-                provisioningPlan: CodexDevcontainerProvisioningPlan.plan(repoURL: repoURL, languageProfile: .empty)
+                launchPlan: launchPlan
             )
         )
 
@@ -154,24 +154,22 @@ final class CompassWorkspacePersistenceTests: XCTestCase {
 
         XCTAssertEqual(decoded, [record])
         XCTAssertEqual(decoded[0].latestExecutionEnvironmentSnapshot?.phaseIdentifier, "verify")
-        XCTAssertEqual(decoded[0].latestExecutionEnvironmentSnapshot?.effectiveRouteIdentifier, "apple-container")
+        XCTAssertEqual(decoded[0].latestExecutionEnvironmentSnapshot?.effectiveRouteIdentifier, "shared-vm")
         XCTAssertTrue(persistedText.contains("executionEnvironmentSnapshots"))
         XCTAssertFalse(persistedText.contains(repoURL.standardizedFileURL.path))
-        XCTAssertFalse(persistedText.contains(secretValue))
-        XCTAssertFalse(persistedText.contains("/usr/local/bin/container"))
     }
 
     func testSessionExecutionEnvironmentSnapshotsReplaceDuplicatePhaseAttemptsAndStayBounded() throws {
         let repoURL = try makeTemporaryGitRepository()
         let nativePlan = CodexExecutionLaunchPlan.plan(
             repoURL: repoURL,
-            preference: .nativeMacOS,
-            containerToolResolver: { _ in "/usr/local/bin/container" }
+            preference: .host,
+            vmReadiness: .ready(sshDestination: "compass@192.0.2.10")
         )
         let fallbackPlan = CodexExecutionLaunchPlan.plan(
             repoURL: repoURL,
-            preference: .devcontainerPreferred,
-            containerToolResolver: { _ in nil }
+            preference: .sharedVM,
+            vmReadiness: .notProvisioned
         )
         var duplicateRecord = SessionRecord.started(1)
 
@@ -193,12 +191,11 @@ final class CompassWorkspacePersistenceTests: XCTestCase {
         XCTAssertEqual(duplicateRecord.executionEnvironmentSnapshots.count, 1)
         XCTAssertEqual(
             duplicateRecord.executionEnvironmentSnapshots[0].selectedPreferenceIdentifier,
-            "devcontainer_preferred"
+            "shared_vm"
         )
         XCTAssertEqual(duplicateRecord.executionEnvironmentSnapshots[0].effectiveRouteIdentifier, "native-macos")
-        XCTAssertEqual(
-            duplicateRecord.executionEnvironmentSnapshots[0].fallbackReason,
-            "No .devcontainer/devcontainer.json was found."
+        XCTAssertTrue(
+            duplicateRecord.executionEnvironmentSnapshots[0].fallbackReason?.contains("not been provisioned") ?? false
         )
 
         var boundedRecord = SessionRecord.started(2)

@@ -190,7 +190,7 @@ final class PlanWorkflowOverviewTests: XCTestCase {
                 )
             ),
             languageProfile: profile(.swift),
-            launchPlan: CodexExecutionLaunchPlan.native(selectedPreference: .nativeMacOS)
+            launchPlan: CodexExecutionLaunchPlan.host(selectedPreference: .host)
         )
 
         let readiness = overview.immediate.mutationTestingReadiness
@@ -207,7 +207,7 @@ final class PlanWorkflowOverviewTests: XCTestCase {
         let overview = PlanWorkflowOverview(
             state: makeState(immediate: nil),
             languageProfile: profile(.swift),
-            launchPlan: CodexExecutionLaunchPlan.native(selectedPreference: .nativeMacOS)
+            launchPlan: CodexExecutionLaunchPlan.host(selectedPreference: .host)
         )
 
         XCTAssertTrue(overview.immediate.isEmpty)

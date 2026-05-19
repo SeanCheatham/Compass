@@ -90,107 +90,28 @@ enum CodexMutationTestingMetadataSanitizer {
     private static func sensitiveValues(from launchPlan: CodexExecutionLaunchPlan) -> [String] {
         var values: [String] = []
 
-        if let supportReport = launchPlan.devcontainerSupportReport {
-            let configURL = supportReport.configURL.standardizedFileURL
-            let configDirectoryURL = configURL.deletingLastPathComponent().standardizedFileURL
-            let repoURL = configDirectoryURL.deletingLastPathComponent().standardizedFileURL
-            values += [
-                configURL.path,
-                configDirectoryURL.path,
-                repoURL.path
-            ]
-            values += devcontainerConfigSensitiveValues(configURL: configURL)
-
-            if let imageConfiguration = supportReport.imageConfiguration {
-                values += imageConfiguration.containerEnv.map(\.value)
-            }
-            if let buildConfiguration = supportReport.buildConfiguration {
-                values += [
-                    buildConfiguration.configURL.path,
-                    buildConfiguration.repoURL.path,
-                    buildConfiguration.dockerfileURL.path,
-                    buildConfiguration.contextURL.path
-                ]
-                values += buildConfiguration.buildArgs.map(\.value)
-                values += buildConfiguration.containerEnv.map(\.value)
-            }
-        }
-
         switch launchPlan.effectiveRoute {
-        case .nativeMacOS:
+        case .host:
             break
-        case let .appleContainer(route):
+        case let .sharedVM(route):
             values += [
-                route.toolPath,
-                route.hostWorkspaceURL.path,
-                route.volumeArgument,
-                route.workspaceFolder
+                route.sshDestination,
+                route.hostWorktreeURL.path,
+                route.guestWorkspacePath,
+                route.guestCodexPath
             ]
-            values += route.containerEnv.map(\.value)
-            if let buildConfiguration = route.buildConfiguration {
-                values += [
-                    buildConfiguration.configURL.path,
-                    buildConfiguration.repoURL.path,
-                    buildConfiguration.dockerfileURL.path,
-                    buildConfiguration.contextURL.path
-                ]
-                values += buildConfiguration.buildArgs.map(\.value)
-                values += buildConfiguration.containerEnv.map(\.value)
+            if let identityFile = route.identityFile {
+                values.append(identityFile)
             }
+            if let knownHostsFile = route.knownHostsFile {
+                values.append(knownHostsFile)
+            }
+            values += route.environmentVariables.values
         }
 
         return values
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
-    }
-
-    private static func devcontainerConfigSensitiveValues(configURL: URL) -> [String] {
-        guard let data = try? Data(contentsOf: configURL),
-              !data.isEmpty,
-              data.count <= 256_000,
-              let object = try? JSONSerialization.jsonObject(with: data)
-        else { return [] }
-
-        var values: [String] = []
-        collectSensitiveJSONStrings(object, values: &values, isFeatureTree: false)
-        return values
-    }
-
-    private static func collectSensitiveJSONStrings(
-        _ value: Any,
-        values: inout [String],
-        isFeatureTree: Bool
-    ) {
-        guard values.count < 256 else { return }
-
-        if let string = value as? String {
-            appendSensitiveValue(string, values: &values)
-            return
-        }
-
-        if let array = value as? [Any] {
-            for item in array {
-                collectSensitiveJSONStrings(item, values: &values, isFeatureTree: isFeatureTree)
-            }
-            return
-        }
-
-        guard let dictionary = value as? [String: Any] else { return }
-        for key in dictionary.keys.sorted() {
-            let childIsFeatureTree = isFeatureTree || key == "features"
-            if childIsFeatureTree {
-                appendSensitiveValue(key, values: &values)
-            }
-            if let child = dictionary[key] {
-                collectSensitiveJSONStrings(child, values: &values, isFeatureTree: childIsFeatureTree)
-            }
-        }
-    }
-
-    private static func appendSensitiveValue(_ rawValue: String, values: inout [String]) {
-        let value = rawValue.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard value.count >= 3 else { return }
-        values.append(String(value.prefix(4_096)))
     }
 
     private static func bounded(
@@ -236,7 +157,7 @@ struct CodexMutationTestingPlan: Equatable, Identifiable {
 
     enum RouteState: String, Equatable {
         case nativeRoute = "native-route"
-        case appleContainerRoute = "apple-container-route"
+        case sharedVMRoute = "shared-vm-route"
         case nativeFallback = "native-fallback"
     }
 
@@ -352,10 +273,10 @@ struct CodexMutationTestingPlan: Equatable, Identifiable {
 
     private static func routeState(for launchPlan: CodexExecutionLaunchPlan) -> RouteState {
         switch launchPlan.effectiveRoute {
-        case .appleContainer:
-            return .appleContainerRoute
-        case .nativeMacOS:
-            if launchPlan.selectedPreference == .devcontainerPreferred || launchPlan.fallbackReason != nil {
+        case .sharedVM:
+            return .sharedVMRoute
+        case .host:
+            if launchPlan.selectedPreference == .sharedVM || launchPlan.fallbackReason != nil {
                 return .nativeFallback
             }
             return .nativeRoute
@@ -402,8 +323,8 @@ struct CodexMutationTestingPlan: Equatable, Identifiable {
         switch state {
         case .nativeRoute:
             return "Native"
-        case .appleContainerRoute:
-            return "Apple container"
+        case .sharedVMRoute:
+            return "Shared VM"
         case .nativeFallback:
             return "Native fallback"
         }
@@ -419,8 +340,8 @@ struct CodexMutationTestingPlan: Equatable, Identifiable {
         switch routeState {
         case .nativeRoute:
             routeDetail = "native macOS"
-        case .appleContainerRoute:
-            routeDetail = "Apple container"
+        case .sharedVMRoute:
+            routeDetail = "Shared VM"
         case .nativeFallback:
             routeDetail = "native macOS fallback"
         }
@@ -534,7 +455,7 @@ struct CodexMutationTestingMenuAction: Equatable, Identifiable {
                 if readiness.routeIdentifier == CodexMutationTestingPlan.RouteState.nativeFallback.rawValue {
                     availability = "native-fallback"
                     enabled = true
-                    help = "Run the current immediate verify command through native macOS fallback. Native execution remains available when devcontainer routing cannot be used."
+                    help = "Run the current immediate verify command through native macOS fallback. Native execution remains available when the Shared VM is not ready."
                 } else {
                     availability = "ready"
                     enabled = true

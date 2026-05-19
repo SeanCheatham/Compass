@@ -421,8 +421,7 @@ final class CompassProject: ObservableObject, Identifiable {
         }
     }
     @Published var codexExecutionEnvironmentPreference: CodexExecutionEnvironmentPreference
-    @Published var devcontainerProvisioningState = CompassProjectDevcontainerProvisioningState.idle
-    @Published var devcontainerProvisioningConfirmation: CodexDevcontainerProvisioningConfirmation?
+    @Published var developSandbox: DevelopSandboxPreference
     @Published var liveLog: [LiveLine] = []
     @Published var phase: LoopPhase = .idle {
         didSet {
@@ -474,8 +473,6 @@ final class CompassProject: ObservableObject, Identifiable {
     private var lastCinematicRefreshInput: CinematicRefreshInput?
     private var lastCinematicBriefingGeneratedAt = Date.distantPast
     private let storageMigrationAction: CompassWorkspaceStorageMigrationAction
-    private let devcontainerProvisioningAction: CodexDevcontainerProvisioningAction
-    private let containerToolResolver: (String) -> String?
     private let mutationTestingRunner: ProcessRunner.InvocationRunner?
     private let maxDevelopAttempts = 3
     private let reflectSessionWindow = 10
@@ -488,16 +485,13 @@ final class CompassProject: ObservableObject, Identifiable {
         lastOpenedAt: Date = Date(),
         cinematicInfluenceSettings: CinematicInfluenceSettings = CinematicInfluenceSettings(),
         nativeFeedbackMode: NativeFeedbackMode = .notifications,
-        codexExecutionEnvironmentPreference: CodexExecutionEnvironmentPreference = .nativeMacOS,
+        codexExecutionEnvironmentPreference: CodexExecutionEnvironmentPreference = .host,
+        developSandbox: DevelopSandboxPreference = .host,
         cinematicRunRecapShareArtifactLibraryContext: CinematicRunRecapShareArtifactLibraryContext = .empty,
         storageApplicationSupportRoots: KnownProjectStore.ApplicationSupportRoots = KnownProjectStore.productionApplicationSupportRoots(),
         storageMigrationAction: @escaping CompassWorkspaceStorageMigrationAction = { plan in
             try CompassWorkspaceStorageMigrator().migrate(plan: plan)
         },
-        devcontainerProvisioningAction: @escaping CodexDevcontainerProvisioningAction = { plan in
-            try CodexDevcontainerProvisioner.write(plan: plan)
-        },
-        containerToolResolver: @escaping (String) -> String? = CodexExecutionLaunchPlan.defaultContainerToolResolver,
         mutationTestingRunner: ProcessRunner.InvocationRunner? = nil
     ) {
         self.id = id
@@ -515,11 +509,10 @@ final class CompassProject: ObservableObject, Identifiable {
         self.cinematicInfluenceSettings = cinematicInfluenceSettings
         self.nativeFeedbackMode = nativeFeedbackMode
         self.codexExecutionEnvironmentPreference = codexExecutionEnvironmentPreference
+        self.developSandbox = developSandbox
         self.cinematicRunRecapShareArtifactLibraryContext = cinematicRunRecapShareArtifactLibraryContext
         self.storageApplicationSupportRoots = storageApplicationSupportRoots
         self.storageMigrationAction = storageMigrationAction
-        self.devcontainerProvisioningAction = devcontainerProvisioningAction
-        self.containerToolResolver = containerToolResolver
         self.mutationTestingRunner = mutationTestingRunner
         let briefingInput = CinematicBriefingInput(
             repoName: repoURL.lastPathComponent,
@@ -595,8 +588,8 @@ extension CompassProject {
 
     var codexExecutionEnvironment: CodexExecutionEnvironment {
         CodexExecutionEnvironment.discover(
-            repoURL: repoURL,
-            preference: codexExecutionEnvironmentPreference
+            preference: codexExecutionEnvironmentPreference,
+            vmReadiness: .notProvisioned
         )
     }
 
@@ -614,7 +607,6 @@ extension CompassProject {
         )
         return CodexExecutionEnvironmentMenu(
             environment: environment,
-            provisioningPlan: devcontainerProvisioningPlan(),
             launchPlan: launchPlan,
             mutationTestingPlan: mutationTestingPlan,
             mutationRecoveryDescriptor: mutationRecoveryDescriptor,
@@ -918,111 +910,6 @@ extension CompassProject {
             log(result.detail, level: .warning)
         }
         return result
-    }
-
-    func devcontainerProvisioningPlan() -> CodexDevcontainerProvisioningPlan {
-        CodexDevcontainerProvisioningPlan.plan(
-            repoURL: repoURL,
-            languageProfile: languageProfile
-        )
-    }
-
-    func prepareDevcontainerProvisioningConfirmation() {
-        guard isIdleForDevcontainerProvisioning else {
-            devcontainerProvisioningConfirmation = nil
-            devcontainerProvisioningState = .blockedWhileBusy()
-            errorMessage = devcontainerProvisioningState.detail
-            log(devcontainerProvisioningState.detail, level: .warning)
-            return
-        }
-
-        let plan = devcontainerProvisioningPlan()
-        guard plan.isAvailable else {
-            devcontainerProvisioningConfirmation = nil
-            devcontainerProvisioningState = .blocked(plan: plan)
-            errorMessage = devcontainerProvisioningState.detail
-            log("Dev Container creation blocked: \(devcontainerProvisioningState.detail)", level: .warning)
-            return
-        }
-
-        let confirmation = CodexDevcontainerProvisioningConfirmation(plan: plan)
-        devcontainerProvisioningConfirmation = confirmation
-        devcontainerProvisioningState = .awaitingConfirmation(confirmation)
-        errorMessage = nil
-    }
-
-    func cancelDevcontainerProvisioningConfirmation() {
-        devcontainerProvisioningConfirmation = nil
-        if devcontainerProvisioningState.phase == .awaitingConfirmation {
-            devcontainerProvisioningState = .idle
-        }
-    }
-
-    func confirmDevcontainerProvisioning(
-        _ confirmation: CodexDevcontainerProvisioningConfirmation,
-        persistProjectRegistry: () throws -> Void
-    ) async {
-        devcontainerProvisioningConfirmation = nil
-
-        guard isIdleForDevcontainerProvisioning else {
-            devcontainerProvisioningState = .blockedWhileBusy()
-            errorMessage = devcontainerProvisioningState.detail
-            log(devcontainerProvisioningState.detail, level: .warning)
-            return
-        }
-
-        let currentPlan = devcontainerProvisioningPlan()
-        guard currentPlan.isAvailable else {
-            devcontainerProvisioningState = .blocked(plan: currentPlan)
-            errorMessage = devcontainerProvisioningState.detail
-            log("Dev Container creation blocked: \(devcontainerProvisioningState.detail)", level: .warning)
-            return
-        }
-
-        let plan = confirmation.plan
-        guard currentPlan.configURL == plan.configURL else {
-            let error = CodexDevcontainerProvisioningError.unavailable(
-                "The confirmed repository no longer matches the selected project."
-            )
-            devcontainerProvisioningState = .failed(error)
-            errorMessage = devcontainerProvisioningState.detail
-            log(devcontainerProvisioningState.detail, level: .error)
-            return
-        }
-
-        devcontainerProvisioningState = .running(plan: plan)
-        errorMessage = nil
-        log("Dev Container creation: writing \(plan.configURL.path).", level: .info)
-        await Task.yield()
-
-        let previousPreference = codexExecutionEnvironmentPreference
-        do {
-            let result = try devcontainerProvisioningAction(plan)
-            let parseOutcome = CodexExecutionLaunchPlan.parseDevcontainerImageConfig(repoURL: repoURL)
-            guard case .ready = parseOutcome else {
-                throw CodexDevcontainerProvisioningError.writtenConfigNotReady(
-                    devcontainerVerificationReason(parseOutcome)
-                )
-            }
-
-            codexExecutionEnvironmentPreference = .devcontainerPreferred
-            do {
-                try persistProjectRegistry()
-            } catch {
-                codexExecutionEnvironmentPreference = previousPreference
-                try? persistProjectRegistry()
-                throw error
-            }
-
-            await refresh()
-            devcontainerProvisioningState = .succeeded(result)
-            errorMessage = nil
-            log(devcontainerProvisioningState.detail, level: .success)
-        } catch {
-            devcontainerProvisioningState = .failed(error)
-            errorMessage = devcontainerProvisioningState.detail
-            log(devcontainerProvisioningState.detail, level: .error)
-        }
     }
 
     func activeStorageActivationPlan() -> CompassWorkspaceStorageActivationPlan {
@@ -1843,15 +1730,10 @@ extension CompassProject {
         !isRunning && !isAutoPlaying && !isPaused
     }
 
-    private var isIdleForDevcontainerProvisioning: Bool {
-        !isRunning && !isAutoPlaying && !isPaused
-    }
-
     private var isIdleForMutationTesting: Bool {
         !isRunning
             && !isAutoPlaying
             && !isPaused
-            && !devcontainerProvisioningState.isRunning
             && !storageMigrationState.isRunning
             && !activeStorageActivationState.isRunning
     }
@@ -1860,21 +1742,6 @@ extension CompassProject {
         if isPaused { return .paused }
         if !isIdleForMutationTesting { return .running }
         return .idle
-    }
-
-    private func devcontainerVerificationReason(
-        _ outcome: CodexExecutionLaunchPlan.ParseOutcome
-    ) -> String {
-        switch outcome {
-        case .missing:
-            return "No .devcontainer/devcontainer.json was found after writing."
-        case let .malformed(_, reason):
-            return reason
-        case let .unsupported(_, reason):
-            return reason
-        case .ready:
-            return "The generated config is ready."
-        }
     }
 
     private func rollbackActiveStorage(
@@ -1920,7 +1787,7 @@ extension CompassProject {
         CodexExecutionLaunchPlan.plan(
             repoURL: nativeExecutionURL,
             preference: codexExecutionEnvironmentPreference,
-            containerToolResolver: containerToolResolver
+            vmReadiness: nil
         )
     }
 
@@ -1932,8 +1799,8 @@ extension CompassProject {
         attempt: Int? = nil
     ) {
         let environment = CodexExecutionEnvironment.discover(
-            repoURL: nativeExecutionURL,
-            preference: codexExecutionEnvironmentPreference
+            preference: codexExecutionEnvironmentPreference,
+            vmReadiness: .notProvisioned
         )
         let effectiveLaunchPlan = launchPlan ?? environment.launchPlan(repoURL: nativeExecutionURL)
         log(
@@ -1944,7 +1811,6 @@ extension CompassProject {
             recordSessionExecutionEnvironmentSnapshot(
                 phase: phase,
                 attempt: attempt,
-                nativeExecutionURL: nativeExecutionURL,
                 launchPlan: effectiveLaunchPlan,
                 sessionIndex: sessionIndex
             )
@@ -1959,20 +1825,14 @@ extension CompassProject {
     private func recordSessionExecutionEnvironmentSnapshot(
         phase: String,
         attempt: Int?,
-        nativeExecutionURL: URL,
         launchPlan: CodexExecutionLaunchPlan,
         sessionIndex: Int
     ) {
         guard sessions.indices.contains(sessionIndex) else { return }
-        let provisioningPlan = CodexDevcontainerProvisioningPlan.plan(
-            repoURL: nativeExecutionURL,
-            languageProfile: languageProfile
-        )
         let snapshot = SessionExecutionEnvironmentSnapshot(
             phase: phase,
             attempt: attempt,
-            launchPlan: launchPlan,
-            provisioningPlan: provisioningPlan
+            launchPlan: launchPlan
         )
         sessions[sessionIndex].recordExecutionEnvironmentSnapshot(snapshot)
         try? persistSessions()
@@ -3286,6 +3146,7 @@ struct KnownProjectRecord: Codable, Identifiable, Equatable {
     var cinematicInfluenceSettings: CinematicInfluenceSettings
     var nativeFeedbackMode: NativeFeedbackMode
     var codexExecutionEnvironmentPreference: CodexExecutionEnvironmentPreference
+    var developSandbox: DevelopSandboxPreference
     var cinematicRunRecapShareArtifactLibraryContext: CinematicRunRecapShareArtifactLibraryContext
 
     enum CodingKeys: String, CodingKey {
@@ -3297,6 +3158,7 @@ struct KnownProjectRecord: Codable, Identifiable, Equatable {
         case cinematicInfluenceSettings
         case nativeFeedbackMode
         case codexExecutionEnvironmentPreference
+        case developSandbox
         case cinematicRunRecapShareArtifactLibraryContext
     }
 
@@ -3308,7 +3170,8 @@ struct KnownProjectRecord: Codable, Identifiable, Equatable {
         lastOpenedAt: Double,
         cinematicInfluenceSettings: CinematicInfluenceSettings = CinematicInfluenceSettings(),
         nativeFeedbackMode: NativeFeedbackMode = .notifications,
-        codexExecutionEnvironmentPreference: CodexExecutionEnvironmentPreference = .nativeMacOS,
+        codexExecutionEnvironmentPreference: CodexExecutionEnvironmentPreference = .host,
+        developSandbox: DevelopSandboxPreference = .host,
         cinematicRunRecapShareArtifactLibraryContext: CinematicRunRecapShareArtifactLibraryContext = .empty
     ) {
         self.id = id
@@ -3319,6 +3182,7 @@ struct KnownProjectRecord: Codable, Identifiable, Equatable {
         self.cinematicInfluenceSettings = cinematicInfluenceSettings
         self.nativeFeedbackMode = nativeFeedbackMode
         self.codexExecutionEnvironmentPreference = codexExecutionEnvironmentPreference
+        self.developSandbox = developSandbox
         self.cinematicRunRecapShareArtifactLibraryContext = cinematicRunRecapShareArtifactLibraryContext
     }
 
@@ -3343,7 +3207,11 @@ struct KnownProjectRecord: Codable, Identifiable, Equatable {
         codexExecutionEnvironmentPreference = try container.decodeIfPresent(
             CodexExecutionEnvironmentPreference.self,
             forKey: .codexExecutionEnvironmentPreference
-        ) ?? .nativeMacOS
+        ) ?? .host
+        developSandbox = try container.decodeIfPresent(
+            DevelopSandboxPreference.self,
+            forKey: .developSandbox
+        ) ?? .host
         cinematicRunRecapShareArtifactLibraryContext = try container.decodeIfPresent(
             CinematicRunRecapShareArtifactLibraryContext.self,
             forKey: .cinematicRunRecapShareArtifactLibraryContext
@@ -3362,6 +3230,7 @@ private extension CompassProject {
             cinematicInfluenceSettings: record.cinematicInfluenceSettings,
             nativeFeedbackMode: record.nativeFeedbackMode,
             codexExecutionEnvironmentPreference: record.codexExecutionEnvironmentPreference,
+            developSandbox: record.developSandbox,
             cinematicRunRecapShareArtifactLibraryContext: record.cinematicRunRecapShareArtifactLibraryContext
         )
     }
@@ -3376,6 +3245,7 @@ private extension CompassProject {
             cinematicInfluenceSettings: cinematicInfluenceSettings,
             nativeFeedbackMode: nativeFeedbackMode,
             codexExecutionEnvironmentPreference: codexExecutionEnvironmentPreference,
+            developSandbox: developSandbox,
             cinematicRunRecapShareArtifactLibraryContext: cinematicRunRecapShareArtifactLibraryContext
         )
     }

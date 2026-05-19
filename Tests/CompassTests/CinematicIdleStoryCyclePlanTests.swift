@@ -525,7 +525,7 @@ final class CinematicIdleStoryCyclePlanTests: XCTestCase {
     func testSavedRecapArtifactTourRuntimeRouteMetadataDrivesIdleDescriptor() throws {
         var context = try makeContext()
         let cases: [(String, String, String, CinematicStageLightFamily, CinematicStageArenaEffect)] = [
-            ("apple-container", "apple-container", "container-blue", .scan, .historyChains),
+            ("shared-vm", "shared-vm", "container-blue", .scan, .historyChains),
             ("native", "native", "native-green", .insight, .seal),
             ("native-fallback", "native-fallback", "fallback-amber", .pressure, .activityPulse),
             ("missing-cue", "missing-cue", "missing-muted", .insight, .seal)
@@ -934,15 +934,15 @@ final class CinematicIdleStoryCyclePlanTests: XCTestCase {
         let filename = "\(session)-idle-runtime-route-\(routeKind).md"
         let routeSection: String
         switch routeKind {
-        case "apple-container":
+        case "shared-vm":
             routeSection = runtimeRouteSection(
                 phase: "Verify",
                 phaseIdentifier: "verify",
                 attempt: "1",
-                preference: CodexExecutionEnvironmentPreference.devcontainerPreferred.rawValue,
-                preferenceTitle: CodexExecutionEnvironmentPreference.devcontainerPreferred.title,
-                effectiveRoute: "apple-container",
-                effectiveRouteTitle: "Apple container",
+                preference: CodexExecutionEnvironmentPreference.sharedVM.rawValue,
+                preferenceTitle: CodexExecutionEnvironmentPreference.sharedVM.title,
+                effectiveRoute: "shared-vm",
+                effectiveRouteTitle: "Shared VM",
                 support: "image-routeable",
                 fallbackState: "direct",
                 fallbackReason: "none"
@@ -952,8 +952,8 @@ final class CinematicIdleStoryCyclePlanTests: XCTestCase {
                 phase: "Develop",
                 phaseIdentifier: "develop",
                 attempt: "1",
-                preference: CodexExecutionEnvironmentPreference.nativeMacOS.rawValue,
-                preferenceTitle: CodexExecutionEnvironmentPreference.nativeMacOS.title,
+                preference: CodexExecutionEnvironmentPreference.host.rawValue,
+                preferenceTitle: CodexExecutionEnvironmentPreference.host.title,
                 effectiveRoute: "native-macos",
                 effectiveRouteTitle: "Native macOS",
                 support: "not-inspected",
@@ -965,8 +965,8 @@ final class CinematicIdleStoryCyclePlanTests: XCTestCase {
                 phase: "Plan",
                 phaseIdentifier: "plan",
                 attempt: "2",
-                preference: CodexExecutionEnvironmentPreference.devcontainerPreferred.rawValue,
-                preferenceTitle: CodexExecutionEnvironmentPreference.devcontainerPreferred.title,
+                preference: CodexExecutionEnvironmentPreference.sharedVM.rawValue,
+                preferenceTitle: CodexExecutionEnvironmentPreference.sharedVM.title,
                 effectiveRoute: "native-macos",
                 effectiveRouteTitle: "Native macOS",
                 support: "feature-based",

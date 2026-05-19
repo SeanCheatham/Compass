@@ -64,8 +64,8 @@ final class CodexExecutor {
         decode type: T.Type,
         onEvent: @escaping (LiveEvent) -> Void
     ) async throws -> T {
-        var launchPlan = configuration.launchPlan ?? .native()
-        launchPlan = try await prepareBuildIfNeeded(
+        var launchPlan = configuration.launchPlan ?? .host()
+        launchPlan = try await prepareVMIfNeeded(
             launchPlan,
             onEvent: onEvent
         )
@@ -218,65 +218,16 @@ final class CodexExecutor {
         }
     }
 
-    private func prepareBuildIfNeeded(
+    private func prepareVMIfNeeded(
         _ launchPlan: CodexExecutionLaunchPlan,
         onEvent: @escaping (LiveEvent) -> Void
     ) async throws -> CodexExecutionLaunchPlan {
-        guard let buildInvocation = launchPlan.buildInvocation else {
-            return launchPlan
-        }
-
-        let correlationID = "devcontainer-build"
-        onEvent(LiveEvent(
-            level: .info,
-            text: "Building devcontainer image",
-            detail: launchPlan.buildFeedbackSummary(),
-            kind: .command,
-            status: .running,
-            correlationID: correlationID
-        ))
-
-        let buildResult: ProcessResult
-        do {
-            if let invocationRunner {
-                buildResult = try await invocationRunner(buildInvocation, nil, nil, nil, nil)
-            } else {
-                buildResult = try await ProcessRunner.run(invocation: buildInvocation)
-            }
-        } catch {
-            let fallbackPlan = launchPlan.buildFailureFallback(exitCode: nil)
-            onEvent(LiveEvent(
-                level: .warning,
-                text: "Devcontainer build fallback",
-                detail: launchPlan.buildFeedbackSummary(fallbackReason: fallbackPlan.fallbackReason),
-                kind: .command,
-                status: .failed,
-                correlationID: correlationID
-            ))
-            return fallbackPlan
-        }
-
-        guard buildResult.exitCode == 0 else {
-            let fallbackPlan = launchPlan.buildFailureFallback(exitCode: buildResult.exitCode)
-            onEvent(LiveEvent(
-                level: .warning,
-                text: "Devcontainer build fallback",
-                detail: launchPlan.buildFeedbackSummary(fallbackReason: fallbackPlan.fallbackReason),
-                kind: .command,
-                status: .failed,
-                correlationID: correlationID
-            ))
-            return fallbackPlan
-        }
-
-        onEvent(LiveEvent(
-            level: .success,
-            text: "Devcontainer image built",
-            detail: launchPlan.buildFeedbackSummary(),
-            kind: .command,
-            status: .completed,
-            correlationID: correlationID
-        ))
+        // Shared VM lifecycle is owned by `SharedCompassVM` and surfaced through
+        // `vmReadiness`. The launch-plan planner already falls back to the host route
+        // when the VM is not `.ready`, so the executor's hot path doesn't need to wait
+        // here. Future work (Phase 3) will bridge readiness progress events into the
+        // live log via `onEvent`.
+        _ = onEvent
         return launchPlan
     }
 
@@ -285,11 +236,13 @@ final class CodexExecutor {
         repoURL: URL
     ) throws -> URL {
         switch route.effectiveRoute {
-        case .nativeMacOS:
+        case .host:
             return FileManager.default.temporaryDirectory
                 .appending(path: "Compass-\(UUID().uuidString)", directoryHint: .isDirectory)
-        case .appleContainer:
-            return repoURL.standardizedFileURL
+        case let .sharedVM(vmRoute):
+            // Place auxiliary files inside the worktree so they're visible to the guest
+            // via the VirtioFS mount under the guest workspace path.
+            return vmRoute.hostWorktreeURL.standardizedFileURL
                 .appending(path: ".compass-codex-run-\(UUID().uuidString)", directoryHint: .isDirectory)
         }
     }

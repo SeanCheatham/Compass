@@ -863,10 +863,6 @@ private struct ProjectRunControls: View {
         HStack(spacing: 5) {
             Menu {
                 Text(executionEnvironmentMenu.statusText)
-                if project.devcontainerProvisioningState.shouldShowFeedback {
-                    Text(project.devcontainerProvisioningState.detail)
-                    Divider()
-                }
                 Divider()
                 let diagnosticsAction = executionEnvironmentMenu.copyDiagnosticsAction
                 Button {
@@ -911,43 +907,12 @@ private struct ProjectRunControls: View {
                         Divider()
                     }
                 }
-                if let createAction = executionEnvironmentMenu.createDevcontainerAction {
-                    Divider()
-                    Button {
-                        project.prepareDevcontainerProvisioningConfirmation()
-                    } label: {
-                        Label(createAction.title, systemImage: createAction.systemImage)
-                    }
-                    .disabled(
-                        project.devcontainerProvisioningState.isRunning
-                            || project.isRunning
-                            || project.isAutoPlaying
-                            || project.isPaused
-                    )
-                    Text(createAction.description)
-                }
             } label: {
                 Image(systemName: executionEnvironmentMenu.labelSystemImage)
                     .frame(width: 18, height: 18)
             }
             .menuStyle(.borderlessButton)
             .help(executionEnvironmentMenu.helpText)
-            .alert(item: $project.devcontainerProvisioningConfirmation) { confirmation in
-                Alert(
-                    title: Text(confirmation.title),
-                    message: Text(confirmation.message),
-                    primaryButton: .default(Text(confirmation.confirmLabel)) {
-                        Task {
-                            await project.confirmDevcontainerProvisioning(confirmation) {
-                                try model.saveProjectsThrowing()
-                            }
-                        }
-                    },
-                    secondaryButton: .cancel(Text(confirmation.cancelLabel)) {
-                        project.cancelDevcontainerProvisioningConfirmation()
-                    }
-                )
-            }
 
             Menu {
                 Text(feedbackMenu.deliveryStatusText)

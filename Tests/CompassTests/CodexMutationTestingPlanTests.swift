@@ -81,32 +81,32 @@ final class CodexMutationTestingPlanTests: XCTestCase {
 
     func testAppleContainerAndNativeFallbackRoutesAreReportedWithoutExecutingMutationTools() throws {
         let repoURL = try makeTemporaryDirectory(prefix: "CodexMutationTestingPlanRoute")
-        let appleRoute = CodexExecutionLaunchPlan.AppleContainerRoute(
-            toolPath: "/private/tooling/container",
-            hostWorkspaceURL: repoURL,
-            image: "swift:6.0",
-            workspaceFolder: "/workspace/app"
+        let vmRoute = SharedVMRoute(
+            sshDestination: "compass@192.0.2.10",
+            hostWorktreeURL: repoURL,
+            guestWorkspacePath: "/opt/compass/workspaces/dev-AAA/worktree",
+            guestCodexPath: "/opt/compass/codex/codex"
         )
-        let applePlan = CodexExecutionLaunchPlan(
-            selectedPreference: .devcontainerPreferred,
-            effectiveRoute: .appleContainer(appleRoute),
-            devcontainerSupportReport: supportReport(repoURL: repoURL, classification: .imageRouteable)
+        let vmPlan = CodexExecutionLaunchPlan(
+            selectedPreference: .sharedVM,
+            effectiveRoute: .sharedVM(vmRoute),
+            vmReadiness: .ready(sshDestination: vmRoute.sshDestination)
         )
-        let appleReadiness = CodexMutationTestingPlan(
+        let vmReadiness = CodexMutationTestingPlan(
             state: makeState(verify: "swift test"),
             languageProfile: profile(.swift),
-            launchPlan: applePlan
+            launchPlan: vmPlan
         )
 
-        XCTAssertEqual(appleReadiness.statusIdentifier, "ready")
-        XCTAssertEqual(appleReadiness.routeIdentifier, "apple-container-route")
-        XCTAssertTrue(appleReadiness.badgeLabel.contains("Apple container"))
-        XCTAssertTrue(appleReadiness.detailText.contains("Apple container"))
+        XCTAssertEqual(vmReadiness.statusIdentifier, "ready")
+        XCTAssertEqual(vmReadiness.routeIdentifier, "shared-vm-route")
+        XCTAssertTrue(vmReadiness.badgeLabel.contains("Shared VM"))
+        XCTAssertTrue(vmReadiness.detailText.contains("Shared VM"))
 
-        let fallbackPlan = CodexExecutionLaunchPlan.native(
-            selectedPreference: .devcontainerPreferred,
-            devcontainerSupportReport: supportReport(repoURL: repoURL, classification: .missing),
-            fallbackReason: "Apple container CLI is unavailable."
+        let fallbackPlan = CodexExecutionLaunchPlan.host(
+            selectedPreference: .sharedVM,
+            vmReadiness: .unavailable(reason: "2-guest cap reached"),
+            fallbackReason: "Shared VM unavailable: 2-guest cap reached."
         )
         let fallbackReadiness = CodexMutationTestingPlan(
             state: makeState(verify: "swift test"),
@@ -122,19 +122,21 @@ final class CodexMutationTestingPlanTests: XCTestCase {
 
     func testIdentifierCopyAndSeedCommandAreStableBoundedAndSanitized() throws {
         let repoURL = try makeTemporaryDirectory(prefix: "CodexMutationTestingPlanSanitized")
-        let secretBuildArg = "secret-mutation-build-arg"
-        let containerToolPath = "/private/tooling/container"
-        try write(
-            #"{"build":{"dockerfile":"Dockerfile","context":"..","args":{"TOKEN":"\#(secretBuildArg)"}}}"#,
-            to: devcontainerURL(in: repoURL)
+        let secretEnvValue = "secret-mutation-env-value"
+        let route = SharedVMRoute(
+            sshDestination: "compass@192.0.2.10",
+            hostWorktreeURL: repoURL,
+            guestWorkspacePath: "/opt/compass/workspaces/dev-AAA/worktree",
+            guestCodexPath: "/opt/compass/codex/codex",
+            environmentVariables: ["SECRET_TOKEN": secretEnvValue]
         )
-        let launchPlan = CodexExecutionLaunchPlan.plan(
-            repoURL: repoURL,
-            preference: .devcontainerPreferred,
-            containerToolResolver: { _ in containerToolPath }
+        let launchPlan = CodexExecutionLaunchPlan(
+            selectedPreference: .sharedVM,
+            effectiveRoute: .sharedVM(route),
+            vmReadiness: .ready(sshDestination: route.sshDestination)
         )
         let state = makeState(
-            verify: "swift test --package-path \(repoURL.path) --filter CodexMutationTestingPlanTests \(containerToolPath) \(secretBuildArg) \(repoURL.path)/.devcontainer/devcontainer.json .devcontainer/devcontainer.json"
+            verify: "swift test --package-path \(repoURL.path) --filter CodexMutationTestingPlanTests \(secretEnvValue)"
         )
         let first = CodexMutationTestingPlan(
             state: state,
@@ -156,12 +158,9 @@ final class CodexMutationTestingPlanTests: XCTestCase {
 
         XCTAssertEqual(first, second)
         XCTAssertEqual(first.statusIdentifier, "ready")
-        XCTAssertEqual(first.routeIdentifier, "apple-container-route")
-        XCTAssertTrue(first.seedCommandLabel.contains("[redacted]") || first.seedCommandLabel.contains("[path]"))
+        XCTAssertEqual(first.routeIdentifier, "shared-vm-route")
         XCTAssertFalse(exposedText.contains(repoURL.standardizedFileURL.path))
-        XCTAssertFalse(exposedText.contains(containerToolPath))
-        XCTAssertFalse(exposedText.contains(secretBuildArg))
-        XCTAssertFalse(exposedText.contains(".devcontainer/devcontainer.json"))
+        XCTAssertFalse(exposedText.contains(secretEnvValue))
         XCTAssertLessThanOrEqual(first.identifier.count, CodexMutationTestingPlan.identifierMaxCharacters)
         XCTAssertLessThanOrEqual(first.seedCommandLabel.count, CodexMutationTestingPlan.commandMaxCharacters)
         XCTAssertLessThanOrEqual(first.copyText.count, CodexMutationTestingPlan.copyTextMaxCharacters)
@@ -195,19 +194,7 @@ final class CodexMutationTestingPlanTests: XCTestCase {
     }
 
     private func nativeLaunchPlan() -> CodexExecutionLaunchPlan {
-        CodexExecutionLaunchPlan.native(selectedPreference: .nativeMacOS)
-    }
-
-    private func supportReport(
-        repoURL: URL,
-        classification: CodexDevcontainerSupportReport.Classification
-    ) -> CodexDevcontainerSupportReport {
-        CodexDevcontainerSupportReport(
-            classification: classification,
-            configURL: devcontainerURL(in: repoURL),
-            supportTokens: classification == .missing ? [] : ["image"],
-            reason: classification == .missing ? "No .devcontainer/devcontainer.json was found." : nil
-        )
+        CodexExecutionLaunchPlan.host(selectedPreference: .host)
     }
 
     private func makeTemporaryDirectory(prefix: String) throws -> URL {

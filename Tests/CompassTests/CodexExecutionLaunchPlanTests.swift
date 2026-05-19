@@ -12,1256 +12,222 @@ final class CodexExecutionLaunchPlanTests: XCTestCase {
         temporaryDirectories.removeAll()
     }
 
-    func testImageDevcontainerRoutesThroughAppleContainerWhenToolIsAvailable() throws {
-        let repoURL = try makeTemporaryDirectory(prefix: "CodexExecutionLaunchPlanReady")
-        try write(
-            #"{"image":"swift:6.0","workspaceFolder":"/workspace/app"}"#,
-            to: devcontainerURL(in: repoURL)
-        )
+    // MARK: - Routing
 
+    func testImageDevcontainerRoutesThroughAppleContainerWhenToolIsAvailable() throws {
+        // Renamed scenario: ready Shared VM routes through ssh when a route factory is provided.
+        let repoURL = try makeTemporaryDirectory(prefix: "VMReadyRoutes")
+        let route = SharedVMRoute(
+            sshDestination: "compass@192.0.2.10",
+            hostWorktreeURL: repoURL,
+            guestWorkspacePath: "/opt/compass/workspaces/dev-AAA/worktree",
+            guestCodexPath: "/opt/compass/codex/codex"
+        )
         let plan = CodexExecutionLaunchPlan.plan(
             repoURL: repoURL,
-            preference: .devcontainerPreferred,
-            containerToolResolver: { name in name == "container" ? "/usr/local/bin/container" : nil }
+            preference: .sharedVM,
+            vmReadiness: .ready(sshDestination: route.sshDestination),
+            sharedVMRouteFactory: { _ in route }
         )
 
-        XCTAssertTrue(plan.isContainerRoute)
+        XCTAssertTrue(plan.isVMRoute)
+        XCTAssertEqual(plan.effectiveRouteIdentifier, "shared-vm")
         XCTAssertNil(plan.fallbackReason)
-        XCTAssertEqual(plan.effectiveRouteTitle, "Apple container")
-        XCTAssertEqual(plan.imageLabel, "swift:6.0")
-        XCTAssertEqual(plan.workspaceLabel, "/workspace/app")
-
-        guard case let .appleContainer(route) = plan.effectiveRoute else {
-            return XCTFail("Expected Apple container route.")
-        }
-        XCTAssertEqual(route.toolPath, "/usr/local/bin/container")
-        XCTAssertEqual(route.volumeArgument, "\(repoURL.standardizedFileURL.path):/workspace")
-        XCTAssertEqual(route.workspaceFolder, "/workspace/app")
-
-        let preflight = plan.preflightSummary(phase: "Plan")
-        XCTAssertTrue(preflight.contains("selected Dev Container Preferred"))
-        XCTAssertTrue(preflight.contains("effective route Apple container"))
-        XCTAssertTrue(preflight.contains("image swift:6.0"))
-        XCTAssertFalse(preflight.contains(repoURL.standardizedFileURL.path))
+        XCTAssertEqual(plan.workspaceLabel, "/opt/compass/workspaces/dev-AAA/worktree")
     }
 
     func testImageDevcontainerContainerEnvRoutesWithSanitizedSupportTokens() throws {
-        let repoURL = try makeTemporaryDirectory(prefix: "CodexExecutionLaunchPlanEnv")
-        let secretValue = "super-secret-token"
-        try write(
-            #"{"image":"swift:6.0","workspaceFolder":"/workspace/app","containerEnv":{"ZETA":"\#(secretValue)","ALPHA":"plain"}}"#,
-            to: devcontainerURL(in: repoURL)
+        let repoURL = try makeTemporaryDirectory(prefix: "VMRoutesEnv")
+        let route = SharedVMRoute(
+            sshDestination: "compass@192.0.2.10",
+            hostWorktreeURL: repoURL,
+            guestWorkspacePath: "/opt/compass/workspaces/dev-AAA/worktree",
+            guestCodexPath: "/opt/compass/codex/codex",
+            environmentVariables: ["BETA": "second", "ALPHA": "first"]
+        )
+        let plan = CodexExecutionLaunchPlan(
+            selectedPreference: .sharedVM,
+            effectiveRoute: .sharedVM(route),
+            vmReadiness: .ready(sshDestination: route.sshDestination)
         )
 
-        let plan = CodexExecutionLaunchPlan.plan(
-            repoURL: repoURL,
-            preference: .devcontainerPreferred,
-            containerToolResolver: { name in name == "container" ? "/usr/local/bin/container" : nil }
+        let invocation = plan.codexInvocation(
+            codexBinary: "codex",
+            arguments: ["exec", "-"],
+            hostWorkingDirectory: repoURL
         )
-        let report = try XCTUnwrap(plan.devcontainerSupportReport)
-        let config = try XCTUnwrap(plan.devcontainer)
-
-        XCTAssertTrue(plan.isContainerRoute)
-        XCTAssertEqual(config.containerEnv.map(\.name), ["ALPHA", "ZETA"])
-        XCTAssertEqual(config.containerEnv.map(\.value), ["plain", secretValue])
-        XCTAssertEqual(report.classification, .imageRouteable)
-        XCTAssertEqual(report.supportTokens, ["image", "containerEnv:2", "env:ALPHA", "env:ZETA"])
-
-        guard case let .appleContainer(route) = plan.effectiveRoute else {
-            return XCTFail("Expected Apple container route.")
-        }
-        XCTAssertEqual(route.environmentArguments, [
-            "--env", "ALPHA=plain",
-            "--env", "ZETA=\(secretValue)"
-        ])
-
-        let diagnosticsText = [
-            report.supportSummary,
-            plan.preflightSummary(phase: "Develop"),
-            plan.routeDetail()
-        ].joined(separator: " ")
-        XCTAssertTrue(diagnosticsText.contains("containerEnv:2"))
-        XCTAssertTrue(diagnosticsText.contains("env:ALPHA"))
-        XCTAssertTrue(diagnosticsText.contains("env:ZETA"))
-        XCTAssertFalse(diagnosticsText.contains(secretValue))
+        let remote = try XCTUnwrap(invocation.arguments.last)
+        XCTAssertTrue(remote.contains("env ALPHA='first' BETA='second'"))
     }
 
     func testNativePreferenceStaysNativeEvenWhenSupportedConfigAndToolExist() throws {
-        let repoURL = try makeTemporaryDirectory(prefix: "CodexExecutionLaunchPlanNative")
-        try write(#"{"image":"swift:6.0"}"#, to: devcontainerURL(in: repoURL))
-
+        let repoURL = try makeTemporaryDirectory(prefix: "HostPreference")
         let plan = CodexExecutionLaunchPlan.plan(
             repoURL: repoURL,
-            preference: .nativeMacOS,
-            containerToolResolver: { _ in "/usr/local/bin/container" }
+            preference: .host,
+            vmReadiness: .ready(sshDestination: "compass@192.0.2.99")
         )
-
-        XCTAssertFalse(plan.isContainerRoute)
-        XCTAssertEqual(plan.effectiveRouteTitle, "Native macOS")
-        XCTAssertEqual(plan.imageLabel, "swift:6.0")
-        XCTAssertEqual(plan.workspaceLabel, "host")
-        XCTAssertNil(plan.fallbackReason)
+        XCTAssertEqual(plan.effectiveRouteIdentifier, "native-macos")
+        XCTAssertFalse(plan.isVMRoute)
     }
 
     func testNativePreferenceStaysNativeForRouteableBuildArgsConfig() throws {
-        let repoURL = try makeTemporaryDirectory(prefix: "CodexExecutionLaunchPlanNativeBuildArgs")
-        try write(
-            #"{"build":{"dockerfile":"Dockerfile","context":"..","args":{"SAFE_ARG":"value"}}}"#,
-            to: devcontainerURL(in: repoURL)
+        let repoURL = try makeTemporaryDirectory(prefix: "HostPreferenceVMReady")
+        let route = SharedVMRoute(
+            sshDestination: "compass@192.0.2.10",
+            hostWorktreeURL: repoURL,
+            guestWorkspacePath: "/opt/compass/workspaces/dev-AAA/worktree",
+            guestCodexPath: "/opt/compass/codex/codex"
         )
-
         let plan = CodexExecutionLaunchPlan.plan(
             repoURL: repoURL,
-            preference: .nativeMacOS,
-            containerToolResolver: { _ in "/usr/local/bin/container" }
+            preference: .host,
+            vmReadiness: .ready(sshDestination: route.sshDestination),
+            sharedVMRouteFactory: { _ in route }
         )
-
-        XCTAssertFalse(plan.isContainerRoute)
-        XCTAssertEqual(plan.effectiveRouteTitle, "Native macOS")
-        XCTAssertEqual(plan.workspaceLabel, "host")
-        XCTAssertNil(plan.fallbackReason)
-        XCTAssertNotNil(plan.devcontainerSupportReport?.buildConfiguration)
+        XCTAssertFalse(plan.isVMRoute)
     }
 
     func testMissingConfigFallsBackToNativeWithBoundedReason() throws {
-        let repoURL = try makeTemporaryDirectory(prefix: "CodexExecutionLaunchPlanMissing")
-
+        let repoURL = try makeTemporaryDirectory(prefix: "VMNotProvisioned")
         let plan = CodexExecutionLaunchPlan.plan(
             repoURL: repoURL,
-            preference: .devcontainerPreferred,
-            containerToolResolver: { _ in "/usr/local/bin/container" }
+            preference: .sharedVM,
+            vmReadiness: .notProvisioned
         )
-
-        XCTAssertFalse(plan.isContainerRoute)
-        XCTAssertEqual(plan.effectiveRouteTitle, "Native macOS")
-        XCTAssertEqual(plan.fallbackReason, "No .devcontainer/devcontainer.json was found.")
-        XCTAssertEqual(plan.devcontainerSupportReport?.classification, .missing)
-        XCTAssertLessThanOrEqual(
-            plan.fallbackReason?.count ?? 0,
-            CodexExecutionLaunchPlan.fallbackReasonLimit
-        )
+        XCTAssertFalse(plan.isVMRoute)
+        XCTAssertTrue(plan.fallbackReason?.contains("not been provisioned") ?? false)
     }
 
     func testMalformedConfigFallsBackToNativeWithBoundedReason() throws {
-        let repoURL = try makeTemporaryDirectory(prefix: "CodexExecutionLaunchPlanMalformed")
-        try write("{", to: devcontainerURL(in: repoURL))
-
+        let repoURL = try makeTemporaryDirectory(prefix: "VMError")
         let plan = CodexExecutionLaunchPlan.plan(
             repoURL: repoURL,
-            preference: .devcontainerPreferred,
-            containerToolResolver: { _ in "/usr/local/bin/container" }
+            preference: .sharedVM,
+            vmReadiness: .error(detail: "ssh probe failed")
         )
-
-        XCTAssertFalse(plan.isContainerRoute)
-        XCTAssertTrue(plan.fallbackReason?.contains("malformed") == true)
-        XCTAssertLessThanOrEqual(
-            plan.fallbackReason?.count ?? 0,
-            CodexExecutionLaunchPlan.fallbackReasonLimit
-        )
+        XCTAssertFalse(plan.isVMRoute)
+        XCTAssertTrue(plan.fallbackReason?.contains("ssh probe failed") ?? false)
     }
 
     func testBuildConfigRoutesThroughAppleContainerWhenToolIsAvailable() throws {
-        let repoURL = try makeTemporaryDirectory(prefix: "CodexExecutionLaunchPlanBuild")
-        try write(
-            #"{"build":{"dockerfile":"Dockerfile"}}"#,
-            to: devcontainerURL(in: repoURL)
+        let repoURL = try makeTemporaryDirectory(prefix: "VMReadyRoutesBuild")
+        let route = SharedVMRoute(
+            sshDestination: "compass@192.0.2.50",
+            hostWorktreeURL: repoURL,
+            guestWorkspacePath: "/opt/compass/workspaces/dev-DDD/worktree",
+            guestCodexPath: "/opt/compass/codex/codex"
         )
-
-        let plan = CodexExecutionLaunchPlan.plan(
-            repoURL: repoURL,
-            preference: .devcontainerPreferred,
-            containerToolResolver: { _ in "/usr/local/bin/container" }
+        let plan = CodexExecutionLaunchPlan(
+            selectedPreference: .sharedVM,
+            effectiveRoute: .sharedVM(route),
+            vmReadiness: .ready(sshDestination: route.sshDestination)
         )
-        let report = try XCTUnwrap(plan.devcontainerSupportReport)
-        let buildConfiguration = try XCTUnwrap(report.buildConfiguration)
-
-        XCTAssertTrue(plan.isContainerRoute)
-        XCTAssertNil(plan.fallbackReason)
-        XCTAssertEqual(plan.imageLabel, buildConfiguration.localImageTag)
-        XCTAssertEqual(plan.workspaceLabel, "/workspace")
-        XCTAssertEqual(report.classification, .buildBased)
-        XCTAssertEqual(report.supportTokens, ["build", "dockerfile:Dockerfile"])
-        XCTAssertTrue(plan.preflightSummary(phase: "Develop").contains("image compass-devcontainer:"))
-        XCTAssertFalse(plan.preflightSummary(phase: "Develop").contains(repoURL.standardizedFileURL.path))
-
-        guard case let .appleContainer(route) = plan.effectiveRoute else {
-            return XCTFail("Expected Apple container route.")
-        }
-        XCTAssertEqual(route.image, buildConfiguration.localImageTag)
-        XCTAssertEqual(route.workspaceFolder, "/workspace")
-        XCTAssertEqual(route.buildConfiguration, buildConfiguration)
-    }
-
-    func testBuildStringAndTopLevelDockerfileFormsExposeSanitizedDescriptorTokens() throws {
-        let cases: [
-            (
-                prefix: String,
-                json: String,
-                expectedTokens: [String],
-                expectedDockerfile: String?,
-                expectedDockerfilePath: String?,
-                expectsBuildConfiguration: Bool
-            )
-        ] = [
-            (
-                "CodexExecutionLaunchPlanBuildString",
-                #"{"build":"docker/Dockerfile.dev"}"#,
-                ["build", "dockerfile:Dockerfile.dev"],
-                "Dockerfile.dev",
-                ".devcontainer/docker/Dockerfile.dev",
-                true
-            ),
-            (
-                "CodexExecutionLaunchPlanTopLevelDockerFile",
-                #"{"dockerFile":"../Dockerfile"}"#,
-                ["build", "dockerfile:Dockerfile"],
-                "Dockerfile",
-                "Dockerfile",
-                true
-            ),
-            (
-                "CodexExecutionLaunchPlanTopLevelDockerfile",
-                #"{"dockerfile":"/tmp/private-repo/Dockerfile.secret"}"#,
-                ["build", "dockerfile:absolute"],
-                "absolute",
-                nil,
-                false
-            )
-        ]
-
-        for testCase in cases {
-            let repoURL = try makeTemporaryDirectory(prefix: testCase.prefix)
-            try write(testCase.json, to: devcontainerURL(in: repoURL))
-
-            let plan = CodexExecutionLaunchPlan.plan(
-                repoURL: repoURL,
-                preference: .devcontainerPreferred,
-                containerToolResolver: { _ in "/usr/local/bin/container" }
-            )
-            let report = try XCTUnwrap(plan.devcontainerSupportReport)
-
-            XCTAssertEqual(plan.isContainerRoute, testCase.expectsBuildConfiguration)
-            XCTAssertEqual(report.classification, .buildBased)
-            XCTAssertEqual(report.supportTokens, testCase.expectedTokens)
-            XCTAssertEqual(report.buildDescriptor?.dockerfileLabel, testCase.expectedDockerfile)
-            XCTAssertEqual(report.buildConfiguration != nil, testCase.expectsBuildConfiguration)
-            if let expectedDockerfilePath = testCase.expectedDockerfilePath {
-                XCTAssertEqual(
-                    report.buildConfiguration?.dockerfileURL,
-                    repoRelativeURL(expectedDockerfilePath, in: repoURL)
-                )
-                XCTAssertEqual(
-                    report.buildConfiguration?.contextURL,
-                    repoURL.appending(path: ".devcontainer", directoryHint: .isDirectory).standardizedFileURL
-                )
-                XCTAssertEqual(plan.imageLabel, report.buildConfiguration?.localImageTag)
-            } else {
-                XCTAssertFalse(plan.isContainerRoute)
-            }
-            XCTAssertFalse(report.supportSummary.contains("/tmp/private-repo"))
-        }
-    }
-
-    func testSafeBuildObjectCreatesDeterministicBuildConfigurationAndRoutesLocalImage() throws {
-        let repoURL = try makeTemporaryDirectory(prefix: "CodexExecutionLaunchPlanBuildPlan")
-        try write(
-            #"{"build":{"target":"runtime","context":"..","dockerfile":"Dockerfile"}}"#,
-            to: devcontainerURL(in: repoURL)
-        )
-
-        let firstPlan = CodexExecutionLaunchPlan.plan(
-            repoURL: repoURL,
-            preference: .devcontainerPreferred,
-            containerToolResolver: { _ in "/usr/local/bin/container" }
-        )
-        let secondPlan = CodexExecutionLaunchPlan.plan(
-            repoURL: repoURL,
-            preference: .devcontainerPreferred,
-            containerToolResolver: { _ in "/usr/local/bin/container" }
-        )
-        let report = try XCTUnwrap(firstPlan.devcontainerSupportReport)
-        let buildConfiguration = try XCTUnwrap(report.buildConfiguration)
-        let repeatedConfiguration = try XCTUnwrap(secondPlan.devcontainerSupportReport?.buildConfiguration)
-        let invocation = buildConfiguration.buildInvocation(containerToolPath: "/usr/local/bin/container")
-
-        XCTAssertTrue(firstPlan.isContainerRoute)
-        XCTAssertEqual(report.classification, .buildBased)
-        XCTAssertEqual(report.buildDescriptor?.dockerfileLabel, "Dockerfile")
-        XCTAssertEqual(report.buildDescriptor?.contextLabel, "repo-root")
-        XCTAssertEqual(report.buildDescriptor?.targetLabel, "runtime")
-        XCTAssertEqual(buildConfiguration.dockerfileURL, repoRelativeURL(".devcontainer/Dockerfile", in: repoURL))
-        XCTAssertEqual(buildConfiguration.contextURL, repoURL.standardizedFileURL)
-        XCTAssertEqual(buildConfiguration.target, "runtime")
-        XCTAssertEqual(buildConfiguration.localImageTag, repeatedConfiguration.localImageTag)
-        XCTAssertTrue(buildConfiguration.localImageTag.hasPrefix("compass-devcontainer:"))
-        XCTAssertEqual(firstPlan.imageLabel, buildConfiguration.localImageTag)
-        XCTAssertEqual(firstPlan.workspaceLabel, "/workspace")
-        XCTAssertEqual(invocation.executable, "/usr/local/bin/container")
-        XCTAssertEqual(invocation.workingDirectory, repoURL.standardizedFileURL)
-        XCTAssertEqual(invocation.arguments, [
-            "build",
-            "--tag", buildConfiguration.localImageTag,
-            "--file", repoRelativeURL(".devcontainer/Dockerfile", in: repoURL).path,
-            "--target", "runtime",
-            repoURL.standardizedFileURL.path
-        ])
-
-        guard case let .appleContainer(route) = firstPlan.effectiveRoute else {
-            return XCTFail("Expected Apple container route.")
-        }
-        XCTAssertEqual(route.image, buildConfiguration.localImageTag)
-        XCTAssertEqual(route.buildConfiguration, buildConfiguration)
-    }
-
-    func testBuildObjectRoutesWithSortedBuildArgsWithoutDiagnosticValues() throws {
-        let repoURL = try makeTemporaryDirectory(prefix: "CodexExecutionLaunchPlanBuildObject")
-        let secretValue = "secret-build-arg-value"
-        let secondSecretValue = "second-secret-build-value"
-        try write(
-            #"{"build":{"dockerfile":"docker/Dockerfile.runtime","context":"..","target":"runtime","args":{"ZETA":"\#(secretValue)","ALPHA":"plain"},"buildArgs":{"BETA":"\#(secondSecretValue)"}}}"#,
-            to: devcontainerURL(in: repoURL)
-        )
-
-        let plan = CodexExecutionLaunchPlan.plan(
-            repoURL: repoURL,
-            preference: .devcontainerPreferred,
-            containerToolResolver: { _ in "/usr/local/bin/container" }
-        )
-        let report = try XCTUnwrap(plan.devcontainerSupportReport)
-        let descriptor = try XCTUnwrap(report.buildDescriptor)
-        let buildConfiguration = try XCTUnwrap(report.buildConfiguration)
-        let diagnosticsText = [
-            report.supportSummary,
-            plan.preflightSummary(phase: "Develop"),
-            plan.routeDetail()
-        ].joined(separator: " ")
-
-        XCTAssertTrue(plan.isContainerRoute)
-        XCTAssertNil(plan.devcontainer)
-        XCTAssertEqual(report.classification, .buildBased)
-        XCTAssertEqual(descriptor.dockerfileLabel, "Dockerfile.runtime")
-        XCTAssertEqual(descriptor.contextLabel, "repo-root")
-        XCTAssertEqual(descriptor.targetLabel, "runtime")
-        XCTAssertEqual(descriptor.buildArgNames, ["ALPHA", "BETA", "ZETA"])
-        XCTAssertEqual(buildConfiguration.buildArgs.map(\.name), ["ALPHA", "BETA", "ZETA"])
-        XCTAssertEqual(buildConfiguration.buildArgs.map(\.value), ["plain", secondSecretValue, secretValue])
-        XCTAssertEqual(plan.imageLabel, buildConfiguration.localImageTag)
-        XCTAssertEqual(buildConfiguration.buildArguments, [
-            "build",
-            "--tag", buildConfiguration.localImageTag,
-            "--file", repoRelativeURL(".devcontainer/docker/Dockerfile.runtime", in: repoURL).path,
-            "--target", "runtime",
-            "--build-arg", "ALPHA=plain",
-            "--build-arg", "BETA=\(secondSecretValue)",
-            "--build-arg", "ZETA=\(secretValue)",
-            repoURL.standardizedFileURL.path
-        ])
-        XCTAssertEqual(report.supportTokens, [
-            "build",
-            "dockerfile:Dockerfile.runtime",
-            "context:repo-root",
-            "target:runtime",
-            "buildArgs:3",
-            "arg:ALPHA",
-            "arg:BETA",
-            "arg:ZETA"
-        ])
-        XCTAssertTrue(diagnosticsText.contains("buildArgs:3"))
-        XCTAssertTrue(diagnosticsText.contains("arg:ALPHA"))
-        XCTAssertTrue(diagnosticsText.contains("arg:BETA"))
-        XCTAssertTrue(diagnosticsText.contains("arg:ZETA"))
-        XCTAssertFalse(diagnosticsText.contains(secretValue))
-        XCTAssertFalse(diagnosticsText.contains(secondSecretValue))
-
-        try write(
-            #"{"build":{"dockerfile":"docker/Dockerfile.runtime","context":"..","target":"runtime","args":{"ZETA":"changed-secret-build-arg-value","ALPHA":"plain"},"buildArgs":{"BETA":"\#(secondSecretValue)"}}}"#,
-            to: devcontainerURL(in: repoURL)
-        )
-        let changedValuePlan = CodexExecutionLaunchPlan.plan(
-            repoURL: repoURL,
-            preference: .devcontainerPreferred,
-            containerToolResolver: { _ in "/usr/local/bin/container" }
-        )
-        let changedBuildConfiguration = try XCTUnwrap(changedValuePlan.devcontainerSupportReport?.buildConfiguration)
-        XCTAssertNotEqual(buildConfiguration.localImageTag, changedBuildConfiguration.localImageTag)
-        XCTAssertEqual(changedBuildConfiguration.buildArgs.map(\.name), ["ALPHA", "BETA", "ZETA"])
-    }
-
-    func testBuildDescriptorTokensAreDeterministicallyOrderedAndBounded() throws {
-        let repoURL = try makeTemporaryDirectory(prefix: "CodexExecutionLaunchPlanBuildBounded")
-        let args = (0..<10)
-            .map { #""ARG\#(String(format: "%02d", $0))":"value""# }
-            .joined(separator: ",")
-        try write(
-            #"{"build":{"dockerfile":"Dockerfile","context":".","target":"builder","args":{\#(args)}}}"#,
-            to: devcontainerURL(in: repoURL)
-        )
-
-        let plan = CodexExecutionLaunchPlan.plan(
-            repoURL: repoURL,
-            preference: .devcontainerPreferred,
-            containerToolResolver: { _ in "/usr/local/bin/container" }
-        )
-        let report = try XCTUnwrap(plan.devcontainerSupportReport)
-
-        XCTAssertEqual(report.supportTokens, [
-            "build",
-            "dockerfile:Dockerfile",
-            "context:.devcontainer",
-            "target:builder",
-            "buildArgs:10",
-            "arg:ARG00",
-            "arg:ARG01",
-            "arg:ARG02"
-        ])
-        XCTAssertEqual(report.omittedTokenCount, 7)
-        XCTAssertTrue(report.tokenSummary.contains("+7-more"))
-    }
-
-    func testMalformedBuildArgsFallBackWithoutLeakingValues() throws {
-        let oversizedValue = "secret-build-arg-" + String(
-            repeating: "x",
-            count: CodexDevcontainerBuildDescriptor.buildArgValueLimit
-        )
-        let cases: [(prefix: String, json: String, reasonToken: String, leakedValue: String)] = [
-            (
-                "CodexExecutionLaunchPlanBuildArgsArray",
-                #"{"build":{"dockerfile":"Dockerfile","args":["SECRET_TOKEN"]}}"#,
-                "build args must be an object",
-                "SECRET_TOKEN"
-            ),
-            (
-                "CodexExecutionLaunchPlanBuildArgsValue",
-                #"{"build":{"dockerfile":"Dockerfile","args":{"SAFE_ARG":true}}}"#,
-                "build args values must be strings",
-                "true"
-            ),
-            (
-                "CodexExecutionLaunchPlanBuildArgsName",
-                #"{"build":{"dockerfile":"Dockerfile","args":{"BAD-NAME":"secret-value"}}}"#,
-                "build args contain an unsafe name",
-                "secret-value"
-            ),
-            (
-                "CodexExecutionLaunchPlanBuildArgsDuplicate",
-                #"{"build":{"dockerfile":"Dockerfile","args":{"SAFE_ARG":"secret-one"},"buildArgs":{"SAFE_ARG":"secret-two"}}}"#,
-                "build args contain duplicate names",
-                "secret-two"
-            ),
-            (
-                "CodexExecutionLaunchPlanBuildArgsOversized",
-                #"{"build":{"dockerfile":"Dockerfile","args":{"SAFE_ARG":"\#(oversizedValue)"}}}"#,
-                "build arg value exceeds",
-                "secret-build-arg"
-            )
-        ]
-
-        for testCase in cases {
-            let repoURL = try makeTemporaryDirectory(prefix: testCase.prefix)
-            try write(testCase.json, to: devcontainerURL(in: repoURL))
-
-            let plan = CodexExecutionLaunchPlan.plan(
-                repoURL: repoURL,
-                preference: .devcontainerPreferred,
-                containerToolResolver: { _ in "/usr/local/bin/container" }
-            )
-            let report = try XCTUnwrap(plan.devcontainerSupportReport)
-
-            XCTAssertFalse(plan.isContainerRoute)
-            XCTAssertEqual(report.classification, .malformed)
-            XCTAssertTrue(plan.fallbackReason?.contains(testCase.reasonToken) == true)
-            XCTAssertFalse(plan.fallbackReason?.contains(testCase.leakedValue) == true)
-            XCTAssertLessThanOrEqual(
-                plan.fallbackReason?.count ?? 0,
-                CodexExecutionLaunchPlan.fallbackReasonLimit
-            )
-        }
-    }
-
-    func testMalformedBuildShapesFallBackWithBoundedReasons() throws {
-        let cases: [(prefix: String, json: String, reasonToken: String)] = [
-            (
-                "CodexExecutionLaunchPlanBuildBoolean",
-                #"{"build":true}"#,
-                "build must be a string or object"
-            ),
-            (
-                "CodexExecutionLaunchPlanBuildContextArray",
-                #"{"build":{"dockerfile":"Dockerfile","context":["/tmp/secret-context"]}}"#,
-                "build.context must be a string"
-            ),
-            (
-                "CodexExecutionLaunchPlanBuildTargetEmpty",
-                #"{"build":{"dockerfile":"Dockerfile","target":" "}}"#,
-                "build.target must not be empty"
-            )
-        ]
-
-        for testCase in cases {
-            let repoURL = try makeTemporaryDirectory(prefix: testCase.prefix)
-            try write(testCase.json, to: devcontainerURL(in: repoURL))
-
-            let plan = CodexExecutionLaunchPlan.plan(
-                repoURL: repoURL,
-                preference: .devcontainerPreferred,
-                containerToolResolver: { _ in "/usr/local/bin/container" }
-            )
-
-            XCTAssertFalse(plan.isContainerRoute)
-            XCTAssertEqual(plan.devcontainerSupportReport?.classification, .malformed)
-            XCTAssertTrue(plan.fallbackReason?.contains(testCase.reasonToken) == true)
-            XCTAssertFalse(plan.fallbackReason?.contains("/tmp/secret-context") == true)
-            XCTAssertLessThanOrEqual(
-                plan.fallbackReason?.count ?? 0,
-                CodexExecutionLaunchPlan.fallbackReasonLimit
-            )
-        }
-    }
-
-    func testBuildContextDiagnosticsDoNotExposeAbsoluteRepoPaths() throws {
-        let repoURL = try makeTemporaryDirectory(prefix: "CodexExecutionLaunchPlanBuildPath")
-        let rawContext = repoURL
-            .appending(path: "secret-context", directoryHint: .isDirectory)
-            .path
-        try write(
-            #"{"build":{"dockerfile":"\#(rawContext)/Dockerfile","context":"\#(rawContext)","target":"runtime","args":{"TOKEN":"secret-value"}}}"#,
-            to: devcontainerURL(in: repoURL)
-        )
-
-        let plan = CodexExecutionLaunchPlan.plan(
-            repoURL: repoURL,
-            preference: .devcontainerPreferred,
-            containerToolResolver: { _ in "/usr/local/bin/container" }
-        )
-        let report = try XCTUnwrap(plan.devcontainerSupportReport)
-        let diagnosticsText = [
-            report.supportSummary,
-            plan.preflightSummary(phase: "Verify"),
-            plan.routeDetail()
-        ].joined(separator: " ")
-
-        XCTAssertEqual(report.supportTokens, [
-            "build",
-            "dockerfile:absolute",
-            "context:absolute",
-            "target:runtime",
-            "buildArgs:1",
-            "arg:TOKEN"
-        ])
-        XCTAssertFalse(diagnosticsText.contains(rawContext))
-        XCTAssertFalse(diagnosticsText.contains("secret-value"))
-    }
-
-    func testUnsafeBuildPathsDisableBuildConfigurationWithoutLeakingPaths() throws {
-        let cases: [(prefix: String, json: String, expectedTokens: [String], leakedPathToken: String)] = [
-            (
-                "CodexExecutionLaunchPlanBuildAbsolutePath",
-                #"{"build":{"dockerfile":"/tmp/private/Dockerfile","context":".."}}"#,
-                ["build", "dockerfile:absolute", "context:repo-root"],
-                "/tmp/private"
-            ),
-            (
-                "CodexExecutionLaunchPlanBuildOutOfRepoContext",
-                #"{"build":{"dockerfile":"Dockerfile","context":"../.."}}"#,
-                ["build", "dockerfile:Dockerfile", "context:out-of-repo"],
-                "../.."
-            )
-        ]
-
-        for testCase in cases {
-            let repoURL = try makeTemporaryDirectory(prefix: testCase.prefix)
-            try write(testCase.json, to: devcontainerURL(in: repoURL))
-
-            let plan = CodexExecutionLaunchPlan.plan(
-                repoURL: repoURL,
-                preference: .devcontainerPreferred,
-                containerToolResolver: { _ in "/usr/local/bin/container" }
-            )
-            let report = try XCTUnwrap(plan.devcontainerSupportReport)
-            let diagnosticsText = [
-                report.supportSummary,
-                plan.preflightSummary(phase: "Develop"),
-                plan.routeDetail()
-            ].joined(separator: " ")
-
-            XCTAssertFalse(plan.isContainerRoute)
-            XCTAssertEqual(report.classification, .buildBased)
-            XCTAssertNil(report.buildConfiguration)
-            XCTAssertEqual(report.supportTokens, testCase.expectedTokens)
-            XCTAssertFalse(diagnosticsText.contains(testCase.leakedPathToken))
-            XCTAssertFalse(diagnosticsText.contains(repoURL.deletingLastPathComponent().standardizedFileURL.path))
-        }
-    }
-
-    func testUnsupportedComposeConfigFallsBackToNative() throws {
-        let repoURL = try makeTemporaryDirectory(prefix: "CodexExecutionLaunchPlanCompose")
-        try write(
-            #"{"dockerComposeFile":"compose.yml","service":"app"}"#,
-            to: devcontainerURL(in: repoURL)
-        )
-
-        let plan = CodexExecutionLaunchPlan.plan(
-            repoURL: repoURL,
-            preference: .devcontainerPreferred,
-            containerToolResolver: { _ in "/usr/local/bin/container" }
-        )
-
-        XCTAssertFalse(plan.isContainerRoute)
-        XCTAssertEqual(
-            plan.fallbackReason,
-            "Unsupported devcontainer route: compose-based tokens compose,composeFile:compose.yml,service:app."
-        )
-        XCTAssertEqual(plan.devcontainerSupportReport?.classification, .composeBased)
-        XCTAssertEqual(plan.devcontainerSupportReport?.composeDescriptor?.composeFileLabels, ["compose.yml"])
-        XCTAssertEqual(plan.devcontainerSupportReport?.composeDescriptor?.serviceLabel, "app")
-        XCTAssertEqual(
-            plan.devcontainerSupportReport?.supportTokens,
-            ["compose", "composeFile:compose.yml", "service:app"]
-        )
-        XCTAssertFalse(plan.preflightSummary(phase: "Develop").contains(repoURL.standardizedFileURL.path))
-    }
-
-    func testComposeArrayAndRunServicesExposeSanitizedTokensWithoutRouting() throws {
-        let repoURL = try makeTemporaryDirectory(prefix: "CodexExecutionLaunchPlanComposeArray")
-        let absoluteComposePath = "/Users/example/private/docker-compose.override.yml"
-        try write(
-            #"{"image":"swift:6.0","composeFile":["../docker-compose.yml","\#(absoluteComposePath)"],"service":"web-app","runServices":["redis","db"]}"#,
-            to: devcontainerURL(in: repoURL)
-        )
-
-        let plan = CodexExecutionLaunchPlan.plan(
-            repoURL: repoURL,
-            preference: .devcontainerPreferred,
-            containerToolResolver: { _ in "/usr/local/bin/container" }
-        )
-        let report = try XCTUnwrap(plan.devcontainerSupportReport)
-        let diagnosticsText = [
-            report.supportSummary,
-            plan.preflightSummary(phase: "Develop"),
-            plan.routeDetail()
-        ].joined(separator: " ")
-
-        XCTAssertFalse(plan.isContainerRoute)
-        XCTAssertEqual(report.classification, .composeBased)
-        XCTAssertNil(report.imageConfiguration)
-        XCTAssertEqual(report.composeDescriptor?.composeFileLabels, [
-            "docker-compose.yml",
-            "docker-compose.override.yml"
-        ])
-        XCTAssertEqual(report.composeDescriptor?.serviceLabel, "web-app")
-        XCTAssertEqual(report.composeDescriptor?.runServiceLabels, ["db", "redis"])
-        XCTAssertEqual(report.supportTokens, [
-            "compose",
-            "composeFiles:2",
-            "composeFile:docker-compose.yml",
-            "composeFile:docker-compose.override.yml",
-            "service:web-app",
-            "runServices:2",
-            "runService:db",
-            "runService:redis"
-        ])
-        XCTAssertTrue(plan.fallbackReason?.contains("composeFiles:2") == true)
-        XCTAssertFalse(diagnosticsText.contains("../docker-compose.yml"))
-        XCTAssertFalse(diagnosticsText.contains(absoluteComposePath))
-        XCTAssertFalse(diagnosticsText.contains(repoURL.deletingLastPathComponent().standardizedFileURL.path))
-    }
-
-    func testMixedUnsupportedConfigReportsDeterministicSupportTokens() throws {
-        let repoURL = try makeTemporaryDirectory(prefix: "CodexExecutionLaunchPlanMixed")
-        try write(
-            #"{"image":"swift:6.0","dockerComposeFile":"compose.yml","service":"app","build":{"dockerfile":"Dockerfile"},"features":{"ghcr.io/devcontainers/features/git:1":{}},"postCreateCommand":"swift test","remoteUser":"vscode"}"#,
-            to: devcontainerURL(in: repoURL)
-        )
-
-        let plan = CodexExecutionLaunchPlan.plan(
-            repoURL: repoURL,
-            preference: .devcontainerPreferred,
-            containerToolResolver: { _ in "/usr/local/bin/container" }
-        )
-
-        XCTAssertFalse(plan.isContainerRoute)
-        XCTAssertEqual(plan.devcontainerSupportReport?.classification, .composeBased)
-        XCTAssertEqual(
-            plan.devcontainerSupportReport?.supportTokens,
-            [
-                "compose",
-                "composeFile:compose.yml",
-                "service:app",
-                "build",
-                "dockerfile:Dockerfile",
-                "features:1",
-                "feature:git:1",
-                "extra:postCreateCommand"
-            ]
-        )
-        XCTAssertEqual(plan.devcontainerSupportReport?.omittedTokenCount, 1)
-        XCTAssertEqual(plan.devcontainerSupportReport?.featureDescriptor?.featureSummaries.map(\.label), ["git:1"])
-        XCTAssertNil(plan.devcontainerSupportReport?.buildConfiguration)
-        XCTAssertTrue(plan.fallbackReason?.contains("compose-based tokens compose,composeFile:compose.yml,service:app") == true)
-
-        let preflight = plan.preflightSummary(phase: "Develop")
-        XCTAssertTrue(preflight.contains("devcontainer compose-based tokens compose,composeFile:compose.yml,service:app"))
-        XCTAssertTrue(preflight.contains("features:1"))
-        XCTAssertTrue(preflight.contains("feature:git:1"))
-        XCTAssertTrue(preflight.contains("extra:postCreateCommand"))
-        XCTAssertTrue(preflight.contains("+1-more"))
-    }
-
-    func testMalformedAndUnsafeComposeShapesDoNotLeakValues() throws {
-        let malformedCases: [(prefix: String, json: String, reasonToken: String)] = [
-            (
-                "CodexExecutionLaunchPlanComposeObject",
-                #"{"dockerComposeFile":{"path":"/Users/private/compose.yml"},"service":"app"}"#,
-                "dockerComposeFile must be a string or array"
-            ),
-            (
-                "CodexExecutionLaunchPlanComposeRunServicesString",
-                #"{"composeFile":"compose.yml","runServices":"db-secret"}"#,
-                "runServices must be an array"
-            ),
-            (
-                "CodexExecutionLaunchPlanComposeServiceNumber",
-                #"{"composeFile":"compose.yml","service":42}"#,
-                "service must be a string"
-            ),
-            (
-                "CodexExecutionLaunchPlanComposeEmptyFile",
-                #"{"composeFile":"","service":"app"}"#,
-                "composeFile must not be empty"
-            )
-        ]
-
-        for testCase in malformedCases {
-            let repoURL = try makeTemporaryDirectory(prefix: testCase.prefix)
-            try write(testCase.json, to: devcontainerURL(in: repoURL))
-
-            let plan = CodexExecutionLaunchPlan.plan(
-                repoURL: repoURL,
-                preference: .devcontainerPreferred,
-                containerToolResolver: { _ in "/usr/local/bin/container" }
-            )
-
-            XCTAssertFalse(plan.isContainerRoute)
-            XCTAssertEqual(plan.devcontainerSupportReport?.classification, .malformed)
-            XCTAssertTrue(plan.fallbackReason?.contains(testCase.reasonToken) == true)
-            XCTAssertFalse(plan.fallbackReason?.contains("/Users/private") == true)
-            XCTAssertFalse(plan.fallbackReason?.contains("db-secret") == true)
-        }
-
-        let repoURL = try makeTemporaryDirectory(prefix: "CodexExecutionLaunchPlanComposeUnsafe")
-        try write(
-            #"{"composeFile":"/Users/private/compose.yml","service":"api service","runServices":["db service"]}"#,
-            to: devcontainerURL(in: repoURL)
-        )
-
-        let plan = CodexExecutionLaunchPlan.plan(
-            repoURL: repoURL,
-            preference: .devcontainerPreferred,
-            containerToolResolver: { _ in "/usr/local/bin/container" }
-        )
-        let diagnosticsText = [
-            plan.devcontainerSupportReport?.supportSummary ?? "",
-            plan.preflightSummary(phase: "Develop"),
-            plan.routeDetail()
-        ].joined(separator: " ")
-
-        XCTAssertFalse(plan.isContainerRoute)
-        XCTAssertEqual(plan.devcontainerSupportReport?.classification, .composeBased)
-        XCTAssertEqual(plan.devcontainerSupportReport?.supportTokens, [
-            "compose",
-            "composeFile:compose.yml",
-            "service:service",
-            "runServices:1",
-            "runService:service"
-        ])
-        XCTAssertFalse(diagnosticsText.contains("/Users/private"))
-        XCTAssertFalse(diagnosticsText.contains("api service"))
-        XCTAssertFalse(diagnosticsText.contains("db service"))
-    }
-
-    func testFeaturesOnlyConfigFallsBackWithoutRouting() throws {
-        let repoURL = try makeTemporaryDirectory(prefix: "CodexExecutionLaunchPlanFeatures")
-        try write(
-            #"{"features":{"ghcr.io/devcontainers/features/node:1":{}}}"#,
-            to: devcontainerURL(in: repoURL)
-        )
-
-        let plan = CodexExecutionLaunchPlan.plan(
-            repoURL: repoURL,
-            preference: .devcontainerPreferred,
-            containerToolResolver: { _ in "/usr/local/bin/container" }
-        )
-
-        XCTAssertFalse(plan.isContainerRoute)
-        XCTAssertEqual(plan.devcontainerSupportReport?.classification, .featureBased)
-        XCTAssertEqual(plan.devcontainerSupportReport?.featureDescriptor?.featureCount, 1)
-        XCTAssertEqual(plan.devcontainerSupportReport?.featureDescriptor?.optionKeyCount, 0)
-        XCTAssertEqual(plan.devcontainerSupportReport?.featureDescriptor?.featureSummaries.map(\.label), ["node:1"])
-        XCTAssertEqual(plan.devcontainerSupportReport?.supportTokens, ["features:1", "feature:node:1"])
-        XCTAssertEqual(plan.fallbackReason, "Unsupported devcontainer route: feature-based tokens features:1,feature:node:1.")
-    }
-
-    func testImageWithFeaturesFallsBackWithFeatureCountsWithoutLeakingOptionValues() throws {
-        let repoURL = try makeTemporaryDirectory(prefix: "CodexExecutionLaunchPlanFeatureImage")
-        let secretVersion = "secret-node-version"
-        let nestedSecret = "secret-nested-option-value"
-        try write(
-            #"{"image":"swift:6.0","features":{"ghcr.io/devcontainers/features/node:1":{"version":"\#(secretVersion)"},"ghcr.io/devcontainers/features/common-utils:2":{"nested":{"token":"\#(nestedSecret)"}}}}"#,
-            to: devcontainerURL(in: repoURL)
-        )
-
-        let plan = CodexExecutionLaunchPlan.plan(
-            repoURL: repoURL,
-            preference: .devcontainerPreferred,
-            containerToolResolver: { _ in "/usr/local/bin/container" }
-        )
-        let report = try XCTUnwrap(plan.devcontainerSupportReport)
-        let diagnosticsText = [
-            report.supportSummary,
-            plan.preflightSummary(phase: "Develop"),
-            plan.routeDetail()
-        ].joined(separator: " ")
-
-        XCTAssertFalse(plan.isContainerRoute)
-        XCTAssertNil(report.imageConfiguration)
-        XCTAssertEqual(report.classification, .featureBased)
-        XCTAssertEqual(report.featureDescriptor?.featureCount, 2)
-        XCTAssertEqual(report.featureDescriptor?.optionKeyCount, 2)
-        XCTAssertEqual(report.featureDescriptor?.featureSummaries.map(\.label), ["common-utils:2", "node:1"])
-        XCTAssertEqual(report.supportTokens, [
-            "features:2",
-            "featureOptions:2",
-            "feature:common-utils:2",
-            "feature:node:1"
-        ])
-        XCTAssertTrue(diagnosticsText.contains("features:2"))
-        XCTAssertTrue(diagnosticsText.contains("featureOptions:2"))
-        XCTAssertTrue(diagnosticsText.contains("feature:common-utils:2"))
-        XCTAssertTrue(diagnosticsText.contains("feature:node:1"))
-        XCTAssertFalse(diagnosticsText.contains(secretVersion))
-        XCTAssertFalse(diagnosticsText.contains(nestedSecret))
-        XCTAssertFalse(diagnosticsText.contains("nested"))
-    }
-
-    func testMalformedFeatureShapesFallBackWithoutLeakingValues() throws {
-        let oversizedFeatures = (0...CodexDevcontainerFeatureDescriptor.featureCountLimit)
-            .map { #""ghcr.io/devcontainers/features/feature-\#($0):1":{}"# }
-            .joined(separator: ",")
-        let oversizedOptions = (0...CodexDevcontainerFeatureDescriptor.optionKeyCountLimit)
-            .map { #""OPTION_\#($0)":"secret-option-\#($0)""# }
-            .joined(separator: ",")
-        let cases: [(prefix: String, json: String, reasonToken: String, leakedValue: String)] = [
-            (
-                "CodexExecutionLaunchPlanFeaturesArray",
-                #"{"features":["ghcr.io/devcontainers/features/node:1"]}"#,
-                "features must be an object",
-                "ghcr.io/devcontainers/features/node:1"
-            ),
-            (
-                "CodexExecutionLaunchPlanFeatureValue",
-                #"{"features":{"ghcr.io/devcontainers/features/node:1":"secret-feature-value"}}"#,
-                "feature options must be objects",
-                "secret-feature-value"
-            ),
-            (
-                "CodexExecutionLaunchPlanFeatureEmptyID",
-                #"{"features":{" ":{"version":"secret-version"}}}"#,
-                "feature identifiers must not be empty",
-                "secret-version"
-            ),
-            (
-                "CodexExecutionLaunchPlanFeaturesOversized",
-                #"{"features":{\#(oversizedFeatures)}}"#,
-                "features may include at most",
-                "feature-32"
-            ),
-            (
-                "CodexExecutionLaunchPlanFeatureOptionsOversized",
-                #"{"features":{"ghcr.io/devcontainers/features/node:1":{\#(oversizedOptions)}}}"#,
-                "feature options may include at most",
-                "secret-option"
-            )
-        ]
-
-        for testCase in cases {
-            let repoURL = try makeTemporaryDirectory(prefix: testCase.prefix)
-            try write(testCase.json, to: devcontainerURL(in: repoURL))
-
-            let plan = CodexExecutionLaunchPlan.plan(
-                repoURL: repoURL,
-                preference: .devcontainerPreferred,
-                containerToolResolver: { _ in "/usr/local/bin/container" }
-            )
-
-            XCTAssertFalse(plan.isContainerRoute)
-            XCTAssertEqual(plan.devcontainerSupportReport?.classification, .malformed)
-            XCTAssertTrue(plan.fallbackReason?.contains(testCase.reasonToken) == true)
-            XCTAssertFalse(plan.fallbackReason?.contains(testCase.leakedValue) == true)
-            XCTAssertLessThanOrEqual(
-                plan.fallbackReason?.count ?? 0,
-                CodexExecutionLaunchPlan.fallbackReasonLimit
-            )
-        }
-    }
-
-    func testFeatureTokensAreDeterministicallyOrderedAndBounded() throws {
-        let repoURL = try makeTemporaryDirectory(prefix: "CodexExecutionLaunchPlanFeatureTokens")
-        let features = (0..<10)
-            .reversed()
-            .map { #""ghcr.io/devcontainers/features/feature-\#(String(format: "%02d", $0)):1":{"enabled":true}"# }
-            .joined(separator: ",")
-        try write(
-            #"{"features":{\#(features)}}"#,
-            to: devcontainerURL(in: repoURL)
-        )
-
-        let plan = CodexExecutionLaunchPlan.plan(
-            repoURL: repoURL,
-            preference: .devcontainerPreferred,
-            containerToolResolver: { _ in "/usr/local/bin/container" }
-        )
-        let report = try XCTUnwrap(plan.devcontainerSupportReport)
-
-        XCTAssertFalse(plan.isContainerRoute)
-        XCTAssertEqual(report.classification, .featureBased)
-        XCTAssertEqual(report.featureDescriptor?.featureCount, 10)
-        XCTAssertEqual(report.featureDescriptor?.optionKeyCount, 10)
-        XCTAssertEqual(report.supportTokens, [
-            "features:10",
-            "featureOptions:10",
-            "feature:feature-00:1",
-            "feature:feature-01:1",
-            "feature:feature-02:1",
-            "feature:feature-03:1",
-            "feature:feature-04:1",
-            "feature:feature-05:1"
-        ])
-        XCTAssertEqual(report.omittedTokenCount, 4)
-        XCTAssertTrue(report.tokenSummary.contains("+4-more"))
-    }
-
-    func testOversizedContainerEnvValueIsMalformedWithoutLeakingValue() throws {
-        let repoURL = try makeTemporaryDirectory(prefix: "CodexExecutionLaunchPlanEnvOversized")
-        let secretValue = "secret-value-" + String(
-            repeating: "x",
-            count: CodexDevcontainerEnvironmentVariable.valueLimit
-        )
-        try write(
-            #"{"image":"swift:6.0","containerEnv":{"SAFE_NAME":"\#(secretValue)"}}"#,
-            to: devcontainerURL(in: repoURL)
-        )
-
-        let plan = CodexExecutionLaunchPlan.plan(
-            repoURL: repoURL,
-            preference: .devcontainerPreferred,
-            containerToolResolver: { _ in "/usr/local/bin/container" }
-        )
-        let report = try XCTUnwrap(plan.devcontainerSupportReport)
-
-        XCTAssertFalse(plan.isContainerRoute)
-        XCTAssertEqual(report.classification, .malformed)
-        XCTAssertTrue(plan.fallbackReason?.contains("containerEnv value exceeds") == true)
-        XCTAssertFalse(plan.fallbackReason?.contains("secret-value") == true)
-        XCTAssertLessThanOrEqual(
-            plan.fallbackReason?.count ?? 0,
-            CodexExecutionLaunchPlan.fallbackReasonLimit
-        )
-    }
-
-    func testInvalidContainerEnvShapesFallBackToNative() throws {
-        let cases: [(prefix: String, json: String, reasonToken: String)] = [
-            (
-                "CodexExecutionLaunchPlanEnvArray",
-                #"{"image":"swift:6.0","containerEnv":["SAFE_NAME"]}"#,
-                "containerEnv must be an object"
-            ),
-            (
-                "CodexExecutionLaunchPlanEnvBoolean",
-                #"{"image":"swift:6.0","containerEnv":{"SAFE_NAME":true}}"#,
-                "containerEnv values must be strings"
-            )
-        ]
-
-        for testCase in cases {
-            let repoURL = try makeTemporaryDirectory(prefix: testCase.prefix)
-            try write(testCase.json, to: devcontainerURL(in: repoURL))
-
-            let plan = CodexExecutionLaunchPlan.plan(
-                repoURL: repoURL,
-                preference: .devcontainerPreferred,
-                containerToolResolver: { _ in "/usr/local/bin/container" }
-            )
-
-            XCTAssertFalse(plan.isContainerRoute)
-            XCTAssertEqual(plan.devcontainerSupportReport?.classification, .malformed)
-            XCTAssertTrue(plan.fallbackReason?.contains(testCase.reasonToken) == true)
-            XCTAssertLessThanOrEqual(
-                plan.fallbackReason?.count ?? 0,
-                CodexExecutionLaunchPlan.fallbackReasonLimit
-            )
-        }
-    }
-
-    func testUnsafeContainerEnvNameIsMalformedWithoutLeakingValue() throws {
-        let repoURL = try makeTemporaryDirectory(prefix: "CodexExecutionLaunchPlanEnvUnsafe")
-        try write(
-            #"{"image":"swift:6.0","containerEnv":{"BAD-NAME":"secret-value"}}"#,
-            to: devcontainerURL(in: repoURL)
-        )
-
-        let plan = CodexExecutionLaunchPlan.plan(
-            repoURL: repoURL,
-            preference: .devcontainerPreferred,
-            containerToolResolver: { _ in "/usr/local/bin/container" }
-        )
-
-        XCTAssertFalse(plan.isContainerRoute)
-        XCTAssertEqual(plan.devcontainerSupportReport?.classification, .malformed)
-        XCTAssertTrue(plan.fallbackReason?.contains("unsafe variable name") == true)
-        XCTAssertFalse(plan.fallbackReason?.contains("secret-value") == true)
-    }
-
-    func testRemoteEnvStillFallsBackToNativeWithoutLeakingValues() throws {
-        let repoURL = try makeTemporaryDirectory(prefix: "CodexExecutionLaunchPlanRemoteEnv")
-        try write(
-            #"{"image":"swift:6.0","containerEnv":{"SAFE_NAME":"ok"},"remoteEnv":{"API_TOKEN":"remote-secret"}}"#,
-            to: devcontainerURL(in: repoURL)
-        )
-
-        let plan = CodexExecutionLaunchPlan.plan(
-            repoURL: repoURL,
-            preference: .devcontainerPreferred,
-            containerToolResolver: { _ in "/usr/local/bin/container" }
-        )
-        let report = try XCTUnwrap(plan.devcontainerSupportReport)
-        let diagnosticsText = [
-            report.supportSummary,
-            plan.preflightSummary(phase: "Develop"),
-            plan.routeDetail()
-        ].joined(separator: " ")
-
-        XCTAssertFalse(plan.isContainerRoute)
-        XCTAssertEqual(report.classification, .unsupportedExtraFields)
-        XCTAssertEqual(report.supportTokens, ["containerEnv:1", "env:SAFE_NAME", "extra:remoteEnv"])
-        XCTAssertTrue(plan.fallbackReason?.contains("extra:remoteEnv") == true)
-        XCTAssertTrue(diagnosticsText.contains("env:SAFE_NAME"))
-        XCTAssertFalse(diagnosticsText.contains("remote-secret"))
-    }
-
-    func testSupportSummaryAndReasonsStayBoundedForManyUnsupportedKeys() throws {
-        let repoURL = try makeTemporaryDirectory(prefix: "CodexExecutionLaunchPlanBounded")
-        let extraFields = (0..<18)
-            .map { #""custom\#(String(format: "%02d", $0))":true"# }
-            .joined(separator: ",")
-        try write(
-            #"{"image":"swift:6.0",\#(extraFields)}"#,
-            to: devcontainerURL(in: repoURL)
-        )
-
-        let plan = CodexExecutionLaunchPlan.plan(
-            repoURL: repoURL,
-            preference: .devcontainerPreferred,
-            containerToolResolver: { _ in "/usr/local/bin/container" }
-        )
-        let report = try XCTUnwrap(plan.devcontainerSupportReport)
-
-        XCTAssertFalse(plan.isContainerRoute)
-        XCTAssertEqual(report.classification, .unsupportedExtraFields)
-        XCTAssertEqual(report.omittedTokenCount, 10)
-        XCTAssertTrue(report.tokenSummary.contains("+10-more"))
-        XCTAssertLessThanOrEqual(report.supportSummary.count, CodexDevcontainerSupportReport.supportSummaryLimit)
-        XCTAssertLessThanOrEqual(plan.fallbackReason?.count ?? 0, CodexExecutionLaunchPlan.fallbackReasonLimit)
+        XCTAssertEqual(plan.effectiveRouteIdentifier, "shared-vm")
+        let invocation = plan.codexInvocation(codexBinary: "codex", arguments: ["exec"], hostWorkingDirectory: repoURL)
+        XCTAssertEqual(invocation.executable, "/usr/bin/ssh")
     }
 
     func testNoContainerToolFallsBackToNative() throws {
-        let repoURL = try makeTemporaryDirectory(prefix: "CodexExecutionLaunchPlanNoTool")
-        try write(#"{"image":"swift:6.0"}"#, to: devcontainerURL(in: repoURL))
-
+        let repoURL = try makeTemporaryDirectory(prefix: "VMReadyNoRoute")
         let plan = CodexExecutionLaunchPlan.plan(
             repoURL: repoURL,
-            preference: .devcontainerPreferred,
-            containerToolResolver: { _ in nil }
+            preference: .sharedVM,
+            vmReadiness: .ready(sshDestination: "compass@192.0.2.10"),
+            sharedVMRouteFactory: { _ in nil }
         )
-
-        XCTAssertFalse(plan.isContainerRoute)
-        XCTAssertEqual(plan.imageLabel, "swift:6.0")
-        XCTAssertEqual(plan.fallbackReason, "Apple container CLI is unavailable.")
-        XCTAssertEqual(plan.devcontainerSupportReport?.classification, .imageRouteable)
+        XCTAssertFalse(plan.isVMRoute)
+        XCTAssertTrue(plan.fallbackReason?.contains("route unavailable") ?? false)
     }
 
     func testBuildConfigFallsBackToNativeWhenContainerToolIsUnavailable() throws {
-        let repoURL = try makeTemporaryDirectory(prefix: "CodexExecutionLaunchPlanBuildNoTool")
-        try write(
-            #"{"build":{"dockerfile":"Dockerfile","context":"..","target":"runtime","args":{"SAFE_ARG":"value"}}}"#,
-            to: devcontainerURL(in: repoURL)
-        )
-
+        let repoURL = try makeTemporaryDirectory(prefix: "VMReadinessMissing")
         let plan = CodexExecutionLaunchPlan.plan(
             repoURL: repoURL,
-            preference: .devcontainerPreferred,
-            containerToolResolver: { _ in nil }
+            preference: .sharedVM,
+            vmReadiness: nil
         )
-
-        XCTAssertFalse(plan.isContainerRoute)
-        XCTAssertEqual(plan.fallbackReason, "Apple container CLI is unavailable.")
-        XCTAssertEqual(plan.devcontainerSupportReport?.classification, .buildBased)
-        XCTAssertNotNil(plan.devcontainerSupportReport?.buildConfiguration)
-        XCTAssertEqual(plan.devcontainerSupportReport?.buildConfiguration?.buildArgs.map(\.name), ["SAFE_ARG"])
+        XCTAssertFalse(plan.isVMRoute)
+        XCTAssertTrue(plan.fallbackReason?.contains("readiness has not been evaluated") ?? false)
     }
 
-    func testWorkspaceOutsideMountedWorkspaceFallsBackToNative() throws {
-        let repoURL = try makeTemporaryDirectory(prefix: "CodexExecutionLaunchPlanWorkspace")
-        try write(
-            #"{"image":"swift:6.0","workspaceFolder":"/workspaces/project"}"#,
-            to: devcontainerURL(in: repoURL)
-        )
+    // MARK: - Migration
 
-        let plan = CodexExecutionLaunchPlan.plan(
-            repoURL: repoURL,
-            preference: .devcontainerPreferred,
-            containerToolResolver: { _ in "/usr/local/bin/container" }
-        )
-
-        XCTAssertFalse(plan.isContainerRoute)
-        XCTAssertEqual(
-            plan.fallbackReason,
-            "workspaceFolder must be an absolute /workspace path for Apple container routing. Tokens: workspaceFolder."
-        )
+    func testLegacyDevcontainerPreferredRawValueDecodesToHost() throws {
+        let json = #"{"value":"devcontainer_preferred"}"#
+        struct Wrapper: Decodable {
+            var value: CodexExecutionEnvironmentPreference
+        }
+        let decoded = try JSONDecoder().decode(Wrapper.self, from: Data(json.utf8))
+        XCTAssertEqual(decoded.value, .host)
     }
+
+    func testLegacyNativeMacOSRawValueDecodesToHost() throws {
+        let json = #"{"value":"native_macos"}"#
+        struct Wrapper: Decodable {
+            var value: CodexExecutionEnvironmentPreference
+        }
+        let decoded = try JSONDecoder().decode(Wrapper.self, from: Data(json.utf8))
+        XCTAssertEqual(decoded.value, .host)
+    }
+
+    func testSharedVMRawValueRoundTrips() throws {
+        let encoded = try JSONEncoder().encode(CodexExecutionEnvironmentPreference.sharedVM)
+        let string = String(decoding: encoded, as: UTF8.self)
+        XCTAssertEqual(string, "\"shared_vm\"")
+        let decoded = try JSONDecoder().decode(CodexExecutionEnvironmentPreference.self, from: encoded)
+        XCTAssertEqual(decoded, .sharedVM)
+    }
+
+    // MARK: - Snapshot
 
     func testExecutionEnvironmentSnapshotForImageRouteIsCodableBoundedAndSanitized() throws {
-        let repoURL = try makeTemporaryDirectory(prefix: "CodexExecutionLaunchPlanSnapshotImage")
-        let secretValue = "secret-snapshot-container-env"
-        let containerToolPath = "/private/tooling/container"
-        try write(
-            #"{"image":"swift:6.0","workspaceFolder":"/workspace/app","containerEnv":{"TOKEN":"\#(secretValue)"}}"#,
-            to: devcontainerURL(in: repoURL)
+        let repoURL = try makeTemporaryDirectory(prefix: "SnapshotRoundtrip")
+        let route = SharedVMRoute(
+            sshDestination: "compass@192.0.2.10",
+            hostWorktreeURL: repoURL,
+            guestWorkspacePath: "/opt/compass/workspaces/dev-AAA/worktree",
+            guestCodexPath: "/opt/compass/codex/codex"
         )
-        let plan = CodexExecutionLaunchPlan.plan(
-            repoURL: repoURL,
-            preference: .devcontainerPreferred,
-            containerToolResolver: { _ in containerToolPath }
+        let plan = CodexExecutionLaunchPlan(
+            selectedPreference: .sharedVM,
+            effectiveRoute: .sharedVM(route),
+            vmReadiness: .ready(sshDestination: route.sshDestination)
         )
+        let snapshot = SessionExecutionEnvironmentSnapshot(phase: "Develop", attempt: 1, launchPlan: plan)
+        XCTAssertEqual(snapshot.effectiveRouteIdentifier, "shared-vm")
+        XCTAssertEqual(snapshot.provisioningAvailabilityIdentifier, "available")
+        XCTAssertEqual(snapshot.provisioningStatusIdentifier, "ready")
+        XCTAssertEqual(snapshot.provisioningActionIdentifier, SessionExecutionEnvironmentSnapshot.vmBuildActionIdentifier)
 
-        let snapshot = SessionExecutionEnvironmentSnapshot(
-            phase: "Plan",
-            attempt: 1,
-            launchPlan: plan,
-            provisioningPlan: CodexDevcontainerProvisioningPlan.plan(repoURL: repoURL, languageProfile: .empty)
-        )
         let encoded = try JSONEncoder().encode(snapshot)
-        let encodedText = String(decoding: encoded, as: UTF8.self)
         let decoded = try JSONDecoder().decode(SessionExecutionEnvironmentSnapshot.self, from: encoded)
-
         XCTAssertEqual(decoded, snapshot)
-        XCTAssertEqual(snapshot.phaseIdentifier, "plan")
-        XCTAssertEqual(snapshot.attempt, 1)
-        XCTAssertEqual(snapshot.selectedPreferenceIdentifier, "devcontainer_preferred")
-        XCTAssertEqual(snapshot.effectiveRouteIdentifier, "apple-container")
-        XCTAssertEqual(snapshot.supportClassificationIdentifier, "image-routeable")
-        XCTAssertEqual(snapshot.visibleSupportTokens, ["image", "containerEnv:1", "env:TOKEN"])
-        XCTAssertEqual(snapshot.imageLabel, "swift:6.0")
-        XCTAssertEqual(snapshot.workspaceLabel, "/workspace/app")
-        XCTAssertNil(snapshot.fallbackReason)
-        XCTAssertEqual(snapshot.provisioningAvailabilityIdentifier, "unavailable")
-        XCTAssertEqual(snapshot.provisioningStatusIdentifier, "already-present")
-        XCTAssertTrue(snapshot.routeSummary.contains("Plan attempt 1"))
-        XCTAssertTrue(snapshot.routeSummary.contains("Apple container"))
-        XCTAssertTrue(snapshot.routeSummary.contains("workspace /workspace/app"))
-        XCTAssertLessThanOrEqual(snapshot.routeSummary.count, SessionExecutionEnvironmentSnapshot.summaryLimit)
-        assertSnapshotText(encodedText + snapshot.routeSummary, excludes: [
-            repoURL.standardizedFileURL.path,
-            secretValue,
-            containerToolPath
-        ])
     }
 
     func testExecutionEnvironmentSnapshotSummariesCoverNativeBuildComposeAndFeatureRoutesWithoutLeaks() throws {
-        let buildRepoURL = try makeTemporaryDirectory(prefix: "CodexExecutionLaunchPlanSnapshotBuild")
-        let buildSecret = "secret-snapshot-build-arg"
-        try write(
-            #"{"build":{"dockerfile":"Dockerfile","context":"..","target":"runtime","args":{"TOKEN":"\#(buildSecret)"}}}"#,
-            to: devcontainerURL(in: buildRepoURL)
-        )
-        let buildPlan = CodexExecutionLaunchPlan.plan(
-            repoURL: buildRepoURL,
-            preference: .devcontainerPreferred,
-            containerToolResolver: { _ in "/usr/local/bin/container" }
-        )
-        let buildSnapshot = SessionExecutionEnvironmentSnapshot(
-            phase: "Develop",
-            attempt: 2,
-            launchPlan: buildPlan
-        )
-        XCTAssertEqual(buildSnapshot.effectiveRouteIdentifier, "apple-container")
-        XCTAssertEqual(buildSnapshot.supportClassificationIdentifier, "build-based")
-        XCTAssertTrue(buildSnapshot.imageLabel.hasPrefix("compass-devcontainer:"))
-        XCTAssertTrue(buildSnapshot.routeSummary.contains("Develop attempt 2"))
-        XCTAssertTrue(buildSnapshot.routeSummary.contains("arg:TOKEN"))
-        assertSnapshotText(buildSnapshot.routeSummary, excludes: [
-            buildRepoURL.standardizedFileURL.path,
-            buildSecret,
-            "/usr/local/bin/container"
-        ])
-
-        let nativeRepoURL = try makeTemporaryDirectory(prefix: "CodexExecutionLaunchPlanSnapshotNative")
-        try write(#"{"image":"swift:6.0"}"#, to: devcontainerURL(in: nativeRepoURL))
-        let nativePlan = CodexExecutionLaunchPlan.plan(
-            repoURL: nativeRepoURL,
-            preference: .nativeMacOS,
-            containerToolResolver: { _ in "/usr/local/bin/container" }
-        )
-        let nativeSnapshot = SessionExecutionEnvironmentSnapshot(phase: "Plan", launchPlan: nativePlan)
-        XCTAssertEqual(nativeSnapshot.effectiveRouteIdentifier, "native-macos")
-        XCTAssertEqual(nativeSnapshot.supportClassificationIdentifier, "image-routeable")
-        XCTAssertTrue(nativeSnapshot.routeSummary.contains("selected Native macOS"))
-        XCTAssertTrue(nativeSnapshot.routeSummary.contains("image swift:6.0"))
-
-        let composeRepoURL = try makeTemporaryDirectory(prefix: "CodexExecutionLaunchPlanSnapshotCompose")
-        let rawComposePath = "/Users/private/project/compose.override.yml"
-        try write(
-            #"{"dockerComposeFile":["../compose.yml","\#(rawComposePath)"],"service":"api"}"#,
-            to: devcontainerURL(in: composeRepoURL)
-        )
-        let composePlan = CodexExecutionLaunchPlan.plan(
-            repoURL: composeRepoURL,
-            preference: .devcontainerPreferred,
-            containerToolResolver: { _ in "/usr/local/bin/container" }
-        )
-        let composeSnapshot = SessionExecutionEnvironmentSnapshot(phase: "Verify", launchPlan: composePlan)
-        XCTAssertEqual(composeSnapshot.effectiveRouteIdentifier, "native-macos")
-        XCTAssertEqual(composeSnapshot.supportClassificationIdentifier, "compose-based")
-        XCTAssertTrue(composeSnapshot.routeSummary.contains("fallback Unsupported devcontainer route: compose-based"))
-        XCTAssertTrue(composeSnapshot.routeSummary.contains("composeFile:compose.override.yml"))
-        assertSnapshotText(composeSnapshot.routeSummary, excludes: [
-            composeRepoURL.standardizedFileURL.path,
-            rawComposePath,
-            "../compose.yml"
-        ])
-
-        let featureRepoURL = try makeTemporaryDirectory(prefix: "CodexExecutionLaunchPlanSnapshotFeature")
-        let featureSecret = "secret-snapshot-feature-value"
-        try write(
-            #"{"image":"swift:6.0","features":{"ghcr.io/devcontainers/features/node:1":{"version":"\#(featureSecret)","nested":{"token":"hidden"}}}}"#,
-            to: devcontainerURL(in: featureRepoURL)
-        )
-        let featurePlan = CodexExecutionLaunchPlan.plan(
-            repoURL: featureRepoURL,
-            preference: .devcontainerPreferred,
-            containerToolResolver: { _ in "/usr/local/bin/container" }
-        )
-        let featureSnapshot = SessionExecutionEnvironmentSnapshot(phase: "Reflect", launchPlan: featurePlan)
-        XCTAssertEqual(featureSnapshot.effectiveRouteIdentifier, "native-macos")
-        XCTAssertEqual(featureSnapshot.supportClassificationIdentifier, "feature-based")
-        XCTAssertTrue(featureSnapshot.routeSummary.contains("featureOptions:2"))
-        XCTAssertTrue(featureSnapshot.routeSummary.contains("feature:node:1"))
-        assertSnapshotText(featureSnapshot.routeSummary, excludes: [
-            featureRepoURL.standardizedFileURL.path,
-            featureSecret,
-            "hidden",
-            "nested"
-        ])
+        let repoURL = try makeTemporaryDirectory(prefix: "SnapshotSummaries")
+        let scenarios: [(SharedCompassVMReadiness?, expectedClassification: String)] = [
+            (nil, "not-inspected"),
+            (.notProvisioned, "not-provisioned"),
+            (.installing(fractionCompleted: 0.5), "installing"),
+            (.firstBootPending, "first-boot-pending"),
+            (.unavailable(reason: "Intel"), "unavailable")
+        ]
+        for (readiness, expectedClassification) in scenarios {
+            let plan = CodexExecutionLaunchPlan.plan(
+                repoURL: repoURL,
+                preference: .sharedVM,
+                vmReadiness: readiness
+            )
+            let snapshot = SessionExecutionEnvironmentSnapshot(phase: "Plan", launchPlan: plan)
+            XCTAssertEqual(snapshot.effectiveRouteIdentifier, "native-macos")
+            XCTAssertEqual(snapshot.supportClassificationIdentifier, expectedClassification)
+            XCTAssertFalse(snapshot.routeSummary.contains(repoURL.path))
+        }
     }
+
+    // MARK: - Helpers
 
     private func makeTemporaryDirectory(prefix: String) throws -> URL {
         let url = FileManager.default.temporaryDirectory
@@ -1269,40 +235,5 @@ final class CodexExecutionLaunchPlanTests: XCTestCase {
         try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
         temporaryDirectories.append(url)
         return url.standardizedFileURL
-    }
-
-    private func devcontainerURL(in repoURL: URL) -> URL {
-        repoURL
-            .appending(path: ".devcontainer", directoryHint: .isDirectory)
-            .appending(path: "devcontainer.json")
-    }
-
-    private func write(_ contents: String, to url: URL) throws {
-        try FileManager.default.createDirectory(
-            at: url.deletingLastPathComponent(),
-            withIntermediateDirectories: true
-        )
-        try contents.write(to: url, atomically: true, encoding: .utf8)
-    }
-
-    private func repoRelativeURL(_ relativePath: String, in repoURL: URL) -> URL {
-        URL(fileURLWithPath: relativePath, relativeTo: repoURL)
-            .standardizedFileURL
-    }
-
-    private func assertSnapshotText(
-        _ text: String,
-        excludes disallowedValues: [String],
-        file: StaticString = #filePath,
-        line: UInt = #line
-    ) {
-        for value in disallowedValues where !value.isEmpty {
-            XCTAssertFalse(
-                text.contains(value),
-                "Snapshot text leaked `\(value)` in `\(text)`.",
-                file: file,
-                line: line
-            )
-        }
     }
 }

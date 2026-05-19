@@ -4530,7 +4530,7 @@ final class CinematicSceneCoordinator {
         }
 
         switch tourPlan.runtimeRouteCueStateIdentifier {
-        case "apple-container":
+        case "shared-vm":
             return baseColor.mixing(with: themedColor(SpellSchool.scan.nsColor), fraction: 0.3)
         case "native-fallback":
             return baseColor.mixing(with: themedColor(SpellSchool.pressure.nsColor), fraction: 0.38)

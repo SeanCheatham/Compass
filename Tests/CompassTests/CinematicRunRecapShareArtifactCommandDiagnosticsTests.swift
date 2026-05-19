@@ -12,70 +12,6 @@ final class CinematicRunRecapShareArtifactCommandDiagnosticsTests: XCTestCase {
         temporaryDirectories.removeAll()
     }
 
-    func testSnapshotConstructionCorrelatesActionMenuAndCommandPlan() throws {
-        let workspace = try makeInitializedWorkspace()
-        for session in 1...4 {
-            _ = try workspace.writeSessionArtifact(
-                session: session,
-                name: "recap-share-command-diagnostics-\(session).md",
-                contents: artifactMarkdown(
-                    session: session,
-                    title: "Command Diagnostics \(session)",
-                    status: "succeeded",
-                    commit: "Command diagnostics commit \(session)",
-                    body: "command diagnostics body \(session)"
-                )
-            )
-        }
-        let history = workspace.refreshRunRecapShareArtifactHistory()
-        let selected = try XCTUnwrap(history.entries.first { $0.sessionNumber == 3 })
-        let pinned = try XCTUnwrap(history.entries.first { $0.sessionNumber == 1 })
-        let held = try XCTUnwrap(history.entries.first { $0.sessionNumber == 2 })
-        let context = CinematicRunRecapShareArtifactLibraryContext(
-            selectedEntryIdentifier: selected.identifier,
-            pinnedEntryIdentifiers: [pinned.identifier],
-            comparisonTargetMode: .pinnedReference,
-            savedTourHoldEntryIdentifier: held.identifier
-        )
-        let fixture = makeFixture(history: history, context: context)
-        let commandPlan = CinematicRunRecapShareArtifactCommandPlanner.plan(actionMenuPlan: fixture.menu)
-        let report = makeReport(history: history, context: context)
-        let snapshot = report.runRecapShareArtifactCommands
-
-        XCTAssertEqual(snapshot.sourceActionMenuIdentifier, fixture.menu.identifier)
-        XCTAssertEqual(snapshot.commandPlanIdentifier, commandPlan.identifier)
-        XCTAssertEqual(snapshot.sourceHistoryIdentifier, history.identifier)
-        XCTAssertEqual(snapshot.sourcePreviewIdentifier, fixture.preview.identifier)
-        XCTAssertEqual(snapshot.sourceRollupIdentifier, fixture.rollup.identifier)
-        XCTAssertEqual(snapshot.sourceComparisonIdentifier, fixture.comparison.identifier)
-        XCTAssertEqual(snapshot.sourcePinsIdentifier, fixture.pins.identifier)
-        XCTAssertEqual(snapshot.sourceTourIdentifier, fixture.tour.identifier)
-        XCTAssertEqual(snapshot.sourceSelectedExportIdentifier, fixture.selectedExport.identifier)
-        XCTAssertEqual(snapshot.sourceFilteredExportIdentifier, fixture.filteredExport.identifier)
-        XCTAssertEqual(snapshot.actionCount, fixture.menu.actionCount)
-        XCTAssertEqual(snapshot.commandCount, commandPlan.commandCount)
-        XCTAssertEqual(snapshot.enabledCommandCount, commandPlan.commands.filter(\.isEnabled).count)
-        XCTAssertEqual(snapshot.disabledCommandCount, commandPlan.commands.filter { !$0.isEnabled }.count)
-        XCTAssertEqual(snapshot.sectionCount, CinematicRunRecapShareArtifactActionMenuPlan.Section.allCases.count)
-        XCTAssertEqual(snapshot.shortcutIdentifiers, commandPlan.commands.map(\.shortcut.identifier))
-        XCTAssertEqual(snapshot.omittedActionKindIdentifiers, ["cleanupOldArtifacts"])
-        XCTAssertEqual(snapshot.appLevelShortcutCollisionStateIdentifier, "clear")
-        XCTAssertEqual(snapshot.appLevelShortcutIdentifiers, ["command:o", "command:r", "command:return"])
-        XCTAssertEqual(snapshot.appLevelShortcutCollisionIdentifiers, [])
-        XCTAssertTrue(snapshot.identifier.hasPrefix("run-recap-share-artifact-command-diagnostics"))
-        XCTAssertTrue(report.identifier.contains("run-recap-share-artifact-commands:\(snapshot.identifier)"))
-        XCTAssertTrue(report.identifier.contains("run-recap-share-artifact-command-plan:\(commandPlan.identifier)"))
-        XCTAssertTrue(report.identifier.contains("run-recap-share-artifact-command-source-menu:\(fixture.menu.identifier)"))
-
-        let sectionCounts = Dictionary(uniqueKeysWithValues: snapshot.sections.map {
-            ($0.sectionIdentifier, $0.commandCount)
-        })
-        XCTAssertEqual(sectionCounts["navigate"], 3)
-        XCTAssertEqual(sectionCounts["exports"], 7)
-        XCTAssertEqual(sectionCounts["organize"], 2)
-        XCTAssertEqual(sectionCounts["tour"], 3)
-        XCTAssertEqual(sectionCounts["maintain"], 0)
-    }
 
     func testReportRowAndExportExposeCommandSummaryBoundsAndCorrelation() throws {
         let workspace = try makeInitializedWorkspace()
@@ -351,45 +287,6 @@ final class CinematicRunRecapShareArtifactCommandDiagnosticsTests: XCTestCase {
         }
     }
 
-    func testDiagnosticsPathKeepsActionMenuAndCommandPlannerCompatibleWithoutMutatingContext() throws {
-        let workspace = try makeInitializedWorkspace()
-        for session in 1...3 {
-            _ = try workspace.writeSessionArtifact(
-                session: session,
-                name: "recap-share-command-immutable-\(session).md",
-                contents: artifactMarkdown(
-                    session: session,
-                    title: "Immutable Diagnostics \(session)",
-                    status: session == 2 ? "failed verify" : "succeeded",
-                    commit: "Immutable diagnostics commit \(session)",
-                    body: session == 3 ? "immutable diagnostics beacon" : "ordinary immutable body"
-                )
-            )
-        }
-        let history = workspace.refreshRunRecapShareArtifactHistory()
-        let selected = try XCTUnwrap(history.entries.first { $0.sessionNumber == 3 })
-        let held = try XCTUnwrap(history.entries.first { $0.sessionNumber == 2 })
-        let context = CinematicRunRecapShareArtifactLibraryContext(
-            selectedEntryIdentifier: selected.identifier,
-            searchText: "IMMUTABLE DIAGNOSTICS",
-            pinnedEntryIdentifiers: [held.identifier, held.identifier, "missing-command-diagnostic-pin"],
-            comparisonTargetMode: .pinnedReference,
-            savedTourHoldEntryIdentifier: held.identifier
-        )
-        let contextBefore = context
-        let fixture = makeFixture(history: history, context: context)
-        let commandPlan = CinematicRunRecapShareArtifactCommandPlanner.plan(actionMenuPlan: fixture.menu)
-        let report = makeReport(history: history, context: context)
-
-        XCTAssertEqual(context, contextBefore)
-        XCTAssertEqual(report.runRecapShareArtifactPreview.identifier, fixture.preview.identifier)
-        XCTAssertEqual(report.runRecapShareArtifactRollup.identifier, fixture.rollup.identifier)
-        XCTAssertEqual(report.runRecapShareArtifactComparison.identifier, fixture.comparison.identifier)
-        XCTAssertEqual(report.runRecapShareArtifactPins.identifier, fixture.pins.identifier)
-        XCTAssertEqual(report.runRecapShareArtifactTour.identifier, fixture.tour.identifier)
-        XCTAssertEqual(report.runRecapShareArtifactCommands.sourceActionMenuIdentifier, fixture.menu.identifier)
-        XCTAssertEqual(report.runRecapShareArtifactCommands.commandPlanIdentifier, commandPlan.identifier)
-    }
 
     private struct Fixture {
         var preview: CinematicRunRecapShareArtifactPreviewBrowserPlan

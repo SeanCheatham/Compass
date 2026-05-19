@@ -208,7 +208,7 @@ final class CinematicVisualSmokeReportTests: XCTestCase {
         XCTAssertTrue(savedArtifactTour.detail.contains("no-match"))
         XCTAssertTrue(savedArtifactTour.detail.contains("missing-pin"))
         XCTAssertTrue(savedArtifactTour.detail.contains("missing-hold"))
-        XCTAssertTrue(savedArtifactTour.detail.contains("apple-container"))
+        XCTAssertTrue(savedArtifactTour.detail.contains("shared-vm"))
         XCTAssertTrue(savedArtifactTour.detail.contains("native-fallback"))
         XCTAssertTrue(savedArtifactTour.detail.contains("missing-cue"))
         XCTAssertTrue(savedArtifactTour.detail.contains("mutation"))
@@ -281,7 +281,7 @@ final class CinematicVisualSmokeReportTests: XCTestCase {
         )
         let appleContainer = try XCTUnwrap(
             reports.first {
-                $0.runRecapShareArtifactTour.runtimeRouteCueStateIdentifier == "apple-container"
+                $0.runRecapShareArtifactTour.runtimeRouteCueStateIdentifier == "shared-vm"
             }
         )
         let native = try XCTUnwrap(

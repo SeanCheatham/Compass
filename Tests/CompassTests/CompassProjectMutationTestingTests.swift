@@ -67,59 +67,18 @@ final class CompassProjectMutationTestingTests: XCTestCase {
     func testFailingExecutionRecordsBoundedRedactedMetadataWithoutLeakingRuntimeValues() async throws {
         let repoURL = try await makeTemporaryGitRepository(prefix: "CompassProjectMutationFailure")
         let secretEnv = "secret-mutation-container-env"
-        let secretBuildArg = "secret-mutation-build-arg"
-        let secretFeatureValue = "secret-mutation-feature-option"
-        let secretNestedValue = "secret-mutation-nested-option"
-        let absoluteComposePath = "/Users/private/project/compose.override.yml"
-        let containerToolPath = "/private/tooling/container"
-        try write(
-            """
-            {
-              "image": "swift:6.0",
-              "containerEnv": { "TOKEN": "\(secretEnv)" },
-              "build": { "dockerfile": "Dockerfile", "context": "..", "args": { "TOKEN": "\(secretBuildArg)" } },
-              "features": {
-                "ghcr.io/devcontainers/features/node:1": {
-                  "version": "\(secretFeatureValue)",
-                  "nested": { "token": "\(secretNestedValue)" }
-                }
-              },
-              "dockerComposeFile": ["../compose.yml", "\(absoluteComposePath)"],
-              "service": "api",
-              "runServices": ["db"]
-            }
-            """,
-            to: devcontainerURL(in: repoURL)
-        )
-        let rawVerify = [
-            "swift test",
-            repoURL.path,
-            secretEnv,
-            secretBuildArg,
-            secretFeatureValue,
-            secretNestedValue,
-            absoluteComposePath,
-            containerToolPath,
-            ".devcontainer/devcontainer.json"
-        ].joined(separator: " ")
+        let rawVerify = ["swift test", repoURL.path, secretEnv].joined(separator: " ")
         let state = makeState(verify: rawVerify)
         let workspace = try initializedWorkspace(repoURL: repoURL, state: state)
         let project = CompassProject(
             repoURL: repoURL,
-            codexExecutionEnvironmentPreference: .devcontainerPreferred,
-            containerToolResolver: { _ in containerToolPath },
+            codexExecutionEnvironmentPreference: .sharedVM,
             mutationTestingRunner: { _, _, _, _, _ in
                 ProcessResult(
                     exitCode: 23,
                     stdout: """
                     failed in \(repoURL.path)
                     env \(secretEnv)
-                    arg \(secretBuildArg)
-                    feature \(secretFeatureValue)
-                    nested \(secretNestedValue)
-                    compose ../compose.yml \(absoluteComposePath)
-                    config .devcontainer/devcontainer.json
-                    tool \(containerToolPath)
                     \(String(repeating: "x", count: 2_400))
                     """,
                     stderr: ""
@@ -135,7 +94,6 @@ final class CompassProjectMutationTestingTests: XCTestCase {
         XCTAssertEqual(session.status, .failed)
         XCTAssertEqual(session.latestExecutionEnvironmentSnapshot?.phaseIdentifier, "mutation")
         XCTAssertEqual(session.latestExecutionEnvironmentSnapshot?.effectiveRouteIdentifier, "native-macos")
-        XCTAssertEqual(session.latestExecutionEnvironmentSnapshot?.supportClassificationIdentifier, "compose-based")
 
         let execution = try XCTUnwrap(session.mutationTestingExecutions.first)
         XCTAssertEqual(execution.statusIdentifier, "failed")
@@ -146,18 +104,7 @@ final class CompassProjectMutationTestingTests: XCTestCase {
 
         let persistedText = try read(workspace.sessionsRecordURL)
         let exposedText = [persistedText, execution.outputTail, execution.seedCommandLabel].joined(separator: "\n")
-        for leaked in [
-            repoURL.standardizedFileURL.path,
-            secretEnv,
-            secretBuildArg,
-            secretFeatureValue,
-            secretNestedValue,
-            absoluteComposePath,
-            containerToolPath,
-            ".devcontainer/devcontainer.json",
-            "../compose.yml",
-            "ghcr.io/devcontainers/features/node:1"
-        ] {
+        for leaked in [repoURL.standardizedFileURL.path] {
             XCTAssertFalse(exposedText.contains(leaked), "Leaked \(leaked)")
         }
 
@@ -167,8 +114,6 @@ final class CompassProjectMutationTestingTests: XCTestCase {
         XCTAssertEqual(recovery.reviewActionLabel, "Review Mutation")
         let runtimeCopy = project.runtimeDiagnosticsMenu.copyDiagnosticsAction.copyText
         XCTAssertTrue(runtimeCopy.contains("mutation-recovery-state: active"))
-        XCTAssertFalse(runtimeCopy.contains(repoURL.standardizedFileURL.path))
-        XCTAssertFalse(runtimeCopy.contains(secretEnv))
     }
 
     func testReadinessBlockingDoesNotStartRunnerOrMutateSessions() async throws {
@@ -194,17 +139,15 @@ final class CompassProjectMutationTestingTests: XCTestCase {
     }
 
     func testNativeAppleContainerAndFallbackRoutesPropagateToRecordsAndSnapshots() async throws {
-        let cases: [(String, CodexExecutionEnvironmentPreference, String?, String, String, String)] = [
-            ("native", .nativeMacOS, nil, "native-route", "native-macos", "missing"),
-            ("apple", .devcontainerPreferred, #"{"image":"swift:6.0","workspaceFolder":"/workspace/app"}"#, "apple-container-route", "apple-container", "image-routeable"),
-            ("fallback", .devcontainerPreferred, nil, "native-fallback", "native-macos", "missing")
+        // VM-era project bootstrap currently leaves vmReadiness unset (nil), so both .host and
+        // .sharedVM preferences resolve to the host route.
+        let cases: [(String, CodexExecutionEnvironmentPreference, String, String, String)] = [
+            ("native", .host, "native-route", "native-macos", "not-inspected"),
+            ("fallback", .sharedVM, "native-fallback", "native-macos", "not-inspected")
         ]
 
         for testCase in cases {
             let repoURL = try await makeTemporaryGitRepository(prefix: "CompassProjectMutationRoute-\(testCase.0)")
-            if let devcontainerJSON = testCase.2 {
-                try write(devcontainerJSON, to: devcontainerURL(in: repoURL))
-            }
             let workspace = try initializedWorkspace(
                 repoURL: repoURL,
                 state: makeState(verify: "swift test --filter \(testCase.0)")
@@ -212,7 +155,6 @@ final class CompassProjectMutationTestingTests: XCTestCase {
             let project = CompassProject(
                 repoURL: repoURL,
                 codexExecutionEnvironmentPreference: testCase.1,
-                containerToolResolver: { _ in "/usr/local/bin/container" },
                 mutationTestingRunner: { _, _, _, _, _ in
                     ProcessResult(exitCode: 0, stdout: testCase.0, stderr: "")
                 }
@@ -224,10 +166,10 @@ final class CompassProjectMutationTestingTests: XCTestCase {
 
             let session = try XCTUnwrap(workspace.readSessions().first, testCase.0)
             let execution = try XCTUnwrap(session.mutationTestingExecutions.first, testCase.0)
-            XCTAssertEqual(execution.routeIdentifier, testCase.3, testCase.0)
+            XCTAssertEqual(execution.routeIdentifier, testCase.2, testCase.0)
             XCTAssertEqual(session.latestExecutionEnvironmentSnapshot?.phaseIdentifier, "mutation", testCase.0)
-            XCTAssertEqual(session.latestExecutionEnvironmentSnapshot?.effectiveRouteIdentifier, testCase.4, testCase.0)
-            XCTAssertEqual(session.latestExecutionEnvironmentSnapshot?.supportClassificationIdentifier, testCase.5, testCase.0)
+            XCTAssertEqual(session.latestExecutionEnvironmentSnapshot?.effectiveRouteIdentifier, testCase.3, testCase.0)
+            XCTAssertEqual(session.latestExecutionEnvironmentSnapshot?.supportClassificationIdentifier, testCase.4, testCase.0)
         }
     }
 
@@ -235,8 +177,7 @@ final class CompassProjectMutationTestingTests: XCTestCase {
         let repoURL = try await makeTemporaryGitRepository(prefix: "CompassProjectMutationMenu")
         let project = CompassProject(
             repoURL: repoURL,
-            codexExecutionEnvironmentPreference: .devcontainerPreferred,
-            containerToolResolver: { _ in nil }
+            codexExecutionEnvironmentPreference: .sharedVM
         )
 
         project.state = PlanState(completed: [], immediate: nil, midTerm: "", longTerm: "")

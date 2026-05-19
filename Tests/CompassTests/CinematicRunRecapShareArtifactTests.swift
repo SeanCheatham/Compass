@@ -79,200 +79,13 @@ final class CinematicRunRecapShareArtifactTests: XCTestCase {
         XCTAssertLessThanOrEqual(first.feedback.count, CinematicRunRecapShareArtifactPlan.feedbackMaxCharacters)
     }
 
-    func testRuntimeRouteAuditCoversAppleNativeFallbackAndMissingSnapshots() throws {
-        let appleRepoURL = try makeTemporaryGitRepository(prefix: "RuntimeRouteApple")
-        try writeDevcontainer(
-            #"{"image":"swift:6.0","workspaceFolder":"/workspace/app","containerEnv":{"TOKEN":"secret-runtime-route-env"}}"#,
-            in: appleRepoURL
-        )
-        let appleSnapshot = makeRuntimeSnapshot(
-            repoURL: appleRepoURL,
-            phase: "Verify",
-            attempt: 2,
-            preference: .devcontainerPreferred,
-            containerToolPath: "/usr/local/bin/container",
-            provisioning: true
-        )
-        let appleSession = makeSession(
-            37,
-            endedAt: 37_500,
-            executionEnvironmentSnapshots: [appleSnapshot]
-        )
-        let appleArtifact = CinematicRunRecapShareArtifactPlanner.plan(
-            sharePlan: makeSharePlan(session: appleSession, completed: ["Audit Apple container route"]),
-            sessions: [appleSession]
-        )
-        let appleAudit = try XCTUnwrap(appleArtifact.runtimeRouteAudit)
 
-        XCTAssertTrue(appleArtifact.markdownContents.contains("## Runtime Route"))
-        XCTAssertTrue(appleArtifact.markdownContents.contains("- Runtime audit: \(appleAudit.identifier)"))
-        XCTAssertTrue(appleArtifact.markdownContents.contains("- Phase: Verify (verify)"))
-        XCTAssertTrue(appleArtifact.markdownContents.contains("- Attempt: 2"))
-        XCTAssertTrue(
-            appleArtifact.markdownContents.contains(
-                "- Selected preference: devcontainer_preferred (Dev Container Preferred)"
-            )
-        )
-        XCTAssertTrue(appleArtifact.markdownContents.contains("- Effective route: apple-container (Apple container)"))
-        XCTAssertTrue(appleArtifact.markdownContents.contains("- Support classification: image-routeable"))
-        XCTAssertTrue(appleArtifact.markdownContents.contains("- Visible support tokens: image, containerEnv:1, env:TOKEN"))
-        XCTAssertTrue(appleArtifact.markdownContents.contains("- Omitted support tokens: 0"))
-        XCTAssertTrue(appleArtifact.markdownContents.contains("- Image label: swift:6.0"))
-        XCTAssertTrue(appleArtifact.markdownContents.contains("- Workspace label: /workspace/app"))
-        XCTAssertTrue(appleArtifact.markdownContents.contains("- Fallback state: direct"))
-        XCTAssertTrue(appleArtifact.markdownContents.contains("- Fallback reason: none"))
-        XCTAssertTrue(appleArtifact.markdownContents.contains("- Provisioning availability: unavailable"))
-        XCTAssertTrue(appleArtifact.markdownContents.contains("- Provisioning status: already-present"))
-        XCTAssertTrue(appleArtifact.markdownContents.contains("- Provisioning action: devcontainer-provisioning.create"))
-        XCTAssertLessThanOrEqual(
-            appleAudit.identifier.count,
-            CinematicRunRecapShareArtifactRuntimeRouteAudit.identifierMaxCharacters
-        )
-        XCTAssertLessThanOrEqual(
-            appleAudit.markdownLength,
-            CinematicRunRecapShareArtifactRuntimeRouteAudit.markdownMaxCharacters
-        )
-
-        let nativeRepoURL = try makeTemporaryGitRepository(prefix: "RuntimeRouteNative")
-        let nativeSnapshot = makeRuntimeSnapshot(
-            repoURL: nativeRepoURL,
-            phase: "Plan",
-            preference: .nativeMacOS,
-            containerToolPath: "/usr/local/bin/container"
-        )
-        let nativeSession = makeSession(
-            38,
-            endedAt: 38_500,
-            executionEnvironmentSnapshots: [nativeSnapshot]
-        )
-        let nativeArtifact = CinematicRunRecapShareArtifactPlanner.plan(
-            sharePlan: makeSharePlan(session: nativeSession, completed: ["Audit native route"]),
-            sessions: [nativeSession]
-        )
-
-        XCTAssertTrue(nativeArtifact.markdownContents.contains("## Runtime Route"))
-        XCTAssertTrue(nativeArtifact.markdownContents.contains("- Selected preference: native_macos (Native macOS)"))
-        XCTAssertTrue(nativeArtifact.markdownContents.contains("- Effective route: native-macos (Native macOS)"))
-        XCTAssertTrue(nativeArtifact.markdownContents.contains("- Support classification: missing"))
-        XCTAssertTrue(nativeArtifact.markdownContents.contains("- Workspace label: host"))
-        XCTAssertTrue(nativeArtifact.markdownContents.contains("- Fallback state: direct"))
-
-        let fallbackRepoURL = try makeTemporaryGitRepository(prefix: "RuntimeRouteFallback")
-        try writeDevcontainer(#"{"image":"swift:6.0","workspaceFolder":"/workspace/app"}"#, in: fallbackRepoURL)
-        let fallbackSnapshot = makeRuntimeSnapshot(
-            repoURL: fallbackRepoURL,
-            phase: "Develop",
-            attempt: 3,
-            preference: .devcontainerPreferred,
-            containerToolPath: nil
-        )
-        let fallbackSession = makeSession(
-            39,
-            endedAt: 39_500,
-            executionEnvironmentSnapshots: [fallbackSnapshot]
-        )
-        let fallbackArtifact = CinematicRunRecapShareArtifactPlanner.plan(
-            sharePlan: makeSharePlan(session: fallbackSession, completed: ["Audit fallback route"]),
-            sessions: [fallbackSession]
-        )
-
-        XCTAssertTrue(fallbackArtifact.markdownContents.contains("## Runtime Route"))
-        XCTAssertTrue(
-            fallbackArtifact.markdownContents.contains(
-                "- Selected preference: devcontainer_preferred (Dev Container Preferred)"
-            )
-        )
-        XCTAssertTrue(fallbackArtifact.markdownContents.contains("- Effective route: native-macos (Native macOS)"))
-        XCTAssertTrue(fallbackArtifact.markdownContents.contains("- Support classification: image-routeable"))
-        XCTAssertTrue(fallbackArtifact.markdownContents.contains("- Fallback state: fallback"))
-        XCTAssertTrue(fallbackArtifact.markdownContents.contains("- Fallback reason: Apple container CLI is unavailable."))
-
-        let missingSnapshotSession = makeSession(40, endedAt: 40_500)
-        let missingSnapshotArtifact = CinematicRunRecapShareArtifactPlanner.plan(
-            sharePlan: makeSharePlan(session: missingSnapshotSession, completed: ["No runtime snapshot"]),
-            sessions: [missingSnapshotSession]
-        )
-
-        XCTAssertNil(missingSnapshotArtifact.runtimeRouteAudit)
-        XCTAssertFalse(missingSnapshotArtifact.markdownContents.contains("## Runtime Route"))
-    }
-
-    func testRuntimeRouteAuditPropagatesThroughSavedHistorySubsetAndRollupExports() throws {
-        let repoURL = try makeTemporaryGitRepository(prefix: "RuntimeRoutePropagation")
-        try writeDevcontainer(
-            #"{"image":"swift:6.0","workspaceFolder":"/workspace/app","containerEnv":{"TOKEN":"secret-runtime-route-propagation"}}"#,
-            in: repoURL
-        )
-        let workspace = CompassWorkspace(repoURL: repoURL)
-        try workspace.initialize()
-        let snapshot = makeRuntimeSnapshot(
-            repoURL: repoURL,
-            phase: "Verify",
-            attempt: 4,
-            preference: .devcontainerPreferred,
-            containerToolPath: "/usr/local/bin/container",
-            provisioning: true
-        )
-        let session = makeSession(
-            41,
-            endedAt: 41_500,
-            executionEnvironmentSnapshots: [snapshot]
-        )
-        let result = workspace.recordRunRecapShareArtifact(
-            sharePlan: makeSharePlan(session: session, completed: ["Persist runtime route audit"]),
-            sessions: [session]
-        )
-
-        let artifactURL = try XCTUnwrap(result.artifactURL)
-        let savedMarkdown = try read(artifactURL)
-        let history = workspace.refreshRunRecapShareArtifactHistory()
-        let selectedExport = CinematicRunRecapShareArtifactSubsetExportPlanner.plan(
-            historyPlan: history,
-            selectedEntryIdentifier: history.latestEntry?.identifier,
-            scope: .selected
-        )
-        let filteredExport = CinematicRunRecapShareArtifactSubsetExportPlanner.plan(
-            historyPlan: history,
-            scope: .filtered
-        )
-        let rollup = CinematicRunRecapShareArtifactRollupPlanner.plan(historyPlan: history)
-
-        XCTAssertEqual(result.status, .recorded)
-        XCTAssertTrue(savedMarkdown.contains("## Runtime Route"))
-        XCTAssertTrue(try XCTUnwrap(history.latestEntry).markdownContents.contains("## Runtime Route"))
-        XCTAssertTrue(history.combinedMarkdownExport.contains("## Runtime Route"))
-        XCTAssertTrue(selectedExport.markdownContents.contains("## Runtime Route"))
-        XCTAssertTrue(filteredExport.markdownContents.contains("## Runtime Route"))
-        XCTAssertTrue(rollup.exportText.contains("## Runtime Routes"))
-        XCTAssertTrue(rollup.exportText.contains("route container"))
-        XCTAssertTrue(rollup.exportText.contains("support image-routeable"))
-        XCTAssertLessThanOrEqual(
-            result.artifactPlan.runtimeRouteAudit?.identifier.count ?? 0,
-            CinematicRunRecapShareArtifactRuntimeRouteAudit.identifierMaxCharacters
-        )
-        XCTAssertLessThanOrEqual(
-            result.artifactPlan.markdownLength,
-            CinematicRunRecapShareArtifactPlan.markdownMaxCharacters
-        )
-        XCTAssertLessThanOrEqual(
-            history.combinedMarkdownLength,
-            CinematicRunRecapShareArtifactHistoryPlan.combinedMarkdownMaxCharacters
-        )
-        XCTAssertLessThanOrEqual(
-            selectedExport.markdownLength,
-            CinematicRunRecapShareArtifactSubsetExportPlan.markdownMaxCharacters
-        )
-        XCTAssertLessThanOrEqual(
-            rollup.exportTextLength,
-            CinematicRunRecapShareArtifactRollupPlan.exportTextMaxCharacters
-        )
-    }
 
     func testMutationTestingAuditWritesMarkdownAndPropagatesThroughExports() throws {
         let repoURL = try makeTemporaryGitRepository(prefix: "MutationAuditPropagation")
         let workspace = CompassWorkspace(repoURL: repoURL)
         try workspace.initialize()
-        let launchPlan = CodexExecutionLaunchPlan.native()
+        let launchPlan = CodexExecutionLaunchPlan.host()
         let snapshot = SessionExecutionEnvironmentSnapshot(
             phase: "Mutation",
             attempt: 1,
@@ -592,99 +405,6 @@ final class CinematicRunRecapShareArtifactTests: XCTestCase {
         XCTAssertTrue(rollup.exportText.contains("warnings 2"))
     }
 
-    func testRuntimeRouteAuditMarkdownAndExportsDoNotLeakRuntimeInternals() throws {
-        let imageRepoURL = try makeTemporaryGitRepository(prefix: "RuntimeRouteLeakImage")
-        let envSecret = "secret-runtime-route-container-env-value"
-        let containerToolPath = "/usr/local/bin/container"
-        try writeDevcontainer(
-            #"{"image":"swift:6.0","workspaceFolder":"/workspace/app","containerEnv":{"TOKEN":"\#(envSecret)"}}"#,
-            in: imageRepoURL
-        )
-        let imageText = try recordedRuntimeExportText(
-            repoURL: imageRepoURL,
-            snapshot: makeRuntimeSnapshot(
-                repoURL: imageRepoURL,
-                phase: "Verify",
-                preference: .devcontainerPreferred,
-                containerToolPath: containerToolPath,
-                provisioning: true
-            ),
-            sessionNumber: 42
-        )
-
-        let buildRepoURL = try makeTemporaryGitRepository(prefix: "RuntimeRouteLeakBuild")
-        let buildSecret = "secret-runtime-route-build-arg-value"
-        try writeDevcontainer(
-            #"{"build":{"dockerfile":"Dockerfile","context":"..","target":"runtime","args":{"TOKEN":"\#(buildSecret)"}}}"#,
-            in: buildRepoURL
-        )
-        let buildText = try recordedRuntimeExportText(
-            repoURL: buildRepoURL,
-            snapshot: makeRuntimeSnapshot(
-                repoURL: buildRepoURL,
-                phase: "Develop",
-                preference: .devcontainerPreferred,
-                containerToolPath: containerToolPath
-            ),
-            sessionNumber: 43
-        )
-
-        let composeRepoURL = try makeTemporaryGitRepository(prefix: "RuntimeRouteLeakCompose")
-        let composePath = "/Users/private/project/compose.override.yml"
-        try writeDevcontainer(
-            #"{"dockerComposeFile":["../compose.yml","\#(composePath)"],"service":"api"}"#,
-            in: composeRepoURL
-        )
-        let composeText = try recordedRuntimeExportText(
-            repoURL: composeRepoURL,
-            snapshot: makeRuntimeSnapshot(
-                repoURL: composeRepoURL,
-                phase: "Reflect",
-                preference: .devcontainerPreferred,
-                containerToolPath: containerToolPath
-            ),
-            sessionNumber: 44
-        )
-
-        let featureRepoURL = try makeTemporaryGitRepository(prefix: "RuntimeRouteLeakFeature")
-        let featureSecret = "secret-runtime-route-feature-option-value"
-        try writeDevcontainer(
-            #"{"image":"swift:6.0","features":{"ghcr.io/devcontainers/features/node:1":{"version":"\#(featureSecret)","nested":{"token":"hidden-feature-token"}}}}"#,
-            in: featureRepoURL
-        )
-        let featureText = try recordedRuntimeExportText(
-            repoURL: featureRepoURL,
-            snapshot: makeRuntimeSnapshot(
-                repoURL: featureRepoURL,
-                phase: "Plan",
-                preference: .devcontainerPreferred,
-                containerToolPath: containerToolPath
-            ),
-            sessionNumber: 45
-        )
-
-        let combinedText = [imageText, buildText, composeText, featureText].joined(separator: "\n---\n")
-        XCTAssertTrue(combinedText.contains("## Runtime Route"))
-        XCTAssertTrue(combinedText.contains("arg:TOKEN"))
-        XCTAssertTrue(combinedText.contains("composeFile:compose.override.yml"))
-        XCTAssertTrue(combinedText.contains("feature:node:1"))
-        for sensitive in [
-            imageRepoURL.standardizedFileURL.path,
-            buildRepoURL.standardizedFileURL.path,
-            composeRepoURL.standardizedFileURL.path,
-            featureRepoURL.standardizedFileURL.path,
-            envSecret,
-            buildSecret,
-            featureSecret,
-            "hidden-feature-token",
-            "nested",
-            composePath,
-            "../compose.yml",
-            containerToolPath
-        ] {
-            XCTAssertFalse(combinedText.contains(sensitive), "Leaked runtime-sensitive text: \(sensitive)")
-        }
-    }
 
     func testUnavailableShareArtifactIsSkippedWithBoundedFeedback() throws {
         let workspace = try makeInitializedWorkspace()
@@ -982,21 +702,19 @@ final class CinematicRunRecapShareArtifactTests: XCTestCase {
         phase: String,
         attempt: Int? = 1,
         preference: CodexExecutionEnvironmentPreference,
-        containerToolPath: String?,
-        provisioning: Bool = false
+        vmReadiness: SharedCompassVMReadiness? = nil,
+        sharedVMRouteFactory: (URL) -> SharedVMRoute? = { _ in nil }
     ) -> SessionExecutionEnvironmentSnapshot {
         let launchPlan = CodexExecutionLaunchPlan.plan(
             repoURL: repoURL,
             preference: preference,
-            containerToolResolver: { _ in containerToolPath }
+            vmReadiness: vmReadiness,
+            sharedVMRouteFactory: sharedVMRouteFactory
         )
         return SessionExecutionEnvironmentSnapshot(
             phase: phase,
             attempt: attempt,
-            launchPlan: launchPlan,
-            provisioningPlan: provisioning
-                ? CodexDevcontainerProvisioningPlan.plan(repoURL: repoURL, languageProfile: .empty)
-                : nil
+            launchPlan: launchPlan
         )
     }
 

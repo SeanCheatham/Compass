@@ -211,8 +211,8 @@ struct PlanSessionHistoryItem: Identifiable, Equatable {
             snapshotAvailabilityIdentifier == "available"
         }
 
-        var isAppleContainerRoute: Bool {
-            isSnapshotAvailable && effectiveRouteIdentifier == "apple-container"
+        var isSharedVMRoute: Bool {
+            isSnapshotAvailable && effectiveRouteIdentifier == "shared-vm"
         }
 
         var isNativeRoute: Bool {
@@ -220,7 +220,7 @@ struct PlanSessionHistoryItem: Identifiable, Equatable {
         }
 
         var systemImage: String {
-            isAppleContainerRoute ? "shippingbox" : "desktopcomputer"
+            isSharedVMRoute ? "macwindow.on.rectangle" : "desktopcomputer"
         }
 
         private static func badgeText(
@@ -271,10 +271,10 @@ struct PlanSessionHistoryItem: Identifiable, Equatable {
 
         private static func preferenceTitle(identifier: String, fallback: String) -> String {
             switch identifier {
-            case CodexExecutionEnvironmentPreference.nativeMacOS.rawValue:
-                return CodexExecutionEnvironmentPreference.nativeMacOS.title
-            case CodexExecutionEnvironmentPreference.devcontainerPreferred.rawValue:
-                return CodexExecutionEnvironmentPreference.devcontainerPreferred.title
+            case CodexExecutionEnvironmentPreference.host.rawValue:
+                return CodexExecutionEnvironmentPreference.host.title
+            case CodexExecutionEnvironmentPreference.sharedVM.rawValue:
+                return CodexExecutionEnvironmentPreference.sharedVM.title
             default:
                 return sanitizedTitle(fallback, fallback: "Unknown")
             }
@@ -282,8 +282,8 @@ struct PlanSessionHistoryItem: Identifiable, Equatable {
 
         private static func routeTitle(identifier: String, fallback: String) -> String {
             switch identifier {
-            case "apple-container":
-                return "Apple container"
+            case "shared-vm":
+                return "Shared VM"
             case "native-macos":
                 return "Native macOS"
             default:
@@ -294,9 +294,14 @@ struct PlanSessionHistoryItem: Identifiable, Equatable {
         private static func preferenceIdentifier(_ text: String) -> String {
             let identifier = sanitizedIdentifier(text, fallback: "unknown")
             switch identifier {
-            case CodexExecutionEnvironmentPreference.nativeMacOS.rawValue,
-                CodexExecutionEnvironmentPreference.devcontainerPreferred.rawValue:
+            case CodexExecutionEnvironmentPreference.host.rawValue,
+                CodexExecutionEnvironmentPreference.sharedVM.rawValue:
                 return identifier
+            case "devcontainer_preferred":
+                // Legacy stored preference — migrate to the host preference identifier so
+                // recap history surfaces the now-canonical "native_macos" preference. Compass
+                // does not auto-enrol into the Shared VM (see DevelopSandboxPreference plan).
+                return CodexExecutionEnvironmentPreference.host.rawValue
             default:
                 return "unknown"
             }
@@ -305,8 +310,12 @@ struct PlanSessionHistoryItem: Identifiable, Equatable {
         private static func routeIdentifier(_ text: String) -> String {
             let identifier = sanitizedIdentifier(text, fallback: "unknown")
             switch identifier {
-            case "apple-container", "native-macos":
+            case "shared-vm", "native-macos":
                 return identifier
+            case "apple-container":
+                // Legacy stored route — surface as Shared VM for history readability while
+                // staying within the bounded identifier set.
+                return "shared-vm"
             default:
                 return "unknown"
             }
@@ -315,13 +324,15 @@ struct PlanSessionHistoryItem: Identifiable, Equatable {
         private static func supportClassificationIdentifier(_ text: String) -> String {
             let identifier = sanitizedIdentifier(text, fallback: "not-inspected")
             switch identifier {
-            case "missing",
-                "malformed",
-                "image-routeable",
-                "build-based",
-                "compose-based",
-                "feature-based",
-                "unsupported-extra-fields",
+            case "unavailable",
+                "not-provisioned",
+                "downloading-ipsw",
+                "installing",
+                "first-boot-pending",
+                "guest-prepping",
+                "codex-login-pending",
+                "ready",
+                "error",
                 "not-inspected":
                 return identifier
             default:
@@ -444,7 +455,7 @@ enum PlanSessionHistoryFilter: String, CaseIterable, Identifiable, Equatable, Ha
     case activePaused
     case failedRejected
     case completedFinished
-    case appleContainer
+    case sharedVM = "shared_vm"
     case nativeRuntime
 
     struct Option: Identifiable, Equatable {
@@ -472,8 +483,8 @@ enum PlanSessionHistoryFilter: String, CaseIterable, Identifiable, Equatable, Ha
             return "Failed/Rejected"
         case .completedFinished:
             return "Completed"
-        case .appleContainer:
-            return "Apple Container"
+        case .sharedVM:
+            return "Shared VM"
         case .nativeRuntime:
             return "Native/Fallback"
         }
@@ -491,8 +502,8 @@ enum PlanSessionHistoryFilter: String, CaseIterable, Identifiable, Equatable, Ha
             return "failed or rejected runs"
         case .completedFinished:
             return "completed runs"
-        case .appleContainer:
-            return "Apple-container runs"
+        case .sharedVM:
+            return "Shared VM runs"
         case .nativeRuntime:
             return "native or fallback runs"
         }
@@ -510,8 +521,8 @@ enum PlanSessionHistoryFilter: String, CaseIterable, Identifiable, Equatable, Ha
             return "xmark.octagon"
         case .completedFinished:
             return "checkmark.circle"
-        case .appleContainer:
-            return "shippingbox"
+        case .sharedVM:
+            return "macwindow.on.rectangle"
         case .nativeRuntime:
             return "desktopcomputer"
         }
@@ -558,8 +569,8 @@ enum PlanSessionHistoryFilter: String, CaseIterable, Identifiable, Equatable, Ha
             return item.status == .succeeded
                 || item.status == .cancelled
                 || item.status == .skipped
-        case .appleContainer:
-            return item.runtimeRouteDescriptor.isAppleContainerRoute
+        case .sharedVM:
+            return item.runtimeRouteDescriptor.isSharedVMRoute
         case .nativeRuntime:
             return item.runtimeRouteDescriptor.isNativeRoute
         }

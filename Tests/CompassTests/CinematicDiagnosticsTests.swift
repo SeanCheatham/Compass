@@ -653,8 +653,8 @@ final class CinematicDiagnosticsTests: XCTestCase {
 
         XCTAssertTrue(report.runRecapShareArtifactTour.isAvailable)
         XCTAssertEqual(report.runRecapShareArtifactTour.selectionSourceIdentifier, "pinned")
-        XCTAssertEqual(report.runRecapShareArtifactTour.runtimeRouteCueStateIdentifier, "apple-container")
-        XCTAssertEqual(report.runRecapShareArtifactTour.runtimeRouteCueCompactCopy, "Container")
+        XCTAssertEqual(report.runRecapShareArtifactTour.runtimeRouteCueStateIdentifier, "shared-vm")
+        XCTAssertEqual(report.runRecapShareArtifactTour.runtimeRouteCueCompactCopy, "Shared VM")
         XCTAssertEqual(report.runRecapShareArtifactTour.runtimeRouteTreatmentAccentIdentifier, "container-blue")
         XCTAssertEqual(report.runRecapShareArtifactTour.mutationTestingCueAvailabilityIdentifier, "available")
         XCTAssertEqual(report.runRecapShareArtifactTour.mutationTestingTreatmentStateIdentifier, "succeeded")
@@ -665,16 +665,16 @@ final class CinematicDiagnosticsTests: XCTestCase {
         XCTAssertEqual(report.idleStoryCycle.phaseIdentifier, "saved-recap-artifact-tour")
         XCTAssertEqual(report.idleStoryCycle.cameraPressureIdentifier, "archive-tour")
         XCTAssertTrue(report.identifier.contains("run-recap-share-artifact-tour-state:pinned"))
-        XCTAssertTrue(report.identifier.contains("run-recap-share-artifact-tour-runtime-route:apple-container"))
+        XCTAssertTrue(report.identifier.contains("run-recap-share-artifact-tour-runtime-route:shared-vm"))
         XCTAssertTrue(report.identifier.contains("run-recap-share-artifact-tour-mutation:succeeded"))
         XCTAssertTrue(report.identifier.contains("run-recap-share-artifact-tour-warning-pulse-state:missing"))
         XCTAssertTrue(row.detail.contains("state pinned"))
         XCTAssertTrue(row.detail.contains("source pinned"))
-        XCTAssertTrue(row.detail.contains("runtime route apple-container"))
+        XCTAssertTrue(row.detail.contains("runtime route shared-vm"))
         XCTAssertTrue(row.detail.contains("mutation succeeded"))
         XCTAssertTrue(summary.exportText.contains("Recap artifact tour: available"))
         XCTAssertTrue(summary.exportText.contains("state pinned"))
-        XCTAssertTrue(summary.exportText.contains("route copy Container"))
+        XCTAssertTrue(summary.exportText.contains("route copy Shared VM"))
         XCTAssertTrue(summary.exportText.contains("mutation succeeded"))
     }
 
@@ -711,99 +711,6 @@ final class CinematicDiagnosticsTests: XCTestCase {
         XCTAssertTrue(summary.exportText.contains("hold held"))
         XCTAssertTrue(summary.exportText.contains("filtered-hold"))
         XCTAssertTrue(summary.exportText.contains("native-fallback"))
-    }
-
-    func testRunRecapSavedArtifactTourRuntimeRouteFallbackAttentionTargetIsBoundedAndSanitized() throws {
-        let secret = "secret-runtime-route-value"
-        let repoPath = "/Users/example/project/.devcontainer/devcontainer.json"
-        let history = diagnosticsRuntimeRouteHistory(
-            seed: "fallback-attention",
-            runtimeRouteSection: diagnosticsRuntimeRouteSection(
-                effectiveRoute: "native-macos",
-                effectiveRouteTitle: "Native macOS",
-                fallbackState: "fallback",
-                supportClassification: "feature-based",
-                phase: "Develop (\(repoPath))",
-                extraLines: [
-                    "- Runtime audit: \(repoPath)-\(secret)",
-                    "- Visible support tokens: arg:TOKEN, feature:node",
-                    "- Image label: \(secret)",
-                    "- Workspace label: \(repoPath)"
-                ]
-            )
-        )
-        let selected = try XCTUnwrap(history.entries.first)
-        let report = makeReport(
-            CinematicDiagnosticsInput(
-                repoName: "Compass",
-                phase: "Developing",
-                immediateTitle: "Inspect fallback tour route",
-                completedCount: 2,
-                latestEvent: nil,
-                languageProfile: languageProfile(primaryLanguage: .swift),
-                activityProfile: activityProfile(recentCommitCount: 1),
-                influenceSettings: CinematicInfluenceSettings(),
-                runRecapShareArtifactHistoryPlan: history,
-                runRecapShareArtifactSavedTourHoldEntryIdentifier: selected.identifier
-            )
-        )
-        let summary = CinematicDiagnosticsSummary(report: report)
-        let target = try XCTUnwrap(
-            summary.attentionSummary.targets.first {
-                $0.targetAnchorID == "diagnostics-row-run-recap-share-artifact-tour"
-            }
-        )
-
-        XCTAssertEqual(report.runRecapShareArtifactTour.runtimeRouteCueStateIdentifier, "native-fallback")
-        XCTAssertEqual(target.relatedGroupID, "repository-context")
-        XCTAssertEqual(target.relatedRowID, "run-recap-share-artifact-tour")
-        XCTAssertEqual(target.label, "Tour route fallback")
-        XCTAssertTrue(target.id.hasPrefix("run-recap-share-artifact-tour-route-native-fallback"))
-        XCTAssertEqual(target.visibleWarningIdentifiers.first, "run-recap-share-artifact-tour-runtime-route.native-fallback")
-        XCTAssertTrue(target.visibleWarningIdentifiers.contains { $0.contains(".cue-") })
-        XCTAssertTrue(target.visibleWarningIdentifiers.contains { $0.contains(".selected-") })
-        XCTAssertTrue(target.detail.contains("route Native fallback"))
-        XCTAssertTrue(target.detail.contains("support feature-based"))
-        XCTAssertTrue(target.detail.contains("selection held"))
-        XCTAssertTrue(target.detail.contains("hold held"))
-        XCTAssertTrue(target.detail.contains("selected \(selected.identifier)"))
-        XCTAssertLessThanOrEqual(
-            target.detail.count,
-            CinematicDiagnosticsSummary.attentionSummaryDetailMaxCharacters
-        )
-        XCTAssertLessThanOrEqual(
-            target.copyText.count,
-            CinematicDiagnosticsSummary.attentionTargetCopyMaxCharacters
-        )
-        XCTAssertTrue(target.copyText.contains("Route compact: Native fallback"))
-        XCTAssertTrue(target.copyText.contains("Route detail: route native fallback"))
-        XCTAssertTrue(target.copyText.contains("Selection source: held"))
-        XCTAssertTrue(target.copyText.contains("Hold state: held"))
-        XCTAssertTrue(target.copyText.contains("Selected artifact: \(selected.identifier)"))
-        XCTAssertTrue(target.copyText.contains("Related row: run-recap-share-artifact-tour"))
-        XCTAssertTrue(target.copyText.contains("Read-only: route cue snapshot only"))
-        XCTAssertTrue(summary.exportText.contains("Tour route fallback -> \(target.id)"))
-        XCTAssertTrue(summary.exportText.contains("anchor diagnostics-row-run-recap-share-artifact-tour"))
-        XCTAssertTrue(summary.exportText.contains("related run-recap-share-artifact-tour"))
-        XCTAssertTrue(summary.exportText.contains("run-recap-share-artifact-tour-runtime-route.native-fallback"))
-
-        var warningHistory = CinematicDiagnosticsWarningBundleHistory()
-        warningHistory.record(summary.attentionSummary)
-        let entry = try XCTUnwrap(warningHistory.entries.first)
-        XCTAssertTrue(entry.targetAnchors.contains("diagnostics-row-run-recap-share-artifact-tour"))
-        XCTAssertTrue(entry.relatedRowAnchors.contains("diagnostics-row-run-recap-share-artifact-tour"))
-        XCTAssertTrue(entry.warningIdentifiers.contains("run-recap-share-artifact-tour-runtime-route.native-fallback"))
-        XCTAssertTrue(warningHistory.rollup.copyText.contains("diagnostics-row-run-recap-share-artifact-tour"))
-        XCTAssertTrue(warningHistory.rollup.copyText.contains("run-recap-share-artifact-tour-runtime-route.native-fallback"))
-
-        for leaked in [secret, repoPath, "arg:TOKEN", "feature:node"] {
-            XCTAssertFalse(target.id.contains(leaked))
-            XCTAssertFalse(target.detail.contains(leaked))
-            XCTAssertFalse(target.copyText.contains(leaked))
-            XCTAssertFalse(summary.exportText.contains(leaked))
-            XCTAssertFalse(warningHistory.copyText.contains(leaked))
-            XCTAssertFalse(warningHistory.rollup.copyText.contains(leaked))
-        }
     }
 
     func testRunRecapSavedArtifactTourRuntimeRouteMissingCueAttentionTarget() throws {
@@ -849,65 +756,6 @@ final class CinematicDiagnosticsTests: XCTestCase {
         XCTAssertTrue(summary.exportText.contains("run-recap-share-artifact-tour-runtime-route.missing-cue"))
     }
 
-    func testRunRecapSavedArtifactTourRuntimeRouteAttentionIgnoresContainerNativeAndUnavailable() throws {
-        let cases: [(String, String?, String)] = [
-            (
-                "apple",
-                diagnosticsRuntimeRouteSection(
-                    effectiveRoute: "apple-container",
-                    effectiveRouteTitle: "Apple container",
-                    fallbackState: "direct",
-                    supportClassification: "image-routeable"
-                ),
-                "apple-container"
-            ),
-            (
-                "native",
-                diagnosticsRuntimeRouteSection(
-                    effectiveRoute: "native-macos",
-                    effectiveRouteTitle: "Native macOS",
-                    fallbackState: "direct",
-                    supportClassification: "not-inspected"
-                ),
-                "native"
-            ),
-            ("unavailable", nil, "missing-cue")
-        ]
-
-        for (seed, runtimeRouteSection, expectedRouteState) in cases {
-            let history = seed == "unavailable"
-                ? diagnosticsRuntimeRouteHistory(seed: seed, entries: [])
-                : diagnosticsRuntimeRouteHistory(seed: seed, runtimeRouteSection: runtimeRouteSection)
-            let report = makeReport(
-                CinematicDiagnosticsInput(
-                    repoName: "Compass",
-                    phase: "Developing",
-                    immediateTitle: "Ignore quiet tour route state",
-                    completedCount: 1,
-                    latestEvent: nil,
-                    languageProfile: languageProfile(primaryLanguage: .swift),
-                    activityProfile: activityProfile(recentCommitCount: 1),
-                    influenceSettings: CinematicInfluenceSettings(),
-                    runRecapShareArtifactHistoryPlan: history,
-                    runRecapShareArtifactSavedTourHoldEntryIdentifier: history.entries.first?.identifier
-                )
-            )
-            let summary = CinematicDiagnosticsSummary(report: report)
-
-            XCTAssertEqual(report.runRecapShareArtifactTour.runtimeRouteCueStateIdentifier, expectedRouteState, seed)
-            XCTAssertFalse(
-                summary.attentionSummary.targets.contains {
-                    $0.targetAnchorID == "diagnostics-row-run-recap-share-artifact-tour"
-                },
-                seed
-            )
-            XCTAssertFalse(
-                summary.exportText.contains("run-recap-share-artifact-tour-runtime-route.\(expectedRouteState)"),
-                seed
-            )
-        }
-    }
-
     func testRunRecapSavedArtifactTourMutationCueDiagnosticsAreBoundedAndSanitized() throws {
         let secret = "secret-mutation-diagnostics-value"
         let repoPath = "/Users/example/project/.devcontainer/devcontainer.json"
@@ -926,13 +774,13 @@ final class CinematicDiagnosticsTests: XCTestCase {
 
             - Mutation audit: mutation-audit \(repoPath) \(secret)
             - Status: failed (Failed)
-            - Route: apple-container-route (Apple container)
+            - Route: shared-vm-route (Shared VM)
             - Language: swift (Swift)
             - Seed command: swift test \(repoPath) \(containerToolPath) containerEnv=TOKEN=\(secret) build-arg=API_KEY=\(secret)
             - Exit code: exit 65
             - Duration: 2.5 s
             - Runtime route audit: runtime \(containerToolPath) \(composePath)
-            - Runtime route correlation: route-diverged|fallback-not-required|mutation:apple-container-route|runtime:native-macos|\(secret)
+            - Runtime route correlation: route-diverged|fallback-not-required|mutation:shared-vm-route|runtime:native-macos|\(secret)
             - Output tail: raw failure \(repoPath) \(containerToolPath) \(composePath) .devcontainer/devcontainer.json \(secret)
             """
         )
@@ -1065,8 +913,8 @@ final class CinematicDiagnosticsTests: XCTestCase {
         let history = diagnosticsRuntimeRouteHistory(
             seed: "warning-pulse-attention",
             runtimeRouteSection: diagnosticsRuntimeRouteSection(
-                effectiveRoute: "apple-container",
-                effectiveRouteTitle: "Apple container",
+                effectiveRoute: "shared-vm",
+                effectiveRouteTitle: "Shared VM",
                 fallbackState: "direct",
                 supportClassification: "image-routeable"
             ),
@@ -1195,8 +1043,8 @@ final class CinematicDiagnosticsTests: XCTestCase {
             let history = diagnosticsRuntimeRouteHistory(
                 seed: "warning-pulse-\(testCase.seed)",
                 runtimeRouteSection: diagnosticsRuntimeRouteSection(
-                    effectiveRoute: "apple-container",
-                    effectiveRouteTitle: "Apple container",
+                    effectiveRoute: "shared-vm",
+                    effectiveRouteTitle: "Shared VM",
                     fallbackState: "direct",
                     supportClassification: "image-routeable"
                 ),
@@ -1246,13 +1094,13 @@ final class CinematicDiagnosticsTests: XCTestCase {
 
                 - Mutation audit: quiet-succeeded
                 - Status: succeeded (Succeeded)
-                - Route: apple-container-route (Apple container)
+                - Route: shared-vm-route (Shared VM)
                 - Language: swift (Swift)
                 - Seed command: swift test
                 - Exit code: exit 0
                 - Duration: 1.1 s
                 - Runtime route audit: quiet-runtime
-                - Runtime route correlation: route-aligned|fallback-not-required|mutation:apple-container-route|runtime:apple-container
+                - Runtime route correlation: route-aligned|fallback-not-required|mutation:shared-vm-route|runtime:shared-vm
                 - Output tail: mutation ok
                 """,
                 "succeeded",
@@ -5543,7 +5391,7 @@ final class CinematicDiagnosticsTests: XCTestCase {
         supportClassification: String,
         phase: String = "Develop (develop)",
         attempt: String = "1",
-        selectedPreference: CodexExecutionEnvironmentPreference = .devcontainerPreferred,
+        selectedPreference: CodexExecutionEnvironmentPreference = .sharedVM,
         fallbackReason: String = "none",
         extraLines: [String] = []
     ) -> String {
