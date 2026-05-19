@@ -190,7 +190,7 @@ final class CodexExecutorLaunchRouteTests: XCTestCase {
     func testBuildDevcontainerConfigurationBuildsThenUsesContainerCodex() async throws {
         let repoURL = try makeTemporaryDirectory(prefix: "CodexExecutorBuildRoute")
         try write(
-            #"{"build":{"dockerfile":"Dockerfile","context":"..","target":"develop"}}"#,
+            #"{"build":{"dockerfile":"Dockerfile","context":"..","target":"develop","args":{"ZETA":"last"},"buildArgs":{"ALPHA":"first"}}}"#,
             to: devcontainerURL(in: repoURL)
         )
         let launchPlan = CodexExecutionLaunchPlan.plan(
@@ -211,7 +211,19 @@ final class CodexExecutorLaunchRouteTests: XCTestCase {
             invocationRunner: { invocation, _, _, _, _ in
                 processOrder.append("build")
                 XCTAssertEqual(invocation.executable, "/usr/local/bin/container")
-                XCTAssertEqual(invocation.arguments, buildConfiguration.buildArguments)
+                XCTAssertEqual(invocation.arguments, [
+                    "build",
+                    "--tag", buildConfiguration.localImageTag,
+                    "--file", repoURL
+                        .appending(path: ".devcontainer", directoryHint: .isDirectory)
+                        .appending(path: "Dockerfile")
+                        .standardizedFileURL
+                        .path,
+                    "--target", "develop",
+                    "--build-arg", "ALPHA=first",
+                    "--build-arg", "ZETA=last",
+                    repoURL.standardizedFileURL.path
+                ])
                 return ProcessResult(exitCode: 0, stdout: "", stderr: "")
             }
         )
@@ -244,8 +256,9 @@ final class CodexExecutorLaunchRouteTests: XCTestCase {
     func testBuildDevcontainerFailureFallsBackToNativeCodexWithBoundedFeedback() async throws {
         let repoURL = try makeTemporaryDirectory(prefix: "CodexExecutorBuildFailure")
         let secretValue = "secret-build-arg-value"
+        let buildArgSecretValue = "secret-build-arg-feedback-value"
         try write(
-            #"{"build":{"dockerfile":"Dockerfile","context":"..","target":"develop"},"containerEnv":{"TOKEN":"\#(secretValue)"}}"#,
+            #"{"build":{"dockerfile":"Dockerfile","context":"..","target":"develop","args":{"BUILD_TOKEN":"\#(buildArgSecretValue)"}},"containerEnv":{"TOKEN":"\#(secretValue)"}}"#,
             to: devcontainerURL(in: repoURL)
         )
         let launchPlan = CodexExecutionLaunchPlan.plan(
@@ -291,6 +304,7 @@ final class CodexExecutorLaunchRouteTests: XCTestCase {
         XCTAssertTrue(feedbackText.contains("fallback Apple container build failed for local image \(buildConfiguration.localImageTag) (exit 70)."))
         XCTAssertFalse(feedbackText.contains(repoURL.standardizedFileURL.path))
         XCTAssertFalse(feedbackText.contains(secretValue))
+        XCTAssertFalse(feedbackText.contains(buildArgSecretValue))
         XCTAssertFalse(feedbackText.contains("secret failure"))
     }
 

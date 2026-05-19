@@ -140,7 +140,7 @@ final class ProcessRunnerExecutionRouteTests: XCTestCase {
     func testBuildDevcontainerShellRouteBuildsThenRunsLocalImage() async throws {
         let repoURL = try makeTemporaryDirectory(prefix: "ProcessRunnerBuildRoute")
         try write(
-            #"{"build":{"dockerfile":"Dockerfile","context":"..","target":"verify"}}"#,
+            #"{"build":{"dockerfile":"Dockerfile","context":"..","target":"verify","args":{"ZETA":"last","ALPHA":"first"}}}"#,
             to: devcontainerURL(in: repoURL)
         )
         let launchPlan = CodexExecutionLaunchPlan.plan(
@@ -167,6 +167,19 @@ final class ProcessRunnerExecutionRouteTests: XCTestCase {
         XCTAssertTrue(launchPlan.isContainerRoute)
         XCTAssertEqual(launchPlan.devcontainerSupportReport?.classification, .buildBased)
         XCTAssertEqual(buildInvocation.executable, "/usr/local/bin/container")
+        XCTAssertEqual(buildConfiguration.buildArguments, [
+            "build",
+            "--tag", buildConfiguration.localImageTag,
+            "--file", repoURL
+                .appending(path: ".devcontainer", directoryHint: .isDirectory)
+                .appending(path: "Dockerfile")
+                .standardizedFileURL
+                .path,
+            "--target", "verify",
+            "--build-arg", "ALPHA=first",
+            "--build-arg", "ZETA=last",
+            repoURL.standardizedFileURL.path
+        ])
         XCTAssertEqual(buildInvocation.arguments, buildConfiguration.buildArguments)
         XCTAssertEqual(shellInvocation.executable, "/usr/local/bin/container")
         XCTAssertEqual(shellInvocation.arguments, [

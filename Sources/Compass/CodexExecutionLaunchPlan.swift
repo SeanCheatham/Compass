@@ -87,6 +87,23 @@ struct CodexDevcontainerBuildDescriptor: Equatable {
     }
 }
 
+struct CodexDevcontainerBuildArgument: Equatable {
+    static let nameLimit = CodexDevcontainerBuildDescriptor.buildArgNameLimit
+    static let valueLimit = CodexDevcontainerBuildDescriptor.buildArgValueLimit
+
+    var name: String
+    var value: String
+
+    init(name: String, value: String) {
+        self.name = String(name.prefix(Self.nameLimit))
+        self.value = String(value.prefix(Self.valueLimit))
+    }
+
+    var argumentValue: String {
+        "\(name)=\(value)"
+    }
+}
+
 struct CodexDevcontainerBuildConfiguration: Equatable {
     static let localImageName = "compass-devcontainer"
 
@@ -95,6 +112,7 @@ struct CodexDevcontainerBuildConfiguration: Equatable {
     var dockerfileURL: URL
     var contextURL: URL
     var target: String?
+    var buildArgs: [CodexDevcontainerBuildArgument]
     var containerEnv: [CodexDevcontainerEnvironmentVariable]
 
     init(
@@ -103,6 +121,7 @@ struct CodexDevcontainerBuildConfiguration: Equatable {
         dockerfileURL: URL,
         contextURL: URL,
         target: String? = nil,
+        buildArgs: [CodexDevcontainerBuildArgument] = [],
         containerEnv: [CodexDevcontainerEnvironmentVariable] = []
     ) {
         self.configURL = configURL.standardizedFileURL
@@ -113,16 +132,23 @@ struct CodexDevcontainerBuildConfiguration: Equatable {
             target,
             limit: CodexDevcontainerBuildDescriptor.labelLimit
         )
+        self.buildArgs = buildArgs.sorted { $0.name < $1.name }
         self.containerEnv = containerEnv.sorted { $0.name < $1.name }
     }
 
     var localImageTag: String {
-        let fingerprint = [
+        let buildArgFingerprint = buildArgs.flatMap {
+            [
+                "arg-name:\($0.name.utf8.count):\($0.name)",
+                "arg-value:\($0.value.utf8.count):\($0.value)"
+            ]
+        }
+        let fingerprint = ([
             repoURL.path,
             relativePath(for: dockerfileURL) ?? dockerfileURL.path,
             relativePath(for: contextURL) ?? contextURL.path,
             target ?? ""
-        ].joined(separator: "\n")
+        ] + buildArgFingerprint).joined(separator: "\n")
         return "\(Self.localImageName):\(Self.stableHexDigest(fingerprint))"
     }
 
@@ -134,6 +160,9 @@ struct CodexDevcontainerBuildConfiguration: Equatable {
         ]
         if let target {
             arguments += ["--target", target]
+        }
+        for buildArg in buildArgs {
+            arguments += ["--build-arg", buildArg.argumentValue]
         }
         arguments.append(contextURL.path)
         return arguments
@@ -658,7 +687,7 @@ struct CodexDevcontainerSupportReport: Equatable {
     }
 
     private enum BuildArgsParseResult {
-        case success(names: [String], totalValueLength: Int)
+        case success(arguments: [CodexDevcontainerBuildArgument], totalValueLength: Int)
         case failure(String)
     }
 
@@ -736,7 +765,7 @@ struct CodexDevcontainerSupportReport: Equatable {
         var targetLabel: String?
         var target: String?
         var hasBuildArgs = false
-        var buildArgNames: [String] = []
+        var buildArgs: [CodexDevcontainerBuildArgument] = []
         var buildArgTotalValueLength = 0
         var hasUnsupportedBuildComponent = false
         var extraSupportTokens: [String] = []
@@ -857,14 +886,13 @@ struct CodexDevcontainerSupportReport: Equatable {
 
                 for key in ["args", "buildArgs"] where buildObject[key] != nil {
                     hasBuildArgs = true
-                    hasUnsupportedBuildComponent = true
-                    switch parseBuildArgNames(
+                    switch parseBuildArgs(
                         buildObject[key],
-                        existingNames: buildArgNames,
+                        existingArguments: buildArgs,
                         totalValueLength: buildArgTotalValueLength
                     ) {
-                    case let .success(names, totalValueLength):
-                        buildArgNames = names
+                    case let .success(arguments, totalValueLength):
+                        buildArgs = arguments
                         buildArgTotalValueLength = totalValueLength
                     case let .failure(reason):
                         return .failure(reason)
@@ -887,7 +915,7 @@ struct CodexDevcontainerSupportReport: Equatable {
             contextLabel: contextLabel,
             targetLabel: targetLabel,
             hasBuildArgs: hasBuildArgs,
-            buildArgNames: buildArgNames
+            buildArgNames: buildArgs.map(\.name)
         )
         let configuration: CodexDevcontainerBuildConfiguration?
         if let dockerfileURL,
@@ -899,6 +927,7 @@ struct CodexDevcontainerSupportReport: Equatable {
                 dockerfileURL: dockerfileURL,
                 contextURL: contextURL,
                 target: target,
+                buildArgs: buildArgs,
                 containerEnv: containerEnv
             )
         } else {
@@ -976,24 +1005,29 @@ struct CodexDevcontainerSupportReport: Equatable {
         return .success(bounded)
     }
 
-    private static func parseBuildArgNames(
+    private static func parseBuildArgs(
         _ rawValue: Any?,
-        existingNames: [String],
+        existingArguments: [CodexDevcontainerBuildArgument],
         totalValueLength: Int
     ) -> BuildArgsParseResult {
         guard let dictionary = rawValue as? [String: Any] else {
             return .failure("build args must be an object with string values.")
         }
 
-        var names = Set(existingNames)
+        var arguments = existingArguments
+        var names = Set(existingArguments.map(\.name))
         var runningValueLength = totalValueLength
-        guard names.count + dictionary.count <= CodexDevcontainerBuildDescriptor.buildArgCountLimit else {
+        guard arguments.count + dictionary.count <= CodexDevcontainerBuildDescriptor.buildArgCountLimit else {
             return .failure(
                 "build args may include at most \(CodexDevcontainerBuildDescriptor.buildArgCountLimit) variables."
             )
         }
 
         for name in dictionary.keys.sorted() {
+            guard !names.contains(name) else {
+                return .failure("build args contain duplicate names.")
+            }
+
             guard isSafeBuildArgName(name) else {
                 return .failure("build args contain an unsafe name.")
             }
@@ -1020,9 +1054,10 @@ struct CodexDevcontainerSupportReport: Equatable {
             }
 
             names.insert(name)
+            arguments.append(CodexDevcontainerBuildArgument(name: name, value: value))
         }
 
-        return .success(names: names.sorted(), totalValueLength: runningValueLength)
+        return .success(arguments: arguments.sorted { $0.name < $1.name }, totalValueLength: runningValueLength)
     }
 
     private static func supportTokens(

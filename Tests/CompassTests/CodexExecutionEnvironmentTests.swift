@@ -77,8 +77,9 @@ final class CodexExecutionEnvironmentTests: XCTestCase {
 
     func testBuildRouteableDiscoveryAndPreflightExposeLocalImageWithoutPaths() throws {
         let repoURL = try makeTemporaryDirectory(prefix: "CodexExecutionEnvironmentBuildRoute")
+        let secretBuildArg = "secret-build-arg-menu-value"
         try write(
-            #"{"build":{"dockerfile":"Dockerfile","context":"..","target":"runtime"}}"#,
+            #"{"build":{"dockerfile":"Dockerfile","context":"..","target":"runtime","args":{"TOKEN":"\#(secretBuildArg)"}}}"#,
             to: repoURL
                 .appending(path: ".devcontainer", directoryHint: .isDirectory)
                 .appending(path: "devcontainer.json")
@@ -107,7 +108,10 @@ final class CodexExecutionEnvironmentTests: XCTestCase {
         XCTAssertTrue(diagnosticsText.contains("build-based"))
         XCTAssertTrue(diagnosticsText.contains("local Apple container image"))
         XCTAssertTrue(diagnosticsText.contains(buildConfiguration.localImageTag))
+        XCTAssertTrue(diagnosticsText.contains("buildArgs:1"))
+        XCTAssertTrue(diagnosticsText.contains("arg:TOKEN"))
         XCTAssertFalse(diagnosticsText.contains(repoURL.standardizedFileURL.path))
+        XCTAssertFalse(diagnosticsText.contains(secretBuildArg))
     }
 
     func testContainerEnvDiagnosticsExposeNamesWithoutValues() throws {

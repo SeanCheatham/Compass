@@ -103,6 +103,26 @@ final class CodexExecutionLaunchPlanTests: XCTestCase {
         XCTAssertNil(plan.fallbackReason)
     }
 
+    func testNativePreferenceStaysNativeForRouteableBuildArgsConfig() throws {
+        let repoURL = try makeTemporaryDirectory(prefix: "CodexExecutionLaunchPlanNativeBuildArgs")
+        try write(
+            #"{"build":{"dockerfile":"Dockerfile","context":"..","args":{"SAFE_ARG":"value"}}}"#,
+            to: devcontainerURL(in: repoURL)
+        )
+
+        let plan = CodexExecutionLaunchPlan.plan(
+            repoURL: repoURL,
+            preference: .nativeMacOS,
+            containerToolResolver: { _ in "/usr/local/bin/container" }
+        )
+
+        XCTAssertFalse(plan.isContainerRoute)
+        XCTAssertEqual(plan.effectiveRouteTitle, "Native macOS")
+        XCTAssertEqual(plan.workspaceLabel, "host")
+        XCTAssertNil(plan.fallbackReason)
+        XCTAssertNotNil(plan.devcontainerSupportReport?.buildConfiguration)
+    }
+
     func testMissingConfigFallsBackToNativeWithBoundedReason() throws {
         let repoURL = try makeTemporaryDirectory(prefix: "CodexExecutionLaunchPlanMissing")
 
@@ -293,7 +313,7 @@ final class CodexExecutionLaunchPlanTests: XCTestCase {
         XCTAssertEqual(route.buildConfiguration, buildConfiguration)
     }
 
-    func testBuildObjectExposesSortedBuildArgNamesWithoutValues() throws {
+    func testBuildObjectRoutesWithSortedBuildArgsWithoutDiagnosticValues() throws {
         let repoURL = try makeTemporaryDirectory(prefix: "CodexExecutionLaunchPlanBuildObject")
         let secretValue = "secret-build-arg-value"
         let secondSecretValue = "second-secret-build-value"
@@ -309,20 +329,33 @@ final class CodexExecutionLaunchPlanTests: XCTestCase {
         )
         let report = try XCTUnwrap(plan.devcontainerSupportReport)
         let descriptor = try XCTUnwrap(report.buildDescriptor)
+        let buildConfiguration = try XCTUnwrap(report.buildConfiguration)
         let diagnosticsText = [
             report.supportSummary,
             plan.preflightSummary(phase: "Develop"),
             plan.routeDetail()
         ].joined(separator: " ")
 
-        XCTAssertFalse(plan.isContainerRoute)
+        XCTAssertTrue(plan.isContainerRoute)
         XCTAssertNil(plan.devcontainer)
         XCTAssertEqual(report.classification, .buildBased)
         XCTAssertEqual(descriptor.dockerfileLabel, "Dockerfile.runtime")
         XCTAssertEqual(descriptor.contextLabel, "repo-root")
         XCTAssertEqual(descriptor.targetLabel, "runtime")
-        XCTAssertNil(report.buildConfiguration)
         XCTAssertEqual(descriptor.buildArgNames, ["ALPHA", "BETA", "ZETA"])
+        XCTAssertEqual(buildConfiguration.buildArgs.map(\.name), ["ALPHA", "BETA", "ZETA"])
+        XCTAssertEqual(buildConfiguration.buildArgs.map(\.value), ["plain", secondSecretValue, secretValue])
+        XCTAssertEqual(plan.imageLabel, buildConfiguration.localImageTag)
+        XCTAssertEqual(buildConfiguration.buildArguments, [
+            "build",
+            "--tag", buildConfiguration.localImageTag,
+            "--file", repoRelativeURL(".devcontainer/docker/Dockerfile.runtime", in: repoURL).path,
+            "--target", "runtime",
+            "--build-arg", "ALPHA=plain",
+            "--build-arg", "BETA=\(secondSecretValue)",
+            "--build-arg", "ZETA=\(secretValue)",
+            repoURL.standardizedFileURL.path
+        ])
         XCTAssertEqual(report.supportTokens, [
             "build",
             "dockerfile:Dockerfile.runtime",
@@ -339,6 +372,19 @@ final class CodexExecutionLaunchPlanTests: XCTestCase {
         XCTAssertTrue(diagnosticsText.contains("arg:ZETA"))
         XCTAssertFalse(diagnosticsText.contains(secretValue))
         XCTAssertFalse(diagnosticsText.contains(secondSecretValue))
+
+        try write(
+            #"{"build":{"dockerfile":"docker/Dockerfile.runtime","context":"..","target":"runtime","args":{"ZETA":"changed-secret-build-arg-value","ALPHA":"plain"},"buildArgs":{"BETA":"\#(secondSecretValue)"}}}"#,
+            to: devcontainerURL(in: repoURL)
+        )
+        let changedValuePlan = CodexExecutionLaunchPlan.plan(
+            repoURL: repoURL,
+            preference: .devcontainerPreferred,
+            containerToolResolver: { _ in "/usr/local/bin/container" }
+        )
+        let changedBuildConfiguration = try XCTUnwrap(changedValuePlan.devcontainerSupportReport?.buildConfiguration)
+        XCTAssertNotEqual(buildConfiguration.localImageTag, changedBuildConfiguration.localImageTag)
+        XCTAssertEqual(changedBuildConfiguration.buildArgs.map(\.name), ["ALPHA", "BETA", "ZETA"])
     }
 
     func testBuildDescriptorTokensAreDeterministicallyOrderedAndBounded() throws {
@@ -373,6 +419,10 @@ final class CodexExecutionLaunchPlanTests: XCTestCase {
     }
 
     func testMalformedBuildArgsFallBackWithoutLeakingValues() throws {
+        let oversizedValue = "secret-build-arg-" + String(
+            repeating: "x",
+            count: CodexDevcontainerBuildDescriptor.buildArgValueLimit
+        )
         let cases: [(prefix: String, json: String, reasonToken: String, leakedValue: String)] = [
             (
                 "CodexExecutionLaunchPlanBuildArgsArray",
@@ -391,6 +441,18 @@ final class CodexExecutionLaunchPlanTests: XCTestCase {
                 #"{"build":{"dockerfile":"Dockerfile","args":{"BAD-NAME":"secret-value"}}}"#,
                 "build args contain an unsafe name",
                 "secret-value"
+            ),
+            (
+                "CodexExecutionLaunchPlanBuildArgsDuplicate",
+                #"{"build":{"dockerfile":"Dockerfile","args":{"SAFE_ARG":"secret-one"},"buildArgs":{"SAFE_ARG":"secret-two"}}}"#,
+                "build args contain duplicate names",
+                "secret-two"
+            ),
+            (
+                "CodexExecutionLaunchPlanBuildArgsOversized",
+                #"{"build":{"dockerfile":"Dockerfile","args":{"SAFE_ARG":"\#(oversizedValue)"}}}"#,
+                "build arg value exceeds",
+                "secret-build-arg"
             )
         ]
 
@@ -751,7 +813,7 @@ final class CodexExecutionLaunchPlanTests: XCTestCase {
     func testBuildConfigFallsBackToNativeWhenContainerToolIsUnavailable() throws {
         let repoURL = try makeTemporaryDirectory(prefix: "CodexExecutionLaunchPlanBuildNoTool")
         try write(
-            #"{"build":{"dockerfile":"Dockerfile","context":"..","target":"runtime"}}"#,
+            #"{"build":{"dockerfile":"Dockerfile","context":"..","target":"runtime","args":{"SAFE_ARG":"value"}}}"#,
             to: devcontainerURL(in: repoURL)
         )
 
@@ -765,6 +827,7 @@ final class CodexExecutionLaunchPlanTests: XCTestCase {
         XCTAssertEqual(plan.fallbackReason, "Apple container CLI is unavailable.")
         XCTAssertEqual(plan.devcontainerSupportReport?.classification, .buildBased)
         XCTAssertNotNil(plan.devcontainerSupportReport?.buildConfiguration)
+        XCTAssertEqual(plan.devcontainerSupportReport?.buildConfiguration?.buildArgs.map(\.name), ["SAFE_ARG"])
     }
 
     func testWorkspaceOutsideMountedWorkspaceFallsBackToNative() throws {
