@@ -203,10 +203,11 @@ struct CodexExecutionEnvironment: Equatable {
     }
 
     var effectivePreference: CodexExecutionEnvironmentPreference {
-        .nativeMacOS
+        launchPlan().isContainerRoute ? .devcontainerPreferred : .nativeMacOS
     }
 
     var presentation: CodexExecutionEnvironmentPresentation {
+        let plan = launchPlan()
         switch preference {
         case .nativeMacOS:
             switch devcontainerDiscovery.status {
@@ -234,19 +235,29 @@ struct CodexExecutionEnvironment: Equatable {
                 )
             }
         case .devcontainerPreferred:
+            if plan.isContainerRoute {
+                return CodexExecutionEnvironmentPresentation(
+                    title: "Dev Container Preferred",
+                    status: "Running Codex through Apple container for the detected image-based devcontainer.",
+                    detail: plan.routeDetail(),
+                    systemImage: preference.systemImage
+                )
+            }
+
             switch devcontainerDiscovery.status {
             case .ready:
                 return CodexExecutionEnvironmentPresentation(
                     title: "Dev Container Preferred",
-                    status: "Devcontainer found and recommended. Compass still launches Codex on native macOS in this increment.",
-                    detail: devcontainerDiscovery.detail,
-                    systemImage: preference.systemImage
+                    status: "Dev Container Preferred selected, but Compass is falling back to native macOS.",
+                    detail: fallbackDetail(plan: plan, prefix: devcontainerDiscovery.detail),
+                    systemImage: "desktopcomputer.trianglebadge.exclamationmark",
+                    isWarning: true
                 )
             case .missing:
                 return CodexExecutionEnvironmentPresentation(
                     title: "Dev Container Preferred",
                     status: "Dev Container Preferred selected, but no config was found; falling back to native macOS.",
-                    detail: devcontainerDiscovery.detail,
+                    detail: fallbackDetail(plan: plan, prefix: devcontainerDiscovery.detail),
                     systemImage: "desktopcomputer.trianglebadge.exclamationmark",
                     isWarning: true
                 )
@@ -254,7 +265,7 @@ struct CodexExecutionEnvironment: Equatable {
                 return CodexExecutionEnvironmentPresentation(
                     title: "Dev Container Preferred",
                     status: "Dev Container Preferred selected, but the config is malformed; falling back to native macOS.",
-                    detail: malformedDetail(prefix: devcontainerDiscovery.detail),
+                    detail: fallbackDetail(plan: plan, prefix: malformedDetail(prefix: devcontainerDiscovery.detail)),
                     systemImage: "desktopcomputer.trianglebadge.exclamationmark",
                     isWarning: true
                 )
@@ -263,22 +274,46 @@ struct CodexExecutionEnvironment: Equatable {
     }
 
     func launchPreflightSummary(phase: String, nativeExecutionURL: URL) -> String {
-        [
-            "\(phase) execution environment: selected \(preference.title)",
-            "effective \(effectivePreference.title)",
-            "native path \(nativeExecutionURL.standardizedFileURL.path)"
-        ].joined(separator: "; ")
+        launchPlan(repoURL: nativeExecutionURL).preflightSummary(phase: phase)
     }
 
     var launchPreflightDetail: String {
+        let plan = launchPlan()
         let presentation = presentation
-        return [presentation.status, presentation.detail]
+        return [presentation.status, presentation.detail, plan.routeDetail()]
             .filter { !$0.isEmpty }
             .joined(separator: " ")
     }
 
+    func launchPlan(
+        repoURL: URL? = nil,
+        fileManager: FileManager = .default,
+        containerToolResolver: (String) -> String? = CodexExecutionLaunchPlan.defaultContainerToolResolver
+    ) -> CodexExecutionLaunchPlan {
+        CodexExecutionLaunchPlan.plan(
+            repoURL: repoURL ?? inferredRepoURL,
+            preference: preference,
+            fileManager: fileManager,
+            containerToolResolver: containerToolResolver
+        )
+    }
+
     private func malformedDetail(prefix: String) -> String {
         [prefix, devcontainerDiscovery.reason.map { "Reason: \($0)" }]
+            .compactMap { $0 }
+            .filter { !$0.isEmpty }
+            .joined(separator: " ")
+    }
+
+    private var inferredRepoURL: URL {
+        devcontainerDiscovery.configURL
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .standardizedFileURL
+    }
+
+    private func fallbackDetail(plan: CodexExecutionLaunchPlan, prefix: String) -> String {
+        [prefix, plan.fallbackReason.map { "Fallback: \($0)" }]
             .compactMap { $0 }
             .filter { !$0.isEmpty }
             .joined(separator: " ")
@@ -321,11 +356,11 @@ struct CodexExecutionEnvironmentMenuItem: Identifiable, Equatable {
         case .devcontainerPreferred:
             switch discovery.status {
             case .ready:
-                return "Prefer the detected devcontainer for future container runs; Compass still runs on native macOS for now."
+                return "Prefer supported image-based devcontainers through Apple container; unsupported configs fall back to native macOS."
             case .missing:
                 return "Prefer devcontainers when .devcontainer/devcontainer.json exists; until then Compass runs on native macOS."
             case .malformed:
-                return "Prefer devcontainers after the config is fixed; Compass falls back to native macOS for now."
+                return "Prefer devcontainers after the config is fixed; Compass falls back to native macOS."
             }
         }
     }

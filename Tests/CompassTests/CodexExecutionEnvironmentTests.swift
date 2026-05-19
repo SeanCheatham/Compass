@@ -12,7 +12,7 @@ final class CodexExecutionEnvironmentTests: XCTestCase {
         temporaryDirectories.removeAll()
     }
 
-    func testDiscoveryReportsReadyDevcontainerConfigWithoutChangingEffectiveNativeExecution() throws {
+    func testDiscoveryReportsUnsupportedDevcontainerConfigWithNativeFallbackDiagnostics() throws {
         let repoURL = try makeTemporaryDirectory(prefix: "CodexExecutionEnvironmentReady")
         let configURL = repoURL
             .appending(path: ".devcontainer", directoryHint: .isDirectory)
@@ -29,15 +29,18 @@ final class CodexExecutionEnvironmentTests: XCTestCase {
         XCTAssertEqual(environment.devcontainerDiscovery.status, .ready)
         XCTAssertEqual(environment.devcontainerDiscovery.name, "Compass Dev")
         XCTAssertEqual(environment.devcontainerDiscovery.configURL, configURL.standardizedFileURL)
-        XCTAssertTrue(environment.presentation.status.contains("Devcontainer found"))
+        XCTAssertTrue(environment.presentation.status.contains("falling back to native macOS"))
         XCTAssertTrue(environment.presentation.status.contains("native macOS"))
-        XCTAssertFalse(environment.presentation.isWarning)
-        XCTAssertTrue(
-            environment.launchPreflightSummary(
-                phase: "Plan",
-                nativeExecutionURL: repoURL
-            ).contains("native path \(repoURL.standardizedFileURL.path)")
+        XCTAssertTrue(environment.presentation.isWarning)
+
+        let preflight = environment.launchPreflightSummary(
+            phase: "Plan",
+            nativeExecutionURL: repoURL
         )
+        XCTAssertTrue(preflight.contains("selected Dev Container Preferred"))
+        XCTAssertTrue(preflight.contains("effective route Native macOS"))
+        XCTAssertTrue(preflight.contains("fallback Only image-based devcontainer configs are supported."))
+        XCTAssertFalse(preflight.contains(repoURL.standardizedFileURL.path))
     }
 
     func testMissingDevcontainerPresentationFallsBackToNativeMacOS() throws {

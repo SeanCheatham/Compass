@@ -7,10 +7,47 @@ struct CodexRunConfiguration {
     var model: String?
     var schema: String
     var prompt: String
+    var launchPlan: CodexExecutionLaunchPlan?
+
+    init(
+        codexBinary: String,
+        repoURL: URL,
+        sandbox: String,
+        model: String?,
+        schema: String,
+        prompt: String,
+        launchPlan: CodexExecutionLaunchPlan? = nil
+    ) {
+        self.codexBinary = codexBinary
+        self.repoURL = repoURL.standardizedFileURL
+        self.sandbox = sandbox
+        self.model = model
+        self.schema = schema
+        self.prompt = prompt
+        self.launchPlan = launchPlan
+    }
+}
+
+struct CodexExecutorLaunchContext {
+    var invocation: CodexExecutionInvocation
+    var inputFile: URL
+    var outputFile: URL
+    var schemaFile: URL
+    var promptFile: URL
 }
 
 final class CodexExecutor {
+    typealias LaunchRunner = (
+        _ context: CodexExecutorLaunchContext,
+        _ onEvent: @escaping (LiveEvent) -> Void
+    ) async throws -> ProcessResult
+
     private var process: Process?
+    private let launchRunner: LaunchRunner?
+
+    init(launchRunner: LaunchRunner? = nil) {
+        self.launchRunner = launchRunner
+    }
 
     func cancel() {
         process?.terminate()
@@ -21,8 +58,11 @@ final class CodexExecutor {
         decode type: T.Type,
         onEvent: @escaping (LiveEvent) -> Void
     ) async throws -> T {
-        let tempDirectory = FileManager.default.temporaryDirectory
-            .appending(path: "Compass-\(UUID().uuidString)", directoryHint: .isDirectory)
+        let launchPlan = configuration.launchPlan ?? .native()
+        let tempDirectory = try Self.makeTemporaryDirectory(
+            route: launchPlan,
+            repoURL: configuration.repoURL
+        )
         try FileManager.default.createDirectory(at: tempDirectory, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: tempDirectory) }
 
@@ -34,12 +74,12 @@ final class CodexExecutor {
 
         var arguments = [
             "exec",
-            "--cd", configuration.repoURL.path,
+            "--cd", launchPlan.codexWorkingDirectoryPath(forHostURL: configuration.repoURL),
             "--sandbox", configuration.sandbox,
             "-c", "approval_policy=\"never\"",
             "--json",
-            "--output-schema", schemaURL.path,
-            "--output-last-message", outputURL.path
+            "--output-schema", launchPlan.commandPath(forHostURL: schemaURL),
+            "--output-last-message", launchPlan.commandPath(forHostURL: outputURL)
         ]
 
         if let model = configuration.model?.trimmingCharacters(in: .whitespacesAndNewlines),
@@ -49,13 +89,29 @@ final class CodexExecutor {
 
         arguments.append("-")
 
-        let result = try await runCodex(
-            binary: configuration.codexBinary,
+        let invocation = launchPlan.codexInvocation(
+            codexBinary: configuration.codexBinary,
             arguments: arguments,
-            workingDirectory: configuration.repoURL,
-            inputFile: promptURL,
-            onEvent: onEvent
+            hostWorkingDirectory: configuration.repoURL
         )
+        let context = CodexExecutorLaunchContext(
+            invocation: invocation,
+            inputFile: promptURL,
+            outputFile: outputURL,
+            schemaFile: schemaURL,
+            promptFile: promptURL
+        )
+
+        let result: ProcessResult
+        if let launchRunner {
+            result = try await launchRunner(context, onEvent)
+        } else {
+            result = try await runCodex(
+                invocation: invocation,
+                inputFile: promptURL,
+                onEvent: onEvent
+            )
+        }
 
         guard result.exitCode == 0 else {
             throw CodexRunError.nonZeroExit(
@@ -74,22 +130,15 @@ final class CodexExecutor {
     }
 
     private func runCodex(
-        binary: String,
-        arguments: [String],
-        workingDirectory: URL,
+        invocation: CodexExecutionInvocation,
         inputFile: URL,
         onEvent: @escaping (LiveEvent) -> Void
     ) async throws -> ProcessResult {
         try await withCheckedThrowingContinuation { continuation in
             let process = Process()
-            if binary.contains("/") {
-                process.executableURL = URL(fileURLWithPath: binary)
-                process.arguments = arguments
-            } else {
-                process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
-                process.arguments = [binary] + arguments
-            }
-            process.currentDirectoryURL = workingDirectory
+            process.executableURL = URL(fileURLWithPath: invocation.executable)
+            process.arguments = invocation.arguments
+            process.currentDirectoryURL = invocation.workingDirectory
             process.environment = Self.processEnvironment()
 
             let stdoutPipe = Pipe()
@@ -156,6 +205,20 @@ final class CodexExecutor {
             } catch {
                 finish(.failure(error))
             }
+        }
+    }
+
+    private static func makeTemporaryDirectory(
+        route: CodexExecutionLaunchPlan,
+        repoURL: URL
+    ) throws -> URL {
+        switch route.effectiveRoute {
+        case .nativeMacOS:
+            return FileManager.default.temporaryDirectory
+                .appending(path: "Compass-\(UUID().uuidString)", directoryHint: .isDirectory)
+        case .appleContainer:
+            return repoURL.standardizedFileURL
+                .appending(path: ".compass-codex-run-\(UUID().uuidString)", directoryHint: .isDirectory)
         }
     }
 

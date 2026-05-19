@@ -58,6 +58,14 @@ private final class TimeoutStore: @unchecked Sendable {
 }
 
 enum ProcessRunner {
+    typealias InvocationRunner = (
+        _ invocation: CodexExecutionInvocation,
+        _ input: String?,
+        _ timeout: TimeInterval?,
+        _ onStdout: ((String) -> Void)?,
+        _ onStderr: ((String) -> Void)?
+    ) async throws -> ProcessResult
+
     static func run(
         executable: String,
         arguments: [String],
@@ -141,6 +149,24 @@ enum ProcessRunner {
         }
     }
 
+    static func run(
+        invocation: CodexExecutionInvocation,
+        input: String? = nil,
+        timeout: TimeInterval? = nil,
+        onStdout: ((String) -> Void)? = nil,
+        onStderr: ((String) -> Void)? = nil
+    ) async throws -> ProcessResult {
+        try await run(
+            executable: invocation.executable,
+            arguments: invocation.arguments,
+            workingDirectory: invocation.workingDirectory,
+            input: input,
+            timeout: timeout,
+            onStdout: onStdout,
+            onStderr: onStderr
+        )
+    }
+
     static func runEnv(
         _ command: String,
         _ arguments: [String],
@@ -164,13 +190,19 @@ enum ProcessRunner {
     static func runShell(
         _ command: String,
         workingDirectory: URL,
-        timeout: TimeInterval? = nil
+        timeout: TimeInterval? = nil,
+        launchPlan: CodexExecutionLaunchPlan? = nil,
+        runner: InvocationRunner? = nil
     ) async throws -> ProcessResult {
-        try await run(
-            executable: "/bin/zsh",
-            arguments: ["-lc", command],
-            workingDirectory: workingDirectory,
-            timeout: timeout
+        let effectiveLaunchPlan = launchPlan ?? .native()
+        let invocation = effectiveLaunchPlan.shellInvocation(
+            command: command,
+            hostWorkingDirectory: workingDirectory
         )
+        if let runner {
+            return try await runner(invocation, nil, timeout, nil, nil)
+        }
+
+        return try await run(invocation: invocation, timeout: timeout)
     }
 }

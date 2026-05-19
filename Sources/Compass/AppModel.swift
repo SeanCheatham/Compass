@@ -1211,7 +1211,12 @@ extension CompassProject {
             )
             log("Saved Plan prompt: \(promptURL.path)", level: .info)
 
-            logExecutionEnvironmentPreflight(phase: "Plan", nativeExecutionURL: workspace.repoURL)
+            let launchPlan = codexLaunchPlan(for: workspace.repoURL)
+            logExecutionEnvironmentPreflight(
+                phase: "Plan",
+                nativeExecutionURL: workspace.repoURL,
+                launchPlan: launchPlan
+            )
             log("Plan: launching codex exec.", level: .info)
             let codex = CodexExecutor()
             executor = codex
@@ -1222,7 +1227,8 @@ extension CompassProject {
                     sandbox: "read-only",
                     model: modelForPhase(envKey: "COMPASS_CODEX_PLAN_MODEL", modelOverride: modelOverride),
                     schema: Prompts.planSchema,
-                    prompt: prompt
+                    prompt: prompt,
+                    launchPlan: launchPlan
                 ),
                 decode: PlanRunResult.self,
                 onEvent: { [weak self] event in
@@ -1397,7 +1403,12 @@ extension CompassProject {
                     sandboxed: devWorkspace.sandboxed
                 )
 
-                logExecutionEnvironmentPreflight(phase: "Develop", nativeExecutionURL: devWorkspace.repoURL)
+                let launchPlan = codexLaunchPlan(for: devWorkspace.repoURL)
+                logExecutionEnvironmentPreflight(
+                    phase: "Develop",
+                    nativeExecutionURL: devWorkspace.repoURL,
+                    launchPlan: launchPlan
+                )
                 log("Develop: launching codex exec (attempt \(attempt)/\(maxDevelopAttempts)).", level: .info)
                 let codex = CodexExecutor()
                 executor = codex
@@ -1408,7 +1419,8 @@ extension CompassProject {
                         sandbox: "danger-full-access",
                         model: modelForPhase(envKey: "COMPASS_CODEX_DEV_MODEL", modelOverride: modelOverride),
                         schema: Prompts.developSchema,
-                        prompt: prompt
+                        prompt: prompt,
+                        launchPlan: launchPlan
                     ),
                     decode: DevelopSummary.self,
                     onEvent: { [weak self] event in
@@ -1425,7 +1437,8 @@ extension CompassProject {
                 let post = try await runPostChecks(
                     next: next,
                     summary: summary,
-                    workingDirectory: devWorkspace.repoURL
+                    workingDirectory: devWorkspace.repoURL,
+                    launchPlan: launchPlan
                 )
                 finalIssues = post.displayIssues
                 finalVerifyOutput = post.verifyOutput
@@ -1558,20 +1571,32 @@ extension CompassProject {
         )
     }
 
-    private func logExecutionEnvironmentPreflight(phase: String, nativeExecutionURL: URL) {
+    private func codexLaunchPlan(for nativeExecutionURL: URL) -> CodexExecutionLaunchPlan {
+        CodexExecutionLaunchPlan.plan(
+            repoURL: nativeExecutionURL,
+            preference: codexExecutionEnvironmentPreference
+        )
+    }
+
+    private func logExecutionEnvironmentPreflight(
+        phase: String,
+        nativeExecutionURL: URL,
+        launchPlan: CodexExecutionLaunchPlan? = nil
+    ) {
         let environment = CodexExecutionEnvironment.discover(
             repoURL: nativeExecutionURL,
             preference: codexExecutionEnvironmentPreference
         )
+        let effectiveLaunchPlan = launchPlan ?? environment.launchPlan(repoURL: nativeExecutionURL)
         log(
-            environment.launchPreflightSummary(
-                phase: phase,
-                nativeExecutionURL: nativeExecutionURL
-            ),
+            effectiveLaunchPlan.preflightSummary(phase: phase),
             level: .info
         )
         let presentation = environment.presentation
-        log(environment.launchPreflightDetail, level: presentation.isWarning ? .warning : .info)
+        let detail = [presentation.status, presentation.detail, effectiveLaunchPlan.routeDetail()]
+            .filter { !$0.isEmpty }
+            .joined(separator: " ")
+        log(detail, level: presentation.isWarning || effectiveLaunchPlan.fallbackReason != nil ? .warning : .info)
     }
 
     private func resolveGitRoot(from url: URL) async throws -> URL {
@@ -1658,6 +1683,12 @@ extension CompassProject {
             iteration: iteration
         )
 
+        let launchPlan = codexLaunchPlan(for: workspace.repoURL)
+        logExecutionEnvironmentPreflight(
+            phase: "Reflect",
+            nativeExecutionURL: workspace.repoURL,
+            launchPlan: launchPlan
+        )
         log("Reflect: launching codex exec.", level: .info)
         let codex = CodexExecutor()
         executor = codex
@@ -1668,7 +1699,8 @@ extension CompassProject {
                 sandbox: "read-only",
                 model: modelForPhase(envKey: "COMPASS_CODEX_REFLECT_MODEL", modelOverride: modelOverride),
                 schema: Prompts.reflectSchema,
-                prompt: prompt
+                prompt: prompt,
+                launchPlan: launchPlan
             ),
             decode: ReflectSummary.self,
             onEvent: { [weak self] event in
@@ -1720,7 +1752,8 @@ extension CompassProject {
     private func runPostChecks(
         next: PlanNext,
         summary: DevelopSummary,
-        workingDirectory: URL
+        workingDirectory: URL,
+        launchPlan: CodexExecutionLaunchPlan
     ) async throws -> PostCheckResult {
         var retryIssues: [String] = []
         var displayIssues: [String] = []
@@ -1746,12 +1779,18 @@ extension CompassProject {
         } else {
             phase = .verifying
             let timeoutMs = verifyTimeoutMs(for: next)
+            logExecutionEnvironmentPreflight(
+                phase: "Verify",
+                nativeExecutionURL: workingDirectory,
+                launchPlan: launchPlan
+            )
             log("Post-check: running verify command `\(next.verify)` (timeout \(timeoutMs)ms).", level: .info)
             feedback(.verifyStarted)
             let verify = try await ProcessRunner.runShell(
                 next.verify,
                 workingDirectory: workingDirectory,
-                timeout: TimeInterval(timeoutMs) / 1000
+                timeout: TimeInterval(timeoutMs) / 1000,
+                launchPlan: launchPlan
             )
             if verify.exitCode == 0 {
                 log("Verify passed.", level: .success)
