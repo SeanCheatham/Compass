@@ -2121,6 +2121,58 @@ struct CinematicRunRecapShareArtifactSubsetExportPlan: Equatable, Identifiable {
     }
 }
 
+struct CinematicRunRecapShareArtifactWarningPulseQuickExportPlan: Equatable, Identifiable {
+    static let identifierMaxCharacters = CinematicRunRecapShareArtifactHistoryPlan.identifierMaxCharacters
+    static let labelMaxCharacters = CinematicRunRecapShareArtifactSubsetExportPlan.labelMaxCharacters
+    static let countLabelMaxCharacters = 24
+    static let helpMaxCharacters = CinematicRunRecapShareArtifactSubsetExportPlan.helpMaxCharacters
+    static let feedbackMaxCharacters = 80
+    static let systemImageMaxCharacters = 64
+
+    var id: String { identifier }
+
+    var identifier: String
+    var persistedWarningPulseFilterIdentifier: String
+    var searchQuerySnippet: String
+    var searchQueryFingerprint: String
+    var sourceExportAuditIncluded: Bool
+    var sourceExportAuditIdentifier: String?
+    var presets: [Preset]
+
+    var availablePresetCount: Int { presets.filter(\.isAvailable).count }
+
+    func preset(
+        for filter: CinematicRunRecapShareArtifactWarningPulseFilter
+    ) -> Preset? {
+        presets.first { $0.filter == filter }
+    }
+
+    struct Preset: Equatable, Identifiable {
+        var id: String { identifier }
+
+        var identifier: String
+        var filter: CinematicRunRecapShareArtifactWarningPulseFilter
+        var filterIdentifier: String
+        var isAvailable: Bool
+        var availabilityReason: String
+        var copyLabel: String
+        var countLabel: String
+        var copyHelp: String
+        var copyFeedback: String
+        var systemImage: String
+        var retainedEntryCount: Int
+        var matchingEntryCount: Int
+        var exportEntryCount: Int
+        var warningPulseAnyCount: Int
+        var warningPulseActiveCount: Int
+        var warningPulseSnoozedCount: Int
+        var warningPulseUnknownCount: Int
+        var sourceExportAuditIncluded: Bool
+        var sourceExportAuditIdentifier: String?
+        var exportPlan: CinematicRunRecapShareArtifactSubsetExportPlan
+    }
+}
+
 struct CinematicRunRecapShareArtifactRollupPlan: Equatable, Identifiable {
     static let identifierMaxCharacters = CinematicRunRecapShareArtifactHistoryPlan.identifierMaxCharacters
     static let snippetMaxCharacters = CinematicRunRecapShareArtifactHistoryPlan.snippetMaxCharacters
@@ -5417,6 +5469,230 @@ enum CinematicRunRecapShareArtifactSubsetExportPlanner {
         guard limit > 0 else { return "" }
         let normalized = text
             .replacingOccurrences(of: "\r", with: "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalized.isEmpty else { return "none" }
+        guard normalized.count <= limit else {
+            let prefixLimit = max(1, limit - 3)
+            return normalized.prefix(prefixLimit)
+                .trimmingCharacters(in: .whitespacesAndNewlines) + "..."
+        }
+        return normalized
+    }
+
+    private static func fingerprint(_ value: String) -> String {
+        var hash: UInt64 = 0xcbf29ce484222325
+        for byte in value.utf8 {
+            hash ^= UInt64(byte)
+            hash = hash &* 0x100000001b3
+        }
+        return String(format: "%016llx", hash)
+    }
+}
+
+enum CinematicRunRecapShareArtifactWarningPulseQuickExportPlanner {
+    static let presetFilters: [CinematicRunRecapShareArtifactWarningPulseFilter] = [
+        .any,
+        .active,
+        .snoozed
+    ]
+
+    static func plan(
+        historyPlan: CinematicRunRecapShareArtifactHistoryPlan,
+        libraryContext: CinematicRunRecapShareArtifactLibraryContext = .empty,
+        sourceExportAuditPlan: CinematicRunRecapShareArtifactSourceExportAuditPlan? = nil
+    ) -> CinematicRunRecapShareArtifactWarningPulseQuickExportPlan {
+        let presets = presetFilters.map { filter in
+            let exportPlan = CinematicRunRecapShareArtifactSubsetExportPlanner.plan(
+                historyPlan: historyPlan,
+                selectedEntryIdentifier: libraryContext.selectedEntryIdentifier,
+                searchQuery: libraryContext.searchText,
+                scope: .filtered,
+                warningPulseFilter: filter,
+                sourceExportAuditPlan: sourceExportAuditPlan
+            )
+            return preset(
+                filter: filter,
+                exportPlan: exportPlan,
+                persistedWarningPulseFilter: libraryContext.warningPulseFilter
+            )
+        }
+        let firstExport = presets.first?.exportPlan
+        let sourceExportAuditIdentifier = presets.first { $0.sourceExportAuditIncluded }?
+            .sourceExportAuditIdentifier
+        let sourceExportAuditIncluded = presets.contains { $0.sourceExportAuditIncluded }
+        let searchQuerySnippet = firstExport?.searchQuerySnippet ?? "none"
+        let searchQueryFingerprint = firstExport?.searchQueryFingerprint ?? "none"
+        let identifier = bounded(
+            [
+                "run-recap-share-artifact-warning-pulse-quick-exports",
+                "history:\(fingerprint(historyPlan.identifier))",
+                "selected:\(libraryContext.selectedEntryIdentifier ?? "none")",
+                "query:\(searchQueryFingerprint)",
+                "query-snippet:\(searchQuerySnippet)",
+                "persisted-filter:\(libraryContext.warningPulseFilter.rawValue)",
+                "source-audit:\(sourceExportAuditIdentifier.map(fingerprint) ?? "none")",
+                "source-audit-included:\(sourceExportAuditIncluded)",
+                "presets:\(presets.count)",
+                "available:\(presets.filter(\.isAvailable).count)",
+                "content:\(fingerprint(presets.map(\.identifier).joined(separator: "|")))"
+            ].joined(separator: "|"),
+            limit: Plan.identifierMaxCharacters
+        )
+
+        return Plan(
+            identifier: identifier,
+            persistedWarningPulseFilterIdentifier: libraryContext.warningPulseFilter.rawValue,
+            searchQuerySnippet: searchQuerySnippet,
+            searchQueryFingerprint: searchQueryFingerprint,
+            sourceExportAuditIncluded: sourceExportAuditIncluded,
+            sourceExportAuditIdentifier: sourceExportAuditIdentifier,
+            presets: presets
+        )
+    }
+
+    private typealias Plan = CinematicRunRecapShareArtifactWarningPulseQuickExportPlan
+    private typealias Preset = CinematicRunRecapShareArtifactWarningPulseQuickExportPlan.Preset
+    private typealias Filter = CinematicRunRecapShareArtifactWarningPulseFilter
+
+    private static func preset(
+        filter: Filter,
+        exportPlan: CinematicRunRecapShareArtifactSubsetExportPlan,
+        persistedWarningPulseFilter: Filter
+    ) -> Preset {
+        let copyLabel = bounded(
+            "\(presetTitle(filter)) export",
+            limit: Plan.labelMaxCharacters
+        )
+        let countLabel = bounded(
+            "\(exportPlan.exportEntryCount)/\(exportPlan.warningPulseFilterMatchCount)",
+            limit: Plan.countLabelMaxCharacters
+        )
+        let copyHelp = copyHelp(
+            filter: filter,
+            exportPlan: exportPlan,
+            persistedWarningPulseFilter: persistedWarningPulseFilter
+        )
+        let copyFeedback = bounded(
+            "\(presetTitle(filter)) export copied",
+            limit: Plan.feedbackMaxCharacters
+        )
+        let systemImage = bounded(
+            systemImageName(filter),
+            limit: Plan.systemImageMaxCharacters
+        )
+        let identifier = bounded(
+            [
+                "run-recap-share-artifact-warning-pulse-quick-export",
+                "filter:\(filter.rawValue)",
+                "availability:\(exportPlan.availabilityReason)",
+                "available:\(exportPlan.isAvailable)",
+                "retained:\(exportPlan.retainedEntryCount)",
+                "matching:\(exportPlan.warningPulseFilterMatchCount)",
+                "exported:\(exportPlan.exportEntryCount)",
+                "query:\(exportPlan.searchQueryFingerprint)",
+                "persisted-filter:\(persistedWarningPulseFilter.rawValue)",
+                "source-audit:\(exportPlan.sourceExportAuditIdentifier.map(fingerprint) ?? "none")",
+                "source-audit-included:\(exportPlan.sourceExportAuditIncluded)",
+                "export:\(fingerprint(exportPlan.exportIdentifier))"
+            ].joined(separator: "|"),
+            limit: Plan.identifierMaxCharacters
+        )
+
+        return Preset(
+            identifier: identifier,
+            filter: filter,
+            filterIdentifier: filter.rawValue,
+            isAvailable: exportPlan.isAvailable,
+            availabilityReason: exportPlan.availabilityReason,
+            copyLabel: copyLabel,
+            countLabel: countLabel,
+            copyHelp: copyHelp,
+            copyFeedback: copyFeedback,
+            systemImage: systemImage,
+            retainedEntryCount: exportPlan.retainedEntryCount,
+            matchingEntryCount: exportPlan.warningPulseFilterMatchCount,
+            exportEntryCount: exportPlan.exportEntryCount,
+            warningPulseAnyCount: exportPlan.warningPulseAnyCount,
+            warningPulseActiveCount: exportPlan.warningPulseActiveCount,
+            warningPulseSnoozedCount: exportPlan.warningPulseSnoozedCount,
+            warningPulseUnknownCount: exportPlan.warningPulseUnknownCount,
+            sourceExportAuditIncluded: exportPlan.sourceExportAuditIncluded,
+            sourceExportAuditIdentifier: exportPlan.sourceExportAuditIdentifier,
+            exportPlan: exportPlan
+        )
+    }
+
+    private static func copyHelp(
+        filter: Filter,
+        exportPlan: CinematicRunRecapShareArtifactSubsetExportPlan,
+        persistedWarningPulseFilter: Filter
+    ) -> String {
+        let subject = presetSubject(filter)
+        let search = exportPlan.isSearchActive
+            ? " after search \(exportPlan.searchQuerySnippet)"
+            : ""
+        let sourceAudit = exportPlan.sourceExportAuditIncluded
+            ? " Includes storage source audit."
+            : ""
+        let persisted = " Current library filter stays \(persistedWarningPulseFilter.title)."
+        guard exportPlan.isAvailable else {
+            return bounded(
+                "No \(subject) quick export is available: \(exportPlan.availabilityReason).\(persisted)",
+                limit: Plan.helpMaxCharacters
+            )
+        }
+
+        return bounded(
+            "Copy \(exportPlan.exportEntryCount) of \(exportPlan.warningPulseFilterMatchCount) \(subject) saved recap artifact\(exportPlan.exportEntryCount == 1 ? "" : "s")\(search).\(sourceAudit)\(persisted)",
+            limit: Plan.helpMaxCharacters
+        )
+    }
+
+    private static func presetTitle(_ filter: Filter) -> String {
+        switch filter {
+        case .any:
+            return "Any pulse"
+        case .active:
+            return "Active pulse"
+        case .snoozed:
+            return "Snoozed pulse"
+        case .all:
+            return "All pulse"
+        }
+    }
+
+    private static func presetSubject(_ filter: Filter) -> String {
+        switch filter {
+        case .any:
+            return "warning-pulse"
+        case .active:
+            return "active warning-pulse"
+        case .snoozed:
+            return "snoozed warning-pulse"
+        case .all:
+            return "all warning-pulse"
+        }
+    }
+
+    private static func systemImageName(_ filter: Filter) -> String {
+        switch filter {
+        case .any:
+            return "exclamationmark.triangle"
+        case .active:
+            return "exclamationmark.triangle.fill"
+        case .snoozed:
+            return "bell.slash"
+        case .all:
+            return "archivebox"
+        }
+    }
+
+    private static func bounded(_ text: String, limit: Int) -> String {
+        guard limit > 0 else { return "" }
+        let normalized = text
+            .replacingOccurrences(of: "\r", with: " ")
+            .replacingOccurrences(of: "\n", with: " ")
+            .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
             .trimmingCharacters(in: .whitespacesAndNewlines)
         guard !normalized.isEmpty else { return "none" }
         guard normalized.count <= limit else {

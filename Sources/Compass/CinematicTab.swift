@@ -1132,6 +1132,7 @@ private struct CinematicRunRecapArtifactLibraryControl: View {
         let comparisonPlan = currentComparisonPlan
         let pinnedReferencePlan = currentPinnedReferencePlan
         let sourceBadgePlan = currentSourceBadgePlan
+        let warningPulseQuickExportPlan = currentWarningPulseQuickExportPlan
         let selectedExportPlan = subsetExportPlan(scope: .selected)
         let filteredExportPlan = subsetExportPlan(scope: .filtered)
         let tourExportPlan = tourSubsetExportPlan(tourPlan)
@@ -1192,6 +1193,7 @@ private struct CinematicRunRecapArtifactLibraryControl: View {
 
                 searchControl(previewPlan)
                 warningPulseFilterControl(previewPlan)
+                warningPulseQuickExportMenu(warningPulseQuickExportPlan)
 
                 Button {
                     selectArtifact(previewPlan.previousEntryIdentifier)
@@ -1295,6 +1297,15 @@ private struct CinematicRunRecapArtifactLibraryControl: View {
     private var currentSourceExportAuditPlan: CinematicRunRecapShareArtifactSourceExportAuditPlan {
         CinematicRunRecapShareArtifactSourceExportAuditPlanner.plan(
             reconciliationPlan: sourceReconciliationPlan
+        )
+    }
+
+    private var currentWarningPulseQuickExportPlan:
+        CinematicRunRecapShareArtifactWarningPulseQuickExportPlan {
+        CinematicRunRecapShareArtifactWarningPulseQuickExportPlanner.plan(
+            historyPlan: plan,
+            libraryContext: artifactLibraryContext,
+            sourceExportAuditPlan: currentSourceExportAuditPlan
         )
     }
 
@@ -2186,6 +2197,65 @@ private struct CinematicRunRecapArtifactLibraryControl: View {
         }
     }
 
+    private func warningPulseQuickExportMenu(
+        _ quickExportPlan: CinematicRunRecapShareArtifactWarningPulseQuickExportPlan
+    ) -> some View {
+        Menu {
+            ForEach(quickExportPlan.presets) { preset in
+                Button {
+                    copyWarningPulseQuickExport(preset)
+                } label: {
+                    Label {
+                        warningPulseQuickExportMenuLabel(preset)
+                    } icon: {
+                        Image(systemName: preset.systemImage)
+                    }
+                }
+                .disabled(!preset.isAvailable)
+                .help(preset.copyHelp)
+                .accessibilityLabel(preset.copyLabel)
+                .accessibilityValue(preset.countLabel)
+                .accessibilityIdentifier(
+                    "cinematic-run-recap-artifact-library-warning-pulse-quick-export-\(preset.filterIdentifier)"
+                )
+            }
+        } label: {
+            Image(systemName: quickExportPlan.availablePresetCount > 0 ? "doc.on.clipboard" : "doc.on.clipboard.fill")
+                .font(.system(size: 11, weight: .bold))
+                .frame(width: 20, height: 22)
+                .contentShape(Rectangle())
+        }
+        .menuStyle(.borderlessButton)
+        .buttonStyle(.plain)
+        .foregroundStyle(tint.opacity(quickExportPlan.availablePresetCount > 0 ? 0.84 : 0.38))
+        .help(warningPulseQuickExportHelp(quickExportPlan))
+        .accessibilityLabel("Copy warning pulse preset export")
+        .accessibilityValue("\(quickExportPlan.availablePresetCount) available")
+        .accessibilityIdentifier(
+            "cinematic-run-recap-artifact-library-warning-pulse-quick-export-\(quickExportPlan.identifier)"
+        )
+    }
+
+    private func warningPulseQuickExportMenuLabel(
+        _ preset: CinematicRunRecapShareArtifactWarningPulseQuickExportPlan.Preset
+    ) -> some View {
+        HStack {
+            Text(preset.copyLabel)
+            Spacer()
+            Text(preset.countLabel)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    private func warningPulseQuickExportHelp(
+        _ quickExportPlan: CinematicRunRecapShareArtifactWarningPulseQuickExportPlan
+    ) -> String {
+        let search = quickExportPlan.searchQueryFingerprint == "none"
+            ? "without changing the current search"
+            : "using current search \(quickExportPlan.searchQuerySnippet)"
+        return "Copy any, active, or snoozed warning-pulse filtered exports \(search); current filter stays \(quickExportPlan.persistedWarningPulseFilterIdentifier)."
+    }
+
     private func warningPulseFilterMenuButton(
         _ filter: CinematicRunRecapShareArtifactWarningPulseFilter,
         previewPlan: CinematicRunRecapShareArtifactPreviewBrowserPlan
@@ -2531,6 +2601,17 @@ private struct CinematicRunRecapArtifactLibraryControl: View {
         case .filtered:
             feedback = "Filtered export copied"
         }
+        feedbackStatus = nil
+        preservedFeedbackPlanIdentifier = plan.identifier
+    }
+
+    private func copyWarningPulseQuickExport(
+        _ preset: CinematicRunRecapShareArtifactWarningPulseQuickExportPlan.Preset
+    ) {
+        guard preset.isAvailable else { return }
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(preset.exportPlan.markdownContents, forType: .string)
+        feedback = preset.copyFeedback
         feedbackStatus = nil
         preservedFeedbackPlanIdentifier = plan.identifier
     }

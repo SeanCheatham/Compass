@@ -361,12 +361,208 @@ final class CinematicRunRecapShareArtifactSubsetExportTests: XCTestCase {
         )
     }
 
+    func testWarningPulseQuickExportPresetsUseFilteredSearchAuditAndPreserveLibraryFilter() throws {
+        let workspace = try makeInitializedWorkspace()
+        _ = try workspace.writeSessionArtifact(
+            session: 1,
+            name: "recap-share-quiet-needle.md",
+            contents: artifactMarkdown(
+                session: 1,
+                title: "Quiet Needle Recap",
+                status: "succeeded",
+                commit: "Quiet commit",
+                body: "needle quiet body"
+            )
+        )
+        _ = try workspace.writeSessionArtifact(
+            session: 2,
+            name: "recap-share-active-needle.md",
+            contents: artifactMarkdown(
+                session: 2,
+                title: "Active Needle Recap",
+                status: "succeeded",
+                commit: "Active needle commit",
+                body: "needle active body",
+                warningPulseSection: warningPulseSection(state: "active", suffix: "active-needle")
+            )
+        )
+        _ = try workspace.writeSessionArtifact(
+            session: 3,
+            name: "recap-share-snoozed-needle.md",
+            contents: artifactMarkdown(
+                session: 3,
+                title: "Snoozed Needle Recap",
+                status: "succeeded",
+                commit: "Snoozed needle commit",
+                body: "needle snoozed body",
+                warningPulseSection: warningPulseSection(state: "snoozed", suffix: "snoozed-needle")
+            )
+        )
+        _ = try workspace.writeSessionArtifact(
+            session: 4,
+            name: "recap-share-active-other.md",
+            contents: artifactMarkdown(
+                session: 4,
+                title: "Active Other Recap",
+                status: "succeeded",
+                commit: "Active other commit",
+                body: "ordinary active body",
+                warningPulseSection: warningPulseSection(state: "active", suffix: "active-other")
+            )
+        )
+        let history = workspace.refreshRunRecapShareArtifactHistory()
+        let quietEntry = try XCTUnwrap(history.entries.first { $0.sessionNumber == 1 })
+        let activeNeedleEntry = try XCTUnwrap(history.entries.first { $0.sessionNumber == 2 })
+        let snoozedEntry = try XCTUnwrap(history.entries.first { $0.sessionNumber == 3 })
+        let audit = visibleSourceAudit()
+        let context = CinematicRunRecapShareArtifactLibraryContext(
+            selectedEntryIdentifier: quietEntry.identifier,
+            searchText: " NEEDLE ",
+            pinnedEntryIdentifiers: [quietEntry.identifier],
+            savedTourHoldEntryIdentifier: quietEntry.identifier,
+            warningPulseFilter: .snoozed
+        )
+        let contextBefore = context
+
+        let quickExportPlan = CinematicRunRecapShareArtifactWarningPulseQuickExportPlanner.plan(
+            historyPlan: history,
+            libraryContext: context,
+            sourceExportAuditPlan: audit
+        )
+        let any = try XCTUnwrap(quickExportPlan.preset(for: .any))
+        let active = try XCTUnwrap(quickExportPlan.preset(for: .active))
+        let snoozed = try XCTUnwrap(quickExportPlan.preset(for: .snoozed))
+
+        XCTAssertEqual(context, contextBefore)
+        XCTAssertEqual(quickExportPlan.presets.map(\.filter), [.any, .active, .snoozed])
+        XCTAssertEqual(quickExportPlan.persistedWarningPulseFilterIdentifier, "snoozed")
+        XCTAssertEqual(quickExportPlan.searchQuerySnippet, "needle")
+        XCTAssertTrue(quickExportPlan.sourceExportAuditIncluded)
+        XCTAssertEqual(quickExportPlan.sourceExportAuditIdentifier, audit.identifier)
+        XCTAssertEqual(any.exportPlan.scope, .filtered)
+        XCTAssertEqual(any.exportPlan.warningPulseFilterIdentifier, "any")
+        XCTAssertEqual(any.exportPlan.searchQuerySnippet, "needle")
+        XCTAssertEqual(any.exportEntryCount, 2)
+        XCTAssertEqual(any.matchingEntryCount, 3)
+        XCTAssertEqual(any.countLabel, "2/3")
+        XCTAssertEqual(any.exportPlan.exportedEntryIdentifiers, [snoozedEntry.identifier, activeNeedleEntry.identifier])
+        XCTAssertTrue(any.exportPlan.sourceExportAuditIncluded)
+        XCTAssertEqual(any.exportPlan.sourceExportAuditIdentifier, audit.identifier)
+        XCTAssertTrue(any.exportPlan.markdownContents.contains("## Storage Source"))
+        XCTAssertTrue(any.copyHelp.contains("Current library filter stays Snoozed"))
+        XCTAssertEqual(active.exportPlan.warningPulseFilterIdentifier, "active")
+        XCTAssertEqual(active.exportEntryCount, 1)
+        XCTAssertEqual(active.matchingEntryCount, 2)
+        XCTAssertEqual(active.copyFeedback, "Active pulse export copied")
+        XCTAssertTrue(active.exportPlan.markdownContents.contains("Active Needle Recap"))
+        XCTAssertFalse(active.exportPlan.markdownContents.contains("Snoozed Needle Recap"))
+        XCTAssertEqual(snoozed.exportPlan.warningPulseFilterIdentifier, "snoozed")
+        XCTAssertEqual(snoozed.exportEntryCount, 1)
+        XCTAssertEqual(snoozed.matchingEntryCount, 1)
+        XCTAssertEqual(snoozed.exportPlan.exportedEntryIdentifiers, [snoozedEntry.identifier])
+    }
+
+    func testWarningPulseQuickExportUnavailableStatesAndBoundedDescriptors() throws {
+        let emptyHistory = try makeInitializedWorkspace().refreshRunRecapShareArtifactHistory()
+        let longContext = CinematicRunRecapShareArtifactLibraryContext(
+            selectedEntryIdentifier: String(repeating: "selected-", count: 60),
+            searchText: String(repeating: "missing query ", count: 20),
+            warningPulseFilter: .active
+        )
+
+        let emptyPlan = CinematicRunRecapShareArtifactWarningPulseQuickExportPlanner.plan(
+            historyPlan: emptyHistory,
+            libraryContext: longContext
+        )
+
+        XCTAssertEqual(emptyPlan.availablePresetCount, 0)
+        XCTAssertLessThanOrEqual(
+            emptyPlan.identifier.count,
+            CinematicRunRecapShareArtifactWarningPulseQuickExportPlan.identifierMaxCharacters
+        )
+        for preset in emptyPlan.presets {
+            XCTAssertFalse(preset.isAvailable)
+            XCTAssertEqual(preset.availabilityReason, "no-recap-share-artifacts")
+            XCTAssertEqual(preset.exportEntryCount, 0)
+            XCTAssertLessThanOrEqual(
+                preset.identifier.count,
+                CinematicRunRecapShareArtifactWarningPulseQuickExportPlan.identifierMaxCharacters
+            )
+            XCTAssertLessThanOrEqual(
+                preset.copyLabel.count,
+                CinematicRunRecapShareArtifactWarningPulseQuickExportPlan.labelMaxCharacters
+            )
+            XCTAssertLessThanOrEqual(
+                preset.countLabel.count,
+                CinematicRunRecapShareArtifactWarningPulseQuickExportPlan.countLabelMaxCharacters
+            )
+            XCTAssertLessThanOrEqual(
+                preset.copyHelp.count,
+                CinematicRunRecapShareArtifactWarningPulseQuickExportPlan.helpMaxCharacters
+            )
+            XCTAssertLessThanOrEqual(
+                preset.copyFeedback.count,
+                CinematicRunRecapShareArtifactWarningPulseQuickExportPlan.feedbackMaxCharacters
+            )
+            XCTAssertLessThanOrEqual(
+                preset.systemImage.count,
+                CinematicRunRecapShareArtifactWarningPulseQuickExportPlan.systemImageMaxCharacters
+            )
+        }
+
+        let quietWorkspace = try makeInitializedWorkspace()
+        _ = try quietWorkspace.writeSessionArtifact(
+            session: 1,
+            name: "recap-share-quiet-only.md",
+            contents: artifactMarkdown(
+                session: 1,
+                title: "Quiet Only",
+                status: "succeeded",
+                commit: "Quiet commit",
+                body: "quiet only body"
+            )
+        )
+        let quietPlan = CinematicRunRecapShareArtifactWarningPulseQuickExportPlanner.plan(
+            historyPlan: quietWorkspace.refreshRunRecapShareArtifactHistory()
+        )
+
+        XCTAssertEqual(quietPlan.availablePresetCount, 0)
+        XCTAssertTrue(
+            quietPlan.presets.allSatisfy {
+                !$0.isAvailable
+                    && $0.availabilityReason == "no-matching-warning-pulse-artifacts"
+                    && $0.matchingEntryCount == 0
+            }
+        )
+        XCTAssertEqual(quietPlan.preset(for: .active)?.copyFeedback, "Active pulse export copied")
+    }
+
+    func testCinematicTabWiresWarningPulseQuickExportMenuWithoutPersistingPresetState() throws {
+        let sourceURL = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appending(path: "Sources/Compass/CinematicTab.swift")
+        let source = try String(contentsOf: sourceURL, encoding: .utf8)
+        let copyFunction = try XCTUnwrap(source.range(of: "private func copyWarningPulseQuickExport"))
+        let nextFunction = try XCTUnwrap(source.range(of: "private func copyRollup"))
+        let copyBlock = String(source[copyFunction.lowerBound..<nextFunction.lowerBound])
+
+        XCTAssertTrue(source.contains("warningPulseQuickExportMenu(warningPulseQuickExportPlan)"))
+        XCTAssertTrue(source.contains("CinematicRunRecapShareArtifactWarningPulseQuickExportPlanner.plan"))
+        XCTAssertTrue(source.contains("sourceExportAuditPlan: currentSourceExportAuditPlan"))
+        XCTAssertTrue(copyBlock.contains("NSPasteboard.general.setString(preset.exportPlan.markdownContents, forType: .string)"))
+        XCTAssertTrue(copyBlock.contains("feedback = preset.copyFeedback"))
+        XCTAssertFalse(copyBlock.contains("persistContext"))
+    }
+
     private func artifactMarkdown(
         session: Int,
         title: String,
         status: String,
         commit: String,
-        body: String
+        body: String,
+        warningPulseSection: String = ""
     ) -> String {
         """
         # Compass Run Recap Share
@@ -392,7 +588,61 @@ final class CinematicRunRecapShareArtifactSubsetExportTests: XCTestCase {
         ```text
         \(body)
         ```
+
+        \(warningPulseSection)
         """
+    }
+
+    private func warningPulseSection(state: String, suffix: String) -> String {
+        """
+        ## Diagnostics Warning Pulse
+
+        - Warning pulse audit: subset-warning-pulse-\(suffix)
+        - State: \(state)
+        - Bundle: subset-warning-bundle-\(suffix)
+        - Quieting status: \(state)
+        - Sequence: 1
+        - Capture count: 2
+        - Target count: 1
+        - Warning count: 2
+        - Warning identifiers: visual-smoke.subset-warning-pulse-\(suffix)-a, visual-smoke.subset-warning-pulse-\(suffix)-b
+        - Omitted warning identifiers: 0
+        - Target anchors: visual-smoke-check-subset-warning-pulse-\(suffix)
+        - Omitted target anchors: 0
+        - Related rows: diagnostics-row-run-recap-share-artifact-tour
+        - Omitted related rows: 0
+        """
+    }
+
+    private func visibleSourceAudit() -> CinematicRunRecapShareArtifactSourceExportAuditPlan {
+        let markdown = """
+        ## Storage Source
+
+        - Reconciliation: quick-export-reconciliation
+        - State: repo-local-extra
+        - Read-only: export audit only; no repair, migration, deletion, pin, hold, search, session, active-storage, or artifact-history mutation.
+        - Active storage: application-support
+        - Active artifacts: 3
+        - Repo-local artifacts: 4
+        """
+        return CinematicRunRecapShareArtifactSourceExportAuditPlan(
+            identifier: "quick-export-source-audit",
+            sourceReconciliationIdentifier: "quick-export-reconciliation",
+            stateIdentifier: "repo-local-extra",
+            activeStorageIdentifier: "application-support",
+            activeTotalCount: 3,
+            repoLocalTotalCount: 4,
+            activeLatestSessionNumber: 4,
+            repoLocalLatestSessionNumber: 4,
+            activeWarningCount: 0,
+            repoLocalWarningCount: 0,
+            representativeActiveEntryIdentifiers: ["active-entry"],
+            representativeRepoLocalEntryIdentifiers: ["repo-entry"],
+            representativeRepoLocalExtraEntryIdentifiers: ["repo-extra-entry"],
+            readOnlyDisclaimer: "Read-only: export audit only; no repair, migration, deletion, pin, hold, search, session, active-storage, or artifact-history mutation.",
+            markdownSection: markdown,
+            isVisible: true
+        )
     }
 
     private func makeInitializedWorkspace() throws -> CompassWorkspace {
