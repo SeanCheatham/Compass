@@ -420,6 +420,7 @@ final class CompassProject: ObservableObject, Identifiable {
             clearCinematicNativeFeedbackCue(reason: .modeOff)
         }
     }
+    @Published var codexExecutionEnvironmentPreference: CodexExecutionEnvironmentPreference
     @Published var liveLog: [LiveLine] = []
     @Published var phase: LoopPhase = .idle {
         didSet {
@@ -480,6 +481,7 @@ final class CompassProject: ObservableObject, Identifiable {
         lastOpenedAt: Date = Date(),
         cinematicInfluenceSettings: CinematicInfluenceSettings = CinematicInfluenceSettings(),
         nativeFeedbackMode: NativeFeedbackMode = .notifications,
+        codexExecutionEnvironmentPreference: CodexExecutionEnvironmentPreference = .nativeMacOS,
         cinematicRunRecapShareArtifactLibraryContext: CinematicRunRecapShareArtifactLibraryContext = .empty,
         storageApplicationSupportRoots: KnownProjectStore.ApplicationSupportRoots = KnownProjectStore.productionApplicationSupportRoots(),
         storageMigrationAction: @escaping CompassWorkspaceStorageMigrationAction = { plan in
@@ -500,6 +502,7 @@ final class CompassProject: ObservableObject, Identifiable {
         self.lastOpenedAt = lastOpenedAt
         self.cinematicInfluenceSettings = cinematicInfluenceSettings
         self.nativeFeedbackMode = nativeFeedbackMode
+        self.codexExecutionEnvironmentPreference = codexExecutionEnvironmentPreference
         self.cinematicRunRecapShareArtifactLibraryContext = cinematicRunRecapShareArtifactLibraryContext
         self.storageApplicationSupportRoots = storageApplicationSupportRoots
         self.storageMigrationAction = storageMigrationAction
@@ -573,6 +576,13 @@ extension CompassProject {
 
     var compassPath: String {
         makeStorageResolver(repoURL: repoURL).storageRootURL.path
+    }
+
+    var codexExecutionEnvironment: CodexExecutionEnvironment {
+        CodexExecutionEnvironment.discover(
+            repoURL: repoURL,
+            preference: codexExecutionEnvironmentPreference
+        )
     }
 
     var hasRepository: Bool {
@@ -1201,6 +1211,7 @@ extension CompassProject {
             )
             log("Saved Plan prompt: \(promptURL.path)", level: .info)
 
+            logExecutionEnvironmentPreflight(phase: "Plan", nativeExecutionURL: workspace.repoURL)
             log("Plan: launching codex exec.", level: .info)
             let codex = CodexExecutor()
             executor = codex
@@ -1386,6 +1397,7 @@ extension CompassProject {
                     sandboxed: devWorkspace.sandboxed
                 )
 
+                logExecutionEnvironmentPreflight(phase: "Develop", nativeExecutionURL: devWorkspace.repoURL)
                 log("Develop: launching codex exec (attempt \(attempt)/\(maxDevelopAttempts)).", level: .info)
                 let codex = CodexExecutor()
                 executor = codex
@@ -1544,6 +1556,22 @@ extension CompassProject {
             activeStorage: activeStorage,
             applicationSupportRoots: storageApplicationSupportRoots
         )
+    }
+
+    private func logExecutionEnvironmentPreflight(phase: String, nativeExecutionURL: URL) {
+        let environment = CodexExecutionEnvironment.discover(
+            repoURL: nativeExecutionURL,
+            preference: codexExecutionEnvironmentPreference
+        )
+        log(
+            environment.launchPreflightSummary(
+                phase: phase,
+                nativeExecutionURL: nativeExecutionURL
+            ),
+            level: .info
+        )
+        let presentation = environment.presentation
+        log(environment.launchPreflightDetail, level: presentation.isWarning ? .warning : .info)
     }
 
     private func resolveGitRoot(from url: URL) async throws -> URL {
@@ -2750,6 +2778,7 @@ struct KnownProjectRecord: Codable, Identifiable, Equatable {
     var lastOpenedAt: Double
     var cinematicInfluenceSettings: CinematicInfluenceSettings
     var nativeFeedbackMode: NativeFeedbackMode
+    var codexExecutionEnvironmentPreference: CodexExecutionEnvironmentPreference
     var cinematicRunRecapShareArtifactLibraryContext: CinematicRunRecapShareArtifactLibraryContext
 
     enum CodingKeys: String, CodingKey {
@@ -2760,6 +2789,7 @@ struct KnownProjectRecord: Codable, Identifiable, Equatable {
         case lastOpenedAt
         case cinematicInfluenceSettings
         case nativeFeedbackMode
+        case codexExecutionEnvironmentPreference
         case cinematicRunRecapShareArtifactLibraryContext
     }
 
@@ -2771,6 +2801,7 @@ struct KnownProjectRecord: Codable, Identifiable, Equatable {
         lastOpenedAt: Double,
         cinematicInfluenceSettings: CinematicInfluenceSettings = CinematicInfluenceSettings(),
         nativeFeedbackMode: NativeFeedbackMode = .notifications,
+        codexExecutionEnvironmentPreference: CodexExecutionEnvironmentPreference = .nativeMacOS,
         cinematicRunRecapShareArtifactLibraryContext: CinematicRunRecapShareArtifactLibraryContext = .empty
     ) {
         self.id = id
@@ -2780,6 +2811,7 @@ struct KnownProjectRecord: Codable, Identifiable, Equatable {
         self.lastOpenedAt = lastOpenedAt
         self.cinematicInfluenceSettings = cinematicInfluenceSettings
         self.nativeFeedbackMode = nativeFeedbackMode
+        self.codexExecutionEnvironmentPreference = codexExecutionEnvironmentPreference
         self.cinematicRunRecapShareArtifactLibraryContext = cinematicRunRecapShareArtifactLibraryContext
     }
 
@@ -2801,6 +2833,10 @@ struct KnownProjectRecord: Codable, Identifiable, Equatable {
             NativeFeedbackMode.self,
             forKey: .nativeFeedbackMode
         ) ?? .notifications
+        codexExecutionEnvironmentPreference = try container.decodeIfPresent(
+            CodexExecutionEnvironmentPreference.self,
+            forKey: .codexExecutionEnvironmentPreference
+        ) ?? .nativeMacOS
         cinematicRunRecapShareArtifactLibraryContext = try container.decodeIfPresent(
             CinematicRunRecapShareArtifactLibraryContext.self,
             forKey: .cinematicRunRecapShareArtifactLibraryContext
@@ -2818,6 +2854,7 @@ private extension CompassProject {
             lastOpenedAt: Date(timeIntervalSince1970: record.lastOpenedAt),
             cinematicInfluenceSettings: record.cinematicInfluenceSettings,
             nativeFeedbackMode: record.nativeFeedbackMode,
+            codexExecutionEnvironmentPreference: record.codexExecutionEnvironmentPreference,
             cinematicRunRecapShareArtifactLibraryContext: record.cinematicRunRecapShareArtifactLibraryContext
         )
     }
@@ -2831,6 +2868,7 @@ private extension CompassProject {
             lastOpenedAt: lastOpenedAt.timeIntervalSince1970,
             cinematicInfluenceSettings: cinematicInfluenceSettings,
             nativeFeedbackMode: nativeFeedbackMode,
+            codexExecutionEnvironmentPreference: codexExecutionEnvironmentPreference,
             cinematicRunRecapShareArtifactLibraryContext: cinematicRunRecapShareArtifactLibraryContext
         )
     }

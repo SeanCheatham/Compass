@@ -827,8 +827,34 @@ private struct ProjectRunControls: View {
             projectName: project.displayName,
             deliverySnapshot: deliverySnapshot
         )
+        let executionEnvironment = project.codexExecutionEnvironment
+        let executionEnvironmentMenu = CodexExecutionEnvironmentMenu(
+            environment: executionEnvironment
+        )
 
         HStack(spacing: 5) {
+            Menu {
+                Text(executionEnvironmentMenu.statusText)
+                Divider()
+                ForEach(Array(executionEnvironmentMenu.items.enumerated()), id: \.element.id) { index, item in
+                    Button {
+                        project.codexExecutionEnvironmentPreference = item.preference
+                        model.saveProjects()
+                    } label: {
+                        Label(item.title, systemImage: item.systemImage)
+                    }
+                    Text(item.description)
+                    if index < executionEnvironmentMenu.items.count - 1 {
+                        Divider()
+                    }
+                }
+            } label: {
+                Image(systemName: executionEnvironmentMenu.labelSystemImage)
+                    .frame(width: 18, height: 18)
+            }
+            .menuStyle(.borderlessButton)
+            .help(executionEnvironmentMenu.helpText)
+
             Menu {
                 Text(feedbackMenu.deliveryStatusText)
                 Divider()
