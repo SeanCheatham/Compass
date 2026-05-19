@@ -3,6 +3,16 @@ import Foundation
 import XCTest
 
 final class PlanSessionHistoryTests: XCTestCase {
+    private var temporaryDirectories: [URL] = []
+
+    override func tearDownWithError() throws {
+        for url in temporaryDirectories {
+            try? FileManager.default.removeItem(at: url)
+        }
+        temporaryDirectories = []
+        try super.tearDownWithError()
+    }
+
     func testOrdersSessionsReverseChronologically() {
         let sessions = [
             makeSession(1, startedAt: 1_000),
@@ -124,6 +134,186 @@ final class PlanSessionHistoryTests: XCTestCase {
         )
     }
 
+    func testRuntimeDescriptorsCoverAppleContainerNativeAndFallbackRoutes() throws {
+        let imageSnapshot = try makeRuntimeSnapshot(
+            repoPrefix: "PlanSessionHistoryRuntimeImage",
+            devcontainerJSON: #"{"image":"swift:6.0","workspaceFolder":"/workspace/app"}"#,
+            preference: .devcontainerPreferred,
+            containerToolPath: "/usr/local/bin/container"
+        )
+        let buildSnapshot = try makeRuntimeSnapshot(
+            repoPrefix: "PlanSessionHistoryRuntimeBuild",
+            devcontainerJSON: #"{"build":{"dockerfile":"Dockerfile","context":"..","target":"runtime","args":{"TOKEN":"secret-build-arg"}}}"#,
+            preference: .devcontainerPreferred,
+            containerToolPath: "/usr/local/bin/container"
+        )
+        let nativeSnapshot = try makeRuntimeSnapshot(
+            repoPrefix: "PlanSessionHistoryRuntimeNative",
+            devcontainerJSON: #"{"image":"swift:6.0"}"#,
+            preference: .nativeMacOS,
+            containerToolPath: "/usr/local/bin/container"
+        )
+        let fallbackSnapshot = try makeRuntimeSnapshot(
+            repoPrefix: "PlanSessionHistoryRuntimeFallback",
+            devcontainerJSON: #"{"image":"swift:6.0"}"#,
+            preference: .devcontainerPreferred,
+            containerToolPath: nil
+        )
+
+        let items = PlanSessionHistory.displayItems(
+            for: [
+                makeSession(1, startedAt: 1_000, executionEnvironmentSnapshots: [imageSnapshot]),
+                makeSession(2, startedAt: 2_000, executionEnvironmentSnapshots: [buildSnapshot]),
+                makeSession(3, startedAt: 3_000, executionEnvironmentSnapshots: [nativeSnapshot]),
+                makeSession(4, startedAt: 4_000, executionEnvironmentSnapshots: [fallbackSnapshot])
+            ]
+        )
+
+        let descriptorsBySession = Dictionary(
+            uniqueKeysWithValues: items.map { ($0.sessionNumber, $0.runtimeRouteDescriptor) }
+        )
+        XCTAssertEqual(descriptorsBySession[1]?.snapshotAvailabilityIdentifier, "available")
+        XCTAssertEqual(descriptorsBySession[1]?.selectedPreferenceIdentifier, "devcontainer_preferred")
+        XCTAssertEqual(descriptorsBySession[1]?.effectiveRouteIdentifier, "apple-container")
+        XCTAssertEqual(descriptorsBySession[1]?.supportClassificationIdentifier, "image-routeable")
+        XCTAssertEqual(descriptorsBySession[1]?.fallbackStateIdentifier, "direct")
+
+        XCTAssertEqual(descriptorsBySession[2]?.effectiveRouteIdentifier, "apple-container")
+        XCTAssertEqual(descriptorsBySession[2]?.supportClassificationIdentifier, "build-based")
+        XCTAssertEqual(descriptorsBySession[2]?.fallbackStateIdentifier, "direct")
+
+        XCTAssertEqual(descriptorsBySession[3]?.selectedPreferenceIdentifier, "native_macos")
+        XCTAssertEqual(descriptorsBySession[3]?.effectiveRouteIdentifier, "native-macos")
+        XCTAssertEqual(descriptorsBySession[3]?.supportClassificationIdentifier, "image-routeable")
+        XCTAssertEqual(descriptorsBySession[3]?.fallbackStateIdentifier, "direct")
+
+        XCTAssertEqual(descriptorsBySession[4]?.selectedPreferenceIdentifier, "devcontainer_preferred")
+        XCTAssertEqual(descriptorsBySession[4]?.effectiveRouteIdentifier, "native-macos")
+        XCTAssertEqual(descriptorsBySession[4]?.supportClassificationIdentifier, "image-routeable")
+        XCTAssertEqual(descriptorsBySession[4]?.fallbackStateIdentifier, "fallback")
+    }
+
+    func testRuntimeFiltersUseLatestSnapshotAndPreserveOrdering() throws {
+        let appleImageSnapshot = try makeRuntimeSnapshot(
+            repoPrefix: "PlanSessionHistoryFilterImage",
+            devcontainerJSON: #"{"image":"swift:6.0","workspaceFolder":"/workspace/app"}"#,
+            preference: .devcontainerPreferred,
+            containerToolPath: "/usr/local/bin/container"
+        )
+        let appleBuildSnapshot = try makeRuntimeSnapshot(
+            repoPrefix: "PlanSessionHistoryFilterBuild",
+            devcontainerJSON: #"{"build":{"dockerfile":"Dockerfile","context":"..","target":"runtime"}}"#,
+            preference: .devcontainerPreferred,
+            containerToolPath: "/usr/local/bin/container"
+        )
+        let nativeSnapshot = try makeRuntimeSnapshot(
+            repoPrefix: "PlanSessionHistoryFilterNative",
+            devcontainerJSON: #"{"image":"swift:6.0"}"#,
+            preference: .nativeMacOS,
+            containerToolPath: "/usr/local/bin/container"
+        )
+        let nativeFallbackSnapshot = try makeRuntimeSnapshot(
+            repoPrefix: "PlanSessionHistoryFilterFallback",
+            devcontainerJSON: #"{"image":"swift:6.0"}"#,
+            preference: .devcontainerPreferred,
+            containerToolPath: nil
+        )
+
+        let items = PlanSessionHistory.displayItems(
+            for: [
+                makeSession(1, startedAt: 1_000),
+                makeSession(2, startedAt: 2_000, executionEnvironmentSnapshots: [nativeSnapshot]),
+                makeSession(3, startedAt: 3_000, executionEnvironmentSnapshots: [appleImageSnapshot]),
+                makeSession(4, startedAt: 4_000, executionEnvironmentSnapshots: [nativeFallbackSnapshot]),
+                makeSession(5, startedAt: 5_000, executionEnvironmentSnapshots: [appleBuildSnapshot]),
+                makeSession(
+                    6,
+                    startedAt: 6_000,
+                    executionEnvironmentSnapshots: [appleImageSnapshot, nativeFallbackSnapshot]
+                )
+            ]
+        )
+
+        let allDisplay = PlanSessionHistoryDisplay(items: items, mode: .all)
+        XCTAssertEqual(allDisplay.visibleItems.map(\.sessionNumber), [6, 5, 4, 3, 2, 1])
+        XCTAssertEqual(
+            allDisplay.visibleItems.last?.runtimeRouteDescriptor.snapshotAvailabilityIdentifier,
+            "missing"
+        )
+
+        let appleDisplay = PlanSessionHistoryDisplay(items: items, mode: .all, filter: .appleContainer)
+        XCTAssertEqual(appleDisplay.visibleItems.map(\.sessionNumber), [5, 3])
+        XCTAssertEqual(appleDisplay.totalCount, 2)
+
+        let nativeDisplay = PlanSessionHistoryDisplay(items: items, mode: .all, filter: .nativeRuntime)
+        XCTAssertEqual(nativeDisplay.visibleItems.map(\.sessionNumber), [6, 4, 2])
+        XCTAssertEqual(nativeDisplay.totalCount, 3)
+
+        XCTAssertEqual(
+            allDisplay.filterOptions.first { $0.filter == .appleContainer }?.count,
+            2
+        )
+        XCTAssertEqual(
+            allDisplay.filterOptions.first { $0.filter == .nativeRuntime }?.count,
+            3
+        )
+        XCTAssertEqual(
+            allDisplay.filterOptions.first { $0.filter == .all }?.count,
+            6
+        )
+    }
+
+    func testRuntimeBadgeSummariesAreBoundedAndDoNotLeakSnapshotDetails() throws {
+        let secretPath = "/Users/private/project"
+        let secretValue = "secret-container-value"
+        let snapshotJSON = """
+        {
+          "phase": "Plan",
+          "phaseIdentifier": "plan",
+          "attempt": 1,
+          "selectedPreferenceIdentifier": "devcontainer_preferred",
+          "selectedPreferenceTitle": "\(secretPath)",
+          "effectiveRouteIdentifier": "apple-container",
+          "effectiveRouteTitle": "\(secretPath)",
+          "supportClassificationIdentifier": "build-based",
+          "visibleSupportTokens": ["env:TOKEN", "arg:SECRET", "composeFile:\(secretPath)/compose.yml"],
+          "omittedSupportTokenCount": 17,
+          "imageLabel": "\(secretValue)",
+          "workspaceLabel": "\(secretPath)",
+          "fallbackReason": "Fallback includes \(secretPath) and \(secretValue)"
+        }
+        """
+        let snapshot = try JSONDecoder().decode(
+            SessionExecutionEnvironmentSnapshot.self,
+            from: Data(snapshotJSON.utf8)
+        )
+        let descriptor = PlanSessionHistory.displayItems(
+            for: [
+                makeSession(1, startedAt: 1_000, executionEnvironmentSnapshots: [snapshot])
+            ]
+        )[0].runtimeRouteDescriptor
+        let displayText = [descriptor.badgeText, descriptor.helpText].joined(separator: "\n")
+
+        XCTAssertLessThanOrEqual(
+            descriptor.badgeText.count,
+            PlanSessionHistoryItem.RuntimeRouteDescriptor.badgeTextLimit
+        )
+        XCTAssertLessThanOrEqual(
+            descriptor.helpText.count,
+            PlanSessionHistoryItem.RuntimeRouteDescriptor.helpTextLimit
+        )
+        XCTAssertTrue(displayText.contains("Dev Container Preferred"))
+        XCTAssertTrue(displayText.contains("Apple container"))
+        XCTAssertTrue(displayText.contains("build-based"))
+        XCTAssertTrue(displayText.contains("omitted 17"))
+        XCTAssertTrue(displayText.contains("Fallback: fallback"))
+        XCTAssertFalse(displayText.contains(secretPath))
+        XCTAssertFalse(displayText.contains(secretValue))
+        XCTAssertFalse(displayText.contains("env:TOKEN"))
+        XCTAssertFalse(displayText.contains("arg:SECRET"))
+        XCTAssertFalse(displayText.contains("compose.yml"))
+    }
+
     func testBoundsPlanExcerpt() {
         let items = PlanSessionHistory.displayItems(
             for: [
@@ -162,7 +352,7 @@ final class PlanSessionHistoryTests: XCTestCase {
         XCTAssertEqual(display.filter, .all)
         XCTAssertEqual(display.unfilteredTotalCount, sessionCount)
         XCTAssertEqual(display.filterOptions.map(\.filter), PlanSessionHistoryFilter.allCases)
-        XCTAssertEqual(display.filterOptions.map(\.count), [sessionCount, 0, 0, 0, sessionCount])
+        XCTAssertEqual(display.filterOptions.map(\.count), [sessionCount, 0, 0, 0, sessionCount, 0, 0])
     }
 
     func testDisplayShowAllModeIncludesEveryRun() {
@@ -537,5 +727,44 @@ final class PlanSessionHistoryTests: XCTestCase {
             feedback: feedback,
             executionEnvironmentSnapshots: executionEnvironmentSnapshots
         )
+    }
+
+    private func makeRuntimeSnapshot(
+        repoPrefix: String,
+        devcontainerJSON: String,
+        preference: CodexExecutionEnvironmentPreference,
+        containerToolPath: String?,
+        phase: String = "Plan"
+    ) throws -> SessionExecutionEnvironmentSnapshot {
+        let repoURL = try makeTemporaryDirectory(prefix: repoPrefix)
+        try write(devcontainerJSON, to: devcontainerURL(in: repoURL))
+        let plan = CodexExecutionLaunchPlan.plan(
+            repoURL: repoURL,
+            preference: preference,
+            containerToolResolver: { _ in containerToolPath }
+        )
+        return SessionExecutionEnvironmentSnapshot(phase: phase, launchPlan: plan)
+    }
+
+    private func makeTemporaryDirectory(prefix: String) throws -> URL {
+        let url = FileManager.default.temporaryDirectory
+            .appending(path: "\(prefix)-\(UUID().uuidString)", directoryHint: .isDirectory)
+        try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+        temporaryDirectories.append(url)
+        return url.standardizedFileURL
+    }
+
+    private func devcontainerURL(in repoURL: URL) -> URL {
+        repoURL
+            .appending(path: ".devcontainer", directoryHint: .isDirectory)
+            .appending(path: "devcontainer.json")
+    }
+
+    private func write(_ text: String, to url: URL) throws {
+        try FileManager.default.createDirectory(
+            at: url.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try text.data(using: .utf8)?.write(to: url)
     }
 }

@@ -1733,11 +1733,8 @@ private struct PlanSessionHistoryCard: View {
                     .foregroundStyle(.secondary)
             }
 
-            if let runtimeRouteSummary = item.runtimeRouteSummary {
-                Label(runtimeRouteSummary, systemImage: "desktopcomputer")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .textSelection(.enabled)
+            if item.runtimeRouteDescriptor.isSnapshotAvailable {
+                RuntimeRouteBadge(descriptor: item.runtimeRouteDescriptor)
             }
 
             if let feedback = item.feedback {
@@ -1839,6 +1836,22 @@ private func storageAssessmentColor(for severity: CompassWorkspaceStorageAssessm
         return .orange
     case .failure:
         return .red
+    }
+}
+
+private struct RuntimeRouteBadge: View {
+    var descriptor: PlanSessionHistoryItem.RuntimeRouteDescriptor
+
+    var body: some View {
+        Label(descriptor.badgeText, systemImage: descriptor.systemImage)
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(.secondary)
+            .lineLimit(2)
+            .fixedSize(horizontal: false, vertical: true)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(.quaternary.opacity(0.5), in: Capsule())
+            .help(descriptor.helpText)
     }
 }
 

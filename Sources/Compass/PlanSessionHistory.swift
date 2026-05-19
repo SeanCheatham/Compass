@@ -7,6 +7,293 @@ struct PlanSessionHistoryItem: Identifiable, Equatable {
         var tail: String
     }
 
+    struct RuntimeRouteDescriptor: Equatable {
+        static let badgeTextLimit = 120
+        static let helpTextLimit = 260
+        static let identifierLimit = 64
+        static let titleLimit = 80
+
+        var snapshotAvailabilityIdentifier: String
+        var selectedPreferenceIdentifier: String
+        var selectedPreferenceTitle: String
+        var effectiveRouteIdentifier: String
+        var effectiveRouteTitle: String
+        var supportClassificationIdentifier: String
+        var omittedSupportTokenCount: Int
+        var fallbackStateIdentifier: String
+        var badgeText: String
+        var helpText: String
+
+        private init(
+            snapshotAvailabilityIdentifier: String,
+            selectedPreferenceIdentifier: String,
+            selectedPreferenceTitle: String,
+            effectiveRouteIdentifier: String,
+            effectiveRouteTitle: String,
+            supportClassificationIdentifier: String,
+            omittedSupportTokenCount: Int,
+            fallbackStateIdentifier: String,
+            badgeText: String,
+            helpText: String
+        ) {
+            self.snapshotAvailabilityIdentifier = snapshotAvailabilityIdentifier
+            self.selectedPreferenceIdentifier = selectedPreferenceIdentifier
+            self.selectedPreferenceTitle = selectedPreferenceTitle
+            self.effectiveRouteIdentifier = effectiveRouteIdentifier
+            self.effectiveRouteTitle = effectiveRouteTitle
+            self.supportClassificationIdentifier = supportClassificationIdentifier
+            self.omittedSupportTokenCount = omittedSupportTokenCount
+            self.fallbackStateIdentifier = fallbackStateIdentifier
+            self.badgeText = badgeText
+            self.helpText = helpText
+        }
+
+        static let unavailable = Self(
+            snapshotAvailabilityIdentifier: "missing",
+            selectedPreferenceIdentifier: "unknown",
+            selectedPreferenceTitle: "Unknown",
+            effectiveRouteIdentifier: "unknown",
+            effectiveRouteTitle: "Unknown route",
+            supportClassificationIdentifier: "not-inspected",
+            omittedSupportTokenCount: 0,
+            fallbackStateIdentifier: "unknown",
+            badgeText: "",
+            helpText: ""
+        )
+
+        init(snapshot: SessionExecutionEnvironmentSnapshot?) {
+            guard let snapshot else {
+                self = Self.unavailable
+                return
+            }
+
+            let selectedPreferenceIdentifier = Self.preferenceIdentifier(
+                snapshot.selectedPreferenceIdentifier
+            )
+            let effectiveRouteIdentifier = Self.routeIdentifier(
+                snapshot.effectiveRouteIdentifier
+            )
+            let supportClassificationIdentifier = Self.supportClassificationIdentifier(
+                snapshot.supportClassificationIdentifier
+            )
+            let fallbackStateIdentifier = Self.fallbackStateIdentifier(for: snapshot)
+            let omittedSupportTokenCount = max(0, snapshot.omittedSupportTokenCount)
+            let selectedPreferenceTitle = Self.preferenceTitle(
+                identifier: selectedPreferenceIdentifier,
+                fallback: snapshot.selectedPreferenceTitle
+            )
+            let effectiveRouteTitle = Self.routeTitle(
+                identifier: effectiveRouteIdentifier,
+                fallback: snapshot.effectiveRouteTitle
+            )
+
+            self = Self(
+                snapshotAvailabilityIdentifier: "available",
+                selectedPreferenceIdentifier: selectedPreferenceIdentifier,
+                selectedPreferenceTitle: selectedPreferenceTitle,
+                effectiveRouteIdentifier: effectiveRouteIdentifier,
+                effectiveRouteTitle: effectiveRouteTitle,
+                supportClassificationIdentifier: supportClassificationIdentifier,
+                omittedSupportTokenCount: omittedSupportTokenCount,
+                fallbackStateIdentifier: fallbackStateIdentifier,
+                badgeText: Self.badgeText(
+                    selectedPreferenceTitle: selectedPreferenceTitle,
+                    effectiveRouteTitle: effectiveRouteTitle,
+                    supportClassificationIdentifier: supportClassificationIdentifier,
+                    omittedSupportTokenCount: omittedSupportTokenCount,
+                    fallbackStateIdentifier: fallbackStateIdentifier
+                ),
+                helpText: Self.helpText(
+                    selectedPreferenceTitle: selectedPreferenceTitle,
+                    effectiveRouteTitle: effectiveRouteTitle,
+                    supportClassificationIdentifier: supportClassificationIdentifier,
+                    omittedSupportTokenCount: omittedSupportTokenCount,
+                    fallbackStateIdentifier: fallbackStateIdentifier
+                )
+            )
+        }
+
+        var isSnapshotAvailable: Bool {
+            snapshotAvailabilityIdentifier == "available"
+        }
+
+        var isAppleContainerRoute: Bool {
+            isSnapshotAvailable && effectiveRouteIdentifier == "apple-container"
+        }
+
+        var isNativeRoute: Bool {
+            isSnapshotAvailable && effectiveRouteIdentifier == "native-macos"
+        }
+
+        var systemImage: String {
+            isAppleContainerRoute ? "shippingbox" : "desktopcomputer"
+        }
+
+        private static func badgeText(
+            selectedPreferenceTitle: String,
+            effectiveRouteTitle: String,
+            supportClassificationIdentifier: String,
+            omittedSupportTokenCount: Int,
+            fallbackStateIdentifier: String
+        ) -> String {
+            boundedText(
+                [
+                    effectiveRouteTitle,
+                    selectedPreferenceTitle,
+                    supportClassificationIdentifier,
+                    "omitted \(omittedSupportTokenCount)",
+                    fallbackStateIdentifier
+                ].joined(separator: " · "),
+                limit: badgeTextLimit
+            )
+        }
+
+        private static func helpText(
+            selectedPreferenceTitle: String,
+            effectiveRouteTitle: String,
+            supportClassificationIdentifier: String,
+            omittedSupportTokenCount: Int,
+            fallbackStateIdentifier: String
+        ) -> String {
+            boundedText(
+                [
+                    "Selected preference: \(selectedPreferenceTitle)",
+                    "Effective route: \(effectiveRouteTitle)",
+                    "Support: \(supportClassificationIdentifier)",
+                    "Omitted token count: \(omittedSupportTokenCount)",
+                    "Fallback: \(fallbackStateIdentifier)"
+                ].joined(separator: "; "),
+                limit: helpTextLimit
+            )
+        }
+
+        private static func fallbackStateIdentifier(
+            for snapshot: SessionExecutionEnvironmentSnapshot
+        ) -> String {
+            let fallbackReason = snapshot.fallbackReason?
+                .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            return fallbackReason.isEmpty ? "direct" : "fallback"
+        }
+
+        private static func preferenceTitle(identifier: String, fallback: String) -> String {
+            switch identifier {
+            case CodexExecutionEnvironmentPreference.nativeMacOS.rawValue:
+                return CodexExecutionEnvironmentPreference.nativeMacOS.title
+            case CodexExecutionEnvironmentPreference.devcontainerPreferred.rawValue:
+                return CodexExecutionEnvironmentPreference.devcontainerPreferred.title
+            default:
+                return sanitizedTitle(fallback, fallback: "Unknown")
+            }
+        }
+
+        private static func routeTitle(identifier: String, fallback: String) -> String {
+            switch identifier {
+            case "apple-container":
+                return "Apple container"
+            case "native-macos":
+                return "Native macOS"
+            default:
+                return sanitizedTitle(fallback, fallback: "Unknown route")
+            }
+        }
+
+        private static func preferenceIdentifier(_ text: String) -> String {
+            let identifier = sanitizedIdentifier(text, fallback: "unknown")
+            switch identifier {
+            case CodexExecutionEnvironmentPreference.nativeMacOS.rawValue,
+                CodexExecutionEnvironmentPreference.devcontainerPreferred.rawValue:
+                return identifier
+            default:
+                return "unknown"
+            }
+        }
+
+        private static func routeIdentifier(_ text: String) -> String {
+            let identifier = sanitizedIdentifier(text, fallback: "unknown")
+            switch identifier {
+            case "apple-container", "native-macos":
+                return identifier
+            default:
+                return "unknown"
+            }
+        }
+
+        private static func supportClassificationIdentifier(_ text: String) -> String {
+            let identifier = sanitizedIdentifier(text, fallback: "not-inspected")
+            switch identifier {
+            case "missing",
+                "malformed",
+                "image-routeable",
+                "build-based",
+                "compose-based",
+                "feature-based",
+                "unsupported-extra-fields",
+                "not-inspected":
+                return identifier
+            default:
+                return "not-inspected"
+            }
+        }
+
+        private static func sanitizedIdentifier(_ text: String, fallback: String) -> String {
+            let normalized = boundedText(text, limit: identifierLimit)
+                .lowercased()
+            let filtered = String(normalized.unicodeScalars.map { scalar in
+                if isASCIILetter(scalar)
+                    || isASCIIDigit(scalar)
+                    || scalar == "-"
+                    || scalar == "_"
+                    || scalar == "."
+                    || scalar == ":" {
+                    return Character(scalar)
+                }
+                return "-"
+            })
+            .replacingOccurrences(of: #"-+"#, with: "-", options: .regularExpression)
+            .trimmingCharacters(in: CharacterSet(charactersIn: "-_:."))
+            return filtered.isEmpty ? fallback : filtered
+        }
+
+        private static func sanitizedTitle(_ text: String, fallback: String) -> String {
+            let bounded = boundedText(text, limit: titleLimit)
+            guard !bounded.isEmpty else {
+                return fallback
+            }
+
+            let scalarsAreSafe = bounded.unicodeScalars.allSatisfy { scalar in
+                isASCIILetter(scalar)
+                    || isASCIIDigit(scalar)
+                    || scalar == " "
+                    || scalar == "-"
+                    || scalar == "_"
+                    || scalar == "."
+                    || scalar == ":"
+                    || scalar == "@"
+                    || scalar == "+"
+            }
+            return scalarsAreSafe ? bounded : fallback
+        }
+
+        private static func boundedText(_ text: String, limit: Int) -> String {
+            guard limit > 0 else { return "" }
+            let normalized = text
+                .replacingOccurrences(of: "\r", with: " ")
+                .replacingOccurrences(of: "\n", with: " ")
+                .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            guard normalized.count > limit else { return normalized }
+            return String(normalized.prefix(limit)).trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+
+        private static func isASCIILetter(_ scalar: UnicodeScalar) -> Bool {
+            (65...90).contains(Int(scalar.value)) || (97...122).contains(Int(scalar.value))
+        }
+
+        private static func isASCIIDigit(_ scalar: UnicodeScalar) -> Bool {
+            (48...57).contains(Int(scalar.value))
+        }
+    }
+
     var id: Int { sessionNumber }
 
     var sessionNumber: Int
@@ -20,6 +307,35 @@ struct PlanSessionHistoryItem: Identifiable, Equatable {
     var commits: [SessionCommit]
     var failedVerify: FailedVerify?
     var runtimeRouteSummary: String?
+    var runtimeRouteDescriptor: RuntimeRouteDescriptor
+
+    init(
+        sessionNumber: Int,
+        status: SessionStatus,
+        statusText: String,
+        startedAt: Date,
+        planExcerpt: String?,
+        verifyCommand: String?,
+        feedback: String?,
+        notes: [String],
+        commits: [SessionCommit],
+        failedVerify: FailedVerify?,
+        runtimeRouteSummary: String?,
+        runtimeRouteDescriptor: RuntimeRouteDescriptor = .unavailable
+    ) {
+        self.sessionNumber = sessionNumber
+        self.status = status
+        self.statusText = statusText
+        self.startedAt = startedAt
+        self.planExcerpt = planExcerpt
+        self.verifyCommand = verifyCommand
+        self.feedback = feedback
+        self.notes = notes
+        self.commits = commits
+        self.failedVerify = failedVerify
+        self.runtimeRouteSummary = runtimeRouteSummary
+        self.runtimeRouteDescriptor = runtimeRouteDescriptor
+    }
 }
 
 enum PlanSessionHistoryFilter: String, CaseIterable, Identifiable, Equatable, Hashable {
@@ -28,6 +344,8 @@ enum PlanSessionHistoryFilter: String, CaseIterable, Identifiable, Equatable, Ha
     case activePaused
     case failedRejected
     case completedFinished
+    case appleContainer
+    case nativeRuntime
 
     struct Option: Identifiable, Equatable {
         var filter: PlanSessionHistoryFilter
@@ -54,6 +372,10 @@ enum PlanSessionHistoryFilter: String, CaseIterable, Identifiable, Equatable, Ha
             return "Failed/Rejected"
         case .completedFinished:
             return "Completed"
+        case .appleContainer:
+            return "Apple Container"
+        case .nativeRuntime:
+            return "Native/Fallback"
         }
     }
 
@@ -69,6 +391,10 @@ enum PlanSessionHistoryFilter: String, CaseIterable, Identifiable, Equatable, Ha
             return "failed or rejected runs"
         case .completedFinished:
             return "completed runs"
+        case .appleContainer:
+            return "Apple-container runs"
+        case .nativeRuntime:
+            return "native or fallback runs"
         }
     }
 
@@ -84,6 +410,10 @@ enum PlanSessionHistoryFilter: String, CaseIterable, Identifiable, Equatable, Ha
             return "xmark.octagon"
         case .completedFinished:
             return "checkmark.circle"
+        case .appleContainer:
+            return "shippingbox"
+        case .nativeRuntime:
+            return "desktopcomputer"
         }
     }
 
@@ -127,6 +457,10 @@ enum PlanSessionHistoryFilter: String, CaseIterable, Identifiable, Equatable, Ha
             return item.status == .succeeded
                 || item.status == .cancelled
                 || item.status == .skipped
+        case .appleContainer:
+            return item.runtimeRouteDescriptor.isAppleContainerRoute
+        case .nativeRuntime:
+            return item.runtimeRouteDescriptor.isNativeRoute
         }
     }
 }
@@ -272,7 +606,8 @@ enum PlanSessionHistory {
                 return lhs.startedAt > rhs.startedAt
             }
             .map { session in
-                PlanSessionHistoryItem(
+                let latestRuntimeSnapshot = session.latestExecutionEnvironmentSnapshot
+                return PlanSessionHistoryItem(
                     sessionNumber: session.session,
                     status: session.status,
                     statusText: statusText(for: session.status),
@@ -283,7 +618,10 @@ enum PlanSessionHistory {
                     notes: session.notes,
                     commits: session.commits,
                     failedVerify: failedVerify(from: session),
-                    runtimeRouteSummary: session.latestExecutionEnvironmentSnapshot?.routeSummary
+                    runtimeRouteSummary: latestRuntimeSnapshot?.routeSummary,
+                    runtimeRouteDescriptor: PlanSessionHistoryItem.RuntimeRouteDescriptor(
+                        snapshot: latestRuntimeSnapshot
+                    )
                 )
             }
     }
