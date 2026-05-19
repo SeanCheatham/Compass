@@ -8896,6 +8896,256 @@ struct CinematicDiagnosticsWarningBundleHistory: Equatable {
     }
 }
 
+struct CinematicDiagnosticsWarningPulseQuietingDescriptor: Equatable, Identifiable {
+    static let identifierMaxCharacters = 240
+    static let labelMaxCharacters = 48
+    static let detailMaxCharacters = 180
+    static let helpMaxCharacters = 180
+    static let copyTextMaxCharacters = 520
+
+    var id: String { identifier }
+
+    var identifier: String
+    var bundleIdentifier: String
+    var sequence: Int
+    var captureCount: Int
+    var statusLabel: String
+    var statusDetail: String
+    var resumeLabel: String
+    var resumeHelp: String
+    var copyLabel: String
+    var copyHelp: String
+    var copyText: String
+
+    init(entry: CinematicDiagnosticsWarningBundleHistory.Entry) {
+        let bundleIdentifier = Self.bounded(
+            entry.bundleIdentifier,
+            limit: CinematicDiagnosticsWarningBundleHistory.identifierMaxCharacters
+        )
+        let sequence = Self.boundedCount(entry.sequence)
+        let captureCount = Self.boundedCount(entry.captureCount)
+        let detail = [
+            "bundle \(bundleIdentifier)",
+            "sequence #\(sequence)",
+            "captures \(captureCount)"
+        ].joined(separator: " | ")
+
+        self.identifier = Self.bounded(
+            [
+                "diagnostics-warning-pulse-quieted",
+                "bundle:\(bundleIdentifier)",
+                "sequence:\(sequence)",
+                "captures:\(captureCount)"
+            ].joined(separator: "|"),
+            limit: Self.identifierMaxCharacters
+        )
+        self.bundleIdentifier = bundleIdentifier
+        self.sequence = sequence
+        self.captureCount = captureCount
+        statusLabel = Self.bounded("Warning pulse snoozed", limit: Self.labelMaxCharacters)
+        statusDetail = Self.bounded(detail, limit: Self.detailMaxCharacters)
+        resumeLabel = Self.bounded("Resume pulse", limit: Self.labelMaxCharacters)
+        resumeHelp = Self.bounded(
+            "Resume the current diagnostics warning pulse for this session",
+            limit: Self.helpMaxCharacters
+        )
+        copyLabel = Self.bounded("Copy pulse snooze", limit: Self.labelMaxCharacters)
+        copyHelp = Self.bounded(
+            "Copy bounded diagnostics warning pulse snooze status",
+            limit: Self.helpMaxCharacters
+        )
+        copyText = Self.boundedMultiline(
+            [
+                "Diagnostics warning pulse snoozed",
+                "Bundle: \(bundleIdentifier)",
+                "Sequence: #\(sequence)",
+                "Capture count: \(captureCount)"
+            ].joined(separator: "\n"),
+            limit: Self.copyTextMaxCharacters
+        )
+    }
+
+    func matches(_ entry: CinematicDiagnosticsWarningBundleHistory.Entry?) -> Bool {
+        guard let entry else { return false }
+        return bundleIdentifier == Self.bounded(
+            entry.bundleIdentifier,
+            limit: CinematicDiagnosticsWarningBundleHistory.identifierMaxCharacters
+        )
+            && sequence == Self.boundedCount(entry.sequence)
+            && captureCount == Self.boundedCount(entry.captureCount)
+    }
+
+    private static func boundedCount(_ value: Int) -> Int {
+        max(value, 0)
+    }
+
+    private static func bounded(_ text: String, limit: Int) -> String {
+        let normalized = text
+            .replacingOccurrences(of: "\r", with: " ")
+            .replacingOccurrences(of: "\n", with: " ")
+            .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalized.isEmpty else { return "-" }
+        guard normalized.count > limit else { return normalized }
+
+        let prefixLimit = max(1, limit - 3)
+        let prefix = normalized.prefix(prefixLimit)
+        return String(prefix).trimmingCharacters(in: .whitespacesAndNewlines) + "..."
+    }
+
+    private static func boundedMultiline(_ text: String, limit: Int) -> String {
+        let normalized = text
+            .replacingOccurrences(of: "\r\n", with: "\n")
+            .replacingOccurrences(of: "\r", with: "\n")
+            .components(separatedBy: "\n")
+            .map {
+                $0.replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+            }
+            .filter { !$0.isEmpty }
+            .joined(separator: "\n")
+        guard !normalized.isEmpty else { return "" }
+        guard normalized.count > limit else { return normalized }
+
+        let prefixLimit = max(1, limit - 3)
+        let prefix = normalized.prefix(prefixLimit)
+        return String(prefix).trimmingCharacters(in: .whitespacesAndNewlines) + "..."
+    }
+}
+
+struct CinematicDiagnosticsWarningPulseQuietingStatusDescriptor: Equatable, Identifiable {
+    static let identifierMaxCharacters = 220
+    static let labelMaxCharacters = 48
+    static let detailMaxCharacters = 180
+    static let helpMaxCharacters = 180
+    static let copyTextMaxCharacters = 520
+
+    var id: String
+    var stateIdentifier: String
+    var label: String
+    var detail: String
+    var actionLabel: String
+    var actionHelp: String
+    var copyLabel: String
+    var copyHelp: String
+    var copyText: String
+    var isSnoozed: Bool
+    var canSnooze: Bool
+    var canResume: Bool
+
+    init(
+        currentBundle: CinematicDiagnosticsWarningBundleHistory.Entry?,
+        quietingDescriptor: CinematicDiagnosticsWarningPulseQuietingDescriptor?
+    ) {
+        if let currentBundle {
+            let matchingQuieting = quietingDescriptor?.matches(currentBundle) == true
+            let bundleIdentifier = Self.bounded(
+                currentBundle.bundleIdentifier,
+                limit: CinematicDiagnosticsWarningBundleHistory.identifierMaxCharacters
+            )
+            let sequence = Self.boundedCount(currentBundle.sequence)
+            let captureCount = Self.boundedCount(currentBundle.captureCount)
+            let stateIdentifier = matchingQuieting ? "snoozed" : "active"
+            let detail = [
+                "bundle \(bundleIdentifier)",
+                "sequence #\(sequence)",
+                "captures \(captureCount)"
+            ].joined(separator: " | ")
+
+            self.id = Self.bounded(
+                "diagnostics-warning-pulse-quieting-status|\(stateIdentifier)|\(bundleIdentifier)|\(sequence)|\(captureCount)",
+                limit: Self.identifierMaxCharacters
+            )
+            self.stateIdentifier = stateIdentifier
+            label = Self.bounded(
+                matchingQuieting ? "Warning pulse snoozed" : "Warning pulse active",
+                limit: Self.labelMaxCharacters
+            )
+            self.detail = Self.bounded(detail, limit: Self.detailMaxCharacters)
+            actionLabel = Self.bounded(
+                matchingQuieting ? "Resume pulse" : "Snooze pulse",
+                limit: Self.labelMaxCharacters
+            )
+            actionHelp = Self.bounded(
+                matchingQuieting
+                    ? "Resume the current diagnostics warning pulse for this session"
+                    : "Snooze the current diagnostics warning pulse for this session",
+                limit: Self.helpMaxCharacters
+            )
+            copyLabel = Self.bounded(
+                matchingQuieting ? "Copy pulse snooze" : "Copy pulse status",
+                limit: Self.labelMaxCharacters
+            )
+            copyHelp = Self.bounded(
+                "Copy bounded diagnostics warning pulse status",
+                limit: Self.helpMaxCharacters
+            )
+            copyText = Self.boundedMultiline(
+                [
+                    "Diagnostics warning pulse \(stateIdentifier)",
+                    "Bundle: \(bundleIdentifier)",
+                    "Sequence: #\(sequence)",
+                    "Capture count: \(captureCount)"
+                ].joined(separator: "\n"),
+                limit: Self.copyTextMaxCharacters
+            )
+            isSnoozed = matchingQuieting
+            canSnooze = !matchingQuieting
+            canResume = matchingQuieting
+        } else {
+            self.id = "diagnostics-warning-pulse-quieting-status|unavailable"
+            stateIdentifier = "unavailable"
+            label = "No warning pulse"
+            detail = "No unresolved diagnostics warning bundle."
+            actionLabel = "Snooze pulse"
+            actionHelp = "No current diagnostics warning pulse to snooze"
+            copyLabel = "Copy pulse status"
+            copyHelp = "No diagnostics warning pulse status to copy"
+            copyText = ""
+            isSnoozed = false
+            canSnooze = false
+            canResume = false
+        }
+    }
+
+    private static func boundedCount(_ value: Int) -> Int {
+        max(value, 0)
+    }
+
+    private static func bounded(_ text: String, limit: Int) -> String {
+        let normalized = text
+            .replacingOccurrences(of: "\r", with: " ")
+            .replacingOccurrences(of: "\n", with: " ")
+            .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalized.isEmpty else { return "-" }
+        guard normalized.count > limit else { return normalized }
+
+        let prefixLimit = max(1, limit - 3)
+        let prefix = normalized.prefix(prefixLimit)
+        return String(prefix).trimmingCharacters(in: .whitespacesAndNewlines) + "..."
+    }
+
+    private static func boundedMultiline(_ text: String, limit: Int) -> String {
+        let normalized = text
+            .replacingOccurrences(of: "\r\n", with: "\n")
+            .replacingOccurrences(of: "\r", with: "\n")
+            .components(separatedBy: "\n")
+            .map {
+                $0.replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+            }
+            .filter { !$0.isEmpty }
+            .joined(separator: "\n")
+        guard !normalized.isEmpty else { return "" }
+        guard normalized.count > limit else { return normalized }
+
+        let prefixLimit = max(1, limit - 3)
+        let prefix = normalized.prefix(prefixLimit)
+        return String(prefix).trimmingCharacters(in: .whitespacesAndNewlines) + "..."
+    }
+}
+
 enum CinematicDiagnostics {
     struct ActivityCase: Equatable {
         var identifier: String
@@ -9002,6 +9252,8 @@ enum CinematicDiagnostics {
             runRecapShareArtifactSavedTourHoldEntryIdentifier:
                 project.cinematicRunRecapShareArtifactLibraryContext.savedTourHoldEntryIdentifier,
             diagnosticsWarningBundleHistory: project.cinematicDiagnosticsWarningBundleHistory,
+            diagnosticsWarningPulseQuietingDescriptor:
+                project.cinematicDiagnosticsWarningPulseQuietingDescriptor,
             nativeFeedbackCue: project.cinematicNativeFeedbackCue,
             nativeFeedbackLifecycle: project.cinematicNativeFeedbackCueLifecycle,
             nativeFeedbackDeliverySnapshot: nativeFeedbackDeliverySnapshot
@@ -9049,6 +9301,7 @@ enum CinematicDiagnostics {
         runRecapShareArtifactPinnedEntryIdentifiers: [String] = [],
         runRecapShareArtifactSavedTourHoldEntryIdentifier: String? = nil,
         diagnosticsWarningBundleHistory: CinematicDiagnosticsWarningBundleHistory = CinematicDiagnosticsWarningBundleHistory(),
+        diagnosticsWarningPulseQuietingDescriptor: CinematicDiagnosticsWarningPulseQuietingDescriptor? = nil,
         nativeFeedbackCue: CinematicNativeFeedbackCuePlan? = nil,
         nativeFeedbackLifecycle: CinematicNativeFeedbackCueLifecycle = CinematicNativeFeedbackCueLifecycle(),
         nativeFeedbackDeliverySnapshot: NativeFeedbackDeliverySnapshot = NativeFeedbackDeliverySnapshot(
@@ -9168,6 +9421,7 @@ enum CinematicDiagnostics {
             nativeFeedbackCue: nativeFeedbackCue,
             nativeFeedbackPlaqueDescriptor: nativeFeedbackCue == nil ? nil : narrativeCuePlan.questPlaque,
             diagnosticsWarningBundleHistory: diagnosticsWarningBundleHistory,
+            diagnosticsWarningPulseQuietingDescriptor: diagnosticsWarningPulseQuietingDescriptor,
             runRecapPlan: runRecapPlan,
             runRecapSceneFocusPlan: runRecapSceneFocusPlan,
             runRecapEndCardPlan: runRecapEndCardPlan,

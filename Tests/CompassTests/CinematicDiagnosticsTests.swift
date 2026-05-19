@@ -4911,6 +4911,175 @@ final class CinematicDiagnosticsTests: XCTestCase {
         XCTAssertFalse(json.contains("cinematicDiagnosticsWarningBundleHistory"))
     }
 
+    @MainActor
+    func testCompassProjectSnoozesWarningPulseInMemoryWithoutClearingDiagnosticsState() throws {
+        let project = CompassProject(
+            repoURL: URL(fileURLWithPath: "/tmp/DiagnosticsWarningPulseSnooze", isDirectory: true)
+        )
+        let attention = warningAttentionSummary(
+            "project-snooze",
+            warnings: ["visual-smoke.asset-availability"],
+            relatedRowID: "assets"
+        )
+
+        project.recordCinematicDiagnosticsWarningBundle(attention)
+        let historyBefore = project.cinematicDiagnosticsWarningBundleHistory
+        let copyBefore = historyBefore.copyText
+        let sessionsBefore = project.sessions
+        let currentBundle = try XCTUnwrap(historyBefore.currentUnresolvedBundle)
+
+        project.snoozeCinematicDiagnosticsWarningPulse()
+
+        let quieting = try XCTUnwrap(project.cinematicDiagnosticsWarningPulseQuietingDescriptor)
+        XCTAssertTrue(quieting.matches(currentBundle))
+        XCTAssertEqual(project.cinematicDiagnosticsWarningBundleHistory, historyBefore)
+        XCTAssertEqual(project.cinematicDiagnosticsWarningBundleHistory.copyText, copyBefore)
+        XCTAssertEqual(project.sessions, sessionsBefore)
+
+        let status = CinematicDiagnosticsWarningPulseQuietingStatusDescriptor(
+            currentBundle: currentBundle,
+            quietingDescriptor: quieting
+        )
+        XCTAssertEqual(status.stateIdentifier, "snoozed")
+        XCTAssertTrue(status.canResume)
+        XCTAssertFalse(status.canSnooze)
+        XCTAssertTrue(status.copyText.contains(currentBundle.bundleIdentifier))
+
+        project.resumeCinematicDiagnosticsWarningPulse()
+        XCTAssertNil(project.cinematicDiagnosticsWarningPulseQuietingDescriptor)
+        XCTAssertEqual(project.cinematicDiagnosticsWarningBundleHistory, historyBefore)
+        XCTAssertEqual(project.sessions, sessionsBefore)
+
+        let record = KnownProjectRecord(
+            id: project.id,
+            path: project.repoURL.path,
+            addedAt: project.addedAt.timeIntervalSince1970,
+            lastOpenedAt: project.lastOpenedAt.timeIntervalSince1970
+        )
+        let data = try JSONEncoder().encode(record)
+        let json = String(data: data, encoding: .utf8) ?? ""
+        XCTAssertFalse(json.contains("cinematicDiagnosticsWarningPulseQuietingDescriptor"))
+    }
+
+    @MainActor
+    func testCompassProjectClearsStaleWarningPulseSnoozeOnDuplicateCaptureAndNewBundle() throws {
+        let project = CompassProject(
+            repoURL: URL(fileURLWithPath: "/tmp/DiagnosticsWarningPulseDuplicate", isDirectory: true)
+        )
+        let first = warningAttentionSummary(
+            "duplicate-snooze",
+            warnings: ["visual-smoke.asset-availability"]
+        )
+
+        project.recordCinematicDiagnosticsWarningBundle(first)
+        project.snoozeCinematicDiagnosticsWarningPulse()
+        XCTAssertNotNil(project.cinematicDiagnosticsWarningPulseQuietingDescriptor)
+
+        project.recordCinematicDiagnosticsWarningBundle(first)
+
+        XCTAssertNil(project.cinematicDiagnosticsWarningPulseQuietingDescriptor)
+        XCTAssertEqual(project.cinematicDiagnosticsWarningBundleHistory.entries.count, 1)
+        XCTAssertEqual(project.cinematicDiagnosticsWarningBundleHistory.currentUnresolvedBundle?.captureCount, 2)
+
+        project.snoozeCinematicDiagnosticsWarningPulse()
+        XCTAssertNotNil(project.cinematicDiagnosticsWarningPulseQuietingDescriptor)
+
+        project.recordCinematicDiagnosticsWarningBundle(
+            warningAttentionSummary(
+                "new-snooze",
+                warnings: ["visual-smoke.texture-role-coverage"]
+            )
+        )
+
+        XCTAssertNil(project.cinematicDiagnosticsWarningPulseQuietingDescriptor)
+        XCTAssertEqual(project.cinematicDiagnosticsWarningBundleHistory.entries.count, 2)
+        XCTAssertEqual(project.cinematicDiagnosticsWarningBundleHistory.currentUnresolvedBundle?.sequence, 2)
+        XCTAssertEqual(
+            project.cinematicDiagnosticsWarningBundleHistory.currentUnresolvedBundle?.warningIdentifiers,
+            ["visual-smoke.texture-role-coverage"]
+        )
+    }
+
+    func testWarningPulseQuietingDescriptorsAreBoundedAndBodyFree() throws {
+        let secret = "SECRET_NATIVE_NOTIFICATION_BODY_SHOULD_NOT_LEAK"
+        let longToken = String(repeating: "warning-pulse-token-", count: 20)
+        let entry = CinematicDiagnosticsWarningBundleHistory.Entry(
+            sequence: 12_345,
+            bundleIdentifier: "warning-bundle-\(longToken)",
+            captureCount: 99_999,
+            targetCount: 42,
+            warningCount: 77,
+            targetIdentifiers: ["target-\(longToken)-\(secret)"],
+            warningIdentifiers: ["visual-smoke.\(longToken)-\(secret)"],
+            repeatedWarningIdentifiers: ["visual-smoke.repeated-\(longToken)-\(secret)"],
+            targetAnchors: ["visual-smoke-check-\(longToken)-\(secret)"],
+            relatedRowAnchors: ["diagnostics-row-\(longToken)-\(secret)"]
+        )
+
+        let quieting = CinematicDiagnosticsWarningPulseQuietingDescriptor(entry: entry)
+        let activeStatus = CinematicDiagnosticsWarningPulseQuietingStatusDescriptor(
+            currentBundle: entry,
+            quietingDescriptor: nil
+        )
+        let snoozedStatus = CinematicDiagnosticsWarningPulseQuietingStatusDescriptor(
+            currentBundle: entry,
+            quietingDescriptor: quieting
+        )
+
+        XCTAssertLessThanOrEqual(
+            quieting.identifier.count,
+            CinematicDiagnosticsWarningPulseQuietingDescriptor.identifierMaxCharacters
+        )
+        XCTAssertLessThanOrEqual(
+            quieting.statusLabel.count,
+            CinematicDiagnosticsWarningPulseQuietingDescriptor.labelMaxCharacters
+        )
+        XCTAssertLessThanOrEqual(
+            quieting.statusDetail.count,
+            CinematicDiagnosticsWarningPulseQuietingDescriptor.detailMaxCharacters
+        )
+        XCTAssertLessThanOrEqual(
+            quieting.resumeHelp.count,
+            CinematicDiagnosticsWarningPulseQuietingDescriptor.helpMaxCharacters
+        )
+        XCTAssertLessThanOrEqual(
+            quieting.copyText.count,
+            CinematicDiagnosticsWarningPulseQuietingDescriptor.copyTextMaxCharacters
+        )
+        XCTAssertFalse(quieting.copyText.contains(secret))
+        XCTAssertTrue(quieting.matches(entry))
+        XCTAssertEqual(quieting.sequence, 12_345)
+        XCTAssertEqual(quieting.captureCount, 99_999)
+
+        for status in [activeStatus, snoozedStatus] {
+            XCTAssertLessThanOrEqual(
+                status.id.count,
+                CinematicDiagnosticsWarningPulseQuietingStatusDescriptor.identifierMaxCharacters
+            )
+            XCTAssertLessThanOrEqual(
+                status.label.count,
+                CinematicDiagnosticsWarningPulseQuietingStatusDescriptor.labelMaxCharacters
+            )
+            XCTAssertLessThanOrEqual(
+                status.detail.count,
+                CinematicDiagnosticsWarningPulseQuietingStatusDescriptor.detailMaxCharacters
+            )
+            XCTAssertLessThanOrEqual(
+                status.actionHelp.count,
+                CinematicDiagnosticsWarningPulseQuietingStatusDescriptor.helpMaxCharacters
+            )
+            XCTAssertLessThanOrEqual(
+                status.copyText.count,
+                CinematicDiagnosticsWarningPulseQuietingStatusDescriptor.copyTextMaxCharacters
+            )
+            XCTAssertFalse(status.copyText.contains(secret))
+        }
+        XCTAssertEqual(activeStatus.stateIdentifier, "active")
+        XCTAssertTrue(activeStatus.canSnooze)
+        XCTAssertEqual(snoozedStatus.stateIdentifier, "snoozed")
+        XCTAssertTrue(snoozedStatus.canResume)
+    }
+
     private func warningAttentionSummary(
         _ suffix: String,
         warnings: [String],

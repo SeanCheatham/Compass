@@ -216,6 +216,7 @@ enum CinematicIdleStoryCyclePlanner {
         nativeFeedbackCue: CinematicNativeFeedbackCuePlan?,
         nativeFeedbackPlaqueDescriptor: NativeFeedbackPlaqueDescriptor?,
         diagnosticsWarningBundleHistory: CinematicDiagnosticsWarningBundleHistory = CinematicDiagnosticsWarningBundleHistory(),
+        diagnosticsWarningPulseQuietingDescriptor: CinematicDiagnosticsWarningPulseQuietingDescriptor? = nil,
         runRecapPlan: CinematicRunRecapPlan,
         runRecapSceneFocusPlan: CinematicRunRecapSceneFocusPlan,
         runRecapEndCardPlan: CinematicRunRecapEndCardPlan,
@@ -240,6 +241,7 @@ enum CinematicIdleStoryCyclePlanner {
             nativeFeedbackCue: nativeFeedbackCue,
             nativeFeedbackPlaqueDescriptor: nativeFeedbackPlaqueDescriptor,
             diagnosticsWarningBundle: diagnosticsWarningBundleHistory.currentUnresolvedBundle,
+            diagnosticsWarningPulseQuietingDescriptor: diagnosticsWarningPulseQuietingDescriptor,
             runRecapPlan: runRecapPlan,
             runRecapSceneFocusPlan: runRecapSceneFocusPlan,
             runRecapEndCardPlan: runRecapEndCardPlan,
@@ -378,6 +380,7 @@ enum CinematicIdleStoryCyclePlanner {
         nativeFeedbackCue: CinematicNativeFeedbackCuePlan?,
         nativeFeedbackPlaqueDescriptor: NativeFeedbackPlaqueDescriptor?,
         diagnosticsWarningBundle: CinematicDiagnosticsWarningBundleHistory.Entry?,
+        diagnosticsWarningPulseQuietingDescriptor: CinematicDiagnosticsWarningPulseQuietingDescriptor?,
         runRecapPlan: CinematicRunRecapPlan,
         runRecapSceneFocusPlan: CinematicRunRecapSceneFocusPlan,
         runRecapEndCardPlan: CinematicRunRecapEndCardPlan,
@@ -408,6 +411,7 @@ enum CinematicIdleStoryCyclePlanner {
             ),
             diagnosticsWarningPulseCandidate(
                 bundle: diagnosticsWarningBundle,
+                quietingDescriptor: diagnosticsWarningPulseQuietingDescriptor,
                 influenceSettings: influenceSettings,
                 cadence: cadence
             ),
@@ -622,10 +626,12 @@ enum CinematicIdleStoryCyclePlanner {
 
     private static func diagnosticsWarningPulseCandidate(
         bundle: CinematicDiagnosticsWarningBundleHistory.Entry?,
+        quietingDescriptor: CinematicDiagnosticsWarningPulseQuietingDescriptor?,
         influenceSettings: CinematicInfluenceSettings,
         cadence: TimeInterval
     ) -> Candidate? {
         guard let bundle else { return nil }
+        guard quietingDescriptor?.matches(bundle) != true else { return nil }
 
         let warningDescriptor = diagnosticsWarningPulseDescriptor(for: bundle)
         let isHighPressure = warningDescriptor.warningCount > 1

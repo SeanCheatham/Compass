@@ -199,6 +199,91 @@ final class CinematicIdleStoryCyclePlanTests: XCTestCase {
         XCTAssertEqual(warningDescriptor.warningIdentifiers, ["visual-smoke.idle-story-cycle"])
     }
 
+    func testDiagnosticsWarningPulseSnoozeResumeAndBundleChanges() throws {
+        var context = try makeContext()
+        prepareDiagnosticsWarningOnlyContext(&context)
+
+        let unsnoozed = try XCTUnwrap(plan(context: context).descriptor)
+        let unsnoozedWarning = try XCTUnwrap(unsnoozed.diagnosticsWarningPulseDescriptor)
+        let firstBundle = try XCTUnwrap(context.diagnosticsWarningBundleHistory.currentUnresolvedBundle)
+
+        XCTAssertEqual(unsnoozed.phase, .diagnosticsWarningPulse)
+        XCTAssertEqual(unsnoozedWarning.captureCount, 1)
+
+        context.diagnosticsWarningPulseQuietingDescriptor =
+            CinematicDiagnosticsWarningPulseQuietingDescriptor(entry: firstBundle)
+        let snoozed = plan(context: context)
+        XCTAssertFalse(snoozed.isActive)
+        XCTAssertEqual(snoozed.suppressionReason, "no-descriptors")
+
+        context.diagnosticsWarningPulseQuietingDescriptor = nil
+        XCTAssertEqual(plan(context: context).descriptor?.phase, .diagnosticsWarningPulse)
+
+        context.diagnosticsWarningPulseQuietingDescriptor =
+            CinematicDiagnosticsWarningPulseQuietingDescriptor(entry: firstBundle)
+        context.diagnosticsWarningBundleHistory.record(
+            diagnosticsWarningAttentionSummary(
+                "idle-warning",
+                warnings: ["visual-smoke.idle-story-cycle"],
+                detail: "diagnostics warning",
+                copyText: "diagnostics warning copy"
+            )
+        )
+        let duplicateCapture = try XCTUnwrap(plan(context: context).descriptor)
+        XCTAssertEqual(duplicateCapture.phase, .diagnosticsWarningPulse)
+        XCTAssertEqual(duplicateCapture.diagnosticsWarningPulseDescriptor?.captureCount, 2)
+
+        let duplicateBundle = try XCTUnwrap(context.diagnosticsWarningBundleHistory.currentUnresolvedBundle)
+        context.diagnosticsWarningPulseQuietingDescriptor =
+            CinematicDiagnosticsWarningPulseQuietingDescriptor(entry: duplicateBundle)
+        context.diagnosticsWarningBundleHistory.record(
+            diagnosticsWarningAttentionSummary(
+                "new-warning",
+                warnings: ["visual-smoke.new-bundle"],
+                detail: "new diagnostics warning",
+                copyText: "new diagnostics warning copy"
+            )
+        )
+        let newBundle = try XCTUnwrap(plan(context: context).descriptor)
+        XCTAssertEqual(newBundle.phase, .diagnosticsWarningPulse)
+        XCTAssertEqual(newBundle.diagnosticsWarningPulseDescriptor?.sequence, 2)
+        XCTAssertEqual(newBundle.diagnosticsWarningPulseDescriptor?.captureCount, 1)
+        XCTAssertEqual(newBundle.diagnosticsWarningPulseDescriptor?.warningIdentifiers, [
+            "visual-smoke.new-bundle"
+        ])
+    }
+
+    func testSnoozedDiagnosticsWarningPulseLeavesOtherIdleRoutesAndCriticalPlaques() throws {
+        var context = try makeContext()
+        let currentBundle = try XCTUnwrap(context.diagnosticsWarningBundleHistory.currentUnresolvedBundle)
+        context.diagnosticsWarningPulseQuietingDescriptor =
+            CinematicDiagnosticsWarningPulseQuietingDescriptor(entry: currentBundle)
+        context.timelineFocusPlan = .none
+        context.planFocusPlan = .none
+        context.nativeFeedbackCue = nil
+        context.nativeFeedbackPlaqueDescriptor = nil
+        context.recapPlan = .empty(reason: "no-finished-session")
+        context.recapFocusPlan = .none
+        context.recapEndCardPlan = .none
+        context.tourPlan = nil
+        context.activitySourceBeaconPlan = .hidden
+
+        let routed = try XCTUnwrap(plan(context: context).descriptor)
+        XCTAssertEqual(routed.phase, .commitConstellation)
+        XCTAssertNil(routed.diagnosticsWarningPulseDescriptor)
+
+        let criticalCue = try makeNativeFeedbackCue(
+            milestone: .postChecksFailed,
+            recentRunCues: [:]
+        )
+        context.nativeFeedbackCue = criticalCue
+        context.nativeFeedbackPlaqueDescriptor = try XCTUnwrap(nativeFeedbackPlaqueDescriptor(for: criticalCue))
+
+        let critical = try XCTUnwrap(plan(context: context).descriptor)
+        XCTAssertEqual(critical.phase, .nativeFeedbackPlaque)
+        XCTAssertEqual(critical.targetKindIdentifier, "native-feedback-failure")
+    }
+
     func testDiagnosticsWarningPulseCarriesBoundedDuplicateMetadataWithoutBodyText() throws {
         let secret = "SECRET_NATIVE_NOTIFICATION_BODY_SHOULD_NOT_LEAK"
         var history = makeDiagnosticsWarningBundleHistory(
@@ -507,6 +592,7 @@ final class CinematicIdleStoryCyclePlanTests: XCTestCase {
         var nativeFeedbackCue: CinematicNativeFeedbackCuePlan?
         var nativeFeedbackPlaqueDescriptor: CinematicIdleStoryCyclePlan.NativeFeedbackPlaqueDescriptor?
         var diagnosticsWarningBundleHistory: CinematicDiagnosticsWarningBundleHistory
+        var diagnosticsWarningPulseQuietingDescriptor: CinematicDiagnosticsWarningPulseQuietingDescriptor?
         var recapPlan: CinematicRunRecapPlan
         var recapFocusPlan: CinematicRunRecapSceneFocusPlan
         var recapEndCardPlan: CinematicRunRecapEndCardPlan
@@ -517,7 +603,9 @@ final class CinematicIdleStoryCyclePlanTests: XCTestCase {
     private func makeContext(
         selectedBeatID: String? = nil,
         settings: CinematicInfluenceSettings = CinematicInfluenceSettings(),
-        diagnosticsWarningBundleHistory: CinematicDiagnosticsWarningBundleHistory? = nil
+        diagnosticsWarningBundleHistory: CinematicDiagnosticsWarningBundleHistory? = nil,
+        diagnosticsWarningPulseQuietingDescriptor:
+            CinematicDiagnosticsWarningPulseQuietingDescriptor? = nil
     ) throws -> Context {
         let session = makeSession(
             42,
@@ -602,6 +690,7 @@ final class CinematicIdleStoryCyclePlanTests: XCTestCase {
                 nativeFeedbackPlaqueDescriptor(for: nativeCue, settings: settings)
             ),
             diagnosticsWarningBundleHistory: diagnosticsWarningBundleHistory ?? makeDiagnosticsWarningBundleHistory(),
+            diagnosticsWarningPulseQuietingDescriptor: diagnosticsWarningPulseQuietingDescriptor,
             recapPlan: recapPlan,
             recapFocusPlan: recapFocusPlan,
             recapEndCardPlan: recapEndCardPlan,
@@ -633,6 +722,8 @@ final class CinematicIdleStoryCyclePlanTests: XCTestCase {
             nativeFeedbackCue: context.nativeFeedbackCue,
             nativeFeedbackPlaqueDescriptor: context.nativeFeedbackPlaqueDescriptor,
             diagnosticsWarningBundleHistory: context.diagnosticsWarningBundleHistory,
+            diagnosticsWarningPulseQuietingDescriptor:
+                context.diagnosticsWarningPulseQuietingDescriptor,
             runRecapPlan: context.recapPlan,
             runRecapSceneFocusPlan: context.recapFocusPlan,
             runRecapEndCardPlan: context.recapEndCardPlan,

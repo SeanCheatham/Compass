@@ -445,6 +445,8 @@ final class CompassProject: ObservableObject, Identifiable {
             activitySourceSnapshot: RepositoryActivitySourceSnapshot.notScanned()
         )
     @Published var cinematicDiagnosticsWarningBundleHistory = CinematicDiagnosticsWarningBundleHistory()
+    @Published var cinematicDiagnosticsWarningPulseQuietingDescriptor:
+        CinematicDiagnosticsWarningPulseQuietingDescriptor?
     @Published var isRunning = false
     @Published var isAutoPlaying = false
     @Published var isPaused = false
@@ -2456,8 +2458,35 @@ extension CompassProject {
         _ attentionSummary: CinematicDiagnosticsSummary.AttentionSummary
     ) {
         let updatedHistory = cinematicDiagnosticsWarningBundleHistory.recording(attentionSummary)
-        guard updatedHistory != cinematicDiagnosticsWarningBundleHistory else { return }
+        guard updatedHistory != cinematicDiagnosticsWarningBundleHistory else {
+            reconcileCinematicDiagnosticsWarningPulseQuietingDescriptor()
+            return
+        }
         cinematicDiagnosticsWarningBundleHistory = updatedHistory
+        reconcileCinematicDiagnosticsWarningPulseQuietingDescriptor()
+    }
+
+    func snoozeCinematicDiagnosticsWarningPulse() {
+        guard let currentBundle = cinematicDiagnosticsWarningBundleHistory.currentUnresolvedBundle else {
+            cinematicDiagnosticsWarningPulseQuietingDescriptor = nil
+            return
+        }
+        let descriptor = CinematicDiagnosticsWarningPulseQuietingDescriptor(entry: currentBundle)
+        guard cinematicDiagnosticsWarningPulseQuietingDescriptor != descriptor else { return }
+        cinematicDiagnosticsWarningPulseQuietingDescriptor = descriptor
+    }
+
+    func resumeCinematicDiagnosticsWarningPulse() {
+        guard cinematicDiagnosticsWarningPulseQuietingDescriptor != nil else { return }
+        cinematicDiagnosticsWarningPulseQuietingDescriptor = nil
+    }
+
+    private func reconcileCinematicDiagnosticsWarningPulseQuietingDescriptor() {
+        guard let descriptor = cinematicDiagnosticsWarningPulseQuietingDescriptor else { return }
+        guard descriptor.matches(cinematicDiagnosticsWarningBundleHistory.currentUnresolvedBundle) else {
+            cinematicDiagnosticsWarningPulseQuietingDescriptor = nil
+            return
+        }
     }
 
     private func feedback(_ milestone: NativeFeedbackMilestone) {

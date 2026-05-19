@@ -142,6 +142,8 @@ struct CinematicTab: View {
                     nativeFeedbackCue: nativeFeedbackCue
                 ),
                 diagnosticsWarningBundleHistory: project.cinematicDiagnosticsWarningBundleHistory,
+                diagnosticsWarningPulseQuietingDescriptor:
+                    project.cinematicDiagnosticsWarningPulseQuietingDescriptor,
                 runRecapPlan: recapPlan,
                 runRecapSceneFocusPlan: runRecapSceneFocusCandidatePlan,
                 runRecapEndCardPlan: runRecapEndCardCandidatePlan,
@@ -2696,7 +2698,15 @@ private struct CinematicInfluenceControls: View {
                 .popover(isPresented: $isShowingDiagnostics, arrowEdge: .top) {
                     CinematicDiagnosticsPopover(
                         summary: summary,
-                        warningBundleHistory: project.cinematicDiagnosticsWarningBundleHistory
+                        warningBundleHistory: project.cinematicDiagnosticsWarningBundleHistory,
+                        warningPulseQuietingDescriptor:
+                            project.cinematicDiagnosticsWarningPulseQuietingDescriptor,
+                        onSnoozeWarningPulse: {
+                            project.snoozeCinematicDiagnosticsWarningPulse()
+                        },
+                        onResumeWarningPulse: {
+                            project.resumeCinematicDiagnosticsWarningPulse()
+                        }
                     )
                 }
             }
@@ -2809,13 +2819,26 @@ private struct CinematicInfluenceControls: View {
 private struct CinematicDiagnosticsPopover: View {
     var summary: CinematicDiagnosticsSummary
     var warningBundleHistory: CinematicDiagnosticsWarningBundleHistory
+    var warningPulseQuietingDescriptor: CinematicDiagnosticsWarningPulseQuietingDescriptor?
+    var onSnoozeWarningPulse: () -> Void
+    var onResumeWarningPulse: () -> Void
     @State private var copied = false
     @State private var copiedWarningBundleHistory = false
     @State private var copiedWarningBundleHistoryRowID: String?
+    @State private var copiedWarningPulseQuieting = false
     @State private var copiedNativeFeedbackHistory = false
     @State private var copiedTargetID: String?
     @State private var groupExpansion: [String: Bool] = [:]
     @FocusState private var focusedGroupID: String?
+
+    private var warningPulseQuietingStatus:
+        CinematicDiagnosticsWarningPulseQuietingStatusDescriptor
+    {
+        CinematicDiagnosticsWarningPulseQuietingStatusDescriptor(
+            currentBundle: warningBundleHistory.currentUnresolvedBundle,
+            quietingDescriptor: warningPulseQuietingDescriptor
+        )
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -2831,6 +2854,7 @@ private struct CinematicDiagnosticsPopover: View {
                         copied = false
                         copiedWarningBundleHistory = false
                         copiedWarningBundleHistoryRowID = nil
+                        copiedWarningPulseQuieting = false
                         copiedNativeFeedbackHistory = true
                         copiedTargetID = nil
                     } label: {
@@ -2848,6 +2872,7 @@ private struct CinematicDiagnosticsPopover: View {
                     copied = true
                     copiedWarningBundleHistory = false
                     copiedWarningBundleHistoryRowID = nil
+                    copiedWarningPulseQuieting = false
                     copiedNativeFeedbackHistory = false
                     copiedTargetID = nil
                 } label: {
@@ -2891,6 +2916,7 @@ private struct CinematicDiagnosticsPopover: View {
             copied = false
             copiedWarningBundleHistory = false
             copiedWarningBundleHistoryRowID = nil
+            copiedWarningPulseQuieting = false
             copiedNativeFeedbackHistory = false
             copiedTargetID = nil
             resetExpansionDefaults()
@@ -2898,6 +2924,10 @@ private struct CinematicDiagnosticsPopover: View {
         .onChange(of: warningBundleHistory) {
             copiedWarningBundleHistory = false
             copiedWarningBundleHistoryRowID = nil
+            copiedWarningPulseQuieting = false
+        }
+        .onChange(of: warningPulseQuietingDescriptor) {
+            copiedWarningPulseQuieting = false
         }
         .onAppear {
             resetExpansionDefaults()
@@ -2922,6 +2952,7 @@ private struct CinematicDiagnosticsPopover: View {
                             copied = false
                             copiedWarningBundleHistory = true
                             copiedWarningBundleHistoryRowID = nil
+                            copiedWarningPulseQuieting = false
                             copiedNativeFeedbackHistory = false
                             copiedTargetID = nil
                         } label: {
@@ -2984,6 +3015,7 @@ private struct CinematicDiagnosticsPopover: View {
                             copied = false
                             copiedWarningBundleHistory = false
                             copiedWarningBundleHistoryRowID = nil
+                            copiedWarningPulseQuieting = false
                             copiedNativeFeedbackHistory = false
                             copiedTargetID = target.id
                         } label: {
@@ -3006,11 +3038,87 @@ private struct CinematicDiagnosticsPopover: View {
                     }
                 }
 
+                if warningBundleHistory.currentUnresolvedBundle != nil {
+                    warningPulseQuietingControl(warningPulseQuietingStatus)
+                }
+
                 if warningRollup.isAvailable {
                     warningBundleHistoryRollup(warningRollup)
                 }
             }
         }
+    }
+
+    private func warningPulseQuietingControl(
+        _ status: CinematicDiagnosticsWarningPulseQuietingStatusDescriptor
+    ) -> some View {
+        HStack(alignment: .center, spacing: 7) {
+            Image(systemName: status.isSnoozed ? "moon.zzz.fill" : "dot.radiowaves.left.and.right")
+                .font(.caption2.weight(.bold))
+                .foregroundStyle(status.isSnoozed ? Color.secondary : Color.orange)
+                .frame(width: 14)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(status.label)
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.primary)
+
+                Text(status.detail)
+                    .font(.caption2.monospaced())
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+                    .textSelection(.enabled)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+            Button {
+                if status.canResume {
+                    onResumeWarningPulse()
+                } else if status.canSnooze {
+                    onSnoozeWarningPulse()
+                }
+                copiedWarningPulseQuieting = false
+            } label: {
+                Image(systemName: status.canResume ? "play.circle" : "moon.zzz")
+                    .font(.caption2.weight(.semibold))
+                    .frame(width: 18, height: 18)
+            }
+            .buttonStyle(.plain)
+            .disabled(!status.canSnooze && !status.canResume)
+            .accessibilityLabel(status.actionLabel)
+            .help(status.actionHelp)
+
+            Button {
+                copyToPasteboard(status.copyText)
+                copied = false
+                copiedWarningBundleHistory = false
+                copiedWarningBundleHistoryRowID = nil
+                copiedWarningPulseQuieting = true
+                copiedNativeFeedbackHistory = false
+                copiedTargetID = nil
+            } label: {
+                Image(systemName: copiedWarningPulseQuieting ? "checkmark" : "doc.on.doc")
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(copiedWarningPulseQuieting ? .green : .secondary)
+                    .frame(width: 18, height: 18)
+            }
+            .buttonStyle(.plain)
+            .disabled(status.copyText.isEmpty)
+            .accessibilityLabel(status.copyLabel)
+            .help(status.copyHelp)
+        }
+        .padding(.horizontal, 7)
+        .padding(.vertical, 6)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            .orange.opacity(status.isSnoozed ? 0.05 : 0.08),
+            in: RoundedRectangle(cornerRadius: 6)
+        )
+        .overlay {
+            RoundedRectangle(cornerRadius: 6)
+                .stroke(.orange.opacity(status.isSnoozed ? 0.18 : 0.26))
+        }
+        .accessibilityIdentifier(status.id)
     }
 
     private func warningBundleHistoryRollup(
@@ -3087,6 +3195,7 @@ private struct CinematicDiagnosticsPopover: View {
                 copied = false
                 copiedWarningBundleHistory = false
                 copiedWarningBundleHistoryRowID = row.id
+                copiedWarningPulseQuieting = false
                 copiedNativeFeedbackHistory = false
                 copiedTargetID = nil
             } label: {
