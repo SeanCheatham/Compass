@@ -421,6 +421,8 @@ final class CompassProject: ObservableObject, Identifiable {
         }
     }
     @Published var codexExecutionEnvironmentPreference: CodexExecutionEnvironmentPreference
+    @Published var devcontainerProvisioningState = CompassProjectDevcontainerProvisioningState.idle
+    @Published var devcontainerProvisioningConfirmation: CodexDevcontainerProvisioningConfirmation?
     @Published var liveLog: [LiveLine] = []
     @Published var phase: LoopPhase = .idle {
         didSet {
@@ -470,6 +472,7 @@ final class CompassProject: ObservableObject, Identifiable {
     private var lastCinematicRefreshInput: CinematicRefreshInput?
     private var lastCinematicBriefingGeneratedAt = Date.distantPast
     private let storageMigrationAction: CompassWorkspaceStorageMigrationAction
+    private let devcontainerProvisioningAction: CodexDevcontainerProvisioningAction
     private let maxDevelopAttempts = 3
     private let reflectSessionWindow = 10
 
@@ -486,6 +489,9 @@ final class CompassProject: ObservableObject, Identifiable {
         storageApplicationSupportRoots: KnownProjectStore.ApplicationSupportRoots = KnownProjectStore.productionApplicationSupportRoots(),
         storageMigrationAction: @escaping CompassWorkspaceStorageMigrationAction = { plan in
             try CompassWorkspaceStorageMigrator().migrate(plan: plan)
+        },
+        devcontainerProvisioningAction: @escaping CodexDevcontainerProvisioningAction = { plan in
+            try CodexDevcontainerProvisioner.write(plan: plan)
         }
     ) {
         self.id = id
@@ -506,6 +512,7 @@ final class CompassProject: ObservableObject, Identifiable {
         self.cinematicRunRecapShareArtifactLibraryContext = cinematicRunRecapShareArtifactLibraryContext
         self.storageApplicationSupportRoots = storageApplicationSupportRoots
         self.storageMigrationAction = storageMigrationAction
+        self.devcontainerProvisioningAction = devcontainerProvisioningAction
         let briefingInput = CinematicBriefingInput(
             repoName: repoURL.lastPathComponent,
             currentPhase: LoopPhase.idle.rawValue,
@@ -860,6 +867,111 @@ extension CompassProject {
             log(result.detail, level: .warning)
         }
         return result
+    }
+
+    func devcontainerProvisioningPlan() -> CodexDevcontainerProvisioningPlan {
+        CodexDevcontainerProvisioningPlan.plan(
+            repoURL: repoURL,
+            languageProfile: languageProfile
+        )
+    }
+
+    func prepareDevcontainerProvisioningConfirmation() {
+        guard isIdleForDevcontainerProvisioning else {
+            devcontainerProvisioningConfirmation = nil
+            devcontainerProvisioningState = .blockedWhileBusy()
+            errorMessage = devcontainerProvisioningState.detail
+            log(devcontainerProvisioningState.detail, level: .warning)
+            return
+        }
+
+        let plan = devcontainerProvisioningPlan()
+        guard plan.isAvailable else {
+            devcontainerProvisioningConfirmation = nil
+            devcontainerProvisioningState = .blocked(plan: plan)
+            errorMessage = devcontainerProvisioningState.detail
+            log("Dev Container creation blocked: \(devcontainerProvisioningState.detail)", level: .warning)
+            return
+        }
+
+        let confirmation = CodexDevcontainerProvisioningConfirmation(plan: plan)
+        devcontainerProvisioningConfirmation = confirmation
+        devcontainerProvisioningState = .awaitingConfirmation(confirmation)
+        errorMessage = nil
+    }
+
+    func cancelDevcontainerProvisioningConfirmation() {
+        devcontainerProvisioningConfirmation = nil
+        if devcontainerProvisioningState.phase == .awaitingConfirmation {
+            devcontainerProvisioningState = .idle
+        }
+    }
+
+    func confirmDevcontainerProvisioning(
+        _ confirmation: CodexDevcontainerProvisioningConfirmation,
+        persistProjectRegistry: () throws -> Void
+    ) async {
+        devcontainerProvisioningConfirmation = nil
+
+        guard isIdleForDevcontainerProvisioning else {
+            devcontainerProvisioningState = .blockedWhileBusy()
+            errorMessage = devcontainerProvisioningState.detail
+            log(devcontainerProvisioningState.detail, level: .warning)
+            return
+        }
+
+        let currentPlan = devcontainerProvisioningPlan()
+        guard currentPlan.isAvailable else {
+            devcontainerProvisioningState = .blocked(plan: currentPlan)
+            errorMessage = devcontainerProvisioningState.detail
+            log("Dev Container creation blocked: \(devcontainerProvisioningState.detail)", level: .warning)
+            return
+        }
+
+        let plan = confirmation.plan
+        guard currentPlan.configURL == plan.configURL else {
+            let error = CodexDevcontainerProvisioningError.unavailable(
+                "The confirmed repository no longer matches the selected project."
+            )
+            devcontainerProvisioningState = .failed(error)
+            errorMessage = devcontainerProvisioningState.detail
+            log(devcontainerProvisioningState.detail, level: .error)
+            return
+        }
+
+        devcontainerProvisioningState = .running(plan: plan)
+        errorMessage = nil
+        log("Dev Container creation: writing \(plan.configURL.path).", level: .info)
+        await Task.yield()
+
+        let previousPreference = codexExecutionEnvironmentPreference
+        do {
+            let result = try devcontainerProvisioningAction(plan)
+            let parseOutcome = CodexExecutionLaunchPlan.parseDevcontainerImageConfig(repoURL: repoURL)
+            guard case .ready = parseOutcome else {
+                throw CodexDevcontainerProvisioningError.writtenConfigNotReady(
+                    devcontainerVerificationReason(parseOutcome)
+                )
+            }
+
+            codexExecutionEnvironmentPreference = .devcontainerPreferred
+            do {
+                try persistProjectRegistry()
+            } catch {
+                codexExecutionEnvironmentPreference = previousPreference
+                try? persistProjectRegistry()
+                throw error
+            }
+
+            await refresh()
+            devcontainerProvisioningState = .succeeded(result)
+            errorMessage = nil
+            log(devcontainerProvisioningState.detail, level: .success)
+        } catch {
+            devcontainerProvisioningState = .failed(error)
+            errorMessage = devcontainerProvisioningState.detail
+            log(devcontainerProvisioningState.detail, level: .error)
+        }
     }
 
     func activeStorageActivationPlan() -> CompassWorkspaceStorageActivationPlan {
@@ -1530,6 +1642,25 @@ extension CompassProject {
 
     private var isIdleForActiveStorageActivation: Bool {
         !isRunning && !isAutoPlaying && !isPaused
+    }
+
+    private var isIdleForDevcontainerProvisioning: Bool {
+        !isRunning && !isAutoPlaying && !isPaused
+    }
+
+    private func devcontainerVerificationReason(
+        _ outcome: CodexExecutionLaunchPlan.ParseOutcome
+    ) -> String {
+        switch outcome {
+        case .missing:
+            return "No .devcontainer/devcontainer.json was found after writing."
+        case let .malformed(_, reason):
+            return reason
+        case let .unsupported(_, reason):
+            return reason
+        case .ready:
+            return "The generated config is ready."
+        }
     }
 
     private func rollbackActiveStorage(

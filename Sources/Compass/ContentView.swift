@@ -828,13 +828,19 @@ private struct ProjectRunControls: View {
             deliverySnapshot: deliverySnapshot
         )
         let executionEnvironment = project.codexExecutionEnvironment
+        let devcontainerProvisioningPlan = project.devcontainerProvisioningPlan()
         let executionEnvironmentMenu = CodexExecutionEnvironmentMenu(
-            environment: executionEnvironment
+            environment: executionEnvironment,
+            provisioningPlan: devcontainerProvisioningPlan
         )
 
         HStack(spacing: 5) {
             Menu {
                 Text(executionEnvironmentMenu.statusText)
+                if project.devcontainerProvisioningState.shouldShowFeedback {
+                    Text(project.devcontainerProvisioningState.detail)
+                    Divider()
+                }
                 Divider()
                 ForEach(Array(executionEnvironmentMenu.items.enumerated()), id: \.element.id) { index, item in
                     Button {
@@ -848,12 +854,43 @@ private struct ProjectRunControls: View {
                         Divider()
                     }
                 }
+                if let createAction = executionEnvironmentMenu.createDevcontainerAction {
+                    Divider()
+                    Button {
+                        project.prepareDevcontainerProvisioningConfirmation()
+                    } label: {
+                        Label(createAction.title, systemImage: createAction.systemImage)
+                    }
+                    .disabled(
+                        project.devcontainerProvisioningState.isRunning
+                            || project.isRunning
+                            || project.isAutoPlaying
+                            || project.isPaused
+                    )
+                    Text(createAction.description)
+                }
             } label: {
                 Image(systemName: executionEnvironmentMenu.labelSystemImage)
                     .frame(width: 18, height: 18)
             }
             .menuStyle(.borderlessButton)
             .help(executionEnvironmentMenu.helpText)
+            .alert(item: $project.devcontainerProvisioningConfirmation) { confirmation in
+                Alert(
+                    title: Text(confirmation.title),
+                    message: Text(confirmation.message),
+                    primaryButton: .default(Text(confirmation.confirmLabel)) {
+                        Task {
+                            await project.confirmDevcontainerProvisioning(confirmation) {
+                                try model.saveProjectsThrowing()
+                            }
+                        }
+                    },
+                    secondaryButton: .cancel(Text(confirmation.cancelLabel)) {
+                        project.cancelDevcontainerProvisioningConfirmation()
+                    }
+                )
+            }
 
             Menu {
                 Text(feedbackMenu.deliveryStatusText)

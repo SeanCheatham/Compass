@@ -382,8 +382,12 @@ struct CodexExecutionEnvironmentMenu: Equatable {
     var helpText: String
     var statusText: String
     var items: [CodexExecutionEnvironmentMenuItem]
+    var createDevcontainerAction: CodexDevcontainerProvisioningMenuAction?
 
-    init(environment: CodexExecutionEnvironment) {
+    init(
+        environment: CodexExecutionEnvironment,
+        provisioningPlan: CodexDevcontainerProvisioningPlan? = nil
+    ) {
         let presentation = environment.presentation
         labelSystemImage = presentation.systemImage
         helpText = "Execution environment: \(presentation.title)"
@@ -395,5 +399,6 @@ struct CodexExecutionEnvironmentMenu: Equatable {
                 discovery: environment.devcontainerDiscovery
             )
         }
+        createDevcontainerAction = provisioningPlan.flatMap(CodexDevcontainerProvisioningMenuAction.init(plan:))
     }
 }
