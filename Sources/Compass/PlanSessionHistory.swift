@@ -19,6 +19,7 @@ struct PlanSessionHistoryItem: Identifiable, Equatable {
     var notes: [String]
     var commits: [SessionCommit]
     var failedVerify: FailedVerify?
+    var runtimeRouteSummary: String?
 }
 
 enum PlanSessionHistoryFilter: String, CaseIterable, Identifiable, Equatable, Hashable {
@@ -281,7 +282,8 @@ enum PlanSessionHistory {
                     feedback: nonEmpty(session.feedback),
                     notes: session.notes,
                     commits: session.commits,
-                    failedVerify: failedVerify(from: session)
+                    failedVerify: failedVerify(from: session),
+                    runtimeRouteSummary: session.latestExecutionEnvironmentSnapshot?.routeSummary
                 )
             }
     }

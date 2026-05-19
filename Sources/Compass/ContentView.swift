@@ -1733,6 +1733,13 @@ private struct PlanSessionHistoryCard: View {
                     .foregroundStyle(.secondary)
             }
 
+            if let runtimeRouteSummary = item.runtimeRouteSummary {
+                Label(runtimeRouteSummary, systemImage: "desktopcomputer")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .textSelection(.enabled)
+            }
+
             if let feedback = item.feedback {
                 LabeledHistoryBlock(title: "Feedback", systemImage: "text.bubble") {
                     MarkdownContent(feedback, compact: true)

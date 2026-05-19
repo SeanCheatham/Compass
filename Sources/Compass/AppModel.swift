@@ -1337,7 +1337,8 @@ extension CompassProject {
             logExecutionEnvironmentPreflight(
                 phase: "Plan",
                 nativeExecutionURL: workspace.repoURL,
-                launchPlan: launchPlan
+                launchPlan: launchPlan,
+                sessionIndex: sessionIndex
             )
             log("Plan: launching codex exec.", level: .info)
             let codex = CodexExecutor()
@@ -1529,7 +1530,9 @@ extension CompassProject {
                 logExecutionEnvironmentPreflight(
                     phase: "Develop",
                     nativeExecutionURL: devWorkspace.repoURL,
-                    launchPlan: launchPlan
+                    launchPlan: launchPlan,
+                    sessionIndex: sessionIndex,
+                    attempt: attempt
                 )
                 log("Develop: launching codex exec (attempt \(attempt)/\(maxDevelopAttempts)).", level: .info)
                 let codex = CodexExecutor()
@@ -1560,7 +1563,9 @@ extension CompassProject {
                     next: next,
                     summary: summary,
                     workingDirectory: devWorkspace.repoURL,
-                    launchPlan: launchPlan
+                    launchPlan: launchPlan,
+                    sessionIndex: sessionIndex,
+                    attempt: attempt
                 )
                 finalIssues = post.displayIssues
                 finalVerifyOutput = post.verifyOutput
@@ -1722,7 +1727,9 @@ extension CompassProject {
     private func logExecutionEnvironmentPreflight(
         phase: String,
         nativeExecutionURL: URL,
-        launchPlan: CodexExecutionLaunchPlan? = nil
+        launchPlan: CodexExecutionLaunchPlan? = nil,
+        sessionIndex: Int? = nil,
+        attempt: Int? = nil
     ) {
         let environment = CodexExecutionEnvironment.discover(
             repoURL: nativeExecutionURL,
@@ -1733,11 +1740,42 @@ extension CompassProject {
             effectiveLaunchPlan.preflightSummary(phase: phase),
             level: .info
         )
+        if let sessionIndex {
+            recordSessionExecutionEnvironmentSnapshot(
+                phase: phase,
+                attempt: attempt,
+                nativeExecutionURL: nativeExecutionURL,
+                launchPlan: effectiveLaunchPlan,
+                sessionIndex: sessionIndex
+            )
+        }
         let presentation = environment.presentation
         let detail = [presentation.status, presentation.detail, effectiveLaunchPlan.routeDetail()]
             .filter { !$0.isEmpty }
             .joined(separator: " ")
         log(detail, level: presentation.isWarning || effectiveLaunchPlan.fallbackReason != nil ? .warning : .info)
+    }
+
+    private func recordSessionExecutionEnvironmentSnapshot(
+        phase: String,
+        attempt: Int?,
+        nativeExecutionURL: URL,
+        launchPlan: CodexExecutionLaunchPlan,
+        sessionIndex: Int
+    ) {
+        guard sessions.indices.contains(sessionIndex) else { return }
+        let provisioningPlan = CodexDevcontainerProvisioningPlan.plan(
+            repoURL: nativeExecutionURL,
+            languageProfile: languageProfile
+        )
+        let snapshot = SessionExecutionEnvironmentSnapshot(
+            phase: phase,
+            attempt: attempt,
+            launchPlan: launchPlan,
+            provisioningPlan: provisioningPlan
+        )
+        sessions[sessionIndex].recordExecutionEnvironmentSnapshot(snapshot)
+        try? persistSessions()
     }
 
     private func resolveGitRoot(from url: URL) async throws -> URL {
@@ -1828,7 +1866,8 @@ extension CompassProject {
         logExecutionEnvironmentPreflight(
             phase: "Reflect",
             nativeExecutionURL: workspace.repoURL,
-            launchPlan: launchPlan
+            launchPlan: launchPlan,
+            sessionIndex: sessionIndex
         )
         log("Reflect: launching codex exec.", level: .info)
         let codex = CodexExecutor()
@@ -1894,7 +1933,9 @@ extension CompassProject {
         next: PlanNext,
         summary: DevelopSummary,
         workingDirectory: URL,
-        launchPlan: CodexExecutionLaunchPlan
+        launchPlan: CodexExecutionLaunchPlan,
+        sessionIndex: Int,
+        attempt: Int
     ) async throws -> PostCheckResult {
         var retryIssues: [String] = []
         var displayIssues: [String] = []
@@ -1923,7 +1964,9 @@ extension CompassProject {
             logExecutionEnvironmentPreflight(
                 phase: "Verify",
                 nativeExecutionURL: workingDirectory,
-                launchPlan: launchPlan
+                launchPlan: launchPlan,
+                sessionIndex: sessionIndex,
+                attempt: attempt
             )
             log("Post-check: running verify command `\(next.verify)` (timeout \(timeoutMs)ms).", level: .info)
             feedback(.verifyStarted)

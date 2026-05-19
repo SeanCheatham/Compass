@@ -84,6 +84,46 @@ final class PlanSessionHistoryTests: XCTestCase {
         XCTAssertEqual(items[0].feedback, "useful handoff")
     }
 
+    func testUsesLatestRuntimeRouteSummaryForHistoryItems() throws {
+        let planSnapshot = SessionExecutionEnvironmentSnapshot(
+            phase: "Plan",
+            launchPlan: CodexExecutionLaunchPlan.native()
+        )
+        let verifySnapshot = SessionExecutionEnvironmentSnapshot(
+            phase: "Verify",
+            attempt: 2,
+            launchPlan: CodexExecutionLaunchPlan.native(
+                selectedPreference: .devcontainerPreferred,
+                fallbackReason: "Apple container CLI is unavailable."
+            )
+        )
+
+        let items = PlanSessionHistory.displayItems(
+            for: [
+                makeSession(
+                    1,
+                    startedAt: 1_000,
+                    executionEnvironmentSnapshots: [planSnapshot, verifySnapshot]
+                ),
+                makeSession(
+                    2,
+                    startedAt: 2_000,
+                    executionEnvironmentSnapshots: [planSnapshot]
+                )
+            ]
+        )
+
+        XCTAssertEqual(items.map(\.sessionNumber), [2, 1])
+        XCTAssertEqual(items[0].runtimeRouteSummary, planSnapshot.routeSummary)
+        XCTAssertEqual(items[1].runtimeRouteSummary, verifySnapshot.routeSummary)
+        XCTAssertTrue(items[1].runtimeRouteSummary?.contains("Verify attempt 2") == true)
+        XCTAssertTrue(items[1].runtimeRouteSummary?.contains("fallback Apple container CLI is unavailable.") == true)
+        XCTAssertLessThanOrEqual(
+            items[1].runtimeRouteSummary?.count ?? 0,
+            SessionExecutionEnvironmentSnapshot.summaryLimit
+        )
+    }
+
     func testBoundsPlanExcerpt() {
         let items = PlanSessionHistory.displayItems(
             for: [
@@ -425,7 +465,8 @@ final class PlanSessionHistoryTests: XCTestCase {
             feedback: nil,
             notes: [],
             commits: [],
-            failedVerify: nil
+            failedVerify: nil,
+            runtimeRouteSummary: nil
         )
     }
 
@@ -478,7 +519,8 @@ final class PlanSessionHistoryTests: XCTestCase {
         commits: [SessionCommit] = [],
         notes: [String] = [],
         verifyOutput: VerifyOutput? = nil,
-        feedback: String? = nil
+        feedback: String? = nil,
+        executionEnvironmentSnapshots: [SessionExecutionEnvironmentSnapshot] = []
     ) -> SessionRecord {
         SessionRecord(
             session: number,
@@ -492,7 +534,8 @@ final class PlanSessionHistoryTests: XCTestCase {
             status: status,
             notes: notes,
             verifyOutput: verifyOutput,
-            feedback: feedback
+            feedback: feedback,
+            executionEnvironmentSnapshots: executionEnvironmentSnapshots
         )
     }
 }

@@ -91,6 +91,136 @@ final class CompassWorkspacePersistenceTests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: repoURL.appending(path: ".gitignore").path))
     }
 
+    func testSessionsJsonDecodesLegacyRecordsWithoutExecutionEnvironmentSnapshots() throws {
+        let workspace = try makeInitializedWorkspace()
+        try write(
+            """
+            [
+              {
+                "session": 7,
+                "startedAt": 1000,
+                "status": "succeeded",
+                "notes": ["legacy"],
+                "commits": []
+              }
+            ]
+
+            """,
+            to: workspace.sessionsRecordURL
+        )
+
+        let records = workspace.readSessions()
+
+        XCTAssertEqual(records.count, 1)
+        XCTAssertEqual(records[0].session, 7)
+        XCTAssertEqual(records[0].status, .succeeded)
+        XCTAssertEqual(records[0].notes, ["legacy"])
+        XCTAssertTrue(records[0].executionEnvironmentSnapshots.isEmpty)
+
+        try workspace.writeSessions(records)
+        let rewritten = try read(workspace.sessionsRecordURL)
+        XCTAssertFalse(rewritten.contains("executionEnvironmentSnapshots"))
+    }
+
+    func testSessionsJsonRoundTripsExecutionEnvironmentSnapshotsWithoutLeakingRuntimePaths() throws {
+        let repoURL = try makeTemporaryGitRepository()
+        let workspace = CompassWorkspace(repoURL: repoURL)
+        try workspace.initialize()
+        let secretValue = "secret-workspace-session-env"
+        try writeDevcontainer(
+            #"{"image":"swift:6.0","containerEnv":{"TOKEN":"\#(secretValue)"}}"#,
+            in: repoURL
+        )
+        let launchPlan = CodexExecutionLaunchPlan.plan(
+            repoURL: repoURL,
+            preference: .devcontainerPreferred,
+            containerToolResolver: { _ in "/usr/local/bin/container" }
+        )
+        var record = SessionRecord.started(9)
+        record.recordExecutionEnvironmentSnapshot(
+            SessionExecutionEnvironmentSnapshot(
+                phase: "Verify",
+                attempt: 1,
+                launchPlan: launchPlan,
+                provisioningPlan: CodexDevcontainerProvisioningPlan.plan(repoURL: repoURL, languageProfile: .empty)
+            )
+        )
+
+        try workspace.writeSessions([record])
+        let decoded = workspace.readSessions()
+        let persistedText = try read(workspace.sessionsRecordURL)
+
+        XCTAssertEqual(decoded, [record])
+        XCTAssertEqual(decoded[0].latestExecutionEnvironmentSnapshot?.phaseIdentifier, "verify")
+        XCTAssertEqual(decoded[0].latestExecutionEnvironmentSnapshot?.effectiveRouteIdentifier, "apple-container")
+        XCTAssertTrue(persistedText.contains("executionEnvironmentSnapshots"))
+        XCTAssertFalse(persistedText.contains(repoURL.standardizedFileURL.path))
+        XCTAssertFalse(persistedText.contains(secretValue))
+        XCTAssertFalse(persistedText.contains("/usr/local/bin/container"))
+    }
+
+    func testSessionExecutionEnvironmentSnapshotsReplaceDuplicatePhaseAttemptsAndStayBounded() throws {
+        let repoURL = try makeTemporaryGitRepository()
+        let nativePlan = CodexExecutionLaunchPlan.plan(
+            repoURL: repoURL,
+            preference: .nativeMacOS,
+            containerToolResolver: { _ in "/usr/local/bin/container" }
+        )
+        let fallbackPlan = CodexExecutionLaunchPlan.plan(
+            repoURL: repoURL,
+            preference: .devcontainerPreferred,
+            containerToolResolver: { _ in nil }
+        )
+        var duplicateRecord = SessionRecord.started(1)
+
+        duplicateRecord.recordExecutionEnvironmentSnapshot(
+            SessionExecutionEnvironmentSnapshot(
+                phase: "Develop",
+                attempt: 1,
+                launchPlan: nativePlan
+            )
+        )
+        duplicateRecord.recordExecutionEnvironmentSnapshot(
+            SessionExecutionEnvironmentSnapshot(
+                phase: "Develop",
+                attempt: 1,
+                launchPlan: fallbackPlan
+            )
+        )
+
+        XCTAssertEqual(duplicateRecord.executionEnvironmentSnapshots.count, 1)
+        XCTAssertEqual(
+            duplicateRecord.executionEnvironmentSnapshots[0].selectedPreferenceIdentifier,
+            "devcontainer_preferred"
+        )
+        XCTAssertEqual(duplicateRecord.executionEnvironmentSnapshots[0].effectiveRouteIdentifier, "native-macos")
+        XCTAssertEqual(
+            duplicateRecord.executionEnvironmentSnapshots[0].fallbackReason,
+            "No .devcontainer/devcontainer.json was found."
+        )
+
+        var boundedRecord = SessionRecord.started(2)
+        for attempt in 1...(SessionRecord.executionEnvironmentSnapshotLimit + 3) {
+            boundedRecord.recordExecutionEnvironmentSnapshot(
+                SessionExecutionEnvironmentSnapshot(
+                    phase: "Develop",
+                    attempt: attempt,
+                    launchPlan: nativePlan
+                )
+            )
+        }
+
+        XCTAssertEqual(
+            boundedRecord.executionEnvironmentSnapshots.count,
+            SessionRecord.executionEnvironmentSnapshotLimit
+        )
+        XCTAssertEqual(boundedRecord.executionEnvironmentSnapshots.first?.attempt, 4)
+        XCTAssertEqual(
+            boundedRecord.executionEnvironmentSnapshots.last?.attempt,
+            SessionRecord.executionEnvironmentSnapshotLimit + 3
+        )
+    }
+
     func testInitializePreservesExistingCompassFilesAndRecognizesIgnoredCompassVariants() throws {
         let repoURL = try makeTemporaryGitRepository()
         let workspace = CompassWorkspace(repoURL: repoURL)
@@ -350,6 +480,14 @@ final class CompassWorkspacePersistenceTests: XCTestCase {
 
     private func write(_ contents: String, to url: URL) throws {
         try contents.write(to: url, atomically: true, encoding: .utf8)
+    }
+
+    private func writeDevcontainer(_ contents: String, in repoURL: URL) throws {
+        let url = repoURL
+            .appending(path: ".devcontainer", directoryHint: .isDirectory)
+            .appending(path: "devcontainer.json")
+        try createDirectory(url.deletingLastPathComponent())
+        try write(contents, to: url)
     }
 
     private func XCTAssertFileExists(

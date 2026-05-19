@@ -1129,6 +1129,140 @@ final class CodexExecutionLaunchPlanTests: XCTestCase {
         )
     }
 
+    func testExecutionEnvironmentSnapshotForImageRouteIsCodableBoundedAndSanitized() throws {
+        let repoURL = try makeTemporaryDirectory(prefix: "CodexExecutionLaunchPlanSnapshotImage")
+        let secretValue = "secret-snapshot-container-env"
+        let containerToolPath = "/private/tooling/container"
+        try write(
+            #"{"image":"swift:6.0","workspaceFolder":"/workspace/app","containerEnv":{"TOKEN":"\#(secretValue)"}}"#,
+            to: devcontainerURL(in: repoURL)
+        )
+        let plan = CodexExecutionLaunchPlan.plan(
+            repoURL: repoURL,
+            preference: .devcontainerPreferred,
+            containerToolResolver: { _ in containerToolPath }
+        )
+
+        let snapshot = SessionExecutionEnvironmentSnapshot(
+            phase: "Plan",
+            attempt: 1,
+            launchPlan: plan,
+            provisioningPlan: CodexDevcontainerProvisioningPlan.plan(repoURL: repoURL, languageProfile: .empty)
+        )
+        let encoded = try JSONEncoder().encode(snapshot)
+        let encodedText = String(decoding: encoded, as: UTF8.self)
+        let decoded = try JSONDecoder().decode(SessionExecutionEnvironmentSnapshot.self, from: encoded)
+
+        XCTAssertEqual(decoded, snapshot)
+        XCTAssertEqual(snapshot.phaseIdentifier, "plan")
+        XCTAssertEqual(snapshot.attempt, 1)
+        XCTAssertEqual(snapshot.selectedPreferenceIdentifier, "devcontainer_preferred")
+        XCTAssertEqual(snapshot.effectiveRouteIdentifier, "apple-container")
+        XCTAssertEqual(snapshot.supportClassificationIdentifier, "image-routeable")
+        XCTAssertEqual(snapshot.visibleSupportTokens, ["image", "containerEnv:1", "env:TOKEN"])
+        XCTAssertEqual(snapshot.imageLabel, "swift:6.0")
+        XCTAssertEqual(snapshot.workspaceLabel, "/workspace/app")
+        XCTAssertNil(snapshot.fallbackReason)
+        XCTAssertEqual(snapshot.provisioningAvailabilityIdentifier, "unavailable")
+        XCTAssertEqual(snapshot.provisioningStatusIdentifier, "already-present")
+        XCTAssertTrue(snapshot.routeSummary.contains("Plan attempt 1"))
+        XCTAssertTrue(snapshot.routeSummary.contains("Apple container"))
+        XCTAssertTrue(snapshot.routeSummary.contains("workspace /workspace/app"))
+        XCTAssertLessThanOrEqual(snapshot.routeSummary.count, SessionExecutionEnvironmentSnapshot.summaryLimit)
+        assertSnapshotText(encodedText + snapshot.routeSummary, excludes: [
+            repoURL.standardizedFileURL.path,
+            secretValue,
+            containerToolPath
+        ])
+    }
+
+    func testExecutionEnvironmentSnapshotSummariesCoverNativeBuildComposeAndFeatureRoutesWithoutLeaks() throws {
+        let buildRepoURL = try makeTemporaryDirectory(prefix: "CodexExecutionLaunchPlanSnapshotBuild")
+        let buildSecret = "secret-snapshot-build-arg"
+        try write(
+            #"{"build":{"dockerfile":"Dockerfile","context":"..","target":"runtime","args":{"TOKEN":"\#(buildSecret)"}}}"#,
+            to: devcontainerURL(in: buildRepoURL)
+        )
+        let buildPlan = CodexExecutionLaunchPlan.plan(
+            repoURL: buildRepoURL,
+            preference: .devcontainerPreferred,
+            containerToolResolver: { _ in "/usr/local/bin/container" }
+        )
+        let buildSnapshot = SessionExecutionEnvironmentSnapshot(
+            phase: "Develop",
+            attempt: 2,
+            launchPlan: buildPlan
+        )
+        XCTAssertEqual(buildSnapshot.effectiveRouteIdentifier, "apple-container")
+        XCTAssertEqual(buildSnapshot.supportClassificationIdentifier, "build-based")
+        XCTAssertTrue(buildSnapshot.imageLabel.hasPrefix("compass-devcontainer:"))
+        XCTAssertTrue(buildSnapshot.routeSummary.contains("Develop attempt 2"))
+        XCTAssertTrue(buildSnapshot.routeSummary.contains("arg:TOKEN"))
+        assertSnapshotText(buildSnapshot.routeSummary, excludes: [
+            buildRepoURL.standardizedFileURL.path,
+            buildSecret,
+            "/usr/local/bin/container"
+        ])
+
+        let nativeRepoURL = try makeTemporaryDirectory(prefix: "CodexExecutionLaunchPlanSnapshotNative")
+        try write(#"{"image":"swift:6.0"}"#, to: devcontainerURL(in: nativeRepoURL))
+        let nativePlan = CodexExecutionLaunchPlan.plan(
+            repoURL: nativeRepoURL,
+            preference: .nativeMacOS,
+            containerToolResolver: { _ in "/usr/local/bin/container" }
+        )
+        let nativeSnapshot = SessionExecutionEnvironmentSnapshot(phase: "Plan", launchPlan: nativePlan)
+        XCTAssertEqual(nativeSnapshot.effectiveRouteIdentifier, "native-macos")
+        XCTAssertEqual(nativeSnapshot.supportClassificationIdentifier, "image-routeable")
+        XCTAssertTrue(nativeSnapshot.routeSummary.contains("selected Native macOS"))
+        XCTAssertTrue(nativeSnapshot.routeSummary.contains("image swift:6.0"))
+
+        let composeRepoURL = try makeTemporaryDirectory(prefix: "CodexExecutionLaunchPlanSnapshotCompose")
+        let rawComposePath = "/Users/private/project/compose.override.yml"
+        try write(
+            #"{"dockerComposeFile":["../compose.yml","\#(rawComposePath)"],"service":"api"}"#,
+            to: devcontainerURL(in: composeRepoURL)
+        )
+        let composePlan = CodexExecutionLaunchPlan.plan(
+            repoURL: composeRepoURL,
+            preference: .devcontainerPreferred,
+            containerToolResolver: { _ in "/usr/local/bin/container" }
+        )
+        let composeSnapshot = SessionExecutionEnvironmentSnapshot(phase: "Verify", launchPlan: composePlan)
+        XCTAssertEqual(composeSnapshot.effectiveRouteIdentifier, "native-macos")
+        XCTAssertEqual(composeSnapshot.supportClassificationIdentifier, "compose-based")
+        XCTAssertTrue(composeSnapshot.routeSummary.contains("fallback Unsupported devcontainer route: compose-based"))
+        XCTAssertTrue(composeSnapshot.routeSummary.contains("composeFile:compose.override.yml"))
+        assertSnapshotText(composeSnapshot.routeSummary, excludes: [
+            composeRepoURL.standardizedFileURL.path,
+            rawComposePath,
+            "../compose.yml"
+        ])
+
+        let featureRepoURL = try makeTemporaryDirectory(prefix: "CodexExecutionLaunchPlanSnapshotFeature")
+        let featureSecret = "secret-snapshot-feature-value"
+        try write(
+            #"{"image":"swift:6.0","features":{"ghcr.io/devcontainers/features/node:1":{"version":"\#(featureSecret)","nested":{"token":"hidden"}}}}"#,
+            to: devcontainerURL(in: featureRepoURL)
+        )
+        let featurePlan = CodexExecutionLaunchPlan.plan(
+            repoURL: featureRepoURL,
+            preference: .devcontainerPreferred,
+            containerToolResolver: { _ in "/usr/local/bin/container" }
+        )
+        let featureSnapshot = SessionExecutionEnvironmentSnapshot(phase: "Reflect", launchPlan: featurePlan)
+        XCTAssertEqual(featureSnapshot.effectiveRouteIdentifier, "native-macos")
+        XCTAssertEqual(featureSnapshot.supportClassificationIdentifier, "feature-based")
+        XCTAssertTrue(featureSnapshot.routeSummary.contains("featureOptions:2"))
+        XCTAssertTrue(featureSnapshot.routeSummary.contains("feature:node:1"))
+        assertSnapshotText(featureSnapshot.routeSummary, excludes: [
+            featureRepoURL.standardizedFileURL.path,
+            featureSecret,
+            "hidden",
+            "nested"
+        ])
+    }
+
     private func makeTemporaryDirectory(prefix: String) throws -> URL {
         let url = FileManager.default.temporaryDirectory
             .appending(path: "\(prefix)-\(UUID().uuidString)", directoryHint: .isDirectory)
@@ -1154,5 +1288,21 @@ final class CodexExecutionLaunchPlanTests: XCTestCase {
     private func repoRelativeURL(_ relativePath: String, in repoURL: URL) -> URL {
         URL(fileURLWithPath: relativePath, relativeTo: repoURL)
             .standardizedFileURL
+    }
+
+    private func assertSnapshotText(
+        _ text: String,
+        excludes disallowedValues: [String],
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        for value in disallowedValues where !value.isEmpty {
+            XCTAssertFalse(
+                text.contains(value),
+                "Snapshot text leaked `\(value)` in `\(text)`.",
+                file: file,
+                line: line
+            )
+        }
     }
 }

@@ -170,6 +170,276 @@ struct VerifyOutput: Codable, Equatable {
     var tail: String
 }
 
+struct SessionExecutionEnvironmentSnapshot: Codable, Equatable, Identifiable {
+    static let phaseLimit = 24
+    static let fieldLimit = 120
+    static let summaryLimit = 280
+
+    var phase: String
+    var phaseIdentifier: String
+    var attempt: Int?
+    var selectedPreferenceIdentifier: String
+    var selectedPreferenceTitle: String
+    var effectiveRouteIdentifier: String
+    var effectiveRouteTitle: String
+    var supportClassificationIdentifier: String
+    var visibleSupportTokens: [String]
+    var omittedSupportTokenCount: Int
+    var imageLabel: String
+    var workspaceLabel: String
+    var fallbackReason: String?
+    var provisioningAvailabilityIdentifier: String?
+    var provisioningStatusIdentifier: String?
+    var provisioningActionIdentifier: String?
+
+    var id: String {
+        [
+            phaseIdentifier,
+            attempt.map { "attempt-\($0)" } ?? "attempt-none",
+            selectedPreferenceIdentifier,
+            effectiveRouteIdentifier,
+            supportClassificationIdentifier
+        ].joined(separator: ".")
+    }
+
+    var replacementKey: String {
+        "\(phaseIdentifier)#\(attempt.map(String.init) ?? "none")"
+    }
+
+    init(
+        phase: String,
+        attempt: Int? = nil,
+        launchPlan: CodexExecutionLaunchPlan,
+        provisioningPlan: CodexDevcontainerProvisioningPlan? = nil
+    ) {
+        let supportReport = launchPlan.devcontainerSupportReport
+        let configURL = supportReport?.configURL
+        let repoURL = configURL?
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .standardizedFileURL
+
+        self.phase = Self.sanitizedField(
+            phase,
+            repoURL: repoURL,
+            configURL: configURL,
+            limit: Self.phaseLimit
+        )
+        phaseIdentifier = Self.phaseIdentifier(for: phase)
+        self.attempt = attempt.flatMap { $0 > 0 ? $0 : nil }
+        selectedPreferenceIdentifier = launchPlan.selectedPreference.rawValue
+        selectedPreferenceTitle = Self.sanitizedField(
+            launchPlan.selectedPreference.title,
+            repoURL: repoURL,
+            configURL: configURL,
+            limit: Self.fieldLimit
+        )
+        effectiveRouteIdentifier = launchPlan.effectiveRouteIdentifier
+        effectiveRouteTitle = Self.sanitizedField(
+            launchPlan.effectiveRouteTitle,
+            repoURL: repoURL,
+            configURL: configURL,
+            limit: Self.fieldLimit
+        )
+        supportClassificationIdentifier = supportReport?.classification.rawValue ?? "not-inspected"
+        visibleSupportTokens = (supportReport?.supportTokens ?? [])
+            .prefix(CodexDevcontainerSupportReport.maxTokenCount)
+            .map {
+                Self.sanitizedSupportToken(
+                    $0,
+                    repoURL: repoURL,
+                    configURL: configURL
+                )
+            }
+            .filter { !$0.isEmpty }
+        omittedSupportTokenCount = max(0, supportReport?.omittedTokenCount ?? 0)
+        imageLabel = Self.sanitizedField(
+            launchPlan.imageLabel,
+            repoURL: repoURL,
+            configURL: configURL,
+            limit: Self.fieldLimit
+        )
+        workspaceLabel = Self.sanitizedField(
+            launchPlan.workspaceLabel,
+            repoURL: repoURL,
+            configURL: configURL,
+            limit: Self.fieldLimit
+        )
+        fallbackReason = Self.sanitizedOptionalField(
+            launchPlan.fallbackReason,
+            repoURL: repoURL,
+            configURL: configURL,
+            limit: CodexExecutionLaunchPlan.fallbackReasonLimit
+        )
+
+        if let provisioningPlan {
+            provisioningAvailabilityIdentifier = provisioningPlan.isAvailable ? "available" : "unavailable"
+            provisioningStatusIdentifier = Self.provisioningStatusIdentifier(provisioningPlan.status)
+            provisioningActionIdentifier = CodexDevcontainerProvisioningMenuAction.actionIdentifier
+        } else {
+            provisioningAvailabilityIdentifier = nil
+            provisioningStatusIdentifier = nil
+            provisioningActionIdentifier = nil
+        }
+    }
+
+    var routeSummary: String {
+        var pieces = [
+            "\(phase)\(attempt.map { " attempt \($0)" } ?? "")",
+            effectiveRouteTitle,
+            "selected \(selectedPreferenceTitle)",
+            "support \(supportClassificationIdentifier)"
+        ]
+
+        if !imageLabel.isEmpty, imageLabel != "none" {
+            pieces.append("image \(imageLabel)")
+        }
+        if !workspaceLabel.isEmpty {
+            pieces.append("workspace \(workspaceLabel)")
+        }
+
+        if !visibleSupportTokens.isEmpty {
+            var tokenText = visibleSupportTokens.joined(separator: ",")
+            if omittedSupportTokenCount > 0 {
+                tokenText += ",+\(omittedSupportTokenCount)-more"
+            }
+            pieces.append("tokens \(tokenText)")
+        } else if omittedSupportTokenCount > 0 {
+            pieces.append("tokens +\(omittedSupportTokenCount)-more")
+        }
+
+        if let fallbackReason, !fallbackReason.isEmpty {
+            pieces.append("fallback \(fallbackReason)")
+        }
+
+        if let provisioningAvailabilityIdentifier, let provisioningStatusIdentifier {
+            pieces.append("provisioning \(provisioningAvailabilityIdentifier)/\(provisioningStatusIdentifier)")
+        }
+
+        return Self.boundedField(pieces.joined(separator: "; "), limit: Self.summaryLimit)
+    }
+
+    private static func provisioningStatusIdentifier(_ status: CodexDevcontainerProvisioningPlan.Status) -> String {
+        switch status {
+        case .available:
+            return "available"
+        case .alreadyPresent:
+            return "already-present"
+        case .malformed:
+            return "malformed"
+        }
+    }
+
+    private static func phaseIdentifier(for phase: String) -> String {
+        let normalized = phase
+            .lowercased()
+            .replacingOccurrences(of: #"\s+"#, with: "-", options: .regularExpression)
+            .trimmingCharacters(in: CharacterSet(charactersIn: "-_"))
+        let filtered = String(normalized.unicodeScalars.map { scalar in
+            if isASCIILetter(scalar) || isASCIIDigit(scalar) || scalar == "-" || scalar == "_" {
+                return Character(scalar)
+            }
+            return "-"
+        })
+        .replacingOccurrences(of: #"-+"#, with: "-", options: .regularExpression)
+        .trimmingCharacters(in: CharacterSet(charactersIn: "-_"))
+        return filtered.isEmpty ? "phase" : String(filtered.prefix(Self.phaseLimit))
+    }
+
+    private static func sanitizedSupportToken(
+        _ token: String,
+        repoURL: URL?,
+        configURL: URL?
+    ) -> String {
+        let sanitized = sanitizedField(
+            token,
+            repoURL: repoURL,
+            configURL: configURL,
+            limit: CodexDevcontainerSupportReport.tokenLimit
+        )
+        guard !sanitized.isEmpty else { return "" }
+        guard sanitized.unicodeScalars.allSatisfy(isStableTokenScalar) else {
+            return "token"
+        }
+        return sanitized
+    }
+
+    private static func sanitizedOptionalField(
+        _ text: String?,
+        repoURL: URL?,
+        configURL: URL?,
+        limit: Int
+    ) -> String? {
+        let sanitized = sanitizedField(
+            text ?? "",
+            repoURL: repoURL,
+            configURL: configURL,
+            limit: limit
+        )
+        return sanitized.isEmpty ? nil : sanitized
+    }
+
+    private static func sanitizedField(
+        _ text: String,
+        repoURL: URL?,
+        configURL: URL?,
+        limit: Int
+    ) -> String {
+        var sanitized = text
+            .replacingOccurrences(of: "\r", with: " ")
+            .replacingOccurrences(of: "\n", with: " ")
+            .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        var replacements: [(String, String)] = []
+        if let configURL {
+            replacements.append((configURL.standardizedFileURL.path, "[devcontainer-json]"))
+            replacements.append((configURL.deletingLastPathComponent().standardizedFileURL.path, "[devcontainer-dir]"))
+        }
+        if let repoURL {
+            replacements.append((repoURL.standardizedFileURL.path, "[repo]"))
+        }
+
+        for (path, replacement) in replacements.sorted(by: { $0.0.count > $1.0.count }) where !path.isEmpty {
+            let pathPrefix = path.hasSuffix("/") ? path : path + "/"
+            sanitized = sanitized.replacingOccurrences(of: pathPrefix, with: "\(replacement)/")
+            sanitized = sanitized.replacingOccurrences(of: path, with: replacement)
+        }
+
+        return boundedField(sanitized, limit: limit)
+    }
+
+    private static func boundedField(_ text: String, limit: Int) -> String {
+        guard limit > 0 else { return "" }
+        let normalized = text
+            .replacingOccurrences(of: "\r", with: " ")
+            .replacingOccurrences(of: "\n", with: " ")
+            .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard normalized.count > limit else { return normalized }
+        return String(normalized.prefix(limit)).trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private static func isStableTokenScalar(_ scalar: UnicodeScalar) -> Bool {
+        isASCIILetter(scalar)
+            || isASCIIDigit(scalar)
+            || scalar == ":"
+            || scalar == "."
+            || scalar == "_"
+            || scalar == "-"
+            || scalar == "@"
+            || scalar == "+"
+    }
+
+    private static func isASCIILetter(_ scalar: UnicodeScalar) -> Bool {
+        (65...90).contains(Int(scalar.value)) || (97...122).contains(Int(scalar.value))
+    }
+
+    private static func isASCIIDigit(_ scalar: UnicodeScalar) -> Bool {
+        (48...57).contains(Int(scalar.value))
+    }
+}
+
 enum SessionStatus: String, Codable, CaseIterable {
     case planning
     case awaitingApproval = "awaiting_approval"
@@ -195,6 +465,7 @@ struct SessionRecord: Codable, Identifiable, Equatable {
     var notes: [String]
     var verifyOutput: VerifyOutput?
     var feedback: String?
+    var executionEnvironmentSnapshots: [SessionExecutionEnvironmentSnapshot]
 
     static func started(_ number: Int) -> SessionRecord {
         SessionRecord(
@@ -209,8 +480,132 @@ struct SessionRecord: Codable, Identifiable, Equatable {
             status: .planning,
             notes: [],
             verifyOutput: nil,
-            feedback: nil
+            feedback: nil,
+            executionEnvironmentSnapshots: []
         )
+    }
+
+    static let executionEnvironmentSnapshotLimit = 24
+
+    enum CodingKeys: String, CodingKey {
+        case session
+        case startedAt
+        case endedAt
+        case plan
+        case verify
+        case beforeSha
+        case afterSha
+        case commits
+        case status
+        case notes
+        case verifyOutput
+        case feedback
+        case executionEnvironmentSnapshots
+    }
+
+    init(
+        session: Int,
+        startedAt: Double,
+        endedAt: Double?,
+        plan: String?,
+        verify: String?,
+        beforeSha: String?,
+        afterSha: String?,
+        commits: [SessionCommit],
+        status: SessionStatus,
+        notes: [String],
+        verifyOutput: VerifyOutput?,
+        feedback: String?,
+        executionEnvironmentSnapshots: [SessionExecutionEnvironmentSnapshot] = []
+    ) {
+        self.session = session
+        self.startedAt = startedAt
+        self.endedAt = endedAt
+        self.plan = plan
+        self.verify = verify
+        self.beforeSha = beforeSha
+        self.afterSha = afterSha
+        self.commits = commits
+        self.status = status
+        self.notes = notes
+        self.verifyOutput = verifyOutput
+        self.feedback = feedback
+        self.executionEnvironmentSnapshots = Self.normalizedExecutionEnvironmentSnapshots(
+            executionEnvironmentSnapshots
+        )
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        session = try container.decodeIfPresent(Int.self, forKey: .session) ?? 0
+        startedAt = try container.decodeIfPresent(Double.self, forKey: .startedAt) ?? 0
+        endedAt = try container.decodeIfPresent(Double.self, forKey: .endedAt)
+        plan = try container.decodeIfPresent(String.self, forKey: .plan)
+        verify = try container.decodeIfPresent(String.self, forKey: .verify)
+        beforeSha = try container.decodeIfPresent(String.self, forKey: .beforeSha)
+        afterSha = try container.decodeIfPresent(String.self, forKey: .afterSha)
+        commits = try container.decodeIfPresent([SessionCommit].self, forKey: .commits) ?? []
+        status = try container.decodeIfPresent(SessionStatus.self, forKey: .status) ?? .planning
+        notes = try container.decodeIfPresent([String].self, forKey: .notes) ?? []
+        verifyOutput = try container.decodeIfPresent(VerifyOutput.self, forKey: .verifyOutput)
+        feedback = try container.decodeIfPresent(String.self, forKey: .feedback)
+        executionEnvironmentSnapshots = Self.normalizedExecutionEnvironmentSnapshots(
+            try container.decodeIfPresent(
+                [SessionExecutionEnvironmentSnapshot].self,
+                forKey: .executionEnvironmentSnapshots
+            ) ?? []
+        )
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(session, forKey: .session)
+        try container.encode(startedAt, forKey: .startedAt)
+        try container.encodeIfPresent(endedAt, forKey: .endedAt)
+        try container.encodeIfPresent(plan, forKey: .plan)
+        try container.encodeIfPresent(verify, forKey: .verify)
+        try container.encodeIfPresent(beforeSha, forKey: .beforeSha)
+        try container.encodeIfPresent(afterSha, forKey: .afterSha)
+        try container.encode(commits, forKey: .commits)
+        try container.encode(status, forKey: .status)
+        try container.encode(notes, forKey: .notes)
+        try container.encodeIfPresent(verifyOutput, forKey: .verifyOutput)
+        try container.encodeIfPresent(feedback, forKey: .feedback)
+        if !executionEnvironmentSnapshots.isEmpty {
+            try container.encode(executionEnvironmentSnapshots, forKey: .executionEnvironmentSnapshots)
+        }
+    }
+
+    var latestExecutionEnvironmentSnapshot: SessionExecutionEnvironmentSnapshot? {
+        executionEnvironmentSnapshots.last
+    }
+
+    mutating func recordExecutionEnvironmentSnapshot(_ snapshot: SessionExecutionEnvironmentSnapshot) {
+        executionEnvironmentSnapshots = Self.recording(
+            snapshot,
+            in: executionEnvironmentSnapshots
+        )
+    }
+
+    private static func recording(
+        _ snapshot: SessionExecutionEnvironmentSnapshot,
+        in snapshots: [SessionExecutionEnvironmentSnapshot]
+    ) -> [SessionExecutionEnvironmentSnapshot] {
+        var updated = snapshots
+        if let index = updated.firstIndex(where: { $0.replacementKey == snapshot.replacementKey }) {
+            updated[index] = snapshot
+        } else {
+            updated.append(snapshot)
+        }
+        return Array(updated.suffix(Self.executionEnvironmentSnapshotLimit))
+    }
+
+    private static func normalizedExecutionEnvironmentSnapshots(
+        _ snapshots: [SessionExecutionEnvironmentSnapshot]
+    ) -> [SessionExecutionEnvironmentSnapshot] {
+        snapshots.reduce(into: []) { partialResult, snapshot in
+            partialResult = recording(snapshot, in: partialResult)
+        }
     }
 }
 
