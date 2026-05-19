@@ -169,6 +169,33 @@ final class CinematicNativeFeedbackCuePlanTests: XCTestCase {
         XCTAssertFalse(nonCriticalCue.isCriticalCinematicBanner)
     }
 
+    func testMutationRecoveryRunCuePropagatesAsCriticalNativeFeedbackCue() throws {
+        let cue = try XCTUnwrap(
+            CinematicNativeFeedbackCuePlanner.plan(
+                milestone: .developRetrying,
+                content: NativeFeedbackContent(milestone: .developRetrying, projectName: "Editor"),
+                phase: .developing,
+                feedbackMode: .notifications,
+                recentRunCues: [
+                    21: runCue(
+                        kind: .mutationTestingRecovery,
+                        severity: .failure,
+                        label: "Review Mutation",
+                        detail: "mutation failure tail",
+                        systemImage: "testtube.2"
+                    )
+                ]
+            )
+        )
+
+        XCTAssertEqual(cue.runCueKind, .mutationTestingRecovery)
+        XCTAssertEqual(cue.runCueSessionNumber, 21)
+        XCTAssertEqual(cue.sourceIdentifier, "run-cue:21:mutationTestingRecovery")
+        XCTAssertEqual(cue.title, "Review Mutation")
+        XCTAssertEqual(cue.style, .failure)
+        XCTAssertTrue(cue.isCriticalCinematicBanner)
+    }
+
     func testRunCuePriorityBeatsNewestRetryCue() throws {
         let cue = try XCTUnwrap(
             CinematicNativeFeedbackCuePlanner.plan(

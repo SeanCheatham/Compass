@@ -128,6 +128,7 @@ struct CinematicTab: View {
                 activitySourceBeaconPlan: activitySourceBeaconPlan,
                 commitConstellationPlan: project.cinematicCommitConstellationPlan,
                 timelineSceneFocusPlan: timelineSceneFocusCandidatePlan,
+                recoveryCuePlan: recoveryCuePlan,
                 planCompassSceneFocusPlan: planCompassSceneFocusCandidatePlan,
                 nativeFeedbackCue: nativeFeedbackCue,
                 nativeFeedbackPlaqueDescriptor: CinematicIdleStoryCyclePlanner.nativeFeedbackPlaqueDescriptor(

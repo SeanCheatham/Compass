@@ -62,6 +62,7 @@ struct CinematicRecoveryCuePlan: Equatable {
 enum CinematicRecoveryCuePlanner {
     static let actionableKinds: Set<PlanReliabilityFeedback.Kind> = [
         .failedVerify,
+        .mutationTestingRecovery,
         .dirtyWorktree,
         .promotionFailed
     ]
@@ -128,6 +129,18 @@ enum CinematicRecoveryCuePlanner {
             ),
             plan(
                 recentRunCues: [
+                    44: runCue(
+                        kind: .mutationTestingRecovery,
+                        severity: .failure,
+                        label: "Review Mutation",
+                        detail: "latest mutation run failed with exit 65",
+                        systemImage: "testtube.2"
+                    )
+                ],
+                influenceSettings: influenceSettings
+            ),
+            plan(
+                recentRunCues: [
                     43: runCue(
                         kind: .promotionFailed,
                         severity: .failure,
@@ -165,6 +178,24 @@ enum CinematicRecoveryCuePlanner {
                 shouldShakeCamera: true,
                 cameraShakeDuration: 0.24,
                 cameraShakeScale: shakeScale
+            )
+        case .mutationTestingRecovery:
+            return descriptor(
+                cue: cue,
+                treatmentIdentifier: "mutation-recovery",
+                lightFamily: .verify,
+                fractureLightFamily: .failure,
+                symbolIdentifier: "mutation-red-testtube",
+                phaseLightIntensity: 1_140,
+                intensity: 0.94,
+                posture: .fracture,
+                arenaEffect: .charge,
+                fractureOpacity: 0.66,
+                fractureSpread: 1.1,
+                healingOpacity: 0.04,
+                shouldShakeCamera: true,
+                cameraShakeDuration: 0.2,
+                cameraShakeScale: shakeScale * 0.9
             )
         case .dirtyWorktree:
             return descriptor(

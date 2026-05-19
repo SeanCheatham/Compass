@@ -403,6 +403,7 @@ struct PlanSessionHistoryItem: Identifiable, Equatable {
     var runtimeRouteSummary: String?
     var runtimeRouteDescriptor: RuntimeRouteDescriptor
     var mutationTestingDescriptor: MutationTestingDescriptor?
+    var mutationRecoveryDescriptor: MutationTestingRecoveryDescriptor?
 
     init(
         sessionNumber: Int,
@@ -417,7 +418,8 @@ struct PlanSessionHistoryItem: Identifiable, Equatable {
         failedVerify: FailedVerify?,
         runtimeRouteSummary: String?,
         runtimeRouteDescriptor: RuntimeRouteDescriptor = .unavailable,
-        mutationTestingDescriptor: MutationTestingDescriptor? = nil
+        mutationTestingDescriptor: MutationTestingDescriptor? = nil,
+        mutationRecoveryDescriptor: MutationTestingRecoveryDescriptor? = nil
     ) {
         self.sessionNumber = sessionNumber
         self.status = status
@@ -432,6 +434,7 @@ struct PlanSessionHistoryItem: Identifiable, Equatable {
         self.runtimeRouteSummary = runtimeRouteSummary
         self.runtimeRouteDescriptor = runtimeRouteDescriptor
         self.mutationTestingDescriptor = mutationTestingDescriptor
+        self.mutationRecoveryDescriptor = mutationRecoveryDescriptor
     }
 }
 
@@ -548,6 +551,7 @@ enum PlanSessionHistoryFilter: String, CaseIterable, Identifiable, Equatable, Ha
                 || runCue?.kind == .rejectedPlan
                 || runCue?.kind == .developFailed
                 || runCue?.kind == .failedVerify
+                || runCue?.kind == .mutationTestingRecovery
                 || runCue?.kind == .dirtyWorktree
                 || runCue?.kind == .promotionFailed
         case .completedFinished:
@@ -695,7 +699,9 @@ enum PlanSessionHistory {
         for sessions: [SessionRecord],
         planExcerptLimit: Int = defaultPlanExcerptLimit
     ) -> [PlanSessionHistoryItem] {
-        sessions
+        let latestMutationContext = MutationTestingRecoveryDescriptor.latestContext(in: sessions)
+
+        return sessions
             .sorted { lhs, rhs in
                 if lhs.startedAt == rhs.startedAt {
                     return lhs.session > rhs.session
@@ -721,6 +727,10 @@ enum PlanSessionHistory {
                     ),
                     mutationTestingDescriptor: PlanSessionHistoryItem.MutationTestingDescriptor(
                         execution: session.mutationTestingExecutions.last
+                    ),
+                    mutationRecoveryDescriptor: MutationTestingRecoveryDescriptor.historyDescriptor(
+                        session: session,
+                        latestContext: latestMutationContext
                     )
                 )
             }

@@ -342,7 +342,7 @@ struct CodexExecutionEnvironment: Equatable {
 }
 
 struct CodexExecutionEnvironmentDiagnosticsReport: Equatable, Identifiable {
-    static let copyTextLimit = 1_600
+    static let copyTextLimit = 2_000
     static let fieldLimit = 120
     static let helpLimit = 240
     static let stableCopyActionIdentifier = "runtime-diagnostics.copy"
@@ -370,6 +370,9 @@ struct CodexExecutionEnvironmentDiagnosticsReport: Equatable, Identifiable {
     var mutationLanguageIdentifier: String
     var mutationSeedCommandIdentifier: String
     var mutationSeedCommandLabel: String
+    var mutationRecoveryStateIdentifier: String
+    var mutationRecoveryIdentifier: String
+    var mutationRecoveryDetail: String
     var copyActionIdentifier: String
     var copyIdentifier: String
 
@@ -379,7 +382,8 @@ struct CodexExecutionEnvironmentDiagnosticsReport: Equatable, Identifiable {
         environment: CodexExecutionEnvironment,
         launchPlan: CodexExecutionLaunchPlan,
         provisioningPlan: CodexDevcontainerProvisioningPlan? = nil,
-        mutationTestingPlan: CodexMutationTestingPlan? = nil
+        mutationTestingPlan: CodexMutationTestingPlan? = nil,
+        mutationRecoveryDescriptor: MutationTestingRecoveryDescriptor? = nil
     ) {
         let supportReport = launchPlan.devcontainerSupportReport ?? environment.devcontainerDiscovery.supportReport
         let configURL = supportReport.configURL
@@ -508,6 +512,31 @@ struct CodexExecutionEnvironmentDiagnosticsReport: Equatable, Identifiable {
             mutationSeedCommandLabel = "none"
         }
 
+        if let mutationRecoveryDescriptor {
+            mutationRecoveryStateIdentifier = Self.sanitizedField(
+                mutationRecoveryDescriptor.stateIdentifier,
+                repoURL: repoURL,
+                configURL: configURL,
+                limit: Self.fieldLimit
+            )
+            mutationRecoveryIdentifier = Self.sanitizedField(
+                mutationRecoveryDescriptor.identifier,
+                repoURL: repoURL,
+                configURL: configURL,
+                limit: Self.fieldLimit
+            )
+            mutationRecoveryDetail = Self.sanitizedField(
+                mutationRecoveryDescriptor.detailText,
+                repoURL: repoURL,
+                configURL: configURL,
+                limit: Self.helpLimit
+            )
+        } else {
+            mutationRecoveryStateIdentifier = "not-evaluated"
+            mutationRecoveryIdentifier = "none"
+            mutationRecoveryDetail = "none"
+        }
+
         provisioningActionIdentifier = CodexDevcontainerProvisioningMenuAction.actionIdentifier
         copyActionIdentifier = Self.stableCopyActionIdentifier
         copyIdentifier = [
@@ -546,7 +575,10 @@ struct CodexExecutionEnvironmentDiagnosticsReport: Equatable, Identifiable {
                 "mutation-route: \(mutationRouteIdentifier)",
                 "mutation-language: \(mutationLanguageIdentifier)",
                 "mutation-seed-id: \(mutationSeedCommandIdentifier)",
-                "mutation-seed-command: \(mutationSeedCommandLabel)"
+                "mutation-seed-command: \(mutationSeedCommandLabel)",
+                "mutation-recovery-state: \(mutationRecoveryStateIdentifier)",
+                "mutation-recovery-id: \(mutationRecoveryIdentifier)",
+                "mutation-recovery-detail: \(mutationRecoveryDetail)"
             ].joined(separator: "\n"),
             limit: Self.copyTextLimit
         )
@@ -744,12 +776,14 @@ struct CodexExecutionEnvironmentMenu: Equatable {
     var createDevcontainerAction: CodexDevcontainerProvisioningMenuAction?
     var copyDiagnosticsAction: CodexExecutionEnvironmentCopyDiagnosticsAction
     var mutationTestingAction: CodexMutationTestingMenuAction?
+    var mutationRecoveryDescriptor: MutationTestingRecoveryDescriptor?
 
     init(
         environment: CodexExecutionEnvironment,
         provisioningPlan: CodexDevcontainerProvisioningPlan? = nil,
         launchPlan: CodexExecutionLaunchPlan? = nil,
         mutationTestingPlan: CodexMutationTestingPlan? = nil,
+        mutationRecoveryDescriptor: MutationTestingRecoveryDescriptor? = nil,
         mutationExecutionState: CodexMutationTestingMenuAction.ExecutionState = .idle
     ) {
         let effectiveLaunchPlan = launchPlan ?? environment.launchPlan()
@@ -772,7 +806,8 @@ struct CodexExecutionEnvironmentMenu: Equatable {
                 environment: environment,
                 launchPlan: effectiveLaunchPlan,
                 provisioningPlan: provisioningPlan,
-                mutationTestingPlan: mutationTestingPlan
+                mutationTestingPlan: mutationTestingPlan,
+                mutationRecoveryDescriptor: mutationRecoveryDescriptor
             )
         )
         mutationTestingAction = mutationTestingPlan.map {
@@ -781,5 +816,6 @@ struct CodexExecutionEnvironmentMenu: Equatable {
                 executionState: mutationExecutionState
             )
         }
+        self.mutationRecoveryDescriptor = mutationRecoveryDescriptor
     }
 }

@@ -447,6 +447,115 @@ final class PlanSessionHistoryTests: XCTestCase {
         }
     }
 
+    func testMutationRecoveryDescriptorsOnlyActivateForLatestFailedExecution() throws {
+        let oldFailed = makeMutationExecution(
+            verify: "swift test --filter OldMutation",
+            exitCode: 65,
+            startedAt: 1_000,
+            endedAt: 1_500,
+            outputTail: "old failure"
+        )
+        let latestFailed = makeMutationExecution(
+            verify: "swift test --filter LatestMutation",
+            exitCode: 12,
+            startedAt: 3_000,
+            endedAt: 4_250,
+            outputTail: "latest failure"
+        )
+        let items = PlanSessionHistory.displayItems(
+            for: [
+                makeSession(1, startedAt: 1_000, status: .failed, mutationTestingExecutions: [oldFailed]),
+                makeSession(2, startedAt: 3_000, status: .failed, mutationTestingExecutions: [latestFailed])
+            ]
+        )
+
+        let latest = try XCTUnwrap(items.first { $0.sessionNumber == 2 }?.mutationRecoveryDescriptor)
+        let old = try XCTUnwrap(items.first { $0.sessionNumber == 1 }?.mutationRecoveryDescriptor)
+
+        XCTAssertTrue(latest.isActive)
+        XCTAssertEqual(latest.stateIdentifier, "active")
+        XCTAssertEqual(latest.reviewActionLabel, "Review Mutation")
+        XCTAssertTrue(latest.copyText.contains("read-only"))
+        XCTAssertEqual(old.stateIdentifier, "old-session")
+        XCTAssertFalse(old.isActive)
+    }
+
+    func testMutationRecoveryDescriptorsKeepSucceededAndMissingStatesQuiet() throws {
+        let succeeded = makeMutationExecution(
+            verify: "swift test --filter LatestMutation",
+            exitCode: 0,
+            startedAt: 3_000,
+            endedAt: 3_400,
+            outputTail: "mutation ok"
+        )
+
+        let items = PlanSessionHistory.displayItems(
+            for: [
+                makeSession(1, startedAt: 1_000),
+                makeSession(2, startedAt: 3_000, status: .succeeded, mutationTestingExecutions: [succeeded])
+            ]
+        )
+
+        XCTAssertNil(items.first { $0.sessionNumber == 1 }?.mutationRecoveryDescriptor)
+        let descriptor = try XCTUnwrap(items.first { $0.sessionNumber == 2 }?.mutationRecoveryDescriptor)
+        XCTAssertEqual(descriptor.stateIdentifier, "succeeded")
+        XCTAssertFalse(descriptor.isActive)
+        XCTAssertTrue(descriptor.detailText.contains("succeeded"))
+    }
+
+    func testMutationRecoveryDescriptorSanitizesCopyAndHelpText() throws {
+        let repoPath = "/Users/private/project"
+        let secretEnv = "secret-mutation-container-env"
+        let legacyJSON = """
+        {
+          "session": 9,
+          "startedAt": 9000,
+          "endedAt": 9500,
+          "commits": [],
+          "status": "failed",
+          "notes": [],
+          "mutationTestingExecutions": [
+            {
+              "readinessIdentifier": "legacy",
+              "statusIdentifier": "failed",
+              "routeIdentifier": "native-fallback",
+              "languageIdentifier": "swift",
+              "seedCommandLabel": "swift test \(repoPath) .devcontainer/devcontainer.json \(secretEnv)",
+              "exitCode": 65,
+              "startedAt": 9000,
+              "endedAt": 9800,
+              "outputTail": "failure \(repoPath) ../compose.yml ghcr.io/devcontainers/features/node:1 \(secretEnv)"
+            }
+          ]
+        }
+        """
+        let session = try JSONDecoder().decode(SessionRecord.self, from: Data(legacyJSON.utf8))
+        let descriptor = try XCTUnwrap(
+            PlanSessionHistory.displayItems(for: [session]).first?.mutationRecoveryDescriptor
+        )
+        let exposedText = [
+            descriptor.identifier,
+            descriptor.badgeText,
+            descriptor.detailText,
+            descriptor.helpText,
+            descriptor.copyText
+        ].joined(separator: "\n")
+
+        XCTAssertEqual(descriptor.stateIdentifier, "active")
+        XCTAssertTrue(exposedText.contains("[path]"))
+        for leaked in [
+            repoPath,
+            ".devcontainer/devcontainer.json",
+            "../compose.yml",
+            "ghcr.io/devcontainers/features/node:1",
+            secretEnv
+        ] {
+            XCTAssertFalse(exposedText.contains(leaked), "Leaked \(leaked)")
+        }
+        XCTAssertLessThanOrEqual(descriptor.copyText.count, MutationTestingRecoveryDescriptor.copyTextLimit)
+        XCTAssertLessThanOrEqual(descriptor.helpText.count, MutationTestingRecoveryDescriptor.helpLimit)
+    }
+
     func testBoundsPlanExcerpt() {
         let items = PlanSessionHistory.displayItems(
             for: [

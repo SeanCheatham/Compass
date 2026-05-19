@@ -211,6 +211,7 @@ enum CinematicIdleStoryCyclePlanner {
         activitySourceBeaconPlan: CinematicActivitySourceBeaconPlan = .hidden,
         commitConstellationPlan: CinematicCommitConstellationPlan,
         timelineSceneFocusPlan: CinematicTimelineSceneFocusPlan,
+        recoveryCuePlan: CinematicRecoveryCuePlan = .none,
         planCompassSceneFocusPlan: CinematicPlanCompassSceneFocusPlan = .none,
         nativeFeedbackCue: CinematicNativeFeedbackCuePlan?,
         nativeFeedbackPlaqueDescriptor: NativeFeedbackPlaqueDescriptor?,
@@ -234,6 +235,7 @@ enum CinematicIdleStoryCyclePlanner {
             activitySourceBeaconPlan: activitySourceBeaconPlan,
             commitConstellationPlan: commitConstellationPlan,
             timelineSceneFocusPlan: timelineSceneFocusPlan,
+            recoveryCuePlan: recoveryCuePlan,
             planCompassSceneFocusPlan: planCompassSceneFocusPlan,
             nativeFeedbackCue: nativeFeedbackCue,
             nativeFeedbackPlaqueDescriptor: nativeFeedbackPlaqueDescriptor,
@@ -371,6 +373,7 @@ enum CinematicIdleStoryCyclePlanner {
         activitySourceBeaconPlan: CinematicActivitySourceBeaconPlan,
         commitConstellationPlan: CinematicCommitConstellationPlan,
         timelineSceneFocusPlan: CinematicTimelineSceneFocusPlan,
+        recoveryCuePlan: CinematicRecoveryCuePlan,
         planCompassSceneFocusPlan: CinematicPlanCompassSceneFocusPlan,
         nativeFeedbackCue: CinematicNativeFeedbackCuePlan?,
         nativeFeedbackPlaqueDescriptor: NativeFeedbackPlaqueDescriptor?,
@@ -389,6 +392,11 @@ enum CinematicIdleStoryCyclePlanner {
             ),
             timelineFocusCandidate(
                 timelineSceneFocusPlan: timelineSceneFocusPlan,
+                influenceSettings: influenceSettings,
+                cadence: cadence
+            ),
+            recoveryCueCandidate(
+                recoveryCuePlan: recoveryCuePlan,
                 influenceSettings: influenceSettings,
                 cadence: cadence
             ),
@@ -513,6 +521,54 @@ enum CinematicIdleStoryCyclePlanner {
             phaseCopy: descriptor.label,
             choreography: choreography,
             timelineSceneFocusPlan: timelineSceneFocusPlan
+        )
+    }
+
+    private static func recoveryCueCandidate(
+        recoveryCuePlan: CinematicRecoveryCuePlan,
+        influenceSettings: CinematicInfluenceSettings,
+        cadence: TimeInterval
+    ) -> Candidate? {
+        guard let selectedCue = recoveryCuePlan.selectedCue,
+              let visualDescriptor = recoveryCuePlan.visualDescriptor else {
+            return nil
+        }
+
+        let targetKindIdentifier = selectedCue.kind == .mutationTestingRecovery
+            ? "recovery-mutation"
+            : "recovery"
+        let cameraShot: CinematicCameraShot = visualDescriptor.shouldShakeCamera ? .failure : .overhead
+        let choreography = choreography(
+            phase: .timelineFocus,
+            sourceDescriptorIdentifier: visualDescriptor.identifier,
+            targetKindIdentifier: targetKindIdentifier,
+            cameraShot: cameraShot,
+            influenceSettings: influenceSettings,
+            baseCadence: cadence,
+            cadenceScale: selectedCue.kind == .mutationTestingRecovery ? 0.7 : 0.82,
+            dwellScale: selectedCue.kind == .mutationTestingRecovery ? 0.62 : 0.72,
+            transitionDurationScale: selectedCue.kind == .mutationTestingRecovery ? 0.7 : 0.82,
+            cameraPressureIdentifier: selectedCue.kind == .mutationTestingRecovery ? "mutation-recovery" : "recovery",
+            targetBias: selectedCue.kind == .mutationTestingRecovery ? 0.9 : 0.84,
+            pulseDuration: 0.44,
+            pulseIntensityScale: selectedCue.kind == .mutationTestingRecovery ? 1.16 : 1.1,
+            pulseOrbBoost: selectedCue.kind == .mutationTestingRecovery ? 0.18 : 0.12,
+            shakeScale: visualDescriptor.shouldShakeCamera ? visualDescriptor.cameraShakeScale : nil
+        )
+
+        return Candidate(
+            phase: .timelineFocus,
+            sourceDescriptorIdentifier: visualDescriptor.identifier,
+            targetKindIdentifier: targetKindIdentifier,
+            anchorTreatmentIdentifier: "recovery:\(visualDescriptor.treatmentIdentifier)",
+            cameraShot: cameraShot,
+            lookTarget: [0, 0.72, 0],
+            lightFamily: visualDescriptor.lightFamily,
+            arenaEffect: visualDescriptor.arenaEffect,
+            phaseLightIntensity: visualDescriptor.phaseLightIntensity,
+            phaseCopy: selectedCue.label,
+            choreography: choreography,
+            isPriority: selectedCue.kind == .mutationTestingRecovery
         )
     }
 

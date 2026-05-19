@@ -233,11 +233,11 @@ final class CinematicDiagnosticsTests: XCTestCase {
         )
         XCTAssertEqual(
             Set(reports.map(\.recoveryCue.kindIdentifier)),
-            Set(["none", "failedVerify", "dirtyWorktree", "promotionFailed"])
+            Set(["none", "failedVerify", "dirtyWorktree", "mutationTestingRecovery", "promotionFailed"])
         )
         XCTAssertEqual(
             Set(reports.map(\.recoveryCue.treatmentIdentifier)),
-            Set(["none", "verify-failure", "dirty-cleanup", "promotion-branch"])
+            Set(["none", "verify-failure", "dirty-cleanup", "mutation-recovery", "promotion-branch"])
         )
         XCTAssertTrue(
             Set(reports.map(\.timelineFocus.kindIdentifier))
@@ -430,6 +430,51 @@ final class CinematicDiagnosticsTests: XCTestCase {
         XCTAssertTrue(summary.rows.contains { $0.id == "recovery-cue" })
         XCTAssertTrue(summary.exportText.contains("Recovery cue: promotionFailed"))
         XCTAssertTrue(summary.exportText.contains("git-failure-branch"))
+    }
+
+    func testMutationRecoveryCueFeedsDiagnosticsAttentionAndWarningBundleCopy() throws {
+        let recoveryCuePlan = CinematicRecoveryCuePlanner.plan(
+            recentRunCues: [
+                22: diagnosticsRunCue(
+                    kind: .mutationTestingRecovery,
+                    severity: .failure,
+                    label: "Review Mutation",
+                    detail: "mutation failure tail",
+                    systemImage: "testtube.2"
+                )
+            ]
+        )
+        let report = CinematicDiagnostics.report(
+            repoName: "Compass",
+            phase: LoopPhase.failed.rawValue,
+            immediateTitle: "Review mutation recovery",
+            completedCount: 4,
+            latestEvent: nil,
+            languageProfile: languageProfile(primaryLanguage: .swift),
+            activityProfile: activityProfile(recentCommitCount: 2),
+            influenceSettings: CinematicInfluenceSettings(comfortMode: .quiet),
+            recoveryCuePlan: recoveryCuePlan
+        )
+
+        XCTAssertEqual(report.recoveryCue.kindIdentifier, "mutationTestingRecovery")
+        XCTAssertEqual(report.recoveryCue.treatmentIdentifier, "mutation-recovery")
+        XCTAssertEqual(report.idleStoryCycle.targetKindIdentifier, "recovery-mutation")
+
+        let summary = CinematicDiagnosticsSummary(
+            report: report,
+            visualSmoke: CinematicVisualSmokeReport(reports: [report])
+        )
+        let target = try XCTUnwrap(
+            summary.attentionSummary.targets.first {
+                $0.targetAnchorID == "diagnostics-row-recovery-cue"
+            }
+        )
+
+        XCTAssertEqual(target.label, "Mutation recovery")
+        XCTAssertEqual(target.relatedRowID, "recovery-cue")
+        XCTAssertTrue(target.visibleWarningIdentifiers.contains("recovery-cue.mutation-testing-recovery"))
+        XCTAssertTrue(target.copyText.contains("Read-only"))
+        XCTAssertTrue(summary.exportText.contains("Mutation recovery -> recovery-cue-mutation-testing"))
     }
 
     func testReportAndSummaryExportSelectedTimelineFocus() throws {

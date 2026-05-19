@@ -372,20 +372,51 @@ final class CodexExecutionEnvironmentTests: XCTestCase {
             languageProfile: profile(.swift),
             launchPlan: launchPlan
         )
+        let mutationExecution = SessionMutationTestingExecution(
+            readiness: mutationPlan,
+            exitCode: 65,
+            startedAt: 1_000,
+            endedAt: 1_500,
+            outputTail: "failed \(repoURL.path) \(containerToolPath) \(secretValue)",
+            launchPlan: launchPlan
+        )
+        let mutationRecovery = MutationTestingRecoveryDescriptor.runtimeDescriptor(
+            sessions: [
+                SessionRecord(
+                    session: 1,
+                    startedAt: 1_000,
+                    endedAt: 1_500,
+                    plan: nil,
+                    verify: nil,
+                    beforeSha: nil,
+                    afterSha: nil,
+                    commits: [],
+                    status: .failed,
+                    notes: [],
+                    verifyOutput: nil,
+                    feedback: nil,
+                    mutationTestingExecutions: [mutationExecution]
+                )
+            ],
+            readiness: mutationPlan
+        )
         let report = CodexExecutionEnvironmentDiagnosticsReport(
             environment: environment,
             launchPlan: launchPlan,
             provisioningPlan: CodexDevcontainerProvisioningPlan.plan(repoURL: repoURL, languageProfile: .empty),
-            mutationTestingPlan: mutationPlan
+            mutationTestingPlan: mutationPlan,
+            mutationRecoveryDescriptor: mutationRecovery
         )
 
         XCTAssertEqual(report.mutationStatusIdentifier, "ready")
         XCTAssertEqual(report.mutationRouteIdentifier, "apple-container-route")
         XCTAssertEqual(report.mutationLanguageIdentifier, "swift")
+        XCTAssertEqual(report.mutationRecoveryStateIdentifier, "active")
         XCTAssertTrue(report.copyText.contains("mutation-status: ready"))
         XCTAssertTrue(report.copyText.contains("mutation-route: apple-container-route"))
         XCTAssertTrue(report.copyText.contains("mutation-language: swift"))
         XCTAssertTrue(report.copyText.contains("mutation-seed-command: swift test"))
+        XCTAssertTrue(report.copyText.contains("mutation-recovery-state: active"))
         XCTAssertFalse(report.copyText.contains(repoURL.standardizedFileURL.path))
         XCTAssertFalse(report.copyText.contains(containerToolPath))
         XCTAssertFalse(report.copyText.contains(secretValue))

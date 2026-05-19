@@ -606,11 +606,16 @@ extension CompassProject {
             languageProfile: languageProfile,
             launchPlan: launchPlan
         )
+        let mutationRecoveryDescriptor = MutationTestingRecoveryDescriptor.runtimeDescriptor(
+            sessions: sessions,
+            readiness: mutationTestingPlan
+        )
         return CodexExecutionEnvironmentMenu(
             environment: environment,
             provisioningPlan: devcontainerProvisioningPlan(),
             launchPlan: launchPlan,
             mutationTestingPlan: mutationTestingPlan,
+            mutationRecoveryDescriptor: mutationRecoveryDescriptor,
             mutationExecutionState: mutationTestingExecutionState
         )
     }

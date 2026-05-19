@@ -466,7 +466,7 @@ enum CinematicTimelineSceneFocusPlanner {
     ) -> CinematicSessionTimelinePlan.Beat {
         let moment: CinematicSessionTimelinePlan.Beat.Moment
         switch selectedCue.kind {
-        case .failedVerify:
+        case .failedVerify, .mutationTestingRecovery:
             moment = .verify
         case .dirtyWorktree, .developBlocked, .developFailed, .resumeDevelop:
             moment = .develop

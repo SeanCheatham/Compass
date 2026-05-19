@@ -57,6 +57,11 @@ final class CompassProjectMutationTestingTests: XCTestCase {
         XCTAssertEqual(execution.exitCode, 0)
         XCTAssertEqual(execution.outputTail, "mutation ok")
         XCTAssertGreaterThanOrEqual(execution.endedAt, execution.startedAt)
+
+        let recovery = try XCTUnwrap(project.runtimeDiagnosticsMenu.mutationRecoveryDescriptor)
+        XCTAssertEqual(recovery.stateIdentifier, "succeeded")
+        XCTAssertFalse(recovery.isActive)
+        XCTAssertTrue(project.runtimeDiagnosticsMenu.copyDiagnosticsAction.copyText.contains("mutation-recovery-state: succeeded"))
     }
 
     func testFailingExecutionRecordsBoundedRedactedMetadataWithoutLeakingRuntimeValues() async throws {
@@ -155,6 +160,15 @@ final class CompassProjectMutationTestingTests: XCTestCase {
         ] {
             XCTAssertFalse(exposedText.contains(leaked), "Leaked \(leaked)")
         }
+
+        let recovery = try XCTUnwrap(project.runtimeDiagnosticsMenu.mutationRecoveryDescriptor)
+        XCTAssertEqual(recovery.stateIdentifier, "active")
+        XCTAssertTrue(recovery.isActive)
+        XCTAssertEqual(recovery.reviewActionLabel, "Review Mutation")
+        let runtimeCopy = project.runtimeDiagnosticsMenu.copyDiagnosticsAction.copyText
+        XCTAssertTrue(runtimeCopy.contains("mutation-recovery-state: active"))
+        XCTAssertFalse(runtimeCopy.contains(repoURL.standardizedFileURL.path))
+        XCTAssertFalse(runtimeCopy.contains(secretEnv))
     }
 
     func testReadinessBlockingDoesNotStartRunnerOrMutateSessions() async throws {
@@ -176,6 +190,7 @@ final class CompassProjectMutationTestingTests: XCTestCase {
         XCTAssertTrue(workspace.readSessions().isEmpty)
         XCTAssertEqual(try workspace.readState(), state)
         XCTAssertTrue(project.errorMessage?.contains("immediate") == true)
+        XCTAssertEqual(project.runtimeDiagnosticsMenu.mutationRecoveryDescriptor?.stateIdentifier, "readiness-only")
     }
 
     func testNativeAppleContainerAndFallbackRoutesPropagateToRecordsAndSnapshots() async throws {

@@ -46,7 +46,14 @@ final class CinematicRecoveryCuePlanTests: XCTestCase {
         XCTAssertEqual(verify.lightFamily, .failure)
         XCTAssertEqual(dirty.lightFamily, .edit)
         XCTAssertEqual(promotion.lightFamily, .git)
-        XCTAssertEqual(Set([verify.symbolIdentifier, dirty.symbolIdentifier, promotion.symbolIdentifier]).count, 3)
+        let mutation = try XCTUnwrap(
+            CinematicRecoveryCuePlanner.plan(
+                recentRunCues: [6: runCue(kind: .mutationTestingRecovery, severity: .failure)],
+                influenceSettings: settings
+            ).visualDescriptor
+        )
+
+        XCTAssertEqual(Set([verify.symbolIdentifier, dirty.symbolIdentifier, mutation.symbolIdentifier, promotion.symbolIdentifier]).count, 4)
         XCTAssertGreaterThan(verify.fractureOpacity, dirty.fractureOpacity)
         XCTAssertGreaterThan(dirty.healingOpacity, verify.healingOpacity)
         XCTAssertGreaterThan(promotion.fractureSpread, verify.fractureSpread)
@@ -54,7 +61,12 @@ final class CinematicRecoveryCuePlanTests: XCTestCase {
         XCTAssertFalse(dirty.shouldShakeCamera)
         XCTAssertTrue(promotion.shouldShakeCamera)
 
-        for descriptor in [verify, dirty, promotion] {
+        XCTAssertEqual(mutation.treatmentIdentifier, "mutation-recovery")
+        XCTAssertEqual(mutation.lightFamily, .verify)
+        XCTAssertEqual(mutation.symbolIdentifier, "mutation-red-testtube")
+        XCTAssertTrue(mutation.shouldShakeCamera)
+
+        for descriptor in [verify, dirty, mutation, promotion] {
             XCTAssertInRange(descriptor.intensity, CinematicRecoveryCuePlan.intensityRange)
             XCTAssertInRange(descriptor.phaseLightIntensity, CinematicRecoveryCuePlan.phaseLightIntensityRange)
             XCTAssertInRange(descriptor.fractureOpacity, CinematicRecoveryCuePlan.fractureOpacityRange)
@@ -73,11 +85,11 @@ final class CinematicRecoveryCuePlanTests: XCTestCase {
         XCTAssertEqual(first, repeated)
         XCTAssertEqual(
             first.map(\.selectedKindIdentifier),
-            ["none", "failedVerify", "dirtyWorktree", "promotionFailed"]
+            ["none", "failedVerify", "dirtyWorktree", "mutationTestingRecovery", "promotionFailed"]
         )
         XCTAssertEqual(
             first.map { $0.visualDescriptor?.treatmentIdentifier ?? "none" },
-            ["none", "verify-failure", "dirty-cleanup", "promotion-branch"]
+            ["none", "verify-failure", "dirty-cleanup", "mutation-recovery", "promotion-branch"]
         )
     }
 }
@@ -105,6 +117,8 @@ private func systemImage(for kind: PlanReliabilityFeedback.Kind) -> String {
     switch kind {
     case .failedVerify:
         return "checkmark.seal.fill"
+    case .mutationTestingRecovery:
+        return "testtube.2"
     case .dirtyWorktree:
         return "pencil.and.outline"
     case .promotionFailed:

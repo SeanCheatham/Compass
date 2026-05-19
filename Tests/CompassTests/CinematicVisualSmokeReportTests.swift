@@ -146,6 +146,7 @@ final class CinematicVisualSmokeReportTests: XCTestCase {
         XCTAssertTrue(pressure.detail.contains("dramatic"))
         XCTAssertTrue(recoveryCue.detail.contains("failedVerify"))
         XCTAssertTrue(recoveryCue.detail.contains("dirtyWorktree"))
+        XCTAssertTrue(recoveryCue.detail.contains("mutationTestingRecovery"))
         XCTAssertTrue(recoveryCue.detail.contains("promotionFailed"))
         XCTAssertTrue(recoveryCue.detail.contains("history-chains"))
         XCTAssertTrue(nativeFeedback.detail.contains("active 6"))

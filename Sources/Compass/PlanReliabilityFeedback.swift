@@ -25,6 +25,9 @@ struct PlanReliabilityFeedback: Equatable {
         for session in sessions {
             sessionByNumber[session.session] = session
         }
+        let mutationRecoveryDescriptor = MutationTestingRecoveryDescriptor.projectDescriptor(
+            sessions: sessions
+        )
 
         let allNotices = sortedHistoryItems.flatMap { item in
             guard let session = sessionByNumber[item.sessionNumber] else {
@@ -35,6 +38,7 @@ struct PlanReliabilityFeedback: Equatable {
                 for: session,
                 item: item,
                 state: state,
+                mutationRecoveryDescriptor: mutationRecoveryDescriptor,
                 detailLimit: detailLimit,
                 tailLimit: tailLimit
             )
@@ -86,6 +90,7 @@ struct PlanReliabilityFeedback: Equatable {
         case developBlocked
         case developFailed
         case failedVerify
+        case mutationTestingRecovery
         case dirtyWorktree
         case promotionFailed
         case resumeDevelop
@@ -101,6 +106,7 @@ struct PlanReliabilityFeedback: Equatable {
         for session: SessionRecord,
         item: PlanSessionHistoryItem,
         state: PlanState,
+        mutationRecoveryDescriptor: MutationTestingRecoveryDescriptor,
         detailLimit: Int,
         tailLimit: Int
     ) -> [Notice] {
@@ -186,6 +192,26 @@ struct PlanReliabilityFeedback: Equatable {
             )
         }
 
+        if mutationRecoveryDescriptor.isActive,
+           mutationRecoveryDescriptor.sessionNumber == session.session {
+            results.append(
+                Notice(
+                    id: "\(Kind.mutationTestingRecovery.rawValue)-\(session.session)",
+                    kind: .mutationTestingRecovery,
+                    severity: .failure,
+                    sessionNumber: session.session,
+                    title: mutationRecoveryDescriptor.title,
+                    detail: boundedPrefix(
+                        mutationRecoveryDescriptor.detailText,
+                        limit: min(detailLimit, MutationTestingRecoveryDescriptor.detailLimit)
+                    ) ?? "Latest mutation run failed.",
+                    actionLabel: mutationRecoveryDescriptor.reviewActionLabel,
+                    metadata: mutationRecoveryDescriptor.metadata,
+                    systemImage: mutationRecoveryDescriptor.systemImage
+                )
+            )
+        }
+
         if let dirtyWorktree = dirtyWorktreeCue(in: session, detailLimit: detailLimit) {
             results.append(
                 Notice(
@@ -227,16 +253,18 @@ struct PlanReliabilityFeedback: Equatable {
             return 0
         case .failedVerify:
             return 1
-        case .dirtyWorktree:
+        case .mutationTestingRecovery:
             return 2
-        case .promotionFailed:
+        case .dirtyWorktree:
             return 3
-        case .developBlocked:
+        case .promotionFailed:
             return 4
-        case .developFailed:
+        case .developBlocked:
             return 5
-        case .resumeDevelop:
+        case .developFailed:
             return 6
+        case .resumeDevelop:
+            return 7
         }
     }
 

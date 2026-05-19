@@ -377,6 +377,7 @@ struct CinematicSessionTimelinePlan: Equatable {
         boundedText(session.verify) != nil
             || boundedText(session.verifyOutput?.command) != nil
             || runCue?.kind == .failedVerify
+            || runCue?.kind == .mutationTestingRecovery
     }
 
     private static func shouldIncludeOutcomeBeat(
@@ -467,7 +468,7 @@ struct CinematicSessionTimelinePlan: Equatable {
             return moment == .plan || moment == .outcome
         case .developBlocked, .developFailed, .dirtyWorktree, .resumeDevelop:
             return moment == .develop || moment == .outcome
-        case .failedVerify:
+        case .failedVerify, .mutationTestingRecovery:
             return moment == .verify || moment == .outcome
         case .promotionFailed:
             return moment == .outcome

@@ -107,6 +107,14 @@ private struct SidebarView: View {
                         .disabled(!mutationAction.isEnabled)
                         .help(mutationAction.helpText)
                     }
+                    if let recovery = model.selectedProject?.runtimeDiagnosticsMenu.mutationRecoveryDescriptor {
+                        Button {
+                            copyRuntimeDiagnosticsToPasteboard(recovery.copyText)
+                        } label: {
+                            Label(recovery.copyActionLabel, systemImage: "doc.on.doc")
+                        }
+                        .help(recovery.helpText)
+                    }
                 }
                 .padding(.top, 8)
             } label: {
@@ -878,6 +886,17 @@ private struct ProjectRunControls: View {
                     .help(mutationAction.helpText)
                     Text(mutationAction.description)
                     Text(mutationAction.helpText)
+                }
+                if let recovery = executionEnvironmentMenu.mutationRecoveryDescriptor {
+                    Divider()
+                    Text(recovery.badgeText)
+                    Button {
+                        copyRuntimeDiagnosticsToPasteboard(recovery.copyText)
+                    } label: {
+                        Label(recovery.copyActionLabel, systemImage: "doc.on.doc")
+                    }
+                    .help(recovery.helpText)
+                    Text(recovery.detailText)
                 }
                 Divider()
                 ForEach(Array(executionEnvironmentMenu.items.enumerated()), id: \.element.id) { index, item in
@@ -1783,6 +1802,10 @@ private struct PlanSessionHistoryCard: View {
                 MutationTestingHistoryBadge(descriptor: mutationTestingDescriptor)
             }
 
+            if let mutationRecoveryDescriptor = item.mutationRecoveryDescriptor {
+                MutationTestingRecoveryHistoryBadge(descriptor: mutationRecoveryDescriptor)
+            }
+
             if let feedback = item.feedback {
                 LabeledHistoryBlock(title: "Feedback", systemImage: "text.bubble") {
                     MarkdownContent(feedback, compact: true)
@@ -1941,6 +1964,46 @@ private struct MutationTestingHistoryBadge: View {
 
     private var color: Color {
         descriptor.isSuccessful ? .green : .red
+    }
+}
+
+private struct MutationTestingRecoveryHistoryBadge: View {
+    var descriptor: MutationTestingRecoveryDescriptor
+
+    var body: some View {
+        DisclosureGroup {
+            VStack(alignment: .leading, spacing: 6) {
+                Label(descriptor.detailText, systemImage: descriptor.systemImage)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                Text(descriptor.copyText)
+                    .font(.caption.monospaced())
+                    .textSelection(.enabled)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(8)
+                    .background(.black.opacity(0.045), in: RoundedRectangle(cornerRadius: 6))
+
+                Button {
+                    copyRuntimeDiagnosticsToPasteboard(descriptor.copyText)
+                } label: {
+                    Label(descriptor.copyActionLabel, systemImage: "doc.on.doc")
+                }
+                .controlSize(.small)
+            }
+            .padding(.top, 4)
+        } label: {
+            Label(descriptor.badgeText, systemImage: descriptor.systemImage)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(color)
+                .lineLimit(2)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .help(descriptor.helpText)
+    }
+
+    private var color: Color {
+        descriptor.isActive ? .red : .secondary
     }
 }
 

@@ -68,6 +68,14 @@ struct CompassApp: App {
                         .disabled(!mutationAction.isEnabled)
                         .help(mutationAction.helpText)
                     }
+                    if let recovery = runtimeMenu.mutationRecoveryDescriptor {
+                        Divider()
+                        Button(recovery.copyActionLabel) {
+                            NSPasteboard.general.clearContents()
+                            NSPasteboard.general.setString(recovery.copyText, forType: .string)
+                        }
+                        .help(recovery.helpText)
+                    }
                 } else {
                     Button("Copy Runtime Diagnostics") {}
                         .disabled(true)

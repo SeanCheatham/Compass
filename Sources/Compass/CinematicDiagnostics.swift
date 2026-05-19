@@ -2162,8 +2162,8 @@ struct CinematicVisualSmokeReport: Equatable {
     }
 
     private static func recoveryCueCoverageCheck(reports: [CinematicDiagnosticsReport]) -> Check {
-        let expectedKinds = Set(["none", "failedVerify", "dirtyWorktree", "promotionFailed"])
-        let expectedTreatments = Set(["none", "verify-failure", "dirty-cleanup", "promotion-branch"])
+        let expectedKinds = Set(["none", "failedVerify", "dirtyWorktree", "mutationTestingRecovery", "promotionFailed"])
+        let expectedTreatments = Set(["none", "verify-failure", "dirty-cleanup", "mutation-recovery", "promotion-branch"])
         let kinds = Set(reports.map(\.recoveryCue.kindIdentifier))
         let treatments = Set(reports.map(\.recoveryCue.treatmentIdentifier))
         let lights = Set(reports.map(\.recoveryCue.lightFamilyIdentifier))
@@ -2173,8 +2173,8 @@ struct CinematicVisualSmokeReport: Equatable {
         let isPassing = !reports.isEmpty
             && kinds.isSuperset(of: expectedKinds)
             && treatments.isSuperset(of: expectedTreatments)
-            && lights.isSuperset(of: ["edit", "failure", "git"])
-            && symbols.isSuperset(of: ["verify-fracture-seal", "edit-amber-cleanup", "git-failure-branch"])
+            && lights.isSuperset(of: ["edit", "failure", "git", "verify"])
+            && symbols.isSuperset(of: ["verify-fracture-seal", "edit-amber-cleanup", "mutation-red-testtube", "git-failure-branch"])
             && distinctEffects.isSuperset(of: ["charge", "activity-pulse", "history-chains"])
 
         return check(
@@ -2707,7 +2707,7 @@ struct CinematicVisualSmokeReport: Equatable {
             && kinds.isSuperset(of: expectedKinds)
             && shots.isSuperset(of: ["none", "wide", "cast-prep", "overhead", "victory", "commit-constellation", "failure"])
             && lights.isSuperset(of: ["none", "scan", "shell", "verify", "git", "failure"])
-            && recoveryTreatments.isSuperset(of: ["verify-failure", "dirty-cleanup", "promotion-branch"])
+            && recoveryTreatments.isSuperset(of: ["verify-failure", "dirty-cleanup", "mutation-recovery", "promotion-branch"])
             && commitNodeCount > 0
 
         return check(
@@ -5238,6 +5238,10 @@ struct CinematicDiagnosticsSummary: Equatable {
                 report: report,
                 rowsByID: rowsByID
             )
+        let mutationRecoveryTarget = mutationRecoveryAttentionTarget(
+            report: report,
+            rowsByID: rowsByID
+        )
         let warningCheckTargets = visualSmoke.checks.compactMap { check in
             warningCheckAttentionTarget(
                 check: check,
@@ -5278,13 +5282,139 @@ struct CinematicDiagnosticsSummary: Equatable {
             activitySourceTarget,
             runRecapShareArtifactSourceReconciliationTarget,
             runRecapShareArtifactTourRuntimeRouteTarget,
-            runRecapShareArtifactTourMutationTestingTarget
+            runRecapShareArtifactTourMutationTestingTarget,
+            mutationRecoveryTarget
         ].compactMap { $0 }
             + warningCheckTargets
             + groupTargets)
             .prefix(attentionSummaryMaxTargets)
 
         return AttentionSummary(targets: Array(targets))
+    }
+
+    private static func mutationRecoveryAttentionTarget(
+        report: CinematicDiagnosticsReport,
+        rowsByID: [String: Row]
+    ) -> AttentionTarget? {
+        let snapshot = report.recoveryCue
+        guard snapshot.kindIdentifier == "mutationTestingRecovery" else {
+            return nil
+        }
+
+        let warningIdentifiers = mutationRecoveryWarningIdentifiers(snapshot)
+        let visibleWarningIdentifiers = Array(
+            warningIdentifiers.prefix(attentionSummaryMaxVisibleWarnings)
+        )
+        let targetGroupID = "stage-motion-effects"
+        let targetAnchorID = "diagnostics-row-recovery-cue"
+        let label = "Mutation recovery"
+        let detail = [
+            "session \(snapshot.sessionNumber.map(String.init) ?? "none")",
+            "severity \(snapshot.severityIdentifier ?? "unknown")",
+            "treatment \(snapshot.treatmentIdentifier)",
+            "detail \(bounded(snapshot.detail ?? "latest mutation run failed", limit: 140))"
+        ].joined(separator: " | ")
+        let relatedRow = rowsByID["recovery-cue"]
+
+        return AttentionTarget(
+            id: mutationRecoveryAttentionTargetID(snapshot),
+            targetGroupID: targetGroupID,
+            targetAnchorID: targetAnchorID,
+            relatedGroupID: targetGroupID,
+            relatedRowID: "recovery-cue",
+            label: bounded(label, limit: labelMaxCharacters),
+            detail: bounded(detail, limit: attentionSummaryDetailMaxCharacters),
+            warningCount: warningIdentifiers.count,
+            visibleWarningIdentifiers: visibleWarningIdentifiers,
+            copyText: mutationRecoveryAttentionCopyText(
+                label: label,
+                targetGroupID: targetGroupID,
+                targetAnchorID: targetAnchorID,
+                visibleWarningIdentifiers: visibleWarningIdentifiers,
+                detail: detail,
+                snapshot: snapshot,
+                relatedRow: relatedRow
+            )
+        )
+    }
+
+    private static func mutationRecoveryWarningIdentifiers(
+        _ snapshot: CinematicDiagnosticsReport.RecoveryCueSnapshot
+    ) -> [String] {
+        var identifiers = [
+            "recovery-cue.mutation-testing-recovery",
+            "recovery-cue.mutation-treatment.\(snapshot.treatmentIdentifier)"
+        ]
+        if let sessionNumber = snapshot.sessionNumber {
+            identifiers.append("recovery-cue.mutation-session-\(sessionNumber)")
+        }
+        if let selectedCueIdentifier = snapshot.selectedCueIdentifier {
+            identifiers.append("recovery-cue.mutation-cue-\(fingerprint(selectedCueIdentifier))")
+        }
+
+        var seen = Set<String>()
+        return identifiers.compactMap { identifier in
+            let boundedIdentifier = bounded(
+                identifier,
+                limit: CinematicVisualSmokeReport.warningIdentifierMaxCharacters
+            )
+            return seen.insert(boundedIdentifier).inserted ? boundedIdentifier : nil
+        }
+    }
+
+    private static func mutationRecoveryAttentionTargetID(
+        _ snapshot: CinematicDiagnosticsReport.RecoveryCueSnapshot
+    ) -> String {
+        bounded(
+            [
+                "recovery-cue-mutation-testing",
+                snapshot.sessionNumber.map(String.init) ?? "none",
+                fingerprint(snapshot.selectedCueIdentifier ?? snapshot.identifier)
+            ].joined(separator: "-"),
+            limit: CinematicVisualSmokeReport.warningIdentifierMaxCharacters
+        )
+    }
+
+    private static func mutationRecoveryAttentionCopyText(
+        label: String,
+        targetGroupID: String,
+        targetAnchorID: String,
+        visibleWarningIdentifiers: [String],
+        detail: String,
+        snapshot: CinematicDiagnosticsReport.RecoveryCueSnapshot,
+        relatedRow: Row?
+    ) -> String {
+        let warnings = visibleWarningIdentifiers.isEmpty
+            ? "none"
+            : visibleWarningIdentifiers.joined(separator: ", ")
+        var lines = [
+            "Cinematic diagnostics warning target",
+            "Label: \(bounded(label, limit: labelMaxCharacters))",
+            "Target anchor: \(bounded(targetAnchorID, limit: CinematicVisualSmokeReport.warningIdentifierMaxCharacters))",
+            "Target group: \(bounded(targetGroupID, limit: CinematicVisualSmokeReport.warningIdentifierMaxCharacters))",
+            "Warnings: \(bounded(warnings, limit: detailMaxCharacters))",
+            "Detail: \(bounded(detail, limit: attentionSummaryDetailMaxCharacters))",
+            "Mutation recovery session: \(snapshot.sessionNumber.map(String.init) ?? "none")",
+            "Mutation recovery treatment: \(snapshot.treatmentIdentifier)",
+            "Mutation recovery cue fingerprint: \(fingerprint(snapshot.selectedCueIdentifier ?? "none"))",
+            "Read-only: failed mutation recovery cue only; no mutation command, Plan state, Develop retry, sessions, artifacts, preferences, or storage are changed."
+        ]
+
+        if let relatedRow {
+            lines.append(
+                [
+                    "Related row:",
+                    bounded(relatedRow.id, limit: CinematicVisualSmokeReport.warningIdentifierMaxCharacters),
+                    "(\(bounded(relatedRow.label, limit: labelMaxCharacters)))"
+                ].joined(separator: " ")
+            )
+            lines.append("Related detail: \(bounded(relatedRow.detail, limit: 180))")
+        }
+
+        return boundedMultiline(
+            lines.joined(separator: "\n"),
+            limit: attentionTargetCopyMaxCharacters
+        )
     }
 
     private static func activitySourceAttentionTarget(
@@ -8802,6 +8932,7 @@ enum CinematicDiagnostics {
             activitySourceBeaconPlan: activitySourceBeaconPlan,
             commitConstellationPlan: commitConstellationPlan,
             timelineSceneFocusPlan: timelineFocusPlan,
+            recoveryCuePlan: recoveryCuePlan,
             planCompassSceneFocusPlan: planCompassSceneFocusPlan,
             nativeFeedbackCue: nativeFeedbackCue,
             nativeFeedbackPlaqueDescriptor: nativeFeedbackCue == nil ? nil : narrativeCuePlan.questPlaque,
