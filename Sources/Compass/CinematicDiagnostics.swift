@@ -1077,6 +1077,21 @@ struct CinematicDiagnosticsReport: Equatable {
         var runtimeRouteTreatmentAccentIdentifier: String
         var runtimeRouteTreatmentRailIdentifier: String
         var runtimeRouteTreatmentOrbIdentifier: String
+        var mutationTestingCueIdentifier: String?
+        var mutationTestingCueAvailabilityIdentifier: String
+        var mutationTestingCueStatusIdentifier: String
+        var mutationTestingCueRuntimeRouteCorrelationIdentifier: String
+        var mutationTestingCueCompactCopy: String?
+        var mutationTestingCueDetailCopy: String?
+        var mutationTestingCueHelpCopy: String?
+        var mutationTestingTreatmentIdentifier: String
+        var mutationTestingTreatmentStateIdentifier: String
+        var mutationTestingTreatmentAccentIdentifier: String
+        var mutationTestingTreatmentRailIdentifier: String
+        var mutationTestingTreatmentSealIdentifier: String
+        var mutationTestingTreatmentTextIdentifier: String
+        var mutationTestingTreatmentCompactCopy: String
+        var mutationTestingTreatmentHelpCopy: String
         var requestedPinnedEntryIdentifiers: [String]
         var retainedPinnedEntryIdentifiers: [String]
         var missingPinnedEntryIdentifiers: [String]
@@ -1264,7 +1279,7 @@ struct CinematicDiagnosticsReport: Equatable {
 
 struct CinematicVisualSmokeReport: Equatable {
     static let labelMaxCharacters = 32
-    static let detailMaxCharacters = 160
+    static let detailMaxCharacters = 220
     static let warningIdentifierMaxCharacters = 72
 
     var status: Status
@@ -2592,6 +2607,15 @@ struct CinematicVisualSmokeReport: Equatable {
         let holdStates = Set(displayReports.map(\.runRecapShareArtifactTour.savedTourHoldStateIdentifier))
         let routeStates = Set(displayReports.map(\.runRecapShareArtifactTour.runtimeRouteCueStateIdentifier))
         let routeTreatments = Set(displayReports.map(\.runRecapShareArtifactTour.runtimeRouteTreatmentAccentIdentifier))
+        let mutationAvailabilities = Set(
+            displayReports.map(\.runRecapShareArtifactTour.mutationTestingCueAvailabilityIdentifier)
+        )
+        let mutationStates = Set(
+            displayReports.map(\.runRecapShareArtifactTour.mutationTestingTreatmentStateIdentifier)
+        )
+        let mutationTreatments = Set(
+            displayReports.map(\.runRecapShareArtifactTour.mutationTestingTreatmentAccentIdentifier)
+        )
         let noMatchCount = displayReports.filter {
             $0.runRecapShareArtifactTour.noMatchAvailabilityReason == "no-matching-recap-share-artifacts"
         }.count
@@ -2630,6 +2654,21 @@ struct CinematicVisualSmokeReport: Equatable {
                 "fallback-amber",
                 "missing-muted"
             ])
+            && mutationAvailabilities.isSuperset(of: ["available", "missing"])
+            && mutationStates.isSuperset(of: [
+                "succeeded",
+                "failed",
+                "unknown",
+                "missing",
+                "runtime-route-diverged"
+            ])
+            && mutationTreatments.isSuperset(of: [
+                "mutation-green",
+                "mutation-red",
+                "mutation-violet",
+                "mutation-muted",
+                "mutation-amber"
+            ])
             && noMatchCount > 0
             && warningCount > 0
             && boundedCount == reports.count
@@ -2649,6 +2688,7 @@ struct CinematicVisualSmokeReport: Equatable {
                 "missing-pin",
                 "missing-hold",
                 visibleRouteDetail,
+                "mutation \(mutationStates.sorted().joined(separator: ","))",
                 "warnings \(warningCount)",
                 "bounded \(boundedCount)/\(reports.count)"
             ].filter { !$0.isEmpty }.joined(separator: " ")
@@ -3573,6 +3613,58 @@ struct CinematicVisualSmokeReport: Equatable {
             && string(
                 snapshot.runtimeRouteTreatmentOrbIdentifier,
                 maxCharacters: CinematicRunRecapShareArtifactRuntimeRouteTreatmentDescriptor.componentMaxCharacters
+            )
+            && (snapshot.mutationTestingCueIdentifier ?? "").count
+                <= CinematicRunRecapShareArtifactMutationTestingCue.identifierMaxCharacters
+            && string(
+                snapshot.mutationTestingCueAvailabilityIdentifier,
+                maxCharacters: CinematicRunRecapShareArtifactMutationTestingCue.fieldMaxCharacters
+            )
+            && string(
+                snapshot.mutationTestingCueStatusIdentifier,
+                maxCharacters: CinematicRunRecapShareArtifactMutationTestingCue.fieldMaxCharacters
+            )
+            && string(
+                snapshot.mutationTestingCueRuntimeRouteCorrelationIdentifier,
+                maxCharacters: CinematicRunRecapShareArtifactMutationTestingCue.fieldMaxCharacters
+            )
+            && (snapshot.mutationTestingCueCompactCopy ?? "").count
+                <= CinematicRunRecapShareArtifactMutationTestingCue.copyMaxCharacters
+            && (snapshot.mutationTestingCueDetailCopy ?? "").count
+                <= CinematicRunRecapShareArtifactMutationTestingCue.detailMaxCharacters
+            && (snapshot.mutationTestingCueHelpCopy ?? "").count
+                <= CinematicRunRecapShareArtifactMutationTestingCue.helpMaxCharacters
+            && string(
+                snapshot.mutationTestingTreatmentIdentifier,
+                maxCharacters: CinematicRunRecapShareArtifactMutationTestingTreatmentDescriptor.identifierMaxCharacters
+            )
+            && string(
+                snapshot.mutationTestingTreatmentStateIdentifier,
+                maxCharacters: CinematicRunRecapShareArtifactMutationTestingTreatmentDescriptor.componentMaxCharacters
+            )
+            && string(
+                snapshot.mutationTestingTreatmentAccentIdentifier,
+                maxCharacters: CinematicRunRecapShareArtifactMutationTestingTreatmentDescriptor.componentMaxCharacters
+            )
+            && string(
+                snapshot.mutationTestingTreatmentRailIdentifier,
+                maxCharacters: CinematicRunRecapShareArtifactMutationTestingTreatmentDescriptor.componentMaxCharacters
+            )
+            && string(
+                snapshot.mutationTestingTreatmentSealIdentifier,
+                maxCharacters: CinematicRunRecapShareArtifactMutationTestingTreatmentDescriptor.componentMaxCharacters
+            )
+            && string(
+                snapshot.mutationTestingTreatmentTextIdentifier,
+                maxCharacters: CinematicRunRecapShareArtifactMutationTestingTreatmentDescriptor.componentMaxCharacters
+            )
+            && string(
+                snapshot.mutationTestingTreatmentCompactCopy,
+                maxCharacters: CinematicRunRecapShareArtifactMutationTestingTreatmentDescriptor.copyMaxCharacters
+            )
+            && string(
+                snapshot.mutationTestingTreatmentHelpCopy,
+                maxCharacters: CinematicRunRecapShareArtifactMutationTestingTreatmentDescriptor.helpMaxCharacters
             )
             && snapshot.requestedPinnedEntryIdentifiers.allSatisfy {
                 string($0, maxCharacters: CinematicRunRecapShareArtifactHistoryPlan.identifierMaxCharacters)
@@ -7045,6 +7137,13 @@ struct CinematicDiagnosticsSummary: Equatable {
             snapshot.runtimeRouteCueCompactCopy.map { "route copy \($0)" },
             snapshot.runtimeRouteCueDetailCopy.map { "route detail \($0)" },
             "route treatment \(snapshot.runtimeRouteTreatmentAccentIdentifier)/\(snapshot.runtimeRouteTreatmentRailIdentifier)/\(snapshot.runtimeRouteTreatmentOrbIdentifier)",
+            "mutation \(snapshot.mutationTestingTreatmentStateIdentifier)",
+            "mutation availability \(snapshot.mutationTestingCueAvailabilityIdentifier)",
+            "mutation status \(snapshot.mutationTestingCueStatusIdentifier)",
+            "mutation correlation \(snapshot.mutationTestingCueRuntimeRouteCorrelationIdentifier)",
+            snapshot.mutationTestingCueCompactCopy.map { "mutation copy \($0)" },
+            snapshot.mutationTestingCueDetailCopy.map { "mutation detail \($0)" },
+            "mutation treatment \(snapshot.mutationTestingTreatmentAccentIdentifier)/\(snapshot.mutationTestingTreatmentRailIdentifier)/\(snapshot.mutationTestingTreatmentSealIdentifier)/\(snapshot.mutationTestingTreatmentTextIdentifier)",
             "pins \(snapshot.pinnedEntryCount)",
             "retained pins \(snapshot.retainedPinnedEntryCount)",
             "missing pins \(snapshot.missingPinnedEntryCount)",
@@ -8731,6 +8830,9 @@ enum CinematicDiagnostics {
                 "run-recap-share-artifact-tour-held-entry:\(runRecapShareArtifactTourSnapshot.requestedSavedTourHoldEntryIdentifier ?? "none")",
                 "run-recap-share-artifact-tour-runtime-route:\(runRecapShareArtifactTourSnapshot.runtimeRouteCueStateIdentifier)",
                 "run-recap-share-artifact-tour-runtime-treatment:\(runRecapShareArtifactTourSnapshot.runtimeRouteTreatmentIdentifier)",
+                "run-recap-share-artifact-tour-mutation:\(runRecapShareArtifactTourSnapshot.mutationTestingTreatmentStateIdentifier)",
+                "run-recap-share-artifact-tour-mutation-status:\(runRecapShareArtifactTourSnapshot.mutationTestingCueStatusIdentifier)",
+                "run-recap-share-artifact-tour-mutation-treatment:\(runRecapShareArtifactTourSnapshot.mutationTestingTreatmentIdentifier)",
                 "run-recap-share-artifact-preview:\(runRecapShareArtifactPreviewSnapshot.identifier)",
                 "run-recap-share-artifact-selected-export:\(runRecapShareArtifactPreviewSnapshot.selectedExport.identifier)",
                 "run-recap-share-artifact-filtered-export:\(runRecapShareArtifactPreviewSnapshot.filteredExport.identifier)",
@@ -10072,6 +10174,9 @@ enum CinematicDiagnostics {
         let runtimeRouteSection = representativeSavedRecapArtifactTourRuntimeRouteSection(
             caseIdentifier: caseIdentifier
         )
+        let mutationTestingSection = representativeSavedRecapArtifactTourMutationTestingSection(
+            caseIdentifier: caseIdentifier
+        )
         let markdown = [
             """
             # Compass Run Recap Share
@@ -10090,6 +10195,7 @@ enum CinematicDiagnostics {
             - Commit: Saved tour commit \(session)
             """,
             runtimeRouteSection,
+            mutationTestingSection,
             """
             ## Events
             - event
@@ -10194,6 +10300,111 @@ enum CinematicDiagnostics {
         - Provisioning availability: none
         - Provisioning status: none
         - Provisioning action: none
+        """
+    }
+
+    private static func representativeSavedRecapArtifactTourMutationTestingSection(
+        caseIdentifier: String
+    ) -> String {
+        let cue: (
+            status: String,
+            statusLabel: String,
+            route: String,
+            routeLabel: String,
+            language: String,
+            languageLabel: String,
+            exitCode: String,
+            duration: String,
+            correlation: String
+        )?
+        switch caseIdentifier {
+        case "recent", "pinned":
+            cue = (
+                "succeeded",
+                "Succeeded",
+                CodexMutationTestingPlan.RouteState.appleContainerRoute.rawValue,
+                "Apple container",
+                "swift",
+                "Swift",
+                "exit 0",
+                "1.2 s",
+                "route-aligned|fallback-not-required|mutation:apple-container-route|runtime:apple-container"
+            )
+        case "held":
+            cue = (
+                "failed",
+                "Failed",
+                CodexMutationTestingPlan.RouteState.nativeRoute.rawValue,
+                "Native",
+                "swift",
+                "Swift",
+                "exit 65",
+                "2.6 s",
+                "route-aligned|fallback-not-required|mutation:native-route|runtime:native-macos"
+            )
+        case "search-filtered":
+            cue = (
+                "unknown",
+                "Unknown",
+                "unknown",
+                "Unknown route",
+                "swift",
+                "Swift",
+                "exit unknown",
+                "unknown",
+                "route-aligned|fallback-not-required|mutation:unknown|runtime:native-macos"
+            )
+        case "warning":
+            cue = (
+                "succeeded",
+                "Succeeded",
+                CodexMutationTestingPlan.RouteState.appleContainerRoute.rawValue,
+                "Apple container",
+                "swift",
+                "Swift",
+                "exit 0",
+                "1.8 s",
+                "route-diverged|fallback-not-required|mutation:apple-container-route|runtime:native-macos"
+            )
+        case "filtered-hold":
+            cue = (
+                "succeeded",
+                "Succeeded",
+                CodexMutationTestingPlan.RouteState.nativeFallback.rawValue,
+                "Native fallback",
+                "swift",
+                "Swift",
+                "exit 0",
+                "1.5 s",
+                "route-aligned|fallback-aligned|mutation:native-fallback|runtime:native-macos"
+            )
+        default:
+            cue = nil
+        }
+        guard let cue else { return "" }
+        let auditIdentifier = MutationTestingPresentationSanitizer.bounded(
+            [
+                "representative-mutation",
+                caseIdentifier,
+                cue.status,
+                cue.route,
+                cue.correlation
+            ].joined(separator: "|"),
+            limit: CinematicRunRecapShareArtifactMutationTestingAudit.identifierMaxCharacters
+        )
+        return """
+        ## Mutation Tests
+
+        - Mutation audit: \(auditIdentifier)
+        - Status: \(cue.status) (\(cue.statusLabel))
+        - Route: \(cue.route) (\(cue.routeLabel))
+        - Language: \(cue.language) (\(cue.languageLabel))
+        - Seed command: swift test --filter CinematicSavedTourMutationSmoke
+        - Exit code: \(cue.exitCode)
+        - Duration: \(cue.duration)
+        - Runtime route audit: representative-runtime-route-\(caseIdentifier)
+        - Runtime route correlation: \(cue.correlation)
+        - Output tail: representative mutation output
         """
     }
 
@@ -12282,6 +12493,22 @@ enum CinematicDiagnostics {
             runtimeRouteTreatmentAccentIdentifier: plan.runtimeRouteTreatment.accentIdentifier,
             runtimeRouteTreatmentRailIdentifier: plan.runtimeRouteTreatment.railIdentifier,
             runtimeRouteTreatmentOrbIdentifier: plan.runtimeRouteTreatment.orbIdentifier,
+            mutationTestingCueIdentifier: plan.mutationTestingCue?.identifier,
+            mutationTestingCueAvailabilityIdentifier: plan.mutationTestingCueAvailabilityIdentifier,
+            mutationTestingCueStatusIdentifier: plan.mutationTestingCueStatusIdentifier,
+            mutationTestingCueRuntimeRouteCorrelationIdentifier:
+                plan.mutationTestingCue?.runtimeRouteCorrelationIdentifier ?? "missing-cue",
+            mutationTestingCueCompactCopy: plan.mutationTestingCue?.compactCopy,
+            mutationTestingCueDetailCopy: plan.mutationTestingCue?.detailCopy,
+            mutationTestingCueHelpCopy: plan.mutationTestingCue?.helpCopy,
+            mutationTestingTreatmentIdentifier: plan.mutationTestingTreatment.identifier,
+            mutationTestingTreatmentStateIdentifier: plan.mutationTestingTreatment.stateIdentifier,
+            mutationTestingTreatmentAccentIdentifier: plan.mutationTestingTreatment.accentIdentifier,
+            mutationTestingTreatmentRailIdentifier: plan.mutationTestingTreatment.railIdentifier,
+            mutationTestingTreatmentSealIdentifier: plan.mutationTestingTreatment.sealIdentifier,
+            mutationTestingTreatmentTextIdentifier: plan.mutationTestingTreatment.textIdentifier,
+            mutationTestingTreatmentCompactCopy: plan.mutationTestingTreatment.compactCopy,
+            mutationTestingTreatmentHelpCopy: plan.mutationTestingTreatment.helpCopy,
             requestedPinnedEntryIdentifiers: plan.requestedPinnedEntryIdentifiers,
             retainedPinnedEntryIdentifiers: plan.retainedPinnedEntryIdentifiers,
             missingPinnedEntryIdentifiers: plan.missingPinnedEntryIdentifiers,

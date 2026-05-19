@@ -611,16 +611,22 @@ final class CinematicDiagnosticsTests: XCTestCase {
         XCTAssertEqual(report.runRecapShareArtifactTour.runtimeRouteCueStateIdentifier, "apple-container")
         XCTAssertEqual(report.runRecapShareArtifactTour.runtimeRouteCueCompactCopy, "Container")
         XCTAssertEqual(report.runRecapShareArtifactTour.runtimeRouteTreatmentAccentIdentifier, "container-blue")
+        XCTAssertEqual(report.runRecapShareArtifactTour.mutationTestingCueAvailabilityIdentifier, "available")
+        XCTAssertEqual(report.runRecapShareArtifactTour.mutationTestingTreatmentStateIdentifier, "succeeded")
+        XCTAssertEqual(report.runRecapShareArtifactTour.mutationTestingTreatmentAccentIdentifier, "mutation-green")
         XCTAssertEqual(report.idleStoryCycle.phaseIdentifier, "saved-recap-artifact-tour")
         XCTAssertEqual(report.idleStoryCycle.cameraPressureIdentifier, "archive-tour")
         XCTAssertTrue(report.identifier.contains("run-recap-share-artifact-tour-state:pinned"))
         XCTAssertTrue(report.identifier.contains("run-recap-share-artifact-tour-runtime-route:apple-container"))
+        XCTAssertTrue(report.identifier.contains("run-recap-share-artifact-tour-mutation:succeeded"))
         XCTAssertTrue(row.detail.contains("state pinned"))
         XCTAssertTrue(row.detail.contains("source pinned"))
         XCTAssertTrue(row.detail.contains("runtime route apple-container"))
+        XCTAssertTrue(row.detail.contains("mutation succeeded"))
         XCTAssertTrue(summary.exportText.contains("Recap artifact tour: available"))
         XCTAssertTrue(summary.exportText.contains("state pinned"))
         XCTAssertTrue(summary.exportText.contains("route copy Container"))
+        XCTAssertTrue(summary.exportText.contains("mutation succeeded"))
     }
 
     func testReportAndSummaryExportHeldSavedRecapArtifactTourState() throws {
@@ -644,12 +650,15 @@ final class CinematicDiagnosticsTests: XCTestCase {
         XCTAssertEqual(report.runRecapShareArtifactTour.selectionSourceIdentifier, "held")
         XCTAssertEqual(report.runRecapShareArtifactTour.runtimeRouteCueStateIdentifier, "native")
         XCTAssertEqual(report.runRecapShareArtifactTour.runtimeRouteTreatmentAccentIdentifier, "native-green")
+        XCTAssertEqual(report.runRecapShareArtifactTour.mutationTestingTreatmentStateIdentifier, "failed")
+        XCTAssertEqual(report.runRecapShareArtifactTour.mutationTestingTreatmentAccentIdentifier, "mutation-red")
         XCTAssertEqual(filteredHoldReport.runRecapShareArtifactTour.savedTourHoldStateIdentifier, "filtered-hold")
         XCTAssertEqual(filteredHoldReport.runRecapShareArtifactTour.runtimeRouteCueStateIdentifier, "native-fallback")
         XCTAssertEqual(filteredHoldReport.runRecapShareArtifactTour.runtimeRouteTreatmentAccentIdentifier, "fallback-amber")
         XCTAssertTrue(report.identifier.contains("run-recap-share-artifact-tour-hold:held"))
         XCTAssertTrue(row.detail.contains("hold held"))
         XCTAssertTrue(row.detail.contains("runtime route native"))
+        XCTAssertTrue(row.detail.contains("mutation failed"))
         XCTAssertTrue(summary.exportText.contains("hold held"))
         XCTAssertTrue(summary.exportText.contains("filtered-hold"))
         XCTAssertTrue(summary.exportText.contains("native-fallback"))
@@ -847,6 +856,85 @@ final class CinematicDiagnosticsTests: XCTestCase {
                 summary.exportText.contains("run-recap-share-artifact-tour-runtime-route.\(expectedRouteState)"),
                 seed
             )
+        }
+    }
+
+    func testRunRecapSavedArtifactTourMutationCueDiagnosticsAreBoundedAndSanitized() throws {
+        let secret = "secret-mutation-diagnostics-value"
+        let repoPath = "/Users/example/project/.devcontainer/devcontainer.json"
+        let containerToolPath = "/usr/local/bin/container"
+        let composePath = "/Users/example/project/compose.override.yml"
+        let history = diagnosticsRuntimeRouteHistory(
+            seed: "mutation-cue-diagnostics",
+            runtimeRouteSection: diagnosticsRuntimeRouteSection(
+                effectiveRoute: "native-macos",
+                effectiveRouteTitle: "Native macOS",
+                fallbackState: "direct",
+                supportClassification: "not-inspected"
+            ),
+            mutationTestingSection: """
+            ## Mutation Tests
+
+            - Mutation audit: mutation-audit \(repoPath) \(secret)
+            - Status: failed (Failed)
+            - Route: apple-container-route (Apple container)
+            - Language: swift (Swift)
+            - Seed command: swift test \(repoPath) \(containerToolPath) containerEnv=TOKEN=\(secret) build-arg=API_KEY=\(secret)
+            - Exit code: exit 65
+            - Duration: 2.5 s
+            - Runtime route audit: runtime \(containerToolPath) \(composePath)
+            - Runtime route correlation: route-diverged|fallback-not-required|mutation:apple-container-route|runtime:native-macos|\(secret)
+            - Output tail: raw failure \(repoPath) \(containerToolPath) \(composePath) .devcontainer/devcontainer.json \(secret)
+            """
+        )
+        let selected = try XCTUnwrap(history.entries.first)
+        let report = makeReport(
+            CinematicDiagnosticsInput(
+                repoName: "Compass",
+                phase: "Developing",
+                immediateTitle: "Inspect mutation cue diagnostics",
+                completedCount: 1,
+                latestEvent: nil,
+                languageProfile: languageProfile(primaryLanguage: .swift),
+                activityProfile: activityProfile(recentCommitCount: 1),
+                influenceSettings: CinematicInfluenceSettings(),
+                runRecapShareArtifactHistoryPlan: history,
+                runRecapShareArtifactSavedTourHoldEntryIdentifier: selected.identifier
+            )
+        )
+        let summary = CinematicDiagnosticsSummary(report: report)
+        let row = try XCTUnwrap(summary.rows.first { $0.id == "run-recap-share-artifact-tour" })
+        let exposedText = [
+            report.identifier,
+            row.detail,
+            summary.exportText,
+            report.runRecapShareArtifactTour.mutationTestingCueIdentifier ?? "",
+            report.runRecapShareArtifactTour.mutationTestingCueDetailCopy ?? "",
+            report.runRecapShareArtifactTour.mutationTestingTreatmentIdentifier,
+            report.runRecapShareArtifactTour.mutationTestingTreatmentHelpCopy
+        ].joined(separator: "\n")
+
+        XCTAssertEqual(report.runRecapShareArtifactTour.mutationTestingCueAvailabilityIdentifier, "available")
+        XCTAssertEqual(report.runRecapShareArtifactTour.mutationTestingCueStatusIdentifier, "failed")
+        XCTAssertEqual(report.runRecapShareArtifactTour.mutationTestingTreatmentStateIdentifier, "runtime-route-diverged")
+        XCTAssertEqual(report.runRecapShareArtifactTour.mutationTestingTreatmentAccentIdentifier, "mutation-amber")
+        XCTAssertTrue(row.detail.contains("mutation runtime-route-diverged"))
+        XCTAssertTrue(summary.exportText.contains("mutation runtime-route-diverged"))
+        XCTAssertLessThanOrEqual(
+            row.detail.count,
+            CinematicDiagnosticsSummary.detailMaxCharacters
+        )
+        for leaked in [
+            secret,
+            repoPath,
+            containerToolPath,
+            composePath,
+            ".devcontainer/devcontainer.json",
+            "containerEnv=TOKEN",
+            "build-arg=API_KEY",
+            "raw failure"
+        ] {
+            XCTAssertFalse(exposedText.contains(leaked), "Leaked mutation diagnostics text: \(leaked)")
         }
     }
 
@@ -4383,13 +4471,15 @@ final class CinematicDiagnosticsTests: XCTestCase {
     private func diagnosticsRuntimeRouteHistory(
         seed: String,
         runtimeRouteSection: String? = nil,
+        mutationTestingSection: String? = nil,
         entries: [CinematicRunRecapShareArtifactHistoryPlan.Entry]? = nil
     ) -> CinematicRunRecapShareArtifactHistoryPlan {
         let resolvedEntries = entries ?? [
             diagnosticsRuntimeRouteEntry(
                 seed: seed,
                 session: 42,
-                runtimeRouteSection: runtimeRouteSection
+                runtimeRouteSection: runtimeRouteSection,
+                mutationTestingSection: mutationTestingSection
             )
         ]
         return CinematicRunRecapShareArtifactHistoryPlan(
@@ -4416,7 +4506,8 @@ final class CinematicDiagnosticsTests: XCTestCase {
     private func diagnosticsRuntimeRouteEntry(
         seed: String,
         session: Int,
-        runtimeRouteSection: String?
+        runtimeRouteSection: String?,
+        mutationTestingSection: String? = nil
     ) -> CinematicRunRecapShareArtifactHistoryPlan.Entry {
         let filename = "\(session)-runtime-route-\(seed).md"
         let markdown = [
@@ -4437,6 +4528,7 @@ final class CinematicDiagnosticsTests: XCTestCase {
             - Commit: Runtime route commit
             """,
             runtimeRouteSection ?? "",
+            mutationTestingSection ?? "",
             """
             ## Events
             - event

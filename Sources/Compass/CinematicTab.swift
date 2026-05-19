@@ -1585,6 +1585,23 @@ private struct CinematicRunRecapArtifactLibraryControl: View {
                     .accessibilityIdentifier("cinematic-run-recap-artifact-library-tour-runtime-route-\(runtimeRouteCue.routeKindIdentifier)")
             }
 
+            if tourPlan.isAvailable {
+                Text(tourPlan.mutationTestingTreatment.compactCopy)
+                    .font(.caption2.weight(.bold))
+                    .foregroundStyle(mutationTreatmentColor(tourPlan).opacity(0.78))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.62)
+                    .padding(.horizontal, 4)
+                    .frame(minWidth: 46, maxWidth: 98, minHeight: 16)
+                    .background(
+                        mutationTreatmentColor(tourPlan).opacity(0.075),
+                        in: RoundedRectangle(cornerRadius: 4)
+                    )
+                    .help(mutationTestingCueHelp(tourPlan))
+                    .accessibilityLabel("Mutation cue \(tourPlan.mutationTestingTreatment.compactCopy)")
+                    .accessibilityIdentifier("cinematic-run-recap-artifact-library-tour-mutation-\(tourPlan.mutationTestingCueStateIdentifier)")
+            }
+
             Spacer(minLength: 4)
 
             Button {
@@ -1813,16 +1830,47 @@ private struct CinematicRunRecapArtifactLibraryControl: View {
     }
 
     private func tourStripHelp(_ tourPlan: CinematicRunRecapShareArtifactTourPlan) -> String {
-        guard let runtimeRouteCue = tourPlan.runtimeRouteCue else {
-            return tourSummary(tourPlan)
+        var parts = [tourSummary(tourPlan)]
+        if let runtimeRouteCue = tourPlan.runtimeRouteCue {
+            parts.append("Runtime route: \(runtimeRouteCue.detailCopy). \(runtimeRouteCue.helpCopy)")
         }
-        return boundedHelp("\(tourSummary(tourPlan)). Runtime route: \(runtimeRouteCue.detailCopy). \(runtimeRouteCue.helpCopy)")
+        if tourPlan.isAvailable {
+            parts.append("Mutation: \(tourPlan.mutationTestingCue?.detailCopy ?? tourPlan.mutationTestingTreatment.compactCopy). \(tourPlan.mutationTestingCue?.helpCopy ?? tourPlan.mutationTestingTreatment.helpCopy)")
+        }
+        return boundedHelp(parts.joined(separator: " "))
     }
 
     private func runtimeRouteCueHelp(
         _ runtimeRouteCue: CinematicRunRecapShareArtifactRuntimeRouteCue
     ) -> String {
         boundedHelp("\(runtimeRouteCue.detailCopy). \(runtimeRouteCue.helpCopy)")
+    }
+
+    private func mutationTestingCueHelp(_ tourPlan: CinematicRunRecapShareArtifactTourPlan) -> String {
+        boundedHelp(
+            [
+                tourPlan.mutationTestingCue?.detailCopy,
+                tourPlan.mutationTestingCue?.helpCopy,
+                tourPlan.mutationTestingTreatment.helpCopy
+            ]
+                .compactMap { $0?.isEmpty == false ? $0 : nil }
+                .joined(separator: " ")
+        )
+    }
+
+    private func mutationTreatmentColor(_ tourPlan: CinematicRunRecapShareArtifactTourPlan) -> Color {
+        switch tourPlan.mutationTestingCueStateIdentifier {
+        case "succeeded":
+            return .green
+        case "failed":
+            return .red
+        case "runtime-route-diverged":
+            return .orange
+        case "unknown":
+            return .purple
+        default:
+            return .secondary
+        }
     }
 
     private func tourPromotedHoldState(_ tourPlan: CinematicRunRecapShareArtifactTourPlan) -> String {

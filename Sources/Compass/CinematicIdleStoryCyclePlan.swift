@@ -749,7 +749,7 @@ enum CinematicIdleStoryCyclePlanner {
         cadence: TimeInterval
     ) -> Candidate? {
         guard let tourPlan, tourPlan.shouldDisplay else { return nil }
-        let targetKindIdentifier = "saved-recap-artifact-\(tourPlan.stateIdentifier).\(tourPlan.runtimeRouteCueStateIdentifier)"
+        let targetKindIdentifier = "saved-recap-artifact-\(tourPlan.stateIdentifier).\(tourPlan.runtimeRouteCueStateIdentifier).mutation-\(tourPlan.mutationTestingCueStateIdentifier)"
         let cameraShot = savedRecapArtifactTourCameraShot(for: tourPlan)
         let lookTarget = savedRecapArtifactTourLookTarget(for: tourPlan)
         let choreography = choreography(
@@ -765,9 +765,9 @@ enum CinematicIdleStoryCyclePlanner {
             cameraPressureIdentifier: "archive-tour",
             targetBias: 0.7,
             pulseDuration: 0.72,
-            pulseIntensityScale: tourPlan.hasWarnings ? 1.1 : 1.04,
-            pulseOrbBoost: tourPlan.hasWarnings ? 0.12 : 0.08,
-            shakeScale: tourPlan.hasWarnings ? 0.28 : nil
+            pulseIntensityScale: savedRecapArtifactTourPulseIntensityScale(for: tourPlan),
+            pulseOrbBoost: savedRecapArtifactTourPulseOrbBoost(for: tourPlan),
+            shakeScale: savedRecapArtifactTourShakeScale(for: tourPlan)
         )
 
         return Candidate(
@@ -780,7 +780,7 @@ enum CinematicIdleStoryCyclePlanner {
             lightFamily: savedRecapArtifactTourLightFamily(for: tourPlan),
             arenaEffect: savedRecapArtifactTourArenaEffect(for: tourPlan),
             phaseLightIntensity: savedRecapArtifactTourPhaseLightIntensity(for: tourPlan),
-            phaseCopy: tourPlan.titleSnippet,
+            phaseCopy: savedRecapArtifactTourPhaseCopy(for: tourPlan),
             choreography: choreography,
             runRecapShareArtifactTourPlan: tourPlan
         )
@@ -1426,7 +1426,16 @@ enum CinematicIdleStoryCyclePlanner {
         default:
             routeOffset = 0
         }
-        return [-1.62 + pinOffset + routeOffset, 1.18 + sessionOffset, 1.62]
+        let mutationOffset: Float
+        switch tourPlan.mutationTestingCueStateIdentifier {
+        case "failed", "runtime-route-diverged":
+            mutationOffset = 0.08
+        case "succeeded":
+            mutationOffset = -0.03
+        default:
+            mutationOffset = 0
+        }
+        return [-1.62 + pinOffset + routeOffset + mutationOffset, 1.18 + sessionOffset, 1.62]
     }
 
     private static func savedRecapArtifactTourLightFamily(
@@ -1443,6 +1452,14 @@ enum CinematicIdleStoryCyclePlanner {
         }
         if tourPlan.hasWarnings {
             return .pressure
+        }
+        switch tourPlan.mutationTestingCueStateIdentifier {
+        case "failed", "runtime-route-diverged":
+            return .pressure
+        case "succeeded":
+            return .verify
+        default:
+            break
         }
         if tourPlan.selectionSourceIdentifier == "held" {
             return .verify
@@ -1479,6 +1496,14 @@ enum CinematicIdleStoryCyclePlanner {
         if tourPlan.selectionSourceIdentifier == "held" {
             return .seal
         }
+        switch tourPlan.mutationTestingCueStateIdentifier {
+        case "failed", "runtime-route-diverged":
+            return .activityPulse
+        case "succeeded":
+            return .seal
+        default:
+            break
+        }
         if tourPlan.runtimeRouteCueStateIdentifier == "native-fallback" {
             return .activityPulse
         }
@@ -1503,6 +1528,14 @@ enum CinematicIdleStoryCyclePlanner {
         if tourPlan.hasWarnings {
             return 700
         }
+        switch tourPlan.mutationTestingCueStateIdentifier {
+        case "failed", "runtime-route-diverged":
+            return 720
+        case "succeeded":
+            return 660
+        default:
+            break
+        }
         if tourPlan.selectionSourceIdentifier == "held" {
             return 720
         }
@@ -1517,6 +1550,58 @@ enum CinematicIdleStoryCyclePlanner {
             break
         }
         return tourPlan.selectionSourceIdentifier == "pinned" ? 680 : 560
+    }
+
+    private static func savedRecapArtifactTourPulseIntensityScale(
+        for tourPlan: CinematicRunRecapShareArtifactTourPlan
+    ) -> Float {
+        switch tourPlan.mutationTestingCueStateIdentifier {
+        case "failed", "runtime-route-diverged":
+            return 1.12
+        case "succeeded":
+            return tourPlan.hasWarnings ? 1.1 : 1.06
+        default:
+            return tourPlan.hasWarnings ? 1.1 : 1.04
+        }
+    }
+
+    private static func savedRecapArtifactTourPulseOrbBoost(
+        for tourPlan: CinematicRunRecapShareArtifactTourPlan
+    ) -> Float {
+        switch tourPlan.mutationTestingCueStateIdentifier {
+        case "failed", "runtime-route-diverged":
+            return 0.14
+        case "succeeded":
+            return tourPlan.hasWarnings ? 0.12 : 0.1
+        default:
+            return tourPlan.hasWarnings ? 0.12 : 0.08
+        }
+    }
+
+    private static func savedRecapArtifactTourShakeScale(
+        for tourPlan: CinematicRunRecapShareArtifactTourPlan
+    ) -> Float? {
+        if tourPlan.hasWarnings {
+            return 0.28
+        }
+        switch tourPlan.mutationTestingCueStateIdentifier {
+        case "failed", "runtime-route-diverged":
+            return 0.22
+        default:
+            return nil
+        }
+    }
+
+    private static func savedRecapArtifactTourPhaseCopy(
+        for tourPlan: CinematicRunRecapShareArtifactTourPlan
+    ) -> String {
+        if tourPlan.mutationTestingCueStateIdentifier == "missing" {
+            return tourPlan.titleSnippet
+        }
+        return bounded(
+            "\(tourPlan.titleSnippet) | \(tourPlan.mutationTestingTreatment.compactCopy)",
+            limit: CinematicRunRecapShareArtifactTourPlan.snippetMaxCharacters
+        )
     }
 
     private static func phaseOrder(

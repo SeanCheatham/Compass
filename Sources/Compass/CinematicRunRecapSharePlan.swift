@@ -807,6 +807,7 @@ struct CinematicRunRecapShareArtifactMutationTestingCue: Equatable, Identifiable
     static let fieldMaxCharacters = SessionMutationTestingExecution.fieldLimit
     static let copyMaxCharacters = 120
     static let detailMaxCharacters = 220
+    static let helpMaxCharacters = 240
     static let sectionLineLimit = 32
 
     var id: String { identifier }
@@ -822,6 +823,7 @@ struct CinematicRunRecapShareArtifactMutationTestingCue: Equatable, Identifiable
     var runtimeRouteCorrelationIdentifier: String
     var compactCopy: String
     var detailCopy: String
+    var helpCopy: String
 
     init?(markdownContents: String) {
         guard let sectionLines = Self.mutationTestingSectionLines(in: markdownContents) else {
@@ -874,6 +876,10 @@ struct CinematicRunRecapShareArtifactMutationTestingCue: Equatable, Identifiable
             ].joined(separator: " | "),
             limit: Self.detailMaxCharacters
         )
+        let helpCopy = MutationTestingPresentationSanitizer.bounded(
+            "Mutation cue from the saved recap artifact Markdown. It is read-only and only shows sanitized status, route, language, exit, duration, and route-correlation identifiers.",
+            limit: Self.helpMaxCharacters
+        )
         let identifier = MutationTestingPresentationSanitizer.bounded(
             [
                 "run-recap-share-artifact-mutation-testing-cue",
@@ -900,6 +906,7 @@ struct CinematicRunRecapShareArtifactMutationTestingCue: Equatable, Identifiable
         self.runtimeRouteCorrelationIdentifier = runtimeRouteCorrelationIdentifier
         self.compactCopy = compactCopy
         self.detailCopy = detailCopy
+        self.helpCopy = helpCopy
     }
 
     static func mutationTestingSectionLines(in markdownContents: String) -> [String]? {
@@ -963,6 +970,162 @@ struct CinematicRunRecapShareArtifactMutationTestingCue: Equatable, Identifiable
         limit: Int
     ) -> String {
         MutationTestingPresentationSanitizer.field(text, limit: limit, fallback: fallback)
+    }
+}
+
+struct CinematicRunRecapShareArtifactMutationTestingTreatmentDescriptor: Equatable {
+    static let identifierMaxCharacters = 180
+    static let componentMaxCharacters = 48
+    static let copyMaxCharacters = CinematicRunRecapShareArtifactMutationTestingCue.copyMaxCharacters
+    static let helpMaxCharacters = CinematicRunRecapShareArtifactMutationTestingCue.helpMaxCharacters
+
+    var identifier: String
+    var stateIdentifier: String
+    var accentIdentifier: String
+    var railIdentifier: String
+    var sealIdentifier: String
+    var textIdentifier: String
+    var compactCopy: String
+    var helpCopy: String
+    var railOpacityScale: Double
+    var sealOpacityScale: Double
+    var textOpacityScale: Double
+
+    init(cue: CinematicRunRecapShareArtifactMutationTestingCue?) {
+        let statusIdentifier = cue?.statusIdentifier ?? "missing"
+        let routeCorrelationIdentifier = cue?.runtimeRouteCorrelationIdentifier ?? "missing-cue"
+        let stateIdentifier = Self.stateIdentifier(
+            statusIdentifier: statusIdentifier,
+            routeCorrelationIdentifier: routeCorrelationIdentifier,
+            hasCue: cue != nil
+        )
+        let presentation = Self.presentation(stateIdentifier: stateIdentifier)
+
+        self.stateIdentifier = stateIdentifier
+        accentIdentifier = presentation.accentIdentifier
+        railIdentifier = presentation.railIdentifier
+        sealIdentifier = presentation.sealIdentifier
+        textIdentifier = presentation.textIdentifier
+        compactCopy = MutationTestingPresentationSanitizer.bounded(
+            presentation.compactCopy,
+            limit: Self.copyMaxCharacters
+        )
+        helpCopy = MutationTestingPresentationSanitizer.bounded(
+            presentation.helpCopy,
+            limit: Self.helpMaxCharacters
+        )
+        railOpacityScale = presentation.railOpacityScale
+        sealOpacityScale = presentation.sealOpacityScale
+        textOpacityScale = presentation.textOpacityScale
+        identifier = MutationTestingPresentationSanitizer.bounded(
+            [
+                "mutation-testing-treatment",
+                "state:\(stateIdentifier)",
+                "status:\(statusIdentifier)",
+                "correlation:\(routeCorrelationIdentifier)",
+                "accent:\(accentIdentifier)",
+                "rail:\(railIdentifier)",
+                "seal:\(sealIdentifier)",
+                "text:\(textIdentifier)"
+            ].joined(separator: "|"),
+            limit: Self.identifierMaxCharacters
+        )
+    }
+
+    private struct Presentation {
+        var accentIdentifier: String
+        var railIdentifier: String
+        var sealIdentifier: String
+        var textIdentifier: String
+        var compactCopy: String
+        var helpCopy: String
+        var railOpacityScale: Double
+        var sealOpacityScale: Double
+        var textOpacityScale: Double
+    }
+
+    private static func stateIdentifier(
+        statusIdentifier: String,
+        routeCorrelationIdentifier: String,
+        hasCue: Bool
+    ) -> String {
+        guard hasCue else { return "missing" }
+        if routeCorrelationIdentifier.contains("route-diverged") {
+            return "runtime-route-diverged"
+        }
+        switch statusIdentifier {
+        case "succeeded":
+            return "succeeded"
+        case "failed":
+            return "failed"
+        default:
+            return "unknown"
+        }
+    }
+
+    private static func presentation(stateIdentifier: String) -> Presentation {
+        switch stateIdentifier {
+        case "succeeded":
+            return Presentation(
+                accentIdentifier: "mutation-green",
+                railIdentifier: "mutation-pass-rail",
+                sealIdentifier: "mutation-pass-seal",
+                textIdentifier: "mutation-pass-text",
+                compactCopy: "Mutation passed",
+                helpCopy: "Saved artifact mutation testing cue reported a sanitized succeeded status.",
+                railOpacityScale: 1.08,
+                sealOpacityScale: 1.04,
+                textOpacityScale: 1.0
+            )
+        case "failed":
+            return Presentation(
+                accentIdentifier: "mutation-red",
+                railIdentifier: "mutation-fail-rail",
+                sealIdentifier: "mutation-fail-seal",
+                textIdentifier: "mutation-fail-text",
+                compactCopy: "Mutation failed",
+                helpCopy: "Saved artifact mutation testing cue reported a sanitized failed status.",
+                railOpacityScale: 1.32,
+                sealOpacityScale: 1.24,
+                textOpacityScale: 1.16
+            )
+        case "runtime-route-diverged":
+            return Presentation(
+                accentIdentifier: "mutation-amber",
+                railIdentifier: "mutation-diverged-rail",
+                sealIdentifier: "mutation-diverged-seal",
+                textIdentifier: "mutation-diverged-text",
+                compactCopy: "Mutation route diverged",
+                helpCopy: "Saved artifact mutation testing cue reported sanitized route-correlation divergence.",
+                railOpacityScale: 1.24,
+                sealOpacityScale: 1.18,
+                textOpacityScale: 1.12
+            )
+        case "unknown":
+            return Presentation(
+                accentIdentifier: "mutation-violet",
+                railIdentifier: "mutation-unknown-rail",
+                sealIdentifier: "mutation-unknown-seal",
+                textIdentifier: "mutation-unknown-text",
+                compactCopy: "Mutation unknown",
+                helpCopy: "Saved artifact mutation testing cue was present but its sanitized status was unknown.",
+                railOpacityScale: 1.0,
+                sealOpacityScale: 0.96,
+                textOpacityScale: 0.92
+            )
+        default:
+            return Presentation(
+                accentIdentifier: "mutation-muted",
+                railIdentifier: "mutation-missing-rail",
+                sealIdentifier: "mutation-missing-seal",
+                textIdentifier: "mutation-missing-text",
+                compactCopy: "Mutation missing",
+                helpCopy: "No mutation testing cue was found in the selected saved recap artifact.",
+                railOpacityScale: 0.72,
+                sealOpacityScale: 0.66,
+                textOpacityScale: 0.7
+            )
+        }
     }
 }
 
@@ -1571,6 +1734,8 @@ struct CinematicRunRecapShareArtifactTourPlan: Equatable, Identifiable {
     var sessionText: String
     var runtimeRouteCue: CinematicRunRecapShareArtifactRuntimeRouteCue?
     var runtimeRouteTreatment: CinematicRunRecapShareArtifactRuntimeRouteTreatmentDescriptor
+    var mutationTestingCue: CinematicRunRecapShareArtifactMutationTestingCue?
+    var mutationTestingTreatment: CinematicRunRecapShareArtifactMutationTestingTreatmentDescriptor
     var requestedPinnedEntryIdentifiers: [String]
     var retainedPinnedEntryIdentifiers: [String]
     var missingPinnedEntryIdentifiers: [String]
@@ -1595,6 +1760,18 @@ struct CinematicRunRecapShareArtifactTourPlan: Equatable, Identifiable {
 
     var runtimeRouteCueStateIdentifier: String {
         runtimeRouteCue?.routeKindIdentifier ?? "missing-cue"
+    }
+
+    var mutationTestingCueAvailabilityIdentifier: String {
+        mutationTestingCue == nil ? "missing" : "available"
+    }
+
+    var mutationTestingCueStatusIdentifier: String {
+        mutationTestingCue?.statusIdentifier ?? "missing"
+    }
+
+    var mutationTestingCueStateIdentifier: String {
+        mutationTestingTreatment.stateIdentifier
     }
 }
 
@@ -2951,11 +3128,20 @@ enum CinematicRunRecapShareArtifactTourPlanner {
         let runtimeRouteTreatment = CinematicRunRecapShareArtifactRuntimeRouteTreatmentDescriptor(
             cue: runtimeRouteCue
         )
+        let mutationTestingCue = selectedEntry.flatMap {
+            CinematicRunRecapShareArtifactMutationTestingCue(markdownContents: $0.markdownContents)
+        }
+        let mutationTestingTreatment = CinematicRunRecapShareArtifactMutationTestingTreatmentDescriptor(
+            cue: mutationTestingCue
+        )
         var identifierParts = [
             "run-recap-share-artifact-tour",
             "availability:\(availabilityReason)",
             "state:\(stateIdentifier)",
             "source:\(selectionSourceIdentifier)",
+            "mutation-state:\(mutationTestingTreatment.stateIdentifier)",
+            "mutation-cue:\(fingerprint(mutationTestingCue?.identifier ?? "missing"))",
+            "mutation-treatment:\(fingerprint(mutationTestingTreatment.identifier))",
             "retained:\(retainedEntries.count)",
             "total:\(historyPlan.totalCount)",
             "hidden:\(historyPlan.hiddenCount)",
@@ -3026,6 +3212,8 @@ enum CinematicRunRecapShareArtifactTourPlanner {
                 sessionText: "No saved session",
                 runtimeRouteCue: runtimeRouteCue,
                 runtimeRouteTreatment: runtimeRouteTreatment,
+                mutationTestingCue: mutationTestingCue,
+                mutationTestingTreatment: mutationTestingTreatment,
                 requestedPinnedEntryIdentifiers: requestedPinnedEntryIdentifiers,
                 retainedPinnedEntryIdentifiers: retainedPinnedEntryIdentifiers,
                 missingPinnedEntryIdentifiers: missingPinnedEntryIdentifiers,
@@ -3094,6 +3282,8 @@ enum CinematicRunRecapShareArtifactTourPlanner {
             ),
             runtimeRouteCue: runtimeRouteCue,
             runtimeRouteTreatment: runtimeRouteTreatment,
+            mutationTestingCue: mutationTestingCue,
+            mutationTestingTreatment: mutationTestingTreatment,
             requestedPinnedEntryIdentifiers: requestedPinnedEntryIdentifiers,
             retainedPinnedEntryIdentifiers: retainedPinnedEntryIdentifiers,
             missingPinnedEntryIdentifiers: missingPinnedEntryIdentifiers,

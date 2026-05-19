@@ -4033,7 +4033,8 @@ final class CinematicSceneCoordinator {
     ) {
         clearChildren(of: savedRecapArtifactTourNode)
         let treatment = tourPlan.runtimeRouteTreatment
-        savedRecapArtifactTourNode.name = "saved-recap-artifact-tour.\(tourPlan.stateIdentifier).\(tourPlan.savedTourHoldStateIdentifier).\(treatment.routeKindIdentifier)"
+        let mutationTreatment = tourPlan.mutationTestingTreatment
+        savedRecapArtifactTourNode.name = "saved-recap-artifact-tour.\(tourPlan.stateIdentifier).\(tourPlan.savedTourHoldStateIdentifier).\(treatment.routeKindIdentifier).mutation.\(mutationTreatment.stateIdentifier)"
         savedRecapArtifactTourNode.position = savedRecapArtifactTourPosition(for: tourPlan)
         savedRecapArtifactTourNode.orientation = narrativeBillboardOrientation(
             from: savedRecapArtifactTourNode.position(relativeTo: nil),
@@ -4043,6 +4044,7 @@ final class CinematicSceneCoordinator {
         setOpacity(0.9, on: savedRecapArtifactTourNode)
 
         let color = savedRecapArtifactTourColor(for: tourPlan)
+        let mutationColor = savedRecapArtifactMutationColor(for: mutationTreatment)
         let plateWidth: Float = 2.62
         let plateHeight: Float = 0.94
         let plateDepth: Float = 0.034
@@ -4091,6 +4093,16 @@ final class CinematicSceneCoordinator {
         sideRail.name = "saved-recap-artifact-tour.rail.\(tourPlan.selectionSourceIdentifier).\(tourPlan.savedTourHoldStateIdentifier).\(treatment.railIdentifier)"
         savedRecapArtifactTourNode.addChild(sideRail)
 
+        let mutationRail = beamEntity(
+            from: [plateWidth * 0.39, -plateHeight * 0.32, 0.036],
+            to: [plateWidth * 0.39, plateHeight * 0.26, 0.036],
+            radius: 0.004,
+            color: mutationColor.withAlphaComponent(0.84),
+            opacity: min(0.74, 0.42 * Float(mutationTreatment.railOpacityScale))
+        )
+        mutationRail.name = "saved-recap-artifact-tour.mutation.rail.\(mutationTreatment.railIdentifier)"
+        savedRecapArtifactTourNode.addChild(mutationRail)
+
         let orbBaseOpacity: Float = tourPlan.hasWarnings ? 0.78 : 0.62
         let orbOpacity = min(0.9, orbBaseOpacity * Float(treatment.orbOpacityScale))
         let orb = ModelEntity(
@@ -4101,6 +4113,26 @@ final class CinematicSceneCoordinator {
         orb.position = [-plateWidth * 0.43, plateHeight * 0.36, 0.058]
         orb.components.set(OpacityComponent(opacity: orbOpacity))
         savedRecapArtifactTourNode.addChild(orb)
+
+        let mutationSealOpacity = min(0.82, 0.54 * Float(mutationTreatment.sealOpacityScale))
+        let mutationSeal = ModelEntity(
+            mesh: .generateBox(
+                width: 0.18,
+                height: 0.052,
+                depth: 0.018,
+                cornerRadius: 0.012
+            ),
+            materials: [
+                glowMaterial(
+                    mutationColor,
+                    opacity: mutationSealOpacity
+                )
+            ]
+        )
+        mutationSeal.name = "saved-recap-artifact-tour.mutation.seal.\(mutationTreatment.sealIdentifier)"
+        mutationSeal.position = [plateWidth * 0.36, plateHeight * 0.33, 0.06]
+        mutationSeal.components.set(OpacityComponent(opacity: mutationSealOpacity))
+        savedRecapArtifactTourNode.addChild(mutationSeal)
 
         addNarrativeText(
             tourPlan.titleSnippet,
@@ -4159,6 +4191,17 @@ final class CinematicSceneCoordinator {
                 opacity: 0.66
             )
         }
+        addNarrativeText(
+            mutationTreatment.compactCopy,
+            to: savedRecapArtifactTourNode,
+            name: "saved-recap-artifact-tour.text.mutation.\(mutationTreatment.textIdentifier)",
+            width: 0.86,
+            offset: [0.78, -0.2, 0.056],
+            fontSize: 0.043,
+            weight: .semibold,
+            color: mutationColor.withAlphaComponent(0.82),
+            opacity: min(0.72, 0.54 * Float(mutationTreatment.textOpacityScale))
+        )
 
         if animated {
             savedRecapArtifactTourNode.scale = SIMD3<Float>(repeating: 0.92)
@@ -4442,6 +4485,24 @@ final class CinematicSceneCoordinator {
             return baseColor.mixing(with: themedColor(SpellSchool.insight.nsColor), fraction: 0.18)
         default:
             return baseColor
+        }
+    }
+
+    private func savedRecapArtifactMutationColor(
+        for treatment: CinematicRunRecapShareArtifactMutationTestingTreatmentDescriptor
+    ) -> NSColor {
+        switch treatment.stateIdentifier {
+        case "succeeded":
+            return themedColor(SpellSchool.verify.nsColor)
+        case "failed":
+            return themedColor(SpellSchool.failure.nsColor)
+        case "runtime-route-diverged":
+            return themedColor(SpellSchool.pressure.nsColor)
+        case "unknown":
+            return themedColor(SpellSchool.scan.nsColor)
+        default:
+            return themedColor(SpellSchool.insight.nsColor)
+                .mixing(with: NSColor(calibratedWhite: 0.7, alpha: 1), fraction: 0.34)
         }
     }
 

@@ -312,6 +312,7 @@ final class CinematicRunRecapShareArtifactTests: XCTestCase {
             scope: .filtered
         )
         let rollup = CinematicRunRecapShareArtifactRollupPlanner.plan(historyPlan: history)
+        let tour = CinematicRunRecapShareArtifactTourPlanner.plan(historyPlan: history)
 
         XCTAssertEqual(result.status, .recorded)
         XCTAssertTrue(savedMarkdown.contains("## Mutation Tests"))
@@ -330,6 +331,10 @@ final class CinematicRunRecapShareArtifactTests: XCTestCase {
         XCTAssertTrue(filteredExport.markdownContents.contains("## Mutation Tests"))
         XCTAssertEqual(rollup.mutationTestingAuditCount, 1)
         XCTAssertEqual(rollup.mutationTestingSummary, "succeeded 1")
+        XCTAssertEqual(tour.mutationTestingCueStatusIdentifier, "succeeded")
+        XCTAssertEqual(tour.mutationTestingCueAvailabilityIdentifier, "available")
+        XCTAssertEqual(tour.mutationTestingTreatment.stateIdentifier, "succeeded")
+        XCTAssertEqual(tour.mutationTestingTreatment.accentIdentifier, "mutation-green")
         XCTAssertTrue(rollup.insightText.contains("mutation succeeded 1"))
         XCTAssertTrue(rollup.exportText.contains("## Mutation Tests"))
         XCTAssertTrue(rollup.exportText.contains("mutation succeeded | route native-route | language swift"))
@@ -426,11 +431,16 @@ final class CinematicRunRecapShareArtifactTests: XCTestCase {
         let cue = try XCTUnwrap(
             CinematicRunRecapShareArtifactMutationTestingCue(markdownContents: artifact.markdownContents)
         )
+        let treatment = CinematicRunRecapShareArtifactMutationTestingTreatmentDescriptor(cue: cue)
         let exposedText = [
             audit.identifier,
             audit.markdownSection,
             artifact.markdownContents,
-            cue.detailCopy
+            cue.detailCopy,
+            cue.helpCopy,
+            treatment.identifier,
+            treatment.compactCopy,
+            treatment.helpCopy
         ].joined(separator: "\n")
 
         XCTAssertTrue(artifact.markdownContents.contains("## Mutation Tests"))

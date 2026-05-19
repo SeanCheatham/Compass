@@ -424,7 +424,7 @@ final class CinematicIdleStoryCyclePlanTests: XCTestCase {
         let tourPlan = try XCTUnwrap(descriptor.runRecapShareArtifactTourPlan)
 
         XCTAssertEqual(descriptor.phase, .savedRecapArtifactTour)
-        XCTAssertEqual(descriptor.targetKindIdentifier, "saved-recap-artifact-pinned.missing-cue")
+        XCTAssertEqual(descriptor.targetKindIdentifier, "saved-recap-artifact-pinned.missing-cue.mutation-missing")
         XCTAssertEqual(descriptor.cameraShot, .overShoulder)
         XCTAssertEqual(descriptor.lightFamily, .git)
         XCTAssertEqual(descriptor.arenaEffect, .historyChains)
@@ -454,7 +454,7 @@ final class CinematicIdleStoryCyclePlanTests: XCTestCase {
             let descriptor = try descriptor(for: .savedRecapArtifactTour, in: context)
             let tourPlan = try XCTUnwrap(descriptor.runRecapShareArtifactTourPlan)
 
-            XCTAssertTrue(descriptor.targetKindIdentifier.hasSuffix(".\(testCase.1)"))
+            XCTAssertTrue(descriptor.targetKindIdentifier.hasSuffix(".\(testCase.1).mutation-missing"))
             XCTAssertEqual(tourPlan.runtimeRouteCueStateIdentifier, testCase.1)
             XCTAssertEqual(tourPlan.runtimeRouteTreatment.accentIdentifier, testCase.2)
             XCTAssertEqual(descriptor.lightFamily, testCase.3)
