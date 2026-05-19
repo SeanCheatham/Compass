@@ -1072,7 +1072,13 @@ private struct PlanTab: View {
 
     var body: some View {
         let items = PlanTimelineItem.items(for: project.state)
-        let overview = PlanWorkflowOverview(state: project.state)
+        let executionEnvironment = project.codexExecutionEnvironment
+        let launchPlan = executionEnvironment.launchPlan(repoURL: project.repoURL)
+        let overview = PlanWorkflowOverview(
+            state: project.state,
+            languageProfile: project.languageProfile,
+            launchPlan: launchPlan
+        )
         let sessionHistory = PlanSessionHistory.displayItems(for: project.sessions)
         let reliabilityFeedback = PlanReliabilityFeedback(
             state: project.state,
@@ -1323,6 +1329,10 @@ private struct PlanWorkflowMetadataRow: View {
                 metadataLabel("No difficulty", systemImage: "gauge.with.dots.needle.bottom.50percent")
             }
 
+            if let mutationTestingReadiness = section.mutationTestingReadiness {
+                mutationReadinessLabel(mutationTestingReadiness, color: color)
+            }
+
             if section.kind != .immediate {
                 metadataLabel("\(section.completedCount) completed", systemImage: "checkmark.circle")
             }
@@ -1337,6 +1347,17 @@ private struct PlanWorkflowMetadataRow: View {
             .padding(.horizontal, 7)
             .padding(.vertical, 3)
             .background(color.opacity(0.1), in: Capsule())
+    }
+
+    private func mutationReadinessLabel(
+        _ readiness: CodexMutationTestingPlan,
+        color: Color
+    ) -> some View {
+        Label(readiness.badgeLabel, systemImage: readiness.systemImage)
+            .padding(.horizontal, 7)
+            .padding(.vertical, 3)
+            .background(color.opacity(readiness.isReady ? 0.12 : 0.08), in: Capsule())
+            .help(readiness.detailText)
     }
 }
 

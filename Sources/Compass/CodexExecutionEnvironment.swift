@@ -364,6 +364,12 @@ struct CodexExecutionEnvironmentDiagnosticsReport: Equatable, Identifiable {
     var provisioningTemplateIdentifier: String
     var provisioningImageLabel: String
     var provisioningWorkspaceLabel: String
+    var mutationReadinessIdentifier: String
+    var mutationStatusIdentifier: String
+    var mutationRouteIdentifier: String
+    var mutationLanguageIdentifier: String
+    var mutationSeedCommandIdentifier: String
+    var mutationSeedCommandLabel: String
     var copyActionIdentifier: String
     var copyIdentifier: String
 
@@ -372,7 +378,8 @@ struct CodexExecutionEnvironmentDiagnosticsReport: Equatable, Identifiable {
     init(
         environment: CodexExecutionEnvironment,
         launchPlan: CodexExecutionLaunchPlan,
-        provisioningPlan: CodexDevcontainerProvisioningPlan? = nil
+        provisioningPlan: CodexDevcontainerProvisioningPlan? = nil,
+        mutationTestingPlan: CodexMutationTestingPlan? = nil
     ) {
         let supportReport = launchPlan.devcontainerSupportReport ?? environment.devcontainerDiscovery.supportReport
         let configURL = supportReport.configURL
@@ -455,6 +462,52 @@ struct CodexExecutionEnvironmentDiagnosticsReport: Equatable, Identifiable {
             provisioningWorkspaceLabel = "none"
         }
 
+        if let mutationTestingPlan {
+            mutationReadinessIdentifier = Self.sanitizedField(
+                mutationTestingPlan.identifier,
+                repoURL: repoURL,
+                configURL: configURL,
+                limit: Self.fieldLimit
+            )
+            mutationStatusIdentifier = Self.sanitizedField(
+                mutationTestingPlan.statusIdentifier,
+                repoURL: repoURL,
+                configURL: configURL,
+                limit: Self.fieldLimit
+            )
+            mutationRouteIdentifier = Self.sanitizedField(
+                mutationTestingPlan.routeIdentifier,
+                repoURL: repoURL,
+                configURL: configURL,
+                limit: Self.fieldLimit
+            )
+            mutationLanguageIdentifier = Self.sanitizedField(
+                mutationTestingPlan.languageIdentifier,
+                repoURL: repoURL,
+                configURL: configURL,
+                limit: Self.fieldLimit
+            )
+            mutationSeedCommandIdentifier = Self.sanitizedField(
+                mutationTestingPlan.seedCommandIdentifier,
+                repoURL: repoURL,
+                configURL: configURL,
+                limit: Self.fieldLimit
+            )
+            mutationSeedCommandLabel = Self.sanitizedField(
+                mutationTestingPlan.seedCommandLabel,
+                repoURL: repoURL,
+                configURL: configURL,
+                limit: Self.fieldLimit
+            )
+        } else {
+            mutationReadinessIdentifier = "not-evaluated"
+            mutationStatusIdentifier = "not-evaluated"
+            mutationRouteIdentifier = "not-evaluated"
+            mutationLanguageIdentifier = "not-evaluated"
+            mutationSeedCommandIdentifier = "none"
+            mutationSeedCommandLabel = "none"
+        }
+
         provisioningActionIdentifier = CodexDevcontainerProvisioningMenuAction.actionIdentifier
         copyActionIdentifier = Self.stableCopyActionIdentifier
         copyIdentifier = [
@@ -487,7 +540,13 @@ struct CodexExecutionEnvironmentDiagnosticsReport: Equatable, Identifiable {
                 "provisioning-action-id: \(provisioningActionIdentifier)",
                 "provisioning-template: \(provisioningTemplateIdentifier)",
                 "provisioning-image: \(provisioningImageLabel)",
-                "provisioning-workspace: \(provisioningWorkspaceLabel)"
+                "provisioning-workspace: \(provisioningWorkspaceLabel)",
+                "mutation-readiness-id: \(mutationReadinessIdentifier)",
+                "mutation-status: \(mutationStatusIdentifier)",
+                "mutation-route: \(mutationRouteIdentifier)",
+                "mutation-language: \(mutationLanguageIdentifier)",
+                "mutation-seed-id: \(mutationSeedCommandIdentifier)",
+                "mutation-seed-command: \(mutationSeedCommandLabel)"
             ].joined(separator: "\n"),
             limit: Self.copyTextLimit
         )
@@ -688,7 +747,8 @@ struct CodexExecutionEnvironmentMenu: Equatable {
     init(
         environment: CodexExecutionEnvironment,
         provisioningPlan: CodexDevcontainerProvisioningPlan? = nil,
-        launchPlan: CodexExecutionLaunchPlan? = nil
+        launchPlan: CodexExecutionLaunchPlan? = nil,
+        mutationTestingPlan: CodexMutationTestingPlan? = nil
     ) {
         let effectiveLaunchPlan = launchPlan ?? environment.launchPlan()
         let presentation = environment.presentation(launchPlan: effectiveLaunchPlan)
@@ -709,7 +769,8 @@ struct CodexExecutionEnvironmentMenu: Equatable {
             report: CodexExecutionEnvironmentDiagnosticsReport(
                 environment: environment,
                 launchPlan: effectiveLaunchPlan,
-                provisioningPlan: provisioningPlan
+                provisioningPlan: provisioningPlan,
+                mutationTestingPlan: mutationTestingPlan
             )
         )
     }

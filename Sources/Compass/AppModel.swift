@@ -595,10 +595,16 @@ extension CompassProject {
     var runtimeDiagnosticsMenu: CodexExecutionEnvironmentMenu {
         let environment = codexExecutionEnvironment
         let launchPlan = environment.launchPlan(repoURL: repoURL)
+        let mutationTestingPlan = CodexMutationTestingPlan(
+            state: state,
+            languageProfile: languageProfile,
+            launchPlan: launchPlan
+        )
         return CodexExecutionEnvironmentMenu(
             environment: environment,
             provisioningPlan: devcontainerProvisioningPlan(),
-            launchPlan: launchPlan
+            launchPlan: launchPlan,
+            mutationTestingPlan: mutationTestingPlan
         )
     }
 

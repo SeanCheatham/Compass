@@ -339,6 +339,62 @@ final class CodexExecutionEnvironmentTests: XCTestCase {
         XCTAssertFalse(report.copyText.contains(repoURL.standardizedFileURL.path))
     }
 
+    func testRuntimeDiagnosticsReportIncludesMutationReadinessWithoutLeaks() throws {
+        let repoURL = try makeTemporaryDirectory(prefix: "CodexExecutionEnvironmentRuntimeMutation")
+        let secretValue = "secret-runtime-mutation-env"
+        let containerToolPath = "/private/tooling/container"
+        try write(
+            #"{"image":"swift:6.0","workspaceFolder":"/workspace/app","containerEnv":{"TOKEN":"\#(secretValue)"}}"#,
+            to: repoURL
+                .appending(path: ".devcontainer", directoryHint: .isDirectory)
+                .appending(path: "devcontainer.json")
+        )
+        let environment = CodexExecutionEnvironment.discover(
+            repoURL: repoURL,
+            preference: .devcontainerPreferred
+        )
+        let launchPlan = environment.launchPlan(
+            repoURL: repoURL,
+            containerToolResolver: { _ in containerToolPath }
+        )
+        let state = PlanState(
+            completed: [],
+            immediate: PlanNext(
+                plan: "Expose mutation readiness diagnostics",
+                verify: "swift test --package-path \(repoURL.path) --filter CodexMutationTestingPlanTests \(containerToolPath) \(secretValue)",
+                estimatedDifficulty: .medium
+            ),
+            midTerm: "",
+            longTerm: ""
+        )
+        let mutationPlan = CodexMutationTestingPlan(
+            state: state,
+            languageProfile: profile(.swift),
+            launchPlan: launchPlan
+        )
+        let report = CodexExecutionEnvironmentDiagnosticsReport(
+            environment: environment,
+            launchPlan: launchPlan,
+            provisioningPlan: CodexDevcontainerProvisioningPlan.plan(repoURL: repoURL, languageProfile: .empty),
+            mutationTestingPlan: mutationPlan
+        )
+
+        XCTAssertEqual(report.mutationStatusIdentifier, "ready")
+        XCTAssertEqual(report.mutationRouteIdentifier, "apple-container-route")
+        XCTAssertEqual(report.mutationLanguageIdentifier, "swift")
+        XCTAssertTrue(report.copyText.contains("mutation-status: ready"))
+        XCTAssertTrue(report.copyText.contains("mutation-route: apple-container-route"))
+        XCTAssertTrue(report.copyText.contains("mutation-language: swift"))
+        XCTAssertTrue(report.copyText.contains("mutation-seed-command: swift test"))
+        XCTAssertFalse(report.copyText.contains(repoURL.standardizedFileURL.path))
+        XCTAssertFalse(report.copyText.contains(containerToolPath))
+        XCTAssertFalse(report.copyText.contains(secretValue))
+        XCTAssertLessThanOrEqual(
+            report.copyText.count,
+            CodexExecutionEnvironmentDiagnosticsReport.copyTextLimit
+        )
+    }
+
     func testRuntimeDiagnosticsReportCoversMissingAndMalformedProvisioningStates() throws {
         let missingRepoURL = try makeTemporaryDirectory(prefix: "CodexExecutionEnvironmentRuntimeMissing")
         let missingEnvironment = CodexExecutionEnvironment.discover(
@@ -595,5 +651,18 @@ final class CodexExecutionEnvironmentTests: XCTestCase {
             withIntermediateDirectories: true
         )
         try contents.write(to: url, atomically: true, encoding: .utf8)
+    }
+
+    private func profile(_ language: RepositoryLanguage) -> RepositoryLanguageProfile {
+        var counts = RepositoryLanguageCounts()
+        counts[language] = 1
+        return RepositoryLanguageProfile(
+            counts: counts,
+            manifestHints: [],
+            primaryLanguage: language,
+            scannedFileCount: 1,
+            scannedDirectoryCount: 1,
+            wasTruncated: false
+        )
     }
 }
