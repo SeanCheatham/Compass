@@ -14,6 +14,7 @@ struct CinematicDiagnosticsReport: Equatable {
     var activityMotif: ActivityMotifSnapshot
     var activitySource: RepositoryActivitySourceSnapshot
     var activitySourceBeacon: ActivitySourceBeaconSnapshot
+    var cinematicSceneLifecycle: CinematicSceneLifecycleSnapshot
     var nativeFeedback: NativeFeedbackSnapshot
     var nativeFeedbackDelivery: NativeFeedbackDeliverySnapshot
     var recoveryCue: RecoveryCueSnapshot
@@ -105,6 +106,28 @@ struct CinematicDiagnosticsReport: Equatable {
         var lookTarget: SIMD3<Float>?
         var anchorPosition: SIMD3<Float>?
         var phaseLightIntensity: Float
+    }
+
+    struct CinematicSceneLifecycleSnapshot: Equatable {
+        var identifier: String
+        var stateIdentifier: String
+        var retainCount: Int
+        var hasScheduledExpiry: Bool
+        var timerSuspensionIdentifier: String
+        var displayTimerStateIdentifier: String
+        var thinkingTimerStateIdentifier: String
+        var defenseTimerStateIdentifier: String
+        var installedStateIdentifier: String
+        var isOffscreen: Bool
+        var phaseIdentifier: String
+        var elapsedTime: TimeInterval
+        var activeFocusIdentifiers: [String]
+        var commitConstellationIdentifier: String
+        var idleStoryCycleIdentifier: String
+        var planCompassFocusIdentifier: String
+        var timelineFocusIdentifier: String
+        var runRecapFocusIdentifier: String
+        var runRecapEndCardIdentifier: String
     }
 
     struct PlanCompassHistorySnapshot: Equatable {
@@ -4453,7 +4476,7 @@ struct CinematicVisualSmokeReport: Equatable {
 }
 
 struct CinematicDiagnosticsSummary: Equatable {
-    static let maxRows = 55
+    static let maxRows = 56
     static let labelMaxCharacters = 32
     static let detailMaxCharacters = 512
     static let headerDetailMaxCharacters = 128
@@ -4625,6 +4648,7 @@ struct CinematicDiagnosticsSummary: Equatable {
             rowIDs: [
                 "repository",
                 "activity-source",
+                "cinematic-scene-lifecycle",
                 "immediate",
                 "plan-compass-readiness",
                 "plan-compass-verify-seal",
@@ -4751,6 +4775,11 @@ struct CinematicDiagnosticsSummary: Equatable {
                 id: "activity-source",
                 label: "Activity source",
                 detail: activitySourceDetail(report.activitySource)
+            ),
+            row(
+                id: "cinematic-scene-lifecycle",
+                label: "Scene lifecycle",
+                detail: cinematicSceneLifecycleDetail(report.cinematicSceneLifecycle)
             ),
             row(id: "immediate", label: "Immediate", detail: report.immediateTitle),
             row(
@@ -6603,6 +6632,28 @@ struct CinematicDiagnosticsSummary: Equatable {
         let limit = 112
         guard path.count > limit else { return path }
         return "..." + path.suffix(limit - 3)
+    }
+
+    private static func cinematicSceneLifecycleDetail(
+        _ snapshot: CinematicDiagnosticsReport.CinematicSceneLifecycleSnapshot
+    ) -> String {
+        let focusIdentifiers = snapshot.activeFocusIdentifiers.isEmpty
+            ? "none"
+            : bounded(snapshot.activeFocusIdentifiers.joined(separator: ","), limit: 220)
+        return [
+            snapshot.stateIdentifier,
+            "retain \(snapshot.retainCount)",
+            snapshot.hasScheduledExpiry ? "expiry scheduled" : "expiry none",
+            "timers \(snapshot.timerSuspensionIdentifier)",
+            "display \(snapshot.displayTimerStateIdentifier)",
+            "thinking \(snapshot.thinkingTimerStateIdentifier)",
+            "defense \(snapshot.defenseTimerStateIdentifier)",
+            "installed \(snapshot.installedStateIdentifier)",
+            snapshot.isOffscreen ? "offscreen" : "onscreen",
+            "phase \(snapshot.phaseIdentifier)",
+            "elapsed \(fixed(snapshot.elapsedTime))s",
+            "focus \(focusIdentifiers)"
+        ].joined(separator: " | ")
     }
 
     private static func optionalIdentifier(_ label: String, _ identifier: String?) -> String? {
@@ -8740,6 +8791,7 @@ enum CinematicDiagnostics {
             languageProfile: project.languageProfile,
             activityProfile: project.activityProfile,
             activitySourceSnapshot: project.activitySourceSnapshot,
+            sceneCacheLifecycleSnapshot: CinematicSceneCache.shared.lifecycleSnapshot(for: project.id),
             influenceSettings: project.cinematicInfluenceSettings,
             isRunning: project.isRunning,
             isAutoPlaying: project.isAutoPlaying,
@@ -8794,6 +8846,7 @@ enum CinematicDiagnostics {
         languageProfile: RepositoryLanguageProfile,
         activityProfile: RepositoryActivityProfile,
         activitySourceSnapshot: RepositoryActivitySourceSnapshot = .notScanned(),
+        sceneCacheLifecycleSnapshot: CinematicSceneCacheLifecycleSnapshot? = nil,
         influenceSettings: CinematicInfluenceSettings,
         isRunning: Bool = true,
         isAutoPlaying: Bool = false,
@@ -8923,6 +8976,9 @@ enum CinematicDiagnostics {
         let activitySourceBeaconPlan = CinematicActivitySourceBeaconPlan(
             snapshot: activitySourceSnapshot,
             influenceSettings: influenceSettings
+        )
+        let cinematicSceneLifecycleSnapshot = makeCinematicSceneLifecycleSnapshot(
+            for: sceneCacheLifecycleSnapshot
         )
         let resolvedIdleStoryCyclePlan = idleStoryCyclePlan ?? CinematicIdleStoryCyclePlanner.plan(
             session: idleStoryCycleSession,
@@ -9134,6 +9190,7 @@ enum CinematicDiagnostics {
                 "activity-source:\(activitySourceSnapshot.identifier)",
                 "activity-source-beacon:\(activitySourceBeaconSnapshot.identifier)",
                 "activity-source-beacon-visibility:\(activitySourceBeaconSnapshot.visibilityIdentifier)",
+                "cinematic-scene-lifecycle:\(cinematicSceneLifecycleSnapshot.identifier)",
                 "recovery:\(recoveryCueSnapshot.identifier)",
                 "stage:\(stageBeatSnapshot.identifier)",
                 "stage-effect:\(stageEffectSnapshot.identifier)",
@@ -9236,6 +9293,7 @@ enum CinematicDiagnostics {
             activityMotif: activitySnapshot,
             activitySource: activitySourceSnapshot,
             activitySourceBeacon: activitySourceBeaconSnapshot,
+            cinematicSceneLifecycle: cinematicSceneLifecycleSnapshot,
             nativeFeedback: nativeFeedbackSnapshot,
             nativeFeedbackDelivery: nativeFeedbackDeliverySnapshot,
             recoveryCue: recoveryCueSnapshot,
@@ -11841,6 +11899,97 @@ enum CinematicDiagnostics {
             anchorPosition: descriptor?.anchorPosition,
             phaseLightIntensity: descriptor?.phaseLightIntensity ?? 0
         )
+    }
+
+    private static func makeCinematicSceneLifecycleSnapshot(
+        for snapshot: CinematicSceneCacheLifecycleSnapshot?
+    ) -> CinematicDiagnosticsReport.CinematicSceneLifecycleSnapshot {
+        guard let snapshot else {
+            return CinematicDiagnosticsReport.CinematicSceneLifecycleSnapshot(
+                identifier: "state:not-mounted-or-expired|retain:0|expiry:none|timers:suspended|installed:not-installed|phase:none|focus:none",
+                stateIdentifier: "not-mounted-or-expired",
+                retainCount: 0,
+                hasScheduledExpiry: false,
+                timerSuspensionIdentifier: "suspended",
+                displayTimerStateIdentifier: "timer-suspended",
+                thinkingTimerStateIdentifier: "timer-suspended",
+                defenseTimerStateIdentifier: "timer-suspended",
+                installedStateIdentifier: "not-installed",
+                isOffscreen: true,
+                phaseIdentifier: "none",
+                elapsedTime: 0,
+                activeFocusIdentifiers: ["none"],
+                commitConstellationIdentifier: "none",
+                idleStoryCycleIdentifier: "none",
+                planCompassFocusIdentifier: "none",
+                timelineFocusIdentifier: "none",
+                runRecapFocusIdentifier: "none",
+                runRecapEndCardIdentifier: "none"
+            )
+        }
+
+        let coordinator = snapshot.coordinator
+        let timersSuspended = !coordinator.hasDisplayTimer
+            && !coordinator.hasThinkingTimer
+            && !coordinator.hasDefenseTimer
+        let timerSuspensionIdentifier = timersSuspended ? "suspended" : "running"
+        let stateIdentifier: String
+        if snapshot.retainCount > 0, !coordinator.isOffscreen {
+            stateIdentifier = "active"
+        } else if snapshot.retainCount == 0, coordinator.isOffscreen, snapshot.hasScheduledExpiry {
+            stateIdentifier = "cached-offscreen"
+        } else if snapshot.retainCount == 0, coordinator.isOffscreen {
+            stateIdentifier = "expired-style"
+        } else {
+            stateIdentifier = "lifecycle-invariant"
+        }
+        let installedStateIdentifier = coordinator.isInstalled ? "installed" : "not-installed"
+        let activeFocusIdentifiers = [
+            "commit:\(coordinator.commitConstellationIdentifier)",
+            "idle:\(coordinator.idleStoryCycleIdentifier)",
+            "plan:\(coordinator.planCompassFocusIdentifier)",
+            "timeline:\(coordinator.timelineFocusIdentifier)",
+            "recap:\(coordinator.runRecapFocusIdentifier)",
+            "end-card:\(coordinator.runRecapEndCardIdentifier)"
+        ]
+        let identifier = bounded(
+            [
+                "state:\(stateIdentifier)",
+                "retain:\(snapshot.retainCount)",
+                snapshot.hasScheduledExpiry ? "expiry:scheduled" : "expiry:none",
+                "timers:\(timerSuspensionIdentifier)",
+                "installed:\(installedStateIdentifier)",
+                "phase:\(coordinator.phaseIdentifier)",
+                "focus:\(bounded(activeFocusIdentifiers.joined(separator: ","), limit: 180))"
+            ].joined(separator: "|"),
+            limit: 360
+        )
+
+        return CinematicDiagnosticsReport.CinematicSceneLifecycleSnapshot(
+            identifier: identifier,
+            stateIdentifier: stateIdentifier,
+            retainCount: snapshot.retainCount,
+            hasScheduledExpiry: snapshot.hasScheduledExpiry,
+            timerSuspensionIdentifier: timerSuspensionIdentifier,
+            displayTimerStateIdentifier: timerStateIdentifier(isActive: coordinator.hasDisplayTimer),
+            thinkingTimerStateIdentifier: timerStateIdentifier(isActive: coordinator.hasThinkingTimer),
+            defenseTimerStateIdentifier: timerStateIdentifier(isActive: coordinator.hasDefenseTimer),
+            installedStateIdentifier: installedStateIdentifier,
+            isOffscreen: coordinator.isOffscreen,
+            phaseIdentifier: coordinator.phaseIdentifier,
+            elapsedTime: coordinator.elapsedTime,
+            activeFocusIdentifiers: activeFocusIdentifiers,
+            commitConstellationIdentifier: coordinator.commitConstellationIdentifier,
+            idleStoryCycleIdentifier: coordinator.idleStoryCycleIdentifier,
+            planCompassFocusIdentifier: coordinator.planCompassFocusIdentifier,
+            timelineFocusIdentifier: coordinator.timelineFocusIdentifier,
+            runRecapFocusIdentifier: coordinator.runRecapFocusIdentifier,
+            runRecapEndCardIdentifier: coordinator.runRecapEndCardIdentifier
+        )
+    }
+
+    private static func timerStateIdentifier(isActive: Bool) -> String {
+        isActive ? "timer-active" : "timer-suspended"
     }
 
     private static func worldTextSnapshot(

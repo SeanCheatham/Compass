@@ -14,6 +14,32 @@ final class CinematicSceneLifecycleTests: XCTestCase {
         XCTAssertFalse(source.contains("selectedTab != .cinematic"))
     }
 
+    func testMountedLifecycleSnapshotReportsActiveCoordinatorState() {
+        let cache = CinematicSceneCache(releaseDelay: 600)
+        let projectID = UUID()
+        let coordinator = cache.coordinator(for: projectID)
+        coordinator.primeLifecycleForTesting(
+            elapsedTime: 12,
+            phase: .developing,
+            isThinking: true
+        )
+
+        let snapshot = cache.lifecycleSnapshot(for: projectID)
+
+        XCTAssertEqual(snapshot?.retainCount, 1)
+        XCTAssertFalse(snapshot?.hasScheduledExpiry == true)
+        XCTAssertFalse(snapshot?.coordinator.isOffscreen == true)
+        XCTAssertTrue(snapshot?.coordinator.isInstalled == true)
+        XCTAssertTrue(snapshot?.coordinator.hasDisplayTimer == true)
+        XCTAssertTrue(snapshot?.coordinator.hasThinkingTimer == true)
+        XCTAssertTrue(snapshot?.coordinator.hasDefenseTimer == true)
+        XCTAssertEqual(snapshot?.coordinator.elapsedTime, 12)
+        XCTAssertEqual(snapshot?.coordinator.phaseIdentifier, LoopPhase.developing.rawValue)
+
+        cache.release(projectID)
+        cache.expireReleasedCoordinator(for: projectID)
+    }
+
     func testZeroRetainReleaseSuspendsTimersImmediately() {
         let cache = CinematicSceneCache(releaseDelay: 600)
         let projectID = UUID()

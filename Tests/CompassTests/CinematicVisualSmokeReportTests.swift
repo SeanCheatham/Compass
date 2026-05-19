@@ -788,6 +788,7 @@ final class CinematicVisualSmokeReportTests: XCTestCase {
             [
                 "repository",
                 "activity-source",
+                "cinematic-scene-lifecycle",
                 "immediate",
                 "plan-compass-readiness",
                 "plan-compass-verify-seal",
@@ -797,8 +798,7 @@ final class CinematicVisualSmokeReportTests: XCTestCase {
                 "plan-compass-commands",
                 "timeline-focus",
                 "run-recap",
-                "run-recap-share",
-                "run-recap-share-artifact"
+                "run-recap-share"
             ]
         )
         XCTAssertEqual(

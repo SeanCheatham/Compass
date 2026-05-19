@@ -113,7 +113,7 @@ final class CinematicRunRecapShareArtifactCommandDiagnosticsTests: XCTestCase {
         XCTAssertTrue(row.detail.contains("app-collisions clear command:o,command:r,command:return"))
         XCTAssertTrue(summary.exportText.contains("Recap artifact commands:"))
         XCTAssertTrue(summary.exportText.contains(row.detail))
-        XCTAssertTrue(summary.exportText.contains("Repository/context (21 rows)"))
+        XCTAssertTrue(summary.exportText.contains("Repository/context (24 rows)"))
     }
 
     func testUnavailableAndNoMatchDisabledStatesAreInspectable() throws {

@@ -1313,6 +1313,7 @@ final class CinematicDiagnosticsTests: XCTestCase {
             [
                 "repository",
                 "activity-source",
+                "cinematic-scene-lifecycle",
                 "immediate",
                 "plan-compass-readiness",
                 "plan-compass-verify-seal",
@@ -1387,6 +1388,7 @@ final class CinematicDiagnosticsTests: XCTestCase {
                 [
                     "repository",
                     "activity-source",
+                    "cinematic-scene-lifecycle",
                     "immediate",
                     "plan-compass-readiness",
                     "plan-compass-verify-seal",
@@ -1543,7 +1545,7 @@ final class CinematicDiagnosticsTests: XCTestCase {
             .components(separatedBy: "\n")
             .filter { expectedSectionHeadings.contains($0) }
         XCTAssertEqual(actualSectionHeadings, expectedSectionHeadings)
-        XCTAssertTrue(summary.exportText.contains("Repository/context (23 rows)"))
+        XCTAssertTrue(summary.exportText.contains("Repository/context (24 rows)"))
         XCTAssertTrue(summary.exportText.contains("Motifs (2 rows)"))
         XCTAssertTrue(summary.exportText.contains("Stage motion/effects (9 rows)"))
         XCTAssertTrue(summary.exportText.contains("Narrative/overlay (8 rows)"))
@@ -1563,6 +1565,8 @@ final class CinematicDiagnosticsTests: XCTestCase {
         XCTAssertTrue(summary.exportText.contains("Activity source:"))
         XCTAssertTrue(summary.exportText.contains("availability \(report.activitySource.sourceAvailabilityIdentifier)"))
         XCTAssertTrue(summary.exportText.contains("repo-local \(report.activitySource.repoLocalSessionsStateIdentifier)"))
+        XCTAssertTrue(summary.exportText.contains("Scene lifecycle:"))
+        XCTAssertTrue(summary.exportText.contains(report.cinematicSceneLifecycle.stateIdentifier))
         XCTAssertTrue(summary.exportText.contains(report.activityMotif.sigilIdentifier))
         XCTAssertTrue(summary.exportText.contains(report.activityMotif.styleIdentifier))
         XCTAssertTrue(summary.exportText.contains(report.stageBeat.kindIdentifier))
@@ -2653,6 +2657,192 @@ final class CinematicDiagnosticsTests: XCTestCase {
             deliveryBefore.notificationAuthorizationStatusIdentifier
         )
         XCTAssertNotNil(summary.rows.first { $0.id == "native-feedback-delivery" })
+    }
+
+    @MainActor
+    func testSceneLifecycleDiagnosticsDistinguishCacheStatesAndStayBounded() throws {
+        let cache = CinematicSceneCache(releaseDelay: 600)
+        let projectID = UUID()
+        let coordinator = cache.coordinator(for: projectID)
+        coordinator.primeLifecycleForTesting(
+            elapsedTime: 18,
+            phase: .developing,
+            isThinking: true
+        )
+        defer {
+            cache.release(projectID)
+            cache.expireReleasedCoordinator(for: projectID)
+        }
+
+        let activeReport = makeReport(
+            CinematicDiagnosticsInput(
+                repoName: "Lifecycle Diagnostics",
+                phase: "Developing",
+                immediateTitle: "Inspect mounted lifecycle diagnostics",
+                completedCount: 1,
+                latestEvent: nil,
+                languageProfile: languageProfile(primaryLanguage: .swift),
+                activityProfile: activityProfile(recentCommitCount: 1),
+                sceneCacheLifecycleSnapshot: cache.lifecycleSnapshot(for: projectID),
+                influenceSettings: CinematicInfluenceSettings()
+            )
+        )
+        let activeSummary = CinematicDiagnosticsSummary(report: activeReport)
+        let activeRow = try XCTUnwrap(activeSummary.row(id: "cinematic-scene-lifecycle"))
+
+        XCTAssertEqual(activeReport.cinematicSceneLifecycle.stateIdentifier, "active")
+        XCTAssertEqual(activeReport.cinematicSceneLifecycle.retainCount, 1)
+        XCTAssertFalse(activeReport.cinematicSceneLifecycle.hasScheduledExpiry)
+        XCTAssertEqual(activeReport.cinematicSceneLifecycle.timerSuspensionIdentifier, "running")
+        XCTAssertEqual(activeReport.cinematicSceneLifecycle.installedStateIdentifier, "installed")
+        XCTAssertEqual(activeReport.cinematicSceneLifecycle.phaseIdentifier, LoopPhase.developing.rawValue)
+        XCTAssertTrue(activeRow.detail.contains("active"))
+        XCTAssertTrue(activeRow.detail.contains("retain 1"))
+        XCTAssertTrue(activeRow.detail.contains("expiry none"))
+        XCTAssertTrue(activeRow.detail.contains("timers running"))
+        XCTAssertTrue(activeRow.detail.contains("installed installed"))
+        XCTAssertTrue(activeRow.detail.contains("phase Developing"))
+        XCTAssertTrue(activeRow.detail.contains("focus commit:"))
+        XCTAssertLessThanOrEqual(activeRow.detail.count, CinematicDiagnosticsSummary.detailMaxCharacters)
+        XCTAssertTrue(activeSummary.exportText.contains("Scene lifecycle: active"))
+        XCTAssertTrue(activeSummary.attentionSummary.isEmpty)
+
+        cache.release(projectID)
+        let suspendedSnapshot = try XCTUnwrap(cache.lifecycleSnapshot(for: projectID))
+        let suspendedReport = makeReport(
+            CinematicDiagnosticsInput(
+                repoName: "Lifecycle Diagnostics",
+                phase: "Developing",
+                immediateTitle: "Inspect suspended lifecycle diagnostics",
+                completedCount: 1,
+                latestEvent: nil,
+                languageProfile: languageProfile(primaryLanguage: .swift),
+                activityProfile: activityProfile(recentCommitCount: 1),
+                sceneCacheLifecycleSnapshot: suspendedSnapshot,
+                influenceSettings: CinematicInfluenceSettings()
+            )
+        )
+        let suspendedRow = try XCTUnwrap(
+            CinematicDiagnosticsSummary(report: suspendedReport).row(id: "cinematic-scene-lifecycle")
+        )
+
+        XCTAssertEqual(suspendedReport.cinematicSceneLifecycle.stateIdentifier, "cached-offscreen")
+        XCTAssertEqual(suspendedReport.cinematicSceneLifecycle.retainCount, 0)
+        XCTAssertTrue(suspendedReport.cinematicSceneLifecycle.hasScheduledExpiry)
+        XCTAssertEqual(suspendedReport.cinematicSceneLifecycle.timerSuspensionIdentifier, "suspended")
+        XCTAssertTrue(suspendedRow.detail.contains("cached-offscreen"))
+        XCTAssertTrue(suspendedRow.detail.contains("retain 0"))
+        XCTAssertTrue(suspendedRow.detail.contains("expiry scheduled"))
+        XCTAssertTrue(suspendedRow.detail.contains("timers suspended"))
+        XCTAssertTrue(suspendedRow.detail.contains("offscreen"))
+
+        let expiredStyleSnapshot = CinematicSceneCacheLifecycleSnapshot(
+            retainCount: 0,
+            hasScheduledExpiry: false,
+            coordinator: suspendedSnapshot.coordinator
+        )
+        let expiredStyleReport = makeReport(
+            CinematicDiagnosticsInput(
+                repoName: "Lifecycle Diagnostics",
+                phase: "Developing",
+                immediateTitle: "Inspect expired-style lifecycle diagnostics",
+                completedCount: 1,
+                latestEvent: nil,
+                languageProfile: languageProfile(primaryLanguage: .swift),
+                activityProfile: activityProfile(recentCommitCount: 1),
+                sceneCacheLifecycleSnapshot: expiredStyleSnapshot,
+                influenceSettings: CinematicInfluenceSettings()
+            )
+        )
+        XCTAssertEqual(expiredStyleReport.cinematicSceneLifecycle.stateIdentifier, "expired-style")
+
+        let reacquired = cache.coordinator(for: projectID)
+        XCTAssertTrue(reacquired === coordinator)
+        let reacquiredReport = makeReport(
+            CinematicDiagnosticsInput(
+                repoName: "Lifecycle Diagnostics",
+                phase: "Developing",
+                immediateTitle: "Inspect reacquired lifecycle diagnostics",
+                completedCount: 1,
+                latestEvent: nil,
+                languageProfile: languageProfile(primaryLanguage: .swift),
+                activityProfile: activityProfile(recentCommitCount: 1),
+                sceneCacheLifecycleSnapshot: cache.lifecycleSnapshot(for: projectID),
+                influenceSettings: CinematicInfluenceSettings()
+            )
+        )
+        XCTAssertEqual(reacquiredReport.cinematicSceneLifecycle.stateIdentifier, "active")
+        XCTAssertEqual(reacquiredReport.cinematicSceneLifecycle.retainCount, 1)
+        XCTAssertFalse(reacquiredReport.cinematicSceneLifecycle.hasScheduledExpiry)
+
+        cache.release(projectID)
+        cache.expireReleasedCoordinator(for: projectID)
+        let expiredReport = makeReport(
+            CinematicDiagnosticsInput(
+                repoName: "Lifecycle Diagnostics",
+                phase: "Developing",
+                immediateTitle: "Inspect expired lifecycle diagnostics",
+                completedCount: 1,
+                latestEvent: nil,
+                languageProfile: languageProfile(primaryLanguage: .swift),
+                activityProfile: activityProfile(recentCommitCount: 1),
+                sceneCacheLifecycleSnapshot: cache.lifecycleSnapshot(for: projectID),
+                influenceSettings: CinematicInfluenceSettings()
+            )
+        )
+        let expiredSummary = CinematicDiagnosticsSummary(report: expiredReport)
+        let expiredRow = try XCTUnwrap(expiredSummary.row(id: "cinematic-scene-lifecycle"))
+
+        XCTAssertEqual(expiredReport.cinematicSceneLifecycle.stateIdentifier, "not-mounted-or-expired")
+        XCTAssertEqual(expiredReport.cinematicSceneLifecycle.retainCount, 0)
+        XCTAssertFalse(expiredReport.cinematicSceneLifecycle.hasScheduledExpiry)
+        XCTAssertTrue(expiredRow.detail.contains("not-mounted-or-expired"))
+        XCTAssertTrue(expiredSummary.exportText.contains("Scene lifecycle: not-mounted-or-expired"))
+    }
+
+    @MainActor
+    func testCurrentReportSceneLifecycleInspectionDoesNotCreateRetainOrResurrectCacheEntry() throws {
+        let project = CompassProject(
+            repoURL: URL(fileURLWithPath: "/tmp/SceneLifecycleReadOnly", isDirectory: true)
+        )
+        defer {
+            CinematicSceneCache.shared.release(project.id)
+            CinematicSceneCache.shared.expireReleasedCoordinator(for: project.id)
+        }
+
+        XCTAssertNil(CinematicSceneCache.shared.lifecycleSnapshot(for: project.id))
+        let notMountedReport = CinematicDiagnostics.currentReport(for: project)
+        XCTAssertEqual(notMountedReport.cinematicSceneLifecycle.stateIdentifier, "not-mounted-or-expired")
+        XCTAssertNil(CinematicSceneCache.shared.lifecycleSnapshot(for: project.id))
+
+        let coordinator = CinematicSceneCache.shared.coordinator(for: project.id)
+        coordinator.primeLifecycleForTesting(
+            elapsedTime: 34,
+            phase: .verifying,
+            isThinking: true
+        )
+        let mountedBefore = try XCTUnwrap(CinematicSceneCache.shared.lifecycleSnapshot(for: project.id))
+        let mountedReport = CinematicDiagnostics.currentReport(for: project)
+        XCTAssertEqual(mountedReport.cinematicSceneLifecycle.stateIdentifier, "active")
+        XCTAssertEqual(mountedReport.cinematicSceneLifecycle.retainCount, mountedBefore.retainCount)
+        XCTAssertEqual(CinematicSceneCache.shared.lifecycleSnapshot(for: project.id), mountedBefore)
+
+        CinematicSceneCache.shared.release(project.id)
+        let suspendedBefore = try XCTUnwrap(CinematicSceneCache.shared.lifecycleSnapshot(for: project.id))
+        let suspendedReport = CinematicDiagnostics.currentReport(for: project)
+        XCTAssertEqual(suspendedReport.cinematicSceneLifecycle.stateIdentifier, "cached-offscreen")
+        XCTAssertEqual(suspendedReport.cinematicSceneLifecycle.retainCount, 0)
+        XCTAssertEqual(CinematicSceneCache.shared.lifecycleSnapshot(for: project.id), suspendedBefore)
+
+        let reacquired = CinematicSceneCache.shared.coordinator(for: project.id)
+        XCTAssertTrue(reacquired === coordinator)
+        CinematicSceneCache.shared.release(project.id)
+        CinematicSceneCache.shared.expireReleasedCoordinator(for: project.id)
+
+        XCTAssertNil(CinematicSceneCache.shared.lifecycleSnapshot(for: project.id))
+        let expiredReport = CinematicDiagnostics.currentReport(for: project)
+        XCTAssertEqual(expiredReport.cinematicSceneLifecycle.stateIdentifier, "not-mounted-or-expired")
+        XCTAssertNil(CinematicSceneCache.shared.lifecycleSnapshot(for: project.id))
     }
 
     @MainActor
@@ -4852,6 +5042,7 @@ private struct CinematicDiagnosticsInput {
     var languageProfile: RepositoryLanguageProfile
     var activityProfile: RepositoryActivityProfile
     var activitySourceSnapshot: RepositoryActivitySourceSnapshot = .notScanned()
+    var sceneCacheLifecycleSnapshot: CinematicSceneCacheLifecycleSnapshot? = nil
     var influenceSettings: CinematicInfluenceSettings
     var commitConstellationPlan: CinematicCommitConstellationPlan = .empty
     var runRecapPlan: CinematicRunRecapPlan = .empty(reason: "no-finished-session")
@@ -4881,6 +5072,7 @@ private func makeReport(_ input: CinematicDiagnosticsInput) -> CinematicDiagnost
         languageProfile: input.languageProfile,
         activityProfile: input.activityProfile,
         activitySourceSnapshot: input.activitySourceSnapshot,
+        sceneCacheLifecycleSnapshot: input.sceneCacheLifecycleSnapshot,
         influenceSettings: input.influenceSettings,
         commitConstellationPlan: input.commitConstellationPlan,
         runRecapPlan: input.runRecapPlan,
