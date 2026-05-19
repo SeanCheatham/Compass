@@ -2,6 +2,11 @@ import AppKit
 import SwiftUI
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
+    /// Bounded delay we accept to gracefully stop the shared VM before the
+    /// host terminates. macOS will SIGKILL the process at ~10s if we miss
+    /// the reply window, so we pick a value comfortably under that.
+    private static let vmStopBudget: TimeInterval = 6
+
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.regular)
         NSApp.activate(ignoringOtherApps: true)
@@ -13,6 +18,37 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
         true
+    }
+
+    /// Defers termination until the shared VM has had a chance to stop
+    /// cleanly. Without this, the VZ guest just gets its references
+    /// dropped — VZ does not guarantee a clean halt in that case, and
+    /// subsequent boots can land in NVRAM-corruption territory.
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        Task { @MainActor in
+            await Self.stopSharedVMWithBudget()
+            NSApp.reply(toApplicationShouldTerminate: true)
+        }
+        return .terminateLater
+    }
+
+    @MainActor
+    private static func stopSharedVMWithBudget() async {
+        let host = SharedCompassVM.shared
+        // Nothing to stop if the VM never got off the ground.
+        guard host.virtualMachine != nil else { return }
+        await withTaskGroup(of: Void.self) { group in
+            group.addTask { @MainActor in
+                await host.stop()
+            }
+            group.addTask {
+                try? await Task.sleep(nanoseconds: UInt64(vmStopBudget * 1_000_000_000))
+            }
+            // First task wins; whichever returns first cancels the rest so
+            // we don't hold the app open past the budget.
+            await group.next()
+            group.cancelAll()
+        }
     }
 }
 
