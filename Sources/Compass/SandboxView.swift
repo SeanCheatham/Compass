@@ -258,6 +258,10 @@ private struct SandboxFirstBootChecklist: View {
 
             SandboxFirstBootCommandBlock(command: SharedCompassVMFirstBootScript.guestRunCommand)
 
+            if let failure = vmHost.setupFailureMessage {
+                SandboxSetupFailureBanner(message: failure)
+            }
+
             Button {
                 Task { await vmHost.markSetupComplete() }
             } label: {
@@ -270,6 +274,28 @@ private struct SandboxFirstBootChecklist: View {
         .padding(12)
         .background(.tint.opacity(0.10), in: RoundedRectangle(cornerRadius: 10))
         .overlay(RoundedRectangle(cornerRadius: 10).stroke(.tint.opacity(0.25)))
+    }
+}
+
+/// Inline error banner for the most recent failed `markSetupComplete()` call.
+/// Cleared automatically when the user retries.
+private struct SandboxSetupFailureBanner: View {
+    let message: String
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .foregroundStyle(Color.orange)
+            Text(message)
+                .font(.caption)
+                .foregroundStyle(.primary)
+                .fixedSize(horizontal: false, vertical: true)
+                .textSelection(.enabled)
+        }
+        .padding(10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.orange.opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
+        .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.orange.opacity(0.30)))
     }
 }
 
@@ -317,6 +343,9 @@ private struct SandboxCodexLoginPrompt: View {
                 .font(.callout)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
+            if let failure = vmHost.setupFailureMessage {
+                SandboxSetupFailureBanner(message: failure)
+            }
             Button {
                 vmHost.markCodexLoginComplete()
             } label: {

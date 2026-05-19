@@ -22,6 +22,13 @@ final class SharedCompassVM: ObservableObject {
     /// `readiness` is recomputed from disk.
     @Published private(set) var persistedState: SharedCompassVMBundle.State?
 
+    /// Transient diagnostic about the most-recent `markSetupComplete()` call.
+    /// Cleared on the next invocation. Surfacing this in the UI lets the user
+    /// tell a "still working on it" attempt apart from a "IP discovery
+    /// failed, sshd is probably off" attempt without leaving the readiness
+    /// state machine in the absorbing `.error(detail:)` state.
+    @Published private(set) var setupFailureMessage: String?
+
     // MARK: - Owned values
 
     let bundle: SharedCompassVMBundle
@@ -395,6 +402,8 @@ final class SharedCompassVM: ObservableObject {
     /// the SSH probe succeeds. The Sandbox view invokes this when the user
     /// taps "Mark setup complete".
     func markSetupComplete() async {
+        // Clear any prior failure message so the UI shows a fresh attempt.
+        setupFailureMessage = nil
         readiness = .guestPrepping
         _ = try? bundle.mutateState(fileManager: dependencies.fileManager) {
             $0.provisionStep = .guestPrepping
@@ -419,8 +428,7 @@ final class SharedCompassVM: ObservableObject {
         }
 
         guard let ip = state.lastKnownGoodIP else {
-            // No IP yet — leave readiness in .guestPrepping; the user can
-            // retry from the Sandbox UI.
+            setupFailureMessage = "Could not discover the guest IP. Make sure the VM has finished booting and that the guest has a DHCP lease, then try again."
             return
         }
         let destination = "\(state.guestUserName)@\(ip)"
@@ -434,13 +442,25 @@ final class SharedCompassVM: ObservableObject {
             options: options,
             timeout: 5
         )
-        if probeOK {
-            _ = try? bundle.mutateState(fileManager: dependencies.fileManager) {
-                $0.provisionStep = .ready
-            }
-            lastResolvedSSHDestination = destination
-            readiness = state.codexLoginCompleted ? .ready(sshDestination: destination) : .codexLoginPending
+        guard probeOK else {
+            setupFailureMessage = "SSH probe to \(destination) failed. Confirm the bootstrap script ran successfully inside the guest (sshd enabled, key authorised)."
+            return
         }
+        _ = try? bundle.mutateState(fileManager: dependencies.fileManager) {
+            $0.provisionStep = .ready
+        }
+        lastResolvedSSHDestination = destination
+        if state.codexLoginCompleted {
+            readiness = .ready(sshDestination: destination)
+            return
+        }
+
+        // First-run codex auth: probe the guest, fall back to copying the
+        // host's ~/.codex if the guest is unauthenticated. Lands at .ready
+        // on success or .codexLoginPending (with a clear failure message)
+        // if the user still needs to run `codex login` inside the guest.
+        readiness = .codexLoginPending
+        await ensureCodexAuthenticated()
     }
 
     /// Records that the user has completed `codex login` inside the guest.
@@ -449,6 +469,7 @@ final class SharedCompassVM: ObservableObject {
         _ = try? bundle.mutateState(fileManager: dependencies.fileManager) {
             $0.codexLoginCompleted = true
         }
+        setupFailureMessage = nil
         if let destination = lastResolvedSSHDestination {
             readiness = .ready(sshDestination: destination)
         }
@@ -485,9 +506,9 @@ final class SharedCompassVM: ObservableObject {
         case .authenticated:
             markCodexLoginComplete()
             return
-        case .indeterminate:
-            // Treat indeterminate as login-pending so the user is prompted.
+        case let .indeterminate(detail):
             readiness = .codexLoginPending
+            setupFailureMessage = "Could not determine codex auth state inside the guest (\(detail)). Run `codex login` in the guest's Terminal."
             return
         case .unauthenticated:
             break
@@ -500,6 +521,9 @@ final class SharedCompassVM: ObservableObject {
             )
         } catch {
             readiness = .codexLoginPending
+            let detail = (error as? SharedCompassVMCodexAuthBridge.CopyError)?.description
+                ?? error.localizedDescription
+            setupFailureMessage = "Could not copy host ~/.codex into the guest (\(detail)). Run `codex login` in the guest's Terminal."
             return
         }
 
@@ -512,6 +536,7 @@ final class SharedCompassVM: ObservableObject {
             markCodexLoginComplete()
         case .unauthenticated, .indeterminate:
             readiness = .codexLoginPending
+            setupFailureMessage = "Copied host ~/.codex to the guest but it still isn't authenticated. Run `codex login` in the guest's Terminal."
         }
     }
 
