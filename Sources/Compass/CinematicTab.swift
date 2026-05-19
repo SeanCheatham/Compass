@@ -4,9 +4,7 @@ import SwiftUI
 struct CinematicTab: View {
     @EnvironmentObject private var model: AppModel
     @ObservedObject var project: CompassProject
-    @State private var overlayMode = CinematicTabOverlayMode.live
-    @State private var selectedTimelineBeatID: String?
-    @State private var selectedPlanCompassKind = PlanWorkflowOverview.Kind.immediate
+    @Binding var presentationState: CinematicTabPresentationState
 
     var body: some View {
         TimelineView(.periodic(from: .now, by: 1.0)) { timeline in
@@ -30,17 +28,17 @@ struct CinematicTab: View {
             )
             let planCompassCommandPlan = CinematicPlanCompassCommandPlanner.plan(
                 planCompassPlan: planCompassPlan,
-                selectedKind: selectedPlanCompassKind
+                selectedKind: presentationState.selectedPlanCompassKind
             )
             let planCompassActionSurface = CinematicPlanCompassActionSurfacePlanner.descriptor(
                 commandPlan: planCompassCommandPlan
             )
-            let planCompassSceneFocusPlan = overlayMode == .plan
+            let planCompassSceneFocusPlan = presentationState.overlayMode == .plan
                 ? CinematicPlanCompassSceneFocusPlanner.plan(
                     isPlanOverlaySelected: true,
                     planCompassPlan: planCompassPlan,
                     readinessPlan: planCompassReadinessPlan,
-                    selectedKind: selectedPlanCompassKind
+                    selectedKind: presentationState.selectedPlanCompassKind
                 )
                 : .none
             let nativeFeedbackCue = project.cinematicNativeFeedbackCue
@@ -58,7 +56,7 @@ struct CinematicTab: View {
             let timelinePlan = CinematicSessionTimelinePlan(
                 sessions: project.sessions,
                 runCues: reliabilityFeedback.recentRunCues,
-                selectedBeatID: selectedTimelineBeatID
+                selectedBeatID: presentationState.selectedTimelineBeatID
             )
             let recoveryCuePlan = CinematicRecoveryCuePlanner.plan(
                 recentRunCues: reliabilityFeedback.recentRunCues,
@@ -69,7 +67,7 @@ struct CinematicTab: View {
                     commitConstellationPlan: project.cinematicCommitConstellationPlan,
                     recoveryCuePlan: recoveryCuePlan
                 )
-            let timelineSceneFocusPlan = overlayMode == .timeline
+            let timelineSceneFocusPlan = presentationState.overlayMode == .timeline
                 ? timelineSceneFocusCandidatePlan
                 : .none
             let runRecapSceneFocusCandidatePlan = CinematicRunRecapSceneFocusPlanner.plan(
@@ -78,7 +76,7 @@ struct CinematicTab: View {
                 commitConstellationPlan: project.cinematicCommitConstellationPlan,
                 timelinePlan: timelinePlan
             )
-            let runRecapSceneFocusPlan = overlayMode == .recap
+            let runRecapSceneFocusPlan = presentationState.overlayMode == .recap
                 ? runRecapSceneFocusCandidatePlan
                 : .none
             let recapArtifactLibraryContext = project.cinematicRunRecapShareArtifactLibraryContext
@@ -95,7 +93,7 @@ struct CinematicTab: View {
                 recapPlan: recapPlan,
                 artifactComparisonPlan: recapArtifactComparisonPlan
             )
-            let runRecapEndCardPlan = overlayMode == .recap
+            let runRecapEndCardPlan = presentationState.overlayMode == .recap
                 ? runRecapEndCardCandidatePlan
                 : .none
             let runRecapSharePlan = CinematicRunRecapSharePlanner.plan(
@@ -120,7 +118,7 @@ struct CinematicTab: View {
             let idleStoryCyclePlan = CinematicIdleStoryCyclePlanner.plan(
                 session: idleStorySession,
                 isLiveFollowActive: CinematicIdleStoryCyclePlanner.hasLiveFollowTarget(lines: project.liveLog),
-                hasExplicitUserFocus: overlayMode != .live,
+                hasExplicitUserFocus: presentationState.overlayMode != .live,
                 influenceSettings: project.cinematicInfluenceSettings,
                 activitySourceBeaconPlan: activitySourceBeaconPlan,
                 commitConstellationPlan: project.cinematicCommitConstellationPlan,
@@ -176,7 +174,7 @@ struct CinematicTab: View {
                 .allowsHitTesting(false)
 
                 VStack(alignment: .leading, spacing: 10) {
-                    CinematicTabOverlayModePicker(selection: $overlayMode)
+                    CinematicTabOverlayModePicker(selection: $presentationState.overlayMode)
 
                     if let nativeFeedbackCue = displayedNativeFeedbackCue {
                         CinematicNativeFeedbackBanner(
@@ -185,23 +183,23 @@ struct CinematicTab: View {
                         )
                     }
 
-                    if overlayMode == .plan {
+                    if presentationState.overlayMode == .plan {
                         CinematicPlanCompassOverlay(
                             plan: planCompassPlan,
                             readinessPlan: planCompassReadinessPlan,
-                            selectedKind: selectedPlanCompassKind,
+                            selectedKind: presentationState.selectedPlanCompassKind,
                             actionSurface: planCompassActionSurface,
                             performAction: { actionKind in
                                 performPlanCompassCommand(actionKind, plan: planCompassPlan)
                             },
                             displayPlan: displayPlan
                         )
-                    } else if overlayMode == .timeline {
+                    } else if presentationState.overlayMode == .timeline {
                         CinematicTimelineOverlay(
                             plan: timelinePlan,
-                            selectedBeatID: $selectedTimelineBeatID
+                            selectedBeatID: $presentationState.selectedTimelineBeatID
                         )
-                    } else if overlayMode == .recap {
+                    } else if presentationState.overlayMode == .recap {
                         CinematicRunRecapOverlay(
                             project: project,
                             plan: recapPlan,
@@ -235,14 +233,14 @@ struct CinematicTab: View {
                 }
                 .padding(18)
                 .onAppear {
-                    selectedTimelineBeatID = timelinePlan.selectedBeatID
+                    presentationState.selectedTimelineBeatID = timelinePlan.selectedBeatID
                 }
                 .onChange(of: timelinePlan.identifier) {
-                    selectedTimelineBeatID = timelinePlan.selectedBeatID
+                    presentationState.selectedTimelineBeatID = timelinePlan.selectedBeatID
                 }
-                .onChange(of: overlayMode) {
-                    if overlayMode == .timeline {
-                        selectedTimelineBeatID = timelinePlan.selectedBeatID
+                .onChange(of: presentationState.overlayMode) {
+                    if presentationState.overlayMode == .timeline {
+                        presentationState.selectedTimelineBeatID = timelinePlan.selectedBeatID
                     }
                 }
 
@@ -252,7 +250,7 @@ struct CinematicTab: View {
                         CinematicInfluenceControls(
                             project: project,
                             idleStoryCyclePlan: idleStoryCyclePlan,
-                            selectedPlanCompassKind: selectedPlanCompassKind,
+                            selectedPlanCompassKind: presentationState.selectedPlanCompassKind,
                             planCompassSceneFocusPlan: planCompassSceneFocusPlan,
                             timelineSceneFocusPlan: timelineSceneFocusPlan,
                             runRecapSceneFocusPlan: runRecapSceneFocusPlan,
@@ -320,7 +318,7 @@ struct CinematicTab: View {
     ) {
         let commandPlan = CinematicPlanCompassCommandPlanner.plan(
             planCompassPlan: plan,
-            selectedKind: selectedPlanCompassKind
+            selectedKind: presentationState.selectedPlanCompassKind
         )
         guard commandPlan.command(for: actionKind)?.isEnabled == true else {
             return
@@ -328,28 +326,34 @@ struct CinematicTab: View {
 
         switch actionKind {
         case .showPlanOverlay:
-            overlayMode = .plan
+            presentationState.overlayMode = .plan
         case .focusImmediateRoute:
-            selectedPlanCompassKind = .immediate
-            overlayMode = .plan
+            presentationState.selectedPlanCompassKind = .immediate
+            presentationState.overlayMode = .plan
         case .focusMidTermRoute:
-            selectedPlanCompassKind = .midTerm
-            overlayMode = .plan
+            presentationState.selectedPlanCompassKind = .midTerm
+            presentationState.overlayMode = .plan
         case .focusLongTermRoute:
-            selectedPlanCompassKind = .longTerm
-            overlayMode = .plan
+            presentationState.selectedPlanCompassKind = .longTerm
+            presentationState.overlayMode = .plan
         case .copyFullPlanCompass:
             NSPasteboard.general.clearContents()
             NSPasteboard.general.setString(plan.copyText, forType: .string)
         case .copySelectedRoute:
-            let selectedSection = plan.section(for: selectedPlanCompassKind)
+            let selectedSection = plan.section(for: presentationState.selectedPlanCompassKind)
             NSPasteboard.general.clearContents()
             NSPasteboard.general.setString(selectedSection.copyText, forType: .string)
         }
     }
 }
 
-private enum CinematicTabOverlayMode: String, CaseIterable, Identifiable {
+struct CinematicTabPresentationState: Equatable {
+    var overlayMode = CinematicTabOverlayMode.live
+    var selectedTimelineBeatID: String?
+    var selectedPlanCompassKind = PlanWorkflowOverview.Kind.immediate
+}
+
+enum CinematicTabOverlayMode: String, CaseIterable, Identifiable {
     case live
     case plan
     case timeline

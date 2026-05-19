@@ -108,6 +108,9 @@ struct CinematicSceneView: View {
             Color.black
         }
         .background(Color.black)
+        .onAppear {
+            host.retain()
+        }
         .onDisappear {
             host.release()
         }
@@ -117,12 +120,12 @@ struct CinematicSceneView: View {
 @MainActor
 private final class CinematicRealitySceneHost: ObservableObject {
     private let projectID: UUID
-    private let coordinator: CinematicSceneCoordinator
-    private var retained = true
+    private var coordinator: CinematicSceneCoordinator?
+    private var retained = false
 
     init(projectID: UUID) {
         self.projectID = projectID
-        coordinator = CinematicSceneCache.shared.coordinator(for: projectID)
+        retain()
     }
 
     deinit {
@@ -134,8 +137,14 @@ private final class CinematicRealitySceneHost: ObservableObject {
         }
     }
 
+    func retain() {
+        guard !retained else { return }
+        coordinator = CinematicSceneCache.shared.coordinator(for: projectID)
+        retained = true
+    }
+
     func install(in content: inout RealityViewCameraContent) {
-        coordinator.install(in: &content)
+        currentCoordinator().install(in: &content)
     }
 
     func update(
@@ -156,7 +165,7 @@ private final class CinematicRealitySceneHost: ObservableObject {
         runRecapEndCardPlan: CinematicRunRecapEndCardPlan,
         nativeFeedbackCue: CinematicNativeFeedbackCuePlan?
     ) {
-        coordinator.update(
+        currentCoordinator().update(
             lines: lines,
             phase: phase,
             isActive: isActive,
@@ -181,10 +190,21 @@ private final class CinematicRealitySceneHost: ObservableObject {
         retained = false
         CinematicSceneCache.shared.release(projectID)
     }
+
+    private func currentCoordinator() -> CinematicSceneCoordinator {
+        if let coordinator, retained {
+            return coordinator
+        }
+        retain()
+        guard let coordinator else {
+            preconditionFailure("Cinematic scene coordinator should exist after retaining")
+        }
+        return coordinator
+    }
 }
 
 @MainActor
-private final class CinematicSceneCache {
+final class CinematicSceneCache {
     static let shared = CinematicSceneCache()
 
     private struct Entry {
@@ -193,32 +213,51 @@ private final class CinematicSceneCache {
         var releaseTimer: Timer?
     }
 
-    private let releaseDelay: TimeInterval = 5 * 60
+    private let lifecyclePolicy: CinematicSceneCacheLifecyclePolicy
     private var entries: [UUID: Entry] = [:]
 
-    private init() {}
+    convenience init(releaseDelay: TimeInterval = CinematicSceneCacheLifecyclePolicy.defaultResumeCacheDuration) {
+        self.init(lifecyclePolicy: CinematicSceneCacheLifecyclePolicy(resumeCacheDuration: releaseDelay))
+    }
+
+    init(lifecyclePolicy: CinematicSceneCacheLifecyclePolicy) {
+        self.lifecyclePolicy = lifecyclePolicy
+    }
 
     func coordinator(for projectID: UUID) -> CinematicSceneCoordinator {
         if var entry = entries[projectID] {
+            let acquirePlan = lifecyclePolicy.acquirePlan(currentRetainCount: entry.retainCount)
             entry.releaseTimer?.invalidate()
             entry.releaseTimer = nil
-            entry.retainCount += 1
+            entry.retainCount = acquirePlan.retainCount
+            if acquirePlan.resumesCoordinator {
+                entry.coordinator.resumeFromCacheSuspension()
+            }
             entries[projectID] = entry
             return entry.coordinator
         }
 
         let coordinator = CinematicSceneCoordinator(projectID: projectID)
-        entries[projectID] = Entry(coordinator: coordinator, retainCount: 1)
+        let acquirePlan = lifecyclePolicy.acquirePlan(currentRetainCount: nil)
+        if acquirePlan.resumesCoordinator {
+            coordinator.resumeFromCacheSuspension()
+        }
+        entries[projectID] = Entry(coordinator: coordinator, retainCount: acquirePlan.retainCount)
         return coordinator
     }
 
     func release(_ projectID: UUID) {
         guard var entry = entries[projectID] else { return }
-        entry.retainCount = max(0, entry.retainCount - 1)
+        let releasePlan = lifecyclePolicy.releasePlan(currentRetainCount: entry.retainCount)
+        entry.retainCount = releasePlan.retainCount
         entry.releaseTimer?.invalidate()
 
-        if entry.retainCount == 0 {
-            entry.releaseTimer = Timer.scheduledTimer(withTimeInterval: releaseDelay, repeats: false) { [weak self] _ in
+        if releasePlan.suspendsCoordinator {
+            entry.coordinator.suspendForCacheRetention()
+        }
+
+        if let expiryDelay = releasePlan.expiryDelay {
+            entry.releaseTimer = Timer.scheduledTimer(withTimeInterval: expiryDelay, repeats: false) { [weak self] _ in
                 Task { @MainActor in
                     self?.expire(projectID)
                 }
@@ -229,10 +268,92 @@ private final class CinematicSceneCache {
     }
 
     private func expire(_ projectID: UUID) {
-        guard let entry = entries[projectID], entry.retainCount == 0 else { return }
+        guard let entry = entries[projectID],
+              lifecyclePolicy.expiryPlan(retainCount: entry.retainCount).stopsAndDropsCoordinator
+        else {
+            return
+        }
+        entry.releaseTimer?.invalidate()
         entry.coordinator.stop()
         entries[projectID] = nil
     }
+
+    func expireReleasedCoordinator(for projectID: UUID) {
+        expire(projectID)
+    }
+
+    func lifecycleSnapshot(for projectID: UUID) -> CinematicSceneCacheLifecycleSnapshot? {
+        guard let entry = entries[projectID] else { return nil }
+        return CinematicSceneCacheLifecycleSnapshot(
+            retainCount: entry.retainCount,
+            hasScheduledExpiry: entry.releaseTimer != nil,
+            coordinator: entry.coordinator.lifecycleSnapshot()
+        )
+    }
+}
+
+struct CinematicSceneCacheLifecyclePolicy: Equatable {
+    static let defaultResumeCacheDuration: TimeInterval = 5 * 60
+
+    var resumeCacheDuration: TimeInterval
+
+    func acquirePlan(currentRetainCount: Int?) -> AcquirePlan {
+        AcquirePlan(
+            retainCount: (currentRetainCount ?? 0) + 1,
+            resumesCoordinator: true
+        )
+    }
+
+    func releasePlan(currentRetainCount: Int) -> ReleasePlan {
+        let retainCount = max(0, currentRetainCount - 1)
+        return ReleasePlan(
+            retainCount: retainCount,
+            suspendsCoordinator: retainCount == 0,
+            expiryDelay: retainCount == 0 ? resumeCacheDuration : nil
+        )
+    }
+
+    func expiryPlan(retainCount: Int) -> ExpiryPlan {
+        ExpiryPlan(stopsAndDropsCoordinator: retainCount == 0)
+    }
+
+    struct AcquirePlan: Equatable {
+        var retainCount: Int
+        var resumesCoordinator: Bool
+    }
+
+    struct ReleasePlan: Equatable {
+        var retainCount: Int
+        var suspendsCoordinator: Bool
+        var expiryDelay: TimeInterval?
+    }
+
+    struct ExpiryPlan: Equatable {
+        var stopsAndDropsCoordinator: Bool
+    }
+}
+
+struct CinematicSceneCacheLifecycleSnapshot: Equatable {
+    var retainCount: Int
+    var hasScheduledExpiry: Bool
+    var coordinator: CinematicSceneCoordinatorLifecycleSnapshot
+}
+
+struct CinematicSceneCoordinatorLifecycleSnapshot: Equatable {
+    var coordinatorIdentifier: ObjectIdentifier
+    var isOffscreen: Bool
+    var isInstalled: Bool
+    var hasDisplayTimer: Bool
+    var hasThinkingTimer: Bool
+    var hasDefenseTimer: Bool
+    var elapsedTime: TimeInterval
+    var phaseIdentifier: String
+    var commitConstellationIdentifier: String
+    var idleStoryCycleIdentifier: String
+    var planCompassFocusIdentifier: String
+    var timelineFocusIdentifier: String
+    var runRecapFocusIdentifier: String
+    var runRecapEndCardIdentifier: String
 }
 
 private enum DefensiveSpell {
@@ -257,7 +378,7 @@ private enum DefensiveSpell {
 }
 
 @MainActor
-private final class CinematicSceneCoordinator {
+final class CinematicSceneCoordinator {
     let projectID: UUID
 
     private enum CameraFollowSource {
@@ -309,6 +430,7 @@ private final class CinematicSceneCoordinator {
     private var hasBuiltScene = false
     private var hasBootstrapped = false
     private var isInstalled = false
+    private var isOffscreen = true
     private var languageProfile = RepositoryLanguageProfile.empty
     private var languageMotif = CinematicMotif.language(for: RepositoryLanguageProfile.empty)
     private var activityProfile = RepositoryActivityProfile.empty
@@ -389,6 +511,8 @@ private final class CinematicSceneCoordinator {
     }
 
     func install(in content: inout RealityViewCameraContent) {
+        resumeFromCacheSuspension()
+
         if !hasBuiltScene {
             hasBuiltScene = true
             buildScene()
@@ -408,7 +532,7 @@ private final class CinematicSceneCoordinator {
         content.renderingEffects = effects
 
         isInstalled = true
-        startDisplayTimer()
+        resumeLifecycleTimers()
     }
 
     func update(
@@ -429,6 +553,8 @@ private final class CinematicSceneCoordinator {
         runRecapEndCardPlan: CinematicRunRecapEndCardPlan,
         nativeFeedbackCue: CinematicNativeFeedbackCuePlan?
     ) {
+        resumeFromCacheSuspension()
+
         let languageProfileChanged = languageProfile != self.languageProfile
         if languageProfileChanged {
             self.languageProfile = languageProfile
@@ -567,12 +693,60 @@ private final class CinematicSceneCoordinator {
     }
 
     func stop() {
+        suspendForCacheRetention()
+    }
+
+    func suspendForCacheRetention() {
+        isOffscreen = true
         thinkingTimer?.invalidate()
         thinkingTimer = nil
         defenseTimer?.invalidate()
         defenseTimer = nil
         displayTimer?.invalidate()
         displayTimer = nil
+    }
+
+    func resumeFromCacheSuspension() {
+        guard isOffscreen else { return }
+        isOffscreen = false
+        resumeLifecycleTimers()
+    }
+
+    func lifecycleSnapshot() -> CinematicSceneCoordinatorLifecycleSnapshot {
+        CinematicSceneCoordinatorLifecycleSnapshot(
+            coordinatorIdentifier: ObjectIdentifier(self),
+            isOffscreen: isOffscreen,
+            isInstalled: isInstalled,
+            hasDisplayTimer: displayTimer != nil,
+            hasThinkingTimer: thinkingTimer != nil,
+            hasDefenseTimer: defenseTimer != nil,
+            elapsedTime: elapsedTime,
+            phaseIdentifier: lastPhase.rawValue,
+            commitConstellationIdentifier: currentCommitConstellationPlan.identifier,
+            idleStoryCycleIdentifier: currentIdleStoryCyclePlan.identifier,
+            planCompassFocusIdentifier: currentPlanCompassSceneFocusPlan.identifier,
+            timelineFocusIdentifier: currentTimelineSceneFocusPlan.identifier,
+            runRecapFocusIdentifier: currentRunRecapSceneFocusPlan.identifier,
+            runRecapEndCardIdentifier: currentRunRecapEndCardPlan.identifier
+        )
+    }
+
+    func primeLifecycleForTesting(
+        elapsedTime: TimeInterval = 0,
+        phase: LoopPhase = .idle,
+        isThinking: Bool = false,
+        displayTimerActive: Bool = true,
+        thinkingTimerActive: Bool = true,
+        defenseTimerActive: Bool = true
+    ) {
+        isOffscreen = false
+        isInstalled = true
+        self.elapsedTime = elapsedTime
+        lastPhase = phase
+        self.isThinking = isThinking
+        displayTimer = displayTimerActive ? Timer(timeInterval: 3600, repeats: true) { _ in } : nil
+        thinkingTimer = thinkingTimerActive ? Timer(timeInterval: 3600, repeats: true) { _ in } : nil
+        defenseTimer = defenseTimerActive ? Timer(timeInterval: 3600, repeats: true) { _ in } : nil
     }
 
     private func buildScene() {
@@ -1400,6 +1574,7 @@ private final class CinematicSceneCoordinator {
     }
 
     private func startThinkingTimer(spawnImmediately: Bool) {
+        guard !isOffscreen else { return }
         thinkingTimer?.invalidate()
         let cadence = ambientSpawnCadence()
         thinkingTimer = Timer.scheduledTimer(withTimeInterval: cadence, repeats: true) { [weak self] _ in
@@ -1414,6 +1589,7 @@ private final class CinematicSceneCoordinator {
     }
 
     private func startDefensiveCasting() {
+        guard !isOffscreen else { return }
         defenseTimer?.invalidate()
         defenseTimer = Timer.scheduledTimer(withTimeInterval: 1.05, repeats: true) { [weak self] _ in
             Task { @MainActor in
@@ -4824,12 +5000,21 @@ private final class CinematicSceneCoordinator {
     }
 
     private func startDisplayTimer() {
-        guard displayTimer == nil else { return }
+        guard !isOffscreen, displayTimer == nil else { return }
         lastTickDate = Date()
         displayTimer = Timer.scheduledTimer(withTimeInterval: 1.0 / 60.0, repeats: true) { [weak self] _ in
             Task { @MainActor in
                 self?.tick()
             }
+        }
+    }
+
+    private func resumeLifecycleTimers() {
+        guard !isOffscreen, isInstalled else { return }
+        startDisplayTimer()
+        if isThinking {
+            startThinkingTimer(spawnImmediately: false)
+            startDefensiveCasting()
         }
     }
 

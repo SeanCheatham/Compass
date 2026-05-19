@@ -292,13 +292,17 @@ private struct NoProjectView: View {
 private struct MainWorkspaceView: View {
     @ObservedObject var project: CompassProject
     @State private var selectedTab: WorkspaceTab = .live
-    @State private var hasOpenedCinematic = false
+    @State private var cinematicPresentationState = CinematicTabPresentationState()
 
     var body: some View {
         VStack(spacing: 0) {
             WorkspaceHeader(project: project, selectedTab: $selectedTab)
             Divider()
-            WorkspaceContent(project: project, selectedTab: selectedTab)
+            WorkspaceContent(
+                project: project,
+                selectedTab: selectedTab,
+                cinematicPresentationState: $cinematicPresentationState
+            )
                 .padding(16)
                 .overlay(alignment: .bottom) {
                     if let message = project.errorMessage {
@@ -311,37 +315,6 @@ private struct MainWorkspaceView: View {
                             .padding(.bottom, 12)
                     }
                 }
-                .background {
-                    if hasOpenedCinematic && selectedTab != .cinematic {
-                        CinematicSceneView(
-                            projectID: project.id,
-                            lines: project.liveLog,
-                            phase: project.phase,
-                            isActive: project.isRunning || project.isAutoPlaying,
-                            languageProfile: project.languageProfile,
-                            activityProfile: project.activityProfile,
-                            influenceSettings: project.cinematicInfluenceSettings,
-                            worldText: project.cinematicWorldText,
-                            briefing: project.cinematicBriefing,
-                            commitConstellationPlan: project.cinematicCommitConstellationPlan,
-                            nativeFeedbackCue: project.cinematicNativeFeedbackCue
-                        )
-                        .frame(width: 1, height: 1)
-                        .opacity(0.01)
-                        .allowsHitTesting(false)
-                        .accessibilityHidden(true)
-                    }
-                }
-        }
-        .onAppear {
-            if selectedTab == .cinematic {
-                hasOpenedCinematic = true
-            }
-        }
-        .onChange(of: selectedTab) {
-            if selectedTab == .cinematic {
-                hasOpenedCinematic = true
-            }
         }
     }
 }
@@ -958,13 +931,14 @@ private struct WorkspaceTabButton: View {
 private struct WorkspaceContent: View {
     @ObservedObject var project: CompassProject
     var selectedTab: WorkspaceTab
+    @Binding var cinematicPresentationState: CinematicTabPresentationState
 
     var body: some View {
         switch selectedTab {
         case .live:
             LiveTab(project: project)
         case .cinematic:
-            CinematicTab(project: project)
+            CinematicTab(project: project, presentationState: $cinematicPresentationState)
         case .plan:
             PlanTab(project: project)
         case .drafts:
