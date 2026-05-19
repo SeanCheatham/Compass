@@ -11,12 +11,20 @@ sandbox is built directly on Apple's `Virtualization.framework`.
 
 ## Run
 
+The Shared VM sandbox requires the `com.apple.security.virtualization`
+entitlement, which only the Xcode-built app bundle has. Build and run from
+Xcode (or `xcodebuild`) for normal use:
+
 ```bash
-swift run Compass
+open Compass.xcodeproj
+# Then press ⌘R, or:
+xcodebuild -project Compass.xcodeproj -scheme Compass -configuration Debug build
+open ~/Library/Developer/Xcode/DerivedData/Compass-*/Build/Products/Debug/Compass.app
 ```
 
-After the build line, the process stays running and the Compass window should
-come to the foreground. Close the window to stop the app.
+The SwiftPM executable still builds (`swift run Compass`) and is fine for
+non-VM work, but `VZVirtualMachine` APIs will fail without the entitlement,
+so the Shared VM sandbox is disabled in that mode.
 
 The Codex binary field defaults to `COMPASS_CODEX_BIN` when set, then common
 macOS locations including `/Applications/Codex.app/Contents/Resources/codex`.
@@ -68,15 +76,32 @@ Everything lives in `.compass/` inside each selected repository:
 
 ## Development
 
-Use `swift build` for normal verification:
+Two build flows coexist:
 
-```bash
-swift build
-```
+- `swift build` / `swift test` — fast, headless, no signing, no entitlements.
+  Best for unit tests, type-checking, and CI.
+- `xcodebuild -project Compass.xcodeproj -scheme Compass` — produces the
+  signed `Compass.app` with the virtualization entitlement. Required for
+  any Shared VM work.
 
-Native macOS is the authoritative verification path for AppKit, SwiftUI,
-RealityKit, Foundation Models, and project workflows, so use `swift build` and
-`swift test` on macOS before relying on changes.
+Both reference the same sources under `Sources/Compass/`. New `.swift` files
+dropped there are picked up automatically — Package.swift uses an executable
+target, and the Xcode project uses synchronized folder groups (Xcode 15.3+),
+so no manual project-file edits are needed for routine source additions.
+
+App-bundle metadata lives under `App/`:
+
+- `App/Info.plist` — bundle id, version, category, min macOS.
+- `App/Compass.entitlements` — currently just `com.apple.security.virtualization`.
+  Add more entitlements here if Compass ever needs sandboxed network, hardware
+  access, etc. App Sandbox is intentionally **off** — Compass is distributed
+  outside the App Store (via `.dmg`), so the sandbox's file-access restrictions
+  and security-scoped-bookmark dance are not needed.
+
+Codesigning today is ad-hoc (`CODE_SIGN_IDENTITY = "-"`). For `.dmg`
+distribution, swap to a Developer ID Application cert via Xcode → Signing
+& Capabilities, enable hardened runtime (currently auto-disabled by Xcode
+for ad-hoc), then notarize the resulting `.app` before packaging.
 
 ## Sandbox: Shared macOS VM (optional)
 

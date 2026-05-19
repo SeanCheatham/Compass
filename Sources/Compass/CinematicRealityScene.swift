@@ -5858,11 +5858,11 @@ final class CinematicSceneCoordinator {
     }
 
     private func resourceImage(_ name: String) -> NSImage? {
-        let url = Bundle.module.url(
+        let url = CompassResources.bundle.url(
             forResource: name,
             withExtension: "png",
             subdirectory: "Cinematic"
-        ) ?? Bundle.module.url(forResource: name, withExtension: "png")
+        ) ?? CompassResources.bundle.url(forResource: name, withExtension: "png")
         guard let url else {
             return nil
         }

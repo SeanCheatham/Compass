@@ -536,11 +536,11 @@ enum CinematicTextureAssetCatalog {
     }
 
     private static func packagedResourceURL(for textureName: String) -> URL? {
-        Bundle.module.url(
+        CompassResources.bundle.url(
             forResource: textureName,
             withExtension: "png",
             subdirectory: "Cinematic"
-        ) ?? Bundle.module.url(forResource: textureName, withExtension: "png")
+        ) ?? CompassResources.bundle.url(forResource: textureName, withExtension: "png")
     }
 
     private static func boundedIdentifier(_ identifier: String) -> String {
