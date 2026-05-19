@@ -5,8 +5,9 @@ It keeps per-repository state in `.compass/`, shells out to `codex exec` for
 Plan, Reflect, and Develop passes, and lets multiple projects run side by side
 from one desktop workspace.
 
-Compass requires macOS 15 or newer because its Cinematic tab uses RealityKit's
-SwiftUI `RealityView` renderer.
+Compass requires macOS 26 or newer on Apple Silicon. The Cinematic tab uses
+RealityKit's SwiftUI `RealityView` renderer, and the optional Shared VM
+sandbox is built directly on Apple's `Virtualization.framework`.
 
 ## Run
 
@@ -73,11 +74,38 @@ Use `swift build` for normal verification:
 swift build
 ```
 
-The `.devcontainer/devcontainer.json` file is an optional image-only Swift
-starter for Codex or other containerized editing. Native macOS remains the
-authoritative verification path for AppKit, SwiftUI, RealityKit, Foundation
-Models, and project workflows, so use `swift build` and `swift test` on macOS
-before relying on changes.
+Native macOS is the authoritative verification path for AppKit, SwiftUI,
+RealityKit, Foundation Models, and project workflows, so use `swift build` and
+`swift test` on macOS before relying on changes.
+
+## Sandbox: Shared macOS VM (optional)
+
+Each project can opt its Develop iterations into a shared macOS guest VM via
+the per-project **Develop sandbox** picker in the Runtime section of the
+sidebar. With `.host` selected (default), Develop runs natively against a
+disposable Git worktree under `~/Library/Caches/Compass/Worktrees/`. With
+`.sharedVM` selected, Develop instead runs inside a Compass-managed macOS VM
+via SSH, with the same worktree exposed to the guest over VirtioFS.
+
+The VM is built from scratch on the user's machine using
+`VZMacOSRestoreImage.fetchLatestSupported` (Apple CDN, ~14 GB IPSW, no auth)
+and installed via `VZMacOSInstaller`. After install, the first boot lands at
+Setup Assistant — the embedded VM view in the top-level **Sandbox** section
+of the main window guides the user through a one-time ~2 minute click-through
+(decline Apple ID, create `compass` user, enable Remote Login). Subsequent
+iterations reuse the same persistent guest.
+
+Requirements:
+
+- Apple Silicon Mac, macOS 26 or newer.
+- ~30 GB free disk under `~/Library/Application Support/Compass/SharedVM/`
+  (sparse image — may drift larger over time).
+- First-time setup takes ~30–50 minutes (IPSW download + install + CLT
+  install + one-time Setup Assistant click-through).
+- Apple's Virtualization.framework caps the host at 2 concurrent macOS
+  guests. Conflicts with other VZ-based products (Parallels' VZ backend,
+  Tart, etc.) surface as `Shared VM unavailable: 2-guest cap reached` and
+  Develop transparently falls back to the host route.
 
 When using Compass to develop Compass itself, treat the currently running
 Compass process as infrastructure, not as the test subject. If a launch smoke
@@ -85,4 +113,5 @@ test is needed, start `swift run Compass` as a child process, record that exact
 PID, and terminate only that PID after the check. Avoid broad process-killing
 commands such as `pkill -f Compass`, `killall swift`, `killall codex`, or
 port-wide kill commands that could stop the live Compass session running the
-iteration.
+iteration. The Shared VM sandbox makes this safer by default — runaway
+`pkill` inside the guest cannot reach the host orchestrator.
