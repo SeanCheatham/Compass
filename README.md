@@ -73,6 +73,12 @@ Use `swift build` for normal verification:
 swift build
 ```
 
+The `.devcontainer/devcontainer.json` file is an optional image-only Swift
+starter for Codex or other containerized editing. Native macOS remains the
+authoritative verification path for AppKit, SwiftUI, RealityKit, Foundation
+Models, and project workflows, so use `swift build` and `swift test` on macOS
+before relying on changes.
+
 When using Compass to develop Compass itself, treat the currently running
 Compass process as infrastructure, not as the test subject. If a launch smoke
 test is needed, start `swift run Compass` as a child process, record that exact

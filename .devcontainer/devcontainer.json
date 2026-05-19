@@ -1,0 +1,5 @@
+{
+  "name": "Compass Swift",
+  "image": "swift:6.0",
+  "workspaceFolder": "/workspace"
+}
