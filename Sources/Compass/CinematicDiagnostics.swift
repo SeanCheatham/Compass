@@ -5073,6 +5073,11 @@ struct CinematicDiagnosticsSummary: Equatable {
             report: report,
             rowsByID: rowsByID
         )
+        let runRecapShareArtifactSourceReconciliationTarget =
+            runRecapShareArtifactSourceReconciliationAttentionTarget(
+                report: report,
+                rowsByID: rowsByID
+            )
         let warningCheckTargets = visualSmoke.checks.compactMap { check in
             warningCheckAttentionTarget(
                 check: check,
@@ -5109,7 +5114,9 @@ struct CinematicDiagnosticsSummary: Equatable {
             )
         ]
         .compactMap { $0 }
-        let targets = ([activitySourceTarget].compactMap { $0 } + warningCheckTargets + groupTargets)
+        let targets = ([activitySourceTarget, runRecapShareArtifactSourceReconciliationTarget].compactMap { $0 }
+            + warningCheckTargets
+            + groupTargets)
             .prefix(attentionSummaryMaxTargets)
 
         return AttentionSummary(targets: Array(targets))
@@ -5292,6 +5299,185 @@ struct CinematicDiagnosticsSummary: Equatable {
         )
 
         return bounded(lines.joined(separator: "\n"), limit: attentionTargetCopyMaxCharacters)
+    }
+
+    private static func runRecapShareArtifactSourceReconciliationAttentionTarget(
+        report: CinematicDiagnosticsReport,
+        rowsByID: [String: Row]
+    ) -> AttentionTarget? {
+        let snapshot = report.runRecapShareArtifactSourceReconciliation
+        let warningIdentifiers = runRecapShareArtifactSourceReconciliationWarningIdentifiers(snapshot)
+        guard !warningIdentifiers.isEmpty else {
+            return nil
+        }
+
+        let visibleWarningIdentifiers = Array(
+            warningIdentifiers.prefix(attentionSummaryMaxVisibleWarnings)
+        )
+        let targetGroupID = "repository-context"
+        let targetAnchorID = "diagnostics-row-run-recap-share-artifact-sources"
+        let label = runRecapShareArtifactSourceReconciliationAttentionLabel(snapshot)
+        let detail = runRecapShareArtifactSourceReconciliationAttentionDetail(snapshot)
+        let relatedRow = rowsByID["run-recap-share-artifact-sources"]
+
+        return AttentionTarget(
+            id: runRecapShareArtifactSourceReconciliationAttentionTargetID(snapshot),
+            targetGroupID: targetGroupID,
+            targetAnchorID: targetAnchorID,
+            relatedGroupID: targetGroupID,
+            relatedRowID: "run-recap-share-artifact-sources",
+            label: bounded(label, limit: labelMaxCharacters),
+            detail: bounded(detail, limit: attentionSummaryDetailMaxCharacters),
+            warningCount: warningIdentifiers.count,
+            visibleWarningIdentifiers: visibleWarningIdentifiers,
+            copyText: runRecapShareArtifactSourceReconciliationAttentionCopyText(
+                label: label,
+                targetGroupID: targetGroupID,
+                targetAnchorID: targetAnchorID,
+                visibleWarningIdentifiers: visibleWarningIdentifiers,
+                detail: detail,
+                snapshot: snapshot,
+                relatedRow: relatedRow
+            )
+        )
+    }
+
+    private static func runRecapShareArtifactSourceReconciliationWarningIdentifiers(
+        _ snapshot: CinematicDiagnosticsReport.RunRecapShareArtifactSourceReconciliationSnapshot
+    ) -> [String] {
+        let identifiers: [String]
+        switch snapshot.stateIdentifier {
+        case "repo-local-extra":
+            identifiers = [
+                "run-recap-share-artifact-sources.repo-local-extra",
+                "run-recap-share-artifact-sources.repo-local-extra.ids-\(fingerprint(snapshot.representativeRepoLocalExtraEntryIdentifiers.joined(separator: "|")))"
+            ]
+        case "active-missing-repo-local-available":
+            identifiers = [
+                "run-recap-share-artifact-sources.active-missing-repo-local-available"
+            ]
+        case "scan-warnings":
+            identifiers = [
+                "run-recap-share-artifact-sources.scan-warnings",
+                "run-recap-share-artifact-sources.scan-warnings.active-\(snapshot.activeWarningCount).repo-local-\(snapshot.repoLocalWarningCount)"
+            ]
+        default:
+            identifiers = []
+        }
+
+        var seen = Set<String>()
+        return identifiers.compactMap { identifier in
+            let boundedIdentifier = bounded(
+                identifier,
+                limit: CinematicVisualSmokeReport.warningIdentifierMaxCharacters
+            )
+            return seen.insert(boundedIdentifier).inserted ? boundedIdentifier : nil
+        }
+    }
+
+    private static func runRecapShareArtifactSourceReconciliationAttentionTargetID(
+        _ snapshot: CinematicDiagnosticsReport.RunRecapShareArtifactSourceReconciliationSnapshot
+    ) -> String {
+        bounded(
+            "run-recap-share-artifact-sources-\(snapshot.stateIdentifier)",
+            limit: CinematicVisualSmokeReport.warningIdentifierMaxCharacters
+        )
+    }
+
+    private static func runRecapShareArtifactSourceReconciliationAttentionLabel(
+        _ snapshot: CinematicDiagnosticsReport.RunRecapShareArtifactSourceReconciliationSnapshot
+    ) -> String {
+        switch snapshot.stateIdentifier {
+        case "repo-local-extra":
+            return "Repo-local has extras"
+        case "active-missing-repo-local-available":
+            return "Active source missing"
+        case "scan-warnings":
+            return "Artifact scan warning"
+        default:
+            return "Recap source warning"
+        }
+    }
+
+    private static func runRecapShareArtifactSourceReconciliationAttentionDetail(
+        _ snapshot: CinematicDiagnosticsReport.RunRecapShareArtifactSourceReconciliationSnapshot
+    ) -> String {
+        [
+            "state \(snapshot.stateIdentifier)",
+            "storage \(snapshot.activeStorageIdentifier)",
+            "activity-source \(bounded(snapshot.activitySourceIdentifier, limit: 36))",
+            "active total \(snapshot.activeTotalCount) repo-local total \(snapshot.repoLocalTotalCount)",
+            "active latest \(sourceReconciliationSessionLabel(snapshot.activeLatestSessionNumber)) repo-local latest \(sourceReconciliationSessionLabel(snapshot.repoLocalLatestSessionNumber))",
+            "warnings active \(snapshot.activeWarningCount) repo-local \(snapshot.repoLocalWarningCount)",
+            snapshot.representativeRepoLocalExtraEntryIdentifiers.isEmpty
+                ? "repo-local extra ids none"
+                : "repo-local extra ids \(bounded(snapshot.representativeRepoLocalExtraEntryIdentifiers.joined(separator: ","), limit: 72))"
+        ].joined(separator: " | ")
+    }
+
+    private static func runRecapShareArtifactSourceReconciliationAttentionCopyText(
+        label: String,
+        targetGroupID: String,
+        targetAnchorID: String,
+        visibleWarningIdentifiers: [String],
+        detail: String,
+        snapshot: CinematicDiagnosticsReport.RunRecapShareArtifactSourceReconciliationSnapshot,
+        relatedRow: Row?
+    ) -> String {
+        let warnings = visibleWarningIdentifiers.isEmpty
+            ? "none"
+            : visibleWarningIdentifiers.joined(separator: ", ")
+        let extraIdentifiers = snapshot.representativeRepoLocalExtraEntryIdentifiers.isEmpty
+            ? "none"
+            : snapshot.representativeRepoLocalExtraEntryIdentifiers.joined(separator: ", ")
+        var lines = [
+            "Cinematic diagnostics warning target",
+            "Label: \(bounded(label, limit: labelMaxCharacters))",
+            "Target anchor: \(bounded(targetAnchorID, limit: CinematicVisualSmokeReport.warningIdentifierMaxCharacters))",
+            "Target group: \(bounded(targetGroupID, limit: CinematicVisualSmokeReport.warningIdentifierMaxCharacters))",
+            "Warnings: \(bounded(warnings, limit: detailMaxCharacters))",
+            "Detail: \(bounded(detail, limit: 120))",
+            "Reconciliation state: \(snapshot.stateIdentifier)",
+            "Active total: \(snapshot.activeTotalCount) | Repo-local total: \(snapshot.repoLocalTotalCount)",
+            "Active latest session: \(sourceReconciliationSessionLabel(snapshot.activeLatestSessionNumber)) | Repo-local latest session: \(sourceReconciliationSessionLabel(snapshot.repoLocalLatestSessionNumber))",
+            "Warning counts: active \(snapshot.activeWarningCount), repo-local \(snapshot.repoLocalWarningCount)",
+            "Representative repo-local extra ids: \(bounded(extraIdentifiers, limit: 128))",
+            "Active sessions path: \(bounded(snapshot.activeSessionsDisplayText, limit: 72))",
+            "Repo-local sessions path: \(bounded(snapshot.repoLocalSessionsDisplayText, limit: 72))",
+            "Activity source: \(bounded(snapshot.activitySourceIdentifier, limit: 96))",
+            "Read-only: diagnostics capture only; no repair, migration, deletion, pin, hold, search, session, active-storage, or artifact-history mutation."
+        ]
+
+        if let relatedRow {
+            lines.append(
+                [
+                    "Related row:",
+                    bounded(relatedRow.id, limit: CinematicVisualSmokeReport.warningIdentifierMaxCharacters),
+                    "(\(bounded(relatedRow.label, limit: labelMaxCharacters)))"
+                ].joined(separator: " ")
+            )
+            lines.append(
+                "Related detail: \(bounded(relatedRow.detail, limit: 140))"
+            )
+        }
+
+        return boundedMultiline(
+            lines.joined(separator: "\n"),
+            limit: attentionTargetCopyMaxCharacters
+        )
+    }
+
+    private static func sourceReconciliationSessionLabel(_ sessionNumber: Int?) -> String {
+        sessionNumber.map { "S\($0)" } ?? "none"
+    }
+
+    private static func fingerprint(_ value: String) -> String {
+        var hash: UInt64 = 0xcbf29ce484222325
+        for byte in value.utf8 {
+            hash ^= UInt64(byte)
+            hash = hash &* 0x100000001b3
+        }
+        return String(format: "%016llx", hash)
     }
 
     private static func warningCheckAttentionTarget(

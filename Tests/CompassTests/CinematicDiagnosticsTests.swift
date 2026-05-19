@@ -1527,6 +1527,262 @@ final class CinematicDiagnosticsTests: XCTestCase {
         XCTAssertTrue(summary.exportText.contains("activity-source.repo-local.ignored-unreadable"))
     }
 
+    func testRunRecapSourceReconciliationAttentionTargetsActionableStatesAndExport() throws {
+        let activeHistory = diagnosticsSourceHistory(seed: "active", sessions: [20])
+        let actionableCases: [(CinematicRunRecapShareArtifactHistoryPlan, CinematicRunRecapShareArtifactSourceReconciliationPlan, String, String)] = [
+            (
+                activeHistory,
+                diagnosticsSourceReconciliation(
+                    active: activeHistory,
+                    repoLocal: diagnosticsSourceHistory(seed: "active", sessions: [21, 20])
+                ),
+                "repo-local-extra",
+                "Repo-local has extras"
+            ),
+            (
+                CinematicRunRecapShareArtifactHistoryPlan.unavailable(
+                    reason: "storage-root-missing",
+                    storageRootURL: URL(fileURLWithPath: "/tmp/source-attention/support/.compass"),
+                    sessionsURL: URL(fileURLWithPath: "/tmp/source-attention/support/.compass/sessions")
+                ),
+                diagnosticsSourceReconciliation(
+                    active: CinematicRunRecapShareArtifactHistoryPlan.unavailable(
+                        reason: "storage-root-missing",
+                        storageRootURL: URL(fileURLWithPath: "/tmp/source-attention/support/.compass"),
+                        sessionsURL: URL(fileURLWithPath: "/tmp/source-attention/support/.compass/sessions")
+                    ),
+                    repoLocal: diagnosticsSourceHistory(seed: "repo-local-available", sessions: [33])
+                ),
+                "active-missing-repo-local-available",
+                "Active source missing"
+            ),
+            (
+                diagnosticsSourceHistory(seed: "scan-active", sessions: [41]),
+                diagnosticsSourceReconciliation(
+                    active: diagnosticsSourceHistory(seed: "scan-active", sessions: [41]),
+                    repoLocal: diagnosticsSourceHistory(
+                        seed: "scan-warning",
+                        sessions: [],
+                        availabilityReason: "no-recap-share-artifacts",
+                        warnings: ["recap-share-artifact-history.warning.corrupt"]
+                    )
+                ),
+                "scan-warnings",
+                "Artifact scan warning"
+            )
+        ]
+
+        for (activeHistory, reconciliation, state, label) in actionableCases {
+            let report = makeReport(
+                CinematicDiagnosticsInput(
+                    repoName: "Compass",
+                    phase: "Developing",
+                    immediateTitle: "Surface recap source reconciliation warning",
+                    completedCount: 1,
+                    latestEvent: nil,
+                    languageProfile: languageProfile(primaryLanguage: .swift),
+                    activityProfile: activityProfile(recentCommitCount: 1),
+                    activitySourceSnapshot: diagnosticsSourceActivitySnapshot(),
+                    influenceSettings: CinematicInfluenceSettings(),
+                    runRecapShareArtifactHistoryPlan: activeHistory,
+                    runRecapShareArtifactSourceReconciliationPlan: reconciliation
+                )
+            )
+            let summary = CinematicDiagnosticsSummary(report: report)
+            let target = try XCTUnwrap(
+                summary.attentionSummary.targets.first {
+                    $0.targetAnchorID == "diagnostics-row-run-recap-share-artifact-sources"
+                },
+                state
+            )
+
+            XCTAssertEqual(target.targetGroupID, "repository-context", state)
+            XCTAssertEqual(target.relatedGroupID, "repository-context", state)
+            XCTAssertEqual(target.relatedRowID, "run-recap-share-artifact-sources", state)
+            XCTAssertEqual(target.label, label, state)
+            XCTAssertLessThanOrEqual(
+                target.detail.count,
+                CinematicDiagnosticsSummary.attentionSummaryDetailMaxCharacters,
+                state
+            )
+            XCTAssertLessThanOrEqual(
+                target.copyText.count,
+                CinematicDiagnosticsSummary.attentionTargetCopyMaxCharacters,
+                state
+            )
+            XCTAssertTrue(target.visibleWarningIdentifiers.first?.hasPrefix("run-recap-share-artifact-sources.\(state)") ?? false, state)
+            XCTAssertTrue(target.detail.contains("state \(state)"), state)
+            XCTAssertTrue(target.detail.contains("active total \(reconciliation.activeTotalCount)"), state)
+            XCTAssertTrue(target.detail.contains("repo-local total \(reconciliation.repoLocalTotalCount)"), state)
+            XCTAssertTrue(target.detail.contains("warnings active \(reconciliation.activeWarningCount) repo-local \(reconciliation.repoLocalWarningCount)"), state)
+            XCTAssertTrue(target.detail.contains("activity-source"), state)
+            XCTAssertTrue(target.copyText.contains("Cinematic diagnostics warning target"), state)
+            XCTAssertTrue(target.copyText.contains("Target anchor: diagnostics-row-run-recap-share-artifact-sources"), state)
+            XCTAssertTrue(target.copyText.contains("Reconciliation state: \(state)"), state)
+            XCTAssertTrue(target.copyText.contains("Active total: \(reconciliation.activeTotalCount)"), state)
+            XCTAssertTrue(target.copyText.contains("Repo-local total: \(reconciliation.repoLocalTotalCount)"), state)
+            XCTAssertTrue(target.copyText.contains("Warning counts: active \(reconciliation.activeWarningCount), repo-local \(reconciliation.repoLocalWarningCount)"), state)
+            XCTAssertTrue(target.copyText.contains("Active sessions path:"), state)
+            XCTAssertTrue(target.copyText.contains("Repo-local sessions path:"), state)
+            XCTAssertTrue(target.copyText.contains("Activity source:"), state)
+            XCTAssertTrue(target.copyText.contains("Related row: run-recap-share-artifact-sources"), state)
+            XCTAssertTrue(target.copyText.contains("Related detail:"), state)
+            XCTAssertTrue(target.copyText.contains("Read-only: diagnostics capture only"), state)
+            XCTAssertFalse(target.copyText.contains("Cinematic Diagnostics\nReport:"), state)
+
+            if state == "repo-local-extra" {
+                XCTAssertTrue(target.detail.contains("repo-local extra ids"), state)
+                XCTAssertTrue(target.copyText.contains("Representative repo-local extra ids: artifact-active-session:21"), state)
+            }
+
+            XCTAssertTrue(summary.exportText.contains("Warning summary"), state)
+            XCTAssertTrue(summary.exportText.contains("\(label) -> \(target.id)"), state)
+            XCTAssertTrue(summary.exportText.contains("anchor diagnostics-row-run-recap-share-artifact-sources"), state)
+            XCTAssertTrue(summary.exportText.contains("related run-recap-share-artifact-sources"), state)
+            XCTAssertTrue(summary.exportText.contains(target.visibleWarningIdentifiers[0]), state)
+            XCTAssertEqual(summary.relatedRow(for: CinematicVisualSmokeReport.Check.WarningTarget(
+                id: target.id,
+                targetGroupID: target.targetGroupID,
+                targetAnchorID: target.targetAnchorID,
+                relatedGroupID: target.relatedGroupID,
+                relatedRowID: target.relatedRowID,
+                label: target.label,
+                detail: target.detail
+            ))?.id, "run-recap-share-artifact-sources", state)
+        }
+    }
+
+    func testRunRecapSourceReconciliationAttentionOrdersAfterActivitySourceAndFeedsWarningHistory() throws {
+        let activitySource = diagnosticsSourceActivitySnapshot(
+            availability: .sessionsRecordMissing,
+            repoLocalState: .ignoredMissing
+        )
+        let activeHistory = diagnosticsSourceHistory(seed: "ordered-active", sessions: [20])
+        let reconciliation = diagnosticsSourceReconciliation(
+            active: activeHistory,
+            repoLocal: diagnosticsSourceHistory(seed: "ordered-active", sessions: [21, 20]),
+            activitySource: activitySource
+        )
+        let report = makeReport(
+            CinematicDiagnosticsInput(
+                repoName: "Compass",
+                phase: "Developing",
+                immediateTitle: "Order recap source reconciliation warnings",
+                completedCount: 1,
+                latestEvent: nil,
+                languageProfile: languageProfile(primaryLanguage: .swift),
+                activityProfile: activityProfile(recentCommitCount: 1),
+                activitySourceSnapshot: activitySource,
+                influenceSettings: CinematicInfluenceSettings(),
+                runRecapShareArtifactHistoryPlan: activeHistory,
+                runRecapShareArtifactSourceReconciliationPlan: reconciliation
+            )
+        )
+        let summary = CinematicDiagnosticsSummary(report: report)
+
+        XCTAssertEqual(
+            Array(summary.attentionSummary.targets.prefix(2).map(\.targetAnchorID)),
+            [
+                "diagnostics-row-activity-source",
+                "diagnostics-row-run-recap-share-artifact-sources"
+            ]
+        )
+        let sourceTarget = try XCTUnwrap(
+            summary.attentionSummary.targets.first {
+                $0.targetAnchorID == "diagnostics-row-run-recap-share-artifact-sources"
+            }
+        )
+        XCTAssertEqual(sourceTarget.visibleWarningIdentifiers.first, "run-recap-share-artifact-sources.repo-local-extra")
+
+        var history = CinematicDiagnosticsWarningBundleHistory()
+        history.record(summary.attentionSummary)
+        let entry = try XCTUnwrap(history.entries.first)
+
+        XCTAssertEqual(
+            Array(entry.targetAnchors.prefix(2)),
+            [
+                "diagnostics-row-activity-source",
+                "diagnostics-row-run-recap-share-artifact-sources"
+            ]
+        )
+        XCTAssertTrue(entry.warningIdentifiers.contains("activity-source.source.sessions-record-missing"))
+        XCTAssertTrue(entry.warningIdentifiers.contains("run-recap-share-artifact-sources.repo-local-extra"))
+        XCTAssertTrue(entry.relatedRowAnchors.contains("diagnostics-row-run-recap-share-artifact-sources"))
+        XCTAssertTrue(history.rollup.copyText.contains("diagnostics-row-run-recap-share-artifact-sources"))
+        XCTAssertTrue(history.rollup.copyText.contains("run-recap-share-artifact-sources.repo-local-extra"))
+        XCTAssertLessThanOrEqual(
+            history.rollup.copyText.count,
+            CinematicDiagnosticsWarningBundleHistory.copyTextMaxCharacters
+        )
+    }
+
+    func testRunRecapSourceReconciliationAttentionIgnoresQuietStates() {
+        let activeOnly = CinematicRunRecapShareArtifactSourceReconciliationPlanner.plan(
+            activeHistoryPlan: diagnosticsSourceHistory(seed: "repo-local-active", sessions: [4]),
+            activitySourceSnapshot: .notScanned(activeStorage: .repoLocal)
+        )
+        let sharedHistory = diagnosticsSourceHistory(seed: "compatible", sessions: [11])
+        let compatible = diagnosticsSourceReconciliation(
+            active: sharedHistory,
+            repoLocal: sharedHistory
+        )
+        let repoLocalMissing = diagnosticsSourceReconciliation(
+            active: diagnosticsSourceHistory(seed: "missing-repo-local", sessions: [12]),
+            repoLocal: nil
+        )
+        let cases: [(CinematicRunRecapShareArtifactHistoryPlan, CinematicRunRecapShareArtifactSourceReconciliationPlan, RepositoryActivitySourceSnapshot)] = [
+            (
+                diagnosticsSourceHistory(seed: "repo-local-active", sessions: [4]),
+                activeOnly,
+                .notScanned(activeStorage: .repoLocal)
+            ),
+            (
+                sharedHistory,
+                compatible,
+                diagnosticsSourceActivitySnapshot()
+            ),
+            (
+                diagnosticsSourceHistory(seed: "missing-repo-local", sessions: [12]),
+                repoLocalMissing,
+                diagnosticsSourceActivitySnapshot(repoLocalState: .ignoredMissing)
+            )
+        ]
+
+        for (activeHistory, reconciliation, activitySource) in cases {
+            let report = makeReport(
+                CinematicDiagnosticsInput(
+                    repoName: "Compass",
+                    phase: "Developing",
+                    immediateTitle: "Keep quiet recap source states out of warnings",
+                    completedCount: 1,
+                    latestEvent: nil,
+                    languageProfile: languageProfile(primaryLanguage: .swift),
+                    activityProfile: activityProfile(recentCommitCount: 1),
+                    activitySourceSnapshot: activitySource,
+                    influenceSettings: CinematicInfluenceSettings(),
+                    runRecapShareArtifactHistoryPlan: activeHistory,
+                    runRecapShareArtifactSourceReconciliationPlan: reconciliation
+                )
+            )
+            let summary = CinematicDiagnosticsSummary(report: report)
+
+            XCTAssertFalse(
+                summary.attentionSummary.targets.contains {
+                    $0.targetAnchorID == "diagnostics-row-run-recap-share-artifact-sources"
+                },
+                reconciliation.stateIdentifier
+            )
+            XCTAssertFalse(
+                summary.exportText.contains("-> run-recap-share-artifact-sources"),
+                reconciliation.stateIdentifier
+            )
+            XCTAssertFalse(
+                summary.exportText.contains("run-recap-share-artifact-sources.\(reconciliation.stateIdentifier)"),
+                reconciliation.stateIdentifier
+            )
+        }
+    }
+
     func testPlanCompassRowsCorrelateWithDiagnosticsExport() throws {
         let state = PlanState(
             completed: [
@@ -3882,6 +4138,87 @@ final class CinematicDiagnosticsTests: XCTestCase {
             warningCount: warnings.count,
             visibleWarningIdentifiers: warnings,
             copyText: "copy \(suffix)"
+        )
+    }
+
+    private func diagnosticsSourceReconciliation(
+        active activeHistory: CinematicRunRecapShareArtifactHistoryPlan,
+        repoLocal repoLocalHistory: CinematicRunRecapShareArtifactHistoryPlan?,
+        activitySource: RepositoryActivitySourceSnapshot? = nil
+    ) -> CinematicRunRecapShareArtifactSourceReconciliationPlan {
+        CinematicRunRecapShareArtifactSourceReconciliationPlanner.plan(
+            activeHistoryPlan: activeHistory,
+            repoLocalHistoryPlan: repoLocalHistory,
+            activitySourceSnapshot: activitySource ?? diagnosticsSourceActivitySnapshot()
+        )
+    }
+
+    private func diagnosticsSourceActivitySnapshot(
+        availability: RepositoryActivitySourceSnapshot.SourceAvailability = .available,
+        repoLocalState: RepositoryActivitySourceSnapshot.RepoLocalSessionsState = .ignoredCompatible
+    ) -> RepositoryActivitySourceSnapshot {
+        let repoURL = URL(fileURLWithPath: "/tmp/CompassRecapSourceAttention", isDirectory: true)
+        let supportRoot = repoURL
+            .appending(path: "Application Support", directoryHint: .isDirectory)
+            .appending(path: "Compass", directoryHint: .isDirectory)
+        return RepositoryActivitySourceSnapshot(
+            activeStorage: .applicationSupport,
+            storageRootURL: supportRoot,
+            sessionsRecordURL: supportRoot.appending(path: "sessions.json"),
+            sourceAvailability: availability,
+            repoLocalSessionsRecordURL: repoURL
+                .appending(path: ".compass", directoryHint: .isDirectory)
+                .appending(path: "sessions.json"),
+            repoLocalSessionsState: repoLocalState
+        )
+    }
+
+    private func diagnosticsSourceHistory(
+        seed: String,
+        sessions: [Int],
+        availabilityReason: String = "available",
+        warnings: [String] = []
+    ) -> CinematicRunRecapShareArtifactHistoryPlan {
+        let entries = sessions.map { session in
+            CinematicRunRecapShareArtifactHistoryPlan.Entry(
+                identifier: "artifact-\(seed)-session:\(session)",
+                sessionNumber: session,
+                filename: "\(session)-recap-share-\(seed).md",
+                url: URL(fileURLWithPath: "/tmp/\(seed)/.compass/sessions/\(session)-recap-share-\(seed).md"),
+                pathDisplayText: "/tmp/\(seed)/.compass/sessions/\(session)-recap-share-\(seed).md",
+                titleSnippet: "Recap \(session)",
+                statusSnippet: "succeeded",
+                commitSnippet: "Commit \(session)",
+                markdownContents: "# Compass Run Recap Share\n\n- Session: \(session)\n",
+                markdownLength: 45
+            )
+        }
+        let warningPlans = warnings.enumerated().map { index, identifier in
+            CinematicRunRecapShareArtifactHistoryPlan.Warning(
+                identifier: identifier,
+                fileDisplayText: "/tmp/\(seed)/warning-\(index).md",
+                message: "Warning \(index)"
+            )
+        }
+
+        return CinematicRunRecapShareArtifactHistoryPlan(
+            identifier: "history-\(seed)-sessions:\(sessions.map(String.init).joined(separator: ","))-warnings:\(warnings.count)",
+            isAvailable: !entries.isEmpty && availabilityReason == "available",
+            availabilityReason: entries.isEmpty ? availabilityReason : availabilityReason,
+            storageRootDisplayText: "/tmp/\(seed)/.compass",
+            sessionsDisplayText: "/tmp/\(seed)/.compass/sessions",
+            retentionLimit: CinematicRunRecapShareArtifactHistoryPlan.retentionLimit,
+            entries: entries,
+            totalCount: entries.count,
+            hiddenCount: 0,
+            cleanupCandidateCount: 0,
+            hiddenCleanupCandidateCount: 0,
+            cleanupCandidateIdentifiers: [],
+            warnings: warningPlans,
+            warningCount: warningPlans.count,
+            hiddenWarningCount: 0,
+            exportIdentifier: "export-\(seed)",
+            combinedMarkdownExport: "export \(seed)"
         )
     }
 }
