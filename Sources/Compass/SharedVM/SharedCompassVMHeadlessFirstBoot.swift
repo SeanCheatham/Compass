@@ -315,16 +315,175 @@ enum SharedCompassVMHeadlessFirstBoot {
         fi
         PASSWORD="$(cat "$PASSWORD_FILE")"
 
-        echo "[compass-firstboot] [1/6] Creating user $GUEST_USER"
-        if /usr/bin/dscl . -read "/Users/$GUEST_USER" >/dev/null 2>&1; then
+        echo "[compass-firstboot] [1/6] Creating user $GUEST_USER via dscl"
+
+        # On a first-boot system with `.AppleSetupDone` bypassed,
+        # opendirectoryd may not have fully initialized the local
+        # Default node when this LaunchDaemon fires. dscl operations
+        # issued before then silently exit 0 yet never persist to
+        # /var/db/dslocal — leaving the guest with no local user
+        # records and the login window stuck on an empty user list.
+        # Wait until dscl can see the Default node and enumerate
+        # /Users before attempting any writes.
+        echo "  Waiting for opendirectoryd readiness (max 30s)..."
+        opendirectoryd_ready=0
+        for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30; do
+          if /usr/bin/dscl . -list / >/dev/null 2>&1 \
+             && /usr/bin/dscl . -list /Users >/dev/null 2>&1; then
+            opendirectoryd_ready=1
+            echo "  opendirectoryd ready after ${i}s"
+            break
+          fi
+          sleep 1
+        done
+        if [ "$opendirectoryd_ready" -ne 1 ]; then
+          echo "  opendirectoryd not responsive after 30s; bootstrapping explicitly"
+          /bin/launchctl bootstrap system /System/Library/LaunchDaemons/com.apple.opendirectoryd.plist 2>&1 || true
+          /bin/launchctl kickstart -k system/com.apple.opendirectoryd 2>&1 || true
+          sleep 5
+        fi
+
+        if /usr/bin/dscl . -read "/Users/$GUEST_USER" UniqueID >/dev/null 2>&1; then
           echo "  user already exists; skipping create"
         else
-          /usr/sbin/sysadminctl \\
-            -addUser "$GUEST_USER" \\
-            -fullName "$GUEST_FULL_NAME" \\
-            -password "$PASSWORD" \\
-            -admin
+          # We deliberately avoid `sysadminctl -addUser` here. On Apple
+          # Silicon, sysadminctl tries to set up a Secure Token for the
+          # first admin via Keybag, which is not reachable from a
+          # LaunchDaemon at first boot — it fails mid-record with
+          # `### Error:-14120 ... DSRecord.m:418` (eDSReceiveFailed),
+          # leaving the dslocal record half-initialized so LoginWindow
+          # cannot see the user. We don't need Secure Token for our use
+          # case (SSH + sudo + codex; no FileVault), so we plant the
+          # record directly via dscl and only set the admin group
+          # membership separately.
+          NEXT_UID=501
+          while /usr/bin/dscl . -list /Users UniqueID 2>/dev/null | awk '{print $2}' | grep -qx "$NEXT_UID"; do
+            NEXT_UID=$((NEXT_UID + 1))
+          done
+          echo "  Creating $GUEST_USER with UID $NEXT_UID"
+          /usr/bin/dscl . -create "/Users/$GUEST_USER"
+          /usr/bin/dscl . -create "/Users/$GUEST_USER" RealName "$GUEST_FULL_NAME"
+          /usr/bin/dscl . -create "/Users/$GUEST_USER" UniqueID "$NEXT_UID"
+          /usr/bin/dscl . -create "/Users/$GUEST_USER" PrimaryGroupID 20
+          /usr/bin/dscl . -create "/Users/$GUEST_USER" UserShell /bin/zsh
+          /usr/bin/dscl . -create "/Users/$GUEST_USER" NFSHomeDirectory "/Users/$GUEST_USER"
+          /usr/bin/dscl . -passwd "/Users/$GUEST_USER" "$PASSWORD"
+          /usr/sbin/dseditgroup -o edit -a "$GUEST_USER" -t user admin
+
+          # Verify the user actually persisted to disk, not just to
+          # opendirectoryd's in-memory state. If opendirectoryd is in
+          # a degraded mode (e.g. the on-disk Default node never got
+          # initialized) dscl returns 0 but writes nothing — the
+          # earlier headless-firstboot bug that left the guest with
+          # no users on disk despite the script reporting success.
+          echo "  Verifying dscl persisted user to disk..."
+          if ! /usr/bin/dscl . -read "/Users/$GUEST_USER" UniqueID >/dev/null 2>&1; then
+            echo "  FATAL: dscl said create succeeded but read fails"
+            echo "  dslocal /Users dump:"
+            /usr/bin/dscl . -list /Users 2>&1 || true
+            exit 1
+          fi
+          DSLOCAL_PLIST="/var/db/dslocal/nodes/Default/users/$GUEST_USER.plist"
+          # Give opendirectoryd a beat to flush before checking disk.
+          sleep 1
+          if [ ! -f "$DSLOCAL_PLIST" ]; then
+            echo "  $DSLOCAL_PLIST missing; restarting opendirectoryd to force flush"
+            /bin/launchctl kickstart -k system/com.apple.opendirectoryd 2>&1 || true
+            sleep 3
+          fi
+          if [ ! -f "$DSLOCAL_PLIST" ]; then
+            echo "  FATAL: dslocal plist never appeared on disk"
+            echo "  /var/db/dslocal/nodes/Default/users:"
+            ls -la /var/db/dslocal/nodes/Default/users/ 2>&1 || echo "  (directory missing)"
+            echo "  /var/db/dslocal/nodes/Default:"
+            ls -la /var/db/dslocal/nodes/Default/ 2>&1 || echo "  (directory missing)"
+            echo "  /var/db/dslocal:"
+            ls -la /var/db/dslocal/ 2>&1 || echo "  (directory missing)"
+            echo "  launchctl opendirectoryd status:"
+            /bin/launchctl print system/com.apple.opendirectoryd 2>&1 | head -40 || true
+            exit 1
+          fi
+          echo "  Confirmed: $DSLOCAL_PLIST exists on disk"
+
+          # createhomedir does not always succeed cleanly on first boot
+          # (the user directory in /Users may already exist as a stub).
+          # Fall back to mkdir + chown so the home tree is at least
+          # owned correctly even when createhomedir bails. Capture
+          # output to the log instead of silencing it — useful for
+          # diagnosing future failures.
+          if ! /usr/sbin/createhomedir -c -u "$GUEST_USER" 2>&1; then
+            echo "  createhomedir failed; falling back to mkdir + chown"
+            mkdir -p "/Users/$GUEST_USER"
+            chown "$GUEST_USER:staff" "/Users/$GUEST_USER"
+          fi
         fi
+
+        # Ventura+ macOS gates SSH on membership in
+        # com.apple.access_ssh — admin membership alone is not enough.
+        # The group is auto-created the first time Remote Login is
+        # turned on in System Settings; from a LaunchDaemon we cannot
+        # rely on that, so we create-or-edit the group and add the
+        # guest user. Belt-and-suspenders also adds the user to
+        # com.apple.access_ssh-disabled removal (no-op if absent).
+        echo "  Granting $GUEST_USER SSH access (com.apple.access_ssh)"
+        /usr/sbin/dseditgroup -o create -q com.apple.access_ssh 2>&1 || true
+        /usr/sbin/dseditgroup -o edit -a "$GUEST_USER" -t user com.apple.access_ssh 2>&1 \
+          || echo "  (access group add failed; SSH may still work if 'All users' policy is in effect)"
+
+        # Flush dscache and HUP opendirectoryd so loginwindow / sshd
+        # observe the freshly-added user and group membership without
+        # waiting for cache TTLs to expire.
+        /usr/bin/dscacheutil -flushcache 2>&1 || true
+        /usr/bin/killall -HUP opendirectoryd 2>&1 || true
+
+        # Auto-login the guest user so the VM view shows a desktop
+        # instead of an empty username/password prompt. Compass drives
+        # the guest entirely through SSH, so the graphical login window
+        # is purely cosmetic — but seeing it boot to a desktop is a
+        # cleaner first impression and means VNC-style takeover (a
+        # future Compass feature) doesn't need to deal with auth first.
+        #
+        # macOS auto-login needs two artifacts:
+        #   1. /etc/kcpassword: the user's password XOR-obfuscated with
+        #      Apple's well-known 11-byte key, NUL-padded to a multiple
+        #      of 12 bytes. Mode 0600 root:wheel.
+        #   2. autoLoginUser in /Library/Preferences/com.apple.loginwindow.
+        #
+        # Threat-model note: kcpassword is obfuscation, not encryption.
+        # An attacker with root inside the guest can recover the password.
+        # That's fine here because (a) the password is randomly generated
+        # per-VM and stored only in the host's Keychain, (b) compass
+        # already has NOPASSWD sudo, so root-in-guest already implies
+        # password-equivalent access, and (c) the guest is a sandbox
+        # that runs untrusted Codex code — by design.
+        #
+        # Python isn't installed on a fresh macOS, but Perl is, so we
+        # compute the kcpassword bytes in Perl. PASSWORD is passed via
+        # env var to avoid exposure on the process command line / ps.
+        echo "  Setting up auto-login for $GUEST_USER"
+        PASSWORD="$PASSWORD" /usr/bin/perl -e '
+        my $key = pack("H*", "7D895223D2BCDDEAA3B91F");
+        my $pw = $ENV{PASSWORD};
+        # Pad to the next multiple of 12 with NULs. If the password is
+        # already a multiple of 12 bytes, pad with 12 NULs anyway —
+        # Apple unconditionally appends a padding block.
+        my $pad_len = 12 - (length($pw) % 12);
+        $pw .= "\\x00" x $pad_len;
+        my $out = "";
+        for (my $i = 0; $i < length($pw); $i++) {
+            $out .= chr(ord(substr($pw, $i, 1)) ^ ord(substr($key, $i % 11, 1)));
+        }
+        print $out;
+        ' > /etc/kcpassword
+        /usr/sbin/chown root:wheel /etc/kcpassword
+        /bin/chmod 600 /etc/kcpassword
+        /usr/bin/defaults write /Library/Preferences/com.apple.loginwindow autoLoginUser "$GUEST_USER" 2>&1 || true
+        /usr/sbin/chown root:wheel /Library/Preferences/com.apple.loginwindow.plist 2>&1 || true
+        /bin/chmod 644 /Library/Preferences/com.apple.loginwindow.plist 2>&1 || true
+        # loginwindow caches the auto-login config at startup. Restart
+        # it so the change takes effect on this boot (not just the next
+        # one). No-one is logged in yet so the kill is non-disruptive.
+        /usr/bin/killall loginwindow 2>&1 || true
 
         echo "[compass-firstboot] [2/6] Authorising Compass SSH public key"
         GUEST_HOME="/Users/$GUEST_USER"
@@ -338,7 +497,59 @@ enum SharedCompassVMHeadlessFirstBoot {
         chown -R "$GUEST_USER":staff "$GUEST_HOME/.ssh"
 
         echo "[compass-firstboot] [3/6] Enabling Remote Login (sshd)"
-        /usr/sbin/systemsetup -setremotelogin on >/dev/null
+        # `systemsetup -setremotelogin on` blocks on an interactive
+        # yes/no prompt; with no stdin in a LaunchDaemon it hangs and
+        # never returns. Pipe `yes` in to bypass. On modern macOS the
+        # command often refuses outright (privacy / MDM) so we also
+        # drive launchctl directly. `launchctl load -w` is deprecated
+        # on Sonoma+ and tends to silently no-op; the modern path is
+        # `launchctl enable` + `launchctl bootstrap system <plist>`,
+        # then `kickstart -k` to force-start. All steps are wrapped in
+        # `|| true` so a no-op on one path doesn't abort the script —
+        # we verify success below by probing the listening port.
+        echo "yes" | /usr/sbin/systemsetup -setremotelogin on >/dev/null 2>&1 || true
+        /bin/launchctl enable system/com.openssh.sshd 2>&1 || true
+        /bin/launchctl bootstrap system /System/Library/LaunchDaemons/ssh.plist 2>&1 || true
+        # `load -w` as a final compatibility fallback for older majors.
+        /bin/launchctl load -w /System/Library/LaunchDaemons/ssh.plist 2>&1 || true
+        # Force-start in case the service is enabled but not running.
+        /bin/launchctl kickstart -k system/com.openssh.sshd 2>&1 || true
+        # Verify sshd is actually listening before declaring success —
+        # otherwise the host's post-boot SSH probe times out and we
+        # land at `Finishing macOS setup` indefinitely.
+        sshd_up=0
+        for _ in 1 2 3 4 5 6 7 8 9 10; do
+          if /usr/bin/nc -z -G 1 127.0.0.1 22 >/dev/null 2>&1; then
+            sshd_up=1
+            break
+          fi
+          sleep 1
+        done
+        if [ "$sshd_up" -eq 1 ]; then
+          echo "  sshd is listening on 127.0.0.1:22"
+        else
+          echo "  WARNING: sshd did not come up within 10s; host SSH probe will fail"
+        fi
+
+        # Diagnostic dump so the next dump-firstboot-log run shows
+        # everything we'd need to debug a failing host-side SSH probe
+        # without rebooting the VM or shelling in by other means.
+        echo "  --- sshd diagnostic snapshot ---"
+        echo "  systemsetup remotelogin: $(/usr/sbin/systemsetup -getremotelogin 2>&1 || true)"
+        echo "  $GUEST_USER in admin?           $(/usr/sbin/dseditgroup -o checkmember -m \"$GUEST_USER\" admin 2>&1 || true)"
+        echo "  $GUEST_USER in access_ssh?      $(/usr/sbin/dseditgroup -o checkmember -m \"$GUEST_USER\" com.apple.access_ssh 2>&1 || true)"
+        echo "  $GUEST_USER UniqueID resolves:  $(/usr/bin/dscl . -read \"/Users/$GUEST_USER\" UniqueID 2>&1 || true)"
+        echo "  authorized_keys listing:"
+        /bin/ls -la "$GUEST_HOME/.ssh/authorized_keys" 2>&1 || true
+        echo "  authorized_keys first line:"
+        /usr/bin/head -1 "$GUEST_HOME/.ssh/authorized_keys" 2>&1 || true
+        echo "  sshd_config auth/access lines:"
+        /usr/bin/grep -E '^(PubkeyAuthentication|PasswordAuthentication|PermitRootLogin|AllowUsers|AllowGroups|Match)' /etc/ssh/sshd_config 2>&1 || true
+        echo "  netstat sshd listeners:"
+        /usr/sbin/netstat -an -p tcp 2>&1 | /usr/bin/grep '\\.22 ' || true
+        echo "  primary interface address:"
+        /sbin/ifconfig en0 2>&1 | /usr/bin/grep 'inet ' || true
+        echo "  --- end sshd snapshot ---"
 
         echo "[compass-firstboot] [4/6] Creating /opt/compass/workspaces symlink"
         SHARE_ROOT="/Volumes/My Shared Files/compass-workspaces"
@@ -355,10 +566,54 @@ enum SharedCompassVMHeadlessFirstBoot {
         ln -s "$SHARE_ROOT" /opt/compass/workspaces
 
         echo "[compass-firstboot] [5/6] Installing codex into /usr/local/bin"
+        # /usr/local/bin doesn't exist on a fresh macOS install — install(1)
+        # creates a temp file in the destination dir before atomically
+        # renaming, and that temp-create fails with "No such file or
+        # directory" if the parent is missing. Create it explicitly.
+        # Codex install is otherwise best-effort: if it fails for any
+        # reason we MUST NOT abort the script, because step 6 below
+        # (LaunchDaemon self-removal + completion marker) is what stops
+        # the daemon re-firing on every subsequent boot.
         if [ -x "$CODEX" ]; then
-          install -m 755 "$CODEX" /usr/local/bin/codex
+          mkdir -p /usr/local/bin
+          if ! install -m 755 "$CODEX" /usr/local/bin/codex; then
+            echo "  warning: codex install failed; install one inside the guest manually."
+          fi
         else
           echo "  codex binary not staged; install one inside the guest manually."
+        fi
+
+        # macOS sshd runs commands via the user's login shell in
+        # NON-interactive, NON-login mode (e.g. `zsh -c "command"`).
+        # That path skips `/etc/zprofile`, which is where path_helper
+        # — and therefore `/usr/local/bin` (where we just installed
+        # codex) — would normally get onto PATH. The result is that
+        # `ssh compass@host command -v codex` exits 1 with no stderr
+        # and Compass reports "Could not determine codex auth state."
+        # Plant a `~/.zshenv`, which IS sourced for every zsh
+        # invocation including non-interactive ones, so PATH is set
+        # up consistently for SSH commands, interactive logins, and
+        # codex's own subshells.
+        echo "  Planting ~/.zshenv with path_helper for $GUEST_USER"
+        ZSHENV="$GUEST_HOME/.zshenv"
+        # Single-quoted echo lines so `$(...)` and `$PATH` reach the
+        # file literally (to be evaluated by zsh when sourced), rather
+        # than getting expanded here at plant time. The `compass:path_helper`
+        # sentinel makes the planting idempotent across reboots.
+        if [ ! -f "$ZSHENV" ] || ! /usr/bin/grep -q "compass:path_helper" "$ZSHENV" 2>/dev/null; then
+          {
+            echo '# compass:path_helper — planted by Compass headless first-boot.'
+            echo '# Without this, non-interactive SSH commands (`ssh user@host command`)'
+            echo '# run with PATH=/usr/bin:/bin:/usr/sbin:/sbin and cannot find /usr/local/bin'
+            echo '# binaries (codex, brew-installed tools, etc.).'
+            echo 'if [ -x /usr/libexec/path_helper ]; then'
+            echo '  eval "$(/usr/libexec/path_helper -s)"'
+            echo 'else'
+            echo '  export PATH="/usr/local/bin:$PATH"'
+            echo 'fi'
+          } >> "$ZSHENV"
+          chown "$GUEST_USER:staff" "$ZSHENV"
+          chmod 644 "$ZSHENV"
         fi
 
         echo "[compass-firstboot] [6/6] Sealing sudoers + cleaning up"
