@@ -331,6 +331,7 @@ final class CodexExecutor {
 
         let provisionTask = Task.detached {
             try await MainActor.run { host }.provisionIfNeeded()
+            try await MainActor.run { host }.start()
         }
         defer { provisionTask.cancel() }
 

@@ -55,6 +55,11 @@ final class SharedCompassVM: ObservableObject {
     /// each construct their own `VZVirtualMachine`.
     private var startInFlight: Task<Void, Error>?
 
+    /// Serializes restore-image installation. `VZMacOSInstaller` mutates the
+    /// bundle's disk image, auxiliary storage, and platform identity files; only
+    /// one caller may touch that state at a time.
+    private var provisionInFlight: Task<Void, Error>?
+
     // MARK: - Shared singleton
 
     /// Process-wide host instance. AppModel binds to this so the launch-plan
@@ -186,6 +191,21 @@ final class SharedCompassVM: ObservableObject {
     /// Pumps progress into `readiness`. Idempotent against re-invocation if
     /// install completed previously.
     func provisionIfNeeded(localIPSWURL: URL? = nil) async throws {
+        if let existing = provisionInFlight {
+            try await existing.value
+            return
+        }
+
+        let task = Task { [weak self] () throws -> Void in
+            guard let self else { return }
+            try await self.performProvisionIfNeeded(localIPSWURL: localIPSWURL)
+        }
+        provisionInFlight = task
+        defer { provisionInFlight = nil }
+        try await task.value
+    }
+
+    private func performProvisionIfNeeded(localIPSWURL: URL? = nil) async throws {
         if let reason = fallbackUnavailableReason {
             readiness = .unavailable(reason: reason)
             return
@@ -269,6 +289,30 @@ final class SharedCompassVM: ObservableObject {
         readiness = .firstBootPending
     }
 
+    /// Removes a failed or stale install so the next provisioning attempt starts
+    /// from a clean disk/auxiliary-storage/platform set. The IPSW cache and
+    /// Compass SSH keypair are preserved.
+    func resetProvisioningArtifacts() async throws {
+        if let existing = provisionInFlight {
+            try await existing.value
+        }
+        await stop()
+        try bundle.resetInstalledArtifacts(fileManager: dependencies.fileManager)
+        persistedState = try? bundle.loadState(fileManager: dependencies.fileManager)
+        lastResolvedSSHDestination = nil
+        setupFailureMessage = nil
+        readiness = .notProvisioned
+    }
+
+    /// Destructive recovery path for failed installs: clear partial artifacts,
+    /// then provision and boot using either the supplied local IPSW or the
+    /// standard catalog/download path.
+    func rebuild(localIPSWURL: URL? = nil) async throws {
+        try await resetProvisioningArtifacts()
+        try await provisionIfNeeded(localIPSWURL: localIPSWURL)
+        try await start()
+    }
+
     /// Re-materializes the first-boot script + public key + codex copy.
     /// Safe to call at any time; the script is idempotent so callers can
     /// re-invoke when the user changes the codex binary or after a fresh
@@ -306,7 +350,12 @@ final class SharedCompassVM: ObservableObject {
         }
         startInFlight = task
         defer { startInFlight = nil }
-        try await task.value
+        do {
+            try await task.value
+        } catch {
+            readiness = .error(detail: SharedCompassVMAvailabilityCheck.describeVerbose(error: error))
+            throw error
+        }
     }
 
     private func performStart() async throws {
@@ -600,8 +649,8 @@ final class SharedCompassVM: ObservableObject {
     /// Per Apple's docs / sample (see `Running Linux in a Virtual Machine`):
     /// `fileHandleForReading` is what VZ reads from (host→guest input) and
     /// `fileHandleForWriting` is what VZ writes guest output to. To capture
-    /// guest output we pass `nullDevice` for the read side and the write end
-    /// of our pipe for the write side, then read from the matching read end.
+    /// guest output only, leave the read side nil and pass the write end of
+    /// our pipe for the write side, then read from the matching read end.
     ///
     /// IP discovery itself runs host-side via dhcpd_leases / `arp -an`
     /// keyed on the guest's pinned MAC (`SharedCompassVMGuestIPDiscovery`),
@@ -611,7 +660,7 @@ final class SharedCompassVM: ObservableObject {
     private func attachConsolePipe(to configuration: VZVirtualMachineConfiguration) {
         let pipe = Pipe()
         let attachment = VZFileHandleSerialPortAttachment(
-            fileHandleForReading: FileHandle.nullDevice,
+            fileHandleForReading: nil,
             fileHandleForWriting: pipe.fileHandleForWriting
         )
         do {

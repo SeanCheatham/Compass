@@ -142,6 +142,61 @@ final class SharedCompassVMBundleTests: XCTestCase {
         XCTAssertTrue(bundle.existsOnDisk())
     }
 
+    func testResetInstalledArtifactsRemovesInstallStateButPreservesCacheAndSSHKeys() throws {
+        let bundle = makeBundle()
+        try bundle.ensureExists()
+        let cachedRestoreImage = bundle.restoreImageURL(forVersion: "26.0.1")
+
+        let filesToCreate = [
+            bundle.diskImageURL,
+            bundle.auxiliaryStorageURL,
+            bundle.hardwareModelURL,
+            bundle.machineIdentifierURL,
+            bundle.knownHostsURL,
+            bundle.privateKeyURL,
+            bundle.publicKeyURL,
+            cachedRestoreImage
+        ]
+        for url in filesToCreate {
+            try Data(url.lastPathComponent.utf8).write(to: url)
+        }
+        try FileManager.default.createDirectory(at: bundle.codexCredentialsStashURL, withIntermediateDirectories: true)
+        try Data("creds".utf8).write(to: bundle.codexCredentialsStashURL.appendingPathComponent("auth.json"))
+
+        try bundle.saveState(SharedCompassVMBundle.State(
+            provisionStep: .installing,
+            lastKnownGoodIP: "192.168.64.9",
+            guestUserName: "compass",
+            guestOSVersion: "26.0",
+            codexLoginCompleted: true,
+            bootAttemptCounter: 3,
+            lastBundleSize: 12_345,
+            guestMACAddress: "02:11:22:33:44:55"
+        ))
+
+        try bundle.resetInstalledArtifacts()
+
+        XCTAssertFalse(FileManager.default.fileExists(atPath: bundle.diskImageURL.path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: bundle.auxiliaryStorageURL.path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: bundle.hardwareModelURL.path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: bundle.machineIdentifierURL.path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: bundle.knownHostsURL.path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: bundle.codexCredentialsStashURL.path))
+
+        XCTAssertTrue(FileManager.default.fileExists(atPath: bundle.privateKeyURL.path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: bundle.publicKeyURL.path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: cachedRestoreImage.path))
+
+        let state = try bundle.loadState()
+        XCTAssertEqual(state.provisionStep, .notProvisioned)
+        XCTAssertNil(state.lastKnownGoodIP)
+        XCTAssertNil(state.guestOSVersion)
+        XCTAssertFalse(state.codexLoginCompleted)
+        XCTAssertEqual(state.bootAttemptCounter, 0)
+        XCTAssertNil(state.lastBundleSize)
+        XCTAssertEqual(state.guestMACAddress, "02:11:22:33:44:55")
+    }
+
     // MARK: - State persistence
 
     func testLoadStateReturnsDefaultWhenFileMissing() throws {

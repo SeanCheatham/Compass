@@ -12,14 +12,31 @@ sandbox is built directly on Apple's `Virtualization.framework`.
 ## Run
 
 The Shared VM sandbox requires the `com.apple.security.virtualization`
-entitlement, which only the Xcode-built app bundle has. Build and run from
-Xcode (or `xcodebuild`) for normal use:
+entitlement, which only the signed Xcode-built app bundle has. For Shared VM
+work, create a local signing override first:
+
+```bash
+cp App/LocalSigning.example.xcconfig App/LocalSigning.xcconfig
+# Edit COMPASS_DEVELOPMENT_TEAM to your Apple development team id.
+```
+
+Debug builds copy to `/Applications/CompassLocal.app` by default. The shared
+Xcode scheme waits for that app to be launched by Finder/launchd so
+Virtualization.framework's install helper sees a signed app outside DerivedData
+without overwriting a real `/Applications/Compass.app` install:
 
 ```bash
 open Compass.xcodeproj
-# Then press ⌘R, or:
-xcodebuild -project Compass.xcodeproj -scheme Compass -configuration Debug build
-open ~/Library/Developer/Xcode/DerivedData/Compass-*/Build/Products/Debug/Compass.app
+# Press Cmd-R, then launch /Applications/CompassLocal.app from Finder/Spotlight.
+```
+
+The equivalent command-line flow is:
+
+```bash
+xcodebuild -project Compass.xcodeproj -scheme Compass -configuration Debug \
+  COMPASS_DEVELOPMENT_TEAM=ABCDE12345 \
+  build
+open "/Applications/CompassLocal.app"
 ```
 
 The SwiftPM executable still builds (`swift run Compass`) and is fine for
@@ -98,10 +115,10 @@ App-bundle metadata lives under `App/`:
   outside the App Store (via `.dmg`), so the sandbox's file-access restrictions
   and security-scoped-bookmark dance are not needed.
 
-Codesigning today is ad-hoc (`CODE_SIGN_IDENTITY = "-"`). For `.dmg`
-distribution, swap to a Developer ID Application cert via Xcode → Signing
-& Capabilities, enable hardened runtime (currently auto-disabled by Xcode
-for ad-hoc), then notarize the resulting `.app` before packaging.
+Codesigning uses `App/Signing.xcconfig` plus the git-ignored
+`App/LocalSigning.xcconfig` for personal team ids. For `.dmg` distribution,
+swap to a Developer ID Application cert via Xcode -> Signing & Capabilities,
+then notarize the resulting `.app` before packaging.
 
 ## Sandbox: Shared macOS VM (optional)
 

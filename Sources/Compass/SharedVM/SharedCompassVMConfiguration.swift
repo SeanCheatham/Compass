@@ -181,12 +181,12 @@ struct SharedCompassVMConfiguration {
     /// Per Apple's docs, `VZFileHandleSerialPortAttachment.fileHandleForReading`
     /// is what VZ reads from (data going *into* the guest) and
     /// `fileHandleForWriting` is what VZ writes guest output to. To capture
-    /// guest output, wire it like this:
+    /// guest output only, wire it like this:
     ///
     /// ```swift
     /// let pipe = Pipe()
     /// let attachment = VZFileHandleSerialPortAttachment(
-    ///     fileHandleForReading: FileHandle.nullDevice,
+    ///     fileHandleForReading: nil,
     ///     fileHandleForWriting: pipe.fileHandleForWriting
     /// )
     /// // Read guest output from pipe.fileHandleForReading.

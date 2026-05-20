@@ -155,6 +155,36 @@ struct SharedCompassVMBundle: Equatable {
             && fileManager.fileExists(atPath: auxiliaryStorageURL.path)
     }
 
+    /// Removes installed/partially-installed VM artifacts while preserving
+    /// reusable host-owned assets: the IPSW cache and Compass SSH keypair.
+    ///
+    /// Use this before retrying a failed `VZMacOSInstaller` run. A failed
+    /// install can leave `Disk.img`, `AuxiliaryStorage`, or platform identity
+    /// files in an ambiguous state, and reusing them can make the next install
+    /// fail for reasons unrelated to the selected restore image.
+    func resetInstalledArtifacts(fileManager: FileManager = .default) throws {
+        try ensureExists(fileManager: fileManager)
+        let existingState = (try? loadState(fileManager: fileManager)) ?? State()
+        let artifactsToRemove = [
+            diskImageURL,
+            auxiliaryStorageURL,
+            hardwareModelURL,
+            machineIdentifierURL,
+            knownHostsURL,
+            codexCredentialsStashURL
+        ]
+        for url in artifactsToRemove where fileManager.fileExists(atPath: url.path) {
+            try fileManager.removeItem(at: url)
+        }
+
+        let resetState = State(
+            provisionStep: .notProvisioned,
+            guestUserName: existingState.guestUserName,
+            guestMACAddress: existingState.guestMACAddress
+        )
+        try saveState(resetState, fileManager: fileManager)
+    }
+
     // MARK: State document
 
     /// Compass-owned bookkeeping persisted alongside the VZ artefacts.

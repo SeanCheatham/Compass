@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 import UniformTypeIdentifiers
 import Virtualization
@@ -31,6 +32,18 @@ struct SandboxView: View {
                 SandboxSidePanel(vmHost: vmHost)
                     .frame(minWidth: 280, idealWidth: 320, maxWidth: 380)
             }
+        }
+        .task(id: vmHost.readiness.firstBootAutoStartToken) {
+            await autoStartFirstBootGuestIfNeeded()
+        }
+    }
+
+    private func autoStartFirstBootGuestIfNeeded() async {
+        guard case .firstBootPending = vmHost.readiness, vmHost.virtualMachine == nil else { return }
+        do {
+            try await vmHost.start()
+        } catch {
+            // `start()` publishes the visible error state.
         }
     }
 }
@@ -270,6 +283,7 @@ private struct SandboxFirstBootChecklist: View {
                     .frame(maxWidth: .infinity)
             }
             .buttonStyle(.borderedProminent)
+            .disabled(vmHost.virtualMachine == nil)
             .help("Tell Compass the bootstrap script has finished so it can probe SSH and finish guest prep.")
         }
         .padding(12)
@@ -450,7 +464,12 @@ private struct SandboxErrorSection: View {
                 .font(.callout)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
-            SandboxLocalIPSWButton(vmHost: vmHost)
+            SandboxLocalIPSWButton(
+                vmHost: vmHost,
+                title: "Rebuild with local IPSW file",
+                rebuildBeforeProvisioning: true
+            )
+            SandboxResetVMButton(vmHost: vmHost)
         }
         .padding(12)
         .background(Color.red.opacity(0.10), in: RoundedRectangle(cornerRadius: 10))
@@ -462,6 +481,8 @@ private struct SandboxErrorSection: View {
 
 private struct SandboxLocalIPSWButton: View {
     @ObservedObject var vmHost: SharedCompassVM
+    var title: String = "Use local IPSW file"
+    var rebuildBeforeProvisioning: Bool = false
 
     var body: some View {
         Button {
@@ -471,20 +492,69 @@ private struct SandboxLocalIPSWButton: View {
             panel.allowsMultipleSelection = false
             panel.canChooseDirectories = false
             guard panel.runModal() == .OK, let url = panel.url else { return }
+            if rebuildBeforeProvisioning, !Self.confirmRebuild() {
+                return
+            }
             Task {
                 do {
-                    try await vmHost.provisionIfNeeded(localIPSWURL: url)
-                    try await vmHost.start()
+                    if rebuildBeforeProvisioning {
+                        try await vmHost.rebuild(localIPSWURL: url)
+                    } else {
+                        try await vmHost.provisionIfNeeded(localIPSWURL: url)
+                        try await vmHost.start()
+                    }
                 } catch {
                     // Errors surface through vmHost.readiness.
                 }
             }
         } label: {
-            Label("Use local IPSW file", systemImage: "doc.badge.arrow.up")
+            Label(title, systemImage: "doc.badge.arrow.up")
                 .frame(maxWidth: .infinity)
         }
         .buttonStyle(.bordered)
         .help("Select a macOS restore image (.ipsw) you've already downloaded. Bypasses Apple's catalog service.")
+    }
+
+    private static func confirmRebuild() -> Bool {
+        let alert = NSAlert()
+        alert.messageText = "Rebuild Shared VM?"
+        alert.informativeText = "This removes the partially installed VM disk and starts installation again. Cached restore images and Compass SSH keys are preserved."
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: "Rebuild")
+        alert.addButton(withTitle: "Cancel")
+        return alert.runModal() == .alertFirstButtonReturn
+    }
+}
+
+private struct SandboxResetVMButton: View {
+    @ObservedObject var vmHost: SharedCompassVM
+
+    var body: some View {
+        Button(role: .destructive) {
+            guard confirmReset() else { return }
+            Task {
+                do {
+                    try await vmHost.resetProvisioningArtifacts()
+                } catch {
+                    // Errors surface through vmHost.readiness.
+                }
+            }
+        } label: {
+            Label("Reset VM artifacts", systemImage: "trash")
+                .frame(maxWidth: .infinity)
+        }
+        .buttonStyle(.bordered)
+        .help("Remove installed VM artifacts while preserving cached restore images and Compass SSH keys.")
+    }
+
+    private func confirmReset() -> Bool {
+        let alert = NSAlert()
+        alert.messageText = "Reset Shared VM artifacts?"
+        alert.informativeText = "This removes the VM disk, auxiliary storage, platform identity, and stale SSH trust. Cached restore images and Compass SSH keys are preserved."
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: "Reset")
+        alert.addButton(withTitle: "Cancel")
+        return alert.runModal() == .alertFirstButtonReturn
     }
 }
 
@@ -509,6 +579,13 @@ struct SandboxReadinessDot: View {
 // MARK: - Readiness display helpers
 
 extension SharedCompassVMReadiness {
+    var firstBootAutoStartToken: String {
+        if case .firstBootPending = self {
+            return "firstBootPending"
+        }
+        return "inactive"
+    }
+
     /// Single-line status summary suitable for the workspace header subtitle.
     var statusSummary: String {
         switch self {
@@ -607,7 +684,7 @@ extension SharedCompassVMReadiness {
             let pct = Int((fraction.clamped01 * 100).rounded())
             return "Restoring macOS onto the VM disk. \(pct)% complete."
         case .firstBootPending:
-            return "Use the checklist on the right to walk through Setup Assistant."
+            return "Starting the guest. Setup Assistant will appear here when macOS finishes booting."
         case .guestPrepping:
             return "Probing SSH and installing developer tools inside the guest."
         case .codexLoginPending:

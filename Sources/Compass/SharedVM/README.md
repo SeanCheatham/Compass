@@ -81,9 +81,11 @@ Files` symlink, so codex sees the worktree at
   `provisionIfNeeded()`.
 - **IPSW download fails**: download is resumable; on retry the partial file
   is reused.
-- **Installer fails**: readiness moves to `.error(detail:)`. Partial bundle
-  is left on disk for inspection; a future "Rebuild VM" action will
-  surface destructive recovery (Phase 8 — not yet implemented).
+- **Installer fails**: readiness moves to `.error(detail:)`. The Sandbox view
+  surfaces destructive recovery: reset installed artifacts, or rebuild from a
+  local IPSW. Reset removes the VM disk, auxiliary storage, hardware identity,
+  stale known-hosts entry, and codex credential stash while preserving the IPSW
+  cache and Compass SSH keypair.
 - **Boot loops**: `state.json.bootAttemptCounter` is incremented on every
   start attempt. After 3 consecutive failures from a previously-ready bundle,
   the Sandbox view surfaces a "Rebuild VM" affordance (also future).
@@ -104,7 +106,8 @@ Files` symlink, so codex sees the worktree at
   CLI dependency for image management would inflate the install surface.
   The only meaningful thing Tart adds over native VZ is the OCI-registry
   image distribution mechanism — Compass replaces that with first-run IPSW
-  fetch from Apple's CDN (~14 GB, no auth required).
+  fetch from Apple's CDN (~14 GB, no auth required), plus a local IPSW picker
+  for hosts where Apple's catalog fetch fails.
 - **Why interactive Setup Assistant instead of a headless first-boot
   injection?** The alternatives (`/var/db/.AppleSetupDone` writes, first-boot
   LaunchDaemons that pre-create users) are fragile across macOS releases
