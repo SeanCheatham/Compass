@@ -11,7 +11,7 @@ final class SharedCompassVMHeadlessFirstBootTests: XCTestCase {
         XCTAssertEqual(profile?.appleSetupDoneGuestPath, "/private/var/db/.AppleSetupDone")
         XCTAssertEqual(profile?.launchDaemonGuestPath, "/Library/LaunchDaemons/com.seancheatham.Compass.firstboot.plist")
         XCTAssertEqual(profile?.bootstrapScriptGuestPath, "/usr/local/libexec/compass-firstboot.sh")
-        XCTAssertEqual(profile?.sudoersFragmentGuestPath, "/etc/sudoers.d/compass")
+        XCTAssertEqual(profile?.sudoersFragmentGuestPath, "/private/etc/sudoers.d/compass")
         XCTAssertEqual(profile?.stagingDirectoryGuestPath, "/Users/Shared/compass-firstboot")
     }
 

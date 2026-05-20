@@ -97,7 +97,12 @@ enum SharedCompassVMHeadlessFirstBoot {
                 appleSetupDoneGuestPath: "/private/var/db/.AppleSetupDone",
                 launchDaemonGuestPath: "/Library/LaunchDaemons/\(launchDaemonLabel).plist",
                 bootstrapScriptGuestPath: "/usr/local/libexec/compass-firstboot.sh",
-                sudoersFragmentGuestPath: "/etc/sudoers.d/compass",
+                // Uses /private/etc form because that path string works as
+                // both the host-mount-relative destination (the Data volume
+                // exposes /private/etc, not /etc — the /etc symlink lives on
+                // the read-only System volume) and the guest-runtime
+                // reference (sudo follows /etc -> /private/etc at runtime).
+                sudoersFragmentGuestPath: "/private/etc/sudoers.d/compass",
                 stagingDirectoryGuestPath: "/Users/Shared/compass-firstboot",
                 stagedPublicKeyName: "id_ed25519.pub",
                 stagedCodexBinaryName: "codex",
