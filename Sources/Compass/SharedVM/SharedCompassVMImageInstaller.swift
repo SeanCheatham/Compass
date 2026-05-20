@@ -49,7 +49,7 @@ struct SharedCompassVMImageInstaller {
         downloadProgress: ProgressSink? = nil,
         installProgress: ProgressSink? = nil,
         fileManager: FileManager = .default
-    ) async throws {
+    ) async throws -> InstallReport {
         try bundle.ensureExists(fileManager: fileManager)
 
         // Stage 1: locate the IPSW. If the caller supplied a local file,
@@ -79,11 +79,23 @@ struct SharedCompassVMImageInstaller {
             fileManager: fileManager
         )
 
-        try await installerRunner.runInstaller(
+        let buildVersion = try await installerRunner.runInstaller(
             bundle: bundle,
             restoreImageURL: restoreImageURL,
             progress: installProgress
         )
+        return InstallReport(
+            restoreImageURL: restoreImageURL,
+            buildVersion: buildVersion
+        )
+    }
+
+    /// Summary of a successful install, returned to the caller so downstream
+    /// steps (notably the headless first-boot planter) can pick a macOS-version
+    /// profile keyed off the actual build that VZ wrote to disk.
+    struct InstallReport: Equatable {
+        var restoreImageURL: URL
+        var buildVersion: String
     }
 
     /// Allocates an empty sparse disk image at `url` if absent. Existing files
@@ -392,12 +404,14 @@ protocol InstallerRunning {
     /// Drives `VZMacOSInstaller` against the supplied bundle + restore image.
     /// Must be invoked from a context that does not assume any particular
     /// executor; the default implementation hops to `@MainActor` internally
-    /// because VZ APIs require the main thread.
+    /// because VZ APIs require the main thread. Returns the build version
+    /// of the restore image that was installed so callers can pick a
+    /// macOS-major-specific first-boot profile.
     func runInstaller(
         bundle: SharedCompassVMBundle,
         restoreImageURL: URL,
         progress: SharedCompassVMImageInstaller.ProgressSink?
-    ) async throws
+    ) async throws -> String
 }
 
 struct DefaultInstallerRunner: InstallerRunning {
@@ -405,7 +419,7 @@ struct DefaultInstallerRunner: InstallerRunning {
         bundle: SharedCompassVMBundle,
         restoreImageURL: URL,
         progress: SharedCompassVMImageInstaller.ProgressSink?
-    ) async throws {
+    ) async throws -> String {
         let restoreImage = try await Self.loadRestoreImage(at: restoreImageURL)
         guard let requirements = restoreImage.mostFeaturefulSupportedConfiguration else {
             throw NSError(
@@ -420,6 +434,7 @@ struct DefaultInstallerRunner: InstallerRunning {
             requirements: requirements,
             progress: progress
         )
+        return restoreImage.buildVersion
     }
 
     @MainActor

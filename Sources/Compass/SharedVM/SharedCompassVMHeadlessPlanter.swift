@@ -265,6 +265,15 @@ enum SharedCompassVMHeadlessPlanter {
         """
     }
 
+    // MARK: - SharedCompassVM injection adapter
+
+    /// Façade exposed to `SharedCompassVM.Dependencies` so the orchestrator
+    /// can call into the planter without importing
+    /// `SharedCompassVMHeadlessPlanter` directly at the type level. Lets
+    /// tests substitute a no-op planter (real planting needs osascript and
+    /// is unsuited to unit tests).
+    typealias Runner = HeadlessPlanterRunning
+
     // MARK: - Dependencies (injection seam)
 
     /// Bag of injectable adapters for the three external operations the
@@ -294,6 +303,33 @@ private extension String {
     /// destination's parent dir without paying a runtime `dirname` shell-out.
     var directoryComponent: String {
         (self as NSString).deletingLastPathComponent
+    }
+}
+
+// MARK: - HeadlessPlanterRunning (orchestrator-facing protocol)
+
+/// Narrow façade `SharedCompassVM.Dependencies` injects to drive the
+/// planter without coupling to the namespace enum's static API. Lets unit
+/// tests substitute an in-memory fake that captures the payload and skips
+/// the real osascript prompt + hdiutil dance.
+protocol HeadlessPlanterRunning {
+    func plant(
+        payload: SharedCompassVMHeadlessFirstBoot.Payload,
+        diskImageURL: URL
+    ) async throws -> SharedCompassVMHeadlessPlanter.Report
+}
+
+/// Production planter — delegates straight to the namespace enum's
+/// static `plant(...)` API.
+struct DefaultHeadlessPlanter: HeadlessPlanterRunning {
+    func plant(
+        payload: SharedCompassVMHeadlessFirstBoot.Payload,
+        diskImageURL: URL
+    ) async throws -> SharedCompassVMHeadlessPlanter.Report {
+        try await SharedCompassVMHeadlessPlanter.plant(
+            payload: payload,
+            diskImageURL: diskImageURL
+        )
     }
 }
 

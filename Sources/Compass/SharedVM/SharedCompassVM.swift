@@ -42,6 +42,11 @@ final class SharedCompassVM: ObservableObject {
     private var sleepObserver: SharedCompassVMSleepObserver?
     private var lastResolvedSSHDestination: String?
 
+    /// Path to the user-facing codex binary, refreshed by AppModel via
+    /// `refreshFirstBootArtifacts`. Used by the headless first-boot planter
+    /// to ship a codex copy into the guest at install time.
+    private var lastKnownCodexBinaryPath: String?
+
     /// Pipe attached to the guest's virtio console port. VZ writes guest serial
     /// output into `consoleOutputPipe.fileHandleForWriting`; the host's read
     /// task drains `consoleOutputPipe.fileHandleForReading`. The host keeps
@@ -89,12 +94,21 @@ final class SharedCompassVM: ObservableObject {
         var imageInstaller: SharedCompassVMImageInstaller
         var fileManager: FileManager
         var availability: @MainActor () -> SharedCompassVMAvailability
+        /// Plants the headless first-boot artefacts onto the installed disk.
+        /// Injectable so tests can substitute a no-op (real planting needs
+        /// `osascript` + an admin auth prompt and is unsuited to unit tests).
+        var headlessPlanter: HeadlessPlanterRunning
+        /// Keychain (or in-memory) backing for the guest's auto-generated
+        /// admin password.
+        var credentialStorage: SharedCompassVMGuestCredential.Storage
 
         static func live() -> Dependencies {
             Dependencies(
                 imageInstaller: SharedCompassVMImageInstaller(),
                 fileManager: .default,
-                availability: { SharedCompassVMAvailabilityCheck.evaluate() }
+                availability: { SharedCompassVMAvailabilityCheck.evaluate() },
+                headlessPlanter: DefaultHeadlessPlanter(),
+                credentialStorage: SharedCompassVMGuestCredential.KeychainStorage()
             )
         }
     }
@@ -264,8 +278,9 @@ final class SharedCompassVM: ObservableObject {
             readiness = .downloadingIPSW(fractionCompleted: 0)
         }
 
+        let installReport: SharedCompassVMImageInstaller.InstallReport
         do {
-            try await dependencies.imageInstaller.install(
+            installReport = try await dependencies.imageInstaller.install(
                 into: bundle,
                 localIPSWURL: localIPSWURL,
                 downloadProgress: downloadSink,
@@ -277,26 +292,122 @@ final class SharedCompassVM: ObservableObject {
             throw error
         }
 
-        try bundle.mutateState(fileManager: dependencies.fileManager) {
-            $0.provisionStep = .firstBootPending
+        // Headless first-boot: plant the LaunchDaemon, bootstrap script,
+        // sudoers fragment, and supporting payload onto the just-installed
+        // Data volume. Removes the need for the user to click through Setup
+        // Assistant manually. Failure here is fatal — without the plant,
+        // first boot would land at Setup Assistant with no compass user.
+        do {
+            try await plantHeadlessFirstBoot(installReport: installReport)
+        } catch {
+            readiness = .error(detail: SharedCompassVMAvailabilityCheck.describeVerbose(error: error))
+            throw error
         }
-        // Drop the bootstrap script + public key into the VirtioFS share so
-        // the user can run it from Terminal.app on first boot. The codex
-        // binary is staged separately by `refreshFirstBootArtifacts`
-        // (AppModel calls in with the user-facing codexBinary path so the
-        // script can include the codex copy step).
-        refreshFirstBootArtifacts(codexBinaryPath: nil)
-        readiness = .firstBootPending
+        try bundle.mutateState(fileManager: dependencies.fileManager) {
+            $0.provisionStep = .guestPrepping
+            $0.guestOSVersion = installReport.buildVersion
+        }
+        readiness = .guestPrepping
+    }
+
+    /// Renders and plants the headless first-boot payload against the
+    /// just-installed disk. The plant runs as root via one
+    /// `osascript do shell script with administrator privileges` prompt;
+    /// the user authenticates once per provisioning attempt and the
+    /// remaining lifecycle is unattended.
+    private func plantHeadlessFirstBoot(
+        installReport: SharedCompassVMImageInstaller.InstallReport
+    ) async throws {
+        guard let profile = SharedCompassVMHeadlessFirstBoot.Registry.profile(
+            forBuildVersion: installReport.buildVersion
+        ) else {
+            throw NSError(
+                domain: "SharedCompassVM",
+                code: 1,
+                userInfo: [NSLocalizedDescriptionKey:
+                    "Headless first-boot does not know how to handle macOS build \(installReport.buildVersion). Update SharedCompassVMHeadlessFirstBoot.Registry."
+                ]
+            )
+        }
+
+        // Allocate the Keychain credential (re-uses an existing entry if the
+        // bundle already has an account string — survives re-provisions of
+        // the same bundle without churning the user's keychain).
+        var state = (try? bundle.loadState(fileManager: dependencies.fileManager))
+            ?? SharedCompassVMBundle.State()
+        let account: String
+        if let existing = state.guestPasswordKeychainAccount {
+            account = existing
+        } else {
+            account = SharedCompassVMGuestCredential.makeAccount()
+            state.guestPasswordKeychainAccount = account
+            try bundle.saveState(state, fileManager: dependencies.fileManager)
+        }
+        let credential = try SharedCompassVMGuestCredential.ensure(
+            account: account,
+            storage: dependencies.credentialStorage
+        )
+
+        // Read the Compass-owned SSH public key the bootstrap script will
+        // authorise inside the guest. `ensureSSHKeypair` ran earlier in
+        // provisionIfNeeded so the file is guaranteed to exist.
+        let publicKeyData = try Data(contentsOf: bundle.publicKeyURL)
+
+        // Optional codex binary copy. AppModel sets `lastKnownCodexBinaryPath`
+        // during warmup; if it's missing or not executable, the bootstrap
+        // script falls back to a "install codex manually" notice in the
+        // guest.
+        let codexBinaryData = readCodexBinaryDataIfAvailable()
+
+        let payload = SharedCompassVMHeadlessFirstBoot.renderPayload(
+            from: SharedCompassVMHeadlessFirstBoot.RenderInputs.makeStandard(
+                profile: profile,
+                publicKeyData: publicKeyData,
+                codexBinaryData: codexBinaryData,
+                generatedPassword: credential.password,
+                guestUserName: state.guestUserName
+            )
+        )
+
+        _ = try await dependencies.headlessPlanter.plant(
+            payload: payload,
+            diskImageURL: bundle.diskImageURL
+        )
+    }
+
+    /// Loads the user's codex binary into memory if `lastKnownCodexBinaryPath`
+    /// points at an executable regular file. Returns nil for missing,
+    /// directory-typed (e.g. Codex.app bundle), or non-executable paths so
+    /// the bootstrap script's "install codex manually" branch fires.
+    private func readCodexBinaryDataIfAvailable() -> Data? {
+        guard let path = lastKnownCodexBinaryPath, !path.isEmpty else { return nil }
+        let fm = dependencies.fileManager
+        var isDirectory: ObjCBool = false
+        guard fm.fileExists(atPath: path, isDirectory: &isDirectory) else { return nil }
+        guard !isDirectory.boolValue else { return nil }
+        guard fm.isExecutableFile(atPath: path) else { return nil }
+        return try? Data(contentsOf: URL(fileURLWithPath: path))
     }
 
     /// Removes a failed or stale install so the next provisioning attempt starts
     /// from a clean disk/auxiliary-storage/platform set. The IPSW cache and
-    /// Compass SSH keypair are preserved.
+    /// Compass SSH keypair are preserved. The auto-generated guest password
+    /// is wiped from the host Keychain so the next install issues a fresh
+    /// credential instead of inheriting a stale one.
     func resetProvisioningArtifacts() async throws {
         if let existing = provisionInFlight {
             try await existing.value
         }
         await stop()
+        // Read the prior state BEFORE wiping so we can clean up the keychain
+        // entry that belonged to the install we're about to discard.
+        let priorState = try? bundle.loadState(fileManager: dependencies.fileManager)
+        if let priorAccount = priorState?.guestPasswordKeychainAccount {
+            try? SharedCompassVMGuestCredential.remove(
+                account: priorAccount,
+                storage: dependencies.credentialStorage
+            )
+        }
         try bundle.resetInstalledArtifacts(fileManager: dependencies.fileManager)
         persistedState = try? bundle.loadState(fileManager: dependencies.fileManager)
         lastResolvedSSHDestination = nil
@@ -320,6 +431,11 @@ final class SharedCompassVM: ObservableObject {
     /// state machine is unaffected and the user will see a clear error
     /// inside the guest if the artifacts are missing.
     func refreshFirstBootArtifacts(codexBinaryPath: String?) {
+        // Remember the binary path so the headless planter (called on the
+        // next `provisionIfNeeded`) can stage a copy of codex inside the
+        // guest. Updating the path on a running guest does *not* push a
+        // new codex copy — the planter only fires once per install.
+        lastKnownCodexBinaryPath = codexBinaryPath
         _ = try? SharedCompassVMFirstBootScript.materialize(
             workspacesRootURL: workspacesRootURL,
             publicKeyURL: bundle.publicKeyURL,
@@ -409,6 +525,41 @@ final class SharedCompassVM: ObservableObject {
             self.virtualMachine = nil
             tearDownConsolePipe()
             throw error
+        }
+
+        // Headless first-boot follow-up: if we just booted a freshly-planted
+        // guest, the LaunchDaemon will spend ~30-60s creating the user,
+        // authorising the SSH key, and enabling Remote Login. Kick off a
+        // background poller that finalises readiness once SSH responds,
+        // so the user never needs to click "Mark setup complete".
+        let postStartStep = (try? bundle.loadState(fileManager: dependencies.fileManager))?.provisionStep
+        if postStartStep == .guestPrepping {
+            Task { [weak self] in
+                await self?.pollUntilHeadlessGuestReady()
+            }
+        }
+    }
+
+    /// Background driver that repeatedly invokes `markSetupComplete()` until
+    /// the readiness probe lands on `.ready` or `.codexLoginPending`, or the
+    /// overall deadline expires. Used as the auto-finalisation step after a
+    /// headless first-boot plant, where Compass owns the entire boot
+    /// sequence and there is nothing for the user to click.
+    private func pollUntilHeadlessGuestReady() async {
+        let deadline = Date().addingTimeInterval(300) // 5 minutes
+        var attemptIntervalNanoseconds: UInt64 = 5_000_000_000
+        while Date() < deadline {
+            await markSetupComplete()
+            switch readiness {
+            case .ready, .codexLoginPending:
+                return
+            default:
+                break
+            }
+            try? await Task.sleep(nanoseconds: attemptIntervalNanoseconds)
+            // Exponential backoff capped at 20s so we don't hammer ssh
+            // during the long tail of slow first boots.
+            attemptIntervalNanoseconds = min(attemptIntervalNanoseconds * 2, 20_000_000_000)
         }
     }
 
