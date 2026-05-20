@@ -357,24 +357,28 @@ final class SharedCompassVMHeadlessPlanterTests: XCTestCase {
         XCTAssertTrue(script.contains("diskutil mount -mountPoint \"$MOUNT_POINT\" -nobrowse \"$DATA_DEV\""))
     }
 
-    func testElevatedScriptRetriesDiskutilMountToHandlePostAttachSettleRace() {
-        // `hdiutil attach -nomount` returns before the synthesized APFS
-        // container's Data volume is in a stable mountable state. The
-        // first 1-2 diskutil-mount attempts can emit "Volume on diskNsM
-        // failed to mount (code 1)" even though the volume is fine a
-        // second later. The elevated script must retry, not bail.
+    func testElevatedScriptRetriesDiskutilMountThenFallsBackToMountApfs() {
+        // Two-tier strategy: diskutil mount preferred (sets up the
+        // standard mount options) but mount_apfs as fallback because
+        // diskutil has refused freshly-installed VZ disks indefinitely
+        // even with lsof showing zero openers. mount_apfs is the
+        // underlying syscall and bypasses diskutil/DA policy checks.
         let script = renderStandardScript()
         XCTAssertTrue(
-            script.contains("while ! diskutil mount"),
-            "elevated script should loop on diskutil mount until success"
+            script.contains("diskutil mount -mountPoint"),
+            "elevated script should try diskutil mount first"
         )
         XCTAssertTrue(
             script.contains("mount_max_attempts"),
-            "elevated script should bound the retry budget so a real failure surfaces"
+            "elevated script should bound the diskutil retry budget so failures surface"
         )
         XCTAssertTrue(
-            script.contains("sleep 1"),
-            "elevated script should pause between mount attempts"
+            script.contains("mount_apfs -o nobrowse"),
+            "elevated script should fall back to mount_apfs when diskutil refuses"
+        )
+        XCTAssertTrue(
+            script.contains("both diskutil mount and mount_apfs failed"),
+            "elevated script should explicitly report when both strategies failed"
         )
     }
 

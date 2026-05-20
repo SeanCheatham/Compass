@@ -233,24 +233,60 @@ enum SharedCompassVMHeadlessPlanter {
         }
         trap cleanup EXIT
 
-        # Retry the mount: the synthesized APFS container can be visible
-        # to `diskutil apfs list` (which the unprivileged caller waited
-        # on) a beat before the Data volume itself is in a mountable
-        # state. We see ~"Volume on diskNsM failed to mount (code 1)"
-        # for the first 1-2 seconds after `hdiutil attach -nomount`,
-        # then it settles. 10 attempts at 1s each (= 10s budget) is more
-        # than enough — past that, the failure is real and we want the
-        # diagnostic to surface.
+        # Mount the Data volume. Two-tier strategy:
+        #
+        #   1. Prefer `diskutil mount` (it sets up the standard mount
+        #      options + browse hint we want).
+        #   2. If diskutil refuses, fall back to the underlying
+        #      `mount_apfs` syscall. We've observed diskutil failing with
+        #      "Volume on diskNsM failed to mount (code 1)" indefinitely
+        #      on freshly-installed VZ disk images even though nothing
+        #      has the volume open (lsof empty, no mounts, no VZ helpers
+        #      alive). The most likely cause is a diskutil/DA policy
+        #      check that doesn't apply when we bypass straight to the
+        #      kernel mount path.
+        #
+        # On failure of both, dump host-side state so the planter's
+        # surfaced output names the actual cause.
         mount_attempt=0
-        mount_max_attempts=10
-        while ! diskutil mount -mountPoint "$MOUNT_POINT" -nobrowse "$DATA_DEV"; do
-          mount_attempt=$((mount_attempt + 1))
-          if [ "$mount_attempt" -ge "$mount_max_attempts" ]; then
-            echo "ERROR: diskutil mount failed after $mount_max_attempts attempts on $DATA_DEV" >&2
-            exit 1
+        mount_max_attempts=5
+        mount_stderr_log=$(mktemp /tmp/compass-firstboot-mount.stderr.XXXXXX)
+        mounted=0
+        while [ "$mount_attempt" -lt "$mount_max_attempts" ]; do
+          if diskutil mount -mountPoint "$MOUNT_POINT" -nobrowse "$DATA_DEV" 2>"$mount_stderr_log"; then
+            mounted=1
+            break
           fi
+          mount_attempt=$((mount_attempt + 1))
           sleep 1
         done
+
+        if [ "$mounted" -eq 0 ]; then
+          echo "diskutil mount refused after $mount_max_attempts attempts; trying mount_apfs syscall directly" >&2
+          # mount_apfs needs an empty existing directory, same as
+          # diskutil with -mountPoint. -o nobrowse keeps Finder out.
+          if mount_apfs -o nobrowse "$DATA_DEV" "$MOUNT_POINT" 2>>"$mount_stderr_log"; then
+            mounted=1
+            echo "mount_apfs succeeded where diskutil refused" >&2
+          fi
+        fi
+
+        if [ "$mounted" -eq 0 ]; then
+          echo "ERROR: both diskutil mount and mount_apfs failed for $DATA_DEV" >&2
+          echo "--- accumulated mount stderr ---" >&2
+          cat "$mount_stderr_log" >&2 || true
+          echo "--- diskutil info $DATA_DEV ---" >&2
+          diskutil info "$DATA_DEV" 2>&1 | head -40 >&2 || true
+          echo "--- current mounts referencing the data volume ---" >&2
+          mount | grep -F "$DATA_DEV" >&2 || echo "  (none)" >&2
+          echo "--- lsof on $DATA_DEV (best effort) ---" >&2
+          lsof "$DATA_DEV" 2>&1 | head -20 >&2 || true
+          echo "--- VZ-related processes still alive ---" >&2
+          pgrep -lf 'Compass|com\\.apple\\.Virtualization' >&2 || echo "  (none)" >&2
+          rm -f "$mount_stderr_log"
+          exit 1
+        fi
+        rm -f "$mount_stderr_log"
 
         # .AppleSetupDone — empty marker, root:wheel 0644. Skips Setup
         # Assistant on first boot.
