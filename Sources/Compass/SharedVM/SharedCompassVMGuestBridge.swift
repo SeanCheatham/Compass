@@ -63,7 +63,17 @@ struct SharedCompassVMGuestBridge {
             arguments.append(contentsOf: ["-i", identity])
         }
         if let knownHosts = options.knownHostsFile, !knownHosts.isEmpty {
-            arguments.append(contentsOf: ["-o", "UserKnownHostsFile=\(knownHosts)"])
+            // ssh's UserKnownHostsFile option treats unquoted whitespace
+            // in the value as a separator between multiple files — see
+            // `man ssh_config`. Compass's bundle path lives under
+            // `~/Library/Application Support/...` which contains a
+            // space; the unquoted form gets parsed as TWO bogus files
+            // (`.../Library/Application` and `Support/.../known_hosts`)
+            // and the strict host-key check fails with "Host key
+            // verification failed" even when known_hosts is correctly
+            // populated. Wrap the path in inner double quotes so ssh's
+            // parser sees it as a single token.
+            arguments.append(contentsOf: ["-o", #"UserKnownHostsFile="\#(knownHosts)""#])
         }
         arguments.append(contentsOf: [
             "-o", "StrictHostKeyChecking=\(options.strictHostKeyChecking ? "yes" : "no")"
@@ -171,5 +181,113 @@ struct SharedCompassVMGuestBridge {
             }
             return process.terminationStatus == 0
         }.value
+    }
+
+    // MARK: - Known-hosts bootstrap
+
+    /// Result of an `ssh-keyscan` invocation against a guest host.
+    struct KnownHostsBootstrap: Equatable {
+        /// True if at least one host key was successfully fetched and written.
+        var succeeded: Bool
+        /// Number of host-key lines appended (zero if no entries were added —
+        /// e.g. the destination was already represented in the file).
+        var entriesAppended: Int
+    }
+
+    /// Populates `knownHostsFile` with the host keys advertised by `host`
+    /// via `ssh-keyscan`. Idempotent — host entries already present in the
+    /// file are not duplicated.
+    ///
+    /// Why this exists: the readiness probe runs with
+    /// `StrictHostKeyChecking=yes`, which refuses to connect to a host
+    /// whose key is not already in `known_hosts`. On a fresh provision the
+    /// host has never seen the guest's key and the probe fails with
+    /// "Host key verification failed." We TOFU-trust the freshly-generated
+    /// host key here. This is safe because the guest lives on a host-local
+    /// virbr/NAT network with no realistic MITM surface.
+    ///
+    /// Pure on filesystem: writes only to `knownHostsFile` (creates the
+    /// parent directory if missing). No network state other than the
+    /// subprocess `ssh-keyscan` makes.
+    static func populateKnownHosts(
+        host: String,
+        knownHostsFile: String,
+        timeout: TimeInterval = 5,
+        sshKeyscanPath: String = "/usr/bin/ssh-keyscan",
+        fileManager: FileManager = .default
+    ) async -> KnownHostsBootstrap {
+        let scanResult = await Task.detached { () -> Data? in
+            let process = Process()
+            process.executableURL = URL(fileURLWithPath: sshKeyscanPath)
+            process.arguments = [
+                "-T", String(max(1, Int(timeout.rounded(.up)))),
+                // ed25519 is what sshd advertises by default on macOS;
+                // request all three common types so we end up trusting
+                // whichever the guest happens to use.
+                "-t", "ed25519,rsa,ecdsa",
+                host
+            ]
+            let stdout = Pipe()
+            process.standardOutput = stdout
+            process.standardError = FileHandle.nullDevice
+            process.standardInput = FileHandle.nullDevice
+            do {
+                try process.run()
+            } catch {
+                return nil
+            }
+            let deadline = Date().addingTimeInterval(timeout + 2)
+            while process.isRunning && Date() < deadline {
+                try? await Task.sleep(nanoseconds: 100_000_000)
+            }
+            if process.isRunning {
+                process.terminate()
+                return nil
+            }
+            guard process.terminationStatus == 0 else { return nil }
+            return try? stdout.fileHandleForReading.readToEnd()
+        }.value
+
+        guard let data = scanResult, !data.isEmpty,
+              let scanned = String(data: data, encoding: .utf8) else {
+            return KnownHostsBootstrap(succeeded: false, entriesAppended: 0)
+        }
+
+        let knownHostsURL = URL(fileURLWithPath: knownHostsFile)
+        let parent = knownHostsURL.deletingLastPathComponent()
+        try? fileManager.createDirectory(at: parent, withIntermediateDirectories: true)
+
+        // Read existing contents (if any) so we can dedupe.
+        let existing = (try? String(contentsOf: knownHostsURL, encoding: .utf8)) ?? ""
+        let existingLines = Set(existing.split(separator: "\n", omittingEmptySubsequences: true).map(String.init))
+
+        var toAppend: [String] = []
+        for line in scanned.split(separator: "\n", omittingEmptySubsequences: true) {
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            // ssh-keyscan emits `# comment` lines on stderr but also some
+            // on stdout for non-fatal warnings. Drop them.
+            if trimmed.isEmpty || trimmed.hasPrefix("#") { continue }
+            if existingLines.contains(trimmed) { continue }
+            toAppend.append(trimmed)
+        }
+
+        if toAppend.isEmpty {
+            // Already fully represented — treat as success so the caller
+            // proceeds straight to the probe.
+            return KnownHostsBootstrap(succeeded: true, entriesAppended: 0)
+        }
+
+        var merged = existing
+        if !merged.isEmpty && !merged.hasSuffix("\n") {
+            merged.append("\n")
+        }
+        merged.append(toAppend.joined(separator: "\n"))
+        merged.append("\n")
+        do {
+            try merged.write(to: knownHostsURL, atomically: true, encoding: .utf8)
+            return KnownHostsBootstrap(succeeded: true, entriesAppended: toAppend.count)
+        } catch {
+            return KnownHostsBootstrap(succeeded: false, entriesAppended: 0)
+        }
     }
 }

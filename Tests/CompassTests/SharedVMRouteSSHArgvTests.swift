@@ -22,8 +22,9 @@ final class SharedVMRouteSSHArgvTests: XCTestCase {
 
         // -i <identity>
         XCTAssertTrue(args.contains(["-i", "/path/to/id_ed25519"]))
-        // -o UserKnownHostsFile=<file>
-        XCTAssertTrue(args.contains(["-o", "UserKnownHostsFile=/path/to/known_hosts"]))
+        // -o UserKnownHostsFile="<file>" — value is inner-quoted so
+        // ssh's parser treats paths-with-spaces as a single file.
+        XCTAssertTrue(args.contains(["-o", #"UserKnownHostsFile="/path/to/known_hosts""#]))
         // -o StrictHostKeyChecking=yes
         XCTAssertTrue(args.contains(["-o", "StrictHostKeyChecking=yes"]))
         // -o BatchMode=yes
@@ -66,6 +67,35 @@ final class SharedVMRouteSSHArgvTests: XCTestCase {
             options: options
         )
         XCTAssertFalse(args.contains { $0.hasPrefix("ConnectTimeout=") })
+    }
+
+    func testSSHArgumentsQuoteKnownHostsPathWithSpacesAsSingleToken() {
+        // ssh's UserKnownHostsFile option treats unquoted whitespace
+        // in its value as a separator between multiple files (per
+        // `man ssh_config`). Compass's bundle lives under
+        // `~/Library/Application Support/...` which contains a space.
+        // If we emit the option unquoted, ssh splits the path into
+        // two bogus files and `Host key verification failed` even
+        // when known_hosts is correctly populated. The inner double
+        // quotes here keep the path as a single file from ssh's
+        // perspective. Locking this in so a well-meaning refactor
+        // doesn't strip the quotes and silently reintroduce the
+        // first-boot SSH deadlock.
+        let options = SharedCompassVMGuestBridge.ConnectionOptions(
+            knownHostsFile: "/Users/x/Library/Application Support/Compass/SharedVM/bundle.vmbundle/known_hosts"
+        )
+        let args = SharedCompassVMGuestBridge.sshArguments(
+            destination: "compass@10.0.0.42",
+            remoteCommand: "true",
+            options: options
+        )
+        XCTAssertTrue(
+            args.contains([
+                "-o",
+                #"UserKnownHostsFile="/Users/x/Library/Application Support/Compass/SharedVM/bundle.vmbundle/known_hosts""#
+            ]),
+            "known_hosts path with spaces must be inner-quoted so ssh sees one file, not many"
+        )
     }
 
     func testSSHArgumentsHonorStrictHostKeyCheckingDisabled() {

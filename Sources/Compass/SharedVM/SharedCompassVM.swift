@@ -1,8 +1,16 @@
 import AppKit
 import Combine
 import Foundation
+import os
 import SwiftUI
 import Virtualization
+
+private extension OSLog {
+    /// Category we point at the first-boot / codex-auth pipeline so the
+    /// flow is easy to filter in Console.app:
+    ///     log stream --predicate 'subsystem == "com.seancheatham.Compass" AND category == "GuestProvision"'
+    static let guestProvision = OSLog(subsystem: "com.seancheatham.Compass", category: "GuestProvision")
+}
 
 /// Singleton host for the Compass shared macOS VM.
 ///
@@ -289,6 +297,19 @@ final class SharedCompassVM: ObservableObject {
             readiness = .error(detail: SharedCompassVMAvailabilityCheck.describeVerbose(error: error))
             throw error
         }
+
+        // Terminate the lingering `com.apple.Virtualization.Installation`
+        // XPC helper before kicking off the headless plant. The helper
+        // outlives `VZMacOSInstaller.install`'s success callback and
+        // holds APFS-internal locks (not plain fds — `lsof` shows nothing)
+        // on the just-installed Data volume, which makes host-side
+        // `diskutil mount` fail with "Volume on diskNsM failed to mount
+        // (code 1)" forever. The helper does NOT exit on its own — we
+        // empirically observed it sitting at 0.0% CPU for 60+s with
+        // locks held. Polite SIGTERM first, fallback to SIGKILL.
+        // Safe because `install`'s success callback guarantees all
+        // critical writes have flushed by the time we reach here.
+        await Self.terminateInstallationHelper()
 
         // Headless first-boot: plant the LaunchDaemon, bootstrap script,
         // sudoers fragment, and supporting payload onto the just-installed
@@ -637,6 +658,20 @@ final class SharedCompassVM: ObservableObject {
             knownHostsFile: bundle.knownHostsURL.path,
             connectTimeoutSeconds: 5
         )
+
+        // Bootstrap known_hosts via ssh-keyscan before the strict probe.
+        // The probe runs with StrictHostKeyChecking=yes and refuses to
+        // talk to a host whose key isn't in known_hosts; on a fresh
+        // provision that's always the case and the probe would loop
+        // forever even with sshd up and authorised. ssh-keyscan TOFU-
+        // trusts the freshly-generated host key. Safe because the guest
+        // is on a host-local NAT bridge.
+        _ = await SharedCompassVMGuestBridge.populateKnownHosts(
+            host: ip,
+            knownHostsFile: bundle.knownHostsURL.path,
+            timeout: 5
+        )
+
         let probeOK = await SharedCompassVMGuestBridge.probeSSHAvailable(
             destination: destination,
             options: options,
@@ -671,7 +706,10 @@ final class SharedCompassVM: ObservableObject {
         }
         setupFailureMessage = nil
         if let destination = lastResolvedSSHDestination {
+            os_log(.info, log: .guestProvision, "markCodexLoginComplete: -> .ready(%{public}@)", destination)
             readiness = .ready(sshDestination: destination)
+        } else {
+            os_log(.error, log: .guestProvision, "markCodexLoginComplete: lastResolvedSSHDestination is nil; readiness will stay at %{public}@ until next probe", String(describing: readiness))
         }
     }
 
@@ -685,13 +723,18 @@ final class SharedCompassVM: ObservableObject {
     /// credential set on the guest (scp will refresh files in place, which is
     /// the desired behaviour when host credentials are newer).
     func ensureCodexAuthenticated() async {
-        if fallbackUnavailableReason != nil { return }
+        if fallbackUnavailableReason != nil {
+            os_log(.info, log: .guestProvision, "ensureCodexAuthenticated: skipped — fallback unavailable")
+            return
+        }
         guard let destination = lastResolvedSSHDestination else {
             // We can't probe without an SSH destination. Surface as a soft
             // failure (.codexLoginPending) and let the caller try again.
+            os_log(.error, log: .guestProvision, "ensureCodexAuthenticated: no lastResolvedSSHDestination; setting .codexLoginPending without an error message")
             readiness = .codexLoginPending
             return
         }
+        os_log(.info, log: .guestProvision, "ensureCodexAuthenticated: starting against %{public}@", destination)
         let options = SharedCompassVMGuestBridge.ConnectionOptions(
             identityFile: bundle.privateKeyURL.path,
             knownHostsFile: bundle.knownHostsURL.path,
@@ -702,16 +745,19 @@ final class SharedCompassVM: ObservableObject {
             destination: destination,
             options: options
         )
+        os_log(.info, log: .guestProvision, "ensureCodexAuthenticated: initial probe = %{public}@", String(describing: initialState))
         switch initialState {
         case .authenticated:
+            os_log(.info, log: .guestProvision, "ensureCodexAuthenticated: initial probe authenticated; marking complete")
             markCodexLoginComplete()
             return
         case let .indeterminate(detail):
+            os_log(.error, log: .guestProvision, "ensureCodexAuthenticated: initial probe indeterminate: %{public}@", detail)
             readiness = .codexLoginPending
             setupFailureMessage = "Could not determine codex auth state inside the guest (\(detail)). Run `codex login` in the guest's Terminal."
             return
         case .unauthenticated:
-            break
+            os_log(.info, log: .guestProvision, "ensureCodexAuthenticated: initial probe unauthenticated; attempting host ~/.codex copy")
         }
 
         do {
@@ -719,10 +765,12 @@ final class SharedCompassVM: ObservableObject {
                 destination: destination,
                 options: options
             )
+            os_log(.info, log: .guestProvision, "ensureCodexAuthenticated: copyHostCodexCredentialsToGuest succeeded")
         } catch {
-            readiness = .codexLoginPending
             let detail = (error as? SharedCompassVMCodexAuthBridge.CopyError)?.description
                 ?? error.localizedDescription
+            os_log(.error, log: .guestProvision, "ensureCodexAuthenticated: copy failed: %{public}@", detail)
+            readiness = .codexLoginPending
             setupFailureMessage = "Could not copy host ~/.codex into the guest (\(detail)). Run `codex login` in the guest's Terminal."
             return
         }
@@ -731,10 +779,13 @@ final class SharedCompassVM: ObservableObject {
             destination: destination,
             options: options
         )
+        os_log(.info, log: .guestProvision, "ensureCodexAuthenticated: recheck = %{public}@", String(describing: recheck))
         switch recheck {
         case .authenticated:
+            os_log(.info, log: .guestProvision, "ensureCodexAuthenticated: recheck authenticated; marking complete")
             markCodexLoginComplete()
         case .unauthenticated, .indeterminate:
+            os_log(.error, log: .guestProvision, "ensureCodexAuthenticated: recheck still not authenticated after copy")
             readiness = .codexLoginPending
             setupFailureMessage = "Copied host ~/.codex to the guest but it still isn't authenticated. Run `codex login` in the guest's Terminal."
         }
@@ -856,5 +907,62 @@ final class SharedCompassVM: ObservableObject {
         _ = try? host.bundle.mutateState(fileManager: host.dependencies.fileManager) {
             $0.lastKnownGoodIP = ip
         }
+    }
+
+    /// Reaps every live `com.apple.Virtualization.Installation` XPC
+    /// helper process so the just-installed disk image's APFS locks are
+    /// released. The helper does not exit on its own after install
+    /// completion — it sits idle holding container-level locks that
+    /// block host-side `diskutil mount` calls indefinitely.
+    ///
+    /// Two-phase: SIGTERM first with a 3-second grace window for orderly
+    /// shutdown, then SIGKILL anything that's still alive. Idempotent —
+    /// safe to call when no helper is alive (pgrep returns no PIDs and
+    /// the loops are no-ops).
+    static func terminateInstallationHelper() async {
+        let pids = installationHelperPIDs()
+        guard !pids.isEmpty else { return }
+        for pid in pids {
+            _ = kill(pid, SIGTERM)
+        }
+        // Brief poll for graceful exit before escalating.
+        let graceDeadline = Date().addingTimeInterval(3)
+        while Date() < graceDeadline {
+            if installationHelperPIDs().isEmpty { return }
+            try? await Task.sleep(nanoseconds: 200_000_000)
+        }
+        // Stragglers — SIGKILL.
+        for pid in installationHelperPIDs() {
+            _ = kill(pid, SIGKILL)
+        }
+        // Final brief settle so subsequent `hdiutil attach` doesn't race
+        // the kernel's APFS-container teardown for the killed helper.
+        try? await Task.sleep(nanoseconds: 500_000_000)
+    }
+
+    /// Returns the PIDs of every live `com.apple.Virtualization.Installation`
+    /// XPC helper. Empty array when none are alive.
+    private static func installationHelperPIDs() -> [pid_t] {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/pgrep")
+        process.arguments = ["-f", "com.apple.Virtualization.Installation"]
+        let stdout = Pipe()
+        process.standardOutput = stdout
+        process.standardError = Pipe()
+        do {
+            try process.run()
+            process.waitUntilExit()
+        } catch {
+            return []
+        }
+        guard
+            let data = try? stdout.fileHandleForReading.readToEnd(),
+            let text = String(data: data, encoding: .utf8)
+        else {
+            return []
+        }
+        return text
+            .split(whereSeparator: { $0.isNewline || $0.isWhitespace })
+            .compactMap { pid_t($0) }
     }
 }

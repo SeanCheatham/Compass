@@ -33,9 +33,17 @@ enum SharedCompassVMCodexAuthBridge {
         options: SharedCompassVMGuestBridge.ConnectionOptions,
         sshExecutablePath: String = SharedCompassVMGuestBridge.defaultSSHExecutablePath
     ) async -> CodexAuthState {
-        // Step 1: verify codex is on PATH inside the guest.
+        // Step 1: verify codex exists somewhere we can run it. Try the
+        // PATH lookup first (covers user-installed codex anywhere on
+        // PATH); fall back to the canonical Compass install location
+        // (/usr/local/bin/codex). This double-check matters because
+        // the codex install can race against PATH being set up — and
+        // when it loses the race, treating "PATH lookup empty" as
+        // "codex missing" makes Compass fail with a confusing
+        // `.indeterminate` message even though the binary is right
+        // there on disk.
         let presenceProbe = await runRemote(
-            "command -v codex",
+            "command -v codex || ([ -x /usr/local/bin/codex ] && echo /usr/local/bin/codex)",
             destination: destination,
             options: options,
             sshExecutablePath: sshExecutablePath
@@ -150,7 +158,12 @@ enum SharedCompassVMCodexAuthBridge {
             scpArguments.append(contentsOf: ["-i", identity])
         }
         if let knownHosts = options.knownHostsFile, !knownHosts.isEmpty {
-            scpArguments.append(contentsOf: ["-o", "UserKnownHostsFile=\(knownHosts)"])
+            // scp inherits ssh's UserKnownHostsFile parsing: unquoted
+            // whitespace in the value splits the path into multiple
+            // files. Compass's bundle path contains a space, so we
+            // must wrap the value in inner double quotes — same fix
+            // as the SSH probe (see SharedCompassVMGuestBridge).
+            scpArguments.append(contentsOf: ["-o", #"UserKnownHostsFile="\#(knownHosts)""#])
         }
         scpArguments.append(contentsOf: [
             "-o", "StrictHostKeyChecking=\(options.strictHostKeyChecking ? "yes" : "no")"
@@ -189,6 +202,23 @@ enum SharedCompassVMCodexAuthBridge {
         case failure(String)
     }
 
+    /// Wraps a remote command so it runs with `/usr/local/bin` on PATH
+    /// regardless of the SSH shell's default. macOS sshd runs commands
+    /// as `<login-shell> -c "<command>"` in non-interactive,
+    /// non-login mode, which skips `/etc/zprofile` and therefore
+    /// `path_helper` — so PATH defaults to `/usr/bin:/bin:/usr/sbin:/sbin`
+    /// and `/usr/local/bin/codex` is invisible to a bare `command -v
+    /// codex`. The bootstrap script plants `~/.zshenv` to set PATH for
+    /// interactive sessions, but this wrapper makes the auth probes
+    /// resilient even if a user edits zshenv or uses a different shell:
+    /// every command goes out with PATH already extended.
+    static func wrapRemoteCommandWithPATH(_ command: String) -> String {
+        // Single-quoted into the eventual `sh -c` payload so $PATH
+        // expansion happens on the remote side. The leading semicolon
+        // after the export makes this composable with any pipeline.
+        return #"export PATH="/usr/local/bin:$PATH"; "# + command
+    }
+
     private static func runRemote(
         _ command: String,
         destination: String,
@@ -197,7 +227,7 @@ enum SharedCompassVMCodexAuthBridge {
     ) async -> RemoteResult {
         let arguments = SharedCompassVMGuestBridge.sshArguments(
             destination: destination,
-            remoteCommand: command,
+            remoteCommand: wrapRemoteCommandWithPATH(command),
             options: options
         )
         return await Task.detached { () -> RemoteResult in
