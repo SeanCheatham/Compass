@@ -123,5 +123,10 @@ struct CompassApp: App {
             CinematicPlanCompassFocusedCommands()
             CinematicRunRecapShareArtifactFocusedCommands()
         }
-}
+
+        Settings {
+            CompassSettingsView()
+                .environmentObject(model)
+        }
+    }
 }

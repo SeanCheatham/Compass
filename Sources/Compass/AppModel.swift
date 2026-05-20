@@ -2741,7 +2741,8 @@ final class AppModel: ObservableObject {
         }
     }
     @Published var modelOverride = ""
-    @Published var agentSettings = AgentRuntimeSettings.defaultFromEnvironment()
+    @Published private(set) var agentSettings: AgentRuntimeSettings
+    private let agentSettingsStore: AgentSettingsStore
     @Published var errorMessage: String?
 
     /// Process-wide shared VM host. Bound to the singleton in
@@ -2749,6 +2750,47 @@ final class AppModel: ObservableObject {
     /// snapshot. UI binds to its `@Published` properties via the singleton's
     /// own `ObservableObject` surface — there is no per-AppModel mirror.
     let sharedVMHost: SharedCompassVM = SharedCompassVM.shared
+
+    init(agentSettingsStore: AgentSettingsStore = AgentSettingsStore()) {
+        self.agentSettingsStore = agentSettingsStore
+        self.agentSettings = agentSettingsStore.load()
+    }
+
+    // MARK: - Agent settings setters
+
+    func setAgentBaseURL(_ raw: String) {
+        agentSettingsStore.setBaseURL(raw)
+        agentSettings = agentSettingsStore.load()
+    }
+
+    func setAgentAPIKey(_ raw: String) {
+        do {
+            try agentSettingsStore.setAPIKey(raw)
+        } catch {
+            errorMessage = "Could not save API key: \(error.localizedDescription)"
+        }
+        agentSettings = agentSettingsStore.load()
+    }
+
+    func setAgentDefaultModel(_ raw: String) {
+        agentSettingsStore.setDefaultModel(raw)
+        agentSettings = agentSettingsStore.load()
+    }
+
+    func setAgentPlanModelOverride(_ raw: String) {
+        agentSettingsStore.setPlanModelOverride(raw)
+        agentSettings = agentSettingsStore.load()
+    }
+
+    func setAgentDevelopModelOverride(_ raw: String) {
+        agentSettingsStore.setDevelopModelOverride(raw)
+        agentSettings = agentSettingsStore.load()
+    }
+
+    func setAgentReflectModelOverride(_ raw: String) {
+        agentSettingsStore.setReflectModelOverride(raw)
+        agentSettings = agentSettingsStore.load()
+    }
 
     var selectedProject: CompassProject? {
         projects.first { $0.id == selectedProjectID }

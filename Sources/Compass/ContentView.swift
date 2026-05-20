@@ -105,10 +105,15 @@ private struct SidebarView: View {
 
             DisclosureGroup {
                 VStack(alignment: .leading, spacing: 8) {
-                    TextField("codex binary", text: $model.codexBinary)
-                        .textFieldStyle(.roundedBorder)
-                    TextField("model override", text: $model.modelOverride)
-                        .textFieldStyle(.roundedBorder)
+                    Text("Agent endpoint: \(model.agentSettings.baseURL.host() ?? model.agentSettings.baseURL.absoluteString)")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Text("Model: \(model.agentSettings.model)")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Text("Configure via Compass → Settings… (⌘,).")
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
                     if let selectedProject = model.selectedProject {
                         DevelopSandboxPicker(
                             project: selectedProject,
