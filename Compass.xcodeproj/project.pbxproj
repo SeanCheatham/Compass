@@ -3,11 +3,11 @@
 	archiveVersion = 1;
 	classes = {
 	};
-	objectVersion = 77;
+	objectVersion = 70;
 	objects = {
 
 /* Begin PBXBuildFile section */
-		100000000000000000000020 /* Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000006 /* Info.plist */; };
+		100000000000000000000062 /* OpenAI in Frameworks */ = {isa = PBXBuildFile; productRef = 100000000000000000000061 /* OpenAI */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -20,43 +20,33 @@
 		100000000000000000000033 /* LocalSigning.example.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = LocalSigning.example.xcconfig; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
-/* Begin PBXFileSystemSynchronizedRootGroup section */
-		100000000000000000000003 /* Sources */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			explicitFileTypes = {
-			};
-			explicitFolders = (
-			);
-			exceptions = (
-				100000000000000000000050 /* exceptions */,
-			);
-			path = Sources;
-			sourceTree = "<group>";
-		};
-/* End PBXFileSystemSynchronizedRootGroup section */
-
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
-		100000000000000000000050 /* exceptions */ = {
+		100000000000000000000050 /* PBXFileSystemSynchronizedBuildFileExceptionSet */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
-				"Compass/SharedVM/README.md",
+				Compass/SharedVM/README.md,
 			);
 			target = 100000000000000000000009 /* Compass */;
 		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
+/* Begin PBXFileSystemSynchronizedRootGroup section */
+		100000000000000000000003 /* Sources */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (100000000000000000000050 /* PBXFileSystemSynchronizedBuildFileExceptionSet */, ); explicitFileTypes = {}; explicitFolders = (); path = Sources; sourceTree = "<group>"; };
+/* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
 		10000000000000000000000C /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				100000000000000000000062 /* OpenAI in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
-		100000000000000000000002 /* Compass */ = {
+		100000000000000000000002 = {
 			isa = PBXGroup;
 			children = (
 				100000000000000000000003 /* Sources */,
@@ -105,6 +95,9 @@
 				100000000000000000000003 /* Sources */,
 			);
 			name = Compass;
+			packageProductDependencies = (
+				100000000000000000000061 /* OpenAI */,
+			);
 			productName = Compass;
 			productReference = 100000000000000000000008 /* Compass.app */;
 			productType = "com.apple.product-type.application";
@@ -132,7 +125,10 @@
 				en,
 				Base,
 			);
-			mainGroup = 100000000000000000000002 /* Compass */;
+			mainGroup = 100000000000000000000002;
+			packageReferences = (
+				100000000000000000000060 /* XCRemoteSwiftPackageReference "OpenAI" */,
+			);
 			productRefGroup = 100000000000000000000005 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
@@ -242,12 +238,12 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = App/Compass.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				COMPASS_BUNDLE_DISPLAY_NAME = CompassLocal;
 				COMBINE_HIDPI_IMAGES = YES;
+				COMPASS_BUNDLE_DISPLAY_NAME = CompassLocal;
 				CURRENT_PROJECT_VERSION = 1;
-				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = App/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -271,12 +267,12 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = App/Compass.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				COMPASS_BUNDLE_DISPLAY_NAME = Compass;
 				COMBINE_HIDPI_IMAGES = YES;
+				COMPASS_BUNDLE_DISPLAY_NAME = Compass;
 				CURRENT_PROJECT_VERSION = 1;
-				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = App/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -315,6 +311,25 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		100000000000000000000060 /* XCRemoteSwiftPackageReference "OpenAI" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/MacPaw/OpenAI.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 0.4.9;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		100000000000000000000061 /* OpenAI */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 100000000000000000000060 /* XCRemoteSwiftPackageReference "OpenAI" */;
+			productName = OpenAI;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 100000000000000000000001 /* Project object */;
 }

@@ -10,9 +10,15 @@ let package = Package(
     products: [
         .executable(name: "Compass", targets: ["Compass"])
     ],
+    dependencies: [
+        .package(url: "https://github.com/MacPaw/OpenAI.git", from: "0.4.9")
+    ],
     targets: [
         .executableTarget(
             name: "Compass",
+            dependencies: [
+                .product(name: "OpenAI", package: "OpenAI")
+            ],
             resources: [
                 .process("Resources")
             ]
