@@ -52,7 +52,6 @@ final class SharedCompassVMBundleTests: XCTestCase {
             .notProvisioned,
             .downloadingIPSW,
             .installing,
-            .firstBootPending,
             .guestPrepping,
             .ready
         ]
@@ -209,7 +208,7 @@ final class SharedCompassVMBundleTests: XCTestCase {
     func testSaveStateAndReloadRoundTripsValue() throws {
         let bundle = makeBundle()
         let state = SharedCompassVMBundle.State(
-            provisionStep: .firstBootPending,
+            provisionStep: .guestPrepping,
             lastKnownGoodIP: "192.168.64.7",
             guestUserName: "compass",
             guestOSVersion: "26.0.0",

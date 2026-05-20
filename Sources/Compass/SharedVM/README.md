@@ -7,31 +7,34 @@ the host. Built directly on `Virtualization.framework`; no external tooling
 ## Lifecycle
 
 ```
-warmup ──▶ notProvisioned ──▶ downloadingIPSW ──▶ installing ──▶ firstBootPending
-                                                                       │
-                                                                       ▼
-                                                            (user clicks "Mark
-                                                             setup complete")
-                                                                       │
-                                                                       ▼
-                                                                guestPrepping
-                                                                       │
-                                                            (CLT install + SSH
-                                                             keypair injection
-                                                             + codex auth check
-                                                             /copy)
-                                                                       │
-                                                                       ▼
-                                                              codexLoginPending
-                                                                  (if needed)
-                                                                       │
-                                                                       ▼
-                                                                    ready
+warmup ──▶ notProvisioned ──▶ downloadingIPSW ──▶ installing
+                                                       │
+                                          (host mounts disk, plants
+                                           LaunchDaemon + bootstrap
+                                           script + sudoers fragment +
+                                           AppleSetupDone marker — one
+                                           admin auth prompt)
+                                                       │
+                                                       ▼
+                                                guestPrepping
+                                                       │
+                                          (VM boots; planted LaunchDaemon
+                                           creates compass user, plants
+                                           SSH key, enables sshd,
+                                           installs codex; host polls
+                                           SSH until reachable)
+                                                       │
+                                                       ▼
+                                              codexLoginPending
+                                                  (if needed)
+                                                       │
+                                                       ▼
+                                                    ready
 ```
 
 `unavailable(reason:)` and `error(detail:)` are absorbing states reached from
 any other point on detection of the Apple 2-guest cap, missing hardware
-support, or installer failure.
+support, installer failure, or a cancelled host admin prompt.
 
 ## Threading invariants
 
@@ -84,8 +87,14 @@ Files` symlink, so codex sees the worktree at
 - **Installer fails**: readiness moves to `.error(detail:)`. The Sandbox view
   surfaces destructive recovery: reset installed artifacts, or rebuild from a
   local IPSW. Reset removes the VM disk, auxiliary storage, hardware identity,
-  stale known-hosts entry, and codex credential stash while preserving the IPSW
-  cache and Compass SSH keypair.
+  stale known-hosts entry, codex credential stash, and the guest password's
+  Keychain entry while preserving the IPSW cache and Compass SSH keypair.
+- **Headless planter prompt cancelled**: readiness moves to `.error(detail:)`
+  with a message about the dismissed administrator prompt. The user clicks
+  Reset + Provision to retry; the install will re-run from scratch because
+  the on-disk image is wiped during reset. (Future optimisation: skip the
+  install step when the disk is already populated and only the plant
+  failed.)
 - **Boot loops**: `state.json.bootAttemptCounter` is incremented on every
   start attempt. After 3 consecutive failures from a previously-ready bundle,
   the Sandbox view surfaces a "Rebuild VM" affordance (also future).
@@ -108,12 +117,24 @@ Files` symlink, so codex sees the worktree at
   image distribution mechanism — Compass replaces that with first-run IPSW
   fetch from Apple's CDN (~14 GB, no auth required), plus a local IPSW picker
   for hosts where Apple's catalog fetch fails.
-- **Why interactive Setup Assistant instead of a headless first-boot
-  injection?** The alternatives (`/var/db/.AppleSetupDone` writes, first-boot
-  LaunchDaemons that pre-create users) are fragile across macOS releases
-  and Apple typically ships yearly. A one-time ~2-minute click-through in
-  the embedded VM view is acceptable friction for a per-host one-time
-  setup.
+- **Why headless first-boot via planted LaunchDaemon instead of interactive
+  Setup Assistant?** Earlier Compass shipped an interactive flow that
+  required the user to click through Setup Assistant and invent a guest
+  password. Both were UX taxes for a per-host one-time setup, and the
+  password was a security smell because nothing in Compass needed the user
+  to remember it. The headless replacement mounts the just-installed Data
+  volume on the host, plants `/var/db/.AppleSetupDone` + a one-shot
+  LaunchDaemon + a bootstrap script + the sudoers fragment, then unmounts.
+  The guest's first boot runs the LaunchDaemon, which creates the `compass`
+  admin user with a random Keychain-stored password, authorises the
+  Compass SSH key, enables Remote Login, and installs codex — all without
+  any user interaction. Per-major macOS profiles live in
+  [SharedCompassVMHeadlessFirstBoot.swift](SharedCompassVMHeadlessFirstBoot.swift)
+  so future Apple changes to Setup Assistant internals are a one-line
+  override rather than a refactor. The cost is one admin authentication
+  prompt during provisioning (NSAppleScript `do shell script ... with
+  administrator privileges`) so the host can write root-owned files into
+  the mounted Data volume.
 - **Why Command Line Tools instead of full Xcode?** Compass's `Package.swift`
   is a SwiftPM macOS package — CLT supplies the Swift toolchain, macOS SDK,
   and `git`. Full Xcode (~30 GB extra, requires Apple ID) is unnecessary

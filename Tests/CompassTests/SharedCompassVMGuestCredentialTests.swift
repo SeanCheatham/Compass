@@ -115,7 +115,7 @@ final class SharedCompassVMGuestCredentialTests: XCTestCase {
     func testBundleStateRoundTripsKeychainAccountField() throws {
         let account = SharedCompassVMGuestCredential.makeAccount()
         let state = SharedCompassVMBundle.State(
-            provisionStep: .firstBootPending,
+            provisionStep: .guestPrepping,
             guestPasswordKeychainAccount: account
         )
         let encoder = JSONEncoder()

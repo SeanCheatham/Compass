@@ -188,7 +188,7 @@ final class CodexExecutionLaunchPlanTests: XCTestCase {
             (nil, "not-inspected"),
             (.notProvisioned, "not-provisioned"),
             (.installing(fractionCompleted: 0.5), "installing"),
-            (.firstBootPending, "first-boot-pending"),
+            (.guestPrepping, "guest-prepping"),
             (.unavailable(reason: "Intel"), "unavailable")
         ]
         for (readiness, expectedClassification) in scenarios {

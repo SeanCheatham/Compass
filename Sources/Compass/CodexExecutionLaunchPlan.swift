@@ -122,12 +122,6 @@ struct CodexExecutionLaunchPlan: Equatable {
                     vmReadiness: readiness,
                     fallbackReason: "Shared VM is installing macOS."
                 )
-            case .firstBootPending:
-                return host(
-                    selectedPreference: preference,
-                    vmReadiness: readiness,
-                    fallbackReason: "Shared VM is waiting for first-boot setup to complete."
-                )
             case .guestPrepping:
                 return host(
                     selectedPreference: preference,
@@ -204,8 +198,6 @@ struct CodexExecutionLaunchPlan: Equatable {
             return "downloading-ipsw \(Int((fraction * 100).rounded()))%"
         case let .installing(fraction):
             return "installing \(Int((fraction * 100).rounded()))%"
-        case .firstBootPending:
-            return "first-boot-pending"
         case .guestPrepping:
             return "guest-prepping"
         case .codexLoginPending:

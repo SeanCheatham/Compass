@@ -75,10 +75,8 @@ struct CodexExecutionEnvironmentReadiness: Equatable {
             return "Shared VM is downloading the macOS restore image (\(Int((fraction * 100).rounded()))%)."
         case let .installing(fraction):
             return "Shared VM is installing macOS (\(Int((fraction * 100).rounded()))%)."
-        case .firstBootPending:
-            return "Shared VM is waiting for first-boot setup to complete."
         case .guestPrepping:
-            return "Shared VM guest preparation is in progress."
+            return "Shared VM is finishing headless first-boot setup."
         case .codexLoginPending:
             return "Shared VM is waiting for the user to run codex login inside the guest."
         case let .ready(sshDestination):
@@ -379,8 +377,6 @@ struct CodexExecutionEnvironmentDiagnosticsReport: Equatable, Identifiable {
             return "downloading-ipsw"
         case .installing:
             return "installing"
-        case .firstBootPending:
-            return "first-boot-pending"
         case .guestPrepping:
             return "guest-prepping"
         case .codexLoginPending:
@@ -397,7 +393,7 @@ struct CodexExecutionEnvironmentDiagnosticsReport: Equatable, Identifiable {
         switch readiness {
         case .downloadingIPSW, .installing:
             return "building"
-        case .ready, .guestPrepping, .codexLoginPending, .firstBootPending:
+        case .ready, .guestPrepping, .codexLoginPending:
             return "built"
         case .notProvisioned:
             return "not-built"
@@ -538,7 +534,7 @@ struct CodexExecutionEnvironmentMenuItem: Identifiable, Equatable {
                 return "Shared VM is unavailable: \(reason). Compass falls back to native macOS."
             case .notProvisioned:
                 return "Shared VM has not been provisioned yet. Provision the VM from the Sandbox section to enable this route."
-            case .downloadingIPSW, .installing, .firstBootPending, .guestPrepping, .codexLoginPending:
+            case .downloadingIPSW, .installing, .guestPrepping, .codexLoginPending:
                 return "Shared VM is still preparing. Compass falls back to native macOS until the VM is ready."
             case .error(let detail):
                 return "Shared VM reported an error: \(detail). Compass falls back to native macOS."

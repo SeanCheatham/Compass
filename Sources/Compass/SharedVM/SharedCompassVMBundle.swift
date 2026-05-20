@@ -197,7 +197,6 @@ struct SharedCompassVMBundle: Equatable {
             case notProvisioned
             case downloadingIPSW
             case installing
-            case firstBootPending
             case guestPrepping
             case ready
         }

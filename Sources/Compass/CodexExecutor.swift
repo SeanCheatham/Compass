@@ -264,14 +264,6 @@ final class CodexExecutor {
             ))
             return Self.hostFallback(from: launchPlan, reason: "Shared VM error: \(detail)")
 
-        case .firstBootPending:
-            onEvent(LiveEvent(
-                level: .warning,
-                text: "Shared VM needs first-boot setup",
-                detail: "Open the Sandbox tab and complete the macOS Setup Assistant inside the guest, then click Mark setup complete.",
-                kind: .message
-            ))
-            return Self.hostFallback(from: launchPlan, reason: "Shared VM is awaiting first-boot setup.")
 
         case .codexLoginPending:
             onEvent(LiveEvent(
@@ -361,12 +353,12 @@ final class CodexExecutor {
                 return Self.hostFallback(from: launchPlan, reason: "Shared VM unavailable: \(reason)")
             case let .error(detail):
                 return Self.hostFallback(from: launchPlan, reason: "Shared VM error: \(detail)")
-            case .firstBootPending, .codexLoginPending:
-                // First-boot/codex-login require user interaction; don't block
-                // the develop loop waiting for it.
+            case .codexLoginPending:
+                // Codex login requires user interaction; don't block the
+                // develop loop waiting for it.
                 return Self.hostFallback(
                     from: launchPlan,
-                    reason: "Shared VM needs user setup: \(summary)"
+                    reason: "Shared VM needs codex login: \(summary)"
                 )
             case .notProvisioned, .downloadingIPSW, .installing, .guestPrepping:
                 try? await Task.sleep(nanoseconds: 1_000_000_000)

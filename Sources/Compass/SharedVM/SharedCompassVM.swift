@@ -185,8 +185,6 @@ final class SharedCompassVM: ObservableObject {
                 }
             case .ready:
                 readiness = .codexLoginPending
-            case .firstBootPending:
-                readiness = .firstBootPending
             case .guestPrepping:
                 readiness = .guestPrepping
             case .installing:
@@ -436,12 +434,6 @@ final class SharedCompassVM: ObservableObject {
         // guest. Updating the path on a running guest does *not* push a
         // new codex copy — the planter only fires once per install.
         lastKnownCodexBinaryPath = codexBinaryPath
-        _ = try? SharedCompassVMFirstBootScript.materialize(
-            workspacesRootURL: workspacesRootURL,
-            publicKeyURL: bundle.publicKeyURL,
-            codexBinaryPath: codexBinaryPath,
-            fileManager: dependencies.fileManager
-        )
     }
 
     /// Boots (or re-boots) the guest from the currently-installed bundle.

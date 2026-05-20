@@ -366,8 +366,6 @@ struct SessionExecutionEnvironmentSnapshot: Codable, Equatable, Identifiable {
             return "downloading-ipsw"
         case .installing:
             return "installing"
-        case .firstBootPending:
-            return "first-boot-pending"
         case .guestPrepping:
             return "guest-prepping"
         case .codexLoginPending:

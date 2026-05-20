@@ -33,13 +33,17 @@ struct SandboxView: View {
                     .frame(minWidth: 280, idealWidth: 320, maxWidth: 380)
             }
         }
-        .task(id: vmHost.readiness.firstBootAutoStartToken) {
-            await autoStartFirstBootGuestIfNeeded()
+        .task(id: vmHost.readiness.headlessAutoStartToken) {
+            await autoStartHeadlessGuestIfNeeded()
         }
     }
 
-    private func autoStartFirstBootGuestIfNeeded() async {
-        guard case .firstBootPending = vmHost.readiness, vmHost.virtualMachine == nil else { return }
+    /// After provisioning lands at `.guestPrepping`, the planted LaunchDaemon
+    /// finishes the user-creation + SSH-key dance inside the guest. We just
+    /// need the VM running; SharedCompassVM's internal poll loop then
+    /// auto-finalises readiness to `.ready` without any user click.
+    private func autoStartHeadlessGuestIfNeeded() async {
+        guard case .guestPrepping = vmHost.readiness, vmHost.virtualMachine == nil else { return }
         do {
             try await vmHost.start()
         } catch {
@@ -140,8 +144,8 @@ private struct SandboxSidePanel: View {
                         downloadFraction: 1.0,
                         installFraction: fraction
                     )
-                case .firstBootPending:
-                    SandboxFirstBootChecklist(vmHost: vmHost)
+                case .guestPrepping:
+                    SandboxHeadlessFirstBootSection(vmHost: vmHost)
                 case .codexLoginPending:
                     SandboxCodexLoginPrompt(vmHost: vmHost)
                 case .ready(let destination):
@@ -150,7 +154,7 @@ private struct SandboxSidePanel: View {
                     SandboxUnavailableSection(reason: reason)
                 case .error(let detail):
                     SandboxErrorSection(detail: detail, vmHost: vmHost)
-                case .notProvisioned, .guestPrepping:
+                case .notProvisioned:
                     SandboxIdleSection(vmHost: vmHost)
                 }
 
@@ -237,54 +241,28 @@ private struct SandboxProgressSection: View {
     }
 }
 
-private struct SandboxFirstBootChecklist: View {
+/// Passive status panel shown while the planted LaunchDaemon finishes its
+/// work inside the freshly-booted guest. There is nothing for the user to
+/// click — `SharedCompassVM` is polling SSH in the background and will
+/// transition readiness to `.ready` (or `.codexLoginPending`) on its own.
+private struct SandboxHeadlessFirstBootSection: View {
     @ObservedObject var vmHost: SharedCompassVM
-
-    private let steps: [String] = [
-        "Walk through Setup Assistant in the embedded window. Decline Apple ID; create a local user named compass.",
-        "Inside the guest, open Terminal (Spotlight -> 'Terminal').",
-        "Paste the command below, press return, and enter your guest password when sudo asks.",
-        "When the script prints 'bootstrap complete', click Mark setup complete here."
-    ]
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Label("First-boot checklist", systemImage: "checklist")
+            Label("Finishing macOS setup", systemImage: "gearshape.2")
                 .font(.subheadline.weight(.semibold))
-            Text("This finishes guest-side prep that VZ alone can't do: SSH key, /opt/compass symlink, Remote Login, codex.")
+            Text("Compass planted a one-shot LaunchDaemon onto the guest disk. The guest is creating the compass user, authorising the Compass SSH key, enabling Remote Login, and installing codex. This takes 30 — 90 seconds.")
                 .font(.callout)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
 
-            VStack(alignment: .leading, spacing: 6) {
-                ForEach(Array(steps.enumerated()), id: \.offset) { index, step in
-                    HStack(alignment: .firstTextBaseline, spacing: 8) {
-                        Text("\(index + 1).")
-                            .font(.callout.monospacedDigit().weight(.semibold))
-                            .foregroundStyle(.secondary)
-                            .frame(width: 18, alignment: .trailing)
-                        Text(step)
-                            .font(.callout)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                }
-            }
-
-            SandboxFirstBootCommandBlock(command: SharedCompassVMFirstBootScript.guestRunCommand)
+            ProgressView()
+                .progressViewStyle(.linear)
 
             if let failure = vmHost.setupFailureMessage {
                 SandboxSetupFailureBanner(message: failure)
             }
-
-            Button {
-                Task { await vmHost.markSetupComplete() }
-            } label: {
-                Label("Mark setup complete", systemImage: "checkmark.circle.fill")
-                    .frame(maxWidth: .infinity)
-            }
-            .buttonStyle(.borderedProminent)
-            .disabled(vmHost.virtualMachine == nil)
-            .help("Tell Compass the bootstrap script has finished so it can probe SSH and finish guest prep.")
         }
         .padding(12)
         .background(.tint.opacity(0.10), in: RoundedRectangle(cornerRadius: 10))
@@ -292,8 +270,8 @@ private struct SandboxFirstBootChecklist: View {
     }
 }
 
-/// Inline error banner for the most recent failed `markSetupComplete()` call.
-/// Cleared automatically when the user retries.
+/// Inline error banner for a recent SSH-probe failure during headless
+/// first-boot finalisation. Cleared on the next probe attempt.
 private struct SandboxSetupFailureBanner: View {
     let message: String
 
@@ -311,39 +289,6 @@ private struct SandboxSetupFailureBanner: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Color.orange.opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
         .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.orange.opacity(0.30)))
-    }
-}
-
-/// Selectable monospaced command block with a "Copy" affordance. Used by
-/// the first-boot checklist so users can paste the bootstrap-script
-/// invocation into the guest's Terminal without retyping.
-private struct SandboxFirstBootCommandBlock: View {
-    let command: String
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack {
-                Text("Run inside the guest")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.secondary)
-                Spacer()
-                Button {
-                    NSPasteboard.general.clearContents()
-                    NSPasteboard.general.setString(command, forType: .string)
-                } label: {
-                    Label("Copy", systemImage: "doc.on.doc")
-                        .labelStyle(.iconOnly)
-                }
-                .buttonStyle(.borderless)
-                .help("Copy command to clipboard")
-            }
-            Text(command)
-                .font(.caption.monospaced())
-                .textSelection(.enabled)
-                .padding(8)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(.quaternary.opacity(0.45), in: RoundedRectangle(cornerRadius: 6))
-        }
     }
 }
 
@@ -579,9 +524,13 @@ struct SandboxReadinessDot: View {
 // MARK: - Readiness display helpers
 
 extension SharedCompassVMReadiness {
-    var firstBootAutoStartToken: String {
-        if case .firstBootPending = self {
-            return "firstBootPending"
+    /// Identity used by SandboxView's `.task(id:)` modifier to auto-start
+    /// the VM once provisioning lands at `.guestPrepping` (the post-plant
+    /// state in the headless first-boot pipeline). Stable string per state
+    /// — switching to anything else cancels the auto-start task.
+    var headlessAutoStartToken: String {
+        if case .guestPrepping = self {
+            return "guestPrepping"
         }
         return "inactive"
     }
@@ -599,10 +548,8 @@ extension SharedCompassVMReadiness {
         case .installing(let fraction):
             let pct = Int((fraction.clamped01 * 100).rounded())
             return "Installing macOS (\(pct)%)"
-        case .firstBootPending:
-            return "Waiting on first-boot setup"
         case .guestPrepping:
-            return "Preparing guest"
+            return "Finishing headless first-boot"
         case .codexLoginPending:
             return "Codex login pending in guest"
         case .ready:
@@ -619,7 +566,6 @@ extension SharedCompassVMReadiness {
         case .notProvisioned: return "Not provisioned"
         case .downloadingIPSW: return "Downloading"
         case .installing: return "Installing"
-        case .firstBootPending: return "Setup"
         case .guestPrepping: return "Preparing"
         case .codexLoginPending: return "Codex login"
         case .ready: return "Ready"
@@ -634,7 +580,7 @@ extension SharedCompassVMReadiness {
             return .green
         case .downloadingIPSW, .installing, .guestPrepping:
             return .blue
-        case .firstBootPending, .codexLoginPending:
+        case .codexLoginPending:
             return .yellow
         case .unavailable:
             return .orange
@@ -650,7 +596,6 @@ extension SharedCompassVMReadiness {
         case .ready: return "checkmark.seal.fill"
         case .downloadingIPSW: return "arrow.down.circle"
         case .installing: return "internaldrive"
-        case .firstBootPending: return "checklist"
         case .guestPrepping: return "gearshape.2"
         case .codexLoginPending: return "person.badge.key"
         case .unavailable: return "exclamationmark.triangle"
@@ -664,8 +609,7 @@ extension SharedCompassVMReadiness {
         case .ready: return "Shared VM is ready"
         case .downloadingIPSW: return "Downloading restore image"
         case .installing: return "Installing macOS"
-        case .firstBootPending: return "Complete first-boot setup"
-        case .guestPrepping: return "Preparing guest"
+        case .guestPrepping: return "Finishing headless first-boot"
         case .codexLoginPending: return "Sign in to Codex inside the guest"
         case .unavailable: return "Shared VM unavailable"
         case .error: return "Shared VM error"
@@ -683,10 +627,8 @@ extension SharedCompassVMReadiness {
         case .installing(let fraction):
             let pct = Int((fraction.clamped01 * 100).rounded())
             return "Restoring macOS onto the VM disk. \(pct)% complete."
-        case .firstBootPending:
-            return "Starting the guest. Setup Assistant will appear here when macOS finishes booting."
         case .guestPrepping:
-            return "Probing SSH and installing developer tools inside the guest."
+            return "The planted LaunchDaemon is creating the guest user and bringing up sshd. Compass is polling for readiness."
         case .codexLoginPending:
             return "Run codex login inside the guest, then mark login complete."
         case .unavailable(let reason):
