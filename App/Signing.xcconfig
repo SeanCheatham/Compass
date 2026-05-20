@@ -1,0 +1,17 @@
+// Shared defaults for Xcode app signing and VM debug-launch plumbing.
+//
+// Developer-specific values belong in App/LocalSigning.xcconfig, which is
+// intentionally git-ignored. Example:
+//
+//   COMPASS_DEVELOPMENT_TEAM = ABCDE12345
+//   COMPASS_DEBUG_APP_PATH = /Applications/CompassLocal.app
+//
+// Command-line builds can also pass these as xcodebuild build settings.
+
+COMPASS_DEVELOPMENT_TEAM =
+COMPASS_COPY_DEBUG_APP_TO_APPLICATIONS = YES
+COMPASS_DEBUG_APP_PATH = /Applications/CompassLocal.app
+
+#include? "LocalSigning.xcconfig"
+
+DEVELOPMENT_TEAM = $(COMPASS_DEVELOPMENT_TEAM)

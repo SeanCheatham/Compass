@@ -1,0 +1,10 @@
+// Copy this file to App/LocalSigning.xcconfig for local Shared VM debugging.
+// LocalSigning.xcconfig is git-ignored so personal team identifiers stay local.
+
+COMPASS_DEVELOPMENT_TEAM = ABCDE12345
+
+// The shared Xcode scheme waits for this app to be launched by Finder/launchd.
+// The default stays separate from /Applications/Compass.app so debug builds do
+// not overwrite a real installed app. Override only if you need a different
+// local test app name.
+COMPASS_DEBUG_APP_PATH = /Applications/CompassLocal.app

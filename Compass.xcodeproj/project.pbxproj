@@ -16,6 +16,8 @@
 		100000000000000000000008 /* Compass.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Compass.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		100000000000000000000030 /* Package.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Package.swift; sourceTree = "<group>"; };
 		100000000000000000000031 /* README.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = README.md; sourceTree = "<group>"; };
+		100000000000000000000032 /* Signing.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Signing.xcconfig; sourceTree = "<group>"; };
+		100000000000000000000033 /* LocalSigning.example.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = LocalSigning.example.xcconfig; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -70,6 +72,8 @@
 			children = (
 				100000000000000000000006 /* Info.plist */,
 				100000000000000000000007 /* Compass.entitlements */,
+				100000000000000000000032 /* Signing.xcconfig */,
+				100000000000000000000033 /* LocalSigning.example.xcconfig */,
 			);
 			path = App;
 			sourceTree = "<group>";
@@ -92,6 +96,7 @@
 				10000000000000000000000A /* Sources */,
 				10000000000000000000000B /* Resources */,
 				10000000000000000000000C /* Frameworks */,
+				100000000000000000000040 /* CopyToApplications */,
 			);
 			buildRules = (
 			);
@@ -147,6 +152,28 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		100000000000000000000040 /* CopyToApplications */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = CopyToApplications;
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/bash;
+			shellScript = "# Copy the freshly-built Debug app to /Applications so the\n# Virtualization.framework installation helper will accept connections from us.\n#\n# This is on by default for developer builds because VZ restore/install helper\n# checks reject the same bundle from DerivedData. The destination defaults to\n# /Applications/CompassLocal.app so debug builds never overwrite a real\n# /Applications/Compass.app install.\n#\n# Two failure modes are at play, both with the same symptom (VZErrorDomain\n# 10001 / 10004, 'Installation service returned an unexpected error'):\n#\n#   1) The bundle's path matters. The VZ install helper, via TCC, refuses\n#      callers whose .app lives under ~/Library/Developer/Xcode/DerivedData/.\n#      Running the same binary from /Applications fixes the path-based check.\n#\n#   2) The launching parent matters. Even from /Applications, a process\n#      spawned by Xcode/lldb (via debugserver) gets treated as a tools child\n#      and the helper still rejects it. So the app must be launched by\n#      Finder/launchd, not by Xcode.\nset -euo pipefail\nif [[ \"${CONFIGURATION:-}\" != \"Debug\" ]]; then\n  echo \"Skipping /Applications debug copy for ${CONFIGURATION:-unknown} build\"\n  exit 0\nfi\nif [[ \"${COMPASS_COPY_DEBUG_APP_TO_APPLICATIONS:-YES}\" != \"YES\" ]]; then\n  echo \"Skipping /Applications debug copy; COMPASS_COPY_DEBUG_APP_TO_APPLICATIONS=${COMPASS_COPY_DEBUG_APP_TO_APPLICATIONS:-NO}\"\n  exit 0\nfi\nSRC=\"${BUILT_PRODUCTS_DIR}/${WRAPPER_NAME}\"\nDEST=\"${COMPASS_DEBUG_APP_PATH:-/Applications/CompassLocal.app}\"\ncase \"${DEST}\" in\n  /Applications/*) ;;\n  *) echo \"error: COMPASS_DEBUG_APP_PATH must be under /Applications for VZ helper testing: ${DEST}\" >&2; exit 1 ;;\nesac\nif [[ -e \"${DEST}\" && ! -w \"${DEST}\" ]]; then\n  echo \"error: ${DEST} is not writable. Choose another COMPASS_DEBUG_APP_PATH or fix permissions.\" >&2\n  exit 1\nfi\nditto \"${SRC}\" \"${DEST}\"\necho \"Copied ${WRAPPER_NAME} to ${DEST}\"\n";
+		};
+/* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		10000000000000000000000A /* Sources */ = {
@@ -233,14 +260,14 @@
 		};
 		100000000000000000000011 /* Debug */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = 100000000000000000000032 /* Signing.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = App/Compass.entitlements;
-				CODE_SIGN_IDENTITY = "-";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = "";
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
@@ -261,14 +288,14 @@
 		};
 		100000000000000000000012 /* Release */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = 100000000000000000000032 /* Signing.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = App/Compass.entitlements;
-				CODE_SIGN_IDENTITY = "-";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = "";
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
