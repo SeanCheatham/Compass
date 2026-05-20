@@ -1083,7 +1083,7 @@ private struct ProjectRunControls: View {
             Button {
                 Task {
                     await project.play(
-                        codexBinary: model.codexBinary,
+                        agentSettings: model.agentSettings,
                         modelOverride: model.modelOverride
                     )
                 }

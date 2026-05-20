@@ -466,7 +466,7 @@ final class CompassProject: ObservableObject, Identifiable {
         return makeWorkspace(repoURL: repoURL)
     }
 
-    private var executor: CodexExecutor?
+    private var executor: AgentExecutor?
     private var stopRequested = false
     private var cinematicBriefingTask: Task<Void, Never>?
     private var cinematicNativeFeedbackCueExpiryTask: Task<Void, Never>?
@@ -1082,7 +1082,7 @@ extension CompassProject {
         }
     }
 
-    func play(codexBinary: String, modelOverride: String) async {
+    func play(agentSettings: AgentRuntimeSettings, modelOverride: String) async {
         guard !isRunning, !isAutoPlaying else { return }
         stopRequested = false
         let resumedFromPause = isPaused
@@ -1096,7 +1096,7 @@ extension CompassProject {
             log("Auto-play resumed.", level: .success)
             await runDevelopPass(
                 existingSessionIndex: sessionIndex,
-                codexBinary: codexBinary,
+                agentSettings: agentSettings,
                 modelOverride: modelOverride
             )
         } else {
@@ -1111,7 +1111,7 @@ extension CompassProject {
 
             await runPlanPass(
                 continueToDevelop: true,
-                codexBinary: codexBinary,
+                agentSettings: agentSettings,
                 modelOverride: modelOverride
             )
 
@@ -1130,23 +1130,23 @@ extension CompassProject {
         }
     }
 
-    func runPlanOnly(codexBinary: String, modelOverride: String) async {
+    func runPlanOnly(agentSettings: AgentRuntimeSettings, modelOverride: String) async {
         guard !isRunning else { return }
         isAutoPlaying = false
         await runPlanPass(
             continueToDevelop: false,
-            codexBinary: codexBinary,
+            agentSettings: agentSettings,
             modelOverride: modelOverride
         )
     }
 
-    func runDevelopOnly(codexBinary: String, modelOverride: String) async {
+    func runDevelopOnly(agentSettings: AgentRuntimeSettings, modelOverride: String) async {
         guard !isRunning else { return }
         isAutoPlaying = false
         isPaused = false
         await runDevelopPass(
             existingSessionIndex: nil,
-            codexBinary: codexBinary,
+            agentSettings: agentSettings,
             modelOverride: modelOverride
         )
     }
@@ -1340,7 +1340,7 @@ extension CompassProject {
 
     private func runPlanPass(
         continueToDevelop: Bool,
-        codexBinary: String,
+        agentSettings: AgentRuntimeSettings,
         modelOverride: String
     ) async {
         let workspace: CompassWorkspace
@@ -1376,7 +1376,7 @@ extension CompassProject {
             try await runReflectIfNeeded(
                 workspace,
                 sessionIndex: sessionIndex,
-                codexBinary: codexBinary,
+                agentSettings: agentSettings,
                 modelOverride: modelOverride
             )
 
@@ -1411,23 +1411,15 @@ extension CompassProject {
                 launchPlan: launchPlan,
                 sessionIndex: sessionIndex
             )
-            log("Plan: launching codex exec.", level: .info)
-            let codex = CodexExecutor()
-            executor = codex
-            let planResult = try await codex.run(
-                CodexRunConfiguration(
-                    codexBinary: codexBinary,
-                    repoURL: workspace.repoURL,
-                    sandbox: "read-only",
-                    model: modelForPhase(envKey: "COMPASS_CODEX_PLAN_MODEL", modelOverride: modelOverride),
-                    schema: Prompts.planSchema,
-                    prompt: prompt,
-                    launchPlan: launchPlan
-                ),
-                decode: PlanRunResult.self,
-                onEvent: { [weak self] event in
-                    Task { @MainActor in self?.log(event) }
-                }
+            log("Plan: launching agent.", level: .info)
+            let planResult = try await runAgent(
+                phase: .plan,
+                agentSettings: agentSettings,
+                modelOverride: modelOverride,
+                workingDirectory: workspace.repoURL,
+                userPrompt: prompt,
+                submitResultSchema: Prompts.planSchema,
+                decode: PlanRunResult.self
             )
             let nextState = planResult.state
 
@@ -1483,7 +1475,7 @@ extension CompassProject {
                 executor = nil
                 await runDevelopPass(
                     existingSessionIndex: sessionIndex,
-                    codexBinary: codexBinary,
+                    agentSettings: agentSettings,
                     modelOverride: modelOverride
                 )
             } else {
@@ -1529,7 +1521,7 @@ extension CompassProject {
 
     private func runDevelopPass(
         existingSessionIndex: Int?,
-        codexBinary: String,
+        agentSettings: AgentRuntimeSettings,
         modelOverride: String
     ) async {
         let workspace: CompassWorkspace
@@ -1605,23 +1597,15 @@ extension CompassProject {
                     sessionIndex: sessionIndex,
                     attempt: attempt
                 )
-                log("Develop: launching codex exec (attempt \(attempt)/\(maxDevelopAttempts)).", level: .info)
-                let codex = CodexExecutor()
-                executor = codex
-                let summary = try await codex.run(
-                    CodexRunConfiguration(
-                        codexBinary: codexBinary,
-                        repoURL: devWorkspace.repoURL,
-                        sandbox: "danger-full-access",
-                        model: modelForPhase(envKey: "COMPASS_CODEX_DEV_MODEL", modelOverride: modelOverride),
-                        schema: Prompts.developSchema,
-                        prompt: prompt,
-                        launchPlan: launchPlan
-                    ),
-                    decode: DevelopSummary.self,
-                    onEvent: { [weak self] event in
-                        Task { @MainActor in self?.log(event) }
-                    }
+                log("Develop: launching agent (attempt \(attempt)/\(maxDevelopAttempts)).", level: .info)
+                let summary = try await runAgent(
+                    phase: .develop,
+                    agentSettings: agentSettings,
+                    modelOverride: modelOverride,
+                    workingDirectory: devWorkspace.repoURL,
+                    userPrompt: prompt,
+                    submitResultSchema: Prompts.developSchema,
+                    decode: DevelopSummary.self
                 )
 
                 guard sessions.indices.contains(sessionIndex) else {
@@ -1960,7 +1944,7 @@ extension CompassProject {
     private func runReflectIfNeeded(
         _ workspace: CompassWorkspace,
         sessionIndex: Int,
-        codexBinary: String,
+        agentSettings: AgentRuntimeSettings,
         modelOverride: String
     ) async throws {
         guard sessions.indices.contains(sessionIndex) else { return }
@@ -1988,23 +1972,15 @@ extension CompassProject {
             launchPlan: launchPlan,
             sessionIndex: sessionIndex
         )
-        log("Reflect: launching codex exec.", level: .info)
-        let codex = CodexExecutor()
-        executor = codex
-        let result = try await codex.run(
-            CodexRunConfiguration(
-                codexBinary: codexBinary,
-                repoURL: workspace.repoURL,
-                sandbox: "read-only",
-                model: modelForPhase(envKey: "COMPASS_CODEX_REFLECT_MODEL", modelOverride: modelOverride),
-                schema: Prompts.reflectSchema,
-                prompt: prompt,
-                launchPlan: launchPlan
-            ),
-            decode: ReflectSummary.self,
-            onEvent: { [weak self] event in
-                Task { @MainActor in self?.log(event) }
-            }
+        log("Reflect: launching agent.", level: .info)
+        let result = try await runAgent(
+            phase: .reflect,
+            agentSettings: agentSettings,
+            modelOverride: modelOverride,
+            workingDirectory: workspace.repoURL,
+            userPrompt: prompt,
+            submitResultSchema: Prompts.reflectSchema,
+            decode: ReflectSummary.self
         )
 
         let lessonEditCount = try workspace.applyLessonEdits(result.lessonEdits)
@@ -2031,13 +2007,42 @@ extension CompassProject {
         try workspace?.writeSessions(sessions)
     }
 
-    private func modelForPhase(envKey: String, modelOverride: String) -> String? {
-        let override = modelOverride.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !override.isEmpty { return override }
-
-        let env = ProcessInfo.processInfo.environment[envKey]?
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        return env?.isEmpty == false ? env : nil
+    /// Build an AgentExecutionConfiguration, run it, and decode the
+    /// `submit_result` arguments into the phase result model. Assigns the
+    /// executor to `self.executor` so `stopRun()` can cancel mid-stream.
+    private func runAgent<T: Decodable>(
+        phase: AgentPhase,
+        agentSettings: AgentRuntimeSettings,
+        modelOverride: String,
+        workingDirectory: URL,
+        userPrompt: String,
+        submitResultSchema: String,
+        decode: T.Type
+    ) async throws -> T {
+        let schema = AgentToolParametersSchema(json: Data(submitResultSchema.utf8))
+        let configuration = AgentExecutionConfiguration(
+            settings: agentSettings,
+            phase: phase,
+            modelOverride: modelOverride,
+            systemPrompt: Prompts.agentSystemPrompt(phase: phase),
+            userPrompt: userPrompt,
+            tools: AgentExecutor.toolsForPhase(phase),
+            submitResultSchema: schema,
+            workingDirectory: workingDirectory
+        )
+        let agent = AgentExecutor { [weak self] event in
+            Task { @MainActor in self?.log(event) }
+        }
+        executor = agent
+        let result = try await agent.run(configuration)
+        do {
+            return try JSONDecoder().decode(T.self, from: result.submitResultArguments)
+        } catch {
+            let body = String(decoding: result.submitResultArguments, as: UTF8.self)
+            throw AppModelError.internalInvariant(
+                "Could not decode \(T.self) from submit_result: \(error.localizedDescription)\n\(body)"
+            )
+        }
     }
 
     private func validatePlanTransition(from current: PlanState, to next: PlanState) throws {
@@ -2736,6 +2741,7 @@ final class AppModel: ObservableObject {
         }
     }
     @Published var modelOverride = ""
+    @Published var agentSettings = AgentRuntimeSettings.defaultFromEnvironment()
     @Published var errorMessage: String?
 
     /// Process-wide shared VM host. Bound to the singleton in
@@ -2862,7 +2868,7 @@ final class AppModel: ObservableObject {
 
     func playSelectedProject() async {
         guard let selectedProject else { return }
-        await selectedProject.play(codexBinary: codexBinary, modelOverride: modelOverride)
+        await selectedProject.play(agentSettings: agentSettings, modelOverride: modelOverride)
     }
 
     func runMutationTestingForSelectedProject() async {

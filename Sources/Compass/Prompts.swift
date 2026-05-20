@@ -450,6 +450,36 @@ enum Prompts {
         """
     }
 
+    /// System message prepended to the per-phase user prompt. Tells the
+    /// model which tools are on the table for this phase and how to end
+    /// the turn via `submit_result`. The user prompt still carries the
+    /// per-phase instructions and the output schema.
+    static func agentSystemPrompt(phase: AgentPhase) -> String {
+        let readOnlyTools = "read_file, ls, grep, glob"
+        let writeTools = "write_file, edit_file, bash"
+        let toolList: String
+        switch phase {
+        case .plan, .reflect:
+            toolList = "- Inspection tools: \(readOnlyTools).\n- This phase is read-only. The Develop phase has the write tools — do not request them here."
+        case .develop:
+            toolList = "- Inspection tools: \(readOnlyTools).\n- Mutation tools: \(writeTools)."
+        }
+        return """
+        You are operating inside the Compass agent runtime. Compass talks to
+        an OpenAI-compatible chat completions endpoint and dispatches the
+        tool calls you make.
+
+        Tools available to you this turn:
+        \(toolList)
+
+        End this phase by calling the `submit_result` tool exactly once. Its
+        arguments object MUST match the output schema described in the user
+        message. Do not put the structured payload in a regular assistant
+        message — always call the tool. The phase ends the moment you call
+        it; no further messages will be processed.
+        """
+    }
+
     private static func encodeSessions(_ sessions: [SessionRecord]) throws -> String {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
