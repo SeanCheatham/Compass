@@ -214,6 +214,11 @@ struct SharedCompassVMBundle: Equatable {
         /// `SharedCompassVMGuestIPDiscovery` find the guest's IP across host
         /// reboots via `/var/db/dhcpd_leases` and `arp -an`.
         var guestMACAddress: String?
+        /// Keychain account string that resolves the guest's auto-generated
+        /// admin password. Allocated by `SharedCompassVMGuestCredential.makeAccount()`
+        /// at the start of headless first-boot provisioning; the password
+        /// itself lives in the macOS Keychain under the Compass service.
+        var guestPasswordKeychainAccount: String?
 
         static let defaultGuestUserName = "compass"
 
@@ -225,7 +230,8 @@ struct SharedCompassVMBundle: Equatable {
             codexLoginCompleted: Bool = false,
             bootAttemptCounter: Int = 0,
             lastBundleSize: UInt64? = nil,
-            guestMACAddress: String? = nil
+            guestMACAddress: String? = nil,
+            guestPasswordKeychainAccount: String? = nil
         ) {
             self.provisionStep = provisionStep
             self.lastKnownGoodIP = lastKnownGoodIP
@@ -235,6 +241,7 @@ struct SharedCompassVMBundle: Equatable {
             self.bootAttemptCounter = bootAttemptCounter
             self.lastBundleSize = lastBundleSize
             self.guestMACAddress = guestMACAddress
+            self.guestPasswordKeychainAccount = guestPasswordKeychainAccount
         }
     }
 
