@@ -252,6 +252,148 @@ final class SharedCompassVMHeadlessPlanterTests: XCTestCase {
         XCTAssertTrue(first.lastPathComponent.hasPrefix("Compass-HeadlessFirstBoot-"))
     }
 
+    // MARK: - plant(...) integration with mocked deps
+
+    func testPlantOrchestrationStagesPayloadInvokesElevatorAndDetachesContainer() async throws {
+        // Fakes capture every call so the test can assert order + arguments
+        // without spawning hdiutil / osascript.
+        let attacher = FakeAttacher()
+        attacher.deviceNode = "/dev/disk7"
+        let locator = FakeLocator()
+        locator.dataVolume = "/dev/disk7s1s2"
+        let elevator = FakeElevator()
+        elevator.output = "[compass-planter] done.\n"
+
+        let dependencies = SharedCompassVMHeadlessPlanter.Dependencies(
+            diskAttacher: attacher,
+            dataVolumeLocator: locator,
+            elevator: elevator
+        )
+
+        let diskImageURL = makeTempDir().appendingPathComponent("Disk.img", isDirectory: false)
+        FileManager.default.createFile(atPath: diskImageURL.path, contents: Data())
+
+        let payload = makePayload(includeCodex: true)
+        let report = try await SharedCompassVMHeadlessPlanter.plant(
+            payload: payload,
+            diskImageURL: diskImageURL,
+            dependencies: dependencies
+        )
+
+        // Mock invocation accounting
+        XCTAssertEqual(attacher.attachedURLs, [diskImageURL])
+        XCTAssertEqual(locator.queriedContainers, ["/dev/disk7"])
+        XCTAssertEqual(elevator.invokedScriptURLs.count, 1)
+        XCTAssertTrue(report.dataVolumeDeviceNode == "/dev/disk7s1s2")
+        XCTAssertEqual(report.elevatedScriptOutput, "[compass-planter] done.\n")
+
+        // The elevated script the planter wrote must reference both the
+        // staging dir it created and the data volume devnode it discovered.
+        let writtenScript = elevator.invokedScriptContents.first ?? ""
+        XCTAssertTrue(writtenScript.contains("/dev/disk7s1s2"))
+        XCTAssertTrue(writtenScript.contains("$STAGING_DIR/launchd.plist"))
+        XCTAssertTrue(writtenScript.contains("$STAGING_DIR/bootstrap.sh"))
+        XCTAssertTrue(writtenScript.contains("$STAGING_DIR/sudoers"))
+        XCTAssertTrue(writtenScript.contains("$STAGING_DIR/user.password"))
+        XCTAssertTrue(writtenScript.contains("$STAGING_DIR/id_ed25519.pub"))
+
+        // After completion, the planter must detach the container so VZ can
+        // grab the disk back for boot. (The detach call is deferred inside
+        // plant; allow the runtime a tick to drain it.)
+        try await Task.sleep(nanoseconds: 100_000_000)
+        XCTAssertEqual(attacher.detachedDeviceNodes, ["/dev/disk7"])
+
+        // Staging dir must be cleaned up so subsequent runs start fresh.
+        XCTAssertFalse(FileManager.default.fileExists(atPath: report.stagingDirectoryURL.path))
+    }
+
+    func testPlantCleansUpStagingDirectoryEvenWhenElevatedScriptThrows() async throws {
+        let attacher = FakeAttacher()
+        attacher.deviceNode = "/dev/disk9"
+        let locator = FakeLocator()
+        locator.dataVolume = "/dev/disk9s1s2"
+        let elevator = FakeElevator()
+        elevator.errorToThrow = SharedCompassVMHeadlessPlanter.Error.userCancelledElevation
+
+        let dependencies = SharedCompassVMHeadlessPlanter.Dependencies(
+            diskAttacher: attacher,
+            dataVolumeLocator: locator,
+            elevator: elevator
+        )
+        let diskImageURL = makeTempDir().appendingPathComponent("Disk.img", isDirectory: false)
+        FileManager.default.createFile(atPath: diskImageURL.path, contents: Data())
+
+        let payload = makePayload(includeCodex: false)
+        do {
+            _ = try await SharedCompassVMHeadlessPlanter.plant(
+                payload: payload,
+                diskImageURL: diskImageURL,
+                dependencies: dependencies
+            )
+            XCTFail("plant should rethrow elevator failures")
+        } catch SharedCompassVMHeadlessPlanter.Error.userCancelledElevation {
+            // expected
+        } catch {
+            XCTFail("unexpected error \(error)")
+        }
+
+        // Even on failure, the staging dir must be removed so the next
+        // provisioning attempt is not left with stale files on disk.
+        let leftoverDirs = (try? FileManager.default.contentsOfDirectory(
+            at: URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true),
+            includingPropertiesForKeys: nil
+        )) ?? []
+        let leakedPlanterDirs = leftoverDirs.filter {
+            $0.lastPathComponent.hasPrefix("Compass-HeadlessFirstBoot-")
+        }
+        XCTAssertTrue(leakedPlanterDirs.isEmpty, "plant leaked staging directories: \(leakedPlanterDirs)")
+    }
+
+    // MARK: - Test doubles
+
+    private final class FakeAttacher: HostDiskAttaching, @unchecked Sendable {
+        var deviceNode: String = "/dev/disk0"
+        var attachedURLs: [URL] = []
+        var detachedDeviceNodes: [String] = []
+
+        func attachWithoutMount(diskImageURL: URL) async throws -> HostDiskAttachment {
+            attachedURLs.append(diskImageURL)
+            return HostDiskAttachment(containerDeviceNode: deviceNode, rawPlist: "")
+        }
+
+        func detach(deviceNode: String) async throws {
+            detachedDeviceNodes.append(deviceNode)
+        }
+    }
+
+    private final class FakeLocator: DataVolumeLocating, @unchecked Sendable {
+        var dataVolume: String = "/dev/disk0s1s2"
+        var queriedContainers: [String] = []
+
+        func locateDataVolume(insideContainer container: String) async throws -> String {
+            queriedContainers.append(container)
+            return dataVolume
+        }
+    }
+
+    private final class FakeElevator: AdminElevating, @unchecked Sendable {
+        var output: String = ""
+        var errorToThrow: Error?
+        var invokedScriptURLs: [URL] = []
+        var invokedScriptContents: [String] = []
+
+        func runElevatedScript(at scriptURL: URL) async throws -> String {
+            invokedScriptURLs.append(scriptURL)
+            if let contents = try? String(contentsOf: scriptURL, encoding: .utf8) {
+                invokedScriptContents.append(contents)
+            }
+            if let errorToThrow {
+                throw errorToThrow
+            }
+            return output
+        }
+    }
+
     // MARK: - Helpers
 
     private func makeTempDir() -> URL {
