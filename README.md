@@ -20,14 +20,16 @@ cp App/LocalSigning.example.xcconfig App/LocalSigning.xcconfig
 # Edit COMPASS_DEVELOPMENT_TEAM to your Apple development team id.
 ```
 
-Debug builds copy to `/Applications/CompassLocal.app` by default. The shared
-Xcode scheme waits for that app to be launched by Finder/launchd so
+Debug builds copy to `/Applications/CompassLocal.app` by default and use the
+`com.seancheatham.CompassLocal` bundle identifier/display name. The shared Xcode
+scheme waits for that app to be launched by Finder/launchd so
 Virtualization.framework's install helper sees a signed app outside DerivedData
-without overwriting a real `/Applications/Compass.app` install:
+without overwriting or confusing a real `/Applications/Compass.app` install:
 
 ```bash
 open Compass.xcodeproj
-# Press Cmd-R, then launch /Applications/CompassLocal.app from Finder/Spotlight.
+# Press Cmd-R; Xcode builds/copies and waits.
+# Then launch /Applications/CompassLocal.app from Finder/Spotlight.
 ```
 
 The equivalent command-line flow is:

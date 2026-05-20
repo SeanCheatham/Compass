@@ -392,6 +392,7 @@ final class SharedCompassVM: ObservableObject {
         }
 
         let machine = VZVirtualMachine(configuration: configuration)
+        self.virtualMachine = machine
 
         do {
             try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
@@ -405,11 +406,10 @@ final class SharedCompassVM: ObservableObject {
                 }
             }
         } catch {
+            self.virtualMachine = nil
             tearDownConsolePipe()
             throw error
         }
-
-        self.virtualMachine = machine
     }
 
     /// Pauses the live VM. No-op if no VM is running.
