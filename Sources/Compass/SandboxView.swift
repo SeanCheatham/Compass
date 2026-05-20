@@ -1,4 +1,5 @@
 import SwiftUI
+import UniformTypeIdentifiers
 import Virtualization
 
 /// Detail-pane content for the top-level "Sandbox" sidebar entry.
@@ -135,7 +136,7 @@ private struct SandboxSidePanel: View {
                 case .unavailable(let reason):
                     SandboxUnavailableSection(reason: reason)
                 case .error(let detail):
-                    SandboxErrorSection(detail: detail)
+                    SandboxErrorSection(detail: detail, vmHost: vmHost)
                 case .notProvisioned, .guestPrepping:
                     SandboxIdleSection(vmHost: vmHost)
                 }
@@ -410,6 +411,7 @@ private struct SandboxIdleSection: View {
             }
             .buttonStyle(.borderedProminent)
             .disabled(vmHost.readiness.isUnavailable)
+            SandboxLocalIPSWButton(vmHost: vmHost)
         }
         .padding(12)
         .background(.quaternary.opacity(0.45), in: RoundedRectangle(cornerRadius: 10))
@@ -437,6 +439,7 @@ private struct SandboxUnavailableSection: View {
 
 private struct SandboxErrorSection: View {
     let detail: String
+    @ObservedObject var vmHost: SharedCompassVM
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -447,10 +450,41 @@ private struct SandboxErrorSection: View {
                 .font(.callout)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
+            SandboxLocalIPSWButton(vmHost: vmHost)
         }
         .padding(12)
         .background(Color.red.opacity(0.10), in: RoundedRectangle(cornerRadius: 10))
         .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color.red.opacity(0.30)))
+    }
+}
+
+// MARK: - Local IPSW picker button
+
+private struct SandboxLocalIPSWButton: View {
+    @ObservedObject var vmHost: SharedCompassVM
+
+    var body: some View {
+        Button {
+            let panel = NSOpenPanel()
+            panel.title = "Select a macOS IPSW restore image"
+            panel.allowedContentTypes = [UTType(filenameExtension: "ipsw") ?? .data]
+            panel.allowsMultipleSelection = false
+            panel.canChooseDirectories = false
+            guard panel.runModal() == .OK, let url = panel.url else { return }
+            Task {
+                do {
+                    try await vmHost.provisionIfNeeded(localIPSWURL: url)
+                    try await vmHost.start()
+                } catch {
+                    // Errors surface through vmHost.readiness.
+                }
+            }
+        } label: {
+            Label("Use local IPSW file", systemImage: "doc.badge.arrow.up")
+                .frame(maxWidth: .infinity)
+        }
+        .buttonStyle(.bordered)
+        .help("Select a macOS restore image (.ipsw) you've already downloaded. Bypasses Apple's catalog service.")
     }
 }
 

@@ -1,5 +1,10 @@
 import Foundation
+import os
 import Virtualization
+
+extension OSLog {
+    static let restoreImageFetch = OSLog(subsystem: "com.seancheatham.Compass", category: "RestoreImageFetch")
+}
 
 /// IPSW fetch + restore-image installation pipeline for the Compass shared VM.
 ///
@@ -39,6 +44,7 @@ struct SharedCompassVMImageInstaller {
     ///   * `installProgress` — installer fractional progress (0…1).
     func install(
         into bundle: SharedCompassVMBundle,
+        localIPSWURL: URL? = nil,
         diskSizeInBytes: UInt64 = 64 * 1024 * 1024 * 1024,
         downloadProgress: ProgressSink? = nil,
         installProgress: ProgressSink? = nil,
@@ -46,16 +52,25 @@ struct SharedCompassVMImageInstaller {
     ) async throws {
         try bundle.ensureExists(fileManager: fileManager)
 
-        // Stage 1: locate + download IPSW.
-        let remoteURL = try await fetcher.fetchLatestSupportedURL()
-        let version = Self.versionLabel(for: remoteURL)
-        let cachedURL = bundle.restoreImageURL(forVersion: version)
-        try await downloader.download(
-            from: remoteURL,
-            to: cachedURL,
-            progress: downloadProgress,
-            fileManager: fileManager
-        )
+        // Stage 1: locate the IPSW. If the caller supplied a local file,
+        // skip the catalog fetch + download entirely — this is the fallback
+        // for hosts where `fetchLatestSupported` fails (e.g. beta macOS).
+        let restoreImageURL: URL
+        if let localIPSWURL {
+            restoreImageURL = localIPSWURL
+            downloadProgress?.send(1.0)
+        } else {
+            let remoteURL = try await fetcher.fetchLatestSupportedURL()
+            let version = Self.versionLabel(for: remoteURL)
+            let cachedURL = bundle.restoreImageURL(forVersion: version)
+            try await downloader.download(
+                from: remoteURL,
+                to: cachedURL,
+                progress: downloadProgress,
+                fileManager: fileManager
+            )
+            restoreImageURL = cachedURL
+        }
 
         // Stage 2: allocate the disk image if necessary, then run the installer.
         try Self.allocateDiskImageIfNeeded(
@@ -66,7 +81,7 @@ struct SharedCompassVMImageInstaller {
 
         try await installerRunner.runInstaller(
             bundle: bundle,
-            restoreImageURL: cachedURL,
+            restoreImageURL: restoreImageURL,
             progress: installProgress
         )
     }
@@ -143,15 +158,42 @@ protocol RestoreImageFetcher {
 
 struct DefaultRestoreImageFetcher: RestoreImageFetcher {
     func fetchLatestSupportedURL() async throws -> URL {
-        try await withCheckedThrowingContinuation { continuation in
-            VZMacOSRestoreImage.fetchLatestSupported { result in
-                switch result {
-                case .success(let image):
-                    continuation.resume(returning: image.url)
-                case .failure(let error):
-                    continuation.resume(throwing: error)
+        os_log(.info, log: .restoreImageFetch, "Calling VZMacOSRestoreImage.fetchLatestSupported…")
+        do {
+            let url = try await withCheckedThrowingContinuation { continuation in
+                VZMacOSRestoreImage.fetchLatestSupported { result in
+                    switch result {
+                    case .success(let image):
+                        os_log(.info, log: .restoreImageFetch, "Catalog fetch succeeded: build %{public}@ URL %{public}@",
+                               image.buildVersion, image.url.absoluteString)
+                        continuation.resume(returning: image.url)
+                    case .failure(let error):
+                        Self.logFetchError(error)
+                        continuation.resume(throwing: error)
+                    }
                 }
             }
+            return url
+        } catch {
+            Self.logFetchError(error)
+            throw error
+        }
+    }
+
+    private static func logFetchError(_ error: Error) {
+        let ns = error as NSError
+        os_log(.error, log: .restoreImageFetch,
+               "fetchLatestSupported failed — domain=%{public}@ code=%d description=%{public}@",
+               ns.domain, ns.code, ns.localizedDescription)
+        if let underlying = ns.userInfo[NSUnderlyingErrorKey] as? NSError {
+            os_log(.error, log: .restoreImageFetch,
+                   "  underlying — domain=%{public}@ code=%d description=%{public}@",
+                   underlying.domain, underlying.code, underlying.localizedDescription)
+        }
+        for (key, value) in ns.userInfo where key != NSUnderlyingErrorKey {
+            os_log(.error, log: .restoreImageFetch,
+                   "  userInfo[%{public}@] = %{public}@",
+                   key, String(describing: value))
         }
     }
 }

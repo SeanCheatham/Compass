@@ -78,4 +78,17 @@ enum SharedCompassVMAvailabilityCheck {
         }
         return nsError.localizedDescription
     }
+
+    /// Like `describe` but dumps the full NSError chain — domain, code,
+    /// underlying error — so the user (or a bug report) carries enough
+    /// detail to diagnose catalog-fetch and installer failures.
+    static func describeVerbose(error: Error) -> String {
+        var parts: [String] = []
+        let ns = error as NSError
+        parts.append("\(ns.localizedDescription) [\(ns.domain) \(ns.code)]")
+        if let underlying = ns.userInfo[NSUnderlyingErrorKey] as? NSError {
+            parts.append("Underlying: \(underlying.localizedDescription) [\(underlying.domain) \(underlying.code)]")
+        }
+        return parts.joined(separator: "\n")
+    }
 }

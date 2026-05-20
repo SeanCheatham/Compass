@@ -185,7 +185,7 @@ final class SharedCompassVM: ObservableObject {
     /// Downloads the restore image (if needed) and runs `VZMacOSInstaller`.
     /// Pumps progress into `readiness`. Idempotent against re-invocation if
     /// install completed previously.
-    func provisionIfNeeded() async throws {
+    func provisionIfNeeded(localIPSWURL: URL? = nil) async throws {
         if let reason = fallbackUnavailableReason {
             readiness = .unavailable(reason: reason)
             return
@@ -232,20 +232,28 @@ final class SharedCompassVM: ObservableObject {
             installProgressTask.cancel()
         }
 
-        try bundle.mutateState(fileManager: dependencies.fileManager) {
-            $0.provisionStep = .downloadingIPSW
+        if localIPSWURL != nil {
+            try bundle.mutateState(fileManager: dependencies.fileManager) {
+                $0.provisionStep = .installing
+            }
+            readiness = .installing(fractionCompleted: 0)
+        } else {
+            try bundle.mutateState(fileManager: dependencies.fileManager) {
+                $0.provisionStep = .downloadingIPSW
+            }
+            readiness = .downloadingIPSW(fractionCompleted: 0)
         }
-        readiness = .downloadingIPSW(fractionCompleted: 0)
 
         do {
             try await dependencies.imageInstaller.install(
                 into: bundle,
+                localIPSWURL: localIPSWURL,
                 downloadProgress: downloadSink,
                 installProgress: installSink,
                 fileManager: dependencies.fileManager
             )
         } catch {
-            readiness = .error(detail: SharedCompassVMAvailabilityCheck.describe(error: error))
+            readiness = .error(detail: SharedCompassVMAvailabilityCheck.describeVerbose(error: error))
             throw error
         }
 
