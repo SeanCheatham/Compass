@@ -42,7 +42,7 @@ enum SharedCompassVMHeadlessPlanter {
 
     // MARK: - Errors
 
-    enum Error: Swift.Error, CustomStringConvertible {
+    enum Error: Swift.Error, CustomStringConvertible, LocalizedError {
         case toolMissing(path: String)
         case toolFailed(tool: String, exitCode: Int32, output: String)
         case dataVolumeNotFound(diagnostics: String)
@@ -67,6 +67,14 @@ enum SharedCompassVMHeadlessPlanter {
                 return "Elevated planter script failed: \(detail)"
             }
         }
+
+        /// `LocalizedError.errorDescription` — surfaced by `NSError`'s
+        /// `localizedDescription`, which is what
+        /// `SharedCompassVMAvailabilityCheck.describeVerbose` renders into
+        /// the Sandbox UI. Without this conformance the UI fell back to
+        /// Swift's generic "The operation couldn't be completed. (Domain
+        /// error N.)" and the captured tool stderr was invisible.
+        var errorDescription: String? { description }
     }
 
     // MARK: - Public API
@@ -87,14 +95,24 @@ enum SharedCompassVMHeadlessPlanter {
         fileManager: FileManager = .default
     ) async throws -> Report {
         // 1. Discover the Data volume devnode (no elevation required).
+        //
+        // `hdiutil attach -nomount` returns the physical devnodes — the
+        // whole disk (e.g. /dev/disk4) plus its slices (e.g.
+        // /dev/disk4s2 = Apple_APFS). The kernel auto-synthesizes a
+        // separate APFS container at a *different* diskN (often several
+        // higher, e.g. /dev/disk9) whose `PhysicalStores` references our
+        // Apple_APFS slice. `diskutil apfs list` rejects the physical
+        // slice — it only knows about synthesized containers — so we have
+        // to enumerate all containers system-wide and match by physical
+        // store. Detach still targets the whole-disk devnode.
         let attachment = try await dependencies.diskAttacher.attachWithoutMount(
             diskImageURL: diskImageURL
         )
         defer {
-            Task { try? await dependencies.diskAttacher.detach(deviceNode: attachment.containerDeviceNode) }
+            Task { try? await dependencies.diskAttacher.detach(deviceNode: attachment.wholeDiskDeviceNode) }
         }
         let dataVolume = try await dependencies.dataVolumeLocator.locateDataVolume(
-            insideContainer: attachment.containerDeviceNode
+            matchingPhysicalStore: attachment.apfsPhysicalStoreIdentifier
         )
 
         // 2. Materialize all the payload artifacts in a host staging dir.
@@ -215,7 +233,24 @@ enum SharedCompassVMHeadlessPlanter {
         }
         trap cleanup EXIT
 
-        diskutil mount -mountPoint "$MOUNT_POINT" -nobrowse "$DATA_DEV"
+        # Retry the mount: the synthesized APFS container can be visible
+        # to `diskutil apfs list` (which the unprivileged caller waited
+        # on) a beat before the Data volume itself is in a mountable
+        # state. We see ~"Volume on diskNsM failed to mount (code 1)"
+        # for the first 1-2 seconds after `hdiutil attach -nomount`,
+        # then it settles. 10 attempts at 1s each (= 10s budget) is more
+        # than enough — past that, the failure is real and we want the
+        # diagnostic to surface.
+        mount_attempt=0
+        mount_max_attempts=10
+        while ! diskutil mount -mountPoint "$MOUNT_POINT" -nobrowse "$DATA_DEV"; do
+          mount_attempt=$((mount_attempt + 1))
+          if [ "$mount_attempt" -ge "$mount_max_attempts" ]; then
+            echo "ERROR: diskutil mount failed after $mount_max_attempts attempts on $DATA_DEV" >&2
+            exit 1
+          fi
+          sleep 1
+        done
 
         # .AppleSetupDone — empty marker, root:wheel 0644. Skips Setup
         # Assistant on first boot.
@@ -347,8 +382,17 @@ protocol HostDiskAttaching {
 }
 
 struct HostDiskAttachment: Equatable {
-    /// Top-level container device node, e.g. `/dev/disk5`.
-    var containerDeviceNode: String
+    /// Whole-disk device node, e.g. `/dev/disk5`. Use this for
+    /// `hdiutil detach` — it tears down the entire attachment, including
+    /// every synthesized APFS container that flowed from this disk image.
+    var wholeDiskDeviceNode: String
+    /// Apple_APFS physical-store *identifier* (no `/dev/` prefix), e.g.
+    /// `disk5s2`. Matches the `DeviceIdentifier` strings inside
+    /// `diskutil apfs list`'s `Containers[].PhysicalStores[]` array, so
+    /// the data-volume locator can find the synthesized container that
+    /// belongs to our just-attached disk image rather than some other
+    /// APFS container on the host.
+    var apfsPhysicalStoreIdentifier: String
     /// Full plist payload returned by `hdiutil attach`. Useful in test
     /// failures and rare "no recognised volumes" diagnostics.
     var rawPlist: String
@@ -373,9 +417,13 @@ struct HDIUtilDiskAttacher: HostDiskAttaching {
                 output: result.combinedOutput
             )
         }
-        let containerDeviceNode = try Self.parseContainerDeviceNode(fromPlist: result.standardOutput)
+        let wholeDiskDeviceNode = try Self.parseContainerDeviceNode(fromPlist: result.standardOutput)
+        let apfsPhysicalStoreIdentifier = try Self.parseAPFSPhysicalStoreIdentifier(
+            fromPlist: result.standardOutput
+        )
         return HostDiskAttachment(
-            containerDeviceNode: containerDeviceNode,
+            wholeDiskDeviceNode: wholeDiskDeviceNode,
+            apfsPhysicalStoreIdentifier: apfsPhysicalStoreIdentifier,
             rawPlist: result.standardOutput
         )
     }
@@ -432,6 +480,54 @@ struct HDIUtilDiskAttacher: HostDiskAttaching {
             detail: "no dev-entry strings in system-entities"
         )
     }
+
+    /// Parses `hdiutil attach -plist` output and returns the
+    /// `DeviceIdentifier` (no `/dev/` prefix) of the slice carrying the
+    /// main APFS physical store — the one whose `content-hint` is
+    /// `Apple_APFS` (we explicitly reject `Apple_APFS_ISC` and
+    /// `Apple_APFS_Recovery`, which represent iBoot / Recovery physical
+    /// stores rather than the bootable macOS volume group). This string
+    /// matches against entries in `diskutil apfs list -plist`'s
+    /// `Containers[].PhysicalStores[].DeviceIdentifier`.
+    static func parseAPFSPhysicalStoreIdentifier(fromPlist plistString: String) throws -> String {
+        guard let data = plistString.data(using: .utf8) else {
+            throw SharedCompassVMHeadlessPlanter.Error.attachOutputUnparseable(detail: "non-UTF8 plist")
+        }
+        let parsed: Any
+        do {
+            parsed = try PropertyListSerialization.propertyList(from: data, options: [], format: nil)
+        } catch {
+            throw SharedCompassVMHeadlessPlanter.Error.attachOutputUnparseable(
+                detail: "PropertyListSerialization: \(error.localizedDescription)"
+            )
+        }
+        guard
+            let root = parsed as? [String: Any],
+            let systemEntities = root["system-entities"] as? [[String: Any]]
+        else {
+            throw SharedCompassVMHeadlessPlanter.Error.attachOutputUnparseable(
+                detail: "missing system-entities array"
+            )
+        }
+        // `Apple_APFS` is exact-match (we reject `Apple_APFS_ISC` and
+        // `Apple_APFS_Recovery`). The slice's dev-entry has the form
+        // `/dev/diskNsM`; we strip the `/dev/` prefix to match diskutil's
+        // identifier format.
+        for entity in systemEntities {
+            guard
+                let hint = entity["content-hint"] as? String,
+                hint == "Apple_APFS",
+                let devEntry = entity["dev-entry"] as? String
+            else { continue }
+            if devEntry.hasPrefix("/dev/") {
+                return String(devEntry.dropFirst("/dev/".count))
+            }
+            return devEntry
+        }
+        throw SharedCompassVMHeadlessPlanter.Error.attachOutputUnparseable(
+            detail: "no Apple_APFS slice in system-entities (only _ISC / _Recovery present?)"
+        )
+    }
 }
 
 // MARK: - DataVolumeLocating
@@ -439,9 +535,11 @@ struct HDIUtilDiskAttacher: HostDiskAttaching {
 /// Wraps `diskutil apfs list -plist` and identifies the Data volume by
 /// APFS role.
 protocol DataVolumeLocating {
-    /// Returns the devnode for the Data-role APFS volume inside `container`
-    /// (e.g. given `/dev/disk5` returns `/dev/disk5s1`).
-    func locateDataVolume(insideContainer container: String) async throws -> String
+    /// Returns the devnode for the Data-role APFS volume inside the
+    /// synthesized container whose physical store matches
+    /// `physicalStoreIdentifier` (e.g. `disk4s2`). Resolves to a devnode
+    /// like `/dev/disk9s5`.
+    func locateDataVolume(matchingPhysicalStore physicalStoreIdentifier: String) async throws -> String
 }
 
 struct DiskUtilDataVolumeLocator: DataVolumeLocating {
@@ -451,10 +549,19 @@ struct DiskUtilDataVolumeLocator: DataVolumeLocating {
         self.diskutilPath = diskutilPath
     }
 
-    func locateDataVolume(insideContainer container: String) async throws -> String {
+    func locateDataVolume(matchingPhysicalStore physicalStoreIdentifier: String) async throws -> String {
+        // No-arg form lists every APFS container on the host. We then
+        // filter for the one whose physical store is on our just-attached
+        // disk image. Querying the synthesized container devnode directly
+        // would work too, but we don't have it — `hdiutil attach` only
+        // surfaces physical devnodes, and the synthesized container's
+        // diskN number is allocated by the kernel after attach with no
+        // direct way to ask "what synthesized container did you make for
+        // my physical store?". The system-wide query + filter is the
+        // shortest reliable path.
         let result = try await HeadlessPlanterProcessRunner.runCapture(
             executable: diskutilPath,
-            arguments: ["apfs", "list", "-plist", container]
+            arguments: ["apfs", "list", "-plist"]
         )
         guard result.exitCode == 0 else {
             throw SharedCompassVMHeadlessPlanter.Error.toolFailed(
@@ -463,13 +570,20 @@ struct DiskUtilDataVolumeLocator: DataVolumeLocating {
                 output: result.combinedOutput
             )
         }
-        return try Self.parseDataVolumeDeviceNode(fromPlist: result.standardOutput)
+        return try Self.parseDataVolumeDeviceNode(
+            fromPlist: result.standardOutput,
+            matchingPhysicalStore: physicalStoreIdentifier
+        )
     }
 
-    /// Walks the `Containers[].Volumes[]` array and returns the devnode of
-    /// the first volume whose `Roles` set contains `Data`. Apple's macOS
-    /// installer always emits exactly one Data volume per container.
-    static func parseDataVolumeDeviceNode(fromPlist plistString: String) throws -> String {
+    /// Walks the `Containers[]` array and returns the devnode of the
+    /// Data-role volume inside the container whose `PhysicalStores[]`
+    /// references `physicalStoreIdentifier`. Apple's macOS installer
+    /// always emits exactly one Data volume per container.
+    static func parseDataVolumeDeviceNode(
+        fromPlist plistString: String,
+        matchingPhysicalStore physicalStoreIdentifier: String
+    ) throws -> String {
         guard let data = plistString.data(using: .utf8) else {
             throw SharedCompassVMHeadlessPlanter.Error.dataVolumeNotFound(diagnostics: "non-UTF8 plist")
         }
@@ -486,6 +600,11 @@ struct DiskUtilDataVolumeLocator: DataVolumeLocating {
         }
         let containers = root["Containers"] as? [[String: Any]] ?? []
         for container in containers {
+            let stores = container["PhysicalStores"] as? [[String: Any]] ?? []
+            let storeMatches = stores.contains { store in
+                (store["DeviceIdentifier"] as? String) == physicalStoreIdentifier
+            }
+            guard storeMatches else { continue }
             let volumes = container["Volumes"] as? [[String: Any]] ?? []
             for volume in volumes {
                 let roles = volume["Roles"] as? [String] ?? []
@@ -493,9 +612,12 @@ struct DiskUtilDataVolumeLocator: DataVolumeLocating {
                     return "/dev/" + deviceIdentifier
                 }
             }
+            throw SharedCompassVMHeadlessPlanter.Error.dataVolumeNotFound(
+                diagnostics: "container matching physical store \(physicalStoreIdentifier) has no Data-role volume"
+            )
         }
         throw SharedCompassVMHeadlessPlanter.Error.dataVolumeNotFound(
-            diagnostics: "no APFS volume with Role=Data inside \(containers.count) containers"
+            diagnostics: "no APFS container references physical store \(physicalStoreIdentifier) (checked \(containers.count) containers)"
         )
     }
 }

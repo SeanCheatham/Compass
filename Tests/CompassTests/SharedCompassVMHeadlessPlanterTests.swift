@@ -83,9 +83,85 @@ final class SharedCompassVMHeadlessPlanterTests: XCTestCase {
         XCTAssertThrowsError(try HDIUtilDiskAttacher.parseContainerDeviceNode(fromPlist: "garbage"))
     }
 
+    // MARK: - hdiutil attach: APFS physical-store identifier
+
+    func testParseAPFSPhysicalStoreIdentifierPicksTheAppleAPFSSlice() throws {
+        // Mirrors the real `hdiutil attach -plist` shape: an
+        // Apple_APFS_ISC (iBoot), an Apple_APFS_Recovery, and the
+        // actual Apple_APFS slice we care about. We must ignore the
+        // _ISC / _Recovery variants and pick the bare Apple_APFS one.
+        let plist = """
+        <?xml version="1.0" encoding="UTF-8"?>
+        <plist version="1.0">
+        <dict>
+            <key>system-entities</key>
+            <array>
+                <dict>
+                    <key>dev-entry</key>
+                    <string>/dev/disk4</string>
+                    <key>content-hint</key>
+                    <string>GUID_partition_scheme</string>
+                </dict>
+                <dict>
+                    <key>dev-entry</key>
+                    <string>/dev/disk4s1</string>
+                    <key>content-hint</key>
+                    <string>Apple_APFS_ISC</string>
+                </dict>
+                <dict>
+                    <key>dev-entry</key>
+                    <string>/dev/disk4s2</string>
+                    <key>content-hint</key>
+                    <string>Apple_APFS</string>
+                </dict>
+                <dict>
+                    <key>dev-entry</key>
+                    <string>/dev/disk4s3</string>
+                    <key>content-hint</key>
+                    <string>Apple_APFS_Recovery</string>
+                </dict>
+            </array>
+        </dict>
+        </plist>
+        """
+        let identifier = try HDIUtilDiskAttacher.parseAPFSPhysicalStoreIdentifier(fromPlist: plist)
+        XCTAssertEqual(identifier, "disk4s2")
+    }
+
+    func testParseAPFSPhysicalStoreIdentifierThrowsWhenNoBareAppleAPFSPresent() {
+        let plist = """
+        <?xml version="1.0" encoding="UTF-8"?>
+        <plist version="1.0">
+        <dict>
+            <key>system-entities</key>
+            <array>
+                <dict>
+                    <key>dev-entry</key>
+                    <string>/dev/disk4s1</string>
+                    <key>content-hint</key>
+                    <string>Apple_APFS_ISC</string>
+                </dict>
+                <dict>
+                    <key>dev-entry</key>
+                    <string>/dev/disk4s3</string>
+                    <key>content-hint</key>
+                    <string>Apple_APFS_Recovery</string>
+                </dict>
+            </array>
+        </dict>
+        </plist>
+        """
+        XCTAssertThrowsError(try HDIUtilDiskAttacher.parseAPFSPhysicalStoreIdentifier(fromPlist: plist))
+    }
+
     // MARK: - diskutil apfs list plist parsing
 
-    func testParseDataVolumeDevnodeReturnsDataRoleVolume() throws {
+    func testParseDataVolumeDevnodeReturnsDataRoleVolumeForMatchingPhysicalStore() throws {
+        // System-wide `diskutil apfs list -plist` returns multiple
+        // containers — we must match by PhysicalStores, not just pick the
+        // first Data-role volume we see, because the host may have other
+        // attached disk images (e.g. Xcode simulators) with their own
+        // Data volumes.
         let plist = """
         <?xml version="1.0" encoding="UTF-8"?>
         <plist version="1.0">
@@ -93,30 +169,49 @@ final class SharedCompassVMHeadlessPlanterTests: XCTestCase {
             <key>Containers</key>
             <array>
                 <dict>
+                    <key>PhysicalStores</key>
+                    <array>
+                        <dict>
+                            <key>DeviceIdentifier</key>
+                            <string>disk0s2</string>
+                        </dict>
+                    </array>
                     <key>Volumes</key>
                     <array>
                         <dict>
                             <key>DeviceIdentifier</key>
-                            <string>disk7s1s1</string>
-                            <key>Roles</key>
-                            <array>
-                                <string>System</string>
-                            </array>
-                        </dict>
-                        <dict>
-                            <key>DeviceIdentifier</key>
-                            <string>disk7s1s2</string>
+                            <string>disk3s5</string>
                             <key>Roles</key>
                             <array>
                                 <string>Data</string>
                             </array>
                         </dict>
+                    </array>
+                </dict>
+                <dict>
+                    <key>PhysicalStores</key>
+                    <array>
                         <dict>
                             <key>DeviceIdentifier</key>
-                            <string>disk7s1s3</string>
+                            <string>disk4s2</string>
+                        </dict>
+                    </array>
+                    <key>Volumes</key>
+                    <array>
+                        <dict>
+                            <key>DeviceIdentifier</key>
+                            <string>disk9s1</string>
                             <key>Roles</key>
                             <array>
-                                <string>VM</string>
+                                <string>System</string>
+                            </array>
+                        </dict>
+                        <dict>
+                            <key>DeviceIdentifier</key>
+                            <string>disk9s5</string>
+                            <key>Roles</key>
+                            <array>
+                                <string>Data</string>
                             </array>
                         </dict>
                     </array>
@@ -125,11 +220,16 @@ final class SharedCompassVMHeadlessPlanterTests: XCTestCase {
         </dict>
         </plist>
         """
-        let devnode = try DiskUtilDataVolumeLocator.parseDataVolumeDeviceNode(fromPlist: plist)
-        XCTAssertEqual(devnode, "/dev/disk7s1s2")
+        let devnode = try DiskUtilDataVolumeLocator.parseDataVolumeDeviceNode(
+            fromPlist: plist,
+            matchingPhysicalStore: "disk4s2"
+        )
+        // Must come from the second container (the one with our physical
+        // store), NOT the first container's host-OS Data volume.
+        XCTAssertEqual(devnode, "/dev/disk9s5")
     }
 
-    func testParseDataVolumeDevnodeThrowsWhenNoDataRolePresent() {
+    func testParseDataVolumeDevnodeThrowsWhenNoContainerMatchesPhysicalStore() {
         let plist = """
         <?xml version="1.0" encoding="UTF-8"?>
         <plist version="1.0">
@@ -137,11 +237,57 @@ final class SharedCompassVMHeadlessPlanterTests: XCTestCase {
             <key>Containers</key>
             <array>
                 <dict>
+                    <key>PhysicalStores</key>
+                    <array>
+                        <dict>
+                            <key>DeviceIdentifier</key>
+                            <string>disk0s2</string>
+                        </dict>
+                    </array>
                     <key>Volumes</key>
                     <array>
                         <dict>
                             <key>DeviceIdentifier</key>
-                            <string>disk7s1s1</string>
+                            <string>disk3s5</string>
+                            <key>Roles</key>
+                            <array>
+                                <string>Data</string>
+                            </array>
+                        </dict>
+                    </array>
+                </dict>
+            </array>
+        </dict>
+        </plist>
+        """
+        XCTAssertThrowsError(
+            try DiskUtilDataVolumeLocator.parseDataVolumeDeviceNode(
+                fromPlist: plist,
+                matchingPhysicalStore: "disk4s2"
+            )
+        )
+    }
+
+    func testParseDataVolumeDevnodeThrowsWhenMatchingContainerHasNoDataVolume() {
+        let plist = """
+        <?xml version="1.0" encoding="UTF-8"?>
+        <plist version="1.0">
+        <dict>
+            <key>Containers</key>
+            <array>
+                <dict>
+                    <key>PhysicalStores</key>
+                    <array>
+                        <dict>
+                            <key>DeviceIdentifier</key>
+                            <string>disk4s2</string>
+                        </dict>
+                    </array>
+                    <key>Volumes</key>
+                    <array>
+                        <dict>
+                            <key>DeviceIdentifier</key>
+                            <string>disk9s1</string>
                             <key>Roles</key>
                             <array>
                                 <string>System</string>
@@ -153,7 +299,12 @@ final class SharedCompassVMHeadlessPlanterTests: XCTestCase {
         </dict>
         </plist>
         """
-        XCTAssertThrowsError(try DiskUtilDataVolumeLocator.parseDataVolumeDeviceNode(fromPlist: plist))
+        XCTAssertThrowsError(
+            try DiskUtilDataVolumeLocator.parseDataVolumeDeviceNode(
+                fromPlist: plist,
+                matchingPhysicalStore: "disk4s2"
+            )
+        )
     }
 
     // MARK: - Elevated script rendering
@@ -204,6 +355,27 @@ final class SharedCompassVMHeadlessPlanterTests: XCTestCase {
     func testElevatedScriptUsesDiskutilMountWithExplicitMountPoint() {
         let script = renderStandardScript()
         XCTAssertTrue(script.contains("diskutil mount -mountPoint \"$MOUNT_POINT\" -nobrowse \"$DATA_DEV\""))
+    }
+
+    func testElevatedScriptRetriesDiskutilMountToHandlePostAttachSettleRace() {
+        // `hdiutil attach -nomount` returns before the synthesized APFS
+        // container's Data volume is in a stable mountable state. The
+        // first 1-2 diskutil-mount attempts can emit "Volume on diskNsM
+        // failed to mount (code 1)" even though the volume is fine a
+        // second later. The elevated script must retry, not bail.
+        let script = renderStandardScript()
+        XCTAssertTrue(
+            script.contains("while ! diskutil mount"),
+            "elevated script should loop on diskutil mount until success"
+        )
+        XCTAssertTrue(
+            script.contains("mount_max_attempts"),
+            "elevated script should bound the retry budget so a real failure surfaces"
+        )
+        XCTAssertTrue(
+            script.contains("sleep 1"),
+            "elevated script should pause between mount attempts"
+        )
     }
 
     // MARK: - Staging
@@ -259,8 +431,9 @@ final class SharedCompassVMHeadlessPlanterTests: XCTestCase {
         // without spawning hdiutil / osascript.
         let attacher = FakeAttacher()
         attacher.deviceNode = "/dev/disk7"
+        attacher.apfsPhysicalStore = "disk7s2"
         let locator = FakeLocator()
-        locator.dataVolume = "/dev/disk7s1s2"
+        locator.dataVolume = "/dev/disk9s5"
         let elevator = FakeElevator()
         elevator.output = "[compass-planter] done.\n"
 
@@ -280,17 +453,18 @@ final class SharedCompassVMHeadlessPlanterTests: XCTestCase {
             dependencies: dependencies
         )
 
-        // Mock invocation accounting
+        // Mock invocation accounting — locator must be queried by the
+        // Apple_APFS physical store identifier, not the whole-disk node.
         XCTAssertEqual(attacher.attachedURLs, [diskImageURL])
-        XCTAssertEqual(locator.queriedContainers, ["/dev/disk7"])
+        XCTAssertEqual(locator.queriedPhysicalStores, ["disk7s2"])
         XCTAssertEqual(elevator.invokedScriptURLs.count, 1)
-        XCTAssertTrue(report.dataVolumeDeviceNode == "/dev/disk7s1s2")
+        XCTAssertTrue(report.dataVolumeDeviceNode == "/dev/disk9s5")
         XCTAssertEqual(report.elevatedScriptOutput, "[compass-planter] done.\n")
 
         // The elevated script the planter wrote must reference both the
         // staging dir it created and the data volume devnode it discovered.
         let writtenScript = elevator.invokedScriptContents.first ?? ""
-        XCTAssertTrue(writtenScript.contains("/dev/disk7s1s2"))
+        XCTAssertTrue(writtenScript.contains("/dev/disk9s5"))
         XCTAssertTrue(writtenScript.contains("$STAGING_DIR/launchd.plist"))
         XCTAssertTrue(writtenScript.contains("$STAGING_DIR/bootstrap.sh"))
         XCTAssertTrue(writtenScript.contains("$STAGING_DIR/sudoers"))
@@ -353,12 +527,17 @@ final class SharedCompassVMHeadlessPlanterTests: XCTestCase {
 
     private final class FakeAttacher: HostDiskAttaching, @unchecked Sendable {
         var deviceNode: String = "/dev/disk0"
+        var apfsPhysicalStore: String = "disk0s2"
         var attachedURLs: [URL] = []
         var detachedDeviceNodes: [String] = []
 
         func attachWithoutMount(diskImageURL: URL) async throws -> HostDiskAttachment {
             attachedURLs.append(diskImageURL)
-            return HostDiskAttachment(containerDeviceNode: deviceNode, rawPlist: "")
+            return HostDiskAttachment(
+                wholeDiskDeviceNode: deviceNode,
+                apfsPhysicalStoreIdentifier: apfsPhysicalStore,
+                rawPlist: ""
+            )
         }
 
         func detach(deviceNode: String) async throws {
@@ -368,10 +547,10 @@ final class SharedCompassVMHeadlessPlanterTests: XCTestCase {
 
     private final class FakeLocator: DataVolumeLocating, @unchecked Sendable {
         var dataVolume: String = "/dev/disk0s1s2"
-        var queriedContainers: [String] = []
+        var queriedPhysicalStores: [String] = []
 
-        func locateDataVolume(insideContainer container: String) async throws -> String {
-            queriedContainers.append(container)
+        func locateDataVolume(matchingPhysicalStore physicalStoreIdentifier: String) async throws -> String {
+            queriedPhysicalStores.append(physicalStoreIdentifier)
             return dataVolume
         }
     }
