@@ -113,6 +113,90 @@ final class SharedVMRouteSSHArgvTests: XCTestCase {
         XCTAssertEqual(SharedCompassVMGuestBridge.defaultSSHExecutablePath, "/usr/bin/ssh")
     }
 
+    // MARK: - ControlMaster multiplexing
+
+    func testSSHArgumentsEnableControlMasterByDefault() {
+        // Multiplexing is on by default so agent tool calls reuse a single
+        // TCP/SSH session instead of paying ~100ms per spawn.
+        let args = SharedCompassVMGuestBridge.sshArguments(
+            destination: "compass@10.0.0.42",
+            remoteCommand: "true"
+        )
+        XCTAssertTrue(args.contains(["-o", "ControlMaster=auto"]))
+        XCTAssertTrue(args.contains([
+            "-o", "ControlPath=\(SharedCompassVMGuestBridge.controlPathTemplate)"
+        ]))
+        XCTAssertTrue(args.contains(["-o", "ControlPersist=600"]))
+    }
+
+    func testSSHArgumentsHonorControlPersistOverride() {
+        let options = SharedCompassVMGuestBridge.ConnectionOptions(controlPersistSeconds: 120)
+        let args = SharedCompassVMGuestBridge.sshArguments(
+            destination: "compass@10.0.0.42",
+            remoteCommand: "true",
+            options: options
+        )
+        XCTAssertTrue(args.contains(["-o", "ControlPersist=120"]))
+        XCTAssertFalse(args.contains(["-o", "ControlPersist=600"]))
+    }
+
+    func testSSHArgumentsOmitControlMasterWhenDisabled() {
+        let options = SharedCompassVMGuestBridge.ConnectionOptions(useControlMaster: false)
+        let args = SharedCompassVMGuestBridge.sshArguments(
+            destination: "compass@10.0.0.42",
+            remoteCommand: "true",
+            options: options
+        )
+        XCTAssertFalse(args.contains { $0.hasPrefix("ControlMaster=") })
+        XCTAssertFalse(args.contains { $0.hasPrefix("ControlPath=") })
+        XCTAssertFalse(args.contains { $0.hasPrefix("ControlPersist=") })
+    }
+
+    func testControlPathTemplateFitsUnixSocketLimit() {
+        // sockaddr_un.sun_path is 104 bytes on macOS; ssh silently disables
+        // multiplexing if the resolved socket path exceeds it. Worst-case
+        // expansion: IPv6 host (39 chars) + 5-digit port + long user. Keep
+        // the template short enough that we never approach the ceiling.
+        let template = SharedCompassVMGuestBridge.controlPathTemplate
+        let expanded = template
+            .replacingOccurrences(of: "%h", with: "ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff")
+            .replacingOccurrences(of: "%p", with: "65535")
+            .replacingOccurrences(of: "%r", with: String(repeating: "u", count: 32))
+        XCTAssertLessThan(
+            expanded.utf8.count, 104,
+            "Worst-case ControlPath (\(expanded.utf8.count)B) must fit sockaddr_un.sun_path (104B)."
+        )
+    }
+
+    // MARK: - closeControlMasterArguments
+
+    func testCloseControlMasterArgumentsEndWithExitAndDestination() {
+        let options = SharedCompassVMGuestBridge.ConnectionOptions(
+            identityFile: "/path/to/id_ed25519",
+            knownHostsFile: "/path/to/known_hosts"
+        )
+        let args = SharedCompassVMGuestBridge.closeControlMasterArguments(
+            destination: "compass@10.0.0.42",
+            options: options
+        )
+        XCTAssertTrue(args.contains(["-i", "/path/to/id_ed25519"]))
+        XCTAssertTrue(args.contains([
+            "-o", "ControlPath=\(SharedCompassVMGuestBridge.controlPathTemplate)"
+        ]))
+        XCTAssertTrue(args.contains(["-O", "exit"]))
+        XCTAssertEqual(args.last, "compass@10.0.0.42")
+    }
+
+    func testCloseControlMasterArgumentsOmitRemoteCommand() {
+        // `ssh -O exit` is a local control op. It must NOT include a remote
+        // command argv — passing one makes ssh complain and the master
+        // never gets torn down.
+        let args = SharedCompassVMGuestBridge.closeControlMasterArguments(
+            destination: "compass@10.0.0.42"
+        )
+        XCTAssertEqual(args.suffix(3), ["-O", "exit", "compass@10.0.0.42"])
+    }
+
     func testPOSIXQuoteSafePathRequiresNoQuoting() {
         // Sanity check that the safe-character fast path doesn't add ceremony.
         let quoted = SharedCompassVMGuestBridge.posixQuote("/usr/local/bin/swift")

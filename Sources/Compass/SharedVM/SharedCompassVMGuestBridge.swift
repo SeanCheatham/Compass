@@ -11,6 +11,14 @@ struct SharedCompassVMGuestBridge {
     /// Where Compass-managed `ssh` binaries / config live by default.
     static let defaultSSHExecutablePath = "/usr/bin/ssh"
 
+    /// Where the multiplexed SSH control socket lives. Includes the host,
+    /// port, and remote user so concurrent destinations don't share a socket.
+    /// Kept under `/tmp` rather than `$TMPDIR` because macOS `$TMPDIR` paths
+    /// (`/var/folders/...`) push the resulting path close to the 104-char
+    /// `sockaddr_un` limit, and ssh silently disables multiplexing once it
+    /// trips that ceiling.
+    static let controlPathTemplate = "/tmp/compass-ssh-%h-%p-%r"
+
     /// Tuneable options that affect every ssh invocation Compass makes.
     struct ConnectionOptions: Equatable {
         var executablePath: String
@@ -22,6 +30,16 @@ struct SharedCompassVMGuestBridge {
         var disablePseudoTerminal: Bool
         /// Optional ConnectTimeout (seconds). Used for probes.
         var connectTimeoutSeconds: Int?
+        /// Multiplex SSH connections to the same destination. The first call
+        /// becomes (or finds) the master; subsequent calls open a new channel
+        /// over the existing TCP/SSH session, dropping per-call overhead from
+        /// ~100ms+ to ~5ms. Must stay true for the agent's filesystem and bash
+        /// tools — they fire dozens of SSH commands per run. Probes typically
+        /// keep this true too so the master is warm by the time tools start.
+        var useControlMaster: Bool
+        /// Seconds the master stays alive after the last client disconnects.
+        /// Applied only when `useControlMaster` is true.
+        var controlPersistSeconds: Int
 
         init(
             executablePath: String = SharedCompassVMGuestBridge.defaultSSHExecutablePath,
@@ -30,7 +48,9 @@ struct SharedCompassVMGuestBridge {
             strictHostKeyChecking: Bool = true,
             batchMode: Bool = true,
             disablePseudoTerminal: Bool = true,
-            connectTimeoutSeconds: Int? = nil
+            connectTimeoutSeconds: Int? = nil,
+            useControlMaster: Bool = true,
+            controlPersistSeconds: Int = 600
         ) {
             self.executablePath = executablePath
             self.identityFile = identityFile
@@ -39,6 +59,8 @@ struct SharedCompassVMGuestBridge {
             self.batchMode = batchMode
             self.disablePseudoTerminal = disablePseudoTerminal
             self.connectTimeoutSeconds = connectTimeoutSeconds
+            self.useControlMaster = useControlMaster
+            self.controlPersistSeconds = controlPersistSeconds
         }
     }
 
@@ -81,12 +103,96 @@ struct SharedCompassVMGuestBridge {
         if let timeout = options.connectTimeoutSeconds {
             arguments.append(contentsOf: ["-o", "ConnectTimeout=\(timeout)"])
         }
+        if options.useControlMaster {
+            arguments.append(contentsOf: controlMasterOptions(persistSeconds: options.controlPersistSeconds))
+        }
         if options.disablePseudoTerminal {
             arguments.append("-T")
         }
         arguments.append(destination)
         arguments.append(remoteCommand)
         return arguments
+    }
+
+    /// Returns the `-o ControlMaster=auto -o ControlPath=... -o ControlPersist=...`
+    /// triplet that wires SSH connection multiplexing. Factored out so the
+    /// `closeControlMaster` shutdown path can reuse the exact same ControlPath
+    /// and target the live socket.
+    static func controlMasterOptions(persistSeconds: Int) -> [String] {
+        [
+            "-o", "ControlMaster=auto",
+            "-o", "ControlPath=\(controlPathTemplate)",
+            "-o", "ControlPersist=\(persistSeconds)"
+        ]
+    }
+
+    /// Argv for `ssh -O exit` against the multiplexed master socket for
+    /// `destination`. Used at app quit so we don't leave a backgrounded ssh
+    /// master alive after the Shared VM is gone.
+    ///
+    /// Mirrors `sshArguments` for the auth/strict-host flags so the master
+    /// can be addressed even if BatchMode/StrictHostKeyChecking would
+    /// otherwise complain. `-O exit` is a local control op — it does not
+    /// require the remote side to be reachable.
+    static func closeControlMasterArguments(
+        destination: String,
+        options: ConnectionOptions = ConnectionOptions()
+    ) -> [String] {
+        var arguments: [String] = []
+        if let identity = options.identityFile, !identity.isEmpty {
+            arguments.append(contentsOf: ["-i", identity])
+        }
+        if let knownHosts = options.knownHostsFile, !knownHosts.isEmpty {
+            arguments.append(contentsOf: ["-o", #"UserKnownHostsFile="\#(knownHosts)""#])
+        }
+        arguments.append(contentsOf: [
+            "-o", "StrictHostKeyChecking=\(options.strictHostKeyChecking ? "yes" : "no")"
+        ])
+        if options.batchMode {
+            arguments.append(contentsOf: ["-o", "BatchMode=yes"])
+        }
+        arguments.append(contentsOf: ["-o", "ControlPath=\(controlPathTemplate)"])
+        arguments.append(contentsOf: ["-O", "exit"])
+        arguments.append(destination)
+        return arguments
+    }
+
+    /// Fire-and-forget tear-down of the multiplexed SSH master for
+    /// `destination`. Safe to call when no master exists — ssh prints a
+    /// diagnostic on stderr and exits non-zero, which we deliberately
+    /// swallow. Bounded by `timeout` so a stuck `ssh -O exit` (rare, but
+    /// possible if the control socket is in an odd state) cannot block app
+    /// shutdown.
+    @discardableResult
+    static func closeControlMaster(
+        destination: String,
+        options: ConnectionOptions = ConnectionOptions(),
+        timeout: TimeInterval = 3
+    ) async -> Bool {
+        let arguments = closeControlMasterArguments(destination: destination, options: options)
+        return await Task.detached { () -> Bool in
+            let process = Process()
+            process.executableURL = URL(fileURLWithPath: options.executablePath)
+            process.arguments = arguments
+            let devNull = FileHandle.nullDevice
+            process.standardOutput = devNull
+            process.standardError = devNull
+            process.standardInput = devNull
+            do {
+                try process.run()
+            } catch {
+                return false
+            }
+            let deadline = Date().addingTimeInterval(timeout + 1)
+            while process.isRunning && Date() < deadline {
+                try? await Task.sleep(nanoseconds: 100_000_000)
+            }
+            if process.isRunning {
+                process.terminate()
+                return false
+            }
+            return process.terminationStatus == 0
+        }.value
     }
 
     /// POSIX-safe single-quote escaping. Wraps any string in single quotes and

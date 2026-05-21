@@ -605,6 +605,33 @@ final class SharedCompassVM: ObservableObject {
     /// within a bounded window, we fall back to the forced halt so the host
     /// app still terminates within the AppDelegate's 6s budget.
     func stop() async {
+        // Capture the live SSH destination (if any) before we tear the VM
+        // down so we can ask any backgrounded SSH control master to exit.
+        // Without this teardown, `ControlPersist` leaves the master alive
+        // for minutes after the VM is gone, leaking a ssh process and
+        // re-establishing dead connections on the next agent call.
+        let liveSSHDestination: String?
+        if case let .ready(destination) = readiness {
+            liveSSHDestination = destination
+        } else {
+            liveSSHDestination = nil
+        }
+
+        defer {
+            if let destination = liveSSHDestination {
+                let options = SharedCompassVMGuestBridge.ConnectionOptions(
+                    identityFile: bundle.privateKeyURL.path,
+                    knownHostsFile: bundle.knownHostsURL.path
+                )
+                Task.detached {
+                    await SharedCompassVMGuestBridge.closeControlMaster(
+                        destination: destination,
+                        options: options
+                    )
+                }
+            }
+        }
+
         guard let machine = virtualMachine else { return }
         if machine.state == .stopped {
             virtualMachine = nil
