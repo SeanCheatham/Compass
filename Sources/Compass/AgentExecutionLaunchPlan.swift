@@ -224,34 +224,24 @@ struct AgentExecutionLaunchPlan: Equatable {
         }
     }
 
+    /// Build a one-shot shell invocation. Used by `ProcessRunner.runShell` for
+    /// out-of-agent commands like mutation testing and Verify steps.
+    ///
+    /// Always returns a host-side `/bin/zsh -lc` invocation, even when the
+    /// effective route is `.sharedVM`. The sharedVM-via-SSH branch this
+    /// used to offer never worked end-to-end (sshd-spawned processes on
+    /// macOS guests are TCC-blocked from reading the VirtioFS share), and
+    /// the agent-loop transport that does work — vsock — is connection-
+    /// oriented, not a process the caller can spawn. Mutation testing and
+    /// Verify both touch the same bytes the agent worked on, so running
+    /// them on the host worktree path is correct: VirtioFS makes the guest
+    /// view and the host view exactly the same files.
     func shellInvocation(command: String, hostWorkingDirectory: URL) -> AgentExecutionInvocation {
-        switch effectiveRoute {
-        case .host:
-            return AgentExecutionInvocation(
-                executable: "/bin/zsh",
-                arguments: ["-lc", command],
-                workingDirectory: hostWorkingDirectory
-            )
-        case let .sharedVM(route):
-            let remoteCommand = "cd \(SharedCompassVMGuestBridge.posixQuote(route.guestWorkspacePath)) && zsh -lc \(SharedCompassVMGuestBridge.posixQuote(command))"
-            let options = SharedCompassVMGuestBridge.ConnectionOptions(
-                identityFile: route.identityFile,
-                knownHostsFile: route.knownHostsFile,
-                strictHostKeyChecking: true,
-                batchMode: true,
-                disablePseudoTerminal: true
-            )
-            let sshArguments = SharedCompassVMGuestBridge.sshArguments(
-                destination: route.sshDestination,
-                remoteCommand: remoteCommand,
-                options: options
-            )
-            return AgentExecutionInvocation(
-                executable: options.executablePath,
-                arguments: sshArguments,
-                workingDirectory: hostWorkingDirectory
-            )
-        }
+        AgentExecutionInvocation(
+            executable: "/bin/zsh",
+            arguments: ["-lc", command],
+            workingDirectory: hostWorkingDirectory
+        )
     }
 
     static func boundedText(_ text: String, limit: Int) -> String {

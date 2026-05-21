@@ -68,8 +68,38 @@ Per-project Develop worktrees live separately, under
 permanent VirtioFS share at tag `compass-workspaces` exposes the
 `~/Library/Caches/Compass/Worktrees/` parent directory to the guest. Inside
 the guest the share is reached via the `/opt/compass → /Volumes/My Shared
-Files` symlink, so the agent's bash tool sees the worktree at
+Files` symlink, so the agent sees the worktree at
 `/opt/compass/workspaces/dev-<UUID>/worktree`.
+
+## Agent transport — vsock, not SSH
+
+Compass talks to the in-guest world via two separate transports, each
+with a specific TCC-imposed constraint:
+
+- **SSH** is used only for low-level setup probes (readiness ping,
+  known_hosts seeding, first-boot diagnostics dump). sshd-spawned
+  processes on macOS guests are TCC-blocked from reading VirtioFS-mounted
+  shares regardless of UID — every `ls`/`cat` through ssh returns EPERM
+  on `/opt/compass/workspaces/...`. So ssh never touches worktree files.
+- **vsock** is used for every agent tool call (read_file / write_file /
+  edit_file / ls / glob / grep / bash) and for any future RPC into the
+  guest. The host calls `VZVirtioSocketDevice.connect(toPort:)` to open
+  a fresh connection per request; the in-guest `CompassGuestAgent` binary
+  listens on `AF_VSOCK` at port `0x4007ACE5`. Wire format is length-prefixed
+  JSON (see `Sources/CompassAgentRPC/`).
+
+The guest agent is a separate SwiftPM target (`CompassGuestAgent`) shipped
+alongside the host binary and planted at `/usr/local/libexec/compass-guest-agent`
+during first-boot. It runs as a `LaunchAgent` (`/Library/LaunchAgents/com.seancheatham.Compass.guest-agent.plist`),
+which is the key TCC distinction: LaunchAgents load inside the GUI user
+session and inherit that session's TCC profile — the one VirtioFS shares
+*are* accessible to. LaunchDaemons (or sshd children) inherit the system
+context, where they are not.
+
+For the LaunchAgent to actually load, a GUI user session has to exist.
+First-boot writes `/etc/kcpassword` (Apple's XOR-obfuscated auto-login
+format) and sets `autoLoginUser=compass` so the guest reaches a desktop
+session unattended. The agent comes up moments later.
 
 ## Failure modes and recovery
 

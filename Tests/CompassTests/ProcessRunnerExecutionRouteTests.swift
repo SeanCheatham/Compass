@@ -37,9 +37,14 @@ final class ProcessRunnerExecutionRouteTests: XCTestCase {
     }
 
 
-    func testContainerShellRouteAddsContainerEnvBeforeImageInSortedOrder() async throws {
-        // Scenario name preserved: env vars are not part of `runShell` invocations for Shared VM —
-        // the helper forwards the command verbatim. Just assert the command and ssh destination.
+    func testSharedVMRouteForRunShellStaysOnHostBecauseVsockIsAgentLoopOnly() async throws {
+        // `runShell` is used for one-shot out-of-agent commands (mutation
+        // testing, post-Develop Verify). The agent-loop vsock transport
+        // is connection-oriented, not a process the caller can spawn,
+        // and the legacy SSH-into-guest branch never worked end-to-end
+        // (TCC blocks sshd children from the VirtioFS share). Verify
+        // runs against the host worktree path — same VirtioFS bytes
+        // the guest agent acted on, just a different namespace label.
         let repoURL = try makeTemporaryDirectory(prefix: "ProcessRunnerSharedVMEnv")
         let route = SharedVMRoute(
             sshDestination: "compass@192.0.2.20",
@@ -64,8 +69,9 @@ final class ProcessRunnerExecutionRouteTests: XCTestCase {
         )
 
         let invocation = try XCTUnwrap(capturedInvocation)
-        XCTAssertEqual(invocation.executable, "/usr/bin/ssh")
-        XCTAssertTrue(invocation.arguments.contains("compass@192.0.2.20"))
+        XCTAssertEqual(invocation.executable, "/bin/zsh")
+        XCTAssertEqual(invocation.arguments, ["-lc", "swift test --filter CompassTests"])
+        XCTAssertEqual(invocation.workingDirectory, repoURL.standardizedFileURL)
     }
 
     func testNativeFallbackPlanFeedsNativeVerifyInvocationAndBoundedDiagnostics() async throws {
@@ -147,8 +153,10 @@ final class ProcessRunnerExecutionRouteTests: XCTestCase {
         XCTAssertTrue(launchPlan.fallbackReason?.contains("installing") ?? false)
     }
 
-    func testBuildDevcontainerShellRouteBuildsThenRunsLocalImage() async throws {
-        // Scenario name preserved: ready VM with route → ssh invocation, no separate build step.
+    func testReadySharedVMRouteForRunShellStillUsesHostZshOneShot() async throws {
+        // Even with a ready sharedVM route + workspace-mapped route, the
+        // runShell invocation stays local — see the env-route test above
+        // for why. One invocation, host /bin/zsh, no remote shell hops.
         let repoURL = try makeTemporaryDirectory(prefix: "ProcessRunnerSharedVMRunsRemote")
         let route = SharedVMRoute(
             sshDestination: "compass@192.0.2.30",
@@ -172,10 +180,10 @@ final class ProcessRunnerExecutionRouteTests: XCTestCase {
             }
         )
 
-        XCTAssertEqual(captured.count, 1, "Shared VM route should not emit a separate build step")
+        XCTAssertEqual(captured.count, 1)
         let invocation = try XCTUnwrap(captured.first)
-        XCTAssertEqual(invocation.executable, "/usr/bin/ssh")
-        XCTAssertTrue(invocation.arguments.contains("compass@192.0.2.30"))
+        XCTAssertEqual(invocation.executable, "/bin/zsh")
+        XCTAssertEqual(invocation.arguments, ["-lc", "swift test --filter CompassTests"])
     }
 
     func testBuildDevcontainerShellRouteFallsBackToNativeWhenBuildFails() async throws {
