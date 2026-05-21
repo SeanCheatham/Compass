@@ -554,6 +554,15 @@ final class SharedCompassVM: ObservableObject {
             Task { [weak self] in
                 await self?.pollUntilHeadlessGuestReady()
             }
+        case .provisioningDevTools:
+            // Host crashed (or VM was stopped) mid-CLT-install. Resume
+            // where we left off — the provisioner's probe short-circuits
+            // when CLT happens to have finished out-of-band, and otherwise
+            // re-issues the plant + kickoff (which softwareupdate handles
+            // idempotently).
+            Task { [weak self] in
+                await self?.resumeDevToolsProvisioningAfterBoot()
+            }
         case .ready:
             Task { [weak self] in
                 await self?.pollSSHAfterBootAndMarkReady()
@@ -561,6 +570,44 @@ final class SharedCompassVM: ObservableObject {
         default:
             break
         }
+    }
+
+    /// Re-enters the dev-tools install path after a fresh boot of a bundle
+    /// that was persisted at `.provisioningDevTools`. Mirrors the SSH-probe
+    /// leg of `markSetupComplete` (so the live destination is re-resolved),
+    /// then hands off to `runDevToolsProvisioner`.
+    private func resumeDevToolsProvisioningAfterBoot() async {
+        let state = (try? bundle.loadState(fileManager: dependencies.fileManager)) ?? SharedCompassVMBundle.State()
+        guard let ip = state.lastKnownGoodIP else {
+            readiness = .error(detail: "Resuming dev-tools install: guest IP is not cached. Reset and re-provision.")
+            return
+        }
+        let destination = "\(state.guestUserName)@\(ip)"
+        let options = SharedCompassVMGuestBridge.ConnectionOptions(
+            identityFile: bundle.privateKeyURL.path,
+            knownHostsFile: bundle.knownHostsURL.path,
+            connectTimeoutSeconds: 5
+        )
+        let deadline = Date().addingTimeInterval(300)
+        var attemptIntervalNanoseconds: UInt64 = 2_000_000_000
+        var probeOK = false
+        while Date() < deadline {
+            probeOK = await SharedCompassVMGuestBridge.probeSSHAvailable(
+                destination: destination,
+                options: options,
+                timeout: 5
+            )
+            if probeOK { break }
+            try? await Task.sleep(nanoseconds: attemptIntervalNanoseconds)
+            attemptIntervalNanoseconds = min(attemptIntervalNanoseconds * 2, 10_000_000_000)
+        }
+        guard probeOK else {
+            readiness = .error(detail: "Resuming dev-tools install: SSH probe to \(destination) timed out.")
+            return
+        }
+        lastResolvedSSHDestination = destination
+        readiness = .provisioningDevTools(fractionCompleted: 0)
+        await runDevToolsProvisioner(destination: destination)
     }
 
     /// Lightweight SSH probe used on subsequent boots when the bundle is
@@ -607,7 +654,14 @@ final class SharedCompassVM: ObservableObject {
         var attemptIntervalNanoseconds: UInt64 = 5_000_000_000
         while Date() < deadline {
             await markSetupComplete()
+            // SSH-probe loop exits as soon as `markSetupComplete` has either
+            // landed at .ready or advanced past SSH onto the dev-tools
+            // install — beyond that point the provisioner owns the
+            // readiness signal and we must not re-invoke setup or we'd
+            // race ourselves into multiple concurrent installs.
             if case .ready = readiness { return }
+            if case .provisioningDevTools = readiness { return }
+            if case .error = readiness { return }
             try? await Task.sleep(nanoseconds: attemptIntervalNanoseconds)
             // Exponential backoff capped at 20s so we don't hammer ssh
             // during the long tail of slow first boots.
@@ -718,9 +772,12 @@ final class SharedCompassVM: ObservableObject {
     }
 
     /// Marks the user-driven first-boot Setup Assistant as complete.
-    /// Transitions readiness to `.guestPrepping` and then to `.ready` once
-    /// the SSH probe succeeds. The Sandbox view invokes this when the user
-    /// taps "Mark setup complete".
+    /// Transitions readiness to `.guestPrepping` and then to
+    /// `.provisioningDevTools` once the SSH probe succeeds, kicking off
+    /// the headless CLT install before finally flipping to `.ready`. The
+    /// Sandbox view invokes this when the user taps "Mark setup complete";
+    /// the headless first-boot driver calls it repeatedly until readiness
+    /// leaves `.guestPrepping`.
     func markSetupComplete() async {
         // Clear any prior failure message so the UI shows a fresh attempt.
         setupFailureMessage = nil
@@ -780,11 +837,63 @@ final class SharedCompassVM: ObservableObject {
             setupFailureMessage = "SSH probe to \(destination) failed. Confirm the bootstrap script ran successfully inside the guest (sshd enabled, key authorised)."
             return
         }
+        lastResolvedSSHDestination = destination
+
+        // SSH is up — promote to .provisioningDevTools and kick off the
+        // in-guest CLT install. We persist this step too so a host crash
+        // mid-install resumes here on the next launch rather than thinking
+        // the bundle is ready when CLT was never finished.
+        _ = try? bundle.mutateState(fileManager: dependencies.fileManager) {
+            $0.provisionStep = .provisioningDevTools
+        }
+        readiness = .provisioningDevTools(fractionCompleted: 0)
+
+        await runDevToolsProvisioner(destination: destination)
+    }
+
+    /// Drives `SharedCompassVMDevToolsProvisioner` against the live VM
+    /// using a vsock-backed bash runner. Updates readiness with progress
+    /// while the install runs, and flips to `.ready` once CLT verifies.
+    /// Safe to call when CLT is already installed — the provisioner's
+    /// probe short-circuits and `progress(1)` fires immediately.
+    private func runDevToolsProvisioner(destination: String) async {
+        guard let machine = virtualMachine else {
+            readiness = .error(detail: "Shared VM is not running; cannot install developer tools.")
+            return
+        }
+        let client = Self.makeVsockClient(on: machine)
+        let host = self
+        do {
+            _ = try await SharedCompassVMDevToolsProvisioner.provision(
+                runner: client,
+                progress: { fraction in
+                    await MainActor.run {
+                        host.readiness = .provisioningDevTools(fractionCompleted: fraction)
+                    }
+                }
+            )
+        } catch {
+            readiness = .error(detail: "Developer-tools install failed: \(error)")
+            return
+        }
+
         _ = try? bundle.mutateState(fileManager: dependencies.fileManager) {
             $0.provisionStep = .ready
         }
-        lastResolvedSSHDestination = destination
         readiness = .ready(sshDestination: destination)
+    }
+
+    /// Builds a vsock-backed agent client that opens a fresh
+    /// `VZVirtioSocketConnection` per RPC against the supplied VM.
+    /// Mirrors `AppModel.makeVsockClient` so the dev-tools provisioner
+    /// can talk to the guest without taking a dependency on AppModel.
+    static func makeVsockClient(on machine: VZVirtualMachine) -> AgentVsockClient {
+        AgentVsockClient(
+            transportFactory: {
+                let connection = try await SharedCompassVMVsock.connect(on: machine)
+                return VZVirtioSocketTransport(connection: connection)
+            }
+        )
     }
 
     // MARK: - Internals
