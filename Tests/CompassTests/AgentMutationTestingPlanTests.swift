@@ -2,7 +2,7 @@ import Foundation
 @testable import Compass
 import XCTest
 
-final class CodexMutationTestingPlanTests: XCTestCase {
+final class AgentMutationTestingPlanTests: XCTestCase {
     private var temporaryDirectories: [URL] = []
 
     override func tearDownWithError() throws {
@@ -14,7 +14,7 @@ final class CodexMutationTestingPlanTests: XCTestCase {
 
     func testSupportedLanguageReadinessUsesVerifyCommandAsSeed() {
         let cases: [(RepositoryLanguage, String, String)] = [
-            (.swift, "swift", "swift test --filter CodexMutationTestingPlanTests"),
+            (.swift, "swift", "swift test --filter AgentMutationTestingPlanTests"),
             (.typeScriptJavaScript, "typescript-javascript", "npm test -- --runInBand"),
             (.python, "python", "pytest -q"),
             (.go, "go", "go test ./..."),
@@ -22,7 +22,7 @@ final class CodexMutationTestingPlanTests: XCTestCase {
         ]
 
         for (language, expectedIdentifier, verifyCommand) in cases {
-            let plan = CodexMutationTestingPlan(
+            let plan = AgentMutationTestingPlan(
                 state: makeState(verify: verifyCommand),
                 languageProfile: profile(language),
                 launchPlan: nativeLaunchPlan()
@@ -41,7 +41,7 @@ final class CodexMutationTestingPlanTests: XCTestCase {
     }
 
     func testMissingAndUnsupportedStatesAreBounded() {
-        let noImmediate = CodexMutationTestingPlan(
+        let noImmediate = AgentMutationTestingPlan(
             state: PlanState(completed: [], immediate: nil, midTerm: "", longTerm: ""),
             languageProfile: profile(.swift),
             launchPlan: nativeLaunchPlan()
@@ -52,7 +52,7 @@ final class CodexMutationTestingPlanTests: XCTestCase {
         XCTAssertNil(noImmediate.seedCommand)
         XCTAssertEqual(noImmediate.seedCommandLabel, "none")
 
-        let missingVerify = CodexMutationTestingPlan(
+        let missingVerify = AgentMutationTestingPlan(
             state: makeState(verify: " "),
             languageProfile: profile(.swift),
             launchPlan: nativeLaunchPlan()
@@ -61,7 +61,7 @@ final class CodexMutationTestingPlanTests: XCTestCase {
         XCTAssertEqual(missingVerify.statusIdentifier, "missing-verify")
         XCTAssertEqual(missingVerify.badgeLabel, "Mutation: Missing verify")
 
-        let unsupported = CodexMutationTestingPlan(
+        let unsupported = AgentMutationTestingPlan(
             state: makeState(verify: "markdownlint README.md"),
             languageProfile: profile(.markdown),
             launchPlan: nativeLaunchPlan()
@@ -72,27 +72,26 @@ final class CodexMutationTestingPlanTests: XCTestCase {
         XCTAssertEqual(unsupported.badgeLabel, "Mutation: Unsupported language")
 
         for plan in [noImmediate, missingVerify, unsupported] {
-            XCTAssertLessThanOrEqual(plan.identifier.count, CodexMutationTestingPlan.identifierMaxCharacters)
-            XCTAssertLessThanOrEqual(plan.badgeLabel.count, CodexMutationTestingPlan.labelMaxCharacters)
-            XCTAssertLessThanOrEqual(plan.detailText.count, CodexMutationTestingPlan.detailMaxCharacters)
-            XCTAssertLessThanOrEqual(plan.copyText.count, CodexMutationTestingPlan.copyTextMaxCharacters)
+            XCTAssertLessThanOrEqual(plan.identifier.count, AgentMutationTestingPlan.identifierMaxCharacters)
+            XCTAssertLessThanOrEqual(plan.badgeLabel.count, AgentMutationTestingPlan.labelMaxCharacters)
+            XCTAssertLessThanOrEqual(plan.detailText.count, AgentMutationTestingPlan.detailMaxCharacters)
+            XCTAssertLessThanOrEqual(plan.copyText.count, AgentMutationTestingPlan.copyTextMaxCharacters)
         }
     }
 
     func testAppleContainerAndNativeFallbackRoutesAreReportedWithoutExecutingMutationTools() throws {
-        let repoURL = try makeTemporaryDirectory(prefix: "CodexMutationTestingPlanRoute")
+        let repoURL = try makeTemporaryDirectory(prefix: "AgentMutationTestingPlanRoute")
         let vmRoute = SharedVMRoute(
             sshDestination: "compass@192.0.2.10",
             hostWorktreeURL: repoURL,
-            guestWorkspacePath: "/opt/compass/workspaces/dev-AAA/worktree",
-            guestCodexPath: "/opt/compass/codex/codex"
+            guestWorkspacePath: "/opt/compass/workspaces/dev-AAA/worktree"
         )
-        let vmPlan = CodexExecutionLaunchPlan(
+        let vmPlan = AgentExecutionLaunchPlan(
             selectedPreference: .sharedVM,
             effectiveRoute: .sharedVM(vmRoute),
             vmReadiness: .ready(sshDestination: vmRoute.sshDestination)
         )
-        let vmReadiness = CodexMutationTestingPlan(
+        let vmReadiness = AgentMutationTestingPlan(
             state: makeState(verify: "swift test"),
             languageProfile: profile(.swift),
             launchPlan: vmPlan
@@ -103,12 +102,12 @@ final class CodexMutationTestingPlanTests: XCTestCase {
         XCTAssertTrue(vmReadiness.badgeLabel.contains("Shared VM"))
         XCTAssertTrue(vmReadiness.detailText.contains("Shared VM"))
 
-        let fallbackPlan = CodexExecutionLaunchPlan.host(
+        let fallbackPlan = AgentExecutionLaunchPlan.host(
             selectedPreference: .sharedVM,
             vmReadiness: .unavailable(reason: "2-guest cap reached"),
             fallbackReason: "Shared VM unavailable: 2-guest cap reached."
         )
-        let fallbackReadiness = CodexMutationTestingPlan(
+        let fallbackReadiness = AgentMutationTestingPlan(
             state: makeState(verify: "swift test"),
             languageProfile: profile(.swift),
             launchPlan: fallbackPlan
@@ -121,29 +120,28 @@ final class CodexMutationTestingPlanTests: XCTestCase {
     }
 
     func testIdentifierCopyAndSeedCommandAreStableBoundedAndSanitized() throws {
-        let repoURL = try makeTemporaryDirectory(prefix: "CodexMutationTestingPlanSanitized")
+        let repoURL = try makeTemporaryDirectory(prefix: "AgentMutationTestingPlanSanitized")
         let secretEnvValue = "secret-mutation-env-value"
         let route = SharedVMRoute(
             sshDestination: "compass@192.0.2.10",
             hostWorktreeURL: repoURL,
             guestWorkspacePath: "/opt/compass/workspaces/dev-AAA/worktree",
-            guestCodexPath: "/opt/compass/codex/codex",
             environmentVariables: ["SECRET_TOKEN": secretEnvValue]
         )
-        let launchPlan = CodexExecutionLaunchPlan(
+        let launchPlan = AgentExecutionLaunchPlan(
             selectedPreference: .sharedVM,
             effectiveRoute: .sharedVM(route),
             vmReadiness: .ready(sshDestination: route.sshDestination)
         )
         let state = makeState(
-            verify: "swift test --package-path \(repoURL.path) --filter CodexMutationTestingPlanTests \(secretEnvValue)"
+            verify: "swift test --package-path \(repoURL.path) --filter AgentMutationTestingPlanTests \(secretEnvValue)"
         )
-        let first = CodexMutationTestingPlan(
+        let first = AgentMutationTestingPlan(
             state: state,
             languageProfile: profile(.swift),
             launchPlan: launchPlan
         )
-        let second = CodexMutationTestingPlan(
+        let second = AgentMutationTestingPlan(
             state: state,
             languageProfile: profile(.swift),
             launchPlan: launchPlan
@@ -161,9 +159,9 @@ final class CodexMutationTestingPlanTests: XCTestCase {
         XCTAssertEqual(first.routeIdentifier, "shared-vm-route")
         XCTAssertFalse(exposedText.contains(repoURL.standardizedFileURL.path))
         XCTAssertFalse(exposedText.contains(secretEnvValue))
-        XCTAssertLessThanOrEqual(first.identifier.count, CodexMutationTestingPlan.identifierMaxCharacters)
-        XCTAssertLessThanOrEqual(first.seedCommandLabel.count, CodexMutationTestingPlan.commandMaxCharacters)
-        XCTAssertLessThanOrEqual(first.copyText.count, CodexMutationTestingPlan.copyTextMaxCharacters)
+        XCTAssertLessThanOrEqual(first.identifier.count, AgentMutationTestingPlan.identifierMaxCharacters)
+        XCTAssertLessThanOrEqual(first.seedCommandLabel.count, AgentMutationTestingPlan.commandMaxCharacters)
+        XCTAssertLessThanOrEqual(first.copyText.count, AgentMutationTestingPlan.copyTextMaxCharacters)
     }
 
     private func makeState(verify: String) -> PlanState {
@@ -193,8 +191,8 @@ final class CodexMutationTestingPlanTests: XCTestCase {
         )
     }
 
-    private func nativeLaunchPlan() -> CodexExecutionLaunchPlan {
-        CodexExecutionLaunchPlan.host(selectedPreference: .host)
+    private func nativeLaunchPlan() -> AgentExecutionLaunchPlan {
+        AgentExecutionLaunchPlan.host(selectedPreference: .host)
     }
 
     private func makeTemporaryDirectory(prefix: String) throws -> URL {

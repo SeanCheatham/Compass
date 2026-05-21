@@ -372,10 +372,10 @@ struct CinematicRunRecapShareArtifactMutationTestingAudit: Equatable, Identifiab
         }
         let expectedRuntimeRoute: String
         switch mutationRouteIdentifier {
-        case CodexMutationTestingPlan.RouteState.sharedVMRoute.rawValue:
+        case AgentMutationTestingPlan.RouteState.sharedVMRoute.rawValue:
             expectedRuntimeRoute = "shared-vm"
-        case CodexMutationTestingPlan.RouteState.nativeRoute.rawValue,
-            CodexMutationTestingPlan.RouteState.nativeFallback.rawValue:
+        case AgentMutationTestingPlan.RouteState.nativeRoute.rawValue,
+            AgentMutationTestingPlan.RouteState.nativeFallback.rawValue:
             expectedRuntimeRoute = "native-macos"
         default:
             expectedRuntimeRoute = "unknown"
@@ -385,7 +385,7 @@ struct CinematicRunRecapShareArtifactMutationTestingAudit: Equatable, Identifiab
             ? "route-aligned"
             : "route-diverged"
         let fallbackState: String
-        if mutationRouteIdentifier == CodexMutationTestingPlan.RouteState.nativeFallback.rawValue {
+        if mutationRouteIdentifier == AgentMutationTestingPlan.RouteState.nativeFallback.rawValue {
             fallbackState = runtimeRouteAudit.fallbackStateIdentifier == "fallback"
                 ? "fallback-aligned"
                 : "fallback-missing"
@@ -464,10 +464,10 @@ struct CinematicRunRecapShareArtifactRuntimeRouteAudit: Equatable, Identifiable 
             identifier: selectedPreferenceIdentifier,
             fallback: snapshot.selectedPreferenceTitle,
             knownTitles: [
-                CodexExecutionEnvironmentPreference.host.rawValue:
-                    CodexExecutionEnvironmentPreference.host.title,
-                CodexExecutionEnvironmentPreference.sharedVM.rawValue:
-                    CodexExecutionEnvironmentPreference.sharedVM.title,
+                AgentExecutionEnvironmentPreference.host.rawValue:
+                    AgentExecutionEnvironmentPreference.host.title,
+                AgentExecutionEnvironmentPreference.sharedVM.rawValue:
+                    AgentExecutionEnvironmentPreference.sharedVM.title,
                 // Legacy preference rawValues — preserved for recap baselines from prior runs.
                 "devcontainer_preferred": "Native macOS"
             ],
@@ -513,7 +513,7 @@ struct CinematicRunRecapShareArtifactRuntimeRouteAudit: Equatable, Identifiable 
         )
         let fallbackReason = Self.sanitizedField(
             snapshot.fallbackReason ?? "none",
-            limit: CodexExecutionLaunchPlan.fallbackReasonLimit,
+            limit: AgentExecutionLaunchPlan.fallbackReasonLimit,
             fallback: "none"
         )
         let fallbackStateIdentifier = fallbackReason == "none" ? "direct" : "fallback"
@@ -751,8 +751,8 @@ struct CinematicRunRecapShareArtifactRuntimeRouteCue: Equatable, Identifiable {
         let selectedPreferenceIdentifier = Self.knownIdentifier(
             Self.leadingIdentifier(Self.markdownField("Selected preference", in: sectionLines)),
             allowed: [
-                CodexExecutionEnvironmentPreference.host.rawValue,
-                CodexExecutionEnvironmentPreference.sharedVM.rawValue,
+                AgentExecutionEnvironmentPreference.host.rawValue,
+                AgentExecutionEnvironmentPreference.sharedVM.rawValue,
                 // Legacy preference identifier — preserved so older saved recap artifacts
                 // continue to decode.
                 "devcontainer_preferred"

@@ -263,7 +263,7 @@ struct NativeFeedbackContent: Equatable {
             spokenPhrase = "\(projectName). Develop ready."
         case .developStarted:
             title = "\(projectName): Develop started"
-            body = "Codex is working on the selected plan."
+            body = "Agent is working on the selected plan."
             spokenPhrase = "\(projectName). Develop started."
         case .verifyStarted:
             title = "\(projectName): Verify started"
@@ -275,7 +275,7 @@ struct NativeFeedbackContent: Equatable {
             spokenPhrase = "\(projectName). Verify passed."
         case .developRetrying:
             title = "\(projectName): Develop retrying"
-            body = "Post-checks need another Codex pass."
+            body = "Post-checks need another agent pass."
             spokenPhrase = "\(projectName). Develop retrying."
         case .postChecksFailed:
             title = "\(projectName): Post-checks failed"

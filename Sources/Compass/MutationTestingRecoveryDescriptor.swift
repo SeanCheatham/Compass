@@ -85,7 +85,7 @@ struct MutationTestingRecoveryDescriptor: Equatable, Identifiable {
 
     static func runtimeDescriptor(
         sessions: [SessionRecord],
-        readiness: CodexMutationTestingPlan
+        readiness: AgentMutationTestingPlan
     ) -> MutationTestingRecoveryDescriptor {
         guard let context = latestContext(in: sessions) else {
             return MutationTestingRecoveryDescriptor(state: .readinessOnly, readiness: readiness)
@@ -136,7 +136,7 @@ struct MutationTestingRecoveryDescriptor: Equatable, Identifiable {
     private init(
         state: State,
         context: ExecutionContext? = nil,
-        readiness: CodexMutationTestingPlan? = nil
+        readiness: AgentMutationTestingPlan? = nil
     ) {
         let execution = context?.execution
         let statusIdentifier = execution.map(Self.statusIdentifier) ?? readiness?.statusIdentifier ?? "missing"
@@ -333,7 +333,7 @@ struct MutationTestingRecoveryDescriptor: Equatable, Identifiable {
     private static func detailText(
         state: State,
         stateCopy: (title: String, help: String, reviewActionLabel: String, copyActionLabel: String, systemImage: String),
-        readiness: CodexMutationTestingPlan?,
+        readiness: AgentMutationTestingPlan?,
         tailSummary: String,
         statusLabel: String,
         routeLabel: String,

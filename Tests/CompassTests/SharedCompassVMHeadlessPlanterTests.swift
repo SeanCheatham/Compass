@@ -333,17 +333,11 @@ final class SharedCompassVMHeadlessPlanterTests: XCTestCase {
         XCTAssertTrue(script.contains("$MOUNT_POINT/private/var/db/.AppleSetupDone"))
     }
 
-    func testElevatedScriptStagesPublicKeyAndPasswordAndOptionalCodex() {
-        let scriptWithCodex = renderStandardScript(includeCodex: true)
-        let scriptNoCodex = renderStandardScript(includeCodex: false)
-        for script in [scriptWithCodex, scriptNoCodex] {
-            XCTAssertTrue(script.contains("$MOUNT_POINT/Users/Shared/compass-firstboot/id_ed25519.pub"))
-            XCTAssertTrue(script.contains("$MOUNT_POINT/Users/Shared/compass-firstboot/user.password"))
-            XCTAssertTrue(script.contains("install -o root -g wheel -m 0600"))
-        }
-        // The codex install line is wrapped in a `[ -f ... ]` guard regardless.
-        XCTAssertTrue(scriptWithCodex.contains("if [ -f \"$STAGING_DIR/codex\" ]"))
-        XCTAssertTrue(scriptNoCodex.contains("if [ -f \"$STAGING_DIR/codex\" ]"))
+    func testElevatedScriptStagesPublicKeyAndPassword() {
+        let script = renderStandardScript()
+        XCTAssertTrue(script.contains("$MOUNT_POINT/Users/Shared/compass-firstboot/id_ed25519.pub"))
+        XCTAssertTrue(script.contains("$MOUNT_POINT/Users/Shared/compass-firstboot/user.password"))
+        XCTAssertTrue(script.contains("install -o root -g wheel -m 0600"))
     }
 
     func testElevatedScriptUnmountsViaTrapOnExit() {
@@ -386,7 +380,7 @@ final class SharedCompassVMHeadlessPlanterTests: XCTestCase {
 
     func testStagePayloadWritesAllArtifactsByWellKnownName() throws {
         let stagingDir = makeTempDir()
-        let payload = makePayload(includeCodex: true)
+        let payload = makePayload()
         try SharedCompassVMHeadlessPlanter.stagePayload(payload, into: stagingDir)
 
         let fm = FileManager.default
@@ -396,21 +390,11 @@ final class SharedCompassVMHeadlessPlanterTests: XCTestCase {
         XCTAssertTrue(fm.fileExists(atPath: stagingDir.appendingPathComponent("apple-setup-done").path))
         XCTAssertTrue(fm.fileExists(atPath: stagingDir.appendingPathComponent("id_ed25519.pub").path))
         XCTAssertTrue(fm.fileExists(atPath: stagingDir.appendingPathComponent("user.password").path))
-        XCTAssertTrue(fm.fileExists(atPath: stagingDir.appendingPathComponent("codex").path))
-    }
-
-    func testStagePayloadOmitsCodexFileWhenAbsent() throws {
-        let stagingDir = makeTempDir()
-        let payload = makePayload(includeCodex: false)
-        try SharedCompassVMHeadlessPlanter.stagePayload(payload, into: stagingDir)
-        XCTAssertFalse(
-            FileManager.default.fileExists(atPath: stagingDir.appendingPathComponent("codex").path)
-        )
     }
 
     func testStagePayloadTightensPasswordFilePermissionsTo0600() throws {
         let stagingDir = makeTempDir()
-        let payload = makePayload(includeCodex: false)
+        let payload = makePayload()
         try SharedCompassVMHeadlessPlanter.stagePayload(payload, into: stagingDir)
         let attrs = try FileManager.default.attributesOfItem(
             atPath: stagingDir.appendingPathComponent("user.password").path
@@ -450,7 +434,7 @@ final class SharedCompassVMHeadlessPlanterTests: XCTestCase {
         let diskImageURL = makeTempDir().appendingPathComponent("Disk.img", isDirectory: false)
         FileManager.default.createFile(atPath: diskImageURL.path, contents: Data())
 
-        let payload = makePayload(includeCodex: true)
+        let payload = makePayload()
         let report = try await SharedCompassVMHeadlessPlanter.plant(
             payload: payload,
             diskImageURL: diskImageURL,
@@ -501,7 +485,7 @@ final class SharedCompassVMHeadlessPlanterTests: XCTestCase {
         let diskImageURL = makeTempDir().appendingPathComponent("Disk.img", isDirectory: false)
         FileManager.default.createFile(atPath: diskImageURL.path, contents: Data())
 
-        let payload = makePayload(includeCodex: false)
+        let payload = makePayload()
         do {
             _ = try await SharedCompassVMHeadlessPlanter.plant(
                 payload: payload,
@@ -587,19 +571,18 @@ final class SharedCompassVMHeadlessPlanterTests: XCTestCase {
         return url
     }
 
-    private func makePayload(includeCodex: Bool) -> SharedCompassVMHeadlessFirstBoot.Payload {
+    private func makePayload() -> SharedCompassVMHeadlessFirstBoot.Payload {
         let profile = SharedCompassVMHeadlessFirstBoot.Profile.standard(macOSMajor: 16)
         let inputs = SharedCompassVMHeadlessFirstBoot.RenderInputs.makeStandard(
             profile: profile,
             publicKeyData: Data("ssh-ed25519 AAAA fake".utf8),
-            codexBinaryData: includeCodex ? Data("#!/bin/sh\necho fake\n".utf8) : nil,
             generatedPassword: "passwordforsure"
         )
         return SharedCompassVMHeadlessFirstBoot.renderPayload(from: inputs)
     }
 
-    private func renderStandardScript(includeCodex: Bool = false) -> String {
-        let payload = makePayload(includeCodex: includeCodex)
+    private func renderStandardScript() -> String {
+        let payload = makePayload()
         return SharedCompassVMHeadlessPlanter.renderElevatedScript(
             payload: payload,
             stagingDirectoryHostPath: "/tmp/Compass-HeadlessFirstBoot-xyz",

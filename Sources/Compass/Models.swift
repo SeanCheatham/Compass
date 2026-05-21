@@ -172,7 +172,7 @@ struct VerifyOutput: Codable, Equatable {
 
 struct SessionMutationTestingExecution: Codable, Equatable, Identifiable {
     static let fieldLimit = 120
-    static let commandLimit = CodexMutationTestingPlan.commandMaxCharacters
+    static let commandLimit = AgentMutationTestingPlan.commandMaxCharacters
     static let outputTailLimit = 2_000
 
     var readinessIdentifier: String
@@ -197,12 +197,12 @@ struct SessionMutationTestingExecution: Codable, Equatable, Identifiable {
     }
 
     init(
-        readiness: CodexMutationTestingPlan,
+        readiness: AgentMutationTestingPlan,
         exitCode: Int?,
         startedAt: Double,
         endedAt: Double,
         outputTail: String,
-        launchPlan: CodexExecutionLaunchPlan
+        launchPlan: AgentExecutionLaunchPlan
     ) {
         readinessIdentifier = Self.boundedField(
             readiness.identifier,
@@ -224,7 +224,7 @@ struct SessionMutationTestingExecution: Codable, Equatable, Identifiable {
         self.exitCode = exitCode
         self.startedAt = max(0, startedAt)
         self.endedAt = max(self.startedAt, endedAt)
-        self.outputTail = CodexMutationTestingMetadataSanitizer.sanitizedOutputTail(
+        self.outputTail = AgentMutationTestingMetadataSanitizer.sanitizedOutputTail(
             outputTail,
             launchPlan: launchPlan,
             limit: Self.outputTailLimit
@@ -293,7 +293,7 @@ struct SessionExecutionEnvironmentSnapshot: Codable, Equatable, Identifiable {
     init(
         phase: String,
         attempt: Int? = nil,
-        launchPlan: CodexExecutionLaunchPlan
+        launchPlan: AgentExecutionLaunchPlan
     ) {
         self.phase = Self.sanitizedField(phase, limit: Self.phaseLimit)
         phaseIdentifier = Self.phaseIdentifier(for: phase)
@@ -315,7 +315,7 @@ struct SessionExecutionEnvironmentSnapshot: Codable, Equatable, Identifiable {
         workspaceLabel = Self.sanitizedField(launchPlan.workspaceLabel, limit: Self.fieldLimit)
         fallbackReason = Self.sanitizedOptionalField(
             launchPlan.fallbackReason,
-            limit: CodexExecutionLaunchPlan.fallbackReasonLimit
+            limit: AgentExecutionLaunchPlan.fallbackReasonLimit
         )
 
         if let readiness = launchPlan.vmReadiness {
@@ -368,8 +368,6 @@ struct SessionExecutionEnvironmentSnapshot: Codable, Equatable, Identifiable {
             return "installing"
         case .guestPrepping:
             return "guest-prepping"
-        case .codexLoginPending:
-            return "codex-login-pending"
         case .ready:
             return "ready"
         case .error:

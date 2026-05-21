@@ -6,8 +6,8 @@ import SwiftUI
 import Virtualization
 
 private extension OSLog {
-    /// Category we point at the first-boot / codex-auth pipeline so the
-    /// flow is easy to filter in Console.app:
+    /// Category we point at the first-boot pipeline so the flow is easy to
+    /// filter in Console.app:
     ///     log stream --predicate 'subsystem == "com.seancheatham.Compass" AND category == "GuestProvision"'
     static let guestProvision = OSLog(subsystem: "com.seancheatham.Compass", category: "GuestProvision")
 }
@@ -49,11 +49,6 @@ final class SharedCompassVM: ObservableObject {
     @Published private(set) var virtualMachine: VZVirtualMachine?
     private var sleepObserver: SharedCompassVMSleepObserver?
     private var lastResolvedSSHDestination: String?
-
-    /// Path to the user-facing codex binary, refreshed by AppModel via
-    /// `refreshFirstBootArtifacts`. Used by the headless first-boot planter
-    /// to ship a codex copy into the guest at install time.
-    private var lastKnownCodexBinaryPath: String?
 
     /// Pipe attached to the guest's virtio console port. VZ writes guest serial
     /// output into `consoleOutputPipe.fileHandleForWriting`; the host's read
@@ -183,7 +178,7 @@ final class SharedCompassVM: ObservableObject {
 
         if bundle.existsOnDisk(fileManager: dependencies.fileManager) {
             switch state.provisionStep {
-            case .ready where state.codexLoginCompleted:
+            case .ready:
                 if let ip = state.lastKnownGoodIP {
                     let destination = "\(state.guestUserName)@\(ip)"
                     lastResolvedSSHDestination = destination
@@ -191,8 +186,6 @@ final class SharedCompassVM: ObservableObject {
                 } else {
                     readiness = .guestPrepping
                 }
-            case .ready:
-                readiness = .codexLoginPending
             case .guestPrepping:
                 readiness = .guestPrepping
             case .installing:
@@ -372,17 +365,10 @@ final class SharedCompassVM: ObservableObject {
         // provisionIfNeeded so the file is guaranteed to exist.
         let publicKeyData = try Data(contentsOf: bundle.publicKeyURL)
 
-        // Optional codex binary copy. AppModel sets `lastKnownCodexBinaryPath`
-        // during warmup; if it's missing or not executable, the bootstrap
-        // script falls back to a "install codex manually" notice in the
-        // guest.
-        let codexBinaryData = readCodexBinaryDataIfAvailable()
-
         let payload = SharedCompassVMHeadlessFirstBoot.renderPayload(
             from: SharedCompassVMHeadlessFirstBoot.RenderInputs.makeStandard(
                 profile: profile,
                 publicKeyData: publicKeyData,
-                codexBinaryData: codexBinaryData,
                 generatedPassword: credential.password,
                 guestUserName: state.guestUserName
             )
@@ -392,20 +378,6 @@ final class SharedCompassVM: ObservableObject {
             payload: payload,
             diskImageURL: bundle.diskImageURL
         )
-    }
-
-    /// Loads the user's codex binary into memory if `lastKnownCodexBinaryPath`
-    /// points at an executable regular file. Returns nil for missing,
-    /// directory-typed (e.g. Codex.app bundle), or non-executable paths so
-    /// the bootstrap script's "install codex manually" branch fires.
-    private func readCodexBinaryDataIfAvailable() -> Data? {
-        guard let path = lastKnownCodexBinaryPath, !path.isEmpty else { return nil }
-        let fm = dependencies.fileManager
-        var isDirectory: ObjCBool = false
-        guard fm.fileExists(atPath: path, isDirectory: &isDirectory) else { return nil }
-        guard !isDirectory.boolValue else { return nil }
-        guard fm.isExecutableFile(atPath: path) else { return nil }
-        return try? Data(contentsOf: URL(fileURLWithPath: path))
     }
 
     /// Removes a failed or stale install so the next provisioning attempt starts
@@ -441,20 +413,6 @@ final class SharedCompassVM: ObservableObject {
         try await resetProvisioningArtifacts()
         try await provisionIfNeeded(localIPSWURL: localIPSWURL)
         try await start()
-    }
-
-    /// Re-materializes the first-boot script + public key + codex copy.
-    /// Safe to call at any time; the script is idempotent so callers can
-    /// re-invoke when the user changes the codex binary or after a fresh
-    /// install. Best-effort: failures are swallowed because the readiness
-    /// state machine is unaffected and the user will see a clear error
-    /// inside the guest if the artifacts are missing.
-    func refreshFirstBootArtifacts(codexBinaryPath: String?) {
-        // Remember the binary path so the headless planter (called on the
-        // next `provisionIfNeeded`) can stage a copy of codex inside the
-        // guest. Updating the path on a running guest does *not* push a
-        // new codex copy — the planter only fires once per install.
-        lastKnownCodexBinaryPath = codexBinaryPath
     }
 
     /// Boots (or re-boots) the guest from the currently-installed bundle.
@@ -554,21 +512,16 @@ final class SharedCompassVM: ObservableObject {
     }
 
     /// Background driver that repeatedly invokes `markSetupComplete()` until
-    /// the readiness probe lands on `.ready` or `.codexLoginPending`, or the
-    /// overall deadline expires. Used as the auto-finalisation step after a
-    /// headless first-boot plant, where Compass owns the entire boot
-    /// sequence and there is nothing for the user to click.
+    /// the readiness probe lands on `.ready`, or the overall deadline
+    /// expires. Used as the auto-finalisation step after a headless
+    /// first-boot plant, where Compass owns the entire boot sequence and
+    /// there is nothing for the user to click.
     private func pollUntilHeadlessGuestReady() async {
         let deadline = Date().addingTimeInterval(300) // 5 minutes
         var attemptIntervalNanoseconds: UInt64 = 5_000_000_000
         while Date() < deadline {
             await markSetupComplete()
-            switch readiness {
-            case .ready, .codexLoginPending:
-                return
-            default:
-                break
-            }
+            if case .ready = readiness { return }
             try? await Task.sleep(nanoseconds: attemptIntervalNanoseconds)
             // Exponential backoff capped at 20s so we don't hammer ssh
             // during the long tail of slow first boots.
@@ -685,110 +638,7 @@ final class SharedCompassVM: ObservableObject {
             $0.provisionStep = .ready
         }
         lastResolvedSSHDestination = destination
-        if state.codexLoginCompleted {
-            readiness = .ready(sshDestination: destination)
-            return
-        }
-
-        // First-run codex auth: probe the guest, fall back to copying the
-        // host's ~/.codex if the guest is unauthenticated. Lands at .ready
-        // on success or .codexLoginPending (with a clear failure message)
-        // if the user still needs to run `codex login` inside the guest.
-        readiness = .codexLoginPending
-        await ensureCodexAuthenticated()
-    }
-
-    /// Records that the user has completed `codex login` inside the guest.
-    /// Persisted so we don't re-prompt on subsequent app launches.
-    func markCodexLoginComplete() {
-        _ = try? bundle.mutateState(fileManager: dependencies.fileManager) {
-            $0.codexLoginCompleted = true
-        }
-        setupFailureMessage = nil
-        if let destination = lastResolvedSSHDestination {
-            os_log(.info, log: .guestProvision, "markCodexLoginComplete: -> .ready(%{public}@)", destination)
-            readiness = .ready(sshDestination: destination)
-        } else {
-            os_log(.error, log: .guestProvision, "markCodexLoginComplete: lastResolvedSSHDestination is nil; readiness will stay at %{public}@ until next probe", String(describing: readiness))
-        }
-    }
-
-    /// Post-setup hook: probes the guest's codex CLI auth state and (if
-    /// unauthenticated) copies the host's `~/.codex` directory across as a
-    /// best-effort fallback. Re-probes; if still not authenticated, transitions
-    /// readiness to `.codexLoginPending` so the UI can prompt the user.
-    ///
-    /// Intended to be called after `markSetupComplete()` reports SSH is up.
-    /// Safe to call multiple times — it never overwrites an already-good
-    /// credential set on the guest (scp will refresh files in place, which is
-    /// the desired behaviour when host credentials are newer).
-    func ensureCodexAuthenticated() async {
-        if fallbackUnavailableReason != nil {
-            os_log(.info, log: .guestProvision, "ensureCodexAuthenticated: skipped — fallback unavailable")
-            return
-        }
-        guard let destination = lastResolvedSSHDestination else {
-            // We can't probe without an SSH destination. Surface as a soft
-            // failure (.codexLoginPending) and let the caller try again.
-            os_log(.error, log: .guestProvision, "ensureCodexAuthenticated: no lastResolvedSSHDestination; setting .codexLoginPending without an error message")
-            readiness = .codexLoginPending
-            return
-        }
-        os_log(.info, log: .guestProvision, "ensureCodexAuthenticated: starting against %{public}@", destination)
-        let options = SharedCompassVMGuestBridge.ConnectionOptions(
-            identityFile: bundle.privateKeyURL.path,
-            knownHostsFile: bundle.knownHostsURL.path,
-            connectTimeoutSeconds: 5
-        )
-
-        let initialState = await SharedCompassVMCodexAuthBridge.checkGuestCodexAuth(
-            destination: destination,
-            options: options
-        )
-        os_log(.info, log: .guestProvision, "ensureCodexAuthenticated: initial probe = %{public}@", String(describing: initialState))
-        switch initialState {
-        case .authenticated:
-            os_log(.info, log: .guestProvision, "ensureCodexAuthenticated: initial probe authenticated; marking complete")
-            markCodexLoginComplete()
-            return
-        case let .indeterminate(detail):
-            os_log(.error, log: .guestProvision, "ensureCodexAuthenticated: initial probe indeterminate: %{public}@", detail)
-            readiness = .codexLoginPending
-            setupFailureMessage = "Could not determine codex auth state inside the guest (\(detail)). Run `codex login` in the guest's Terminal."
-            return
-        case .unauthenticated:
-            os_log(.info, log: .guestProvision, "ensureCodexAuthenticated: initial probe unauthenticated; attempting host ~/.codex copy")
-        }
-
-        do {
-            try await SharedCompassVMCodexAuthBridge.copyHostCodexCredentialsToGuest(
-                destination: destination,
-                options: options
-            )
-            os_log(.info, log: .guestProvision, "ensureCodexAuthenticated: copyHostCodexCredentialsToGuest succeeded")
-        } catch {
-            let detail = (error as? SharedCompassVMCodexAuthBridge.CopyError)?.description
-                ?? error.localizedDescription
-            os_log(.error, log: .guestProvision, "ensureCodexAuthenticated: copy failed: %{public}@", detail)
-            readiness = .codexLoginPending
-            setupFailureMessage = "Could not copy host ~/.codex into the guest (\(detail)). Run `codex login` in the guest's Terminal."
-            return
-        }
-
-        let recheck = await SharedCompassVMCodexAuthBridge.checkGuestCodexAuth(
-            destination: destination,
-            options: options
-        )
-        os_log(.info, log: .guestProvision, "ensureCodexAuthenticated: recheck = %{public}@", String(describing: recheck))
-        switch recheck {
-        case .authenticated:
-            os_log(.info, log: .guestProvision, "ensureCodexAuthenticated: recheck authenticated; marking complete")
-            markCodexLoginComplete()
-        case .unauthenticated, .indeterminate:
-            os_log(.error, log: .guestProvision, "ensureCodexAuthenticated: recheck still not authenticated after copy")
-            readiness = .codexLoginPending
-            setupFailureMessage = "Copied host ~/.codex to the guest but it still isn't authenticated. Run `codex login` in the guest's Terminal."
-        }
+        readiness = .ready(sshDestination: destination)
     }
 
     /// Hook for future per-project ephemeral mounts. The parent

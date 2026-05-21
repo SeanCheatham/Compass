@@ -3,13 +3,10 @@ import Foundation
 /// SSH helpers for the Compass shared VM guest.
 ///
 /// This type does NOT spawn processes itself — it builds the argument vectors
-/// that the existing Compass process plumbing (`CodexExecutor.runCodex`) will
-/// feed to `/usr/bin/ssh`. The probe helper (`probeSSHAvailable`) uses a tiny
-/// `Process` wrapper internally for the readiness gate; that is the only
-/// `Process` use in this file.
-///
-/// Building argv at this layer keeps `codexInvocation(...)` for `.sharedVM`
-/// out of the SSH-options business.
+/// that the existing Compass process plumbing will feed to `/usr/bin/ssh`.
+/// The probe helper (`probeSSHAvailable`) uses a tiny `Process` wrapper
+/// internally for the readiness gate; that is the only `Process` use in this
+/// file.
 struct SharedCompassVMGuestBridge {
     /// Where Compass-managed `ssh` binaries / config live by default.
     static let defaultSSHExecutablePath = "/usr/bin/ssh"
@@ -21,7 +18,7 @@ struct SharedCompassVMGuestBridge {
         var knownHostsFile: String?
         var strictHostKeyChecking: Bool
         var batchMode: Bool
-        /// Disables PTY allocation (-T). Always set for non-interactive codex execs.
+        /// Disables PTY allocation (-T). Always set for non-interactive agent tool calls.
         var disablePseudoTerminal: Bool
         /// Optional ConnectTimeout (seconds). Used for probes.
         var connectTimeoutSeconds: Int?
@@ -90,30 +87,6 @@ struct SharedCompassVMGuestBridge {
         arguments.append(destination)
         arguments.append(remoteCommand)
         return arguments
-    }
-
-    /// Builds the remote command segment that runs codex inside the guest.
-    /// Encapsulates the `cd <workspace> && env VAR=val ... <codexPath> <args...>`
-    /// shape so callers don't have to repeat shell quoting rules.
-    ///
-    /// `codexArguments` are quoted with single-quote-safe POSIX rules.
-    static func buildRemoteCodexCommand(
-        guestWorkspacePath: String,
-        guestCodexPath: String,
-        environmentVariables: [String: String],
-        codexArguments: [String]
-    ) -> String {
-        let workspaceQuoted = posixQuote(guestWorkspacePath)
-        let codexQuoted = posixQuote(guestCodexPath)
-        var envPrefix = ""
-        if !environmentVariables.isEmpty {
-            let envParts = environmentVariables
-                .sorted(by: { $0.key < $1.key })
-                .map { "\(posixQuote($0.key))=\(posixQuote($0.value))" }
-            envPrefix = "env \(envParts.joined(separator: " ")) "
-        }
-        let argsQuoted = codexArguments.map(posixQuote).joined(separator: " ")
-        return "cd \(workspaceQuoted) && \(envPrefix)\(codexQuoted) \(argsQuoted)"
     }
 
     /// POSIX-safe single-quote escaping. Wraps any string in single quotes and

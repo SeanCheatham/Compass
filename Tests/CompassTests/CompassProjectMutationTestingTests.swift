@@ -18,7 +18,7 @@ final class CompassProjectMutationTestingTests: XCTestCase {
         let state = makeState(verify: "swift test --filter CompassProjectMutationTestingTests")
         let workspace = try initializedWorkspace(repoURL: repoURL, state: state)
         try workspace.writeLessons("- keep mutation execution records sanitized\n")
-        var capturedInvocation: CodexExecutionInvocation?
+        var capturedInvocation: AgentExecutionInvocation?
         let project = CompassProject(
             repoURL: repoURL,
             mutationTestingRunner: { invocation, input, timeout, _, _ in
@@ -72,7 +72,7 @@ final class CompassProjectMutationTestingTests: XCTestCase {
         let workspace = try initializedWorkspace(repoURL: repoURL, state: state)
         let project = CompassProject(
             repoURL: repoURL,
-            codexExecutionEnvironmentPreference: .sharedVM,
+            agentExecutionEnvironmentPreference: .sharedVM,
             mutationTestingRunner: { _, _, _, _, _ in
                 ProcessResult(
                     exitCode: 23,
@@ -100,7 +100,7 @@ final class CompassProjectMutationTestingTests: XCTestCase {
         XCTAssertEqual(execution.routeIdentifier, "native-route")
         XCTAssertEqual(execution.exitCode, 23)
         XCTAssertLessThanOrEqual(execution.outputTail.count, SessionMutationTestingExecution.outputTailLimit)
-        XCTAssertLessThanOrEqual(execution.seedCommandLabel.count, CodexMutationTestingPlan.commandMaxCharacters)
+        XCTAssertLessThanOrEqual(execution.seedCommandLabel.count, AgentMutationTestingPlan.commandMaxCharacters)
 
         let persistedText = try read(workspace.sessionsRecordURL)
         let exposedText = [persistedText, execution.outputTail, execution.seedCommandLabel].joined(separator: "\n")
@@ -143,7 +143,7 @@ final class CompassProjectMutationTestingTests: XCTestCase {
         let repoURL = try await makeTemporaryGitRepository(prefix: "CompassProjectMutationMenu")
         let project = CompassProject(
             repoURL: repoURL,
-            codexExecutionEnvironmentPreference: .sharedVM
+            agentExecutionEnvironmentPreference: .sharedVM
         )
 
         project.state = PlanState(completed: [], immediate: nil, midTerm: "", longTerm: "")

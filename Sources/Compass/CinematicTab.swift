@@ -4070,7 +4070,7 @@ private struct CinematicCaption {
         activityColor = activity.pressureLevel.cinematicColor
 
         if (project.isRunning || project.isAutoPlaying) && Self.isThinking(project: project) {
-            status = "Codex is thinking while wards slow the wave."
+            status = "Agent is thinking while wards slow the wave."
             systemImage = "brain.head.profile"
             color = .blue
             return

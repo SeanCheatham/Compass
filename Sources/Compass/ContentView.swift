@@ -43,7 +43,7 @@ private struct SidebarView: View {
                         model.selectSandbox()
                     }
                 }
-                Text("Codex-powered macOS workspace")
+                Text("Agent-powered macOS workspace")
                     .font(.callout)
                     .foregroundStyle(.secondary)
             }
@@ -1041,7 +1041,7 @@ private struct ProjectRunControls: View {
                 Divider()
                 ForEach(Array(executionEnvironmentMenu.items.enumerated()), id: \.element.id) { index, item in
                     Button {
-                        project.codexExecutionEnvironmentPreference = item.preference
+                        project.agentExecutionEnvironmentPreference = item.preference
                         model.saveProjects()
                     } label: {
                         Label(item.title, systemImage: item.systemImage)
@@ -1221,7 +1221,7 @@ private struct PlanTab: View {
 
     var body: some View {
         let items = PlanTimelineItem.items(for: project.state)
-        let executionEnvironment = project.codexExecutionEnvironment
+        let executionEnvironment = project.agentExecutionEnvironment
         let launchPlan = executionEnvironment.launchPlan(repoURL: project.repoURL)
         let overview = PlanWorkflowOverview(
             state: project.state,
@@ -1499,7 +1499,7 @@ private struct PlanWorkflowMetadataRow: View {
     }
 
     private func mutationReadinessLabel(
-        _ readiness: CodexMutationTestingPlan,
+        _ readiness: AgentMutationTestingPlan,
         color: Color
     ) -> some View {
         Label(readiness.badgeLabel, systemImage: readiness.systemImage)
@@ -2976,13 +2976,13 @@ private struct ThinkingLiveRow: View {
     private var title: String {
         switch phase {
         case .planning:
-            return "Codex is planning"
+            return "Agent is planning"
         case .developing:
-            return "Codex is thinking"
+            return "Agent is thinking"
         case .verifying:
             return "Compass is checking"
         default:
-            return "Codex is working"
+            return "Agent is working"
         }
     }
 

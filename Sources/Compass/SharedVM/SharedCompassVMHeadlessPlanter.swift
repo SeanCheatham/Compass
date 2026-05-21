@@ -36,7 +36,6 @@ enum SharedCompassVMHeadlessPlanter {
         static let appleSetupDoneMarker = "apple-setup-done"
         static let publicKey = "id_ed25519.pub"
         static let passwordFile = "user.password"
-        static let codexBinary = "codex"
         static let elevatedScript = "planter.sh"
     }
 
@@ -180,12 +179,6 @@ enum SharedCompassVMHeadlessPlanter {
             try contents.write(to: url, options: [.atomic])
         }
 
-        if let codex = payload.stagedCodexBinary {
-            let url = stagingDir.appendingPathComponent(StagedFile.codexBinary, isDirectory: false)
-            try codex.write(to: url, options: [.atomic])
-            try fileManager.setAttributes([.posixPermissions: 0o755], ofItemAtPath: url.path)
-        }
-
         // Password file mode is tightened both here and by the elevated
         // script when it lands inside the guest. Belt-and-braces.
         let passwordURL = stagingDir.appendingPathComponent(StagedFile.passwordFile, isDirectory: false)
@@ -315,9 +308,9 @@ enum SharedCompassVMHeadlessPlanter {
           "$STAGING_DIR/\(StagedFile.sudoersFragment)" \\
           "$MOUNT_POINT\(profile.sudoersFragmentGuestPath)"
 
-        # Staging payload (public key, password file, optional codex binary).
-        # Lives under /Users/Shared/compass-firstboot/, root:wheel — the
-        # bootstrap script tightens ownership as it consumes each file.
+        # Staging payload (public key, password file). Lives under
+        # /Users/Shared/compass-firstboot/, root:wheel — the bootstrap script
+        # tightens ownership as it consumes each file.
         install -d -o root -g wheel -m 0700 "$MOUNT_POINT\(profile.stagingDirectoryGuestPath)"
         install -o root -g wheel -m 0644 \\
           "$STAGING_DIR/\(StagedFile.publicKey)" \\
@@ -325,11 +318,6 @@ enum SharedCompassVMHeadlessPlanter {
         install -o root -g wheel -m 0600 \\
           "$STAGING_DIR/\(StagedFile.passwordFile)" \\
           "$MOUNT_POINT\(profile.stagingDirectoryGuestPath)/\(profile.stagedPasswordFileName)"
-        if [ -f "$STAGING_DIR/\(StagedFile.codexBinary)" ]; then
-          install -o root -g wheel -m 0755 \\
-            "$STAGING_DIR/\(StagedFile.codexBinary)" \\
-            "$MOUNT_POINT\(profile.stagingDirectoryGuestPath)/\(profile.stagedCodexBinaryName)"
-        fi
 
         sync
         echo "[compass-planter] done."
@@ -711,9 +699,9 @@ struct OSAScriptAdminElevator: AdminElevating {
 
 /// Small `Process` wrapper used by the host-side discovery steps. Lives in
 /// the planter module rather than reaching for the existing
-/// `Compass.ProcessRunner` because that type is shaped for codex execs with
-/// streaming behaviour Compass doesn't need here. Disambiguated by name
-/// from the codex-flavoured `Compass.ProcessRunner`.
+/// `Compass.ProcessRunner` because that type is shaped for the agent
+/// runtime's streaming tool calls and offers behaviour Compass doesn't
+/// need here. Disambiguated by name from `Compass.ProcessRunner`.
 enum HeadlessPlanterProcessRunner {
     struct CaptureResult {
         var exitCode: Int32

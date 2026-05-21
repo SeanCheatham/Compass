@@ -31,8 +31,7 @@ final class AgentBashRunnerTests: XCTestCase {
         let route = SharedVMRoute(
             sshDestination: "compass@vm",
             hostWorktreeURL: mountURL,
-            guestWorkspacePath: "/opt/compass/workspaces/proj",
-            guestCodexPath: "/opt/compass/codex/codex"
+            guestWorkspacePath: "/opt/compass/workspaces/proj"
         )
         let runner = AgentSharedVMBashRunner(route: route)
         let result = try await runner.run(

@@ -1963,7 +1963,7 @@ struct CompassWorkspaceStorageActivationPlan: Equatable {
                 kind: .available,
                 label: "Activation available",
                 detail: "Prepared Application Support Compass state is usable at \(boundedPath(candidateURL.path, limit: 128)).",
-                recommendation: "Activate only when ready; repoURL remains the Git and Codex working directory.",
+                recommendation: "Activate only when ready; repoURL remains the Git and agent working directory.",
                 systemImage: "externaldrive.badge.checkmark"
             )
         case .alreadyApplicationSupport:

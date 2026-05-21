@@ -15,7 +15,6 @@ final class SharedCompassVMReadinessTests: XCTestCase {
             .downloadingIPSW(fractionCompleted: 0.5),
             .installing(fractionCompleted: 0.5),
             .guestPrepping,
-            .codexLoginPending,
             .error(detail: "kaboom")
         ]
         for readiness in notReady {
@@ -34,7 +33,6 @@ final class SharedCompassVMReadinessTests: XCTestCase {
             .downloadingIPSW(fractionCompleted: 0),
             .installing(fractionCompleted: 1.0),
             .guestPrepping,
-            .codexLoginPending,
             .ready(sshDestination: "compass@host"),
             .error(detail: "kaboom")
         ]
@@ -54,7 +52,6 @@ final class SharedCompassVMReadinessTests: XCTestCase {
             .downloadingIPSW(fractionCompleted: 0.25),
             .installing(fractionCompleted: 0.75),
             .guestPrepping,
-            .codexLoginPending,
             .ready(sshDestination: "compass@host"),
             .error(detail: "x")
         ]

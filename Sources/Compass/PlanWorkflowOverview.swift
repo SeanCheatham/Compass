@@ -39,13 +39,13 @@ struct PlanWorkflowOverview: Equatable {
     init(
         state: PlanState,
         languageProfile: RepositoryLanguageProfile? = nil,
-        launchPlan: CodexExecutionLaunchPlan? = nil,
+        launchPlan: AgentExecutionLaunchPlan? = nil,
         excerptLimit: Int = Self.defaultExcerptLimit
     ) {
         completedCount = state.completed.count
         let mutationTestingReadiness = languageProfile.flatMap { profile in
             launchPlan.map {
-                CodexMutationTestingPlan(
+                AgentMutationTestingPlan(
                     state: state,
                     languageProfile: profile,
                     launchPlan: $0
@@ -99,7 +99,7 @@ struct PlanWorkflowOverview: Equatable {
         var verifyCommand: String?
         var verifyTimeoutLabel: String?
         var estimatedDifficulty: PlanNext.Difficulty?
-        var mutationTestingReadiness: CodexMutationTestingPlan?
+        var mutationTestingReadiness: AgentMutationTestingPlan?
         var completedCount: Int
 
         var id: Kind { kind }
@@ -122,7 +122,7 @@ struct PlanWorkflowOverview: Equatable {
             verifyCommand: String? = nil,
             verifyTimeoutLabel: String? = nil,
             estimatedDifficulty: PlanNext.Difficulty? = nil,
-            mutationTestingReadiness: CodexMutationTestingPlan? = nil,
+            mutationTestingReadiness: AgentMutationTestingPlan? = nil,
             completedCount: Int,
             excerptLimit: Int
         ) {

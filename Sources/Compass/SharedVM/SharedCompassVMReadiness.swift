@@ -6,7 +6,6 @@ enum SharedCompassVMReadiness: Equatable {
     case downloadingIPSW(fractionCompleted: Double)
     case installing(fractionCompleted: Double)
     case guestPrepping
-    case codexLoginPending
     case ready(sshDestination: String)
     case error(detail: String)
 

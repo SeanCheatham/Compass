@@ -2,7 +2,7 @@ import Foundation
 
 /// Read a UTF-8 text file from the working directory with optional line
 /// offset/limit. Mirrors the line-numbered output the model is used to from
-/// Claude/Codex Read tools so prompt fragments stay consistent across agents.
+/// other agent Read tools so prompt fragments stay consistent across runtimes.
 struct AgentReadFileTool: AgentTool {
     static let toolName = "read_file"
     static let defaultLineCount = 2_000

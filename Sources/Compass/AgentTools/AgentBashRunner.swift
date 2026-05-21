@@ -88,7 +88,7 @@ struct AgentSharedVMBashRunner: AgentBashRunner {
     }
 
     /// Build the remote-shell payload. `cd <guestPath> && [env …] /bin/zsh -lc <quoted command>`.
-    /// Mirrors `CodexExecutionLaunchPlan.shellInvocation` so the wire format
+    /// Mirrors `AgentExecutionLaunchPlan.shellInvocation` so the wire format
     /// stays consistent with the existing SSH bridge.
     static func buildRemoteCommand(
         guestPath: String,

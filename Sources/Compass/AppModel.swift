@@ -27,7 +27,7 @@ struct CompassWorkspaceStorageActivationConfirmation: Identifiable, Equatable {
         Self.boundedText(
             [
                 "Active state root: \(boundedPath(plan.candidateURL.path, limit: 220))",
-                "Git/Codex repo: \(boundedPath(plan.repoURL.path, limit: 180))",
+                "Git/agent repo: \(boundedPath(plan.repoURL.path, limit: 180))",
                 "Repo-local fallback: \(boundedPath(plan.repoLocalURL.path, limit: 180))",
                 "This switches Compass state to the prepared Application Support candidate without changing the Git working directory."
             ]
@@ -102,7 +102,7 @@ struct CompassProjectActiveStorageState: Equatable {
     static let idle = CompassProjectActiveStorageState(
         phase: .idle,
         label: "Activate storage",
-        detail: "Switch a prepared Application Support candidate into active Compass state while keeping repoURL as the Git/Codex workspace.",
+        detail: "Switch a prepared Application Support candidate into active Compass state while keeping repoURL as the Git/agent workspace.",
         systemImage: "externaldrive.badge.checkmark"
     )
 
@@ -351,7 +351,7 @@ struct CompassProjectStorageMigrationState: Equatable {
         Self(
             phase: .blocked,
             label: "Migration blocked",
-            detail: "Stop the active Codex run before preparing Application Support candidate storage.",
+            detail: "Stop the active agent run before preparing Application Support candidate storage.",
             systemImage: "pause.circle.fill"
         )
     }
@@ -420,7 +420,7 @@ final class CompassProject: ObservableObject, Identifiable {
             clearCinematicNativeFeedbackCue(reason: .modeOff)
         }
     }
-    @Published var codexExecutionEnvironmentPreference: CodexExecutionEnvironmentPreference
+    @Published var agentExecutionEnvironmentPreference: AgentExecutionEnvironmentPreference
     @Published var developSandbox: DevelopSandboxPreference
     @Published var liveLog: [LiveLine] = []
     @Published var phase: LoopPhase = .idle {
@@ -485,7 +485,7 @@ final class CompassProject: ObservableObject, Identifiable {
         lastOpenedAt: Date = Date(),
         cinematicInfluenceSettings: CinematicInfluenceSettings = CinematicInfluenceSettings(),
         nativeFeedbackMode: NativeFeedbackMode = .notifications,
-        codexExecutionEnvironmentPreference: CodexExecutionEnvironmentPreference = .host,
+        agentExecutionEnvironmentPreference: AgentExecutionEnvironmentPreference = .host,
         developSandbox: DevelopSandboxPreference = .host,
         cinematicRunRecapShareArtifactLibraryContext: CinematicRunRecapShareArtifactLibraryContext = .empty,
         storageApplicationSupportRoots: KnownProjectStore.ApplicationSupportRoots = KnownProjectStore.productionApplicationSupportRoots(),
@@ -508,7 +508,7 @@ final class CompassProject: ObservableObject, Identifiable {
         self.lastOpenedAt = lastOpenedAt
         self.cinematicInfluenceSettings = cinematicInfluenceSettings
         self.nativeFeedbackMode = nativeFeedbackMode
-        self.codexExecutionEnvironmentPreference = codexExecutionEnvironmentPreference
+        self.agentExecutionEnvironmentPreference = agentExecutionEnvironmentPreference
         self.developSandbox = developSandbox
         self.cinematicRunRecapShareArtifactLibraryContext = cinematicRunRecapShareArtifactLibraryContext
         self.storageApplicationSupportRoots = storageApplicationSupportRoots
@@ -555,23 +555,6 @@ struct CinematicRefreshInput: Equatable {
     var runRecapFlavor: CinematicRunRecapFlavorInput? = nil
 }
 
-private enum CodexBinaryLocator {
-    static func defaultBinary() -> String {
-        if let configured = ProcessInfo.processInfo.environment["COMPASS_CODEX_BIN"]?
-            .trimmingCharacters(in: .whitespacesAndNewlines),
-           !configured.isEmpty {
-            return configured
-        }
-
-        let candidates = [
-            "/Applications/Codex.app/Contents/Resources/codex",
-            "/opt/homebrew/bin/codex",
-            "/usr/local/bin/codex"
-        ]
-        return candidates.first { FileManager.default.isExecutableFile(atPath: $0) } ?? "codex"
-    }
-}
-
 @MainActor
 extension CompassProject {
     var displayName: String {
@@ -586,17 +569,17 @@ extension CompassProject {
         makeStorageResolver(repoURL: repoURL).storageRootURL.path
     }
 
-    var codexExecutionEnvironment: CodexExecutionEnvironment {
-        CodexExecutionEnvironment.discover(
-            preference: codexExecutionEnvironmentPreference,
+    var agentExecutionEnvironment: AgentExecutionEnvironment {
+        AgentExecutionEnvironment.discover(
+            preference: agentExecutionEnvironmentPreference,
             vmReadiness: .notProvisioned
         )
     }
 
-    var runtimeDiagnosticsMenu: CodexExecutionEnvironmentMenu {
-        let environment = codexExecutionEnvironment
-        let launchPlan = codexLaunchPlan(for: repoURL)
-        let mutationTestingPlan = CodexMutationTestingPlan(
+    var runtimeDiagnosticsMenu: AgentExecutionEnvironmentMenu {
+        let environment = agentExecutionEnvironment
+        let launchPlan = agentLaunchPlan(for: repoURL)
+        let mutationTestingPlan = AgentMutationTestingPlan(
             state: state,
             languageProfile: languageProfile,
             launchPlan: launchPlan
@@ -605,7 +588,7 @@ extension CompassProject {
             sessions: sessions,
             readiness: mutationTestingPlan
         )
-        return CodexExecutionEnvironmentMenu(
+        return AgentExecutionEnvironmentMenu(
             environment: environment,
             launchPlan: launchPlan,
             mutationTestingPlan: mutationTestingPlan,
@@ -1152,13 +1135,13 @@ extension CompassProject {
     }
 
     func runMutationTesting() async {
-        let initialLaunchPlan = codexLaunchPlan(for: repoURL)
-        let initialReadiness = CodexMutationTestingPlan(
+        let initialLaunchPlan = agentLaunchPlan(for: repoURL)
+        let initialReadiness = AgentMutationTestingPlan(
             state: state,
             languageProfile: languageProfile,
             launchPlan: initialLaunchPlan
         )
-        let initialAction = CodexMutationTestingMenuAction(
+        let initialAction = AgentMutationTestingMenuAction(
             readiness: initialReadiness,
             executionState: mutationTestingExecutionState
         )
@@ -1179,13 +1162,13 @@ extension CompassProject {
             return
         }
 
-        let launchPlan = codexLaunchPlan(for: workspace.repoURL)
-        let readiness = CodexMutationTestingPlan(
+        let launchPlan = agentLaunchPlan(for: workspace.repoURL)
+        let readiness = AgentMutationTestingPlan(
             state: state,
             languageProfile: languageProfile,
             launchPlan: launchPlan
         )
-        let action = CodexMutationTestingMenuAction(
+        let action = AgentMutationTestingMenuAction(
             readiness: readiness,
             executionState: .idle
         )
@@ -1267,7 +1250,7 @@ extension CompassProject {
             }
         } catch {
             let endedAt = Date().timeIntervalSince1970 * 1000
-            let safeError = CodexMutationTestingMetadataSanitizer.sanitizedOutputTail(
+            let safeError = AgentMutationTestingMetadataSanitizer.sanitizedOutputTail(
                 error.localizedDescription,
                 launchPlan: launchPlan,
                 limit: 360
@@ -1404,7 +1387,7 @@ extension CompassProject {
             )
             log("Saved Plan prompt: \(promptURL.path)", level: .info)
 
-            let launchPlan = codexLaunchPlan(for: workspace.repoURL)
+            let launchPlan = agentLaunchPlan(for: workspace.repoURL)
             logExecutionEnvironmentPreflight(
                 phase: "Plan",
                 nativeExecutionURL: workspace.repoURL,
@@ -1589,7 +1572,7 @@ extension CompassProject {
                     sandboxed: devWorkspace.sandboxed
                 )
 
-                let launchPlan = codexLaunchPlan(for: devWorkspace.repoURL)
+                let launchPlan = agentLaunchPlan(for: devWorkspace.repoURL)
                 logExecutionEnvironmentPreflight(
                     phase: "Develop",
                     nativeExecutionURL: devWorkspace.repoURL,
@@ -1609,7 +1592,7 @@ extension CompassProject {
                 )
 
                 guard sessions.indices.contains(sessionIndex) else {
-                    throw AppModelError.internalInvariant("Develop session disappeared during Codex run.")
+                    throw AppModelError.internalInvariant("Develop session disappeared during agent run.")
                 }
                 sessions[sessionIndex].feedback = summary.feedback
                 appendSessionNote(summary.summary, to: sessionIndex)
@@ -1722,7 +1705,7 @@ extension CompassProject {
             && !activeStorageActivationState.isRunning
     }
 
-    private var mutationTestingExecutionState: CodexMutationTestingMenuAction.ExecutionState {
+    private var mutationTestingExecutionState: AgentMutationTestingMenuAction.ExecutionState {
         if isPaused { return .paused }
         if !isIdleForMutationTesting { return .running }
         return .idle
@@ -1767,12 +1750,12 @@ extension CompassProject {
         )
     }
 
-    private func codexLaunchPlan(for nativeExecutionURL: URL) -> CodexExecutionLaunchPlan {
+    private func agentLaunchPlan(for nativeExecutionURL: URL) -> AgentExecutionLaunchPlan {
         // The project's `developSandbox` is the authoritative per-project
-        // toggle. Translate it into a `CodexExecutionEnvironmentPreference`
+        // toggle. Translate it into a `AgentExecutionEnvironmentPreference`
         // so the readiness-gated planner can route to the shared VM when
         // readiness is .ready and fall back to host otherwise.
-        let preference: CodexExecutionEnvironmentPreference
+        let preference: AgentExecutionEnvironmentPreference
         switch developSandbox {
         case .host:
             preference = .host
@@ -1781,7 +1764,7 @@ extension CompassProject {
         }
         let host = SharedCompassVM.shared
         let readiness = host.readiness
-        return CodexExecutionLaunchPlan.plan(
+        return AgentExecutionLaunchPlan.plan(
             repoURL: nativeExecutionURL,
             preference: preference,
             vmReadiness: readiness,
@@ -1827,7 +1810,6 @@ extension CompassProject {
             sshDestination: sshDestination,
             hostWorktreeURL: hostWorktreeURL,
             guestWorkspacePath: guestWorkspacePath,
-            guestCodexPath: "/opt/compass/codex/codex",
             environmentVariables: [:],
             identityFile: bundle.privateKeyURL.path,
             knownHostsFile: bundle.knownHostsURL.path
@@ -1837,12 +1819,12 @@ extension CompassProject {
     private func logExecutionEnvironmentPreflight(
         phase: String,
         nativeExecutionURL: URL,
-        launchPlan: CodexExecutionLaunchPlan? = nil,
+        launchPlan: AgentExecutionLaunchPlan? = nil,
         sessionIndex: Int? = nil,
         attempt: Int? = nil
     ) {
-        let environment = CodexExecutionEnvironment.discover(
-            preference: codexExecutionEnvironmentPreference,
+        let environment = AgentExecutionEnvironment.discover(
+            preference: agentExecutionEnvironmentPreference,
             vmReadiness: .notProvisioned
         )
         let effectiveLaunchPlan = launchPlan ?? environment.launchPlan(repoURL: nativeExecutionURL)
@@ -1868,7 +1850,7 @@ extension CompassProject {
     private func recordSessionExecutionEnvironmentSnapshot(
         phase: String,
         attempt: Int?,
-        launchPlan: CodexExecutionLaunchPlan,
+        launchPlan: AgentExecutionLaunchPlan,
         sessionIndex: Int
     ) {
         guard sessions.indices.contains(sessionIndex) else { return }
@@ -1965,7 +1947,7 @@ extension CompassProject {
             iteration: iteration
         )
 
-        let launchPlan = codexLaunchPlan(for: workspace.repoURL)
+        let launchPlan = agentLaunchPlan(for: workspace.repoURL)
         logExecutionEnvironmentPreflight(
             phase: "Reflect",
             nativeExecutionURL: workspace.repoURL,
@@ -2054,7 +2036,7 @@ extension CompassProject {
     /// operate on the host worktree path — the VirtioFS share keeps the
     /// guest's view in sync.
     private func resolveBashRunner(forHostURL hostURL: URL) -> AgentBashRunner {
-        let launchPlan = codexLaunchPlan(for: hostURL)
+        let launchPlan = agentLaunchPlan(for: hostURL)
         switch launchPlan.effectiveRoute {
         case .host:
             if let reason = launchPlan.fallbackReason {
@@ -2079,7 +2061,7 @@ extension CompassProject {
         next: PlanNext,
         summary: DevelopSummary,
         workingDirectory: URL,
-        launchPlan: CodexExecutionLaunchPlan,
+        launchPlan: AgentExecutionLaunchPlan,
         sessionIndex: Int,
         attempt: Int
     ) async throws -> PostCheckResult {
@@ -2756,12 +2738,6 @@ final class AppModel: ObservableObject {
     @Published var projects: [CompassProject] = []
     @Published var selectedProjectID: UUID?
     @Published var workspaceSelection: WorkspaceSelection = .sandbox
-    @Published var codexBinary = CodexBinaryLocator.defaultBinary() {
-        didSet {
-            guard oldValue != codexBinary else { return }
-            sharedVMHost.refreshFirstBootArtifacts(codexBinaryPath: codexBinary)
-        }
-    }
     @Published var modelOverride = ""
     @Published private(set) var agentSettings: AgentRuntimeSettings
     private let agentSettingsStore: AgentSettingsStore
@@ -2842,7 +2818,7 @@ final class AppModel: ObservableObject {
         }
 
         // Always-on lifecycle: warm up the shared VM, and if the bundle is
-        // already provisioned, kick off the live VZ instance so codex execs
+        // already provisioned, kick off the live VZ instance so agent runs
         // against `.sharedVM` projects don't pay a cold-start tax. Failures
         // are non-fatal — readiness captures any problem and Develop falls
         // back to `.host` automatically.
@@ -2854,10 +2830,6 @@ final class AppModel: ObservableObject {
                 self.log(error.localizedDescription, level: .warning)
                 return
             }
-            // Re-stage the bootstrap artifacts on every launch so the
-            // VirtioFS share carries the current codex binary even if the
-            // user installed a new one between sessions.
-            self.sharedVMHost.refreshFirstBootArtifacts(codexBinaryPath: self.codexBinary)
             if self.sharedVMHost.bundle.existsOnDisk() {
                 do {
                     try await self.sharedVMHost.start()
@@ -3377,7 +3349,7 @@ struct KnownProjectRecord: Codable, Identifiable, Equatable {
     var lastOpenedAt: Double
     var cinematicInfluenceSettings: CinematicInfluenceSettings
     var nativeFeedbackMode: NativeFeedbackMode
-    var codexExecutionEnvironmentPreference: CodexExecutionEnvironmentPreference
+    var agentExecutionEnvironmentPreference: AgentExecutionEnvironmentPreference
     var developSandbox: DevelopSandboxPreference
     var cinematicRunRecapShareArtifactLibraryContext: CinematicRunRecapShareArtifactLibraryContext
 
@@ -3389,7 +3361,9 @@ struct KnownProjectRecord: Codable, Identifiable, Equatable {
         case lastOpenedAt
         case cinematicInfluenceSettings
         case nativeFeedbackMode
-        case codexExecutionEnvironmentPreference
+        // Preserve the on-disk JSON key from the pre-rename schema so existing
+        // KnownProjectRecord JSON files keep decoding after the rename.
+        case agentExecutionEnvironmentPreference = "codexExecutionEnvironmentPreference"
         case developSandbox
         case cinematicRunRecapShareArtifactLibraryContext
     }
@@ -3402,7 +3376,7 @@ struct KnownProjectRecord: Codable, Identifiable, Equatable {
         lastOpenedAt: Double,
         cinematicInfluenceSettings: CinematicInfluenceSettings = CinematicInfluenceSettings(),
         nativeFeedbackMode: NativeFeedbackMode = .notifications,
-        codexExecutionEnvironmentPreference: CodexExecutionEnvironmentPreference = .host,
+        agentExecutionEnvironmentPreference: AgentExecutionEnvironmentPreference = .host,
         developSandbox: DevelopSandboxPreference = .host,
         cinematicRunRecapShareArtifactLibraryContext: CinematicRunRecapShareArtifactLibraryContext = .empty
     ) {
@@ -3413,7 +3387,7 @@ struct KnownProjectRecord: Codable, Identifiable, Equatable {
         self.lastOpenedAt = lastOpenedAt
         self.cinematicInfluenceSettings = cinematicInfluenceSettings
         self.nativeFeedbackMode = nativeFeedbackMode
-        self.codexExecutionEnvironmentPreference = codexExecutionEnvironmentPreference
+        self.agentExecutionEnvironmentPreference = agentExecutionEnvironmentPreference
         self.developSandbox = developSandbox
         self.cinematicRunRecapShareArtifactLibraryContext = cinematicRunRecapShareArtifactLibraryContext
     }
@@ -3436,9 +3410,9 @@ struct KnownProjectRecord: Codable, Identifiable, Equatable {
             NativeFeedbackMode.self,
             forKey: .nativeFeedbackMode
         ) ?? .notifications
-        codexExecutionEnvironmentPreference = try container.decodeIfPresent(
-            CodexExecutionEnvironmentPreference.self,
-            forKey: .codexExecutionEnvironmentPreference
+        agentExecutionEnvironmentPreference = try container.decodeIfPresent(
+            AgentExecutionEnvironmentPreference.self,
+            forKey: .agentExecutionEnvironmentPreference
         ) ?? .host
         developSandbox = try container.decodeIfPresent(
             DevelopSandboxPreference.self,
@@ -3461,7 +3435,7 @@ private extension CompassProject {
             lastOpenedAt: Date(timeIntervalSince1970: record.lastOpenedAt),
             cinematicInfluenceSettings: record.cinematicInfluenceSettings,
             nativeFeedbackMode: record.nativeFeedbackMode,
-            codexExecutionEnvironmentPreference: record.codexExecutionEnvironmentPreference,
+            agentExecutionEnvironmentPreference: record.agentExecutionEnvironmentPreference,
             developSandbox: record.developSandbox,
             cinematicRunRecapShareArtifactLibraryContext: record.cinematicRunRecapShareArtifactLibraryContext
         )
@@ -3476,7 +3450,7 @@ private extension CompassProject {
             lastOpenedAt: lastOpenedAt.timeIntervalSince1970,
             cinematicInfluenceSettings: cinematicInfluenceSettings,
             nativeFeedbackMode: nativeFeedbackMode,
-            codexExecutionEnvironmentPreference: codexExecutionEnvironmentPreference,
+            agentExecutionEnvironmentPreference: agentExecutionEnvironmentPreference,
             developSandbox: developSandbox,
             cinematicRunRecapShareArtifactLibraryContext: cinematicRunRecapShareArtifactLibraryContext
         )

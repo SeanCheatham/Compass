@@ -1,9 +1,9 @@
 import Foundation
 
-enum CodexMutationTestingMetadataSanitizer {
+enum AgentMutationTestingMetadataSanitizer {
     static func sanitizedCommand(
         _ command: String,
-        launchPlan: CodexExecutionLaunchPlan,
+        launchPlan: AgentExecutionLaunchPlan,
         limit: Int
     ) -> String {
         sanitizedText(
@@ -17,7 +17,7 @@ enum CodexMutationTestingMetadataSanitizer {
 
     static func sanitizedOutputTail(
         _ output: String,
-        launchPlan: CodexExecutionLaunchPlan,
+        launchPlan: AgentExecutionLaunchPlan,
         limit: Int
     ) -> String {
         sanitizedText(
@@ -31,7 +31,7 @@ enum CodexMutationTestingMetadataSanitizer {
 
     private static func sanitizedText(
         _ text: String,
-        launchPlan: CodexExecutionLaunchPlan,
+        launchPlan: AgentExecutionLaunchPlan,
         limit: Int,
         preservesNewlines: Bool,
         takesTail: Bool
@@ -87,7 +87,7 @@ enum CodexMutationTestingMetadataSanitizer {
         )
     }
 
-    private static func sensitiveValues(from launchPlan: CodexExecutionLaunchPlan) -> [String] {
+    private static func sensitiveValues(from launchPlan: AgentExecutionLaunchPlan) -> [String] {
         var values: [String] = []
 
         switch launchPlan.effectiveRoute {
@@ -97,8 +97,7 @@ enum CodexMutationTestingMetadataSanitizer {
             values += [
                 route.sshDestination,
                 route.hostWorktreeURL.path,
-                route.guestWorkspacePath,
-                route.guestCodexPath
+                route.guestWorkspacePath
             ]
             if let identityFile = route.identityFile {
                 values.append(identityFile)
@@ -138,7 +137,7 @@ enum CodexMutationTestingMetadataSanitizer {
     }
 }
 
-struct CodexMutationTestingPlan: Equatable, Identifiable {
+struct AgentMutationTestingPlan: Equatable, Identifiable {
     static let identifierMaxCharacters = 260
     static let labelMaxCharacters = 34
     static let statusLabelMaxCharacters = 34
@@ -182,7 +181,7 @@ struct CodexMutationTestingPlan: Equatable, Identifiable {
     init(
         state: PlanState,
         languageProfile: RepositoryLanguageProfile,
-        launchPlan: CodexExecutionLaunchPlan
+        launchPlan: AgentExecutionLaunchPlan
     ) {
         self.init(
             immediate: state.immediate,
@@ -194,13 +193,13 @@ struct CodexMutationTestingPlan: Equatable, Identifiable {
     init(
         immediate: PlanNext?,
         languageProfile: RepositoryLanguageProfile,
-        launchPlan: CodexExecutionLaunchPlan
+        launchPlan: AgentExecutionLaunchPlan
     ) {
         let language = Self.languageDescriptor(for: languageProfile.primaryLanguage)
         let routeState = Self.routeState(for: launchPlan)
         let rawSeedCommand = immediate?.verify.trimmingCharacters(in: .whitespacesAndNewlines)
         let sanitizedSeedCommand = rawSeedCommand.flatMap {
-            CodexMutationTestingMetadataSanitizer.sanitizedCommand(
+            AgentMutationTestingMetadataSanitizer.sanitizedCommand(
                 $0,
                 launchPlan: launchPlan,
                 limit: Self.commandMaxCharacters
@@ -271,7 +270,7 @@ struct CodexMutationTestingPlan: Equatable, Identifiable {
         self.copyText = copyText
     }
 
-    private static func routeState(for launchPlan: CodexExecutionLaunchPlan) -> RouteState {
+    private static func routeState(for launchPlan: AgentExecutionLaunchPlan) -> RouteState {
         switch launchPlan.effectiveRoute {
         case .sharedVM:
             return .sharedVMRoute
@@ -395,7 +394,7 @@ struct CodexMutationTestingPlan: Equatable, Identifiable {
     }
 }
 
-struct CodexMutationTestingMenuAction: Equatable, Identifiable {
+struct AgentMutationTestingMenuAction: Equatable, Identifiable {
     static let actionIdentifier = "mutation-testing.run"
     static let titleLimit = 34
     static let descriptionLimit = 220
@@ -425,7 +424,7 @@ struct CodexMutationTestingMenuAction: Equatable, Identifiable {
     var id: String { Self.actionIdentifier }
 
     init(
-        readiness: CodexMutationTestingPlan,
+        readiness: AgentMutationTestingPlan,
         executionState: ExecutionState = .idle
     ) {
         readinessIdentifier = Self.bounded(readiness.identifier, limit: Self.fieldLimit)
@@ -433,7 +432,7 @@ struct CodexMutationTestingMenuAction: Equatable, Identifiable {
         routeIdentifier = Self.bounded(readiness.routeIdentifier, limit: Self.fieldLimit)
         languageIdentifier = Self.bounded(readiness.languageIdentifier, limit: Self.fieldLimit)
         seedCommandIdentifier = Self.bounded(readiness.seedCommandIdentifier, limit: Self.fieldLimit)
-        seedCommandLabel = Self.bounded(readiness.seedCommandLabel, limit: CodexMutationTestingPlan.commandMaxCharacters)
+        seedCommandLabel = Self.bounded(readiness.seedCommandLabel, limit: AgentMutationTestingPlan.commandMaxCharacters)
         executionStateIdentifier = executionState.rawValue
         title = Self.bounded("Run Mutation Test", limit: Self.titleLimit)
         systemImage = readiness.systemImage
@@ -452,7 +451,7 @@ struct CodexMutationTestingMenuAction: Equatable, Identifiable {
             help = "Mutation testing is disabled while this project is paused; resume or stop before running the opt-in mutation command."
         case .idle:
             if readiness.isReady {
-                if readiness.routeIdentifier == CodexMutationTestingPlan.RouteState.nativeFallback.rawValue {
+                if readiness.routeIdentifier == AgentMutationTestingPlan.RouteState.nativeFallback.rawValue {
                     availability = "native-fallback"
                     enabled = true
                     help = "Run the current immediate verify command through native macOS fallback. Native execution remains available when the Shared VM is not ready."
@@ -465,11 +464,11 @@ struct CodexMutationTestingMenuAction: Equatable, Identifiable {
                 availability = readiness.statusIdentifier
                 enabled = false
                 switch readiness.statusIdentifier {
-                case CodexMutationTestingPlan.ReadinessState.missingImmediate.rawValue:
+                case AgentMutationTestingPlan.ReadinessState.missingImmediate.rawValue:
                     help = "Mutation testing needs a current immediate Plan item before it can run."
-                case CodexMutationTestingPlan.ReadinessState.missingVerify.rawValue:
+                case AgentMutationTestingPlan.ReadinessState.missingVerify.rawValue:
                     help = "Mutation testing needs the current immediate Plan item to include a verify command."
-                case CodexMutationTestingPlan.ReadinessState.unsupportedLanguage.rawValue:
+                case AgentMutationTestingPlan.ReadinessState.unsupportedLanguage.rawValue:
                     help = "Mutation testing is unavailable for \(readiness.languageLabel); supported seed languages are Swift, TypeScript/JavaScript, Python, Go, and Rust."
                 default:
                     help = readiness.detailText

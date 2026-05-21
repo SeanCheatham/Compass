@@ -13,16 +13,16 @@ import Foundation
 ///      bootstrap script.
 ///   3. `/usr/local/libexec/compass-firstboot.sh` — the bootstrap script.
 ///      Creates the `compass` admin user (with the host-generated password),
-///      authorises the Compass SSH key, enables Remote Login, installs codex,
-///      symlinks `/opt/compass/workspaces`, then removes itself.
-///   4. `/etc/sudoers.d/compass` — `compass ALL=(ALL) NOPASSWD: ALL` so codex
+///      authorises the Compass SSH key, enables Remote Login, symlinks
+///      `/opt/compass/workspaces`, then removes itself.
+///   4. `/etc/sudoers.d/compass` — `compass ALL=(ALL) NOPASSWD: ALL` so agents
 ///      can run privileged steps without prompting.
 ///
-/// Two supporting payload files travel alongside under `/Users/Shared/compass-firstboot/`:
-/// the SSH public key and (optionally) the codex binary copied from the host.
-/// Those land in a world-readable location because the planter cannot easily
-/// chown into root-only directories before first boot; the bootstrap script
-/// re-permissions them as it runs.
+/// One supporting payload file travels alongside under `/Users/Shared/compass-firstboot/`:
+/// the SSH public key copied from the host. It lands in a world-readable
+/// location because the planter cannot easily chown into root-only
+/// directories before first boot; the bootstrap script re-permissions it as
+/// it runs.
 ///
 /// Because Setup Assistant internals are an Apple implementation detail that
 /// can shift across major macOS releases, the per-version specifics
@@ -67,18 +67,14 @@ enum SharedCompassVMHeadlessFirstBoot {
         var sudoersFragmentGuestPath: String
 
         /// Absolute guest path of the staging directory that holds the SSH
-        /// public key, codex binary, and password file. The planter writes
-        /// here without elevation (host user can chown into `/Users/Shared/`
-        /// without root); the bootstrap script re-permissions to root:wheel
-        /// 0700 as it runs.
+        /// public key and password file. The planter writes here without
+        /// elevation (host user can chown into `/Users/Shared/` without
+        /// root); the bootstrap script re-permissions to root:wheel 0700 as
+        /// it runs.
         var stagingDirectoryGuestPath: String
 
         /// Filename (not path) of the SSH public key inside the staging directory.
         var stagedPublicKeyName: String
-
-        /// Filename (not path) of the staged codex binary. Optional payload —
-        /// the script reports a clear notice if absent.
-        var stagedCodexBinaryName: String
 
         /// Filename (not path) of the password file used to seed
         /// `sysadminctl -password`. Removed by the script on first boot.
@@ -105,7 +101,6 @@ enum SharedCompassVMHeadlessFirstBoot {
                 sudoersFragmentGuestPath: "/private/etc/sudoers.d/compass",
                 stagingDirectoryGuestPath: "/Users/Shared/compass-firstboot",
                 stagedPublicKeyName: "id_ed25519.pub",
-                stagedCodexBinaryName: "codex",
                 stagedPasswordFileName: "user.password",
                 completionMarkerName: bootstrapCompletionMarker
             )
@@ -172,8 +167,8 @@ enum SharedCompassVMHeadlessFirstBoot {
     // MARK: - Rendered content
 
     /// Captures the rendered first-boot payload for a (profile, guest-user,
-    /// public-key, codex-availability) tuple. The planter writes these byte
-    /// blobs verbatim into the mounted guest volume.
+    /// public-key) tuple. The planter writes these byte blobs verbatim into
+    /// the mounted guest volume.
     struct Payload: Equatable {
         var profile: Profile
         var guestUserName: String
@@ -182,7 +177,6 @@ enum SharedCompassVMHeadlessFirstBoot {
         var bootstrapScript: String
         var sudoersFragment: String
         var stagedPublicKey: Data
-        var stagedCodexBinary: Data?
         var stagedPassword: String
     }
 
@@ -192,13 +186,11 @@ enum SharedCompassVMHeadlessFirstBoot {
         var guestUserName: String
         var guestFullName: String
         var publicKeyData: Data
-        var codexBinaryData: Data?
         var generatedPassword: String
 
         static func makeStandard(
             profile: Profile,
             publicKeyData: Data,
-            codexBinaryData: Data?,
             generatedPassword: String,
             guestUserName: String = SharedCompassVMBundle.State.defaultGuestUserName
         ) -> RenderInputs {
@@ -207,7 +199,6 @@ enum SharedCompassVMHeadlessFirstBoot {
                 guestUserName: guestUserName,
                 guestFullName: "Compass",
                 publicKeyData: publicKeyData,
-                codexBinaryData: codexBinaryData,
                 generatedPassword: generatedPassword
             )
         }
@@ -227,7 +218,6 @@ enum SharedCompassVMHeadlessFirstBoot {
             bootstrapScript: script,
             sudoersFragment: sudoers,
             stagedPublicKey: inputs.publicKeyData,
-            stagedCodexBinary: inputs.codexBinaryData,
             stagedPassword: inputs.generatedPassword
         )
     }
@@ -271,7 +261,6 @@ enum SharedCompassVMHeadlessFirstBoot {
     static func renderBootstrapScript(inputs: RenderInputs) -> String {
         let stagingDir = inputs.profile.stagingDirectoryGuestPath
         let pubKeyPath = "\(stagingDir)/\(inputs.profile.stagedPublicKeyName)"
-        let codexPath = "\(stagingDir)/\(inputs.profile.stagedCodexBinaryName)"
         let passwordPath = "\(stagingDir)/\(inputs.profile.stagedPasswordFileName)"
         let markerPath = "\(stagingDir)/\(inputs.profile.completionMarkerName)"
         let sudoersPath = inputs.profile.sudoersFragmentGuestPath
@@ -290,7 +279,6 @@ enum SharedCompassVMHeadlessFirstBoot {
 
         STAGING="\(stagingDir)"
         PUBKEY="\(pubKeyPath)"
-        CODEX="\(codexPath)"
         PASSWORD_FILE="\(passwordPath)"
         MARKER="\(markerPath)"
         SUDOERS_FRAGMENT="\(sudoersPath)"
@@ -353,7 +341,7 @@ enum SharedCompassVMHeadlessFirstBoot {
           # `### Error:-14120 ... DSRecord.m:418` (eDSReceiveFailed),
           # leaving the dslocal record half-initialized so LoginWindow
           # cannot see the user. We don't need Secure Token for our use
-          # case (SSH + sudo + codex; no FileVault), so we plant the
+          # case (SSH + sudo; no FileVault), so we plant the
           # record directly via dscl and only set the admin group
           # membership separately.
           NEXT_UID=501
@@ -455,7 +443,7 @@ enum SharedCompassVMHeadlessFirstBoot {
         # per-VM and stored only in the host's Keychain, (b) compass
         # already has NOPASSWD sudo, so root-in-guest already implies
         # password-equivalent access, and (c) the guest is a sandbox
-        # that runs untrusted Codex code — by design.
+        # that runs untrusted agent-generated code — by design.
         #
         # Python isn't installed on a fresh macOS, but Perl is, so we
         # compute the kcpassword bytes in Perl. PASSWORD is passed via
@@ -554,8 +542,8 @@ enum SharedCompassVMHeadlessFirstBoot {
         echo "[compass-firstboot] [4/6] Creating /opt/compass/workspaces symlink"
         SHARE_ROOT="/Volumes/My Shared Files/compass-workspaces"
         # Wait briefly for the VirtioFS share to mount. If it never appears the
-        # symlink will be a broken dangling link, which is fine — codex
-        # iterations on a guest without the share will fail loudly with a
+        # symlink will be a broken dangling link, which is fine — agent
+        # bash calls on a guest without the share will fail loudly with a
         # clear ENOENT rather than silently succeeding in the wrong place.
         for _ in 1 2 3 4 5 6 7 8 9 10; do
           if [ -d "$SHARE_ROOT" ]; then break; fi
@@ -565,36 +553,14 @@ enum SharedCompassVMHeadlessFirstBoot {
         rm -f /opt/compass/workspaces
         ln -s "$SHARE_ROOT" /opt/compass/workspaces
 
-        echo "[compass-firstboot] [5/6] Installing codex into /usr/local/bin"
-        # /usr/local/bin doesn't exist on a fresh macOS install — install(1)
-        # creates a temp file in the destination dir before atomically
-        # renaming, and that temp-create fails with "No such file or
-        # directory" if the parent is missing. Create it explicitly.
-        # Codex install is otherwise best-effort: if it fails for any
-        # reason we MUST NOT abort the script, because step 6 below
-        # (LaunchDaemon self-removal + completion marker) is what stops
-        # the daemon re-firing on every subsequent boot.
-        if [ -x "$CODEX" ]; then
-          mkdir -p /usr/local/bin
-          if ! install -m 755 "$CODEX" /usr/local/bin/codex; then
-            echo "  warning: codex install failed; install one inside the guest manually."
-          fi
-        else
-          echo "  codex binary not staged; install one inside the guest manually."
-        fi
-
         # macOS sshd runs commands via the user's login shell in
         # NON-interactive, NON-login mode (e.g. `zsh -c "command"`).
         # That path skips `/etc/zprofile`, which is where path_helper
-        # — and therefore `/usr/local/bin` (where we just installed
-        # codex) — would normally get onto PATH. The result is that
-        # `ssh compass@host command -v codex` exits 1 with no stderr
-        # and Compass reports "Could not determine codex auth state."
-        # Plant a `~/.zshenv`, which IS sourced for every zsh
+        # — and therefore `/usr/local/bin` — would normally get onto
+        # PATH. Plant a `~/.zshenv`, which IS sourced for every zsh
         # invocation including non-interactive ones, so PATH is set
-        # up consistently for SSH commands, interactive logins, and
-        # codex's own subshells.
-        echo "  Planting ~/.zshenv with path_helper for $GUEST_USER"
+        # up consistently for SSH commands and interactive logins.
+        echo "[compass-firstboot] [5/6] Planting ~/.zshenv with path_helper for $GUEST_USER"
         ZSHENV="$GUEST_HOME/.zshenv"
         # Single-quoted echo lines so `$(...)` and `$PATH` reach the
         # file literally (to be evaluated by zsh when sourced), rather
@@ -605,7 +571,7 @@ enum SharedCompassVMHeadlessFirstBoot {
             echo '# compass:path_helper — planted by Compass headless first-boot.'
             echo '# Without this, non-interactive SSH commands (`ssh user@host command`)'
             echo '# run with PATH=/usr/bin:/bin:/usr/sbin:/sbin and cannot find /usr/local/bin'
-            echo '# binaries (codex, brew-installed tools, etc.).'
+            echo '# binaries (brew-installed tools, etc.).'
             echo 'if [ -x /usr/libexec/path_helper ]; then'
             echo '  eval "$(/usr/libexec/path_helper -s)"'
             echo 'else'
@@ -635,7 +601,7 @@ enum SharedCompassVMHeadlessFirstBoot {
 
     /// Renders the sudoers fragment that grants the compass user passwordless
     /// sudo. Written with `Defaults:` line to disable the env_reset warning
-    /// chatter Codex would otherwise pipe through.
+    /// chatter agent shell calls would otherwise pipe through.
     static func renderSudoersFragment(guestUserName: String) -> String {
         """
         # Compass — passwordless sudo for the headless guest account.

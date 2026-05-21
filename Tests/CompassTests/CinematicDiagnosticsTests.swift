@@ -5391,7 +5391,7 @@ final class CinematicDiagnosticsTests: XCTestCase {
         supportClassification: String,
         phase: String = "Develop (develop)",
         attempt: String = "1",
-        selectedPreference: CodexExecutionEnvironmentPreference = .sharedVM,
+        selectedPreference: AgentExecutionEnvironmentPreference = .sharedVM,
         fallbackReason: String = "none",
         extraLines: [String] = []
     ) -> String {

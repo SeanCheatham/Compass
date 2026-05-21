@@ -607,7 +607,7 @@ final class CinematicSceneCoordinator {
             lastPhase = phase
             lineStatuses = Dictionary(uniqueKeysWithValues: lines.map { ($0.id, $0.status) })
             syncRunningEnemies(with: lines)
-            setThinking(isActive && isWaitingForCodex(lines: lines))
+            setThinking(isActive && isWaitingForAgent(lines: lines))
             if languageProfileChanged {
                 applyLanguageTheme(animated: hasBuiltScene)
             }
@@ -667,7 +667,7 @@ final class CinematicSceneCoordinator {
         }
 
         syncRunningEnemies(with: lines)
-        setThinking(isActive && isWaitingForCodex(lines: lines))
+        setThinking(isActive && isWaitingForAgent(lines: lines))
         if worldTextChanged || briefingChanged || nativeFeedbackCueChanged {
             refreshNarrativeCues(animated: hasBuiltScene)
         }
@@ -1550,7 +1550,7 @@ final class CinematicSceneCoordinator {
         }
     }
 
-    private func isWaitingForCodex(lines: [LiveLine]) -> Bool {
+    private func isWaitingForAgent(lines: [LiveLine]) -> Bool {
         !lines.contains {
             $0.status == .running && ($0.kind == .command || $0.kind == .fileChange)
         }

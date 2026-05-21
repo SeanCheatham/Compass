@@ -97,9 +97,9 @@ enum MutationTestingPresentationSanitizer {
     static func routeIdentifier(_ text: String) -> String {
         let identifier = identifier(text, fallback: "unknown", limit: SessionMutationTestingExecution.fieldLimit)
         switch identifier {
-        case CodexMutationTestingPlan.RouteState.nativeRoute.rawValue,
-            CodexMutationTestingPlan.RouteState.sharedVMRoute.rawValue,
-            CodexMutationTestingPlan.RouteState.nativeFallback.rawValue:
+        case AgentMutationTestingPlan.RouteState.nativeRoute.rawValue,
+            AgentMutationTestingPlan.RouteState.sharedVMRoute.rawValue,
+            AgentMutationTestingPlan.RouteState.nativeFallback.rawValue:
             return identifier
         default:
             return "unknown"
@@ -108,11 +108,11 @@ enum MutationTestingPresentationSanitizer {
 
     static func routeLabel(_ identifier: String) -> String {
         switch identifier {
-        case CodexMutationTestingPlan.RouteState.nativeRoute.rawValue:
+        case AgentMutationTestingPlan.RouteState.nativeRoute.rawValue:
             return "Native"
-        case CodexMutationTestingPlan.RouteState.sharedVMRoute.rawValue:
+        case AgentMutationTestingPlan.RouteState.sharedVMRoute.rawValue:
             return "Shared VM"
-        case CodexMutationTestingPlan.RouteState.nativeFallback.rawValue:
+        case AgentMutationTestingPlan.RouteState.nativeFallback.rawValue:
             return "Native fallback"
         default:
             return "Unknown route"

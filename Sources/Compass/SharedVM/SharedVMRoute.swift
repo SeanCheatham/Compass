@@ -4,7 +4,6 @@ struct SharedVMRoute: Equatable {
     var sshDestination: String
     var hostWorktreeURL: URL
     var guestWorkspacePath: String
-    var guestCodexPath: String
     var environmentVariables: [String: String]
     var identityFile: String?
     var knownHostsFile: String?
@@ -13,7 +12,6 @@ struct SharedVMRoute: Equatable {
         sshDestination: String,
         hostWorktreeURL: URL,
         guestWorkspacePath: String,
-        guestCodexPath: String,
         environmentVariables: [String: String] = [:],
         identityFile: String? = nil,
         knownHostsFile: String? = nil
@@ -21,7 +19,6 @@ struct SharedVMRoute: Equatable {
         self.sshDestination = sshDestination
         self.hostWorktreeURL = hostWorktreeURL.standardizedFileURL
         self.guestWorkspacePath = guestWorkspacePath
-        self.guestCodexPath = guestCodexPath
         self.environmentVariables = environmentVariables
         self.identityFile = identityFile
         self.knownHostsFile = knownHostsFile

@@ -1,6 +1,6 @@
 import Foundation
 
-struct CodexExecutionInvocation: Equatable {
+struct AgentExecutionInvocation: Equatable {
     var executable: String
     var arguments: [String]
     var workingDirectory: URL?
@@ -12,7 +12,7 @@ struct CodexExecutionInvocation: Equatable {
     }
 }
 
-struct CodexExecutionLaunchPlan: Equatable {
+struct AgentExecutionLaunchPlan: Equatable {
     static let fallbackReasonLimit = 180
     static let labelLimit = 80
 
@@ -21,13 +21,13 @@ struct CodexExecutionLaunchPlan: Equatable {
         case sharedVM(SharedVMRoute)
     }
 
-    var selectedPreference: CodexExecutionEnvironmentPreference
+    var selectedPreference: AgentExecutionEnvironmentPreference
     var effectiveRoute: Route
     var vmReadiness: SharedCompassVMReadiness?
     var fallbackReason: String?
 
     init(
-        selectedPreference: CodexExecutionEnvironmentPreference,
+        selectedPreference: AgentExecutionEnvironmentPreference,
         effectiveRoute: Route,
         vmReadiness: SharedCompassVMReadiness? = nil,
         fallbackReason: String? = nil
@@ -39,7 +39,7 @@ struct CodexExecutionLaunchPlan: Equatable {
     }
 
     static func host(
-        selectedPreference: CodexExecutionEnvironmentPreference = .host,
+        selectedPreference: AgentExecutionEnvironmentPreference = .host,
         vmReadiness: SharedCompassVMReadiness? = nil,
         fallbackReason: String? = nil
     ) -> Self {
@@ -53,7 +53,7 @@ struct CodexExecutionLaunchPlan: Equatable {
 
     static func plan(
         repoURL: URL,
-        preference: CodexExecutionEnvironmentPreference,
+        preference: AgentExecutionEnvironmentPreference,
         vmReadiness: SharedCompassVMReadiness? = nil,
         sharedVMRouteFactory: (URL) -> SharedVMRoute? = { _ in nil }
     ) -> Self {
@@ -128,12 +128,6 @@ struct CodexExecutionLaunchPlan: Equatable {
                     vmReadiness: readiness,
                     fallbackReason: "Shared VM guest preparation is in progress."
                 )
-            case .codexLoginPending:
-                return host(
-                    selectedPreference: preference,
-                    vmReadiness: readiness,
-                    fallbackReason: "Shared VM is waiting for the user to run codex login inside the guest."
-                )
             }
         }
     }
@@ -200,8 +194,6 @@ struct CodexExecutionLaunchPlan: Equatable {
             return "installing \(Int((fraction * 100).rounded()))%"
         case .guestPrepping:
             return "guest-prepping"
-        case .codexLoginPending:
-            return "codex-login-pending"
         case let .ready(sshDestination):
             return "ready \(sshDestination)"
         case let .error(detail):
@@ -241,7 +233,7 @@ struct CodexExecutionLaunchPlan: Equatable {
         }
     }
 
-    func codexWorkingDirectoryPath(forHostURL url: URL) -> String {
+    func agentWorkingDirectoryPath(forHostURL url: URL) -> String {
         switch effectiveRoute {
         case .host:
             return url.standardizedFileURL.path
@@ -250,50 +242,10 @@ struct CodexExecutionLaunchPlan: Equatable {
         }
     }
 
-    func codexInvocation(codexBinary: String, arguments: [String], hostWorkingDirectory: URL) -> CodexExecutionInvocation {
+    func shellInvocation(command: String, hostWorkingDirectory: URL) -> AgentExecutionInvocation {
         switch effectiveRoute {
         case .host:
-            return Self.commandInvocation(
-                command: codexBinary,
-                arguments: arguments,
-                workingDirectory: hostWorkingDirectory
-            )
-        case let .sharedVM(route):
-            // `arguments` already contains guest paths for any
-            // workspace-relative files: `CodexExecutor` invokes
-            // `commandPath(forHostURL:)` upstream when building the argv,
-            // which maps host worktree URLs to their `/opt/compass/...`
-            // guest counterparts via VirtioFS.
-            let remoteCommand = SharedCompassVMGuestBridge.buildRemoteCodexCommand(
-                guestWorkspacePath: route.guestWorkspacePath,
-                guestCodexPath: route.guestCodexPath,
-                environmentVariables: route.environmentVariables,
-                codexArguments: arguments
-            )
-            let options = SharedCompassVMGuestBridge.ConnectionOptions(
-                identityFile: route.identityFile,
-                knownHostsFile: route.knownHostsFile,
-                strictHostKeyChecking: true,
-                batchMode: true,
-                disablePseudoTerminal: true
-            )
-            let sshArguments = SharedCompassVMGuestBridge.sshArguments(
-                destination: route.sshDestination,
-                remoteCommand: remoteCommand,
-                options: options
-            )
-            return CodexExecutionInvocation(
-                executable: options.executablePath,
-                arguments: sshArguments,
-                workingDirectory: hostWorkingDirectory
-            )
-        }
-    }
-
-    func shellInvocation(command: String, hostWorkingDirectory: URL) -> CodexExecutionInvocation {
-        switch effectiveRoute {
-        case .host:
-            return CodexExecutionInvocation(
+            return AgentExecutionInvocation(
                 executable: "/bin/zsh",
                 arguments: ["-lc", command],
                 workingDirectory: hostWorkingDirectory
@@ -312,7 +264,7 @@ struct CodexExecutionLaunchPlan: Equatable {
                 remoteCommand: remoteCommand,
                 options: options
             )
-            return CodexExecutionInvocation(
+            return AgentExecutionInvocation(
                 executable: options.executablePath,
                 arguments: sshArguments,
                 workingDirectory: hostWorkingDirectory
@@ -335,17 +287,17 @@ struct CodexExecutionLaunchPlan: Equatable {
         command: String,
         arguments: [String],
         workingDirectory: URL
-    ) -> CodexExecutionInvocation {
+    ) -> AgentExecutionInvocation {
         let trimmedCommand = command.trimmingCharacters(in: .whitespacesAndNewlines)
         if trimmedCommand.contains("/") {
-            return CodexExecutionInvocation(
+            return AgentExecutionInvocation(
                 executable: trimmedCommand,
                 arguments: arguments,
                 workingDirectory: workingDirectory
             )
         }
 
-        return CodexExecutionInvocation(
+        return AgentExecutionInvocation(
             executable: "/usr/bin/env",
             arguments: [trimmedCommand] + arguments,
             workingDirectory: workingDirectory

@@ -146,8 +146,6 @@ private struct SandboxSidePanel: View {
                     )
                 case .guestPrepping:
                     SandboxHeadlessFirstBootSection(vmHost: vmHost)
-                case .codexLoginPending:
-                    SandboxCodexLoginPrompt(vmHost: vmHost)
                 case .ready(let destination):
                     SandboxReadySection(sshDestination: destination)
                 case .unavailable(let reason):
@@ -244,7 +242,7 @@ private struct SandboxProgressSection: View {
 /// Passive status panel shown while the planted LaunchDaemon finishes its
 /// work inside the freshly-booted guest. There is nothing for the user to
 /// click — `SharedCompassVM` is polling SSH in the background and will
-/// transition readiness to `.ready` (or `.codexLoginPending`) on its own.
+/// transition readiness to `.ready` on its own.
 private struct SandboxHeadlessFirstBootSection: View {
     @ObservedObject var vmHost: SharedCompassVM
 
@@ -252,7 +250,7 @@ private struct SandboxHeadlessFirstBootSection: View {
         VStack(alignment: .leading, spacing: 10) {
             Label("Finishing macOS setup", systemImage: "gearshape.2")
                 .font(.subheadline.weight(.semibold))
-            Text("Compass planted a one-shot LaunchDaemon onto the guest disk. The guest is creating the compass user, authorising the Compass SSH key, enabling Remote Login, and installing codex. This takes 30 — 90 seconds.")
+            Text("Compass planted a one-shot LaunchDaemon onto the guest disk. The guest is creating the compass user, authorising the Compass SSH key, and enabling Remote Login. This takes 30 — 90 seconds.")
                 .font(.callout)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -292,33 +290,6 @@ private struct SandboxSetupFailureBanner: View {
     }
 }
 
-private struct SandboxCodexLoginPrompt: View {
-    @ObservedObject var vmHost: SharedCompassVM
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Label("Sign in to Codex", systemImage: "person.badge.key")
-                .font(.subheadline.weight(.semibold))
-            Text("Run codex login inside the guest. After it succeeds, mark Codex authenticated below.")
-                .font(.callout)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-            if let failure = vmHost.setupFailureMessage {
-                SandboxSetupFailureBanner(message: failure)
-            }
-            Button {
-                vmHost.markCodexLoginComplete()
-            } label: {
-                Label("Mark Codex login complete", systemImage: "checkmark.seal")
-                    .frame(maxWidth: .infinity)
-            }
-            .buttonStyle(.bordered)
-        }
-        .padding(12)
-        .background(.quaternary.opacity(0.45), in: RoundedRectangle(cornerRadius: 10))
-    }
-}
-
 private struct SandboxReadySection: View {
     let sshDestination: String
 
@@ -327,7 +298,7 @@ private struct SandboxReadySection: View {
             Label("Shared VM ready", systemImage: "checkmark.seal.fill")
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(Color.green)
-            Text("Codex execs route through SSH to:")
+            Text("Agent execs route through SSH to:")
                 .font(.callout)
                 .foregroundStyle(.secondary)
             Text(sshDestination)
@@ -550,8 +521,6 @@ extension SharedCompassVMReadiness {
             return "Installing macOS (\(pct)%)"
         case .guestPrepping:
             return "Finishing headless first-boot"
-        case .codexLoginPending:
-            return "Codex login pending in guest"
         case .ready:
             return "Ready"
         case .error(let detail):
@@ -567,7 +536,6 @@ extension SharedCompassVMReadiness {
         case .downloadingIPSW: return "Downloading"
         case .installing: return "Installing"
         case .guestPrepping: return "Preparing"
-        case .codexLoginPending: return "Codex login"
         case .ready: return "Ready"
         case .error: return "Error"
         }
@@ -580,8 +548,6 @@ extension SharedCompassVMReadiness {
             return .green
         case .downloadingIPSW, .installing, .guestPrepping:
             return .blue
-        case .codexLoginPending:
-            return .yellow
         case .unavailable:
             return .orange
         case .error:
@@ -597,7 +563,6 @@ extension SharedCompassVMReadiness {
         case .downloadingIPSW: return "arrow.down.circle"
         case .installing: return "internaldrive"
         case .guestPrepping: return "gearshape.2"
-        case .codexLoginPending: return "person.badge.key"
         case .unavailable: return "exclamationmark.triangle"
         case .error: return "xmark.octagon"
         case .notProvisioned: return "shippingbox"
@@ -610,7 +575,6 @@ extension SharedCompassVMReadiness {
         case .downloadingIPSW: return "Downloading restore image"
         case .installing: return "Installing macOS"
         case .guestPrepping: return "Finishing headless first-boot"
-        case .codexLoginPending: return "Sign in to Codex inside the guest"
         case .unavailable: return "Shared VM unavailable"
         case .error: return "Shared VM error"
         case .notProvisioned: return "Sandbox not provisioned"
@@ -629,8 +593,6 @@ extension SharedCompassVMReadiness {
             return "Restoring macOS onto the VM disk. \(pct)% complete."
         case .guestPrepping:
             return "The planted LaunchDaemon is creating the guest user and bringing up sshd. Compass is polling for readiness."
-        case .codexLoginPending:
-            return "Run codex login inside the guest, then mark login complete."
         case .unavailable(let reason):
             return reason
         case .error(let detail):

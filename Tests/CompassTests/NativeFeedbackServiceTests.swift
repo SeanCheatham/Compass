@@ -11,7 +11,7 @@ final class NativeFeedbackServiceTests: XCTestCase {
 
         XCTAssertEqual(content.projectName, boundedProjectName)
         XCTAssertEqual(content.title, "\(boundedProjectName): Develop started")
-        XCTAssertEqual(content.body, "Codex is working on the selected plan.")
+        XCTAssertEqual(content.body, "Agent is working on the selected plan.")
         XCTAssertEqual(content.spokenPhrase, "\(boundedProjectName). Develop started.")
         XCTAssertLessThanOrEqual(content.projectName.count, NativeFeedbackContent.projectNameLimit)
         XCTAssertLessThanOrEqual(content.title.count, NativeFeedbackContent.titleLimit)
@@ -31,7 +31,7 @@ final class NativeFeedbackServiceTests: XCTestCase {
 
         let retry = NativeFeedbackContent(milestone: .developRetrying, projectName: "Editor")
         XCTAssertEqual(retry.title, "Editor: Develop retrying")
-        XCTAssertEqual(retry.body, "Post-checks need another Codex pass.")
+        XCTAssertEqual(retry.body, "Post-checks need another agent pass.")
         XCTAssertEqual(retry.spokenPhrase, "Editor. Develop retrying.")
     }
 

@@ -4,9 +4,8 @@ import OpenAI
 /// Outcome of one Plan / Reflect / Develop pass.
 ///
 /// `submitResultArguments` holds the JSON args the model passed to the
-/// terminal `submit_result` tool — i.e. the structured response that
-/// previously came back via `codex --output-last-message`. Callers decode
-/// it into `PlanResponse` / `DevelopResult` / `ReflectResponse`.
+/// terminal `submit_result` tool — the structured response Compass decodes
+/// into `PlanRunResult` / `DevelopSummary` / `ReflectSummary`.
 struct AgentExecutionResult: Equatable {
     var submitResultArguments: Data
     var iterations: Int

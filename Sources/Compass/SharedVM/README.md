@@ -20,13 +20,8 @@ warmup ──▶ notProvisioned ──▶ downloadingIPSW ──▶ installing
                                                        │
                                           (VM boots; planted LaunchDaemon
                                            creates compass user, plants
-                                           SSH key, enables sshd,
-                                           installs codex; host polls
-                                           SSH until reachable)
-                                                       │
-                                                       ▼
-                                              codexLoginPending
-                                                  (if needed)
+                                           SSH key, enables sshd; host
+                                           polls SSH until reachable)
                                                        │
                                                        ▼
                                                     ready
@@ -46,8 +41,8 @@ support, installer failure, or a cancelled host admin prompt.
   reports progress back to main via `AsyncStream<Double>` or
   `@Published` properties.
 - `NSWorkspace.willSleepNotification` / `didWakeNotification` observers call
-  `pause()` / `resume()` to prevent guest clock skew from breaking codex
-  tokens and git timestamps across host sleep cycles.
+  `pause()` / `resume()` to prevent guest clock skew from breaking SSH
+  sessions and git timestamps across host sleep cycles.
 
 ## On-disk layout
 
@@ -60,7 +55,6 @@ support, installer failure, or a cancelled host admin prompt.
     ├── MachineIdentifier
     ├── state.json                     # Compass-owned: provisionStep,
     │                                  # lastKnownGoodIP, guestUserName,
-    │                                  # codexLoginCompleted,
     │                                  # bootAttemptCounter, lastBundleSize
     ├── known_hosts                    # Compass-owned ssh trust store
     ├── id_ed25519                     # Compass-owned SSH private key
@@ -74,7 +68,7 @@ Per-project Develop worktrees live separately, under
 permanent VirtioFS share at tag `compass-workspaces` exposes the
 `~/Library/Caches/Compass/Worktrees/` parent directory to the guest. Inside
 the guest the share is reached via the `/opt/compass → /Volumes/My Shared
-Files` symlink, so codex sees the worktree at
+Files` symlink, so the agent's bash tool sees the worktree at
 `/opt/compass/workspaces/dev-<UUID>/worktree`.
 
 ## Failure modes and recovery
@@ -87,8 +81,8 @@ Files` symlink, so codex sees the worktree at
 - **Installer fails**: readiness moves to `.error(detail:)`. The Sandbox view
   surfaces destructive recovery: reset installed artifacts, or rebuild from a
   local IPSW. Reset removes the VM disk, auxiliary storage, hardware identity,
-  stale known-hosts entry, codex credential stash, and the guest password's
-  Keychain entry while preserving the IPSW cache and Compass SSH keypair.
+  stale known-hosts entry, and the guest password's Keychain entry while
+  preserving the IPSW cache and Compass SSH keypair.
 - **Headless planter prompt cancelled**: readiness moves to `.error(detail:)`
   with a message about the dismissed administrator prompt. The user clicks
   Reset + Provision to retry; the install will re-run from scratch because
@@ -102,12 +96,6 @@ Files` symlink, so codex sees the worktree at
   `VZError.virtualMachineLimitExceeded`; the per-project picker disables
   `.sharedVM` and the launch planner falls back to `.host` with a clear
   `fallbackReason`.
-- **Codex token expiry**: guest's `~/.codex` carries its own writable copy
-  (initially seeded from host via SSH on provision). If the guest token
-  expires, the auth bridge surfaces `.codexLoginPending`; the user can
-  re-run `codex login` inside the embedded VM view, or trigger a re-copy
-  from host.
-
 ## Decision log
 
 - **Why direct Virtualization.framework instead of Tart?** Compass is a
@@ -127,8 +115,8 @@ Files` symlink, so codex sees the worktree at
   LaunchDaemon + a bootstrap script + the sudoers fragment, then unmounts.
   The guest's first boot runs the LaunchDaemon, which creates the `compass`
   admin user with a random Keychain-stored password, authorises the
-  Compass SSH key, enables Remote Login, and installs codex — all without
-  any user interaction. Per-major macOS profiles live in
+  Compass SSH key, and enables Remote Login — all without any user
+  interaction. Per-major macOS profiles live in
   [SharedCompassVMHeadlessFirstBoot.swift](SharedCompassVMHeadlessFirstBoot.swift)
   so future Apple changes to Setup Assistant internals are a one-line
   override rather than a refactor. The cost is one admin authentication

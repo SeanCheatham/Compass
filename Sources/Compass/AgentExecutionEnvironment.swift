@@ -1,6 +1,6 @@
 import Foundation
 
-enum CodexExecutionEnvironmentPreference: String, Codable, CaseIterable, Identifiable {
+enum AgentExecutionEnvironmentPreference: String, Codable, CaseIterable, Identifiable {
     case host = "native_macos"
     case sharedVM = "shared_vm"
 
@@ -9,13 +9,13 @@ enum CodexExecutionEnvironmentPreference: String, Codable, CaseIterable, Identif
     init(from decoder: Decoder) throws {
         let container = try decoder.singleValueContainer()
         let rawValue = try container.decode(String.self)
-        self = CodexExecutionEnvironmentPreference.decode(rawValue: rawValue)
+        self = AgentExecutionEnvironmentPreference.decode(rawValue: rawValue)
     }
 
     /// Decodes a stored raw value into a preference, mapping any legacy values to `.host`.
     /// "devcontainer_preferred" is explicitly mapped to `.host` (no auto-enrollment).
-    static func decode(rawValue: String) -> CodexExecutionEnvironmentPreference {
-        if let known = CodexExecutionEnvironmentPreference(rawValue: rawValue) {
+    static func decode(rawValue: String) -> AgentExecutionEnvironmentPreference {
+        if let known = AgentExecutionEnvironmentPreference(rawValue: rawValue) {
             return known
         }
         // Legacy "devcontainer_preferred" maps to .host (do not auto-enrol into shared VM).
@@ -46,7 +46,7 @@ enum CodexExecutionEnvironmentPreference: String, Codable, CaseIterable, Identif
     }
 }
 
-struct CodexExecutionEnvironmentReadiness: Equatable {
+struct AgentExecutionEnvironmentReadiness: Equatable {
     static let detailLimit = 280
 
     var vmReadiness: SharedCompassVMReadiness
@@ -77,8 +77,6 @@ struct CodexExecutionEnvironmentReadiness: Equatable {
             return "Shared VM is installing macOS (\(Int((fraction * 100).rounded()))%)."
         case .guestPrepping:
             return "Shared VM is finishing headless first-boot setup."
-        case .codexLoginPending:
-            return "Shared VM is waiting for the user to run codex login inside the guest."
         case let .ready(sshDestination):
             return "Shared VM is ready at \(sshDestination)."
         case let .error(detail):
@@ -98,7 +96,7 @@ struct CodexExecutionEnvironmentReadiness: Equatable {
     }
 }
 
-struct CodexExecutionEnvironmentPresentation: Equatable {
+struct AgentExecutionEnvironmentPresentation: Equatable {
     static let titleLimit = 48
     static let statusLimit = 180
     static let detailLimit = 320
@@ -135,55 +133,55 @@ struct CodexExecutionEnvironmentPresentation: Equatable {
     }
 }
 
-struct CodexExecutionEnvironment: Equatable {
-    var preference: CodexExecutionEnvironmentPreference
-    var readiness: CodexExecutionEnvironmentReadiness
+struct AgentExecutionEnvironment: Equatable {
+    var preference: AgentExecutionEnvironmentPreference
+    var readiness: AgentExecutionEnvironmentReadiness
 
     init(
-        preference: CodexExecutionEnvironmentPreference = .host,
-        readiness: CodexExecutionEnvironmentReadiness
+        preference: AgentExecutionEnvironmentPreference = .host,
+        readiness: AgentExecutionEnvironmentReadiness
     ) {
         self.preference = preference
         self.readiness = readiness
     }
 
     static func discover(
-        preference: CodexExecutionEnvironmentPreference = .host,
+        preference: AgentExecutionEnvironmentPreference = .host,
         vmReadiness: SharedCompassVMReadiness = .notProvisioned
     ) -> Self {
         Self(
             preference: preference,
-            readiness: CodexExecutionEnvironmentReadiness.inspect(vmReadiness: vmReadiness)
+            readiness: AgentExecutionEnvironmentReadiness.inspect(vmReadiness: vmReadiness)
         )
     }
 
-    var effectivePreference: CodexExecutionEnvironmentPreference {
+    var effectivePreference: AgentExecutionEnvironmentPreference {
         launchPlan(repoURL: URL(fileURLWithPath: "/")).isVMRoute ? .sharedVM : .host
     }
 
-    var presentation: CodexExecutionEnvironmentPresentation {
+    var presentation: AgentExecutionEnvironmentPresentation {
         presentation(launchPlan: launchPlan(repoURL: URL(fileURLWithPath: "/")))
     }
 
-    func presentation(launchPlan plan: CodexExecutionLaunchPlan) -> CodexExecutionEnvironmentPresentation {
+    func presentation(launchPlan plan: AgentExecutionLaunchPlan) -> AgentExecutionEnvironmentPresentation {
         switch preference {
         case .host:
-            return CodexExecutionEnvironmentPresentation(
+            return AgentExecutionEnvironmentPresentation(
                 title: "Native macOS",
-                status: "Running Codex on the host. Shared VM remains available as an opt-in sandbox.",
+                status: "Running the agent on the host. Shared VM remains available as an opt-in sandbox.",
                 detail: readiness.detail,
                 systemImage: preference.systemImage
             )
         case .sharedVM:
             if plan.isVMRoute {
-                return CodexExecutionEnvironmentPresentation(
+                return AgentExecutionEnvironmentPresentation(
                     title: "Shared VM",
-                    status: "Running Codex inside the Shared VM via SSH.",
+                    status: "Running the agent inside the Shared VM via SSH.",
                     detail: plan.routeDetail(),
                     systemImage: preference.systemImage
                 )
             }
-            return CodexExecutionEnvironmentPresentation(
+            return AgentExecutionEnvironmentPresentation(
                 title: "Shared VM",
                 status: "Shared VM selected, but Compass is falling back to native macOS.",
                 detail: fallbackDetail(plan: plan),
@@ -208,8 +206,8 @@ struct CodexExecutionEnvironment: Equatable {
     func launchPlan(
         repoURL: URL,
         sharedVMRouteFactory: (URL) -> SharedVMRoute? = { _ in nil }
-    ) -> CodexExecutionLaunchPlan {
-        CodexExecutionLaunchPlan.plan(
+    ) -> AgentExecutionLaunchPlan {
+        AgentExecutionLaunchPlan.plan(
             repoURL: repoURL,
             preference: preference,
             vmReadiness: readiness.vmReadiness,
@@ -217,7 +215,7 @@ struct CodexExecutionEnvironment: Equatable {
         )
     }
 
-    private func fallbackDetail(plan: CodexExecutionLaunchPlan) -> String {
+    private func fallbackDetail(plan: AgentExecutionLaunchPlan) -> String {
         [readiness.detail, plan.fallbackReason.map { "Fallback: \($0)" }]
             .compactMap { $0 }
             .filter { !$0.isEmpty }
@@ -225,7 +223,7 @@ struct CodexExecutionEnvironment: Equatable {
     }
 }
 
-struct CodexExecutionEnvironmentDiagnosticsReport: Equatable, Identifiable {
+struct AgentExecutionEnvironmentDiagnosticsReport: Equatable, Identifiable {
     static let copyTextLimit = 2_000
     static let fieldLimit = 120
     static let helpLimit = 240
@@ -258,9 +256,9 @@ struct CodexExecutionEnvironmentDiagnosticsReport: Equatable, Identifiable {
     var id: String { copyIdentifier }
 
     init(
-        environment: CodexExecutionEnvironment,
-        launchPlan: CodexExecutionLaunchPlan,
-        mutationTestingPlan: CodexMutationTestingPlan? = nil,
+        environment: AgentExecutionEnvironment,
+        launchPlan: AgentExecutionLaunchPlan,
+        mutationTestingPlan: AgentMutationTestingPlan? = nil,
         mutationRecoveryDescriptor: MutationTestingRecoveryDescriptor? = nil,
         vmBundleSizeBytes: Int? = nil,
         vmGuestOSVersion: String? = nil
@@ -283,7 +281,7 @@ struct CodexExecutionEnvironmentDiagnosticsReport: Equatable, Identifiable {
         workspaceLabel = Self.sanitizedField(launchPlan.workspaceLabel, limit: Self.fieldLimit)
         fallbackReason = Self.sanitizedField(
             launchPlan.fallbackReasonLabel,
-            limit: CodexExecutionLaunchPlan.fallbackReasonLimit
+            limit: AgentExecutionLaunchPlan.fallbackReasonLimit
         )
 
         if let mutationTestingPlan {
@@ -379,8 +377,6 @@ struct CodexExecutionEnvironmentDiagnosticsReport: Equatable, Identifiable {
             return "installing"
         case .guestPrepping:
             return "guest-prepping"
-        case .codexLoginPending:
-            return "codex-login-pending"
         case .ready:
             return "ready"
         case .error:
@@ -393,7 +389,7 @@ struct CodexExecutionEnvironmentDiagnosticsReport: Equatable, Identifiable {
         switch readiness {
         case .downloadingIPSW, .installing:
             return "building"
-        case .ready, .guestPrepping, .codexLoginPending:
+        case .ready, .guestPrepping:
             return "built"
         case .notProvisioned:
             return "not-built"
@@ -445,12 +441,12 @@ struct CodexExecutionEnvironmentDiagnosticsReport: Equatable, Identifiable {
     }
 }
 
-struct CodexExecutionEnvironmentCopyDiagnosticsAction: Identifiable, Equatable {
-    static let actionIdentifier = CodexExecutionEnvironmentDiagnosticsReport.stableCopyActionIdentifier
+struct AgentExecutionEnvironmentCopyDiagnosticsAction: Identifiable, Equatable {
+    static let actionIdentifier = AgentExecutionEnvironmentDiagnosticsReport.stableCopyActionIdentifier
     static let titleLimit = 34
     static let descriptionLimit = 220
 
-    var report: CodexExecutionEnvironmentDiagnosticsReport
+    var report: AgentExecutionEnvironmentDiagnosticsReport
 
     var id: String { Self.actionIdentifier }
 
@@ -493,21 +489,21 @@ struct CodexExecutionEnvironmentCopyDiagnosticsAction: Identifiable, Equatable {
     }
 }
 
-struct CodexExecutionEnvironmentMenuItem: Identifiable, Equatable {
+struct AgentExecutionEnvironmentMenuItem: Identifiable, Equatable {
     static let descriptionLimit = 180
 
-    var preference: CodexExecutionEnvironmentPreference
+    var preference: AgentExecutionEnvironmentPreference
     var title: String
     var systemImage: String
     var isSelected: Bool
     var description: String
 
-    var id: CodexExecutionEnvironmentPreference { preference }
+    var id: AgentExecutionEnvironmentPreference { preference }
 
     init(
-        preference: CodexExecutionEnvironmentPreference,
-        selectedPreference: CodexExecutionEnvironmentPreference,
-        readiness: CodexExecutionEnvironmentReadiness
+        preference: AgentExecutionEnvironmentPreference,
+        selectedPreference: AgentExecutionEnvironmentPreference,
+        readiness: AgentExecutionEnvironmentReadiness
     ) {
         self.preference = preference
         title = preference.title
@@ -520,21 +516,21 @@ struct CodexExecutionEnvironmentMenuItem: Identifiable, Equatable {
     }
 
     private static func description(
-        for preference: CodexExecutionEnvironmentPreference,
-        readiness: CodexExecutionEnvironmentReadiness
+        for preference: AgentExecutionEnvironmentPreference,
+        readiness: AgentExecutionEnvironmentReadiness
     ) -> String {
         switch preference {
         case .host:
-            return "Run Codex on the host. Best for macOS frameworks, UI automation, and local tools."
+            return "Run the agent on the host. Best for macOS frameworks, UI automation, and local tools."
         case .sharedVM:
             switch readiness.vmReadiness {
             case .ready:
-                return "Run Codex inside the Shared VM via SSH. Provides reproducible Linux/macOS isolation."
+                return "Run the agent inside the Shared VM via SSH. Provides reproducible Linux/macOS isolation."
             case .unavailable(let reason):
                 return "Shared VM is unavailable: \(reason). Compass falls back to native macOS."
             case .notProvisioned:
                 return "Shared VM has not been provisioned yet. Provision the VM from the Sandbox section to enable this route."
-            case .downloadingIPSW, .installing, .guestPrepping, .codexLoginPending:
+            case .downloadingIPSW, .installing, .guestPrepping:
                 return "Shared VM is still preparing. Compass falls back to native macOS until the VM is ready."
             case .error(let detail):
                 return "Shared VM reported an error: \(detail). Compass falls back to native macOS."
@@ -554,21 +550,21 @@ struct CodexExecutionEnvironmentMenuItem: Identifiable, Equatable {
     }
 }
 
-struct CodexExecutionEnvironmentMenu: Equatable {
+struct AgentExecutionEnvironmentMenu: Equatable {
     var labelSystemImage: String
     var helpText: String
     var statusText: String
-    var items: [CodexExecutionEnvironmentMenuItem]
-    var copyDiagnosticsAction: CodexExecutionEnvironmentCopyDiagnosticsAction
-    var mutationTestingAction: CodexMutationTestingMenuAction?
+    var items: [AgentExecutionEnvironmentMenuItem]
+    var copyDiagnosticsAction: AgentExecutionEnvironmentCopyDiagnosticsAction
+    var mutationTestingAction: AgentMutationTestingMenuAction?
     var mutationRecoveryDescriptor: MutationTestingRecoveryDescriptor?
 
     init(
-        environment: CodexExecutionEnvironment,
-        launchPlan: CodexExecutionLaunchPlan? = nil,
-        mutationTestingPlan: CodexMutationTestingPlan? = nil,
+        environment: AgentExecutionEnvironment,
+        launchPlan: AgentExecutionLaunchPlan? = nil,
+        mutationTestingPlan: AgentMutationTestingPlan? = nil,
         mutationRecoveryDescriptor: MutationTestingRecoveryDescriptor? = nil,
-        mutationExecutionState: CodexMutationTestingMenuAction.ExecutionState = .idle,
+        mutationExecutionState: AgentMutationTestingMenuAction.ExecutionState = .idle,
         vmBundleSizeBytes: Int? = nil,
         vmGuestOSVersion: String? = nil
     ) {
@@ -579,15 +575,15 @@ struct CodexExecutionEnvironmentMenu: Equatable {
         statusText = [presentation.status, presentation.detail]
             .filter { !$0.isEmpty }
             .joined(separator: " ")
-        items = CodexExecutionEnvironmentPreference.allCases.map {
-            CodexExecutionEnvironmentMenuItem(
+        items = AgentExecutionEnvironmentPreference.allCases.map {
+            AgentExecutionEnvironmentMenuItem(
                 preference: $0,
                 selectedPreference: environment.preference,
                 readiness: environment.readiness
             )
         }
-        copyDiagnosticsAction = CodexExecutionEnvironmentCopyDiagnosticsAction(
-            report: CodexExecutionEnvironmentDiagnosticsReport(
+        copyDiagnosticsAction = AgentExecutionEnvironmentCopyDiagnosticsAction(
+            report: AgentExecutionEnvironmentDiagnosticsReport(
                 environment: environment,
                 launchPlan: effectiveLaunchPlan,
                 mutationTestingPlan: mutationTestingPlan,
@@ -597,7 +593,7 @@ struct CodexExecutionEnvironmentMenu: Equatable {
             )
         )
         mutationTestingAction = mutationTestingPlan.map {
-            CodexMutationTestingMenuAction(
+            AgentMutationTestingMenuAction(
                 readiness: $0,
                 executionState: mutationExecutionState
             )

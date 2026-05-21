@@ -59,7 +59,7 @@ private final class TimeoutStore: @unchecked Sendable {
 
 enum ProcessRunner {
     typealias InvocationRunner = (
-        _ invocation: CodexExecutionInvocation,
+        _ invocation: AgentExecutionInvocation,
         _ input: String?,
         _ timeout: TimeInterval?,
         _ onStdout: ((String) -> Void)?,
@@ -150,7 +150,7 @@ enum ProcessRunner {
     }
 
     static func run(
-        invocation: CodexExecutionInvocation,
+        invocation: AgentExecutionInvocation,
         input: String? = nil,
         timeout: TimeInterval? = nil,
         onStdout: ((String) -> Void)? = nil,
@@ -191,7 +191,7 @@ enum ProcessRunner {
         _ command: String,
         workingDirectory: URL,
         timeout: TimeInterval? = nil,
-        launchPlan: CodexExecutionLaunchPlan? = nil,
+        launchPlan: AgentExecutionLaunchPlan? = nil,
         runner: InvocationRunner? = nil
     ) async throws -> ProcessResult {
         let effectiveLaunchPlan = launchPlan ?? .host()
@@ -207,7 +207,7 @@ enum ProcessRunner {
     }
 
     private static func runInvocation(
-        _ invocation: CodexExecutionInvocation,
+        _ invocation: AgentExecutionInvocation,
         timeout: TimeInterval?,
         runner: InvocationRunner?
     ) async throws -> ProcessResult {

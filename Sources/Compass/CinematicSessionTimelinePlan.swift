@@ -211,7 +211,7 @@ struct CinematicSessionTimelinePlan: Equatable {
             session: session,
             runCue: runCue
         ) ?? boundedText(session.feedback)
-            ?? "Codex moved from plan into implementation."
+            ?? "Agent moved from plan into implementation."
 
         return beat(
             stableID: "session-\(session.session)-develop",

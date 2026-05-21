@@ -23,7 +23,6 @@ final class SharedCompassVMBundleTests: XCTestCase {
             lastKnownGoodIP: "10.0.0.42",
             guestUserName: "compass",
             guestOSVersion: "26.0.1",
-            codexLoginCompleted: true,
             bootAttemptCounter: 7,
             lastBundleSize: 12_345_678
         )
@@ -42,7 +41,6 @@ final class SharedCompassVMBundleTests: XCTestCase {
         XCTAssertNil(state.lastKnownGoodIP)
         XCTAssertEqual(state.guestUserName, SharedCompassVMBundle.State.defaultGuestUserName)
         XCTAssertNil(state.guestOSVersion)
-        XCTAssertFalse(state.codexLoginCompleted)
         XCTAssertEqual(state.bootAttemptCounter, 0)
         XCTAssertNil(state.lastBundleSize)
     }
@@ -90,8 +88,7 @@ final class SharedCompassVMBundleTests: XCTestCase {
             bundle.knownHostsURL,
             bundle.privateKeyURL,
             bundle.publicKeyURL,
-            bundle.cacheDirectoryURL,
-            bundle.codexCredentialsStashURL
+            bundle.cacheDirectoryURL
         ]
         for url in mustBeUnderRoot {
             XCTAssertTrue(
@@ -159,15 +156,11 @@ final class SharedCompassVMBundleTests: XCTestCase {
         for url in filesToCreate {
             try Data(url.lastPathComponent.utf8).write(to: url)
         }
-        try FileManager.default.createDirectory(at: bundle.codexCredentialsStashURL, withIntermediateDirectories: true)
-        try Data("creds".utf8).write(to: bundle.codexCredentialsStashURL.appendingPathComponent("auth.json"))
-
         try bundle.saveState(SharedCompassVMBundle.State(
             provisionStep: .installing,
             lastKnownGoodIP: "192.168.64.9",
             guestUserName: "compass",
             guestOSVersion: "26.0",
-            codexLoginCompleted: true,
             bootAttemptCounter: 3,
             lastBundleSize: 12_345,
             guestMACAddress: "02:11:22:33:44:55"
@@ -180,7 +173,6 @@ final class SharedCompassVMBundleTests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: bundle.hardwareModelURL.path))
         XCTAssertFalse(FileManager.default.fileExists(atPath: bundle.machineIdentifierURL.path))
         XCTAssertFalse(FileManager.default.fileExists(atPath: bundle.knownHostsURL.path))
-        XCTAssertFalse(FileManager.default.fileExists(atPath: bundle.codexCredentialsStashURL.path))
 
         XCTAssertTrue(FileManager.default.fileExists(atPath: bundle.privateKeyURL.path))
         XCTAssertTrue(FileManager.default.fileExists(atPath: bundle.publicKeyURL.path))
@@ -190,7 +182,6 @@ final class SharedCompassVMBundleTests: XCTestCase {
         XCTAssertEqual(state.provisionStep, .notProvisioned)
         XCTAssertNil(state.lastKnownGoodIP)
         XCTAssertNil(state.guestOSVersion)
-        XCTAssertFalse(state.codexLoginCompleted)
         XCTAssertEqual(state.bootAttemptCounter, 0)
         XCTAssertNil(state.lastBundleSize)
         XCTAssertEqual(state.guestMACAddress, "02:11:22:33:44:55")
@@ -212,7 +203,6 @@ final class SharedCompassVMBundleTests: XCTestCase {
             lastKnownGoodIP: "192.168.64.7",
             guestUserName: "compass",
             guestOSVersion: "26.0.0",
-            codexLoginCompleted: false,
             bootAttemptCounter: 2,
             lastBundleSize: 42
         )
@@ -228,11 +218,9 @@ final class SharedCompassVMBundleTests: XCTestCase {
         let result = try bundle.mutateState { state in
             state.provisionStep = .ready
             state.bootAttemptCounter += 3
-            state.codexLoginCompleted = true
         }
         XCTAssertEqual(result.provisionStep, .ready)
         XCTAssertEqual(result.bootAttemptCounter, 3)
-        XCTAssertTrue(result.codexLoginCompleted)
 
         let reloaded = try bundle.loadState()
         XCTAssertEqual(reloaded, result)

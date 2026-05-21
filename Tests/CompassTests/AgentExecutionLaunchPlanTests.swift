@@ -2,7 +2,7 @@ import Foundation
 @testable import Compass
 import XCTest
 
-final class CodexExecutionLaunchPlanTests: XCTestCase {
+final class AgentExecutionLaunchPlanTests: XCTestCase {
     private var temporaryDirectories: [URL] = []
 
     override func tearDownWithError() throws {
@@ -20,10 +20,9 @@ final class CodexExecutionLaunchPlanTests: XCTestCase {
         let route = SharedVMRoute(
             sshDestination: "compass@192.0.2.10",
             hostWorktreeURL: repoURL,
-            guestWorkspacePath: "/opt/compass/workspaces/dev-AAA/worktree",
-            guestCodexPath: "/opt/compass/codex/codex"
+            guestWorkspacePath: "/opt/compass/workspaces/dev-AAA/worktree"
         )
-        let plan = CodexExecutionLaunchPlan.plan(
+        let plan = AgentExecutionLaunchPlan.plan(
             repoURL: repoURL,
             preference: .sharedVM,
             vmReadiness: .ready(sshDestination: route.sshDestination),
@@ -39,7 +38,7 @@ final class CodexExecutionLaunchPlanTests: XCTestCase {
 
     func testNativePreferenceStaysNativeEvenWhenSupportedConfigAndToolExist() throws {
         let repoURL = try makeTemporaryDirectory(prefix: "HostPreference")
-        let plan = CodexExecutionLaunchPlan.plan(
+        let plan = AgentExecutionLaunchPlan.plan(
             repoURL: repoURL,
             preference: .host,
             vmReadiness: .ready(sshDestination: "compass@192.0.2.99")
@@ -53,10 +52,9 @@ final class CodexExecutionLaunchPlanTests: XCTestCase {
         let route = SharedVMRoute(
             sshDestination: "compass@192.0.2.10",
             hostWorktreeURL: repoURL,
-            guestWorkspacePath: "/opt/compass/workspaces/dev-AAA/worktree",
-            guestCodexPath: "/opt/compass/codex/codex"
+            guestWorkspacePath: "/opt/compass/workspaces/dev-AAA/worktree"
         )
-        let plan = CodexExecutionLaunchPlan.plan(
+        let plan = AgentExecutionLaunchPlan.plan(
             repoURL: repoURL,
             preference: .host,
             vmReadiness: .ready(sshDestination: route.sshDestination),
@@ -67,7 +65,7 @@ final class CodexExecutionLaunchPlanTests: XCTestCase {
 
     func testMissingConfigFallsBackToNativeWithBoundedReason() throws {
         let repoURL = try makeTemporaryDirectory(prefix: "VMNotProvisioned")
-        let plan = CodexExecutionLaunchPlan.plan(
+        let plan = AgentExecutionLaunchPlan.plan(
             repoURL: repoURL,
             preference: .sharedVM,
             vmReadiness: .notProvisioned
@@ -78,7 +76,7 @@ final class CodexExecutionLaunchPlanTests: XCTestCase {
 
     func testMalformedConfigFallsBackToNativeWithBoundedReason() throws {
         let repoURL = try makeTemporaryDirectory(prefix: "VMError")
-        let plan = CodexExecutionLaunchPlan.plan(
+        let plan = AgentExecutionLaunchPlan.plan(
             repoURL: repoURL,
             preference: .sharedVM,
             vmReadiness: .error(detail: "ssh probe failed")
@@ -87,27 +85,9 @@ final class CodexExecutionLaunchPlanTests: XCTestCase {
         XCTAssertTrue(plan.fallbackReason?.contains("ssh probe failed") ?? false)
     }
 
-    func testBuildConfigRoutesThroughAppleContainerWhenToolIsAvailable() throws {
-        let repoURL = try makeTemporaryDirectory(prefix: "VMReadyRoutesBuild")
-        let route = SharedVMRoute(
-            sshDestination: "compass@192.0.2.50",
-            hostWorktreeURL: repoURL,
-            guestWorkspacePath: "/opt/compass/workspaces/dev-DDD/worktree",
-            guestCodexPath: "/opt/compass/codex/codex"
-        )
-        let plan = CodexExecutionLaunchPlan(
-            selectedPreference: .sharedVM,
-            effectiveRoute: .sharedVM(route),
-            vmReadiness: .ready(sshDestination: route.sshDestination)
-        )
-        XCTAssertEqual(plan.effectiveRouteIdentifier, "shared-vm")
-        let invocation = plan.codexInvocation(codexBinary: "codex", arguments: ["exec"], hostWorkingDirectory: repoURL)
-        XCTAssertEqual(invocation.executable, "/usr/bin/ssh")
-    }
-
     func testNoContainerToolFallsBackToNative() throws {
         let repoURL = try makeTemporaryDirectory(prefix: "VMReadyNoRoute")
-        let plan = CodexExecutionLaunchPlan.plan(
+        let plan = AgentExecutionLaunchPlan.plan(
             repoURL: repoURL,
             preference: .sharedVM,
             vmReadiness: .ready(sshDestination: "compass@192.0.2.10"),
@@ -119,7 +99,7 @@ final class CodexExecutionLaunchPlanTests: XCTestCase {
 
     func testBuildConfigFallsBackToNativeWhenContainerToolIsUnavailable() throws {
         let repoURL = try makeTemporaryDirectory(prefix: "VMReadinessMissing")
-        let plan = CodexExecutionLaunchPlan.plan(
+        let plan = AgentExecutionLaunchPlan.plan(
             repoURL: repoURL,
             preference: .sharedVM,
             vmReadiness: nil
@@ -133,7 +113,7 @@ final class CodexExecutionLaunchPlanTests: XCTestCase {
     func testLegacyDevcontainerPreferredRawValueDecodesToHost() throws {
         let json = #"{"value":"devcontainer_preferred"}"#
         struct Wrapper: Decodable {
-            var value: CodexExecutionEnvironmentPreference
+            var value: AgentExecutionEnvironmentPreference
         }
         let decoded = try JSONDecoder().decode(Wrapper.self, from: Data(json.utf8))
         XCTAssertEqual(decoded.value, .host)
@@ -142,17 +122,17 @@ final class CodexExecutionLaunchPlanTests: XCTestCase {
     func testLegacyNativeMacOSRawValueDecodesToHost() throws {
         let json = #"{"value":"native_macos"}"#
         struct Wrapper: Decodable {
-            var value: CodexExecutionEnvironmentPreference
+            var value: AgentExecutionEnvironmentPreference
         }
         let decoded = try JSONDecoder().decode(Wrapper.self, from: Data(json.utf8))
         XCTAssertEqual(decoded.value, .host)
     }
 
     func testSharedVMRawValueRoundTrips() throws {
-        let encoded = try JSONEncoder().encode(CodexExecutionEnvironmentPreference.sharedVM)
+        let encoded = try JSONEncoder().encode(AgentExecutionEnvironmentPreference.sharedVM)
         let string = String(decoding: encoded, as: UTF8.self)
         XCTAssertEqual(string, "\"shared_vm\"")
-        let decoded = try JSONDecoder().decode(CodexExecutionEnvironmentPreference.self, from: encoded)
+        let decoded = try JSONDecoder().decode(AgentExecutionEnvironmentPreference.self, from: encoded)
         XCTAssertEqual(decoded, .sharedVM)
     }
 
@@ -163,10 +143,9 @@ final class CodexExecutionLaunchPlanTests: XCTestCase {
         let route = SharedVMRoute(
             sshDestination: "compass@192.0.2.10",
             hostWorktreeURL: repoURL,
-            guestWorkspacePath: "/opt/compass/workspaces/dev-AAA/worktree",
-            guestCodexPath: "/opt/compass/codex/codex"
+            guestWorkspacePath: "/opt/compass/workspaces/dev-AAA/worktree"
         )
-        let plan = CodexExecutionLaunchPlan(
+        let plan = AgentExecutionLaunchPlan(
             selectedPreference: .sharedVM,
             effectiveRoute: .sharedVM(route),
             vmReadiness: .ready(sshDestination: route.sshDestination)
@@ -192,7 +171,7 @@ final class CodexExecutionLaunchPlanTests: XCTestCase {
             (.unavailable(reason: "Intel"), "unavailable")
         ]
         for (readiness, expectedClassification) in scenarios {
-            let plan = CodexExecutionLaunchPlan.plan(
+            let plan = AgentExecutionLaunchPlan.plan(
                 repoURL: repoURL,
                 preference: .sharedVM,
                 vmReadiness: readiness

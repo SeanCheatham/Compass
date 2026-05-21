@@ -131,10 +131,9 @@ final class CompassWorkspacePersistenceTests: XCTestCase {
         let route = SharedVMRoute(
             sshDestination: "compass@192.0.2.10",
             hostWorktreeURL: repoURL,
-            guestWorkspacePath: "/opt/compass/workspaces/dev-AAA/worktree",
-            guestCodexPath: "/opt/compass/codex/codex"
+            guestWorkspacePath: "/opt/compass/workspaces/dev-AAA/worktree"
         )
-        let launchPlan = CodexExecutionLaunchPlan(
+        let launchPlan = AgentExecutionLaunchPlan(
             selectedPreference: .sharedVM,
             effectiveRoute: .sharedVM(route),
             vmReadiness: .ready(sshDestination: route.sshDestination)
@@ -161,12 +160,12 @@ final class CompassWorkspacePersistenceTests: XCTestCase {
 
     func testSessionExecutionEnvironmentSnapshotsReplaceDuplicatePhaseAttemptsAndStayBounded() throws {
         let repoURL = try makeTemporaryGitRepository()
-        let nativePlan = CodexExecutionLaunchPlan.plan(
+        let nativePlan = AgentExecutionLaunchPlan.plan(
             repoURL: repoURL,
             preference: .host,
             vmReadiness: .ready(sshDestination: "compass@192.0.2.10")
         )
-        let fallbackPlan = CodexExecutionLaunchPlan.plan(
+        let fallbackPlan = AgentExecutionLaunchPlan.plan(
             repoURL: repoURL,
             preference: .sharedVM,
             vmReadiness: .notProvisioned

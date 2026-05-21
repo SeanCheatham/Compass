@@ -65,14 +65,6 @@ struct SharedCompassVMBundle: Equatable {
         cacheDirectoryURL.appendingPathComponent("RestoreImage-\(version).ipsw", isDirectory: false)
     }
 
-    /// Host-side stash for a copy of the user's `~/.codex` directory, used by
-    /// the codex-auth fallback path when the guest is not yet authenticated.
-    /// The directory is created lazily by the auth bridge; callers should not
-    /// assume it exists.
-    var codexCredentialsStashURL: URL {
-        rootURL.appendingPathComponent("codex-credentials", isDirectory: true)
-    }
-
     // MARK: SSH keypair
 
     /// Errors produced by `ensureSSHKeypair`.
@@ -170,8 +162,7 @@ struct SharedCompassVMBundle: Equatable {
             auxiliaryStorageURL,
             hardwareModelURL,
             machineIdentifierURL,
-            knownHostsURL,
-            codexCredentialsStashURL
+            knownHostsURL
         ]
         for url in artifactsToRemove where fileManager.fileExists(atPath: url.path) {
             try fileManager.removeItem(at: url)
@@ -205,7 +196,6 @@ struct SharedCompassVMBundle: Equatable {
         var lastKnownGoodIP: String?
         var guestUserName: String
         var guestOSVersion: String?
-        var codexLoginCompleted: Bool
         var bootAttemptCounter: Int
         var lastBundleSize: UInt64?
         /// MAC address Compass pinned on the guest's virtio network device.
@@ -226,7 +216,6 @@ struct SharedCompassVMBundle: Equatable {
             lastKnownGoodIP: String? = nil,
             guestUserName: String = State.defaultGuestUserName,
             guestOSVersion: String? = nil,
-            codexLoginCompleted: Bool = false,
             bootAttemptCounter: Int = 0,
             lastBundleSize: UInt64? = nil,
             guestMACAddress: String? = nil,
@@ -236,7 +225,6 @@ struct SharedCompassVMBundle: Equatable {
             self.lastKnownGoodIP = lastKnownGoodIP
             self.guestUserName = guestUserName
             self.guestOSVersion = guestOSVersion
-            self.codexLoginCompleted = codexLoginCompleted
             self.bootAttemptCounter = bootAttemptCounter
             self.lastBundleSize = lastBundleSize
             self.guestMACAddress = guestMACAddress
@@ -297,7 +285,7 @@ struct SharedCompassVMBundle: Equatable {
     }
 
     /// Mutates the persisted state in place. Useful for ratcheting `bootAttemptCounter`
-    /// or flipping `codexLoginCompleted` without ceremony at call sites.
+    /// without ceremony at call sites.
     @discardableResult
     func mutateState(
         fileManager: FileManager = .default,

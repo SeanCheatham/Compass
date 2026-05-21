@@ -374,8 +374,8 @@ final class PlanReliabilityFeedbackTests: XCTestCase {
         endedAt: Double,
         outputTail: String
     ) -> SessionMutationTestingExecution {
-        let launchPlan = CodexExecutionLaunchPlan.host()
-        let readiness = CodexMutationTestingPlan(
+        let launchPlan = AgentExecutionLaunchPlan.host()
+        let readiness = AgentMutationTestingPlan(
             state: PlanState(
                 completed: [],
                 immediate: PlanNext(plan: "Run mutation testing", verify: verify),

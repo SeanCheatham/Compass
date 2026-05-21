@@ -14,7 +14,7 @@ final class ProcessRunnerExecutionRouteTests: XCTestCase {
 
     func testNativeShellRoutePreservesZshCommandConstruction() async throws {
         let repoURL = try makeTemporaryDirectory(prefix: "ProcessRunnerNative")
-        var capturedInvocation: CodexExecutionInvocation?
+        var capturedInvocation: AgentExecutionInvocation?
 
         let result = try await ProcessRunner.runShell(
             "swift test",
@@ -44,15 +44,14 @@ final class ProcessRunnerExecutionRouteTests: XCTestCase {
         let route = SharedVMRoute(
             sshDestination: "compass@192.0.2.20",
             hostWorktreeURL: repoURL,
-            guestWorkspacePath: "/opt/compass/workspaces/dev-BBB/worktree",
-            guestCodexPath: "/opt/compass/codex/codex"
+            guestWorkspacePath: "/opt/compass/workspaces/dev-BBB/worktree"
         )
-        let launchPlan = CodexExecutionLaunchPlan(
+        let launchPlan = AgentExecutionLaunchPlan(
             selectedPreference: .sharedVM,
             effectiveRoute: .sharedVM(route),
             vmReadiness: .ready(sshDestination: route.sshDestination)
         )
-        var capturedInvocation: CodexExecutionInvocation?
+        var capturedInvocation: AgentExecutionInvocation?
 
         _ = try await ProcessRunner.runShell(
             "swift test --filter CompassTests",
@@ -71,12 +70,12 @@ final class ProcessRunnerExecutionRouteTests: XCTestCase {
 
     func testNativeFallbackPlanFeedsNativeVerifyInvocationAndBoundedDiagnostics() async throws {
         let repoURL = try makeTemporaryDirectory(prefix: "ProcessRunnerVMUnavailableFallback")
-        let launchPlan = CodexExecutionLaunchPlan.plan(
+        let launchPlan = AgentExecutionLaunchPlan.plan(
             repoURL: repoURL,
             preference: .sharedVM,
             vmReadiness: .unavailable(reason: "Apple Silicon required")
         )
-        var capturedInvocation: CodexExecutionInvocation?
+        var capturedInvocation: AgentExecutionInvocation?
 
         _ = try await ProcessRunner.runShell(
             "swift test",
@@ -98,12 +97,12 @@ final class ProcessRunnerExecutionRouteTests: XCTestCase {
     func testComposeDevcontainerShellRouteFallsBackToNativeWithSanitizedTokens() async throws {
         // Scenario name preserved: VM not provisioned → host fallback for runShell.
         let repoURL = try makeTemporaryDirectory(prefix: "ProcessRunnerVMNotProvisioned")
-        let launchPlan = CodexExecutionLaunchPlan.plan(
+        let launchPlan = AgentExecutionLaunchPlan.plan(
             repoURL: repoURL,
             preference: .sharedVM,
             vmReadiness: .notProvisioned
         )
-        var capturedInvocation: CodexExecutionInvocation?
+        var capturedInvocation: AgentExecutionInvocation?
 
         _ = try await ProcessRunner.runShell(
             "swift test",
@@ -125,12 +124,12 @@ final class ProcessRunnerExecutionRouteTests: XCTestCase {
     func testFeatureDevcontainerShellRouteFallsBackToNativeWithSanitizedTokens() async throws {
         // Scenario name preserved: VM installing → host fallback.
         let repoURL = try makeTemporaryDirectory(prefix: "ProcessRunnerVMInstalling")
-        let launchPlan = CodexExecutionLaunchPlan.plan(
+        let launchPlan = AgentExecutionLaunchPlan.plan(
             repoURL: repoURL,
             preference: .sharedVM,
             vmReadiness: .installing(fractionCompleted: 0.3)
         )
-        var capturedInvocation: CodexExecutionInvocation?
+        var capturedInvocation: AgentExecutionInvocation?
 
         _ = try await ProcessRunner.runShell(
             "swift test",
@@ -154,15 +153,14 @@ final class ProcessRunnerExecutionRouteTests: XCTestCase {
         let route = SharedVMRoute(
             sshDestination: "compass@192.0.2.30",
             hostWorktreeURL: repoURL,
-            guestWorkspacePath: "/opt/compass/workspaces/dev-CCC/worktree",
-            guestCodexPath: "/opt/compass/codex/codex"
+            guestWorkspacePath: "/opt/compass/workspaces/dev-CCC/worktree"
         )
-        let launchPlan = CodexExecutionLaunchPlan(
+        let launchPlan = AgentExecutionLaunchPlan(
             selectedPreference: .sharedVM,
             effectiveRoute: .sharedVM(route),
             vmReadiness: .ready(sshDestination: route.sshDestination)
         )
-        var captured: [CodexExecutionInvocation] = []
+        var captured: [AgentExecutionInvocation] = []
 
         _ = try await ProcessRunner.runShell(
             "swift test --filter CompassTests",
@@ -183,12 +181,12 @@ final class ProcessRunnerExecutionRouteTests: XCTestCase {
     func testBuildDevcontainerShellRouteFallsBackToNativeWhenBuildFails() async throws {
         // Scenario name preserved: error readiness → host fallback.
         let repoURL = try makeTemporaryDirectory(prefix: "ProcessRunnerVMErrorFallback")
-        let launchPlan = CodexExecutionLaunchPlan.plan(
+        let launchPlan = AgentExecutionLaunchPlan.plan(
             repoURL: repoURL,
             preference: .sharedVM,
             vmReadiness: .error(detail: "boot failed 3x")
         )
-        var capturedInvocation: CodexExecutionInvocation?
+        var capturedInvocation: AgentExecutionInvocation?
 
         _ = try await ProcessRunner.runShell(
             "swift test",

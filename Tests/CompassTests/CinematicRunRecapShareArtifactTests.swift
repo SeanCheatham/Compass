@@ -85,7 +85,7 @@ final class CinematicRunRecapShareArtifactTests: XCTestCase {
         let repoURL = try makeTemporaryGitRepository(prefix: "MutationAuditPropagation")
         let workspace = CompassWorkspace(repoURL: repoURL)
         try workspace.initialize()
-        let launchPlan = CodexExecutionLaunchPlan.host()
+        let launchPlan = AgentExecutionLaunchPlan.host()
         let snapshot = SessionExecutionEnvironmentSnapshot(
             phase: "Mutation",
             attempt: 1,
@@ -662,9 +662,9 @@ final class CinematicRunRecapShareArtifactTests: XCTestCase {
         startedAt: Double,
         endedAt: Double,
         outputTail: String,
-        launchPlan: CodexExecutionLaunchPlan
+        launchPlan: AgentExecutionLaunchPlan
     ) -> SessionMutationTestingExecution {
-        let readiness = CodexMutationTestingPlan(
+        let readiness = AgentMutationTestingPlan(
             state: PlanState(
                 completed: [],
                 immediate: PlanNext(plan: "Run mutation testing", verify: verify),
@@ -701,11 +701,11 @@ final class CinematicRunRecapShareArtifactTests: XCTestCase {
         repoURL: URL,
         phase: String,
         attempt: Int? = 1,
-        preference: CodexExecutionEnvironmentPreference,
+        preference: AgentExecutionEnvironmentPreference,
         vmReadiness: SharedCompassVMReadiness? = nil,
         sharedVMRouteFactory: (URL) -> SharedVMRoute? = { _ in nil }
     ) -> SessionExecutionEnvironmentSnapshot {
-        let launchPlan = CodexExecutionLaunchPlan.plan(
+        let launchPlan = AgentExecutionLaunchPlan.plan(
             repoURL: repoURL,
             preference: preference,
             vmReadiness: vmReadiness,

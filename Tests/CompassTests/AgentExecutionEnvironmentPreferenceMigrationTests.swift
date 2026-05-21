@@ -3,10 +3,10 @@ import Foundation
 import XCTest
 
 /// Migration coverage for the Phase 5/6 pivot: the persisted record schema gained a
-/// new `developSandbox` field while `codexExecutionEnvironmentPreference` retains its
+/// new `developSandbox` field while `agentExecutionEnvironmentPreference` retains its
 /// existing meaning. Old records on disk must still decode cleanly, and the legacy
 /// `devcontainer_preferred` raw value must NOT auto-enrol into the shared VM.
-final class CodexExecutionEnvironmentPreferenceMigrationTests: XCTestCase {
+final class AgentExecutionEnvironmentPreferenceMigrationTests: XCTestCase {
     func testLegacyDevcontainerPreferredDecodesAsHostAndDevelopSandboxDefaultsToHost() throws {
         let record = try decodeRecord("""
         {
@@ -18,7 +18,7 @@ final class CodexExecutionEnvironmentPreferenceMigrationTests: XCTestCase {
         }
         """)
 
-        XCTAssertEqual(record.codexExecutionEnvironmentPreference, .host)
+        XCTAssertEqual(record.agentExecutionEnvironmentPreference, .host)
         XCTAssertEqual(record.developSandbox, .host)
     }
 
@@ -33,7 +33,7 @@ final class CodexExecutionEnvironmentPreferenceMigrationTests: XCTestCase {
         }
         """)
 
-        XCTAssertEqual(record.codexExecutionEnvironmentPreference, .host)
+        XCTAssertEqual(record.agentExecutionEnvironmentPreference, .host)
     }
 
     func testSharedVMRawValueDecodesAsSharedVMPreference() throws {
@@ -47,7 +47,7 @@ final class CodexExecutionEnvironmentPreferenceMigrationTests: XCTestCase {
         }
         """)
 
-        XCTAssertEqual(record.codexExecutionEnvironmentPreference, .sharedVM)
+        XCTAssertEqual(record.agentExecutionEnvironmentPreference, .sharedVM)
     }
 
     func testRecordWithoutDevelopSandboxKeyDefaultsToHost() throws {
@@ -110,7 +110,7 @@ final class CodexExecutionEnvironmentPreferenceMigrationTests: XCTestCase {
         XCTAssertNotEqual(record.developSandbox, .sharedVM)
     }
 
-    func testCodexExecutionEnvironmentPreferenceAndDevelopSandboxAreIndependent() throws {
+    func testAgentExecutionEnvironmentPreferenceAndDevelopSandboxAreIndependent() throws {
         // A record may legitimately store .host for the env preference and
         // .sharedVM for developSandbox, or vice-versa.
         let envHostSandboxShared = try decodeRecord("""
@@ -123,7 +123,7 @@ final class CodexExecutionEnvironmentPreferenceMigrationTests: XCTestCase {
           "developSandbox": "shared_vm"
         }
         """)
-        XCTAssertEqual(envHostSandboxShared.codexExecutionEnvironmentPreference, .host)
+        XCTAssertEqual(envHostSandboxShared.agentExecutionEnvironmentPreference, .host)
         XCTAssertEqual(envHostSandboxShared.developSandbox, .sharedVM)
 
         let envSharedSandboxHost = try decodeRecord("""
@@ -136,7 +136,7 @@ final class CodexExecutionEnvironmentPreferenceMigrationTests: XCTestCase {
           "developSandbox": "host"
         }
         """)
-        XCTAssertEqual(envSharedSandboxHost.codexExecutionEnvironmentPreference, .sharedVM)
+        XCTAssertEqual(envSharedSandboxHost.agentExecutionEnvironmentPreference, .sharedVM)
         XCTAssertEqual(envSharedSandboxHost.developSandbox, .host)
     }
 

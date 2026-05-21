@@ -185,19 +185,19 @@ final class PlanWorkflowOverviewTests: XCTestCase {
             state: makeState(
                 immediate: PlanNext(
                     plan: "Implement mutation readiness",
-                    verify: "swift test --filter CodexMutationTestingPlanTests",
+                    verify: "swift test --filter AgentMutationTestingPlanTests",
                     estimatedDifficulty: .medium
                 )
             ),
             languageProfile: profile(.swift),
-            launchPlan: CodexExecutionLaunchPlan.host(selectedPreference: .host)
+            launchPlan: AgentExecutionLaunchPlan.host(selectedPreference: .host)
         )
 
         let readiness = overview.immediate.mutationTestingReadiness
         XCTAssertEqual(readiness?.statusIdentifier, "ready")
         XCTAssertEqual(readiness?.routeIdentifier, "native-route")
         XCTAssertEqual(readiness?.languageIdentifier, "swift")
-        XCTAssertEqual(readiness?.seedCommandLabel, "swift test --filter CodexMutationTestingPlanTests")
+        XCTAssertEqual(readiness?.seedCommandLabel, "swift test --filter AgentMutationTestingPlanTests")
         XCTAssertTrue(readiness?.badgeLabel.contains("Mutation: Native") == true)
         XCTAssertNil(overview.midTerm.mutationTestingReadiness)
         XCTAssertNil(overview.longTerm.mutationTestingReadiness)
@@ -207,7 +207,7 @@ final class PlanWorkflowOverviewTests: XCTestCase {
         let overview = PlanWorkflowOverview(
             state: makeState(immediate: nil),
             languageProfile: profile(.swift),
-            launchPlan: CodexExecutionLaunchPlan.host(selectedPreference: .host)
+            launchPlan: AgentExecutionLaunchPlan.host(selectedPreference: .host)
         )
 
         XCTAssertTrue(overview.immediate.isEmpty)

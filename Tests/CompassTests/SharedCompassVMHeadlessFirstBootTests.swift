@@ -106,7 +106,7 @@ final class SharedCompassVMHeadlessFirstBootTests: XCTestCase {
         // from a LaunchDaemon at first boot on Apple Silicon because it
         // cannot reach Keybag for Secure Token provisioning. We bypass
         // it entirely and plant the dslocal record directly via dscl;
-        // SSH + sudo + codex work fine without a Secure Token, and we
+        // SSH + sudo work fine without a Secure Token, and we
         // don't enable FileVault.
         let script = renderStandardScript()
         XCTAssertFalse(
@@ -238,12 +238,6 @@ final class SharedCompassVMHeadlessFirstBootTests: XCTestCase {
         XCTAssertTrue(script.contains("/Volumes/My Shared Files/compass-workspaces"))
     }
 
-    func testBootstrapScriptInstallsCodexWhenStaged() {
-        let script = renderStandardScript()
-        XCTAssertTrue(script.contains("install -m 755 \"$CODEX\" /usr/local/bin/codex"))
-        XCTAssertTrue(script.contains("install one inside the guest manually"))
-    }
-
     func testBootstrapScriptPlantsAutoLoginSoVMBootsStraightToDesktop() {
         // The graphical login window stays at the username/password
         // prompt by default — Compass drives the guest entirely
@@ -277,15 +271,12 @@ final class SharedCompassVMHeadlessFirstBootTests: XCTestCase {
         )
     }
 
-    func testBootstrapScriptPlantsZshenvSoSSHFindsCodexOnPATH() {
+    func testBootstrapScriptPlantsZshenvSoSSHFindsBinariesOnPATH() {
         // macOS sshd runs `ssh user@host command` as a non-interactive,
         // non-login zsh, which skips /etc/zprofile and therefore
         // path_helper — leaving PATH=/usr/bin:/bin:/usr/sbin:/sbin and
-        // /usr/local/bin (codex's install dir) off PATH. Compass's
-        // codex auth probe (`command -v codex`) then exits 1 with no
-        // stderr and the user is told "Could not determine codex auth
-        // state". Plant ~/.zshenv (sourced for EVERY zsh, including
-        // non-interactive SSH) so PATH includes /usr/local/bin.
+        // /usr/local/bin off PATH. Plant ~/.zshenv (sourced for EVERY zsh,
+        // including non-interactive SSH) so PATH includes /usr/local/bin.
         let script = renderStandardScript()
         XCTAssertTrue(
             script.contains("$GUEST_HOME/.zshenv"),
@@ -328,7 +319,6 @@ final class SharedCompassVMHeadlessFirstBootTests: XCTestCase {
         let inputs = SharedCompassVMHeadlessFirstBoot.RenderInputs.makeStandard(
             profile: profile,
             publicKeyData: Data("ssh-ed25519 AAAA fake".utf8),
-            codexBinaryData: Data("#!/bin/sh\necho fake\n".utf8),
             generatedPassword: "hunter2-not-really"
         )
         let payload = SharedCompassVMHeadlessFirstBoot.renderPayload(from: inputs)
@@ -340,20 +330,7 @@ final class SharedCompassVMHeadlessFirstBootTests: XCTestCase {
         XCTAssertTrue(payload.bootstrapScript.contains("set -euo pipefail"))
         XCTAssertTrue(payload.sudoersFragment.contains("NOPASSWD"))
         XCTAssertEqual(payload.stagedPublicKey, inputs.publicKeyData)
-        XCTAssertEqual(payload.stagedCodexBinary, inputs.codexBinaryData)
         XCTAssertEqual(payload.stagedPassword, "hunter2-not-really")
-    }
-
-    func testRenderPayloadOmitsCodexWhenNotProvided() {
-        let profile = SharedCompassVMHeadlessFirstBoot.Profile.standard(macOSMajor: 16)
-        let inputs = SharedCompassVMHeadlessFirstBoot.RenderInputs.makeStandard(
-            profile: profile,
-            publicKeyData: Data("ssh-ed25519 AAAA fake".utf8),
-            codexBinaryData: nil,
-            generatedPassword: "x"
-        )
-        let payload = SharedCompassVMHeadlessFirstBoot.renderPayload(from: inputs)
-        XCTAssertNil(payload.stagedCodexBinary)
     }
 
     // MARK: - Helpers
@@ -363,7 +340,6 @@ final class SharedCompassVMHeadlessFirstBootTests: XCTestCase {
         let inputs = SharedCompassVMHeadlessFirstBoot.RenderInputs.makeStandard(
             profile: profile,
             publicKeyData: Data(),
-            codexBinaryData: nil,
             generatedPassword: "ignored"
         )
         return SharedCompassVMHeadlessFirstBoot.renderBootstrapScript(inputs: inputs)

@@ -97,12 +97,12 @@ final class PlanSessionHistoryTests: XCTestCase {
     func testUsesLatestRuntimeRouteSummaryForHistoryItems() throws {
         let planSnapshot = SessionExecutionEnvironmentSnapshot(
             phase: "Plan",
-            launchPlan: CodexExecutionLaunchPlan.host()
+            launchPlan: AgentExecutionLaunchPlan.host()
         )
         let verifySnapshot = SessionExecutionEnvironmentSnapshot(
             phase: "Verify",
             attempt: 2,
-            launchPlan: CodexExecutionLaunchPlan.host(
+            launchPlan: AgentExecutionLaunchPlan.host(
                 selectedPreference: .sharedVM,
                 fallbackReason: "Shared VM unavailable: 2-guest cap."
             )
@@ -800,8 +800,8 @@ final class PlanSessionHistoryTests: XCTestCase {
         endedAt: Double,
         outputTail: String
     ) -> SessionMutationTestingExecution {
-        let launchPlan = CodexExecutionLaunchPlan.host()
-        let readiness = CodexMutationTestingPlan(
+        let launchPlan = AgentExecutionLaunchPlan.host()
+        let readiness = AgentMutationTestingPlan(
             state: PlanState(
                 completed: [],
                 immediate: PlanNext(plan: "Run mutation testing", verify: verify),
@@ -837,7 +837,7 @@ final class PlanSessionHistoryTests: XCTestCase {
     private func makeRuntimeSnapshot(
         repoPrefix: String,
         devcontainerJSON: String = "",
-        preference: CodexExecutionEnvironmentPreference,
+        preference: AgentExecutionEnvironmentPreference,
         containerToolPath: String? = nil,
         phase: String = "Plan",
         vmReadiness: SharedCompassVMReadiness? = nil,
@@ -846,7 +846,7 @@ final class PlanSessionHistoryTests: XCTestCase {
         let repoURL = try makeTemporaryDirectory(prefix: repoPrefix)
         _ = devcontainerJSON
         _ = containerToolPath
-        let plan = CodexExecutionLaunchPlan.plan(
+        let plan = AgentExecutionLaunchPlan.plan(
             repoURL: repoURL,
             preference: preference,
             vmReadiness: vmReadiness,
