@@ -1041,7 +1041,11 @@ private struct ProjectRunControls: View {
                 Divider()
                 ForEach(Array(executionEnvironmentMenu.items.enumerated()), id: \.element.id) { index, item in
                     Button {
-                        project.agentExecutionEnvironmentPreference = item.preference
+                        let target = item.preference.developSandbox
+                        if target == .sharedVM, SharedCompassVM.shared.readiness.isUnavailable {
+                            return
+                        }
+                        project.developSandbox = target
                         model.saveProjects()
                     } label: {
                         Label(item.title, systemImage: item.systemImage)

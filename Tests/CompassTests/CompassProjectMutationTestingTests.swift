@@ -72,7 +72,6 @@ final class CompassProjectMutationTestingTests: XCTestCase {
         let workspace = try initializedWorkspace(repoURL: repoURL, state: state)
         let project = CompassProject(
             repoURL: repoURL,
-            agentExecutionEnvironmentPreference: .sharedVM,
             mutationTestingRunner: { _, _, _, _, _ in
                 ProcessResult(
                     exitCode: 23,
@@ -141,10 +140,7 @@ final class CompassProjectMutationTestingTests: XCTestCase {
 
     func testRuntimeMenuMutationActionDescriptorsCoverDisabledStatesAndNativeFallback() async throws {
         let repoURL = try await makeTemporaryGitRepository(prefix: "CompassProjectMutationMenu")
-        let project = CompassProject(
-            repoURL: repoURL,
-            agentExecutionEnvironmentPreference: .sharedVM
-        )
+        let project = CompassProject(repoURL: repoURL)
 
         project.state = PlanState(completed: [], immediate: nil, midTerm: "", longTerm: "")
         project.languageProfile = profile(.swift)

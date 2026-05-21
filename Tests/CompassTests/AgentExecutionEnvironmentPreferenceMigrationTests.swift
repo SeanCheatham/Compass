@@ -2,12 +2,14 @@ import Foundation
 @testable import Compass
 import XCTest
 
-/// Migration coverage for the Phase 5/6 pivot: the persisted record schema gained a
-/// new `developSandbox` field while `agentExecutionEnvironmentPreference` retains its
-/// existing meaning. Old records on disk must still decode cleanly, and the legacy
-/// `devcontainer_preferred` raw value must NOT auto-enrol into the shared VM.
+/// Migration coverage for the legacy `codexExecutionEnvironmentPreference` JSON key.
+/// The field is no longer stored on `KnownProjectRecord` — `developSandbox` is the
+/// only persisted sandbox preference. When the new key is absent on disk, the legacy
+/// raw value seeds `developSandbox` so a user who picked "Shared VM" before the
+/// rename carries that choice forward. The pre-pivot `devcontainer_preferred` raw
+/// value must NOT auto-enrol a project into the shared VM.
 final class AgentExecutionEnvironmentPreferenceMigrationTests: XCTestCase {
-    func testLegacyDevcontainerPreferredDecodesAsHostAndDevelopSandboxDefaultsToHost() throws {
+    func testLegacyDevcontainerPreferredSeedsDevelopSandboxAsHost() throws {
         let record = try decodeRecord("""
         {
           "id": "11111111-1111-1111-1111-111111111111",
@@ -18,11 +20,10 @@ final class AgentExecutionEnvironmentPreferenceMigrationTests: XCTestCase {
         }
         """)
 
-        XCTAssertEqual(record.agentExecutionEnvironmentPreference, .host)
         XCTAssertEqual(record.developSandbox, .host)
     }
 
-    func testNativeMacosRawValueDecodesAsHostPreference() throws {
+    func testLegacyNativeMacosSeedsDevelopSandboxAsHost() throws {
         let record = try decodeRecord("""
         {
           "id": "22222222-2222-2222-2222-222222222222",
@@ -33,10 +34,12 @@ final class AgentExecutionEnvironmentPreferenceMigrationTests: XCTestCase {
         }
         """)
 
-        XCTAssertEqual(record.agentExecutionEnvironmentPreference, .host)
+        XCTAssertEqual(record.developSandbox, .host)
     }
 
-    func testSharedVMRawValueDecodesAsSharedVMPreference() throws {
+    func testLegacySharedVMSeedsDevelopSandboxAsSharedVM() throws {
+        // Carries a user's pre-rename "Shared VM" selection forward into the
+        // authoritative developSandbox field.
         let record = try decodeRecord("""
         {
           "id": "33333333-3333-3333-3333-333333333333",
@@ -47,7 +50,7 @@ final class AgentExecutionEnvironmentPreferenceMigrationTests: XCTestCase {
         }
         """)
 
-        XCTAssertEqual(record.agentExecutionEnvironmentPreference, .sharedVM)
+        XCTAssertEqual(record.developSandbox, .sharedVM)
     }
 
     func testRecordWithoutDevelopSandboxKeyDefaultsToHost() throws {
@@ -94,8 +97,7 @@ final class AgentExecutionEnvironmentPreferenceMigrationTests: XCTestCase {
     func testDevcontainerPreferredDoesNotImplicitlyEnrolDevelopSandboxIntoSharedVM() throws {
         // Critical pivot semantics: even though some users had selected the
         // pre-pivot "devcontainer_preferred" option, the migration MUST NOT
-        // flip their per-project sandbox into the shared VM. Both fields land
-        // on .host.
+        // flip their per-project sandbox into the shared VM.
         let record = try decodeRecord("""
         {
           "id": "77777777-7777-7777-7777-777777777777",
@@ -107,13 +109,12 @@ final class AgentExecutionEnvironmentPreferenceMigrationTests: XCTestCase {
         """)
 
         XCTAssertEqual(record.developSandbox, .host, "Legacy devcontainer_preferred must NOT auto-enrol into shared VM")
-        XCTAssertNotEqual(record.developSandbox, .sharedVM)
     }
 
-    func testAgentExecutionEnvironmentPreferenceAndDevelopSandboxAreIndependent() throws {
-        // A record may legitimately store .host for the env preference and
-        // .sharedVM for developSandbox, or vice-versa.
-        let envHostSandboxShared = try decodeRecord("""
+    func testNewDevelopSandboxKeyTakesPrecedenceOverLegacyKey() throws {
+        // When both keys are present, `developSandbox` wins — the legacy key is
+        // a one-way fallback for records written before the field existed.
+        let newWinsOverHost = try decodeRecord("""
         {
           "id": "88888888-8888-8888-8888-888888888888",
           "path": "/tmp/host-shared",
@@ -123,10 +124,9 @@ final class AgentExecutionEnvironmentPreferenceMigrationTests: XCTestCase {
           "developSandbox": "shared_vm"
         }
         """)
-        XCTAssertEqual(envHostSandboxShared.agentExecutionEnvironmentPreference, .host)
-        XCTAssertEqual(envHostSandboxShared.developSandbox, .sharedVM)
+        XCTAssertEqual(newWinsOverHost.developSandbox, .sharedVM)
 
-        let envSharedSandboxHost = try decodeRecord("""
+        let newWinsOverShared = try decodeRecord("""
         {
           "id": "99999999-9999-9999-9999-999999999999",
           "path": "/tmp/shared-host",
@@ -136,8 +136,25 @@ final class AgentExecutionEnvironmentPreferenceMigrationTests: XCTestCase {
           "developSandbox": "host"
         }
         """)
-        XCTAssertEqual(envSharedSandboxHost.agentExecutionEnvironmentPreference, .sharedVM)
-        XCTAssertEqual(envSharedSandboxHost.developSandbox, .host)
+        XCTAssertEqual(newWinsOverShared.developSandbox, .host)
+    }
+
+    func testEncodeDropsTheLegacyKey() throws {
+        // After the round trip we no longer write the legacy on-disk key —
+        // `developSandbox` is the only persisted sandbox preference.
+        let record = KnownProjectRecord(
+            id: UUID(uuidString: "AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA")!,
+            path: "/tmp/round-trip",
+            addedAt: 0,
+            lastOpenedAt: 0,
+            developSandbox: .sharedVM
+        )
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+        let data = try encoder.encode(record)
+        let json = String(data: data, encoding: .utf8) ?? ""
+        XCTAssertFalse(json.contains("codexExecutionEnvironmentPreference"))
+        XCTAssertTrue(json.contains("\"developSandbox\":\"shared_vm\""))
     }
 
     private func decodeRecord(_ json: String) throws -> KnownProjectRecord {

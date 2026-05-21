@@ -44,6 +44,24 @@ enum AgentExecutionEnvironmentPreference: String, Codable, CaseIterable, Identif
             return "macwindow.on.rectangle"
         }
     }
+
+    init(developSandbox: DevelopSandboxPreference) {
+        switch developSandbox {
+        case .host:
+            self = .host
+        case .sharedVM:
+            self = .sharedVM
+        }
+    }
+
+    var developSandbox: DevelopSandboxPreference {
+        switch self {
+        case .host:
+            return .host
+        case .sharedVM:
+            return .sharedVM
+        }
+    }
 }
 
 struct AgentExecutionEnvironmentReadiness: Equatable {
