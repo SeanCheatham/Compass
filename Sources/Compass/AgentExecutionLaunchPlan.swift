@@ -224,24 +224,6 @@ struct AgentExecutionLaunchPlan: Equatable {
         }
     }
 
-    func commandPath(forHostURL url: URL) -> String {
-        switch effectiveRoute {
-        case .host:
-            return url.standardizedFileURL.path
-        case let .sharedVM(route):
-            return route.guestPath(forHostURL: url) ?? url.standardizedFileURL.path
-        }
-    }
-
-    func agentWorkingDirectoryPath(forHostURL url: URL) -> String {
-        switch effectiveRoute {
-        case .host:
-            return url.standardizedFileURL.path
-        case let .sharedVM(route):
-            return route.guestWorkspacePath
-        }
-    }
-
     func shellInvocation(command: String, hostWorkingDirectory: URL) -> AgentExecutionInvocation {
         switch effectiveRoute {
         case .host:
