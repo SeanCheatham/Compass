@@ -24,44 +24,6 @@ final class AgentBashRunnerTests: XCTestCase {
         XCTAssertEqual(result.stdout, "marker")
     }
 
-    // MARK: - SharedVMBashRunner
-
-    func testSharedVMBashRunnerBuildsRemoteCommandWithCdAndQuotedShell() {
-        let remote = AgentSharedVMBashRunner.buildRemoteCommand(
-            guestPath: "/opt/compass/workspaces/proj",
-            command: "swift test"
-        )
-        XCTAssertEqual(remote, "cd /opt/compass/workspaces/proj && /bin/zsh -lc 'swift test'")
-    }
-
-    func testSharedVMBashRunnerQuotesPathsContainingSpaces() {
-        let remote = AgentSharedVMBashRunner.buildRemoteCommand(
-            guestPath: "/opt/compass/workspaces/project name",
-            command: "swift test"
-        )
-        XCTAssertEqual(remote, "cd '/opt/compass/workspaces/project name' && /bin/zsh -lc 'swift test'")
-    }
-
-    func testSharedVMBashRunnerEmbedsEnvironmentVariablesSorted() {
-        let remote = AgentSharedVMBashRunner.buildRemoteCommand(
-            guestPath: "/opt/compass/workspaces/proj",
-            command: "swift test",
-            environmentVariables: ["FOO": "bar", "BAR": "baz with spaces"]
-        )
-        XCTAssertEqual(
-            remote,
-            "cd /opt/compass/workspaces/proj && env BAR='baz with spaces' FOO=bar /bin/zsh -lc 'swift test'"
-        )
-    }
-
-    func testSharedVMBashRunnerQuotesCommandsContainingSingleQuotes() {
-        let remote = AgentSharedVMBashRunner.buildRemoteCommand(
-            guestPath: "/opt/compass/workspaces/proj",
-            command: "echo 'hi'"
-        )
-        XCTAssertEqual(remote, "cd /opt/compass/workspaces/proj && /bin/zsh -lc 'echo '\\''hi'\\'''")
-    }
-
     // MARK: - AgentBashTool wires the runner
 
     func testAgentBashToolDispatchesThroughInjectedRunner() async throws {
