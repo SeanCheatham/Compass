@@ -35,12 +35,22 @@ enum SharedCompassVMHeadlessFirstBoot {
     /// LaunchDaemon plist label. Must match the plist filename minus the extension.
     static let launchDaemonLabel = "com.seancheatham.Compass.firstboot"
 
-    /// LaunchAgent plist label for the in-guest Compass agent. LaunchAgents
-    /// run inside a logged-in user's session (not the system context), which
-    /// is exactly what we need: sshd-spawned processes can't read the
-    /// VirtioFS-mounted worktree, but processes loaded under a GUI session
-    /// inherit the right TCC profile for accessing it.
-    static let guestAgentLaunchAgentLabel = "com.seancheatham.Compass.guest-agent"
+    /// LaunchDaemon plist label for the in-guest Compass agent.
+    ///
+    /// Earlier prototypes ran this as a LaunchAgent under the auto-logged-in
+    /// `compass` user, betting that the GUI session's TCC profile would
+    /// grant access to the VirtioFS share. Live testing on macOS 26.x
+    /// disproved that bet (AppleVirtIOFS is TCC-blocked from every process,
+    /// LaunchAgent included), so Phase 10 dropped VirtioFS entirely and
+    /// the agent now operates on a guest-local copy of the worktree — no
+    /// TCC-protected resources involved. With no GUI-session prerequisite
+    /// left, switching to a LaunchDaemon (which loads at boot, no user
+    /// session required) sidesteps the macOS-26 auto-login regression
+    /// where `SecurityAgent` logs `no autologin because no conditions for
+    /// autologin were met` even with kcpassword + autoLoginUser planted.
+    /// `UserName=compass` keeps the daemon process running as the compass
+    /// user so the worktree files it writes have the expected ownership.
+    static let guestAgentLaunchDaemonLabel = "com.seancheatham.Compass.guest-agent"
 
     /// Sentinel the bootstrap script writes to the host-readable status file
     /// once it has completed all idempotent steps. Mostly informational —
@@ -97,13 +107,14 @@ enum SharedCompassVMHeadlessFirstBoot {
         /// service-helper executables. root:wheel mode 0755.
         var guestAgentBinaryGuestPath: String
 
-        /// Where the LaunchAgent plist for the guest agent lives on the
-        /// guest. `/Library/LaunchAgents` is the system-wide LaunchAgent
-        /// directory — launchd loads it for every GUI user session, which
-        /// is exactly what we need so the agent comes up the moment the
-        /// auto-logged-in `compass` user reaches its desktop session.
+        /// Where the LaunchDaemon plist for the guest agent lives on the
+        /// guest. `/Library/LaunchDaemons` is loaded by launchd at boot in
+        /// the system context — no user session required, which dodges the
+        /// macOS-26 auto-login regression observed live. The daemon process
+        /// drops to UID 501 (the compass user) via `UserName` in the plist
+        /// so the worktree files it writes have the right ownership.
         /// root:wheel mode 0644.
-        var guestAgentLaunchAgentGuestPath: String
+        var guestAgentLaunchDaemonGuestPath: String
 
         /// Default profile shared across recent macOS majors. Override fields
         /// per-version in the registry when Apple moves things around.
@@ -124,7 +135,7 @@ enum SharedCompassVMHeadlessFirstBoot {
                 stagedPasswordFileName: "user.password",
                 completionMarkerName: bootstrapCompletionMarker,
                 guestAgentBinaryGuestPath: "/usr/local/libexec/compass-guest-agent",
-                guestAgentLaunchAgentGuestPath: "/Library/LaunchAgents/\(guestAgentLaunchAgentLabel).plist"
+                guestAgentLaunchDaemonGuestPath: "/Library/LaunchDaemons/\(guestAgentLaunchDaemonLabel).plist"
             )
         }
     }
@@ -203,9 +214,10 @@ enum SharedCompassVMHeadlessFirstBoot {
         /// Raw bytes of the CompassGuestAgent executable. Planter copies
         /// these verbatim to `profile.guestAgentBinaryGuestPath`.
         var guestAgentBinary: Data
-        /// LaunchAgent plist loaded by every GUI session — starts the
-        /// guest agent under the auto-logged-in `compass` user.
-        var guestAgentLaunchAgentPlist: Data
+        /// LaunchDaemon plist loaded by launchd at boot — starts the guest
+        /// agent under the compass user via `UserName`, no GUI session
+        /// required.
+        var guestAgentLaunchDaemonPlist: Data
     }
 
     /// Inputs the planter assembles before rendering a `Payload`.
@@ -244,7 +256,7 @@ enum SharedCompassVMHeadlessFirstBoot {
         let plist = renderLaunchDaemonPlist(profile: inputs.profile)
         let script = renderBootstrapScript(inputs: inputs)
         let sudoers = renderSudoersFragment(guestUserName: inputs.guestUserName)
-        let guestAgentPlist = renderGuestAgentLaunchAgentPlist(profile: inputs.profile)
+        let guestAgentPlist = renderGuestAgentLaunchDaemonPlist(profile: inputs.profile)
         return Payload(
             profile: inputs.profile,
             guestUserName: inputs.guestUserName,
@@ -255,27 +267,31 @@ enum SharedCompassVMHeadlessFirstBoot {
             stagedPublicKey: inputs.publicKeyData,
             stagedPassword: inputs.generatedPassword,
             guestAgentBinary: inputs.guestAgentBinary,
-            guestAgentLaunchAgentPlist: Data(guestAgentPlist.utf8)
+            guestAgentLaunchDaemonPlist: Data(guestAgentPlist.utf8)
         )
     }
 
-    /// LaunchAgent plist for the in-guest Compass agent. Loaded by launchd
-    /// for every GUI user session; the binary listens on AF_VSOCK at the
-    /// canonical Compass port. `KeepAlive=true` so a crashed agent comes
-    /// back automatically — the host treats vsock unavailability as a
-    /// hard failure, so leaving a dead agent isn't acceptable.
-    static func renderGuestAgentLaunchAgentPlist(profile: Profile) -> String {
+    /// LaunchDaemon plist for the in-guest Compass agent. Loaded by
+    /// launchd at boot in the system context (no user session required),
+    /// then drops to the compass user via `UserName`. The binary listens
+    /// on AF_VSOCK at the canonical Compass port. `KeepAlive=true` so a
+    /// crashed agent comes back automatically — the host treats vsock
+    /// unavailability as a hard failure, so leaving a dead agent isn't
+    /// acceptable.
+    static func renderGuestAgentLaunchDaemonPlist(profile: Profile) -> String {
         """
         <?xml version="1.0" encoding="UTF-8"?>
         <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTD/PropertyList-1.0.dtd">
         <plist version="1.0">
         <dict>
             <key>Label</key>
-            <string>\(guestAgentLaunchAgentLabel)</string>
+            <string>\(guestAgentLaunchDaemonLabel)</string>
             <key>ProgramArguments</key>
             <array>
                 <string>\(profile.guestAgentBinaryGuestPath)</string>
             </array>
+            <key>UserName</key>
+            <string>\(SharedCompassVMBundle.State.defaultGuestUserName)</string>
             <key>RunAtLoad</key>
             <true/>
             <key>KeepAlive</key>

@@ -287,19 +287,23 @@ final class SharedCompassVMHeadlessFirstBootTests: XCTestCase {
         )
     }
 
-    func testGuestAgentLaunchAgentLandsInPerUserLaunchAgentDirNotLaunchDaemons() {
-        // /Library/LaunchAgents is loaded for every GUI user session by
-        // launchd. /Library/LaunchDaemons is loaded by the system context
-        // (no user) — sshd-spawned children with no GUI session inheritance
-        // are exactly the TCC-blocked context we're trying to escape. If
-        // this plist drifts into /Library/LaunchDaemons the agent would
-        // come back to that same broken state, so pin the directory.
+    func testGuestAgentLaunchDaemonLandsInSystemLaunchDaemonsDir() {
+        // The guest agent ran as a LaunchAgent in Phase 7/8 because we
+        // thought a GUI-session TCC profile was required to read the
+        // VirtioFS share. Phase 10 dropped VirtioFS (it's TCC-blocked from
+        // every process anyway), so there's no GUI-session prerequisite
+        // left — and live testing on macOS 26 showed auto-login is
+        // unreliable enough that SecurityAgent often refuses to start a
+        // GUI session at all. Switching to a LaunchDaemon (which loads at
+        // boot in the system context, then drops to UID 501 via UserName)
+        // sidesteps the regression. Pin the directory so a future refactor
+        // doesn't accidentally roll back to LaunchAgents.
         let profile = SharedCompassVMHeadlessFirstBoot.Profile.standard(macOSMajor: 16)
         XCTAssertTrue(
-            profile.guestAgentLaunchAgentGuestPath.hasPrefix("/Library/LaunchAgents/"),
-            "guest agent must be a LaunchAgent (per-session) not a LaunchDaemon (system context)"
+            profile.guestAgentLaunchDaemonGuestPath.hasPrefix("/Library/LaunchDaemons/"),
+            "guest agent must be a LaunchDaemon (system context, no GUI session) on macOS 26+"
         )
-        XCTAssertTrue(profile.guestAgentLaunchAgentGuestPath.hasSuffix(".plist"))
+        XCTAssertTrue(profile.guestAgentLaunchDaemonGuestPath.hasSuffix(".plist"))
     }
 
     func testGuestAgentPlistReferencesItsBinaryAndUsesKeepAlive() {
@@ -308,10 +312,13 @@ final class SharedCompassVMHeadlessFirstBootTests: XCTestCase {
         // "agent crashed" from "agent never started". KeepAlive=true
         // lets launchd restart the agent within seconds of any crash,
         // so a transient crash doesn't wedge subsequent agent runs.
+        // UserName drops the daemon to the compass user so worktree
+        // ownership stays correct.
         let profile = SharedCompassVMHeadlessFirstBoot.Profile.standard(macOSMajor: 16)
-        let plist = SharedCompassVMHeadlessFirstBoot.renderGuestAgentLaunchAgentPlist(profile: profile)
+        let plist = SharedCompassVMHeadlessFirstBoot.renderGuestAgentLaunchDaemonPlist(profile: profile)
         XCTAssertTrue(plist.contains("<key>KeepAlive</key>\n    <true/>"))
         XCTAssertTrue(plist.contains("<key>RunAtLoad</key>\n    <true/>"))
+        XCTAssertTrue(plist.contains("<key>UserName</key>\n    <string>compass</string>"))
         XCTAssertTrue(
             plist.contains("<string>\(profile.guestAgentBinaryGuestPath)</string>"),
             "ProgramArguments must point at the planted binary path"
@@ -381,12 +388,12 @@ final class SharedCompassVMHeadlessFirstBootTests: XCTestCase {
         XCTAssertEqual(payload.stagedPublicKey, inputs.publicKeyData)
         XCTAssertEqual(payload.stagedPassword, "hunter2-not-really")
         XCTAssertEqual(payload.guestAgentBinary, agentBytes)
-        let plistString = String(decoding: payload.guestAgentLaunchAgentPlist, as: UTF8.self)
+        let plistString = String(decoding: payload.guestAgentLaunchDaemonPlist, as: UTF8.self)
         XCTAssertTrue(
             plistString.contains(profile.guestAgentBinaryGuestPath),
-            "LaunchAgent plist must reference the planted binary path: \(plistString)"
+            "LaunchDaemon plist must reference the planted binary path: \(plistString)"
         )
-        XCTAssertTrue(plistString.contains(SharedCompassVMHeadlessFirstBoot.guestAgentLaunchAgentLabel))
+        XCTAssertTrue(plistString.contains(SharedCompassVMHeadlessFirstBoot.guestAgentLaunchDaemonLabel))
     }
 
     // MARK: - Helpers

@@ -40,9 +40,9 @@ enum SharedCompassVMHeadlessPlanter {
         /// The CompassGuestAgent binary, copied verbatim from the host's
         /// build output into the guest's `/usr/local/libexec/`.
         static let guestAgentBinary = "compass-guest-agent"
-        /// The LaunchAgent plist that loads the guest agent into every
-        /// GUI user session on the guest.
-        static let guestAgentLaunchAgentPlist = "com.seancheatham.Compass.guest-agent.plist"
+        /// The LaunchDaemon plist that loads the guest agent at boot in
+        /// the system context (dropping to the compass user via UserName).
+        static let guestAgentLaunchDaemonPlist = "com.seancheatham.Compass.guest-agent.plist"
     }
 
     // MARK: - Errors
@@ -180,7 +180,7 @@ enum SharedCompassVMHeadlessPlanter {
             (StagedFile.publicKey, payload.stagedPublicKey),
             (StagedFile.passwordFile, Data(payload.stagedPassword.utf8)),
             (StagedFile.guestAgentBinary, payload.guestAgentBinary),
-            (StagedFile.guestAgentLaunchAgentPlist, payload.guestAgentLaunchAgentPlist)
+            (StagedFile.guestAgentLaunchDaemonPlist, payload.guestAgentLaunchDaemonPlist)
         ]
         for (name, contents) in writes {
             let url = stagingDir.appendingPathComponent(name, isDirectory: false)
@@ -335,13 +335,15 @@ enum SharedCompassVMHeadlessPlanter {
           "$STAGING_DIR/\(StagedFile.guestAgentBinary)" \\
           "$MOUNT_POINT\(profile.guestAgentBinaryGuestPath)"
 
-        # Guest agent LaunchAgent plist — root:wheel 0644. /Library/LaunchAgents
-        # is the system-wide LaunchAgent dir; launchd loads it for every GUI
-        # session (once Phase 7's auto-login wakes one up).
-        install -d -o root -g wheel -m 0755 "$MOUNT_POINT\(profile.guestAgentLaunchAgentGuestPath.directoryComponent)"
+        # Guest agent LaunchDaemon plist — root:wheel 0644.
+        # /Library/LaunchDaemons is loaded by launchd at boot in the system
+        # context (no user session prerequisite — macOS-26 auto-login is
+        # unreliable). The plist's UserName key drops the daemon to UID 501
+        # so worktree files land with the right ownership.
+        install -d -o root -g wheel -m 0755 "$MOUNT_POINT\(profile.guestAgentLaunchDaemonGuestPath.directoryComponent)"
         install -o root -g wheel -m 0644 \\
-          "$STAGING_DIR/\(StagedFile.guestAgentLaunchAgentPlist)" \\
-          "$MOUNT_POINT\(profile.guestAgentLaunchAgentGuestPath)"
+          "$STAGING_DIR/\(StagedFile.guestAgentLaunchDaemonPlist)" \\
+          "$MOUNT_POINT\(profile.guestAgentLaunchDaemonGuestPath)"
 
         sync
         echo "[compass-planter] done."
