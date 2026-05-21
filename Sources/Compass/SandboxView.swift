@@ -146,6 +146,13 @@ private struct SandboxSidePanel: View {
                     )
                 case .guestPrepping:
                     SandboxHeadlessFirstBootSection(vmHost: vmHost)
+                case .provisioningDevTools(let fraction):
+                    SandboxProgressSection(
+                        title: "Installing developer tools",
+                        systemImage: "hammer",
+                        downloadFraction: 1.0,
+                        installFraction: fraction
+                    )
                 case .ready(let destination):
                     SandboxReadySection(sshDestination: destination)
                 case .unavailable(let reason):
@@ -521,6 +528,9 @@ extension SharedCompassVMReadiness {
             return "Installing macOS (\(pct)%)"
         case .guestPrepping:
             return "Finishing headless first-boot"
+        case .provisioningDevTools(let fraction):
+            let pct = Int((fraction.clamped01 * 100).rounded())
+            return "Installing developer tools (\(pct)%)"
         case .ready:
             return "Ready"
         case .error(let detail):
@@ -536,6 +546,7 @@ extension SharedCompassVMReadiness {
         case .downloadingIPSW: return "Downloading"
         case .installing: return "Installing"
         case .guestPrepping: return "Preparing"
+        case .provisioningDevTools: return "Installing tools"
         case .ready: return "Ready"
         case .error: return "Error"
         }
@@ -546,7 +557,7 @@ extension SharedCompassVMReadiness {
         switch self {
         case .ready:
             return .green
-        case .downloadingIPSW, .installing, .guestPrepping:
+        case .downloadingIPSW, .installing, .guestPrepping, .provisioningDevTools:
             return .blue
         case .unavailable:
             return .orange
@@ -563,6 +574,7 @@ extension SharedCompassVMReadiness {
         case .downloadingIPSW: return "arrow.down.circle"
         case .installing: return "internaldrive"
         case .guestPrepping: return "gearshape.2"
+        case .provisioningDevTools: return "hammer"
         case .unavailable: return "exclamationmark.triangle"
         case .error: return "xmark.octagon"
         case .notProvisioned: return "shippingbox"
@@ -575,6 +587,7 @@ extension SharedCompassVMReadiness {
         case .downloadingIPSW: return "Downloading restore image"
         case .installing: return "Installing macOS"
         case .guestPrepping: return "Finishing headless first-boot"
+        case .provisioningDevTools: return "Installing developer tools"
         case .unavailable: return "Shared VM unavailable"
         case .error: return "Shared VM error"
         case .notProvisioned: return "Sandbox not provisioned"
@@ -593,6 +606,9 @@ extension SharedCompassVMReadiness {
             return "Restoring macOS onto the VM disk. \(pct)% complete."
         case .guestPrepping:
             return "The planted LaunchDaemon is creating the guest user and bringing up sshd. Compass is polling for readiness."
+        case .provisioningDevTools(let fraction):
+            let pct = Int((fraction.clamped01 * 100).rounded())
+            return "Running headless Xcode Command Line Tools install inside the guest. One-time, ~5 minutes. \(pct)% complete."
         case .unavailable(let reason):
             return reason
         case .error(let detail):

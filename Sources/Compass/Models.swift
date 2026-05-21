@@ -368,6 +368,8 @@ struct SessionExecutionEnvironmentSnapshot: Codable, Equatable, Identifiable {
             return "installing"
         case .guestPrepping:
             return "guest-prepping"
+        case .provisioningDevTools:
+            return "provisioning-dev-tools"
         case .ready:
             return "ready"
         case .error:

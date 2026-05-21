@@ -189,6 +189,7 @@ struct SharedCompassVMBundle: Equatable {
             case downloadingIPSW
             case installing
             case guestPrepping
+            case provisioningDevTools
             case ready
         }
 

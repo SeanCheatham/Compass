@@ -128,6 +128,12 @@ struct AgentExecutionLaunchPlan: Equatable {
                     vmReadiness: readiness,
                     fallbackReason: "Shared VM guest preparation is in progress."
                 )
+            case .provisioningDevTools:
+                return host(
+                    selectedPreference: preference,
+                    vmReadiness: readiness,
+                    fallbackReason: "Shared VM is installing developer tools inside the guest."
+                )
             }
         }
     }
@@ -194,6 +200,8 @@ struct AgentExecutionLaunchPlan: Equatable {
             return "installing \(Int((fraction * 100).rounded()))%"
         case .guestPrepping:
             return "guest-prepping"
+        case let .provisioningDevTools(fraction):
+            return "provisioning-dev-tools \(Int((fraction * 100).rounded()))%"
         case let .ready(sshDestination):
             return "ready \(sshDestination)"
         case let .error(detail):

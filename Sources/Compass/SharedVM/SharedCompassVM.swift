@@ -193,6 +193,8 @@ final class SharedCompassVM: ObservableObject {
                 readiness = .guestPrepping
             case .guestPrepping:
                 readiness = .guestPrepping
+            case .provisioningDevTools:
+                readiness = .provisioningDevTools(fractionCompleted: 0)
             case .installing:
                 readiness = .installing(fractionCompleted: 0)
             case .downloadingIPSW:
