@@ -179,13 +179,18 @@ final class SharedCompassVM: ObservableObject {
         if bundle.existsOnDisk(fileManager: dependencies.fileManager) {
             switch state.provisionStep {
             case .ready:
+                // Persisted "ready" means the bundle was healthy last session,
+                // not that the guest's sshd is up *right now*. On app launch
+                // the VM has yet to be booted by `start()`, and macOS inside
+                // the guest takes several seconds to come back. Hold the
+                // in-memory readiness at `.guestPrepping` so the UI doesn't
+                // claim the VM is reachable before SSH actually responds —
+                // `performStart()` will probe and flip to `.ready` once the
+                // guest answers.
                 if let ip = state.lastKnownGoodIP {
-                    let destination = "\(state.guestUserName)@\(ip)"
-                    lastResolvedSSHDestination = destination
-                    readiness = .ready(sshDestination: destination)
-                } else {
-                    readiness = .guestPrepping
+                    lastResolvedSSHDestination = "\(state.guestUserName)@\(ip)"
                 }
+                readiness = .guestPrepping
             case .guestPrepping:
                 readiness = .guestPrepping
             case .installing:
@@ -503,11 +508,57 @@ final class SharedCompassVM: ObservableObject {
         // authorising the SSH key, and enabling Remote Login. Kick off a
         // background poller that finalises readiness once SSH responds,
         // so the user never needs to click "Mark setup complete".
+        //
+        // For subsequent boots (state is already .ready on disk), `warmup()`
+        // has held the in-memory readiness at `.guestPrepping`. Probe SSH
+        // until the guest's sshd answers, then flip the in-memory state to
+        // `.ready` — without touching the persisted state machine.
         let postStartStep = (try? bundle.loadState(fileManager: dependencies.fileManager))?.provisionStep
-        if postStartStep == .guestPrepping {
+        switch postStartStep {
+        case .guestPrepping:
             Task { [weak self] in
                 await self?.pollUntilHeadlessGuestReady()
             }
+        case .ready:
+            Task { [weak self] in
+                await self?.pollSSHAfterBootAndMarkReady()
+            }
+        default:
+            break
+        }
+    }
+
+    /// Lightweight SSH probe used on subsequent boots when the bundle is
+    /// already past first-boot setup. Unlike `pollUntilHeadlessGuestReady`,
+    /// this does not mutate persisted state — it only flips the in-memory
+    /// readiness to `.ready` once the guest's sshd answers, so the UI
+    /// reflects "actually reachable" rather than "previously was reachable".
+    private func pollSSHAfterBootAndMarkReady() async {
+        let state = (try? bundle.loadState(fileManager: dependencies.fileManager)) ?? SharedCompassVMBundle.State()
+        guard let ip = state.lastKnownGoodIP else { return }
+        let destination = "\(state.guestUserName)@\(ip)"
+        let options = SharedCompassVMGuestBridge.ConnectionOptions(
+            identityFile: bundle.privateKeyURL.path,
+            knownHostsFile: bundle.knownHostsURL.path,
+            connectTimeoutSeconds: 5
+        )
+        let deadline = Date().addingTimeInterval(300) // 5 minutes
+        var attemptIntervalNanoseconds: UInt64 = 2_000_000_000
+        while Date() < deadline {
+            let probeOK = await SharedCompassVMGuestBridge.probeSSHAvailable(
+                destination: destination,
+                options: options,
+                timeout: 5
+            )
+            if probeOK {
+                lastResolvedSSHDestination = destination
+                readiness = .ready(sshDestination: destination)
+                return
+            }
+            try? await Task.sleep(nanoseconds: attemptIntervalNanoseconds)
+            // Backoff capped at 10s so the UI doesn't stall after a slow
+            // first probe but we still avoid hammering sshd during the boot.
+            attemptIntervalNanoseconds = min(attemptIntervalNanoseconds * 2, 10_000_000_000)
         }
     }
 
