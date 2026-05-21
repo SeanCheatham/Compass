@@ -379,7 +379,8 @@ enum SharedCompassVMDevToolsProvisioner {
         if lower.contains("downloading:") || lower.contains("download started") {
             return .downloading
         }
-        if lower.contains("[compass-clt] starting") || lower.contains("[compass-clt] selected label") {
+        if lower.contains("[compass-clt]") &&
+            (lower.contains(" starting") || lower.contains("selected label")) {
             return .scriptRunning
         }
         return nil
