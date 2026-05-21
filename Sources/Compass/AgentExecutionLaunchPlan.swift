@@ -74,18 +74,17 @@ struct AgentExecutionLaunchPlan: Equatable {
 
             switch readiness {
             case .ready:
-                // The SSH-into-guest transport hits a macOS TCC wall:
-                // sshd-spawned processes can't read VirtioFS-mounted
-                // worktrees, regardless of UID. The vsock-based guest
-                // agent (planned) runs inside the user GUI session and
-                // inherits the right TCC profile. Until that lands,
-                // every sharedVM-selected run falls back to host so the
-                // model isn't handed a transport it can't actually use.
-                _ = sharedVMRouteFactory(repoURL.standardizedFileURL)
+                if let route = sharedVMRouteFactory(repoURL.standardizedFileURL) {
+                    return Self(
+                        selectedPreference: preference,
+                        effectiveRoute: .sharedVM(route),
+                        vmReadiness: readiness
+                    )
+                }
                 return host(
                     selectedPreference: preference,
                     vmReadiness: readiness,
-                    fallbackReason: "Shared VM routing temporarily disabled; vsock guest agent not yet wired."
+                    fallbackReason: "Worktree is outside the Shared VM workspaces share; this phase runs on the host."
                 )
             case let .unavailable(reason):
                 return host(

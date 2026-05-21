@@ -14,14 +14,11 @@ final class AgentExecutionLaunchPlanTests: XCTestCase {
 
     // MARK: - Routing
 
-    func testReadySharedVMFallsBackToHostUntilVsockTransportLands() throws {
-        // The SSH-into-guest transport is TCC-blocked from reading the
-        // VirtioFS-mounted worktree on macOS guests, so even a fully
-        // provisioned + ready Shared VM falls back to host today. The
-        // planner still consults the route factory (so workspace-resolution
-        // failures surface in diagnostics), but the effective route is
-        // host with an explanatory `fallbackReason`. Once the vsock guest
-        // agent lands, this assertion flips back to `.isVMRoute == true`.
+    func testReadySharedVMRoutesThroughVsockWhenFactoryProducesARoute() throws {
+        // With the vsock guest agent in place, a ready+sharedVM run with
+        // a route factory that returns a workspace-mapped route promotes
+        // to a real .sharedVM effective route. AppModel then opens a
+        // vsock connection to the guest agent for each tool call.
         let repoURL = try makeTemporaryDirectory(prefix: "VMReadyRoutes")
         let route = SharedVMRoute(
             sshDestination: "compass@192.0.2.10",
@@ -35,9 +32,10 @@ final class AgentExecutionLaunchPlanTests: XCTestCase {
             sharedVMRouteFactory: { _ in route }
         )
 
-        XCTAssertFalse(plan.isVMRoute)
-        XCTAssertEqual(plan.effectiveRouteIdentifier, "native-macos")
-        XCTAssertTrue(plan.fallbackReason?.contains("vsock") ?? false)
+        XCTAssertTrue(plan.isVMRoute)
+        XCTAssertEqual(plan.effectiveRouteIdentifier, "shared-vm")
+        XCTAssertNil(plan.fallbackReason)
+        XCTAssertEqual(plan.workspaceLabel, "/opt/compass/workspaces/dev-AAA/worktree")
     }
 
 
@@ -90,13 +88,12 @@ final class AgentExecutionLaunchPlanTests: XCTestCase {
         XCTAssertTrue(plan.fallbackReason?.contains("ssh probe failed") ?? false)
     }
 
-    func testReadyButNoRouteableFactoryStillFallsBackToHost() throws {
-        // Pre-Phase-R this asserted a workspace-share-membership fallback
-        // reason. Now every ready+sharedVM run falls back to host with
-        // the vsock-pending reason, regardless of whether the factory
-        // produces a route. The route factory is still invoked (so the
-        // route-membership check runs and any future telemetry sees it),
-        // but its result is ignored. Re-tighten when vsock lands.
+    func testReadyButNoRouteableFactoryFallsBackToHost() throws {
+        // When the VM is ready but the worktree isn't under the workspace
+        // mount (factory returns nil), the planner falls back to host with
+        // a workspace-share-membership reason. Mirrors the host-mode
+        // fallback we get when sharedVM is selected but the worktree is
+        // outside `~/Library/Caches/Compass/Worktrees/`.
         let repoURL = try makeTemporaryDirectory(prefix: "VMReadyNoRoute")
         let plan = AgentExecutionLaunchPlan.plan(
             repoURL: repoURL,
@@ -105,7 +102,7 @@ final class AgentExecutionLaunchPlanTests: XCTestCase {
             sharedVMRouteFactory: { _ in nil }
         )
         XCTAssertFalse(plan.isVMRoute)
-        XCTAssertTrue(plan.fallbackReason?.contains("vsock") ?? false)
+        XCTAssertTrue(plan.fallbackReason?.contains("outside the Shared VM workspaces share") ?? false)
     }
 
     func testBuildConfigFallsBackToNativeWhenContainerToolIsUnavailable() throws {

@@ -2037,16 +2037,13 @@ extension CompassProject {
         }
     }
 
-    /// Resolved working directory + tool backends for an agent run.
-    ///
-    /// Today this always returns a host-backed environment. The Shared VM
-    /// route used to dispatch tool calls into the guest over SSH, but
-    /// sshd-spawned processes on macOS guests are TCC-blocked from reading
-    /// VirtioFS shares — so every read_file / bash / grep targeting the
-    /// worktree failed. The replacement transport (a vsock-served guest
-    /// agent running inside the user GUI session) plugs in here once it
-    /// lands: same struct, the sharedVM case rebuilds with a vsock client
-    /// implementing both AgentFilesystem and AgentBashRunner.
+    /// Resolved working directory + tool backends for an agent run. When the
+    /// project's Develop sandbox is `.sharedVM` and the VM resolves to a
+    /// ready route for `hostURL`, the agent operates entirely in the guest's
+    /// namespace via the vsock-served Compass guest agent — the only
+    /// transport that bypasses macOS guest TCC restrictions on
+    /// VirtioFS-mounted shares. Otherwise the agent stays native to the
+    /// host.
     struct AgentEnvironment {
         var workingDirectory: URL
         var filesystem: AgentFilesystem
@@ -2055,14 +2052,44 @@ extension CompassProject {
 
     private func resolveAgentEnvironment(forHostURL hostURL: URL) -> AgentEnvironment {
         let launchPlan = agentLaunchPlan(for: hostURL)
-        if let reason = launchPlan.fallbackReason {
-            log("Agent route falling back to host: \(reason)", level: .info)
+        switch launchPlan.effectiveRoute {
+        case .host:
+            if let reason = launchPlan.fallbackReason {
+                log("Agent route falling back to host: \(reason)", level: .info)
+            }
+            return AgentEnvironment(
+                workingDirectory: hostURL,
+                filesystem: AgentHostFilesystem(),
+                bashRunner: AgentHostBashRunner()
+            )
+        case let .sharedVM(route):
+            guard let machine = SharedCompassVM.shared.virtualMachine else {
+                log("Agent route via Shared VM requested but no live VZVirtualMachine; falling back to host.", level: .warning)
+                return AgentEnvironment(
+                    workingDirectory: hostURL,
+                    filesystem: AgentHostFilesystem(),
+                    bashRunner: AgentHostBashRunner()
+                )
+            }
+            let guestWorkingDirectory: URL
+            if let guestPath = route.guestPath(forHostURL: hostURL) {
+                guestWorkingDirectory = URL(fileURLWithPath: guestPath)
+            } else {
+                guestWorkingDirectory = URL(fileURLWithPath: route.guestWorkspacePath)
+            }
+            log("Agent route via Shared VM (vsock) at workspace \(guestWorkingDirectory.path)", level: .info)
+            let client = AgentVsockClient(
+                transportFactory: {
+                    let connection = try await SharedCompassVMVsock.connect(on: machine)
+                    return VZVirtioSocketTransport(connection: connection)
+                }
+            )
+            return AgentEnvironment(
+                workingDirectory: guestWorkingDirectory,
+                filesystem: client,
+                bashRunner: client
+            )
         }
-        return AgentEnvironment(
-            workingDirectory: hostURL,
-            filesystem: AgentHostFilesystem(),
-            bashRunner: AgentHostBashRunner()
-        )
     }
 
     private func validatePlanTransition(from current: PlanState, to next: PlanState) throws {
