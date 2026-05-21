@@ -90,6 +90,27 @@ final class SharedCompassVMDevToolsProvisionerTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(occurrences, 2, "Sentinel must be cleared on both exit paths")
     }
 
+    // MARK: - LaunchDaemon plist
+
+    func testRenderedLaunchDaemonPlistIsValid() throws {
+        let plist = SharedCompassVMDevToolsProvisioner.renderInstallLaunchDaemonPlist()
+        let parsed = try PropertyListSerialization.propertyList(
+            from: Data(plist.utf8),
+            options: [],
+            format: nil
+        ) as? [String: Any]
+        XCTAssertNotNil(parsed)
+        XCTAssertEqual(parsed?["Label"] as? String, "com.seancheatham.Compass.devtools-install")
+        XCTAssertEqual(parsed?["RunAtLoad"] as? Bool, true)
+        // KeepAlive must be false so the script runs once and exits;
+        // KeepAlive=true would have launchd restart softwareupdate after
+        // it succeeds, looping forever.
+        XCTAssertEqual(parsed?["KeepAlive"] as? Bool, false)
+        XCTAssertEqual(parsed?["LaunchOnlyOnce"] as? Bool, true)
+        let args = parsed?["ProgramArguments"] as? [String]
+        XCTAssertEqual(args, ["/usr/local/libexec/compass-install-clt.sh"])
+    }
+
     // MARK: - Phase parsing
 
     func testParsePhaseFromLogTailRecognisesScriptStart() {
@@ -256,7 +277,7 @@ final class SharedCompassVMDevToolsProvisionerTests: XCTestCase {
             if command.contains("base64 -D | sudo tee") {
                 return ProcessResult(exitCode: 0, stdout: "", stderr: "")
             }
-            if command.contains("nohup") && command.contains("compass-install-clt.sh") {
+            if command.contains("launchctl bootstrap system") {
                 return ProcessResult(exitCode: 0, stdout: "", stderr: "")
             }
             if command.contains("DONE") && command.contains("---LOG_TAIL---") {
@@ -327,7 +348,7 @@ final class SharedCompassVMDevToolsProvisionerTests: XCTestCase {
             if command.contains("PRESENT") || command.contains("MISSING") {
                 return ProcessResult(exitCode: 0, stdout: "MISSING\n", stderr: "")
             }
-            if command.contains("base64 -D | sudo tee") || command.contains("nohup") {
+            if command.contains("base64 -D | sudo tee") || command.contains("launchctl bootstrap system") {
                 return ProcessResult(exitCode: 0, stdout: "", stderr: "")
             }
             if command.contains("DONE") && command.contains("---LOG_TAIL---") {
@@ -374,7 +395,7 @@ final class SharedCompassVMDevToolsProvisionerTests: XCTestCase {
             if command.contains("PRESENT") || command.contains("MISSING") {
                 return ProcessResult(exitCode: 0, stdout: "MISSING\n", stderr: "")
             }
-            if command.contains("base64 -D | sudo tee") || command.contains("nohup") {
+            if command.contains("base64 -D | sudo tee") || command.contains("launchctl bootstrap system") {
                 return ProcessResult(exitCode: 0, stdout: "", stderr: "")
             }
             if command.contains("DONE") && command.contains("---LOG_TAIL---") {
@@ -423,7 +444,7 @@ final class SharedCompassVMDevToolsProvisionerTests: XCTestCase {
                 }
                 return ProcessResult(exitCode: 0, stdout: "", stderr: "")
             }
-            if command.contains("base64 -D | sudo tee") || command.contains("nohup") {
+            if command.contains("base64 -D | sudo tee") || command.contains("launchctl bootstrap system") {
                 return ProcessResult(exitCode: 0, stdout: "", stderr: "")
             }
             if command.contains("DONE") && command.contains("---LOG_TAIL---") {

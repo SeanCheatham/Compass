@@ -43,6 +43,17 @@ enum SharedCompassVMDevToolsProvisioner {
     /// before listing the catalog; removed after the install attempt.
     static let installRequestSentinelPath = "/tmp/.com.apple.dt.CommandLineTools.installondemand.in-progress"
 
+    /// LaunchDaemon plist that wraps the install script. Plant + bootstrap
+    /// runs the script entirely detached from the bash RPC's lifecycle.
+    /// We tried backgrounding the script with `nohup … & disown` from
+    /// `/bin/zsh -lc` instead, but that path is unreliable when the parent
+    /// shell is spawned via `Foundation.Process()` from a LaunchDaemon
+    /// (the in-guest agent) — verified live: identical command runs fine
+    /// from ssh, never starts the child from Process(). Using launchctl
+    /// sidesteps the entire shell/job-control surface.
+    static let installLaunchDaemonLabel = "com.seancheatham.Compass.devtools-install"
+    static let installLaunchDaemonPlistGuestPath = "/Library/LaunchDaemons/com.seancheatham.Compass.devtools-install.plist"
+
     /// Per-call bash RPC timeout for the fast steps (probe, plant, kickoff,
     /// finalise). Long enough to survive a momentary RPC stall, short
     /// enough that a wedged guest surfaces quickly.
@@ -169,19 +180,29 @@ enum SharedCompassVMDevToolsProvisioner {
         return result.stdout.contains("PRESENT")
     }
 
-    /// Writes the install script to its guest-side location with the
-    /// correct permissions. Uses base64 so the script body can contain
-    /// arbitrary shell metacharacters without any escaping risk on the
-    /// bash RPC's `-c` boundary.
+    /// Writes the install script + LaunchDaemon plist to their guest-side
+    /// locations with the correct permissions. Uses base64 so both
+    /// payloads can contain arbitrary metacharacters without any escaping
+    /// risk on the bash RPC's `-c` boundary.
+    ///
+    /// Also explicitly `launchctl bootout`s any previous instance of the
+    /// daemon — `bootstrap` rejects a label that is already loaded with
+    /// a `Bootstrap failed: 37: The specified service did not pass
+    /// validation` error, which would otherwise stall reruns after a
+    /// partial install.
     static func plantInstallScript(runner: any AgentBashRunner) async throws {
-        let body = renderInstallScript()
-        let encoded = Data(body.utf8).base64EncodedString()
+        let scriptEncoded = Data(renderInstallScript().utf8).base64EncodedString()
+        let plistEncoded = Data(renderInstallLaunchDaemonPlist().utf8).base64EncodedString()
         let command = """
         set -euo pipefail
-        echo \(encoded) | base64 -D | sudo tee \(scriptGuestPath) > /dev/null
+        echo \(scriptEncoded) | base64 -D | sudo tee \(scriptGuestPath) > /dev/null
         sudo chmod 0755 \(scriptGuestPath)
         sudo chown root:wheel \(scriptGuestPath)
-        sudo rm -f \(doneSentinelGuestPath)
+        echo \(plistEncoded) | base64 -D | sudo tee \(installLaunchDaemonPlistGuestPath) > /dev/null
+        sudo chmod 0644 \(installLaunchDaemonPlistGuestPath)
+        sudo chown root:wheel \(installLaunchDaemonPlistGuestPath)
+        sudo rm -f \(doneSentinelGuestPath) \(logGuestPath)
+        sudo launchctl bootout system \(installLaunchDaemonPlistGuestPath) 2>/dev/null || true
         """
         let result: ProcessResult
         do {
@@ -198,18 +219,18 @@ enum SharedCompassVMDevToolsProvisioner {
         }
     }
 
-    /// Launches the install script under `nohup` so it survives the bash
-    /// RPC returning. The RPC itself only blocks long enough to spawn the
-    /// detached process — the actual `softwareupdate` work continues in
-    /// the background and the host polls for completion.
+    /// Bootstraps the install LaunchDaemon. launchd takes ownership of
+    /// the script's lifecycle from here — the bash RPC returns as soon
+    /// as launchctl confirms the load. The script then runs entirely
+    /// independently of any subsequent RPC, ssh session, or host
+    /// process state.
     static func kickOffInstall(runner: any AgentBashRunner) async throws {
         let result: ProcessResult
         do {
             result = try await runner.run(
                 command: """
-                set -uo pipefail
-                sudo nohup \(scriptGuestPath) </dev/null >/dev/null 2>&1 &
-                disown || true
+                set -euo pipefail
+                sudo launchctl bootstrap system \(installLaunchDaemonPlistGuestPath)
                 """,
                 workingDirectory: URL(fileURLWithPath: "/"),
                 timeout: shortStepTimeoutSeconds
@@ -284,11 +305,12 @@ enum SharedCompassVMDevToolsProvisioner {
         return PollSnapshot(parsing: result.stdout)
     }
 
-    /// Sets the freshly-installed CLT as the active developer directory
-    /// and re-runs the probe to confirm the install actually produced a
-    /// usable toolchain. The script also runs `xcode-select -s` but does
-    /// not have a way to fail the install if the switch silently no-ops,
-    /// so we verify here.
+    /// Sets the freshly-installed CLT as the active developer directory,
+    /// re-runs the probe to confirm the install actually produced a
+    /// usable toolchain, and tears down the install LaunchDaemon so a
+    /// reboot doesn't try to re-run it. The script also runs
+    /// `xcode-select -s` but does not have a way to fail the install if
+    /// the switch silently no-ops, so we verify here.
     static func finalise(runner: any AgentBashRunner) async throws {
         let result: ProcessResult
         do {
@@ -298,6 +320,8 @@ enum SharedCompassVMDevToolsProvisioner {
                 sudo xcode-select -s /Library/Developer/CommandLineTools
                 test -x \(cltSwiftPath)
                 xcode-select -p
+                sudo launchctl bootout system \(installLaunchDaemonPlistGuestPath) 2>/dev/null || true
+                sudo rm -f \(installLaunchDaemonPlistGuestPath)
                 """,
                 workingDirectory: URL(fileURLWithPath: "/"),
                 timeout: shortStepTimeoutSeconds
@@ -402,6 +426,39 @@ enum SharedCompassVMDevToolsProvisioner {
         case .installed: return 0.95
         case .done: return 1.0
         }
+    }
+
+    /// LaunchDaemon plist that wraps the install script. `LaunchOnlyOnce`
+    /// + `KeepAlive=false` so a one-shot run is exactly what we get; the
+    /// daemon stays loaded (in a `not running` state) after the script
+    /// exits, ready for `finalise` to bootout. Stdout/stderr land in the
+    /// install log alongside whatever the script `exec >`s, so a launchd
+    /// crash before the script's own redirect still leaves diagnostics.
+    static func renderInstallLaunchDaemonPlist() -> String {
+        """
+        <?xml version="1.0" encoding="UTF-8"?>
+        <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTD/PropertyList-1.0.dtd">
+        <plist version="1.0">
+        <dict>
+            <key>Label</key>
+            <string>\(installLaunchDaemonLabel)</string>
+            <key>ProgramArguments</key>
+            <array>
+                <string>\(scriptGuestPath)</string>
+            </array>
+            <key>RunAtLoad</key>
+            <true/>
+            <key>KeepAlive</key>
+            <false/>
+            <key>LaunchOnlyOnce</key>
+            <true/>
+            <key>StandardOutPath</key>
+            <string>\(logGuestPath)</string>
+            <key>StandardErrorPath</key>
+            <string>\(logGuestPath)</string>
+        </dict>
+        </plist>
+        """
     }
 
     /// The bash script planted onto the guest. Public so phase-4 tests can
