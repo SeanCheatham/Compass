@@ -62,15 +62,22 @@ final class VZVirtioSocketTransport: VsockTransport, @unchecked Sendable {
     }
 
     func close() async {
-        closedLock.lock()
-        let alreadyClosed = closed
-        closed = true
-        closedLock.unlock()
-        guard !alreadyClosed else { return }
+        guard claimCloseToken() else { return }
         // VZVirtioSocketConnection's docs say closing the fd shuts down
         // the channel; the VZ object itself is reference-counted and
         // releases when the last reference drops.
         Darwin.close(fileDescriptor)
+    }
+
+    /// Synchronous lock/unlock pair — Swift 6 disallows NSLock.lock/unlock
+    /// across async suspension points, so the actual mutation is funneled
+    /// through this sync helper that the async `close()` calls.
+    private func claimCloseToken() -> Bool {
+        closedLock.lock()
+        defer { closedLock.unlock() }
+        guard !closed else { return false }
+        closed = true
+        return true
     }
 
     enum IOError: Error, CustomStringConvertible {
