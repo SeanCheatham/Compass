@@ -37,6 +37,12 @@ enum SharedCompassVMHeadlessPlanter {
         static let publicKey = "id_ed25519.pub"
         static let passwordFile = "user.password"
         static let elevatedScript = "planter.sh"
+        /// The CompassGuestAgent binary, copied verbatim from the host's
+        /// build output into the guest's `/usr/local/libexec/`.
+        static let guestAgentBinary = "compass-guest-agent"
+        /// The LaunchAgent plist that loads the guest agent into every
+        /// GUI user session on the guest.
+        static let guestAgentLaunchAgentPlist = "com.seancheatham.Compass.guest-agent.plist"
     }
 
     // MARK: - Errors
@@ -172,7 +178,9 @@ enum SharedCompassVMHeadlessPlanter {
             (StagedFile.sudoersFragment, Data(payload.sudoersFragment.utf8)),
             (StagedFile.appleSetupDoneMarker, Data()),
             (StagedFile.publicKey, payload.stagedPublicKey),
-            (StagedFile.passwordFile, Data(payload.stagedPassword.utf8))
+            (StagedFile.passwordFile, Data(payload.stagedPassword.utf8)),
+            (StagedFile.guestAgentBinary, payload.guestAgentBinary),
+            (StagedFile.guestAgentLaunchAgentPlist, payload.guestAgentLaunchAgentPlist)
         ]
         for (name, contents) in writes {
             let url = stagingDir.appendingPathComponent(name, isDirectory: false)
@@ -318,6 +326,22 @@ enum SharedCompassVMHeadlessPlanter {
         install -o root -g wheel -m 0600 \\
           "$STAGING_DIR/\(StagedFile.passwordFile)" \\
           "$MOUNT_POINT\(profile.stagingDirectoryGuestPath)/\(profile.stagedPasswordFileName)"
+
+        # CompassGuestAgent binary — root:wheel 0755. The LaunchAgent (next
+        # install) references this path; permissions match what the LaunchAgent
+        # loader expects for an executable it'll launch as the GUI user.
+        install -d -o root -g wheel -m 0755 "$MOUNT_POINT\(profile.guestAgentBinaryGuestPath.directoryComponent)"
+        install -o root -g wheel -m 0755 \\
+          "$STAGING_DIR/\(StagedFile.guestAgentBinary)" \\
+          "$MOUNT_POINT\(profile.guestAgentBinaryGuestPath)"
+
+        # Guest agent LaunchAgent plist — root:wheel 0644. /Library/LaunchAgents
+        # is the system-wide LaunchAgent dir; launchd loads it for every GUI
+        # session (once Phase 7's auto-login wakes one up).
+        install -d -o root -g wheel -m 0755 "$MOUNT_POINT\(profile.guestAgentLaunchAgentGuestPath.directoryComponent)"
+        install -o root -g wheel -m 0644 \\
+          "$STAGING_DIR/\(StagedFile.guestAgentLaunchAgentPlist)" \\
+          "$MOUNT_POINT\(profile.guestAgentLaunchAgentGuestPath)"
 
         sync
         echo "[compass-planter] done."

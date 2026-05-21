@@ -316,10 +316,12 @@ final class SharedCompassVMHeadlessFirstBootTests: XCTestCase {
 
     func testRenderPayloadCarriesEveryArtifactNeededByThePlanter() {
         let profile = SharedCompassVMHeadlessFirstBoot.Profile.standard(macOSMajor: 16)
+        let agentBytes = Data("not-really-a-mach-o".utf8)
         let inputs = SharedCompassVMHeadlessFirstBoot.RenderInputs.makeStandard(
             profile: profile,
             publicKeyData: Data("ssh-ed25519 AAAA fake".utf8),
-            generatedPassword: "hunter2-not-really"
+            generatedPassword: "hunter2-not-really",
+            guestAgentBinary: agentBytes
         )
         let payload = SharedCompassVMHeadlessFirstBoot.renderPayload(from: inputs)
 
@@ -331,6 +333,13 @@ final class SharedCompassVMHeadlessFirstBootTests: XCTestCase {
         XCTAssertTrue(payload.sudoersFragment.contains("NOPASSWD"))
         XCTAssertEqual(payload.stagedPublicKey, inputs.publicKeyData)
         XCTAssertEqual(payload.stagedPassword, "hunter2-not-really")
+        XCTAssertEqual(payload.guestAgentBinary, agentBytes)
+        let plistString = String(decoding: payload.guestAgentLaunchAgentPlist, as: UTF8.self)
+        XCTAssertTrue(
+            plistString.contains(profile.guestAgentBinaryGuestPath),
+            "LaunchAgent plist must reference the planted binary path: \(plistString)"
+        )
+        XCTAssertTrue(plistString.contains(SharedCompassVMHeadlessFirstBoot.guestAgentLaunchAgentLabel))
     }
 
     // MARK: - Helpers
@@ -340,7 +349,8 @@ final class SharedCompassVMHeadlessFirstBootTests: XCTestCase {
         let inputs = SharedCompassVMHeadlessFirstBoot.RenderInputs.makeStandard(
             profile: profile,
             publicKeyData: Data(),
-            generatedPassword: "ignored"
+            generatedPassword: "ignored",
+            guestAgentBinary: Data()
         )
         return SharedCompassVMHeadlessFirstBoot.renderBootstrapScript(inputs: inputs)
     }

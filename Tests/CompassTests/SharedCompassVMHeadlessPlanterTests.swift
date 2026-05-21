@@ -576,7 +576,8 @@ final class SharedCompassVMHeadlessPlanterTests: XCTestCase {
         let inputs = SharedCompassVMHeadlessFirstBoot.RenderInputs.makeStandard(
             profile: profile,
             publicKeyData: Data("ssh-ed25519 AAAA fake".utf8),
-            generatedPassword: "passwordforsure"
+            generatedPassword: "passwordforsure",
+            guestAgentBinary: Data("agent-binary-bytes-fake".utf8)
         )
         return SharedCompassVMHeadlessFirstBoot.renderPayload(from: inputs)
     }

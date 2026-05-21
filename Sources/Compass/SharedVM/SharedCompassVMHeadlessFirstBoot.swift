@@ -35,6 +35,13 @@ enum SharedCompassVMHeadlessFirstBoot {
     /// LaunchDaemon plist label. Must match the plist filename minus the extension.
     static let launchDaemonLabel = "com.seancheatham.Compass.firstboot"
 
+    /// LaunchAgent plist label for the in-guest Compass agent. LaunchAgents
+    /// run inside a logged-in user's session (not the system context), which
+    /// is exactly what we need: sshd-spawned processes can't read the
+    /// VirtioFS-mounted worktree, but processes loaded under a GUI session
+    /// inherit the right TCC profile for accessing it.
+    static let guestAgentLaunchAgentLabel = "com.seancheatham.Compass.guest-agent"
+
     /// Sentinel the bootstrap script writes to the host-readable status file
     /// once it has completed all idempotent steps. Mostly informational —
     /// host-side readiness keys off the SSH probe, not the status file.
@@ -85,6 +92,19 @@ enum SharedCompassVMHeadlessFirstBoot {
         /// post-mortem diagnostics from the host side.
         var completionMarkerName: String
 
+        /// Where the planted CompassGuestAgent binary lives on the guest.
+        /// `/usr/local/libexec` is the conventional macOS location for
+        /// service-helper executables. root:wheel mode 0755.
+        var guestAgentBinaryGuestPath: String
+
+        /// Where the LaunchAgent plist for the guest agent lives on the
+        /// guest. `/Library/LaunchAgents` is the system-wide LaunchAgent
+        /// directory — launchd loads it for every GUI user session, which
+        /// is exactly what we need so the agent comes up the moment the
+        /// auto-logged-in `compass` user reaches its desktop session.
+        /// root:wheel mode 0644.
+        var guestAgentLaunchAgentGuestPath: String
+
         /// Default profile shared across recent macOS majors. Override fields
         /// per-version in the registry when Apple moves things around.
         static func standard(macOSMajor: Int) -> Profile {
@@ -102,7 +122,9 @@ enum SharedCompassVMHeadlessFirstBoot {
                 stagingDirectoryGuestPath: "/Users/Shared/compass-firstboot",
                 stagedPublicKeyName: "id_ed25519.pub",
                 stagedPasswordFileName: "user.password",
-                completionMarkerName: bootstrapCompletionMarker
+                completionMarkerName: bootstrapCompletionMarker,
+                guestAgentBinaryGuestPath: "/usr/local/libexec/compass-guest-agent",
+                guestAgentLaunchAgentGuestPath: "/Library/LaunchAgents/\(guestAgentLaunchAgentLabel).plist"
             )
         }
     }
@@ -178,6 +200,12 @@ enum SharedCompassVMHeadlessFirstBoot {
         var sudoersFragment: String
         var stagedPublicKey: Data
         var stagedPassword: String
+        /// Raw bytes of the CompassGuestAgent executable. Planter copies
+        /// these verbatim to `profile.guestAgentBinaryGuestPath`.
+        var guestAgentBinary: Data
+        /// LaunchAgent plist loaded by every GUI session — starts the
+        /// guest agent under the auto-logged-in `compass` user.
+        var guestAgentLaunchAgentPlist: Data
     }
 
     /// Inputs the planter assembles before rendering a `Payload`.
@@ -187,11 +215,16 @@ enum SharedCompassVMHeadlessFirstBoot {
         var guestFullName: String
         var publicKeyData: Data
         var generatedPassword: String
+        /// Bytes of the CompassGuestAgent executable to ship. The caller
+        /// (SharedCompassVM) reads this from the host bundle just before
+        /// kicking off `plant`.
+        var guestAgentBinary: Data
 
         static func makeStandard(
             profile: Profile,
             publicKeyData: Data,
             generatedPassword: String,
+            guestAgentBinary: Data,
             guestUserName: String = SharedCompassVMBundle.State.defaultGuestUserName
         ) -> RenderInputs {
             RenderInputs(
@@ -199,7 +232,8 @@ enum SharedCompassVMHeadlessFirstBoot {
                 guestUserName: guestUserName,
                 guestFullName: "Compass",
                 publicKeyData: publicKeyData,
-                generatedPassword: generatedPassword
+                generatedPassword: generatedPassword,
+                guestAgentBinary: guestAgentBinary
             )
         }
     }
@@ -210,6 +244,7 @@ enum SharedCompassVMHeadlessFirstBoot {
         let plist = renderLaunchDaemonPlist(profile: inputs.profile)
         let script = renderBootstrapScript(inputs: inputs)
         let sudoers = renderSudoersFragment(guestUserName: inputs.guestUserName)
+        let guestAgentPlist = renderGuestAgentLaunchAgentPlist(profile: inputs.profile)
         return Payload(
             profile: inputs.profile,
             guestUserName: inputs.guestUserName,
@@ -218,8 +253,40 @@ enum SharedCompassVMHeadlessFirstBoot {
             bootstrapScript: script,
             sudoersFragment: sudoers,
             stagedPublicKey: inputs.publicKeyData,
-            stagedPassword: inputs.generatedPassword
+            stagedPassword: inputs.generatedPassword,
+            guestAgentBinary: inputs.guestAgentBinary,
+            guestAgentLaunchAgentPlist: Data(guestAgentPlist.utf8)
         )
+    }
+
+    /// LaunchAgent plist for the in-guest Compass agent. Loaded by launchd
+    /// for every GUI user session; the binary listens on AF_VSOCK at the
+    /// canonical Compass port. `KeepAlive=true` so a crashed agent comes
+    /// back automatically — the host treats vsock unavailability as a
+    /// hard failure, so leaving a dead agent isn't acceptable.
+    static func renderGuestAgentLaunchAgentPlist(profile: Profile) -> String {
+        """
+        <?xml version="1.0" encoding="UTF-8"?>
+        <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTD/PropertyList-1.0.dtd">
+        <plist version="1.0">
+        <dict>
+            <key>Label</key>
+            <string>\(guestAgentLaunchAgentLabel)</string>
+            <key>ProgramArguments</key>
+            <array>
+                <string>\(profile.guestAgentBinaryGuestPath)</string>
+            </array>
+            <key>RunAtLoad</key>
+            <true/>
+            <key>KeepAlive</key>
+            <true/>
+            <key>StandardOutPath</key>
+            <string>/tmp/compass-guest-agent.log</string>
+            <key>StandardErrorPath</key>
+            <string>/tmp/compass-guest-agent.log</string>
+        </dict>
+        </plist>
+        """
     }
 
     // MARK: - Content renderers

@@ -370,11 +370,18 @@ final class SharedCompassVM: ObservableObject {
         // provisionIfNeeded so the file is guaranteed to exist.
         let publicKeyData = try Data(contentsOf: bundle.publicKeyURL)
 
+        // Locate the in-guest agent binary alongside the host executable
+        // and load its bytes — the planter ships it onto the guest's
+        // /usr/local/libexec/ so the LaunchAgent has something to launch.
+        let guestAgentBinaryURL = try locateGuestAgentBinary()
+        let guestAgentBinary = try Data(contentsOf: guestAgentBinaryURL)
+
         let payload = SharedCompassVMHeadlessFirstBoot.renderPayload(
             from: SharedCompassVMHeadlessFirstBoot.RenderInputs.makeStandard(
                 profile: profile,
                 publicKeyData: publicKeyData,
                 generatedPassword: credential.password,
+                guestAgentBinary: guestAgentBinary,
                 guestUserName: state.guestUserName
             )
         )
@@ -382,6 +389,32 @@ final class SharedCompassVM: ObservableObject {
         _ = try await dependencies.headlessPlanter.plant(
             payload: payload,
             diskImageURL: bundle.diskImageURL
+        )
+    }
+
+    /// Returns the on-disk location of the `CompassGuestAgent` executable.
+    /// SwiftPM places it as a sibling of the host binary in `.build/<config>/`;
+    /// Xcode bundles it next to the host inside `Compass.app/Contents/MacOS/`.
+    /// Both layouts put the agent in the same directory as Bundle.main's
+    /// executable, so we walk a single set of candidates.
+    private func locateGuestAgentBinary() throws -> URL {
+        let executableName = "CompassGuestAgent"
+        let bundle = Bundle.main
+        var candidates: [URL] = []
+        if let executable = bundle.executableURL {
+            candidates.append(executable.deletingLastPathComponent().appendingPathComponent(executableName))
+        }
+        candidates.append(bundle.bundleURL.appendingPathComponent(executableName))
+        candidates.append(bundle.bundleURL.appendingPathComponent("Contents/MacOS/\(executableName)"))
+        for url in candidates where dependencies.fileManager.isExecutableFile(atPath: url.path) {
+            return url
+        }
+        throw NSError(
+            domain: "SharedCompassVM",
+            code: 4,
+            userInfo: [NSLocalizedDescriptionKey:
+                "Could not locate CompassGuestAgent binary alongside the host. Searched: \(candidates.map(\.path).joined(separator: ", "))"
+            ]
         )
     }
 
