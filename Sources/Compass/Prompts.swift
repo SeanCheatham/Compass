@@ -204,8 +204,8 @@ enum Prompts {
 
         Your job is to choose exactly one concrete next implementation increment
         for a separate Develop pass. You have read-only access to the repository.
-        Do not edit files. Return only the structured JSON requested by the
-        output schema.
+        Do not edit files. End by calling the `submit_result` tool with the
+        arguments described below.
 
         Planning rules:
         - Start from the current state exactly as given. Preserve existing
@@ -242,7 +242,7 @@ enum Prompts {
           `replace` set to the initial contents.
         - Lessons are durable gotchas and conventions, not routine status logs.
 
-        Output shape:
+        submit_result arguments shape:
         {
           "state": {
             "completed": ["one-line shipped summaries"],
@@ -302,7 +302,8 @@ enum Prompts {
         ## Vision
         \(fencedOrEmpty(vision, empty: "_(no vision set)_"))
 
-        Return JSON matching the output schema.
+        When you have decided the next increment, call submit_result with the
+        arguments shape above.
         """
     }
 
@@ -324,7 +325,7 @@ enum Prompts {
         read-only access to the repository. Decide whether the project is still
         on course toward the vision.
 
-        Return JSON matching the output schema:
+        Finish by calling the `submit_result` tool with these arguments:
         - `state`: null if everything is on course.
         - `state`: a full PlanState if `midTerm` and/or `longTerm` should be
           rewritten. Preserve existing `completed` and `immediate` unless there
@@ -379,13 +380,14 @@ enum Prompts {
 
         Hard rules:
         - Do not edit `.compass/state.json` or `.compass/drafts.md`.
-        - Do not edit `.compass/lessons.md` directly; return `lessonEdits`
-          instead so the app can apply them to the main Compass workspace.
+        - Do not edit `.compass/lessons.md` directly; pass `lessonEdits` in the
+          submit_result arguments instead so the app can apply them to the
+          main Compass workspace.
         - Do not push, rebase, or use destructive git operations.
         - Run the verify command before finishing.
         - Commit the finished change if there are code changes.
         - Leave the working tree clean, or explain why you are blocked.
-        - Return only the structured JSON requested by the output schema.
+        - End the phase by calling `submit_result` exactly once.
 
         Lesson edit rules:
         - `lessonEdits` is an array of exact find/replace edits for
@@ -416,7 +418,7 @@ enum Prompts {
         ## Vision
         \(fencedOrEmpty(vision, empty: "_(no vision set)_"))
 
-        Final response fields:
+        submit_result arguments:
         - `status`: `succeeded`, `blocked`, or `failed`.
         - `summary`: concise human summary of what happened.
         - `feedback`: short handoff note for the next planning pass.
@@ -433,7 +435,7 @@ enum Prompts {
             2. Implement the plan and keep the change scoped.
             3. Run the verify command and fix failures.
             4. Commit the finished change.
-            5. Return structured JSON with a useful feedback handoff.
+            5. Call submit_result with a useful feedback handoff.
             """
         }
 
@@ -447,7 +449,8 @@ enum Prompts {
         \(issues)
 
         Fix them now. Do not expand scope. Finish with verify passing, a clean
-        working tree, committed changes if any, and structured JSON feedback.
+        working tree, committed changes if any, and a submit_result call
+        carrying the feedback handoff.
         """
     }
 

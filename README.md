@@ -1,9 +1,10 @@
 # Compass
 
-Compass is a macOS-native app for running recursive Codex project iterations.
-It keeps per-repository state in `.compass/`, shells out to `codex exec` for
-Plan, Reflect, and Develop passes, and lets multiple projects run side by side
-from one desktop workspace.
+Compass is a macOS-native app for running recursive Plan / Develop / Reflect
+loops over a Git repository. It talks to any OpenAI-compatible chat
+completions endpoint (default: MiniMax), drives the loop with its own tool
+dispatcher, and keeps per-repository state in `.compass/` so multiple
+projects can run side by side from one desktop workspace.
 
 Compass requires macOS 26 or newer on Apple Silicon. The Cinematic tab uses
 RealityKit's SwiftUI `RealityView` renderer, and the optional Shared VM
@@ -45,37 +46,65 @@ The SwiftPM executable still builds (`swift run Compass`) and is fine for
 non-VM work, but `VZVirtualMachine` APIs will fail without the entitlement,
 so the Shared VM sandbox is disabled in that mode.
 
-The Codex binary field defaults to `COMPASS_CODEX_BIN` when set, then common
-macOS locations including `/Applications/Codex.app/Contents/Resources/codex`.
+## Configure the agent endpoint
+
+Compass talks to an OpenAI-compatible chat completions endpoint using
+[MacPaw/OpenAI](https://github.com/MacPaw/OpenAI). The base URL, API key,
+default model, and per-phase model overrides are configured in **Compass →
+Settings…** (⌘,). The API key is stored in the macOS Keychain; the rest
+lives in UserDefaults under the app's bundle id and persists across
+launches.
+
+Environment variables seed empty fields on first launch — useful for
+scripted setup / CI:
+
+| Variable                       | Default                          |
+| ------------------------------ | -------------------------------- |
+| `COMPASS_AGENT_BASE_URL`       | `https://api.minimax.io/v1`      |
+| `COMPASS_AGENT_API_KEY`        | _(no default, required)_         |
+| `COMPASS_AGENT_MODEL`          | `MiniMax-M2.7`                   |
+| `COMPASS_AGENT_MODEL_PLAN`     | _(falls back to default model)_  |
+| `COMPASS_AGENT_MODEL_DEV`      | _(falls back to default model)_  |
+| `COMPASS_AGENT_MODEL_REFLECT`  | _(falls back to default model)_  |
+
+Any endpoint that implements OpenAI-style streaming chat completions with
+`tools` / `tool_choice` / multi-turn `tool_calls` works. MiniMax-M2.7 is
+the default because it is what this branch was developed against;
+swapping to a different provider is a Settings-only change.
 
 ## Workflow
 
-Add Git repositories from the sidebar project list. Each project keeps its own
-`.compass/` data, Live log, and active Codex process, so multiple projects can
-run in parallel. The main content header contains per-project play, pause, and
-stop controls. Play is auto-play: it keeps running Plan -> Develop iterations
-until paused, stopped, or Plan reports no immediate work.
+Add Git repositories from the sidebar project list. Each project keeps its
+own `.compass/` data, Live log, and active agent run, so multiple projects
+can run in parallel. The main content header contains per-project play,
+pause, and stop controls. Play is auto-play: it keeps running Plan →
+Develop iterations until paused, stopped, or Plan reports no immediate
+work.
 
-- Plan runs `codex exec` in read-only sandbox mode and asks Codex for a
-  structured state result plus optional `lessonEdits`. The app backs up
-  `.compass/state.json` first, applies lesson edits with exact find/replace
-  mechanics, then writes the decoded state after the run.
-- Reflect runs on the default cadence (`COMPASS_REFLECT_EVERY`, default `5`)
-  and can return either no state change or a full updated `PlanState`.
-- The Codex binary and model can be overridden with the sidebar fields. If the
-  model field is empty, the phase-specific env vars are honored:
-  `COMPASS_CODEX_PLAN_MODEL`, `COMPASS_CODEX_DEV_MODEL`, and
-  `COMPASS_CODEX_REFLECT_MODEL`.
-- Develop runs `codex exec` in `danger-full-access` sandbox mode so Codex can
-  edit, verify, and commit. When the repo has a HEAD, Develop runs in a
-  disposable Git worktree and temporary branch; the app promotes it with a
-  fast-forward merge only after post-checks pass. Develop must return
-  `lessonEdits` instead of editing `.compass/lessons.md` directly, so durable
-  lessons land in the main Compass workspace rather than the disposable
-  worktree.
+Each phase is driven by Compass's own agent loop: the model is given a
+fixed tool set, streams reasoning + tool calls back, and ends the turn by
+calling the special `submit_result` tool with a JSON payload that matches
+the phase contract.
+
+- Plan runs with a **read-only** tool set (`read_file`, `ls`, `grep`,
+  `glob`) and asks the model for a structured state result plus optional
+  `lessonEdits`. The app backs up `.compass/state.json` first, applies
+  lesson edits with exact find/replace mechanics, then writes the decoded
+  state after the run.
+- Reflect runs on the default cadence (`COMPASS_REFLECT_EVERY`, default
+  `5`) with the same read-only tool set and can return either no state
+  change or a full updated `PlanState`.
+- Develop runs with the **full** tool set (`read_file`, `ls`, `grep`,
+  `glob`, `write_file`, `edit_file`, `bash`) so the model can edit,
+  verify, and commit. When the repo has a HEAD, Develop runs in a
+  disposable Git worktree and temporary branch; the app promotes it with
+  a fast-forward merge only after post-checks pass. Develop must return
+  `lessonEdits` instead of editing `.compass/lessons.md` directly, so
+  durable lessons land in the main Compass workspace rather than the
+  disposable worktree.
 - Develop post-checks repeat the verify command, require
-  `git status --porcelain` to be clean, and retry failed post-checks up to three
-  attempts with failure context.
+  `git status --porcelain` to be clean, and retry failed post-checks up
+  to three attempts with failure context.
 - History metadata is written to `.compass/sessions.json`.
 
 ## Compass Workspace
@@ -128,24 +157,29 @@ Each project can opt its Develop iterations into a shared macOS guest VM via
 the per-project **Develop sandbox** picker in the Runtime section of the
 sidebar. With `.host` selected (default), Develop runs natively against a
 disposable Git worktree under `~/Library/Caches/Compass/Worktrees/`. With
-`.sharedVM` selected, Develop instead runs inside a Compass-managed macOS VM
-via SSH, with the same worktree exposed to the guest over VirtioFS.
+`.sharedVM` selected, file-level tools still operate directly on the host
+worktree (it is VirtioFS-mounted into the guest), but the agent's `bash`
+tool routes through SSH and runs `/bin/zsh -lc` inside the guest — so
+builds, tests, and any side effects of `bash` calls happen in the VM, not
+on the host.
 
 The VM is built from scratch on the user's machine using
 `VZMacOSRestoreImage.fetchLatestSupported` (Apple CDN, ~14 GB IPSW, no auth)
-and installed via `VZMacOSInstaller`. After install, the first boot lands at
-Setup Assistant — the embedded VM view in the top-level **Sandbox** section
-of the main window guides the user through a one-time ~2 minute click-through
-(decline Apple ID, create `compass` user, enable Remote Login). Subsequent
-iterations reuse the same persistent guest.
+and installed via `VZMacOSInstaller`. After install, a one-shot
+LaunchDaemon planted by Compass finishes first-boot headlessly — it
+creates the `compass` user, authorises Compass's SSH key, and enables
+Remote Login without any user interaction. Subsequent iterations reuse
+the same persistent guest.
 
 Requirements:
 
 - Apple Silicon Mac, macOS 26 or newer.
 - ~30 GB free disk under `~/Library/Application Support/Compass/SharedVM/`
   (sparse image — may drift larger over time).
-- First-time setup takes ~30–50 minutes (IPSW download + install + CLT
-  install + one-time Setup Assistant click-through).
+- First-time setup takes ~25–45 minutes (IPSW download + install +
+  headless first-boot). One macOS admin authentication prompt fires
+  during provisioning so Compass can plant the LaunchDaemon onto the
+  freshly-installed Data volume.
 - Apple's Virtualization.framework caps the host at 2 concurrent macOS
   guests. Conflicts with other VZ-based products (Parallels' VZ backend,
   Tart, etc.) surface as `Shared VM unavailable: 2-guest cap reached` and
@@ -155,7 +189,7 @@ When using Compass to develop Compass itself, treat the currently running
 Compass process as infrastructure, not as the test subject. If a launch smoke
 test is needed, start `swift run Compass` as a child process, record that exact
 PID, and terminate only that PID after the check. Avoid broad process-killing
-commands such as `pkill -f Compass`, `killall swift`, `killall codex`, or
-port-wide kill commands that could stop the live Compass session running the
-iteration. The Shared VM sandbox makes this safer by default — runaway
-`pkill` inside the guest cannot reach the host orchestrator.
+commands such as `pkill -f Compass` or `killall swift` that could stop the
+live Compass session running the iteration. The Shared VM sandbox makes
+this safer by default — runaway `pkill` inside the guest cannot reach the
+host orchestrator.
