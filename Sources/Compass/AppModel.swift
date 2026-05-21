@@ -2006,17 +2006,21 @@ extension CompassProject {
         decode: T.Type
     ) async throws -> T {
         let schema = AgentToolParametersSchema(json: Data(submitResultSchema.utf8))
-        let bashRunner = resolveBashRunner(forHostURL: workingDirectory)
+        let environment = resolveAgentEnvironment(forHostURL: workingDirectory)
         let configuration = AgentExecutionConfiguration(
             settings: agentSettings,
             phase: phase,
             modelOverride: modelOverride,
-            systemPrompt: Prompts.agentSystemPrompt(phase: phase),
+            systemPrompt: Prompts.agentSystemPrompt(
+                phase: phase,
+                workingDirectoryPath: environment.workingDirectory.path
+            ),
             userPrompt: userPrompt,
             tools: AgentExecutor.toolsForPhase(phase),
             submitResultSchema: schema,
-            workingDirectory: workingDirectory,
-            bashRunner: bashRunner
+            workingDirectory: environment.workingDirectory,
+            filesystem: environment.filesystem,
+            bashRunner: environment.bashRunner
         )
         let agent = AgentExecutor { [weak self] event in
             Task { @MainActor in self?.log(event) }
@@ -2033,23 +2037,51 @@ extension CompassProject {
         }
     }
 
-    /// Picks the bash dispatch backend for an agent run. If the project's
-    /// Develop sandbox is `.sharedVM` AND the VM resolves to a ready route
-    /// for the given host worktree, route bash through SSH; otherwise stay
-    /// on the host. File-level tools (read/write/edit/ls/grep/glob) always
-    /// operate on the host worktree path — the VirtioFS share keeps the
-    /// guest's view in sync.
-    private func resolveBashRunner(forHostURL hostURL: URL) -> AgentBashRunner {
+    /// Resolved working directory + tool backends for an agent run. When the
+    /// project's Develop sandbox is `.sharedVM` AND the VM resolves to a
+    /// ready route for `hostURL`, the agent operates entirely in the guest's
+    /// namespace: `workingDirectory` is the guest workspace URL, the
+    /// filesystem dispatches every read/write/edit/ls/grep/glob op through
+    /// SSH, and bash runs `/bin/zsh -lc` inside the guest. Otherwise the
+    /// agent stays native to the host. Either way the namespace is internally
+    /// consistent so `AgentToolContext.resolvePath` never has to bridge two
+    /// path worlds (which was the source of "Path escapes the working
+    /// directory" failures when only bash routed through SSH).
+    struct AgentEnvironment {
+        var workingDirectory: URL
+        var filesystem: AgentFilesystem
+        var bashRunner: AgentBashRunner
+    }
+
+    private func resolveAgentEnvironment(forHostURL hostURL: URL) -> AgentEnvironment {
         let launchPlan = agentLaunchPlan(for: hostURL)
         switch launchPlan.effectiveRoute {
         case .host:
             if let reason = launchPlan.fallbackReason {
-                log("Agent bash route falling back to host: \(reason)", level: .info)
+                log("Agent route falling back to host: \(reason)", level: .info)
             }
-            return AgentHostBashRunner()
+            return AgentEnvironment(
+                workingDirectory: hostURL,
+                filesystem: AgentHostFilesystem(),
+                bashRunner: AgentHostBashRunner()
+            )
         case let .sharedVM(route):
-            log("Agent bash route via Shared VM at \(route.sshDestination)", level: .info)
-            return AgentSharedVMBashRunner(route: route)
+            log("Agent route via Shared VM at \(route.sshDestination)", level: .info)
+            let guestWorkingDirectory: URL
+            if let guestPath = route.guestPath(forHostURL: hostURL) {
+                guestWorkingDirectory = URL(fileURLWithPath: guestPath)
+            } else {
+                // The route factory only produces a route when hostURL is
+                // under the workspace mount, so this branch should be
+                // unreachable. Fall back to the workspace root if it ever
+                // happens — the model gets a usable cwd rather than a crash.
+                guestWorkingDirectory = URL(fileURLWithPath: route.guestWorkspacePath)
+            }
+            return AgentEnvironment(
+                workingDirectory: guestWorkingDirectory,
+                filesystem: AgentSharedVMFilesystem(route: route),
+                bashRunner: AgentSharedVMBashRunner(route: route)
+            )
         }
     }
 

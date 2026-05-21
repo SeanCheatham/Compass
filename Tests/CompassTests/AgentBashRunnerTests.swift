@@ -26,23 +26,6 @@ final class AgentBashRunnerTests: XCTestCase {
 
     // MARK: - SharedVMBashRunner
 
-    func testSharedVMBashRunnerRejectsWorkingDirectoryOutsideMount() async throws {
-        let mountURL = URL(fileURLWithPath: "/Users/test/Library/Caches/Compass/Worktrees/proj")
-        let route = SharedVMRoute(
-            sshDestination: "compass@vm",
-            hostWorktreeURL: mountURL,
-            guestWorkspacePath: "/opt/compass/workspaces/proj"
-        )
-        let runner = AgentSharedVMBashRunner(route: route)
-        let result = try await runner.run(
-            command: "true",
-            workingDirectory: URL(fileURLWithPath: "/somewhere/else"),
-            timeout: 5
-        )
-        XCTAssertEqual(result.exitCode, 127)
-        XCTAssertTrue(result.stderr.contains("not under the host worktree mount"))
-    }
-
     func testSharedVMBashRunnerBuildsRemoteCommandWithCdAndQuotedShell() {
         let remote = AgentSharedVMBashRunner.buildRemoteCommand(
             guestPath: "/opt/compass/workspaces/proj",

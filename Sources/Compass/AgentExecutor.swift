@@ -23,6 +23,7 @@ struct AgentExecutionConfiguration {
     var tools: [AgentTool]
     var submitResultSchema: AgentToolParametersSchema
     var workingDirectory: URL
+    var filesystem: AgentFilesystem
     var bashRunner: AgentBashRunner
     var maxIterations: Int
     var wallClockTimeout: TimeInterval
@@ -36,6 +37,7 @@ struct AgentExecutionConfiguration {
         tools: [AgentTool],
         submitResultSchema: AgentToolParametersSchema,
         workingDirectory: URL,
+        filesystem: AgentFilesystem = AgentHostFilesystem(),
         bashRunner: AgentBashRunner = AgentHostBashRunner(),
         maxIterations: Int = 64,
         wallClockTimeout: TimeInterval = 30 * 60
@@ -48,6 +50,7 @@ struct AgentExecutionConfiguration {
         self.tools = tools
         self.submitResultSchema = submitResultSchema
         self.workingDirectory = workingDirectory
+        self.filesystem = filesystem
         self.bashRunner = bashRunner
         self.maxIterations = maxIterations
         self.wallClockTimeout = wallClockTimeout
@@ -103,6 +106,7 @@ final class AgentExecutor {
         let openAITools = try Self.buildOpenAITools(configuration: configuration)
         let toolContext = AgentToolContext(
             workingDirectory: configuration.workingDirectory,
+            filesystem: configuration.filesystem,
             bashRunner: configuration.bashRunner
         )
         let model = configuration.settings.model(for: configuration.phase, sidebarOverride: configuration.modelOverride)

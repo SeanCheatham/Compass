@@ -35,9 +35,11 @@ struct AgentHostBashRunner: AgentBashRunner {
 }
 
 /// Runs the command inside the Shared VM guest by SSH-invoking `zsh -lc` at
-/// the guest's mirror of the host worktree (VirtioFS share). Map failures
-/// (working directory outside the mount root) surface as a failed result so
-/// the model sees the diagnostic rather than the runner throwing.
+/// the supplied working directory, which must already be a guest-namespace
+/// path (the agent context's `workingDirectory` is set to the guest workspace
+/// URL when the Shared VM route is active, so all `cwd` paths the model
+/// supplies — or that the agent resolves through `context.resolvePath` —
+/// are already in the right namespace).
 struct AgentSharedVMBashRunner: AgentBashRunner {
     let route: SharedVMRoute
     let sshExecutablePath: String
@@ -55,18 +57,8 @@ struct AgentSharedVMBashRunner: AgentBashRunner {
         workingDirectory: URL,
         timeout: TimeInterval
     ) async throws -> ProcessResult {
-        guard let guestPath = route.guestPath(forHostURL: workingDirectory) else {
-            // Surface the diagnostic to the model via the tool result envelope
-            // by returning a non-zero ProcessResult — the bash tool formats
-            // [stderr] / [exit] sections from this.
-            return ProcessResult(
-                exitCode: 127,
-                stdout: "",
-                stderr: "Shared VM bash: working directory \(workingDirectory.path) is not under the host worktree mount \(route.hostWorktreeURL.path); cannot map to a guest path."
-            )
-        }
         let remoteCommand = Self.buildRemoteCommand(
-            guestPath: guestPath,
+            guestPath: workingDirectory.path,
             command: command,
             environmentVariables: route.environmentVariables
         )

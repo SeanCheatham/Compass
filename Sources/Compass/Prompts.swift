@@ -458,7 +458,10 @@ enum Prompts {
     /// model which tools are on the table for this phase and how to end
     /// the turn via `submit_result`. The user prompt still carries the
     /// per-phase instructions and the output schema.
-    static func agentSystemPrompt(phase: AgentPhase) -> String {
+    static func agentSystemPrompt(
+        phase: AgentPhase,
+        workingDirectoryPath: String
+    ) -> String {
         let readOnlyTools = "read_file, ls, grep, glob"
         let writeTools = "write_file, edit_file, bash"
         let toolList: String
@@ -472,6 +475,11 @@ enum Prompts {
         You are operating inside the Compass agent runtime. Compass talks to
         an OpenAI-compatible chat completions endpoint and dispatches the
         tool calls you make.
+
+        Working directory: \(workingDirectoryPath)
+        All tool paths are resolved against this directory. Relative paths
+        are recommended; if you use absolute paths they must resolve inside
+        the working directory.
 
         Tools available to you this turn:
         \(toolList)
