@@ -39,12 +39,19 @@ struct AgentToolInvocationResult: Sendable, Equatable {
 
 /// Execution context handed to a tool at invocation time. The working
 /// directory is the root the tool must scope itself to — any path that
-/// escapes it is rejected.
+/// escapes it is rejected. The bash runner picks how shell commands are
+/// dispatched (locally on the host vs. routed through SSH into the
+/// Shared VM).
 struct AgentToolContext: Sendable {
     var workingDirectory: URL
+    var bashRunner: AgentBashRunner
 
-    init(workingDirectory: URL) {
+    init(
+        workingDirectory: URL,
+        bashRunner: AgentBashRunner = AgentHostBashRunner()
+    ) {
         self.workingDirectory = workingDirectory.standardizedFileURL
+        self.bashRunner = bashRunner
     }
 }
 

@@ -2020,6 +2020,7 @@ extension CompassProject {
         decode: T.Type
     ) async throws -> T {
         let schema = AgentToolParametersSchema(json: Data(submitResultSchema.utf8))
+        let bashRunner = resolveBashRunner(forHostURL: workingDirectory)
         let configuration = AgentExecutionConfiguration(
             settings: agentSettings,
             phase: phase,
@@ -2028,7 +2029,8 @@ extension CompassProject {
             userPrompt: userPrompt,
             tools: AgentExecutor.toolsForPhase(phase),
             submitResultSchema: schema,
-            workingDirectory: workingDirectory
+            workingDirectory: workingDirectory,
+            bashRunner: bashRunner
         )
         let agent = AgentExecutor { [weak self] event in
             Task { @MainActor in self?.log(event) }
@@ -2042,6 +2044,26 @@ extension CompassProject {
             throw AppModelError.internalInvariant(
                 "Could not decode \(T.self) from submit_result: \(error.localizedDescription)\n\(body)"
             )
+        }
+    }
+
+    /// Picks the bash dispatch backend for an agent run. If the project's
+    /// Develop sandbox is `.sharedVM` AND the VM resolves to a ready route
+    /// for the given host worktree, route bash through SSH; otherwise stay
+    /// on the host. File-level tools (read/write/edit/ls/grep/glob) always
+    /// operate on the host worktree path — the VirtioFS share keeps the
+    /// guest's view in sync.
+    private func resolveBashRunner(forHostURL hostURL: URL) -> AgentBashRunner {
+        let launchPlan = codexLaunchPlan(for: hostURL)
+        switch launchPlan.effectiveRoute {
+        case .host:
+            if let reason = launchPlan.fallbackReason {
+                log("Agent bash route falling back to host: \(reason)", level: .info)
+            }
+            return AgentHostBashRunner()
+        case let .sharedVM(route):
+            log("Agent bash route via Shared VM at \(route.sshDestination)", level: .info)
+            return AgentSharedVMBashRunner(route: route)
         }
     }
 

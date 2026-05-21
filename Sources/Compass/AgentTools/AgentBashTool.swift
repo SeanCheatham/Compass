@@ -15,9 +15,8 @@ struct AgentBashTool: AgentTool {
     }
 
     let spec: AgentToolSpec
-    private let shellPath: String
 
-    init(shellPath: String = "/bin/zsh") {
+    init() {
         let schema = try! AgentToolParametersSchema([
             "type": "object",
             "additionalProperties": false,
@@ -44,7 +43,6 @@ struct AgentBashTool: AgentTool {
             description: "Execute a shell command via /bin/zsh -lc. Stdout, stderr, and exit code are returned. Output capped at 100 KB; commands killed at the timeout.",
             parameters: schema
         )
-        self.shellPath = shellPath
     }
 
     func invoke(arguments: Data, context: AgentToolContext) async throws -> AgentToolInvocationResult {
@@ -82,9 +80,8 @@ struct AgentBashTool: AgentTool {
         let startedAt = Date()
         let result: ProcessResult
         do {
-            result = try await ProcessRunner.run(
-                executable: shellPath,
-                arguments: ["-lc", command],
+            result = try await context.bashRunner.run(
+                command: command,
                 workingDirectory: cwd,
                 timeout: timeoutSeconds
             )

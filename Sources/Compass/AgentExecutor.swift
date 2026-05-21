@@ -24,6 +24,7 @@ struct AgentExecutionConfiguration {
     var tools: [AgentTool]
     var submitResultSchema: AgentToolParametersSchema
     var workingDirectory: URL
+    var bashRunner: AgentBashRunner
     var maxIterations: Int
     var wallClockTimeout: TimeInterval
 
@@ -36,6 +37,7 @@ struct AgentExecutionConfiguration {
         tools: [AgentTool],
         submitResultSchema: AgentToolParametersSchema,
         workingDirectory: URL,
+        bashRunner: AgentBashRunner = AgentHostBashRunner(),
         maxIterations: Int = 64,
         wallClockTimeout: TimeInterval = 30 * 60
     ) {
@@ -47,6 +49,7 @@ struct AgentExecutionConfiguration {
         self.tools = tools
         self.submitResultSchema = submitResultSchema
         self.workingDirectory = workingDirectory
+        self.bashRunner = bashRunner
         self.maxIterations = maxIterations
         self.wallClockTimeout = wallClockTimeout
     }
@@ -99,7 +102,10 @@ final class AgentExecutor {
 
         let openAI = Self.makeClient(settings: configuration.settings)
         let openAITools = try Self.buildOpenAITools(configuration: configuration)
-        let toolContext = AgentToolContext(workingDirectory: configuration.workingDirectory)
+        let toolContext = AgentToolContext(
+            workingDirectory: configuration.workingDirectory,
+            bashRunner: configuration.bashRunner
+        )
         let model = configuration.settings.model(for: configuration.phase, sidebarOverride: configuration.modelOverride)
 
         var messages: [ChatQuery.ChatCompletionMessageParam] = [
