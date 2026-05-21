@@ -23,7 +23,20 @@ final class VZVirtioSocketTransport: VsockTransport, @unchecked Sendable {
     }
 
     deinit {
-        Task { [self] in await self.close() }
+        // Capture `fileDescriptor` (a value type) directly — DO NOT spawn
+        // a `Task { [self] in close() }`. By the time such a task runs,
+        // `self`'s refcount has already dropped to zero and the deinit is
+        // tearing the instance down; the ObjC runtime trying to retain
+        // a half-deallocated instance crashes with EXC_BAD_ACCESS in
+        // objc_retain. Closing the fd is the only cleanup needed, and
+        // it's fd-local — no need to touch `self` at all in deinit.
+        closedLock.lock()
+        let needsClose = !closed
+        closed = true
+        closedLock.unlock()
+        if needsClose {
+            Darwin.close(fileDescriptor)
+        }
     }
 
     func write(_ data: Data) async throws {
