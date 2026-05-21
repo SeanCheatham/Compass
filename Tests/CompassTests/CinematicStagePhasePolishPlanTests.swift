@@ -137,7 +137,7 @@ final class CinematicStagePhasePolishPlanTests: XCTestCase {
             phase: .developing,
             activityProfile: activityProfile(),
             settings: settings,
-            recoveryCuePlan: recoveryPlans[3]
+            recoveryCuePlan: recoveryPlans[4]
         )
 
         XCTAssertEqual(verify.recoveryCueKindIdentifier, "failedVerify")

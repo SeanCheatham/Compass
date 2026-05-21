@@ -223,7 +223,7 @@ struct AgentMutationTestingPlan: Equatable, Identifiable {
         let seedCommandIdentifier = "seed-\(Self.fingerprint(seedCommandLabel))"
         let identifier = Self.bounded(
             [
-                "codex-mutation-testing",
+                "compass-mutation-testing",
                 "status:\(readinessState.rawValue)",
                 "route:\(routeState.rawValue)",
                 "language:\(language.identifier)",

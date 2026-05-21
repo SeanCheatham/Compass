@@ -283,27 +283,6 @@ struct AgentExecutionLaunchPlan: Equatable {
         return String(normalized.prefix(limit)).trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
-    private static func commandInvocation(
-        command: String,
-        arguments: [String],
-        workingDirectory: URL
-    ) -> AgentExecutionInvocation {
-        let trimmedCommand = command.trimmingCharacters(in: .whitespacesAndNewlines)
-        if trimmedCommand.contains("/") {
-            return AgentExecutionInvocation(
-                executable: trimmedCommand,
-                arguments: arguments,
-                workingDirectory: workingDirectory
-            )
-        }
-
-        return AgentExecutionInvocation(
-            executable: "/usr/bin/env",
-            arguments: [trimmedCommand] + arguments,
-            workingDirectory: workingDirectory
-        )
-    }
-
     private static func boundedOptionalText(_ text: String?, limit: Int) -> String? {
         let bounded = boundedText(text ?? "", limit: limit)
         return bounded.isEmpty ? nil : bounded

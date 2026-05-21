@@ -29,7 +29,7 @@ final class AgentEditFileToolTests: XCTestCase {
 
         XCTAssertFalse(result.isError)
         XCTAssertTrue(result.content.contains("replaced 1 occurrence in notes.txt"))
-        XCTAssertEqual(try String(contentsOf: fileURL), "alpha\nBETA\ngamma")
+        XCTAssertEqual(try String(contentsOf: fileURL, encoding: .utf8), "alpha\nBETA\ngamma")
     }
 
     func testFailsWhenOldStringIsAmbiguous() async throws {
@@ -45,7 +45,7 @@ final class AgentEditFileToolTests: XCTestCase {
         XCTAssertTrue(result.isError)
         XCTAssertTrue(result.content.contains("matches 3 places"))
         XCTAssertTrue(result.content.contains("replaceAll"))
-        XCTAssertEqual(try String(contentsOf: fileURL), "foo\nfoo\nfoo")
+        XCTAssertEqual(try String(contentsOf: fileURL, encoding: .utf8), "foo\nfoo\nfoo")
     }
 
     func testReplaceAllReplacesEveryOccurrence() async throws {
@@ -61,7 +61,7 @@ final class AgentEditFileToolTests: XCTestCase {
 
         XCTAssertFalse(result.isError)
         XCTAssertTrue(result.content.contains("replaced 3 occurrences"))
-        XCTAssertEqual(try String(contentsOf: fileURL), "bar\nbar\nbar")
+        XCTAssertEqual(try String(contentsOf: fileURL, encoding: .utf8), "bar\nbar\nbar")
     }
 
     func testFailsWhenOldStringMissing() async throws {

@@ -138,13 +138,11 @@ Files` symlink, so the agent's bash tool sees the worktree at
   VirtioFS is not reliably hot-pluggable across macOS releases; a single
   parent share with host-created subdirectories is more robust.
 
-## Phase 2-7 commits
+## How Develop reaches the guest today
 
-- `b4e7312` Phase 2 — initial module construction.
-- `4970fff` Phase 3 — wired into CodexExecutionLaunchPlan + CodexExecutor;
-  added SharedCompassVMCodexAuthBridge; introduced
-  `replaceConsoleAttachment` + `ensureSSHKeypair`.
-- `be4cd56` Phase 4 — SwiftUI surface (`SandboxView` + sidebar integration).
-- `ef8051c` Phase 5 — picker persistence.
-- `43c5bf6` Phase 6 — unit tests for bundle / readiness / file-share / SSH
-  argv assembly / availability check / migration semantics.
+The Codex surface that originally drove this module was removed in the
+phase 7 cleanup. The current entry point is `AgentBashTool` (Develop's
+`bash` tool); the `AgentSharedVMBashRunner` in `AgentTools/` builds the
+SSH argv via `SharedCompassVMGuestBridge` and runs `/bin/zsh -lc <command>`
+in the guest's mirror of the host worktree. Plan/Reflect remain
+host-native (read-only file tools only).

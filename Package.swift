@@ -19,6 +19,9 @@ let package = Package(
             dependencies: [
                 .product(name: "OpenAI", package: "OpenAI")
             ],
+            exclude: [
+                "SharedVM/README.md"
+            ],
             resources: [
                 .process("Resources")
             ]

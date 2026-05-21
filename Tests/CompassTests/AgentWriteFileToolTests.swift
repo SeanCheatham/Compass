@@ -25,7 +25,7 @@ final class AgentWriteFileToolTests: XCTestCase {
 
         XCTAssertFalse(result.isError)
         XCTAssertTrue(result.content.contains("wrote 11 bytes to fresh.txt"))
-        let written = try String(contentsOf: temporaryDirectory.appendingPathComponent("fresh.txt"))
+        let written = try String(contentsOf: temporaryDirectory.appendingPathComponent("fresh.txt"), encoding: .utf8)
         XCTAssertEqual(written, "hello world")
     }
 
@@ -39,7 +39,7 @@ final class AgentWriteFileToolTests: XCTestCase {
         ])
 
         XCTAssertFalse(result.isError)
-        let written = try String(contentsOf: url)
+        let written = try String(contentsOf: url, encoding: .utf8)
         XCTAssertEqual(written, "new")
     }
 
@@ -51,7 +51,7 @@ final class AgentWriteFileToolTests: XCTestCase {
 
         XCTAssertFalse(result.isError)
         let url = temporaryDirectory.appendingPathComponent("deep/nested/path/file.txt")
-        XCTAssertEqual(try String(contentsOf: url), "hi")
+        XCTAssertEqual(try String(contentsOf: url, encoding: .utf8), "hi")
     }
 
     func testRejectsPathThatEscapesWorkingDirectory() async throws {

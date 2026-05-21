@@ -293,7 +293,7 @@ final class CinematicStageEffectPlanTests: XCTestCase {
         let settings = CinematicInfluenceSettings(cameraStyle: .dramatic, intensity: 1)
         let verifyCue = CinematicRecoveryCuePlanner.representativePlans(influenceSettings: settings)[1]
         let dirtyCue = CinematicRecoveryCuePlanner.representativePlans(influenceSettings: settings)[2]
-        let promotionCue = CinematicRecoveryCuePlanner.representativePlans(influenceSettings: settings)[3]
+        let promotionCue = CinematicRecoveryCuePlanner.representativePlans(influenceSettings: settings)[4]
 
         let verifyPlan = effectPlan(
             phase: .failed,

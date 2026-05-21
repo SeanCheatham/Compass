@@ -144,16 +144,14 @@ case "${MODE}" in
     else
       # Mirror SharedCompassVMBundle.resetInstalledArtifacts: remove the
       # disk image, auxiliary storage, hardware identity, known_hosts,
-      # state.json, and codex credentials stash. Keep cache/ and the
-      # Compass-owned SSH keypair.
+      # and state.json. Keep cache/ and the Compass-owned SSH keypair.
       for path in \
         "${BUNDLE}/Disk.img" \
         "${BUNDLE}/AuxiliaryStorage" \
         "${BUNDLE}/HardwareModel" \
         "${BUNDLE}/MachineIdentifier" \
         "${BUNDLE}/known_hosts" \
-        "${BUNDLE}/state.json" \
-        "${BUNDLE}/codex-credentials"
+        "${BUNDLE}/state.json"
       do
         if [[ -e "${path}" ]]; then
           run "rm -rf \"${path}\""
