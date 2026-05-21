@@ -94,7 +94,7 @@ final class AgentExecutionLaunchPlanTests: XCTestCase {
             sharedVMRouteFactory: { _ in nil }
         )
         XCTAssertFalse(plan.isVMRoute)
-        XCTAssertTrue(plan.fallbackReason?.contains("route unavailable") ?? false)
+        XCTAssertTrue(plan.fallbackReason?.contains("outside the Shared VM workspaces share") ?? false)
     }
 
     func testBuildConfigFallsBackToNativeWhenContainerToolIsUnavailable() throws {

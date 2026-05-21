@@ -73,7 +73,7 @@ struct AgentExecutionLaunchPlan: Equatable {
             }
 
             switch readiness {
-            case let .ready(sshDestination):
+            case .ready:
                 if let route = sharedVMRouteFactory(repoURL.standardizedFileURL) {
                     return Self(
                         selectedPreference: preference,
@@ -84,7 +84,7 @@ struct AgentExecutionLaunchPlan: Equatable {
                 return host(
                     selectedPreference: preference,
                     vmReadiness: readiness,
-                    fallbackReason: "Shared VM route unavailable for destination \(Self.boundedText(sshDestination, limit: Self.labelLimit))."
+                    fallbackReason: "Worktree is outside the Shared VM workspaces share; this phase runs on the host."
                 )
             case let .unavailable(reason):
                 return host(

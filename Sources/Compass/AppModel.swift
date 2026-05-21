@@ -575,11 +575,18 @@ extension CompassProject {
 
     var runtimeDiagnosticsMenu: AgentExecutionEnvironmentMenu {
         let environment = agentExecutionEnvironment
-        let launchPlan = agentLaunchPlan(for: repoURL)
+        // The env-presentation plan represents Develop's bash routing — the
+        // phase that actually creates a worktree inside the VM's VirtioFS
+        // share. Plan/Reflect/mutation testing run against the main repo path
+        // (outside the share) and stay on host by design; using the main repo
+        // here would make the dropdown report a spurious "falling back" state
+        // whenever the VM is otherwise healthy.
+        let envLaunchPlan = agentLaunchPlan(for: SharedCompassVM.shared.workspacesRootURL)
+        let mutationLaunchPlan = agentLaunchPlan(for: repoURL)
         let mutationTestingPlan = AgentMutationTestingPlan(
             state: state,
             languageProfile: languageProfile,
-            launchPlan: launchPlan
+            launchPlan: mutationLaunchPlan
         )
         let mutationRecoveryDescriptor = MutationTestingRecoveryDescriptor.runtimeDescriptor(
             sessions: sessions,
@@ -587,7 +594,7 @@ extension CompassProject {
         )
         return AgentExecutionEnvironmentMenu(
             environment: environment,
-            launchPlan: launchPlan,
+            launchPlan: envLaunchPlan,
             mutationTestingPlan: mutationTestingPlan,
             mutationRecoveryDescriptor: mutationRecoveryDescriptor,
             mutationExecutionState: mutationTestingExecutionState
@@ -1837,11 +1844,11 @@ extension CompassProject {
                 sessionIndex: sessionIndex
             )
         }
-        let presentation = environment.presentation
+        let presentation = environment.presentation(launchPlan: effectiveLaunchPlan)
         let detail = [presentation.status, presentation.detail, effectiveLaunchPlan.routeDetail()]
             .filter { !$0.isEmpty }
             .joined(separator: " ")
-        log(detail, level: presentation.isWarning || effectiveLaunchPlan.fallbackReason != nil ? .warning : .info)
+        log(detail, level: presentation.isWarning ? .warning : .info)
     }
 
     private func recordSessionExecutionEnvironmentSnapshot(
