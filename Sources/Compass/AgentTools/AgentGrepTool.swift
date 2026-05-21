@@ -1,9 +1,9 @@
 import Foundation
 
-/// Search files for a regex pattern. Shells out to `rg` when present (faster
-/// and respects `.gitignore` by default), else falls back to BSD `grep -rnE`.
-/// Both implementations are read-only — the model does not get a generic
-/// shell through this tool, only this narrow filter.
+/// Search files for a regex pattern. Delegates the actual exec to
+/// `AgentFilesystem.grep`, so the host backend (rg / BSD grep) and any
+/// future Shared-VM backend share this tool unchanged. The model does not
+/// get a generic shell through this tool — only this narrow filter.
 struct AgentGrepTool: AgentTool {
     static let toolName = "grep"
     static let maxBytes = 50_000
@@ -16,22 +16,9 @@ struct AgentGrepTool: AgentTool {
         let caseInsensitive: Bool?
     }
 
-    enum Executable {
-        case ripgrep(String)
-        case grep(String)
-
-        var path: String {
-            switch self {
-            case let .ripgrep(p): return p
-            case let .grep(p): return p
-            }
-        }
-    }
-
     let spec: AgentToolSpec
-    private let executable: Executable
 
-    init(executable: Executable = AgentGrepTool.locateExecutable()) {
+    init() {
         let schema = try! AgentToolParametersSchema([
             "type": "object",
             "additionalProperties": false,
@@ -60,7 +47,6 @@ struct AgentGrepTool: AgentTool {
             description: "Search files under the working directory for a regex pattern. Uses ripgrep when installed, otherwise BSD grep. Output is capped at 50KB.",
             parameters: schema
         )
-        self.executable = executable
     }
 
     func invoke(arguments: Data, context: AgentToolContext) async throws -> AgentToolInvocationResult {
@@ -88,40 +74,17 @@ struct AgentGrepTool: AgentTool {
             searchURL = context.workingDirectory
         }
 
-        let invocationArgs: [String]
-        switch executable {
-        case .ripgrep:
-            var rgArgs = [
-                "--no-config",
-                "--with-filename",
-                "--line-number",
-                "--color", "never"
-            ]
-            if args.caseInsensitive == true { rgArgs.append("--ignore-case") }
-            if let glob = args.glob?.trimmingCharacters(in: .whitespacesAndNewlines), !glob.isEmpty {
-                rgArgs += ["--glob", glob]
-            }
-            rgArgs += [pattern, searchURL.path]
-            invocationArgs = rgArgs
-
-        case .grep:
-            var grepArgs = ["-rnE"]
-            if args.caseInsensitive == true { grepArgs.append("-i") }
-            if let glob = args.glob?.trimmingCharacters(in: .whitespacesAndNewlines), !glob.isEmpty {
-                grepArgs += ["--include=\(glob)"]
-            }
-            grepArgs += [pattern, searchURL.path]
-            invocationArgs = grepArgs
-        }
-
         let result: ProcessResult
         do {
-            result = try await ProcessRunner.run(
-                executable: executable.path,
-                arguments: invocationArgs,
-                workingDirectory: context.workingDirectory,
+            result = try await context.filesystem.grep(
+                pattern: pattern,
+                in: searchURL,
+                glob: args.glob?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty,
+                caseInsensitive: args.caseInsensitive ?? false,
                 timeout: Self.timeoutSeconds
             )
+        } catch let error as AgentFilesystemError {
+            return .failure(error.errorDescription ?? "grep failed")
         } catch {
             return .failure("grep launch failed: \(error.localizedDescription)")
         }
@@ -154,12 +117,8 @@ struct AgentGrepTool: AgentTool {
             }
             .joined(separator: "\n")
     }
+}
 
-    static func locateExecutable() -> Executable {
-        let rgCandidates = ["/opt/homebrew/bin/rg", "/usr/local/bin/rg"]
-        for path in rgCandidates where FileManager.default.isExecutableFile(atPath: path) {
-            return .ripgrep(path)
-        }
-        return .grep("/usr/bin/grep")
-    }
+private extension String {
+    var nilIfEmpty: String? { isEmpty ? nil : self }
 }

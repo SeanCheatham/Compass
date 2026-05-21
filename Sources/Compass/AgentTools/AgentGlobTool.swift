@@ -64,48 +64,29 @@ struct AgentGlobTool: AgentTool {
             root = context.workingDirectory
         }
 
-        let regex: NSRegularExpression
+        let matches: [GlobMatch]
         do {
-            regex = try Self.regex(forGlob: pattern)
+            matches = try await context.filesystem.glob(
+                pattern: pattern,
+                under: root,
+                walkCap: Self.walkCap
+            )
+        } catch let error as AgentFilesystemError {
+            switch error {
+            case .notDirectory:
+                return .failure(AgentToolError.notDirectory(args.path ?? ".").errorDescription ?? "not a directory")
+            default:
+                return .failure(error.errorDescription ?? "glob failed")
+            }
         } catch {
-            return .failure("invalid glob pattern: \(error.localizedDescription)")
-        }
-
-        let fileManager = FileManager.default
-        var isDirectory: ObjCBool = false
-        guard fileManager.fileExists(atPath: root.path, isDirectory: &isDirectory), isDirectory.boolValue else {
-            return .failure(AgentToolError.notDirectory(args.path ?? ".").errorDescription ?? "not a directory")
-        }
-
-        guard let enumerator = fileManager.enumerator(
-            at: root,
-            includingPropertiesForKeys: [.isRegularFileKey, .contentModificationDateKey],
-            options: []
-        ) else {
-            return .failure("could not enumerate \(root.path)")
-        }
-
-        var matches: [(url: URL, mtime: Date)] = []
-        var visited = 0
-        while let next = enumerator.nextObject() {
-            visited += 1
-            if visited > Self.walkCap { break }
-            guard let fileURL = next as? URL else { continue }
-
-            let relative = relativePath(of: fileURL, under: root)
-            let nsRelative = relative as NSString
-            let range = NSRange(location: 0, length: nsRelative.length)
-            if regex.firstMatch(in: relative, options: [], range: range) == nil { continue }
-
-            let resourceValues = try? fileURL.resourceValues(forKeys: [.isRegularFileKey, .contentModificationDateKey])
-            if resourceValues?.isRegularFile != true { continue }
-            let mtime = resourceValues?.contentModificationDate ?? Date.distantPast
-            matches.append((fileURL, mtime))
+            return .failure("glob failed: \(error.localizedDescription)")
         }
 
         let sorted = matches.sorted { lhs, rhs in
-            if lhs.mtime == rhs.mtime { return lhs.url.path < rhs.url.path }
-            return lhs.mtime > rhs.mtime
+            let lMtime = lhs.modificationDate ?? .distantPast
+            let rMtime = rhs.modificationDate ?? .distantPast
+            if lMtime == rMtime { return lhs.url.path < rhs.url.path }
+            return lMtime > rMtime
         }
         let displayed = sorted.prefix(Self.maxResults).map { context.relativize($0.url) }
         var body = displayed.joined(separator: "\n")
@@ -116,50 +97,5 @@ struct AgentGlobTool: AgentTool {
             body = "(no matches)"
         }
         return .ok(body)
-    }
-
-    private func relativePath(of url: URL, under root: URL) -> String {
-        let absolutePath = url.standardizedFileURL.path
-        let rootPath = root.standardizedFileURL.path
-        if absolutePath == rootPath { return "." }
-        if absolutePath.hasPrefix(rootPath + "/") {
-            return String(absolutePath.dropFirst(rootPath.count + 1))
-        }
-        return absolutePath
-    }
-
-    /// Translate a glob pattern into an anchored regex.
-    /// - `**` matches any sequence of characters (including `/`).
-    /// - `*` matches any characters except `/`.
-    /// - `?` matches a single character except `/`.
-    /// - All other regex metacharacters are escaped.
-    static func regex(forGlob pattern: String) throws -> NSRegularExpression {
-        var regex = "^"
-        var i = pattern.startIndex
-        while i < pattern.endIndex {
-            let c = pattern[i]
-            if c == "*" {
-                let next = pattern.index(after: i)
-                if next < pattern.endIndex, pattern[next] == "*" {
-                    regex += ".*"
-                    i = pattern.index(after: next)
-                    if i < pattern.endIndex && pattern[i] == "/" {
-                        i = pattern.index(after: i)
-                    }
-                    continue
-                }
-                regex += "[^/]*"
-            } else if c == "?" {
-                regex += "[^/]"
-            } else if ".^$+(){}|[]\\".contains(c) {
-                regex.append("\\")
-                regex.append(c)
-            } else {
-                regex.append(c)
-            }
-            i = pattern.index(after: i)
-        }
-        regex += "$"
-        return try NSRegularExpression(pattern: regex)
     }
 }

@@ -54,26 +54,18 @@ struct AgentWriteFileTool: AgentTool {
             return .failure("path resolution failed: \(error.localizedDescription)")
         }
 
-        let parent = url.deletingLastPathComponent()
-        do {
-            try FileManager.default.createDirectory(
-                at: parent,
-                withIntermediateDirectories: true
-            )
-        } catch {
-            return .failure(AgentToolError.ioFailure(error.localizedDescription).errorDescription ?? "I/O failure")
-        }
-
-        var isDirectory: ObjCBool = false
-        if FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory), isDirectory.boolValue {
-            return .failure(AgentToolError.notRegularFile(args.path).errorDescription ?? "not a regular file")
-        }
-
         let data = Data(args.content.utf8)
         do {
-            try data.write(to: url, options: .atomic)
+            try await context.filesystem.writeFile(data, at: url)
+        } catch let error as AgentFilesystemError {
+            switch error {
+            case .notRegularFile:
+                return .failure(AgentToolError.notRegularFile(args.path).errorDescription ?? "not a regular file")
+            default:
+                return .failure(error.errorDescription ?? "I/O failure")
+            }
         } catch {
-            return .failure(AgentToolError.ioFailure(error.localizedDescription).errorDescription ?? "I/O failure")
+            return .failure("write failed: \(error.localizedDescription)")
         }
 
         let relative = context.relativize(url)

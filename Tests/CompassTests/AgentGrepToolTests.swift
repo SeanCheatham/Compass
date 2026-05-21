@@ -4,9 +4,10 @@ import XCTest
 
 final class AgentGrepToolTests: XCTestCase {
     private var temporaryDirectory: URL!
+    private let tool = AgentGrepTool()
     // Force BSD grep so tests don't depend on the developer having ripgrep
     // installed. Both backends are exercised in the locator unit tests.
-    private let tool = AgentGrepTool(executable: .grep("/usr/bin/grep"))
+    private let filesystem = AgentHostFilesystem(grepExecutable: .grep("/usr/bin/grep"))
 
     override func setUpWithError() throws {
         temporaryDirectory = try makeTempDir()
@@ -108,7 +109,10 @@ final class AgentGrepToolTests: XCTestCase {
         let data = try JSONSerialization.data(withJSONObject: args)
         return try await tool.invoke(
             arguments: data,
-            context: AgentToolContext(workingDirectory: temporaryDirectory)
+            context: AgentToolContext(
+                workingDirectory: temporaryDirectory,
+                filesystem: filesystem
+            )
         )
     }
 }

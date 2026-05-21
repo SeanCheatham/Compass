@@ -51,35 +51,27 @@ struct AgentLsTool: AgentTool {
             url = context.workingDirectory
         }
 
-        let fileManager = FileManager.default
-        var isDirectory: ObjCBool = false
-        guard fileManager.fileExists(atPath: url.path, isDirectory: &isDirectory) else {
-            return .failure(AgentToolError.fileNotFound(args.path ?? ".").errorDescription ?? "not found")
-        }
-        if !isDirectory.boolValue {
-            return .failure(AgentToolError.notDirectory(args.path ?? ".").errorDescription ?? "not a directory")
-        }
-
-        let entries: [URL]
+        let entries: [DirectoryEntry]
         do {
-            entries = try fileManager.contentsOfDirectory(
-                at: url,
-                includingPropertiesForKeys: [.isDirectoryKey],
-                options: []
-            )
+            entries = try await context.filesystem.listDirectory(at: url)
+        } catch let error as AgentFilesystemError {
+            switch error {
+            case .notFound:
+                return .failure(AgentToolError.fileNotFound(args.path ?? ".").errorDescription ?? "not found")
+            case .notDirectory:
+                return .failure(AgentToolError.notDirectory(args.path ?? ".").errorDescription ?? "not a directory")
+            default:
+                return .failure(error.errorDescription ?? "I/O failure")
+            }
         } catch {
-            return .failure(AgentToolError.ioFailure(error.localizedDescription).errorDescription ?? "I/O failure")
+            return .failure("list failed: \(error.localizedDescription)")
         }
 
-        let sorted = entries.sorted { $0.lastPathComponent < $1.lastPathComponent }
+        let sorted = entries.sorted { $0.name < $1.name }
         let limited = Array(sorted.prefix(Self.maxEntries))
 
-        let lines = limited.map { entryURL -> String in
-            var isDirInner: ObjCBool = false
-            fileManager.fileExists(atPath: entryURL.path, isDirectory: &isDirInner)
-            return isDirInner.boolValue
-                ? entryURL.lastPathComponent + "/"
-                : entryURL.lastPathComponent
+        let lines = limited.map { entry in
+            entry.isDirectory ? entry.name + "/" : entry.name
         }
 
         var output = lines.joined(separator: "\n")

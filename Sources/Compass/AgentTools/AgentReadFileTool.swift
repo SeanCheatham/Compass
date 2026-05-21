@@ -62,20 +62,20 @@ struct AgentReadFileTool: AgentTool {
             return .failure("path resolution failed: \(error.localizedDescription)")
         }
 
-        let fileManager = FileManager.default
-        var isDirectory: ObjCBool = false
-        guard fileManager.fileExists(atPath: url.path, isDirectory: &isDirectory) else {
-            return .failure(AgentToolError.fileNotFound(args.path).errorDescription ?? "not found")
-        }
-        if isDirectory.boolValue {
-            return .failure(AgentToolError.notRegularFile(args.path).errorDescription ?? "not a regular file")
-        }
-
         let data: Data
         do {
-            data = try Data(contentsOf: url)
+            data = try await context.filesystem.readFile(at: url)
+        } catch let error as AgentFilesystemError {
+            switch error {
+            case .notFound:
+                return .failure(AgentToolError.fileNotFound(args.path).errorDescription ?? "not found")
+            case .notRegularFile:
+                return .failure(AgentToolError.notRegularFile(args.path).errorDescription ?? "not a regular file")
+            default:
+                return .failure(error.errorDescription ?? "I/O failure")
+            }
         } catch {
-            return .failure(AgentToolError.ioFailure(error.localizedDescription).errorDescription ?? "I/O failure")
+            return .failure("read failed: \(error.localizedDescription)")
         }
 
         if data.prefix(8192).contains(0) {

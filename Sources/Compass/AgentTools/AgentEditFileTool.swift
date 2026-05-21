@@ -72,19 +72,20 @@ struct AgentEditFileTool: AgentTool {
             return .failure("path resolution failed: \(error.localizedDescription)")
         }
 
-        var isDirectory: ObjCBool = false
-        guard FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory) else {
-            return .failure(AgentToolError.fileNotFound(args.path).errorDescription ?? "not found")
-        }
-        if isDirectory.boolValue {
-            return .failure(AgentToolError.notRegularFile(args.path).errorDescription ?? "not a regular file")
-        }
-
         let originalData: Data
         do {
-            originalData = try Data(contentsOf: url)
+            originalData = try await context.filesystem.readFile(at: url)
+        } catch let error as AgentFilesystemError {
+            switch error {
+            case .notFound:
+                return .failure(AgentToolError.fileNotFound(args.path).errorDescription ?? "not found")
+            case .notRegularFile:
+                return .failure(AgentToolError.notRegularFile(args.path).errorDescription ?? "not a regular file")
+            default:
+                return .failure(error.errorDescription ?? "I/O failure")
+            }
         } catch {
-            return .failure(AgentToolError.ioFailure(error.localizedDescription).errorDescription ?? "I/O failure")
+            return .failure("read failed: \(error.localizedDescription)")
         }
         if originalData.prefix(8192).contains(0) {
             return .failure(AgentToolError.binaryFile(args.path).errorDescription ?? "binary file")
@@ -116,9 +117,11 @@ struct AgentEditFileTool: AgentTool {
         }
 
         do {
-            try Data(updated.utf8).write(to: url, options: .atomic)
+            try await context.filesystem.writeFile(Data(updated.utf8), at: url)
+        } catch let error as AgentFilesystemError {
+            return .failure(error.errorDescription ?? "I/O failure")
         } catch {
-            return .failure(AgentToolError.ioFailure(error.localizedDescription).errorDescription ?? "I/O failure")
+            return .failure("write failed: \(error.localizedDescription)")
         }
 
         let plural = replaced == 1 ? "" : "s"
