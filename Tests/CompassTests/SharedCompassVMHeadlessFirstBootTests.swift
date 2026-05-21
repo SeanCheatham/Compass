@@ -271,6 +271,37 @@ final class SharedCompassVMHeadlessFirstBootTests: XCTestCase {
         )
     }
 
+    func testGuestAgentLaunchAgentLandsInPerUserLaunchAgentDirNotLaunchDaemons() {
+        // /Library/LaunchAgents is loaded for every GUI user session by
+        // launchd. /Library/LaunchDaemons is loaded by the system context
+        // (no user) — sshd-spawned children with no GUI session inheritance
+        // are exactly the TCC-blocked context we're trying to escape. If
+        // this plist drifts into /Library/LaunchDaemons the agent would
+        // come back to that same broken state, so pin the directory.
+        let profile = SharedCompassVMHeadlessFirstBoot.Profile.standard(macOSMajor: 16)
+        XCTAssertTrue(
+            profile.guestAgentLaunchAgentGuestPath.hasPrefix("/Library/LaunchAgents/"),
+            "guest agent must be a LaunchAgent (per-session) not a LaunchDaemon (system context)"
+        )
+        XCTAssertTrue(profile.guestAgentLaunchAgentGuestPath.hasSuffix(".plist"))
+    }
+
+    func testGuestAgentPlistReferencesItsBinaryAndUsesKeepAlive() {
+        // The wire-down failure mode for vsock is "no listener on the
+        // guest" → the host gets ECONNREFUSED and can't tell apart
+        // "agent crashed" from "agent never started". KeepAlive=true
+        // lets launchd restart the agent within seconds of any crash,
+        // so a transient crash doesn't wedge subsequent agent runs.
+        let profile = SharedCompassVMHeadlessFirstBoot.Profile.standard(macOSMajor: 16)
+        let plist = SharedCompassVMHeadlessFirstBoot.renderGuestAgentLaunchAgentPlist(profile: profile)
+        XCTAssertTrue(plist.contains("<key>KeepAlive</key>\n    <true/>"))
+        XCTAssertTrue(plist.contains("<key>RunAtLoad</key>\n    <true/>"))
+        XCTAssertTrue(
+            plist.contains("<string>\(profile.guestAgentBinaryGuestPath)</string>"),
+            "ProgramArguments must point at the planted binary path"
+        )
+    }
+
     func testBootstrapScriptPlantsZshenvSoSSHFindsBinariesOnPATH() {
         // macOS sshd runs `ssh user@host command` as a non-interactive,
         // non-login zsh, which skips /etc/zprofile and therefore
