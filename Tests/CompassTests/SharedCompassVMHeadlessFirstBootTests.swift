@@ -232,10 +232,26 @@ final class SharedCompassVMHeadlessFirstBootTests: XCTestCase {
         XCTAssertTrue(script.contains("chmod 700 \"$GUEST_HOME/.ssh\""))
     }
 
-    func testBootstrapScriptCreatesWorkspacesSymlinkAfterShareMount() {
+    func testBootstrapScriptCreatesGuestLocalWorktreesRoot() {
+        // Compass dropped the VirtioFS share + /opt/compass/workspaces
+        // symlink after confirming macOS guests TCC-block AppleVirtIOFS
+        // reads from every process (including LaunchAgents in gui/501
+        // and root via LaunchDaemon). Worktrees now live under the
+        // compass user's home and are vsock-synced from the host — the
+        // first-boot script just needs to materialize the empty parent
+        // dir with the right ownership.
         let script = renderStandardScript()
-        XCTAssertTrue(script.contains("ln -s \"$SHARE_ROOT\" /opt/compass/workspaces"))
-        XCTAssertTrue(script.contains("/Volumes/My Shared Files/compass-workspaces"))
+        XCTAssertTrue(script.contains("WORKTREES_ROOT=\"$GUEST_HOME/Compass/Worktrees\""))
+        XCTAssertTrue(script.contains("mkdir -p \"$WORKTREES_ROOT\""))
+        XCTAssertTrue(script.contains("chown -R \"$GUEST_USER\":staff \"$GUEST_HOME/Compass\""))
+        XCTAssertFalse(
+            script.contains("/opt/compass/workspaces"),
+            "the VirtioFS-mount symlink must be gone — AppleVirtIOFS is TCC-blocked"
+        )
+        XCTAssertFalse(
+            script.contains("/Volumes/My Shared Files"),
+            "the VirtioFS share is no longer attached to the VM"
+        )
     }
 
     func testBootstrapScriptPlantsAutoLoginSoVMBootsStraightToDesktop() {

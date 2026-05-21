@@ -447,8 +447,7 @@ struct DefaultInstallerRunner: InstallerRunning {
         let inputs = SharedCompassVMConfiguration.Inputs(
             bundle: bundle,
             cpuCount: 4,
-            memorySize: 8 * 1024 * 1024 * 1024,
-            shareTargets: []
+            memorySize: 8 * 1024 * 1024 * 1024
         )
         let configuration = try SharedCompassVMConfiguration.makeInstallationConfiguration(
             for: inputs,

@@ -23,7 +23,7 @@ final class AgentExecutionLaunchPlanTests: XCTestCase {
         let route = SharedVMRoute(
             sshDestination: "compass@192.0.2.10",
             hostWorktreeURL: repoURL,
-            guestWorkspacePath: "/opt/compass/workspaces/dev-AAA/worktree"
+            guestWorkspacePath: "/Users/compass/Compass/Worktrees/dev-AAA/worktree"
         )
         let plan = AgentExecutionLaunchPlan.plan(
             repoURL: repoURL,
@@ -35,7 +35,7 @@ final class AgentExecutionLaunchPlanTests: XCTestCase {
         XCTAssertTrue(plan.isVMRoute)
         XCTAssertEqual(plan.effectiveRouteIdentifier, "shared-vm")
         XCTAssertNil(plan.fallbackReason)
-        XCTAssertEqual(plan.workspaceLabel, "/opt/compass/workspaces/dev-AAA/worktree")
+        XCTAssertEqual(plan.workspaceLabel, "/Users/compass/Compass/Worktrees/dev-AAA/worktree")
     }
 
 
@@ -55,7 +55,7 @@ final class AgentExecutionLaunchPlanTests: XCTestCase {
         let route = SharedVMRoute(
             sshDestination: "compass@192.0.2.10",
             hostWorktreeURL: repoURL,
-            guestWorkspacePath: "/opt/compass/workspaces/dev-AAA/worktree"
+            guestWorkspacePath: "/Users/compass/Compass/Worktrees/dev-AAA/worktree"
         )
         let plan = AgentExecutionLaunchPlan.plan(
             repoURL: repoURL,
@@ -151,7 +151,7 @@ final class AgentExecutionLaunchPlanTests: XCTestCase {
         let route = SharedVMRoute(
             sshDestination: "compass@192.0.2.10",
             hostWorktreeURL: repoURL,
-            guestWorkspacePath: "/opt/compass/workspaces/dev-AAA/worktree"
+            guestWorkspacePath: "/Users/compass/Compass/Worktrees/dev-AAA/worktree"
         )
         let plan = AgentExecutionLaunchPlan(
             selectedPreference: .sharedVM,

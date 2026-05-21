@@ -131,7 +131,7 @@ final class CompassWorkspacePersistenceTests: XCTestCase {
         let route = SharedVMRoute(
             sshDestination: "compass@192.0.2.10",
             hostWorktreeURL: repoURL,
-            guestWorkspacePath: "/opt/compass/workspaces/dev-AAA/worktree"
+            guestWorkspacePath: "/Users/compass/Compass/Worktrees/dev-AAA/worktree"
         )
         let launchPlan = AgentExecutionLaunchPlan(
             selectedPreference: .sharedVM,

@@ -25,9 +25,9 @@ final class AgentSystemPromptTests: XCTestCase {
         // the model orients itself in the guest namespace, not the host.
         let prompt = Prompts.agentSystemPrompt(
             phase: .develop,
-            workingDirectoryPath: "/opt/compass/workspaces/dev-XXXX/worktree"
+            workingDirectoryPath: "/Users/compass/Compass/Worktrees/dev-XXXX/worktree"
         )
-        XCTAssertTrue(prompt.contains("/opt/compass/workspaces/dev-XXXX/worktree"))
+        XCTAssertTrue(prompt.contains("/Users/compass/Compass/Worktrees/dev-XXXX/worktree"))
     }
 
     func testPlanPhaseAdvertisesReadOnlyToolsOnly() {

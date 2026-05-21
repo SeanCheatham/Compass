@@ -230,12 +230,13 @@ struct AgentExecutionLaunchPlan: Equatable {
     /// Always returns a host-side `/bin/zsh -lc` invocation, even when the
     /// effective route is `.sharedVM`. The sharedVM-via-SSH branch this
     /// used to offer never worked end-to-end (sshd-spawned processes on
-    /// macOS guests are TCC-blocked from reading the VirtioFS share), and
-    /// the agent-loop transport that does work — vsock — is connection-
-    /// oriented, not a process the caller can spawn. Mutation testing and
-    /// Verify both touch the same bytes the agent worked on, so running
-    /// them on the host worktree path is correct: VirtioFS makes the guest
-    /// view and the host view exactly the same files.
+    /// macOS guests are TCC-blocked from reading any AppleVirtIOFS mount),
+    /// and the agent-loop transport that does work — vsock — is
+    /// connection-oriented, not a process the caller can spawn. The agent
+    /// works on a vsock-synced copy of the worktree inside the guest;
+    /// `AppModel.pullDevelopWorktreeIfNeeded` pulls those changes back
+    /// onto the host worktree at the end of each attempt, so Verify and
+    /// mutation testing read the same bytes the agent produced.
     func shellInvocation(command: String, hostWorkingDirectory: URL) -> AgentExecutionInvocation {
         AgentExecutionInvocation(
             executable: "/bin/zsh",

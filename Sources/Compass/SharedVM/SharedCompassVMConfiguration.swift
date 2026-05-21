@@ -22,14 +22,15 @@ struct SharedCompassVMConfiguration {
         var bundle: SharedCompassVMBundle
         var cpuCount: Int
         var memorySize: UInt64
-        var shareTargets: [SharedCompassVMFileShare.ShareTarget]
         /// Optional MAC address (e.g. `52:8a:01:02:03:04`) to pin on the
         /// virtio network device so the guest's DHCP-assigned IP can be
         /// discovered host-side. Nil → VZ assigns a random MAC each boot.
         var guestMACAddress: String?
 
-        /// Default config: 4 vCPUs, 8 GiB RAM, the single permanent
-        /// `compass-workspaces` share pointing at the supplied host root.
+        /// Default config: 4 vCPUs, 8 GiB RAM, no VirtioFS shares (the
+        /// `workspacesRootURL` is retained on the call site for API
+        /// compatibility but is no longer attached to the VM — see the
+        /// long note on `makeShareDevices` below for why).
         static func standard(
             bundle: SharedCompassVMBundle,
             workspacesRootURL: URL,
@@ -37,17 +38,11 @@ struct SharedCompassVMConfiguration {
             memorySize: UInt64 = 8 * 1024 * 1024 * 1024,
             guestMACAddress: String? = nil
         ) -> Inputs {
-            Inputs(
+            _ = workspacesRootURL // intentionally unused; kept for callsite stability
+            return Inputs(
                 bundle: bundle,
                 cpuCount: cpuCount,
                 memorySize: memorySize,
-                shareTargets: [
-                    SharedCompassVMFileShare.ShareTarget(
-                        tag: SharedCompassVMFileShare.defaultWorkspacesTag,
-                        hostDirectoryURL: workspacesRootURL,
-                        readOnly: false
-                    )
-                ],
                 guestMACAddress: guestMACAddress
             )
         }
@@ -96,7 +91,7 @@ struct SharedCompassVMConfiguration {
         configuration.graphicsDevices = [makeGraphicsDevice()]
         configuration.storageDevices = [try makeStorageDevice(bundle: inputs.bundle)]
         configuration.networkDevices = [makeNetworkDevice(macAddress: inputs.guestMACAddress)]
-        configuration.directorySharingDevices = try makeShareDevices(inputs.shareTargets)
+        configuration.directorySharingDevices = []
         configuration.serialPorts = []
         configuration.entropyDevices = [VZVirtioEntropyDeviceConfiguration()]
         configuration.memoryBalloonDevices = [VZVirtioTraditionalMemoryBalloonDeviceConfiguration()]
@@ -138,7 +133,7 @@ struct SharedCompassVMConfiguration {
         configuration.graphicsDevices = [makeGraphicsDevice()]
         configuration.storageDevices = [try makeStorageDevice(bundle: inputs.bundle)]
         configuration.networkDevices = [makeNetworkDevice(macAddress: inputs.guestMACAddress)]
-        configuration.directorySharingDevices = try makeShareDevices(inputs.shareTargets)
+        configuration.directorySharingDevices = []
         configuration.entropyDevices = [VZVirtioEntropyDeviceConfiguration()]
         configuration.memoryBalloonDevices = [VZVirtioTraditionalMemoryBalloonDeviceConfiguration()]
         configuration.socketDevices = [makeSocketDevice()]
@@ -303,11 +298,14 @@ struct SharedCompassVMConfiguration {
         return console
     }
 
-    private static func makeShareDevices(
-        _ targets: [SharedCompassVMFileShare.ShareTarget]
-    ) throws -> [VZDirectorySharingDeviceConfiguration] {
-        try targets.map { target in
-            try SharedCompassVMFileShare.makeDeviceConfiguration(for: target)
-        }
-    }
+    // Note: directory sharing (VirtioFS) was removed in phase 10.
+    // macOS guests TCC-block `AppleVirtIOFS` reads from every process —
+    // including LaunchAgents inside the GUI session and even root via
+    // LaunchDaemon. The in-guest Compass agent therefore can't read the
+    // share regardless of which TCC profile we put it in. Worktrees are
+    // now copied into the guest via vsock-streamed tar at iteration
+    // boundaries; see `SharedCompassVMWorktreeSync`. The `SharedCompassVMFileShare`
+    // helpers stay in the tree to validate share tags should we ever
+    // reattach a share for an unrelated purpose, but no VirtioFS
+    // device is configured on the running VM.
 }

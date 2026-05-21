@@ -785,16 +785,6 @@ final class SharedCompassVM: ObservableObject {
         readiness = .ready(sshDestination: destination)
     }
 
-    /// Hook for future per-project ephemeral mounts. The parent
-    /// `compass-workspaces` share is permanent and host-managed
-    /// subdirectories suffice, so this is a no-op today. Validates the tag
-    /// up-front so callers get the same error surface they would once
-    /// real attach/detach exists.
-    func attachWorkspace(at hostURL: URL, tag: String) throws {
-        _ = try SharedCompassVMFileShare.ensureValidTag(tag)
-        _ = hostURL
-    }
-
     // MARK: - Internals
 
     private func installSleepObserver() {

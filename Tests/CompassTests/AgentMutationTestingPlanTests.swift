@@ -84,7 +84,7 @@ final class AgentMutationTestingPlanTests: XCTestCase {
         let vmRoute = SharedVMRoute(
             sshDestination: "compass@192.0.2.10",
             hostWorktreeURL: repoURL,
-            guestWorkspacePath: "/opt/compass/workspaces/dev-AAA/worktree"
+            guestWorkspacePath: "/Users/compass/Compass/Worktrees/dev-AAA/worktree"
         )
         let vmPlan = AgentExecutionLaunchPlan(
             selectedPreference: .sharedVM,
@@ -125,7 +125,7 @@ final class AgentMutationTestingPlanTests: XCTestCase {
         let route = SharedVMRoute(
             sshDestination: "compass@192.0.2.10",
             hostWorktreeURL: repoURL,
-            guestWorkspacePath: "/opt/compass/workspaces/dev-AAA/worktree",
+            guestWorkspacePath: "/Users/compass/Compass/Worktrees/dev-AAA/worktree",
             environmentVariables: ["SECRET_TOKEN": secretEnvValue]
         )
         let launchPlan = AgentExecutionLaunchPlan(

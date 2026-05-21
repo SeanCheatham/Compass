@@ -63,40 +63,56 @@ support, installer failure, or a cancelled host admin prompt.
         └── RestoreImage-<version>.ipsw   # resumable; survives across launches
 ```
 
-Per-project Develop worktrees live separately, under
-`~/Library/Caches/Compass/Worktrees/dev-<UUID>/worktree`. The single
-permanent VirtioFS share at tag `compass-workspaces` exposes the
-`~/Library/Caches/Compass/Worktrees/` parent directory to the guest. Inside
-the guest the share is reached via the `/opt/compass → /Volumes/My Shared
-Files` symlink, so the agent sees the worktree at
-`/opt/compass/workspaces/dev-<UUID>/worktree`.
+Per-project Develop worktrees live separately on the host under
+`~/Library/Caches/Compass/Worktrees/dev-<UUID>/worktree`. Compass keeps a
+matching copy inside the guest under `/Users/compass/Compass/Worktrees/dev-<UUID>/worktree`
+and synchronises the two over vsock at iteration boundaries — see the
+"Worktree sync" section below.
 
-## Agent transport — vsock, not SSH
+There is no VirtioFS share. We tried it; macOS guests TCC-block
+`AppleVirtIOFS` reads from every process (sshd children, LaunchDaemons
+running as root, *and* LaunchAgents in the GUI session). The
+`SharedCompassVMFileShare` helpers and `SharedCompassVMConfiguration`'s
+share-validation utilities still live in the source tree because the
+tag-validation surface is reusable, but no `VZDirectorySharingDeviceConfiguration`
+is attached to the running VM.
 
-Compass talks to the in-guest world via two separate transports, each
-with a specific TCC-imposed constraint:
+## Agent transport — vsock + worktree sync
 
-- **SSH** is used only for low-level setup probes (readiness ping,
-  known_hosts seeding, first-boot diagnostics dump). sshd-spawned
-  processes on macOS guests are TCC-blocked from reading VirtioFS-mounted
-  shares regardless of UID — every `ls`/`cat` through ssh returns EPERM
-  on `/opt/compass/workspaces/...`. So ssh never touches worktree files.
-- **vsock** is used for every agent tool call (read_file / write_file /
-  edit_file / ls / glob / grep / bash) and for any future RPC into the
-  guest. The host calls `VZVirtioSocketDevice.connect(toPort:)` to open
-  a fresh connection per request; the in-guest `CompassGuestAgent` binary
-  listens on `AF_VSOCK` at port `0x4007ACE5`. Wire format is length-prefixed
-  JSON (see `Sources/CompassAgentRPC/`).
+Compass uses three host↔guest transports, each scoped to what it is
+allowed to touch:
 
-The guest agent is a separate SwiftPM target (`CompassGuestAgent`) shipped
-alongside the host binary and planted at `/usr/local/libexec/compass-guest-agent`
-during first-boot. It runs as a `LaunchAgent` (`/Library/LaunchAgents/com.seancheatham.Compass.guest-agent.plist`),
-which is the key TCC distinction: LaunchAgents load inside the GUI user
-session and inherit that session's TCC profile — the one VirtioFS shares
-*are* accessible to. LaunchDaemons (or sshd children) inherit the system
-context, where they are not.
+- **SSH** — setup probes only (readiness ping, known_hosts seeding,
+  first-boot diagnostics dump). sshd children can't read AppleVirtIOFS
+  anyway, and we no longer expect them to: SSH never touches worktree
+  files.
+- **vsock** — every agent tool call (read_file / write_file / edit_file
+  / ls / glob / grep / bash) and the bulk worktree sync. The host calls
+  `VZVirtioSocketDevice.connect(toPort:)` to open a fresh connection per
+  request; the in-guest `CompassGuestAgent` binary listens on `AF_VSOCK`
+  at port `0x4007ACE5`. Wire format is length-prefixed JSON
+  (`Sources/CompassAgentRPC/`).
+- **Worktree sync** (over vsock) — at the start of each Develop
+  iteration the host packages the worktree as a gitignore-aware tar
+  (`git ls-files --cached --others --exclude-standard | tar`) and
+  streams it into the guest. After each agent attempt the guest packs
+  its current worktree (excluding `.git`, `.build`, `target`,
+  `node_modules`, `build`, `dist`, `.swiftpm`) into a tar that the host
+  reads back over `readFile` and applies onto the host worktree. The
+  guest never sees the host's `.git/`; the host commits any changes on
+  its own side after the pull. See
+  [SharedCompassVMWorktreeSync.swift](SharedCompassVMWorktreeSync.swift).
 
-For the LaunchAgent to actually load, a GUI user session has to exist.
+The guest agent is a separate SwiftPM target (`CompassGuestAgent`)
+shipped alongside the host binary and planted at
+`/usr/local/libexec/compass-guest-agent` during first-boot. It runs as
+a `LaunchAgent`
+(`/Library/LaunchAgents/com.seancheatham.Compass.guest-agent.plist`)
+under the auto-logged-in `compass` user, which means it operates on
+guest-local files in `/Users/compass/Compass/Worktrees/...` — a
+non-protected path on a non-VirtioFS filesystem, so TCC is irrelevant.
+
+For the LaunchAgent to load, a GUI user session has to exist.
 First-boot writes `/etc/kcpassword` (Apple's XOR-obfuscated auto-login
 format) and sets `autoLoginUser=compass` so the guest reaches a desktop
 session unattended. The agent comes up moments later.
@@ -163,16 +179,42 @@ session unattended. The agent comes up moments later.
   which is acceptable on the Apple Silicon Macs Compass targets. The
   required sleep/wake observers prevent clock-skew corruption across
   host hibernation.
-- **Why a single permanent VirtioFS parent share instead of per-project
-  attach/detach?** `VZVirtualMachine.attachDevice` / `detachDevice` for
-  VirtioFS is not reliably hot-pluggable across macOS releases; a single
-  parent share with host-created subdirectories is more robust.
+- **Why no VirtioFS share at all (phase 10)?** macOS 26 (and earlier
+  majors per Apple's docs) TCC-block `AppleVirtIOFS` access from every
+  process running in the guest — including LaunchAgents inside the GUI
+  user session and root via LaunchDaemon. We verified this live: even
+  Apple-signed `/bin/ls` returns "Operation not permitted" against the
+  mount under both `launchctl asuser 501` and a proper `gui/501`-bootstrapped
+  LaunchAgent. SIP is on; the TCC database is not writable from inside
+  the guest. With no path that grants the agent read access, the share
+  is just dead weight, so the VZ configuration no longer attaches one.
+  Worktrees are vsock-synced instead (see [SharedCompassVMWorktreeSync.swift](SharedCompassVMWorktreeSync.swift)).
+- **Why gitignore-aware tar for sync instead of NFS / a host-side git
+  daemon?** Both alternatives require running a network service on the
+  host (port 2049 for NFS, port 9418 for `git daemon`) plus firewall
+  rules and an exposure model the user has to reason about. The tar
+  approach uses the existing vsock RPC with zero new ports, falls back
+  cleanly when the VM isn't ready, and excludes the dominant on-disk
+  cost (build artifacts in `.build`, `target`, `node_modules`) via
+  `git ls-files --cached --others --exclude-standard` on the push side
+  and a hard-coded prune list on the pull side. Worktrees under
+  ~80 MiB sync end-to-end in well under a second.
 
 ## How Develop reaches the guest today
 
 The Codex surface that originally drove this module was removed in the
-phase 7 cleanup. The current entry point is `AgentBashTool` (Develop's
-`bash` tool); the `AgentSharedVMBashRunner` in `AgentTools/` builds the
-SSH argv via `SharedCompassVMGuestBridge` and runs `/bin/zsh -lc <command>`
-in the guest's mirror of the host worktree. Plan/Reflect remain
-host-native (read-only file tools only).
+phase 7 cleanup. Develop iterations follow this flow:
+
+1. Host creates a git worktree under `~/Library/Caches/Compass/Worktrees/dev-<UUID>/worktree`.
+2. Host streams the worktree (gitignore-aware tar) into the guest at
+   `/Users/compass/Compass/Worktrees/dev-<UUID>/worktree` via vsock.
+3. Agent runs in the guest. Every `AgentBashTool` / `read_file` /
+   `write_file` / `edit_file` / `ls` / `glob` / `grep` call goes
+   through the vsock RPC to the in-guest `CompassGuestAgent`, which
+   operates on its local worktree copy.
+4. Host pulls the guest worktree back at the end of each attempt
+   (filtering out `.build`, `target`, `node_modules`, etc.) so
+   Verify, `git status`, and commit logic on the host see the agent's
+   changes.
+5. Plan/Reflect stay host-native (they don't need a sandbox — they
+   only read files).

@@ -30,8 +30,8 @@
 				CompassAgentRPC/AgentRPCFraming.swift,
 				CompassGuestAgent/AgentFileOperations.swift,
 				CompassGuestAgent/AgentServer.swift,
-				CompassGuestAgent/VsockListener.swift,
 				CompassGuestAgent/main.swift,
+				CompassGuestAgent/VsockListener.swift,
 			);
 			target = 100000000000000000000009 /* Compass */;
 		};
@@ -159,16 +159,6 @@
 		};
 /* End PBXResourcesBuildPhase section */
 
-/* Begin PBXSourcesBuildPhase section */
-		10000000000000000000000A /* Sources */ = {
-			isa = PBXSourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-/* End PBXSourcesBuildPhase section */
-
 /* Begin PBXShellScriptBuildPhase section */
 		100000000000000000000074 /* Embed CompassGuestAgent */ = {
 			isa = PBXShellScriptBuildPhase;
@@ -191,6 +181,16 @@
 			shellScript = "set -euo pipefail\n# Xcode doesn't build SwiftPM executable products of a local package by\n# itself even when the product is added as a packageProductDependency,\n# so invoke `swift build` directly to produce CompassGuestAgent and\n# copy it into the app bundle's Contents/MacOS. SharedCompassVM finds\n# it at runtime as a sibling of Bundle.main.executableURL.\ncd \"${SRCROOT}\"\ncase \"${CONFIGURATION}\" in\n  Debug)   SWIFT_CONFIG=debug ;;\n  Release) SWIFT_CONFIG=release ;;\n  *)       SWIFT_CONFIG=debug ;;\nesac\n\nxcrun --sdk macosx swift build --product CompassGuestAgent --configuration \"${SWIFT_CONFIG}\" --quiet\n\nSRC=\".build/${SWIFT_CONFIG}/CompassGuestAgent\"\nDST=\"${TARGET_BUILD_DIR}/${EXECUTABLE_FOLDER_PATH}/CompassGuestAgent\"\nif [ ! -x \"${SRC}\" ]; then\n  echo \"error: swift build did not produce CompassGuestAgent at ${SRC}\" >&2\n  exit 1\nfi\nmkdir -p \"$(dirname \"${DST}\")\"\ncp -p \"${SRC}\" \"${DST}\"\nchmod +x \"${DST}\"\n";
 		};
 /* End PBXShellScriptBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		10000000000000000000000A /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
 
 /* Begin XCBuildConfiguration section */
 		10000000000000000000000F /* Debug */ = {
@@ -374,11 +374,6 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 100000000000000000000070 /* XCLocalSwiftPackageReference "." */;
 			productName = CompassAgentRPC;
-		};
-		100000000000000000000073 /* CompassGuestAgent */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 100000000000000000000070 /* XCLocalSwiftPackageReference "." */;
-			productName = CompassGuestAgent;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

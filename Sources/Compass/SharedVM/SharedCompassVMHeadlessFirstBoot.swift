@@ -13,8 +13,8 @@ import Foundation
 ///      bootstrap script.
 ///   3. `/usr/local/libexec/compass-firstboot.sh` — the bootstrap script.
 ///      Creates the `compass` admin user (with the host-generated password),
-///      authorises the Compass SSH key, enables Remote Login, symlinks
-///      `/opt/compass/workspaces`, then removes itself.
+///      authorises the Compass SSH key, enables Remote Login, creates the
+///      guest-local worktrees root, then removes itself.
 ///   4. `/etc/sudoers.d/compass` — `compass ALL=(ALL) NOPASSWD: ALL` so agents
 ///      can run privileged steps without prompting.
 ///
@@ -606,19 +606,16 @@ enum SharedCompassVMHeadlessFirstBoot {
         /sbin/ifconfig en0 2>&1 | /usr/bin/grep 'inet ' || true
         echo "  --- end sshd snapshot ---"
 
-        echo "[compass-firstboot] [4/6] Creating /opt/compass/workspaces symlink"
-        SHARE_ROOT="/Volumes/My Shared Files/compass-workspaces"
-        # Wait briefly for the VirtioFS share to mount. If it never appears the
-        # symlink will be a broken dangling link, which is fine — agent
-        # bash calls on a guest without the share will fail loudly with a
-        # clear ENOENT rather than silently succeeding in the wrong place.
-        for _ in 1 2 3 4 5 6 7 8 9 10; do
-          if [ -d "$SHARE_ROOT" ]; then break; fi
-          sleep 1
-        done
-        mkdir -p /opt/compass
-        rm -f /opt/compass/workspaces
-        ln -s "$SHARE_ROOT" /opt/compass/workspaces
+        echo "[compass-firstboot] [4/6] Creating guest-local worktrees root"
+        # macOS guests TCC-block AppleVirtIOFS reads from every process —
+        # including LaunchAgents inside the GUI session and even root via
+        # LaunchDaemon — so Compass abandoned the VirtioFS share and now
+        # keeps each iteration's worktree under the compass user's home.
+        # The host streams worktree contents in/out via vsock-tunneled tar
+        # at iteration boundaries; see SharedCompassVMWorktreeSync.
+        WORKTREES_ROOT="$GUEST_HOME/Compass/Worktrees"
+        mkdir -p "$WORKTREES_ROOT"
+        chown -R "$GUEST_USER":staff "$GUEST_HOME/Compass"
 
         # macOS sshd runs commands via the user's login shell in
         # NON-interactive, NON-login mode (e.g. `zsh -c "command"`).

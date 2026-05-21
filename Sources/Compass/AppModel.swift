@@ -1,5 +1,6 @@
 import AppKit
 import Foundation
+import Virtualization
 
 typealias CompassWorkspaceStorageMigrationAction = (CompassWorkspaceStorageMigrationPlan) throws -> CompassWorkspaceStorageMigrationResult
 
@@ -576,11 +577,12 @@ extension CompassProject {
     var runtimeDiagnosticsMenu: AgentExecutionEnvironmentMenu {
         let environment = agentExecutionEnvironment
         // The env-presentation plan represents Develop's bash routing — the
-        // phase that actually creates a worktree inside the VM's VirtioFS
-        // share. Plan/Reflect/mutation testing run against the main repo path
-        // (outside the share) and stay on host by design; using the main repo
-        // here would make the dropdown report a spurious "falling back" state
-        // whenever the VM is otherwise healthy.
+        // phase that actually creates a worktree under the host workspaces
+        // root and vsock-syncs it into the guest. Plan/Reflect/mutation
+        // testing run against the main repo path (outside the workspaces
+        // root) and stay on host by design; using the main repo here would
+        // make the dropdown report a spurious "falling back" state whenever
+        // the VM is otherwise healthy.
         let envLaunchPlan = agentLaunchPlan(for: SharedCompassVM.shared.workspacesRootURL)
         let mutationLaunchPlan = agentLaunchPlan(for: repoURL)
         let mutationTestingPlan = AgentMutationTestingPlan(
@@ -1560,6 +1562,15 @@ extension CompassProject {
             )
             guard let devWorkspace else { throw AppModelError.internalInvariant("Develop workspace was not created.") }
 
+            // If this iteration is routed to the Shared VM, stream the
+            // freshly-created host worktree into the guest's local copy.
+            // macOS guests TCC-block AppleVirtIOFS reads from every
+            // process, so there is no shared filesystem the agent can
+            // see — the agent operates on the guest-local copy and the
+            // host pulls changes back after each attempt (below).
+            let initialLaunchPlan = agentLaunchPlan(for: devWorkspace.repoURL)
+            try await pushDevelopWorktreeIfNeeded(devWorkspace: devWorkspace, plan: initialLaunchPlan)
+
             var priorIssues: [String] = []
             var finalIssues: [String] = []
             var finalVerifyOutput: VerifyOutput?
@@ -1594,6 +1605,12 @@ extension CompassProject {
                     submitResultSchema: Prompts.developSchema,
                     decode: DevelopSummary.self
                 )
+
+                // Pull whatever the agent left in the guest worktree
+                // back onto the host so the post-check pass (Verify,
+                // git status, etc.) sees the agent's actual changes
+                // rather than the empty initial host state.
+                await pullDevelopWorktreeIfNeeded(devWorkspace: devWorkspace, plan: launchPlan)
 
                 guard sessions.indices.contains(sessionIndex) else {
                     throw AppModelError.internalInvariant("Develop session disappeared during agent run.")
@@ -1783,11 +1800,17 @@ extension CompassProject {
         )
     }
 
-    /// Builds a `SharedVMRoute` for a given on-host worktree URL by mapping the
-    /// path under the `compass-workspaces` mount point to its `/opt/compass`
-    /// guest equivalent. Returns nil if the readiness is not `.ready` or if
-    /// the worktree does not sit under the workspaces root (in which case the
-    /// planner falls back to host).
+    /// Builds a `SharedVMRoute` for an on-host worktree URL by mapping it to
+    /// the guest-local path where Compass keeps its synced copy
+    /// (`/Users/compass/Compass/Worktrees/...`). Returns nil if the VM is
+    /// not ready or the worktree sits outside the host workspaces root
+    /// (planner falls back to host).
+    ///
+    /// The mapping no longer references VirtioFS: macOS guests TCC-block
+    /// `AppleVirtIOFS` reads from every process (even LaunchAgents inside
+    /// the GUI session, even root via LaunchDaemon), so Compass copies the
+    /// worktree into the guest via vsock-streamed tar instead. See
+    /// `SharedCompassVMWorktreeSync` for the push/pull machinery.
     private static func makeSharedVMRoute(
         hostWorktreeURL: URL,
         readiness: SharedCompassVMReadiness,
@@ -1796,17 +1819,12 @@ extension CompassProject {
     ) -> SharedVMRoute? {
         guard case let .ready(sshDestination) = readiness else { return nil }
 
-        let hostPath = hostWorktreeURL.standardizedFileURL.path
-        let rootPath = workspacesRootURL.standardizedFileURL.path
-        let rootPrefix = rootPath.hasSuffix("/") ? rootPath : rootPath + "/"
-        let guestWorkspacePath: String
-        if hostPath == rootPath {
-            guestWorkspacePath = "/opt/compass/workspaces"
-        } else if hostPath.hasPrefix(rootPrefix) {
-            let relative = String(hostPath.dropFirst(rootPrefix.count))
-            guestWorkspacePath = "/opt/compass/workspaces/\(relative)"
-        } else {
-            // Worktree is outside the VirtioFS share — planner falls back to host.
+        guard let guestWorkspacePath = SharedCompassVMWorktreeSync.guestWorktreePath(
+            forHostURL: hostWorktreeURL,
+            hostWorkspacesRootURL: workspacesRootURL
+        ) else {
+            // Worktree is outside the workspaces root — sync wouldn't have
+            // a sensible guest path either, so planner falls back to host.
             return nil
         }
 
@@ -2039,11 +2057,13 @@ extension CompassProject {
 
     /// Resolved working directory + tool backends for an agent run. When the
     /// project's Develop sandbox is `.sharedVM` and the VM resolves to a
-    /// ready route for `hostURL`, the agent operates entirely in the guest's
-    /// namespace via the vsock-served Compass guest agent — the only
-    /// transport that bypasses macOS guest TCC restrictions on
-    /// VirtioFS-mounted shares. Otherwise the agent stays native to the
-    /// host.
+    /// ready route for `hostURL`, the agent operates entirely in the
+    /// guest's local worktree namespace via the vsock-served Compass guest
+    /// agent. The host streams the worktree into and out of the guest at
+    /// iteration boundaries (`pushDevelopWorktreeIfNeeded` /
+    /// `pullDevelopWorktreeIfNeeded`) so the guest never needs to read the
+    /// host filesystem and the host never reads from the guest. Otherwise
+    /// the agent stays native to the host.
     struct AgentEnvironment {
         var workingDirectory: URL
         var filesystem: AgentFilesystem
@@ -2078,16 +2098,78 @@ extension CompassProject {
                 guestWorkingDirectory = URL(fileURLWithPath: route.guestWorkspacePath)
             }
             log("Agent route via Shared VM (vsock) at workspace \(guestWorkingDirectory.path)", level: .info)
-            let client = AgentVsockClient(
-                transportFactory: {
-                    let connection = try await SharedCompassVMVsock.connect(on: machine)
-                    return VZVirtioSocketTransport(connection: connection)
-                }
-            )
+            let client = Self.makeVsockClient(on: machine)
             return AgentEnvironment(
                 workingDirectory: guestWorkingDirectory,
                 filesystem: client,
                 bashRunner: client
+            )
+        }
+    }
+
+    /// Builds a vsock-backed agent client that opens a fresh
+    /// `VZVirtioSocketConnection` per RPC. Shared between the agent loop
+    /// (`resolveAgentEnvironment`) and the worktree sync helpers below
+    /// so the connect-and-write path stays in one place.
+    private static func makeVsockClient(on machine: VZVirtualMachine) -> AgentVsockClient {
+        AgentVsockClient(
+            transportFactory: {
+                let connection = try await SharedCompassVMVsock.connect(on: machine)
+                return VZVirtioSocketTransport(connection: connection)
+            }
+        )
+    }
+
+    /// Streams the host worktree's gitignore-aware contents into the
+    /// guest's local copy. Called once at iteration start when the
+    /// effective route is `.sharedVM` so the in-guest agent has a fresh
+    /// copy of the worktree to operate on. Throws on failure — there's
+    /// no graceful continuation because the agent's `bash`/`read_file`
+    /// RPCs would fail downstream against an empty guest path anyway.
+    private func pushDevelopWorktreeIfNeeded(
+        devWorkspace: DevRunWorkspace,
+        plan: AgentExecutionLaunchPlan
+    ) async throws {
+        guard case let .sharedVM(route) = plan.effectiveRoute,
+              let machine = SharedCompassVM.shared.virtualMachine else {
+            return
+        }
+        log("Develop sandbox: pushing worktree to Shared VM at \(route.guestWorkspacePath).", level: .info)
+        let client = Self.makeVsockClient(on: machine)
+        try await SharedCompassVMWorktreeSync.push(
+            hostWorktreeURL: devWorkspace.repoURL,
+            guestWorktreePath: route.guestWorkspacePath,
+            client: client
+        )
+    }
+
+    /// Pulls the guest worktree's current state (filtered against the
+    /// well-known build-output dirs) back onto the host worktree.
+    /// Called after each agent attempt so Verify — which always runs
+    /// host-side — sees the changes the agent made in the guest.
+    /// Pull failures are logged but not thrown: leaving Verify to run
+    /// against potentially stale host state surfaces the divergence
+    /// (verify_failed retry issue) more clearly than dropping the
+    /// entire iteration on a transient transport hiccup.
+    private func pullDevelopWorktreeIfNeeded(
+        devWorkspace: DevRunWorkspace,
+        plan: AgentExecutionLaunchPlan
+    ) async {
+        guard case let .sharedVM(route) = plan.effectiveRoute,
+              let machine = SharedCompassVM.shared.virtualMachine else {
+            return
+        }
+        let client = Self.makeVsockClient(on: machine)
+        do {
+            try await SharedCompassVMWorktreeSync.pull(
+                hostWorktreeURL: devWorkspace.repoURL,
+                guestWorktreePath: route.guestWorkspacePath,
+                client: client
+            )
+        } catch {
+            log(
+                "Develop sandbox: vsock pull failed — Verify may run against stale state: \(error.localizedDescription)",
+                level: .warning
             )
         }
     }

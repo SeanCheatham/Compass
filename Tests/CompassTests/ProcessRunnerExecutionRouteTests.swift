@@ -40,16 +40,17 @@ final class ProcessRunnerExecutionRouteTests: XCTestCase {
     func testSharedVMRouteForRunShellStaysOnHostBecauseVsockIsAgentLoopOnly() async throws {
         // `runShell` is used for one-shot out-of-agent commands (mutation
         // testing, post-Develop Verify). The agent-loop vsock transport
-        // is connection-oriented, not a process the caller can spawn,
-        // and the legacy SSH-into-guest branch never worked end-to-end
-        // (TCC blocks sshd children from the VirtioFS share). Verify
-        // runs against the host worktree path — same VirtioFS bytes
-        // the guest agent acted on, just a different namespace label.
+        // is connection-oriented, not a process the caller can spawn, and
+        // the legacy SSH-into-guest branch never worked end-to-end (TCC
+        // blocks sshd children from AppleVirtIOFS mounts). Verify runs
+        // against the host worktree path — same files the agent acted on,
+        // because AppModel.pullDevelopWorktreeIfNeeded copies the guest's
+        // changes back to the host worktree at the end of each attempt.
         let repoURL = try makeTemporaryDirectory(prefix: "ProcessRunnerSharedVMEnv")
         let route = SharedVMRoute(
             sshDestination: "compass@192.0.2.20",
             hostWorktreeURL: repoURL,
-            guestWorkspacePath: "/opt/compass/workspaces/dev-BBB/worktree"
+            guestWorkspacePath: "/Users/compass/Compass/Worktrees/dev-BBB/worktree"
         )
         let launchPlan = AgentExecutionLaunchPlan(
             selectedPreference: .sharedVM,
@@ -161,7 +162,7 @@ final class ProcessRunnerExecutionRouteTests: XCTestCase {
         let route = SharedVMRoute(
             sshDestination: "compass@192.0.2.30",
             hostWorktreeURL: repoURL,
-            guestWorkspacePath: "/opt/compass/workspaces/dev-CCC/worktree"
+            guestWorkspacePath: "/Users/compass/Compass/Worktrees/dev-CCC/worktree"
         )
         let launchPlan = AgentExecutionLaunchPlan(
             selectedPreference: .sharedVM,
