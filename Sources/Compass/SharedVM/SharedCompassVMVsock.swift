@@ -39,9 +39,16 @@ enum SharedCompassVMVsock {
     /// `VZVirtioSocketConnection`; the caller owns it and is responsible
     /// for reading/writing on its file descriptor and closing it when done.
     ///
-    /// Apple's `connect(toPort:completionHandler:)` runs on a private VZ
-    /// queue, so the continuation is resumed from there — callers must
-    /// `await` (or hop) back to whatever context they want to read from.
+    /// `@MainActor`: `VZVirtioSocketDevice.connect(toPort:)` asserts it
+    /// runs on the queue VZ was constructed on — for Compass that's the
+    /// main queue (`SharedCompassVM` is `@MainActor`). Calling it from a
+    /// background Swift Concurrency executor crashes with
+    /// `_dispatch_assert_queue_fail` deep inside Virtualization.framework.
+    /// The annotation pulls the call onto main automatically when invoked
+    /// from non-MainActor async contexts (e.g. `AgentVsockClient`'s
+    /// transport factory). The completion handler may fire on any queue;
+    /// the continuation resume is queue-agnostic.
+    @MainActor
     static func connect(
         port: UInt32 = guestAgentPort,
         on machine: VZVirtualMachine
