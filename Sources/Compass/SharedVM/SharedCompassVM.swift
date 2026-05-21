@@ -597,7 +597,13 @@ final class SharedCompassVM: ObservableObject {
         }
     }
 
-    /// Requests a graceful stop. Awaits stop completion.
+    /// Stops the VM, preferring a graceful guest-driven shutdown over the
+    /// forced VZ halt. `requestStop()` sends an ACPI/shutdown signal so macOS
+    /// in the guest can flush APFS, terminate services, and halt cleanly;
+    /// without it every quit pulls the power cord and the guest accumulates
+    /// dirty-bit warnings on the next boot. If the guest does not power down
+    /// within a bounded window, we fall back to the forced halt so the host
+    /// app still terminates within the AppDelegate's 6s budget.
     func stop() async {
         guard let machine = virtualMachine else { return }
         if machine.state == .stopped {
@@ -605,19 +611,46 @@ final class SharedCompassVM: ObservableObject {
             tearDownConsolePipe()
             return
         }
-        do {
-            try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
-                machine.stop { error in
-                    if let error {
-                        continuation.resume(throwing: error)
-                    } else {
-                        continuation.resume(returning: ())
+
+        // Phase 1: graceful shutdown. Only valid when the VM is actually
+        // running — paused / stopping / starting states reject the request
+        // and we'll fall through to the forced halt.
+        if machine.state == .running {
+            do {
+                try machine.requestStop()
+            } catch {
+                // requestStop throws if VZ refuses the request. Not fatal —
+                // we still try the forced halt below.
+            }
+            // Poll for up to ~4s. A macOS guest typically halts in 2-3s; the
+            // 4s ceiling keeps total stop time within the AppDelegate's 6s
+            // budget (4s graceful + ≤1s forced fallback + overhead).
+            let deadline = Date().addingTimeInterval(4)
+            while Date() < deadline, machine.state != .stopped {
+                try? await Task.sleep(nanoseconds: 100_000_000) // 100ms
+            }
+        }
+
+        // Phase 2: forced halt. Reached when the graceful path was skipped
+        // (wrong state), rejected by VZ, or the guest didn't power down in
+        // time. Equivalent to pulling the power cord — use only as a last
+        // resort.
+        if machine.state != .stopped {
+            do {
+                try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+                    machine.stop { error in
+                        if let error {
+                            continuation.resume(throwing: error)
+                        } else {
+                            continuation.resume(returning: ())
+                        }
                     }
                 }
+            } catch {
+                // Stop failures are non-fatal; the VM may already be halted.
             }
-        } catch {
-            // Stop failures are non-fatal; the VM may already be halted.
         }
+
         virtualMachine = nil
         tearDownConsolePipe()
     }
