@@ -360,23 +360,29 @@ enum SharedCompassVMDevToolsProvisioner {
     /// Translate the last meaningful line of the install log to a coarse
     /// install phase. Returns nil when nothing in the tail looks like a
     /// known marker — the caller keeps whatever phase it last saw.
+    ///
+    /// `softwareupdate --verbose` output drifted between macOS majors:
+    ///   * macOS 15 and earlier: `Downloading:`, `Downloaded:`, `Installing:` (with colons)
+    ///   * macOS 26+: `Downloading Command Line Tools …` (no colons)
+    /// We match both shapes so the UI doesn't get stuck at the previous
+    /// phase forever on a healthy install.
     static func parsePhase(fromLogTail tail: String) -> InstallPhase? {
         let lower = tail.lowercased()
         // Check most-advanced markers first so a late "Downloaded" doesn't
         // override a later "Installed".
-        if lower.contains("done.") || lower.contains("install complete") {
+        if lower.contains("done.") || lower.contains("install complete") || lower.contains("[compass-clt] softwareupdate exit=0") {
             return .done
         }
-        if lower.contains("installed:") || lower.contains("installed cli") {
+        if lower.contains("installed:") || lower.contains("installed cli") || lower.contains("installed command line tools") {
             return .installed
         }
-        if lower.contains("installing:") || lower.contains("running pre-install") || lower.contains("running install") {
+        if lower.contains("installing:") || lower.contains("running pre-install") || lower.contains("running install") || lower.contains("installing command line tools") {
             return .installing
         }
-        if lower.contains("downloaded:") {
+        if lower.contains("downloaded:") || lower.contains("downloaded command line tools") {
             return .downloaded
         }
-        if lower.contains("downloading:") || lower.contains("download started") {
+        if lower.contains("downloading:") || lower.contains("download started") || lower.contains("downloading command line tools") {
             return .downloading
         }
         if lower.contains("[compass-clt]") &&
@@ -428,7 +434,16 @@ enum SharedCompassVMDevToolsProvisioner {
         # Pick the most recently-published CLT label. Apple sometimes ships
         # multiple labels (different Xcode majors); `tail -n1` picks the
         # newest one in the catalog ordering.
-        LABEL="$(softwareupdate -l 2>&1 | awk -F'Label: ' '/Command Line Tools/{print $2}' | tail -n1 | sed 's/[[:space:]]*$//')"
+        #
+        # Filter on the literal `* Label:` prefix so we don't accidentally
+        # match the indented `Title: Command Line Tools …` line that follows
+        # each Label entry on macOS 26+ (which would split to an empty
+        # field under the original awk-on-"Label: " approach).
+        LABEL="$(softwareupdate -l 2>&1 \
+            | grep -E '^\\* Label: Command Line Tools' \
+            | sed 's/^\\* Label: //' \
+            | tail -n1 \
+            | sed 's/[[:space:]]*$//')"
         if [ -z "$LABEL" ]; then
           echo "[compass-clt] ERROR: no Command Line Tools label found in softwareupdate catalog"
           softwareupdate -l 2>&1 || true

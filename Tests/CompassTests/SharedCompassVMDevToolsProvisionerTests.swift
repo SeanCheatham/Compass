@@ -40,11 +40,18 @@ final class SharedCompassVMDevToolsProvisionerTests: XCTestCase {
 
     func testRenderedInstallScriptPicksLatestCLTLabel() {
         let script = SharedCompassVMDevToolsProvisioner.renderInstallScript()
-        // Pick by `tail -n1` of the catalog entries that match
-        // "Command Line Tools". Apple sometimes ships multiple labels
-        // (different Xcode majors); newest one wins.
+        // Pick by `tail -n1` of the catalog entries whose lines start
+        // with `* Label: Command Line Tools`. Apple sometimes ships
+        // multiple labels (different Xcode majors); newest one wins.
+        // The `^\* Label:` anchor matters — on macOS 26+ each Label
+        // entry is followed by an indented `Title: Command Line Tools …`
+        // line that the older un-anchored matcher would also pick up
+        // (producing an empty label string and breaking install).
         XCTAssertTrue(script.contains("softwareupdate -l"))
-        XCTAssertTrue(script.contains("Command Line Tools"))
+        XCTAssertTrue(
+            script.contains("'^\\* Label: Command Line Tools'"),
+            "Label selector must anchor on the '* Label:' line, not match any 'Command Line Tools' substring"
+        )
         XCTAssertTrue(script.contains("tail -n1"))
     }
 
@@ -98,8 +105,21 @@ final class SharedCompassVMDevToolsProvisionerTests: XCTestCase {
         XCTAssertEqual(SharedCompassVMDevToolsProvisioner.parsePhase(fromLogTail: tail), .downloading)
     }
 
+    func testParsePhaseFromLogTailRecognisesDownloadingMacOS26Form() {
+        // macOS 26's softwareupdate --verbose drops the trailing colon
+        // we used to key on. Confirmed live against a Sequoia successor
+        // guest: "Downloading Command Line Tools for Xcode 26.5".
+        let tail = "Downloading Command Line Tools for Xcode 26.5"
+        XCTAssertEqual(SharedCompassVMDevToolsProvisioner.parsePhase(fromLogTail: tail), .downloading)
+    }
+
     func testParsePhaseFromLogTailRecognisesDownloaded() {
         let tail = "Downloaded: Command Line Tools for Xcode"
+        XCTAssertEqual(SharedCompassVMDevToolsProvisioner.parsePhase(fromLogTail: tail), .downloaded)
+    }
+
+    func testParsePhaseFromLogTailRecognisesDownloadedMacOS26Form() {
+        let tail = "Downloaded Command Line Tools for Xcode 26.5"
         XCTAssertEqual(SharedCompassVMDevToolsProvisioner.parsePhase(fromLogTail: tail), .downloaded)
     }
 
@@ -108,8 +128,18 @@ final class SharedCompassVMDevToolsProvisionerTests: XCTestCase {
         XCTAssertEqual(SharedCompassVMDevToolsProvisioner.parsePhase(fromLogTail: tail), .installing)
     }
 
+    func testParsePhaseFromLogTailRecognisesInstallingMacOS26Form() {
+        let tail = "Installing Command Line Tools for Xcode 26.5"
+        XCTAssertEqual(SharedCompassVMDevToolsProvisioner.parsePhase(fromLogTail: tail), .installing)
+    }
+
     func testParsePhaseFromLogTailRecognisesInstalled() {
         let tail = "Installed: Command Line Tools for Xcode"
+        XCTAssertEqual(SharedCompassVMDevToolsProvisioner.parsePhase(fromLogTail: tail), .installed)
+    }
+
+    func testParsePhaseFromLogTailRecognisesInstalledMacOS26Form() {
+        let tail = "Installed Command Line Tools for Xcode 26.5"
         XCTAssertEqual(SharedCompassVMDevToolsProvisioner.parsePhase(fromLogTail: tail), .installed)
     }
 
