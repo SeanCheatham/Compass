@@ -458,9 +458,19 @@ enum Prompts {
     /// model which tools are on the table for this phase and how to end
     /// the turn via `submit_result`. The user prompt still carries the
     /// per-phase instructions and the output schema.
+    /// Coarse description of where the agent's tools execute. Drives the
+    /// "what tooling can I assume is installed?" section of the system
+    /// prompt so the model doesn't burn iterations reaching for things
+    /// the environment doesn't have.
+    enum ExecutionEnvironmentDescriptor {
+        case host
+        case sharedVM
+    }
+
     static func agentSystemPrompt(
         phase: AgentPhase,
-        workingDirectoryPath: String
+        workingDirectoryPath: String,
+        executionEnvironment: ExecutionEnvironmentDescriptor = .host
     ) -> String {
         let readOnlyTools = "read_file, ls, grep, glob"
         let writeTools = "write_file, edit_file, bash"
@@ -481,6 +491,8 @@ enum Prompts {
         are recommended; if you use absolute paths they must resolve inside
         the working directory.
 
+        \(executionEnvironmentSection(executionEnvironment))
+
         Tools available to you this turn:
         \(toolList)
 
@@ -490,6 +502,35 @@ enum Prompts {
         message — always call the tool. The phase ends the moment you call
         it; no further messages will be processed.
         """
+    }
+
+    /// Renders the "where am I running?" stanza for the agent system prompt.
+    /// Kept separate so tests can lock down the wording byte-for-byte —
+    /// changes to it directly affect tool-call efficiency.
+    static func executionEnvironmentSection(_ env: ExecutionEnvironmentDescriptor) -> String {
+        switch env {
+        case .host:
+            return """
+            Execution environment: native macOS host. Whatever the user has
+            installed on this machine is available — assume nothing specific
+            and probe with `which` / `command -v` when you need to confirm a
+            tool exists.
+            """
+        case .sharedVM:
+            return """
+            Execution environment: Compass Shared VM (headless macOS guest).
+            Xcode Command Line Tools are installed — `swift`, `clang`, `git`,
+            `make`, `llvm`, and the macOS SDK are available. The full Xcode
+            IDE is NOT installed, so `xcodebuild`, Interface Builder, the
+            iOS/watchOS/tvOS SDKs, and the Simulator are unavailable.
+            For SwiftPM packages, build and test with `swift build` /
+            `swift test`. For `.xcodeproj`-based projects there is no
+            in-VM equivalent — those builds must happen on the host route
+            (re-run with the Native macOS execution environment).
+            Homebrew is NOT installed by default. Network egress to Apple's
+            CDNs (softwareupdate, swift package fetch from github.com) works.
+            """
+        }
     }
 
     private static func encodeSessions(_ sessions: [SessionRecord]) throws -> String {

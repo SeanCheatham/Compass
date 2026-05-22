@@ -2031,7 +2031,8 @@ extension CompassProject {
             modelOverride: modelOverride,
             systemPrompt: Prompts.agentSystemPrompt(
                 phase: phase,
-                workingDirectoryPath: environment.workingDirectory.path
+                workingDirectoryPath: environment.workingDirectory.path,
+                executionEnvironment: environment.kind == .sharedVM ? .sharedVM : .host
             ),
             userPrompt: userPrompt,
             tools: AgentExecutor.toolsForPhase(phase),
@@ -2065,6 +2066,15 @@ extension CompassProject {
     /// host filesystem and the host never reads from the guest. Otherwise
     /// the agent stays native to the host.
     struct AgentEnvironment {
+        /// Coarse descriptor for the agent's runtime environment. Used by
+        /// the system-prompt builder to teach the model what tooling it
+        /// can expect — e.g. the Shared VM has Command Line Tools only,
+        /// not full Xcode, so reaching for `xcodebuild` is wasted work.
+        enum Kind {
+            case host
+            case sharedVM
+        }
+        var kind: Kind
         var workingDirectory: URL
         var filesystem: AgentFilesystem
         var bashRunner: AgentBashRunner
@@ -2078,6 +2088,7 @@ extension CompassProject {
                 log("Agent route falling back to host: \(reason)", level: .info)
             }
             return AgentEnvironment(
+                kind: .host,
                 workingDirectory: hostURL,
                 filesystem: AgentHostFilesystem(),
                 bashRunner: AgentHostBashRunner()
@@ -2086,6 +2097,7 @@ extension CompassProject {
             guard let machine = SharedCompassVM.shared.virtualMachine else {
                 log("Agent route via Shared VM requested but no live VZVirtualMachine; falling back to host.", level: .warning)
                 return AgentEnvironment(
+                    kind: .host,
                     workingDirectory: hostURL,
                     filesystem: AgentHostFilesystem(),
                     bashRunner: AgentHostBashRunner()
@@ -2100,6 +2112,7 @@ extension CompassProject {
             log("Agent route via Shared VM (vsock) at workspace \(guestWorkingDirectory.path)", level: .info)
             let client = Self.makeVsockClient(on: machine)
             return AgentEnvironment(
+                kind: .sharedVM,
                 workingDirectory: guestWorkingDirectory,
                 filesystem: client,
                 bashRunner: client
