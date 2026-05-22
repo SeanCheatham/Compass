@@ -1,26 +1,21 @@
 import Foundation
 
-/// Streams a host worktree to the guest (and back) over vsock.
+/// Streams a host git working tree to the guest (and back) over vsock.
 ///
 /// macOS guests TCC-block `AppleVirtIOFS` reads from every process —
 /// including LaunchAgents in the GUI session and even root via
 /// LaunchDaemon — so a shared VirtioFS directory is not a viable
 /// transport for the agent's file operations. Compass instead keeps a
-/// guest-local copy of each Develop worktree under
-/// `/Users/compass/Compass/Worktrees/dev-<UUID>/worktree` and
-/// synchronises at iteration boundaries via gitignore-aware tar
-/// streamed over the existing vsock RPC (`writeFile`, `readFile`,
-/// `bash`). No CLT/git is required on the guest because the host owns
-/// gitignore filtering on the push side and a small hard-coded
-/// exclude list on the pull side covers the heavyweight build dirs
-/// (`.build`, `target`, `node_modules`, `build`, `dist`) that
-/// dominate worktree size.
+/// guest-local copy of each repo under
+/// `/Users/compass/Compass/Repos/<UUID>/worktree` (allocated by
+/// `SharedCompassVMGuestWorkspaceCatalog`) and synchronises via
+/// gitignore-aware tar streamed over the existing vsock RPC
+/// (`writeFile`, `readFile`, `bash`). No CLT/git is required on the
+/// guest because the host owns gitignore filtering on the push side
+/// and a small hard-coded exclude list on the pull side covers the
+/// heavyweight build dirs (`.build`, `target`, `node_modules`,
+/// `build`, `dist`) that dominate working-tree size.
 enum SharedCompassVMWorktreeSync {
-    /// Guest-local root where iteration worktrees live. The `compass`
-    /// user owns this subtree (planted at first-boot) so the
-    /// LaunchAgent that hosts the vsock RPC can read/write freely.
-    static let guestWorktreesRoot = "/Users/compass/Compass/Worktrees"
-
     /// Maximum bytes a single sync tar may occupy (after base64 in the
     /// JSON frame). The RPC framing caps total frame size at 1.5 GiB
     /// (see `AgentRPCFraming.maxFrameByteCount`); allowing ~1 GiB of
@@ -29,40 +24,16 @@ enum SharedCompassVMWorktreeSync {
     /// transfer path (tracked separately) — failing loudly here beats
     /// truncating a real repo into something the guest agent then
     /// tries to operate on.
-    ///
-    /// The old 80 MiB cap was sized for per-iteration agent edits, not
-    /// for the one-time persistent-workspace push that now happens at
-    /// session start. Most Swift package repos fit comfortably; only
-    /// repos with hundreds of MB of tracked binary assets approach
-    /// the ceiling.
     static let maxTarByteCount = 1024 * 1024 * 1024
 
-    /// Directory names skipped when packaging the guest's worktree on
-    /// the pull side. The host's push tar is already gitignore-aware
+    /// Directory names skipped when packaging the guest's working tree
+    /// on the pull side. The host's push tar is already gitignore-aware
     /// (via `git ls-files`); these excludes cover the heavyweight
     /// dirs an agent's `bash` calls might create in the guest
     /// (`swift build`, `cargo build`, `npm install`).
     static let pullSideExcludeDirs: [String] = [
         ".git", ".build", "target", "node_modules", "build", "dist", ".swiftpm"
     ]
-
-    /// Maps a host worktree URL under the host's workspaces root to
-    /// its guest-local path. Returns nil when the URL is outside the
-    /// host workspaces root (caller falls back to host execution).
-    static func guestWorktreePath(
-        forHostURL hostURL: URL,
-        hostWorkspacesRootURL: URL
-    ) -> String? {
-        let hostPath = hostURL.standardizedFileURL.path
-        let rootPath = hostWorkspacesRootURL.standardizedFileURL.path
-        let rootPrefix = rootPath.hasSuffix("/") ? rootPath : rootPath + "/"
-        if hostPath == rootPath {
-            return guestWorktreesRoot
-        }
-        guard hostPath.hasPrefix(rootPrefix) else { return nil }
-        let relative = String(hostPath.dropFirst(rootPrefix.count))
-        return "\(guestWorktreesRoot)/\(relative)"
-    }
 
     enum SyncError: LocalizedError, CustomStringConvertible {
         case hostListFailed(stderr: String)
@@ -203,12 +174,11 @@ enum SharedCompassVMWorktreeSync {
     /// this list is the security boundary — anything not under one of
     /// these roots gets rejected before any guest-side mutation happens.
     ///
-    /// `Worktrees` is the legacy per-iteration root (kept for backwards
-    /// compatibility with existing call sites and tests). `Repos` is
-    /// the persistent per-repo root used by the current
-    /// `SharedCompassVMGuestWorkspaceCatalog`-driven sync.
+    /// Today this is just the persistent per-repo root used by
+    /// `SharedCompassVMGuestWorkspaceCatalog`. The legacy
+    /// `/Users/compass/Compass/Worktrees` per-iteration root was
+    /// dropped along with the host-side worktree machinery.
     static let allowedGuestPathPrefixes: [String] = [
-        guestWorktreesRoot,
         SharedCompassVMGuestWorkspaceCatalog.guestReposRoot
     ]
 

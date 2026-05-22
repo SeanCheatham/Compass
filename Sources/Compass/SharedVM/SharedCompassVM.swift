@@ -41,10 +41,6 @@ final class SharedCompassVM: ObservableObject {
 
     let bundle: SharedCompassVMBundle
 
-    /// Host-side root that backs the `compass-workspaces` VirtioFS device.
-    /// Worktrees for individual Develop iterations are subdirectories of this.
-    let workspacesRootURL: URL
-
     private let dependencies: Dependencies
     @Published private(set) var virtualMachine: VZVirtualMachine?
     private var sleepObserver: SharedCompassVMSleepObserver?
@@ -84,8 +80,6 @@ final class SharedCompassVM: ObservableObject {
             return SharedCompassVM(
                 bundle: SharedCompassVMBundle(rootURL: FileManager.default.temporaryDirectory
                     .appendingPathComponent("compass-shared-vm-fallback", isDirectory: true)),
-                workspacesRootURL: FileManager.default.temporaryDirectory
-                    .appendingPathComponent("compass-shared-vm-workspaces", isDirectory: true),
                 fallbackUnavailableReason: "Shared VM bundle could not be initialised: \(detail)"
             )
         }
@@ -125,12 +119,10 @@ final class SharedCompassVM: ObservableObject {
 
     init(
         bundle: SharedCompassVMBundle,
-        workspacesRootURL: URL,
         dependencies: Dependencies = .live(),
         fallbackUnavailableReason: String? = nil
     ) {
         self.bundle = bundle
-        self.workspacesRootURL = workspacesRootURL.standardizedFileURL
         self.dependencies = dependencies
         self.fallbackUnavailableReason = fallbackUnavailableReason
         if let reason = fallbackUnavailableReason {
@@ -139,22 +131,14 @@ final class SharedCompassVM: ObservableObject {
         installSleepObserver()
     }
 
-    /// Convenience constructor that wires the canonical bundle location and
-    /// the canonical worktree root (`~/Library/Caches/Compass/Worktrees/`).
+    /// Convenience constructor that wires the canonical bundle
+    /// location. The VM has no host-side workspaces share anymore —
+    /// the agent operates in the per-repo guest workspace allocated
+    /// by `SharedCompassVMGuestWorkspaceCatalog` and host↔guest sync
+    /// flows over vsock (see `SharedCompassVMWorktreeSync`).
     static func makeDefault() throws -> SharedCompassVM {
         let bundle = try SharedCompassVMBundle.defaultBundle()
-        let fileManager = FileManager.default
-        let cachesRoot = try fileManager.url(
-            for: .cachesDirectory,
-            in: .userDomainMask,
-            appropriateFor: nil,
-            create: true
-        )
-        let worktreesRoot = cachesRoot
-            .appendingPathComponent("Compass", isDirectory: true)
-            .appendingPathComponent("Worktrees", isDirectory: true)
-        try fileManager.createDirectory(at: worktreesRoot, withIntermediateDirectories: true)
-        return SharedCompassVM(bundle: bundle, workspacesRootURL: worktreesRoot)
+        return SharedCompassVM(bundle: bundle)
     }
 
     // MARK: - Lifecycle
@@ -497,7 +481,6 @@ final class SharedCompassVM: ObservableObject {
         // Compose configuration from on-disk artifacts.
         let inputs = SharedCompassVMConfiguration.Inputs.standard(
             bundle: bundle,
-            workspacesRootURL: workspacesRootURL,
             guestMACAddress: macAddress
         )
         let configuration = try SharedCompassVMConfiguration.makeConfiguration(

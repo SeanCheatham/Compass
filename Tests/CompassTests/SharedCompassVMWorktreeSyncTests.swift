@@ -2,52 +2,21 @@ import Foundation
 @testable import Compass
 import XCTest
 
-/// Coverage for `SharedCompassVMWorktreeSync.guestWorktreePath` — the
-/// host worktree → guest worktree mapping is what wires every Develop
-/// iteration to the right copy in the guest, so getting it wrong is
-/// not a soft failure.
+/// Coverage for `SharedCompassVMWorktreeSync` security and policy
+/// constants. The class itself is mostly side-effectful (vsock + tar
+/// streaming), so tests pin invariants that are cheap to assert and
+/// expensive to silently regress.
 final class SharedCompassVMWorktreeSyncTests: XCTestCase {
-    func testGuestPathMapsHostWorktreeIntoGuestWorkspacesRoot() {
-        let host = URL(fileURLWithPath: "/Users/dev/Library/Caches/Compass/Worktrees/dev-AAA/worktree")
-        let root = URL(fileURLWithPath: "/Users/dev/Library/Caches/Compass/Worktrees")
-        let guest = SharedCompassVMWorktreeSync.guestWorktreePath(
-            forHostURL: host,
-            hostWorkspacesRootURL: root
-        )
-        XCTAssertEqual(guest, "/Users/compass/Compass/Worktrees/dev-AAA/worktree")
-    }
 
-    func testGuestPathHandlesHostRootItself() {
-        let root = URL(fileURLWithPath: "/Users/dev/Library/Caches/Compass/Worktrees")
-        let guest = SharedCompassVMWorktreeSync.guestWorktreePath(
-            forHostURL: root,
-            hostWorkspacesRootURL: root
-        )
-        XCTAssertEqual(guest, "/Users/compass/Compass/Worktrees")
-    }
-
-    func testGuestPathReturnsNilForHostUrlOutsideRoot() {
-        let host = URL(fileURLWithPath: "/Users/dev/other-place/worktree")
-        let root = URL(fileURLWithPath: "/Users/dev/Library/Caches/Compass/Worktrees")
-        XCTAssertNil(SharedCompassVMWorktreeSync.guestWorktreePath(
-            forHostURL: host,
-            hostWorkspacesRootURL: root
-        ))
-    }
-
-    func testGuestPathHandlesTrailingSlashOnRoot() {
-        let host = URL(fileURLWithPath: "/Users/dev/Library/Caches/Compass/Worktrees/dev-BBB/worktree")
-        let root = URL(fileURLWithPath: "/Users/dev/Library/Caches/Compass/Worktrees/")
+    /// The allow-list backs `validateGuestPath`, which gates every
+    /// `rm -rf` the sync script runs against the guest. Locking the
+    /// contents down here is a tripwire against future "let's add a
+    /// new sync root" changes that forget to extend the security
+    /// boundary along with them.
+    func testAllowedGuestPathPrefixesAreOnlyTheCatalogRoot() {
         XCTAssertEqual(
-            SharedCompassVMWorktreeSync.guestWorktreePath(forHostURL: host, hostWorkspacesRootURL: root),
-            "/Users/compass/Compass/Worktrees/dev-BBB/worktree"
+            SharedCompassVMWorktreeSync.allowedGuestPathPrefixes,
+            [SharedCompassVMGuestWorkspaceCatalog.guestReposRoot]
         )
-    }
-
-    func testGuestWorktreesRootMatchesFirstBootStagedPath() {
-        // The first-boot script creates /Users/compass/Compass/Worktrees;
-        // diverging the two constants would silently break sync on every
-        // new VM. Pin them together.
-        XCTAssertEqual(SharedCompassVMWorktreeSync.guestWorktreesRoot, "/Users/compass/Compass/Worktrees")
     }
 }

@@ -576,15 +576,12 @@ extension CompassProject {
 
     var runtimeDiagnosticsMenu: AgentExecutionEnvironmentMenu {
         let environment = agentExecutionEnvironment
-        // The env-presentation plan represents Develop's bash routing — the
-        // phase that actually creates a worktree under the host workspaces
-        // root and vsock-syncs it into the guest. Plan/Reflect/mutation
-        // testing run against the main repo path (outside the workspaces
-        // root) and stay on host by design; using the main repo here would
-        // make the dropdown report a spurious "falling back" state whenever
-        // the VM is otherwise healthy.
-        let envLaunchPlan = agentLaunchPlan(for: SharedCompassVM.shared.workspacesRootURL)
-        let mutationLaunchPlan = agentLaunchPlan(for: repoURL)
+        // Both Develop and mutation testing route off the main repo
+        // URL now (the per-iteration host worktree concept is gone),
+        // so the env-presentation plan and the mutation-testing plan
+        // share the same launch plan.
+        let envLaunchPlan = agentLaunchPlan(for: repoURL)
+        let mutationLaunchPlan = envLaunchPlan
         let mutationTestingPlan = AgentMutationTestingPlan(
             state: state,
             languageProfile: languageProfile,
@@ -1800,8 +1797,7 @@ extension CompassProject {
                 Self.makeSharedVMRoute(
                     hostRepoURL: hostURL,
                     readiness: readiness,
-                    bundle: host.bundle,
-                    workspacesRootURL: host.workspacesRootURL
+                    bundle: host.bundle
                 )
             }
         )
@@ -1826,8 +1822,7 @@ extension CompassProject {
     private static func makeSharedVMRoute(
         hostRepoURL: URL,
         readiness: SharedCompassVMReadiness,
-        bundle: SharedCompassVMBundle,
-        workspacesRootURL: URL
+        bundle: SharedCompassVMBundle
     ) -> SharedVMRoute? {
         guard case let .ready(sshDestination) = readiness else { return nil }
 
@@ -1845,7 +1840,6 @@ extension CompassProject {
         let guestWorkspacePath = SharedCompassVMGuestWorkspaceCatalog.guestWorktreePath(
             forEntry: catalogEntry
         )
-        _ = workspacesRootURL // retained for API compatibility; no longer used.
 
         return SharedVMRoute(
             sshDestination: sshDestination,
@@ -3034,6 +3028,8 @@ final class AppModel: ObservableObject {
     }
 
     func bootstrap() async {
+        Self.cleanLegacyHostWorktreesCacheIfPresent()
+
         projects = KnownProjectStore.load().map(CompassProject.init(record:))
         selectedProjectID = projects.sorted { $0.lastOpenedAt > $1.lastOpenedAt }.first?.id
         if let id = selectedProjectID {
@@ -3074,6 +3070,32 @@ final class AppModel: ObservableObject {
                 }
             }
         }
+    }
+
+    /// One-shot GC for `~/Library/Caches/Compass/Worktrees/`, the
+    /// legacy per-iteration host worktree cache used by the
+    /// pre-removal Develop sandbox. Existing dev-* subdirectories are
+    /// orphaned now that Compass no longer creates host worktrees;
+    /// remove the whole tree on launch so they don't accumulate.
+    ///
+    /// Best-effort: silently ignores "directory doesn't exist" and
+    /// any permission errors. The user can also rm the tree manually.
+    private static func cleanLegacyHostWorktreesCacheIfPresent() {
+        guard let cachesRoot = try? FileManager.default.url(
+            for: .cachesDirectory,
+            in: .userDomainMask,
+            appropriateFor: nil,
+            create: false
+        ) else {
+            return
+        }
+        let legacyRoot = cachesRoot
+            .appendingPathComponent("Compass", isDirectory: true)
+            .appendingPathComponent("Worktrees", isDirectory: true)
+        guard FileManager.default.fileExists(atPath: legacyRoot.path) else {
+            return
+        }
+        try? FileManager.default.removeItem(at: legacyRoot)
     }
 
     /// Surface for AppModel-level log lines (the per-project loggers route

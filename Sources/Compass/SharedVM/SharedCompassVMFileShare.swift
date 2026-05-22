@@ -3,10 +3,11 @@ import Virtualization
 
 /// Builders and validators for VirtioFS shares attached to the shared VM.
 ///
-/// Compass uses a single permanent VirtioFS device with tag `compass-workspaces`
-/// pointing at the host-side worktree root (`~/Library/Caches/Compass/Worktrees/`).
-/// Per-project sub-mounts are created on the host side as plain subdirectories;
-/// no per-iteration attach/detach happens at the VZ layer.
+/// No VirtioFS shares are attached to the running VM today — macOS
+/// guests TCC-block `AppleVirtIOFS` reads from every process — but
+/// the tag-validation helper here is retained for any future
+/// reattachment. Host↔guest file movement happens over vsock via
+/// `SharedCompassVMWorktreeSync` instead.
 enum SharedCompassVMFileShare {
     /// Default tag used by the parent workspace share.
     static let defaultWorkspacesTag = "compass-workspaces"

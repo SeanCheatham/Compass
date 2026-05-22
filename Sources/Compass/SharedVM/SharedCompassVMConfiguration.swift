@@ -27,19 +27,15 @@ struct SharedCompassVMConfiguration {
         /// discovered host-side. Nil → VZ assigns a random MAC each boot.
         var guestMACAddress: String?
 
-        /// Default config: 4 vCPUs, 8 GiB RAM, no VirtioFS shares (the
-        /// `workspacesRootURL` is retained on the call site for API
-        /// compatibility but is no longer attached to the VM — see the
-        /// long note on `makeShareDevices` below for why).
+        /// Default config: 4 vCPUs, 8 GiB RAM, no VirtioFS shares —
+        /// see the long note on `makeShareDevices` below for why.
         static func standard(
             bundle: SharedCompassVMBundle,
-            workspacesRootURL: URL,
             cpuCount: Int = 4,
             memorySize: UInt64 = 8 * 1024 * 1024 * 1024,
             guestMACAddress: String? = nil
         ) -> Inputs {
-            _ = workspacesRootURL // intentionally unused; kept for callsite stability
-            return Inputs(
+            Inputs(
                 bundle: bundle,
                 cpuCount: cpuCount,
                 memorySize: memorySize,
@@ -302,10 +298,10 @@ struct SharedCompassVMConfiguration {
     // macOS guests TCC-block `AppleVirtIOFS` reads from every process —
     // including LaunchAgents inside the GUI session and even root via
     // LaunchDaemon. The in-guest Compass agent therefore can't read the
-    // share regardless of which TCC profile we put it in. Worktrees are
-    // now copied into the guest via vsock-streamed tar at iteration
-    // boundaries; see `SharedCompassVMWorktreeSync`. The `SharedCompassVMFileShare`
-    // helpers stay in the tree to validate share tags should we ever
-    // reattach a share for an unrelated purpose, but no VirtioFS
-    // device is configured on the running VM.
+    // share regardless of which TCC profile we put it in. Repo contents
+    // are copied into and out of the guest via vsock-streamed tar
+    // through `SharedCompassVMWorktreeSync` instead. The
+    // `SharedCompassVMFileShare` helpers stay in the tree to validate
+    // share tags should we ever reattach a share for an unrelated
+    // purpose, but no VirtioFS device is configured on the running VM.
 }
