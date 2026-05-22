@@ -24,6 +24,18 @@ warmup ──▶ notProvisioned ──▶ downloadingIPSW ──▶ installing
                                            polls SSH until reachable)
                                                        │
                                                        ▼
+                                            provisioningDevTools
+                                                       │
+                                          (host kicks off a one-shot
+                                           install LaunchDaemon over
+                                           vsock that runs
+                                           softwareupdate -i to bring
+                                           Xcode Command Line Tools
+                                           down; host polls a sentinel
+                                           file and surfaces phase
+                                           progress)
+                                                       │
+                                                       ▼
                                                     ready
 ```
 
@@ -63,11 +75,20 @@ support, installer failure, or a cancelled host admin prompt.
         └── RestoreImage-<version>.ipsw   # resumable; survives across launches
 ```
 
-Per-project Develop worktrees live separately on the host under
-`~/Library/Caches/Compass/Worktrees/dev-<UUID>/worktree`. Compass keeps a
-matching copy inside the guest under `/Users/compass/Compass/Worktrees/dev-<UUID>/worktree`
-and synchronises the two over vsock at iteration boundaries — see the
-"Worktree sync" section below.
+Per-repo persistent guest workspaces live at
+`/Users/compass/Compass/Repos/<UUID>/worktree` inside the guest. The
+UUID is allocated on first use and persisted host-side in the
+gitignored `<repo>/.compass/guest-workspace.json` so the same guest
+directory survives across sessions, iterations, and app restarts.
+This is the **source of truth** for the agent — every Plan, Reflect,
+Develop, and Verify call against this repo operates on it.
+
+Per-iteration Develop worktrees still live on the host under
+`~/Library/Caches/Compass/Worktrees/dev-<UUID>/worktree`, but they
+no longer host the agent. Their job is narrower now: serve as the
+target of the post-Verify pull, host the auto-commit Compass creates
+on behalf of the agent (the guest has no `.git`), and feed the
+fast-forward merge in `promoteDevWorkspace`.
 
 There is no VirtioFS share. We tried it; macOS guests TCC-block
 `AppleVirtIOFS` reads from every process (sshd children, LaunchDaemons
@@ -87,21 +108,33 @@ allowed to touch:
   anyway, and we no longer expect them to: SSH never touches worktree
   files.
 - **vsock** — every agent tool call (read_file / write_file / edit_file
-  / ls / glob / grep / bash) and the bulk worktree sync. The host calls
+  / ls / glob / grep / bash) **for every phase** (Plan, Reflect,
+  Develop, Verify) and the bulk worktree sync. The host calls
   `VZVirtioSocketDevice.connect(toPort:)` to open a fresh connection per
   request; the in-guest `CompassGuestAgent` binary listens on `AF_VSOCK`
   at port `0x4007ACE5`. Wire format is length-prefixed JSON
   (`Sources/CompassAgentRPC/`).
-- **Worktree sync** (over vsock) — at the start of each Develop
-  iteration the host packages the worktree as a gitignore-aware tar
-  (`git ls-files --cached --others --exclude-standard | tar`) and
-  streams it into the guest. After each agent attempt the guest packs
-  its current worktree (excluding `.git`, `.build`, `target`,
-  `node_modules`, `build`, `dist`, `.swiftpm`) into a tar that the host
-  reads back over `readFile` and applies onto the host worktree. The
-  guest never sees the host's `.git/`; the host commits any changes on
-  its own side after the pull. See
-  [SharedCompassVMWorktreeSync.swift](SharedCompassVMWorktreeSync.swift).
+- **Worktree sync** (over vsock) — sync is now lazy and asymmetric:
+    - **First time** a repo's persistent guest workspace is referenced
+      (`SharedCompassVMRepoWorkspaceSync.ensurePopulated`), the host
+      packages the repo as a gitignore-aware tar
+      (`git ls-files --cached --others --exclude-standard | tar`) and
+      streams it into the guest. Subsequent calls short-circuit when
+      the guest directory already exists, preserving accumulated agent
+      state across sessions.
+    - **After Verify passes** the guest packs its current worktree
+      (excluding `.git`, `.build`, `target`, `node_modules`, `build`,
+      `dist`, `.swiftpm`) into a tar that the host reads back over
+      `readFile` and applies onto the per-iteration host worktree.
+      Compass then runs `git add -A` + `git commit -m "<agent summary>"`
+      on the host so `promoteDevWorkspace` has a commit to fast-forward
+      merge.
+    - The guest never has `.git/`. The agent cannot commit there;
+      committing is host-side only, gated on Verify success.
+    - See [SharedCompassVMWorktreeSync.swift](SharedCompassVMWorktreeSync.swift)
+      for the raw tar plumbing and
+      [SharedCompassVMRepoWorkspaceSync.swift](SharedCompassVMRepoWorkspaceSync.swift)
+      for the session-level "ensure exists, skip if already there" policy.
 
 The guest agent is a separate SwiftPM target (`CompassGuestAgent`)
 shipped alongside the host binary and planted at
@@ -189,6 +222,30 @@ session unattended. The agent comes up moments later.
   the guest. With no path that grants the agent read access, the share
   is just dead weight, so the VZ configuration no longer attaches one.
   Worktrees are vsock-synced instead (see [SharedCompassVMWorktreeSync.swift](SharedCompassVMWorktreeSync.swift)).
+- **Why is the guest the source of truth, not the host?** Earlier
+  Compass treated the host repo as primary and synced a snapshot of
+  it into the guest per Develop iteration; Plan/Reflect stayed
+  host-native because they "only read files." That left a sandbox
+  leak: a Plan run on `/Users/<user>/git/<repo>` reads arbitrary host
+  paths that resolve inside the working directory, including files
+  with no business being visible to the agent (gitignored configs,
+  `.env`, etc.). Inverting the polarity puts every phase inside the
+  guest by default — Plan/Reflect/Develop/Verify all see only
+  `/Users/compass/Compass/Repos/<UUID>/worktree`, never the host's
+  home directory, and agent state accumulates across iterations and
+  sessions instead of getting wiped per iteration. The host worktree
+  still exists for git plumbing (commits, branches, promote), but the
+  agent never reads or writes there directly.
+- **Why does the host commit the agent's changes instead of the agent?**
+  The agent runs entirely inside the guest, where there is no `.git`
+  (the bulk sync uses `git ls-files`, which doesn't include `.git/`).
+  Syncing `.git` would bloat each push by tens of megabytes for no
+  practical gain — the agent never needs to inspect history. So the
+  agent edits files only and Compass commits host-side after Verify
+  passes, using the agent's `summary` field as the commit message.
+  This also gives Compass a natural gate: a failed Verify produces no
+  commit, so a half-finished iteration cannot accidentally land on the
+  branch.
 - **Why gitignore-aware tar for sync instead of NFS / a host-side git
   daemon?** Both alternatives require running a network service on the
   host (port 2049 for NFS, port 9418 for `git daemon`) plus firewall
@@ -200,21 +257,39 @@ session unattended. The agent comes up moments later.
   and a hard-coded prune list on the pull side. Worktrees under
   ~80 MiB sync end-to-end in well under a second.
 
-## How Develop reaches the guest today
+## How agent phases reach the guest
 
-The Codex surface that originally drove this module was removed in the
-phase 7 cleanup. Develop iterations follow this flow:
+Every phase Compass runs against a repo under the `.sharedVM` route
+operates inside the same persistent guest workspace
+(`/Users/compass/Compass/Repos/<UUID>/worktree`). The host never feeds
+the agent its own filesystem paths.
 
-1. Host creates a git worktree under `~/Library/Caches/Compass/Worktrees/dev-<UUID>/worktree`.
-2. Host streams the worktree (gitignore-aware tar) into the guest at
-   `/Users/compass/Compass/Worktrees/dev-<UUID>/worktree` via vsock.
-3. Agent runs in the guest. Every `AgentBashTool` / `read_file` /
-   `write_file` / `edit_file` / `ls` / `glob` / `grep` call goes
-   through the vsock RPC to the in-guest `CompassGuestAgent`, which
-   operates on its local worktree copy.
-4. Host pulls the guest worktree back at the end of each attempt
-   (filtering out `.build`, `target`, `node_modules`, etc.) so
-   Verify, `git status`, and commit logic on the host see the agent's
-   changes.
-5. Plan/Reflect stay host-native (they don't need a sandbox — they
-   only read files).
+Per-session flow:
+
+1. **First reference** to a repo's guest workspace:
+   `SharedCompassVMRepoWorkspaceSync.ensurePopulated` streams the host
+   repo (gitignore-aware tar) into the guest path. Subsequent sessions
+   skip this step — the guest workspace from the prior session is
+   already there.
+2. **Plan, Reflect, Develop** all run their agent loops in the guest.
+   Every `AgentBashTool` / `read_file` / `write_file` / `edit_file` /
+   `ls` / `glob` / `grep` call goes through vsock RPC against the
+   persistent guest workspace.
+3. **Verify** (when the iteration's `verify` command is set) runs
+   inside the guest too, via the same vsock bash RPC. No host-side
+   build toolchain is needed.
+4. **On Verify success**, the host pulls the guest worktree onto the
+   per-iteration host worktree under
+   `~/Library/Caches/Compass/Worktrees/dev-<UUID>/worktree`, creates
+   the host-side commit (`git add -A` + `git commit -m "<agent summary>"`),
+   and `promoteDevWorkspace` fast-forward-merges that branch onto
+   the main worktree. The agent does not commit — the guest has no
+   `.git`.
+5. **On Verify failure**, nothing pulls. Agent state stays in the
+   guest workspace; the next attempt (within or across sessions) picks
+   it up and continues.
+
+The host worktree under `~/Library/Caches/Compass/Worktrees/dev-<UUID>/worktree`
+still exists to host the auto-commit branch — that branch is what
+`promoteDevWorkspace` fast-forwards into the main worktree. The agent
+itself never reads or writes there.
