@@ -24,8 +24,9 @@ struct SharedVMRoute: Equatable {
         self.knownHostsFile = knownHostsFile
     }
 
-    /// Maps a host filesystem URL into the guest's workspace path, if the URL lives under the
-    /// host worktree mount root. Returns nil for URLs outside the shared mount.
+    /// Maps a host filesystem URL into the guest's workspace path, if
+    /// the URL lives under `hostWorktreeURL` (the host repo root for
+    /// this route). Returns nil for URLs outside that subtree.
     func guestPath(forHostURL hostURL: URL) -> String? {
         let root = hostWorktreeURL.standardizedFileURL
         let target = hostURL.standardizedFileURL

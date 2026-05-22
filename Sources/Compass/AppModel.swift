@@ -1554,25 +1554,16 @@ extension CompassProject {
         try? persistSessions()
         feedback(.developStarted)
 
-        var devWorkspace: DevRunWorkspace?
         do {
-            devWorkspace = try await createDevWorkspace(
-                mainRepoURL: workspace.repoURL,
-                beforeSha: beforeSha
-            )
-            guard let devWorkspace else { throw AppModelError.internalInvariant("Develop workspace was not created.") }
-
-            // The per-iteration host worktree no longer drives the
-            // guest's contents. The guest holds a persistent per-repo
-            // workspace under /Users/compass/Compass/Repos/<UUID>/worktree
-            // that survives across sessions and iterations; runAgent
-            // populates it lazily on first use via
-            // SharedCompassVMRepoWorkspaceSync.ensurePopulated. The
-            // per-iteration host worktree (devWorkspace.repoURL) is now
-            // only used by the host-side post-check, commit, promote, and
-            // cleanup machinery — its contents catch up to the guest via
-            // pullDevelopWorktreeIfNeeded after each attempt.
-            _ = devWorkspace
+            // The Develop iteration operates directly on `workspace.repoURL`.
+            // Under the `.sharedVM` route the route layer remaps that URL
+            // through `SharedCompassVMGuestWorkspaceCatalog` to a persistent
+            // per-repo guest workspace under `/Users/compass/Compass/Repos/
+            // <UUID>/worktree` and the agent runs there; under the host
+            // route the agent runs in the user's working tree directly.
+            // Either way, only one workspace handle is in play per
+            // iteration, so Develop and Verify can't desynchronize onto
+            // different catalog entries.
 
             var priorIssues: [String] = []
             var finalIssues: [String] = []
@@ -1589,20 +1580,15 @@ extension CompassProject {
                     priorIssues: priorIssues
                 )
 
-                let launchPlan = agentLaunchPlan(for: devWorkspace.repoURL)
+                let launchPlan = agentLaunchPlan(for: workspace.repoURL)
                 logExecutionEnvironmentPreflight(
                     phase: "Develop",
-                    nativeExecutionURL: devWorkspace.repoURL,
+                    nativeExecutionURL: workspace.repoURL,
                     launchPlan: launchPlan,
                     sessionIndex: sessionIndex,
                     attempt: attempt
                 )
                 log("Develop: launching agent (attempt \(attempt)/\(maxDevelopAttempts)).", level: .info)
-                // Agent always operates against the persistent per-repo
-                // guest workspace (under the .sharedVM route) — so we
-                // hand it the main repo URL, not the per-iteration host
-                // worktree. The host worktree continues to live in
-                // devWorkspace.repoURL for verify/commit/promote.
                 let summary = try await runAgent(
                     phase: .develop,
                     agentSettings: agentSettings,
@@ -1613,13 +1599,12 @@ extension CompassProject {
                     decode: DevelopSummary.self
                 )
 
-                // Under the .sharedVM route the agent worked entirely in
-                // the guest workspace; Verify also ran there (phase D).
-                // We defer the host-side pull until Verify passes so a
-                // failed attempt doesn't dirty the host worktree and so
-                // we only pay the sync cost on successful runs. Under
-                // host execution there's nothing to pull — the agent
-                // wrote directly to devWorkspace.repoURL.
+                // Under the `.sharedVM` route the agent worked in the
+                // guest workspace and Verify ran there too. We defer the
+                // host-side pull and commit until Verify passes so a
+                // failed attempt doesn't leave the main repo dirty.
+                // Under the host route the agent already committed in
+                // place using its own `git` tool.
 
                 guard sessions.indices.contains(sessionIndex) else {
                     throw AppModelError.internalInvariant("Develop session disappeared during agent run.")
@@ -1630,7 +1615,7 @@ extension CompassProject {
                 let post = try await runPostChecks(
                     next: next,
                     summary: summary,
-                    workingDirectory: devWorkspace.repoURL,
+                    workingDirectory: workspace.repoURL,
                     launchPlan: launchPlan,
                     sessionIndex: sessionIndex,
                     attempt: attempt
@@ -1643,17 +1628,19 @@ extension CompassProject {
                 try? persistSessions()
 
                 if post.ok {
-                    // Pull guest workspace contents onto the per-iteration
-                    // host worktree and create the host-side commit on its
-                    // branch. The guest has no .git, so the agent itself
-                    // cannot commit there; doing it host-side here keeps
-                    // the existing promoteDevWorkspace fast-forward-merge
-                    // contract intact. Skipped under host execution
-                    // because the agent already committed in-place.
+                    // Pull guest workspace contents onto the main repo
+                    // and create the host-side commit on the user's
+                    // current branch. The guest has no `.git`, so the
+                    // agent itself cannot commit there. Skipped under
+                    // the host route because the agent committed in
+                    // place via its `bash` tool.
                     if case .sharedVM = launchPlan.effectiveRoute {
-                        await pullDevelopWorktreeIfNeeded(devWorkspace: devWorkspace, plan: launchPlan)
+                        await pullDevelopChangesIfNeeded(
+                            mainRepoURL: workspace.repoURL,
+                            plan: launchPlan
+                        )
                         if let commitIssue = await commitAgentChangesOnHost(
-                            devWorkspace: devWorkspace,
+                            mainRepoURL: workspace.repoURL,
                             summary: summary
                         ) {
                             finalIssues = [commitIssue]
@@ -1661,19 +1648,15 @@ extension CompassProject {
                             break
                         }
                     }
-                    if let promotionIssue = try await promoteDevWorkspace(devWorkspace, mainRepoURL: workspace.repoURL) {
-                        finalIssues = [promotionIssue]
-                        succeeded = false
-                    } else {
-                        do {
-                            logLessonEdits(try workspace.applyLessonEdits(summary.lessonEdits))
-                        } catch {
-                            let note = "Lesson edits were not applied: \(error.localizedDescription)"
-                            appendSessionNote(note, to: sessionIndex)
-                            log(note, level: .error)
-                        }
-                        succeeded = true
+                    do {
+                        logLessonEdits(try workspace.applyLessonEdits(summary.lessonEdits))
+                    } catch {
+                        let note = "Lesson edits were not applied: \(error.localizedDescription)"
+                        appendSessionNote(note, to: sessionIndex)
+                        log(note, level: .error)
                     }
+                    succeeded = true
+                    feedback(.commitsPromoted)
                     break
                 }
 
@@ -1727,9 +1710,6 @@ extension CompassProject {
             }
         }
 
-        if let devWorkspace {
-            await cleanupDevWorkspace(devWorkspace, mainRepoURL: workspace.repoURL)
-        }
         isRunning = false
         executor = nil
         await refresh()
@@ -1818,7 +1798,7 @@ extension CompassProject {
             vmReadiness: readiness,
             sharedVMRouteFactory: { hostURL in
                 Self.makeSharedVMRoute(
-                    hostWorktreeURL: hostURL,
+                    hostRepoURL: hostURL,
                     readiness: readiness,
                     bundle: host.bundle,
                     workspacesRootURL: host.workspacesRootURL
@@ -1827,42 +1807,34 @@ extension CompassProject {
         )
     }
 
-    /// Builds a `SharedVMRoute` for an on-host worktree URL by mapping it to
+    /// Builds a `SharedVMRoute` for a host repo URL by mapping it to
     /// the guest-local path where Compass keeps its synced copy
-    /// (`/Users/compass/Compass/Worktrees/...`). Returns nil if the VM is
-    /// not ready or the worktree sits outside the host workspaces root
-    /// (planner falls back to host).
+    /// (`/Users/compass/Compass/Repos/<UUID>/worktree`). Returns nil if
+    /// the VM is not ready, or if the catalog lookup fails (planner
+    /// falls back to host).
     ///
     /// The mapping no longer references VirtioFS: macOS guests TCC-block
     /// `AppleVirtIOFS` reads from every process (even LaunchAgents inside
-    /// the GUI session, even root via LaunchDaemon), so Compass copies the
-    /// worktree into the guest via vsock-streamed tar instead. See
+    /// the GUI session, even root via LaunchDaemon), so Compass copies
+    /// repo contents into the guest via vsock-streamed tar instead. See
     /// `SharedCompassVMWorktreeSync` for the push/pull machinery.
+    ///
+    /// Callers must pass the user's main repo URL — never a derived
+    /// per-iteration path — so every Compass phase (Plan / Reflect /
+    /// Develop / Verify) keys off the same catalog entry and sees the
+    /// same guest workspace.
     private static func makeSharedVMRoute(
-        hostWorktreeURL: URL,
+        hostRepoURL: URL,
         readiness: SharedCompassVMReadiness,
         bundle: SharedCompassVMBundle,
         workspacesRootURL: URL
     ) -> SharedVMRoute? {
         guard case let .ready(sshDestination) = readiness else { return nil }
 
-        // Map the host URL to the persistent per-repo guest workspace
-        // path via the catalog. This is the same guest directory for
-        // every Compass phase (Plan/Reflect/Develop/Verify) operating
-        // on this repo, so the agent's view stays consistent across
-        // sessions and iterations.
-        //
-        // For Develop's per-iteration host worktrees, the catalog still
-        // keys correctly when callers pass the main repo URL into the
-        // launch-plan pipeline (which they do in the runAgent flow);
-        // callers that hand in a worktree URL directly get a same-shape
-        // entry keyed off that worktree — harmless but means cross-worktree
-        // sharing won't happen. The runAgent path keys off `workspace.repoURL`
-        // for all phases so this is the documented contract.
         let catalogEntry: SharedCompassVMGuestWorkspaceCatalog.CatalogEntry
         do {
             catalogEntry = try SharedCompassVMGuestWorkspaceCatalog.ensureEntry(
-                forRepoURL: hostWorktreeURL
+                forRepoURL: hostRepoURL
             )
         } catch {
             // Bookkeeping failure shouldn't strand the agent — fall back
@@ -1877,7 +1849,7 @@ extension CompassProject {
 
         return SharedVMRoute(
             sshDestination: sshDestination,
-            hostWorktreeURL: hostWorktreeURL,
+            hostWorktreeURL: hostRepoURL,
             guestWorkspacePath: guestWorkspacePath,
             environmentVariables: [:],
             identityFile: bundle.privateKeyURL.path,
@@ -2111,15 +2083,14 @@ extension CompassProject {
         }
     }
 
-    /// Resolved working directory + tool backends for an agent run. When the
-    /// project's Develop sandbox is `.sharedVM` and the VM resolves to a
-    /// ready route for `hostURL`, the agent operates entirely in the
-    /// guest's local worktree namespace via the vsock-served Compass guest
-    /// agent. The host streams the worktree into and out of the guest at
-    /// iteration boundaries (`pushDevelopWorktreeIfNeeded` /
-    /// `pullDevelopWorktreeIfNeeded`) so the guest never needs to read the
-    /// host filesystem and the host never reads from the guest. Otherwise
-    /// the agent stays native to the host.
+    /// Resolved working directory + tool backends for an agent run.
+    /// When the project's execution preference is `.sharedVM` and the
+    /// VM resolves to a ready route for `hostURL`, the agent operates
+    /// entirely inside the persistent per-repo guest workspace via the
+    /// vsock-served Compass guest agent. `SharedCompassVMRepoWorkspaceSync`
+    /// populates that workspace lazily on first use; under the host
+    /// route the agent stays native and works against `hostURL`
+    /// directly.
     struct AgentEnvironment {
         /// Coarse descriptor for the agent's runtime environment. Used by
         /// the system-prompt builder to teach the model what tooling it
@@ -2158,12 +2129,10 @@ extension CompassProject {
                     bashRunner: AgentHostBashRunner()
                 )
             }
-            // route.guestWorkspacePath is the persistent per-repo guest
-            // worktree (from SharedCompassVMGuestWorkspaceCatalog) — the
-            // same directory for every Plan/Reflect/Develop/Verify run
-            // against this repo. We no longer translate the host worktree
-            // URL to a per-iteration guest path; that mapping is obsolete
-            // now that the guest is the primary workspace.
+            // `route.guestWorkspacePath` is the persistent per-repo
+            // guest workspace (from `SharedCompassVMGuestWorkspaceCatalog`)
+            // — the same directory for every Plan / Reflect / Develop /
+            // Verify run against this repo.
             let guestWorkingDirectory = URL(fileURLWithPath: route.guestWorkspacePath)
             log("Agent route via Shared VM (vsock) at workspace \(guestWorkingDirectory.path)", level: .info)
             let client = Self.makeVsockClient(on: machine)
@@ -2273,39 +2242,18 @@ extension CompassProject {
         )
     }
 
-    /// Streams the host worktree's gitignore-aware contents into the
-    /// guest's local copy. Called once at iteration start when the
-    /// effective route is `.sharedVM` so the in-guest agent has a fresh
-    /// copy of the worktree to operate on. Throws on failure — there's
-    /// no graceful continuation because the agent's `bash`/`read_file`
-    /// RPCs would fail downstream against an empty guest path anyway.
-    private func pushDevelopWorktreeIfNeeded(
-        devWorkspace: DevRunWorkspace,
-        plan: AgentExecutionLaunchPlan
-    ) async throws {
-        guard case let .sharedVM(route) = plan.effectiveRoute,
-              let machine = SharedCompassVM.shared.virtualMachine else {
-            return
-        }
-        log("Develop sandbox: pushing worktree to Shared VM at \(route.guestWorkspacePath).", level: .info)
-        let client = Self.makeVsockClient(on: machine)
-        try await SharedCompassVMWorktreeSync.push(
-            hostWorktreeURL: devWorkspace.repoURL,
-            guestWorktreePath: route.guestWorkspacePath,
-            client: client
-        )
-    }
-
-    /// Pulls the guest worktree's current state (filtered against the
-    /// well-known build-output dirs) back onto the host worktree.
-    /// Called after each agent attempt so Verify — which always runs
-    /// host-side — sees the changes the agent made in the guest.
-    /// Pull failures are logged but not thrown: leaving Verify to run
-    /// against potentially stale host state surfaces the divergence
-    /// (verify_failed retry issue) more clearly than dropping the
-    /// entire iteration on a transient transport hiccup.
-    private func pullDevelopWorktreeIfNeeded(
-        devWorkspace: DevRunWorkspace,
+    /// Pulls the guest workspace's current state (filtered against the
+    /// well-known build-output dirs) back onto the host's main repo.
+    /// Called after Verify passes under the `.sharedVM` route so the
+    /// follow-up host-side commit captures whatever the in-guest agent
+    /// produced.
+    ///
+    /// Pull failures are logged but not thrown: the subsequent
+    /// `git status` will surface "nothing to commit" or partial state
+    /// instead of dropping the entire iteration on a transient
+    /// transport hiccup.
+    private func pullDevelopChangesIfNeeded(
+        mainRepoURL: URL,
         plan: AgentExecutionLaunchPlan
     ) async {
         guard case let .sharedVM(route) = plan.effectiveRoute,
@@ -2315,13 +2263,13 @@ extension CompassProject {
         let client = Self.makeVsockClient(on: machine)
         do {
             try await SharedCompassVMWorktreeSync.pull(
-                hostWorktreeURL: devWorkspace.repoURL,
+                hostWorktreeURL: mainRepoURL,
                 guestWorktreePath: route.guestWorkspacePath,
                 client: client
             )
         } catch {
             log(
-                "Develop sandbox: vsock pull failed — Verify may run against stale state: \(error.localizedDescription)",
+                "Develop: vsock pull from guest failed — host commit may see stale state: \(error.localizedDescription)",
                 level: .warning
             )
         }
@@ -2412,14 +2360,12 @@ extension CompassProject {
             }
         }
 
-        // Under .sharedVM the agent runs in the guest workspace and the
-        // host worktree starts each iteration empty — there is no "clean
-        // working tree" expectation against the host until the post-Verify
-        // pull + auto-commit step in the Develop loop. The guest doesn't
-        // have .git anyway, so running `git status` here would either be
-        // meaningless (host worktree still empty) or always-dirty (after
-        // an early pull). Caller's commitAgentChangesOnHost handles the
-        // host-side commit explicitly for sharedVM.
+        // Under `.sharedVM` the agent runs in the guest workspace,
+        // which has no `.git`, so a host-side `git status` here would
+        // either look stale (the post-Verify pull hasn't happened yet)
+        // or always-dirty (after an early pull). The Develop loop's
+        // `commitAgentChangesOnHost` does the host-side commit
+        // explicitly once Verify passes.
         if case .sharedVM = launchPlan.effectiveRoute {
             log("Post-check: skipping host git-status check under .sharedVM (commits are managed post-Verify by the Develop loop).", level: .info)
         } else {
@@ -2477,46 +2423,23 @@ extension CompassProject {
         return parsed
     }
 
-    private func createDevWorkspace(mainRepoURL: URL, beforeSha: String?) async throws -> DevRunWorkspace {
-        // The Develop iteration now operates directly against the main
-        // repo. Under the .sharedVM route the agent works in the
-        // persistent per-repo guest workspace (managed by
-        // SharedCompassVMRepoWorkspaceSync); under the host route the
-        // agent works in the main repo's working tree. Either way
-        // there is no per-iteration host worktree, no temporary
-        // branch, and no fast-forward promotion step — agent changes
-        // commit on the user's current branch via
-        // commitAgentChangesOnHost (sharedVM) or via the agent's own
-        // `bash` tool (host).
-        _ = beforeSha
-        return DevRunWorkspace(
-            repoURL: mainRepoURL,
-            sandboxed: false,
-            branchName: nil,
-            parentURL: nil,
-            worktreeURL: nil
-        )
-    }
-
-    /// Stages whatever the post-Verify pull left in the per-iteration host
-    /// worktree and lands it as a single host-side commit on the worktree's
-    /// branch. Only relevant for the .sharedVM route — under host execution
-    /// the agent already committed in-place using its `bash` tool.
+/// Stages whatever the post-Verify pull left in the main repo and
+    /// lands it as a single commit on the user's current branch. Only
+    /// relevant for the `.sharedVM` route — under the host route the
+    /// agent already committed in-place using its `bash` tool.
     ///
-    /// The guest workspace has no `.git`, so the agent cannot perform the
-    /// commit itself. Compass takes responsibility for it host-side once
-    /// Verify confirms the agent's work is good. The commit message uses
-    /// the agent's own `summary` so future `git log` reads remain
-    /// agent-authored.
+    /// The guest workspace has no `.git`, so the agent cannot perform
+    /// the commit itself. Compass takes responsibility for it
+    /// host-side once Verify confirms the agent's work is good. The
+    /// commit message uses the agent's own `summary` so future
+    /// `git log` reads remain agent-authored.
     ///
-    /// Returns nil on success, or a human-readable issue string on failure
-    /// (matches the existing convention used by promoteDevWorkspace).
+    /// Returns nil on success, or a human-readable issue string on
+    /// failure.
     private func commitAgentChangesOnHost(
-        devWorkspace: DevRunWorkspace,
+        mainRepoURL: URL,
         summary: DevelopSummary
     ) async -> String? {
-        let workingDirectory = devWorkspace.repoURL
-
         // Skip the commit entirely when there is nothing to commit. The
         // agent may have done a no-op iteration (or pulled an exact
         // duplicate of what's already on the branch); committing an
@@ -2526,7 +2449,7 @@ extension CompassProject {
             status = try await ProcessRunner.runEnv(
                 "git",
                 ["status", "--porcelain"],
-                workingDirectory: workingDirectory,
+                workingDirectory: mainRepoURL,
                 timeout: 30
             )
         } catch {
@@ -2536,15 +2459,15 @@ extension CompassProject {
             return "Host-side commit failed at git status (exit \(status.exitCode)): \(tail(status.stderr + status.stdout, max: 2000))"
         }
         if status.stdout.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            log("Host-side commit: pulled guest worktree is identical to the host branch — nothing to commit.", level: .info)
+            log("Host-side commit: pulled guest workspace is identical to the host branch — nothing to commit.", level: .info)
             return nil
         }
 
         do {
             try await runGitOrThrow(
                 ["add", "-A"],
-                in: workingDirectory,
-                failurePrefix: "Failed to stage agent changes on host worktree"
+                in: mainRepoURL,
+                failurePrefix: "Failed to stage agent changes on host"
             )
         } catch {
             return error.localizedDescription
@@ -2554,13 +2477,13 @@ extension CompassProject {
         do {
             try await runGitOrThrow(
                 ["commit", "-m", message],
-                in: workingDirectory,
+                in: mainRepoURL,
                 failurePrefix: "Failed to create host-side commit for agent changes"
             )
         } catch {
             return error.localizedDescription
         }
-        log("Host-side commit landed on \(devWorkspace.branchName ?? "(detached)"): \(boundedFirstLine(message, limit: 72))", level: .success)
+        log("Host-side commit landed: \(boundedFirstLine(message, limit: 72))", level: .success)
         return nil
     }
 
@@ -2589,58 +2512,6 @@ extension CompassProject {
         if firstLine.isEmpty { return "Develop iteration (no summary)" }
         if firstLine.count <= limit { return firstLine }
         return String(firstLine.prefix(limit)).trimmingCharacters(in: .whitespaces)
-    }
-
-    private func promoteDevWorkspace(_ devWorkspace: DevRunWorkspace, mainRepoURL: URL) async throws -> String? {
-        guard devWorkspace.sandboxed, let branchName = devWorkspace.branchName else { return nil }
-        guard let afterSha = await gitCurrentSha(at: devWorkspace.repoURL) else {
-            return "Develop sandbox produced no commit to promote."
-        }
-
-        do {
-            try await runGitOrThrow(
-                ["merge", "--ff-only", branchName],
-                in: mainRepoURL,
-                failurePrefix: "Failed to promote Develop sandbox branch \(branchName)"
-            )
-            log("Develop sandbox: promoted \(String(afterSha.prefix(12))) to the main worktree.", level: .success)
-            feedback(.commitsPromoted)
-            return nil
-        } catch {
-            return error.localizedDescription
-        }
-    }
-
-    private func cleanupDevWorkspace(_ devWorkspace: DevRunWorkspace, mainRepoURL: URL) async {
-        guard devWorkspace.sandboxed else { return }
-
-        if let worktreeURL = devWorkspace.worktreeURL {
-            do {
-                try await runGitOrThrow(
-                    ["worktree", "remove", "--force", worktreeURL.path],
-                    in: mainRepoURL,
-                    failurePrefix: "Failed to remove Develop worktree"
-                )
-            } catch {
-                log(error.localizedDescription, level: .error)
-            }
-        }
-
-        if let branchName = devWorkspace.branchName {
-            do {
-                try await runGitOrThrow(
-                    ["branch", "-D", branchName],
-                    in: mainRepoURL,
-                    failurePrefix: "Failed to delete Develop branch \(branchName)"
-                )
-            } catch {
-                log(error.localizedDescription, level: .error)
-            }
-        }
-
-        if let parentURL = devWorkspace.parentURL {
-            try? FileManager.default.removeItem(at: parentURL)
-        }
     }
 
     private func runGitOrThrow(_ arguments: [String], in directory: URL, failurePrefix: String) async throws {
@@ -3919,14 +3790,6 @@ private enum AppModelError: LocalizedError {
             return message
         }
     }
-}
-
-private struct DevRunWorkspace {
-    var repoURL: URL
-    var sandboxed: Bool
-    var branchName: String?
-    var parentURL: URL?
-    var worktreeURL: URL?
 }
 
 private struct PostCheckResult {
