@@ -226,17 +226,24 @@ private struct APIKeyStepBody: View {
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(.secondary)
                 HStack(spacing: 8) {
-                    SecureField("sk-…", text: $apiKey)
+                    // Deliberately a plain TextField, not a SecureField:
+                    // macOS `NSSecureTextField` keeps pasted text in an
+                    // internal secure buffer that SwiftUI's binding can't
+                    // reread, so pastes silently failed to reach the model
+                    // (the field showed dots, but `@State apiKey` stayed
+                    // empty and Save had nothing to commit). Onboarding is
+                    // a one-shot, gated flow — once the key is saved the
+                    // gate unlocks and this field is gone — so showing it
+                    // in plaintext during entry is an acceptable trade
+                    // for entering it correctly the first time. Settings
+                    // (⌘,) keeps the SecureField for ongoing edits.
+                    TextField("sk-…", text: $apiKey)
                         .textFieldStyle(.roundedBorder)
                         .help("Stored in the macOS Keychain.")
                         .onSubmit {
                             commitAPIKey()
                         }
                         .onChange(of: apiKey) { _, newValue in
-                            // Ignore the empty-string echo SwiftUI/NSSecureTextField
-                            // sometimes emits on commit; a real "clear" still
-                            // works via the Settings window or by leaving the
-                            // field empty before clicking Save.
                             guard !newValue.isEmpty else { return }
                             guard newValue != model.agentSettings.apiKey else { return }
                             model.setAgentAPIKey(newValue)
@@ -254,7 +261,7 @@ private struct APIKeyStepBody: View {
                 }
             }
 
-            Text("Stored in the macOS Keychain. Change later from Compass → Settings… (⌘,).")
+            Text("Visible while you enter it, then stored in the macOS Keychain. Change later from Compass → Settings… (⌘,).")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
