@@ -2157,6 +2157,44 @@ extension CompassProject {
         }
     }
 
+    /// Runs the Verify shell command in the same place the agent just
+    /// operated. For `.sharedVM` routes this goes through the guest's
+    /// bash RPC against the persistent guest workspace; everything else
+    /// falls through to the existing host-side `ProcessRunner.runShell`
+    /// path.
+    ///
+    /// The host workingDirectory parameter is only used by the host
+    /// fallback. Under .sharedVM the guest path is resolved via the
+    /// catalog so the command runs against the same `<UUID>/worktree`
+    /// the agent's `bash` tool calls land in.
+    private func runVerifyCommand(
+        command: String,
+        hostWorkingDirectory: URL,
+        timeoutSeconds: TimeInterval,
+        launchPlan: AgentExecutionLaunchPlan
+    ) async throws -> ProcessResult {
+        if case let .sharedVM(route) = launchPlan.effectiveRoute,
+           let machine = SharedCompassVM.shared.virtualMachine {
+            let client = Self.makeVsockClient(on: machine)
+            let guestWorkingDirectory = URL(fileURLWithPath: route.guestWorkspacePath)
+            log(
+                "Verify: running inside Shared VM at \(route.guestWorkspacePath) (timeout \(Int(timeoutSeconds * 1000))ms).",
+                level: .info
+            )
+            return try await client.run(
+                command: command,
+                workingDirectory: guestWorkingDirectory,
+                timeout: timeoutSeconds
+            )
+        }
+        return try await ProcessRunner.runShell(
+            command,
+            workingDirectory: hostWorkingDirectory,
+            timeout: timeoutSeconds,
+            launchPlan: launchPlan
+        )
+    }
+
     /// Ensures the persistent guest workspace for `hostRepoURL` exists and
     /// has the host repo's contents. No-op if the guest workspace already
     /// exists (the agent's prior state is preserved). Callers can force
@@ -2307,10 +2345,19 @@ extension CompassProject {
             )
             log("Post-check: running verify command `\(next.verify)` (timeout \(timeoutMs)ms).", level: .info)
             feedback(.verifyStarted)
-            let verify = try await ProcessRunner.runShell(
-                next.verify,
-                workingDirectory: workingDirectory,
-                timeout: TimeInterval(timeoutMs) / 1000,
+            // Verify runs in the same workspace the agent just operated
+            // on. For .sharedVM that means inside the guest via the
+            // vsock bash RPC against the persistent guest workspace; for
+            // host runs the existing ProcessRunner.runShell path applies.
+            // Sending Verify through the host while the agent worked in
+            // the guest would race against any file the pull step
+            // hadn't observed yet — and now that the guest is the source
+            // of truth, it's also the only place the agent's tooling is
+            // guaranteed to be the same as what we tested against.
+            let verify = try await runVerifyCommand(
+                command: next.verify,
+                hostWorkingDirectory: workingDirectory,
+                timeoutSeconds: TimeInterval(timeoutMs) / 1000,
                 launchPlan: launchPlan
             )
             if verify.exitCode == 0 {
