@@ -1562,14 +1562,17 @@ extension CompassProject {
             )
             guard let devWorkspace else { throw AppModelError.internalInvariant("Develop workspace was not created.") }
 
-            // If this iteration is routed to the Shared VM, stream the
-            // freshly-created host worktree into the guest's local copy.
-            // macOS guests TCC-block AppleVirtIOFS reads from every
-            // process, so there is no shared filesystem the agent can
-            // see — the agent operates on the guest-local copy and the
-            // host pulls changes back after each attempt (below).
-            let initialLaunchPlan = agentLaunchPlan(for: devWorkspace.repoURL)
-            try await pushDevelopWorktreeIfNeeded(devWorkspace: devWorkspace, plan: initialLaunchPlan)
+            // The per-iteration host worktree no longer drives the
+            // guest's contents. The guest holds a persistent per-repo
+            // workspace under /Users/compass/Compass/Repos/<UUID>/worktree
+            // that survives across sessions and iterations; runAgent
+            // populates it lazily on first use via
+            // SharedCompassVMRepoWorkspaceSync.ensurePopulated. The
+            // per-iteration host worktree (devWorkspace.repoURL) is now
+            // only used by the host-side post-check, commit, promote, and
+            // cleanup machinery — its contents catch up to the guest via
+            // pullDevelopWorktreeIfNeeded after each attempt.
+            _ = devWorkspace
 
             var priorIssues: [String] = []
             var finalIssues: [String] = []
@@ -1596,11 +1599,16 @@ extension CompassProject {
                     attempt: attempt
                 )
                 log("Develop: launching agent (attempt \(attempt)/\(maxDevelopAttempts)).", level: .info)
+                // Agent always operates against the persistent per-repo
+                // guest workspace (under the .sharedVM route) — so we
+                // hand it the main repo URL, not the per-iteration host
+                // worktree. The host worktree continues to live in
+                // devWorkspace.repoURL for verify/commit/promote.
                 let summary = try await runAgent(
                     phase: .develop,
                     agentSettings: agentSettings,
                     modelOverride: modelOverride,
-                    workingDirectory: devWorkspace.repoURL,
+                    workingDirectory: workspace.repoURL,
                     userPrompt: prompt,
                     submitResultSchema: Prompts.developSchema,
                     decode: DevelopSummary.self
@@ -1819,14 +1827,34 @@ extension CompassProject {
     ) -> SharedVMRoute? {
         guard case let .ready(sshDestination) = readiness else { return nil }
 
-        guard let guestWorkspacePath = SharedCompassVMWorktreeSync.guestWorktreePath(
-            forHostURL: hostWorktreeURL,
-            hostWorkspacesRootURL: workspacesRootURL
-        ) else {
-            // Worktree is outside the workspaces root — sync wouldn't have
-            // a sensible guest path either, so planner falls back to host.
+        // Map the host URL to the persistent per-repo guest workspace
+        // path via the catalog. This is the same guest directory for
+        // every Compass phase (Plan/Reflect/Develop/Verify) operating
+        // on this repo, so the agent's view stays consistent across
+        // sessions and iterations.
+        //
+        // For Develop's per-iteration host worktrees, the catalog still
+        // keys correctly when callers pass the main repo URL into the
+        // launch-plan pipeline (which they do in the runAgent flow);
+        // callers that hand in a worktree URL directly get a same-shape
+        // entry keyed off that worktree — harmless but means cross-worktree
+        // sharing won't happen. The runAgent path keys off `workspace.repoURL`
+        // for all phases so this is the documented contract.
+        let catalogEntry: SharedCompassVMGuestWorkspaceCatalog.CatalogEntry
+        do {
+            catalogEntry = try SharedCompassVMGuestWorkspaceCatalog.ensureEntry(
+                forRepoURL: hostWorktreeURL
+            )
+        } catch {
+            // Bookkeeping failure shouldn't strand the agent — fall back
+            // to host execution rather than throwing inside the launch
+            // planner.
             return nil
         }
+        let guestWorkspacePath = SharedCompassVMGuestWorkspaceCatalog.guestWorktreePath(
+            forEntry: catalogEntry
+        )
+        _ = workspacesRootURL // retained for API compatibility; no longer used.
 
         return SharedVMRoute(
             sshDestination: sshDestination,
@@ -2025,6 +2053,14 @@ extension CompassProject {
     ) async throws -> T {
         let schema = AgentToolParametersSchema(json: Data(submitResultSchema.utf8))
         let environment = resolveAgentEnvironment(forHostURL: workingDirectory)
+        if environment.kind == .sharedVM {
+            // Ensure the persistent guest workspace has contents before
+            // the agent's first read_file. ensurePopulated is idempotent
+            // — pays the push cost only when the guest workspace is
+            // missing, so subsequent phases / iterations / sessions
+            // skip straight to running the agent.
+            try await ensurePersistentGuestWorkspace(forHostRepo: workingDirectory)
+        }
         let configuration = AgentExecutionConfiguration(
             settings: agentSettings,
             phase: phase,
@@ -2103,12 +2139,13 @@ extension CompassProject {
                     bashRunner: AgentHostBashRunner()
                 )
             }
-            let guestWorkingDirectory: URL
-            if let guestPath = route.guestPath(forHostURL: hostURL) {
-                guestWorkingDirectory = URL(fileURLWithPath: guestPath)
-            } else {
-                guestWorkingDirectory = URL(fileURLWithPath: route.guestWorkspacePath)
-            }
+            // route.guestWorkspacePath is the persistent per-repo guest
+            // worktree (from SharedCompassVMGuestWorkspaceCatalog) — the
+            // same directory for every Plan/Reflect/Develop/Verify run
+            // against this repo. We no longer translate the host worktree
+            // URL to a per-iteration guest path; that mapping is obsolete
+            // now that the guest is the primary workspace.
+            let guestWorkingDirectory = URL(fileURLWithPath: route.guestWorkspacePath)
             log("Agent route via Shared VM (vsock) at workspace \(guestWorkingDirectory.path)", level: .info)
             let client = Self.makeVsockClient(on: machine)
             return AgentEnvironment(
@@ -2118,6 +2155,40 @@ extension CompassProject {
                 bashRunner: client
             )
         }
+    }
+
+    /// Ensures the persistent guest workspace for `hostRepoURL` exists and
+    /// has the host repo's contents. No-op if the guest workspace already
+    /// exists (the agent's prior state is preserved). Callers can force
+    /// a re-sync by passing `forceRefresh: true`.
+    ///
+    /// Called from `runAgent` for `.sharedVM` routes so the agent's first
+    /// `read_file` always finds something. For session-level operations
+    /// (e.g. an explicit user-driven refresh in the future) this can be
+    /// invoked directly without going through runAgent.
+    @discardableResult
+    private func ensurePersistentGuestWorkspace(
+        forHostRepo hostRepoURL: URL,
+        forceRefresh: Bool = false
+    ) async throws -> SharedCompassVMRepoWorkspaceSync.Outcome? {
+        guard let machine = SharedCompassVM.shared.virtualMachine else {
+            return nil
+        }
+        let client = Self.makeVsockClient(on: machine)
+        let result = try await SharedCompassVMRepoWorkspaceSync.ensurePopulated(
+            hostRepoURL: hostRepoURL,
+            client: client,
+            forceRefresh: forceRefresh
+        )
+        switch result.outcome {
+        case .reused:
+            log("Guest workspace at \(result.guestPath) already populated — preserving prior agent state.", level: .info)
+        case .freshlyPopulated:
+            log("Guest workspace at \(result.guestPath) populated for the first time from \(hostRepoURL.path).", level: .info)
+        case .refreshed:
+            log("Guest workspace at \(result.guestPath) force-refreshed from \(hostRepoURL.path).", level: .info)
+        }
+        return result.outcome
     }
 
     /// Builds a vsock-backed agent client that opens a fresh
