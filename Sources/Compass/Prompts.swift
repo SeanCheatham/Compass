@@ -216,6 +216,11 @@ enum Prompts {
         - Pick one commit-sized `immediate` with a real verify command that proves
           the important behavior. If there are no relevant tests, use build or
           typecheck as the fallback.
+        - The verify command runs with the repo working tree already as its
+          current directory. Write it as a plain command — e.g. `swift build`,
+          `swift test`, `make check` — and never prepend a `cd` or include
+          absolute paths to the working directory. Those paths get saved to
+          state and rot the moment the working directory changes.
         - Use `immediate: null` only when the project is genuinely complete:
           every goal is shipped, `midTerm` and `longTerm` are exhausted, and you
           cannot identify a useful next increment.
@@ -242,13 +247,16 @@ enum Prompts {
           `replace` set to the initial contents.
         - Lessons are durable gotchas and conventions, not routine status logs.
 
-        submit_result arguments shape:
+        submit_result arguments — call the tool with EXACTLY this shape.
+        The top-level object has exactly two keys: `state` and
+        `lessonEdits`. Do not wrap them in another object; do not nest
+        the result under another `state` field.
         {
           "state": {
             "completed": ["one-line shipped summaries"],
             "immediate": {
               "plan": "markdown plan for one implementation increment",
-              "verify": "shell command run from the repo root",
+              "verify": "shell command — no `cd` prefix, no absolute paths",
               "verifyTimeoutMs": 600000,
               "estimatedDifficulty": "low|medium|high"
             } | null,
@@ -262,19 +270,6 @@ enum Prompts {
               "replaceAll": false
             }
           ]
-        }
-
-        State shape:
-        {
-          "completed": ["one-line shipped summaries"],
-          "immediate": {
-            "plan": "markdown plan for one implementation increment",
-            "verify": "shell command run from the repo root",
-            "verifyTimeoutMs": 600000,
-            "estimatedDifficulty": "low|medium|high"
-          } | null,
-          "midTerm": "markdown",
-          "longTerm": "markdown"
         }
 
         ## Current state.json
@@ -492,6 +487,17 @@ enum Prompts {
         All tool paths are resolved against this directory. Relative paths
         are recommended; if you use absolute paths they must resolve inside
         the working directory.
+
+        Compass workspace state:
+        The `.compass/` directory belongs to Compass and is gitignored, so
+        it isn't present in your working tree. Everything you'd want from
+        it — current state, lessons, drafts, prior feedback — is injected
+        verbatim into the user message below. Treat that injected content
+        as authoritative; do not try to `read_file` `.compass/lessons.md`,
+        `.compass/state.json`, `.compass/drafts.md`, or any other
+        `.compass/*` path. Pass lesson updates back through the
+        `lessonEdits` field on `submit_result` and Compass applies them
+        host-side.
 
         \(executionEnvironmentSection(executionEnvironment))
 

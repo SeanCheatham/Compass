@@ -25,9 +25,9 @@ final class AgentSystemPromptTests: XCTestCase {
         // the model orients itself in the guest namespace, not the host.
         let prompt = Prompts.agentSystemPrompt(
             phase: .develop,
-            workingDirectoryPath: "/Users/compass/Compass/Worktrees/dev-XXXX/worktree"
+            workingDirectoryPath: "/Users/compass/Compass/Repos/AAAA-BBBB-CCCC-DDDD/worktree"
         )
-        XCTAssertTrue(prompt.contains("/Users/compass/Compass/Worktrees/dev-XXXX/worktree"))
+        XCTAssertTrue(prompt.contains("/Users/compass/Compass/Repos/AAAA-BBBB-CCCC-DDDD/worktree"))
     }
 
     func testPlanPhaseAdvertisesReadOnlyToolsOnly() {
@@ -58,7 +58,7 @@ final class AgentSystemPromptTests: XCTestCase {
         // will pattern-match against.
         let prompt = Prompts.agentSystemPrompt(
             phase: .develop,
-            workingDirectoryPath: "/Users/compass/Compass/Worktrees/dev-XXXX/worktree",
+            workingDirectoryPath: "/Users/compass/Compass/Repos/AAAA-BBBB-CCCC-DDDD/worktree",
             executionEnvironment: .sharedVM
         )
         XCTAssertTrue(prompt.contains("Compass Shared VM"))
@@ -74,5 +74,29 @@ final class AgentSystemPromptTests: XCTestCase {
     func testExecutionEnvironmentSectionsAreRoutedByDescriptor() {
         XCTAssertTrue(Prompts.executionEnvironmentSection(.host).contains("native macOS host"))
         XCTAssertTrue(Prompts.executionEnvironmentSection(.sharedVM).contains("Shared VM"))
+    }
+
+    // MARK: - `.compass/` workspace clarification
+
+    /// Under `.sharedVM` the guest workspace is populated from
+    /// `git ls-files`, which omits `.compass/` (gitignored). The agent
+    /// was burning iterations calling `read_file` on
+    /// `.compass/lessons.md` even though the lessons content is
+    /// injected into the user message. Lock down the system-prompt
+    /// stanza that tells the model to stop doing that.
+    func testSystemPromptTellsAgentNotToReadCompassDirectory() {
+        let prompt = Prompts.agentSystemPrompt(
+            phase: .develop,
+            workingDirectoryPath: "/Users/compass/Compass/Repos/AAAA/worktree",
+            executionEnvironment: .sharedVM
+        )
+        XCTAssertTrue(
+            prompt.contains("`.compass/` directory belongs to Compass"),
+            "system prompt should explain that .compass/ isn't in the workspace"
+        )
+        XCTAssertTrue(
+            prompt.contains(".compass/lessons.md"),
+            "system prompt should name the lessons file explicitly so the model recognises the pattern"
+        )
     }
 }
