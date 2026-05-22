@@ -56,7 +56,7 @@ enum SharedCompassVMWorktreeSync {
         return "\(guestWorktreesRoot)/\(relative)"
     }
 
-    enum SyncError: Error, CustomStringConvertible {
+    enum SyncError: LocalizedError, CustomStringConvertible {
         case hostListFailed(stderr: String)
         case hostTarFailed(stderr: String)
         case hostExtractFailed(stderr: String)
@@ -78,6 +78,12 @@ enum SharedCompassVMWorktreeSync {
             case .invalidGuestPath(let p): return "refusing to sync into suspicious guest path: \(p)"
             }
         }
+
+        // LocalizedError — surfaces the actual reason in `localizedDescription`
+        // (and therefore in NSError-style UI alerts) instead of the
+        // unhelpful "The operation couldn't be completed. (… error N.)"
+        // default that bridges in when only `Error` is conformed.
+        var errorDescription: String? { description }
     }
 
     // MARK: - Push (host -> guest)

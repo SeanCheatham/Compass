@@ -20,7 +20,7 @@ import Foundation
 /// any context that already owns a vsock client.
 enum SharedCompassVMRepoWorkspaceSync {
 
-    enum SyncError: Error, CustomStringConvertible {
+    enum SyncError: LocalizedError, CustomStringConvertible {
         case catalogFailure(detail: String)
         case probeFailure(stderr: String)
         case wrappedSyncFailure(SharedCompassVMWorktreeSync.SyncError)
@@ -35,6 +35,12 @@ enum SharedCompassVMRepoWorkspaceSync {
                 return "guest workspace sync failed: \(inner)"
             }
         }
+
+        // LocalizedError — without this Foundation collapses the message
+        // to "The operation couldn't be completed. (Compass.…SyncError
+        // error 2.)" in any UI alert that goes through
+        // `localizedDescription`, hiding the actual underlying cause.
+        var errorDescription: String? { description }
     }
 
     /// Outcome of a sync attempt. Useful for diagnostic logging and for

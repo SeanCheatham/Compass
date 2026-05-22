@@ -2233,11 +2233,23 @@ extension CompassProject {
             return nil
         }
         let client = Self.makeVsockClient(on: machine)
-        let result = try await SharedCompassVMRepoWorkspaceSync.ensurePopulated(
-            hostRepoURL: hostRepoURL,
-            client: client,
-            forceRefresh: forceRefresh
-        )
+        let result: (guestPath: String, outcome: SharedCompassVMRepoWorkspaceSync.Outcome)
+        do {
+            result = try await SharedCompassVMRepoWorkspaceSync.ensurePopulated(
+                hostRepoURL: hostRepoURL,
+                client: client,
+                forceRefresh: forceRefresh
+            )
+        } catch let error as SharedCompassVMRepoWorkspaceSync.SyncError {
+            // Log the *readable* description before rethrowing — without
+            // this the activity batch only shows
+            // "The operation couldn't be completed.
+            //  (Compass.SharedCompassVMRepoWorkspaceSync.SyncError error N.)"
+            // because the failure ascends through callers that surface
+            // `localizedDescription` from the raw error chain.
+            log("Guest workspace sync failed: \(error.description)", level: .error)
+            throw error
+        }
         switch result.outcome {
         case .reused:
             log("Guest workspace at \(result.guestPath) already populated — preserving prior agent state.", level: .info)
