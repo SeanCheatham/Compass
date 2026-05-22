@@ -191,6 +191,16 @@ private struct OnboardingStep<Content: View>: View {
 
 private struct APIKeyStepBody: View {
     @EnvironmentObject private var model: AppModel
+    /// Local mirror of the API key. SwiftUI's `SecureField` on macOS wraps
+    /// `NSSecureTextField`, whose `stringValue` is intentionally unreadable
+    /// for security. With a `Binding(get:, set:)` directly to the model,
+    /// committing the field (Return / focus loss) invokes the binding's
+    /// setter again with an empty string, which `setAgentAPIKey` interprets
+    /// as "user cleared the key" — silently nuking the keychain entry.
+    /// Holding the key in `@State` and pushing to the model only when the
+    /// local value really changes sidesteps that echo.
+    @State private var apiKey: String = ""
+    @State private var baseURL: String = ""
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -198,35 +208,44 @@ private struct APIKeyStepBody: View {
                 Text("Base URL")
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(.secondary)
-                TextField(
-                    "Base URL",
-                    text: Binding(
-                        get: { model.agentSettings.baseURL.absoluteString },
-                        set: { model.setAgentBaseURL($0) }
-                    )
-                )
-                .textFieldStyle(.roundedBorder)
-                .help("OpenAI-compatible chat completions endpoint. Default: \(AgentRuntimeSettings.defaultBaseURLString)")
+                TextField("Base URL", text: $baseURL)
+                    .textFieldStyle(.roundedBorder)
+                    .help("OpenAI-compatible chat completions endpoint. Default: \(AgentRuntimeSettings.defaultBaseURLString)")
+                    .onChange(of: baseURL) { _, newValue in
+                        guard newValue != model.agentSettings.baseURL.absoluteString else { return }
+                        model.setAgentBaseURL(newValue)
+                    }
             }
 
             VStack(alignment: .leading, spacing: 4) {
                 Text("API key")
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(.secondary)
-                SecureField(
-                    "sk-…",
-                    text: Binding(
-                        get: { model.agentSettings.apiKey },
-                        set: { model.setAgentAPIKey($0) }
-                    )
-                )
-                .textFieldStyle(.roundedBorder)
-                .help("Stored in the macOS Keychain.")
+                SecureField("sk-…", text: $apiKey)
+                    .textFieldStyle(.roundedBorder)
+                    .help("Stored in the macOS Keychain.")
+                    .onChange(of: apiKey) { _, newValue in
+                        guard newValue != model.agentSettings.apiKey else { return }
+                        model.setAgentAPIKey(newValue)
+                    }
             }
 
             Text("Stored in the macOS Keychain. Change later from Compass → Settings… (⌘,).")
                 .font(.caption)
                 .foregroundStyle(.secondary)
+        }
+        .onAppear {
+            apiKey = model.agentSettings.apiKey
+            baseURL = model.agentSettings.baseURL.absoluteString
+        }
+        // If something else updates the model (env-var fallback, Settings
+        // window, etc.) while onboarding is visible, refresh the local
+        // mirrors so they don't drift out of sync.
+        .onChange(of: model.agentSettings.apiKey) { _, newValue in
+            if apiKey != newValue { apiKey = newValue }
+        }
+        .onChange(of: model.agentSettings.baseURL.absoluteString) { _, newValue in
+            if baseURL != newValue { baseURL = newValue }
         }
     }
 }
