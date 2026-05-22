@@ -15,6 +15,9 @@ struct OnboardingView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 22) {
                 header
+                if let message = model.errorMessage, !message.isEmpty {
+                    onboardingErrorBanner(message: message)
+                }
                 OnboardingStep(
                     number: 1,
                     title: "Add your AI API key",
@@ -42,6 +45,28 @@ struct OnboardingView: View {
         .task(id: vmHost.readiness.headlessAutoStartToken) {
             await autoStartHeadlessGuestIfNeeded()
         }
+    }
+
+    /// Surfaces `AppModel.errorMessage` while the user is gated by onboarding.
+    /// Without this, keychain write failures (e.g. missing
+    /// `keychain-access-groups` entitlement) silently zeroed the API key
+    /// field on every paste, so the user couldn't tell why the field kept
+    /// "clearing".
+    private func onboardingErrorBanner(message: String) -> some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .foregroundStyle(.orange)
+                .padding(.top, 2)
+            Text(message)
+                .font(.callout)
+                .foregroundStyle(.primary)
+                .fixedSize(horizontal: false, vertical: true)
+            Spacer()
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(.orange.opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
+        .overlay(RoundedRectangle(cornerRadius: 8).stroke(.orange.opacity(0.35)))
     }
 
     private var header: some View {

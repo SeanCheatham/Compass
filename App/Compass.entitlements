@@ -4,5 +4,15 @@
 <dict>
 	<key>com.apple.security.virtualization</key>
 	<true/>
+	<!--
+	Enables the data protection keychain on macOS, scoping items by
+	`<team>.<bundle>` instead of cdhash. Without this, AgentKeychain
+	silently falls back to the legacy login keychain (which re-prompts
+	on every rebuild).
+	-->
+	<key>keychain-access-groups</key>
+	<array>
+		<string>$(AppIdentifierPrefix)$(CFBundleIdentifier)</string>
+	</array>
 </dict>
 </plist>
