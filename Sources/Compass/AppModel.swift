@@ -1614,11 +1614,13 @@ extension CompassProject {
                     decode: DevelopSummary.self
                 )
 
-                // Pull whatever the agent left in the guest worktree
-                // back onto the host so the post-check pass (Verify,
-                // git status, etc.) sees the agent's actual changes
-                // rather than the empty initial host state.
-                await pullDevelopWorktreeIfNeeded(devWorkspace: devWorkspace, plan: launchPlan)
+                // Under the .sharedVM route the agent worked entirely in
+                // the guest workspace; Verify also ran there (phase D).
+                // We defer the host-side pull until Verify passes so a
+                // failed attempt doesn't dirty the host worktree and so
+                // we only pay the sync cost on successful runs. Under
+                // host execution there's nothing to pull — the agent
+                // wrote directly to devWorkspace.repoURL.
 
                 guard sessions.indices.contains(sessionIndex) else {
                     throw AppModelError.internalInvariant("Develop session disappeared during agent run.")
@@ -1642,6 +1644,24 @@ extension CompassProject {
                 try? persistSessions()
 
                 if post.ok {
+                    // Pull guest workspace contents onto the per-iteration
+                    // host worktree and create the host-side commit on its
+                    // branch. The guest has no .git, so the agent itself
+                    // cannot commit there; doing it host-side here keeps
+                    // the existing promoteDevWorkspace fast-forward-merge
+                    // contract intact. Skipped under host execution
+                    // because the agent already committed in-place.
+                    if case .sharedVM = launchPlan.effectiveRoute {
+                        await pullDevelopWorktreeIfNeeded(devWorkspace: devWorkspace, plan: launchPlan)
+                        if let commitIssue = await commitAgentChangesOnHost(
+                            devWorkspace: devWorkspace,
+                            summary: summary
+                        ) {
+                            finalIssues = [commitIssue]
+                            succeeded = false
+                            break
+                        }
+                    }
                     if let promotionIssue = try await promoteDevWorkspace(devWorkspace, mainRepoURL: workspace.repoURL) {
                         finalIssues = [promotionIssue]
                         succeeded = false
@@ -2381,37 +2401,49 @@ extension CompassProject {
             }
         }
 
-        let gitStatus = try await ProcessRunner.runEnv(
-            "git",
-            ["status", "--porcelain"],
-            workingDirectory: workingDirectory,
-            timeout: 30
-        )
-        if gitStatus.exitCode != 0 {
-            let issue = """
-            `git status --porcelain` failed unexpectedly:
-            ```
-            \(tail(gitStatus.stdout + gitStatus.stderr, max: 2000))
-            ```
-            """
-            retryIssues.append(issue)
-            displayIssues.append(issue)
-            log("Working-tree status check failed.", level: .error)
+        // Under .sharedVM the agent runs in the guest workspace and the
+        // host worktree starts each iteration empty — there is no "clean
+        // working tree" expectation against the host until the post-Verify
+        // pull + auto-commit step in the Develop loop. The guest doesn't
+        // have .git anyway, so running `git status` here would either be
+        // meaningless (host worktree still empty) or always-dirty (after
+        // an early pull). Caller's commitAgentChangesOnHost handles the
+        // host-side commit explicitly for sharedVM.
+        if case .sharedVM = launchPlan.effectiveRoute {
+            log("Post-check: skipping host git-status check under .sharedVM (commits are managed post-Verify by the Develop loop).", level: .info)
         } else {
-            let status = gitStatus.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
-            if status.isEmpty {
-                log("Working tree clean.", level: .success)
-            } else {
+            let gitStatus = try await ProcessRunner.runEnv(
+                "git",
+                ["status", "--porcelain"],
+                workingDirectory: workingDirectory,
+                timeout: 30
+            )
+            if gitStatus.exitCode != 0 {
                 let issue = """
-                Uncommitted or untracked changes remain after Develop ran. Commit them or add them to .gitignore.
-                `git status --porcelain` output:
+                `git status --porcelain` failed unexpectedly:
                 ```
-                \(status)
+                \(tail(gitStatus.stdout + gitStatus.stderr, max: 2000))
                 ```
                 """
                 retryIssues.append(issue)
                 displayIssues.append(issue)
-                log("Working tree is not clean after Develop.", level: .error)
+                log("Working-tree status check failed.", level: .error)
+            } else {
+                let status = gitStatus.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
+                if status.isEmpty {
+                    log("Working tree clean.", level: .success)
+                } else {
+                    let issue = """
+                    Uncommitted or untracked changes remain after Develop ran. Commit them or add them to .gitignore.
+                    `git status --porcelain` output:
+                    ```
+                    \(status)
+                    ```
+                    """
+                    retryIssues.append(issue)
+                    displayIssues.append(issue)
+                    log("Working tree is not clean after Develop.", level: .error)
+                }
             }
         }
 
@@ -2483,6 +2515,99 @@ extension CompassProject {
             parentURL: parentURL,
             worktreeURL: worktreeURL
         )
+    }
+
+    /// Stages whatever the post-Verify pull left in the per-iteration host
+    /// worktree and lands it as a single host-side commit on the worktree's
+    /// branch. Only relevant for the .sharedVM route — under host execution
+    /// the agent already committed in-place using its `bash` tool.
+    ///
+    /// The guest workspace has no `.git`, so the agent cannot perform the
+    /// commit itself. Compass takes responsibility for it host-side once
+    /// Verify confirms the agent's work is good. The commit message uses
+    /// the agent's own `summary` so future `git log` reads remain
+    /// agent-authored.
+    ///
+    /// Returns nil on success, or a human-readable issue string on failure
+    /// (matches the existing convention used by promoteDevWorkspace).
+    private func commitAgentChangesOnHost(
+        devWorkspace: DevRunWorkspace,
+        summary: DevelopSummary
+    ) async -> String? {
+        let workingDirectory = devWorkspace.repoURL
+
+        // Skip the commit entirely when there is nothing to commit. The
+        // agent may have done a no-op iteration (or pulled an exact
+        // duplicate of what's already on the branch); committing an
+        // empty change would either fail or produce noise.
+        let status: ProcessResult
+        do {
+            status = try await ProcessRunner.runEnv(
+                "git",
+                ["status", "--porcelain"],
+                workingDirectory: workingDirectory,
+                timeout: 30
+            )
+        } catch {
+            return "Host-side commit failed at git status: \(error.localizedDescription)"
+        }
+        if status.exitCode != 0 {
+            return "Host-side commit failed at git status (exit \(status.exitCode)): \(tail(status.stderr + status.stdout, max: 2000))"
+        }
+        if status.stdout.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            log("Host-side commit: pulled guest worktree is identical to the host branch — nothing to commit.", level: .info)
+            return nil
+        }
+
+        do {
+            try await runGitOrThrow(
+                ["add", "-A"],
+                in: workingDirectory,
+                failurePrefix: "Failed to stage agent changes on host worktree"
+            )
+        } catch {
+            return error.localizedDescription
+        }
+
+        let message = commitMessage(for: summary)
+        do {
+            try await runGitOrThrow(
+                ["commit", "-m", message],
+                in: workingDirectory,
+                failurePrefix: "Failed to create host-side commit for agent changes"
+            )
+        } catch {
+            return error.localizedDescription
+        }
+        log("Host-side commit landed on \(devWorkspace.branchName ?? "(detached)"): \(boundedFirstLine(message, limit: 72))", level: .success)
+        return nil
+    }
+
+    /// Renders the host-side commit message Compass writes after pulling
+    /// from the guest workspace. Format mirrors the agent's submit_result:
+    /// the summary becomes the subject (truncated), feedback the body.
+    private func commitMessage(for summary: DevelopSummary) -> String {
+        let subject = boundedFirstLine(summary.summary, limit: 72)
+        let feedback = summary.feedback.trimmingCharacters(in: .whitespacesAndNewlines)
+        if feedback.isEmpty {
+            return subject
+        }
+        return "\(subject)\n\n\(feedback)"
+    }
+
+    /// Helper: pick the first non-empty line of `text`, trimmed and
+    /// truncated to `limit` chars. Used to keep commit-subject lines
+    /// inside conventional 72-column limits regardless of what the agent
+    /// returned.
+    private func boundedFirstLine(_ text: String, limit: Int) -> String {
+        let firstLine = text
+            .split(whereSeparator: \.isNewline)
+            .first
+            .map(String.init)?
+            .trimmingCharacters(in: .whitespaces) ?? ""
+        if firstLine.isEmpty { return "Develop iteration (no summary)" }
+        if firstLine.count <= limit { return firstLine }
+        return String(firstLine.prefix(limit)).trimmingCharacters(in: .whitespaces)
     }
 
     private func promoteDevWorkspace(_ devWorkspace: DevRunWorkspace, mainRepoURL: URL) async throws -> String? {
