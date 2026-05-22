@@ -29,8 +29,18 @@ struct PlanReliabilityFeedback: Equatable {
             sessions: sessions
         )
 
+        // A later successful session retires cues from earlier ones — otherwise a single
+        // failed session lingers forever, since successful sessions emit no notices to
+        // displace it past `noticeLimit`.
+        let latestSuccess = sessions
+            .filter { $0.status == .succeeded }
+            .max { Self.isOlder($0, than: $1) }
+
         let allNotices = sortedHistoryItems.flatMap { item in
             guard let session = sessionByNumber[item.sessionNumber] else {
+                return [Notice]()
+            }
+            if let cutoff = latestSuccess, Self.isOlder(session, than: cutoff) {
                 return [Notice]()
             }
 
@@ -245,6 +255,13 @@ struct PlanReliabilityFeedback: Equatable {
         }
 
         return results
+    }
+
+    private static func isOlder(_ lhs: SessionRecord, than rhs: SessionRecord) -> Bool {
+        if lhs.startedAt == rhs.startedAt {
+            return lhs.session < rhs.session
+        }
+        return lhs.startedAt < rhs.startedAt
     }
 
     static func priority(for kind: Kind) -> Int {

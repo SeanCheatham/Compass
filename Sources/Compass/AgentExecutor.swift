@@ -39,7 +39,7 @@ struct AgentExecutionConfiguration {
         workingDirectory: URL,
         filesystem: AgentFilesystem = AgentHostFilesystem(),
         bashRunner: AgentBashRunner = AgentHostBashRunner(),
-        maxIterations: Int = 64,
+        maxIterations: Int = 512,
         wallClockTimeout: TimeInterval = 30 * 60
     ) {
         self.settings = settings

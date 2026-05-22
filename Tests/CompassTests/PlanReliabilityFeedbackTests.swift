@@ -275,6 +275,45 @@ final class PlanReliabilityFeedbackTests: XCTestCase {
         XCTAssertNil(feedback.recentRunCues[18])
     }
 
+    func testLaterSuccessRetiresEarlierFailureCue() {
+        let blocked = makeSession(
+            4,
+            startedAt: 4_000,
+            status: .failed,
+            notes: ["Develop reported it was blocked but did not request verify bypass."],
+            feedback: "Missing signing credentials."
+        )
+        let later = makeSession(5, startedAt: 5_000, status: .succeeded, feedback: "ok")
+
+        let feedback = PlanReliabilityFeedback(
+            state: makeState(),
+            sessions: [blocked, later]
+        )
+
+        XCTAssertTrue(feedback.notices.isEmpty)
+        XCTAssertNil(feedback.recentRunCues[4])
+        XCTAssertNil(feedback.recentRunCues[5])
+    }
+
+    func testInFlightSessionAfterFailureKeepsCue() {
+        let blocked = makeSession(
+            4,
+            startedAt: 4_000,
+            status: .failed,
+            notes: ["Develop reported it was blocked but did not request verify bypass."],
+            feedback: "Missing signing credentials."
+        )
+        let retrying = makeSession(5, startedAt: 5_000, status: .developing)
+
+        let feedback = PlanReliabilityFeedback(
+            state: makeState(),
+            sessions: [blocked, retrying]
+        )
+
+        XCTAssertEqual(feedback.notices.map(\.kind), [.developBlocked])
+        XCTAssertEqual(feedback.recentRunCues[4]?.kind, .developBlocked)
+    }
+
     func testBoundsAndNormalizesDetails() {
         let session = makeSession(
             9,
