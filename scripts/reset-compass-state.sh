@@ -60,10 +60,12 @@ APPSUPPORT_LEGACY="${HOME}/Library/Application Support/CompassNative"
 CACHES="${HOME}/Library/Caches/Compass"
 BUNDLE="${APPSUPPORT}/SharedVM/bundle.vmbundle"
 DISK_IMAGE="${BUNDLE}/Disk.img"
+AUXILIARY_STORAGE="${BUNDLE}/AuxiliaryStorage"
 IPSW_CACHE="${BUNDLE}/cache"
 SSH_KEY="${BUNDLE}/id_ed25519"
 SSH_KEY_PUB="${BUNDLE}/id_ed25519.pub"
 KEYCHAIN_SERVICE="com.seancheatham.Compass.SharedVM"
+VZ_HELPER_PATTERN='com\.apple\.Virtualization\.(Installation|Restore|VirtualMachine)'
 
 run() {
   if [[ "${DRY_RUN}" -eq 1 ]]; then
@@ -71,6 +73,20 @@ run() {
   else
     eval "$@"
   fi
+}
+
+compass_vz_helper_pids() {
+  local path pid command
+  for path in "${DISK_IMAGE}" "${AUXILIARY_STORAGE}"; do
+    [[ -e "${path}" ]] || continue
+    while read -r pid; do
+      [[ "${pid}" =~ ^[0-9]+$ ]] || continue
+      command="$(ps -p "${pid}" -o command= 2>/dev/null || true)"
+      if [[ "${command}" =~ ${VZ_HELPER_PATTERN} ]]; then
+        printf '%s\n' "${pid}"
+      fi
+    done < <(lsof -t "${path}" 2>/dev/null || true)
+  done | sort -u
 }
 
 # ---- 1. Make sure Compass is not running so its file handles are released.
@@ -93,18 +109,17 @@ if pgrep -x Compass >/dev/null 2>&1; then
   fi
 fi
 
-# ---- 2. Reap orphaned Virtualization.framework XPC helpers that
-# occasionally outlive their parent Compass process. A wedged
-# Installation/Restore/VirtualMachine helper keeps an flock on
-# AuxiliaryStorage / Disk.img and makes the next launch fail with
-# "Failed to lock auxiliary storage [VZErrorDomain 2] / EAGAIN".
-
-VZ_HELPER_PATTERN='com\.apple\.Virtualization\.(Installation|Restore|VirtualMachine)'
+# ---- 2. Reap orphaned Virtualization.framework XPC helpers that still have
+# Compass's VM artifacts open. Docker Desktop and other host services can also
+# run com.apple.Virtualization.VirtualMachine, so never kill by process name
+# alone. A wedged Compass helper keeps an flock on AuxiliaryStorage / Disk.img
+# and makes the next launch fail with "Failed to lock auxiliary storage
+# [VZErrorDomain 2] / EAGAIN".
 while read -r helper_pid; do
   [[ -z "${helper_pid}" ]] && continue
-  echo "Reaping orphaned VZ helper PID ${helper_pid}"
+  echo "Reaping orphaned Compass VZ helper PID ${helper_pid}"
   run "kill -9 ${helper_pid}"
-done < <(pgrep -f "${VZ_HELPER_PATTERN}" 2>/dev/null || true)
+done < <(compass_vz_helper_pids)
 
 # ---- 3. Detach the VM disk image if a previous run left it attached.
 
