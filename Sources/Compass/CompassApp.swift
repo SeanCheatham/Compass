@@ -56,6 +56,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 struct CompassApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @StateObject private var model = AppModel()
+    @ObservedObject private var sharedVMHost: SharedCompassVM = .shared
+
+    /// Mirrors `ContentView.isOnboardingComplete` so menu shortcuts
+    /// (⌘O / ⌘R / ⌘Return) can't bypass the onboarding gate.
+    private var isOnboardingComplete: Bool {
+        sharedVMHost.readiness.isReady && !model.agentSettings.apiKey.isEmpty
+    }
 
     var body: some Scene {
         WindowGroup {
@@ -75,18 +82,19 @@ struct CompassApp: App {
                     Task { await model.chooseRepository() }
                 }
                 .keyboardShortcut("o", modifiers: [.command])
+                .disabled(!isOnboardingComplete)
 
                 Button("Refresh Project") {
                     Task { await model.refreshSelectedProject() }
                 }
                 .keyboardShortcut("r", modifiers: [.command])
-                .disabled(model.selectedProject == nil)
+                .disabled(!isOnboardingComplete || model.selectedProject == nil)
 
                 Button("Play") {
                     Task { await model.playSelectedProject() }
                 }
                 .keyboardShortcut(.return, modifiers: [.command])
-                .disabled((model.selectedProject?.isRunning ?? true) || (model.selectedProject?.isAutoPlaying ?? true))
+                .disabled(!isOnboardingComplete || (model.selectedProject?.isRunning ?? true) || (model.selectedProject?.isAutoPlaying ?? true))
             }
             CommandMenu("Runtime") {
                 if let runtimeMenu = model.selectedProject?.runtimeDiagnosticsMenu {

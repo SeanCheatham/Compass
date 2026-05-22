@@ -3,23 +3,35 @@ import SwiftUI
 
 struct ContentView: View {
     @EnvironmentObject private var model: AppModel
+    @ObservedObject private var sharedVMHost: SharedCompassVM = .shared
 
     var body: some View {
-        NavigationSplitView {
-            SidebarView()
-        } detail: {
-            switch model.workspaceSelection {
-            case .sandbox:
-                SandboxView()
-            case .project:
-                if let project = model.selectedProject {
-                    MainWorkspaceView(project: project)
-                        .id(project.id)
-                } else {
-                    NoProjectView()
+        if isOnboardingComplete {
+            NavigationSplitView {
+                SidebarView()
+            } detail: {
+                switch model.workspaceSelection {
+                case .sandbox:
+                    SandboxView()
+                case .project:
+                    if let project = model.selectedProject {
+                        MainWorkspaceView(project: project)
+                            .id(project.id)
+                    } else {
+                        NoProjectView()
+                    }
                 }
             }
+        } else {
+            OnboardingView()
         }
+    }
+
+    /// Mandatory onboarding gate. Compass routes every agent run through
+    /// the Shared VM and needs an API key to call the LLM, so neither is
+    /// optional — the rest of the UI is hidden until both land.
+    private var isOnboardingComplete: Bool {
+        sharedVMHost.readiness.isReady && !model.agentSettings.apiKey.isEmpty
     }
 }
 
