@@ -275,7 +275,13 @@ struct AgentMutationTestingPlan: Equatable, Identifiable {
         case .sharedVM:
             return .sharedVMRoute
         case .host:
-            if launchPlan.selectedPreference == .sharedVM || launchPlan.fallbackReason != nil {
+            // Compass always targets the Shared VM; a host effective route
+            // is an internal fallback (Plan/Reflect on the main repo, or VM
+            // not yet ready). `.nativeRoute` is preserved for callers that
+            // construct a bare `host()` plan with no fallback reason — used
+            // by tests and tooling that want a stable "native execution"
+            // label without surfacing fallback semantics.
+            if launchPlan.fallbackReason != nil {
                 return .nativeFallback
             }
             return .nativeRoute

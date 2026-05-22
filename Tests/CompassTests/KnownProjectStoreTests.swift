@@ -19,7 +19,6 @@ final class KnownProjectStoreTestsRecordDecoding: XCTestCase {
         XCTAssertEqual(record.activeStorage, .repoLocal)
         XCTAssertEqual(record.cinematicInfluenceSettings, CinematicInfluenceSettings())
         XCTAssertEqual(record.nativeFeedbackMode, .notifications)
-        XCTAssertEqual(record.developSandbox, .host)
         XCTAssertEqual(record.cinematicRunRecapShareArtifactLibraryContext, .empty)
         XCTAssertEqual(record.cinematicRunRecapShareArtifactLibraryContext.comparisonTargetMode, .adjacent)
         XCTAssertNil(record.cinematicRunRecapShareArtifactLibraryContext.savedTourHoldEntryIdentifier)
@@ -47,7 +46,6 @@ final class KnownProjectStoreTestsRecordDecoding: XCTestCase {
         """)
 
         XCTAssertEqual(records.map(\.nativeFeedbackMode), [.notifications, .notifications])
-        XCTAssertEqual(records.map(\.developSandbox), [.host, .host])
     }
 
     func testDecodingClampsDefaultsAndFallsBackForUnknownValues() throws {
@@ -97,20 +95,17 @@ final class KnownProjectStoreTestsRecordDecoding: XCTestCase {
         XCTAssertEqual(records[0].cinematicInfluenceSettings.intensity, 0)
         XCTAssertEqual(records[0].activeStorage, .repoLocal)
         XCTAssertEqual(records[0].nativeFeedbackMode, .notifications)
-        XCTAssertEqual(records[0].developSandbox, .host)
         XCTAssertEqual(records[0].cinematicRunRecapShareArtifactLibraryContext, .empty)
 
         XCTAssertEqual(records[1].cinematicInfluenceSettings, CinematicInfluenceSettings())
         XCTAssertEqual(records[1].activeStorage, .applicationSupport)
         XCTAssertEqual(records[1].nativeFeedbackMode, .speechAndNotifications)
-        XCTAssertEqual(records[1].developSandbox, .host)
 
         XCTAssertEqual(records[2].cinematicInfluenceSettings.cameraStyle, .dramatic)
         XCTAssertEqual(records[2].cinematicInfluenceSettings.comfortMode, .standard)
         XCTAssertEqual(records[2].cinematicInfluenceSettings.intensity, 1)
         XCTAssertEqual(records[2].activeStorage, .repoLocal)
         XCTAssertEqual(records[2].nativeFeedbackMode, .off)
-        XCTAssertEqual(records[2].developSandbox, .host)
     }
 
     func testRecapShareArtifactLibraryContextDecodingBoundsPersistedText() throws {
@@ -280,7 +275,6 @@ final class KnownProjectStoreTests: XCTestCase {
                 intensity: 0.8
             ),
             nativeFeedbackMode: .speechAndNotifications,
-            developSandbox: .sharedVM,
             cinematicRunRecapShareArtifactLibraryContext: CinematicRunRecapShareArtifactLibraryContext(
                 selectedEntryIdentifier: "artifact-selected",
                 searchText: "Selected Search",
@@ -304,7 +298,6 @@ final class KnownProjectStoreTests: XCTestCase {
                 "\"addedAt\"",
                 "\"cinematicInfluenceSettings\"",
                 "\"cinematicRunRecapShareArtifactLibraryContext\"",
-                "\"developSandbox\"",
                 "\"id\"",
                 "\"lastOpenedAt\"",
                 "\"nativeFeedbackMode\"",
@@ -324,7 +317,7 @@ final class KnownProjectStoreTests: XCTestCase {
             in: saved
         )
         XCTAssertTrue(saved.contains("\"comparisonTargetMode\" : \"pinned_reference\""))
-        XCTAssertTrue(saved.contains("\"developSandbox\" : \"shared_vm\""))
+        XCTAssertFalse(saved.contains("\"developSandbox\""))
         XCTAssertFalse(saved.contains("\"codexExecutionEnvironmentPreference\""))
         XCTAssertTrue(saved.contains("\"comfortMode\" : \"quiet\""))
         XCTAssertTrue(saved.contains("\"pinnedEntryIdentifiers\" : ["))
@@ -376,26 +369,26 @@ final class KnownProjectStoreTests: XCTestCase {
         XCTAssertEqual(KnownProjectStore.load(applicationSupportRoots: roots), records)
     }
 
-    func testSavePersistsDevelopSandboxRawValue() throws {
+    func testSaveOmitsLegacySandboxPreferenceKeys() throws {
+        // Compass no longer persists a per-project sandbox preference —
+        // every run targets the Shared VM. Both the current and legacy
+        // keys must stay out of the serialized form.
         let roots = try makeApplicationSupportRoots()
         let records = [
             makeRecord(
                 id: "eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee",
-                path: "/tmp/host",
-                developSandbox: .host
+                path: "/tmp/one"
             ),
             makeRecord(
                 id: "ffffffff-ffff-ffff-ffff-ffffffffffff",
-                path: "/tmp/shared-vm",
-                developSandbox: .sharedVM
+                path: "/tmp/two"
             )
         ]
 
         try KnownProjectStore.save(records, applicationSupportRoots: roots)
 
         let saved = try read(currentProjectsURL(for: roots))
-        XCTAssertTrue(saved.contains("\"developSandbox\" : \"host\""))
-        XCTAssertTrue(saved.contains("\"developSandbox\" : \"shared_vm\""))
+        XCTAssertFalse(saved.contains("\"developSandbox\""))
         XCTAssertFalse(saved.contains("\"codexExecutionEnvironmentPreference\""))
         XCTAssertEqual(KnownProjectStore.load(applicationSupportRoots: roots), records)
     }
@@ -430,7 +423,6 @@ final class KnownProjectStoreTests: XCTestCase {
         lastOpenedAt: Double = 20,
         cinematicInfluenceSettings: CinematicInfluenceSettings = CinematicInfluenceSettings(),
         nativeFeedbackMode: NativeFeedbackMode = .notifications,
-        developSandbox: DevelopSandboxPreference = .host,
         cinematicRunRecapShareArtifactLibraryContext: CinematicRunRecapShareArtifactLibraryContext = .empty
     ) -> KnownProjectRecord {
         KnownProjectRecord(
@@ -441,7 +433,6 @@ final class KnownProjectStoreTests: XCTestCase {
             lastOpenedAt: lastOpenedAt,
             cinematicInfluenceSettings: cinematicInfluenceSettings,
             nativeFeedbackMode: nativeFeedbackMode,
-            developSandbox: developSandbox,
             cinematicRunRecapShareArtifactLibraryContext: cinematicRunRecapShareArtifactLibraryContext
         )
     }

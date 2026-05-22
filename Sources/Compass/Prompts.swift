@@ -456,6 +456,11 @@ enum Prompts {
     /// "what tooling can I assume is installed?" section of the system
     /// prompt so the model doesn't burn iterations reaching for things
     /// the environment doesn't have.
+    ///
+    /// `.host` is retained as an internal-only fallback for the phases
+    /// that still read the main repo from outside the VirtioFS workspaces
+    /// share (Plan/Reflect on the user's repo path). There is no
+    /// user-facing host-execution preference.
     enum ExecutionEnvironmentDescriptor {
         case host
         case sharedVM
@@ -464,7 +469,7 @@ enum Prompts {
     static func agentSystemPrompt(
         phase: AgentPhase,
         workingDirectoryPath: String,
-        executionEnvironment: ExecutionEnvironmentDescriptor = .host
+        executionEnvironment: ExecutionEnvironmentDescriptor = .sharedVM
     ) -> String {
         let readOnlyTools = "read_file, ls, grep, glob"
         let writeTools = "write_file, edit_file, bash"

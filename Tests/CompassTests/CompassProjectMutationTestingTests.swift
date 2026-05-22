@@ -51,7 +51,7 @@ final class CompassProjectMutationTestingTests: XCTestCase {
 
         let execution = try XCTUnwrap(session.mutationTestingExecutions.first)
         XCTAssertEqual(execution.statusIdentifier, "succeeded")
-        XCTAssertEqual(execution.routeIdentifier, "native-route")
+        XCTAssertEqual(execution.routeIdentifier, "native-fallback")
         XCTAssertEqual(execution.languageIdentifier, "swift")
         XCTAssertEqual(execution.seedCommandLabel, "swift test --filter CompassProjectMutationTestingTests")
         XCTAssertEqual(execution.exitCode, 0)
@@ -96,7 +96,7 @@ final class CompassProjectMutationTestingTests: XCTestCase {
 
         let execution = try XCTUnwrap(session.mutationTestingExecutions.first)
         XCTAssertEqual(execution.statusIdentifier, "failed")
-        XCTAssertEqual(execution.routeIdentifier, "native-route")
+        XCTAssertEqual(execution.routeIdentifier, "native-fallback")
         XCTAssertEqual(execution.exitCode, 23)
         XCTAssertLessThanOrEqual(execution.outputTail.count, SessionMutationTestingExecution.outputTailLimit)
         XCTAssertLessThanOrEqual(execution.seedCommandLabel.count, AgentMutationTestingPlan.commandMaxCharacters)
@@ -166,7 +166,11 @@ final class CompassProjectMutationTestingTests: XCTestCase {
         project.languageProfile = profile(.swift)
         action = try XCTUnwrap(project.runtimeDiagnosticsMenu.mutationTestingAction)
         XCTAssertTrue(action.isEnabled)
-        XCTAssertEqual(action.availabilityIdentifier, "ready")
+        // Without a live Shared VM in the test harness, the project's
+        // launch planner produces a host fallback — "native-fallback" is
+        // the canonical availability for that case now that the host
+        // route is no longer a user-selectable preference.
+        XCTAssertEqual(action.availabilityIdentifier, "native-fallback")
 
         project.isRunning = true
         action = try XCTUnwrap(project.runtimeDiagnosticsMenu.mutationTestingAction)

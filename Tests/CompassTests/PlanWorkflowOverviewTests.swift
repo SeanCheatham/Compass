@@ -190,7 +190,7 @@ final class PlanWorkflowOverviewTests: XCTestCase {
                 )
             ),
             languageProfile: profile(.swift),
-            launchPlan: AgentExecutionLaunchPlan.host(selectedPreference: .host)
+            launchPlan: AgentExecutionLaunchPlan.host()
         )
 
         let readiness = overview.immediate.mutationTestingReadiness
@@ -207,7 +207,7 @@ final class PlanWorkflowOverviewTests: XCTestCase {
         let overview = PlanWorkflowOverview(
             state: makeState(immediate: nil),
             languageProfile: profile(.swift),
-            launchPlan: AgentExecutionLaunchPlan.host(selectedPreference: .host)
+            launchPlan: AgentExecutionLaunchPlan.host()
         )
 
         XCTAssertTrue(overview.immediate.isEmpty)

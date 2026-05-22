@@ -421,7 +421,6 @@ final class CompassProject: ObservableObject, Identifiable {
             clearCinematicNativeFeedbackCue(reason: .modeOff)
         }
     }
-    @Published var developSandbox: DevelopSandboxPreference
     @Published var liveLog: [LiveLine] = []
     @Published var phase: LoopPhase = .idle {
         didSet {
@@ -485,7 +484,6 @@ final class CompassProject: ObservableObject, Identifiable {
         lastOpenedAt: Date = Date(),
         cinematicInfluenceSettings: CinematicInfluenceSettings = CinematicInfluenceSettings(),
         nativeFeedbackMode: NativeFeedbackMode = .notifications,
-        developSandbox: DevelopSandboxPreference = .host,
         cinematicRunRecapShareArtifactLibraryContext: CinematicRunRecapShareArtifactLibraryContext = .empty,
         storageApplicationSupportRoots: KnownProjectStore.ApplicationSupportRoots = KnownProjectStore.productionApplicationSupportRoots(),
         storageMigrationAction: @escaping CompassWorkspaceStorageMigrationAction = { plan in
@@ -507,7 +505,6 @@ final class CompassProject: ObservableObject, Identifiable {
         self.lastOpenedAt = lastOpenedAt
         self.cinematicInfluenceSettings = cinematicInfluenceSettings
         self.nativeFeedbackMode = nativeFeedbackMode
-        self.developSandbox = developSandbox
         self.cinematicRunRecapShareArtifactLibraryContext = cinematicRunRecapShareArtifactLibraryContext
         self.storageApplicationSupportRoots = storageApplicationSupportRoots
         self.storageMigrationAction = storageMigrationAction
@@ -569,7 +566,6 @@ extension CompassProject {
 
     var agentExecutionEnvironment: AgentExecutionEnvironment {
         AgentExecutionEnvironment.discover(
-            preference: AgentExecutionEnvironmentPreference(developSandbox: developSandbox),
             vmReadiness: SharedCompassVM.shared.readiness
         )
     }
@@ -1776,22 +1772,16 @@ extension CompassProject {
     }
 
     private func agentLaunchPlan(for nativeExecutionURL: URL) -> AgentExecutionLaunchPlan {
-        // The project's `developSandbox` is the authoritative per-project
-        // toggle. Translate it into a `AgentExecutionEnvironmentPreference`
-        // so the readiness-gated planner can route to the shared VM when
-        // readiness is .ready and fall back to host otherwise.
-        let preference: AgentExecutionEnvironmentPreference
-        switch developSandbox {
-        case .host:
-            preference = .host
-        case .sharedVM:
-            preference = .sharedVM
-        }
+        // Compass always routes the agent through the Shared VM; the
+        // onboarding gate prevents launches until the VM is ready. The
+        // planner still falls back to host when the VirtioFS catalog
+        // can't map this repo (Plan/Reflect on the main repo lives
+        // outside the workspaces share), which is an internal-only
+        // concern with no user-facing toggle.
         let host = SharedCompassVM.shared
         let readiness = host.readiness
         return AgentExecutionLaunchPlan.plan(
             repoURL: nativeExecutionURL,
-            preference: preference,
             vmReadiness: readiness,
             sharedVMRouteFactory: { hostURL in
                 Self.makeSharedVMRoute(
@@ -1859,7 +1849,6 @@ extension CompassProject {
         attempt: Int? = nil
     ) {
         let environment = AgentExecutionEnvironment.discover(
-            preference: AgentExecutionEnvironmentPreference(developSandbox: developSandbox),
             vmReadiness: SharedCompassVM.shared.readiness
         )
         let effectiveLaunchPlan = launchPlan ?? environment.launchPlan(repoURL: nativeExecutionURL)
@@ -3604,7 +3593,6 @@ struct KnownProjectRecord: Codable, Identifiable, Equatable {
     var lastOpenedAt: Double
     var cinematicInfluenceSettings: CinematicInfluenceSettings
     var nativeFeedbackMode: NativeFeedbackMode
-    var developSandbox: DevelopSandboxPreference
     var cinematicRunRecapShareArtifactLibraryContext: CinematicRunRecapShareArtifactLibraryContext
 
     enum CodingKeys: String, CodingKey {
@@ -3615,12 +3603,6 @@ struct KnownProjectRecord: Codable, Identifiable, Equatable {
         case lastOpenedAt
         case cinematicInfluenceSettings
         case nativeFeedbackMode
-        // Legacy on-disk key from the pre-Codex-removal schema. Reads only —
-        // we no longer write it, but its value seeds `developSandbox` when
-        // the new key is absent so an existing user's "Shared VM" choice
-        // carries forward.
-        case legacyAgentExecutionEnvironmentPreference = "codexExecutionEnvironmentPreference"
-        case developSandbox
         case cinematicRunRecapShareArtifactLibraryContext
     }
 
@@ -3632,7 +3614,6 @@ struct KnownProjectRecord: Codable, Identifiable, Equatable {
         lastOpenedAt: Double,
         cinematicInfluenceSettings: CinematicInfluenceSettings = CinematicInfluenceSettings(),
         nativeFeedbackMode: NativeFeedbackMode = .notifications,
-        developSandbox: DevelopSandboxPreference = .host,
         cinematicRunRecapShareArtifactLibraryContext: CinematicRunRecapShareArtifactLibraryContext = .empty
     ) {
         self.id = id
@@ -3642,7 +3623,6 @@ struct KnownProjectRecord: Codable, Identifiable, Equatable {
         self.lastOpenedAt = lastOpenedAt
         self.cinematicInfluenceSettings = cinematicInfluenceSettings
         self.nativeFeedbackMode = nativeFeedbackMode
-        self.developSandbox = developSandbox
         self.cinematicRunRecapShareArtifactLibraryContext = cinematicRunRecapShareArtifactLibraryContext
     }
 
@@ -3664,19 +3644,6 @@ struct KnownProjectRecord: Codable, Identifiable, Equatable {
             NativeFeedbackMode.self,
             forKey: .nativeFeedbackMode
         ) ?? .notifications
-        if let stored = try container.decodeIfPresent(
-            DevelopSandboxPreference.self,
-            forKey: .developSandbox
-        ) {
-            developSandbox = stored
-        } else if let legacy = try container.decodeIfPresent(
-            AgentExecutionEnvironmentPreference.self,
-            forKey: .legacyAgentExecutionEnvironmentPreference
-        ) {
-            developSandbox = legacy.developSandbox
-        } else {
-            developSandbox = .host
-        }
         cinematicRunRecapShareArtifactLibraryContext = try container.decodeIfPresent(
             CinematicRunRecapShareArtifactLibraryContext.self,
             forKey: .cinematicRunRecapShareArtifactLibraryContext
@@ -3692,7 +3659,6 @@ struct KnownProjectRecord: Codable, Identifiable, Equatable {
         try container.encode(lastOpenedAt, forKey: .lastOpenedAt)
         try container.encode(cinematicInfluenceSettings, forKey: .cinematicInfluenceSettings)
         try container.encode(nativeFeedbackMode, forKey: .nativeFeedbackMode)
-        try container.encode(developSandbox, forKey: .developSandbox)
         try container.encode(
             cinematicRunRecapShareArtifactLibraryContext,
             forKey: .cinematicRunRecapShareArtifactLibraryContext
@@ -3710,7 +3676,6 @@ private extension CompassProject {
             lastOpenedAt: Date(timeIntervalSince1970: record.lastOpenedAt),
             cinematicInfluenceSettings: record.cinematicInfluenceSettings,
             nativeFeedbackMode: record.nativeFeedbackMode,
-            developSandbox: record.developSandbox,
             cinematicRunRecapShareArtifactLibraryContext: record.cinematicRunRecapShareArtifactLibraryContext
         )
     }
@@ -3724,7 +3689,6 @@ private extension CompassProject {
             lastOpenedAt: lastOpenedAt.timeIntervalSince1970,
             cinematicInfluenceSettings: cinematicInfluenceSettings,
             nativeFeedbackMode: nativeFeedbackMode,
-            developSandbox: developSandbox,
             cinematicRunRecapShareArtifactLibraryContext: cinematicRunRecapShareArtifactLibraryContext
         )
     }

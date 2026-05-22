@@ -15,10 +15,10 @@ final class AgentExecutionLaunchPlanTests: XCTestCase {
     // MARK: - Routing
 
     func testReadySharedVMRoutesThroughVsockWhenFactoryProducesARoute() throws {
-        // With the vsock guest agent in place, a ready+sharedVM run with
-        // a route factory that returns a workspace-mapped route promotes
-        // to a real .sharedVM effective route. AppModel then opens a
-        // vsock connection to the guest agent for each tool call.
+        // With the vsock guest agent in place, a ready run with a route
+        // factory that returns a workspace-mapped route promotes to a real
+        // .sharedVM effective route. AppModel then opens a vsock connection
+        // to the guest agent for each tool call.
         let repoURL = try makeTemporaryDirectory(prefix: "VMReadyRoutes")
         let route = SharedVMRoute(
             sshDestination: "compass@192.0.2.10",
@@ -27,7 +27,6 @@ final class AgentExecutionLaunchPlanTests: XCTestCase {
         )
         let plan = AgentExecutionLaunchPlan.plan(
             repoURL: repoURL,
-            preference: .sharedVM,
             vmReadiness: .ready(sshDestination: route.sshDestination),
             sharedVMRouteFactory: { _ in route }
         )
@@ -38,39 +37,10 @@ final class AgentExecutionLaunchPlanTests: XCTestCase {
         XCTAssertEqual(plan.workspaceLabel, "/Users/compass/Compass/Worktrees/dev-AAA/worktree")
     }
 
-
-    func testNativePreferenceStaysNativeEvenWhenSupportedConfigAndToolExist() throws {
-        let repoURL = try makeTemporaryDirectory(prefix: "HostPreference")
-        let plan = AgentExecutionLaunchPlan.plan(
-            repoURL: repoURL,
-            preference: .host,
-            vmReadiness: .ready(sshDestination: "compass@192.0.2.99")
-        )
-        XCTAssertEqual(plan.effectiveRouteIdentifier, "native-macos")
-        XCTAssertFalse(plan.isVMRoute)
-    }
-
-    func testNativePreferenceStaysNativeForRouteableBuildArgsConfig() throws {
-        let repoURL = try makeTemporaryDirectory(prefix: "HostPreferenceVMReady")
-        let route = SharedVMRoute(
-            sshDestination: "compass@192.0.2.10",
-            hostWorktreeURL: repoURL,
-            guestWorkspacePath: "/Users/compass/Compass/Worktrees/dev-AAA/worktree"
-        )
-        let plan = AgentExecutionLaunchPlan.plan(
-            repoURL: repoURL,
-            preference: .host,
-            vmReadiness: .ready(sshDestination: route.sshDestination),
-            sharedVMRouteFactory: { _ in route }
-        )
-        XCTAssertFalse(plan.isVMRoute)
-    }
-
     func testMissingConfigFallsBackToNativeWithBoundedReason() throws {
         let repoURL = try makeTemporaryDirectory(prefix: "VMNotProvisioned")
         let plan = AgentExecutionLaunchPlan.plan(
             repoURL: repoURL,
-            preference: .sharedVM,
             vmReadiness: .notProvisioned
         )
         XCTAssertFalse(plan.isVMRoute)
@@ -81,7 +51,6 @@ final class AgentExecutionLaunchPlanTests: XCTestCase {
         let repoURL = try makeTemporaryDirectory(prefix: "VMError")
         let plan = AgentExecutionLaunchPlan.plan(
             repoURL: repoURL,
-            preference: .sharedVM,
             vmReadiness: .error(detail: "ssh probe failed")
         )
         XCTAssertFalse(plan.isVMRoute)
@@ -91,13 +60,11 @@ final class AgentExecutionLaunchPlanTests: XCTestCase {
     func testReadyButNoRouteableFactoryFallsBackToHost() throws {
         // When the VM is ready but the worktree isn't under the workspace
         // mount (factory returns nil), the planner falls back to host with
-        // a workspace-share-membership reason. Mirrors the host-mode
-        // fallback we get when sharedVM is selected but the worktree is
-        // outside `~/Library/Caches/Compass/Worktrees/`.
+        // a workspace-share-membership reason. This is the internal-only
+        // fallback the planner still keeps for Plan/Reflect on the main repo.
         let repoURL = try makeTemporaryDirectory(prefix: "VMReadyNoRoute")
         let plan = AgentExecutionLaunchPlan.plan(
             repoURL: repoURL,
-            preference: .sharedVM,
             vmReadiness: .ready(sshDestination: "compass@192.0.2.10"),
             sharedVMRouteFactory: { _ in nil }
         )
@@ -109,7 +76,6 @@ final class AgentExecutionLaunchPlanTests: XCTestCase {
         let repoURL = try makeTemporaryDirectory(prefix: "VMReadinessMissing")
         let plan = AgentExecutionLaunchPlan.plan(
             repoURL: repoURL,
-            preference: .sharedVM,
             vmReadiness: nil
         )
         XCTAssertFalse(plan.isVMRoute)
@@ -118,22 +84,22 @@ final class AgentExecutionLaunchPlanTests: XCTestCase {
 
     // MARK: - Migration
 
-    func testLegacyDevcontainerPreferredRawValueDecodesToHost() throws {
+    func testLegacyDevcontainerPreferredRawValueDecodesToSharedVM() throws {
         let json = #"{"value":"devcontainer_preferred"}"#
         struct Wrapper: Decodable {
             var value: AgentExecutionEnvironmentPreference
         }
         let decoded = try JSONDecoder().decode(Wrapper.self, from: Data(json.utf8))
-        XCTAssertEqual(decoded.value, .host)
+        XCTAssertEqual(decoded.value, .sharedVM)
     }
 
-    func testLegacyNativeMacOSRawValueDecodesToHost() throws {
+    func testLegacyNativeMacOSRawValueDecodesToSharedVM() throws {
         let json = #"{"value":"native_macos"}"#
         struct Wrapper: Decodable {
             var value: AgentExecutionEnvironmentPreference
         }
         let decoded = try JSONDecoder().decode(Wrapper.self, from: Data(json.utf8))
-        XCTAssertEqual(decoded.value, .host)
+        XCTAssertEqual(decoded.value, .sharedVM)
     }
 
     func testSharedVMRawValueRoundTrips() throws {
@@ -181,7 +147,6 @@ final class AgentExecutionLaunchPlanTests: XCTestCase {
         for (readiness, expectedClassification) in scenarios {
             let plan = AgentExecutionLaunchPlan.plan(
                 repoURL: repoURL,
-                preference: .sharedVM,
                 vmReadiness: readiness
             )
             let snapshot = SessionExecutionEnvironmentSnapshot(phase: "Plan", launchPlan: plan)

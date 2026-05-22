@@ -162,12 +162,10 @@ final class CompassWorkspacePersistenceTests: XCTestCase {
         let repoURL = try makeTemporaryGitRepository()
         let nativePlan = AgentExecutionLaunchPlan.plan(
             repoURL: repoURL,
-            preference: .host,
             vmReadiness: .ready(sshDestination: "compass@192.0.2.10")
         )
         let fallbackPlan = AgentExecutionLaunchPlan.plan(
             repoURL: repoURL,
-            preference: .sharedVM,
             vmReadiness: .notProvisioned
         )
         var duplicateRecord = SessionRecord.started(1)

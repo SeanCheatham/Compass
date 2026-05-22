@@ -16,6 +16,12 @@ struct AgentExecutionLaunchPlan: Equatable {
     static let fallbackReasonLimit = 180
     static let labelLimit = 80
 
+    /// How an agent run is actually dispatched. The user no longer chooses
+    /// between routes — Compass always targets the Shared VM. `Route.host`
+    /// remains as an internal-only fallback for the phases that still read
+    /// the main repo from outside the VirtioFS workspaces share (Plan and
+    /// Reflect operate on the host repo path) and for the rare case where
+    /// the catalog can't yet map this repo to a guest workspace.
     enum Route: Equatable {
         case host
         case sharedVM(SharedVMRoute)
@@ -27,7 +33,7 @@ struct AgentExecutionLaunchPlan: Equatable {
     var fallbackReason: String?
 
     init(
-        selectedPreference: AgentExecutionEnvironmentPreference,
+        selectedPreference: AgentExecutionEnvironmentPreference = .sharedVM,
         effectiveRoute: Route,
         vmReadiness: SharedCompassVMReadiness? = nil,
         fallbackReason: String? = nil
@@ -39,12 +45,11 @@ struct AgentExecutionLaunchPlan: Equatable {
     }
 
     static func host(
-        selectedPreference: AgentExecutionEnvironmentPreference = .host,
         vmReadiness: SharedCompassVMReadiness? = nil,
         fallbackReason: String? = nil
     ) -> Self {
         Self(
-            selectedPreference: selectedPreference,
+            selectedPreference: .sharedVM,
             effectiveRoute: .host,
             vmReadiness: vmReadiness,
             fallbackReason: fallbackReason
@@ -53,88 +58,70 @@ struct AgentExecutionLaunchPlan: Equatable {
 
     static func plan(
         repoURL: URL,
-        preference: AgentExecutionEnvironmentPreference,
         vmReadiness: SharedCompassVMReadiness? = nil,
         sharedVMRouteFactory: (URL) -> SharedVMRoute? = { _ in nil }
     ) -> Self {
-        switch preference {
-        case .host:
+        guard let readiness = vmReadiness else {
             return host(
-                selectedPreference: preference,
-                vmReadiness: vmReadiness
+                vmReadiness: nil,
+                fallbackReason: "Shared VM readiness has not been evaluated yet."
             )
-        case .sharedVM:
-            guard let readiness = vmReadiness else {
-                return host(
-                    selectedPreference: preference,
-                    vmReadiness: nil,
-                    fallbackReason: "Shared VM readiness has not been evaluated yet."
-                )
-            }
+        }
 
-            switch readiness {
-            case .ready:
-                if let route = sharedVMRouteFactory(repoURL.standardizedFileURL) {
-                    return Self(
-                        selectedPreference: preference,
-                        effectiveRoute: .sharedVM(route),
-                        vmReadiness: readiness
-                    )
-                }
-                return host(
-                    selectedPreference: preference,
-                    vmReadiness: readiness,
-                    fallbackReason: "Worktree is outside the Shared VM workspaces share; this phase runs on the host."
-                )
-            case let .unavailable(reason):
-                return host(
-                    selectedPreference: preference,
-                    vmReadiness: readiness,
-                    fallbackReason: Self.boundedText(
-                        "Shared VM unavailable: \(reason)",
-                        limit: Self.fallbackReasonLimit
-                    )
-                )
-            case let .error(detail):
-                return host(
-                    selectedPreference: preference,
-                    vmReadiness: readiness,
-                    fallbackReason: Self.boundedText(
-                        "Shared VM error: \(detail)",
-                        limit: Self.fallbackReasonLimit
-                    )
-                )
-            case .notProvisioned:
-                return host(
-                    selectedPreference: preference,
-                    vmReadiness: readiness,
-                    fallbackReason: "Shared VM has not been provisioned yet."
-                )
-            case .downloadingIPSW:
-                return host(
-                    selectedPreference: preference,
-                    vmReadiness: readiness,
-                    fallbackReason: "Shared VM is downloading the restore image."
-                )
-            case .installing:
-                return host(
-                    selectedPreference: preference,
-                    vmReadiness: readiness,
-                    fallbackReason: "Shared VM is installing macOS."
-                )
-            case .guestPrepping:
-                return host(
-                    selectedPreference: preference,
-                    vmReadiness: readiness,
-                    fallbackReason: "Shared VM guest preparation is in progress."
-                )
-            case .provisioningDevTools:
-                return host(
-                    selectedPreference: preference,
-                    vmReadiness: readiness,
-                    fallbackReason: "Shared VM is installing developer tools inside the guest."
+        switch readiness {
+        case .ready:
+            if let route = sharedVMRouteFactory(repoURL.standardizedFileURL) {
+                return Self(
+                    selectedPreference: .sharedVM,
+                    effectiveRoute: .sharedVM(route),
+                    vmReadiness: readiness
                 )
             }
+            return host(
+                vmReadiness: readiness,
+                fallbackReason: "Worktree is outside the Shared VM workspaces share; this phase runs on the host."
+            )
+        case let .unavailable(reason):
+            return host(
+                vmReadiness: readiness,
+                fallbackReason: Self.boundedText(
+                    "Shared VM unavailable: \(reason)",
+                    limit: Self.fallbackReasonLimit
+                )
+            )
+        case let .error(detail):
+            return host(
+                vmReadiness: readiness,
+                fallbackReason: Self.boundedText(
+                    "Shared VM error: \(detail)",
+                    limit: Self.fallbackReasonLimit
+                )
+            )
+        case .notProvisioned:
+            return host(
+                vmReadiness: readiness,
+                fallbackReason: "Shared VM has not been provisioned yet."
+            )
+        case .downloadingIPSW:
+            return host(
+                vmReadiness: readiness,
+                fallbackReason: "Shared VM is downloading the restore image."
+            )
+        case .installing:
+            return host(
+                vmReadiness: readiness,
+                fallbackReason: "Shared VM is installing macOS."
+            )
+        case .guestPrepping:
+            return host(
+                vmReadiness: readiness,
+                fallbackReason: "Shared VM guest preparation is in progress."
+            )
+        case .provisioningDevTools:
+            return host(
+                vmReadiness: readiness,
+                fallbackReason: "Shared VM is installing developer tools inside the guest."
+            )
         }
     }
 

@@ -103,7 +103,6 @@ final class AgentMutationTestingPlanTests: XCTestCase {
         XCTAssertTrue(vmReadiness.detailText.contains("Shared VM"))
 
         let fallbackPlan = AgentExecutionLaunchPlan.host(
-            selectedPreference: .sharedVM,
             vmReadiness: .unavailable(reason: "2-guest cap reached"),
             fallbackReason: "Shared VM unavailable: 2-guest cap reached."
         )
@@ -192,7 +191,7 @@ final class AgentMutationTestingPlanTests: XCTestCase {
     }
 
     private func nativeLaunchPlan() -> AgentExecutionLaunchPlan {
-        AgentExecutionLaunchPlan.host(selectedPreference: .host)
+        AgentExecutionLaunchPlan.host()
     }
 
     private func makeTemporaryDirectory(prefix: String) throws -> URL {

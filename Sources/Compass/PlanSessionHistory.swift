@@ -271,8 +271,6 @@ struct PlanSessionHistoryItem: Identifiable, Equatable {
 
         private static func preferenceTitle(identifier: String, fallback: String) -> String {
             switch identifier {
-            case AgentExecutionEnvironmentPreference.host.rawValue:
-                return AgentExecutionEnvironmentPreference.host.title
             case AgentExecutionEnvironmentPreference.sharedVM.rawValue:
                 return AgentExecutionEnvironmentPreference.sharedVM.title
             default:
@@ -294,14 +292,13 @@ struct PlanSessionHistoryItem: Identifiable, Equatable {
         private static func preferenceIdentifier(_ text: String) -> String {
             let identifier = sanitizedIdentifier(text, fallback: "unknown")
             switch identifier {
-            case AgentExecutionEnvironmentPreference.host.rawValue,
-                AgentExecutionEnvironmentPreference.sharedVM.rawValue:
+            case AgentExecutionEnvironmentPreference.sharedVM.rawValue:
                 return identifier
-            case "devcontainer_preferred":
-                // Legacy stored preference — migrate to the host preference identifier so
-                // recap history surfaces the now-canonical "native_macos" preference. Compass
-                // does not auto-enrol into the Shared VM (see DevelopSandboxPreference plan).
-                return AgentExecutionEnvironmentPreference.host.rawValue
+            case "native_macos", "devcontainer_preferred":
+                // Legacy stored preferences — Compass no longer offers a
+                // host preference; surface them as the canonical Shared VM
+                // identifier so recap history stays in the bounded set.
+                return AgentExecutionEnvironmentPreference.sharedVM.rawValue
             default:
                 return "unknown"
             }

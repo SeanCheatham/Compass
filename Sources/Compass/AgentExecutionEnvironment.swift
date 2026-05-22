@@ -1,7 +1,13 @@
 import Foundation
 
+/// The runtime environment Compass targets for an agent run.
+///
+/// Compass has collapsed to a single user-facing environment (the
+/// Shared VM); the type is retained so menus, diagnostics, and stored
+/// session history continue to carry an explicit identifier for the
+/// chosen environment. Legacy stored values (`native_macos`, etc.) are
+/// decoded as `.sharedVM`.
 enum AgentExecutionEnvironmentPreference: String, Codable, CaseIterable, Identifiable {
-    case host = "native_macos"
     case sharedVM = "shared_vm"
 
     var id: Self { self }
@@ -12,14 +18,12 @@ enum AgentExecutionEnvironmentPreference: String, Codable, CaseIterable, Identif
         self = AgentExecutionEnvironmentPreference.decode(rawValue: rawValue)
     }
 
-    /// Decodes a stored raw value into a preference, mapping any legacy values to `.host`.
-    /// "devcontainer_preferred" is explicitly mapped to `.host` (no auto-enrollment).
+    /// Decodes a stored raw value into a preference. Any value other than
+    /// `shared_vm` (including legacy `native_macos` / `devcontainer_preferred`)
+    /// is silently upgraded — Compass no longer supports a host-execution
+    /// preference.
     static func decode(rawValue: String) -> AgentExecutionEnvironmentPreference {
-        if let known = AgentExecutionEnvironmentPreference(rawValue: rawValue) {
-            return known
-        }
-        // Legacy "devcontainer_preferred" maps to .host (do not auto-enrol into shared VM).
-        return .host
+        .sharedVM
     }
 
     func encode(to encoder: Encoder) throws {
@@ -28,39 +32,11 @@ enum AgentExecutionEnvironmentPreference: String, Codable, CaseIterable, Identif
     }
 
     var title: String {
-        switch self {
-        case .host:
-            return "Native macOS"
-        case .sharedVM:
-            return "Shared VM"
-        }
+        "Shared VM"
     }
 
     var systemImage: String {
-        switch self {
-        case .host:
-            return "desktopcomputer"
-        case .sharedVM:
-            return "macwindow.on.rectangle"
-        }
-    }
-
-    init(developSandbox: DevelopSandboxPreference) {
-        switch developSandbox {
-        case .host:
-            self = .host
-        case .sharedVM:
-            self = .sharedVM
-        }
-    }
-
-    var developSandbox: DevelopSandboxPreference {
-        switch self {
-        case .host:
-            return .host
-        case .sharedVM:
-            return .sharedVM
-        }
+        "macwindow.on.rectangle"
     }
 }
 
@@ -86,9 +62,9 @@ struct AgentExecutionEnvironmentReadiness: Equatable {
     private static func detail(for readiness: SharedCompassVMReadiness) -> String {
         switch readiness {
         case let .unavailable(reason):
-            return "Shared VM is unavailable: \(reason). Native macOS execution remains available."
+            return "Shared VM is unavailable: \(reason)."
         case .notProvisioned:
-            return "Shared VM has not been provisioned. Native macOS execution remains available."
+            return "Shared VM has not been provisioned."
         case let .downloadingIPSW(fraction):
             return "Shared VM is downloading the macOS restore image (\(Int((fraction * 100).rounded()))%)."
         case let .installing(fraction):
@@ -100,7 +76,7 @@ struct AgentExecutionEnvironmentReadiness: Equatable {
         case let .ready(sshDestination):
             return "Shared VM is ready at \(sshDestination)."
         case let .error(detail):
-            return "Shared VM reported an error: \(detail). Native macOS execution remains available."
+            return "Shared VM reported an error: \(detail)."
         }
     }
 
@@ -158,7 +134,7 @@ struct AgentExecutionEnvironment: Equatable {
     var readiness: AgentExecutionEnvironmentReadiness
 
     init(
-        preference: AgentExecutionEnvironmentPreference = .host,
+        preference: AgentExecutionEnvironmentPreference = .sharedVM,
         readiness: AgentExecutionEnvironmentReadiness
     ) {
         self.preference = preference
@@ -166,17 +142,12 @@ struct AgentExecutionEnvironment: Equatable {
     }
 
     static func discover(
-        preference: AgentExecutionEnvironmentPreference = .host,
         vmReadiness: SharedCompassVMReadiness = .notProvisioned
     ) -> Self {
         Self(
-            preference: preference,
+            preference: .sharedVM,
             readiness: AgentExecutionEnvironmentReadiness.inspect(vmReadiness: vmReadiness)
         )
-    }
-
-    var effectivePreference: AgentExecutionEnvironmentPreference {
-        launchPlan(repoURL: URL(fileURLWithPath: "/")).isVMRoute ? .sharedVM : .host
     }
 
     var presentation: AgentExecutionEnvironmentPresentation {
@@ -184,44 +155,34 @@ struct AgentExecutionEnvironment: Equatable {
     }
 
     func presentation(launchPlan plan: AgentExecutionLaunchPlan) -> AgentExecutionEnvironmentPresentation {
-        switch preference {
-        case .host:
+        if plan.isVMRoute {
             return AgentExecutionEnvironmentPresentation(
-                title: "Native macOS",
-                status: "Running the agent on the host. Shared VM remains available as an opt-in sandbox.",
+                title: "Shared VM",
+                status: "Running the agent inside the Shared VM via vsock.",
+                detail: plan.routeDetail(),
+                systemImage: preference.systemImage
+            )
+        }
+        // When the VM is ready and selected but the route still falls back
+        // to host, the cause is the worktree path sitting outside the
+        // VirtioFS share — by design for Plan/Reflect on the main repo,
+        // not an error. Surface it as informational; reserve the warning
+        // styling for actual VM-availability problems.
+        if case .ready = readiness.vmReadiness {
+            return AgentExecutionEnvironmentPresentation(
+                title: "Shared VM",
+                status: "Shared VM ready. This phase runs on the host repo (outside the VM's workspaces share); Develop iterations route through the VM.",
                 detail: readiness.detail,
                 systemImage: preference.systemImage
             )
-        case .sharedVM:
-            if plan.isVMRoute {
-                return AgentExecutionEnvironmentPresentation(
-                    title: "Shared VM",
-                    status: "Running the agent inside the Shared VM via SSH.",
-                    detail: plan.routeDetail(),
-                    systemImage: preference.systemImage
-                )
-            }
-            // When the VM is ready and selected but the route still falls back
-            // to host, the cause is the worktree path sitting outside the
-            // VirtioFS share — by design for Plan/Reflect on the main repo,
-            // not an error. Surface it as informational; reserve the warning
-            // styling for actual VM-availability problems.
-            if case .ready = readiness.vmReadiness {
-                return AgentExecutionEnvironmentPresentation(
-                    title: "Shared VM",
-                    status: "Shared VM ready. This phase runs on the host repo (outside the VM's workspaces share); Develop iterations route through the VM.",
-                    detail: readiness.detail,
-                    systemImage: preference.systemImage
-                )
-            }
-            return AgentExecutionEnvironmentPresentation(
-                title: "Shared VM",
-                status: "Shared VM selected, but Compass is falling back to native macOS.",
-                detail: fallbackDetail(plan: plan),
-                systemImage: "desktopcomputer.trianglebadge.exclamationmark",
-                isWarning: true
-            )
         }
+        return AgentExecutionEnvironmentPresentation(
+            title: "Shared VM",
+            status: "Shared VM not ready; this phase is falling back to native macOS.",
+            detail: fallbackDetail(plan: plan),
+            systemImage: "desktopcomputer.trianglebadge.exclamationmark",
+            isWarning: true
+        )
     }
 
     func launchPreflightSummary(phase: String, nativeExecutionURL: URL) -> String {
@@ -242,7 +203,6 @@ struct AgentExecutionEnvironment: Equatable {
     ) -> AgentExecutionLaunchPlan {
         AgentExecutionLaunchPlan.plan(
             repoURL: repoURL,
-            preference: preference,
             vmReadiness: readiness.vmReadiness,
             sharedVMRouteFactory: sharedVMRouteFactory
         )
@@ -542,34 +502,26 @@ struct AgentExecutionEnvironmentMenuItem: Identifiable, Equatable {
     ) {
         self.preference = preference
         title = preference.title
-        systemImage = selectedPreference == preference ? "checkmark" : preference.systemImage
-        isSelected = selectedPreference == preference
+        systemImage = "checkmark"
+        isSelected = true
         description = Self.boundedText(
-            Self.description(for: preference, readiness: readiness),
+            Self.description(readiness: readiness),
             limit: Self.descriptionLimit
         )
     }
 
-    private static func description(
-        for preference: AgentExecutionEnvironmentPreference,
-        readiness: AgentExecutionEnvironmentReadiness
-    ) -> String {
-        switch preference {
-        case .host:
-            return "Run the agent on the host. Best for macOS frameworks, UI automation, and local tools."
-        case .sharedVM:
-            switch readiness.vmReadiness {
-            case .ready:
-                return "Run the agent inside the Shared VM via SSH. Provides reproducible Linux/macOS isolation."
-            case .unavailable(let reason):
-                return "Shared VM is unavailable: \(reason). Compass falls back to native macOS."
-            case .notProvisioned:
-                return "Shared VM has not been provisioned yet. Provision the VM from the Sandbox section to enable this route."
-            case .downloadingIPSW, .installing, .guestPrepping, .provisioningDevTools:
-                return "Shared VM is still preparing. Compass falls back to native macOS until the VM is ready."
-            case .error(let detail):
-                return "Shared VM reported an error: \(detail). Compass falls back to native macOS."
-            }
+    private static func description(readiness: AgentExecutionEnvironmentReadiness) -> String {
+        switch readiness.vmReadiness {
+        case .ready:
+            return "Run the agent inside the Shared VM via vsock. Provides reproducible Linux/macOS isolation."
+        case .unavailable(let reason):
+            return "Shared VM is unavailable: \(reason)."
+        case .notProvisioned:
+            return "Shared VM has not been provisioned yet. Provision the VM from the Sandbox section."
+        case .downloadingIPSW, .installing, .guestPrepping, .provisioningDevTools:
+            return "Shared VM is still preparing."
+        case .error(let detail):
+            return "Shared VM reported an error: \(detail)."
         }
     }
 

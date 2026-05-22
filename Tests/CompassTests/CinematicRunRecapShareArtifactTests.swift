@@ -701,13 +701,13 @@ final class CinematicRunRecapShareArtifactTests: XCTestCase {
         repoURL: URL,
         phase: String,
         attempt: Int? = 1,
-        preference: AgentExecutionEnvironmentPreference,
+        preference: AgentExecutionEnvironmentPreference = .sharedVM,
         vmReadiness: SharedCompassVMReadiness? = nil,
         sharedVMRouteFactory: (URL) -> SharedVMRoute? = { _ in nil }
     ) -> SessionExecutionEnvironmentSnapshot {
+        _ = preference
         let launchPlan = AgentExecutionLaunchPlan.plan(
             repoURL: repoURL,
-            preference: preference,
             vmReadiness: vmReadiness,
             sharedVMRouteFactory: sharedVMRouteFactory
         )

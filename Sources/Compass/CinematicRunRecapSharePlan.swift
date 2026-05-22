@@ -464,11 +464,10 @@ struct CinematicRunRecapShareArtifactRuntimeRouteAudit: Equatable, Identifiable 
             identifier: selectedPreferenceIdentifier,
             fallback: snapshot.selectedPreferenceTitle,
             knownTitles: [
-                AgentExecutionEnvironmentPreference.host.rawValue:
-                    AgentExecutionEnvironmentPreference.host.title,
                 AgentExecutionEnvironmentPreference.sharedVM.rawValue:
                     AgentExecutionEnvironmentPreference.sharedVM.title,
                 // Legacy preference rawValues — preserved for recap baselines from prior runs.
+                "native_macos": "Native macOS",
                 "devcontainer_preferred": "Native macOS"
             ],
             defaultTitle: "Unknown"
@@ -751,10 +750,10 @@ struct CinematicRunRecapShareArtifactRuntimeRouteCue: Equatable, Identifiable {
         let selectedPreferenceIdentifier = Self.knownIdentifier(
             Self.leadingIdentifier(Self.markdownField("Selected preference", in: sectionLines)),
             allowed: [
-                AgentExecutionEnvironmentPreference.host.rawValue,
                 AgentExecutionEnvironmentPreference.sharedVM.rawValue,
-                // Legacy preference identifier — preserved so older saved recap artifacts
-                // continue to decode.
+                // Legacy preference identifiers — preserved so older saved
+                // recap artifacts continue to decode.
+                "native_macos",
                 "devcontainer_preferred"
             ],
             fallback: "unknown"

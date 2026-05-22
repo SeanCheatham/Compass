@@ -103,7 +103,6 @@ final class PlanSessionHistoryTests: XCTestCase {
             phase: "Verify",
             attempt: 2,
             launchPlan: AgentExecutionLaunchPlan.host(
-                selectedPreference: .sharedVM,
                 fallbackReason: "Shared VM unavailable: 2-guest cap."
             )
         )
@@ -837,7 +836,7 @@ final class PlanSessionHistoryTests: XCTestCase {
     private func makeRuntimeSnapshot(
         repoPrefix: String,
         devcontainerJSON: String = "",
-        preference: AgentExecutionEnvironmentPreference,
+        preference: AgentExecutionEnvironmentPreference = .sharedVM,
         containerToolPath: String? = nil,
         phase: String = "Plan",
         vmReadiness: SharedCompassVMReadiness? = nil,
@@ -846,9 +845,9 @@ final class PlanSessionHistoryTests: XCTestCase {
         let repoURL = try makeTemporaryDirectory(prefix: repoPrefix)
         _ = devcontainerJSON
         _ = containerToolPath
+        _ = preference
         let plan = AgentExecutionLaunchPlan.plan(
             repoURL: repoURL,
-            preference: preference,
             vmReadiness: vmReadiness,
             sharedVMRouteFactory: sharedVMRouteFactory
         )

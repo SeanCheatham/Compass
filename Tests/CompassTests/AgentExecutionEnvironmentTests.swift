@@ -14,7 +14,6 @@ final class AgentExecutionEnvironmentTests: XCTestCase {
 
     func testDiscoveryReportsUnsupportedDevcontainerConfigWithNativeFallbackDiagnostics() throws {
         let environment = AgentExecutionEnvironment.discover(
-            preference: .sharedVM,
             vmReadiness: .unavailable(reason: "2-guest cap reached")
         )
         let launchPlan = environment.launchPlan(repoURL: URL(fileURLWithPath: "/"))
@@ -26,21 +25,19 @@ final class AgentExecutionEnvironmentTests: XCTestCase {
 
     func testMenuAndPreflightExposeUnsupportedFallbackTokens() throws {
         let environment = AgentExecutionEnvironment.discover(
-            preference: .sharedVM,
             vmReadiness: .installing(fractionCompleted: 0.4)
         )
         let menu = AgentExecutionEnvironmentMenu(environment: environment)
-        XCTAssertEqual(menu.items.count, 2)
+        XCTAssertEqual(menu.items.count, 1)
         XCTAssertTrue(menu.statusText.contains("installing"))
     }
 
     func testComposeDiscoveryMenusExposeSanitizedComposeTokensWithoutPaths() throws {
         let environment = AgentExecutionEnvironment.discover(
-            preference: .sharedVM,
             vmReadiness: .guestPrepping
         )
         let menu = AgentExecutionEnvironmentMenu(environment: environment)
-        XCTAssertTrue(menu.statusText.contains("preparation"))
+        XCTAssertTrue(menu.statusText.contains("preparation") || menu.statusText.contains("preparing"))
     }
 
     func testBuildRouteableDiscoveryAndPreflightExposeLocalImageWithoutPaths() throws {
@@ -51,7 +48,6 @@ final class AgentExecutionEnvironmentTests: XCTestCase {
             guestWorkspacePath: "/Users/compass/Compass/Worktrees/dev-AAA/worktree"
         )
         let environment = AgentExecutionEnvironment.discover(
-            preference: .sharedVM,
             vmReadiness: .ready(sshDestination: route.sshDestination)
         )
         let plan = environment.launchPlan(repoURL: repoURL) { _ in route }
@@ -75,7 +71,6 @@ final class AgentExecutionEnvironmentTests: XCTestCase {
             vmReadiness: .ready(sshDestination: route.sshDestination)
         )
         let environment = AgentExecutionEnvironment.discover(
-            preference: .sharedVM,
             vmReadiness: .ready(sshDestination: route.sshDestination)
         )
         let report = AgentExecutionEnvironmentDiagnosticsReport(environment: environment, launchPlan: plan)
@@ -96,7 +91,6 @@ final class AgentExecutionEnvironmentTests: XCTestCase {
             vmReadiness: .ready(sshDestination: route.sshDestination)
         )
         let environment = AgentExecutionEnvironment.discover(
-            preference: .sharedVM,
             vmReadiness: .ready(sshDestination: route.sshDestination)
         )
         let report = AgentExecutionEnvironmentDiagnosticsReport(environment: environment, launchPlan: plan)
@@ -118,7 +112,6 @@ final class AgentExecutionEnvironmentTests: XCTestCase {
             vmReadiness: .ready(sshDestination: route.sshDestination)
         )
         let environment = AgentExecutionEnvironment.discover(
-            preference: .sharedVM,
             vmReadiness: .ready(sshDestination: route.sshDestination)
         )
         let report = AgentExecutionEnvironmentDiagnosticsReport(environment: environment, launchPlan: plan)
@@ -127,7 +120,7 @@ final class AgentExecutionEnvironmentTests: XCTestCase {
 
     func testRuntimeDiagnosticsReportIncludesMutationReadinessWithoutLeaks() throws {
         let plan = AgentExecutionLaunchPlan.host()
-        let environment = AgentExecutionEnvironment.discover(preference: .host, vmReadiness: .notProvisioned)
+        let environment = AgentExecutionEnvironment.discover(vmReadiness: .notProvisioned)
         var counts = RepositoryLanguageCounts()
         counts[.swift] = 1
         let mutationPlan = AgentMutationTestingPlan(
@@ -152,49 +145,47 @@ final class AgentExecutionEnvironmentTests: XCTestCase {
 
     func testRuntimeDiagnosticsReportCoversMissingAndMalformedProvisioningStates() throws {
         let plan = AgentExecutionLaunchPlan.host()
-        let environment = AgentExecutionEnvironment.discover(preference: .host, vmReadiness: .notProvisioned)
+        let environment = AgentExecutionEnvironment.discover(vmReadiness: .notProvisioned)
         let report = AgentExecutionEnvironmentDiagnosticsReport(environment: environment, launchPlan: plan)
         XCTAssertTrue(report.copyText.contains("vm-build-state:"))
     }
 
     func testRuntimeDiagnosticsReportSanitizesFallbackConfigsWithoutUnsupportedValues() throws {
         let plan = AgentExecutionLaunchPlan.host(fallbackReason: "Shared VM unavailable: 2-guest cap")
-        let environment = AgentExecutionEnvironment.discover(preference: .sharedVM, vmReadiness: .unavailable(reason: "2-guest cap"))
+        let environment = AgentExecutionEnvironment.discover(vmReadiness: .unavailable(reason: "2-guest cap"))
         let report = AgentExecutionEnvironmentDiagnosticsReport(environment: environment, launchPlan: plan)
         XCTAssertTrue(report.copyText.contains("fallback:"))
     }
 
     func testRuntimeDiagnosticsReportIncludesOmittedSupportTokenCounts() throws {
         let plan = AgentExecutionLaunchPlan.host()
-        let environment = AgentExecutionEnvironment.discover(preference: .sharedVM, vmReadiness: .notProvisioned)
+        let environment = AgentExecutionEnvironment.discover(vmReadiness: .notProvisioned)
         let report = AgentExecutionEnvironmentDiagnosticsReport(environment: environment, launchPlan: plan)
         XCTAssertEqual(report.effectiveRouteIdentifier, "native-macos")
     }
 
     func testMissingDevcontainerPresentationFallsBackToNativeMacOS() throws {
-        let environment = AgentExecutionEnvironment.discover(preference: .host, vmReadiness: .notProvisioned)
+        let environment = AgentExecutionEnvironment.discover(vmReadiness: .notProvisioned)
         let presentation = environment.presentation
-        XCTAssertEqual(presentation.title, "Native macOS")
-        XCTAssertFalse(presentation.isWarning)
+        XCTAssertEqual(presentation.title, "Shared VM")
+        XCTAssertTrue(presentation.isWarning)
     }
 
     func testMalformedDevcontainerPresentationIsBoundedAndFallsBackToNativeMacOS() throws {
-        let environment = AgentExecutionEnvironment.discover(preference: .sharedVM, vmReadiness: .error(detail: "boot failed"))
+        let environment = AgentExecutionEnvironment.discover(vmReadiness: .error(detail: "boot failed"))
         let presentation = environment.presentation
         XCTAssertTrue(presentation.isWarning)
     }
 
     func testReadyVMWithHostRouteIsInformationalNotAWarning() throws {
-        // VM is ready, sharedVM is selected, but the launch plan resolves to
-        // host because the worktree path sits outside the workspaces share —
-        // the by-design Plan/Reflect routing. The presentation should reflect
-        // a healthy VM, not a warning.
+        // VM is ready, but the launch plan resolves to host because the
+        // worktree path sits outside the workspaces share — the by-design
+        // Plan/Reflect routing. The presentation should reflect a healthy
+        // VM, not a warning.
         let environment = AgentExecutionEnvironment.discover(
-            preference: .sharedVM,
             vmReadiness: .ready(sshDestination: "compass@192.0.2.10")
         )
         let plan = AgentExecutionLaunchPlan.host(
-            selectedPreference: .sharedVM,
             vmReadiness: .ready(sshDestination: "compass@192.0.2.10"),
             fallbackReason: "Worktree is outside the Shared VM workspaces share; this phase runs on the host."
         )
@@ -204,15 +195,15 @@ final class AgentExecutionEnvironmentTests: XCTestCase {
         XCTAssertEqual(presentation.title, "Shared VM")
     }
 
-    func testNativePreferenceKeepsDevcontainerOptionalWhenConfigIsPresent() throws {
-        let environment = AgentExecutionEnvironment.discover(preference: .host, vmReadiness: .ready(sshDestination: "compass@192.0.2.10"))
+    func testMenuExposesSharedVMItem() throws {
+        let environment = AgentExecutionEnvironment.discover(vmReadiness: .ready(sshDestination: "compass@192.0.2.10"))
         let menu = AgentExecutionEnvironmentMenu(environment: environment)
         XCTAssertTrue(menu.items.contains { $0.preference == .sharedVM })
     }
 
     func testDiscoveryDoesNotCreateDevcontainerFilesWhenConfigIsMissing() throws {
-        let environment = AgentExecutionEnvironment.discover(preference: .sharedVM, vmReadiness: .notProvisioned)
-        XCTAssertEqual(environment.readiness.vmReadiness, .notProvisioned)
+        let environment = AgentExecutionEnvironment.discover(vmReadiness: .notProvisioned)
+        XCTAssertEqual(environment.readiness.vmReadiness, SharedCompassVMReadiness.notProvisioned)
     }
 
     // MARK: - Helpers

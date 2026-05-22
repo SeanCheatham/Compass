@@ -45,10 +45,10 @@ final class AgentSystemPromptTests: XCTestCase {
 
     // MARK: - Execution environment
 
-    func testHostEnvironmentIsTheDefault() {
+    func testSharedVMEnvironmentIsTheDefault() {
         let prompt = Prompts.agentSystemPrompt(phase: .develop, workingDirectoryPath: "/x")
-        XCTAssertTrue(prompt.contains("native macOS host"))
-        XCTAssertFalse(prompt.contains("Shared VM"))
+        XCTAssertTrue(prompt.contains("Compass Shared VM"))
+        XCTAssertFalse(prompt.contains("native macOS host"))
     }
 
     func testSharedVMEnvironmentTellsModelXcodebuildIsUnavailable() {

@@ -126,12 +126,6 @@ private struct SidebarView: View {
                     Text("Configure via Compass → Settings… (⌘,).")
                         .font(.caption2)
                         .foregroundStyle(.tertiary)
-                    if let selectedProject = model.selectedProject {
-                        DevelopSandboxPicker(
-                            project: selectedProject,
-                            readiness: sharedVMHost.readiness
-                        )
-                    }
                     if let diagnosticsAction = model.selectedProject?.runtimeDiagnosticsMenu.copyDiagnosticsAction {
                         Button {
                             copyRuntimeDiagnosticsToPasteboard(diagnosticsAction.copyText)
@@ -263,50 +257,6 @@ private struct SidebarSharedVMStatusButton: View {
         .buttonStyle(.plain)
         .help("Shared VM status: \(readiness.statusSummary)")
         .accessibilityLabel("Shared VM status, \(readiness.statusSummary)")
-    }
-}
-
-/// Per-project picker for the Develop sandbox preference. The `.sharedVM`
-/// option is disabled when the shared VM is unavailable.
-private struct DevelopSandboxPicker: View {
-    @EnvironmentObject var model: AppModel
-    @ObservedObject var project: CompassProject
-    let readiness: SharedCompassVMReadiness
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Picker("Develop sandbox", selection: $project.developSandbox) {
-                ForEach(DevelopSandboxPreference.allCases, id: \.self) { preference in
-                    Text(preference.displayLabel).tag(preference)
-                }
-            }
-            .pickerStyle(.menu)
-            .help(pickerHelpText)
-            .onChange(of: project.developSandbox) { _, newValue in
-                if newValue == .sharedVM, readiness.isUnavailable {
-                    project.developSandbox = .host
-                    return
-                }
-                model.saveProjects()
-            }
-            if readiness.isUnavailable, case .unavailable(let reason) = readiness {
-                Text("Shared VM unavailable: \(reason)")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-        }
-    }
-
-    private var pickerHelpText: String {
-        switch readiness {
-        case .unavailable(let reason):
-            return "Shared VM is unavailable (\(reason)). Develop runs on the host."
-        case .ready:
-            return "Choose whether Develop iterations run on the host or inside the shared macOS VM."
-        default:
-            return "Develop iterations route to the Shared VM once it reaches the Ready state."
-        }
     }
 }
 
@@ -1052,16 +1002,7 @@ private struct ProjectRunControls: View {
                 }
                 Divider()
                 ForEach(Array(executionEnvironmentMenu.items.enumerated()), id: \.element.id) { index, item in
-                    Button {
-                        let target = item.preference.developSandbox
-                        if target == .sharedVM, SharedCompassVM.shared.readiness.isUnavailable {
-                            return
-                        }
-                        project.developSandbox = target
-                        model.saveProjects()
-                    } label: {
-                        Label(item.title, systemImage: item.systemImage)
-                    }
+                    Label(item.title, systemImage: item.systemImage)
                     Text(item.description)
                     if index < executionEnvironmentMenu.items.count - 1 {
                         Divider()

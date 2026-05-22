@@ -79,7 +79,6 @@ final class ProcessRunnerExecutionRouteTests: XCTestCase {
         let repoURL = try makeTemporaryDirectory(prefix: "ProcessRunnerVMUnavailableFallback")
         let launchPlan = AgentExecutionLaunchPlan.plan(
             repoURL: repoURL,
-            preference: .sharedVM,
             vmReadiness: .unavailable(reason: "Apple Silicon required")
         )
         var capturedInvocation: AgentExecutionInvocation?
@@ -106,7 +105,6 @@ final class ProcessRunnerExecutionRouteTests: XCTestCase {
         let repoURL = try makeTemporaryDirectory(prefix: "ProcessRunnerVMNotProvisioned")
         let launchPlan = AgentExecutionLaunchPlan.plan(
             repoURL: repoURL,
-            preference: .sharedVM,
             vmReadiness: .notProvisioned
         )
         var capturedInvocation: AgentExecutionInvocation?
@@ -133,7 +131,6 @@ final class ProcessRunnerExecutionRouteTests: XCTestCase {
         let repoURL = try makeTemporaryDirectory(prefix: "ProcessRunnerVMInstalling")
         let launchPlan = AgentExecutionLaunchPlan.plan(
             repoURL: repoURL,
-            preference: .sharedVM,
             vmReadiness: .installing(fractionCompleted: 0.3)
         )
         var capturedInvocation: AgentExecutionInvocation?
@@ -192,7 +189,6 @@ final class ProcessRunnerExecutionRouteTests: XCTestCase {
         let repoURL = try makeTemporaryDirectory(prefix: "ProcessRunnerVMErrorFallback")
         let launchPlan = AgentExecutionLaunchPlan.plan(
             repoURL: repoURL,
-            preference: .sharedVM,
             vmReadiness: .error(detail: "boot failed 3x")
         )
         var capturedInvocation: AgentExecutionInvocation?
