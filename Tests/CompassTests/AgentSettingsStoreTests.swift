@@ -5,7 +5,7 @@ import XCTest
 final class AgentSettingsStoreTests: XCTestCase {
     private var defaults: UserDefaults!
     private var suiteName: String!
-    private var keychain: InMemoryAgentKeychain!
+    private var secrets: InMemoryAgentSecretStorage!
 
     override func setUpWithError() throws {
         suiteName = "compass.test.\(UUID().uuidString)"
@@ -13,14 +13,14 @@ final class AgentSettingsStoreTests: XCTestCase {
         for key in AgentSettingsStore.Key.allCases {
             defaults.removeObject(forKey: key.rawValue)
         }
-        keychain = InMemoryAgentKeychain()
+        secrets = InMemoryAgentSecretStorage()
     }
 
     override func tearDownWithError() throws {
         defaults.removePersistentDomain(forName: suiteName)
         defaults = nil
         suiteName = nil
-        keychain = nil
+        secrets = nil
     }
 
     // MARK: - Defaults
@@ -89,28 +89,28 @@ final class AgentSettingsStoreTests: XCTestCase {
         XCTAssertEqual(store.load().baseURL, AgentRuntimeSettings.defaultBaseURL)
     }
 
-    // MARK: - API key in Keychain
+    // MARK: - API key in the secrets store
 
-    func testAPIKeyRoundTripsThroughKeychain() throws {
+    func testAPIKeyRoundTripsThroughSecretStorage() throws {
         let store = makeStore(environment: [:])
         try store.setAPIKey("sk-abc")
         XCTAssertEqual(store.load().apiKey, "sk-abc")
-        let direct = try keychain.read(
-            service: AgentSettingsStore.keychainService,
-            account: AgentSettingsStore.keychainAccount
+        let direct = try secrets.read(
+            service: AgentSettingsStore.secretService,
+            account: AgentSettingsStore.secretAccount
         )
         XCTAssertEqual(direct, "sk-abc")
     }
 
-    func testClearingAPIKeyRemovesKeychainEntry() throws {
+    func testClearingAPIKeyRemovesStoredSecret() throws {
         let store = makeStore(environment: ["COMPASS_AGENT_API_KEY": "env-key"])
         try store.setAPIKey("sk-abc")
         XCTAssertEqual(store.load().apiKey, "sk-abc")
         try store.setAPIKey("")
         XCTAssertEqual(store.load().apiKey, "env-key")
-        let direct = try keychain.read(
-            service: AgentSettingsStore.keychainService,
-            account: AgentSettingsStore.keychainAccount
+        let direct = try secrets.read(
+            service: AgentSettingsStore.secretService,
+            account: AgentSettingsStore.secretAccount
         )
         XCTAssertNil(direct)
     }
@@ -131,7 +131,7 @@ final class AgentSettingsStoreTests: XCTestCase {
     private func makeStore(environment: [String: String]) -> AgentSettingsStore {
         AgentSettingsStore(
             defaults: defaults,
-            keychain: keychain,
+            secrets: secrets,
             environment: environment
         )
     }

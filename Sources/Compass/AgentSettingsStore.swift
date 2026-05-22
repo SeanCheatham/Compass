@@ -1,16 +1,22 @@
 import Foundation
 
 /// Persists AgentRuntimeSettings across launches:
-/// - API key in the Keychain (encrypted at rest).
+/// - API key in a 0600-perm file under `~/Library/Application Support/Compass/secrets/`.
 /// - Everything else (base URL, default model, per-phase model overrides)
 ///   in UserDefaults.
 ///
-/// Resolution per field: UserDefaults / Keychain → environment variable →
+/// The keychain was the original home for the API key, but the macOS
+/// keychain APIs interacted badly with both ad-hoc dev signing (cdhash
+/// ACL re-prompts) and SwiftUI's `SecureField` paste path. For a
+/// single-user developer tool the file storage is the simpler, more
+/// reliable option — macOS already gates `~/Library` by user account.
+///
+/// Resolution per field: UserDefaults / file → environment variable →
 /// built-in default. UI edits win and are persisted; env vars exist for
 /// scripted setup / CI.
 final class AgentSettingsStore: @unchecked Sendable {
-    static let keychainService = "com.seancheatham.Compass.agent"
-    static let keychainAccount = "api_key"
+    static let secretService = "com.seancheatham.Compass.agent"
+    static let secretAccount = "api_key"
 
     enum Key: String, CaseIterable {
         case baseURL = "compass.agent.baseURL"
@@ -21,16 +27,16 @@ final class AgentSettingsStore: @unchecked Sendable {
     }
 
     private let defaults: UserDefaults
-    private let keychain: AgentKeychainStorage
+    private let secrets: AgentSecretStorage
     private let environment: [String: String]
 
     init(
         defaults: UserDefaults = .standard,
-        keychain: AgentKeychainStorage = AgentKeychain(),
+        secrets: AgentSecretStorage = AgentFileSecretStorage(),
         environment: [String: String] = ProcessInfo.processInfo.environment
     ) {
         self.defaults = defaults
-        self.keychain = keychain
+        self.secrets = secrets
         self.environment = environment
     }
 
@@ -57,20 +63,20 @@ final class AgentSettingsStore: @unchecked Sendable {
         setString(.baseURL, raw)
     }
 
-    /// Persist the API key in the Keychain. Empty input deletes the
-    /// keychain entry, falling back to the env var (if set) on next load.
+    /// Persist the API key to the secrets file. Empty input deletes the
+    /// file, falling back to the env var (if set) on next load.
     func setAPIKey(_ raw: String) throws {
         let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         if trimmed.isEmpty {
-            try keychain.delete(
-                service: Self.keychainService,
-                account: Self.keychainAccount
+            try secrets.delete(
+                service: Self.secretService,
+                account: Self.secretAccount
             )
         } else {
-            try keychain.write(
+            try secrets.write(
                 trimmed,
-                service: Self.keychainService,
-                account: Self.keychainAccount
+                service: Self.secretService,
+                account: Self.secretAccount
             )
         }
     }
@@ -116,10 +122,10 @@ final class AgentSettingsStore: @unchecked Sendable {
     }
 
     private func resolveAPIKey() -> String {
-        if let stored = try? keychain.read(
-            service: Self.keychainService,
-            account: Self.keychainAccount
-        ) {
+        if let stored = (try? secrets.read(
+            service: Self.secretService,
+            account: Self.secretAccount
+        )) ?? nil {
             let trimmed = stored.trimmingCharacters(in: .whitespacesAndNewlines)
             if !trimmed.isEmpty {
                 return trimmed
