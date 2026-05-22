@@ -8,10 +8,22 @@ import Foundation
 /// agent loop anyway (the model receives the data and trips token limits).
 public enum AgentRPCFraming {
     /// Hard cap on a single frame's JSON body, in bytes. The largest
-    /// legitimate frame is `writeFile` carrying a base64-encoded file —
-    /// ~64MB of source after base64 overhead. 128MB leaves slack and is
-    /// well clear of accidental "agent wrote a 10GB blob" footguns.
-    public static let maxFrameByteCount: Int = 128 * 1024 * 1024
+    /// legitimate frame today is the one-time host→guest repo push
+    /// (`SharedCompassVMRepoWorkspaceSync.ensurePopulated`), which
+    /// streams a base64-encoded tar of the whole gitignore-aware repo
+    /// in a single `writeFile` call. The earlier 128 MiB cap was sized
+    /// for per-iteration agent edits and was undersized for that
+    /// payload — real repos routinely cross it once assets/textures/
+    /// fixtures get involved. 1.5 GiB comfortably fits any repo of
+    /// practical agent interest while staying well under the 4 GiB
+    /// ceiling imposed by the 4-byte big-endian length prefix.
+    ///
+    /// Memory cost note: a 1 GiB tar is held in three forms briefly on
+    /// the host (raw tar + base64 + JSON envelope), so peak transient
+    /// allocation is ~3 GiB. The right fix for repos beyond that is
+    /// chunked transfer (multiple `writeFile` calls into a temp file
+    /// on the guest, then a single tar-extract), tracked separately.
+    public static let maxFrameByteCount: Int = 1536 * 1024 * 1024
 
     public enum FramingError: Swift.Error, Equatable {
         case lengthHeaderTooShort

@@ -22,12 +22,20 @@ enum SharedCompassVMWorktreeSync {
     static let guestWorktreesRoot = "/Users/compass/Compass/Worktrees"
 
     /// Maximum bytes a single sync tar may occupy (after base64 in the
-    /// JSON frame). The RPC framing caps total frame size at 128 MiB;
-    /// allowing ~80 MiB of binary tar leaves room for base64
-    /// inflation (1.33×) and JSON envelope overhead. Worktrees pushing
-    /// past this hint at large gitignored payloads sneaking through —
-    /// fail loudly rather than truncate.
-    static let maxTarByteCount = 80 * 1024 * 1024
+    /// JSON frame). The RPC framing caps total frame size at 1.5 GiB
+    /// (see `AgentRPCFraming.maxFrameByteCount`); allowing ~1 GiB of
+    /// binary tar leaves room for base64 inflation (1.33×) and JSON
+    /// envelope overhead. Repos pushing past this need the chunked
+    /// transfer path (tracked separately) — failing loudly here beats
+    /// truncating a real repo into something the guest agent then
+    /// tries to operate on.
+    ///
+    /// The old 80 MiB cap was sized for per-iteration agent edits, not
+    /// for the one-time persistent-workspace push that now happens at
+    /// session start. Most Swift package repos fit comfortably; only
+    /// repos with hundreds of MB of tracked binary assets approach
+    /// the ceiling.
+    static let maxTarByteCount = 1024 * 1024 * 1024
 
     /// Directory names skipped when packaging the guest's worktree on
     /// the pull side. The host's push tar is already gitignore-aware
@@ -190,16 +198,36 @@ enum SharedCompassVMWorktreeSync {
 
     // MARK: - Internals
 
-    /// Validates that the guest worktree path is under the expected
-    /// guest workspaces root. Defence in depth: prevents a malformed
-    /// path from causing the sync script's `rm -rf` to wipe the wrong
-    /// directory in the guest.
+    /// Allow-listed guest-side prefixes Compass is willing to sync into.
+    /// The sync script's `rm -rf` is wrapped in `validateGuestPath` so
+    /// this list is the security boundary — anything not under one of
+    /// these roots gets rejected before any guest-side mutation happens.
+    ///
+    /// `Worktrees` is the legacy per-iteration root (kept for backwards
+    /// compatibility with existing call sites and tests). `Repos` is
+    /// the persistent per-repo root used by the current
+    /// `SharedCompassVMGuestWorkspaceCatalog`-driven sync.
+    static let allowedGuestPathPrefixes: [String] = [
+        guestWorktreesRoot,
+        SharedCompassVMGuestWorkspaceCatalog.guestReposRoot
+    ]
+
+    /// Validates that the guest worktree path is under one of the
+    /// allow-listed guest workspaces roots. Defence in depth: prevents
+    /// a malformed path from causing the sync script's `rm -rf` to wipe
+    /// the wrong directory in the guest.
     private static func validateGuestPath(_ path: String) throws {
-        let rootPrefix = guestWorktreesRoot.hasSuffix("/") ? guestWorktreesRoot : guestWorktreesRoot + "/"
         let standardized = (path as NSString).standardizingPath
-        guard standardized.hasPrefix(rootPrefix), !standardized.contains("..") else {
+        guard !standardized.contains("..") else {
             throw SyncError.invalidGuestPath(path)
         }
+        for root in allowedGuestPathPrefixes {
+            let prefix = root.hasSuffix("/") ? root : root + "/"
+            if standardized.hasPrefix(prefix) {
+                return
+            }
+        }
+        throw SyncError.invalidGuestPath(path)
     }
 
     /// Tars the host's tracked + untracked-not-ignored files into a
