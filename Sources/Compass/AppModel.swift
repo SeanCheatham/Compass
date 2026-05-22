@@ -1586,8 +1586,7 @@ extension CompassProject {
                     lessons: workspace.readLessons(),
                     vision: workspace.readVision(),
                     attempt: attempt,
-                    priorIssues: priorIssues,
-                    sandboxed: devWorkspace.sandboxed
+                    priorIssues: priorIssues
                 )
 
                 let launchPlan = agentLaunchPlan(for: devWorkspace.repoURL)
@@ -2479,53 +2478,23 @@ extension CompassProject {
     }
 
     private func createDevWorkspace(mainRepoURL: URL, beforeSha: String?) async throws -> DevRunWorkspace {
-        guard let beforeSha, !beforeSha.isEmpty else {
-            log("Develop sandbox: using main worktree because this repo has no HEAD yet.", level: .info)
-            return DevRunWorkspace(
-                repoURL: mainRepoURL,
-                sandboxed: false,
-                branchName: nil,
-                parentURL: nil,
-                worktreeURL: nil
-            )
-        }
-
-        let worktreesRoot = try FileManager.default
-            .url(
-                for: .cachesDirectory,
-                in: .userDomainMask,
-                appropriateFor: nil,
-                create: true
-            )
-            .appending(path: "Compass", directoryHint: .isDirectory)
-            .appending(path: "Worktrees", directoryHint: .isDirectory)
-        try FileManager.default.createDirectory(at: worktreesRoot, withIntermediateDirectories: true)
-        let parentURL = worktreesRoot
-            .appending(path: "dev-\(UUID().uuidString)", directoryHint: .isDirectory)
-        let worktreeURL = parentURL.appending(path: "worktree", directoryHint: .isDirectory)
-        let timestamp = Int(Date().timeIntervalSince1970 * 1000)
-        let suffix = UUID().uuidString.prefix(8).lowercased()
-        let branchName = "compass/dev-\(ProcessInfo.processInfo.processIdentifier)-\(timestamp)-\(suffix)"
-
-        try FileManager.default.createDirectory(at: parentURL, withIntermediateDirectories: true)
-        do {
-            try await runGitOrThrow(
-                ["worktree", "add", "-b", branchName, worktreeURL.path, beforeSha],
-                in: mainRepoURL,
-                failurePrefix: "Failed to create Develop worktree"
-            )
-        } catch {
-            try? FileManager.default.removeItem(at: parentURL)
-            throw error
-        }
-
-        log("Develop sandbox: \(branchName) at \(worktreeURL.path)", level: .info)
+        // The Develop iteration now operates directly against the main
+        // repo. Under the .sharedVM route the agent works in the
+        // persistent per-repo guest workspace (managed by
+        // SharedCompassVMRepoWorkspaceSync); under the host route the
+        // agent works in the main repo's working tree. Either way
+        // there is no per-iteration host worktree, no temporary
+        // branch, and no fast-forward promotion step — agent changes
+        // commit on the user's current branch via
+        // commitAgentChangesOnHost (sharedVM) or via the agent's own
+        // `bash` tool (host).
+        _ = beforeSha
         return DevRunWorkspace(
-            repoURL: worktreeURL,
-            sandboxed: true,
-            branchName: branchName,
-            parentURL: parentURL,
-            worktreeURL: worktreeURL
+            repoURL: mainRepoURL,
+            sandboxed: false,
+            branchName: nil,
+            parentURL: nil,
+            worktreeURL: nil
         )
     }
 

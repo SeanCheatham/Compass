@@ -367,8 +367,7 @@ enum Prompts {
         lessons: String,
         vision: String,
         attempt: Int,
-        priorIssues: [String],
-        sandboxed: Bool
+        priorIssues: [String]
     ) -> String {
         """
         You are the Develop agent for Compass, a macOS-native agent iteration
@@ -399,8 +398,11 @@ enum Prompts {
           `replace` set to the initial contents.
         - Lessons are durable gotchas and conventions, not routine status logs.
 
-        Develop sandbox:
-        \(sandboxed ? "You are running in a disposable Git worktree on a temporary branch. Commit normally from this working directory. The app promotes the branch to the main worktree only after post-checks pass." : "This repository has no current HEAD, so you are running in the main worktree. Commit normally once the work is complete.")
+        Develop workspace:
+        You are operating directly in the repository's working tree on the
+        user's current branch. Commit your changes from this working
+        directory once the work is complete; the app does not stage a
+        separate branch on your behalf.
 
         \(developAttemptInstructions(attempt: attempt, priorIssues: priorIssues))
 
