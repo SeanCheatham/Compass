@@ -193,14 +193,18 @@ private struct APIKeyStepBody: View {
     @EnvironmentObject private var model: AppModel
     /// Local mirror of the API key. SwiftUI's `SecureField` on macOS wraps
     /// `NSSecureTextField`, whose `stringValue` is intentionally unreadable
-    /// for security. With a `Binding(get:, set:)` directly to the model,
-    /// committing the field (Return / focus loss) invokes the binding's
-    /// setter again with an empty string, which `setAgentAPIKey` interprets
-    /// as "user cleared the key" — silently nuking the keychain entry.
-    /// Holding the key in `@State` and pushing to the model only when the
-    /// local value really changes sidesteps that echo.
+    /// for security. Paste/typing events don't always round-trip the bound
+    /// value cleanly, and submit (Return / focus loss) sometimes re-fires
+    /// the setter with an empty string. We hold the typed value here and
+    /// only push to the model on real, non-empty changes — plus expose an
+    /// explicit Save button so the user always has a deterministic way to
+    /// commit the field even if SwiftUI's auto-propagation misses a paste.
     @State private var apiKey: String = ""
     @State private var baseURL: String = ""
+
+    private var apiKeyMatchesModel: Bool {
+        apiKey == model.agentSettings.apiKey
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -221,13 +225,33 @@ private struct APIKeyStepBody: View {
                 Text("API key")
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(.secondary)
-                SecureField("sk-…", text: $apiKey)
-                    .textFieldStyle(.roundedBorder)
-                    .help("Stored in the macOS Keychain.")
-                    .onChange(of: apiKey) { _, newValue in
-                        guard newValue != model.agentSettings.apiKey else { return }
-                        model.setAgentAPIKey(newValue)
+                HStack(spacing: 8) {
+                    SecureField("sk-…", text: $apiKey)
+                        .textFieldStyle(.roundedBorder)
+                        .help("Stored in the macOS Keychain.")
+                        .onSubmit {
+                            commitAPIKey()
+                        }
+                        .onChange(of: apiKey) { _, newValue in
+                            // Ignore the empty-string echo SwiftUI/NSSecureTextField
+                            // sometimes emits on commit; a real "clear" still
+                            // works via the Settings window or by leaving the
+                            // field empty before clicking Save.
+                            guard !newValue.isEmpty else { return }
+                            guard newValue != model.agentSettings.apiKey else { return }
+                            model.setAgentAPIKey(newValue)
+                        }
+                    Button("Save") {
+                        commitAPIKey()
                     }
+                    .disabled(apiKey.isEmpty || apiKeyMatchesModel)
+                    .keyboardShortcut(.defaultAction)
+                }
+                if !apiKey.isEmpty && !apiKeyMatchesModel {
+                    Text("Click Save (or press Return) to store this key.")
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                }
             }
 
             Text("Stored in the macOS Keychain. Change later from Compass → Settings… (⌘,).")
@@ -247,6 +271,12 @@ private struct APIKeyStepBody: View {
         .onChange(of: model.agentSettings.baseURL.absoluteString) { _, newValue in
             if baseURL != newValue { baseURL = newValue }
         }
+    }
+
+    private func commitAPIKey() {
+        guard !apiKey.isEmpty else { return }
+        guard apiKey != model.agentSettings.apiKey else { return }
+        model.setAgentAPIKey(apiKey)
     }
 }
 
