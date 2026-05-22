@@ -40,7 +40,7 @@ struct AgentExecutionConfiguration {
         filesystem: AgentFilesystem = AgentHostFilesystem(),
         bashRunner: AgentBashRunner = AgentHostBashRunner(),
         maxIterations: Int = 512,
-        wallClockTimeout: TimeInterval = 30 * 60
+        wallClockTimeout: TimeInterval = 60 * 60
     ) {
         self.settings = settings
         self.phase = phase
@@ -77,6 +77,21 @@ enum AgentExecutionError: LocalizedError, Equatable {
         case let .toolCallDecodeFailed(name, detail): return "Tool call \(name) had undecodable args: \(detail)"
         case let .duplicateToolName(name): return "Duplicate tool name in registry: \(name)"
         case .cancelled: return "Agent execution cancelled"
+        }
+    }
+
+    /// True when the agent's wall-clock or iteration budget was the cause
+    /// — i.e. it didn't finish via `submit_result` because it ran out of
+    /// time/turns, not because the LLM stream broke or the user cancelled.
+    /// Develop treats these as a retryable "failed attempt" so the next
+    /// attempt gets a fresh budget; everything else surfaces as a session
+    /// failure.
+    var isAgentBudgetExhaustion: Bool {
+        switch self {
+        case .wallClockExceeded, .maxIterationsExceeded:
+            return true
+        default:
+            return false
         }
     }
 }

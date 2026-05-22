@@ -1582,15 +1582,35 @@ extension CompassProject {
                     attempt: attempt
                 )
                 log("Develop: launching agent (attempt \(attempt)/\(maxDevelopAttempts)).", level: .info)
-                let summary = try await runAgent(
-                    phase: .develop,
-                    agentSettings: agentSettings,
-                    modelOverride: modelOverride,
-                    workingDirectory: workspace.repoURL,
-                    userPrompt: prompt,
-                    submitResultSchema: Prompts.developSchema,
-                    decode: DevelopSummary.self
-                )
+                let summary: DevelopSummary
+                do {
+                    summary = try await runAgent(
+                        phase: .develop,
+                        agentSettings: agentSettings,
+                        modelOverride: modelOverride,
+                        workingDirectory: workspace.repoURL,
+                        userPrompt: prompt,
+                        submitResultSchema: Prompts.developSchema,
+                        decode: DevelopSummary.self
+                    )
+                } catch let error as AgentExecutionError where error.isAgentBudgetExhaustion {
+                    // The agent ran out of wall-clock budget or iterations
+                    // mid-attempt. Treat that as a failed attempt with
+                    // budget-exhaustion context so the next attempt starts
+                    // fresh, rather than aborting the whole Develop pass.
+                    let note = "Develop attempt \(attempt) ended without submit_result: \(error.localizedDescription)."
+                    log(note, level: .warning)
+                    appendSessionNote(note, to: sessionIndex)
+                    priorIssues = [note]
+                    finalIssues = [note]
+                    finalVerifyOutput = nil
+                    if attempt < maxDevelopAttempts {
+                        feedback(.developRetrying)
+                    } else {
+                        succeeded = false
+                    }
+                    continue
+                }
 
                 // Under the `.sharedVM` route the agent worked in the
                 // guest workspace and Verify ran there too. We defer the

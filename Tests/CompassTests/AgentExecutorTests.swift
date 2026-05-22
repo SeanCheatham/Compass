@@ -29,6 +29,29 @@ final class AgentExecutorTests: XCTestCase {
         XCTAssertEqual(reasoning, "oops never closed")
     }
 
+    // MARK: - Budget exhaustion classification
+
+    func testIsAgentBudgetExhaustionCoversWallClockAndIterationLimits() {
+        XCTAssertTrue(AgentExecutionError.wallClockExceeded(3600).isAgentBudgetExhaustion)
+        XCTAssertTrue(AgentExecutionError.maxIterationsExceeded(512).isAgentBudgetExhaustion)
+    }
+
+    func testIsAgentBudgetExhaustionRejectsNonBudgetCauses() {
+        XCTAssertFalse(AgentExecutionError.cancelled.isAgentBudgetExhaustion)
+        XCTAssertFalse(AgentExecutionError.streamFailed("boom").isAgentBudgetExhaustion)
+        XCTAssertFalse(AgentExecutionError.modelStoppedWithoutSubmitResult.isAgentBudgetExhaustion)
+        XCTAssertFalse(AgentExecutionError.configurationInvalid("nope").isAgentBudgetExhaustion)
+        XCTAssertFalse(
+            AgentExecutionError.toolCallDecodeFailed(name: "x", detail: "y").isAgentBudgetExhaustion
+        )
+        XCTAssertFalse(AgentExecutionError.duplicateToolName("z").isAgentBudgetExhaustion)
+    }
+
+    func testDefaultWallClockTimeoutIsOneHour() {
+        let configuration = makeConfiguration(phase: .plan, tools: AgentExecutor.readOnlyTools())
+        XCTAssertEqual(configuration.wallClockTimeout, 60 * 60)
+    }
+
     // MARK: - ensureUniqueToolNames
 
     func testEnsureUniqueToolNamesAcceptsDistinctTools() throws {
