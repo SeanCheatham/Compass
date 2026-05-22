@@ -238,13 +238,13 @@ enum Prompts {
         - Never write code, run tests, or commit from Plan.
 
         Lesson edit rules:
-        - `lessonEdits` is an array of exact find/replace edits for
-          `.compass/lessons.md`. Use `[]` when you have no lesson change.
+        - `lessonEdits` is an array of exact find/replace edits against the
+          lessons content shown below. Use `[]` when you have no lesson change.
         - `find` must match the current lessons text exactly. If it appears more
           than once, include more surrounding context or set `replaceAll` to true.
         - To append a lesson, replace the final relevant block with that block
-          plus the new bullet. If lessons.md is empty, use `find: ""` and
-          `replace` set to the initial contents.
+          plus the new bullet. If the lessons content is empty, use `find: ""`
+          and `replace` set to the initial contents.
         - Lessons are durable gotchas and conventions, not routine status logs.
 
         submit_result arguments — call the tool with EXACTLY this shape.
@@ -272,15 +272,15 @@ enum Prompts {
           ]
         }
 
-        ## Current state.json
+        ## Current state
         ```json
         \(stateJSON)
         ```
 
         ## Drafts from the user
-        The app snapshotted these drafts immediately before invoking you and
-        cleared `.compass/drafts.md`. Drafts arriving during this run will be
-        picked up next iteration.
+        Compass snapshotted these drafts immediately before invoking you
+        and cleared them from host-side storage. Drafts arriving during
+        this run will be picked up next iteration.
 
         \(fencedOrEmpty(drafts, empty: "_(no new drafts)_"))
 
@@ -326,20 +326,20 @@ enum Prompts {
           rewritten. Preserve existing `completed` and `immediate` unless there
           is a concrete reason to adjust them.
         - `summary`: a concise explanation of the reflection result.
-        - `lessonEdits`: exact find/replace edits for `.compass/lessons.md`, or
-          `[]` when nothing durable should be recorded.
+        - `lessonEdits`: exact find/replace edits against the lessons content
+          shown below, or `[]` when nothing durable should be recorded.
 
         Lesson edit rules:
         - `find` must match the current lessons text exactly. If it appears more
           than once, include more surrounding context or set `replaceAll` to true.
         - To append a lesson, replace the final relevant block with that block
-          plus the new bullet. If lessons.md is empty, use `find: ""` and
-          `replace` set to the initial contents.
+          plus the new bullet. If the lessons content is empty, use `find: ""`
+          and `replace` set to the initial contents.
         - Lessons are durable process guidance, not routine status logs.
 
         Keep this tight. Do not rewrite state defensively.
 
-        ## Current state.json
+        ## Current state
         ```json
         \(stateJSON)
         ```
@@ -373,10 +373,6 @@ enum Prompts {
         run tests, and commit using git. Keep the change scoped to the plan.
 
         Hard rules:
-        - Do not edit `.compass/state.json` or `.compass/drafts.md`.
-        - Do not edit `.compass/lessons.md` directly; pass `lessonEdits` in the
-          submit_result arguments instead so the app can apply them to the
-          main Compass workspace.
         - Do not push, rebase, or use destructive git operations.
         - Run the verify command before finishing.
         - Commit the finished change if there are code changes.
@@ -384,13 +380,13 @@ enum Prompts {
         - End the phase by calling `submit_result` exactly once.
 
         Lesson edit rules:
-        - `lessonEdits` is an array of exact find/replace edits for
-          `.compass/lessons.md`. Use `[]` when you have no lesson change.
+        - `lessonEdits` is an array of exact find/replace edits against the
+          lessons content shown below. Use `[]` when you have no lesson change.
         - `find` must match the current lessons text exactly. If it appears more
           than once, include more surrounding context or set `replaceAll` to true.
         - To append a lesson, replace the final relevant block with that block
-          plus the new bullet. If lessons.md is empty, use `find: ""` and
-          `replace` set to the initial contents.
+          plus the new bullet. If the lessons content is empty, use `find: ""`
+          and `replace` set to the initial contents.
         - Lessons are durable gotchas and conventions, not routine status logs.
 
         Develop workspace:
@@ -420,7 +416,8 @@ enum Prompts {
         - `summary`: concise human summary of what happened.
         - `feedback`: short handoff note for the next planning pass.
         - `bypassVerify`: true only if the verify command itself is wrong or out of scope.
-        - `lessonEdits`: exact find/replace edits to lessons.md, or [].
+        - `lessonEdits`: exact find/replace edits against the lessons content
+          shown above, or [].
         """
     }
 

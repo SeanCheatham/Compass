@@ -3,8 +3,9 @@ import Foundation
 /// Exact find/replace on an existing UTF-8 text file. The model must supply
 /// enough surrounding context that `oldString` is unique in the file, or
 /// pass `replaceAll: true` to substitute every occurrence. Matches the
-/// semantics the Plan/Reflect lesson-edit JSON contract already uses for
-/// `.compass/lessons.md`, so the same mental model applies here.
+/// semantics the Plan / Reflect / Develop `lessonEdits` JSON contract uses
+/// against the host-side lessons content, so the same mental model applies
+/// here.
 struct AgentEditFileTool: AgentTool {
     static let toolName = "edit_file"
 

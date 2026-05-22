@@ -80,4 +80,85 @@ final class PlanPromptTests: XCTestCase {
             "plan prompt previously duplicated the schema as a `State shape:` section; consolidated into submit_result arguments"
         )
     }
+
+    /// `.compass/` is supposed to be hidden from the agent — its
+    /// contents are injected into the user message instead. The
+    /// system prompt names the paths once (to teach the model the
+    /// pattern), but every other agent-facing prompt should be
+    /// silent about them. Otherwise the agent sees a breadcrumb like
+    /// "edits for `.compass/lessons.md`" and feels compelled to
+    /// `read_file` that path before producing edits.
+    func testPlanPromptDoesNotMentionCompassDirectoryPaths() throws {
+        let prompt = try Prompts.planPrompt(
+            state: .empty,
+            drafts: "",
+            feedback: "",
+            lessons: "",
+            vision: ""
+        )
+        XCTAssertFalse(
+            prompt.contains(".compass/"),
+            "plan prompt must not name `.compass/` paths — the system prompt is the single point of truth for the directory's existence"
+        )
+        XCTAssertFalse(
+            prompt.contains("lessons.md"),
+            "plan prompt must not name `lessons.md` — reference the lessons content shown in the prompt instead"
+        )
+        XCTAssertFalse(
+            prompt.contains("drafts.md"),
+            "plan prompt must not name `drafts.md` — describe drafts as host-side storage instead"
+        )
+        XCTAssertFalse(
+            prompt.contains("state.json"),
+            "plan prompt must not name `state.json` — refer to `## Current state` instead"
+        )
+    }
+
+    func testReflectPromptDoesNotMentionCompassDirectoryPaths() throws {
+        let prompt = try Prompts.reflectPrompt(
+            state: .empty,
+            lessons: "",
+            vision: "",
+            recentSessions: [],
+            iteration: 1
+        )
+        XCTAssertFalse(
+            prompt.contains(".compass/"),
+            "reflect prompt must not name `.compass/` paths"
+        )
+        XCTAssertFalse(
+            prompt.contains("lessons.md"),
+            "reflect prompt must not name `lessons.md`"
+        )
+        XCTAssertFalse(
+            prompt.contains("state.json"),
+            "reflect prompt must not name `state.json`"
+        )
+    }
+
+    func testDevelopPromptDoesNotMentionCompassDirectoryPaths() {
+        let prompt = Prompts.developPrompt(
+            next: PlanNext(plan: "p", verify: "swift build", verifyTimeoutMs: nil, estimatedDifficulty: nil),
+            lessons: "",
+            vision: "",
+            attempt: 1,
+            priorIssues: []
+        )
+        XCTAssertFalse(
+            prompt.contains(".compass/"),
+            "develop prompt must not name `.compass/` paths"
+        )
+        XCTAssertFalse(
+            prompt.contains("lessons.md"),
+            "develop prompt must not name `lessons.md`"
+        )
+        XCTAssertFalse(
+            prompt.contains("drafts.md"),
+            "develop prompt must not name `drafts.md`"
+        )
+        XCTAssertFalse(
+            prompt.contains("state.json"),
+            "develop prompt must not name `state.json`"
+        )
+    }
 }
