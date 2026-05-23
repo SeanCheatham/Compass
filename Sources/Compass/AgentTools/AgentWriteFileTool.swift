@@ -5,70 +5,74 @@ import Foundation
 /// edits should go through `AgentEditFileTool`, which preserves the rest of
 /// the file and forces a contextual `oldString` match.
 struct AgentWriteFileTool: AgentTool {
-    static let toolName = "write_file"
+  static let toolName = "write_file"
 
-    struct Arguments: Codable {
-        let path: String
-        let content: String
+  struct Arguments: Codable {
+    let path: String
+    let content: String
+  }
+
+  let spec: AgentToolSpec
+
+  init() {
+    let schema = try! AgentToolParametersSchema([
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "content"],
+      "properties": [
+        "path": [
+          "type": "string",
+          "description":
+            "Destination path. May be absolute (must resolve inside the working directory) or relative to it. Intermediate directories are created automatically.",
+        ],
+        "content": [
+          "type": "string",
+          "description": "UTF-8 contents to write. Existing files are overwritten.",
+        ],
+      ],
+    ])
+    spec = AgentToolSpec(
+      name: Self.toolName,
+      description:
+        "Create or overwrite a UTF-8 text file at the given path. Intermediate directories are created. Use `edit_file` for in-place edits.",
+      parameters: schema
+    )
+  }
+
+  func invoke(arguments: Data, context: AgentToolContext) async throws -> AgentToolInvocationResult
+  {
+    let args: Arguments
+    do {
+      args = try JSONDecoder().decode(Arguments.self, from: arguments)
+    } catch {
+      return .failure("Failed to decode arguments: \(error.localizedDescription)")
     }
 
-    let spec: AgentToolSpec
-
-    init() {
-        let schema = try! AgentToolParametersSchema([
-            "type": "object",
-            "additionalProperties": false,
-            "required": ["path", "content"],
-            "properties": [
-                "path": [
-                    "type": "string",
-                    "description": "Destination path. May be absolute (must resolve inside the working directory) or relative to it. Intermediate directories are created automatically."
-                ],
-                "content": [
-                    "type": "string",
-                    "description": "UTF-8 contents to write. Existing files are overwritten."
-                ]
-            ]
-        ])
-        spec = AgentToolSpec(
-            name: Self.toolName,
-            description: "Create or overwrite a UTF-8 text file at the given path. Intermediate directories are created. Use `edit_file` for in-place edits.",
-            parameters: schema
-        )
+    let url: URL
+    do {
+      url = try context.resolvePath(args.path)
+    } catch let error as AgentToolError {
+      return .failure(error.errorDescription ?? "path resolution failed")
+    } catch {
+      return .failure("path resolution failed: \(error.localizedDescription)")
     }
 
-    func invoke(arguments: Data, context: AgentToolContext) async throws -> AgentToolInvocationResult {
-        let args: Arguments
-        do {
-            args = try JSONDecoder().decode(Arguments.self, from: arguments)
-        } catch {
-            return .failure("Failed to decode arguments: \(error.localizedDescription)")
-        }
-
-        let url: URL
-        do {
-            url = try context.resolvePath(args.path)
-        } catch let error as AgentToolError {
-            return .failure(error.errorDescription ?? "path resolution failed")
-        } catch {
-            return .failure("path resolution failed: \(error.localizedDescription)")
-        }
-
-        let data = Data(args.content.utf8)
-        do {
-            try await context.filesystem.writeFile(data, at: url)
-        } catch let error as AgentFilesystemError {
-            switch error {
-            case .notRegularFile:
-                return .failure(AgentToolError.notRegularFile(args.path).errorDescription ?? "not a regular file")
-            default:
-                return .failure(error.errorDescription ?? "I/O failure")
-            }
-        } catch {
-            return .failure("write failed: \(error.localizedDescription)")
-        }
-
-        let relative = context.relativize(url)
-        return .ok("wrote \(data.count) bytes to \(relative)")
+    let data = Data(args.content.utf8)
+    do {
+      try await context.filesystem.writeFile(data, at: url)
+    } catch let error as AgentFilesystemError {
+      switch error {
+      case .notRegularFile:
+        return .failure(
+          AgentToolError.notRegularFile(args.path).errorDescription ?? "not a regular file")
+      default:
+        return .failure(error.errorDescription ?? "I/O failure")
+      }
+    } catch {
+      return .failure("write failed: \(error.localizedDescription)")
     }
+
+    let relative = context.relativize(url)
+    return .ok("wrote \(data.count) bytes to \(relative)")
+  }
 }

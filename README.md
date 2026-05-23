@@ -132,6 +132,21 @@ Two build flows coexist:
   signed `Compass.app` with the virtualization entitlement. Required for
   any Shared VM work.
 
+Formatting is enforced by [swift-format](https://github.com/swiftlang/swift-format),
+which ships with the Swift 6 toolchain. The config lives at `.swift-format`
+(swift-format's official defaults: 2-space indent, 100-char lines, all
+default rules). Two helpers wrap the common invocations:
+
+```bash
+./scripts/format.sh          # rewrite Sources/, Tests/, Package.swift in place
+./scripts/format.sh --lint   # report violations only; exits non-zero if any
+```
+
+The lint pass must be clean (`exit 0`) and `swift test` must be green
+before pushing. A handful of C-ABI mirrors and `XCTAssert`-style helpers
+opt out of `AlwaysUseLowerCamelCase` / `TypeNamesShouldBeCapitalized` via
+inline `// swift-format-ignore` annotations.
+
 Both reference the same sources under `Sources/Compass/`. New `.swift` files
 dropped there are picked up automatically — Package.swift uses an executable
 target, and the Xcode project uses synchronized folder groups (Xcode 15.3+),

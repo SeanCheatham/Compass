@@ -12,229 +12,239 @@ import Foundation
 /// `AgentFilesystemError` so tools above this layer don't have to know
 /// about the wire vocabulary.
 struct AgentVsockClient: AgentFilesystem, AgentBashRunner {
-    let transportFactory: VsockTransportFactory
-    let requestTimeout: TimeInterval
+  let transportFactory: VsockTransportFactory
+  let requestTimeout: TimeInterval
 
-    init(
-        transportFactory: @escaping VsockTransportFactory,
-        requestTimeout: TimeInterval = 120
-    ) {
-        self.transportFactory = transportFactory
-        self.requestTimeout = requestTimeout
+  init(
+    transportFactory: @escaping VsockTransportFactory,
+    requestTimeout: TimeInterval = 120
+  ) {
+    self.transportFactory = transportFactory
+    self.requestTimeout = requestTimeout
+  }
+
+  // MARK: - AgentFilesystem
+
+  func readFile(at url: URL) async throws -> Data {
+    let response = try await roundTrip(.readFile(.init(path: url.path)))
+    switch response {
+    case .readFile(let result):
+      guard let data = Data(base64Encoded: result.dataBase64) else {
+        throw AgentFilesystemError.ioFailure("readFile: malformed base64 response for \(url.path)")
+      }
+      return data
+    case .error(let error):
+      throw Self.mapError(error, defaultURL: url)
+    default:
+      throw AgentFilesystemError.transportFailure("readFile: unexpected response \(response)")
     }
+  }
 
-    // MARK: - AgentFilesystem
-
-    func readFile(at url: URL) async throws -> Data {
-        let response = try await roundTrip(.readFile(.init(path: url.path)))
-        switch response {
-        case .readFile(let result):
-            guard let data = Data(base64Encoded: result.dataBase64) else {
-                throw AgentFilesystemError.ioFailure("readFile: malformed base64 response for \(url.path)")
-            }
-            return data
-        case .error(let error):
-            throw Self.mapError(error, defaultURL: url)
-        default:
-            throw AgentFilesystemError.transportFailure("readFile: unexpected response \(response)")
-        }
+  func writeFile(_ data: Data, at url: URL) async throws {
+    let response = try await roundTrip(
+      .writeFile(.init(path: url.path, dataBase64: data.base64EncodedString())))
+    switch response {
+    case .writeFile:
+      return
+    case .error(let error):
+      throw Self.mapError(error, defaultURL: url)
+    default:
+      throw AgentFilesystemError.transportFailure("writeFile: unexpected response \(response)")
     }
+  }
 
-    func writeFile(_ data: Data, at url: URL) async throws {
-        let response = try await roundTrip(.writeFile(.init(path: url.path, dataBase64: data.base64EncodedString())))
-        switch response {
-        case .writeFile:
-            return
-        case .error(let error):
-            throw Self.mapError(error, defaultURL: url)
-        default:
-            throw AgentFilesystemError.transportFailure("writeFile: unexpected response \(response)")
-        }
+  func metadata(of url: URL) async throws -> FileMetadata? {
+    let response = try await roundTrip(.stat(.init(path: url.path)))
+    switch response {
+    case .stat(let result):
+      guard let m = result.metadata else { return nil }
+      return FileMetadata(
+        url: URL(fileURLWithPath: m.path),
+        isDirectory: m.isDirectory,
+        isRegularFile: m.isRegularFile,
+        size: m.size,
+        modificationDate: m.modificationDateEpoch.map { Date(timeIntervalSince1970: $0) }
+      )
+    case .error(let error):
+      throw Self.mapError(error, defaultURL: url)
+    default:
+      throw AgentFilesystemError.transportFailure("stat: unexpected response \(response)")
     }
+  }
 
-    func metadata(of url: URL) async throws -> FileMetadata? {
-        let response = try await roundTrip(.stat(.init(path: url.path)))
-        switch response {
-        case .stat(let result):
-            guard let m = result.metadata else { return nil }
-            return FileMetadata(
-                url: URL(fileURLWithPath: m.path),
-                isDirectory: m.isDirectory,
-                isRegularFile: m.isRegularFile,
-                size: m.size,
-                modificationDate: m.modificationDateEpoch.map { Date(timeIntervalSince1970: $0) }
-            )
-        case .error(let error):
-            throw Self.mapError(error, defaultURL: url)
-        default:
-            throw AgentFilesystemError.transportFailure("stat: unexpected response \(response)")
-        }
-    }
-
-    func listDirectory(at url: URL) async throws -> [DirectoryEntry] {
-        let response = try await roundTrip(.listDirectory(.init(path: url.path)))
-        switch response {
-        case .listDirectory(let result):
-            return result.entries.map { wire in
-                DirectoryEntry(
-                    url: URL(fileURLWithPath: wire.path),
-                    name: wire.name,
-                    isDirectory: wire.isDirectory
-                )
-            }
-        case .error(let error):
-            throw Self.mapError(error, defaultURL: url)
-        default:
-            throw AgentFilesystemError.transportFailure("listDirectory: unexpected response \(response)")
-        }
-    }
-
-    func glob(pattern: String, under rootURL: URL, walkCap: Int) async throws -> [GlobMatch] {
-        let response = try await roundTrip(.glob(.init(pattern: pattern, rootPath: rootURL.path, walkCap: walkCap)))
-        switch response {
-        case .glob(let result):
-            return result.matches.map { wire in
-                GlobMatch(
-                    url: URL(fileURLWithPath: wire.path),
-                    modificationDate: wire.modificationDateEpoch.map { Date(timeIntervalSince1970: $0) }
-                )
-            }
-        case .error(let error):
-            throw Self.mapError(error, defaultURL: rootURL)
-        default:
-            throw AgentFilesystemError.transportFailure("glob: unexpected response \(response)")
-        }
-    }
-
-    func grep(
-        pattern: String,
-        in url: URL,
-        glob: String?,
-        caseInsensitive: Bool,
-        timeout: TimeInterval
-    ) async throws -> ProcessResult {
-        let response = try await roundTrip(
-            .grep(.init(
-                pattern: pattern,
-                path: url.path,
-                glob: glob,
-                caseInsensitive: caseInsensitive,
-                timeoutSeconds: timeout
-            ))
+  func listDirectory(at url: URL) async throws -> [DirectoryEntry] {
+    let response = try await roundTrip(.listDirectory(.init(path: url.path)))
+    switch response {
+    case .listDirectory(let result):
+      return result.entries.map { wire in
+        DirectoryEntry(
+          url: URL(fileURLWithPath: wire.path),
+          name: wire.name,
+          isDirectory: wire.isDirectory
         )
-        switch response {
-        case .grep(let result):
-            return ProcessResult(exitCode: result.exitCode, stdout: result.stdout, stderr: result.stderr)
-        case .error(let error):
-            throw Self.mapError(error, defaultURL: url)
-        default:
-            throw AgentFilesystemError.transportFailure("grep: unexpected response \(response)")
-        }
+      }
+    case .error(let error):
+      throw Self.mapError(error, defaultURL: url)
+    default:
+      throw AgentFilesystemError.transportFailure("listDirectory: unexpected response \(response)")
     }
+  }
 
-    // MARK: - AgentBashRunner
-
-    func run(
-        command: String,
-        workingDirectory: URL,
-        timeout: TimeInterval
-    ) async throws -> ProcessResult {
-        let response = try await roundTrip(
-            .bash(.init(
-                command: command,
-                workingDirectory: workingDirectory.path,
-                timeoutSeconds: timeout
-            ))
+  func glob(pattern: String, under rootURL: URL, walkCap: Int) async throws -> [GlobMatch] {
+    let response = try await roundTrip(
+      .glob(.init(pattern: pattern, rootPath: rootURL.path, walkCap: walkCap)))
+    switch response {
+    case .glob(let result):
+      return result.matches.map { wire in
+        GlobMatch(
+          url: URL(fileURLWithPath: wire.path),
+          modificationDate: wire.modificationDateEpoch.map { Date(timeIntervalSince1970: $0) }
         )
-        switch response {
-        case .bash(let result):
-            return ProcessResult(exitCode: result.exitCode, stdout: result.stdout, stderr: result.stderr)
-        case .error(let error):
-            // Bash errors come back as ProcessResult, not RPC errors — but
-            // an RPC-level error here means the transport itself broke.
-            throw AgentRPCTransportError.guestReportedError(error)
-        default:
-            throw AgentFilesystemError.transportFailure("bash: unexpected response \(response)")
-        }
+      }
+    case .error(let error):
+      throw Self.mapError(error, defaultURL: rootURL)
+    default:
+      throw AgentFilesystemError.transportFailure("glob: unexpected response \(response)")
+    }
+  }
+
+  func grep(
+    pattern: String,
+    in url: URL,
+    glob: String?,
+    caseInsensitive: Bool,
+    timeout: TimeInterval
+  ) async throws -> ProcessResult {
+    let response = try await roundTrip(
+      .grep(
+        .init(
+          pattern: pattern,
+          path: url.path,
+          glob: glob,
+          caseInsensitive: caseInsensitive,
+          timeoutSeconds: timeout
+        ))
+    )
+    switch response {
+    case .grep(let result):
+      return ProcessResult(exitCode: result.exitCode, stdout: result.stdout, stderr: result.stderr)
+    case .error(let error):
+      throw Self.mapError(error, defaultURL: url)
+    default:
+      throw AgentFilesystemError.transportFailure("grep: unexpected response \(response)")
+    }
+  }
+
+  // MARK: - AgentBashRunner
+
+  func run(
+    command: String,
+    workingDirectory: URL,
+    timeout: TimeInterval
+  ) async throws -> ProcessResult {
+    let response = try await roundTrip(
+      .bash(
+        .init(
+          command: command,
+          workingDirectory: workingDirectory.path,
+          timeoutSeconds: timeout
+        ))
+    )
+    switch response {
+    case .bash(let result):
+      return ProcessResult(exitCode: result.exitCode, stdout: result.stdout, stderr: result.stderr)
+    case .error(let error):
+      // Bash errors come back as ProcessResult, not RPC errors — but
+      // an RPC-level error here means the transport itself broke.
+      throw AgentRPCTransportError.guestReportedError(error)
+    default:
+      throw AgentFilesystemError.transportFailure("bash: unexpected response \(response)")
+    }
+  }
+
+  // MARK: - Wire round trip
+
+  private func roundTrip(_ request: AgentRPCRequest) async throws -> AgentRPCResponse {
+    let transport: VsockTransport
+    do {
+      transport = try await transportFactory()
+    } catch {
+      throw AgentFilesystemError.transportFailure(
+        "vsock connect failed: \(error.localizedDescription)")
+    }
+    defer { Task { await transport.close() } }
+
+    let frame: Data
+    do {
+      frame = try AgentRPCFraming.encode(request)
+    } catch {
+      throw AgentFilesystemError.ioFailure("vsock encode failed: \(error.localizedDescription)")
     }
 
-    // MARK: - Wire round trip
-
-    private func roundTrip(_ request: AgentRPCRequest) async throws -> AgentRPCResponse {
-        let transport: VsockTransport
-        do {
-            transport = try await transportFactory()
-        } catch {
-            throw AgentFilesystemError.transportFailure("vsock connect failed: \(error.localizedDescription)")
-        }
-        defer { Task { await transport.close() } }
-
-        let frame: Data
-        do {
-            frame = try AgentRPCFraming.encode(request)
-        } catch {
-            throw AgentFilesystemError.ioFailure("vsock encode failed: \(error.localizedDescription)")
-        }
-
-        do {
-            try await transport.write(frame)
-        } catch {
-            throw AgentFilesystemError.transportFailure("vsock write failed: \(error.localizedDescription)")
-        }
-
-        // The agent closes its end after writing the response, so EOF
-        // marks the natural end of the frame. Drain everything, then
-        // decode in one shot — bounded by `maxFrameByteCount + 4` so a
-        // misbehaving remote can't exhaust host memory.
-        do {
-            let buffer = try await readUntilEOF(from: transport, maxBytes: AgentRPCFraming.maxFrameByteCount + 4)
-            return try AgentRPCFraming.decode(AgentRPCResponse.self, from: buffer)
-        } catch let error as AgentRPCFraming.FramingError {
-            throw AgentFilesystemError.transportFailure("vsock decode failed: \(error)")
-        } catch {
-            throw AgentFilesystemError.transportFailure("vsock read failed: \(error.localizedDescription)")
-        }
+    do {
+      try await transport.write(frame)
+    } catch {
+      throw AgentFilesystemError.transportFailure(
+        "vsock write failed: \(error.localizedDescription)")
     }
 
-    /// Drain the transport until the remote closes. Used for one-shot
-    /// connections (one request, one response, close). Bounded so a
-    /// misbehaving remote can't exhaust host memory.
-    private func readUntilEOF(from transport: VsockTransport, maxBytes: Int) async throws -> Data {
-        var buffer = Data()
-        let chunkSize = 64 * 1024
-        while buffer.count < maxBytes {
-            guard let chunk = try await transport.read(wanted: chunkSize) else { break }
-            if chunk.isEmpty { break }
-            buffer.append(chunk)
-        }
-        return buffer
+    // The agent closes its end after writing the response, so EOF
+    // marks the natural end of the frame. Drain everything, then
+    // decode in one shot — bounded by `maxFrameByteCount + 4` so a
+    // misbehaving remote can't exhaust host memory.
+    do {
+      let buffer = try await readUntilEOF(
+        from: transport, maxBytes: AgentRPCFraming.maxFrameByteCount + 4)
+      return try AgentRPCFraming.decode(AgentRPCResponse.self, from: buffer)
+    } catch let error as AgentRPCFraming.FramingError {
+      throw AgentFilesystemError.transportFailure("vsock decode failed: \(error)")
+    } catch {
+      throw AgentFilesystemError.transportFailure(
+        "vsock read failed: \(error.localizedDescription)")
     }
+  }
 
-    private static func mapError(_ error: AgentRPCResponse.Error, defaultURL: URL) -> AgentFilesystemError {
-        switch error.kind {
-        case .notFound: return .notFound(defaultURL)
-        case .notRegularFile: return .notRegularFile(defaultURL)
-        case .notDirectory: return .notDirectory(defaultURL)
-        case .ioFailure: return .ioFailure(error.detail)
-        case .invalidArguments: return .ioFailure("invalid arguments: \(error.detail)")
-        case .internalError: return .transportFailure("guest internal error: \(error.detail)")
-        }
+  /// Drain the transport until the remote closes. Used for one-shot
+  /// connections (one request, one response, close). Bounded so a
+  /// misbehaving remote can't exhaust host memory.
+  private func readUntilEOF(from transport: VsockTransport, maxBytes: Int) async throws -> Data {
+    var buffer = Data()
+    let chunkSize = 64 * 1024
+    while buffer.count < maxBytes {
+      guard let chunk = try await transport.read(wanted: chunkSize) else { break }
+      if chunk.isEmpty { break }
+      buffer.append(chunk)
     }
+    return buffer
+  }
+
+  private static func mapError(_ error: AgentRPCResponse.Error, defaultURL: URL)
+    -> AgentFilesystemError
+  {
+    switch error.kind {
+    case .notFound: return .notFound(defaultURL)
+    case .notRegularFile: return .notRegularFile(defaultURL)
+    case .notDirectory: return .notDirectory(defaultURL)
+    case .ioFailure: return .ioFailure(error.detail)
+    case .invalidArguments: return .ioFailure("invalid arguments: \(error.detail)")
+    case .internalError: return .transportFailure("guest internal error: \(error.detail)")
+    }
+  }
 }
 
 /// Transport abstraction the vsock client speaks to. The production
 /// implementation wraps `VZVirtioSocketConnection`; tests inject a
 /// memory-backed stub.
 protocol VsockTransport: Sendable {
-    /// Write all of `data` to the connection. Throws on partial write
-    /// or transport-level failure.
-    func write(_ data: Data) async throws
+  /// Write all of `data` to the connection. Throws on partial write
+  /// or transport-level failure.
+  func write(_ data: Data) async throws
 
-    /// Read up to `wanted` bytes. Returns nil for EOF (remote closed).
-    func read(wanted: Int) async throws -> Data?
+  /// Read up to `wanted` bytes. Returns nil for EOF (remote closed).
+  func read(wanted: Int) async throws -> Data?
 
-    /// Close the connection. Idempotent.
-    func close() async
+  /// Close the connection. Idempotent.
+  func close() async
 }
 
 /// Factory closure used by `AgentVsockClient` to open a fresh transport
@@ -243,12 +253,12 @@ protocol VsockTransport: Sendable {
 typealias VsockTransportFactory = @Sendable () async throws -> any VsockTransport
 
 enum AgentRPCTransportError: Error, CustomStringConvertible {
-    case guestReportedError(AgentRPCResponse.Error)
+  case guestReportedError(AgentRPCResponse.Error)
 
-    var description: String {
-        switch self {
-        case .guestReportedError(let error):
-            return "guest agent reported error: \(error.kind.rawValue): \(error.detail)"
-        }
+  var description: String {
+    switch self {
+    case .guestReportedError(let error):
+      return "guest agent reported error: \(error.kind.rawValue): \(error.detail)"
     }
+  }
 }

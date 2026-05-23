@@ -6,327 +6,334 @@ import Foundation
 /// `FileManager` calls the tools used to make directly, so behavior is
 /// unchanged when no Shared VM route is active.
 protocol AgentFilesystem: Sendable {
-    /// Read a regular file's contents. Throws `.notFound` / `.notRegularFile`
-    /// so the calling tool can surface a precise error.
-    func readFile(at url: URL) async throws -> Data
+  /// Read a regular file's contents. Throws `.notFound` / `.notRegularFile`
+  /// so the calling tool can surface a precise error.
+  func readFile(at url: URL) async throws -> Data
 
-    /// Atomically write bytes. Creates intermediate directories. Throws
-    /// `.notRegularFile` if `url` is an existing directory.
-    func writeFile(_ data: Data, at url: URL) async throws
+  /// Atomically write bytes. Creates intermediate directories. Throws
+  /// `.notRegularFile` if `url` is an existing directory.
+  func writeFile(_ data: Data, at url: URL) async throws
 
-    /// Returns metadata for `url`, or nil if the path does not exist.
-    func metadata(of url: URL) async throws -> FileMetadata?
+  /// Returns metadata for `url`, or nil if the path does not exist.
+  func metadata(of url: URL) async throws -> FileMetadata?
 
-    /// One-level directory listing. Throws `.notFound` / `.notDirectory`.
-    func listDirectory(at url: URL) async throws -> [DirectoryEntry]
+  /// One-level directory listing. Throws `.notFound` / `.notDirectory`.
+  func listDirectory(at url: URL) async throws -> [DirectoryEntry]
 
-    /// Walk `rootURL` recursively, returning regular files whose path
-    /// relative to `rootURL` matches `pattern` (glob syntax: `**`, `*`,
-    /// `?`). The walk is capped at `walkCap` total entries visited.
-    func glob(pattern: String, under rootURL: URL, walkCap: Int) async throws -> [GlobMatch]
+  /// Walk `rootURL` recursively, returning regular files whose path
+  /// relative to `rootURL` matches `pattern` (glob syntax: `**`, `*`,
+  /// `?`). The walk is capped at `walkCap` total entries visited.
+  func glob(pattern: String, under rootURL: URL, walkCap: Int) async throws -> [GlobMatch]
 
-    /// Search `url` for `pattern` (regex). Implementations pick between
-    /// `rg` and BSD `grep`. The returned `ProcessResult` keeps the tool's
-    /// output formatting unchanged across backends.
-    func grep(
-        pattern: String,
-        in url: URL,
-        glob: String?,
-        caseInsensitive: Bool,
-        timeout: TimeInterval
-    ) async throws -> ProcessResult
+  /// Search `url` for `pattern` (regex). Implementations pick between
+  /// `rg` and BSD `grep`. The returned `ProcessResult` keeps the tool's
+  /// output formatting unchanged across backends.
+  func grep(
+    pattern: String,
+    in url: URL,
+    glob: String?,
+    caseInsensitive: Bool,
+    timeout: TimeInterval
+  ) async throws -> ProcessResult
 }
 
 struct FileMetadata: Sendable, Equatable {
-    var url: URL
-    var isDirectory: Bool
-    var isRegularFile: Bool
-    var size: Int?
-    var modificationDate: Date?
+  var url: URL
+  var isDirectory: Bool
+  var isRegularFile: Bool
+  var size: Int?
+  var modificationDate: Date?
 }
 
 struct DirectoryEntry: Sendable, Equatable {
-    var url: URL
-    var name: String
-    var isDirectory: Bool
+  var url: URL
+  var name: String
+  var isDirectory: Bool
 }
 
 struct GlobMatch: Sendable, Equatable {
-    var url: URL
-    var modificationDate: Date?
+  var url: URL
+  var modificationDate: Date?
 }
 
 enum AgentFilesystemError: LocalizedError, Equatable {
-    case notFound(URL)
-    case notRegularFile(URL)
-    case notDirectory(URL)
-    case ioFailure(String)
-    case transportFailure(String)
+  case notFound(URL)
+  case notRegularFile(URL)
+  case notDirectory(URL)
+  case ioFailure(String)
+  case transportFailure(String)
 
-    var errorDescription: String? {
-        switch self {
-        case let .notFound(url): return "File not found: \(url.path)"
-        case let .notRegularFile(url): return "Not a regular file: \(url.path)"
-        case let .notDirectory(url): return "Not a directory: \(url.path)"
-        case let .ioFailure(detail): return "I/O failure: \(detail)"
-        case let .transportFailure(detail): return "Filesystem transport failure: \(detail)"
-        }
+  var errorDescription: String? {
+    switch self {
+    case .notFound(let url): return "File not found: \(url.path)"
+    case .notRegularFile(let url): return "Not a regular file: \(url.path)"
+    case .notDirectory(let url): return "Not a directory: \(url.path)"
+    case .ioFailure(let detail): return "I/O failure: \(detail)"
+    case .transportFailure(let detail): return "Filesystem transport failure: \(detail)"
     }
+  }
 }
 
 /// Host-side `FileManager` implementation. Used when Compass runs entirely
 /// on the host (no Shared VM route) and as the implicit default for unit
 /// tests, which construct `AgentToolContext` with just a working directory.
 struct AgentHostFilesystem: AgentFilesystem {
-    let grepExecutable: AgentGrepExecutable
+  let grepExecutable: AgentGrepExecutable
 
-    init(grepExecutable: AgentGrepExecutable = AgentGrepExecutable.locate()) {
-        self.grepExecutable = grepExecutable
+  init(grepExecutable: AgentGrepExecutable = AgentGrepExecutable.locate()) {
+    self.grepExecutable = grepExecutable
+  }
+
+  func readFile(at url: URL) async throws -> Data {
+    let fileManager = FileManager.default
+    var isDirectory: ObjCBool = false
+    guard fileManager.fileExists(atPath: url.path, isDirectory: &isDirectory) else {
+      throw AgentFilesystemError.notFound(url)
+    }
+    if isDirectory.boolValue {
+      throw AgentFilesystemError.notRegularFile(url)
+    }
+    do {
+      return try Data(contentsOf: url)
+    } catch {
+      throw AgentFilesystemError.ioFailure(error.localizedDescription)
+    }
+  }
+
+  func writeFile(_ data: Data, at url: URL) async throws {
+    let fileManager = FileManager.default
+    let parent = url.deletingLastPathComponent()
+    do {
+      try fileManager.createDirectory(at: parent, withIntermediateDirectories: true)
+    } catch {
+      throw AgentFilesystemError.ioFailure(error.localizedDescription)
+    }
+    var isDirectory: ObjCBool = false
+    if fileManager.fileExists(atPath: url.path, isDirectory: &isDirectory), isDirectory.boolValue {
+      throw AgentFilesystemError.notRegularFile(url)
+    }
+    do {
+      try data.write(to: url, options: .atomic)
+    } catch {
+      throw AgentFilesystemError.ioFailure(error.localizedDescription)
+    }
+  }
+
+  func metadata(of url: URL) async throws -> FileMetadata? {
+    let fileManager = FileManager.default
+    var isDirectory: ObjCBool = false
+    guard fileManager.fileExists(atPath: url.path, isDirectory: &isDirectory) else {
+      return nil
+    }
+    let resourceValues = try? url.resourceValues(forKeys: [
+      .fileSizeKey,
+      .contentModificationDateKey,
+      .isRegularFileKey,
+    ])
+    return FileMetadata(
+      url: url.standardizedFileURL,
+      isDirectory: isDirectory.boolValue,
+      isRegularFile: resourceValues?.isRegularFile ?? !isDirectory.boolValue,
+      size: resourceValues?.fileSize,
+      modificationDate: resourceValues?.contentModificationDate
+    )
+  }
+
+  func listDirectory(at url: URL) async throws -> [DirectoryEntry] {
+    let fileManager = FileManager.default
+    var isDirectory: ObjCBool = false
+    guard fileManager.fileExists(atPath: url.path, isDirectory: &isDirectory) else {
+      throw AgentFilesystemError.notFound(url)
+    }
+    guard isDirectory.boolValue else {
+      throw AgentFilesystemError.notDirectory(url)
+    }
+    let entries: [URL]
+    do {
+      entries = try fileManager.contentsOfDirectory(
+        at: url,
+        includingPropertiesForKeys: [.isDirectoryKey],
+        options: []
+      )
+    } catch {
+      throw AgentFilesystemError.ioFailure(error.localizedDescription)
+    }
+    return entries.map { entryURL in
+      var entryIsDir: ObjCBool = false
+      fileManager.fileExists(atPath: entryURL.path, isDirectory: &entryIsDir)
+      return DirectoryEntry(
+        url: entryURL,
+        name: entryURL.lastPathComponent,
+        isDirectory: entryIsDir.boolValue
+      )
+    }
+  }
+
+  func glob(pattern: String, under rootURL: URL, walkCap: Int) async throws -> [GlobMatch] {
+    let fileManager = FileManager.default
+    var isDirectory: ObjCBool = false
+    guard fileManager.fileExists(atPath: rootURL.path, isDirectory: &isDirectory),
+      isDirectory.boolValue
+    else {
+      throw AgentFilesystemError.notDirectory(rootURL)
     }
 
-    func readFile(at url: URL) async throws -> Data {
-        let fileManager = FileManager.default
-        var isDirectory: ObjCBool = false
-        guard fileManager.fileExists(atPath: url.path, isDirectory: &isDirectory) else {
-            throw AgentFilesystemError.notFound(url)
-        }
-        if isDirectory.boolValue {
-            throw AgentFilesystemError.notRegularFile(url)
-        }
-        do {
-            return try Data(contentsOf: url)
-        } catch {
-            throw AgentFilesystemError.ioFailure(error.localizedDescription)
-        }
+    let regex: NSRegularExpression
+    do {
+      regex = try AgentGlobPattern.regex(forGlob: pattern)
+    } catch {
+      throw AgentFilesystemError.ioFailure("invalid glob pattern: \(error.localizedDescription)")
     }
 
-    func writeFile(_ data: Data, at url: URL) async throws {
-        let fileManager = FileManager.default
-        let parent = url.deletingLastPathComponent()
-        do {
-            try fileManager.createDirectory(at: parent, withIntermediateDirectories: true)
-        } catch {
-            throw AgentFilesystemError.ioFailure(error.localizedDescription)
-        }
-        var isDirectory: ObjCBool = false
-        if fileManager.fileExists(atPath: url.path, isDirectory: &isDirectory), isDirectory.boolValue {
-            throw AgentFilesystemError.notRegularFile(url)
-        }
-        do {
-            try data.write(to: url, options: .atomic)
-        } catch {
-            throw AgentFilesystemError.ioFailure(error.localizedDescription)
-        }
+    guard
+      let enumerator = fileManager.enumerator(
+        at: rootURL,
+        includingPropertiesForKeys: [.isRegularFileKey, .contentModificationDateKey],
+        options: []
+      )
+    else {
+      throw AgentFilesystemError.ioFailure("could not enumerate \(rootURL.path)")
     }
 
-    func metadata(of url: URL) async throws -> FileMetadata? {
-        let fileManager = FileManager.default
-        var isDirectory: ObjCBool = false
-        guard fileManager.fileExists(atPath: url.path, isDirectory: &isDirectory) else {
-            return nil
-        }
-        let resourceValues = try? url.resourceValues(forKeys: [
-            .fileSizeKey,
-            .contentModificationDateKey,
-            .isRegularFileKey
-        ])
-        return FileMetadata(
-            url: url.standardizedFileURL,
-            isDirectory: isDirectory.boolValue,
-            isRegularFile: resourceValues?.isRegularFile ?? !isDirectory.boolValue,
-            size: resourceValues?.fileSize,
-            modificationDate: resourceValues?.contentModificationDate
-        )
+    var matches: [GlobMatch] = []
+    var visited = 0
+    let rootPath = rootURL.standardizedFileURL.path
+    let rootPrefix = rootPath.hasSuffix("/") ? rootPath : rootPath + "/"
+
+    while let next = enumerator.nextObject() {
+      visited += 1
+      if visited > walkCap { break }
+      guard let fileURL = next as? URL else { continue }
+
+      let absolute = fileURL.standardizedFileURL.path
+      let relative: String
+      if absolute == rootPath {
+        relative = "."
+      } else if absolute.hasPrefix(rootPrefix) {
+        relative = String(absolute.dropFirst(rootPrefix.count))
+      } else {
+        relative = absolute
+      }
+      let nsRelative = relative as NSString
+      let range = NSRange(location: 0, length: nsRelative.length)
+      if regex.firstMatch(in: relative, options: [], range: range) == nil { continue }
+
+      let resourceValues = try? fileURL.resourceValues(forKeys: [
+        .isRegularFileKey, .contentModificationDateKey,
+      ])
+      if resourceValues?.isRegularFile != true { continue }
+      matches.append(
+        GlobMatch(
+          url: fileURL,
+          modificationDate: resourceValues?.contentModificationDate
+        ))
     }
+    return matches
+  }
 
-    func listDirectory(at url: URL) async throws -> [DirectoryEntry] {
-        let fileManager = FileManager.default
-        var isDirectory: ObjCBool = false
-        guard fileManager.fileExists(atPath: url.path, isDirectory: &isDirectory) else {
-            throw AgentFilesystemError.notFound(url)
-        }
-        guard isDirectory.boolValue else {
-            throw AgentFilesystemError.notDirectory(url)
-        }
-        let entries: [URL]
-        do {
-            entries = try fileManager.contentsOfDirectory(
-                at: url,
-                includingPropertiesForKeys: [.isDirectoryKey],
-                options: []
-            )
-        } catch {
-            throw AgentFilesystemError.ioFailure(error.localizedDescription)
-        }
-        return entries.map { entryURL in
-            var entryIsDir: ObjCBool = false
-            fileManager.fileExists(atPath: entryURL.path, isDirectory: &entryIsDir)
-            return DirectoryEntry(
-                url: entryURL,
-                name: entryURL.lastPathComponent,
-                isDirectory: entryIsDir.boolValue
-            )
-        }
+  func grep(
+    pattern: String,
+    in url: URL,
+    glob: String?,
+    caseInsensitive: Bool,
+    timeout: TimeInterval
+  ) async throws -> ProcessResult {
+    let invocationArgs: [String]
+    switch grepExecutable {
+    case .ripgrep:
+      var rgArgs = [
+        "--no-config",
+        "--with-filename",
+        "--line-number",
+        "--color", "never",
+      ]
+      if caseInsensitive { rgArgs.append("--ignore-case") }
+      if let glob, !glob.isEmpty {
+        rgArgs += ["--glob", glob]
+      }
+      rgArgs += [pattern, url.path]
+      invocationArgs = rgArgs
+
+    case .grep:
+      var grepArgs = ["-rnE"]
+      if caseInsensitive { grepArgs.append("-i") }
+      if let glob, !glob.isEmpty {
+        grepArgs += ["--include=\(glob)"]
+      }
+      grepArgs += [pattern, url.path]
+      invocationArgs = grepArgs
     }
-
-    func glob(pattern: String, under rootURL: URL, walkCap: Int) async throws -> [GlobMatch] {
-        let fileManager = FileManager.default
-        var isDirectory: ObjCBool = false
-        guard fileManager.fileExists(atPath: rootURL.path, isDirectory: &isDirectory), isDirectory.boolValue else {
-            throw AgentFilesystemError.notDirectory(rootURL)
-        }
-
-        let regex: NSRegularExpression
-        do {
-            regex = try AgentGlobPattern.regex(forGlob: pattern)
-        } catch {
-            throw AgentFilesystemError.ioFailure("invalid glob pattern: \(error.localizedDescription)")
-        }
-
-        guard let enumerator = fileManager.enumerator(
-            at: rootURL,
-            includingPropertiesForKeys: [.isRegularFileKey, .contentModificationDateKey],
-            options: []
-        ) else {
-            throw AgentFilesystemError.ioFailure("could not enumerate \(rootURL.path)")
-        }
-
-        var matches: [GlobMatch] = []
-        var visited = 0
-        let rootPath = rootURL.standardizedFileURL.path
-        let rootPrefix = rootPath.hasSuffix("/") ? rootPath : rootPath + "/"
-
-        while let next = enumerator.nextObject() {
-            visited += 1
-            if visited > walkCap { break }
-            guard let fileURL = next as? URL else { continue }
-
-            let absolute = fileURL.standardizedFileURL.path
-            let relative: String
-            if absolute == rootPath {
-                relative = "."
-            } else if absolute.hasPrefix(rootPrefix) {
-                relative = String(absolute.dropFirst(rootPrefix.count))
-            } else {
-                relative = absolute
-            }
-            let nsRelative = relative as NSString
-            let range = NSRange(location: 0, length: nsRelative.length)
-            if regex.firstMatch(in: relative, options: [], range: range) == nil { continue }
-
-            let resourceValues = try? fileURL.resourceValues(forKeys: [.isRegularFileKey, .contentModificationDateKey])
-            if resourceValues?.isRegularFile != true { continue }
-            matches.append(GlobMatch(
-                url: fileURL,
-                modificationDate: resourceValues?.contentModificationDate
-            ))
-        }
-        return matches
+    do {
+      return try await ProcessRunner.run(
+        executable: grepExecutable.path,
+        arguments: invocationArgs,
+        workingDirectory: url,
+        timeout: timeout
+      )
+    } catch {
+      throw AgentFilesystemError.ioFailure("grep launch failed: \(error.localizedDescription)")
     }
-
-    func grep(
-        pattern: String,
-        in url: URL,
-        glob: String?,
-        caseInsensitive: Bool,
-        timeout: TimeInterval
-    ) async throws -> ProcessResult {
-        let invocationArgs: [String]
-        switch grepExecutable {
-        case .ripgrep:
-            var rgArgs = [
-                "--no-config",
-                "--with-filename",
-                "--line-number",
-                "--color", "never"
-            ]
-            if caseInsensitive { rgArgs.append("--ignore-case") }
-            if let glob, !glob.isEmpty {
-                rgArgs += ["--glob", glob]
-            }
-            rgArgs += [pattern, url.path]
-            invocationArgs = rgArgs
-
-        case .grep:
-            var grepArgs = ["-rnE"]
-            if caseInsensitive { grepArgs.append("-i") }
-            if let glob, !glob.isEmpty {
-                grepArgs += ["--include=\(glob)"]
-            }
-            grepArgs += [pattern, url.path]
-            invocationArgs = grepArgs
-        }
-        do {
-            return try await ProcessRunner.run(
-                executable: grepExecutable.path,
-                arguments: invocationArgs,
-                workingDirectory: url,
-                timeout: timeout
-            )
-        } catch {
-            throw AgentFilesystemError.ioFailure("grep launch failed: \(error.localizedDescription)")
-        }
-    }
+  }
 }
 
 /// Which grep-style executable to invoke. Picked once at startup so the
 /// tool implementations don't re-stat `/opt/homebrew/bin/rg` on every call.
 enum AgentGrepExecutable: Sendable, Equatable {
-    case ripgrep(String)
-    case grep(String)
+  case ripgrep(String)
+  case grep(String)
 
-    var path: String {
-        switch self {
-        case let .ripgrep(p): return p
-        case let .grep(p): return p
-        }
+  var path: String {
+    switch self {
+    case .ripgrep(let p): return p
+    case .grep(let p): return p
     }
+  }
 
-    static func locate() -> AgentGrepExecutable {
-        let rgCandidates = ["/opt/homebrew/bin/rg", "/usr/local/bin/rg"]
-        for path in rgCandidates where FileManager.default.isExecutableFile(atPath: path) {
-            return .ripgrep(path)
-        }
-        return .grep("/usr/bin/grep")
+  static func locate() -> AgentGrepExecutable {
+    let rgCandidates = ["/opt/homebrew/bin/rg", "/usr/local/bin/rg"]
+    for path in rgCandidates where FileManager.default.isExecutableFile(atPath: path) {
+      return .ripgrep(path)
     }
+    return .grep("/usr/bin/grep")
+  }
 }
 
 /// Glob pattern → regex translator, factored out of `AgentGlobTool` so
 /// other filesystem implementations (e.g. the Shared VM one) can share
 /// the same pattern semantics without depending on the tool type.
 enum AgentGlobPattern {
-    /// Translate a glob pattern into an anchored regex.
-    /// - `**` matches any sequence of characters (including `/`).
-    /// - `*` matches any characters except `/`.
-    /// - `?` matches a single character except `/`.
-    /// - All other regex metacharacters are escaped.
-    static func regex(forGlob pattern: String) throws -> NSRegularExpression {
-        var regex = "^"
-        var i = pattern.startIndex
-        while i < pattern.endIndex {
-            let c = pattern[i]
-            if c == "*" {
-                let next = pattern.index(after: i)
-                if next < pattern.endIndex, pattern[next] == "*" {
-                    regex += ".*"
-                    i = pattern.index(after: next)
-                    if i < pattern.endIndex && pattern[i] == "/" {
-                        i = pattern.index(after: i)
-                    }
-                    continue
-                }
-                regex += "[^/]*"
-            } else if c == "?" {
-                regex += "[^/]"
-            } else if ".^$+(){}|[]\\".contains(c) {
-                regex.append("\\")
-                regex.append(c)
-            } else {
-                regex.append(c)
-            }
+  /// Translate a glob pattern into an anchored regex.
+  /// - `**` matches any sequence of characters (including `/`).
+  /// - `*` matches any characters except `/`.
+  /// - `?` matches a single character except `/`.
+  /// - All other regex metacharacters are escaped.
+  static func regex(forGlob pattern: String) throws -> NSRegularExpression {
+    var regex = "^"
+    var i = pattern.startIndex
+    while i < pattern.endIndex {
+      let c = pattern[i]
+      if c == "*" {
+        let next = pattern.index(after: i)
+        if next < pattern.endIndex, pattern[next] == "*" {
+          regex += ".*"
+          i = pattern.index(after: next)
+          if i < pattern.endIndex && pattern[i] == "/" {
             i = pattern.index(after: i)
+          }
+          continue
         }
-        regex += "$"
-        return try NSRegularExpression(pattern: regex)
+        regex += "[^/]*"
+      } else if c == "?" {
+        regex += "[^/]"
+      } else if ".^$+(){}|[]\\".contains(c) {
+        regex.append("\\")
+        regex.append(c)
+      } else {
+        regex.append(c)
+      }
+      i = pattern.index(after: i)
     }
+    regex += "$"
+    return try NSRegularExpression(pattern: regex)
+  }
 }

@@ -3,131 +3,139 @@ import Foundation
 /// Run a shell command via `/bin/zsh -lc`. The agent's most powerful tool —
 /// only the Develop registry exposes it; Plan and Reflect are read-only.
 struct AgentBashTool: AgentTool {
-    static let toolName = "bash"
-    static let defaultTimeoutMs = 120_000
-    static let maxTimeoutMs = 1_800_000
-    static let maxOutputBytes = 100_000
+  static let toolName = "bash"
+  static let defaultTimeoutMs = 120_000
+  static let maxTimeoutMs = 1_800_000
+  static let maxOutputBytes = 100_000
 
-    struct Arguments: Codable {
-        let command: String
-        let timeoutMs: Int?
-        let cwd: String?
+  struct Arguments: Codable {
+    let command: String
+    let timeoutMs: Int?
+    let cwd: String?
+  }
+
+  let spec: AgentToolSpec
+
+  init() {
+    let schema = try! AgentToolParametersSchema([
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["command"],
+      "properties": [
+        "command": [
+          "type": "string",
+          "description": "Shell command. Executed by `/bin/zsh -lc`.",
+        ],
+        "timeoutMs": [
+          "type": "integer",
+          "minimum": 1,
+          "maximum": AgentBashTool.maxTimeoutMs,
+          "description":
+            "Hard timeout in milliseconds. Default 120000 (2 minutes), max 1800000 (30 minutes).",
+        ],
+        "cwd": [
+          "type": "string",
+          "description":
+            "Optional working directory for the command. Must resolve inside the agent's working directory. Defaults to it.",
+        ],
+      ],
+    ])
+    spec = AgentToolSpec(
+      name: Self.toolName,
+      description:
+        "Execute a shell command via /bin/zsh -lc. Stdout, stderr, and exit code are returned. Output capped at 100 KB; commands killed at the timeout.",
+      parameters: schema
+    )
+  }
+
+  func invoke(arguments: Data, context: AgentToolContext) async throws -> AgentToolInvocationResult
+  {
+    let args: Arguments
+    do {
+      args = try JSONDecoder().decode(Arguments.self, from: arguments)
+    } catch {
+      return .failure("Failed to decode arguments: \(error.localizedDescription)")
+    }
+    let command = args.command.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !command.isEmpty else {
+      return .failure("command is empty")
     }
 
-    let spec: AgentToolSpec
-
-    init() {
-        let schema = try! AgentToolParametersSchema([
-            "type": "object",
-            "additionalProperties": false,
-            "required": ["command"],
-            "properties": [
-                "command": [
-                    "type": "string",
-                    "description": "Shell command. Executed by `/bin/zsh -lc`."
-                ],
-                "timeoutMs": [
-                    "type": "integer",
-                    "minimum": 1,
-                    "maximum": AgentBashTool.maxTimeoutMs,
-                    "description": "Hard timeout in milliseconds. Default 120000 (2 minutes), max 1800000 (30 minutes)."
-                ],
-                "cwd": [
-                    "type": "string",
-                    "description": "Optional working directory for the command. Must resolve inside the agent's working directory. Defaults to it."
-                ]
-            ]
-        ])
-        spec = AgentToolSpec(
-            name: Self.toolName,
-            description: "Execute a shell command via /bin/zsh -lc. Stdout, stderr, and exit code are returned. Output capped at 100 KB; commands killed at the timeout.",
-            parameters: schema
-        )
+    let cwd: URL
+    if let raw = args.cwd?.trimmingCharacters(in: .whitespacesAndNewlines), !raw.isEmpty {
+      do {
+        cwd = try context.resolvePath(raw)
+      } catch let error as AgentToolError {
+        return .failure(error.errorDescription ?? "path resolution failed")
+      } catch {
+        return .failure("path resolution failed: \(error.localizedDescription)")
+      }
+      var isDirectory: ObjCBool = false
+      guard FileManager.default.fileExists(atPath: cwd.path, isDirectory: &isDirectory),
+        isDirectory.boolValue
+      else {
+        return .failure(AgentToolError.notDirectory(raw).errorDescription ?? "not a directory")
+      }
+    } else {
+      cwd = context.workingDirectory
     }
 
-    func invoke(arguments: Data, context: AgentToolContext) async throws -> AgentToolInvocationResult {
-        let args: Arguments
-        do {
-            args = try JSONDecoder().decode(Arguments.self, from: arguments)
-        } catch {
-            return .failure("Failed to decode arguments: \(error.localizedDescription)")
-        }
-        let command = args.command.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !command.isEmpty else {
-            return .failure("command is empty")
-        }
+    let timeoutMs =
+      args.timeoutMs.map { min(max($0, 1), Self.maxTimeoutMs) } ?? Self.defaultTimeoutMs
+    let timeoutSeconds = TimeInterval(timeoutMs) / 1_000
 
-        let cwd: URL
-        if let raw = args.cwd?.trimmingCharacters(in: .whitespacesAndNewlines), !raw.isEmpty {
-            do {
-                cwd = try context.resolvePath(raw)
-            } catch let error as AgentToolError {
-                return .failure(error.errorDescription ?? "path resolution failed")
-            } catch {
-                return .failure("path resolution failed: \(error.localizedDescription)")
-            }
-            var isDirectory: ObjCBool = false
-            guard FileManager.default.fileExists(atPath: cwd.path, isDirectory: &isDirectory), isDirectory.boolValue else {
-                return .failure(AgentToolError.notDirectory(raw).errorDescription ?? "not a directory")
-            }
-        } else {
-            cwd = context.workingDirectory
-        }
-
-        let timeoutMs = args.timeoutMs.map { min(max($0, 1), Self.maxTimeoutMs) } ?? Self.defaultTimeoutMs
-        let timeoutSeconds = TimeInterval(timeoutMs) / 1_000
-
-        let startedAt = Date()
-        let result: ProcessResult
-        do {
-            result = try await context.bashRunner.run(
-                command: command,
-                workingDirectory: cwd,
-                timeout: timeoutSeconds
-            )
-        } catch {
-            return .failure("bash launch failed: \(error.localizedDescription)")
-        }
-        let elapsed = Date().timeIntervalSince(startedAt)
-        let timedOut = elapsed >= timeoutSeconds - 0.1 && result.exitCode != 0
-
-        return .ok(formatOutput(
-            stdout: result.stdout,
-            stderr: result.stderr,
-            exitCode: result.exitCode,
-            timedOut: timedOut,
-            timeoutMs: timeoutMs
-        ))
+    let startedAt = Date()
+    let result: ProcessResult
+    do {
+      result = try await context.bashRunner.run(
+        command: command,
+        workingDirectory: cwd,
+        timeout: timeoutSeconds
+      )
+    } catch {
+      return .failure("bash launch failed: \(error.localizedDescription)")
     }
+    let elapsed = Date().timeIntervalSince(startedAt)
+    let timedOut = elapsed >= timeoutSeconds - 0.1 && result.exitCode != 0
 
-    private func formatOutput(
-        stdout: String,
-        stderr: String,
-        exitCode: Int32,
-        timedOut: Bool,
-        timeoutMs: Int
-    ) -> String {
-        var sections: [String] = []
-        let trimmedStdout = truncateOutput(stdout, label: "stdout")
-        if !trimmedStdout.isEmpty {
-            sections.append("[stdout]\n\(trimmedStdout)")
-        }
-        let trimmedStderr = truncateOutput(stderr, label: "stderr")
-        if !trimmedStderr.isEmpty {
-            sections.append("[stderr]\n\(trimmedStderr)")
-        }
-        if timedOut {
-            sections.append("[timed out after \(timeoutMs) ms]")
-        }
-        sections.append("[exit \(exitCode)]")
-        return sections.joined(separator: "\n\n")
-    }
+    return .ok(
+      formatOutput(
+        stdout: result.stdout,
+        stderr: result.stderr,
+        exitCode: result.exitCode,
+        timedOut: timedOut,
+        timeoutMs: timeoutMs
+      ))
+  }
 
-    private func truncateOutput(_ text: String, label: String) -> String {
-        let stripped = text.trimmingCharacters(in: CharacterSet(charactersIn: "\n"))
-        guard stripped.utf8.count > Self.maxOutputBytes else { return stripped }
-        let truncatedBytes = Data(stripped.utf8.prefix(Self.maxOutputBytes))
-        let truncated = String(decoding: truncatedBytes, as: UTF8.self)
-        return truncated + "\n... [\(label) truncated at \(Self.maxOutputBytes) bytes]"
+  private func formatOutput(
+    stdout: String,
+    stderr: String,
+    exitCode: Int32,
+    timedOut: Bool,
+    timeoutMs: Int
+  ) -> String {
+    var sections: [String] = []
+    let trimmedStdout = truncateOutput(stdout, label: "stdout")
+    if !trimmedStdout.isEmpty {
+      sections.append("[stdout]\n\(trimmedStdout)")
     }
+    let trimmedStderr = truncateOutput(stderr, label: "stderr")
+    if !trimmedStderr.isEmpty {
+      sections.append("[stderr]\n\(trimmedStderr)")
+    }
+    if timedOut {
+      sections.append("[timed out after \(timeoutMs) ms]")
+    }
+    sections.append("[exit \(exitCode)]")
+    return sections.joined(separator: "\n\n")
+  }
+
+  private func truncateOutput(_ text: String, label: String) -> String {
+    let stripped = text.trimmingCharacters(in: CharacterSet(charactersIn: "\n"))
+    guard stripped.utf8.count > Self.maxOutputBytes else { return stripped }
+    let truncatedBytes = Data(stripped.utf8.prefix(Self.maxOutputBytes))
+    let truncated = String(decoding: truncatedBytes, as: UTF8.self)
+    return truncated + "\n... [\(label) truncated at \(Self.maxOutputBytes) bytes]"
+  }
 }
