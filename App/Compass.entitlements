@@ -6,9 +6,10 @@
 	<true/>
 	<!--
 	Enables the data protection keychain on macOS, scoping items by
-	`<team>.<bundle>` instead of cdhash. Without this, AgentKeychain
-	silently falls back to the legacy login keychain (which re-prompts
-	on every rebuild).
+	`<team>.<bundle>` instead of cdhash. Required by
+	SharedCompassVMGuestCredential, which keeps the guest SSH key in
+	the keychain so re-signing the dev build doesn't re-prompt for
+	access on every rebuild.
 	-->
 	<key>keychain-access-groups</key>
 	<array>

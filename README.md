@@ -6,9 +6,8 @@ completions endpoint (default: MiniMax), drives the loop with its own tool
 dispatcher, and keeps per-repository state in `.compass/` so multiple
 projects can run side by side from one desktop workspace.
 
-Compass requires macOS 26 or newer on Apple Silicon. The Cinematic tab uses
-RealityKit's SwiftUI `RealityView` renderer, and the optional Shared VM
-sandbox is built directly on Apple's `Virtualization.framework`.
+Compass requires macOS 26 or newer on Apple Silicon. The Shared VM sandbox
+is built directly on Apple's `Virtualization.framework`.
 
 ## Run
 
@@ -66,7 +65,9 @@ scripted setup / CI:
 | `COMPASS_AGENT_MODEL_PLAN`            | _(falls back to default model)_  |
 | `COMPASS_AGENT_MODEL_DEV`             | _(falls back to default model)_  |
 | `COMPASS_AGENT_MODEL_REFLECT`         | _(falls back to default model)_  |
+| `COMPASS_AGENT_MODEL_CODEMAP`         | _(falls back to default model; use a cheap small model for the per-file summary fan-out)_ |
 | `COMPASS_AGENT_CONTEXT_WINDOW_TOKENS` | `200000` (`0` disables compaction) |
+| `COMPASS_REFLECT_EVERY`               | `5` (Reflect cadence in iterations) |
 
 Each Plan / Develop / Reflect iteration reports its token usage back to
 Compass via `stream_options.include_usage`. When usage crosses 75% of
@@ -97,17 +98,17 @@ calling the special `submit_result` tool with a JSON payload that matches
 the phase contract.
 
 - Plan runs with a **read-only** tool set (`read_file`, `ls`, `grep`,
-  `glob`) and asks the model for a structured state result plus optional
-  `lessonEdits`. The app backs up `.compass/state.json` first, applies
-  lesson edits with exact find/replace mechanics, then writes the decoded
-  state after the run.
+  `glob`, plus the codemap tools `outline`, `find_symbol`, `summary`,
+  `importers_of`, `list_files`) and asks the model for a structured state
+  result plus optional `lessonEdits`. The app backs up `.compass/state.json`
+  first, applies lesson edits with exact find/replace mechanics, then
+  writes the decoded state after the run.
 - Reflect runs on the default cadence (`COMPASS_REFLECT_EVERY`, default
   `5`) with the same read-only tool set and can return either no state
   change or a full updated `PlanState`.
-- Develop runs with the **full** tool set (`read_file`, `ls`, `grep`,
-  `glob`, `write_file`, `edit_file`, `bash`) inside the Shared VM's
-  persistent per-repo guest workspace, talking back to the host over
-  vsock. Once Verify passes, Compass pulls the guest workspace into the
+- Develop runs with the **full** tool set (the read-only tools plus
+  `write_file`, `edit_file`, `bash`) inside the Shared VM's persistent
+  per-repo guest workspace, talking back to the host over vsock. Once Verify passes, Compass pulls the guest workspace into the
   host repo so the iteration's commits land where the rest of the
   toolchain expects them. Develop must return `lessonEdits` instead of
   editing `.compass/lessons.md` directly, so durable lessons land in the
@@ -165,7 +166,9 @@ so no manual project-file edits are needed for routine source additions.
 App-bundle metadata lives under `App/`:
 
 - `App/Info.plist` — bundle id, version, category, min macOS.
-- `App/Compass.entitlements` — currently just `com.apple.security.virtualization`.
+- `App/Compass.entitlements` — `com.apple.security.virtualization` (for the
+  Shared VM) and `keychain-access-groups` (for the Shared VM's SSH guest
+  credential, the only secret Compass still stores in the macOS Keychain).
   Add more entitlements here if Compass ever needs sandboxed network, hardware
   access, etc. App Sandbox is intentionally **off** — Compass is distributed
   outside the App Store (via `.dmg`), so the sandbox's file-access restrictions

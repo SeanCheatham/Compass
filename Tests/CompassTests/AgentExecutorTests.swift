@@ -43,7 +43,6 @@ final class AgentExecutorTests: XCTestCase {
     XCTAssertFalse(AgentExecutionError.cancelled.isAgentBudgetExhaustion)
     XCTAssertFalse(AgentExecutionError.streamFailed("boom").isAgentBudgetExhaustion)
     XCTAssertFalse(AgentExecutionError.modelStoppedWithoutSubmitResult.isAgentBudgetExhaustion)
-    XCTAssertFalse(AgentExecutionError.configurationInvalid("nope").isAgentBudgetExhaustion)
     XCTAssertFalse(
       AgentExecutionError.toolCallDecodeFailed(name: "x", detail: "y").isAgentBudgetExhaustion
     )
@@ -329,7 +328,8 @@ final class AgentExecutorTests: XCTestCase {
     var indices: Set<Int> = []
     AgentExecutor.rollback(messages: &messages, nudgeIndices: &indices, to: 3)
     XCTAssertEqual(messages.count, 3)
-    if case .tool = messages.last {} else {
+    if case .tool = messages.last {
+    } else {
       XCTFail("rollback should land on the prior tool response, got \(messages.last as Any)")
     }
   }
@@ -350,7 +350,8 @@ final class AgentExecutorTests: XCTestCase {
     var indices: Set<Int> = []
     AgentExecutor.rollback(messages: &messages, nudgeIndices: &indices, to: 2)
     XCTAssertEqual(messages.count, 2)
-    if case .user = messages.last {} else {
+    if case .user = messages.last {
+    } else {
       XCTFail("rollback should leave the original user task as the tail")
     }
   }

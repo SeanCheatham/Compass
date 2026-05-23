@@ -105,7 +105,7 @@ struct ProjectActivitySourceStatus: Equatable {
         kind: .applicationSupportActive,
         label: "Activity from Support",
         detail: [
-          "Cinematic activity reads Application Support sessions.json.",
+          "Session activity reads Application Support sessions.json.",
           repoLocalIgnoredSentence(snapshot.repoLocalSessionsState),
         ]
         .filter { !$0.isEmpty }
@@ -151,20 +151,20 @@ struct ProjectActivitySourceStatus: Equatable {
     case .available:
       detail = "\(storageName) sessions.json is available."
     case .noRepository:
-      detail = "No repository is available, so cinematic activity uses an empty activity source."
+      detail = "No repository is available, so session activity uses an empty activity source."
     case .notScanned:
       detail =
-        "\(storageName) sessions.json has not been scanned yet; cinematic activity is pending."
+        "\(storageName) sessions.json has not been scanned yet; session activity is pending."
     case .storageRootMissing:
       detail =
-        "\(storageName) activity root is missing; cinematic activity uses an empty source until storage returns."
+        "\(storageName) activity root is missing; session activity uses an empty source until storage returns."
     case .sessionsRecordMissing:
       detail =
-        "\(storageName) sessions.json is missing; cinematic activity uses an empty source until the record returns."
+        "\(storageName) sessions.json is missing; session activity uses an empty source until the record returns."
     case .sessionsRecordOversized:
-      detail = "\(storageName) sessions.json is oversized and ignored for cinematic activity."
+      detail = "\(storageName) sessions.json is oversized and ignored for session activity."
     case .sessionsRecordUnreadable:
-      detail = "\(storageName) sessions.json is unreadable and ignored for cinematic activity."
+      detail = "\(storageName) sessions.json is unreadable and ignored for session activity."
     }
 
     return Presentation(

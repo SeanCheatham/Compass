@@ -146,7 +146,7 @@ final class CompassProjectActiveStorageTests: XCTestCase {
   }
 
   func
-    testApplicationSupportActiveStorageDerivesActivityProfileFromSupportSessionsWhenRepoLocalSessionsMissing()
+    testApplicationSupportActiveStorageReadsSupportSessionsWhenRepoLocalSessionsMissing()
     async throws
   {
     let repoURL = try await makeInitializedGitRepository()
@@ -181,18 +181,6 @@ final class CompassProjectActiveStorageTests: XCTestCase {
 
     let sourceSnapshot = project.activitySourceSnapshot
 
-    XCTAssertTrue(project.activityProfile.isAvailable)
-    XCTAssertEqual(project.activityProfile.recentSessionCount, 3)
-    XCTAssertEqual(project.activityProfile.recentSucceededCount, 2)
-    XCTAssertEqual(project.activityProfile.recentFailedCount, 1)
-    XCTAssertEqual(project.activityProfile.recentCommitCount, 6)
-    XCTAssertEqual(project.activityProfile.lastTerminalStatus, .succeeded)
-    XCTAssertEqual(project.activityProfile.lastSuccessfulSession, 23)
-    XCTAssertEqual(project.activityProfile.lastFailedSession, 21)
-    XCTAssertEqual(project.activityProfile.successStreak, 2)
-    XCTAssertEqual(project.activityProfile.failureStreak, 0)
-    XCTAssertTrue(project.activityProfile.recoveredFromFailure)
-    XCTAssertEqual(project.activityProfile.worktreeChanges.untracked, 1)
     XCTAssertEqual(project.sessions, supportSessions)
     XCTAssertEqual(sourceSnapshot.activeStorage, .applicationSupport)
     XCTAssertEqual(sourceSnapshot.storageRootURL, workspace.compassURL.standardizedFileURL)
@@ -206,7 +194,7 @@ final class CompassProjectActiveStorageTests: XCTestCase {
     XCTAssertFalse(FileManager.default.fileExists(atPath: workspace.repoLocalCompassURL.path))
   }
 
-  func testApplicationSupportActiveStorageIgnoresStaleRepoLocalSessionsForActivityProfile()
+  func testApplicationSupportActiveStorageIgnoresStaleRepoLocalSessions()
     async throws
   {
     let repoURL = try await makeInitializedGitRepository()
@@ -238,17 +226,6 @@ final class CompassProjectActiveStorageTests: XCTestCase {
 
     let sourceSnapshot = project.activitySourceSnapshot
 
-    XCTAssertTrue(project.activityProfile.isAvailable)
-    XCTAssertEqual(project.activityProfile.recentSessionCount, 2)
-    XCTAssertEqual(project.activityProfile.recentSucceededCount, 1)
-    XCTAssertEqual(project.activityProfile.recentFailedCount, 1)
-    XCTAssertEqual(project.activityProfile.recentCommitCount, 3)
-    XCTAssertEqual(project.activityProfile.lastTerminalStatus, .succeeded)
-    XCTAssertEqual(project.activityProfile.lastSuccessfulSession, 32)
-    XCTAssertEqual(project.activityProfile.lastFailedSession, 31)
-    XCTAssertEqual(project.activityProfile.successStreak, 1)
-    XCTAssertEqual(project.activityProfile.failureStreak, 0)
-    XCTAssertTrue(project.activityProfile.recoveredFromFailure)
     XCTAssertEqual(project.activeStorage, .applicationSupport)
     XCTAssertEqual(project.sessions, supportSessions)
     XCTAssertEqual(sourceSnapshot.sourceAvailability, .available)
@@ -277,7 +254,6 @@ final class CompassProjectActiveStorageTests: XCTestCase {
     let activeStorageBeforeDiagnostics = project.activeStorage
     let sessionsBeforeDiagnostics = project.sessions
 
-    XCTAssertEqual(project.activityProfile, .empty)
     XCTAssertEqual(snapshot.activeStorage, .applicationSupport)
     XCTAssertEqual(snapshot.storageRootURL, workspace.compassURL.standardizedFileURL)
     XCTAssertEqual(snapshot.sessionsRecordURL, workspace.sessionsRecordURL.standardizedFileURL)
@@ -307,7 +283,6 @@ final class CompassProjectActiveStorageTests: XCTestCase {
     let activeStorageBeforeDiagnostics = project.activeStorage
     let sessionsBeforeDiagnostics = project.sessions
 
-    XCTAssertEqual(project.activityProfile, .empty)
     XCTAssertEqual(snapshot.activeStorage, .applicationSupport)
     XCTAssertNil(snapshot.storageRootURL)
     XCTAssertNil(snapshot.sessionsRecordURL)

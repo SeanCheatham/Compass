@@ -424,7 +424,6 @@ final class CompassProject: ObservableObject, Identifiable {
   @Published var vision = ""
   @Published var sessions: [SessionRecord] = []
   @Published var languageProfile = RepositoryLanguageProfile.empty
-  @Published var activityProfile = RepositoryActivityProfile.empty
   @Published var activitySourceSnapshot = RepositoryActivitySourceSnapshot.notScanned()
   @Published var nativeFeedbackMode: NativeFeedbackMode
   @Published var liveLog: [LiveLine] = []
@@ -585,7 +584,6 @@ extension CompassProject {
         activeStorage: activeStorage
       )
       languageProfile = .empty
-      activityProfile = .empty
       if requireStorageRoot {
         throw AppModelError.noRepositorySelected
       }
@@ -604,7 +602,6 @@ extension CompassProject {
       lessons = ""
       vision = ""
       sessions = []
-      activityProfile = .empty
       if requireStorageRoot {
         throw AppModelError.internalInvariant(
           "Active Compass storage root is missing at \(workspace.compassURL.path)."
@@ -618,7 +615,6 @@ extension CompassProject {
     lessons = workspace.readLessons()
     vision = workspace.readVision()
     sessions = workspace.readSessions()
-    activityProfile = await RepositoryActivityProfileService.scan(workspace: workspace)
   }
 
   func saveVision() async {

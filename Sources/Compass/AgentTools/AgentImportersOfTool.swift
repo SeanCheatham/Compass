@@ -52,7 +52,8 @@ struct AgentImportersOfTool: AgentTool {
     let store = context.codemapStore()
     guard let target = store.loadEntry(forRelativePath: normalized) else {
       return .failure(
-        "No codemap entry for '\(normalized)'. The reverse lookup needs the target to be indexed too.")
+        "No codemap entry for '\(normalized)'. The reverse lookup needs the target to be indexed too."
+      )
     }
 
     let candidates = Self.candidates(for: target.relativePath)

@@ -90,7 +90,8 @@ struct AgentFindSymbolTool: AgentTool {
     }
 
     var lines: [String] = []
-    lines.append("matches: \(matches.count)\(matches.count > Self.maxResults ? " (truncated)" : "")")
+    lines.append(
+      "matches: \(matches.count)\(matches.count > Self.maxResults ? " (truncated)" : "")")
     for match in matches.prefix(Self.maxResults) {
       lines.append("  \(match.path):\(match.symbol.line)  \(match.symbol.kind.rawValue)")
     }

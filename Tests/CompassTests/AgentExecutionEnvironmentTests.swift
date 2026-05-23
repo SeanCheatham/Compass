@@ -172,16 +172,18 @@ final class AgentExecutionEnvironmentTests: XCTestCase {
     XCTAssertEqual(report.effectiveRouteIdentifier, "native-macos")
   }
 
-  func testMissingDevcontainerPresentationFallsBackToNativeMacOS() throws {
+  func testNotProvisionedReadinessPresentationIsWarning() throws {
     let environment = AgentExecutionEnvironment.discover(vmReadiness: .notProvisioned)
-    let presentation = environment.presentation
+    let plan = environment.launchPlan(repoURL: URL(fileURLWithPath: "/"))
+    let presentation = environment.presentation(launchPlan: plan)
     XCTAssertEqual(presentation.title, "Shared VM")
     XCTAssertTrue(presentation.isWarning)
   }
 
-  func testMalformedDevcontainerPresentationIsBoundedAndFallsBackToNativeMacOS() throws {
+  func testErrorReadinessPresentationIsWarning() throws {
     let environment = AgentExecutionEnvironment.discover(vmReadiness: .error(detail: "boot failed"))
-    let presentation = environment.presentation
+    let plan = environment.launchPlan(repoURL: URL(fileURLWithPath: "/"))
+    let presentation = environment.presentation(launchPlan: plan)
     XCTAssertTrue(presentation.isWarning)
   }
 
@@ -204,7 +206,7 @@ final class AgentExecutionEnvironmentTests: XCTestCase {
     XCTAssertEqual(presentation.title, "Shared VM")
   }
 
-  func testDiscoveryDoesNotCreateDevcontainerFilesWhenConfigIsMissing() throws {
+  func testDiscoveryWithNotProvisionedReadinessPreservesReadiness() throws {
     let environment = AgentExecutionEnvironment.discover(vmReadiness: .notProvisioned)
     XCTAssertEqual(environment.readiness.vmReadiness, SharedCompassVMReadiness.notProvisioned)
   }

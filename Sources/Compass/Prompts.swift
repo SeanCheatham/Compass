@@ -564,7 +564,8 @@ enum Prompts {
         For SwiftPM packages, build and test with `swift build` /
         `swift test`. For `.xcodeproj`-based projects there is no
         in-VM equivalent — those builds must happen on the host route
-        (re-run with the Native macOS execution environment).
+        (Compass falls back to host execution automatically for those
+        phases).
         Homebrew is NOT installed by default. Network egress to Apple's
         CDNs (softwareupdate, swift package fetch from github.com) works.
         """

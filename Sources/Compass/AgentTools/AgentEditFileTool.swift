@@ -185,7 +185,8 @@ struct AgentEditFileTool: AgentTool {
   /// — usually because the file changed — without doing fuzzy matching that
   /// could quietly mask real staleness.
   private func nearMissHints(for oldString: String, in file: String) -> [String] {
-    let needle = oldString
+    let needle =
+      oldString
       .split(whereSeparator: \.isNewline)
       .lazy
       .map { $0.trimmingCharacters(in: .whitespaces) }

@@ -466,7 +466,6 @@ private struct NoProjectView: View {
 private struct MainWorkspaceView: View {
   @ObservedObject var project: CompassProject
   @State private var selectedTab: WorkspaceTab = .live
-  @State private var cinematicPresentationState = CinematicTabPresentationState()
 
   var body: some View {
     VStack(spacing: 0) {
@@ -474,8 +473,7 @@ private struct MainWorkspaceView: View {
       Divider()
       WorkspaceContent(
         project: project,
-        selectedTab: selectedTab,
-        cinematicPresentationState: $cinematicPresentationState
+        selectedTab: selectedTab
       )
       .padding(16)
       .overlay(alignment: .bottom) {
@@ -1149,14 +1147,11 @@ private struct WorkspaceTabButton: View {
 private struct WorkspaceContent: View {
   @ObservedObject var project: CompassProject
   var selectedTab: WorkspaceTab
-  @Binding var cinematicPresentationState: CinematicTabPresentationState
 
   var body: some View {
     switch selectedTab {
     case .live:
       LiveTab(project: project)
-    case .cinematic:
-      CinematicTab(project: project, presentationState: $cinematicPresentationState)
     case .plan:
       PlanTab(project: project)
     case .drafts:
@@ -1171,7 +1166,6 @@ private struct WorkspaceContent: View {
 
 private enum WorkspaceTab: String, CaseIterable, Identifiable {
   case live
-  case cinematic
   case plan
   case drafts
   case vision
@@ -1182,7 +1176,6 @@ private enum WorkspaceTab: String, CaseIterable, Identifiable {
   var title: String {
     switch self {
     case .live: return "Live"
-    case .cinematic: return "Cinematic"
     case .plan: return "Plan"
     case .drafts: return "Drafts"
     case .vision: return "Vision"
@@ -1193,7 +1186,6 @@ private enum WorkspaceTab: String, CaseIterable, Identifiable {
   var systemImage: String {
     switch self {
     case .live: return "waveform.path.ecg"
-    case .cinematic: return "wand.and.stars"
     case .plan: return "map"
     case .drafts: return "square.and.pencil"
     case .vision: return "scope"

@@ -82,7 +82,8 @@ struct CodemapIndexer: Sendable {
         if inFlight >= parallelism {
           if let outcome = try await group.next() {
             inFlight -= 1
-            accumulate(outcome, indexed: &indexed, unchanged: &unchanged, skipped: &skipped, failed: &failed)
+            accumulate(
+              outcome, indexed: &indexed, unchanged: &unchanged, skipped: &skipped, failed: &failed)
           }
         }
         let target = next
@@ -92,7 +93,8 @@ struct CodemapIndexer: Sendable {
         inFlight += 1
       }
       while let outcome = try await group.next() {
-        accumulate(outcome, indexed: &indexed, unchanged: &unchanged, skipped: &skipped, failed: &failed)
+        accumulate(
+          outcome, indexed: &indexed, unchanged: &unchanged, skipped: &skipped, failed: &failed)
       }
     }
 
@@ -210,7 +212,8 @@ struct CodemapIndexer: Sendable {
         relativize(match.url)
       }
     }
-    return allRelativePaths
+    return
+      allRelativePaths
       .filter { CodemapLanguage.forRelativePath($0) != nil }
       .sorted()
   }

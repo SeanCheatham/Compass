@@ -184,7 +184,8 @@ final class CodemapIndexerTests: XCTestCase {
     try writeFile("ignored.swift", contents: swiftFixture)
     try writeFile(".gitignore", contents: "ignored.swift\n")
 
-    let initStatus = runShell("git init -q && git add . && git -c user.email=t@t -c user.name=t commit -q -m init")
+    let initStatus = runShell(
+      "git init -q && git add . && git -c user.email=t@t -c user.name=t commit -q -m init")
     try XCTSkipUnless(initStatus, "git is not available; skipping")
 
     let indexer = makeIndexer(usingGit: true)

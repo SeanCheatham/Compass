@@ -62,7 +62,6 @@ struct AgentExecutionConfiguration {
 }
 
 enum AgentExecutionError: LocalizedError, Equatable {
-  case configurationInvalid(String)
   case streamFailed(String)
   case maxIterationsExceeded(Int)
   case wallClockExceeded(TimeInterval)
@@ -73,7 +72,6 @@ enum AgentExecutionError: LocalizedError, Equatable {
 
   var errorDescription: String? {
     switch self {
-    case .configurationInvalid(let detail): return "Agent configuration invalid: \(detail)"
     case .streamFailed(let detail): return "Chat completions stream failed: \(detail)"
     case .maxIterationsExceeded(let n): return "Agent exceeded max iterations (\(n))"
     case .wallClockExceeded(let timeout):

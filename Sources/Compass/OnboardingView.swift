@@ -50,10 +50,9 @@ struct OnboardingView: View {
   }
 
   /// Surfaces `AppModel.errorMessage` while the user is gated by onboarding.
-  /// Without this, keychain write failures (e.g. missing
-  /// `keychain-access-groups` entitlement) silently zeroed the API key
-  /// field on every paste, so the user couldn't tell why the field kept
-  /// "clearing".
+  /// Without this, a failed write to the secrets file (permissions, full
+  /// disk) silently zeroed the API key field on every paste, so the user
+  /// couldn't tell why the field kept "clearing".
   private func onboardingErrorBanner(message: String) -> some View {
     HStack(alignment: .top, spacing: 10) {
       Image(systemName: "exclamationmark.triangle.fill")

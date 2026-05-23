@@ -41,7 +41,8 @@ struct AgentOutlineTool: AgentTool {
     } catch {
       return .failure("Failed to decode arguments: \(error.localizedDescription)")
     }
-    let normalized = AgentCodemapPath.normalize(args.path, workingDirectory: context.workingDirectory)
+    let normalized = AgentCodemapPath.normalize(
+      args.path, workingDirectory: context.workingDirectory)
     let store = context.codemapStore()
     guard let entry = store.loadEntry(forRelativePath: normalized) else {
       return .failure(

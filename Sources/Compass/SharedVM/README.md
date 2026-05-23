@@ -83,12 +83,12 @@ directory survives across sessions, iterations, and app restarts.
 This is the **source of truth** for the agent — every Plan, Reflect,
 Develop, and Verify call against this repo operates on it.
 
-Per-iteration Develop worktrees still live on the host under
-`~/Library/Caches/Compass/Worktrees/dev-<UUID>/worktree`, but they
-no longer host the agent. Their job is narrower now: serve as the
-target of the post-Verify pull, host the auto-commit Compass creates
-on behalf of the agent (the guest has no `.git`), and feed the
-fast-forward merge in `promoteDevWorkspace`.
+There are no per-iteration host worktrees anymore. On Verify success
+the guest workspace is packed and pulled directly into the main host
+checkout via `AppModel.pullDevelopChangesIfNeeded`, and Compass runs
+`git add -A` + `git commit` there on behalf of the agent (the guest
+has no `.git`). The legacy `~/Library/Caches/Compass/Worktrees/`
+tree is GC'd once at launch and never recreated.
 
 There is no VirtioFS share. We tried it; macOS guests TCC-block
 `AppleVirtIOFS` reads from every process (sshd children, LaunchDaemons
@@ -125,10 +125,10 @@ allowed to touch:
     - **After Verify passes** the guest packs its current worktree
       (excluding `.git`, `.build`, `target`, `node_modules`, `build`,
       `dist`, `.swiftpm`) into a tar that the host reads back over
-      `readFile` and applies onto the per-iteration host worktree.
+      `readFile` and applies directly onto the main host repo.
       Compass then runs `git add -A` + `git commit -m "<agent summary>"`
-      on the host so `promoteDevWorkspace` has a commit to fast-forward
-      merge.
+      on the main repo so the iteration's commit lands where the rest
+      of the toolchain expects it.
     - The guest never has `.git/`. The agent cannot commit there;
       committing is host-side only, gated on Verify success.
     - See [SharedCompassVMWorktreeSync.swift](SharedCompassVMWorktreeSync.swift)
@@ -278,18 +278,10 @@ Per-session flow:
 3. **Verify** (when the iteration's `verify` command is set) runs
    inside the guest too, via the same vsock bash RPC. No host-side
    build toolchain is needed.
-4. **On Verify success**, the host pulls the guest worktree onto the
-   per-iteration host worktree under
-   `~/Library/Caches/Compass/Worktrees/dev-<UUID>/worktree`, creates
-   the host-side commit (`git add -A` + `git commit -m "<agent summary>"`),
-   and `promoteDevWorkspace` fast-forward-merges that branch onto
-   the main worktree. The agent does not commit — the guest has no
-   `.git`.
+4. **On Verify success**, the host pulls the guest worktree tar
+   directly onto the main host repo and commits there
+   (`git add -A` + `git commit -m "<agent summary>"`). The agent does
+   not commit — the guest has no `.git`.
 5. **On Verify failure**, nothing pulls. Agent state stays in the
    guest workspace; the next attempt (within or across sessions) picks
    it up and continues.
-
-The host worktree under `~/Library/Caches/Compass/Worktrees/dev-<UUID>/worktree`
-still exists to host the auto-commit branch — that branch is what
-`promoteDevWorkspace` fast-forwards into the main worktree. The agent
-itself never reads or writes there.

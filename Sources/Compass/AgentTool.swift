@@ -92,7 +92,6 @@ enum AgentToolError: LocalizedError, Equatable {
   case notRegularFile(String)
   case notDirectory(String)
   case binaryFile(String)
-  case ioFailure(String)
 
   var errorDescription: String? {
     switch self {
@@ -103,7 +102,6 @@ enum AgentToolError: LocalizedError, Equatable {
     case .notRegularFile(let path): return "Not a regular file: \(path)"
     case .notDirectory(let path): return "Not a directory: \(path)"
     case .binaryFile(let path): return "Cannot read binary file: \(path)"
-    case .ioFailure(let detail): return "I/O failure: \(detail)"
     }
   }
 }
@@ -151,7 +149,8 @@ extension AgentToolContext {
   /// the codemap go through this so future custom-storage support has one
   /// place to plumb a workspace handle through.
   func codemapStore() -> CodemapStore {
-    let directory = workingDirectory
+    let directory =
+      workingDirectory
       .appending(path: ".compass", directoryHint: .isDirectory)
       .appending(path: "codemap", directoryHint: .isDirectory)
     return CodemapStore(directory: directory)

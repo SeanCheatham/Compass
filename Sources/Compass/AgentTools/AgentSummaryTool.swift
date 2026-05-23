@@ -41,7 +41,8 @@ struct AgentSummaryTool: AgentTool {
     } catch {
       return .failure("Failed to decode arguments: \(error.localizedDescription)")
     }
-    let normalized = AgentCodemapPath.normalize(args.path, workingDirectory: context.workingDirectory)
+    let normalized = AgentCodemapPath.normalize(
+      args.path, workingDirectory: context.workingDirectory)
     let store = context.codemapStore()
     guard let entry = store.loadEntry(forRelativePath: normalized) else {
       return .failure(
@@ -50,7 +51,8 @@ struct AgentSummaryTool: AgentTool {
     }
     guard let summary = entry.summary, !summary.isEmpty else {
       return .ok(
-        "No summary yet for '\(entry.relativePath)'. Summary generation runs once per session; this file may have been added or changed after the pass.")
+        "No summary yet for '\(entry.relativePath)'. Summary generation runs once per session; this file may have been added or changed after the pass."
+      )
     }
     if let model = entry.summaryModel {
       return .ok("[\(entry.relativePath) · summarized by \(model)]\n\n\(summary)")

@@ -3,10 +3,10 @@ import Foundation
 /// The runtime environment Compass targets for an agent run.
 ///
 /// Compass has collapsed to a single user-facing environment (the
-/// Shared VM); the type is retained so menus, diagnostics, and stored
-/// session history continue to carry an explicit identifier for the
-/// chosen environment. Legacy stored values (`native_macos`, etc.) are
-/// decoded as `.sharedVM`.
+/// Shared VM); the type is retained so diagnostics and stored session
+/// history continue to carry an explicit identifier for the chosen
+/// environment. Legacy stored values (`native_macos`, etc.) are decoded
+/// as `.sharedVM`.
 enum AgentExecutionEnvironmentPreference: String, Codable, Identifiable {
   case sharedVM = "shared_vm"
 
@@ -149,10 +149,6 @@ struct AgentExecutionEnvironment: Equatable {
     )
   }
 
-  var presentation: AgentExecutionEnvironmentPresentation {
-    presentation(launchPlan: launchPlan(repoURL: URL(fileURLWithPath: "/")))
-  }
-
   func presentation(launchPlan plan: AgentExecutionLaunchPlan)
     -> AgentExecutionEnvironmentPresentation
   {
@@ -186,21 +182,6 @@ struct AgentExecutionEnvironment: Equatable {
       systemImage: "desktopcomputer.trianglebadge.exclamationmark",
       isWarning: true
     )
-  }
-
-  func launchPreflightSummary(phase: String, nativeExecutionURL: URL) -> String {
-    launchPlan(repoURL: nativeExecutionURL).preflightSummary(phase: phase)
-  }
-
-  var launchPreflightDetail: String {
-    let plan = launchPlan(repoURL: URL(fileURLWithPath: "/"))
-    let presentation = presentation
-    return [
-      presentation.status, presentation.detail, "VM readiness: \(plan.vmReadinessLabel).",
-      plan.routeDetail(),
-    ]
-    .filter { !$0.isEmpty }
-    .joined(separator: " ")
   }
 
   func launchPlan(

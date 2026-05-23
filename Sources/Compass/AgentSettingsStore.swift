@@ -63,6 +63,7 @@ final class AgentSettingsStore: @unchecked Sendable {
       planModelOverride: resolveString(.planModel, envKey: "COMPASS_AGENT_MODEL_PLAN"),
       developModelOverride: resolveString(.developModel, envKey: "COMPASS_AGENT_MODEL_DEV"),
       reflectModelOverride: resolveString(.reflectModel, envKey: "COMPASS_AGENT_MODEL_REFLECT"),
+      codemapModelOverride: resolveEnvString("COMPASS_AGENT_MODEL_CODEMAP"),
       contextWindowTokens: contextWindowTokens
     )
   }
@@ -116,13 +117,16 @@ final class AgentSettingsStore: @unchecked Sendable {
     {
       return stored
     }
-    if let env = environment[envKey]?
-      .trimmingCharacters(in: .whitespacesAndNewlines),
+    return resolveEnvString(envKey)
+  }
+
+  private func resolveEnvString(_ envKey: String) -> String? {
+    guard
+      let env = environment[envKey]?
+        .trimmingCharacters(in: .whitespacesAndNewlines),
       !env.isEmpty
-    {
-      return env
-    }
-    return nil
+    else { return nil }
+    return env
   }
 
   private func resolveBaseURL() -> URL {
