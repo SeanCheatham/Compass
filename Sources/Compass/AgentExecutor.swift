@@ -161,7 +161,9 @@ final class AgentExecutor {
     try Self.ensureUniqueToolNames(configuration.tools)
     let registry = Dictionary(uniqueKeysWithValues: configuration.tools.map { ($0.spec.name, $0) })
 
-    let openAI = Self.makeClient(settings: configuration.settings)
+    let requestRecorder = UpstreamRequestRecorder()
+    let openAI = Self.makeClient(
+      settings: configuration.settings, requestRecorder: requestRecorder)
     let openAITools = try Self.buildOpenAITools(configuration: configuration)
     let toolContext = AgentToolContext(
       workingDirectory: configuration.workingDirectory,
@@ -175,6 +177,14 @@ final class AgentExecutor {
       .system(.init(content: .textContent(configuration.systemPrompt))),
       .user(.init(content: .string(configuration.userPrompt))),
     ]
+    // Indices of `.user` messages we appended as remediation nudges (for
+    // invalid submit_result or "no tool calls" stalls). Tracked so two
+    // consecutive failed iterations collapse into a single nudge instead
+    // of pushing back-to-back `.user` messages, which strict providers
+    // reject as a malformed role sequence. The set is mutated alongside
+    // `messages`; on rollback we drop entries whose index no longer
+    // exists.
+    var remediationNudgeIndices = Set<Int>()
     var assistantTranscript = ""
     var reasoningTranscript = ""
     let startedAt = Date()
@@ -209,7 +219,9 @@ final class AgentExecutor {
         throw AgentExecutionError.cancelled
       } catch {
         if cancelled { throw AgentExecutionError.cancelled }
-        throw AgentExecutionError.streamFailed(error.localizedDescription)
+        let enriched = await enrichedStreamFailureDetail(
+          error: error, recorder: requestRecorder)
+        throw AgentExecutionError.streamFailed(enriched)
       }
 
       assistantTranscript += aggregated.assistantText
@@ -220,6 +232,15 @@ final class AgentExecutor {
           level: .raw, text: "Assistant", detail: previewString(aggregated.assistantText),
           kind: .agentMessage, status: .completed)
       }
+
+      // Snapshot the message count *before* this iteration appends its
+      // assistant turn. If `submit_result` later turns out to carry
+      // malformed JSON we roll back to here, dropping the assistant
+      // *and* any `.tool` responses we may have appended for sibling
+      // tool calls earlier in this same turn — leaving those behind
+      // would orphan them against an assistant message that no longer
+      // exists, which is exactly the 400 cascade MiniMax surfaces.
+      let messageCountBeforeAssistant = messages.count
 
       messages.append(
         .assistant(
@@ -235,11 +256,11 @@ final class AgentExecutor {
       // either get tool calls or break out.
       if aggregated.toolCalls.isEmpty {
         if aggregated.finishReason == "stop" || aggregated.finishReason == nil {
-          messages.append(
-            .user(
-              .init(
-                content: .string(
-                  "You must call the submit_result tool to finish this phase. Use it now."))))
+          Self.appendRemediationNudge(
+            "You must call the submit_result tool to finish this phase. Use it now.",
+            messages: &messages,
+            nudgeIndices: &remediationNudgeIndices
+          )
           continue
         }
       }
@@ -265,15 +286,31 @@ final class AgentExecutor {
             // of the bug. Replace the dropped turn with a
             // user-side retry nudge whose wording adapts to
             // whether the failure looks like truncation.
-            if case .assistant = messages.last {
-              messages.removeLast()
-            }
+            //
+            // Roll back to the snapshot taken before we appended
+            // this iteration's assistant — that drops the
+            // assistant *and* any `.tool` responses we already
+            // appended for earlier non-submit tool calls in the
+            // same turn. Leaving those tool messages behind would
+            // orphan their `toolCallId` against an assistant turn
+            // that no longer exists, which strict providers
+            // (MiniMax has been observed doing this) reject with
+            // a 400 on the next request.
+            Self.rollback(
+              messages: &messages,
+              nudgeIndices: &remediationNudgeIndices,
+              to: messageCountBeforeAssistant
+            )
             let nudge = Self.invalidSubmitResultNudge(
               finishReason: aggregated.finishReason,
               argumentsPreview: previewString(toolCall.arguments),
               maxCompletionTokens: Self.maxCompletionTokensPerTurn
             )
-            messages.append(.user(.init(content: .string(nudge.userMessage))))
+            Self.appendRemediationNudge(
+              nudge.userMessage,
+              messages: &messages,
+              nudgeIndices: &remediationNudgeIndices
+            )
             emit(
               level: .warning,
               text: nudge.eventText,
@@ -341,6 +378,11 @@ final class AgentExecutor {
           tokensBeforeCompaction: totalTokens,
           contextWindowTokens: configuration.contextWindowTokens
         )
+        // Compaction rewrites the entire `messages` array (keeps system,
+        // original user, appends a summary recap), so all previously
+        // tracked nudge indices are stale. Drop them; any nudges we add
+        // in subsequent iterations will be re-tracked from scratch.
+        remediationNudgeIndices.removeAll()
       }
     }
     throw AgentExecutionError.maxIterationsExceeded(configuration.maxIterations)
@@ -358,7 +400,10 @@ final class AgentExecutor {
     }
   }
 
-  static func makeClient(settings: AgentRuntimeSettings) -> OpenAI {
+  static func makeClient(
+    settings: AgentRuntimeSettings,
+    requestRecorder: UpstreamRequestRecorder? = nil
+  ) -> OpenAI {
     let components = URLComponents(url: settings.baseURL, resolvingAgainstBaseURL: false)
     let host = components?.host ?? "api.openai.com"
     let port = components?.port ?? (settings.baseURL.scheme == "http" ? 80 : 443)
@@ -376,7 +421,10 @@ final class AgentExecutor {
       customHeaders: [:],
       parsingOptions: [.relaxed]
     )
-    return OpenAI(configuration: configuration)
+    return OpenAI(
+      configuration: configuration,
+      middlewares: requestRecorder.map { [$0] } ?? []
+    )
   }
 
   static func buildOpenAITools(
@@ -432,6 +480,65 @@ final class AgentExecutor {
       -> ChatQuery.ChatCompletionMessageParam.AssistantMessageParam.ToolCallParam
     {
       .init(id: id, function: .init(arguments: arguments, name: name))
+    }
+  }
+
+  /// On a permanent stream failure, MacPaw's `OpenAIError.statusError`
+  /// carries only the `HTTPURLResponse` — the body that contains the
+  /// actual error message was discarded when `StreamingSession` cancelled
+  /// the URLSession data task on the 4xx. Replay the exact request the
+  /// middleware recorded so we can surface the body to the user, with
+  /// `stream` flipped off so providers send a regular JSON error instead
+  /// of an SSE event. Returns the original `localizedDescription` plus the
+  /// captured body when one is available; falls back to just the
+  /// description if no recorded request exists or the replay itself
+  /// fails.
+  func enrichedStreamFailureDetail(
+    error: Error, recorder: UpstreamRequestRecorder
+  ) async -> String {
+    let baseDescription = error.localizedDescription
+    guard let openAIError = error as? OpenAIError,
+      case .statusError(_, _) = openAIError,
+      let recorded = recorder.lastRequest
+    else {
+      return baseDescription
+    }
+    guard let body = await Self.captureErrorBody(from: recorded) else {
+      return baseDescription
+    }
+    let trimmed = body.trimmingCharacters(in: .whitespacesAndNewlines)
+    if trimmed.isEmpty {
+      return baseDescription
+    }
+    return "\(baseDescription) — upstream body: \(previewString(trimmed))"
+  }
+
+  /// Replay a recorded request with `stream=false` and a short timeout to
+  /// pull the response body. Returns nil on any networking or encoding
+  /// failure — body capture is best-effort and must never mask the
+  /// original error.
+  static func captureErrorBody(from request: URLRequest) async -> String? {
+    var probe = request
+    probe.timeoutInterval = 30
+    // Streaming responses use SSE framing; flipping `stream` to false in
+    // the JSON payload makes MiniMax / OpenAI return a regular JSON error
+    // body that's easier to read.
+    if let originalBody = probe.httpBody,
+      var payload = (try? JSONSerialization.jsonObject(with: originalBody)) as? [String: Any]
+    {
+      payload["stream"] = false
+      payload.removeValue(forKey: "stream_options")
+      if let reencoded = try? JSONSerialization.data(withJSONObject: payload) {
+        probe.httpBody = reencoded
+        probe.setValue("\(reencoded.count)", forHTTPHeaderField: "Content-Length")
+      }
+    }
+    probe.setValue("application/json", forHTTPHeaderField: "Accept")
+    do {
+      let (data, _) = try await URLSession.shared.data(for: probe)
+      return String(data: data, encoding: .utf8)
+    } catch {
+      return nil
     }
   }
 
@@ -660,6 +767,44 @@ final class AgentExecutor {
       userMessage:
         "Your previous `submit_result` arguments could not be parsed as JSON — the upstream often truncates mid-token without flagging it. Retry with the same structure but noticeably shorter free-form text: keep `state.completed` entries terse, trim `summary`, and avoid restating prior context. The tool args must be complete, valid JSON."
     )
+  }
+
+  /// Drop everything from `messages` from `targetCount` onward. Used when
+  /// an iteration's `submit_result` arrived malformed: we need to peel
+  /// back the assistant turn *and* any `.tool` responses we appended for
+  /// sibling tool calls in the same turn (those responses would orphan
+  /// without the assistant turn that declared the matching tool_call
+  /// IDs). Also drops any nudge-index entries that referred to messages
+  /// we just removed, so the index set stays consistent with the
+  /// truncated array.
+  static func rollback(
+    messages: inout [ChatQuery.ChatCompletionMessageParam],
+    nudgeIndices: inout Set<Int>,
+    to targetCount: Int
+  ) {
+    guard targetCount >= 0, targetCount < messages.count else { return }
+    messages.removeLast(messages.count - targetCount)
+    nudgeIndices = nudgeIndices.filter { $0 < targetCount }
+  }
+
+  /// Append a `.user` remediation message and track its index. If the
+  /// last message is itself a tracked remediation nudge, replace it
+  /// instead of appending — two consecutive `.user` messages from
+  /// back-to-back failed iterations is a malformed role sequence and
+  /// strict providers (MiniMax has been observed doing this) reject the
+  /// next request with a 400.
+  static func appendRemediationNudge(
+    _ text: String,
+    messages: inout [ChatQuery.ChatCompletionMessageParam],
+    nudgeIndices: inout Set<Int>
+  ) {
+    let lastIndex = messages.count - 1
+    if lastIndex >= 0, nudgeIndices.contains(lastIndex) {
+      messages.removeLast()
+      nudgeIndices.remove(lastIndex)
+    }
+    messages.append(.user(.init(content: .string(text))))
+    nudgeIndices.insert(messages.count - 1)
   }
 
   // MARK: - Auto-compaction

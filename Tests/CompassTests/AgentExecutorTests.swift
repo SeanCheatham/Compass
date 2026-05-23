@@ -288,6 +288,140 @@ final class AgentExecutorTests: XCTestCase {
     }
   }
 
+  // MARK: - Rollback helpers
+
+  /// Convenience constructors so the rollback assertions stay readable.
+  private func sys(_ text: String) -> ChatQuery.ChatCompletionMessageParam {
+    .system(.init(content: .textContent(text)))
+  }
+  private func usr(_ text: String) -> ChatQuery.ChatCompletionMessageParam {
+    .user(.init(content: .string(text)))
+  }
+  private func asst(text: String? = nil, toolCallIDs: [String] = [])
+    -> ChatQuery.ChatCompletionMessageParam
+  {
+    let calls = toolCallIDs.map {
+      ChatQuery.ChatCompletionMessageParam.AssistantMessageParam.ToolCallParam(
+        id: $0, function: .init(arguments: "{}", name: "stub"))
+    }
+    return .assistant(
+      .init(
+        content: text.map { .textContent($0) },
+        toolCalls: calls.isEmpty ? nil : calls
+      ))
+  }
+  private func tool(_ payload: String, toolCallId: String)
+    -> ChatQuery.ChatCompletionMessageParam
+  {
+    .tool(.init(content: .textContent(payload), toolCallId: toolCallId))
+  }
+
+  func testRollbackDropsOnlyAssistantWhenSubmitResultWasTheOnlyToolCall() {
+    // Iteration 6 in the bug screenshot: model called submit_result alone
+    // and the args were truncated. Rolling back must drop only the
+    // assistant turn — prior tool responses from iter 5 must survive.
+    var messages: [ChatQuery.ChatCompletionMessageParam] = [
+      sys("SYS"),
+      usr("TASK"),
+      tool("iter5 result", toolCallId: "t5"),
+      asst(text: "thinking...", toolCallIDs: ["submit-bad"]),
+    ]
+    var indices: Set<Int> = []
+    AgentExecutor.rollback(messages: &messages, nudgeIndices: &indices, to: 3)
+    XCTAssertEqual(messages.count, 3)
+    if case .tool = messages.last {} else {
+      XCTFail("rollback should land on the prior tool response, got \(messages.last as Any)")
+    }
+  }
+
+  func testRollbackDropsOrphanedToolResponsesAlongsideAssistant() {
+    // The harder case: the model issued [read_file, submit_result] in the
+    // same turn, we already appended read_file's tool response before
+    // hitting the malformed submit_result. Leaving that tool response
+    // behind would orphan its toolCallId against an assistant turn that
+    // no longer exists — that's the MiniMax-400 cascade. Rollback must
+    // drop both the assistant *and* the tool response from this turn.
+    var messages: [ChatQuery.ChatCompletionMessageParam] = [
+      sys("SYS"),
+      usr("TASK"),
+      asst(toolCallIDs: ["t-read", "t-submit"]),
+      tool("contents of foo.swift", toolCallId: "t-read"),
+    ]
+    var indices: Set<Int> = []
+    AgentExecutor.rollback(messages: &messages, nudgeIndices: &indices, to: 2)
+    XCTAssertEqual(messages.count, 2)
+    if case .user = messages.last {} else {
+      XCTFail("rollback should leave the original user task as the tail")
+    }
+  }
+
+  func testRollbackDropsStaleNudgeIndices() {
+    var messages: [ChatQuery.ChatCompletionMessageParam] = [
+      sys("SYS"), usr("TASK"), usr("nudge-old"), asst(toolCallIDs: ["t1"]),
+    ]
+    var indices: Set<Int> = [2]
+    AgentExecutor.rollback(messages: &messages, nudgeIndices: &indices, to: 3)
+    XCTAssertEqual(messages.count, 3)
+    XCTAssertTrue(
+      indices.contains(2),
+      "rollback to index 3 must keep nudge-tracking entries whose index < 3")
+  }
+
+  func testRollbackToEqualOrGreaterCountIsNoop() {
+    var messages: [ChatQuery.ChatCompletionMessageParam] = [sys("SYS"), usr("TASK")]
+    var indices: Set<Int> = [1]
+    AgentExecutor.rollback(messages: &messages, nudgeIndices: &indices, to: 2)
+    XCTAssertEqual(messages.count, 2)
+    AgentExecutor.rollback(messages: &messages, nudgeIndices: &indices, to: 99)
+    XCTAssertEqual(messages.count, 2)
+    XCTAssertEqual(indices, [1])
+  }
+
+  func testAppendRemediationNudgeReplacesConsecutiveNudge() {
+    // Back-to-back failed iterations would otherwise leave two `.user`
+    // messages in a row, which strict providers (MiniMax) reject with a
+    // 400. Confirm the helper collapses the second append into a
+    // replacement.
+    var messages: [ChatQuery.ChatCompletionMessageParam] = [sys("SYS"), usr("TASK")]
+    var indices: Set<Int> = []
+
+    AgentExecutor.appendRemediationNudge("first", messages: &messages, nudgeIndices: &indices)
+    XCTAssertEqual(messages.count, 3)
+    XCTAssertEqual(indices, [2])
+
+    AgentExecutor.appendRemediationNudge("second", messages: &messages, nudgeIndices: &indices)
+    XCTAssertEqual(messages.count, 3, "second nudge must replace the first, not stack")
+    XCTAssertEqual(indices, [2])
+    guard case .user(let body) = messages[2], case .string(let text) = body.content else {
+      return XCTFail("replacement message should be a .user(.string)")
+    }
+    XCTAssertEqual(text, "second")
+  }
+
+  func testAppendRemediationNudgeAppendsWhenTailIsNotANudge() {
+    var messages: [ChatQuery.ChatCompletionMessageParam] = [
+      sys("SYS"), usr("TASK"), tool("iter5 result", toolCallId: "t5"),
+    ]
+    var indices: Set<Int> = []
+    AgentExecutor.appendRemediationNudge("nudge", messages: &messages, nudgeIndices: &indices)
+    XCTAssertEqual(messages.count, 4)
+    XCTAssertEqual(indices, [3])
+  }
+
+  func testAppendRemediationNudgeDoesNotCollapseOriginalUserTask() {
+    // On the very first iteration the tail of the conversation is the
+    // user task itself. A nudge appended after a first-iter failure must
+    // *append* — collapsing here would silently delete the task prompt.
+    var messages: [ChatQuery.ChatCompletionMessageParam] = [sys("SYS"), usr("TASK")]
+    var indices: Set<Int> = []
+    AgentExecutor.appendRemediationNudge("nudge", messages: &messages, nudgeIndices: &indices)
+    XCTAssertEqual(messages.count, 3)
+    guard case .user(let task) = messages[1], case .string(let taskText) = task.content else {
+      return XCTFail("original task at index 1 should still be present")
+    }
+    XCTAssertEqual(taskText, "TASK")
+  }
+
   // MARK: - Auto-compaction
 
   func testShouldCompactReturnsFalseWhenContextWindowIsZero() {
