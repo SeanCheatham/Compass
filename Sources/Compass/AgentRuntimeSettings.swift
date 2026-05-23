@@ -4,6 +4,7 @@ enum AgentPhase: String, Sendable, CaseIterable {
   case plan
   case develop
   case reflect
+  case critic
 }
 
 /// Runtime configuration for the OpenAI-compatible agent endpoint.
@@ -29,6 +30,12 @@ struct AgentRuntimeSettings: Equatable, Sendable {
   var planModelOverride: String?
   var developModelOverride: String?
   var reflectModelOverride: String?
+  /// Optional dedicated model identifier for the adversarial Critic
+  /// pass that gates Develop's output. Falls back to `model` when nil.
+  /// Configured via `COMPASS_AGENT_MODEL_CRITIC`; intended to be set to
+  /// a stronger / different model from Develop so the critique provides
+  /// independent signal.
+  var criticModelOverride: String?
   /// Optional dedicated model identifier for the per-file codemap
   /// summarization pass. Falls back to `model` when nil. Configured via
   /// `COMPASS_AGENT_MODEL_CODEMAP`; intended for a cheap small model
@@ -44,6 +51,7 @@ struct AgentRuntimeSettings: Equatable, Sendable {
     planModelOverride: String? = nil,
     developModelOverride: String? = nil,
     reflectModelOverride: String? = nil,
+    criticModelOverride: String? = nil,
     codemapModelOverride: String? = nil,
     contextWindowTokens: Int = AgentRuntimeSettings.defaultContextWindowTokens
   ) {
@@ -53,6 +61,7 @@ struct AgentRuntimeSettings: Equatable, Sendable {
     self.planModelOverride = planModelOverride
     self.developModelOverride = developModelOverride
     self.reflectModelOverride = reflectModelOverride
+    self.criticModelOverride = criticModelOverride
     self.codemapModelOverride = codemapModelOverride
     self.contextWindowTokens = contextWindowTokens
   }
@@ -82,6 +91,7 @@ struct AgentRuntimeSettings: Equatable, Sendable {
       planModelOverride: environment.compassAgentTrimmed("COMPASS_AGENT_MODEL_PLAN"),
       developModelOverride: environment.compassAgentTrimmed("COMPASS_AGENT_MODEL_DEV"),
       reflectModelOverride: environment.compassAgentTrimmed("COMPASS_AGENT_MODEL_REFLECT"),
+      criticModelOverride: environment.compassAgentTrimmed("COMPASS_AGENT_MODEL_CRITIC"),
       codemapModelOverride: environment.compassAgentTrimmed("COMPASS_AGENT_MODEL_CODEMAP"),
       contextWindowTokens: max(contextWindow, 0)
     )
@@ -107,6 +117,7 @@ struct AgentRuntimeSettings: Equatable, Sendable {
     case .plan: phaseOverride = planModelOverride
     case .develop: phaseOverride = developModelOverride
     case .reflect: phaseOverride = reflectModelOverride
+    case .critic: phaseOverride = criticModelOverride
     }
     return phaseOverride ?? model
   }

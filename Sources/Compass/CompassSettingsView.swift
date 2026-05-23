@@ -71,11 +71,23 @@ struct CompassSettingsView: View {
             )
           )
           .textFieldStyle(.roundedBorder)
+
+          TextField(
+            "Critic model (optional)",
+            text: Binding(
+              get: { model.agentSettings.criticModelOverride ?? "" },
+              set: { model.setAgentCriticModelOverride($0) }
+            )
+          )
+          .textFieldStyle(.roundedBorder)
+          .help(
+            "Adversarial review pass that gates Develop output. Pointing this at a different / stronger model than Develop produces more independent critique."
+          )
         }
 
         Section {
           Text(
-            "These settings persist across launches. Environment variables `COMPASS_AGENT_BASE_URL`, `COMPASS_AGENT_API_KEY`, and `COMPASS_AGENT_MODEL[_PLAN/_DEV/_REFLECT]` seed empty fields on first launch."
+            "These settings persist across launches. Environment variables `COMPASS_AGENT_BASE_URL`, `COMPASS_AGENT_API_KEY`, and `COMPASS_AGENT_MODEL[_PLAN/_DEV/_REFLECT/_CRITIC]` seed empty fields on first launch."
           )
           .font(.callout)
           .foregroundStyle(.secondary)

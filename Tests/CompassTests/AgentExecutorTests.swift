@@ -138,6 +138,32 @@ final class AgentExecutorTests: XCTestCase {
   func testEnsureUniqueToolNamesAcceptsDistinctTools() throws {
     XCTAssertNoThrow(try AgentExecutor.ensureUniqueToolNames(AgentExecutor.readOnlyTools()))
     XCTAssertNoThrow(try AgentExecutor.ensureUniqueToolNames(AgentExecutor.developTools()))
+    XCTAssertNoThrow(try AgentExecutor.ensureUniqueToolNames(AgentExecutor.criticTools()))
+  }
+
+  // MARK: - Tool registry per phase
+
+  func testCriticPhaseGetsReadOnlyPlusBash() {
+    let names = Set(AgentExecutor.toolsForPhase(.critic).map { $0.spec.name })
+    XCTAssertTrue(names.contains(AgentBashTool.toolName))
+    XCTAssertTrue(names.contains(AgentReadFileTool.toolName))
+    XCTAssertTrue(names.contains(AgentFindSymbolTool.toolName))
+    XCTAssertTrue(names.contains(AgentDelegateTool.toolName))
+    XCTAssertFalse(
+      names.contains(AgentWriteFileTool.toolName),
+      "Critic must not have write_file")
+    XCTAssertFalse(
+      names.contains(AgentEditFileTool.toolName),
+      "Critic must not have edit_file")
+  }
+
+  func testDelegateToolIsExposedToAllPhases() {
+    for phase in AgentPhase.allCases {
+      let names = Set(AgentExecutor.toolsForPhase(phase).map { $0.spec.name })
+      XCTAssertTrue(
+        names.contains(AgentDelegateTool.toolName),
+        "phase \(phase) must include `delegate`")
+    }
   }
 
   func testEnsureUniqueToolNamesRejectsDuplicates() {
@@ -190,6 +216,7 @@ final class AgentExecutorTests: XCTestCase {
         AgentSummaryTool.toolName,
         AgentListFilesTool.toolName,
         AgentImportersOfTool.toolName,
+        AgentDelegateTool.toolName,
         AgentExecutor.submitResultToolName,
       ]))
   }
@@ -426,23 +453,58 @@ final class AgentExecutorTests: XCTestCase {
   // MARK: - Auto-compaction
 
   func testShouldCompactReturnsFalseWhenContextWindowIsZero() {
-    XCTAssertFalse(AgentExecutor.shouldCompact(totalTokens: 1_000_000, contextWindowTokens: 0))
-    XCTAssertFalse(AgentExecutor.shouldCompact(totalTokens: 1_000_000, contextWindowTokens: -1))
+    XCTAssertFalse(
+      AgentExecutor.shouldCompact(estimatedTokens: 1_000_000, contextWindowTokens: 0))
+    XCTAssertFalse(
+      AgentExecutor.shouldCompact(estimatedTokens: 1_000_000, contextWindowTokens: -1))
   }
 
   func testShouldCompactReturnsTrueAtOrAboveThreshold() {
     let window = 200_000
     let threshold = Int(Double(window) * AgentExecutor.compactionThresholdFraction)
     XCTAssertFalse(
-      AgentExecutor.shouldCompact(totalTokens: threshold - 1, contextWindowTokens: window))
-    XCTAssertTrue(AgentExecutor.shouldCompact(totalTokens: threshold, contextWindowTokens: window))
-    XCTAssertTrue(AgentExecutor.shouldCompact(totalTokens: window, contextWindowTokens: window))
+      AgentExecutor.shouldCompact(estimatedTokens: threshold - 1, contextWindowTokens: window))
+    XCTAssertTrue(
+      AgentExecutor.shouldCompact(estimatedTokens: threshold, contextWindowTokens: window))
+    XCTAssertTrue(
+      AgentExecutor.shouldCompact(estimatedTokens: window, contextWindowTokens: window))
   }
 
-  func testShouldCompactTrackesArbitraryWindowSizes() {
-    XCTAssertFalse(AgentExecutor.shouldCompact(totalTokens: 80, contextWindowTokens: 128))
+  func testShouldCompactTracksArbitraryWindowSizes() {
+    XCTAssertFalse(AgentExecutor.shouldCompact(estimatedTokens: 80, contextWindowTokens: 128))
     // 128 * 0.75 = 96
-    XCTAssertTrue(AgentExecutor.shouldCompact(totalTokens: 96, contextWindowTokens: 128))
+    XCTAssertTrue(AgentExecutor.shouldCompact(estimatedTokens: 96, contextWindowTokens: 128))
+  }
+
+  func testEstimatedTokensGrowsWithEncodedMessagePayload() {
+    let short = AgentExecutor.estimatedTokens(in: [sys("SYS"), usr("hi")])
+    let long = AgentExecutor.estimatedTokens(
+      in: [sys("SYS"), usr(String(repeating: "x", count: 4_000))])
+    XCTAssertGreaterThan(long, short)
+    // ~4_000 chars of payload plus JSON envelope should sit comfortably
+    // above 1_000 / 4 tokens — anything dramatically smaller would mean
+    // the estimator silently lost the payload (e.g. a swallowed encoder
+    // failure that left the message contributing zero).
+    XCTAssertGreaterThan(long, 1_000)
+  }
+
+  func testEstimatedTokensCountsAssistantToolCallsAndToolResponses() {
+    // The whole point of the chars/4 estimator over provider-reported
+    // usage is that a long tool-call-heavy run can't slip under the
+    // threshold just because the provider dropped usage on those
+    // chunks. Make sure assistant tool_calls and tool responses both
+    // contribute to the estimate.
+    let textOnly = AgentExecutor.estimatedTokens(in: [sys("SYS"), usr("TASK")])
+    let withToolTraffic = AgentExecutor.estimatedTokens(
+      in: [
+        sys("SYS"),
+        usr("TASK"),
+        asst(toolCallIDs: ["t1", "t2", "t3"]),
+        tool(String(repeating: "log line\n", count: 200), toolCallId: "t1"),
+        tool(String(repeating: "log line\n", count: 200), toolCallId: "t2"),
+        tool(String(repeating: "log line\n", count: 200), toolCallId: "t3"),
+      ])
+    XCTAssertGreaterThan(withToolTraffic, textOnly + 1_000)
   }
 
   func testCompactedMessagesPreservesSystemAndOriginalUser() {

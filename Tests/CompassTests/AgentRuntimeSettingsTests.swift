@@ -51,6 +51,7 @@ final class AgentRuntimeSettingsTests: XCTestCase {
       "COMPASS_AGENT_MODEL_PLAN": "plan-model",
       "COMPASS_AGENT_MODEL_DEV": "dev-model",
       "COMPASS_AGENT_MODEL_REFLECT": "reflect-model",
+      "COMPASS_AGENT_MODEL_CRITIC": "critic-model",
     ])
 
     XCTAssertEqual(settings.baseURL.absoluteString, "https://example.test/v1")
@@ -59,6 +60,7 @@ final class AgentRuntimeSettingsTests: XCTestCase {
     XCTAssertEqual(settings.planModelOverride, "plan-model")
     XCTAssertEqual(settings.developModelOverride, "dev-model")
     XCTAssertEqual(settings.reflectModelOverride, "reflect-model")
+    XCTAssertEqual(settings.criticModelOverride, "critic-model")
   }
 
   func testWhitespaceOnlyEnvironmentValuesAreTreatedAsUnset() {
@@ -94,11 +96,18 @@ final class AgentRuntimeSettingsTests: XCTestCase {
       model: "default-model",
       planModelOverride: "plan-model",
       developModelOverride: "dev-model",
-      reflectModelOverride: "reflect-model"
+      reflectModelOverride: "reflect-model",
+      criticModelOverride: "critic-model"
     )
     XCTAssertEqual(settings.model(for: .plan), "plan-model")
     XCTAssertEqual(settings.model(for: .develop), "dev-model")
     XCTAssertEqual(settings.model(for: .reflect), "reflect-model")
+    XCTAssertEqual(settings.model(for: .critic), "critic-model")
+  }
+
+  func testCriticPhaseFallsBackToDefaultWhenNoCriticOverride() {
+    let settings = AgentRuntimeSettings(model: "default-model")
+    XCTAssertEqual(settings.model(for: .critic), "default-model")
   }
 
   func testSidebarOverrideBeatsPhaseAndDefault() {

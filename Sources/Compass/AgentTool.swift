@@ -66,17 +66,24 @@ struct AgentToolContext: Sendable {
   var filesystem: AgentFilesystem
   var bashRunner: AgentBashRunner
   var readTracker: AgentReadTracker
+  /// Sub-agent runner used by `AgentDelegateTool`. Nil when the host
+  /// doesn't expose delegation (sub-agents themselves, or unit tests
+  /// that don't need the feature). The tool surfaces this as a clean
+  /// failure result rather than crashing the turn.
+  var delegateRunner: AgentDelegateRunner?
 
   init(
     workingDirectory: URL,
     filesystem: AgentFilesystem = AgentHostFilesystem(),
     bashRunner: AgentBashRunner = AgentHostBashRunner(),
-    readTracker: AgentReadTracker = AgentReadTracker()
+    readTracker: AgentReadTracker = AgentReadTracker(),
+    delegateRunner: AgentDelegateRunner? = nil
   ) {
     self.workingDirectory = workingDirectory.standardizedFileURL
     self.filesystem = filesystem
     self.bashRunner = bashRunner
     self.readTracker = readTracker
+    self.delegateRunner = delegateRunner
   }
 }
 

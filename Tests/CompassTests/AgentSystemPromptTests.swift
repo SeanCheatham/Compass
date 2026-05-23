@@ -45,6 +45,33 @@ final class AgentSystemPromptTests: XCTestCase {
     XCTAssertTrue(prompt.contains("bash"))
   }
 
+  func testCriticPhaseAdvertisesBashButNotMutationTools() {
+    let prompt = Prompts.agentSystemPrompt(phase: .critic, workingDirectoryPath: "/x")
+    XCTAssertTrue(
+      prompt.contains("bash"),
+      "Critic must see `bash` for re-running tests / linters")
+    XCTAssertFalse(
+      prompt.contains("Mutation tools"),
+      "Critic must not be told about write/edit tools")
+    XCTAssertFalse(
+      prompt.contains("write_file"),
+      "Critic must not be told about write_file")
+    XCTAssertTrue(
+      prompt.contains("do not mutate the working tree"),
+      "Critic prompt must state read-only intent for bash")
+  }
+
+  func testDelegateToolIsAdvertisedInEveryPhase() {
+    // The `delegate` tool is on every phase's registry; the system
+    // prompt has to name it or the model won't reach for it.
+    for phase in AgentPhase.allCases {
+      let prompt = Prompts.agentSystemPrompt(phase: phase, workingDirectoryPath: "/x")
+      XCTAssertTrue(
+        prompt.contains("delegate"),
+        "phase \(phase) should name `delegate` so the model uses sub-agents")
+    }
+  }
+
   /// Tools registered in the schema but absent from the system prompt
   /// rarely get called — chat models heavily prefer tools the prompt
   /// acknowledges, so the codemap tools have to be mentioned in every

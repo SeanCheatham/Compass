@@ -459,6 +459,14 @@ final class CompassProject: ObservableObject, Identifiable {
   private let storageMigrationAction: CompassWorkspaceStorageMigrationAction
   private let mutationTestingRunner: ProcessRunner.InvocationRunner?
   private let maxDevelopAttempts = 3
+  /// Maximum number of adversarial Critic reviews per Develop iteration.
+  /// After this many critic-rejected passes, Compass accepts the latest
+  /// Develop output and proceeds — the loop has to terminate even when
+  /// the critic and dev agents disagree forever. Each critic-driven
+  /// retry re-runs the full Develop + post-checks inner loop with
+  /// critic feedback added; worst case is `maxCriticAttempts *
+  /// maxDevelopAttempts` Develop runs.
+  private let maxCriticAttempts = 3
   private let reflectSessionWindow = 10
 
   init(
@@ -1386,127 +1394,195 @@ extension CompassProject {
       // iteration, so Develop and Verify can't desynchronize onto
       // different catalog entries.
 
-      var priorIssues: [String] = []
       var finalIssues: [String] = []
       var finalVerifyOutput: VerifyOutput?
       var succeeded = false
+      var criticFeedbacks: [String] = []
+      var criticAttempt = 0
 
-      for attempt in 1...maxDevelopAttempts {
-        phase = .developing
-        let prompt = Prompts.developPrompt(
-          next: next,
-          lessons: workspace.readLessons(),
-          vision: workspace.readVision(),
-          attempt: attempt,
-          priorIssues: priorIssues
-        )
+      // Outer loop: adversarial Critic review gates each successful
+      // Develop+post-check pass. On critic-reject Develop re-runs with
+      // the critic's feedback added; capped at `maxCriticAttempts` so
+      // the iteration always terminates.
+      criticLoop: while true {
+        var priorIssues: [String] = []
+        var postChecksPassed = false
+        var postCheckSummary: DevelopSummary?
+        var postCheckLaunchPlan: AgentExecutionLaunchPlan?
 
-        let launchPlan = agentLaunchPlan(for: workspace.repoURL)
-        logExecutionEnvironmentPreflight(
-          phase: "Develop",
-          nativeExecutionURL: workspace.repoURL,
-          launchPlan: launchPlan,
-          sessionIndex: sessionIndex,
-          attempt: attempt
-        )
-        log("Develop: launching agent (attempt \(attempt)/\(maxDevelopAttempts)).", level: .info)
-        let summary: DevelopSummary
-        do {
-          summary = try await runAgent(
-            phase: .develop,
-            agentSettings: agentSettings,
-            modelOverride: modelOverride,
-            workingDirectory: workspace.repoURL,
-            userPrompt: prompt,
-            submitResultSchema: Prompts.developSchema,
-            decode: DevelopSummary.self
+        for attempt in 1...maxDevelopAttempts {
+          phase = .developing
+          let prompt = Prompts.developPrompt(
+            next: next,
+            lessons: workspace.readLessons(),
+            vision: workspace.readVision(),
+            attempt: attempt,
+            priorIssues: priorIssues,
+            criticFeedback: criticFeedbacks
           )
-        } catch let error as AgentExecutionError where error.isAgentBudgetExhaustion {
-          // The agent ran out of wall-clock budget or iterations
-          // mid-attempt. Treat that as a failed attempt with
-          // budget-exhaustion context so the next attempt starts
-          // fresh, rather than aborting the whole Develop pass.
-          let note =
-            "Develop attempt \(attempt) ended without submit_result: \(error.localizedDescription)."
-          log(note, level: .warning)
-          appendSessionNote(note, to: sessionIndex)
-          priorIssues = [note]
-          finalIssues = [note]
-          finalVerifyOutput = nil
+
+          let launchPlan = agentLaunchPlan(for: workspace.repoURL)
+          logExecutionEnvironmentPreflight(
+            phase: "Develop",
+            nativeExecutionURL: workspace.repoURL,
+            launchPlan: launchPlan,
+            sessionIndex: sessionIndex,
+            attempt: attempt
+          )
+          log(
+            "Develop: launching agent (attempt \(attempt)/\(maxDevelopAttempts), critic cycle \(criticAttempt + 1)/\(maxCriticAttempts)).",
+            level: .info
+          )
+          let summary: DevelopSummary
+          do {
+            summary = try await runAgent(
+              phase: .develop,
+              agentSettings: agentSettings,
+              modelOverride: modelOverride,
+              workingDirectory: workspace.repoURL,
+              userPrompt: prompt,
+              submitResultSchema: Prompts.developSchema,
+              decode: DevelopSummary.self
+            )
+          } catch let error as AgentExecutionError where error.isAgentBudgetExhaustion {
+            // The agent ran out of wall-clock budget or iterations
+            // mid-attempt. Treat that as a failed attempt with
+            // budget-exhaustion context so the next attempt starts
+            // fresh, rather than aborting the whole Develop pass.
+            let note =
+              "Develop attempt \(attempt) ended without submit_result: \(error.localizedDescription)."
+            log(note, level: .warning)
+            appendSessionNote(note, to: sessionIndex)
+            priorIssues = [note]
+            finalIssues = [note]
+            finalVerifyOutput = nil
+            if attempt < maxDevelopAttempts {
+              feedback(.developRetrying)
+            }
+            continue
+          }
+
+          // Under the `.sharedVM` route the agent worked in the
+          // guest workspace and Verify ran there too. We defer the
+          // host-side pull and commit until Verify passes (and the
+          // Critic approves) so failed attempts don't leave the main
+          // repo dirty. Under the host route the agent already
+          // committed in place using its own `git` tool.
+
+          guard sessions.indices.contains(sessionIndex) else {
+            throw AppModelError.internalInvariant("Develop session disappeared during agent run.")
+          }
+          sessions[sessionIndex].feedback = summary.feedback
+          appendSessionNote(summary.summary, to: sessionIndex)
+
+          let post = try await runPostChecks(
+            next: next,
+            summary: summary,
+            workingDirectory: workspace.repoURL,
+            launchPlan: launchPlan,
+            sessionIndex: sessionIndex,
+            attempt: attempt
+          )
+          finalIssues = post.displayIssues
+          finalVerifyOutput = post.verifyOutput
+          if sessions.indices.contains(sessionIndex) {
+            sessions[sessionIndex].verifyOutput = post.verifyOutput
+          }
+          try? persistSessions()
+
+          if post.ok {
+            postChecksPassed = true
+            postCheckSummary = summary
+            postCheckLaunchPlan = launchPlan
+            break
+          }
+
+          priorIssues = post.retryIssues
           if attempt < maxDevelopAttempts {
             feedback(.developRetrying)
-          } else {
-            succeeded = false
+            log("Develop post-checks failed; retrying with failure context.", level: .warning)
           }
-          continue
         }
 
-        // Under the `.sharedVM` route the agent worked in the
-        // guest workspace and Verify ran there too. We defer the
-        // host-side pull and commit until Verify passes so a
-        // failed attempt doesn't leave the main repo dirty.
-        // Under the host route the agent already committed in
-        // place using its own `git` tool.
-
-        guard sessions.indices.contains(sessionIndex) else {
-          throw AppModelError.internalInvariant("Develop session disappeared during agent run.")
+        guard postChecksPassed,
+          let summary = postCheckSummary,
+          let launchPlan = postCheckLaunchPlan
+        else {
+          // Post-checks fundamentally failed after every attempt — do
+          // not run the critic. The iteration ends as a failure with
+          // the existing post-check issues already in `finalIssues`.
+          succeeded = false
+          break criticLoop
         }
-        sessions[sessionIndex].feedback = summary.feedback
-        appendSessionNote(summary.summary, to: sessionIndex)
 
-        let post = try await runPostChecks(
+        // Pull guest workspace onto the host so the Critic can diff
+        // against the pre-Develop SHA. We do this regardless of the
+        // critic's verdict because the inner loop already passed —
+        // even on critic-reject the next Develop attempt sees the
+        // cumulative guest state (persistent), and the next pull
+        // overwrites the dirty host state with whatever the new
+        // Verify-passing iteration produced.
+        if case .sharedVM = launchPlan.effectiveRoute {
+          await pullDevelopChangesIfNeeded(
+            mainRepoURL: workspace.repoURL,
+            plan: launchPlan
+          )
+        }
+
+        criticAttempt += 1
+        let verdict = await runCriticPass(
           next: next,
-          summary: summary,
-          workingDirectory: workspace.repoURL,
-          launchPlan: launchPlan,
-          sessionIndex: sessionIndex,
-          attempt: attempt
+          developSummary: summary,
+          verifyOutput: finalVerifyOutput,
+          beforeSha: beforeSha,
+          priorCritiques: criticFeedbacks,
+          workspace: workspace,
+          agentSettings: agentSettings,
+          modelOverride: modelOverride,
+          iteration: criticAttempt,
+          sessionIndex: sessionIndex
         )
-        finalIssues = post.displayIssues
-        finalVerifyOutput = post.verifyOutput
-        if sessions.indices.contains(sessionIndex) {
-          sessions[sessionIndex].verifyOutput = post.verifyOutput
-        }
-        try? persistSessions()
 
-        if post.ok {
-          // Pull guest workspace contents onto the main repo
-          // and create the host-side commit on the user's
-          // current branch. The guest has no `.git`, so the
-          // agent itself cannot commit there. Skipped under
-          // the host route because the agent committed in
-          // place via its `bash` tool.
-          if case .sharedVM = launchPlan.effectiveRoute {
-            await pullDevelopChangesIfNeeded(
-              mainRepoURL: workspace.repoURL,
-              plan: launchPlan
-            )
-            if let commitIssue = await commitAgentChangesOnHost(
-              mainRepoURL: workspace.repoURL,
-              summary: summary
-            ) {
-              finalIssues = [commitIssue]
-              succeeded = false
-              break
-            }
+        if verdict.verdict == .approve {
+          if let commitIssue = await landDevelopChanges(
+            workspace: workspace,
+            summary: summary,
+            launchPlan: launchPlan,
+            sessionIndex: sessionIndex
+          ) {
+            finalIssues = [commitIssue]
+            succeeded = false
+          } else {
+            succeeded = true
+            feedback(.commitsPromoted)
           }
-          do {
-            logLessonEdits(try workspace.applyLessonEdits(summary.lessonEdits))
-          } catch {
-            let note = "Lesson edits were not applied: \(error.localizedDescription)"
-            appendSessionNote(note, to: sessionIndex)
-            log(note, level: .error)
-          }
-          succeeded = true
-          feedback(.commitsPromoted)
-          break
+          break criticLoop
         }
 
-        priorIssues = post.retryIssues
-        if attempt < maxDevelopAttempts {
-          feedback(.developRetrying)
-          log("Develop post-checks failed; retrying with failure context.", level: .warning)
+        if criticAttempt >= maxCriticAttempts {
+          let warning =
+            "Critic still requested changes after \(maxCriticAttempts) reviews; accepting and proceeding."
+          log(warning, level: .warning)
+          appendSessionNote(warning, to: sessionIndex)
+          if let commitIssue = await landDevelopChanges(
+            workspace: workspace,
+            summary: summary,
+            launchPlan: launchPlan,
+            sessionIndex: sessionIndex
+          ) {
+            finalIssues = [commitIssue]
+            succeeded = false
+          } else {
+            succeeded = true
+            feedback(.commitsPromoted)
+          }
+          break criticLoop
         }
+
+        // Reject + budget remains: queue another Develop pass.
+        criticFeedbacks.append(
+          "Critic review \(criticAttempt) requested changes:\n\(verdict.feedback)")
+        feedback(.developRetrying)
       }
 
       for issue in finalIssues {
@@ -2121,6 +2197,107 @@ extension CompassProject {
     }
   }
 
+  /// Run one Critic review pass against the Develop output that just
+  /// passed post-checks. Always returns a verdict — Critic infrastructure
+  /// failures (network, schema decode) log a warning and fall through to
+  /// an `.approve` verdict so a flaky review path can't strand an
+  /// otherwise-good Develop iteration.
+  private func runCriticPass(
+    next: PlanNext,
+    developSummary: DevelopSummary,
+    verifyOutput: VerifyOutput?,
+    beforeSha: String?,
+    priorCritiques: [String],
+    workspace: CompassWorkspace,
+    agentSettings: AgentRuntimeSettings,
+    modelOverride: String,
+    iteration: Int,
+    sessionIndex: Int
+  ) async -> CriticVerdict {
+    phase = .reviewing
+    let launchPlan = agentLaunchPlan(for: workspace.repoURL)
+    logExecutionEnvironmentPreflight(
+      phase: "Critic",
+      nativeExecutionURL: workspace.repoURL,
+      launchPlan: launchPlan,
+      sessionIndex: sessionIndex,
+      attempt: iteration
+    )
+    log("Critic: launching review \(iteration)/\(maxCriticAttempts).", level: .info)
+
+    let diff = await gitDiffSinceSha(beforeSha, in: workspace.repoURL)
+    let verifyOutputText = verifyOutput?.tail ?? ""
+    let verifyExitCode = verifyOutput?.exitCode
+    let prompt = Prompts.criticPrompt(
+      next: next,
+      developSummary: developSummary,
+      verifyCommand: next.verify,
+      verifyExitCode: verifyExitCode,
+      verifyOutput: verifyOutputText,
+      gitDiff: diff,
+      priorCritiques: priorCritiques,
+      lessons: workspace.readLessons(),
+      vision: workspace.readVision(),
+      iteration: iteration,
+      maxIterations: maxCriticAttempts
+    )
+
+    let verdict: CriticVerdict
+    do {
+      verdict = try await runAgent(
+        phase: .critic,
+        agentSettings: agentSettings,
+        modelOverride: modelOverride,
+        workingDirectory: workspace.repoURL,
+        userPrompt: prompt,
+        submitResultSchema: Prompts.criticSchema,
+        decode: CriticVerdict.self
+      )
+    } catch {
+      let note =
+        "Critic pass failed: \(error.localizedDescription); accepting Develop output."
+      log(note, level: .warning)
+      appendSessionNote(note, to: sessionIndex)
+      return CriticVerdict(verdict: .approve, summary: "critic pass failed", feedback: "")
+    }
+
+    let level: LiveLine.Level = verdict.verdict == .approve ? .success : .warning
+    let note =
+      "Critic \(iteration)/\(maxCriticAttempts): \(verdict.verdict.rawValue) — \(verdict.summary)"
+    log(note, level: level)
+    appendSessionNote(note, to: sessionIndex)
+    return verdict
+  }
+
+  /// Commit the Develop iteration's changes onto the host's current
+  /// branch (under `.sharedVM`) and apply any lesson edits. Returns nil
+  /// on success or a single human-readable issue string when the host
+  /// commit fails. Lesson-edit failures are logged but not treated as
+  /// blockers — they're durable guidance, not the iteration's product.
+  private func landDevelopChanges(
+    workspace: CompassWorkspace,
+    summary: DevelopSummary,
+    launchPlan: AgentExecutionLaunchPlan,
+    sessionIndex: Int
+  ) async -> String? {
+    if case .sharedVM = launchPlan.effectiveRoute {
+      if let commitIssue = await commitAgentChangesOnHost(
+        mainRepoURL: workspace.repoURL,
+        summary: summary
+      ) {
+        return commitIssue
+      }
+    }
+    do {
+      logLessonEdits(try workspace.applyLessonEdits(summary.lessonEdits))
+    } catch {
+      let note = "Lesson edits were not applied: \(error.localizedDescription)"
+      appendSessionNote(note, to: sessionIndex)
+      log(note, level: .error)
+    }
+    return nil
+  }
+
   private func validatePlanTransition(from current: PlanState, to next: PlanState) throws {
     do {
       try PlanTransitionValidator.validate(from: current, to: next)
@@ -2392,6 +2569,61 @@ extension CompassProject {
     return result.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
   }
 
+  /// Capture the unified diff from `since` (a SHA, may be nil for
+  /// "initial commit") to the working tree's current state, including
+  /// staged + unstaged + untracked files. Best-effort: returns an empty
+  /// string when git fails so the Critic prompt always renders.
+  ///
+  /// `git diff <sha>` shows tracked changes; untracked files are
+  /// appended separately via `git status --porcelain` + `git diff
+  /// --no-index /dev/null <path>` so the Critic sees brand-new files
+  /// instead of only modifications.
+  private func gitDiffSinceSha(_ since: String?, in repoURL: URL) async -> String {
+    var sections: [String] = []
+    let baseArguments: [String]
+    if let since {
+      baseArguments = ["diff", "--no-color", "\(since)..HEAD"]
+    } else {
+      baseArguments = ["diff", "--no-color", "HEAD"]
+    }
+    if let trackedDiff = try? await ProcessRunner.runEnv(
+      "git", baseArguments, workingDirectory: repoURL),
+      trackedDiff.exitCode == 0,
+      !trackedDiff.stdout.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    {
+      sections.append(trackedDiff.stdout)
+    }
+    if let workingDiff = try? await ProcessRunner.runEnv(
+      "git", ["diff", "--no-color", "HEAD"], workingDirectory: repoURL),
+      workingDiff.exitCode == 0,
+      !workingDiff.stdout.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    {
+      sections.append(workingDiff.stdout)
+    }
+    if let untrackedList = try? await ProcessRunner.runEnv(
+      "git", ["ls-files", "--others", "--exclude-standard"], workingDirectory: repoURL),
+      untrackedList.exitCode == 0
+    {
+      let paths = untrackedList.stdout
+        .split(whereSeparator: \.isNewline)
+        .map(String.init)
+        .filter { !$0.isEmpty }
+      for path in paths {
+        if let added = try? await ProcessRunner.runEnv(
+          "git",
+          ["diff", "--no-color", "--no-index", "--", "/dev/null", path],
+          workingDirectory: repoURL
+        ),
+          !added.stdout.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        {
+          sections.append(added.stdout)
+        }
+      }
+    }
+    let combined = sections.joined(separator: "\n")
+    return tail(combined, max: 32_000)
+  }
+
   private func gitCommits(in repoURL: URL, from before: String?, to after: String?) async
     -> [SessionCommit]
   {
@@ -2623,6 +2855,11 @@ final class AppModel: ObservableObject {
 
   func setAgentReflectModelOverride(_ raw: String) {
     agentSettingsStore.setReflectModelOverride(raw)
+    agentSettings = agentSettingsStore.load()
+  }
+
+  func setAgentCriticModelOverride(_ raw: String) {
+    agentSettingsStore.setCriticModelOverride(raw)
     agentSettings = agentSettingsStore.load()
   }
 

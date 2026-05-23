@@ -65,6 +65,7 @@ scripted setup / CI:
 | `COMPASS_AGENT_MODEL_PLAN`            | _(falls back to default model)_  |
 | `COMPASS_AGENT_MODEL_DEV`             | _(falls back to default model)_  |
 | `COMPASS_AGENT_MODEL_REFLECT`         | _(falls back to default model)_  |
+| `COMPASS_AGENT_MODEL_CRITIC`          | _(falls back to default model; point at a different / stronger model than Develop for independent adversarial review)_ |
 | `COMPASS_AGENT_MODEL_CODEMAP`         | _(falls back to default model; use a cheap small model for the per-file summary fan-out)_ |
 | `COMPASS_AGENT_CONTEXT_WINDOW_TOKENS` | `200000` (`0` disables compaction) |
 | `COMPASS_REFLECT_EVERY`               | `5` (Reflect cadence in iterations) |
@@ -116,6 +117,26 @@ the phase contract.
 - Develop post-checks repeat the verify command, require
   `git status --porcelain` to be clean, and retry failed post-checks up
   to three attempts with failure context.
+- Critic runs after Develop's post-checks pass and acts as an
+  adversarial review gate. It sees the Develop summary, the Verify
+  output, and the working-tree diff, and finishes by calling
+  `submit_result` with `verdict: "approve" | "request_changes"`. On
+  `request_changes` Compass re-runs Develop with the critic's feedback
+  appended; the loop is capped at three critic reviews per iteration,
+  after which Compass accepts and proceeds regardless so the loop
+  always terminates. Critic has the read-only tool set plus `bash` so
+  it can run extra linters / individual tests, but it cannot edit,
+  write, or commit — the prompt enforces that intent. Configure a
+  dedicated model via `COMPASS_AGENT_MODEL_CRITIC` or the Settings UI;
+  pointing it at a different / stronger model than Develop produces
+  more independent critique.
+- Every phase exposes a `delegate(task, tools?, model?)` tool that
+  spawns a focused sub-agent in the same working directory and returns
+  a single `findings` string. Use it for self-contained investigations
+  ("find every callsite of X and report how they handle Y") so the
+  parent's context stays focused. The sub-agent inherits the parent's
+  tools minus `delegate` itself — sub-agents cannot nest, so the loop
+  depth is capped at 1.
 - History metadata is written to `.compass/sessions.json`.
 
 ## Compass Workspace

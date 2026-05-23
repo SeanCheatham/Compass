@@ -131,12 +131,20 @@ final class AgentExecutor {
   static let maxStreamRetryDelay: TimeInterval = 30.0
 
   /// Fraction of the configured context window at which the executor
-  /// runs auto-compaction. We measure against `usage.totalTokens` from
-  /// the turn we just completed (prompt + completion); the next turn
-  /// also adds tool-result messages, so triggering at 0.75 leaves
-  /// headroom for one more full turn before the request itself would
-  /// exceed the window.
+  /// runs auto-compaction. We measure against a chars-per-token estimate
+  /// of the current `messages` array (see `estimatedTokens(in:)`); the
+  /// next turn also adds tool-result messages, so triggering at 0.75
+  /// leaves headroom for one more full turn before the request itself
+  /// would exceed the window.
   static let compactionThresholdFraction: Double = 0.75
+
+  /// Conventional chars-per-token divisor for English + JSON payloads.
+  /// Used to estimate prompt token cost from the encoded `messages`
+  /// array — chosen over provider-reported `usage.totalTokens` because
+  /// several OpenAI-compatible endpoints (MiniMax included) drop usage
+  /// on tool-calling stream chunks, silently disabling compaction for
+  /// the whole run.
+  static let estimatedCharsPerToken: Int = 4
 
   /// Per-call output cap for the summarization request. The summary
   /// replaces the entire mid-conversation history, so we let it run
@@ -144,10 +152,10 @@ final class AgentExecutor {
   /// without bumping into the model's hard ceiling.
   static let maxSummaryCompletionTokens: Int = 8_192
 
-  private let onEvent: (LiveEvent) -> Void
+  private let onEvent: @Sendable (LiveEvent) -> Void
   private var cancelled = false
 
-  init(onEvent: @escaping (LiveEvent) -> Void = { _ in }) {
+  init(onEvent: @Sendable @escaping (LiveEvent) -> Void = { _ in }) {
     self.onEvent = onEvent
   }
 
@@ -163,10 +171,13 @@ final class AgentExecutor {
     let openAI = Self.makeClient(
       settings: configuration.settings, requestRecorder: requestRecorder)
     let openAITools = try Self.buildOpenAITools(configuration: configuration)
+    let delegateRunner: AgentDelegateRunner? = Self.makeDelegateRunner(
+      configuration: configuration, onEvent: onEvent)
     let toolContext = AgentToolContext(
       workingDirectory: configuration.workingDirectory,
       filesystem: configuration.filesystem,
-      bashRunner: configuration.bashRunner
+      bashRunner: configuration.bashRunner,
+      delegateRunner: delegateRunner
     )
     let model = configuration.settings.model(
       for: configuration.phase, sidebarOverride: configuration.modelOverride)
@@ -202,11 +213,10 @@ final class AgentExecutor {
         maxCompletionTokens: Self.maxCompletionTokensPerTurn,
         tools: openAITools,
         stream: true,
-        // Asks the upstream to emit a final usage chunk so we can
-        // drive auto-compaction off real prompt-token counts rather
-        // than a char-length estimate. Providers that ignore the
-        // option just leave `usage` nil, which silently disables
-        // compaction for the run.
+        // Asks the upstream to emit a final usage chunk for log
+        // observability only — compaction itself runs off a local
+        // chars/4 estimate so providers that drop usage on
+        // tool-calling chunks can't silently disable it.
         streamOptions: .init(includeUsage: true)
       )
 
@@ -365,15 +375,15 @@ final class AgentExecutor {
           correlationID: toolCall.id)
       }
 
-      if let totalTokens = aggregated.totalTokens,
-        Self.shouldCompact(
-          totalTokens: totalTokens, contextWindowTokens: configuration.contextWindowTokens)
+      let estimated = Self.estimatedTokens(in: messages)
+      if Self.shouldCompact(
+        estimatedTokens: estimated, contextWindowTokens: configuration.contextWindowTokens)
       {
         try await compactMessages(
           openAI: openAI,
           model: model,
           messages: &messages,
-          tokensBeforeCompaction: totalTokens,
+          estimatedTokensBeforeCompaction: estimated,
           contextWindowTokens: configuration.contextWindowTokens
         )
         // Compaction rewrites the entire `messages` array (keeps system,
@@ -384,6 +394,34 @@ final class AgentExecutor {
       }
     }
     throw AgentExecutionError.maxIterationsExceeded(configuration.maxIterations)
+  }
+
+  /// Build the sub-agent runner for this turn, or `nil` when this
+  /// configuration is itself a sub-agent (we detect that by the absence
+  /// of `AgentDelegateTool` from the tool list — top-level configs
+  /// always include it). Returning nil leaves the delegate tool — if
+  /// somehow re-added in a child — surfacing a clean failure instead
+  /// of crashing on a missing runner.
+  static func makeDelegateRunner(
+    configuration: AgentExecutionConfiguration,
+    onEvent: @Sendable @escaping (LiveEvent) -> Void
+  ) -> AgentDelegateRunner? {
+    let hasDelegateTool = configuration.tools.contains {
+      $0.spec.name == AgentDelegateTool.toolName
+    }
+    guard hasDelegateTool else { return nil }
+    return AgentExecutorDelegateRunner(
+      settings: configuration.settings,
+      parentPhase: configuration.phase,
+      parentModelOverride: configuration.modelOverride,
+      workingDirectory: configuration.workingDirectory,
+      filesystem: configuration.filesystem,
+      bashRunner: configuration.bashRunner,
+      parentTools: configuration.tools,
+      parentMaxIterations: configuration.maxIterations,
+      parentWallClockTimeout: configuration.wallClockTimeout,
+      onEvent: onEvent
+    )
   }
 
   static func ensureUniqueToolNames(_ tools: [AgentTool]) throws {
@@ -464,7 +502,9 @@ final class AgentExecutor {
     var finishReason: String?
     /// Prompt + completion tokens reported by the upstream's final
     /// usage chunk. Nil when the provider does not honour
-    /// `stream_options.include_usage`.
+    /// `stream_options.include_usage`. Kept for log observability only —
+    /// auto-compaction runs off `estimatedTokens(in:)` so it isn't
+    /// disabled when a provider drops usage on tool-calling chunks.
     var totalTokens: Int?
   }
 
@@ -807,14 +847,33 @@ final class AgentExecutor {
 
   // MARK: - Auto-compaction
 
-  /// True when the just-completed turn used enough of the configured
-  /// context window that the *next* turn risks an out-of-context
-  /// rejection. `contextWindowTokens <= 0` disables compaction so
-  /// tests and unusual setups can opt out cleanly.
-  static func shouldCompact(totalTokens: Int, contextWindowTokens: Int) -> Bool {
+  /// True when the current `messages` array — sized via
+  /// `estimatedTokens(in:)` — has used enough of the configured context
+  /// window that the *next* turn risks an out-of-context rejection.
+  /// `contextWindowTokens <= 0` disables compaction so tests and unusual
+  /// setups can opt out cleanly.
+  static func shouldCompact(estimatedTokens: Int, contextWindowTokens: Int) -> Bool {
     guard contextWindowTokens > 0 else { return false }
     let threshold = Int(Double(contextWindowTokens) * compactionThresholdFraction)
-    return totalTokens >= threshold
+    return estimatedTokens >= threshold
+  }
+
+  /// Rough chars/4 token estimate for the encoded `messages` array.
+  /// JSON-encoding each message captures the same structural overhead
+  /// the provider sees on the wire (role tags, tool_call IDs, content
+  /// envelopes) so the estimate stays comparable across plain text,
+  /// assistant tool_calls, and tool responses. A message that fails to
+  /// encode contributes 0 — safer to under-count one message than to
+  /// abort the run, since the rest of the history will still dominate.
+  static func estimatedTokens(
+    in messages: [ChatQuery.ChatCompletionMessageParam]
+  ) -> Int {
+    let encoder = JSONEncoder()
+    let totalChars = messages.reduce(0) { acc, message in
+      let bytes = (try? encoder.encode(message))?.count ?? 0
+      return acc + bytes
+    }
+    return (totalChars + estimatedCharsPerToken - 1) / estimatedCharsPerToken
   }
 
   /// Re-issue a tool-free chat completion that asks the model to
@@ -827,7 +886,7 @@ final class AgentExecutor {
     openAI: OpenAI,
     model: Model,
     messages: inout [ChatQuery.ChatCompletionMessageParam],
-    tokensBeforeCompaction: Int,
+    estimatedTokensBeforeCompaction: Int,
     contextWindowTokens: Int
   ) async throws {
     guard messages.count >= 2 else { return }
@@ -835,7 +894,7 @@ final class AgentExecutor {
       level: .info,
       text: "Auto-compacting conversation",
       detail:
-        "Context at \(tokensBeforeCompaction) / \(contextWindowTokens) tokens (≥ \(Int(Self.compactionThresholdFraction * 100))%). Summarizing prior turns to free space.",
+        "Context at ~\(estimatedTokensBeforeCompaction) / \(contextWindowTokens) estimated tokens (≥ \(Int(Self.compactionThresholdFraction * 100))%). Summarizing prior turns to free space.",
       kind: .lifecycle,
       status: .running
     )
@@ -1034,10 +1093,11 @@ final class AgentExecutor {
 
   // MARK: - Tool registries
 
-  /// Tools the Plan and Reflect phases get: read-only file access plus
-  /// the codemap-backed structural lookups. Plan/Reflect/Develop all
-  /// share the codemap tools so a Develop pass can answer "where is X
-  /// defined?" without paging through `glob`/`grep`.
+  /// Tools the Plan and Reflect phases get: read-only file access, the
+  /// codemap-backed structural lookups, and `delegate` for spawning
+  /// focused sub-agents. Plan/Reflect/Develop/Critic all share the
+  /// codemap tools so a Develop pass can answer "where is X defined?"
+  /// without paging through `glob`/`grep`.
   static func readOnlyTools() -> [AgentTool] {
     [
       AgentReadFileTool(),
@@ -1049,6 +1109,7 @@ final class AgentExecutor {
       AgentSummaryTool(),
       AgentListFilesTool(),
       AgentImportersOfTool(),
+      AgentDelegateTool(),
     ]
   }
 
@@ -1061,10 +1122,22 @@ final class AgentExecutor {
     ]
   }
 
+  /// Tools the Critic phase gets: read-only set plus `bash`. Critic
+  /// performs adversarial review and may need to run extra checks
+  /// (re-run a single test, run a linter, inspect git history) but
+  /// must not edit or commit. The system prompt reinforces "no
+  /// mutating commands" since `bash` itself can't enforce intent.
+  static func criticTools() -> [AgentTool] {
+    readOnlyTools() + [
+      AgentBashTool()
+    ]
+  }
+
   static func toolsForPhase(_ phase: AgentPhase) -> [AgentTool] {
     switch phase {
     case .plan, .reflect: return readOnlyTools()
     case .develop: return developTools()
+    case .critic: return criticTools()
     }
   }
 }

@@ -187,6 +187,33 @@ enum Prompts {
     }
     """
 
+  static let criticSchema = """
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["verdict", "summary", "feedback"],
+      "properties": {
+        "verdict": {
+          "type": "string",
+          "enum": ["approve", "request_changes"]
+        },
+        "summary": { "type": "string" },
+        "feedback": { "type": "string" }
+      }
+    }
+    """
+
+  static let subAgentSchema = """
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["findings"],
+      "properties": {
+        "findings": { "type": "string" }
+      }
+    }
+    """
+
   static func planPrompt(
     state: PlanState,
     drafts: String,
@@ -362,7 +389,47 @@ enum Prompts {
     lessons: String,
     vision: String,
     attempt: Int,
-    priorIssues: [String]
+    priorIssues: [String],
+    criticFeedback: [String] = []
+  ) -> String {
+    let criticSection: String
+    if criticFeedback.isEmpty {
+      criticSection = ""
+    } else {
+      let formatted = criticFeedback.enumerated()
+        .map { "Review \($0.offset + 1):\n\($0.element)" }
+        .joined(separator: "\n\n")
+      criticSection = """
+
+
+        ## Critic feedback from prior passes
+        A separate Critic agent reviewed your previous Develop output and
+        requested changes. Treat the items below as the priority for this
+        pass — addressing them is the path to approval. Stay within the
+        plan; do not expand scope.
+
+        ```
+        \(formatted)
+        ```
+        """
+    }
+    return developPromptBody(
+      next: next,
+      lessons: lessons,
+      vision: vision,
+      attempt: attempt,
+      priorIssues: priorIssues,
+      criticSection: criticSection
+    )
+  }
+
+  private static func developPromptBody(
+    next: PlanNext,
+    lessons: String,
+    vision: String,
+    attempt: Int,
+    priorIssues: [String],
+    criticSection: String
   ) -> String {
     """
     You are the Develop agent for Compass, a macOS-native agent iteration
@@ -409,7 +476,7 @@ enum Prompts {
     \(fencedOrEmpty(lessons, empty: "_(no lessons yet)_"))
 
     ## Vision
-    \(fencedOrEmpty(vision, empty: "_(no vision set)_"))
+    \(fencedOrEmpty(vision, empty: "_(no vision set)_"))\(criticSection)
 
     submit_result arguments:
     - `status`: `succeeded`, `blocked`, or `failed`.
@@ -448,6 +515,155 @@ enum Prompts {
       """
   }
 
+  static func criticPrompt(
+    next: PlanNext,
+    developSummary: DevelopSummary,
+    verifyCommand: String,
+    verifyExitCode: Int?,
+    verifyOutput: String,
+    gitDiff: String,
+    priorCritiques: [String],
+    lessons: String,
+    vision: String,
+    iteration: Int,
+    maxIterations: Int
+  ) -> String {
+    let verifyStatus: String
+    if let code = verifyExitCode {
+      verifyStatus = code == 0 ? "passed (exit 0)" : "exited with code \(code)"
+    } else {
+      verifyStatus = "was skipped (Develop requested bypassVerify=true)"
+    }
+    let priorBlock: String
+    if priorCritiques.isEmpty {
+      priorBlock = "_(this is the first critic review for this Develop pass)_"
+    } else {
+      let formatted = priorCritiques.enumerated()
+        .map { "Review \($0.offset + 1):\n\($0.element)" }
+        .joined(separator: "\n\n")
+      priorBlock = """
+        ```
+        \(formatted)
+        ```
+        """
+    }
+    return """
+      You are the Critic agent for Compass, a macOS-native agent iteration
+      app. Compass talks to an OpenAI-compatible chat completions endpoint
+      and dispatches the tool calls you make.
+
+      A separate Develop agent just finished implementing the plan below
+      and its post-checks (Verify command + clean working tree) passed.
+      Your job is an adversarial review: independently judge whether the
+      diff actually delivers the planned increment and is fit to land,
+      then either approve or request changes.
+
+      You have read-only file access plus `bash` so you can run extra
+      checks (re-run a specific test, run a linter, inspect git history,
+      grep for related callers). You CANNOT edit, write, or commit. Do
+      not run mutating shell commands (no `git commit`, no `git push`,
+      no file rewrites via `sed -i` or shell redirection into tracked
+      files). Treat this as a code-review session, not a second Develop
+      pass.
+
+      This is critic review \(iteration) of at most \(maxIterations). On
+      the final review Compass will accept and proceed regardless of
+      verdict, so be decisive: request_changes only when there is a
+      real, fixable problem the next Develop pass can act on.
+
+      What to look for:
+      - Does the diff implement the plan, or does it miss / overshoot it?
+      - Are there obvious bugs the verify command wouldn't catch
+        (logic errors in untested branches, leaked resources, race
+        conditions, broken edge cases)?
+      - Does the diff break invariants stated in the lessons?
+      - Are new code paths exercised by tests or just by the verify
+        smoke command?
+      - Are there leftover TODOs, dead code, or unrelated changes that
+        shouldn't be in this commit?
+
+      Finish by calling the `submit_result` tool exactly once with:
+      - `verdict`: `"approve"` or `"request_changes"`.
+      - `summary`: 1-3 sentences for the human reviewer / log.
+      - `feedback`: when requesting changes, a concrete punch list the
+        Develop agent can act on in one more pass. Lead with the most
+        important item; reference file paths and line numbers from the
+        diff. Empty string when approving.
+
+      ## Plan that was implemented
+      \(next.plan)
+
+      ## Verify command and outcome
+      Command:
+      ```bash
+      \(verifyCommand)
+      ```
+      Verify \(verifyStatus).
+      Output (tail):
+      \(fencedOrEmpty(verifyOutput, empty: "_(no captured output)_"))
+
+      ## Develop summary (from the agent that just ran)
+      Status: \(developSummary.status.rawValue)
+      Summary: \(developSummary.summary)
+      Handoff feedback: \(developSummary.feedback)
+
+      ## Diff under review
+      Output of `git diff` against the pre-Develop SHA. This is what
+      would be committed if you approve.
+      \(fencedOrEmpty(gitDiff, empty: "_(diff is empty — the Develop pass may have been a no-op)_"))
+
+      ## Prior critic reviews for this Develop pass
+      \(priorBlock)
+
+      ## Lessons
+      \(fencedOrEmpty(lessons, empty: "_(no lessons yet)_"))
+
+      ## Vision
+      \(fencedOrEmpty(vision, empty: "_(no vision set)_"))
+
+      Call submit_result when you have decided.
+      """
+  }
+
+  /// System prompt used by sub-agents spawned via the `delegate` tool.
+  /// The sub-agent does not see the parent's full conversation — only
+  /// the task text the parent passed in. Keep the framing terse: this
+  /// is a focused helper, not a phase agent.
+  static func subAgentSystemPrompt(
+    parentPhase: AgentPhase,
+    workingDirectoryPath: String,
+    toolNames: [String],
+    executionEnvironment: ExecutionEnvironmentDescriptor = .sharedVM
+  ) -> String {
+    let toolList = toolNames.isEmpty ? "(none)" : toolNames.joined(separator: ", ")
+    return """
+      You are a sub-agent spawned by the Compass \(parentPhase.rawValue)
+      agent via the `delegate` tool. Your job is to investigate the
+      focused task the parent handed you and report findings back. The
+      parent will read your reply as a single tool result; everything
+      you discover must be in your final `submit_result.findings`
+      string.
+
+      Working directory: \(workingDirectoryPath)
+      All tool paths are resolved against this directory. Relative paths
+      are recommended; absolute paths must resolve inside it.
+
+      \(executionEnvironmentSection(executionEnvironment))
+
+      Tools available to you this turn:
+      \(toolList)
+
+      You cannot delegate further — nested sub-agents are disabled.
+
+      End by calling the `submit_result` tool exactly once with:
+      - `findings`: a self-contained report for the parent agent. Lead
+        with the answer / conclusion, then supporting details (file
+        paths with line numbers, exact symbol names, command output
+        snippets). The parent does not see your tool calls, only this
+        string.
+      """
+  }
+
   /// System message prepended to the per-phase user prompt. Tells the
   /// model which tools are on the table for this phase and how to end
   /// the turn via `submit_result`. The user prompt still carries the
@@ -474,12 +690,15 @@ enum Prompts {
     let fileTools = "read_file, ls, grep, glob"
     let codemapTools = "outline, find_symbol, summary, list_files, importers_of"
     let writeTools = "write_file, edit_file, bash"
+    let delegateTool =
+      "delegate (spawn a focused sub-agent for a self-contained sub-task; it returns a findings string)"
     let toolList: String
     switch phase {
     case .plan, .reflect:
       toolList = """
         - Codemap tools: \(codemapTools).
         - File tools: \(fileTools).
+        - Sub-agents: \(delegateTool).
         - This phase is read-only. The Develop phase has the write tools — do not request them here.
         """
     case .develop:
@@ -487,6 +706,15 @@ enum Prompts {
         - Codemap tools: \(codemapTools).
         - File tools: \(fileTools).
         - Mutation tools: \(writeTools).
+        - Sub-agents: \(delegateTool).
+        """
+    case .critic:
+      toolList = """
+        - Codemap tools: \(codemapTools).
+        - File tools: \(fileTools).
+        - Shell: bash (read-only intent — do not mutate the working tree, do not commit).
+        - Sub-agents: \(delegateTool).
+        - This phase is the adversarial review gate. Do not edit files; report a verdict via submit_result.
         """
     }
     let codemapGuidance = """

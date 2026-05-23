@@ -3235,6 +3235,7 @@ private func phaseColor(_ phase: LoopPhase) -> Color {
   case .planning: return .blue
   case .developing: return .orange
   case .verifying: return .purple
+  case .reviewing: return .pink
   case .paused: return .yellow
   case .failed: return .red
   case .succeeded: return .green

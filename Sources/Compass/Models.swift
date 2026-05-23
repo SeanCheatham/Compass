@@ -700,6 +700,41 @@ struct DevelopSummary: Codable, Equatable {
   }
 }
 
+/// Result of one Critic pass — Compass's adversarial-review gate that
+/// runs after Develop's post-checks pass. `verdict == .approve` ends the
+/// iteration; `.requestChanges` causes Develop to re-run with the
+/// critic's `feedback` appended to its prior-issues list. The outer
+/// Develop loop bounds the number of critic-driven retries.
+struct CriticVerdict: Codable, Equatable {
+  enum Verdict: String, Codable {
+    case approve
+    case requestChanges = "request_changes"
+  }
+
+  var verdict: Verdict
+  var summary: String
+  var feedback: String
+
+  init(verdict: Verdict, summary: String, feedback: String) {
+    self.verdict = verdict
+    self.summary = summary
+    self.feedback = feedback
+  }
+
+  enum CodingKeys: String, CodingKey {
+    case verdict
+    case summary
+    case feedback
+  }
+
+  init(from decoder: Decoder) throws {
+    let container = try decoder.container(keyedBy: CodingKeys.self)
+    verdict = try container.decode(Verdict.self, forKey: .verdict)
+    summary = try container.decodeIfPresent(String.self, forKey: .summary) ?? ""
+    feedback = try container.decodeIfPresent(String.self, forKey: .feedback) ?? ""
+  }
+}
+
 struct LiveLine: Identifiable, Equatable {
   var id = UUID()
   var date = Date()
@@ -790,6 +825,7 @@ enum LoopPhase: String, CaseIterable {
   case planning = "Planning"
   case developing = "Developing"
   case verifying = "Verifying"
+  case reviewing = "Reviewing"
   case paused = "Paused"
   case failed = "Failed"
   case succeeded = "Succeeded"

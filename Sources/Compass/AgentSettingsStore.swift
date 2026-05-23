@@ -24,6 +24,7 @@ final class AgentSettingsStore: @unchecked Sendable {
     case planModel = "compass.agent.model.plan"
     case developModel = "compass.agent.model.dev"
     case reflectModel = "compass.agent.model.reflect"
+    case criticModel = "compass.agent.model.critic"
   }
 
   private let defaults: UserDefaults
@@ -63,6 +64,7 @@ final class AgentSettingsStore: @unchecked Sendable {
       planModelOverride: resolveString(.planModel, envKey: "COMPASS_AGENT_MODEL_PLAN"),
       developModelOverride: resolveString(.developModel, envKey: "COMPASS_AGENT_MODEL_DEV"),
       reflectModelOverride: resolveString(.reflectModel, envKey: "COMPASS_AGENT_MODEL_REFLECT"),
+      criticModelOverride: resolveString(.criticModel, envKey: "COMPASS_AGENT_MODEL_CRITIC"),
       codemapModelOverride: resolveEnvString("COMPASS_AGENT_MODEL_CODEMAP"),
       contextWindowTokens: contextWindowTokens
     )
@@ -106,6 +108,10 @@ final class AgentSettingsStore: @unchecked Sendable {
 
   func setReflectModelOverride(_ raw: String) {
     setString(.reflectModel, raw)
+  }
+
+  func setCriticModelOverride(_ raw: String) {
+    setString(.criticModel, raw)
   }
 
   // MARK: - Resolution helpers

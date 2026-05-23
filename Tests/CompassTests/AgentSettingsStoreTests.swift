@@ -65,6 +65,27 @@ final class AgentSettingsStoreTests: XCTestCase {
     XCTAssertEqual(store.load().model, "ui-model")
   }
 
+  func testCriticModelOverrideRoundtripsThroughStoreAndEnv() {
+    let envStore = makeStore(environment: ["COMPASS_AGENT_MODEL_CRITIC": "env-critic"])
+    XCTAssertEqual(envStore.load().criticModelOverride, "env-critic")
+
+    let uiStore = makeStore(environment: [:])
+    uiStore.setCriticModelOverride("ui-critic")
+    XCTAssertEqual(uiStore.load().criticModelOverride, "ui-critic")
+
+    let layered = makeStore(environment: ["COMPASS_AGENT_MODEL_CRITIC": "env-critic"])
+    layered.setCriticModelOverride("ui-critic")
+    XCTAssertEqual(
+      layered.load().criticModelOverride,
+      "ui-critic",
+      "persisted UI value must beat the env seed")
+    layered.setCriticModelOverride("   ")
+    XCTAssertEqual(
+      layered.load().criticModelOverride,
+      "env-critic",
+      "clearing the persisted value falls back to env")
+  }
+
   func testSettingEmptyClearsTheStoredValueAndFallsBackToEnv() {
     let store = makeStore(environment: ["COMPASS_AGENT_MODEL": "env-model"])
     store.setDefaultModel("ui-model")
