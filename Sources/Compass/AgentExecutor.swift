@@ -252,45 +252,41 @@ final class AgentExecutor {
           // Validate that the args are well-formed JSON; the
           // caller decodes them into the phase model.
           if (try? JSONSerialization.jsonObject(with: argsData)) == nil {
-            // Distinguish truncation (model hit max output
-            // tokens mid-tool-call) from genuinely malformed
-            // JSON. The truncation case must NOT leave the
-            // bad assistant message in history — most upstream
-            // chat APIs validate `tool_calls.arguments` as
-            // JSON on the next request and reject the whole
-            // conversation with a 400. Pop the assistant
-            // message we just appended and replace the bad
-            // turn with a user-side "be more concise" nudge.
-            if aggregated.finishReason == "length" {
-              if case .assistant = messages.last {
-                messages.removeLast()
-              }
-              let nudge =
-                "Your previous `submit_result` was truncated by the output-token limit. Retry with the same structure but shorter free-form text — keep `state.completed` entries terse, trim `summary`, and avoid restating context. The tool args must be complete, valid JSON."
-              messages.append(.user(.init(content: .string(nudge))))
-              emit(
-                level: .warning,
-                text: "submit_result truncated",
-                detail:
-                  "Output hit the max-tokens cap (\(Self.maxCompletionTokensPerTurn)); asking the model to retry with shorter fields.",
-                kind: .agentMessage,
-                status: .failed,
-                correlationID: toolCall.id
-              )
-              continue
+            // The assistant message with this tool call is already
+            // in `messages` and its `tool_calls.arguments` is
+            // invalid JSON. Most upstream chat APIs validate that
+            // field on the *next* request and reject the entire
+            // conversation with a 400 (observed in production
+            // against MiniMax), so we have to drop the bad
+            // assistant turn unconditionally — not just when the
+            // provider tags it `finishReason == "length"`. MiniMax
+            // truncates mid-token without setting that flag, so
+            // the previous gated remediation only caught a subset
+            // of the bug. Replace the dropped turn with a
+            // user-side retry nudge whose wording adapts to
+            // whether the failure looks like truncation.
+            if case .assistant = messages.last {
+              messages.removeLast()
             }
-            let detail =
-              "submit_result args are not valid JSON: \(previewString(toolCall.arguments))"
-            messages.append(
-              .tool(
-                .init(
-                  content: .textContent(detail),
-                  toolCallId: toolCall.id
-                )))
+            let nudge = Self.invalidSubmitResultNudge(
+              finishReason: aggregated.finishReason,
+              argumentsPreview: previewString(toolCall.arguments),
+              maxCompletionTokens: Self.maxCompletionTokensPerTurn
+            )
+            messages.append(.user(.init(content: .string(nudge.userMessage))))
             emit(
-              level: .error, text: "submit_result rejected", detail: detail, kind: .agentMessage,
-              status: .failed, correlationID: toolCall.id)
-            continue
+              level: .warning,
+              text: nudge.eventText,
+              detail: nudge.eventDetail,
+              kind: .agentMessage,
+              status: .failed,
+              correlationID: toolCall.id
+            )
+            // The popped assistant message owned every tool call in
+            // `aggregated.toolCalls`, so processing the rest would
+            // orphan their `.tool` responses. Restart the outer
+            // iteration loop instead.
+            break
           }
           emit(
             level: .success, text: "submit_result", detail: previewString(toolCall.arguments),
@@ -621,6 +617,45 @@ final class AgentExecutor {
     }
     output += remaining
     return (output, reasoning)
+  }
+
+  // MARK: - submit_result remediation
+
+  /// Wording for the user-visible event and the user-side nudge
+  /// appended to `messages` when `submit_result` arrived with invalid
+  /// JSON arguments. Split out so the wording stays unit-testable
+  /// without needing to drive the full streaming loop.
+  struct InvalidSubmitResultNudge: Equatable {
+    var eventText: String
+    var eventDetail: String
+    var userMessage: String
+  }
+
+  /// Build the remediation copy for a malformed `submit_result` turn.
+  /// `finishReason == "length"` is the canonical truncation signal;
+  /// providers that omit it still produce invalid JSON the same way
+  /// (mid-token cutoff), so we fall back to a generic "args wouldn't
+  /// parse" nudge that nudges the model toward shorter output.
+  static func invalidSubmitResultNudge(
+    finishReason: String?,
+    argumentsPreview: String,
+    maxCompletionTokens: Int
+  ) -> InvalidSubmitResultNudge {
+    if finishReason == "length" {
+      return InvalidSubmitResultNudge(
+        eventText: "submit_result truncated",
+        eventDetail:
+          "Output hit the max-tokens cap (\(maxCompletionTokens)); asking the model to retry with shorter fields.",
+        userMessage:
+          "Your previous `submit_result` was truncated by the output-token limit. Retry with the same structure but shorter free-form text — keep `state.completed` entries terse, trim `summary`, and avoid restating context. The tool args must be complete, valid JSON."
+      )
+    }
+    return InvalidSubmitResultNudge(
+      eventText: "submit_result rejected",
+      eventDetail: "submit_result args are not valid JSON: \(argumentsPreview)",
+      userMessage:
+        "Your previous `submit_result` arguments could not be parsed as JSON — the upstream often truncates mid-token without flagging it. Retry with the same structure but noticeably shorter free-form text: keep `state.completed` entries terse, trim `summary`, and avoid restating prior context. The tool args must be complete, valid JSON."
+    )
   }
 
   // MARK: - Auto-compaction

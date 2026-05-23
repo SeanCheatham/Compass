@@ -241,6 +241,48 @@ final class AgentExecutorTests: XCTestCase {
     XCTAssertTrue(names.contains(AgentReadFileTool.toolName))
   }
 
+  // MARK: - Invalid submit_result remediation
+
+  func testInvalidSubmitResultNudgeUsesTruncationCopyWhenFinishReasonIsLength() {
+    let nudge = AgentExecutor.invalidSubmitResultNudge(
+      finishReason: "length",
+      argumentsPreview: "{\"state\":{...}",
+      maxCompletionTokens: 65_536
+    )
+    XCTAssertEqual(nudge.eventText, "submit_result truncated")
+    XCTAssertTrue(nudge.eventDetail.contains("65536"))
+    XCTAssertTrue(nudge.userMessage.contains("truncated by the output-token limit"))
+    XCTAssertTrue(nudge.userMessage.contains("complete, valid JSON"))
+  }
+
+  func testInvalidSubmitResultNudgeUsesRejectedCopyWhenFinishReasonIsNotLength() {
+    // MiniMax in production was observed truncating submit_result
+    // mid-token while reporting finish_reason "tool_calls" — the
+    // old gated remediation skipped the pop-and-nudge path and the
+    // next request 400'd on the bad tool_calls.arguments. The
+    // generic branch must still produce a retry nudge.
+    for reason: String? in [nil, "stop", "tool_calls", "content_filter"] {
+      let nudge = AgentExecutor.invalidSubmitResultNudge(
+        finishReason: reason,
+        argumentsPreview: "{\"state\":{\"completed\":[\"…GitReposit",
+        maxCompletionTokens: 65_536
+      )
+      XCTAssertEqual(
+        nudge.eventText, "submit_result rejected",
+        "finishReason=\(reason ?? "nil") should not be treated as the length variant")
+      XCTAssertTrue(
+        nudge.eventDetail.contains("GitReposit"),
+        "rejected detail should include the args preview so the user can see what was bad")
+      XCTAssertTrue(
+        nudge.userMessage.contains("could not be parsed as JSON"),
+        "rejected nudge should explain the parse failure")
+      XCTAssertTrue(
+        nudge.userMessage.contains("shorter"),
+        "rejected nudge should still push the model toward shorter output, since silent truncation is the most common cause"
+      )
+    }
+  }
+
   // MARK: - Auto-compaction
 
   func testShouldCompactReturnsFalseWhenContextWindowIsZero() {
