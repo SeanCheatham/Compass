@@ -27,7 +27,9 @@ struct CompassSettingsView: View {
             )
           )
           .textFieldStyle(.roundedBorder)
-          .help("Stored in the macOS Keychain. Clearing this field removes the saved key.")
+          .help(
+            "Stored in a 0600 file under ~/Library/Application Support/Compass. Clearing this field removes the saved key."
+          )
         }
 
         Section(header: Text("Model")) {

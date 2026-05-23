@@ -243,7 +243,7 @@ private struct APIKeyStepBody: View {
           // (⌘,) keeps the SecureField for ongoing edits.
           TextField("sk-…", text: $apiKey)
             .textFieldStyle(.roundedBorder)
-            .help("Stored in the macOS Keychain.")
+            .help("Stored in a 0600 file under ~/Library/Application Support/Compass.")
             .onSubmit {
               commitAPIKey()
             }
@@ -266,7 +266,7 @@ private struct APIKeyStepBody: View {
       }
 
       Text(
-        "Visible while you enter it, then stored in the macOS Keychain. Change later from Compass → Settings… (⌘,)."
+        "Visible while you enter it, then stored in a 0600 file under ~/Library/Application Support/Compass. Change later from Compass → Settings… (⌘,)."
       )
       .font(.caption)
       .foregroundStyle(.secondary)

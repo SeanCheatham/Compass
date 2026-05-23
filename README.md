@@ -51,9 +51,9 @@ so the Shared VM sandbox is disabled in that mode.
 Compass talks to an OpenAI-compatible chat completions endpoint using
 [MacPaw/OpenAI](https://github.com/MacPaw/OpenAI). The base URL, API key,
 default model, and per-phase model overrides are configured in **Compass →
-Settings…** (⌘,). The API key is stored in the macOS Keychain; the rest
-lives in UserDefaults under the app's bundle id and persists across
-launches.
+Settings…** (⌘,). The API key is stored in a `0600` file under
+`~/Library/Application Support/Compass/secrets/`; the rest lives in
+UserDefaults under the app's bundle id and persists across launches.
 
 Environment variables seed empty fields on first launch — useful for
 scripted setup / CI:
