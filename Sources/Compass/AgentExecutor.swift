@@ -55,6 +55,10 @@ struct AgentExecutionConfiguration {
     self.maxIterations = maxIterations
     self.wallClockTimeout = wallClockTimeout
   }
+
+  /// Effective context window from the runtime settings. `0` means
+  /// auto-compaction is disabled.
+  var contextWindowTokens: Int { settings.contextWindowTokens }
 }
 
 enum AgentExecutionError: LocalizedError, Equatable {
@@ -128,6 +132,20 @@ final class AgentExecutor {
   static let baseStreamRetryDelay: TimeInterval = 1.0
   static let maxStreamRetryDelay: TimeInterval = 30.0
 
+  /// Fraction of the configured context window at which the executor
+  /// runs auto-compaction. We measure against `usage.totalTokens` from
+  /// the turn we just completed (prompt + completion); the next turn
+  /// also adds tool-result messages, so triggering at 0.75 leaves
+  /// headroom for one more full turn before the request itself would
+  /// exceed the window.
+  static let compactionThresholdFraction: Double = 0.75
+
+  /// Per-call output cap for the summarization request. The summary
+  /// replaces the entire mid-conversation history, so we let it run
+  /// long enough to capture pending file paths / errors / next steps
+  /// without bumping into the model's hard ceiling.
+  static let maxSummaryCompletionTokens: Int = 8_192
+
   private let onEvent: (LiveEvent) -> Void
   private var cancelled = false
 
@@ -175,7 +193,13 @@ final class AgentExecutor {
         model: model,
         maxCompletionTokens: Self.maxCompletionTokensPerTurn,
         tools: openAITools,
-        stream: true
+        stream: true,
+        // Asks the upstream to emit a final usage chunk so we can
+        // drive auto-compaction off real prompt-token counts rather
+        // than a char-length estimate. Providers that ignore the
+        // option just leave `usage` nil, which silently disables
+        // compaction for the run.
+        streamOptions: .init(includeUsage: true)
       )
 
       let aggregated: AggregatedTurn
@@ -305,6 +329,19 @@ final class AgentExecutor {
           .tool(.init(content: .textContent(result.content), toolCallId: toolCall.id)))
         emitToolEnd(name: toolCall.name, result: result, correlationID: toolCall.id)
       }
+
+      if let totalTokens = aggregated.totalTokens,
+        Self.shouldCompact(
+          totalTokens: totalTokens, contextWindowTokens: configuration.contextWindowTokens)
+      {
+        try await compactMessages(
+          openAI: openAI,
+          model: model,
+          messages: &messages,
+          tokensBeforeCompaction: totalTokens,
+          contextWindowTokens: configuration.contextWindowTokens
+        )
+      }
     }
     throw AgentExecutionError.maxIterationsExceeded(configuration.maxIterations)
   }
@@ -379,6 +416,10 @@ final class AgentExecutor {
     var reasoningText: String
     var toolCalls: [PendingToolCall]
     var finishReason: String?
+    /// Prompt + completion tokens reported by the upstream's final
+    /// usage chunk. Nil when the provider does not honour
+    /// `stream_options.include_usage`.
+    var totalTokens: Int?
   }
 
   private struct PendingToolCall {
@@ -505,9 +546,17 @@ final class AgentExecutor {
     var reasoningText = ""
     var pending: [Int: PendingToolCall] = [:]
     var finishReason: String?
+    var totalTokens: Int?
 
     for try await chunk in openAI.chatsStream(query: query) {
       if cancelled { throw AgentExecutionError.cancelled }
+      // The final chunk emitted by `include_usage` carries an empty
+      // `choices` array but a populated `usage` field. Take the last
+      // non-nil value we see — upstreams that send usage on every
+      // chunk will just keep overwriting it with the running total.
+      if let usage = chunk.usage {
+        totalTokens = usage.totalTokens
+      }
       for choice in chunk.choices {
         if let delta = choice.delta.content {
           assistantText += delta
@@ -548,7 +597,8 @@ final class AgentExecutor {
       assistantText: assistantText.trimmingCharacters(in: .whitespacesAndNewlines),
       reasoningText: reasoningText.trimmingCharacters(in: .whitespacesAndNewlines),
       toolCalls: valid,
-      finishReason: finishReason
+      finishReason: finishReason,
+      totalTokens: totalTokens
     )
   }
 
@@ -571,6 +621,125 @@ final class AgentExecutor {
     }
     output += remaining
     return (output, reasoning)
+  }
+
+  // MARK: - Auto-compaction
+
+  /// True when the just-completed turn used enough of the configured
+  /// context window that the *next* turn risks an out-of-context
+  /// rejection. `contextWindowTokens <= 0` disables compaction so
+  /// tests and unusual setups can opt out cleanly.
+  static func shouldCompact(totalTokens: Int, contextWindowTokens: Int) -> Bool {
+    guard contextWindowTokens > 0 else { return false }
+    let threshold = Int(Double(contextWindowTokens) * compactionThresholdFraction)
+    return totalTokens >= threshold
+  }
+
+  /// Re-issue a tool-free chat completion that asks the model to
+  /// summarize the current conversation, then collapse the message
+  /// history down to `[system, originalUserPrompt, summaryRecap]`.
+  /// A summarization failure is logged but non-fatal — the run
+  /// continues with the uncompacted history rather than aborting an
+  /// in-flight phase mid-stream.
+  private func compactMessages(
+    openAI: OpenAI,
+    model: Model,
+    messages: inout [ChatQuery.ChatCompletionMessageParam],
+    tokensBeforeCompaction: Int,
+    contextWindowTokens: Int
+  ) async throws {
+    guard messages.count >= 2 else { return }
+    emit(
+      level: .info,
+      text: "Auto-compacting conversation",
+      detail:
+        "Context at \(tokensBeforeCompaction) / \(contextWindowTokens) tokens (≥ \(Int(Self.compactionThresholdFraction * 100))%). Summarizing prior turns to free space.",
+      kind: .lifecycle,
+      status: .running
+    )
+
+    let summaryMessages =
+      messages + [
+        .user(.init(content: .string(Prompts.conversationSummarizationInstruction)))
+      ]
+    // No `tools:` — the summary call must return plain text, not a
+    // tool invocation. `include_usage` lets us log the post-compaction
+    // budget for observability.
+    let summaryQuery = ChatQuery(
+      messages: summaryMessages,
+      model: model,
+      maxCompletionTokens: Self.maxSummaryCompletionTokens,
+      stream: true,
+      streamOptions: .init(includeUsage: true)
+    )
+
+    let summaryTurn: AggregatedTurn
+    do {
+      summaryTurn = try await streamOneTurnWithRetry(openAI: openAI, query: summaryQuery)
+    } catch is CancellationError {
+      throw AgentExecutionError.cancelled
+    } catch {
+      if cancelled { throw AgentExecutionError.cancelled }
+      emit(
+        level: .warning,
+        text: "Auto-compaction failed; continuing with full history",
+        detail: error.localizedDescription,
+        kind: .lifecycle,
+        status: .failed
+      )
+      return
+    }
+
+    let summary = summaryTurn.assistantText.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !summary.isEmpty else {
+      emit(
+        level: .warning,
+        text: "Auto-compaction produced empty summary; keeping prior history",
+        kind: .lifecycle,
+        status: .failed
+      )
+      return
+    }
+
+    let collapsedCount = messages.count
+    messages = Self.compactedMessages(
+      system: messages[0],
+      originalUser: messages[1],
+      summary: summary
+    )
+    emit(
+      level: .info,
+      text: "Auto-compacted conversation",
+      detail:
+        "Collapsed \(collapsedCount) messages into a summary (~\(summaryTurn.totalTokens ?? 0) tokens).",
+      kind: .lifecycle,
+      status: .completed
+    )
+  }
+
+  /// Rebuild the message history after a successful summarization.
+  /// Keeping the original system prompt and the original user prompt
+  /// gives the next turn the same phase framing it started with; the
+  /// summary recap stands in for everything that happened between.
+  static func compactedMessages(
+    system: ChatQuery.ChatCompletionMessageParam,
+    originalUser: ChatQuery.ChatCompletionMessageParam,
+    summary: String
+  ) -> [ChatQuery.ChatCompletionMessageParam] {
+    let recap = """
+      The conversation prior to this point was auto-compacted to stay within the model's context window. Use the summary below to resume — it captures the original goal, what was done, key findings, and the immediate next step.
+
+      --- Compacted conversation summary ---
+      \(summary)
+      --- End compacted summary ---
+
+      Continue the task from where the summary leaves off. When the phase is complete, call `submit_result` exactly as instructed in the original task.
+      """
+    return [
+      system,
+      originalUser,
+      .user(.init(content: .string(recap))),
+    ]
   }
 
   // MARK: - LiveEvent mapping

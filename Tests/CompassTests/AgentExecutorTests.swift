@@ -241,6 +241,57 @@ final class AgentExecutorTests: XCTestCase {
     XCTAssertTrue(names.contains(AgentReadFileTool.toolName))
   }
 
+  // MARK: - Auto-compaction
+
+  func testShouldCompactReturnsFalseWhenContextWindowIsZero() {
+    XCTAssertFalse(AgentExecutor.shouldCompact(totalTokens: 1_000_000, contextWindowTokens: 0))
+    XCTAssertFalse(AgentExecutor.shouldCompact(totalTokens: 1_000_000, contextWindowTokens: -1))
+  }
+
+  func testShouldCompactReturnsTrueAtOrAboveThreshold() {
+    let window = 200_000
+    let threshold = Int(Double(window) * AgentExecutor.compactionThresholdFraction)
+    XCTAssertFalse(
+      AgentExecutor.shouldCompact(totalTokens: threshold - 1, contextWindowTokens: window))
+    XCTAssertTrue(AgentExecutor.shouldCompact(totalTokens: threshold, contextWindowTokens: window))
+    XCTAssertTrue(AgentExecutor.shouldCompact(totalTokens: window, contextWindowTokens: window))
+  }
+
+  func testShouldCompactTrackesArbitraryWindowSizes() {
+    XCTAssertFalse(AgentExecutor.shouldCompact(totalTokens: 80, contextWindowTokens: 128))
+    // 128 * 0.75 = 96
+    XCTAssertTrue(AgentExecutor.shouldCompact(totalTokens: 96, contextWindowTokens: 128))
+  }
+
+  func testCompactedMessagesPreservesSystemAndOriginalUser() {
+    let system: ChatQuery.ChatCompletionMessageParam = .system(
+      .init(content: .textContent("SYS"))
+    )
+    let originalUser: ChatQuery.ChatCompletionMessageParam = .user(
+      .init(content: .string("ORIGINAL TASK PROMPT"))
+    )
+    let result = AgentExecutor.compactedMessages(
+      system: system,
+      originalUser: originalUser,
+      summary: "Summary body here."
+    )
+    XCTAssertEqual(result.count, 3)
+    XCTAssertEqual(result[0], system)
+    XCTAssertEqual(result[1], originalUser)
+    guard case .user(let recap) = result[2],
+      case .string(let recapText) = recap.content
+    else {
+      return XCTFail("expected third message to be a .user(.string) recap")
+    }
+    XCTAssertTrue(recapText.contains("Summary body here."))
+    XCTAssertTrue(
+      recapText.contains("Compacted conversation summary"),
+      "recap should label itself as a compaction so the model knows context was dropped")
+    XCTAssertTrue(
+      recapText.contains("submit_result"),
+      "recap should remind the model how to finish the phase")
+  }
+
   // MARK: - helpers
 
   private func makeConfiguration(

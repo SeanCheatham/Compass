@@ -48,13 +48,22 @@ final class AgentSettingsStore: @unchecked Sendable {
     let model =
       resolveString(.model, envKey: "COMPASS_AGENT_MODEL")
       ?? AgentRuntimeSettings.defaultModelIdentifier
+    let contextWindowTokens: Int = {
+      let raw = environment["COMPASS_AGENT_CONTEXT_WINDOW_TOKENS"]?
+        .trimmingCharacters(in: .whitespacesAndNewlines)
+      if let raw, let value = Int(raw) {
+        return max(value, 0)
+      }
+      return AgentRuntimeSettings.defaultContextWindowTokens
+    }()
     return AgentRuntimeSettings(
       baseURL: baseURL,
       apiKey: apiKey,
       model: model,
       planModelOverride: resolveString(.planModel, envKey: "COMPASS_AGENT_MODEL_PLAN"),
       developModelOverride: resolveString(.developModel, envKey: "COMPASS_AGENT_MODEL_DEV"),
-      reflectModelOverride: resolveString(.reflectModel, envKey: "COMPASS_AGENT_MODEL_REFLECT")
+      reflectModelOverride: resolveString(.reflectModel, envKey: "COMPASS_AGENT_MODEL_REFLECT"),
+      contextWindowTokens: contextWindowTokens
     )
   }
 

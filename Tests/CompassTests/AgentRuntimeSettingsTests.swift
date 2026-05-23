@@ -12,6 +12,35 @@ final class AgentRuntimeSettingsTests: XCTestCase {
     XCTAssertNil(settings.planModelOverride)
     XCTAssertNil(settings.developModelOverride)
     XCTAssertNil(settings.reflectModelOverride)
+    XCTAssertEqual(settings.contextWindowTokens, AgentRuntimeSettings.defaultContextWindowTokens)
+  }
+
+  func testContextWindowEnvironmentOverrideIsApplied() {
+    let settings = AgentRuntimeSettings.defaultFromEnvironment([
+      "COMPASS_AGENT_CONTEXT_WINDOW_TOKENS": "131072"
+    ])
+    XCTAssertEqual(settings.contextWindowTokens, 131_072)
+  }
+
+  func testContextWindowEnvironmentZeroDisablesCompaction() {
+    let settings = AgentRuntimeSettings.defaultFromEnvironment([
+      "COMPASS_AGENT_CONTEXT_WINDOW_TOKENS": "0"
+    ])
+    XCTAssertEqual(settings.contextWindowTokens, 0)
+  }
+
+  func testContextWindowEnvironmentNegativeIsClampedToZero() {
+    let settings = AgentRuntimeSettings.defaultFromEnvironment([
+      "COMPASS_AGENT_CONTEXT_WINDOW_TOKENS": "-50"
+    ])
+    XCTAssertEqual(settings.contextWindowTokens, 0)
+  }
+
+  func testContextWindowEnvironmentGarbageFallsBackToDefault() {
+    let settings = AgentRuntimeSettings.defaultFromEnvironment([
+      "COMPASS_AGENT_CONTEXT_WINDOW_TOKENS": "not-a-number"
+    ])
+    XCTAssertEqual(settings.contextWindowTokens, AgentRuntimeSettings.defaultContextWindowTokens)
   }
 
   func testEnvironmentOverridesAreApplied() {

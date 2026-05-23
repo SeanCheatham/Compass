@@ -16,12 +16,20 @@ struct AgentRuntimeSettings: Equatable, Sendable {
   static let defaultBaseURLString = "https://api.minimax.io/v1"
   static let defaultModelIdentifier = "MiniMax-M2.7"
 
+  /// Conservative default that fits within every provider Compass has
+  /// been pointed at (MiniMax M-series 245k, Claude Sonnet 200k, GPT-4
+  /// Turbo 128k). Models advertising larger windows can opt in via
+  /// `COMPASS_AGENT_CONTEXT_WINDOW_TOKENS`; setting it to `0` disables
+  /// auto-compaction entirely.
+  static let defaultContextWindowTokens = 200_000
+
   var baseURL: URL
   var apiKey: String
   var model: String
   var planModelOverride: String?
   var developModelOverride: String?
   var reflectModelOverride: String?
+  var contextWindowTokens: Int
 
   init(
     baseURL: URL = AgentRuntimeSettings.defaultBaseURL,
@@ -29,7 +37,8 @@ struct AgentRuntimeSettings: Equatable, Sendable {
     model: String = AgentRuntimeSettings.defaultModelIdentifier,
     planModelOverride: String? = nil,
     developModelOverride: String? = nil,
-    reflectModelOverride: String? = nil
+    reflectModelOverride: String? = nil,
+    contextWindowTokens: Int = AgentRuntimeSettings.defaultContextWindowTokens
   ) {
     self.baseURL = baseURL
     self.apiKey = apiKey
@@ -37,6 +46,7 @@ struct AgentRuntimeSettings: Equatable, Sendable {
     self.planModelOverride = planModelOverride
     self.developModelOverride = developModelOverride
     self.reflectModelOverride = reflectModelOverride
+    self.contextWindowTokens = contextWindowTokens
   }
 
   static var defaultBaseURL: URL {
@@ -54,13 +64,17 @@ struct AgentRuntimeSettings: Equatable, Sendable {
     let baseURL =
       environment.compassAgentTrimmed("COMPASS_AGENT_BASE_URL")
       .flatMap(URL.init(string:)) ?? defaultBaseURL
+    let contextWindow =
+      environment.compassAgentTrimmed("COMPASS_AGENT_CONTEXT_WINDOW_TOKENS")
+      .flatMap(Int.init) ?? defaultContextWindowTokens
     return Self(
       baseURL: baseURL,
       apiKey: environment.compassAgentTrimmed("COMPASS_AGENT_API_KEY") ?? "",
       model: environment.compassAgentTrimmed("COMPASS_AGENT_MODEL") ?? defaultModelIdentifier,
       planModelOverride: environment.compassAgentTrimmed("COMPASS_AGENT_MODEL_PLAN"),
       developModelOverride: environment.compassAgentTrimmed("COMPASS_AGENT_MODEL_DEV"),
-      reflectModelOverride: environment.compassAgentTrimmed("COMPASS_AGENT_MODEL_REFLECT")
+      reflectModelOverride: environment.compassAgentTrimmed("COMPASS_AGENT_MODEL_REFLECT"),
+      contextWindowTokens: max(contextWindow, 0)
     )
   }
 

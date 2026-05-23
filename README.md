@@ -58,14 +58,24 @@ UserDefaults under the app's bundle id and persists across launches.
 Environment variables seed empty fields on first launch — useful for
 scripted setup / CI:
 
-| Variable                       | Default                          |
-| ------------------------------ | -------------------------------- |
-| `COMPASS_AGENT_BASE_URL`       | `https://api.minimax.io/v1`      |
-| `COMPASS_AGENT_API_KEY`        | _(no default, required)_         |
-| `COMPASS_AGENT_MODEL`          | `MiniMax-M2.7`                   |
-| `COMPASS_AGENT_MODEL_PLAN`     | _(falls back to default model)_  |
-| `COMPASS_AGENT_MODEL_DEV`      | _(falls back to default model)_  |
-| `COMPASS_AGENT_MODEL_REFLECT`  | _(falls back to default model)_  |
+| Variable                              | Default                          |
+| ------------------------------------- | -------------------------------- |
+| `COMPASS_AGENT_BASE_URL`              | `https://api.minimax.io/v1`      |
+| `COMPASS_AGENT_API_KEY`               | _(no default, required)_         |
+| `COMPASS_AGENT_MODEL`                 | `MiniMax-M2.7`                   |
+| `COMPASS_AGENT_MODEL_PLAN`            | _(falls back to default model)_  |
+| `COMPASS_AGENT_MODEL_DEV`             | _(falls back to default model)_  |
+| `COMPASS_AGENT_MODEL_REFLECT`         | _(falls back to default model)_  |
+| `COMPASS_AGENT_CONTEXT_WINDOW_TOKENS` | `200000` (`0` disables compaction) |
+
+Each Plan / Develop / Reflect iteration reports its token usage back to
+Compass via `stream_options.include_usage`. When usage crosses 75% of
+`COMPASS_AGENT_CONTEXT_WINDOW_TOKENS`, the executor runs a tool-free
+summary call and rebuilds the message history as `[system prompt,
+original task prompt, compacted summary]` so the next turn fits with
+fresh headroom. Set the variable to `0` to disable auto-compaction (e.g.
+for a model that returns clear 400s on overflow and you want them to
+bubble up).
 
 Any endpoint that implements OpenAI-style streaming chat completions with
 `tools` / `tool_choice` / multi-turn `tool_calls` works. MiniMax-M2.7 is
