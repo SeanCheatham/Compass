@@ -33,7 +33,8 @@ final class AgentSystemPromptTests: XCTestCase {
 
   func testPlanPhaseAdvertisesReadOnlyToolsOnly() {
     let prompt = Prompts.agentSystemPrompt(phase: .plan, workingDirectoryPath: "/x")
-    XCTAssertTrue(prompt.contains("Inspection tools"))
+    XCTAssertTrue(prompt.contains("File tools"))
+    XCTAssertTrue(prompt.contains("Codemap tools"))
     XCTAssertFalse(prompt.contains("Mutation tools"))
   }
 
@@ -42,6 +43,24 @@ final class AgentSystemPromptTests: XCTestCase {
     XCTAssertTrue(prompt.contains("Mutation tools"))
     XCTAssertTrue(prompt.contains("write_file"))
     XCTAssertTrue(prompt.contains("bash"))
+  }
+
+  /// Tools registered in the schema but absent from the system prompt
+  /// rarely get called — chat models heavily prefer tools the prompt
+  /// acknowledges, so the codemap tools have to be mentioned in every
+  /// phase that has access to them.
+  func testCodemapToolsAreAdvertisedInEveryPhase() {
+    for phase in AgentPhase.allCases {
+      let prompt = Prompts.agentSystemPrompt(phase: phase, workingDirectoryPath: "/x")
+      XCTAssertTrue(
+        prompt.contains("find_symbol"),
+        "phase \(phase) should name find_symbol so the model uses it instead of grepping for declarations"
+      )
+      XCTAssertTrue(prompt.contains("outline"), "phase \(phase) should name outline")
+      XCTAssertTrue(prompt.contains("summary"), "phase \(phase) should name summary")
+      XCTAssertTrue(prompt.contains("list_files"), "phase \(phase) should name list_files")
+      XCTAssertTrue(prompt.contains("importers_of"), "phase \(phase) should name importers_of")
+    }
   }
 
   // MARK: - Execution environment

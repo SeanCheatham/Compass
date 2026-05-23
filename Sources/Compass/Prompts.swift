@@ -471,16 +471,41 @@ enum Prompts {
     workingDirectoryPath: String,
     executionEnvironment: ExecutionEnvironmentDescriptor = .sharedVM
   ) -> String {
-    let readOnlyTools = "read_file, ls, grep, glob"
+    let fileTools = "read_file, ls, grep, glob"
+    let codemapTools = "outline, find_symbol, summary, list_files, importers_of"
     let writeTools = "write_file, edit_file, bash"
     let toolList: String
     switch phase {
     case .plan, .reflect:
-      toolList =
-        "- Inspection tools: \(readOnlyTools).\n- This phase is read-only. The Develop phase has the write tools — do not request them here."
+      toolList = """
+        - Codemap tools: \(codemapTools).
+        - File tools: \(fileTools).
+        - This phase is read-only. The Develop phase has the write tools — do not request them here.
+        """
     case .develop:
-      toolList = "- Inspection tools: \(readOnlyTools).\n- Mutation tools: \(writeTools)."
+      toolList = """
+        - Codemap tools: \(codemapTools).
+        - File tools: \(fileTools).
+        - Mutation tools: \(writeTools).
+        """
     }
+    let codemapGuidance = """
+      Codemap usage:
+      Compass pre-indexes every source file in this repo with tree-sitter
+      and caches per-file LLM summaries. Reach for the codemap tools
+      before the file tools whenever you can — they're cheaper and more
+      precise:
+      - To find where a symbol is declared, use `find_symbol` (returns
+        path:line for every match). Don't `grep` for `func foo` /
+        `class Foo` / `def foo`.
+      - To survey what a file defines without reading it, use `outline`.
+        Use `read_file` afterwards if you need the actual code.
+      - To get oriented in an unfamiliar repo, start with `list_files`
+        (optionally filtered) and `summary` on a few files of interest.
+      - To find who depends on a file, use `importers_of`. It's
+        approximate — see its tool description — so fall back to `grep`
+        for verification.
+      """
     return """
       You are operating inside the Compass agent runtime. Compass talks to
       an OpenAI-compatible chat completions endpoint and dispatches the
@@ -506,6 +531,8 @@ enum Prompts {
 
       Tools available to you this turn:
       \(toolList)
+
+      \(codemapGuidance)
 
       End this phase by calling the `submit_result` tool exactly once. Its
       arguments object MUST match the output schema described in the user
