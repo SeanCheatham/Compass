@@ -452,6 +452,11 @@ final class CompassProject: ObservableObject, Identifiable {
 
   private var executor: AgentExecutor?
   private var stopRequested = false
+  /// Session number the codemap was last refreshed for. When Plan and
+  /// Develop fire back-to-back inside the same session the second call
+  /// no-ops; a fresh Plan run (different session number) triggers a
+  /// new refresh. Set in `refreshCodemapIfNeeded(...)`.
+  private var codemapRefreshedForSession: Int?
   private let storageMigrationAction: CompassWorkspaceStorageMigrationAction
   private let mutationTestingRunner: ProcessRunner.InvocationRunner?
   private let maxDevelopAttempts = 3
@@ -1169,6 +1174,11 @@ extension CompassProject {
 
     do {
       try workspace.backupStateFile()
+      await refreshCodemapIfNeeded(
+        workspace: workspace,
+        sessionNumber: sessionNumber,
+        agentSettings: agentSettings
+      )
       try await runReflectIfNeeded(
         workspace,
         sessionIndex: sessionIndex,
@@ -1362,6 +1372,12 @@ extension CompassProject {
     sessions[sessionIndex].beforeSha = beforeSha
     try? persistSessions()
     feedback(.developStarted)
+
+    await refreshCodemapIfNeeded(
+      workspace: workspace,
+      sessionNumber: sessions[sessionIndex].session,
+      agentSettings: agentSettings
+    )
 
     do {
       // The Develop iteration operates directly on `workspace.repoURL`.
@@ -2410,6 +2426,49 @@ extension CompassProject {
       projectName: displayName,
       mode: nativeFeedbackMode
     )
+  }
+
+  /// Refresh the on-disk codemap (symbols + per-file summaries) once per
+  /// session. The agent's read-only `outline` / `find_symbol` / `summary`
+  /// tools all read from this cache, so this is what makes a brand-new
+  /// session see up-to-date data without paying the cost on every tool
+  /// call. Failures are non-fatal — a stale or partial codemap is better
+  /// than refusing to launch the agent.
+  private func refreshCodemapIfNeeded(
+    workspace: CompassWorkspace,
+    sessionNumber: Int,
+    agentSettings: AgentRuntimeSettings
+  ) async {
+    if codemapRefreshedForSession == sessionNumber { return }
+    let refresher = CodemapRefresher.make(
+      workspace: workspace,
+      settings: agentSettings
+    )
+    do {
+      let result = try await refresher.refresh()
+      codemapRefreshedForSession = sessionNumber
+      let parts = [
+        "indexed \(result.indexed)",
+        "unchanged \(result.unchanged)",
+        "pruned \(result.pruned)",
+        "summarized \(result.summariesGenerated)",
+      ]
+      log(
+        "Codemap refresh: \(parts.joined(separator: ", ")).",
+        level: .info
+      )
+      if result.indexerFailed > 0 || result.summariesFailed > 0 {
+        log(
+          "Codemap refresh had \(result.indexerFailed) parse failure(s) and \(result.summariesFailed) summary failure(s).",
+          level: .warning
+        )
+      }
+    } catch {
+      log(
+        "Codemap refresh failed: \(error.localizedDescription)",
+        level: .warning
+      )
+    }
   }
 
   private func feedbackPlanReadinessGate(
