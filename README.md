@@ -95,13 +95,13 @@ the phase contract.
   `5`) with the same read-only tool set and can return either no state
   change or a full updated `PlanState`.
 - Develop runs with the **full** tool set (`read_file`, `ls`, `grep`,
-  `glob`, `write_file`, `edit_file`, `bash`) so the model can edit,
-  verify, and commit. When the repo has a HEAD, Develop runs in a
-  disposable Git worktree and temporary branch; the app promotes it with
-  a fast-forward merge only after post-checks pass. Develop must return
-  `lessonEdits` instead of editing `.compass/lessons.md` directly, so
-  durable lessons land in the main Compass workspace rather than the
-  disposable worktree.
+  `glob`, `write_file`, `edit_file`, `bash`) inside the Shared VM's
+  persistent per-repo guest workspace, talking back to the host over
+  vsock. Once Verify passes, Compass pulls the guest workspace into the
+  host repo so the iteration's commits land where the rest of the
+  toolchain expects them. Develop must return `lessonEdits` instead of
+  editing `.compass/lessons.md` directly, so durable lessons land in the
+  main Compass workspace rather than only inside the guest.
 - Develop post-checks repeat the verify command, require
   `git status --porcelain` to be clean, and retry failed post-checks up
   to three attempts with failure context.
@@ -166,17 +166,19 @@ Codesigning uses `App/Signing.xcconfig` plus the git-ignored
 swap to a Developer ID Application cert via Xcode -> Signing & Capabilities,
 then notarize the resulting `.app` before packaging.
 
-## Sandbox: Shared macOS VM (optional)
+## Sandbox: Shared macOS VM
 
-Each project can opt its Develop iterations into a shared macOS guest VM via
-the per-project **Develop sandbox** picker in the Runtime section of the
-sidebar. With `.host` selected (default), Develop runs natively against a
-disposable Git worktree under `~/Library/Caches/Compass/Worktrees/`. With
-`.sharedVM` selected, file-level tools still operate directly on the host
-worktree (it is VirtioFS-mounted into the guest), but the agent's `bash`
-tool routes through SSH and runs `/bin/zsh -lc` inside the guest — so
-builds, tests, and any side effects of `bash` calls happen in the VM, not
-on the host.
+Compass runs every Develop iteration inside a shared macOS guest VM —
+the user no longer chooses between routes. Each project gets a
+persistent per-repo workspace inside the guest, and the agent talks to
+its tools (`read_file`, `write_file`, `edit_file`, `bash`, etc.) over
+vsock. Once Verify passes, Compass pulls the guest workspace back into
+the host repo so the iteration's commits land in the main checkout.
+
+Plan and Reflect read the main repo from the host path (outside the
+VirtioFS workspaces share); they fall back to a direct host invocation
+internally. Only the Develop loop and its post-Verify file sync depend
+on the guest being ready.
 
 The VM is built from scratch on the user's machine using
 `VZMacOSRestoreImage.fetchLatestSupported` (Apple CDN, ~14 GB IPSW, no auth)
@@ -197,8 +199,8 @@ Requirements:
   freshly-installed Data volume.
 - Apple's Virtualization.framework caps the host at 2 concurrent macOS
   guests. Conflicts with other VZ-based products (Parallels' VZ backend,
-  Tart, etc.) surface as `Shared VM unavailable: 2-guest cap reached` and
-  Develop transparently falls back to the host route.
+  Tart, etc.) surface as `Shared VM unavailable: 2-guest cap reached`,
+  which blocks Develop until the other guest exits.
 
 When using Compass to develop Compass itself, treat the currently running
 Compass process as infrastructure, not as the test subject. If a launch smoke
