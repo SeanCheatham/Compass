@@ -25,18 +25,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// dropped — VZ does not guarantee a clean halt in that case, and
     /// subsequent boots can land in NVRAM-corruption territory.
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        // If there's no VM to stop, quit instantly — no need to flash a
+        // shutdown overlay in front of the user.
+        let host = SharedCompassVM.shared
+        guard host.virtualMachine != nil else {
+            return .terminateNow
+        }
+        // Flip the shutdown flag *synchronously* before yielding to the
+        // Task so SwiftUI gets a chance to render the shutdown view in the
+        // same run-loop turn we return `.terminateLater`.
+        host.beginShutdown()
         Task { @MainActor in
-            await Self.stopSharedVMWithBudget()
+            await Self.stopSharedVMWithBudget(host: host)
             NSApp.reply(toApplicationShouldTerminate: true)
         }
         return .terminateLater
     }
 
     @MainActor
-    private static func stopSharedVMWithBudget() async {
-        let host = SharedCompassVM.shared
-        // Nothing to stop if the VM never got off the ground.
-        guard host.virtualMachine != nil else { return }
+    private static func stopSharedVMWithBudget(host: SharedCompassVM) async {
         await withTaskGroup(of: Void.self) { group in
             group.addTask { @MainActor in
                 await host.stop()

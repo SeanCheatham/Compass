@@ -37,6 +37,20 @@ final class SharedCompassVM: ObservableObject {
     /// state machine in the absorbing `.error(detail:)` state.
     @Published private(set) var setupFailureMessage: String?
 
+    /// `true` while the host app is tearing down on its way to terminate.
+    /// Set by the AppDelegate before it awaits `stop()` so the UI can swap to
+    /// a "Shutting down…" view instead of leaving the live workspace frozen
+    /// on screen during the up-to-6s VM stop budget. One-way flag: once set,
+    /// the process is on its way out and we never clear it.
+    @Published private(set) var isShuttingDown: Bool = false
+
+    /// Flips `isShuttingDown` so observers can transition to a shutdown UI
+    /// before the synchronous VZ stop work begins. Idempotent.
+    func beginShutdown() {
+        guard !isShuttingDown else { return }
+        isShuttingDown = true
+    }
+
     // MARK: - Owned values
 
     let bundle: SharedCompassVMBundle
