@@ -862,6 +862,16 @@ final class AgentExecutor {
         return "\(pattern) in \(path)"
       }
       return pattern
+    case AgentOutlineTool.toolName,
+      AgentSummaryTool.toolName,
+      AgentImportersOfTool.toolName:
+      return string("path")
+    case AgentFindSymbolTool.toolName:
+      guard let name = string("name") else { return nil }
+      if let kind = string("kind") { return "\(name) (\(kind))" }
+      return name
+    case AgentListFilesTool.toolName:
+      return string("filter") ?? "(all)"
     default:
       return nil
     }
@@ -881,13 +891,21 @@ final class AgentExecutor {
 
   // MARK: - Tool registries
 
-  /// Tools the Plan and Reflect phases get: read-only file access.
+  /// Tools the Plan and Reflect phases get: read-only file access plus
+  /// the codemap-backed structural lookups. Plan/Reflect/Develop all
+  /// share the codemap tools so a Develop pass can answer "where is X
+  /// defined?" without paging through `glob`/`grep`.
   static func readOnlyTools() -> [AgentTool] {
     [
       AgentReadFileTool(),
       AgentLsTool(),
       AgentGrepTool(),
       AgentGlobTool(),
+      AgentOutlineTool(),
+      AgentFindSymbolTool(),
+      AgentSummaryTool(),
+      AgentListFilesTool(),
+      AgentImportersOfTool(),
     ]
   }
 

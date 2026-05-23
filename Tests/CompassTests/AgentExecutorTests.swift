@@ -186,6 +186,11 @@ final class AgentExecutorTests: XCTestCase {
         AgentLsTool.toolName,
         AgentGrepTool.toolName,
         AgentGlobTool.toolName,
+        AgentOutlineTool.toolName,
+        AgentFindSymbolTool.toolName,
+        AgentSummaryTool.toolName,
+        AgentListFilesTool.toolName,
+        AgentImportersOfTool.toolName,
         AgentExecutor.submitResultToolName,
       ]))
   }

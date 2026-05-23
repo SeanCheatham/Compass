@@ -145,4 +145,15 @@ extension AgentToolContext {
     }
     return absolutePath
   }
+
+  /// Codemap cache directory for this working directory. Assumes the
+  /// canonical repo-local `.compass/codemap` layout; tools that read from
+  /// the codemap go through this so future custom-storage support has one
+  /// place to plumb a workspace handle through.
+  func codemapStore() -> CodemapStore {
+    let directory = workingDirectory
+      .appending(path: ".compass", directoryHint: .isDirectory)
+      .appending(path: "codemap", directoryHint: .isDirectory)
+    return CodemapStore(directory: directory)
+  }
 }
