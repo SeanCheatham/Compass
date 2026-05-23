@@ -238,7 +238,9 @@ final class AgentExecutor {
             // message we just appended and replace the bad
             // turn with a user-side "be more concise" nudge.
             if aggregated.finishReason == "length" {
-              if !messages.isEmpty { messages.removeLast() }
+              if case .assistant = messages.last {
+                messages.removeLast()
+              }
               let nudge =
                 "Your previous `submit_result` was truncated by the output-token limit. Retry with the same structure but shorter free-form text — keep `state.completed` entries terse, trim `summary`, and avoid restating context. The tool args must be complete, valid JSON."
               messages.append(.user(.init(content: .string(nudge))))
@@ -324,7 +326,7 @@ final class AgentExecutor {
     let host = components?.host ?? "api.openai.com"
     let port = components?.port ?? (settings.baseURL.scheme == "http" ? 80 : 443)
     let scheme = components?.scheme ?? "https"
-    let basePath = components?.path.isEmpty == false ? components!.path : "/v1"
+    let basePath = components.flatMap { $0.path.isEmpty ? nil : $0.path } ?? "/v1"
 
     let configuration = OpenAI.Configuration(
       token: settings.apiKey,
