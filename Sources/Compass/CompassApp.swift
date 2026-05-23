@@ -135,8 +135,6 @@ struct CompassApp: App {
                         .help("Select a project before running mutation testing.")
                 }
             }
-            CinematicPlanCompassFocusedCommands()
-            CinematicRunRecapShareArtifactFocusedCommands()
         }
 
         Settings {

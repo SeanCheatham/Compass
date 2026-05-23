@@ -35,43 +35,6 @@ final class NativeFeedbackServiceTests: XCTestCase {
         XCTAssertEqual(retry.spokenPhrase, "Editor. Develop retrying.")
     }
 
-    func testDevelopReadyContentCanBeDerivedFromReadinessAndStaysBounded() {
-        let state = PlanState(
-            completed: ["Mapped native feedback readiness"],
-            immediate: PlanNext(
-                plan: "Wait for the Develop gate",
-                verify: "swift test",
-                verifyTimeoutMs: 120_000,
-                estimatedDifficulty: .medium
-            ),
-            midTerm: "",
-            longTerm: ""
-        )
-        let plan = CinematicPlanCompassPlan(state: state)
-        let readiness = CinematicPlanCompassReadinessPlan(
-            state: state,
-            planCompassPlan: plan,
-            reliabilityFeedback: PlanReliabilityFeedback(state: state, sessions: [])
-        )
-        let content = NativeFeedbackContent(readinessPlan: readiness, projectName: "Editor")
-
-        XCTAssertEqual(content.projectName, "Editor")
-        XCTAssertEqual(content.title, "Editor: Ready for Develop")
-        XCTAssertTrue(content.body.contains("Prove: swift test"))
-        XCTAssertTrue(content.body.contains("Timeout 2m"))
-        XCTAssertTrue(content.body.contains("Medium"))
-        XCTAssertTrue(content.body.contains("warnings clear"))
-        XCTAssertTrue(content.body.contains("retry none"))
-        XCTAssertTrue(content.body.contains("1 completed iteration"))
-        XCTAssertLessThanOrEqual(content.title.count, NativeFeedbackContent.titleLimit)
-        XCTAssertLessThanOrEqual(content.body.count, NativeFeedbackContent.bodyLimit)
-        XCTAssertLessThanOrEqual(content.spokenPhrase.count, NativeFeedbackContent.spokenPhraseLimit)
-
-        let generic = NativeFeedbackContent(milestone: .developReady, projectName: "Editor")
-        XCTAssertEqual(generic.title, "Editor: Develop ready")
-        XCTAssertEqual(generic.body, "The accepted plan is waiting at the Develop gate.")
-    }
-
     @MainActor
     func testDevelopReadyDeliverySnapshotCorrelatesWithoutAuthorizationInOffMode() {
         let service = NativeFeedbackService.shared

@@ -177,26 +177,7 @@ final class ProjectActivitySourceStatusTests: XCTestCase {
         file: StaticString = #filePath,
         line: UInt = #line
     ) throws {
-        let report = CinematicDiagnostics.report(
-            repoName: "CompassActivitySourceStatus",
-            phase: "Developing",
-            immediateTitle: "Expose activity source status",
-            completedCount: 1,
-            latestEvent: nil,
-            languageProfile: .empty,
-            activityProfile: .empty,
-            activitySourceSnapshot: snapshot,
-            influenceSettings: CinematicInfluenceSettings()
-        )
-        let summary = CinematicDiagnosticsSummary(report: report)
-        let row = try XCTUnwrap(summary.row(id: "activity-source"), file: file, line: line)
-
-        XCTAssertEqual(report.activitySource, snapshot, file: file, line: line)
         XCTAssertEqual(status.activitySourceIdentifier, snapshot.identifier, file: file, line: line)
-        XCTAssertTrue(report.identifier.contains("activity-source:\(snapshot.identifier)"), file: file, line: line)
-        XCTAssertTrue(row.detail.contains("storage \(snapshot.activeStorageIdentifier)"), file: file, line: line)
-        XCTAssertTrue(row.detail.contains("availability \(snapshot.sourceAvailabilityIdentifier)"), file: file, line: line)
-        XCTAssertTrue(row.detail.contains("repo-local \(snapshot.repoLocalSessionsStateIdentifier)"), file: file, line: line)
         XCTAssertTrue(
             status.helpText.contains("storage \(snapshot.activeStorageIdentifier)"),
             file: file,
@@ -207,7 +188,6 @@ final class ProjectActivitySourceStatusTests: XCTestCase {
             file: file,
             line: line
         )
-        XCTAssertTrue(summary.exportText.contains("Activity source:"), file: file, line: line)
     }
 
     private func assertBounded(

@@ -154,17 +154,9 @@ final class CompassProjectActiveStorageTests: XCTestCase {
             makeActivitySession(22, status: .succeeded, endedAt: 22_000, commits: 2),
             makeActivitySession(23, status: .succeeded, endedAt: 23_000, commits: 3)
         ]
-        let libraryContext = CinematicRunRecapShareArtifactLibraryContext(
-            selectedEntryIdentifier: "support-selected-artifact",
-            searchText: "support activity",
-            pinnedEntryIdentifiers: ["support-pinned-artifact"],
-            comparisonTargetMode: .pinnedReference,
-            savedTourHoldEntryIdentifier: "support-held-artifact"
-        )
         let project = CompassProject(
             repoURL: repoURL,
             activeStorage: .applicationSupport,
-            cinematicRunRecapShareArtifactLibraryContext: libraryContext,
             storageApplicationSupportRoots: roots
         )
 
@@ -173,17 +165,12 @@ final class CompassProjectActiveStorageTests: XCTestCase {
         try workspace.writeSessions(supportSessions)
         try write("pending repo worktree\n", to: repoURL.appending(path: "pending.txt"))
         project.state = supportState
-        project.recordCinematicDiagnosticsWarningBundle(makeWarningAttentionSummary())
-        let warningHistory = project.cinematicDiagnosticsWarningBundleHistory
 
         XCTAssertFalse(FileManager.default.fileExists(atPath: workspace.repoLocalCompassURL.path))
 
         await project.refresh()
 
         let sourceSnapshot = project.activitySourceSnapshot
-        let diagnosticsReport = CinematicDiagnostics.currentReport(for: project)
-        let diagnosticsSummary = CinematicDiagnosticsSummary(report: diagnosticsReport)
-        let activitySourceRow = try XCTUnwrap(diagnosticsSummary.row(id: "activity-source"))
 
         XCTAssertTrue(project.activityProfile.isAvailable)
         XCTAssertEqual(project.activityProfile.recentSessionCount, 3)
@@ -204,16 +191,8 @@ final class CompassProjectActiveStorageTests: XCTestCase {
         XCTAssertEqual(sourceSnapshot.sourceAvailability, .available)
         XCTAssertEqual(sourceSnapshot.repoLocalSessionsState, .ignoredMissing)
         XCTAssertTrue(sourceSnapshot.ignoresRepoLocalSessions)
-        XCTAssertEqual(diagnosticsReport.activitySource, sourceSnapshot)
-        XCTAssertTrue(diagnosticsReport.identifier.contains("activity-source:\(sourceSnapshot.identifier)"))
-        XCTAssertTrue(activitySourceRow.detail.contains("storage application_support"))
-        XCTAssertTrue(activitySourceRow.detail.contains("availability available"))
-        XCTAssertTrue(activitySourceRow.detail.contains("repo-local ignored-missing"))
-        XCTAssertTrue(diagnosticsSummary.exportText.contains("Activity source:"))
         XCTAssertEqual(project.state, supportState)
         XCTAssertEqual(project.activeStorage, .applicationSupport)
-        XCTAssertEqual(project.cinematicRunRecapShareArtifactLibraryContext, libraryContext)
-        XCTAssertEqual(project.cinematicDiagnosticsWarningBundleHistory, warningHistory)
         XCTAssertFalse(FileManager.default.fileExists(atPath: workspace.repoLocalCompassURL.path))
     }
 
@@ -245,9 +224,6 @@ final class CompassProjectActiveStorageTests: XCTestCase {
         await project.refresh()
 
         let sourceSnapshot = project.activitySourceSnapshot
-        let diagnosticsReport = CinematicDiagnostics.currentReport(for: project)
-        let diagnosticsSummary = CinematicDiagnosticsSummary(report: diagnosticsReport)
-        let activitySourceRow = try XCTUnwrap(diagnosticsSummary.row(id: "activity-source"))
 
         XCTAssertTrue(project.activityProfile.isAvailable)
         XCTAssertEqual(project.activityProfile.recentSessionCount, 2)
@@ -265,9 +241,6 @@ final class CompassProjectActiveStorageTests: XCTestCase {
         XCTAssertEqual(sourceSnapshot.sourceAvailability, .available)
         XCTAssertEqual(sourceSnapshot.repoLocalSessionsState, .ignoredCompatible)
         XCTAssertTrue(sourceSnapshot.ignoresRepoLocalSessions)
-        XCTAssertEqual(diagnosticsReport.activitySource, sourceSnapshot)
-        XCTAssertTrue(activitySourceRow.detail.contains("repo-local ignored-compatible"))
-        XCTAssertTrue(diagnosticsSummary.exportText.contains("repo-local ignored-compatible"))
         XCTAssertEqual(
             try String(contentsOf: repoLocalWorkspace.sessionsRecordURL, encoding: .utf8),
             staleRepoLocalText
@@ -278,32 +251,18 @@ final class CompassProjectActiveStorageTests: XCTestCase {
         let repoURL = try makeTemporaryGitRepository()
         let roots = try makeApplicationSupportRoots()
         let workspace = applicationSupportWorkspace(repoURL: repoURL, roots: roots)
-        let libraryContext = CinematicRunRecapShareArtifactLibraryContext(
-            selectedEntryIdentifier: "missing-root-selection",
-            searchText: "missing root",
-            pinnedEntryIdentifiers: ["missing-root-pin"],
-            comparisonTargetMode: .pinnedReference,
-            savedTourHoldEntryIdentifier: "missing-root-hold"
-        )
         let project = CompassProject(
             repoURL: repoURL,
             activeStorage: .applicationSupport,
-            cinematicRunRecapShareArtifactLibraryContext: libraryContext,
             storageApplicationSupportRoots: roots
         )
 
-        project.recordCinematicDiagnosticsWarningBundle(makeWarningAttentionSummary())
         await project.refresh()
 
         let snapshot = project.activitySourceSnapshot
         let stateBeforeDiagnostics = project.state
         let activeStorageBeforeDiagnostics = project.activeStorage
-        let contextBeforeDiagnostics = project.cinematicRunRecapShareArtifactLibraryContext
         let sessionsBeforeDiagnostics = project.sessions
-        let warningHistoryBeforeDiagnostics = project.cinematicDiagnosticsWarningBundleHistory
-        let report = CinematicDiagnostics.currentReport(for: project)
-        let summary = CinematicDiagnosticsSummary(report: report)
-        let row = try XCTUnwrap(summary.row(id: "activity-source"))
 
         XCTAssertEqual(project.activityProfile, .empty)
         XCTAssertEqual(snapshot.activeStorage, .applicationSupport)
@@ -311,14 +270,9 @@ final class CompassProjectActiveStorageTests: XCTestCase {
         XCTAssertEqual(snapshot.sessionsRecordURL, workspace.sessionsRecordURL.standardizedFileURL)
         XCTAssertEqual(snapshot.sourceAvailability, .storageRootMissing)
         XCTAssertEqual(snapshot.repoLocalSessionsState, .ignoredMissing)
-        XCTAssertEqual(report.activitySource, snapshot)
-        XCTAssertTrue(row.detail.contains("availability storage-root-missing"))
-        XCTAssertTrue(row.detail.contains("repo-local ignored-missing"))
         XCTAssertEqual(project.state, stateBeforeDiagnostics)
         XCTAssertEqual(project.activeStorage, activeStorageBeforeDiagnostics)
-        XCTAssertEqual(project.cinematicRunRecapShareArtifactLibraryContext, contextBeforeDiagnostics)
         XCTAssertEqual(project.sessions, sessionsBeforeDiagnostics)
-        XCTAssertEqual(project.cinematicDiagnosticsWarningBundleHistory, warningHistoryBeforeDiagnostics)
         XCTAssertFalse(FileManager.default.fileExists(atPath: workspace.compassURL.path))
         XCTAssertFalse(FileManager.default.fileExists(atPath: workspace.repoLocalCompassURL.path))
     }
@@ -333,17 +287,12 @@ final class CompassProjectActiveStorageTests: XCTestCase {
             storageApplicationSupportRoots: roots
         )
 
-        project.recordCinematicDiagnosticsWarningBundle(makeWarningAttentionSummary())
         await project.refresh()
 
         let snapshot = project.activitySourceSnapshot
         let stateBeforeDiagnostics = project.state
         let activeStorageBeforeDiagnostics = project.activeStorage
         let sessionsBeforeDiagnostics = project.sessions
-        let warningHistoryBeforeDiagnostics = project.cinematicDiagnosticsWarningBundleHistory
-        let report = CinematicDiagnostics.currentReport(for: project)
-        let summary = CinematicDiagnosticsSummary(report: report)
-        let row = try XCTUnwrap(summary.row(id: "activity-source"))
 
         XCTAssertEqual(project.activityProfile, .empty)
         XCTAssertEqual(snapshot.activeStorage, .applicationSupport)
@@ -351,14 +300,9 @@ final class CompassProjectActiveStorageTests: XCTestCase {
         XCTAssertNil(snapshot.sessionsRecordURL)
         XCTAssertEqual(snapshot.sourceAvailability, .noRepository)
         XCTAssertEqual(snapshot.repoLocalSessionsState, .ignoredMissing)
-        XCTAssertEqual(report.activitySource, snapshot)
-        XCTAssertTrue(row.detail.contains("availability no-repository"))
-        XCTAssertTrue(row.detail.contains("root none"))
-        XCTAssertTrue(row.detail.contains("sessions none"))
         XCTAssertEqual(project.state, stateBeforeDiagnostics)
         XCTAssertEqual(project.activeStorage, activeStorageBeforeDiagnostics)
         XCTAssertEqual(project.sessions, sessionsBeforeDiagnostics)
-        XCTAssertEqual(project.cinematicDiagnosticsWarningBundleHistory, warningHistoryBeforeDiagnostics)
         XCTAssertFalse(FileManager.default.fileExists(atPath: missingRepoURL.path))
     }
 
@@ -577,87 +521,6 @@ final class CompassProjectActiveStorageTests: XCTestCase {
         XCTAssertLessThanOrEqual(invalidProject.activeStorageActivationState.detail.count, CompassProjectActiveStorageState.detailLimit)
     }
 
-    func testProjectRecordsRecapShareArtifactInActiveApplicationSupportStorageWithoutPasteboard() async throws {
-        let repoURL = try makeTemporaryGitRepository()
-        let roots = try makeApplicationSupportRoots()
-        let project = CompassProject(
-            repoURL: repoURL,
-            activeStorage: .applicationSupport,
-            storageApplicationSupportRoots: roots
-        )
-        let workspace = applicationSupportWorkspace(repoURL: repoURL, roots: roots)
-        let session = makeRecapSession(41, endedAt: 41_500)
-        let share = makeRecapSharePlan(
-            session: session,
-            completed: ["Record project recap share artifact"]
-        )
-
-        await project.initializeWorkspace()
-        project.sessions = [session]
-
-        let result = await project.recordRunRecapShareArtifact(sharePlan: share)
-
-        let url = try XCTUnwrap(result.artifactURL)
-        XCTAssertEqual(result.status, .recorded)
-        XCTAssertEqual(project.cinematicRunRecapShareArtifactRecording, result)
-        XCTAssertEqual(url, workspace.sessionsURL.appending(path: "41-\(result.artifactPlan.filename)"))
-        XCTAssertEqual(project.cinematicRunRecapShareArtifactHistory.totalCount, 1)
-        XCTAssertEqual(project.cinematicRunRecapShareArtifactHistory.latestEntry?.sessionNumber, 41)
-        XCTAssertEqual(
-            project.cinematicRunRecapShareArtifactHistory.latestEntry?.url.standardizedFileURL,
-            url.standardizedFileURL
-        )
-        XCTAssertTrue(project.cinematicRunRecapShareArtifactHistory.combinedMarkdownExport.contains(result.artifactPlan.title))
-        XCTAssertFileExists(url)
-        XCTAssertFalse(FileManager.default.fileExists(atPath: workspace.repoLocalCompassURL.path))
-        XCTAssertFalse(FileManager.default.fileExists(atPath: repoURL.appending(path: ".gitignore").path))
-    }
-
-    func testProjectCleansRecapShareArtifactsInActiveApplicationSupportStorageAndRefreshesHistory() async throws {
-        let repoURL = try makeTemporaryGitRepository()
-        let roots = try makeApplicationSupportRoots()
-        let project = CompassProject(
-            repoURL: repoURL,
-            activeStorage: .applicationSupport,
-            storageApplicationSupportRoots: roots
-        )
-        let workspace = applicationSupportWorkspace(repoURL: repoURL, roots: roots)
-        let artifactCount = CinematicRunRecapShareArtifactHistoryPlan.retentionLimit + 2
-        var artifactURLs: [Int: URL] = [:]
-
-        await project.initializeWorkspace()
-        for session in 1...artifactCount {
-            artifactURLs[session] = try workspace.writeSessionArtifact(
-                session: session,
-                name: "recap-share-support-\(session).md",
-                contents: recapArtifactMarkdown(session: session)
-            )
-        }
-
-        await project.refresh()
-        let before = project.cinematicRunRecapShareArtifactHistory
-        let result = await project.cleanupRunRecapShareArtifacts()
-
-        XCTAssertEqual(before.totalCount, artifactCount)
-        XCTAssertEqual(before.cleanupCandidateCount, 2)
-        XCTAssertEqual(result.status, .deleted)
-        XCTAssertEqual(result.deletedCount, 2)
-        XCTAssertEqual(project.cinematicRunRecapShareArtifactCleanup, result)
-        XCTAssertEqual(project.cinematicRunRecapShareArtifactHistory, result.refreshedHistory)
-        XCTAssertEqual(project.cinematicRunRecapShareArtifactHistory.totalCount, before.retentionLimit)
-        XCTAssertEqual(project.cinematicRunRecapShareArtifactHistory.cleanupCandidateCount, 0)
-        XCTAssertEqual(project.cinematicRunRecapShareArtifactHistory.warningCount, 0)
-
-        for session in 1...2 {
-            XCTAssertFalse(FileManager.default.fileExists(atPath: try XCTUnwrap(artifactURLs[session]).path))
-        }
-        for session in 3...artifactCount {
-            XCTAssertTrue(FileManager.default.fileExists(atPath: try XCTUnwrap(artifactURLs[session]).path))
-        }
-        XCTAssertFalse(FileManager.default.fileExists(atPath: workspace.repoLocalCompassURL.path))
-        XCTAssertFalse(FileManager.default.fileExists(atPath: repoURL.appending(path: ".gitignore").path))
-    }
-
     private func makeTemporaryGitRepository() throws -> URL {
         let directory = try makeTemporaryDirectory()
         try createDirectory(directory.appending(path: ".git", directoryHint: .isDirectory))
@@ -714,62 +577,6 @@ final class CompassProjectActiveStorageTests: XCTestCase {
         .workspace
     }
 
-    private func makeRecapSharePlan(
-        session: SessionRecord,
-        completed: [String]
-    ) -> CinematicRunRecapSharePlan {
-        let state = PlanState(completed: completed, immediate: nil, midTerm: "", longTerm: "")
-        let commitPlan = CinematicCommitConstellationPlan(sessions: [session])
-        let recapPlan = CinematicRunRecapPlanner.plan(
-            state: state,
-            sessions: [session],
-            isRunning: false,
-            isAutoPlaying: false,
-            recentRunCues: [:],
-            commitConstellationPlan: commitPlan,
-            nativeFeedbackLifecycle: CinematicNativeFeedbackCueLifecycle()
-        )
-        let timelinePlan = CinematicSessionTimelinePlan(sessions: [session])
-        let focusPlan = CinematicRunRecapSceneFocusPlanner.plan(
-            isRecapOverlaySelected: true,
-            recapPlan: recapPlan,
-            commitConstellationPlan: commitPlan,
-            timelinePlan: timelinePlan
-        )
-        let endCardPlan = CinematicRunRecapEndCardPlanner.plan(
-            isRecapOverlaySelected: true,
-            recapPlan: recapPlan
-        )
-        return CinematicRunRecapSharePlanner.plan(
-            recapPlan: recapPlan,
-            recapFocusDescriptor: focusPlan.descriptor,
-            endCardDescriptor: endCardPlan.descriptor
-        )
-    }
-
-    private func makeRecapSession(_ number: Int, endedAt: Double?) -> SessionRecord {
-        SessionRecord(
-            session: number,
-            startedAt: Double(number * 1_000),
-            endedAt: endedAt,
-            plan: "Record recap share artifact",
-            verify: "swift test --filter CompassProjectActiveStorageTests",
-            beforeSha: nil,
-            afterSha: nil,
-            commits: [
-                SessionCommit(
-                    sha: "abcdef1234567890",
-                    short: "abcdef1",
-                    subject: "Record project recap share artifact"
-                )
-            ],
-            status: .succeeded,
-            notes: [],
-            verifyOutput: nil,
-            feedback: nil
-        )
-    }
-
     private func makeActivitySession(
         _ number: Int,
         status: SessionStatus,
@@ -796,44 +603,6 @@ final class CompassProjectActiveStorageTests: XCTestCase {
             verifyOutput: nil,
             feedback: nil
         )
-    }
-
-    private func makeWarningAttentionSummary() -> CinematicDiagnosticsSummary.AttentionSummary {
-        CinematicDiagnosticsSummary.AttentionSummary(
-            targets: [
-                CinematicDiagnosticsSummary.AttentionTarget(
-                    id: "support-warning-target",
-                    targetGroupID: "support-warning-group",
-                    targetAnchorID: "support-warning-anchor",
-                    relatedGroupID: "support-related-group",
-                    relatedRowID: "support-related-row",
-                    label: "Support warning",
-                    detail: "Support warning detail",
-                    warningCount: 1,
-                    visibleWarningIdentifiers: ["support-warning"],
-                    copyText: "Support warning copy"
-                )
-            ]
-        )
-    }
-
-    private func recapArtifactMarkdown(session: Int) -> String {
-        """
-        # Compass Run Recap Share
-
-        - Artifact: artifact-\(session)
-        - Availability: available
-        - Session: \(session)
-        - Filename: recap-share-support-\(session).md
-        - Share: share-id
-        - Recap: recap-id
-        - Focus: focus-id
-        - End card: end-card-id
-        - Title: Support Recap \(session)
-        - Status: succeeded
-        - Detail: Support detail
-        - Commit: Support commit \(session)
-        """
     }
 
     private func XCTAssertDirectoryExists(

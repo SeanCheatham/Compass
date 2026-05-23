@@ -303,10 +303,36 @@ enum LiveActivitySummaryService {
     static func modelPromptLines(for cluster: LiveActivityCluster) -> [String] {
         boundedModelLines(cluster.lines).enumerated().map { index, line in
             let promptText = fittedPlainText(
-                CinematicBriefingEvent(line: line).promptText,
+                promptText(for: line),
                 maxCharacters: modelPromptEventMaxCharacters
             )
             return "\(index + 1). \(promptText)"
+        }
+    }
+
+    private static func promptText(for line: LiveLine) -> String {
+        [statusName(line.status), kindName(line.kind), line.text, firstLine(line.detail)]
+            .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+            .joined(separator: " | ")
+    }
+
+    private static func kindName(_ kind: LiveLine.Kind) -> String {
+        switch kind {
+        case .message:      return "message"
+        case .lifecycle:    return "lifecycle"
+        case .command:      return "command"
+        case .agentMessage: return "agent"
+        case .fileChange:   return "file change"
+        }
+    }
+
+    private static func statusName(_ status: LiveLine.Status) -> String {
+        switch status {
+        case .none:      return "noted"
+        case .running:   return "running"
+        case .completed: return "completed"
+        case .failed:    return "failed"
         }
     }
 
@@ -329,7 +355,7 @@ enum LiveActivitySummaryService {
     ) -> Bool {
         let source = normalizedPlainText(
             cluster.lines
-                .map { CinematicBriefingEvent(line: $0).promptText }
+                .map { promptText(for: $0) }
                 .joined(separator: " ")
         )
 

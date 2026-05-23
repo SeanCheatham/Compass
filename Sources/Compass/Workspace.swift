@@ -215,88 +215,6 @@ struct CompassWorkspace {
         return url
     }
 
-    func refreshRunRecapShareArtifactHistory() -> CinematicRunRecapShareArtifactHistoryPlan {
-        CinematicRunRecapShareArtifactHistoryPlanner.plan(
-            storageRootURL: compassURL,
-            sessionsURL: sessionsURL
-        )
-    }
-
-    func refreshRunRecapShareArtifactSourceReconciliation(
-        activeHistoryPlan: CinematicRunRecapShareArtifactHistoryPlan,
-        activitySourceSnapshot: RepositoryActivitySourceSnapshot
-    ) -> CinematicRunRecapShareArtifactSourceReconciliationPlan {
-        CinematicRunRecapShareArtifactSourceReconciliationPlanner.plan(
-            activeHistoryPlan: activeHistoryPlan,
-            activitySourceSnapshot: activitySourceSnapshot,
-            workspace: self
-        )
-    }
-
-    func cleanupRunRecapShareArtifacts() -> CinematicRunRecapShareArtifactCleanupResult {
-        let candidates = CinematicRunRecapShareArtifactHistoryPlanner.cleanupCandidates(
-            storageRootURL: compassURL,
-            sessionsURL: sessionsURL
-        )
-        var deletedIdentifiers: [String] = []
-        var skippedIdentifiers: [String] = []
-        var failedIdentifiers: [String] = []
-        let fm = FileManager.default
-
-        for candidate in candidates {
-            guard isRunRecapShareArtifactCleanupCandidateURL(candidate.url) else {
-                skippedIdentifiers.append(candidate.identifier)
-                continue
-            }
-            guard fm.fileExists(atPath: candidate.url.path) else {
-                skippedIdentifiers.append(candidate.identifier)
-                continue
-            }
-
-            do {
-                try fm.removeItem(at: candidate.url)
-                deletedIdentifiers.append(candidate.identifier)
-            } catch {
-                failedIdentifiers.append(candidate.identifier)
-            }
-        }
-
-        return CinematicRunRecapShareArtifactCleanupResult(
-            retentionLimit: CinematicRunRecapShareArtifactHistoryPlan.retentionLimit,
-            cleanupCandidateCount: candidates.count,
-            deletedIdentifiers: deletedIdentifiers,
-            skippedIdentifiers: skippedIdentifiers,
-            failedIdentifiers: failedIdentifiers,
-            refreshedHistory: refreshRunRecapShareArtifactHistory()
-        )
-    }
-
-    func recordRunRecapShareArtifact(
-        sharePlan: CinematicRunRecapSharePlan,
-        sessions: [SessionRecord],
-        warningPulseAudit: CinematicRunRecapShareArtifactWarningPulseAudit? = nil
-    ) -> CinematicRunRecapShareArtifactRecordingResult {
-        let artifactPlan = CinematicRunRecapShareArtifactPlanner.plan(
-            sharePlan: sharePlan,
-            sessions: sessions,
-            warningPulseAudit: warningPulseAudit
-        )
-
-        guard artifactPlan.isAvailable, let sessionNumber = artifactPlan.sessionNumber else {
-            return .skipped(plan: artifactPlan)
-        }
-
-        do {
-            let url = try writeSessionArtifact(
-                session: sessionNumber,
-                name: artifactPlan.filename,
-                contents: artifactPlan.markdownContents
-            )
-            return .recorded(plan: artifactPlan, url: url)
-        } catch {
-            return .failed(plan: artifactPlan, error: error)
-        }
-    }
 
     static func encodeState(_ state: PlanState) throws -> String {
         let encoder = JSONEncoder()
@@ -308,16 +226,6 @@ struct CompassWorkspace {
     private func createFileIfMissing(_ url: URL, contents: String) throws {
         guard !FileManager.default.fileExists(atPath: url.path) else { return }
         try contents.write(to: url, atomically: true, encoding: .utf8)
-    }
-
-    private func isRunRecapShareArtifactCleanupCandidateURL(_ url: URL) -> Bool {
-        let candidatePath = url.standardizedFileURL.path
-        let rootPath = compassURL.standardizedFileURL.path
-        let sessionsPath = sessionsURL.standardizedFileURL.path
-
-        return candidatePath.hasPrefix(rootPath + "/")
-            && candidatePath.hasPrefix(sessionsPath + "/")
-            && candidatePath != sessionsPath
     }
 
     private func ensureCompassIsIgnored() throws {

@@ -412,39 +412,9 @@ final class CompassProject: ObservableObject, Identifiable {
     @Published var languageProfile = RepositoryLanguageProfile.empty
     @Published var activityProfile = RepositoryActivityProfile.empty
     @Published var activitySourceSnapshot = RepositoryActivitySourceSnapshot.notScanned()
-    @Published var cinematicInfluenceSettings: CinematicInfluenceSettings
-    @Published private(set) var cinematicNativeFeedbackCueLifecycle = CinematicNativeFeedbackCueLifecycle()
-    @Published var cinematicNativeFeedbackCue: CinematicNativeFeedbackCuePlan?
-    @Published var nativeFeedbackMode: NativeFeedbackMode {
-        didSet {
-            guard nativeFeedbackMode == .off else { return }
-            clearCinematicNativeFeedbackCue(reason: .modeOff)
-        }
-    }
+    @Published var nativeFeedbackMode: NativeFeedbackMode
     @Published var liveLog: [LiveLine] = []
-    @Published var phase: LoopPhase = .idle {
-        didSet {
-            guard oldValue != phase else { return }
-            scheduleCinematicBriefingRefresh(reason: .phaseChanged)
-        }
-    }
-    @Published var cinematicBriefing = CinematicBriefing.placeholder
-    @Published var cinematicWorldText = CinematicWorldText.placeholder
-    @Published var cinematicRunRecapFlavor: CinematicRunRecapFlavor?
-    @Published var cinematicRunRecapShareArtifactRecording: CinematicRunRecapShareArtifactRecordingResult?
-    @Published var cinematicRunRecapShareArtifactCleanup: CinematicRunRecapShareArtifactCleanupResult?
-    @Published var cinematicRunRecapShareArtifactLibraryContext: CinematicRunRecapShareArtifactLibraryContext
-    @Published var cinematicRunRecapShareArtifactHistory = CinematicRunRecapShareArtifactHistoryPlan.unavailable(
-        reason: "not-scanned"
-    )
-    @Published var cinematicRunRecapShareArtifactSourceReconciliation =
-        CinematicRunRecapShareArtifactSourceReconciliationPlanner.plan(
-            activeHistoryPlan: CinematicRunRecapShareArtifactHistoryPlan.unavailable(reason: "not-scanned"),
-            activitySourceSnapshot: RepositoryActivitySourceSnapshot.notScanned()
-        )
-    @Published var cinematicDiagnosticsWarningBundleHistory = CinematicDiagnosticsWarningBundleHistory()
-    @Published var cinematicDiagnosticsWarningPulseQuietingDescriptor:
-        CinematicDiagnosticsWarningPulseQuietingDescriptor?
+    @Published var phase: LoopPhase = .idle
     @Published var isRunning = false
     @Published var isAutoPlaying = false
     @Published var isPaused = false
@@ -467,10 +437,6 @@ final class CompassProject: ObservableObject, Identifiable {
 
     private var executor: AgentExecutor?
     private var stopRequested = false
-    private var cinematicBriefingTask: Task<Void, Never>?
-    private var cinematicNativeFeedbackCueExpiryTask: Task<Void, Never>?
-    private var lastCinematicRefreshInput: CinematicRefreshInput?
-    private var lastCinematicBriefingGeneratedAt = Date.distantPast
     private let storageMigrationAction: CompassWorkspaceStorageMigrationAction
     private let mutationTestingRunner: ProcessRunner.InvocationRunner?
     private let maxDevelopAttempts = 3
@@ -482,9 +448,7 @@ final class CompassProject: ObservableObject, Identifiable {
         activeStorage: KnownProjectActiveStorage = .repoLocal,
         addedAt: Date = Date(),
         lastOpenedAt: Date = Date(),
-        cinematicInfluenceSettings: CinematicInfluenceSettings = CinematicInfluenceSettings(),
         nativeFeedbackMode: NativeFeedbackMode = .notifications,
-        cinematicRunRecapShareArtifactLibraryContext: CinematicRunRecapShareArtifactLibraryContext = .empty,
         storageApplicationSupportRoots: KnownProjectStore.ApplicationSupportRoots = KnownProjectStore.productionApplicationSupportRoots(),
         storageMigrationAction: @escaping CompassWorkspaceStorageMigrationAction = { plan in
             try CompassWorkspaceStorageMigrator().migrate(plan: plan)
@@ -494,60 +458,14 @@ final class CompassProject: ObservableObject, Identifiable {
         self.id = id
         self.repoURL = repoURL.standardizedFileURL
         self.activeStorage = activeStorage
-        let initialActivitySourceSnapshot = RepositoryActivitySourceSnapshot.notScanned(activeStorage: activeStorage)
-        activitySourceSnapshot = initialActivitySourceSnapshot
-        cinematicRunRecapShareArtifactSourceReconciliation =
-            CinematicRunRecapShareArtifactSourceReconciliationPlanner.plan(
-                activeHistoryPlan: CinematicRunRecapShareArtifactHistoryPlan.unavailable(reason: "not-scanned"),
-                activitySourceSnapshot: initialActivitySourceSnapshot
-            )
+        activitySourceSnapshot = RepositoryActivitySourceSnapshot.notScanned(activeStorage: activeStorage)
         self.addedAt = addedAt
         self.lastOpenedAt = lastOpenedAt
-        self.cinematicInfluenceSettings = cinematicInfluenceSettings
         self.nativeFeedbackMode = nativeFeedbackMode
-        self.cinematicRunRecapShareArtifactLibraryContext = cinematicRunRecapShareArtifactLibraryContext
         self.storageApplicationSupportRoots = storageApplicationSupportRoots
         self.storageMigrationAction = storageMigrationAction
         self.mutationTestingRunner = mutationTestingRunner
-        let briefingInput = CinematicBriefingInput(
-            repoName: repoURL.lastPathComponent,
-            currentPhase: LoopPhase.idle.rawValue,
-            immediatePlanTitle: "No immediate plan",
-            completedCount: 0,
-            latestEvent: nil
-        )
-        cinematicBriefing = CinematicBriefingService.deterministicBriefing(for: briefingInput)
-        cinematicWorldText = CinematicWorldTextService.deterministicWorldText(
-            for: CinematicWorldTextInput(
-                repoName: briefingInput.repoName,
-                currentPhase: briefingInput.currentPhase,
-                immediatePlanTitle: briefingInput.immediatePlanTitle,
-                completedCount: briefingInput.completedCount,
-                latestEvent: briefingInput.latestEvent,
-                languageProfile: languageProfile,
-                activityProfile: activityProfile
-            )
-        )
     }
-
-    deinit {
-        cinematicBriefingTask?.cancel()
-        cinematicNativeFeedbackCueExpiryTask?.cancel()
-    }
-}
-
-private enum CinematicBriefingRefreshReason {
-    case projectRefresh
-    case planAccepted
-    case phaseChanged
-    case liveEvent
-}
-
-struct CinematicRefreshInput: Equatable {
-    var briefing: CinematicBriefingInput
-    var worldText: CinematicWorldTextInput
-    var commitConstellationIdentifier: String
-    var runRecapFlavor: CinematicRunRecapFlavorInput? = nil
 }
 
 @MainActor
@@ -612,10 +530,6 @@ extension CompassProject {
             .map(String.init) ?? "Immediate plan"
     }
 
-    var cinematicCommitConstellationPlan: CinematicCommitConstellationPlan {
-        CinematicCommitConstellationPlan(sessions: sessions, hasRepository: hasRepository)
-    }
-
     func initializeWorkspace() async {
         do {
             guard let workspace else {
@@ -648,13 +562,8 @@ extension CompassProject {
             activitySourceSnapshot = RepositoryActivitySourceSnapshot.noRepository(
                 activeStorage: activeStorage
             )
-            cinematicRunRecapShareArtifactHistory = CinematicRunRecapShareArtifactHistoryPlan.unavailable(
-                reason: "no-repository"
-            )
-            refreshRunRecapShareArtifactSourceReconciliation(workspace: nil)
             languageProfile = .empty
             activityProfile = .empty
-            scheduleCinematicBriefingRefresh(reason: .projectRefresh)
             if requireStorageRoot {
                 throw AppModelError.noRepositorySelected
             }
@@ -673,14 +582,7 @@ extension CompassProject {
             lessons = ""
             vision = ""
             sessions = []
-            cinematicRunRecapShareArtifactHistory = CinematicRunRecapShareArtifactHistoryPlan.unavailable(
-                reason: "storage-root-missing",
-                storageRootURL: workspace.compassURL,
-                sessionsURL: workspace.sessionsURL
-            )
-            refreshRunRecapShareArtifactSourceReconciliation(workspace: workspace)
             activityProfile = .empty
-            scheduleCinematicBriefingRefresh(reason: .projectRefresh)
             if requireStorageRoot {
                 throw AppModelError.internalInvariant(
                     "Active Compass storage root is missing at \(workspace.compassURL.path)."
@@ -694,26 +596,7 @@ extension CompassProject {
         lessons = workspace.readLessons()
         vision = workspace.readVision()
         sessions = workspace.readSessions()
-        cinematicRunRecapShareArtifactHistory = workspace.refreshRunRecapShareArtifactHistory()
-        refreshRunRecapShareArtifactSourceReconciliation(workspace: workspace)
         activityProfile = await RepositoryActivityProfileService.scan(workspace: workspace)
-        scheduleCinematicBriefingRefresh(reason: .projectRefresh)
-    }
-
-    private func refreshRunRecapShareArtifactSourceReconciliation(workspace: CompassWorkspace?) {
-        if let workspace {
-            cinematicRunRecapShareArtifactSourceReconciliation =
-                workspace.refreshRunRecapShareArtifactSourceReconciliation(
-                    activeHistoryPlan: cinematicRunRecapShareArtifactHistory,
-                    activitySourceSnapshot: activitySourceSnapshot
-                )
-        } else {
-            cinematicRunRecapShareArtifactSourceReconciliation =
-                CinematicRunRecapShareArtifactSourceReconciliationPlanner.plan(
-                    activeHistoryPlan: cinematicRunRecapShareArtifactHistory,
-                    activitySourceSnapshot: activitySourceSnapshot
-                )
-        }
     }
 
     func saveVision() async {
@@ -798,100 +681,6 @@ extension CompassProject {
         } catch {
             fail(error)
         }
-    }
-
-    @discardableResult
-    func recordRunRecapShareArtifact(
-        sharePlan: CinematicRunRecapSharePlan
-    ) async -> CinematicRunRecapShareArtifactRecordingResult {
-        let warningPulseAudit = currentRunRecapShareArtifactWarningPulseAudit()
-        let result: CinematicRunRecapShareArtifactRecordingResult
-        if let workspace {
-            result = workspace.recordRunRecapShareArtifact(
-                sharePlan: sharePlan,
-                sessions: sessions,
-                warningPulseAudit: warningPulseAudit
-            )
-            cinematicRunRecapShareArtifactHistory = workspace.refreshRunRecapShareArtifactHistory()
-            refreshRunRecapShareArtifactSourceReconciliation(workspace: workspace)
-        } else {
-            let artifactPlan = CinematicRunRecapShareArtifactPlanner.plan(
-                sharePlan: sharePlan,
-                sessions: sessions,
-                warningPulseAudit: warningPulseAudit
-            )
-            result = artifactPlan.isAvailable
-                ? .failed(plan: artifactPlan, error: AppModelError.noRepositorySelected)
-                : .skipped(plan: artifactPlan)
-            cinematicRunRecapShareArtifactHistory = CinematicRunRecapShareArtifactHistoryPlan.unavailable(
-                reason: "no-repository"
-            )
-            refreshRunRecapShareArtifactSourceReconciliation(workspace: nil)
-        }
-
-        cinematicRunRecapShareArtifactRecording = result
-        switch result.status {
-        case .recorded:
-            log(
-                "Recap share artifact recorded: \(result.artifactURL?.lastPathComponent ?? result.artifactPlan.filename)",
-                level: .success
-            )
-        case .skipped:
-            log(result.detail, level: .info)
-        case .failed:
-            log(result.detail, level: .warning)
-        }
-        return result
-    }
-
-    private func currentRunRecapShareArtifactWarningPulseAudit()
-        -> CinematicRunRecapShareArtifactWarningPulseAudit? {
-        guard let currentBundle = cinematicDiagnosticsWarningBundleHistory.currentUnresolvedBundle else {
-            return nil
-        }
-        let status = CinematicDiagnosticsWarningPulseQuietingStatusDescriptor(
-            currentBundle: currentBundle,
-            quietingDescriptor: cinematicDiagnosticsWarningPulseQuietingDescriptor
-        )
-        return CinematicRunRecapShareArtifactWarningPulseAudit(
-            entry: currentBundle,
-            status: status
-        )
-    }
-
-    @discardableResult
-    func cleanupRunRecapShareArtifacts() async -> CinematicRunRecapShareArtifactCleanupResult {
-        let result: CinematicRunRecapShareArtifactCleanupResult
-        if let workspace {
-            result = workspace.cleanupRunRecapShareArtifacts()
-            cinematicRunRecapShareArtifactHistory = result.refreshedHistory
-            refreshRunRecapShareArtifactSourceReconciliation(workspace: workspace)
-        } else {
-            let history = CinematicRunRecapShareArtifactHistoryPlan.unavailable(
-                reason: "no-repository"
-            )
-            result = CinematicRunRecapShareArtifactCleanupResult(
-                retentionLimit: CinematicRunRecapShareArtifactHistoryPlan.retentionLimit,
-                cleanupCandidateCount: 0,
-                deletedIdentifiers: [],
-                skippedIdentifiers: [],
-                failedIdentifiers: [],
-                refreshedHistory: history
-            )
-            cinematicRunRecapShareArtifactHistory = history
-            refreshRunRecapShareArtifactSourceReconciliation(workspace: nil)
-        }
-
-        cinematicRunRecapShareArtifactCleanup = result
-        switch result.status {
-        case .deleted:
-            log(result.detail, level: .success)
-        case .skipped:
-            log(result.detail, level: .info)
-        case .failed:
-            log(result.detail, level: .warning)
-        }
-        return result
     }
 
     func activeStorageActivationPlan() -> CompassWorkspaceStorageActivationPlan {
@@ -1410,7 +1199,6 @@ extension CompassProject {
             try workspace.writeState(nextState)
             logLessonEdits(lessonEditCount)
             state = nextState
-            scheduleCinematicBriefingRefresh(reason: .planAccepted)
             log(
                 "Plan accepted: \(nextState.completed.count) completed, immediate: \(firstLine(nextState.immediate?.plan) ?? "none").",
                 level: .success
@@ -2013,7 +1801,6 @@ extension CompassProject {
         if let reflectedState = result.state {
             try workspace.writeState(reflectedState)
             state = reflectedState
-            scheduleCinematicBriefingRefresh(reason: .planAccepted)
             log("Reflect updated state.json: \(result.summary)", level: .success)
         } else {
             log("Reflect: \(result.summary)", level: .info)
@@ -2557,132 +2344,7 @@ extension CompassProject {
             }
     }
 
-    func recordCinematicNativeFeedback(
-        _ milestone: NativeFeedbackMilestone,
-        now: Date = Date()
-    ) {
-        let reliabilityFeedback = PlanReliabilityFeedback(
-            state: state,
-            sessions: sessions
-        )
-        guard let cue = CinematicNativeFeedbackCuePlanner.plan(
-            milestone: milestone,
-            content: NativeFeedbackContent(milestone: milestone, projectName: displayName),
-            phase: isPaused ? .paused : phase,
-            feedbackMode: nativeFeedbackMode,
-            recentRunCues: reliabilityFeedback.recentRunCues
-        ) else {
-            clearCinematicNativeFeedbackCue(reason: .cleared, now: now)
-            return
-        }
-
-        recordCinematicNativeFeedbackCue(cue, now: now)
-    }
-
-    @discardableResult
-    func recordPlanReadinessNativeFeedback(
-        state candidateState: PlanState? = nil,
-        gate _: PlanReadinessNativeFeedbackGate,
-        now: Date = Date()
-    ) -> CinematicNativeFeedbackCuePlan? {
-        guard let context = planReadinessNativeFeedbackContext(for: candidateState ?? state) else {
-            return nil
-        }
-        guard let cue = CinematicNativeFeedbackCuePlanner.plan(
-            milestone: .developReady,
-            content: context.content,
-            phase: isPaused ? .paused : phase,
-            feedbackMode: nativeFeedbackMode,
-            recentRunCues: context.reliabilityFeedback.recentRunCues,
-            readinessPlan: context.readinessPlan
-        ) else {
-            clearCinematicNativeFeedbackCue(reason: .cleared, now: now)
-            return nil
-        }
-
-        return recordCinematicNativeFeedbackCue(cue, now: now)
-    }
-
-    private struct PlanReadinessNativeFeedbackContext {
-        var readinessPlan: CinematicPlanCompassReadinessPlan
-        var reliabilityFeedback: PlanReliabilityFeedback
-        var content: NativeFeedbackContent
-    }
-
-    private func planReadinessNativeFeedbackContext(
-        for candidateState: PlanState
-    ) -> PlanReadinessNativeFeedbackContext? {
-        guard candidateState.immediate != nil else { return nil }
-
-        let planCompassPlan = CinematicPlanCompassPlan(state: candidateState)
-        let reliabilityFeedback = PlanReliabilityFeedback(
-            state: candidateState,
-            sessions: sessions
-        )
-        let readinessPlan = CinematicPlanCompassReadinessPlan(
-            state: candidateState,
-            planCompassPlan: planCompassPlan,
-            reliabilityFeedback: reliabilityFeedback
-        )
-
-        return PlanReadinessNativeFeedbackContext(
-            readinessPlan: readinessPlan,
-            reliabilityFeedback: reliabilityFeedback,
-            content: NativeFeedbackContent(readinessPlan: readinessPlan, projectName: displayName)
-        )
-    }
-
-    @discardableResult
-    private func recordCinematicNativeFeedbackCue(
-        _ cue: CinematicNativeFeedbackCuePlan,
-        now: Date
-    ) -> CinematicNativeFeedbackCuePlan {
-        var lifecycle = cinematicNativeFeedbackCueLifecycle
-        let activeCue = lifecycle.record(cue, now: now)
-        cinematicNativeFeedbackCueLifecycle = lifecycle
-        cinematicNativeFeedbackCue = activeCue
-        scheduleCinematicNativeFeedbackCueExpiry(for: lifecycle.active, now: now)
-        scheduleCinematicBriefingRefresh(reason: .projectRefresh)
-        return activeCue
-    }
-
-    func recordCinematicDiagnosticsWarningBundle(
-        _ attentionSummary: CinematicDiagnosticsSummary.AttentionSummary
-    ) {
-        let updatedHistory = cinematicDiagnosticsWarningBundleHistory.recording(attentionSummary)
-        guard updatedHistory != cinematicDiagnosticsWarningBundleHistory else {
-            reconcileCinematicDiagnosticsWarningPulseQuietingDescriptor()
-            return
-        }
-        cinematicDiagnosticsWarningBundleHistory = updatedHistory
-        reconcileCinematicDiagnosticsWarningPulseQuietingDescriptor()
-    }
-
-    func snoozeCinematicDiagnosticsWarningPulse() {
-        guard let currentBundle = cinematicDiagnosticsWarningBundleHistory.currentUnresolvedBundle else {
-            cinematicDiagnosticsWarningPulseQuietingDescriptor = nil
-            return
-        }
-        let descriptor = CinematicDiagnosticsWarningPulseQuietingDescriptor(entry: currentBundle)
-        guard cinematicDiagnosticsWarningPulseQuietingDescriptor != descriptor else { return }
-        cinematicDiagnosticsWarningPulseQuietingDescriptor = descriptor
-    }
-
-    func resumeCinematicDiagnosticsWarningPulse() {
-        guard cinematicDiagnosticsWarningPulseQuietingDescriptor != nil else { return }
-        cinematicDiagnosticsWarningPulseQuietingDescriptor = nil
-    }
-
-    private func reconcileCinematicDiagnosticsWarningPulseQuietingDescriptor() {
-        guard let descriptor = cinematicDiagnosticsWarningPulseQuietingDescriptor else { return }
-        guard descriptor.matches(cinematicDiagnosticsWarningBundleHistory.currentUnresolvedBundle) else {
-            cinematicDiagnosticsWarningPulseQuietingDescriptor = nil
-            return
-        }
-    }
-
     private func feedback(_ milestone: NativeFeedbackMilestone) {
-        recordCinematicNativeFeedback(milestone)
         NativeFeedbackService.shared.emit(
             milestone,
             projectName: displayName,
@@ -2691,80 +2353,14 @@ extension CompassProject {
     }
 
     private func feedbackPlanReadinessGate(
-        for candidateState: PlanState,
-        gate: PlanReadinessNativeFeedbackGate
+        for _: PlanState,
+        gate _: PlanReadinessNativeFeedbackGate
     ) {
-        guard let context = planReadinessNativeFeedbackContext(for: candidateState) else { return }
-        recordPlanReadinessNativeFeedback(state: candidateState, gate: gate)
         NativeFeedbackService.shared.emit(
             .developReady,
             projectName: displayName,
-            mode: nativeFeedbackMode,
-            content: context.content
+            mode: nativeFeedbackMode
         )
-    }
-
-    @discardableResult
-    func expireCinematicNativeFeedbackCue(
-        now: Date = Date(),
-        expectedLifecycleIdentifier: String? = nil
-    ) -> Bool {
-        if let expectedLifecycleIdentifier,
-           cinematicNativeFeedbackCueLifecycle.active?.lifecycleIdentifier != expectedLifecycleIdentifier {
-            return false
-        }
-
-        var lifecycle = cinematicNativeFeedbackCueLifecycle
-        guard lifecycle.expire(now: now) else {
-            if expectedLifecycleIdentifier != nil {
-                scheduleCinematicNativeFeedbackCueExpiry(for: lifecycle.active, now: now)
-            }
-            return false
-        }
-        cinematicNativeFeedbackCueLifecycle = lifecycle
-        cinematicNativeFeedbackCue = lifecycle.activeCue
-        if lifecycle.active == nil {
-            cinematicNativeFeedbackCueExpiryTask?.cancel()
-            cinematicNativeFeedbackCueExpiryTask = nil
-        }
-        scheduleCinematicBriefingRefresh(reason: .projectRefresh)
-        return true
-    }
-
-    private func clearCinematicNativeFeedbackCue(
-        reason: CinematicNativeFeedbackCueLifecycle.ArchiveReason,
-        now: Date = Date()
-    ) {
-        cinematicNativeFeedbackCueExpiryTask?.cancel()
-        cinematicNativeFeedbackCueExpiryTask = nil
-        var lifecycle = cinematicNativeFeedbackCueLifecycle
-        lifecycle.clear(reason: reason, now: now)
-        cinematicNativeFeedbackCueLifecycle = lifecycle
-        cinematicNativeFeedbackCue = nil
-        scheduleCinematicBriefingRefresh(reason: .projectRefresh)
-    }
-
-    private func scheduleCinematicNativeFeedbackCueExpiry(
-        for activeCue: CinematicNativeFeedbackCueLifecycle.ActiveCue?,
-        now: Date
-    ) {
-        cinematicNativeFeedbackCueExpiryTask?.cancel()
-        guard let activeCue else {
-            cinematicNativeFeedbackCueExpiryTask = nil
-            return
-        }
-
-        let delay = max(0, activeCue.expiresAt.timeIntervalSince(now))
-        let lifecycleIdentifier = activeCue.lifecycleIdentifier
-        cinematicNativeFeedbackCueExpiryTask = Task { @MainActor [weak self, delay, lifecycleIdentifier] in
-            if delay > 0 {
-                let nanoseconds = UInt64(delay * 1_000_000_000)
-                try? await Task.sleep(nanoseconds: nanoseconds)
-            }
-
-            guard !Task.isCancelled, let self else { return }
-            expireCinematicNativeFeedbackCue(expectedLifecycleIdentifier: lifecycleIdentifier)
-        }
     }
 
     private func log(_ text: String, level: LiveLine.Level) {
@@ -2773,7 +2369,6 @@ extension CompassProject {
         let line = LiveLine(level: level, text: trimmed)
         liveLog.append(line)
         trimLiveLog()
-        scheduleCinematicBriefingRefreshIfMeaningful(line)
     }
 
     private func log(_ event: LiveEvent) {
@@ -2792,7 +2387,6 @@ extension CompassProject {
             liveLog[index].kind = event.kind
             liveLog[index].status = event.status
             liveLog[index].completedAt = Date()
-            scheduleCinematicBriefingRefreshIfMeaningful(liveLog[index])
         } else {
             let line = LiveLine(
                 level: event.level,
@@ -2803,7 +2397,6 @@ extension CompassProject {
                 correlationID: event.correlationID
             )
             liveLog.append(line)
-            scheduleCinematicBriefingRefreshIfMeaningful(line)
         }
 
         trimLiveLog()
@@ -2812,115 +2405,6 @@ extension CompassProject {
     private func trimLiveLog() {
         if liveLog.count > 800 {
             liveLog.removeFirst(liveLog.count - 800)
-        }
-    }
-
-    private func scheduleCinematicBriefingRefreshIfMeaningful(_ line: LiveLine) {
-        guard isMeaningfulBriefingEvent(line) else { return }
-        scheduleCinematicBriefingRefresh(reason: .liveEvent)
-    }
-
-    private func scheduleCinematicBriefingRefresh(reason: CinematicBriefingRefreshReason) {
-        let input = makeCinematicRefreshInput()
-        guard input != lastCinematicRefreshInput else { return }
-        lastCinematicRefreshInput = input
-        if input.runRecapFlavor == nil {
-            cinematicRunRecapFlavor = nil
-        }
-
-        cinematicBriefingTask?.cancel()
-        let delay = cinematicBriefingDelay(for: reason)
-        cinematicBriefingTask = Task { @MainActor [weak self, input, delay] in
-            if delay > 0 {
-                let nanoseconds = UInt64(delay * 1_000_000_000)
-                try? await Task.sleep(nanoseconds: nanoseconds)
-            }
-
-            guard !Task.isCancelled, let self else { return }
-            lastCinematicBriefingGeneratedAt = Date()
-            let briefing = await CinematicBriefingService.makeBriefing(input: input.briefing)
-            let worldText = await CinematicWorldTextService.makeWorldText(input: input.worldText)
-            let runRecapFlavor: CinematicRunRecapFlavor?
-            if let runRecapFlavorInput = input.runRecapFlavor {
-                runRecapFlavor = await CinematicRunRecapFlavorService.makeFlavor(input: runRecapFlavorInput)
-            } else {
-                runRecapFlavor = nil
-            }
-            guard !Task.isCancelled else { return }
-            cinematicBriefing = briefing
-            cinematicWorldText = worldText
-            cinematicRunRecapFlavor = runRecapFlavor
-        }
-    }
-
-    private func makeCinematicRefreshInput() -> CinematicRefreshInput {
-        let commitConstellationPlan = cinematicCommitConstellationPlan
-        let reliabilityFeedback = PlanReliabilityFeedback(
-            state: state,
-            sessions: sessions
-        )
-        let latestCommitSubject = commitConstellationPlan.newestSubject
-        let briefing = CinematicBriefingInput(
-            repoName: displayName,
-            currentPhase: (isPaused ? LoopPhase.paused : phase).rawValue,
-            immediatePlanTitle: immediateTitle,
-            completedCount: state.completed.count,
-            latestEvent: liveLog.last.map(CinematicBriefingEvent.init(line:)),
-            latestCommitSubject: latestCommitSubject
-        )
-        return CinematicRefreshInput(
-            briefing: briefing,
-            worldText: CinematicWorldTextInput(
-                repoName: briefing.repoName,
-                currentPhase: briefing.currentPhase,
-                immediatePlanTitle: briefing.immediatePlanTitle,
-                completedCount: briefing.completedCount,
-                latestEvent: briefing.latestEvent,
-                latestCommitSubject: briefing.latestCommitSubject,
-                languageProfile: languageProfile,
-                activityProfile: activityProfile
-            ),
-            commitConstellationIdentifier: commitConstellationPlan.focusPlan.identifier,
-            runRecapFlavor: CinematicRunRecapPlanner.flavorInput(
-                state: state,
-                sessions: sessions,
-                isRunning: isRunning,
-                isAutoPlaying: isAutoPlaying,
-                recentRunCues: reliabilityFeedback.recentRunCues,
-                commitConstellationPlan: commitConstellationPlan,
-                nativeFeedbackLifecycle: cinematicNativeFeedbackCueLifecycle
-            )
-        )
-    }
-
-    private func cinematicBriefingDelay(for reason: CinematicBriefingRefreshReason) -> TimeInterval {
-        switch reason {
-        case .projectRefresh, .planAccepted, .phaseChanged:
-            return 0.25
-        case .liveEvent:
-            let cadenceDelay = max(0, 8 - Date().timeIntervalSince(lastCinematicBriefingGeneratedAt))
-            return max(0.8, cadenceDelay)
-        }
-    }
-
-    private func isMeaningfulBriefingEvent(_ line: LiveLine) -> Bool {
-        switch line.kind {
-        case .command, .agentMessage, .fileChange, .lifecycle:
-            return true
-        case .message:
-            switch line.level {
-            case .success, .warning, .error:
-                return true
-            case .info:
-                let text = line.text.lowercased()
-                return text.contains("plan")
-                    || text.contains("develop")
-                    || text.contains("verify")
-                    || text.contains("reflect")
-                    || text.contains("workspace")
-            case .raw:
-                return false
-            }
         }
     }
 
@@ -3251,314 +2735,6 @@ enum KnownProjectActiveStorage: String, Codable, CaseIterable, Identifiable {
     }
 }
 
-enum CinematicRunRecapShareArtifactComparisonTargetMode: String, Codable, CaseIterable, Identifiable {
-    case adjacent
-    case pinnedReference = "pinned_reference"
-
-    var id: Self { self }
-
-    var title: String {
-        switch self {
-        case .adjacent:
-            return "Adjacent"
-        case .pinnedReference:
-            return "Pinned"
-        }
-    }
-
-    var toggled: Self {
-        switch self {
-        case .adjacent:
-            return .pinnedReference
-        case .pinnedReference:
-            return .adjacent
-        }
-    }
-
-    init(from decoder: Decoder) throws {
-        let container = try decoder.singleValueContainer()
-        let rawValue = try container.decode(String.self)
-        self = CinematicRunRecapShareArtifactComparisonTargetMode(rawValue: rawValue) ?? .adjacent
-    }
-
-    func encode(to encoder: Encoder) throws {
-        var container = encoder.singleValueContainer()
-        try container.encode(rawValue)
-    }
-}
-
-enum CinematicRunRecapShareArtifactWarningPulseFilter: String, Codable, CaseIterable, Identifiable {
-    case all
-    case any
-    case active
-    case snoozed
-
-    var id: Self { self }
-
-    var title: String {
-        switch self {
-        case .all:
-            return "All"
-        case .any:
-            return "Any pulse"
-        case .active:
-            return "Active"
-        case .snoozed:
-            return "Snoozed"
-        }
-    }
-
-    var isActive: Bool {
-        self != .all
-    }
-
-    init(from decoder: Decoder) throws {
-        let container = try decoder.singleValueContainer()
-        let rawValue = try container.decode(String.self)
-        self = CinematicRunRecapShareArtifactWarningPulseFilter(rawValue: rawValue) ?? .all
-    }
-
-    func encode(to encoder: Encoder) throws {
-        var container = encoder.singleValueContainer()
-        try container.encode(rawValue)
-    }
-}
-
-struct CinematicRunRecapShareArtifactLibraryContext: Codable, Equatable {
-    static let selectedEntryIdentifierMaxCharacters = CinematicRunRecapShareArtifactHistoryPlan.identifierMaxCharacters
-    static let searchTextMaxCharacters = CinematicRunRecapShareArtifactPreviewBrowserPlan.searchQuerySnippetMaxCharacters
-    static let pinnedEntryIdentifierLimit = CinematicRunRecapShareArtifactPinnedReferencePlan.pinIdentifierLimit
-    static let savedTourHoldEntryIdentifierMaxCharacters = selectedEntryIdentifierMaxCharacters
-    static let empty = CinematicRunRecapShareArtifactLibraryContext()
-
-    var selectedEntryIdentifier: String?
-    var searchText: String
-    var pinnedEntryIdentifiers: [String]
-    var comparisonTargetMode: CinematicRunRecapShareArtifactComparisonTargetMode
-    var savedTourHoldEntryIdentifier: String?
-    var warningPulseFilter: CinematicRunRecapShareArtifactWarningPulseFilter
-
-    enum CodingKeys: String, CodingKey {
-        case selectedEntryIdentifier
-        case searchText
-        case pinnedEntryIdentifiers
-        case comparisonTargetMode
-        case savedTourHoldEntryIdentifier
-        case warningPulseFilter
-    }
-
-    init(
-        selectedEntryIdentifier: String? = nil,
-        searchText: String = "",
-        pinnedEntryIdentifiers: [String] = [],
-        comparisonTargetMode: CinematicRunRecapShareArtifactComparisonTargetMode = .adjacent,
-        savedTourHoldEntryIdentifier: String? = nil,
-        warningPulseFilter: CinematicRunRecapShareArtifactWarningPulseFilter = .all
-    ) {
-        self.selectedEntryIdentifier = Self.boundedOptionalText(
-            selectedEntryIdentifier,
-            limit: Self.selectedEntryIdentifierMaxCharacters
-        )
-        self.searchText = Self.boundedText(
-            searchText,
-            limit: Self.searchTextMaxCharacters
-        )
-        self.pinnedEntryIdentifiers = Self.boundedIdentifierList(pinnedEntryIdentifiers)
-        self.comparisonTargetMode = comparisonTargetMode
-        self.savedTourHoldEntryIdentifier = Self.boundedOptionalText(
-            savedTourHoldEntryIdentifier,
-            limit: Self.savedTourHoldEntryIdentifierMaxCharacters
-        )
-        self.warningPulseFilter = warningPulseFilter
-    }
-
-    init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        self.init(
-            selectedEntryIdentifier: try container.decodeIfPresent(String.self, forKey: .selectedEntryIdentifier),
-            searchText: try container.decodeIfPresent(String.self, forKey: .searchText) ?? "",
-            pinnedEntryIdentifiers: try container.decodeIfPresent([String].self, forKey: .pinnedEntryIdentifiers) ?? [],
-            comparisonTargetMode: try container.decodeIfPresent(
-                CinematicRunRecapShareArtifactComparisonTargetMode.self,
-                forKey: .comparisonTargetMode
-            ) ?? .adjacent,
-            savedTourHoldEntryIdentifier: try container.decodeIfPresent(
-                String.self,
-                forKey: .savedTourHoldEntryIdentifier
-            ),
-            warningPulseFilter: try container.decodeIfPresent(
-                CinematicRunRecapShareArtifactWarningPulseFilter.self,
-                forKey: .warningPulseFilter
-            ) ?? .all
-        )
-    }
-
-    func encode(to encoder: Encoder) throws {
-        var container = encoder.container(keyedBy: CodingKeys.self)
-        try container.encode(searchText, forKey: .searchText)
-        try container.encodeIfPresent(selectedEntryIdentifier, forKey: .selectedEntryIdentifier)
-        if !pinnedEntryIdentifiers.isEmpty {
-            try container.encode(pinnedEntryIdentifiers, forKey: .pinnedEntryIdentifiers)
-        }
-        if comparisonTargetMode != .adjacent {
-            try container.encode(comparisonTargetMode, forKey: .comparisonTargetMode)
-        }
-        try container.encodeIfPresent(savedTourHoldEntryIdentifier, forKey: .savedTourHoldEntryIdentifier)
-        if warningPulseFilter != .all {
-            try container.encode(warningPulseFilter, forKey: .warningPulseFilter)
-        }
-    }
-
-    func replacing(
-        selectedEntryIdentifier: String?,
-        searchText: String,
-        pinnedEntryIdentifiers: [String]? = nil,
-        comparisonTargetMode: CinematicRunRecapShareArtifactComparisonTargetMode? = nil,
-        warningPulseFilter: CinematicRunRecapShareArtifactWarningPulseFilter? = nil
-    ) -> CinematicRunRecapShareArtifactLibraryContext {
-        CinematicRunRecapShareArtifactLibraryContext(
-            selectedEntryIdentifier: selectedEntryIdentifier,
-            searchText: searchText,
-            pinnedEntryIdentifiers: pinnedEntryIdentifiers ?? self.pinnedEntryIdentifiers,
-            comparisonTargetMode: comparisonTargetMode ?? self.comparisonTargetMode,
-            savedTourHoldEntryIdentifier: savedTourHoldEntryIdentifier,
-            warningPulseFilter: warningPulseFilter ?? self.warningPulseFilter
-        )
-    }
-
-    func resolvingSelection(
-        in historyPlan: CinematicRunRecapShareArtifactHistoryPlan
-    ) -> CinematicRunRecapShareArtifactLibraryContext {
-        let previewPlan = CinematicRunRecapShareArtifactPreviewBrowserPlanner.plan(
-            historyPlan: historyPlan,
-            selectedEntryIdentifier: selectedEntryIdentifier,
-            searchQuery: searchText,
-            warningPulseFilter: warningPulseFilter
-        )
-        return replacing(
-            selectedEntryIdentifier: previewPlan.selectedEntryIdentifier,
-            searchText: searchText,
-            pinnedEntryIdentifiers: resolvedPinnedEntryIdentifiers(in: historyPlan)
-        )
-    }
-
-    func togglingPinnedEntryIdentifier(
-        _ identifier: String?
-    ) -> CinematicRunRecapShareArtifactLibraryContext {
-        guard let identifier = Self.boundedOptionalText(
-            identifier,
-            limit: Self.selectedEntryIdentifierMaxCharacters
-        ) else {
-            return self
-        }
-
-        let nextPinnedEntryIdentifiers: [String]
-        if pinnedEntryIdentifiers.contains(identifier) {
-            nextPinnedEntryIdentifiers = pinnedEntryIdentifiers.filter { $0 != identifier }
-        } else {
-            nextPinnedEntryIdentifiers = [identifier] + pinnedEntryIdentifiers
-        }
-        return replacing(
-            selectedEntryIdentifier: selectedEntryIdentifier,
-            searchText: searchText,
-            pinnedEntryIdentifiers: nextPinnedEntryIdentifiers
-        )
-    }
-
-    func holdingSavedTourEntryIdentifier(
-        _ identifier: String?
-    ) -> CinematicRunRecapShareArtifactLibraryContext {
-        CinematicRunRecapShareArtifactLibraryContext(
-            selectedEntryIdentifier: selectedEntryIdentifier,
-            searchText: searchText,
-            pinnedEntryIdentifiers: pinnedEntryIdentifiers,
-            comparisonTargetMode: comparisonTargetMode,
-            savedTourHoldEntryIdentifier: identifier,
-            warningPulseFilter: warningPulseFilter
-        )
-    }
-
-    func releasingSavedTourHold() -> CinematicRunRecapShareArtifactLibraryContext {
-        holdingSavedTourEntryIdentifier(nil)
-    }
-
-    func togglingSavedTourHoldEntryIdentifier(
-        _ identifier: String?
-    ) -> CinematicRunRecapShareArtifactLibraryContext {
-        let boundedIdentifier = Self.boundedOptionalText(
-            identifier,
-            limit: Self.savedTourHoldEntryIdentifierMaxCharacters
-        )
-        guard savedTourHoldEntryIdentifier != boundedIdentifier else {
-            return releasingSavedTourHold()
-        }
-        return holdingSavedTourEntryIdentifier(boundedIdentifier)
-    }
-
-    func promotingSavedTourHoldToPinnedReference(
-        in historyPlan: CinematicRunRecapShareArtifactHistoryPlan
-    ) -> CinematicRunRecapShareArtifactLibraryContext {
-        guard let savedTourHoldEntryIdentifier,
-              historyPlan.entries.contains(where: { $0.identifier == savedTourHoldEntryIdentifier }) else {
-            return self
-        }
-
-        return CinematicRunRecapShareArtifactLibraryContext(
-            selectedEntryIdentifier: selectedEntryIdentifier,
-            searchText: searchText,
-            pinnedEntryIdentifiers: [savedTourHoldEntryIdentifier] + pinnedEntryIdentifiers,
-            comparisonTargetMode: .pinnedReference,
-            savedTourHoldEntryIdentifier: savedTourHoldEntryIdentifier,
-            warningPulseFilter: warningPulseFilter
-        )
-    }
-
-    private func resolvedPinnedEntryIdentifiers(
-        in historyPlan: CinematicRunRecapShareArtifactHistoryPlan
-    ) -> [String] {
-        let retainedEntryIdentifiers = Set(historyPlan.entries.map(\.identifier))
-        return pinnedEntryIdentifiers.filter { retainedEntryIdentifiers.contains($0) }
-    }
-
-    private static func boundedOptionalText(_ text: String?, limit: Int) -> String? {
-        let bounded = boundedText(text ?? "", limit: limit)
-        return bounded.isEmpty ? nil : bounded
-    }
-
-    private static func boundedText(_ text: String, limit: Int) -> String {
-        guard limit > 0 else { return "" }
-        let normalized = text
-            .replacingOccurrences(of: "\r", with: " ")
-            .replacingOccurrences(of: "\n", with: " ")
-            .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        guard normalized.count > limit else { return normalized }
-        return String(normalized.prefix(limit)).trimmingCharacters(in: .whitespacesAndNewlines)
-    }
-
-    private static func boundedIdentifierList(_ identifiers: [String]) -> [String] {
-        var seen = Set<String>()
-        var boundedIdentifiers: [String] = []
-
-        for identifier in identifiers {
-            guard let boundedIdentifier = boundedOptionalText(
-                identifier,
-                limit: selectedEntryIdentifierMaxCharacters
-            ) else {
-                continue
-            }
-            guard seen.insert(boundedIdentifier).inserted else {
-                continue
-            }
-            boundedIdentifiers.append(boundedIdentifier)
-            if boundedIdentifiers.count == pinnedEntryIdentifierLimit {
-                break
-            }
-        }
-
-        return boundedIdentifiers
-    }
-}
 
 struct CompassProjectStorageResolver: Equatable {
     var repoURL: URL
@@ -3611,9 +2787,7 @@ struct KnownProjectRecord: Codable, Identifiable, Equatable {
     var activeStorage: KnownProjectActiveStorage
     var addedAt: Double
     var lastOpenedAt: Double
-    var cinematicInfluenceSettings: CinematicInfluenceSettings
     var nativeFeedbackMode: NativeFeedbackMode
-    var cinematicRunRecapShareArtifactLibraryContext: CinematicRunRecapShareArtifactLibraryContext
 
     enum CodingKeys: String, CodingKey {
         case id
@@ -3621,9 +2795,7 @@ struct KnownProjectRecord: Codable, Identifiable, Equatable {
         case activeStorage
         case addedAt
         case lastOpenedAt
-        case cinematicInfluenceSettings
         case nativeFeedbackMode
-        case cinematicRunRecapShareArtifactLibraryContext
     }
 
     init(
@@ -3632,18 +2804,14 @@ struct KnownProjectRecord: Codable, Identifiable, Equatable {
         activeStorage: KnownProjectActiveStorage = .repoLocal,
         addedAt: Double,
         lastOpenedAt: Double,
-        cinematicInfluenceSettings: CinematicInfluenceSettings = CinematicInfluenceSettings(),
-        nativeFeedbackMode: NativeFeedbackMode = .notifications,
-        cinematicRunRecapShareArtifactLibraryContext: CinematicRunRecapShareArtifactLibraryContext = .empty
+        nativeFeedbackMode: NativeFeedbackMode = .notifications
     ) {
         self.id = id
         self.path = path
         self.activeStorage = activeStorage
         self.addedAt = addedAt
         self.lastOpenedAt = lastOpenedAt
-        self.cinematicInfluenceSettings = cinematicInfluenceSettings
         self.nativeFeedbackMode = nativeFeedbackMode
-        self.cinematicRunRecapShareArtifactLibraryContext = cinematicRunRecapShareArtifactLibraryContext
     }
 
     init(from decoder: Decoder) throws {
@@ -3656,18 +2824,10 @@ struct KnownProjectRecord: Codable, Identifiable, Equatable {
         ) ?? .repoLocal
         addedAt = try container.decode(Double.self, forKey: .addedAt)
         lastOpenedAt = try container.decode(Double.self, forKey: .lastOpenedAt)
-        cinematicInfluenceSettings = try container.decodeIfPresent(
-            CinematicInfluenceSettings.self,
-            forKey: .cinematicInfluenceSettings
-        ) ?? CinematicInfluenceSettings()
         nativeFeedbackMode = try container.decodeIfPresent(
             NativeFeedbackMode.self,
             forKey: .nativeFeedbackMode
         ) ?? .notifications
-        cinematicRunRecapShareArtifactLibraryContext = try container.decodeIfPresent(
-            CinematicRunRecapShareArtifactLibraryContext.self,
-            forKey: .cinematicRunRecapShareArtifactLibraryContext
-        ) ?? .empty
     }
 
     func encode(to encoder: Encoder) throws {
@@ -3677,12 +2837,7 @@ struct KnownProjectRecord: Codable, Identifiable, Equatable {
         try container.encode(activeStorage, forKey: .activeStorage)
         try container.encode(addedAt, forKey: .addedAt)
         try container.encode(lastOpenedAt, forKey: .lastOpenedAt)
-        try container.encode(cinematicInfluenceSettings, forKey: .cinematicInfluenceSettings)
         try container.encode(nativeFeedbackMode, forKey: .nativeFeedbackMode)
-        try container.encode(
-            cinematicRunRecapShareArtifactLibraryContext,
-            forKey: .cinematicRunRecapShareArtifactLibraryContext
-        )
     }
 }
 
@@ -3694,9 +2849,7 @@ private extension CompassProject {
             activeStorage: record.activeStorage,
             addedAt: Date(timeIntervalSince1970: record.addedAt),
             lastOpenedAt: Date(timeIntervalSince1970: record.lastOpenedAt),
-            cinematicInfluenceSettings: record.cinematicInfluenceSettings,
-            nativeFeedbackMode: record.nativeFeedbackMode,
-            cinematicRunRecapShareArtifactLibraryContext: record.cinematicRunRecapShareArtifactLibraryContext
+            nativeFeedbackMode: record.nativeFeedbackMode
         )
     }
 
@@ -3707,9 +2860,7 @@ private extension CompassProject {
             activeStorage: activeStorage,
             addedAt: addedAt.timeIntervalSince1970,
             lastOpenedAt: lastOpenedAt.timeIntervalSince1970,
-            cinematicInfluenceSettings: cinematicInfluenceSettings,
-            nativeFeedbackMode: nativeFeedbackMode,
-            cinematicRunRecapShareArtifactLibraryContext: cinematicRunRecapShareArtifactLibraryContext
+            nativeFeedbackMode: nativeFeedbackMode
         )
     }
 

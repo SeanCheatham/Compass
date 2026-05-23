@@ -304,35 +304,6 @@ struct NativeFeedbackContent: Equatable {
         self.spokenPhrase = Self.boundedText(spokenPhrase, limit: Self.spokenPhraseLimit)
     }
 
-    init(readinessPlan: CinematicPlanCompassReadinessPlan, projectName rawProjectName: String) {
-        let projectName = Self.sanitizedProjectName(rawProjectName)
-        self.projectName = projectName
-
-        title = Self.boundedText(
-            "\(projectName): \(readinessPlan.statusLabel)",
-            limit: Self.titleLimit
-        )
-        body = Self.boundedText(
-            [
-                readinessPlan.verifyCommandLabel,
-                readinessPlan.completedLabel,
-                readinessPlan.timeoutLabel,
-                readinessPlan.difficultyLabel,
-                "warnings \(readinessPlan.warningStateIdentifier)",
-                "retry \(readinessPlan.retryCueSummary)"
-            ].joined(separator: " | "),
-            limit: Self.bodyLimit
-        )
-        spokenPhrase = Self.boundedText(
-            [
-                projectName,
-                readinessPlan.statusLabel,
-                readinessPlan.completedLabel
-            ].joined(separator: ". ") + ".",
-            limit: Self.spokenPhraseLimit
-        )
-    }
-
     static func sanitizedProjectName(_ rawName: String) -> String {
         let trimmed = rawName.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return "Compass project" }

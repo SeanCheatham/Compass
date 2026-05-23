@@ -17,12 +17,7 @@ final class KnownProjectStoreTestsRecordDecoding: XCTestCase {
 
         let record = try XCTUnwrap(records.first)
         XCTAssertEqual(record.activeStorage, .repoLocal)
-        XCTAssertEqual(record.cinematicInfluenceSettings, CinematicInfluenceSettings())
         XCTAssertEqual(record.nativeFeedbackMode, .notifications)
-        XCTAssertEqual(record.cinematicRunRecapShareArtifactLibraryContext, .empty)
-        XCTAssertEqual(record.cinematicRunRecapShareArtifactLibraryContext.comparisonTargetMode, .adjacent)
-        XCTAssertNil(record.cinematicRunRecapShareArtifactLibraryContext.savedTourHoldEntryIdentifier)
-        XCTAssertEqual(record.cinematicRunRecapShareArtifactLibraryContext.warningPulseFilter, .all)
     }
 
     func testNativeFeedbackAndExecutionEnvironmentDecodingDefaultsMissingAndFutureValues() throws {
@@ -57,11 +52,6 @@ final class KnownProjectStoreTestsRecordDecoding: XCTestCase {
             "addedAt": 1,
             "lastOpenedAt": 2,
             "activeStorage": "future_storage",
-            "cinematicInfluenceSettings": {
-              "cameraStyle": "unknown",
-              "comfortMode": "future_mode",
-              "intensity": -0.25
-            },
             "nativeFeedbackMode": "future_mode",
             "codexExecutionEnvironmentPreference": "future_execution_environment"
           },
@@ -71,8 +61,6 @@ final class KnownProjectStoreTestsRecordDecoding: XCTestCase {
             "addedAt": 3,
             "lastOpenedAt": 4,
             "activeStorage": "application_support",
-            "cinematicInfluenceSettings": {
-            },
             "nativeFeedbackMode": "speech_and_notifications",
             "codexExecutionEnvironmentPreference": "devcontainer_preferred"
           },
@@ -81,114 +69,17 @@ final class KnownProjectStoreTestsRecordDecoding: XCTestCase {
             "path": "/tmp/high",
             "addedAt": 5,
             "lastOpenedAt": 6,
-            "cinematicInfluenceSettings": {
-              "cameraStyle": "dramatic",
-              "intensity": 1.75
-            },
             "nativeFeedbackMode": "off"
           }
         ]
         """)
 
-        XCTAssertEqual(records[0].cinematicInfluenceSettings.cameraStyle, .follow)
-        XCTAssertEqual(records[0].cinematicInfluenceSettings.comfortMode, .standard)
-        XCTAssertEqual(records[0].cinematicInfluenceSettings.intensity, 0)
         XCTAssertEqual(records[0].activeStorage, .repoLocal)
         XCTAssertEqual(records[0].nativeFeedbackMode, .notifications)
-        XCTAssertEqual(records[0].cinematicRunRecapShareArtifactLibraryContext, .empty)
-
-        XCTAssertEqual(records[1].cinematicInfluenceSettings, CinematicInfluenceSettings())
         XCTAssertEqual(records[1].activeStorage, .applicationSupport)
         XCTAssertEqual(records[1].nativeFeedbackMode, .speechAndNotifications)
-
-        XCTAssertEqual(records[2].cinematicInfluenceSettings.cameraStyle, .dramatic)
-        XCTAssertEqual(records[2].cinematicInfluenceSettings.comfortMode, .standard)
-        XCTAssertEqual(records[2].cinematicInfluenceSettings.intensity, 1)
         XCTAssertEqual(records[2].activeStorage, .repoLocal)
         XCTAssertEqual(records[2].nativeFeedbackMode, .off)
-    }
-
-    func testRecapShareArtifactLibraryContextDecodingBoundsPersistedText() throws {
-        let longIdentifier = String(repeating: "selected-entry-", count: 40)
-        let longSearch = String(repeating: "Search Needle ", count: 20)
-        let duplicatePin = "pinned-entry-1"
-        let longPin = String(repeating: "pinned-entry-", count: 40)
-        let longHold = String(repeating: "held-entry-", count: 40)
-        let records = try decodeRecords("""
-        [
-          {
-            "id": "51515151-5151-5151-5151-515151515151",
-            "path": "/tmp/context",
-            "addedAt": 1,
-            "lastOpenedAt": 2,
-            "cinematicRunRecapShareArtifactLibraryContext": {
-              "selectedEntryIdentifier": "  \(longIdentifier)  ",
-              "searchText": "  \(longSearch)  ",
-              "comparisonTargetMode": "pinned_reference",
-              "warningPulseFilter": "active",
-              "savedTourHoldEntryIdentifier": "  \(longHold)  ",
-              "pinnedEntryIdentifiers": [
-                "  \(duplicatePin)  ",
-                "\(duplicatePin)",
-                "   ",
-                "\(longPin)"
-              ]
-            }
-          },
-          {
-            "id": "61616161-6161-6161-6161-616161616161",
-            "path": "/tmp/blank-context",
-            "addedAt": 3,
-            "lastOpenedAt": 4,
-            "cinematicRunRecapShareArtifactLibraryContext": {
-              "comparisonTargetMode": "future_comparison_mode",
-              "warningPulseFilter": "future_warning_pulse_filter",
-              "selectedEntryIdentifier": "   ",
-              "searchText": "  \\n\\t  "
-            }
-          }
-        ]
-        """)
-
-        XCTAssertLessThanOrEqual(
-            records[0].cinematicRunRecapShareArtifactLibraryContext.selectedEntryIdentifier?.count ?? 0,
-            CinematicRunRecapShareArtifactLibraryContext.selectedEntryIdentifierMaxCharacters
-        )
-        XCTAssertLessThanOrEqual(
-            records[0].cinematicRunRecapShareArtifactLibraryContext.searchText.count,
-            CinematicRunRecapShareArtifactLibraryContext.searchTextMaxCharacters
-        )
-        XCTAssertFalse(records[0].cinematicRunRecapShareArtifactLibraryContext.searchText.hasPrefix(" "))
-        XCTAssertEqual(
-            records[0].cinematicRunRecapShareArtifactLibraryContext.pinnedEntryIdentifiers.count,
-            2
-        )
-        XCTAssertEqual(
-            records[0].cinematicRunRecapShareArtifactLibraryContext.pinnedEntryIdentifiers.first,
-            duplicatePin
-        )
-        XCTAssertEqual(
-            records[0].cinematicRunRecapShareArtifactLibraryContext.comparisonTargetMode,
-            .pinnedReference
-        )
-        XCTAssertEqual(
-            records[0].cinematicRunRecapShareArtifactLibraryContext.warningPulseFilter,
-            .active
-        )
-        XCTAssertLessThanOrEqual(
-            records[0].cinematicRunRecapShareArtifactLibraryContext.pinnedEntryIdentifiers.last?.count ?? 0,
-            CinematicRunRecapShareArtifactLibraryContext.selectedEntryIdentifierMaxCharacters
-        )
-        XCTAssertLessThanOrEqual(
-            records[0].cinematicRunRecapShareArtifactLibraryContext.savedTourHoldEntryIdentifier?.count ?? 0,
-            CinematicRunRecapShareArtifactLibraryContext.savedTourHoldEntryIdentifierMaxCharacters
-        )
-        XCTAssertNil(records[1].cinematicRunRecapShareArtifactLibraryContext.selectedEntryIdentifier)
-        XCTAssertEqual(records[1].cinematicRunRecapShareArtifactLibraryContext.searchText, "")
-        XCTAssertEqual(records[1].cinematicRunRecapShareArtifactLibraryContext.pinnedEntryIdentifiers, [])
-        XCTAssertEqual(records[1].cinematicRunRecapShareArtifactLibraryContext.comparisonTargetMode, .adjacent)
-        XCTAssertEqual(records[1].cinematicRunRecapShareArtifactLibraryContext.warningPulseFilter, .all)
-        XCTAssertNil(records[1].cinematicRunRecapShareArtifactLibraryContext.savedTourHoldEntryIdentifier)
     }
 
     private func decodeRecords(_ json: String) throws -> [KnownProjectRecord] {
@@ -269,19 +160,7 @@ final class KnownProjectStoreTests: XCTestCase {
             id: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
             path: "/tmp/saved",
             activeStorage: .applicationSupport,
-            cinematicInfluenceSettings: CinematicInfluenceSettings(
-                cameraStyle: .steady,
-                comfortMode: .quiet,
-                intensity: 0.8
-            ),
-            nativeFeedbackMode: .speechAndNotifications,
-            cinematicRunRecapShareArtifactLibraryContext: CinematicRunRecapShareArtifactLibraryContext(
-                selectedEntryIdentifier: "artifact-selected",
-                searchText: "Selected Search",
-                pinnedEntryIdentifiers: ["artifact-selected", "artifact-other"],
-                comparisonTargetMode: .pinnedReference,
-                savedTourHoldEntryIdentifier: "artifact-tour-hold"
-            )
+            nativeFeedbackMode: .speechAndNotifications
         )
 
         try KnownProjectStore.save([record], applicationSupportRoots: roots)
@@ -296,8 +175,6 @@ final class KnownProjectStoreTests: XCTestCase {
             [
                 "\"activeStorage\"",
                 "\"addedAt\"",
-                "\"cinematicInfluenceSettings\"",
-                "\"cinematicRunRecapShareArtifactLibraryContext\"",
                 "\"id\"",
                 "\"lastOpenedAt\"",
                 "\"nativeFeedbackMode\"",
@@ -305,45 +182,8 @@ final class KnownProjectStoreTests: XCTestCase {
             ],
             in: saved
         )
-        assertSortedKeys(["\"cameraStyle\"", "\"comfortMode\"", "\"intensity\""], in: saved)
-        assertSortedKeys(
-            [
-                "\"comparisonTargetMode\"",
-                "\"pinnedEntryIdentifiers\"",
-                "\"savedTourHoldEntryIdentifier\"",
-                "\"searchText\"",
-                "\"selectedEntryIdentifier\""
-            ],
-            in: saved
-        )
-        XCTAssertTrue(saved.contains("\"comparisonTargetMode\" : \"pinned_reference\""))
         XCTAssertFalse(saved.contains("\"developSandbox\""))
         XCTAssertFalse(saved.contains("\"codexExecutionEnvironmentPreference\""))
-        XCTAssertTrue(saved.contains("\"comfortMode\" : \"quiet\""))
-        XCTAssertTrue(saved.contains("\"pinnedEntryIdentifiers\" : ["))
-        XCTAssertTrue(saved.contains("\"artifact-other\""))
-        XCTAssertTrue(saved.contains("\"savedTourHoldEntryIdentifier\" : \"artifact-tour-hold\""))
-        XCTAssertTrue(saved.contains("\"searchText\" : \"Selected Search\""))
-        XCTAssertTrue(saved.contains("\"selectedEntryIdentifier\" : \"artifact-selected\""))
-    }
-
-    func testSaveRoundTripsReducedMotionComfortMode() throws {
-        let roots = try makeApplicationSupportRoots()
-        let record = makeRecord(
-            id: "dddddddd-dddd-dddd-dddd-dddddddddddd",
-            path: "/tmp/reduced-motion",
-            cinematicInfluenceSettings: CinematicInfluenceSettings(
-                cameraStyle: .dramatic,
-                comfortMode: .reducedMotion,
-                intensity: 0.7
-            )
-        )
-
-        try KnownProjectStore.save([record], applicationSupportRoots: roots)
-
-        let saved = try read(currentProjectsURL(for: roots))
-        XCTAssertTrue(saved.contains("\"comfortMode\" : \"reduced_motion\""))
-        XCTAssertEqual(KnownProjectStore.load(applicationSupportRoots: roots), [record])
     }
 
     func testSavePersistsNativeFeedbackModeRawValue() throws {
@@ -370,9 +210,6 @@ final class KnownProjectStoreTests: XCTestCase {
     }
 
     func testSaveOmitsLegacySandboxPreferenceKeys() throws {
-        // Compass no longer persists a per-project sandbox preference —
-        // every run targets the Shared VM. Both the current and legacy
-        // keys must stay out of the serialized form.
         let roots = try makeApplicationSupportRoots()
         let records = [
             makeRecord(
@@ -421,9 +258,7 @@ final class KnownProjectStoreTests: XCTestCase {
         activeStorage: KnownProjectActiveStorage = .repoLocal,
         addedAt: Double = 10,
         lastOpenedAt: Double = 20,
-        cinematicInfluenceSettings: CinematicInfluenceSettings = CinematicInfluenceSettings(),
-        nativeFeedbackMode: NativeFeedbackMode = .notifications,
-        cinematicRunRecapShareArtifactLibraryContext: CinematicRunRecapShareArtifactLibraryContext = .empty
+        nativeFeedbackMode: NativeFeedbackMode = .notifications
     ) -> KnownProjectRecord {
         KnownProjectRecord(
             id: UUID(uuidString: id)!,
@@ -431,9 +266,7 @@ final class KnownProjectStoreTests: XCTestCase {
             activeStorage: activeStorage,
             addedAt: addedAt,
             lastOpenedAt: lastOpenedAt,
-            cinematicInfluenceSettings: cinematicInfluenceSettings,
-            nativeFeedbackMode: nativeFeedbackMode,
-            cinematicRunRecapShareArtifactLibraryContext: cinematicRunRecapShareArtifactLibraryContext
+            nativeFeedbackMode: nativeFeedbackMode
         )
     }
 
