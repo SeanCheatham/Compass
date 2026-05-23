@@ -29,7 +29,6 @@ final class AgentExecutionEnvironmentTests: XCTestCase {
       vmReadiness: .installing(fractionCompleted: 0.4)
     )
     let menu = AgentExecutionEnvironmentMenu(environment: environment)
-    XCTAssertEqual(menu.items.count, 1)
     XCTAssertTrue(menu.statusText.contains("installing"))
   }
 
@@ -203,13 +202,6 @@ final class AgentExecutionEnvironmentTests: XCTestCase {
     XCTAssertFalse(presentation.isWarning)
     XCTAssertTrue(presentation.status.contains("Develop iterations"))
     XCTAssertEqual(presentation.title, "Shared VM")
-  }
-
-  func testMenuExposesSharedVMItem() throws {
-    let environment = AgentExecutionEnvironment.discover(
-      vmReadiness: .ready(sshDestination: "compass@192.0.2.10"))
-    let menu = AgentExecutionEnvironmentMenu(environment: environment)
-    XCTAssertTrue(menu.items.contains { $0.preference == .sharedVM })
   }
 
   func testDiscoveryDoesNotCreateDevcontainerFilesWhenConfigIsMissing() throws {

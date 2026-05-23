@@ -1040,15 +1040,6 @@ private struct ProjectRunControls: View {
           .help(recovery.helpText)
           Text(recovery.detailText)
         }
-        Divider()
-        ForEach(Array(executionEnvironmentMenu.items.enumerated()), id: \.element.id) {
-          index, item in
-          Label(item.title, systemImage: item.systemImage)
-          Text(item.description)
-          if index < executionEnvironmentMenu.items.count - 1 {
-            Divider()
-          }
-        }
       } label: {
         Image(systemName: executionEnvironmentMenu.labelSystemImage)
           .frame(width: 18, height: 18)

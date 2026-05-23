@@ -7,23 +7,18 @@ import Foundation
 /// session history continue to carry an explicit identifier for the
 /// chosen environment. Legacy stored values (`native_macos`, etc.) are
 /// decoded as `.sharedVM`.
-enum AgentExecutionEnvironmentPreference: String, Codable, CaseIterable, Identifiable {
+enum AgentExecutionEnvironmentPreference: String, Codable, Identifiable {
   case sharedVM = "shared_vm"
 
   var id: Self { self }
 
+  /// Any stored raw value (including legacy `native_macos` /
+  /// `devcontainer_preferred`) is silently upgraded — Compass no longer
+  /// supports a host-execution preference.
   init(from decoder: Decoder) throws {
     let container = try decoder.singleValueContainer()
-    let rawValue = try container.decode(String.self)
-    self = AgentExecutionEnvironmentPreference.decode(rawValue: rawValue)
-  }
-
-  /// Decodes a stored raw value into a preference. Any value other than
-  /// `shared_vm` (including legacy `native_macos` / `devcontainer_preferred`)
-  /// is silently upgraded — Compass no longer supports a host-execution
-  /// preference.
-  static func decode(rawValue: String) -> AgentExecutionEnvironmentPreference {
-    .sharedVM
+    _ = try container.decode(String.self)
+    self = .sharedVM
   }
 
   func encode(to encoder: Encoder) throws {
@@ -185,7 +180,8 @@ struct AgentExecutionEnvironment: Equatable {
     }
     return AgentExecutionEnvironmentPresentation(
       title: "Shared VM",
-      status: "Shared VM not ready; this phase is falling back to native macOS.",
+      status:
+        "Shared VM not ready; Develop is blocked until the VM finishes preparing.",
       detail: fallbackDetail(plan: plan),
       systemImage: "desktopcomputer.trianglebadge.exclamationmark",
       isWarning: true
@@ -505,66 +501,10 @@ struct AgentExecutionEnvironmentCopyDiagnosticsAction: Identifiable, Equatable {
   }
 }
 
-struct AgentExecutionEnvironmentMenuItem: Identifiable, Equatable {
-  static let descriptionLimit = 180
-
-  var preference: AgentExecutionEnvironmentPreference
-  var title: String
-  var systemImage: String
-  var isSelected: Bool
-  var description: String
-
-  var id: AgentExecutionEnvironmentPreference { preference }
-
-  init(
-    preference: AgentExecutionEnvironmentPreference,
-    selectedPreference: AgentExecutionEnvironmentPreference,
-    readiness: AgentExecutionEnvironmentReadiness
-  ) {
-    self.preference = preference
-    title = preference.title
-    systemImage = "checkmark"
-    isSelected = true
-    description = Self.boundedText(
-      Self.description(readiness: readiness),
-      limit: Self.descriptionLimit
-    )
-  }
-
-  private static func description(readiness: AgentExecutionEnvironmentReadiness) -> String {
-    switch readiness.vmReadiness {
-    case .ready:
-      return
-        "Run the agent inside the Shared VM via vsock. Provides reproducible Linux/macOS isolation."
-    case .unavailable(let reason):
-      return "Shared VM is unavailable: \(reason)."
-    case .notProvisioned:
-      return "Shared VM has not been provisioned yet. Provision the VM from the Sandbox section."
-    case .downloadingIPSW, .installing, .guestPrepping, .provisioningDevTools:
-      return "Shared VM is still preparing."
-    case .error(let detail):
-      return "Shared VM reported an error: \(detail)."
-    }
-  }
-
-  private static func boundedText(_ text: String, limit: Int) -> String {
-    guard limit > 0 else { return "" }
-    let normalized =
-      text
-      .replacingOccurrences(of: "\r", with: " ")
-      .replacingOccurrences(of: "\n", with: " ")
-      .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
-      .trimmingCharacters(in: .whitespacesAndNewlines)
-    guard normalized.count > limit else { return normalized }
-    return String(normalized.prefix(limit)).trimmingCharacters(in: .whitespacesAndNewlines)
-  }
-}
-
 struct AgentExecutionEnvironmentMenu: Equatable {
   var labelSystemImage: String
   var helpText: String
   var statusText: String
-  var items: [AgentExecutionEnvironmentMenuItem]
   var copyDiagnosticsAction: AgentExecutionEnvironmentCopyDiagnosticsAction
   var mutationTestingAction: AgentMutationTestingMenuAction?
   var mutationRecoveryDescriptor: MutationTestingRecoveryDescriptor?
@@ -586,13 +526,6 @@ struct AgentExecutionEnvironmentMenu: Equatable {
     statusText = [presentation.status, presentation.detail]
       .filter { !$0.isEmpty }
       .joined(separator: " ")
-    items = AgentExecutionEnvironmentPreference.allCases.map {
-      AgentExecutionEnvironmentMenuItem(
-        preference: $0,
-        selectedPreference: environment.preference,
-        readiness: environment.readiness
-      )
-    }
     copyDiagnosticsAction = AgentExecutionEnvironmentCopyDiagnosticsAction(
       report: AgentExecutionEnvironmentDiagnosticsReport(
         environment: environment,
