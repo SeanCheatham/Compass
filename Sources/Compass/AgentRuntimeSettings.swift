@@ -29,6 +29,12 @@ struct AgentRuntimeSettings: Equatable, Sendable {
   var planModelOverride: String?
   var developModelOverride: String?
   var reflectModelOverride: String?
+  /// Optional dedicated model identifier for the per-file codemap
+  /// summarization pass. Falls back to `model` when nil. Configured via
+  /// `COMPASS_AGENT_MODEL_CODEMAP`; intended for a cheap small model
+  /// (Haiku-tier or equivalent) since the pass fans out across ~hundreds
+  /// of files on first build.
+  var codemapModelOverride: String?
   var contextWindowTokens: Int
 
   init(
@@ -38,6 +44,7 @@ struct AgentRuntimeSettings: Equatable, Sendable {
     planModelOverride: String? = nil,
     developModelOverride: String? = nil,
     reflectModelOverride: String? = nil,
+    codemapModelOverride: String? = nil,
     contextWindowTokens: Int = AgentRuntimeSettings.defaultContextWindowTokens
   ) {
     self.baseURL = baseURL
@@ -46,6 +53,7 @@ struct AgentRuntimeSettings: Equatable, Sendable {
     self.planModelOverride = planModelOverride
     self.developModelOverride = developModelOverride
     self.reflectModelOverride = reflectModelOverride
+    self.codemapModelOverride = codemapModelOverride
     self.contextWindowTokens = contextWindowTokens
   }
 
@@ -74,8 +82,17 @@ struct AgentRuntimeSettings: Equatable, Sendable {
       planModelOverride: environment.compassAgentTrimmed("COMPASS_AGENT_MODEL_PLAN"),
       developModelOverride: environment.compassAgentTrimmed("COMPASS_AGENT_MODEL_DEV"),
       reflectModelOverride: environment.compassAgentTrimmed("COMPASS_AGENT_MODEL_REFLECT"),
+      codemapModelOverride: environment.compassAgentTrimmed("COMPASS_AGENT_MODEL_CODEMAP"),
       contextWindowTokens: max(contextWindow, 0)
     )
+  }
+
+  /// Resolve the model identifier for the codemap summary pass. Returns
+  /// the dedicated override if set, otherwise the base model — keeping
+  /// summary cost a deliberate opt-in to a cheaper tier rather than a
+  /// silent surprise.
+  var codemapModel: String {
+    codemapModelOverride ?? model
   }
 
   /// Resolve the model identifier for a given phase.
