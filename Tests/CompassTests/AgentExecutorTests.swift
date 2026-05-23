@@ -1,5 +1,6 @@
 import Foundation
 @testable import Compass
+import OpenAI
 import XCTest
 
 final class AgentExecutorTests: XCTestCase {
@@ -50,6 +51,85 @@ final class AgentExecutorTests: XCTestCase {
     func testDefaultWallClockTimeoutIsOneHour() {
         let configuration = makeConfiguration(phase: .plan, tools: AgentExecutor.readOnlyTools())
         XCTAssertEqual(configuration.wallClockTimeout, 60 * 60)
+    }
+
+    // MARK: - Transient stream-error classification
+
+    func testTransientHTTPStatusesCoverOverloadAndCloudflareCodes() {
+        let transient = [408, 425, 429, 500, 502, 503, 504, 520, 521, 522, 523, 524, 525, 526, 529]
+        for code in transient {
+            XCTAssertTrue(
+                AgentExecutor.isTransientHTTPStatus(code),
+                "Expected \(code) to be classified transient"
+            )
+        }
+    }
+
+    func testTransientHTTPStatusesRejectClientAndSuccessCodes() {
+        let permanent = [200, 201, 204, 301, 400, 401, 403, 404, 422, 451]
+        for code in permanent {
+            XCTAssertFalse(
+                AgentExecutor.isTransientHTTPStatus(code),
+                "Expected \(code) to be classified permanent"
+            )
+        }
+    }
+
+    func testShouldRetryAcceptsOpenAIStatusErrorsForTransientStatuses() {
+        let response = HTTPURLResponse(
+            url: URL(string: "https://api.example.com")!,
+            statusCode: 529,
+            httpVersion: nil,
+            headerFields: nil
+        )!
+        let error = OpenAIError.statusError(response: response, statusCode: 529)
+        XCTAssertTrue(AgentExecutor.shouldRetry(error))
+    }
+
+    func testShouldRetryRejectsOpenAIStatusErrorsForPermanentStatuses() {
+        let response = HTTPURLResponse(
+            url: URL(string: "https://api.example.com")!,
+            statusCode: 400,
+            httpVersion: nil,
+            headerFields: nil
+        )!
+        let error = OpenAIError.statusError(response: response, statusCode: 400)
+        XCTAssertFalse(AgentExecutor.shouldRetry(error))
+    }
+
+    func testShouldRetryAcceptsTransientURLErrors() {
+        XCTAssertTrue(AgentExecutor.shouldRetry(URLError(.timedOut)))
+        XCTAssertTrue(AgentExecutor.shouldRetry(URLError(.networkConnectionLost)))
+        XCTAssertTrue(AgentExecutor.shouldRetry(URLError(.notConnectedToInternet)))
+    }
+
+    func testShouldRetryRejectsPermanentURLErrors() {
+        XCTAssertFalse(AgentExecutor.shouldRetry(URLError(.badURL)))
+        XCTAssertFalse(AgentExecutor.shouldRetry(URLError(.unsupportedURL)))
+        XCTAssertFalse(AgentExecutor.shouldRetry(URLError(.cancelled)))
+    }
+
+    func testShouldRetryRejectsUnrelatedErrors() {
+        struct OtherError: Error {}
+        XCTAssertFalse(AgentExecutor.shouldRetry(OtherError()))
+        XCTAssertFalse(AgentExecutor.shouldRetry(AgentExecutionError.cancelled))
+    }
+
+    func testRetryDelayGrowsExponentiallyWithJitterAndCaps() {
+        // Attempt 1 should sit around 1s (0.8 - 1.2 with jitter).
+        let first = AgentExecutor.retryDelay(forAttempt: 1)
+        XCTAssertGreaterThanOrEqual(first, AgentExecutor.baseStreamRetryDelay * 0.8)
+        XCTAssertLessThanOrEqual(first, AgentExecutor.baseStreamRetryDelay * 1.2)
+
+        // Attempt 4 = base * 2^3 = 8s before jitter, well under the cap.
+        let fourth = AgentExecutor.retryDelay(forAttempt: 4)
+        XCTAssertGreaterThanOrEqual(fourth, 8.0 * 0.8)
+        XCTAssertLessThanOrEqual(fourth, 8.0 * 1.2)
+
+        // Attempt 100 would explode to 2^99 seconds; the cap must hold.
+        let huge = AgentExecutor.retryDelay(forAttempt: 100)
+        XCTAssertGreaterThanOrEqual(huge, AgentExecutor.maxStreamRetryDelay * 0.8)
+        XCTAssertLessThanOrEqual(huge, AgentExecutor.maxStreamRetryDelay * 1.2)
     }
 
     // MARK: - ensureUniqueToolNames
