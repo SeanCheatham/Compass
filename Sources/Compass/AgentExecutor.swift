@@ -1122,12 +1122,13 @@ final class AgentExecutor {
     ]
   }
 
-  /// Tools the Critic phase gets: read-only set plus `bash`. Critic
-  /// performs adversarial review and may need to run extra checks
-  /// (re-run a single test, run a linter, inspect git history) but
-  /// must not edit or commit. The system prompt reinforces "no
-  /// mutating commands" since `bash` itself can't enforce intent.
-  static func criticTools() -> [AgentTool] {
+  /// Read-only set plus `bash`. Used by every phase that should be able
+  /// to probe the project (build, test, run a linter, inspect git
+  /// history) without mutating tracked files: Plan and Reflect ground
+  /// their decisions in real build/test output, and Critic runs extra
+  /// checks during adversarial review. The system prompt reinforces
+  /// "no mutating commands" since `bash` itself can't enforce intent.
+  static func inspectionTools() -> [AgentTool] {
     readOnlyTools() + [
       AgentBashTool()
     ]
@@ -1135,9 +1136,8 @@ final class AgentExecutor {
 
   static func toolsForPhase(_ phase: AgentPhase) -> [AgentTool] {
     switch phase {
-    case .plan, .reflect: return readOnlyTools()
+    case .plan, .reflect, .critic: return inspectionTools()
     case .develop: return developTools()
-    case .critic: return criticTools()
     }
   }
 }

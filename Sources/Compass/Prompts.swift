@@ -230,9 +230,10 @@ enum Prompts {
       Compass's state and lesson update contract.
 
       Your job is to choose exactly one concrete next implementation increment
-      for a separate Develop pass. You have read-only access to the repository.
-      Do not edit files. End by calling the `submit_result` tool with the
-      arguments described below.
+      for a separate Develop pass. You have read access to the repository and
+      `bash` for probing — run builds, tests, or other shell commands when
+      they would ground your decision. Do not edit files or commit. End by
+      calling the `submit_result` tool with the arguments described below.
 
       Planning rules:
       - Start from the current state exactly as given. Preserve existing
@@ -262,7 +263,9 @@ enum Prompts {
         material changes.
       - Never choose placeholder verify commands like `true`, `not-running-tests`,
         `none`, or `n/a`.
-      - Never write code, run tests, or commit from Plan.
+      - Never write code or commit from Plan. Running builds, tests, or other
+        read-only shell commands to confirm assumptions is fine; that's what
+        `bash` is for here.
 
       Lesson edit rules:
       - `lessonEdits` is an array of exact find/replace edits against the
@@ -343,9 +346,10 @@ enum Prompts {
       app. Compass talks to an OpenAI-compatible chat completions endpoint
       and dispatches tool calls you make.
 
-      Run a course-correction pass for iteration \(iteration). You have
-      read-only access to the repository. Decide whether the project is still
-      on course toward the vision.
+      Run a course-correction pass for iteration \(iteration). You have read
+      access to the repository plus `bash` for probing (build, test, git
+      inspection — do not edit files or commit). Decide whether the project
+      is still on course toward the vision.
 
       Finish by calling the `submit_result` tool with these arguments:
       - `state`: null if everything is on course.
@@ -698,8 +702,9 @@ enum Prompts {
       toolList = """
         - Codemap tools: \(codemapTools).
         - File tools: \(fileTools).
+        - Shell: bash (read-only intent — run builds, tests, linters, or git inspection to ground your decisions; do not mutate tracked files and do not commit).
         - Sub-agents: \(delegateTool).
-        - This phase is read-only. The Develop phase has the write tools — do not request them here.
+        - This phase must not write files or commit. The Develop phase has the write tools — do not request them here.
         """
     case .develop:
       toolList = """

@@ -138,7 +138,7 @@ final class AgentExecutorTests: XCTestCase {
   func testEnsureUniqueToolNamesAcceptsDistinctTools() throws {
     XCTAssertNoThrow(try AgentExecutor.ensureUniqueToolNames(AgentExecutor.readOnlyTools()))
     XCTAssertNoThrow(try AgentExecutor.ensureUniqueToolNames(AgentExecutor.developTools()))
-    XCTAssertNoThrow(try AgentExecutor.ensureUniqueToolNames(AgentExecutor.criticTools()))
+    XCTAssertNoThrow(try AgentExecutor.ensureUniqueToolNames(AgentExecutor.inspectionTools()))
   }
 
   // MARK: - Tool registry per phase
@@ -253,15 +253,22 @@ final class AgentExecutorTests: XCTestCase {
 
   // MARK: - phase routing
 
-  func testToolsForPhasePicksReadOnlyForPlanAndReflect() {
+  func testToolsForPhasePicksInspectionSetForPlanAndReflect() {
     let planNames = Set(AgentExecutor.toolsForPhase(.plan).map { $0.spec.name })
     let reflectNames = Set(AgentExecutor.toolsForPhase(.reflect).map { $0.spec.name })
-    let readOnlyNames = Set(AgentExecutor.readOnlyTools().map { $0.spec.name })
-    XCTAssertEqual(planNames, readOnlyNames)
-    XCTAssertEqual(reflectNames, readOnlyNames)
-    XCTAssertFalse(planNames.contains(AgentBashTool.toolName))
+    let inspectionNames = Set(AgentExecutor.inspectionTools().map { $0.spec.name })
+    XCTAssertEqual(planNames, inspectionNames)
+    XCTAssertEqual(reflectNames, inspectionNames)
+    XCTAssertTrue(
+      planNames.contains(AgentBashTool.toolName),
+      "Plan must have bash so it can run builds/tests to ground its plan")
+    XCTAssertTrue(
+      reflectNames.contains(AgentBashTool.toolName),
+      "Reflect must have bash so it can probe the project during course-correction")
     XCTAssertFalse(planNames.contains(AgentWriteFileTool.toolName))
     XCTAssertFalse(planNames.contains(AgentEditFileTool.toolName))
+    XCTAssertFalse(reflectNames.contains(AgentWriteFileTool.toolName))
+    XCTAssertFalse(reflectNames.contains(AgentEditFileTool.toolName))
   }
 
   func testToolsForPhasePicksFullSetForDevelop() {

@@ -31,11 +31,34 @@ final class AgentSystemPromptTests: XCTestCase {
     XCTAssertTrue(prompt.contains("/Users/compass/Compass/Repos/AAAA-BBBB-CCCC-DDDD/worktree"))
   }
 
-  func testPlanPhaseAdvertisesReadOnlyToolsOnly() {
+  func testPlanPhaseAdvertisesBashWithoutMutationTools() {
     let prompt = Prompts.agentSystemPrompt(phase: .plan, workingDirectoryPath: "/x")
     XCTAssertTrue(prompt.contains("File tools"))
     XCTAssertTrue(prompt.contains("Codemap tools"))
+    XCTAssertTrue(
+      prompt.contains("bash"),
+      "Plan must see `bash` so it can ground decisions in real build/test output")
+    XCTAssertTrue(
+      prompt.contains("do not mutate tracked files"),
+      "Plan prompt must state read-only intent for bash")
     XCTAssertFalse(prompt.contains("Mutation tools"))
+    XCTAssertFalse(
+      prompt.contains("write_file"),
+      "Plan must not be told about write_file")
+  }
+
+  func testReflectPhaseAdvertisesBashWithoutMutationTools() {
+    let prompt = Prompts.agentSystemPrompt(phase: .reflect, workingDirectoryPath: "/x")
+    XCTAssertTrue(
+      prompt.contains("bash"),
+      "Reflect must see `bash` so it can probe the project during course-correction")
+    XCTAssertTrue(
+      prompt.contains("do not mutate tracked files"),
+      "Reflect prompt must state read-only intent for bash")
+    XCTAssertFalse(prompt.contains("Mutation tools"))
+    XCTAssertFalse(
+      prompt.contains("write_file"),
+      "Reflect must not be told about write_file")
   }
 
   func testDevelopPhaseAdvertisesMutationTools() {
