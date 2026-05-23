@@ -1,0 +1,374 @@
+import AppKit
+import Foundation
+import Virtualization
+
+@MainActor
+extension CompassProject {
+  func agentLaunchPlan(for nativeExecutionURL: URL) -> AgentExecutionLaunchPlan {
+    // Compass always routes the agent through the Shared VM; the
+    // onboarding gate prevents launches until the VM is ready. The
+    // planner still falls back to host when the VirtioFS catalog
+    // can't map this repo (Plan/Reflect on the main repo lives
+    // outside the workspaces share), which is an internal-only
+    // concern with no user-facing toggle.
+    let host = SharedCompassVM.shared
+    let readiness = host.readiness
+    return AgentExecutionLaunchPlan.plan(
+      repoURL: nativeExecutionURL,
+      vmReadiness: readiness,
+      sharedVMRouteFactory: { hostURL in
+        Self.makeSharedVMRoute(
+          hostRepoURL: hostURL,
+          readiness: readiness,
+          bundle: host.bundle
+        )
+      }
+    )
+  }
+
+  /// Builds a `SharedVMRoute` for a host repo URL by mapping it to
+  /// the guest-local path where Compass keeps its synced copy
+  /// (`/Users/compass/Compass/Repos/<UUID>/worktree`). Returns nil if
+  /// the VM is not ready, or if the catalog lookup fails (planner
+  /// falls back to host).
+  ///
+  /// The mapping no longer references VirtioFS: macOS guests TCC-block
+  /// `AppleVirtIOFS` reads from every process (even LaunchAgents inside
+  /// the GUI session, even root via LaunchDaemon), so Compass copies
+  /// repo contents into the guest via vsock-streamed tar instead. See
+  /// `SharedCompassVMWorktreeSync` for the push/pull machinery.
+  ///
+  /// Callers must pass the user's main repo URL — never a derived
+  /// per-iteration path — so every Compass phase (Plan / Reflect /
+  /// Develop / Verify) keys off the same catalog entry and sees the
+  /// same guest workspace.
+  private static func makeSharedVMRoute(
+    hostRepoURL: URL,
+    readiness: SharedCompassVMReadiness,
+    bundle: SharedCompassVMBundle
+  ) -> SharedVMRoute? {
+    guard case .ready(let sshDestination) = readiness else { return nil }
+
+    let catalogEntry: SharedCompassVMGuestWorkspaceCatalog.CatalogEntry
+    do {
+      catalogEntry = try SharedCompassVMGuestWorkspaceCatalog.ensureEntry(
+        forRepoURL: hostRepoURL
+      )
+    } catch {
+      // Bookkeeping failure shouldn't strand the agent — fall back
+      // to host execution rather than throwing inside the launch
+      // planner.
+      return nil
+    }
+    let guestWorkspacePath = SharedCompassVMGuestWorkspaceCatalog.guestWorktreePath(
+      forEntry: catalogEntry
+    )
+
+    return SharedVMRoute(
+      sshDestination: sshDestination,
+      hostWorktreeURL: hostRepoURL,
+      guestWorkspacePath: guestWorkspacePath,
+      environmentVariables: [:],
+      identityFile: bundle.privateKeyURL.path,
+      knownHostsFile: bundle.knownHostsURL.path
+    )
+  }
+
+  func logExecutionEnvironmentPreflight(
+    phase: String,
+    nativeExecutionURL: URL,
+    launchPlan: AgentExecutionLaunchPlan? = nil,
+    sessionIndex: Int? = nil,
+    attempt: Int? = nil
+  ) {
+    let environment = AgentExecutionEnvironment.discover(
+      vmReadiness: SharedCompassVM.shared.readiness
+    )
+    let effectiveLaunchPlan = launchPlan ?? environment.launchPlan(repoURL: nativeExecutionURL)
+    log(
+      effectiveLaunchPlan.preflightSummary(phase: phase),
+      level: .info
+    )
+    if let sessionIndex {
+      recordSessionExecutionEnvironmentSnapshot(
+        phase: phase,
+        attempt: attempt,
+        launchPlan: effectiveLaunchPlan,
+        sessionIndex: sessionIndex
+      )
+    }
+    let presentation = environment.presentation(launchPlan: effectiveLaunchPlan)
+    let detail = [presentation.status, presentation.detail, effectiveLaunchPlan.routeDetail()]
+      .filter { !$0.isEmpty }
+      .joined(separator: " ")
+    log(detail, level: presentation.isWarning ? .warning : .info)
+  }
+
+  func recordSessionExecutionEnvironmentSnapshot(
+    phase: String,
+    attempt: Int?,
+    launchPlan: AgentExecutionLaunchPlan,
+    sessionIndex: Int
+  ) {
+    guard sessions.indices.contains(sessionIndex) else { return }
+    let snapshot = SessionExecutionEnvironmentSnapshot(
+      phase: phase,
+      attempt: attempt,
+      launchPlan: launchPlan
+    )
+    sessions[sessionIndex].recordExecutionEnvironmentSnapshot(snapshot)
+    try? persistSessions()
+  }
+
+  /// Build an AgentExecutionConfiguration, run it, and decode the
+  /// `submit_result` arguments into the phase result model. Assigns the
+  /// executor to `self.executor` so `stopRun()` can cancel mid-stream.
+  func runAgent<T: Decodable>(
+    phase: AgentPhase,
+    agentSettings: AgentRuntimeSettings,
+    modelOverride: String,
+    workingDirectory: URL,
+    userPrompt: String,
+    submitResultSchema: String,
+    decode: T.Type
+  ) async throws -> T {
+    let schema = AgentToolParametersSchema(json: Data(submitResultSchema.utf8))
+    let environment = resolveAgentEnvironment(forHostURL: workingDirectory)
+    if environment.kind == .sharedVM {
+      // Ensure the persistent guest workspace has contents before
+      // the agent's first read_file. ensurePopulated is idempotent
+      // — pays the push cost only when the guest workspace is
+      // missing, so subsequent phases / iterations / sessions
+      // skip straight to running the agent.
+      try await ensurePersistentGuestWorkspace(forHostRepo: workingDirectory)
+    }
+    let configuration = AgentExecutionConfiguration(
+      settings: agentSettings,
+      phase: phase,
+      modelOverride: modelOverride,
+      systemPrompt: Prompts.agentSystemPrompt(
+        phase: phase,
+        workingDirectoryPath: environment.workingDirectory.path,
+        executionEnvironment: environment.kind == .sharedVM ? .sharedVM : .host
+      ),
+      userPrompt: userPrompt,
+      tools: ToolRegistry.tools(for: phase),
+      submitResultSchema: schema,
+      workingDirectory: environment.workingDirectory,
+      filesystem: environment.filesystem,
+      bashRunner: environment.bashRunner
+    )
+    let agent = AgentExecutor { [weak self] event in
+      Task { @MainActor in self?.log(event) }
+    }
+    executor = agent
+    let result = try await agent.run(configuration)
+    do {
+      return try JSONDecoder().decode(T.self, from: result.submitResultArguments)
+    } catch {
+      let body = String(decoding: result.submitResultArguments, as: UTF8.self)
+      throw AppModelError.internalInvariant(
+        "Could not decode \(T.self) from submit_result: \(error.localizedDescription)\n\(body)"
+      )
+    }
+  }
+
+  /// Resolved working directory + tool backends for an agent run.
+  /// When the project's execution preference is `.sharedVM` and the
+  /// VM resolves to a ready route for `hostURL`, the agent operates
+  /// entirely inside the persistent per-repo guest workspace via the
+  /// vsock-served Compass guest agent. `SharedCompassVMRepoWorkspaceSync`
+  /// populates that workspace lazily on first use; under the host
+  /// route the agent stays native and works against `hostURL`
+  /// directly.
+  struct AgentEnvironment {
+    /// Coarse descriptor for the agent's runtime environment. Used by
+    /// the system-prompt builder to teach the model what tooling it
+    /// can expect — e.g. the Shared VM has Command Line Tools only,
+    /// not full Xcode, so reaching for `xcodebuild` is wasted work.
+    enum Kind {
+      case host
+      case sharedVM
+    }
+    var kind: Kind
+    var workingDirectory: URL
+    var filesystem: AgentFilesystem
+    var bashRunner: AgentBashRunner
+  }
+
+  func resolveAgentEnvironment(forHostURL hostURL: URL) -> AgentEnvironment {
+    let launchPlan = agentLaunchPlan(for: hostURL)
+    switch launchPlan.effectiveRoute {
+    case .host:
+      if let reason = launchPlan.fallbackReason {
+        log("Agent route falling back to host: \(reason)", level: .info)
+      }
+      return AgentEnvironment(
+        kind: .host,
+        workingDirectory: hostURL,
+        filesystem: AgentHostFilesystem(),
+        bashRunner: AgentHostBashRunner()
+      )
+    case .sharedVM(let route):
+      guard let machine = SharedCompassVM.shared.virtualMachine else {
+        log(
+          "Agent route via Shared VM requested but no live VZVirtualMachine; falling back to host.",
+          level: .warning)
+        return AgentEnvironment(
+          kind: .host,
+          workingDirectory: hostURL,
+          filesystem: AgentHostFilesystem(),
+          bashRunner: AgentHostBashRunner()
+        )
+      }
+      // `route.guestWorkspacePath` is the persistent per-repo
+      // guest workspace (from `SharedCompassVMGuestWorkspaceCatalog`)
+      // — the same directory for every Plan / Reflect / Develop /
+      // Verify run against this repo.
+      let guestWorkingDirectory = URL(fileURLWithPath: route.guestWorkspacePath)
+      log(
+        "Agent route via Shared VM (vsock) at workspace \(guestWorkingDirectory.path)", level: .info
+      )
+      let client = Self.makeVsockClient(on: machine)
+      return AgentEnvironment(
+        kind: .sharedVM,
+        workingDirectory: guestWorkingDirectory,
+        filesystem: client,
+        bashRunner: client
+      )
+    }
+  }
+
+  /// Runs the Verify shell command in the same place the agent just
+  /// operated. For `.sharedVM` routes this goes through the guest's
+  /// bash RPC against the persistent guest workspace; everything else
+  /// falls through to the existing host-side `ProcessRunner.runShell`
+  /// path.
+  ///
+  /// The host workingDirectory parameter is only used by the host
+  /// fallback. Under .sharedVM the guest path is resolved via the
+  /// catalog so the command runs against the same `<UUID>/worktree`
+  /// the agent's `bash` tool calls land in.
+  func runVerifyCommand(
+    command: String,
+    hostWorkingDirectory: URL,
+    timeoutSeconds: TimeInterval,
+    launchPlan: AgentExecutionLaunchPlan
+  ) async throws -> ProcessResult {
+    if case .sharedVM(let route) = launchPlan.effectiveRoute,
+      let machine = SharedCompassVM.shared.virtualMachine
+    {
+      let client = Self.makeVsockClient(on: machine)
+      let guestWorkingDirectory = URL(fileURLWithPath: route.guestWorkspacePath)
+      log(
+        "Verify: running inside Shared VM at \(route.guestWorkspacePath) (timeout \(Int(timeoutSeconds * 1000))ms).",
+        level: .info
+      )
+      return try await client.run(
+        command: command,
+        workingDirectory: guestWorkingDirectory,
+        timeout: timeoutSeconds
+      )
+    }
+    return try await ProcessRunner.runShell(
+      command,
+      workingDirectory: hostWorkingDirectory,
+      timeout: timeoutSeconds,
+      launchPlan: launchPlan
+    )
+  }
+
+  /// Ensures the persistent guest workspace for `hostRepoURL` exists and
+  /// has the host repo's contents. No-op if the guest workspace already
+  /// exists (the agent's prior state is preserved). Callers can force
+  /// a re-sync by passing `forceRefresh: true`.
+  ///
+  /// Called from `runAgent` for `.sharedVM` routes so the agent's first
+  /// `read_file` always finds something. For session-level operations
+  /// (e.g. an explicit user-driven refresh in the future) this can be
+  /// invoked directly without going through runAgent.
+  @discardableResult
+  func ensurePersistentGuestWorkspace(
+    forHostRepo hostRepoURL: URL,
+    forceRefresh: Bool = false
+  ) async throws -> SharedCompassVMRepoWorkspaceSync.Outcome? {
+    guard let machine = SharedCompassVM.shared.virtualMachine else {
+      return nil
+    }
+    let client = Self.makeVsockClient(on: machine)
+    let result: (guestPath: String, outcome: SharedCompassVMRepoWorkspaceSync.Outcome)
+    do {
+      result = try await SharedCompassVMRepoWorkspaceSync.ensurePopulated(
+        hostRepoURL: hostRepoURL,
+        client: client,
+        forceRefresh: forceRefresh
+      )
+    } catch let error as SharedCompassVMRepoWorkspaceSync.SyncError {
+      // Log the *readable* description before rethrowing — without
+      // this the activity batch only shows
+      // "The operation couldn't be completed.
+      //  (Compass.SharedCompassVMRepoWorkspaceSync.SyncError error N.)"
+      // because the failure ascends through callers that surface
+      // `localizedDescription` from the raw error chain.
+      log("Guest workspace sync failed: \(error.description)", level: .error)
+      throw error
+    }
+    switch result.outcome {
+    case .reused:
+      log(
+        "Guest workspace at \(result.guestPath) already populated — preserving prior agent state.",
+        level: .info)
+    case .freshlyPopulated:
+      log(
+        "Guest workspace at \(result.guestPath) populated for the first time from \(hostRepoURL.path).",
+        level: .info)
+    case .refreshed:
+      log(
+        "Guest workspace at \(result.guestPath) force-refreshed from \(hostRepoURL.path).",
+        level: .info)
+    }
+    return result.outcome
+  }
+
+  /// Routes through `SharedCompassVM.makeVsockClient` — kept as a thin
+  /// shim so AppModel sites can stay terse. The transport details
+  /// (vsock framing, port, factory closure) all live behind that
+  /// method now; AppModel doesn't import the transport types.
+  private static func makeVsockClient(on machine: VZVirtualMachine) -> AgentVsockClient {
+    SharedCompassVM.makeVsockClient(on: machine)
+  }
+
+  /// Pulls the guest workspace's current state (filtered against the
+  /// well-known build-output dirs) back onto the host's main repo.
+  /// Called after Verify passes under the `.sharedVM` route so the
+  /// follow-up host-side commit captures whatever the in-guest agent
+  /// produced.
+  ///
+  /// Pull failures are logged but not thrown: the subsequent
+  /// `git status` will surface "nothing to commit" or partial state
+  /// instead of dropping the entire iteration on a transient
+  /// transport hiccup.
+  func pullDevelopChangesIfNeeded(
+    mainRepoURL: URL,
+    plan: AgentExecutionLaunchPlan
+  ) async {
+    guard case .sharedVM(let route) = plan.effectiveRoute,
+      let machine = SharedCompassVM.shared.virtualMachine
+    else {
+      return
+    }
+    let client = Self.makeVsockClient(on: machine)
+    do {
+      try await SharedCompassVMWorktreeSync.pull(
+        hostWorktreeURL: mainRepoURL,
+        guestWorktreePath: route.guestWorkspacePath,
+        client: client
+      )
+    } catch {
+      log(
+        "Develop: vsock pull from guest failed — host commit may see stale state: \(error.localizedDescription)",
+        level: .warning
+      )
+    }
+  }
+}
