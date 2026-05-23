@@ -58,21 +58,23 @@ struct AgentDelegateTool: AgentTool {
     do {
       args = try JSONDecoder().decode(Arguments.self, from: arguments)
     } catch {
-      return .failure("Failed to decode arguments: \(error.localizedDescription)")
+      return .failure(.invalidArguments(error.localizedDescription))
     }
     let trimmedTask = args.task.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !trimmedTask.isEmpty else {
-      return .failure("task is empty")
+      return .failure(.invalidArguments("task is empty"))
     }
     if trimmedTask.count > Self.maxTaskLength {
       return .failure(
-        "task exceeds the \(Self.maxTaskLength)-char limit; tighten the instructions or split the work."
-      )
+        .invalidArguments(
+          "task exceeds the \(Self.maxTaskLength)-char limit; tighten the instructions or split the work."
+        ))
     }
     guard let runner = context.delegateRunner else {
       return .failure(
-        "delegate is not available in this context (sub-agent nesting is disabled, or the host did not wire a runner)."
-      )
+        .delegateFailure(
+          "delegate is not available in this context (sub-agent nesting is disabled, or the host did not wire a runner)."
+        ))
     }
     do {
       let findings = try await runner.delegate(
@@ -82,11 +84,11 @@ struct AgentDelegateTool: AgentTool {
       )
       return .ok(findings)
     } catch let error as AgentDelegateRunnerError {
-      return .failure(error.errorDescription ?? "delegate failed")
+      return .failure(.delegateFailure(error.errorDescription ?? "delegate failed"))
     } catch let error as AgentExecutionError {
-      return .failure("sub-agent failed: \(error.localizedDescription)")
+      return .failure(.delegateFailure("sub-agent failed: \(error.localizedDescription)"))
     } catch {
-      return .failure("sub-agent failed: \(error.localizedDescription)")
+      return .failure(.delegateFailure("sub-agent failed: \(error.localizedDescription)"))
     }
   }
 }

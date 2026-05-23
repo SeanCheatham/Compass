@@ -45,32 +45,33 @@ struct AgentWriteFileTool: AgentTool {
     do {
       args = try JSONDecoder().decode(Arguments.self, from: arguments)
     } catch {
-      return .failure("Failed to decode arguments: \(error.localizedDescription)")
+      return .failure(.invalidArguments(error.localizedDescription))
     }
 
     let url: URL
     do {
       url = try context.resolvePath(args.path)
     } catch let error as AgentToolError {
-      return .failure(error.errorDescription ?? "path resolution failed")
+      return .failure(error)
     } catch {
-      return .failure("path resolution failed: \(error.localizedDescription)")
+      return .failure(.invalidArguments("path resolution failed: \(error.localizedDescription)"))
     }
 
     let existing: FileMetadata?
     do {
       existing = try await context.filesystem.metadata(of: url)
     } catch let error as AgentFilesystemError {
-      return .failure(error.errorDescription ?? "stat failed")
+      return .failure(.ioFailure(error.errorDescription ?? "stat failed"))
     } catch {
-      return .failure("stat failed: \(error.localizedDescription)")
+      return .failure(.ioFailure("stat failed: \(error.localizedDescription)"))
     }
     if let existing, existing.isRegularFile,
       await !context.readTracker.wasRead(url)
     {
       return .failure(
-        "write_file would overwrite \(context.relativize(url)) but it has not been read in this session. Call read_file first to confirm its current contents before replacing them."
-      )
+        .readNotTracked(
+          "write_file would overwrite \(context.relativize(url)) but it has not been read in this session. Call read_file first to confirm its current contents before replacing them."
+        ))
     }
 
     let data = Data(args.content.utf8)
@@ -79,13 +80,14 @@ struct AgentWriteFileTool: AgentTool {
     } catch let error as AgentFilesystemError {
       switch error {
       case .notRegularFile:
-        return .failure(
-          AgentToolError.notRegularFile(args.path).errorDescription ?? "not a regular file")
+        return .failure(.notRegularFile(args.path))
+      case .transportFailure(let detail):
+        return .failure(.rpcFailure(detail))
       default:
-        return .failure(error.errorDescription ?? "I/O failure")
+        return .failure(.ioFailure(error.errorDescription ?? "I/O failure"))
       }
     } catch {
-      return .failure("write failed: \(error.localizedDescription)")
+      return .failure(.ioFailure("write failed: \(error.localizedDescription)"))
     }
 
     await context.readTracker.markRead(url)

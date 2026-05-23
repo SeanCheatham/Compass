@@ -360,11 +360,21 @@ final class AgentExecutor {
         do {
           result = try await tool.invoke(
             arguments: Data(toolCall.arguments.utf8), context: toolContext)
+        } catch let toolError as AgentToolError {
+          // Preserve the typed kind so the UI / logs can categorize.
+          let failure = AgentToolInvocationResult.failure(toolError)
+          messages.append(
+            .tool(.init(content: .textContent(failure.content), toolCallId: toolCall.id)))
+          emitToolEnd(
+            name: toolCall.name, arguments: toolCall.arguments, result: failure,
+            correlationID: toolCall.id)
+          continue
         } catch {
           let message = "Tool \(toolCall.name) threw: \(error.localizedDescription)"
           messages.append(.tool(.init(content: .textContent(message), toolCallId: toolCall.id)))
           emitToolEnd(
-            name: toolCall.name, arguments: toolCall.arguments, result: .failure(message),
+            name: toolCall.name, arguments: toolCall.arguments,
+            result: .failure(message, kind: .unknown),
             correlationID: toolCall.id)
           continue
         }
@@ -495,7 +505,11 @@ final class AgentExecutor {
 
   // MARK: - Streaming aggregation
 
-  private struct AggregatedTurn {
+  /// Aggregated result of one chat-completions streaming turn. Internal
+  /// (rather than fileprivate) so tests can build canned streams and
+  /// exercise `aggregate(stream:)` directly without standing up an
+  /// `OpenAI` client.
+  struct AggregatedTurn: Equatable {
     var assistantText: String
     var reasoningText: String
     var toolCalls: [PendingToolCall]
@@ -508,7 +522,7 @@ final class AgentExecutor {
     var totalTokens: Int?
   }
 
-  private struct PendingToolCall {
+  struct PendingToolCall: Equatable {
     var index: Int
     var id: String
     var name: String
@@ -687,13 +701,24 @@ final class AgentExecutor {
     openAI: OpenAI,
     query: ChatQuery
   ) async throws -> AggregatedTurn {
+    try await aggregate(stream: openAI.chatsStream(query: query))
+  }
+
+  /// Aggregate a chat-completions stream into a single `AggregatedTurn`.
+  /// Internal seam so tests can hand a canned `AsyncThrowingStream` in
+  /// without standing up an `OpenAI` client. Cancellation honours
+  /// `self.cancelled` (so `cancel()` while a turn is in flight still
+  /// short-circuits) and `CancellationError` from the upstream stream
+  /// itself.
+  func aggregate<S: AsyncSequence>(stream: S) async throws -> AggregatedTurn
+  where S.Element == ChatStreamResult {
     var assistantText = ""
     var reasoningText = ""
     var pending: [Int: PendingToolCall] = [:]
     var finishReason: String?
     var totalTokens: Int?
 
-    for try await chunk in openAI.chatsStream(query: query) {
+    for try await chunk in stream {
       if cancelled { throw AgentExecutionError.cancelled }
       // The final chunk emitted by `include_usage` carries an empty
       // `choices` array but a populated `usage` field. Take the last
@@ -1091,53 +1116,4 @@ final class AgentExecutor {
     return String(stripped.prefix(limit)) + " ..."
   }
 
-  // MARK: - Tool registries
-
-  /// Tools the Plan and Reflect phases get: read-only file access, the
-  /// codemap-backed structural lookups, and `delegate` for spawning
-  /// focused sub-agents. Plan/Reflect/Develop/Critic all share the
-  /// codemap tools so a Develop pass can answer "where is X defined?"
-  /// without paging through `glob`/`grep`.
-  static func readOnlyTools() -> [AgentTool] {
-    [
-      AgentReadFileTool(),
-      AgentLsTool(),
-      AgentGrepTool(),
-      AgentGlobTool(),
-      AgentOutlineTool(),
-      AgentFindSymbolTool(),
-      AgentSummaryTool(),
-      AgentListFilesTool(),
-      AgentImportersOfTool(),
-      AgentDelegateTool(),
-    ]
-  }
-
-  /// Tools the Develop phase gets: read-only set plus write/edit/bash.
-  static func developTools() -> [AgentTool] {
-    readOnlyTools() + [
-      AgentWriteFileTool(),
-      AgentEditFileTool(),
-      AgentBashTool(),
-    ]
-  }
-
-  /// Read-only set plus `bash`. Used by every phase that should be able
-  /// to probe the project (build, test, run a linter, inspect git
-  /// history) without mutating tracked files: Plan and Reflect ground
-  /// their decisions in real build/test output, and Critic runs extra
-  /// checks during adversarial review. The system prompt reinforces
-  /// "no mutating commands" since `bash` itself can't enforce intent.
-  static func inspectionTools() -> [AgentTool] {
-    readOnlyTools() + [
-      AgentBashTool()
-    ]
-  }
-
-  static func toolsForPhase(_ phase: AgentPhase) -> [AgentTool] {
-    switch phase {
-    case .plan, .reflect, .critic: return inspectionTools()
-    case .develop: return developTools()
-    }
-  }
 }

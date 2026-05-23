@@ -56,11 +56,11 @@ struct AgentBashTool: AgentTool {
     do {
       args = try JSONDecoder().decode(Arguments.self, from: arguments)
     } catch {
-      return .failure("Failed to decode arguments: \(error.localizedDescription)")
+      return .failure(.invalidArguments(error.localizedDescription))
     }
     let command = args.command.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !command.isEmpty else {
-      return .failure("command is empty")
+      return .failure(.invalidArguments("command is empty"))
     }
 
     let cwd: URL
@@ -68,15 +68,15 @@ struct AgentBashTool: AgentTool {
       do {
         cwd = try context.resolvePath(raw)
       } catch let error as AgentToolError {
-        return .failure(error.errorDescription ?? "path resolution failed")
+        return .failure(error)
       } catch {
-        return .failure("path resolution failed: \(error.localizedDescription)")
+        return .failure(.invalidArguments("path resolution failed: \(error.localizedDescription)"))
       }
       var isDirectory: ObjCBool = false
       guard FileManager.default.fileExists(atPath: cwd.path, isDirectory: &isDirectory),
         isDirectory.boolValue
       else {
-        return .failure(AgentToolError.notDirectory(raw).errorDescription ?? "not a directory")
+        return .failure(.notDirectory(raw))
       }
     } else {
       cwd = context.workingDirectory
@@ -95,7 +95,7 @@ struct AgentBashTool: AgentTool {
         timeout: timeoutSeconds
       )
     } catch {
-      return .failure("bash launch failed: \(error.localizedDescription)")
+      return .failure(.bashFailure("launch failed: \(error.localizedDescription)"))
     }
     let elapsed = Date().timeIntervalSince(startedAt)
     let timedOut = elapsed >= timeoutSeconds - 0.1 && result.exitCode != 0

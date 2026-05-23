@@ -73,6 +73,9 @@ let package = Package(
       ],
       exclude: [
         "SharedVM/README.md"
+      ],
+      resources: [
+        .process("Resources")
       ]
     ),
     .testTarget(

@@ -1,0 +1,37 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["status", "summary", "feedback", "bypassVerify", "lessonEdits"],
+  "properties": {
+    "status": {
+      "type": "string",
+      "enum": ["succeeded", "blocked", "failed"]
+    },
+    "summary": { "type": "string" },
+    "feedback": { "type": "string" },
+    "bypassVerify": {
+      "anyOf": [
+        { "type": "boolean" },
+        { "type": "null" }
+      ]
+    },
+    "lessonEdits": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["find", "replace", "replaceAll"],
+        "properties": {
+          "find": { "type": "string" },
+          "replace": { "type": "string" },
+          "replaceAll": {
+            "anyOf": [
+              { "type": "boolean" },
+              { "type": "null" }
+            ]
+          }
+        }
+      }
+    }
+  }
+}

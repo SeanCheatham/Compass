@@ -19,7 +19,8 @@ final class AgentDelegateToolTests: XCTestCase {
       context: context(runner: StubRunner(reply: "ignored"))
     )
     XCTAssertTrue(result.isError)
-    XCTAssertEqual(result.content, "task is empty")
+    XCTAssertEqual(result.errorKind, .invalidArguments)
+    XCTAssertTrue(result.content.contains("task is empty"))
   }
 
   func testInvokeReturnsFailureWhenDelegateRunnerIsAbsent() async throws {

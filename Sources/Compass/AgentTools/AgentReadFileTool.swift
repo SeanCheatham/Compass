@@ -53,16 +53,16 @@ struct AgentReadFileTool: AgentTool {
     do {
       args = try JSONDecoder().decode(Arguments.self, from: arguments)
     } catch {
-      return .failure("Failed to decode arguments: \(error.localizedDescription)")
+      return .failure(.invalidArguments(error.localizedDescription))
     }
 
     let url: URL
     do {
       url = try context.resolvePath(args.path)
     } catch let error as AgentToolError {
-      return .failure(error.errorDescription ?? "path resolution failed")
+      return .failure(error)
     } catch {
-      return .failure("path resolution failed: \(error.localizedDescription)")
+      return .failure(.invalidArguments("path resolution failed: \(error.localizedDescription)"))
     }
 
     let data: Data
@@ -71,19 +71,20 @@ struct AgentReadFileTool: AgentTool {
     } catch let error as AgentFilesystemError {
       switch error {
       case .notFound:
-        return .failure(AgentToolError.fileNotFound(args.path).errorDescription ?? "not found")
+        return .failure(.fileNotFound(args.path))
       case .notRegularFile:
-        return .failure(
-          AgentToolError.notRegularFile(args.path).errorDescription ?? "not a regular file")
+        return .failure(.notRegularFile(args.path))
+      case .transportFailure(let detail):
+        return .failure(.rpcFailure(detail))
       default:
-        return .failure(error.errorDescription ?? "I/O failure")
+        return .failure(.ioFailure(error.errorDescription ?? "I/O failure"))
       }
     } catch {
-      return .failure("read failed: \(error.localizedDescription)")
+      return .failure(.ioFailure("read failed: \(error.localizedDescription)"))
     }
 
     if data.prefix(8192).contains(0) {
-      return .failure(AgentToolError.binaryFile(args.path).errorDescription ?? "binary file")
+      return .failure(.binaryFile(args.path))
     }
 
     let text = String(decoding: data, as: UTF8.self)

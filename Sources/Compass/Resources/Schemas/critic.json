@@ -1,0 +1,13 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["verdict", "summary", "feedback"],
+  "properties": {
+    "verdict": {
+      "type": "string",
+      "enum": ["approve", "request_changes"]
+    },
+    "summary": { "type": "string" },
+    "feedback": { "type": "string" }
+  }
+}

@@ -222,7 +222,7 @@ final class AgentCodemapToolsTests: XCTestCase {
   // MARK: - Registration
 
   func testCodemapToolsAreRegisteredInReadOnlySet() {
-    let names = AgentExecutor.readOnlyTools().map(\.spec.name)
+    let names = ToolRegistry.readOnlyTools().map(\.spec.name)
     XCTAssertTrue(names.contains(AgentOutlineTool.toolName))
     XCTAssertTrue(names.contains(AgentFindSymbolTool.toolName))
     XCTAssertTrue(names.contains(AgentSummaryTool.toolName))

@@ -24,16 +24,70 @@ struct AgentToolSpec: Sendable, Equatable {
   let parameters: AgentToolParametersSchema
 }
 
+/// Categorical bucket for tool failures. Surfaced alongside the
+/// human-readable failure message so the executor (retry decisions),
+/// UI (icons / grouping), and tests can branch on the *kind* of
+/// failure without parsing strings.
+///
+/// Existing call sites that pass only a message keep working — `kind`
+/// defaults to `nil`. New code should prefer the typed
+/// `.failure(AgentToolError)` overload, which derives the kind for
+/// free.
+enum AgentToolErrorKind: String, Sendable, Equatable, Codable {
+  /// Tool arguments JSON missing required fields or wrong types.
+  case invalidArguments
+  /// Path resolution escaped the working directory.
+  case pathEscape
+  /// File / directory the agent referenced does not exist.
+  case fileNotFound
+  /// Path exists but is not a regular file.
+  case notRegularFile
+  /// Path exists but is not a directory.
+  case notDirectory
+  /// File is binary / not safe to treat as text.
+  case binaryFile
+  /// Mutation attempted against a file the agent has not freshly
+  /// read in this run (`AgentReadTracker` rejected the edit).
+  case readNotTracked
+  /// `edit_file` find/replace did not match the expected oldString.
+  case editConflict
+  /// Underlying I/O failed (permission denied, disk error, ...).
+  case ioFailure
+  /// RPC to the guest VM failed (vsock, framing, decode).
+  case rpcFailure
+  /// Bash command failed with a non-zero exit.
+  case bashFailure
+  /// Sub-agent delegation failed before producing a result.
+  case delegateFailure
+  /// Catch-all for unclassified errors thrown out of a tool.
+  case unknown
+}
+
 struct AgentToolInvocationResult: Sendable, Equatable {
   var content: String
   var isError: Bool
+  /// Optional categorical kind for failure results. Always `nil` for
+  /// success results. Pre-existing string-based failure sites keep
+  /// returning `nil` until migrated; new sites should use the typed
+  /// `.failure(AgentToolError)` overload.
+  var errorKind: AgentToolErrorKind?
 
   static func ok(_ content: String) -> Self {
-    .init(content: content, isError: false)
+    .init(content: content, isError: false, errorKind: nil)
   }
 
-  static func failure(_ message: String) -> Self {
-    .init(content: message, isError: true)
+  static func failure(_ message: String, kind: AgentToolErrorKind? = nil) -> Self {
+    .init(content: message, isError: true, errorKind: kind)
+  }
+
+  /// Typed failure: maps the tool-level error to its categorical
+  /// kind and uses the localized description as the message.
+  static func failure(_ error: AgentToolError) -> Self {
+    .init(
+      content: error.errorDescription ?? "Tool error",
+      isError: true,
+      errorKind: error.kind
+    )
   }
 }
 
@@ -99,6 +153,18 @@ enum AgentToolError: LocalizedError, Equatable {
   case notRegularFile(String)
   case notDirectory(String)
   case binaryFile(String)
+  /// Mutation attempted against a path the agent hasn't read this run.
+  case readNotTracked(String)
+  /// `edit_file` find/replace failed to match.
+  case editConflict(String)
+  /// I/O failure surfaced by the underlying filesystem.
+  case ioFailure(String)
+  /// RPC to the shared VM guest failed (vsock / framing / decode).
+  case rpcFailure(String)
+  /// Bash command exited non-zero or could not be launched.
+  case bashFailure(String)
+  /// Sub-agent delegation could not complete (no runner, sub-agent threw).
+  case delegateFailure(String)
 
   var errorDescription: String? {
     switch self {
@@ -109,6 +175,30 @@ enum AgentToolError: LocalizedError, Equatable {
     case .notRegularFile(let path): return "Not a regular file: \(path)"
     case .notDirectory(let path): return "Not a directory: \(path)"
     case .binaryFile(let path): return "Cannot read binary file: \(path)"
+    case .readNotTracked(let detail): return detail
+    case .editConflict(let detail): return "Edit did not apply: \(detail)"
+    case .ioFailure(let detail): return "I/O failure: \(detail)"
+    case .rpcFailure(let detail): return "Guest RPC failed: \(detail)"
+    case .bashFailure(let detail): return "Bash command failed: \(detail)"
+    case .delegateFailure(let detail): return "Delegation failed: \(detail)"
+    }
+  }
+
+  /// The categorical kind this error maps to on the result side.
+  var kind: AgentToolErrorKind {
+    switch self {
+    case .invalidArguments: return .invalidArguments
+    case .pathEscapesWorkingDirectory: return .pathEscape
+    case .fileNotFound: return .fileNotFound
+    case .notRegularFile: return .notRegularFile
+    case .notDirectory: return .notDirectory
+    case .binaryFile: return .binaryFile
+    case .readNotTracked: return .readNotTracked
+    case .editConflict: return .editConflict
+    case .ioFailure: return .ioFailure
+    case .rpcFailure: return .rpcFailure
+    case .bashFailure: return .bashFailure
+    case .delegateFailure: return .delegateFailure
     }
   }
 }

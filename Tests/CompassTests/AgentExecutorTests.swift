@@ -50,7 +50,7 @@ final class AgentExecutorTests: XCTestCase {
   }
 
   func testDefaultWallClockTimeoutIsOneHour() {
-    let configuration = makeConfiguration(phase: .plan, tools: AgentExecutor.readOnlyTools())
+    let configuration = makeConfiguration(phase: .plan, tools: ToolRegistry.readOnlyTools())
     XCTAssertEqual(configuration.wallClockTimeout, 60 * 60)
   }
 
@@ -136,15 +136,15 @@ final class AgentExecutorTests: XCTestCase {
   // MARK: - ensureUniqueToolNames
 
   func testEnsureUniqueToolNamesAcceptsDistinctTools() throws {
-    XCTAssertNoThrow(try AgentExecutor.ensureUniqueToolNames(AgentExecutor.readOnlyTools()))
-    XCTAssertNoThrow(try AgentExecutor.ensureUniqueToolNames(AgentExecutor.developTools()))
-    XCTAssertNoThrow(try AgentExecutor.ensureUniqueToolNames(AgentExecutor.inspectionTools()))
+    XCTAssertNoThrow(try AgentExecutor.ensureUniqueToolNames(ToolRegistry.readOnlyTools()))
+    XCTAssertNoThrow(try AgentExecutor.ensureUniqueToolNames(ToolRegistry.developTools()))
+    XCTAssertNoThrow(try AgentExecutor.ensureUniqueToolNames(ToolRegistry.inspectionTools()))
   }
 
   // MARK: - Tool registry per phase
 
   func testCriticPhaseGetsReadOnlyPlusBash() {
-    let names = Set(AgentExecutor.toolsForPhase(.critic).map { $0.spec.name })
+    let names = Set(ToolRegistry.tools(for: .critic).map { $0.spec.name })
     XCTAssertTrue(names.contains(AgentBashTool.toolName))
     XCTAssertTrue(names.contains(AgentReadFileTool.toolName))
     XCTAssertTrue(names.contains(AgentFindSymbolTool.toolName))
@@ -159,7 +159,7 @@ final class AgentExecutorTests: XCTestCase {
 
   func testDelegateToolIsExposedToAllPhases() {
     for phase in AgentPhase.allCases {
-      let names = Set(AgentExecutor.toolsForPhase(phase).map { $0.spec.name })
+      let names = Set(ToolRegistry.tools(for: phase).map { $0.spec.name })
       XCTAssertTrue(
         names.contains(AgentDelegateTool.toolName),
         "phase \(phase) must include `delegate`")
@@ -200,7 +200,7 @@ final class AgentExecutorTests: XCTestCase {
   func testBuildOpenAIToolsIncludesEveryToolPlusSubmitResult() throws {
     let configuration = makeConfiguration(
       phase: .plan,
-      tools: AgentExecutor.readOnlyTools()
+      tools: ToolRegistry.readOnlyTools()
     )
     let params = try AgentExecutor.buildOpenAITools(configuration: configuration)
     let names = params.map { $0.function.name }
@@ -235,7 +235,7 @@ final class AgentExecutorTests: XCTestCase {
     ])
     let configuration = makeConfiguration(
       phase: .develop,
-      tools: AgentExecutor.developTools(),
+      tools: ToolRegistry.developTools(),
       submitResultSchema: schema
     )
     let params = try AgentExecutor.buildOpenAITools(configuration: configuration)
@@ -254,9 +254,9 @@ final class AgentExecutorTests: XCTestCase {
   // MARK: - phase routing
 
   func testToolsForPhasePicksInspectionSetForPlanAndReflect() {
-    let planNames = Set(AgentExecutor.toolsForPhase(.plan).map { $0.spec.name })
-    let reflectNames = Set(AgentExecutor.toolsForPhase(.reflect).map { $0.spec.name })
-    let inspectionNames = Set(AgentExecutor.inspectionTools().map { $0.spec.name })
+    let planNames = Set(ToolRegistry.tools(for: .plan).map { $0.spec.name })
+    let reflectNames = Set(ToolRegistry.tools(for: .reflect).map { $0.spec.name })
+    let inspectionNames = Set(ToolRegistry.inspectionTools().map { $0.spec.name })
     XCTAssertEqual(planNames, inspectionNames)
     XCTAssertEqual(reflectNames, inspectionNames)
     XCTAssertTrue(
@@ -272,7 +272,7 @@ final class AgentExecutorTests: XCTestCase {
   }
 
   func testToolsForPhasePicksFullSetForDevelop() {
-    let names = Set(AgentExecutor.toolsForPhase(.develop).map { $0.spec.name })
+    let names = Set(ToolRegistry.tools(for: .develop).map { $0.spec.name })
     XCTAssertTrue(names.contains(AgentBashTool.toolName))
     XCTAssertTrue(names.contains(AgentWriteFileTool.toolName))
     XCTAssertTrue(names.contains(AgentEditFileTool.toolName))
@@ -541,6 +541,35 @@ final class AgentExecutorTests: XCTestCase {
     XCTAssertTrue(
       recapText.contains("submit_result"),
       "recap should remind the model how to finish the phase")
+  }
+
+  // MARK: - Typed tool errors
+
+  func testAgentToolErrorKindMapsThroughFailureOverload() {
+    XCTAssertEqual(
+      AgentToolInvocationResult.failure(.fileNotFound("missing.txt")).errorKind,
+      .fileNotFound
+    )
+    XCTAssertEqual(
+      AgentToolInvocationResult.failure(.editConflict("oldString not found")).errorKind,
+      .editConflict
+    )
+    XCTAssertEqual(
+      AgentToolInvocationResult.failure(.rpcFailure("vsock disconnected")).errorKind,
+      .rpcFailure
+    )
+    XCTAssertEqual(
+      AgentToolInvocationResult.failure(.invalidArguments("bad json")).errorKind,
+      .invalidArguments
+    )
+  }
+
+  func testAgentToolErrorKindIsNilForSuccess() {
+    XCTAssertNil(AgentToolInvocationResult.ok("done").errorKind)
+  }
+
+  func testLegacyStringFailureKeepsNilKindForBackwardsCompat() {
+    XCTAssertNil(AgentToolInvocationResult.failure("plain string").errorKind)
   }
 
   // MARK: - helpers

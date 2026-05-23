@@ -77,20 +77,24 @@ struct AgentEditFileTool: AgentTool {
     do {
       args = try JSONDecoder().decode(Arguments.self, from: arguments)
     } catch {
-      return .failure("Failed to decode arguments: \(error.localizedDescription)")
+      return .failure(.invalidArguments(error.localizedDescription))
     }
 
     guard !args.edits.isEmpty else {
-      return .failure("edits is empty; pass at least one find/replace operation")
+      return .failure(
+        .invalidArguments("edits is empty; pass at least one find/replace operation"))
     }
 
     for (idx, edit) in args.edits.enumerated() {
       if edit.oldString.isEmpty {
         return .failure(
-          "edits[\(idx)].oldString is empty; use write_file to create a file from scratch")
+          .invalidArguments(
+            "edits[\(idx)].oldString is empty; use write_file to create a file from scratch"))
       }
       if edit.oldString == edit.newString {
-        return .failure("edits[\(idx)] oldString and newString are identical; no edit needed")
+        return .failure(
+          .invalidArguments(
+            "edits[\(idx)] oldString and newString are identical; no edit needed"))
       }
     }
 
@@ -98,15 +102,16 @@ struct AgentEditFileTool: AgentTool {
     do {
       url = try context.resolvePath(args.path)
     } catch let error as AgentToolError {
-      return .failure(error.errorDescription ?? "path resolution failed")
+      return .failure(error)
     } catch {
-      return .failure("path resolution failed: \(error.localizedDescription)")
+      return .failure(.invalidArguments("path resolution failed: \(error.localizedDescription)"))
     }
 
     if await !context.readTracker.wasRead(url) {
       return .failure(
-        "edit_file requires a prior read_file for \(context.relativize(url)) in this session. Read the file first so you are editing contents you have actually seen."
-      )
+        .readNotTracked(
+          "edit_file requires a prior read_file for \(context.relativize(url)) in this session. Read the file first so you are editing contents you have actually seen."
+        ))
     }
 
     let originalData: Data
@@ -115,18 +120,19 @@ struct AgentEditFileTool: AgentTool {
     } catch let error as AgentFilesystemError {
       switch error {
       case .notFound:
-        return .failure(AgentToolError.fileNotFound(args.path).errorDescription ?? "not found")
+        return .failure(.fileNotFound(args.path))
       case .notRegularFile:
-        return .failure(
-          AgentToolError.notRegularFile(args.path).errorDescription ?? "not a regular file")
+        return .failure(.notRegularFile(args.path))
+      case .transportFailure(let detail):
+        return .failure(.rpcFailure(detail))
       default:
-        return .failure(error.errorDescription ?? "I/O failure")
+        return .failure(.ioFailure(error.errorDescription ?? "filesystem error"))
       }
     } catch {
-      return .failure("read failed: \(error.localizedDescription)")
+      return .failure(.ioFailure("read failed: \(error.localizedDescription)"))
     }
     if originalData.prefix(8192).contains(0) {
-      return .failure(AgentToolError.binaryFile(args.path).errorDescription ?? "binary file")
+      return .failure(.binaryFile(args.path))
     }
 
     var current = String(decoding: originalData, as: UTF8.self)
@@ -143,12 +149,13 @@ struct AgentEditFileTool: AgentTool {
         if !hints.isEmpty {
           message += "\nLines that look similar:\n" + hints.joined(separator: "\n")
         }
-        return .failure(message)
+        return .failure(.editConflict(message))
       }
       if occurrences > 1 && !replaceAll {
         return .failure(
-          "edits[\(idx)] oldString matches \(occurrences) places in \(relative); include more surrounding context or set replaceAll: true"
-        )
+          .editConflict(
+            "edits[\(idx)] oldString matches \(occurrences) places in \(relative); include more surrounding context or set replaceAll: true"
+          ))
       }
 
       if replaceAll {
@@ -158,16 +165,19 @@ struct AgentEditFileTool: AgentTool {
         current = current.replacingCharacters(in: range, with: edit.newString)
         totalReplaced += 1
       } else {
-        return .failure("edits[\(idx)] oldString not found in \(relative)")
+        return .failure(.editConflict("edits[\(idx)] oldString not found in \(relative)"))
       }
     }
 
     do {
       try await context.filesystem.writeFile(Data(current.utf8), at: url)
     } catch let error as AgentFilesystemError {
-      return .failure(error.errorDescription ?? "I/O failure")
+      if case .transportFailure(let detail) = error {
+        return .failure(.rpcFailure(detail))
+      }
+      return .failure(.ioFailure(error.errorDescription ?? "I/O failure"))
     } catch {
-      return .failure("write failed: \(error.localizedDescription)")
+      return .failure(.ioFailure("write failed: \(error.localizedDescription)"))
     }
 
     await context.readTracker.markRead(url)

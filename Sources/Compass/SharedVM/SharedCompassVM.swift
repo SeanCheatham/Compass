@@ -27,6 +27,107 @@ final class SharedCompassVM: ObservableObject {
 
   @Published private(set) var readiness: SharedCompassVMReadiness = .notProvisioned
 
+  /// Single chokepoint for `readiness` mutations. Every code path inside
+  /// `SharedCompassVM` flows readiness changes through this method so:
+  /// - The current → next transition is auditable in one place (handy
+  ///   for debugging the multi-step provisioning flow).
+  /// - Future invariants (e.g. "once `.unavailable`, never leave",
+  ///   "progress-bearing states can only feed back into themselves or
+  ///   into `.ready` / `.error`") can be enforced here without hunting
+  ///   down 30+ scattered call sites.
+  /// - The legal-transition table lives next to the chokepoint and the
+  ///   state-machine tests (see `SharedCompassVMTransitionTests`) exercise
+  ///   it directly.
+  ///
+  /// Repeated assignments of the same state are a no-op so callers can
+  /// idempotently nudge the state machine without producing churn on
+  /// `@Published` subscribers.
+  fileprivate func transition(to next: SharedCompassVMReadiness) {
+    let current = readiness
+    guard Self.isLegalTransition(from: current, to: next) else {
+      assertionFailure(
+        "Illegal readiness transition: \(Self.transitionLabel(current)) → \(Self.transitionLabel(next))"
+      )
+      readiness = next
+      return
+    }
+    if current == next { return }
+    readiness = next
+  }
+
+  /// Whether `next` is a permitted successor of `current`. The matrix is
+  /// intentionally generous: every state can return to `.error`,
+  /// `.unavailable`, or `.notProvisioned` (cancellation / teardown
+  /// paths), and `.ready` can drop back to a re-provisioning prefix
+  /// when the user requests a re-install. Tightening further would
+  /// require lifecycle plumbing that doesn't pay for itself yet.
+  static func isLegalTransition(
+    from current: SharedCompassVMReadiness,
+    to next: SharedCompassVMReadiness
+  ) -> Bool {
+    // Same-state nudges (e.g. progress fractions ticking up) are always
+    // legal and the chokepoint folds them into a no-op above.
+    if current == next { return true }
+
+    // Absorbing-style terminal/initial states can always be entered.
+    switch next {
+    case .error, .unavailable, .notProvisioned:
+      return true
+    default:
+      break
+    }
+
+    // From here we judge the legality of forward progress.
+    switch (current, next) {
+    case (.unavailable, _):
+      // `.unavailable` only releases on a re-evaluation that produces
+      // `.notProvisioned`, which is handled above.
+      return false
+    case (.notProvisioned, .downloadingIPSW),
+      (.notProvisioned, .installing),
+      (.notProvisioned, .guestPrepping),
+      (.notProvisioned, .provisioningDevTools),
+      (.notProvisioned, .ready):
+      return true
+    case (.downloadingIPSW, .downloadingIPSW),
+      (.downloadingIPSW, .installing):
+      return true
+    case (.installing, .installing),
+      (.installing, .guestPrepping):
+      return true
+    case (.guestPrepping, .guestPrepping),
+      (.guestPrepping, .provisioningDevTools),
+      (.guestPrepping, .ready):
+      return true
+    case (.provisioningDevTools, .provisioningDevTools),
+      (.provisioningDevTools, .ready):
+      return true
+    case (.ready, .guestPrepping),
+      (.ready, .provisioningDevTools),
+      (.ready, .ready):
+      // Re-warming an already-booted VM after a stop, or re-running
+      // dev-tools provisioning.
+      return true
+    default:
+      return false
+    }
+  }
+
+  /// Short, log-friendly label for a state. Strips the associated
+  /// values so a transition log line stays readable.
+  private static func transitionLabel(_ state: SharedCompassVMReadiness) -> String {
+    switch state {
+    case .unavailable: return "unavailable"
+    case .notProvisioned: return "notProvisioned"
+    case .downloadingIPSW: return "downloadingIPSW"
+    case .installing: return "installing"
+    case .guestPrepping: return "guestPrepping"
+    case .provisioningDevTools: return "provisioningDevTools"
+    case .ready: return "ready"
+    case .error: return "error"
+    }
+  }
+
   /// Snapshot of the most recent persisted state document. Updated whenever
   /// `readiness` is recomputed from disk.
   @Published private(set) var persistedState: SharedCompassVMBundle.State?
@@ -142,7 +243,7 @@ final class SharedCompassVM: ObservableObject {
     self.dependencies = dependencies
     self.fallbackUnavailableReason = fallbackUnavailableReason
     if let reason = fallbackUnavailableReason {
-      readiness = .unavailable(reason: reason)
+      transition(to: .unavailable(reason: reason))
     }
     installSleepObserver()
   }
@@ -163,12 +264,12 @@ final class SharedCompassVM: ObservableObject {
   /// the VM. Safe to call from `AppModel.bootstrap`.
   func warmup() async throws {
     if let reason = fallbackUnavailableReason {
-      readiness = .unavailable(reason: reason)
+      transition(to: .unavailable(reason: reason))
       return
     }
     let availability = dependencies.availability()
     if case .unavailable(let reason) = availability {
-      readiness = .unavailable(reason: reason)
+      transition(to: .unavailable(reason: reason))
       return
     }
 
@@ -192,20 +293,20 @@ final class SharedCompassVM: ObservableObject {
         if let ip = state.lastKnownGoodIP {
           lastResolvedSSHDestination = "\(state.guestUserName)@\(ip)"
         }
-        readiness = .guestPrepping
+        transition(to: .guestPrepping)
       case .guestPrepping:
-        readiness = .guestPrepping
+        transition(to: .guestPrepping)
       case .provisioningDevTools:
-        readiness = .provisioningDevTools(fractionCompleted: 0)
+        transition(to: .provisioningDevTools(fractionCompleted: 0))
       case .installing:
-        readiness = .installing(fractionCompleted: 0)
+        transition(to: .installing(fractionCompleted: 0))
       case .downloadingIPSW:
-        readiness = .downloadingIPSW(fractionCompleted: 0)
+        transition(to: .downloadingIPSW(fractionCompleted: 0))
       case .notProvisioned:
-        readiness = .notProvisioned
+        transition(to: .notProvisioned)
       }
     } else {
-      readiness = .notProvisioned
+      transition(to: .notProvisioned)
     }
   }
 
@@ -229,12 +330,12 @@ final class SharedCompassVM: ObservableObject {
 
   private func performProvisionIfNeeded(localIPSWURL: URL? = nil) async throws {
     if let reason = fallbackUnavailableReason {
-      readiness = .unavailable(reason: reason)
+      transition(to: .unavailable(reason: reason))
       return
     }
     let availability = dependencies.availability()
     if case .unavailable(let reason) = availability {
-      readiness = .unavailable(reason: reason)
+      transition(to: .unavailable(reason: reason))
       return
     }
 
@@ -246,7 +347,7 @@ final class SharedCompassVM: ObservableObject {
     do {
       try bundle.ensureSSHKeypair(fileManager: dependencies.fileManager)
     } catch {
-      readiness = .error(detail: SharedCompassVMAvailabilityCheck.describe(error: error))
+      transition(to: .error(detail: SharedCompassVMAvailabilityCheck.describe(error: error)))
       throw error
     }
 
@@ -280,12 +381,12 @@ final class SharedCompassVM: ObservableObject {
       try bundle.mutateState(fileManager: dependencies.fileManager) {
         $0.provisionStep = .installing
       }
-      readiness = .installing(fractionCompleted: 0)
+      transition(to: .installing(fractionCompleted: 0))
     } else {
       try bundle.mutateState(fileManager: dependencies.fileManager) {
         $0.provisionStep = .downloadingIPSW
       }
-      readiness = .downloadingIPSW(fractionCompleted: 0)
+      transition(to: .downloadingIPSW(fractionCompleted: 0))
     }
 
     let installReport: SharedCompassVMImageInstaller.InstallReport
@@ -298,7 +399,7 @@ final class SharedCompassVM: ObservableObject {
         fileManager: dependencies.fileManager
       )
     } catch {
-      readiness = .error(detail: SharedCompassVMAvailabilityCheck.describeVerbose(error: error))
+      transition(to: .error(detail: SharedCompassVMAvailabilityCheck.describeVerbose(error: error)))
       throw error
     }
 
@@ -323,14 +424,14 @@ final class SharedCompassVM: ObservableObject {
     do {
       try await plantHeadlessFirstBoot(installReport: installReport)
     } catch {
-      readiness = .error(detail: SharedCompassVMAvailabilityCheck.describeVerbose(error: error))
+      transition(to: .error(detail: SharedCompassVMAvailabilityCheck.describeVerbose(error: error)))
       throw error
     }
     try bundle.mutateState(fileManager: dependencies.fileManager) {
       $0.provisionStep = .guestPrepping
       $0.guestOSVersion = installReport.buildVersion
     }
-    readiness = .guestPrepping
+    transition(to: .guestPrepping)
   }
 
   /// Renders and plants the headless first-boot payload against the
@@ -453,7 +554,7 @@ final class SharedCompassVM: ObservableObject {
     persistedState = try? bundle.loadState(fileManager: dependencies.fileManager)
     lastResolvedSSHDestination = nil
     setupFailureMessage = nil
-    readiness = .notProvisioned
+    transition(to: .notProvisioned)
   }
 
   /// Destructive recovery path for failed installs: clear partial artifacts,
@@ -490,7 +591,7 @@ final class SharedCompassVM: ObservableObject {
     do {
       try await task.value
     } catch {
-      readiness = .error(detail: SharedCompassVMAvailabilityCheck.describeVerbose(error: error))
+      transition(to: .error(detail: SharedCompassVMAvailabilityCheck.describeVerbose(error: error)))
       throw error
     }
   }
@@ -592,8 +693,8 @@ final class SharedCompassVM: ObservableObject {
       (try? bundle.loadState(fileManager: dependencies.fileManager))
       ?? SharedCompassVMBundle.State()
     guard let ip = state.lastKnownGoodIP else {
-      readiness = .error(
-        detail: "Resuming dev-tools install: guest IP is not cached. Reset and re-provision.")
+      transition(to: .error(
+        detail: "Resuming dev-tools install: guest IP is not cached. Reset and re-provision."))
       return
     }
     let destination = "\(state.guestUserName)@\(ip)"
@@ -616,12 +717,12 @@ final class SharedCompassVM: ObservableObject {
       attemptIntervalNanoseconds = min(attemptIntervalNanoseconds * 2, 10_000_000_000)
     }
     guard probeOK else {
-      readiness = .error(
-        detail: "Resuming dev-tools install: SSH probe to \(destination) timed out.")
+      transition(to: .error(
+        detail: "Resuming dev-tools install: SSH probe to \(destination) timed out."))
       return
     }
     lastResolvedSSHDestination = destination
-    readiness = .provisioningDevTools(fractionCompleted: 0)
+    transition(to: .provisioningDevTools(fractionCompleted: 0))
     await runDevToolsProvisioner(destination: destination)
   }
 
@@ -651,7 +752,7 @@ final class SharedCompassVM: ObservableObject {
       )
       if probeOK {
         lastResolvedSSHDestination = destination
-        readiness = .ready(sshDestination: destination)
+        transition(to: .ready(sshDestination: destination))
         return
       }
       try? await Task.sleep(nanoseconds: attemptIntervalNanoseconds)
@@ -799,7 +900,7 @@ final class SharedCompassVM: ObservableObject {
   func markSetupComplete() async {
     // Clear any prior failure message so the UI shows a fresh attempt.
     setupFailureMessage = nil
-    readiness = .guestPrepping
+    transition(to: .guestPrepping)
     _ = try? bundle.mutateState(fileManager: dependencies.fileManager) {
       $0.provisionStep = .guestPrepping
     }
@@ -868,7 +969,7 @@ final class SharedCompassVM: ObservableObject {
     _ = try? bundle.mutateState(fileManager: dependencies.fileManager) {
       $0.provisionStep = .provisioningDevTools
     }
-    readiness = .provisioningDevTools(fractionCompleted: 0)
+    transition(to: .provisioningDevTools(fractionCompleted: 0))
 
     await runDevToolsProvisioner(destination: destination)
   }
@@ -880,7 +981,7 @@ final class SharedCompassVM: ObservableObject {
   /// probe short-circuits and `progress(1)` fires immediately.
   private func runDevToolsProvisioner(destination: String) async {
     guard let machine = virtualMachine else {
-      readiness = .error(detail: "Shared VM is not running; cannot install developer tools.")
+      transition(to: .error(detail: "Shared VM is not running; cannot install developer tools."))
       return
     }
     let client = Self.makeVsockClient(on: machine)
@@ -890,25 +991,30 @@ final class SharedCompassVM: ObservableObject {
         runner: client,
         progress: { fraction in
           await MainActor.run {
-            host.readiness = .provisioningDevTools(fractionCompleted: fraction)
+            host.transition(to: .provisioningDevTools(fractionCompleted: fraction))
           }
         }
       )
     } catch {
-      readiness = .error(detail: "Developer-tools install failed: \(error)")
+      transition(to: .error(detail: "Developer-tools install failed: \(error)"))
       return
     }
 
     _ = try? bundle.mutateState(fileManager: dependencies.fileManager) {
       $0.provisionStep = .ready
     }
-    readiness = .ready(sshDestination: destination)
+    transition(to: .ready(sshDestination: destination))
   }
 
   /// Builds a vsock-backed agent client that opens a fresh
   /// `VZVirtioSocketConnection` per RPC against the supplied VM.
-  /// Mirrors `AppModel.makeVsockClient` so the dev-tools provisioner
-  /// can talk to the guest without taking a dependency on AppModel.
+  ///
+  /// This is the canonical factory for the in-guest RPC client. Callers
+  /// (Develop loops, worktree sync, dev-tools provisioner) go through
+  /// it so the connect-and-write path stays in one place — anything
+  /// outside SharedVM should treat the returned value as an
+  /// `AgentFilesystem & AgentBashRunner` pair, not as a vsock-specific
+  /// type.
   static func makeVsockClient(on machine: VZVirtualMachine) -> AgentVsockClient {
     AgentVsockClient(
       transportFactory: {
@@ -916,6 +1022,24 @@ final class SharedCompassVM: ObservableObject {
         return VZVirtioSocketTransport(connection: connection)
       }
     )
+  }
+
+  /// Convenience facade for non-VM callers (AppModel, executor wiring)
+  /// that need the host-or-guest filesystem + bash pair but don't want
+  /// to know whether the run will route through the VM.
+  ///
+  /// - When `vmMachine` is nil, returns the host-direct implementations.
+  /// - When `vmMachine` is non-nil, returns a single `AgentVsockClient`
+  ///   that conforms to both protocols and shells every operation over
+  ///   vsock to the in-guest agent.
+  static func agentTransport(
+    vmMachine: VZVirtualMachine?
+  ) -> (filesystem: AgentFilesystem, bashRunner: AgentBashRunner) {
+    if let machine = vmMachine {
+      let client = makeVsockClient(on: machine)
+      return (client, client)
+    }
+    return (AgentHostFilesystem(), AgentHostBashRunner())
   }
 
   // MARK: - Internals
@@ -937,20 +1061,20 @@ final class SharedCompassVM: ObservableObject {
 
   private func updateDownloadProgress(_ fraction: Double) {
     if case .downloadingIPSW = readiness {
-      readiness = .downloadingIPSW(fractionCompleted: fraction)
+      transition(to: .downloadingIPSW(fractionCompleted: fraction))
     } else if readiness == .notProvisioned {
-      readiness = .downloadingIPSW(fractionCompleted: fraction)
+      transition(to: .downloadingIPSW(fractionCompleted: fraction))
     }
     if fraction >= 1.0 {
       _ = try? bundle.mutateState(fileManager: dependencies.fileManager) {
         $0.provisionStep = .installing
       }
-      readiness = .installing(fractionCompleted: 0)
+      transition(to: .installing(fractionCompleted: 0))
     }
   }
 
   private func updateInstallProgress(_ fraction: Double) {
-    readiness = .installing(fractionCompleted: fraction)
+    transition(to: .installing(fractionCompleted: fraction))
   }
 
   // MARK: - Console pipe (guest IP discovery)

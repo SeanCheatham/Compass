@@ -1,218 +1,37 @@
 import Foundation
 
 enum Prompts {
-  static let planSchema = """
-    {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["state", "lessonEdits"],
-      "properties": {
-        "state": {
-          "type": "object",
-          "additionalProperties": false,
-          "required": ["completed", "immediate", "midTerm", "longTerm"],
-          "properties": {
-            "completed": {
-              "type": "array",
-              "items": { "type": "string" }
-            },
-            "immediate": {
-              "anyOf": [
-                {
-                  "type": "object",
-                  "additionalProperties": false,
-                  "required": ["plan", "verify", "verifyTimeoutMs", "estimatedDifficulty"],
-                  "properties": {
-                    "plan": { "type": "string" },
-                    "verify": { "type": "string" },
-                    "verifyTimeoutMs": {
-                      "anyOf": [
-                        { "type": "integer", "minimum": 1 },
-                        { "type": "null" }
-                      ]
-                    },
-                    "estimatedDifficulty": {
-                      "anyOf": [
-                        {
-                          "type": "string",
-                          "enum": ["low", "medium", "high"]
-                        },
-                        { "type": "null" }
-                      ]
-                    }
-                  }
-                },
-                { "type": "null" }
-              ]
-            },
-            "midTerm": { "type": "string" },
-            "longTerm": { "type": "string" }
-          }
-        },
-        "lessonEdits": {
-          "type": "array",
-          "items": {
-            "type": "object",
-            "additionalProperties": false,
-            "required": ["find", "replace", "replaceAll"],
-            "properties": {
-              "find": { "type": "string" },
-              "replace": { "type": "string" },
-              "replaceAll": {
-                "anyOf": [
-                  { "type": "boolean" },
-                  { "type": "null" }
-                ]
-              }
-            }
-          }
-        }
-      }
-    }
-    """
+  /// Phase output schemas live as standalone `.json` files under
+  /// `Resources/Schemas/`. They are loaded once on first access and
+  /// cached for the lifetime of the process. The build-time check is
+  /// `Bundle.module` — if a schema is missing or malformed, this trips
+  /// a `fatalError` at first read rather than silently shipping a
+  /// broken phase. Schemas are validated as JSON at load time so a
+  /// hand-edit that breaks syntax is caught immediately.
+  static let planSchema = loadSchema("plan")
+  static let developSchema = loadSchema("develop")
+  static let reflectSchema = loadSchema("reflect")
+  static let criticSchema = loadSchema("critic")
+  static let subAgentSchema = loadSchema("subAgent")
 
-  static let developSchema = """
-    {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["status", "summary", "feedback", "bypassVerify", "lessonEdits"],
-      "properties": {
-        "status": {
-          "type": "string",
-          "enum": ["succeeded", "blocked", "failed"]
-        },
-        "summary": { "type": "string" },
-        "feedback": { "type": "string" },
-        "bypassVerify": {
-          "anyOf": [
-            { "type": "boolean" },
-            { "type": "null" }
-          ]
-        },
-        "lessonEdits": {
-          "type": "array",
-          "items": {
-            "type": "object",
-            "additionalProperties": false,
-            "required": ["find", "replace", "replaceAll"],
-            "properties": {
-              "find": { "type": "string" },
-              "replace": { "type": "string" },
-              "replaceAll": {
-                "anyOf": [
-                  { "type": "boolean" },
-                  { "type": "null" }
-                ]
-              }
-            }
-          }
-        }
-      }
+  private static func loadSchema(_ name: String) -> String {
+    guard let url = Bundle.module.url(forResource: name, withExtension: "json", subdirectory: "Schemas")
+    else {
+      fatalError("Missing schema resource: Schemas/\(name).json")
     }
-    """
-
-  static let reflectSchema = """
-    {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["state", "summary", "lessonEdits"],
-      "properties": {
-        "state": {
-          "anyOf": [
-            {
-              "type": "object",
-              "additionalProperties": false,
-              "required": ["completed", "immediate", "midTerm", "longTerm"],
-              "properties": {
-                "completed": {
-                  "type": "array",
-                  "items": { "type": "string" }
-                },
-                "immediate": {
-                  "anyOf": [
-                    {
-                      "type": "object",
-                      "additionalProperties": false,
-                      "required": ["plan", "verify", "verifyTimeoutMs", "estimatedDifficulty"],
-                      "properties": {
-                        "plan": { "type": "string" },
-                        "verify": { "type": "string" },
-                        "verifyTimeoutMs": {
-                          "anyOf": [
-                            { "type": "integer", "minimum": 1 },
-                            { "type": "null" }
-                          ]
-                        },
-                        "estimatedDifficulty": {
-                          "anyOf": [
-                            {
-                              "type": "string",
-                              "enum": ["low", "medium", "high"]
-                            },
-                            { "type": "null" }
-                          ]
-                        }
-                      }
-                    },
-                    { "type": "null" }
-                  ]
-                },
-                "midTerm": { "type": "string" },
-                "longTerm": { "type": "string" }
-              }
-            },
-            { "type": "null" }
-          ]
-        },
-        "summary": { "type": "string" },
-        "lessonEdits": {
-          "type": "array",
-          "items": {
-            "type": "object",
-            "additionalProperties": false,
-            "required": ["find", "replace", "replaceAll"],
-            "properties": {
-              "find": { "type": "string" },
-              "replace": { "type": "string" },
-              "replaceAll": {
-                "anyOf": [
-                  { "type": "boolean" },
-                  { "type": "null" }
-                ]
-              }
-            }
-          }
-        }
-      }
+    let data: Data
+    do {
+      data = try Data(contentsOf: url)
+    } catch {
+      fatalError("Cannot read schema \(name).json: \(error)")
     }
-    """
-
-  static let criticSchema = """
-    {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["verdict", "summary", "feedback"],
-      "properties": {
-        "verdict": {
-          "type": "string",
-          "enum": ["approve", "request_changes"]
-        },
-        "summary": { "type": "string" },
-        "feedback": { "type": "string" }
-      }
+    do {
+      _ = try JSONSerialization.jsonObject(with: data)
+    } catch {
+      fatalError("Schema \(name).json is not valid JSON: \(error)")
     }
-    """
-
-  static let subAgentSchema = """
-    {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["findings"],
-      "properties": {
-        "findings": { "type": "string" }
-      }
-    }
-    """
+    return String(decoding: data, as: UTF8.self)
+  }
 
   static func planPrompt(
     state: PlanState,
