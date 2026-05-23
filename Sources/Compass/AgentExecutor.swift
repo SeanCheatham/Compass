@@ -102,6 +102,18 @@ enum AgentExecutionError: LocalizedError, Equatable {
 final class AgentExecutor {
     static let submitResultToolName = "submit_result"
 
+    /// Per-turn output budget Compass requests from the chat completions
+    /// endpoint. Set high so `submit_result` JSON (which carries
+    /// `state.completed`, lessons, and free-form summaries) doesn't get
+    /// truncated mid-tool-call. Modern providers cap this on their end
+    /// — MiniMax M-series goes to ~80k, Claude Sonnet 64k, OpenAI 16–100k
+    /// depending on model — and a value above the provider's cap is
+    /// typically silently clamped, so a generous default is the right
+    /// trade-off against the cascade we used to hit on truncation
+    /// (rejected submit_result → unparseable tool-call args in the next
+    /// request → upstream 400).
+    static let maxCompletionTokensPerTurn = 65_536
+
     private let onEvent: (LiveEvent) -> Void
     private var cancelled = false
 
@@ -146,6 +158,7 @@ final class AgentExecutor {
             let query = ChatQuery(
                 messages: messages,
                 model: model,
+                maxCompletionTokens: Self.maxCompletionTokensPerTurn,
                 tools: openAITools,
                 stream: true
             )
@@ -190,6 +203,29 @@ final class AgentExecutor {
                     // Validate that the args are well-formed JSON; the
                     // caller decodes them into the phase model.
                     if (try? JSONSerialization.jsonObject(with: argsData)) == nil {
+                        // Distinguish truncation (model hit max output
+                        // tokens mid-tool-call) from genuinely malformed
+                        // JSON. The truncation case must NOT leave the
+                        // bad assistant message in history — most upstream
+                        // chat APIs validate `tool_calls.arguments` as
+                        // JSON on the next request and reject the whole
+                        // conversation with a 400. Pop the assistant
+                        // message we just appended and replace the bad
+                        // turn with a user-side "be more concise" nudge.
+                        if aggregated.finishReason == "length" {
+                            if !messages.isEmpty { messages.removeLast() }
+                            let nudge = "Your previous `submit_result` was truncated by the output-token limit. Retry with the same structure but shorter free-form text — keep `state.completed` entries terse, trim `summary`, and avoid restating context. The tool args must be complete, valid JSON."
+                            messages.append(.user(.init(content: .string(nudge))))
+                            emit(
+                                level: .warning,
+                                text: "submit_result truncated",
+                                detail: "Output hit the max-tokens cap (\(Self.maxCompletionTokensPerTurn)); asking the model to retry with shorter fields.",
+                                kind: .agentMessage,
+                                status: .failed,
+                                correlationID: toolCall.id
+                            )
+                            continue
+                        }
                         let detail = "submit_result args are not valid JSON: \(previewString(toolCall.arguments))"
                         messages.append(.tool(.init(
                             content: .textContent(detail),
