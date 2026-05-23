@@ -31,7 +31,24 @@ final class AgentWriteFileToolTests: XCTestCase {
     XCTAssertEqual(written, "hello world")
   }
 
-  func testOverwritesExistingFile() async throws {
+  func testOverwritesExistingFileAfterRead() async throws {
+    let url = temporaryDirectory.appendingPathComponent("existing.txt")
+    try "old".write(to: url, atomically: true, encoding: .utf8)
+
+    let context = AgentToolContext(workingDirectory: temporaryDirectory)
+    await context.readTracker.markRead(url)
+    let result = try await invoke(
+      [
+        "path": "existing.txt",
+        "content": "new",
+      ], context: context)
+
+    XCTAssertFalse(result.isError)
+    let written = try String(contentsOf: url, encoding: .utf8)
+    XCTAssertEqual(written, "new")
+  }
+
+  func testRefusesToOverwriteUnreadFile() async throws {
     let url = temporaryDirectory.appendingPathComponent("existing.txt")
     try "old".write(to: url, atomically: true, encoding: .utf8)
 
@@ -40,9 +57,9 @@ final class AgentWriteFileToolTests: XCTestCase {
       "content": "new",
     ])
 
-    XCTAssertFalse(result.isError)
-    let written = try String(contentsOf: url, encoding: .utf8)
-    XCTAssertEqual(written, "new")
+    XCTAssertTrue(result.isError)
+    XCTAssertTrue(result.content.contains("has not been read"))
+    XCTAssertEqual(try String(contentsOf: url, encoding: .utf8), "old")
   }
 
   func testCreatesIntermediateDirectories() async throws {
@@ -77,11 +94,14 @@ final class AgentWriteFileToolTests: XCTestCase {
     XCTAssertTrue(result.content.contains("Not a regular file"))
   }
 
-  private func invoke(_ args: [String: Any]) async throws -> AgentToolInvocationResult {
+  private func invoke(
+    _ args: [String: Any],
+    context: AgentToolContext? = nil
+  ) async throws -> AgentToolInvocationResult {
     let data = try JSONSerialization.data(withJSONObject: args)
     return try await tool.invoke(
       arguments: data,
-      context: AgentToolContext(workingDirectory: temporaryDirectory)
+      context: context ?? AgentToolContext(workingDirectory: temporaryDirectory)
     )
   }
 }

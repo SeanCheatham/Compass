@@ -1,16 +1,21 @@
 import Foundation
 
-/// Exact find/replace on an existing UTF-8 text file. The model must supply
-/// enough surrounding context that `oldString` is unique in the file, or
-/// pass `replaceAll: true` to substitute every occurrence. Matches the
-/// semantics the Plan / Reflect / Develop `lessonEdits` JSON contract uses
-/// against the host-side lessons content, so the same mental model applies
-/// here.
+/// Exact find/replace on an existing UTF-8 text file. The model passes an
+/// ordered list of edits; each `oldString` must appear exactly once in the
+/// file *at the moment its edit is applied* (or pass `replaceAll: true` to
+/// substitute every occurrence). All edits succeed atomically — if any one
+/// fails, the file is not written. A prior `read_file` for the path is
+/// required so the model is always operating on contents it has actually
+/// seen.
 struct AgentEditFileTool: AgentTool {
   static let toolName = "edit_file"
 
   struct Arguments: Codable {
     let path: String
+    let edits: [EditOperation]
+  }
+
+  struct EditOperation: Codable {
     let oldString: String
     let newString: String
     let replaceAll: Bool?
@@ -22,33 +27,46 @@ struct AgentEditFileTool: AgentTool {
     let schema = try! AgentToolParametersSchema([
       "type": "object",
       "additionalProperties": false,
-      "required": ["path", "oldString", "newString"],
+      "required": ["path", "edits"],
       "properties": [
         "path": [
           "type": "string",
           "description":
-            "Path to the existing file to edit. May be absolute (must resolve inside the working directory) or relative to it.",
+            "Path to the existing file to edit. May be absolute (must resolve inside the working directory) or relative to it. The file must have been read with read_file earlier in this session.",
         ],
-        "oldString": [
-          "type": "string",
+        "edits": [
+          "type": "array",
+          "minItems": 1,
           "description":
-            "Exact substring to replace. Must be unique in the file unless replaceAll is true.",
-        ],
-        "newString": [
-          "type": "string",
-          "description": "Replacement text. Must be different from oldString.",
-        ],
-        "replaceAll": [
-          "type": "boolean",
-          "description":
-            "Replace every occurrence instead of requiring uniqueness. Defaults to false.",
+            "Ordered list of find/replace operations applied to the file. Each later edit sees the file as transformed by the earlier edits. All edits must succeed; if any fails the file is left unchanged.",
+          "items": [
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["oldString", "newString"],
+            "properties": [
+              "oldString": [
+                "type": "string",
+                "description":
+                  "Exact substring to replace. Must be unique in the file at the time this edit is applied unless replaceAll is true.",
+              ],
+              "newString": [
+                "type": "string",
+                "description": "Replacement text. Must be different from oldString.",
+              ],
+              "replaceAll": [
+                "type": "boolean",
+                "description":
+                  "Replace every occurrence of oldString instead of requiring uniqueness. Defaults to false.",
+              ],
+            ],
+          ],
         ],
       ],
     ])
     spec = AgentToolSpec(
       name: Self.toolName,
       description:
-        "Edit an existing UTF-8 text file by exact find/replace. By default oldString must appear exactly once; set replaceAll to substitute every occurrence.",
+        "Apply one or more exact find/replace edits to a UTF-8 text file. Edits are applied in order against the running file content; each oldString must be unique at its turn unless replaceAll is set. All-or-nothing: a failing edit aborts the whole call without writing.",
       parameters: schema
     )
   }
@@ -62,11 +80,18 @@ struct AgentEditFileTool: AgentTool {
       return .failure("Failed to decode arguments: \(error.localizedDescription)")
     }
 
-    if args.oldString == args.newString {
-      return .failure("oldString and newString are identical; no edit needed")
+    guard !args.edits.isEmpty else {
+      return .failure("edits is empty; pass at least one find/replace operation")
     }
-    if args.oldString.isEmpty {
-      return .failure("oldString is empty; use write_file to create a file from scratch")
+
+    for (idx, edit) in args.edits.enumerated() {
+      if edit.oldString.isEmpty {
+        return .failure(
+          "edits[\(idx)].oldString is empty; use write_file to create a file from scratch")
+      }
+      if edit.oldString == edit.newString {
+        return .failure("edits[\(idx)] oldString and newString are identical; no edit needed")
+      }
     }
 
     let url: URL
@@ -76,6 +101,12 @@ struct AgentEditFileTool: AgentTool {
       return .failure(error.errorDescription ?? "path resolution failed")
     } catch {
       return .failure("path resolution failed: \(error.localizedDescription)")
+    }
+
+    if await !context.readTracker.wasRead(url) {
+      return .failure(
+        "edit_file requires a prior read_file for \(context.relativize(url)) in this session. Read the file first so you are editing contents you have actually seen."
+      )
     }
 
     let originalData: Data
@@ -97,44 +128,90 @@ struct AgentEditFileTool: AgentTool {
     if originalData.prefix(8192).contains(0) {
       return .failure(AgentToolError.binaryFile(args.path).errorDescription ?? "binary file")
     }
-    let original = String(decoding: originalData, as: UTF8.self)
-    let occurrences = original.ranges(of: args.oldString).count
-    let replaceAll = args.replaceAll ?? false
 
-    if occurrences == 0 {
-      return .failure("oldString not found in \(context.relativize(url))")
-    }
-    if occurrences > 1 && !replaceAll {
-      return .failure(
-        "oldString matches \(occurrences) places in \(context.relativize(url)); include more surrounding context or set replaceAll: true"
-      )
-    }
+    var current = String(decoding: originalData, as: UTF8.self)
+    var totalReplaced = 0
+    let relative = context.relativize(url)
 
-    let updated: String
-    let replaced: Int
-    if replaceAll {
-      updated = original.replacingOccurrences(of: args.oldString, with: args.newString)
-      replaced = occurrences
-    } else {
-      // single occurrence
-      if let range = original.range(of: args.oldString) {
-        updated = original.replacingCharacters(in: range, with: args.newString)
-      } else {
-        return .failure("oldString not found in \(context.relativize(url))")
+    for (idx, edit) in args.edits.enumerated() {
+      let occurrences = current.ranges(of: edit.oldString).count
+      let replaceAll = edit.replaceAll ?? false
+
+      if occurrences == 0 {
+        let hints = nearMissHints(for: edit.oldString, in: current)
+        var message = "edits[\(idx)] oldString not found in \(relative)"
+        if !hints.isEmpty {
+          message += "\nLines that look similar:\n" + hints.joined(separator: "\n")
+        }
+        return .failure(message)
       }
-      replaced = 1
+      if occurrences > 1 && !replaceAll {
+        return .failure(
+          "edits[\(idx)] oldString matches \(occurrences) places in \(relative); include more surrounding context or set replaceAll: true"
+        )
+      }
+
+      if replaceAll {
+        current = current.replacingOccurrences(of: edit.oldString, with: edit.newString)
+        totalReplaced += occurrences
+      } else if let range = current.range(of: edit.oldString) {
+        current = current.replacingCharacters(in: range, with: edit.newString)
+        totalReplaced += 1
+      } else {
+        return .failure("edits[\(idx)] oldString not found in \(relative)")
+      }
     }
 
     do {
-      try await context.filesystem.writeFile(Data(updated.utf8), at: url)
+      try await context.filesystem.writeFile(Data(current.utf8), at: url)
     } catch let error as AgentFilesystemError {
       return .failure(error.errorDescription ?? "I/O failure")
     } catch {
       return .failure("write failed: \(error.localizedDescription)")
     }
 
-    let plural = replaced == 1 ? "" : "s"
-    return .ok("replaced \(replaced) occurrence\(plural) in \(context.relativize(url))")
+    await context.readTracker.markRead(url)
+    let editPlural = args.edits.count == 1 ? "" : "s"
+    let occPlural = totalReplaced == 1 ? "" : "s"
+    return .ok(
+      "applied \(args.edits.count) edit\(editPlural) to \(relative); replaced \(totalReplaced) occurrence\(occPlural)"
+    )
+  }
+
+  /// Best-effort near-miss list when `oldString` is not found. Scores each
+  /// file line by its longest common prefix with the first non-blank line of
+  /// `oldString` (both trimmed) and returns the top three lines that clear a
+  /// minimum threshold. Helps the model re-orient when the snippet drifted
+  /// — usually because the file changed — without doing fuzzy matching that
+  /// could quietly mask real staleness.
+  private func nearMissHints(for oldString: String, in file: String) -> [String] {
+    let needle = oldString
+      .split(whereSeparator: \.isNewline)
+      .lazy
+      .map { $0.trimmingCharacters(in: .whitespaces) }
+      .first { !$0.isEmpty }
+    guard let needle, needle.count >= 8 else { return [] }
+
+    let needleChars = Array(needle)
+    let minScore = max(8, needle.count / 4)
+
+    var scored: [(score: Int, lineNumber: Int, raw: String)] = []
+    let lines = file.split(omittingEmptySubsequences: false, whereSeparator: \.isNewline)
+    for (idx, line) in lines.enumerated() {
+      let raw = String(line)
+      let trimmedChars = Array(raw.trimmingCharacters(in: .whitespaces))
+      let cap = min(needleChars.count, trimmedChars.count)
+      var score = 0
+      while score < cap && needleChars[score] == trimmedChars[score] { score += 1 }
+      if score >= minScore {
+        scored.append((score, idx + 1, raw))
+      }
+    }
+    scored.sort { $0.score > $1.score }
+    return scored.prefix(3).map { hit in
+      let display = hit.raw.count > 160 ? String(hit.raw.prefix(160)) + "…" : hit.raw
+      return "  line \(hit.lineNumber): \(display)"
+    }
   }
 }
 

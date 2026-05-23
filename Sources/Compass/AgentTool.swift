@@ -37,24 +37,46 @@ struct AgentToolInvocationResult: Sendable, Equatable {
   }
 }
 
+/// Tracks which file paths have been freshly read during an agent execution.
+/// `edit_file` and `write_file` (when overwriting) consult this to refuse
+/// edits against contents the model has not actually seen — so a hallucinated
+/// `oldString` or a stomped existing file gets caught early instead of
+/// silently corrupting state.
+actor AgentReadTracker {
+  private var readPaths: Set<String> = []
+
+  func markRead(_ url: URL) {
+    readPaths.insert(url.standardizedFileURL.path)
+  }
+
+  func wasRead(_ url: URL) -> Bool {
+    readPaths.contains(url.standardizedFileURL.path)
+  }
+}
+
 /// Execution context handed to a tool at invocation time. The working
 /// directory is the root the tool must scope itself to — any path that
 /// escapes it is rejected. The filesystem picks how file ops are served
 /// (host `FileManager` vs. SSH into the Shared VM); the bash runner picks
-/// how shell commands are dispatched (host shell vs. SSH).
+/// how shell commands are dispatched (host shell vs. SSH). The read tracker
+/// is shared across every tool call in one execution so the mutation tools
+/// can require a prior `read_file`.
 struct AgentToolContext: Sendable {
   var workingDirectory: URL
   var filesystem: AgentFilesystem
   var bashRunner: AgentBashRunner
+  var readTracker: AgentReadTracker
 
   init(
     workingDirectory: URL,
     filesystem: AgentFilesystem = AgentHostFilesystem(),
-    bashRunner: AgentBashRunner = AgentHostBashRunner()
+    bashRunner: AgentBashRunner = AgentHostBashRunner(),
+    readTracker: AgentReadTracker = AgentReadTracker()
   ) {
     self.workingDirectory = workingDirectory.standardizedFileURL
     self.filesystem = filesystem
     self.bashRunner = bashRunner
+    self.readTracker = readTracker
   }
 }
 

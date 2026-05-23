@@ -57,6 +57,22 @@ struct AgentWriteFileTool: AgentTool {
       return .failure("path resolution failed: \(error.localizedDescription)")
     }
 
+    let existing: FileMetadata?
+    do {
+      existing = try await context.filesystem.metadata(of: url)
+    } catch let error as AgentFilesystemError {
+      return .failure(error.errorDescription ?? "stat failed")
+    } catch {
+      return .failure("stat failed: \(error.localizedDescription)")
+    }
+    if let existing, existing.isRegularFile,
+      await !context.readTracker.wasRead(url)
+    {
+      return .failure(
+        "write_file would overwrite \(context.relativize(url)) but it has not been read in this session. Call read_file first to confirm its current contents before replacing them."
+      )
+    }
+
     let data = Data(args.content.utf8)
     do {
       try await context.filesystem.writeFile(data, at: url)
@@ -72,6 +88,7 @@ struct AgentWriteFileTool: AgentTool {
       return .failure("write failed: \(error.localizedDescription)")
     }
 
+    await context.readTracker.markRead(url)
     let relative = context.relativize(url)
     return .ok("wrote \(data.count) bytes to \(relative)")
   }

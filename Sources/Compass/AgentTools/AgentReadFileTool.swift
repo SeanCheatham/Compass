@@ -115,6 +115,7 @@ struct AgentReadFileTool: AgentTool {
     if endIndex < totalLines {
       output += "\n... \(totalLines - endIndex) more lines"
     }
+    await context.readTracker.markRead(url)
     return .ok(output)
   }
 }
