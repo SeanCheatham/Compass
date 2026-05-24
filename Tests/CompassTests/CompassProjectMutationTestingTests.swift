@@ -37,7 +37,12 @@ final class CompassProjectMutationTestingTests: XCTestCase {
     let invocation = try XCTUnwrap(capturedInvocation)
     XCTAssertEqual(invocation.executable, "/bin/zsh")
     XCTAssertEqual(
-      invocation.arguments, ["-lc", "swift test --filter CompassProjectMutationTestingTests"])
+      invocation.arguments,
+      [
+        "-lc",
+        "muter run --skip-update-check -- -F CompassProjectMutationTestingTests",
+      ]
+    )
     XCTAssertEqual(invocation.workingDirectory, repoURL.standardizedFileURL)
     XCTAssertFalse(project.isRunning)
     XCTAssertEqual(project.phase, .succeeded)
@@ -58,6 +63,9 @@ final class CompassProjectMutationTestingTests: XCTestCase {
     XCTAssertEqual(execution.languageIdentifier, "swift")
     XCTAssertEqual(
       execution.seedCommandLabel, "swift test --filter CompassProjectMutationTestingTests")
+    XCTAssertEqual(
+      execution.mutationCommandLabel,
+      "muter run --skip-update-check -- -F CompassProjectMutationTestingTests")
     XCTAssertEqual(execution.exitCode, 0)
     XCTAssertEqual(execution.outputTail, "mutation ok")
     XCTAssertGreaterThanOrEqual(execution.endedAt, execution.startedAt)
@@ -149,6 +157,44 @@ final class CompassProjectMutationTestingTests: XCTestCase {
       project.runtimeDiagnosticsMenu.mutationRecoveryDescriptor?.stateIdentifier, "readiness-only")
   }
 
+  func testAutoMutationTestingRecordsOnExistingDevelopSession() async throws {
+    let repoURL = try await makeTemporaryGitRepository(prefix: "CompassProjectMutationAuto")
+    let state = makeState(verify: "swift test --filter CompassProjectMutationTestingTests")
+    let workspace = try initializedWorkspace(repoURL: repoURL, state: state)
+    var capturedInvocation: AgentExecutionInvocation?
+    let project = CompassProject(
+      repoURL: repoURL,
+      mutationTestingRunner: { invocation, _, _, _, _ in
+        capturedInvocation = invocation
+        return ProcessResult(exitCode: 0, stdout: "mutation ok\n", stderr: "")
+      }
+    )
+    await project.refresh()
+    project.languageProfile = profile(.swift)
+    var session = SessionRecord.started(1)
+    session.status = .developing
+    session.plan = state.immediate?.plan
+    session.verify = state.immediate?.verify
+    project.sessions = [session]
+
+    let launchPlan = project.agentLaunchPlan(for: repoURL)
+    let next = try XCTUnwrap(state.immediate)
+    let result = await project.runAutoMutationTestingIfNeeded(
+      workspace: workspace,
+      sessionIndex: 0,
+      next: next,
+      launchPlan: launchPlan
+    )
+
+    XCTAssertTrue(result.ran)
+    XCTAssertTrue(result.succeeded)
+    XCTAssertEqual(
+      capturedInvocation?.arguments.last,
+      "muter run --skip-update-check -- -F CompassProjectMutationTestingTests"
+    )
+    XCTAssertEqual(project.sessions[0].mutationTestingExecutions.count, 1)
+  }
+
   func testRuntimeMenuMutationActionDescriptorsCoverDisabledStatesAndNativeFallback() async throws {
     let repoURL = try await makeTemporaryGitRepository(prefix: "CompassProjectMutationMenu")
     let project = CompassProject(repoURL: repoURL)
@@ -221,9 +267,13 @@ final class CompassProjectMutationTestingTests: XCTestCase {
   private func profile(_ language: RepositoryLanguage) -> RepositoryLanguageProfile {
     var counts = RepositoryLanguageCounts()
     counts[language] = language == .unknown ? 0 : 1
+    var manifestHints: [RepositoryManifestHint] = []
+    if language == .swift {
+      manifestHints = [.packageSwift]
+    }
     return RepositoryLanguageProfile(
       counts: counts,
-      manifestHints: [],
+      manifestHints: manifestHints,
       primaryLanguage: language,
       scannedFileCount: language == .unknown ? 0 : 1,
       scannedDirectoryCount: 1,

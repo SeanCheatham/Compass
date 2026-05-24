@@ -20,6 +20,7 @@ struct PlanSessionHistoryItem: Identifiable, Equatable {
     var languageIdentifier: String
     var languageLabel: String
     var seedCommandLabel: String
+    var mutationCommandLabel: String
     var exitCodeText: String
     var durationText: String
     var tailSummary: String
@@ -43,6 +44,10 @@ struct PlanSessionHistoryItem: Identifiable, Equatable {
       let languageLabel = MutationTestingPresentationSanitizer.languageLabel(languageIdentifier)
       let seedCommandLabel = MutationTestingPresentationSanitizer.field(
         execution.seedCommandLabel,
+        limit: SessionMutationTestingExecution.commandLimit
+      )
+      let mutationCommandLabel = MutationTestingPresentationSanitizer.field(
+        execution.mutationCommandLabel,
         limit: SessionMutationTestingExecution.commandLimit
       )
       let exitCodeText = MutationTestingPresentationSanitizer.exitCodeLabel(execution.exitCode)
@@ -71,6 +76,7 @@ struct PlanSessionHistoryItem: Identifiable, Equatable {
           "Route: \(routeLabel)",
           "Language: \(languageLabel)",
           "Seed: \(seedCommandLabel)",
+          "Mutation: \(mutationCommandLabel)",
           "Exit: \(exitCodeText)",
           "Duration: \(durationText)",
           "Tail: \(tailSummary.isEmpty ? "none" : tailSummary)",
@@ -85,6 +91,7 @@ struct PlanSessionHistoryItem: Identifiable, Equatable {
       self.languageIdentifier = languageIdentifier
       self.languageLabel = languageLabel
       self.seedCommandLabel = seedCommandLabel
+      self.mutationCommandLabel = mutationCommandLabel
       self.exitCodeText = exitCodeText
       self.durationText = durationText
       self.tailSummary = tailSummary

@@ -157,6 +157,7 @@ struct AgentMutationTestingPlan: Equatable, Identifiable {
     case ready
     case missingImmediate = "missing-immediate"
     case missingVerify = "missing-verify"
+    case missingMutationCommand = "missing-mutation-command"
     case unsupportedLanguage = "unsupported-language"
   }
 
@@ -181,6 +182,8 @@ struct AgentMutationTestingPlan: Equatable, Identifiable {
   var systemImage: String
   var seedCommand: String?
   var seedCommandLabel: String
+  var mutationCommand: String?
+  var mutationCommandLabel: String
   var detailText: String
   var copyText: String
 
@@ -211,6 +214,20 @@ struct AgentMutationTestingPlan: Equatable, Identifiable {
         limit: Self.commandMaxCharacters
       )
     }.flatMap(Self.nilIfEmpty)
+    let rawMutationCommand = sanitizedSeedCommand.flatMap {
+      MutationTestingCommandBuilder.build(
+        language: languageProfile.primaryLanguage,
+        verifyCommand: $0,
+        manifestHints: languageProfile.manifestHints
+      )
+    }
+    let sanitizedMutationCommand = rawMutationCommand.flatMap {
+      AgentMutationTestingMetadataSanitizer.sanitizedCommand(
+        $0,
+        launchPlan: launchPlan,
+        limit: Self.commandMaxCharacters
+      )
+    }.flatMap(Self.nilIfEmpty)
 
     let readinessState: ReadinessState
     if immediate == nil {
@@ -219,6 +236,8 @@ struct AgentMutationTestingPlan: Equatable, Identifiable {
       readinessState = .missingVerify
     } else if !language.isSupported {
       readinessState = .unsupportedLanguage
+    } else if sanitizedMutationCommand == nil {
+      readinessState = .missingMutationCommand
     } else {
       readinessState = .ready
     }
@@ -226,7 +245,9 @@ struct AgentMutationTestingPlan: Equatable, Identifiable {
     let statusLabel = Self.statusLabel(for: readinessState)
     let routeLabel = Self.routeLabel(for: routeState)
     let seedCommandLabel = sanitizedSeedCommand ?? "none"
+    let mutationCommandLabel = sanitizedMutationCommand ?? "none"
     let seedCommandIdentifier = "seed-\(Self.fingerprint(seedCommandLabel))"
+    let mutationCommandIdentifier = "mutation-\(Self.fingerprint(mutationCommandLabel))"
     let identifier = Self.bounded(
       [
         "compass-mutation-testing",
@@ -234,6 +255,7 @@ struct AgentMutationTestingPlan: Equatable, Identifiable {
         "route:\(routeState.rawValue)",
         "language:\(language.identifier)",
         seedCommandIdentifier,
+        mutationCommandIdentifier,
       ].joined(separator: "|"),
       limit: Self.identifierMaxCharacters
     )
@@ -241,7 +263,8 @@ struct AgentMutationTestingPlan: Equatable, Identifiable {
       readinessState: readinessState,
       routeState: routeState,
       languageLabel: language.label,
-      seedCommandLabel: seedCommandLabel
+      seedCommandLabel: seedCommandLabel,
+      mutationCommandLabel: mutationCommandLabel
     )
     let copyText = Self.boundedMultiline(
       [
@@ -251,6 +274,7 @@ struct AgentMutationTestingPlan: Equatable, Identifiable {
         "route: \(routeState.rawValue)",
         "language: \(language.identifier)",
         "seed-command: \(seedCommandLabel)",
+        "mutation-command: \(mutationCommandLabel)",
         "detail: \(detailText)",
       ].joined(separator: "\n"),
       limit: Self.copyTextMaxCharacters
@@ -272,6 +296,9 @@ struct AgentMutationTestingPlan: Equatable, Identifiable {
     systemImage = "testtube.2"
     seedCommand = sanitizedSeedCommand
     self.seedCommandLabel = Self.bounded(seedCommandLabel, limit: Self.commandMaxCharacters)
+    mutationCommand = sanitizedMutationCommand
+    self.mutationCommandLabel = Self.bounded(
+      mutationCommandLabel, limit: Self.commandMaxCharacters)
     self.detailText = detailText
     self.copyText = copyText
   }
@@ -325,6 +352,8 @@ struct AgentMutationTestingPlan: Equatable, Identifiable {
       return "Missing immediate"
     case .missingVerify:
       return "Missing verify"
+    case .missingMutationCommand:
+      return "Missing command"
     case .unsupportedLanguage:
       return "Unsupported language"
     }
@@ -345,7 +374,8 @@ struct AgentMutationTestingPlan: Equatable, Identifiable {
     readinessState: ReadinessState,
     routeState: RouteState,
     languageLabel: String,
-    seedCommandLabel: String
+    seedCommandLabel: String,
+    mutationCommandLabel: String
   ) -> String {
     let routeDetail: String
     switch routeState {
@@ -361,11 +391,14 @@ struct AgentMutationTestingPlan: Equatable, Identifiable {
     switch readinessState {
     case .ready:
       detail =
-        "Seed \(seedCommandLabel) for \(languageLabel); later mutation pass would use \(routeDetail)."
+        "Verify seed \(seedCommandLabel); mutation pass runs \(mutationCommandLabel) via \(routeDetail)."
     case .missingImmediate:
       detail = "No immediate plan is available for mutation test planning."
     case .missingVerify:
       detail = "Immediate plan has no verify command to seed mutation testing."
+    case .missingMutationCommand:
+      detail =
+        "Could not derive a mutation command for \(languageLabel) from verify seed \(seedCommandLabel)."
     case .unsupportedLanguage:
       detail = "\(languageLabel) is outside the mutation readiness language set."
     }
@@ -490,6 +523,9 @@ struct AgentMutationTestingMenuAction: Equatable, Identifiable {
         case AgentMutationTestingPlan.ReadinessState.missingVerify.rawValue:
           help =
             "Mutation testing needs the current immediate Plan item to include a verify command."
+        case AgentMutationTestingPlan.ReadinessState.missingMutationCommand.rawValue:
+          help =
+            "Mutation testing could not derive a mutation command from the current verify seed for \(readiness.languageLabel)."
         case AgentMutationTestingPlan.ReadinessState.unsupportedLanguage.rawValue:
           help =
             "Mutation testing is unavailable for \(readiness.languageLabel); supported seed languages are Swift, TypeScript/JavaScript, Python, Go, and Rust."
@@ -502,7 +538,7 @@ struct AgentMutationTestingMenuAction: Equatable, Identifiable {
     availabilityIdentifier = Self.bounded(availability, limit: Self.fieldLimit)
     isEnabled = enabled
     description = Self.bounded(
-      "Opt-in only. Executes the current immediate verify command and records bounded sanitized mutation metadata plus a Mutation runtime route snapshot.",
+      "Runs the derived mutation command after successful Develop when auto mode is enabled, or on demand here. Records bounded sanitized mutation metadata plus a runtime route snapshot.",
       limit: Self.descriptionLimit
     )
     helpText = Self.bounded(help, limit: Self.helpLimit)

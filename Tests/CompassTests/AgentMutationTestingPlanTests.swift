@@ -35,9 +35,12 @@ final class AgentMutationTestingPlanTests: XCTestCase {
       XCTAssertEqual(plan.languageIdentifier, expectedIdentifier)
       XCTAssertEqual(plan.seedCommand, verifyCommand)
       XCTAssertEqual(plan.seedCommandLabel, verifyCommand)
+      XCTAssertNotNil(plan.mutationCommand)
+      XCTAssertNotEqual(plan.mutationCommandLabel, "none")
       XCTAssertTrue(plan.badgeLabel.contains("Mutation: Native"))
-      XCTAssertTrue(plan.detailText.contains("later mutation pass would use native macOS"))
+      XCTAssertTrue(plan.detailText.contains("mutation pass runs"))
       XCTAssertTrue(plan.copyText.contains("seed-command: \(verifyCommand)"))
+      XCTAssertTrue(plan.copyText.contains("mutation-command:"))
     }
   }
 
@@ -185,9 +188,24 @@ final class AgentMutationTestingPlanTests: XCTestCase {
   private func profile(_ language: RepositoryLanguage) -> RepositoryLanguageProfile {
     var counts = RepositoryLanguageCounts()
     counts[language] = 1
+    var manifestHints: [RepositoryManifestHint] = []
+    switch language {
+    case .swift:
+      manifestHints = [.packageSwift]
+    case .typeScriptJavaScript:
+      manifestHints = [.packageJSON]
+    case .python:
+      manifestHints = [.pyprojectToml]
+    case .go:
+      manifestHints = [.goMod]
+    case .rust:
+      manifestHints = [.cargoToml]
+    default:
+      break
+    }
     return RepositoryLanguageProfile(
       counts: counts,
-      manifestHints: [],
+      manifestHints: manifestHints,
       primaryLanguage: language,
       scannedFileCount: language == .unknown ? 0 : 1,
       scannedDirectoryCount: 1,

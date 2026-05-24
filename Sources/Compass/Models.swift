@@ -183,6 +183,7 @@ struct SessionMutationTestingExecution: Codable, Equatable, Identifiable {
   var routeIdentifier: String
   var languageIdentifier: String
   var seedCommandLabel: String
+  var mutationCommandLabel: String
   var exitCode: Int?
   var startedAt: Double
   var endedAt: Double
@@ -224,6 +225,10 @@ struct SessionMutationTestingExecution: Codable, Equatable, Identifiable {
       readiness.seedCommandLabel,
       limit: Self.commandLimit
     )
+    mutationCommandLabel = Self.boundedField(
+      readiness.mutationCommandLabel,
+      limit: Self.commandLimit
+    )
     self.exitCode = exitCode
     self.startedAt = max(0, startedAt)
     self.endedAt = max(self.startedAt, endedAt)
@@ -232,6 +237,35 @@ struct SessionMutationTestingExecution: Codable, Equatable, Identifiable {
       launchPlan: launchPlan,
       limit: Self.outputTailLimit
     )
+  }
+
+  enum CodingKeys: String, CodingKey {
+    case readinessIdentifier
+    case statusIdentifier
+    case routeIdentifier
+    case languageIdentifier
+    case seedCommandLabel
+    case mutationCommandLabel
+    case exitCode
+    case startedAt
+    case endedAt
+    case outputTail
+  }
+
+  init(from decoder: Decoder) throws {
+    let container = try decoder.container(keyedBy: CodingKeys.self)
+    readinessIdentifier = try container.decode(String.self, forKey: .readinessIdentifier)
+    statusIdentifier = try container.decode(String.self, forKey: .statusIdentifier)
+    routeIdentifier = try container.decode(String.self, forKey: .routeIdentifier)
+    languageIdentifier = try container.decode(String.self, forKey: .languageIdentifier)
+    seedCommandLabel = try container.decode(String.self, forKey: .seedCommandLabel)
+    mutationCommandLabel =
+      try container.decodeIfPresent(String.self, forKey: .mutationCommandLabel)
+      ?? seedCommandLabel
+    exitCode = try container.decodeIfPresent(Int.self, forKey: .exitCode)
+    startedAt = try container.decode(Double.self, forKey: .startedAt)
+    endedAt = try container.decode(Double.self, forKey: .endedAt)
+    outputTail = try container.decode(String.self, forKey: .outputTail)
   }
 
   private static func boundedField(_ text: String, limit: Int) -> String {

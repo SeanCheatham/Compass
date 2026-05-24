@@ -259,6 +259,7 @@ extension CompassProject {
       var finalIssues: [String] = []
       var finalVerifyOutput: VerifyOutput?
       var succeeded = false
+      var finalLaunchPlan: AgentExecutionLaunchPlan?
       var criticFeedbacks: [String] = []
       var criticAttempt = 0
 
@@ -357,6 +358,7 @@ extension CompassProject {
             postChecksPassed = true
             postCheckSummary = summary
             postCheckLaunchPlan = launchPlan
+            finalLaunchPlan = launchPlan
             break
           }
 
@@ -462,6 +464,28 @@ extension CompassProject {
         from: beforeSha,
         to: afterSha
       )
+
+      if succeeded,
+        let launchPlan = finalLaunchPlan ?? Optional(agentLaunchPlan(for: workspace.repoURL))
+      {
+        let mutationResult = await runAutoMutationTestingIfNeeded(
+          workspace: workspace,
+          sessionIndex: sessionIndex,
+          next: next,
+          launchPlan: launchPlan
+        )
+        if mutationResult.ran, !mutationResult.succeeded {
+          succeeded = false
+          if let issue = mutationResult.issue {
+            finalIssues.append(issue)
+            appendSessionNote(issue, to: sessionIndex)
+          }
+          if isAutoPlaying {
+            isAutoPlaying = false
+            log("Auto-play stopped: mutation testing failed.", level: .warning)
+          }
+        }
+      }
 
       endSession(sessionIndex, status: succeeded ? .succeeded : .failed)
       phase = succeeded ? .succeeded : .failed

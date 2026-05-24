@@ -2,6 +2,18 @@ import AppKit
 import Foundation
 import Virtualization
 
+struct MutationTestingPassResult: Equatable {
+  var ran: Bool
+  var succeeded: Bool
+  var issue: String?
+
+  static let skipped = MutationTestingPassResult(ran: false, succeeded: true, issue: nil)
+
+  static func completed(succeeded: Bool, issue: String? = nil) -> MutationTestingPassResult {
+    MutationTestingPassResult(ran: true, succeeded: succeeded, issue: issue)
+  }
+}
+
 @MainActor
 extension CompassProject {
   func runMutationTesting() async {
@@ -43,16 +55,7 @@ extension CompassProject {
       executionState: .idle
     )
 
-    guard readiness.isReady,
-      let next = state.immediate
-    else {
-      errorMessage = action.helpText
-      log(action.helpText, level: .warning)
-      return
-    }
-
-    let command = next.verify.trimmingCharacters(in: .whitespacesAndNewlines)
-    guard !command.isEmpty else {
+    guard readiness.isReady else {
       errorMessage = action.helpText
       log(action.helpText, level: .warning)
       return
@@ -75,6 +78,83 @@ extension CompassProject {
     sessions[sessionIndex].endedAt = nil
     try? persistSessions()
 
+    let result = await executeMutationTestingPass(
+      workspace: workspace,
+      sessionIndex: sessionIndex,
+      next: state.immediate,
+      launchPlan: launchPlan,
+      readiness: readiness
+    )
+
+    if sessions.indices.contains(sessionIndex) {
+      endSession(sessionIndex, status: result.succeeded ? .succeeded : .failed)
+    }
+    phase = result.succeeded ? .succeeded : .failed
+    if let issue = result.issue, !result.succeeded {
+      errorMessage = issue
+    }
+
+    isRunning = false
+    executor = nil
+    await refresh()
+  }
+
+  /// Runs mutation testing after a successful Develop pass when auto mode
+  /// is enabled. Records results on the existing Develop session.
+  func runAutoMutationTestingIfNeeded(
+    workspace: CompassWorkspace,
+    sessionIndex: Int,
+    next: PlanNext,
+    launchPlan: AgentExecutionLaunchPlan
+  ) async -> MutationTestingPassResult {
+    guard sessions.indices.contains(sessionIndex) else {
+      return .skipped
+    }
+    guard MutationTestingPolicy.shouldRunAutomatically(
+      sessionNumber: sessions[sessionIndex].session,
+      estimatedDifficulty: next.estimatedDifficulty
+    ) else {
+      return .skipped
+    }
+
+    let readiness = AgentMutationTestingPlan(
+      immediate: next,
+      languageProfile: languageProfile,
+      launchPlan: launchPlan
+    )
+    guard readiness.isReady else {
+      log(
+        "Mutation testing skipped: \(readiness.detailText)",
+        level: .info
+      )
+      return .skipped
+    }
+
+    return await executeMutationTestingPass(
+      workspace: workspace,
+      sessionIndex: sessionIndex,
+      next: next,
+      launchPlan: launchPlan,
+      readiness: readiness
+    )
+  }
+
+  func executeMutationTestingPass(
+    workspace: CompassWorkspace,
+    sessionIndex: Int,
+    next: PlanNext?,
+    launchPlan: AgentExecutionLaunchPlan,
+    readiness: AgentMutationTestingPlan
+  ) async -> MutationTestingPassResult {
+    guard let next,
+      let command = readiness.mutationCommand?.trimmingCharacters(in: .whitespacesAndNewlines),
+      !command.isEmpty
+    else {
+      let issue = "Mutation testing has no command to run."
+      log(issue, level: .warning)
+      return .completed(succeeded: false, issue: issue)
+    }
+
     logExecutionEnvironmentPreflight(
       phase: "Mutation",
       nativeExecutionURL: workspace.repoURL,
@@ -82,9 +162,10 @@ extension CompassProject {
       sessionIndex: sessionIndex
     )
     log(
-      "Mutation testing: running `\(readiness.seedCommandLabel)` through \(readiness.routeLabel).",
+      "Mutation testing: running `\(readiness.mutationCommandLabel)` (verify seed `\(readiness.seedCommandLabel)`) through \(readiness.routeLabel).",
       level: .info
     )
+    phase = .verifying
 
     let startedAt = Date().timeIntervalSince1970 * 1000
     let timeoutMs = verifyTimeoutMs(for: next)
@@ -107,17 +188,17 @@ extension CompassProject {
       )
       if sessions.indices.contains(sessionIndex) {
         sessions[sessionIndex].recordMutationTestingExecution(execution)
+        try? persistSessions()
       }
 
       if result.exitCode == 0 {
-        endSession(sessionIndex, status: .succeeded)
-        phase = .succeeded
         log("Mutation testing completed.", level: .success)
-      } else {
-        endSession(sessionIndex, status: .failed)
-        phase = .failed
-        log("Mutation testing failed (exit \(result.exitCode)).", level: .error)
+        return .completed(succeeded: true)
       }
+
+      let issue = "Mutation testing failed (exit \(result.exitCode))."
+      log(issue, level: .error)
+      return .completed(succeeded: false, issue: issue)
     } catch {
       let endedAt = Date().timeIntervalSince1970 * 1000
       let safeError = AgentMutationTestingMetadataSanitizer.sanitizedOutputTail(
@@ -135,15 +216,10 @@ extension CompassProject {
       )
       if sessions.indices.contains(sessionIndex) {
         sessions[sessionIndex].recordMutationTestingExecution(execution)
+        try? persistSessions()
       }
-      endSession(sessionIndex, status: .failed)
-      phase = .failed
-      errorMessage = safeError
       log("Mutation testing failed: \(safeError)", level: .error)
+      return .completed(succeeded: false, issue: safeError)
     }
-
-    isRunning = false
-    executor = nil
-    await refresh()
   }
 }
