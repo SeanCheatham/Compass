@@ -85,7 +85,39 @@ enum SharedCompassVMHostFingerprint {
   /// Streaming SHA-256 of a single file. Streamed (rather than
   /// `Data(contentsOf:)`) so a multi-GB binary in the worktree doesn't
   /// peak memory; the hasher only carries 256 bits of state.
+  ///
+  /// Symlinks and other non-regular entries are hashed by kind+payload
+  /// instead of by opening the path. `git ls-files` happily emits a
+  /// single entry for a symlink-to-directory (e.g. SPM's
+  /// `.build/debug -> arm64-apple-macosx/debug`), and `InputStream`
+  /// follows it and fails with EISDIR. Hashing the link target string
+  /// also matches what tar puts on the wire (the link entry, not the
+  /// resolved contents), so push and fingerprint cover the same shape.
   private static func hashFile(at url: URL, relativePath: String) throws -> String {
+    var info = stat()
+    if lstat(url.path, &info) != 0 {
+      throw FingerprintError.readFailed(
+        path: relativePath, detail: String(cString: strerror(errno)))
+    }
+    let kind = info.st_mode & S_IFMT
+    if kind == S_IFLNK {
+      let target: String
+      do {
+        target = try FileManager.default.destinationOfSymbolicLink(atPath: url.path)
+      } catch {
+        throw FingerprintError.readFailed(path: relativePath, detail: "symlink read: \(error)")
+      }
+      var hasher = SHA256()
+      hasher.update(data: Data("symlink:".utf8))
+      hasher.update(data: Data(target.utf8))
+      return hasher.finalize().map { String(format: "%02x", $0) }.joined()
+    }
+    if kind != S_IFREG {
+      var hasher = SHA256()
+      hasher.update(data: Data("non-regular:\(kind)".utf8))
+      return hasher.finalize().map { String(format: "%02x", $0) }.joined()
+    }
+
     guard let stream = InputStream(url: url) else {
       throw FingerprintError.readFailed(path: relativePath, detail: "could not open input stream")
     }
