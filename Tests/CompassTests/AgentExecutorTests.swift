@@ -321,6 +321,64 @@ final class AgentExecutorTests: XCTestCase {
     }
   }
 
+  // MARK: - Invalid generic-tool-args remediation
+
+  func testInvalidToolArgumentsNudgeUsesTruncationCopyWhenFinishReasonIsLength() {
+    // The `edit_file` MiniMax 400 cascade in the bug screenshot was a
+    // turn whose `tool_calls.arguments` was invalid JSON; the local
+    // tool returned "Invalid arguments…", the assistant turn stayed in
+    // `messages`, and the *next* request 400'd. The truncation-coded
+    // branch should call that out and steer toward smaller payloads.
+    let nudge = AgentExecutor.invalidToolArgumentsNudge(
+      toolName: "edit_file",
+      finishReason: "length",
+      argumentsPreview: "{\"path\":\"foo.swift\",\"edits\":[{\"oldStri",
+      maxCompletionTokens: 80_000
+    )
+    XCTAssertEqual(nudge.eventText, "edit_file truncated")
+    XCTAssertTrue(nudge.eventDetail.contains("80000"))
+    XCTAssertTrue(nudge.userMessage.contains("`edit_file`"))
+    XCTAssertTrue(nudge.userMessage.contains("truncated by the output-token limit"))
+    XCTAssertTrue(
+      nudge.userMessage.contains("smaller"),
+      "truncation nudge should push the model toward smaller payloads")
+    XCTAssertTrue(nudge.userMessage.contains("complete, valid JSON"))
+  }
+
+  func testInvalidToolArgumentsNudgeUsesRejectedCopyWhenFinishReasonIsNotLength() {
+    // Generic-tool args go bad without `finishReason == "length"` for
+    // two reasons: silent mid-token truncation (MiniMax) and model-side
+    // escaping bugs in large payloads. The fallback wording must cover
+    // both — call out JSON escaping *and* offer the split-up-the-call
+    // out — without mentioning submit_result-specific concepts.
+    for reason: String? in [nil, "stop", "tool_calls", "content_filter"] {
+      let nudge = AgentExecutor.invalidToolArgumentsNudge(
+        toolName: "edit_file",
+        finishReason: reason,
+        argumentsPreview: "{\"path\":\"foo.swift\",\"edits\":[{\"oldString\":\"let x = 1\nlet y",
+        maxCompletionTokens: 80_000
+      )
+      XCTAssertEqual(
+        nudge.eventText, "edit_file rejected",
+        "finishReason=\(reason ?? "nil") should not be treated as the length variant")
+      XCTAssertTrue(
+        nudge.eventDetail.contains("oldString"),
+        "rejected detail should include the args preview so the user can see what was bad")
+      XCTAssertTrue(
+        nudge.userMessage.contains("`edit_file`"),
+        "rejected nudge should name the specific tool that failed")
+      XCTAssertTrue(
+        nudge.userMessage.contains("could not be parsed as JSON"),
+        "rejected nudge should explain the parse failure")
+      XCTAssertTrue(
+        nudge.userMessage.contains("escaping"),
+        "rejected nudge should mention escaping — model-side escape bugs are a common cause")
+      XCTAssertFalse(
+        nudge.userMessage.contains("submit_result"),
+        "generic-tool nudge must not leak submit_result-specific wording")
+    }
+  }
+
   // MARK: - Rollback helpers
 
   /// Convenience constructors so the rollback assertions stay readable.

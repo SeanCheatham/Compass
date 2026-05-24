@@ -24,6 +24,7 @@ enum SharedCompassVMRepoWorkspaceSync {
     case catalogFailure(detail: String)
     case probeFailure(stderr: String)
     case wrappedSyncFailure(SharedCompassVMWorktreeSync.SyncError)
+    case fingerprintFailure(detail: String)
 
     var description: String {
       switch self {
@@ -33,6 +34,8 @@ enum SharedCompassVMRepoWorkspaceSync {
         return "guest workspace probe failed: \(stderr)"
       case .wrappedSyncFailure(let inner):
         return "guest workspace sync failed: \(inner)"
+      case .fingerprintFailure(let detail):
+        return "host fingerprint failure: \(detail)"
       }
     }
 
@@ -47,7 +50,8 @@ enum SharedCompassVMRepoWorkspaceSync {
   /// future Verify integration that wants to know whether the agent
   /// is operating on freshly-pushed contents or persisted ones.
   enum Outcome: Equatable {
-    /// The guest workspace already existed; no push was performed.
+    /// The guest workspace already existed and the host fingerprint
+    /// matched the last recorded sync; no push was performed.
     case reused
     /// The guest workspace was missing and was populated from the
     /// host repo for the first time (or after an explicit reset).
@@ -55,6 +59,12 @@ enum SharedCompassVMRepoWorkspaceSync {
     /// The caller forced a refresh; we re-pushed even though a
     /// guest workspace already existed.
     case refreshed
+    /// The guest workspace existed but the host fingerprint diverged
+    /// from the last recorded sync — typically because the user
+    /// edited the repo while Compass wasn't running. We re-pushed so
+    /// those edits show up in the session, the way they would have
+    /// if the guest hadn't existed yet.
+    case refreshedDueToHostDrift
   }
 
   /// Ensures the persistent guest workspace for `hostRepoURL` exists
@@ -86,34 +96,133 @@ enum SharedCompassVMRepoWorkspaceSync {
       forEntry: entry
     )
 
+    // Compute the host fingerprint once up front. We always need it
+    // — either to drive the drift-vs-fast-path decision below, or to
+    // stamp the catalog after a push so the next session can see
+    // whether anything has changed.
+    let snapshot: (fingerprint: String, fileSet: Set<String>)
+    do {
+      snapshot = try SharedCompassVMHostFingerprint.compute(at: hostRepoURL)
+    } catch {
+      throw SyncError.fingerprintFailure(detail: "\(error)")
+    }
+
     if forceRefresh {
-      try await push(
+      try await pushAndRecord(
         hostRepoURL: hostRepoURL,
         guestPath: guestPath,
-        client: client
+        client: client,
+        snapshot: snapshot
       )
       return (guestPath, .refreshed)
     }
 
     let exists = try await guestPathExists(guestPath, client: client)
     if exists {
-      return (guestPath, .reused)
+      if let recorded = entry.lastSyncedHostFingerprint,
+        recorded == snapshot.fingerprint
+      {
+        return (guestPath, .reused)
+      }
+      // Either the host has drifted since the last sync, or there is
+      // no recorded fingerprint yet (catalog written by an older
+      // build). Re-push so the user's edits land in the guest before
+      // the agent starts reading.
+      try await pushAndRecord(
+        hostRepoURL: hostRepoURL,
+        guestPath: guestPath,
+        client: client,
+        snapshot: snapshot
+      )
+      return (guestPath, .refreshedDueToHostDrift)
     }
 
-    try await push(
+    try await pushAndRecord(
       hostRepoURL: hostRepoURL,
       guestPath: guestPath,
-      client: client
+      client: client,
+      snapshot: snapshot
     )
     return (guestPath, .freshlyPopulated)
   }
 
+  /// Pulls the guest worktree back onto the host repo and updates the
+  /// catalog with the post-pull fingerprint so the next session sees
+  /// host == guest and takes the fast path.
+  ///
+  /// Scopes the pull's "agent deleted this file" cleanup to the
+  /// fileset captured at the last push: files the user added on the
+  /// host between sessions are *not* in that set, so the cleanup
+  /// step skips them even if they're missing from the guest. (The
+  /// regular drift-check path will have re-pushed before the agent
+  /// ever ran, so by the time we get here the user's additions are
+  /// in the guest too — this is belt and braces.)
+  static func pullAndRecord(
+    hostRepoURL: URL,
+    client: AgentVsockClient
+  ) async throws {
+    let entry: SharedCompassVMGuestWorkspaceCatalog.CatalogEntry?
+    do {
+      entry = try SharedCompassVMGuestWorkspaceCatalog.loadEntry(forRepoURL: hostRepoURL)
+    } catch {
+      throw SyncError.catalogFailure(detail: "\(error)")
+    }
+    guard let entry else {
+      // Nothing to pull into — caller should have called
+      // ensurePopulated first. Surface as a catalog failure rather
+      // than silently no-op'ing so a regression here gets caught.
+      throw SyncError.catalogFailure(detail: "no catalog entry for host repo \(hostRepoURL.path)")
+    }
+    let guestPath = SharedCompassVMGuestWorkspaceCatalog.guestWorktreePath(forEntry: entry)
+    let deletionScope: Set<String>?
+    do {
+      deletionScope = try SharedCompassVMGuestWorkspaceCatalog
+        .loadLastSyncedFileSet(forRepoURL: hostRepoURL)
+    } catch {
+      throw SyncError.catalogFailure(detail: "\(error)")
+    }
+    do {
+      try await SharedCompassVMWorktreeSync.pull(
+        hostWorktreeURL: hostRepoURL,
+        guestWorktreePath: guestPath,
+        client: client,
+        deletionScope: deletionScope
+      )
+    } catch let error as SharedCompassVMWorktreeSync.SyncError {
+      throw SyncError.wrappedSyncFailure(error)
+    }
+
+    // Re-stamp the catalog: after a successful pull, the host repo
+    // mirrors the guest, so its fingerprint is the new ground truth.
+    let snapshot: (fingerprint: String, fileSet: Set<String>)
+    do {
+      snapshot = try SharedCompassVMHostFingerprint.compute(at: hostRepoURL)
+    } catch {
+      throw SyncError.fingerprintFailure(detail: "\(error)")
+    }
+    do {
+      try SharedCompassVMGuestWorkspaceCatalog.recordSync(
+        forRepoURL: hostRepoURL,
+        fingerprint: snapshot.fingerprint,
+        fileSet: snapshot.fileSet
+      )
+    } catch {
+      throw SyncError.catalogFailure(detail: "\(error)")
+    }
+  }
+
   // MARK: - Internals
 
-  private static func push(
+  /// Pushes the host worktree to the guest and, on success, stamps the
+  /// catalog with the snapshot so subsequent calls can short-circuit
+  /// via the fingerprint comparison. The snapshot is passed in rather
+  /// than recomputed because `ensurePopulated` already paid for it on
+  /// the way in.
+  private static func pushAndRecord(
     hostRepoURL: URL,
     guestPath: String,
-    client: AgentVsockClient
+    client: AgentVsockClient,
+    snapshot: (fingerprint: String, fileSet: Set<String>)
   ) async throws {
     do {
       try await SharedCompassVMWorktreeSync.push(
@@ -123,6 +232,15 @@ enum SharedCompassVMRepoWorkspaceSync {
       )
     } catch let error as SharedCompassVMWorktreeSync.SyncError {
       throw SyncError.wrappedSyncFailure(error)
+    }
+    do {
+      try SharedCompassVMGuestWorkspaceCatalog.recordSync(
+        forRepoURL: hostRepoURL,
+        fingerprint: snapshot.fingerprint,
+        fileSet: snapshot.fileSet
+      )
+    } catch {
+      throw SyncError.catalogFailure(detail: "\(error)")
     }
   }
 

@@ -130,6 +130,7 @@ extension CompassProject {
     workingDirectory: URL,
     userPrompt: String,
     submitResultSchema: String,
+    codemapStoreDirectory: URL,
     decode: T.Type
   ) async throws -> T {
     let schema = AgentToolParametersSchema(json: Data(submitResultSchema.utf8))
@@ -156,7 +157,8 @@ extension CompassProject {
       submitResultSchema: schema,
       workingDirectory: environment.workingDirectory,
       filesystem: environment.filesystem,
-      bashRunner: environment.bashRunner
+      bashRunner: environment.bashRunner,
+      codemapStoreDirectory: codemapStoreDirectory
     )
     let agent = AgentExecutor { [weak self] event in
       Task { @MainActor in self?.log(event) }
@@ -326,6 +328,10 @@ extension CompassProject {
       log(
         "Guest workspace at \(result.guestPath) force-refreshed from \(hostRepoURL.path).",
         level: .info)
+    case .refreshedDueToHostDrift:
+      log(
+        "Guest workspace at \(result.guestPath) re-populated: host repo changed since last sync (out-of-band edits while Compass was closed).",
+        level: .info)
     }
     return result.outcome
   }
@@ -352,16 +358,23 @@ extension CompassProject {
     mainRepoURL: URL,
     plan: AgentExecutionLaunchPlan
   ) async {
-    guard case .sharedVM(let route) = plan.effectiveRoute,
+    // The guest path is resolved inside pullAndRecord via the
+    // catalog, so we only need the route to decide whether this is a
+    // .sharedVM run at all.
+    guard case .sharedVM = plan.effectiveRoute,
       let machine = SharedCompassVM.shared.virtualMachine
     else {
       return
     }
     let client = Self.makeVsockClient(on: machine)
     do {
-      try await SharedCompassVMWorktreeSync.pull(
-        hostWorktreeURL: mainRepoURL,
-        guestWorktreePath: route.guestWorkspacePath,
+      // Routes through SharedCompassVMRepoWorkspaceSync so the pull's
+      // deletion step is scoped to the last-pushed fileset (preserving
+      // user-added files between sessions) and the catalog gets
+      // re-stamped with the post-pull fingerprint for the next
+      // session's drift check.
+      try await SharedCompassVMRepoWorkspaceSync.pullAndRecord(
+        hostRepoURL: mainRepoURL,
         client: client
       )
     } catch {

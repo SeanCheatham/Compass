@@ -25,6 +25,13 @@ struct AgentExecutionConfiguration {
   var workingDirectory: URL
   var filesystem: AgentFilesystem
   var bashRunner: AgentBashRunner
+  /// Host-side codemap directory. When the agent runs in the Shared VM,
+  /// `workingDirectory` is the guest worktree path and is *not* where
+  /// the codemap lives — the caller must supply the actual store
+  /// location so codemap-backed tools see real entries. `nil` falls
+  /// back to `<workingDirectory>/.compass/codemap`, which is correct
+  /// only for host-route runs against a canonical repo-local workspace.
+  var codemapStoreDirectory: URL?
   var maxIterations: Int
   var wallClockTimeout: TimeInterval
 
@@ -39,6 +46,7 @@ struct AgentExecutionConfiguration {
     workingDirectory: URL,
     filesystem: AgentFilesystem = AgentHostFilesystem(),
     bashRunner: AgentBashRunner = AgentHostBashRunner(),
+    codemapStoreDirectory: URL? = nil,
     maxIterations: Int = 512,
     wallClockTimeout: TimeInterval = 60 * 60
   ) {
@@ -52,6 +60,7 @@ struct AgentExecutionConfiguration {
     self.workingDirectory = workingDirectory
     self.filesystem = filesystem
     self.bashRunner = bashRunner
+    self.codemapStoreDirectory = codemapStoreDirectory
     self.maxIterations = maxIterations
     self.wallClockTimeout = wallClockTimeout
   }
@@ -177,7 +186,8 @@ final class AgentExecutor {
       workingDirectory: configuration.workingDirectory,
       filesystem: configuration.filesystem,
       bashRunner: configuration.bashRunner,
-      delegateRunner: delegateRunner
+      delegateRunner: delegateRunner,
+      codemapStoreDirectory: configuration.codemapStoreDirectory
     )
     let model = configuration.settings.model(
       for: configuration.phase, sidebarOverride: configuration.modelOverride)
@@ -242,12 +252,12 @@ final class AgentExecutor {
       }
 
       // Snapshot the message count *before* this iteration appends its
-      // assistant turn. If `submit_result` later turns out to carry
-      // malformed JSON we roll back to here, dropping the assistant
-      // *and* any `.tool` responses we may have appended for sibling
-      // tool calls earlier in this same turn — leaving those behind
-      // would orphan them against an assistant message that no longer
-      // exists, which is exactly the 400 cascade MiniMax surfaces.
+      // assistant turn. If any tool call in this turn carries malformed
+      // JSON arguments we roll back to here, dropping the assistant
+      // (and, in the pre-flight path, never appending tool responses
+      // for its siblings). Leaving a `.tool` response without its
+      // declaring assistant turn would orphan its `toolCallId`, which
+      // is exactly the 400 cascade MiniMax surfaces.
       let messageCountBeforeAssistant = messages.count
 
       messages.append(
@@ -273,66 +283,60 @@ final class AgentExecutor {
         }
       }
 
+      // Pre-flight: any tool call whose `arguments` field isn't
+      // well-formed JSON will be rejected by strict upstream
+      // providers (MiniMax has been observed doing this) on the
+      // *next* request, with a 400 that aborts the whole run.
+      // MiniMax has been seen truncating mid-token without setting
+      // `finishReason == "length"`, so this catches all sources of
+      // bad args: silent truncation, model-emitted escape bugs in
+      // big `edit_file` / `write_file` payloads, etc. Drop the
+      // assistant turn and inject a remediation nudge instead of
+      // invoking any tools — replaying the bad turn would orphan
+      // its tool responses too.
+      if let bad = aggregated.toolCalls.first(where: {
+        (try? JSONSerialization.jsonObject(with: Data($0.arguments.utf8))) == nil
+      }) {
+        Self.rollback(
+          messages: &messages,
+          nudgeIndices: &remediationNudgeIndices,
+          to: messageCountBeforeAssistant
+        )
+        let nudge: InvalidToolArgumentsNudge =
+          bad.name == Self.submitResultToolName
+          ? Self.invalidSubmitResultNudge(
+            finishReason: aggregated.finishReason,
+            argumentsPreview: previewString(bad.arguments),
+            maxCompletionTokens: Self.maxCompletionTokensPerTurn
+          )
+          : Self.invalidToolArgumentsNudge(
+            toolName: bad.name,
+            finishReason: aggregated.finishReason,
+            argumentsPreview: previewString(bad.arguments),
+            maxCompletionTokens: Self.maxCompletionTokensPerTurn
+          )
+        Self.appendRemediationNudge(
+          nudge.userMessage,
+          messages: &messages,
+          nudgeIndices: &remediationNudgeIndices
+        )
+        emit(
+          level: .warning,
+          text: nudge.eventText,
+          detail: nudge.eventDetail,
+          kind: .agentMessage,
+          status: .failed,
+          correlationID: bad.id
+        )
+        continue
+      }
+
       for toolCall in aggregated.toolCalls {
         if cancelled { throw AgentExecutionError.cancelled }
 
         if toolCall.name == Self.submitResultToolName {
+          // JSON validity already enforced by the pre-flight above.
           let argsData = Data(toolCall.arguments.utf8)
-          // Validate that the args are well-formed JSON; the
-          // caller decodes them into the phase model.
-          if (try? JSONSerialization.jsonObject(with: argsData)) == nil {
-            // The assistant message with this tool call is already
-            // in `messages` and its `tool_calls.arguments` is
-            // invalid JSON. Most upstream chat APIs validate that
-            // field on the *next* request and reject the entire
-            // conversation with a 400 (observed in production
-            // against MiniMax), so we have to drop the bad
-            // assistant turn unconditionally — not just when the
-            // provider tags it `finishReason == "length"`. MiniMax
-            // truncates mid-token without setting that flag, so
-            // the previous gated remediation only caught a subset
-            // of the bug. Replace the dropped turn with a
-            // user-side retry nudge whose wording adapts to
-            // whether the failure looks like truncation.
-            //
-            // Roll back to the snapshot taken before we appended
-            // this iteration's assistant — that drops the
-            // assistant *and* any `.tool` responses we already
-            // appended for earlier non-submit tool calls in the
-            // same turn. Leaving those tool messages behind would
-            // orphan their `toolCallId` against an assistant turn
-            // that no longer exists, which strict providers
-            // (MiniMax has been observed doing this) reject with
-            // a 400 on the next request.
-            Self.rollback(
-              messages: &messages,
-              nudgeIndices: &remediationNudgeIndices,
-              to: messageCountBeforeAssistant
-            )
-            let nudge = Self.invalidSubmitResultNudge(
-              finishReason: aggregated.finishReason,
-              argumentsPreview: previewString(toolCall.arguments),
-              maxCompletionTokens: Self.maxCompletionTokensPerTurn
-            )
-            Self.appendRemediationNudge(
-              nudge.userMessage,
-              messages: &messages,
-              nudgeIndices: &remediationNudgeIndices
-            )
-            emit(
-              level: .warning,
-              text: nudge.eventText,
-              detail: nudge.eventDetail,
-              kind: .agentMessage,
-              status: .failed,
-              correlationID: toolCall.id
-            )
-            // The popped assistant message owned every tool call in
-            // `aggregated.toolCalls`, so processing the rest would
-            // orphan their `.tool` responses. Restart the outer
-            // iteration loop instead.
-            break
-          }
           emit(
             level: .success, text: "submit_result", detail: previewString(toolCall.arguments),
             kind: .agentMessage, status: .completed, correlationID: toolCall.id)
@@ -427,6 +431,7 @@ final class AgentExecutor {
       workingDirectory: configuration.workingDirectory,
       filesystem: configuration.filesystem,
       bashRunner: configuration.bashRunner,
+      codemapStoreDirectory: configuration.codemapStoreDirectory,
       parentTools: configuration.tools,
       parentMaxIterations: configuration.maxIterations,
       parentWallClockTimeout: configuration.wallClockTimeout,
@@ -793,13 +798,13 @@ final class AgentExecutor {
     return (output, reasoning)
   }
 
-  // MARK: - submit_result remediation
+  // MARK: - Invalid-tool-arguments remediation
 
   /// Wording for the user-visible event and the user-side nudge
-  /// appended to `messages` when `submit_result` arrived with invalid
-  /// JSON arguments. Split out so the wording stays unit-testable
-  /// without needing to drive the full streaming loop.
-  struct InvalidSubmitResultNudge: Equatable {
+  /// appended to `messages` when a tool call arrived with invalid JSON
+  /// arguments. Split out so the wording stays unit-testable without
+  /// needing to drive the full streaming loop.
+  struct InvalidToolArgumentsNudge: Equatable {
     var eventText: String
     var eventDetail: String
     var userMessage: String
@@ -814,9 +819,9 @@ final class AgentExecutor {
     finishReason: String?,
     argumentsPreview: String,
     maxCompletionTokens: Int
-  ) -> InvalidSubmitResultNudge {
+  ) -> InvalidToolArgumentsNudge {
     if finishReason == "length" {
-      return InvalidSubmitResultNudge(
+      return InvalidToolArgumentsNudge(
         eventText: "submit_result truncated",
         eventDetail:
           "Output hit the max-tokens cap (\(maxCompletionTokens)); asking the model to retry with shorter fields.",
@@ -824,11 +829,43 @@ final class AgentExecutor {
           "Your previous `submit_result` was truncated by the output-token limit. Retry with the same structure but shorter free-form text — keep `state.completed` entries terse, trim `summary`, and avoid restating context. The tool args must be complete, valid JSON."
       )
     }
-    return InvalidSubmitResultNudge(
+    return InvalidToolArgumentsNudge(
       eventText: "submit_result rejected",
       eventDetail: "submit_result args are not valid JSON: \(argumentsPreview)",
       userMessage:
         "Your previous `submit_result` arguments could not be parsed as JSON — the upstream often truncates mid-token without flagging it. Retry with the same structure but noticeably shorter free-form text: keep `state.completed` entries terse, trim `summary`, and avoid restating prior context. The tool args must be complete, valid JSON."
+    )
+  }
+
+  /// Build the remediation copy for any non-`submit_result` tool call
+  /// whose `arguments` field isn't valid JSON. Two common causes: the
+  /// model emitted unescaped control characters or unbalanced strings
+  /// inside a large `edit_file` / `write_file` payload, or the upstream
+  /// silently truncated mid-token (MiniMax has been observed doing this
+  /// without setting `finishReason == "length"`). The `length` branch
+  /// owns the truncation-specific wording; the fallthrough handles both
+  /// silent-truncation and model-side escape errors with a generic
+  /// "retry with valid JSON" nudge.
+  static func invalidToolArgumentsNudge(
+    toolName: String,
+    finishReason: String?,
+    argumentsPreview: String,
+    maxCompletionTokens: Int
+  ) -> InvalidToolArgumentsNudge {
+    if finishReason == "length" {
+      return InvalidToolArgumentsNudge(
+        eventText: "\(toolName) truncated",
+        eventDetail:
+          "Output hit the max-tokens cap (\(maxCompletionTokens)); asking the model to retry with a smaller payload.",
+        userMessage:
+          "Your previous `\(toolName)` call was truncated by the output-token limit, so its arguments were not valid JSON. Retry with a smaller payload — for file edits, break the change into multiple smaller `edit_file` calls instead of one large one. The tool args must be complete, valid JSON."
+      )
+    }
+    return InvalidToolArgumentsNudge(
+      eventText: "\(toolName) rejected",
+      eventDetail: "\(toolName) args are not valid JSON: \(argumentsPreview)",
+      userMessage:
+        "Your previous `\(toolName)` arguments could not be parsed as JSON. The upstream rejects the next request when any tool call's arguments are malformed, so the call was dropped without invoking the tool. Retry with valid JSON — pay attention to escaping (`\\n` for newlines, `\\\"` for quotes inside strings) and to closing all braces/brackets. If the payload is very large, split it into multiple smaller calls."
     )
   }
 

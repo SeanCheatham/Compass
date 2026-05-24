@@ -90,6 +90,7 @@ extension CompassProject {
         workingDirectory: workspace.repoURL,
         userPrompt: prompt,
         submitResultSchema: Prompts.planSchema,
+        codemapStoreDirectory: CodemapStore.defaultDirectory(forWorkspace: workspace),
         decode: PlanRunResult.self
       )
       let nextState = planResult.state
@@ -303,6 +304,7 @@ extension CompassProject {
               workingDirectory: workspace.repoURL,
               userPrompt: prompt,
               submitResultSchema: Prompts.developSchema,
+              codemapStoreDirectory: CodemapStore.defaultDirectory(forWorkspace: workspace),
               decode: DevelopSummary.self
             )
           } catch let error as AgentExecutionError where error.isAgentBudgetExhaustion {
@@ -536,6 +538,7 @@ extension CompassProject {
       workingDirectory: workspace.repoURL,
       userPrompt: prompt,
       submitResultSchema: Prompts.reflectSchema,
+      codemapStoreDirectory: CodemapStore.defaultDirectory(forWorkspace: workspace),
       decode: ReflectSummary.self
     )
 
@@ -612,6 +615,7 @@ extension CompassProject {
         workingDirectory: workspace.repoURL,
         userPrompt: prompt,
         submitResultSchema: Prompts.criticSchema,
+        codemapStoreDirectory: CodemapStore.defaultDirectory(forWorkspace: workspace),
         decode: CriticVerdict.self
       )
     } catch {

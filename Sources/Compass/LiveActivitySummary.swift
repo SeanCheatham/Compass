@@ -6,7 +6,7 @@ import Foundation
 
 struct LiveActivitySummary: Equatable, Sendable {
   var clusterKey: String
-  var title: String
+  var text: String
   var source: Source
 
   enum Source: String, Equatable, Sendable {
@@ -14,9 +14,9 @@ struct LiveActivitySummary: Equatable, Sendable {
     case generated
   }
 
-  init(clusterKey: String, title: String, source: Source) {
+  init(clusterKey: String, text: String, source: Source) {
     self.clusterKey = clusterKey
-    self.title = LiveActivitySummaryService.fittedTitle(title)
+    self.text = LiveActivitySummaryService.fittedSummary(text)
     self.source = source
   }
 }
@@ -31,6 +31,7 @@ struct LiveActivityCluster: Equatable, Identifiable {
   enum FreezeReason: String, Equatable {
     case lifecycleBoundary
     case quietGap
+    case elapsedSinceStart
   }
 
   init(lines: [LiveLine], freezeReason: FreezeReason) {
@@ -94,13 +95,15 @@ struct LiveActivitySummaryPlan: Equatable {
 }
 
 enum LiveActivitySummaryPlanner {
-  static let quietGap: TimeInterval = 2.0
-  static let minimumFrozenRowCount = 5
+  static let quietGap: TimeInterval = 30.0
+  static let maximumClusterAge: TimeInterval = 30.0
+  static let minimumFrozenRowCount = 3
 
   static func plan(
     lines: [LiveLine],
     now: Date = Date(),
     quietGap: TimeInterval = Self.quietGap,
+    maximumClusterAge: TimeInterval = Self.maximumClusterAge,
     minimumFrozenRowCount: Int = Self.minimumFrozenRowCount
   ) -> LiveActivitySummaryPlan {
     let minimumFrozenRowCount = max(1, minimumFrozenRowCount)
@@ -113,7 +116,8 @@ enum LiveActivitySummaryPlanner {
       pendingLines.append(line)
 
       guard pendingLines.count >= minimumFrozenRowCount,
-        pendingLines.allSatisfy({ $0.status != .running })
+        pendingLines.allSatisfy({ !isBlockingRunningLine($0) }),
+        let firstDate = pendingLines.first?.date
       else {
         continue
       }
@@ -125,9 +129,11 @@ enum LiveActivitySummaryPlanner {
       guard
         let freezeReason = freezeReason(
           endingWith: line,
+          firstDate: firstDate,
           nextLine: nextLine,
           now: now,
-          quietGap: quietGap
+          quietGap: quietGap,
+          maximumClusterAge: maximumClusterAge
         )
       else {
         continue
@@ -156,11 +162,20 @@ enum LiveActivitySummaryPlanner {
     return "live-input-v1-\(hasher.hexDigest)"
   }
 
+  private static func isBlockingRunningLine(_ line: LiveLine) -> Bool {
+    // Lifecycle markers (e.g. "Agent iteration N") are emitted with
+    // status .running but never receive a matching completion event,
+    // so they are sentinels rather than in-flight work.
+    line.status == .running && line.kind != .lifecycle
+  }
+
   private static func freezeReason(
     endingWith line: LiveLine,
+    firstDate: Date,
     nextLine: LiveLine?,
     now: Date,
-    quietGap: TimeInterval
+    quietGap: TimeInterval,
+    maximumClusterAge: TimeInterval
   ) -> LiveActivityCluster.FreezeReason? {
     if line.kind == .lifecycle, line.status != .running {
       return .lifecycleBoundary
@@ -172,8 +187,16 @@ enum LiveActivitySummaryPlanner {
     } else {
       gap = now.timeIntervalSince(line.date)
     }
+    if gap > quietGap {
+      return .quietGap
+    }
 
-    return gap > quietGap ? .quietGap : nil
+    let referenceDate = nextLine?.date ?? now
+    if referenceDate.timeIntervalSince(firstDate) >= maximumClusterAge {
+      return .elapsedSinceStart
+    }
+
+    return nil
   }
 }
 
@@ -203,8 +226,7 @@ enum LiveActivitySummaryCachePlanner {
 }
 
 enum LiveActivitySummaryService {
-  static let titleMaxCharacters = 78
-  static let titleMaxWords = 12
+  static let summaryMaxCharacters = 400
   static let modelPromptMaxEvents = 32
   static let modelPromptEventMaxCharacters = 180
 
@@ -223,80 +245,87 @@ enum LiveActivitySummaryService {
   }
 
   static func deterministicSummary(for cluster: LiveActivityCluster) -> LiveActivitySummary {
-    let representativeLine = cluster.lines.last { line in
-      !normalizedPlainText(line.detail ?? line.text).isEmpty
-    }
-    let representativeText =
-      representativeLine.map {
-        normalizedPlainText(firstLine($0.detail) ?? $0.text)
-      } ?? ""
+    let commandCount = cluster.lines.filter { $0.kind == .command }.count
+    let fileChangeCount = cluster.lines.filter { $0.kind == .fileChange }.count
+    let agentMessageCount = cluster.lines.filter { $0.kind == .agentMessage }.count
+    let failureCount = cluster.lines.filter { $0.status == .failed || $0.level == .error }
+      .count
+    let warningCount = cluster.lines.filter { $0.level == .warning }.count
+    let lifecycleLine = cluster.lines.last { $0.kind == .lifecycle && $0.status != .running }
 
-    let prefix: String
-    if cluster.lines.contains(where: { $0.status == .failed || $0.level == .error }) {
-      prefix = "Attention"
-    } else if cluster.lines.contains(where: { $0.kind == .command }) {
-      prefix = "Command batch"
-    } else if cluster.lines.contains(where: { $0.kind == .fileChange }) {
-      prefix = "File activity"
-    } else if cluster.lines.contains(where: { $0.kind == .agentMessage }) {
-      prefix = "Agent activity"
-    } else if cluster.lines.contains(where: { $0.kind == .lifecycle }) {
-      prefix = "Phase update"
+    var phrases: [String] = []
+    if commandCount > 0 {
+      phrases.append("ran \(commandCount) \(pluralize("command", commandCount))")
+    }
+    if fileChangeCount > 0 {
+      phrases.append("touched \(fileChangeCount) \(pluralize("file", fileChangeCount))")
+    }
+    if agentMessageCount > 0 {
+      phrases.append(
+        "posted \(agentMessageCount) agent \(pluralize("note", agentMessageCount))"
+      )
+    }
+
+    var sentences: [String] = []
+    if !phrases.isEmpty {
+      sentences.append("The agent " + joinPhrases(phrases) + ".")
     } else {
-      prefix = "Live activity"
+      sentences.append("The agent logged \(cluster.lines.count) \(pluralize("event", cluster.lines.count)).")
     }
 
-    let title: String
-    if representativeText.isEmpty {
-      title = prefix
-    } else {
-      title = "\(prefix): \(representativeText)"
+    if failureCount > 0 {
+      sentences.append(
+        "\(capitalizedCount(failureCount)) \(pluralize("failure", failureCount)) reported."
+      )
+    } else if warningCount > 0 {
+      sentences.append(
+        "\(capitalizedCount(warningCount)) \(pluralize("warning", warningCount)) noted."
+      )
     }
 
+    if let lifecycleLine,
+      let lifecycleText = firstLine(lifecycleLine.detail) ?? Optional(lifecycleLine.text),
+      !lifecycleText.isEmpty {
+      sentences.append("Phase: " + normalizedPlainText(lifecycleText) + ".")
+    }
+
+    let body = sentences.joined(separator: " ")
     return LiveActivitySummary(
       clusterKey: cluster.key,
-      title: fittedTitle(title),
+      text: body,
       source: .deterministic
     )
   }
 
-  static func parseGeneratedTitle(
+  static func parseGeneratedSummary(
     _ raw: String,
     cluster: LiveActivityCluster
   ) -> LiveActivitySummary? {
-    let lines =
-      raw
+    let collapsed = raw
       .replacingOccurrences(of: "\r", with: "\n")
       .split(whereSeparator: \.isNewline)
       .map { String($0).trimmingCharacters(in: .whitespacesAndNewlines) }
       .filter { !$0.isEmpty }
+      .joined(separator: " ")
 
-    guard lines.count == 1 else { return nil }
-    let line = lines[0]
-    let title: String
-    if line.lowercased().hasPrefix("title:") {
-      title = stripLabel(from: line)
+    let stripped: String
+    if collapsed.lowercased().hasPrefix("summary:") {
+      stripped = stripLabel(from: collapsed)
     } else {
-      title = line
+      stripped = collapsed
     }
 
-    let cleanTitle = normalizeGeneratedText(title)
-    guard validateGeneratedTitle(cleanTitle, cluster: cluster) else { return nil }
+    let clean = normalizeGeneratedText(stripped)
+    guard validateGeneratedSummary(clean) else { return nil }
     return LiveActivitySummary(
       clusterKey: cluster.key,
-      title: cleanTitle,
+      text: clean,
       source: .generated
     )
   }
 
-  static func fittedTitle(_ text: String) -> String {
-    let normalized = normalizedPlainText(text)
-    let wordLimited =
-      normalized
-      .split(whereSeparator: \.isWhitespace)
-      .prefix(titleMaxWords)
-      .joined(separator: " ")
-    return fittedPlainText(wordLimited, maxCharacters: titleMaxCharacters)
+  static func fittedSummary(_ text: String) -> String {
+    fittedPlainText(normalizedPlainText(text), maxCharacters: summaryMaxCharacters)
   }
 
   static func normalizedPlainText(_ text: String) -> String {
@@ -343,131 +372,28 @@ enum LiveActivitySummaryService {
     }
   }
 
-  private static func validateGeneratedTitle(
-    _ title: String,
-    cluster: LiveActivityCluster
-  ) -> Bool {
-    guard (3...titleMaxCharacters).contains(title.count),
-      wordCount(title) <= titleMaxWords,
-      isPlainGeneratedTitle(title),
-      validateNoInvention(title: title, cluster: cluster)
+  private static func validateGeneratedSummary(_ text: String) -> Bool {
+    guard (8...summaryMaxCharacters).contains(text.count),
+      isPlainGeneratedProse(text)
     else {
       return false
     }
     return true
   }
 
-  private static func validateNoInvention(
-    title: String,
-    cluster: LiveActivityCluster
-  ) -> Bool {
-    let source = normalizedPlainText(
-      cluster.lines
-        .map { promptText(for: $0) }
-        .joined(separator: " ")
-    )
-
-    guard
-      doesNotAddPatternMatches(
-        from: title,
-        source: source,
-        pattern: #"(?<![A-Za-z0-9])#?\d[\d,]*(?:\.\d+)?%?(?![A-Za-z0-9])"#
-      )
-    else {
-      return false
-    }
-
-    guard
-      doesNotAddPatternMatches(
-        from: title,
-        source: source,
-        pattern:
-          #"[A-Za-z0-9_./-]+\.(?:swift|ts|tsx|js|jsx|json|md|txt|yml|yaml|toml|lock|py|go|rs|sh|zsh|html|css|scss|plist|xcodeproj|xcworkspace|m|mm|h|hpp|cpp|c|sql)"#
-      )
-    else {
-      return false
-    }
-
-    guard
-      doesNotAddPatternMatches(
-        from: title,
-        source: source,
-        pattern: #"[A-Za-z0-9_-]+/[A-Za-z0-9_./-]+"#
-      )
-    else {
-      return false
-    }
-
-    guard
-      doesNotAddPatternMatches(
-        from: title,
-        source: source,
-        pattern:
-          #"(?<![A-Za-z0-9_.-])(?:README|LICENSE|Makefile|Dockerfile|Gemfile|Podfile|Rakefile)(?![A-Za-z0-9_.-])"#
-      )
-    else {
-      return false
-    }
-
-    let guardedOutcomes = [
-      "complete",
-      "completed",
-      "deployed",
-      "done",
-      "failed",
-      "fixed",
-      "finished",
-      "green",
-      "implemented",
-      "merged",
-      "passed",
-      "passing",
-      "ready",
-      "resolved",
-      "shipped",
-      "success",
-      "successful",
-      "verified",
-      "working",
-    ]
-    guard doesNotAddGuardedWords(guardedOutcomes, title: title, source: source) else {
-      return false
-    }
-
-    let guardedNumberWords = [
-      "zero",
-      "one",
-      "two",
-      "three",
-      "four",
-      "five",
-      "six",
-      "seven",
-      "eight",
-      "nine",
-      "ten",
-      "eleven",
-      "twelve",
-    ]
-    return doesNotAddGuardedWords(guardedNumberWords, title: title, source: source)
-  }
-
-  private static func isPlainGeneratedTitle(_ title: String) -> Bool {
-    let lowercased = title.lowercased()
+  private static func isPlainGeneratedProse(_ text: String) -> Bool {
+    let lowercased = text.lowercased()
     guard !lowercased.contains("http://"),
       !lowercased.contains("https://"),
       !lowercased.contains("www."),
-      !title.contains("```"),
-      !title.contains("`"),
-      !title.contains("{"),
-      !title.contains("}"),
-      !title.contains("["),
-      !title.contains("]"),
-      !title.contains("\""),
-      !title.hasPrefix("#"),
-      !title.hasPrefix("- "),
-      !title.hasPrefix("* "),
-      !title.hasPrefix(">")
+      !text.contains("```"),
+      !text.contains("`"),
+      !text.contains("{"),
+      !text.contains("}"),
+      !text.hasPrefix("#"),
+      !text.hasPrefix("- "),
+      !text.hasPrefix("* "),
+      !text.hasPrefix(">")
     else {
       return false
     }
@@ -499,54 +425,37 @@ enum LiveActivitySummaryService {
 
   private static func stripLabel(from line: String) -> String {
     guard let colon = line.firstIndex(of: ":") else { return line }
-    return String(line[line.index(after: colon)...])
+    return String(line[line.index(after: colon)...]).trimmingCharacters(in: .whitespaces)
   }
 
-  private static func wordCount(_ text: String) -> Int {
-    text.split(whereSeparator: \.isWhitespace).count
+  private static func pluralize(_ word: String, _ count: Int) -> String {
+    count == 1 ? word : word + "s"
   }
 
-  private static func doesNotAddPatternMatches(
-    from title: String,
-    source: String,
-    pattern: String
-  ) -> Bool {
-    let sourceTokens = Set(matches(in: source.lowercased(), pattern: pattern))
-    for token in matches(in: title.lowercased(), pattern: pattern) {
-      guard sourceTokens.contains(token) else { return false }
-    }
-    return true
-  }
-
-  private static func doesNotAddGuardedWords(
-    _ words: [String],
-    title: String,
-    source: String
-  ) -> Bool {
-    let title = title.lowercased()
-    let source = source.lowercased()
-    for word in words {
-      guard containsWord(word, in: title) else { continue }
-      guard containsWord(word, in: source) else { return false }
-    }
-    return true
-  }
-
-  private static func matches(in text: String, pattern: String) -> [String] {
-    guard let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) else {
-      return []
-    }
-    let range = NSRange(text.startIndex..<text.endIndex, in: text)
-    return regex.matches(in: text, range: range).compactMap { match in
-      guard let tokenRange = Range(match.range, in: text) else { return nil }
-      return String(text[tokenRange]).lowercased()
+  private static func joinPhrases(_ phrases: [String]) -> String {
+    switch phrases.count {
+    case 0: return ""
+    case 1: return phrases[0]
+    case 2: return phrases[0] + " and " + phrases[1]
+    default:
+      let head = phrases.dropLast().joined(separator: ", ")
+      return head + ", and " + phrases.last!
     }
   }
 
-  private static func containsWord(_ word: String, in text: String) -> Bool {
-    let escaped = NSRegularExpression.escapedPattern(for: word)
-    let pattern = #"(?<![A-Za-z0-9])"# + escaped + #"(?![A-Za-z0-9])"#
-    return text.range(of: pattern, options: [.regularExpression, .caseInsensitive]) != nil
+  private static func capitalizedCount(_ count: Int) -> String {
+    switch count {
+    case 1: return "One"
+    case 2: return "Two"
+    case 3: return "Three"
+    case 4: return "Four"
+    case 5: return "Five"
+    case 6: return "Six"
+    case 7: return "Seven"
+    case 8: return "Eight"
+    case 9: return "Nine"
+    default: return String(count)
+    }
   }
 }
 
@@ -559,10 +468,11 @@ enum LiveActivitySummaryService {
 
       let session = LanguageModelSession(
         instructions: """
-          You title a completed batch of Compass live activity for a macOS software factory.
-          Return exactly one plain-text title line under 12 words.
-          Use only facts present in the supplied events.
-          Do not invent file names, paths, URLs, numbers, outcomes, markdown, JSON, or completion claims.
+          You summarize a batch of recent Compass live activity for a macOS software factory.
+          Return a single paragraph of 2 to 3 plain-text sentences describing what happened.
+          Write in past tense, third person, present a calm narrative of the work.
+          Ground every claim in the supplied events; you may reference file names, commands, counts, and outcomes that appear in those events.
+          Do not use markdown, code fences, JSON, bullet points, or URLs.
           """)
 
       let events = LiveActivitySummaryService.modelPromptLines(for: cluster)
@@ -570,15 +480,15 @@ enum LiveActivitySummaryService {
 
       let response = try await session.respond(
         to: """
-          Events:
+          Events since the last summary:
           \(events)
 
-          Write one compact title for the batch.
+          Write 2 to 3 sentences summarizing what the agent did in this batch.
           """,
-        options: GenerationOptions(temperature: 0.35, maximumResponseTokens: 40)
+        options: GenerationOptions(temperature: 0.4, maximumResponseTokens: 220)
       )
 
-      return LiveActivitySummaryService.parseGeneratedTitle(
+      return LiveActivitySummaryService.parseGeneratedSummary(
         response.content,
         cluster: cluster
       )

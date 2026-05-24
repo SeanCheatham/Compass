@@ -35,16 +35,30 @@ enum SharedCompassVMGuestWorkspaceCatalog {
   /// Filename inside `<repo>/.compass/` that stores the ID.
   static let catalogFilename = "guest-workspace.json"
 
+  /// Sidecar filename inside `<repo>/.compass/` that stores the NUL-
+  /// separated set of host file paths captured at the last successful
+  /// sync. Kept out of the JSON catalog to avoid blowing the per-call
+  /// decode cost on large repos.
+  static let filesetFilename = "guest-workspace-fileset.dat"
+
   // MARK: - Catalog entry
 
-  /// On-disk record. Only one field today; the wrapper struct exists so
-  /// future additions (e.g. `lastSyncedGitSha`) don't break older
-  /// catalog files via Codable's default decoding.
+  /// On-disk record. The wrapper struct exists so future additions
+  /// don't break older catalog files via Codable's default decoding —
+  /// every non-`id` field is optional and absence-tolerant.
   struct CatalogEntry: Codable, Equatable {
     /// Stable UUID for this host repo's guest workspace. Generated
     /// the first time Compass needs a guest workspace and never
     /// rotated unless the caller explicitly resets the entry.
     var id: String
+    /// Lowercase-hex SHA-256 of the host worktree's content as of the
+    /// last successful push or pull. Used by `SharedCompassVMRepoWorkspaceSync`
+    /// to detect out-of-band host edits made while Compass wasn't
+    /// running; on mismatch the fast-path is refused and the guest is
+    /// re-populated from the host so the user's changes participate
+    /// in the next session. Optional so catalogs written before this
+    /// field existed still decode.
+    var lastSyncedHostFingerprint: String?
   }
 
   // MARK: - Public API
@@ -61,7 +75,10 @@ enum SharedCompassVMGuestWorkspaceCatalog {
     if let existing = try loadEntry(from: url, fileManager: fileManager) {
       return existing
     }
-    let entry = CatalogEntry(id: UUID().uuidString.lowercased())
+    let entry = CatalogEntry(
+      id: UUID().uuidString.lowercased(),
+      lastSyncedHostFingerprint: nil
+    )
     try save(entry, to: url, fileManager: fileManager)
     // Re-read so we observe whatever a concurrent writer produced in
     // between our load and save. The first writer always wins.
@@ -84,8 +101,9 @@ enum SharedCompassVMGuestWorkspaceCatalog {
     )
   }
 
-  /// Wipes the entry. Caller is responsible for any guest-side cleanup
-  /// (the helper does not connect to the VM).
+  /// Wipes the entry and any sidecar files (fileset list). Caller is
+  /// responsible for any guest-side cleanup (the helper does not
+  /// connect to the VM).
   static func removeEntry(
     forRepoURL repoURL: URL,
     fileManager: FileManager = .default
@@ -94,6 +112,50 @@ enum SharedCompassVMGuestWorkspaceCatalog {
     if fileManager.fileExists(atPath: url.path) {
       try fileManager.removeItem(at: url)
     }
+    let filesetURL = filesetURL(forRepoURL: repoURL)
+    if fileManager.fileExists(atPath: filesetURL.path) {
+      try fileManager.removeItem(at: filesetURL)
+    }
+  }
+
+  /// Records a successful host↔guest sync by stamping the entry with
+  /// `fingerprint` and writing `fileSet` to the sidecar list. Allocates
+  /// the entry if it didn't already exist so callers don't have to
+  /// pre-create it.
+  ///
+  /// The fingerprint and the fileset are written as a pair on every
+  /// successful push or pull; `SharedCompassVMRepoWorkspaceSync` uses
+  /// the fingerprint to decide whether the host has drifted since the
+  /// last sync, and the pull path uses the fileset to scope deletions
+  /// to "files that were on the host at last push" so user-added files
+  /// between sessions are not clobbered.
+  static func recordSync(
+    forRepoURL repoURL: URL,
+    fingerprint: String,
+    fileSet: Set<String>,
+    fileManager: FileManager = .default
+  ) throws {
+    let url = catalogURL(forRepoURL: repoURL)
+    var entry = try loadEntry(from: url, fileManager: fileManager)
+      ?? CatalogEntry(id: UUID().uuidString.lowercased(), lastSyncedHostFingerprint: nil)
+    entry.lastSyncedHostFingerprint = fingerprint
+    try save(entry, to: url, fileManager: fileManager)
+    try writeFileSet(fileSet, to: filesetURL(forRepoURL: repoURL), fileManager: fileManager)
+  }
+
+  /// Returns the file set written at the last `recordSync`, or nil if
+  /// no sync has been recorded yet. Used by the pull path to determine
+  /// which host files are eligible for "agent deleted this" cleanup.
+  static func loadLastSyncedFileSet(
+    forRepoURL repoURL: URL,
+    fileManager: FileManager = .default
+  ) throws -> Set<String>? {
+    let url = filesetURL(forRepoURL: repoURL)
+    guard fileManager.fileExists(atPath: url.path) else { return nil }
+    let data = try Data(contentsOf: url)
+    let text = String(decoding: data, as: UTF8.self)
+    let parts = text.split(separator: "\0", omittingEmptySubsequences: true)
+    return Set(parts.map(String.init))
   }
 
   /// Absolute guest path of the worktree directory for `entry`. This is
@@ -119,6 +181,11 @@ enum SharedCompassVMGuestWorkspaceCatalog {
   static func catalogURL(forRepoURL repoURL: URL) -> URL {
     CompassWorkspace.repoLocalStorageRootURL(for: repoURL)
       .appending(path: catalogFilename)
+  }
+
+  static func filesetURL(forRepoURL repoURL: URL) -> URL {
+    CompassWorkspace.repoLocalStorageRootURL(for: repoURL)
+      .appending(path: filesetFilename)
   }
 
   // MARK: - Internals
@@ -158,6 +225,26 @@ enum SharedCompassVMGuestWorkspaceCatalog {
     encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
     let data = try encoder.encode(entry)
     try data.write(to: url, options: .atomic)
+  }
+
+  private static func writeFileSet(
+    _ files: Set<String>,
+    to url: URL,
+    fileManager: FileManager
+  ) throws {
+    try fileManager.createDirectory(
+      at: url.deletingLastPathComponent(),
+      withIntermediateDirectories: true
+    )
+    // Sorted for deterministic on-disk bytes — keeps diffing the
+    // sidecar tractable when debugging.
+    let sorted = files.sorted()
+    var buffer = Data()
+    for path in sorted {
+      buffer.append(Data(path.utf8))
+      buffer.append(0)
+    }
+    try buffer.write(to: url, options: .atomic)
   }
 
   /// Lower-cased UUID strings only. Rejects whitespace, slashes, or

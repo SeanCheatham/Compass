@@ -174,21 +174,21 @@ struct LiveActivityClusterRow: View {
           .frame(width: 18, height: 18)
           .padding(.top, 1)
 
-        VStack(alignment: .leading, spacing: 3) {
-          HStack(alignment: .firstTextBaseline, spacing: 7) {
-            Text(summary.title)
-              .font(.callout.weight(.semibold))
+        VStack(alignment: .leading, spacing: 4) {
+          HStack(alignment: .top, spacing: 7) {
+            Text(summary.text)
+              .font(.callout)
               .foregroundStyle(.primary)
-              .lineLimit(2)
+              .fixedSize(horizontal: false, vertical: true)
               .textSelection(.enabled)
+              .frame(maxWidth: .infinity, alignment: .leading)
 
             if isGenerating {
               ProgressView()
                 .controlSize(.small)
                 .scaleEffect(0.72)
+                .padding(.top, 2)
             }
-
-            Spacer(minLength: 6)
           }
 
           HStack(spacing: 6) {
@@ -235,7 +235,7 @@ struct LiveActivityClusterRow: View {
     switch cluster.freezeReason {
     case .lifecycleBoundary:
       return "flag.checkered"
-    case .quietGap:
+    case .quietGap, .elapsedSinceStart:
       return "rectangle.stack.fill"
     }
   }

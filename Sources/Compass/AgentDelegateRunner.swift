@@ -32,6 +32,11 @@ struct AgentExecutorDelegateRunner: AgentDelegateRunner {
   let workingDirectory: URL
   let filesystem: AgentFilesystem
   let bashRunner: AgentBashRunner
+  /// Host-side codemap directory inherited from the parent run. Nil
+  /// means the sub-agent falls back to `<workingDirectory>/.compass/codemap`,
+  /// which is wrong for Shared-VM routes — top-level callers should
+  /// always supply this.
+  let codemapStoreDirectory: URL?
   /// Snapshot of the parent's tool list. `delegate(toolNames:)` filters
   /// this; `AgentDelegateTool` is always excluded from the child's
   /// effective tool list so sub-agents cannot recurse.
@@ -78,6 +83,7 @@ struct AgentExecutorDelegateRunner: AgentDelegateRunner {
       workingDirectory: workingDirectory,
       filesystem: filesystem,
       bashRunner: bashRunner,
+      codemapStoreDirectory: codemapStoreDirectory,
       maxIterations: min(parentMaxIterations, Self.maxSubAgentIterations),
       wallClockTimeout: min(parentWallClockTimeout, Self.maxSubAgentWallClock)
     )

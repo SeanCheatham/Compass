@@ -116,6 +116,113 @@ final class SharedCompassVMGuestWorkspaceCatalogTests: XCTestCase {
     XCTAssertTrue(entry.id.allSatisfy { $0.isLetter || $0.isNumber || $0 == "-" })
   }
 
+  // MARK: - Fingerprint + fileset persistence
+
+  func testRecordSyncStampsFingerprintAndFileset() throws {
+    let repo = try makeTempRepo()
+    defer { try? FileManager.default.removeItem(at: repo) }
+
+    _ = try SharedCompassVMGuestWorkspaceCatalog.ensureEntry(forRepoURL: repo)
+    let files: Set<String> = ["a.swift", "src/b.txt", "README.md"]
+    try SharedCompassVMGuestWorkspaceCatalog.recordSync(
+      forRepoURL: repo,
+      fingerprint: "deadbeef",
+      fileSet: files
+    )
+
+    let reloaded = try XCTUnwrap(
+      try SharedCompassVMGuestWorkspaceCatalog.loadEntry(forRepoURL: repo)
+    )
+    XCTAssertEqual(reloaded.lastSyncedHostFingerprint, "deadbeef")
+
+    let loadedFileSet = try XCTUnwrap(
+      try SharedCompassVMGuestWorkspaceCatalog.loadLastSyncedFileSet(forRepoURL: repo)
+    )
+    XCTAssertEqual(loadedFileSet, files)
+  }
+
+  func testRecordSyncDoesNotRotateID() throws {
+    let repo = try makeTempRepo()
+    defer { try? FileManager.default.removeItem(at: repo) }
+
+    let original = try SharedCompassVMGuestWorkspaceCatalog.ensureEntry(forRepoURL: repo)
+    try SharedCompassVMGuestWorkspaceCatalog.recordSync(
+      forRepoURL: repo,
+      fingerprint: "abc123",
+      fileSet: ["one.swift"]
+    )
+
+    let reloaded = try XCTUnwrap(
+      try SharedCompassVMGuestWorkspaceCatalog.loadEntry(forRepoURL: repo)
+    )
+    // ID must survive — rotating it would orphan the existing guest
+    // workspace directory and force a full re-push every sync.
+    XCTAssertEqual(reloaded.id, original.id)
+  }
+
+  func testRecordSyncOverwritesPreviousValues() throws {
+    let repo = try makeTempRepo()
+    defer { try? FileManager.default.removeItem(at: repo) }
+
+    _ = try SharedCompassVMGuestWorkspaceCatalog.ensureEntry(forRepoURL: repo)
+    try SharedCompassVMGuestWorkspaceCatalog.recordSync(
+      forRepoURL: repo, fingerprint: "first", fileSet: ["x.swift"]
+    )
+    try SharedCompassVMGuestWorkspaceCatalog.recordSync(
+      forRepoURL: repo, fingerprint: "second", fileSet: ["y.swift", "z.swift"]
+    )
+
+    let reloaded = try XCTUnwrap(
+      try SharedCompassVMGuestWorkspaceCatalog.loadEntry(forRepoURL: repo)
+    )
+    XCTAssertEqual(reloaded.lastSyncedHostFingerprint, "second")
+
+    let loadedFileSet = try XCTUnwrap(
+      try SharedCompassVMGuestWorkspaceCatalog.loadLastSyncedFileSet(forRepoURL: repo)
+    )
+    XCTAssertEqual(loadedFileSet, ["y.swift", "z.swift"])
+  }
+
+  func testLegacyCatalogWithoutFingerprintFieldDecodesAsNil() throws {
+    let repo = try makeTempRepo()
+    defer { try? FileManager.default.removeItem(at: repo) }
+
+    // Hand-write the pre-fingerprint catalog shape.
+    let compassDir = repo.appending(path: ".compass")
+    try FileManager.default.createDirectory(at: compassDir, withIntermediateDirectories: true)
+    let catalogURL = SharedCompassVMGuestWorkspaceCatalog.catalogURL(forRepoURL: repo)
+    try Data(#"{"id":"00000000-0000-0000-0000-000000000001"}"#.utf8).write(to: catalogURL)
+
+    let reloaded = try XCTUnwrap(
+      try SharedCompassVMGuestWorkspaceCatalog.loadEntry(forRepoURL: repo)
+    )
+    XCTAssertEqual(reloaded.id, "00000000-0000-0000-0000-000000000001")
+    XCTAssertNil(reloaded.lastSyncedHostFingerprint)
+  }
+
+  func testLoadLastSyncedFileSetReturnsNilWhenSidecarMissing() throws {
+    let repo = try makeTempRepo()
+    defer { try? FileManager.default.removeItem(at: repo) }
+
+    _ = try SharedCompassVMGuestWorkspaceCatalog.ensureEntry(forRepoURL: repo)
+    XCTAssertNil(try SharedCompassVMGuestWorkspaceCatalog.loadLastSyncedFileSet(forRepoURL: repo))
+  }
+
+  func testRemoveEntryAlsoWipesFilesetSidecar() throws {
+    let repo = try makeTempRepo()
+    defer { try? FileManager.default.removeItem(at: repo) }
+
+    _ = try SharedCompassVMGuestWorkspaceCatalog.ensureEntry(forRepoURL: repo)
+    try SharedCompassVMGuestWorkspaceCatalog.recordSync(
+      forRepoURL: repo, fingerprint: "x", fileSet: ["a.swift"]
+    )
+    let filesetURL = SharedCompassVMGuestWorkspaceCatalog.filesetURL(forRepoURL: repo)
+    XCTAssertTrue(FileManager.default.fileExists(atPath: filesetURL.path))
+
+    try SharedCompassVMGuestWorkspaceCatalog.removeEntry(forRepoURL: repo)
+    XCTAssertFalse(FileManager.default.fileExists(atPath: filesetURL.path))
+  }
+
   // MARK: - Guest path mapping
 
   func testGuestWorktreePathHasExpectedShape() {

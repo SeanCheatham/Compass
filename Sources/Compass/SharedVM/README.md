@@ -114,27 +114,44 @@ allowed to touch:
   request; the in-guest `CompassGuestAgent` binary listens on `AF_VSOCK`
   at port `0x4007ACE5`. Wire format is length-prefixed JSON
   (`Sources/CompassAgentRPC/`).
-- **Worktree sync** (over vsock) — sync is now lazy and asymmetric:
+- **Worktree sync** (over vsock) — sync is lazy, asymmetric, and
+  drift-checked:
     - **First time** a repo's persistent guest workspace is referenced
       (`SharedCompassVMRepoWorkspaceSync.ensurePopulated`), the host
       packages the repo as a gitignore-aware tar
-      (`git ls-files --cached --others --exclude-standard | tar`) and
-      streams it into the guest. Subsequent calls short-circuit when
-      the guest directory already exists, preserving accumulated agent
-      state across sessions.
+      (`git ls-files --cached --others --exclude-standard | tar`),
+      streams it into the guest, and records a content fingerprint
+      plus the matching file set in
+      `<repo>/.compass/guest-workspace.json` + `guest-workspace-fileset.dat`.
+    - **Subsequent sessions** recompute the host fingerprint
+      ([SharedCompassVMHostFingerprint](SharedCompassVMHostFingerprint.swift) —
+      SHA-256 over sorted `<path>\0<sha256(content)>\0` records) and
+      compare it to the recorded value. On match the fast-path
+      reuses the guest as-is, preserving accumulated agent state. On
+      mismatch — typically because the user edited the repo while
+      Compass was closed — Compass re-pushes so those edits show up
+      in the session, surfacing the outcome as `.refreshedDueToHostDrift`
+      in the log.
     - **After Verify passes** the guest packs its current worktree
       (excluding `.git`, `.build`, `target`, `node_modules`, `build`,
       `dist`, `.swiftpm`) into a tar that the host reads back over
       `readFile` and applies directly onto the main host repo.
-      Compass then runs `git add -A` + `git commit -m "<agent summary>"`
-      on the main repo so the iteration's commit lands where the rest
-      of the toolchain expects it.
+      Deletions are scoped to the file set captured at the last
+      push (intersected with files still present on host and absent
+      from guest), so files the user added on the host between
+      sessions survive even if the agent never saw them. After the
+      pull, Compass re-stamps the fingerprint to reflect the new
+      shared state. Compass then runs `git add -A` + `git commit -m "<agent summary>"`
+      on the main repo so the iteration's commit lands where the
+      rest of the toolchain expects it.
     - The guest never has `.git/`. The agent cannot commit there;
       committing is host-side only, gated on Verify success.
     - See [SharedCompassVMWorktreeSync.swift](SharedCompassVMWorktreeSync.swift)
-      for the raw tar plumbing and
+      for the raw tar plumbing,
+      [SharedCompassVMHostFingerprint.swift](SharedCompassVMHostFingerprint.swift)
+      for the drift detector, and
       [SharedCompassVMRepoWorkspaceSync.swift](SharedCompassVMRepoWorkspaceSync.swift)
-      for the session-level "ensure exists, skip if already there" policy.
+      for the session-level "fingerprint match? reuse. mismatch? re-push." policy.
 
 The guest agent is a separate SwiftPM target (`CompassGuestAgent`)
 shipped alongside the host binary and planted at
@@ -235,7 +252,12 @@ session unattended. The agent comes up moments later.
   home directory, and agent state accumulates across iterations and
   sessions instead of getting wiped per iteration. The host worktree
   still exists for git plumbing (commits, branches, promote), but the
-  agent never reads or writes there directly.
+  agent never reads or writes there directly. *Caveat:* between
+  sessions the host re-asserts authority via the fingerprint check
+  in `ensurePopulated` — if the user edited the repo while Compass
+  was closed, those edits are pushed in before the agent runs, so
+  the model is "guest is source of truth within a session, host
+  re-anchors the guest at session start."
 - **Why does the host commit the agent's changes instead of the agent?**
   The agent runs entirely inside the guest, where there is no `.git`
   (the bulk sync uses `git ls-files`, which doesn't include `.git/`).

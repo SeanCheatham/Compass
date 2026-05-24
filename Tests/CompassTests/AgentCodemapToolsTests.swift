@@ -219,6 +219,43 @@ final class AgentCodemapToolsTests: XCTestCase {
     XCTAssertTrue(result.content.contains("No codemap entries import"))
   }
 
+  // MARK: - Decoupled store directory
+
+  /// Regression: under the Shared-VM route, `workingDirectory` is the
+  /// guest worktree, but the codemap lives at the host's
+  /// `<workspace.compassURL>/codemap`. The context must let callers
+  /// thread that host path in so codemap-backed tools keep finding
+  /// entries instead of returning empty results.
+  func testCodemapStoreHonorsExplicitDirectorySeparateFromWorkingDirectory() async throws {
+    let hostCodemapDirectory = workingDirectory.appendingPathComponent("host-codemap")
+    let guestWorktree = workingDirectory.appendingPathComponent("guest-worktree")
+    try FileManager.default.createDirectory(at: guestWorktree, withIntermediateDirectories: true)
+    let store = CodemapStore(directory: hostCodemapDirectory)
+    try store.saveEntry(
+      CodemapEntry(
+        relativePath: "Sources/MinimapView.swift",
+        language: .swift,
+        contentHash: String(repeating: "a", count: 64),
+        sizeBytes: 100,
+        symbols: [],
+        imports: [],
+        summary: nil,
+        summaryModel: nil,
+        summaryContentHash: nil
+      ))
+
+    let routedContext = AgentToolContext(
+      workingDirectory: guestWorktree,
+      codemapStoreDirectory: hostCodemapDirectory
+    )
+    let result = try await AgentListFilesTool().invoke(
+      arguments: try JSONEncoder().encode(["filter": "minimap"]),
+      context: routedContext
+    )
+    XCTAssertFalse(result.isError)
+    XCTAssertTrue(result.content.contains("Sources/MinimapView.swift"))
+  }
+
   // MARK: - Registration
 
   func testCodemapToolsAreRegisteredInReadOnlySet() {

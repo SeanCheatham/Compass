@@ -125,19 +125,41 @@ struct AgentToolContext: Sendable {
   /// that don't need the feature). The tool surfaces this as a clean
   /// failure result rather than crashing the turn.
   var delegateRunner: AgentDelegateRunner?
+  /// Directory the codemap-backed tools read entries from. The codemap
+  /// is built host-side at `<workspace.compassURL>/codemap/`, but when
+  /// the agent runs in the Shared VM, `workingDirectory` is the guest
+  /// worktree — which doesn't (and shouldn't) have its own codemap. The
+  /// caller threads the host-side store path through here so
+  /// `list_files`, `find_symbol`, `outline`, `summary`, and
+  /// `importers_of` keep finding entries regardless of route. Defaults
+  /// to `<workingDirectory>/.compass/codemap` so on-host tests and
+  /// stand-alone tool invocations work without configuration.
+  var codemapStoreDirectory: URL
 
   init(
     workingDirectory: URL,
     filesystem: AgentFilesystem = AgentHostFilesystem(),
     bashRunner: AgentBashRunner = AgentHostBashRunner(),
     readTracker: AgentReadTracker = AgentReadTracker(),
-    delegateRunner: AgentDelegateRunner? = nil
+    delegateRunner: AgentDelegateRunner? = nil,
+    codemapStoreDirectory: URL? = nil
   ) {
-    self.workingDirectory = workingDirectory.standardizedFileURL
+    let normalizedWorkingDirectory = workingDirectory.standardizedFileURL
+    self.workingDirectory = normalizedWorkingDirectory
     self.filesystem = filesystem
     self.bashRunner = bashRunner
     self.readTracker = readTracker
     self.delegateRunner = delegateRunner
+    self.codemapStoreDirectory =
+      codemapStoreDirectory?.standardizedFileURL
+      ?? Self.defaultCodemapDirectory(forWorkingDirectory: normalizedWorkingDirectory)
+  }
+
+  static func defaultCodemapDirectory(forWorkingDirectory workingDirectory: URL) -> URL {
+    workingDirectory
+      .appending(path: ".compass", directoryHint: .isDirectory)
+      .appending(path: "codemap", directoryHint: .isDirectory)
+      .standardizedFileURL
   }
 }
 
@@ -241,15 +263,11 @@ extension AgentToolContext {
     return absolutePath
   }
 
-  /// Codemap cache directory for this working directory. Assumes the
-  /// canonical repo-local `.compass/codemap` layout; tools that read from
-  /// the codemap go through this so future custom-storage support has one
-  /// place to plumb a workspace handle through.
+  /// Codemap cache directory for this run. Tools read this rather than
+  /// re-deriving the path so the executor can point them at the
+  /// host-side store even when `workingDirectory` is a remote (e.g.
+  /// Shared VM) guest path.
   func codemapStore() -> CodemapStore {
-    let directory =
-      workingDirectory
-      .appending(path: ".compass", directoryHint: .isDirectory)
-      .appending(path: "codemap", directoryHint: .isDirectory)
-    return CodemapStore(directory: directory)
+    CodemapStore(directory: codemapStoreDirectory)
   }
 }

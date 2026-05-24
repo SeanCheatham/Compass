@@ -115,12 +115,22 @@ enum SharedCompassVMWorktreeSync {
 
   /// Captures the guest worktree's current state (filtering out
   /// well-known build directories) and applies it onto the host
-  /// worktree, deleting files that were on the host before push
-  /// but are no longer present in the guest.
+  /// worktree, deleting files that were on the host at last push but
+  /// are no longer present in the guest.
+  ///
+  /// `deletionScope` is the set of host-relative paths captured at the
+  /// last successful sync. The deletion step is intersected with this
+  /// set so that user-added files between sessions — which the agent
+  /// has never been asked to track — survive the cleanup. When the
+  /// scope is nil (no sync recorded yet) the legacy behaviour applies:
+  /// delete any host-tracked file missing from the guest. Callers that
+  /// have a recorded scope (i.e. went through
+  /// `SharedCompassVMRepoWorkspaceSync`) should always pass it.
   static func pull(
     hostWorktreeURL: URL,
     guestWorktreePath: String,
-    client: AgentVsockClient
+    client: AgentVsockClient,
+    deletionScope: Set<String>? = nil
   ) async throws {
     try validateGuestPath(guestWorktreePath)
     let host = hostWorktreeURL.standardizedFileURL
@@ -159,13 +169,40 @@ enum SharedCompassVMWorktreeSync {
 
     let guestRelativePaths = parseFindNullList(listData)
     let hostRelativePaths = (try? gitTrackedAndUntracked(in: host)) ?? []
-    let deletions = hostRelativePaths.subtracting(guestRelativePaths)
+    let deletions = computeDeletions(
+      host: hostRelativePaths,
+      guest: guestRelativePaths,
+      scope: deletionScope
+    )
     for relative in deletions {
       let url = host.appendingPathComponent(relative)
       try? FileManager.default.removeItem(at: url)
     }
 
     try extractTarOnHost(tarData, into: host)
+  }
+
+  // MARK: - Deletion scope
+
+  /// Eligible deletions = files that were on the host last time we
+  /// pushed (so the agent saw them and could have intentionally
+  /// removed them) AND are still on the host now (something is there
+  /// to delete) AND are no longer in the guest (the agent did remove
+  /// them). When `scope` is nil — i.e. no recorded sync yet, typically
+  /// a catalog written by a pre-fingerprint build — fall back to
+  /// `host − guest` so legacy state still pulls correctly.
+  ///
+  /// Internal-visible for unit-testing the deletion arithmetic
+  /// directly. The real `pull` path computes both `host` and `guest`
+  /// from live transports, so the function is pure on inputs to keep
+  /// the policy reviewable in isolation.
+  static func computeDeletions(
+    host: Set<String>,
+    guest: Set<String>,
+    scope: Set<String>?
+  ) -> Set<String> {
+    let baseline = scope ?? host
+    return baseline.intersection(host).subtracting(guest)
   }
 
   // MARK: - Internals
@@ -253,7 +290,12 @@ enum SharedCompassVMWorktreeSync {
   /// Runs `git ls-files --cached --others --exclude-standard -z`
   /// in the host worktree and returns the (gitignore-respecting)
   /// path set as relative paths.
-  private static func gitTrackedAndUntracked(in worktree: URL) throws -> Set<String> {
+  ///
+  /// Internal-visible so `SharedCompassVMHostFingerprint` can share the
+  /// exact enumeration the push tar uses — fingerprint coverage has to
+  /// match push coverage byte-for-byte or drift detection produces
+  /// spurious mismatches.
+  static func gitTrackedAndUntracked(in worktree: URL) throws -> Set<String> {
     let process = Process()
     process.executableURL = URL(fileURLWithPath: "/usr/bin/git")
     process.arguments = [
