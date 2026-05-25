@@ -89,6 +89,34 @@ final class SharedCompassVMHostFingerprintTests: XCTestCase {
     XCTAssertTrue(after.fileSet.contains("scratch.swift"))
   }
 
+  func testFingerprintHashesSymlinkByTarget() throws {
+    try writeFile("a.swift", contents: "x")
+    let targetDir = repo.appendingPathComponent("payload")
+    try FileManager.default.createDirectory(at: targetDir, withIntermediateDirectories: true)
+    try FileManager.default.createSymbolicLink(
+      atPath: repo.appendingPathComponent("link").path,
+      withDestinationPath: "payload"
+    )
+
+    let result = try SharedCompassVMHostFingerprint.compute(at: repo)
+
+    XCTAssertTrue(result.fileSet.contains("link"))
+  }
+
+  func testFingerprintExcludesBuildArtifactsEvenWithoutGitignore() throws {
+    try writeFile("a.swift", contents: "x")
+    let artifact = repo.appendingPathComponent(".build/debug/App.swift")
+    try FileManager.default.createDirectory(
+      at: artifact.deletingLastPathComponent(),
+      withIntermediateDirectories: true
+    )
+    try "binary".write(to: artifact, atomically: true, encoding: .utf8)
+
+    let result = try SharedCompassVMHostFingerprint.compute(at: repo)
+
+    XCTAssertEqual(result.fileSet, ["a.swift"])
+  }
+
   // MARK: - Helpers
 
   private func makeTempDir() throws -> URL {

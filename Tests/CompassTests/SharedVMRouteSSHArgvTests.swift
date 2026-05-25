@@ -216,39 +216,6 @@ final class SharedVMRouteSSHArgvTests: XCTestCase {
     XCTAssertEqual(SharedCompassVMGuestBridge.posixQuote("a b"), "'a b'")
   }
 
-  // MARK: - SharedVMRoute.guestPath(forHostURL:)
-
-  func testGuestPathMapsHostFileBeneathWorktreeRootIntoGuestWorkspace() {
-    let route = makeRoute()
-    let hostFile = URL(
-      fileURLWithPath: "/Users/sean/Library/Caches/Compass/Worktrees/projectA/Sources/Main.swift")
-    let guestPath = route.guestPath(forHostURL: hostFile)
-    XCTAssertEqual(
-      guestPath,
-      "/Volumes/Compass/Worktrees/projectA/Sources/Main.swift"
-    )
-  }
-
-  func testGuestPathReturnsWorkspaceRootForExactWorktreeRootURL() {
-    let route = makeRoute()
-    let hostRoot = URL(fileURLWithPath: "/Users/sean/Library/Caches/Compass/Worktrees")
-    XCTAssertEqual(route.guestPath(forHostURL: hostRoot), "/Volumes/Compass/Worktrees")
-  }
-
-  func testGuestPathReturnsNilForURLOutsideWorktreeRoot() {
-    let route = makeRoute()
-    let outsideURL = URL(fileURLWithPath: "/tmp/elsewhere/file.txt")
-    XCTAssertNil(route.guestPath(forHostURL: outsideURL))
-  }
-
-  func testGuestPathReturnsNilForSiblingWithSharedPrefixButDifferentBoundary() {
-    // /Worktrees vs /Worktrees-other — prefix-similar but NOT under root.
-    let route = makeRoute()
-    let sibling = URL(
-      fileURLWithPath: "/Users/sean/Library/Caches/Compass/Worktrees-other/projectB/file.swift")
-    XCTAssertNil(route.guestPath(forHostURL: sibling))
-  }
-
   private func makeRoute(
     guestWorkspacePath: String = "/Volumes/Compass/Worktrees"
   ) -> SharedVMRoute {

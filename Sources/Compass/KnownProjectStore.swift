@@ -168,10 +168,7 @@ enum KnownProjectStore {
   }
 
   static func load(applicationSupportRoots roots: ApplicationSupportRoots) -> [KnownProjectRecord] {
-    let sourceURL =
-      FileManager.default.fileExists(atPath: projectsURL(in: roots.current).path)
-      ? projectsURL(in: roots.current)
-      : legacyProjectsURL(in: roots.legacy)
+    let sourceURL = projectsURL(in: roots.current)
     guard let data = try? Data(contentsOf: sourceURL), !data.isEmpty else {
       return []
     }
@@ -197,14 +194,12 @@ enum KnownProjectStore {
     directoryURL(in: currentApplicationSupportRoot).appending(path: "projects.json")
   }
 
-  private static func legacyProjectsURL(in legacyApplicationSupportRoot: URL) -> URL {
-    legacyDirectoryURL(in: legacyApplicationSupportRoot).appending(path: "projects.json")
-  }
-
   static func directoryURL(in currentApplicationSupportRoot: URL) -> URL {
     currentApplicationSupportRoot.appending(path: "Compass", directoryHint: .isDirectory)
   }
 
+  /// Pre-rename Application Support layout (`CompassNative/Projects/…`).
+  /// Retained only so workspace storage assessment can surface drift.
   static func legacyDirectoryURL(in legacyApplicationSupportRoot: URL) -> URL {
     legacyApplicationSupportRoot.appending(path: "CompassNative", directoryHint: .isDirectory)
   }

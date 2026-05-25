@@ -139,8 +139,6 @@ final class AppModel: ObservableObject {
   }
 
   func bootstrap() async {
-    Self.cleanLegacyHostWorktreesCacheIfPresent()
-
     projects = KnownProjectStore.load().map(CompassProject.init(record:))
     selectedProjectID = projects.sorted { $0.lastOpenedAt > $1.lastOpenedAt }.first?.id
     if let id = selectedProjectID {
@@ -181,35 +179,6 @@ final class AppModel: ObservableObject {
         }
       }
     }
-  }
-
-  /// One-shot GC for `~/Library/Caches/Compass/Worktrees/`, the
-  /// legacy per-iteration host worktree cache used by the
-  /// pre-removal Develop sandbox. Existing dev-* subdirectories are
-  /// orphaned now that Compass no longer creates host worktrees;
-  /// remove the whole tree on launch so they don't accumulate.
-  ///
-  /// Best-effort: silently ignores "directory doesn't exist" and
-  /// any permission errors. The user can also rm the tree manually.
-  private static func cleanLegacyHostWorktreesCacheIfPresent() {
-    guard
-      let cachesRoot = try? FileManager.default.url(
-        for: .cachesDirectory,
-        in: .userDomainMask,
-        appropriateFor: nil,
-        create: false
-      )
-    else {
-      return
-    }
-    let legacyRoot =
-      cachesRoot
-      .appendingPathComponent("Compass", isDirectory: true)
-      .appendingPathComponent("Worktrees", isDirectory: true)
-    guard FileManager.default.fileExists(atPath: legacyRoot.path) else {
-      return
-    }
-    try? FileManager.default.removeItem(at: legacyRoot)
   }
 
   /// Surface for AppModel-level log lines (the per-project loggers route

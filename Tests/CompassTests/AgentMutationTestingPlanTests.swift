@@ -225,12 +225,6 @@ final class AgentMutationTestingPlanTests: XCTestCase {
     return url.standardizedFileURL
   }
 
-  private func devcontainerURL(in repoURL: URL) -> URL {
-    repoURL
-      .appending(path: ".devcontainer", directoryHint: .isDirectory)
-      .appending(path: "devcontainer.json")
-  }
-
   private func write(_ contents: String, to url: URL) throws {
     try FileManager.default.createDirectory(
       at: url.deletingLastPathComponent(),

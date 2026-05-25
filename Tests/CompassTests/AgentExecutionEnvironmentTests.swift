@@ -188,21 +188,19 @@ final class AgentExecutionEnvironmentTests: XCTestCase {
   }
 
   func testReadyVMWithHostRouteIsInformationalNotAWarning() throws {
-    // VM is ready, but the launch plan resolves to host because the
-    // worktree path sits outside the workspaces share — the by-design
-    // Plan/Reflect routing. The presentation should reflect a healthy
-    // VM, not a warning.
+    // VM is ready, but the launch plan resolves to host as an internal
+    // fallback. The presentation should reflect a healthy VM, not a warning.
     let environment = AgentExecutionEnvironment.discover(
       vmReadiness: .ready(sshDestination: "compass@192.0.2.10")
     )
     let plan = AgentExecutionLaunchPlan.host(
       vmReadiness: .ready(sshDestination: "compass@192.0.2.10"),
       fallbackReason:
-        "Worktree is outside the Shared VM workspaces share; this phase runs on the host."
+        "Guest workspace catalog could not map this repo."
     )
     let presentation = environment.presentation(launchPlan: plan)
     XCTAssertFalse(presentation.isWarning)
-    XCTAssertTrue(presentation.status.contains("Develop iterations"))
+    XCTAssertTrue(presentation.status.contains("internal fallback"))
     XCTAssertEqual(presentation.title, "Shared VM")
   }
 

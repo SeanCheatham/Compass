@@ -146,49 +146,40 @@ final class AgentSettingsStoreTests: XCTestCase {
     XCTAssertEqual(store.load().model, "")
   }
 
-  // MARK: - Legacy fallback
+  // MARK: - Per-provider context window
 
-  func testV0LegacyKeysSurfaceAsTextMinimaxCellWhenSelected() throws {
-    // Seed pre-provider-abstraction keys.
-    defaults.set("https://legacy.example/v1", forKey: "compass.agent.baseURL")
-    defaults.set("legacy-model", forKey: "compass.agent.model")
-    defaults.set("legacy-plan", forKey: "compass.agent.model.plan")
-    try secrets.write(
-      "legacy-key",
-      service: AgentSettingsStore.secretService,
-      account: AgentSettingsStore.legacySecretAccount)
-
+  func testContextWindowMatchesActiveTextProvider() {
     let store = makeStore(environment: [:])
-    // v0 users only had MiniMax — picking it should resurrect their config.
+    XCTAssertEqual(
+      store.load().contextWindowTokens,
+      AgentProviderKind.appleFoundationModels.defaultTextContextWindowTokens)
     store.setSelectedProvider(.minimaxToken, for: .text)
-    let settings = store.load()
-    XCTAssertEqual(settings.textProvider, .minimaxToken)
-    XCTAssertEqual(settings.baseURL.absoluteString, "https://legacy.example/v1")
-    XCTAssertEqual(settings.apiKey, "legacy-key")
-    XCTAssertEqual(settings.model, "legacy-model")
-    XCTAssertEqual(settings.planModelOverride, "legacy-plan")
+    XCTAssertEqual(
+      store.load().contextWindowTokens,
+      AgentProviderKind.minimaxToken.defaultTextContextWindowTokens)
+    store.setSelectedProvider(.openAI, for: .text)
+    XCTAssertEqual(
+      store.load().contextWindowTokens,
+      AgentProviderKind.openAI.defaultTextContextWindowTokens)
   }
 
-  func testV1LegacyProviderKeysSurfaceAsTextCellWhenSelected() throws {
-    // The intermediate per-provider scheme that briefly shipped.
-    defaults.set(
-      "https://v1.example/v1",
-      forKey: "compass.provider.openAI.baseURL")
-    defaults.set(
-      "v1-text-model",
-      forKey: "compass.provider.openAI.text.model")
-    try secrets.write(
-      "v1-key",
-      service: AgentSettingsStore.secretService,
-      account: AgentSettingsStore.legacyProviderSecretAccount(for: .openAI))
+  func testContextWindowEnvOverrideAppliesAcrossProviders() {
+    let store = makeStore(environment: [
+      "COMPASS_AGENT_CONTEXT_WINDOW_TOKENS": "262144"
+    ])
+    XCTAssertEqual(store.load().contextWindowTokens, 262_144)
+    store.setSelectedProvider(.minimaxToken, for: .text)
+    XCTAssertEqual(
+      store.load().contextWindowTokens, 262_144,
+      "env override beats the provider's built-in ceiling")
+  }
 
-    let store = makeStore(environment: [:])
+  func testContextWindowEnvZeroDisablesCompactionRegardlessOfProvider() {
+    let store = makeStore(environment: [
+      "COMPASS_AGENT_CONTEXT_WINDOW_TOKENS": "0"
+    ])
     store.setSelectedProvider(.openAI, for: .text)
-    let settings = store.load()
-    XCTAssertEqual(settings.textProvider, .openAI)
-    XCTAssertEqual(settings.baseURL.absoluteString, "https://v1.example/v1")
-    XCTAssertEqual(settings.apiKey, "v1-key")
-    XCTAssertEqual(settings.model, "v1-text-model")
+    XCTAssertEqual(store.load().contextWindowTokens, 0)
   }
 
   // MARK: - Helpers

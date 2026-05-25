@@ -160,16 +160,14 @@ struct AgentExecutionEnvironment: Equatable {
         systemImage: preference.systemImage
       )
     }
-    // When the VM is ready and selected but the route still falls back
-    // to host, the cause is the worktree path sitting outside the
-    // VirtioFS share — by design for Plan/Reflect on the main repo,
-    // not an error. Surface it as informational; reserve the warning
-    // styling for actual VM-availability problems.
+    // When the VM is ready but the route still falls back to host,
+    // surface it as informational; reserve warning styling for actual
+    // VM-availability problems.
     if case .ready = readiness.vmReadiness {
       return AgentExecutionEnvironmentPresentation(
         title: "Shared VM",
         status:
-          "Shared VM ready. This phase runs on the host repo (outside the VM's workspaces share); Develop iterations route through the VM.",
+          "Shared VM ready. This phase is running on the host repo as an internal fallback.",
         detail: readiness.detail,
         systemImage: preference.systemImage
       )

@@ -843,17 +843,11 @@ final class PlanSessionHistoryTests: XCTestCase {
 
   private func makeRuntimeSnapshot(
     repoPrefix: String,
-    devcontainerJSON: String = "",
-    preference: AgentExecutionEnvironmentPreference = .sharedVM,
-    containerToolPath: String? = nil,
     phase: String = "Plan",
     vmReadiness: SharedCompassVMReadiness? = nil,
     sharedVMRouteFactory: (URL) -> SharedVMRoute? = { _ in nil }
   ) throws -> SessionExecutionEnvironmentSnapshot {
     let repoURL = try makeTemporaryDirectory(prefix: repoPrefix)
-    _ = devcontainerJSON
-    _ = containerToolPath
-    _ = preference
     let plan = AgentExecutionLaunchPlan.plan(
       repoURL: repoURL,
       vmReadiness: vmReadiness,
@@ -868,12 +862,6 @@ final class PlanSessionHistoryTests: XCTestCase {
     try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
     temporaryDirectories.append(url)
     return url.standardizedFileURL
-  }
-
-  private func devcontainerURL(in repoURL: URL) -> URL {
-    repoURL
-      .appending(path: ".devcontainer", directoryHint: .isDirectory)
-      .appending(path: "devcontainer.json")
   }
 
   private func write(_ text: String, to url: URL) throws {

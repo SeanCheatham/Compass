@@ -102,31 +102,20 @@ final class KnownProjectStoreTests: XCTestCase {
     temporaryDirectories.removeAll()
   }
 
-  func testLoadPrefersCurrentCompassRegistryWhenBothCurrentAndLegacyExist() throws {
+  func testLoadPrefersCurrentCompassRegistryWhenLegacyCopyAlsoExists() throws {
     let roots = try makeApplicationSupportRoots()
     let current = makeRecord(
       id: "55555555-5555-5555-5555-555555555555",
       path: "/tmp/current"
     )
-    let legacy = makeRecord(
+    let stale = makeRecord(
       id: "66666666-6666-6666-6666-666666666666",
-      path: "/tmp/legacy"
+      path: "/tmp/stale"
     )
-    try writeProjects([legacy], to: legacyProjectsURL(for: roots))
+    try writeProjects([stale], to: legacyProjectsURL(for: roots))
     try writeProjects([current], to: currentProjectsURL(for: roots))
 
     XCTAssertEqual(KnownProjectStore.load(applicationSupportRoots: roots), [current])
-  }
-
-  func testLoadFallsBackToLegacyCompassNativeRegistryWhenCurrentIsMissing() throws {
-    let roots = try makeApplicationSupportRoots()
-    let legacy = makeRecord(
-      id: "77777777-7777-7777-7777-777777777777",
-      path: "/tmp/legacy-only"
-    )
-    try writeProjects([legacy], to: legacyProjectsURL(for: roots))
-
-    XCTAssertEqual(KnownProjectStore.load(applicationSupportRoots: roots), [legacy])
   }
 
   func testLoadTreatsMissingEmptyAndMalformedRegistryFilesAsEmpty() throws {
@@ -136,26 +125,14 @@ final class KnownProjectStoreTests: XCTestCase {
     let emptyCurrentRoots = try makeApplicationSupportRoots()
     try write("", to: currentProjectsURL(for: emptyCurrentRoots))
     try writeProjects(
-      [makeRecord(id: "88888888-8888-8888-8888-888888888888", path: "/tmp/legacy")],
+      [makeRecord(id: "88888888-8888-8888-8888-888888888888", path: "/tmp/stale")],
       to: legacyProjectsURL(for: emptyCurrentRoots)
     )
     XCTAssertEqual(KnownProjectStore.load(applicationSupportRoots: emptyCurrentRoots), [])
 
     let malformedCurrentRoots = try makeApplicationSupportRoots()
     try write("{", to: currentProjectsURL(for: malformedCurrentRoots))
-    try writeProjects(
-      [makeRecord(id: "99999999-9999-9999-9999-999999999999", path: "/tmp/legacy")],
-      to: legacyProjectsURL(for: malformedCurrentRoots)
-    )
     XCTAssertEqual(KnownProjectStore.load(applicationSupportRoots: malformedCurrentRoots), [])
-
-    let malformedLegacyRoots = try makeApplicationSupportRoots()
-    try write("{", to: legacyProjectsURL(for: malformedLegacyRoots))
-    XCTAssertEqual(KnownProjectStore.load(applicationSupportRoots: malformedLegacyRoots), [])
-
-    let emptyLegacyRoots = try makeApplicationSupportRoots()
-    try write("", to: legacyProjectsURL(for: emptyLegacyRoots))
-    XCTAssertEqual(KnownProjectStore.load(applicationSupportRoots: emptyLegacyRoots), [])
   }
 
   func testSaveWritesPrettySortedJSONOnlyToCurrentCompassDirectory() throws {

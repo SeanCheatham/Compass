@@ -7,10 +7,8 @@ extension CompassProject {
   func agentLaunchPlan(for nativeExecutionURL: URL) -> AgentExecutionLaunchPlan {
     // Compass always routes the agent through the Shared VM; the
     // onboarding gate prevents launches until the VM is ready. The
-    // planner still falls back to host when the VirtioFS catalog
-    // can't map this repo (Plan/Reflect on the main repo lives
-    // outside the workspaces share), which is an internal-only
-    // concern with no user-facing toggle.
+    // planner still falls back to host when the guest workspace catalog
+    // cannot map this repo or the live VM is unavailable.
     let host = SharedCompassVM.shared
     let readiness = host.readiness
     return AgentExecutionLaunchPlan.plan(

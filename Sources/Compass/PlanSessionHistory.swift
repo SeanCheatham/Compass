@@ -317,10 +317,6 @@ struct PlanSessionHistoryItem: Identifiable, Equatable {
       switch identifier {
       case "shared-vm", "native-macos":
         return identifier
-      case "apple-container":
-        // Legacy stored route — surface as Shared VM for history readability while
-        // staying within the bounded identifier set.
-        return "shared-vm"
       default:
         return "unknown"
       }
@@ -335,7 +331,6 @@ struct PlanSessionHistoryItem: Identifiable, Equatable {
         "installing",
         "first-boot-pending",
         "guest-prepping",
-        "codex-login-pending",
         "ready",
         "error",
         "not-inspected":

@@ -46,19 +46,11 @@ enum SharedCompassVMHostFingerprint {
   static func compute(
     at worktreeURL: URL
   ) throws -> (fingerprint: String, fileSet: Set<String>) {
-    let enumerated: Set<String>
+    let existing: Set<String>
     do {
-      enumerated = try SharedCompassVMWorktreeSync.gitTrackedAndUntracked(in: worktreeURL)
+      existing = try SharedCompassVMWorktreeSync.syncableRelativePaths(in: worktreeURL)
     } catch {
       throw FingerprintError.enumerationFailed(detail: "\(error)")
-    }
-    // Match `buildHostTar`'s filter: paths that `git ls-files` knows
-    // about but no longer exist on disk (deleted-but-still-staged
-    // entries) are excluded from the tar, so they also have to be
-    // excluded from the fingerprint or every push-then-rehash will
-    // mismatch itself.
-    let existing = enumerated.filter { relative in
-      FileManager.default.fileExists(atPath: worktreeURL.appendingPathComponent(relative).path)
     }
 
     var pairs: [(path: String, hash: String)] = []

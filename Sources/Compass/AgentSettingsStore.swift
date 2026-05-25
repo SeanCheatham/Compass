@@ -23,42 +23,18 @@ import Foundation
 /// capability simply records the provider choice.
 ///
 /// Resolution per field for an active assignment: persisted UI / file
-/// → environment variable → legacy unprefixed key (Text + MiniMax
-/// Token only — preserving pre-provider-abstraction settings) →
-/// built-in default. UI edits win and are persisted; env vars exist
-/// for scripted setup / CI.
+/// → environment variable → built-in default. UI edits win and are
+/// persisted; env vars exist for scripted setup / CI.
 final class AgentSettingsStore: @unchecked Sendable {
   static let secretService = "com.seancheatham.Compass.agent"
 
   /// All UserDefaults keys this store reads or writes. Used in tests
-  /// to scrub state between cases. Includes:
-  ///
-  /// - Current per-capability keys (parameterised by `AgentCapability`
-  ///   and, where credentials apply, `AgentProviderKind`).
-  /// - First-generation per-provider keys (the namespacing scheme that
-  ///   shipped briefly before this rework) — still read as a fallback
-  ///   so users upgrading mid-iteration keep their settings.
-  /// - Original unprefixed keys (`compass.agent.*`) — still read as a
-  ///   fallback for the Text + MiniMax Token cell so users predating
-  ///   the abstraction also keep their settings.
+  /// to scrub state between cases.
   enum Key: Hashable, CaseIterable {
     case capabilityProvider(AgentCapability)
     case cellBaseURL(AgentCapability, AgentProviderKind)
     case cellModel(AgentCapability, AgentProviderKind)
     case cellTextPhaseOverride(AgentProviderKind, AgentPhase)
-    case legacyProviderBaseURL(AgentProviderKind)
-    case legacyProviderTextModel(AgentProviderKind)
-    case legacyProviderTextPhaseOverride(AgentProviderKind, AgentPhase)
-    case legacyProviderImageModel(AgentProviderKind)
-    case legacyProviderAudioModel(AgentProviderKind)
-    case legacyProviderVideoModel(AgentProviderKind)
-    case legacyProviderSelected
-    case legacyBaseURL
-    case legacyModel
-    case legacyPlanModel
-    case legacyDevelopModel
-    case legacyReflectModel
-    case legacyCriticModel
 
     var rawValue: String {
       switch self {
@@ -70,32 +46,6 @@ final class AgentSettingsStore: @unchecked Sendable {
         return "compass.capability.\(capability.rawValue).\(provider.rawValue).model"
       case .cellTextPhaseOverride(let provider, let phase):
         return "compass.capability.text.\(provider.rawValue).phase.\(phase.rawValue)"
-      case .legacyProviderBaseURL(let provider):
-        return "compass.provider.\(provider.rawValue).baseURL"
-      case .legacyProviderTextModel(let provider):
-        return "compass.provider.\(provider.rawValue).text.model"
-      case .legacyProviderTextPhaseOverride(let provider, let phase):
-        return "compass.provider.\(provider.rawValue).text.model.\(phase.rawValue)"
-      case .legacyProviderImageModel(let provider):
-        return "compass.provider.\(provider.rawValue).image.model"
-      case .legacyProviderAudioModel(let provider):
-        return "compass.provider.\(provider.rawValue).audio.model"
-      case .legacyProviderVideoModel(let provider):
-        return "compass.provider.\(provider.rawValue).video.model"
-      case .legacyProviderSelected:
-        return "compass.provider.selected"
-      case .legacyBaseURL:
-        return "compass.agent.baseURL"
-      case .legacyModel:
-        return "compass.agent.model"
-      case .legacyPlanModel:
-        return "compass.agent.model.plan"
-      case .legacyDevelopModel:
-        return "compass.agent.model.dev"
-      case .legacyReflectModel:
-        return "compass.agent.model.reflect"
-      case .legacyCriticModel:
-        return "compass.agent.model.critic"
       }
     }
 
@@ -113,21 +63,6 @@ final class AgentSettingsStore: @unchecked Sendable {
           cases.append(.cellTextPhaseOverride(provider, phase))
         }
       }
-      for provider in AgentProviderKind.allCases {
-        cases.append(.legacyProviderBaseURL(provider))
-        cases.append(.legacyProviderTextModel(provider))
-        for phase in AgentPhase.allCases {
-          cases.append(.legacyProviderTextPhaseOverride(provider, phase))
-        }
-        cases.append(.legacyProviderImageModel(provider))
-        cases.append(.legacyProviderAudioModel(provider))
-        cases.append(.legacyProviderVideoModel(provider))
-      }
-      cases.append(.legacyProviderSelected)
-      cases.append(contentsOf: [
-        .legacyBaseURL, .legacyModel, .legacyPlanModel,
-        .legacyDevelopModel, .legacyReflectModel, .legacyCriticModel,
-      ])
       return cases
     }
   }
@@ -159,17 +94,6 @@ final class AgentSettingsStore: @unchecked Sendable {
       if let kind = AgentProviderKind(rawValue: raw), kind.supports(capability) {
         return kind
       }
-    }
-    // No persisted choice yet — fall back to the legacy
-    // "selectedProvider" key (the brief intermediate scheme) for text,
-    // since v1 stored exactly one provider that meant "text".
-    if capability == .text,
-      let legacyRaw = defaults.string(forKey: Key.legacyProviderSelected.rawValue)?
-        .trimmingCharacters(in: .whitespacesAndNewlines),
-      let kind = AgentProviderKind(rawValue: legacyRaw),
-      kind.supports(.text)
-    {
-      return kind
     }
     return capability.isRequired ? AgentRuntimeSettings.defaultTextProvider : nil
   }
@@ -222,7 +146,11 @@ final class AgentSettingsStore: @unchecked Sendable {
       if let raw, let value = Int(raw) {
         return max(value, 0)
       }
-      return AgentRuntimeSettings.defaultContextWindowTokens
+      // No env override: defer to the selected Text provider's
+      // built-in ceiling. Each provider declares the size of its
+      // model's window so compaction triggers before we construct a
+      // request the upstream would reject.
+      return textProvider.defaultTextContextWindowTokens
     }()
     return AgentRuntimeSettings(
       textProvider: textProvider,
@@ -313,18 +241,6 @@ final class AgentSettingsStore: @unchecked Sendable {
     "api_key.\(capability.rawValue).\(provider.rawValue)"
   }
 
-  /// Per-provider secret account from the brief intermediate scheme
-  /// (one-provider-at-a-time). Used only as a legacy fallback for
-  /// the Text capability.
-  static func legacyProviderSecretAccount(for provider: AgentProviderKind) -> String {
-    "api_key.\(provider.rawValue)"
-  }
-
-  /// Original account name for the API key, used only as a legacy
-  /// fallback for the Text + MiniMax Token cell so installs predating
-  /// the provider abstraction keep their key.
-  static let legacySecretAccount = "api_key"
-
   // MARK: - Resolution helpers
 
   private func resolveBaseURL(
@@ -338,9 +254,6 @@ final class AgentSettingsStore: @unchecked Sendable {
     {
       return url
     }
-    if let legacy = legacyBaseURLFallback(for: capability, provider: provider) {
-      return legacy
-    }
     if capability == .text,
       let env = resolveEnvString("COMPASS_AGENT_BASE_URL"),
       let url = URL(string: env)
@@ -348,25 +261,6 @@ final class AgentSettingsStore: @unchecked Sendable {
       return url
     }
     return provider.defaultBaseURL ?? AgentRuntimeSettings.defaultBaseURL
-  }
-
-  private func legacyBaseURLFallback(
-    for capability: AgentCapability, provider: AgentProviderKind
-  ) -> URL? {
-    // v1 scheme: compass.provider.<kind>.baseURL (one provider, applied to all)
-    if let stored = trimmedDefault(for: .legacyProviderBaseURL(provider)),
-      let url = URL(string: stored)
-    {
-      return url
-    }
-    // v0 scheme: compass.agent.baseURL (only meaningful for Text + MiniMax Token)
-    if capability == .text, provider == .minimaxToken,
-      let legacy = trimmedDefault(for: .legacyBaseURL),
-      let url = URL(string: legacy)
-    {
-      return url
-    }
-    return nil
   }
 
   private func resolveAPIKey(
@@ -382,27 +276,6 @@ final class AgentSettingsStore: @unchecked Sendable {
     {
       return stored.trimmingCharacters(in: .whitespacesAndNewlines)
     }
-    // v1 fallback: per-provider account.
-    if let legacy =
-      (try? secrets.read(
-        service: Self.secretService,
-        account: Self.legacyProviderSecretAccount(for: provider)
-      )) ?? nil,
-      !legacy.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-    {
-      return legacy.trimmingCharacters(in: .whitespacesAndNewlines)
-    }
-    // v0 fallback: unprefixed account, applied only to Text + MiniMax.
-    if capability == .text, provider == .minimaxToken,
-      let legacy =
-        (try? secrets.read(
-          service: Self.secretService,
-          account: Self.legacySecretAccount
-        )) ?? nil,
-      !legacy.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-    {
-      return legacy.trimmingCharacters(in: .whitespacesAndNewlines)
-    }
     if capability == .text, let env = resolveEnvString("COMPASS_AGENT_API_KEY") {
       return env
     }
@@ -416,21 +289,6 @@ final class AgentSettingsStore: @unchecked Sendable {
     if let stored = trimmedDefault(for: .cellModel(capability, provider)) {
       return stored
     }
-    let legacyKey: Key
-    switch capability {
-    case .text: legacyKey = .legacyProviderTextModel(provider)
-    case .image: legacyKey = .legacyProviderImageModel(provider)
-    case .audio: legacyKey = .legacyProviderAudioModel(provider)
-    case .video: legacyKey = .legacyProviderVideoModel(provider)
-    }
-    if let legacy = trimmedDefault(for: legacyKey) {
-      return legacy
-    }
-    if capability == .text, provider == .minimaxToken,
-      let v0 = trimmedDefault(for: .legacyModel)
-    {
-      return v0
-    }
     if capability == .text {
       return resolveEnvString("COMPASS_AGENT_MODEL")
     }
@@ -443,21 +301,6 @@ final class AgentSettingsStore: @unchecked Sendable {
     guard provider.requiresCredentials else { return nil }
     if let stored = trimmedDefault(for: .cellTextPhaseOverride(provider, phase)) {
       return stored
-    }
-    if let legacy = trimmedDefault(for: .legacyProviderTextPhaseOverride(provider, phase)) {
-      return legacy
-    }
-    if provider == .minimaxToken {
-      let v0Key: Key
-      switch phase {
-      case .plan: v0Key = .legacyPlanModel
-      case .develop: v0Key = .legacyDevelopModel
-      case .reflect: v0Key = .legacyReflectModel
-      case .critic: v0Key = .legacyCriticModel
-      }
-      if let v0 = trimmedDefault(for: v0Key) {
-        return v0
-      }
     }
     return resolveEnvString(envKey(for: phase))
   }

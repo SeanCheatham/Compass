@@ -4,15 +4,30 @@ import XCTest
 @testable import Compass
 
 final class AgentRuntimeSettingsTests: XCTestCase {
-  func testDefaultsFromEmptyEnvironmentPointAtMiniMax() {
+  func testDefaultsFromEmptyEnvironmentSelectFoundationModels() {
     let settings = AgentRuntimeSettings.defaultFromEnvironment([:])
-    XCTAssertEqual(settings.baseURL.absoluteString, "https://api.minimax.io/v1")
+    XCTAssertEqual(settings.textProvider, .appleFoundationModels)
     XCTAssertEqual(settings.apiKey, "")
-    XCTAssertEqual(settings.model, "MiniMax-M2.7")
     XCTAssertNil(settings.planModelOverride)
     XCTAssertNil(settings.developModelOverride)
     XCTAssertNil(settings.reflectModelOverride)
-    XCTAssertEqual(settings.contextWindowTokens, AgentRuntimeSettings.defaultContextWindowTokens)
+    // Foundation Models is the on-device default; its built-in
+    // context window flows through to the resolved settings so
+    // compaction triggers at the right ceiling for FM rather than
+    // an unrelated network provider's number.
+    XCTAssertEqual(
+      settings.contextWindowTokens,
+      AgentProviderKind.appleFoundationModels.defaultTextContextWindowTokens)
+  }
+
+  func testEmptyEnvWithAPIKeySelectsMiniMaxContextWindow() {
+    let settings = AgentRuntimeSettings.defaultFromEnvironment([
+      "COMPASS_AGENT_API_KEY": "env-key"
+    ])
+    XCTAssertEqual(settings.textProvider, .minimaxToken)
+    XCTAssertEqual(
+      settings.contextWindowTokens,
+      AgentProviderKind.minimaxToken.defaultTextContextWindowTokens)
   }
 
   func testContextWindowEnvironmentOverrideIsApplied() {
@@ -36,11 +51,25 @@ final class AgentRuntimeSettingsTests: XCTestCase {
     XCTAssertEqual(settings.contextWindowTokens, 0)
   }
 
-  func testContextWindowEnvironmentGarbageFallsBackToDefault() {
+  func testContextWindowEnvironmentGarbageFallsBackToProviderDefault() {
     let settings = AgentRuntimeSettings.defaultFromEnvironment([
       "COMPASS_AGENT_CONTEXT_WINDOW_TOKENS": "not-a-number"
     ])
-    XCTAssertEqual(settings.contextWindowTokens, AgentRuntimeSettings.defaultContextWindowTokens)
+    // Empty API key in env → Foundation Models is the chosen
+    // provider, so the fallback is FM's built-in window, not the
+    // generic synthetic constant.
+    XCTAssertEqual(
+      settings.contextWindowTokens,
+      AgentProviderKind.appleFoundationModels.defaultTextContextWindowTokens)
+  }
+
+  func testProviderBuiltInContextWindowValues() {
+    XCTAssertEqual(
+      AgentProviderKind.appleFoundationModels.defaultTextContextWindowTokens, 4_096)
+    XCTAssertEqual(
+      AgentProviderKind.minimaxToken.defaultTextContextWindowTokens, 200_000)
+    XCTAssertEqual(
+      AgentProviderKind.openAI.defaultTextContextWindowTokens, 128_000)
   }
 
   func testEnvironmentOverridesAreApplied() {

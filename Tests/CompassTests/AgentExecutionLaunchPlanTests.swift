@@ -83,24 +83,17 @@ final class AgentExecutionLaunchPlanTests: XCTestCase {
     XCTAssertTrue(plan.fallbackReason?.contains("readiness has not been evaluated") ?? false)
   }
 
-  // MARK: - Migration
+  // MARK: - Decoding
 
-  func testLegacyDevcontainerPreferredRawValueDecodesToSharedVM() throws {
-    let json = #"{"value":"devcontainer_preferred"}"#
-    struct Wrapper: Decodable {
-      var value: AgentExecutionEnvironmentPreference
+  func testStoredPreferenceRawValuesDecodeToSharedVM() throws {
+    for raw in ["devcontainer_preferred", "native_macos", "shared_vm"] {
+      let json = #"{"value":"\#(raw)"}"#
+      struct Wrapper: Decodable {
+        var value: AgentExecutionEnvironmentPreference
+      }
+      let decoded = try JSONDecoder().decode(Wrapper.self, from: Data(json.utf8))
+      XCTAssertEqual(decoded.value, .sharedVM, raw)
     }
-    let decoded = try JSONDecoder().decode(Wrapper.self, from: Data(json.utf8))
-    XCTAssertEqual(decoded.value, .sharedVM)
-  }
-
-  func testLegacyNativeMacOSRawValueDecodesToSharedVM() throws {
-    let json = #"{"value":"native_macos"}"#
-    struct Wrapper: Decodable {
-      var value: AgentExecutionEnvironmentPreference
-    }
-    let decoded = try JSONDecoder().decode(Wrapper.self, from: Data(json.utf8))
-    XCTAssertEqual(decoded.value, .sharedVM)
   }
 
   func testSharedVMRawValueRoundTrips() throws {

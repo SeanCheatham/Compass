@@ -1,13 +1,8 @@
 import Foundation
-import Virtualization
 
-/// Builders and validators for VirtioFS shares attached to the shared VM.
+/// VirtioFS tag validation retained in case VirtioFS shares return.
 ///
-/// No VirtioFS shares are attached to the running VM today — macOS
-/// guests TCC-block `AppleVirtIOFS` reads from every process — but
-/// the tag-validation helper here is retained for any future
-/// reattachment. Host↔guest file movement happens over vsock via
-/// `SharedCompassVMWorktreeSync` instead.
+/// Host↔guest file movement uses vsock via `SharedCompassVMWorktreeSync`.
 enum SharedCompassVMFileShare {
   /// Default tag used by the parent workspace share.
   static let defaultWorkspacesTag = "compass-workspaces"
@@ -60,32 +55,5 @@ enum SharedCompassVMFileShare {
     case .success(let value): return value
     case .failure(let error): throw error
     }
-  }
-
-  /// Description of a host directory to expose as a VirtioFS share.
-  struct ShareTarget: Equatable {
-    var tag: String
-    var hostDirectoryURL: URL
-    /// When true, the guest sees the share read-only.
-    var readOnly: Bool
-
-    init(tag: String, hostDirectoryURL: URL, readOnly: Bool = false) {
-      self.tag = tag
-      self.hostDirectoryURL = hostDirectoryURL.standardizedFileURL
-      self.readOnly = readOnly
-    }
-  }
-
-  /// Builds a `VZVirtioFileSystemDeviceConfiguration` for the supplied target.
-  /// Validates the tag first and throws on invalid input.
-  static func makeDeviceConfiguration(for target: ShareTarget) throws
-    -> VZVirtioFileSystemDeviceConfiguration
-  {
-    let tag = try ensureValidTag(target.tag)
-    let share = VZSharedDirectory(url: target.hostDirectoryURL, readOnly: target.readOnly)
-    let singleDirectory = VZSingleDirectoryShare(directory: share)
-    let configuration = VZVirtioFileSystemDeviceConfiguration(tag: tag)
-    configuration.share = singleDirectory
-    return configuration
   }
 }

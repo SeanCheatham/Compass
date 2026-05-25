@@ -209,10 +209,11 @@ its tools (`read_file`, `write_file`, `edit_file`, `bash`, etc.) over
 vsock. Once Verify passes, Compass pulls the guest workspace back into
 the host repo so the iteration's commits land in the main checkout.
 
-Plan and Reflect read the main repo from the host path (outside the
-VirtioFS workspaces share); they fall back to a direct host invocation
-internally. Only the Develop loop and its post-Verify file sync depend
-on the guest being ready.
+Plan and Reflect use the same guest workspace and vsock tool path when
+the VM is ready. If the guest workspace catalog cannot map the repo or
+the VM is unavailable, Compass falls back to a direct host invocation
+internally. Only Develop iterations and their post-Verify file sync
+require the guest to be ready.
 
 The VM is built from scratch on the user's machine using
 `VZMacOSRestoreImage.fetchLatestSupported` (Apple CDN, ~14 GB IPSW, no auth)

@@ -18,10 +18,8 @@ struct AgentExecutionLaunchPlan: Equatable {
 
   /// How an agent run is actually dispatched. The user no longer chooses
   /// between routes — Compass always targets the Shared VM. `Route.host`
-  /// remains as an internal-only fallback for the phases that still read
-  /// the main repo from outside the VirtioFS workspaces share (Plan and
-  /// Reflect operate on the host repo path) and for the rare case where
-  /// the catalog can't yet map this repo to a guest workspace.
+  /// remains as an internal-only fallback when the guest workspace catalog
+  /// cannot map this repo or the VM is not ready yet.
   enum Route: Equatable {
     case host
     case sharedVM(SharedVMRoute)

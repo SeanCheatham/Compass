@@ -42,11 +42,15 @@ struct MediaAssignment: Equatable, Sendable {
 /// variable → built-in default. Env vars exist for scripted setup
 /// / CI; see `AgentSettingsStore` for the precise key names.
 struct AgentRuntimeSettings: Equatable, Sendable {
-  /// Conservative default that fits within every provider Compass has
-  /// been pointed at (MiniMax M-series 245k, Claude Sonnet 200k, GPT-4
-  /// Turbo 128k). Models advertising larger windows can opt in via
-  /// `COMPASS_AGENT_CONTEXT_WINDOW_TOKENS`; setting it to `0` disables
-  /// auto-compaction entirely.
+  /// Generic fallback context window used by the synthetic init
+  /// default (tests and ad-hoc constructions that don't go through
+  /// `AgentSettingsStore.load()`). Real runs resolve the value from
+  /// the selected Text provider's
+  /// `defaultTextContextWindowTokens` (see `AgentProviderKind`), so
+  /// each provider's actual ceiling — 4096 for Foundation Models,
+  /// 200k for MiniMax, 128k for OpenAI — drives auto-compaction.
+  /// `COMPASS_AGENT_CONTEXT_WINDOW_TOKENS` overrides whichever value
+  /// the resolver picked; `0` disables auto-compaction entirely.
   static let defaultContextWindowTokens = 200_000
 
   /// Out-of-the-box text provider. Foundation Models runs on-device
@@ -131,21 +135,27 @@ struct AgentRuntimeSettings: Equatable, Sendable {
   /// Build settings from the given environment dictionary (defaults to the
   /// process environment). Empty / whitespace-only values are treated as
   /// unset so a developer can `unset COMPASS_AGENT_MODEL_PLAN` by exporting
-  /// it as `""`. The seeded text provider is `.minimaxToken` for backwards
-  /// compatibility — env vars predate the per-capability provider switch
-  /// and have always pointed at an OpenAI-compatible endpoint.
+  /// it as `""`. The seeded text provider is `.minimaxToken` when an API
+  /// key env var is present (env vars predate the per-capability provider
+  /// switch and have always pointed at an OpenAI-compatible endpoint); a
+  /// fully-empty env falls back to the on-device default
+  /// (`.appleFoundationModels`). The resolved context window then comes
+  /// from whichever provider was chosen, unless the env var overrides
+  /// explicitly.
   static func defaultFromEnvironment(
     _ environment: [String: String] = ProcessInfo.processInfo.environment
   ) -> Self {
     let baseURL =
       environment.compassAgentTrimmed("COMPASS_AGENT_BASE_URL")
       .flatMap(URL.init(string:)) ?? defaultBaseURL
+    let chosenProvider: AgentProviderKind =
+      environment.compassAgentTrimmed("COMPASS_AGENT_API_KEY") != nil
+      ? .minimaxToken : defaultTextProvider
     let contextWindow =
       environment.compassAgentTrimmed("COMPASS_AGENT_CONTEXT_WINDOW_TOKENS")
-      .flatMap(Int.init) ?? defaultContextWindowTokens
+      .flatMap(Int.init) ?? chosenProvider.defaultTextContextWindowTokens
     return Self(
-      textProvider: environment.compassAgentTrimmed("COMPASS_AGENT_API_KEY") != nil
-        ? .minimaxToken : defaultTextProvider,
+      textProvider: chosenProvider,
       baseURL: baseURL,
       apiKey: environment.compassAgentTrimmed("COMPASS_AGENT_API_KEY") ?? "",
       model: environment.compassAgentTrimmed("COMPASS_AGENT_MODEL") ?? defaultModelIdentifier,
@@ -183,12 +193,6 @@ struct AgentRuntimeSettings: Equatable, Sendable {
     }
     return true
   }
-
-  /// Backwards-compat accessor: the same value as `textProvider`.
-  /// Older call sites referenced the single-provider name; new code
-  /// should prefer `textProvider` since image/audio/video can be
-  /// assigned to a different provider.
-  var providerKind: AgentProviderKind { textProvider }
 
   /// Resolve the model identifier for a given phase.
   ///

@@ -81,6 +81,29 @@ enum AgentProviderKind: String, Sendable, CaseIterable, Codable {
     default: return nil
     }
   }
+
+  /// Built-in maximum context window (in tokens) for this provider's
+  /// text capability. Drives `AgentExecutor`'s auto-compaction
+  /// threshold (compaction triggers at ~75% of this value) and keeps
+  /// Compass from constructing requests that would be rejected
+  /// outright for exceeding the model's hard ceiling. The
+  /// `COMPASS_AGENT_CONTEXT_WINDOW_TOKENS` env var still overrides
+  /// the resolved value when set, and `0` disables compaction
+  /// entirely.
+  ///
+  /// Numbers reflect each vendor's publicly-documented ceilings:
+  /// - Apple Foundation Models is a ~3B-param on-device model with
+  ///   a 4096-token rolling window the framework manages internally.
+  /// - MiniMax M-series exposes a 200k-token window.
+  /// - OpenAI is sized for the GPT-4o family (128k); higher-window
+  ///   models can opt in by setting the env var.
+  var defaultTextContextWindowTokens: Int {
+    switch self {
+    case .appleFoundationModels: return 4_096
+    case .minimaxToken: return 200_000
+    case .openAI: return 128_000
+    }
+  }
 }
 
 /// A class of work a provider can perform. Each capability is

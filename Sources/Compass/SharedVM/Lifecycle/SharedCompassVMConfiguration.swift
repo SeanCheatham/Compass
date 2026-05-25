@@ -146,14 +146,6 @@ struct SharedCompassVMConfiguration {
     return configuration
   }
 
-  /// Re-exposes the file-share tag validator so callers can validate share
-  /// tags without reaching into `SharedCompassVMFileShare` directly.
-  static func validatedTag(_ tag: String) -> Result<
-    String, SharedCompassVMFileShare.TagValidationError
-  > {
-    SharedCompassVMFileShare.validatedTag(tag)
-  }
-
   /// Errors produced by `replaceConsoleAttachment`.
   enum ConsoleAttachmentError: Error, CustomStringConvertible {
     case noConsoleDevice

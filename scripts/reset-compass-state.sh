@@ -56,7 +56,6 @@ for arg in "$@"; do
 done
 
 APPSUPPORT="${HOME}/Library/Application Support/Compass"
-APPSUPPORT_LEGACY="${HOME}/Library/Application Support/CompassNative"
 CACHES="${HOME}/Library/Caches/Compass"
 BUNDLE="${APPSUPPORT}/SharedVM/bundle.vmbundle"
 DISK_IMAGE="${BUNDLE}/Disk.img"
@@ -141,7 +140,6 @@ case "${MODE}" in
   --full)
     echo "Mode: --full (wipe everything, including known projects)"
     run "rm -rf \"${APPSUPPORT}\""
-    run "rm -rf \"${APPSUPPORT_LEGACY}\""
     run "rm -rf \"${CACHES}\""
     ;;
 

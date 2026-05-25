@@ -72,4 +72,13 @@ final class SharedCompassVMWorktreeSyncTests: XCTestCase {
     )
     XCTAssertEqual(deletions, ["b.swift", "user-new.txt"])
   }
+
+  func testExcludesSyncPathSkipsBuildArtifactTrees() {
+    XCTAssertTrue(SharedCompassVMWorktreeSync.excludesSyncPath(".build"))
+    XCTAssertTrue(SharedCompassVMWorktreeSync.excludesSyncPath(".build/debug"))
+    XCTAssertTrue(
+      SharedCompassVMWorktreeSync.excludesSyncPath(".build/arm64-apple-macosx/debug/App.swift"))
+    XCTAssertFalse(SharedCompassVMWorktreeSync.excludesSyncPath("Sources/App.swift"))
+    XCTAssertFalse(SharedCompassVMWorktreeSync.excludesSyncPath("build.gradle"))
+  }
 }

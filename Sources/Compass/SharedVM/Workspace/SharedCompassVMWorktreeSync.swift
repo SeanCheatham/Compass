@@ -27,13 +27,35 @@ enum SharedCompassVMWorktreeSync {
   static let maxTarByteCount = 1024 * 1024 * 1024
 
   /// Directory names skipped when packaging the guest's working tree
-  /// on the pull side. The host's push tar is already gitignore-aware
-  /// (via `git ls-files`); these excludes cover the heavyweight
-  /// dirs an agent's `bash` calls might create in the guest
-  /// (`swift build`, `cargo build`, `npm install`).
+  /// on the pull side, and also filtered out of the host push tar and
+  /// fingerprint even when a repo's `.gitignore` omits them. SwiftPM
+  /// writes `.build/` as untracked output; without this filter a
+  /// single local `swift build` balloons the vsock push to thousands
+  /// of object files and the Plan agent looks hung while sync runs.
   static let pullSideExcludeDirs: [String] = [
     ".git", ".build", "target", "node_modules", "build", "dist", ".swiftpm",
   ]
+
+  /// True when `relative` lies under a `pullSideExcludeDirs` entry.
+  static func excludesSyncPath(_ relative: String) -> Bool {
+    for dir in pullSideExcludeDirs {
+      if relative == dir || relative.hasPrefix(dir + "/") {
+        return true
+      }
+    }
+    return false
+  }
+
+  /// Gitignore-respecting host paths eligible for push and fingerprint.
+  static func syncableRelativePaths(in worktree: URL) throws -> Set<String> {
+    let enumerated = try gitTrackedAndUntracked(in: worktree)
+    return enumerated.filter { relative in
+      !excludesSyncPath(relative)
+        && FileManager.default.fileExists(
+          atPath: worktree.appendingPathComponent(relative).path
+        )
+    }
+  }
 
   enum SyncError: LocalizedError, CustomStringConvertible {
     case hostListFailed(stderr: String)
@@ -243,10 +265,7 @@ enum SharedCompassVMWorktreeSync {
   /// exist on disk (e.g. deleted-but-still-staged entries) so tar
   /// doesn't bail with `No such file or directory`.
   private static func buildHostTar(at worktree: URL) throws -> Data {
-    let files = try gitTrackedAndUntracked(in: worktree)
-    let existing = files.filter { relative in
-      FileManager.default.fileExists(atPath: worktree.appendingPathComponent(relative).path)
-    }
+    let existing = try syncableRelativePaths(in: worktree)
 
     let tar = Process()
     tar.executableURL = URL(fileURLWithPath: "/usr/bin/tar")
