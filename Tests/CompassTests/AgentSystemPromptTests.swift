@@ -45,6 +45,9 @@ final class AgentSystemPromptTests: XCTestCase {
     XCTAssertFalse(
       prompt.contains("write_file"),
       "Plan must not be told about write_file")
+    XCTAssertTrue(
+      prompt.contains("plan_history"),
+      "Plan must see plan_history for Compass-managed completed iterations")
   }
 
   func testReflectPhaseAdvertisesBashWithoutMutationTools() {

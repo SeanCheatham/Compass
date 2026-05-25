@@ -22,14 +22,7 @@ import XCTest
 final class PlanPromptTests: XCTestCase {
 
   func testPlanPromptForbidsWrappingSubmitResultInExtraState() throws {
-    let prompt = try Prompts.planPrompt(
-      state: .empty,
-      drafts: "",
-      feedback: "",
-      lessons: "",
-      vision: "",
-      focus: .feature
-    )
+    let prompt = try makePlanPrompt()
     XCTAssertTrue(
       prompt.contains("Do not wrap them in another object"),
       "plan prompt must warn against wrapping in an extra object"
@@ -46,15 +39,24 @@ final class PlanPromptTests: XCTestCase {
     )
   }
 
-  func testPlanPromptForbidsCdPrefixInVerifyCommand() throws {
-    let prompt = try Prompts.planPrompt(
-      state: .empty,
-      drafts: "",
-      feedback: "",
-      lessons: "",
-      vision: "",
-      focus: .feature
+  func testPlanPromptOmitsCompletedFromSubmitResultShape() throws {
+    let prompt = try makePlanPrompt()
+    XCTAssertTrue(
+      prompt.contains("Completed plan history is managed by Compass, not by submit_result"),
+      "plan prompt must say history is outside submit_result"
     )
+    XCTAssertTrue(
+      prompt.contains("plan_history` tool"),
+      "plan prompt must direct the agent to plan_history for prior work"
+    )
+    XCTAssertFalse(
+      prompt.contains("\"completed\""),
+      "plan prompt submit_result shape must not include completed entries"
+    )
+  }
+
+  func testPlanPromptForbidsCdPrefixInVerifyCommand() throws {
+    let prompt = try makePlanPrompt()
     XCTAssertTrue(
       prompt.contains("never prepend a `cd`"),
       "plan prompt must forbid prepending `cd` to the verify command"
@@ -71,14 +73,7 @@ final class PlanPromptTests: XCTestCase {
   /// model to wrap its output in an extra `state:` layer. Pin the
   /// consolidation so the duplicate section doesn't sneak back in.
   func testPlanPromptDoesNotIncludeRedundantStateShapeSection() throws {
-    let prompt = try Prompts.planPrompt(
-      state: .empty,
-      drafts: "",
-      feedback: "",
-      lessons: "",
-      vision: "",
-      focus: .feature
-    )
+    let prompt = try makePlanPrompt()
     XCTAssertFalse(
       prompt.contains("State shape:"),
       "plan prompt previously duplicated the schema as a `State shape:` section; consolidated into submit_result arguments"
@@ -93,14 +88,7 @@ final class PlanPromptTests: XCTestCase {
   /// "edits for `.compass/lessons.md`" and feels compelled to
   /// `read_file` that path before producing edits.
   func testPlanPromptDoesNotMentionCompassDirectoryPaths() throws {
-    let prompt = try Prompts.planPrompt(
-      state: .empty,
-      drafts: "",
-      feedback: "",
-      lessons: "",
-      vision: "",
-      focus: .feature
-    )
+    let prompt = try makePlanPrompt()
     XCTAssertFalse(
       prompt.contains(".compass/"),
       "plan prompt must not name `.compass/` paths — the system prompt is the single point of truth for the directory's existence"
@@ -115,7 +103,7 @@ final class PlanPromptTests: XCTestCase {
     )
     XCTAssertFalse(
       prompt.contains("state.json"),
-      "plan prompt must not name `state.json` — refer to `## Current state` instead"
+      "plan prompt must not name `state.json` — refer to `## Current planning state` instead"
     )
   }
 
@@ -148,6 +136,7 @@ final class PlanPromptTests: XCTestCase {
   func testPlanPromptIncludesFocusHeaderAndInteractionRules() throws {
     let prompt = try Prompts.planPrompt(
       state: .empty,
+      completedCount: 0,
       drafts: "",
       feedback: "",
       lessons: "",
@@ -175,6 +164,7 @@ final class PlanPromptTests: XCTestCase {
     for focus in PlanFocus.allCases {
       let prompt = try Prompts.planPrompt(
         state: .empty,
+        completedCount: 0,
         drafts: "",
         feedback: "",
         lessons: "",
@@ -216,6 +206,18 @@ final class PlanPromptTests: XCTestCase {
     XCTAssertFalse(
       prompt.contains("state.json"),
       "develop prompt must not name `state.json`"
+    )
+  }
+
+  private func makePlanPrompt() throws -> String {
+    try Prompts.planPrompt(
+      state: .empty,
+      completedCount: 0,
+      drafts: "",
+      feedback: "",
+      lessons: "",
+      vision: "",
+      focus: .feature
     )
   }
 }

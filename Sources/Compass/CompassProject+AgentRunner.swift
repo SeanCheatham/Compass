@@ -129,6 +129,7 @@ extension CompassProject {
     userPrompt: String,
     submitResultSchema: String,
     codemapStoreDirectory: URL,
+    planHistoryEntries: [String] = [],
     decode: T.Type
   ) async throws -> T {
     let schema = AgentToolParametersSchema(json: Data(submitResultSchema.utf8))
@@ -157,7 +158,8 @@ extension CompassProject {
       workingDirectory: environment.workingDirectory,
       filesystem: environment.filesystem,
       bashRunner: environment.bashRunner,
-      codemapStoreDirectory: codemapStoreDirectory
+      codemapStoreDirectory: codemapStoreDirectory,
+      planHistoryEntries: planHistoryEntries
     )
     let agent = AgentExecutor { [weak self] event in
       Task { @MainActor in self?.log(event) }

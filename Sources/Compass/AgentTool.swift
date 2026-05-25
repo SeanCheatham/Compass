@@ -149,6 +149,9 @@ struct AgentToolContext: Sendable {
   /// to `<workingDirectory>/.compass/codemap` so on-host tests and
   /// stand-alone tool invocations work without configuration.
   var codemapStoreDirectory: URL
+  /// Completed plan summaries from host-side state.json. Plan agents read
+  /// these through `plan_history`; they are not writable via submit_result.
+  var planHistoryEntries: [String]
 
   init(
     workingDirectory: URL,
@@ -156,7 +159,8 @@ struct AgentToolContext: Sendable {
     bashRunner: AgentBashRunner = AgentHostBashRunner(),
     readTracker: AgentReadTracker = AgentReadTracker(),
     delegateRunner: AgentDelegateRunner? = nil,
-    codemapStoreDirectory: URL? = nil
+    codemapStoreDirectory: URL? = nil,
+    planHistoryEntries: [String] = []
   ) {
     let normalizedWorkingDirectory = workingDirectory.standardizedFileURL
     self.workingDirectory = normalizedWorkingDirectory
@@ -167,6 +171,7 @@ struct AgentToolContext: Sendable {
     self.codemapStoreDirectory =
       codemapStoreDirectory?.standardizedFileURL
       ?? Self.defaultCodemapDirectory(forWorkingDirectory: normalizedWorkingDirectory)
+    self.planHistoryEntries = planHistoryEntries
   }
 
   static func defaultCodemapDirectory(forWorkingDirectory workingDirectory: URL) -> URL {

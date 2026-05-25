@@ -97,6 +97,14 @@ struct PlanState: Codable, Equatable {
     midTerm = try container.decodeIfPresent(String.self, forKey: .midTerm) ?? ""
     longTerm = try container.decodeIfPresent(String.self, forKey: .longTerm) ?? ""
   }
+
+  var proposal: PlanProposal {
+    PlanProposal(from: self)
+  }
+
+  func applying(proposal: PlanProposal) -> PlanState {
+    proposal.applying(to: self)
+  }
 }
 
 struct LessonEdit: Codable, Equatable {
@@ -106,7 +114,7 @@ struct LessonEdit: Codable, Equatable {
 }
 
 struct PlanRunResult: Codable, Equatable {
-  var state: PlanState
+  var state: PlanProposal
   var lessonEdits: [LessonEdit]
 
   enum CodingKeys: String, CodingKey {
@@ -114,14 +122,14 @@ struct PlanRunResult: Codable, Equatable {
     case lessonEdits
   }
 
-  init(state: PlanState, lessonEdits: [LessonEdit] = []) {
+  init(state: PlanProposal, lessonEdits: [LessonEdit] = []) {
     self.state = state
     self.lessonEdits = lessonEdits
   }
 
   init(from decoder: Decoder) throws {
     let container = try decoder.container(keyedBy: CodingKeys.self)
-    state = try container.decode(PlanState.self, forKey: .state)
+    state = try container.decode(PlanProposal.self, forKey: .state)
     lessonEdits = try container.decodeIfPresent([LessonEdit].self, forKey: .lessonEdits) ?? []
   }
 }
@@ -136,7 +144,7 @@ private struct LossyString: Decodable {
 }
 
 struct ReflectSummary: Codable, Equatable {
-  var state: PlanState?
+  var state: PlanProposal?
   var summary: String
   var lessonEdits: [LessonEdit]
 
@@ -146,7 +154,7 @@ struct ReflectSummary: Codable, Equatable {
     case lessonEdits
   }
 
-  init(state: PlanState?, summary: String, lessonEdits: [LessonEdit] = []) {
+  init(state: PlanProposal?, summary: String, lessonEdits: [LessonEdit] = []) {
     self.state = state
     self.summary = summary
     self.lessonEdits = lessonEdits
@@ -154,7 +162,7 @@ struct ReflectSummary: Codable, Equatable {
 
   init(from decoder: Decoder) throws {
     let container = try decoder.container(keyedBy: CodingKeys.self)
-    state = try container.decodeIfPresent(PlanState.self, forKey: .state)
+    state = try container.decodeIfPresent(PlanProposal.self, forKey: .state)
     summary = try container.decode(String.self, forKey: .summary)
     lessonEdits = try container.decodeIfPresent([LessonEdit].self, forKey: .lessonEdits) ?? []
   }

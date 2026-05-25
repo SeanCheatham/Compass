@@ -227,6 +227,13 @@ struct CompassWorkspace {
     return String(decoding: data, as: UTF8.self) + "\n"
   }
 
+  static func encodeProposal(_ proposal: PlanProposal) throws -> String {
+    let encoder = JSONEncoder()
+    encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+    let data = try encoder.encode(proposal)
+    return String(decoding: data, as: UTF8.self) + "\n"
+  }
+
   private func createFileIfMissing(_ url: URL, contents: String) throws {
     guard !FileManager.default.fileExists(atPath: url.path) else { return }
     try contents.write(to: url, atomically: true, encoding: .utf8)

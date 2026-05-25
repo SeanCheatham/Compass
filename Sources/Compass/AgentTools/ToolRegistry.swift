@@ -56,7 +56,11 @@ enum ToolRegistry {
   /// be producing artifacts.
   static func tools(for phase: AgentPhase, settings: AgentRuntimeSettings) -> [AgentTool] {
     switch phase {
-    case .plan, .reflect, .critic:
+    case .plan:
+      return inspectionTools() + [
+        AgentPlanHistoryTool()
+      ]
+    case .reflect, .critic:
       return inspectionTools()
     case .develop:
       var tools = developTools()

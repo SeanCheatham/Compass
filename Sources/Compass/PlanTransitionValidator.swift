@@ -10,13 +10,6 @@ struct PlanTransitionValidationError: LocalizedError, Equatable {
 
 enum PlanTransitionValidator {
   static func validate(from current: PlanState, to next: PlanState) throws {
-    if next.completed.count < current.completed.count {
-      throw PlanTransitionValidationError(
-        message:
-          "Plan tried to shrink completed history from \(current.completed.count) entries to \(next.completed.count). Refusing to overwrite state.json."
-      )
-    }
-
     if !current.midTerm.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
       && next.midTerm.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
       && next.completed.count == current.completed.count

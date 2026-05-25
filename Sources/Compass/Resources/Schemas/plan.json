@@ -6,12 +6,8 @@
     "state": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["completed", "immediate", "midTerm", "longTerm"],
+      "required": ["immediate", "midTerm", "longTerm"],
       "properties": {
-        "completed": {
-          "type": "array",
-          "items": { "type": "string" }
-        },
         "immediate": {
           "anyOf": [
             {

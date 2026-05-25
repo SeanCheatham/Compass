@@ -55,7 +55,17 @@ extension CompassProject {
       consumedDrafts = try workspace.snapshotAndClearDrafts()
       drafts = ""
 
-      let currentState = try workspace.readState()
+      var currentState = try workspace.readState()
+      let recordedState = PlanCompletionRecorder.recordingShippedIterations(
+        into: currentState,
+        sessions: sessions
+      )
+      if recordedState != currentState {
+        try workspace.writeState(recordedState)
+        currentState = recordedState
+        state = recordedState
+      }
+
       log(
         "Plan input: \(workspace.stateURL.path) (\(currentState.completed.count) completed, immediate: \(firstLine(currentState.immediate?.plan) ?? "none")).",
         level: .info
@@ -65,7 +75,8 @@ extension CompassProject {
       log("Plan focus this iteration: \(focus.displayName).", level: .info)
 
       let prompt = try Prompts.planPrompt(
-        state: currentState,
+        state: currentState.proposal,
+        completedCount: currentState.completed.count,
         drafts: consumedDrafts,
         feedback: priorFeedback,
         lessons: workspace.readLessons(),
@@ -95,9 +106,10 @@ extension CompassProject {
         userPrompt: prompt,
         submitResultSchema: Prompts.planSchema,
         codemapStoreDirectory: CodemapStore.defaultDirectory(forWorkspace: workspace),
+        planHistoryEntries: currentState.completed,
         decode: PlanRunResult.self
       )
-      let nextState = planResult.state
+      let nextState = currentState.applying(proposal: planResult.state)
 
       try validatePlanTransition(from: currentState, to: nextState)
       let lessonEditCount = try workspace.applyLessonEdits(planResult.lessonEdits)
@@ -522,7 +534,7 @@ extension CompassProject {
       .prefix(reflectSessionWindow)
 
     let prompt = try Prompts.reflectPrompt(
-      state: workspace.readState(),
+      state: workspace.readState().proposal,
       lessons: workspace.readLessons(),
       vision: workspace.readVision(),
       recentSessions: Array(recentSessions),
@@ -549,9 +561,11 @@ extension CompassProject {
     )
 
     let lessonEditCount = try workspace.applyLessonEdits(result.lessonEdits)
-    if let reflectedState = result.state {
-      try workspace.writeState(reflectedState)
-      state = reflectedState
+    if let reflectedProposal = result.state {
+      let currentState = try workspace.readState()
+      let mergedState = currentState.applying(proposal: reflectedProposal)
+      try workspace.writeState(mergedState)
+      state = mergedState
       log("Reflect updated state.json: \(result.summary)", level: .success)
     } else {
       log("Reflect: \(result.summary)", level: .info)

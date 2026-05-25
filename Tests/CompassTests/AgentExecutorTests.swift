@@ -257,8 +257,10 @@ final class AgentExecutorTests: XCTestCase {
     let planNames = Set(ToolRegistry.tools(for: .plan).map { $0.spec.name })
     let reflectNames = Set(ToolRegistry.tools(for: .reflect).map { $0.spec.name })
     let inspectionNames = Set(ToolRegistry.inspectionTools().map { $0.spec.name })
-    XCTAssertEqual(planNames, inspectionNames)
+    XCTAssertTrue(planNames.isSuperset(of: inspectionNames))
     XCTAssertEqual(reflectNames, inspectionNames)
+    XCTAssertTrue(planNames.contains(AgentPlanHistoryTool.toolName))
+    XCTAssertFalse(reflectNames.contains(AgentPlanHistoryTool.toolName))
     XCTAssertTrue(
       planNames.contains(AgentBashTool.toolName),
       "Plan must have bash so it can run builds/tests to ground its plan")

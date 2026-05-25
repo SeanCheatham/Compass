@@ -4,13 +4,6 @@ import XCTest
 @testable import Compass
 
 final class PlanTransitionValidatorTests: XCTestCase {
-  func testRejectsShrinkingCompletedHistory() {
-    let current = makeState(completed: ["one", "two"])
-    let next = makeState(completed: ["one"])
-
-    assertTransitionRejected(from: current, to: next, contains: "shrink completed history")
-  }
-
   func testRejectsClearingMidTermWithoutCompletion() {
     let current = makeState(completed: ["done"], midTerm: "- Next queued item")
     let next = makeState(completed: ["done"], midTerm: "   \n")
@@ -35,14 +28,16 @@ final class PlanTransitionValidatorTests: XCTestCase {
     try PlanTransitionValidator.validate(from: current, to: next)
   }
 
-  func testAcceptsCompletionPlusMidTermRewrite() throws {
+  func testAcceptsMidTermRewriteWithoutChangingCompleted() throws {
     let current = makeState(completed: ["First slice"], midTerm: "- Old queue")
-    let next = makeState(
-      completed: ["First slice", "Second slice"],
+    let proposal = PlanProposal(
       immediate: PlanNext(plan: "Take the rewritten next step", verify: "swift test"),
-      midTerm: "- Rewritten queue"
+      midTerm: "- Rewritten queue",
+      longTerm: "Long-term direction"
     )
+    let next = current.applying(proposal: proposal)
 
+    XCTAssertEqual(next.completed, current.completed)
     try PlanTransitionValidator.validate(from: current, to: next)
   }
 
@@ -91,6 +86,99 @@ final class PlanTransitionValidatorTests: XCTestCase {
         line: line
       )
     }
+  }
+}
+
+final class PlanCompletionRecorderTests: XCTestCase {
+  func testRecordsSuccessfulSessionPlanLine() {
+    let state = PlanState.empty
+    let sessions = [
+      makeSucceededSession(1, plan: "Ship feature X\n\nDetails"),
+    ]
+
+    let updated = PlanCompletionRecorder.recordingShippedIterations(
+      into: state,
+      sessions: sessions
+    )
+
+    XCTAssertEqual(updated.completed, ["Ship feature X"])
+  }
+
+  func testDoesNotDuplicateAlreadyRecordedSessions() {
+    let state = makeState(completed: ["Ship feature X"])
+    let sessions = [makeSucceededSession(1, plan: "Ship feature X")]
+
+    let updated = PlanCompletionRecorder.recordingShippedIterations(
+      into: state,
+      sessions: sessions
+    )
+
+    XCTAssertEqual(updated.completed, state.completed)
+  }
+
+  func testIgnoresFailedSessions() {
+    var failed = SessionRecord.started(1)
+    failed.status = .failed
+    failed.plan = "Should not record"
+    failed.endedAt = Date().timeIntervalSince1970 * 1000
+
+    let updated = PlanCompletionRecorder.recordingShippedIterations(
+      into: .empty,
+      sessions: [failed]
+    )
+
+    XCTAssertEqual(updated.completed, [])
+  }
+
+  private func makeState(completed: [String]) -> PlanState {
+    PlanState(
+      completed: completed,
+      immediate: nil,
+      midTerm: "",
+      longTerm: ""
+    )
+  }
+
+  private func makeSucceededSession(_ number: Int, plan: String) -> SessionRecord {
+    var session = SessionRecord.started(number)
+    session.status = .succeeded
+    session.plan = plan
+    session.endedAt = Date().timeIntervalSince1970 * 1000
+    return session
+  }
+}
+
+final class PlanHistoryPageTests: XCTestCase {
+  func testReturnsNewestEntriesFirstWithPaginationHint() {
+    let page = PlanHistoryPage.read(
+      entries: ["First", "Second", "Third"],
+      offset: 1,
+      limit: 1
+    )
+
+    XCTAssertEqual(page.totalCount, 3)
+    XCTAssertEqual(page.entries.map(\.iteration), [2])
+    XCTAssertEqual(page.entries.map(\.summary), ["Second"])
+    XCTAssertTrue(page.formatted().contains("offset 1 from newest"))
+    XCTAssertTrue(page.formatted().contains("more: call plan_history with offset 2"))
+  }
+}
+
+final class AgentPlanHistoryToolTests: XCTestCase {
+  func testReturnsPaginatedHistoryFromContext() async throws {
+    let tool = AgentPlanHistoryTool()
+    let args = try JSONSerialization.data(withJSONObject: ["offset": 0, "limit": 2])
+    let context = AgentToolContext(
+      workingDirectory: FileManager.default.temporaryDirectory,
+      planHistoryEntries: ["First", "Second", "Third"]
+    )
+
+    let result = try await tool.invoke(arguments: args, context: context)
+
+    XCTAssertFalse(result.isError)
+    XCTAssertTrue(result.content.contains("#3: Third"))
+    XCTAssertTrue(result.content.contains("#2: Second"))
+    XCTAssertFalse(result.content.contains("#1: First"))
   }
 }
 

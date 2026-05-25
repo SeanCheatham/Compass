@@ -56,20 +56,21 @@ enum Prompts {
   }
 
   static func planPrompt(
-    state: PlanState,
+    state: PlanProposal,
+    completedCount: Int,
     drafts: String,
     feedback: String,
     lessons: String,
     vision: String,
     focus: PlanFocus
   ) throws -> String {
-    let stateJSON = try CompassWorkspace.encodeState(state)
+    let stateJSON = try CompassWorkspace.encodeProposal(state)
     return """
       You are the Plan agent for Compass, a macOS-native agent iteration app.
 
       Compass talks to an OpenAI-compatible chat completions endpoint and
       dispatches tool calls you make. Treat the structured JSON you return as
-      Compass's state and lesson update contract.
+      Compass's plan update contract.
 
       Your job is to choose exactly one concrete next implementation increment
       for a separate Develop pass. You have read access to the repository and
@@ -78,10 +79,12 @@ enum Prompts {
       calling the `submit_result` tool with the arguments described below.
 
       Planning rules:
-      - Start from the current state exactly as given. Preserve existing
-        `completed`, `midTerm`, and `longTerm` unless this iteration has a
-        concrete reason to change them.
-      - Never reset or drop completed history.
+      - Start from the current planning state exactly as given.
+      - Completed plan history is managed by Compass, not by submit_result.
+        Compass has \(completedCount) completed iteration(s) on record. Use the
+        `plan_history` tool when prior shipped work would inform your choice.
+      - Revise `midTerm` and `longTerm` when this iteration has a concrete
+        reason to change them.
       - Ground the plan in the repository before choosing work.
       - Pick one commit-sized `immediate` with a real verify command that proves
         the important behavior. If there are no relevant tests, use build or
@@ -94,8 +97,6 @@ enum Prompts {
       - Use `immediate: null` only when the project is genuinely complete:
         every goal is shipped, `midTerm` and `longTerm` are exhausted, and you
         cannot identify a useful next increment.
-      - Append to `completed` only when feedback says the previous immediate
-        shipped.
       - If feedback reports a blocker, plan the next smallest step that resolves
         it or rescope so Develop can make progress.
       - If drafts are empty, promote a useful `midTerm` item or originate a plan
@@ -125,7 +126,6 @@ enum Prompts {
       the result under another `state` field.
       {
         "state": {
-          "completed": ["one-line shipped summaries"],
           "immediate": {
             "plan": "markdown plan for one implementation increment",
             "verify": "shell command — no `cd` prefix, no absolute paths",
@@ -146,7 +146,7 @@ enum Prompts {
 
       \(focus.promptGuidance)
 
-      ## Current state
+      ## Current planning state
       ```json
       \(stateJSON)
       ```
@@ -160,8 +160,7 @@ enum Prompts {
 
       ## Feedback from the previous Develop pass
       This is the latest non-empty Develop feedback from a prior completed
-      session. Use it to decide whether to append to `completed`, fix a blocker,
-      or continue from state alone.
+      session. Use it to fix a blocker or continue from state alone.
 
       \(fencedOrEmpty(feedback, empty: "_(no feedback)_"))
 
@@ -177,13 +176,13 @@ enum Prompts {
   }
 
   static func reflectPrompt(
-    state: PlanState,
+    state: PlanProposal,
     lessons: String,
     vision: String,
     recentSessions: [SessionRecord],
     iteration: Int
   ) throws -> String {
-    let stateJSON = try CompassWorkspace.encodeState(state)
+    let stateJSON = try CompassWorkspace.encodeProposal(state)
     let sessionsJSON = try encodeSessions(recentSessions)
     return """
       You are the Reflect agent for Compass, a macOS-native agent iteration
@@ -197,9 +196,10 @@ enum Prompts {
 
       Finish by calling the `submit_result` tool with these arguments:
       - `state`: null if everything is on course.
-      - `state`: a full PlanState if `midTerm` and/or `longTerm` should be
-        rewritten. Preserve existing `completed` and `immediate` unless there
-        is a concrete reason to adjust them.
+      - `state`: a planning update if `midTerm` and/or `longTerm` should be
+        rewritten. Completed history is managed by Compass and is not part of
+        this payload. Preserve `immediate` unless there is a concrete reason
+        to adjust it.
       - `summary`: a concise explanation of the reflection result.
       - `lessonEdits`: exact find/replace edits against the lessons content
         shown below, or `[]` when nothing durable should be recorded.
@@ -214,7 +214,7 @@ enum Prompts {
 
       Keep this tight. Do not rewrite state defensively.
 
-      ## Current state
+      ## Current planning state
       ```json
       \(stateJSON)
       ```
@@ -542,7 +542,16 @@ enum Prompts {
       "delegate (spawn a focused sub-agent for a self-contained sub-task; it returns a findings string)"
     let toolList: String
     switch phase {
-    case .plan, .reflect:
+    case .plan:
+      toolList = """
+        - Codemap tools: \(codemapTools).
+        - File tools: \(fileTools).
+        - Shell: bash (read-only intent — run builds, tests, linters, or git inspection to ground your decisions; do not mutate tracked files and do not commit).
+        - Plan history: plan_history (read paginated completed iterations managed by Compass).
+        - Sub-agents: \(delegateTool).
+        - This phase must not write files or commit. The Develop phase has the write tools — do not request them here.
+        """
+    case .reflect:
       toolList = """
         - Codemap tools: \(codemapTools).
         - File tools: \(fileTools).

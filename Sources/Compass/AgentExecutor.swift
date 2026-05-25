@@ -32,6 +32,8 @@ struct AgentExecutionConfiguration {
   /// back to `<workingDirectory>/.compass/codemap`, which is correct
   /// only for host-route runs against a canonical repo-local workspace.
   var codemapStoreDirectory: URL?
+  /// Host-side completed plan summaries for the `plan_history` tool.
+  var planHistoryEntries: [String]
   var maxIterations: Int
   var wallClockTimeout: TimeInterval
 
@@ -47,6 +49,7 @@ struct AgentExecutionConfiguration {
     filesystem: AgentFilesystem = AgentHostFilesystem(),
     bashRunner: AgentBashRunner = AgentHostBashRunner(),
     codemapStoreDirectory: URL? = nil,
+    planHistoryEntries: [String] = [],
     maxIterations: Int = 512,
     wallClockTimeout: TimeInterval = 60 * 60
   ) {
@@ -61,6 +64,7 @@ struct AgentExecutionConfiguration {
     self.filesystem = filesystem
     self.bashRunner = bashRunner
     self.codemapStoreDirectory = codemapStoreDirectory
+    self.planHistoryEntries = planHistoryEntries
     self.maxIterations = maxIterations
     self.wallClockTimeout = wallClockTimeout
   }
@@ -200,7 +204,8 @@ final class AgentExecutor {
       filesystem: configuration.filesystem,
       bashRunner: configuration.bashRunner,
       delegateRunner: delegateRunner,
-      codemapStoreDirectory: configuration.codemapStoreDirectory
+      codemapStoreDirectory: configuration.codemapStoreDirectory,
+      planHistoryEntries: configuration.planHistoryEntries
     )
     let model = configuration.settings.model(
       for: configuration.phase, sidebarOverride: configuration.modelOverride)
@@ -839,14 +844,14 @@ final class AgentExecutor {
         eventDetail:
           "Output hit the max-tokens cap (\(maxCompletionTokens)); asking the model to retry with shorter fields.",
         userMessage:
-          "Your previous `submit_result` was truncated by the output-token limit. Retry with the same structure but shorter free-form text — keep `state.completed` entries terse, trim `summary`, and avoid restating context. The tool args must be complete, valid JSON."
+          "Your previous `submit_result` was truncated by the output-token limit. Retry with the same structure but shorter free-form text — trim `summary`, keep plan fields concise, and avoid restating context. The tool args must be complete, valid JSON."
       )
     }
     return InvalidToolArgumentsNudge(
       eventText: "submit_result rejected",
       eventDetail: "submit_result args are not valid JSON: \(argumentsPreview)",
       userMessage:
-        "Your previous `submit_result` arguments could not be parsed as JSON — the upstream often truncates mid-token without flagging it. Retry with the same structure but noticeably shorter free-form text: keep `state.completed` entries terse, trim `summary`, and avoid restating prior context. The tool args must be complete, valid JSON."
+        "Your previous `submit_result` arguments could not be parsed as JSON — the upstream often truncates mid-token without flagging it. Retry with the same structure but noticeably shorter free-form text: trim `summary`, keep plan fields concise, and avoid restating prior context. The tool args must be complete, valid JSON."
     )
   }
 
