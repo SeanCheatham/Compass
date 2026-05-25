@@ -1001,6 +1001,12 @@ final class SharedCompassVM: ObservableObject {
       transition(to: .error(detail: "Shared VM is not running; cannot install developer tools."))
       return
     }
+    guard await SharedCompassVMVsock.waitUntilReachable(on: machine) else {
+      transition(to: .error(
+        detail:
+          "Guest agent did not become reachable over vsock within 5 minutes. The VM may still be booting — quit and reopen Compass to retry."))
+      return
+    }
     let client = Self.makeVsockClient(on: machine)
     let host = self
     do {
@@ -1042,6 +1048,7 @@ final class SharedCompassVM: ObservableObject {
   /// and auto mutation testing skips when the runner is missing.
   private func ensureMutationToolsIfNeeded() async {
     guard let machine = virtualMachine else { return }
+    guard await SharedCompassVMVsock.waitUntilReachable(on: machine) else { return }
     let client = Self.makeVsockClient(on: machine)
     do {
       if try await SharedCompassVMMutationToolsProvisioner.probeAlreadyInstalled(runner: client) {
