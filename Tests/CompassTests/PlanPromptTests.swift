@@ -27,7 +27,8 @@ final class PlanPromptTests: XCTestCase {
       drafts: "",
       feedback: "",
       lessons: "",
-      vision: ""
+      vision: "",
+      focus: .feature
     )
     XCTAssertTrue(
       prompt.contains("Do not wrap them in another object"),
@@ -51,7 +52,8 @@ final class PlanPromptTests: XCTestCase {
       drafts: "",
       feedback: "",
       lessons: "",
-      vision: ""
+      vision: "",
+      focus: .feature
     )
     XCTAssertTrue(
       prompt.contains("never prepend a `cd`"),
@@ -74,7 +76,8 @@ final class PlanPromptTests: XCTestCase {
       drafts: "",
       feedback: "",
       lessons: "",
-      vision: ""
+      vision: "",
+      focus: .feature
     )
     XCTAssertFalse(
       prompt.contains("State shape:"),
@@ -95,7 +98,8 @@ final class PlanPromptTests: XCTestCase {
       drafts: "",
       feedback: "",
       lessons: "",
-      vision: ""
+      vision: "",
+      focus: .feature
     )
     XCTAssertFalse(
       prompt.contains(".compass/"),
@@ -135,6 +139,57 @@ final class PlanPromptTests: XCTestCase {
       prompt.contains("state.json"),
       "reflect prompt must not name `state.json`"
     )
+  }
+
+  /// The focus block is what biases the planner away from compounding
+  /// feature work. Pin both the header and a representative line from
+  /// the interaction rules so a future prompt edit that drops the
+  /// focus injection surfaces here rather than silently regressing.
+  func testPlanPromptIncludesFocusHeaderAndInteractionRules() throws {
+    let prompt = try Prompts.planPrompt(
+      state: .empty,
+      drafts: "",
+      feedback: "",
+      lessons: "",
+      vision: "",
+      focus: .test
+    )
+    XCTAssertTrue(
+      prompt.contains("## Focus for this iteration: tests"),
+      "plan prompt must include the focus header for the chosen focus"
+    )
+    XCTAssertTrue(
+      prompt.contains("Drafts always win"),
+      "plan prompt must keep the drafts-win-over-focus rule"
+    )
+    XCTAssertTrue(
+      prompt.contains("skipping the head of the queue"),
+      "plan prompt must permit the focus to override midTerm order"
+    )
+  }
+
+  /// Each PlanFocus variant carries its own detail block. If one is
+  /// ever dropped from the prompt the planner silently loses the
+  /// steer for that category, so pin every variant.
+  func testPlanPromptIncludesDetailBlockForEachFocus() throws {
+    for focus in PlanFocus.allCases {
+      let prompt = try Prompts.planPrompt(
+        state: .empty,
+        drafts: "",
+        feedback: "",
+        lessons: "",
+        vision: "",
+        focus: focus
+      )
+      XCTAssertTrue(
+        prompt.contains("## Focus for this iteration: \(focus.displayName)"),
+        "plan prompt missing focus header for \(focus.displayName)"
+      )
+      XCTAssertTrue(
+        prompt.contains("Focus details — \(focus.displayName):"),
+        "plan prompt missing focus detail block for \(focus.displayName)"
+      )
+    }
   }
 
   func testDevelopPromptDoesNotMentionCompassDirectoryPaths() {

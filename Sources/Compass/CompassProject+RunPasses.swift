@@ -61,12 +61,16 @@ extension CompassProject {
         level: .info
       )
 
+      let focus = PlanFocus.weightedRandom()
+      log("Plan focus this iteration: \(focus.displayName).", level: .info)
+
       let prompt = try Prompts.planPrompt(
         state: currentState,
         drafts: consumedDrafts,
         feedback: priorFeedback,
         lessons: workspace.readLessons(),
-        vision: workspace.readVision()
+        vision: workspace.readVision(),
+        focus: focus
       )
       let promptURL = try workspace.writeSessionArtifact(
         session: sessionNumber,

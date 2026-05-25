@@ -60,7 +60,8 @@ enum Prompts {
     drafts: String,
     feedback: String,
     lessons: String,
-    vision: String
+    vision: String,
+    focus: PlanFocus
   ) throws -> String {
     let stateJSON = try CompassWorkspace.encodeState(state)
     return """
@@ -142,6 +143,8 @@ enum Prompts {
           }
         ]
       }
+
+      \(focus.promptGuidance)
 
       ## Current state
       ```json
