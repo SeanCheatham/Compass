@@ -160,7 +160,6 @@ extension CompassProject {
 enum KnownProjectStore {
   struct ApplicationSupportRoots: Equatable {
     var current: URL
-    var legacy: URL
   }
 
   static func load() -> [KnownProjectRecord] {
@@ -198,17 +197,11 @@ enum KnownProjectStore {
     currentApplicationSupportRoot.appending(path: "Compass", directoryHint: .isDirectory)
   }
 
-  /// Pre-rename Application Support layout (`CompassNative/Projects/…`).
-  /// Retained only so workspace storage assessment can surface drift.
-  static func legacyDirectoryURL(in legacyApplicationSupportRoot: URL) -> URL {
-    legacyApplicationSupportRoot.appending(path: "CompassNative", directoryHint: .isDirectory)
-  }
-
   static func productionApplicationSupportRoots() -> ApplicationSupportRoots {
     let base =
       FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
       ?? FileManager.default.homeDirectoryForCurrentUser.appending(
         path: "Library/Application Support", directoryHint: .isDirectory)
-    return ApplicationSupportRoots(current: base, legacy: base)
+    return ApplicationSupportRoots(current: base)
   }
 }

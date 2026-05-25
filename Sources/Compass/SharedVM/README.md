@@ -87,8 +87,7 @@ There are no per-iteration host worktrees anymore. On Verify success
 the guest workspace is packed and pulled directly into the main host
 checkout via `AppModel.pullDevelopChangesIfNeeded`, and Compass runs
 `git add -A` + `git commit` there on behalf of the agent (the guest
-has no `.git`). The legacy `~/Library/Caches/Compass/Worktrees/`
-tree is GC'd once at launch and never recreated.
+has no `.git`).
 
 There is no VirtioFS share. We tried it; macOS guests TCC-block
 `AppleVirtIOFS` reads from every process (sshd children, LaunchDaemons

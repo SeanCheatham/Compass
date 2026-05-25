@@ -17,7 +17,7 @@ struct AgentReadFileTool: AgentTool {
   let spec: AgentToolSpec
 
   init() {
-    let schema = try! AgentToolParametersSchema([
+    let schema = AgentToolParametersSchema(literal:[
       "type": "object",
       "additionalProperties": false,
       "required": ["path"],

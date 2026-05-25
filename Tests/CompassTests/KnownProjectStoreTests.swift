@@ -102,32 +102,12 @@ final class KnownProjectStoreTests: XCTestCase {
     temporaryDirectories.removeAll()
   }
 
-  func testLoadPrefersCurrentCompassRegistryWhenLegacyCopyAlsoExists() throws {
-    let roots = try makeApplicationSupportRoots()
-    let current = makeRecord(
-      id: "55555555-5555-5555-5555-555555555555",
-      path: "/tmp/current"
-    )
-    let stale = makeRecord(
-      id: "66666666-6666-6666-6666-666666666666",
-      path: "/tmp/stale"
-    )
-    try writeProjects([stale], to: legacyProjectsURL(for: roots))
-    try writeProjects([current], to: currentProjectsURL(for: roots))
-
-    XCTAssertEqual(KnownProjectStore.load(applicationSupportRoots: roots), [current])
-  }
-
   func testLoadTreatsMissingEmptyAndMalformedRegistryFilesAsEmpty() throws {
     let missingRoots = try makeApplicationSupportRoots()
     XCTAssertEqual(KnownProjectStore.load(applicationSupportRoots: missingRoots), [])
 
     let emptyCurrentRoots = try makeApplicationSupportRoots()
     try write("", to: currentProjectsURL(for: emptyCurrentRoots))
-    try writeProjects(
-      [makeRecord(id: "88888888-8888-8888-8888-888888888888", path: "/tmp/stale")],
-      to: legacyProjectsURL(for: emptyCurrentRoots)
-    )
     XCTAssertEqual(KnownProjectStore.load(applicationSupportRoots: emptyCurrentRoots), [])
 
     let malformedCurrentRoots = try makeApplicationSupportRoots()
@@ -135,7 +115,7 @@ final class KnownProjectStoreTests: XCTestCase {
     XCTAssertEqual(KnownProjectStore.load(applicationSupportRoots: malformedCurrentRoots), [])
   }
 
-  func testSaveWritesPrettySortedJSONOnlyToCurrentCompassDirectory() throws {
+  func testSaveWritesPrettySortedJSONToCurrentCompassDirectory() throws {
     let roots = try makeApplicationSupportRoots()
     let record = makeRecord(
       id: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
@@ -147,7 +127,6 @@ final class KnownProjectStoreTests: XCTestCase {
     try KnownProjectStore.save([record], applicationSupportRoots: roots)
 
     XCTAssertTrue(FileManager.default.fileExists(atPath: currentProjectsURL(for: roots).path))
-    XCTAssertFalse(FileManager.default.fileExists(atPath: legacyProjectsURL(for: roots).path))
     XCTAssertEqual(KnownProjectStore.load(applicationSupportRoots: roots), [record])
 
     let saved = try read(currentProjectsURL(for: roots))
@@ -216,20 +195,13 @@ final class KnownProjectStoreTests: XCTestCase {
       .appending(path: "KnownProjectStoreTests-\(UUID().uuidString)", directoryHint: .isDirectory)
     temporaryDirectories.append(base)
     return KnownProjectStore.ApplicationSupportRoots(
-      current: base.appending(path: "CurrentSupport", directoryHint: .isDirectory),
-      legacy: base.appending(path: "LegacySupport", directoryHint: .isDirectory)
+      current: base.appending(path: "CurrentSupport", directoryHint: .isDirectory)
     )
   }
 
   private func currentProjectsURL(for roots: KnownProjectStore.ApplicationSupportRoots) -> URL {
     roots.current
       .appending(path: "Compass", directoryHint: .isDirectory)
-      .appending(path: "projects.json")
-  }
-
-  private func legacyProjectsURL(for roots: KnownProjectStore.ApplicationSupportRoots) -> URL {
-    roots.legacy
-      .appending(path: "CompassNative", directoryHint: .isDirectory)
       .appending(path: "projects.json")
   }
 

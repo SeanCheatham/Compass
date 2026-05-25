@@ -6,9 +6,18 @@ import Foundation
 /// Tools online. Builds a pinned Muter release with the guest `swift` toolchain
 /// and installs it to `/usr/local/bin/muter` so Develop/Verify/Mutation all
 /// share the same execution environment.
+///
+/// Also bootstraps Homebrew under the compass user (if not already present)
+/// and installs `ripgrep`, symlinked to `/usr/local/bin/rg` so it picks up
+/// via the existing path_helper-driven `~/.zshenv`. Agent searches inside
+/// the guest use `rg` because naive `grep -r` walks the SPM `.build` tree
+/// and times out (verified live — challenge-mode iteration died on a 30s
+/// `grep` over the project root).
 enum SharedCompassVMMutationToolsProvisioner {
   static let muterReleaseTag = "16"
   static let muterInstallPath = "/usr/local/bin/muter"
+  static let ripgrepInstallPath = "/usr/local/bin/rg"
+  static let brewInstallPath = "/opt/homebrew/bin/brew"
   static let scriptGuestPath = "/usr/local/libexec/compass-install-muter.sh"
   static let logGuestPath = "/var/log/compass-muter-install.log"
   static let doneSentinelGuestPath = "/var/log/compass-muter-install.done"
@@ -52,6 +61,8 @@ enum SharedCompassVMMutationToolsProvisioner {
     case downloading
     case building
     case installing
+    case bootstrappingHomebrew
+    case installingRipgrep
     case done
   }
 
@@ -128,13 +139,16 @@ enum SharedCompassVMMutationToolsProvisioner {
     return report
   }
 
+  /// PRESENT only when both Muter and ripgrep are usable. Either one
+  /// missing re-runs the install — the script is idempotent for each
+  /// tool, so re-installing one doesn't re-do the other.
   static func probeAlreadyInstalled(runner: any AgentBashRunner) async throws -> Bool {
     let result: ProcessResult
     do {
       result = try await runner.run(
         command: """
           set -uo pipefail
-          if command -v \(muterInstallPath) >/dev/null 2>&1; then
+          if [ -x \(muterInstallPath) ] && [ -x \(ripgrepInstallPath) ]; then
             echo PRESENT
           else
             echo MISSING
@@ -155,7 +169,10 @@ enum SharedCompassVMMutationToolsProvisioner {
   static func renderInstallScript() -> String {
     """
     #!/bin/bash
-    # Compass Muter installer for the shared VM guest.
+    # Compass supplemental-tools installer for the shared VM guest.
+    # Installs Muter (built from a pinned source release with the guest
+    # CLT swift) and ripgrep (via Homebrew, bootstrapped under the
+    # compass user since brew refuses to run as root).
     set -uo pipefail
     umask 022
 
@@ -163,43 +180,69 @@ enum SharedCompassVMMutationToolsProvisioner {
     DONE_PATH="\(doneSentinelGuestPath)"
     MUTER_TAG="\(muterReleaseTag)"
     MUTER_BIN="\(muterInstallPath)"
+    RG_BIN="\(ripgrepInstallPath)"
+    BREW_BIN="\(brewInstallPath)"
+    GUEST_USER="\(SharedCompassVMBundle.State.defaultGuestUserName)"
     CLT_SWIFT="\(cltSwiftPath)"
 
     exec > "$LOG_PATH" 2>&1
     echo "[compass-muter] $(date -u '+%Y-%m-%dT%H:%M:%SZ') starting"
 
-    if command -v "$MUTER_BIN" >/dev/null 2>&1; then
+    # --- Muter ---
+    if [ -x "$MUTER_BIN" ]; then
       echo "[compass-muter] already installed"
-      echo "exit=0" > "$DONE_PATH"
-      exit 0
+    else
+      if [ ! -x "$CLT_SWIFT" ]; then
+        echo "[compass-muter] ERROR: Command Line Tools swift missing at $CLT_SWIFT"
+        echo "exit=2" > "$DONE_PATH"
+        exit 2
+      fi
+
+      WORKDIR="$(mktemp -d /tmp/compass-muter.XXXXXX)"
+      cleanup() { rm -rf "$WORKDIR"; }
+      trap cleanup EXIT
+
+      ARCHIVE="$WORKDIR/muter.tar.gz"
+      echo "[compass-muter] downloading release $MUTER_TAG"
+      curl -fsSL "https://github.com/muter-mutation-testing/muter/archive/refs/tags/${MUTER_TAG}.tar.gz" -o "$ARCHIVE"
+      tar xzf "$ARCHIVE" -C "$WORKDIR"
+      SRC="$(find "$WORKDIR" -mindepth 1 -maxdepth 1 -type d | head -1)"
+      if [ -z "$SRC" ]; then
+        echo "[compass-muter] ERROR: could not locate extracted Muter sources"
+        echo "exit=3" > "$DONE_PATH"
+        exit 3
+      fi
+
+      cd "$SRC"
+      echo "[compass-muter] building Muter with guest swift"
+      "$CLT_SWIFT" build -c release
+      install -m 755 .build/release/muter "$MUTER_BIN"
+      echo "[compass-muter] installed $MUTER_BIN"
+      cd /
     fi
 
-    if [ ! -x "$CLT_SWIFT" ]; then
-      echo "[compass-muter] ERROR: Command Line Tools swift missing at $CLT_SWIFT"
-      echo "exit=2" > "$DONE_PATH"
-      exit 2
+    # --- ripgrep (via Homebrew) ---
+    # Bootstrap Homebrew under the compass user if absent. NONINTERACTIVE=1
+    # skips the "press RETURN" prompt; CI=1 silences analytics chatter.
+    # The installer uses sudo internally — compass has NOPASSWD sudo from
+    # firstboot, so it goes through without a password prompt.
+    if [ -x "$RG_BIN" ]; then
+      echo "[compass-rg] already installed"
+    else
+      if [ ! -x "$BREW_BIN" ]; then
+        echo "[compass-rg] bootstrapping Homebrew as $GUEST_USER"
+        su - "$GUEST_USER" -c 'NONINTERACTIVE=1 CI=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"'
+      fi
+      echo "[compass-rg] brew install ripgrep"
+      su - "$GUEST_USER" -c "'$BREW_BIN' install ripgrep"
+      # Symlink the brew-installed binary into /usr/local/bin so the
+      # existing path_helper-based zshenv (planted by firstboot) picks
+      # it up. /opt/homebrew/bin is otherwise not on PATH for non-
+      # interactive SSH command runs.
+      ln -sf /opt/homebrew/bin/rg "$RG_BIN"
+      echo "[compass-rg] installed $RG_BIN"
     fi
 
-    WORKDIR="$(mktemp -d /tmp/compass-muter.XXXXXX)"
-    cleanup() { rm -rf "$WORKDIR"; }
-    trap cleanup EXIT
-
-    ARCHIVE="$WORKDIR/muter.tar.gz"
-    echo "[compass-muter] downloading release $MUTER_TAG"
-    curl -fsSL "https://github.com/muter-mutation-testing/muter/archive/refs/tags/${MUTER_TAG}.tar.gz" -o "$ARCHIVE"
-    tar xzf "$ARCHIVE" -C "$WORKDIR"
-    SRC="$(find "$WORKDIR" -mindepth 1 -maxdepth 1 -type d | head -1)"
-    if [ -z "$SRC" ]; then
-      echo "[compass-muter] ERROR: could not locate extracted Muter sources"
-      echo "exit=3" > "$DONE_PATH"
-      exit 3
-    fi
-
-    cd "$SRC"
-    echo "[compass-muter] building Muter with guest swift"
-    "$CLT_SWIFT" build -c release
-    install -m 755 .build/release/muter "$MUTER_BIN"
-    echo "[compass-muter] installed $MUTER_BIN"
     echo "exit=0" > "$DONE_PATH"
     exit 0
     """
@@ -234,8 +277,19 @@ enum SharedCompassVMMutationToolsProvisioner {
 
   static func parsePhase(fromLogTail tail: String) -> InstallPhase? {
     let lower = tail.lowercased()
-    if lower.contains("[compass-muter] installed") || lower.contains("exit=0") {
+    // Most-advanced markers first so a late earlier-phase line in the
+    // tail doesn't pull the UI backwards.
+    if lower.contains("exit=0") {
       return .done
+    }
+    if lower.contains("[compass-rg] installed") || lower.contains("[compass-rg] brew install") {
+      return .installingRipgrep
+    }
+    if lower.contains("[compass-rg] bootstrapping homebrew") {
+      return .bootstrappingHomebrew
+    }
+    if lower.contains("[compass-muter] installed") {
+      return .installing
     }
     if lower.contains("install -m 755") || lower.contains("building release") {
       return .installing
@@ -255,9 +309,11 @@ enum SharedCompassVMMutationToolsProvisioner {
   static func fractionForPhase(_ phase: InstallPhase) -> Double {
     switch phase {
     case .kickoff: return 0.05
-    case .downloading: return 0.20
-    case .building: return 0.55
-    case .installing: return 0.85
+    case .downloading: return 0.15
+    case .building: return 0.40
+    case .installing: return 0.65
+    case .bootstrappingHomebrew: return 0.75
+    case .installingRipgrep: return 0.90
     case .done: return 1.0
     }
   }
@@ -373,7 +429,9 @@ enum SharedCompassVMMutationToolsProvisioner {
         command: """
           set -euo pipefail
           test -x \(muterInstallPath)
+          test -x \(ripgrepInstallPath)
           \(muterInstallPath) operator all >/dev/null 2>&1 || true
+          \(ripgrepInstallPath) --version >/dev/null 2>&1
           sudo launchctl bootout system \(installLaunchDaemonPlistGuestPath) 2>/dev/null || true
           sudo rm -f \(installLaunchDaemonPlistGuestPath)
           """,

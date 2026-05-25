@@ -16,7 +16,7 @@ struct AgentFindSymbolTool: AgentTool {
 
   init() {
     let kindValues = CodemapSymbolKind.allRawValues
-    let schema = try! AgentToolParametersSchema([
+    let schema = AgentToolParametersSchema(literal:[
       "type": "object",
       "additionalProperties": false,
       "required": ["name"],

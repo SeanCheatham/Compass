@@ -310,6 +310,21 @@ final class SharedCompassVM: ObservableObject {
     }
   }
 
+  /// Guest username + password for the headed Sandbox console. Nil until
+  /// provisioning has planted the headless first-boot payload and stored
+  /// the generated password in the host Keychain.
+  func guestConsoleLogin() -> SharedCompassVMGuestCredential.GuestConsoleLogin? {
+    let state =
+      persistedState
+      ?? (try? bundle.loadState(fileManager: dependencies.fileManager))
+    guard let state else { return nil }
+    return try? SharedCompassVMGuestCredential.consoleLogin(
+      guestUserName: state.guestUserName,
+      keychainAccount: state.guestPasswordKeychainAccount,
+      storage: dependencies.credentialStorage
+    )
+  }
+
   /// Downloads the restore image (if needed) and runs `VZMacOSInstaller`.
   /// Pumps progress into `readiness`. Idempotent against re-invocation if
   /// install completed previously.
@@ -978,9 +993,9 @@ final class SharedCompassVM: ObservableObject {
   /// Drives `SharedCompassVMDevToolsProvisioner` and
   /// `SharedCompassVMMutationToolsProvisioner` against the live VM using a
   /// vsock-backed bash runner. Updates readiness with progress while each
-  /// install runs, and flips to `.ready` once CLT and Muter verify.
-  /// Safe to call when tools are already installed — each provisioner's
-  /// probe short-circuits and `progress(1)` fires immediately.
+  /// install runs, and flips to `.ready` once CLT, Muter, and ripgrep
+  /// verify. Safe to call when tools are already installed — each
+  /// provisioner's probe short-circuits and `progress(1)` fires immediately.
   private func runDevToolsProvisioner(destination: String) async {
     guard let machine = virtualMachine else {
       transition(to: .error(detail: "Shared VM is not running; cannot install developer tools."))

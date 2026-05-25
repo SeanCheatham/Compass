@@ -101,6 +101,29 @@ final class SharedCompassVMGuestCredentialTests: XCTestCase {
     XCTAssertNil(value)
   }
 
+  func testConsoleLoginReturnsNilWithoutKeychainAccount() throws {
+    let storage = InMemoryStorage()
+    let login = try SharedCompassVMGuestCredential.consoleLogin(
+      guestUserName: "compass",
+      keychainAccount: nil,
+      storage: storage
+    )
+    XCTAssertNil(login)
+  }
+
+  func testConsoleLoginReturnsUsernameAndPasswordWhenStored() throws {
+    let storage = InMemoryStorage()
+    let account = SharedCompassVMGuestCredential.makeAccount()
+    _ = try SharedCompassVMGuestCredential.ensure(account: account, storage: storage)
+    let login = try SharedCompassVMGuestCredential.consoleLogin(
+      guestUserName: "compass",
+      keychainAccount: account,
+      storage: storage
+    )
+    XCTAssertEqual(login?.userName, "compass")
+    XCTAssertEqual(login?.password.count, SharedCompassVMGuestCredential.defaultPasswordLength)
+  }
+
   func testRemoveDeletesStoredPasswordIdempotently() throws {
     let storage = InMemoryStorage()
     let account = SharedCompassVMGuestCredential.makeAccount()

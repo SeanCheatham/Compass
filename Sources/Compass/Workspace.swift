@@ -265,7 +265,6 @@ struct CompassWorkspaceStorageAssessment: Equatable {
   var applicationSupportRoots: KnownProjectStore.ApplicationSupportRoots
   var projectStorageIdentifier: String
   var currentApplicationSupportCandidateURL: URL
-  var legacyApplicationSupportCandidateURL: URL
   var facts: Facts
   var issues: [Issue]
   var primaryIssue: Issue
@@ -292,15 +291,9 @@ struct CompassWorkspaceStorageAssessment: Equatable {
       applicationSupportRoots: applicationSupportRoots,
       identifier: identifier
     )
-    let legacyCandidateURL = Self.legacyApplicationSupportCandidateURL(
-      for: standardizedRepoURL,
-      applicationSupportRoots: applicationSupportRoots,
-      identifier: identifier
-    )
     let facts = Self.collectFacts(
       repoURL: standardizedRepoURL,
       currentCandidateURL: currentCandidateURL,
-      legacyCandidateURL: legacyCandidateURL,
       fileManager: fileManager
     )
     self.init(
@@ -308,7 +301,6 @@ struct CompassWorkspaceStorageAssessment: Equatable {
       applicationSupportRoots: applicationSupportRoots,
       projectStorageIdentifier: identifier,
       currentApplicationSupportCandidateURL: currentCandidateURL,
-      legacyApplicationSupportCandidateURL: legacyCandidateURL,
       facts: facts
     )
   }
@@ -318,7 +310,6 @@ struct CompassWorkspaceStorageAssessment: Equatable {
     applicationSupportRoots: KnownProjectStore.ApplicationSupportRoots,
     projectStorageIdentifier: String? = nil,
     currentApplicationSupportCandidateURL: URL? = nil,
-    legacyApplicationSupportCandidateURL: URL? = nil,
     facts: Facts
   ) {
     let standardizedRepoURL = repoURL.standardizedFileURL
@@ -331,26 +322,17 @@ struct CompassWorkspaceStorageAssessment: Equatable {
         applicationSupportRoots: applicationSupportRoots,
         identifier: identifier
       )
-    let legacyCandidateURL =
-      legacyApplicationSupportCandidateURL
-      ?? Self.legacyApplicationSupportCandidateURL(
-        for: standardizedRepoURL,
-        applicationSupportRoots: applicationSupportRoots,
-        identifier: identifier
-      )
 
     self.repoURL = standardizedRepoURL
     self.applicationSupportRoots = applicationSupportRoots
     self.projectStorageIdentifier = Self.boundedIdentifier(identifier)
     self.currentApplicationSupportCandidateURL = currentCandidateURL
-    self.legacyApplicationSupportCandidateURL = legacyCandidateURL
     self.facts = facts
 
     let derivedIssues = Self.issues(
       facts: facts,
       repoURL: standardizedRepoURL,
-      currentCandidateURL: currentCandidateURL,
-      legacyCandidateURL: legacyCandidateURL
+      currentCandidateURL: currentCandidateURL
     )
     issues = derivedIssues
     primaryIssue = derivedIssues.first ?? Self.healthyIssue(repoURL: standardizedRepoURL)
@@ -376,24 +358,12 @@ struct CompassWorkspaceStorageAssessment: Equatable {
         path: identifier ?? projectStorageIdentifier(for: repoURL), directoryHint: .isDirectory)
   }
 
-  static func legacyApplicationSupportCandidateURL(
-    for repoURL: URL,
-    applicationSupportRoots roots: KnownProjectStore.ApplicationSupportRoots,
-    identifier: String? = nil
-  ) -> URL {
-    KnownProjectStore.legacyDirectoryURL(in: roots.legacy)
-      .appending(path: "Projects", directoryHint: .isDirectory)
-      .appending(
-        path: identifier ?? projectStorageIdentifier(for: repoURL), directoryHint: .isDirectory)
-  }
-
   struct Facts: Equatable {
     var compassDirectoryExists: Bool
     var presentCoreFiles: Set<CoreFile>
     var sessionsDirectoryExists: Bool
     var gitignoreContents: String?
     var currentApplicationSupportCandidateExists: Bool
-    var legacyApplicationSupportCandidateExists: Bool
 
     var missingCoreFiles: [CoreFile] {
       CoreFile.allCases.filter { !presentCoreFiles.contains($0) }
@@ -420,7 +390,6 @@ struct CompassWorkspaceStorageAssessment: Equatable {
     case incompleteCoreFiles
     case currentApplicationSupportCandidateExists
     case unignoredCompass
-    case legacyApplicationSupportCandidateExists
   }
 
   enum Severity: String, Equatable {
@@ -458,7 +427,6 @@ struct CompassWorkspaceStorageAssessment: Equatable {
   private static func collectFacts(
     repoURL: URL,
     currentCandidateURL: URL,
-    legacyCandidateURL: URL,
     fileManager: FileManager
   ) -> Facts {
     let workspace = CompassWorkspace(repoURL: repoURL)
@@ -476,17 +444,14 @@ struct CompassWorkspaceStorageAssessment: Equatable {
       sessionsDirectoryExists: sessionsDirectoryExists,
       gitignoreContents: try? String(contentsOf: gitignoreURL, encoding: .utf8),
       currentApplicationSupportCandidateExists: fileManager.fileExists(
-        atPath: currentCandidateURL.path),
-      legacyApplicationSupportCandidateExists: fileManager.fileExists(
-        atPath: legacyCandidateURL.path)
+        atPath: currentCandidateURL.path)
     )
   }
 
   private static func issues(
     facts: Facts,
     repoURL: URL,
-    currentCandidateURL: URL,
-    legacyCandidateURL: URL
+    currentCandidateURL: URL
   ) -> [Issue] {
     var issues: [Issue] = []
 
@@ -553,21 +518,6 @@ struct CompassWorkspaceStorageAssessment: Equatable {
       )
     }
 
-    if facts.legacyApplicationSupportCandidateExists {
-      issues.append(
-        issue(
-          kind: .legacyApplicationSupportCandidateExists,
-          severity: .info,
-          label: "Legacy support data",
-          detail:
-            "Legacy CompassNative candidate exists at \(boundedPath(legacyCandidateURL.path, limit: 112)).",
-          recommendation:
-            "Account for the legacy directory before future migration or mirroring work.",
-          systemImage: "clock.arrow.circlepath"
-        )
-      )
-    }
-
     return issues
   }
 
@@ -603,8 +553,7 @@ struct CompassWorkspaceStorageAssessment: Equatable {
           helpText: "Add .compass/ to .gitignore using the repo-local workspace initializer."
         )
       case .repoLocalHealthy,
-        .currentApplicationSupportCandidateExists,
-        .legacyApplicationSupportCandidateExists:
+        .currentApplicationSupportCandidateExists:
         break
       }
     }
@@ -744,7 +693,6 @@ struct CompassWorkspaceStoragePreflight: Equatable {
   var missingCoreFiles: [CompassWorkspaceStorageAssessment.CoreFile]
   var sessionsDirectoryExists: Bool
   var currentApplicationSupportCandidate: ApplicationSupportCandidate
-  var legacyApplicationSupportCandidate: ApplicationSupportCandidate
   var status: Status
 
   var kind: Kind { status.kind }
@@ -753,15 +701,11 @@ struct CompassWorkspaceStoragePreflight: Equatable {
   var recommendation: String { status.recommendation }
   var systemImage: String { status.systemImage }
   var currentApplicationSupportCandidateURL: URL { currentApplicationSupportCandidate.url }
-  var legacyApplicationSupportCandidateURL: URL { legacyApplicationSupportCandidate.url }
   var currentApplicationSupportCandidateIsOccupied: Bool {
     currentApplicationSupportCandidate.isOccupied
   }
-  var legacyApplicationSupportCandidateIsOccupied: Bool {
-    legacyApplicationSupportCandidate.isOccupied
-  }
   var occupiedApplicationSupportCandidates: [ApplicationSupportCandidate] {
-    [currentApplicationSupportCandidate, legacyApplicationSupportCandidate].filter(\.isOccupied)
+    currentApplicationSupportCandidate.isOccupied ? [currentApplicationSupportCandidate] : []
   }
   var migrationWouldBeSafe: Bool {
     repoLocalReadiness == .ready && occupiedApplicationSupportCandidates.isEmpty
@@ -784,14 +728,8 @@ struct CompassWorkspaceStoragePreflight: Equatable {
   init(assessment: CompassWorkspaceStorageAssessment) {
     let readiness = Self.repoLocalReadiness(from: assessment.facts)
     let currentCandidate = ApplicationSupportCandidate(
-      kind: .current,
       url: assessment.currentApplicationSupportCandidateURL,
       occupancy: assessment.facts.currentApplicationSupportCandidateExists ? .occupied : .empty
-    )
-    let legacyCandidate = ApplicationSupportCandidate(
-      kind: .legacy,
-      url: assessment.legacyApplicationSupportCandidateURL,
-      occupancy: assessment.facts.legacyApplicationSupportCandidateExists ? .occupied : .empty
     )
 
     self.repoURL = assessment.repoURL
@@ -801,13 +739,12 @@ struct CompassWorkspaceStoragePreflight: Equatable {
     missingCoreFiles = assessment.facts.missingCoreFiles
     sessionsDirectoryExists = assessment.facts.sessionsDirectoryExists
     currentApplicationSupportCandidate = currentCandidate
-    legacyApplicationSupportCandidate = legacyCandidate
     status = Self.status(
       repoURL: assessment.repoURL,
       readiness: readiness,
       missingCoreFiles: assessment.facts.missingCoreFiles,
       sessionsDirectoryExists: assessment.facts.sessionsDirectoryExists,
-      occupiedCandidates: [currentCandidate, legacyCandidate].filter(\.isOccupied)
+      occupiedCandidates: currentCandidate.isOccupied ? [currentCandidate] : []
     )
   }
 
@@ -828,20 +765,6 @@ struct CompassWorkspaceStoragePreflight: Equatable {
     }
   }
 
-  enum CandidateKind: String, Equatable {
-    case current
-    case legacy
-
-    var displayName: String {
-      switch self {
-      case .current:
-        return "Current"
-      case .legacy:
-        return "Legacy"
-      }
-    }
-  }
-
   enum CandidateOccupancy: String, Equatable {
     case empty
     case occupied
@@ -857,11 +780,10 @@ struct CompassWorkspaceStoragePreflight: Equatable {
   }
 
   struct ApplicationSupportCandidate: Identifiable, Equatable {
-    var kind: CandidateKind
     var url: URL
     var occupancy: CandidateOccupancy
 
-    var id: String { kind.rawValue }
+    var id: String { url.path }
     var isOccupied: Bool { occupancy == .occupied }
   }
 
@@ -923,7 +845,7 @@ struct CompassWorkspaceStoragePreflight: Equatable {
           kind: .migrationReady,
           label: "Preflight clear",
           detail:
-            "Repo-local .compass/ is complete and candidate Application Support paths are empty.",
+            "Repo-local .compass/ is complete and the Application Support candidate path is empty.",
           recommendation:
             "Future migration can start from repo-local storage without path conflicts.",
           systemImage: "checkmark.seal.fill"
@@ -932,7 +854,7 @@ struct CompassWorkspaceStoragePreflight: Equatable {
 
       let conflictText =
         occupiedCandidates
-        .map { "\($0.kind.displayName): \(boundedPath($0.url.path, limit: 72))" }
+        .map { boundedPath($0.url.path, limit: 72) }
         .joined(separator: "; ")
       return status(
         kind: .applicationSupportConflict,
@@ -985,7 +907,6 @@ struct CompassWorkspaceStorageBoundary: Equatable {
   var applicationSupportRoots: KnownProjectStore.ApplicationSupportRoots
   var projectStorageIdentifier: String
   var currentApplicationSupportCandidateURL: URL
-  var legacyApplicationSupportCandidateURL: URL
   var assessmentKind: CompassWorkspaceStorageAssessment.Kind
   var preflightKind: CompassWorkspaceStoragePreflight.Kind
   var migrationCouldBeTechnicallyEligible: Bool
@@ -1006,7 +927,6 @@ struct CompassWorkspaceStorageBoundary: Equatable {
     applicationSupportRoots = assessment.applicationSupportRoots
     projectStorageIdentifier = assessment.projectStorageIdentifier
     currentApplicationSupportCandidateURL = assessment.currentApplicationSupportCandidateURL
-    legacyApplicationSupportCandidateURL = assessment.legacyApplicationSupportCandidateURL
     assessmentKind = assessment.kind
     preflightKind = preflight.kind
     migrationCouldBeTechnicallyEligible = preflight.migrationWouldBeSafe
@@ -1046,14 +966,14 @@ struct CompassWorkspaceStorageBoundary: Equatable {
 
     if !preflight.occupiedApplicationSupportCandidates.isEmpty {
       let occupied = preflight.occupiedApplicationSupportCandidates
-        .map(\.kind.displayName)
+        .map { boundedPath($0.url.path, limit: 72) }
         .joined(separator: ", ")
       return status(
         kind: .applicationSupportInspectOnlyConflict,
         severity: .warning,
         label: "Inspect support data",
         detail:
-          "Active state remains in repo-local .compass/; occupied \(occupied) Application Support candidates are inspect-only conflicts.",
+          "Active state remains in repo-local .compass/; inspect-only conflict at \(occupied).",
         recommendation:
           "No migration or mirroring by default; inspect support directories before any future opt-in storage change.",
         systemImage: "externaldrive.badge.exclamationmark"
@@ -1081,8 +1001,7 @@ struct CompassWorkspaceStorageBoundary: Equatable {
       .unignoredCompass:
       return true
     case .repoLocalHealthy,
-      .currentApplicationSupportCandidateExists,
-      .legacyApplicationSupportCandidateExists:
+      .currentApplicationSupportCandidateExists:
       return false
     }
   }
@@ -1101,8 +1020,7 @@ struct CompassWorkspaceStorageBoundary: Equatable {
       return
         ".compass/ is complete but not ignored; repair .gitignore coverage before storage changes."
     case .repoLocalHealthy,
-      .currentApplicationSupportCandidateExists,
-      .legacyApplicationSupportCandidateExists:
+      .currentApplicationSupportCandidateExists:
       return assessment.detail
     }
   }
@@ -1123,6 +1041,12 @@ struct CompassWorkspaceStorageBoundary: Equatable {
       recommendation: boundedText(recommendation, limit: recommendationLimit),
       systemImage: systemImage
     )
+  }
+
+  private static func boundedPath(_ value: String, limit: Int) -> String {
+    guard value.count > limit else { return value }
+    guard limit > 1 else { return String(value.prefix(max(0, limit))) }
+    return "..." + value.suffix(max(0, limit - 3))
   }
 
   private static func boundedText(_ value: String, limit: Int) -> String {
@@ -1150,7 +1074,6 @@ struct CompassWorkspaceStorageDisplayStatus: Equatable {
   var activeStorageRootURL: URL
   var projectStorageIdentifier: String
   var currentApplicationSupportCandidateURL: URL
-  var legacyApplicationSupportCandidateURL: URL
   var assessmentKind: CompassWorkspaceStorageAssessment.Kind
   var preflightKind: CompassWorkspaceStoragePreflight.Kind
   var repoLocalReadiness: CompassWorkspaceStoragePreflight.RepoLocalReadiness
@@ -1257,7 +1180,6 @@ struct CompassWorkspaceStorageDisplayStatus: Equatable {
     self.activeStorageRootURL = standardizedActiveRootURL
     projectStorageIdentifier = assessment.projectStorageIdentifier
     currentApplicationSupportCandidateURL = assessment.currentApplicationSupportCandidateURL
-    legacyApplicationSupportCandidateURL = assessment.legacyApplicationSupportCandidateURL
     assessmentKind = assessment.kind
     preflightKind = preflight.kind
     repoLocalReadiness = preflight.repoLocalReadiness
@@ -1583,10 +1505,7 @@ struct CompassWorkspaceStorageDisplayStatus: Equatable {
     preflight: CompassWorkspaceStoragePreflight
   ) -> [CompassWorkspaceStoragePreflight.ApplicationSupportCandidate] {
     let activeRootPath = activeStorageRootURL.standardizedFileURL.path
-    return [
-      preflight.currentApplicationSupportCandidate,
-      preflight.legacyApplicationSupportCandidate,
-    ].filter { candidate in
+    return [preflight.currentApplicationSupportCandidate].filter { candidate in
       candidate.isOccupied && candidate.url.standardizedFileURL.path != activeRootPath
     }
   }
@@ -1620,14 +1539,10 @@ struct CompassWorkspaceStorageDisplayStatus: Equatable {
     repoLocalContext: RepoLocalCompatibilityContext,
     inspectOnlyDrift: [CompassWorkspaceStoragePreflight.ApplicationSupportCandidate]
   ) -> String {
-    let driftNames =
-      inspectOnlyDrift
-      .map { $0.kind.displayName.lowercased() }
-      .joined(separator: ", ")
     let recommendation =
       inspectOnlyDrift.isEmpty
       ? repoLocalContext.recommendation
-      : "\(repoLocalContext.recommendation) Inspect \(driftNames) support data separately; keep Application Support active."
+      : "\(repoLocalContext.recommendation) Inspect occupied support data separately; keep Application Support active."
     return boundedText(recommendation, limit: compatibilityRecommendationLimit)
   }
 
@@ -1652,7 +1567,7 @@ struct CompassWorkspaceStorageDisplayStatus: Equatable {
     pathLimit: Int
   ) -> String {
     candidates
-      .map { "\($0.kind.displayName): \(boundedPath($0.url.path, limit: pathLimit))" }
+      .map { boundedPath($0.url.path, limit: pathLimit) }
       .joined(separator: "; ")
   }
 
@@ -2061,14 +1976,12 @@ struct CompassWorkspaceStorageMigrationPlan: Equatable {
   var projectStorageIdentifier: String
   var sourceCompassURL: URL
   var destinationURL: URL
-  var legacyCandidateURL: URL
   var stagingParentURL: URL
   var assessmentKind: CompassWorkspaceStorageAssessment.Kind
   var preflightKind: CompassWorkspaceStoragePreflight.Kind
   var boundaryKind: CompassWorkspaceStorageBoundary.Kind
   var repoLocalReadiness: CompassWorkspaceStoragePreflight.RepoLocalReadiness
   var currentApplicationSupportCandidateIsOccupied: Bool
-  var legacyApplicationSupportCandidateIsOccupied: Bool
   var status: Status
 
   var kind: Kind { status.kind }
@@ -2107,7 +2020,6 @@ struct CompassWorkspaceStorageMigrationPlan: Equatable {
     projectStorageIdentifier = assessment.projectStorageIdentifier
     sourceCompassURL = CompassWorkspace(repoURL: assessment.repoURL).compassURL
     destinationURL = assessment.currentApplicationSupportCandidateURL
-    legacyCandidateURL = assessment.legacyApplicationSupportCandidateURL
     stagingParentURL = assessment.currentApplicationSupportCandidateURL.deletingLastPathComponent()
     assessmentKind = assessment.kind
     preflightKind = preflight.kind
@@ -2115,8 +2027,6 @@ struct CompassWorkspaceStorageMigrationPlan: Equatable {
     repoLocalReadiness = preflight.repoLocalReadiness
     currentApplicationSupportCandidateIsOccupied =
       preflight.currentApplicationSupportCandidateIsOccupied
-    legacyApplicationSupportCandidateIsOccupied =
-      preflight.legacyApplicationSupportCandidateIsOccupied
     status = Self.status(
       assessment: assessment,
       preflight: preflight,
@@ -2175,7 +2085,7 @@ struct CompassWorkspaceStorageMigrationPlan: Equatable {
     if !occupiedCandidates.isEmpty {
       let occupiedText =
         occupiedCandidates
-        .map { "\($0.kind.displayName): \(boundedPath($0.url.path, limit: 72))" }
+        .map { boundedPath($0.url.path, limit: 72) }
         .joined(separator: "; ")
       return status(
         kind: .applicationSupportOccupied,
@@ -2200,7 +2110,7 @@ struct CompassWorkspaceStorageMigrationPlan: Equatable {
     return status(
       kind: .available,
       label: "Migration available",
-      detail: "Repo-local .compass/ is complete and both Application Support candidates are clear.",
+      detail: "Repo-local .compass/ is complete and the Application Support candidate is clear.",
       recommendation:
         "Run only as an explicit transaction; repo-local .compass/ remains active after copy.",
       systemImage: "arrow.triangle.2.circlepath"
@@ -2383,9 +2293,6 @@ struct CompassWorkspaceStorageMigrator {
     }
     guard !fileManager.fileExists(atPath: plan.destinationURL.path) else {
       throw CompassWorkspaceStorageMigrationError.destinationOccupied(plan.destinationURL.path)
-    }
-    guard !fileManager.fileExists(atPath: plan.legacyCandidateURL.path) else {
-      throw CompassWorkspaceStorageMigrationError.destinationOccupied(plan.legacyCandidateURL.path)
     }
 
     let stagingURL = plan.stagingParentURL.appending(

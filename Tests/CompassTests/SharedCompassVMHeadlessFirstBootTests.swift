@@ -207,11 +207,10 @@ final class SharedCompassVMHeadlessFirstBootTests: XCTestCase {
   func testBootstrapScriptEnablesRemoteLoginNoninteractivelyAndVerifies() {
     // Multi-strategy enablement + verification. `systemsetup
     // -setremotelogin on` would hang on yes/no without piped input;
-    // `launchctl load -w` is deprecated on Sonoma+ and may silently
-    // no-op; `launchctl enable` + `bootstrap` is the modern path
-    // but only enables — `kickstart -k` is what actually starts
-    // the service. After all that, verify sshd is listening before
-    // moving on, otherwise the host SSH probe will time out.
+    // `launchctl enable` + `bootstrap` is the modern path but only
+    // enables — `kickstart -k` is what actually starts the service.
+    // After all that, verify sshd is listening before moving on,
+    // otherwise the host SSH probe will time out.
     let script = renderStandardScript()
     XCTAssertTrue(
       script.contains("echo \"yes\" | /usr/sbin/systemsetup -setremotelogin on"),
@@ -281,8 +280,16 @@ final class SharedCompassVMHeadlessFirstBootTests: XCTestCase {
     )
     XCTAssertTrue(
       script.contains(
-        "/usr/bin/defaults write /Library/Preferences/com.apple.loginwindow autoLoginUser"),
+        "/usr/bin/defaults write /Library/Preferences/com.apple.loginwindow autoLoginUser -string"),
       "must set autoLoginUser in com.apple.loginwindow preferences"
+    )
+    XCTAssertTrue(
+      script.contains("/usr/bin/dscl . -authonly \"$GUEST_USER\" \"$PASSWORD\""),
+      "must verify the password before planting auto-login"
+    )
+    XCTAssertTrue(
+      script.contains("/var/root/.compass-console-password"),
+      "must persist the console password for reboot-time auto-login"
     )
     XCTAssertTrue(
       script.contains("/bin/chmod 600 /etc/kcpassword"),
@@ -292,6 +299,30 @@ final class SharedCompassVMHeadlessFirstBootTests: XCTestCase {
       script.contains("/usr/bin/killall loginwindow"),
       "must restart loginwindow so auto-login takes effect on this boot"
     )
+  }
+
+  func testAutoLoginHelperScriptWaitsForConsolePasswordAndReappliesKcpassword() {
+    let profile = SharedCompassVMHeadlessFirstBoot.Profile.standard(macOSMajor: 16)
+    let script = SharedCompassVMHeadlessFirstBoot.renderAutoLoginScript(
+      profile: profile,
+      guestUserName: "compass"
+    )
+    XCTAssertTrue(script.hasPrefix("#!/bin/bash"))
+    XCTAssertTrue(script.contains("com.seancheatham.Compass.autologin"))
+    XCTAssertTrue(script.contains("/var/root/.compass-console-password"))
+    XCTAssertTrue(script.contains("/usr/bin/dscl . -authonly \"$GUEST_USER\" \"$PASSWORD\""))
+    XCTAssertTrue(script.contains("/etc/kcpassword"))
+    XCTAssertTrue(script.contains("autoLoginUser -string"))
+    XCTAssertTrue(script.contains("/usr/bin/stat -f '%Su' /dev/console"))
+    XCTAssertTrue(script.contains("/usr/bin/killall loginwindow"))
+  }
+
+  func testAutoLoginLaunchDaemonPlistReferencesHelperScript() {
+    let profile = SharedCompassVMHeadlessFirstBoot.Profile.standard(macOSMajor: 16)
+    let plist = SharedCompassVMHeadlessFirstBoot.renderAutoLoginLaunchDaemonPlist(profile: profile)
+    XCTAssertTrue(plist.contains("<string>com.seancheatham.Compass.autologin</string>"))
+    XCTAssertTrue(plist.contains("<string>/usr/local/libexec/compass-autologin.sh</string>"))
+    XCTAssertTrue(plist.contains("<key>RunAtLoad</key>\n    <true/>"))
   }
 
   func testGuestAgentLaunchDaemonLandsInSystemLaunchDaemonsDir() {

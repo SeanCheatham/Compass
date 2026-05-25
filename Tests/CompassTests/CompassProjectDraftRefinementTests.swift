@@ -88,8 +88,7 @@ final class CompassProjectDraftRefinementTests: XCTestCase {
   private func makeApplicationSupportRoots() throws -> KnownProjectStore.ApplicationSupportRoots {
     let base = try makeTemporaryDirectory(prefix: "CompassProjectDraftRefinementSupport")
     return KnownProjectStore.ApplicationSupportRoots(
-      current: base.appending(path: "CurrentSupport", directoryHint: .isDirectory),
-      legacy: base.appending(path: "LegacySupport", directoryHint: .isDirectory)
+      current: base.appending(path: "CurrentSupport", directoryHint: .isDirectory)
     )
   }
 

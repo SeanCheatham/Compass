@@ -28,11 +28,10 @@ final class CompassWorkspaceStoragePreflightTests: XCTestCase {
     XCTAssertTrue(preflight.missingCoreFiles.isEmpty)
     XCTAssertTrue(preflight.sessionsDirectoryExists)
     XCTAssertFalse(preflight.currentApplicationSupportCandidateIsOccupied)
-    XCTAssertFalse(preflight.legacyApplicationSupportCandidateIsOccupied)
     XCTAssertTrue(preflight.migrationWouldBeSafe)
     XCTAssertEqual(preflight.kind, .migrationReady)
     XCTAssertEqual(preflight.label, "Preflight clear")
-    XCTAssertTrue(preflight.detail.contains("candidate Application Support paths are empty"))
+    XCTAssertTrue(preflight.detail.contains("Application Support candidate path is empty"))
     XCTAssertTrue(preflight.recommendation.contains("without path conflicts"))
   }
 
@@ -77,7 +76,7 @@ final class CompassWorkspaceStoragePreflightTests: XCTestCase {
     XCTAssertFalse(incompletePreflight.detail.contains("sessions.json"))
   }
 
-  func testCurrentAndLegacyApplicationSupportConflictsAreInspectOnly() throws {
+  func testApplicationSupportConflictIsInspectOnly() throws {
     let repoURL = try makeTemporaryGitRepository()
     let roots = try makeApplicationSupportRoots()
     let workspace = CompassWorkspace(repoURL: repoURL)
@@ -90,12 +89,8 @@ final class CompassWorkspaceStoragePreflightTests: XCTestCase {
     try write(
       "current\n",
       to: seedPreflight.currentApplicationSupportCandidateURL.appending(path: "state.json"))
-    try write(
-      "legacy\n",
-      to: seedPreflight.legacyApplicationSupportCandidateURL.appending(path: "state.json"))
     let repoEntriesBefore = try entries(in: repoURL)
     let currentEntriesBefore = try entries(in: seedPreflight.currentApplicationSupportCandidateURL)
-    let legacyEntriesBefore = try entries(in: seedPreflight.legacyApplicationSupportCandidateURL)
 
     let preflight = CompassWorkspaceStoragePreflight(
       repoURL: repoURL,
@@ -106,26 +101,17 @@ final class CompassWorkspaceStoragePreflightTests: XCTestCase {
     XCTAssertEqual(preflight.kind, .applicationSupportConflict)
     XCTAssertFalse(preflight.migrationWouldBeSafe)
     XCTAssertTrue(preflight.currentApplicationSupportCandidateIsOccupied)
-    XCTAssertTrue(preflight.legacyApplicationSupportCandidateIsOccupied)
-    XCTAssertEqual(preflight.occupiedApplicationSupportCandidates.map(\.kind), [.current, .legacy])
+    XCTAssertEqual(preflight.occupiedApplicationSupportCandidates.count, 1)
     XCTAssertTrue(preflight.detail.contains("Inspect-only conflict"))
     XCTAssertTrue(preflight.recommendation.contains("Compass remains on repo-local .compass/"))
     XCTAssertEqual(try entries(in: repoURL), repoEntriesBefore)
     XCTAssertEqual(
       try entries(in: seedPreflight.currentApplicationSupportCandidateURL), currentEntriesBefore)
     XCTAssertEqual(
-      try entries(in: seedPreflight.legacyApplicationSupportCandidateURL), legacyEntriesBefore)
-    XCTAssertEqual(
       try String(
         contentsOf: seedPreflight.currentApplicationSupportCandidateURL.appending(
           path: "state.json"), encoding: .utf8),
       "current\n"
-    )
-    XCTAssertEqual(
-      try String(
-        contentsOf: seedPreflight.legacyApplicationSupportCandidateURL.appending(
-          path: "state.json"), encoding: .utf8),
-      "legacy\n"
     )
   }
 
@@ -163,8 +149,7 @@ final class CompassWorkspaceStoragePreflightTests: XCTestCase {
     let repoURL = try makeTemporaryGitRepository(name: longName)
     let roots = KnownProjectStore.ApplicationSupportRoots(
       current: URL(
-        fileURLWithPath: "/tmp/" + String(repeating: "Current Support Root/", count: 12)),
-      legacy: URL(fileURLWithPath: "/tmp/" + String(repeating: "Legacy Support Root/", count: 12))
+        fileURLWithPath: "/tmp/" + String(repeating: "Current Support Root/", count: 12))
     )
 
     let preflight = CompassWorkspaceStoragePreflight(
@@ -199,8 +184,6 @@ final class CompassWorkspaceStoragePreflightTests: XCTestCase {
     XCTAssertEqual(first.projectStorageIdentifier, second.projectStorageIdentifier)
     XCTAssertEqual(
       first.currentApplicationSupportCandidateURL, second.currentApplicationSupportCandidateURL)
-    XCTAssertEqual(
-      first.legacyApplicationSupportCandidateURL, second.legacyApplicationSupportCandidateURL)
     XCTAssertTrue(isSafeIdentifier(first.projectStorageIdentifier), first.projectStorageIdentifier)
     XCTAssertLessThanOrEqual(
       first.projectStorageIdentifier.count,
@@ -208,8 +191,6 @@ final class CompassWorkspaceStoragePreflightTests: XCTestCase {
     )
     XCTAssertEqual(
       first.currentApplicationSupportCandidateURL.lastPathComponent, first.projectStorageIdentifier)
-    XCTAssertEqual(
-      first.legacyApplicationSupportCandidateURL.lastPathComponent, first.projectStorageIdentifier)
   }
 
   func testPreflightDoesNotCreateRepoOrApplicationSupportFiles() throws {
@@ -228,11 +209,8 @@ final class CompassWorkspaceStoragePreflightTests: XCTestCase {
     XCTAssertFalse(
       FileManager.default.fileExists(atPath: repoURL.appending(path: ".gitignore").path))
     XCTAssertFalse(FileManager.default.fileExists(atPath: roots.current.path))
-    XCTAssertFalse(FileManager.default.fileExists(atPath: roots.legacy.path))
     XCTAssertFalse(
       FileManager.default.fileExists(atPath: preflight.currentApplicationSupportCandidateURL.path))
-    XCTAssertFalse(
-      FileManager.default.fileExists(atPath: preflight.legacyApplicationSupportCandidateURL.path))
   }
 
   private func makeTemporaryGitRepository(name: String? = nil) throws -> URL {
@@ -251,8 +229,7 @@ final class CompassWorkspaceStoragePreflightTests: XCTestCase {
   private func makeApplicationSupportRoots() throws -> KnownProjectStore.ApplicationSupportRoots {
     let base = try makeTemporaryDirectory(prefix: "CompassWorkspaceStoragePreflightSupport")
     return KnownProjectStore.ApplicationSupportRoots(
-      current: base.appending(path: "CurrentSupport", directoryHint: .isDirectory),
-      legacy: base.appending(path: "LegacySupport", directoryHint: .isDirectory)
+      current: base.appending(path: "CurrentSupport", directoryHint: .isDirectory)
     )
   }
 

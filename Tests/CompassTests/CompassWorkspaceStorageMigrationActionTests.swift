@@ -246,8 +246,7 @@ final class CompassWorkspaceStorageMigrationActionTests: XCTestCase {
   ) throws -> KnownProjectStore.ApplicationSupportRoots {
     let base = try makeTemporaryDirectory(prefix: prefix)
     return KnownProjectStore.ApplicationSupportRoots(
-      current: base.appending(path: "CurrentSupport", directoryHint: .isDirectory),
-      legacy: base.appending(path: "LegacySupport", directoryHint: .isDirectory)
+      current: base.appending(path: "CurrentSupport", directoryHint: .isDirectory)
     )
   }
 

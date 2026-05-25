@@ -96,7 +96,7 @@ final class CompassWorkspaceStorageBoundaryTests: XCTestCase {
     XCTAssertTrue(boundary.migrationCouldBeTechnicallyEligible)
   }
 
-  func testCurrentAndLegacyApplicationSupportConflictsAreInspectOnly() throws {
+  func testApplicationSupportConflictIsInspectOnly() throws {
     let repoURL = try makeTemporaryGitRepository()
     let roots = try makeApplicationSupportRoots()
     try CompassWorkspace(repoURL: repoURL).initialize()
@@ -106,9 +106,6 @@ final class CompassWorkspaceStorageBoundaryTests: XCTestCase {
     try write(
       "current\n",
       to: seedAssessment.currentApplicationSupportCandidateURL.appending(path: "state.json"))
-    try write(
-      "legacy\n",
-      to: seedAssessment.legacyApplicationSupportCandidateURL.appending(path: "state.json"))
 
     let assessment = CompassWorkspaceStorageAssessment(
       repoURL: repoURL, applicationSupportRoots: roots)
@@ -119,8 +116,7 @@ final class CompassWorkspaceStorageBoundaryTests: XCTestCase {
     XCTAssertEqual(boundary.severity, .warning)
     XCTAssertEqual(boundary.label, "Inspect support data")
     XCTAssertTrue(boundary.detail.contains("Active state remains in repo-local .compass/"))
-    XCTAssertTrue(boundary.detail.contains("Current, Legacy"))
-    XCTAssertTrue(boundary.detail.contains("inspect-only conflicts"))
+    XCTAssertTrue(boundary.detail.contains("inspect-only conflict"))
     XCTAssertTrue(boundary.recommendation.contains("No migration or mirroring by default"))
     XCTAssertFalse(boundary.migrationCouldBeTechnicallyEligible)
     XCTAssertEqual(boundary.preflightKind, .applicationSupportConflict)
@@ -130,16 +126,14 @@ final class CompassWorkspaceStorageBoundaryTests: XCTestCase {
     let longPath = "/tmp/" + String(repeating: "Long Repository Name With Spaces/", count: 12)
     let roots = KnownProjectStore.ApplicationSupportRoots(
       current: URL(
-        fileURLWithPath: "/tmp/" + String(repeating: "Current Support Root/", count: 12)),
-      legacy: URL(fileURLWithPath: "/tmp/" + String(repeating: "Legacy Support Root/", count: 12))
+        fileURLWithPath: "/tmp/" + String(repeating: "Current Support Root/", count: 12))
     )
     let facts = CompassWorkspaceStorageAssessment.Facts(
       compassDirectoryExists: true,
       presentCoreFiles: Set(CompassWorkspaceStorageAssessment.CoreFile.allCases),
       sessionsDirectoryExists: true,
       gitignoreContents: ".compass/\n",
-      currentApplicationSupportCandidateExists: true,
-      legacyApplicationSupportCandidateExists: true
+      currentApplicationSupportCandidateExists: true
     )
     let assessment = CompassWorkspaceStorageAssessment(
       repoURL: URL(fileURLWithPath: longPath),
@@ -182,15 +176,7 @@ final class CompassWorkspaceStorageBoundaryTests: XCTestCase {
       boundary.currentApplicationSupportCandidateURL,
       preflight.currentApplicationSupportCandidateURL)
     XCTAssertEqual(
-      boundary.legacyApplicationSupportCandidateURL, assessment.legacyApplicationSupportCandidateURL
-    )
-    XCTAssertEqual(
-      boundary.legacyApplicationSupportCandidateURL, preflight.legacyApplicationSupportCandidateURL)
-    XCTAssertEqual(
       boundary.currentApplicationSupportCandidateURL.lastPathComponent,
-      boundary.projectStorageIdentifier)
-    XCTAssertEqual(
-      boundary.legacyApplicationSupportCandidateURL.lastPathComponent,
       boundary.projectStorageIdentifier)
   }
 
@@ -203,7 +189,6 @@ final class CompassWorkspaceStorageBoundaryTests: XCTestCase {
       repoURL: repoURL, applicationSupportRoots: roots)
     let preflight = CompassWorkspaceStoragePreflight(assessment: assessment)
     try createDirectory(assessment.currentApplicationSupportCandidateURL)
-    try createDirectory(assessment.legacyApplicationSupportCandidateURL)
 
     let boundary = CompassWorkspaceStorageBoundary(assessment: assessment, preflight: preflight)
 
@@ -228,11 +213,8 @@ final class CompassWorkspaceStorageBoundaryTests: XCTestCase {
     XCTAssertFalse(
       FileManager.default.fileExists(atPath: repoURL.appending(path: ".gitignore").path))
     XCTAssertFalse(FileManager.default.fileExists(atPath: roots.current.path))
-    XCTAssertFalse(FileManager.default.fileExists(atPath: roots.legacy.path))
     XCTAssertFalse(
       FileManager.default.fileExists(atPath: boundary.currentApplicationSupportCandidateURL.path))
-    XCTAssertFalse(
-      FileManager.default.fileExists(atPath: boundary.legacyApplicationSupportCandidateURL.path))
   }
 
   private func makeTemporaryGitRepository(name: String? = nil) throws -> URL {
@@ -251,8 +233,7 @@ final class CompassWorkspaceStorageBoundaryTests: XCTestCase {
   private func makeApplicationSupportRoots() throws -> KnownProjectStore.ApplicationSupportRoots {
     let base = try makeTemporaryDirectory(prefix: "CompassWorkspaceStorageBoundarySupport")
     return KnownProjectStore.ApplicationSupportRoots(
-      current: base.appending(path: "CurrentSupport", directoryHint: .isDirectory),
-      legacy: base.appending(path: "LegacySupport", directoryHint: .isDirectory)
+      current: base.appending(path: "CurrentSupport", directoryHint: .isDirectory)
     )
   }
 

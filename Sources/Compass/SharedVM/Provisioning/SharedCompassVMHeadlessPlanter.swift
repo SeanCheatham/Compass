@@ -43,6 +43,8 @@ enum SharedCompassVMHeadlessPlanter {
     /// The LaunchDaemon plist that loads the guest agent at boot in
     /// the system context (dropping to the compass user via UserName).
     static let guestAgentLaunchDaemonPlist = "com.seancheatham.Compass.guest-agent.plist"
+    static let autoLoginScript = "compass-autologin.sh"
+    static let autoLoginLaunchDaemonPlist = "com.seancheatham.Compass.autologin.plist"
   }
 
   // MARK: - Errors
@@ -185,6 +187,8 @@ enum SharedCompassVMHeadlessPlanter {
       (StagedFile.passwordFile, Data(payload.stagedPassword.utf8)),
       (StagedFile.guestAgentBinary, payload.guestAgentBinary),
       (StagedFile.guestAgentLaunchDaemonPlist, payload.guestAgentLaunchDaemonPlist),
+      (StagedFile.autoLoginScript, Data(payload.autoLoginScript.utf8)),
+      (StagedFile.autoLoginLaunchDaemonPlist, payload.autoLoginLaunchDaemonPlist),
     ]
     for (name, contents) in writes {
       let url = stagingDir.appendingPathComponent(name, isDirectory: false)
@@ -348,6 +352,18 @@ enum SharedCompassVMHeadlessPlanter {
       install -o root -g wheel -m 0644 \\
         "$STAGING_DIR/\(StagedFile.guestAgentLaunchDaemonPlist)" \\
         "$MOUNT_POINT\(profile.guestAgentLaunchDaemonGuestPath)"
+
+      # Auto-login helper — root:wheel 0755 script + 0644 LaunchDaemon.
+      # Runs at every boot to re-apply /etc/kcpassword once the guest
+      # user and console password file exist.
+      install -d -o root -g wheel -m 0755 "$MOUNT_POINT\(profile.autoLoginScriptGuestPath.directoryComponent)"
+      install -o root -g wheel -m 0755 \\
+        "$STAGING_DIR/\(StagedFile.autoLoginScript)" \\
+        "$MOUNT_POINT\(profile.autoLoginScriptGuestPath)"
+      install -d -o root -g wheel -m 0755 "$MOUNT_POINT\(profile.autoLoginLaunchDaemonGuestPath.directoryComponent)"
+      install -o root -g wheel -m 0644 \\
+        "$STAGING_DIR/\(StagedFile.autoLoginLaunchDaemonPlist)" \\
+        "$MOUNT_POINT\(profile.autoLoginLaunchDaemonGuestPath)"
 
       sync
       echo "[compass-planter] done."

@@ -42,6 +42,12 @@ enum SharedCompassVMGuestCredential {
     var password: String
   }
 
+  /// Username + password for signing into the guest's graphical console.
+  struct GuestConsoleLogin: Equatable {
+    var userName: String
+    var password: String
+  }
+
   enum Error: Swift.Error, CustomStringConvertible {
     case keychainFailure(operation: String, status: OSStatus)
     case missingPassword
@@ -181,6 +187,21 @@ enum SharedCompassVMGuestCredential {
       return nil
     }
     return Credential(account: account, password: password)
+  }
+
+  /// Resolves the guest console login Compass planted during provisioning.
+  /// Returns nil when the bundle has not yet allocated a Keychain account
+  /// or the stored password is missing.
+  static func consoleLogin(
+    guestUserName: String,
+    keychainAccount: String?,
+    storage: Storage
+  ) throws -> GuestConsoleLogin? {
+    guard let keychainAccount else { return nil }
+    guard let password = try storage.retrieve(account: keychainAccount) else {
+      return nil
+    }
+    return GuestConsoleLogin(userName: guestUserName, password: password)
   }
 
   /// Removes the credential for `account`. Idempotent. Called by

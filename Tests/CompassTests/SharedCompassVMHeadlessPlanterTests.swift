@@ -343,6 +343,15 @@ final class SharedCompassVMHeadlessPlanterTests: XCTestCase {
     XCTAssertTrue(script.contains("install -o root -g wheel -m 0600"))
   }
 
+  func testElevatedScriptInstallsAutoLoginHelper() {
+    let script = renderStandardScript()
+    XCTAssertTrue(script.contains("$MOUNT_POINT/usr/local/libexec/compass-autologin.sh"))
+    XCTAssertTrue(
+      script.contains(
+        "$MOUNT_POINT/Library/LaunchDaemons/com.seancheatham.Compass.autologin.plist")
+    )
+  }
+
   func testElevatedScriptUnmountsViaTrapOnExit() {
     let script = renderStandardScript()
     XCTAssertTrue(script.contains("trap cleanup EXIT"))
@@ -394,6 +403,12 @@ final class SharedCompassVMHeadlessPlanterTests: XCTestCase {
     XCTAssertTrue(fm.fileExists(atPath: stagingDir.appendingPathComponent("apple-setup-done").path))
     XCTAssertTrue(fm.fileExists(atPath: stagingDir.appendingPathComponent("id_ed25519.pub").path))
     XCTAssertTrue(fm.fileExists(atPath: stagingDir.appendingPathComponent("user.password").path))
+    XCTAssertTrue(
+      fm.fileExists(atPath: stagingDir.appendingPathComponent("compass-autologin.sh").path))
+    XCTAssertTrue(
+      fm.fileExists(
+        atPath: stagingDir.appendingPathComponent("com.seancheatham.Compass.autologin.plist").path
+      ))
   }
 
   func testStagePayloadTightensPasswordFilePermissionsTo0600() throws {

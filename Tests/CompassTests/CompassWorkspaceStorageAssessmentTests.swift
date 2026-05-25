@@ -131,8 +131,7 @@ final class CompassWorkspaceStorageAssessmentTests: XCTestCase {
             presentCoreFiles: [],
             sessionsDirectoryExists: false,
             gitignoreContents: nil,
-            currentApplicationSupportCandidateExists: false,
-            legacyApplicationSupportCandidateExists: false
+            currentApplicationSupportCandidateExists: false
           )
         ),
         (
@@ -142,8 +141,7 @@ final class CompassWorkspaceStorageAssessmentTests: XCTestCase {
             presentCoreFiles: [.state],
             sessionsDirectoryExists: false,
             gitignoreContents: nil,
-            currentApplicationSupportCandidateExists: false,
-            legacyApplicationSupportCandidateExists: false
+            currentApplicationSupportCandidateExists: false
           )
         ),
         (
@@ -153,8 +151,7 @@ final class CompassWorkspaceStorageAssessmentTests: XCTestCase {
             presentCoreFiles: completeCoreFiles,
             sessionsDirectoryExists: true,
             gitignoreContents: "build\n",
-            currentApplicationSupportCandidateExists: false,
-            legacyApplicationSupportCandidateExists: false
+            currentApplicationSupportCandidateExists: false
           )
         ),
       ]
@@ -191,8 +188,6 @@ final class CompassWorkspaceStorageAssessmentTests: XCTestCase {
     XCTAssertEqual(first.projectStorageIdentifier, second.projectStorageIdentifier)
     XCTAssertEqual(
       first.currentApplicationSupportCandidateURL, second.currentApplicationSupportCandidateURL)
-    XCTAssertEqual(
-      first.legacyApplicationSupportCandidateURL, second.legacyApplicationSupportCandidateURL)
     XCTAssertLessThanOrEqual(
       first.projectStorageIdentifier.count,
       CompassWorkspaceStorageAssessment.maxProjectIdentifierLength
@@ -200,11 +195,9 @@ final class CompassWorkspaceStorageAssessmentTests: XCTestCase {
     XCTAssertTrue(isSafeIdentifier(first.projectStorageIdentifier), first.projectStorageIdentifier)
     XCTAssertEqual(
       first.currentApplicationSupportCandidateURL.lastPathComponent, first.projectStorageIdentifier)
-    XCTAssertEqual(
-      first.legacyApplicationSupportCandidateURL.lastPathComponent, first.projectStorageIdentifier)
   }
 
-  func testCurrentAndLegacyApplicationSupportCandidatesAreReported() throws {
+  func testCurrentApplicationSupportCandidateIsReported() throws {
     let repoURL = try makeTemporaryGitRepository()
     let roots = try makeApplicationSupportRoots()
     let workspace = CompassWorkspace(repoURL: repoURL)
@@ -213,7 +206,6 @@ final class CompassWorkspaceStorageAssessmentTests: XCTestCase {
     let seedAssessment = CompassWorkspaceStorageAssessment(
       repoURL: repoURL, applicationSupportRoots: roots)
     try createDirectory(seedAssessment.currentApplicationSupportCandidateURL)
-    try createDirectory(seedAssessment.legacyApplicationSupportCandidateURL)
 
     let assessment = CompassWorkspaceStorageAssessment(
       repoURL: repoURL, applicationSupportRoots: roots)
@@ -221,7 +213,6 @@ final class CompassWorkspaceStorageAssessmentTests: XCTestCase {
 
     XCTAssertEqual(assessment.kind, .currentApplicationSupportCandidateExists)
     XCTAssertTrue(issueKinds.contains(.currentApplicationSupportCandidateExists))
-    XCTAssertTrue(issueKinds.contains(.legacyApplicationSupportCandidateExists))
     XCTAssertTrue(assessment.detail.contains("Future storage candidate"))
     XCTAssertEqual(assessment.severity, .warning)
     XCTAssertNil(assessment.repairAction)
@@ -231,16 +222,14 @@ final class CompassWorkspaceStorageAssessmentTests: XCTestCase {
     let longPath = "/tmp/" + String(repeating: "Long Repository Name With Spaces/", count: 12)
     let roots = KnownProjectStore.ApplicationSupportRoots(
       current: URL(
-        fileURLWithPath: "/tmp/" + String(repeating: "Current Support Root/", count: 10)),
-      legacy: URL(fileURLWithPath: "/tmp/" + String(repeating: "Legacy Support Root/", count: 10))
+        fileURLWithPath: "/tmp/" + String(repeating: "Current Support Root/", count: 10))
     )
     let facts = CompassWorkspaceStorageAssessment.Facts(
       compassDirectoryExists: true,
       presentCoreFiles: Set(CompassWorkspaceStorageAssessment.CoreFile.allCases),
       sessionsDirectoryExists: true,
       gitignoreContents: ".compass/\n",
-      currentApplicationSupportCandidateExists: true,
-      legacyApplicationSupportCandidateExists: true
+      currentApplicationSupportCandidateExists: true
     )
 
     let assessment = CompassWorkspaceStorageAssessment(
@@ -274,7 +263,6 @@ final class CompassWorkspaceStorageAssessmentTests: XCTestCase {
     XCTAssertFalse(
       FileManager.default.fileExists(atPath: repoURL.appending(path: ".gitignore").path))
     XCTAssertFalse(FileManager.default.fileExists(atPath: roots.current.path))
-    XCTAssertFalse(FileManager.default.fileExists(atPath: roots.legacy.path))
   }
 
   private func makeTemporaryGitRepository(name: String? = nil) throws -> URL {
@@ -293,8 +281,7 @@ final class CompassWorkspaceStorageAssessmentTests: XCTestCase {
   private func makeApplicationSupportRoots() throws -> KnownProjectStore.ApplicationSupportRoots {
     let base = try makeTemporaryDirectory(prefix: "CompassWorkspaceStorageAssessmentSupport")
     return KnownProjectStore.ApplicationSupportRoots(
-      current: base.appending(path: "CurrentSupport", directoryHint: .isDirectory),
-      legacy: base.appending(path: "LegacySupport", directoryHint: .isDirectory)
+      current: base.appending(path: "CurrentSupport", directoryHint: .isDirectory)
     )
   }
 

@@ -181,7 +181,7 @@ final class AgentExecutorTests: XCTestCase {
       let spec = AgentToolSpec(
         name: AgentExecutor.submitResultToolName,
         description: "shadow",
-        parameters: try! AgentToolParametersSchema(["type": "object"])
+        parameters: AgentToolParametersSchema(literal:["type": "object"])
       )
       func invoke(arguments: Data, context: AgentToolContext) async throws
         -> AgentToolInvocationResult
@@ -639,7 +639,7 @@ final class AgentExecutorTests: XCTestCase {
   ) -> AgentExecutionConfiguration {
     let schema =
       submitResultSchema
-      ?? (try! AgentToolParametersSchema([
+      ?? (AgentToolParametersSchema(literal:[
         "type": "object",
         "additionalProperties": false,
         "properties": [:],

@@ -52,6 +52,13 @@ enum SharedCompassVMHeadlessFirstBoot {
   /// user so the worktree files it writes have the expected ownership.
   static let guestAgentLaunchDaemonLabel = "com.seancheatham.Compass.guest-agent"
 
+  /// LaunchDaemon label for the persistent auto-login helper. Runs at
+  /// every boot (not one-shot) to re-apply `/etc/kcpassword` and nudge
+  /// `loginwindow` once SecurityAgent is ready — macOS 26 often logs
+  /// `no autologin because no conditions for autologin were met` when
+  /// auto-login is planted only during the first-boot race.
+  static let autoLoginLaunchDaemonLabel = "com.seancheatham.Compass.autologin"
+
   /// Sentinel the bootstrap script writes to the host-readable status file
   /// once it has completed all idempotent steps. Mostly informational —
   /// host-side readiness keys off the SSH probe, not the status file.
@@ -116,6 +123,20 @@ enum SharedCompassVMHeadlessFirstBoot {
     /// root:wheel mode 0644.
     var guestAgentLaunchDaemonGuestPath: String
 
+    /// Where the persistent auto-login helper script lives on the guest.
+    /// root:wheel mode 0755.
+    var autoLoginScriptGuestPath: String
+
+    /// LaunchDaemon plist for the auto-login helper. Loaded at every
+    /// boot until the console reaches a logged-in desktop session.
+    /// root:wheel mode 0644.
+    var autoLoginLaunchDaemonGuestPath: String
+
+    /// Root-only file holding the guest console password so the
+    /// auto-login helper can re-apply `/etc/kcpassword` on every boot
+    /// after first-boot deletes the staging copy. root:wheel mode 0600.
+    var consolePasswordGuestPath: String
+
     /// Default profile shared across recent macOS majors. Override fields
     /// per-version in the registry when Apple moves things around.
     static func standard(macOSMajor: Int) -> Profile {
@@ -136,7 +157,11 @@ enum SharedCompassVMHeadlessFirstBoot {
         completionMarkerName: bootstrapCompletionMarker,
         guestAgentBinaryGuestPath: "/usr/local/libexec/compass-guest-agent",
         guestAgentLaunchDaemonGuestPath:
-          "/Library/LaunchDaemons/\(guestAgentLaunchDaemonLabel).plist"
+          "/Library/LaunchDaemons/\(guestAgentLaunchDaemonLabel).plist",
+        autoLoginScriptGuestPath: "/usr/local/libexec/compass-autologin.sh",
+        autoLoginLaunchDaemonGuestPath:
+          "/Library/LaunchDaemons/\(autoLoginLaunchDaemonLabel).plist",
+        consolePasswordGuestPath: "/var/root/.compass-console-password"
       )
     }
   }
@@ -219,6 +244,12 @@ enum SharedCompassVMHeadlessFirstBoot {
     /// agent under the compass user via `UserName`, no GUI session
     /// required.
     var guestAgentLaunchDaemonPlist: Data
+    /// Persistent auto-login helper script + LaunchDaemon. Re-applies
+    /// `/etc/kcpassword` on every boot so the headed Sandbox console
+    /// reaches a desktop even when macOS 26 rejects the first-boot
+    /// timing.
+    var autoLoginScript: String
+    var autoLoginLaunchDaemonPlist: Data
   }
 
   /// Inputs the planter assembles before rendering a `Payload`.
@@ -258,6 +289,8 @@ enum SharedCompassVMHeadlessFirstBoot {
     let script = renderBootstrapScript(inputs: inputs)
     let sudoers = renderSudoersFragment(guestUserName: inputs.guestUserName)
     let guestAgentPlist = renderGuestAgentLaunchDaemonPlist(profile: inputs.profile)
+    let autoLoginScript = renderAutoLoginScript(profile: inputs.profile, guestUserName: inputs.guestUserName)
+    let autoLoginPlist = renderAutoLoginLaunchDaemonPlist(profile: inputs.profile)
     return Payload(
       profile: inputs.profile,
       guestUserName: inputs.guestUserName,
@@ -268,7 +301,9 @@ enum SharedCompassVMHeadlessFirstBoot {
       stagedPublicKey: inputs.publicKeyData,
       stagedPassword: inputs.generatedPassword,
       guestAgentBinary: inputs.guestAgentBinary,
-      guestAgentLaunchDaemonPlist: Data(guestAgentPlist.utf8)
+      guestAgentLaunchDaemonPlist: Data(guestAgentPlist.utf8),
+      autoLoginScript: autoLoginScript,
+      autoLoginLaunchDaemonPlist: Data(autoLoginPlist.utf8)
     )
   }
 
@@ -301,6 +336,127 @@ enum SharedCompassVMHeadlessFirstBoot {
         <string>/tmp/compass-guest-agent.log</string>
         <key>StandardErrorPath</key>
         <string>/tmp/compass-guest-agent.log</string>
+    </dict>
+    </plist>
+    """
+  }
+
+  /// Shell snippet that XOR-encodes `$PASSWORD` into `/etc/kcpassword`.
+  /// `$PASSWORD` must be set in the caller's environment.
+  static func shellWriteKcpasswordFromPasswordEnv() -> String {
+    """
+      PASSWORD="$PASSWORD" /usr/bin/perl -e '
+      my $key = pack("H*", "7D895223D2BCDDEAA3B91F");
+      my $pw = $ENV{PASSWORD};
+      my $pad_len = 12 - (length($pw) % 12);
+      $pw .= "\\x00" x $pad_len;
+      my $out = "";
+      for (my $i = 0; $i < length($pw); $i++) {
+          $out .= chr(ord(substr($pw, $i, 1)) ^ ord(substr($key, $i % 11, 1)));
+      }
+      print $out;
+      ' > /etc/kcpassword
+      /usr/sbin/chown root:wheel /etc/kcpassword
+      /bin/chmod 600 /etc/kcpassword
+    """
+  }
+
+  /// Shell snippet that sets `autoLoginUser` in loginwindow preferences.
+  static func shellApplyAutoLoginUserPreference() -> String {
+    """
+      /usr/bin/defaults write /Library/Preferences/com.apple.loginwindow autoLoginUser -string "$GUEST_USER" 2>&1 || true
+      /usr/sbin/chown root:wheel /Library/Preferences/com.apple.loginwindow.plist 2>&1 || true
+      /bin/chmod 644 /Library/Preferences/com.apple.loginwindow.plist 2>&1 || true
+    """
+  }
+
+  /// Persistent helper invoked at every boot. Waits for the console
+  /// password file first-boot publishes, verifies credentials, re-applies
+  /// auto-login, then restarts `loginwindow` if the console is still at
+  /// the login screen.
+  static func renderAutoLoginScript(profile: Profile, guestUserName: String) -> String {
+    let consolePasswordPath = profile.consolePasswordGuestPath
+    return """
+      #!/bin/bash
+      #
+      # Compass auto-login helper. Planted before first boot; runs at every
+      # boot via \(autoLoginLaunchDaemonLabel). Re-applies /etc/kcpassword
+      # once the guest user and console password file exist.
+      #
+      set -euo pipefail
+      umask 022
+
+      GUEST_USER="\(guestUserName)"
+      PASSWORD_FILE="\(consolePasswordPath)"
+      LOG="/var/log/compass-autologin.log"
+
+      exec >> "$LOG" 2>&1
+      echo "----"
+      echo "[compass-autologin] $(date -u '+%Y-%m-%dT%H:%M:%SZ') starting"
+
+      ready=0
+      for _ in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 \
+               21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39 40 \
+               41 42 43 44 45 46 47 48 49 50 51 52 53 54 55 56 57 58 59 60 \
+               61 62 63 64 65 66 67 68 69 70 71 72 73 74 75 76 77 78 79 80 \
+               81 82 83 84 85 86 87 88 89 90 91 92 93 94 95 96 97 98 99 100 \
+               101 102 103 104 105 106 107 108 109 110 111 112 113 114 115 116 117 118 119 120; do
+        if [ -f "$PASSWORD_FILE" ] \
+           && /usr/bin/dscl . -read "/Users/$GUEST_USER" UniqueID >/dev/null 2>&1; then
+          ready=1
+          break
+        fi
+        sleep 1
+      done
+      if [ "$ready" -ne 1 ]; then
+        echo "[compass-autologin] guest user or password file not ready; exiting"
+        exit 0
+      fi
+
+      PASSWORD="$(cat "$PASSWORD_FILE")"
+      if ! /usr/bin/dscl . -authonly "$GUEST_USER" "$PASSWORD" >/dev/null 2>&1; then
+        echo "[compass-autologin] dscl authonly failed; exiting"
+        exit 1
+      fi
+
+      echo "[compass-autologin] applying auto-login for $GUEST_USER"
+      \(shellWriteKcpasswordFromPasswordEnv())
+      \(shellApplyAutoLoginUserPreference())
+
+      console_owner="$(/usr/bin/stat -f '%Su' /dev/console 2>/dev/null || echo loginwindow)"
+      echo "[compass-autologin] /dev/console owner: $console_owner"
+      if [ "$console_owner" = "loginwindow" ] || [ "$console_owner" = "_unknown" ]; then
+        echo "[compass-autologin] waiting for SecurityAgent before restarting loginwindow"
+        sleep 5
+        /usr/bin/killall loginwindow 2>&1 || true
+      else
+        echo "[compass-autologin] console already has session for $console_owner"
+      fi
+      echo "[compass-autologin] done."
+      """
+  }
+
+  static func renderAutoLoginLaunchDaemonPlist(profile: Profile) -> String {
+    """
+    <?xml version="1.0" encoding="UTF-8"?>
+    <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTD/PropertyList-1.0.dtd">
+    <plist version="1.0">
+    <dict>
+        <key>Label</key>
+        <string>\(autoLoginLaunchDaemonLabel)</string>
+        <key>ProgramArguments</key>
+        <array>
+            <string>/bin/bash</string>
+            <string>\(profile.autoLoginScriptGuestPath)</string>
+        </array>
+        <key>RunAtLoad</key>
+        <true/>
+        <key>KeepAlive</key>
+        <false/>
+        <key>StandardOutPath</key>
+        <string>/var/log/compass-autologin.log</string>
+        <key>StandardErrorPath</key>
+        <string>/var/log/compass-autologin.log</string>
     </dict>
     </plist>
     """
@@ -521,6 +677,11 @@ enum SharedCompassVMHeadlessFirstBoot {
       #      of 12 bytes. Mode 0600 root:wheel.
       #   2. autoLoginUser in /Library/Preferences/com.apple.loginwindow.
       #
+      # Persist the password at \(inputs.profile.consolePasswordGuestPath)
+      # so the compass-autologin LaunchDaemon can re-apply kcpassword on
+      # every boot — macOS 26 often rejects auto-login when it is planted
+      # only during the first-boot race with loginwindow already up.
+      #
       # Threat-model note: kcpassword is obfuscation, not encryption.
       # An attacker with root inside the guest can recover the password.
       # That's fine here because (a) the password is randomly generated
@@ -528,33 +689,26 @@ enum SharedCompassVMHeadlessFirstBoot {
       # already has NOPASSWD sudo, so root-in-guest already implies
       # password-equivalent access, and (c) the guest is a sandbox
       # that runs untrusted agent-generated code — by design.
-      #
-      # Python isn't installed on a fresh macOS, but Perl is, so we
-      # compute the kcpassword bytes in Perl. PASSWORD is passed via
-      # env var to avoid exposure on the process command line / ps.
       echo "  Setting up auto-login for $GUEST_USER"
-      PASSWORD="$PASSWORD" /usr/bin/perl -e '
-      my $key = pack("H*", "7D895223D2BCDDEAA3B91F");
-      my $pw = $ENV{PASSWORD};
-      # Pad to the next multiple of 12 with NULs. If the password is
-      # already a multiple of 12 bytes, pad with 12 NULs anyway —
-      # Apple unconditionally appends a padding block.
-      my $pad_len = 12 - (length($pw) % 12);
-      $pw .= "\\x00" x $pad_len;
-      my $out = "";
-      for (my $i = 0; $i < length($pw); $i++) {
-          $out .= chr(ord(substr($pw, $i, 1)) ^ ord(substr($key, $i % 11, 1)));
-      }
-      print $out;
-      ' > /etc/kcpassword
-      /usr/sbin/chown root:wheel /etc/kcpassword
-      /bin/chmod 600 /etc/kcpassword
-      /usr/bin/defaults write /Library/Preferences/com.apple.loginwindow autoLoginUser "$GUEST_USER" 2>&1 || true
-      /usr/sbin/chown root:wheel /Library/Preferences/com.apple.loginwindow.plist 2>&1 || true
-      /bin/chmod 644 /Library/Preferences/com.apple.loginwindow.plist 2>&1 || true
-      # loginwindow caches the auto-login config at startup. Restart
-      # it so the change takes effect on this boot (not just the next
-      # one). No-one is logged in yet so the kill is non-disruptive.
+      if ! /usr/bin/dscl . -authonly "$GUEST_USER" "$PASSWORD" >/dev/null 2>&1; then
+        echo "  FATAL: dscl authonly failed before planting auto-login"
+        exit 1
+      fi
+      CONSOLE_PASSWORD_FILE="\(inputs.profile.consolePasswordGuestPath)"
+      umask 077
+      printf '%s' "$PASSWORD" > "$CONSOLE_PASSWORD_FILE"
+      /usr/sbin/chown root:wheel "$CONSOLE_PASSWORD_FILE"
+      /bin/chmod 600 "$CONSOLE_PASSWORD_FILE"
+      umask 022
+      \(shellWriteKcpasswordFromPasswordEnv())
+      \(shellApplyAutoLoginUserPreference())
+      echo "  autoLoginUser preference: $(/usr/bin/defaults read /Library/Preferences/com.apple.loginwindow autoLoginUser 2>&1 || true)"
+      echo "  kcpassword bytes: $(/usr/bin/wc -c < /etc/kcpassword 2>&1 || true)"
+      # loginwindow caches the auto-login config at startup. Give
+      # SecurityAgent a beat to finish init, then restart loginwindow
+      # so the change takes effect on this boot (not just the next one).
+      echo "  waiting for SecurityAgent before restarting loginwindow"
+      sleep 5
       /usr/bin/killall loginwindow 2>&1 || true
 
       echo "[compass-firstboot] [2/6] Authorising Compass SSH public key"
@@ -573,8 +727,7 @@ enum SharedCompassVMHeadlessFirstBoot {
       # yes/no prompt; with no stdin in a LaunchDaemon it hangs and
       # never returns. Pipe `yes` in to bypass. On modern macOS the
       # command often refuses outright (privacy / MDM) so we also
-      # drive launchctl directly. `launchctl load -w` is deprecated
-      # on Sonoma+ and tends to silently no-op; the modern path is
+      # drive launchctl directly. On modern macOS the path is
       # `launchctl enable` + `launchctl bootstrap system <plist>`,
       # then `kickstart -k` to force-start. All steps are wrapped in
       # `|| true` so a no-op on one path doesn't abort the script —
@@ -582,9 +735,6 @@ enum SharedCompassVMHeadlessFirstBoot {
       echo "yes" | /usr/sbin/systemsetup -setremotelogin on >/dev/null 2>&1 || true
       /bin/launchctl enable system/com.openssh.sshd 2>&1 || true
       /bin/launchctl bootstrap system /System/Library/LaunchDaemons/ssh.plist 2>&1 || true
-      # `load -w` as a final compatibility fallback for older majors.
-      /bin/launchctl load -w /System/Library/LaunchDaemons/ssh.plist 2>&1 || true
-      # Force-start in case the service is enabled but not running.
       /bin/launchctl kickstart -k system/com.openssh.sshd 2>&1 || true
       # Verify sshd is actually listening before declaring success —
       # otherwise the host's post-boot SSH probe times out and we

@@ -107,7 +107,7 @@ final class CompassWorkspaceStorageMigrationTests: XCTestCase {
     XCTAssertFalse(FileManager.default.fileExists(atPath: incompletePlan.destinationURL.path))
   }
 
-  func testOccupiedCurrentOrLegacyApplicationSupportCandidateBlocksMigration() throws {
+  func testOccupiedApplicationSupportCandidateBlocksMigration() throws {
     let currentRepoURL = try makeTemporaryGitRepository()
     let currentRoots = try makeApplicationSupportRoots()
     try CompassWorkspace(repoURL: currentRepoURL).initialize()
@@ -118,31 +118,12 @@ final class CompassWorkspaceStorageMigrationTests: XCTestCase {
 
     XCTAssertFalse(currentPlan.isAvailable)
     XCTAssertEqual(currentPlan.kind, .applicationSupportOccupied)
-    XCTAssertTrue(currentPlan.detail.contains("Current"))
+    XCTAssertTrue(currentPlan.detail.contains("occupied"))
     XCTAssertThrowsError(try CompassWorkspaceStorageMigrator().migrate(plan: currentPlan)) {
       error in
       XCTAssertEqual(
         error as? CompassWorkspaceStorageMigrationError,
         .unavailable(kind: .applicationSupportOccupied, detail: currentPlan.detail)
-      )
-    }
-
-    let legacyRepoURL = try makeTemporaryGitRepository()
-    let legacyRoots = try makeApplicationSupportRoots()
-    try CompassWorkspace(repoURL: legacyRepoURL).initialize()
-    let legacySeedPlan = makeMigrationPlan(repoURL: legacyRepoURL, roots: legacyRoots)
-    try write(
-      "legacy occupied\n", to: legacySeedPlan.legacyCandidateURL.appending(path: "state.json"))
-
-    let legacyPlan = makeMigrationPlan(repoURL: legacyRepoURL, roots: legacyRoots)
-
-    XCTAssertFalse(legacyPlan.isAvailable)
-    XCTAssertEqual(legacyPlan.kind, .applicationSupportOccupied)
-    XCTAssertTrue(legacyPlan.detail.contains("Legacy"))
-    XCTAssertThrowsError(try CompassWorkspaceStorageMigrator().migrate(plan: legacyPlan)) { error in
-      XCTAssertEqual(
-        error as? CompassWorkspaceStorageMigrationError,
-        .unavailable(kind: .applicationSupportOccupied, detail: legacyPlan.detail)
       )
     }
   }
@@ -336,8 +317,7 @@ final class CompassWorkspaceStorageMigrationTests: XCTestCase {
   private func makeApplicationSupportRoots() throws -> KnownProjectStore.ApplicationSupportRoots {
     let base = try makeTemporaryDirectory(prefix: "CompassWorkspaceStorageMigrationSupport")
     return KnownProjectStore.ApplicationSupportRoots(
-      current: base.appending(path: "CurrentSupport", directoryHint: .isDirectory),
-      legacy: base.appending(path: "LegacySupport", directoryHint: .isDirectory)
+      current: base.appending(path: "CurrentSupport", directoryHint: .isDirectory)
     )
   }
 

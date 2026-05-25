@@ -16,6 +16,20 @@ struct AgentToolParametersSchema: Sendable, Equatable {
       options: [.sortedKeys, .withoutEscapingSlashes]
     )
   }
+
+  /// Builds a schema from a static JSON object literal. Invalid literals
+  /// are a programmer error and trap at initialization time.
+  init(literal object: Any) {
+    guard
+      let data = try? JSONSerialization.data(
+        withJSONObject: object,
+        options: [.sortedKeys, .withoutEscapingSlashes]
+      )
+    else {
+      fatalError("Invalid static AgentToolParametersSchema literal")
+    }
+    self.json = data
+  }
 }
 
 struct AgentToolSpec: Sendable, Equatable {

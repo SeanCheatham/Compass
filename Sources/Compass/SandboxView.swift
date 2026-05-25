@@ -163,6 +163,10 @@ private struct SandboxSidePanel: View {
           SandboxIdleSection(vmHost: vmHost)
         }
 
+        if let consoleLogin = vmHost.guestConsoleLogin() {
+          SandboxConsoleLoginSection(login: consoleLogin, vmIsRunning: vmHost.virtualMachine != nil)
+        }
+
         Spacer(minLength: 0)
       }
       .padding(16)
@@ -296,6 +300,71 @@ private struct SandboxSetupFailureBanner: View {
     .frame(maxWidth: .infinity, alignment: .leading)
     .background(Color.orange.opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
     .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.orange.opacity(0.30)))
+  }
+}
+
+private struct SandboxConsoleLoginSection: View {
+  let login: SharedCompassVMGuestCredential.GuestConsoleLogin
+  let vmIsRunning: Bool
+
+  @State private var didCopyPassword = false
+  @State private var didCopyUserName = false
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 10) {
+      Label("Console login", systemImage: "person.crop.circle")
+        .font(.subheadline.weight(.semibold))
+
+      Text(
+        vmIsRunning
+          ? "If the embedded VM shows a login screen instead of a desktop, sign in with these credentials. Compass normally auto-logs in; use this when it does not."
+          : "When the VM is running, sign into the guest console with these credentials if auto-login did not complete."
+      )
+      .font(.callout)
+      .foregroundStyle(.secondary)
+      .fixedSize(horizontal: false, vertical: true)
+
+      HStack(spacing: 8) {
+        Text("Username")
+          .font(.caption)
+          .foregroundStyle(.secondary)
+          .frame(width: 72, alignment: .leading)
+        Text(login.userName)
+          .font(.callout.monospaced())
+          .textSelection(.enabled)
+        Spacer(minLength: 0)
+        Button(didCopyUserName ? "Copied" : "Copy") {
+          copyRuntimeDiagnosticsToPasteboard(login.userName)
+          didCopyUserName = true
+          DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+            didCopyUserName = false
+          }
+        }
+        .buttonStyle(.borderless)
+        .font(.caption)
+      }
+
+      HStack(spacing: 8) {
+        Text("Password")
+          .font(.caption)
+          .foregroundStyle(.secondary)
+          .frame(width: 72, alignment: .leading)
+        Text(String(repeating: "•", count: min(login.password.count, 16)))
+          .font(.callout.monospaced())
+        Spacer(minLength: 0)
+        Button(didCopyPassword ? "Copied" : "Copy password") {
+          copyRuntimeDiagnosticsToPasteboard(login.password)
+          didCopyPassword = true
+          DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+            didCopyPassword = false
+          }
+        }
+        .buttonStyle(.bordered)
+        .controlSize(.small)
+      }
+    }
+    .padding(12)
+    .background(.quaternary.opacity(0.45), in: RoundedRectangle(cornerRadius: 10))
   }
 }
 

@@ -283,7 +283,6 @@ struct ProjectStorageAssessmentPill: View {
         "Sessions directory: \(preflight.sessionsDirectoryExists ? "present" : "missing")",
         "Project storage ID: \(preflight.projectStorageIdentifier)",
         candidateText(preflight.currentApplicationSupportCandidate),
-        candidateText(preflight.legacyApplicationSupportCandidate),
       ]
     }
 
@@ -304,7 +303,7 @@ struct ProjectStorageAssessmentPill: View {
   private func candidateText(
     _ candidate: CompassWorkspaceStoragePreflight.ApplicationSupportCandidate
   ) -> String {
-    "\(candidate.kind.displayName) support candidate: \(candidate.occupancy.displayName) \(candidate.url.path)"
+    "Support candidate: \(candidate.occupancy.displayName) \(candidate.url.path)"
   }
 }
 
