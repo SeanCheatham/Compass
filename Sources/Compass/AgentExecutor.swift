@@ -173,6 +173,19 @@ final class AgentExecutor {
   }
 
   func run(_ configuration: AgentExecutionConfiguration) async throws -> AgentExecutionResult {
+    // Foundation Models (on-device) is a separate backend with its own
+    // session + tool-dispatch shape — see `FoundationModelsAgentRuntime`.
+    // Branch up front so the OpenAI-compatible stream/tool/compaction
+    // machinery below stays focused on its own provider class.
+    if configuration.settings.textProvider == .appleFoundationModels {
+      let onEvent = self.onEvent
+      return try await FoundationModelsAgentRuntime.run(
+        configuration,
+        isCancelled: { [weak self] in self?.cancelled ?? false },
+        emit: { event in onEvent(event) }
+      )
+    }
+
     try Self.ensureUniqueToolNames(configuration.tools)
     let registry = Dictionary(uniqueKeysWithValues: configuration.tools.map { ($0.spec.name, $0) })
 

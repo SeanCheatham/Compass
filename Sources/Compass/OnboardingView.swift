@@ -20,12 +20,16 @@ struct OnboardingView: View {
         }
         OnboardingStep(
           number: 1,
-          title: "Add your AI API key",
+          title: "Choose a Text provider",
           description:
-            "Compass drives the agent through an OpenAI-compatible chat completions endpoint.",
-          isComplete: !model.agentSettings.apiKey.isEmpty
+            "Compass drives the agent through Apple's on-device Foundation Models by default. You can also configure an OpenAI-compatible endpoint (MiniMax Token / OpenAI API) from Settings.",
+          isComplete: textProviderConfigured
         ) {
-          APIKeyStepBody()
+          if model.agentSettings.textProvider.requiresCredentials {
+            APIKeyStepBody()
+          } else {
+            FoundationModelsStepBody()
+          }
         }
         OnboardingStep(
           number: 2,
@@ -85,11 +89,21 @@ struct OnboardingView: View {
     }
   }
 
+  /// True when the Text capability is ready to drive a run:
+  /// Foundation Models (on-device, no key needed) or an
+  /// OpenAI-compatible provider with an API key configured.
+  private var textProviderConfigured: Bool {
+    if model.agentSettings.textProvider.requiresCredentials {
+      return !model.agentSettings.apiKey.isEmpty
+    }
+    return true
+  }
+
   @ViewBuilder
   private var footer: some View {
-    let blockedByKey = model.agentSettings.apiKey.isEmpty
+    let blockedByTextProvider = !textProviderConfigured
     let blockedByVM = !vmHost.readiness.isReady
-    if blockedByKey || blockedByVM {
+    if blockedByTextProvider || blockedByVM {
       HStack(alignment: .top, spacing: 10) {
         Image(systemName: "lock.fill")
           .foregroundStyle(.secondary)
@@ -97,8 +111,8 @@ struct OnboardingView: View {
         VStack(alignment: .leading, spacing: 4) {
           Text("Compass unlocks once both steps are complete.")
             .font(.callout.weight(.semibold))
-          if blockedByKey {
-            Text("• Add an API key above.")
+          if blockedByTextProvider {
+            Text("• Add an API key for \(model.agentSettings.textProvider.displayName).")
               .font(.caption)
               .foregroundStyle(.secondary)
           }
@@ -289,6 +303,34 @@ private struct APIKeyStepBody: View {
     guard !apiKey.isEmpty else { return }
     guard apiKey != model.agentSettings.apiKey else { return }
     model.setAgentAPIKey(apiKey)
+  }
+}
+
+// MARK: - Foundation Models step
+
+/// Replaces the API-key field when the Text capability is wired to
+/// Apple's on-device Foundation Models. There is nothing for the
+/// user to enter — selecting a different provider happens via the
+/// Settings screen — so this just confirms the default and points
+/// at where to switch.
+private struct FoundationModelsStepBody: View {
+  var body: some View {
+    HStack(alignment: .top, spacing: 10) {
+      Image(systemName: "cpu")
+        .foregroundStyle(.tint)
+        .padding(.top, 2)
+      VStack(alignment: .leading, spacing: 4) {
+        Text("Using Apple Foundation Models")
+          .font(.callout.weight(.semibold))
+        Text(
+          "Runs on-device with no API key. Switch to MiniMax Token or OpenAI API in Settings (⌘,) if you want to route Text through a third-party endpoint."
+        )
+        .font(.caption)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+      }
+      Spacer()
+    }
   }
 }
 

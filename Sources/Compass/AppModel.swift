@@ -47,43 +47,85 @@ final class AppModel: ObservableObject {
 
   // MARK: - Agent settings setters
 
-  func setAgentBaseURL(_ raw: String) {
-    agentSettingsStore.setBaseURL(raw)
+  /// Pick the provider that will handle `capability`. Passing `nil`
+  /// for an optional capability disables it ("None"); the Text
+  /// capability always has a provider — passing `nil` resets it to
+  /// the built-in default (Foundation Models).
+  func setProvider(_ kind: AgentProviderKind?, for capability: AgentCapability) {
+    agentSettingsStore.setSelectedProvider(kind, for: capability)
     agentSettings = agentSettingsStore.load()
   }
 
-  func setAgentAPIKey(_ raw: String) {
+  /// Edit a (capability, provider) cell's base URL.
+  func setCellBaseURL(
+    _ raw: String, capability: AgentCapability, provider: AgentProviderKind
+  ) {
+    agentSettingsStore.setCellBaseURL(raw, capability: capability, provider: provider)
+    agentSettings = agentSettingsStore.load()
+  }
+
+  /// Edit a (capability, provider) cell's API key.
+  func setCellAPIKey(
+    _ raw: String, capability: AgentCapability, provider: AgentProviderKind
+  ) {
     do {
-      try agentSettingsStore.setAPIKey(raw)
+      try agentSettingsStore.setCellAPIKey(raw, capability: capability, provider: provider)
     } catch {
       errorMessage = "Could not save API key: \(error.localizedDescription)"
     }
     agentSettings = agentSettingsStore.load()
   }
 
-  func setAgentDefaultModel(_ raw: String) {
-    agentSettingsStore.setDefaultModel(raw)
+  /// Edit a (capability, provider) cell's model identifier.
+  func setCellModel(
+    _ raw: String, capability: AgentCapability, provider: AgentProviderKind
+  ) {
+    agentSettingsStore.setCellModel(raw, capability: capability, provider: provider)
     agentSettings = agentSettingsStore.load()
+  }
+
+  /// Edit a text-phase override for a specific provider's text cell.
+  func setTextPhaseOverride(
+    _ phase: AgentPhase, _ raw: String, provider: AgentProviderKind
+  ) {
+    agentSettingsStore.setTextPhaseOverride(phase, raw, provider: provider)
+    agentSettings = agentSettingsStore.load()
+  }
+
+  // MARK: - Convenience setters scoped to the active Text provider
+
+  /// Onboarding and other "active text path" surfaces edit the
+  /// currently-selected Text provider's cell. These thin wrappers
+  /// route through the cell setters above using
+  /// `agentSettings.textProvider`. Foundation Models is on-device
+  /// (no credentials), so calls are silently no-op'd in that case.
+
+  func setAgentBaseURL(_ raw: String) {
+    setCellBaseURL(raw, capability: .text, provider: agentSettings.textProvider)
+  }
+
+  func setAgentAPIKey(_ raw: String) {
+    setCellAPIKey(raw, capability: .text, provider: agentSettings.textProvider)
+  }
+
+  func setAgentDefaultModel(_ raw: String) {
+    setCellModel(raw, capability: .text, provider: agentSettings.textProvider)
   }
 
   func setAgentPlanModelOverride(_ raw: String) {
-    agentSettingsStore.setPlanModelOverride(raw)
-    agentSettings = agentSettingsStore.load()
+    setTextPhaseOverride(.plan, raw, provider: agentSettings.textProvider)
   }
 
   func setAgentDevelopModelOverride(_ raw: String) {
-    agentSettingsStore.setDevelopModelOverride(raw)
-    agentSettings = agentSettingsStore.load()
+    setTextPhaseOverride(.develop, raw, provider: agentSettings.textProvider)
   }
 
   func setAgentReflectModelOverride(_ raw: String) {
-    agentSettingsStore.setReflectModelOverride(raw)
-    agentSettings = agentSettingsStore.load()
+    setTextPhaseOverride(.reflect, raw, provider: agentSettings.textProvider)
   }
 
   func setAgentCriticModelOverride(_ raw: String) {
-    agentSettingsStore.setCriticModelOverride(raw)
-    agentSettings = agentSettingsStore.load()
+    setTextPhaseOverride(.critic, raw, provider: agentSettings.textProvider)
   }
 
   var selectedProject: CompassProject? {

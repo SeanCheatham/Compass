@@ -7,16 +7,41 @@ enum AgentPhase: String, Sendable, CaseIterable {
   case critic
 }
 
-/// Runtime configuration for the OpenAI-compatible agent endpoint.
+/// Configuration for a media capability (image / audio / video) the
+/// user has assigned to a network-bound provider. Stored alongside
+/// `AgentRuntimeSettings` so the eventual media-execution paths can
+/// read each capability's chosen vendor + credentials + model.
 ///
-/// Compass talks to an OpenAI-compatible chat completions endpoint (default:
-/// MiniMax at `https://api.minimax.io/v1`). The base URL, API key, and model
-/// can be set per-process via env vars, and the model can additionally be
-/// overridden per phase or by the live sidebar field.
-struct AgentRuntimeSettings: Equatable, Sendable {
-  static let defaultBaseURLString = "https://api.minimax.io/v1"
-  static let defaultModelIdentifier = "MiniMax-M2.7"
+/// Foundation Models is text-only, so there is no on-device variant
+/// of this struct; `MediaAssignment.provider` is always an
+/// OpenAI-compatible HTTP provider.
+struct MediaAssignment: Equatable, Sendable {
+  var provider: AgentProviderKind
+  var baseURL: URL
+  var apiKey: String
+  var model: String
+}
 
+/// Runtime configuration for the active agent run.
+///
+/// Compass talks to Apple's on-device `FoundationModels` framework
+/// *or* an OpenAI-compatible HTTP endpoint for text, and (when
+/// configured) separately to OpenAI-compatible endpoints for the
+/// media capabilities. Each capability picks its own provider in
+/// Settings; this struct flattens the resolved assignments into a
+/// shape `AgentExecutor` and the future media executors can consume.
+///
+/// The text-execution path stays the primary surface — its fields
+/// (`textProvider`, `baseURL`, `apiKey`, `model`, the per-phase
+/// overrides, `contextWindowTokens`) keep their previous names so
+/// most call sites don't need to change. Media assignments live in
+/// optional siblings; `nil` means the user has selected "None" for
+/// that capability.
+///
+/// Resolution order per field is: persisted UI → environment
+/// variable → built-in default. Env vars exist for scripted setup
+/// / CI; see `AgentSettingsStore` for the precise key names.
+struct AgentRuntimeSettings: Equatable, Sendable {
   /// Conservative default that fits within every provider Compass has
   /// been pointed at (MiniMax M-series 245k, Claude Sonnet 200k, GPT-4
   /// Turbo 128k). Models advertising larger windows can opt in via
@@ -24,6 +49,28 @@ struct AgentRuntimeSettings: Equatable, Sendable {
   /// auto-compaction entirely.
   static let defaultContextWindowTokens = 200_000
 
+  /// Out-of-the-box text provider. Foundation Models runs on-device
+  /// with no credentials and is available on every Apple Silicon Mac
+  /// that meets Compass's deployment target.
+  static let defaultTextProvider: AgentProviderKind = .appleFoundationModels
+
+  static var defaultBaseURLString: String {
+    AgentProviderKind.minimaxToken.defaultBaseURLString ?? ""
+  }
+
+  static var defaultBaseURL: URL {
+    AgentProviderKind.minimaxToken.defaultBaseURL ?? URL(fileURLWithPath: "/")
+  }
+
+  static var defaultModelIdentifier: String {
+    AgentProviderKind.minimaxToken.defaultModel(for: .text) ?? ""
+  }
+
+  /// Provider chosen for the Text capability. `.appleFoundationModels`
+  /// dispatches to the on-device backend and ignores `baseURL`/
+  /// `apiKey`/`model`; everything else dispatches to an
+  /// OpenAI-compatible HTTP endpoint and uses those fields.
+  var textProvider: AgentProviderKind
   var baseURL: URL
   var apiKey: String
   var model: String
@@ -44,17 +91,29 @@ struct AgentRuntimeSettings: Equatable, Sendable {
   var codemapModelOverride: String?
   var contextWindowTokens: Int
 
+  /// Optional assignments for the non-text capabilities. `nil` means
+  /// the user has selected "None" for that capability — Compass will
+  /// not attempt media generation in that modality.
+  var imageAssignment: MediaAssignment?
+  var audioAssignment: MediaAssignment?
+  var videoAssignment: MediaAssignment?
+
   init(
+    textProvider: AgentProviderKind = AgentRuntimeSettings.defaultTextProvider,
     baseURL: URL = AgentRuntimeSettings.defaultBaseURL,
     apiKey: String = "",
-    model: String = AgentRuntimeSettings.defaultModelIdentifier,
+    model: String = "",
     planModelOverride: String? = nil,
     developModelOverride: String? = nil,
     reflectModelOverride: String? = nil,
     criticModelOverride: String? = nil,
     codemapModelOverride: String? = nil,
-    contextWindowTokens: Int = AgentRuntimeSettings.defaultContextWindowTokens
+    contextWindowTokens: Int = AgentRuntimeSettings.defaultContextWindowTokens,
+    imageAssignment: MediaAssignment? = nil,
+    audioAssignment: MediaAssignment? = nil,
+    videoAssignment: MediaAssignment? = nil
   ) {
+    self.textProvider = textProvider
     self.baseURL = baseURL
     self.apiKey = apiKey
     self.model = model
@@ -64,17 +123,17 @@ struct AgentRuntimeSettings: Equatable, Sendable {
     self.criticModelOverride = criticModelOverride
     self.codemapModelOverride = codemapModelOverride
     self.contextWindowTokens = contextWindowTokens
-  }
-
-  static var defaultBaseURL: URL {
-    // String literal validated at first call; safe to force-unwrap.
-    URL(string: defaultBaseURLString)!
+    self.imageAssignment = imageAssignment
+    self.audioAssignment = audioAssignment
+    self.videoAssignment = videoAssignment
   }
 
   /// Build settings from the given environment dictionary (defaults to the
   /// process environment). Empty / whitespace-only values are treated as
   /// unset so a developer can `unset COMPASS_AGENT_MODEL_PLAN` by exporting
-  /// it as `""`.
+  /// it as `""`. The seeded text provider is `.minimaxToken` for backwards
+  /// compatibility — env vars predate the per-capability provider switch
+  /// and have always pointed at an OpenAI-compatible endpoint.
   static func defaultFromEnvironment(
     _ environment: [String: String] = ProcessInfo.processInfo.environment
   ) -> Self {
@@ -85,6 +144,8 @@ struct AgentRuntimeSettings: Equatable, Sendable {
       environment.compassAgentTrimmed("COMPASS_AGENT_CONTEXT_WINDOW_TOKENS")
       .flatMap(Int.init) ?? defaultContextWindowTokens
     return Self(
+      textProvider: environment.compassAgentTrimmed("COMPASS_AGENT_API_KEY") != nil
+        ? .minimaxToken : defaultTextProvider,
       baseURL: baseURL,
       apiKey: environment.compassAgentTrimmed("COMPASS_AGENT_API_KEY") ?? "",
       model: environment.compassAgentTrimmed("COMPASS_AGENT_MODEL") ?? defaultModelIdentifier,
@@ -104,6 +165,18 @@ struct AgentRuntimeSettings: Equatable, Sendable {
   var codemapModel: String {
     codemapModelOverride ?? model
   }
+
+  /// Convenience: the image capability's configured model, or `nil`
+  /// if the capability is unassigned.
+  var imageModel: String? { imageAssignment?.model }
+  var audioModel: String? { audioAssignment?.model }
+  var videoModel: String? { videoAssignment?.model }
+
+  /// Backwards-compat accessor: the same value as `textProvider`.
+  /// Older call sites referenced the single-provider name; new code
+  /// should prefer `textProvider` since image/audio/video can be
+  /// assigned to a different provider.
+  var providerKind: AgentProviderKind { textProvider }
 
   /// Resolve the model identifier for a given phase.
   ///
