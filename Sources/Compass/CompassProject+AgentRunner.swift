@@ -141,6 +141,7 @@ extension CompassProject {
       // — pays the push cost only when the guest workspace is
       // missing, so subsequent phases / iterations / sessions
       // skip straight to running the agent.
+      log("Guest workspace sync: checking Shared VM copy…", level: .info)
       try await ensurePersistentGuestWorkspace(forHostRepo: workingDirectory)
     }
     let configuration = AgentExecutionConfiguration(
@@ -153,7 +154,7 @@ extension CompassProject {
         executionEnvironment: environment.kind == .sharedVM ? .sharedVM : .host
       ),
       userPrompt: userPrompt,
-      tools: ToolRegistry.tools(for: phase),
+      tools: ToolRegistry.tools(for: phase, settings: agentSettings),
       submitResultSchema: schema,
       workingDirectory: environment.workingDirectory,
       filesystem: environment.filesystem,
@@ -255,7 +256,8 @@ extension CompassProject {
     command: String,
     hostWorkingDirectory: URL,
     timeoutSeconds: TimeInterval,
-    launchPlan: AgentExecutionLaunchPlan
+    launchPlan: AgentExecutionLaunchPlan,
+    hostRunner: ProcessRunner.InvocationRunner? = nil
   ) async throws -> ProcessResult {
     if case .sharedVM(let route) = launchPlan.effectiveRoute,
       let machine = SharedCompassVM.shared.virtualMachine
@@ -276,7 +278,8 @@ extension CompassProject {
       command,
       workingDirectory: hostWorkingDirectory,
       timeout: timeoutSeconds,
-      launchPlan: launchPlan
+      launchPlan: launchPlan,
+      runner: hostRunner
     )
   }
 
@@ -298,6 +301,17 @@ extension CompassProject {
       return nil
     }
     let client = Self.makeVsockClient(on: machine)
+    let syncFileCount: Int
+    do {
+      syncFileCount = try SharedCompassVMWorktreeSync.syncableRelativePaths(in: hostRepoURL).count
+    } catch {
+      syncFileCount = 0
+    }
+    if syncFileCount > 0 {
+      log(
+        "Guest workspace sync: \(syncFileCount) host file(s) eligible for Shared VM copy.",
+        level: .info)
+    }
     let result: (guestPath: String, outcome: SharedCompassVMRepoWorkspaceSync.Outcome)
     do {
       result = try await SharedCompassVMRepoWorkspaceSync.ensurePopulated(

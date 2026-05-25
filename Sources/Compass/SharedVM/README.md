@@ -26,14 +26,14 @@ warmup ──▶ notProvisioned ──▶ downloadingIPSW ──▶ installing
                                                        ▼
                                             provisioningDevTools
                                                        │
-                                          (host kicks off a one-shot
-                                           install LaunchDaemon over
-                                           vsock that runs
-                                           softwareupdate -i to bring
-                                           Xcode Command Line Tools
-                                           down; host polls a sentinel
-                                           file and surfaces phase
-                                           progress)
+                                          (host kicks off one-shot
+                                           LaunchDaemons over vsock:
+                                           first softwareupdate -i for
+                                           Xcode Command Line Tools,
+                                           then builds and installs Muter
+                                           for Swift mutation testing;
+                                           host polls sentinel files and
+                                           surfaces phase progress)
                                                        │
                                                        ▼
                                                     ready
@@ -120,6 +120,8 @@ allowed to touch:
       (`SharedCompassVMRepoWorkspaceSync.ensurePopulated`), the host
       packages the repo as a gitignore-aware tar
       (`git ls-files --cached --others --exclude-standard | tar`),
+      filtered to drop heavyweight build dirs (`.build`, `target`,
+      `node_modules`, …) even when a repo's `.gitignore` omits them,
       streams it into the guest, and records a content fingerprint
       plus the matching file set in
       `<repo>/.compass/guest-workspace.json` + `guest-workspace-fileset.dat`.

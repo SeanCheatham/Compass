@@ -752,6 +752,7 @@ final class SharedCompassVM: ObservableObject {
       )
       if probeOK {
         lastResolvedSSHDestination = destination
+        await ensureMutationToolsIfNeeded()
         transition(to: .ready(sshDestination: destination))
         return
       }
@@ -974,10 +975,11 @@ final class SharedCompassVM: ObservableObject {
     await runDevToolsProvisioner(destination: destination)
   }
 
-  /// Drives `SharedCompassVMDevToolsProvisioner` against the live VM
-  /// using a vsock-backed bash runner. Updates readiness with progress
-  /// while the install runs, and flips to `.ready` once CLT verifies.
-  /// Safe to call when CLT is already installed — the provisioner's
+  /// Drives `SharedCompassVMDevToolsProvisioner` and
+  /// `SharedCompassVMMutationToolsProvisioner` against the live VM using a
+  /// vsock-backed bash runner. Updates readiness with progress while each
+  /// install runs, and flips to `.ready` once CLT and Muter verify.
+  /// Safe to call when tools are already installed — each provisioner's
   /// probe short-circuits and `progress(1)` fires immediately.
   private func runDevToolsProvisioner(destination: String) async {
     guard let machine = virtualMachine else {
@@ -991,7 +993,7 @@ final class SharedCompassVM: ObservableObject {
         runner: client,
         progress: { fraction in
           await MainActor.run {
-            host.transition(to: .provisioningDevTools(fractionCompleted: fraction))
+            host.transition(to: .provisioningDevTools(fractionCompleted: fraction * 0.85))
           }
         }
       )
@@ -1000,10 +1002,54 @@ final class SharedCompassVM: ObservableObject {
       return
     }
 
+    do {
+      _ = try await SharedCompassVMMutationToolsProvisioner.provision(
+        runner: client,
+        progress: { fraction in
+          await MainActor.run {
+            host.transition(to: .provisioningDevTools(fractionCompleted: 0.85 + fraction * 0.15))
+          }
+        }
+      )
+    } catch {
+      transition(to: .error(detail: "Mutation-tools install failed: \(error)"))
+      return
+    }
+
     _ = try? bundle.mutateState(fileManager: dependencies.fileManager) {
       $0.provisionStep = .ready
     }
     transition(to: .ready(sshDestination: destination))
+  }
+
+  /// Backfills Muter on guests that were provisioned before mutation-tool
+  /// install was added. Failures are non-fatal — the VM still becomes ready
+  /// and auto mutation testing skips when the runner is missing.
+  private func ensureMutationToolsIfNeeded() async {
+    guard let machine = virtualMachine else { return }
+    let client = Self.makeVsockClient(on: machine)
+    do {
+      if try await SharedCompassVMMutationToolsProvisioner.probeAlreadyInstalled(runner: client) {
+        return
+      }
+    } catch {
+      return
+    }
+
+    transition(to: .provisioningDevTools(fractionCompleted: 0.85))
+    do {
+      _ = try await SharedCompassVMMutationToolsProvisioner.provision(
+        runner: client,
+        progress: { fraction in
+          await MainActor.run {
+            self.transition(to: .provisioningDevTools(fractionCompleted: 0.85 + fraction * 0.15))
+          }
+        }
+      )
+    } catch {
+      // Non-fatal: older guests can still run Develop/Verify; mutation
+      // auto-loop treats a missing runner as a skip until reprovision.
+    }
   }
 
   /// Builds a vsock-backed agent client that opens a fresh

@@ -214,6 +214,13 @@ struct AgentMutationTestingPlan: Equatable, Identifiable {
         limit: Self.commandMaxCharacters
       )
     }.flatMap(Self.nilIfEmpty)
+    let verifySupportsMutation =
+      sanitizedSeedCommand.map {
+        MutationTestingCommandBuilder.verifySupportsMutationTesting(
+          language: languageProfile.primaryLanguage,
+          verifyCommand: $0
+        )
+      } ?? false
     let rawMutationCommand = sanitizedSeedCommand.flatMap {
       MutationTestingCommandBuilder.build(
         language: languageProfile.primaryLanguage,
@@ -236,6 +243,8 @@ struct AgentMutationTestingPlan: Equatable, Identifiable {
       readinessState = .missingVerify
     } else if !language.isSupported {
       readinessState = .unsupportedLanguage
+    } else if !verifySupportsMutation {
+      readinessState = .missingMutationCommand
     } else if sanitizedMutationCommand == nil {
       readinessState = .missingMutationCommand
     } else {
@@ -296,9 +305,9 @@ struct AgentMutationTestingPlan: Equatable, Identifiable {
     systemImage = "testtube.2"
     seedCommand = sanitizedSeedCommand
     self.seedCommandLabel = Self.bounded(seedCommandLabel, limit: Self.commandMaxCharacters)
-    mutationCommand = sanitizedMutationCommand
+    mutationCommand = rawMutationCommand
     self.mutationCommandLabel = Self.bounded(
-      mutationCommandLabel, limit: Self.commandMaxCharacters)
+      sanitizedMutationCommand ?? mutationCommandLabel, limit: Self.commandMaxCharacters)
     self.detailText = detailText
     self.copyText = copyText
   }
@@ -398,7 +407,7 @@ struct AgentMutationTestingPlan: Equatable, Identifiable {
       detail = "Immediate plan has no verify command to seed mutation testing."
     case .missingMutationCommand:
       detail =
-        "Could not derive a mutation command for \(languageLabel) from verify seed \(seedCommandLabel)."
+        "Verify seed \(seedCommandLabel) is not a test command mutation tools can use for \(languageLabel)."
     case .unsupportedLanguage:
       detail = "\(languageLabel) is outside the mutation readiness language set."
     }

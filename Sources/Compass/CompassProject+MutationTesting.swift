@@ -135,7 +135,8 @@ extension CompassProject {
       sessionIndex: sessionIndex,
       next: next,
       launchPlan: launchPlan,
-      readiness: readiness
+      readiness: readiness,
+      automatic: true
     )
   }
 
@@ -144,7 +145,8 @@ extension CompassProject {
     sessionIndex: Int,
     next: PlanNext?,
     launchPlan: AgentExecutionLaunchPlan,
-    readiness: AgentMutationTestingPlan
+    readiness: AgentMutationTestingPlan,
+    automatic: Bool = false
   ) async -> MutationTestingPassResult {
     guard let next,
       let command = readiness.mutationCommand?.trimmingCharacters(in: .whitespacesAndNewlines),
@@ -170,32 +172,59 @@ extension CompassProject {
     let startedAt = Date().timeIntervalSince1970 * 1000
     let timeoutMs = verifyTimeoutMs(for: next)
     do {
-      let result = try await ProcessRunner.runShell(
-        command,
-        workingDirectory: workspace.repoURL,
-        timeout: TimeInterval(timeoutMs) / 1000,
+      let result = try await runVerifyCommand(
+        command: command,
+        hostWorkingDirectory: workspace.repoURL,
+        timeoutSeconds: TimeInterval(timeoutMs) / 1000,
         launchPlan: launchPlan,
-        runner: mutationTestingRunner
+        hostRunner: mutationTestingRunner
       )
-      let endedAt = Date().timeIntervalSince1970 * 1000
-      let execution = SessionMutationTestingExecution(
-        readiness: readiness,
-        exitCode: Int(result.exitCode),
-        startedAt: startedAt,
-        endedAt: endedAt,
-        outputTail: result.stdout + result.stderr,
-        launchPlan: launchPlan
-      )
-      if sessions.indices.contains(sessionIndex) {
-        sessions[sessionIndex].recordMutationTestingExecution(execution)
-        try? persistSessions()
-      }
 
       if result.exitCode == 0 {
+        let endedAt = Date().timeIntervalSince1970 * 1000
+        recordMutationExecution(
+          readiness: readiness,
+          launchPlan: launchPlan,
+          sessionIndex: sessionIndex,
+          exitCode: Int(result.exitCode),
+          startedAt: startedAt,
+          endedAt: endedAt,
+          outputTail: result.stdout + result.stderr
+        )
         log("Mutation testing completed.", level: .success)
         return .completed(succeeded: true)
       }
 
+      if result.exitCode == MutationTestingCommandBuilder.runnerNotFoundExitCode {
+        let issue = Self.missingRunnerIssue(for: readiness.languageLabel)
+        log(issue, level: .warning)
+        if automatic {
+          appendSessionNote(issue, to: sessionIndex)
+          return .skipped
+        }
+        let endedAt = Date().timeIntervalSince1970 * 1000
+        recordMutationExecution(
+          readiness: readiness,
+          launchPlan: launchPlan,
+          sessionIndex: sessionIndex,
+          exitCode: Int(result.exitCode),
+          startedAt: startedAt,
+          endedAt: endedAt,
+          outputTail: result.stdout + result.stderr
+        )
+        return .completed(succeeded: false, issue: issue)
+      }
+
+      let endedAt = Date().timeIntervalSince1970 * 1000
+      recordMutationExecution(
+        readiness: readiness,
+        launchPlan: launchPlan,
+        sessionIndex: sessionIndex,
+        exitCode: Int(result.exitCode),
+        startedAt: startedAt,
+        endedAt: endedAt,
+        outputTail: result.stdout + result.stderr
+      )
       let issue = "Mutation testing failed (exit \(result.exitCode))."
       log(issue, level: .error)
       return .completed(succeeded: false, issue: issue)
@@ -220,6 +249,37 @@ extension CompassProject {
       }
       log("Mutation testing failed: \(safeError)", level: .error)
       return .completed(succeeded: false, issue: safeError)
+    }
+  }
+
+  private static func missingRunnerIssue(for languageLabel: String) -> String {
+    """
+    Mutation runner not found in the Shared VM guest PATH for \(languageLabel). \
+    Re-provision the Shared VM or wait for the guest mutation-tool install to finish. \
+    You can override with COMPASS_MUTATION_COMMAND.
+    """
+  }
+
+  private func recordMutationExecution(
+    readiness: AgentMutationTestingPlan,
+    launchPlan: AgentExecutionLaunchPlan,
+    sessionIndex: Int,
+    exitCode: Int?,
+    startedAt: Double,
+    endedAt: Double,
+    outputTail: String
+  ) {
+    let execution = SessionMutationTestingExecution(
+      readiness: readiness,
+      exitCode: exitCode,
+      startedAt: startedAt,
+      endedAt: endedAt,
+      outputTail: outputTail,
+      launchPlan: launchPlan
+    )
+    if sessions.indices.contains(sessionIndex) {
+      sessions[sessionIndex].recordMutationTestingExecution(execution)
+      try? persistSessions()
     }
   }
 }

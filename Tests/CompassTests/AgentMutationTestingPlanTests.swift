@@ -84,7 +84,7 @@ final class AgentMutationTestingPlanTests: XCTestCase {
     }
   }
 
-  func testAppleContainerAndNativeFallbackRoutesAreReportedWithoutExecutingMutationTools() throws {
+  func testMutationReadinessReportsDevelopLaunchPlanRoute() throws {
     let repoURL = try makeTemporaryDirectory(prefix: "AgentMutationTestingPlanRoute")
     let vmRoute = SharedVMRoute(
       sshDestination: "compass@192.0.2.10",

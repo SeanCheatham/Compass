@@ -23,6 +23,10 @@ enum MutationTestingCommandBuilder {
     let verify = verifyCommand.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !verify.isEmpty else { return nil }
 
+    guard verifySupportsMutationTesting(language: language, verifyCommand: verify) else {
+      return nil
+    }
+
     switch language {
     case .swift:
       return swiftMutationCommand(from: verify)
@@ -39,11 +43,43 @@ enum MutationTestingCommandBuilder {
     }
   }
 
-  private static func swiftMutationCommand(from verify: String) -> String {
-    if let filter = extractFlagValue(from: verify, flags: ["--filter", "-F"]) {
-      return "muter run --skip-update-check -- -F \(shellQuote(filter))"
+  /// Whether the verify seed exercises a test suite mutation tools can
+  /// stress. Build-only commands like `swift build` are valid verify
+  /// gates but cannot seed mutation testing.
+  static func verifySupportsMutationTesting(
+    language: RepositoryLanguage,
+    verifyCommand: String
+  ) -> Bool {
+    let verify = verifyCommand.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !verify.isEmpty else { return false }
+    let lower = verify.lowercased()
+
+    switch language {
+    case .swift:
+      if lower.contains("swift test") { return true }
+      if lower.contains("xcodebuild"), lower.contains("test") { return true }
+      return false
+    case .python:
+      return lower.contains("pytest") || lower.contains("unittest")
+    case .rust:
+      return lower.contains("cargo test")
+    case .go:
+      return lower.hasPrefix("go test") || lower.contains(" go test ")
+    case .typeScriptJavaScript:
+      return lower.contains("test") || lower.contains("jest") || lower.contains("vitest")
+    case .markdown, .other, .unknown:
+      return false
     }
-    return "muter run --skip-update-check"
+  }
+
+  private static func swiftMutationCommand(from verify: String) -> String {
+    let muterRun: String
+    if let filter = extractFlagValue(from: verify, flags: ["--filter", "-F"]) {
+      muterRun = "muter run --skip-update-check -- -F \(shellQuote(filter))"
+    } else {
+      muterRun = "muter run --skip-update-check"
+    }
+    return "test -f muter.conf.json || muter init; \(muterRun)"
   }
 
   private static func pythonMutationCommand(from verify: String) -> String {
@@ -74,6 +110,10 @@ enum MutationTestingCommandBuilder {
     _ = verify
     return "npx stryker run --force"
   }
+
+  /// Exit code 127 from `/bin/zsh -lc` means the mutation runner binary
+  /// was not found on the execution `PATH`.
+  static let runnerNotFoundExitCode: Int32 = 127
 
   static func extractFlagValue(from command: String, flags: [String]) -> String? {
     let tokens = tokenize(command)

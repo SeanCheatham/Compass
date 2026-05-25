@@ -11,7 +11,22 @@ final class MutationTestingCommandBuilderTests: XCTestCase {
     )
     XCTAssertEqual(
       command,
-      "muter run --skip-update-check -- -F AgentMutationTestingPlanTests"
+      "test -f muter.conf.json || muter init; muter run --skip-update-check -- -F AgentMutationTestingPlanTests"
+    )
+  }
+
+  func testSwiftBuildVerifyDoesNotSupportMutationTesting() {
+    XCTAssertFalse(
+      MutationTestingCommandBuilder.verifySupportsMutationTesting(
+        language: .swift,
+        verifyCommand: "swift build 2>&1"
+      )
+    )
+    XCTAssertNil(
+      MutationTestingCommandBuilder.build(
+        language: .swift,
+        verifyCommand: "swift build 2>&1"
+      )
     )
   }
 

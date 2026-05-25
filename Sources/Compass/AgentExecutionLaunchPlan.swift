@@ -226,16 +226,10 @@ struct AgentExecutionLaunchPlan: Equatable {
   /// out-of-agent commands like mutation testing and Verify steps.
   ///
   /// Always returns a host-side `/bin/zsh -lc` invocation, even when
-  /// the effective route is `.sharedVM`. The sharedVM-via-SSH branch
-  /// this used to offer never worked end-to-end (sshd-spawned
-  /// processes on macOS guests are TCC-blocked from reading any
-  /// AppleVirtIOFS mount), and the agent-loop transport that does
-  /// work — vsock — is connection-oriented, not a process the caller
-  /// can spawn. Under `.sharedVM` the agent works inside the
-  /// persistent per-repo guest workspace;
-  /// `AppModel.pullDevelopChangesIfNeeded` pulls those changes back
-  /// onto the main repo once Verify passes, so mutation testing
-  /// reads the same bytes the agent produced.
+  /// the effective route is `.sharedVM`. Under `.sharedVM`, Verify and
+  /// Mutation go through the vsock bash RPC instead of this helper;
+  /// the host fallback remains for Plan/Reflect and for repos outside
+  /// the guest workspaces share.
   func shellInvocation(command: String, hostWorkingDirectory: URL) -> AgentExecutionInvocation {
     AgentExecutionInvocation(
       executable: "/bin/zsh",

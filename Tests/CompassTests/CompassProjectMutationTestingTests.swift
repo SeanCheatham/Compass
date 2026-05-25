@@ -16,7 +16,7 @@ final class CompassProjectMutationTestingTests: XCTestCase {
 
   func testSuccessfulExecutionUsesInjectedRunnerAndPersistsMutationRecord() async throws {
     let repoURL = try await makeTemporaryGitRepository(prefix: "CompassProjectMutationSuccess")
-    let state = makeState(verify: "swift test --filter CompassProjectMutationTestingTests")
+    let state = makeState(verify: "swift test --filter MutationSuccess")
     let workspace = try initializedWorkspace(repoURL: repoURL, state: state)
     try workspace.writeLessons("- keep mutation execution records sanitized\n")
     var capturedInvocation: AgentExecutionInvocation?
@@ -40,7 +40,7 @@ final class CompassProjectMutationTestingTests: XCTestCase {
       invocation.arguments,
       [
         "-lc",
-        "muter run --skip-update-check -- -F CompassProjectMutationTestingTests",
+        "test -f muter.conf.json || muter init; muter run --skip-update-check -- -F MutationSuccess",
       ]
     )
     XCTAssertEqual(invocation.workingDirectory, repoURL.standardizedFileURL)
@@ -62,10 +62,10 @@ final class CompassProjectMutationTestingTests: XCTestCase {
     XCTAssertEqual(execution.routeIdentifier, "native-fallback")
     XCTAssertEqual(execution.languageIdentifier, "swift")
     XCTAssertEqual(
-      execution.seedCommandLabel, "swift test --filter CompassProjectMutationTestingTests")
+      execution.seedCommandLabel, "swift test --filter MutationSuccess")
     XCTAssertEqual(
       execution.mutationCommandLabel,
-      "muter run --skip-update-check -- -F CompassProjectMutationTestingTests")
+      "test -f muter.conf.json || muter init; muter run --skip-update-check -- -F MutationSuccess")
     XCTAssertEqual(execution.exitCode, 0)
     XCTAssertEqual(execution.outputTail, "mutation ok")
     XCTAssertGreaterThanOrEqual(execution.endedAt, execution.startedAt)
@@ -159,7 +159,7 @@ final class CompassProjectMutationTestingTests: XCTestCase {
 
   func testAutoMutationTestingRecordsOnExistingDevelopSession() async throws {
     let repoURL = try await makeTemporaryGitRepository(prefix: "CompassProjectMutationAuto")
-    let state = makeState(verify: "swift test --filter CompassProjectMutationTestingTests")
+    let state = makeState(verify: "swift test --filter MutationSuccess")
     let workspace = try initializedWorkspace(repoURL: repoURL, state: state)
     var capturedInvocation: AgentExecutionInvocation?
     let project = CompassProject(
@@ -190,7 +190,7 @@ final class CompassProjectMutationTestingTests: XCTestCase {
     XCTAssertTrue(result.succeeded)
     XCTAssertEqual(
       capturedInvocation?.arguments.last,
-      "muter run --skip-update-check -- -F CompassProjectMutationTestingTests"
+      "test -f muter.conf.json || muter init; muter run --skip-update-check -- -F MutationSuccess"
     )
     XCTAssertEqual(project.sessions[0].mutationTestingExecutions.count, 1)
   }
@@ -223,11 +223,8 @@ final class CompassProjectMutationTestingTests: XCTestCase {
     project.languageProfile = profile(.swift)
     action = try XCTUnwrap(project.runtimeDiagnosticsMenu.mutationTestingAction)
     XCTAssertTrue(action.isEnabled)
-    // Without a live Shared VM in the test harness, the project's
-    // launch planner produces a host fallback — "native-fallback" is
-    // the canonical availability for that case now that the host
-    // route is no longer a user-selectable preference.
     XCTAssertEqual(action.availabilityIdentifier, "native-fallback")
+    XCTAssertEqual(action.routeIdentifier, "native-fallback")
 
     project.isRunning = true
     action = try XCTUnwrap(project.runtimeDiagnosticsMenu.mutationTestingAction)
