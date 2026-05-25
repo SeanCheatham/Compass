@@ -173,114 +173,6 @@ struct VerifyOutput: Codable, Equatable {
   var tail: String
 }
 
-struct SessionMutationTestingExecution: Codable, Equatable, Identifiable {
-  static let fieldLimit = 120
-  static let commandLimit = AgentMutationTestingPlan.commandMaxCharacters
-  static let outputTailLimit = 2_000
-
-  var readinessIdentifier: String
-  var statusIdentifier: String
-  var routeIdentifier: String
-  var languageIdentifier: String
-  var seedCommandLabel: String
-  var mutationCommandLabel: String
-  var exitCode: Int?
-  var startedAt: Double
-  var endedAt: Double
-  var outputTail: String
-
-  var id: String {
-    [
-      readinessIdentifier,
-      statusIdentifier,
-      routeIdentifier,
-      languageIdentifier,
-      String(Int(startedAt)),
-      exitCode.map(String.init) ?? "none",
-    ].joined(separator: ".")
-  }
-
-  init(
-    readiness: AgentMutationTestingPlan,
-    exitCode: Int?,
-    startedAt: Double,
-    endedAt: Double,
-    outputTail: String,
-    launchPlan: AgentExecutionLaunchPlan
-  ) {
-    readinessIdentifier = Self.boundedField(
-      readiness.identifier,
-      limit: Self.fieldLimit
-    )
-    statusIdentifier = exitCode == 0 ? "succeeded" : "failed"
-    routeIdentifier = Self.boundedField(
-      readiness.routeIdentifier,
-      limit: Self.fieldLimit
-    )
-    languageIdentifier = Self.boundedField(
-      readiness.languageIdentifier,
-      limit: Self.fieldLimit
-    )
-    seedCommandLabel = Self.boundedField(
-      readiness.seedCommandLabel,
-      limit: Self.commandLimit
-    )
-    mutationCommandLabel = Self.boundedField(
-      readiness.mutationCommandLabel,
-      limit: Self.commandLimit
-    )
-    self.exitCode = exitCode
-    self.startedAt = max(0, startedAt)
-    self.endedAt = max(self.startedAt, endedAt)
-    self.outputTail = AgentMutationTestingMetadataSanitizer.sanitizedOutputTail(
-      outputTail,
-      launchPlan: launchPlan,
-      limit: Self.outputTailLimit
-    )
-  }
-
-  enum CodingKeys: String, CodingKey {
-    case readinessIdentifier
-    case statusIdentifier
-    case routeIdentifier
-    case languageIdentifier
-    case seedCommandLabel
-    case mutationCommandLabel
-    case exitCode
-    case startedAt
-    case endedAt
-    case outputTail
-  }
-
-  init(from decoder: Decoder) throws {
-    let container = try decoder.container(keyedBy: CodingKeys.self)
-    readinessIdentifier = try container.decode(String.self, forKey: .readinessIdentifier)
-    statusIdentifier = try container.decode(String.self, forKey: .statusIdentifier)
-    routeIdentifier = try container.decode(String.self, forKey: .routeIdentifier)
-    languageIdentifier = try container.decode(String.self, forKey: .languageIdentifier)
-    seedCommandLabel = try container.decode(String.self, forKey: .seedCommandLabel)
-    mutationCommandLabel =
-      try container.decodeIfPresent(String.self, forKey: .mutationCommandLabel)
-      ?? seedCommandLabel
-    exitCode = try container.decodeIfPresent(Int.self, forKey: .exitCode)
-    startedAt = try container.decode(Double.self, forKey: .startedAt)
-    endedAt = try container.decode(Double.self, forKey: .endedAt)
-    outputTail = try container.decode(String.self, forKey: .outputTail)
-  }
-
-  private static func boundedField(_ text: String, limit: Int) -> String {
-    guard limit > 0 else { return "" }
-    let normalized =
-      text
-      .replacingOccurrences(of: "\r", with: " ")
-      .replacingOccurrences(of: "\n", with: " ")
-      .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
-      .trimmingCharacters(in: .whitespacesAndNewlines)
-    guard normalized.count > limit else { return normalized }
-    return String(normalized.prefix(limit)).trimmingCharacters(in: .whitespacesAndNewlines)
-  }
-}
-
 struct SessionExecutionEnvironmentSnapshot: Codable, Equatable, Identifiable {
   static let phaseLimit = 24
   static let fieldLimit = 120
@@ -516,7 +408,6 @@ struct SessionRecord: Codable, Identifiable, Equatable {
   var verifyOutput: VerifyOutput?
   var feedback: String?
   var executionEnvironmentSnapshots: [SessionExecutionEnvironmentSnapshot]
-  var mutationTestingExecutions: [SessionMutationTestingExecution]
 
   static func started(_ number: Int) -> SessionRecord {
     SessionRecord(
@@ -532,13 +423,11 @@ struct SessionRecord: Codable, Identifiable, Equatable {
       notes: [],
       verifyOutput: nil,
       feedback: nil,
-      executionEnvironmentSnapshots: [],
-      mutationTestingExecutions: []
+      executionEnvironmentSnapshots: []
     )
   }
 
   static let executionEnvironmentSnapshotLimit = 24
-  static let mutationTestingExecutionLimit = 12
 
   enum CodingKeys: String, CodingKey {
     case session
@@ -554,7 +443,7 @@ struct SessionRecord: Codable, Identifiable, Equatable {
     case verifyOutput
     case feedback
     case executionEnvironmentSnapshots
-    case mutationTestingExecutions
+    case legacyMutationTestingExecutions = "mutationTestingExecutions"
   }
 
   init(
@@ -570,8 +459,7 @@ struct SessionRecord: Codable, Identifiable, Equatable {
     notes: [String],
     verifyOutput: VerifyOutput?,
     feedback: String?,
-    executionEnvironmentSnapshots: [SessionExecutionEnvironmentSnapshot] = [],
-    mutationTestingExecutions: [SessionMutationTestingExecution] = []
+    executionEnvironmentSnapshots: [SessionExecutionEnvironmentSnapshot] = []
   ) {
     self.session = session
     self.startedAt = startedAt
@@ -587,9 +475,6 @@ struct SessionRecord: Codable, Identifiable, Equatable {
     self.feedback = feedback
     self.executionEnvironmentSnapshots = Self.normalizedExecutionEnvironmentSnapshots(
       executionEnvironmentSnapshots
-    )
-    self.mutationTestingExecutions = Self.normalizedMutationTestingExecutions(
-      mutationTestingExecutions
     )
   }
 
@@ -613,12 +498,7 @@ struct SessionRecord: Codable, Identifiable, Equatable {
         forKey: .executionEnvironmentSnapshots
       ) ?? []
     )
-    mutationTestingExecutions = Self.normalizedMutationTestingExecutions(
-      try container.decodeIfPresent(
-        [SessionMutationTestingExecution].self,
-        forKey: .mutationTestingExecutions
-      ) ?? []
-    )
+    _ = try container.decodeIfPresent([LegacyMutationTestingExecution].self, forKey: .legacyMutationTestingExecutions)
   }
 
   func encode(to encoder: Encoder) throws {
@@ -638,9 +518,6 @@ struct SessionRecord: Codable, Identifiable, Equatable {
     if !executionEnvironmentSnapshots.isEmpty {
       try container.encode(executionEnvironmentSnapshots, forKey: .executionEnvironmentSnapshots)
     }
-    if !mutationTestingExecutions.isEmpty {
-      try container.encode(mutationTestingExecutions, forKey: .mutationTestingExecutions)
-    }
   }
 
   var latestExecutionEnvironmentSnapshot: SessionExecutionEnvironmentSnapshot? {
@@ -652,12 +529,6 @@ struct SessionRecord: Codable, Identifiable, Equatable {
     executionEnvironmentSnapshots = Self.recording(
       snapshot,
       in: executionEnvironmentSnapshots
-    )
-  }
-
-  mutating func recordMutationTestingExecution(_ execution: SessionMutationTestingExecution) {
-    mutationTestingExecutions = Self.normalizedMutationTestingExecutions(
-      mutationTestingExecutions + [execution]
     )
   }
 
@@ -681,12 +552,21 @@ struct SessionRecord: Codable, Identifiable, Equatable {
       partialResult = recording(snapshot, in: partialResult)
     }
   }
+}
 
-  private static func normalizedMutationTestingExecutions(
-    _ executions: [SessionMutationTestingExecution]
-  ) -> [SessionMutationTestingExecution] {
-    Array(executions.suffix(Self.mutationTestingExecutionLimit))
-  }
+/// Absorbs legacy `mutationTestingExecutions` payloads on decode without
+/// persisting them back out.
+private struct LegacyMutationTestingExecution: Codable {
+  var readinessIdentifier: String?
+  var statusIdentifier: String?
+  var routeIdentifier: String?
+  var languageIdentifier: String?
+  var seedCommandLabel: String?
+  var mutationCommandLabel: String?
+  var exitCode: Int?
+  var startedAt: Double?
+  var endedAt: Double?
+  var outputTail: String?
 }
 
 struct DevelopSummary: Codable, Equatable {

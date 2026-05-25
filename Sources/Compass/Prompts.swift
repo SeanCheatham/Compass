@@ -554,7 +554,7 @@ enum Prompts {
       toolList = """
         - Codemap tools: \(codemapTools).
         - File tools: \(fileTools).
-        - Mutation tools: \(writeTools).
+        - Write tools: \(writeTools).
         - Sub-agents: \(delegateTool).
         """
     case .critic:

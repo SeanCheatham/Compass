@@ -187,43 +187,6 @@ final class PlanWorkflowOverviewTests: XCTestCase {
     XCTAssertEqual(overview.immediate.verifyTimeoutLabel, "Default timeout 10m")
   }
 
-  func testImmediateSectionPropagatesMutationReadinessDescriptor() {
-    let overview = PlanWorkflowOverview(
-      state: makeState(
-        immediate: PlanNext(
-          plan: "Implement mutation readiness",
-          verify: "swift test --filter AgentMutationTestingPlanTests",
-          estimatedDifficulty: .medium
-        )
-      ),
-      languageProfile: profile(.swift),
-      launchPlan: AgentExecutionLaunchPlan.host()
-    )
-
-    let readiness = overview.immediate.mutationTestingReadiness
-    XCTAssertEqual(readiness?.statusIdentifier, "ready")
-    XCTAssertEqual(readiness?.routeIdentifier, "native-route")
-    XCTAssertEqual(readiness?.languageIdentifier, "swift")
-    XCTAssertEqual(readiness?.seedCommandLabel, "swift test --filter AgentMutationTestingPlanTests")
-    XCTAssertTrue(readiness?.badgeLabel.contains("Mutation: Native") == true)
-    XCTAssertNil(overview.midTerm.mutationTestingReadiness)
-    XCTAssertNil(overview.longTerm.mutationTestingReadiness)
-  }
-
-  func testNoImmediateOverviewStillPropagatesMutationMissingImmediateBadge() {
-    let overview = PlanWorkflowOverview(
-      state: makeState(immediate: nil),
-      languageProfile: profile(.swift),
-      launchPlan: AgentExecutionLaunchPlan.host()
-    )
-
-    XCTAssertTrue(overview.immediate.isEmpty)
-    XCTAssertEqual(
-      overview.immediate.mutationTestingReadiness?.statusIdentifier, "missing-immediate")
-    XCTAssertEqual(
-      overview.immediate.mutationTestingReadiness?.badgeLabel, "Mutation: Missing immediate")
-  }
-
   func testPreservesCompletedCountMetadata() {
     let overview = PlanWorkflowOverview(
       state: makeState(completed: ["one", "two", "three"])

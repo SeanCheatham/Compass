@@ -211,73 +211,6 @@ final class PlanReliabilityFeedbackTests: XCTestCase {
     XCTAssertEqual(feedback.recentRunCues, [:])
   }
 
-  func testLatestFailedMutationExecutionBecomesReadOnlyRecoveryCue() {
-    let session = makeSession(
-      15,
-      status: .failed,
-      mutationTestingExecutions: [
-        makeMutationExecution(
-          verify: "swift test --filter MutationRecovery",
-          exitCode: 65,
-          startedAt: 15_000,
-          endedAt: 16_250,
-          outputTail: "mutation failure tail"
-        )
-      ]
-    )
-
-    let feedback = PlanReliabilityFeedback(state: makeState(), sessions: [session])
-
-    XCTAssertEqual(feedback.notices.map(\.kind), [.mutationTestingRecovery])
-    XCTAssertEqual(feedback.notices[0].title, "Mutation recovery")
-    XCTAssertEqual(feedback.notices[0].actionLabel, "Review Mutation")
-    XCTAssertEqual(feedback.notices[0].severity, .failure)
-    XCTAssertEqual(feedback.recentRunCues[15]?.kind, .mutationTestingRecovery)
-    XCTAssertEqual(feedback.recentRunCues[15]?.label, "Review Mutation")
-  }
-
-  func testSucceededMissingAndOldMutationExecutionsStayOutOfRecoveryCues() {
-    let oldFailed = makeSession(
-      16,
-      startedAt: 16_000,
-      status: .failed,
-      mutationTestingExecutions: [
-        makeMutationExecution(
-          verify: "swift test --filter OldMutation",
-          exitCode: 65,
-          startedAt: 16_000,
-          endedAt: 16_500,
-          outputTail: "old mutation failure"
-        )
-      ]
-    )
-    let latestSucceeded = makeSession(
-      17,
-      startedAt: 17_000,
-      status: .succeeded,
-      mutationTestingExecutions: [
-        makeMutationExecution(
-          verify: "swift test --filter LatestMutation",
-          exitCode: 0,
-          startedAt: 17_000,
-          endedAt: 17_500,
-          outputTail: "mutation ok"
-        )
-      ]
-    )
-    let missing = makeSession(18, startedAt: 18_000, status: .succeeded)
-
-    let feedback = PlanReliabilityFeedback(
-      state: makeState(),
-      sessions: [oldFailed, latestSucceeded, missing]
-    )
-
-    XCTAssertFalse(feedback.notices.contains { $0.kind == .mutationTestingRecovery })
-    XCTAssertNil(feedback.recentRunCues[16])
-    XCTAssertNil(feedback.recentRunCues[17])
-    XCTAssertNil(feedback.recentRunCues[18])
-  }
-
   func testLaterSuccessRetiresEarlierFailureCue() {
     let blocked = makeSession(
       4,
@@ -390,8 +323,7 @@ final class PlanReliabilityFeedbackTests: XCTestCase {
     verify: String? = "swift test --filter Plan",
     notes: [String] = [],
     verifyOutput: VerifyOutput? = nil,
-    feedback: String? = nil,
-    mutationTestingExecutions: [SessionMutationTestingExecution] = []
+    feedback: String? = nil
   ) -> SessionRecord {
     let start = startedAt ?? Double(number) * 1_000
     return SessionRecord(
@@ -406,36 +338,7 @@ final class PlanReliabilityFeedbackTests: XCTestCase {
       status: status,
       notes: notes,
       verifyOutput: verifyOutput,
-      feedback: feedback,
-      mutationTestingExecutions: mutationTestingExecutions
-    )
-  }
-
-  private func makeMutationExecution(
-    verify: String,
-    exitCode: Int?,
-    startedAt: Double,
-    endedAt: Double,
-    outputTail: String
-  ) -> SessionMutationTestingExecution {
-    let launchPlan = AgentExecutionLaunchPlan.host()
-    let readiness = AgentMutationTestingPlan(
-      state: PlanState(
-        completed: [],
-        immediate: PlanNext(plan: "Run mutation testing", verify: verify),
-        midTerm: "",
-        longTerm: ""
-      ),
-      languageProfile: profile(.swift),
-      launchPlan: launchPlan
-    )
-    return SessionMutationTestingExecution(
-      readiness: readiness,
-      exitCode: exitCode,
-      startedAt: startedAt,
-      endedAt: endedAt,
-      outputTail: outputTail,
-      launchPlan: launchPlan
+      feedback: feedback
     )
   }
 

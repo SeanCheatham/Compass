@@ -113,28 +113,9 @@ struct CompassApp: App {
             NSPasteboard.general.setString(diagnosticsAction.copyText, forType: .string)
           }
           .help(diagnosticsAction.helpText)
-          if let mutationAction = runtimeMenu.mutationTestingAction {
-            Divider()
-            Button(mutationAction.title) {
-              Task { await model.runMutationTestingForSelectedProject() }
-            }
-            .disabled(!mutationAction.isEnabled)
-            .help(mutationAction.helpText)
-          }
-          if let recovery = runtimeMenu.mutationRecoveryDescriptor {
-            Divider()
-            Button(recovery.copyActionLabel) {
-              NSPasteboard.general.clearContents()
-              NSPasteboard.general.setString(recovery.copyText, forType: .string)
-            }
-            .help(recovery.helpText)
-          }
         } else {
           Button("Copy Runtime Diagnostics") {}
             .disabled(true)
-          Button("Run Mutation Test") {}
-            .disabled(true)
-            .help("Select a project before running mutation testing.")
         }
       }
     }

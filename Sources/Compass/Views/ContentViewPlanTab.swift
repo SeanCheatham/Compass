@@ -274,10 +274,6 @@ struct PlanWorkflowMetadataRow: View {
         metadataLabel("No difficulty", systemImage: "gauge.with.dots.needle.bottom.50percent")
       }
 
-      if let mutationTestingReadiness = section.mutationTestingReadiness {
-        mutationReadinessLabel(mutationTestingReadiness, color: color)
-      }
-
       if section.kind != .immediate {
         metadataLabel("\(section.completedCount) completed", systemImage: "checkmark.circle")
       }
@@ -292,17 +288,6 @@ struct PlanWorkflowMetadataRow: View {
       .padding(.horizontal, 7)
       .padding(.vertical, 3)
       .background(color.opacity(0.1), in: Capsule())
-  }
-
-  private func mutationReadinessLabel(
-    _ readiness: AgentMutationTestingPlan,
-    color: Color
-  ) -> some View {
-    Label(readiness.badgeLabel, systemImage: readiness.systemImage)
-      .padding(.horizontal, 7)
-      .padding(.vertical, 3)
-      .background(color.opacity(readiness.isReady ? 0.12 : 0.08), in: Capsule())
-      .help(readiness.detailText)
   }
 }
 
@@ -712,13 +697,6 @@ struct PlanSessionHistoryCard: View {
         RuntimeRouteBadge(descriptor: item.runtimeRouteDescriptor)
       }
 
-      if let mutationTestingDescriptor = item.mutationTestingDescriptor {
-        MutationTestingHistoryBadge(descriptor: mutationTestingDescriptor)
-      }
-
-      if let mutationRecoveryDescriptor = item.mutationRecoveryDescriptor {
-        MutationTestingRecoveryHistoryBadge(descriptor: mutationRecoveryDescriptor)
-      }
 
       if let feedback = item.feedback {
         LabeledHistoryBlock(title: "Feedback", systemImage: "text.bubble") {
@@ -838,91 +816,6 @@ struct RuntimeRouteBadge: View {
       .padding(.vertical, 4)
       .background(.quaternary.opacity(0.5), in: Capsule())
       .help(descriptor.helpText)
-  }
-}
-
-
-struct MutationTestingHistoryBadge: View {
-  var descriptor: PlanSessionHistoryItem.MutationTestingDescriptor
-
-  var body: some View {
-    DisclosureGroup {
-      VStack(alignment: .leading, spacing: 6) {
-        Label(
-          "\(descriptor.routeLabel) · \(descriptor.languageLabel) · \(descriptor.exitCodeText) · \(descriptor.durationText)",
-          systemImage: "point.3.connected.trianglepath.dotted"
-        )
-        .font(.caption)
-        .foregroundStyle(.secondary)
-
-        Text(descriptor.seedCommandLabel)
-          .font(.caption.monospaced())
-          .foregroundStyle(.secondary)
-          .textSelection(.enabled)
-
-        if !descriptor.tailSummary.isEmpty {
-          Text(descriptor.tailSummary)
-            .font(.caption.monospaced())
-            .textSelection(.enabled)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(8)
-            .background(.black.opacity(0.045), in: RoundedRectangle(cornerRadius: 6))
-        }
-      }
-      .padding(.top, 4)
-    } label: {
-      Label(descriptor.badgeText, systemImage: descriptor.systemImage)
-        .font(.caption.weight(.semibold))
-        .foregroundStyle(color)
-        .lineLimit(2)
-        .fixedSize(horizontal: false, vertical: true)
-    }
-    .help(descriptor.helpText)
-  }
-
-  private var color: Color {
-    descriptor.isSuccessful ? .green : .red
-  }
-}
-
-
-struct MutationTestingRecoveryHistoryBadge: View {
-  var descriptor: MutationTestingRecoveryDescriptor
-
-  var body: some View {
-    DisclosureGroup {
-      VStack(alignment: .leading, spacing: 6) {
-        Label(descriptor.detailText, systemImage: descriptor.systemImage)
-          .font(.caption)
-          .foregroundStyle(.secondary)
-
-        Text(descriptor.copyText)
-          .font(.caption.monospaced())
-          .textSelection(.enabled)
-          .frame(maxWidth: .infinity, alignment: .leading)
-          .padding(8)
-          .background(.black.opacity(0.045), in: RoundedRectangle(cornerRadius: 6))
-
-        Button {
-          copyRuntimeDiagnosticsToPasteboard(descriptor.copyText)
-        } label: {
-          Label(descriptor.copyActionLabel, systemImage: "doc.on.doc")
-        }
-        .controlSize(.small)
-      }
-      .padding(.top, 4)
-    } label: {
-      Label(descriptor.badgeText, systemImage: descriptor.systemImage)
-        .font(.caption.weight(.semibold))
-        .foregroundStyle(color)
-        .lineLimit(2)
-        .fixedSize(horizontal: false, vertical: true)
-    }
-    .help(descriptor.helpText)
-  }
-
-  private var color: Color {
-    descriptor.isActive ? .red : .secondary
   }
 }
 

@@ -219,15 +219,6 @@ struct AgentExecutionEnvironmentDiagnosticsReport: Equatable, Identifiable {
   var imageLabel: String
   var workspaceLabel: String
   var fallbackReason: String
-  var mutationReadinessIdentifier: String
-  var mutationStatusIdentifier: String
-  var mutationRouteIdentifier: String
-  var mutationLanguageIdentifier: String
-  var mutationSeedCommandIdentifier: String
-  var mutationSeedCommandLabel: String
-  var mutationRecoveryStateIdentifier: String
-  var mutationRecoveryIdentifier: String
-  var mutationRecoveryDetail: String
   var copyActionIdentifier: String
   var copyIdentifier: String
 
@@ -236,8 +227,6 @@ struct AgentExecutionEnvironmentDiagnosticsReport: Equatable, Identifiable {
   init(
     environment: AgentExecutionEnvironment,
     launchPlan: AgentExecutionLaunchPlan,
-    mutationTestingPlan: AgentMutationTestingPlan? = nil,
-    mutationRecoveryDescriptor: MutationTestingRecoveryDescriptor? = nil,
     vmBundleSizeBytes: Int? = nil,
     vmGuestOSVersion: String? = nil
   ) {
@@ -263,47 +252,6 @@ struct AgentExecutionEnvironmentDiagnosticsReport: Equatable, Identifiable {
       limit: AgentExecutionLaunchPlan.fallbackReasonLimit
     )
 
-    if let mutationTestingPlan {
-      mutationReadinessIdentifier = Self.sanitizedField(
-        mutationTestingPlan.identifier, limit: Self.fieldLimit)
-      mutationStatusIdentifier = Self.sanitizedField(
-        mutationTestingPlan.statusIdentifier, limit: Self.fieldLimit)
-      mutationRouteIdentifier = Self.sanitizedField(
-        mutationTestingPlan.routeIdentifier, limit: Self.fieldLimit)
-      mutationLanguageIdentifier = Self.sanitizedField(
-        mutationTestingPlan.languageIdentifier, limit: Self.fieldLimit)
-      mutationSeedCommandIdentifier = Self.sanitizedField(
-        mutationTestingPlan.seedCommandIdentifier, limit: Self.fieldLimit)
-      mutationSeedCommandLabel = Self.sanitizedField(
-        mutationTestingPlan.seedCommandLabel, limit: Self.fieldLimit)
-    } else {
-      mutationReadinessIdentifier = "not-evaluated"
-      mutationStatusIdentifier = "not-evaluated"
-      mutationRouteIdentifier = "not-evaluated"
-      mutationLanguageIdentifier = "not-evaluated"
-      mutationSeedCommandIdentifier = "none"
-      mutationSeedCommandLabel = "none"
-    }
-
-    if let mutationRecoveryDescriptor {
-      mutationRecoveryStateIdentifier = Self.sanitizedField(
-        mutationRecoveryDescriptor.stateIdentifier,
-        limit: Self.fieldLimit
-      )
-      mutationRecoveryIdentifier = Self.sanitizedField(
-        mutationRecoveryDescriptor.identifier,
-        limit: Self.fieldLimit
-      )
-      mutationRecoveryDetail = Self.sanitizedField(
-        mutationRecoveryDescriptor.detailText,
-        limit: Self.helpLimit
-      )
-    } else {
-      mutationRecoveryStateIdentifier = "not-evaluated"
-      mutationRecoveryIdentifier = "none"
-      mutationRecoveryDetail = "none"
-    }
-
     copyActionIdentifier = Self.stableCopyActionIdentifier
     copyIdentifier = [
       Self.copyIdentifierPrefix,
@@ -328,15 +276,6 @@ struct AgentExecutionEnvironmentDiagnosticsReport: Equatable, Identifiable {
         "image: \(imageLabel)",
         "workspace: \(workspaceLabel)",
         "fallback: \(fallbackReason)",
-        "mutation-readiness-id: \(mutationReadinessIdentifier)",
-        "mutation-status: \(mutationStatusIdentifier)",
-        "mutation-route: \(mutationRouteIdentifier)",
-        "mutation-language: \(mutationLanguageIdentifier)",
-        "mutation-seed-id: \(mutationSeedCommandIdentifier)",
-        "mutation-seed-command: \(mutationSeedCommandLabel)",
-        "mutation-recovery-state: \(mutationRecoveryStateIdentifier)",
-        "mutation-recovery-id: \(mutationRecoveryIdentifier)",
-        "mutation-recovery-detail: \(mutationRecoveryDetail)",
       ].joined(separator: "\n"),
       limit: Self.copyTextLimit
     )
@@ -450,7 +389,7 @@ struct AgentExecutionEnvironmentCopyDiagnosticsAction: Identifiable, Equatable {
 
   var description: String {
     Self.boundedText(
-      "Copy a bounded sanitized runtime report for the selected route, VM readiness, and mutation status.",
+      "Copy a bounded sanitized runtime report for the selected route and VM readiness.",
       limit: Self.descriptionLimit
     )
   }
@@ -485,15 +424,10 @@ struct AgentExecutionEnvironmentMenu: Equatable {
   var helpText: String
   var statusText: String
   var copyDiagnosticsAction: AgentExecutionEnvironmentCopyDiagnosticsAction
-  var mutationTestingAction: AgentMutationTestingMenuAction?
-  var mutationRecoveryDescriptor: MutationTestingRecoveryDescriptor?
 
   init(
     environment: AgentExecutionEnvironment,
     launchPlan: AgentExecutionLaunchPlan? = nil,
-    mutationTestingPlan: AgentMutationTestingPlan? = nil,
-    mutationRecoveryDescriptor: MutationTestingRecoveryDescriptor? = nil,
-    mutationExecutionState: AgentMutationTestingMenuAction.ExecutionState = .idle,
     vmBundleSizeBytes: Int? = nil,
     vmGuestOSVersion: String? = nil
   ) {
@@ -509,18 +443,9 @@ struct AgentExecutionEnvironmentMenu: Equatable {
       report: AgentExecutionEnvironmentDiagnosticsReport(
         environment: environment,
         launchPlan: effectiveLaunchPlan,
-        mutationTestingPlan: mutationTestingPlan,
-        mutationRecoveryDescriptor: mutationRecoveryDescriptor,
         vmBundleSizeBytes: vmBundleSizeBytes,
         vmGuestOSVersion: vmGuestOSVersion
       )
     )
-    mutationTestingAction = mutationTestingPlan.map {
-      AgentMutationTestingMenuAction(
-        readiness: $0,
-        executionState: mutationExecutionState
-      )
-    }
-    self.mutationRecoveryDescriptor = mutationRecoveryDescriptor
   }
 }

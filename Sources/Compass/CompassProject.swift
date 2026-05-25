@@ -54,7 +54,6 @@ final class CompassProject: ObservableObject, Identifiable {
   /// new refresh. Set in `refreshCodemapIfNeeded(...)`.
   var codemapRefreshedForSession: Int?
   let storageMigrationAction: CompassWorkspaceStorageMigrationAction
-  let mutationTestingRunner: ProcessRunner.InvocationRunner?
   let maxDevelopAttempts = 3
   /// Maximum number of adversarial Critic reviews per Develop iteration.
   /// After this many critic-rejected passes, Compass accepts the latest
@@ -77,8 +76,7 @@ final class CompassProject: ObservableObject, Identifiable {
       KnownProjectStore.productionApplicationSupportRoots(),
     storageMigrationAction: @escaping CompassWorkspaceStorageMigrationAction = { plan in
       try CompassWorkspaceStorageMigrator().migrate(plan: plan)
-    },
-    mutationTestingRunner: ProcessRunner.InvocationRunner? = nil
+    }
   ) {
     self.id = id
     self.repoURL = repoURL.standardizedFileURL
@@ -90,7 +88,6 @@ final class CompassProject: ObservableObject, Identifiable {
     self.nativeFeedbackMode = nativeFeedbackMode
     self.storageApplicationSupportRoots = storageApplicationSupportRoots
     self.storageMigrationAction = storageMigrationAction
-    self.mutationTestingRunner = mutationTestingRunner
   }
 }
 

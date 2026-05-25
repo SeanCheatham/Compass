@@ -245,10 +245,6 @@ final class AppModel: ObservableObject {
     await selectedProject.play(agentSettings: agentSettings, modelOverride: modelOverride)
   }
 
-  func runMutationTestingForSelectedProject() async {
-    await selectedProject?.runMutationTesting()
-  }
-
   func refreshSelectedProject() async {
     await selectedProject?.refresh()
   }

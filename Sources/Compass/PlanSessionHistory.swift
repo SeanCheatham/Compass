@@ -7,107 +7,6 @@ struct PlanSessionHistoryItem: Identifiable, Equatable {
     var tail: String
   }
 
-  struct MutationTestingDescriptor: Equatable {
-    static let badgeTextLimit = 120
-    static let helpTextLimit = 360
-    static let tailSummaryLimit = 260
-    static let tailLineLimit = 4
-
-    var statusIdentifier: String
-    var statusLabel: String
-    var routeIdentifier: String
-    var routeLabel: String
-    var languageIdentifier: String
-    var languageLabel: String
-    var seedCommandLabel: String
-    var mutationCommandLabel: String
-    var exitCodeText: String
-    var durationText: String
-    var tailSummary: String
-    var badgeText: String
-    var helpText: String
-
-    init?(execution: SessionMutationTestingExecution?) {
-      guard let execution else { return nil }
-
-      let statusIdentifier = MutationTestingPresentationSanitizer.statusIdentifier(
-        execution.statusIdentifier
-      )
-      let statusLabel = MutationTestingPresentationSanitizer.statusLabel(statusIdentifier)
-      let routeIdentifier = MutationTestingPresentationSanitizer.routeIdentifier(
-        execution.routeIdentifier
-      )
-      let routeLabel = MutationTestingPresentationSanitizer.routeLabel(routeIdentifier)
-      let languageIdentifier = MutationTestingPresentationSanitizer.languageIdentifier(
-        execution.languageIdentifier
-      )
-      let languageLabel = MutationTestingPresentationSanitizer.languageLabel(languageIdentifier)
-      let seedCommandLabel = MutationTestingPresentationSanitizer.field(
-        execution.seedCommandLabel,
-        limit: SessionMutationTestingExecution.commandLimit
-      )
-      let mutationCommandLabel = MutationTestingPresentationSanitizer.field(
-        execution.mutationCommandLabel,
-        limit: SessionMutationTestingExecution.commandLimit
-      )
-      let exitCodeText = MutationTestingPresentationSanitizer.exitCodeLabel(execution.exitCode)
-      let durationText = MutationTestingPresentationSanitizer.durationLabel(
-        startedAt: execution.startedAt,
-        endedAt: execution.endedAt
-      )
-      let tailSummary = MutationTestingPresentationSanitizer.outputTail(
-        execution.outputTail,
-        limit: Self.tailSummaryLimit,
-        lineLimit: Self.tailLineLimit
-      )
-      let badgeText = MutationTestingPresentationSanitizer.bounded(
-        [
-          "Mutation \(statusLabel.lowercased())",
-          routeLabel,
-          languageLabel,
-          exitCodeText,
-          durationText,
-        ].joined(separator: " · "),
-        limit: Self.badgeTextLimit
-      )
-      let helpText = MutationTestingPresentationSanitizer.bounded(
-        [
-          "Status: \(statusLabel)",
-          "Route: \(routeLabel)",
-          "Language: \(languageLabel)",
-          "Seed: \(seedCommandLabel)",
-          "Mutation: \(mutationCommandLabel)",
-          "Exit: \(exitCodeText)",
-          "Duration: \(durationText)",
-          "Tail: \(tailSummary.isEmpty ? "none" : tailSummary)",
-        ].joined(separator: "; "),
-        limit: Self.helpTextLimit
-      )
-
-      self.statusIdentifier = statusIdentifier
-      self.statusLabel = statusLabel
-      self.routeIdentifier = routeIdentifier
-      self.routeLabel = routeLabel
-      self.languageIdentifier = languageIdentifier
-      self.languageLabel = languageLabel
-      self.seedCommandLabel = seedCommandLabel
-      self.mutationCommandLabel = mutationCommandLabel
-      self.exitCodeText = exitCodeText
-      self.durationText = durationText
-      self.tailSummary = tailSummary
-      self.badgeText = badgeText
-      self.helpText = helpText
-    }
-
-    var isSuccessful: Bool {
-      statusIdentifier == "succeeded"
-    }
-
-    var systemImage: String {
-      isSuccessful ? "testtube.2" : "exclamationmark.triangle"
-    }
-  }
-
   struct RuntimeRouteDescriptor: Equatable {
     static let badgeTextLimit = 120
     static let helpTextLimit = 260
@@ -417,8 +316,6 @@ struct PlanSessionHistoryItem: Identifiable, Equatable {
   var failedVerify: FailedVerify?
   var runtimeRouteSummary: String?
   var runtimeRouteDescriptor: RuntimeRouteDescriptor
-  var mutationTestingDescriptor: MutationTestingDescriptor?
-  var mutationRecoveryDescriptor: MutationTestingRecoveryDescriptor?
 
   init(
     sessionNumber: Int,
@@ -432,9 +329,7 @@ struct PlanSessionHistoryItem: Identifiable, Equatable {
     commits: [SessionCommit],
     failedVerify: FailedVerify?,
     runtimeRouteSummary: String?,
-    runtimeRouteDescriptor: RuntimeRouteDescriptor = .unavailable,
-    mutationTestingDescriptor: MutationTestingDescriptor? = nil,
-    mutationRecoveryDescriptor: MutationTestingRecoveryDescriptor? = nil
+    runtimeRouteDescriptor: RuntimeRouteDescriptor = .unavailable
   ) {
     self.sessionNumber = sessionNumber
     self.status = status
@@ -448,8 +343,6 @@ struct PlanSessionHistoryItem: Identifiable, Equatable {
     self.failedVerify = failedVerify
     self.runtimeRouteSummary = runtimeRouteSummary
     self.runtimeRouteDescriptor = runtimeRouteDescriptor
-    self.mutationTestingDescriptor = mutationTestingDescriptor
-    self.mutationRecoveryDescriptor = mutationRecoveryDescriptor
   }
 }
 
@@ -566,7 +459,6 @@ enum PlanSessionHistoryFilter: String, CaseIterable, Identifiable, Equatable, Ha
         || runCue?.kind == .rejectedPlan
         || runCue?.kind == .developFailed
         || runCue?.kind == .failedVerify
-        || runCue?.kind == .mutationTestingRecovery
         || runCue?.kind == .dirtyWorktree
         || runCue?.kind == .promotionFailed
     case .completedFinished:
@@ -714,8 +606,6 @@ enum PlanSessionHistory {
     for sessions: [SessionRecord],
     planExcerptLimit: Int = defaultPlanExcerptLimit
   ) -> [PlanSessionHistoryItem] {
-    let latestMutationContext = MutationTestingRecoveryDescriptor.latestContext(in: sessions)
-
     return
       sessions
       .sorted { lhs, rhs in
@@ -740,13 +630,6 @@ enum PlanSessionHistory {
           runtimeRouteSummary: latestRuntimeSnapshot?.routeSummary,
           runtimeRouteDescriptor: PlanSessionHistoryItem.RuntimeRouteDescriptor(
             snapshot: latestRuntimeSnapshot
-          ),
-          mutationTestingDescriptor: PlanSessionHistoryItem.MutationTestingDescriptor(
-            execution: session.mutationTestingExecutions.last
-          ),
-          mutationRecoveryDescriptor: MutationTestingRecoveryDescriptor.historyDescriptor(
-            session: session,
-            latestContext: latestMutationContext
           )
         )
       }

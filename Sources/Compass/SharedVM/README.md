@@ -30,10 +30,10 @@ warmup ──▶ notProvisioned ──▶ downloadingIPSW ──▶ installing
                                            LaunchDaemons over vsock:
                                            first softwareupdate -i for
                                            Xcode Command Line Tools,
-                                           then builds and installs Muter
-                                           for Swift mutation testing;
-                                           host polls sentinel files and
-                                           surfaces phase progress)
+                                           then builds and installs ripgrep
+                                           for agent search; host polls
+                                           sentinel files and surfaces
+                                           phase progress)
                                                        │
                                                        ▼
                                                     ready

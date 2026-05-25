@@ -61,20 +61,20 @@ final class AgentSystemPromptTests: XCTestCase {
       "Reflect must not be told about write_file")
   }
 
-  func testDevelopPhaseAdvertisesMutationTools() {
+  func testDevelopPhaseAdvertisesWriteTools() {
     let prompt = Prompts.agentSystemPrompt(phase: .develop, workingDirectoryPath: "/x")
-    XCTAssertTrue(prompt.contains("Mutation tools"))
+    XCTAssertTrue(prompt.contains("Write tools"))
     XCTAssertTrue(prompt.contains("write_file"))
     XCTAssertTrue(prompt.contains("bash"))
   }
 
-  func testCriticPhaseAdvertisesBashButNotMutationTools() {
+  func testCriticPhaseAdvertisesBashButNotWriteTools() {
     let prompt = Prompts.agentSystemPrompt(phase: .critic, workingDirectoryPath: "/x")
     XCTAssertTrue(
       prompt.contains("bash"),
       "Critic must see `bash` for re-running tests / linters")
     XCTAssertFalse(
-      prompt.contains("Mutation tools"),
+      prompt.contains("Write tools"),
       "Critic must not be told about write/edit tools")
     XCTAssertFalse(
       prompt.contains("write_file"),

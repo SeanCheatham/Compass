@@ -23,28 +23,9 @@ extension CompassProject {
   }
 
   var runtimeDiagnosticsMenu: AgentExecutionEnvironmentMenu {
-    let environment = agentExecutionEnvironment
-    // Both Develop and mutation testing route off the main repo
-    // URL now (the per-iteration host worktree concept is gone),
-    // so the env-presentation plan and the mutation-testing plan
-    // share the same launch plan.
-    let envLaunchPlan = agentLaunchPlan(for: repoURL)
-    let mutationLaunchPlan = envLaunchPlan
-    let mutationTestingPlan = AgentMutationTestingPlan(
-      state: state,
-      languageProfile: languageProfile,
-      launchPlan: mutationLaunchPlan
-    )
-    let mutationRecoveryDescriptor = MutationTestingRecoveryDescriptor.runtimeDescriptor(
-      sessions: sessions,
-      readiness: mutationTestingPlan
-    )
-    return AgentExecutionEnvironmentMenu(
-      environment: environment,
-      launchPlan: envLaunchPlan,
-      mutationTestingPlan: mutationTestingPlan,
-      mutationRecoveryDescriptor: mutationRecoveryDescriptor,
-      mutationExecutionState: mutationTestingExecutionState
+    AgentExecutionEnvironmentMenu(
+      environment: agentExecutionEnvironment,
+      launchPlan: agentLaunchPlan(for: repoURL)
     )
   }
 
@@ -66,19 +47,5 @@ extension CompassProject {
 
   var isIdleForActiveStorageActivation: Bool {
     !isRunning && !isAutoPlaying && !isPaused
-  }
-
-  var isIdleForMutationTesting: Bool {
-    !isRunning
-      && !isAutoPlaying
-      && !isPaused
-      && !storageMigrationState.isRunning
-      && !activeStorageActivationState.isRunning
-  }
-
-  var mutationTestingExecutionState: AgentMutationTestingMenuAction.ExecutionState {
-    if isPaused { return .paused }
-    if !isIdleForMutationTesting { return .running }
-    return .idle
   }
 }

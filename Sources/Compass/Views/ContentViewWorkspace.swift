@@ -588,29 +588,6 @@ struct ProjectRunControls: View {
           Label(diagnosticsAction.title, systemImage: diagnosticsAction.systemImage)
         }
         Text(diagnosticsAction.description)
-        if let mutationAction = executionEnvironmentMenu.mutationTestingAction {
-          Divider()
-          Button {
-            Task { await project.runMutationTesting() }
-          } label: {
-            Label(mutationAction.title, systemImage: mutationAction.systemImage)
-          }
-          .disabled(!mutationAction.isEnabled)
-          .help(mutationAction.helpText)
-          Text(mutationAction.description)
-          Text(mutationAction.helpText)
-        }
-        if let recovery = executionEnvironmentMenu.mutationRecoveryDescriptor {
-          Divider()
-          Text(recovery.badgeText)
-          Button {
-            copyRuntimeDiagnosticsToPasteboard(recovery.copyText)
-          } label: {
-            Label(recovery.copyActionLabel, systemImage: "doc.on.doc")
-          }
-          .help(recovery.helpText)
-          Text(recovery.detailText)
-        }
       } label: {
         Image(systemName: executionEnvironmentMenu.labelSystemImage)
           .frame(width: 18, height: 18)

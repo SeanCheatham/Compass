@@ -169,31 +169,6 @@ final class ProjectReliabilityStatusTests: XCTestCase {
     XCTAssertEqual(status.detail, "Develop sandbox produced no commit to promote.")
   }
 
-  func testMutationRecoveryStatusCarriesReviewMetadata() {
-    let session = makeSession(
-      12,
-      status: .failed,
-      mutationTestingExecutions: [
-        makeMutationExecution(
-          verify: "swift test --filter MutationRecovery",
-          exitCode: 65,
-          startedAt: 12_000,
-          endedAt: 12_900,
-          outputTail: "mutation failure tail"
-        )
-      ]
-    )
-    let feedback = PlanReliabilityFeedback(state: makeState(), sessions: [session])
-
-    let status = ProjectReliabilityStatus(feedback: feedback)
-
-    XCTAssertEqual(status.primaryCue, "Mutation recovery")
-    XCTAssertEqual(status.severity, .failure)
-    XCTAssertEqual(status.actionLabel, "Review Mutation")
-    XCTAssertEqual(status.metadata, "#12 · swift test --filter MutationRecovery · exit 65")
-    XCTAssertEqual(status.detail, "mutation failure tail")
-  }
-
   func testAwaitingApprovalStatusUsesResumeCue() {
     let session = makeSession(
       6,
@@ -278,8 +253,7 @@ final class ProjectReliabilityStatusTests: XCTestCase {
     verify: String? = "swift test --filter ProjectReliabilityStatusTests",
     notes: [String] = [],
     verifyOutput: VerifyOutput? = nil,
-    feedback: String? = nil,
-    mutationTestingExecutions: [SessionMutationTestingExecution] = []
+    feedback: String? = nil
   ) -> SessionRecord {
     let start = startedAt ?? Double(number) * 1_000
     return SessionRecord(
@@ -294,36 +268,7 @@ final class ProjectReliabilityStatusTests: XCTestCase {
       status: status,
       notes: notes,
       verifyOutput: verifyOutput,
-      feedback: feedback,
-      mutationTestingExecutions: mutationTestingExecutions
-    )
-  }
-
-  private func makeMutationExecution(
-    verify: String,
-    exitCode: Int?,
-    startedAt: Double,
-    endedAt: Double,
-    outputTail: String
-  ) -> SessionMutationTestingExecution {
-    let launchPlan = AgentExecutionLaunchPlan.host()
-    let readiness = AgentMutationTestingPlan(
-      state: PlanState(
-        completed: [],
-        immediate: PlanNext(plan: "Run mutation testing", verify: verify),
-        midTerm: "",
-        longTerm: ""
-      ),
-      languageProfile: profile(.swift),
-      launchPlan: launchPlan
-    )
-    return SessionMutationTestingExecution(
-      readiness: readiness,
-      exitCode: exitCode,
-      startedAt: startedAt,
-      endedAt: endedAt,
-      outputTail: outputTail,
-      launchPlan: launchPlan
+      feedback: feedback
     )
   }
 

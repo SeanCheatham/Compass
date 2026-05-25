@@ -767,7 +767,7 @@ final class SharedCompassVM: ObservableObject {
       )
       if probeOK {
         lastResolvedSSHDestination = destination
-        await ensureMutationToolsIfNeeded()
+        await ensureRipgrepIfNeeded()
         transition(to: .ready(sshDestination: destination))
         return
       }
@@ -991,11 +991,11 @@ final class SharedCompassVM: ObservableObject {
   }
 
   /// Drives `SharedCompassVMDevToolsProvisioner` and
-  /// `SharedCompassVMMutationToolsProvisioner` against the live VM using a
+  /// `SharedCompassVMRipgrepProvisioner` against the live VM using a
   /// vsock-backed bash runner. Updates readiness with progress while each
-  /// install runs, and flips to `.ready` once CLT, Muter, and ripgrep
-  /// verify. Safe to call when tools are already installed — each
-  /// provisioner's probe short-circuits and `progress(1)` fires immediately.
+  /// install runs, and flips to `.ready` once CLT and ripgrep verify.
+  /// Safe to call when tools are already installed — each provisioner's
+  /// probe short-circuits and `progress(1)` fires immediately.
   private func runDevToolsProvisioner(destination: String) async {
     guard let machine = virtualMachine else {
       transition(to: .error(detail: "Shared VM is not running; cannot install developer tools."))
@@ -1014,7 +1014,7 @@ final class SharedCompassVM: ObservableObject {
         runner: client,
         progress: { fraction in
           await MainActor.run {
-            host.transition(to: .provisioningDevTools(fractionCompleted: fraction * 0.85))
+            host.transition(to: .provisioningDevTools(fractionCompleted: fraction * 0.9))
           }
         }
       )
@@ -1024,16 +1024,16 @@ final class SharedCompassVM: ObservableObject {
     }
 
     do {
-      _ = try await SharedCompassVMMutationToolsProvisioner.provision(
+      _ = try await SharedCompassVMRipgrepProvisioner.provision(
         runner: client,
         progress: { fraction in
           await MainActor.run {
-            host.transition(to: .provisioningDevTools(fractionCompleted: 0.85 + fraction * 0.15))
+            host.transition(to: .provisioningDevTools(fractionCompleted: 0.9 + fraction * 0.1))
           }
         }
       )
     } catch {
-      transition(to: .error(detail: "Mutation-tools install failed: \(error)"))
+      transition(to: .error(detail: "Ripgrep install failed: \(error)"))
       return
     }
 
@@ -1043,34 +1043,32 @@ final class SharedCompassVM: ObservableObject {
     transition(to: .ready(sshDestination: destination))
   }
 
-  /// Backfills Muter on guests that were provisioned before mutation-tool
-  /// install was added. Failures are non-fatal — the VM still becomes ready
-  /// and auto mutation testing skips when the runner is missing.
-  private func ensureMutationToolsIfNeeded() async {
+  /// Backfills ripgrep on guests that were provisioned before agent-search
+  /// tooling was added. Failures are non-fatal — grep falls back to BSD grep.
+  private func ensureRipgrepIfNeeded() async {
     guard let machine = virtualMachine else { return }
     guard await SharedCompassVMVsock.waitUntilReachable(on: machine) else { return }
     let client = Self.makeVsockClient(on: machine)
     do {
-      if try await SharedCompassVMMutationToolsProvisioner.probeAlreadyInstalled(runner: client) {
+      if try await SharedCompassVMRipgrepProvisioner.probeAlreadyInstalled(runner: client) {
         return
       }
     } catch {
       return
     }
 
-    transition(to: .provisioningDevTools(fractionCompleted: 0.85))
+    transition(to: .provisioningDevTools(fractionCompleted: 0.9))
     do {
-      _ = try await SharedCompassVMMutationToolsProvisioner.provision(
+      _ = try await SharedCompassVMRipgrepProvisioner.provision(
         runner: client,
         progress: { fraction in
           await MainActor.run {
-            self.transition(to: .provisioningDevTools(fractionCompleted: 0.85 + fraction * 0.15))
+            self.transition(to: .provisioningDevTools(fractionCompleted: 0.9 + fraction * 0.1))
           }
         }
       )
     } catch {
-      // Non-fatal: older guests can still run Develop/Verify; mutation
-      // auto-loop treats a missing runner as a skip until reprovision.
+      // Non-fatal: agent grep falls back to BSD grep until reprovision succeeds.
     }
   }
 

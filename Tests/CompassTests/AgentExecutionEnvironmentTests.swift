@@ -122,31 +122,6 @@ final class AgentExecutionEnvironmentTests: XCTestCase {
     XCTAssertFalse(report.copyText.contains(repoURL.path))
   }
 
-  func testRuntimeDiagnosticsReportIncludesMutationReadinessWithoutLeaks() throws {
-    let plan = AgentExecutionLaunchPlan.host()
-    let environment = AgentExecutionEnvironment.discover(vmReadiness: .notProvisioned)
-    var counts = RepositoryLanguageCounts()
-    counts[.swift] = 1
-    let mutationPlan = AgentMutationTestingPlan(
-      immediate: PlanNext(plan: "Improve coverage", verify: "swift test"),
-      languageProfile: RepositoryLanguageProfile(
-        counts: counts,
-        manifestHints: [],
-        primaryLanguage: .swift,
-        scannedFileCount: 1,
-        scannedDirectoryCount: 1,
-        wasTruncated: false
-      ),
-      launchPlan: plan
-    )
-    let report = AgentExecutionEnvironmentDiagnosticsReport(
-      environment: environment,
-      launchPlan: plan,
-      mutationTestingPlan: mutationPlan
-    )
-    XCTAssertTrue(report.copyText.contains("mutation-language: swift"))
-  }
-
   func testRuntimeDiagnosticsReportCoversMissingAndMalformedProvisioningStates() throws {
     let plan = AgentExecutionLaunchPlan.host()
     let environment = AgentExecutionEnvironment.discover(vmReadiness: .notProvisioned)

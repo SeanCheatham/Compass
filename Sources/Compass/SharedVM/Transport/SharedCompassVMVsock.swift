@@ -1,4 +1,3 @@
-import Darwin
 import Foundation
 import Virtualization
 
@@ -36,6 +35,47 @@ enum SharedCompassVMVsock {
     }
   }
 
+  /// Polls until the in-guest Compass agent completes a minimal bash RPC.
+  /// A bare vsock connect can succeed before the agent speaks the wire
+  /// protocol, which surfaces as `lengthHeaderTooShort` on the first real
+  /// RPC. SSH coming up first is a separate, earlier race — callers must
+  /// still wait here after sshd responds.
+  @MainActor
+  static func waitUntilReachable(
+    on machine: VZVirtualMachine,
+    port: UInt32 = guestAgentPort,
+    timeout: TimeInterval = 300,
+    probeTimeout: TimeInterval = 10,
+    sleep: @Sendable (UInt64) async -> Void = { ns in try? await Task.sleep(nanoseconds: ns) }
+  ) async -> Bool {
+    let deadline = Date().addingTimeInterval(timeout)
+    var attemptIntervalNanoseconds: UInt64 = 2_000_000_000
+    while Date() < deadline {
+      let client = AgentVsockClient(
+        transportFactory: {
+          let connection = try await connect(port: port, on: machine)
+          return VZVirtioSocketTransport(connection: connection)
+        },
+        requestTimeout: probeTimeout
+      )
+      do {
+        let result = try await client.run(
+          command: "true",
+          workingDirectory: URL(fileURLWithPath: "/"),
+          timeout: probeTimeout
+        )
+        if result.exitCode == 0 {
+          return true
+        }
+      } catch {
+        // Agent not ready yet — retry after backoff.
+      }
+      await sleep(attemptIntervalNanoseconds)
+      attemptIntervalNanoseconds = min(attemptIntervalNanoseconds * 2, 10_000_000_000)
+    }
+    return false
+  }
+
   /// Opens a vsock connection to `port` on the guest. Returns the live
   /// `VZVirtioSocketConnection`; the caller owns it and is responsible
   /// for reading/writing on its file descriptor and closing it when done.
@@ -49,31 +89,6 @@ enum SharedCompassVMVsock {
   /// from non-MainActor async contexts (e.g. `AgentVsockClient`'s
   /// transport factory). The completion handler may fire on any queue;
   /// the continuation resume is queue-agnostic.
-  /// Polls until the in-guest Compass agent accepts a vsock connection.
-  /// SSH can come up well before the LaunchDaemon-loaded guest agent is
-  /// listening, so callers that only waited on sshd must still wait here.
-  @MainActor
-  static func waitUntilReachable(
-    on machine: VZVirtualMachine,
-    port: UInt32 = guestAgentPort,
-    timeout: TimeInterval = 300,
-    sleep: @Sendable (UInt64) async -> Void = { ns in try? await Task.sleep(nanoseconds: ns) }
-  ) async -> Bool {
-    let deadline = Date().addingTimeInterval(timeout)
-    var attemptIntervalNanoseconds: UInt64 = 2_000_000_000
-    while Date() < deadline {
-      do {
-        let connection = try await connect(port: port, on: machine)
-        Darwin.close(connection.fileDescriptor)
-        return true
-      } catch {
-        await sleep(attemptIntervalNanoseconds)
-        attemptIntervalNanoseconds = min(attemptIntervalNanoseconds * 2, 10_000_000_000)
-      }
-    }
-    return false
-  }
-
   @MainActor
   static func connect(
     port: UInt32 = guestAgentPort,

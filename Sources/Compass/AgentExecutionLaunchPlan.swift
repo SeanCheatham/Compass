@@ -221,11 +221,11 @@ struct AgentExecutionLaunchPlan: Equatable {
   }
 
   /// Build a one-shot shell invocation. Used by `ProcessRunner.runShell` for
-  /// out-of-agent commands like mutation testing and Verify steps.
+  /// out-of-agent commands like Verify steps.
   ///
   /// Always returns a host-side `/bin/zsh -lc` invocation, even when
   /// the effective route is `.sharedVM`. Under `.sharedVM`, Verify and
-  /// Mutation go through the vsock bash RPC instead of this helper;
+  /// Verify goes through the vsock bash RPC instead of this helper;
   /// the host fallback remains for Plan/Reflect and for repos outside
   /// the guest workspaces share.
   func shellInvocation(command: String, hostWorkingDirectory: URL) -> AgentExecutionInvocation {

@@ -100,26 +100,6 @@ struct SidebarView: View {
             }
             .help(diagnosticsAction.helpText)
           }
-          if let mutationAction = model.selectedProject?.runtimeDiagnosticsMenu
-            .mutationTestingAction
-          {
-            Button {
-              Task { await model.runMutationTestingForSelectedProject() }
-            } label: {
-              Label(mutationAction.title, systemImage: mutationAction.systemImage)
-            }
-            .disabled(!mutationAction.isEnabled)
-            .help(mutationAction.helpText)
-          }
-          if let recovery = model.selectedProject?.runtimeDiagnosticsMenu.mutationRecoveryDescriptor
-          {
-            Button {
-              copyRuntimeDiagnosticsToPasteboard(recovery.copyText)
-            } label: {
-              Label(recovery.copyActionLabel, systemImage: "doc.on.doc")
-            }
-            .help(recovery.helpText)
-          }
         }
         .padding(.top, 8)
       } label: {

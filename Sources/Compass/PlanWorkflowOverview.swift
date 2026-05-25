@@ -43,15 +43,6 @@ struct PlanWorkflowOverview: Equatable {
     excerptLimit: Int = Self.defaultExcerptLimit
   ) {
     completedCount = state.completed.count
-    let mutationTestingReadiness = languageProfile.flatMap { profile in
-      launchPlan.map {
-        AgentMutationTestingPlan(
-          state: state,
-          languageProfile: profile,
-          launchPlan: $0
-        )
-      }
-    }
     immediate = Section(
       kind: .immediate,
       title: "Immediate Work",
@@ -64,7 +55,6 @@ struct PlanWorkflowOverview: Equatable {
         PlanVerifyMetadata(timeoutMs: $0.verifyTimeoutMs).label
       },
       estimatedDifficulty: state.immediate?.estimatedDifficulty,
-      mutationTestingReadiness: mutationTestingReadiness,
       completedCount: completedCount,
       excerptLimit: excerptLimit
     )
@@ -101,7 +91,6 @@ struct PlanWorkflowOverview: Equatable {
     var verifyCommand: String?
     var verifyTimeoutLabel: String?
     var estimatedDifficulty: PlanNext.Difficulty?
-    var mutationTestingReadiness: AgentMutationTestingPlan?
     var completedCount: Int
 
     var id: Kind { kind }
@@ -124,7 +113,6 @@ struct PlanWorkflowOverview: Equatable {
       verifyCommand: String? = nil,
       verifyTimeoutLabel: String? = nil,
       estimatedDifficulty: PlanNext.Difficulty? = nil,
-      mutationTestingReadiness: AgentMutationTestingPlan? = nil,
       completedCount: Int,
       excerptLimit: Int
     ) {
@@ -139,7 +127,6 @@ struct PlanWorkflowOverview: Equatable {
       self.verifyCommand = verifyCommand?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
       self.verifyTimeoutLabel = verifyTimeoutLabel
       self.estimatedDifficulty = estimatedDifficulty
-      self.mutationTestingReadiness = mutationTestingReadiness
       self.completedCount = completedCount
     }
   }
