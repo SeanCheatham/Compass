@@ -68,7 +68,7 @@ struct CompassApp: App {
   /// Mirrors `ContentView.isOnboardingComplete` so menu shortcuts
   /// (⌘O / ⌘R / ⌘Return) can't bypass the onboarding gate.
   private var isOnboardingComplete: Bool {
-    sharedVMHost.readiness.isReady && !model.agentSettings.apiKey.isEmpty
+    sharedVMHost.readiness.isReady && model.agentSettings.isTextCapabilityReady
   }
 
   var body: some Scene {

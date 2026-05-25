@@ -89,14 +89,11 @@ struct OnboardingView: View {
     }
   }
 
-  /// True when the Text capability is ready to drive a run:
-  /// Foundation Models (on-device, no key needed) or an
-  /// OpenAI-compatible provider with an API key configured.
+  /// True when the Text capability is ready to drive a run. Mirrors
+  /// `ContentView.isOnboardingComplete`'s Text-side check — see
+  /// `AgentRuntimeSettings.isTextCapabilityReady`.
   private var textProviderConfigured: Bool {
-    if model.agentSettings.textProvider.requiresCredentials {
-      return !model.agentSettings.apiKey.isEmpty
-    }
-    return true
+    model.agentSettings.isTextCapabilityReady
   }
 
   @ViewBuilder

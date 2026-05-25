@@ -37,10 +37,12 @@ struct ContentView: View {
   }
 
   /// Mandatory onboarding gate. Compass routes every agent run through
-  /// the Shared VM and needs an API key to call the LLM, so neither is
-  /// optional — the rest of the UI is hidden until both land.
+  /// the Shared VM and needs a configured Text provider to call the
+  /// LLM, so neither is optional — the rest of the UI is hidden until
+  /// both land. On-device Foundation Models is "configured" once
+  /// selected (no API key required); HTTP providers also need a key.
   private var isOnboardingComplete: Bool {
-    sharedVMHost.readiness.isReady && !model.agentSettings.apiKey.isEmpty
+    sharedVMHost.readiness.isReady && model.agentSettings.isTextCapabilityReady
   }
 }
 
