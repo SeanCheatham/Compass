@@ -60,7 +60,8 @@ struct PlanTab: View {
           display: sessionHistoryDisplay,
           showAllRuns: $showAllSessionHistory,
           selectedFilter: $sessionHistoryFilter,
-          runCues: reliabilityFeedback.recentRunCues
+          runCues: reliabilityFeedback.recentRunCues,
+          repoURL: project.repoURL
         )
       }
       .frame(maxWidth: 1060, alignment: .leading)
@@ -559,6 +560,7 @@ struct PlanSessionHistorySection: View {
   @Binding var showAllRuns: Bool
   @Binding var selectedFilter: PlanSessionHistoryFilter
   var runCues: [Int: PlanReliabilityFeedback.RunCue] = [:]
+  var repoURL: URL
 
   var body: some View {
     VStack(alignment: .leading, spacing: 12) {
@@ -625,7 +627,8 @@ struct PlanSessionHistorySection: View {
           ForEach(display.visibleItems) { item in
             PlanSessionHistoryCard(
               item: item,
-              reliabilityCue: runCues[item.sessionNumber]
+              reliabilityCue: runCues[item.sessionNumber],
+              repoURL: repoURL
             )
           }
         }
@@ -645,6 +648,7 @@ struct PlanSessionHistorySection: View {
 struct PlanSessionHistoryCard: View {
   var item: PlanSessionHistoryItem
   var reliabilityCue: PlanReliabilityFeedback.RunCue?
+  var repoURL: URL
 
   var body: some View {
     VStack(alignment: .leading, spacing: 9) {
@@ -728,6 +732,10 @@ struct PlanSessionHistoryCard: View {
         }
       }
 
+      if item.status == .succeeded && !item.commits.isEmpty {
+        ExplainChangesButton(item: item, repoURL: repoURL)
+      }
+
       if let failedVerify = item.failedVerify {
         DisclosureGroup("Verify failed (\(failedVerify.exitCodeText))") {
           VStack(alignment: .leading, spacing: 6) {
@@ -773,6 +781,137 @@ struct PlanSessionHistoryCard: View {
 
   private func dateString(_ date: Date) -> String {
     date.formatted(date: .abbreviated, time: .shortened)
+  }
+}
+
+struct ExplainChangesButton: View {
+  let item: PlanSessionHistoryItem
+  let repoURL: URL
+
+  @State private var showingPopover = false
+  @State private var summary: String?
+  @State private var isLoading = false
+
+  private var canExplain: Bool {
+    item.status == .succeeded && !item.commits.isEmpty
+  }
+
+  var body: some View {
+    if canExplain {
+      Button {
+        showingPopover = true
+      } label: {
+        Label("Explain Changes", systemImage: "book.pages")
+      }
+      .buttonStyle(.bordered)
+      .controlSize(.small)
+      .popover(isPresented: $showingPopover) {
+        CommitExplanationPopover(
+          item: item,
+          repoURL: repoURL,
+          summary: $summary,
+          isLoading: $isLoading
+        )
+      }
+    }
+  }
+}
+
+struct CommitExplanationPopover: View {
+  let item: PlanSessionHistoryItem
+  let repoURL: URL
+  @Binding var summary: String?
+  @Binding var isLoading: Bool
+
+  @State private var fetchedSummary: String?
+  @State private var fetchedDiff: String?
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 12) {
+      HStack {
+        Label("Changes Summary", systemImage: "book.pages")
+          .font(.headline)
+        Spacer()
+        Button("Close") {
+          // popover dismiss handled by isPresented
+        }
+        .buttonStyle(.plain)
+        .font(.caption)
+      }
+
+      if isLoading {
+        HStack(spacing: 8) {
+          ProgressView()
+            .controlSize(.small)
+          Text("Generating summary...")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+        }
+      } else if let text = summary ?? fetchedSummary {
+        Text(text)
+          .font(.callout)
+          .textSelection(.enabled)
+          .frame(maxWidth: 400, alignment: .leading)
+      } else {
+        Text("Summary unavailable.")
+          .font(.caption)
+          .foregroundStyle(.secondary)
+      }
+    }
+    .padding(16)
+    .frame(width: 440)
+    .task {
+      await loadExplanation()
+    }
+  }
+
+  private func loadExplanation() async {
+    guard fetchedSummary == nil else { return }
+
+    isLoading = true
+    defer { isLoading = false }
+
+    guard let firstCommit = item.commits.first else { return }
+
+    // Fetch the diff for the commit range
+    let diff: String
+    if item.commits.count == 1 {
+      diff = await gitDiffForSha(firstCommit.sha)
+    } else {
+      let lastCommit = item.commits.last!
+      diff = await gitDiffRange(from: lastCommit.sha, to: firstCommit.sha)
+    }
+
+    guard !diff.isEmpty else { return }
+    fetchedDiff = diff
+
+    if #available(macOS 26.0, *) {
+      fetchedSummary = await CommitExplainer.summarize(diff: diff)
+    } else {
+      fetchedSummary = nil
+    }
+  }
+
+  private func gitDiffForSha(_ sha: String) async -> String {
+    await withCheckedContinuation { continuation in
+      Task {
+        let result = try? await ProcessRunner.runEnv(
+          "git", ["diff", "--no-color", sha], workingDirectory: repoURL
+        )
+        continuation.resume(returning: result?.stdout ?? "")
+      }
+    }
+  }
+
+  private func gitDiffRange(from: String, to: String) async -> String {
+    await withCheckedContinuation { continuation in
+      Task {
+        let result = try? await ProcessRunner.runEnv(
+          "git", ["diff", "--no-color", "\(from)..\(to)"], workingDirectory: repoURL
+        )
+        continuation.resume(returning: result?.stdout ?? "")
+      }
+    }
   }
 }
 
