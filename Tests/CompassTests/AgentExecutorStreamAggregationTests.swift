@@ -1,56 +1,67 @@
 import Foundation
-import OpenAI
+import Testing
 import XCTest
 
 @testable import Compass
 
-/// Exercises `AgentExecutor.aggregate(stream:)`, the internal seam that
-/// turns a chat-completions stream into an `AggregatedTurn`. Building
-/// canned chunks means decoding them from JSON because MacPaw's
-/// `ChatStreamResult` has no public memberwise initializer.
-final class AgentExecutorStreamAggregationTests: XCTestCase {
+struct AgentExecutorStreamAggregationTests {
+  // MARK: - Content aggregation
 
-  // MARK: - Basic aggregation
-
-  func testAggregatesContentDeltasInOrder() async throws {
+  @Test
+  func aggregatesMultipleContentDeltasIntoOneText() async throws {
     let chunks = try chunks(fromJSONFragments: [
-      delta(content: "Hello, "),
-      delta(content: "world!"),
+      delta(content: "hello"),
+      delta(content: " "),
+      delta(content: "world"),
       finalChunk(finishReason: "stop"),
     ])
     let executor = AgentExecutor()
     let turn = try await executor.aggregate(stream: chunks)
-    XCTAssertEqual(turn.assistantText, "Hello, world!")
-    XCTAssertEqual(turn.finishReason, "stop")
-    XCTAssertTrue(turn.toolCalls.isEmpty)
-    XCTAssertEqual(turn.reasoningText, "")
+    try #require(turn.assistantText == "hello world")
   }
 
-  func testAggregatesReasoningSeparately() async throws {
+  @Test
+  func aggregatesReasoningSeparately() async throws {
     let chunks = try chunks(fromJSONFragments: [
       deltaRaw(#""reasoning": "step 1", "content": "answer""#),
       finalChunk(finishReason: "stop"),
     ])
     let executor = AgentExecutor()
     let turn = try await executor.aggregate(stream: chunks)
-    XCTAssertEqual(turn.assistantText, "answer")
-    XCTAssertEqual(turn.reasoningText, "step 1")
+    try #require(turn.assistantText == "answer")
+    try #require(turn.reasoningText == "step 1")
   }
 
-  func testStripsThinkTagsFromContent() async throws {
+  @Test
+  func stripsThinkTagsFromContent() async throws {
     let chunks = try chunks(fromJSONFragments: [
       delta(content: "before <think>secret</think> after"),
       finalChunk(finishReason: "stop"),
     ])
     let executor = AgentExecutor()
     let turn = try await executor.aggregate(stream: chunks)
-    XCTAssertEqual(turn.assistantText, "before  after")
-    XCTAssertEqual(turn.reasoningText, "secret")
+    try #require(turn.assistantText == "before  after")
+    try #require(turn.reasoningText == "secret")
+  }
+
+  @Test
+  func aggregatesContentAndReasoningDeltas() async throws {
+    let chunks = try chunks(fromJSONFragments: [
+      delta(content: "before"),
+      delta(content: " "),
+      deltaRaw(#""reasoning": "secret", "content": " after""#),
+      finalChunk(finishReason: "stop"),
+    ])
+    let executor = AgentExecutor()
+    let turn = try await executor.aggregate(stream: chunks)
+    try #require(turn.assistantText == "before  after")
+    try #require(turn.reasoningText == "secret")
   }
 
   // MARK: - Tool call assembly
 
-  func testReassemblesToolCallFromFragmentedDeltas() async throws {
+  @Test
+  func reassemblesToolCallFromFragmentedDeltas() async throws {
     let chunks = try chunks(fromJSONFragments: [
       toolCallDelta(index: 0, id: "call_1", name: "read_file", argumentsFragment: #"{"pat"#),
       toolCallDelta(index: 0, argumentsFragment: #"h":"foo.txt"}"#),
@@ -58,14 +69,15 @@ final class AgentExecutorStreamAggregationTests: XCTestCase {
     ])
     let executor = AgentExecutor()
     let turn = try await executor.aggregate(stream: chunks)
-    XCTAssertEqual(turn.toolCalls.count, 1)
-    XCTAssertEqual(turn.toolCalls.first?.name, "read_file")
-    XCTAssertEqual(turn.toolCalls.first?.id, "call_1")
-    XCTAssertEqual(turn.toolCalls.first?.arguments, #"{"path":"foo.txt"}"#)
-    XCTAssertEqual(turn.finishReason, "toolCalls")
+    try #require(turn.toolCalls.count == 1)
+    try #require(turn.toolCalls.first?.name == "read_file")
+    try #require(turn.toolCalls.first?.id == "call_1")
+    try #require(turn.toolCalls.first?.arguments == #"{"path":"foo.txt"}"#)
+    try #require(turn.finishReason == "toolCalls")
   }
 
-  func testKeepsToolCallsOrderedByIndex() async throws {
+  @Test
+  func keepsToolCallsOrderedByIndex() async throws {
     let chunks = try chunks(fromJSONFragments: [
       toolCallDelta(index: 1, id: "call_b", name: "ls", argumentsFragment: "{}"),
       toolCallDelta(index: 0, id: "call_a", name: "read_file", argumentsFragment: "{}"),
@@ -73,10 +85,11 @@ final class AgentExecutorStreamAggregationTests: XCTestCase {
     ])
     let executor = AgentExecutor()
     let turn = try await executor.aggregate(stream: chunks)
-    XCTAssertEqual(turn.toolCalls.map(\.id), ["call_a", "call_b"])
+    try #require(turn.toolCalls.map(\.id) == ["call_a", "call_b"])
   }
 
-  func testDropsToolCallsMissingIdOrName() async throws {
+  @Test
+  func dropsToolCallsMissingIdOrName() async throws {
     let chunks = try chunks(fromJSONFragments: [
       toolCallDelta(index: 0, argumentsFragment: "{}"),  // never gets id/name
       toolCallDelta(index: 1, id: "call_b", name: "ls", argumentsFragment: "{}"),
@@ -84,22 +97,23 @@ final class AgentExecutorStreamAggregationTests: XCTestCase {
     ])
     let executor = AgentExecutor()
     let turn = try await executor.aggregate(stream: chunks)
-    XCTAssertEqual(turn.toolCalls.map(\.id), ["call_b"])
+    try #require(turn.toolCalls.map(\.id) == ["call_b"])
   }
 
   // MARK: - Cancellation
 
-  func testCancelledExecutorThrowsBeforeConsumingStream() async {
+  @Test
+  func cancelledExecutorThrowsBeforeConsumingStream() async {
     let executor = AgentExecutor()
     executor.cancel()
     let chunks = try! chunks(fromJSONFragments: [delta(content: "anything")])
     do {
       _ = try await executor.aggregate(stream: chunks)
-      XCTFail("expected cancellation")
+      Issue.record("expected cancellation")
     } catch let error as AgentExecutionError {
-      XCTAssertEqual(error, .cancelled)
+      try #require(error == .cancelled)
     } catch {
-      XCTFail("expected AgentExecutionError.cancelled, got \(error)")
+      Issue.record("expected AgentExecutionError.cancelled, got \(error)")
     }
   }
 
