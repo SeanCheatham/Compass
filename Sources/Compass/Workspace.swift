@@ -181,7 +181,7 @@ struct CompassWorkspace {
       return edit.replace
     }
 
-    let matches = current.nonOverlappingOccurrences(of: edit.find)
+    let matches = (current.count - current.replacingOccurrences(of: edit.find, with: "", options: .literal).count) / edit.find.count
     guard matches > 0 else {
       throw CompassWorkspaceError.lessonEditFailed(
         "Lesson edit `find` text was not found in lessons.md.")
@@ -2476,15 +2476,3 @@ private enum CompassWorkspaceError: LocalizedError {
   }
 }
 
-extension String {
-  fileprivate func nonOverlappingOccurrences(of needle: String) -> Int {
-    guard !needle.isEmpty else { return 0 }
-    var count = 0
-    var searchStart = startIndex
-    while let range = range(of: needle, range: searchStart..<endIndex) {
-      count += 1
-      searchStart = range.upperBound
-    }
-    return count
-  }
-}
