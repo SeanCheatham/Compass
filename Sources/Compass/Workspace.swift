@@ -140,6 +140,24 @@ struct CompassWorkspace {
     try text.write(to: lessonsURL, atomically: true, encoding: .utf8)
   }
 
+  /// Dry-run lesson edits against the current lessons file without writing.
+  func validateLessonEdits(_ edits: [LessonEdit]) throws {
+    guard !edits.isEmpty else { return }
+    var current = readLessons()
+    for edit in edits {
+      current = try applyingLessonEdit(edit, to: current)
+    }
+  }
+
+  /// Validate `lessonEdits` embedded in a phase's `submit_result` payload.
+  func validateSubmitResultLessonEdits(_ submitResultJSON: Data) throws {
+    struct Payload: Decodable {
+      var lessonEdits: [LessonEdit]
+    }
+    let payload = try JSONDecoder().decode(Payload.self, from: submitResultJSON)
+    try validateLessonEdits(payload.lessonEdits)
+  }
+
   @discardableResult
   func applyLessonEdits(_ edits: [LessonEdit]) throws -> Int {
     guard !edits.isEmpty else { return 0 }

@@ -104,6 +104,14 @@ enum FoundationModelsAgentRuntime {
           )
         }
         if let captured = submitCapture.consume() {
+          if let rejection = Self.rejectSubmitResultIfNeeded(
+            captured,
+            configuration: configuration,
+            emit: emit
+          ) {
+            nextPrompt = rejection
+            continue
+          }
           return AgentExecutionResult(
             submitResultArguments: captured,
             iterations: iterations,
@@ -122,6 +130,14 @@ enum FoundationModelsAgentRuntime {
         // internal tool loop cleanly.
         _ = signal
         if let captured = submitCapture.consume() {
+          if let rejection = Self.rejectSubmitResultIfNeeded(
+            captured,
+            configuration: configuration,
+            emit: emit
+          ) {
+            nextPrompt = rejection
+            continue
+          }
           return AgentExecutionResult(
             submitResultArguments: captured,
             iterations: iterations,
@@ -141,6 +157,31 @@ enum FoundationModelsAgentRuntime {
       }
     }
     throw AgentExecutionError.maxIterationsExceeded(configuration.maxIterations)
+  }
+
+  private static func rejectSubmitResultIfNeeded(
+    _ submitResultJSON: Data,
+    configuration: AgentExecutionConfiguration,
+    emit: @Sendable (LiveEvent) -> Void
+  ) -> String? {
+    guard let validate = configuration.validateSubmitResult else { return nil }
+    do {
+      try validate(submitResultJSON)
+      return nil
+    } catch {
+      let nudge = AgentExecutor.invalidLessonEditsNudge(
+        errorMessage: error.localizedDescription)
+      emit(
+        LiveEvent(
+          level: .warning,
+          text: nudge.eventText,
+          detail: nudge.eventDetail,
+          kind: .agentMessage,
+          status: .failed
+        )
+      )
+      return nudge.userMessage
+    }
   }
 
   // MARK: - Tool construction

@@ -154,6 +154,7 @@ extension CompassProject {
           bundle: SharedCompassVM.shared.bundle
         ).installedToolchainIDsFromProbe(runner: environment.bashRunner)
     }
+    let validateSubmitResult = lessonEditValidation(for: phase, hostRepoURL: workingDirectory)
     let configuration = AgentExecutionConfiguration(
       settings: agentSettings,
       phase: phase,
@@ -176,7 +177,8 @@ extension CompassProject {
       bashRunner: environment.bashRunner,
       codemapStoreDirectory: codemapStoreDirectory,
       planHistoryEntries: planHistoryEntries,
-      toolchainService: toolchainService
+      toolchainService: toolchainService,
+      validateSubmitResult: validateSubmitResult
     )
     let agent = AgentExecutor { [weak self] event in
       Task { @MainActor in self?.log(event) }
@@ -190,6 +192,20 @@ extension CompassProject {
       throw AppModelError.internalInvariant(
         "Could not decode \(T.self) from submit_result: \(error.localizedDescription)\n\(body)"
       )
+    }
+  }
+
+  /// Reject `submit_result` in-flight when lesson edits don't match
+  /// the host workspace's lessons.md. Only Plan, Develop, and Reflect
+  /// carry `lessonEdits`; other phases skip validation.
+  func lessonEditValidation(
+    for phase: AgentPhase,
+    hostRepoURL: URL
+  ) -> (@Sendable (Data) throws -> Void)? {
+    guard phase == .plan || phase == .develop || phase == .reflect else { return nil }
+    let hostWorkspace = makeWorkspace(repoURL: hostRepoURL)
+    return { args in
+      try hostWorkspace.validateSubmitResultLessonEdits(args)
     }
   }
 

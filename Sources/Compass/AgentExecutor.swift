@@ -35,6 +35,11 @@ struct AgentExecutionConfiguration {
   /// Host-side completed plan summaries for the `plan_history` tool.
   var planHistoryEntries: [String]
   var toolchainService: (any SharedVMToolchainService)?
+  /// Optional post-decode guard for `submit_result`. When it throws,
+  /// the executor rolls back the turn and reprompts — same remediation
+  /// path as malformed tool JSON. Plan / Develop / Reflect use this to
+  /// reject lesson edits whose `find` text doesn't match lessons.md.
+  var validateSubmitResult: (@Sendable (Data) throws -> Void)?
   var maxIterations: Int
   var wallClockTimeout: TimeInterval
 
@@ -52,6 +57,7 @@ struct AgentExecutionConfiguration {
     codemapStoreDirectory: URL? = nil,
     planHistoryEntries: [String] = [],
     toolchainService: (any SharedVMToolchainService)? = nil,
+    validateSubmitResult: (@Sendable (Data) throws -> Void)? = nil,
     maxIterations: Int = 512,
     wallClockTimeout: TimeInterval = 60 * 60
   ) {
@@ -68,6 +74,7 @@ struct AgentExecutionConfiguration {
     self.codemapStoreDirectory = codemapStoreDirectory
     self.planHistoryEntries = planHistoryEntries
     self.toolchainService = toolchainService
+    self.validateSubmitResult = validateSubmitResult
     self.maxIterations = maxIterations
     self.wallClockTimeout = wallClockTimeout
   }
@@ -353,12 +360,41 @@ final class AgentExecutor {
         continue
       }
 
+      var rejectedSubmitResult = false
       for toolCall in aggregated.toolCalls {
         if cancelled { throw AgentExecutionError.cancelled }
 
         if toolCall.name == Self.submitResultToolName {
           // JSON validity already enforced by the pre-flight above.
           let argsData = Data(toolCall.arguments.utf8)
+          if let validate = configuration.validateSubmitResult {
+            do {
+              try validate(argsData)
+            } catch {
+              Self.rollback(
+                messages: &messages,
+                nudgeIndices: &remediationNudgeIndices,
+                to: messageCountBeforeAssistant
+              )
+              let nudge = Self.invalidLessonEditsNudge(
+                errorMessage: error.localizedDescription)
+              Self.appendRemediationNudge(
+                nudge.userMessage,
+                messages: &messages,
+                nudgeIndices: &remediationNudgeIndices
+              )
+              emit(
+                level: .warning,
+                text: nudge.eventText,
+                detail: nudge.eventDetail,
+                kind: .agentMessage,
+                status: .failed,
+                correlationID: toolCall.id
+              )
+              rejectedSubmitResult = true
+              break
+            }
+          }
           emit(
             level: .success, text: "submit_result", detail: previewString(toolCall.arguments),
             kind: .agentMessage, status: .completed, correlationID: toolCall.id)
@@ -409,6 +445,10 @@ final class AgentExecutor {
         emitToolEnd(
           name: toolCall.name, arguments: toolCall.arguments, result: result,
           correlationID: toolCall.id)
+      }
+
+      if rejectedSubmitResult {
+        continue
       }
 
       let estimated = Self.estimatedTokens(in: messages)
@@ -838,6 +878,23 @@ final class AgentExecutor {
   /// providers that omit it still produce invalid JSON the same way
   /// (mid-token cutoff), so we fall back to a generic "args wouldn't
   /// parse" nudge that nudges the model toward shorter output.
+  static func invalidLessonEditsNudge(errorMessage: String) -> InvalidToolArgumentsNudge {
+    InvalidToolArgumentsNudge(
+      eventText: "submit_result lesson edits rejected",
+      eventDetail: errorMessage,
+      userMessage: """
+        Your previous `submit_result` included `lessonEdits` that could not be applied: \
+        \(errorMessage)
+
+        Call `submit_result` again. Keep the same `state` (or status/summary fields) unless \
+        you have a concrete reason to change them, but fix `lessonEdits` so each `find` \
+        matches the current lessons content exactly — re-read the Lessons section in your \
+        original task. Use `[]` when you have no lesson change. If `find` would match more \
+        than once, include more surrounding context or set `replaceAll` to true.
+        """
+    )
+  }
+
   static func invalidSubmitResultNudge(
     finishReason: String?,
     argumentsPreview: String,

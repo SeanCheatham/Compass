@@ -438,6 +438,33 @@ final class CompassWorkspacePersistenceTests: XCTestCase {
     XCTAssertEqual(workspace.readLessons(), "- duplicate\n- duplicate\n")
   }
 
+  func testValidateLessonEditsRejectsMissingFindWithoutWriting() throws {
+    let workspace = try makeInitializedWorkspace()
+    try workspace.writeLessons("- Existing\n")
+
+    assertLessonEditFailure(
+      try workspace.validateLessonEdits([
+        LessonEdit(find: "Missing", replace: "Replacement", replaceAll: nil)
+      ]),
+      contains: "was not found"
+    )
+    XCTAssertEqual(workspace.readLessons(), "- Existing\n")
+  }
+
+  func testValidateSubmitResultLessonEditsDecodesPayloadWithoutApplying() throws {
+    let workspace = try makeInitializedWorkspace()
+    try workspace.writeLessons("- Existing\n")
+    let payload = """
+      {"state":{"immediate":null,"midTerm":[],"longTerm":"x"},"lessonEdits":[{"find":"Missing","replace":"Replacement"}]}
+      """
+
+    assertLessonEditFailure(
+      try workspace.validateSubmitResultLessonEdits(Data(payload.utf8)),
+      contains: "was not found"
+    )
+    XCTAssertEqual(workspace.readLessons(), "- Existing\n")
+  }
+
   private func makeInitializedWorkspace() throws -> CompassWorkspace {
     let repoURL = try makeTemporaryGitRepository()
     let workspace = CompassWorkspace(repoURL: repoURL)

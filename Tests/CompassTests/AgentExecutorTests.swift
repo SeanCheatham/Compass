@@ -323,6 +323,17 @@ final class AgentExecutorTests: XCTestCase {
     }
   }
 
+  func testInvalidLessonEditsNudgeExplainsMismatchAndRetry() {
+    let nudge = AgentExecutor.invalidLessonEditsNudge(
+      errorMessage: "Lesson edit `find` text was not found in lessons.md."
+    )
+    XCTAssertEqual(nudge.eventText, "submit_result lesson edits rejected")
+    XCTAssertTrue(nudge.eventDetail.contains("was not found"))
+    XCTAssertTrue(nudge.userMessage.contains("lessonEdits"))
+    XCTAssertTrue(nudge.userMessage.contains("Call `submit_result` again"))
+    XCTAssertTrue(nudge.userMessage.contains("Use `[]`"))
+  }
+
   // MARK: - Invalid generic-tool-args remediation
 
   func testInvalidToolArgumentsNudgeUsesTruncationCopyWhenFinishReasonIsLength() {
