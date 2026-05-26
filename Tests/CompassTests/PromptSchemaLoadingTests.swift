@@ -1,4 +1,4 @@
-import XCTest
+import Testing
 
 @testable import Compass
 
@@ -7,7 +7,8 @@ import XCTest
 /// reads `Prompts.planSchema` / etc.), so an SPM/Xcode resource-bundle
 /// mismatch would slip through CI and only surface when a user clicks
 /// Play. Touching every schema here makes the regression loud.
-final class PromptSchemaLoadingTests: XCTestCase {
+struct PromptSchemaLoadingTests {
+  @Test
   func testAllSchemasLoadAndParseAsJSONObjects() throws {
     let schemas: [(String, String)] = [
       ("plan", Prompts.planSchema),
@@ -17,9 +18,9 @@ final class PromptSchemaLoadingTests: XCTestCase {
       ("subAgent", Prompts.subAgentSchema),
     ]
     for (name, text) in schemas {
-      XCTAssertFalse(text.isEmpty, "schema \(name) is empty")
+      #require(!text.isEmpty, "schema \(name) is empty")
       let parsed = try JSONSerialization.jsonObject(with: Data(text.utf8))
-      XCTAssertTrue(
+      #require(
         parsed is [String: Any],
         "schema \(name) should decode to a JSON object"
       )
