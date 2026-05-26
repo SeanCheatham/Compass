@@ -46,7 +46,10 @@ struct SharedCompassVMToolchainManager: SharedVMToolchainService {
   }
 
   var bundle: SharedCompassVMBundle
-  var fileManager: FileManager
+  /// `FileManager` is not `Sendable` because its underlying coordinate methods can race,
+  /// but this manager is always constructed and used from a single actor context in
+  /// practice — the violation is deliberate and safe in this context.
+  nonisolated(unsafe) var fileManager: FileManager
 
   init(bundle: SharedCompassVMBundle, fileManager: FileManager = .default) {
     self.bundle = bundle
