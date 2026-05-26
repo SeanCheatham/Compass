@@ -619,11 +619,11 @@ extension CompassProject {
       break
     case .blocked:
       if summary.bypassVerify != true {
-        let issue = "Develop reported it was blocked but did not request verify bypass."
+        let issue = buildRetryIssue("Develop reported it was blocked but did not request verify bypass.")
         retryIssues.append(issue)
       }
     case .failed:
-      let issue = "Develop reported failure: \(summary.feedback)"
+      let issue = buildRetryIssue("Develop reported failure: \(summary.feedback)")
       retryIssues.append(issue)
     }
 
@@ -663,18 +663,13 @@ extension CompassProject {
         feedback(.verifyPassed)
       } else {
         let verifyTail = tail(verify.stdout + verify.stderr, max: 4000)
-        let issue = """
-          Verify command `\(next.verify)` exited with code \(verify.exitCode). Output (tail):
-          ```
-          \(verifyTail)
-          ```
-          """
-        retryIssues.append(issue)
-        verifyOutput = VerifyOutput(
+        let output = VerifyOutput(
           command: next.verify,
           exitCode: Int(verify.exitCode),
           tail: verifyTail
         )
+        aggregateIssues(&retryIssues, from: output, command: next.verify)
+        verifyOutput = output
         log("Verify failed (exit \(verify.exitCode)).", level: .error)
       }
     }
@@ -697,12 +692,12 @@ extension CompassProject {
         timeout: 30
       )
       if gitStatus.exitCode != 0 {
-        let issue = """
+        let issue = buildRetryIssue("""
           `git status --porcelain` failed unexpectedly:
           ```
           \(tail(gitStatus.stdout + gitStatus.stderr, max: 2000))
           ```
-          """
+          """)
         retryIssues.append(issue)
         log("Working-tree status check failed.", level: .error)
       } else {
@@ -710,13 +705,13 @@ extension CompassProject {
         if status.isEmpty {
           log("Working tree clean.", level: .success)
         } else {
-          let issue = """
+          let issue = buildRetryIssue("""
             Uncommitted or untracked changes remain after Develop ran. Commit them or add them to .gitignore.
             `git status --porcelain` output:
             ```
             \(status)
             ```
-            """
+            """)
           retryIssues.append(issue)
           log("Working tree is not clean after Develop.", level: .error)
         }
@@ -739,5 +734,17 @@ extension CompassProject {
       return 10 * 60 * 1000
     }
     return parsed
+  }
+
+  private func buildRetryIssue(_ message: String) -> String { message }
+
+  private func aggregateIssues(_ issues: inout [String], from result: VerifyOutput, command: String) {
+    let message = """
+      Verify command `\(command)` exited with code \(result.exitCode). Output (tail):
+      ```
+      \(result.tail)
+      ```
+      """
+    issues.append(buildRetryIssue(message))
   }
 }
