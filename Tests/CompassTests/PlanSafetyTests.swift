@@ -163,6 +163,29 @@ final class PlanHistoryPageTests: XCTestCase {
     XCTAssertTrue(page.formatted().contains("offset 1 from newest"))
     XCTAssertTrue(page.formatted().contains("more: call plan_history with offset 2"))
   }
+
+  func testIterationNumbersWithOffsetAndFourPlusEntries() {
+    // With 4 entries ["A","B","C","D"], reversed = [D,C,B,A] with indices [0,1,2,3]
+    // offset=2 skips D,C → slice=[B,A] with original entries at positions 1,0
+    // Correct iterations: B is entry[1] → count(4) - offset(2) - sliceIndex(0) = 2, A is entry[0] → 4-2-1=1
+    // So we expect [2, 1] which is exactly what the buggy formula (index+1) gives here.
+    // Use offset=2 limit=2 to get 4 entries total: offset=2 skip D,C, limit=2 take B,A → iterations [2,1]
+    // But after fix: entries.count(4) - clampedOffset(2) - sliceIndex → 4-2-0=2, 4-2-1=1 → [2,1] — same by coincidence.
+    // Test offset=2 limit=2 with 5 entries to expose the bug: ["A","B","C","D","E"]
+    // reversed = [E,D,C,B,A] indices [0,1,2,3,4]; offset=2 drops E,D → slice=[C,B,A]
+    // prefix(2) → [C,B]; sliceIndex 0→C(iteration=5-2-0=3), sliceIndex 1→B(iteration=5-2-1=2)
+    // Buggy formula gives [1,2] (index+1 on [C,B] whose original indices are 2,1 → wrong)
+    let page = PlanHistoryPage.read(
+      entries: ["A", "B", "C", "D", "E"],
+      offset: 2,
+      limit: 2
+    )
+
+    // E=5, D=4, C=3, B=2, A=1. offset=2 skips E,D → C,B remain → iterations [3,2]
+    XCTAssertEqual(page.totalCount, 5)
+    XCTAssertEqual(page.entries.map(\.iteration), [3, 2])
+    XCTAssertEqual(page.entries.map(\.summary), ["C", "B"])
+  }
 }
 
 final class AgentPlanHistoryToolTests: XCTestCase {

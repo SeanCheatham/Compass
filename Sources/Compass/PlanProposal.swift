@@ -97,8 +97,8 @@ struct PlanHistoryPage: Equatable {
     let clampedLimit = min(max(1, limit), maxLimit)
     let reversed = Array(entries.enumerated().reversed())
     let slice = reversed.dropFirst(clampedOffset).prefix(clampedLimit)
-    let pageEntries = slice.map { index, summary in
-      Entry(iteration: index + 1, summary: summary)
+    let pageEntries = slice.enumerated().map { sliceIndex, entry in
+      Entry(iteration: entries.count - clampedOffset - sliceIndex, summary: entry.1)
     }
     return PlanHistoryPage(
       totalCount: entries.count,
