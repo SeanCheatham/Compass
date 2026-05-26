@@ -45,6 +45,24 @@ extension CompassProject {
     try workspace?.writeSessions(sessions)
   }
 
+  func performSessionErrorCleanup(sessionIndex: Int, error: Error?) {
+    if stopRequested {
+      stopRequested = false
+      appendSessionNote("Stopped by user.", to: sessionIndex)
+      endSession(sessionIndex, status: .cancelled)
+      phase = .cancelled
+      log("Run stopped.", level: .warning)
+      feedback(.stopped)
+    } else {
+      appendSessionNote(error?.localizedDescription ?? "Unknown error", to: sessionIndex)
+      endSession(sessionIndex, status: .failed)
+      phase = .failed
+      fail(error ?? AppModelError.internalInvariant("Unknown error in session cleanup."))
+    }
+    isRunning = false
+    executor = nil
+  }
+
   func latestAwaitingDevelopSessionIndex() -> Int? {
     sessions.indices
       .filter { sessions[$0].status == .awaitingApproval && sessions[$0].endedAt == nil }

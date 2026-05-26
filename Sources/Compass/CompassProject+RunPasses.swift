@@ -175,35 +175,12 @@ extension CompassProject {
         executor = nil
       }
     } catch {
-      if stopRequested {
-        stopRequested = false
-        if !consumedDrafts.isEmpty {
-          let current = workspace.readDrafts()
-          try? workspace.writeDrafts(
-            [consumedDrafts, current].filter { !$0.isEmpty }.joined(separator: "\n"))
-        }
-        appendSessionNote("Stopped by user.", to: sessionIndex)
-        endSession(sessionIndex, status: .cancelled)
-        phase = .cancelled
-        isRunning = false
-        executor = nil
-        log("Run stopped.", level: .warning)
-        feedback(.stopped)
-        await refresh()
-        return
-      }
-
       if !consumedDrafts.isEmpty {
         let current = workspace.readDrafts()
         try? workspace.writeDrafts(
           [consumedDrafts, current].filter { !$0.isEmpty }.joined(separator: "\n"))
       }
-      appendSessionNote(error.localizedDescription, to: sessionIndex)
-      endSession(sessionIndex, status: .failed)
-      phase = .failed
-      isRunning = false
-      executor = nil
-      fail(error)
+      performSessionErrorCleanup(sessionIndex: sessionIndex, error: error)
     }
 
     await refresh()
@@ -496,19 +473,7 @@ extension CompassProject {
         feedback(.paused)
       }
     } catch {
-      if stopRequested {
-        stopRequested = false
-        appendSessionNote("Stopped by user.", to: sessionIndex)
-        endSession(sessionIndex, status: .cancelled)
-        phase = .cancelled
-        log("Run stopped.", level: .warning)
-        feedback(.stopped)
-      } else {
-        appendSessionNote(error.localizedDescription, to: sessionIndex)
-        endSession(sessionIndex, status: .failed)
-        phase = .failed
-        fail(error)
-      }
+      performSessionErrorCleanup(sessionIndex: sessionIndex, error: error)
     }
 
     isRunning = false
