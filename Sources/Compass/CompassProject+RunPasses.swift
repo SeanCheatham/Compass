@@ -252,7 +252,6 @@ extension CompassProject {
       var finalIssues: [String] = []
       var finalVerifyOutput: VerifyOutput?
       var succeeded = false
-      var finalLaunchPlan: AgentExecutionLaunchPlan?
       var criticFeedbacks: [String] = []
       var criticAttempt = 0
 
@@ -351,7 +350,6 @@ extension CompassProject {
             postChecksPassed = true
             postCheckSummary = summary
             postCheckLaunchPlan = launchPlan
-            finalLaunchPlan = launchPlan
             break
           }
 
@@ -369,7 +367,6 @@ extension CompassProject {
           // Post-checks fundamentally failed after every attempt — do
           // not run the critic. The iteration ends as a failure with
           // the existing post-check issues already in `finalIssues`.
-          succeeded = false
           break criticLoop
         }
 
