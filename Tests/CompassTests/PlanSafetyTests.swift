@@ -1,4 +1,5 @@
 import Foundation
+import Testing
 import XCTest
 
 @testable import Compass
@@ -182,8 +183,9 @@ final class AgentPlanHistoryToolTests: XCTestCase {
   }
 }
 
-final class PlanNextDecoderTests: XCTestCase {
-  func testDecoderTrimsPlanAndVerifyAndKeepsPositiveTimeout() throws {
+struct PlanNextDecoderTests {
+  @Test
+  func decoderTrimsPlanAndVerifyAndKeepsPositiveTimeout() throws {
     let json = """
       {
         "plan": "  Build the slice\\n",
@@ -195,13 +197,14 @@ final class PlanNextDecoderTests: XCTestCase {
 
     let next = try decodePlanNext(json)
 
-    XCTAssertEqual(next.plan, "Build the slice")
-    XCTAssertEqual(next.verify, "swift test")
-    XCTAssertEqual(next.verifyTimeoutMs, 120000)
-    XCTAssertEqual(next.estimatedDifficulty, .medium)
+    try #require(next.plan == "Build the slice")
+    try #require(next.verify == "swift test")
+    try #require(next.verifyTimeoutMs == 120000)
+    try #require(next.estimatedDifficulty == .medium)
   }
 
-  func testDecoderDropsNonPositiveTimeouts() throws {
+  @Test
+  func decoderDropsNonPositiveTimeouts() throws {
     let zeroTimeout = try decodePlanNext(
       """
       {
@@ -219,8 +222,8 @@ final class PlanNextDecoderTests: XCTestCase {
       }
       """)
 
-    XCTAssertNil(zeroTimeout.verifyTimeoutMs)
-    XCTAssertNil(negativeTimeout.verifyTimeoutMs)
+    try #require(zeroTimeout.verifyTimeoutMs == nil)
+    try #require(negativeTimeout.verifyTimeoutMs == nil)
   }
 
   private func decodePlanNext(_ json: String) throws -> PlanNext {
