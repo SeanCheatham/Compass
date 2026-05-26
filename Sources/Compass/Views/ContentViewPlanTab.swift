@@ -733,7 +733,10 @@ struct PlanSessionHistoryCard: View {
       }
 
       if item.status == .succeeded && !item.commits.isEmpty {
-        ExplainChangesButton(item: item, repoURL: repoURL)
+        HStack(spacing: 8) {
+          ExplainChangesButton(item: item, repoURL: repoURL)
+          ExploreFilesButton(item: item, repoURL: repoURL)
+        }
       }
 
       if let failedVerify = item.failedVerify {
@@ -912,6 +915,169 @@ struct CommitExplanationPopover: View {
         continuation.resume(returning: result?.stdout ?? "")
       }
     }
+  }
+}
+
+struct ExploreFilesButton: View {
+  let item: PlanSessionHistoryItem
+  let repoURL: URL
+
+  @State private var showingPopover = false
+
+  private var canExplore: Bool {
+    item.status == .succeeded && !item.commits.isEmpty
+  }
+
+  var body: some View {
+    if canExplore {
+      Button {
+        showingPopover = true
+      } label: {
+        Label("Explore Files", systemImage: "doc.text.magnifyingglass")
+      }
+      .buttonStyle(.bordered)
+      .controlSize(.small)
+      .popover(isPresented: $showingPopover) {
+        ExploreFilesPopover(item: item, repoURL: repoURL)
+      }
+    }
+  }
+}
+
+struct ExploreFilesPopover: View {
+  let item: PlanSessionHistoryItem
+  let repoURL: URL
+
+  @State private var changes: [FileChange] = []
+  @State private var isLoading = false
+
+  private var groupedChanges: [(category: FileChangeCategory, changes: [FileChange])] {
+    let grouped = Dictionary(grouping: changes, by: { $0.category })
+    return FileChangeCategory.allCases
+      .compactMap { category -> (FileChangeCategory, [FileChange])? in
+        guard let cats = grouped[category], !cats.isEmpty else { return nil }
+        return (category, cats)
+      }
+  }
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 12) {
+      HStack {
+        Label("Changed Files", systemImage: "doc.text.magnifyingglass")
+          .font(.headline)
+        Spacer()
+        Button("Close") {
+          // popover dismiss handled by isPresented
+        }
+        .buttonStyle(.plain)
+        .font(.caption)
+      }
+
+      if isLoading {
+        HStack(spacing: 8) {
+          ProgressView()
+            .controlSize(.small)
+          Text("Loading file changes...")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+        }
+      } else if changes.isEmpty {
+        Text("No file changes found in these commits.")
+          .font(.caption)
+          .foregroundStyle(.secondary)
+      } else {
+        ScrollView {
+          VStack(alignment: .leading, spacing: 14) {
+            ForEach(groupedChanges, id: \.category) { entry in
+              VStack(alignment: .leading, spacing: 5) {
+                Text(entry.category.rawValue)
+                  .font(.caption.weight(.semibold))
+                  .foregroundStyle(.secondary)
+
+                ForEach(entry.changes) { change in
+                  ExploreFileRow(change: change)
+                }
+              }
+            }
+          }
+          .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .frame(maxHeight: 400)
+      }
+    }
+    .padding(16)
+    .frame(width: 480)
+    .task {
+      await loadChanges()
+    }
+  }
+
+  private func loadChanges() async {
+    guard changes.isEmpty else { return }
+    isLoading = true
+    defer { isLoading = false }
+
+    var loaded = await FileExplainer.changes(for: repoURL, commits: item.commits)
+
+    // Enrich with codemap summaries
+    let codemapDir = CodemapStore.defaultDirectory(
+      forWorkspace: CompassWorkspace(repoURL: repoURL)
+    )
+    let store = CodemapStore(directory: codemapDir)
+    for i in loaded.indices {
+      if let entry = store.loadEntry(forRelativePath: loaded[i].relativePath) {
+        loaded[i] = FileChange(
+          relativePath: loaded[i].relativePath,
+          additions: loaded[i].additions,
+          deletions: loaded[i].deletions,
+          language: loaded[i].language,
+          summary: entry.summary
+        )
+      }
+    }
+
+    changes = loaded
+  }
+}
+
+struct ExploreFileRow: View {
+  let change: FileChange
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 3) {
+      HStack(spacing: 6) {
+        Text(change.fileName)
+          .font(.callout.monospaced())
+          .lineLimit(1)
+          .truncationMode(.middle)
+          .frame(maxWidth: .infinity, alignment: .leading)
+
+        if let lang = change.language {
+          Text(lang.displayName)
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+            .padding(.horizontal, 4)
+            .padding(.vertical, 1)
+            .background(.quaternary, in: Capsule())
+        }
+
+        Text(change.lineCountLabel)
+          .font(.caption.monospaced())
+          .foregroundStyle(.secondary)
+      }
+
+      if let summary = change.summary {
+        Text(summary)
+          .font(.caption)
+          .foregroundStyle(.secondary)
+          .lineLimit(2)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+    }
+    .padding(.vertical, 4)
+    .padding(.horizontal, 6)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(.quaternary.opacity(0.3), in: RoundedRectangle(cornerRadius: 4))
   }
 }
 
