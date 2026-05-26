@@ -22,9 +22,9 @@ final class SharedCompassVMRipgrepProvisionerTests: XCTestCase {
     XCTAssertTrue(script.contains("ln -sf \"$BREW_RG\" \"$RG_BIN\""))
   }
 
-  func testRenderedInstallScriptBootstrapsHomebrewUnderGuestUser() {
+  func testRenderedInstallScriptRequiresHomebrewBeforeRipgrepInstall() {
     let script = SharedCompassVMRipgrepProvisioner.renderInstallScript()
-    XCTAssertTrue(script.contains("NONINTERACTIVE=1"))
+    XCTAssertTrue(script.contains("Homebrew missing"))
     XCTAssertTrue(script.contains("su - \"$GUEST_USER\" -c \"'$BREW_BIN' install ripgrep\""))
   }
 

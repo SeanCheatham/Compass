@@ -43,6 +43,7 @@ struct AgentExecutorDelegateRunner: AgentDelegateRunner {
   let parentTools: [AgentTool]
   let parentMaxIterations: Int
   let parentWallClockTimeout: TimeInterval
+  let toolchainService: (any SharedVMToolchainService)?
   /// Live-log sink so sub-agent activity surfaces under the parent run.
   let onEvent: @Sendable (LiveEvent) -> Void
 
@@ -84,6 +85,7 @@ struct AgentExecutorDelegateRunner: AgentDelegateRunner {
       filesystem: filesystem,
       bashRunner: bashRunner,
       codemapStoreDirectory: codemapStoreDirectory,
+      toolchainService: toolchainService,
       maxIterations: min(parentMaxIterations, Self.maxSubAgentIterations),
       wallClockTimeout: min(parentWallClockTimeout, Self.maxSubAgentWallClock)
     )

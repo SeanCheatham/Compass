@@ -152,6 +152,22 @@ final class AgentSystemPromptTests: XCTestCase {
     XCTAssertTrue(Prompts.executionEnvironmentSection(.sharedVM).contains("Shared VM"))
   }
 
+  func testSharedVMEnvironmentMentionsToolchainToolsAndDockerLimitation() {
+    let section = Prompts.executionEnvironmentSection(.sharedVM)
+    XCTAssertTrue(section.contains("list_toolchains"))
+    XCTAssertTrue(section.contains("install_toolchain"))
+    XCTAssertTrue(section.contains("Homebrew"))
+    XCTAssertTrue(section.contains("Docker is unavailable"))
+  }
+
+  func testSharedVMEnvironmentListsInstalledToolchainsWhenProvided() {
+    let section = Prompts.executionEnvironmentSection(
+      .sharedVM,
+      installedToolchainIDs: ["rust", "go"]
+    )
+    XCTAssertTrue(section.contains("rust, go"))
+  }
+
   // MARK: - `.compass/` workspace clarification
 
   /// Under `.sharedVM` the guest workspace is populated from

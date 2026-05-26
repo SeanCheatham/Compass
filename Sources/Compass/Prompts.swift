@@ -533,7 +533,8 @@ enum Prompts {
   static func agentSystemPrompt(
     phase: AgentPhase,
     workingDirectoryPath: String,
-    executionEnvironment: ExecutionEnvironmentDescriptor = .sharedVM
+    executionEnvironment: ExecutionEnvironmentDescriptor = .sharedVM,
+    installedToolchainIDs: [String] = []
   ) -> String {
     let fileTools = "read_file, ls, grep, glob"
     let codemapTools = "outline, find_symbol, summary, list_files, importers_of"
@@ -613,7 +614,7 @@ enum Prompts {
       `lessonEdits` field on `submit_result` and Compass applies them
       host-side.
 
-      \(executionEnvironmentSection(executionEnvironment))
+      \(executionEnvironmentSection(executionEnvironment, installedToolchainIDs: installedToolchainIDs))
 
       Tools available to you this turn:
       \(toolList)
@@ -631,7 +632,10 @@ enum Prompts {
   /// Renders the "where am I running?" stanza for the agent system prompt.
   /// Kept separate so tests can lock down the wording byte-for-byte —
   /// changes to it directly affect tool-call efficiency.
-  static func executionEnvironmentSection(_ env: ExecutionEnvironmentDescriptor) -> String {
+  static func executionEnvironmentSection(
+    _ env: ExecutionEnvironmentDescriptor,
+    installedToolchainIDs: [String] = []
+  ) -> String {
     switch env {
     case .host:
       return """
@@ -641,19 +645,31 @@ enum Prompts {
         tool exists.
         """
     case .sharedVM:
+      let installedSummary: String
+      if installedToolchainIDs.isEmpty {
+        installedSummary = ""
+      } else {
+        installedSummary =
+          "\n        Currently installed toolchains: \(installedToolchainIDs.joined(separator: ", "))."
+      }
       return """
         Execution environment: Compass Shared VM (headless macOS guest).
-        Xcode Command Line Tools are installed — `swift`, `clang`, `git`,
-        `make`, `llvm`, and the macOS SDK are available. The full Xcode
-        IDE is NOT installed, so `xcodebuild`, Interface Builder, the
-        iOS/watchOS/tvOS SDKs, and the Simulator are unavailable.
+        Pre-installed: Xcode Command Line Tools (`swift`, `clang`, `git`,
+        `make`, `llvm`, macOS SDK), Homebrew, and ripgrep (`rg`).
+        The full Xcode IDE is NOT installed, so `xcodebuild`, Interface
+        Builder, the iOS/watchOS/tvOS SDKs, and the Simulator are unavailable.
         For SwiftPM packages, build and test with `swift build` /
         `swift test`. For `.xcodeproj`-based projects there is no
         in-VM equivalent — those builds must happen on the host route
         (Compass falls back to host execution automatically for those
         phases).
-        Homebrew is NOT installed by default. Network egress to Apple's
-        CDNs (softwareupdate, swift package fetch from github.com) works.
+        On-demand toolchains (install via `install_toolchain`): rust, go,
+        node (JavaScript / TypeScript — includes npm, npx, and global `tsc`),
+        python, jvm. Use `list_toolchains` to see what is installed.
+        Docker is unavailable in the Shared VM — use the host route for
+        container workloads.\(installedSummary)
+        Network egress to Apple's CDNs (softwareupdate, swift package fetch
+        from github.com) and Homebrew works.
         """
     }
   }

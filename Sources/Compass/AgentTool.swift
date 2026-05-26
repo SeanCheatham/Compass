@@ -152,6 +152,8 @@ struct AgentToolContext: Sendable {
   /// Completed plan summaries from host-side state.json. Plan agents read
   /// these through `plan_history`; they are not writable via submit_result.
   var planHistoryEntries: [String]
+  /// Shared VM toolchain listing/installation. Nil on host-route runs.
+  var toolchainService: (any SharedVMToolchainService)?
 
   init(
     workingDirectory: URL,
@@ -160,7 +162,8 @@ struct AgentToolContext: Sendable {
     readTracker: AgentReadTracker = AgentReadTracker(),
     delegateRunner: AgentDelegateRunner? = nil,
     codemapStoreDirectory: URL? = nil,
-    planHistoryEntries: [String] = []
+    planHistoryEntries: [String] = [],
+    toolchainService: (any SharedVMToolchainService)? = nil
   ) {
     let normalizedWorkingDirectory = workingDirectory.standardizedFileURL
     self.workingDirectory = normalizedWorkingDirectory
@@ -172,6 +175,7 @@ struct AgentToolContext: Sendable {
       codemapStoreDirectory?.standardizedFileURL
       ?? Self.defaultCodemapDirectory(forWorkingDirectory: normalizedWorkingDirectory)
     self.planHistoryEntries = planHistoryEntries
+    self.toolchainService = toolchainService
   }
 
   static func defaultCodemapDirectory(forWorkingDirectory workingDirectory: URL) -> URL {

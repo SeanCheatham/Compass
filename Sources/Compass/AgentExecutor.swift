@@ -34,6 +34,7 @@ struct AgentExecutionConfiguration {
   var codemapStoreDirectory: URL?
   /// Host-side completed plan summaries for the `plan_history` tool.
   var planHistoryEntries: [String]
+  var toolchainService: (any SharedVMToolchainService)?
   var maxIterations: Int
   var wallClockTimeout: TimeInterval
 
@@ -50,6 +51,7 @@ struct AgentExecutionConfiguration {
     bashRunner: AgentBashRunner = AgentHostBashRunner(),
     codemapStoreDirectory: URL? = nil,
     planHistoryEntries: [String] = [],
+    toolchainService: (any SharedVMToolchainService)? = nil,
     maxIterations: Int = 512,
     wallClockTimeout: TimeInterval = 60 * 60
   ) {
@@ -65,6 +67,7 @@ struct AgentExecutionConfiguration {
     self.bashRunner = bashRunner
     self.codemapStoreDirectory = codemapStoreDirectory
     self.planHistoryEntries = planHistoryEntries
+    self.toolchainService = toolchainService
     self.maxIterations = maxIterations
     self.wallClockTimeout = wallClockTimeout
   }
@@ -205,7 +208,8 @@ final class AgentExecutor {
       bashRunner: configuration.bashRunner,
       delegateRunner: delegateRunner,
       codemapStoreDirectory: configuration.codemapStoreDirectory,
-      planHistoryEntries: configuration.planHistoryEntries
+      planHistoryEntries: configuration.planHistoryEntries,
+      toolchainService: configuration.toolchainService
     )
     let model = configuration.settings.model(
       for: configuration.phase, sidebarOverride: configuration.modelOverride)
@@ -453,6 +457,7 @@ final class AgentExecutor {
       parentTools: configuration.tools,
       parentMaxIterations: configuration.maxIterations,
       parentWallClockTimeout: configuration.wallClockTimeout,
+      toolchainService: configuration.toolchainService,
       onEvent: onEvent
     )
   }

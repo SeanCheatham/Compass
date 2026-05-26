@@ -215,6 +215,9 @@ struct SharedCompassVMBundle: Equatable {
     /// at the start of headless first-boot provisioning; the password
     /// itself lives in the macOS Keychain under the Compass service.
     var guestPasswordKeychainAccount: String?
+    /// Toolchain ids successfully installed in the guest beyond the default
+    /// provisioning set. Probe remains authoritative; this is an audit trail.
+    var installedToolchains: [String] = []
 
     static let defaultGuestUserName = "compass"
 
@@ -226,7 +229,8 @@ struct SharedCompassVMBundle: Equatable {
       bootAttemptCounter: Int = 0,
       lastBundleSize: UInt64? = nil,
       guestMACAddress: String? = nil,
-      guestPasswordKeychainAccount: String? = nil
+      guestPasswordKeychainAccount: String? = nil,
+      installedToolchains: [String] = []
     ) {
       self.provisionStep = provisionStep
       self.lastKnownGoodIP = lastKnownGoodIP
@@ -236,6 +240,7 @@ struct SharedCompassVMBundle: Equatable {
       self.lastBundleSize = lastBundleSize
       self.guestMACAddress = guestMACAddress
       self.guestPasswordKeychainAccount = guestPasswordKeychainAccount
+      self.installedToolchains = installedToolchains
     }
   }
 

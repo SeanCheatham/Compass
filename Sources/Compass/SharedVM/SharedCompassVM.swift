@@ -767,7 +767,7 @@ final class SharedCompassVM: ObservableObject {
       )
       if probeOK {
         lastResolvedSSHDestination = destination
-        await ensureRipgrepIfNeeded()
+        await ensureDefaultToolchainsIfNeeded()
         transition(to: .ready(sshDestination: destination))
         return
       }
@@ -990,12 +990,8 @@ final class SharedCompassVM: ObservableObject {
     await runDevToolsProvisioner(destination: destination)
   }
 
-  /// Drives `SharedCompassVMDevToolsProvisioner` and
-  /// `SharedCompassVMRipgrepProvisioner` against the live VM using a
-  /// vsock-backed bash runner. Updates readiness with progress while each
-  /// install runs, and flips to `.ready` once CLT and ripgrep verify.
-  /// Safe to call when tools are already installed — each provisioner's
-  /// probe short-circuits and `progress(1)` fires immediately.
+  /// Drives default toolchain provisioning against the live VM using a
+  /// vsock-backed bash runner: CLT, then Homebrew, then ripgrep.
   private func runDevToolsProvisioner(destination: String) async {
     guard let machine = virtualMachine else {
       transition(to: .error(detail: "Shared VM is not running; cannot install developer tools."))
@@ -1009,12 +1005,13 @@ final class SharedCompassVM: ObservableObject {
     }
     let client = Self.makeVsockClient(on: machine)
     let host = self
+    let toolchainManager = makeToolchainService()
     do {
       _ = try await SharedCompassVMDevToolsProvisioner.provision(
         runner: client,
         progress: { fraction in
           await MainActor.run {
-            host.transition(to: .provisioningDevTools(fractionCompleted: fraction * 0.9))
+            host.transition(to: .provisioningDevTools(fractionCompleted: fraction * 0.6))
           }
         }
       )
@@ -1023,12 +1020,28 @@ final class SharedCompassVM: ObservableObject {
       return
     }
 
+    let homebrewDefinition = SharedVMToolchainCatalog.definition(for: .homebrew)
+    do {
+      _ = try await SharedCompassVMToolchainProvisioner.provision(
+        definition: homebrewDefinition,
+        runner: client,
+        progress: { fraction in
+          await MainActor.run {
+            host.transition(to: .provisioningDevTools(fractionCompleted: 0.6 + fraction * 0.2))
+          }
+        }
+      )
+    } catch {
+      transition(to: .error(detail: "Homebrew install failed: \(error)"))
+      return
+    }
+
     do {
       _ = try await SharedCompassVMRipgrepProvisioner.provision(
         runner: client,
         progress: { fraction in
           await MainActor.run {
-            host.transition(to: .provisioningDevTools(fractionCompleted: 0.9 + fraction * 0.1))
+            host.transition(to: .provisioningDevTools(fractionCompleted: 0.8 + fraction * 0.2))
           }
         }
       )
@@ -1037,39 +1050,84 @@ final class SharedCompassVM: ObservableObject {
       return
     }
 
+    try? toolchainManager.seedDefaultProvisionedToolchains()
     _ = try? bundle.mutateState(fileManager: dependencies.fileManager) {
       $0.provisionStep = .ready
     }
     transition(to: .ready(sshDestination: destination))
   }
 
-  /// Backfills ripgrep on guests that were provisioned before agent-search
-  /// tooling was added. Failures are non-fatal — grep falls back to BSD grep.
-  private func ensureRipgrepIfNeeded() async {
+  /// Factory for the Shared VM toolchain service used by agent tools.
+  func makeToolchainService() -> SharedCompassVMToolchainManager {
+    SharedCompassVMToolchainManager(
+      bundle: bundle,
+      fileManager: dependencies.fileManager
+    )
+  }
+
+  /// Backfills default toolchains on guests provisioned before homebrew
+  /// was split out or ripgrep was added. Failures are non-fatal.
+  private func ensureDefaultToolchainsIfNeeded() async {
     guard let machine = virtualMachine else { return }
     guard await SharedCompassVMVsock.waitUntilReachable(on: machine) else { return }
     let client = Self.makeVsockClient(on: machine)
+    let manager = makeToolchainService()
+
+    let homebrewMissing: Bool
     do {
-      if try await SharedCompassVMRipgrepProvisioner.probeAlreadyInstalled(runner: client) {
-        return
-      }
+      homebrewMissing = try await SharedCompassVMToolchainProvisioner.probe(
+        definition: SharedVMToolchainCatalog.definition(for: .homebrew),
+        runner: client
+      ) == false
     } catch {
       return
     }
 
-    transition(to: .provisioningDevTools(fractionCompleted: 0.9))
+    let ripgrepMissing: Bool
     do {
-      _ = try await SharedCompassVMRipgrepProvisioner.provision(
-        runner: client,
-        progress: { fraction in
-          await MainActor.run {
-            self.transition(to: .provisioningDevTools(fractionCompleted: 0.9 + fraction * 0.1))
-          }
-        }
-      )
+      ripgrepMissing = try await SharedCompassVMRipgrepProvisioner.probeAlreadyInstalled(
+        runner: client
+      ) == false
     } catch {
-      // Non-fatal: agent grep falls back to BSD grep until reprovision succeeds.
+      return
     }
+
+    guard homebrewMissing || ripgrepMissing else { return }
+
+    if homebrewMissing {
+      transition(to: .provisioningDevTools(fractionCompleted: 0.6))
+      do {
+        _ = try await SharedCompassVMToolchainProvisioner.provision(
+          definition: SharedVMToolchainCatalog.definition(for: .homebrew),
+          runner: client,
+          progress: { fraction in
+            await MainActor.run {
+              self.transition(to: .provisioningDevTools(fractionCompleted: 0.6 + fraction * 0.2))
+            }
+          }
+        )
+      } catch {
+        return
+      }
+    }
+
+    if ripgrepMissing {
+      transition(to: .provisioningDevTools(fractionCompleted: 0.8))
+      do {
+        _ = try await SharedCompassVMRipgrepProvisioner.provision(
+          runner: client,
+          progress: { fraction in
+            await MainActor.run {
+              self.transition(to: .provisioningDevTools(fractionCompleted: 0.8 + fraction * 0.2))
+            }
+          }
+        )
+      } catch {
+        return
+      }
+    }
+
+    try? manager.seedDefaultProvisionedToolchains()
   }
 
   /// Builds a vsock-backed agent client that opens a fresh

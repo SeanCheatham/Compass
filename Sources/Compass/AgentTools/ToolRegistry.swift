@@ -54,21 +54,30 @@ enum ToolRegistry {
   /// assignments folded in. Media tools land in the Develop phase
   /// only — Plan/Reflect/Critic are inspection passes that shouldn't
   /// be producing artifacts.
-  static func tools(for phase: AgentPhase, settings: AgentRuntimeSettings) -> [AgentTool] {
+  static func tools(
+    for phase: AgentPhase,
+    settings: AgentRuntimeSettings,
+    toolchainService: (any SharedVMToolchainService)? = nil
+  ) -> [AgentTool] {
+    var tools: [AgentTool]
     switch phase {
     case .plan:
-      return inspectionTools() + [
+      tools = inspectionTools() + [
         AgentPlanHistoryTool()
       ]
     case .reflect, .critic:
-      return inspectionTools()
+      tools = inspectionTools()
     case .develop:
-      var tools = developTools()
+      tools = developTools()
       if let imageAssignment = settings.imageAssignment {
         tools.append(AgentGenerateImageTool(assignment: imageAssignment))
       }
-      return tools
     }
+    if toolchainService != nil {
+      tools.append(AgentListToolchainsTool())
+      tools.append(AgentInstallToolchainTool())
+    }
+    return tools
   }
 
   /// Convenience overload for callers (tests, structural checks)
@@ -76,5 +85,10 @@ enum ToolRegistry {
   /// no media assignments to inject.
   static func tools(for phase: AgentPhase) -> [AgentTool] {
     tools(for: phase, settings: AgentRuntimeSettings())
+  }
+
+  /// Convenience overload matching the pre-toolchain signature.
+  static func tools(for phase: AgentPhase, settings: AgentRuntimeSettings) -> [AgentTool] {
+    tools(for: phase, settings: settings, toolchainService: nil)
   }
 }

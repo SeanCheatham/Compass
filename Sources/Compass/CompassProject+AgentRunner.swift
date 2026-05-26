@@ -143,6 +143,17 @@ extension CompassProject {
       log("Guest workspace sync: checking Shared VM copy…", level: .info)
       try await ensurePersistentGuestWorkspace(forHostRepo: workingDirectory)
     }
+    let toolchainService: (any SharedVMToolchainService)? =
+      environment.kind == .sharedVM
+      ? SharedCompassVM.shared.makeToolchainService()
+      : nil
+    var installedToolchainIDs: [String] = []
+    if environment.kind == .sharedVM {
+      installedToolchainIDs =
+        await SharedCompassVMToolchainManager(
+          bundle: SharedCompassVM.shared.bundle
+        ).installedToolchainIDsFromProbe(runner: environment.bashRunner)
+    }
     let configuration = AgentExecutionConfiguration(
       settings: agentSettings,
       phase: phase,
@@ -150,16 +161,22 @@ extension CompassProject {
       systemPrompt: Prompts.agentSystemPrompt(
         phase: phase,
         workingDirectoryPath: environment.workingDirectory.path,
-        executionEnvironment: environment.kind == .sharedVM ? .sharedVM : .host
+        executionEnvironment: environment.kind == .sharedVM ? .sharedVM : .host,
+        installedToolchainIDs: installedToolchainIDs
       ),
       userPrompt: userPrompt,
-      tools: ToolRegistry.tools(for: phase, settings: agentSettings),
+      tools: ToolRegistry.tools(
+        for: phase,
+        settings: agentSettings,
+        toolchainService: toolchainService
+      ),
       submitResultSchema: schema,
       workingDirectory: environment.workingDirectory,
       filesystem: environment.filesystem,
       bashRunner: environment.bashRunner,
       codemapStoreDirectory: codemapStoreDirectory,
-      planHistoryEntries: planHistoryEntries
+      planHistoryEntries: planHistoryEntries,
+      toolchainService: toolchainService
     )
     let agent = AgentExecutor { [weak self] event in
       Task { @MainActor in self?.log(event) }
