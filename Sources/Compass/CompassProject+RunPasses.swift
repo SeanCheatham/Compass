@@ -363,7 +363,7 @@ extension CompassProject {
             sessionIndex: sessionIndex,
             attempt: attempt
           )
-          finalIssues = post.displayIssues
+          finalIssues = post.retryIssues
           finalVerifyOutput = post.verifyOutput
           if sessions.indices.contains(sessionIndex) {
             sessions[sessionIndex].verifyOutput = post.verifyOutput
@@ -671,7 +671,6 @@ extension CompassProject {
     attempt: Int
   ) async throws -> PostCheckResult {
     var retryIssues: [String] = []
-    var displayIssues: [String] = []
     var verifyOutput: VerifyOutput?
 
     switch summary.status {
@@ -681,12 +680,10 @@ extension CompassProject {
       if summary.bypassVerify != true {
         let issue = "Develop reported it was blocked but did not request verify bypass."
         retryIssues.append(issue)
-        displayIssues.append(issue)
       }
     case .failed:
       let issue = "Develop reported failure: \(summary.feedback)"
       retryIssues.append(issue)
-      displayIssues.append(issue)
     }
 
     if summary.bypassVerify == true {
@@ -766,7 +763,6 @@ extension CompassProject {
           ```
           """
         retryIssues.append(issue)
-        displayIssues.append(issue)
         log("Working-tree status check failed.", level: .error)
       } else {
         let status = gitStatus.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -781,7 +777,6 @@ extension CompassProject {
             ```
             """
           retryIssues.append(issue)
-          displayIssues.append(issue)
           log("Working tree is not clean after Develop.", level: .error)
         }
       }
@@ -790,7 +785,6 @@ extension CompassProject {
     return PostCheckResult(
       ok: retryIssues.isEmpty,
       retryIssues: retryIssues,
-      displayIssues: displayIssues,
       verifyOutput: verifyOutput
     )
   }

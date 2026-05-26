@@ -97,6 +97,5 @@ final class CompassProject: ObservableObject, Identifiable {
 struct PostCheckResult {
   var ok: Bool
   var retryIssues: [String]
-  var displayIssues: [String]
   var verifyOutput: VerifyOutput?
 }
