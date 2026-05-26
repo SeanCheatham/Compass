@@ -41,6 +41,12 @@ enum AgentSecretStorageError: LocalizedError, Equatable {
 /// created on demand and pinned to `0700`.
 struct AgentFileSecretStorage: AgentSecretStorage {
   let root: URL
+  /// `FileManager` is not `Sendable` because its underlying coordinate
+  /// methods can race, but this struct is a concrete type — not a protocol
+  /// existential — whose entire lifetime is scoped to a single caller's
+  /// construction. The `fileManager` property is `private` and never escapes
+  /// the instance, so the lack of `Sendability` is benign and intentional
+  /// here, mirroring the pattern in `SharedCompassVMToolchainManager`.
   private let fileManager: FileManager
 
   init(root: URL = AgentFileSecretStorage.defaultRoot(), fileManager: FileManager = .default) {
