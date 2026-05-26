@@ -311,7 +311,6 @@ extension CompassProject {
             appendSessionNote(note, to: sessionIndex)
             priorIssues = [note]
             finalIssues = [note]
-            finalVerifyOutput = nil
             if attempt < maxDevelopAttempts {
               feedback(.developRetrying)
             }
@@ -399,26 +398,6 @@ extension CompassProject {
         )
 
         if verdict.verdict == .approve {
-          if let commitIssue = await landDevelopChanges(
-            workspace: workspace,
-            summary: summary,
-            launchPlan: launchPlan,
-            sessionIndex: sessionIndex
-          ) {
-            finalIssues = [commitIssue]
-            succeeded = false
-          } else {
-            succeeded = true
-            feedback(.commitsPromoted)
-          }
-          break criticLoop
-        }
-
-        if criticAttempt >= maxCriticAttempts {
-          let warning =
-            "Critic still requested changes after \(maxCriticAttempts) reviews; accepting and proceeding."
-          log(warning, level: .warning)
-          appendSessionNote(warning, to: sessionIndex)
           if let commitIssue = await landDevelopChanges(
             workspace: workspace,
             summary: summary,
