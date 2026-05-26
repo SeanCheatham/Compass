@@ -64,6 +64,7 @@ extension CompassProject {
 
   func tail(_ text: String, max: Int) -> String {
     guard text.count > max else { return text }
-    return "...(truncated)...\n" + String(text.suffix(max))
+    let prefix = "...(truncated)...\n"
+    return prefix + String(text.suffix(max - prefix.count))
   }
 }
