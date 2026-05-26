@@ -164,11 +164,15 @@ struct CompassSettingsView: View {
 
   private func phaseHelp(_ phase: AgentPhase) -> String {
     switch phase {
+    case .plan:
+      return "Optional override for the reasoning and architecture phase. Defaults to the 'Default model' when empty."
+    case .develop:
+      return "Optional override for the code implementation phase. Defaults to the 'Default model' when empty."
+    case .reflect:
+      return "Optional override for the iteration assessment phase. Defaults to the 'Default model' when empty."
     case .critic:
       return
         "Adversarial review pass that gates Develop output. Pointing this at a different / stronger model than Develop produces more independent critique."
-    default:
-      return "Optional override; leaves \"Default model\" when empty."
     }
   }
 }
