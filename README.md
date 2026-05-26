@@ -109,11 +109,14 @@ the phase contract.
   change or a full updated `PlanState`.
 - Develop runs with the **full** tool set (the read-only tools plus
   `write_file`, `edit_file`, `bash`) inside the Shared VM's persistent
-  per-repo guest workspace, talking back to the host over vsock. Once Verify passes, Compass pulls the guest workspace into the
-  host repo so the iteration's commits land where the rest of the
-  toolchain expects them. Develop must return `lessonEdits` instead of
-  editing `.compass/lessons.md` directly, so durable lessons land in the
-  main Compass workspace rather than only inside the guest.
+  per-repo guest workspace. All four phases (Plan, Reflect, Develop,
+  Verify) run inside the guest with their agent tool calls dispatched
+  over vsock. After Verify passes, Compass pulls the guest workspace
+  into the host repo so the iteration's commits land where the rest
+  of the toolchain expects them. Develop must return `lessonEdits`
+  instead of editing `.compass/lessons.md` directly, so durable lessons
+  land in the main Compass workspace rather than only inside the
+  guest.
 - Develop post-checks repeat the verify command, require
   `git status --porcelain` to be clean, and retry failed post-checks up
   to three attempts with failure context.
