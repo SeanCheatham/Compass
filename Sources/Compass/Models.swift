@@ -451,7 +451,6 @@ struct SessionRecord: Codable, Identifiable, Equatable {
     case verifyOutput
     case feedback
     case executionEnvironmentSnapshots
-    case legacyMutationTestingExecutions = "mutationTestingExecutions"
   }
 
   init(
@@ -506,7 +505,6 @@ struct SessionRecord: Codable, Identifiable, Equatable {
         forKey: .executionEnvironmentSnapshots
       ) ?? []
     )
-    _ = try container.decodeIfPresent([LegacyMutationTestingExecution].self, forKey: .legacyMutationTestingExecutions)
   }
 
   func encode(to encoder: Encoder) throws {
@@ -560,21 +558,6 @@ struct SessionRecord: Codable, Identifiable, Equatable {
       partialResult = recording(snapshot, in: partialResult)
     }
   }
-}
-
-/// Absorbs legacy `mutationTestingExecutions` payloads on decode without
-/// persisting them back out.
-private struct LegacyMutationTestingExecution: Codable {
-  var readinessIdentifier: String?
-  var statusIdentifier: String?
-  var routeIdentifier: String?
-  var languageIdentifier: String?
-  var seedCommandLabel: String?
-  var mutationCommandLabel: String?
-  var exitCode: Int?
-  var startedAt: Double?
-  var endedAt: Double?
-  var outputTail: String?
 }
 
 struct DevelopSummary: Codable, Equatable {
