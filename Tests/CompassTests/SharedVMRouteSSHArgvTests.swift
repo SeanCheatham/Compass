@@ -221,7 +221,7 @@ final class SharedVMRouteSSHArgvTests: XCTestCase {
   ) -> SharedVMRoute {
     SharedVMRoute(
       sshDestination: "compass@10.0.0.42",
-      hostWorktreeURL: URL(fileURLWithPath: "/Users/sean/Library/Caches/Compass/Worktrees"),
+      hostWorktreeURL: URL(fileURLWithPath: "/Users/test/Library/Caches/Compass/Worktrees"),
       guestWorkspacePath: guestWorkspacePath,
       environmentVariables: ["FOO": "bar"],
       identityFile: "/tmp/id_ed25519",
