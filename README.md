@@ -98,25 +98,24 @@ fixed tool set, streams reasoning + tool calls back, and ends the turn by
 calling the special `submit_result` tool with a JSON payload that matches
 the phase contract.
 
-- Plan runs with a **read-only** tool set (`read_file`, `ls`, `grep`,
-  `glob`, plus the codemap tools `outline`, `find_symbol`, `summary`,
-  `importers_of`, `list_files`) and asks the model for a structured state
-  result plus optional `lessonEdits`. The app backs up `.compass/state.json`
-  first, applies lesson edits with exact find/replace mechanics, then
-  writes the decoded state after the run.
+- Plan runs with inspection tools (`read_file`, `ls`, `grep`, `glob`,
+  `bash`, plus the codemap tools `outline`, `find_symbol`, `summary`,
+  `importers_of`, `list_files`, and `delegate`). The system prompt — not
+  the presence of `bash` — enforces the no-mutation contract. `bash` is
+  included so the agent can probe the project (build, test, lint, git)
+  when deciding what to plan. The app backs up `.compass/state.json` first,
+  applies lesson edits with exact find/replace mechanics, then writes the
+  decoded state after the run.
 - Reflect runs on the default cadence (`COMPASS_REFLECT_EVERY`, default
   `5`) with the same read-only tool set and can return either no state
   change or a full updated `PlanState`.
-- Develop runs with the **full** tool set (the read-only tools plus
+- Develop runs with the full tool set (inspection tools plus
   `write_file`, `edit_file`, `bash`) inside the Shared VM's persistent
-  per-repo guest workspace. All four phases (Plan, Reflect, Develop,
-  Verify) run inside the guest with their agent tool calls dispatched
-  over vsock. After Verify passes, Compass pulls the guest workspace
-  into the host repo so the iteration's commits land where the rest
-  of the toolchain expects them. Develop must return `lessonEdits`
+  per-repo guest workspace. Plan and Reflect also run inside the same
+  guest when the VM is ready; if the VM is unavailable they fall back
+  to a direct host invocation. Develop must return `lessonEdits`
   instead of editing `.compass/lessons.md` directly, so durable lessons
-  land in the main Compass workspace rather than only inside the
-  guest.
+  land in the main Compass workspace rather than only inside the guest.
 - Develop post-checks repeat the verify command, require
   `git status --porcelain` to be clean, and retry failed post-checks up
   to three attempts with failure context.
