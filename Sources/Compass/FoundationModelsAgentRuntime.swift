@@ -1,26 +1,31 @@
 import Foundation
 import FoundationModels
 
-/// On-device text runtime backed by Apple's `FoundationModels`
-/// framework. Lives alongside `AgentExecutor`'s OpenAI-compatible
-/// path so a user who selects "Foundation Models" for the Text
-/// capability gets a real agent loop without configuring any
-/// network credentials.
+/// On-device text runtime backed by Apple's `FoundationModels` framework, available
+/// on macOS 26.0 and later. Selected at the Settings level in place of a
+/// network-based Text provider — a user who picks "Foundation Models" gets a
+/// real agent loop without configuring any credentials.
 ///
-/// The framework owns the chat loop: tools the user defines in
-/// Compass are wrapped as `FoundationModels.Tool` instances, the
-/// system prompt becomes the session's `instructions`, and
-/// `LanguageModelSession.streamResponse(to:)` drives the
-/// conversation. Termination flows through the `submit_result`
-/// tool — its `call` impl captures the structured args via a
-/// shared box and throws a sentinel error to break out of the
-/// stream, which the runtime catches and converts into an
-/// `AgentExecutionResult`.
+/// ## How it plugs into the agent loop
 ///
-/// FoundationModels handles its own context compaction and has no
-/// network retry surface, so this path does not reimplement the
-/// HTTP path's compaction / exponential-backoff machinery.
-@available(macOS 26.0, *)
+/// Compass tools are wrapped as `FoundationModels.Tool` instances and passed to a
+/// `LanguageModelSession`. The system prompt becomes the session's `instructions`;
+/// `LanguageModelSession.streamResponse(to:)` drives the turn-by-turn conversation.
+/// When the model calls `submit_result`, `SubmitResultTool.call` stashes the
+/// structured JSON args in a thread-safe capture box and throws a sentinel
+/// `SubmitResultSignal` to break out of the framework's internal stream loop.
+/// The runtime catches the signal, retrieves the captured args, and returns an
+/// `AgentExecutionResult` — the same termination contract as the OpenAI-compatible
+/// path.
+///
+/// ## Limits
+///
+/// FoundationModels owns its own context compaction. There is no HTTP layer, so
+/// this path carries none of the network-retry or exponential-backoff machinery
+/// present in the OpenAI-compatible `AgentExecutor` path. If the model needs to
+/// call `submit_result` and has not done so by the time the stream finishes
+/// cleanly, the runtime nudges the model with a single-shot prompt before
+/// iterating again — the same fallback used by the network path.
 enum FoundationModelsAgentRuntime {
   static func run(
     _ configuration: AgentExecutionConfiguration,
