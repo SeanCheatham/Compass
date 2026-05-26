@@ -37,8 +37,9 @@ struct AgentExecutionConfiguration {
   var toolchainService: (any SharedVMToolchainService)?
   /// Optional post-decode guard for `submit_result`. When it throws,
   /// the executor rolls back the turn and reprompts — same remediation
-  /// path as malformed tool JSON. Plan / Develop / Reflect use this to
-  /// reject lesson edits whose `find` text doesn't match lessons.md.
+  /// path as malformed tool JSON. `runAgent` uses this to reject lesson
+  /// edits that don't match lessons.md and payloads that don't decode
+  /// into the phase result model.
   var validateSubmitResult: (@Sendable (Data) throws -> Void)?
   var maxIterations: Int
   var wallClockTimeout: TimeInterval
@@ -376,8 +377,7 @@ final class AgentExecutor {
                 nudgeIndices: &remediationNudgeIndices,
                 to: messageCountBeforeAssistant
               )
-              let nudge = Self.invalidLessonEditsNudge(
-                errorMessage: error.localizedDescription)
+              let nudge = Self.submitResultValidationNudge(for: error)
               Self.appendRemediationNudge(
                 nudge.userMessage,
                 messages: &messages,
@@ -878,6 +878,51 @@ final class AgentExecutor {
   /// providers that omit it still produce invalid JSON the same way
   /// (mid-token cutoff), so we fall back to a generic "args wouldn't
   /// parse" nudge that nudges the model toward shorter output.
+  static func submitResultValidationNudge(for error: Error) -> InvalidToolArgumentsNudge {
+    if error is DecodingError {
+      return invalidSubmitResultDecodeNudge(errorMessage: decodingErrorMessage(error))
+    }
+    return invalidLessonEditsNudge(errorMessage: error.localizedDescription)
+  }
+
+  static func decodingErrorMessage(_ error: Error) -> String {
+    guard let decoding = error as? DecodingError else {
+      return error.localizedDescription
+    }
+    switch decoding {
+    case .keyNotFound(let key, _):
+      return "Missing required field `\(key.stringValue)`."
+    case .valueNotFound(let type, let context):
+      let path = context.codingPath.map(\.stringValue).joined(separator: ".")
+      let label = path.isEmpty ? String(describing: type) : path
+      return "Missing value for `\(label)`."
+    case .typeMismatch(let type, let context):
+      let path = context.codingPath.map(\.stringValue).joined(separator: ".")
+      return "Wrong type at `\(path)`: expected \(type)."
+    case .dataCorrupted(let context):
+      return context.debugDescription
+    @unknown default:
+      return decoding.localizedDescription
+    }
+  }
+
+  static func invalidSubmitResultDecodeNudge(errorMessage: String) -> InvalidToolArgumentsNudge {
+    InvalidToolArgumentsNudge(
+      eventText: "submit_result contract rejected",
+      eventDetail: errorMessage,
+      userMessage: """
+        Your previous `submit_result` did not match this phase's required shape: \
+        \(errorMessage)
+
+        Call `submit_result` again with arguments that decode to the schema shown in \
+        your original task — include every required top-level field and, when `state` is \
+        an object rather than null, all of its required nested fields (`immediate`, \
+        `midTerm`, `longTerm` for planning phases). Use `lessonEdits: []` when you have \
+        no lesson change. Do not wrap the payload in an extra object.
+        """
+    )
+  }
+
   static func invalidLessonEditsNudge(errorMessage: String) -> InvalidToolArgumentsNudge {
     InvalidToolArgumentsNudge(
       eventText: "submit_result lesson edits rejected",

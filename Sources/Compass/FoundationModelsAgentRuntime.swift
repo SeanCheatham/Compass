@@ -169,8 +169,7 @@ enum FoundationModelsAgentRuntime {
       try validate(submitResultJSON)
       return nil
     } catch {
-      let nudge = AgentExecutor.invalidLessonEditsNudge(
-        errorMessage: error.localizedDescription)
+      let nudge = AgentExecutor.submitResultValidationNudge(for: error)
       emit(
         LiveEvent(
           level: .warning,

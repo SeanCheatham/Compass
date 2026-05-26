@@ -154,7 +154,11 @@ extension CompassProject {
           bundle: SharedCompassVM.shared.bundle
         ).installedToolchainIDsFromProbe(runner: environment.bashRunner)
     }
-    let validateSubmitResult = lessonEditValidation(for: phase, hostRepoURL: workingDirectory)
+    let validateSubmitResult = submitResultValidation(
+      for: phase,
+      hostRepoURL: workingDirectory,
+      decode: T.self
+    )
     let configuration = AgentExecutionConfiguration(
       settings: agentSettings,
       phase: phase,
@@ -196,16 +200,19 @@ extension CompassProject {
   }
 
   /// Reject `submit_result` in-flight when lesson edits don't match
-  /// the host workspace's lessons.md. Only Plan, Develop, and Reflect
-  /// carry `lessonEdits`; other phases skip validation.
-  func lessonEditValidation(
+  /// lessons.md or the payload can't decode into the phase result model.
+  func submitResultValidation<T: Decodable>(
     for phase: AgentPhase,
-    hostRepoURL: URL
-  ) -> (@Sendable (Data) throws -> Void)? {
-    guard phase == .plan || phase == .develop || phase == .reflect else { return nil }
+    hostRepoURL: URL,
+    decode: T.Type
+  ) -> (@Sendable (Data) throws -> Void) {
     let hostWorkspace = makeWorkspace(repoURL: hostRepoURL)
+    let validatesLessonEdits = phase == .plan || phase == .develop || phase == .reflect
     return { args in
-      try hostWorkspace.validateSubmitResultLessonEdits(args)
+      if validatesLessonEdits {
+        try hostWorkspace.validateSubmitResultLessonEdits(args)
+      }
+      _ = try JSONDecoder().decode(T.self, from: args)
     }
   }
 

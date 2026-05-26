@@ -334,6 +334,50 @@ final class AgentExecutorTests: XCTestCase {
     XCTAssertTrue(nudge.userMessage.contains("Use `[]`"))
   }
 
+  func testInvalidSubmitResultDecodeNudgeExplainsContractMismatch() {
+    let nudge = AgentExecutor.invalidSubmitResultDecodeNudge(
+      errorMessage: "Missing required field `lessonEdits`."
+    )
+    XCTAssertEqual(nudge.eventText, "submit_result contract rejected")
+    XCTAssertTrue(nudge.userMessage.contains("required shape"))
+    XCTAssertTrue(nudge.userMessage.contains("lessonEdits: []"))
+  }
+
+  func testSubmitResultValidationNudgeUsesDecodeCopyForDecodingErrors() {
+    let payload = Data("""
+      {"state":{"midTerm":"x","immediate":null},"summary":"done"}
+      """.utf8)
+    do {
+      _ = try JSONDecoder().decode(ReflectSummary.self, from: payload)
+      XCTFail("expected decode to fail")
+    } catch {
+      let nudge = AgentExecutor.submitResultValidationNudge(for: error)
+      XCTAssertEqual(nudge.eventText, "submit_result contract rejected")
+    }
+  }
+
+  func testSubmitResultValidationNudgeUsesLessonEditCopyForOtherErrors() {
+    let nudge = AgentExecutor.submitResultValidationNudge(
+      for: NSError(domain: "test", code: 1, userInfo: [
+        NSLocalizedDescriptionKey: "Lesson edit `find` text was not found in lessons.md.",
+      ])
+    )
+    XCTAssertEqual(nudge.eventText, "submit_result lesson edits rejected")
+  }
+
+  func testDecodingErrorMessageSurfacesMissingKey() {
+    let payload = Data("""
+      {"state":{"midTerm":"x","immediate":null},"summary":"done"}
+      """.utf8)
+    do {
+      _ = try JSONDecoder().decode(ReflectSummary.self, from: payload)
+      XCTFail("expected decode to fail")
+    } catch {
+      let message = AgentExecutor.decodingErrorMessage(error)
+      XCTAssertTrue(message.contains("longTerm"), "message was: \(message)")
+    }
+  }
+
   // MARK: - Invalid generic-tool-args remediation
 
   func testInvalidToolArgumentsNudgeUsesTruncationCopyWhenFinishReasonIsLength() {
