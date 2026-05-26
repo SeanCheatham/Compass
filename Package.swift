@@ -39,6 +39,10 @@ let package = Package(
       url: "https://github.com/tree-sitter/tree-sitter-rust",
       branch: "master"
     ),
+    .package(
+      url: "https://github.com/apple/swift-testing",
+      branch: "main"
+    ),
   ],
   targets: [
     .target(
@@ -80,7 +84,7 @@ let package = Package(
     ),
     .testTarget(
       name: "CompassAgentRPCTests",
-      dependencies: ["CompassAgentRPC"]
+      dependencies: ["CompassAgentRPC", .product(name: "Testing", package: "swift-testing")]
     ),
     .testTarget(
       name: "CompassTests",
