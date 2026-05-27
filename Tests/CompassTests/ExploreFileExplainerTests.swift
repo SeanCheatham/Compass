@@ -438,6 +438,46 @@ struct ExploreFileExplainerTests {
     #require(changes[0].relativePath == "Sources/App.swift")
   }
 
+  @Test
+  func changes_noChangedFiles_returnsEmptyArray() async throws {
+    var test = Self()
+    test.setUp()
+    defer { test.tearDown() }
+
+    // Set up a git repo with one commit that adds a file, then a second empty commit.
+    // The range that covers only the empty commit has no file changes.
+    try initGitRepo(at: test.temporaryDirectory)
+    try writeFile("Sources/App.swift", contents: "import Foundation\n")
+    try runGit(
+      "git -C \(test.temporaryDirectory.path) add Sources/App.swift && "
+        + "git -C \(test.temporaryDirectory.path) "
+        + "-c user.email=t@t -c user.name=t commit -q -m 'Add App.swift'",
+      at: test.temporaryDirectory
+    )
+
+    // Second commit with no file changes (empty commit allowed).
+    try runGit(
+      "git -C \(test.temporaryDirectory.path) commit --allow-empty -q "
+        + "-c user.email=t@t -c user.name=t -m 'Empty commit'",
+      at: test.temporaryDirectory
+    )
+
+    let shas = try getAllCommitSHAs(at: test.temporaryDirectory)
+    #require(shas.count == 2)
+    let oldest = shas[1] // empty commit
+    let newest = shas[0] // add App.swift
+
+    // Pass commits covering only the empty commit (oldest..newest = range with no changes).
+    let commits = [
+      SessionCommit(sha: oldest, short: String(oldest.prefix(7)), subject: "Empty commit"),
+      SessionCommit(sha: newest, short: String(newest.prefix(7)), subject: "Add App.swift"),
+    ]
+
+    let changes = await FileExplainer.changes(for: test.temporaryDirectory, commits: commits)
+
+    #require(changes.isEmpty) { "No files changed in the range that only covers the empty commit; changes() must return an empty array" }
+  }
+
   // MARK: - FileChangeCategory.categorize
 
   // MARK: Source files — known language extension, not test/config
