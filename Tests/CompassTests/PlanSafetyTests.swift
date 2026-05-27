@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+import XCTest
 
 @testable import Compass
 
@@ -249,7 +250,7 @@ struct PlanNextDecoderTests {
   }
 
   private func decodePlanNext(_ json: String) throws -> PlanNext {
-    let data = try XCTUnwrap(json.data(using: .utf8))
+    let data = try #require(json.data(using: .utf8))
     return try JSONDecoder().decode(PlanNext.self, from: data)
   }
 }

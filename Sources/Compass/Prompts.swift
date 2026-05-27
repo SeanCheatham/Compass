@@ -700,7 +700,8 @@ enum Prompts {
     2. Develop — implement that increment in the working tree (often a Shared VM
        guest copy synced from the host repo).
     3. Post-checks — Compass runs the verify shell command you planned; retries
-       Develop on failure up to a budget.
+       Develop on failure up to three attempts, then hands failure context to
+       Plan as feedback and continues the loop.
     4. Critic — optional adversarial review; may loop Develop with feedback.
     5. Land — on success Compass pulls guest changes to the host repo and commits
        (guest workspaces have no `.git`; the agent does not commit there).

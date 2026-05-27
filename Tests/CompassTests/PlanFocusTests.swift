@@ -10,15 +10,15 @@ struct PlanFocusTests {
   /// categories. If someone retunes them this test should be
   /// updated deliberately rather than drift silently.
   @Test
-  func testWeightsMatchExpectedDistribution() {
-    #require(PlanFocus.feature.weight == 30)
-    #require(PlanFocus.test.weight == 25)
-    #require(PlanFocus.cleanup.weight == 25)
-    #require(PlanFocus.docs.weight == 10)
-    #require(PlanFocus.bugHunt.weight == 10)
+  func testWeightsMatchExpectedDistribution()  throws {
+    try #require(PlanFocus.feature.weight == 30)
+    try #require(PlanFocus.test.weight == 25)
+    try #require(PlanFocus.cleanup.weight == 25)
+    try #require(PlanFocus.docs.weight == 10)
+    try #require(PlanFocus.bugHunt.weight == 10)
 
     let total = PlanFocus.allCases.reduce(0.0) { $0 + $1.weight }
-    #require(total == 100)
+    try #require(total == 100)
   }
 
   /// Smoke test the sampler with a seeded generator. We don't pin
@@ -28,14 +28,14 @@ struct PlanFocusTests {
   /// which is what "weighted but covers all" actually means in the
   /// product sense.
   @Test
-  func testWeightedRandomEventuallyPicksEveryFocus() {
+  func testWeightedRandomEventuallyPicksEveryFocus()  throws {
     var generator = SplitMix64(seed: 0xC0FFEE)
     var seen = Set<PlanFocus>()
     for _ in 0..<10_000 {
       seen.insert(PlanFocus.weightedRandom(using: &generator))
       if seen.count == PlanFocus.allCases.count { return }
     }
-    #require(false, "weightedRandom did not cover every focus in 10k samples; saw \(seen)")
+    try #require(false, "weightedRandom did not cover every focus in 10k samples; saw \(seen)")
   }
 
   /// Over a large sample the empirical distribution should land
@@ -43,7 +43,7 @@ struct PlanFocusTests {
   /// goal is to catch a wholesale wiring bug (e.g. uniform
   /// sampling, swapped weights), not to validate the RNG.
   @Test
-  func testWeightedRandomApproximatesConfiguredWeights() {
+  func testWeightedRandomApproximatesConfiguredWeights()  throws {
     var generator = SplitMix64(seed: 0xDECAFBAD)
     let trials = 20_000
     var counts: [PlanFocus: Int] = [:]
@@ -54,7 +54,7 @@ struct PlanFocusTests {
     for focus in PlanFocus.allCases {
       let observed = Double(counts[focus] ?? 0) / Double(trials)
       let expected = focus.weight / 100.0
-      #require(observed == expected, accuracy: 0.03, "focus \(focus.displayName) sampled at \(observed), expected ~\(expected)")
+      try #require(abs(observed - expected) < 0.03, "focus \(focus.displayName) sampled at \(observed), expected ~\(expected)")
     }
   }
 }

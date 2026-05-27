@@ -9,11 +9,11 @@ struct SharedCompassVMConfigurationTests {
   // MARK: - vsock
 
   @Test
-  func testGuestAgentPortIsStableAcrossBuilds() {
+  func testGuestAgentPortIsStableAcrossBuilds()  throws {
     // Both sides of the vsock conversation (host AgentVsockClient and
     // the in-guest CompassGuestAgent) reference this constant. Lock the
     // value so a refactor on either side can't silently rewire the port.
-    #require(SharedCompassVMVsock.guestAgentPort == 0x4007_ACE5)
+    try #require(SharedCompassVMVsock.guestAgentPort == 0x4007_ACE5)
   }
 
   // MARK: - Console
@@ -34,6 +34,6 @@ struct SharedCompassVMConfigurationTests {
 
     try SharedCompassVMConfiguration.replaceConsoleAttachment(attachment, on: configuration)
 
-    #require(consolePort.attachment === attachment)
+    try #require(consolePort.attachment === attachment)
   }
 }

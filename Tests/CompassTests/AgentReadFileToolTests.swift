@@ -3,7 +3,7 @@ import Testing
 
 @testable import Compass
 
-struct AgentReadFileToolTests {
+final class AgentReadFileToolTests {
   private var temporaryDirectory: URL!
   private let tool = AgentReadFileTool()
 
@@ -24,10 +24,10 @@ struct AgentReadFileToolTests {
     let context = AgentToolContext(workingDirectory: temporaryDirectory)
     let result = try await invoke(["path": "hello.txt"], context: context)
 
-    #require(!result.isError)
-    #require(result.content.contains("     1\talpha"))
-    #require(result.content.contains("     2\tbeta"))
-    #require(result.content.contains("     3\tgamma"))
+    try #require(!result.isError)
+    try #require(result.content.contains("     1\talpha"))
+    try #require(result.content.contains("     2\tbeta"))
+    try #require(result.content.contains("     3\tgamma"))
   }
 
   @Test func testOffsetAndLimitNarrowTheSlice() async throws {
@@ -43,11 +43,11 @@ struct AgentReadFileToolTests {
         "limit": 2,
       ], context: context)
 
-    #require(!result.isError)
-    #require(result.content.contains("     3\trow3"))
-    #require(result.content.contains("     4\trow4"))
-    #require(!result.content.contains("row5"))
-    #require(result.content.contains("6 more lines"))
+    try #require(!result.isError)
+    try #require(result.content.contains("     3\trow3"))
+    try #require(result.content.contains("     4\trow4"))
+    try #require(!result.content.contains("row5"))
+    try #require(result.content.contains("6 more lines"))
   }
 
   @Test func testRejectsBinaryFiles() async throws {
@@ -57,22 +57,22 @@ struct AgentReadFileToolTests {
     let context = AgentToolContext(workingDirectory: temporaryDirectory)
     let result = try await invoke(["path": "binary.bin"], context: context)
 
-    #require(result.isError)
-    #require(result.content.contains("binary"))
+    try #require(result.isError)
+    try #require(result.content.contains("binary"))
   }
 
   @Test func testRejectsPathsThatEscapeTheWorkingDirectory() async throws {
     let context = AgentToolContext(workingDirectory: temporaryDirectory)
     let result = try await invoke(["path": "../escape.txt"], context: context)
-    #require(result.isError)
-    #require(result.content.contains("escapes"))
+    try #require(result.isError)
+    try #require(result.content.contains("escapes"))
   }
 
   @Test func testReportsMissingFile() async throws {
     let context = AgentToolContext(workingDirectory: temporaryDirectory)
     let result = try await invoke(["path": "ghost.txt"], context: context)
-    #require(result.isError)
-    #require(result.content.contains("not found"))
+    try #require(result.isError)
+    try #require(result.content.contains("not found"))
   }
 
   @Test func testOffsetPastEndReturnsFriendlyMessage() async throws {
@@ -86,8 +86,8 @@ struct AgentReadFileToolTests {
         "offset": 100,
       ], context: context)
 
-    #require(!result.isError)
-    #require(result.content.contains("past the end"))
+    try #require(!result.isError)
+    try #require(result.content.contains("past the end"))
   }
 
   @Test func testRejectsDirectoryAsRegularFile() async throws {
@@ -96,8 +96,8 @@ struct AgentReadFileToolTests {
 
     let context = AgentToolContext(workingDirectory: temporaryDirectory)
     let result = try await invoke(["path": "sub"], context: context)
-    #require(result.isError)
-    #require(result.content.contains("Not a regular file"))
+    try #require(result.isError)
+    try #require(result.content.contains("Not a regular file"))
   }
 
   fileprivate func invoke(_ args: [String: Any], context: AgentToolContext) async throws
@@ -106,11 +106,4 @@ struct AgentReadFileToolTests {
     let data = try JSONSerialization.data(withJSONObject: args)
     return try await tool.invoke(arguments: data, context: context)
   }
-}
-
-fileprivate func makeTempDir(file: StaticString = #file, line: UInt = #line) throws -> URL {
-  let url = FileManager.default.temporaryDirectory
-    .appendingPathComponent("CompassAgentToolTests-\(UUID().uuidString)", isDirectory: true)
-  try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
-  return url.standardizedFileURL
 }

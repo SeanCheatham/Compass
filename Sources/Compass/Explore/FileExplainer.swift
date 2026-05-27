@@ -160,7 +160,7 @@ enum FileExplainer {
   ///   Sources/Compass/AppModel.swift       |  24 +++++++++++++++--
   /// or for renames:
   ///   old/path.go => new/path.go           |   4 ++-
-  private static func parseGitDiffStat(_ diffStat: String) -> [FileChange] {
+  static func parseGitDiffStat(_ diffStat: String) -> [FileChange] {
     var changes: [FileChange] = []
 
     for line in diffStat.split(whereSeparator: \.isNewline) {
@@ -208,7 +208,7 @@ enum FileExplainer {
   }
 
   /// Extract addition/deletion counts from a stat line like "24 +++++++++++++++------"
-  private static func extractLineCounts(from statPart: String) -> (additions: Int, deletions: Int) {
+  static func extractLineCounts(from statPart: String) -> (additions: Int, deletions: Int) {
     let tokens = statPart.split(separator: " ")
     var numericCount = 0
     for token in tokens {

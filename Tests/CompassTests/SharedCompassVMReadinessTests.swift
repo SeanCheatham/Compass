@@ -7,8 +7,8 @@ import Testing
 /// `SharedCompassVMReadiness`. These ride hot paths in routing decisions
 /// (Phase 3 fallback), so a wrongly-true predicate would silently misroute.
 struct SharedCompassVMReadinessTests {
-  @Test func testIsReadyOnlyTrueForReadyCase() {
-    #require(SharedCompassVMReadiness.ready(sshDestination: "compass@10.0.0.42").isReady)
+  @Test func testIsReadyOnlyTrueForReadyCase()  throws {
+    try #require(SharedCompassVMReadiness.ready(sshDestination: "compass@10.0.0.42").isReady)
 
     let notReady: [SharedCompassVMReadiness] = [
       .unavailable(reason: "no virt"),
@@ -20,12 +20,12 @@ struct SharedCompassVMReadinessTests {
       .error(detail: "kaboom"),
     ]
     for readiness in notReady {
-      #require(!readiness.isReady)
+      try #require(!readiness.isReady)
     }
   }
 
-  @Test func testIsUnavailableOnlyTrueForUnavailableCase() {
-    #require(SharedCompassVMReadiness.unavailable(reason: "no virt").isUnavailable)
+  @Test func testIsUnavailableOnlyTrueForUnavailableCase()  throws {
+    try #require(SharedCompassVMReadiness.unavailable(reason: "no virt").isUnavailable)
 
     let notUnavailable: [SharedCompassVMReadiness] = [
       .notProvisioned,
@@ -37,11 +37,11 @@ struct SharedCompassVMReadinessTests {
       .error(detail: "kaboom"),
     ]
     for readiness in notUnavailable {
-      #require(!readiness.isUnavailable)
+      try #require(!readiness.isUnavailable)
     }
   }
 
-  @Test func testIsReadyAndIsUnavailableAreMutuallyExclusive() {
+  @Test func testIsReadyAndIsUnavailableAreMutuallyExclusive()  throws {
     // Cross-check: no single case may report both true.
     let allCases: [SharedCompassVMReadiness] = [
       .unavailable(reason: "x"),
@@ -54,7 +54,7 @@ struct SharedCompassVMReadinessTests {
       .error(detail: "x"),
     ]
     for readiness in allCases {
-      #require(!(readiness.isReady && readiness.isUnavailable))
+      try #require(!(readiness.isReady && readiness.isUnavailable))
     }
   }
 }

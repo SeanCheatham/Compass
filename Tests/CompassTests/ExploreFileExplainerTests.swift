@@ -20,7 +20,7 @@ struct ExploreFileExplainerTests {
   // MARK: - parseGitDiffStat
 
   @Test
-  func parseGitDiffStat_normalAdditionsAndDeletions() {
+  func parseGitDiffStat_normalAdditionsAndDeletions()  throws {
     var test = Self()
     test.setUp()
     defer { test.tearDown() }
@@ -32,19 +32,19 @@ struct ExploreFileExplainerTests {
 
     let changes = FileExplainer.parseGitDiffStat(diffStat)
 
-    #require(changes.count == 2)
+    try #require(changes.count == 2)
 
-    #require(changes[0].relativePath == "Sources/App.swift")
-    #require(changes[0].additions == 4)
-    #require(changes[0].deletions == 2)
+    try #require(changes[0].relativePath == "Sources/App.swift")
+    try #require(changes[0].additions == 4)
+    try #require(changes[0].deletions == 2)
 
-    #require(changes[1].relativePath == "Sources/Model.swift")
-    #require(changes[1].additions == 4)
-    #require(changes[1].deletions == 0)
+    try #require(changes[1].relativePath == "Sources/Model.swift")
+    try #require(changes[1].additions == 4)
+    try #require(changes[1].deletions == 0)
   }
 
   @Test
-  func parseGitDiffStat_renameArrow() {
+  func parseGitDiffStat_renameArrow()  throws {
     var test = Self()
     test.setUp()
     defer { test.tearDown() }
@@ -53,14 +53,14 @@ struct ExploreFileExplainerTests {
 
     let changes = FileExplainer.parseGitDiffStat(diffStat)
 
-    #require(changes.count == 1)
-    #require(changes[0].relativePath == "new/path.go")
-    #require(changes[0].additions == 2)
-    #require(changes[0].deletions == 2)
+    try #require(changes.count == 1)
+    try #require(changes[0].relativePath == "new/path.go")
+    try #require(changes[0].additions == 2)
+    try #require(changes[0].deletions == 2)
   }
 
   @Test
-  func parseGitDiffStat_binaryFile() {
+  func parseGitDiffStat_binaryFile()  throws {
     var test = Self()
     test.setUp()
     defer { test.tearDown() }
@@ -69,15 +69,15 @@ struct ExploreFileExplainerTests {
 
     let changes = FileExplainer.parseGitDiffStat(diffStat)
 
-    #require(changes.count == 1)
-    #require(changes[0].relativePath == "Assets/logo.png")
+    try #require(changes.count == 1)
+    try #require(changes[0].relativePath == "Assets/logo.png")
     // Binary lines produce 0 additions and 0 deletions (no + or - in the bar chart, no numeric tokens)
-    #require(changes[0].additions == 0)
-    #require(changes[0].deletions == 0)
+    try #require(changes[0].additions == 0)
+    try #require(changes[0].deletions == 0)
   }
 
   @Test
-  func parseGitDiffStat_pathWithSpaces() {
+  func parseGitDiffStat_pathWithSpaces()  throws {
     var test = Self()
     test.setUp()
     defer { test.tearDown() }
@@ -86,14 +86,14 @@ struct ExploreFileExplainerTests {
 
     let changes = FileExplainer.parseGitDiffStat(diffStat)
 
-    #require(changes.count == 1)
-    #require(changes[0].relativePath == "My Files/App.swift")
-    #require(changes[0].additions == 6)
-    #require(changes[0].deletions == 0)
+    try #require(changes.count == 1)
+    try #require(changes[0].relativePath == "My Files/App.swift")
+    try #require(changes[0].additions == 6)
+    try #require(changes[0].deletions == 0)
   }
 
   @Test
-  func parseGitDiffStat_multiLineStatOutput() {
+  func parseGitDiffStat_multiLineStatOutput()  throws {
     var test = Self()
     test.setUp()
     defer { test.tearDown() }
@@ -107,15 +107,15 @@ struct ExploreFileExplainerTests {
 
     let changes = FileExplainer.parseGitDiffStat(diffStat)
 
-    #require(changes.count == 4)
-    #require(changes[0].relativePath == "Sources/App.swift")
-    #require(changes[1].relativePath == "Sources/Model.swift")
-    #require(changes[2].relativePath == "Tests/AppTests.swift")
-    #require(changes[3].relativePath == "README.md")
+    try #require(changes.count == 4)
+    try #require(changes[0].relativePath == "Sources/App.swift")
+    try #require(changes[1].relativePath == "Sources/Model.swift")
+    try #require(changes[2].relativePath == "Tests/AppTests.swift")
+    try #require(changes[3].relativePath == "README.md")
   }
 
   @Test
-  func parseGitDiffStat_numericOnlyFallback() {
+  func parseGitDiffStat_numericOnlyFallback()  throws {
     var test = Self()
     test.setUp()
     defer { test.tearDown() }
@@ -125,14 +125,14 @@ struct ExploreFileExplainerTests {
 
     let changes = FileExplainer.parseGitDiffStat(diffStat)
 
-    #require(changes.count == 1)
-    #require(changes[0].relativePath == "Sources/App.swift")
-    #require(changes[0].additions == 42)
-    #require(changes[0].deletions == 0)
+    try #require(changes.count == 1)
+    try #require(changes[0].relativePath == "Sources/App.swift")
+    try #require(changes[0].additions == 42)
+    try #require(changes[0].deletions == 0)
   }
 
   @Test
-  func parseGitDiffStat_absentStatsParts() {
+  func parseGitDiffStat_absentStatsParts()  throws {
     var test = Self()
     test.setUp()
     defer { test.tearDown() }
@@ -142,24 +142,24 @@ struct ExploreFileExplainerTests {
 
     let changes = FileExplainer.parseGitDiffStat(diffStat)
 
-    #require(changes.count == 1)
-    #require(changes[0].relativePath == "README.md")
-    #require(changes[0].additions == 0)
-    #require(changes[0].deletions == 0)
+    try #require(changes.count == 1)
+    try #require(changes[0].relativePath == "README.md")
+    try #require(changes[0].additions == 0)
+    try #require(changes[0].deletions == 0)
   }
 
   @Test
-  func parseGitDiffStat_emptyInput() {
+  func parseGitDiffStat_emptyInput()  throws {
     var test = Self()
     test.setUp()
     defer { test.tearDown() }
 
     let changes = FileExplainer.parseGitDiffStat("")
-    #require(changes.isEmpty)
+    try #require(changes.isEmpty)
   }
 
   @Test
-  func parseGitDiffStat_whitespaceOnlyLines() {
+  func parseGitDiffStat_whitespaceOnlyLines()  throws {
     var test = Self()
     test.setUp()
     defer { test.tearDown() }
@@ -172,79 +172,79 @@ struct ExploreFileExplainerTests {
 
     let changes = FileExplainer.parseGitDiffStat(diffStat)
 
-    #require(changes.count == 2)
-    #require(changes[0].relativePath == "Sources/App.swift")
-    #require(changes[1].relativePath == "Sources/Model.swift")
+    try #require(changes.count == 2)
+    try #require(changes[0].relativePath == "Sources/App.swift")
+    try #require(changes[1].relativePath == "Sources/Model.swift")
   }
 
   // MARK: - extractLineCounts
 
   @Test
-  func extractLineCounts_additionsAndDeletions() {
+  func extractLineCounts_additionsAndDeletions()  throws {
     var test = Self()
     test.setUp()
     defer { test.tearDown() }
 
     let result = FileExplainer.extractLineCounts(from: "24 ++++++++----------")
-    #require(result.additions == 8)
-    #require(result.deletions == 10)
+    try #require(result.additions == 8)
+    try #require(result.deletions == 10)
   }
 
   @Test
-  func extractLineCounts_onlyAdditions() {
+  func extractLineCounts_onlyAdditions()  throws {
     var test = Self()
     test.setUp()
     defer { test.tearDown() }
 
     let result = FileExplainer.extractLineCounts(from: "6 ++++++")
-    #require(result.additions == 6)
-    #require(result.deletions == 0)
+    try #require(result.additions == 6)
+    try #require(result.deletions == 0)
   }
 
   @Test
-  func extractLineCounts_onlyDeletions() {
+  func extractLineCounts_onlyDeletions()  throws {
     var test = Self()
     test.setUp()
     defer { test.tearDown() }
 
     let result = FileExplainer.extractLineCounts(from: "3 ---")
-    #require(result.additions == 0)
-    #require(result.deletions == 3)
+    try #require(result.additions == 0)
+    try #require(result.deletions == 3)
   }
 
   @Test
-  func extractLineCounts_numericFallback() {
+  func extractLineCounts_numericFallback()  throws {
     var test = Self()
     test.setUp()
     defer { test.tearDown() }
 
     // No +/- bar chars, but has numeric token
     let result = FileExplainer.extractLineCounts(from: "99")
-    #require(result.additions == 99)
-    #require(result.deletions == 0)
+    try #require(result.additions == 99)
+    try #require(result.deletions == 0)
   }
 
   @Test
-  func extractLineCounts_absentStatsParts() {
+  func extractLineCounts_absentStatsParts()  throws {
     var test = Self()
     test.setUp()
     defer { test.tearDown() }
 
     // No bar chars, no numeric tokens
     let result = FileExplainer.extractLineCounts(from: "")
-    #require(result.additions == 0)
-    #require(result.deletions == 0)
+    try #require(result.additions == 0)
+    try #require(result.deletions == 0)
   }
 
   @Test
-  func extractLineCounts_withNumericAndBars() {
+  func extractLineCounts_withNumericAndBars()  throws {
     var test = Self()
     test.setUp()
     defer { test.tearDown() }
 
     // Numeric count 24 and bar chars both present — bars take priority
     let result = FileExplainer.extractLineCounts(from: "24 ++++++++----------")
-    #require(result.additions == 8)
-    #require(result.deletions == 10)
+    try #require(result.additions == 8)
+    try #require(result.deletions == 10)
   }
 }

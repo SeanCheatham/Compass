@@ -252,13 +252,15 @@ extension CompassProject {
       var finalIssues: [String] = []
       var finalVerifyOutput: VerifyOutput?
       var succeeded = false
+      var developHandOffToPlan = false
+      var lastDevelopFeedback = ""
       var criticFeedbacks: [String] = []
       var criticAttempt = 0
 
       // Outer loop: adversarial Critic review gates each successful
       // Develop+post-check pass. On critic-reject Develop re-runs with
-      // the critic's feedback added; capped at `maxCriticAttempts` so
-      // the iteration always terminates.
+      // the critic's feedback added until the critic approves or the
+      // user stops the run.
       criticLoop: while true {
         var priorIssues: [String] = []
         var postChecksPassed = false
@@ -266,6 +268,9 @@ extension CompassProject {
         var postCheckLaunchPlan: AgentExecutionLaunchPlan?
 
         for attempt in 1...maxDevelopAttempts {
+          if stopRequested {
+            break criticLoop
+          }
           phase = .developing
           let prompt = Prompts.developPrompt(
             next: next,
@@ -328,6 +333,7 @@ extension CompassProject {
             throw AppModelError.internalInvariant("Develop session disappeared during agent run.")
           }
           sessions[sessionIndex].feedback = summary.feedback
+          lastDevelopFeedback = summary.feedback
           appendSessionNote(summary.summary, to: sessionIndex)
 
           let post = try await runPostChecks(
@@ -359,13 +365,18 @@ extension CompassProject {
           }
         }
 
+        if stopRequested {
+          break criticLoop
+        }
+
         guard postChecksPassed,
           let summary = postCheckSummary,
           let launchPlan = postCheckLaunchPlan
         else {
-          // Post-checks fundamentally failed after every attempt — do
-          // not run the critic. The iteration ends as a failure with
-          // the existing post-check issues already in `finalIssues`.
+          // Post-checks failed after every Develop attempt — hand the
+          // failure context to Plan on the next loop iteration instead
+          // of stopping auto-play.
+          developHandOffToPlan = true
           break criticLoop
         }
 
@@ -419,11 +430,25 @@ extension CompassProject {
         feedback(.developRetrying)
       }
 
+      if stopRequested {
+        performSessionErrorCleanup(sessionIndex: sessionIndex, error: nil)
+        await refresh()
+        return
+      }
+
       for issue in finalIssues {
         appendSessionNote(issue, to: sessionIndex)
       }
       guard sessions.indices.contains(sessionIndex) else {
         throw AppModelError.internalInvariant("Develop session disappeared before completion.")
+      }
+      if developHandOffToPlan {
+        sessions[sessionIndex].feedback = developFailureFeedbackForPlan(
+          next: next,
+          issues: finalIssues,
+          developFeedback: lastDevelopFeedback,
+          attempts: maxDevelopAttempts
+        )
       }
       sessions[sessionIndex].verifyOutput = finalVerifyOutput
       let afterSha = await gitCurrentSha(at: workspace.repoURL)
@@ -435,12 +460,22 @@ extension CompassProject {
       )
 
       endSession(sessionIndex, status: succeeded ? .succeeded : .failed)
-      phase = succeeded ? .succeeded : .failed
-      log(
-        succeeded ? "Develop completed." : "Develop finished with failed post-checks.",
-        level: succeeded ? .success : .error)
-      if !succeeded {
+      if developHandOffToPlan {
+        phase = .idle
+        log(
+          "Develop post-checks failed after \(maxDevelopAttempts) attempts; handing off to Plan.",
+          level: .warning
+        )
         feedback(.postChecksFailed)
+      } else {
+        phase = succeeded ? .succeeded : .failed
+        log(
+          succeeded ? "Develop completed." : "Develop finished with failed post-checks.",
+          level: succeeded ? .success : .error
+        )
+        if !succeeded {
+          feedback(.postChecksFailed)
+        }
       }
 
       if isPaused {
@@ -740,6 +775,31 @@ extension CompassProject {
       return 10 * 60 * 1000
     }
     return parsed
+  }
+
+  func developFailureFeedbackForPlan(
+    next: PlanNext,
+    issues: [String],
+    developFeedback: String,
+    attempts: Int
+  ) -> String {
+    var parts = [
+      """
+      Develop exhausted \(attempts) attempts on this increment without passing post-checks.
+      Planned verify command: `\(next.verify)`
+      """,
+    ]
+    if !issues.isEmpty {
+      parts.append("Post-check failures:\n" + issues.joined(separator: "\n"))
+    }
+    let trimmedDevelopFeedback = developFeedback.trimmingCharacters(in: .whitespacesAndNewlines)
+    if !trimmedDevelopFeedback.isEmpty {
+      parts.append("Develop handoff:\n\(trimmedDevelopFeedback)")
+    }
+    parts.append(
+      "Replan: choose the next smallest step that resolves these failures or rescope so Develop can make progress."
+    )
+    return parts.joined(separator: "\n\n")
   }
 
 }

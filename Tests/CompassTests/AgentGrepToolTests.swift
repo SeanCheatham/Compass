@@ -3,7 +3,7 @@ import Testing
 
 @testable import Compass
 
-struct AgentGrepToolTests {
+final class AgentGrepToolTests {
   private var temporaryDirectory: URL!
   private let tool = AgentGrepTool()
   // Force BSD grep so tests don't depend on the developer having ripgrep
@@ -34,9 +34,9 @@ struct AgentGrepToolTests {
 
     let result = try await invoke(["pattern": "needle"])
 
-    #require(!result.isError)
-    #require(result.content.contains("a.txt:1:needle here"))
-    #require(result.content.contains("b.txt:2:needle in haystack"))
+    try #require(!result.isError)
+    try #require(result.content.contains("a.txt:1:needle here"))
+    try #require(result.content.contains("b.txt:2:needle in haystack"))
   }
 
   @Test func testReportsNoMatchesWhenPatternMissing() async throws {
@@ -47,8 +47,8 @@ struct AgentGrepToolTests {
     )
 
     let result = try await invoke(["pattern": "zeta"])
-    #require(!result.isError)
-    #require(result.content == "(no matches)")
+    try #require(!result.isError)
+    try #require(result.content == "(no matches)")
   }
 
   @Test func testCaseInsensitiveSearchIsRespected() async throws {
@@ -63,9 +63,9 @@ struct AgentGrepToolTests {
       "caseInsensitive": true,
     ])
 
-    #require(!result.isError)
-    #require(result.content.contains("FOO"))
-    #require(result.content.contains("foo"))
+    try #require(!result.isError)
+    try #require(result.content.contains("FOO"))
+    try #require(result.content.contains("foo"))
   }
 
   @Test func testGlobRestrictsFiles() async throws {
@@ -85,15 +85,15 @@ struct AgentGrepToolTests {
       "glob": "*.swift",
     ])
 
-    #require(!result.isError)
-    #require(result.content.contains("kept.swift"))
-    #require(!result.content.contains("ignored.txt"))
+    try #require(!result.isError)
+    try #require(result.content.contains("kept.swift"))
+    try #require(!result.content.contains("ignored.txt"))
   }
 
   @Test func testEmptyPatternFails() async throws {
     let result = try await invoke(["pattern": "   "])
-    #require(result.isError)
-    #require(result.content.contains("pattern is empty"))
+    try #require(result.isError)
+    try #require(result.content.contains("pattern is empty"))
   }
 
   @Test func testRejectsPathThatEscapesWorkingDirectory() async throws {
@@ -101,8 +101,8 @@ struct AgentGrepToolTests {
       "pattern": "x",
       "path": "../escape",
     ])
-    #require(result.isError)
-    #require(result.content.contains("escapes"))
+    try #require(result.isError)
+    try #require(result.content.contains("escapes"))
   }
 
   private func invoke(_ args: [String: Any]) async throws -> AgentToolInvocationResult {

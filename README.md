@@ -118,7 +118,9 @@ the phase contract.
   land in the main Compass workspace rather than only inside the guest.
 - Develop post-checks repeat the verify command, require
   `git status --porcelain` to be clean, and retry failed post-checks up
-  to three attempts with failure context.
+  to three attempts with failure context. If post-checks still fail,
+  Compass hands the failure output to Plan as feedback and continues the
+  loop instead of stopping auto-play.
 - Critic runs after Develop's post-checks pass and acts as an
   adversarial review gate. It sees the Develop summary, the Verify
   output, and the working-tree diff, and finishes by calling

@@ -55,13 +55,9 @@ final class CompassProject: ObservableObject, Identifiable {
   var codemapRefreshedForSession: Int?
   let storageMigrationAction: CompassWorkspaceStorageMigrationAction
   let maxDevelopAttempts = 3
-  /// Maximum number of adversarial Critic reviews per Develop iteration.
-  /// After this many critic-rejected passes, Compass accepts the latest
-  /// Develop output and proceeds — the loop has to terminate even when
-  /// the critic and dev agents disagree forever. Each critic-driven
-  /// retry re-runs the full Develop + post-checks inner loop with
-  /// critic feedback added; worst case is `maxCriticAttempts *
-  /// maxDevelopAttempts` Develop runs.
+  /// Soft cap surfaced to the Critic prompt so it knows how many
+  /// review rounds to expect. Critic-driven retries re-run the full
+  /// Develop + post-checks inner loop with critic feedback added.
   let maxCriticAttempts = 3
   let reflectSessionWindow = 10
 
