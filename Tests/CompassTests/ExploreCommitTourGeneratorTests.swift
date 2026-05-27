@@ -52,7 +52,9 @@ struct ExploreCommitTourGeneratorTests {
     try #require(available(macOS 26.0, *))
     let diff = "README.md | 1 +"
     let result = await CommitTourGenerator.generate(diff: diff)
-    #require(result == nil || result != nil)
+    if FoundationModelsAvailability.isAvailable {
+      #require(result != nil && !result!.isEmpty)
+    }
   }
 
   // MARK: - Large-diff stability
@@ -68,7 +70,9 @@ struct ExploreCommitTourGeneratorTests {
     let result = await CommitTourGenerator.generate(diff: largeDiff)
     // Returns nil if Foundation Models is unavailable; non-nil if available.
     // Must never throw regardless of input size.
-    #require(result == nil || result != nil)
+    if FoundationModelsAvailability.isAvailable {
+      #require(result != nil && !result!.isEmpty)
+    }
   }
 
   @Test
@@ -80,7 +84,9 @@ struct ExploreCommitTourGeneratorTests {
     }.joined(separator: "\n")
 
     let result = await CommitTourGenerator.generate(diff: wideDiff)
-    #require(result == nil || result != nil)
+    if FoundationModelsAvailability.isAvailable {
+      #require(result != nil && !result!.isEmpty)
+    }
   }
 
   // MARK: - isAvailable guard
