@@ -86,19 +86,10 @@ enum RepoQnA {
       """
 
     // 5. Stream the answer from Foundation Models.
-    do {
-      let session = LanguageModelSession(model: .default)
-      var fullText = ""
-      for try await snapshot in session.streamResponse(to: prompt) {
-        fullText += snapshot.content
-      }
-      let result = fullText.trimmingCharacters(in: .whitespacesAndNewlines)
-      guard !result.isEmpty else { return nil }
-
-      let sources = changes.map(\.relativePath)
-      return Answer(text: result, sources: sources)
-    } catch {
+    guard let result = await FoundationModelsAvailability._streamText(prompt: prompt) else {
       return nil
     }
+    let sources = changes.map(\.relativePath)
+    return Answer(text: result, sources: sources)
   }
 }

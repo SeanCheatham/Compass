@@ -28,4 +28,24 @@ enum FoundationModelsAvailability {
     #endif
     return false
   }
+
+  #if canImport(FoundationModels)
+  /// Streams a prompt through `LanguageModelSession` and returns the
+  /// accumulated, trimmed text.  Returns `nil` on error or when the
+  /// result is empty.
+  @available(macOS 26.0, *)
+  static func _streamText(prompt: String) async -> String? {
+    do {
+      let session = LanguageModelSession(model: .default)
+      var fullText = ""
+      for try await snapshot in session.streamResponse(to: prompt) {
+        fullText += snapshot.content
+      }
+      let result = fullText.trimmingCharacters(in: .whitespacesAndNewlines)
+      return result.isEmpty ? nil : result
+    } catch {
+      return nil
+    }
+  }
+  #endif
 }

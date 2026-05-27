@@ -29,16 +29,6 @@ enum CommitTourGenerator {
       \(trimmed)
       """
 
-    do {
-      let session = LanguageModelSession(model: .default)
-      var fullText = ""
-      for try await snapshot in session.streamResponse(to: prompt) {
-        fullText += snapshot.content
-      }
-      let result = fullText.trimmingCharacters(in: .whitespacesAndNewlines)
-      return result.isEmpty ? nil : result
-    } catch {
-      return nil
-    }
+    return await FoundationModelsAvailability._streamText(prompt: prompt)
   }
 }
