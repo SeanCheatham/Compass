@@ -311,7 +311,7 @@ enum FileExplainer {
 
   private static func gitDiffStatRange(from: String, to: String, repoURL: URL) async -> String {
     let result = try? await ProcessRunner.runEnv(
-      "git", ["diff", "--stat=9999", "\(from)..\(to)"],
+      "git", ["diff", "--stat=9999", "--first-parent", "\(from)..\(to)"],
       workingDirectory: repoURL
     )
     return result?.stdout ?? ""
