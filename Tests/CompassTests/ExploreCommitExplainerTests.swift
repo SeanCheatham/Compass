@@ -56,7 +56,7 @@ struct ExploreCommitExplainerTests {
 
   @Test
   func summarize_returnsNilWhenModelUnavailable() async throws {
-    // When SystemLanguageModel.default.isAvailable is false (e.g. on a
+    // When FoundationModelsAvailability.isAvailable is false (e.g. on an
     // older macOS version or a simulator), summarize returns nil without
     // attempting to create a session.
     let diff = """
@@ -65,7 +65,7 @@ struct ExploreCommitExplainerTests {
     let result = await CommitExplainer.summarize(diff: diff)
     // Either Foundation Models is available and we get a string (or nil
     // from an error), or it is unavailable and we definitely get nil.
-    if !SystemLanguageModel.default.isAvailable {
+    if !FoundationModelsAvailability.isAvailable {
       #require(result == nil)
     }
   }
