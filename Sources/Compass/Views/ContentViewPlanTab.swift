@@ -741,6 +741,7 @@ struct PlanSessionHistoryCard: View {
         HStack(spacing: 8) {
           ExplainChangesButton(item: item, repoURL: repoURL)
           ExploreFilesButton(item: item, repoURL: repoURL)
+          QnAButton(item: item, repoURL: repoURL)
         }
       }
 
@@ -1010,6 +1011,110 @@ struct ExploreFilesButton: View {
         ExploreFilesPopover(item: item, repoURL: repoURL)
       }
     }
+  }
+}
+
+struct QnAButton: View {
+  let item: PlanSessionHistoryItem
+  let repoURL: URL
+
+  @State private var showingPopover = false
+
+  private var canQnA: Bool {
+    item.status == .succeeded && !item.commits.isEmpty
+  }
+
+  var body: some View {
+    if canQnA {
+      Button {
+        showingPopover = true
+      } label: {
+        Label("Ask", systemImage: "questionmark.circle")
+      }
+      .buttonStyle(.bordered)
+      .controlSize(.small)
+      .popover(isPresented: $showingPopover) {
+        QnAPopover(item: item, repoURL: repoURL)
+      }
+    }
+  }
+}
+
+struct QnAPopover: View {
+  let item: PlanSessionHistoryItem
+  let repoURL: URL
+
+  @State private var question = ""
+  @State private var answer: RepoQnA.Answer?
+  @State private var isLoading = false
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 12) {
+      HStack {
+        Label("Ask About Changes", systemImage: "questionmark.circle")
+          .font(.headline)
+        Spacer()
+      }
+
+      HStack(spacing: 8) {
+        TextField("What would you like to know?", text: $question)
+          .textFieldStyle(.roundedBorder)
+          .font(.callout)
+
+        Button("Ask") {
+          Task { await submitQuestion() }
+        }
+        .buttonStyle(.borderedProminent)
+        .controlSize(.small)
+        .disabled(question.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isLoading)
+      }
+
+      if isLoading {
+        HStack(spacing: 8) {
+          ProgressView()
+            .controlSize(.small)
+          Text("Generating answer...")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+        }
+      } else if let answer {
+        VStack(alignment: .leading, spacing: 8) {
+          ScrollView {
+            Text(answer.text)
+              .font(.callout)
+              .textSelection(.enabled)
+              .frame(maxWidth: .infinity, alignment: .leading)
+          }
+          .frame(maxHeight: 200)
+
+          if !answer.sources.isEmpty {
+            VStack(alignment: .leading, spacing: 4) {
+              Text("Sources:")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+              ForEach(answer.sources, id: \.self) { source in
+                Text(source)
+                  .font(.caption.monospaced())
+                  .foregroundStyle(.secondary)
+              }
+            }
+          }
+        }
+      }
+    }
+    .padding(16)
+    .frame(width: 420)
+  }
+
+  private func submitQuestion() async {
+    let trimmed = question.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !trimmed.isEmpty else { return }
+    isLoading = true
+    answer = nil
+    if #available(macOS 26.0, *) {
+      answer = await RepoQnA.answer(question: trimmed, repoURL: repoURL, commits: item.commits)
+    }
+    isLoading = false
   }
 }
 
