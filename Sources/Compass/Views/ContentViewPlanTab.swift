@@ -1080,13 +1080,25 @@ struct QnAPopover: View {
         }
       } else if let answer {
         VStack(alignment: .leading, spacing: 8) {
-          ScrollView {
-            Text(answer.text)
-              .font(.callout)
-              .textSelection(.enabled)
-              .frame(maxWidth: .infinity, alignment: .leading)
+          HStack(alignment: .top) {
+            ScrollView {
+              Text(answer.text)
+                .font(.callout)
+                .textSelection(.enabled)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .frame(maxHeight: 200)
+
+            Button {
+              NSPasteboard.general.clearContents()
+              NSPasteboard.general.setString(answer.text, forType: .string)
+            } label: {
+              Image(systemName: "doc.on.clipboard")
+                .font(.caption)
+            }
+            .buttonStyle(.plain)
+            .help("Copy answer to clipboard")
           }
-          .frame(maxHeight: 200)
 
           if !answer.sources.isEmpty {
             VStack(alignment: .leading, spacing: 4) {
