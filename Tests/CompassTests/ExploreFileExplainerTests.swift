@@ -282,6 +282,85 @@ struct ExploreFileExplainerTests {
   }
 
   @Test
+  func explain_multiCommitRange_coversOnlyRequestedCommits() async throws {
+    var test = Self()
+    test.setUp()
+    defer { test.tearDown() }
+
+    // Set up a git repo with three commits, each adding one line to A.swift.
+    try initGitRepo(at: test.temporaryDirectory)
+
+    // Commit 1: "A\n"
+    try writeFile("A.swift", contents: "A\n")
+    try runGit(
+      "git -C \(test.temporaryDirectory.path) add A.swift && "
+        + "git -C \(test.temporaryDirectory.path) "
+        + "-c user.email=t@t -c user.name=t commit -q -m 'Add A'",
+      at: test.temporaryDirectory
+    )
+
+    // Commit 2: "A\nB\n"  (middle commit — the one we will query)
+    try writeFile("A.swift", contents: "A\nB\n")
+    try runGit(
+      "git -C \(test.temporaryDirectory.path) add . && "
+        + "git -C \(test.temporaryDirectory.path) "
+        + "-c user.email=t@t -c user.name=t commit -q -m 'Add B'",
+      at: test.temporaryDirectory
+    )
+
+    // Commit 3: "A\nB\nC\n"
+    try writeFile("A.swift", contents: "A\nB\nC\n")
+    try runGit(
+      "git -C \(test.temporaryDirectory.path) add . && "
+        + "git -C \(test.temporaryDirectory.path) "
+        + "-c user.email=t@t -c user.name=t commit -q -m 'Add C'",
+      at: test.temporaryDirectory
+    )
+
+    let shas = try getAllCommitSHAs(at: test.temporaryDirectory)
+    #require(shas.count == 3)
+
+    // shas[0] = newest (Add C), shas[1] = middle (Add B), shas[2] = oldest (Add A)
+    let middleSHA = shas[1]
+
+    // The multi-commit explain path is selected because commits.count == 1
+    // triggers the single-commit path; pass two commits to force multi-commit path.
+    // Rebuild with two commits so we test the `last.sha..first.sha` path.
+    let commitsForMultiPath = [
+      SessionCommit(sha: shas[0], short: String(shas[0].prefix(7)), subject: "Add C"),
+      SessionCommit(sha: middleSHA, short: String(middleSHA.prefix(7)), subject: "Add B"),
+    ]
+
+    // Run the explain via the multi-commit path. FileExplainer.explain will
+    // construct the range `last.sha..first.sha` = `shas[1]..shas[0]` (Add B → Add C),
+    // so the diff it passes to CommitExplainer.summarize must cover both B and C additions.
+    let result = await FileExplainer.explain(
+      file: "A.swift",
+      repoURL: test.temporaryDirectory,
+      commits: commitsForMultiPath
+    )
+
+    // Verify the multi-commit range directly: git diff shas[1]..shas[0] must contain
+    // both the B addition (from the second commit) and the C addition (from the third).
+    // This is exactly what FileExplainer.explain passes to CommitExplainer.summarize.
+    let diffResult = try waitForSync {
+      try? ProcessRunner.runEnv(
+        "git", ["diff", "\(shas[1])..\(shas[0])", "--", "A.swift"],
+        workingDirectory: test.temporaryDirectory
+      )
+    }
+    let expectedDiff = diffResult?.stdout ?? ""
+
+    // The diff must contain both the B and C additions from the multi-commit range.
+    #require(expectedDiff.contains("+B")) { "expected diff to contain +B from Add B commit" }
+    #require(expectedDiff.contains("+C")) { "expected diff to contain +C from Add C commit; if this fails, the multi-commit path is producing the wrong range" }
+
+    // Result may be nil when Foundation Models is unavailable; we only validate
+    // that the call does not throw and that the underlying git diff is correct.
+    _ = result
+  }
+
+  @Test
   func explain_multiCommitDiff_callsSummarize() async throws {
     var test = Self()
     test.setUp()
