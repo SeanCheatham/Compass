@@ -1245,6 +1245,8 @@ struct ExploreFilesPopover: View {
     isLoading = true
     defer { isLoading = false }
 
+    // item.commits is ordered newest-first; reversing gives chronological
+    // oldest→newest order required by FileExplainer.explain().
     var loaded = await FileExplainer.changes(for: repoURL, commits: item.commits.reversed())
 
     // Enrich with codemap summaries
