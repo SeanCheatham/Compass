@@ -912,7 +912,7 @@ struct CommitExplanationPopover: View {
       diff = await gitDiffForSha(firstCommit.sha, repoURL: repoURL)
     } else {
       let lastCommit = item.commits.last!
-      diff = await gitDiffRange(from: lastCommit.sha, to: firstCommit.sha, repoURL: repoURL)
+      diff = await gitDiffRange(from: firstCommit.sha, to: lastCommit.sha, repoURL: repoURL)
     }
 
     guard !diff.isEmpty else { return }
@@ -979,7 +979,7 @@ struct CommitTourRow: View {
       diff = await gitDiffForSha(firstCommit.sha, repoURL: repoURL)
     } else {
       let lastCommit = item.commits.last!
-      diff = await gitDiffRange(from: lastCommit.sha, to: firstCommit.sha, repoURL: repoURL)
+      diff = await gitDiffRange(from: firstCommit.sha, to: lastCommit.sha, repoURL: repoURL)
     }
     guard !diff.isEmpty else { return }
     if #available(macOS 26.0, *) {
