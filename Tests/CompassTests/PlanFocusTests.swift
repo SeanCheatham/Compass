@@ -1,23 +1,24 @@
 import Foundation
-import XCTest
+import Testing
 
 @testable import Compass
 
-final class PlanFocusTests: XCTestCase {
+struct PlanFocusTests {
 
   /// Weight values matter: feature must still dominate a single
   /// pass in expectation, but not by enough to starve the other
   /// categories. If someone retunes them this test should be
   /// updated deliberately rather than drift silently.
+  @Test
   func testWeightsMatchExpectedDistribution() {
-    XCTAssertEqual(PlanFocus.feature.weight, 30)
-    XCTAssertEqual(PlanFocus.test.weight, 25)
-    XCTAssertEqual(PlanFocus.cleanup.weight, 25)
-    XCTAssertEqual(PlanFocus.docs.weight, 10)
-    XCTAssertEqual(PlanFocus.bugHunt.weight, 10)
+    #require(PlanFocus.feature.weight == 30)
+    #require(PlanFocus.test.weight == 25)
+    #require(PlanFocus.cleanup.weight == 25)
+    #require(PlanFocus.docs.weight == 10)
+    #require(PlanFocus.bugHunt.weight == 10)
 
     let total = PlanFocus.allCases.reduce(0.0) { $0 + $1.weight }
-    XCTAssertEqual(total, 100)
+    #require(total == 100)
   }
 
   /// Smoke test the sampler with a seeded generator. We don't pin
@@ -26,6 +27,7 @@ final class PlanFocusTests: XCTestCase {
   /// every category gets picked at least once over a large sample,
   /// which is what "weighted but covers all" actually means in the
   /// product sense.
+  @Test
   func testWeightedRandomEventuallyPicksEveryFocus() {
     var generator = SplitMix64(seed: 0xC0FFEE)
     var seen = Set<PlanFocus>()
@@ -33,13 +35,14 @@ final class PlanFocusTests: XCTestCase {
       seen.insert(PlanFocus.weightedRandom(using: &generator))
       if seen.count == PlanFocus.allCases.count { return }
     }
-    XCTFail("weightedRandom did not cover every focus in 10k samples; saw \(seen)")
+    #require(false, "weightedRandom did not cover every focus in 10k samples; saw \(seen)")
   }
 
   /// Over a large sample the empirical distribution should land
   /// close to the configured weights. Use a wide tolerance — the
   /// goal is to catch a wholesale wiring bug (e.g. uniform
   /// sampling, swapped weights), not to validate the RNG.
+  @Test
   func testWeightedRandomApproximatesConfiguredWeights() {
     var generator = SplitMix64(seed: 0xDECAFBAD)
     let trials = 20_000
@@ -51,12 +54,7 @@ final class PlanFocusTests: XCTestCase {
     for focus in PlanFocus.allCases {
       let observed = Double(counts[focus] ?? 0) / Double(trials)
       let expected = focus.weight / 100.0
-      XCTAssertEqual(
-        observed,
-        expected,
-        accuracy: 0.03,
-        "focus \(focus.displayName) sampled at \(observed), expected ~\(expected)"
-      )
+      #require(observed == expected, accuracy: 0.03, "focus \(focus.displayName) sampled at \(observed), expected ~\(expected)")
     }
   }
 }
