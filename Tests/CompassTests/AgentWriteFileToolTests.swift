@@ -1,37 +1,36 @@
 import Foundation
-import XCTest
+import Testing
 
 @testable import Compass
 
-final class AgentWriteFileToolTests: XCTestCase {
+struct AgentWriteFileToolTests {
   private var temporaryDirectory: URL!
   private let tool = AgentWriteFileTool()
 
-  override func setUpWithError() throws {
-    temporaryDirectory = try makeTempDir()
+  init() {
+    temporaryDirectory = try! makeTempDir()
   }
 
-  override func tearDownWithError() throws {
+  deinit {
     if let temporaryDirectory {
       try? FileManager.default.removeItem(at: temporaryDirectory)
     }
-    temporaryDirectory = nil
   }
 
-  func testCreatesNewFile() async throws {
+  @Test func createsNewFile() async throws {
     let result = try await invoke([
       "path": "fresh.txt",
       "content": "hello world",
     ])
 
-    XCTAssertFalse(result.isError)
-    XCTAssertTrue(result.content.contains("wrote 11 bytes to fresh.txt"))
+    #require(!result.isError)
+    #require(result.content.contains("wrote 11 bytes to fresh.txt"))
     let written = try String(
       contentsOf: temporaryDirectory.appendingPathComponent("fresh.txt"), encoding: .utf8)
-    XCTAssertEqual(written, "hello world")
+    #require(written == "hello world")
   }
 
-  func testOverwritesExistingFileAfterRead() async throws {
+  @Test func overwritesExistingFileAfterRead() async throws {
     let url = temporaryDirectory.appendingPathComponent("existing.txt")
     try "old".write(to: url, atomically: true, encoding: .utf8)
 
@@ -43,12 +42,12 @@ final class AgentWriteFileToolTests: XCTestCase {
         "content": "new",
       ], context: context)
 
-    XCTAssertFalse(result.isError)
+    #require(!result.isError)
     let written = try String(contentsOf: url, encoding: .utf8)
-    XCTAssertEqual(written, "new")
+    #require(written == "new")
   }
 
-  func testRefusesToOverwriteUnreadFile() async throws {
+  @Test func refusesToOverwriteUnreadFile() async throws {
     let url = temporaryDirectory.appendingPathComponent("existing.txt")
     try "old".write(to: url, atomically: true, encoding: .utf8)
 
@@ -57,32 +56,32 @@ final class AgentWriteFileToolTests: XCTestCase {
       "content": "new",
     ])
 
-    XCTAssertTrue(result.isError)
-    XCTAssertTrue(result.content.contains("has not been read"))
-    XCTAssertEqual(try String(contentsOf: url, encoding: .utf8), "old")
+    #require(result.isError)
+    #require(result.content.contains("has not been read"))
+    #require(try String(contentsOf: url, encoding: .utf8) == "old")
   }
 
-  func testCreatesIntermediateDirectories() async throws {
+  @Test func createsIntermediateDirectories() async throws {
     let result = try await invoke([
       "path": "deep/nested/path/file.txt",
       "content": "hi",
     ])
 
-    XCTAssertFalse(result.isError)
+    #require(!result.isError)
     let url = temporaryDirectory.appendingPathComponent("deep/nested/path/file.txt")
-    XCTAssertEqual(try String(contentsOf: url, encoding: .utf8), "hi")
+    #require(try String(contentsOf: url, encoding: .utf8) == "hi")
   }
 
-  func testRejectsPathThatEscapesWorkingDirectory() async throws {
+  @Test func rejectsPathThatEscapesWorkingDirectory() async throws {
     let result = try await invoke([
       "path": "../escape.txt",
       "content": "x",
     ])
-    XCTAssertTrue(result.isError)
-    XCTAssertTrue(result.content.contains("escapes"))
+    #require(result.isError)
+    #require(result.content.contains("escapes"))
   }
 
-  func testRejectsExistingDirectory() async throws {
+  @Test func rejectsExistingDirectory() async throws {
     let subdir = temporaryDirectory.appendingPathComponent("blocked")
     try FileManager.default.createDirectory(at: subdir, withIntermediateDirectories: false)
 
@@ -90,8 +89,8 @@ final class AgentWriteFileToolTests: XCTestCase {
       "path": "blocked",
       "content": "x",
     ])
-    XCTAssertTrue(result.isError)
-    XCTAssertTrue(result.content.contains("Not a regular file"))
+    #require(result.isError)
+    #require(result.content.contains("Not a regular file"))
   }
 
   private func invoke(
