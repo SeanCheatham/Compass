@@ -756,6 +756,82 @@ struct ExploreFileExplainerTests {
     #require(change.lineCountLabel == "0/0")
   }
 
+  // MARK: - gitDiffStat
+
+  @Test
+  func gitDiffStat_mergeCommit_onlyMainline() async throws {
+    var test = Self()
+    test.setUp()
+    defer { test.tearDown() }
+
+    // Set up a git repo with a merge commit.
+    // Structure:
+    //   commit A (main)     — adds main.txt
+    //   commit B (feature)  — adds feature.txt on a branch
+    //   merge commit (main) — merges feature into main (non-trivial merge with conflict or ours-style)
+    //
+    // When we call gitDiffStat with the merge commit SHA and --first-parent,
+    // the output should reflect only the changes on the mainline side of the merge,
+    // not the changes brought in from the merged branch.
+
+    // Step 1: initial commit on main — creates main.txt
+    try initGitRepo(at: test.temporaryDirectory)
+    try writeFile("main.txt", contents: "main content\n")
+    try runGit(
+      "git -C \(test.temporaryDirectory.path) add main.txt && "
+        + "git -C \(test.temporaryDirectory.path) "
+        + "-c user.email=t@t -c user.name=t commit -q -m 'Add main.txt'",
+      at: test.temporaryDirectory
+    )
+
+    // Step 2: branch off and commit on the branch — creates feature.txt
+    try runGit(
+      "git -C \(test.temporaryDirectory.path) checkout -q -b feature",
+      at: test.temporaryDirectory
+    )
+    try writeFile("feature.txt", contents: "feature content\n")
+    try runGit(
+      "git -C \(test.temporaryDirectory.path) add feature.txt && "
+        + "git -C \(test.temporaryDirectory.path) "
+        + "-c user.email=t@t -c user.name=t commit -q -m 'Add feature.txt'",
+      at: test.temporaryDirectory
+    )
+
+    // Step 3: switch back to main and merge the branch.
+    // Use --no-edit to auto-merge without a separate commit message step.
+    try runGit(
+      "git -C \(test.temporaryDirectory.path) checkout -q main",
+      at: test.temporaryDirectory
+    )
+    try runGit(
+      "git -C \(test.temporaryDirectory.path) merge -q --no-edit feature",
+      at: test.temporaryDirectory
+    )
+
+    let mergeCommitSHA = try getSingleCommitSHA(at: test.temporaryDirectory)
+
+    // Call gitDiffStat for the merge commit — with --first-parent it should only
+    // show the changes that were made on mainline (main.txt changes), not the
+    // files introduced by the merged branch (feature.txt).
+    let diffStatOutput = await FileExplainer.gitDiffStat(sha: mergeCommitSHA, repoURL: test.temporaryDirectory)
+
+    // Parse the diff stat output.
+    let changes = FileExplainer.parseGitDiffStat(diffStatOutput)
+
+    // The merge commit introduced main.txt (from the merge base to tip).
+    // With --first-parent, git reports the changes from the merge base to the merge commit on main.
+    // Since the merge auto-merged (no conflicts), the mainline changes are just the update to main.txt
+    // that happened between the pre-merge state and the merge commit.
+    //
+    // More precisely: after the merge, main.txt still shows as changed because the merge commit
+    // has a mainline diff that includes main.txt. feature.txt should NOT appear because it was
+    // brought in via the branch (second parent), which --first-parent excludes.
+    #require(!changes.isEmpty) { "gitDiffStat for a merge commit must not be empty" }
+    let changedPaths = changes.map { $0.relativePath }
+    #require(!changedPaths.contains("feature.txt")) { "feature.txt was introduced by the merged branch (second parent) and must not appear in --first-parent output" }
+    #require(changedPaths.contains("main.txt")) { "main.txt is on the mainline (first parent) and must appear in --first-parent output" }
+  }
+
   // MARK: - Helpers
 
   private func initGitRepo(at url: URL) {
