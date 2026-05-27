@@ -1,5 +1,8 @@
 import Foundation
-import FoundationModels
+
+#if canImport(FoundationModels)
+  import FoundationModels
+#endif
 
 /// Synthesizes a full multi-commit diff into a 3–5 sentence architectural narrative.
 ///

@@ -1,5 +1,8 @@
 import Foundation
-import FoundationModels
+
+#if canImport(FoundationModels)
+  import FoundationModels
+#endif
 
 /// Summarizes a single-file git diff for use in the Explore Q&A pipeline.
 ///

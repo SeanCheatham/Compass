@@ -1,5 +1,8 @@
 import Foundation
-import FoundationModels
+
+#if canImport(FoundationModels)
+  import FoundationModels
+#endif
 
 /// Interactive Q&A about repository changes, grounded in the actual diff
 /// and codemap of a commit range.
