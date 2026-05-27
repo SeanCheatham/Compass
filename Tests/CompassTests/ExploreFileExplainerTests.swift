@@ -438,6 +438,202 @@ struct ExploreFileExplainerTests {
     #require(changes[0].relativePath == "Sources/App.swift")
   }
 
+  // MARK: - FileChangeCategory.categorize
+
+  // MARK: Source files — known language extension, not test/config
+
+  @Test
+  func categorize_sourceSwiftFile() {
+    let result = FileChangeCategory.categorize("Sources/App.swift")
+    #require(result == .source)
+  }
+
+  @Test
+  func categorize_sourceNestedSwiftFile() {
+    let result = FileChangeCategory.categorize("Sources/Views/Button.swift")
+    #require(result == .source)
+  }
+
+  @Test
+  func categorize_sourcePythonFile() {
+    let result = FileChangeCategory.categorize("scripts/deploy.py")
+    #require(result == .source)
+  }
+
+  @Test
+  func categorize_sourceGoFile() {
+    let result = FileChangeCategory.categorize("cmd/server/main.go")
+    #require(result == .source)
+  }
+
+  @Test
+  func categorize_sourceRustFile() {
+    let result = FileChangeCategory.categorize("src/main.rs")
+    #require(result == .source)
+  }
+
+  // MARK: Test files — multiple naming patterns
+
+  @Test
+  func categorize_testUnderTestsDir() {
+    let result = FileChangeCategory.categorize("Tests/AppTests.swift")
+    #require(result == .test)
+  }
+
+  @Test
+  func categorize_testUnderNestedTestsDir() {
+    let result = FileChangeCategory.categorize("Sources/Tests/Helper.swift")
+    #require(result == .test)
+  }
+
+  @Test
+  func categorize_testsSuffix() {
+    let result = FileChangeCategory.categorize("Sources/App_tests.swift")
+    #require(result == .test)
+  }
+
+  @Test
+  func categorize_testDotSuffix() {
+    let result = FileChangeCategory.categorize("Sources/App.test.swift")
+    #require(result == .test)
+  }
+
+  @Test
+  func categorize_specSuffix() {
+    let result = FileChangeCategory.categorize("Sources/Model.spec.swift")
+    #require(result == .test)
+  }
+
+  @Test
+  func categorize_testPrefix() {
+    let result = FileChangeCategory.categorize("test_utils.py")
+    #require(result == .test)
+  }
+
+  @Test
+  func categorize_testUnderscorePrefix() {
+    let result = FileChangeCategory.categorize("test_helpers.js")
+    #require(result == .test)
+  }
+
+  @Test
+  func categorize_testUnderscoreSuffix() {
+    let result = FileChangeCategory.categorize("mock_data_test.swift")
+    #require(result == .test)
+  }
+
+  @Test
+  func categorize_testDirPrefix() {
+    let result = FileChangeCategory.categorize("testsuite/setup.sh")
+    #require(result == .test)
+  }
+
+  // MARK: Config files — directory and exact-match patterns
+
+  @Test
+  func categorize_configDirRoot() {
+    let result = FileChangeCategory.categorize("Config/settings.json")
+    #require(result == .config)
+  }
+
+  @Test
+  func categorize_configDirNested() {
+    let result = FileChangeCategory.categorize("Config/production.toml")
+    #require(result == .config)
+  }
+
+  @Test
+  func categorize_dotConfigDir() {
+    let result = FileChangeCategory.categorize(".config/editor.yml")
+    #require(result == .config)
+  }
+
+  @Test
+  func categorize_dotVscodeDir() {
+    let result = FileChangeCategory.categorize(".vscode/settings.json")
+    #require(result == .config)
+  }
+
+  @Test
+  func categorize_dotGitHubDir() {
+    let result = FileChangeCategory.categorize(".github/workflows/ci.yml")
+    #require(result == .config)
+  }
+
+  @Test
+  func categorize_packageJSON() {
+    let result = FileChangeCategory.categorize("package.json")
+    #require(result == .config)
+  }
+
+  @Test
+  func categorize_swiftFormat() {
+    let result = FileChangeCategory.categorize(".swift-format")
+    #require(result == .config)
+  }
+
+  @Test
+  func categorize_swiftLint() {
+    let result = FileChangeCategory.categorize(".swiftlint.yml")
+    #require(result == .config)
+  }
+
+  @Test
+  func categorize_packageSwift() {
+    let result = FileChangeCategory.categorize("Package.swift")
+    #require(result == .config)
+  }
+
+  @Test
+  func categorize_gitignore() {
+    let result = FileChangeCategory.categorize(".gitignore")
+    #require(result == .config)
+  }
+
+  @Test
+  func categorize_makefile() {
+    let result = FileChangeCategory.categorize("Makefile")
+    #require(result == .config)
+  }
+
+  // MARK: Other bucket — unknown extension, not config dir
+
+  @Test
+  func categorize_otherPNG() {
+    let result = FileChangeCategory.categorize("Assets/logo.png")
+    #require(result == .other)
+  }
+
+  @Test
+  func categorize_otherMarkdown() {
+    let result = FileChangeCategory.categorize("README.md")
+    #require(result == .other)
+  }
+
+  @Test
+  func categorize_otherTextFile() {
+    let result = FileChangeCategory.categorize("docs/notes.txt")
+    #require(result == .other)
+  }
+
+  @Test
+  func categorize_otherYmlNotInConfigDir() {
+    let result = FileChangeCategory.categorize("scripts/ci.yml")
+    #require(result == .other)
+  }
+
+  @Test
+  func categorize_otherJpeg() {
+    let result = FileChangeCategory.categorize("Photos/screenshot.jpg")
+    #require(result == .other)
+  }
+
+  @Test
+  func categorize_otherPdf() {
+    let result = FileChangeCategory.categorize("docs/manual.pdf")
+    #require(result == .other)
+  }
+
   // MARK: - Helpers
 
   private func initGitRepo(at url: URL) {
