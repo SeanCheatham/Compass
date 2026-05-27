@@ -1060,6 +1060,7 @@ struct QnAPopover: View {
         TextField("What would you like to know?", text: $question)
           .textFieldStyle(.roundedBorder)
           .font(.callout)
+          .onChange(of: question) { _, _ in answer = nil }
 
         Button("Ask") {
           Task { await submitQuestion() }
