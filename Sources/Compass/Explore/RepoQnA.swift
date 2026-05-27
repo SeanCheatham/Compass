@@ -30,7 +30,7 @@ enum RepoQnA {
     repoURL: URL,
     commits: [SessionCommit]
   ) async -> Answer? {
-    guard SystemLanguageModel.default.isAvailable else { return nil }
+    guard FoundationModelsAvailability.isAvailable else { return nil }
     guard let first = commits.first else { return nil }
 
     // 1. Get file changes with codemap summaries.

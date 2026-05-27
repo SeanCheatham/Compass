@@ -553,7 +553,7 @@ enum DraftRefinementService {
   @available(macOS 26.0, *)
   private enum FoundationModelDraftRefinementGenerator {
     static var isAvailable: Bool {
-      SystemLanguageModel.default.isAvailable
+      FoundationModelsAvailability.isAvailable
     }
 
     static func generate(

@@ -1,5 +1,9 @@
 import Foundation
 
+#if canImport(FoundationModels)
+  import FoundationModels
+#endif
+
 /// Represents a single changed file with its metadata and optional codemap summary.
 struct FileChange: Identifiable, Equatable {
   let id: String
@@ -155,11 +159,7 @@ enum FileExplainer {
       return nil
     }
 
-    if #available(macOS 26.0, *) {
-      return await CommitExplainer.summarize(diff: diff)
-    } else {
-      return nil
-    }
+    return await CommitExplainer.summarize(diff: diff)
   }
 
   /// Returns all files changed across the given commits, with their line counts

@@ -34,7 +34,7 @@ enum FoundationModelsAgentRuntime {
   ) async throws -> AgentExecutionResult {
     try AgentExecutor.ensureUniqueToolNames(configuration.tools)
 
-    guard SystemLanguageModel.default.isAvailable else {
+    guard FoundationModelsAvailability.isAvailable else {
       throw AgentExecutionError.streamFailed(
         "Apple Foundation Models is not available on this system. "
           + "Check System Settings → Apple Intelligence, or pick a "

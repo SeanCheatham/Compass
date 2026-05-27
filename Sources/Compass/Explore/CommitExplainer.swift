@@ -12,7 +12,7 @@ enum CommitExplainer {
   /// Returns `nil` when Foundation Models is unavailable or produces
   /// no content.
   static func summarize(diff: String) async -> String? {
-    guard SystemLanguageModel.default.isAvailable else { return nil }
+    guard FoundationModelsAvailability.isAvailable else { return nil }
 
     let trimmed = diff.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !trimmed.isEmpty else { return nil }
