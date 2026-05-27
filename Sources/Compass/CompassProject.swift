@@ -96,6 +96,9 @@ final class CompassProject: ObservableObject, Identifiable {
 /// command output for the session record.
 struct PostCheckResult {
   var ok: Bool
-  var retryIssues: [String]
+  /// Issues from the verify step (non-zero exit, blocked without bypass, etc.).
+  var verifyIssues: [String]
+  /// Issues from the git-status check (unexpected failure, dirty tree).
+  var gitStatusIssues: [String]
   var verifyOutput: VerifyOutput?
 }

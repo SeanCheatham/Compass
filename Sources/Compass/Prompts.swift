@@ -345,9 +345,19 @@ enum Prompts {
         """
     }
 
-    let issues = priorIssues.enumerated()
-      .map { "\($0.offset + 1). \($0.element)" }
-      .joined(separator: "\n\n")
+    let partitioned = Dictionary(grouping: priorIssues) { issue in
+      issue.hasPrefix("[verify]") ? "verify" : "git"
+    }
+    var parts: [String] = []
+    if let verifyItems = partitioned["verify"], !verifyItems.isEmpty {
+      parts.append("**Verify failures:**\n" + verifyItems.joined(separator: "\n"))
+    }
+    if let gitItems = partitioned["git"], !gitItems.isEmpty {
+      parts.append("**Git-status issues:**\n" + gitItems.joined(separator: "\n"))
+    }
+    let issues = parts.isEmpty
+      ? priorIssues.enumerated().map { "\($0.offset + 1). \($0.element)" }.joined(separator: "\n\n")
+      : parts.joined(separator: "\n\n")
     return """
       Retry \(attempt):
       Your previous attempt left these post-check failures unresolved:

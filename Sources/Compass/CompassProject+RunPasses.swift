@@ -338,7 +338,7 @@ extension CompassProject {
             sessionIndex: sessionIndex,
             attempt: attempt
           )
-          finalIssues = post.retryIssues
+          finalIssues = post.verifyIssues + post.gitStatusIssues
           finalVerifyOutput = post.verifyOutput
           if sessions.indices.contains(sessionIndex) {
             sessions[sessionIndex].verifyOutput = post.verifyOutput
@@ -352,7 +352,7 @@ extension CompassProject {
             break
           }
 
-          priorIssues = post.retryIssues
+          priorIssues = post.verifyIssues + post.gitStatusIssues
           if attempt < maxDevelopAttempts {
             feedback(.developRetrying)
             log("Develop post-checks failed; retrying with failure context.", level: .warning)
@@ -611,7 +611,8 @@ extension CompassProject {
     sessionIndex: Int,
     attempt: Int
   ) async throws -> PostCheckResult {
-    var retryIssues: [String] = []
+    var verifyIssues: [String] = []
+    var gitStatusIssues: [String] = []
     var verifyOutput: VerifyOutput?
 
     switch summary.status {
@@ -619,10 +620,10 @@ extension CompassProject {
       break
     case .blocked:
       if summary.bypassVerify != true {
-        retryIssues.append("Develop reported it was blocked but did not request verify bypass.")
+        verifyIssues.append("[verify] Develop reported it was blocked but did not request verify bypass.")
       }
     case .failed:
-      retryIssues.append("Develop reported failure: \(summary.feedback)")
+      verifyIssues.append("[verify] Develop reported failure: \(summary.feedback)")
     }
 
     if summary.bypassVerify == true {
@@ -667,12 +668,12 @@ extension CompassProject {
           tail: verifyTail
         )
         let message = """
-          Verify command `\(next.verify)` exited with code \(output.exitCode). Output (tail):
+          [verify] Verify command `\(next.verify)` exited with code \(output.exitCode ?? -1). Output (tail):
           ```
           \(output.tail)
           ```
           """
-        retryIssues.append(message)
+        verifyIssues.append(message)
         verifyOutput = output
         log("Verify failed (exit \(verify.exitCode)).", level: .error)
       }
@@ -702,7 +703,7 @@ extension CompassProject {
           \(tail(gitStatus.stdout + gitStatus.stderr, max: 2000))
           ```
           """
-        retryIssues.append(issue)
+        gitStatusIssues.append(issue)
         log("Working-tree status check failed.", level: .error)
       } else {
         let status = gitStatus.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -716,15 +717,16 @@ extension CompassProject {
             \(status)
             ```
             """
-          retryIssues.append(issue)
+          gitStatusIssues.append(issue)
           log("Working tree is not clean after Develop.", level: .error)
         }
       }
     }
 
     return PostCheckResult(
-      ok: retryIssues.isEmpty,
-      retryIssues: retryIssues,
+      ok: verifyIssues.isEmpty && gitStatusIssues.isEmpty,
+      verifyIssues: verifyIssues,
+      gitStatusIssues: gitStatusIssues,
       verifyOutput: verifyOutput
     )
   }
