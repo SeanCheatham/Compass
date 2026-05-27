@@ -1140,7 +1140,7 @@ struct ExploreFilesPopover: View {
       diff = result?.stdout ?? ""
     } else if let lastSha = item.commits.last?.sha {
       let result = try? await ProcessRunner.runEnv(
-        "git", ["diff", "\(lastSha)..\(sha)", "--", change.relativePath],
+        "git", ["diff", "\(sha)..\(lastSha)", "--", change.relativePath],
         workingDirectory: repoURL
       )
       diff = result?.stdout ?? ""
