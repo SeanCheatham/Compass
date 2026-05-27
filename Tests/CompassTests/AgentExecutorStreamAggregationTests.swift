@@ -1,4 +1,5 @@
 import Foundation
+import OpenAI
 import Testing
 
 @testable import Compass
@@ -16,7 +17,7 @@ struct AgentExecutorStreamAggregationTests {
     ])
     let executor = AgentExecutor()
     let turn = try await executor.aggregate(stream: chunks)
-    try #require(turn.assistantText == "hello world")
+    #require(turn.assistantText == "hello world")
   }
 
   @Test
@@ -27,8 +28,8 @@ struct AgentExecutorStreamAggregationTests {
     ])
     let executor = AgentExecutor()
     let turn = try await executor.aggregate(stream: chunks)
-    try #require(turn.assistantText == "answer")
-    try #require(turn.reasoningText == "step 1")
+    #require(turn.assistantText == "answer")
+    #require(turn.reasoningText == "step 1")
   }
 
   @Test
@@ -39,8 +40,8 @@ struct AgentExecutorStreamAggregationTests {
     ])
     let executor = AgentExecutor()
     let turn = try await executor.aggregate(stream: chunks)
-    try #require(turn.assistantText == "before  after")
-    try #require(turn.reasoningText == "secret")
+    #require(turn.assistantText == "before  after")
+    #require(turn.reasoningText == "secret")
   }
 
   @Test
@@ -53,8 +54,8 @@ struct AgentExecutorStreamAggregationTests {
     ])
     let executor = AgentExecutor()
     let turn = try await executor.aggregate(stream: chunks)
-    try #require(turn.assistantText == "before  after")
-    try #require(turn.reasoningText == "secret")
+    #require(turn.assistantText == "before  after")
+    #require(turn.reasoningText == "secret")
   }
 
   // MARK: - Tool call assembly
@@ -68,11 +69,11 @@ struct AgentExecutorStreamAggregationTests {
     ])
     let executor = AgentExecutor()
     let turn = try await executor.aggregate(stream: chunks)
-    try #require(turn.toolCalls.count == 1)
-    try #require(turn.toolCalls.first?.name == "read_file")
-    try #require(turn.toolCalls.first?.id == "call_1")
-    try #require(turn.toolCalls.first?.arguments == #"{"path":"foo.txt"}"#)
-    try #require(turn.finishReason == "toolCalls")
+    #require(turn.toolCalls.count == 1)
+    #require(turn.toolCalls.first?.name == "read_file")
+    #require(turn.toolCalls.first?.id == "call_1")
+    #require(turn.toolCalls.first?.arguments == #"{"path":"foo.txt"}"#)
+    #require(turn.finishReason == "toolCalls")
   }
 
   @Test
@@ -84,7 +85,7 @@ struct AgentExecutorStreamAggregationTests {
     ])
     let executor = AgentExecutor()
     let turn = try await executor.aggregate(stream: chunks)
-    try #require(turn.toolCalls.map(\.id) == ["call_a", "call_b"])
+    #require(turn.toolCalls.map { $0.id } == ["call_a", "call_b"])
   }
 
   @Test
@@ -96,7 +97,7 @@ struct AgentExecutorStreamAggregationTests {
     ])
     let executor = AgentExecutor()
     let turn = try await executor.aggregate(stream: chunks)
-    try #require(turn.toolCalls.map(\.id) == ["call_b"])
+    #require(turn.toolCalls.map { $0.id } == ["call_b"])
   }
 
   // MARK: - Cancellation
@@ -110,7 +111,9 @@ struct AgentExecutorStreamAggregationTests {
       _ = try await executor.aggregate(stream: chunks)
       Issue.record("expected cancellation")
     } catch let error as AgentExecutionError {
-      try #require(error == .cancelled)
+      if error != .cancelled {
+        Issue.record("expected .cancelled, got \(error)")
+      }
     } catch {
       Issue.record("expected AgentExecutionError.cancelled, got \(error)")
     }

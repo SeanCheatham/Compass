@@ -145,6 +145,52 @@ final class AgentSystemPromptTests: XCTestCase {
     XCTAssertTrue(sub.contains("does not see your tool calls"))
   }
 
+  func testSystemPromptTreatsLessonsAsPersistentMemory() {
+    let prompt = Prompts.agentSystemPrompt(phase: .develop, workingDirectoryPath: "/x")
+    XCTAssertTrue(prompt.contains("Persistent memory (lessons.md)"))
+    XCTAssertTrue(prompt.contains("long-term memory"))
+    XCTAssertTrue(
+      prompt.contains("Prefer adding a lesson over leaving `[]`"),
+      "should encourage writing lessons when insights apply again"
+    )
+  }
+
+  func testLessonEditsGuidanceIsSharedAcrossPhases() throws {
+    let plan = try Prompts.planPrompt(
+      state: PlanProposal(immediate: nil, midTerm: "", longTerm: ""),
+      completedCount: 0,
+      drafts: "",
+      feedback: "",
+      lessons: "",
+      vision: "",
+      focus: .feature
+    )
+    XCTAssertTrue(plan.contains("Persistent memory (lessons.md)"))
+    XCTAssertTrue(
+      Prompts.developPrompt(
+        next: PlanNext(plan: "x", verify: "true", verifyTimeoutMs: nil, estimatedDifficulty: .low),
+        lessons: "",
+        vision: "",
+        attempt: 1,
+        priorIssues: []
+      ).contains("Persistent memory (lessons.md)")
+    )
+  }
+
+  func testPlanPromptDiscouragesBareSwiftTestDuringXCTestMigration() throws {
+    let prompt = try Prompts.planPrompt(
+      state: PlanProposal(immediate: nil, midTerm: "", longTerm: ""),
+      completedCount: 0,
+      drafts: "",
+      feedback: "",
+      lessons: "",
+      vision: "",
+      focus: .feature
+    )
+    XCTAssertTrue(prompt.contains("do not plan bare `swift test`"))
+    XCTAssertTrue(prompt.contains("swift build --target CompassTests"))
+  }
+
   func testSubAgentSystemPromptIncludesFactoryContext() {
     let prompt = Prompts.subAgentSystemPrompt(
       parentPhase: .develop,

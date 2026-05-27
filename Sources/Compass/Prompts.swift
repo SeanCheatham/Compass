@@ -104,19 +104,16 @@ enum Prompts {
         material changes.
       - Never choose placeholder verify commands like `true`, `not-running-tests`,
         `none`, or `n/a`.
+      - While `CompassTests` is mid-migration from XCTest to Testing, do not plan
+        bare `swift test` as verify — the target still mixes both frameworks.
+        Use `swift build --target CompassTests` for compile-only increments, or
+        `swift test --filter StructNameTests` when the increment migrates named
+        test structs. Reserve full `swift test` until no file `import XCTest`s.
       - Never write code or commit from Plan. Running builds, tests, or other
         read-only shell commands to confirm assumptions is fine; that's what
         `bash` is for here.
 
-      Lesson edit rules:
-      - `lessonEdits` is an array of exact find/replace edits against the
-        lessons content shown below. Use `[]` when you have no lesson change.
-      - `find` must match the current lessons text exactly. If it appears more
-        than once, include more surrounding context or set `replaceAll` to true.
-      - To append a lesson, replace the final relevant block with that block
-        plus the new bullet. If the lessons content is empty, use `find: ""`
-        and `replace` set to the initial contents.
-      - Lessons are durable gotchas and conventions, not routine status logs.
+      \(lessonEditsGuidance())
 
       submit_result arguments — call the tool with EXACTLY this shape.
       The top-level object has exactly two keys: `state` and
@@ -202,13 +199,7 @@ enum Prompts {
       - `lessonEdits`: exact find/replace edits against the lessons content
         shown below, or `[]` when nothing durable should be recorded.
 
-      Lesson edit rules:
-      - `find` must match the current lessons text exactly. If it appears more
-        than once, include more surrounding context or set `replaceAll` to true.
-      - To append a lesson, replace the final relevant block with that block
-        plus the new bullet. If the lessons content is empty, use `find: ""`
-        and `replace` set to the initial contents.
-      - Lessons are durable process guidance, not routine status logs.
+      \(lessonEditsGuidance())
 
       Keep this tight. Do not rewrite state defensively.
 
@@ -290,15 +281,7 @@ enum Prompts {
     - Leave the working tree clean, or explain why you are blocked.
     - End the phase by calling `submit_result` exactly once.
 
-    Lesson edit rules:
-    - `lessonEdits` is an array of exact find/replace edits against the
-      lessons content shown below. Use `[]` when you have no lesson change.
-    - `find` must match the current lessons text exactly. If it appears more
-      than once, include more surrounding context or set `replaceAll` to true.
-    - To append a lesson, replace the final relevant block with that block
-      plus the new bullet. If the lessons content is empty, use `find: ""`
-      and `replace` set to the initial contents.
-    - Lessons are durable gotchas and conventions, not routine status logs.
+    \(lessonEditsGuidance())
 
     Develop workspace:
     Compass runs your tools in the working directory from the system message
@@ -627,6 +610,8 @@ enum Prompts {
       `lessonEdits` field on `submit_result` and Compass applies them
       host-side.
 
+      \(lessonEditsGuidance())
+
       \(executionEnvironmentSection(executionEnvironment, installedToolchainIDs: installedToolchainIDs))
 
       Tools available to you this turn:
@@ -650,12 +635,14 @@ enum Prompts {
     Compass is a macOS-native app that runs a recursive software factory over
     one Git repository at a time. The user sets a vision in `COMPASS.md` and
     optional drafts; Compass keeps planning state in `.compass/state.json`,
-    durable guidance in `.compass/lessons.md`, and a session log of past
-    iterations. You are one specialized agent in that factory — not a one-off
-    chat. The user may be away; Compass will keep invoking phases until paused
-    or until Plan sets `immediate` to null (project complete).
+    durable guidance in `.compass/lessons.md` (persistent memory every agent
+    reads each session), and a session log of past iterations. You are one
+    specialized agent in that factory — not a one-off chat. The user may be
+    away; Compass will keep invoking phases until paused or until Plan sets
+    `immediate` to null (project complete).
     Compass dispatches your tool calls, enforces the working-directory
-    sandbox, and applies `lessonEdits` from `submit_result` on the host.
+    sandbox, and applies `lessonEdits` from `submit_result` on the host so
+    lessons accumulate across iterations.
     """
   }
 
@@ -722,6 +709,27 @@ enum Prompts {
        `feedback` and `lessons.md` carry memory forward.
 
     \(roleLine)
+    """
+  }
+
+  /// How agents should treat `lessons.md` and format `lessonEdits`.
+  static func lessonEditsGuidance() -> String {
+    """
+    Persistent memory (lessons.md):
+    `.compass/lessons.md` is the factory's long-term memory. Every future Plan,
+    Develop, Reflect, and Critic turn receives the current lessons text in its
+    user message — agents do not read that file from the worktree. When you
+    learn something later agents should not have to rediscover (Shared VM limits,
+    verify commands that work mid-migration, repo conventions, tool quirks),
+    record it via `lessonEdits` on `submit_result`. Prefer adding a lesson over
+    leaving `[]` when the insight will matter again. Do not duplicate session
+    handoff prose — use `feedback` or phase `summary` for one-iteration narrative.
+    Technical rules for `lessonEdits`:
+    - Each edit is `{ "find": "...", "replace": "...", "replaceAll": false }`.
+    - `find` must match the current lessons text exactly (include surrounding
+      context if the snippet appears more than once, or set `replaceAll` to true).
+    - To append when lessons are empty, use `find: ""` and `replace` as the
+      initial bullet list.
     """
   }
 
