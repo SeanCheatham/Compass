@@ -156,6 +156,30 @@ Everything lives in `.compass/` inside each selected repository:
 └── COMPASS.md        # User-owned project vision.
 ```
 
+## Explore
+
+Explore is an AI-powered layer that helps users understand software produced
+by Compass. Rather than leaving generated code opaque, it surfaces meaning —
+what changed, why, and how the pieces fit together — using Apple's on-device
+Foundation Models so explanations stay local and fast.
+
+Explore has two main components:
+
+- **`CommitExplainer`** (`Sources/Compass/Explore/CommitExplainer.swift`) —
+  Takes a git diff and produces a plain-English summary in roughly three
+  sentences. Uses `SystemLanguageModel.default` from the Foundation Models
+  framework. Requires **macOS 26** and is gated behind `@available(macOS 26.0, *)`.
+  Returns `nil` gracefully when Foundation Models is unavailable.
+
+- **`FileExplainer`** (`Sources/Compass/Explore/FileExplainer.swift`) —
+  Parses `git diff --stat` output and enriches each changed file with
+  codemap-based categorization (`Source`, `Tests`, `Config`, `Other`).
+  Provides `FileChange` objects with language, line-count labels, and
+  category for consistent presentation in the UI. Available on all macOS
+  versions.
+
+Explore is documented in the Vision under the "Explore layer" section.
+
 ## Development
 
 Two build flows coexist:
