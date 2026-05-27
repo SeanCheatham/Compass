@@ -1,4 +1,5 @@
 import Foundation
+import FoundationModels
 import Testing
 
 @testable import Compass
@@ -80,5 +81,23 @@ struct ExploreCommitTourGeneratorTests {
 
     let result = await CommitTourGenerator.generate(diff: wideDiff)
     #require(result == nil || result != nil)
+  }
+
+  // MARK: - isAvailable guard
+
+  @Test
+  func generate_returnsNilWhenModelUnavailable()  throws {
+    // When FoundationModelsAvailability.isAvailable is false, generate
+    // returns nil without attempting to create a session.
+    try #require(available(macOS 26.0, *))
+    let diff = """
+    Sources/App.swift        |   2 ++
+    """
+    let result = await CommitTourGenerator.generate(diff: diff)
+    // Either Foundation Models is available and we get a string (or nil
+    // from an error), or it is unavailable and we definitely get nil.
+    if !FoundationModelsAvailability.isAvailable {
+      #require(result == nil)
+    }
   }
 }
