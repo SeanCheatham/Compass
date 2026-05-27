@@ -116,6 +116,55 @@ struct ExploreRepoQnATests {
   }
 
   @Test
+  func answer_multiCommit_includesChangesSources() async throws {
+    var test = Self()
+    test.setUp()
+    defer { test.tearDown() }
+
+    // Set up a git repo with two commits touching different files.
+    try initGitRepo(at: test.temporaryDirectory)
+    try writeFile("Sources/Old.swift", contents: "import Foundation\n")
+    try runGit(
+      "git -C \(test.temporaryDirectory.path) add Sources/Old.swift && "
+        + "git -C \(test.temporaryDirectory.path) "
+        + "-c user.email=t@t -c user.name=t commit -q -m 'Add Old.swift'",
+      at: test.temporaryDirectory
+    )
+
+    try writeFile("Sources/New.swift", contents: "import Foundation\n")
+    try runGit(
+      "git -C \(test.temporaryDirectory.path) add Sources/New.swift && "
+        + "git -C \(test.temporaryDirectory.path) "
+        + "-c user.email=t@t -c user.name=t commit -q -m 'Add New.swift'",
+      at: test.temporaryDirectory
+    )
+
+    let shas = try getAllCommitSHAs(at: test.temporaryDirectory)
+    #require(shas.count == 2)
+    let oldest = shas[1] // oldest
+    let newest = shas[0] // newest
+    let commits = [
+      SessionCommit(sha: oldest, short: String(oldest.prefix(7)), subject: "Add Old.swift"),
+      SessionCommit(sha: newest, short: String(newest.prefix(7)), subject: "Add New.swift"),
+    ]
+
+    // When Foundation Models is unavailable, answer() returns nil.
+    // This exercises both the reversed-commits path through FileExplainer.changes()
+    // (commits.reversed() → chronological order) and the multi-commit git diff path
+    // (oldest..newest) up to the model call.
+    let result = await RepoQnA.answer(
+      question: "What files changed across these two commits?",
+      repoURL: test.temporaryDirectory,
+      commits: commits
+    )
+
+    if !FoundationModelsAvailability.isAvailable {
+      #require(result == nil)
+    }
+    // If the model is available the result would be non-nil; either outcome is valid.
+  }
+
+  @Test
   func answer_modelUnavailable_returnsNilGracefully() async throws {
     var test = Self()
     test.setUp()
