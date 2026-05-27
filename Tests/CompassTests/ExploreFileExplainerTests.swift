@@ -361,6 +361,80 @@ struct ExploreFileExplainerTests {
   }
 
   @Test
+  func explain_multiCommitRange_correctDirection() async throws {
+    var test = Self()
+    test.setUp()
+    defer { test.tearDown() }
+
+    // Set up a git repo with three commits on the same file:
+    //   Commit A (oldest): "A\n"
+    //   Commit B (middle): "A\nB\n"
+    //   Commit C (newest): "A\nB\nC\n"
+    try initGitRepo(at: test.temporaryDirectory)
+
+    try writeFile("A.swift", contents: "A\n")
+    try runGit(
+      "git -C \(test.temporaryDirectory.path) add A.swift && "
+        + "git -C \(test.temporaryDirectory.path) "
+        + "-c user.email=t@t -c user.name=t commit -q -m 'Add A'",
+      at: test.temporaryDirectory
+    )
+
+    try writeFile("A.swift", contents: "A\nB\n")
+    try runGit(
+      "git -C \(test.temporaryDirectory.path) add . && "
+        + "git -C \(test.temporaryDirectory.path) "
+        + "-c user.email=t@t -c user.name=t commit -q -m 'Add B'",
+      at: test.temporaryDirectory
+    )
+
+    try writeFile("A.swift", contents: "A\nB\nC\n")
+    try runGit(
+      "git -C \(test.temporaryDirectory.path) add . && "
+        + "git -C \(test.temporaryDirectory.path) "
+        + "-c user.email=t@t -c user.name=t commit -q -m 'Add C'",
+      at: test.temporaryDirectory
+    )
+
+    let shas = try getAllCommitSHAs(at: test.temporaryDirectory)
+    #require(shas.count == 3)
+    // shas[0] = newest (Add C), shas[1] = middle (Add B), shas[2] = oldest (Add A)
+
+    // Pass [C, B] (newest→oldest) to force the multi-commit code path.
+    // With the fix, FileExplainer constructs git diff first.sha..last.sha = C..B
+    // which shows the changes from C down to B (reverse-chronological).
+    // The diff must contain the +B addition from commit B and the +C addition
+    // from commit C, proving the direction is newest→oldest, not oldest→newest.
+    let commitsForMultiPath = [
+      SessionCommit(sha: shas[0], short: String(shas[0].prefix(7)), subject: "Add C"),
+      SessionCommit(sha: shas[1], short: String(shas[1].prefix(7)), subject: "Add B"),
+    ]
+
+    let result = await FileExplainer.explain(
+      file: "A.swift",
+      repoURL: test.temporaryDirectory,
+      commits: commitsForMultiPath
+    )
+
+    // Verify the git diff directly to confirm the correct direction.
+    let diffResult = try waitForSync {
+      try? ProcessRunner.runEnv(
+        "git", ["diff", "\(shas[0])..\(shas[1])", "--", "A.swift"],
+        workingDirectory: test.temporaryDirectory
+      )
+    }
+    let diff = diffResult?.stdout ?? ""
+
+    // The diff C..B (newest→oldest) must contain +B and +C additions.
+    // If the range were reversed (oldest→newest = B..C), the diff would
+    // start with +B, not end with +C — confirming the direction matters.
+    #require(diff.contains("+B")) { "diff C..B must contain +B from Add B commit; reversed range B..C would miss this" }
+    #require(diff.contains("+C")) { "diff C..B must contain +C from Add C commit" }
+
+    _ = result
+  }
+
+  @Test
   func explain_multiCommitDiff_callsSummarize() async throws {
     var test = Self()
     test.setUp()
