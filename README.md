@@ -165,18 +165,18 @@ by Compass. Rather than leaving generated code opaque, it surfaces meaning —
 what changed, why, and how the pieces fit together — using Apple's on-device
 Foundation Models so explanations stay local and fast.
 
-Explore has three main components:
+Explore has four main components:
 
 - **`CommitExplainer`** (`Sources/Compass/Explore/CommitExplainer.swift`) —
   Takes a git diff and produces a plain-English summary in roughly three
-  sentences. Uses `SystemLanguageModel.default` from the on-device Foundation
+  sentences. Uses `FoundationModelsAvailability.isAvailable` from the on-device Foundation
   Models framework. Requires **macOS 26** and is gated behind `@available(macOS 26.0, *)`.
   Returns `nil` gracefully when Foundation Models is unavailable.
 
 - **`CommitTourGenerator`** (`Sources/Compass/Explore/CommitTourGenerator.swift`) —
   Synthesizes a multi-commit diff into a 3–5 sentence architectural guided-tour
   narrative explaining what was built, why, and how the pieces fit together.
-  Uses `SystemLanguageModel.default` from the on-device Foundation Models
+  Uses `FoundationModelsAvailability.isAvailable` from the on-device Foundation Models
   framework. Requires **macOS 26** and is gated behind `@available(macOS 26.0, *)`.
   Returns `nil` gracefully when Foundation Models is unavailable.
 
@@ -189,7 +189,7 @@ Explore has three main components:
 
 - **`RepoQnA`** (`Sources/Compass/Explore/RepoQnA.swift`) —
   Answers free-text questions about repository changes using on-device
-  Foundation Models. Uses `SystemLanguageModel.default` from the Foundation
+  Foundation Models. Uses `FoundationModelsAvailability.isAvailable` from the Foundation
   Models framework. Requires **macOS 26** and is gated behind `@available(macOS 26.0, *)`.
   Returns `nil` gracefully when Foundation Models is unavailable. See the
   Vision document for the full feature description.
