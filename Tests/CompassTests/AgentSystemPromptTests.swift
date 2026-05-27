@@ -116,6 +116,46 @@ final class AgentSystemPromptTests: XCTestCase {
     }
   }
 
+  // MARK: - Compass product and factory loop
+
+  func testSystemPromptExplainsCompassAndSoftwareFactory() {
+    let prompt = Prompts.agentSystemPrompt(phase: .plan, workingDirectoryPath: "/x")
+    XCTAssertTrue(prompt.contains("About Compass:"))
+    XCTAssertTrue(prompt.contains("software factory"))
+    XCTAssertTrue(prompt.contains("COMPASS.md"))
+    XCTAssertTrue(prompt.contains("Software factory loop"))
+    XCTAssertTrue(prompt.contains("Plan — pick the next"))
+    XCTAssertTrue(prompt.contains("Your role this turn: Plan"))
+    XCTAssertTrue(
+      prompt.contains("until Plan sets `immediate` to null"),
+      "should explain project-complete stop condition"
+    )
+  }
+
+  func testSoftwareFactorySectionVariesByPhase() {
+    let develop = Prompts.softwareFactorySection(phase: .develop, role: .phaseAgent)
+    XCTAssertTrue(develop.contains("Your role this turn: Develop"))
+    XCTAssertTrue(develop.contains("verify command"))
+
+    let critic = Prompts.softwareFactorySection(phase: .critic, role: .phaseAgent)
+    XCTAssertTrue(critic.contains("Your role this turn: Critic"))
+
+    let sub = Prompts.softwareFactorySection(phase: .plan, role: .subAgent)
+    XCTAssertTrue(sub.contains("sub-agent"))
+    XCTAssertTrue(sub.contains("does not see your tool calls"))
+  }
+
+  func testSubAgentSystemPromptIncludesFactoryContext() {
+    let prompt = Prompts.subAgentSystemPrompt(
+      parentPhase: .develop,
+      workingDirectoryPath: "/x",
+      toolNames: ["bash"]
+    )
+    XCTAssertTrue(prompt.contains("About Compass:"))
+    XCTAssertTrue(prompt.contains("software factory"))
+    XCTAssertTrue(prompt.contains("sub-agent"))
+  }
+
   // MARK: - Execution environment
 
   func testSharedVMEnvironmentIsTheDefault() {

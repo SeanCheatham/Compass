@@ -66,14 +66,12 @@ enum Prompts {
   ) throws -> String {
     let stateJSON = try CompassWorkspace.encodeProposal(state)
     return """
-      You are the Plan agent for Compass, a macOS-native agent iteration app.
-
-      Compass talks to an OpenAI-compatible chat completions endpoint and
-      dispatches tool calls you make. Treat the structured JSON you return as
+      You are the Plan agent in Compass's software factory (see the system
+      message for how the loop works). Treat the structured JSON you return as
       Compass's plan update contract.
 
       Your job is to choose exactly one concrete next implementation increment
-      for a separate Develop pass. You have read access to the repository and
+      for the next Develop pass Compass will run automatically. You have read access to the repository and
       `bash` for probing — run builds, tests, or other shell commands when
       they would ground your decision. Do not edit files or commit. End by
       calling the `submit_result` tool with the arguments described below.
@@ -185,11 +183,11 @@ enum Prompts {
     let stateJSON = try CompassWorkspace.encodeProposal(state)
     let sessionsJSON = try encodeSessions(recentSessions)
     return """
-      You are the Reflect agent for Compass, a macOS-native agent iteration
-      app. Compass talks to an OpenAI-compatible chat completions endpoint
-      and dispatches tool calls you make.
+      You are the Reflect agent in Compass's software factory (see the system
+      message for how the loop works).
 
-      Run a course-correction pass for iteration \(iteration). You have read
+      Run a course-correction pass for factory session \(iteration) before
+      Plan chooses the next increment. You have read
       access to the repository plus `bash` for probing (build, test, git
       inspection — do not edit files or commit). Decide whether the project
       is still on course toward the vision.
@@ -280,17 +278,15 @@ enum Prompts {
     criticSection: String
   ) -> String {
     """
-    You are the Develop agent for Compass, a macOS-native agent iteration
-    app. Compass talks to an OpenAI-compatible chat completions endpoint
-    and dispatches tool calls you make.
+    You are the Develop agent in Compass's software factory (see the system
+    message for how the loop works).
 
-    Implement exactly the plan below. You may read, edit, run shell commands,
-    run tests, and commit using git. Keep the change scoped to the plan.
+    Implement exactly the plan below. You may read, edit, and run shell
+    commands (including the verify command). Keep the change scoped to the plan.
 
     Hard rules:
     - Do not push, rebase, or use destructive git operations.
     - Run the verify command before finishing.
-    - Commit the finished change if there are code changes.
     - Leave the working tree clean, or explain why you are blocked.
     - End the phase by calling `submit_result` exactly once.
 
@@ -305,10 +301,12 @@ enum Prompts {
     - Lessons are durable gotchas and conventions, not routine status logs.
 
     Develop workspace:
-    You are operating directly in the repository's working tree on the
-    user's current branch. Commit your changes from this working
-    directory once the work is complete; the app does not stage a
-    separate branch on your behalf.
+    Compass runs your tools in the working directory from the system message
+    (often a Shared VM copy of the repo). There is usually no `.git` in that
+    tree — do not try to commit here. Finish with verify passing and a clean
+    tree; after post-checks Compass lands your edits on the host checkout and
+    commits with your `summary` as the message. On the rare host route,
+    `bash` may commit in-place on the user's branch.
 
     \(developAttemptInstructions(attempt: attempt, priorIssues: priorIssues))
 
@@ -343,8 +341,7 @@ enum Prompts {
         1. Explore as needed to understand the surrounding code.
         2. Implement the plan and keep the change scoped.
         3. Run the verify command and fix failures.
-        4. Commit the finished change.
-        5. Call submit_result with a useful feedback handoff.
+        4. Call submit_result with a useful `feedback` handoff for the next Plan pass.
         """
     }
 
@@ -358,8 +355,7 @@ enum Prompts {
       \(issues)
 
       Fix them now. Do not expand scope. Finish with verify passing, a clean
-      working tree, committed changes if any, and a submit_result call
-      carrying the feedback handoff.
+      working tree, and a submit_result call carrying the feedback handoff.
       """
   }
 
@@ -396,9 +392,8 @@ enum Prompts {
         """
     }
     return """
-      You are the Critic agent for Compass, a macOS-native agent iteration
-      app. Compass talks to an OpenAI-compatible chat completions endpoint
-      and dispatches the tool calls you make.
+      You are the Critic agent in Compass's software factory (see the system
+      message for how the loop works).
 
       A separate Develop agent just finished implementing the plan below
       and its post-checks (Verify command + clean working tree) passed.
@@ -486,11 +481,15 @@ enum Prompts {
     let toolList = toolNames.isEmpty ? "(none)" : toolNames.joined(separator: ", ")
     return """
       You are a sub-agent spawned by the Compass \(parentPhase.rawValue)
-      agent via the `delegate` tool. Your job is to investigate the
-      focused task the parent handed you and report findings back. The
-      parent will read your reply as a single tool result; everything
-      you discover must be in your final `submit_result.findings`
-      string.
+      agent via the `delegate` tool inside Compass's software factory.
+      Your job is to investigate the focused task the parent handed you
+      and report findings back. The parent will read your reply as a single
+      tool result; everything you discover must be in your final
+      `submit_result.findings` string.
+
+      \(compassOverviewSection())
+
+      \(softwareFactorySection(phase: parentPhase, role: .subAgent))
 
       Working directory: \(workingDirectoryPath)
       All tool paths are resolved against this directory. Relative paths
@@ -598,6 +597,10 @@ enum Prompts {
       an OpenAI-compatible chat completions endpoint and dispatches the
       tool calls you make.
 
+      \(compassOverviewSection())
+
+      \(softwareFactorySection(phase: phase, role: .phaseAgent))
+
       Working directory: \(workingDirectoryPath)
       All tool paths are resolved against this directory. Relative paths
       are recommended; if you use absolute paths they must resolve inside
@@ -627,6 +630,89 @@ enum Prompts {
       message — always call the tool. The phase ends the moment you call
       it; no further messages will be processed.
       """
+  }
+
+  /// What Compass is and how durable project state is stored. Shared across
+  /// phase agents and sub-agents so every role understands the product.
+  static func compassOverviewSection() -> String {
+    """
+    About Compass:
+    Compass is a macOS-native app that runs a recursive software factory over
+    one Git repository at a time. The user sets a vision in `COMPASS.md` and
+    optional drafts; Compass keeps planning state in `.compass/state.json`,
+    durable guidance in `.compass/lessons.md`, and a session log of past
+    iterations. You are one specialized agent in that factory — not a one-off
+    chat. The user may be away; Compass will keep invoking phases until paused
+    or until Plan sets `immediate` to null (project complete).
+    Compass dispatches your tool calls, enforces the working-directory
+    sandbox, and applies `lessonEdits` from `submit_result` on the host.
+    """
+  }
+
+  enum FactoryAgentRole {
+    case phaseAgent
+    case subAgent
+  }
+
+  /// How the Plan → Develop → post-checks → Critic → land loop fits together,
+  /// plus this turn's role. Kept separate for tests and sub-agent reuse.
+  static func softwareFactorySection(
+    phase: AgentPhase,
+    role: FactoryAgentRole
+  ) -> String {
+    let roleLine: String
+    switch (phase, role) {
+    case (_, .subAgent):
+      roleLine = """
+        Your role this turn: sub-agent. The parent \(phase.rawValue) agent
+        delegated a focused investigation; return self-contained findings in
+        `submit_result.findings` — the parent does not see your tool calls.
+        """
+    case (.plan, .phaseAgent):
+      roleLine = """
+        Your role this turn: Plan. Choose exactly one commit-sized `immediate`
+        increment (plan text + verify command) for Compass to hand to Develop.
+        You do not edit files. Completed iterations live in Compass-managed
+        history — use `plan_history` when prior shipped work matters.
+        """
+    case (.develop, .phaseAgent):
+      roleLine = """
+        Your role this turn: Develop. Implement the `immediate` plan from state.
+        Compass runs your verify command after you call `submit_result`; failed
+        verify triggers retries (see the user message). An adversarial Critic
+        may request another Develop pass before changes land. Write `feedback`
+        for the next Plan pass when you finish or get blocked.
+        """
+    case (.reflect, .phaseAgent):
+      roleLine = """
+        Your role this turn: Reflect. Compass invoked you on a cadence (every
+        few sessions) before Plan runs. Decide whether `midTerm` / `longTerm`
+        need revision; return `state: null` when the arc is still sound.
+        """
+    case (.critic, .phaseAgent):
+      roleLine = """
+        Your role this turn: Critic. Develop and automated post-checks (Verify)
+        already passed; you are the adversarial gate before Compass lands the
+        diff on the host branch. Approve or request_changes with actionable
+        feedback for one more Develop pass.
+        """
+    }
+    return """
+    Software factory loop (Compass orchestrates this; you execute one step):
+    1. Plan — pick the next `immediate` increment (`midTerm` / `longTerm` queue).
+    2. Develop — implement that increment in the working tree (often a Shared VM
+       guest copy synced from the host repo).
+    3. Post-checks — Compass runs the verify shell command you planned; retries
+       Develop on failure up to a budget.
+    4. Critic — optional adversarial review; may loop Develop with feedback.
+    5. Land — on success Compass pulls guest changes to the host repo and commits
+       (guest workspaces have no `.git`; the agent does not commit there).
+    6. Reflect — periodic course-correction on vision and planning state, then
+       back to step 1. User drafts are consumed at the start of Plan; Develop
+       `feedback` and `lessons.md` carry memory forward.
+
+    \(roleLine)
+    """
   }
 
   /// Renders the "where am I running?" stanza for the agent system prompt.
