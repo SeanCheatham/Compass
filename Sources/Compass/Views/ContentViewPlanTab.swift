@@ -1,5 +1,6 @@
 import AppKit
 import SwiftUI
+import FoundationModels
 
 
 struct PlanTab: View {
@@ -1031,12 +1032,55 @@ struct ExploreFilesPopover: View {
           additions: loaded[i].additions,
           deletions: loaded[i].deletions,
           language: loaded[i].language,
-          summary: entry.summary
+          summary: entry.summary,
+          explanation: loaded[i].explanation
         )
       }
     }
 
+    // Fetch per-file AI explanations
+    if #available(macOS 26.0, *),
+       SystemLanguageModel.default.isAvailable {
+      for i in loaded.indices {
+        let explanation = await fetchExplanation(for: loaded[i])
+        if let explanation = explanation {
+          loaded[i] = FileChange(
+            relativePath: loaded[i].relativePath,
+            additions: loaded[i].additions,
+            deletions: loaded[i].deletions,
+            language: loaded[i].language,
+            summary: loaded[i].summary,
+            explanation: explanation
+          )
+        }
+      }
+    }
+
     changes = loaded
+  }
+
+  /// Fetches the per-file diff and generates an AI explanation for a single file change.
+  private func fetchExplanation(for change: FileChange) async -> String? {
+    guard let sha = item.commits.first?.sha else { return nil }
+
+    let diff: String
+    if item.commits.count == 1 {
+      let result = try? await ProcessRunner.runEnv(
+        "git", ["diff", "\(sha)^..\(sha)", "--", change.relativePath],
+        workingDirectory: repoURL
+      )
+      diff = result?.stdout ?? ""
+    } else if let lastSha = item.commits.last?.sha {
+      let result = try? await ProcessRunner.runEnv(
+        "git", ["diff", "\(lastSha)..\(sha)", "--", change.relativePath],
+        workingDirectory: repoURL
+      )
+      diff = result?.stdout ?? ""
+    } else {
+      return nil
+    }
+
+    return await CommitExplainer.summarize(diff: diff)
   }
 }
 
@@ -1072,6 +1116,19 @@ struct ExploreFileRow: View {
           .foregroundStyle(.secondary)
           .lineLimit(2)
           .fixedSize(horizontal: false, vertical: true)
+      }
+
+      if let explanation = change.explanation {
+        Text(explanation)
+          .font(.caption.italic())
+          .foregroundStyle(.primary.opacity(0.7))
+          .lineLimit(3)
+          .fixedSize(horizontal: false, vertical: true)
+          .padding(.top, 2)
+          .padding(.horizontal, 4)
+          .padding(.vertical, 3)
+          .frame(maxWidth: .infinity, alignment: .leading)
+          .background(Color.accentColor.opacity(0.06), in: RoundedRectangle(cornerRadius: 4))
       }
     }
     .padding(.vertical, 4)

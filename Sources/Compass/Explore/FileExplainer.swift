@@ -8,6 +8,7 @@ struct FileChange: Identifiable, Equatable {
   let additions: Int
   let deletions: Int
   let summary: String?
+  let explanation: String?
   let category: FileChangeCategory
 
   init(
@@ -15,7 +16,8 @@ struct FileChange: Identifiable, Equatable {
     additions: Int,
     deletions: Int,
     language: CodemapLanguage?,
-    summary: String?
+    summary: String?,
+    explanation: String? = nil
   ) {
     self.id = relativePath
     self.relativePath = relativePath
@@ -23,6 +25,7 @@ struct FileChange: Identifiable, Equatable {
     self.deletions = deletions
     self.language = language
     self.summary = summary
+    self.explanation = explanation
     self.category = FileChangeCategory.categorize(relativePath)
   }
 
