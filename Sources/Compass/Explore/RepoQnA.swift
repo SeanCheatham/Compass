@@ -12,7 +12,7 @@ import FoundationModels
 ///    git operations.
 ///
 /// 2. Raw `git diff` over the commit range — ``git diff sha^..sha`` for a single
-///    commit, ``git diff first..last`` for a range. Truncated to ~8000 chars
+///    commit, ``git diff newest..oldest`` for a range. Truncated to ~8000 chars
 ///    to stay within token limits while preserving early file headers.
 ///
 /// 3. Foundation Models text generation — the file list and truncated diff
@@ -44,7 +44,7 @@ enum RepoQnA {
   ///   - question: The user's question about the changes.
   ///   - repoURL: The working-copy root of the repository.
   ///   - commits: The commits to analyse. Single-commit uses `sha^..sha`;
-  ///     multi-commit uses `from..to` (oldest → newest).
+  ///     multi-commit uses `newest..oldest` (reverse-chronological).
   /// - Returns: An `Answer` with the generated text and supporting source
   ///   files, or `nil` if Foundation Models is unavailable or produces no
   ///   content.
@@ -57,7 +57,7 @@ enum RepoQnA {
     guard let first = commits.first else { return nil }
 
     // 1. Get file changes with codemap summaries.
-    let changes = await FileExplainer.changes(for: repoURL, commits: commits.reversed())
+    let changes = await FileExplainer.changes(for: repoURL, commits: commits)
 
     // 2. Get the actual diff text over the commit range.
     let diff: String
@@ -69,7 +69,7 @@ enum RepoQnA {
       diff = result?.stdout ?? ""
     } else if let last = commits.last {
       let result = try? await ProcessRunner.runEnv(
-        "git", ["diff", "\(first.sha)..\(last.sha)"],
+        "git", ["diff", "\(last.sha)..\(first.sha)"],
         workingDirectory: repoURL
       )
       diff = result?.stdout ?? ""
