@@ -368,6 +368,76 @@ struct ExploreFileExplainerTests {
     #require(result == nil)
   }
 
+  // MARK: - changes(for:repoURL:commits:)
+
+  @Test
+  func changes_multiCommit_reversedRange_bugRegression() async throws {
+    var test = Self()
+    test.setUp()
+    defer { test.tearDown() }
+
+    // Set up a git repo with two commits touching different files.
+    try initGitRepo(at: test.temporaryDirectory)
+    try writeFile("Sources/Old.swift", contents: "import Foundation\n")
+    try runGit(
+      "git -C \(test.temporaryDirectory.path) add Sources/Old.swift && "
+        + "git -C \(test.temporaryDirectory.path) "
+        + "-c user.email=t@t -c user.name=t commit -q -m 'Add Old.swift'",
+      at: test.temporaryDirectory
+    )
+
+    try writeFile("Sources/New.swift", contents: "import Foundation\n")
+    try runGit(
+      "git -C \(test.temporaryDirectory.path) add Sources/New.swift && "
+        + "git -C \(test.temporaryDirectory.path) "
+        + "-c user.email=t@t -c user.name=t commit -q -m 'Add New.swift'",
+      at: test.temporaryDirectory
+    )
+
+    let shas = try getAllCommitSHAs(at: test.temporaryDirectory)
+    #require(shas.count == 2)
+    let oldest = shas[1] // oldest commit
+    let newest = shas[0] // newest commit
+
+    // Pass commits ordered oldest→newest (standard ordering).
+    let commits = [
+      SessionCommit(sha: oldest, short: String(oldest.prefix(7)), subject: "Add Old.swift"),
+      SessionCommit(sha: newest, short: String(newest.prefix(7)), subject: "Add New.swift"),
+    ]
+
+    let changes = await FileExplainer.changes(for: test.temporaryDirectory, commits: commits)
+
+    // With the reversed range bug, git diff newest..oldest misses Old.swift.
+    // The correct git diff oldest..newest shows both files.
+    let changedPaths = changes.map { $0.relativePath }
+    #require(changedPaths.contains("Sources/Old.swift")) { "Old.swift from the oldest commit must be present; the reversed range bug causes it to be missing" }
+    #require(changedPaths.contains("Sources/New.swift")) { "New.swift from the newest commit must be present" }
+  }
+
+  @Test
+  func changes_singleCommit_returnsFileStats() async throws {
+    var test = Self()
+    test.setUp()
+    defer { test.tearDown() }
+
+    try initGitRepo(at: test.temporaryDirectory)
+    try writeFile("Sources/App.swift", contents: "import Foundation\n")
+    try runGit(
+      "git -C \(test.temporaryDirectory.path) add Sources/App.swift && "
+        + "git -C \(test.temporaryDirectory.path) "
+        + "-c user.email=t@t -c name=t commit -q -m 'Add App.swift'",
+      at: test.temporaryDirectory
+    )
+
+    let sha = try getSingleCommitSHA(at: test.temporaryDirectory)
+    let commits = [SessionCommit(sha: sha, short: String(sha.prefix(7)), subject: "Add App.swift")]
+
+    let changes = await FileExplainer.changes(for: test.temporaryDirectory, commits: commits)
+
+    #require(changes.count == 1)
+    #require(changes[0].relativePath == "Sources/App.swift")
+  }
+
   // MARK: - Helpers
 
   private func initGitRepo(at url: URL) {

@@ -178,7 +178,7 @@ enum FileExplainer {
     if commits.count == 1 {
       diffStat = await gitDiffStat(sha: first.sha, repoURL: repoURL)
     } else if let last = commits.last {
-      diffStat = await gitDiffStatRange(from: last.sha, to: first.sha, repoURL: repoURL)
+      diffStat = await gitDiffStatRange(from: first.sha, to: last.sha, repoURL: repoURL)
     } else {
       return []
     }
