@@ -1,21 +1,24 @@
 import Foundation
 import Virtualization
-import XCTest
+import Testing
 
 @testable import Compass
 
-final class SharedCompassVMConfigurationTests: XCTestCase {
+struct SharedCompassVMConfigurationTests {
+
   // MARK: - vsock
 
+  @Test
   func testGuestAgentPortIsStableAcrossBuilds() {
     // Both sides of the vsock conversation (host AgentVsockClient and
     // the in-guest CompassGuestAgent) reference this constant. Lock the
     // value so a refactor on either side can't silently rewire the port.
-    XCTAssertEqual(SharedCompassVMVsock.guestAgentPort, 0x4007_ACE5)
+    #require(SharedCompassVMVsock.guestAgentPort == 0x4007_ACE5)
   }
 
   // MARK: - Console
 
+  @Test
   func testConsoleAttachmentAcceptsNilReadHandleForOutputOnlyCapture() throws {
     let configuration = VZVirtualMachineConfiguration()
     let consoleDevice = VZVirtioConsoleDeviceConfiguration()
@@ -31,6 +34,6 @@ final class SharedCompassVMConfigurationTests: XCTestCase {
 
     try SharedCompassVMConfiguration.replaceConsoleAttachment(attachment, on: configuration)
 
-    XCTAssertTrue(consolePort.attachment === attachment)
+    #require(consolePort.attachment === attachment)
   }
 }
