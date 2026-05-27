@@ -1,14 +1,15 @@
 import Foundation
-import XCTest
+import Testing
 
 @testable import Compass
 
 /// Coverage for the argv builders in `SharedCompassVMGuestBridge` plus the host->guest
 /// path translation on `SharedVMRoute`. These are pure functions — no Process, no
 /// network — so they're cheap and load-bearing.
-final class SharedVMRouteSSHArgvTests: XCTestCase {
+struct SharedVMRouteSSHArgvTests {
   // MARK: - sshArguments
 
+  @Test
   func testSSHArgumentsIncludeIdentityKnownHostsStrictBatchTAndDestination() {
     let options = SharedCompassVMGuestBridge.ConnectionOptions(
       identityFile: "/path/to/id_ed25519",
@@ -22,20 +23,21 @@ final class SharedVMRouteSSHArgvTests: XCTestCase {
     )
 
     // -i <identity>
-    XCTAssertTrue(args.contains(["-i", "/path/to/id_ed25519"]))
+    #require(args.contains(["-i", "/path/to/id_ed25519"]))
     // -o UserKnownHostsFile="<file>" — value is inner-quoted so
     // ssh's parser treats paths-with-spaces as a single file.
-    XCTAssertTrue(args.contains(["-o", #"UserKnownHostsFile="/path/to/known_hosts""#]))
+    #require(args.contains(["-o", #"UserKnownHostsFile="/path/to/known_hosts""#]))
     // -o StrictHostKeyChecking=yes
-    XCTAssertTrue(args.contains(["-o", "StrictHostKeyChecking=yes"]))
+    #require(args.contains(["-o", "StrictHostKeyChecking=yes"]))
     // -o BatchMode=yes
-    XCTAssertTrue(args.contains(["-o", "BatchMode=yes"]))
+    #require(args.contains(["-o", "BatchMode=yes"]))
     // -T (no PTY)
-    XCTAssertTrue(args.contains("-T"))
+    #require(args.contains("-T"))
     // destination + remoteCommand are the trailing two arguments.
-    XCTAssertEqual(args.suffix(2), ["compass@10.0.0.42", "true"])
+    #require(args.suffix(2) == ["compass@10.0.0.42", "true"])
   }
 
+  @Test
   func testSSHArgumentsOmitIdentityAndKnownHostsWhenNil() {
     let options = SharedCompassVMGuestBridge.ConnectionOptions(
       identityFile: nil,
@@ -46,10 +48,11 @@ final class SharedVMRouteSSHArgvTests: XCTestCase {
       remoteCommand: "echo hi",
       options: options
     )
-    XCTAssertFalse(args.contains("-i"))
-    XCTAssertFalse(args.contains { $0.hasPrefix("UserKnownHostsFile=") })
+    #require(!args.contains("-i"))
+    #require(!args.contains { $0.hasPrefix("UserKnownHostsFile=") })
   }
 
+  @Test
   func testSSHArgumentsIncludeConnectTimeoutWhenSet() {
     let options = SharedCompassVMGuestBridge.ConnectionOptions(connectTimeoutSeconds: 7)
     let args = SharedCompassVMGuestBridge.sshArguments(
@@ -57,9 +60,10 @@ final class SharedVMRouteSSHArgvTests: XCTestCase {
       remoteCommand: "true",
       options: options
     )
-    XCTAssertTrue(args.contains(["-o", "ConnectTimeout=7"]))
+    #require(args.contains(["-o", "ConnectTimeout=7"]))
   }
 
+  @Test
   func testSSHArgumentsDoNotIncludeConnectTimeoutWhenNil() {
     let options = SharedCompassVMGuestBridge.ConnectionOptions()
     let args = SharedCompassVMGuestBridge.sshArguments(
@@ -67,9 +71,10 @@ final class SharedVMRouteSSHArgvTests: XCTestCase {
       remoteCommand: "true",
       options: options
     )
-    XCTAssertFalse(args.contains { $0.hasPrefix("ConnectTimeout=") })
+    #require(!args.contains { $0.hasPrefix("ConnectTimeout=") })
   }
 
+  @Test
   func testSSHArgumentsQuoteKnownHostsPathWithSpacesAsSingleToken() {
     // ssh's UserKnownHostsFile option treats unquoted whitespace
     // in its value as a separator between multiple files (per
@@ -91,15 +96,16 @@ final class SharedVMRouteSSHArgvTests: XCTestCase {
       remoteCommand: "true",
       options: options
     )
-    XCTAssertTrue(
+    #require(
       args.contains([
         "-o",
         #"UserKnownHostsFile="/Users/x/Library/Application Support/Compass/SharedVM/bundle.vmbundle/known_hosts""#,
       ]),
-      "known_hosts path with spaces must be inner-quoted so ssh sees one file, not many"
+      message: "known_hosts path with spaces must be inner-quoted so ssh sees one file, not many"
     )
   }
 
+  @Test
   func testSSHArgumentsHonorStrictHostKeyCheckingDisabled() {
     let options = SharedCompassVMGuestBridge.ConnectionOptions(strictHostKeyChecking: false)
     let args = SharedCompassVMGuestBridge.sshArguments(
@@ -107,16 +113,18 @@ final class SharedVMRouteSSHArgvTests: XCTestCase {
       remoteCommand: "true",
       options: options
     )
-    XCTAssertTrue(args.contains(["-o", "StrictHostKeyChecking=no"]))
-    XCTAssertFalse(args.contains(["-o", "StrictHostKeyChecking=yes"]))
+    #require(args.contains(["-o", "StrictHostKeyChecking=no"]))
+    #require(!args.contains(["-o", "StrictHostKeyChecking=yes"]))
   }
 
+  @Test
   func testDefaultExecutablePathIsUsrBinSSH() {
-    XCTAssertEqual(SharedCompassVMGuestBridge.defaultSSHExecutablePath, "/usr/bin/ssh")
+    #require(SharedCompassVMGuestBridge.defaultSSHExecutablePath == "/usr/bin/ssh")
   }
 
   // MARK: - ControlMaster multiplexing
 
+  @Test
   func testSSHArgumentsEnableControlMasterByDefault() {
     // Multiplexing is on by default so agent tool calls reuse a single
     // TCP/SSH session instead of paying ~100ms per spawn.
@@ -124,14 +132,15 @@ final class SharedVMRouteSSHArgvTests: XCTestCase {
       destination: "compass@10.0.0.42",
       remoteCommand: "true"
     )
-    XCTAssertTrue(args.contains(["-o", "ControlMaster=auto"]))
-    XCTAssertTrue(
+    #require(args.contains(["-o", "ControlMaster=auto"]))
+    #require(
       args.contains([
         "-o", "ControlPath=\(SharedCompassVMGuestBridge.controlPathTemplate)",
       ]))
-    XCTAssertTrue(args.contains(["-o", "ControlPersist=600"]))
+    #require(args.contains(["-o", "ControlPersist=600"]))
   }
 
+  @Test
   func testSSHArgumentsHonorControlPersistOverride() {
     let options = SharedCompassVMGuestBridge.ConnectionOptions(controlPersistSeconds: 120)
     let args = SharedCompassVMGuestBridge.sshArguments(
@@ -139,10 +148,11 @@ final class SharedVMRouteSSHArgvTests: XCTestCase {
       remoteCommand: "true",
       options: options
     )
-    XCTAssertTrue(args.contains(["-o", "ControlPersist=120"]))
-    XCTAssertFalse(args.contains(["-o", "ControlPersist=600"]))
+    #require(args.contains(["-o", "ControlPersist=120"]))
+    #require(!args.contains(["-o", "ControlPersist=600"]))
   }
 
+  @Test
   func testSSHArgumentsOmitControlMasterWhenDisabled() {
     let options = SharedCompassVMGuestBridge.ConnectionOptions(useControlMaster: false)
     let args = SharedCompassVMGuestBridge.sshArguments(
@@ -150,11 +160,12 @@ final class SharedVMRouteSSHArgvTests: XCTestCase {
       remoteCommand: "true",
       options: options
     )
-    XCTAssertFalse(args.contains { $0.hasPrefix("ControlMaster=") })
-    XCTAssertFalse(args.contains { $0.hasPrefix("ControlPath=") })
-    XCTAssertFalse(args.contains { $0.hasPrefix("ControlPersist=") })
+    #require(!args.contains { $0.hasPrefix("ControlMaster=") })
+    #require(!args.contains { $0.hasPrefix("ControlPath=") })
+    #require(!args.contains { $0.hasPrefix("ControlPersist=") })
   }
 
+  @Test
   func testControlPathTemplateFitsUnixSocketLimit() {
     // sockaddr_un.sun_path is 104 bytes on macOS; ssh silently disables
     // multiplexing if the resolved socket path exceeds it. Worst-case
@@ -166,14 +177,15 @@ final class SharedVMRouteSSHArgvTests: XCTestCase {
       .replacingOccurrences(of: "%h", with: "ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff")
       .replacingOccurrences(of: "%p", with: "65535")
       .replacingOccurrences(of: "%r", with: String(repeating: "u", count: 32))
-    XCTAssertLessThan(
-      expanded.utf8.count, 104,
-      "Worst-case ControlPath (\(expanded.utf8.count)B) must fit sockaddr_un.sun_path (104B)."
+    #require(
+      expanded.utf8.count < 104,
+      message: "Worst-case ControlPath (\(expanded.utf8.count)B) must fit sockaddr_un.sun_path (104B)."
     )
   }
 
   // MARK: - closeControlMasterArguments
 
+  @Test
   func testCloseControlMasterArgumentsEndWithExitAndDestination() {
     let options = SharedCompassVMGuestBridge.ConnectionOptions(
       identityFile: "/path/to/id_ed25519",
@@ -183,15 +195,16 @@ final class SharedVMRouteSSHArgvTests: XCTestCase {
       destination: "compass@10.0.0.42",
       options: options
     )
-    XCTAssertTrue(args.contains(["-i", "/path/to/id_ed25519"]))
-    XCTAssertTrue(
+    #require(args.contains(["-i", "/path/to/id_ed25519"]))
+    #require(
       args.contains([
         "-o", "ControlPath=\(SharedCompassVMGuestBridge.controlPathTemplate)",
       ]))
-    XCTAssertTrue(args.contains(["-O", "exit"]))
-    XCTAssertEqual(args.last, "compass@10.0.0.42")
+    #require(args.contains(["-O", "exit"]))
+    #require(args.last == "compass@10.0.0.42")
   }
 
+  @Test
   func testCloseControlMasterArgumentsOmitRemoteCommand() {
     // `ssh -O exit` is a local control op. It must NOT include a remote
     // command argv — passing one makes ssh complain and the master
@@ -199,22 +212,27 @@ final class SharedVMRouteSSHArgvTests: XCTestCase {
     let args = SharedCompassVMGuestBridge.closeControlMasterArguments(
       destination: "compass@10.0.0.42"
     )
-    XCTAssertEqual(args.suffix(3), ["-O", "exit", "compass@10.0.0.42"])
+    #require(args.suffix(3) == ["-O", "exit", "compass@10.0.0.42"])
   }
 
+  @Test
   func testPOSIXQuoteSafePathRequiresNoQuoting() {
     // Sanity check that the safe-character fast path doesn't add ceremony.
     let quoted = SharedCompassVMGuestBridge.posixQuote("/usr/local/bin/swift")
-    XCTAssertEqual(quoted, "/usr/local/bin/swift")
+    #require(quoted == "/usr/local/bin/swift")
   }
 
+  @Test
   func testPOSIXQuoteEmptyStringBecomesEmptyQuotes() {
-    XCTAssertEqual(SharedCompassVMGuestBridge.posixQuote(""), "''")
+    #require(SharedCompassVMGuestBridge.posixQuote("") == "''")
   }
 
+  @Test
   func testPOSIXQuoteWhitespacePathIsWrappedInSingleQuotes() {
-    XCTAssertEqual(SharedCompassVMGuestBridge.posixQuote("a b"), "'a b'")
+    #require(SharedCompassVMGuestBridge.posixQuote("a b") == "'a b'")
   }
+
+  // MARK: - Helper
 
   private func makeRoute(
     guestWorkspacePath: String = "/Volumes/Compass/Worktrees"
@@ -227,6 +245,18 @@ final class SharedVMRouteSSHArgvTests: XCTestCase {
       identityFile: "/tmp/id_ed25519",
       knownHostsFile: "/tmp/known_hosts"
     )
+  }
+
+  // MARK: - fileprivate extension
+
+  fileprivate func contains(_ subarray: [String]) -> Bool {
+    guard !subarray.isEmpty, subarray.count <= self.count else { return false }
+    for start in 0...(self.count - subarray.count) {
+      if Array(self[start..<(start + subarray.count)]) == subarray {
+        return true
+      }
+    }
+    return false
   }
 }
 
