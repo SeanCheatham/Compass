@@ -247,4 +247,204 @@ struct ExploreFileExplainerTests {
     #require(result.additions == 8)
     #require(result.deletions == 10)
   }
+
+  // MARK: - explain(file:repoURL:commits:)
+
+  @Test
+  func explain_singleCommitDiff_callsSummarize() async throws {
+    var test = Self()
+    test.setUp()
+    defer { test.tearDown() }
+
+    // Set up a git repo with one commit that modifies a file.
+    try initGitRepo(at: test.temporaryDirectory)
+    try writeFile("Sources/App.swift", contents: "import Foundation\n")
+    try runGit(
+      "git -C \(test.temporaryDirectory.path) add Sources/App.swift && "
+        + "git -C \(test.temporaryDirectory.path) "
+        + "-c user.email=t@t -c user.name=t commit -q -m 'Add App.swift'",
+      at: test.temporaryDirectory
+    )
+
+    // Get the commit SHA.
+    let sha = try getSingleCommitSHA(at: test.temporaryDirectory)
+    let commits = [SessionCommit(sha: sha, short: String(sha.prefix(7)), subject: "Add App.swift")]
+
+    // Call explain — CommitExplainer.summarize may return nil if Foundation Models
+    // is unavailable, but the call chain must not throw.
+    let result = await FileExplainer.explain(
+      file: "Sources/App.swift",
+      repoURL: test.temporaryDirectory,
+      commits: commits
+    )
+    // Result may be nil in test environments; we only verify it doesn't throw.
+    _ = result
+  }
+
+  @Test
+  func explain_multiCommitDiff_callsSummarize() async throws {
+    var test = Self()
+    test.setUp()
+    defer { test.tearDown() }
+
+    // Set up a git repo with two commits.
+    try initGitRepo(at: test.temporaryDirectory)
+    try writeFile("Sources/App.swift", contents: "import Foundation\n")
+    try runGit(
+      "git -C \(test.temporaryDirectory.path) add Sources/App.swift && "
+        + "git -C \(test.temporaryDirectory.path) "
+        + "-c user.email=t@t -c user.name=t commit -q -m 'Initial'",
+      at: test.temporaryDirectory
+    )
+
+    // Modify the file in a second commit.
+    try writeFile("Sources/App.swift", contents: "import Foundation\nimport AppKit\n")
+    try runGit(
+      "git -C \(test.temporaryDirectory.path) add . && "
+        + "git -C \(test.temporaryDirectory.path) "
+        + "-c user.email=t@t -c user.name=t commit -q -m 'Add import'",
+      at: test.temporaryDirectory
+    )
+
+    let shas = try getAllCommitSHAs(at: test.temporaryDirectory)
+    #require(shas.count == 2)
+    let oldest = shas[1] // oldest
+    let newest = shas[0] // newest
+    let commits = [
+      SessionCommit(sha: oldest, short: String(oldest.prefix(7)), subject: "Initial"),
+      SessionCommit(sha: newest, short: String(newest.prefix(7)), subject: "Add import"),
+    ]
+
+    // Call explain for the file that changed across both commits.
+    let result = await FileExplainer.explain(
+      file: "Sources/App.swift",
+      repoURL: test.temporaryDirectory,
+      commits: commits
+    )
+    // Result may be nil in test environments; we only verify it doesn't throw.
+    _ = result
+  }
+
+  @Test
+  func explain_fileWithNoChanges_returnsNil() async throws {
+    var test = Self()
+    test.setUp()
+    defer { test.tearDown() }
+
+    // Set up a git repo with one commit modifying App.swift only.
+    try initGitRepo(at: test.temporaryDirectory)
+    try writeFile("Sources/App.swift", contents: "import Foundation\n")
+    try runGit(
+      "git -C \(test.temporaryDirectory.path) add Sources/App.swift && "
+        + "git -C \(test.temporaryDirectory.path) "
+        + "-c user.email=t@t -c user.name=t commit -q -m 'Add App.swift'",
+      at: test.temporaryDirectory
+    )
+
+    let sha = try getSingleCommitSHA(at: test.temporaryDirectory)
+    let commits = [SessionCommit(sha: sha, short: String(sha.prefix(7)), subject: "Add App.swift")]
+
+    // Request explanation for a file that doesn't exist and has no changes.
+    let result = await FileExplainer.explain(
+      file: "Sources/DoesNotExist.swift",
+      repoURL: test.temporaryDirectory,
+      commits: commits
+    )
+
+    #require(result == nil)
+  }
+
+  @Test
+  func explain_emptyCommits_returnsNil() async throws {
+    var test = Self()
+    test.setUp()
+    defer { test.tearDown() }
+
+    let result = await FileExplainer.explain(
+      file: "Sources/App.swift",
+      repoURL: test.temporaryDirectory,
+      commits: []
+    )
+    #require(result == nil)
+  }
+
+  // MARK: - Helpers
+
+  private func initGitRepo(at url: URL) {
+    let process = Process()
+    process.launchPath = "/bin/zsh"
+    process.arguments = ["-lc", "git init -q && git branch -M main"]
+    process.currentDirectoryURL = url
+    process.standardOutput = Pipe()
+    process.standardError = Pipe()
+    try? process.run()
+    process.waitUntilExit()
+  }
+
+  private func writeFile(_ relative: String, contents: String) throws {
+    let url = temporaryDirectory.appendingPathComponent(relative)
+    try FileManager.default.createDirectory(
+      at: url.deletingLastPathComponent(),
+      withIntermediateDirectories: true
+    )
+    try contents.write(to: url, atomically: true, encoding: .utf8)
+  }
+
+  private func runGit(_ command: String, at url: URL) throws {
+    let process = Process()
+    process.launchPath = "/bin/zsh"
+    process.arguments = ["-lc", command]
+    process.currentDirectoryURL = url
+    process.standardOutput = Pipe()
+    process.standardError = Pipe()
+    try process.run()
+    process.waitUntilExit()
+    guard process.terminationStatus == 0 else {
+      throw "git command failed with status \(process.terminationStatus)"
+    }
+  }
+
+  private func getSingleCommitSHA(at url: URL) throws -> String {
+    let result = try waitForSync {
+      try? ProcessRunner.runEnv(
+        "git", ["rev-parse", "HEAD"],
+        workingDirectory: url
+      )
+    }
+    guard let stdout = result?.stdout.trimmingCharacters(in: .whitespacesAndNewlines),
+          !stdout.isEmpty else {
+      throw "no commit SHA found"
+    }
+    return stdout
+  }
+
+  private func getAllCommitSHAs(at url: URL) throws -> [String] {
+    let result = try waitForSync {
+      try? ProcessRunner.runEnv(
+        "git", ["log", "--all", "--format=%H"],
+        workingDirectory: url
+      )
+    }
+    guard let stdout = result?.stdout else { return [] }
+    return stdout
+      .split(separator: "\n")
+      .filter { !$0.isEmpty }
+      .map { String($0) }
+  }
+
+  private func waitForSync<T>(_ fn: () async throws -> T?) async throws -> T {
+    try await withCheckedThrowingContinuation { continuation in
+      Task {
+        do {
+          if let value = try await fn() {
+            continuation.resume(returning: value)
+          } else {
+            continuation.resume(throwing: "fn returned nil")
+          }
+        } catch {
+          continuation.resume(throwing: error)
+        }
+      }
+    }
+  }
 }

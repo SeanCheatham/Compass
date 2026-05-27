@@ -115,6 +115,53 @@ enum FileChangeCategory: String, CaseIterable {
 /// Parses `git diff --stat` output and enriches each changed file with its
 /// codemap entry summary where available.
 enum FileExplainer {
+  /// Returns a plain-English explanation for a single changed file by running
+  /// `git diff` over the relevant commit range and passing the result to
+  /// `CommitExplainer.summarize(diff:)`.
+  ///
+  /// - Parameters:
+  ///   - relativePath: The repo-relative path of the file to explain.
+  ///   - repoURL: The working-copy root of the repository.
+  ///   - commits: The commits to diff. Single-commit uses `sha^..sha`;
+  ///     multi-commit uses `from..to` (oldest → newest).
+  /// - Returns: An AI-generated explanation, or `nil` if no commits are
+  ///   available, no diff exists for the file, or Foundation Models is
+  ///   unavailable.
+  static func explain(
+    file relativePath: String,
+    repoURL: URL,
+    commits: [SessionCommit]
+  ) async -> String? {
+    guard let first = commits.first else { return nil }
+
+    let diff: String
+    if commits.count == 1 {
+      let result = try? await ProcessRunner.runEnv(
+        "git", ["diff", "\(first.sha)^..\(first.sha)", "--", relativePath],
+        workingDirectory: repoURL
+      )
+      diff = result?.stdout ?? ""
+    } else if let last = commits.last {
+      let result = try? await ProcessRunner.runEnv(
+        "git", ["diff", "\(first.sha)..\(last.sha)", "--", relativePath],
+        workingDirectory: repoURL
+      )
+      diff = result?.stdout ?? ""
+    } else {
+      return nil
+    }
+
+    if diff.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+      return nil
+    }
+
+    if #available(macOS 26.0, *) {
+      return await CommitExplainer.summarize(diff: diff)
+    } else {
+      return nil
+    }
+  }
+
   /// Returns all files changed across the given commits, with their line counts
   /// and codemap summaries (when the file has already been indexed).
   ///

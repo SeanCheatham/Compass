@@ -1107,48 +1107,25 @@ struct ExploreFilesPopover: View {
     }
 
     // Fetch per-file AI explanations
-    if #available(macOS 26.0, *),
-       SystemLanguageModel.default.isAvailable {
-      for i in loaded.indices {
-        let explanation = await fetchExplanation(for: loaded[i])
-        if let explanation = explanation {
-          loaded[i] = FileChange(
-            relativePath: loaded[i].relativePath,
-            additions: loaded[i].additions,
-            deletions: loaded[i].deletions,
-            language: loaded[i].language,
-            summary: loaded[i].summary,
-            explanation: explanation
-          )
-        }
+    for i in loaded.indices {
+      let explanation = await FileExplainer.explain(
+        file: loaded[i].relativePath,
+        repoURL: repoURL,
+        commits: item.commits
+      )
+      if let explanation = explanation {
+        loaded[i] = FileChange(
+          relativePath: loaded[i].relativePath,
+          additions: loaded[i].additions,
+          deletions: loaded[i].deletions,
+          language: loaded[i].language,
+          summary: loaded[i].summary,
+          explanation: explanation
+        )
       }
     }
 
     changes = loaded
-  }
-
-  /// Fetches the per-file diff and generates an AI explanation for a single file change.
-  private func fetchExplanation(for change: FileChange) async -> String? {
-    guard let sha = item.commits.first?.sha else { return nil }
-
-    let diff: String
-    if item.commits.count == 1 {
-      let result = try? await ProcessRunner.runEnv(
-        "git", ["diff", "\(sha)^..\(sha)", "--", change.relativePath],
-        workingDirectory: repoURL
-      )
-      diff = result?.stdout ?? ""
-    } else if let lastSha = item.commits.last?.sha {
-      let result = try? await ProcessRunner.runEnv(
-        "git", ["diff", "\(sha)..\(lastSha)", "--", change.relativePath],
-        workingDirectory: repoURL
-      )
-      diff = result?.stdout ?? ""
-    } else {
-      return nil
-    }
-
-    return await CommitExplainer.summarize(diff: diff)
   }
 }
 
