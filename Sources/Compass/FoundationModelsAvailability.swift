@@ -6,9 +6,9 @@ import Foundation
 
 /// Unified availability guard for Apple's on-device Foundation Models.
 ///
-/// All six call sites — the four Explore components (`CommitExplainer`,
-/// `CommitTourGenerator`, `RepoQnA`, `FileExplainer`) and the two factory
-/// components (`FoundationModelsAgentRuntime`, `DraftRefinement`) — check
+/// All five call sites — the three Explore components (`CommitExplainer`,
+/// `CommitTourGenerator`, `RepoQnA`) and the two factory components
+/// (`FoundationModelsAgentRuntime`, `DraftRefinement`) — check
 /// `SystemLanguageModel.default.isAvailable` independently.  This enum
 /// centralises that check so the gate is uniform and easy to update.
 enum FoundationModelsAvailability {
