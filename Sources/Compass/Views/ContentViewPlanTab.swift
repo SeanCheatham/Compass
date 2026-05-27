@@ -734,6 +734,10 @@ struct PlanSessionHistoryCard: View {
       }
 
       if item.status == .succeeded && !item.commits.isEmpty {
+        CommitTourRow(item: item, repoURL: repoURL)
+      }
+
+      if item.status == .succeeded && !item.commits.isEmpty {
         HStack(spacing: 8) {
           ExplainChangesButton(item: item, repoURL: repoURL)
           ExploreFilesButton(item: item, repoURL: repoURL)
@@ -821,6 +825,30 @@ struct ExplainChangesButton: View {
   }
 }
 
+// MARK: - Shared Git Diff Helpers
+
+private func gitDiffForSha(_ sha: String, repoURL: URL) async -> String {
+  await withCheckedContinuation { continuation in
+    Task {
+      let result = try? await ProcessRunner.runEnv(
+        "git", ["diff", "--no-color", sha], workingDirectory: repoURL
+      )
+      continuation.resume(returning: result?.stdout ?? "")
+    }
+  }
+}
+
+private func gitDiffRange(from: String, to: String, repoURL: URL) async -> String {
+  await withCheckedContinuation { continuation in
+    Task {
+      let result = try? await ProcessRunner.runEnv(
+        "git", ["diff", "--no-color", "\(from)..\(to)"], workingDirectory: repoURL
+      )
+      continuation.resume(returning: result?.stdout ?? "")
+    }
+  }
+}
+
 struct CommitExplanationPopover: View {
   let item: PlanSessionHistoryItem
   let repoURL: URL
@@ -880,10 +908,10 @@ struct CommitExplanationPopover: View {
     // Fetch the diff for the commit range
     let diff: String
     if item.commits.count == 1 {
-      diff = await gitDiffForSha(firstCommit.sha)
+      diff = await gitDiffForSha(firstCommit.sha, repoURL: repoURL)
     } else {
       let lastCommit = item.commits.last!
-      diff = await gitDiffRange(from: lastCommit.sha, to: firstCommit.sha)
+      diff = await gitDiffRange(from: lastCommit.sha, to: firstCommit.sha, repoURL: repoURL)
     }
 
     guard !diff.isEmpty else { return }
@@ -896,25 +924,65 @@ struct CommitExplanationPopover: View {
     }
   }
 
-  private func gitDiffForSha(_ sha: String) async -> String {
-    await withCheckedContinuation { continuation in
-      Task {
-        let result = try? await ProcessRunner.runEnv(
-          "git", ["diff", "--no-color", sha], workingDirectory: repoURL
-        )
-        continuation.resume(returning: result?.stdout ?? "")
+}
+
+struct CommitTourRow: View {
+  let item: PlanSessionHistoryItem
+  let repoURL: URL
+
+  @State private var tourText: String?
+  @State private var isLoading = false
+
+  private var canTour: Bool {
+    item.status == .succeeded && !item.commits.isEmpty
+  }
+
+  var body: some View {
+    Group {
+      if isLoading {
+        HStack(spacing: 8) {
+          ProgressView()
+            .controlSize(.small)
+          Text("Generating tour...")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+        }
+        .padding(.vertical, 2)
+      } else if let tourText {
+        LabeledHistoryBlock(title: "What We Built", systemImage: "lightbulb") {
+          Text(tourText)
+            .font(.callout)
+            .foregroundStyle(.primary)
+            .textSelection(.enabled)
+        }
+      } else if canTour {
+        EmptyView()
       }
+    }
+    .task { startTour() }
+  }
+
+  func startTour() {
+    guard canTour, tourText == nil else { return }
+    isLoading = true
+    Task {
+      await loadTour()
+      isLoading = false
     }
   }
 
-  private func gitDiffRange(from: String, to: String) async -> String {
-    await withCheckedContinuation { continuation in
-      Task {
-        let result = try? await ProcessRunner.runEnv(
-          "git", ["diff", "--no-color", "\(from)..\(to)"], workingDirectory: repoURL
-        )
-        continuation.resume(returning: result?.stdout ?? "")
-      }
+  private func loadTour() async {
+    guard let firstCommit = item.commits.first else { return }
+    let diff: String
+    if item.commits.count == 1 {
+      diff = await gitDiffForSha(firstCommit.sha, repoURL: repoURL)
+    } else {
+      let lastCommit = item.commits.last!
+      diff = await gitDiffRange(from: lastCommit.sha, to: firstCommit.sha, repoURL: repoURL)
+    }
+    guard !diff.isEmpty else { return }
+    if #available(macOS 26.0, *) {
+      tourText = await CommitTourGenerator.generate(diff: diff)
     }
   }
 }
