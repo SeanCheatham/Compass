@@ -131,9 +131,8 @@ enum FileChangeCategory: String, CaseIterable {
 /// ## Commit ordering rule
 ///
 /// Callers pass the commit list in insertion order — newest first. Internally,
-/// ``changes(for:commits:)`` reverses the array when calling `git diff` so that
-/// git receives `oldest..newest` (chronological order). Single-commit calls use
-/// `sha^..sha` directly.
+/// ``changes(for:commits:)`` does NOT reverse the array; the git range it
+/// passes is `newest..oldest`. Single-commit calls use `sha^..sha` directly.
 ///
 /// ## Foundation Models boundary
 ///
@@ -149,7 +148,7 @@ enum FileExplainer {
   ///   - relativePath: The repo-relative path of the file to explain.
   ///   - repoURL: The working-copy root of the repository.
   ///   - commits: Commits to diff, in insertion order (newest first).  Single-
-  ///     commit uses `sha^..sha`; multi-commit uses `oldest..newest` internally.
+  ///     commit uses `sha^..sha`; multi-commit uses `newest..oldest` internally.
   /// - Returns: An AI-generated explanation, or `nil` if no commits are
   ///   available, no diff exists for the file, or Foundation Models is
   ///   unavailable
@@ -190,9 +189,9 @@ enum FileExplainer {
   /// - Parameters:
   ///   - repoURL: The working-copy root of the repository.
   ///   - commits: Commits to diff, in insertion order (newest first).  For a
-  ///     multi-commit range the method internally passes `oldest..newest` to
-  ///     git so the diff is computed chronologically; callers pass the array
-  ///     as-is without reversing it.
+  ///     multi-commit range the method internally passes `newest..oldest` to
+  ///     git so the diff is computed in reverse-chronological order; callers
+  ///     pass the array as-is without reversing it.
   /// - Returns: An array of `FileChange` objects grouped by category in the
   ///     caller. Returns an empty array if git fails or no files were changed.
   static func changes(for repoURL: URL, commits: [SessionCommit]) async -> [FileChange] {
@@ -203,7 +202,7 @@ enum FileExplainer {
       diffStat = await gitDiffStat(sha: first.sha, repoURL: repoURL)
     } else if let last = commits.last {
       // commits is in insertion order (newest first).  Use last..first so
-      // git processes in chronological order (oldest..newest).
+      // git processes in reverse-chronological order (newest..oldest).
       diffStat = await gitDiffStatRange(from: last.sha, to: first.sha, repoURL: repoURL)
     } else {
       return []
