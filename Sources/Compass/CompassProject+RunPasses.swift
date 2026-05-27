@@ -666,7 +666,13 @@ extension CompassProject {
           exitCode: Int(verify.exitCode),
           tail: verifyTail
         )
-        aggregateIssues(&retryIssues, from: output, command: next.verify)
+        let message = """
+          Verify command `\(next.verify)` exited with code \(output.exitCode). Output (tail):
+          ```
+          \(output.tail)
+          ```
+          """
+        retryIssues.append(message)
         verifyOutput = output
         log("Verify failed (exit \(verify.exitCode)).", level: .error)
       }
@@ -734,13 +740,4 @@ extension CompassProject {
     return parsed
   }
 
-  private func aggregateIssues(_ issues: inout [String], from result: VerifyOutput, command: String) {
-    let message = """
-      Verify command `\(command)` exited with code \(result.exitCode). Output (tail):
-      ```
-      \(result.tail)
-      ```
-      """
-    issues.append(message)
-  }
 }
