@@ -6,13 +6,13 @@ import Foundation
 
 /// Unified availability guard for Apple's on-device Foundation Models.
 ///
-/// All five call sites — `CommitExplainer`, `CommitTourGenerator`, `RepoQnA`,
-/// `FoundationModelsAgentRuntime`, and `DraftRefinement` — check
-/// `SystemLanguageModel.default.isAvailable` independently.  This enum
-/// centralises that check so the gate is uniform and easy to update.
-///
-/// Note: `FileExplainer.explain()` delegates to `CommitExplainer.summarize(diff:)`
-/// and is not a direct call site; its availability is implied by the delegate.
+/// Direct call sites — `CommitExplainer`, `CommitTourGenerator`, `RepoQnA`,
+/// and `FoundationModelsAgentRuntime` — check this guard before invoking the
+/// Foundation Models stack.  `FileExplainer.explain()` delegates to
+/// `CommitExplainer.summarize(diff:)` and is not a direct call site; its
+/// availability is implied by the delegate.  `LiveActivitySummary` uses
+/// `SystemLanguageModel.default.isAvailable` directly and is not covered by
+/// this enum.
 enum FoundationModelsAvailability {
   /// `true` when the on-device Foundation Models stack is available and
   /// ready to handle requests on this system.
