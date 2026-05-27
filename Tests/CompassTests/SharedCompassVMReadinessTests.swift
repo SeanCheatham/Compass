@@ -1,14 +1,14 @@
 import Foundation
-import XCTest
+import Testing
 
 @testable import Compass
 
 /// Coverage for the `isReady` / `isUnavailable` convenience predicates on
 /// `SharedCompassVMReadiness`. These ride hot paths in routing decisions
 /// (Phase 3 fallback), so a wrongly-true predicate would silently misroute.
-final class SharedCompassVMReadinessTests: XCTestCase {
-  func testIsReadyOnlyTrueForReadyCase() {
-    XCTAssertTrue(SharedCompassVMReadiness.ready(sshDestination: "compass@10.0.0.42").isReady)
+struct SharedCompassVMReadinessTests {
+  @Test func testIsReadyOnlyTrueForReadyCase() {
+    #require(SharedCompassVMReadiness.ready(sshDestination: "compass@10.0.0.42").isReady)
 
     let notReady: [SharedCompassVMReadiness] = [
       .unavailable(reason: "no virt"),
@@ -20,15 +20,12 @@ final class SharedCompassVMReadinessTests: XCTestCase {
       .error(detail: "kaboom"),
     ]
     for readiness in notReady {
-      XCTAssertFalse(
-        readiness.isReady,
-        "Case \(readiness) should not report isReady=true"
-      )
+      #require(!readiness.isReady)
     }
   }
 
-  func testIsUnavailableOnlyTrueForUnavailableCase() {
-    XCTAssertTrue(SharedCompassVMReadiness.unavailable(reason: "no virt").isUnavailable)
+  @Test func testIsUnavailableOnlyTrueForUnavailableCase() {
+    #require(SharedCompassVMReadiness.unavailable(reason: "no virt").isUnavailable)
 
     let notUnavailable: [SharedCompassVMReadiness] = [
       .notProvisioned,
@@ -40,14 +37,11 @@ final class SharedCompassVMReadinessTests: XCTestCase {
       .error(detail: "kaboom"),
     ]
     for readiness in notUnavailable {
-      XCTAssertFalse(
-        readiness.isUnavailable,
-        "Case \(readiness) should not report isUnavailable=true"
-      )
+      #require(!readiness.isUnavailable)
     }
   }
 
-  func testIsReadyAndIsUnavailableAreMutuallyExclusive() {
+  @Test func testIsReadyAndIsUnavailableAreMutuallyExclusive() {
     // Cross-check: no single case may report both true.
     let allCases: [SharedCompassVMReadiness] = [
       .unavailable(reason: "x"),
@@ -60,10 +54,7 @@ final class SharedCompassVMReadinessTests: XCTestCase {
       .error(detail: "x"),
     ]
     for readiness in allCases {
-      XCTAssertFalse(
-        readiness.isReady && readiness.isUnavailable,
-        "Case \(readiness) reports both ready AND unavailable"
-      )
+      #require(!(readiness.isReady && readiness.isUnavailable))
     }
   }
 }
