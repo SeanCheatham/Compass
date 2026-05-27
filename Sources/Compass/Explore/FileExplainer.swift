@@ -178,12 +178,18 @@ enum FileExplainer {
     if commits.count == 1 {
       diffStat = await gitDiffStat(sha: first.sha, repoURL: repoURL)
     } else if let last = commits.last {
-      diffStat = await gitDiffStatRange(from: first.sha, to: last.sha, repoURL: repoURL)
+      // Reverse commits so the range is newest..oldest; git processes oldest→newest
+      // and produces output with newest-first file ordering (matching caller
+      // expectations). We then reverse the result so files appear newest-first.
+      let reversed = commits.reversed()
+      let from = reversed.first?.sha ?? first.sha
+      let to = reversed.last?.sha ?? last.sha
+      diffStat = await gitDiffStatRange(from: from, to: to, repoURL: repoURL)
     } else {
       return []
     }
 
-    let rawChanges = parseGitDiffStat(diffStat)
+    let rawChanges = parseGitDiffStat(diffStat).reversed()
     let workspace = CompassWorkspace(repoURL: repoURL)
     let codemapDir = CodemapStore.defaultDirectory(forWorkspace: workspace)
     let codemapStore = CodemapStore(directory: codemapDir)
