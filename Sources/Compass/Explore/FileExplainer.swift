@@ -126,8 +126,8 @@ enum FileExplainer {
   /// - Parameters:
   ///   - relativePath: The repo-relative path of the file to explain.
   ///   - repoURL: The working-copy root of the repository.
-  ///   - commits: The commits to diff. Single-commit uses `sha^..sha`;
-  ///     multi-commit uses `from..to` (oldest → newest).
+  ///   - commits: Commits to diff, in insertion order (newest first).  Single-
+  ///     commit uses `sha^..sha`; multi-commit uses `oldest..newest` internally.
   /// - Returns: An AI-generated explanation, or `nil` if no commits are
   ///   available, no diff exists for the file, or Foundation Models is
   ///   unavailable
@@ -167,8 +167,10 @@ enum FileExplainer {
   ///
   /// - Parameters:
   ///   - repoURL: The working-copy root of the repository.
-  ///   - commits: Commits to diff. The diff is from the oldest commit's parent
-  ///     to the newest commit (inclusive). At minimum the first commit is used.
+  ///   - commits: Commits to diff, in insertion order (newest first).  For a
+  ///     multi-commit range the method internally passes `oldest..newest` to
+  ///     git so the diff is computed chronologically; callers pass the array
+  ///     as-is without reversing it.
   /// - Returns: An array of `FileChange` objects grouped by category in the
   ///     caller. Returns an empty array if git fails or no files were changed.
   static func changes(for repoURL: URL, commits: [SessionCommit]) async -> [FileChange] {
@@ -178,9 +180,8 @@ enum FileExplainer {
     if commits.count == 1 {
       diffStat = await gitDiffStat(sha: first.sha, repoURL: repoURL)
     } else if let last = commits.last {
-      // commits is [newest, ..., oldest]; use first..last (oldest..newest) so
-      // git processes in chronological order. Git diff outputs newest-first
-      // for file ordering, matching caller expectations, so no reversal needed.
+      // commits is in insertion order (newest first).  Use last..first so
+      // git processes in chronological order (oldest..newest).
       diffStat = await gitDiffStatRange(from: last.sha, to: first.sha, repoURL: repoURL)
     } else {
       return []
