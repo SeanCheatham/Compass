@@ -1,70 +1,95 @@
 import Foundation
-import XCTest
+import Testing
 
 @testable import Compass
 
-final class AgentLsToolTests: XCTestCase {
+struct AgentLsToolTests {
   private var temporaryDirectory: URL!
   private let tool = AgentLsTool()
 
-  override func setUpWithError() throws {
-    temporaryDirectory = try makeTempDir()
+  private mutating func setUp() {
+    temporaryDirectory = try! makeTempDir()
   }
 
-  override func tearDownWithError() throws {
+  private mutating func tearDown() {
     if let temporaryDirectory {
       try? FileManager.default.removeItem(at: temporaryDirectory)
     }
     temporaryDirectory = nil
   }
 
-  func testListsFilesAndDirectoriesWithTrailingSlashOnDirs() async throws {
+  @Test
+  func listsFilesAndDirectoriesWithTrailingSlashOnDirs() async throws {
+    var test = Self()
+    test.setUp()
+    defer { test.tearDown() }
+
     try "a".write(
-      to: temporaryDirectory.appendingPathComponent("alpha.txt"), atomically: true, encoding: .utf8)
+      to: test.temporaryDirectory.appendingPathComponent("alpha.txt"), atomically: true, encoding: .utf8)
     try "b".write(
-      to: temporaryDirectory.appendingPathComponent("beta.txt"), atomically: true, encoding: .utf8)
-    let subdir = temporaryDirectory.appendingPathComponent("gamma")
+      to: test.temporaryDirectory.appendingPathComponent("beta.txt"), atomically: true, encoding: .utf8)
+    let subdir = test.temporaryDirectory.appendingPathComponent("gamma")
     try FileManager.default.createDirectory(at: subdir, withIntermediateDirectories: false)
 
-    let result = try await invoke([:])
+    let result = try await test.invoke([:])
 
-    XCTAssertFalse(result.isError)
+    try #require(!result.isError)
     let lines = result.content.split(separator: "\n").map(String.init)
-    XCTAssertEqual(lines, ["alpha.txt", "beta.txt", "gamma/"])
+    try #require(lines == ["alpha.txt", "beta.txt", "gamma/"])
   }
 
-  func testListsHiddenEntries() async throws {
+  @Test
+  func listsHiddenEntries() async throws {
+    var test = Self()
+    test.setUp()
+    defer { test.tearDown() }
+
     try "x".write(
-      to: temporaryDirectory.appendingPathComponent(".compass"), atomically: true, encoding: .utf8)
+      to: test.temporaryDirectory.appendingPathComponent(".compass"), atomically: true, encoding: .utf8)
     try "y".write(
-      to: temporaryDirectory.appendingPathComponent("visible.txt"), atomically: true,
+      to: test.temporaryDirectory.appendingPathComponent("visible.txt"), atomically: true,
       encoding: .utf8)
 
-    let result = try await invoke([:])
+    let result = try await test.invoke([:])
 
-    XCTAssertFalse(result.isError)
-    XCTAssertTrue(result.content.contains(".compass"))
-    XCTAssertTrue(result.content.contains("visible.txt"))
+    try #require(!result.isError)
+    try #require(result.content.contains(".compass"))
+    try #require(result.content.contains("visible.txt"))
   }
 
-  func testEmptyDirectoryReportsPlaceholder() async throws {
-    let result = try await invoke([:])
-    XCTAssertFalse(result.isError)
-    XCTAssertEqual(result.content, "(empty directory)")
+  @Test
+  func emptyDirectoryReportsPlaceholder() async throws {
+    var test = Self()
+    test.setUp()
+    defer { test.tearDown() }
+
+    let result = try await test.invoke([:])
+    try #require(!result.isError)
+    try #require(result.content == "(empty directory)")
   }
 
-  func testRejectsPathThatEscapesWorkingDirectory() async throws {
-    let result = try await invoke(["path": "../escape"])
-    XCTAssertTrue(result.isError)
-    XCTAssertTrue(result.content.contains("escapes"))
+  @Test
+  func rejectsPathThatEscapesWorkingDirectory() async throws {
+    var test = Self()
+    test.setUp()
+    defer { test.tearDown() }
+
+    let result = try await test.invoke(["path": "../escape"])
+    try #require(result.isError)
+    try #require(result.content.contains("escapes"))
   }
 
-  func testRejectsRegularFile() async throws {
+  @Test
+  func rejectsRegularFile() async throws {
+    var test = Self()
+    test.setUp()
+    defer { test.tearDown() }
+
     try "x".write(
-      to: temporaryDirectory.appendingPathComponent("file.txt"), atomically: true, encoding: .utf8)
-    let result = try await invoke(["path": "file.txt"])
-    XCTAssertTrue(result.isError)
-    XCTAssertTrue(result.content.contains("Not a directory"))
+      to: test.temporaryDirectory.appendingPathComponent("file.txt"), atomically: true, encoding: .utf8)
+    let result = try await test.invoke(["path": "file.txt"])
+    try #require(result.isError)
+    try #require(result.content.contains("Not a directory"))
   }
 
   private func invoke(_ args: [String: Any]) async throws -> AgentToolInvocationResult {
