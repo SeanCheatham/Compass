@@ -1047,6 +1047,7 @@ struct QnAPopover: View {
   @State private var question = ""
   @State private var answer: RepoQnA.Answer?
   @State private var isLoading = false
+  @State private var availabilityError = false
 
   var body: some View {
     VStack(alignment: .leading, spacing: 12) {
@@ -1054,6 +1055,12 @@ struct QnAPopover: View {
         Label("Ask About Changes", systemImage: "questionmark.circle")
           .font(.headline)
         Spacer()
+      }
+
+      if availabilityError {
+        Label("Foundation Models is unavailable on this device.", systemImage: "exclamationmark.triangle")
+          .font(.caption)
+          .foregroundStyle(.orange)
       }
 
       HStack(spacing: 8) {
@@ -1124,8 +1131,11 @@ struct QnAPopover: View {
     guard !trimmed.isEmpty else { return }
     isLoading = true
     answer = nil
+    availabilityError = false
     if #available(macOS 26.0, *) {
-      answer = await RepoQnA.answer(question: trimmed, repoURL: repoURL, commits: item.commits)
+      let result = await RepoQnA.answer(question: trimmed, repoURL: repoURL, commits: item.commits)
+      answer = result
+      if result == nil { availabilityError = true }
     }
     isLoading = false
   }
