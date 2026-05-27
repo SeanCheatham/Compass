@@ -934,6 +934,7 @@ struct CommitTourRow: View {
   @State private var tourText: String?
   @State private var isLoading = false
   @State private var tourAvailabilityError = false
+  @State private var isMonospaced = false
 
   private var canTour: Bool {
     item.status == .succeeded && !item.commits.isEmpty
@@ -957,10 +958,31 @@ struct CommitTourRow: View {
         }
       } else if let tourText {
         LabeledHistoryBlock(title: "What We Built", systemImage: "lightbulb") {
-          Text(tourText)
-            .font(.callout)
-            .foregroundStyle(.primary)
-            .textSelection(.enabled)
+          HStack(alignment: .top) {
+            Text(tourText)
+              .font(isMonospaced ? .callout.monospaced() : .callout)
+              .foregroundStyle(.primary)
+              .textSelection(.enabled)
+            VStack(alignment: .trailing, spacing: 4) {
+              Button {
+                isMonospaced.toggle()
+              } label: {
+                Image(systemName: isMonospaced ? "textformat" : "textformat.abc")
+                  .font(.caption)
+              }
+              .buttonStyle(.plain)
+              .help("Toggle monospaced font")
+              Button {
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.setString(tourText, forType: .string)
+              } label: {
+                Image(systemName: "doc.on.clipboard")
+                  .font(.caption)
+              }
+              .buttonStyle(.plain)
+              .help("Copy to clipboard")
+            }
+          }
         }
       } else if canTour {
         EmptyView()
