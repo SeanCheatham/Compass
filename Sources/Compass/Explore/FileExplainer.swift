@@ -127,7 +127,7 @@ enum FileExplainer {
   ///   - relativePath: The repo-relative path of the file to explain.
   ///   - repoURL: The working-copy root of the repository.
   ///   - commits: The commits to diff. Single-commit uses `sha^..sha`;
-  ///     multi-commit uses `from..to` (oldest → newest).
+  ///     multi-commit uses `from..to` (newest → oldest).
   /// - Returns: An AI-generated explanation, or `nil` if no commits are
   ///   available, no diff exists for the file, or Foundation Models is
   ///   unavailable.
