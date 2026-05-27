@@ -1,24 +1,23 @@
 import Foundation
-import XCTest
+import Testing
 
 @testable import Compass
 
-final class AgentGlobToolTests: XCTestCase {
+struct AgentGlobToolTests {
   private var temporaryDirectory: URL!
   private let tool = AgentGlobTool()
 
-  override func setUpWithError() throws {
-    temporaryDirectory = try makeTempDir()
+  init() {
+    temporaryDirectory = try! makeTempDir()
   }
 
-  override func tearDownWithError() throws {
+  deinit {
     if let temporaryDirectory {
       try? FileManager.default.removeItem(at: temporaryDirectory)
     }
-    temporaryDirectory = nil
   }
 
-  func testRecursiveDoubleStarMatchesAllSwiftFiles() async throws {
+  @Test func testRecursiveDoubleStarMatchesAllSwiftFiles() async throws {
     try makeTree([
       "a.swift": "x",
       "b.txt": "x",
@@ -29,12 +28,12 @@ final class AgentGlobToolTests: XCTestCase {
 
     let result = try await invoke(["pattern": "**/*.swift"])
 
-    XCTAssertFalse(result.isError)
+    #require(!result.isError)
     let lines = Set(result.content.split(separator: "\n").map(String.init))
-    XCTAssertEqual(lines, ["a.swift", "sub/c.swift", "sub/deeper/e.swift"])
+    #require(lines == ["a.swift", "sub/c.swift", "sub/deeper/e.swift"])
   }
 
-  func testSingleStarDoesNotCrossDirectoryBoundaries() async throws {
+  @Test func testSingleStarDoesNotCrossDirectoryBoundaries() async throws {
     try makeTree([
       "a.swift": "x",
       "sub/b.swift": "x",
@@ -42,12 +41,12 @@ final class AgentGlobToolTests: XCTestCase {
 
     let result = try await invoke(["pattern": "*.swift"])
 
-    XCTAssertFalse(result.isError)
+    #require(!result.isError)
     let lines = Set(result.content.split(separator: "\n").map(String.init))
-    XCTAssertEqual(lines, ["a.swift"])
+    #require(lines == ["a.swift"])
   }
 
-  func testQuestionMarkMatchesSingleCharacter() async throws {
+  @Test func testQuestionMarkMatchesSingleCharacter() async throws {
     try makeTree([
       "a.txt": "x",
       "ab.txt": "x",
@@ -56,34 +55,34 @@ final class AgentGlobToolTests: XCTestCase {
 
     let result = try await invoke(["pattern": "?.txt"])
 
-    XCTAssertFalse(result.isError)
+    #require(!result.isError)
     let lines = Set(result.content.split(separator: "\n").map(String.init))
-    XCTAssertEqual(lines, ["a.txt", "b.txt"])
+    #require(lines == ["a.txt", "b.txt"])
   }
 
-  func testReportsNoMatchesWhenEmpty() async throws {
+  @Test func testReportsNoMatchesWhenEmpty() async throws {
     try makeTree(["a.txt": "x"])
     let result = try await invoke(["pattern": "*.swift"])
-    XCTAssertFalse(result.isError)
-    XCTAssertEqual(result.content, "(no matches)")
+    #require(!result.isError)
+    #require(result.content == "(no matches)")
   }
 
-  func testEmptyPatternFails() async throws {
+  @Test func testEmptyPatternFails() async throws {
     let result = try await invoke(["pattern": "   "])
-    XCTAssertTrue(result.isError)
-    XCTAssertTrue(result.content.contains("pattern is empty"))
+    #require(result.isError)
+    #require(result.content.contains("pattern is empty"))
   }
 
-  func testRejectsPathThatEscapesWorkingDirectory() async throws {
+  @Test func testRejectsPathThatEscapesWorkingDirectory() async throws {
     let result = try await invoke([
       "pattern": "*.swift",
       "path": "../escape",
     ])
-    XCTAssertTrue(result.isError)
-    XCTAssertTrue(result.content.contains("escapes"))
+    #require(result.isError)
+    #require(result.content.contains("escapes"))
   }
 
-  func testResultsAreSortedNewestFirstByModificationTime() async throws {
+  @Test func testResultsAreSortedNewestFirstByModificationTime() async throws {
     let older = temporaryDirectory.appendingPathComponent("old.swift")
     let newer = temporaryDirectory.appendingPathComponent("new.swift")
     try "x".write(to: older, atomically: true, encoding: .utf8)
@@ -97,9 +96,9 @@ final class AgentGlobToolTests: XCTestCase {
 
     let result = try await invoke(["pattern": "*.swift"])
 
-    XCTAssertFalse(result.isError)
+    #require(!result.isError)
     let lines = result.content.split(separator: "\n").map(String.init)
-    XCTAssertEqual(lines, ["new.swift", "old.swift"])
+    #require(lines == ["new.swift", "old.swift"])
   }
 
   private func makeTree(_ files: [String: String]) throws {
