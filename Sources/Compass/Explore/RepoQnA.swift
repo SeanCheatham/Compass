@@ -65,10 +65,12 @@ enum RepoQnA {
     }
 
     // 4. Truncate the diff to avoid token limits (~8000 chars for the diff portion).
+    // We keep the FIRST maxDiffChars characters so rename headers and early file
+    // additions remain visible to the model — dropping the start would lose context.
     let truncatedDiff: String
     let maxDiffChars = 8000
     if diff.count > maxDiffChars {
-      truncatedDiff = String(diff.dropFirst(diff.count - maxDiffChars)) + "\n[... diff truncated ...]"
+      truncatedDiff = String(diff.prefix(maxDiffChars)) + "\n[... diff truncated ...]"
     } else {
       truncatedDiff = diff
     }
