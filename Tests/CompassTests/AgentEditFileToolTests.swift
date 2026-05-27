@@ -1,24 +1,23 @@
 import Foundation
-import XCTest
+import Testing
 
 @testable import Compass
 
-final class AgentEditFileToolTests: XCTestCase {
+struct AgentEditFileToolTests {
   private var temporaryDirectory: URL!
   private let tool = AgentEditFileTool()
 
-  override func setUpWithError() throws {
-    temporaryDirectory = try makeTempDir()
+  init() {
+    temporaryDirectory = try! makeTempDir()
   }
 
-  override func tearDownWithError() throws {
+  deinit {
     if let temporaryDirectory {
       try? FileManager.default.removeItem(at: temporaryDirectory)
     }
-    temporaryDirectory = nil
   }
 
-  func testReplacesUniqueOccurrence() async throws {
+  @Test func testReplacesUniqueOccurrence() async throws {
     let fileURL = temporaryDirectory.appendingPathComponent("notes.txt")
     try "alpha\nbeta\ngamma".write(to: fileURL, atomically: true, encoding: .utf8)
 
@@ -29,13 +28,13 @@ final class AgentEditFileToolTests: XCTestCase {
         "edits": [["oldString": "beta", "newString": "BETA"]],
       ])
 
-    XCTAssertFalse(result.isError)
-    XCTAssertTrue(result.content.contains("applied 1 edit to notes.txt"))
-    XCTAssertTrue(result.content.contains("replaced 1 occurrence"))
-    XCTAssertEqual(try String(contentsOf: fileURL, encoding: .utf8), "alpha\nBETA\ngamma")
+    #require(!result.isError)
+    #require(result.content.contains("applied 1 edit to notes.txt"))
+    #require(result.content.contains("replaced 1 occurrence"))
+    #require(try String(contentsOf: fileURL, encoding: .utf8) == "alpha\nBETA\ngamma")
   }
 
-  func testAppliesMultipleEditsInOrder() async throws {
+  @Test func testAppliesMultipleEditsInOrder() async throws {
     let fileURL = temporaryDirectory.appendingPathComponent("notes.txt")
     try "alpha\nbeta\ngamma".write(to: fileURL, atomically: true, encoding: .utf8)
 
@@ -49,13 +48,13 @@ final class AgentEditFileToolTests: XCTestCase {
         ],
       ])
 
-    XCTAssertFalse(result.isError)
-    XCTAssertTrue(result.content.contains("applied 2 edits to notes.txt"))
-    XCTAssertTrue(result.content.contains("replaced 2 occurrences"))
-    XCTAssertEqual(try String(contentsOf: fileURL, encoding: .utf8), "ALPHA\nbeta\nGAMMA")
+    #require(!result.isError)
+    #require(result.content.contains("applied 2 edits to notes.txt"))
+    #require(result.content.contains("replaced 2 occurrences"))
+    #require(try String(contentsOf: fileURL, encoding: .utf8) == "ALPHA\nbeta\nGAMMA")
   }
 
-  func testLaterEditSeesEarlierEditsResult() async throws {
+  @Test func testLaterEditSeesEarlierEditsResult() async throws {
     let fileURL = temporaryDirectory.appendingPathComponent("chain.txt")
     try "one".write(to: fileURL, atomically: true, encoding: .utf8)
 
@@ -69,11 +68,11 @@ final class AgentEditFileToolTests: XCTestCase {
         ],
       ])
 
-    XCTAssertFalse(result.isError)
-    XCTAssertEqual(try String(contentsOf: fileURL, encoding: .utf8), "three")
+    #require(!result.isError)
+    #require(try String(contentsOf: fileURL, encoding: .utf8) == "three")
   }
 
-  func testFailingEditLeavesFileUnchanged() async throws {
+  @Test func testFailingEditLeavesFileUnchanged() async throws {
     let fileURL = temporaryDirectory.appendingPathComponent("atomic.txt")
     try "alpha\nbeta".write(to: fileURL, atomically: true, encoding: .utf8)
 
@@ -87,12 +86,12 @@ final class AgentEditFileToolTests: XCTestCase {
         ],
       ])
 
-    XCTAssertTrue(result.isError)
-    XCTAssertTrue(result.content.contains("edits[1]"))
-    XCTAssertEqual(try String(contentsOf: fileURL, encoding: .utf8), "alpha\nbeta")
+    #require(result.isError)
+    #require(result.content.contains("edits[1]"))
+    #require(try String(contentsOf: fileURL, encoding: .utf8) == "alpha\nbeta")
   }
 
-  func testFailsWhenOldStringIsAmbiguous() async throws {
+  @Test func testFailsWhenOldStringIsAmbiguous() async throws {
     let fileURL = temporaryDirectory.appendingPathComponent("dup.txt")
     try "foo\nfoo\nfoo".write(to: fileURL, atomically: true, encoding: .utf8)
 
@@ -103,13 +102,13 @@ final class AgentEditFileToolTests: XCTestCase {
         "edits": [["oldString": "foo", "newString": "bar"]],
       ])
 
-    XCTAssertTrue(result.isError)
-    XCTAssertTrue(result.content.contains("matches 3 places"))
-    XCTAssertTrue(result.content.contains("replaceAll"))
-    XCTAssertEqual(try String(contentsOf: fileURL, encoding: .utf8), "foo\nfoo\nfoo")
+    #require(result.isError)
+    #require(result.content.contains("matches 3 places"))
+    #require(result.content.contains("replaceAll"))
+    #require(try String(contentsOf: fileURL, encoding: .utf8) == "foo\nfoo\nfoo")
   }
 
-  func testReplaceAllReplacesEveryOccurrence() async throws {
+  @Test func testReplaceAllReplacesEveryOccurrence() async throws {
     let fileURL = temporaryDirectory.appendingPathComponent("dup.txt")
     try "foo\nfoo\nfoo".write(to: fileURL, atomically: true, encoding: .utf8)
 
@@ -120,12 +119,12 @@ final class AgentEditFileToolTests: XCTestCase {
         "edits": [["oldString": "foo", "newString": "bar", "replaceAll": true]],
       ])
 
-    XCTAssertFalse(result.isError)
-    XCTAssertTrue(result.content.contains("replaced 3 occurrences"))
-    XCTAssertEqual(try String(contentsOf: fileURL, encoding: .utf8), "bar\nbar\nbar")
+    #require(!result.isError)
+    #require(result.content.contains("replaced 3 occurrences"))
+    #require(try String(contentsOf: fileURL, encoding: .utf8) == "bar\nbar\nbar")
   }
 
-  func testFailsWhenOldStringMissing() async throws {
+  @Test func testFailsWhenOldStringMissing() async throws {
     let fileURL = temporaryDirectory.appendingPathComponent("notes.txt")
     try "alpha".write(to: fileURL, atomically: true, encoding: .utf8)
 
@@ -136,11 +135,11 @@ final class AgentEditFileToolTests: XCTestCase {
         "edits": [["oldString": "missing", "newString": "found"]],
       ])
 
-    XCTAssertTrue(result.isError)
-    XCTAssertTrue(result.content.contains("not found"))
+    #require(result.isError)
+    #require(result.content.contains("not found"))
   }
 
-  func testIncludesNearMissHintsWhenOldStringMissing() async throws {
+  @Test func testIncludesNearMissHintsWhenOldStringMissing() async throws {
     let fileURL = temporaryDirectory.appendingPathComponent("near.txt")
     try "func helloWorld() { return 1 }\nfunc helloWorld() { return 2 }\nfunc bye() { return 3 }"
       .write(to: fileURL, atomically: true, encoding: .utf8)
@@ -157,16 +156,16 @@ final class AgentEditFileToolTests: XCTestCase {
         ],
       ])
 
-    XCTAssertTrue(result.isError)
-    XCTAssertTrue(result.content.contains("not found"))
-    XCTAssertTrue(
+    #require(result.isError)
+    #require(result.content.contains("not found"))
+    #require(
       result.content.contains("Lines that look similar"),
       "expected near-miss hints, got: \(result.content)")
-    XCTAssertTrue(result.content.contains("line 1"))
-    XCTAssertTrue(result.content.contains("line 2"))
+    #require(result.content.contains("line 1"))
+    #require(result.content.contains("line 2"))
   }
 
-  func testFailsWhenStringsAreEqual() async throws {
+  @Test func testFailsWhenStringsAreEqual() async throws {
     let fileURL = temporaryDirectory.appendingPathComponent("notes.txt")
     try "alpha".write(to: fileURL, atomically: true, encoding: .utf8)
 
@@ -177,11 +176,11 @@ final class AgentEditFileToolTests: XCTestCase {
         "edits": [["oldString": "alpha", "newString": "alpha"]],
       ])
 
-    XCTAssertTrue(result.isError)
-    XCTAssertTrue(result.content.contains("identical"))
+    #require(result.isError)
+    #require(result.content.contains("identical"))
   }
 
-  func testFailsWhenOldStringIsEmpty() async throws {
+  @Test func testFailsWhenOldStringIsEmpty() async throws {
     let fileURL = temporaryDirectory.appendingPathComponent("notes.txt")
     try "alpha".write(to: fileURL, atomically: true, encoding: .utf8)
 
@@ -192,11 +191,11 @@ final class AgentEditFileToolTests: XCTestCase {
         "edits": [["oldString": "", "newString": "anything"]],
       ])
 
-    XCTAssertTrue(result.isError)
-    XCTAssertTrue(result.content.contains("write_file"))
+    #require(result.isError)
+    #require(result.content.contains("write_file"))
   }
 
-  func testFailsWhenEditsArrayIsEmpty() async throws {
+  @Test func testFailsWhenEditsArrayIsEmpty() async throws {
     let fileURL = temporaryDirectory.appendingPathComponent("notes.txt")
     try "alpha".write(to: fileURL, atomically: true, encoding: .utf8)
 
@@ -207,21 +206,21 @@ final class AgentEditFileToolTests: XCTestCase {
         "edits": [],
       ])
 
-    XCTAssertTrue(result.isError)
-    XCTAssertTrue(result.content.contains("edits is empty"))
+    #require(result.isError)
+    #require(result.content.contains("edits is empty"))
   }
 
-  func testRejectsPathThatEscapesWorkingDirectory() async throws {
+  @Test func testRejectsPathThatEscapesWorkingDirectory() async throws {
     let result = try await invoke(
       [
         "path": "../escape.txt",
         "edits": [["oldString": "a", "newString": "b"]],
       ], context: AgentToolContext(workingDirectory: temporaryDirectory))
-    XCTAssertTrue(result.isError)
-    XCTAssertTrue(result.content.contains("escapes"))
+    #require(result.isError)
+    #require(result.content.contains("escapes"))
   }
 
-  func testFailsWithoutPriorRead() async throws {
+  @Test func testFailsWithoutPriorRead() async throws {
     let fileURL = temporaryDirectory.appendingPathComponent("unread.txt")
     try "alpha".write(to: fileURL, atomically: true, encoding: .utf8)
 
@@ -230,12 +229,12 @@ final class AgentEditFileToolTests: XCTestCase {
         "path": "unread.txt",
         "edits": [["oldString": "alpha", "newString": "ALPHA"]],
       ], context: AgentToolContext(workingDirectory: temporaryDirectory))
-    XCTAssertTrue(result.isError)
-    XCTAssertTrue(result.content.contains("requires a prior read_file"))
-    XCTAssertEqual(try String(contentsOf: fileURL, encoding: .utf8), "alpha")
+    #require(result.isError)
+    #require(result.content.contains("requires a prior read_file"))
+    #require(try String(contentsOf: fileURL, encoding: .utf8) == "alpha")
   }
 
-  func testRejectsMissingFile() async throws {
+  @Test func testRejectsMissingFile() async throws {
     let context = AgentToolContext(workingDirectory: temporaryDirectory)
     let ghost = temporaryDirectory.appendingPathComponent("ghost.txt")
     await context.readTracker.markRead(ghost)
@@ -244,11 +243,11 @@ final class AgentEditFileToolTests: XCTestCase {
         "path": "ghost.txt",
         "edits": [["oldString": "a", "newString": "b"]],
       ], context: context)
-    XCTAssertTrue(result.isError)
-    XCTAssertTrue(result.content.contains("not found"))
+    #require(result.isError)
+    #require(result.content.contains("not found"))
   }
 
-  func testRejectsBinaryFile() async throws {
+  @Test func testRejectsBinaryFile() async throws {
     let fileURL = temporaryDirectory.appendingPathComponent("binary.bin")
     try Data([0x01, 0x00, 0x02, 0x03]).write(to: fileURL)
 
@@ -258,18 +257,18 @@ final class AgentEditFileToolTests: XCTestCase {
         "path": "binary.bin",
         "edits": [["oldString": "a", "newString": "b"]],
       ])
-    XCTAssertTrue(result.isError)
-    XCTAssertTrue(result.content.contains("binary"))
+    #require(result.isError)
+    #require(result.content.contains("binary"))
   }
 
-  private func invoke(_ args: [String: Any], context: AgentToolContext) async throws
+  fileprivate func invoke(_ args: [String: Any], context: AgentToolContext) async throws
     -> AgentToolInvocationResult
   {
     let data = try JSONSerialization.data(withJSONObject: args)
     return try await tool.invoke(arguments: data, context: context)
   }
 
-  private func invokeMarkingRead(_ url: URL, args: [String: Any]) async throws
+  fileprivate func invokeMarkingRead(_ url: URL, args: [String: Any]) async throws
     -> AgentToolInvocationResult
   {
     let context = AgentToolContext(workingDirectory: temporaryDirectory)
