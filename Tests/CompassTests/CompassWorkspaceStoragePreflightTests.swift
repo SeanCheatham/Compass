@@ -1,19 +1,21 @@
 import Foundation
-import XCTest
+import Testing
 
 @testable import Compass
 
-final class CompassWorkspaceStoragePreflightTests: XCTestCase {
+struct CompassWorkspaceStoragePreflightTests : ~Copyable {
   private var temporaryDirectories: [URL] = []
 
-  override func tearDownWithError() throws {
+  init() throws {}
+
+  deinit {
     for url in temporaryDirectories {
       try? FileManager.default.removeItem(at: url)
     }
     temporaryDirectories.removeAll()
   }
 
-  func testHealthyRepoLocalPreflightIsReadyForFutureMigration() throws {
+  @Test func testHealthyRepoLocalPreflightIsReadyForFutureMigration() throws {
     let repoURL = try makeTemporaryGitRepository()
     let roots = try makeApplicationSupportRoots()
     let workspace = CompassWorkspace(repoURL: repoURL)
@@ -24,18 +26,18 @@ final class CompassWorkspaceStoragePreflightTests: XCTestCase {
       applicationSupportRoots: roots
     )
 
-    XCTAssertEqual(preflight.repoLocalReadiness, .ready)
-    XCTAssertTrue(preflight.missingCoreFiles.isEmpty)
-    XCTAssertTrue(preflight.sessionsDirectoryExists)
-    XCTAssertFalse(preflight.currentApplicationSupportCandidateIsOccupied)
-    XCTAssertTrue(preflight.migrationWouldBeSafe)
-    XCTAssertEqual(preflight.kind, .migrationReady)
-    XCTAssertEqual(preflight.label, "Preflight clear")
-    XCTAssertTrue(preflight.detail.contains("Application Support candidate path is empty"))
-    XCTAssertTrue(preflight.recommendation.contains("without path conflicts"))
+    #require(preflight.repoLocalReadiness == .ready)
+    #require(preflight.missingCoreFiles.isEmpty)
+    #require(preflight.sessionsDirectoryExists)
+    #require(!preflight.currentApplicationSupportCandidateIsOccupied)
+    #require(preflight.migrationWouldBeSafe)
+    #require(preflight.kind == .migrationReady)
+    #require(preflight.label == "Preflight clear")
+    #require(preflight.detail.contains("Application Support candidate path is empty"))
+    #require(preflight.recommendation.contains("without path conflicts"))
   }
 
-  func testMissingAndIncompleteRepoLocalStorageBlockPreflight() throws {
+  @Test func testMissingAndIncompleteRepoLocalStorageBlockPreflight() throws {
     let missingRepoURL = try makeTemporaryGitRepository()
     let missingRoots = try makeApplicationSupportRoots()
 
@@ -44,15 +46,15 @@ final class CompassWorkspaceStoragePreflightTests: XCTestCase {
       applicationSupportRoots: missingRoots
     )
 
-    XCTAssertEqual(missingPreflight.repoLocalReadiness, .missingWorkspace)
-    XCTAssertEqual(missingPreflight.kind, .repoLocalMissing)
-    XCTAssertFalse(missingPreflight.migrationWouldBeSafe)
-    XCTAssertEqual(
-      missingPreflight.missingCoreFiles,
+    #require(missingPreflight.repoLocalReadiness == .missingWorkspace)
+    #require(missingPreflight.kind == .repoLocalMissing)
+    #require(!missingPreflight.migrationWouldBeSafe)
+    #require(
+      missingPreflight.missingCoreFiles ==
       CompassWorkspaceStorageAssessment.CoreFile.allCases
     )
-    XCTAssertFalse(missingPreflight.sessionsDirectoryExists)
-    XCTAssertTrue(missingPreflight.recommendation.contains("repo-local repair"))
+    #require(!missingPreflight.sessionsDirectoryExists)
+    #require(missingPreflight.recommendation.contains("repo-local repair"))
 
     let incompleteRepoURL = try makeTemporaryGitRepository()
     let incompleteRoots = try makeApplicationSupportRoots()
@@ -65,18 +67,18 @@ final class CompassWorkspaceStoragePreflightTests: XCTestCase {
       applicationSupportRoots: incompleteRoots
     )
 
-    XCTAssertEqual(incompletePreflight.repoLocalReadiness, .incompleteWorkspace)
-    XCTAssertEqual(incompletePreflight.kind, .repoLocalIncomplete)
-    XCTAssertFalse(incompletePreflight.migrationWouldBeSafe)
-    XCTAssertTrue(incompletePreflight.detail.contains("state.json"))
-    XCTAssertTrue(incompletePreflight.detail.contains("drafts.md"))
-    XCTAssertTrue(incompletePreflight.detail.contains("lessons.md"))
-    XCTAssertTrue(incompletePreflight.detail.contains("COMPASS.md"))
-    XCTAssertTrue(incompletePreflight.detail.contains("sessions/"))
-    XCTAssertFalse(incompletePreflight.detail.contains("sessions.json"))
+    #require(incompletePreflight.repoLocalReadiness == .incompleteWorkspace)
+    #require(incompletePreflight.kind == .repoLocalIncomplete)
+    #require(!incompletePreflight.migrationWouldBeSafe)
+    #require(incompletePreflight.detail.contains("state.json"))
+    #require(incompletePreflight.detail.contains("drafts.md"))
+    #require(incompletePreflight.detail.contains("lessons.md"))
+    #require(incompletePreflight.detail.contains("COMPASS.md"))
+    #require(incompletePreflight.detail.contains("sessions/"))
+    #require(!incompletePreflight.detail.contains("sessions.json"))
   }
 
-  func testApplicationSupportConflictIsInspectOnly() throws {
+  @Test func testApplicationSupportConflictIsInspectOnly() throws {
     let repoURL = try makeTemporaryGitRepository()
     let roots = try makeApplicationSupportRoots()
     let workspace = CompassWorkspace(repoURL: repoURL)
@@ -97,25 +99,25 @@ final class CompassWorkspaceStoragePreflightTests: XCTestCase {
       applicationSupportRoots: roots
     )
 
-    XCTAssertEqual(preflight.repoLocalReadiness, .ready)
-    XCTAssertEqual(preflight.kind, .applicationSupportConflict)
-    XCTAssertFalse(preflight.migrationWouldBeSafe)
-    XCTAssertTrue(preflight.currentApplicationSupportCandidateIsOccupied)
-    XCTAssertEqual(preflight.occupiedApplicationSupportCandidates.count, 1)
-    XCTAssertTrue(preflight.detail.contains("Inspect-only conflict"))
-    XCTAssertTrue(preflight.recommendation.contains("Compass remains on repo-local .compass/"))
-    XCTAssertEqual(try entries(in: repoURL), repoEntriesBefore)
-    XCTAssertEqual(
-      try entries(in: seedPreflight.currentApplicationSupportCandidateURL), currentEntriesBefore)
-    XCTAssertEqual(
+    #require(preflight.repoLocalReadiness == .ready)
+    #require(preflight.kind == .applicationSupportConflict)
+    #require(!preflight.migrationWouldBeSafe)
+    #require(preflight.currentApplicationSupportCandidateIsOccupied)
+    #require(preflight.occupiedApplicationSupportCandidates.count == 1)
+    #require(preflight.detail.contains("Inspect-only conflict"))
+    #require(preflight.recommendation.contains("Compass remains on repo-local .compass/"))
+    #require(try entries(in: repoURL) == repoEntriesBefore)
+    #require(
+      try entries(in: seedPreflight.currentApplicationSupportCandidateURL) == currentEntriesBefore)
+    #require(
       try String(
         contentsOf: seedPreflight.currentApplicationSupportCandidateURL.appending(
-          path: "state.json"), encoding: .utf8),
+          path: "state.json"), encoding: .utf8) ==
       "current\n"
     )
   }
 
-  func testInjectedApplicationSupportWorkspaceDoesNotSatisfyRepoLocalPreflight() throws {
+  @Test func testInjectedApplicationSupportWorkspaceDoesNotSatisfyRepoLocalPreflight() throws {
     let repoURL = try makeTemporaryGitRepository()
     let roots = try makeApplicationSupportRoots()
     let candidateURL = CompassWorkspaceStorageAssessment.currentApplicationSupportCandidateURL(
@@ -131,20 +133,20 @@ final class CompassWorkspaceStoragePreflightTests: XCTestCase {
       applicationSupportRoots: roots
     )
 
-    XCTAssertEqual(preflight.repoLocalReadiness, .missingWorkspace)
-    XCTAssertEqual(preflight.kind, .repoLocalMissing)
-    XCTAssertFalse(preflight.migrationWouldBeSafe)
-    XCTAssertTrue(preflight.currentApplicationSupportCandidateIsOccupied)
-    XCTAssertTrue(FileManager.default.fileExists(atPath: externalWorkspace.compassURL.path))
-    XCTAssertEqual(
-      try String(contentsOf: externalWorkspace.draftsURL, encoding: .utf8), "external draft\n")
-    XCTAssertFalse(
-      FileManager.default.fileExists(atPath: CompassWorkspace(repoURL: repoURL).compassURL.path))
-    XCTAssertFalse(
-      FileManager.default.fileExists(atPath: repoURL.appending(path: ".gitignore").path))
+    #require(preflight.repoLocalReadiness == .missingWorkspace)
+    #require(preflight.kind == .repoLocalMissing)
+    #require(!preflight.migrationWouldBeSafe)
+    #require(preflight.currentApplicationSupportCandidateIsOccupied)
+    #require(FileManager.default.fileExists(atPath: externalWorkspace.compassURL.path))
+    #require(
+      try String(contentsOf: externalWorkspace.draftsURL, encoding: .utf8) == "external draft\n")
+    #require(
+      !FileManager.default.fileExists(atPath: CompassWorkspace(repoURL: repoURL).compassURL.path))
+    #require(
+      !FileManager.default.fileExists(atPath: repoURL.appending(path: ".gitignore").path))
   }
 
-  func testPreflightDisplayTextAndIdentifiersStayBounded() throws {
+  @Test func testPreflightDisplayTextAndIdentifiersStayBounded() throws {
     let longName = "Storage Migration Project " + String(repeating: "Segment ", count: 18)
     let repoURL = try makeTemporaryGitRepository(name: longName)
     let roots = KnownProjectStore.ApplicationSupportRoots(
@@ -157,22 +159,22 @@ final class CompassWorkspaceStoragePreflightTests: XCTestCase {
       applicationSupportRoots: roots
     )
 
-    XCTAssertLessThanOrEqual(
-      preflight.projectStorageIdentifier.count,
+    #require(
+      preflight.projectStorageIdentifier.count <=
       CompassWorkspaceStorageAssessment.maxProjectIdentifierLength
     )
-    XCTAssertLessThanOrEqual(preflight.label.count, CompassWorkspaceStoragePreflight.labelLimit)
-    XCTAssertLessThanOrEqual(preflight.detail.count, CompassWorkspaceStoragePreflight.detailLimit)
-    XCTAssertLessThanOrEqual(
-      preflight.recommendation.count,
+    #require(preflight.label.count <= CompassWorkspaceStoragePreflight.labelLimit)
+    #require(preflight.detail.count <= CompassWorkspaceStoragePreflight.detailLimit)
+    #require(
+      preflight.recommendation.count <=
       CompassWorkspaceStoragePreflight.recommendationLimit
     )
-    XCTAssertFalse(preflight.label.isEmpty)
-    XCTAssertFalse(preflight.detail.isEmpty)
-    XCTAssertFalse(preflight.recommendation.isEmpty)
+    #require(!preflight.label.isEmpty)
+    #require(!preflight.detail.isEmpty)
+    #require(!preflight.recommendation.isEmpty)
   }
 
-  func testProjectStorageIdentifierAndCandidateURLsAreStable() throws {
+  @Test func testProjectStorageIdentifierAndCandidateURLsAreStable() throws {
     let longName = "My Project: Needs/Storage? Audit! " + String(repeating: "Segment ", count: 16)
     let repoURL = try makeTemporaryGitRepository(
       name: longName.replacingOccurrences(of: "/", with: "-"))
@@ -181,19 +183,19 @@ final class CompassWorkspaceStoragePreflightTests: XCTestCase {
     let first = CompassWorkspaceStoragePreflight(repoURL: repoURL, applicationSupportRoots: roots)
     let second = CompassWorkspaceStoragePreflight(repoURL: repoURL, applicationSupportRoots: roots)
 
-    XCTAssertEqual(first.projectStorageIdentifier, second.projectStorageIdentifier)
-    XCTAssertEqual(
-      first.currentApplicationSupportCandidateURL, second.currentApplicationSupportCandidateURL)
-    XCTAssertTrue(isSafeIdentifier(first.projectStorageIdentifier), first.projectStorageIdentifier)
-    XCTAssertLessThanOrEqual(
-      first.projectStorageIdentifier.count,
+    #require(first.projectStorageIdentifier == second.projectStorageIdentifier)
+    #require(
+      first.currentApplicationSupportCandidateURL == second.currentApplicationSupportCandidateURL)
+    #require(isSafeIdentifier(first.projectStorageIdentifier))
+    #require(
+      first.projectStorageIdentifier.count <=
       CompassWorkspaceStorageAssessment.maxProjectIdentifierLength
     )
-    XCTAssertEqual(
-      first.currentApplicationSupportCandidateURL.lastPathComponent, first.projectStorageIdentifier)
+    #require(
+      first.currentApplicationSupportCandidateURL.lastPathComponent == first.projectStorageIdentifier)
   }
 
-  func testPreflightDoesNotCreateRepoOrApplicationSupportFiles() throws {
+  @Test func testPreflightDoesNotCreateRepoOrApplicationSupportFiles() throws {
     let repoURL = try makeTemporaryGitRepository()
     let roots = try makeApplicationSupportRoots()
     let repoEntriesBefore = try entries(in: repoURL)
@@ -203,14 +205,14 @@ final class CompassWorkspaceStoragePreflightTests: XCTestCase {
       applicationSupportRoots: roots
     )
 
-    XCTAssertEqual(try entries(in: repoURL), repoEntriesBefore)
-    XCTAssertFalse(
-      FileManager.default.fileExists(atPath: CompassWorkspace(repoURL: repoURL).compassURL.path))
-    XCTAssertFalse(
-      FileManager.default.fileExists(atPath: repoURL.appending(path: ".gitignore").path))
-    XCTAssertFalse(FileManager.default.fileExists(atPath: roots.current.path))
-    XCTAssertFalse(
-      FileManager.default.fileExists(atPath: preflight.currentApplicationSupportCandidateURL.path))
+    #require(try entries(in: repoURL) == repoEntriesBefore)
+    #require(
+      !FileManager.default.fileExists(atPath: CompassWorkspace(repoURL: repoURL).compassURL.path))
+    #require(
+      !FileManager.default.fileExists(atPath: repoURL.appending(path: ".gitignore").path))
+    #require(!FileManager.default.fileExists(atPath: roots.current.path))
+    #require(
+      !FileManager.default.fileExists(atPath: preflight.currentApplicationSupportCandidateURL.path))
   }
 
   private func makeTemporaryGitRepository(name: String? = nil) throws -> URL {

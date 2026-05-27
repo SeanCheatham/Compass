@@ -1,10 +1,10 @@
 import Foundation
-import XCTest
+import Testing
 
 @testable import Compass
 
-final class LiveActivitySummaryTests: XCTestCase {
-  func testFreezesClusterAtLifecycleBoundaryAfterMinimumRows() throws {
+struct LiveActivitySummaryTests {
+  @Test func testFreezesClusterAtLifecycleBoundaryAfterMinimumRows() throws {
     let lines = [
       makeLine(offset: 0, text: "Planning started"),
       makeLine(offset: 0.3, text: "Reading files", kind: .command, status: .completed),
@@ -24,14 +24,14 @@ final class LiveActivitySummaryTests: XCTestCase {
       now: date(2)
     )
 
-    XCTAssertEqual(plan.frozenClusters.count, 1)
-    let cluster = try XCTUnwrap(plan.frozenClusters.first)
-    XCTAssertEqual(cluster.lines.map(\.id), Array(lines.prefix(5)).map(\.id))
-    XCTAssertEqual(cluster.freezeReason, .lifecycleBoundary)
-    XCTAssertEqual(plan.items.last, .line(lines[5]))
+    #require(plan.frozenClusters.count == 1)
+    let cluster = #require(plan.frozenClusters.first)
+    #require(cluster.lines.map(\.id) == Array(lines.prefix(5)).map(\.id))
+    #require(cluster.freezeReason == .lifecycleBoundary)
+    #require(plan.items.last == .line(lines[5]))
   }
 
-  func testFreezesClusterAtQuietGap() throws {
+  @Test func testFreezesClusterAtQuietGap() throws {
     let lines = [
       makeLine(offset: 0, text: "Read package"),
       makeLine(offset: 0.2, text: "Inspect source", kind: .command, status: .completed),
@@ -46,14 +46,14 @@ final class LiveActivitySummaryTests: XCTestCase {
       now: date(46)
     )
 
-    XCTAssertEqual(plan.frozenClusters.count, 1)
-    let cluster = try XCTUnwrap(plan.frozenClusters.first)
-    XCTAssertEqual(cluster.lines.map(\.id), Array(lines.prefix(5)).map(\.id))
-    XCTAssertEqual(cluster.freezeReason, .quietGap)
-    XCTAssertEqual(plan.items.last, .line(lines[5]))
+    #require(plan.frozenClusters.count == 1)
+    let cluster = #require(plan.frozenClusters.first)
+    #require(cluster.lines.map(\.id) == Array(lines.prefix(5)).map(\.id))
+    #require(cluster.freezeReason == .quietGap)
+    #require(plan.items.last == .line(lines[5]))
   }
 
-  func testFreezesClusterAfterElapsedSinceStartUnderSustainedActivity() throws {
+  @Test func testFreezesClusterAfterElapsedSinceStartUnderSustainedActivity() throws {
     let lines = [
       makeLine(offset: 0, text: "Read package"),
       makeLine(offset: 1, text: "Inspect source", kind: .command, status: .completed),
@@ -68,13 +68,13 @@ final class LiveActivitySummaryTests: XCTestCase {
       now: date(34)
     )
 
-    XCTAssertEqual(plan.frozenClusters.count, 1)
-    let cluster = try XCTUnwrap(plan.frozenClusters.first)
-    XCTAssertEqual(cluster.lines.map(\.id), Array(lines.prefix(4)).map(\.id))
-    XCTAssertEqual(cluster.freezeReason, .elapsedSinceStart)
+    #require(plan.frozenClusters.count == 1)
+    let cluster = #require(plan.frozenClusters.first)
+    #require(cluster.lines.map(\.id) == Array(lines.prefix(4)).map(\.id))
+    #require(cluster.freezeReason == .elapsedSinceStart)
   }
 
-  func testDoesNotFreezeBelowElapsedThreshold() {
+  @Test func testDoesNotFreezeBelowElapsedThreshold() {
     let lines = [
       makeLine(offset: 0, text: "Read package"),
       makeLine(offset: 1, text: "Inspect source", kind: .command, status: .completed),
@@ -88,10 +88,10 @@ final class LiveActivitySummaryTests: XCTestCase {
       now: date(10)
     )
 
-    XCTAssertTrue(plan.frozenClusters.isEmpty)
+    #require(plan.frozenClusters.isEmpty)
   }
 
-  func testRunningLifecycleMarkersDoNotBlockFreezing() throws {
+  @Test func testRunningLifecycleMarkersDoNotBlockFreezing() throws {
     let lines = [
       makeLine(offset: 0, text: "Agent iteration 1", kind: .lifecycle, status: .running),
       makeLine(offset: 1, text: "Inspect source", kind: .command, status: .completed),
@@ -105,12 +105,12 @@ final class LiveActivitySummaryTests: XCTestCase {
       now: date(41)
     )
 
-    XCTAssertEqual(plan.frozenClusters.count, 1)
-    let cluster = try XCTUnwrap(plan.frozenClusters.first)
-    XCTAssertEqual(cluster.lines.map(\.id), Array(lines.prefix(4)).map(\.id))
+    #require(plan.frozenClusters.count == 1)
+    let cluster = #require(plan.frozenClusters.first)
+    #require(cluster.lines.map(\.id) == Array(lines.prefix(4)).map(\.id))
   }
 
-  func testRunningCommandRowsBlockFreezing() {
+  @Test func testRunningCommandRowsBlockFreezing() throws {
     let lines = [
       makeLine(offset: 0, text: "Read package"),
       makeLine(offset: 1, text: "Inspect source", kind: .command, status: .completed),
@@ -124,20 +124,21 @@ final class LiveActivitySummaryTests: XCTestCase {
       now: date(50)
     )
 
-    XCTAssertTrue(plan.frozenClusters.isEmpty)
-    XCTAssertEqual(plan.items, lines.map(LiveActivitySummaryItem.line))
+    let expectedItems = try lines.map(LiveActivitySummaryItem.line)
+    #require(plan.frozenClusters.isEmpty)
+    #require(plan.items == expectedItems)
   }
 
-  func testClusterKeyIsStableForUnchangedRows() throws {
+  @Test func testClusterKeyIsStableForUnchangedRows() throws {
     let lines = completedBatch()
 
     let first = LiveActivitySummaryPlanner.plan(lines: lines, now: date(40))
     let second = LiveActivitySummaryPlanner.plan(lines: lines, now: date(40))
 
-    XCTAssertEqual(first.frozenClusters.first?.key, second.frozenClusters.first?.key)
+    #require(first.frozenClusters.first?.key == second.frozenClusters.first?.key)
   }
 
-  func testClusterKeyChangesWhenRunningRowCompletesInPlace() {
+  @Test func testClusterKeyChangesWhenRunningRowCompletesInPlace() {
     var running = completedBatch()
     running[2].status = .running
     running[2].text = "Running verify"
@@ -154,121 +155,125 @@ final class LiveActivitySummaryTests: XCTestCase {
       freezeReason: .quietGap
     )
 
-    XCTAssertEqual(running[2].id, completed[2].id)
-    XCTAssertNotEqual(runningCluster.key, completedCluster.key)
+    #require(running[2].id == completed[2].id)
+    #require(runningCluster.key != completedCluster.key)
   }
 
-  func testParserAcceptsTwoSentenceProse() throws {
+  @Test func testParserAcceptsTwoSentenceProse() throws {
     let cluster = LiveActivityCluster(lines: completedBatch(), freezeReason: .quietGap)
 
-    let summary = try XCTUnwrap(
+    let summary = #require(
       LiveActivitySummaryService.parseGeneratedSummary(
         "The agent inspected the source and tests, then reviewed the output. No failures were reported.",
         cluster: cluster
       )
     )
 
-    XCTAssertTrue(summary.text.hasPrefix("The agent"))
-    XCTAssertEqual(summary.source, .generated)
+    #require(summary.text.hasPrefix("The agent"))
+    #require(summary.source == .generated)
   }
 
-  func testParserStripsSummaryLabel() throws {
+  @Test func testParserStripsSummaryLabel() throws {
     let cluster = LiveActivityCluster(lines: completedBatch(), freezeReason: .quietGap)
 
-    let summary = try XCTUnwrap(
+    let summary = #require(
       LiveActivitySummaryService.parseGeneratedSummary(
         "Summary: The agent inspected the source and tests. The review wrapped up cleanly.",
         cluster: cluster
       )
     )
 
-    XCTAssertFalse(summary.text.lowercased().hasPrefix("summary:"))
+    #require(!summary.text.lowercased().hasPrefix("summary:"))
   }
 
-  func testParserCollapsesMultilineProseIntoOneLine() throws {
+  @Test func testParserCollapsesMultilineProseIntoOneLine() throws {
     let cluster = LiveActivityCluster(lines: completedBatch(), freezeReason: .quietGap)
 
-    let summary = try XCTUnwrap(
+    let summary = #require(
       LiveActivitySummaryService.parseGeneratedSummary(
         "The agent inspected the source and tests.\nThe review wrapped up cleanly.",
         cluster: cluster
       )
     )
 
-    XCTAssertFalse(summary.text.contains("\n"))
+    #require(!summary.text.contains("\n"))
   }
 
-  func testParserRejectsMarkdownJSONURLsAndOverlongOutput() {
+  @Test func testParserRejectsMarkdownJSONURLsAndOverlongOutput() {
     let cluster = LiveActivityCluster(lines: completedBatch(), freezeReason: .quietGap)
 
-    XCTAssertNil(
+    #require(
       LiveActivitySummaryService.parseGeneratedSummary(
         "```The agent inspected the source.```",
         cluster: cluster
-      )
+      ) ==
+      nil
     )
-    XCTAssertNil(
+    #require(
       LiveActivitySummaryService.parseGeneratedSummary(
         #"{"summary":"The agent inspected the source."}"#,
         cluster: cluster
-      )
+      ) ==
+      nil
     )
-    XCTAssertNil(
+    #require(
       LiveActivitySummaryService.parseGeneratedSummary(
         "The agent reviewed https://example.com output.",
         cluster: cluster
-      )
+      ) ==
+      nil
     )
-    XCTAssertNil(
+    #require(
       LiveActivitySummaryService.parseGeneratedSummary(
         String(repeating: "word ", count: 200),
         cluster: cluster
-      )
+      ) ==
+      nil
     )
   }
 
-  func testParserAllowsNumbersFilenamesAndOutcomeWords() throws {
+  @Test func testParserAllowsNumbersFilenamesAndOutcomeWords() throws {
     let cluster = LiveActivityCluster(lines: completedBatch(), freezeReason: .quietGap)
 
-    let summary = try XCTUnwrap(
+    let summary = #require(
       LiveActivitySummaryService.parseGeneratedSummary(
         "The agent ran 12 commands across README.md and the test suite. All checks passed.",
         cluster: cluster
       )
     )
 
-    XCTAssertTrue(summary.text.contains("12 commands"))
-    XCTAssertTrue(summary.text.contains("passed"))
+    #require(summary.text.contains("12 commands"))
+    #require(summary.text.contains("passed"))
   }
 
-  func testDeterministicFallbackDescribesCountsAndIsStable() {
+  @Test func testDeterministicFallbackDescribesCountsAndIsStable() {
     let cluster = LiveActivityCluster(lines: completedBatch(), freezeReason: .quietGap)
 
     let summary = LiveActivitySummaryService.deterministicSummary(for: cluster)
     let repeated = LiveActivitySummaryService.deterministicSummary(for: cluster)
 
-    XCTAssertEqual(summary, repeated)
-    XCTAssertEqual(summary.source, .deterministic)
-    XCTAssertTrue(summary.text.hasPrefix("The agent"))
-    XCTAssertTrue(summary.text.contains("2 commands"))
-    XCTAssertTrue(summary.text.contains("1 agent note"))
-    XCTAssertLessThanOrEqual(
-      summary.text.count,
+    #require(summary == repeated)
+    #require(summary.source == .deterministic)
+    #require(summary.text.hasPrefix("The agent"))
+    #require(summary.text.contains("2 commands"))
+    #require(summary.text.contains("1 agent note"))
+    #require(
+      summary.text.count <=
       LiveActivitySummaryService.summaryMaxCharacters
     )
   }
 
-  func testDeterministicFallbackReportsFailures() {
+  @Test func testDeterministicFallbackReportsFailures() {
     var lines = completedBatch()
     lines[1].status = .failed
     let cluster = LiveActivityCluster(lines: lines, freezeReason: .quietGap)
 
     let summary = LiveActivitySummaryService.deterministicSummary(for: cluster)
 
-    XCTAssertTrue(summary.text.contains("One failure reported"))
+    #require(summary.text.contains("One failure reported"))
   }
 
-  func testPlansOnlyMissingNonInFlightSummariesAndPrunesStaleKeys() {
+  @Test func testPlansOnlyMissingNonInFlightSummariesAndPrunesStaleKeys() {
     let first = LiveActivityCluster(lines: completedBatch(seed: 0), freezeReason: .quietGap)
     let second = LiveActivityCluster(lines: completedBatch(seed: 10), freezeReason: .quietGap)
     let third = LiveActivityCluster(lines: completedBatch(seed: 20), freezeReason: .quietGap)
@@ -279,9 +284,9 @@ final class LiveActivitySummaryTests: XCTestCase {
       inFlightKeys: [second.key, "stale-flight"]
     )
 
-    XCTAssertEqual(plan.requestedClusters.map(\.key), [third.key])
-    XCTAssertEqual(plan.staleCacheKeys, ["stale-cache"])
-    XCTAssertEqual(plan.staleInFlightKeys, ["stale-flight"])
+    #require(plan.requestedClusters.map(\.key) == [third.key])
+    #require(plan.staleCacheKeys == ["stale-cache"])
+    #require(plan.staleInFlightKeys == ["stale-flight"])
   }
 }
 

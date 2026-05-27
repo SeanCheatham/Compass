@@ -1,5 +1,5 @@
 import Foundation
-import XCTest
+import Testing
 
 @testable import Compass
 
@@ -14,31 +14,34 @@ import XCTest
 ///    probe → install kickoff → poll → finalise, exercising both the
 ///    happy path and the failure modes the caller has to react to
 ///    (timeout, non-zero exit, kickoff failure, finalise failure).
-final class SharedCompassVMDevToolsProvisionerTests: XCTestCase {
+struct SharedCompassVMDevToolsProvisionerTests {
 
   // MARK: - Rendered install script
 
+  @Test
   func testRenderedInstallScriptStartsWithBashShebang() {
     let script = SharedCompassVMDevToolsProvisioner.renderInstallScript()
-    XCTAssertTrue(script.hasPrefix("#!/bin/bash"))
+    #require(script.hasPrefix("#!/bin/bash"))
   }
 
+  @Test
   func testRenderedInstallScriptTouchesAppleSoftwareupdateSentinel() {
     let script = SharedCompassVMDevToolsProvisioner.renderInstallScript()
     // The well-known sentinel softwareupdate looks for to expose CLT
     // in its catalog without a GUI session. Bytes pinned because Apple
     // sometimes changes the path across majors — diverging silently
     // would break headless install on the new major with no error.
-    XCTAssertTrue(
+    #require(
       script.contains("touch \"$SENTINEL\""),
       "Script must touch the softwareupdate CLT request sentinel"
     )
-    XCTAssertTrue(
+    #require(
       script.contains("/tmp/.com.apple.dt.CommandLineTools.installondemand.in-progress"),
       "Script must reference Apple's documented CLT-install sentinel path"
     )
   }
 
+  @Test
   func testRenderedInstallScriptPicksLatestCLTLabel() {
     let script = SharedCompassVMDevToolsProvisioner.renderInstallScript()
     // Pick by `tail -n1` of the catalog entries whose lines start
@@ -48,39 +51,43 @@ final class SharedCompassVMDevToolsProvisionerTests: XCTestCase {
     // entry is followed by an indented `Title: Command Line Tools …`
     // line that the older un-anchored matcher would also pick up
     // (producing an empty label string and breaking install).
-    XCTAssertTrue(script.contains("softwareupdate -l"))
-    XCTAssertTrue(
+    #require(script.contains("softwareupdate -l"))
+    #require(
       script.contains("'^\\* Label: Command Line Tools'"),
       "Label selector must anchor on the '* Label:' line, not match any 'Command Line Tools' substring"
     )
-    XCTAssertTrue(script.contains("tail -n1"))
+    #require(script.contains("tail -n1"))
   }
 
+  @Test
   func testRenderedInstallScriptInvokesSoftwareupdateVerbose() {
     let script = SharedCompassVMDevToolsProvisioner.renderInstallScript()
-    XCTAssertTrue(
+    #require(
       script.contains("softwareupdate -i \"$LABEL\" --verbose"),
       "Must use --verbose so the host can parse progress phases out of the log"
     )
   }
 
+  @Test
   func testRenderedInstallScriptActivatesCLTAfterSuccess() {
     let script = SharedCompassVMDevToolsProvisioner.renderInstallScript()
-    XCTAssertTrue(
+    #require(
       script.contains("xcode-select -s /Library/Developer/CommandLineTools"),
       "Successful install must promote CLT to active developer dir so subsequent calls (swift, clang) work without xcode-select"
     )
   }
 
+  @Test
   func testRenderedInstallScriptWritesDoneSentinelInAllExitPaths() {
     let script = SharedCompassVMDevToolsProvisioner.renderInstallScript()
     // Two exit paths: missing label (rc=2) and softwareupdate completion
     // (rc=whatever). Both must touch the done-sentinel or the host's
     // pollUntilDone loop will hang to the timeout.
-    XCTAssertTrue(script.contains("echo \"exit=2\" > \"$DONE_PATH\""))
-    XCTAssertTrue(script.contains("echo \"exit=$rc\" > \"$DONE_PATH\""))
+    #require(script.contains("echo \"exit=2\" > \"$DONE_PATH\""))
+    #require(script.contains("echo \"exit=$rc\" > \"$DONE_PATH\""))
   }
 
+  @Test
   func testRenderedInstallScriptRemovesSentinelOnAllExitPaths() {
     let script = SharedCompassVMDevToolsProvisioner.renderInstallScript()
     // Both early-exit (missing label) and the post-install path must
@@ -88,11 +95,12 @@ final class SharedCompassVMDevToolsProvisionerTests: XCTestCase {
     // would confuse future softwareupdate calls (some Apple tooling
     // refuses to re-list CLT when the sentinel is stuck).
     let occurrences = script.components(separatedBy: "rm -f \"$SENTINEL\"").count - 1
-    XCTAssertGreaterThanOrEqual(occurrences, 2, "Sentinel must be cleared on both exit paths")
+    #require(occurrences >= 2, "Sentinel must be cleared on both exit paths")
   }
 
   // MARK: - LaunchDaemon plist
 
+  @Test
   func testRenderedLaunchDaemonPlistIsValid() throws {
     let plist = SharedCompassVMDevToolsProvisioner.renderInstallLaunchDaemonPlist()
     let parsed =
@@ -101,101 +109,114 @@ final class SharedCompassVMDevToolsProvisionerTests: XCTestCase {
         options: [],
         format: nil
       ) as? [String: Any]
-    XCTAssertNotNil(parsed)
-    XCTAssertEqual(parsed?["Label"] as? String, "com.seancheatham.Compass.devtools-install")
-    XCTAssertEqual(parsed?["RunAtLoad"] as? Bool, true)
+    #require(parsed != nil)
+    #require(parsed?["Label"] as? String == "com.seancheatham.Compass.devtools-install")
+    #require(parsed?["RunAtLoad"] as? Bool == true)
     // KeepAlive must be false so the script runs once and exits;
     // KeepAlive=true would have launchd restart softwareupdate after
     // it succeeds, looping forever.
-    XCTAssertEqual(parsed?["KeepAlive"] as? Bool, false)
-    XCTAssertEqual(parsed?["LaunchOnlyOnce"] as? Bool, true)
+    #require(parsed?["KeepAlive"] as? Bool == false)
+    #require(parsed?["LaunchOnlyOnce"] as? Bool == true)
     let args = parsed?["ProgramArguments"] as? [String]
-    XCTAssertEqual(args, ["/usr/local/libexec/compass-install-clt.sh"])
+    #require(args == ["/usr/local/libexec/compass-install-clt.sh"])
   }
 
   // MARK: - Phase parsing
 
+  @Test
   func testParsePhaseFromLogTailRecognisesScriptStart() {
     let tail = "[compass-clt] 2026-05-21T17:00:00Z starting"
-    XCTAssertEqual(SharedCompassVMDevToolsProvisioner.parsePhase(fromLogTail: tail), .scriptRunning)
+    #require(SharedCompassVMDevToolsProvisioner.parsePhase(fromLogTail: tail) == .scriptRunning)
   }
 
+  @Test
   func testParsePhaseFromLogTailRecognisesDownloading() {
     let tail = """
       [compass-clt] selected label: Command Line Tools for Xcode-15.2
       Downloading: Command Line Tools for Xcode
       """
-    XCTAssertEqual(SharedCompassVMDevToolsProvisioner.parsePhase(fromLogTail: tail), .downloading)
+    #require(SharedCompassVMDevToolsProvisioner.parsePhase(fromLogTail: tail) == .downloading)
   }
 
+  @Test
   func testParsePhaseFromLogTailRecognisesDownloadingMacOS26Form() {
     // macOS 26's softwareupdate --verbose drops the trailing colon
     // we used to key on. Confirmed live against a Sequoia successor
     // guest: "Downloading Command Line Tools for Xcode 26.5".
     let tail = "Downloading Command Line Tools for Xcode 26.5"
-    XCTAssertEqual(SharedCompassVMDevToolsProvisioner.parsePhase(fromLogTail: tail), .downloading)
+    #require(SharedCompassVMDevToolsProvisioner.parsePhase(fromLogTail: tail) == .downloading)
   }
 
+  @Test
   func testParsePhaseFromLogTailRecognisesDownloaded() {
     let tail = "Downloaded: Command Line Tools for Xcode"
-    XCTAssertEqual(SharedCompassVMDevToolsProvisioner.parsePhase(fromLogTail: tail), .downloaded)
+    #require(SharedCompassVMDevToolsProvisioner.parsePhase(fromLogTail: tail) == .downloaded)
   }
 
+  @Test
   func testParsePhaseFromLogTailRecognisesDownloadedMacOS26Form() {
     let tail = "Downloaded Command Line Tools for Xcode 26.5"
-    XCTAssertEqual(SharedCompassVMDevToolsProvisioner.parsePhase(fromLogTail: tail), .downloaded)
+    #require(SharedCompassVMDevToolsProvisioner.parsePhase(fromLogTail: tail) == .downloaded)
   }
 
+  @Test
   func testParsePhaseFromLogTailRecognisesInstalling() {
     let tail = "Installing: Command Line Tools for Xcode"
-    XCTAssertEqual(SharedCompassVMDevToolsProvisioner.parsePhase(fromLogTail: tail), .installing)
+    #require(SharedCompassVMDevToolsProvisioner.parsePhase(fromLogTail: tail) == .installing)
   }
 
+  @Test
   func testParsePhaseFromLogTailRecognisesInstallingMacOS26Form() {
     let tail = "Installing Command Line Tools for Xcode 26.5"
-    XCTAssertEqual(SharedCompassVMDevToolsProvisioner.parsePhase(fromLogTail: tail), .installing)
+    #require(SharedCompassVMDevToolsProvisioner.parsePhase(fromLogTail: tail) == .installing)
   }
 
+  @Test
   func testParsePhaseFromLogTailRecognisesInstalled() {
     let tail = "Installed: Command Line Tools for Xcode"
-    XCTAssertEqual(SharedCompassVMDevToolsProvisioner.parsePhase(fromLogTail: tail), .installed)
+    #require(SharedCompassVMDevToolsProvisioner.parsePhase(fromLogTail: tail) == .installed)
   }
 
+  @Test
   func testParsePhaseFromLogTailRecognisesInstalledMacOS26Form() {
     let tail = "Installed Command Line Tools for Xcode 26.5"
-    XCTAssertEqual(SharedCompassVMDevToolsProvisioner.parsePhase(fromLogTail: tail), .installed)
+    #require(SharedCompassVMDevToolsProvisioner.parsePhase(fromLogTail: tail) == .installed)
   }
 
+  @Test
   func testParsePhaseFromLogTailRecognisesDone() {
     let tail = """
       Installed: Command Line Tools for Xcode
       Done.
       [compass-clt] softwareupdate exit=0
       """
-    XCTAssertEqual(SharedCompassVMDevToolsProvisioner.parsePhase(fromLogTail: tail), .done)
+    #require(SharedCompassVMDevToolsProvisioner.parsePhase(fromLogTail: tail) == .done)
   }
 
+  @Test
   func testParsePhaseFromLogTailReturnsNilForNoise() {
-    XCTAssertNil(SharedCompassVMDevToolsProvisioner.parsePhase(fromLogTail: ""))
-    XCTAssertNil(SharedCompassVMDevToolsProvisioner.parsePhase(fromLogTail: "no markers here"))
+    #require(SharedCompassVMDevToolsProvisioner.parsePhase(fromLogTail: "") == nil)
+    #require(SharedCompassVMDevToolsProvisioner.parsePhase(fromLogTail: "no markers here") == nil)
   }
 
+  @Test
   func testFractionForPhaseIsMonotone() {
     let order: [SharedCompassVMDevToolsProvisioner.InstallPhase] = [
       .kickoff, .scriptRunning, .downloading, .downloaded, .installing, .installed, .done,
     ]
     let fractions = order.map(SharedCompassVMDevToolsProvisioner.fractionForPhase)
     for i in 1..<fractions.count {
-      XCTAssertGreaterThan(
-        fractions[i], fractions[i - 1],
+      #require(
+        fractions[i] > fractions[i - 1],
         "Fraction for \(order[i]) must be strictly greater than for \(order[i - 1])"
       )
     }
-    XCTAssertEqual(fractions.last, 1.0)
+    #require(fractions.last == 1.0)
   }
 
   // MARK: - Poll snapshot parsing
 
+  @Test
   func testPollSnapshotParsesRunningWhenSentinelAbsent() {
     let raw = """
       RUNNING
@@ -203,10 +224,11 @@ final class SharedCompassVMDevToolsProvisionerTests: XCTestCase {
       Downloading: Command Line Tools for Xcode
       """
     let snapshot = SharedCompassVMDevToolsProvisioner.PollSnapshot(parsing: raw)
-    XCTAssertNil(snapshot.exitCode)
-    XCTAssertTrue(snapshot.logTail.contains("Downloading"))
+    #require(snapshot.exitCode == nil)
+    #require(snapshot.logTail.contains("Downloading"))
   }
 
+  @Test
   func testPollSnapshotParsesSuccessExit() {
     let raw = """
       DONE
@@ -215,10 +237,11 @@ final class SharedCompassVMDevToolsProvisionerTests: XCTestCase {
       Done.
       """
     let snapshot = SharedCompassVMDevToolsProvisioner.PollSnapshot(parsing: raw)
-    XCTAssertEqual(snapshot.exitCode, 0)
-    XCTAssertTrue(snapshot.logTail.contains("Done."))
+    #require(snapshot.exitCode == 0)
+    #require(snapshot.logTail.contains("Done."))
   }
 
+  @Test
   func testPollSnapshotParsesFailureExit() {
     let raw = """
       DONE
@@ -227,9 +250,10 @@ final class SharedCompassVMDevToolsProvisionerTests: XCTestCase {
       ERROR: no Command Line Tools label found
       """
     let snapshot = SharedCompassVMDevToolsProvisioner.PollSnapshot(parsing: raw)
-    XCTAssertEqual(snapshot.exitCode, 2)
+    #require(snapshot.exitCode == 2)
   }
 
+  @Test
   func testPollSnapshotTreatsMissingExitLineAsFailure() {
     // Defensive: if the cat-of-sentinel got truncated, we must NOT
     // hang waiting for a clean exit code — treat as failure so the
@@ -239,18 +263,19 @@ final class SharedCompassVMDevToolsProvisionerTests: XCTestCase {
       ---LOG_TAIL---
       """
     let snapshot = SharedCompassVMDevToolsProvisioner.PollSnapshot(parsing: raw)
-    XCTAssertEqual(snapshot.exitCode, -1)
+    #require(snapshot.exitCode == -1)
   }
 
   // MARK: - Full provisioner flow with a fake runner
 
+  @Test
   func testProvisionShortCircuitsWhenCLTAlreadyInstalled() async throws {
     let runner = FakeBashRunner()
     runner.responder = { command, _ in
       if command.contains("PRESENT") || command.contains("MISSING") {
         return ProcessResult(exitCode: 0, stdout: "PRESENT\n", stderr: "")
       }
-      XCTFail("Provisioner should short-circuit before any other RPC. Got: \(command)")
+      #require(false, "Provisioner should short-circuit before any other RPC. Got: \(command)")
       return ProcessResult(exitCode: 1, stdout: "", stderr: "unexpected")
     }
     var progressUpdates: [Double] = []
@@ -258,12 +283,13 @@ final class SharedCompassVMDevToolsProvisionerTests: XCTestCase {
       runner: runner,
       progress: { progressUpdates.append($0) }
     )
-    XCTAssertTrue(report.alreadyInstalled)
-    XCTAssertEqual(runner.callCount, 1)
-    XCTAssertEqual(progressUpdates.first, 0)
-    XCTAssertEqual(progressUpdates.last, 1)
+    #require(report.alreadyInstalled)
+    #require(runner.callCount == 1)
+    #require(progressUpdates.first == 0)
+    #require(progressUpdates.last == 1)
   }
 
+  @Test
   func testProvisionDrivesFullInstallFlow() async throws {
     let runner = FakeBashRunner()
     var pollCount = 0
@@ -323,7 +349,7 @@ final class SharedCompassVMDevToolsProvisionerTests: XCTestCase {
         return ProcessResult(
           exitCode: 0, stdout: "/Library/Developer/CommandLineTools\n", stderr: "")
       }
-      XCTFail("Unexpected RPC: \(command)")
+      #require(false, "Unexpected RPC: \(command)")
       return ProcessResult(exitCode: 1, stdout: "", stderr: "unexpected")
     }
 
@@ -335,17 +361,18 @@ final class SharedCompassVMDevToolsProvisionerTests: XCTestCase {
       sleep: { _ in }  // Drive the poll loop without real waits.
     )
 
-    XCTAssertFalse(report.alreadyInstalled)
-    XCTAssertGreaterThanOrEqual(pollCount, 3)
-    XCTAssertEqual(progressUpdates.first, 0)
-    XCTAssertEqual(progressUpdates.last, 1)
+    #require(!report.alreadyInstalled)
+    #require(pollCount >= 3)
+    #require(progressUpdates.first == 0)
+    #require(progressUpdates.last == 1)
     // Monotone — once we've seen a higher fraction we must never go
     // back. UI would otherwise flicker backwards.
     for i in 1..<progressUpdates.count {
-      XCTAssertGreaterThanOrEqual(progressUpdates[i], progressUpdates[i - 1])
+      #require(progressUpdates[i] >= progressUpdates[i - 1])
     }
   }
 
+  @Test
   func testProvisionThrowsOnInstallFailure() async {
     let runner = FakeBashRunner()
     runner.responder = { command, _ in
@@ -370,6 +397,7 @@ final class SharedCompassVMDevToolsProvisionerTests: XCTestCase {
       }
       return ProcessResult(exitCode: 0, stdout: "", stderr: "")
     }
+    var threw = false
     do {
       _ = try await SharedCompassVMDevToolsProvisioner.provision(
         runner: runner,
@@ -377,19 +405,21 @@ final class SharedCompassVMDevToolsProvisionerTests: XCTestCase {
         now: { Date() },
         sleep: { _ in }
       )
-      XCTFail("Expected installFailed")
     } catch let error as SharedCompassVMDevToolsProvisioner.ProvisionError {
+      threw = true
       guard case .installFailed(let code, let tail) = error else {
-        XCTFail("Expected .installFailed, got \(error)")
+        #require(false, "Expected .installFailed, got \(error)")
         return
       }
-      XCTAssertEqual(code, 2)
-      XCTAssertTrue(tail.contains("no Command Line Tools label"))
+      #require(code == 2)
+      #require(tail.contains("no Command Line Tools label"))
     } catch {
-      XCTFail("Unexpected error type: \(error)")
+      #require(false, "Unexpected error type: \(error)")
     }
+    #require(threw, "Expected installFailed")
   }
 
+  @Test
   func testProvisionThrowsOnPollTimeout() async {
     // Force `now()` to advance past the install deadline immediately
     // on the second call, so the poll loop sees one RUNNING reply and
@@ -420,6 +450,7 @@ final class SharedCompassVMDevToolsProvisionerTests: XCTestCase {
 
     let baseDate = Date(timeIntervalSince1970: 1_000_000)
     let clock = MutableClock(initial: baseDate)
+    var threw = false
     do {
       _ = try await SharedCompassVMDevToolsProvisioner.provision(
         runner: runner,
@@ -428,19 +459,21 @@ final class SharedCompassVMDevToolsProvisionerTests: XCTestCase {
         // 10 minutes per "sleep" — past the 15-min timeout in 2 ticks.
         sleep: { _ in clock.advance(by: 10 * 60) }
       )
-      XCTFail("Expected installTimedOut")
     } catch let error as SharedCompassVMDevToolsProvisioner.ProvisionError {
+      threw = true
       guard case .installTimedOut(let phase, let tail) = error else {
-        XCTFail("Expected .installTimedOut, got \(error)")
+        #require(false, "Expected .installTimedOut, got \(error)")
         return
       }
-      XCTAssertEqual(phase, .downloading)
-      XCTAssertTrue(tail.contains("Downloading"))
+      #require(phase == .downloading)
+      #require(tail.contains("Downloading"))
     } catch {
-      XCTFail("Unexpected error type: \(error)")
+      #require(false, "Unexpected error type: \(error)")
     }
+    #require(threw, "Expected installTimedOut")
   }
 
+  @Test
   func testProvisionThrowsOnFinaliseFailure() async {
     let runner = FakeBashRunner()
     runner.responder = { command, _ in
@@ -476,6 +509,7 @@ final class SharedCompassVMDevToolsProvisionerTests: XCTestCase {
       }
       return ProcessResult(exitCode: 0, stdout: "", stderr: "")
     }
+    var threw = false
     do {
       _ = try await SharedCompassVMDevToolsProvisioner.provision(
         runner: runner,
@@ -483,16 +517,17 @@ final class SharedCompassVMDevToolsProvisionerTests: XCTestCase {
         now: { Date() },
         sleep: { _ in }
       )
-      XCTFail("Expected finaliseFailed")
     } catch let error as SharedCompassVMDevToolsProvisioner.ProvisionError {
+      threw = true
       guard case .finaliseFailed(let stderr) = error else {
-        XCTFail("Expected .finaliseFailed, got \(error)")
+        #require(false, "Expected .finaliseFailed, got \(error)")
         return
       }
-      XCTAssertTrue(stderr.contains("no developer dir found"))
+      #require(stderr.contains("no developer dir found"))
     } catch {
-      XCTFail("Unexpected error type: \(error)")
+      #require(false, "Unexpected error type: \(error)")
     }
+    #require(threw, "Expected finaliseFailed")
   }
 }
 

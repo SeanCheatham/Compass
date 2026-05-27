@@ -1,12 +1,12 @@
 import Foundation
-import XCTest
+import Testing
 
 @testable import Compass
 
-final class DraftRefinementTests: XCTestCase {
-  func testParserAcceptsGeneratedJSONRefinement() throws {
+struct DraftRefinementTests {
+  @Test func testParserAcceptsGeneratedJSONRefinement() throws {
     let context = makeContext()
-    let refinement = try XCTUnwrap(
+    let refinement = #require(
       DraftRefinementService.parseGeneratedRefinement(
         #"{"refined":"Add parser tests for Package.swift."}"#,
         draft: "add parser tests for Package.swift",
@@ -14,14 +14,14 @@ final class DraftRefinementTests: XCTestCase {
       )
     )
 
-    XCTAssertEqual(refinement.originalDraft, "add parser tests for Package.swift")
-    XCTAssertEqual(refinement.refinedText, "Add parser tests for Package.swift.")
-    XCTAssertEqual(refinement.source, .generated)
+    #require(refinement.originalDraft == "add parser tests for Package.swift")
+    #require(refinement.refinedText == "Add parser tests for Package.swift.")
+    #require(refinement.source == .generated)
   }
 
-  func testParserAcceptsGeneratedRefinedLine() throws {
+  @Test func testParserAcceptsGeneratedRefinedLine() throws {
     let context = makeContext()
-    let refinement = try XCTUnwrap(
+    let refinement = #require(
       DraftRefinementService.parseGeneratedRefinement(
         "Refined: Add parser tests for Package.swift.",
         draft: "add parser tests for Package.swift",
@@ -29,55 +29,60 @@ final class DraftRefinementTests: XCTestCase {
       )
     )
 
-    XCTAssertEqual(refinement.refinedText, "Add parser tests for Package.swift.")
+    #require(refinement.refinedText == "Add parser tests for Package.swift.")
   }
 
-  func testParserRejectsInventedFilesNumbersAndConstraints() {
+  @Test func testParserRejectsInventedFilesNumbersAndConstraints() {
     let context = makeContext()
     let draft = "add parser tests"
 
-    XCTAssertNil(
+    #require(
       DraftRefinementService.parseGeneratedRefinement(
         "Refined: Add parser tests in Sources/App.swift.",
         draft: draft,
         context: context
-      )
+      ) ==
+      nil
     )
-    XCTAssertNil(
+    #require(
       DraftRefinementService.parseGeneratedRefinement(
         "Refined: Add 3 parser tests.",
         draft: draft,
         context: context
-      )
+      ) ==
+      nil
     )
-    XCTAssertNil(
+    #require(
       DraftRefinementService.parseGeneratedRefinement(
         "Refined: Add parser tests that must pass.",
         draft: draft,
         context: context
-      )
+      ) ==
+      nil
     )
   }
 
-  func testParserRejectsInventedOutcomeAndExtraStructure() {
+  @Test func testParserRejectsInventedOutcomeAndExtraStructure() {
     let context = makeContext()
     let draft = "add parser tests"
 
-    XCTAssertNil(
+    #require(
       DraftRefinementService.parseGeneratedRefinement(
         "Refined: Completed parser tests.",
         draft: draft,
         context: context
-      )
+      ) ==
+      nil
     )
-    XCTAssertNil(
+    #require(
       DraftRefinementService.parseGeneratedRefinement(
         #"{"refined":"Add parser tests.","note":"extra commentary"}"#,
         draft: draft,
         context: context
-      )
+      ) ==
+      nil
     )
-    XCTAssertNil(
+    #require(
       DraftRefinementService.parseGeneratedRefinement(
         """
         Refined: Add parser tests.
@@ -85,28 +90,29 @@ final class DraftRefinementTests: XCTestCase {
         """,
         draft: draft,
         context: context
-      )
+      ) ==
+      nil
     )
   }
 
-  func testDeterministicFallbackNormalizesWithoutInventingDetails() throws {
+  @Test func testDeterministicFallbackNormalizesWithoutInventingDetails() throws {
     let context = makeContext()
-    let refinement = try XCTUnwrap(
+    let refinement = #require(
       DraftRefinementService.deterministicRefinement(
         draft: "  - review Package.swift in 2 areas  ",
         context: context
       )
     )
 
-    XCTAssertEqual(refinement.refinedText, "Review Package.swift in 2 areas.")
-    XCTAssertEqual(refinement.source, .deterministic)
-    XCTAssertTrue(refinement.refinedText.contains("Package.swift"))
-    XCTAssertTrue(refinement.refinedText.contains("2"))
-    XCTAssertFalse(refinement.refinedText.contains("Sources/App.swift"))
-    XCTAssertFalse(refinement.refinedText.contains("must"))
+    #require(refinement.refinedText == "Review Package.swift in 2 areas.")
+    #require(refinement.source == .deterministic)
+    #require(refinement.refinedText.contains("Package.swift"))
+    #require(refinement.refinedText.contains("2"))
+    #require(!refinement.refinedText.contains("Sources/App.swift"))
+    #require(!refinement.refinedText.contains("must"))
   }
 
-  func testPreviewPlannerDebouncesAndUsesCacheKey() {
+  @Test func testPreviewPlannerDebouncesAndUsesCacheKey() {
     let context = makeContext()
     let plan = DraftRefinementPreviewPlanner.plan(
       draft: "  add parser tests  ",
@@ -115,11 +121,11 @@ final class DraftRefinementTests: XCTestCase {
       cachedKeys: []
     )
 
-    XCTAssertEqual(plan.visibility, .debounce)
-    XCTAssertEqual(plan.delayNanoseconds, 600_000_000)
+    #require(plan.visibility == .debounce)
+    #require(plan.delayNanoseconds == 600_000_000)
 
     let key = DraftRefinementPreviewKey(trimmedDraft: "add parser tests", context: context)
-    XCTAssertEqual(plan.cacheKey, key)
+    #require(plan.cacheKey == key)
 
     let cachedPlan = DraftRefinementPreviewPlanner.plan(
       draft: "add parser tests",
@@ -128,13 +134,13 @@ final class DraftRefinementTests: XCTestCase {
       cachedKeys: [key]
     )
 
-    XCTAssertEqual(cachedPlan.visibility, .cached)
-    XCTAssertEqual(cachedPlan.delayNanoseconds, 0)
-    XCTAssertEqual(cachedPlan.cacheKey, key)
-    XCTAssertTrue(cachedPlan.shouldShowPreviewSurface)
+    #require(cachedPlan.visibility == .cached)
+    #require(cachedPlan.delayNanoseconds == 0)
+    #require(cachedPlan.cacheKey == key)
+    #require(cachedPlan.shouldShowPreviewSurface)
   }
 
-  func testPreviewPlannerHidesForEmptyDraftAndUnavailableModel() {
+  @Test func testPreviewPlannerHidesForEmptyDraftAndUnavailableModel() {
     let context = makeContext()
     let emptyPlan = DraftRefinementPreviewPlanner.plan(
       draft: "   ",
@@ -149,10 +155,10 @@ final class DraftRefinementTests: XCTestCase {
       cachedKeys: []
     )
 
-    XCTAssertEqual(emptyPlan.visibility, .hiddenEmptyDraft)
-    XCTAssertFalse(emptyPlan.shouldShowPreviewSurface)
-    XCTAssertEqual(unavailablePlan.visibility, .hiddenUnavailableModel)
-    XCTAssertFalse(unavailablePlan.shouldShowPreviewSurface)
+    #require(emptyPlan.visibility == .hiddenEmptyDraft)
+    #require(!emptyPlan.shouldShowPreviewSurface)
+    #require(unavailablePlan.visibility == .hiddenUnavailableModel)
+    #require(!unavailablePlan.shouldShowPreviewSurface)
   }
 
   private func makeContext() -> DraftRefinementContext {

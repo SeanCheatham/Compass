@@ -1,11 +1,12 @@
-import XCTest
+import Foundation
+import Testing
 
 @testable import Compass
 
-final class SharedCompassVMHeadlessPlanterTests: XCTestCase {
+struct SharedCompassVMHeadlessPlanterTests {
   private var temporaryDirectories: [URL] = []
 
-  override func tearDownWithError() throws {
+  func cleanup() {
     for url in temporaryDirectories {
       try? FileManager.default.removeItem(at: url)
     }
@@ -14,6 +15,7 @@ final class SharedCompassVMHeadlessPlanterTests: XCTestCase {
 
   // MARK: - hdiutil attach plist parsing
 
+  @Test
   func testParseContainerDevnodeFromAttachPlistPicksTheWholeDiskNode() throws {
     let plist = """
       <?xml version="1.0" encoding="UTF-8"?>
@@ -45,9 +47,10 @@ final class SharedCompassVMHeadlessPlanterTests: XCTestCase {
       </plist>
       """
     let devnode = try HDIUtilDiskAttacher.parseContainerDeviceNode(fromPlist: plist)
-    XCTAssertEqual(devnode, "/dev/disk7")
+    #require(devnode == "/dev/disk7")
   }
 
+  @Test
   func testParseContainerDevnodeFallsBackToFirstEntryWhenNoWholeDiskMatch() throws {
     let plist = """
       <?xml version="1.0" encoding="UTF-8"?>
@@ -64,9 +67,10 @@ final class SharedCompassVMHeadlessPlanterTests: XCTestCase {
       </plist>
       """
     let devnode = try HDIUtilDiskAttacher.parseContainerDeviceNode(fromPlist: plist)
-    XCTAssertEqual(devnode, "/dev/disk9s1")
+    #require(devnode == "/dev/disk9s1")
   }
 
+  @Test
   func testParseContainerDevnodeRejectsEmptySystemEntities() {
     let plist = """
       <?xml version="1.0" encoding="UTF-8"?>
@@ -77,20 +81,22 @@ final class SharedCompassVMHeadlessPlanterTests: XCTestCase {
       </dict>
       </plist>
       """
-    XCTAssertThrowsError(try HDIUtilDiskAttacher.parseContainerDeviceNode(fromPlist: plist))
+    var threw = false
+    do { _ = try HDIUtilDiskAttacher.parseContainerDeviceNode(fromPlist: plist) } catch { threw = true }
+    #require(threw)
   }
 
+  @Test
   func testParseContainerDevnodeRejectsNonPlistInput() {
-    XCTAssertThrowsError(try HDIUtilDiskAttacher.parseContainerDeviceNode(fromPlist: "garbage"))
+    var threw = false
+    do { _ = try HDIUtilDiskAttacher.parseContainerDeviceNode(fromPlist: "garbage") } catch { threw = true }
+    #require(threw)
   }
 
   // MARK: - hdiutil attach: APFS physical-store identifier
 
+  @Test
   func testParseAPFSPhysicalStoreIdentifierPicksTheAppleAPFSSlice() throws {
-    // Mirrors the real `hdiutil attach -plist` shape: an
-    // Apple_APFS_ISC (iBoot), an Apple_APFS_Recovery, and the
-    // actual Apple_APFS slice we care about. We must ignore the
-    // _ISC / _Recovery variants and pick the bare Apple_APFS one.
     let plist = """
       <?xml version="1.0" encoding="UTF-8"?>
       <plist version="1.0">
@@ -126,9 +132,10 @@ final class SharedCompassVMHeadlessPlanterTests: XCTestCase {
       </plist>
       """
     let identifier = try HDIUtilDiskAttacher.parseAPFSPhysicalStoreIdentifier(fromPlist: plist)
-    XCTAssertEqual(identifier, "disk4s2")
+    #require(identifier == "disk4s2")
   }
 
+  @Test
   func testParseAPFSPhysicalStoreIdentifierThrowsWhenNoBareAppleAPFSPresent() {
     let plist = """
       <?xml version="1.0" encoding="UTF-8"?>
@@ -152,17 +159,17 @@ final class SharedCompassVMHeadlessPlanterTests: XCTestCase {
       </dict>
       </plist>
       """
-    XCTAssertThrowsError(try HDIUtilDiskAttacher.parseAPFSPhysicalStoreIdentifier(fromPlist: plist))
+    var threw = false
+    do {
+      _ = try HDIUtilDiskAttacher.parseAPFSPhysicalStoreIdentifier(fromPlist: plist)
+    } catch { threw = true }
+    #require(threw)
   }
 
   // MARK: - diskutil apfs list plist parsing
 
+  @Test
   func testParseDataVolumeDevnodeReturnsDataRoleVolumeForMatchingPhysicalStore() throws {
-    // System-wide `diskutil apfs list -plist` returns multiple
-    // containers — we must match by PhysicalStores, not just pick the
-    // first Data-role volume we see, because the host may have other
-    // attached disk images (e.g. Xcode simulators) with their own
-    // Data volumes.
     let plist = """
       <?xml version="1.0" encoding="UTF-8"?>
       <plist version="1.0">
@@ -225,11 +232,10 @@ final class SharedCompassVMHeadlessPlanterTests: XCTestCase {
       fromPlist: plist,
       matchingPhysicalStore: "disk4s2"
     )
-    // Must come from the second container (the one with our physical
-    // store), NOT the first container's host-OS Data volume.
-    XCTAssertEqual(devnode, "/dev/disk9s5")
+    #require(devnode == "/dev/disk9s5")
   }
 
+  @Test
   func testParseDataVolumeDevnodeThrowsWhenNoContainerMatchesPhysicalStore() {
     let plist = """
       <?xml version="1.0" encoding="UTF-8"?>
@@ -261,14 +267,17 @@ final class SharedCompassVMHeadlessPlanterTests: XCTestCase {
       </dict>
       </plist>
       """
-    XCTAssertThrowsError(
-      try DiskUtilDataVolumeLocator.parseDataVolumeDeviceNode(
+    var threw = false
+    do {
+      _ = try DiskUtilDataVolumeLocator.parseDataVolumeDeviceNode(
         fromPlist: plist,
         matchingPhysicalStore: "disk4s2"
       )
-    )
+    } catch { threw = true }
+    #require(threw)
   }
 
+  @Test
   func testParseDataVolumeDevnodeThrowsWhenMatchingContainerHasNoDataVolume() {
     let plist = """
       <?xml version="1.0" encoding="UTF-8"?>
@@ -300,90 +309,96 @@ final class SharedCompassVMHeadlessPlanterTests: XCTestCase {
       </dict>
       </plist>
       """
-    XCTAssertThrowsError(
-      try DiskUtilDataVolumeLocator.parseDataVolumeDeviceNode(
+    var threw = false
+    do {
+      _ = try DiskUtilDataVolumeLocator.parseDataVolumeDeviceNode(
         fromPlist: plist,
         matchingPhysicalStore: "disk4s2"
       )
-    )
+    } catch { threw = true }
+    #require(threw)
   }
 
   // MARK: - Elevated script rendering
 
+  @Test
   func testElevatedScriptInstallsLaunchDaemonAsRootWheel0644() {
     let script = renderStandardScript()
-    XCTAssertTrue(script.contains("install -o root -g wheel -m 0644"))
-    XCTAssertTrue(
+    #require(script.contains("install -o root -g wheel -m 0644"))
+    #require(
       script.contains("$MOUNT_POINT/Library/LaunchDaemons/com.seancheatham.Compass.firstboot.plist")
     )
   }
 
+  @Test
   func testElevatedScriptInstallsBootstrapScriptAsRootWheel0755() {
     let script = renderStandardScript()
-    XCTAssertTrue(script.contains("install -o root -g wheel -m 0755"))
-    XCTAssertTrue(script.contains("$STAGING_DIR/bootstrap.sh"))
-    XCTAssertTrue(script.contains("$MOUNT_POINT/usr/local/libexec/compass-firstboot.sh"))
+    #require(script.contains("install -o root -g wheel -m 0755"))
+    #require(script.contains("$STAGING_DIR/bootstrap.sh"))
+    #require(script.contains("$MOUNT_POINT/usr/local/libexec/compass-firstboot.sh"))
   }
 
+  @Test
   func testElevatedScriptInstallsSudoersAsRootWheel0440() {
     let script = renderStandardScript()
-    XCTAssertTrue(script.contains("install -o root -g wheel -m 0440"))
-    XCTAssertTrue(script.contains("$MOUNT_POINT/private/etc/sudoers.d/compass"))
+    #require(script.contains("install -o root -g wheel -m 0440"))
+    #require(script.contains("$MOUNT_POINT/private/etc/sudoers.d/compass"))
   }
 
+  @Test
   func testElevatedScriptInstallsAppleSetupDoneMarker() {
     let script = renderStandardScript()
-    XCTAssertTrue(script.contains("$MOUNT_POINT/private/var/db/.AppleSetupDone"))
+    #require(script.contains("$MOUNT_POINT/private/var/db/.AppleSetupDone"))
   }
 
+  @Test
   func testElevatedScriptStagesPublicKeyAndPassword() {
     let script = renderStandardScript()
-    XCTAssertTrue(script.contains("$MOUNT_POINT/Users/Shared/compass-firstboot/id_ed25519.pub"))
-    XCTAssertTrue(script.contains("$MOUNT_POINT/Users/Shared/compass-firstboot/user.password"))
-    XCTAssertTrue(script.contains("install -o root -g wheel -m 0600"))
+    #require(script.contains("$MOUNT_POINT/Users/Shared/compass-firstboot/id_ed25519.pub"))
+    #require(script.contains("$MOUNT_POINT/Users/Shared/compass-firstboot/user.password"))
+    #require(script.contains("install -o root -g wheel -m 0600"))
   }
 
+  @Test
   func testElevatedScriptInstallsAutoLoginHelper() {
     let script = renderStandardScript()
-    XCTAssertTrue(script.contains("$MOUNT_POINT/usr/local/libexec/compass-autologin.sh"))
-    XCTAssertTrue(
+    #require(script.contains("$MOUNT_POINT/usr/local/libexec/compass-autologin.sh"))
+    #require(
       script.contains(
         "$MOUNT_POINT/Library/LaunchDaemons/com.seancheatham.Compass.autologin.plist")
     )
   }
 
+  @Test
   func testElevatedScriptUnmountsViaTrapOnExit() {
     let script = renderStandardScript()
-    XCTAssertTrue(script.contains("trap cleanup EXIT"))
-    XCTAssertTrue(script.contains("diskutil unmount \"$MOUNT_POINT\""))
+    #require(script.contains("trap cleanup EXIT"))
+    #require(script.contains("diskutil unmount \"$MOUNT_POINT\""))
   }
 
+  @Test
   func testElevatedScriptUsesDiskutilMountWithExplicitMountPoint() {
     let script = renderStandardScript()
-    XCTAssertTrue(
+    #require(
       script.contains("diskutil mount -mountPoint \"$MOUNT_POINT\" -nobrowse \"$DATA_DEV\""))
   }
 
+  @Test
   func testElevatedScriptRetriesDiskutilMountThenFallsBackToMountApfs() {
-    // Two-tier strategy: diskutil mount preferred (sets up the
-    // standard mount options) but mount_apfs as fallback because
-    // diskutil has refused freshly-installed VZ disks indefinitely
-    // even with lsof showing zero openers. mount_apfs is the
-    // underlying syscall and bypasses diskutil/DA policy checks.
     let script = renderStandardScript()
-    XCTAssertTrue(
+    #require(
       script.contains("diskutil mount -mountPoint"),
       "elevated script should try diskutil mount first"
     )
-    XCTAssertTrue(
+    #require(
       script.contains("mount_max_attempts"),
       "elevated script should bound the diskutil retry budget so failures surface"
     )
-    XCTAssertTrue(
+    #require(
       script.contains("mount_apfs -o nobrowse"),
       "elevated script should fall back to mount_apfs when diskutil refuses"
     )
-    XCTAssertTrue(
+    #require(
       script.contains("both diskutil mount and mount_apfs failed"),
       "elevated script should explicitly report when both strategies failed"
     )
@@ -391,26 +406,28 @@ final class SharedCompassVMHeadlessPlanterTests: XCTestCase {
 
   // MARK: - Staging
 
+  @Test
   func testStagePayloadWritesAllArtifactsByWellKnownName() throws {
     let stagingDir = makeTempDir()
     let payload = makePayload()
     try SharedCompassVMHeadlessPlanter.stagePayload(payload, into: stagingDir)
 
     let fm = FileManager.default
-    XCTAssertTrue(fm.fileExists(atPath: stagingDir.appendingPathComponent("launchd.plist").path))
-    XCTAssertTrue(fm.fileExists(atPath: stagingDir.appendingPathComponent("bootstrap.sh").path))
-    XCTAssertTrue(fm.fileExists(atPath: stagingDir.appendingPathComponent("sudoers").path))
-    XCTAssertTrue(fm.fileExists(atPath: stagingDir.appendingPathComponent("apple-setup-done").path))
-    XCTAssertTrue(fm.fileExists(atPath: stagingDir.appendingPathComponent("id_ed25519.pub").path))
-    XCTAssertTrue(fm.fileExists(atPath: stagingDir.appendingPathComponent("user.password").path))
-    XCTAssertTrue(
+    #require(fm.fileExists(atPath: stagingDir.appendingPathComponent("launchd.plist").path))
+    #require(fm.fileExists(atPath: stagingDir.appendingPathComponent("bootstrap.sh").path))
+    #require(fm.fileExists(atPath: stagingDir.appendingPathComponent("sudoers").path))
+    #require(fm.fileExists(atPath: stagingDir.appendingPathComponent("apple-setup-done").path))
+    #require(fm.fileExists(atPath: stagingDir.appendingPathComponent("id_ed25519.pub").path))
+    #require(fm.fileExists(atPath: stagingDir.appendingPathComponent("user.password").path))
+    #require(
       fm.fileExists(atPath: stagingDir.appendingPathComponent("compass-autologin.sh").path))
-    XCTAssertTrue(
+    #require(
       fm.fileExists(
         atPath: stagingDir.appendingPathComponent("com.seancheatham.Compass.autologin.plist").path
       ))
   }
 
+  @Test
   func testStagePayloadTightensPasswordFilePermissionsTo0600() throws {
     let stagingDir = makeTempDir()
     let payload = makePayload()
@@ -419,23 +436,23 @@ final class SharedCompassVMHeadlessPlanterTests: XCTestCase {
       atPath: stagingDir.appendingPathComponent("user.password").path
     )
     let perms = (attrs[.posixPermissions] as? NSNumber)?.intValue
-    XCTAssertEqual(perms, 0o600)
+    #require(perms == 0o600)
   }
 
+  @Test
   func testMakeStagingDirectoryReturnsFreshUUIDPath() throws {
     let first = try SharedCompassVMHeadlessPlanter.makeStagingDirectory()
     temporaryDirectories.append(first)
     let second = try SharedCompassVMHeadlessPlanter.makeStagingDirectory()
     temporaryDirectories.append(second)
-    XCTAssertNotEqual(first, second)
-    XCTAssertTrue(first.lastPathComponent.hasPrefix("Compass-HeadlessFirstBoot-"))
+    #require(first != second)
+    #require(first.lastPathComponent.hasPrefix("Compass-HeadlessFirstBoot-"))
   }
 
   // MARK: - plant(...) integration with mocked deps
 
+  @Test
   func testPlantOrchestrationStagesPayloadInvokesElevatorAndDetachesContainer() async throws {
-    // Fakes capture every call so the test can assert order + arguments
-    // without spawning hdiutil / osascript.
     let attacher = FakeAttacher()
     attacher.deviceNode = "/dev/disk7"
     attacher.apfsPhysicalStore = "disk7s2"
@@ -460,34 +477,27 @@ final class SharedCompassVMHeadlessPlanterTests: XCTestCase {
       dependencies: dependencies
     )
 
-    // Mock invocation accounting — locator must be queried by the
-    // Apple_APFS physical store identifier, not the whole-disk node.
-    XCTAssertEqual(attacher.attachedURLs, [diskImageURL])
-    XCTAssertEqual(locator.queriedPhysicalStores, ["disk7s2"])
-    XCTAssertEqual(elevator.invokedScriptURLs.count, 1)
-    XCTAssertTrue(report.dataVolumeDeviceNode == "/dev/disk9s5")
-    XCTAssertEqual(report.elevatedScriptOutput, "[compass-planter] done.\n")
+    #require(attacher.attachedURLs == [diskImageURL])
+    #require(locator.queriedPhysicalStores == ["disk7s2"])
+    #require(elevator.invokedScriptURLs.count == 1)
+    #require(report.dataVolumeDeviceNode == "/dev/disk9s5")
+    #require(report.elevatedScriptOutput == "[compass-planter] done.\n")
 
-    // The elevated script the planter wrote must reference both the
-    // staging dir it created and the data volume devnode it discovered.
     let writtenScript = elevator.invokedScriptContents.first ?? ""
-    XCTAssertTrue(writtenScript.contains("/dev/disk9s5"))
-    XCTAssertTrue(writtenScript.contains("$STAGING_DIR/launchd.plist"))
-    XCTAssertTrue(writtenScript.contains("$STAGING_DIR/bootstrap.sh"))
-    XCTAssertTrue(writtenScript.contains("$STAGING_DIR/sudoers"))
-    XCTAssertTrue(writtenScript.contains("$STAGING_DIR/user.password"))
-    XCTAssertTrue(writtenScript.contains("$STAGING_DIR/id_ed25519.pub"))
+    #require(writtenScript.contains("/dev/disk9s5"))
+    #require(writtenScript.contains("$STAGING_DIR/launchd.plist"))
+    #require(writtenScript.contains("$STAGING_DIR/bootstrap.sh"))
+    #require(writtenScript.contains("$STAGING_DIR/sudoers"))
+    #require(writtenScript.contains("$STAGING_DIR/user.password"))
+    #require(writtenScript.contains("$STAGING_DIR/id_ed25519.pub"))
 
-    // After completion, the planter must detach the container so VZ can
-    // grab the disk back for boot. (The detach call is deferred inside
-    // plant; allow the runtime a tick to drain it.)
     try await Task.sleep(nanoseconds: 100_000_000)
-    XCTAssertEqual(attacher.detachedDeviceNodes, ["/dev/disk7"])
+    #require(attacher.detachedDeviceNodes == ["/dev/disk7"])
 
-    // Staging dir must be cleaned up so subsequent runs start fresh.
-    XCTAssertFalse(FileManager.default.fileExists(atPath: report.stagingDirectoryURL.path))
+    #require(!FileManager.default.fileExists(atPath: report.stagingDirectoryURL.path))
   }
 
+  @Test
   func testPlantCleansUpStagingDirectoryEvenWhenElevatedScriptThrows() async throws {
     let attacher = FakeAttacher()
     attacher.deviceNode = "/dev/disk9"
@@ -505,21 +515,20 @@ final class SharedCompassVMHeadlessPlanterTests: XCTestCase {
     FileManager.default.createFile(atPath: diskImageURL.path, contents: Data())
 
     let payload = makePayload()
+    var threwExpected = false
     do {
       _ = try await SharedCompassVMHeadlessPlanter.plant(
         payload: payload,
         diskImageURL: diskImageURL,
         dependencies: dependencies
       )
-      XCTFail("plant should rethrow elevator failures")
     } catch SharedCompassVMHeadlessPlanter.Error.userCancelledElevation {
-      // expected
+      threwExpected = true
     } catch {
-      XCTFail("unexpected error \(error)")
+      #require(false, "unexpected error \(error)")
     }
+    #require(threwExpected, "plant should rethrow elevator failures")
 
-    // Even on failure, the staging dir must be removed so the next
-    // provisioning attempt is not left with stale files on disk.
     let leftoverDirs =
       (try? FileManager.default.contentsOfDirectory(
         at: URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true),
@@ -528,7 +537,7 @@ final class SharedCompassVMHeadlessPlanterTests: XCTestCase {
     let leakedPlanterDirs = leftoverDirs.filter {
       $0.lastPathComponent.hasPrefix("Compass-HeadlessFirstBoot-")
     }
-    XCTAssertTrue(
+    #require(
       leakedPlanterDirs.isEmpty, "plant leaked staging directories: \(leakedPlanterDirs)")
   }
 
@@ -544,7 +553,7 @@ final class SharedCompassVMHeadlessPlanterTests: XCTestCase {
       attachedURLs.append(diskImageURL)
       return HostDiskAttachment(
         wholeDiskDeviceNode: deviceNode,
-        apfsPhysicalStoreIdentifier: apfsPhysicalStore,
+        apfsPhysicalStoreIdentifier标识符: apfsPhysicalStore,
         rawPlist: ""
       )
     }

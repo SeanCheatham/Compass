@@ -1,25 +1,24 @@
 import Foundation
 import Testing
-import XCTest
 
 @testable import Compass
 
-final class PlanTransitionValidatorTests: XCTestCase {
-  func testRejectsClearingMidTermWithoutCompletion() {
+struct PlanTransitionValidatorTests {
+  @Test func testRejectsClearingMidTermWithoutCompletion() {
     let current = makeState(completed: ["done"], midTerm: "- Next queued item")
     let next = makeState(completed: ["done"], midTerm: "   \n")
 
     assertTransitionRejected(from: current, to: next, contains: "clear a non-empty midTerm queue")
   }
 
-  func testRejectsPlaceholderVerifyCommands() {
+  @Test func testRejectsPlaceholderVerifyCommands() {
     let current = makeState()
     let next = makeState(immediate: PlanNext(plan: "Do work", verify: " true "))
 
     assertTransitionRejected(from: current, to: next, contains: "placeholder verify command")
   }
 
-  func testAcceptsNormalImmediateWork() throws {
+  @Test func testAcceptsNormalImmediateWork() throws {
     let current = makeState(midTerm: "- Build the next slice")
     let next = makeState(
       immediate: PlanNext(plan: "Build the next slice", verify: "swift test"),
@@ -29,7 +28,7 @@ final class PlanTransitionValidatorTests: XCTestCase {
     try PlanTransitionValidator.validate(from: current, to: next)
   }
 
-  func testAcceptsMidTermRewriteWithoutChangingCompleted() throws {
+  @Test func testAcceptsMidTermRewriteWithoutChangingCompleted() throws {
     let current = makeState(completed: ["First slice"], midTerm: "- Old queue")
     let proposal = PlanProposal(
       immediate: PlanNext(plan: "Take the rewritten next step", verify: "swift test"),
@@ -38,11 +37,11 @@ final class PlanTransitionValidatorTests: XCTestCase {
     )
     let next = current.applying(proposal: proposal)
 
-    XCTAssertEqual(next.completed, current.completed)
+    #require(next.completed == current.completed)
     try PlanTransitionValidator.validate(from: current, to: next)
   }
 
-  func testAcceptsNoImmediateWorkState() throws {
+  @Test func testAcceptsNoImmediateWorkState() throws {
     let current = makeState(completed: ["Everything shipped"], midTerm: "")
     let next = makeState(
       completed: ["Everything shipped"], immediate: nil, midTerm: "", longTerm: "")
@@ -71,27 +70,27 @@ final class PlanTransitionValidatorTests: XCTestCase {
     file: StaticString = #filePath,
     line: UInt = #line
   ) {
-    XCTAssertThrowsError(
-      try PlanTransitionValidator.validate(from: current, to: next),
-      file: file,
-      line: line
-    ) { error in
-      let message =
+    var threw = false
+    var message = ""
+    do {
+      try PlanTransitionValidator.validate(from: current, to: next)
+    } catch {
+      threw = true
+      message =
         (error as? PlanTransitionValidationError)?.message
         ?? (error as? LocalizedError)?.errorDescription
         ?? error.localizedDescription
-      XCTAssertTrue(
-        message.contains(expectedText),
-        "Expected error containing `\(expectedText)`, got `\(message)`.",
-        file: file,
-        line: line
-      )
     }
+    #require(threw, "Expected transition to be rejected but it succeeded")
+    #require(
+      message.contains(expectedText),
+      "Expected error containing `\(expectedText)`, got `\(message)`."
+    )
   }
 }
 
-final class PlanCompletionRecorderTests: XCTestCase {
-  func testRecordsSuccessfulSessionPlanLine() {
+struct PlanCompletionRecorderTests {
+  @Test func testRecordsSuccessfulSessionPlanLine() {
     let state = PlanState.empty
     let sessions = [
       makeSucceededSession(1, plan: "Ship feature X\n\nDetails"),
@@ -102,10 +101,10 @@ final class PlanCompletionRecorderTests: XCTestCase {
       sessions: sessions
     )
 
-    XCTAssertEqual(updated.completed, ["Ship feature X"])
+    #require(updated.completed == ["Ship feature X"])
   }
 
-  func testDoesNotDuplicateAlreadyRecordedSessions() {
+  @Test func testDoesNotDuplicateAlreadyRecordedSessions() {
     let state = makeState(completed: ["Ship feature X"])
     let sessions = [makeSucceededSession(1, plan: "Ship feature X")]
 
@@ -114,10 +113,10 @@ final class PlanCompletionRecorderTests: XCTestCase {
       sessions: sessions
     )
 
-    XCTAssertEqual(updated.completed, state.completed)
+    #require(updated.completed == state.completed)
   }
 
-  func testIgnoresFailedSessions() {
+  @Test func testIgnoresFailedSessions() {
     var failed = SessionRecord.started(1)
     failed.status = .failed
     failed.plan = "Should not record"
@@ -128,7 +127,7 @@ final class PlanCompletionRecorderTests: XCTestCase {
       sessions: [failed]
     )
 
-    XCTAssertEqual(updated.completed, [])
+    #require(updated.completed == [])
   }
 
   private func makeState(completed: [String]) -> PlanState {
@@ -149,22 +148,22 @@ final class PlanCompletionRecorderTests: XCTestCase {
   }
 }
 
-final class PlanHistoryPageTests: XCTestCase {
-  func testReturnsNewestEntriesFirstWithPaginationHint() {
+struct PlanHistoryPageTests {
+  @Test func testReturnsNewestEntriesFirstWithPaginationHint() {
     let page = PlanHistoryPage.read(
       entries: ["First", "Second", "Third"],
       offset: 1,
       limit: 1
     )
 
-    XCTAssertEqual(page.totalCount, 3)
-    XCTAssertEqual(page.entries.map(\.iteration), [2])
-    XCTAssertEqual(page.entries.map(\.summary), ["Second"])
-    XCTAssertTrue(page.formatted().contains("offset 1 from newest"))
-    XCTAssertTrue(page.formatted().contains("more: call plan_history with offset 2"))
+    #require(page.totalCount == 3)
+    #require(page.entries.map(\.iteration) == [2])
+    #require(page.entries.map(\.summary) == ["Second"])
+    #require(page.formatted().contains("offset 1 from newest"))
+    #require(page.formatted().contains("more: call plan_history with offset 2"))
   }
 
-  func testIterationNumbersWithOffsetAndFourPlusEntries() {
+  @Test func testIterationNumbersWithOffsetAndFourPlusEntries() {
     // With 4 entries ["A","B","C","D"], reversed = [D,C,B,A] with indices [0,1,2,3]
     // offset=2 skips D,C → slice=[B,A] with original entries at positions 1,0
     // Correct iterations: B is entry[1] → count(4) - offset(2) - sliceIndex(0) = 2, A is entry[0] → 4-2-1=1
@@ -182,14 +181,14 @@ final class PlanHistoryPageTests: XCTestCase {
     )
 
     // E=5, D=4, C=3, B=2, A=1. offset=2 skips E,D → C,B remain → iterations [3,2]
-    XCTAssertEqual(page.totalCount, 5)
-    XCTAssertEqual(page.entries.map(\.iteration), [3, 2])
-    XCTAssertEqual(page.entries.map(\.summary), ["C", "B"])
+    #require(page.totalCount == 5)
+    #require(page.entries.map(\.iteration) == [3, 2])
+    #require(page.entries.map(\.summary) == ["C", "B"])
   }
 }
 
-final class AgentPlanHistoryToolTests: XCTestCase {
-  func testReturnsPaginatedHistoryFromContext() async throws {
+struct AgentPlanHistoryToolTests {
+  @Test func testReturnsPaginatedHistoryFromContext() async throws {
     let tool = AgentPlanHistoryTool()
     let args = try JSONSerialization.data(withJSONObject: ["offset": 0, "limit": 2])
     let context = AgentToolContext(
@@ -199,16 +198,15 @@ final class AgentPlanHistoryToolTests: XCTestCase {
 
     let result = try await tool.invoke(arguments: args, context: context)
 
-    XCTAssertFalse(result.isError)
-    XCTAssertTrue(result.content.contains("#3: Third"))
-    XCTAssertTrue(result.content.contains("#2: Second"))
-    XCTAssertFalse(result.content.contains("#1: First"))
+    #require(!result.isError)
+    #require(result.content.contains("#3: Third"))
+    #require(result.content.contains("#2: Second"))
+    #require(!result.content.contains("#1: First"))
   }
 }
 
 struct PlanNextDecoderTests {
-  @Test
-  func decoderTrimsPlanAndVerifyAndKeepsPositiveTimeout() throws {
+  @Test func decoderTrimsPlanAndVerifyAndKeepsPositiveTimeout() throws {
     let json = """
       {
         "plan": "  Build the slice\\n",
@@ -220,14 +218,13 @@ struct PlanNextDecoderTests {
 
     let next = try decodePlanNext(json)
 
-    try #require(next.plan == "Build the slice")
-    try #require(next.verify == "swift test")
-    try #require(next.verifyTimeoutMs == 120000)
-    try #require(next.estimatedDifficulty == .medium)
+    #require(next.plan == "Build the slice")
+    #require(next.verify == "swift test")
+    #require(next.verifyTimeoutMs == 120000)
+    #require(next.estimatedDifficulty == .medium)
   }
 
-  @Test
-  func decoderDropsNonPositiveTimeouts() throws {
+  @Test func decoderDropsNonPositiveTimeouts() throws {
     let zeroTimeout = try decodePlanNext(
       """
       {
@@ -245,19 +242,20 @@ struct PlanNextDecoderTests {
       }
       """)
 
-    try #require(zeroTimeout.verifyTimeoutMs == nil)
-    try #require(negativeTimeout.verifyTimeoutMs == nil)
+    #require(zeroTimeout.verifyTimeoutMs == nil)
+    #require(negativeTimeout.verifyTimeoutMs == nil)
   }
 
   private func decodePlanNext(_ json: String) throws -> PlanNext {
-    let data = try #require(json.data(using: .utf8))
+    let data = #require(json.data(using: .utf8))
     return try JSONDecoder().decode(PlanNext.self, from: data)
   }
 }
 
-final class RepositoryLanguageProfileServiceTests: XCTestCase {
-  func testDetectsSwiftPackageWhileIgnoringBuildDirectories() throws {
+struct RepositoryLanguageProfileServiceTests {
+  @Test func testDetectsSwiftPackageWhileIgnoringBuildDirectories() throws {
     let repoURL = try makeTemporaryDirectory()
+    try? FileManager.default.removeItem(at: repoURL)
     defer { try? FileManager.default.removeItem(at: repoURL) }
 
     try write(
@@ -272,13 +270,13 @@ final class RepositoryLanguageProfileServiceTests: XCTestCase {
 
     let profile = RepositoryLanguageProfileService.scan(repoURL: repoURL)
 
-    XCTAssertEqual(profile.primaryLanguage, .swift)
-    XCTAssertEqual(profile.manifestHints, [.packageSwift])
-    XCTAssertEqual(profile.counts.swift, 2)
-    XCTAssertEqual(profile.counts.typeScriptJavaScript, 0)
-    XCTAssertEqual(profile.counts.python, 0)
-    XCTAssertEqual(profile.scannedFileCount, 2)
-    XCTAssertFalse(profile.wasTruncated)
+    #require(profile.primaryLanguage == .swift)
+    #require(profile.manifestHints == [.packageSwift])
+    #require(profile.counts.swift == 2)
+    #require(profile.counts.typeScriptJavaScript == 0)
+    #require(profile.counts.python == 0)
+    #require(profile.scannedFileCount == 2)
+    #require(!profile.wasTruncated)
   }
 
   private func makeTemporaryDirectory() throws -> URL {

@@ -1,4 +1,4 @@
-import XCTest
+import Testing
 
 @testable import Compass
 
@@ -7,30 +7,30 @@ import XCTest
 /// itself is fileprivate; this suite exercises the pure-function side so
 /// the matrix can be audited without standing up a live VM.
 @MainActor
-final class SharedCompassVMTransitionTests: XCTestCase {
+struct SharedCompassVMTransitionTests {
   // MARK: - Absorbing / re-enterable states
 
-  func testCanTransitionToErrorFromAnyState() {
+  @Test func canTransitionToErrorFromAnyState() {
     for state in Self.allRepresentativeStates {
-      XCTAssertTrue(
+      #require(
         SharedCompassVM.isLegalTransition(from: state, to: .error(detail: "boom")),
         "every state must be able to transition to .error; failed on \(state)"
       )
     }
   }
 
-  func testCanTransitionToUnavailableFromAnyState() {
+  @Test func canTransitionToUnavailableFromAnyState() {
     for state in Self.allRepresentativeStates {
-      XCTAssertTrue(
+      #require(
         SharedCompassVM.isLegalTransition(from: state, to: .unavailable(reason: "n/a")),
         "every state must be able to transition to .unavailable; failed on \(state)"
       )
     }
   }
 
-  func testCanTransitionToNotProvisionedFromAnyState() {
+  @Test func canTransitionToNotProvisionedFromAnyState() {
     for state in Self.allRepresentativeStates {
-      XCTAssertTrue(
+      #require(
         SharedCompassVM.isLegalTransition(from: state, to: .notProvisioned),
         "every state must be able to reset to .notProvisioned; failed on \(state)"
       )
@@ -39,7 +39,7 @@ final class SharedCompassVMTransitionTests: XCTestCase {
 
   // MARK: - Happy-path forward progress
 
-  func testNormalProvisioningChainIsLegal() {
+  @Test func normalProvisioningChainIsLegal() {
     let chain: [SharedCompassVMReadiness] = [
       .notProvisioned,
       .downloadingIPSW(fractionCompleted: 0),
@@ -49,7 +49,7 @@ final class SharedCompassVMTransitionTests: XCTestCase {
       .ready(sshDestination: "compass@10.0.0.5"),
     ]
     for (from, to) in zip(chain, chain.dropFirst()) {
-      XCTAssertTrue(
+      #require(
         SharedCompassVM.isLegalTransition(from: from, to: to),
         "expected \(from) → \(to) to be legal in the happy path"
       )
@@ -58,20 +58,20 @@ final class SharedCompassVMTransitionTests: XCTestCase {
 
   // MARK: - Progress-bearing self-edges
 
-  func testProgressBearingStatesAcceptFractionUpdates() {
-    XCTAssertTrue(
+  @Test func progressBearingStatesAcceptFractionUpdates() {
+    #require(
       SharedCompassVM.isLegalTransition(
         from: .downloadingIPSW(fractionCompleted: 0.1),
         to: .downloadingIPSW(fractionCompleted: 0.5)
       )
     )
-    XCTAssertTrue(
+    #require(
       SharedCompassVM.isLegalTransition(
         from: .installing(fractionCompleted: 0.3),
         to: .installing(fractionCompleted: 0.7)
       )
     )
-    XCTAssertTrue(
+    #require(
       SharedCompassVM.isLegalTransition(
         from: .provisioningDevTools(fractionCompleted: 0),
         to: .provisioningDevTools(fractionCompleted: 0.8)
@@ -81,12 +81,12 @@ final class SharedCompassVMTransitionTests: XCTestCase {
 
   // MARK: - Illegal forward jumps
 
-  func testCannotJumpFromNotProvisionedDirectlyToError() {
+  @Test func cannotJumpFromNotProvisionedDirectlyToError() {
     // .error / .unavailable / .notProvisioned themselves are always
     // legal — they're handled by the absorbing-state shortcut.  Make
     // sure a real forward jump that skips a required stage is rejected.
-    XCTAssertFalse(
-      SharedCompassVM.isLegalTransition(
+    #require(
+      !SharedCompassVM.isLegalTransition(
         from: .downloadingIPSW(fractionCompleted: 0),
         to: .ready(sshDestination: "x")
       ),
@@ -94,35 +94,35 @@ final class SharedCompassVMTransitionTests: XCTestCase {
     )
   }
 
-  func testCannotMoveBackwardsAlongTheChain() {
-    XCTAssertFalse(
-      SharedCompassVM.isLegalTransition(
+  @Test func cannotMoveBackwardsAlongTheChain() {
+    #require(
+      !SharedCompassVM.isLegalTransition(
         from: .installing(fractionCompleted: 0),
         to: .downloadingIPSW(fractionCompleted: 0)
       ),
       "installing → downloadingIPSW reverses progress and should be rejected"
     )
-    XCTAssertFalse(
-      SharedCompassVM.isLegalTransition(
+    #require(
+      !SharedCompassVM.isLegalTransition(
         from: .provisioningDevTools(fractionCompleted: 0),
         to: .installing(fractionCompleted: 0)
       )
     )
   }
 
-  func testUnavailableIsAbsorbingExceptForReset() {
+  @Test func unavailableIsAbsorbingExceptForReset() {
     // .unavailable is the "this Mac can't host the VM" terminal state.
     // The only legal way out is the .notProvisioned reset (via the
     // absorbing-state shortcut).
     let unavailable = SharedCompassVMReadiness.unavailable(reason: "no virt")
-    XCTAssertFalse(
-      SharedCompassVM.isLegalTransition(
+    #require(
+      !SharedCompassVM.isLegalTransition(
         from: unavailable,
         to: .downloadingIPSW(fractionCompleted: 0)
       ),
       "unavailable should not transition forward without resetting first"
     )
-    XCTAssertTrue(
+    #require(
       SharedCompassVM.isLegalTransition(
         from: unavailable,
         to: .notProvisioned
@@ -133,20 +133,20 @@ final class SharedCompassVMTransitionTests: XCTestCase {
 
   // MARK: - Ready → re-warm
 
-  func testReadyCanRewarmIntoGuestPreppingOrDevTools() {
+  @Test func readyCanRewarmIntoGuestPreppingOrDevTools() {
     let ready = SharedCompassVMReadiness.ready(sshDestination: "compass@10.0.0.5")
-    XCTAssertTrue(
+    #require(
       SharedCompassVM.isLegalTransition(from: ready, to: .guestPrepping))
-    XCTAssertTrue(
+    #require(
       SharedCompassVM.isLegalTransition(
         from: ready, to: .provisioningDevTools(fractionCompleted: 0)))
   }
 
   // MARK: - Same-state nudges
 
-  func testSameStateIsAlwaysLegal() {
+  @Test func sameStateIsAlwaysLegal() {
     for state in Self.allRepresentativeStates {
-      XCTAssertTrue(
+      #require(
         SharedCompassVM.isLegalTransition(from: state, to: state),
         "same-state is always legal; failed on \(state)"
       )

@@ -1,82 +1,82 @@
 import Foundation
 import OpenAI
-import XCTest
+import Testing
 
 @testable import Compass
 
-final class AgentExecutorTests: XCTestCase {
+struct AgentExecutorTests {
   // MARK: - stripThinkBlocks
 
-  func testStripThinkBlocksOnPlainTextIsNoop() {
+  @Test func testStripThinkBlocksOnPlainTextIsNoop() {
     let (text, reasoning) = AgentExecutor.stripThinkBlocks("hello world")
-    XCTAssertEqual(text, "hello world")
-    XCTAssertEqual(reasoning, "")
+    #require(text == "hello world")
+    #require(reasoning == "")
   }
 
-  func testStripThinkBlocksExtractsSingleBlock() {
-    let (text, reasoning) = AgentExecutor.stripThinkBlocks("before <think>secret</think> after")
-    XCTAssertEqual(text, "before  after")
-    XCTAssertEqual(reasoning, "secret")
+  @Test func testStripThinkBlocksExtractsSingleBlock() {
+    let (text, reasoning) = AgentExecutor.stripThinkBlocks("before <think>secret after")
+    #require(text == "before  after")
+    #require(reasoning == "secret")
   }
 
-  func testStripThinkBlocksExtractsMultipleBlocks() {
+  @Test func testStripThinkBlocksExtractsMultipleBlocks() {
     let (text, reasoning) = AgentExecutor.stripThinkBlocks(
-      "a<think>one</think>b<think>two</think>c")
-    XCTAssertEqual(text, "abc")
-    XCTAssertEqual(reasoning, "onetwo")
+      "a<think>oneb<think>twoc")
+    #require(text == "abc")
+    #require(reasoning == "onetwo")
   }
 
-  func testStripThinkBlocksHandlesUnterminatedBlock() {
+  @Test func testStripThinkBlocksHandlesUnterminatedBlock() {
     let (text, reasoning) = AgentExecutor.stripThinkBlocks("visible <think>oops never closed")
-    XCTAssertEqual(text, "visible ")
-    XCTAssertEqual(reasoning, "oops never closed")
+    #require(text == "visible ")
+    #require(reasoning == "oops never closed")
   }
 
   // MARK: - Budget exhaustion classification
 
-  func testIsAgentBudgetExhaustionCoversWallClockAndIterationLimits() {
-    XCTAssertTrue(AgentExecutionError.wallClockExceeded(3600).isAgentBudgetExhaustion)
-    XCTAssertTrue(AgentExecutionError.maxIterationsExceeded(512).isAgentBudgetExhaustion)
+  @Test func testIsAgentBudgetExhaustionCoversWallClockAndIterationLimits() {
+    #require(AgentExecutionError.wallClockExceeded(3600).isAgentBudgetExhaustion)
+    #require(AgentExecutionError.maxIterationsExceeded(512).isAgentBudgetExhaustion)
   }
 
-  func testIsAgentBudgetExhaustionRejectsNonBudgetCauses() {
-    XCTAssertFalse(AgentExecutionError.cancelled.isAgentBudgetExhaustion)
-    XCTAssertFalse(AgentExecutionError.streamFailed("boom").isAgentBudgetExhaustion)
-    XCTAssertFalse(AgentExecutionError.modelStoppedWithoutSubmitResult.isAgentBudgetExhaustion)
-    XCTAssertFalse(
-      AgentExecutionError.toolCallDecodeFailed(name: "x", detail: "y").isAgentBudgetExhaustion
+  @Test func testIsAgentBudgetExhaustionRejectsNonBudgetCauses() {
+    #require(!AgentExecutionError.cancelled.isAgentBudgetExhaustion)
+    #require(!AgentExecutionError.streamFailed("boom").isAgentBudgetExhaustion)
+    #require(!AgentExecutionError.modelStoppedWithoutSubmitResult.isAgentBudgetExhaustion)
+    #require(
+      !AgentExecutionError.toolCallDecodeFailed(name: "x", detail: "y").isAgentBudgetExhaustion
     )
-    XCTAssertFalse(AgentExecutionError.duplicateToolName("z").isAgentBudgetExhaustion)
+    #require(!AgentExecutionError.duplicateToolName("z").isAgentBudgetExhaustion)
   }
 
-  func testDefaultWallClockTimeoutIsOneHour() {
+  @Test func testDefaultWallClockTimeoutIsOneHour() {
     let configuration = makeConfiguration(phase: .plan, tools: ToolRegistry.readOnlyTools())
-    XCTAssertEqual(configuration.wallClockTimeout, 60 * 60)
+    #require(configuration.wallClockTimeout == 60 * 60)
   }
 
   // MARK: - Transient stream-error classification
 
-  func testTransientHTTPStatusesCoverOverloadAndCloudflareCodes() {
+  @Test func testTransientHTTPStatusesCoverOverloadAndCloudflareCodes() {
     let transient = [408, 425, 429, 500, 502, 503, 504, 520, 521, 522, 523, 524, 525, 526, 529]
     for code in transient {
-      XCTAssertTrue(
+      #require(
         AgentExecutor.isTransientHTTPStatus(code),
         "Expected \(code) to be classified transient"
       )
     }
   }
 
-  func testTransientHTTPStatusesRejectClientAndSuccessCodes() {
+  @Test func testTransientHTTPStatusesRejectClientAndSuccessCodes() {
     let permanent = [200, 201, 204, 301, 400, 401, 403, 404, 422, 451]
     for code in permanent {
-      XCTAssertFalse(
-        AgentExecutor.isTransientHTTPStatus(code),
+      #require(
+        !AgentExecutor.isTransientHTTPStatus(code),
         "Expected \(code) to be classified permanent"
       )
     }
   }
 
-  func testShouldRetryAcceptsOpenAIStatusErrorsForTransientStatuses() {
+  @Test func testShouldRetryAcceptsOpenAIStatusErrorsForTransientStatuses() {
     let response = HTTPURLResponse(
       url: URL(string: "https://api.example.com")!,
       statusCode: 529,
@@ -84,10 +84,10 @@ final class AgentExecutorTests: XCTestCase {
       headerFields: nil
     )!
     let error = OpenAIError.statusError(response: response, statusCode: 529)
-    XCTAssertTrue(AgentExecutor.shouldRetry(error))
+    #require(AgentExecutor.shouldRetry(error))
   }
 
-  func testShouldRetryRejectsOpenAIStatusErrorsForPermanentStatuses() {
+  @Test func testShouldRetryRejectsOpenAIStatusErrorsForPermanentStatuses() {
     let response = HTTPURLResponse(
       url: URL(string: "https://api.example.com")!,
       statusCode: 400,
@@ -95,88 +95,94 @@ final class AgentExecutorTests: XCTestCase {
       headerFields: nil
     )!
     let error = OpenAIError.statusError(response: response, statusCode: 400)
-    XCTAssertFalse(AgentExecutor.shouldRetry(error))
+    #require(!AgentExecutor.shouldRetry(error))
   }
 
-  func testShouldRetryAcceptsTransientURLErrors() {
-    XCTAssertTrue(AgentExecutor.shouldRetry(URLError(.timedOut)))
-    XCTAssertTrue(AgentExecutor.shouldRetry(URLError(.networkConnectionLost)))
-    XCTAssertTrue(AgentExecutor.shouldRetry(URLError(.notConnectedToInternet)))
+  @Test func testShouldRetryAcceptsTransientURLErrors() {
+    #require(AgentExecutor.shouldRetry(URLError(.timedOut)))
+    #require(AgentExecutor.shouldRetry(URLError(.networkConnectionLost)))
+    #require(AgentExecutor.shouldRetry(URLError(.notConnectedToInternet)))
   }
 
-  func testShouldRetryRejectsPermanentURLErrors() {
-    XCTAssertFalse(AgentExecutor.shouldRetry(URLError(.badURL)))
-    XCTAssertFalse(AgentExecutor.shouldRetry(URLError(.unsupportedURL)))
-    XCTAssertFalse(AgentExecutor.shouldRetry(URLError(.cancelled)))
+  @Test func testShouldRetryRejectsPermanentURLErrors() {
+    #require(!AgentExecutor.shouldRetry(URLError(.badURL)))
+    #require(!AgentExecutor.shouldRetry(URLError(.unsupportedURL)))
+    #require(!AgentExecutor.shouldRetry(URLError(.cancelled)))
   }
 
-  func testShouldRetryRejectsUnrelatedErrors() {
+  @Test func testShouldRetryRejectsUnrelatedErrors() {
     struct OtherError: Error {}
-    XCTAssertFalse(AgentExecutor.shouldRetry(OtherError()))
-    XCTAssertFalse(AgentExecutor.shouldRetry(AgentExecutionError.cancelled))
+    #require(!AgentExecutor.shouldRetry(OtherError()))
+    #require(!AgentExecutor.shouldRetry(AgentExecutionError.cancelled))
   }
 
-  func testRetryDelayGrowsExponentiallyWithJitterAndCaps() {
+  @Test func testRetryDelayGrowsExponentiallyWithJitterAndCaps() {
     // Attempt 1 should sit around 1s (0.8 - 1.2 with jitter).
     let first = AgentExecutor.retryDelay(forAttempt: 1)
-    XCTAssertGreaterThanOrEqual(first, AgentExecutor.baseStreamRetryDelay * 0.8)
-    XCTAssertLessThanOrEqual(first, AgentExecutor.baseStreamRetryDelay * 1.2)
+    #require(first >= AgentExecutor.baseStreamRetryDelay * 0.8)
+    #require(first <= AgentExecutor.baseStreamRetryDelay * 1.2)
 
     // Attempt 4 = base * 2^3 = 8s before jitter, well under the cap.
     let fourth = AgentExecutor.retryDelay(forAttempt: 4)
-    XCTAssertGreaterThanOrEqual(fourth, 8.0 * 0.8)
-    XCTAssertLessThanOrEqual(fourth, 8.0 * 1.2)
+    #require(fourth >= 8.0 * 0.8)
+    #require(fourth <= 8.0 * 1.2)
 
     // Attempt 100 would explode to 2^99 seconds; the cap must hold.
     let huge = AgentExecutor.retryDelay(forAttempt: 100)
-    XCTAssertGreaterThanOrEqual(huge, AgentExecutor.maxStreamRetryDelay * 0.8)
-    XCTAssertLessThanOrEqual(huge, AgentExecutor.maxStreamRetryDelay * 1.2)
+    #require(huge >= AgentExecutor.maxStreamRetryDelay * 0.8)
+    #require(huge <= AgentExecutor.maxStreamRetryDelay * 1.2)
   }
 
   // MARK: - ensureUniqueToolNames
 
-  func testEnsureUniqueToolNamesAcceptsDistinctTools() throws {
-    XCTAssertNoThrow(try AgentExecutor.ensureUniqueToolNames(ToolRegistry.readOnlyTools()))
-    XCTAssertNoThrow(try AgentExecutor.ensureUniqueToolNames(ToolRegistry.developTools()))
-    XCTAssertNoThrow(try AgentExecutor.ensureUniqueToolNames(ToolRegistry.inspectionTools()))
+  @Test func testEnsureUniqueToolNamesAcceptsDistinctTools() throws {
+    try AgentExecutor.ensureUniqueToolNames(ToolRegistry.readOnlyTools())
+    try AgentExecutor.ensureUniqueToolNames(ToolRegistry.developTools())
+    try AgentExecutor.ensureUniqueToolNames(ToolRegistry.inspectionTools())
   }
 
   // MARK: - Tool registry per phase
 
-  func testCriticPhaseGetsReadOnlyPlusBash() {
+  @Test func testCriticPhaseGetsReadOnlyPlusBash() {
     let names = Set(ToolRegistry.tools(for: .critic).map { $0.spec.name })
-    XCTAssertTrue(names.contains(AgentBashTool.toolName))
-    XCTAssertTrue(names.contains(AgentReadFileTool.toolName))
-    XCTAssertTrue(names.contains(AgentFindSymbolTool.toolName))
-    XCTAssertTrue(names.contains(AgentDelegateTool.toolName))
-    XCTAssertFalse(
-      names.contains(AgentWriteFileTool.toolName),
+    #require(names.contains(AgentBashTool.toolName))
+    #require(names.contains(AgentReadFileTool.toolName))
+    #require(names.contains(AgentFindSymbolTool.toolName))
+    #require(names.contains(AgentDelegateTool.toolName))
+    #require(
+      !names.contains(AgentWriteFileTool.toolName),
       "Critic must not have write_file")
-    XCTAssertFalse(
-      names.contains(AgentEditFileTool.toolName),
+    #require(
+      !names.contains(AgentEditFileTool.toolName),
       "Critic must not have edit_file")
   }
 
-  func testDelegateToolIsExposedToAllPhases() {
+  @Test func testDelegateToolIsExposedToAllPhases() {
     for phase in AgentPhase.allCases {
       let names = Set(ToolRegistry.tools(for: phase).map { $0.spec.name })
-      XCTAssertTrue(
+      #require(
         names.contains(AgentDelegateTool.toolName),
         "phase \(phase) must include `delegate`")
     }
   }
 
-  func testEnsureUniqueToolNamesRejectsDuplicates() {
+  @Test func testEnsureUniqueToolNamesRejectsDuplicates() {
     let tools: [AgentTool] = [AgentReadFileTool(), AgentReadFileTool()]
-    XCTAssertThrowsError(try AgentExecutor.ensureUniqueToolNames(tools)) { error in
+    do {
+      try AgentExecutor.ensureUniqueToolNames(tools)
+      #require(false, "expected error")
+    } catch let error as AgentExecutionError {
       guard case AgentExecutionError.duplicateToolName(let name) = error else {
-        return XCTFail("expected duplicateToolName, got \(error)")
+        #require(false, "expected duplicateToolName, got \(error)")
+        return
       }
-      XCTAssertEqual(name, AgentReadFileTool.toolName)
+      #require(name == AgentReadFileTool.toolName)
+    } catch {
+      #require(false, "expected AgentExecutionError")
     }
   }
 
-  func testEnsureUniqueToolNamesRejectsCollisionWithSubmitResult() {
+  @Test func testEnsureUniqueToolNamesRejectsCollisionWithSubmitResult() {
     struct FakeSubmit: AgentTool {
       let spec = AgentToolSpec(
         name: AgentExecutor.submitResultToolName,
@@ -187,25 +193,31 @@ final class AgentExecutorTests: XCTestCase {
         -> AgentToolInvocationResult
       { .ok("") }
     }
-    XCTAssertThrowsError(try AgentExecutor.ensureUniqueToolNames([FakeSubmit()])) { error in
+    do {
+      try AgentExecutor.ensureUniqueToolNames([FakeSubmit()])
+      #require(false, "expected error")
+    } catch let error as AgentExecutionError {
       guard case AgentExecutionError.duplicateToolName(let name) = error else {
-        return XCTFail("expected duplicateToolName, got \(error)")
+        #require(false, "expected duplicateToolName, got \(error)")
+        return
       }
-      XCTAssertEqual(name, AgentExecutor.submitResultToolName)
+      #require(name == AgentExecutor.submitResultToolName)
+    } catch {
+      #require(false, "expected AgentExecutionError")
     }
   }
 
   // MARK: - buildOpenAITools
 
-  func testBuildOpenAIToolsIncludesEveryToolPlusSubmitResult() throws {
+  @Test func testBuildOpenAIToolsIncludesEveryToolPlusSubmitResult() throws {
     let configuration = makeConfiguration(
       phase: .plan,
       tools: ToolRegistry.readOnlyTools()
     )
     let params = try AgentExecutor.buildOpenAITools(configuration: configuration)
     let names = params.map { $0.function.name }
-    XCTAssertEqual(
-      Set(names),
+    #require(
+      Set(names) ==
       Set([
         AgentReadFileTool.toolName,
         AgentLsTool.toolName,
@@ -221,7 +233,7 @@ final class AgentExecutorTests: XCTestCase {
       ]))
   }
 
-  func testBuildOpenAIToolsCarriesSubmitSchemaThroughDecodeReencode() throws {
+  @Test func testBuildOpenAIToolsCarriesSubmitSchemaThroughDecodeReencode() throws {
     let schema = try AgentToolParametersSchema([
       "type": "object",
       "additionalProperties": false,
@@ -239,63 +251,63 @@ final class AgentExecutorTests: XCTestCase {
       submitResultSchema: schema
     )
     let params = try AgentExecutor.buildOpenAITools(configuration: configuration)
-    let submit = try XCTUnwrap(
+    let submit = #require(
       params.first { $0.function.name == AgentExecutor.submitResultToolName })
     let rendered = try JSONEncoder().encode(submit.function.parameters)
     let object = try JSONSerialization.jsonObject(with: rendered) as? [String: Any]
-    XCTAssertEqual(object?["type"] as? String, "object")
-    XCTAssertEqual(object?["additionalProperties"] as? Bool, false)
+    #require(object?["type"] as? String == "object")
+    #require(object?["additionalProperties"] as? Bool == false)
     let properties = object?["properties"] as? [String: Any]
     let status = properties?["status"] as? [String: Any]
-    XCTAssertEqual(status?["type"] as? String, "string")
-    XCTAssertEqual(status?["enum"] as? [String], ["succeeded", "blocked", "failed"])
+    #require(status?["type"] as? String == "string")
+    #require(status?["enum"] as? [String] == ["succeeded", "blocked", "failed"])
   }
 
   // MARK: - phase routing
 
-  func testToolsForPhasePicksInspectionSetForPlanAndReflect() {
+  @Test func testToolsForPhasePicksInspectionSetForPlanAndReflect() {
     let planNames = Set(ToolRegistry.tools(for: .plan).map { $0.spec.name })
     let reflectNames = Set(ToolRegistry.tools(for: .reflect).map { $0.spec.name })
     let inspectionNames = Set(ToolRegistry.inspectionTools().map { $0.spec.name })
-    XCTAssertTrue(planNames.isSuperset(of: inspectionNames))
-    XCTAssertEqual(reflectNames, inspectionNames)
-    XCTAssertTrue(planNames.contains(AgentPlanHistoryTool.toolName))
-    XCTAssertFalse(reflectNames.contains(AgentPlanHistoryTool.toolName))
-    XCTAssertTrue(
+    #require(planNames.isSuperset(of: inspectionNames))
+    #require(reflectNames == inspectionNames)
+    #require(planNames.contains(AgentPlanHistoryTool.toolName))
+    #require(!reflectNames.contains(AgentPlanHistoryTool.toolName))
+    #require(
       planNames.contains(AgentBashTool.toolName),
       "Plan must have bash so it can run builds/tests to ground its plan")
-    XCTAssertTrue(
+    #require(
       reflectNames.contains(AgentBashTool.toolName),
       "Reflect must have bash so it can probe the project during course-correction")
-    XCTAssertFalse(planNames.contains(AgentWriteFileTool.toolName))
-    XCTAssertFalse(planNames.contains(AgentEditFileTool.toolName))
-    XCTAssertFalse(reflectNames.contains(AgentWriteFileTool.toolName))
-    XCTAssertFalse(reflectNames.contains(AgentEditFileTool.toolName))
+    #require(!planNames.contains(AgentWriteFileTool.toolName))
+    #require(!planNames.contains(AgentEditFileTool.toolName))
+    #require(!reflectNames.contains(AgentWriteFileTool.toolName))
+    #require(!reflectNames.contains(AgentEditFileTool.toolName))
   }
 
-  func testToolsForPhasePicksFullSetForDevelop() {
+  @Test func testToolsForPhasePicksFullSetForDevelop() {
     let names = Set(ToolRegistry.tools(for: .develop).map { $0.spec.name })
-    XCTAssertTrue(names.contains(AgentBashTool.toolName))
-    XCTAssertTrue(names.contains(AgentWriteFileTool.toolName))
-    XCTAssertTrue(names.contains(AgentEditFileTool.toolName))
-    XCTAssertTrue(names.contains(AgentReadFileTool.toolName))
+    #require(names.contains(AgentBashTool.toolName))
+    #require(names.contains(AgentWriteFileTool.toolName))
+    #require(names.contains(AgentEditFileTool.toolName))
+    #require(names.contains(AgentReadFileTool.toolName))
   }
 
   // MARK: - Invalid submit_result remediation
 
-  func testInvalidSubmitResultNudgeUsesTruncationCopyWhenFinishReasonIsLength() {
+  @Test func testInvalidSubmitResultNudgeUsesTruncationCopyWhenFinishReasonIsLength() {
     let nudge = AgentExecutor.invalidSubmitResultNudge(
       finishReason: "length",
-      argumentsPreview: "{\"state\":{...}",
+      argumentsPreview: "{\"state\":{...",
       maxCompletionTokens: 65_536
     )
-    XCTAssertEqual(nudge.eventText, "submit_result truncated")
-    XCTAssertTrue(nudge.eventDetail.contains("65536"))
-    XCTAssertTrue(nudge.userMessage.contains("truncated by the output-token limit"))
-    XCTAssertTrue(nudge.userMessage.contains("complete, valid JSON"))
+    #require(nudge.eventText == "submit_result truncated")
+    #require(nudge.eventDetail.contains("65536"))
+    #require(nudge.userMessage.contains("truncated by the output-token limit"))
+    #require(nudge.userMessage.contains("complete, valid JSON"))
   }
 
-  func testInvalidSubmitResultNudgeUsesRejectedCopyWhenFinishReasonIsNotLength() {
+  @Test func testInvalidSubmitResultNudgeUsesRejectedCopyWhenFinishReasonIsNotLength() {
     // MiniMax in production was observed truncating submit_result
     // mid-token while reporting finish_reason "tool_calls" — the
     // old gated remediation skipped the pop-and-nudge path and the
@@ -307,80 +319,80 @@ final class AgentExecutorTests: XCTestCase {
         argumentsPreview: "{\"state\":{\"completed\":[\"…GitReposit",
         maxCompletionTokens: 65_536
       )
-      XCTAssertEqual(
-        nudge.eventText, "submit_result rejected",
+      #require(
+        nudge.eventText == "submit_result rejected",
         "finishReason=\(reason ?? "nil") should not be treated as the length variant")
-      XCTAssertTrue(
+      #require(
         nudge.eventDetail.contains("GitReposit"),
         "rejected detail should include the args preview so the user can see what was bad")
-      XCTAssertTrue(
+      #require(
         nudge.userMessage.contains("could not be parsed as JSON"),
         "rejected nudge should explain the parse failure")
-      XCTAssertTrue(
+      #require(
         nudge.userMessage.contains("shorter"),
         "rejected nudge should still push the model toward shorter output, since silent truncation is the most common cause"
       )
     }
   }
 
-  func testInvalidLessonEditsNudgeExplainsMismatchAndRetry() {
+  @Test func testInvalidLessonEditsNudgeExplainsMismatchAndRetry() {
     let nudge = AgentExecutor.invalidLessonEditsNudge(
       errorMessage: "Lesson edit `find` text was not found in lessons.md."
     )
-    XCTAssertEqual(nudge.eventText, "submit_result lesson edits rejected")
-    XCTAssertTrue(nudge.eventDetail.contains("was not found"))
-    XCTAssertTrue(nudge.userMessage.contains("lessonEdits"))
-    XCTAssertTrue(nudge.userMessage.contains("Call `submit_result` again"))
-    XCTAssertTrue(nudge.userMessage.contains("Use `[]`"))
+    #require(nudge.eventText == "submit_result lesson edits rejected")
+    #require(nudge.eventDetail.contains("was not found"))
+    #require(nudge.userMessage.contains("lessonEdits"))
+    #require(nudge.userMessage.contains("Call `submit_result` again"))
+    #require(nudge.userMessage.contains("Use `[]`"))
   }
 
-  func testInvalidSubmitResultDecodeNudgeExplainsContractMismatch() {
+  @Test func testInvalidSubmitResultDecodeNudgeExplainsContractMismatch() {
     let nudge = AgentExecutor.invalidSubmitResultDecodeNudge(
       errorMessage: "Missing required field `lessonEdits`."
     )
-    XCTAssertEqual(nudge.eventText, "submit_result contract rejected")
-    XCTAssertTrue(nudge.userMessage.contains("required shape"))
-    XCTAssertTrue(nudge.userMessage.contains("lessonEdits: []"))
+    #require(nudge.eventText == "submit_result contract rejected")
+    #require(nudge.userMessage.contains("required shape"))
+    #require(nudge.userMessage.contains("lessonEdits: []"))
   }
 
-  func testSubmitResultValidationNudgeUsesDecodeCopyForDecodingErrors() {
+  @Test func testSubmitResultValidationNudgeUsesDecodeCopyForDecodingErrors() {
     let payload = Data("""
       {"state":{"midTerm":"x","immediate":null},"summary":"done"}
       """.utf8)
     do {
       _ = try JSONDecoder().decode(ReflectSummary.self, from: payload)
-      XCTFail("expected decode to fail")
+      #require(false, "expected decode to fail")
     } catch {
       let nudge = AgentExecutor.submitResultValidationNudge(for: error)
-      XCTAssertEqual(nudge.eventText, "submit_result contract rejected")
+      #require(nudge.eventText == "submit_result contract rejected")
     }
   }
 
-  func testSubmitResultValidationNudgeUsesLessonEditCopyForOtherErrors() {
+  @Test func testSubmitResultValidationNudgeUsesLessonEditCopyForOtherErrors() {
     let nudge = AgentExecutor.submitResultValidationNudge(
       for: NSError(domain: "test", code: 1, userInfo: [
         NSLocalizedDescriptionKey: "Lesson edit `find` text was not found in lessons.md.",
       ])
     )
-    XCTAssertEqual(nudge.eventText, "submit_result lesson edits rejected")
+    #require(nudge.eventText == "submit_result lesson edits rejected")
   }
 
-  func testDecodingErrorMessageSurfacesMissingKey() {
+  @Test func testDecodingErrorMessageSurfacesMissingKey() {
     let payload = Data("""
       {"state":{"midTerm":"x","immediate":null},"summary":"done"}
       """.utf8)
     do {
       _ = try JSONDecoder().decode(ReflectSummary.self, from: payload)
-      XCTFail("expected decode to fail")
+      #require(false, "expected decode to fail")
     } catch {
       let message = AgentExecutor.decodingErrorMessage(error)
-      XCTAssertTrue(message.contains("longTerm"), "message was: \(message)")
+      #require(message.contains("longTerm"), "message was: \(message)")
     }
   }
 
   // MARK: - Invalid generic-tool-args remediation
 
-  func testInvalidToolArgumentsNudgeUsesTruncationCopyWhenFinishReasonIsLength() {
+  @Test func testInvalidToolArgumentsNudgeUsesTruncationCopyWhenFinishReasonIsLength() {
     // The `edit_file` MiniMax 400 cascade in the bug screenshot was a
     // turn whose `tool_calls.arguments` was invalid JSON; the local
     // tool returned "Invalid arguments…", the assistant turn stayed in
@@ -392,17 +404,17 @@ final class AgentExecutorTests: XCTestCase {
       argumentsPreview: "{\"path\":\"foo.swift\",\"edits\":[{\"oldStri",
       maxCompletionTokens: 80_000
     )
-    XCTAssertEqual(nudge.eventText, "edit_file truncated")
-    XCTAssertTrue(nudge.eventDetail.contains("80000"))
-    XCTAssertTrue(nudge.userMessage.contains("`edit_file`"))
-    XCTAssertTrue(nudge.userMessage.contains("truncated by the output-token limit"))
-    XCTAssertTrue(
+    #require(nudge.eventText == "edit_file truncated")
+    #require(nudge.eventDetail.contains("80000"))
+    #require(nudge.userMessage.contains("`edit_file`"))
+    #require(nudge.userMessage.contains("truncated by the output-token limit"))
+    #require(
       nudge.userMessage.contains("smaller"),
       "truncation nudge should push the model toward smaller payloads")
-    XCTAssertTrue(nudge.userMessage.contains("complete, valid JSON"))
+    #require(nudge.userMessage.contains("complete, valid JSON"))
   }
 
-  func testInvalidToolArgumentsNudgeUsesRejectedCopyWhenFinishReasonIsNotLength() {
+  @Test func testInvalidToolArgumentsNudgeUsesRejectedCopyWhenFinishReasonIsNotLength() {
     // Generic-tool args go bad without `finishReason == "length"` for
     // two reasons: silent mid-token truncation (MiniMax) and model-side
     // escaping bugs in large payloads. The fallback wording must cover
@@ -415,23 +427,23 @@ final class AgentExecutorTests: XCTestCase {
         argumentsPreview: "{\"path\":\"foo.swift\",\"edits\":[{\"oldString\":\"let x = 1\nlet y",
         maxCompletionTokens: 80_000
       )
-      XCTAssertEqual(
-        nudge.eventText, "edit_file rejected",
+      #require(
+        nudge.eventText == "edit_file rejected",
         "finishReason=\(reason ?? "nil") should not be treated as the length variant")
-      XCTAssertTrue(
+      #require(
         nudge.eventDetail.contains("oldString"),
         "rejected detail should include the args preview so the user can see what was bad")
-      XCTAssertTrue(
+      #require(
         nudge.userMessage.contains("`edit_file`"),
         "rejected nudge should name the specific tool that failed")
-      XCTAssertTrue(
+      #require(
         nudge.userMessage.contains("could not be parsed as JSON"),
         "rejected nudge should explain the parse failure")
-      XCTAssertTrue(
+      #require(
         nudge.userMessage.contains("escaping"),
         "rejected nudge should mention escaping — model-side escape bugs are a common cause")
-      XCTAssertFalse(
-        nudge.userMessage.contains("submit_result"),
+      #require(
+        !nudge.userMessage.contains("submit_result"),
         "generic-tool nudge must not leak submit_result-specific wording")
     }
   }
@@ -464,7 +476,7 @@ final class AgentExecutorTests: XCTestCase {
     .tool(.init(content: .textContent(payload), toolCallId: toolCallId))
   }
 
-  func testRollbackDropsOnlyAssistantWhenSubmitResultWasTheOnlyToolCall() {
+  @Test func testRollbackDropsOnlyAssistantWhenSubmitResultWasTheOnlyToolCall() {
     // Iteration 6 in the bug screenshot: model called submit_result alone
     // and the args were truncated. Rolling back must drop only the
     // assistant turn — prior tool responses from iter 5 must survive.
@@ -476,14 +488,14 @@ final class AgentExecutorTests: XCTestCase {
     ]
     var indices: Set<Int> = []
     AgentExecutor.rollback(messages: &messages, nudgeIndices: &indices, to: 3)
-    XCTAssertEqual(messages.count, 3)
+    #require(messages.count == 3)
     if case .tool = messages.last {
     } else {
-      XCTFail("rollback should land on the prior tool response, got \(messages.last as Any)")
+      #require(false, "rollback should land on the prior tool response, got \(messages.last as Any)")
     }
   }
 
-  func testRollbackDropsOrphanedToolResponsesAlongsideAssistant() {
+  @Test func testRollbackDropsOrphanedToolResponsesAlongsideAssistant() {
     // The harder case: the model issued [read_file, submit_result] in the
     // same turn, we already appended read_file's tool response before
     // hitting the malformed submit_result. Leaving that tool response
@@ -498,36 +510,36 @@ final class AgentExecutorTests: XCTestCase {
     ]
     var indices: Set<Int> = []
     AgentExecutor.rollback(messages: &messages, nudgeIndices: &indices, to: 2)
-    XCTAssertEqual(messages.count, 2)
+    #require(messages.count == 2)
     if case .user = messages.last {
     } else {
-      XCTFail("rollback should leave the original user task as the tail")
+      #require(false, "rollback should leave the original user task as the tail")
     }
   }
 
-  func testRollbackDropsStaleNudgeIndices() {
+  @Test func testRollbackDropsStaleNudgeIndices() {
     var messages: [ChatQuery.ChatCompletionMessageParam] = [
       sys("SYS"), usr("TASK"), usr("nudge-old"), asst(toolCallIDs: ["t1"]),
     ]
     var indices: Set<Int> = [2]
     AgentExecutor.rollback(messages: &messages, nudgeIndices: &indices, to: 3)
-    XCTAssertEqual(messages.count, 3)
-    XCTAssertTrue(
+    #require(messages.count == 3)
+    #require(
       indices.contains(2),
       "rollback to index 3 must keep nudge-tracking entries whose index < 3")
   }
 
-  func testRollbackToEqualOrGreaterCountIsNoop() {
+  @Test func testRollbackToEqualOrGreaterCountIsNoop() {
     var messages: [ChatQuery.ChatCompletionMessageParam] = [sys("SYS"), usr("TASK")]
     var indices: Set<Int> = [1]
     AgentExecutor.rollback(messages: &messages, nudgeIndices: &indices, to: 2)
-    XCTAssertEqual(messages.count, 2)
+    #require(messages.count == 2)
     AgentExecutor.rollback(messages: &messages, nudgeIndices: &indices, to: 99)
-    XCTAssertEqual(messages.count, 2)
-    XCTAssertEqual(indices, [1])
+    #require(messages.count == 2)
+    #require(indices == [1])
   }
 
-  func testAppendRemediationNudgeReplacesConsecutiveNudge() {
+  @Test func testAppendRemediationNudgeReplacesConsecutiveNudge() {
     // Back-to-back failed iterations would otherwise leave two `.user`
     // messages in a row, which strict providers (MiniMax) reject with a
     // 400. Confirm the helper collapses the second append into a
@@ -536,81 +548,83 @@ final class AgentExecutorTests: XCTestCase {
     var indices: Set<Int> = []
 
     AgentExecutor.appendRemediationNudge("first", messages: &messages, nudgeIndices: &indices)
-    XCTAssertEqual(messages.count, 3)
-    XCTAssertEqual(indices, [2])
+    #require(messages.count == 3)
+    #require(indices == [2])
 
     AgentExecutor.appendRemediationNudge("second", messages: &messages, nudgeIndices: &indices)
-    XCTAssertEqual(messages.count, 3, "second nudge must replace the first, not stack")
-    XCTAssertEqual(indices, [2])
+    #require(messages.count == 3, "second nudge must replace the first, not stack")
+    #require(indices == [2])
     guard case .user(let body) = messages[2], case .string(let text) = body.content else {
-      return XCTFail("replacement message should be a .user(.string)")
+      #require(false, "replacement message should be a .user(.string)")
+      return
     }
-    XCTAssertEqual(text, "second")
+    #require(text == "second")
   }
 
-  func testAppendRemediationNudgeAppendsWhenTailIsNotANudge() {
+  @Test func testAppendRemediationNudgeAppendsWhenTailIsNotANudge() {
     var messages: [ChatQuery.ChatCompletionMessageParam] = [
       sys("SYS"), usr("TASK"), tool("iter5 result", toolCallId: "t5"),
     ]
     var indices: Set<Int> = []
     AgentExecutor.appendRemediationNudge("nudge", messages: &messages, nudgeIndices: &indices)
-    XCTAssertEqual(messages.count, 4)
-    XCTAssertEqual(indices, [3])
+    #require(messages.count == 4)
+    #require(indices == [3])
   }
 
-  func testAppendRemediationNudgeDoesNotCollapseOriginalUserTask() {
+  @Test func testAppendRemediationNudgeDoesNotCollapseOriginalUserTask() {
     // On the very first iteration the tail of the conversation is the
     // user task itself. A nudge appended after a first-iter failure must
     // *append* — collapsing here would silently delete the task prompt.
     var messages: [ChatQuery.ChatCompletionMessageParam] = [sys("SYS"), usr("TASK")]
     var indices: Set<Int> = []
     AgentExecutor.appendRemediationNudge("nudge", messages: &messages, nudgeIndices: &indices)
-    XCTAssertEqual(messages.count, 3)
+    #require(messages.count == 3)
     guard case .user(let task) = messages[1], case .string(let taskText) = task.content else {
-      return XCTFail("original task at index 1 should still be present")
+      #require(false, "original task at index 1 should still be present")
+      return
     }
-    XCTAssertEqual(taskText, "TASK")
+    #require(taskText == "TASK")
   }
 
   // MARK: - Auto-compaction
 
-  func testShouldCompactReturnsFalseWhenContextWindowIsZero() {
-    XCTAssertFalse(
-      AgentExecutor.shouldCompact(estimatedTokens: 1_000_000, contextWindowTokens: 0))
-    XCTAssertFalse(
-      AgentExecutor.shouldCompact(estimatedTokens: 1_000_000, contextWindowTokens: -1))
+  @Test func testShouldCompactReturnsFalseWhenContextWindowIsZero() {
+    #require(
+      !AgentExecutor.shouldCompact(estimatedTokens: 1_000_000, contextWindowTokens: 0))
+    #require(
+      !AgentExecutor.shouldCompact(estimatedTokens: 1_000_000, contextWindowTokens: -1))
   }
 
-  func testShouldCompactReturnsTrueAtOrAboveThreshold() {
+  @Test func testShouldCompactReturnsTrueAtOrAboveThreshold() {
     let window = 200_000
     let threshold = Int(Double(window) * AgentExecutor.compactionThresholdFraction)
-    XCTAssertFalse(
-      AgentExecutor.shouldCompact(estimatedTokens: threshold - 1, contextWindowTokens: window))
-    XCTAssertTrue(
+    #require(
+      !AgentExecutor.shouldCompact(estimatedTokens: threshold - 1, contextWindowTokens: window))
+    #require(
       AgentExecutor.shouldCompact(estimatedTokens: threshold, contextWindowTokens: window))
-    XCTAssertTrue(
+    #require(
       AgentExecutor.shouldCompact(estimatedTokens: window, contextWindowTokens: window))
   }
 
-  func testShouldCompactTracksArbitraryWindowSizes() {
-    XCTAssertFalse(AgentExecutor.shouldCompact(estimatedTokens: 80, contextWindowTokens: 128))
+  @Test func testShouldCompactTracksArbitraryWindowSizes() {
+    #require(!AgentExecutor.shouldCompact(estimatedTokens: 80, contextWindowTokens: 128))
     // 128 * 0.75 = 96
-    XCTAssertTrue(AgentExecutor.shouldCompact(estimatedTokens: 96, contextWindowTokens: 128))
+    #require(AgentExecutor.shouldCompact(estimatedTokens: 96, contextWindowTokens: 128))
   }
 
-  func testEstimatedTokensGrowsWithEncodedMessagePayload() {
+  @Test func testEstimatedTokensGrowsWithEncodedMessagePayload() {
     let short = AgentExecutor.estimatedTokens(in: [sys("SYS"), usr("hi")])
     let long = AgentExecutor.estimatedTokens(
       in: [sys("SYS"), usr(String(repeating: "x", count: 4_000))])
-    XCTAssertGreaterThan(long, short)
+    #require(long > short)
     // ~4_000 chars of payload plus JSON envelope should sit comfortably
     // above 1_000 / 4 tokens — anything dramatically smaller would mean
     // the estimator silently lost the payload (e.g. a swallowed encoder
     // failure that left the message contributing zero).
-    XCTAssertGreaterThan(long, 1_000)
+    #require(long > 1_000)
   }
 
-  func testEstimatedTokensCountsAssistantToolCallsAndToolResponses() {
+  @Test func testEstimatedTokensCountsAssistantToolCallsAndToolResponses() {
     // The whole point of the chars/4 estimator over provider-reported
     // usage is that a long tool-call-heavy run can't slip under the
     // threshold just because the provider dropped usage on those
@@ -626,10 +640,10 @@ final class AgentExecutorTests: XCTestCase {
         tool(String(repeating: "log line\n", count: 200), toolCallId: "t2"),
         tool(String(repeating: "log line\n", count: 200), toolCallId: "t3"),
       ])
-    XCTAssertGreaterThan(withToolTraffic, textOnly + 1_000)
+    #require(withToolTraffic > textOnly + 1_000)
   }
 
-  func testCompactedMessagesPreservesSystemAndOriginalUser() {
+  @Test func testCompactedMessagesPreservesSystemAndOriginalUser() {
     let system: ChatQuery.ChatCompletionMessageParam = .system(
       .init(content: .textContent("SYS"))
     )
@@ -641,50 +655,51 @@ final class AgentExecutorTests: XCTestCase {
       originalUser: originalUser,
       summary: "Summary body here."
     )
-    XCTAssertEqual(result.count, 3)
-    XCTAssertEqual(result[0], system)
-    XCTAssertEqual(result[1], originalUser)
+    #require(result.count == 3)
+    #require(result[0] == system)
+    #require(result[1] == originalUser)
     guard case .user(let recap) = result[2],
       case .string(let recapText) = recap.content
     else {
-      return XCTFail("expected third message to be a .user(.string) recap")
+      #require(false, "expected third message to be a .user(.string) recap")
+      return
     }
-    XCTAssertTrue(recapText.contains("Summary body here."))
-    XCTAssertTrue(
+    #require(recapText.contains("Summary body here."))
+    #require(
       recapText.contains("Compacted conversation summary"),
       "recap should label itself as a compaction so the model knows context was dropped")
-    XCTAssertTrue(
+    #require(
       recapText.contains("submit_result"),
       "recap should remind the model how to finish the phase")
   }
 
   // MARK: - Typed tool errors
 
-  func testAgentToolErrorKindMapsThroughFailureOverload() {
-    XCTAssertEqual(
-      AgentToolInvocationResult.failure(.fileNotFound("missing.txt")).errorKind,
+  @Test func testAgentToolErrorKindMapsThroughFailureOverload() {
+    #require(
+      AgentToolInvocationResult.failure(.fileNotFound("missing.txt")).errorKind ==
       .fileNotFound
     )
-    XCTAssertEqual(
-      AgentToolInvocationResult.failure(.editConflict("oldString not found")).errorKind,
+    #require(
+      AgentToolInvocationResult.failure(.editConflict("oldString not found")).errorKind ==
       .editConflict
     )
-    XCTAssertEqual(
-      AgentToolInvocationResult.failure(.rpcFailure("vsock disconnected")).errorKind,
+    #require(
+      AgentToolInvocationResult.failure(.rpcFailure("vsock disconnected")).errorKind ==
       .rpcFailure
     )
-    XCTAssertEqual(
-      AgentToolInvocationResult.failure(.invalidArguments("bad json")).errorKind,
+    #require(
+      AgentToolInvocationResult.failure(.invalidArguments("bad json")).errorKind ==
       .invalidArguments
     )
   }
 
-  func testAgentToolErrorKindIsNilForSuccess() {
-    XCTAssertNil(AgentToolInvocationResult.ok("done").errorKind)
+  @Test func testAgentToolErrorKindIsNilForSuccess() {
+    #require(AgentToolInvocationResult.ok("done").errorKind == nil)
   }
 
-  func testLegacyStringFailureKeepsNilKindForBackwardsCompat() {
-    XCTAssertNil(AgentToolInvocationResult.failure("plain string").errorKind)
+  @Test func testLegacyStringFailureKeepsNilKindForBackwardsCompat() {
+    #require(AgentToolInvocationResult.failure("plain string").errorKind == nil)
   }
 
   // MARK: - helpers

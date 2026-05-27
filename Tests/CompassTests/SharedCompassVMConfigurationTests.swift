@@ -13,7 +13,7 @@ struct SharedCompassVMConfigurationTests {
     // Both sides of the vsock conversation (host AgentVsockClient and
     // the in-guest CompassGuestAgent) reference this constant. Lock the
     // value so a refactor on either side can't silently rewire the port.
-    try #require(SharedCompassVMVsock.guestAgentPort == 0x4007_ACE5)
+    #require(SharedCompassVMVsock.guestAgentPort == 0x4007_ACE5)
   }
 
   // MARK: - Console
@@ -34,6 +34,6 @@ struct SharedCompassVMConfigurationTests {
 
     try SharedCompassVMConfiguration.replaceConsoleAttachment(attachment, on: configuration)
 
-    try #require(consolePort.attachment === attachment)
+    #require(consolePort.attachment === attachment)
   }
 }

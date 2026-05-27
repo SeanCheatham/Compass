@@ -1,9 +1,9 @@
 import Foundation
-import XCTest
+import Testing
 
 @testable import Compass
 
-final class CriticPromptTests: XCTestCase {
+struct CriticPromptTests {
   private func makePlanNext(
     plan: String = "Refactor the parser",
     verify: String = "swift test"
@@ -19,7 +19,7 @@ final class CriticPromptTests: XCTestCase {
     DevelopSummary(status: status, summary: summary, feedback: feedback)
   }
 
-  func testCriticPromptCarriesPlanAndVerifyAndDiff() {
+  @Test func testCriticPromptCarriesPlanAndVerifyAndDiff() {
     let prompt = Prompts.criticPrompt(
       next: makePlanNext(plan: "Plan body XYZ"),
       developSummary: makeDevelopSummary(summary: "Summary body 123"),
@@ -33,15 +33,15 @@ final class CriticPromptTests: XCTestCase {
       iteration: 1,
       maxIterations: 3
     )
-    XCTAssertTrue(prompt.contains("Plan body XYZ"))
-    XCTAssertTrue(prompt.contains("Summary body 123"))
-    XCTAssertTrue(prompt.contains("swift test --filter Parser"))
-    XCTAssertTrue(prompt.contains("passed (exit 0)"))
-    XCTAssertTrue(prompt.contains("ok 5 tests passed"))
-    XCTAssertTrue(prompt.contains("+let foo = 1"))
+    #require(prompt.contains("Plan body XYZ"))
+    #require(prompt.contains("Summary body 123"))
+    #require(prompt.contains("swift test --filter Parser"))
+    #require(prompt.contains("passed (exit 0)"))
+    #require(prompt.contains("ok 5 tests passed"))
+    #require(prompt.contains("+let foo = 1"))
   }
 
-  func testCriticPromptReportsBypassedVerifyClearly() {
+  @Test func testCriticPromptReportsBypassedVerifyClearly() {
     let prompt = Prompts.criticPrompt(
       next: makePlanNext(),
       developSummary: makeDevelopSummary(),
@@ -55,10 +55,10 @@ final class CriticPromptTests: XCTestCase {
       iteration: 1,
       maxIterations: 3
     )
-    XCTAssertTrue(prompt.contains("bypassVerify"))
+    #require(prompt.contains("bypassVerify"))
   }
 
-  func testCriticPromptCountsIterationsTowardCap() {
+  @Test func testCriticPromptCountsIterationsTowardCap() {
     let prompt = Prompts.criticPrompt(
       next: makePlanNext(),
       developSummary: makeDevelopSummary(),
@@ -72,13 +72,14 @@ final class CriticPromptTests: XCTestCase {
       iteration: 3,
       maxIterations: 3
     )
-    XCTAssertTrue(
+    #require(
       prompt.contains("critic review 3 of at most 3"),
-      "Critic must know it's the final review so it can be decisive")
-    XCTAssertTrue(prompt.contains("accept and proceed regardless"))
+      "Critic must know it's the final review so it can be decisive"
+    )
+    #require(prompt.contains("accept and proceed regardless"))
   }
 
-  func testCriticPromptIncludesPriorCritiquesWhenPresent() {
+  @Test func testCriticPromptIncludesPriorCritiquesWhenPresent() {
     let prompt = Prompts.criticPrompt(
       next: makePlanNext(),
       developSummary: makeDevelopSummary(),
@@ -92,11 +93,11 @@ final class CriticPromptTests: XCTestCase {
       iteration: 2,
       maxIterations: 3
     )
-    XCTAssertTrue(prompt.contains("Missing test for the empty case."))
-    XCTAssertTrue(prompt.contains("Review 1:"))
+    #require(prompt.contains("Missing test for the empty case."))
+    #require(prompt.contains("Review 1:"))
   }
 
-  func testCriticPromptForbidsMutatingCommandsExplicitly() {
+  @Test func testCriticPromptForbidsMutatingCommandsExplicitly() {
     // The bash tool itself cannot enforce intent; the prompt has to
     // tell the model not to commit / write / sed-in-place.
     let prompt = Prompts.criticPrompt(
@@ -112,21 +113,21 @@ final class CriticPromptTests: XCTestCase {
       iteration: 1,
       maxIterations: 3
     )
-    XCTAssertTrue(prompt.contains("CANNOT edit, write, or commit"))
-    XCTAssertTrue(prompt.contains("no `git commit`"))
+    #require(prompt.contains("CANNOT edit, write, or commit"))
+    #require(prompt.contains("no `git commit`"))
   }
 
-  func testCriticVerdictDecodesApproveAndRequestChangesSnakeCase() throws {
+  @Test func testCriticVerdictDecodesApproveAndRequestChangesSnakeCase() throws {
     let approve = #"{"verdict":"approve","summary":"looks good","feedback":""}"#
     let reject = #"{"verdict":"request_changes","summary":"missing tests","feedback":"add one"}"#
     let v1 = try JSONDecoder().decode(CriticVerdict.self, from: Data(approve.utf8))
     let v2 = try JSONDecoder().decode(CriticVerdict.self, from: Data(reject.utf8))
-    XCTAssertEqual(v1.verdict, .approve)
-    XCTAssertEqual(v2.verdict, .requestChanges)
-    XCTAssertEqual(v2.feedback, "add one")
+    #require(v1.verdict == .approve)
+    #require(v2.verdict == .requestChanges)
+    #require(v2.feedback == "add one")
   }
 
-  func testDevelopPromptInjectsCriticFeedbackSectionWhenPresent() {
+  @Test func testDevelopPromptInjectsCriticFeedbackSectionWhenPresent() {
     let withFeedback = Prompts.developPrompt(
       next: PlanNext(
         plan: "p", verify: "swift build", verifyTimeoutMs: nil, estimatedDifficulty: nil),
@@ -136,11 +137,11 @@ final class CriticPromptTests: XCTestCase {
       priorIssues: [],
       criticFeedback: ["Add a test for the empty list case."]
     )
-    XCTAssertTrue(withFeedback.contains("Critic feedback from prior passes"))
-    XCTAssertTrue(withFeedback.contains("Add a test for the empty list case."))
+    #require(withFeedback.contains("Critic feedback from prior passes"))
+    #require(withFeedback.contains("Add a test for the empty list case."))
   }
 
-  func testDevelopPromptOmitsCriticFeedbackSectionWhenAbsent() {
+  @Test func testDevelopPromptOmitsCriticFeedbackSectionWhenAbsent() {
     let withoutFeedback = Prompts.developPrompt(
       next: PlanNext(
         plan: "p", verify: "swift build", verifyTimeoutMs: nil, estimatedDifficulty: nil),
@@ -149,6 +150,6 @@ final class CriticPromptTests: XCTestCase {
       attempt: 1,
       priorIssues: []
     )
-    XCTAssertFalse(withoutFeedback.contains("Critic feedback from prior passes"))
+    #require(!withoutFeedback.contains("Critic feedback from prior passes"))
   }
 }

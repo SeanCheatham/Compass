@@ -1,21 +1,21 @@
 import Foundation
 import Virtualization
-import XCTest
+import Testing
 
 @testable import Compass
 
 /// Coverage for `SharedCompassVMAvailabilityCheck.describe(error:)` — the mapping
 /// that turns raw `VZError` codes into user-readable reason strings shown in the
 /// availability banner / fallback message.
-final class SharedCompassVMAvailabilityCheckTests: XCTestCase {
-  func testDescribeMapsVirtualMachineLimitExceededToUserFacingTwoGuestCapHint() {
+struct SharedCompassVMAvailabilityCheckTests {
+  @Test func describeMapsVirtualMachineLimitExceededToUserFacingTwoGuestCapHint() {
     let nsError = NSError(
       domain: VZErrorDomain,
       code: VZError.Code.virtualMachineLimitExceeded.rawValue,
       userInfo: [NSLocalizedDescriptionKey: "limit exceeded"]
     )
     let description = SharedCompassVMAvailabilityCheck.describe(error: nsError)
-    XCTAssertFalse(description.isEmpty)
+    #require(!description.isEmpty)
     // The user-facing message must point the user at the 2-guest cap or a
     // recovery hint (quit other VM apps). We accept either phrasing.
     let lowercased = description.lowercased()
@@ -23,13 +23,13 @@ final class SharedCompassVMAvailabilityCheckTests: XCTestCase {
       lowercased.contains("limit")
       || lowercased.contains("2-guest")
       || lowercased.contains("quit other vm")
-    XCTAssertTrue(
+    #require(
       mentionsLimit,
       "Expected user-facing limit/cap hint in: \(description)"
     )
   }
 
-  func testDescribeReturnsNonEmptyStringForOtherVZErrorCodes() {
+  @Test func describeReturnsNonEmptyStringForOtherVZErrorCodes() {
     let codes: [VZError.Code] = [
       .networkError,
       .invalidVirtualMachineConfiguration,
@@ -44,22 +44,22 @@ final class SharedCompassVMAvailabilityCheckTests: XCTestCase {
         userInfo: [NSLocalizedDescriptionKey: "vz code \(code.rawValue)"]
       )
       let description = SharedCompassVMAvailabilityCheck.describe(error: nsError)
-      XCTAssertFalse(
-        description.isEmpty,
+      #require(
+        !description.isEmpty,
         "describe(error:) returned empty string for VZ code \(code.rawValue)"
       )
     }
   }
 
-  func testDescribeFallsThroughToLocalizedDescriptionForNonVZErrors() {
+  @Test func describeFallsThroughToLocalizedDescriptionForNonVZErrors() {
     struct DummyError: LocalizedError {
       var errorDescription: String? { "compass-test-detail" }
     }
     let description = SharedCompassVMAvailabilityCheck.describe(error: DummyError())
-    XCTAssertEqual(description, "compass-test-detail")
+    #require(description == "compass-test-detail")
   }
 
-  func testDescribeFallsThroughForUnknownVZErrorCode() {
+  @Test func describeFallsThroughForUnknownVZErrorCode() {
     // Pick a code that isn't one of the curated cases — the function must
     // still produce a non-empty user-facing string.
     let nsError = NSError(
@@ -68,14 +68,14 @@ final class SharedCompassVMAvailabilityCheckTests: XCTestCase {
       userInfo: [NSLocalizedDescriptionKey: "unknown vz code"]
     )
     let description = SharedCompassVMAvailabilityCheck.describe(error: nsError)
-    XCTAssertFalse(description.isEmpty)
-    XCTAssertEqual(description, "unknown vz code")
+    #require(!description.isEmpty)
+    #require(description == "unknown vz code")
   }
 
-  func testAvailabilityIsAvailableConvenienceFlag() {
-    XCTAssertTrue(SharedCompassVMAvailability.available.isAvailable)
-    XCTAssertFalse(SharedCompassVMAvailability.unavailable(reason: "x").isAvailable)
-    XCTAssertEqual(SharedCompassVMAvailability.unavailable(reason: "x").unavailableReason, "x")
-    XCTAssertNil(SharedCompassVMAvailability.available.unavailableReason)
+  @Test func availabilityIsAvailableConvenienceFlag() {
+    #require(SharedCompassVMAvailability.available.isAvailable)
+    #require(!SharedCompassVMAvailability.unavailable(reason: "x").isAvailable)
+    #require(SharedCompassVMAvailability.unavailable(reason: "x").unavailableReason == "x")
+    #require(SharedCompassVMAvailability.available.unavailableReason == nil)
   }
 }

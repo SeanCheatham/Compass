@@ -1,9 +1,10 @@
 import Foundation
-import XCTest
+import Testing
 
 @testable import Compass
 
-final class PlanWorkflowOverviewTests: XCTestCase {
+struct PlanWorkflowOverviewTests {
+  @Test
   func testBuildsPopulatedOverviewSections() {
     let state = makeState(
       completed: ["Set up planning", "Ship history"],
@@ -18,25 +19,27 @@ final class PlanWorkflowOverviewTests: XCTestCase {
 
     let overview = PlanWorkflowOverview(state: state)
 
-    XCTAssertEqual(overview.sections.map(\.kind), [.immediate, .midTerm, .longTerm])
-    XCTAssertEqual(
-      overview.immediate.body, "Build the overview\n\n- Keep completed summaries selectable")
-    XCTAssertEqual(overview.midTerm.body, "- Queue the next planning polish")
-    XCTAssertEqual(overview.longTerm.body, "Make waiting time easier to understand.")
-    XCTAssertFalse(overview.immediate.isEmpty)
+    #require(overview.sections.map(\.kind) == [.immediate, .midTerm, .longTerm])
+    #require(
+      overview.immediate.body == "Build the overview\n\n- Keep completed summaries selectable")
+    #require(overview.midTerm.body == "- Queue the next planning polish")
+    #require(overview.longTerm.body == "Make waiting time easier to understand.")
+    #require(!overview.immediate.isEmpty)
   }
 
+  @Test
   func testOverviewKindsMapToStableTimelineDestinations() {
-    XCTAssertEqual(PlanWorkflowOverview.Kind.immediate.timelineItemID, "plan-immediate")
-    XCTAssertEqual(PlanWorkflowOverview.Kind.midTerm.timelineItemID, "plan-mid-term")
-    XCTAssertEqual(PlanWorkflowOverview.Kind.longTerm.timelineItemID, "plan-long-term")
+    #require(PlanWorkflowOverview.Kind.immediate.timelineItemID == "plan-immediate")
+    #require(PlanWorkflowOverview.Kind.midTerm.timelineItemID == "plan-mid-term")
+    #require(PlanWorkflowOverview.Kind.longTerm.timelineItemID == "plan-long-term")
 
-    XCTAssertEqual(PlanWorkflowOverview.Kind(timelineItemID: "plan-immediate"), .immediate)
-    XCTAssertEqual(PlanWorkflowOverview.Kind(timelineItemID: "plan-mid-term"), .midTerm)
-    XCTAssertEqual(PlanWorkflowOverview.Kind(timelineItemID: "plan-long-term"), .longTerm)
-    XCTAssertNil(PlanWorkflowOverview.Kind(timelineItemID: "plan-history-0"))
+    #require(PlanWorkflowOverview.Kind(timelineItemID: "plan-immediate") == .immediate)
+    #require(PlanWorkflowOverview.Kind(timelineItemID: "plan-mid-term") == .midTerm)
+    #require(PlanWorkflowOverview.Kind(timelineItemID: "plan-long-term") == .longTerm)
+    #require(PlanWorkflowOverview.Kind(timelineItemID: "plan-history-0") == nil)
   }
 
+  @Test
   func testSectionTimelineDestinationsFollowOverviewOrder() {
     let overview = PlanWorkflowOverview(
       state: makeState(
@@ -46,17 +49,18 @@ final class PlanWorkflowOverviewTests: XCTestCase {
       )
     )
 
-    XCTAssertEqual(overview.sections.map(\.kind), [.immediate, .midTerm, .longTerm])
-    XCTAssertEqual(
-      overview.sections.map(\.timelineItemID),
+    #require(overview.sections.map(\.kind) == [.immediate, .midTerm, .longTerm])
+    #require(
+      overview.sections.map(\.timelineItemID) ==
       ["plan-immediate", "plan-mid-term", "plan-long-term"]
     )
-    XCTAssertEqual(
-      PlanWorkflowOverview.TimelineDestination.allCases.map(\.overviewKind),
+    #require(
+      PlanWorkflowOverview.TimelineDestination.allCases.map(\.overviewKind) ==
       [.immediate, .midTerm, .longTerm]
     )
   }
 
+  @Test
   func testNoImmediateStateKeepsQueueAndArcVisible() {
     let overview = PlanWorkflowOverview(
       state: makeState(
@@ -67,16 +71,17 @@ final class PlanWorkflowOverviewTests: XCTestCase {
       )
     )
 
-    XCTAssertTrue(overview.immediate.isEmpty)
-    XCTAssertEqual(overview.immediate.body, "")
-    XCTAssertNil(overview.immediate.excerpt)
-    XCTAssertNil(overview.immediate.verifyCommand)
-    XCTAssertNil(overview.immediate.verifyTimeoutLabel)
-    XCTAssertNil(overview.immediate.estimatedDifficulty)
-    XCTAssertEqual(overview.midTerm.excerpt, "- Later work")
-    XCTAssertEqual(overview.longTerm.excerpt, "Long arc")
+    #require(overview.immediate.isEmpty)
+    #require(overview.immediate.body == "")
+    #require(overview.immediate.excerpt == nil)
+    #require(overview.immediate.verifyCommand == nil)
+    #require(overview.immediate.verifyTimeoutLabel == nil)
+    #require(overview.immediate.estimatedDifficulty == nil)
+    #require(overview.midTerm.excerpt == "- Later work")
+    #require(overview.longTerm.excerpt == "Long arc")
   }
 
+  @Test
   func testEmptyQueueAndArcExposeSpecificEmptyMessages() {
     let overview = PlanWorkflowOverview(
       state: makeState(
@@ -86,16 +91,17 @@ final class PlanWorkflowOverviewTests: XCTestCase {
       )
     )
 
-    XCTAssertTrue(overview.midTerm.isEmpty)
-    XCTAssertTrue(overview.longTerm.isEmpty)
-    XCTAssertEqual(
-      overview.midTerm.emptyMessage,
+    #require(overview.midTerm.isEmpty)
+    #require(overview.longTerm.isEmpty)
+    #require(
+      overview.midTerm.emptyMessage ==
       "No mid-term queue. Future planning has no staged direction yet.")
-    XCTAssertEqual(
-      overview.longTerm.emptyMessage,
+    #require(
+      overview.longTerm.emptyMessage ==
       "No long-term arc. Add the larger product direction when it becomes clear.")
   }
 
+  @Test
   func testNormalizesMarkdownWhitespace() {
     let overview = PlanWorkflowOverview(
       state: makeState(
@@ -104,10 +110,11 @@ final class PlanWorkflowOverviewTests: XCTestCase {
       )
     )
 
-    XCTAssertEqual(overview.midTerm.body, "First item\n\n- Queue two\nContinued text")
-    XCTAssertEqual(overview.longTerm.body, "Arc with spacing")
+    #require(overview.midTerm.body == "First item\n\n- Queue two\nContinued text")
+    #require(overview.longTerm.body == "Arc with spacing")
   }
 
+  @Test
   func testBoundsDenseExcerpts() {
     let overview = PlanWorkflowOverview(
       state: makeState(
@@ -116,10 +123,11 @@ final class PlanWorkflowOverviewTests: XCTestCase {
       excerptLimit: 25
     )
 
-    XCTAssertEqual(overview.longTerm.excerpt, "Alpha beta gamma delta...")
-    XCTAssertLessThanOrEqual(overview.longTerm.excerpt?.count ?? 0, 25)
+    #require(overview.longTerm.excerpt == "Alpha beta gamma delta...")
+    #require(overview.longTerm.excerpt?.count ?? 0 <= 25)
   }
 
+  @Test
   func testPreservesVerifyAndDifficultyMetadata() {
     let overview = PlanWorkflowOverview(
       state: makeState(
@@ -131,30 +139,34 @@ final class PlanWorkflowOverviewTests: XCTestCase {
       )
     )
 
-    XCTAssertEqual(
-      overview.immediate.verifyCommand, "swift test --filter PlanWorkflowOverviewTests")
-    XCTAssertEqual(overview.immediate.estimatedDifficulty, .high)
-    XCTAssertEqual(overview.immediate.estimatedDifficultyLabel, "High")
+    #require(
+      overview.immediate.verifyCommand == "swift test --filter PlanWorkflowOverviewTests")
+    #require(overview.immediate.estimatedDifficulty == .high)
+    #require(overview.immediate.estimatedDifficultyLabel == "High")
   }
 
+  @Test
   func testVerifyTimeoutMetadataFormatsExplicitSeconds() {
     let metadata = PlanVerifyMetadata(timeoutMs: 90_000)
 
-    XCTAssertEqual(metadata.label, "Timeout 90s")
+    #require(metadata.label == "Timeout 90s")
   }
 
+  @Test
   func testVerifyTimeoutMetadataFormatsExplicitMinutes() {
     let metadata = PlanVerifyMetadata(timeoutMs: 600_000)
 
-    XCTAssertEqual(metadata.label, "Timeout 10m")
+    #require(metadata.label == "Timeout 10m")
   }
 
+  @Test
   func testVerifyTimeoutMetadataLabelsDefaultTimeout() {
     let metadata = PlanVerifyMetadata(timeoutMs: nil)
 
-    XCTAssertEqual(metadata.label, "Default timeout 10m")
+    #require(metadata.label == "Default timeout 10m")
   }
 
+  @Test
   func testSectionPropagatesVerifyTimeoutMetadataOnlyForImmediatePlan() {
     let overview = PlanWorkflowOverview(
       state: makeState(
@@ -169,10 +181,11 @@ final class PlanWorkflowOverviewTests: XCTestCase {
       )
     )
 
-    XCTAssertEqual(overview.immediate.verifyTimeoutLabel, "Timeout 90s")
-    XCTAssertEqual(overview.sections.map(\.verifyTimeoutLabel), ["Timeout 90s", nil, nil])
+    #require(overview.immediate.verifyTimeoutLabel == "Timeout 90s")
+    #require(overview.sections.map(\.verifyTimeoutLabel) == ["Timeout 90s", nil, nil])
   }
 
+  @Test
   func testSectionPropagatesDefaultVerifyTimeoutMetadataForImmediatePlan() {
     let overview = PlanWorkflowOverview(
       state: makeState(
@@ -184,16 +197,17 @@ final class PlanWorkflowOverviewTests: XCTestCase {
       )
     )
 
-    XCTAssertEqual(overview.immediate.verifyTimeoutLabel, "Default timeout 10m")
+    #require(overview.immediate.verifyTimeoutLabel == "Default timeout 10m")
   }
 
+  @Test
   func testPreservesCompletedCountMetadata() {
     let overview = PlanWorkflowOverview(
       state: makeState(completed: ["one", "two", "three"])
     )
 
-    XCTAssertEqual(overview.completedCount, 3)
-    XCTAssertEqual(overview.sections.map(\.completedCount), [3, 3, 3])
+    #require(overview.completedCount == 3)
+    #require(overview.sections.map(\.completedCount) == [3, 3, 3])
   }
 
   private func makeState(

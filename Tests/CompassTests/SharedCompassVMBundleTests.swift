@@ -1,15 +1,15 @@
 import Foundation
-import XCTest
+import Testing
 
 @testable import Compass
 
 /// Coverage for `SharedCompassVMBundle`'s file-layout helpers and State Codable contract.
 /// The bundle's `ensureExists()` creates plain directories on disk, so we exercise it
 /// against a temporary directory instead of `~/Library/Application Support`.
-final class SharedCompassVMBundleTests: XCTestCase {
+struct SharedCompassVMBundleTests {
   private var temporaryDirectories: [URL] = []
 
-  override func tearDownWithError() throws {
+  func cleanup() {
     for url in temporaryDirectories {
       try? FileManager.default.removeItem(at: url)
     }
@@ -18,6 +18,7 @@ final class SharedCompassVMBundleTests: XCTestCase {
 
   // MARK: - State Codable
 
+  @Test
   func testStateRoundTripsThroughJSONEncodeDecode() throws {
     let original = SharedCompassVMBundle.State(
       provisionStep: .ready,
@@ -33,19 +34,21 @@ final class SharedCompassVMBundleTests: XCTestCase {
     let data = try encoder.encode(original)
     let decoded = try JSONDecoder().decode(SharedCompassVMBundle.State.self, from: data)
 
-    XCTAssertEqual(decoded, original)
+    #require(decoded == original)
   }
 
+  @Test
   func testStateDefaultsAreSensible() {
     let state = SharedCompassVMBundle.State()
-    XCTAssertEqual(state.provisionStep, .notProvisioned)
-    XCTAssertNil(state.lastKnownGoodIP)
-    XCTAssertEqual(state.guestUserName, SharedCompassVMBundle.State.defaultGuestUserName)
-    XCTAssertNil(state.guestOSVersion)
-    XCTAssertEqual(state.bootAttemptCounter, 0)
-    XCTAssertNil(state.lastBundleSize)
+    #require(state.provisionStep == .notProvisioned)
+    #require(state.lastKnownGoodIP == nil)
+    #require(state.guestUserName == SharedCompassVMBundle.State.defaultGuestUserName)
+    #require(state.guestOSVersion == nil)
+    #require(state.bootAttemptCounter == 0)
+    #require(state.lastBundleSize == nil)
   }
 
+  @Test
   func testProvisionStepEnumRoundTripsEachCaseThroughCodable() throws {
     let allSteps: [SharedCompassVMBundle.State.ProvisionStep] = [
       .notProvisioned,
@@ -60,23 +63,25 @@ final class SharedCompassVMBundleTests: XCTestCase {
         SharedCompassVMBundle.State.ProvisionStep.self,
         from: encoded
       )
-      XCTAssertEqual(decoded, step)
+      #require(decoded == step)
     }
   }
 
   // MARK: - Path helpers
 
+  @Test
   func testRestoreImageURLLivesUnderCacheDirectory() {
     let bundle = makeBundle()
     let url = bundle.restoreImageURL(forVersion: "26.0.1.23A123")
-    XCTAssertTrue(
+    #require(
       url.path.hasPrefix(bundle.cacheDirectoryURL.path + "/"),
       "Expected \(url.path) to be under \(bundle.cacheDirectoryURL.path)"
     )
-    XCTAssertTrue(url.lastPathComponent.hasSuffix(".ipsw"))
-    XCTAssertTrue(url.lastPathComponent.contains("26.0.1.23A123"))
+    #require(url.lastPathComponent.hasSuffix(".ipsw"))
+    #require(url.lastPathComponent.contains("26.0.1.23A123"))
   }
 
+  @Test
   func testBundleFilePathsAreUnderBundleRoot() {
     let bundle = makeBundle()
     let root = bundle.rootURL.path
@@ -92,7 +97,7 @@ final class SharedCompassVMBundleTests: XCTestCase {
       bundle.cacheDirectoryURL,
     ]
     for url in mustBeUnderRoot {
-      XCTAssertTrue(
+      #require(
         url.path == root || url.path.hasPrefix(root + "/"),
         "\(url.path) is not under bundle root \(root)"
       )
@@ -101,45 +106,49 @@ final class SharedCompassVMBundleTests: XCTestCase {
 
   // MARK: - ensureExists
 
+  @Test
   func testEnsureExistsCreatesBundleAndCacheDirectories() throws {
     let bundle = makeBundle()
-    XCTAssertFalse(FileManager.default.fileExists(atPath: bundle.rootURL.path))
+    #require(!FileManager.default.fileExists(atPath: bundle.rootURL.path))
 
     try bundle.ensureExists()
 
     var isDir: ObjCBool = false
-    XCTAssertTrue(FileManager.default.fileExists(atPath: bundle.rootURL.path, isDirectory: &isDir))
-    XCTAssertTrue(isDir.boolValue)
+    #require(FileManager.default.fileExists(atPath: bundle.rootURL.path, isDirectory: &isDir))
+    #require(isDir.boolValue)
 
     var cacheIsDir: ObjCBool = false
-    XCTAssertTrue(
+    #require(
       FileManager.default.fileExists(
         atPath: bundle.cacheDirectoryURL.path, isDirectory: &cacheIsDir)
     )
-    XCTAssertTrue(cacheIsDir.boolValue)
+    #require(cacheIsDir.boolValue)
   }
 
+  @Test
   func testEnsureExistsIsIdempotent() throws {
     let bundle = makeBundle()
     try bundle.ensureExists()
     // Second call must not throw and must leave the directories in place.
     try bundle.ensureExists()
-    XCTAssertTrue(FileManager.default.fileExists(atPath: bundle.rootURL.path))
-    XCTAssertTrue(FileManager.default.fileExists(atPath: bundle.cacheDirectoryURL.path))
+    #require(FileManager.default.fileExists(atPath: bundle.rootURL.path))
+    #require(FileManager.default.fileExists(atPath: bundle.cacheDirectoryURL.path))
   }
 
+  @Test
   func testExistsOnDiskFalseUntilDiskAndAuxiliaryStorageArePresent() throws {
     let bundle = makeBundle()
     try bundle.ensureExists()
-    XCTAssertFalse(bundle.existsOnDisk())
+    #require(!bundle.existsOnDisk())
 
     try Data("disk".utf8).write(to: bundle.diskImageURL)
-    XCTAssertFalse(bundle.existsOnDisk(), "Still missing AuxiliaryStorage")
+    #require(!bundle.existsOnDisk(), "Still missing AuxiliaryStorage")
 
     try Data("aux".utf8).write(to: bundle.auxiliaryStorageURL)
-    XCTAssertTrue(bundle.existsOnDisk())
+    #require(bundle.existsOnDisk())
   }
 
+  @Test
   func testResetInstalledArtifactsRemovesInstallStateButPreservesCacheAndSSHKeys() throws {
     let bundle = makeBundle()
     try bundle.ensureExists()
@@ -171,34 +180,36 @@ final class SharedCompassVMBundleTests: XCTestCase {
 
     try bundle.resetInstalledArtifacts()
 
-    XCTAssertFalse(FileManager.default.fileExists(atPath: bundle.diskImageURL.path))
-    XCTAssertFalse(FileManager.default.fileExists(atPath: bundle.auxiliaryStorageURL.path))
-    XCTAssertFalse(FileManager.default.fileExists(atPath: bundle.hardwareModelURL.path))
-    XCTAssertFalse(FileManager.default.fileExists(atPath: bundle.machineIdentifierURL.path))
-    XCTAssertFalse(FileManager.default.fileExists(atPath: bundle.knownHostsURL.path))
+    #require(!FileManager.default.fileExists(atPath: bundle.diskImageURL.path))
+    #require(!FileManager.default.fileExists(atPath: bundle.auxiliaryStorageURL.path))
+    #require(!FileManager.default.fileExists(atPath: bundle.hardwareModelURL.path))
+    #require(!FileManager.default.fileExists(atPath: bundle.machineIdentifierURL.path))
+    #require(!FileManager.default.fileExists(atPath: bundle.knownHostsURL.path))
 
-    XCTAssertTrue(FileManager.default.fileExists(atPath: bundle.privateKeyURL.path))
-    XCTAssertTrue(FileManager.default.fileExists(atPath: bundle.publicKeyURL.path))
-    XCTAssertTrue(FileManager.default.fileExists(atPath: cachedRestoreImage.path))
+    #require(FileManager.default.fileExists(atPath: bundle.privateKeyURL.path))
+    #require(FileManager.default.fileExists(atPath: bundle.publicKeyURL.path))
+    #require(FileManager.default.fileExists(atPath: cachedRestoreImage.path))
 
     let state = try bundle.loadState()
-    XCTAssertEqual(state.provisionStep, .notProvisioned)
-    XCTAssertNil(state.lastKnownGoodIP)
-    XCTAssertNil(state.guestOSVersion)
-    XCTAssertEqual(state.bootAttemptCounter, 0)
-    XCTAssertNil(state.lastBundleSize)
-    XCTAssertEqual(state.guestMACAddress, "02:11:22:33:44:55")
+    #require(state.provisionStep == .notProvisioned)
+    #require(state.lastKnownGoodIP == nil)
+    #require(state.guestOSVersion == nil)
+    #require(state.bootAttemptCounter == 0)
+    #require(state.lastBundleSize == nil)
+    #require(state.guestMACAddress == "02:11:22:33:44:55")
   }
 
   // MARK: - State persistence
 
+  @Test
   func testLoadStateReturnsDefaultWhenFileMissing() throws {
     let bundle = makeBundle()
     try bundle.ensureExists()
     let loaded = try bundle.loadState()
-    XCTAssertEqual(loaded, SharedCompassVMBundle.State())
+    #require(loaded == SharedCompassVMBundle.State())
   }
 
+  @Test
   func testSaveStateAndReloadRoundTripsValue() throws {
     let bundle = makeBundle()
     let state = SharedCompassVMBundle.State(
@@ -212,9 +223,10 @@ final class SharedCompassVMBundleTests: XCTestCase {
     try bundle.saveState(state)
 
     let reloaded = try bundle.loadState()
-    XCTAssertEqual(reloaded, state)
+    #require(reloaded == state)
   }
 
+  @Test
   func testMutateStateApplyClosureAndPersistsResult() throws {
     let bundle = makeBundle()
     try bundle.saveState(SharedCompassVMBundle.State())
@@ -222,11 +234,11 @@ final class SharedCompassVMBundleTests: XCTestCase {
       state.provisionStep = .ready
       state.bootAttemptCounter += 3
     }
-    XCTAssertEqual(result.provisionStep, .ready)
-    XCTAssertEqual(result.bootAttemptCounter, 3)
+    #require(result.provisionStep == .ready)
+    #require(result.bootAttemptCounter == 3)
 
     let reloaded = try bundle.loadState()
-    XCTAssertEqual(reloaded, result)
+    #require(reloaded == result)
   }
 
   // MARK: - Helpers

@@ -1,12 +1,12 @@
 import Foundation
-import XCTest
+import Testing
 
 @testable import Compass
 
-final class AgentImageGenerationTests: XCTestCase {
+struct AgentImageGenerationTests {
   // MARK: - MiniMax adapter
 
-  func testMiniMaxAdapterRequestsImageGenerationEndpoint() async throws {
+  @Test func testMiniMaxAdapterRequestsImageGenerationEndpoint() async throws {
     let imageBytes = Data((0..<48).map { UInt8($0) })
     let recorder = RequestRecorder()
     let transport = stubJSONTransport(
@@ -28,23 +28,23 @@ final class AgentImageGenerationTests: XCTestCase {
         model: "image-01"
       )
     )
-    XCTAssertEqual(bytes, imageBytes)
+    #require(bytes == imageBytes)
 
     let recorded = recorder.requests.first
-    XCTAssertEqual(
-      recorded?.url?.absoluteString,
+    #require(
+      recorded?.url?.absoluteString ==
       "https://api.minimax.io/v1/image_generation"
     )
-    XCTAssertEqual(recorded?.value(forHTTPHeaderField: "Authorization"), "Bearer mm-key")
-    let body = try XCTUnwrap(recorded?.httpBody)
-    let payload = try XCTUnwrap(
+    #require(recorded?.value(forHTTPHeaderField: "Authorization") == "Bearer mm-key")
+    let body = #require(recorder.requests.first?.httpBody)
+    let payload = #require(
       JSONSerialization.jsonObject(with: body) as? [String: Any])
-    XCTAssertEqual(payload["model"] as? String, "image-01")
-    XCTAssertEqual(payload["prompt"] as? String, "neon koi")
-    XCTAssertEqual(payload["response_format"] as? String, "base64")
+    #require(payload["model"] as? String == "image-01")
+    #require(payload["prompt"] as? String == "neon koi")
+    #require(payload["response_format"] as? String == "base64")
   }
 
-  func testMiniMaxAdapterFollowsImageURLFallback() async throws {
+  @Test func testMiniMaxAdapterFollowsImageURLFallback() async throws {
     let imageBytes = Data((0..<16).map { UInt8($0 + 64) })
     let recorder = RequestRecorder()
     var responses: [URL: (Data, Int)] = [:]
@@ -68,13 +68,13 @@ final class AgentImageGenerationTests: XCTestCase {
         model: "image-01"
       )
     )
-    XCTAssertEqual(bytes, imageBytes)
-    XCTAssertEqual(recorder.requests.count, 2)
+    #require(bytes == imageBytes)
+    #require(recorder.requests.count == 2)
   }
 
   // MARK: - OpenAI adapter
 
-  func testOpenAIAdapterRequestsImagesGenerationsEndpoint() async throws {
+  @Test func testOpenAIAdapterRequestsImagesGenerationsEndpoint() async throws {
     let imageBytes = Data("PNG bytes".utf8)
     let recorder = RequestRecorder()
     let transport = stubJSONTransport(
@@ -94,19 +94,19 @@ final class AgentImageGenerationTests: XCTestCase {
         model: "gpt-image-1"
       )
     )
-    XCTAssertEqual(bytes, imageBytes)
-    XCTAssertEqual(
-      recorder.requests.first?.url?.absoluteString,
+    #require(bytes == imageBytes)
+    #require(
+      recorder.requests.first?.url?.absoluteString ==
       "https://api.openai.com/v1/images/generations"
     )
-    XCTAssertEqual(
-      recorder.requests.first?.value(forHTTPHeaderField: "Authorization"),
+    #require(
+      recorder.requests.first?.value(forHTTPHeaderField: "Authorization") ==
       "Bearer sk-test")
   }
 
   // MARK: - Failure surfaces
 
-  func testNon2xxResponseSurfaceAsRequestFailed() async {
+  @Test func testNon2xxResponseSurfaceAsRequestFailed() async {
     let transport: DefaultAgentImageGenerator.Transport = { request in
       let response = HTTPURLResponse(
         url: request.url!, statusCode: 401, httpVersion: "1.1", headerFields: nil)!
@@ -122,20 +122,20 @@ final class AgentImageGenerationTests: XCTestCase {
           model: "image-01"
         )
       )
-      XCTFail("expected requestFailed")
+      #require(false, "expected requestFailed")
     } catch let error as AgentImageGenerationError {
       switch error {
       case .requestFailed(let status, _):
-        XCTAssertEqual(status, 401)
+        #require(status == 401)
       default:
-        XCTFail("expected .requestFailed, got \(error)")
+        #require(false, "expected .requestFailed, got \(error)")
       }
     } catch {
-      XCTFail("expected AgentImageGenerationError, got \(error)")
+      #require(false, "expected AgentImageGenerationError, got \(error)")
     }
   }
 
-  func testFoundationModelsProviderIsExplicitlyUnsupported() async {
+  @Test func testFoundationModelsProviderIsExplicitlyUnsupported() async {
     do {
       _ = try await DefaultAgentImageGenerator().generate(
         prompt: "p",
@@ -146,16 +146,16 @@ final class AgentImageGenerationTests: XCTestCase {
           model: ""
         )
       )
-      XCTFail("expected unsupportedProvider")
+      #require(false, "expected unsupportedProvider")
     } catch let error as AgentImageGenerationError {
       switch error {
       case .unsupportedProvider(let kind):
-        XCTAssertEqual(kind, .appleFoundationModels)
+        #require(kind == .appleFoundationModels)
       default:
-        XCTFail("expected .unsupportedProvider, got \(error)")
+        #require(false, "expected .unsupportedProvider, got \(error)")
       }
     } catch {
-      XCTFail("expected AgentImageGenerationError, got \(error)")
+      #require(false, "expected AgentImageGenerationError, got \(error)")
     }
   }
 }

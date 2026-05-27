@@ -1,10 +1,10 @@
 import Foundation
-import XCTest
+import Testing
 
 @testable import Compass
 
-final class PlanReliabilityFeedbackTests: XCTestCase {
-  func testRejectedPlanStatusUsesRejectionText() {
+struct PlanReliabilityFeedbackTests {
+  @Test func testRejectedPlanStatusUsesRejectionText() {
     let session = makeSession(
       1,
       status: .rejectedByPlan,
@@ -16,19 +16,19 @@ final class PlanReliabilityFeedbackTests: XCTestCase {
 
     let feedback = PlanReliabilityFeedback(state: makeState(), sessions: [session])
 
-    XCTAssertEqual(feedback.notices.count, 1)
-    XCTAssertEqual(feedback.notices[0].kind, .rejectedPlan)
-    XCTAssertEqual(feedback.notices[0].title, "Plan rejected")
-    XCTAssertEqual(
-      feedback.notices[0].detail,
+    #require(feedback.notices.count == 1)
+    #require(feedback.notices[0].kind == .rejectedPlan)
+    #require(feedback.notices[0].title == "Plan rejected")
+    #require(
+      feedback.notices[0].detail ==
       "Plan tried to shrink completed history from 3 entries to 2. Refusing to overwrite state.json."
     )
-    XCTAssertEqual(feedback.notices[0].actionLabel, "Retry Plan")
-    XCTAssertEqual(feedback.recentRunCues[1]?.kind, .rejectedPlan)
-    XCTAssertEqual(feedback.recentRunCues[1]?.label, "Retry Plan")
+    #require(feedback.notices[0].actionLabel == "Retry Plan")
+    #require(feedback.recentRunCues[1]?.kind == .rejectedPlan)
+    #require(feedback.recentRunCues[1]?.label == "Retry Plan")
   }
 
-  func testFailedPlanTransitionNoteBecomesRejectedPlanNotice() {
+  @Test func testFailedPlanTransitionNoteBecomesRejectedPlanNotice() {
     let session = makeSession(
       2,
       status: .failed,
@@ -39,14 +39,14 @@ final class PlanReliabilityFeedbackTests: XCTestCase {
 
     let feedback = PlanReliabilityFeedback(state: makeState(), sessions: [session])
 
-    XCTAssertEqual(feedback.notices.map(\.kind), [.rejectedPlan])
-    XCTAssertEqual(
-      feedback.notices[0].detail,
+    #require(feedback.notices.map(\.kind) == [.rejectedPlan])
+    #require(
+      feedback.notices[0].detail ==
       "Plan returned placeholder verify command `true`. Refusing to overwrite state.json."
     )
   }
 
-  func testDevelopBlockerUsesFeedbackText() {
+  @Test func testDevelopBlockerUsesFeedbackText() {
     let session = makeSession(
       3,
       status: .failed,
@@ -56,15 +56,15 @@ final class PlanReliabilityFeedbackTests: XCTestCase {
 
     let feedback = PlanReliabilityFeedback(state: makeState(), sessions: [session])
 
-    XCTAssertEqual(feedback.notices.map(\.kind), [.developBlocked])
-    XCTAssertEqual(feedback.notices[0].title, "Develop blocked")
-    XCTAssertEqual(
-      feedback.notices[0].detail,
+    #require(feedback.notices.map(\.kind) == [.developBlocked])
+    #require(feedback.notices[0].title == "Develop blocked")
+    #require(
+      feedback.notices[0].detail ==
       "Missing signing credentials. Ask the next pass to add a local fixture.")
-    XCTAssertEqual(feedback.notices[0].actionLabel, "Retry Develop")
+    #require(feedback.notices[0].actionLabel == "Retry Develop")
   }
 
-  func testFailedDevelopUsesFeedbackWhenNoVerifyOutputExists() {
+  @Test func testFailedDevelopUsesFeedbackWhenNoVerifyOutputExists() {
     let session = makeSession(
       4,
       status: .failed,
@@ -74,12 +74,12 @@ final class PlanReliabilityFeedbackTests: XCTestCase {
 
     let feedback = PlanReliabilityFeedback(state: makeState(), sessions: [session])
 
-    XCTAssertEqual(feedback.notices.map(\.kind), [.developFailed])
-    XCTAssertEqual(feedback.notices[0].detail, "build settings were inconsistent")
-    XCTAssertEqual(feedback.recentRunCues[4]?.label, "Retry Develop")
+    #require(feedback.notices.map(\.kind) == [.developFailed])
+    #require(feedback.notices[0].detail == "build settings were inconsistent")
+    #require(feedback.recentRunCues[4]?.label == "Retry Develop")
   }
 
-  func testFailedVerifyIncludesTailMetadata() {
+  @Test func testFailedVerifyIncludesTailMetadata() {
     let session = makeSession(
       5,
       status: .failed,
@@ -97,17 +97,17 @@ final class PlanReliabilityFeedbackTests: XCTestCase {
 
     let feedback = PlanReliabilityFeedback(state: makeState(), sessions: [session])
 
-    XCTAssertEqual(feedback.notices.map(\.kind), [.failedVerify])
-    XCTAssertEqual(feedback.notices[0].title, "Verify failed")
-    XCTAssertEqual(feedback.notices[0].detail, "Test Suite failed Expected true but got false")
-    XCTAssertEqual(
-      feedback.notices[0].metadata,
+    #require(feedback.notices.map(\.kind) == [.failedVerify])
+    #require(feedback.notices[0].title == "Verify failed")
+    #require(feedback.notices[0].detail == "Test Suite failed Expected true but got false")
+    #require(
+      feedback.notices[0].metadata ==
       "swift test --filter PlanReliabilityFeedbackTests · exit 65"
     )
-    XCTAssertEqual(feedback.recentRunCues[5]?.kind, .failedVerify)
+    #require(feedback.recentRunCues[5]?.kind == .failedVerify)
   }
 
-  func testDirtyWorktreePostCheckNoteBecomesDistinctCue() {
+  @Test func testDirtyWorktreePostCheckNoteBecomesDistinctCue() {
     let session = makeSession(
       12,
       status: .failed,
@@ -126,17 +126,17 @@ final class PlanReliabilityFeedbackTests: XCTestCase {
 
     let feedback = PlanReliabilityFeedback(state: makeState(), sessions: [session])
 
-    XCTAssertEqual(feedback.notices.map(\.kind), [.dirtyWorktree])
-    XCTAssertEqual(feedback.notices[0].title, "Worktree dirty")
-    XCTAssertEqual(feedback.notices[0].severity, .warning)
-    XCTAssertEqual(feedback.notices[0].actionLabel, "Clean Worktree")
-    XCTAssertEqual(feedback.notices[0].metadata, "#12 · 2 pending changes")
-    XCTAssertTrue(feedback.notices[0].detail.hasPrefix("Uncommitted or untracked changes remain"))
-    XCTAssertEqual(feedback.recentRunCues[12]?.kind, .dirtyWorktree)
-    XCTAssertEqual(feedback.recentRunCues[12]?.systemImage, "pencil.and.outline")
+    #require(feedback.notices.map(\.kind) == [.dirtyWorktree])
+    #require(feedback.notices[0].title == "Worktree dirty")
+    #require(feedback.notices[0].severity == .warning)
+    #require(feedback.notices[0].actionLabel == "Clean Worktree")
+    #require(feedback.notices[0].metadata == "#12 · 2 pending changes")
+    #require(feedback.notices[0].detail.hasPrefix("Uncommitted or untracked changes remain"))
+    #require(feedback.recentRunCues[12]?.kind == .dirtyWorktree)
+    #require(feedback.recentRunCues[12]?.systemImage == "pencil.and.outline")
   }
 
-  func testPromotionFailurePostCheckNoteBecomesDistinctCue() {
+  @Test func testPromotionFailurePostCheckNoteBecomesDistinctCue() {
     let session = makeSession(
       13,
       status: .failed,
@@ -148,19 +148,19 @@ final class PlanReliabilityFeedbackTests: XCTestCase {
 
     let feedback = PlanReliabilityFeedback(state: makeState(), sessions: [session])
 
-    XCTAssertEqual(feedback.notices.map(\.kind), [.promotionFailed])
-    XCTAssertEqual(feedback.notices[0].title, "Promotion failed")
-    XCTAssertEqual(feedback.notices[0].severity, .failure)
-    XCTAssertEqual(feedback.notices[0].actionLabel, "Resolve Promotion")
-    XCTAssertEqual(feedback.notices[0].metadata, "#13 · compass/dev-123")
-    XCTAssertEqual(
-      feedback.notices[0].detail,
+    #require(feedback.notices.map(\.kind) == [.promotionFailed])
+    #require(feedback.notices[0].title == "Promotion failed")
+    #require(feedback.notices[0].severity == .failure)
+    #require(feedback.notices[0].actionLabel == "Resolve Promotion")
+    #require(feedback.notices[0].metadata == "#13 · compass/dev-123")
+    #require(
+      feedback.notices[0].detail ==
       "Failed to promote Develop sandbox branch compass/dev-123: fatal: Not possible to fast-forward, aborting."
     )
-    XCTAssertEqual(feedback.recentRunCues[13]?.kind, .promotionFailed)
+    #require(feedback.recentRunCues[13]?.kind == .promotionFailed)
   }
 
-  func testRecentRunCueUsesPostCheckPriorityWithinSession() {
+  @Test func testRecentRunCueUsesPostCheckPriorityWithinSession() {
     let session = makeSession(
       14,
       status: .failed,
@@ -175,12 +175,12 @@ final class PlanReliabilityFeedbackTests: XCTestCase {
 
     let feedback = PlanReliabilityFeedback(state: makeState(), sessions: [session])
 
-    XCTAssertEqual(feedback.notices.map(\.kind), [.developFailed, .failedVerify])
-    XCTAssertEqual(feedback.recentRunCues[14]?.kind, .failedVerify)
-    XCTAssertEqual(feedback.recentRunCues[14]?.label, "Retry Develop")
+    #require(feedback.notices.map(\.kind) == [.developFailed, .failedVerify])
+    #require(feedback.recentRunCues[14]?.kind == .failedVerify)
+    #require(feedback.recentRunCues[14]?.label == "Retry Develop")
   }
 
-  func testAwaitingApprovalShowsResumeCueWhenImmediatePlanExists() {
+  @Test func testAwaitingApprovalShowsResumeCueWhenImmediatePlanExists() {
     let session = makeSession(
       6,
       status: .awaitingApproval,
@@ -189,14 +189,14 @@ final class PlanReliabilityFeedbackTests: XCTestCase {
 
     let feedback = PlanReliabilityFeedback(state: makeState(), sessions: [session])
 
-    XCTAssertEqual(feedback.notices.map(\.kind), [.resumeDevelop])
-    XCTAssertEqual(feedback.notices[0].title, "Develop ready")
-    XCTAssertEqual(feedback.notices[0].actionLabel, "Resume Develop")
-    XCTAssertEqual(feedback.notices[0].detail, "Implement the approved next slice")
-    XCTAssertEqual(feedback.recentRunCues[6]?.label, "Resume Develop")
+    #require(feedback.notices.map(\.kind) == [.resumeDevelop])
+    #require(feedback.notices[0].title == "Develop ready")
+    #require(feedback.notices[0].actionLabel == "Resume Develop")
+    #require(feedback.notices[0].detail == "Implement the approved next slice")
+    #require(feedback.recentRunCues[6]?.label == "Resume Develop")
   }
 
-  func testSuccessfulAndCleanStatesStayEmpty() {
+  @Test func testSuccessfulAndCleanStatesStayEmpty() {
     let sessions = [
       makeSession(7, status: .succeeded, feedback: "done"),
       makeSession(8, status: .skipped, notes: ["Plan returned no immediate work."]),
@@ -207,11 +207,11 @@ final class PlanReliabilityFeedbackTests: XCTestCase {
       sessions: sessions
     )
 
-    XCTAssertTrue(feedback.isEmpty)
-    XCTAssertEqual(feedback.recentRunCues, [:])
+    #require(feedback.isEmpty)
+    #require(feedback.recentRunCues == [:])
   }
 
-  func testLaterSuccessRetiresEarlierFailureCue() {
+  @Test func testLaterSuccessRetiresEarlierFailureCue() {
     let blocked = makeSession(
       4,
       startedAt: 4_000,
@@ -226,12 +226,12 @@ final class PlanReliabilityFeedbackTests: XCTestCase {
       sessions: [blocked, later]
     )
 
-    XCTAssertTrue(feedback.notices.isEmpty)
-    XCTAssertNil(feedback.recentRunCues[4])
-    XCTAssertNil(feedback.recentRunCues[5])
+    #require(feedback.notices.isEmpty)
+    #require(feedback.recentRunCues[4] == nil)
+    #require(feedback.recentRunCues[5] == nil)
   }
 
-  func testInFlightSessionAfterFailureKeepsCue() {
+  @Test func testInFlightSessionAfterFailureKeepsCue() {
     let blocked = makeSession(
       4,
       startedAt: 4_000,
@@ -246,11 +246,11 @@ final class PlanReliabilityFeedbackTests: XCTestCase {
       sessions: [blocked, retrying]
     )
 
-    XCTAssertEqual(feedback.notices.map(\.kind), [.developBlocked])
-    XCTAssertEqual(feedback.recentRunCues[4]?.kind, .developBlocked)
+    #require(feedback.notices.map(\.kind) == [.developBlocked])
+    #require(feedback.recentRunCues[4]?.kind == .developBlocked)
   }
 
-  func testBoundsAndNormalizesDetails() {
+  @Test func testBoundsAndNormalizesDetails() {
     let session = makeSession(
       9,
       status: .failed,
@@ -265,11 +265,11 @@ final class PlanReliabilityFeedbackTests: XCTestCase {
     )
 
     let detail = feedback.notices[0].detail
-    XCTAssertLessThanOrEqual(detail.count, 38)
-    XCTAssertEqual(detail, "First line second line with enough...")
+    #require(detail.count <= 38)
+    #require(detail == "First line second line with enough...")
   }
 
-  func testNoticeSectionLimitAndRecentRunCuePropagationCanDiffer() {
+  @Test func testNoticeSectionLimitAndRecentRunCuePropagationCanDiffer() {
     let newestFailedVerify = makeSession(
       10,
       startedAt: 9_000,
@@ -295,10 +295,10 @@ final class PlanReliabilityFeedbackTests: XCTestCase {
       noticeLimit: 1
     )
 
-    XCTAssertEqual(feedback.notices.map(\.sessionNumber), [10])
-    XCTAssertEqual(feedback.notices.map(\.kind), [.failedVerify])
-    XCTAssertEqual(feedback.recentRunCues[10]?.kind, .failedVerify)
-    XCTAssertEqual(feedback.recentRunCues[11]?.kind, .rejectedPlan)
+    #require(feedback.notices.map(\.sessionNumber) == [10])
+    #require(feedback.notices.map(\.kind) == [.failedVerify])
+    #require(feedback.recentRunCues[10]?.kind == .failedVerify)
+    #require(feedback.recentRunCues[11]?.kind == .rejectedPlan)
   }
 
   private func makeState(

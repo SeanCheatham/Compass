@@ -10,13 +10,13 @@ struct ExploreCommitExplainerTests {
   @Test
   func summarize_emptyString_returnsNil() async throws {
     let result = await CommitExplainer.summarize(diff: "")
-    try #require(result == nil)
+    #require(result == nil)
   }
 
   @Test
   func summarize_whitespaceOnly_returnsNil() async throws {
     let result = await CommitExplainer.summarize(diff: "   \n\t  ")
-    try #require(result == nil)
+    #require(result == nil)
   }
 
   // MARK: - Diff length filter (max ~600 tokens)
@@ -66,7 +66,7 @@ struct ExploreCommitExplainerTests {
     // Either Foundation Models is available and we get a string (or nil
     // from an error), or it is unavailable and we definitely get nil.
     if !SystemLanguageModel.default.isAvailable {
-      try #require(result == nil)
+      #require(result == nil)
     }
   }
 }

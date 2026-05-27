@@ -1,10 +1,10 @@
 import Foundation
-import XCTest
+import Testing
 
 @testable import Compass
 
-final class KnownProjectStoreTestsRecordDecoding: XCTestCase {
-  func testDecodingDefaultsFieldsAddedAfterOriginalRegistryFormat() throws {
+struct KnownProjectStoreTestsRecordDecoding : ~Copyable {
+  @Test func testDecodingDefaultsFieldsAddedAfterOriginalRegistryFormat() throws {
     let records = try decodeRecords(
       """
       [
@@ -17,12 +17,12 @@ final class KnownProjectStoreTestsRecordDecoding: XCTestCase {
       ]
       """)
 
-    let record = try XCTUnwrap(records.first)
-    XCTAssertEqual(record.activeStorage, .repoLocal)
-    XCTAssertEqual(record.nativeFeedbackMode, .notifications)
+    let record = #require(records.first)
+    #require(record.activeStorage == .repoLocal)
+    #require(record.nativeFeedbackMode == .notifications)
   }
 
-  func testNativeFeedbackAndExecutionEnvironmentDecodingDefaultsMissingAndFutureValues() throws {
+  @Test func testNativeFeedbackAndExecutionEnvironmentDecodingDefaultsMissingAndFutureValues() throws {
     let records = try decodeRecords(
       """
       [
@@ -43,10 +43,10 @@ final class KnownProjectStoreTestsRecordDecoding: XCTestCase {
       ]
       """)
 
-    XCTAssertEqual(records.map(\.nativeFeedbackMode), [.notifications, .notifications])
+    #require(records.map(\.nativeFeedbackMode) == [.notifications, .notifications])
   }
 
-  func testDecodingClampsDefaultsAndFallsBackForUnknownValues() throws {
+  @Test func testDecodingClampsDefaultsAndFallsBackForUnknownValues() throws {
     let records = try decodeRecords(
       """
       [
@@ -78,44 +78,45 @@ final class KnownProjectStoreTestsRecordDecoding: XCTestCase {
       ]
       """)
 
-    XCTAssertEqual(records[0].activeStorage, .repoLocal)
-    XCTAssertEqual(records[0].nativeFeedbackMode, .notifications)
-    XCTAssertEqual(records[1].activeStorage, .applicationSupport)
-    XCTAssertEqual(records[1].nativeFeedbackMode, .speechAndNotifications)
-    XCTAssertEqual(records[2].activeStorage, .repoLocal)
-    XCTAssertEqual(records[2].nativeFeedbackMode, .off)
+    #require(records[0].activeStorage == .repoLocal)
+    #require(records[0].nativeFeedbackMode == .notifications)
+    #require(records[1].activeStorage == .applicationSupport)
+    #require(records[1].nativeFeedbackMode == .speechAndNotifications)
+    #require(records[2].activeStorage == .repoLocal)
+    #require(records[2].nativeFeedbackMode == .off)
   }
 
   private func decodeRecords(_ json: String) throws -> [KnownProjectRecord] {
-    let data = try XCTUnwrap(json.data(using: .utf8))
+    let data = #require(json.data(using: .utf8))
     return try JSONDecoder().decode([KnownProjectRecord].self, from: data)
   }
 }
 
-final class KnownProjectStoreTests: XCTestCase {
+struct KnownProjectStoreTests : ~Copyable {
   private var temporaryDirectories: [URL] = []
 
-  override func tearDownWithError() throws {
+  init() throws {}
+
+  deinit {
     for url in temporaryDirectories {
       try? FileManager.default.removeItem(at: url)
     }
-    temporaryDirectories.removeAll()
   }
 
-  func testLoadTreatsMissingEmptyAndMalformedRegistryFilesAsEmpty() throws {
+  @Test func testLoadTreatsMissingEmptyAndMalformedRegistryFilesAsEmpty() throws {
     let missingRoots = try makeApplicationSupportRoots()
-    XCTAssertEqual(KnownProjectStore.load(applicationSupportRoots: missingRoots), [])
+    #require(KnownProjectStore.load(applicationSupportRoots: missingRoots) == [])
 
     let emptyCurrentRoots = try makeApplicationSupportRoots()
     try write("", to: currentProjectsURL(for: emptyCurrentRoots))
-    XCTAssertEqual(KnownProjectStore.load(applicationSupportRoots: emptyCurrentRoots), [])
+    #require(KnownProjectStore.load(applicationSupportRoots: emptyCurrentRoots) == [])
 
     let malformedCurrentRoots = try makeApplicationSupportRoots()
     try write("{", to: currentProjectsURL(for: malformedCurrentRoots))
-    XCTAssertEqual(KnownProjectStore.load(applicationSupportRoots: malformedCurrentRoots), [])
+    #require(KnownProjectStore.load(applicationSupportRoots: malformedCurrentRoots) == [])
   }
 
-  func testSaveWritesPrettySortedJSONToCurrentCompassDirectory() throws {
+  @Test func testSaveWritesPrettySortedJSONToCurrentCompassDirectory() throws {
     let roots = try makeApplicationSupportRoots()
     let record = makeRecord(
       id: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
@@ -126,12 +127,12 @@ final class KnownProjectStoreTests: XCTestCase {
 
     try KnownProjectStore.save([record], applicationSupportRoots: roots)
 
-    XCTAssertTrue(FileManager.default.fileExists(atPath: currentProjectsURL(for: roots).path))
-    XCTAssertEqual(KnownProjectStore.load(applicationSupportRoots: roots), [record])
+    #require(FileManager.default.fileExists(atPath: currentProjectsURL(for: roots).path))
+    #require(KnownProjectStore.load(applicationSupportRoots: roots) == [record])
 
     let saved = try read(currentProjectsURL(for: roots))
-    XCTAssertTrue(saved.contains("\n  {\n"))
-    assertSortedKeys(
+    #require(saved.contains("\n  {\n"))
+    try assertSortedKeys(
       [
         "\"activeStorage\"",
         "\"addedAt\"",
@@ -142,11 +143,11 @@ final class KnownProjectStoreTests: XCTestCase {
       ],
       in: saved
     )
-    XCTAssertFalse(saved.contains("\"developSandbox\""))
-    XCTAssertFalse(saved.contains("\"codexExecutionEnvironmentPreference\""))
+    #require(!saved.contains("\"developSandbox\""))
+    #require(!saved.contains("\"codexExecutionEnvironmentPreference\""))
   }
 
-  func testSavePersistsNativeFeedbackModeRawValue() throws {
+  @Test func testSavePersistsNativeFeedbackModeRawValue() throws {
     let roots = try makeApplicationSupportRoots()
     let records = [
       makeRecord(
@@ -164,12 +165,12 @@ final class KnownProjectStoreTests: XCTestCase {
     try KnownProjectStore.save(records, applicationSupportRoots: roots)
 
     let saved = try read(currentProjectsURL(for: roots))
-    XCTAssertTrue(saved.contains("\"nativeFeedbackMode\" : \"off\""))
-    XCTAssertTrue(saved.contains("\"nativeFeedbackMode\" : \"speech_and_notifications\""))
-    XCTAssertEqual(KnownProjectStore.load(applicationSupportRoots: roots), records)
+    #require(saved.contains("\"nativeFeedbackMode\" : \"off\""))
+    #require(saved.contains("\"nativeFeedbackMode\" : \"speech_and_notifications\""))
+    #require(KnownProjectStore.load(applicationSupportRoots: roots) == records)
   }
 
-  func testSaveOmitsLegacySandboxPreferenceKeys() throws {
+  @Test func testSaveOmitsLegacySandboxPreferenceKeys() throws {
     let roots = try makeApplicationSupportRoots()
     let records = [
       makeRecord(
@@ -185,9 +186,9 @@ final class KnownProjectStoreTests: XCTestCase {
     try KnownProjectStore.save(records, applicationSupportRoots: roots)
 
     let saved = try read(currentProjectsURL(for: roots))
-    XCTAssertFalse(saved.contains("\"developSandbox\""))
-    XCTAssertFalse(saved.contains("\"codexExecutionEnvironmentPreference\""))
-    XCTAssertEqual(KnownProjectStore.load(applicationSupportRoots: roots), records)
+    #require(!saved.contains("\"developSandbox\""))
+    #require(!saved.contains("\"codexExecutionEnvironmentPreference\""))
+    #require(KnownProjectStore.load(applicationSupportRoots: roots) == records)
   }
 
   private func makeApplicationSupportRoots() throws -> KnownProjectStore.ApplicationSupportRoots {
@@ -245,14 +246,12 @@ final class KnownProjectStoreTests: XCTestCase {
 
   private func assertSortedKeys(
     _ keys: [String],
-    in json: String,
-    file: StaticString = #filePath,
-    line: UInt = #line
-  ) {
+    in json: String
+  ) throws {
     var previousUpperBound = json.startIndex
     for key in keys {
       guard let range = json.range(of: key, range: previousUpperBound..<json.endIndex) else {
-        XCTFail("Expected to find \(key) after previous sorted key.", file: file, line: line)
+        #require(false, "Expected to find \(key) after previous sorted key.")
         return
       }
       previousUpperBound = range.upperBound

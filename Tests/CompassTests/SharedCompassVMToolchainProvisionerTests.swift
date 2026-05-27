@@ -1,11 +1,11 @@
 import Foundation
-import XCTest
+import Testing
 
 @testable import Compass
 
-final class SharedCompassVMToolchainProvisionerTests: XCTestCase {
+struct SharedCompassVMToolchainProvisionerTests {
 
-  func testProbeReturnsTrueWhenPresent() async throws {
+  @Test func probeReturnsTrueWhenPresent() async throws {
     let runner = FakeToolchainBashRunner { command, _ in
       if command.contains("PRESENT") || command.contains("MISSING") {
         return ProcessResult(exitCode: 0, stdout: "PRESENT\n", stderr: "")
@@ -16,15 +16,15 @@ final class SharedCompassVMToolchainProvisionerTests: XCTestCase {
       definition: SharedVMToolchainCatalog.definition(for: .homebrew),
       runner: runner
     )
-    XCTAssertTrue(installed)
+    #require(installed)
   }
 
-  func testProvisionShortCircuitsWhenAlreadyInstalled() async throws {
+  @Test func provisionShortCircuitsWhenAlreadyInstalled() async throws {
     let runner = FakeToolchainBashRunner { command, _ in
       if command.contains("PRESENT") || command.contains("MISSING") {
         return ProcessResult(exitCode: 0, stdout: "PRESENT\n", stderr: "")
       }
-      XCTFail("Unexpected command: \(command)")
+      #require(false, "Unexpected command: \(command)")
       return ProcessResult(exitCode: 1, stdout: "", stderr: "")
     }
     let report = try await SharedCompassVMToolchainProvisioner.provision(
@@ -32,19 +32,19 @@ final class SharedCompassVMToolchainProvisionerTests: XCTestCase {
       runner: runner,
       progress: { _ in }
     )
-    XCTAssertTrue(report.alreadyInstalled)
-    XCTAssertEqual(report.toolchainID, "node")
+    #require(report.alreadyInstalled)
+    #require(report.toolchainID == "node")
   }
 
-  func testRenderInstallLaunchDaemonPlistContainsLabel() {
+  @Test func renderInstallLaunchDaemonPlistContainsLabel() throws {
     let plist = SharedCompassVMToolchainProvisioner.renderInstallLaunchDaemonPlist(
       definition: SharedVMToolchainCatalog.definition(for: .go)
     )
-    XCTAssertTrue(plist.contains("com.seancheatham.Compass.toolchain-go"))
-    XCTAssertTrue(plist.contains("compass-install-go.sh"))
+    #require(plist.contains("com.seancheatham.Compass.toolchain-go"))
+    #require(plist.contains("compass-install-go.sh"))
   }
 
-  func testPollSnapshotParsesDoneExitCode() {
+  @Test func pollSnapshotParsesDoneExitCode() throws {
     let raw = """
       DONE
       exit=0
@@ -52,8 +52,8 @@ final class SharedCompassVMToolchainProvisionerTests: XCTestCase {
       [compass-toolchain-go] installed
       """
     let snapshot = SharedCompassVMToolchainProvisioner.PollSnapshot(parsing: raw)
-    XCTAssertEqual(snapshot.exitCode, 0)
-    XCTAssertTrue(snapshot.logTail.contains("installed"))
+    #require(snapshot.exitCode == 0)
+    #require(snapshot.logTail.contains("installed"))
   }
 }
 

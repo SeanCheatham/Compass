@@ -1,78 +1,78 @@
 import Foundation
-import XCTest
+import Testing
 
 @testable import Compass
 
-final class AgentRuntimeSettingsTests: XCTestCase {
-  func testDefaultsFromEmptyEnvironmentSelectFoundationModels() {
+struct AgentRuntimeSettingsTests {
+  @Test func testDefaultsFromEmptyEnvironmentSelectFoundationModels() {
     let settings = AgentRuntimeSettings.defaultFromEnvironment([:])
-    XCTAssertEqual(settings.textProvider, .appleFoundationModels)
-    XCTAssertEqual(settings.apiKey, "")
-    XCTAssertNil(settings.planModelOverride)
-    XCTAssertNil(settings.developModelOverride)
-    XCTAssertNil(settings.reflectModelOverride)
+    #require(settings.textProvider == .appleFoundationModels)
+    #require(settings.apiKey == "")
+    #require(settings.planModelOverride == nil)
+    #require(settings.developModelOverride == nil)
+    #require(settings.reflectModelOverride == nil)
     // Foundation Models is the on-device default; its built-in
     // context window flows through to the resolved settings so
     // compaction triggers at the right ceiling for FM rather than
     // an unrelated network provider's number.
-    XCTAssertEqual(
-      settings.contextWindowTokens,
+    #require(
+      settings.contextWindowTokens ==
       AgentProviderKind.appleFoundationModels.defaultTextContextWindowTokens)
   }
 
-  func testEmptyEnvWithAPIKeySelectsMiniMaxContextWindow() {
+  @Test func testEmptyEnvWithAPIKeySelectsMiniMaxContextWindow() {
     let settings = AgentRuntimeSettings.defaultFromEnvironment([
       "COMPASS_AGENT_API_KEY": "env-key"
     ])
-    XCTAssertEqual(settings.textProvider, .minimaxToken)
-    XCTAssertEqual(
-      settings.contextWindowTokens,
+    #require(settings.textProvider == .minimaxToken)
+    #require(
+      settings.contextWindowTokens ==
       AgentProviderKind.minimaxToken.defaultTextContextWindowTokens)
   }
 
-  func testContextWindowEnvironmentOverrideIsApplied() {
+  @Test func testContextWindowEnvironmentOverrideIsApplied() {
     let settings = AgentRuntimeSettings.defaultFromEnvironment([
       "COMPASS_AGENT_CONTEXT_WINDOW_TOKENS": "131072"
     ])
-    XCTAssertEqual(settings.contextWindowTokens, 131_072)
+    #require(settings.contextWindowTokens == 131_072)
   }
 
-  func testContextWindowEnvironmentZeroDisablesCompaction() {
+  @Test func testContextWindowEnvironmentZeroDisablesCompaction() {
     let settings = AgentRuntimeSettings.defaultFromEnvironment([
       "COMPASS_AGENT_CONTEXT_WINDOW_TOKENS": "0"
     ])
-    XCTAssertEqual(settings.contextWindowTokens, 0)
+    #require(settings.contextWindowTokens == 0)
   }
 
-  func testContextWindowEnvironmentNegativeIsClampedToZero() {
+  @Test func testContextWindowEnvironmentNegativeIsClampedToZero() {
     let settings = AgentRuntimeSettings.defaultFromEnvironment([
       "COMPASS_AGENT_CONTEXT_WINDOW_TOKENS": "-50"
     ])
-    XCTAssertEqual(settings.contextWindowTokens, 0)
+    #require(settings.contextWindowTokens == 0)
   }
 
-  func testContextWindowEnvironmentGarbageFallsBackToProviderDefault() {
+  @Test func testContextWindowEnvironmentGarbageFallsBackToProviderDefault() {
     let settings = AgentRuntimeSettings.defaultFromEnvironment([
       "COMPASS_AGENT_CONTEXT_WINDOW_TOKENS": "not-a-number"
     ])
     // Empty API key in env → Foundation Models is the chosen
     // provider, so the fallback is FM's built-in window, not the
     // generic synthetic constant.
-    XCTAssertEqual(
-      settings.contextWindowTokens,
+    #require(
+      settings.contextWindowTokens ==
       AgentProviderKind.appleFoundationModels.defaultTextContextWindowTokens)
   }
 
-  func testProviderBuiltInContextWindowValues() {
-    XCTAssertEqual(
-      AgentProviderKind.appleFoundationModels.defaultTextContextWindowTokens, 4_096)
-    XCTAssertEqual(
-      AgentProviderKind.minimaxToken.defaultTextContextWindowTokens, 200_000)
-    XCTAssertEqual(
-      AgentProviderKind.openAI.defaultTextContextWindowTokens, 128_000)
+  @Test func testProviderBuiltInContextWindowValues() {
+    #require(
+      AgentProviderKind.appleFoundationModels.defaultTextContextWindowTokens == 4_096)
+    #require(
+      AgentProviderKind.minimaxToken.defaultTextContextWindowTokens == 200_000)
+    #require(
+      AgentProviderKind.openAI.defaultTextContextWindowTokens == 128_000)
   }
 
-  func testEnvironmentOverridesAreApplied() {
+  @Test func testEnvironmentOverridesAreApplied() {
     let settings = AgentRuntimeSettings.defaultFromEnvironment([
       "COMPASS_AGENT_BASE_URL": "https://example.test/v1",
       "COMPASS_AGENT_API_KEY": "sk-abc",
@@ -83,16 +83,16 @@ final class AgentRuntimeSettingsTests: XCTestCase {
       "COMPASS_AGENT_MODEL_CRITIC": "critic-model",
     ])
 
-    XCTAssertEqual(settings.baseURL.absoluteString, "https://example.test/v1")
-    XCTAssertEqual(settings.apiKey, "sk-abc")
-    XCTAssertEqual(settings.model, "gpt-test")
-    XCTAssertEqual(settings.planModelOverride, "plan-model")
-    XCTAssertEqual(settings.developModelOverride, "dev-model")
-    XCTAssertEqual(settings.reflectModelOverride, "reflect-model")
-    XCTAssertEqual(settings.criticModelOverride, "critic-model")
+    #require(settings.baseURL.absoluteString == "https://example.test/v1")
+    #require(settings.apiKey == "sk-abc")
+    #require(settings.model == "gpt-test")
+    #require(settings.planModelOverride == "plan-model")
+    #require(settings.developModelOverride == "dev-model")
+    #require(settings.reflectModelOverride == "reflect-model")
+    #require(settings.criticModelOverride == "critic-model")
   }
 
-  func testWhitespaceOnlyEnvironmentValuesAreTreatedAsUnset() {
+  @Test func testWhitespaceOnlyEnvironmentValuesAreTreatedAsUnset() {
     let settings = AgentRuntimeSettings.defaultFromEnvironment([
       "COMPASS_AGENT_BASE_URL": "   ",
       "COMPASS_AGENT_API_KEY": "\t\n",
@@ -100,27 +100,27 @@ final class AgentRuntimeSettingsTests: XCTestCase {
       "COMPASS_AGENT_MODEL_PLAN": "   ",
     ])
 
-    XCTAssertEqual(settings.baseURL, AgentRuntimeSettings.defaultBaseURL)
-    XCTAssertEqual(settings.apiKey, "")
-    XCTAssertEqual(settings.model, "MiniMax-M2.7")
-    XCTAssertNil(settings.planModelOverride)
+    #require(settings.baseURL == AgentRuntimeSettings.defaultBaseURL)
+    #require(settings.apiKey == "")
+    #require(settings.model == "MiniMax-M2.7")
+    #require(settings.planModelOverride == nil)
   }
 
-  func testInvalidBaseURLFallsBackToDefault() {
+  @Test func testInvalidBaseURLFallsBackToDefault() {
     let settings = AgentRuntimeSettings.defaultFromEnvironment([
       "COMPASS_AGENT_BASE_URL": ""
     ])
-    XCTAssertEqual(settings.baseURL, AgentRuntimeSettings.defaultBaseURL)
+    #require(settings.baseURL == AgentRuntimeSettings.defaultBaseURL)
   }
 
-  func testModelForPhaseUsesDefaultWhenNoOverrides() {
+  @Test func testModelForPhaseUsesDefaultWhenNoOverrides() {
     let settings = AgentRuntimeSettings(model: "default-model")
-    XCTAssertEqual(settings.model(for: .plan), "default-model")
-    XCTAssertEqual(settings.model(for: .develop), "default-model")
-    XCTAssertEqual(settings.model(for: .reflect), "default-model")
+    #require(settings.model(for: .plan) == "default-model")
+    #require(settings.model(for: .develop) == "default-model")
+    #require(settings.model(for: .reflect) == "default-model")
   }
 
-  func testModelForPhaseUsesPhaseOverrideOverDefault() {
+  @Test func testModelForPhaseUsesPhaseOverrideOverDefault() {
     let settings = AgentRuntimeSettings(
       model: "default-model",
       planModelOverride: "plan-model",
@@ -128,32 +128,32 @@ final class AgentRuntimeSettingsTests: XCTestCase {
       reflectModelOverride: "reflect-model",
       criticModelOverride: "critic-model"
     )
-    XCTAssertEqual(settings.model(for: .plan), "plan-model")
-    XCTAssertEqual(settings.model(for: .develop), "dev-model")
-    XCTAssertEqual(settings.model(for: .reflect), "reflect-model")
-    XCTAssertEqual(settings.model(for: .critic), "critic-model")
+    #require(settings.model(for: .plan) == "plan-model")
+    #require(settings.model(for: .develop) == "dev-model")
+    #require(settings.model(for: .reflect) == "reflect-model")
+    #require(settings.model(for: .critic) == "critic-model")
   }
 
-  func testCriticPhaseFallsBackToDefaultWhenNoCriticOverride() {
+  @Test func testCriticPhaseFallsBackToDefaultWhenNoCriticOverride() {
     let settings = AgentRuntimeSettings(model: "default-model")
-    XCTAssertEqual(settings.model(for: .critic), "default-model")
+    #require(settings.model(for: .critic) == "default-model")
   }
 
-  func testSidebarOverrideBeatsPhaseAndDefault() {
+  @Test func testSidebarOverrideBeatsPhaseAndDefault() {
     let settings = AgentRuntimeSettings(
       model: "default-model",
       planModelOverride: "plan-model"
     )
-    XCTAssertEqual(settings.model(for: .plan, sidebarOverride: "sidebar-model"), "sidebar-model")
-    XCTAssertEqual(settings.model(for: .develop, sidebarOverride: "sidebar-model"), "sidebar-model")
+    #require(settings.model(for: .plan, sidebarOverride: "sidebar-model") == "sidebar-model")
+    #require(settings.model(for: .develop, sidebarOverride: "sidebar-model") == "sidebar-model")
   }
 
-  func testWhitespaceSidebarOverrideIsIgnored() {
+  @Test func testWhitespaceSidebarOverrideIsIgnored() {
     let settings = AgentRuntimeSettings(
       model: "default-model",
       planModelOverride: "plan-model"
     )
-    XCTAssertEqual(settings.model(for: .plan, sidebarOverride: "   "), "plan-model")
-    XCTAssertEqual(settings.model(for: .develop, sidebarOverride: "\n"), "default-model")
+    #require(settings.model(for: .plan, sidebarOverride: "   ") == "plan-model")
+    #require(settings.model(for: .develop, sidebarOverride: "\n") == "default-model")
   }
 }

@@ -1,19 +1,21 @@
 import Foundation
-import XCTest
+import Testing
 
 @testable import Compass
 
-final class CompassWorkspaceStorageBoundaryTests: XCTestCase {
+struct CompassWorkspaceStorageBoundaryTests : ~Copyable {
   private var temporaryDirectories: [URL] = []
 
-  override func tearDownWithError() throws {
+  init() throws {}
+
+  deinit {
     for url in temporaryDirectories {
       try? FileManager.default.removeItem(at: url)
     }
     temporaryDirectories.removeAll()
   }
 
-  func testHealthyRepoLocalStorageIsRecommendedCurrentBoundary() throws {
+  @Test func testHealthyRepoLocalStorageIsRecommendedCurrentBoundary() throws {
     let repoURL = try makeTemporaryGitRepository()
     let roots = try makeApplicationSupportRoots()
     try CompassWorkspace(repoURL: repoURL).initialize()
@@ -23,18 +25,18 @@ final class CompassWorkspaceStorageBoundaryTests: XCTestCase {
     let preflight = CompassWorkspaceStoragePreflight(assessment: assessment)
     let boundary = CompassWorkspaceStorageBoundary(assessment: assessment, preflight: preflight)
 
-    XCTAssertEqual(boundary.kind, .repoLocalRecommended)
-    XCTAssertEqual(boundary.severity, .healthy)
-    XCTAssertEqual(boundary.label, "Repo-local boundary")
-    XCTAssertTrue(boundary.detail.contains("Active project state stays in repo-local .compass/"))
-    XCTAssertTrue(boundary.detail.contains("Application Support"))
-    XCTAssertTrue(boundary.recommendation.contains("No migration or mirroring needed by default"))
-    XCTAssertTrue(boundary.migrationCouldBeTechnicallyEligible)
-    XCTAssertEqual(boundary.assessmentKind, .repoLocalHealthy)
-    XCTAssertEqual(boundary.preflightKind, .migrationReady)
+    #require(boundary.kind == .repoLocalRecommended)
+    #require(boundary.severity == .healthy)
+    #require(boundary.label == "Repo-local boundary")
+    #require(boundary.detail.contains("Active project state stays in repo-local .compass/"))
+    #require(boundary.detail.contains("Application Support"))
+    #require(boundary.recommendation.contains("No migration or mirroring needed by default"))
+    #require(boundary.migrationCouldBeTechnicallyEligible)
+    #require(boundary.assessmentKind == .repoLocalHealthy)
+    #require(boundary.preflightKind == .migrationReady)
   }
 
-  func testMissingAndIncompleteRepoLocalStorageAreRepairFirst() throws {
+  @Test func testMissingAndIncompleteRepoLocalStorageAreRepairFirst() throws {
     let missingRepoURL = try makeTemporaryGitRepository()
     let missingRoots = try makeApplicationSupportRoots()
     let missingAssessment = CompassWorkspaceStorageAssessment(
@@ -47,11 +49,11 @@ final class CompassWorkspaceStorageBoundaryTests: XCTestCase {
       preflight: missingPreflight
     )
 
-    XCTAssertEqual(missingBoundary.kind, .repoLocalRepairFirst)
-    XCTAssertEqual(missingBoundary.severity, .warning)
-    XCTAssertTrue(missingBoundary.detail.contains(".compass/ is missing"))
-    XCTAssertTrue(missingBoundary.recommendation.contains("repo-local repair"))
-    XCTAssertFalse(missingBoundary.migrationCouldBeTechnicallyEligible)
+    #require(missingBoundary.kind == .repoLocalRepairFirst)
+    #require(missingBoundary.severity == .warning)
+    #require(missingBoundary.detail.contains(".compass/ is missing"))
+    #require(missingBoundary.recommendation.contains("repo-local repair"))
+    #require(!missingBoundary.migrationCouldBeTechnicallyEligible)
 
     let incompleteRepoURL = try makeTemporaryGitRepository()
     let incompleteRoots = try makeApplicationSupportRoots()
@@ -69,13 +71,13 @@ final class CompassWorkspaceStorageBoundaryTests: XCTestCase {
       preflight: incompletePreflight
     )
 
-    XCTAssertEqual(incompleteBoundary.kind, .repoLocalRepairFirst)
-    XCTAssertEqual(incompleteBoundary.severity, .failure)
-    XCTAssertTrue(incompleteBoundary.detail.contains(".compass/ is incomplete"))
-    XCTAssertFalse(incompleteBoundary.migrationCouldBeTechnicallyEligible)
+    #require(incompleteBoundary.kind == .repoLocalRepairFirst)
+    #require(incompleteBoundary.severity == .failure)
+    #require(incompleteBoundary.detail.contains(".compass/ is incomplete"))
+    #require(!incompleteBoundary.migrationCouldBeTechnicallyEligible)
   }
 
-  func testUnignoredCompassIsRepairFirstEvenWhenPreflightIsTechnicallyEligible() throws {
+  @Test func testUnignoredCompassIsRepairFirstEvenWhenPreflightIsTechnicallyEligible() throws {
     let repoURL = try makeTemporaryGitRepository()
     let roots = try makeApplicationSupportRoots()
     try CompassWorkspace(repoURL: repoURL).initialize()
@@ -86,17 +88,17 @@ final class CompassWorkspaceStorageBoundaryTests: XCTestCase {
     let preflight = CompassWorkspaceStoragePreflight(assessment: assessment)
     let boundary = CompassWorkspaceStorageBoundary(assessment: assessment, preflight: preflight)
 
-    XCTAssertEqual(assessment.kind, .unignoredCompass)
-    XCTAssertEqual(preflight.kind, .migrationReady)
-    XCTAssertTrue(preflight.migrationWouldBeSafe)
-    XCTAssertEqual(boundary.kind, .repoLocalRepairFirst)
-    XCTAssertEqual(boundary.severity, .warning)
-    XCTAssertTrue(boundary.detail.contains("not ignored"))
-    XCTAssertTrue(boundary.recommendation.contains("repo-local repair"))
-    XCTAssertTrue(boundary.migrationCouldBeTechnicallyEligible)
+    #require(assessment.kind == .unignoredCompass)
+    #require(preflight.kind == .migrationReady)
+    #require(preflight.migrationWouldBeSafe)
+    #require(boundary.kind == .repoLocalRepairFirst)
+    #require(boundary.severity == .warning)
+    #require(boundary.detail.contains("not ignored"))
+    #require(boundary.recommendation.contains("repo-local repair"))
+    #require(boundary.migrationCouldBeTechnicallyEligible)
   }
 
-  func testApplicationSupportConflictIsInspectOnly() throws {
+  @Test func testApplicationSupportConflictIsInspectOnly() throws {
     let repoURL = try makeTemporaryGitRepository()
     let roots = try makeApplicationSupportRoots()
     try CompassWorkspace(repoURL: repoURL).initialize()
@@ -112,17 +114,17 @@ final class CompassWorkspaceStorageBoundaryTests: XCTestCase {
     let preflight = CompassWorkspaceStoragePreflight(assessment: assessment)
     let boundary = CompassWorkspaceStorageBoundary(assessment: assessment, preflight: preflight)
 
-    XCTAssertEqual(boundary.kind, .applicationSupportInspectOnlyConflict)
-    XCTAssertEqual(boundary.severity, .warning)
-    XCTAssertEqual(boundary.label, "Inspect support data")
-    XCTAssertTrue(boundary.detail.contains("Active state remains in repo-local .compass/"))
-    XCTAssertTrue(boundary.detail.contains("inspect-only conflict"))
-    XCTAssertTrue(boundary.recommendation.contains("No migration or mirroring by default"))
-    XCTAssertFalse(boundary.migrationCouldBeTechnicallyEligible)
-    XCTAssertEqual(boundary.preflightKind, .applicationSupportConflict)
+    #require(boundary.kind == .applicationSupportInspectOnlyConflict)
+    #require(boundary.severity == .warning)
+    #require(boundary.label == "Inspect support data")
+    #require(boundary.detail.contains("Active state remains in repo-local .compass/"))
+    #require(boundary.detail.contains("inspect-only conflict"))
+    #require(boundary.recommendation.contains("No migration or mirroring by default"))
+    #require(!boundary.migrationCouldBeTechnicallyEligible)
+    #require(boundary.preflightKind == .applicationSupportConflict)
   }
 
-  func testBoundaryDisplayTextAndIdentifiersStayBounded() throws {
+  @Test func testBoundaryDisplayTextAndIdentifiersStayBounded() throws {
     let longPath = "/tmp/" + String(repeating: "Long Repository Name With Spaces/", count: 12)
     let roots = KnownProjectStore.ApplicationSupportRoots(
       current: URL(
@@ -143,20 +145,20 @@ final class CompassWorkspaceStorageBoundaryTests: XCTestCase {
     let preflight = CompassWorkspaceStoragePreflight(assessment: assessment)
     let boundary = CompassWorkspaceStorageBoundary(assessment: assessment, preflight: preflight)
 
-    XCTAssertLessThanOrEqual(boundary.label.count, CompassWorkspaceStorageBoundary.labelLimit)
-    XCTAssertLessThanOrEqual(boundary.detail.count, CompassWorkspaceStorageBoundary.detailLimit)
-    XCTAssertLessThanOrEqual(
-      boundary.recommendation.count, CompassWorkspaceStorageBoundary.recommendationLimit)
-    XCTAssertLessThanOrEqual(
-      boundary.projectStorageIdentifier.count,
+    #require(boundary.label.count <= CompassWorkspaceStorageBoundary.labelLimit)
+    #require(boundary.detail.count <= CompassWorkspaceStorageBoundary.detailLimit)
+    #require(
+      boundary.recommendation.count <= CompassWorkspaceStorageBoundary.recommendationLimit)
+    #require(
+      boundary.projectStorageIdentifier.count <=
       CompassWorkspaceStorageAssessment.maxProjectIdentifierLength
     )
-    XCTAssertFalse(boundary.label.isEmpty)
-    XCTAssertFalse(boundary.detail.isEmpty)
-    XCTAssertFalse(boundary.recommendation.isEmpty)
+    #require(!boundary.label.isEmpty)
+    #require(!boundary.detail.isEmpty)
+    #require(!boundary.recommendation.isEmpty)
   }
 
-  func testStableIdentifiersFlowThroughAssessmentPreflightAndBoundary() throws {
+  @Test func testStableIdentifiersFlowThroughAssessmentPreflightAndBoundary() throws {
     let longName = "My Project: Needs/Storage? Audit! " + String(repeating: "Segment ", count: 16)
     let repoURL = try makeTemporaryGitRepository(
       name: longName.replacingOccurrences(of: "/", with: "-"))
@@ -167,20 +169,20 @@ final class CompassWorkspaceStorageBoundaryTests: XCTestCase {
     let preflight = CompassWorkspaceStoragePreflight(assessment: assessment)
     let boundary = CompassWorkspaceStorageBoundary(assessment: assessment, preflight: preflight)
 
-    XCTAssertEqual(boundary.projectStorageIdentifier, assessment.projectStorageIdentifier)
-    XCTAssertEqual(boundary.projectStorageIdentifier, preflight.projectStorageIdentifier)
-    XCTAssertEqual(
-      boundary.currentApplicationSupportCandidateURL,
+    #require(boundary.projectStorageIdentifier == assessment.projectStorageIdentifier)
+    #require(boundary.projectStorageIdentifier == preflight.projectStorageIdentifier)
+    #require(
+      boundary.currentApplicationSupportCandidateURL ==
       assessment.currentApplicationSupportCandidateURL)
-    XCTAssertEqual(
-      boundary.currentApplicationSupportCandidateURL,
+    #require(
+      boundary.currentApplicationSupportCandidateURL ==
       preflight.currentApplicationSupportCandidateURL)
-    XCTAssertEqual(
-      boundary.currentApplicationSupportCandidateURL.lastPathComponent,
+    #require(
+      boundary.currentApplicationSupportCandidateURL.lastPathComponent ==
       boundary.projectStorageIdentifier)
   }
 
-  func testBoundaryConsumesProvidedSignalsWithoutRescanning() throws {
+  @Test func testBoundaryConsumesProvidedSignalsWithoutRescanning() throws {
     let repoURL = try makeTemporaryGitRepository()
     let roots = try makeApplicationSupportRoots()
     try CompassWorkspace(repoURL: repoURL).initialize()
@@ -192,11 +194,11 @@ final class CompassWorkspaceStorageBoundaryTests: XCTestCase {
 
     let boundary = CompassWorkspaceStorageBoundary(assessment: assessment, preflight: preflight)
 
-    XCTAssertEqual(boundary.kind, .repoLocalRecommended)
-    XCTAssertTrue(boundary.migrationCouldBeTechnicallyEligible)
+    #require(boundary.kind == .repoLocalRecommended)
+    #require(boundary.migrationCouldBeTechnicallyEligible)
   }
 
-  func testBoundaryConstructionCreatesNoRepoOrApplicationSupportFiles() throws {
+  @Test func testBoundaryConstructionCreatesNoRepoOrApplicationSupportFiles() throws {
     let repoURL = try makeTemporaryGitRepository()
     let roots = try makeApplicationSupportRoots()
     let repoEntriesBefore = try entries(in: repoURL)
@@ -206,15 +208,15 @@ final class CompassWorkspaceStorageBoundaryTests: XCTestCase {
     let preflight = CompassWorkspaceStoragePreflight(assessment: assessment)
     let boundary = CompassWorkspaceStorageBoundary(assessment: assessment, preflight: preflight)
 
-    XCTAssertEqual(boundary.kind, .repoLocalRepairFirst)
-    XCTAssertEqual(try entries(in: repoURL), repoEntriesBefore)
-    XCTAssertFalse(
-      FileManager.default.fileExists(atPath: CompassWorkspace(repoURL: repoURL).compassURL.path))
-    XCTAssertFalse(
-      FileManager.default.fileExists(atPath: repoURL.appending(path: ".gitignore").path))
-    XCTAssertFalse(FileManager.default.fileExists(atPath: roots.current.path))
-    XCTAssertFalse(
-      FileManager.default.fileExists(atPath: boundary.currentApplicationSupportCandidateURL.path))
+    #require(boundary.kind == .repoLocalRepairFirst)
+    #require(try entries(in: repoURL) == repoEntriesBefore)
+    #require(
+      !FileManager.default.fileExists(atPath: CompassWorkspace(repoURL: repoURL).compassURL.path))
+    #require(
+      !FileManager.default.fileExists(atPath: repoURL.appending(path: ".gitignore").path))
+    #require(!FileManager.default.fileExists(atPath: roots.current.path))
+    #require(
+      !FileManager.default.fileExists(atPath: boundary.currentApplicationSupportCandidateURL.path))
   }
 
   private func makeTemporaryGitRepository(name: String? = nil) throws -> URL {

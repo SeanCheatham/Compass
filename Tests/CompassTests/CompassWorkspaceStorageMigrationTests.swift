@@ -1,19 +1,21 @@
 import Foundation
-import XCTest
+import Testing
 
 @testable import Compass
 
-final class CompassWorkspaceStorageMigrationTests: XCTestCase {
+struct CompassWorkspaceStorageMigrationTests : ~Copyable {
   private var temporaryDirectories: [URL] = []
 
-  override func tearDownWithError() throws {
+  init() throws {}
+
+  deinit {
     for url in temporaryDirectories {
       try? FileManager.default.removeItem(at: url)
     }
     temporaryDirectories.removeAll()
   }
 
-  func testSuccessfulMigrationCopiesCoreAndSessionArtifactsAndWritesManifest() throws {
+  @Test func testSuccessfulMigrationCopiesCoreAndSessionArtifactsAndWritesManifest() throws {
     let repoURL = try makeTemporaryGitRepository()
     let roots = try makeApplicationSupportRoots()
     let workspace = CompassWorkspace(repoURL: repoURL)
@@ -29,7 +31,7 @@ final class CompassWorkspaceStorageMigrationTests: XCTestCase {
     )
     let plan = makeMigrationPlan(repoURL: repoURL, roots: roots)
 
-    XCTAssertTrue(plan.isAvailable)
+    #require(plan.isAvailable)
 
     let result = try CompassWorkspaceStorageMigrator(
       now: { Date(timeIntervalSince1970: 0) },
@@ -37,33 +39,33 @@ final class CompassWorkspaceStorageMigrationTests: XCTestCase {
     )
     .migrate(plan: plan)
 
-    XCTAssertTrue(FileManager.default.fileExists(atPath: plan.destinationURL.path))
-    XCTAssertEqual(try read(plan.destinationURL.appending(path: "drafts.md")), "draft entry\n")
-    XCTAssertEqual(try read(plan.destinationURL.appending(path: "lessons.md")), "lesson entry\n")
-    XCTAssertEqual(try read(plan.destinationURL.appending(path: "COMPASS.md")), "vision entry\n")
-    XCTAssertEqual(
-      try read(plan.destinationURL.appending(path: "sessions.json")), "[{\"session\":1}]\n")
-    XCTAssertEqual(
+    #require(FileManager.default.fileExists(atPath: plan.destinationURL.path))
+    #require(try read(plan.destinationURL.appending(path: "drafts.md")) == "draft entry\n")
+    #require(try read(plan.destinationURL.appending(path: "lessons.md")) == "lesson entry\n")
+    #require(try read(plan.destinationURL.appending(path: "COMPASS.md")) == "vision entry\n")
+    #require(
+      try read(plan.destinationURL.appending(path: "sessions.json")) == "[{\"session\":1}]\n")
+    #require(
       try read(
         plan.destinationURL.appending(path: "sessions").appending(
-          path: artifactURL.lastPathComponent)),
+          path: artifactURL.lastPathComponent)) ==
       "artifact body\n"
     )
 
     let manifest = try decodeManifest(at: plan.manifestURL)
-    XCTAssertEqual(manifest.repoPath, repoURL.path)
-    XCTAssertEqual(manifest.storageIdentifier, plan.projectStorageIdentifier)
-    XCTAssertEqual(manifest.sourcePath, workspace.compassURL.path)
-    XCTAssertEqual(manifest.destinationPath, plan.destinationURL.path)
-    XCTAssertEqual(manifest.copiedFileCount, 6)
-    XCTAssertEqual(manifest.migratedAt, "1970-01-01T00:00:00Z")
+    #require(manifest.repoPath == repoURL.path)
+    #require(manifest.storageIdentifier == plan.projectStorageIdentifier)
+    #require(manifest.sourcePath == workspace.compassURL.path)
+    #require(manifest.destinationPath == plan.destinationURL.path)
+    #require(manifest.copiedFileCount == 6)
+    #require(manifest.migratedAt == "1970-01-01T00:00:00Z")
 
-    XCTAssertEqual(result.manifest, manifest)
-    XCTAssertEqual(result.copiedFileCount, 6)
-    XCTAssertTrue(result.repoLocalSourcePreserved)
-    XCTAssertFalse(result.activeStorageDidChange)
-    XCTAssertFalse(
-      FileManager.default.fileExists(
+    #require(result.manifest == manifest)
+    #require(result.copiedFileCount == 6)
+    #require(result.repoLocalSourcePreserved)
+    #require(!result.activeStorageDidChange)
+    #require(
+      !FileManager.default.fileExists(
         atPath: plan.stagingParentURL
           .appending(path: ".\(plan.projectStorageIdentifier)-migration-success")
           .path
@@ -71,21 +73,23 @@ final class CompassWorkspaceStorageMigrationTests: XCTestCase {
     )
   }
 
-  func testMissingAndIncompleteRepoLocalStorageBlockMigration() throws {
+  @Test func testMissingAndIncompleteRepoLocalStorageBlockMigration() throws {
     let missingRepoURL = try makeTemporaryGitRepository()
     let missingRoots = try makeApplicationSupportRoots()
     let missingPlan = makeMigrationPlan(repoURL: missingRepoURL, roots: missingRoots)
 
-    XCTAssertFalse(missingPlan.isAvailable)
-    XCTAssertEqual(missingPlan.kind, .repoLocalMissing)
-    XCTAssertThrowsError(try CompassWorkspaceStorageMigrator().migrate(plan: missingPlan)) {
-      error in
-      XCTAssertEqual(
-        error as? CompassWorkspaceStorageMigrationError,
+    #require(!missingPlan.isAvailable)
+    #require(missingPlan.kind == .repoLocalMissing)
+    do {
+      try CompassWorkspaceStorageMigrator().migrate(plan: missingPlan)
+      #require(false)
+    } catch {
+      #require(
+        error as? CompassWorkspaceStorageMigrationError ==
         .unavailable(kind: .repoLocalMissing, detail: missingPlan.detail)
       )
     }
-    XCTAssertFalse(FileManager.default.fileExists(atPath: missingPlan.destinationURL.path))
+    #require(!FileManager.default.fileExists(atPath: missingPlan.destinationURL.path))
 
     let incompleteRepoURL = try makeTemporaryGitRepository()
     let incompleteRoots = try makeApplicationSupportRoots()
@@ -94,20 +98,22 @@ final class CompassWorkspaceStorageMigrationTests: XCTestCase {
     try write("[]\n", to: incompleteWorkspace.sessionsRecordURL)
     let incompletePlan = makeMigrationPlan(repoURL: incompleteRepoURL, roots: incompleteRoots)
 
-    XCTAssertFalse(incompletePlan.isAvailable)
-    XCTAssertEqual(incompletePlan.kind, .repoLocalIncomplete)
-    XCTAssertTrue(incompletePlan.detail.contains("state.json"))
-    XCTAssertThrowsError(try CompassWorkspaceStorageMigrator().migrate(plan: incompletePlan)) {
-      error in
-      XCTAssertEqual(
-        error as? CompassWorkspaceStorageMigrationError,
+    #require(!incompletePlan.isAvailable)
+    #require(incompletePlan.kind == .repoLocalIncomplete)
+    #require(incompletePlan.detail.contains("state.json"))
+    do {
+      try CompassWorkspaceStorageMigrator().migrate(plan: incompletePlan)
+      #require(false)
+    } catch {
+      #require(
+        error as? CompassWorkspaceStorageMigrationError ==
         .unavailable(kind: .repoLocalIncomplete, detail: incompletePlan.detail)
       )
     }
-    XCTAssertFalse(FileManager.default.fileExists(atPath: incompletePlan.destinationURL.path))
+    #require(!FileManager.default.fileExists(atPath: incompletePlan.destinationURL.path))
   }
 
-  func testOccupiedApplicationSupportCandidateBlocksMigration() throws {
+  @Test func testOccupiedApplicationSupportCandidateBlocksMigration() throws {
     let currentRepoURL = try makeTemporaryGitRepository()
     let currentRoots = try makeApplicationSupportRoots()
     try CompassWorkspace(repoURL: currentRepoURL).initialize()
@@ -116,19 +122,21 @@ final class CompassWorkspaceStorageMigrationTests: XCTestCase {
 
     let currentPlan = makeMigrationPlan(repoURL: currentRepoURL, roots: currentRoots)
 
-    XCTAssertFalse(currentPlan.isAvailable)
-    XCTAssertEqual(currentPlan.kind, .applicationSupportOccupied)
-    XCTAssertTrue(currentPlan.detail.contains("occupied"))
-    XCTAssertThrowsError(try CompassWorkspaceStorageMigrator().migrate(plan: currentPlan)) {
-      error in
-      XCTAssertEqual(
-        error as? CompassWorkspaceStorageMigrationError,
+    #require(!currentPlan.isAvailable)
+    #require(currentPlan.kind == .applicationSupportOccupied)
+    #require(currentPlan.detail.contains("occupied"))
+    do {
+      try CompassWorkspaceStorageMigrator().migrate(plan: currentPlan)
+      #require(false)
+    } catch {
+      #require(
+        error as? CompassWorkspaceStorageMigrationError ==
         .unavailable(kind: .applicationSupportOccupied, detail: currentPlan.detail)
       )
     }
   }
 
-  func testMigrationPlanKeepsRepoLocalSourceWhenExternalStorageIsInjected() throws {
+  @Test func testMigrationPlanKeepsRepoLocalSourceWhenExternalStorageIsInjected() throws {
     let repoURL = try makeTemporaryGitRepository()
     let roots = try makeApplicationSupportRoots()
     let repoLocalWorkspace = CompassWorkspace(repoURL: repoURL)
@@ -143,16 +151,16 @@ final class CompassWorkspaceStorageMigrationTests: XCTestCase {
 
     let plan = makeMigrationPlan(repoURL: repoURL, roots: roots)
 
-    XCTAssertEqual(plan.sourceCompassURL, repoLocalWorkspace.compassURL)
-    XCTAssertEqual(plan.kind, .applicationSupportOccupied)
-    XCTAssertFalse(plan.isAvailable)
-    XCTAssertEqual(try read(repoLocalWorkspace.lessonsURL), "repo-local lesson\n")
-    XCTAssertEqual(try read(externalWorkspace.lessonsURL), "external lesson\n")
-    XCTAssertTrue(FileManager.default.fileExists(atPath: repoLocalWorkspace.compassURL.path))
-    XCTAssertTrue(FileManager.default.fileExists(atPath: externalWorkspace.compassURL.path))
+    #require(plan.sourceCompassURL == repoLocalWorkspace.compassURL)
+    #require(plan.kind == .applicationSupportOccupied)
+    #require(!plan.isAvailable)
+    #require(try read(repoLocalWorkspace.lessonsURL) == "repo-local lesson\n")
+    #require(try read(externalWorkspace.lessonsURL) == "external lesson\n")
+    #require(FileManager.default.fileExists(atPath: repoLocalWorkspace.compassURL.path))
+    #require(FileManager.default.fileExists(atPath: externalWorkspace.compassURL.path))
   }
 
-  func testRollbackCleansStagingAfterInjectedCopyFailureAndPreservesSource() throws {
+  @Test func testRollbackCleansStagingAfterInjectedCopyFailureAndPreservesSource() throws {
     let repoURL = try makeTemporaryGitRepository()
     let roots = try makeApplicationSupportRoots()
     let workspace = CompassWorkspace(repoURL: repoURL)
@@ -175,16 +183,19 @@ final class CompassWorkspaceStorageMigrationTests: XCTestCase {
       }
     )
 
-    XCTAssertThrowsError(try migrator.migrate(plan: plan)) { error in
-      XCTAssertEqual(error as? InjectedMigrationError, .copy)
+    do {
+      try migrator.migrate(plan: plan)
+      #require(false)
+    } catch {
+      #require(error as? InjectedMigrationError == .copy)
     }
-    XCTAssertFalse(FileManager.default.fileExists(atPath: expectedStagingURL.path))
-    XCTAssertFalse(FileManager.default.fileExists(atPath: plan.destinationURL.path))
-    XCTAssertEqual(try read(workspace.draftsURL), "source draft\n")
-    XCTAssertTrue(FileManager.default.fileExists(atPath: workspace.compassURL.path))
+    #require(!FileManager.default.fileExists(atPath: expectedStagingURL.path))
+    #require(!FileManager.default.fileExists(atPath: plan.destinationURL.path))
+    #require(try read(workspace.draftsURL) == "source draft\n")
+    #require(FileManager.default.fileExists(atPath: workspace.compassURL.path))
   }
 
-  func testRollbackCleansStagingAndPartialDestinationAfterInjectedPromoteFailure() throws {
+  @Test func testRollbackCleansStagingAndPartialDestinationAfterInjectedPromoteFailure() throws {
     let repoURL = try makeTemporaryGitRepository()
     let roots = try makeApplicationSupportRoots()
     let workspace = CompassWorkspace(repoURL: repoURL)
@@ -207,16 +218,19 @@ final class CompassWorkspaceStorageMigrationTests: XCTestCase {
       }
     )
 
-    XCTAssertThrowsError(try migrator.migrate(plan: plan)) { error in
-      XCTAssertEqual(error as? InjectedMigrationError, .promote)
+    do {
+      try migrator.migrate(plan: plan)
+      #require(false)
+    } catch {
+      #require(error as? InjectedMigrationError == .promote)
     }
-    XCTAssertFalse(FileManager.default.fileExists(atPath: expectedStagingURL.path))
-    XCTAssertFalse(FileManager.default.fileExists(atPath: plan.destinationURL.path))
-    XCTAssertEqual(try read(workspace.lessonsURL), "source lesson\n")
-    XCTAssertTrue(FileManager.default.fileExists(atPath: workspace.compassURL.path))
+    #require(!FileManager.default.fileExists(atPath: expectedStagingURL.path))
+    #require(!FileManager.default.fileExists(atPath: plan.destinationURL.path))
+    #require(try read(workspace.lessonsURL) == "source lesson\n")
+    #require(FileManager.default.fileExists(atPath: workspace.compassURL.path))
   }
 
-  func testMigrationPreservesRepoLocalStorageAsActiveSourceOfTruth() throws {
+  @Test func testMigrationPreservesRepoLocalStorageAsActiveSourceOfTruth() throws {
     let repoURL = try makeTemporaryGitRepository()
     let roots = try makeApplicationSupportRoots()
     let workspace = CompassWorkspace(repoURL: repoURL)
@@ -231,16 +245,16 @@ final class CompassWorkspaceStorageMigrationTests: XCTestCase {
     )
     .migrate(plan: plan)
 
-    XCTAssertTrue(result.repoLocalSourcePreserved)
-    XCTAssertFalse(result.activeStorageDidChange)
-    XCTAssertEqual(try read(workspace.stateURL), "source state\n")
-    XCTAssertEqual(
-      try read(workspace.sessionsURL.appending(path: "2-transcript.txt")), "source session\n")
-    XCTAssertEqual(try recursiveFilePaths(in: workspace.compassURL), sourceEntriesBefore)
-    XCTAssertTrue(FileManager.default.fileExists(atPath: plan.destinationURL.path))
+    #require(result.repoLocalSourcePreserved)
+    #require(!result.activeStorageDidChange)
+    #require(try read(workspace.stateURL) == "source state\n")
+    #require(
+      try read(workspace.sessionsURL.appending(path: "2-transcript.txt")) == "source session\n")
+    #require(try recursiveFilePaths(in: workspace.compassURL) == sourceEntriesBefore)
+    #require(FileManager.default.fileExists(atPath: plan.destinationURL.path))
   }
 
-  func testMigrationManifestPlanAndResultTextStayBounded() throws {
+  @Test func testMigrationManifestPlanAndResultTextStayBounded() throws {
     let longText = String(repeating: "very-long-segment-", count: 80)
     let manifest = CompassWorkspaceStorageMigrationManifest(
       repoPath: "/tmp/\(longText)",
@@ -251,17 +265,17 @@ final class CompassWorkspaceStorageMigrationTests: XCTestCase {
       migratedAt: longText
     )
 
-    XCTAssertLessThanOrEqual(
-      manifest.repoPath.count, CompassWorkspaceStorageMigrationManifest.pathLimit)
-    XCTAssertLessThanOrEqual(
-      manifest.storageIdentifier.count, CompassWorkspaceStorageMigrationManifest.identifierLimit)
-    XCTAssertLessThanOrEqual(
-      manifest.sourcePath.count, CompassWorkspaceStorageMigrationManifest.pathLimit)
-    XCTAssertLessThanOrEqual(
-      manifest.destinationPath.count, CompassWorkspaceStorageMigrationManifest.pathLimit)
-    XCTAssertLessThanOrEqual(
-      manifest.migratedAt.count, CompassWorkspaceStorageMigrationManifest.timestampLimit)
-    XCTAssertEqual(manifest.copiedFileCount, 0)
+    #require(
+      manifest.repoPath.count <= CompassWorkspaceStorageMigrationManifest.pathLimit)
+    #require(
+      manifest.storageIdentifier.count <= CompassWorkspaceStorageMigrationManifest.identifierLimit)
+    #require(
+      manifest.sourcePath.count <= CompassWorkspaceStorageMigrationManifest.pathLimit)
+    #require(
+      manifest.destinationPath.count <= CompassWorkspaceStorageMigrationManifest.pathLimit)
+    #require(
+      manifest.migratedAt.count <= CompassWorkspaceStorageMigrationManifest.timestampLimit)
+    #require(manifest.copiedFileCount == 0)
 
     let repoURL = try makeTemporaryGitRepository(
       name: "Bounded Storage Migration " + String(repeating: "Segment ", count: 12)
@@ -270,20 +284,20 @@ final class CompassWorkspaceStorageMigrationTests: XCTestCase {
     try CompassWorkspace(repoURL: repoURL).initialize()
     let plan = makeMigrationPlan(repoURL: repoURL, roots: roots)
 
-    XCTAssertLessThanOrEqual(plan.label.count, CompassWorkspaceStorageMigrationPlan.labelLimit)
-    XCTAssertLessThanOrEqual(plan.detail.count, CompassWorkspaceStorageMigrationPlan.detailLimit)
-    XCTAssertLessThanOrEqual(
-      plan.recommendation.count, CompassWorkspaceStorageMigrationPlan.recommendationLimit)
+    #require(plan.label.count <= CompassWorkspaceStorageMigrationPlan.labelLimit)
+    #require(plan.detail.count <= CompassWorkspaceStorageMigrationPlan.detailLimit)
+    #require(
+      plan.recommendation.count <= CompassWorkspaceStorageMigrationPlan.recommendationLimit)
 
     let result = try CompassWorkspaceStorageMigrator(
       makeTransactionIdentifier: { "bounded" }
     )
     .migrate(plan: plan)
 
-    XCTAssertLessThanOrEqual(
-      result.summary.count, CompassWorkspaceStorageMigrationResult.summaryLimit)
-    XCTAssertLessThanOrEqual(
-      result.detail.count, CompassWorkspaceStorageMigrationResult.detailLimit)
+    #require(
+      result.summary.count <= CompassWorkspaceStorageMigrationResult.summaryLimit)
+    #require(
+      result.detail.count <= CompassWorkspaceStorageMigrationResult.detailLimit)
   }
 
   private func makeMigrationPlan(

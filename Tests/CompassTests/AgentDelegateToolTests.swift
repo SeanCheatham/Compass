@@ -1,9 +1,9 @@
 import Foundation
-import XCTest
+import Testing
 
 @testable import Compass
 
-final class AgentDelegateToolTests: XCTestCase {
+struct AgentDelegateToolTests {
   private let tool = AgentDelegateTool()
 
   private func context(runner: AgentDelegateRunner? = nil) -> AgentToolContext {
@@ -13,42 +13,42 @@ final class AgentDelegateToolTests: XCTestCase {
     )
   }
 
-  func testInvokeReturnsFailureWhenTaskIsEmpty() async throws {
+  @Test func testInvokeReturnsFailureWhenTaskIsEmpty() async throws {
     let result = try await tool.invoke(
       arguments: Data(#"{"task":"   "}"#.utf8),
       context: context(runner: StubRunner(reply: "ignored"))
     )
-    XCTAssertTrue(result.isError)
-    XCTAssertEqual(result.errorKind, .invalidArguments)
-    XCTAssertTrue(result.content.contains("task is empty"))
+    #require(result.isError)
+    #require(result.errorKind == .invalidArguments)
+    #require(result.content.contains("task is empty"))
   }
 
-  func testInvokeReturnsFailureWhenDelegateRunnerIsAbsent() async throws {
+  @Test func testInvokeReturnsFailureWhenDelegateRunnerIsAbsent() async throws {
     let result = try await tool.invoke(
       arguments: Data(#"{"task":"investigate Foo"}"#.utf8),
       context: context(runner: nil)
     )
-    XCTAssertTrue(result.isError)
-    XCTAssertTrue(
+    #require(result.isError)
+    #require(
       result.content.contains("delegate is not available"),
       "missing runner must surface as a clean failure, not a crash: \(result.content)")
   }
 
-  func testInvokePropagatesFindingsFromRunner() async throws {
+  @Test func testInvokePropagatesFindingsFromRunner() async throws {
     let runner = StubRunner(reply: "callers in 3 files; all handle nil safely")
     let result = try await tool.invoke(
       arguments: Data(
         #"{"task":"find callers of bar","tools":["read_file"],"model":"alt-model"}"#.utf8),
       context: context(runner: runner)
     )
-    XCTAssertFalse(result.isError)
-    XCTAssertEqual(result.content, "callers in 3 files; all handle nil safely")
-    XCTAssertEqual(runner.lastTask, "find callers of bar")
-    XCTAssertEqual(runner.lastToolNames, ["read_file"])
-    XCTAssertEqual(runner.lastModelOverride, "alt-model")
+    #require(!result.isError)
+    #require(result.content == "callers in 3 files; all handle nil safely")
+    #require(runner.lastTask == "find callers of bar")
+    #require(runner.lastToolNames == ["read_file"])
+    #require(runner.lastModelOverride == "alt-model")
   }
 
-  func testInvokeRejectsOversizedTaskTextWithoutCallingRunner() async throws {
+  @Test func testInvokeRejectsOversizedTaskTextWithoutCallingRunner() async throws {
     let huge = String(repeating: "x", count: AgentDelegateTool.maxTaskLength + 1)
     let payload = #"{"task":"\#(huge)"}"#
     let runner = StubRunner(reply: "should not be called")
@@ -56,24 +56,24 @@ final class AgentDelegateToolTests: XCTestCase {
       arguments: Data(payload.utf8),
       context: context(runner: runner)
     )
-    XCTAssertTrue(result.isError)
-    XCTAssertTrue(result.content.contains("exceeds"))
-    XCTAssertNil(runner.lastTask, "runner must not be invoked when task is too long")
+    #require(result.isError)
+    #require(result.content.contains("exceeds"))
+    #require(runner.lastTask == nil, "runner must not be invoked when task is too long")
   }
 
-  func testInvokeSurfacesRunnerErrorsAsToolFailures() async throws {
+  @Test func testInvokeSurfacesRunnerErrorsAsToolFailures() async throws {
     let runner = ThrowingRunner(error: .emptyTask)
     let result = try await tool.invoke(
       arguments: Data(#"{"task":"do a thing"}"#.utf8),
       context: context(runner: runner)
     )
-    XCTAssertTrue(result.isError)
-    XCTAssertTrue(result.content.contains("delegate task is empty"))
+    #require(result.isError)
+    #require(result.content.contains("delegate task is empty"))
   }
 
   // MARK: - Runner helper: tool filtering
 
-  func testFilterToolsDropsDelegateUnconditionallyToPreventNesting() {
+  @Test func testFilterToolsDropsDelegateUnconditionallyToPreventNesting() {
     let parents: [AgentTool] = [
       AgentReadFileTool(),
       AgentDelegateTool(),
@@ -81,15 +81,14 @@ final class AgentDelegateToolTests: XCTestCase {
     ]
     let filtered = AgentExecutorDelegateRunner.filterTools(parentTools: parents, requested: nil)
     let names = filtered.map { $0.spec.name }
-    XCTAssertFalse(
-      names.contains(AgentDelegateTool.toolName),
+    #require(
+      !names.contains(AgentDelegateTool.toolName),
       "child tool list must never include `delegate`")
-    XCTAssertEqual(
-      Set(names),
-      Set([AgentReadFileTool.toolName, AgentBashTool.toolName]))
+    #require(
+      Set(names) == Set([AgentReadFileTool.toolName, AgentBashTool.toolName]))
   }
 
-  func testFilterToolsHonorsRequestedWhitelistAndIgnoresUnknownNames() {
+  @Test func testFilterToolsHonorsRequestedWhitelistAndIgnoresUnknownNames() {
     let parents: [AgentTool] = [
       AgentReadFileTool(),
       AgentBashTool(),
@@ -101,13 +100,13 @@ final class AgentDelegateToolTests: XCTestCase {
       requested: ["read_file", "delegate", "nonexistent-tool"]
     )
     let names = filtered.map { $0.spec.name }
-    XCTAssertEqual(names, [AgentReadFileTool.toolName])
+    #require(names == [AgentReadFileTool.toolName])
   }
 
-  func testFilterToolsWithEmptyRequestedListReturnsNoTools() {
+  @Test func testFilterToolsWithEmptyRequestedListReturnsNoTools() {
     let parents: [AgentTool] = [AgentReadFileTool(), AgentBashTool(), AgentDelegateTool()]
     let filtered = AgentExecutorDelegateRunner.filterTools(parentTools: parents, requested: [])
-    XCTAssertTrue(
+    #require(
       filtered.isEmpty,
       "an empty whitelist means the caller explicitly wants no tools")
   }

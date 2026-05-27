@@ -1,26 +1,24 @@
 import Foundation
-import XCTest
+import Testing
 
 @testable import Compass
 
-final class CodemapRefresherTests: XCTestCase {
+struct CodemapRefresherTests : ~Copyable {
   private var workingDirectory: URL!
   private var cacheDirectory: URL!
 
-  override func setUpWithError() throws {
+  init() throws {
     workingDirectory = try makeTempDir()
     cacheDirectory = workingDirectory.appendingPathComponent(".compass/codemap")
   }
 
-  override func tearDownWithError() throws {
+  deinit {
     if let workingDirectory {
       try? FileManager.default.removeItem(at: workingDirectory)
     }
-    workingDirectory = nil
-    cacheDirectory = nil
   }
 
-  func testRefreshIndexesThenSummarizes() async throws {
+  @Test func testRefreshIndexesThenSummarizes() async throws {
     try writeFile("alpha.swift", contents: swiftFixture)
     try writeFile("beta.swift", contents: swiftFixture)
 
@@ -51,14 +49,14 @@ final class CodemapRefresherTests: XCTestCase {
     )
 
     let result = try await refresher.refresh()
-    XCTAssertEqual(result.indexed, 2)
-    XCTAssertEqual(result.pruned, 0)
-    XCTAssertEqual(result.summariesGenerated, 2)
+    #require(result.indexed == 2)
+    #require(result.pruned == 0)
+    #require(result.summariesGenerated == 2)
     let calls = await recorder.callCount()
-    XCTAssertEqual(calls, 2)
+    #require(calls == 2)
   }
 
-  func testRefreshSkipsSummariesWhenDisabled() async throws {
+  @Test func testRefreshSkipsSummariesWhenDisabled() async throws {
     try writeFile("alpha.swift", contents: swiftFixture)
 
     let store = CodemapStore(directory: cacheDirectory)
@@ -85,13 +83,13 @@ final class CodemapRefresherTests: XCTestCase {
     )
 
     let result = try await refresher.refresh()
-    XCTAssertEqual(result.indexed, 1)
-    XCTAssertEqual(result.summariesGenerated, 0)
+    #require(result.indexed == 1)
+    #require(result.summariesGenerated == 0)
     let calls = await recorder.callCount()
-    XCTAssertEqual(calls, 0)
+    #require(calls == 0)
   }
 
-  func testRefreshPrunesEntriesAfterFileRemoval() async throws {
+  @Test func testRefreshPrunesEntriesAfterFileRemoval() async throws {
     try writeFile("alpha.swift", contents: swiftFixture)
     try writeFile("beta.swift", contents: swiftFixture)
 
@@ -105,8 +103,8 @@ final class CodemapRefresherTests: XCTestCase {
       at: workingDirectory.appendingPathComponent("beta.swift")
     )
     let result = try await refresher.refresh()
-    XCTAssertEqual(result.pruned, 1)
-    XCTAssertNil(store.loadEntry(forRelativePath: "beta.swift"))
+    #require(result.pruned == 1)
+    #require(store.loadEntry(forRelativePath: "beta.swift") == nil)
   }
 
   // MARK: - Helpers

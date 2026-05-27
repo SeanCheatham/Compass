@@ -41,7 +41,7 @@ let package = Package(
     ),
     .package(
       url: "https://github.com/apple/swift-testing",
-      branch: "main"
+      exact: "6.3.2"
     ),
   ],
   targets: [

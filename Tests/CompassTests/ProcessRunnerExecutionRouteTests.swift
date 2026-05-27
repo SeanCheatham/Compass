@@ -1,18 +1,19 @@
 import Foundation
-import XCTest
+import Testing
 
 @testable import Compass
 
-final class ProcessRunnerExecutionRouteTests: XCTestCase {
+struct ProcessRunnerExecutionRouteTests {
   private var temporaryDirectories: [URL] = []
 
-  override func tearDownWithError() throws {
+  func cleanup() {
     for url in temporaryDirectories {
       try? FileManager.default.removeItem(at: url)
     }
     temporaryDirectories.removeAll()
   }
 
+  @Test
   func testNativeShellRoutePreservesZshCommandConstruction() async throws {
     let repoURL = try makeTemporaryDirectory(prefix: "ProcessRunnerNative")
     var capturedInvocation: AgentExecutionInvocation?
@@ -24,19 +25,20 @@ final class ProcessRunnerExecutionRouteTests: XCTestCase {
       launchPlan: .host(),
       runner: { invocation, input, timeout, _, _ in
         capturedInvocation = invocation
-        XCTAssertNil(input)
-        XCTAssertEqual(timeout, 42)
+        #require(input == nil)
+        #require(timeout == 42)
         return ProcessResult(exitCode: 0, stdout: "ok", stderr: "")
       }
     )
 
-    XCTAssertEqual(result.exitCode, 0)
-    let invocation = try XCTUnwrap(capturedInvocation)
-    XCTAssertEqual(invocation.executable, "/bin/zsh")
-    XCTAssertEqual(invocation.arguments, ["-lc", "swift test"])
-    XCTAssertEqual(invocation.workingDirectory, repoURL.standardizedFileURL)
+    #require(result.exitCode == 0)
+    let invocation = #require(capturedInvocation)
+    #require(invocation.executable == "/bin/zsh")
+    #require(invocation.arguments == ["-lc", "swift test"])
+    #require(invocation.workingDirectory == repoURL.standardizedFileURL)
   }
 
+  @Test
   func testSharedVMRouteForRunShellStaysOnHostBecauseVsockIsAgentLoopOnly() async throws {
     // `runShell` is used for one-shot out-of-agent commands (mutation
     // testing, post-Develop Verify). The agent-loop vsock transport
@@ -69,12 +71,13 @@ final class ProcessRunnerExecutionRouteTests: XCTestCase {
       }
     )
 
-    let invocation = try XCTUnwrap(capturedInvocation)
-    XCTAssertEqual(invocation.executable, "/bin/zsh")
-    XCTAssertEqual(invocation.arguments, ["-lc", "swift test --filter CompassTests"])
-    XCTAssertEqual(invocation.workingDirectory, repoURL.standardizedFileURL)
+    let invocation = #require(capturedInvocation)
+    #require(invocation.executable == "/bin/zsh")
+    #require(invocation.arguments == ["-lc", "swift test --filter CompassTests"])
+    #require(invocation.workingDirectory == repoURL.standardizedFileURL)
   }
 
+  @Test
   func testNativeFallbackPlanFeedsNativeVerifyInvocationAndBoundedDiagnostics() async throws {
     let repoURL = try makeTemporaryDirectory(prefix: "ProcessRunnerVMUnavailableFallback")
     let launchPlan = AgentExecutionLaunchPlan.plan(
@@ -93,14 +96,15 @@ final class ProcessRunnerExecutionRouteTests: XCTestCase {
       }
     )
 
-    let invocation = try XCTUnwrap(capturedInvocation)
-    XCTAssertEqual(invocation.executable, "/bin/zsh")
-    XCTAssertEqual(invocation.arguments, ["-lc", "swift test"])
-    XCTAssertTrue(launchPlan.fallbackReason?.contains("Apple Silicon required") ?? false)
-    XCTAssertFalse(
-      launchPlan.preflightSummary(phase: "Verify").contains(repoURL.standardizedFileURL.path))
+    let invocation = #require(capturedInvocation)
+    #require(invocation.executable == "/bin/zsh")
+    #require(invocation.arguments == ["-lc", "swift test"])
+    #require(launchPlan.fallbackReason?.contains("Apple Silicon required") == true)
+    #require(
+      !launchPlan.preflightSummary(phase: "Verify").contains(repoURL.standardizedFileURL.path))
   }
 
+  @Test
   func testComposeDevcontainerShellRouteFallsBackToNativeWithSanitizedTokens() async throws {
     // Scenario name preserved: VM not provisioned → host fallback for runShell.
     let repoURL = try makeTemporaryDirectory(prefix: "ProcessRunnerVMNotProvisioned")
@@ -120,13 +124,14 @@ final class ProcessRunnerExecutionRouteTests: XCTestCase {
       }
     )
 
-    let invocation = try XCTUnwrap(capturedInvocation)
-    XCTAssertFalse(launchPlan.isVMRoute)
-    XCTAssertEqual(invocation.executable, "/bin/zsh")
-    XCTAssertEqual(invocation.arguments, ["-lc", "swift test"])
-    XCTAssertTrue(launchPlan.fallbackReason?.contains("not been provisioned") ?? false)
+    let invocation = #require(capturedInvocation)
+    #require(!launchPlan.isVMRoute)
+    #require(invocation.executable == "/bin/zsh")
+    #require(invocation.arguments == ["-lc", "swift test"])
+    #require(launchPlan.fallbackReason?.contains("not been provisioned") == true)
   }
 
+  @Test
   func testFeatureDevcontainerShellRouteFallsBackToNativeWithSanitizedTokens() async throws {
     // Scenario name preserved: VM installing → host fallback.
     let repoURL = try makeTemporaryDirectory(prefix: "ProcessRunnerVMInstalling")
@@ -146,12 +151,13 @@ final class ProcessRunnerExecutionRouteTests: XCTestCase {
       }
     )
 
-    let invocation = try XCTUnwrap(capturedInvocation)
-    XCTAssertFalse(launchPlan.isVMRoute)
-    XCTAssertEqual(invocation.executable, "/bin/zsh")
-    XCTAssertTrue(launchPlan.fallbackReason?.contains("installing") ?? false)
+    let invocation = #require(capturedInvocation)
+    #require(!launchPlan.isVMRoute)
+    #require(invocation.executable == "/bin/zsh")
+    #require(launchPlan.fallbackReason?.contains("installing") == true)
   }
 
+  @Test
   func testReadySharedVMRouteForRunShellStillUsesHostZshOneShot() async throws {
     // Even with a ready sharedVM route + workspace-mapped route, the
     // runShell invocation stays local — see the env-route test above
@@ -179,12 +185,13 @@ final class ProcessRunnerExecutionRouteTests: XCTestCase {
       }
     )
 
-    XCTAssertEqual(captured.count, 1)
-    let invocation = try XCTUnwrap(captured.first)
-    XCTAssertEqual(invocation.executable, "/bin/zsh")
-    XCTAssertEqual(invocation.arguments, ["-lc", "swift test --filter CompassTests"])
+    #require(captured.count == 1)
+    let invocation = #require(captured.first)
+    #require(invocation.executable == "/bin/zsh")
+    #require(invocation.arguments == ["-lc", "swift test --filter CompassTests"])
   }
 
+  @Test
   func testBuildDevcontainerShellRouteFallsBackToNativeWhenBuildFails() async throws {
     // Scenario name preserved: error readiness → host fallback.
     let repoURL = try makeTemporaryDirectory(prefix: "ProcessRunnerVMErrorFallback")
@@ -204,9 +211,9 @@ final class ProcessRunnerExecutionRouteTests: XCTestCase {
       }
     )
 
-    let invocation = try XCTUnwrap(capturedInvocation)
-    XCTAssertEqual(invocation.executable, "/bin/zsh")
-    XCTAssertTrue(launchPlan.fallbackReason?.contains("boot failed") ?? false)
+    let invocation = #require(capturedInvocation)
+    #require(invocation.executable == "/bin/zsh")
+    #require(launchPlan.fallbackReason?.contains("boot failed") == true)
   }
 
   // MARK: - Helpers

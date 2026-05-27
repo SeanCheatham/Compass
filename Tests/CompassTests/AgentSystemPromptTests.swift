@@ -1,5 +1,5 @@
 import Foundation
-import XCTest
+import Testing
 
 @testable import Compass
 
@@ -7,20 +7,20 @@ import XCTest
 /// is operating in, otherwise the model invents paths from `pwd`/`find`
 /// output and trips `AgentToolContext.resolvePath`'s sandbox guard when
 /// the guest and host paths diverge. Lock that in.
-final class AgentSystemPromptTests: XCTestCase {
+struct AgentSystemPromptTests {
 
-  func testSystemPromptEmbedsHostWorkingDirectory() {
+  @Test func testSystemPromptEmbedsHostWorkingDirectory() {
     let prompt = Prompts.agentSystemPrompt(
       phase: .develop,
       workingDirectoryPath: "/Users/dev/projects/widget"
     )
-    XCTAssertTrue(
+    #require(
       prompt.contains("Working directory: /Users/dev/projects/widget"),
       "prompt should pin the cwd: \(prompt)"
     )
   }
 
-  func testSystemPromptEmbedsGuestWorkingDirectoryForSharedVMRuns() {
+  @Test func testSystemPromptEmbedsGuestWorkingDirectoryForSharedVMRuns() {
     // When the Shared VM is the active backend, Compass passes the
     // guest workspace path here. Verify it gets rendered verbatim so
     // the model orients itself in the guest namespace, not the host.
@@ -28,71 +28,71 @@ final class AgentSystemPromptTests: XCTestCase {
       phase: .develop,
       workingDirectoryPath: "/Users/compass/Compass/Repos/AAAA-BBBB-CCCC-DDDD/worktree"
     )
-    XCTAssertTrue(prompt.contains("/Users/compass/Compass/Repos/AAAA-BBBB-CCCC-DDDD/worktree"))
+    #require(prompt.contains("/Users/compass/Compass/Repos/AAAA-BBBB-CCCC-DDDD/worktree"))
   }
 
-  func testPlanPhaseAdvertisesBashWithoutMutationTools() {
+  @Test func testPlanPhaseAdvertisesBashWithoutMutationTools() {
     let prompt = Prompts.agentSystemPrompt(phase: .plan, workingDirectoryPath: "/x")
-    XCTAssertTrue(prompt.contains("File tools"))
-    XCTAssertTrue(prompt.contains("Codemap tools"))
-    XCTAssertTrue(
+    #require(prompt.contains("File tools"))
+    #require(prompt.contains("Codemap tools"))
+    #require(
       prompt.contains("bash"),
       "Plan must see `bash` so it can ground decisions in real build/test output")
-    XCTAssertTrue(
+    #require(
       prompt.contains("do not mutate tracked files"),
       "Plan prompt must state read-only intent for bash")
-    XCTAssertFalse(prompt.contains("Mutation tools"))
-    XCTAssertFalse(
-      prompt.contains("write_file"),
+    #require(!prompt.contains("Mutation tools"))
+    #require(
+      !prompt.contains("write_file"),
       "Plan must not be told about write_file")
-    XCTAssertTrue(
+    #require(
       prompt.contains("plan_history"),
       "Plan must see plan_history for Compass-managed completed iterations")
   }
 
-  func testReflectPhaseAdvertisesBashWithoutMutationTools() {
+  @Test func testReflectPhaseAdvertisesBashWithoutMutationTools() {
     let prompt = Prompts.agentSystemPrompt(phase: .reflect, workingDirectoryPath: "/x")
-    XCTAssertTrue(
+    #require(
       prompt.contains("bash"),
       "Reflect must see `bash` so it can probe the project during course-correction")
-    XCTAssertTrue(
+    #require(
       prompt.contains("do not mutate tracked files"),
       "Reflect prompt must state read-only intent for bash")
-    XCTAssertFalse(prompt.contains("Mutation tools"))
-    XCTAssertFalse(
-      prompt.contains("write_file"),
+    #require(!prompt.contains("Mutation tools"))
+    #require(
+      !prompt.contains("write_file"),
       "Reflect must not be told about write_file")
   }
 
-  func testDevelopPhaseAdvertisesWriteTools() {
+  @Test func testDevelopPhaseAdvertisesWriteTools() {
     let prompt = Prompts.agentSystemPrompt(phase: .develop, workingDirectoryPath: "/x")
-    XCTAssertTrue(prompt.contains("Write tools"))
-    XCTAssertTrue(prompt.contains("write_file"))
-    XCTAssertTrue(prompt.contains("bash"))
+    #require(prompt.contains("Write tools"))
+    #require(prompt.contains("write_file"))
+    #require(prompt.contains("bash"))
   }
 
-  func testCriticPhaseAdvertisesBashButNotWriteTools() {
+  @Test func testCriticPhaseAdvertisesBashButNotWriteTools() {
     let prompt = Prompts.agentSystemPrompt(phase: .critic, workingDirectoryPath: "/x")
-    XCTAssertTrue(
+    #require(
       prompt.contains("bash"),
       "Critic must see `bash` for re-running tests / linters")
-    XCTAssertFalse(
-      prompt.contains("Write tools"),
+    #require(
+      !prompt.contains("Write tools"),
       "Critic must not be told about write/edit tools")
-    XCTAssertFalse(
-      prompt.contains("write_file"),
+    #require(
+      !prompt.contains("write_file"),
       "Critic must not be told about write_file")
-    XCTAssertTrue(
+    #require(
       prompt.contains("do not mutate the working tree"),
       "Critic prompt must state read-only intent for bash")
   }
 
-  func testDelegateToolIsAdvertisedInEveryPhase() {
+  @Test func testDelegateToolIsAdvertisedInEveryPhase() {
     // The `delegate` tool is on every phase's registry; the system
     // prompt has to name it or the model won't reach for it.
     for phase in AgentPhase.allCases {
       let prompt = Prompts.agentSystemPrompt(phase: phase, workingDirectoryPath: "/x")
-      XCTAssertTrue(
+      #require(
         prompt.contains("delegate"),
         "phase \(phase) should name `delegate` so the model uses sub-agents")
     }
@@ -102,60 +102,60 @@ final class AgentSystemPromptTests: XCTestCase {
   /// rarely get called — chat models heavily prefer tools the prompt
   /// acknowledges, so the codemap tools have to be mentioned in every
   /// phase that has access to them.
-  func testCodemapToolsAreAdvertisedInEveryPhase() {
+  @Test func testCodemapToolsAreAdvertisedInEveryPhase() {
     for phase in AgentPhase.allCases {
       let prompt = Prompts.agentSystemPrompt(phase: phase, workingDirectoryPath: "/x")
-      XCTAssertTrue(
+      #require(
         prompt.contains("find_symbol"),
         "phase \(phase) should name find_symbol so the model uses it instead of grepping for declarations"
       )
-      XCTAssertTrue(prompt.contains("outline"), "phase \(phase) should name outline")
-      XCTAssertTrue(prompt.contains("summary"), "phase \(phase) should name summary")
-      XCTAssertTrue(prompt.contains("list_files"), "phase \(phase) should name list_files")
-      XCTAssertTrue(prompt.contains("importers_of"), "phase \(phase) should name importers_of")
+      #require(prompt.contains("outline"), "phase \(phase) should name outline")
+      #require(prompt.contains("summary"), "phase \(phase) should name summary")
+      #require(prompt.contains("list_files"), "phase \(phase) should name list_files")
+      #require(prompt.contains("importers_of"), "phase \(phase) should name importers_of")
     }
   }
 
   // MARK: - Compass product and factory loop
 
-  func testSystemPromptExplainsCompassAndSoftwareFactory() {
+  @Test func testSystemPromptExplainsCompassAndSoftwareFactory() {
     let prompt = Prompts.agentSystemPrompt(phase: .plan, workingDirectoryPath: "/x")
-    XCTAssertTrue(prompt.contains("About Compass:"))
-    XCTAssertTrue(prompt.contains("software factory"))
-    XCTAssertTrue(prompt.contains("COMPASS.md"))
-    XCTAssertTrue(prompt.contains("Software factory loop"))
-    XCTAssertTrue(prompt.contains("Plan — pick the next"))
-    XCTAssertTrue(prompt.contains("Your role this turn: Plan"))
-    XCTAssertTrue(
+    #require(prompt.contains("About Compass:"))
+    #require(prompt.contains("software factory"))
+    #require(prompt.contains("COMPASS.md"))
+    #require(prompt.contains("Software factory loop"))
+    #require(prompt.contains("Plan — pick the next"))
+    #require(prompt.contains("Your role this turn: Plan"))
+    #require(
       prompt.contains("until Plan sets `immediate` to null"),
       "should explain project-complete stop condition"
     )
   }
 
-  func testSoftwareFactorySectionVariesByPhase() {
+  @Test func testSoftwareFactorySectionVariesByPhase() {
     let develop = Prompts.softwareFactorySection(phase: .develop, role: .phaseAgent)
-    XCTAssertTrue(develop.contains("Your role this turn: Develop"))
-    XCTAssertTrue(develop.contains("verify command"))
+    #require(develop.contains("Your role this turn: Develop"))
+    #require(develop.contains("verify command"))
 
     let critic = Prompts.softwareFactorySection(phase: .critic, role: .phaseAgent)
-    XCTAssertTrue(critic.contains("Your role this turn: Critic"))
+    #require(critic.contains("Your role this turn: Critic"))
 
     let sub = Prompts.softwareFactorySection(phase: .plan, role: .subAgent)
-    XCTAssertTrue(sub.contains("sub-agent"))
-    XCTAssertTrue(sub.contains("does not see your tool calls"))
+    #require(sub.contains("sub-agent"))
+    #require(sub.contains("does not see your tool calls"))
   }
 
-  func testSystemPromptTreatsLessonsAsPersistentMemory() {
+  @Test func testSystemPromptTreatsLessonsAsPersistentMemory() {
     let prompt = Prompts.agentSystemPrompt(phase: .develop, workingDirectoryPath: "/x")
-    XCTAssertTrue(prompt.contains("Persistent memory (lessons.md)"))
-    XCTAssertTrue(prompt.contains("long-term memory"))
-    XCTAssertTrue(
+    #require(prompt.contains("Persistent memory (lessons.md)"))
+    #require(prompt.contains("long-term memory"))
+    #require(
       prompt.contains("Prefer adding a lesson over leaving `[]`"),
       "should encourage writing lessons when insights apply again"
     )
   }
 
-  func testLessonEditsGuidanceIsSharedAcrossPhases() throws {
+  @Test func testLessonEditsGuidanceIsSharedAcrossPhases() throws {
     let plan = try Prompts.planPrompt(
       state: PlanProposal(immediate: nil, midTerm: "", longTerm: ""),
       completedCount: 0,
@@ -165,8 +165,8 @@ final class AgentSystemPromptTests: XCTestCase {
       vision: "",
       focus: .feature
     )
-    XCTAssertTrue(plan.contains("Persistent memory (lessons.md)"))
-    XCTAssertTrue(
+    #require(plan.contains("Persistent memory (lessons.md)"))
+    #require(
       Prompts.developPrompt(
         next: PlanNext(plan: "x", verify: "true", verifyTimeoutMs: nil, estimatedDifficulty: .low),
         lessons: "",
@@ -177,7 +177,7 @@ final class AgentSystemPromptTests: XCTestCase {
     )
   }
 
-  func testPlanPromptDiscouragesBareSwiftTestDuringXCTestMigration() throws {
+  @Test func testPlanPromptDiscouragesBareSwiftTestDuringXCTestMigration() throws {
     let prompt = try Prompts.planPrompt(
       state: PlanProposal(immediate: nil, midTerm: "", longTerm: ""),
       completedCount: 0,
@@ -187,30 +187,30 @@ final class AgentSystemPromptTests: XCTestCase {
       vision: "",
       focus: .feature
     )
-    XCTAssertTrue(prompt.contains("do not plan bare `swift test`"))
-    XCTAssertTrue(prompt.contains("swift build --target CompassTests"))
+    #require(prompt.contains("do not plan bare `swift test`"))
+    #require(prompt.contains("swift build --target CompassTests"))
   }
 
-  func testSubAgentSystemPromptIncludesFactoryContext() {
+  @Test func testSubAgentSystemPromptIncludesFactoryContext() {
     let prompt = Prompts.subAgentSystemPrompt(
       parentPhase: .develop,
       workingDirectoryPath: "/x",
       toolNames: ["bash"]
     )
-    XCTAssertTrue(prompt.contains("About Compass:"))
-    XCTAssertTrue(prompt.contains("software factory"))
-    XCTAssertTrue(prompt.contains("sub-agent"))
+    #require(prompt.contains("About Compass:"))
+    #require(prompt.contains("software factory"))
+    #require(prompt.contains("sub-agent"))
   }
 
   // MARK: - Execution environment
 
-  func testSharedVMEnvironmentIsTheDefault() {
+  @Test func testSharedVMEnvironmentIsTheDefault() {
     let prompt = Prompts.agentSystemPrompt(phase: .develop, workingDirectoryPath: "/x")
-    XCTAssertTrue(prompt.contains("Compass Shared VM"))
-    XCTAssertFalse(prompt.contains("native macOS host"))
+    #require(prompt.contains("Compass Shared VM"))
+    #require(!prompt.contains("native macOS host"))
   }
 
-  func testSharedVMEnvironmentTellsModelXcodebuildIsUnavailable() {
+  @Test func testSharedVMEnvironmentTellsModelXcodebuildIsUnavailable() {
     // The whole point of this stanza: stop the model from burning
     // iterations on `xcodebuild`/Xcode-only utilities when only CLT
     // is installed. Asserted on the user-visible phrasing the model
@@ -220,38 +220,38 @@ final class AgentSystemPromptTests: XCTestCase {
       workingDirectoryPath: "/Users/compass/Compass/Repos/AAAA-BBBB-CCCC-DDDD/worktree",
       executionEnvironment: .sharedVM
     )
-    XCTAssertTrue(prompt.contains("Compass Shared VM"))
-    XCTAssertTrue(prompt.contains("Command Line Tools"))
-    XCTAssertTrue(
+    #require(prompt.contains("Compass Shared VM"))
+    #require(prompt.contains("Command Line Tools"))
+    #require(
       prompt.contains("`xcodebuild`"),
       "Must name the unavailable tool so the model recognises its own failed calls")
-    XCTAssertTrue(
+    #require(
       prompt.contains("swift build"),
       "Must point at the SwiftPM-native alternative")
-    XCTAssertTrue(
+    #require(
       prompt.contains(".xcodeproj"),
       "Must call out the failure mode for Xcode-project builds")
   }
 
-  func testExecutionEnvironmentSectionsAreRoutedByDescriptor() {
-    XCTAssertTrue(Prompts.executionEnvironmentSection(.host).contains("native macOS host"))
-    XCTAssertTrue(Prompts.executionEnvironmentSection(.sharedVM).contains("Shared VM"))
+  @Test func testExecutionEnvironmentSectionsAreRoutedByDescriptor() {
+    #require(Prompts.executionEnvironmentSection(.host).contains("native macOS host"))
+    #require(Prompts.executionEnvironmentSection(.sharedVM).contains("Shared VM"))
   }
 
-  func testSharedVMEnvironmentMentionsToolchainToolsAndDockerLimitation() {
+  @Test func testSharedVMEnvironmentMentionsToolchainToolsAndDockerLimitation() {
     let section = Prompts.executionEnvironmentSection(.sharedVM)
-    XCTAssertTrue(section.contains("list_toolchains"))
-    XCTAssertTrue(section.contains("install_toolchain"))
-    XCTAssertTrue(section.contains("Homebrew"))
-    XCTAssertTrue(section.contains("Docker is unavailable"))
+    #require(section.contains("list_toolchains"))
+    #require(section.contains("install_toolchain"))
+    #require(section.contains("Homebrew"))
+    #require(section.contains("Docker is unavailable"))
   }
 
-  func testSharedVMEnvironmentListsInstalledToolchainsWhenProvided() {
+  @Test func testSharedVMEnvironmentListsInstalledToolchainsWhenProvided() {
     let section = Prompts.executionEnvironmentSection(
       .sharedVM,
       installedToolchainIDs: ["rust", "go"]
     )
-    XCTAssertTrue(section.contains("rust, go"))
+    #require(section.contains("rust, go"))
   }
 
   // MARK: - `.compass/` workspace clarification
@@ -262,17 +262,17 @@ final class AgentSystemPromptTests: XCTestCase {
   /// `.compass/lessons.md` even though the lessons content is
   /// injected into the user message. Lock down the system-prompt
   /// stanza that tells the model to stop doing that.
-  func testSystemPromptTellsAgentNotToReadCompassDirectory() {
+  @Test func testSystemPromptTellsAgentNotToReadCompassDirectory() {
     let prompt = Prompts.agentSystemPrompt(
       phase: .develop,
       workingDirectoryPath: "/Users/compass/Compass/Repos/AAAA/worktree",
       executionEnvironment: .sharedVM
     )
-    XCTAssertTrue(
+    #require(
       prompt.contains("`.compass/` directory belongs to Compass"),
       "system prompt should explain that .compass/ isn't in the workspace"
     )
-    XCTAssertTrue(
+    #require(
       prompt.contains(".compass/lessons.md"),
       "system prompt should name the lessons file explicitly so the model recognises the pattern"
     )

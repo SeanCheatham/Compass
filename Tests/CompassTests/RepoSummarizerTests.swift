@@ -1,25 +1,24 @@
 import Foundation
-import XCTest
+import Testing
 
 @testable import Compass
 
-final class RepoSummarizerTests: XCTestCase {
+struct RepoSummarizerTests: ~Copyable {
   private var workingDirectory: URL!
   private var cacheDirectory: URL!
 
-  override func setUpWithError() throws {
+  init() throws {
     workingDirectory = try makeTempDir()
     cacheDirectory = workingDirectory.appendingPathComponent(".compass/codemap")
   }
 
-  override func tearDownWithError() throws {
+  deinit {
     if let workingDirectory {
       try? FileManager.default.removeItem(at: workingDirectory)
     }
-    workingDirectory = nil
-    cacheDirectory = nil
   }
 
+  @Test
   func testSummarizesEachEntryWithMissingSummary() async throws {
     let store = CodemapStore(directory: cacheDirectory)
     try await primeFile("alpha.swift", contents: swiftFixture)
@@ -32,17 +31,18 @@ final class RepoSummarizerTests: XCTestCase {
     let summarizer = makeSummarizer(store: store, recorder: recorder)
     let result = await summarizer.summarizeMissing()
 
-    XCTAssertEqual(result.generated, 2)
-    XCTAssertEqual(result.failed, 0)
+    #require(result.generated == 2)
+    #require(result.failed == 0)
     let calls = await recorder.callCount()
-    XCTAssertEqual(calls, 2)
+    #require(calls == 2)
 
-    let alpha = try XCTUnwrap(store.loadEntry(forRelativePath: "alpha.swift"))
-    XCTAssertEqual(alpha.summary, "mocked-summary")
-    XCTAssertEqual(alpha.summaryContentHash, alpha.contentHash)
-    XCTAssertEqual(alpha.summaryModel, "test-summary-model")
+    let alpha = #require(store.loadEntry(forRelativePath: "alpha.swift"))
+    #require(alpha.summary == "mocked-summary")
+    #require(alpha.summaryContentHash == alpha.contentHash)
+    #require(alpha.summaryModel == "test-summary-model")
   }
 
+  @Test
   func testCachedSummaryIsLeftAloneWhenContentUnchanged() async throws {
     let store = CodemapStore(directory: cacheDirectory)
     try await primeFile("alpha.swift", contents: swiftFixture)
@@ -54,14 +54,15 @@ final class RepoSummarizerTests: XCTestCase {
     let summarizer = makeSummarizer(store: store, recorder: recorder)
     _ = await summarizer.summarizeMissing()
     let firstPass = await recorder.callCount()
-    XCTAssertEqual(firstPass, 1)
+    #require(firstPass == 1)
 
     // Re-run: same hash, same model → no new call.
     _ = await summarizer.summarizeMissing()
     let secondPass = await recorder.callCount()
-    XCTAssertEqual(secondPass, 1)
+    #require(secondPass == 1)
   }
 
+  @Test
   func testChangedContentInvalidatesSummary() async throws {
     let store = CodemapStore(directory: cacheDirectory)
     try await primeFile("alpha.swift", contents: swiftFixture)
@@ -76,16 +77,17 @@ final class RepoSummarizerTests: XCTestCase {
     try await primeFile("alpha.swift", contents: swiftFixture + "\nfunc more() {}\n")
     _ = try await indexer.indexAll()  // re-parse, clears summary
 
-    let entryAfterReparse = try XCTUnwrap(
+    let entryAfterReparse = #require(
       store.loadEntry(forRelativePath: "alpha.swift")
     )
-    XCTAssertNil(entryAfterReparse.summary)
+    #require(entryAfterReparse.summary == nil)
 
     _ = await summarizer.summarizeMissing()
     let calls = await recorder.callCount()
-    XCTAssertEqual(calls, 2)
+    #require(calls == 2)
   }
 
+  @Test
   func testSkipsFilesWithNoExtractedSymbols() async throws {
     let store = CodemapStore(directory: cacheDirectory)
     // Long enough to clear minFileBytes but no recognized symbols (just
@@ -101,11 +103,12 @@ final class RepoSummarizerTests: XCTestCase {
     let recorder = ChatRecorder()
     let summarizer = makeSummarizer(store: store, recorder: recorder)
     let result = await summarizer.summarizeMissing()
-    XCTAssertEqual(result.generated, 0)
+    #require(result.generated == 0)
     let calls = await recorder.callCount()
-    XCTAssertEqual(calls, 0)
+    #require(calls == 0)
   }
 
+  @Test
   func testMissingAPIKeyShortCircuits() async throws {
     let store = CodemapStore(directory: cacheDirectory)
     try await primeFile("alpha.swift", contents: swiftFixture)
@@ -124,11 +127,12 @@ final class RepoSummarizerTests: XCTestCase {
       chatRequest: recorder.chatRequest
     )
     let result = await summarizer.summarizeMissing()
-    XCTAssertEqual(result.failed, 1)
+    #require(result.failed == 1)
     let calls = await recorder.callCount()
-    XCTAssertEqual(calls, 0)
+    #require(calls == 0)
   }
 
+  @Test
   func testRespectsParallelismCap() async throws {
     let store = CodemapStore(directory: cacheDirectory)
     let fileCount = 6
@@ -143,11 +147,12 @@ final class RepoSummarizerTests: XCTestCase {
     _ = await summarizer.summarizeMissing()
 
     let peak = await recorder.peakConcurrency()
-    XCTAssertLessThanOrEqual(peak, 2)
+    #require(peak <= 2)
     let calls = await recorder.callCount()
-    XCTAssertEqual(calls, fileCount)
+    #require(calls == fileCount)
   }
 
+  @Test
   func testEnsureSummaryReturnsCachedWhenFresh() async throws {
     let store = CodemapStore(directory: cacheDirectory)
     try await primeFile("alpha.swift", contents: swiftFixture)
@@ -157,14 +162,14 @@ final class RepoSummarizerTests: XCTestCase {
     let recorder = ChatRecorder()
     let summarizer = makeSummarizer(store: store, recorder: recorder)
     let first = try await summarizer.ensureSummary(forRelativePath: "alpha.swift")
-    XCTAssertEqual(first, "mocked-summary")
+    #require(first == "mocked-summary")
     let firstCalls = await recorder.callCount()
-    XCTAssertEqual(firstCalls, 1)
+    #require(firstCalls == 1)
 
     let second = try await summarizer.ensureSummary(forRelativePath: "alpha.swift")
-    XCTAssertEqual(second, "mocked-summary")
+    #require(second == "mocked-summary")
     let secondCalls = await recorder.callCount()
-    XCTAssertEqual(secondCalls, 1)
+    #require(secondCalls == 1)
   }
 
   // MARK: - Helpers

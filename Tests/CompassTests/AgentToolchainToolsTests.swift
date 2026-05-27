@@ -1,19 +1,19 @@
 import Foundation
-import XCTest
+import Testing
 
 @testable import Compass
 
-final class AgentToolchainToolsTests: XCTestCase {
+struct AgentToolchainToolsTests {
 
-  func testListToolchainsWithoutServiceExplainsHostRoute() async throws {
+  @Test func testListToolchainsWithoutServiceExplainsHostRoute() async throws {
     let tool = AgentListToolchainsTool()
     let context = AgentToolContext(workingDirectory: URL(fileURLWithPath: "/tmp/work"))
     let result = try await tool.invoke(arguments: Data("{}".utf8), context: context)
-    XCTAssertFalse(result.isError)
-    XCTAssertTrue(result.content.contains("native macOS host"))
+    #require(!result.isError)
+    #require(result.content.contains("native macOS host"))
   }
 
-  func testListToolchainsFormatsStatuses() async throws {
+  @Test func testListToolchainsFormatsStatuses() async throws {
     let service = FakeToolchainService(
       statuses: [
         ToolchainStatus(
@@ -31,25 +31,25 @@ final class AgentToolchainToolsTests: XCTestCase {
       toolchainService: service
     )
     let result = try await tool.invoke(arguments: Data("{}".utf8), context: context)
-    XCTAssertFalse(result.isError)
-    XCTAssertTrue(result.content.contains("rust"))
-    XCTAssertTrue(result.content.contains("missing"))
+    #require(!result.isError)
+    #require(result.content.contains("rust"))
+    #require(result.content.contains("missing"))
   }
 
-  func testInstallToolchainRejectsUnknownID() async throws {
+  @Test func testInstallToolchainRejectsUnknownID() async throws {
     let service = FakeToolchainService(statuses: [])
     let tool = AgentInstallToolchainTool()
     let context = AgentToolContext(
       workingDirectory: URL(fileURLWithPath: "/tmp/work"),
       toolchainService: service
     )
-    let args = Data("{\"id\":\"unknown\"}".utf8)
+    let args = Data(#"{"id":"unknown"}"#.utf8)
     let result = try await tool.invoke(arguments: args, context: context)
-    XCTAssertTrue(result.isError)
-    XCTAssertTrue(result.content.contains("Unknown toolchain"))
+    #require(result.isError)
+    #require(result.content.contains("Unknown toolchain"))
   }
 
-  func testInstallToolchainReportsAlreadyInstalled() async throws {
+  @Test func testInstallToolchainReportsAlreadyInstalled() async throws {
     let service = FakeToolchainService(
       statuses: [],
       installHandler: { id in
@@ -65,26 +65,26 @@ final class AgentToolchainToolsTests: XCTestCase {
       workingDirectory: URL(fileURLWithPath: "/tmp/work"),
       toolchainService: service
     )
-    let args = Data("{\"id\":\"rust\"}".utf8)
+    let args = Data(#"{"id":"rust"}"#.utf8)
     let result = try await tool.invoke(arguments: args, context: context)
-    XCTAssertFalse(result.isError)
-    XCTAssertTrue(result.content.contains("already installed"))
+    #require(!result.isError)
+    #require(result.content.contains("already installed"))
   }
 
-  func testToolRegistryIncludesToolchainToolsWhenServiceProvided() {
+  @Test func testToolRegistryIncludesToolchainToolsWhenServiceProvided() {
     let service = FakeToolchainService(statuses: [])
     let names = Set(
       ToolRegistry.tools(for: .develop, settings: AgentRuntimeSettings(), toolchainService: service)
         .map { $0.spec.name }
     )
-    XCTAssertTrue(names.contains("list_toolchains"))
-    XCTAssertTrue(names.contains("install_toolchain"))
+    #require(names.contains("list_toolchains"))
+    #require(names.contains("install_toolchain"))
   }
 
-  func testToolRegistryOmitsToolchainToolsOnHostRoute() {
+  @Test func testToolRegistryOmitsToolchainToolsOnHostRoute() {
     let names = Set(ToolRegistry.tools(for: .develop).map { $0.spec.name })
-    XCTAssertFalse(names.contains("list_toolchains"))
-    XCTAssertFalse(names.contains("install_toolchain"))
+    #require(!names.contains("list_toolchains"))
+    #require(!names.contains("install_toolchain"))
   }
 }
 

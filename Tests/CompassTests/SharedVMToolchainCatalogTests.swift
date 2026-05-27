@@ -1,72 +1,72 @@
 import Foundation
-import XCTest
+import Testing
 
 @testable import Compass
 
-final class SharedVMToolchainCatalogTests: XCTestCase {
+struct SharedVMToolchainCatalogTests {
 
-  func testCatalogHasUniqueIDs() {
+  @Test func catalogHasUniqueIDs() throws {
     let ids = SharedVMToolchainCatalog.all.map(\.stringID)
-    XCTAssertEqual(Set(ids).count, ids.count)
+    #require(Set(ids).count == ids.count)
   }
 
-  func testDefaultProvisionedIDsMatchCatalog() {
-    XCTAssertTrue(SharedVMToolchainCatalog.defaultProvisionedIDs.contains("command_line_tools"))
-    XCTAssertTrue(SharedVMToolchainCatalog.defaultProvisionedIDs.contains("homebrew"))
-    XCTAssertTrue(SharedVMToolchainCatalog.defaultProvisionedIDs.contains("ripgrep"))
-    XCTAssertFalse(SharedVMToolchainCatalog.defaultProvisionedIDs.contains("rust"))
+  @Test func defaultProvisionedIDsMatchCatalog() throws {
+    #require(SharedVMToolchainCatalog.defaultProvisionedIDs.contains("command_line_tools"))
+    #require(SharedVMToolchainCatalog.defaultProvisionedIDs.contains("homebrew"))
+    #require(SharedVMToolchainCatalog.defaultProvisionedIDs.contains("ripgrep"))
+    #require(!SharedVMToolchainCatalog.defaultProvisionedIDs.contains("rust"))
   }
 
-  func testEachInstallableToolchainRendersNonEmptyScript() {
+  @Test func eachInstallableToolchainRendersNonEmptyScript() throws {
     for definition in SharedVMToolchainCatalog.all where definition.installableViaGenericProvisioner {
       let script = definition.renderInstallScript()
-      XCTAssertTrue(script.hasPrefix("#!/bin/bash"), definition.stringID)
-      XCTAssertTrue(script.contains("set -euo pipefail"), definition.stringID)
-      XCTAssertTrue(script.contains("exit=0"), definition.stringID)
+      #require(script.hasPrefix("#!/bin/bash"))
+      #require(script.contains("set -euo pipefail"))
+      #require(script.contains("exit=0"))
     }
   }
 
-  func testDependencyIDsExistInCatalog() {
+  @Test func dependencyIDsExistInCatalog() throws {
     let ids = Set(SharedVMToolchainCatalog.all.map(\.stringID))
     for definition in SharedVMToolchainCatalog.all {
       for dependency in definition.dependencies {
-        XCTAssertTrue(ids.contains(dependency.rawValue), "\(definition.stringID) -> \(dependency)")
+        #require(ids.contains(dependency.rawValue), "\(definition.stringID) -> \(dependency)")
       }
     }
   }
 
-  func testHomebrewScriptBootstrapsNonInteractively() {
+  @Test func homebrewScriptBootstrapsNonInteractively() throws {
     let script = SharedVMToolchainCatalog.definition(for: .homebrew).renderInstallScript()
-    XCTAssertTrue(script.contains("NONINTERACTIVE=1"))
-    XCTAssertTrue(script.contains("Homebrew bootstrap"))
+    #require(script.contains("NONINTERACTIVE=1"))
+    #require(script.contains("Homebrew bootstrap"))
   }
 
-  func testRipgrepScriptRequiresHomebrewAndSymlinks() {
+  @Test func ripgrepScriptRequiresHomebrewAndSymlinks() throws {
     let script = SharedVMToolchainCatalog.definition(for: .ripgrep).renderInstallScript()
-    XCTAssertTrue(script.contains("Homebrew missing"))
-    XCTAssertTrue(script.contains("brew install ripgrep"))
-    XCTAssertTrue(script.contains("ln -sf"))
+    #require(script.contains("Homebrew missing"))
+    #require(script.contains("brew install ripgrep"))
+    #require(script.contains("ln -sf"))
   }
 
-  func testRustScriptUsesRustup() {
+  @Test func rustScriptUsesRustup() throws {
     let script = SharedVMToolchainCatalog.definition(for: .rust).renderInstallScript()
-    XCTAssertTrue(script.contains("sh.rustup.rs"))
-    XCTAssertTrue(script.contains("--default-toolchain stable"))
+    #require(script.contains("sh.rustup.rs"))
+    #require(script.contains("--default-toolchain stable"))
   }
 
-  func testNodeScriptInstallsNodeAndGlobalTypeScript() {
+  @Test func nodeScriptInstallsNodeAndGlobalTypeScript() throws {
     let script = SharedVMToolchainCatalog.definition(for: .node).renderInstallScript()
-    XCTAssertTrue(script.contains("brew install node"))
-    XCTAssertTrue(script.contains("npm install -g typescript"))
-    XCTAssertTrue(script.contains("command -v tsc"))
-    XCTAssertTrue(script.contains("node --version"))
+    #require(script.contains("brew install node"))
+    #require(script.contains("npm install -g typescript"))
+    #require(script.contains("command -v tsc"))
+    #require(script.contains("node --version"))
   }
 
-  func testNodeProbeRequiresNodeNpmNpxAndTsc() {
+  @Test func nodeProbeRequiresNodeNpmNpxAndTsc() throws {
     let probe = SharedVMToolchainCatalog.definition(for: .node).probeCommand
-    XCTAssertTrue(probe.contains("command -v node"))
-    XCTAssertTrue(probe.contains("command -v npm"))
-    XCTAssertTrue(probe.contains("command -v npx"))
-    XCTAssertTrue(probe.contains("command -v tsc"))
+    #require(probe.contains("command -v node"))
+    #require(probe.contains("command -v npm"))
+    #require(probe.contains("command -v npx"))
+    #require(probe.contains("command -v tsc"))
   }
 }

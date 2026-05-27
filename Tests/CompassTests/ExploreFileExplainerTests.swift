@@ -32,15 +32,15 @@ struct ExploreFileExplainerTests {
 
     let changes = FileExplainer.parseGitDiffStat(diffStat)
 
-    try #require(changes.count == 2)
+    #require(changes.count == 2)
 
-    try #require(changes[0].relativePath == "Sources/App.swift")
-    try #require(changes[0].additions == 4)
-    try #require(changes[0].deletions == 2)
+    #require(changes[0].relativePath == "Sources/App.swift")
+    #require(changes[0].additions == 4)
+    #require(changes[0].deletions == 2)
 
-    try #require(changes[1].relativePath == "Sources/Model.swift")
-    try #require(changes[1].additions == 4)
-    try #require(changes[1].deletions == 0)
+    #require(changes[1].relativePath == "Sources/Model.swift")
+    #require(changes[1].additions == 4)
+    #require(changes[1].deletions == 0)
   }
 
   @Test
@@ -53,10 +53,10 @@ struct ExploreFileExplainerTests {
 
     let changes = FileExplainer.parseGitDiffStat(diffStat)
 
-    try #require(changes.count == 1)
-    try #require(changes[0].relativePath == "new/path.go")
-    try #require(changes[0].additions == 2)
-    try #require(changes[0].deletions == 2)
+    #require(changes.count == 1)
+    #require(changes[0].relativePath == "new/path.go")
+    #require(changes[0].additions == 2)
+    #require(changes[0].deletions == 2)
   }
 
   @Test
@@ -69,11 +69,11 @@ struct ExploreFileExplainerTests {
 
     let changes = FileExplainer.parseGitDiffStat(diffStat)
 
-    try #require(changes.count == 1)
-    try #require(changes[0].relativePath == "Assets/logo.png")
+    #require(changes.count == 1)
+    #require(changes[0].relativePath == "Assets/logo.png")
     // Binary lines produce 0 additions and 0 deletions (no + or - in the bar chart, no numeric tokens)
-    try #require(changes[0].additions == 0)
-    try #require(changes[0].deletions == 0)
+    #require(changes[0].additions == 0)
+    #require(changes[0].deletions == 0)
   }
 
   @Test
@@ -86,10 +86,10 @@ struct ExploreFileExplainerTests {
 
     let changes = FileExplainer.parseGitDiffStat(diffStat)
 
-    try #require(changes.count == 1)
-    try #require(changes[0].relativePath == "My Files/App.swift")
-    try #require(changes[0].additions == 6)
-    try #require(changes[0].deletions == 0)
+    #require(changes.count == 1)
+    #require(changes[0].relativePath == "My Files/App.swift")
+    #require(changes[0].additions == 6)
+    #require(changes[0].deletions == 0)
   }
 
   @Test
@@ -107,11 +107,11 @@ struct ExploreFileExplainerTests {
 
     let changes = FileExplainer.parseGitDiffStat(diffStat)
 
-    try #require(changes.count == 4)
-    try #require(changes[0].relativePath == "Sources/App.swift")
-    try #require(changes[1].relativePath == "Sources/Model.swift")
-    try #require(changes[2].relativePath == "Tests/AppTests.swift")
-    try #require(changes[3].relativePath == "README.md")
+    #require(changes.count == 4)
+    #require(changes[0].relativePath == "Sources/App.swift")
+    #require(changes[1].relativePath == "Sources/Model.swift")
+    #require(changes[2].relativePath == "Tests/AppTests.swift")
+    #require(changes[3].relativePath == "README.md")
   }
 
   @Test
@@ -125,10 +125,10 @@ struct ExploreFileExplainerTests {
 
     let changes = FileExplainer.parseGitDiffStat(diffStat)
 
-    try #require(changes.count == 1)
-    try #require(changes[0].relativePath == "Sources/App.swift")
-    try #require(changes[0].additions == 42)
-    try #require(changes[0].deletions == 0)
+    #require(changes.count == 1)
+    #require(changes[0].relativePath == "Sources/App.swift")
+    #require(changes[0].additions == 42)
+    #require(changes[0].deletions == 0)
   }
 
   @Test
@@ -142,10 +142,10 @@ struct ExploreFileExplainerTests {
 
     let changes = FileExplainer.parseGitDiffStat(diffStat)
 
-    try #require(changes.count == 1)
-    try #require(changes[0].relativePath == "README.md")
-    try #require(changes[0].additions == 0)
-    try #require(changes[0].deletions == 0)
+    #require(changes.count == 1)
+    #require(changes[0].relativePath == "README.md")
+    #require(changes[0].additions == 0)
+    #require(changes[0].deletions == 0)
   }
 
   @Test
@@ -155,7 +155,7 @@ struct ExploreFileExplainerTests {
     defer { test.tearDown() }
 
     let changes = FileExplainer.parseGitDiffStat("")
-    try #require(changes.isEmpty)
+    #require(changes.isEmpty)
   }
 
   @Test
@@ -172,9 +172,9 @@ struct ExploreFileExplainerTests {
 
     let changes = FileExplainer.parseGitDiffStat(diffStat)
 
-    try #require(changes.count == 2)
-    try #require(changes[0].relativePath == "Sources/App.swift")
-    try #require(changes[1].relativePath == "Sources/Model.swift")
+    #require(changes.count == 2)
+    #require(changes[0].relativePath == "Sources/App.swift")
+    #require(changes[1].relativePath == "Sources/Model.swift")
   }
 
   // MARK: - extractLineCounts
@@ -186,8 +186,8 @@ struct ExploreFileExplainerTests {
     defer { test.tearDown() }
 
     let result = FileExplainer.extractLineCounts(from: "24 ++++++++----------")
-    try #require(result.additions == 8)
-    try #require(result.deletions == 10)
+    #require(result.additions == 8)
+    #require(result.deletions == 10)
   }
 
   @Test
@@ -197,8 +197,8 @@ struct ExploreFileExplainerTests {
     defer { test.tearDown() }
 
     let result = FileExplainer.extractLineCounts(from: "6 ++++++")
-    try #require(result.additions == 6)
-    try #require(result.deletions == 0)
+    #require(result.additions == 6)
+    #require(result.deletions == 0)
   }
 
   @Test
@@ -208,8 +208,8 @@ struct ExploreFileExplainerTests {
     defer { test.tearDown() }
 
     let result = FileExplainer.extractLineCounts(from: "3 ---")
-    try #require(result.additions == 0)
-    try #require(result.deletions == 3)
+    #require(result.additions == 0)
+    #require(result.deletions == 3)
   }
 
   @Test
@@ -220,8 +220,8 @@ struct ExploreFileExplainerTests {
 
     // No +/- bar chars, but has numeric token
     let result = FileExplainer.extractLineCounts(from: "99")
-    try #require(result.additions == 99)
-    try #require(result.deletions == 0)
+    #require(result.additions == 99)
+    #require(result.deletions == 0)
   }
 
   @Test
@@ -232,8 +232,8 @@ struct ExploreFileExplainerTests {
 
     // No bar chars, no numeric tokens
     let result = FileExplainer.extractLineCounts(from: "")
-    try #require(result.additions == 0)
-    try #require(result.deletions == 0)
+    #require(result.additions == 0)
+    #require(result.deletions == 0)
   }
 
   @Test
@@ -244,7 +244,7 @@ struct ExploreFileExplainerTests {
 
     // Numeric count 24 and bar chars both present — bars take priority
     let result = FileExplainer.extractLineCounts(from: "24 ++++++++----------")
-    try #require(result.additions == 8)
-    try #require(result.deletions == 10)
+    #require(result.additions == 8)
+    #require(result.deletions == 10)
   }
 }

@@ -1,9 +1,10 @@
 import Foundation
-import XCTest
+import Testing
 
 @testable import Compass
 
-final class ProjectReliabilityStatusTests: XCTestCase {
+struct ProjectReliabilityStatusTests {
+  @Test
   func testCleanFeedbackProducesNoCueStatus() {
     let sessions = [
       makeSession(1, status: .succeeded, feedback: "done"),
@@ -16,13 +17,14 @@ final class ProjectReliabilityStatusTests: XCTestCase {
 
     let status = ProjectReliabilityStatus(feedback: feedback)
 
-    XCTAssertTrue(status.isEmpty)
-    XCTAssertEqual(status.noticeCount, 0)
-    XCTAssertEqual(status.countLabel, "0 cues")
-    XCTAssertEqual(status.primaryCue, "")
-    XCTAssertEqual(status.detail, "")
+    #require(status.isEmpty)
+    #require(status.noticeCount == 0)
+    #require(status.countLabel == "0 cues")
+    #require(status.primaryCue == "")
+    #require(status.detail == "")
   }
 
+  @Test
   func testRejectedPlanTakesPriorityOverNewerVerifyFailure() {
     let newerFailedVerify = makeSession(
       2,
@@ -49,15 +51,16 @@ final class ProjectReliabilityStatusTests: XCTestCase {
 
     let status = ProjectReliabilityStatus(feedback: feedback)
 
-    XCTAssertEqual(feedback.notices.map(\.kind), [.failedVerify, .rejectedPlan])
-    XCTAssertFalse(status.isEmpty)
-    XCTAssertEqual(status.primaryCue, "Plan rejected")
-    XCTAssertEqual(status.severity, .failure)
-    XCTAssertEqual(status.actionLabel, "Retry Plan")
-    XCTAssertEqual(status.metadata, "#1")
-    XCTAssertEqual(status.countLabel, "2 cues")
+    #require(feedback.notices.map(\.kind) == [.failedVerify, .rejectedPlan])
+    #require(!status.isEmpty)
+    #require(status.primaryCue == "Plan rejected")
+    #require(status.severity == .failure)
+    #require(status.actionLabel == "Retry Plan")
+    #require(status.metadata == "#1")
+    #require(status.countLabel == "2 cues")
   }
 
+  @Test
   func testDevelopBlockedAndFailedCuesUseDevelopActions() {
     let blockedFeedback = PlanReliabilityFeedback(
       state: makeState(),
@@ -85,16 +88,17 @@ final class ProjectReliabilityStatusTests: XCTestCase {
     let blockedStatus = ProjectReliabilityStatus(feedback: blockedFeedback)
     let failedStatus = ProjectReliabilityStatus(feedback: failedFeedback)
 
-    XCTAssertEqual(blockedStatus.primaryCue, "Develop blocked")
-    XCTAssertEqual(blockedStatus.severity, .warning)
-    XCTAssertEqual(blockedStatus.actionLabel, "Retry Develop")
-    XCTAssertEqual(blockedStatus.detail, "Missing signing credentials.")
-    XCTAssertEqual(failedStatus.primaryCue, "Develop failed")
-    XCTAssertEqual(failedStatus.severity, .failure)
-    XCTAssertEqual(failedStatus.actionLabel, "Retry Develop")
-    XCTAssertEqual(failedStatus.detail, "build settings were inconsistent")
+    #require(blockedStatus.primaryCue == "Develop blocked")
+    #require(blockedStatus.severity == .warning)
+    #require(blockedStatus.actionLabel == "Retry Develop")
+    #require(blockedStatus.detail == "Missing signing credentials.")
+    #require(failedStatus.primaryCue == "Develop failed")
+    #require(failedStatus.severity == .failure)
+    #require(failedStatus.actionLabel == "Retry Develop")
+    #require(failedStatus.detail == "build settings were inconsistent")
   }
 
+  @Test
   func testFailedVerifyStatusCarriesVerifyMetadata() {
     let session = makeSession(
       5,
@@ -113,16 +117,17 @@ final class ProjectReliabilityStatusTests: XCTestCase {
 
     let status = ProjectReliabilityStatus(feedback: feedback)
 
-    XCTAssertEqual(status.primaryCue, "Verify failed")
-    XCTAssertEqual(status.severity, .failure)
-    XCTAssertEqual(status.actionLabel, "Retry Develop")
-    XCTAssertEqual(
-      status.metadata,
+    #require(status.primaryCue == "Verify failed")
+    #require(status.severity == .failure)
+    #require(status.actionLabel == "Retry Develop")
+    #require(
+      status.metadata ==
       "swift test --filter ProjectReliabilityStatusTests · exit 65"
     )
-    XCTAssertEqual(status.detail, "Test Suite failed Expected true but got false")
+    #require(status.detail == "Test Suite failed Expected true but got false")
   }
 
+  @Test
   func testDirtyWorktreeStatusCarriesPostCheckMetadata() {
     let session = makeSession(
       9,
@@ -142,13 +147,14 @@ final class ProjectReliabilityStatusTests: XCTestCase {
 
     let status = ProjectReliabilityStatus(feedback: feedback)
 
-    XCTAssertEqual(status.primaryCue, "Worktree dirty")
-    XCTAssertEqual(status.severity, .warning)
-    XCTAssertEqual(status.actionLabel, "Clean Worktree")
-    XCTAssertEqual(status.metadata, "#9 · 1 pending change")
-    XCTAssertTrue(status.detail.hasPrefix("Uncommitted or untracked changes remain"))
+    #require(status.primaryCue == "Worktree dirty")
+    #require(status.severity == .warning)
+    #require(status.actionLabel == "Clean Worktree")
+    #require(status.metadata == "#9 · 1 pending change")
+    #require(status.detail.hasPrefix("Uncommitted or untracked changes remain"))
   }
 
+  @Test
   func testPromotionFailureStatusCarriesPromotionMetadata() {
     let session = makeSession(
       10,
@@ -162,13 +168,14 @@ final class ProjectReliabilityStatusTests: XCTestCase {
 
     let status = ProjectReliabilityStatus(feedback: feedback)
 
-    XCTAssertEqual(status.primaryCue, "Promotion failed")
-    XCTAssertEqual(status.severity, .failure)
-    XCTAssertEqual(status.actionLabel, "Resolve Promotion")
-    XCTAssertEqual(status.metadata, "#10 · promotion")
-    XCTAssertEqual(status.detail, "Develop sandbox produced no commit to promote.")
+    #require(status.primaryCue == "Promotion failed")
+    #require(status.severity == .failure)
+    #require(status.actionLabel == "Resolve Promotion")
+    #require(status.metadata == "#10 · promotion")
+    #require(status.detail == "Develop sandbox produced no commit to promote.")
   }
 
+  @Test
   func testAwaitingApprovalStatusUsesResumeCue() {
     let session = makeSession(
       6,
@@ -179,14 +186,15 @@ final class ProjectReliabilityStatusTests: XCTestCase {
 
     let status = ProjectReliabilityStatus(feedback: feedback)
 
-    XCTAssertEqual(status.primaryCue, "Develop ready")
-    XCTAssertEqual(status.severity, .paused)
-    XCTAssertEqual(status.actionLabel, "Resume Develop")
-    XCTAssertEqual(status.metadata, "#6")
-    XCTAssertEqual(status.detail, "Implement the approved next slice")
-    XCTAssertEqual(status.countLabel, "1 cue")
+    #require(status.primaryCue == "Develop ready")
+    #require(status.severity == .paused)
+    #require(status.actionLabel == "Resume Develop")
+    #require(status.metadata == "#6")
+    #require(status.detail == "Implement the approved next slice")
+    #require(status.countLabel == "1 cue")
   }
 
+  @Test
   func testMultipleCueStatusReportsCountLabel() {
     let session = makeSession(
       7,
@@ -203,13 +211,14 @@ final class ProjectReliabilityStatusTests: XCTestCase {
 
     let status = ProjectReliabilityStatus(feedback: feedback)
 
-    XCTAssertEqual(feedback.notices.map(\.kind), [.developFailed, .failedVerify])
-    XCTAssertEqual(status.noticeCount, 2)
-    XCTAssertEqual(status.countLabel, "2 cues")
-    XCTAssertEqual(status.primaryCue, "Verify failed")
-    XCTAssertEqual(status.metadata, "swift test · exit 1")
+    #require(feedback.notices.map(\.kind) == [.developFailed, .failedVerify])
+    #require(status.noticeCount == 2)
+    #require(status.countLabel == "2 cues")
+    #require(status.primaryCue == "Verify failed")
+    #require(status.metadata == "swift test · exit 1")
   }
 
+  @Test
   func testDetailCanBeBoundedForCompactProjectSurfaces() {
     let session = makeSession(
       11,
@@ -226,9 +235,9 @@ final class ProjectReliabilityStatusTests: XCTestCase {
 
     let status = ProjectReliabilityStatus(feedback: feedback, detailLimit: 46)
 
-    XCTAssertLessThanOrEqual(status.detail.count, 46)
-    XCTAssertTrue(status.detail.hasPrefix("First line second line"))
-    XCTAssertTrue(status.detail.hasSuffix("..."))
+    #require(status.detail.count <= 46)
+    #require(status.detail.hasPrefix("First line second line"))
+    #require(status.detail.hasSuffix("..."))
   }
 
   private func makeState(

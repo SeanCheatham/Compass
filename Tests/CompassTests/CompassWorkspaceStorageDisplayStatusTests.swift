@@ -1,19 +1,21 @@
 import Foundation
-import XCTest
+import Testing
 
 @testable import Compass
 
-final class CompassWorkspaceStorageDisplayStatusTests: XCTestCase {
+struct CompassWorkspaceStorageDisplayStatusTests : ~Copyable {
   private var temporaryDirectories: [URL] = []
 
-  override func tearDownWithError() throws {
+  init() throws {}
+
+  deinit {
     for url in temporaryDirectories {
       try? FileManager.default.removeItem(at: url)
     }
     temporaryDirectories.removeAll()
   }
 
-  func testApplicationSupportActiveWithNoRepoLocalReportsSupportRoot() throws {
+  @Test func testApplicationSupportActiveWithNoRepoLocalReportsSupportRoot() throws {
     let repoURL = try makeTemporaryGitRepository()
     let roots = try makeApplicationSupportRoots()
     let resolver = CompassProjectStorageResolver(
@@ -35,28 +37,28 @@ final class CompassWorkspaceStorageDisplayStatusTests: XCTestCase {
       preflight: preflight
     )
 
-    XCTAssertEqual(assessment.kind, .missingWorkspace)
-    XCTAssertEqual(preflight.repoLocalReadiness, .missingWorkspace)
-    XCTAssertEqual(display.kind, .applicationSupportActive)
-    XCTAssertEqual(display.severity, .healthy)
-    XCTAssertEqual(display.activeRootHealth, .healthy)
-    XCTAssertEqual(display.activeStorageRootURL, resolver.storageRootURL.standardizedFileURL)
-    XCTAssertEqual(display.activeStorageDisplayName, "Application Support")
-    XCTAssertTrue(preflight.currentApplicationSupportCandidateIsOccupied)
-    XCTAssertTrue(display.detail.contains("Active Compass state root"))
-    XCTAssertTrue(display.detail.contains("Repo-local .compass/ is absent"))
-    XCTAssertTrue(display.recommendation.contains("No repo-local storage action"))
-    XCTAssertFalse(display.detail.localizedCaseInsensitiveContains("conflict"))
-    XCTAssertFalse(display.recommendation.localizedCaseInsensitiveContains("repair"))
-    let compatibility = try XCTUnwrap(display.applicationSupportCompatibility)
-    XCTAssertEqual(compatibility.repoLocalContext.kind, .missing)
-    XCTAssertTrue(compatibility.inspectOnlyApplicationSupportDrift.isEmpty)
-    XCTAssertNil(display.supportRepairAction)
-    XCTAssertFalse(
-      FileManager.default.fileExists(atPath: resolver.workspace.repoLocalCompassURL.path))
+    #require(assessment.kind == .missingWorkspace)
+    #require(preflight.repoLocalReadiness == .missingWorkspace)
+    #require(display.kind == .applicationSupportActive)
+    #require(display.severity == .healthy)
+    #require(display.activeRootHealth == .healthy)
+    #require(display.activeStorageRootURL == resolver.storageRootURL.standardizedFileURL)
+    #require(display.activeStorageDisplayName == "Application Support")
+    #require(preflight.currentApplicationSupportCandidateIsOccupied)
+    #require(display.detail.contains("Active Compass state root"))
+    #require(display.detail.contains("Repo-local .compass/ is absent"))
+    #require(display.recommendation.contains("No repo-local storage action"))
+    #require(!display.detail.localizedCaseInsensitiveContains("conflict"))
+    #require(!display.recommendation.localizedCaseInsensitiveContains("repair"))
+    let compatibility = #require(display.applicationSupportCompatibility)
+    #require(compatibility.repoLocalContext.kind == .missing)
+    #require(compatibility.inspectOnlyApplicationSupportDrift.isEmpty)
+    #require(display.supportRepairAction == nil)
+    #require(
+      !FileManager.default.fileExists(atPath: resolver.workspace.repoLocalCompassURL.path))
   }
 
-  func testApplicationSupportActiveWithRetainedRepoLocalReportsStaleCompatibility() throws {
+  @Test func testApplicationSupportActiveWithRetainedRepoLocalReportsStaleCompatibility() throws {
     let repoURL = try makeTemporaryGitRepository()
     let roots = try makeApplicationSupportRoots()
     let resolver = CompassProjectStorageResolver(
@@ -79,24 +81,24 @@ final class CompassWorkspaceStorageDisplayStatusTests: XCTestCase {
       preflight: preflight
     )
 
-    XCTAssertEqual(preflight.repoLocalReadiness, .ready)
-    XCTAssertEqual(preflight.kind, .applicationSupportConflict)
-    XCTAssertTrue(preflight.currentApplicationSupportCandidateIsOccupied)
-    XCTAssertEqual(display.kind, .applicationSupportActive)
-    XCTAssertEqual(display.severity, .healthy)
-    XCTAssertEqual(display.activeRootHealth, .healthy)
-    let compatibility = try XCTUnwrap(display.applicationSupportCompatibility)
-    XCTAssertEqual(compatibility.repoLocalContext.kind, .retainedStale)
-    XCTAssertTrue(compatibility.inspectOnlyApplicationSupportDrift.isEmpty)
-    XCTAssertTrue(display.detail.contains("retained stale compatibility context"))
-    XCTAssertTrue(display.recommendation.contains("Leave repo-local state unchanged"))
-    XCTAssertFalse(display.detail.localizedCaseInsensitiveContains("conflict"))
-    XCTAssertFalse(display.detail.contains("Current:"))
-    XCTAssertFalse(display.recommendation.localizedCaseInsensitiveContains("repair"))
-    XCTAssertNil(display.supportRepairAction)
+    #require(preflight.repoLocalReadiness == .ready)
+    #require(preflight.kind == .applicationSupportConflict)
+    #require(preflight.currentApplicationSupportCandidateIsOccupied)
+    #require(display.kind == .applicationSupportActive)
+    #require(display.severity == .healthy)
+    #require(display.activeRootHealth == .healthy)
+    let compatibility = #require(display.applicationSupportCompatibility)
+    #require(compatibility.repoLocalContext.kind == .retainedStale)
+    #require(compatibility.inspectOnlyApplicationSupportDrift.isEmpty)
+    #require(display.detail.contains("retained stale compatibility context"))
+    #require(display.recommendation.contains("Leave repo-local state unchanged"))
+    #require(!display.detail.localizedCaseInsensitiveContains("conflict"))
+    #require(!display.detail.contains("Current:"))
+    #require(!display.recommendation.localizedCaseInsensitiveContains("repair"))
+    #require(display.supportRepairAction == nil)
   }
 
-  func testApplicationSupportActiveWithIncompleteRepoLocalReportsCompatibilityOnly() throws {
+  @Test func testApplicationSupportActiveWithIncompleteRepoLocalReportsCompatibilityOnly() throws {
     let repoURL = try makeTemporaryGitRepository()
     let roots = try makeApplicationSupportRoots()
     let resolver = CompassProjectStorageResolver(
@@ -115,24 +117,24 @@ final class CompassWorkspaceStorageDisplayStatusTests: XCTestCase {
       applicationSupportRoots: roots
     )
 
-    XCTAssertEqual(display.kind, .applicationSupportActive)
-    XCTAssertEqual(display.severity, .healthy)
-    XCTAssertEqual(display.repoLocalReadiness, .incompleteWorkspace)
-    let compatibility = try XCTUnwrap(display.applicationSupportCompatibility)
-    XCTAssertEqual(compatibility.repoLocalContext.kind, .incomplete)
-    XCTAssertTrue(compatibility.repoLocalContext.missingItems.contains("state.json"))
-    XCTAssertTrue(compatibility.repoLocalContext.missingItems.contains("drafts.md"))
-    XCTAssertTrue(compatibility.repoLocalContext.missingItems.contains("lessons.md"))
-    XCTAssertTrue(compatibility.repoLocalContext.missingItems.contains("COMPASS.md"))
-    XCTAssertTrue(compatibility.repoLocalContext.missingItems.contains("sessions/"))
-    XCTAssertFalse(compatibility.repoLocalContext.missingItems.contains("sessions.json"))
-    XCTAssertTrue(display.detail.contains("incomplete stale compatibility context"))
-    XCTAssertTrue(display.recommendation.contains("Leave incomplete repo-local state unchanged"))
-    XCTAssertFalse(display.recommendation.localizedCaseInsensitiveContains("repair"))
-    XCTAssertNil(display.supportRepairAction)
+    #require(display.kind == .applicationSupportActive)
+    #require(display.severity == .healthy)
+    #require(display.repoLocalReadiness == .incompleteWorkspace)
+    let compatibility = #require(display.applicationSupportCompatibility)
+    #require(compatibility.repoLocalContext.kind == .incomplete)
+    #require(compatibility.repoLocalContext.missingItems.contains("state.json"))
+    #require(compatibility.repoLocalContext.missingItems.contains("drafts.md"))
+    #require(compatibility.repoLocalContext.missingItems.contains("lessons.md"))
+    #require(compatibility.repoLocalContext.missingItems.contains("COMPASS.md"))
+    #require(compatibility.repoLocalContext.missingItems.contains("sessions/"))
+    #require(!compatibility.repoLocalContext.missingItems.contains("sessions.json"))
+    #require(display.detail.contains("incomplete stale compatibility context"))
+    #require(display.recommendation.contains("Leave incomplete repo-local state unchanged"))
+    #require(!display.recommendation.localizedCaseInsensitiveContains("repair"))
+    #require(display.supportRepairAction == nil)
   }
 
-  func testApplicationSupportActiveReportsMissingSupportStorage() throws {
+  @Test func testApplicationSupportActiveReportsMissingSupportStorage() throws {
     let repoURL = try makeTemporaryGitRepository()
     let roots = try makeApplicationSupportRoots()
     let resolver = CompassProjectStorageResolver(
@@ -147,30 +149,28 @@ final class CompassWorkspaceStorageDisplayStatusTests: XCTestCase {
       applicationSupportRoots: roots
     )
 
-    XCTAssertEqual(display.kind, .applicationSupportActiveMissing)
-    XCTAssertEqual(display.severity, .warning)
-    XCTAssertEqual(display.activeRootHealth, .missing)
-    XCTAssertEqual(display.activeStorageRootURL, resolver.storageRootURL.standardizedFileURL)
-    XCTAssertEqual(
-      display.activeRootFacts.missingCoreFiles, CompassWorkspaceStorageAssessment.CoreFile.allCases)
-    XCTAssertFalse(display.activeRootFacts.sessionsDirectoryExists)
-    XCTAssertTrue(display.detail.contains("Active Application Support state root is missing"))
-    let repairAction = try XCTUnwrap(display.supportRepairAction)
-    XCTAssertEqual(repairAction.kind, .initializeApplicationSupportWorkspace)
-    XCTAssertEqual(repairAction.issueKind, .applicationSupportActiveMissing)
-    XCTAssertEqual(repairAction.label, "Repair support storage")
-    XCTAssertLessThanOrEqual(
-      repairAction.label.count, CompassWorkspaceStorageDisplayStatus.repairActionLabelLimit)
-    XCTAssertLessThanOrEqual(
-      repairAction.helpText.count, CompassWorkspaceStorageDisplayStatus.repairActionHelpLimit)
-    XCTAssertTrue(repairAction.helpText.contains("Application Support"))
-    XCTAssertTrue(repairAction.helpText.contains("repo-local"))
-    XCTAssertFalse(FileManager.default.fileExists(atPath: resolver.storageRootURL.path))
-    XCTAssertFalse(
-      FileManager.default.fileExists(atPath: resolver.workspace.repoLocalCompassURL.path))
+    #require(display.kind == .applicationSupportActiveMissing)
+    #require(display.severity == .warning)
+    #require(display.activeRootHealth == .missing)
+    #require(display.activeStorageRootURL == resolver.storageRootURL.standardizedFileURL)
+    #require(
+      display.activeRootFacts.missingCoreFiles == CompassWorkspaceStorageAssessment.CoreFile.allCases)
+    #require(!display.activeRootFacts.sessionsDirectoryExists)
+    #require(display.detail.contains("Active Application Support state root is missing"))
+    let repairAction = #require(display.supportRepairAction)
+    #require(repairAction.kind == .initializeApplicationSupportWorkspace)
+    #require(repairAction.issueKind == .applicationSupportActiveMissing)
+    #require(repairAction.label == "Repair support storage")
+    #require(repairAction.label.count <= CompassWorkspaceStorageDisplayStatus.repairActionLabelLimit)
+    #require(repairAction.helpText.count <= CompassWorkspaceStorageDisplayStatus.repairActionHelpLimit)
+    #require(repairAction.helpText.contains("Application Support"))
+    #require(repairAction.helpText.contains("repo-local"))
+    #require(!FileManager.default.fileExists(atPath: resolver.storageRootURL.path))
+    #require(
+      !FileManager.default.fileExists(atPath: resolver.workspace.repoLocalCompassURL.path))
   }
 
-  func testApplicationSupportActiveReportsIncompleteSupportStorage() throws {
+  @Test func testApplicationSupportActiveReportsIncompleteSupportStorage() throws {
     let repoURL = try makeTemporaryGitRepository()
     let roots = try makeApplicationSupportRoots()
     let resolver = CompassProjectStorageResolver(
@@ -188,32 +188,30 @@ final class CompassWorkspaceStorageDisplayStatusTests: XCTestCase {
       applicationSupportRoots: roots
     )
 
-    XCTAssertEqual(display.kind, .applicationSupportActiveIncomplete)
-    XCTAssertEqual(display.severity, .failure)
-    XCTAssertEqual(display.activeRootHealth, .incomplete)
-    XCTAssertTrue(display.activeRootFacts.presentCoreFiles.contains(.sessionsRecord))
-    XCTAssertFalse(display.activeRootFacts.missingItems.contains("sessions.json"))
-    XCTAssertTrue(display.activeRootFacts.missingItems.contains("state.json"))
-    XCTAssertTrue(display.activeRootFacts.missingItems.contains("drafts.md"))
-    XCTAssertTrue(display.activeRootFacts.missingItems.contains("lessons.md"))
-    XCTAssertTrue(display.activeRootFacts.missingItems.contains("COMPASS.md"))
-    XCTAssertTrue(display.activeRootFacts.missingItems.contains("sessions/"))
-    XCTAssertTrue(display.detail.contains("Active Application Support state root is missing"))
-    let repairAction = try XCTUnwrap(display.supportRepairAction)
-    XCTAssertEqual(repairAction.kind, .initializeApplicationSupportWorkspace)
-    XCTAssertEqual(repairAction.issueKind, .applicationSupportActiveIncomplete)
-    XCTAssertEqual(repairAction.label, "Repair support storage")
-    XCTAssertLessThanOrEqual(
-      repairAction.label.count, CompassWorkspaceStorageDisplayStatus.repairActionLabelLimit)
-    XCTAssertLessThanOrEqual(
-      repairAction.helpText.count, CompassWorkspaceStorageDisplayStatus.repairActionHelpLimit)
-    XCTAssertTrue(repairAction.helpText.contains("Application Support"))
-    XCTAssertTrue(repairAction.helpText.contains("repo-local"))
-    XCTAssertFalse(
-      FileManager.default.fileExists(atPath: supportWorkspace.repoLocalCompassURL.path))
+    #require(display.kind == .applicationSupportActiveIncomplete)
+    #require(display.severity == .failure)
+    #require(display.activeRootHealth == .incomplete)
+    #require(display.activeRootFacts.presentCoreFiles.contains(.sessionsRecord))
+    #require(!display.activeRootFacts.missingItems.contains("sessions.json"))
+    #require(display.activeRootFacts.missingItems.contains("state.json"))
+    #require(display.activeRootFacts.missingItems.contains("drafts.md"))
+    #require(display.activeRootFacts.missingItems.contains("lessons.md"))
+    #require(display.activeRootFacts.missingItems.contains("COMPASS.md"))
+    #require(display.activeRootFacts.missingItems.contains("sessions/"))
+    #require(display.detail.contains("Active Application Support state root is missing"))
+    let repairAction = #require(display.supportRepairAction)
+    #require(repairAction.kind == .initializeApplicationSupportWorkspace)
+    #require(repairAction.issueKind == .applicationSupportActiveIncomplete)
+    #require(repairAction.label == "Repair support storage")
+    #require(repairAction.label.count <= CompassWorkspaceStorageDisplayStatus.repairActionLabelLimit)
+    #require(repairAction.helpText.count <= CompassWorkspaceStorageDisplayStatus.repairActionHelpLimit)
+    #require(repairAction.helpText.contains("Application Support"))
+    #require(repairAction.helpText.contains("repo-local"))
+    #require(
+      !FileManager.default.fileExists(atPath: supportWorkspace.repoLocalCompassURL.path))
   }
 
-  func testRepoLocalDisplayStatusMatchesExistingBoundary() throws {
+  @Test func testRepoLocalDisplayStatusMatchesExistingBoundary() throws {
     let repoURL = try makeTemporaryGitRepository()
     let roots = try makeApplicationSupportRoots()
     try CompassWorkspace(repoURL: repoURL).initialize()
@@ -232,18 +230,18 @@ final class CompassWorkspaceStorageDisplayStatusTests: XCTestCase {
       preflight: preflight
     )
 
-    XCTAssertEqual(display.kind, .repoLocalRecommended)
-    XCTAssertEqual(display.severity, boundary.severity)
-    XCTAssertEqual(display.label, boundary.label)
-    XCTAssertEqual(display.detail, boundary.detail)
-    XCTAssertEqual(display.recommendation, boundary.recommendation)
-    XCTAssertEqual(display.systemImage, boundary.systemImage)
-    XCTAssertEqual(display.activeRootHealth, .healthy)
-    XCTAssertEqual(display.repoLocalReadiness, .ready)
-    XCTAssertNil(display.supportRepairAction)
+    #require(display.kind == .repoLocalRecommended)
+    #require(display.severity == boundary.severity)
+    #require(display.label == boundary.label)
+    #require(display.detail == boundary.detail)
+    #require(display.recommendation == boundary.recommendation)
+    #require(display.systemImage == boundary.systemImage)
+    #require(display.activeRootHealth == .healthy)
+    #require(display.repoLocalReadiness == .ready)
+    #require(display.supportRepairAction == nil)
   }
 
-  func testRepoLocalDisplayStatusStillReportsSupportConflicts() throws {
+  @Test func testRepoLocalDisplayStatusStillReportsSupportConflicts() throws {
     let repoURL = try makeTemporaryGitRepository()
     let roots = try makeApplicationSupportRoots()
     try CompassWorkspace(repoURL: repoURL).initialize()
@@ -266,15 +264,15 @@ final class CompassWorkspaceStorageDisplayStatusTests: XCTestCase {
       preflight: preflight
     )
 
-    XCTAssertEqual(display.kind, .applicationSupportInspectOnlyConflict)
-    XCTAssertEqual(display.severity, .warning)
-    XCTAssertTrue(display.detail.contains("Active state remains in repo-local .compass/"))
-    XCTAssertTrue(display.detail.contains("inspect-only conflict"))
-    XCTAssertTrue(display.recommendation.contains("No migration or mirroring by default"))
-    XCTAssertNil(display.applicationSupportCompatibility)
+    #require(display.kind == .applicationSupportInspectOnlyConflict)
+    #require(display.severity == .warning)
+    #require(display.detail.contains("Active state remains in repo-local .compass/"))
+    #require(display.detail.contains("inspect-only conflict"))
+    #require(display.recommendation.contains("No migration or mirroring by default"))
+    #require(display.applicationSupportCompatibility == nil)
   }
 
-  func testDisplayStatusTextAndIdentifiersStayBounded() throws {
+  @Test func testDisplayStatusTextAndIdentifiersStayBounded() throws {
     let longRepoPath = "/tmp/" + String(repeating: "Long Repository Name With Spaces/", count: 14)
     let longSupportPath = "/tmp/" + String(repeating: "Current Support Root/", count: 14)
     let roots = KnownProjectStore.ApplicationSupportRoots(
@@ -308,38 +306,38 @@ final class CompassWorkspaceStorageDisplayStatusTests: XCTestCase {
       )
     )
 
-    XCTAssertLessThanOrEqual(
-      display.projectStorageIdentifier.count,
+    #require(
+      display.projectStorageIdentifier.count <=
       CompassWorkspaceStorageAssessment.maxProjectIdentifierLength
     )
-    XCTAssertLessThanOrEqual(display.label.count, CompassWorkspaceStorageDisplayStatus.labelLimit)
-    XCTAssertLessThanOrEqual(display.detail.count, CompassWorkspaceStorageDisplayStatus.detailLimit)
-    XCTAssertLessThanOrEqual(
-      display.recommendation.count,
+    #require(display.label.count <= CompassWorkspaceStorageDisplayStatus.labelLimit)
+    #require(display.detail.count <= CompassWorkspaceStorageDisplayStatus.detailLimit)
+    #require(
+      display.recommendation.count <=
       CompassWorkspaceStorageDisplayStatus.recommendationLimit
     )
-    XCTAssertFalse(display.label.isEmpty)
-    XCTAssertFalse(display.detail.isEmpty)
-    XCTAssertFalse(display.recommendation.isEmpty)
-    let compatibility = try XCTUnwrap(display.applicationSupportCompatibility)
-    XCTAssertLessThanOrEqual(
-      compatibility.detail.count,
+    #require(!display.label.isEmpty)
+    #require(!display.detail.isEmpty)
+    #require(!display.recommendation.isEmpty)
+    let compatibility = #require(display.applicationSupportCompatibility)
+    #require(
+      compatibility.detail.count <=
       CompassWorkspaceStorageDisplayStatus.compatibilityDetailLimit
     )
-    XCTAssertLessThanOrEqual(
-      compatibility.recommendation.count,
+    #require(
+      compatibility.recommendation.count <=
       CompassWorkspaceStorageDisplayStatus.compatibilityRecommendationLimit
     )
-    XCTAssertLessThanOrEqual(
-      compatibility.helpText.count,
+    #require(
+      compatibility.helpText.count <=
       CompassWorkspaceStorageDisplayStatus.compatibilityHelpLimit
     )
-    XCTAssertFalse(compatibility.detail.isEmpty)
-    XCTAssertFalse(compatibility.recommendation.isEmpty)
-    XCTAssertFalse(compatibility.helpText.isEmpty)
+    #require(!compatibility.detail.isEmpty)
+    #require(!compatibility.recommendation.isEmpty)
+    #require(!compatibility.helpText.isEmpty)
   }
 
-  func testHeaderActionVisibilityDistinguishesActiveStorageAndFeedback() {
+  @Test func testHeaderActionVisibilityDistinguishesActiveStorageAndFeedback() {
     let repoLocalActions = CompassWorkspaceStorageHeaderActions(
       activeStorage: .repoLocal,
       candidatePreparationIsAvailable: true,
@@ -350,10 +348,10 @@ final class CompassWorkspaceStorageDisplayStatusTests: XCTestCase {
       repoLocalRepairActionIsAvailable: true
     )
 
-    XCTAssertTrue(repoLocalActions.showsCandidatePreparation)
-    XCTAssertTrue(repoLocalActions.showsActivation)
-    XCTAssertTrue(repoLocalActions.showsRepoLocalRepair)
-    XCTAssertFalse(repoLocalActions.showsApplicationSupportRepair)
+    #require(repoLocalActions.showsCandidatePreparation)
+    #require(repoLocalActions.showsActivation)
+    #require(repoLocalActions.showsRepoLocalRepair)
+    #require(!repoLocalActions.showsApplicationSupportRepair)
 
     let busyRepoLocalActions = CompassWorkspaceStorageHeaderActions(
       activeStorage: .repoLocal,
@@ -365,10 +363,10 @@ final class CompassWorkspaceStorageDisplayStatusTests: XCTestCase {
       repoLocalRepairActionIsAvailable: false
     )
 
-    XCTAssertTrue(busyRepoLocalActions.showsCandidatePreparation)
-    XCTAssertFalse(busyRepoLocalActions.showsActivation)
-    XCTAssertFalse(busyRepoLocalActions.showsRepoLocalRepair)
-    XCTAssertFalse(busyRepoLocalActions.showsApplicationSupportRepair)
+    #require(busyRepoLocalActions.showsCandidatePreparation)
+    #require(!busyRepoLocalActions.showsActivation)
+    #require(!busyRepoLocalActions.showsRepoLocalRepair)
+    #require(!busyRepoLocalActions.showsApplicationSupportRepair)
 
     let supportActiveActions = CompassWorkspaceStorageHeaderActions(
       activeStorage: .applicationSupport,
@@ -380,10 +378,10 @@ final class CompassWorkspaceStorageDisplayStatusTests: XCTestCase {
       repoLocalRepairActionIsAvailable: true
     )
 
-    XCTAssertFalse(supportActiveActions.showsCandidatePreparation)
-    XCTAssertFalse(supportActiveActions.showsActivation)
-    XCTAssertFalse(supportActiveActions.showsRepoLocalRepair)
-    XCTAssertFalse(supportActiveActions.showsApplicationSupportRepair)
+    #require(!supportActiveActions.showsCandidatePreparation)
+    #require(!supportActiveActions.showsActivation)
+    #require(!supportActiveActions.showsRepoLocalRepair)
+    #require(!supportActiveActions.showsApplicationSupportRepair)
 
     let supportFeedbackActions = CompassWorkspaceStorageHeaderActions(
       activeStorage: .applicationSupport,
@@ -395,10 +393,10 @@ final class CompassWorkspaceStorageDisplayStatusTests: XCTestCase {
       repoLocalRepairActionIsAvailable: true
     )
 
-    XCTAssertTrue(supportFeedbackActions.showsCandidatePreparation)
-    XCTAssertTrue(supportFeedbackActions.showsActivation)
-    XCTAssertFalse(supportFeedbackActions.showsRepoLocalRepair)
-    XCTAssertFalse(supportFeedbackActions.showsApplicationSupportRepair)
+    #require(supportFeedbackActions.showsCandidatePreparation)
+    #require(supportFeedbackActions.showsActivation)
+    #require(!supportFeedbackActions.showsRepoLocalRepair)
+    #require(!supportFeedbackActions.showsApplicationSupportRepair)
 
     let supportRepairActions = CompassWorkspaceStorageHeaderActions(
       activeStorage: .applicationSupport,
@@ -411,10 +409,10 @@ final class CompassWorkspaceStorageDisplayStatusTests: XCTestCase {
       applicationSupportRepairActionIsAvailable: true
     )
 
-    XCTAssertFalse(supportRepairActions.showsCandidatePreparation)
-    XCTAssertFalse(supportRepairActions.showsActivation)
-    XCTAssertFalse(supportRepairActions.showsRepoLocalRepair)
-    XCTAssertTrue(supportRepairActions.showsApplicationSupportRepair)
+    #require(!supportRepairActions.showsCandidatePreparation)
+    #require(!supportRepairActions.showsActivation)
+    #require(!supportRepairActions.showsRepoLocalRepair)
+    #require(supportRepairActions.showsApplicationSupportRepair)
 
     let repoLocalRepairActions = CompassWorkspaceStorageHeaderActions(
       activeStorage: .repoLocal,
@@ -427,8 +425,8 @@ final class CompassWorkspaceStorageDisplayStatusTests: XCTestCase {
       applicationSupportRepairActionIsAvailable: true
     )
 
-    XCTAssertTrue(repoLocalRepairActions.showsRepoLocalRepair)
-    XCTAssertFalse(repoLocalRepairActions.showsApplicationSupportRepair)
+    #require(repoLocalRepairActions.showsRepoLocalRepair)
+    #require(!repoLocalRepairActions.showsApplicationSupportRepair)
   }
 
   private func makeTemporaryGitRepository() throws -> URL {

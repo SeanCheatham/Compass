@@ -1,8 +1,9 @@
-import XCTest
+import Foundation
+import Testing
 
 @testable import Compass
 
-final class SharedCompassVMGuestCredentialTests: XCTestCase {
+struct SharedCompassVMGuestCredentialTests {
   // MARK: - In-memory storage fake
 
   private final class InMemoryStorage: SharedCompassVMGuestCredential.Storage {
@@ -27,48 +28,54 @@ final class SharedCompassVMGuestCredentialTests: XCTestCase {
 
   // MARK: - Password generation
 
+  @Test
   func testGeneratePasswordReturnsRequestedLength() throws {
     let pw = try SharedCompassVMGuestCredential.generatePassword(length: 32)
-    XCTAssertEqual(pw.count, 32)
+    #require(pw.count == 32)
   }
 
+  @Test
   func testGeneratePasswordDrawsOnlyFromAlphanumericAlphabet() throws {
     let pw = try SharedCompassVMGuestCredential.generatePassword(length: 256)
     let alphabet = Set(SharedCompassVMGuestCredential.passwordAlphabet)
     for character in pw {
-      XCTAssertTrue(
+      #require(
         alphabet.contains(character), "unexpected character '\(character)' in generated password")
     }
   }
 
+  @Test
   func testGeneratePasswordReturnsDifferentValuesAcrossCalls() throws {
     var seen = Set<String>()
     for _ in 0..<8 {
       seen.insert(try SharedCompassVMGuestCredential.generatePassword(length: 32))
     }
     // 8 random 32-char passwords colliding is statistically impossible.
-    XCTAssertEqual(seen.count, 8)
+    #require(seen.count == 8)
   }
 
   // MARK: - Account allocation
 
+  @Test
   func testMakeAccountReturnsStableFormat() {
     let account = SharedCompassVMGuestCredential.makeAccount()
-    XCTAssertTrue(account.hasPrefix("guest."))
+    #require(account.hasPrefix("guest."))
     // UUID string is 36 chars; combined length is 6 + 36 = 42.
-    XCTAssertEqual(account.count, 42)
+    #require(account.count == 42)
   }
 
+  @Test
   func testMakeAccountReturnsFreshIdentifiers() {
     var seen = Set<String>()
     for _ in 0..<8 {
       seen.insert(SharedCompassVMGuestCredential.makeAccount())
     }
-    XCTAssertEqual(seen.count, 8)
+    #require(seen.count == 8)
   }
 
   // MARK: - Ensure / retrieve / delete roundtrip
 
+  @Test
   func testEnsureGeneratesAndPersistsPasswordOnFirstCall() throws {
     let storage = InMemoryStorage()
     let account = SharedCompassVMGuestCredential.makeAccount()
@@ -76,31 +83,34 @@ final class SharedCompassVMGuestCredentialTests: XCTestCase {
       account: account,
       storage: storage
     )
-    XCTAssertEqual(credential.account, account)
-    XCTAssertEqual(credential.password.count, SharedCompassVMGuestCredential.defaultPasswordLength)
-    XCTAssertEqual(storage.storedPasswords[account], credential.password)
-    XCTAssertEqual(storage.storeCallCount, 1)
+    #require(credential.account == account)
+    #require(credential.password.count == SharedCompassVMGuestCredential.defaultPasswordLength)
+    #require(storage.storedPasswords[account] == credential.password)
+    #require(storage.storeCallCount == 1)
   }
 
+  @Test
   func testEnsureReturnsExistingPasswordWithoutReissuing() throws {
     let storage = InMemoryStorage()
     let account = SharedCompassVMGuestCredential.makeAccount()
     let first = try SharedCompassVMGuestCredential.ensure(account: account, storage: storage)
     let second = try SharedCompassVMGuestCredential.ensure(account: account, storage: storage)
-    XCTAssertEqual(first.password, second.password)
+    #require(first.password == second.password)
     // Second call must NOT have triggered another store.
-    XCTAssertEqual(storage.storeCallCount, 1)
+    #require(storage.storeCallCount == 1)
   }
 
+  @Test
   func testRetrieveReturnsNilForUnknownAccount() throws {
     let storage = InMemoryStorage()
     let value = try SharedCompassVMGuestCredential.retrieve(
       account: "missing.account",
       storage: storage
     )
-    XCTAssertNil(value)
+    #require(value == nil)
   }
 
+  @Test
   func testConsoleLoginReturnsNilWithoutKeychainAccount() throws {
     let storage = InMemoryStorage()
     let login = try SharedCompassVMGuestCredential.consoleLogin(
@@ -108,9 +118,10 @@ final class SharedCompassVMGuestCredentialTests: XCTestCase {
       keychainAccount: nil,
       storage: storage
     )
-    XCTAssertNil(login)
+    #require(login == nil)
   }
 
+  @Test
   func testConsoleLoginReturnsUsernameAndPasswordWhenStored() throws {
     let storage = InMemoryStorage()
     let account = SharedCompassVMGuestCredential.makeAccount()
@@ -120,23 +131,25 @@ final class SharedCompassVMGuestCredentialTests: XCTestCase {
       keychainAccount: account,
       storage: storage
     )
-    XCTAssertEqual(login?.userName, "compass")
-    XCTAssertEqual(login?.password.count, SharedCompassVMGuestCredential.defaultPasswordLength)
+    #require(login?.userName == "compass")
+    #require(login?.password.count == SharedCompassVMGuestCredential.defaultPasswordLength)
   }
 
+  @Test
   func testRemoveDeletesStoredPasswordIdempotently() throws {
     let storage = InMemoryStorage()
     let account = SharedCompassVMGuestCredential.makeAccount()
     _ = try SharedCompassVMGuestCredential.ensure(account: account, storage: storage)
     try SharedCompassVMGuestCredential.remove(account: account, storage: storage)
-    XCTAssertNil(storage.storedPasswords[account])
+    #require(storage.storedPasswords[account] == nil)
     // Remove on already-deleted account: still safe.
     try SharedCompassVMGuestCredential.remove(account: account, storage: storage)
-    XCTAssertEqual(storage.deleteCallCount, 2)
+    #require(storage.deleteCallCount == 2)
   }
 
   // MARK: - Bundle state codable roundtrip
 
+  @Test
   func testBundleStateRoundTripsKeychainAccountField() throws {
     let account = SharedCompassVMGuestCredential.makeAccount()
     let state = SharedCompassVMBundle.State(
@@ -147,6 +160,6 @@ final class SharedCompassVMGuestCredentialTests: XCTestCase {
     let decoder = JSONDecoder()
     let data = try encoder.encode(state)
     let decoded = try decoder.decode(SharedCompassVMBundle.State.self, from: data)
-    XCTAssertEqual(decoded.guestPasswordKeychainAccount, account)
+    #require(decoded.guestPasswordKeychainAccount == account)
   }
 }

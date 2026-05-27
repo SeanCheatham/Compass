@@ -1,121 +1,135 @@
-import XCTest
+import Foundation
+import Testing
 
 @testable import Compass
 
-final class SharedCompassVMGuestIPDiscoveryTests: XCTestCase {
+struct SharedCompassVMGuestIPDiscoveryTests {
   // MARK: canonicalize
 
+  @Test
   func testCanonicalizeFullyExpandedMACReturnsLowercaseColonForm() {
-    XCTAssertEqual(
-      SharedCompassVMGuestIPDiscovery.canonicalize(mac: "52:8A:01:02:03:04"),
+    #require(
+      SharedCompassVMGuestIPDiscovery.canonicalize(mac: "52:8A:01:02:03:04") ==
       "52:8a:01:02:03:04"
     )
   }
 
+  @Test
   func testCanonicalizePadsSingleHexDigitOctets() {
-    XCTAssertEqual(
-      SharedCompassVMGuestIPDiscovery.canonicalize(mac: "52:8a:1:2:3:4"),
+    #require(
+      SharedCompassVMGuestIPDiscovery.canonicalize(mac: "52:8a:1:2:3:4") ==
       "52:8a:01:02:03:04"
     )
   }
 
+  @Test
   func testCanonicalizeStripsDHCPLeasesPrefix() {
-    XCTAssertEqual(
-      SharedCompassVMGuestIPDiscovery.canonicalize(mac: "1,52:8a:1:2:3:4"),
+    #require(
+      SharedCompassVMGuestIPDiscovery.canonicalize(mac: "1,52:8a:1:2:3:4") ==
       "52:8a:01:02:03:04"
     )
   }
 
+  @Test
   func testCanonicalizeAcceptsDashSeparator() {
-    XCTAssertEqual(
-      SharedCompassVMGuestIPDiscovery.canonicalize(mac: "52-8a-01-02-03-04"),
+    #require(
+      SharedCompassVMGuestIPDiscovery.canonicalize(mac: "52-8a-01-02-03-04") ==
       "52:8a:01:02:03:04"
     )
   }
 
+  @Test
   func testCanonicalizeRejectsTooFewOctets() {
-    XCTAssertEqual(
-      SharedCompassVMGuestIPDiscovery.canonicalize(mac: "52:8a:01:02:03"),
+    #require(
+      SharedCompassVMGuestIPDiscovery.canonicalize(mac: "52:8a:01:02:03") ==
       ""
     )
   }
 
+  @Test
   func testCanonicalizeRejectsNonHexCharacters() {
-    XCTAssertEqual(
-      SharedCompassVMGuestIPDiscovery.canonicalize(mac: "52:8a:0g:02:03:04"),
+    #require(
+      SharedCompassVMGuestIPDiscovery.canonicalize(mac: "52:8a:0g:02:03:04") ==
       ""
     )
   }
 
+  @Test
   func testCanonicalizeRejectsOctetsWithMoreThanTwoDigits() {
-    XCTAssertEqual(
-      SharedCompassVMGuestIPDiscovery.canonicalize(mac: "52:8a:001:02:03:04"),
+    #require(
+      SharedCompassVMGuestIPDiscovery.canonicalize(mac: "52:8a:001:02:03:04") ==
       ""
     )
   }
 
   // MARK: parseDHCPLeases
 
+  @Test
   func testParseDHCPLeasesReturnsMatchingIP() {
     let sample = """
       {
-      \tname=guest
-      \tip_address=192.168.64.4
-      \thw_address=1,52:8a:1:2:3:4
-      \tidentifier=1,52:8a:1:2:3:4
-      \tlease=0x65bb0001
+      	name=guest
+      	ip_address=192.168.64.4
+      	hw_address=1,52:8a:1:2:3:4
+      	identifier=1,52:8a:1:2:3:4
+      	lease=0x65bb0001
       }
       """
     let ip = SharedCompassVMGuestIPDiscovery.parseDHCPLeases(
       sample,
       forCanonicalMAC: "52:8a:01:02:03:04"
     )
-    XCTAssertEqual(ip, "192.168.64.4")
+    #require(ip == "192.168.64.4")
   }
 
+  @Test
   func testParseDHCPLeasesPicksNewestLeaseAmongMultipleEntriesForSameMAC() {
     let sample = """
       {
-      \tip_address=192.168.64.4
-      \thw_address=1,52:8a:1:2:3:4
-      \tlease=0x10000000
+      	ip_address=192.168.64.4
+      	hw_address=1,52:8a:1:2:3:4
+      	lease=0x10000000
       }
       {
-      \tip_address=192.168.64.9
-      \thw_address=1,52:8a:1:2:3:4
-      \tlease=0x80000000
+      	ip_address=192.168.64.9
+      	hw_address=1,52:8a:1:2:3:4
+      	lease=0x80000000
       }
       """
     let ip = SharedCompassVMGuestIPDiscovery.parseDHCPLeases(
       sample,
       forCanonicalMAC: "52:8a:01:02:03:04"
     )
-    XCTAssertEqual(ip, "192.168.64.9")
+    #require(ip == "192.168.64.9")
   }
 
+  @Test
   func testParseDHCPLeasesReturnsNilWhenMACDoesNotMatch() {
     let sample = """
       {
-      \tip_address=192.168.64.4
-      \thw_address=1,aa:bb:cc:dd:ee:ff
-      \tlease=0x65bb0001
+      	ip_address=192.168.64.4
+      	hw_address=1,aa:bb:cc:dd:ee:ff
+      	lease=0x65bb0001
       }
       """
     let ip = SharedCompassVMGuestIPDiscovery.parseDHCPLeases(
       sample,
       forCanonicalMAC: "52:8a:01:02:03:04"
     )
-    XCTAssertNil(ip)
+    #require(ip == nil)
   }
 
+  @Test
   func testParseDHCPLeasesReturnsNilOnEmptyInput() {
-    XCTAssertNil(
+    #require(
       SharedCompassVMGuestIPDiscovery.parseDHCPLeases("", forCanonicalMAC: "52:8a:01:02:03:04")
+      == nil
     )
   }
 
   // MARK: parseARPTable
 
+  @Test
   func testParseARPTableReturnsIPForMatchingMAC() {
     let sample = """
       ? (192.168.64.1) at b8:27:eb:1:2:3 on bridge100 ifscope [bridge]
@@ -126,18 +140,20 @@ final class SharedCompassVMGuestIPDiscoveryTests: XCTestCase {
       sample,
       forCanonicalMAC: "52:8a:01:02:03:04"
     )
-    XCTAssertEqual(ip, "192.168.64.4")
+    #require(ip == "192.168.64.4")
   }
 
+  @Test
   func testParseARPTableReturnsNilWhenMACDoesNotAppear() {
     let sample = "? (192.168.64.1) at b8:27:eb:1:2:3 on bridge100 ifscope [bridge]"
     let ip = SharedCompassVMGuestIPDiscovery.parseARPTable(
       sample,
       forCanonicalMAC: "52:8a:01:02:03:04"
     )
-    XCTAssertNil(ip)
+    #require(ip == nil)
   }
 
+  @Test
   func testParseARPTableSkipsLinesWithoutParenthesizedIP() {
     let sample = """
       Bogus header line without any IP
@@ -147,23 +163,23 @@ final class SharedCompassVMGuestIPDiscoveryTests: XCTestCase {
       sample,
       forCanonicalMAC: "52:8a:01:02:03:04"
     )
-    XCTAssertEqual(ip, "192.168.64.4")
+    #require(ip == "192.168.64.4")
   }
 
   // MARK: randomGuestMAC
 
+  @Test
   func testRandomGuestMACIsCanonicalAndLocallyAdministeredUnicast() {
     for _ in 0..<32 {
       let mac = SharedCompassVMBundle.randomGuestMAC()
-      XCTAssertEqual(
-        SharedCompassVMGuestIPDiscovery.canonicalize(mac: mac),
-        mac,
+      #require(
+        SharedCompassVMGuestIPDiscovery.canonicalize(mac: mac) == mac,
         "randomGuestMAC should already be canonical"
       )
       let firstOctetHex = String(mac.prefix(2))
       let firstOctet = UInt8(firstOctetHex, radix: 16) ?? 0
-      XCTAssertEqual(firstOctet & 0b0000_0010, 0b0000_0010, "expected locally-administered bit set")
-      XCTAssertEqual(firstOctet & 0b0000_0001, 0, "expected unicast bit clear")
+      #require(firstOctet & 0b0000_0010 == 0b0000_0010, "expected locally-administered bit set")
+      #require(firstOctet & 0b0000_0001 == 0, "expected unicast bit clear")
     }
   }
 }

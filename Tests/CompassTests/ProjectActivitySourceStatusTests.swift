@@ -1,9 +1,10 @@
 import Foundation
-import XCTest
+import Testing
 
 @testable import Compass
 
-final class ProjectActivitySourceStatusTests: XCTestCase {
+struct ProjectActivitySourceStatusTests {
+  @Test
   func testRepoLocalAvailableBaselineIsHidden() {
     let snapshot = makeSnapshot(
       activeStorage: .repoLocal,
@@ -13,22 +14,23 @@ final class ProjectActivitySourceStatusTests: XCTestCase {
 
     let status = ProjectActivitySourceStatus(snapshot: snapshot)
 
-    XCTAssertFalse(status.isVisible)
-    XCTAssertEqual(status.kind, .hidden)
-    XCTAssertEqual(
-      status.identifier,
+    #require(!status.isVisible)
+    #require(status.kind == .hidden)
+    #require(
+      status.identifier ==
       "hidden|storage:repo_local|availability:available|repo-local:active-source|repo-local-mode:active"
     )
-    XCTAssertEqual(status.activitySourceIdentifier, snapshot.identifier)
-    XCTAssertEqual(status.label, "")
-    XCTAssertEqual(status.detail, "")
-    XCTAssertEqual(status.helpText, "")
-    XCTAssertEqual(status.accessibilityLabel, "")
-    XCTAssertEqual(status.accessibilityValue, "")
-    XCTAssertEqual(status.accessibilityHint, "")
+    #require(status.activitySourceIdentifier == snapshot.identifier)
+    #require(status.label == "")
+    #require(status.detail == "")
+    #require(status.helpText == "")
+    #require(status.accessibilityLabel == "")
+    #require(status.accessibilityValue == "")
+    #require(status.accessibilityHint == "")
     assertBounded(status)
   }
 
+  @Test
   func testApplicationSupportAvailableWithMissingRepoLocalSessionsIsVisible() throws {
     let snapshot = makeSnapshot(
       activeStorage: .applicationSupport,
@@ -38,29 +40,30 @@ final class ProjectActivitySourceStatusTests: XCTestCase {
 
     let status = ProjectActivitySourceStatus(snapshot: snapshot)
 
-    XCTAssertTrue(status.isVisible)
-    XCTAssertEqual(status.kind, .applicationSupportActive)
-    XCTAssertEqual(
-      status.identifier,
+    #require(status.isVisible)
+    #require(status.kind == .applicationSupportActive)
+    #require(
+      status.identifier ==
       "application-support-active|storage:application_support|availability:available|repo-local:ignored-missing|repo-local-mode:ignored"
     )
-    XCTAssertEqual(status.activitySourceIdentifier, snapshot.identifier)
-    XCTAssertEqual(status.label, "Activity from Support")
-    XCTAssertEqual(status.severity, .info)
-    XCTAssertEqual(status.systemImage, "externaldrive.fill.badge.checkmark")
-    XCTAssertTrue(status.detail.contains("Application Support sessions.json"))
-    XCTAssertTrue(status.detail.contains("Repo-local sessions.json is missing and ignored"))
-    XCTAssertTrue(status.helpText.contains("storage application_support"))
-    XCTAssertTrue(status.helpText.contains("availability available"))
-    XCTAssertTrue(status.helpText.contains("repo-local ignored-missing"))
-    XCTAssertTrue(status.helpText.contains("repo-local-mode ignored"))
-    XCTAssertTrue(status.accessibilityLabel.contains("Activity source"))
-    XCTAssertTrue(status.accessibilityValue.contains(status.detail))
-    XCTAssertTrue(status.accessibilityHint.contains("Read-only"))
+    #require(status.activitySourceIdentifier == snapshot.identifier)
+    #require(status.label == "Activity from Support")
+    #require(status.severity == .info)
+    #require(status.systemImage == "externaldrive.fill.badge.checkmark")
+    #require(status.detail.contains("Application Support sessions.json"))
+    #require(status.detail.contains("Repo-local sessions.json is missing and not checked"))
+    #require(status.helpText.contains("storage application_support"))
+    #require(status.helpText.contains("availability available"))
+    #require(status.helpText.contains("repo-local ignored-missing"))
+    #require(status.helpText.contains("repo-local-mode ignored"))
+    #require(status.accessibilityLabel.contains("Activity source"))
+    #require(status.accessibilityValue.contains(status.detail))
+    #require(status.accessibilityHint.contains("Read-only"))
     assertBounded(status)
     try assertDiagnosticsParity(snapshot: snapshot, status: status)
   }
 
+  @Test
   func testApplicationSupportAvailableWithCompatibleRepoLocalSessionsMarksStaleIgnoredRecord()
     throws
   {
@@ -72,16 +75,17 @@ final class ProjectActivitySourceStatusTests: XCTestCase {
 
     let status = ProjectActivitySourceStatus(snapshot: snapshot)
 
-    XCTAssertTrue(status.isVisible)
-    XCTAssertEqual(status.kind, .applicationSupportActive)
-    XCTAssertTrue(status.detail.contains("present but ignored"))
-    XCTAssertTrue(status.detail.contains("stale repo-local activity"))
-    XCTAssertTrue(status.helpText.contains("repo-local ignored-compatible"))
-    XCTAssertTrue(status.identifier.contains("repo-local:ignored-compatible"))
+    #require(status.isVisible)
+    #require(status.kind == .applicationSupportActive)
+    #require(status.detail.contains("present but ignored"))
+    #require(status.detail.contains("stale repo-local activity"))
+    #require(status.helpText.contains("repo-local ignored-compatible"))
+    #require(status.identifier.contains("repo-local:ignored-compatible"))
     assertBounded(status)
     try assertDiagnosticsParity(snapshot: snapshot, status: status)
   }
 
+  @Test
   func testIgnoredRepoLocalSessionsStatesUseExplicitCopy() {
     let cases: [(RepositoryActivitySourceSnapshot.RepoLocalSessionsState, String)] = [
       (.ignoredMissing, "missing and ignored"),
@@ -98,14 +102,15 @@ final class ProjectActivitySourceStatusTests: XCTestCase {
       )
       let status = ProjectActivitySourceStatus(snapshot: snapshot)
 
-      XCTAssertTrue(status.isVisible)
-      XCTAssertTrue(
+      #require(status.isVisible)
+      #require(
         status.detail.contains(expectedCopy), "Missing \(expectedCopy) for \(state.rawValue)")
-      XCTAssertTrue(status.helpText.contains("repo-local \(state.rawValue)"))
+      #require(status.helpText.contains("repo-local \(state.rawValue)"))
       assertBounded(status)
     }
   }
 
+  @Test
   func testMissingActiveSupportRootIsVisibleAndReadOnly() throws {
     let snapshot = makeSnapshot(
       activeStorage: .applicationSupport,
@@ -115,19 +120,20 @@ final class ProjectActivitySourceStatusTests: XCTestCase {
 
     let status = ProjectActivitySourceStatus(snapshot: snapshot)
 
-    XCTAssertTrue(status.isVisible)
-    XCTAssertEqual(status.kind, .applicationSupportUnavailable)
-    XCTAssertEqual(status.label, "Activity root missing")
-    XCTAssertEqual(status.severity, .warning)
-    XCTAssertEqual(status.systemImage, "folder.badge.questionmark")
-    XCTAssertTrue(status.detail.contains("Application Support activity root is missing"))
-    XCTAssertTrue(status.detail.contains("empty source"))
-    XCTAssertTrue(status.helpText.contains("availability storage-root-missing"))
-    XCTAssertTrue(status.accessibilityHint.contains("Read-only"))
+    #require(status.isVisible)
+    #require(status.kind == .applicationSupportUnavailable)
+    #require(status.label == "Activity root missing")
+    #require(status.severity == .warning)
+    #require(status.systemImage == "folder.badge.questionmark")
+    #require(status.detail.contains("Application Support activity root is missing"))
+    #require(!status.detail.contains("empty source"))
+    #require(status.helpText.contains("availability storage-root-missing"))
+    #require(status.accessibilityHint.contains("Read-only"))
     assertBounded(status)
     try assertDiagnosticsParity(snapshot: snapshot, status: status)
   }
 
+  @Test
   func testNoRepositoryFallbackIsVisibleAndMatchesDiagnosticsSnapshot() throws {
     let snapshot = RepositoryActivitySourceSnapshot.noRepository(
       activeStorage: .applicationSupport
@@ -135,15 +141,15 @@ final class ProjectActivitySourceStatusTests: XCTestCase {
 
     let status = ProjectActivitySourceStatus(snapshot: snapshot)
 
-    XCTAssertTrue(status.isVisible)
-    XCTAssertEqual(status.kind, .applicationSupportUnavailable)
-    XCTAssertEqual(status.label, "No repository activity")
-    XCTAssertEqual(status.severity, .warning)
-    XCTAssertTrue(status.detail.contains("No repository is available"))
-    XCTAssertTrue(status.helpText.contains("availability no-repository"))
-    XCTAssertTrue(status.helpText.contains("root none"))
-    XCTAssertTrue(status.helpText.contains("sessions none"))
-    XCTAssertEqual(status.activitySourceIdentifier, snapshot.identifier)
+    #require(status.isVisible)
+    #require(status.kind == .applicationSupportUnavailable)
+    #require(status.label == "No repository activity")
+    #require(status.severity == .warning)
+    #require(status.detail.contains("No repository is available"))
+    #require(status.helpText.contains("availability no-repository"))
+    #require(status.helpText.contains("root none"))
+    #require(status.helpText.contains("sessions none"))
+    #require(status.activitySourceIdentifier == snapshot.identifier)
     assertBounded(status)
     try assertDiagnosticsParity(snapshot: snapshot, status: status)
   }
@@ -178,52 +184,30 @@ final class ProjectActivitySourceStatusTests: XCTestCase {
 
   private func assertDiagnosticsParity(
     snapshot: RepositoryActivitySourceSnapshot,
-    status: ProjectActivitySourceStatus,
-    file: StaticString = #filePath,
-    line: UInt = #line
+    status: ProjectActivitySourceStatus
   ) throws {
-    XCTAssertEqual(status.activitySourceIdentifier, snapshot.identifier, file: file, line: line)
-    XCTAssertTrue(
-      status.helpText.contains("storage \(snapshot.activeStorageIdentifier)"),
-      file: file,
-      line: line
+    #require(status.activitySourceIdentifier == snapshot.identifier)
+    #require(
+      status.helpText.contains("storage \(snapshot.activeStorageIdentifier)")
     )
-    XCTAssertTrue(
-      status.helpText.contains("availability \(snapshot.sourceAvailabilityIdentifier)"),
-      file: file,
-      line: line
+    #require(
+      status.helpText.contains("availability \(snapshot.sourceAvailabilityIdentifier)")
     )
   }
 
   private func assertBounded(
-    _ status: ProjectActivitySourceStatus,
-    file: StaticString = #filePath,
-    line: UInt = #line
+    _ status: ProjectActivitySourceStatus
   ) {
-    XCTAssertLessThanOrEqual(
-      status.label.count, ProjectActivitySourceStatus.labelLimit, file: file, line: line)
-    XCTAssertLessThanOrEqual(
-      status.detail.count, ProjectActivitySourceStatus.detailLimit, file: file, line: line)
-    XCTAssertLessThanOrEqual(
-      status.helpText.count, ProjectActivitySourceStatus.helpLimit, file: file, line: line)
-    XCTAssertLessThanOrEqual(
-      status.systemImage.count,
-      ProjectActivitySourceStatus.systemImageLimit,
-      file: file,
-      line: line
+    try? #require(status.label.count <= ProjectActivitySourceStatus.labelLimit)
+    try? #require(status.detail.count <= ProjectActivitySourceStatus.detailLimit)
+    try? #require(status.helpText.count <= ProjectActivitySourceStatus.helpLimit)
+    try? #require(status.systemImage.count <= ProjectActivitySourceStatus.systemImageLimit)
+    try? #require(
+      status.accessibilityLabel.count <= ProjectActivitySourceStatus.accessibilityLabelLimit
     )
-    XCTAssertLessThanOrEqual(
-      status.accessibilityLabel.count,
-      ProjectActivitySourceStatus.accessibilityLabelLimit,
-      file: file,
-      line: line
+    try? #require(
+      status.accessibilityHint.count <= ProjectActivitySourceStatus.accessibilityHintLimit
     )
-    XCTAssertLessThanOrEqual(
-      status.accessibilityHint.count,
-      ProjectActivitySourceStatus.accessibilityHintLimit,
-      file: file,
-      line: line
-    )
-    XCTAssertLessThanOrEqual(status.severity.rawValue.count, 16, file: file, line: line)
+    try? #require(status.severity.rawValue.count <= 16)
   }
 }

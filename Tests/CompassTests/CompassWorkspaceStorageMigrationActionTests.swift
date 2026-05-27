@@ -1,20 +1,22 @@
 import Foundation
-import XCTest
+import Testing
 
 @testable import Compass
 
 @MainActor
-final class CompassWorkspaceStorageMigrationActionTests: XCTestCase {
+struct CompassWorkspaceStorageMigrationActionTests : ~Copyable {
   private var temporaryDirectories: [URL] = []
 
-  override func tearDownWithError() throws {
+  init() throws {}
+
+  deinit {
     for url in temporaryDirectories {
       try? FileManager.default.removeItem(at: url)
     }
     temporaryDirectories.removeAll()
   }
 
-  func testAvailablePlanPreparesConfirmationWithoutMigrating() throws {
+  @Test func testAvailablePlanPreparesConfirmationWithoutMigrating() throws {
     let repoURL = try makeTemporaryGitRepository()
     let roots = try makeApplicationSupportRoots()
     try CompassWorkspace(repoURL: repoURL).initialize()
@@ -24,22 +26,22 @@ final class CompassWorkspaceStorageMigrationActionTests: XCTestCase {
     )
 
     let plan = project.storageMigrationPlan()
-    XCTAssertTrue(plan.isAvailable)
+    #require(plan.isAvailable)
 
     project.prepareStorageMigrationConfirmation()
 
-    let confirmation = try XCTUnwrap(project.storageMigrationConfirmation)
-    XCTAssertEqual(project.storageMigrationState.phase, .awaitingConfirmation)
-    XCTAssertTrue(confirmation.message.contains("Source: \(plan.sourceCompassURL.path)"))
-    XCTAssertTrue(confirmation.message.contains("Destination:"))
-    XCTAssertTrue(confirmation.message.contains(plan.destinationURL.lastPathComponent))
-    XCTAssertTrue(confirmation.message.contains("Manifest:"))
-    XCTAssertTrue(confirmation.message.contains(plan.manifestURL.lastPathComponent))
-    XCTAssertTrue(confirmation.message.contains("repo-local .compass/ remains the source of truth"))
-    XCTAssertFalse(FileManager.default.fileExists(atPath: plan.destinationURL.path))
+    let confirmation = #require(project.storageMigrationConfirmation)
+    #require(project.storageMigrationState.phase == .awaitingConfirmation)
+    #require(confirmation.message.contains("Source: \(plan.sourceCompassURL.path)"))
+    #require(confirmation.message.contains("Destination:"))
+    #require(confirmation.message.contains(plan.destinationURL.lastPathComponent))
+    #require(confirmation.message.contains("Manifest:"))
+    #require(confirmation.message.contains(plan.manifestURL.lastPathComponent))
+    #require(confirmation.message.contains("repo-local .compass/ remains the source of truth"))
+    #require(!FileManager.default.fileExists(atPath: plan.destinationURL.path))
   }
 
-  func testConfirmingAvailablePlanPreparesCandidateStorage() async throws {
+  @Test func testConfirmingAvailablePlanPreparesCandidateStorage() async throws {
     let repoURL = try makeTemporaryGitRepository()
     let roots = try makeApplicationSupportRoots()
     let workspace = CompassWorkspace(repoURL: repoURL)
@@ -51,20 +53,20 @@ final class CompassWorkspaceStorageMigrationActionTests: XCTestCase {
     )
 
     project.prepareStorageMigrationConfirmation()
-    let confirmation = try XCTUnwrap(project.storageMigrationConfirmation)
+    let confirmation = #require(project.storageMigrationConfirmation)
     await project.confirmStorageMigration(confirmation)
 
     let plan = confirmation.plan
-    XCTAssertEqual(project.storageMigrationState.phase, .succeeded)
-    XCTAssertTrue(FileManager.default.fileExists(atPath: plan.destinationURL.path))
-    XCTAssertEqual(try read(plan.destinationURL.appending(path: "drafts.md")), "queued draft\n")
-    XCTAssertTrue(FileManager.default.fileExists(atPath: plan.manifestURL.path))
-    XCTAssertEqual(try decodeManifest(at: plan.manifestURL).sourcePath, workspace.compassURL.path)
-    XCTAssertEqual(try read(workspace.draftsURL), "queued draft\n")
-    XCTAssertTrue(FileManager.default.fileExists(atPath: workspace.compassURL.path))
+    #require(project.storageMigrationState.phase == .succeeded)
+    #require(FileManager.default.fileExists(atPath: plan.destinationURL.path))
+    #require(try read(plan.destinationURL.appending(path: "drafts.md")) == "queued draft\n")
+    #require(FileManager.default.fileExists(atPath: plan.manifestURL.path))
+    #require(try decodeManifest(at: plan.manifestURL).sourcePath == workspace.compassURL.path)
+    #require(try read(workspace.draftsURL) == "queued draft\n")
+    #require(FileManager.default.fileExists(atPath: workspace.compassURL.path))
   }
 
-  func testInjectedMigrationFailureShowsBoundedFailureFeedback() async throws {
+  @Test func testInjectedMigrationFailureShowsBoundedFailureFeedback() async throws {
     let repoURL = try makeTemporaryGitRepository()
     let roots = try makeApplicationSupportRoots()
     try CompassWorkspace(repoURL: repoURL).initialize()
@@ -79,40 +81,43 @@ final class CompassWorkspaceStorageMigrationActionTests: XCTestCase {
     )
 
     project.prepareStorageMigrationConfirmation()
-    let confirmation = try XCTUnwrap(project.storageMigrationConfirmation)
+    let confirmation = #require(project.storageMigrationConfirmation)
     await project.confirmStorageMigration(confirmation)
 
-    XCTAssertEqual(callCount, 1)
-    XCTAssertEqual(project.storageMigrationState.phase, .failed)
-    XCTAssertLessThanOrEqual(
-      project.storageMigrationState.label.count, CompassProjectStorageMigrationState.labelLimit)
-    XCTAssertLessThanOrEqual(
-      project.storageMigrationState.detail.count, CompassProjectStorageMigrationState.detailLimit)
-    XCTAssertLessThanOrEqual(
-      project.storageMigrationState.helpText.count, CompassProjectStorageMigrationState.helpLimit)
-    XCTAssertEqual(project.errorMessage, project.storageMigrationState.detail)
-    XCTAssertFalse(FileManager.default.fileExists(atPath: confirmation.plan.destinationURL.path))
+    #require(callCount == 1)
+    #require(project.storageMigrationState.phase == .failed)
+    #require(
+      project.storageMigrationState.label.count <=
+      CompassProjectStorageMigrationState.labelLimit)
+    #require(
+      project.storageMigrationState.detail.count <=
+      CompassProjectStorageMigrationState.detailLimit)
+    #require(
+      project.storageMigrationState.helpText.count <=
+      CompassProjectStorageMigrationState.helpLimit)
+    #require(project.errorMessage == project.storageMigrationState.detail)
+    #require(!FileManager.default.fileExists(atPath: confirmation.plan.destinationURL.path))
   }
 
-  func testUnavailableAndRunningPlansBlockWithoutCallingMigrator() async throws {
+  @Test func testUnavailableAndRunningPlansBlockWithoutCallingMigrator() async throws {
     let missingRepoURL = try makeTemporaryGitRepository()
     let missingRoots = try makeApplicationSupportRoots()
     let missingProject = CompassProject(
       repoURL: missingRepoURL,
       storageApplicationSupportRoots: missingRoots,
       storageMigrationAction: { _ in
-        XCTFail("Unavailable migration should not call the migrator.")
+        #require(false, "Unavailable migration should not call the migrator.")
         throw InjectedMigrationActionError.failed("unexpected")
       }
     )
 
     missingProject.prepareStorageMigrationConfirmation()
 
-    XCTAssertNil(missingProject.storageMigrationConfirmation)
-    XCTAssertEqual(missingProject.storageMigrationState.phase, .blocked)
-    XCTAssertEqual(missingProject.storageMigrationPlan().kind, .repoLocalMissing)
-    XCTAssertFalse(
-      FileManager.default.fileExists(
+    #require(missingProject.storageMigrationConfirmation == nil)
+    #require(missingProject.storageMigrationState.phase == .blocked)
+    #require(missingProject.storageMigrationPlan().kind == .repoLocalMissing)
+    #require(
+      !FileManager.default.fileExists(
         atPath: missingProject.storageMigrationPlan().destinationURL.path))
 
     let runningRepoURL = try makeTemporaryGitRepository()
@@ -131,18 +136,18 @@ final class CompassWorkspaceStorageMigrationActionTests: XCTestCase {
 
     runningProject.prepareStorageMigrationConfirmation()
 
-    XCTAssertNil(runningProject.storageMigrationConfirmation)
-    XCTAssertEqual(runningProject.storageMigrationState.phase, .blocked)
-    XCTAssertEqual(callCount, 0)
+    #require(runningProject.storageMigrationConfirmation == nil)
+    #require(runningProject.storageMigrationState.phase == .blocked)
+    #require(callCount == 0)
 
     let availableConfirmation = CompassWorkspaceStorageMigrationConfirmation(
       plan: runningProject.storageMigrationPlan()
     )
     await runningProject.confirmStorageMigration(availableConfirmation)
-    XCTAssertEqual(callCount, 0)
+    #require(callCount == 0)
   }
 
-  func testConfirmationAndStateTextStayBounded() async throws {
+  @Test func testConfirmationAndStateTextStayBounded() async throws {
     let longName = "Storage Migration Action " + String(repeating: "Segment ", count: 24)
     let repoURL = try makeTemporaryGitRepository(name: longName)
     let roots = try makeApplicationSupportRoots(
@@ -160,36 +165,44 @@ final class CompassWorkspaceStorageMigrationActionTests: XCTestCase {
     )
 
     project.prepareStorageMigrationConfirmation()
-    let confirmation = try XCTUnwrap(project.storageMigrationConfirmation)
+    let confirmation = #require(project.storageMigrationConfirmation)
 
-    XCTAssertLessThanOrEqual(
-      confirmation.title.count, CompassWorkspaceStorageMigrationConfirmation.titleLimit)
-    XCTAssertLessThanOrEqual(
-      confirmation.message.count, CompassWorkspaceStorageMigrationConfirmation.messageLimit)
-    XCTAssertLessThanOrEqual(
-      confirmation.confirmLabel.count, CompassWorkspaceStorageMigrationConfirmation.actionLabelLimit
+    #require(
+      confirmation.title.count <= CompassWorkspaceStorageMigrationConfirmation.titleLimit)
+    #require(
+      confirmation.message.count <= CompassWorkspaceStorageMigrationConfirmation.messageLimit)
+    #require(
+      confirmation.confirmLabel.count <=
+      CompassWorkspaceStorageMigrationConfirmation.actionLabelLimit
     )
-    XCTAssertLessThanOrEqual(
-      confirmation.cancelLabel.count, CompassWorkspaceStorageMigrationConfirmation.actionLabelLimit)
-    XCTAssertLessThanOrEqual(
-      project.storageMigrationState.label.count, CompassProjectStorageMigrationState.labelLimit)
-    XCTAssertLessThanOrEqual(
-      project.storageMigrationState.detail.count, CompassProjectStorageMigrationState.detailLimit)
-    XCTAssertLessThanOrEqual(
-      project.storageMigrationState.helpText.count, CompassProjectStorageMigrationState.helpLimit)
+    #require(
+      confirmation.cancelLabel.count <=
+      CompassWorkspaceStorageMigrationConfirmation.actionLabelLimit)
+    #require(
+      project.storageMigrationState.label.count <=
+      CompassProjectStorageMigrationState.labelLimit)
+    #require(
+      project.storageMigrationState.detail.count <=
+      CompassProjectStorageMigrationState.detailLimit)
+    #require(
+      project.storageMigrationState.helpText.count <=
+      CompassProjectStorageMigrationState.helpLimit)
 
     await project.confirmStorageMigration(confirmation)
 
-    XCTAssertEqual(project.storageMigrationState.phase, .failed)
-    XCTAssertLessThanOrEqual(
-      project.storageMigrationState.label.count, CompassProjectStorageMigrationState.labelLimit)
-    XCTAssertLessThanOrEqual(
-      project.storageMigrationState.detail.count, CompassProjectStorageMigrationState.detailLimit)
-    XCTAssertLessThanOrEqual(
-      project.storageMigrationState.helpText.count, CompassProjectStorageMigrationState.helpLimit)
+    #require(project.storageMigrationState.phase == .failed)
+    #require(
+      project.storageMigrationState.label.count <=
+      CompassProjectStorageMigrationState.labelLimit)
+    #require(
+      project.storageMigrationState.detail.count <=
+      CompassProjectStorageMigrationState.detailLimit)
+    #require(
+      project.storageMigrationState.helpText.count <=
+      CompassProjectStorageMigrationState.helpLimit)
   }
 
-  func testActionPreservesRepoLocalStorageAndDoesNotSwitchActiveStorage() async throws {
+  @Test func testActionPreservesRepoLocalStorageAndDoesNotSwitchActiveStorage() async throws {
     let repoURL = try makeTemporaryGitRepository()
     let roots = try makeApplicationSupportRoots()
     let workspace = CompassWorkspace(repoURL: repoURL)
@@ -213,19 +226,19 @@ final class CompassWorkspaceStorageMigrationActionTests: XCTestCase {
     )
 
     project.prepareStorageMigrationConfirmation()
-    let confirmation = try XCTUnwrap(project.storageMigrationConfirmation)
+    let confirmation = #require(project.storageMigrationConfirmation)
     await project.confirmStorageMigration(confirmation)
 
-    let result = try XCTUnwrap(capturedResult)
-    XCTAssertTrue(result.repoLocalSourcePreserved)
-    XCTAssertFalse(result.activeStorageDidChange)
-    XCTAssertEqual(project.compassPath, workspace.compassURL.path)
-    XCTAssertEqual(try read(workspace.stateURL), "source state\n")
-    XCTAssertEqual(try read(workspace.lessonsURL), "source lesson\n")
-    XCTAssertEqual(
-      try read(workspace.sessionsURL.appending(path: "1-transcript.txt")), "source artifact\n")
-    XCTAssertEqual(try recursiveFilePaths(in: workspace.compassURL), sourceEntriesBefore)
-    XCTAssertTrue(FileManager.default.fileExists(atPath: confirmation.plan.destinationURL.path))
+    let result = #require(capturedResult)
+    #require(result.repoLocalSourcePreserved)
+    #require(!result.activeStorageDidChange)
+    #require(project.compassPath == workspace.compassURL.path)
+    #require(try read(workspace.stateURL) == "source state\n")
+    #require(try read(workspace.lessonsURL) == "source lesson\n")
+    #require(
+      try read(workspace.sessionsURL.appending(path: "1-transcript.txt")) == "source artifact\n")
+    #require(try recursiveFilePaths(in: workspace.compassURL) == sourceEntriesBefore)
+    #require(FileManager.default.fileExists(atPath: confirmation.plan.destinationURL.path))
   }
 
   private func makeTemporaryGitRepository(name: String? = nil) throws -> URL {

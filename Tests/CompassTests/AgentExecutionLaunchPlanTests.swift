@@ -1,21 +1,20 @@
 import Foundation
-import XCTest
+import Testing
 
 @testable import Compass
 
-final class AgentExecutionLaunchPlanTests: XCTestCase {
+struct AgentExecutionLaunchPlanTests: ~Copyable {
   private var temporaryDirectories: [URL] = []
 
-  override func tearDownWithError() throws {
+  deinit {
     for url in temporaryDirectories {
       try? FileManager.default.removeItem(at: url)
     }
-    temporaryDirectories.removeAll()
   }
 
   // MARK: - Routing
 
-  func testReadySharedVMRoutesThroughVsockWhenFactoryProducesARoute() throws {
+  @Test func testReadySharedVMRoutesThroughVsockWhenFactoryProducesARoute() throws {
     // With the vsock guest agent in place, a ready run with a route
     // factory that returns a workspace-mapped route promotes to a real
     // .sharedVM effective route. AppModel then opens a vsock connection
@@ -32,33 +31,33 @@ final class AgentExecutionLaunchPlanTests: XCTestCase {
       sharedVMRouteFactory: { _ in route }
     )
 
-    XCTAssertTrue(plan.isVMRoute)
-    XCTAssertEqual(plan.effectiveRouteIdentifier, "shared-vm")
-    XCTAssertNil(plan.fallbackReason)
-    XCTAssertEqual(plan.workspaceLabel, "/Users/compass/Compass/Worktrees/dev-AAA/worktree")
+    #require(plan.isVMRoute)
+    #require(plan.effectiveRouteIdentifier == "shared-vm")
+    #require(plan.fallbackReason == nil)
+    #require(plan.workspaceLabel == "/Users/compass/Compass/Worktrees/dev-AAA/worktree")
   }
 
-  func testMissingConfigFallsBackToNativeWithBoundedReason() throws {
+  @Test func testMissingConfigFallsBackToNativeWithBoundedReason() throws {
     let repoURL = try makeTemporaryDirectory(prefix: "VMNotProvisioned")
     let plan = AgentExecutionLaunchPlan.plan(
       repoURL: repoURL,
       vmReadiness: .notProvisioned
     )
-    XCTAssertFalse(plan.isVMRoute)
-    XCTAssertTrue(plan.fallbackReason?.contains("not been provisioned") ?? false)
+    #require(!plan.isVMRoute)
+    #require(plan.fallbackReason?.contains("not been provisioned") ?? false)
   }
 
-  func testMalformedConfigFallsBackToNativeWithBoundedReason() throws {
+  @Test func testMalformedConfigFallsBackToNativeWithBoundedReason() throws {
     let repoURL = try makeTemporaryDirectory(prefix: "VMError")
     let plan = AgentExecutionLaunchPlan.plan(
       repoURL: repoURL,
       vmReadiness: .error(detail: "ssh probe failed")
     )
-    XCTAssertFalse(plan.isVMRoute)
-    XCTAssertTrue(plan.fallbackReason?.contains("ssh probe failed") ?? false)
+    #require(!plan.isVMRoute)
+    #require(plan.fallbackReason?.contains("ssh probe failed") ?? false)
   }
 
-  func testReadyButNoRouteableFactoryFallsBackToHost() throws {
+  @Test func testReadyButNoRouteableFactoryFallsBackToHost() throws {
     // When the VM is ready but the worktree isn't under the workspace
     // mount (factory returns nil), the planner falls back to host with
     // a workspace-share-membership reason. This is the internal-only
@@ -69,44 +68,44 @@ final class AgentExecutionLaunchPlanTests: XCTestCase {
       vmReadiness: .ready(sshDestination: "compass@192.0.2.10"),
       sharedVMRouteFactory: { _ in nil }
     )
-    XCTAssertFalse(plan.isVMRoute)
-    XCTAssertTrue(plan.fallbackReason?.contains("outside the Shared VM workspaces share") ?? false)
+    #require(!plan.isVMRoute)
+    #require(plan.fallbackReason?.contains("outside the Shared VM workspaces share") ?? false)
   }
 
-  func testBuildConfigFallsBackToNativeWhenContainerToolIsUnavailable() throws {
+  @Test func testBuildConfigFallsBackToNativeWhenContainerToolIsUnavailable() throws {
     let repoURL = try makeTemporaryDirectory(prefix: "VMReadinessMissing")
     let plan = AgentExecutionLaunchPlan.plan(
       repoURL: repoURL,
       vmReadiness: nil
     )
-    XCTAssertFalse(plan.isVMRoute)
-    XCTAssertTrue(plan.fallbackReason?.contains("readiness has not been evaluated") ?? false)
+    #require(!plan.isVMRoute)
+    #require(plan.fallbackReason?.contains("readiness has not been evaluated") ?? false)
   }
 
   // MARK: - Decoding
 
-  func testStoredPreferenceRawValuesDecodeToSharedVM() throws {
+  @Test func testStoredPreferenceRawValuesDecodeToSharedVM() throws {
     for raw in ["devcontainer_preferred", "native_macos", "shared_vm"] {
       let json = #"{"value":"\#(raw)"}"#
       struct Wrapper: Decodable {
         var value: AgentExecutionEnvironmentPreference
       }
       let decoded = try JSONDecoder().decode(Wrapper.self, from: Data(json.utf8))
-      XCTAssertEqual(decoded.value, .sharedVM, raw)
+      #require(decoded.value == .sharedVM)
     }
   }
 
-  func testSharedVMRawValueRoundTrips() throws {
+  @Test func testSharedVMRawValueRoundTrips() throws {
     let encoded = try JSONEncoder().encode(AgentExecutionEnvironmentPreference.sharedVM)
     let string = String(decoding: encoded, as: UTF8.self)
-    XCTAssertEqual(string, "\"shared_vm\"")
+    #require(string == "\"shared_vm\"")
     let decoded = try JSONDecoder().decode(AgentExecutionEnvironmentPreference.self, from: encoded)
-    XCTAssertEqual(decoded, .sharedVM)
+    #require(decoded == .sharedVM)
   }
 
   // MARK: - Snapshot
 
-  func testExecutionEnvironmentSnapshotForImageRouteIsCodableBoundedAndSanitized() throws {
+  @Test func testExecutionEnvironmentSnapshotForImageRouteIsCodableBoundedAndSanitized() throws {
     let repoURL = try makeTemporaryDirectory(prefix: "SnapshotRoundtrip")
     let route = SharedVMRoute(
       sshDestination: "compass@192.0.2.10",
@@ -120,19 +119,19 @@ final class AgentExecutionLaunchPlanTests: XCTestCase {
     )
     let snapshot = SessionExecutionEnvironmentSnapshot(
       phase: "Develop", attempt: 1, launchPlan: plan)
-    XCTAssertEqual(snapshot.effectiveRouteIdentifier, "shared-vm")
-    XCTAssertEqual(snapshot.provisioningAvailabilityIdentifier, "available")
-    XCTAssertEqual(snapshot.provisioningStatusIdentifier, "ready")
-    XCTAssertEqual(
-      snapshot.provisioningActionIdentifier,
+    #require(snapshot.effectiveRouteIdentifier == "shared-vm")
+    #require(snapshot.provisioningAvailabilityIdentifier == "available")
+    #require(snapshot.provisioningStatusIdentifier == "ready")
+    #require(
+      snapshot.provisioningActionIdentifier ==
       SessionExecutionEnvironmentSnapshot.vmBuildActionIdentifier)
 
     let encoded = try JSONEncoder().encode(snapshot)
     let decoded = try JSONDecoder().decode(SessionExecutionEnvironmentSnapshot.self, from: encoded)
-    XCTAssertEqual(decoded, snapshot)
+    #require(decoded == snapshot)
   }
 
-  func
+  @Test func
     testExecutionEnvironmentSnapshotSummariesCoverNativeBuildComposeAndFeatureRoutesWithoutLeaks()
     throws
   {
@@ -150,9 +149,9 @@ final class AgentExecutionLaunchPlanTests: XCTestCase {
         vmReadiness: readiness
       )
       let snapshot = SessionExecutionEnvironmentSnapshot(phase: "Plan", launchPlan: plan)
-      XCTAssertEqual(snapshot.effectiveRouteIdentifier, "native-macos")
-      XCTAssertEqual(snapshot.supportClassificationIdentifier, expectedClassification)
-      XCTAssertFalse(snapshot.routeSummary.contains(repoURL.path))
+      #require(snapshot.effectiveRouteIdentifier == "native-macos")
+      #require(snapshot.supportClassificationIdentifier == expectedClassification)
+      #require(!snapshot.routeSummary.contains(repoURL.path))
     }
   }
 
@@ -162,7 +161,6 @@ final class AgentExecutionLaunchPlanTests: XCTestCase {
     let url = FileManager.default.temporaryDirectory
       .appending(path: "\(prefix)-\(UUID().uuidString)", directoryHint: .isDirectory)
     try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
-    temporaryDirectories.append(url)
     return url.standardizedFileURL
   }
 }

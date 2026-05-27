@@ -28,9 +28,9 @@ final class AgentGlobToolTests {
 
     let result = try await invoke(["pattern": "**/*.swift"])
 
-    try #require(!result.isError)
+    #require(!result.isError)
     let lines = Set(result.content.split(separator: "\n").map(String.init))
-    try #require(lines == ["a.swift", "sub/c.swift", "sub/deeper/e.swift"])
+    #require(lines == ["a.swift", "sub/c.swift", "sub/deeper/e.swift"])
   }
 
   @Test func testSingleStarDoesNotCrossDirectoryBoundaries() async throws {
@@ -41,9 +41,9 @@ final class AgentGlobToolTests {
 
     let result = try await invoke(["pattern": "*.swift"])
 
-    try #require(!result.isError)
+    #require(!result.isError)
     let lines = Set(result.content.split(separator: "\n").map(String.init))
-    try #require(lines == ["a.swift"])
+    #require(lines == ["a.swift"])
   }
 
   @Test func testQuestionMarkMatchesSingleCharacter() async throws {
@@ -55,22 +55,22 @@ final class AgentGlobToolTests {
 
     let result = try await invoke(["pattern": "?.txt"])
 
-    try #require(!result.isError)
+    #require(!result.isError)
     let lines = Set(result.content.split(separator: "\n").map(String.init))
-    try #require(lines == ["a.txt", "b.txt"])
+    #require(lines == ["a.txt", "b.txt"])
   }
 
   @Test func testReportsNoMatchesWhenEmpty() async throws {
     try makeTree(["a.txt": "x"])
     let result = try await invoke(["pattern": "*.swift"])
-    try #require(!result.isError)
-    try #require(result.content == "(no matches)")
+    #require(!result.isError)
+    #require(result.content == "(no matches)")
   }
 
   @Test func testEmptyPatternFails() async throws {
     let result = try await invoke(["pattern": "   "])
-    try #require(result.isError)
-    try #require(result.content.contains("pattern is empty"))
+    #require(result.isError)
+    #require(result.content.contains("pattern is empty"))
   }
 
   @Test func testRejectsPathThatEscapesWorkingDirectory() async throws {
@@ -78,8 +78,8 @@ final class AgentGlobToolTests {
       "pattern": "*.swift",
       "path": "../escape",
     ])
-    try #require(result.isError)
-    try #require(result.content.contains("escapes"))
+    #require(result.isError)
+    #require(result.content.contains("escapes"))
   }
 
   @Test func testResultsAreSortedNewestFirstByModificationTime() async throws {
@@ -96,9 +96,9 @@ final class AgentGlobToolTests {
 
     let result = try await invoke(["pattern": "*.swift"])
 
-    try #require(!result.isError)
+    #require(!result.isError)
     let lines = result.content.split(separator: "\n").map(String.init)
-    try #require(lines == ["new.swift", "old.swift"])
+    #require(lines == ["new.swift", "old.swift"])
   }
 
   private func makeTree(_ files: [String: String]) throws {

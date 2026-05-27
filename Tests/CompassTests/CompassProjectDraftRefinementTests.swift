@@ -1,20 +1,22 @@
 import Foundation
-import XCTest
+import Testing
 
 @testable import Compass
 
 @MainActor
-final class CompassProjectDraftRefinementTests: XCTestCase {
+struct CompassProjectDraftRefinementTests : ~Copyable {
   private var temporaryDirectories: [URL] = []
 
-  override func tearDownWithError() throws {
+  init() throws {}
+
+  deinit {
     for url in temporaryDirectories {
       try? FileManager.default.removeItem(at: url)
     }
     temporaryDirectories.removeAll()
   }
 
-  func testAcceptQueuesRefinedTextThroughActiveStorageWithoutSubmittingRun() async throws {
+  @Test func testAcceptQueuesRefinedTextThroughActiveStorageWithoutSubmittingRun() async throws {
     let repoURL = try makeTemporaryGitRepository()
     let roots = try makeApplicationSupportRoots()
     let workspace = applicationSupportWorkspace(repoURL: repoURL, roots: roots)
@@ -42,18 +44,18 @@ final class CompassProjectDraftRefinementTests: XCTestCase {
 
     await project.acceptDraftRefinement(refinement)
 
-    XCTAssertEqual(workspace.readDrafts(), "- Add parser tests.\n")
-    XCTAssertEqual(project.drafts, "- Add parser tests.\n")
-    XCTAssertEqual(project.draftEntry, "")
-    XCTAssertEqual(project.state, state)
-    XCTAssertEqual(project.sessions, [])
-    XCTAssertEqual(project.activeStorage, .applicationSupport)
-    XCTAssertEqual(project.phase, .idle)
-    XCTAssertFalse(project.isRunning)
-    XCTAssertFalse(FileManager.default.fileExists(atPath: workspace.repoLocalCompassURL.path))
+    #require(workspace.readDrafts() == "- Add parser tests.\n")
+    #require(project.drafts == "- Add parser tests.\n")
+    #require(project.draftEntry == "")
+    #require(project.state == state)
+    #require(project.sessions == [])
+    #require(project.activeStorage == .applicationSupport)
+    #require(project.phase == .idle)
+    #require(!project.isRunning)
+    #require(!FileManager.default.fileExists(atPath: workspace.repoLocalCompassURL.path))
   }
 
-  func testModifyReplacesDraftEntryWithoutQueueing() throws {
+  @Test func testModifyReplacesDraftEntryWithoutQueueing() throws {
     let repoURL = try makeTemporaryGitRepository()
     let workspace = CompassWorkspace(repoURL: repoURL)
     let project = CompassProject(repoURL: repoURL)
@@ -69,14 +71,14 @@ final class CompassProjectDraftRefinementTests: XCTestCase {
 
     project.modifyDraft(with: refinement)
 
-    XCTAssertEqual(project.draftEntry, "Add parser tests.")
-    XCTAssertEqual(project.drafts, "")
-    XCTAssertEqual(project.state, stateBefore)
-    XCTAssertEqual(project.sessions, [])
-    XCTAssertEqual(project.liveLog, [])
-    XCTAssertEqual(project.activeStorage, activeStorageBefore)
-    XCTAssertFalse(FileManager.default.fileExists(atPath: workspace.compassURL.path))
-    XCTAssertFalse(project.isRunning)
+    #require(project.draftEntry == "Add parser tests.")
+    #require(project.drafts == "")
+    #require(project.state == stateBefore)
+    #require(project.sessions == [])
+    #require(project.liveLog == [])
+    #require(project.activeStorage == activeStorageBefore)
+    #require(!FileManager.default.fileExists(atPath: workspace.compassURL.path))
+    #require(!project.isRunning)
   }
 
   private func makeTemporaryGitRepository() throws -> URL {

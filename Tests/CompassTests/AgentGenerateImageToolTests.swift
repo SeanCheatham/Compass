@@ -1,13 +1,13 @@
 import Foundation
-import XCTest
+import Testing
 
 @testable import Compass
 
-final class AgentGenerateImageToolTests: XCTestCase {
+struct AgentGenerateImageToolTests: ~Copyable {
   private var workingDirectory: URL!
   private var filesystem: AgentHostFilesystem!
 
-  override func setUpWithError() throws {
+  init() throws {
     let base = FileManager.default.temporaryDirectory
       .appendingPathComponent("compass-generate-image-tests-\(UUID().uuidString)", isDirectory: true)
     try FileManager.default.createDirectory(at: base, withIntermediateDirectories: true)
@@ -15,17 +15,15 @@ final class AgentGenerateImageToolTests: XCTestCase {
     filesystem = AgentHostFilesystem()
   }
 
-  override func tearDownWithError() throws {
+  deinit {
     if let workingDirectory {
       try? FileManager.default.removeItem(at: workingDirectory)
     }
-    workingDirectory = nil
-    filesystem = nil
   }
 
   // MARK: - Tool behavior
 
-  func testInvokeWritesBytesToOutputPath() async throws {
+  @Test func testInvokeWritesBytesToOutputPath() async throws {
     let imageBytes = Data((0..<32).map { UInt8($0) })
     let generator = StubImageGenerator(result: .success(imageBytes))
     let assignment = MediaAssignment(
@@ -39,16 +37,16 @@ final class AgentGenerateImageToolTests: XCTestCase {
 
     let args = #"{"prompt": "a cat on a mat", "output_path": "out/hero.png"}"#
     let result = try await tool.invoke(arguments: Data(args.utf8), context: context)
-    XCTAssertFalse(result.isError, "tool reported failure: \(result.content)")
-    XCTAssertTrue(result.content.contains("out/hero.png"))
+    #require(!result.isError, "tool reported failure: \(result.content)")
+    #require(result.content.contains("out/hero.png"))
 
     let written = try Data(contentsOf: workingDirectory.appendingPathComponent("out/hero.png"))
-    XCTAssertEqual(written, imageBytes)
-    XCTAssertEqual(generator.recordedPrompts, ["a cat on a mat"])
-    XCTAssertEqual(generator.recordedAssignments.map(\.provider), [.minimaxToken])
+    #require(written == imageBytes)
+    #require(generator.recordedPrompts == ["a cat on a mat"])
+    #require(generator.recordedAssignments.map(\.provider) == [.minimaxToken])
   }
 
-  func testInvokeRejectsUnsupportedExtension() async throws {
+  @Test func testInvokeRejectsUnsupportedExtension() async throws {
     let generator = StubImageGenerator(result: .success(Data([0])))
     let tool = AgentGenerateImageTool(
       assignment: stubAssignment(),
@@ -57,12 +55,12 @@ final class AgentGenerateImageToolTests: XCTestCase {
     let context = AgentToolContext(workingDirectory: workingDirectory, filesystem: filesystem)
     let args = #"{"prompt": "x", "output_path": "out/hero.bmp"}"#
     let result = try await tool.invoke(arguments: Data(args.utf8), context: context)
-    XCTAssertTrue(result.isError)
-    XCTAssertEqual(result.errorKind, .invalidArguments)
-    XCTAssertEqual(generator.recordedPrompts, [], "generator should not be invoked on bad ext")
+    #require(result.isError)
+    #require(result.errorKind == .invalidArguments)
+    #require(generator.recordedPrompts == [], "generator should not be invoked on bad ext")
   }
 
-  func testInvokeRejectsEmptyPrompt() async throws {
+  @Test func testInvokeRejectsEmptyPrompt() async throws {
     let generator = StubImageGenerator(result: .success(Data([0])))
     let tool = AgentGenerateImageTool(
       assignment: stubAssignment(),
@@ -71,11 +69,11 @@ final class AgentGenerateImageToolTests: XCTestCase {
     let context = AgentToolContext(workingDirectory: workingDirectory, filesystem: filesystem)
     let args = #"{"prompt": "   ", "output_path": "out/x.png"}"#
     let result = try await tool.invoke(arguments: Data(args.utf8), context: context)
-    XCTAssertTrue(result.isError)
-    XCTAssertEqual(result.errorKind, .invalidArguments)
+    #require(result.isError)
+    #require(result.errorKind == .invalidArguments)
   }
 
-  func testInvokeRejectsPathEscape() async throws {
+  @Test func testInvokeRejectsPathEscape() async throws {
     let generator = StubImageGenerator(result: .success(Data([0])))
     let tool = AgentGenerateImageTool(
       assignment: stubAssignment(),
@@ -84,11 +82,11 @@ final class AgentGenerateImageToolTests: XCTestCase {
     let context = AgentToolContext(workingDirectory: workingDirectory, filesystem: filesystem)
     let args = #"{"prompt": "ok", "output_path": "/etc/passwd.png"}"#
     let result = try await tool.invoke(arguments: Data(args.utf8), context: context)
-    XCTAssertTrue(result.isError)
-    XCTAssertEqual(result.errorKind, .pathEscape)
+    #require(result.isError)
+    #require(result.errorKind == .pathEscape)
   }
 
-  func testGeneratorFailureSurfacesAsToolError() async throws {
+  @Test func testGeneratorFailureSurfacesAsToolError() async throws {
     let generator = StubImageGenerator(
       result: .failure(.requestFailed(status: 503, body: "overloaded"))
     )
@@ -99,34 +97,34 @@ final class AgentGenerateImageToolTests: XCTestCase {
     let context = AgentToolContext(workingDirectory: workingDirectory, filesystem: filesystem)
     let args = #"{"prompt": "ok", "output_path": "x.png"}"#
     let result = try await tool.invoke(arguments: Data(args.utf8), context: context)
-    XCTAssertTrue(result.isError)
-    XCTAssertEqual(result.errorKind, .ioFailure)
-    XCTAssertTrue(result.content.contains("503"))
+    #require(result.isError)
+    #require(result.errorKind == .ioFailure)
+    #require(result.content.contains("503"))
   }
 
   // MARK: - Registry conditional
 
-  func testToolRegistryOmitsGenerateImageWhenUnassigned() {
+  @Test func testToolRegistryOmitsGenerateImageWhenUnassigned() {
     let settings = AgentRuntimeSettings()
-    XCTAssertNil(settings.imageAssignment)
+    #require(settings.imageAssignment == nil)
     let names = Set(ToolRegistry.tools(for: .develop, settings: settings).map { $0.spec.name })
-    XCTAssertFalse(names.contains(AgentGenerateImageTool.toolName))
+    #require(!names.contains(AgentGenerateImageTool.toolName))
   }
 
-  func testToolRegistryIncludesGenerateImageWhenAssigned() {
+  @Test func testToolRegistryIncludesGenerateImageWhenAssigned() {
     var settings = AgentRuntimeSettings()
     settings.imageAssignment = stubAssignment()
     let names = Set(ToolRegistry.tools(for: .develop, settings: settings).map { $0.spec.name })
-    XCTAssertTrue(names.contains(AgentGenerateImageTool.toolName))
+    #require(names.contains(AgentGenerateImageTool.toolName))
   }
 
-  func testToolRegistryDoesNotExposeGenerateImageInInspectionPhases() {
+  @Test func testToolRegistryDoesNotExposeGenerateImageInInspectionPhases() {
     var settings = AgentRuntimeSettings()
     settings.imageAssignment = stubAssignment()
     for phase in [AgentPhase.plan, .reflect, .critic] {
       let names = Set(ToolRegistry.tools(for: phase, settings: settings).map { $0.spec.name })
-      XCTAssertFalse(
-        names.contains(AgentGenerateImageTool.toolName),
+      #require(
+        !names.contains(AgentGenerateImageTool.toolName),
         "generate_image leaked into the \(phase) palette")
     }
   }

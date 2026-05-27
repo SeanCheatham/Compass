@@ -1,17 +1,17 @@
 import CompassAgentRPC
 import Foundation
-import XCTest
+import Testing
 
 @testable import Compass
 
 /// Round-trip tests for the host-side vsock client. A `StubTransport`
 /// captures the framed request, plays a canned response, and signals EOF
 /// so the framing decoder terminates — no VM, no sockets.
-final class AgentVsockClientTests: XCTestCase {
+struct AgentVsockClientTests {
 
   // MARK: - Filesystem
 
-  func testReadFileDecodesBase64ResponseIntoBytes() async throws {
+  @Test func testReadFileDecodesBase64ResponseIntoBytes() async throws {
     let payload = Data([0x01, 0x02, 0x03, 0x04])
     let transport = StubTransport(
       responses: [makeFrame(.readFile(.init(dataBase64: payload.base64EncodedString())))]
@@ -20,16 +20,17 @@ final class AgentVsockClientTests: XCTestCase {
 
     let data = try await client.readFile(at: URL(fileURLWithPath: "/opt/x.bin"))
 
-    XCTAssertEqual(data, payload)
-    XCTAssertEqual(transport.writtenFrames.count, 1)
+    #require(data == payload)
+    #require(transport.writtenFrames.count == 1)
     let request = try AgentRPCFraming.decode(AgentRPCRequest.self, from: transport.writtenFrames[0])
     guard case .readFile(let args) = request else {
-      return XCTFail("expected readFile request, got \(request)")
+      #require(false, "expected readFile request, got \(request)")
+      return
     }
-    XCTAssertEqual(args.path, "/opt/x.bin")
+    #require(args.path == "/opt/x.bin")
   }
 
-  func testReadFileMapsNotFoundErrorIntoTypedFilesystemError() async {
+  @Test func testReadFileMapsNotFoundErrorIntoTypedFilesystemError() async {
     let transport = StubTransport(
       responses: [makeFrame(.error(.init(kind: .notFound, detail: "/opt/missing")))]
     )
@@ -37,17 +38,18 @@ final class AgentVsockClientTests: XCTestCase {
 
     do {
       _ = try await client.readFile(at: URL(fileURLWithPath: "/opt/missing"))
-      XCTFail("expected notFound error")
+      #require(false, "expected notFound error")
     } catch let error as AgentFilesystemError {
       guard case .notFound = error else {
-        return XCTFail("expected .notFound, got \(error)")
+        #require(false, "expected .notFound, got \(error)")
+        return
       }
     } catch {
-      XCTFail("expected AgentFilesystemError, got \(error)")
+      #require(false, "expected AgentFilesystemError, got \(error)")
     }
   }
 
-  func testWriteFileSendsBase64InRequest() async throws {
+  @Test func testWriteFileSendsBase64InRequest() async throws {
     let transport = StubTransport(responses: [makeFrame(.writeFile)])
     let client = AgentVsockClient(transportFactory: { transport })
 
@@ -56,13 +58,14 @@ final class AgentVsockClientTests: XCTestCase {
 
     let request = try AgentRPCFraming.decode(AgentRPCRequest.self, from: transport.writtenFrames[0])
     guard case .writeFile(let args) = request else {
-      return XCTFail("expected writeFile request, got \(request)")
+      #require(false, "expected writeFile request, got \(request)")
+      return
     }
-    XCTAssertEqual(args.path, "/opt/out.txt")
-    XCTAssertEqual(args.dataBase64, payload.base64EncodedString())
+    #require(args.path == "/opt/out.txt")
+    #require(args.dataBase64 == payload.base64EncodedString())
   }
 
-  func testListDirectoryParsesEntries() async throws {
+  @Test func testListDirectoryParsesEntries() async throws {
     let transport = StubTransport(responses: [
       makeFrame(
         .listDirectory(
@@ -75,14 +78,14 @@ final class AgentVsockClientTests: XCTestCase {
 
     let entries = try await client.listDirectory(at: URL(fileURLWithPath: "/opt/x"))
 
-    XCTAssertEqual(entries.count, 2)
-    XCTAssertEqual(entries.first?.name, "a.swift")
-    XCTAssertEqual(entries.first?.isDirectory, false)
-    XCTAssertEqual(entries.last?.name, "Sources")
-    XCTAssertEqual(entries.last?.isDirectory, true)
+    #require(entries.count == 2)
+    #require(entries.first?.name == "a.swift")
+    #require(entries.first?.isDirectory == false)
+    #require(entries.last?.name == "Sources")
+    #require(entries.last?.isDirectory == true)
   }
 
-  func testGlobReturnsMatchesWithDates() async throws {
+  @Test func testGlobReturnsMatchesWithDates() async throws {
     let transport = StubTransport(responses: [
       makeFrame(
         .glob(
@@ -99,23 +102,23 @@ final class AgentVsockClientTests: XCTestCase {
       walkCap: 100
     )
 
-    XCTAssertEqual(matches.count, 2)
-    XCTAssertEqual(matches[0].url.path, "/opt/x/a.swift")
-    XCTAssertEqual(matches[0].modificationDate, Date(timeIntervalSince1970: 1_700_000_000))
-    XCTAssertNil(matches[1].modificationDate)
+    #require(matches.count == 2)
+    #require(matches[0].url.path == "/opt/x/a.swift")
+    #require(matches[0].modificationDate == Date(timeIntervalSince1970: 1_700_000_000))
+    #require(matches[1].modificationDate == nil)
   }
 
-  func testStatReturnsNilWhenMetadataIsNil() async throws {
+  @Test func testStatReturnsNilWhenMetadataIsNil() async throws {
     let transport = StubTransport(responses: [makeFrame(.stat(.init(metadata: nil)))])
     let client = AgentVsockClient(transportFactory: { transport })
 
     let metadata = try await client.metadata(of: URL(fileURLWithPath: "/opt/x"))
-    XCTAssertNil(metadata)
+    #require(metadata == nil)
   }
 
   // MARK: - Bash runner
 
-  func testRunPassesCommandAndCwdInRequest() async throws {
+  @Test func testRunPassesCommandAndCwdInRequest() async throws {
     let transport = StubTransport(responses: [
       makeFrame(
         .bash(
@@ -133,33 +136,35 @@ final class AgentVsockClientTests: XCTestCase {
       timeout: 5
     )
 
-    XCTAssertEqual(result.exitCode, 0)
-    XCTAssertEqual(result.stdout, "hi\n")
+    #require(result.exitCode == 0)
+    #require(result.stdout == "hi\n")
 
     let request = try AgentRPCFraming.decode(AgentRPCRequest.self, from: transport.writtenFrames[0])
     guard case .bash(let args) = request else {
-      return XCTFail("expected bash request, got \(request)")
+      #require(false, "expected bash request, got \(request)")
+      return
     }
-    XCTAssertEqual(args.command, "echo hi")
-    XCTAssertEqual(args.workingDirectory, "/opt/cwd")
-    XCTAssertEqual(args.timeoutSeconds, 5)
+    #require(args.command == "echo hi")
+    #require(args.workingDirectory == "/opt/cwd")
+    #require(args.timeoutSeconds == 5)
   }
 
   // MARK: - Transport-level errors
 
-  func testTransportConnectFailureSurfacesAsTransportError() async {
+  @Test func testTransportConnectFailureSurfacesAsTransportError() async {
     struct ConnectFailure: Error {}
     let client = AgentVsockClient(transportFactory: { throw ConnectFailure() })
 
     do {
       _ = try await client.readFile(at: URL(fileURLWithPath: "/opt/x"))
-      XCTFail("expected transport failure")
+      #require(false, "expected transport failure")
     } catch let error as AgentFilesystemError {
       guard case .transportFailure = error else {
-        return XCTFail("expected .transportFailure, got \(error)")
+        #require(false, "expected .transportFailure, got \(error)")
+        return
       }
     } catch {
-      XCTFail("expected AgentFilesystemError, got \(error)")
+      #require(false, "expected AgentFilesystemError, got \(error)")
     }
   }
 

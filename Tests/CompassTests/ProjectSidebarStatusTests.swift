@@ -1,9 +1,10 @@
 import Foundation
-import XCTest
+import Testing
 
 @testable import Compass
 
-final class ProjectSidebarStatusTests: XCTestCase {
+struct ProjectSidebarStatusTests {
+  @Test
   func testCleanFeedbackProducesImmediatePlanSubtitleWithoutCue() {
     let feedback = PlanReliabilityFeedback(
       state: makeState(immediate: nil),
@@ -19,15 +20,16 @@ final class ProjectSidebarStatusTests: XCTestCase {
       phase: .idle
     )
 
-    XCTAssertFalse(sidebarStatus.hasReliabilityCue)
-    XCTAssertFalse(sidebarStatus.showsProgress)
-    XCTAssertEqual(sidebarStatus.title, "")
-    XCTAssertEqual(sidebarStatus.subtitle, "Add sidebar attention badges")
-    XCTAssertEqual(sidebarStatus.countLabel, "0 cues")
-    XCTAssertEqual(sidebarStatus.phaseLabel, "Idle")
-    XCTAssertEqual(sidebarStatus.badgeLabel, "")
+    #require(!sidebarStatus.hasReliabilityCue)
+    #require(!sidebarStatus.showsProgress)
+    #require(sidebarStatus.title == "")
+    #require(sidebarStatus.subtitle == "Add sidebar attention badges")
+    #require(sidebarStatus.countLabel == "0 cues")
+    #require(sidebarStatus.phaseLabel == "Idle")
+    #require(sidebarStatus.badgeLabel == "")
   }
 
+  @Test
   func testRejectedPlanTakesPriorityForSidebarBadge() {
     let newerFailedVerify = makeSession(
       3,
@@ -55,18 +57,19 @@ final class ProjectSidebarStatusTests: XCTestCase {
     let reliabilityStatus = ProjectReliabilityStatus(feedback: feedback)
     let sidebarStatus = makeSidebarStatus(reliabilityStatus: reliabilityStatus)
 
-    XCTAssertEqual(feedback.notices.map(\.kind), [.failedVerify, .rejectedPlan])
-    XCTAssertTrue(sidebarStatus.hasReliabilityCue)
-    XCTAssertEqual(sidebarStatus.title, "Plan rejected")
-    XCTAssertEqual(sidebarStatus.badgeLabel, "Plan rejected")
-    XCTAssertEqual(sidebarStatus.actionLabel, "Retry Plan")
-    XCTAssertEqual(sidebarStatus.metadata, "#2")
-    XCTAssertEqual(sidebarStatus.countLabel, "2 cues")
-    XCTAssertTrue(sidebarStatus.helpText.contains("Retry Plan"))
-    XCTAssertTrue(sidebarStatus.helpText.contains("#2"))
-    XCTAssertTrue(sidebarStatus.accessibilityLabel.contains("2 cues"))
+    #require(feedback.notices.map(\.kind) == [.failedVerify, .rejectedPlan])
+    #require(sidebarStatus.hasReliabilityCue)
+    #require(sidebarStatus.title == "Plan rejected")
+    #require(sidebarStatus.badgeLabel == "Plan rejected")
+    #require(sidebarStatus.actionLabel == "Retry Plan")
+    #require(sidebarStatus.metadata == "#2")
+    #require(sidebarStatus.countLabel == "2 cues")
+    #require(sidebarStatus.helpText.contains("Retry Plan"))
+    #require(sidebarStatus.helpText.contains("#2"))
+    #require(sidebarStatus.accessibilityLabel.contains("2 cues"))
   }
 
+  @Test
   func testSidebarSubtitlesUsePrimaryReliabilityDetail() {
     let blockedStatus = makeSidebarStatus(
       reliabilityStatus: ProjectReliabilityStatus(
@@ -171,22 +174,23 @@ final class ProjectSidebarStatusTests: XCTestCase {
       )
     )
 
-    XCTAssertEqual(blockedStatus.title, "Develop blocked")
-    XCTAssertEqual(blockedStatus.subtitle, "Missing signing credentials.")
-    XCTAssertEqual(failedStatus.title, "Develop failed")
-    XCTAssertEqual(failedStatus.subtitle, "build settings were inconsistent")
-    XCTAssertEqual(failedVerifyStatus.title, "Verify failed")
-    XCTAssertEqual(failedVerifyStatus.subtitle, "Test Suite failed Expected true but got false")
-    XCTAssertEqual(resumeStatus.title, "Develop ready")
-    XCTAssertEqual(resumeStatus.subtitle, "Implement the approved next slice")
-    XCTAssertEqual(dirtyStatus.title, "Worktree dirty")
-    XCTAssertTrue(dirtyStatus.subtitle.hasPrefix("Uncommitted or untracked changes remain"))
-    XCTAssertEqual(dirtyStatus.actionLabel, "Clean Worktree")
-    XCTAssertEqual(promotionStatus.title, "Promotion failed")
-    XCTAssertEqual(promotionStatus.actionLabel, "Resolve Promotion")
-    XCTAssertEqual(promotionStatus.metadata, "#12 · compass/dev-123")
+    #require(blockedStatus.title == "Develop blocked")
+    #require(blockedStatus.subtitle == "Missing signing credentials.")
+    #require(failedStatus.title == "Develop failed")
+    #require(failedStatus.subtitle == "build settings were inconsistent")
+    #require(failedVerifyStatus.title == "Verify failed")
+    #require(failedVerifyStatus.subtitle == "Test Suite failed Expected true but got false")
+    #require(resumeStatus.title == "Develop ready")
+    #require(resumeStatus.subtitle == "Implement the approved next slice")
+    #require(dirtyStatus.title == "Worktree dirty")
+    #require(dirtyStatus.subtitle.hasPrefix("Uncommitted or untracked changes remain"))
+    #require(dirtyStatus.actionLabel == "Clean Worktree")
+    #require(promotionStatus.title == "Promotion failed")
+    #require(promotionStatus.actionLabel == "Resolve Promotion")
+    #require(promotionStatus.metadata == "#12 · compass/dev-123")
   }
 
+  @Test
   func testMultipleCueSidebarStatusReportsCountLabel() {
     let session = makeSession(
       8,
@@ -205,13 +209,14 @@ final class ProjectSidebarStatusTests: XCTestCase {
       reliabilityStatus: ProjectReliabilityStatus(feedback: feedback)
     )
 
-    XCTAssertEqual(sidebarStatus.cueCount, 2)
-    XCTAssertEqual(sidebarStatus.countLabel, "2 cues")
-    XCTAssertEqual(sidebarStatus.title, "Verify failed")
-    XCTAssertTrue(sidebarStatus.helpText.contains("2 cues"))
-    XCTAssertTrue(sidebarStatus.accessibilityLabel.contains("2 cues"))
+    #require(sidebarStatus.cueCount == 2)
+    #require(sidebarStatus.countLabel == "2 cues")
+    #require(sidebarStatus.title == "Verify failed")
+    #require(sidebarStatus.helpText.contains("2 cues"))
+    #require(sidebarStatus.accessibilityLabel.contains("2 cues"))
   }
 
+  @Test
   func testSidebarSubtitleIsBoundedForCompactRows() {
     let session = makeSession(
       9,
@@ -230,11 +235,12 @@ final class ProjectSidebarStatusTests: XCTestCase {
       subtitleLimit: 45
     )
 
-    XCTAssertLessThanOrEqual(sidebarStatus.subtitle.count, 45)
-    XCTAssertTrue(sidebarStatus.subtitle.hasPrefix("First line second line"))
-    XCTAssertTrue(sidebarStatus.subtitle.hasSuffix("..."))
+    #require(sidebarStatus.subtitle.count <= 45)
+    #require(sidebarStatus.subtitle.hasPrefix("First line second line"))
+    #require(sidebarStatus.subtitle.hasSuffix("..."))
   }
 
+  @Test
   func testRunningAndPausedPhaseCanCoexistWithReliabilityCue() {
     let feedback = PlanReliabilityFeedback(
       state: makeState(),
@@ -262,13 +268,13 @@ final class ProjectSidebarStatusTests: XCTestCase {
       isAutoPlaying: true
     )
 
-    XCTAssertTrue(pausedWhileRunning.hasReliabilityCue)
-    XCTAssertTrue(pausedWhileRunning.showsProgress)
-    XCTAssertEqual(pausedWhileRunning.phaseLabel, "Pausing after iteration")
-    XCTAssertEqual(pausedWhileRunning.title, "Develop blocked")
-    XCTAssertTrue(autoPlaying.hasReliabilityCue)
-    XCTAssertTrue(autoPlaying.showsProgress)
-    XCTAssertEqual(autoPlaying.phaseLabel, "Auto - Verifying")
+    #require(pausedWhileRunning.hasReliabilityCue)
+    #require(pausedWhileRunning.showsProgress)
+    #require(pausedWhileRunning.phaseLabel == "Pausing after iteration")
+    #require(pausedWhileRunning.title == "Develop blocked")
+    #require(autoPlaying.hasReliabilityCue)
+    #require(autoPlaying.showsProgress)
+    #require(autoPlaying.phaseLabel == "Auto - Verifying")
   }
 
   private func makeSidebarStatus(

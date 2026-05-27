@@ -1,5 +1,5 @@
 import Foundation
-import XCTest
+import Testing
 
 @testable import Compass
 
@@ -8,25 +8,24 @@ import XCTest
 /// decide whether the user edited the host repo while Compass was
 /// closed — a stale fingerprint silently discards those edits, so the
 /// invariants here matter for correctness, not just hygiene.
-final class SharedCompassVMHostFingerprintTests: XCTestCase {
+struct SharedCompassVMHostFingerprintTests {
 
   private var repo: URL!
 
-  override func setUpWithError() throws {
+  func setup() throws {
     repo = try makeTempDir()
-    try XCTSkipUnless(
-      initGitRepo(at: repo),
-      "git is not available on this host; skipping fingerprint tests"
-    )
+    // Skip this test if git isn't available on this host
+    #require(initGitRepo(at: repo), "git is not available on this host; skipping fingerprint tests")
   }
 
-  override func tearDownWithError() throws {
+  func teardown() {
     if let repo {
       try? FileManager.default.removeItem(at: repo)
     }
     repo = nil
   }
 
+  @Test
   func testFingerprintIsStableAcrossIdenticalRepos() throws {
     try writeFile("a.swift", contents: "hello")
     try writeFile("docs/b.md", contents: "# hi")
@@ -34,11 +33,12 @@ final class SharedCompassVMHostFingerprintTests: XCTestCase {
     let first = try SharedCompassVMHostFingerprint.compute(at: repo)
     let second = try SharedCompassVMHostFingerprint.compute(at: repo)
 
-    XCTAssertEqual(first.fingerprint, second.fingerprint)
-    XCTAssertEqual(first.fileSet, second.fileSet)
-    XCTAssertEqual(first.fileSet, ["a.swift", "docs/b.md"])
+    #require(first.fingerprint == second.fingerprint)
+    #require(first.fileSet == second.fileSet)
+    #require(first.fileSet == ["a.swift", "docs/b.md"])
   }
 
+  @Test
   func testFingerprintChangesWhenContentChanges() throws {
     try writeFile("a.swift", contents: "v1")
     let before = try SharedCompassVMHostFingerprint.compute(at: repo)
@@ -46,10 +46,11 @@ final class SharedCompassVMHostFingerprintTests: XCTestCase {
     try writeFile("a.swift", contents: "v2")
     let after = try SharedCompassVMHostFingerprint.compute(at: repo)
 
-    XCTAssertNotEqual(before.fingerprint, after.fingerprint)
-    XCTAssertEqual(before.fileSet, after.fileSet, "Same paths, content-only change")
+    #require(before.fingerprint != after.fingerprint)
+    #require(before.fileSet == after.fileSet, "Same paths, content-only change")
   }
 
+  @Test
   func testFingerprintChangesWhenFileAdded() throws {
     try writeFile("a.swift", contents: "x")
     let before = try SharedCompassVMHostFingerprint.compute(at: repo)
@@ -57,38 +58,36 @@ final class SharedCompassVMHostFingerprintTests: XCTestCase {
     try writeFile("b.swift", contents: "y")
     let after = try SharedCompassVMHostFingerprint.compute(at: repo)
 
-    XCTAssertNotEqual(before.fingerprint, after.fingerprint)
-    XCTAssertEqual(after.fileSet, ["a.swift", "b.swift"])
+    #require(before.fingerprint != after.fingerprint)
+    #require(after.fileSet == ["a.swift", "b.swift"])
   }
 
+  @Test
   func testFingerprintRespectsGitignore() throws {
     try writeFile("a.swift", contents: "x")
     try writeFile(".gitignore", contents: "secret.env\n")
     let before = try SharedCompassVMHostFingerprint.compute(at: repo)
 
-    // An ignored file should not affect the fingerprint — otherwise
-    // every `.env` tweak would needlessly invalidate the guest copy.
     try writeFile("secret.env", contents: "TOKEN=abc")
     let after = try SharedCompassVMHostFingerprint.compute(at: repo)
 
-    XCTAssertEqual(before.fingerprint, after.fingerprint)
-    XCTAssertFalse(after.fileSet.contains("secret.env"))
+    #require(before.fingerprint == after.fingerprint)
+    #require(!after.fileSet.contains("secret.env"))
   }
 
+  @Test
   func testFingerprintCoversUntrackedNotIgnoredFiles() throws {
     try writeFile("a.swift", contents: "x")
     let before = try SharedCompassVMHostFingerprint.compute(at: repo)
 
-    // No .gitignore mentions it, so this untracked file should count
-    // — it's exactly the kind of edit a user makes between sessions
-    // that we need to push to the guest.
     try writeFile("scratch.swift", contents: "tmp")
     let after = try SharedCompassVMHostFingerprint.compute(at: repo)
 
-    XCTAssertNotEqual(before.fingerprint, after.fingerprint)
-    XCTAssertTrue(after.fileSet.contains("scratch.swift"))
+    #require(before.fingerprint != after.fingerprint)
+    #require(after.fileSet.contains("scratch.swift"))
   }
 
+  @Test
   func testFingerprintHashesSymlinkByTarget() throws {
     try writeFile("a.swift", contents: "x")
     let targetDir = repo.appendingPathComponent("payload")
@@ -100,9 +99,10 @@ final class SharedCompassVMHostFingerprintTests: XCTestCase {
 
     let result = try SharedCompassVMHostFingerprint.compute(at: repo)
 
-    XCTAssertTrue(result.fileSet.contains("link"))
+    #require(result.fileSet.contains("link"))
   }
 
+  @Test
   func testFingerprintExcludesBuildArtifactsEvenWithoutGitignore() throws {
     try writeFile("a.swift", contents: "x")
     let artifact = repo.appendingPathComponent(".build/debug/App.swift")
@@ -114,7 +114,7 @@ final class SharedCompassVMHostFingerprintTests: XCTestCase {
 
     let result = try SharedCompassVMHostFingerprint.compute(at: repo)
 
-    XCTAssertEqual(result.fileSet, ["a.swift"])
+    #require(result.fileSet == ["a.swift"])
   }
 
   // MARK: - Helpers
@@ -140,7 +140,7 @@ final class SharedCompassVMHostFingerprintTests: XCTestCase {
     process.launchPath = "/bin/zsh"
     process.arguments = [
       "-lc",
-      "git init -q && git -c user.email=t@t -c user.name=t commit -q --allow-empty -m init",
+      "git init -q && git -c user.email=t@t -c user.name=t commit main -q --allow-empty -m init && git branch -M main",
     ]
     process.currentDirectoryURL = url
     process.standardOutput = Pipe()

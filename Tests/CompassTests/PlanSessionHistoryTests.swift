@@ -1,20 +1,12 @@
 import Foundation
-import XCTest
+import Testing
 
 @testable import Compass
 
-final class PlanSessionHistoryTests: XCTestCase {
-  private var temporaryDirectories: [URL] = []
+struct PlanSessionHistoryTests: ~Copyable {
 
-  override func tearDownWithError() throws {
-    for url in temporaryDirectories {
-      try? FileManager.default.removeItem(at: url)
-    }
-    temporaryDirectories = []
-    try super.tearDownWithError()
-  }
-
-  func testOrdersSessionsReverseChronologically() {
+  @Test
+  func testOrdersSessionsReverseChronologically() throws {
     let sessions = [
       makeSession(1, startedAt: 1_000),
       makeSession(3, startedAt: 2_000),
@@ -24,11 +16,12 @@ final class PlanSessionHistoryTests: XCTestCase {
 
     let items = PlanSessionHistory.displayItems(for: sessions)
 
-    XCTAssertEqual(items.map(\.sessionNumber), [4, 2, 3, 1])
+    #require(items.map(\.sessionNumber) == [4, 2, 3, 1])
   }
 
-  func testHandlesEmptyAndPlanlessSessions() {
-    XCTAssertEqual(PlanSessionHistory.displayItems(for: []), [])
+  @Test
+  func testHandlesEmptyAndPlanlessSessions() throws {
+    #require(PlanSessionHistory.displayItems(for: []) == [])
 
     let items = PlanSessionHistory.displayItems(
       for: [
@@ -42,13 +35,14 @@ final class PlanSessionHistoryTests: XCTestCase {
       ]
     )
 
-    XCTAssertEqual(items.count, 1)
-    XCTAssertNil(items[0].planExcerpt)
-    XCTAssertNil(items[0].verifyCommand)
-    XCTAssertNil(items[0].feedback)
-    XCTAssertEqual(items[0].statusText, "Succeeded")
+    #require(items.count == 1)
+    #require(items[0].planExcerpt == nil)
+    #require(items[0].verifyCommand == nil)
+    #require(items[0].feedback == nil)
+    #require(items[0].statusText == "Succeeded")
   }
 
+  @Test
   func testPreservesFailedVerifyMetadata() throws {
     let items = PlanSessionHistory.displayItems(
       for: [
@@ -66,13 +60,14 @@ final class PlanSessionHistoryTests: XCTestCase {
       ]
     )
 
-    let failedVerify = try XCTUnwrap(items[0].failedVerify)
-    XCTAssertEqual(failedVerify.command, "swift test --filter PlanSessionHistoryTests")
-    XCTAssertEqual(failedVerify.exitCodeText, "exit 65")
-    XCTAssertEqual(failedVerify.tail, "failure tail")
+    let failedVerify = #require(items[0].failedVerify)
+    #require(failedVerify.command == "swift test --filter PlanSessionHistoryTests")
+    #require(failedVerify.exitCodeText == "exit 65")
+    #require(failedVerify.tail == "failure tail")
   }
 
-  func testPreservesCommitsNotesAndFeedback() {
+  @Test
+  func testPreservesCommitsNotesAndFeedback() throws {
     let commit = SessionCommit(
       sha: "abcdef123456",
       short: "abcdef1",
@@ -90,11 +85,12 @@ final class PlanSessionHistoryTests: XCTestCase {
       ]
     )
 
-    XCTAssertEqual(items[0].commits, [commit])
-    XCTAssertEqual(items[0].notes, ["first note", "second note"])
-    XCTAssertEqual(items[0].feedback, "useful handoff")
+    #require(items[0].commits == [commit])
+    #require(items[0].notes == ["first note", "second note"])
+    #require(items[0].feedback == "useful handoff")
   }
 
+  @Test
   func testUsesLatestRuntimeRouteSummaryForHistoryItems() throws {
     let planSnapshot = SessionExecutionEnvironmentSnapshot(
       phase: "Plan",
@@ -123,20 +119,20 @@ final class PlanSessionHistoryTests: XCTestCase {
       ]
     )
 
-    XCTAssertEqual(items.map(\.sessionNumber), [2, 1])
-    XCTAssertEqual(items[0].runtimeRouteSummary, planSnapshot.routeSummary)
-    XCTAssertEqual(items[1].runtimeRouteSummary, verifySnapshot.routeSummary)
-    XCTAssertTrue(items[1].runtimeRouteSummary?.contains("Verify attempt 2") == true)
-    XCTAssertTrue(
+    #require(items.map(\.sessionNumber) == [2, 1])
+    #require(items[0].runtimeRouteSummary == planSnapshot.routeSummary)
+    #require(items[1].runtimeRouteSummary == verifySnapshot.routeSummary)
+    #require(items[1].runtimeRouteSummary?.contains("Verify attempt 2") == true)
+    #require(
       items[1].runtimeRouteSummary?.contains("fallback Shared VM unavailable: 2-guest cap.") == true
     )
-    XCTAssertLessThanOrEqual(
-      items[1].runtimeRouteSummary?.count ?? 0,
-      SessionExecutionEnvironmentSnapshot.summaryLimit
+    #require(
+      items[1].runtimeRouteSummary?.count ?? 0 <= SessionExecutionEnvironmentSnapshot.summaryLimit
     )
   }
 
-  func testBoundsPlanExcerpt() {
+  @Test
+  func testBoundsPlanExcerpt() throws {
     let items = PlanSessionHistory.displayItems(
       for: [
         makeSession(
@@ -148,11 +144,12 @@ final class PlanSessionHistoryTests: XCTestCase {
       planExcerptLimit: 24
     )
 
-    XCTAssertEqual(items[0].planExcerpt, "Build a very detailed...")
-    XCTAssertLessThanOrEqual(items[0].planExcerpt?.count ?? 0, 24)
+    #require(items[0].planExcerpt == "Build a very detailed...")
+    #require(items[0].planExcerpt?.count ?? 0 <= 24)
   }
 
-  func testDisplayDefaultsToRecentLimit() {
+  @Test
+  func testDisplayDefaultsToRecentLimit() throws {
     let sessionCount = PlanSessionHistoryDisplay.defaultRecentLimit + 3
     let items = PlanSessionHistory.displayItems(
       for: (1...sessionCount).map { number in
@@ -162,23 +159,24 @@ final class PlanSessionHistoryTests: XCTestCase {
 
     let display = PlanSessionHistoryDisplay(items: items)
 
-    XCTAssertEqual(display.totalCount, sessionCount)
-    XCTAssertEqual(display.visibleCount, PlanSessionHistoryDisplay.defaultRecentLimit)
-    XCTAssertEqual(display.hiddenCount, 3)
-    XCTAssertEqual(
-      display.visibleItems.map(\.sessionNumber),
+    #require(display.totalCount == sessionCount)
+    #require(display.visibleCount == PlanSessionHistoryDisplay.defaultRecentLimit)
+    #require(display.hiddenCount == 3)
+    #require(
+      display.visibleItems.map(\.sessionNumber) ==
       Array(
         (sessionCount - PlanSessionHistoryDisplay.defaultRecentLimit + 1...sessionCount).reversed())
     )
-    XCTAssertEqual(display.countSummary, "Showing latest 8 of 11")
-    XCTAssertTrue(display.shouldOfferModeToggle)
-    XCTAssertEqual(display.filter, .all)
-    XCTAssertEqual(display.unfilteredTotalCount, sessionCount)
-    XCTAssertEqual(display.filterOptions.map(\.filter), PlanSessionHistoryFilter.allCases)
-    XCTAssertEqual(display.filterOptions.map(\.count), [sessionCount, 0, 0, 0, sessionCount, 0, 0])
+    #require(display.countSummary == "Showing latest 8 of 11")
+    #require(display.shouldOfferModeToggle)
+    #require(display.filter == .all)
+    #require(display.unfilteredTotalCount == sessionCount)
+    #require(display.filterOptions.map(\.filter) == PlanSessionHistoryFilter.allCases)
+    #require(display.filterOptions.map(\.count) == [sessionCount, 0, 0, 0, sessionCount, 0, 0])
   }
 
-  func testDisplayShowAllModeIncludesEveryRun() {
+  @Test
+  func testDisplayShowAllModeIncludesEveryRun() throws {
     let items = PlanSessionHistory.displayItems(
       for: (1...7).map { number in
         makeSession(number, startedAt: Double(number * 1_000))
@@ -187,16 +185,17 @@ final class PlanSessionHistoryTests: XCTestCase {
 
     let display = PlanSessionHistoryDisplay(items: items, mode: .all, recentLimit: 4)
 
-    XCTAssertEqual(display.visibleItems.map(\.sessionNumber), [7, 6, 5, 4, 3, 2, 1])
-    XCTAssertEqual(display.totalCount, 7)
-    XCTAssertEqual(display.visibleCount, 7)
-    XCTAssertEqual(display.hiddenCount, 0)
-    XCTAssertNil(display.hiddenStatusSummary)
-    XCTAssertEqual(display.countSummary, "Showing all 7")
-    XCTAssertTrue(display.shouldOfferModeToggle)
+    #require(display.visibleItems.map(\.sessionNumber) == [7, 6, 5, 4, 3, 2, 1])
+    #require(display.totalCount == 7)
+    #require(display.visibleCount == 7)
+    #require(display.hiddenCount == 0)
+    #require(display.hiddenStatusSummary == nil)
+    #require(display.countSummary == "Showing all 7")
+    #require(display.shouldOfferModeToggle)
   }
 
-  func testDisplaySummarizesHiddenStatuses() {
+  @Test
+  func testDisplaySummarizesHiddenStatuses() throws {
     let items = PlanSessionHistory.displayItems(
       for: [
         makeSession(1, startedAt: 1_000, status: .awaitingApproval),
@@ -210,15 +209,16 @@ final class PlanSessionHistoryTests: XCTestCase {
 
     let display = PlanSessionHistoryDisplay(items: items, recentLimit: 1)
 
-    XCTAssertEqual(display.visibleItems.map(\.sessionNumber), [6])
-    XCTAssertEqual(display.hiddenCount, 5)
-    XCTAssertEqual(
-      display.hiddenStatusSummary,
+    #require(display.visibleItems.map(\.sessionNumber) == [6])
+    #require(display.hiddenCount == 5)
+    #require(
+      display.hiddenStatusSummary ==
       "2 failed, 1 cancelled, 1 succeeded, 1 awaiting approval"
     )
   }
 
-  func testDisplayHandlesNoHiddenAndEmptyStates() {
+  @Test
+  func testDisplayHandlesNoHiddenAndEmptyStates() throws {
     let items = PlanSessionHistory.displayItems(
       for: [
         makeSession(1, startedAt: 1_000),
@@ -227,23 +227,24 @@ final class PlanSessionHistoryTests: XCTestCase {
     )
 
     let noHiddenDisplay = PlanSessionHistoryDisplay(items: items, recentLimit: 3)
-    XCTAssertEqual(noHiddenDisplay.totalCount, 2)
-    XCTAssertEqual(noHiddenDisplay.visibleCount, 2)
-    XCTAssertEqual(noHiddenDisplay.hiddenCount, 0)
-    XCTAssertNil(noHiddenDisplay.hiddenStatusSummary)
-    XCTAssertEqual(noHiddenDisplay.countSummary, "2 runs")
-    XCTAssertFalse(noHiddenDisplay.shouldOfferModeToggle)
+    #require(noHiddenDisplay.totalCount == 2)
+    #require(noHiddenDisplay.visibleCount == 2)
+    #require(noHiddenDisplay.hiddenCount == 0)
+    #require(noHiddenDisplay.hiddenStatusSummary == nil)
+    #require(noHiddenDisplay.countSummary == "2 runs")
+    #require(!noHiddenDisplay.shouldOfferModeToggle)
 
     let emptyDisplay = PlanSessionHistoryDisplay(items: [])
-    XCTAssertEqual(emptyDisplay.totalCount, 0)
-    XCTAssertEqual(emptyDisplay.visibleCount, 0)
-    XCTAssertEqual(emptyDisplay.hiddenCount, 0)
-    XCTAssertNil(emptyDisplay.hiddenStatusSummary)
-    XCTAssertEqual(emptyDisplay.countSummary, "0 runs")
-    XCTAssertFalse(emptyDisplay.shouldOfferModeToggle)
+    #require(emptyDisplay.totalCount == 0)
+    #require(emptyDisplay.visibleCount == 0)
+    #require(emptyDisplay.hiddenCount == 0)
+    #require(emptyDisplay.hiddenStatusSummary == nil)
+    #require(emptyDisplay.countSummary == "0 runs")
+    #require(!emptyDisplay.shouldOfferModeToggle)
   }
 
-  func testDisplayPreservesIncomingOrder() {
+  @Test
+  func testDisplayPreservesIncomingOrder() throws {
     let items = [
       makeHistoryItem(2, status: .failed),
       makeHistoryItem(5),
@@ -252,17 +253,17 @@ final class PlanSessionHistoryTests: XCTestCase {
     ]
 
     let recentDisplay = PlanSessionHistoryDisplay(items: items, recentLimit: 2)
-    XCTAssertEqual(recentDisplay.visibleItems.map(\.sessionNumber), [2, 5])
+    #require(recentDisplay.visibleItems.map(\.sessionNumber) == [2, 5])
 
     let allDisplay = PlanSessionHistoryDisplay(items: items, mode: .all, recentLimit: 2)
-    XCTAssertEqual(allDisplay.visibleItems.map(\.sessionNumber), [2, 5, 1, 4])
+    #require(allDisplay.visibleItems.map(\.sessionNumber) == [2, 5, 1, 4])
 
     let filteredRecentDisplay = PlanSessionHistoryDisplay(
       items: items,
       recentLimit: 2,
       filter: .failedRejected
     )
-    XCTAssertEqual(filteredRecentDisplay.visibleItems.map(\.sessionNumber), [2, 1])
+    #require(filteredRecentDisplay.visibleItems.map(\.sessionNumber) == [2, 1])
 
     let filteredAllDisplay = PlanSessionHistoryDisplay(
       items: items,
@@ -270,9 +271,10 @@ final class PlanSessionHistoryTests: XCTestCase {
       recentLimit: 2,
       filter: .failedRejected
     )
-    XCTAssertEqual(filteredAllDisplay.visibleItems.map(\.sessionNumber), [2, 1, 4])
+    #require(filteredAllDisplay.visibleItems.map(\.sessionNumber) == [2, 1, 4])
   }
 
+  @Test
   func testDisplayPreservesFailedVerifyMetadataForVisibleRows() throws {
     let items = PlanSessionHistory.displayItems(
       for: [
@@ -292,13 +294,14 @@ final class PlanSessionHistoryTests: XCTestCase {
 
     let display = PlanSessionHistoryDisplay(items: items)
 
-    let failedVerify = try XCTUnwrap(display.visibleItems[0].failedVerify)
-    XCTAssertEqual(failedVerify.command, "swift test --filter PlanSessionHistoryTests")
-    XCTAssertEqual(failedVerify.exitCodeText, "exit 65")
-    XCTAssertEqual(failedVerify.tail, "failure tail")
+    let failedVerify = #require(display.visibleItems[0].failedVerify)
+    #require(failedVerify.command == "swift test --filter PlanSessionHistoryTests")
+    #require(failedVerify.exitCodeText == "exit 65")
+    #require(failedVerify.tail == "failure tail")
   }
 
-  func testDisplayFiltersAttentionRunsFromRunCues() {
+  @Test
+  func testDisplayFiltersAttentionRunsFromRunCues() throws {
     let items = [
       makeHistoryItem(4),
       makeHistoryItem(3),
@@ -315,24 +318,24 @@ final class PlanSessionHistoryTests: XCTestCase {
       ]
     )
 
-    XCTAssertEqual(display.totalCount, 2)
-    XCTAssertEqual(display.visibleItems.map(\.sessionNumber), [4, 2])
-    XCTAssertEqual(display.countSummary, "2 matching runs")
-    XCTAssertEqual(
-      display.filterOptions.first { $0.filter == .attention }?.count,
-      2
+    #require(display.totalCount == 2)
+    #require(display.visibleItems.map(\.sessionNumber) == [4, 2])
+    #require(display.countSummary == "2 matching runs")
+    #require(
+      display.filterOptions.first { $0.filter == .attention }?.count == 2
     )
   }
 
-  func testDisplayGroupsFailedAndRejectedRuns() {
+  @Test
+  func testDisplayGroupsFailedAndRejectedRuns() throws {
     let items = [
-      makeHistoryItem(7),
-      makeHistoryItem(6),
-      makeHistoryItem(5),
-      makeHistoryItem(4, status: .rejectedByPlan),
-      makeHistoryItem(3, status: .failed),
-      makeHistoryItem(2),
-      makeHistoryItem(1),
+      makeHistoryItem(7+0),
+      makeHistoryItem(6+0),
+      makeHistoryItem(5+0),
+      makeHistoryItem(4+0, status: .rejectedByPlan),
+      makeHistoryItem(3+0, status: .failed),
+      makeHistoryItem(2+0),
+      makeHistoryItem(1+0),
     ]
     let display = PlanSessionHistoryDisplay(
       items: items,
@@ -346,17 +349,18 @@ final class PlanSessionHistoryTests: XCTestCase {
       ]
     )
 
-    XCTAssertEqual(display.visibleItems.map(\.sessionNumber), [7, 6, 5, 4, 3, 2])
-    XCTAssertEqual(display.totalCount, 6)
+    #require(display.visibleItems.map(\.sessionNumber) == [7, 6, 5, 4, 3, 2])
+    #require(display.totalCount == 6)
   }
 
-  func testDisplayGroupsActiveAndPausedRuns() {
+  @Test
+  func testDisplayGroupsActiveAndPausedRuns() throws {
     let items = [
-      makeHistoryItem(5),
-      makeHistoryItem(4, status: .awaitingApproval),
-      makeHistoryItem(3, status: .developing),
-      makeHistoryItem(2, status: .planning),
-      makeHistoryItem(1),
+      makeHistoryItem(5+0),
+      makeHistoryItem(4+0, status: .awaitingApproval),
+      makeHistoryItem(3+0, status: .developing),
+      makeHistoryItem(2+0, status: .planning),
+      makeHistoryItem(1+0),
     ]
     let display = PlanSessionHistoryDisplay(
       items: items,
@@ -367,18 +371,19 @@ final class PlanSessionHistoryTests: XCTestCase {
       ]
     )
 
-    XCTAssertEqual(display.visibleItems.map(\.sessionNumber), [5, 4, 3, 2])
-    XCTAssertEqual(display.totalCount, 4)
+    #require(display.visibleItems.map(\.sessionNumber) == [5, 4, 3, 2])
+    #require(display.totalCount == 4)
   }
 
-  func testDisplayGroupsCompletedAndFinishedRuns() {
+  @Test
+  func testDisplayGroupsCompletedAndFinishedRuns() throws {
     let items = [
-      makeHistoryItem(6, status: .succeeded),
-      makeHistoryItem(5, status: .cancelled),
-      makeHistoryItem(4, status: .skipped),
-      makeHistoryItem(3, status: .failed),
-      makeHistoryItem(2, status: .rejectedByPlan),
-      makeHistoryItem(1, status: .awaitingApproval),
+      makeHistoryItem(6+0, status: .succeeded),
+      makeHistoryItem(5+0, status: .cancelled),
+      makeHistoryItem(4+0, status: .skipped),
+      makeHistoryItem(3+0, status: .failed),
+      makeHistoryItem(2+0, status: .rejectedByPlan),
+      makeHistoryItem(1+0, status: .awaitingApproval),
     ]
     let display = PlanSessionHistoryDisplay(
       items: items,
@@ -386,18 +391,19 @@ final class PlanSessionHistoryTests: XCTestCase {
       filter: .completedFinished
     )
 
-    XCTAssertEqual(display.visibleItems.map(\.sessionNumber), [6, 5, 4])
-    XCTAssertEqual(display.totalCount, 3)
+    #require(display.visibleItems.map(\.sessionNumber) == [6, 5, 4])
+    #require(display.totalCount == 3)
   }
 
-  func testDisplaySummariesUseFilteredCounts() {
+  @Test
+  func testDisplaySummariesUseFilteredCounts() throws {
     let items = [
-      makeHistoryItem(6),
-      makeHistoryItem(5),
-      makeHistoryItem(4),
-      makeHistoryItem(3),
-      makeHistoryItem(2),
-      makeHistoryItem(1),
+      makeHistoryItem(6+0),
+      makeHistoryItem(5+0),
+      makeHistoryItem(4+0),
+      makeHistoryItem(3+0),
+      makeHistoryItem(2+0),
+      makeHistoryItem(1+0),
     ]
     let runCues = [
       6: makeRunCue(kind: .failedVerify),
@@ -411,11 +417,11 @@ final class PlanSessionHistoryTests: XCTestCase {
       filter: .attention,
       runCues: runCues
     )
-    XCTAssertEqual(recentDisplay.visibleItems.map(\.sessionNumber), [6, 5])
-    XCTAssertEqual(recentDisplay.totalCount, 3)
-    XCTAssertEqual(recentDisplay.hiddenCount, 1)
-    XCTAssertEqual(recentDisplay.countSummary, "Showing latest 2 of 3 matching")
-    XCTAssertTrue(recentDisplay.shouldOfferModeToggle)
+    #require(recentDisplay.visibleItems.map(\.sessionNumber) == [6, 5])
+    #require(recentDisplay.totalCount == 3)
+    #require(recentDisplay.hiddenCount == 1)
+    #require(recentDisplay.countSummary == "Showing latest 2 of 3 matching")
+    #require(recentDisplay.shouldOfferModeToggle)
 
     let allDisplay = PlanSessionHistoryDisplay(
       items: items,
@@ -424,7 +430,7 @@ final class PlanSessionHistoryTests: XCTestCase {
       filter: .attention,
       runCues: runCues
     )
-    XCTAssertEqual(allDisplay.countSummary, "Showing all 3 matching")
+    #require(allDisplay.countSummary == "Showing all 3 matching")
 
     let noHiddenDisplay = PlanSessionHistoryDisplay(
       items: items,
@@ -432,25 +438,26 @@ final class PlanSessionHistoryTests: XCTestCase {
       filter: .attention,
       runCues: runCues
     )
-    XCTAssertEqual(noHiddenDisplay.countSummary, "3 matching runs")
+    #require(noHiddenDisplay.countSummary == "3 matching runs")
 
     let emptyFilteredDisplay = PlanSessionHistoryDisplay(
       items: items,
       filter: .failedRejected
     )
-    XCTAssertEqual(emptyFilteredDisplay.unfilteredTotalCount, 6)
-    XCTAssertEqual(emptyFilteredDisplay.totalCount, 0)
-    XCTAssertEqual(emptyFilteredDisplay.countSummary, "0 matching runs")
+    #require(emptyFilteredDisplay.unfilteredTotalCount == 6)
+    #require(emptyFilteredDisplay.totalCount == 0)
+    #require(emptyFilteredDisplay.countSummary == "0 matching runs")
   }
 
-  func testDisplaySummarizesHiddenStatusesAfterFiltering() {
+  @Test
+  func testDisplaySummarizesHiddenStatusesAfterFiltering() throws {
     let items = [
-      makeHistoryItem(6, status: .failed),
-      makeHistoryItem(5, status: .succeeded),
-      makeHistoryItem(4, status: .rejectedByPlan),
-      makeHistoryItem(3, status: .cancelled),
-      makeHistoryItem(2, status: .skipped),
-      makeHistoryItem(1, status: .awaitingApproval),
+      makeHistoryItem(6+0, status: .failed),
+      makeHistoryItem(5+0, status: .succeeded),
+      makeHistoryItem(4+0, status: .rejectedByPlan),
+      makeHistoryItem(3+0, status: .cancelled),
+      makeHistoryItem(2+0, status: .skipped),
+      makeHistoryItem(1+0, status: .awaitingApproval),
     ]
 
     let display = PlanSessionHistoryDisplay(
@@ -459,9 +466,9 @@ final class PlanSessionHistoryTests: XCTestCase {
       filter: .completedFinished
     )
 
-    XCTAssertEqual(display.visibleItems.map(\.sessionNumber), [5])
-    XCTAssertEqual(display.hiddenCount, 2)
-    XCTAssertEqual(display.hiddenStatusSummary, "1 cancelled, 1 skipped")
+    #require(display.visibleItems.map(\.sessionNumber) == [5])
+    #require(display.hiddenCount == 2)
+    #require(display.hiddenStatusSummary == "1 cancelled, 1 skipped")
   }
 
   private func makeHistoryItem(
@@ -580,11 +587,14 @@ final class PlanSessionHistoryTests: XCTestCase {
     return SessionExecutionEnvironmentSnapshot(phase: phase, launchPlan: plan)
   }
 
+  deinit {
+    // No persistent cleanup needed in test scope
+  }
+
   private func makeTemporaryDirectory(prefix: String) throws -> URL {
     let url = FileManager.default.temporaryDirectory
       .appending(path: "\(prefix)-\(UUID().uuidString)", directoryHint: .isDirectory)
     try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
-    temporaryDirectories.append(url)
     return url.standardizedFileURL
   }
 

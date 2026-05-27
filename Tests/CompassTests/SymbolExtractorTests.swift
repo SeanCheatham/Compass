@@ -1,11 +1,12 @@
 import Foundation
-import XCTest
+import Testing
 
 @testable import Compass
 
-final class SymbolExtractorTests: XCTestCase {
+struct SymbolExtractorTests {
   private let extractor = SymbolExtractor()
 
+  @Test
   func testSwiftFixtureExtractsExpectedSymbols() throws {
     let source = """
       import Foundation
@@ -35,34 +36,35 @@ final class SymbolExtractorTests: XCTestCase {
 
     let extraction = try extractor.extract(source: source, language: .swift)
 
-    XCTAssertEqual(extraction.imports.map(\.raw), ["Foundation", "Compass"])
-    XCTAssertEqual(extraction.imports.map(\.line), [1, 2])
+    #require(extraction.imports.map(\.raw) == ["Foundation", "Compass"])
+    #require(extraction.imports.map(\.line) == [1, 2])
 
     let names = extraction.symbols.map(\.name)
-    XCTAssertTrue(names.contains("Animal"))
-    XCTAssertTrue(names.contains("Point2D"))
-    XCTAssertTrue(names.contains("Greeter"))
-    XCTAssertTrue(names.contains("Direction"))
-    XCTAssertTrue(names.contains("topLevelHelper"))
-    XCTAssertTrue(names.contains("Pair"))
-    XCTAssertTrue(names.contains("bark"))
-    XCTAssertTrue(names.contains("greet"))
+    #require(names.contains("Animal"))
+    #require(names.contains("Point2D"))
+    #require(names.contains("Greeter"))
+    #require(names.contains("Direction"))
+    #require(names.contains("topLevelHelper"))
+    #require(names.contains("Pair"))
+    #require(names.contains("bark"))
+    #require(names.contains("greet"))
 
     let kindByName: [String: CodemapSymbolKind] = Dictionary(
       uniqueKeysWithValues: extraction.symbols.map { ($0.name, $0.kind) }
     )
-    XCTAssertEqual(kindByName["Animal"], .class)
-    XCTAssertEqual(kindByName["Greeter"], .interface)
-    XCTAssertEqual(kindByName["topLevelHelper"], .function)
-    XCTAssertEqual(kindByName["Pair"], .type)
-    XCTAssertEqual(kindByName["bark"], .function)
-    XCTAssertEqual(kindByName["greet"], .method)
+    #require(kindByName["Animal"] == .class)
+    #require(kindByName["Greeter"] == .interface)
+    #require(kindByName["topLevelHelper"] == .function)
+    #require(kindByName["Pair"] == .type)
+    #require(kindByName["bark"] == .function)
+    #require(kindByName["greet"] == .method)
 
-    let animal = try XCTUnwrap(extraction.symbols.first { $0.name == "Animal" })
-    XCTAssertEqual(animal.line, 4)
-    XCTAssertGreaterThan(animal.endLine, animal.line)
+    let animal = #require(extraction.symbols.first { $0.name == "Animal" })
+    #require(animal.line == 4)
+    #require(animal.endLine > animal.line)
   }
 
+  @Test
   func testTypeScriptFixtureExtractsClassFunctionInterface() throws {
     let source = """
       import { foo } from "./foo";
@@ -87,16 +89,17 @@ final class SymbolExtractorTests: XCTestCase {
 
     let extraction = try extractor.extract(source: source, language: .typescript)
 
-    XCTAssertEqual(extraction.imports.map(\.raw), ["./foo", "bar"])
+    #require(extraction.imports.map(\.raw) == ["./foo", "bar"])
     let names = Set(extraction.symbols.map(\.name))
-    XCTAssertTrue(names.contains("Service"))
-    XCTAssertTrue(names.contains("Greeter"))
-    XCTAssertTrue(names.contains("topLevel"))
-    XCTAssertTrue(names.contains("Pair"))
-    XCTAssertTrue(names.contains("arrow"))
-    XCTAssertTrue(names.contains("run"))
+    #require(names.contains("Service"))
+    #require(names.contains("Greeter"))
+    #require(names.contains("topLevel"))
+    #require(names.contains("Pair"))
+    #require(names.contains("arrow"))
+    #require(names.contains("run"))
   }
 
+  @Test
   func testPythonFixtureExtractsFunctionAndClass() throws {
     let source = """
       import os
@@ -111,13 +114,14 @@ final class SymbolExtractorTests: XCTestCase {
 
     let extraction = try extractor.extract(source: source, language: .python)
 
-    XCTAssertEqual(extraction.imports.map(\.raw), ["os", "collections"])
+    #require(extraction.imports.map(\.raw) == ["os", "collections"])
     let names = Set(extraction.symbols.map(\.name))
-    XCTAssertTrue(names.contains("greet"))
-    XCTAssertTrue(names.contains("Repo"))
-    XCTAssertTrue(names.contains("commit"))
+    #require(names.contains("greet"))
+    #require(names.contains("Repo"))
+    #require(names.contains("commit"))
   }
 
+  @Test
   func testGoFixtureExtractsFunctionMethodStruct() throws {
     let source = """
       package main
@@ -135,15 +139,16 @@ final class SymbolExtractorTests: XCTestCase {
 
     let extraction = try extractor.extract(source: source, language: .go)
 
-    XCTAssertEqual(extraction.imports.map(\.raw), ["fmt"])
+    #require(extraction.imports.map(\.raw) == ["fmt"])
     let names = Set(extraction.symbols.map(\.name))
-    XCTAssertTrue(names.contains("Server"))
-    XCTAssertTrue(names.contains("Start"))
-    XCTAssertTrue(names.contains("New"))
+    #require(names.contains("Server"))
+    #require(names.contains("Start"))
+    #require(names.contains("New"))
   }
 
-  func testRustFixtureExtractsStructTraitFunctionImpl() throws {
-    let source = """
+  @Test
+  func testRustFixtureExtractsRustTraitFunctionImpl() throws {
+    let source = #"""
       use std::io;
       use serde::Serialize;
 
@@ -160,18 +165,19 @@ final class SymbolExtractorTests: XCTestCase {
       }
 
       pub fn version() -> &'static str { "1.0" }
-      """
+      """#
 
     let extraction = try extractor.extract(source: source, language: .rust)
 
-    XCTAssertEqual(extraction.imports.count, 2)
+    #require(extraction.imports.count == 2)
     let names = Set(extraction.symbols.map(\.name))
-    XCTAssertTrue(names.contains("Cache"))
-    XCTAssertTrue(names.contains("Lookup"))
-    XCTAssertTrue(names.contains("version"))
-    XCTAssertTrue(names.contains("new"))
+    #require(names.contains("Cache"))
+    #require(names.contains("Lookup"))
+    #require(names.contains("version"))
+    #require(names.contains("new"))
   }
 
+  @Test
   func testJavaScriptFixtureExtractsClassFunctionArrow() throws {
     let source = """
       import { x } from "./mod";
@@ -187,14 +193,15 @@ final class SymbolExtractorTests: XCTestCase {
 
     let extraction = try extractor.extract(source: source, language: .javascript)
 
-    XCTAssertEqual(extraction.imports.map(\.raw), ["./mod"])
+    #require(extraction.imports.map(\.raw) == ["./mod"])
     let names = Set(extraction.symbols.map(\.name))
-    XCTAssertTrue(names.contains("Box"))
-    XCTAssertTrue(names.contains("topLevel"))
-    XCTAssertTrue(names.contains("arrow"))
-    XCTAssertTrue(names.contains("open"))
+    #require(names.contains("Box"))
+    #require(names.contains("topLevel"))
+    #require(names.contains("arrow"))
+    #require(names.contains("open"))
   }
 
+  @Test
   func testTSXFixtureSharesTypeScriptExtractor() throws {
     let source = """
       import React from "react";
@@ -208,21 +215,22 @@ final class SymbolExtractorTests: XCTestCase {
 
     let extraction = try extractor.extract(source: source, language: .tsx)
 
-    XCTAssertEqual(extraction.imports.map(\.raw), ["react"])
+    #require(extraction.imports.map(\.raw) == ["react"])
     let names = Set(extraction.symbols.map(\.name))
-    XCTAssertTrue(names.contains("Panel"))
-    XCTAssertTrue(names.contains("Greeting"))
+    #require(names.contains("Panel"))
+    #require(names.contains("Greeting"))
   }
 
+  @Test
   func testLanguageRegistryResolvesByExtension() {
-    XCTAssertEqual(CodemapLanguage.forFile(at: "Foo.swift"), .swift)
-    XCTAssertEqual(CodemapLanguage.forFile(at: "src/foo.ts"), .typescript)
-    XCTAssertEqual(CodemapLanguage.forFile(at: "src/Foo.tsx"), .tsx)
-    XCTAssertEqual(CodemapLanguage.forFile(at: "src/foo.js"), .javascript)
-    XCTAssertEqual(CodemapLanguage.forFile(at: "main.py"), .python)
-    XCTAssertEqual(CodemapLanguage.forFile(at: "main.go"), .go)
-    XCTAssertEqual(CodemapLanguage.forFile(at: "lib.rs"), .rust)
-    XCTAssertNil(CodemapLanguage.forFile(at: "README.md"))
-    XCTAssertNil(CodemapLanguage.forFile(at: "Cargo.toml"))
+    #require(CodemapLanguage.forFile(at: "Foo.swift") == .swift)
+    #require(CodemapLanguage.forFile(at: "src/foo.ts") == .typescript)
+    #require(CodemapLanguage.forFile(at: "src/Foo.tsx") == .tsx)
+    #require(CodemapLanguage.forFile(at: "src/foo.js") == .javascript)
+    #require(CodemapLanguage.forFile(at: "main.py") == .python)
+    #require(CodemapLanguage.forFile(at: "main.go") == .go)
+    #require(CodemapLanguage.forFile(at: "lib.rs") == .rust)
+    #require(CodemapLanguage.forFile(at: "README.md") == nil)
+    #require(CodemapLanguage.forFile(at: "Cargo.toml") == nil)
   }
 }

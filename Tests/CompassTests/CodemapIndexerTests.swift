@@ -1,28 +1,26 @@
 import Foundation
-import XCTest
+import Testing
 
 @testable import Compass
 
-final class CodemapIndexerTests: XCTestCase {
+struct CodemapIndexerTests : ~Copyable {
   private var workingDirectory: URL!
   private var cacheDirectory: URL!
 
-  override func setUpWithError() throws {
+  init() throws {
     workingDirectory = try makeTempDir()
     cacheDirectory = workingDirectory.appendingPathComponent(".compass/codemap")
   }
 
-  override func tearDownWithError() throws {
+  deinit {
     if let workingDirectory {
       try? FileManager.default.removeItem(at: workingDirectory)
     }
-    workingDirectory = nil
-    cacheDirectory = nil
   }
 
   // MARK: - CodemapStore
 
-  func testStoreRoundTripsAnEntry() throws {
+  @Test func testStoreRoundTripsAnEntry() throws {
     let store = CodemapStore(directory: cacheDirectory, prettyPrint: true)
     let entry = CodemapEntry(
       relativePath: "Sources/Compass/Foo.swift",
@@ -44,19 +42,19 @@ final class CodemapIndexerTests: XCTestCase {
     try store.saveEntry(entry)
 
     let url = store.entryURL(forRelativePath: entry.relativePath)
-    XCTAssertTrue(FileManager.default.fileExists(atPath: url.path))
-    XCTAssertEqual(
-      url.lastPathComponent,
+    #require(FileManager.default.fileExists(atPath: url.path))
+    #require(
+      url.lastPathComponent ==
       "\(CodemapHash.sha256Hex(entry.relativePath)).json"
     )
 
-    let loaded = try XCTUnwrap(
+    let loaded = #require(
       store.loadEntry(forRelativePath: entry.relativePath)
     )
-    XCTAssertEqual(loaded, entry)
+    #require(loaded == entry)
   }
 
-  func testStoreDeletesAndIgnoresMissing() throws {
+  @Test func testStoreDeletesAndIgnoresMissing() throws {
     let store = CodemapStore(directory: cacheDirectory)
     let entry = CodemapEntry(
       relativePath: "lib.rs",
@@ -70,24 +68,24 @@ final class CodemapIndexerTests: XCTestCase {
       summaryContentHash: nil
     )
     try store.saveEntry(entry)
-    XCTAssertNotNil(store.loadEntry(forRelativePath: "lib.rs"))
+    #require(store.loadEntry(forRelativePath: "lib.rs") != nil)
     try store.deleteEntry(forRelativePath: "lib.rs")
-    XCTAssertNil(store.loadEntry(forRelativePath: "lib.rs"))
+    #require(store.loadEntry(forRelativePath: "lib.rs") == nil)
     // Idempotent.
-    XCTAssertNoThrow(try store.deleteEntry(forRelativePath: "lib.rs"))
+    try store.deleteEntry(forRelativePath: "lib.rs")
   }
 
-  func testStoreSkipsCorruptEntries() throws {
+  @Test func testStoreSkipsCorruptEntries() throws {
     let store = CodemapStore(directory: cacheDirectory)
     try store.ensureDirectoryExists()
     let corrupt = store.entryURL(forRelativePath: "broken.swift")
     try "{not json".data(using: .utf8)!.write(to: corrupt)
-    XCTAssertNil(store.loadEntry(forRelativePath: "broken.swift"))
+    #require(store.loadEntry(forRelativePath: "broken.swift") == nil)
   }
 
   // MARK: - Indexer
 
-  func testIndexerWritesEntriesForSupportedFiles() async throws {
+  @Test func testIndexerWritesEntriesForSupportedFiles() async throws {
     try writeFile("alpha.swift", contents: swiftFixture)
     try writeFile("nested/beta.py", contents: pythonFixture)
     try writeFile("ignored.bin", contents: "\u{0}\u{1}\u{2}\u{3}\u{4}\u{5}\u{6}\u{7}\u{8}\u{9}")
@@ -96,20 +94,20 @@ final class CodemapIndexerTests: XCTestCase {
     let indexer = makeIndexer(usingGit: false)
     let result = try await indexer.indexAll()
 
-    XCTAssertEqual(result.indexed, 2)
-    XCTAssertEqual(result.failed, 0)
-    XCTAssertEqual(result.pruned, 0)
+    #require(result.indexed == 2)
+    #require(result.failed == 0)
+    #require(result.pruned == 0)
 
     let store = indexer.store
-    let alpha = try XCTUnwrap(store.loadEntry(forRelativePath: "alpha.swift"))
-    XCTAssertEqual(alpha.language, .swift)
-    XCTAssertTrue(alpha.symbols.contains { $0.name == "Greeter" })
-    let beta = try XCTUnwrap(store.loadEntry(forRelativePath: "nested/beta.py"))
-    XCTAssertEqual(beta.language, .python)
-    XCTAssertTrue(beta.symbols.contains { $0.name == "shout" })
+    let alpha = #require(store.loadEntry(forRelativePath: "alpha.swift"))
+    #require(alpha.language == .swift)
+    #require(alpha.symbols.contains { $0.name == "Greeter" })
+    let beta = #require(store.loadEntry(forRelativePath: "nested/beta.py"))
+    #require(beta.language == .python)
+    #require(beta.symbols.contains { $0.name == "shout" })
   }
 
-  func testIndexerSurvivesACacheRoundTrip() async throws {
+  @Test func testIndexerSurvivesACacheRoundTrip() async throws {
     try writeFile("alpha.swift", contents: swiftFixture)
 
     let indexer = makeIndexer(usingGit: false)
@@ -119,11 +117,11 @@ final class CodemapIndexerTests: XCTestCase {
     // existing entry and treat it as unchanged.
     let second = makeIndexer(usingGit: false)
     let result = try await second.indexAll()
-    XCTAssertEqual(result.indexed, 0)
-    XCTAssertEqual(result.unchanged, 1)
+    #require(result.indexed == 0)
+    #require(result.unchanged == 1)
   }
 
-  func testIndexerReParsesOnlyChangedFiles() async throws {
+  @Test func testIndexerReParsesOnlyChangedFiles() async throws {
     try writeFile("alpha.swift", contents: swiftFixture)
     try writeFile("beta.swift", contents: swiftFixture)
 
@@ -137,34 +135,34 @@ final class CodemapIndexerTests: XCTestCase {
     )
 
     let result = try await indexer.indexAll()
-    XCTAssertEqual(result.unchanged, 1)
-    XCTAssertEqual(result.indexed, 1)
+    #require(result.unchanged == 1)
+    #require(result.indexed == 1)
 
-    let updated = try XCTUnwrap(
+    let updated = #require(
       indexer.store.loadEntry(forRelativePath: "beta.swift")
     )
-    XCTAssertTrue(updated.symbols.contains { $0.name == "newlyAdded" })
+    #require(updated.symbols.contains { $0.name == "newlyAdded" })
   }
 
-  func testIndexerPrunesEntriesForDeletedFiles() async throws {
+  @Test func testIndexerPrunesEntriesForDeletedFiles() async throws {
     try writeFile("alpha.swift", contents: swiftFixture)
     try writeFile("beta.swift", contents: swiftFixture)
 
     let indexer = makeIndexer(usingGit: false)
     _ = try await indexer.indexAll()
-    XCTAssertNotNil(indexer.store.loadEntry(forRelativePath: "beta.swift"))
+    #require(indexer.store.loadEntry(forRelativePath: "beta.swift") != nil)
 
     try FileManager.default.removeItem(
       at: workingDirectory.appendingPathComponent("beta.swift")
     )
 
     let result = try await indexer.indexAll()
-    XCTAssertEqual(result.pruned, 1)
-    XCTAssertNil(indexer.store.loadEntry(forRelativePath: "beta.swift"))
-    XCTAssertNotNil(indexer.store.loadEntry(forRelativePath: "alpha.swift"))
+    #require(result.pruned == 1)
+    #require(indexer.store.loadEntry(forRelativePath: "beta.swift") == nil)
+    #require(indexer.store.loadEntry(forRelativePath: "alpha.swift") != nil)
   }
 
-  func testIndexerSkipsFilesAboveSizeCap() async throws {
+  @Test func testIndexerSkipsFilesAboveSizeCap() async throws {
     let huge = String(repeating: "// padding\n", count: 200_000)
     try writeFile("huge.swift", contents: huge)
     try writeFile("alpha.swift", contents: swiftFixture)
@@ -174,25 +172,25 @@ final class CodemapIndexerTests: XCTestCase {
       maxFileBytes: 10_000  // forces huge.swift to skip
     )
     let result = try await indexer.indexAll()
-    XCTAssertEqual(result.indexed, 1)
-    XCTAssertEqual(result.skipped, 1)
-    XCTAssertNil(indexer.store.loadEntry(forRelativePath: "huge.swift"))
+    #require(result.indexed == 1)
+    #require(result.skipped == 1)
+    #require(indexer.store.loadEntry(forRelativePath: "huge.swift") == nil)
   }
 
-  func testIndexerHonorsGitignoreWhenInsideARepo() async throws {
+  @Test func testIndexerHonorsGitignoreWhenInsideARepo() async throws {
     try writeFile("alpha.swift", contents: swiftFixture)
     try writeFile("ignored.swift", contents: swiftFixture)
     try writeFile(".gitignore", contents: "ignored.swift\n")
 
     let initStatus = runShell(
       "git init -q && git add . && git -c user.email=t@t -c user.name=t commit -q -m init")
-    try XCTSkipUnless(initStatus, "git is not available; skipping")
+    #require(initStatus, "git is not available; skipping")
 
     let indexer = makeIndexer(usingGit: true)
     let result = try await indexer.indexAll()
-    XCTAssertEqual(result.indexed, 1)
-    XCTAssertNotNil(indexer.store.loadEntry(forRelativePath: "alpha.swift"))
-    XCTAssertNil(indexer.store.loadEntry(forRelativePath: "ignored.swift"))
+    #require(result.indexed == 1)
+    #require(indexer.store.loadEntry(forRelativePath: "alpha.swift") != nil)
+    #require(indexer.store.loadEntry(forRelativePath: "ignored.swift") == nil)
   }
 
   // MARK: - Helpers

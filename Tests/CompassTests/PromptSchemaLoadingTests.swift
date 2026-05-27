@@ -19,9 +19,9 @@ struct PromptSchemaLoadingTests {
       ("subAgent", Prompts.subAgentSchema),
     ]
     for (name, text) in schemas {
-      try #require(!text.isEmpty, "schema \(name) is empty")
+      #require(!text.isEmpty, "schema \(name) is empty")
       let parsed = try JSONSerialization.jsonObject(with: Data(text.utf8))
-      try #require(
+      #require(
         parsed is [String: Any],
         "schema \(name) should decode to a JSON object"
       )

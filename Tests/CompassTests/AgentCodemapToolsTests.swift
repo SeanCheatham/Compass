@@ -1,31 +1,28 @@
 import Foundation
-import XCTest
+import Testing
 
 @testable import Compass
 
-final class AgentCodemapToolsTests: XCTestCase {
+struct AgentCodemapToolsTests: ~Copyable {
   private var workingDirectory: URL!
   private var cacheDirectory: URL!
   private var context: AgentToolContext!
 
-  override func setUpWithError() throws {
+  init() throws {
     workingDirectory = try makeTempDir()
     cacheDirectory = workingDirectory.appendingPathComponent(".compass/codemap")
     context = AgentToolContext(workingDirectory: workingDirectory)
   }
 
-  override func tearDownWithError() throws {
+  deinit {
     if let workingDirectory {
       try? FileManager.default.removeItem(at: workingDirectory)
     }
-    workingDirectory = nil
-    cacheDirectory = nil
-    context = nil
   }
 
   // MARK: - outline
 
-  func testOutlineReturnsSymbolsAndImports() async throws {
+  @Test func testOutlineReturnsSymbolsAndImports() async throws {
     try seedEntry(
       path: "Sources/Foo.swift",
       symbols: [
@@ -38,26 +35,26 @@ final class AgentCodemapToolsTests: XCTestCase {
       arguments: try JSONEncoder().encode(["path": "Sources/Foo.swift"]),
       context: context
     )
-    XCTAssertFalse(result.isError)
-    XCTAssertTrue(result.content.contains("path: Sources/Foo.swift"))
-    XCTAssertTrue(result.content.contains("imports:"))
-    XCTAssertTrue(result.content.contains("Foundation"))
-    XCTAssertTrue(result.content.contains("L4-12  class  Foo"))
-    XCTAssertTrue(result.content.contains("L7-9  function  bar"))
+    #require(!result.isError)
+    #require(result.content.contains("path: Sources/Foo.swift"))
+    #require(result.content.contains("imports:"))
+    #require(result.content.contains("Foundation"))
+    #require(result.content.contains("L4-12  class  Foo"))
+    #require(result.content.contains("L7-9  function  bar"))
   }
 
-  func testOutlineSurfacesMissingEntryAsError() async throws {
+  @Test func testOutlineSurfacesMissingEntryAsError() async throws {
     let result = try await AgentOutlineTool().invoke(
       arguments: try JSONEncoder().encode(["path": "missing.swift"]),
       context: context
     )
-    XCTAssertTrue(result.isError)
-    XCTAssertTrue(result.content.contains("No codemap entry"))
+    #require(result.isError)
+    #require(result.content.contains("No codemap entry"))
   }
 
   // MARK: - find_symbol
 
-  func testFindSymbolReturnsAllMatches() async throws {
+  @Test func testFindSymbolReturnsAllMatches() async throws {
     try seedEntry(
       path: "a.swift",
       symbols: [CodemapSymbol(kind: .class, name: "Service", line: 10, endLine: 30)]
@@ -74,13 +71,13 @@ final class AgentCodemapToolsTests: XCTestCase {
       arguments: try JSONEncoder().encode(["name": "Service"]),
       context: context
     )
-    XCTAssertFalse(result.isError)
-    XCTAssertTrue(result.content.contains("matches: 2"))
-    XCTAssertTrue(result.content.contains("a.swift:10  class"))
-    XCTAssertTrue(result.content.contains("b.swift:5  struct"))
+    #require(!result.isError)
+    #require(result.content.contains("matches: 2"))
+    #require(result.content.contains("a.swift:10  class"))
+    #require(result.content.contains("b.swift:5  struct"))
   }
 
-  func testFindSymbolFiltersByKind() async throws {
+  @Test func testFindSymbolFiltersByKind() async throws {
     try seedEntry(
       path: "a.swift",
       symbols: [
@@ -92,24 +89,24 @@ final class AgentCodemapToolsTests: XCTestCase {
       arguments: try JSONEncoder().encode(["name": "Service", "kind": "class"]),
       context: context
     )
-    XCTAssertFalse(result.isError)
-    XCTAssertTrue(result.content.contains("matches: 1"))
-    XCTAssertTrue(result.content.contains("a.swift:10  class"))
-    XCTAssertFalse(result.content.contains("a.swift:50"))
+    #require(!result.isError)
+    #require(result.content.contains("matches: 1"))
+    #require(result.content.contains("a.swift:10  class"))
+    #require(!result.content.contains("a.swift:50"))
   }
 
-  func testFindSymbolReportsMissAsOkay() async throws {
+  @Test func testFindSymbolReportsMissAsOkay() async throws {
     let result = try await AgentFindSymbolTool().invoke(
       arguments: try JSONEncoder().encode(["name": "Nope"]),
       context: context
     )
-    XCTAssertFalse(result.isError)
-    XCTAssertTrue(result.content.contains("No codemap symbol named 'Nope'"))
+    #require(!result.isError)
+    #require(result.content.contains("No codemap symbol named 'Nope'"))
   }
 
   // MARK: - summary
 
-  func testSummaryReturnsCachedText() async throws {
+  @Test func testSummaryReturnsCachedText() async throws {
     try seedEntry(
       path: "Sources/Foo.swift",
       symbols: [CodemapSymbol(kind: .class, name: "Foo", line: 1, endLine: 1)],
@@ -120,12 +117,12 @@ final class AgentCodemapToolsTests: XCTestCase {
       arguments: try JSONEncoder().encode(["path": "Sources/Foo.swift"]),
       context: context
     )
-    XCTAssertFalse(result.isError)
-    XCTAssertTrue(result.content.contains("summarized by Haiku-tier"))
-    XCTAssertTrue(result.content.contains("Foo holds the running state."))
+    #require(!result.isError)
+    #require(result.content.contains("summarized by Haiku-tier"))
+    #require(result.content.contains("Foo holds the running state."))
   }
 
-  func testSummaryReportsMissingPassAsOkay() async throws {
+  @Test func testSummaryReportsMissingPassAsOkay() async throws {
     try seedEntry(
       path: "Sources/Foo.swift",
       symbols: [CodemapSymbol(kind: .class, name: "Foo", line: 1, endLine: 1)]
@@ -134,41 +131,41 @@ final class AgentCodemapToolsTests: XCTestCase {
       arguments: try JSONEncoder().encode(["path": "Sources/Foo.swift"]),
       context: context
     )
-    XCTAssertFalse(result.isError)
-    XCTAssertTrue(result.content.contains("No summary yet"))
+    #require(!result.isError)
+    #require(result.content.contains("No summary yet"))
   }
 
   // MARK: - list_files
 
-  func testListFilesReturnsEverythingWhenNoFilter() async throws {
+  @Test func testListFilesReturnsEverythingWhenNoFilter() async throws {
     try seedEntry(path: "a.swift", symbols: [])
     try seedEntry(path: "lib/b.swift", symbols: [])
     let result = try await AgentListFilesTool().invoke(
       arguments: Data("{}".utf8),
       context: context
     )
-    XCTAssertFalse(result.isError)
-    XCTAssertTrue(result.content.contains("files: 2"))
-    XCTAssertTrue(result.content.contains("a.swift"))
-    XCTAssertTrue(result.content.contains("lib/b.swift"))
+    #require(!result.isError)
+    #require(result.content.contains("files: 2"))
+    #require(result.content.contains("a.swift"))
+    #require(result.content.contains("lib/b.swift"))
   }
 
-  func testListFilesFiltersBySubstring() async throws {
+  @Test func testListFilesFiltersBySubstring() async throws {
     try seedEntry(path: "alpha.swift", symbols: [])
     try seedEntry(path: "lib/beta.swift", symbols: [])
     let result = try await AgentListFilesTool().invoke(
       arguments: try JSONEncoder().encode(["filter": "beta"]),
       context: context
     )
-    XCTAssertFalse(result.isError)
-    XCTAssertTrue(result.content.contains("files: 1"))
-    XCTAssertTrue(result.content.contains("lib/beta.swift"))
-    XCTAssertFalse(result.content.contains("alpha.swift"))
+    #require(!result.isError)
+    #require(result.content.contains("files: 1"))
+    #require(result.content.contains("lib/beta.swift"))
+    #require(!result.content.contains("alpha.swift"))
   }
 
   // MARK: - importers_of
 
-  func testImportersOfMatchesRelativeImports() async throws {
+  @Test func testImportersOfMatchesRelativeImports() async throws {
     try seedEntry(
       path: "src/foo.ts",
       symbols: [CodemapSymbol(kind: .function, name: "foo", line: 1, endLine: 1)]
@@ -182,12 +179,12 @@ final class AgentCodemapToolsTests: XCTestCase {
       arguments: try JSONEncoder().encode(["path": "src/foo.ts"]),
       context: context
     )
-    XCTAssertFalse(result.isError)
-    XCTAssertTrue(result.content.contains("importers: 1"))
-    XCTAssertTrue(result.content.contains("src/bar.ts:1"))
+    #require(!result.isError)
+    #require(result.content.contains("importers: 1"))
+    #require(result.content.contains("src/bar.ts:1"))
   }
 
-  func testImportersOfMatchesIndexBareImport() async throws {
+  @Test func testImportersOfMatchesIndexBareImport() async throws {
     try seedEntry(
       path: "src/foo/index.ts",
       symbols: [CodemapSymbol(kind: .function, name: "f", line: 1, endLine: 1)]
@@ -201,12 +198,12 @@ final class AgentCodemapToolsTests: XCTestCase {
       arguments: try JSONEncoder().encode(["path": "src/foo/index.ts"]),
       context: context
     )
-    XCTAssertFalse(result.isError)
-    XCTAssertTrue(result.content.contains("importers: 1"))
-    XCTAssertTrue(result.content.contains("src/main.ts:1"))
+    #require(!result.isError)
+    #require(result.content.contains("importers: 1"))
+    #require(result.content.contains("src/main.ts:1"))
   }
 
-  func testImportersOfReportsEmptyAsOkay() async throws {
+  @Test func testImportersOfReportsEmptyAsOkay() async throws {
     try seedEntry(
       path: "src/foo.ts",
       symbols: [CodemapSymbol(kind: .function, name: "foo", line: 1, endLine: 1)]
@@ -215,8 +212,8 @@ final class AgentCodemapToolsTests: XCTestCase {
       arguments: try JSONEncoder().encode(["path": "src/foo.ts"]),
       context: context
     )
-    XCTAssertFalse(result.isError)
-    XCTAssertTrue(result.content.contains("No codemap entries import"))
+    #require(!result.isError)
+    #require(result.content.contains("No codemap entries import"))
   }
 
   // MARK: - Decoupled store directory
@@ -226,7 +223,7 @@ final class AgentCodemapToolsTests: XCTestCase {
   /// `<workspace.compassURL>/codemap`. The context must let callers
   /// thread that host path in so codemap-backed tools keep finding
   /// entries instead of returning empty results.
-  func testCodemapStoreHonorsExplicitDirectorySeparateFromWorkingDirectory() async throws {
+  @Test func testCodemapStoreHonorsExplicitDirectorySeparateFromWorkingDirectory() async throws {
     let hostCodemapDirectory = workingDirectory.appendingPathComponent("host-codemap")
     let guestWorktree = workingDirectory.appendingPathComponent("guest-worktree")
     try FileManager.default.createDirectory(at: guestWorktree, withIntermediateDirectories: true)
@@ -252,19 +249,19 @@ final class AgentCodemapToolsTests: XCTestCase {
       arguments: try JSONEncoder().encode(["filter": "minimap"]),
       context: routedContext
     )
-    XCTAssertFalse(result.isError)
-    XCTAssertTrue(result.content.contains("Sources/MinimapView.swift"))
+    #require(!result.isError)
+    #require(result.content.contains("Sources/MinimapView.swift"))
   }
 
   // MARK: - Registration
 
-  func testCodemapToolsAreRegisteredInReadOnlySet() {
+  @Test func testCodemapToolsAreRegisteredInReadOnlySet() {
     let names = ToolRegistry.readOnlyTools().map(\.spec.name)
-    XCTAssertTrue(names.contains(AgentOutlineTool.toolName))
-    XCTAssertTrue(names.contains(AgentFindSymbolTool.toolName))
-    XCTAssertTrue(names.contains(AgentSummaryTool.toolName))
-    XCTAssertTrue(names.contains(AgentListFilesTool.toolName))
-    XCTAssertTrue(names.contains(AgentImportersOfTool.toolName))
+    #require(names.contains(AgentOutlineTool.toolName))
+    #require(names.contains(AgentFindSymbolTool.toolName))
+    #require(names.contains(AgentSummaryTool.toolName))
+    #require(names.contains(AgentListFilesTool.toolName))
+    #require(names.contains(AgentImportersOfTool.toolName))
   }
 
   // MARK: - Helpers

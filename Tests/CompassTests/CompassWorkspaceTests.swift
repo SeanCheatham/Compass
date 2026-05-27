@@ -1,49 +1,50 @@
 import Foundation
-import XCTest
+import Testing
 
 @testable import Compass
 
-final class CompassWorkspacePersistenceTests: XCTestCase {
+struct CompassWorkspaceTests : ~Copyable {
   private var temporaryDirectories: [URL] = []
 
-  override func tearDownWithError() throws {
-    let fm = FileManager.default
+  init() throws {}
+
+  deinit {
     for url in temporaryDirectories {
-      try? fm.removeItem(at: url)
+      try? FileManager.default.removeItem(at: url)
     }
     temporaryDirectories.removeAll()
   }
 
-  func testInitializeCreatesCompassFilesAndGitignoreIdempotently() throws {
+  @Test func testInitializeCreatesCompassFilesAndGitignoreIdempotently() throws {
     let repoURL = try makeTemporaryGitRepository()
     let workspace = CompassWorkspace(repoURL: repoURL)
 
     try workspace.initialize()
     try workspace.initialize()
 
-    XCTAssertEqual(
-      workspace.storageRootURL, repoURL.appending(path: ".compass", directoryHint: .isDirectory))
-    XCTAssertEqual(workspace.compassURL, workspace.repoLocalCompassURL)
-    XCTAssertTrue(workspace.isRepoLocalStorage)
-    XCTAssertDirectoryExists(workspace.compassURL)
-    XCTAssertDirectoryExists(workspace.sessionsURL)
-    XCTAssertFileExists(workspace.stateURL)
-    XCTAssertFileExists(workspace.draftsURL)
-    XCTAssertFileExists(workspace.lessonsURL)
-    XCTAssertFileExists(workspace.visionURL)
-    XCTAssertFileExists(workspace.sessionsRecordURL)
+    #require(
+      workspace.storageRootURL == repoURL.appending(path: ".compass", directoryHint: .isDirectory))
+    #require(workspace.compassURL == workspace.repoLocalCompassURL)
+    #require(workspace.isRepoLocalStorage)
+    #require(FileManager.default.fileExists(atPath: workspace.compassURL.path))
+    #require(FileManager.default.fileExists(atPath: workspace.sessionsURL.path))
+    #require(FileManager.default.fileExists(atPath: workspace.stateURL.path))
+    #require(FileManager.default.fileExists(atPath: workspace.draftsURL.path))
+    #require(FileManager.default.fileExists(atPath: workspace.lessonsURL.path))
+    #require(FileManager.default.fileExists(atPath: workspace.visionURL.path))
+    #require(FileManager.default.fileExists(atPath: workspace.sessionsRecordURL.path))
 
-    XCTAssertEqual(try workspace.readState(), .empty)
-    XCTAssertEqual(try read(workspace.draftsURL), "")
-    XCTAssertEqual(try read(workspace.lessonsURL), "")
-    XCTAssertEqual(try read(workspace.visionURL), "")
-    XCTAssertEqual(try read(workspace.sessionsRecordURL), "[]\n")
+    #require(try workspace.readState() == .empty)
+    #require(try read(workspace.draftsURL) == "")
+    #require(try read(workspace.lessonsURL) == "")
+    #require(try read(workspace.visionURL) == "")
+    #require(try read(workspace.sessionsRecordURL) == "[]\n")
 
     let gitignore = try read(repoURL.appending(path: ".gitignore"))
-    XCTAssertEqual(gitignore.components(separatedBy: ".compass/").count - 1, 1)
+    #require(gitignore.components(separatedBy: ".compass/").count - 1 == 1)
   }
 
-  func testInjectedStorageRootRoundTripsFilesAndDoesNotCreateRepoLocalCompass() throws {
+  @Test func testInjectedStorageRootRoundTripsFilesAndDoesNotCreateRepoLocalCompass() throws {
     let repoURL = try makeTemporaryGitRepository()
     let storageRootURL = try makeTemporaryDirectory(prefix: "CompassWorkspaceExternalStorage")
       .appending(path: "Compass", directoryHint: .isDirectory)
@@ -74,27 +75,27 @@ final class CompassWorkspacePersistenceTests: XCTestCase {
       contents: "artifact body\n"
     )
 
-    XCTAssertEqual(workspace.repoURL, repoURL)
-    XCTAssertEqual(workspace.storageRootURL, storageRootURL)
-    XCTAssertEqual(workspace.compassURL, storageRootURL)
-    XCTAssertFalse(workspace.isRepoLocalStorage)
-    XCTAssertDirectoryExists(storageRootURL)
-    XCTAssertDirectoryExists(workspace.sessionsURL)
-    XCTAssertEqual(try workspace.readState(), state)
-    XCTAssertEqual(try read(workspace.stateBackupURL), try CompassWorkspace.encodeState(state))
-    XCTAssertEqual(workspace.readDrafts(), "draft entry\n")
-    XCTAssertEqual(workspace.readLessons(), "- new lesson\n")
-    XCTAssertEqual(workspace.readVision(), "vision entry\n")
-    XCTAssertEqual(workspace.readSessions(), records)
-    XCTAssertEqual(try read(artifactURL), "artifact body\n")
-    XCTAssertEqual(artifactURL, workspace.sessionsURL.appending(path: "4-plan-prompt-1.md"))
+    #require(workspace.repoURL == repoURL)
+    #require(workspace.storageRootURL == storageRootURL)
+    #require(workspace.compassURL == storageRootURL)
+    #require(!workspace.isRepoLocalStorage)
+    #require(FileManager.default.fileExists(atPath: storageRootURL.path))
+    #require(FileManager.default.fileExists(atPath: workspace.sessionsURL.path))
+    #require(try workspace.readState() == state)
+    #require(try read(workspace.stateBackupURL) == try CompassWorkspace.encodeState(state))
+    #require(workspace.readDrafts() == "draft entry\n")
+    #require(workspace.readLessons() == "- new lesson\n")
+    #require(workspace.readVision() == "vision entry\n")
+    #require(workspace.readSessions() == records)
+    #require(try read(artifactURL) == "artifact body\n")
+    #require(artifactURL == workspace.sessionsURL.appending(path: "4-plan-prompt-1.md"))
 
-    XCTAssertFalse(FileManager.default.fileExists(atPath: workspace.repoLocalCompassURL.path))
-    XCTAssertFalse(
-      FileManager.default.fileExists(atPath: repoURL.appending(path: ".gitignore").path))
+    #require(!FileManager.default.fileExists(atPath: workspace.repoLocalCompassURL.path))
+    #require(
+      !FileManager.default.fileExists(atPath: repoURL.appending(path: ".gitignore").path))
   }
 
-  func testSessionsJsonDecodesLegacyRecordsWithoutExecutionEnvironmentSnapshots() throws {
+  @Test func testSessionsJsonDecodesLegacyRecordsWithoutExecutionEnvironmentSnapshots() throws {
     let workspace = try makeInitializedWorkspace()
     try write(
       """
@@ -114,18 +115,18 @@ final class CompassWorkspacePersistenceTests: XCTestCase {
 
     let records = workspace.readSessions()
 
-    XCTAssertEqual(records.count, 1)
-    XCTAssertEqual(records[0].session, 7)
-    XCTAssertEqual(records[0].status, .succeeded)
-    XCTAssertEqual(records[0].notes, ["legacy"])
-    XCTAssertTrue(records[0].executionEnvironmentSnapshots.isEmpty)
+    #require(records.count == 1)
+    #require(records[0].session == 7)
+    #require(records[0].status == .succeeded)
+    #require(records[0].notes == ["legacy"])
+    #require(records[0].executionEnvironmentSnapshots.isEmpty)
 
     try workspace.writeSessions(records)
     let rewritten = try read(workspace.sessionsRecordURL)
-    XCTAssertFalse(rewritten.contains("executionEnvironmentSnapshots"))
+    #require(!rewritten.contains("executionEnvironmentSnapshots"))
   }
 
-  func testSessionsJsonRoundTripsExecutionEnvironmentSnapshotsWithoutLeakingRuntimePaths() throws {
+  @Test func testSessionsJsonRoundTripsExecutionEnvironmentSnapshotsWithoutLeakingRuntimePaths() throws {
     let repoURL = try makeTemporaryGitRepository()
     let workspace = CompassWorkspace(repoURL: repoURL)
     try workspace.initialize()
@@ -152,15 +153,15 @@ final class CompassWorkspacePersistenceTests: XCTestCase {
     let decoded = workspace.readSessions()
     let persistedText = try read(workspace.sessionsRecordURL)
 
-    XCTAssertEqual(decoded, [record])
-    XCTAssertEqual(decoded[0].latestExecutionEnvironmentSnapshot?.phaseIdentifier, "verify")
-    XCTAssertEqual(
-      decoded[0].latestExecutionEnvironmentSnapshot?.effectiveRouteIdentifier, "shared-vm")
-    XCTAssertTrue(persistedText.contains("executionEnvironmentSnapshots"))
-    XCTAssertFalse(persistedText.contains(repoURL.standardizedFileURL.path))
+    #require(decoded == [record])
+    #require(decoded[0].latestExecutionEnvironmentSnapshot?.phaseIdentifier == "verify")
+    #require(
+      decoded[0].latestExecutionEnvironmentSnapshot?.effectiveRouteIdentifier == "shared-vm")
+    #require(persistedText.contains("executionEnvironmentSnapshots"))
+    #require(!persistedText.contains(repoURL.standardizedFileURL.path))
   }
 
-  func testSessionExecutionEnvironmentSnapshotsReplaceDuplicatePhaseAttemptsAndStayBounded() throws
+  @Test func testSessionExecutionEnvironmentSnapshotsReplaceDuplicatePhaseAttemptsAndStayBounded() throws
   {
     let repoURL = try makeTemporaryGitRepository()
     let nativePlan = AgentExecutionLaunchPlan.plan(
@@ -188,14 +189,14 @@ final class CompassWorkspacePersistenceTests: XCTestCase {
       )
     )
 
-    XCTAssertEqual(duplicateRecord.executionEnvironmentSnapshots.count, 1)
-    XCTAssertEqual(
-      duplicateRecord.executionEnvironmentSnapshots[0].selectedPreferenceIdentifier,
+    #require(duplicateRecord.executionEnvironmentSnapshots.count == 1)
+    #require(
+      duplicateRecord.executionEnvironmentSnapshots[0].selectedPreferenceIdentifier ==
       "shared_vm"
     )
-    XCTAssertEqual(
-      duplicateRecord.executionEnvironmentSnapshots[0].effectiveRouteIdentifier, "native-macos")
-    XCTAssertTrue(
+    #require(
+      duplicateRecord.executionEnvironmentSnapshots[0].effectiveRouteIdentifier == "native-macos")
+    #require(
       duplicateRecord.executionEnvironmentSnapshots[0].fallbackReason?.contains(
         "not been provisioned") ?? false
     )
@@ -211,18 +212,18 @@ final class CompassWorkspacePersistenceTests: XCTestCase {
       )
     }
 
-    XCTAssertEqual(
-      boundedRecord.executionEnvironmentSnapshots.count,
+    #require(
+      boundedRecord.executionEnvironmentSnapshots.count ==
       SessionRecord.executionEnvironmentSnapshotLimit
     )
-    XCTAssertEqual(boundedRecord.executionEnvironmentSnapshots.first?.attempt, 4)
-    XCTAssertEqual(
-      boundedRecord.executionEnvironmentSnapshots.last?.attempt,
+    #require(boundedRecord.executionEnvironmentSnapshots.first?.attempt == 4)
+    #require(
+      boundedRecord.executionEnvironmentSnapshots.last?.attempt ==
       SessionRecord.executionEnvironmentSnapshotLimit + 3
     )
   }
 
-  func testInitializePreservesExistingCompassFilesAndRecognizesIgnoredCompassVariants() throws {
+  @Test func testInitializePreservesExistingCompassFilesAndRecognizesIgnoredCompassVariants() throws {
     let repoURL = try makeTemporaryGitRepository()
     let workspace = CompassWorkspace(repoURL: repoURL)
     try createDirectory(workspace.compassURL)
@@ -238,15 +239,15 @@ final class CompassWorkspacePersistenceTests: XCTestCase {
 
     try workspace.initialize()
 
-    XCTAssertEqual(try workspace.readState(), state)
-    XCTAssertEqual(try read(workspace.draftsURL), "existing drafts\n")
-    XCTAssertEqual(try read(workspace.lessonsURL), "existing lessons\n")
-    XCTAssertEqual(try read(workspace.visionURL), "existing vision\n")
-    XCTAssertEqual(try read(workspace.sessionsRecordURL), "[{\"session\":1}]\n")
-    XCTAssertEqual(try read(repoURL.appending(path: ".gitignore")), "# keep\n.compass\n")
+    #require(try workspace.readState() == state)
+    #require(try read(workspace.draftsURL) == "existing drafts\n")
+    #require(try read(workspace.lessonsURL) == "existing lessons\n")
+    #require(try read(workspace.visionURL) == "existing vision\n")
+    #require(try read(workspace.sessionsRecordURL) == "[{\"session\":1}]\n")
+    #require(try read(repoURL.appending(path: ".gitignore")) == "# keep\n.compass\n")
   }
 
-  func testInitializeRepairsMissingCoreFilesAndGitignoreCoverageIdempotently() throws {
+  @Test func testInitializeRepairsMissingCoreFilesAndGitignoreCoverageIdempotently() throws {
     let repoURL = try makeTemporaryGitRepository()
     let workspace = CompassWorkspace(repoURL: repoURL)
     try createDirectory(workspace.compassURL)
@@ -259,26 +260,26 @@ final class CompassWorkspacePersistenceTests: XCTestCase {
     try workspace.initialize()
     try workspace.initialize()
 
-    XCTAssertDirectoryExists(workspace.compassURL)
-    XCTAssertDirectoryExists(workspace.sessionsURL)
-    XCTAssertFileExists(workspace.stateURL)
-    XCTAssertFileExists(workspace.draftsURL)
-    XCTAssertFileExists(workspace.lessonsURL)
-    XCTAssertFileExists(workspace.visionURL)
-    XCTAssertFileExists(workspace.sessionsRecordURL)
+    #require(FileManager.default.fileExists(atPath: workspace.compassURL.path))
+    #require(FileManager.default.fileExists(atPath: workspace.sessionsURL.path))
+    #require(FileManager.default.fileExists(atPath: workspace.stateURL.path))
+    #require(FileManager.default.fileExists(atPath: workspace.draftsURL.path))
+    #require(FileManager.default.fileExists(atPath: workspace.lessonsURL.path))
+    #require(FileManager.default.fileExists(atPath: workspace.visionURL.path))
+    #require(FileManager.default.fileExists(atPath: workspace.sessionsRecordURL.path))
 
-    XCTAssertEqual(try workspace.readState(), preservedState)
-    XCTAssertEqual(try read(workspace.lessonsURL), "existing lessons\n")
-    XCTAssertEqual(try read(workspace.draftsURL), "")
-    XCTAssertEqual(try read(workspace.visionURL), "")
-    XCTAssertEqual(try read(workspace.sessionsRecordURL), "[]\n")
+    #require(try workspace.readState() == preservedState)
+    #require(try read(workspace.lessonsURL) == "existing lessons\n")
+    #require(try read(workspace.draftsURL) == "")
+    #require(try read(workspace.visionURL) == "")
+    #require(try read(workspace.sessionsRecordURL) == "[]\n")
 
     let gitignore = try read(repoURL.appending(path: ".gitignore"))
-    XCTAssertEqual(gitignore, "build\n.compass/\n")
-    XCTAssertEqual(gitignore.components(separatedBy: ".compass/").count - 1, 1)
+    #require(gitignore == "build\n.compass/\n")
+    #require(gitignore.components(separatedBy: ".compass/").count - 1 == 1)
   }
 
-  func testInitializeAppendsCompassIgnoreWithMissingTrailingNewline() throws {
+  @Test func testInitializeAppendsCompassIgnoreWithMissingTrailingNewline() throws {
     let repoURL = try makeTemporaryGitRepository()
     let workspace = CompassWorkspace(repoURL: repoURL)
     let gitignoreURL = repoURL.appending(path: ".gitignore")
@@ -287,10 +288,10 @@ final class CompassWorkspacePersistenceTests: XCTestCase {
     try workspace.initialize()
     try workspace.initialize()
 
-    XCTAssertEqual(try read(gitignoreURL), "build\n.compass/\n")
+    #require(try read(gitignoreURL) == "build\n.compass/\n")
   }
 
-  func testWriteStateReadStateRoundTripAndBackupCreation() throws {
+  @Test func testWriteStateReadStateRoundTripAndBackupCreation() throws {
     let workspace = try makeInitializedWorkspace()
     let state = makeState(
       completed: ["first", "second"],
@@ -305,164 +306,164 @@ final class CompassWorkspacePersistenceTests: XCTestCase {
     )
 
     try workspace.writeState(state)
-    XCTAssertEqual(try workspace.readState(), state)
+    #require(try workspace.readState() == state)
 
     try workspace.backupStateFile()
-    XCTAssertFileExists(workspace.stateBackupURL)
-    XCTAssertEqual(try read(workspace.stateBackupURL), try CompassWorkspace.encodeState(state))
+    #require(FileManager.default.fileExists(atPath: workspace.stateBackupURL.path))
+    #require(try read(workspace.stateBackupURL) == try CompassWorkspace.encodeState(state))
   }
 
-  func testBackupStateFileDoesNothingWhenStateIsMissing() throws {
+  @Test func testBackupStateFileDoesNothingWhenStateIsMissing() throws {
     let workspace = try makeInitializedWorkspace()
     try FileManager.default.removeItem(at: workspace.stateURL)
 
     try workspace.backupStateFile()
 
-    XCTAssertFalse(FileManager.default.fileExists(atPath: workspace.stateBackupURL.path))
+    #require(!FileManager.default.fileExists(atPath: workspace.stateBackupURL.path))
   }
 
-  func testAppendDraftAddsMarkdownBulletsAndSkipsEmptyText() throws {
+  @Test func testAppendDraftAddsMarkdownBulletsAndSkipsEmptyText() throws {
     let workspace = try makeInitializedWorkspace()
 
     try workspace.appendDraft("  first draft  ")
-    XCTAssertEqual(try read(workspace.draftsURL), "- first draft\n")
+    #require(try read(workspace.draftsURL) == "- first draft\n")
 
     try workspace.appendDraft("second draft")
-    XCTAssertEqual(
-      try read(workspace.draftsURL),
+    #require(
+      try read(workspace.draftsURL) ==
       "- first draft\n\n- second draft\n"
     )
 
     try workspace.appendDraft("   \n")
-    XCTAssertEqual(try read(workspace.draftsURL), "- first draft\n\n- second draft\n")
+    #require(try read(workspace.draftsURL) == "- first draft\n\n- second draft\n")
   }
 
-  func testAppendDraftSeparatorVariants() throws {
+  @Test func testAppendDraftSeparatorVariants() throws {
     let workspace = try makeInitializedWorkspace()
 
     try workspace.writeDrafts("- existing")
     try workspace.appendDraft("without trailing newline")
-    XCTAssertEqual(try read(workspace.draftsURL), "- existing\n\n- without trailing newline\n")
+    #require(try read(workspace.draftsURL) == "- existing\n\n- without trailing newline\n")
 
     try workspace.writeDrafts("- existing\n")
     try workspace.appendDraft("with one trailing newline")
-    XCTAssertEqual(try read(workspace.draftsURL), "- existing\n\n- with one trailing newline\n")
+    #require(try read(workspace.draftsURL) == "- existing\n\n- with one trailing newline\n")
 
     try workspace.writeDrafts("- existing\n\n")
     try workspace.appendDraft("already separated")
-    XCTAssertEqual(try read(workspace.draftsURL), "- existing\n\n- already separated\n")
+    #require(try read(workspace.draftsURL) == "- existing\n\n- already separated\n")
   }
 
-  func testSnapshotAndClearDraftsReturnsContentsClearsDraftsAndToleratesMissingFile() throws {
+  @Test func testSnapshotAndClearDraftsReturnsContentsClearsDraftsAndToleratesMissingFile() throws {
     let workspace = try makeInitializedWorkspace()
     try workspace.writeDrafts("- one\n\n- two\n")
 
     let snapshot = try workspace.snapshotAndClearDrafts()
 
-    XCTAssertEqual(snapshot, "- one\n\n- two\n")
-    XCTAssertEqual(try read(workspace.draftsURL), "")
-    XCTAssertFalse(
-      FileManager.default.fileExists(
+    #require(snapshot == "- one\n\n- two\n")
+    #require(try read(workspace.draftsURL) == "")
+    #require(
+      !FileManager.default.fileExists(
         atPath: workspace.draftsURL.appendingPathExtension("snapshot").path))
 
     try FileManager.default.removeItem(at: workspace.draftsURL)
-    XCTAssertEqual(try workspace.snapshotAndClearDrafts(), "")
-    XCTAssertFalse(FileManager.default.fileExists(atPath: workspace.draftsURL.path))
+    #require(try workspace.snapshotAndClearDrafts() == "")
+    #require(!FileManager.default.fileExists(atPath: workspace.draftsURL.path))
   }
 
-  func testApplyLessonEditsSupportsExactReplacementReplaceAllAndEmptyFindForEmptyLessons() throws {
+  @Test func testApplyLessonEditsSupportsExactReplacementReplaceAllAndEmptyFindForEmptyLessons() throws {
     let workspace = try makeInitializedWorkspace()
 
-    XCTAssertEqual(
+    #require(
       try workspace.applyLessonEdits([
         LessonEdit(find: "", replace: "- Start here\n", replaceAll: nil)
-      ]),
+      ]) ==
       1
     )
-    XCTAssertEqual(workspace.readLessons(), "- Start here\n")
+    #require(workspace.readLessons() == "- Start here\n")
 
-    XCTAssertEqual(
+    #require(
       try workspace.applyLessonEdits([
         LessonEdit(find: "Start here", replace: "Keep this convention", replaceAll: nil)
-      ]),
+      ]) ==
       1
     )
-    XCTAssertEqual(workspace.readLessons(), "- Keep this convention\n")
+    #require(workspace.readLessons() == "- Keep this convention\n")
 
     try workspace.writeLessons("- repeated\n- repeated\n")
-    XCTAssertEqual(
+    #require(
       try workspace.applyLessonEdits([
         LessonEdit(find: "repeated", replace: "updated", replaceAll: true)
-      ]),
+      ]) ==
       1
     )
-    XCTAssertEqual(workspace.readLessons(), "- updated\n- updated\n")
+    #require(workspace.readLessons() == "- updated\n- updated\n")
   }
 
-  func testApplyLessonEditsRejectsEmptyFindWhenLessonsAreNonEmpty() throws {
+  @Test func testApplyLessonEditsRejectsEmptyFindWhenLessonsAreNonEmpty() throws {
     let workspace = try makeInitializedWorkspace()
     try workspace.writeLessons("- Existing\n")
 
-    assertLessonEditFailure(
+    try assertLessonEditFailure(
       try workspace.applyLessonEdits([
         LessonEdit(find: "", replace: "- Replacement\n", replaceAll: nil)
       ]),
       contains: "Empty `find` is only allowed"
     )
-    XCTAssertEqual(workspace.readLessons(), "- Existing\n")
+    #require(workspace.readLessons() == "- Existing\n")
   }
 
-  func testApplyLessonEditsRejectsMissingFindAndPreservesLessons() throws {
+  @Test func testApplyLessonEditsRejectsMissingFindAndPreservesLessons() throws {
     let workspace = try makeInitializedWorkspace()
     try workspace.writeLessons("- Existing\n")
 
-    assertLessonEditFailure(
+    try assertLessonEditFailure(
       try workspace.applyLessonEdits([
         LessonEdit(find: "Missing", replace: "Replacement", replaceAll: nil)
       ]),
       contains: "was not found"
     )
-    XCTAssertEqual(workspace.readLessons(), "- Existing\n")
+    #require(workspace.readLessons() == "- Existing\n")
   }
 
-  func testApplyLessonEditsRejectsDuplicateFindWithoutReplaceAllAndPreservesLessons() throws {
+  @Test func testApplyLessonEditsRejectsDuplicateFindWithoutReplaceAllAndPreservesLessons() throws {
     let workspace = try makeInitializedWorkspace()
     try workspace.writeLessons("- duplicate\n- duplicate\n")
 
-    assertLessonEditFailure(
+    try assertLessonEditFailure(
       try workspace.applyLessonEdits([
         LessonEdit(find: "duplicate", replace: "replacement", replaceAll: nil)
       ]),
       contains: "matched 2 times"
     )
-    XCTAssertEqual(workspace.readLessons(), "- duplicate\n- duplicate\n")
+    #require(workspace.readLessons() == "- duplicate\n- duplicate\n")
   }
 
-  func testValidateLessonEditsRejectsMissingFindWithoutWriting() throws {
+  @Test func testValidateLessonEditsRejectsMissingFindWithoutWriting() throws {
     let workspace = try makeInitializedWorkspace()
     try workspace.writeLessons("- Existing\n")
 
-    assertLessonEditFailure(
+    try assertLessonEditFailure(
       try workspace.validateLessonEdits([
         LessonEdit(find: "Missing", replace: "Replacement", replaceAll: nil)
       ]),
       contains: "was not found"
     )
-    XCTAssertEqual(workspace.readLessons(), "- Existing\n")
+    #require(workspace.readLessons() == "- Existing\n")
   }
 
-  func testValidateSubmitResultLessonEditsDecodesPayloadWithoutApplying() throws {
+  @Test func testValidateSubmitResultLessonEditsDecodesPayloadWithoutApplying() throws {
     let workspace = try makeInitializedWorkspace()
     try workspace.writeLessons("- Existing\n")
     let payload = """
       {"state":{"immediate":null,"midTerm":[],"longTerm":"x"},"lessonEdits":[{"find":"Missing","replace":"Replacement"}]}
       """
 
-    assertLessonEditFailure(
+    try assertLessonEditFailure(
       try workspace.validateSubmitResultLessonEdits(Data(payload.utf8)),
       contains: "was not found"
     )
-    XCTAssertEqual(workspace.readLessons(), "- Existing\n")
+    #require(workspace.readLessons() == "- Existing\n")
   }
 
   private func makeInitializedWorkspace() throws -> CompassWorkspace {
@@ -522,52 +523,39 @@ final class CompassWorkspacePersistenceTests: XCTestCase {
   }
 
   // swift-format-ignore: AlwaysUseLowerCamelCase
-  private func XCTAssertFileExists(
-    _ url: URL,
-    file: StaticString = #filePath,
-    line: UInt = #line
+  private func AssertFileExists(
+    _ url: URL
   ) {
     var isDirectory: ObjCBool = false
-    XCTAssertTrue(
-      FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory),
-      "Expected file to exist at \(url.path).",
-      file: file,
-      line: line
+    #require(
+      FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory)
     )
-    XCTAssertFalse(
-      isDirectory.boolValue, "Expected \(url.path) to be a file.", file: file, line: line)
+    #require(!isDirectory.boolValue)
   }
 
   // swift-format-ignore: AlwaysUseLowerCamelCase
-  private func XCTAssertDirectoryExists(
-    _ url: URL,
-    file: StaticString = #filePath,
-    line: UInt = #line
+  private func AssertDirectoryExists(
+    _ url: URL
   ) {
     var isDirectory: ObjCBool = false
-    XCTAssertTrue(
-      FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory),
-      "Expected directory to exist at \(url.path).",
-      file: file,
-      line: line
+    #require(
+      FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory)
     )
-    XCTAssertTrue(
-      isDirectory.boolValue, "Expected \(url.path) to be a directory.", file: file, line: line)
+    #require(isDirectory.boolValue)
   }
 
   private func assertLessonEditFailure<T>(
     _ expression: @autoclosure () throws -> T,
-    contains expectedText: String,
-    file: StaticString = #filePath,
-    line: UInt = #line
-  ) {
-    XCTAssertThrowsError(try expression(), file: file, line: line) { error in
+    contains expectedText: String
+  ) throws {
+    do {
+      _ = try expression()
+      #require(false, "Expected expression to throw")
+    } catch {
       let message = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
-      XCTAssertTrue(
+      #require(
         message.contains(expectedText),
-        "Expected error containing `\(expectedText)`, got `\(message)`.",
-        file: file,
-        line: line
+        "Expected error containing `\(expectedText)`, got `\(message)`."
       )
     }
   }

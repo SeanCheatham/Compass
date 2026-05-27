@@ -1,4 +1,5 @@
-import XCTest
+import Foundation
+import Testing
 
 @testable import Compass
 
@@ -9,7 +10,7 @@ import XCTest
 /// trust the freshly-generated host key. These tests exercise the bootstrap
 /// against a fake `ssh-keyscan` stand-in so we can validate parsing,
 /// dedup, and append behaviour without touching a real network.
-final class SharedCompassVMGuestBridgeKnownHostsTests: XCTestCase {
+struct SharedCompassVMGuestBridgeKnownHostsTests {
 
   // MARK: - Fixtures
 
@@ -43,7 +44,7 @@ final class SharedCompassVMGuestBridgeKnownHostsTests: XCTestCase {
         ofItemAtPath: stub.path
       )
     } catch {
-      XCTFail("could not write keyscan stub: \(error)", file: file, line: line)
+      #require(false, "could not write keyscan stub: \(error)")
     }
     return stub
   }
@@ -56,6 +57,7 @@ final class SharedCompassVMGuestBridgeKnownHostsTests: XCTestCase {
 
   // MARK: - Tests
 
+  @Test
   func testPopulateKnownHostsWritesScannedKeysToEmptyFile() async throws {
     // Realistic ssh-keyscan output: one or two `<host> <type> <base64>`
     // lines plus a comment line that should be ignored.
@@ -74,15 +76,16 @@ final class SharedCompassVMGuestBridgeKnownHostsTests: XCTestCase {
       sshKeyscanPath: keyscan.path
     )
 
-    XCTAssertTrue(result.succeeded)
-    XCTAssertEqual(result.entriesAppended, 2, "both non-comment lines should be appended")
+    #require(result.succeeded)
+    #require(result.entriesAppended == 2, "both non-comment lines should be appended")
 
     let contents = try String(contentsOf: knownHosts, encoding: .utf8)
-    XCTAssertTrue(contents.contains("ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFAKE_KEY_DATA_HERE"))
-    XCTAssertTrue(contents.contains("ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoFAKEECDSAKEYDATA"))
-    XCTAssertFalse(contents.contains("#"), "comment lines must be filtered out")
+    #require(contents.contains("ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFAKE_KEY_DATA_HERE"))
+    #require(contents.contains("ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoFAKEECDSAKEYDATA"))
+    #require(!contents.contains("#"), "comment lines must be filtered out")
   }
 
+  @Test
   func testPopulateKnownHostsDoesNotDuplicateExistingEntries() async throws {
     // Pre-populate the file with one of the keys, then run keyscan
     // with output containing the same key plus a new one. We expect
@@ -108,15 +111,16 @@ final class SharedCompassVMGuestBridgeKnownHostsTests: XCTestCase {
       sshKeyscanPath: keyscan.path
     )
 
-    XCTAssertTrue(result.succeeded)
-    XCTAssertEqual(result.entriesAppended, 1, "only the new RSA line should be appended")
+    #require(result.succeeded)
+    #require(result.entriesAppended == 1, "only the new RSA line should be appended")
 
     let contents = try String(contentsOf: knownHosts, encoding: .utf8)
     let alreadyCount = contents.components(separatedBy: "ALREADY_PRESENT_KEY").count - 1
-    XCTAssertEqual(alreadyCount, 1, "must not duplicate the pre-existing key")
-    XCTAssertTrue(contents.contains("BRAND_NEW_RSA_KEY"))
+    #require(alreadyCount == 1, "must not duplicate the pre-existing key")
+    #require(contents.contains("BRAND_NEW_RSA_KEY"))
   }
 
+  @Test
   func testPopulateKnownHostsReportsSuccessButZeroAppendedWhenAllDuplicates() async throws {
     // All scanned keys are already in the file — succeed without
     // appending anything. The caller should treat this as a green
@@ -140,10 +144,11 @@ final class SharedCompassVMGuestBridgeKnownHostsTests: XCTestCase {
       sshKeyscanPath: keyscan.path
     )
 
-    XCTAssertTrue(result.succeeded)
-    XCTAssertEqual(result.entriesAppended, 0)
+    #require(result.succeeded)
+    #require(result.entriesAppended == 0)
   }
 
+  @Test
   func testPopulateKnownHostsReturnsFailureWhenKeyscanExitsNonZero() async {
     let keyscan = makeFakeKeyscan(cannedOutput: "", exitCode: 1)
     let knownHosts = makeKnownHostsPath()
@@ -155,14 +160,15 @@ final class SharedCompassVMGuestBridgeKnownHostsTests: XCTestCase {
       sshKeyscanPath: keyscan.path
     )
 
-    XCTAssertFalse(result.succeeded)
-    XCTAssertEqual(result.entriesAppended, 0)
-    XCTAssertFalse(
-      FileManager.default.fileExists(atPath: knownHosts.path),
+    #require(!result.succeeded)
+    #require(result.entriesAppended == 0)
+    #require(
+      !FileManager.default.fileExists(atPath: knownHosts.path),
       "must not create an empty known_hosts on failure"
     )
   }
 
+  @Test
   func testPopulateKnownHostsCreatesParentDirectoryWhenMissing() async throws {
     // Brand-new sandbox where the parent dir doesn't exist yet. The
     // bundle's known_hosts lives under the SharedVM bundle path; on
@@ -180,13 +186,14 @@ final class SharedCompassVMGuestBridgeKnownHostsTests: XCTestCase {
       sshKeyscanPath: keyscan.path
     )
 
-    XCTAssertTrue(result.succeeded)
-    XCTAssertEqual(result.entriesAppended, 1)
-    XCTAssertTrue(FileManager.default.fileExists(atPath: knownHosts.path))
+    #require(result.succeeded)
+    #require(result.entriesAppended == 1)
+    #require(FileManager.default.fileExists(atPath: knownHosts.path))
     let contents = try String(contentsOf: knownHosts, encoding: .utf8)
-    XCTAssertTrue(contents.contains("TEST_KEY_FOR_PARENT_CREATE"))
+    #require(contents.contains("TEST_KEY_FOR_PARENT_CREATE"))
   }
 
+  @Test
   func testPopulateKnownHostsReturnsFailureWhenKeyscanBinaryMissing() async {
     let result = await SharedCompassVMGuestBridge.populateKnownHosts(
       host: "192.168.64.9",
@@ -194,7 +201,7 @@ final class SharedCompassVMGuestBridgeKnownHostsTests: XCTestCase {
       timeout: 2,
       sshKeyscanPath: "/does/not/exist/ssh-keyscan"
     )
-    XCTAssertFalse(result.succeeded)
-    XCTAssertEqual(result.entriesAppended, 0)
+    #require(!result.succeeded)
+    #require(result.entriesAppended == 0)
   }
 }

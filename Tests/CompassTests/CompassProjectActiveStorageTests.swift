@@ -1,20 +1,22 @@
 import Foundation
-import XCTest
+import Testing
 
 @testable import Compass
 
 @MainActor
-final class CompassProjectActiveStorageTests: XCTestCase {
+struct CompassProjectActiveStorageTests : ~Copyable {
   private var temporaryDirectories: [URL] = []
 
-  override func tearDownWithError() throws {
+  init() throws {}
+
+  deinit {
     for url in temporaryDirectories {
       try? FileManager.default.removeItem(at: url)
     }
     temporaryDirectories.removeAll()
   }
 
-  func testResolverDefaultsToRepoLocalStorage() throws {
+  @Test func resolverDefaultsToRepoLocalStorage() throws {
     let repoURL = try makeTemporaryGitRepository()
     let roots = try makeApplicationSupportRoots()
     let resolver = CompassProjectStorageResolver(
@@ -24,14 +26,14 @@ final class CompassProjectActiveStorageTests: XCTestCase {
     let standardizedRepoURL = repoURL.standardizedFileURL
     let repoLocalURL = CompassWorkspace.repoLocalStorageRootURL(for: standardizedRepoURL)
 
-    XCTAssertEqual(resolver.activeStorage, .repoLocal)
-    XCTAssertEqual(resolver.repoURL, standardizedRepoURL)
-    XCTAssertEqual(resolver.storageRootURL, repoLocalURL)
-    XCTAssertEqual(resolver.workspace.repoURL, standardizedRepoURL)
-    XCTAssertEqual(resolver.workspace.compassURL, repoLocalURL)
+    #require(resolver.activeStorage == .repoLocal)
+    #require(resolver.repoURL == standardizedRepoURL)
+    #require(resolver.storageRootURL == repoLocalURL)
+    #require(resolver.workspace.repoURL == standardizedRepoURL)
+    #require(resolver.workspace.compassURL == repoLocalURL)
   }
 
-  func testResolverMapsApplicationSupportStorageToCurrentCandidate() throws {
+  @Test func resolverMapsApplicationSupportStorageToCurrentCandidate() throws {
     let repoURL = try makeTemporaryGitRepository()
     let roots = try makeApplicationSupportRoots()
     let resolver = CompassProjectStorageResolver(
@@ -44,15 +46,15 @@ final class CompassProjectActiveStorageTests: XCTestCase {
       applicationSupportRoots: roots
     )
 
-    XCTAssertEqual(resolver.storageRootURL, expectedURL)
-    XCTAssertEqual(resolver.workspace.repoURL, repoURL.standardizedFileURL)
-    XCTAssertEqual(resolver.workspace.compassURL, expectedURL)
-    XCTAssertFalse(FileManager.default.fileExists(atPath: expectedURL.path))
-    XCTAssertFalse(
-      FileManager.default.fileExists(atPath: resolver.workspace.repoLocalCompassURL.path))
+    #require(resolver.storageRootURL == expectedURL)
+    #require(resolver.workspace.repoURL == repoURL.standardizedFileURL)
+    #require(resolver.workspace.compassURL == expectedURL)
+    #require(!FileManager.default.fileExists(atPath: expectedURL.path))
+    #require(
+      !FileManager.default.fileExists(atPath: resolver.workspace.repoLocalCompassURL.path))
   }
 
-  func testProjectDefaultsToRepoLocalStorage() async throws {
+  @Test func projectDefaultsToRepoLocalStorage() async throws {
     let repoURL = try makeTemporaryGitRepository()
     let roots = try makeApplicationSupportRoots()
     let project = CompassProject(
@@ -66,16 +68,16 @@ final class CompassProjectActiveStorageTests: XCTestCase {
         applicationSupportRoots: roots
       )
 
-    XCTAssertEqual(project.activeStorage, .repoLocal)
-    XCTAssertEqual(project.compassPath, repoLocalURL.path)
+    #require(project.activeStorage == .repoLocal)
+    #require(project.compassPath == repoLocalURL.path)
 
     await project.initializeWorkspace()
 
-    XCTAssertDirectoryExists(repoLocalURL)
-    XCTAssertFalse(FileManager.default.fileExists(atPath: applicationSupportURL.path))
+    #require(FileManager.default.fileExists(atPath: repoLocalURL.path))
+    #require(!FileManager.default.fileExists(atPath: applicationSupportURL.path))
   }
 
-  func testApplicationSupportActiveStorageRoundTripsCompassFilesWithoutRepoLocalCompass()
+  @Test func applicationSupportActiveStorageRoundTripsCompassFilesWithoutRepoLocalCompass()
     async throws
   {
     let repoURL = try makeTemporaryGitRepository()
@@ -114,7 +116,7 @@ final class CompassProjectActiveStorageTests: XCTestCase {
       )
     ]
 
-    XCTAssertEqual(project.compassPath, workspace.compassURL.path)
+    #require(project.compassPath == workspace.compassURL.path)
 
     await project.initializeWorkspace()
     try workspace.writeState(state)
@@ -125,27 +127,27 @@ final class CompassProjectActiveStorageTests: XCTestCase {
 
     await project.refresh()
 
-    XCTAssertEqual(project.state, state)
-    XCTAssertEqual(project.drafts, "draft from support\n")
-    XCTAssertEqual(project.lessons, "- lesson from support\n")
-    XCTAssertEqual(project.vision, "vision from support\n")
-    XCTAssertEqual(project.sessions, records)
-    XCTAssertDirectoryExists(workspace.compassURL)
-    XCTAssertFalse(FileManager.default.fileExists(atPath: workspace.repoLocalCompassURL.path))
-    XCTAssertFalse(
-      FileManager.default.fileExists(atPath: repoURL.appending(path: ".gitignore").path))
+    #require(project.state == state)
+    #require(project.drafts == "draft from support\n")
+    #require(project.lessons == "- lesson from support\n")
+    #require(project.vision == "vision from support\n")
+    #require(project.sessions == records)
+    #require(FileManager.default.fileExists(atPath: workspace.compassURL.path))
+    #require(!FileManager.default.fileExists(atPath: workspace.repoLocalCompassURL.path))
+    #require(
+      !FileManager.default.fileExists(atPath: repoURL.appending(path: ".gitignore").path))
 
     project.drafts = "updated support draft\n"
     await project.saveDrafts()
     project.lessons = "- updated support lesson\n"
     await project.saveLessons()
 
-    XCTAssertEqual(workspace.readDrafts(), "updated support draft\n")
-    XCTAssertEqual(workspace.readLessons(), "- updated support lesson\n")
-    XCTAssertFalse(FileManager.default.fileExists(atPath: workspace.repoLocalCompassURL.path))
+    #require(workspace.readDrafts() == "updated support draft\n")
+    #require(workspace.readLessons() == "- updated support lesson\n")
+    #require(!FileManager.default.fileExists(atPath: workspace.repoLocalCompassURL.path))
   }
 
-  func
+  @Test func
     testApplicationSupportActiveStorageReadsSupportSessionsWhenRepoLocalSessionsMissing()
     async throws
   {
@@ -175,26 +177,26 @@ final class CompassProjectActiveStorageTests: XCTestCase {
     try write("pending repo worktree\n", to: repoURL.appending(path: "pending.txt"))
     project.state = supportState
 
-    XCTAssertFalse(FileManager.default.fileExists(atPath: workspace.repoLocalCompassURL.path))
+    #require(!FileManager.default.fileExists(atPath: workspace.repoLocalCompassURL.path))
 
     await project.refresh()
 
     let sourceSnapshot = project.activitySourceSnapshot
 
-    XCTAssertEqual(project.sessions, supportSessions)
-    XCTAssertEqual(sourceSnapshot.activeStorage, .applicationSupport)
-    XCTAssertEqual(sourceSnapshot.storageRootURL, workspace.compassURL.standardizedFileURL)
-    XCTAssertEqual(
-      sourceSnapshot.sessionsRecordURL, workspace.sessionsRecordURL.standardizedFileURL)
-    XCTAssertEqual(sourceSnapshot.sourceAvailability, .available)
-    XCTAssertEqual(sourceSnapshot.repoLocalSessionsState, .ignoredMissing)
-    XCTAssertTrue(sourceSnapshot.ignoresRepoLocalSessions)
-    XCTAssertEqual(project.state, supportState)
-    XCTAssertEqual(project.activeStorage, .applicationSupport)
-    XCTAssertFalse(FileManager.default.fileExists(atPath: workspace.repoLocalCompassURL.path))
+    #require(project.sessions == supportSessions)
+    #require(sourceSnapshot.activeStorage == .applicationSupport)
+    #require(sourceSnapshot.storageRootURL == workspace.compassURL.standardizedFileURL)
+    #require(
+      sourceSnapshot.sessionsRecordURL == workspace.sessionsRecordURL.standardizedFileURL)
+    #require(sourceSnapshot.sourceAvailability == .available)
+    #require(sourceSnapshot.repoLocalSessionsState == .ignoredMissing)
+    #require(sourceSnapshot.ignoresRepoLocalSessions)
+    #require(project.state == supportState)
+    #require(project.activeStorage == .applicationSupport)
+    #require(!FileManager.default.fileExists(atPath: workspace.repoLocalCompassURL.path))
   }
 
-  func testApplicationSupportActiveStorageIgnoresStaleRepoLocalSessions()
+  @Test func testApplicationSupportActiveStorageIgnoresStaleRepoLocalSessions()
     async throws
   {
     let repoURL = try await makeInitializedGitRepository()
@@ -226,18 +228,18 @@ final class CompassProjectActiveStorageTests: XCTestCase {
 
     let sourceSnapshot = project.activitySourceSnapshot
 
-    XCTAssertEqual(project.activeStorage, .applicationSupport)
-    XCTAssertEqual(project.sessions, supportSessions)
-    XCTAssertEqual(sourceSnapshot.sourceAvailability, .available)
-    XCTAssertEqual(sourceSnapshot.repoLocalSessionsState, .ignoredCompatible)
-    XCTAssertTrue(sourceSnapshot.ignoresRepoLocalSessions)
-    XCTAssertEqual(
-      try String(contentsOf: repoLocalWorkspace.sessionsRecordURL, encoding: .utf8),
+    #require(project.activeStorage == .applicationSupport)
+    #require(project.sessions == supportSessions)
+    #require(sourceSnapshot.sourceAvailability == .available)
+    #require(sourceSnapshot.repoLocalSessionsState == .ignoredCompatible)
+    #require(sourceSnapshot.ignoresRepoLocalSessions)
+    #require(
+      try String(contentsOf: repoLocalWorkspace.sessionsRecordURL, encoding: .utf8) ==
       staleRepoLocalText
     )
   }
 
-  func testActivitySourceDiagnosticsReportMissingActiveSupportRootReadOnly() async throws {
+  @Test func testActivitySourceDiagnosticsReportMissingActiveSupportRootReadOnly() async throws {
     let repoURL = try makeTemporaryGitRepository()
     let roots = try makeApplicationSupportRoots()
     let workspace = applicationSupportWorkspace(repoURL: repoURL, roots: roots)
@@ -254,19 +256,19 @@ final class CompassProjectActiveStorageTests: XCTestCase {
     let activeStorageBeforeDiagnostics = project.activeStorage
     let sessionsBeforeDiagnostics = project.sessions
 
-    XCTAssertEqual(snapshot.activeStorage, .applicationSupport)
-    XCTAssertEqual(snapshot.storageRootURL, workspace.compassURL.standardizedFileURL)
-    XCTAssertEqual(snapshot.sessionsRecordURL, workspace.sessionsRecordURL.standardizedFileURL)
-    XCTAssertEqual(snapshot.sourceAvailability, .storageRootMissing)
-    XCTAssertEqual(snapshot.repoLocalSessionsState, .ignoredMissing)
-    XCTAssertEqual(project.state, stateBeforeDiagnostics)
-    XCTAssertEqual(project.activeStorage, activeStorageBeforeDiagnostics)
-    XCTAssertEqual(project.sessions, sessionsBeforeDiagnostics)
-    XCTAssertFalse(FileManager.default.fileExists(atPath: workspace.compassURL.path))
-    XCTAssertFalse(FileManager.default.fileExists(atPath: workspace.repoLocalCompassURL.path))
+    #require(snapshot.activeStorage == .applicationSupport)
+    #require(snapshot.storageRootURL == workspace.compassURL.standardizedFileURL)
+    #require(snapshot.sessionsRecordURL == workspace.sessionsRecordURL.standardizedFileURL)
+    #require(snapshot.sourceAvailability == .storageRootMissing)
+    #require(snapshot.repoLocalSessionsState == .ignoredMissing)
+    #require(project.state == stateBeforeDiagnostics)
+    #require(project.activeStorage == activeStorageBeforeDiagnostics)
+    #require(project.sessions == sessionsBeforeDiagnostics)
+    #require(!FileManager.default.fileExists(atPath: workspace.compassURL.path))
+    #require(!FileManager.default.fileExists(atPath: workspace.repoLocalCompassURL.path))
   }
 
-  func testActivitySourceDiagnosticsReportNoRepositoryFallbackReadOnly() async throws {
+  @Test func testActivitySourceDiagnosticsReportNoRepositoryFallbackReadOnly() async throws {
     let parentURL = try makeTemporaryDirectory(prefix: "CompassProjectMissingRepoParent")
     let missingRepoURL = parentURL.appending(path: "MissingRepo", directoryHint: .isDirectory)
     let roots = try makeApplicationSupportRoots()
@@ -283,18 +285,18 @@ final class CompassProjectActiveStorageTests: XCTestCase {
     let activeStorageBeforeDiagnostics = project.activeStorage
     let sessionsBeforeDiagnostics = project.sessions
 
-    XCTAssertEqual(snapshot.activeStorage, .applicationSupport)
-    XCTAssertNil(snapshot.storageRootURL)
-    XCTAssertNil(snapshot.sessionsRecordURL)
-    XCTAssertEqual(snapshot.sourceAvailability, .noRepository)
-    XCTAssertEqual(snapshot.repoLocalSessionsState, .ignoredMissing)
-    XCTAssertEqual(project.state, stateBeforeDiagnostics)
-    XCTAssertEqual(project.activeStorage, activeStorageBeforeDiagnostics)
-    XCTAssertEqual(project.sessions, sessionsBeforeDiagnostics)
-    XCTAssertFalse(FileManager.default.fileExists(atPath: missingRepoURL.path))
+    #require(snapshot.activeStorage == .applicationSupport)
+    #require(snapshot.storageRootURL == nil)
+    #require(snapshot.sessionsRecordURL == nil)
+    #require(snapshot.sourceAvailability == .noRepository)
+    #require(snapshot.repoLocalSessionsState == .ignoredMissing)
+    #require(project.state == stateBeforeDiagnostics)
+    #require(project.activeStorage == activeStorageBeforeDiagnostics)
+    #require(project.sessions == sessionsBeforeDiagnostics)
+    #require(!FileManager.default.fileExists(atPath: missingRepoURL.path))
   }
 
-  func testInitializeWorkspaceRepairsActiveSupportStorageWithoutRepoLocalSideEffects() async throws
+  @Test func testInitializeWorkspaceRepairsActiveSupportStorageWithoutRepoLocalSideEffects() async throws
   {
     let repoURL = try makeTemporaryGitRepository()
     let roots = try makeApplicationSupportRoots()
@@ -311,30 +313,30 @@ final class CompassProjectActiveStorageTests: XCTestCase {
       applicationSupportRoots: roots
     )
 
-    XCTAssertEqual(display.supportRepairAction?.kind, .initializeApplicationSupportWorkspace)
-    XCTAssertEqual(display.supportRepairAction?.issueKind, .applicationSupportActiveMissing)
-    XCTAssertFalse(FileManager.default.fileExists(atPath: workspace.compassURL.path))
-    XCTAssertFalse(FileManager.default.fileExists(atPath: workspace.repoLocalCompassURL.path))
+    #require(display.supportRepairAction?.kind == .initializeApplicationSupportWorkspace)
+    #require(display.supportRepairAction?.issueKind == .applicationSupportActiveMissing)
+    #require(!FileManager.default.fileExists(atPath: workspace.compassURL.path))
+    #require(!FileManager.default.fileExists(atPath: workspace.repoLocalCompassURL.path))
 
     await project.initializeWorkspace()
 
-    XCTAssertDirectoryExists(workspace.compassURL)
-    XCTAssertDirectoryExists(workspace.sessionsURL)
-    XCTAssertFileExists(workspace.stateURL)
-    XCTAssertFileExists(workspace.draftsURL)
-    XCTAssertFileExists(workspace.lessonsURL)
-    XCTAssertFileExists(workspace.visionURL)
-    XCTAssertFileExists(workspace.sessionsRecordURL)
-    XCTAssertFalse(FileManager.default.fileExists(atPath: workspace.repoLocalCompassURL.path))
-    XCTAssertFalse(
-      FileManager.default.fileExists(atPath: repoURL.appending(path: ".gitignore").path))
+    #require(FileManager.default.fileExists(atPath: workspace.compassURL.path))
+    #require(FileManager.default.fileExists(atPath: workspace.sessionsURL.path))
+    #require(FileManager.default.fileExists(atPath: workspace.stateURL.path))
+    #require(FileManager.default.fileExists(atPath: workspace.draftsURL.path))
+    #require(FileManager.default.fileExists(atPath: workspace.lessonsURL.path))
+    #require(FileManager.default.fileExists(atPath: workspace.visionURL.path))
+    #require(FileManager.default.fileExists(atPath: workspace.sessionsRecordURL.path))
+    #require(!FileManager.default.fileExists(atPath: workspace.repoLocalCompassURL.path))
+    #require(
+      !FileManager.default.fileExists(atPath: repoURL.appending(path: ".gitignore").path))
 
     display = CompassWorkspaceStorageDisplayStatus(
       repoURL: repoURL,
       activeStorage: .applicationSupport,
       applicationSupportRoots: roots
     )
-    XCTAssertNil(display.supportRepairAction)
+    #require(display.supportRepairAction == nil)
 
     try write("- support lesson survives repair\n", to: workspace.lessonsURL)
     try FileManager.default.removeItem(at: workspace.draftsURL)
@@ -346,21 +348,21 @@ final class CompassProjectActiveStorageTests: XCTestCase {
       activeStorage: .applicationSupport,
       applicationSupportRoots: roots
     )
-    XCTAssertEqual(display.supportRepairAction?.kind, .initializeApplicationSupportWorkspace)
-    XCTAssertEqual(display.supportRepairAction?.issueKind, .applicationSupportActiveIncomplete)
+    #require(display.supportRepairAction?.kind == .initializeApplicationSupportWorkspace)
+    #require(display.supportRepairAction?.issueKind == .applicationSupportActiveIncomplete)
 
     await project.initializeWorkspace()
 
-    XCTAssertFileExists(workspace.draftsURL)
-    XCTAssertFileExists(workspace.sessionsRecordURL)
-    XCTAssertDirectoryExists(workspace.sessionsURL)
-    XCTAssertEqual(workspace.readLessons(), "- support lesson survives repair\n")
-    XCTAssertFalse(FileManager.default.fileExists(atPath: workspace.repoLocalCompassURL.path))
-    XCTAssertFalse(
-      FileManager.default.fileExists(atPath: repoURL.appending(path: ".gitignore").path))
+    #require(FileManager.default.fileExists(atPath: workspace.draftsURL.path))
+    #require(FileManager.default.fileExists(atPath: workspace.sessionsRecordURL.path))
+    #require(FileManager.default.fileExists(atPath: workspace.sessionsURL.path))
+    #require(workspace.readLessons() == "- support lesson survives repair\n")
+    #require(!FileManager.default.fileExists(atPath: workspace.repoLocalCompassURL.path))
+    #require(
+      !FileManager.default.fileExists(atPath: repoURL.appending(path: ".gitignore").path))
   }
 
-  func testActivationGatingRequiresIdleRepoLocalAndUsableCandidate() async throws {
+  @Test func testActivationGatingRequiresIdleRepoLocalAndUsableCandidate() async throws {
     let repoURL = try makeTemporaryGitRepository()
     let roots = try makeApplicationSupportRoots()
     let project = CompassProject(
@@ -369,35 +371,35 @@ final class CompassProjectActiveStorageTests: XCTestCase {
     )
 
     var plan = project.activeStorageActivationPlan()
-    XCTAssertFalse(plan.isAvailable)
-    XCTAssertEqual(plan.kind, .candidateMissing)
+    #require(!plan.isAvailable)
+    #require(plan.kind == .candidateMissing)
 
     project.prepareActiveStorageActivationConfirmation()
 
-    XCTAssertNil(project.activeStorageActivationConfirmation)
-    XCTAssertEqual(project.activeStorageActivationState.phase, .blocked)
+    #require(project.activeStorageActivationConfirmation == nil)
+    #require(project.activeStorageActivationState.phase == .blocked)
 
     let supportWorkspace = applicationSupportWorkspace(repoURL: repoURL, roots: roots)
     try supportWorkspace.initialize()
 
     plan = project.activeStorageActivationPlan()
-    XCTAssertTrue(plan.isAvailable)
+    #require(plan.isAvailable)
 
     project.isRunning = true
     project.prepareActiveStorageActivationConfirmation()
 
-    XCTAssertNil(project.activeStorageActivationConfirmation)
-    XCTAssertEqual(project.activeStorageActivationState.phase, .blocked)
+    #require(project.activeStorageActivationConfirmation == nil)
+    #require(project.activeStorageActivationState.phase == .blocked)
 
     project.isRunning = false
     project.activeStorage = .applicationSupport
     plan = project.activeStorageActivationPlan()
 
-    XCTAssertFalse(plan.isAvailable)
-    XCTAssertEqual(plan.kind, .alreadyApplicationSupport)
+    #require(!plan.isAvailable)
+    #require(plan.kind == .alreadyApplicationSupport)
   }
 
-  func testActivationPersistsThroughCallbackAndRefreshesSupportState() async throws {
+  @Test func testActivationPersistsThroughCallbackAndRefreshesSupportState() async throws {
     let repoURL = try makeTemporaryGitRepository()
     let roots = try makeApplicationSupportRoots()
     let workspace = applicationSupportWorkspace(repoURL: repoURL, roots: roots)
@@ -418,31 +420,31 @@ final class CompassProjectActiveStorageTests: XCTestCase {
     )
 
     project.prepareActiveStorageActivationConfirmation()
-    let confirmation = try XCTUnwrap(project.activeStorageActivationConfirmation)
+    let confirmation = #require(project.activeStorageActivationConfirmation)
     var persistedActiveStorage: [KnownProjectActiveStorage] = []
 
     await project.confirmActiveStorageActivation(confirmation) {
       persistedActiveStorage.append(project.activeStorage)
     }
 
-    XCTAssertEqual(persistedActiveStorage, [.applicationSupport])
-    XCTAssertEqual(project.activeStorage, .applicationSupport)
-    XCTAssertEqual(project.activeStorageActivationState.phase, .succeeded)
-    XCTAssertEqual(project.compassPath, workspace.compassURL.path)
-    XCTAssertEqual(project.state, state)
-    XCTAssertEqual(project.drafts, "support draft\n")
-    XCTAssertEqual(project.lessons, "- support lesson\n")
-    XCTAssertEqual(project.vision, "support vision\n")
-    XCTAssertFalse(FileManager.default.fileExists(atPath: workspace.repoLocalCompassURL.path))
+    #require(persistedActiveStorage == [.applicationSupport])
+    #require(project.activeStorage == .applicationSupport)
+    #require(project.activeStorageActivationState.phase == .succeeded)
+    #require(project.compassPath == workspace.compassURL.path)
+    #require(project.state == state)
+    #require(project.drafts == "support draft\n")
+    #require(project.lessons == "- support lesson\n")
+    #require(project.vision == "support vision\n")
+    #require(!FileManager.default.fileExists(atPath: workspace.repoLocalCompassURL.path))
 
     project.drafts = "updated after activation\n"
     await project.saveDrafts()
 
-    XCTAssertEqual(workspace.readDrafts(), "updated after activation\n")
-    XCTAssertFalse(FileManager.default.fileExists(atPath: workspace.repoLocalCompassURL.path))
+    #require(workspace.readDrafts() == "updated after activation\n")
+    #require(!FileManager.default.fileExists(atPath: workspace.repoLocalCompassURL.path))
   }
 
-  func testActivationRollsBackWhenPersistenceCallbackFails() async throws {
+  @Test func testActivationRollsBackWhenPersistenceCallbackFails() async throws {
     let repoURL = try makeTemporaryGitRepository()
     let roots = try makeApplicationSupportRoots()
     let workspace = applicationSupportWorkspace(repoURL: repoURL, roots: roots)
@@ -453,7 +455,7 @@ final class CompassProjectActiveStorageTests: XCTestCase {
     )
 
     project.prepareActiveStorageActivationConfirmation()
-    let confirmation = try XCTUnwrap(project.activeStorageActivationConfirmation)
+    let confirmation = #require(project.activeStorageActivationConfirmation)
     var persistedActiveStorage: [KnownProjectActiveStorage] = []
 
     await project.confirmActiveStorageActivation(confirmation) {
@@ -461,22 +463,22 @@ final class CompassProjectActiveStorageTests: XCTestCase {
       throw ActiveStoragePersistenceTestError.failed("registry save failed")
     }
 
-    XCTAssertEqual(persistedActiveStorage, [.applicationSupport, .repoLocal])
-    XCTAssertEqual(project.activeStorage, .repoLocal)
-    XCTAssertEqual(project.activeStorageActivationState.phase, .failed)
-    XCTAssertEqual(project.errorMessage, project.activeStorageActivationState.detail)
-    XCTAssertLessThanOrEqual(
-      project.activeStorageActivationState.label.count, CompassProjectActiveStorageState.labelLimit)
-    XCTAssertLessThanOrEqual(
-      project.activeStorageActivationState.detail.count,
+    #require(persistedActiveStorage == [.applicationSupport, .repoLocal])
+    #require(project.activeStorage == .repoLocal)
+    #require(project.activeStorageActivationState.phase == .failed)
+    #require(project.errorMessage == project.activeStorageActivationState.detail)
+    #require(
+      project.activeStorageActivationState.label.count <= CompassProjectActiveStorageState.labelLimit)
+    #require(
+      project.activeStorageActivationState.detail.count <=
       CompassProjectActiveStorageState.detailLimit)
-    XCTAssertLessThanOrEqual(
-      project.activeStorageActivationState.helpText.count,
+    #require(
+      project.activeStorageActivationState.helpText.count <=
       CompassProjectActiveStorageState.helpLimit)
-    XCTAssertEqual(project.compassPath, workspace.repoLocalCompassURL.path)
+    #require(project.compassPath == workspace.repoLocalCompassURL.path)
   }
 
-  func testActivationReportsMissingAndInvalidCandidateFailuresWithoutSwitching() async throws {
+  @Test func testActivationReportsMissingAndInvalidCandidateFailuresWithoutSwitching() async throws {
     let missingRepoURL = try makeTemporaryGitRepository()
     let missingRoots = try makeApplicationSupportRoots()
     let missingProject = CompassProject(
@@ -492,10 +494,10 @@ final class CompassProjectActiveStorageTests: XCTestCase {
       missingPersistCalls += 1
     }
 
-    XCTAssertEqual(missingPersistCalls, 0)
-    XCTAssertEqual(missingProject.activeStorage, .repoLocal)
-    XCTAssertEqual(missingProject.activeStorageActivationState.phase, .failed)
-    XCTAssertEqual(missingProject.activeStorageActivationPlan().kind, .candidateMissing)
+    #require(missingPersistCalls == 0)
+    #require(missingProject.activeStorage == .repoLocal)
+    #require(missingProject.activeStorageActivationState.phase == .failed)
+    #require(missingProject.activeStorageActivationPlan().kind == .candidateMissing)
 
     let invalidRepoURL = try makeTemporaryGitRepository()
     let invalidRoots = try makeApplicationSupportRoots()
@@ -509,13 +511,13 @@ final class CompassProjectActiveStorageTests: XCTestCase {
 
     invalidProject.prepareActiveStorageActivationConfirmation()
 
-    XCTAssertNil(invalidProject.activeStorageActivationConfirmation)
-    XCTAssertEqual(invalidProject.activeStorage, .repoLocal)
-    XCTAssertEqual(invalidProject.activeStorageActivationPlan().kind, .candidateInvalid)
-    XCTAssertEqual(invalidProject.activeStorageActivationState.phase, .blocked)
-    XCTAssertEqual(invalidProject.errorMessage, invalidProject.activeStorageActivationState.detail)
-    XCTAssertLessThanOrEqual(
-      invalidProject.activeStorageActivationState.detail.count,
+    #require(invalidProject.activeStorageActivationConfirmation == nil)
+    #require(invalidProject.activeStorage == .repoLocal)
+    #require(invalidProject.activeStorageActivationPlan().kind == .candidateInvalid)
+    #require(invalidProject.activeStorageActivationState.phase == .blocked)
+    #require(invalidProject.errorMessage == invalidProject.activeStorageActivationState.detail)
+    #require(
+      invalidProject.activeStorageActivationState.detail.count <=
       CompassProjectActiveStorageState.detailLimit)
   }
 
@@ -605,37 +607,25 @@ final class CompassProjectActiveStorageTests: XCTestCase {
   }
 
   // swift-format-ignore: AlwaysUseLowerCamelCase
-  private func XCTAssertDirectoryExists(
-    _ url: URL,
-    file: StaticString = #filePath,
-    line: UInt = #line
+  private func AssertDirectoryExists(
+    _ url: URL
   ) {
     var isDirectory = ObjCBool(false)
-    XCTAssertTrue(
-      FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory),
-      "Expected directory to exist at \(url.path).",
-      file: file,
-      line: line
+    #require(
+      FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory)
     )
-    XCTAssertTrue(
-      isDirectory.boolValue, "Expected \(url.path) to be a directory.", file: file, line: line)
+    #require(isDirectory.boolValue)
   }
 
   // swift-format-ignore: AlwaysUseLowerCamelCase
-  private func XCTAssertFileExists(
-    _ url: URL,
-    file: StaticString = #filePath,
-    line: UInt = #line
+  private func AssertFileExists(
+    _ url: URL
   ) {
     var isDirectory = ObjCBool(false)
-    XCTAssertTrue(
-      FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory),
-      "Expected file to exist at \(url.path).",
-      file: file,
-      line: line
+    #require(
+      FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory)
     )
-    XCTAssertFalse(
-      isDirectory.boolValue, "Expected \(url.path) to be a file.", file: file, line: line)
+    #require(!isDirectory.boolValue)
   }
 }
 

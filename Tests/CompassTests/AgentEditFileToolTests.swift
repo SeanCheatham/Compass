@@ -28,10 +28,10 @@ final class AgentEditFileToolTests {
         "edits": [["oldString": "beta", "newString": "BETA"]],
       ])
 
-    try #require(!result.isError)
-    try #require(result.content.contains("applied 1 edit to notes.txt"))
-    try #require(result.content.contains("replaced 1 occurrence"))
-    try #require(try String(contentsOf: fileURL, encoding: .utf8) == "alpha\nBETA\ngamma")
+    #require(!result.isError)
+    #require(result.content.contains("applied 1 edit to notes.txt"))
+    #require(result.content.contains("replaced 1 occurrence"))
+    #require(try String(contentsOf: fileURL, encoding: .utf8) == "alpha\nBETA\ngamma")
   }
 
   @Test func testAppliesMultipleEditsInOrder() async throws {
@@ -48,10 +48,10 @@ final class AgentEditFileToolTests {
         ],
       ])
 
-    try #require(!result.isError)
-    try #require(result.content.contains("applied 2 edits to notes.txt"))
-    try #require(result.content.contains("replaced 2 occurrences"))
-    try #require(try String(contentsOf: fileURL, encoding: .utf8) == "ALPHA\nbeta\nGAMMA")
+    #require(!result.isError)
+    #require(result.content.contains("applied 2 edits to notes.txt"))
+    #require(result.content.contains("replaced 2 occurrences"))
+    #require(try String(contentsOf: fileURL, encoding: .utf8) == "ALPHA\nbeta\nGAMMA")
   }
 
   @Test func testLaterEditSeesEarlierEditsResult() async throws {
@@ -68,8 +68,8 @@ final class AgentEditFileToolTests {
         ],
       ])
 
-    try #require(!result.isError)
-    try #require(try String(contentsOf: fileURL, encoding: .utf8) == "three")
+    #require(!result.isError)
+    #require(try String(contentsOf: fileURL, encoding: .utf8) == "three")
   }
 
   @Test func testFailingEditLeavesFileUnchanged() async throws {
@@ -86,9 +86,9 @@ final class AgentEditFileToolTests {
         ],
       ])
 
-    try #require(result.isError)
-    try #require(result.content.contains("edits[1]"))
-    try #require(try String(contentsOf: fileURL, encoding: .utf8) == "alpha\nbeta")
+    #require(result.isError)
+    #require(result.content.contains("edits[1]"))
+    #require(try String(contentsOf: fileURL, encoding: .utf8) == "alpha\nbeta")
   }
 
   @Test func testFailsWhenOldStringIsAmbiguous() async throws {
@@ -102,10 +102,10 @@ final class AgentEditFileToolTests {
         "edits": [["oldString": "foo", "newString": "bar"]],
       ])
 
-    try #require(result.isError)
-    try #require(result.content.contains("matches 3 places"))
-    try #require(result.content.contains("replaceAll"))
-    try #require(try String(contentsOf: fileURL, encoding: .utf8) == "foo\nfoo\nfoo")
+    #require(result.isError)
+    #require(result.content.contains("matches 3 places"))
+    #require(result.content.contains("replaceAll"))
+    #require(try String(contentsOf: fileURL, encoding: .utf8) == "foo\nfoo\nfoo")
   }
 
   @Test func testReplaceAllReplacesEveryOccurrence() async throws {
@@ -119,9 +119,9 @@ final class AgentEditFileToolTests {
         "edits": [["oldString": "foo", "newString": "bar", "replaceAll": true]],
       ])
 
-    try #require(!result.isError)
-    try #require(result.content.contains("replaced 3 occurrences"))
-    try #require(try String(contentsOf: fileURL, encoding: .utf8) == "bar\nbar\nbar")
+    #require(!result.isError)
+    #require(result.content.contains("replaced 3 occurrences"))
+    #require(try String(contentsOf: fileURL, encoding: .utf8) == "bar\nbar\nbar")
   }
 
   @Test func testFailsWhenOldStringMissing() async throws {
@@ -135,8 +135,8 @@ final class AgentEditFileToolTests {
         "edits": [["oldString": "missing", "newString": "found"]],
       ])
 
-    try #require(result.isError)
-    try #require(result.content.contains("not found"))
+    #require(result.isError)
+    #require(result.content.contains("not found"))
   }
 
   @Test func testIncludesNearMissHintsWhenOldStringMissing() async throws {
@@ -156,13 +156,13 @@ final class AgentEditFileToolTests {
         ],
       ])
 
-    try #require(result.isError)
-    try #require(result.content.contains("not found"))
-    try #require(
+    #require(result.isError)
+    #require(result.content.contains("not found"))
+    #require(
       result.content.contains("Lines that look similar"),
       "expected near-miss hints, got: \(result.content)")
-    try #require(result.content.contains("line 1"))
-    try #require(result.content.contains("line 2"))
+    #require(result.content.contains("line 1"))
+    #require(result.content.contains("line 2"))
   }
 
   @Test func testFailsWhenStringsAreEqual() async throws {
@@ -176,8 +176,8 @@ final class AgentEditFileToolTests {
         "edits": [["oldString": "alpha", "newString": "alpha"]],
       ])
 
-    try #require(result.isError)
-    try #require(result.content.contains("identical"))
+    #require(result.isError)
+    #require(result.content.contains("identical"))
   }
 
   @Test func testFailsWhenOldStringIsEmpty() async throws {
@@ -191,8 +191,8 @@ final class AgentEditFileToolTests {
         "edits": [["oldString": "", "newString": "anything"]],
       ])
 
-    try #require(result.isError)
-    try #require(result.content.contains("write_file"))
+    #require(result.isError)
+    #require(result.content.contains("write_file"))
   }
 
   @Test func testFailsWhenEditsArrayIsEmpty() async throws {
@@ -206,8 +206,8 @@ final class AgentEditFileToolTests {
         "edits": [],
       ])
 
-    try #require(result.isError)
-    try #require(result.content.contains("edits is empty"))
+    #require(result.isError)
+    #require(result.content.contains("edits is empty"))
   }
 
   @Test func testRejectsPathThatEscapesWorkingDirectory() async throws {
@@ -216,8 +216,8 @@ final class AgentEditFileToolTests {
         "path": "../escape.txt",
         "edits": [["oldString": "a", "newString": "b"]],
       ], context: AgentToolContext(workingDirectory: temporaryDirectory))
-    try #require(result.isError)
-    try #require(result.content.contains("escapes"))
+    #require(result.isError)
+    #require(result.content.contains("escapes"))
   }
 
   @Test func testFailsWithoutPriorRead() async throws {
@@ -229,9 +229,9 @@ final class AgentEditFileToolTests {
         "path": "unread.txt",
         "edits": [["oldString": "alpha", "newString": "ALPHA"]],
       ], context: AgentToolContext(workingDirectory: temporaryDirectory))
-    try #require(result.isError)
-    try #require(result.content.contains("requires a prior read_file"))
-    try #require(try String(contentsOf: fileURL, encoding: .utf8) == "alpha")
+    #require(result.isError)
+    #require(result.content.contains("requires a prior read_file"))
+    #require(try String(contentsOf: fileURL, encoding: .utf8) == "alpha")
   }
 
   @Test func testRejectsMissingFile() async throws {
@@ -243,8 +243,8 @@ final class AgentEditFileToolTests {
         "path": "ghost.txt",
         "edits": [["oldString": "a", "newString": "b"]],
       ], context: context)
-    try #require(result.isError)
-    try #require(result.content.contains("not found"))
+    #require(result.isError)
+    #require(result.content.contains("not found"))
   }
 
   @Test func testRejectsBinaryFile() async throws {
@@ -257,8 +257,8 @@ final class AgentEditFileToolTests {
         "path": "binary.bin",
         "edits": [["oldString": "a", "newString": "b"]],
       ])
-    try #require(result.isError)
-    try #require(result.content.contains("binary"))
+    #require(result.isError)
+    #require(result.content.contains("binary"))
   }
 
   fileprivate func invoke(_ args: [String: Any], context: AgentToolContext) async throws

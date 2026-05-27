@@ -24,10 +24,10 @@ final class AgentReadFileToolTests {
     let context = AgentToolContext(workingDirectory: temporaryDirectory)
     let result = try await invoke(["path": "hello.txt"], context: context)
 
-    try #require(!result.isError)
-    try #require(result.content.contains("     1\talpha"))
-    try #require(result.content.contains("     2\tbeta"))
-    try #require(result.content.contains("     3\tgamma"))
+    #require(!result.isError)
+    #require(result.content.contains("     1\talpha"))
+    #require(result.content.contains("     2\tbeta"))
+    #require(result.content.contains("     3\tgamma"))
   }
 
   @Test func testOffsetAndLimitNarrowTheSlice() async throws {
@@ -43,11 +43,11 @@ final class AgentReadFileToolTests {
         "limit": 2,
       ], context: context)
 
-    try #require(!result.isError)
-    try #require(result.content.contains("     3\trow3"))
-    try #require(result.content.contains("     4\trow4"))
-    try #require(!result.content.contains("row5"))
-    try #require(result.content.contains("6 more lines"))
+    #require(!result.isError)
+    #require(result.content.contains("     3\trow3"))
+    #require(result.content.contains("     4\trow4"))
+    #require(!result.content.contains("row5"))
+    #require(result.content.contains("6 more lines"))
   }
 
   @Test func testRejectsBinaryFiles() async throws {
@@ -57,22 +57,22 @@ final class AgentReadFileToolTests {
     let context = AgentToolContext(workingDirectory: temporaryDirectory)
     let result = try await invoke(["path": "binary.bin"], context: context)
 
-    try #require(result.isError)
-    try #require(result.content.contains("binary"))
+    #require(result.isError)
+    #require(result.content.contains("binary"))
   }
 
   @Test func testRejectsPathsThatEscapeTheWorkingDirectory() async throws {
     let context = AgentToolContext(workingDirectory: temporaryDirectory)
     let result = try await invoke(["path": "../escape.txt"], context: context)
-    try #require(result.isError)
-    try #require(result.content.contains("escapes"))
+    #require(result.isError)
+    #require(result.content.contains("escapes"))
   }
 
   @Test func testReportsMissingFile() async throws {
     let context = AgentToolContext(workingDirectory: temporaryDirectory)
     let result = try await invoke(["path": "ghost.txt"], context: context)
-    try #require(result.isError)
-    try #require(result.content.contains("not found"))
+    #require(result.isError)
+    #require(result.content.contains("not found"))
   }
 
   @Test func testOffsetPastEndReturnsFriendlyMessage() async throws {
@@ -86,8 +86,8 @@ final class AgentReadFileToolTests {
         "offset": 100,
       ], context: context)
 
-    try #require(!result.isError)
-    try #require(result.content.contains("past the end"))
+    #require(!result.isError)
+    #require(result.content.contains("past the end"))
   }
 
   @Test func testRejectsDirectoryAsRegularFile() async throws {
@@ -96,8 +96,8 @@ final class AgentReadFileToolTests {
 
     let context = AgentToolContext(workingDirectory: temporaryDirectory)
     let result = try await invoke(["path": "sub"], context: context)
-    try #require(result.isError)
-    try #require(result.content.contains("Not a regular file"))
+    #require(result.isError)
+    #require(result.content.contains("Not a regular file"))
   }
 
   fileprivate func invoke(_ args: [String: Any], context: AgentToolContext) async throws
