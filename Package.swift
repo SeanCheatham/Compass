@@ -88,7 +88,7 @@ let package = Package(
     ),
     .testTarget(
       name: "CompassTests",
-      dependencies: ["Compass"]
+      dependencies: ["Compass", .product(name: "Testing", package: "swift-testing")]
     ),
   ]
 )
