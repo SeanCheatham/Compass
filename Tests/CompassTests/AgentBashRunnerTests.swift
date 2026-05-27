@@ -1,12 +1,13 @@
 import Foundation
-import XCTest
+import Testing
 
 @testable import Compass
 
-final class AgentBashRunnerTests: XCTestCase {
+struct AgentBashRunnerTests {
 
   // MARK: - HostBashRunner
 
+  @Test
   func testHostBashRunnerExecutesCommandInWorkingDirectory() async throws {
     let tempDir = try makeTempDir()
     defer { try? FileManager.default.removeItem(at: tempDir) }
@@ -21,12 +22,13 @@ final class AgentBashRunnerTests: XCTestCase {
       workingDirectory: tempDir,
       timeout: 10
     )
-    XCTAssertEqual(result.exitCode, 0)
-    XCTAssertEqual(result.stdout, "marker")
+    try #require(result.exitCode == 0)
+    try #require(result.stdout == "marker")
   }
 
   // MARK: - AgentBashTool wires the runner
 
+  @Test
   func testAgentBashToolDispatchesThroughInjectedRunner() async throws {
     final class RecordingRunner: AgentBashRunner, @unchecked Sendable {
       var lastCommand: String?
@@ -51,10 +53,20 @@ final class AgentBashRunnerTests: XCTestCase {
       "timeoutMs": 5000,
     ])
     let result = try await tool.invoke(arguments: args, context: context)
-    XCTAssertFalse(result.isError)
-    XCTAssertTrue(result.content.contains("from-runner"))
-    XCTAssertEqual(runner.lastCommand, "echo hello")
-    XCTAssertEqual(runner.lastWorkingDirectory?.standardizedFileURL, tempDir)
-    XCTAssertEqual(runner.lastTimeout, 5)
+    try #require(!result.isError)
+    try #require(result.content.contains("from-runner"))
+    try #require(runner.lastCommand == "echo hello")
+    try #require(runner.lastWorkingDirectory?.standardizedFileURL == tempDir)
+    try #require(runner.lastTimeout == 5)
+  }
+
+  // MARK: - Helper
+
+  private func makeTempDir() throws -> URL {
+    let url = FileManager.default.temporaryDirectory.appendingPathComponent(
+      UUID().uuidString
+    )
+    try FileManager.default.createDirectory(at: url, withIntermediateDirectories: false)
+    return url
   }
 }
