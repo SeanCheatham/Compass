@@ -619,12 +619,10 @@ extension CompassProject {
       break
     case .blocked:
       if summary.bypassVerify != true {
-        let issue = buildRetryIssue("Develop reported it was blocked but did not request verify bypass.")
-        retryIssues.append(issue)
+        retryIssues.append("Develop reported it was blocked but did not request verify bypass.")
       }
     case .failed:
-      let issue = buildRetryIssue("Develop reported failure: \(summary.feedback)")
-      retryIssues.append(issue)
+      retryIssues.append("Develop reported failure: \(summary.feedback)")
     }
 
     if summary.bypassVerify == true {
@@ -692,12 +690,12 @@ extension CompassProject {
         timeout: 30
       )
       if gitStatus.exitCode != 0 {
-        let issue = buildRetryIssue("""
+        let issue = """
           `git status --porcelain` failed unexpectedly:
           ```
           \(tail(gitStatus.stdout + gitStatus.stderr, max: 2000))
           ```
-          """)
+          """
         retryIssues.append(issue)
         log("Working-tree status check failed.", level: .error)
       } else {
@@ -705,13 +703,13 @@ extension CompassProject {
         if status.isEmpty {
           log("Working tree clean.", level: .success)
         } else {
-          let issue = buildRetryIssue("""
+          let issue = """
             Uncommitted or untracked changes remain after Develop ran. Commit them or add them to .gitignore.
             `git status --porcelain` output:
             ```
             \(status)
             ```
-            """)
+            """
           retryIssues.append(issue)
           log("Working tree is not clean after Develop.", level: .error)
         }
@@ -736,8 +734,6 @@ extension CompassProject {
     return parsed
   }
 
-  private func buildRetryIssue(_ message: String) -> String { message }
-
   private func aggregateIssues(_ issues: inout [String], from result: VerifyOutput, command: String) {
     let message = """
       Verify command `\(command)` exited with code \(result.exitCode). Output (tail):
@@ -745,6 +741,6 @@ extension CompassProject {
       \(result.tail)
       ```
       """
-    issues.append(buildRetryIssue(message))
+    issues.append(message)
   }
 }
