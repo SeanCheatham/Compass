@@ -634,6 +634,128 @@ struct ExploreFileExplainerTests {
     #require(result == .other)
   }
 
+  // MARK: - FileChangeCategory.sortOrder
+
+  @Test
+  func sortOrder_source() {
+    #require(FileChangeCategory.source.sortOrder == 0)
+  }
+
+  @Test
+  func sortOrder_test() {
+    #require(FileChangeCategory.test.sortOrder == 1)
+  }
+
+  @Test
+  func sortOrder_config() {
+    #require(FileChangeCategory.config.sortOrder == 2)
+  }
+
+  @Test
+  func sortOrder_other() {
+    #require(FileChangeCategory.other.sortOrder == 3)
+  }
+
+  // MARK: - FileChange.fileName
+
+  @Test
+  func fileName_simplePath() {
+    let change = FileChange(
+      relativePath: "Sources/App.swift",
+      additions: 10,
+      deletions: 2,
+      language: nil,
+      summary: nil
+    )
+    #require(change.fileName == "App.swift")
+  }
+
+  @Test
+  func fileName_deeplyNested() {
+    let change = FileChange(
+      relativePath: "Sources/Views/Components/Button.swift",
+      additions: 5,
+      deletions: 0,
+      language: nil,
+      summary: nil
+    )
+    #require(change.fileName == "Button.swift")
+  }
+
+  @Test
+  func fileName_singleComponent() {
+    let change = FileChange(
+      relativePath: "Makefile",
+      additions: 1,
+      deletions: 1,
+      language: nil,
+      summary: nil
+    )
+    #require(change.fileName == "Makefile")
+  }
+
+  @Test
+  func fileName_directoryPath() {
+    let change = FileChange(
+      relativePath: "Tests/CompassTests/Helper/",
+      additions: 20,
+      deletions: 5,
+      language: nil,
+      summary: nil
+    )
+    #require(change.fileName == "Helper")
+  }
+
+  // MARK: - FileChange.lineCountLabel
+
+  @Test
+  func lineCountLabel_bothAdditionsAndDeletions() {
+    let change = FileChange(
+      relativePath: "Sources/App.swift",
+      additions: 12,
+      deletions: 8,
+      language: nil,
+      summary: nil
+    )
+    #require(change.lineCountLabel == "+12/-8")
+  }
+
+  @Test
+  func lineCountLabel_onlyAdditions() {
+    let change = FileChange(
+      relativePath: "Sources/App.swift",
+      additions: 5,
+      deletions: 0,
+      language: nil,
+      summary: nil
+    )
+    #require(change.lineCountLabel == "+5/0")
+  }
+
+  @Test
+  func lineCountLabel_onlyDeletions() {
+    let change = FileChange(
+      relativePath: "Sources/App.swift",
+      additions: 0,
+      deletions: 3,
+      language: nil,
+      summary: nil
+    )
+    #require(change.lineCountLabel == "0/-3")
+  }
+
+  @Test
+  func lineCountLabel_zeroChanges() {
+    let change = FileChange(
+      relativePath: "Assets/logo.png",
+      additions: 0,
+      deletions: 0,
+      language: nil,
+      summary: nil
+    )
+    #require(change.lineCountLabel == "0/0")
+  }
+
   // MARK: - Helpers
 
   private func initGitRepo(at url: URL) {
