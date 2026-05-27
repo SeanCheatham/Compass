@@ -147,7 +147,7 @@ enum FileExplainer {
       diff = result?.stdout ?? ""
     } else if let last = commits.last {
       let result = try? await ProcessRunner.runEnv(
-        "git", ["diff", "\(last.sha)..\(first.sha)", "--", relativePath],
+        "git", ["diff", "\(first.sha)..\(last.sha)", "--", relativePath],
         workingDirectory: repoURL
       )
       diff = result?.stdout ?? ""

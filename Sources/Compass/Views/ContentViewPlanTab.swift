@@ -1276,6 +1276,8 @@ struct ExploreFilesPopover: View {
 struct ExploreFileRow: View {
   let change: FileChange
 
+  @State private var showExplanation = false
+
   var body: some View {
     VStack(alignment: .leading, spacing: 3) {
       HStack(spacing: 6) {
@@ -1297,6 +1299,17 @@ struct ExploreFileRow: View {
         Text(change.lineCountLabel)
           .font(.caption.monospaced())
           .foregroundStyle(.secondary)
+
+        if change.explanation != nil {
+          Button {
+            showExplanation = true
+          } label: {
+            Image(systemName: "info.circle")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+          }
+          .buttonStyle(.plain)
+        }
       }
 
       if let summary = change.summary {
@@ -1306,24 +1319,30 @@ struct ExploreFileRow: View {
           .lineLimit(2)
           .fixedSize(horizontal: false, vertical: true)
       }
-
-      if let explanation = change.explanation {
-        Text(explanation)
-          .font(.caption.italic())
-          .foregroundStyle(.primary.opacity(0.7))
-          .lineLimit(3)
-          .fixedSize(horizontal: false, vertical: true)
-          .padding(.top, 2)
-          .padding(.horizontal, 4)
-          .padding(.vertical, 3)
-          .frame(maxWidth: .infinity, alignment: .leading)
-          .background(Color.accentColor.opacity(0.06), in: RoundedRectangle(cornerRadius: 4))
-      }
     }
     .padding(.vertical, 4)
     .padding(.horizontal, 6)
     .frame(maxWidth: .infinity, alignment: .leading)
     .background(.quaternary.opacity(0.3), in: RoundedRectangle(cornerRadius: 4))
+    .sheet(isPresented: $showExplanation) {
+      if let explanation = change.explanation {
+        NavigationStack {
+          ScrollView {
+            Text(explanation)
+              .font(.body)
+              .padding()
+              .frame(maxWidth: .infinity, alignment: .leading)
+          }
+          .navigationTitle(change.fileName)
+          .toolbar {
+            ToolbarItem(placement: .confirmationAction) {
+              Button("Done") { showExplanation = false }
+            }
+          }
+        }
+        .frame(minWidth: 400, minHeight: 200)
+      }
+    }
   }
 }
 
