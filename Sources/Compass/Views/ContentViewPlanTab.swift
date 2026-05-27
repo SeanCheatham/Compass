@@ -1223,7 +1223,7 @@ struct ExploreFilesPopover: View {
     isLoading = true
     defer { isLoading = false }
 
-    var loaded = await FileExplainer.changes(for: repoURL, commits: item.commits)
+    var loaded = await FileExplainer.changes(for: repoURL, commits: item.commits.reversed())
 
     // Enrich with codemap summaries
     let codemapDir = CodemapStore.defaultDirectory(

@@ -147,7 +147,7 @@ enum FileExplainer {
       diff = result?.stdout ?? ""
     } else if let last = commits.last {
       let result = try? await ProcessRunner.runEnv(
-        "git", ["diff", "\(first.sha)..\(last.sha)", "--", relativePath],
+        "git", ["diff", "\(last.sha)..\(first.sha)", "--", relativePath],
         workingDirectory: repoURL
       )
       diff = result?.stdout ?? ""
@@ -181,7 +181,7 @@ enum FileExplainer {
       // commits is [newest, ..., oldest]; use first..last (oldest..newest) so
       // git processes in chronological order. Git diff outputs newest-first
       // for file ordering, matching caller expectations, so no reversal needed.
-      diffStat = await gitDiffStatRange(from: first.sha, to: last.sha, repoURL: repoURL)
+      diffStat = await gitDiffStatRange(from: last.sha, to: first.sha, repoURL: repoURL)
     } else {
       return []
     }
