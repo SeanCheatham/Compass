@@ -302,26 +302,18 @@ enum FileExplainer {
   }
 
   private static func gitDiffStat(sha: String, repoURL: URL) async -> String {
-    await withCheckedContinuation { continuation in
-      Task {
-        let result = try? await ProcessRunner.runEnv(
-          "git", ["diff", "--stat=9999", "--first-parent", sha],
-          workingDirectory: repoURL
-        )
-        continuation.resume(returning: result?.stdout ?? "")
-      }
-    }
+    let result = try? await ProcessRunner.runEnv(
+      "git", ["diff", "--stat=9999", "--first-parent", sha],
+      workingDirectory: repoURL
+    )
+    return result?.stdout ?? ""
   }
 
   private static func gitDiffStatRange(from: String, to: String, repoURL: URL) async -> String {
-    await withCheckedContinuation { continuation in
-      Task {
-        let result = try? await ProcessRunner.runEnv(
-          "git", ["diff", "--stat=9999", "\(from)..\(to)"],
-          workingDirectory: repoURL
-        )
-        continuation.resume(returning: result?.stdout ?? "")
-      }
-    }
+    let result = try? await ProcessRunner.runEnv(
+      "git", ["diff", "--stat=9999", "\(from)..\(to)"],
+      workingDirectory: repoURL
+    )
+    return result?.stdout ?? ""
   }
 }
