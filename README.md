@@ -187,6 +187,13 @@ Explore has three main components:
   category for consistent presentation in the UI. Available on all macOS
   versions.
 
+- **`RepoQnA`** (`Sources/Compass/Explore/RepoQnA.swift`) —
+  Answers free-text questions about repository changes using on-device
+  Foundation Models. Uses `SystemLanguageModel.default` from the Foundation
+  Models framework. Requires **macOS 26** and is gated behind `@available(macOS 26.0, *)`.
+  Returns `nil` gracefully when Foundation Models is unavailable. See the
+  Vision document for the full feature description.
+
 Explore is documented in the Vision under the "Explore layer" section.
 
 ## Development
