@@ -933,6 +933,7 @@ struct CommitTourRow: View {
 
   @State private var tourText: String?
   @State private var isLoading = false
+  @State private var tourAvailabilityError = false
 
   private var canTour: Bool {
     item.status == .succeeded && !item.commits.isEmpty
@@ -949,6 +950,11 @@ struct CommitTourRow: View {
             .foregroundStyle(.secondary)
         }
         .padding(.vertical, 2)
+        if tourAvailabilityError {
+          Label("Foundation Models is unavailable on this device.", systemImage: "exclamationmark.triangle")
+            .font(.caption)
+            .foregroundStyle(.orange)
+        }
       } else if let tourText {
         LabeledHistoryBlock(title: "What We Built", systemImage: "lightbulb") {
           Text(tourText)
@@ -973,6 +979,7 @@ struct CommitTourRow: View {
   }
 
   private func loadTour() async {
+    tourAvailabilityError = false
     guard let firstCommit = item.commits.first else { return }
     let diff: String
     if item.commits.count == 1 {
@@ -983,7 +990,9 @@ struct CommitTourRow: View {
     }
     guard !diff.isEmpty else { return }
     if #available(macOS 26.0, *) {
-      tourText = await CommitTourGenerator.generate(diff: diff)
+      let result = await CommitTourGenerator.generate(diff: diff)
+      tourText = result
+      if result == nil { tourAvailabilityError = true }
     }
   }
 }
