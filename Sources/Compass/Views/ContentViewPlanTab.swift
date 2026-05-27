@@ -1234,22 +1234,29 @@ struct ExploreFilesPopover: View {
       }
     }
 
-    // Fetch per-file AI explanations
-    for i in loaded.indices {
-      let explanation = await FileExplainer.explain(
-        file: loaded[i].relativePath,
-        repoURL: repoURL,
-        commits: item.commits
-      )
-      if let explanation = explanation {
-        loaded[i] = FileChange(
-          relativePath: loaded[i].relativePath,
-          additions: loaded[i].additions,
-          deletions: loaded[i].deletions,
-          language: loaded[i].language,
-          summary: loaded[i].summary,
-          explanation: explanation
-        )
+    // Fetch per-file AI explanations concurrently
+    await withTaskGroup(of: (Int, String?).self) { group in
+      for i in loaded.indices {
+        group.addTask {
+          let explanation = await FileExplainer.explain(
+            file: loaded[i].relativePath,
+            repoURL: repoURL,
+            commits: item.commits
+          )
+          return (i, explanation)
+        }
+      }
+      for await (index, explanation) in group {
+        if let explanation = explanation {
+          loaded[index] = FileChange(
+            relativePath: loaded[index].relativePath,
+            additions: loaded[index].additions,
+            deletions: loaded[index].deletions,
+            language: loaded[index].language,
+            summary: loaded[index].summary,
+            explanation: explanation
+          )
+        }
       }
     }
 
