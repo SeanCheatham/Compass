@@ -1,8 +1,25 @@
 import Foundation
 import FoundationModels
 
-/// Summarizes git diffs using Apple's on-device Foundation Models.
-/// Available only on macOS 26.0 and later.
+/// Summarizes a single-file git diff for use in the Explore Q&A pipeline.
+///
+/// ## Data flow
+///
+/// `CommitExplainer` is called by ``FileExplainer/explain(file:repoURL:commits:)``
+/// when the UI requests a per-file AI explanation. The caller holds the commit
+/// list (newest first) and passes it directly; this enum handles the
+/// single-file ``git diff`` call internally.
+///
+/// ## Foundation Models boundary
+///
+/// The diff text is streamed directly to Foundation Models with a fixed
+/// 3-sentence prompt template. Output is capped at ~600 tokens. Returns `nil`
+/// when Foundation Models is unavailable or produces no content.
+///
+/// ## Results
+///
+/// The resulting plain-English summary is stored on the `FileChange.explanation`
+/// field and displayed alongside the file in the Explore popover.
 @available(macOS 26.0, *)
 enum CommitExplainer {
   /// Produces a plain-English summary of the given git diff text.

@@ -116,8 +116,30 @@ enum FileChangeCategory: String, CaseIterable {
 }
 
 
-/// Parses `git diff --stat` output and enriches each changed file with its
-/// codemap entry summary where available.
+/// Provides the two-contract interface for exploring changed files in a commit range.
+///
+/// ## Two-method contract
+///
+/// - ``changes(for:commits:)``: Returns all changed files with line-count stats
+///   and codemap summaries. The result feeds directly into the Explore popover
+///   file list (codemap entry → `FileChange` → UI).
+///
+/// - ``explain(file:repoURL:commits:)``: Returns a plain-English AI summary for
+///   a single file by running `git diff` over the relevant commit range and
+///   passing the result to ``CommitExplainer/summarize(diff:)``.
+///
+/// ## Commit ordering rule
+///
+/// Callers pass the commit list in insertion order — newest first. Internally,
+/// ``changes(for:commits:)`` reverses the array when calling `git diff` so that
+/// git receives `oldest..newest` (chronological order). Single-commit calls use
+/// `sha^..sha` directly.
+///
+/// ## Foundation Models boundary
+///
+/// ``explain(file:repoURL:commits:)`` crosses into Foundation Models via
+/// ``CommitExplainer``. ``changes(for:commits:)`` is purely a git/codemap
+/// operation and never calls the model.
 enum FileExplainer {
   /// Returns a plain-English explanation for a single changed file by running
   /// `git diff` over the relevant commit range and passing the result to

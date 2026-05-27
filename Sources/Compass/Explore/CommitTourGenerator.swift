@@ -1,13 +1,27 @@
 import Foundation
 import FoundationModels
 
-/// Generates a guided-tour narrative from a multi-commit diff using Apple's
-/// on-device Foundation Models. Produces 3-5 sentences explaining what was
-/// built, why it was built that way, and how the pieces fit together.
+/// Synthesizes a full multi-commit diff into a 3–5 sentence architectural narrative.
 ///
-/// Unlike `CommitExplainer` (per-file diff summary), this synthesizes the full
-/// commit range into a cohesive architectural narrative for the changed files.
-/// Available only on macOS 26.0 and later.
+/// ## Data flow
+///
+/// `CommitTourGenerator` receives the raw combined diff of an entire commit
+/// range and produces a coherent guided-tour description of what was built,
+/// why, and how the pieces fit together — going well beyond per-file summaries.
+///
+/// ## Foundation Models boundary
+///
+/// The full diff text is streamed to Foundation Models with a structured
+/// architectural-tour prompt. Output is capped at ~800 tokens to keep
+/// responses navigable. Returns `nil` when Foundation Models is unavailable
+/// or produces no content.
+///
+/// ## Position in the pipeline
+///
+/// Unlike ``CommitExplainer`` (which handles one file at a time from
+/// `FileExplainer.explain()`), this operates on the complete commit range
+/// and is used when the user wants a high-level tour rather than per-file
+/// details.
 @available(macOS 26.0, *)
 enum CommitTourGenerator {
   /// Produces a guided-tour narrative for the given git diff text.

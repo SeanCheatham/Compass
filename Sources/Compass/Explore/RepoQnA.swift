@@ -3,6 +3,29 @@ import FoundationModels
 
 /// Interactive Q&A about repository changes, grounded in the actual diff
 /// and codemap of a commit range.
+///
+/// ## Three-step pipeline
+///
+/// 1. ``FileExplainer/changes(for:commits:)`` — retrieves the file list with
+///    line-count stats and codemap summaries (if the file has been indexed).
+///    Receives commits newest-first; internally reversed for chronological
+///    git operations.
+///
+/// 2. Raw `git diff` over the commit range — ``git diff sha^..sha`` for a single
+///    commit, ``git diff first..last`` for a range. Truncated to ~8000 chars
+///    to stay within token limits while preserving early file headers.
+///
+/// 3. Foundation Models text generation — the file list and truncated diff
+///    are streamed as a single prompt to produce a grounded plain-English answer.
+///
+/// ## `isAvailable` guard contract
+///
+/// All public methods return `nil` when `FoundationModelsAvailability.isAvailable`
+/// is `false`. Callers must check the return value and handle the `nil` case
+/// gracefully (typically by showing a fallback message).
+///
+/// ## Availability
+///
 /// Available only on macOS 26.0 and later.
 @available(macOS 26.0, *)
 enum RepoQnA {
