@@ -34,7 +34,7 @@ enum RepoQnA {
     guard let first = commits.first else { return nil }
 
     // 1. Get file changes with codemap summaries.
-    let changes = await FileExplainer.changes(for: repoURL, commits: commits)
+    let changes = await FileExplainer.changes(for: repoURL, commits: commits.reversed())
 
     // 2. Get the actual diff text over the commit range.
     let diff: String
