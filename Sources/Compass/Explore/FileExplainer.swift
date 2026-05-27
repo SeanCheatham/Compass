@@ -133,7 +133,21 @@ enum FileExplainer {
       return []
     }
 
-    return parseGitDiffStat(diffStat)
+    let rawChanges = parseGitDiffStat(diffStat)
+    let workspace = CompassWorkspace(repoURL: repoURL)
+    let codemapDir = CodemapStore.defaultDirectory(forWorkspace: workspace)
+    let codemapStore = CodemapStore(directory: codemapDir)
+
+    return rawChanges.map { change in
+      let entry = codemapStore.loadEntry(forRelativePath: change.relativePath)
+      return FileChange(
+        relativePath: change.relativePath,
+        additions: change.additions,
+        deletions: change.deletions,
+        language: change.language,
+        summary: entry?.summary
+      )
+    }
   }
 
   // MARK: - Private
