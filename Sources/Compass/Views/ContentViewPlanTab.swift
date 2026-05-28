@@ -924,6 +924,9 @@ struct CommitExplanationPopover: View {
     } else {
       fetchedSummary = nil
     }
+
+    // Sync to the binding so the parent can access the loaded value.
+    summary = fetchedSummary
   }
 
 }
