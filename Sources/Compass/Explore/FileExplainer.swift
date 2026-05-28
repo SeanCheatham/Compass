@@ -200,12 +200,11 @@ enum FileExplainer {
     let diffStat: String
     if commits.count == 1 {
       diffStat = await gitDiffStat(sha: first.sha, repoURL: repoURL)
-    } else if let last = commits.last {
+    } else {
       // commits is in insertion order (newest first).  Use last..first so
       // git processes in reverse-chronological order (newest..oldest).
+      let last = commits.last!
       diffStat = await gitDiffStatRange(from: last.sha, to: first.sha, repoURL: repoURL)
-    } else {
-      return []
     }
 
     let rawChanges = parseGitDiffStat(diffStat)
