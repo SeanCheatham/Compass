@@ -4,12 +4,11 @@ import Testing
 
 @testable import Compass
 
-@available(macOS 26.0, *)
 struct ExploreCommitTourGeneratorTests {
   // MARK: - Empty string guard
 
   @Test
-  func generate_emptyString_returnsNil()  throws {
+  func generate_emptyString_returnsNil()  async throws {
     let result = await CommitTourGenerator.generate(diff: "")
     #require(result == nil)
   }
@@ -17,13 +16,13 @@ struct ExploreCommitTourGeneratorTests {
   // MARK: - Whitespace-only guard
 
   @Test
-  func generate_whitespaceOnlyString_returnsNil()  throws {
+  func generate_whitespaceOnlyString_returnsNil()  async throws {
     let result = await CommitTourGenerator.generate(diff: "   \n\t  \n  ")
     #require(result == nil)
   }
 
   @Test
-  func generate_newlinesOnlyString_returnsNil()  throws {
+  func generate_newlinesOnlyString_returnsNil()  async throws {
     let result = await CommitTourGenerator.generate(diff: "\n\n\n")
     #require(result == nil)
   }
@@ -31,7 +30,7 @@ struct ExploreCommitTourGeneratorTests {
   // MARK: - Non-throwing contract for normal diffs
 
   @Test
-  func generate_normalDiff_doesNotThrow()  throws {
+  func generate_normalDiff_doesNotThrow()  async throws {
     // Verify the async method does not throw for a valid diff.
     // Returns nil when Foundation Models is unavailable in this environment.
     let diff = """
@@ -45,7 +44,7 @@ struct ExploreCommitTourGeneratorTests {
   }
 
   @Test
-  func generate_singleLineDiff_doesNotThrow()  throws {
+  func generate_singleLineDiff_doesNotThrow()  async throws {
     let diff = "README.md | 1 +"
     let result = await CommitTourGenerator.generate(diff: diff)
     if FoundationModelsAvailability.isAvailable {
@@ -56,10 +55,10 @@ struct ExploreCommitTourGeneratorTests {
   // MARK: - Large-diff stability
 
   @Test
-  func generate_largeDiff_doesNotThrow()  throws {
+  func generate_largeDiff_doesNotThrow()  async throws {
     // A large diff mimicking a full commit range; must not crash or throw.
-    let largeDiff = (1...200).map { index in
-      "Sources/File\(String(format: "%03d", index)).swift\t|  \(index) +\t\t// Line \($0) of a simulated large diff"
+    let largeDiff = (1...200).map { idx in
+      "Sources/File\(String(format: "%03d", idx)).swift\t|  \(idx) +\t\t// Line \(idx) of a simulated large diff"
     }.joined(separator: "\n")
 
     let result = await CommitTourGenerator.generate(diff: largeDiff)
@@ -71,10 +70,10 @@ struct ExploreCommitTourGeneratorTests {
   }
 
   @Test
-  func generate_largeDiffWithManyFiles_doesNotThrow()  throws {
+  func generate_largeDiffWithManyFiles_doesNotThrow()  async throws {
     // Wide diff: many files, small changes each — tests batch-processing stability.
-    let wideDiff = (1...50).map { index in
-      "Sources/Package\(index)/Source.swift\t|  2 +\t\t// Added utility function in package \(index)"
+    let wideDiff = (1...50).map { idx in
+      "Sources/Package\(idx)/Source.swift\t|  2 +\t\t// Added utility function in package \(idx)"
     }.joined(separator: "\n")
 
     let result = await CommitTourGenerator.generate(diff: wideDiff)
@@ -165,7 +164,7 @@ struct ExploreCommitTourGeneratorTests {
   // MARK: - isAvailable guard
 
   @Test
-  func generate_returnsNilWhenModelUnavailable()  throws {
+  func generate_returnsNilWhenModelUnavailable()  async throws {
     // When FoundationModelsAvailability.isAvailable is false, generate
     // returns nil without attempting to create a session.
     let diff = """
