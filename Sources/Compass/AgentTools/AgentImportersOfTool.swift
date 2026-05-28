@@ -44,7 +44,7 @@ struct AgentImportersOfTool: AgentTool {
     do {
       args = try JSONDecoder().decode(Arguments.self, from: arguments)
     } catch {
-      return .failure("Failed to decode arguments: \(error.localizedDescription)")
+      return .failure(.invalidArguments(error.localizedDescription))
     }
     let normalized = AgentCodemapPath.normalize(
       args.path, workingDirectory: context.workingDirectory)
