@@ -40,17 +40,17 @@ enum RepoQnA {
     let sources: [String]
   }
 
-  /// Answers a natural-language question about a commit range using the
-  /// actual diff and codemap summaries as grounding context.
+  /// Answers a natural-language question about a commit range using
+  /// Foundation Models, grounded in the actual diff and codemap context.
   ///
-  /// - Parameters:
-  ///   - question: The user's question about the changes.
-  ///   - repoURL: The working-copy root of the repository.
-  ///   - commits: The commits to analyse. Single-commit uses `sha^..sha`;
-  ///     multi-commit uses `newest..oldest` (reverse-chronological).
-  /// - Returns: An `Answer` with the generated text and supporting source
-  ///   files, or `nil` if Foundation Models is unavailable or produces no
-  ///   content.
+  /// The answer is assembled by first collecting file changes with codemap
+  /// summaries, then building a combined prompt from the file list and the
+  /// truncated diff text, and finally streaming the result from Foundation
+  /// Models. The diff is truncated to approximately 8 000 characters before
+  /// being sent to the model to respect token limits.
+  ///
+  /// Returns `nil` when Foundation Models is unavailable, when no commits are
+  /// supplied, or when the model produces no content.
   static func answer(
     question: String,
     repoURL: URL,
