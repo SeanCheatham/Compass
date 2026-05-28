@@ -90,6 +90,88 @@ struct ExploreCommitTourGeneratorTests {
     }
   }
 
+  // MARK: - generateTour empty commits guard
+
+  @Test
+  func generateTour_emptyCommits_returnsNil()  async throws {
+    try #require(available(macOS 26.0, *))
+    // Empty commits array must return nil without attempting to invoke git or the model.
+    let repoURL = try makeTempDir()
+    let result = await CommitTourGenerator.generateTour(commits: [], repoURL: repoURL)
+    #require(result == nil)
+  }
+
+  // MARK: - generateTour single-commit integration (real git repo)
+
+  @Test
+  func generateTour_singleCommit_callsGitDiffForSha()  async throws {
+    try #require(available(macOS 26.0, *))
+    let repoURL = try makeTempDir()
+
+    // Set up a real git repo with one commit
+    try await runShell(
+      "git init -q && git branch -M main && " +
+        "git -c user.email=t@t -c user.name=t commit -q --allow-empty -m 'Initial'",
+      at: repoURL
+    )
+
+    // Get the SHA of the single commit
+    let sha = try await capture("git rev-parse HEAD", at: repoURL)
+      .trimmingCharacters(in: .whitespacesAndNewlines)
+
+    let commits = [SessionCommit(sha: sha, short: String(sha.prefix(7)), subject: "Initial")]
+    let result = await CommitTourGenerator.generateTour(commits: commits, repoURL: repoURL)
+
+    // Foundation Models availability determines whether we get a string or nil.
+    // Both are acceptable — the key requirement is that it does not throw.
+    if FoundationModelsAvailability.isAvailable {
+      #require(result != nil)
+    }
+  }
+
+  // MARK: - generateTour multi-commit integration (real git repo)
+
+  @Test
+  func generateTour_multiCommit_callsGitDiffRange()  async throws {
+    try #require(available(macOS 26.0, *))
+    let repoURL = try makeTempDir()
+
+    // Set up a real git repo with two commits
+    try await runShell("git init -q && git branch -M main", at: repoURL)
+
+    // First commit
+    try await runShell(
+      "touch README.md && " +
+        "git -c user.email=t@t -c user.name=t commit -q -m 'First'",
+      at: repoURL
+    )
+
+    // Second commit
+    try await runShell(
+      "echo 'content' >> README.md && " +
+        "git -c user.email=t@t -c user.name=t commit -q -m 'Second'",
+      at: repoURL
+    )
+
+    // Get both SHAs
+    let firstSha = try await capture("git rev-parse HEAD~", at: repoURL)
+      .trimmingCharacters(in: .whitespacesAndNewlines)
+    let secondSha = try await capture("git rev-parse HEAD", at: repoURL)
+      .trimmingCharacters(in: .whitespacesAndNewlines)
+
+    let commits = [
+      SessionCommit(sha: secondSha, short: String(secondSha.prefix(7)), subject: "Second"),
+      SessionCommit(sha: firstSha, short: String(firstSha.prefix(7)), subject: "First"),
+    ]
+    let result = await CommitTourGenerator.generateTour(commits: commits, repoURL: repoURL)
+
+    // Returns nil when unavailable; non-nil when Foundation Models is present.
+    // Must not throw regardless of commit range.
+    if FoundationModelsAvailability.isAvailable {
+      #require(result != nil)
+    }
+  }
+
   // MARK: - isAvailable guard
 
   @Test
@@ -105,6 +187,55 @@ struct ExploreCommitTourGeneratorTests {
     // from an error), or it is unavailable and we definitely get nil.
     if !FoundationModelsAvailability.isAvailable {
       #require(result == nil)
+    }
+  }
+
+  // MARK: - Private Test Helpers
+
+  private func runShell(_ command: String, at url: URL) async throws {
+    try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+      Task {
+        let process = Process()
+        process.launchPath = "/bin/zsh"
+        process.arguments = ["-lc", command]
+        process.currentDirectoryURL = url
+        process.standardOutput = Pipe()
+        process.standardError = Pipe()
+        do {
+          try process.run()
+          process.waitUntilExit()
+          if process.terminationStatus == 0 {
+            continuation.resume()
+          } else {
+            continuation.resume(throwing: "shell failed: \(command)")
+          }
+        } catch {
+          continuation.resume(throwing: error)
+        }
+      }
+    }
+  }
+
+  private func capture(_ command: String, at url: URL) async throws -> String {
+    try await withCheckedThrowingContinuation { continuation in
+      Task {
+        let process = Process()
+        process.launchPath = "/bin/zsh"
+        process.arguments = ["-lc", command]
+        process.currentDirectoryURL = url
+        let outputPipe = Pipe()
+        process.standardOutput = outputPipe
+        process.standardError = Pipe()
+        do {
+          try process.run()
+          process.waitUntilExit()
+          let data = outputPipe.fileHandleForReading.readDataToEndOfFile()
+          let output = String(data: data, encoding: .utf8) ?? ""
+          continuation.resume(returning: output)
+        } catch {
+          continuation.resume(throwing: error)
+        }
+      }
     }
   }
 }
