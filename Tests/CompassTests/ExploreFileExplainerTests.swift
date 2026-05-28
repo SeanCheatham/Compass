@@ -1293,6 +1293,38 @@ struct ExploreFileExplainerTests {
     #require(paths == ["Sources/C.swift", "Sources/B.swift", "Sources/A.swift"])
   }
 
+  // MARK: - FileChange.init
+
+  @Test
+  func fileChange_init_allParameters() {
+    let change = FileChange(
+      relativePath: "Sources/App.swift",
+      additions: 42,
+      deletions: 7,
+      language: .swift,
+      summary: "Added main app entry point",
+      explanation: "This change introduces the primary application file with proper configuration."
+    )
+    #require(change.relativePath == "Sources/App.swift")
+    #require(change.additions == 42)
+    #require(change.deletions == 7)
+    #require(change.language == .swift)
+    #require(change.summary == "Added main app entry point")
+    #require(change.explanation == "This change introduces the primary application file with proper configuration.")
+  }
+
+  @Test
+  func fileChange_init_explanationDefaultsToNil() {
+    let change = FileChange(
+      relativePath: "Sources/App.swift",
+      additions: 42,
+      deletions: 7,
+      language: .swift,
+      summary: "Added main app entry point"
+    )
+    #require(change.explanation == nil)
+  }
+
   // MARK: - Helpers
 
   private func initGitRepo(at url: URL) {
