@@ -965,6 +965,56 @@ struct ExploreFileExplainerTests {
     #require(change.lineCountLabel == "0/0")
   }
 
+  // MARK: - FileChange.category
+
+  @Test
+  func category_source() {
+    let change = FileChange(
+      relativePath: "Sources/App.swift",
+      additions: 10,
+      deletions: 2,
+      language: nil,
+      summary: nil
+    )
+    #require(change.category == .source)
+  }
+
+  @Test
+  func category_test() {
+    let change = FileChange(
+      relativePath: "Tests/AppTests.swift",
+      additions: 10,
+      deletions: 2,
+      language: nil,
+      summary: nil
+    )
+    #require(change.category == .test)
+  }
+
+  @Test
+  func category_config() {
+    let change = FileChange(
+      relativePath: "Config/settings.json",
+      additions: 10,
+      deletions: 2,
+      language: nil,
+      summary: nil
+    )
+    #require(change.category == .config)
+  }
+
+  @Test
+  func category_other() {
+    let change = FileChange(
+      relativePath: "docs/README.md",
+      additions: 10,
+      deletions: 2,
+      language: nil,
+      summary: nil
+    )
+    #require(change.category == .other)
+  }
+
   // MARK: - gitDiffStat
 
   @Test
