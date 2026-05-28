@@ -39,15 +39,15 @@ struct AgentOutlineTool: AgentTool {
     do {
       args = try JSONDecoder().decode(Arguments.self, from: arguments)
     } catch {
-      return .failure("Failed to decode arguments: \(error.localizedDescription)")
+      return .failure(.invalidArguments(error.localizedDescription))
     }
     let normalized = AgentCodemapPath.normalize(
       args.path, workingDirectory: context.workingDirectory)
     let store = context.codemapStore()
     guard let entry = store.loadEntry(forRelativePath: normalized) else {
-      return .failure(
+      return .failure(.invalidArguments(
         "No codemap entry for '\(normalized)'. Run the indexer or use `list_files` to discover what's been parsed."
-      )
+      ))
     }
 
     var lines: [String] = []
