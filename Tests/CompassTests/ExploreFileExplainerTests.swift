@@ -1025,6 +1025,69 @@ struct ExploreFileExplainerTests {
     #require(changedPaths.contains("main.txt")) { "main.txt is on the mainline (first parent) and must appear in --first-parent output" }
   }
 
+  @Test
+  func gitDiffStat_emptyResult() async throws {
+    var test = Self()
+    test.setUp()
+    defer { test.tearDown() }
+
+    // Set up a git repo with an empty merge commit (no files changed).
+    // Structure:
+    //   commit A (main)  — adds a.txt
+    //   branch off main → commit B — adds b.txt
+    //   merge B into main (auto-merged, no conflicts, no changes needed)
+    //
+    // The merge commit itself has no file changes because the auto-merge
+    // produced no new modifications on either branch's side.
+
+    try initGitRepo(at: test.temporaryDirectory)
+    try writeFile("a.txt", contents: "a\n")
+    try runGit(
+      "git -C \(test.temporaryDirectory.path) add a.txt && "
+        + "git -C \(test.temporaryDirectory.path) "
+        + "-c user.email=t@t -c user.name=t commit -q -m 'Add a.txt'",
+      at: test.temporaryDirectory
+    )
+
+    // Branch and make a commit that is already satisfied by the auto-merge.
+    try runGit(
+      "git -C \(test.temporaryDirectory.path) checkout -q -b feature",
+      at: test.temporaryDirectory
+    )
+    try writeFile("b.txt", contents: "b\n")
+    try runGit(
+      "git -C \(test.temporaryDirectory.path) add b.txt && "
+        + "git -C \(test.temporaryDirectory.path) "
+        + "-c user.email=t@t -c user.name=t commit -q -m 'Add b.txt'",
+      at: test.temporaryDirectory
+    )
+
+    // Switch back to main and merge with --no-edit. Since both branches have
+    // independent files, the merge is auto-generated with no conflicts and
+    // produces a merge commit whose --first-parent diff stat is empty.
+    try runGit(
+      "git -C \(test.temporaryDirectory.path) checkout -q main",
+      at: test.temporaryDirectory
+    )
+    try runGit(
+      "git -C \(test.temporaryDirectory.path) merge -q --no-edit feature",
+      at: test.temporaryDirectory
+    )
+
+    let sha = try getSingleCommitSHA(at: test.temporaryDirectory)
+
+    let diffStatOutput = await FileExplainer.gitDiffStat(sha: sha, repoURL: test.temporaryDirectory)
+
+    // The diff stat for an empty merge commit must be empty or whitespace-only.
+    #require(diffStatOutput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty) {
+      "gitDiffStat for an empty merge commit must be empty; got: \(diffStatOutput)"
+    }
+
+    // Parsing an empty diff stat must yield an empty array.
+    let changes = FileExplainer.parseGitDiffStat(diffStatOutput)
+    #require(changes.isEmpty)
+  }
+
   // MARK: - Helpers
 
   private func initGitRepo(at url: URL) {
