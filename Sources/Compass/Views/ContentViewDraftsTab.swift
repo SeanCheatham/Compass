@@ -4,8 +4,10 @@ import SwiftUI
 
 struct DraftsTab: View {
   @ObservedObject var project: CompassProject
+  @State private var pendingDraftsText = ""
   @State private var draftRefinementPreview: DraftRefinement?
   @State private var draftRefinementTask: Task<Void, Never>?
+  @State private var draftRefinementRescheduleTask: Task<Void, Never>?
   @State private var draftRefinementCache: [DraftRefinementPreviewKey: DraftRefinement] = [:]
   @State private var activeDraftRefinementKey: DraftRefinementPreviewKey?
   @State private var isDraftRefinementGenerating = false
@@ -18,12 +20,15 @@ struct DraftsTab: View {
         TextField("Describe the next direction", text: $project.draftEntry, axis: .vertical)
           .lineLimit(2...5)
           .textFieldStyle(.roundedBorder)
+          .onKeyPress(keys: [.return], phases: .down) { press in
+            guard press.modifiers.contains(.command) else { return .ignored }
+            return handleDraftSubmissionShortcut()
+          }
         Button {
-          Task { await project.addDraft() }
+          submitNewDraft()
         } label: {
           Label("Add", systemImage: "plus")
         }
-        .keyboardShortcut(.return, modifiers: [.command])
         .disabled(
           !project.hasRepository
             || project.draftEntry.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
@@ -48,35 +53,47 @@ struct DraftsTab: View {
         }
         .disabled(!project.hasRepository)
       }
-      TextEditor(text: $project.drafts)
+      TextEditor(text: $pendingDraftsText)
         .font(.system(.body, design: .monospaced))
         .scrollContentBackground(.hidden)
         .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 8))
         .overlay(alignment: .topLeading) {
-          if project.drafts.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+          if pendingDraftsText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             Text("No drafts queued.")
               .foregroundStyle(.secondary)
               .padding(12)
           }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
     .onAppear {
+      syncPendingDraftsFromProject()
       refreshDraftRefinementAvailability()
     }
     .onDisappear {
       cancelDraftRefinementPreview()
+      cancelDraftRefinementReschedule()
+      project.drafts = pendingDraftsText
+    }
+    .onChange(of: project.drafts) {
+      syncPendingDraftsFromProject()
+    }
+    .onChange(of: pendingDraftsText) {
+      if pendingDraftsText != project.drafts {
+        project.drafts = pendingDraftsText
+      }
     }
     .onChange(of: project.draftEntry) {
-      scheduleDraftRefinementPreview()
+      requestDraftRefinementReschedule()
     }
     .onChange(of: project.state) {
-      scheduleDraftRefinementPreview()
+      requestDraftRefinementReschedule()
     }
     .onChange(of: project.languageProfile) {
-      scheduleDraftRefinementPreview()
+      requestDraftRefinementReschedule()
     }
     .onChange(of: project.repoURL) {
-      scheduleDraftRefinementPreview()
+      requestDraftRefinementReschedule()
     }
   }
 
@@ -94,13 +111,41 @@ struct DraftsTab: View {
       && (isDraftRefinementGenerating || draftRefinementPreview != nil)
   }
 
+  private func syncPendingDraftsFromProject() {
+    guard pendingDraftsText != project.drafts else { return }
+    pendingDraftsText = project.drafts
+  }
+
+  private func submitNewDraft() {
+    cancelDraftRefinementReschedule()
+    cancelDraftRefinementPreview()
+    Task {
+      await project.addDraft()
+      syncPendingDraftsFromProject()
+    }
+  }
+
   private func refreshDraftRefinementAvailability() {
     isDraftRefinementModelAvailable = DraftRefinementService.isPreviewAvailable
     if isDraftRefinementModelAvailable {
-      scheduleDraftRefinementPreview()
+      requestDraftRefinementReschedule()
     } else {
       cancelDraftRefinementPreview()
     }
+  }
+
+  private func requestDraftRefinementReschedule() {
+    draftRefinementRescheduleTask?.cancel()
+    draftRefinementRescheduleTask = Task { @MainActor in
+      await Task.yield()
+      guard !Task.isCancelled else { return }
+      scheduleDraftRefinementPreview()
+    }
+  }
+
+  private func cancelDraftRefinementReschedule() {
+    draftRefinementRescheduleTask?.cancel()
+    draftRefinementRescheduleTask = nil
   }
 
   private func scheduleDraftRefinementPreview() {
@@ -168,14 +213,35 @@ struct DraftsTab: View {
     }
   }
 
+  private func handleDraftSubmissionShortcut() -> KeyPress.Result {
+    guard project.hasRepository else { return .handled }
+
+    if isDraftRefinementGenerating {
+      return .handled
+    }
+
+    if let refinement = draftRefinementPreview {
+      acceptDraftRefinement(refinement)
+      return .handled
+    }
+
+    guard !trimmedDraftEntry.isEmpty else { return .handled }
+
+    submitNewDraft()
+    return .handled
+  }
+
   private func acceptDraftRefinement(_ refinement: DraftRefinement) {
+    cancelDraftRefinementReschedule()
     cancelDraftRefinementPreview()
     Task {
       await project.acceptDraftRefinement(refinement)
+      syncPendingDraftsFromProject()
     }
   }
 
   private func modifyDraftRefinement(_ refinement: DraftRefinement) {
+    cancelDraftRefinementReschedule()
     cancelDraftRefinementPreview()
     project.modifyDraft(with: refinement)
   }

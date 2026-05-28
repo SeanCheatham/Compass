@@ -1589,6 +1589,7 @@ struct ExploreFileRow: View {
         Button {
           loadingWhyGenerated = true
           showWhyGenerated = true
+          Task { await loadWhyGenerated() }
         } label: {
           if loadingWhyGenerated {
             ProgressView()
@@ -1640,9 +1641,6 @@ struct ExploreFileRow: View {
         explanation: $whyGeneratedExplanation,
         isLoading: $loadingWhyGenerated
       )
-    }
-    .task {
-      await loadWhyGenerated()
     }
   }
 

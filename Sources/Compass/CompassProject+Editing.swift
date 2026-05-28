@@ -71,13 +71,16 @@ extension CompassProject {
     clearsDraftEntry: Bool,
     feedback: String
   ) async {
+    let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !trimmed.isEmpty else { return }
+
     do {
       guard let workspace else {
         fail(AppModelError.noRepositorySelected)
         return
       }
       try await initializeIfNeeded(workspace)
-      try workspace.appendDraft(text)
+      try workspace.appendDraft(trimmed)
       if clearsDraftEntry {
         draftEntry = ""
       }

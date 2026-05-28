@@ -26,7 +26,7 @@ extension CompassProject {
     }
   }
 
-  func refreshFromWorkspace(requireStorageRoot: Bool) async throws {
+  func refreshFromWorkspace(requireStorageRoot: Bool, includeDrafts: Bool = true) async throws {
     guard let workspace else {
       state = .empty
       drafts = ""
@@ -64,7 +64,9 @@ extension CompassProject {
     }
 
     state = try workspace.readState()
-    drafts = workspace.readDrafts()
+    if includeDrafts {
+      drafts = workspace.readDrafts()
+    }
     lessons = workspace.readLessons()
     vision = workspace.readVision()
     sessions = workspace.readSessions()
@@ -73,7 +75,10 @@ extension CompassProject {
   func initializeIfNeeded(_ workspace: CompassWorkspace) async throws {
     guard !FileManager.default.fileExists(atPath: workspace.compassURL.path) else { return }
     try workspace.initialize()
-    await refresh()
+    // Load plan state and sessions, but leave `drafts`/`draftEntry` alone
+    // until the caller finishes writing — refreshing drafts mid-queue was
+    // racing the Pending Drafts TextEditor and blanking the split view.
+    try await refreshFromWorkspace(requireStorageRoot: false, includeDrafts: false)
   }
 
   func resolveWorkspaceForRun() async throws -> CompassWorkspace {
