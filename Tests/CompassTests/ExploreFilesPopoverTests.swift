@@ -48,7 +48,7 @@ struct ExploreFilesPopoverTests {
     test.setUp()
     defer { test.tearDown() }
 
-    try test.initGitRepo()
+    try initGitRepo(at: test.temporaryDirectory)
 
     let emptyCommits: [SessionCommit] = []
 
@@ -79,8 +79,8 @@ struct ExploreFilesPopoverTests {
     test.setUp()
     defer { test.tearDown() }
 
-    try test.initGitRepo()
-    let commits = try test.makeSingleCommit()
+    try initGitRepo(at: test.temporaryDirectory)
+    let commits = try makeSingleCommit(at: test.temporaryDirectory)
 
     // Call explain directly — this is what loadChanges() does at line 1528.
     // When Foundation Models is unavailable, it returns nil (non-throwing),
@@ -111,83 +111,5 @@ struct ExploreFilesPopoverTests {
       try? FileManager.default.removeItem(at: temporaryDirectory)
     }
     temporaryDirectory = nil
-  }
-
-  private mutating func initGitRepo() throws {
-    let process = Process()
-    process.launchPath = "/bin/zsh"
-    process.arguments = ["-lc", "git init -q && git branch -M main"]
-    process.currentDirectoryURL = temporaryDirectory
-    process.standardOutput = Pipe()
-    process.standardError = Pipe()
-    try process.run()
-    process.waitUntilExit()
-    guard process.terminationStatus == 0 else {
-      throw "git init failed with status \(process.terminationStatus)"
-    }
-  }
-
-  private mutating func writeFile(_ relative: String, contents: String) throws {
-    let url = temporaryDirectory.appendingPathComponent(relative)
-    try FileManager.default.createDirectory(
-      at: url.deletingLastPathComponent(),
-      withIntermediateDirectories: true
-    )
-    try contents.write(to: url, atomically: true, encoding: .utf8)
-  }
-
-  private mutating func runGit(_ command: String) throws {
-    let process = Process()
-    process.launchPath = "/bin/zsh"
-    process.arguments = ["-lc", command]
-    process.currentDirectoryURL = temporaryDirectory
-    process.standardOutput = Pipe()
-    process.standardError = Pipe()
-    try process.run()
-    process.waitUntilExit()
-    guard process.terminationStatus == 0 else {
-      throw "git command failed with status \(process.terminationStatus)"
-    }
-  }
-
-  private mutating func makeSingleCommit() throws -> [SessionCommit] {
-    try writeFile("Sources/App.swift", contents: "import Foundation\n")
-    try runGit(
-      "git -C \(temporaryDirectory.path) add Sources/App.swift && "
-        + "git -C \(temporaryDirectory.path) "
-        + "-c user.email=t@t -c user.name=t commit -q -m 'Add App.swift'"
-    )
-    let sha = try getSingleCommitSHA()
-    return [SessionCommit(sha: sha, short: String(sha.prefix(7)), subject: "Add App.swift")]
-  }
-
-  private func getSingleCommitSHA() throws -> String {
-    let result = try waitForSync {
-      try? ProcessRunner.runEnv(
-        "git", ["rev-parse", "HEAD"],
-        workingDirectory: temporaryDirectory
-      )
-    }
-    guard let stdout = result?.stdout.trimmingCharacters(in: .whitespacesAndNewlines),
-          !stdout.isEmpty else {
-      throw "no commit SHA found"
-    }
-    return stdout
-  }
-
-  private func waitForSync<T>(_ fn: () async throws -> T?) async throws -> T {
-    try await withCheckedThrowingContinuation { continuation in
-      Task {
-        do {
-          if let value = try await fn() {
-            continuation.resume(returning: value)
-          } else {
-            continuation.resume(throwing: "fn returned nil")
-          }
-        } catch {
-          continuation.resume(throwing: error)
-        }
-      }
-    }
   }
 }
