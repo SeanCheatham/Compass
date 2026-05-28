@@ -8,15 +8,15 @@ import FoundationModels
 ///
 /// ## How it plugs into the agent loop
 ///
-/// Compass tools are wrapped as `FoundationModels.Tool` instances and passed to a
-/// `LanguageModelSession`. The system prompt becomes the session's `instructions`;
-/// `LanguageModelSession.streamResponse(to:)` drives the turn-by-turn conversation.
-/// When the model calls `submit_result`, `SubmitResultTool.call` stashes the
-/// structured JSON args in a thread-safe capture box and throws a sentinel
-/// `SubmitResultSignal` to break out of the framework's internal stream loop.
-/// The runtime catches the signal, retrieves the captured args, and returns an
-/// `AgentExecutionResult` — the same termination contract as the OpenAI-compatible
-/// path.
+/// `AgentExecutor` builds Compass tools (`read_file`, `bash`, `submit_result`, …)
+/// as OpenAI-style tool param objects. This runtime takes that same tool set via
+/// `AgentExecutionConfiguration` and wraps it for Apple\'s on-device Foundation
+/// Models (`FoundationModels.Tool` / `DynamicAgentTool`) so the model can call
+/// them just as it would on the network-based path. The system prompt becomes
+/// the session\'s `instructions`; `LanguageModelSession.streamResponse(to:)`
+/// drives the turn-by-turn conversation. `SubmitResultTool` uses a sentinel
+/// signal to break out of the framework\'s internal stream loop and produce an
+/// `AgentExecutionResult` — the same termination contract as the OpenAI path.
 ///
 /// ## Limits
 ///
