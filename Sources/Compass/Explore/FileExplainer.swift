@@ -218,8 +218,14 @@ enum FileExplainer {
   ///     multi-commit range the method internally passes `newest..oldest` to
   ///     git so the diff is computed in reverse-chronological order; callers
   ///     pass the array as-is without reversing it.
-  /// - Returns: An array of `FileChange` objects grouped by category in the
-  ///     caller. Returns an empty array if git fails or no files were changed.
+  /// - Returns: An array of `FileChange` objects, each with line-count stats
+  ///   (`additions`/`deletions`) and a codemap summary when the file has been
+  ///   indexed. Returns an empty array if git fails or no files were changed.
+  ///   The caller is responsible for grouping results by ``FileChangeCategory``.
+  ///
+  /// - Note: This method is purely a git/codemap operation. It never invokes
+  ///   Foundation Models — the AI-powered explanations are produced by
+  ///   ``explain(file:repoURL:commits:)`` instead.
   static func changes(for repoURL: URL, commits: [SessionCommit]) async -> [FileChange] {
     guard let first = commits.first else { return [] }
 
