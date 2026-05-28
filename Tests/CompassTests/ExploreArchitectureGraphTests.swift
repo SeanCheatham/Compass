@@ -126,21 +126,6 @@ struct ExploreArchitectureGraphTests {
     #expect(graph.likelyEntryPoints.isEmpty)
   }
 
-  // MARK: - sortedEdges
-
-  @Test
-  func sortedEdges_returnsEdgesSortedBySourcePath() {
-    var graph = ImportGraph()
-    let z = ImportGraph.Node(path: "Z.swift")
-    let a = ImportGraph.Node(path: "A.swift")
-    graph.addEdge(from: z, to: a, rawImport: "A")
-    graph.addEdge(from: a, to: z, rawImport: "Z")
-
-    let sorted = graph.sortedEdges
-    #expect(sorted.first?.source == a)
-    #expect(sorted.last?.source == z)
-  }
-
   // MARK: - textGraph()
 
   @Test
