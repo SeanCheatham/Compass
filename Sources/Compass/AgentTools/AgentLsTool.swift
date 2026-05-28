@@ -37,7 +37,7 @@ struct AgentLsTool: AgentTool {
     do {
       args = try JSONDecoder().decode(Arguments.self, from: arguments)
     } catch {
-      return .failure("Failed to decode arguments: \(error.localizedDescription)")
+      return .failure(.invalidArguments("Failed to decode arguments: \(error.localizedDescription)"))
     }
 
     let url: URL
@@ -47,7 +47,7 @@ struct AgentLsTool: AgentTool {
       } catch let error as AgentToolError {
         return .failure(error.errorDescription ?? "path resolution failed")
       } catch {
-        return .failure("path resolution failed: \(error.localizedDescription)")
+        return .failure(.invalidArguments("path resolution failed: \(error.localizedDescription)"))
       }
     } else {
       url = context.workingDirectory
@@ -59,16 +59,14 @@ struct AgentLsTool: AgentTool {
     } catch let error as AgentFilesystemError {
       switch error {
       case .notFound:
-        return .failure(
-          AgentToolError.fileNotFound(args.path ?? ".").errorDescription ?? "not found")
+        return .failure(.fileNotFound(args.path ?? "."))
       case .notDirectory:
-        return .failure(
-          AgentToolError.notDirectory(args.path ?? ".").errorDescription ?? "not a directory")
+        return .failure(.notDirectory(args.path ?? "."))
       default:
-        return .failure(error.errorDescription ?? "I/O failure")
+        return .failure(.ioFailure(error.localizedDescription ?? "I/O failure"))
       }
     } catch {
-      return .failure("list failed: \(error.localizedDescription)")
+      return .failure(.ioFailure("list failed: \(error.localizedDescription)"))
     }
 
     let sorted = entries.sorted { $0.name < $1.name }
