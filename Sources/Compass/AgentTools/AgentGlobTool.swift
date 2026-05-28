@@ -81,7 +81,7 @@ struct AgentGlobTool: AgentTool {
         return .failure(
           AgentToolError.notDirectory(args.path ?? ".").errorDescription ?? "not a directory")
       default:
-        return .failure(error.errorDescription ?? "glob failed")
+        return .failure(.ioFailure(error.errorDescription ?? "glob failed"))
       }
     } catch {
       return .failure(.ioFailure("glob failed: \(error.localizedDescription)"))

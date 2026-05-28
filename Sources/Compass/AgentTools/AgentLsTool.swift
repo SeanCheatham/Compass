@@ -45,7 +45,7 @@ struct AgentLsTool: AgentTool {
       do {
         url = try context.resolvePath(path)
       } catch let error as AgentToolError {
-        return .failure(error.errorDescription ?? "path resolution failed")
+        return .failure(.invalidArguments(error.errorDescription ?? "path resolution failed"))
       } catch {
         return .failure(.invalidArguments("path resolution failed: \(error.localizedDescription)"))
       }
