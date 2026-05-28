@@ -48,11 +48,11 @@ struct AgentFindSymbolTool: AgentTool {
     do {
       args = try JSONDecoder().decode(Arguments.self, from: arguments)
     } catch {
-      return .failure("Failed to decode arguments: \(error.localizedDescription)")
+      return .failure(.invalidArguments(error.localizedDescription))
     }
     let targetName = args.name.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !targetName.isEmpty else {
-      return .failure("`name` must be non-empty.")
+      return .failure(.invalidArguments("name must be non-empty"))
     }
     let kindFilter: CodemapSymbolKind?
     if let kindRaw = args.kind?.trimmingCharacters(in: .whitespacesAndNewlines),
