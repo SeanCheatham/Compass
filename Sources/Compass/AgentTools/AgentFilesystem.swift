@@ -1,8 +1,8 @@
 import Foundation
 
 /// Filesystem operations the agent tools need, behind a protocol so the
-/// in-guest backing for the Shared VM can be swapped in without each tool
-/// learning about SSH. The host implementation in this file mirrors the
+/// in-guest backing for the Shared VM can be swapped in without individual
+/// tools learning about the vsock transport layer. The host implementation in this file mirrors the
 /// `FileManager` calls the tools used to make directly, so behavior is
 /// unchanged when no Shared VM route is active.
 protocol AgentFilesystem: Sendable {
