@@ -304,6 +304,23 @@ struct PlanSessionHistoryItem: Identifiable, Equatable {
 
   var id: Int { sessionNumber }
 
+  /// Returns a placeholder item suitable for SwiftUI preview and test contexts
+  /// where only the item identity matters (popover title, etc.) and no real session
+  /// data is accessed.
+  static let placeholder = PlanSessionHistoryItem(
+    sessionNumber: 0,
+    status: .succeeded,
+    statusText: "Success",
+    startedAt: Date(),
+    planExcerpt: nil,
+    verifyCommand: nil,
+    feedback: nil,
+    notes: [],
+    commits: [],
+    failedVerify: nil,
+    runtimeRouteSummary: nil
+  )
+
   var sessionNumber: Int
   var status: SessionStatus
   var statusText: String
