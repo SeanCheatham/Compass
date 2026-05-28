@@ -740,6 +740,7 @@ struct PlanSessionHistoryCard: View {
       if item.status == .succeeded && !item.commits.isEmpty {
         HStack(spacing: 8) {
           ExplainChangesButton(item: item, repoURL: repoURL)
+          PerCommitNarrativesButton(item: item, repoURL: repoURL)
           ExploreFilesButton(item: item, repoURL: repoURL)
           ArchitectureGraphButton(item: item, repoURL: repoURL)
           QnAButton(item: item, repoURL: repoURL)
@@ -893,6 +894,162 @@ struct CommitExplanationPopover: View {
     summary = fetchedSummary
   }
 
+}
+
+struct PerCommitNarrativesButton: View {
+  let item: PlanSessionHistoryItem
+  let repoURL: URL
+
+  @State private var showingPopover = false
+
+  private var canExplain: Bool {
+    item.status == .succeeded && !item.commits.isEmpty
+  }
+
+  var body: some View {
+    if canExplain {
+      Button {
+        showingPopover = true
+      } label: {
+        Label("Per-Commit", systemImage: "list.bullet.rectangle")
+      }
+      .buttonStyle(.bordered)
+      .controlSize(.small)
+      .popover(isPresented: $showingPopover) {
+        PerCommitNarrativesPopover(item: item, repoURL: repoURL)
+      }
+    }
+  }
+}
+
+struct PerCommitNarrativesPopover: View {
+  let item: PlanSessionHistoryItem
+  let repoURL: URL
+
+  @State private var narratives: [CommitNarrative] = []
+  @State private var isLoading = false
+
+  /// Tracks which commits have finished loading (true = done, false = still loading).
+  @State private var loadedFlags: [Bool] = []
+
+
+  struct CommitNarrative: Identifiable {
+    let id = UUID()
+    let sha: String
+    let subject: String
+    var text: String?
+    var availabilityError = false
+  }
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 12) {
+      HStack {
+        Label("Per-Commit Narratives", systemImage: "list.bullet.rectangle")
+          .font(.headline)
+        Spacer()
+        Button("Close") {
+          // popover dismiss handled by isPresented
+        }
+        .buttonStyle(.plain)
+        .font(.caption)
+      }
+
+      if isLoading {
+        HStack(spacing: 8) {
+          ProgressView()
+            .controlSize(.small)
+          Text("Generating narratives...")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+        }
+      } else if narratives.isEmpty {
+        Text("No narratives available.")
+          .font(.caption)
+          .foregroundStyle(.secondary)
+      } else {
+        ScrollView {
+          VStack(alignment: .leading, spacing: 16) {
+            ForEach(Array(narratives.enumerated()), id: \.element.id) { index, narrative in
+              VStack(alignment: .leading, spacing: 6) {
+                HStack(spacing: 6) {
+                  Text(narrative.sha)
+                    .font(.caption.monospaced())
+                    .foregroundStyle(.secondary)
+                  Text(narrative.subject)
+                    .font(.caption.weight(.semibold))
+                    .lineLimit(1)
+                  Spacer()
+                  let loaded = index < loadedFlags.count && loadedFlags[index]
+                  if !loaded {
+                    ProgressView()
+                      .controlSize(.mini)
+                  }
+                }
+
+                if narrative.availabilityError {
+                  Label(
+                    "Foundation Models is unavailable on this device.",
+                    systemImage: "exclamationmark.triangle"
+                  )
+                  .font(.caption)
+                  .foregroundStyle(.orange)
+                } else if let text = narrative.text {
+                  Text(text)
+                    .font(.callout)
+                    .foregroundStyle(.primary)
+                    .textSelection(.enabled)
+                } else {
+                  Text("Summary unavailable.")
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+                }
+              }
+              .padding(8)
+              .background(.black.opacity(0.03), in: RoundedRectangle(cornerRadius: 6))
+            }
+          }
+        }
+        .frame(maxHeight: 400)
+      }
+    }
+    .padding(16)
+    .frame(width: 440)
+    .task {
+      await loadNarratives()
+    }
+  }
+
+  private func loadNarratives() async {
+    guard !item.commits.isEmpty else {
+      isLoading = false
+      return
+    }
+
+    isLoading = true
+
+    let initialNarratives: [CommitNarrative] = item.commits.map { commit in
+      CommitNarrative(sha: String(commit.sha.prefix(7)), subject: commit.subject)
+    }
+    narratives = initialNarratives
+    loadedFlags = Array(repeating: false, count: item.commits.count)
+
+    for (index, commit) in item.commits.enumerated() {
+      if #available(macOS 26.0, *) {
+        var narrative = initialNarratives[index]
+        let result = await CommitExplainer.explain(commit: commit, repoURL: repoURL)
+        narrative.text = result
+        narrative.availabilityError = (result == nil)
+        narratives[index] = narrative
+      } else {
+        var narrative = initialNarratives[index]
+        narrative.availabilityError = true
+        narratives[index] = narrative
+      }
+      loadedFlags[index] = true
+    }
+
+    isLoading = false
+  }
 }
 
 struct CommitTourRow: View {
