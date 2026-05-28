@@ -50,4 +50,51 @@ enum CommitTourGenerator {
 
     return await FoundationModelsAvailability._streamText(prompt: prompt)
   }
+
+  /// Generates a guided-tour narrative from a list of commits on a repository.
+  ///
+  /// - Parameters:
+  ///   - commits: The commits to include, ordered newest-first (as returned by
+  ///     `PlanSessionHistoryItem.commits`).
+  ///   - repoURL: The local URL of the repository.
+  ///
+  /// Computes the appropriate git diff range internally and delegates to
+  /// ``generate(diff:)``. Returns `nil` when Foundation Models is unavailable
+  /// or when the diff is empty.
+  static func generateTour(commits: [SessionCommit], repoURL: URL) async -> String? {
+    guard let firstCommit = commits.first else { return nil }
+    let diff: String
+    if commits.count == 1 {
+      diff = await _gitDiffForSha(firstCommit.sha, repoURL: repoURL)
+    } else {
+      let lastCommit = commits.last!
+      diff = await _gitDiffRange(from: firstCommit.sha, to: lastCommit.sha, repoURL: repoURL)
+    }
+    guard !diff.isEmpty else { return nil }
+    return await generate(diff: diff)
+  }
+
+  // MARK: - Private Git Helpers
+
+  private static func _gitDiffForSha(_ sha: String, repoURL: URL) async -> String {
+    await withCheckedContinuation { continuation in
+      Task {
+        let result = try? await ProcessRunner.runEnv(
+          "git", ["diff", "--no-color", "\(sha)^..\(sha)"], workingDirectory: repoURL
+        )
+        continuation.resume(returning: result?.stdout ?? "")
+      }
+    }
+  }
+
+  private static func _gitDiffRange(from: String, to: String, repoURL: URL) async -> String {
+    await withCheckedContinuation { continuation in
+      Task {
+        let result = try? await ProcessRunner.runEnv(
+          "git", ["diff", "--no-color", "\(from)..\(to)"], workingDirectory: repoURL
+        )
+        continuation.resume(returning: result?.stdout ?? "")
+      }
+    }
+  }
 }
