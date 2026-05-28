@@ -933,6 +933,28 @@ struct ExploreFileExplainerTests {
     #require(FileChangeCategory.other.sortOrder == 3)
   }
 
+  // MARK: - FileChangeCategory.displayName
+
+  @Test
+  func displayName_source() {
+    #require(FileChangeCategory.source.displayName == "Sources")
+  }
+
+  @Test
+  func displayName_test() {
+    #require(FileChangeCategory.test.displayName == "Tests")
+  }
+
+  @Test
+  func displayName_config() {
+    #require(FileChangeCategory.config.displayName == "Config")
+  }
+
+  @Test
+  func displayName_other() {
+    #require(FileChangeCategory.other.displayName == "Other")
+  }
+
   // MARK: - FileChange.fileName
 
   @Test
