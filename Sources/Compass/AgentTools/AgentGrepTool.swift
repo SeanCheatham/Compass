@@ -56,11 +56,11 @@ struct AgentGrepTool: AgentTool {
     do {
       args = try JSONDecoder().decode(Arguments.self, from: arguments)
     } catch {
-      return .failure("Failed to decode arguments: \(error.localizedDescription)")
+      return .failure(.invalidArguments("Failed to decode arguments: \(error.localizedDescription)"))
     }
     let pattern = args.pattern.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !pattern.isEmpty else {
-      return .failure("pattern is empty")
+      return .failure(.invalidArguments("pattern is empty"))
     }
 
     let searchURL: URL
@@ -68,9 +68,9 @@ struct AgentGrepTool: AgentTool {
       do {
         searchURL = try context.resolvePath(path)
       } catch let error as AgentToolError {
-        return .failure(error.errorDescription ?? "path resolution failed")
+        return .failure(error)
       } catch {
-        return .failure("path resolution failed: \(error.localizedDescription)")
+        return .failure(.invalidArguments("path resolution failed: \(error.localizedDescription)"))
       }
     } else {
       searchURL = context.workingDirectory
@@ -86,9 +86,12 @@ struct AgentGrepTool: AgentTool {
         timeout: Self.timeoutSeconds
       )
     } catch let error as AgentFilesystemError {
-      return .failure(error.errorDescription ?? "grep failed")
+      switch error {
+      case .transportFailure: return .failure(.rpcFailure(error.localizedDescription ?? "transport failure"))
+      default: return .failure(.ioFailure(error.localizedDescription ?? "I/O failure"))
+      }
     } catch {
-      return .failure("grep launch failed: \(error.localizedDescription)")
+      return .failure(.ioFailure("grep launch failed: \(error.localizedDescription)"))
     }
 
     // Both rg and grep exit 1 to mean "no matches".
@@ -97,7 +100,7 @@ struct AgentGrepTool: AgentTool {
     }
     if result.exitCode != 0 && result.exitCode != 1 {
       let stderr = result.stderr.trimmingCharacters(in: .whitespacesAndNewlines)
-      return .failure("grep exited \(result.exitCode): \(stderr)")
+      return .failure(.ioFailure("grep exited \(result.exitCode): \(stderr)"))
     }
 
     var body = result.stdout
