@@ -28,7 +28,6 @@ import Testing
 /// This mirrors the structure of `ExplorePerCommitNarrativesPopoverTests` (which
 /// tests `CommitExplainer.explain()` empty-commits guard) and
 /// `ExploreQnAPopoverTests` (which tests `RepoQnA.answer()` model-unavailable path).
-@available(macOS 26.0, *)
 struct ExploreFilesPopoverTests {
 
   // MARK: - Path 1: empty commits → FileExplainer.changes(for:) returns []
@@ -43,7 +42,6 @@ struct ExploreFilesPopoverTests {
   /// "No file changes found in these commits."
   @Test
   func loadChanges_emptyCommits_returnsEmptyChanges() async throws {
-    try #require(available(macOS 26.0, *))
     var test = Self()
     test.setUp()
     defer { test.tearDown() }
@@ -74,7 +72,6 @@ struct ExploreFilesPopoverTests {
   ///                   → `nil` (model unavailable) → `explanation = nil`
   @Test
   func loadChanges_explainReturnsNil_leavesExplanationNil() async throws {
-    try #require(available(macOS 26.0, *))
     var test = Self()
     test.setUp()
     defer { test.tearDown() }
