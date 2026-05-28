@@ -326,6 +326,12 @@ enum FileExplainer {
     return (additions, deletions)
   }
 
+  /// Returns the diff stat output for a single commit using `--first-parent`.
+  /// Returns an empty string if git fails or the commit has no changes on the mainline.
+  static func gitDiffStat(sha: String, repoURL: URL) async -> String {
+    await gitDiffStatImpl(sha: sha, repoURL: repoURL)
+  }
+
   private static func gitDiffStatImpl(
     sha: String? = nil,
     from: String? = nil,
