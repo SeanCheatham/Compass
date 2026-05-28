@@ -832,7 +832,7 @@ private func gitDiffForSha(_ sha: String, repoURL: URL) async -> String {
   await withCheckedContinuation { continuation in
     Task {
       let result = try? await ProcessRunner.runEnv(
-        "git", ["diff", "--no-color", sha], workingDirectory: repoURL
+        "git", ["diff", "--no-color", "\(sha)^..\(sha)"], workingDirectory: repoURL
       )
       continuation.resume(returning: result?.stdout ?? "")
     }
