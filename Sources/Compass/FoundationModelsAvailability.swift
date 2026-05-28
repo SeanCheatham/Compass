@@ -4,15 +4,40 @@ import Foundation
   import FoundationModels
 #endif
 
-/// Unified availability guard for Apple's on-device Foundation Models.
+/// Unified availability guard and streaming entry point for Apple's on-device
+/// Foundation Models in the Explore layer.
 ///
-/// Direct call sites — `CommitExplainer`, `CommitTourGenerator`, `RepoQnA`,
-/// and `FoundationModelsAgentRuntime` — check this guard before invoking the
-/// Foundation Models stack.  `FileExplainer.explain()` delegates to
-/// `CommitExplainer.summarize(diff:)` and is not a direct call site; its
-/// availability is implied by the delegate.  `LiveActivitySummary` uses
-/// `SystemLanguageModel.default.isAvailable` directly and is not covered by
-/// this enum.
+/// ## Availability check (`isAvailable`)
+///
+/// `isAvailable` combines two preconditions:
+/// 1. **Compile-time**: `FoundationModels` module is present — guarded by `#if canImport(FoundationModels)`.
+///    This prevents linkage errors on systems without the framework.
+/// 2. **Runtime**: `SystemLanguageModel.default.isAvailable` returns `true` — checked inside the
+///    `#available(macOS 26.0, *)` guard.  A `false` return means the model is not installed or
+///    cannot run on this device.
+///
+/// ## Streaming entry point (`_streamText(prompt:)`)
+///
+/// `_streamText(prompt:)` is the single streaming entry point used by all four Explore
+/// components:
+/// - ``CommitExplainer`` — explains individual commits
+/// - ``CommitTourGenerator`` — generates guided repository tours
+/// - ``RepoQnA`` — answers questions grounded in repository state
+/// - ``FoundationModelsAgentRuntime`` — primary agent runtime backed by Foundation Models
+///
+/// Internally it opens a ``LanguageModelSession``, accumulates every content snapshot from the
+/// streaming response, and returns the final text after trimming trailing whitespace.  There is
+/// no explicit token-cap: the session collects all snapshots emitted by the model and the caller
+/// is responsible for truncating the result if needed.
+///
+/// ## `nil` return contract
+///
+/// `_streamText(prompt:)` returns `nil` in two cases:
+/// - **Error**: any ``Error`` thrown during session creation or streaming results in `nil`.
+/// - **Empty result**: after trimming, if the accumulated text is empty, `nil` is returned.
+///
+/// Callers (`CommitExplainer`, `CommitTourGenerator`, `RepoQnA`) treat a `nil` result uniformly
+/// as "no explanation / tour / answer available" and fall back gracefully.
 enum FoundationModelsAvailability {
   /// `true` when the on-device Foundation Models stack is available and
   /// ready to handle requests on this system.
