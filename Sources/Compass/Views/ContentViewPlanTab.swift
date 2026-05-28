@@ -1006,17 +1006,8 @@ struct CommitTourRow: View {
 
   private func loadTour() async {
     tourAvailabilityError = false
-    guard let firstCommit = item.commits.first else { return }
-    let diff: String
-    if item.commits.count == 1 {
-      diff = await gitDiffForSha(firstCommit.sha, repoURL: repoURL)
-    } else {
-      let lastCommit = item.commits.last!
-      diff = await gitDiffRange(from: firstCommit.sha, to: lastCommit.sha, repoURL: repoURL)
-    }
-    guard !diff.isEmpty else { return }
     if #available(macOS 26.0, *) {
-      let result = await CommitTourGenerator.generate(diff: diff)
+      let result = await CommitTourGenerator.generateTour(commits: item.commits, repoURL: repoURL)
       tourText = result
       if result == nil { tourAvailabilityError = true }
     }
