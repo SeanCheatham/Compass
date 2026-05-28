@@ -48,11 +48,11 @@ struct AgentGlobTool: AgentTool {
     do {
       args = try JSONDecoder().decode(Arguments.self, from: arguments)
     } catch {
-      return .failure("Failed to decode arguments: \(error.localizedDescription)")
+      return .failure(.invalidArguments(error.localizedDescription))
     }
     let pattern = args.pattern.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !pattern.isEmpty else {
-      return .failure("pattern is empty")
+      return .failure(.invalidArguments("pattern is empty"))
     }
 
     let root: URL
@@ -62,7 +62,7 @@ struct AgentGlobTool: AgentTool {
       } catch let error as AgentToolError {
         return .failure(error.errorDescription ?? "path resolution failed")
       } catch {
-        return .failure("path resolution failed: \(error.localizedDescription)")
+        return .failure(.invalidArguments("path resolution failed: \(error.localizedDescription)"))
       }
     } else {
       root = context.workingDirectory
@@ -84,7 +84,7 @@ struct AgentGlobTool: AgentTool {
         return .failure(error.errorDescription ?? "glob failed")
       }
     } catch {
-      return .failure("glob failed: \(error.localizedDescription)")
+      return .failure(.ioFailure("glob failed: \(error.localizedDescription)"))
     }
 
     let sorted = matches.sorted { lhs, rhs in
