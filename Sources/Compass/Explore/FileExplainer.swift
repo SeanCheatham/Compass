@@ -115,6 +115,17 @@ enum FileChangeCategory: String, CaseIterable {
   case config = "Config"
   case other = "Other"
 
+  /// Stable display name used in tool output. Distinct from the `rawValue`
+  /// so renaming the case (e.g. `source` → `src`) doesn't churn cached files.
+  var displayName: String {
+    switch self {
+    case .source: return "Sources"
+    case .test: return "Tests"
+    case .config: return "Config"
+    case .other: return "Other"
+    }
+  }
+
   /// Sort order used for consistent presentation ordering.
   var sortOrder: Int {
     switch self {
