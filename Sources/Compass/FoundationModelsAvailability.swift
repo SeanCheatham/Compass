@@ -2,6 +2,20 @@ import Foundation
 
 #if canImport(FoundationModels)
   import FoundationModels
+
+  /// Serializes lightweight `LanguageModelSession` use (draft preview, Explore,
+  /// live summaries). The on-device stack misbehaves when multiple sessions
+  /// run concurrently; the agent runtime owns its own long-lived session.
+  @available(macOS 26.0, *)
+  actor FoundationModelsSessionGate {
+    static let shared = FoundationModelsSessionGate()
+
+    func withExclusiveAccess<T: Sendable>(
+      _ operation: @Sendable () async throws -> T
+    ) async rethrows -> T {
+      try await operation()
+    }
+  }
 #endif
 
 /// Unified availability guard and streaming entry point for Apple's on-device
@@ -60,16 +74,18 @@ enum FoundationModelsAvailability {
   /// result is empty.
   @available(macOS 26.0, *)
   static func _streamText(prompt: String) async -> String? {
-    do {
-      let session = LanguageModelSession(model: .default)
-      var fullText = ""
-      for try await snapshot in session.streamResponse(to: prompt) {
-        fullText += snapshot.content
+    await FoundationModelsSessionGate.shared.withExclusiveAccess {
+      do {
+        let session = LanguageModelSession(model: .default)
+        var fullText = ""
+        for try await snapshot in session.streamResponse(to: prompt) {
+          fullText += snapshot.content
+        }
+        let result = fullText.trimmingCharacters(in: .whitespacesAndNewlines)
+        return result.isEmpty ? nil : result
+      } catch {
+        return nil
       }
-      let result = fullText.trimmingCharacters(in: .whitespacesAndNewlines)
-      return result.isEmpty ? nil : result
-    } catch {
-      return nil
     }
   }
   #endif

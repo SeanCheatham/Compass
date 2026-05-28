@@ -66,8 +66,10 @@ struct DraftsTab: View {
               .padding(12)
           }
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .frame(minHeight: 160)
+        .frame(maxWidth: .infinity, alignment: .topLeading)
     }
+    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     .onAppear {
       syncPendingDraftsFromProject()
       refreshDraftRefinementAvailability()
@@ -141,6 +143,7 @@ struct DraftsTab: View {
   }
 
   private func requestDraftRefinementReschedule() {
+    guard !isDraftRefinementGenerating else { return }
     draftRefinementRescheduleTask?.cancel()
     draftRefinementRescheduleTask = Task { @MainActor in
       await Task.yield()
@@ -156,6 +159,10 @@ struct DraftsTab: View {
 
   private func scheduleDraftRefinementPreview() {
     isDraftRefinementModelAvailable = DraftRefinementService.isPreviewAvailable
+    if project.isRunning {
+      cancelDraftRefinementPreview()
+      return
+    }
     let context = draftRefinementContext
     let plan = DraftRefinementPreviewPlanner.plan(
       draft: project.draftEntry,
@@ -184,26 +191,41 @@ struct DraftsTab: View {
       isDraftRefinementPending = true
       isDraftRefinementGenerating = false
       let draft = key.trimmedDraft
-      draftRefinementTask = Task { @MainActor in
+      draftRefinementTask = Task {
         do {
           try await Task.sleep(nanoseconds: plan.delayNanoseconds)
         } catch {
           return
         }
-        guard !Task.isCancelled, activeDraftRefinementKey == key else { return }
-        isDraftRefinementPending = false
-        isDraftRefinementGenerating = true
+
+        let shouldGenerate = await MainActor.run { () -> Bool in
+          guard !Task.isCancelled, activeDraftRefinementKey == key else { return false }
+          isDraftRefinementPending = false
+          isDraftRefinementGenerating = true
+          return true
+        }
+        guard shouldGenerate else { return }
+
+        let context = await MainActor.run {
+          DraftRefinementContext(project: project)
+        }
         let refinement = await DraftRefinementService.makeRefinement(
           draft: draft,
-          context: DraftRefinementContext(project: project)
+          context: context
         )
-        guard !Task.isCancelled, activeDraftRefinementKey == key else { return }
-        if let refinement {
-          draftRefinementCache[key] = refinement
-          trimDraftRefinementCache()
+
+        await MainActor.run {
+          guard !Task.isCancelled, activeDraftRefinementKey == key else {
+            isDraftRefinementGenerating = false
+            return
+          }
+          if let refinement {
+            draftRefinementCache[key] = refinement
+            trimDraftRefinementCache()
+          }
+          draftRefinementPreview = refinement
+          isDraftRefinementGenerating = false
         }
-        draftRefinementPreview = refinement
-        isDraftRefinementGenerating = false
       }
     }
   }

@@ -463,35 +463,37 @@ enum LiveActivitySummaryService {
   @available(macOS 26.0, *)
   private enum FoundationModelLiveActivitySummaryGenerator {
     static func generate(cluster: LiveActivityCluster) async throws -> LiveActivitySummary? {
-      let model = SystemLanguageModel.default
-      guard model.isAvailable else { return nil }
+      try await FoundationModelsSessionGate.shared.withExclusiveAccess {
+        let model = SystemLanguageModel.default
+        guard model.isAvailable else { return nil }
 
-      let session = LanguageModelSession(
-        instructions: """
-          You summarize a batch of recent Compass live activity for a macOS software factory.
-          Return a single paragraph of 2 to 3 plain-text sentences describing what happened.
-          Write in past tense, third person, present a calm narrative of the work.
-          Ground every claim in the supplied events; you may reference file names, commands, counts, and outcomes that appear in those events.
-          Do not use markdown, code fences, JSON, bullet points, or URLs.
-          """)
+        let session = LanguageModelSession(
+          instructions: """
+            You summarize a batch of recent Compass live activity for a macOS software factory.
+            Return a single paragraph of 2 to 3 plain-text sentences describing what happened.
+            Write in past tense, third person, present a calm narrative of the work.
+            Ground every claim in the supplied events; you may reference file names, commands, counts, and outcomes that appear in those events.
+            Do not use markdown, code fences, JSON, bullet points, or URLs.
+            """)
 
-      let events = LiveActivitySummaryService.modelPromptLines(for: cluster)
-        .joined(separator: "\n")
+        let events = LiveActivitySummaryService.modelPromptLines(for: cluster)
+          .joined(separator: "\n")
 
-      let response = try await session.respond(
-        to: """
-          Events since the last summary:
-          \(events)
+        let response = try await session.respond(
+          to: """
+            Events since the last summary:
+            \(events)
 
-          Write 2 to 3 sentences summarizing what the agent did in this batch.
-          """,
-        options: GenerationOptions(temperature: 0.4, maximumResponseTokens: 220)
-      )
+            Write 2 to 3 sentences summarizing what the agent did in this batch.
+            """,
+          options: GenerationOptions(temperature: 0.4, maximumResponseTokens: 220)
+        )
 
-      return LiveActivitySummaryService.parseGeneratedSummary(
-        response.content,
-        cluster: cluster
-      )
+        return LiveActivitySummaryService.parseGeneratedSummary(
+          response.content,
+          cluster: cluster
+        )
+      }
     }
   }
 #endif

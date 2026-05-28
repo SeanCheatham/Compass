@@ -554,37 +554,39 @@ enum DraftRefinementService {
       draft: String,
       context: DraftRefinementContext
     ) async throws -> DraftRefinement? {
-      let model = SystemLanguageModel.default
-      guard model.isAvailable else { return nil }
+      try await FoundationModelsSessionGate.shared.withExclusiveAccess {
+        let model = SystemLanguageModel.default
+        guard model.isAvailable else { return nil }
 
-      let session = LanguageModelSession(
-        model: model,
-        instructions: """
-          You refine a user's Compass draft into one queued instruction.
-          Return exactly one line in this format: "Refined: ...".
-          Use only facts present in the supplied draft and context.
-          Do not invent file paths, commands, tests, outcomes, counts, deadlines, constraints, or acceptance criteria.
-          Preserve uncertainty and keep the request as a future instruction, not completed work.
-          """)
+        let session = LanguageModelSession(
+          model: model,
+          instructions: """
+            You refine a user's Compass draft into one queued instruction.
+            Return exactly one line in this format: "Refined: ...".
+            Use only facts present in the supplied draft and context.
+            Do not invent file paths, commands, tests, outcomes, counts, deadlines, constraints, or acceptance criteria.
+            Preserve uncertainty and keep the request as a future instruction, not completed work.
+            """)
 
-      let response = try await session.respond(
-        to: """
-          Draft:
-          \(draft)
+        let response = try await session.respond(
+          to: """
+            Draft:
+            \(draft)
 
-          Repository context:
-          \(context.promptText)
+            Repository context:
+            \(context.promptText)
 
-          Rewrite the draft as one clear instruction under 80 words.
-          """,
-        options: GenerationOptions(temperature: 0.35, maximumResponseTokens: 160)
-      )
+            Rewrite the draft as one clear instruction under 80 words.
+            """,
+          options: GenerationOptions(temperature: 0.35, maximumResponseTokens: 160)
+        )
 
-      return DraftRefinementService.parseGeneratedRefinement(
-        response.content,
-        draft: draft,
-        context: context
-      )
+        return DraftRefinementService.parseGeneratedRefinement(
+          response.content,
+          draft: draft,
+          context: context
+        )
+      }
     }
   }
 #endif
