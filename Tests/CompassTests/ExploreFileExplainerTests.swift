@@ -608,6 +608,30 @@ struct ExploreFileExplainerTests {
   }
 
   @Test
+  func changes_singleEmptyCommit_returnsEmptyArray() async throws {
+    var test = Self()
+    test.setUp()
+    defer { test.tearDown() }
+
+    // Set up a git repo with one commit that makes no file changes.
+    // This hits the single-SHA code path (gitDiffStatImpl(sha:)) rather than the range path,
+    // which is a distinct scenario from the existing empty-merge test that covers the range path.
+    try initGitRepo(at: test.temporaryDirectory)
+    try runGit(
+      "git -C \(test.temporaryDirectory.path) commit --allow-empty -q "
+        + "-c user.email=t@t -c user.name=t -m 'Empty commit'",
+      at: test.temporaryDirectory
+    )
+
+    let sha = try getSingleCommitSHA(at: test.temporaryDirectory)
+    let commits = [SessionCommit(sha: sha, short: String(sha.prefix(7)), subject: "Empty commit")]
+
+    let changes = await FileExplainer.changes(for: test.temporaryDirectory, commits: commits)
+
+    #require(changes.isEmpty) { "A single empty commit has no file changes; changes() must return an empty array" }
+  }
+
+  @Test
   func changes_noChangedFiles_returnsEmptyArray() async throws {
     var test = Self()
     test.setUp()
