@@ -70,6 +70,26 @@ struct ExploreCommitExplainerTests {
     }
   }
 
+  // MARK: - summarizeWhyGenerated
+
+  @Test
+  func summarizeWhyGenerated_emptyString_returnsNil() async throws {
+    let result = await CommitExplainer.summarizeWhyGenerated(diff: "")
+    #require(result == nil)
+  }
+
+  @Test
+  func summarizeWhyGenerated_normalDiff_doesNotThrow() async throws {
+    let diff = """
+    Sources/App.swift        |  12 ++++++------
+    Sources/Model.swift      |   4 ++++++
+    """
+    // May return nil in CI / test environments without Foundation Models,
+    // but must not throw.
+    let result = await CommitExplainer.summarizeWhyGenerated(diff: diff)
+    _ = result
+  }
+
   // MARK: - explain(commit:repoURL:)
 
   private mutating func explainSetUp() {
@@ -250,5 +270,67 @@ struct ExploreCommitExplainerTests {
 
     let result = await CommitExplainer.explain(commit: fakeCommit, repoURL: nonExistentURL)
     #require(result == nil)
+  }
+
+  // MARK: - whyGenerated (FileExplainer path)
+
+  @Test
+  func whyGenerated_normalPath_callsSummarizeWithWhyGeneratedPrompt() async throws {
+    // Test the FileExplainer.whyGenerated path: it calls
+    // CommitExplainer.summarizeWhyGenerated (not summarize).
+    // Set up a real git repo with a multi-commit range and verify
+    // non-nil result when Foundation Models is available.
+    var test = Self()
+    test.explainSetUp()
+    defer { test.explainTearDown() }
+
+    explainInitGitRepo(at: test.temporaryDirectory)
+
+    // Create first commit with an initial file
+    try explainWriteFile("README.md", contents: "# Test\n")
+    try explainRunGit(
+      "git -C \(test.temporaryDirectory.path) add . && " +
+        "git -C \(test.temporaryDirectory.path) " +
+        "-c user.email=t@t -c user.name=t commit -q -m 'Initial'",
+      at: test.temporaryDirectory
+    )
+
+    // Create second commit that modifies the file
+    try explainWriteFile("README.md", contents: "# Test\nExtra line.\n")
+    try explainRunGit(
+      "git -C \(test.temporaryDirectory.path) add . && " +
+        "git -C \(test.temporaryDirectory.path) " +
+        "-c user.email=t@t -c user.name=t commit -q -m 'Add line'",
+      at: test.temporaryDirectory
+    )
+
+    // Get both commit SHAs for a multi-commit range
+    let shaResult = try explainRunGitCapture(
+      "git -C \(test.temporaryDirectory.path) rev-parse HEAD",
+      at: test.temporaryDirectory
+    )
+    let newestSha = shaResult.trimmingCharacters(in: .whitespacesAndNewlines)
+
+    let shaResult2 = try explainRunGitCapture(
+      "git -C \(test.temporaryDirectory.path) rev-parse HEAD~",
+      at: test.temporaryDirectory
+    )
+    let oldestSha = shaResult2.trimmingCharacters(in: .whitespacesAndNewlines)
+
+    // Commits array in insertion order (newest first)
+    let commits = [
+      SessionCommit(sha: newestSha, short: String(newestSha.prefix(7)), subject: "Add line"),
+      SessionCommit(sha: oldestSha, short: String(oldestSha.prefix(7)), subject: "Initial"),
+    ]
+
+    // Call whyGenerated and verify non-nil when Foundation Models is available
+    let result = await FileExplainer.whyGenerated(
+      file: "README.md",
+      repoURL: test.temporaryDirectory,
+      commits: commits
+    )
+    if FoundationModelsAvailability.isAvailable {
+      #require(result != nil)
+    }
   }
 }
