@@ -29,11 +29,6 @@ struct ImportGraph: Sendable {
   /// Adjacency list: source -> targets (deduplicated per source).
   private(set) var adjacency: [Node: Set<Node>] = [:]
 
-  /// All edges sorted by source path, then target path.
-  var sortedEdges: [Edge] {
-    edges.sorted { $0.source.path < $1.source.path }
-  }
-
   /// Nodes that have outgoing edges but no incoming edges — likely entry
   /// points or top-level modules.
   var likelyEntryPoints: [Node] {
