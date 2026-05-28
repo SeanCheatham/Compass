@@ -48,4 +48,25 @@ enum CommitExplainer {
 
     return await FoundationModelsAvailability._streamText(prompt: prompt)
   }
+
+  /// Produces a plain-English summary of a single commit by fetching the full
+  /// diff via `git diff <sha>^..<sha>` and passing it to ``summarize(diff:)``.
+  ///
+  /// This method is the single-commit counterpart to the multi-commit path
+  /// used in ``FileExplainer/explain(file:repoURL:commits:)``.  Callers that
+  /// already hold a `SessionCommit` can use this directly rather than
+  /// constructing a single-element array.
+  ///
+  /// Returns `nil` when the diff is empty, git fails, or Foundation Models
+  /// is unavailable.
+  static func explain(commit: SessionCommit, repoURL: URL) async -> String? {
+    let result = try? await ProcessRunner.runEnv(
+      "git", ["diff", "\(commit.sha)^..\(commit.sha)"],
+      workingDirectory: repoURL
+    )
+    let diff = result?.stdout ?? ""
+    let trimmed = diff.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !trimmed.isEmpty else { return nil }
+    return await summarize(diff: trimmed)
+  }
 }

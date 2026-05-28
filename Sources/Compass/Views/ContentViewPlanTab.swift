@@ -827,30 +827,6 @@ struct ExplainChangesButton: View {
   }
 }
 
-// MARK: - Shared Git Diff Helpers
-
-private func gitDiffForSha(_ sha: String, repoURL: URL) async -> String {
-  await withCheckedContinuation { continuation in
-    Task {
-      let result = try? await ProcessRunner.runEnv(
-        "git", ["diff", "--no-color", "\(sha)^..\(sha)"], workingDirectory: repoURL
-      )
-      continuation.resume(returning: result?.stdout ?? "")
-    }
-  }
-}
-
-private func gitDiffRange(from: String, to: String, repoURL: URL) async -> String {
-  await withCheckedContinuation { continuation in
-    Task {
-      let result = try? await ProcessRunner.runEnv(
-        "git", ["diff", "--no-color", "\(from)..\(to)"], workingDirectory: repoURL
-      )
-      continuation.resume(returning: result?.stdout ?? "")
-    }
-  }
-}
-
 struct CommitExplanationPopover: View {
   let item: PlanSessionHistoryItem
   let repoURL: URL
@@ -858,7 +834,6 @@ struct CommitExplanationPopover: View {
   @Binding var isLoading: Bool
 
   @State private var fetchedSummary: String?
-  @State private var fetchedDiff: String?
 
   var body: some View {
     VStack(alignment: .leading, spacing: 12) {
@@ -905,25 +880,14 @@ struct CommitExplanationPopover: View {
     isLoading = true
     defer { isLoading = false }
 
-    guard let firstCommit = item.commits.first else { return }
+    guard !item.commits.isEmpty else { return }
 
-    // Fetch the diff for the commit range
-    let diff: String
-    if item.commits.count == 1 {
-      diff = await gitDiffForSha(firstCommit.sha, repoURL: repoURL)
-    } else {
-      let lastCommit = item.commits.last!
-      diff = await gitDiffRange(from: firstCommit.sha, to: lastCommit.sha, repoURL: repoURL)
-    }
-
-    guard !diff.isEmpty else { return }
-    fetchedDiff = diff
-
-    if #available(macOS 26.0, *) {
-      fetchedSummary = await CommitExplainer.summarize(diff: diff)
-    } else {
-      fetchedSummary = nil
-    }
+    // Delegate diff fetching and summary generation to CommitTourGenerator,
+    // which handles the same first/last commit logic internally.
+    fetchedSummary = await CommitTourGenerator.generateTour(
+      commits: item.commits,
+      repoURL: repoURL
+    )
 
     // Sync to the binding so the parent can access the loaded value.
     summary = fetchedSummary
