@@ -1422,6 +1422,7 @@ struct ExploreFilesPopover: View {
 
   @State private var changes: [FileChange] = []
   @State private var isLoading = false
+  @State private var fileCount: Int = 0
 
   private var groupedChanges: [(category: FileChangeCategory, changes: [FileChange])] {
     let grouped = Dictionary(grouping: changes, by: { $0.category })
@@ -1449,7 +1450,7 @@ struct ExploreFilesPopover: View {
         HStack(spacing: 8) {
           ProgressView()
             .controlSize(.small)
-          Text("Loading file changes...")
+          Text("Analyzing \(fileCount) files...")
             .font(.caption)
             .foregroundStyle(.secondary)
         }
@@ -1537,6 +1538,7 @@ struct ExploreFilesPopover: View {
       }
     }
 
+    fileCount = loaded.count
     changes = loaded
   }
 }
