@@ -250,6 +250,8 @@ enum FileExplainer {
 
   // MARK: - Private
 
+  // MARK: - parseGitDiffStat
+
   /// Parse `git diff --stat` output into FileChange objects.
   /// Each line of --stat output looks like:
   ///   Sources/Compass/AppModel.swift       |  24 +++++++++++++++--
@@ -303,6 +305,8 @@ enum FileExplainer {
 
     return changes
   }
+
+  // MARK: - extractLineCounts
 
   /// Extract addition/deletion counts from a stat line like "24 +++++++++++++++------"
   static func extractLineCounts(from statPart: String) -> (additions: Int, deletions: Int) {
