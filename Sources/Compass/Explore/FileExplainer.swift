@@ -276,8 +276,10 @@ enum FileExplainer {
       } else {
         relativePath = pathPart
       }
+      let raw = relativePath
+      let strippedPath = raw.hasPrefix("a/") || raw.hasPrefix("b/") ? String(raw.dropFirst(2)) : raw
 
-      guard !relativePath.isEmpty else { continue }
+      guard !strippedPath.isEmpty else { continue }
 
       var additions = 0
       var deletions = 0
@@ -289,9 +291,9 @@ enum FileExplainer {
         deletions = nums.deletions
       }
 
-      let language = CodemapLanguage.forRelativePath(relativePath)
+      let language = CodemapLanguage.forRelativePath(strippedPath)
       changes.append(FileChange(
-        relativePath: relativePath,
+        relativePath: strippedPath,
         additions: additions,
         deletions: deletions,
         language: language,

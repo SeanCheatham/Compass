@@ -60,6 +60,22 @@ struct ExploreFileExplainerTests {
   }
 
   @Test
+  func parseGitDiffStat_abPrefix()  throws {
+    var test = Self()
+    test.setUp()
+    defer { test.tearDown() }
+
+    let diffStat = "a/Sources/App.swift        |  10 +++++-----"
+
+    let changes = FileExplainer.parseGitDiffStat(diffStat)
+
+    #require(changes.count == 1)
+    #require(changes[0].relativePath == "Sources/App.swift")
+    #require(changes[0].additions == 4)
+    #require(changes[0].deletions == 1)
+  }
+
+  @Test
   func parseGitDiffStat_binaryFile()  throws {
     var test = Self()
     test.setUp()
