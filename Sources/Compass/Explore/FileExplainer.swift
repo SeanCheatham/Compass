@@ -250,13 +250,12 @@ enum FileExplainer {
 
   // MARK: - Private
 
-  // MARK: - parseGitDiffStat
-
   /// Parse `git diff --stat` output into FileChange objects.
   /// Each line of --stat output looks like:
   ///   Sources/Compass/AppModel.swift       |  24 +++++++++++++++--
   /// or for renames:
   ///   old/path.go => new/path.go           |   4 ++-
+  // MARK: - parseGitDiffStat
   static func parseGitDiffStat(_ diffStat: String) -> [FileChange] {
     var changes: [FileChange] = []
 
