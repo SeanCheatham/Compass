@@ -30,7 +30,7 @@ struct AgentListToolchainsTool: AgentTool {
       let statuses = try await service.listToolchains(runner: context.bashRunner)
       return .ok(Self.format(statuses))
     } catch {
-      return .failure("Failed to list toolchains: \(error.localizedDescription)", kind: .rpcFailure)
+      return .failure(.rpcFailure(error.localizedDescription))
     }
   }
 

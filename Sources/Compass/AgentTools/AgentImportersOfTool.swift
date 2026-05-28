@@ -48,7 +48,7 @@ struct AgentImportersOfTool: AgentTool {
     }
     let normalized = AgentCodemapPath.normalize(
       args.path, workingDirectory: context.workingDirectory)
-    guard !normalized.isEmpty else { return .failure("`path` resolves to an empty string.") }
+    guard !normalized.isEmpty else { return .failure(.invalidArguments("`path` resolves to an empty string.")) }
     let store = context.codemapStore()
     guard let target = store.loadEntry(forRelativePath: normalized) else {
       return .failure(

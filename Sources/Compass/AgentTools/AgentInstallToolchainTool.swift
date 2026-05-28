@@ -68,7 +68,7 @@ struct AgentInstallToolchainTool: AgentTool {
     } catch let error as SharedCompassVMToolchainManager.ManagerError {
       return .failure(error.description, kind: .invalidArguments)
     } catch {
-      return .failure("Toolchain install failed: \(error.localizedDescription)", kind: .rpcFailure)
+      return .failure(.rpcFailure(error.localizedDescription))
     }
   }
 }
