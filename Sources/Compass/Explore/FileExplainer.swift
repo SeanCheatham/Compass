@@ -4,6 +4,30 @@ import Foundation
   import FoundationModels
 #endif
 
+// MARK: - Overview
+
+/// `FileExplainer` is the central orchestrator of the Explore layer — it is the
+/// single entry point used by the UI for both the changed-file list and the
+/// per-file explanation pipeline.
+///
+/// ## Public interface
+///
+/// - ``changes(for:commits:)`` — collects all files modified across a commit
+///   range and pairs each with its line-count stats and codemap summary.  This
+///   powers the Explore popover file list and never touches Foundation Models.
+///
+/// - ``explain(file:repoURL:commits:)`` — runs `git diff` for a single file and
+///   delegates the raw diff to ``CommitExplainer`` for an AI-generated plain-
+///   English summary, bridging the Explore layer into Foundation Models.
+///
+/// ## Position in the Explore architecture
+///
+/// FileExplainer sits above three other Explore components: ``CommitExplainer``
+/// (per-commit diff summarization), ``CommitTourGenerator`` (guided code tours),
+/// and ``RepoQnA`` (repository-scale Q&A).  ``changes(for:commits:)`` is purely
+/// a git/codemap query; ``explain(file:repoURL:commits:)`` is the crossing point
+/// into the model-driven components downstream.
+
 /// Represents a single changed file with its metadata and optional codemap summary.
 struct FileChange: Identifiable, Equatable {
   let id: String
