@@ -258,6 +258,50 @@ enum FileExplainer {
     return await CommitExplainer.summarize(diff: diff)
   }
 
+  /// Returns a purpose-focused explanation for a single changed file:
+  /// why the file was generated and what role it plays in the codebase.
+  /// This is distinct from ``explain(file:repoURL:commits:)`` which describes
+  /// "what changed" — this method explains "why it exists".
+  ///
+  /// - Parameters:
+  ///   - relativePath: The repo-relative path of the file to explain.
+  ///   - repoURL: The working-copy root of the repository.
+  ///   - commits: Commits to diff, in insertion order (newest first).  Single-
+  ///     commit uses `sha^..sha`; multi-commit uses `newest..oldest` internally.
+  /// - Returns: An AI-generated explanation, or `nil` if no commits are
+  ///   available, no diff exists for the file, or Foundation Models is
+  ///   unavailable.
+  static func whyGenerated(
+    file relativePath: String,
+    repoURL: URL,
+    commits: [SessionCommit]
+  ) async -> String? {
+    guard let first = commits.first else { return nil }
+
+    let diff: String
+    if commits.count == 1 {
+      let result = try? await ProcessRunner.runEnv(
+        "git", ["diff", "\(first.sha)^..\(first.sha)", "--", relativePath],
+        workingDirectory: repoURL
+      )
+      diff = result?.stdout ?? ""
+    } else if let last = commits.last {
+      let result = try? await ProcessRunner.runEnv(
+        "git", ["diff", "\(first.sha)..\(last.sha)", "--", relativePath],
+        workingDirectory: repoURL
+      )
+      diff = result?.stdout ?? ""
+    } else {
+      return nil
+    }
+
+    if diff.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+      return nil
+    }
+
+    return await CommitExplainer.summarizeWhyGenerated(diff: diff)
+  }
+
   /// Returns all files changed across the given commits, with their line counts
   /// and codemap summaries (when the file has already been indexed).
   ///

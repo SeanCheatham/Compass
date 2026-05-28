@@ -32,21 +32,49 @@ enum CommitExplainer {
   /// Returns `nil` when Foundation Models is unavailable or produces
   /// no content.
   static func summarize(diff: String) async -> String? {
+    return await summarize(diff: diff, prompt: whatChangedPrompt(diff: diff))
+  }
+
+  /// Produces a purpose-focused explanation of a file: why it was generated
+  /// and what role it plays in the codebase. Distinct from the diff-based
+  /// "what changed" summary.
+  ///
+  /// Returns `nil` when Foundation Models is unavailable or produces
+  /// no content.
+  static func summarizeWhyGenerated(diff: String) async -> String? {
+    return await summarize(diff: diff, prompt: whyGeneratedPrompt(diff: diff))
+  }
+
+  // MARK: - Private
+
+  private static func summarize(diff: String, prompt: String) async -> String? {
     guard FoundationModelsAvailability.isAvailable else { return nil }
 
     let trimmed = diff.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !trimmed.isEmpty else { return nil }
 
-    let prompt = """
+    return await FoundationModelsAvailability._streamText(prompt: prompt)
+  }
+
+  private static func whatChangedPrompt(diff: String) -> String {
+    return """
       You are a software engineer explaining a git diff to a non-technical project owner.
       Provide a clear, concise summary (~3 sentences) of what changed.
       Focus on the intent and effect of the changes, not the mechanical details.
 
       Diff:
-      \(trimmed)
-      """
+      """ + diff
+  }
 
-    return await FoundationModelsAvailability._streamText(prompt: prompt)
+  private static func whyGeneratedPrompt(diff: String) -> String {
+    return """
+      You are a software engineer explaining why a source file was generated and what role it plays in the codebase.
+      Answer the question: "Why was this file generated and what is its role in the codebase?"
+      Keep the answer to roughly 3 sentences and focus on the file's purpose and architectural role.
+      Do not describe the diff mechanically \u{2014} explain the reason the file exists.
+
+      Diff:
+      """ + diff
   }
 
   /// Produces a plain-English summary of a single commit by fetching the full

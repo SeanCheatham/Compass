@@ -1467,7 +1467,7 @@ struct ExploreFilesPopover: View {
                   .foregroundStyle(.secondary)
 
                 ForEach(entry.changes) { change in
-                  ExploreFileRow(change: change)
+                  ExploreFileRow(change: change, repoURL: repoURL, commits: item.commits)
                 }
               }
             }
@@ -1543,8 +1543,13 @@ struct ExploreFilesPopover: View {
 
 struct ExploreFileRow: View {
   let change: FileChange
+  let repoURL: URL
+  let commits: [SessionCommit]
 
   @State private var showExplanation = false
+  @State private var whyGeneratedExplanation: String?
+  @State private var showWhyGenerated = false
+  @State private var loadingWhyGenerated = false
 
   var body: some View {
     VStack(alignment: .leading, spacing: 3) {
@@ -1578,6 +1583,22 @@ struct ExploreFileRow: View {
           }
           .buttonStyle(.plain)
         }
+
+        Button {
+          loadingWhyGenerated = true
+          showWhyGenerated = true
+        } label: {
+          if loadingWhyGenerated {
+            ProgressView()
+              .controlSize(.mini)
+              .frame(width: 16, height: 16)
+          } else {
+            Image(systemName: "questionmark.circle")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+          }
+        }
+        .buttonStyle(.plain)
       }
 
       if let summary = change.summary {
@@ -1611,6 +1632,70 @@ struct ExploreFileRow: View {
         .frame(minWidth: 400, minHeight: 200)
       }
     }
+    .popover(isPresented: $showWhyGenerated) {
+      WhyGeneratedPopover(
+        fileName: change.fileName,
+        explanation: $whyGeneratedExplanation,
+        isLoading: $loadingWhyGenerated
+      )
+    }
+    .task {
+      await loadWhyGenerated()
+    }
+  }
+
+  private func loadWhyGenerated() async {
+    guard whyGeneratedExplanation == nil else { return }
+    let result = await FileExplainer.whyGenerated(
+      file: change.relativePath,
+      repoURL: repoURL,
+      commits: commits
+    )
+    await MainActor.run {
+      whyGeneratedExplanation = result
+    }
+  }
+}
+
+struct WhyGeneratedPopover: View {
+  let fileName: String
+  @Binding var explanation: String?
+  @Binding var isLoading: Bool
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 12) {
+      HStack {
+        Label("Why Generated?", systemImage: "questionmark.circle")
+          .font(.headline)
+        Spacer()
+        Button("Close") {
+          // popover dismiss handled by isPresented
+        }
+        .buttonStyle(.plain)
+        .font(.caption)
+      }
+
+      if isLoading {
+        HStack(spacing: 8) {
+          ProgressView()
+            .controlSize(.small)
+          Text("Generating explanation...")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+        }
+      } else if let text = explanation {
+        Text(text)
+          .font(.callout)
+          .textSelection(.enabled)
+          .frame(maxWidth: 400, alignment: .leading)
+      } else {
+        Text("Explanation unavailable.")
+          .font(.caption)
+          .foregroundStyle(.secondary)
+      }
+    }
+    .padding(16)
+    .frame(width: 440)
   }
 }
 
