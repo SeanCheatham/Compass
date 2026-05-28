@@ -92,6 +92,34 @@ struct ExploreFileExplainerTests {
   }
 
   @Test
+  func parseGitDiffStat_languageDetection()  throws {
+    var test = Self()
+    test.setUp()
+    defer { test.tearDown() }
+
+    // Case 1: non-rename, no a/ prefix → language == .swift
+    let diffStat1 = "Sources/App.swift        |  10 +++++-----"
+    let changes1 = FileExplainer.parseGitDiffStat(diffStat1)
+    #require(changes1.count == 1)
+    #require(changes1[0].relativePath == "Sources/App.swift")
+    #require(changes1[0].language == .swift)
+
+    // Case 2: rename without a/ prefix → language == .go
+    let diffStat2 = "old/path.go => new/path.go           |   4 ++--"
+    let changes2 = FileExplainer.parseGitDiffStat(diffStat2)
+    #require(changes2.count == 1)
+    #require(changes2[0].relativePath == "new/path.go")
+    #require(changes2[0].language == .go)
+
+    // Case 3: rename with a/→b/ prefix → language == .swift
+    let diffStat3 = "a/Foo.swift => b/Bar.swift           |   6 ++++++"
+    let changes3 = FileExplainer.parseGitDiffStat(diffStat3)
+    #require(changes3.count == 1)
+    #require(changes3[0].relativePath == "Bar.swift")
+    #require(changes3[0].language == .swift)
+  }
+
+  @Test
   func parseGitDiffStat_binaryFile()  throws {
     var test = Self()
     test.setUp()
