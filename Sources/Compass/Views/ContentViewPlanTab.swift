@@ -1033,19 +1033,28 @@ struct PerCommitNarrativesPopover: View {
     narratives = initialNarratives
     loadedFlags = Array(repeating: false, count: item.commits.count)
 
-    for (index, commit) in item.commits.enumerated() {
-      if #available(macOS 26.0, *) {
-        var narrative = initialNarratives[index]
-        let result = await CommitExplainer.explain(commit: commit, repoURL: repoURL)
-        narrative.text = result
-        narrative.availabilityError = (result == nil)
-        narratives[index] = narrative
-      } else {
-        var narrative = initialNarratives[index]
-        narrative.availabilityError = true
-        narratives[index] = narrative
+    await withTaskGroup(of: (Int, CommitNarrative?).self) { group in
+      for (index, commit) in item.commits.enumerated() {
+        group.addTask {
+          if #available(macOS 26.0, *) {
+            let text = await CommitExplainer.explain(commit: commit, repoURL: repoURL)
+            var narrative = initialNarratives[index]
+            narrative.text = text
+            narrative.availabilityError = (text == nil)
+            return (index, narrative)
+          } else {
+            var narrative = initialNarratives[index]
+            narrative.availabilityError = true
+            return (index, narrative)
+          }
+        }
       }
-      loadedFlags[index] = true
+      for await (index, narrative) in group {
+        if let narrative {
+          narratives[index] = narrative
+          loadedFlags[index] = true
+        }
+      }
     }
 
     isLoading = false
