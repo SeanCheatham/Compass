@@ -10,8 +10,7 @@ struct DraftsTab: View {
   @State private var draftRefinementRescheduleTask: Task<Void, Never>?
   @State private var draftRefinementCache: [DraftRefinementPreviewKey: DraftRefinement] = [:]
   @State private var activeDraftRefinementKey: DraftRefinementPreviewKey?
-  @State private var isDraftRefinementGenerating = false
-  @State private var isDraftRefinementPending = false
+  @State private var isDraftRefinementActive = false
   @State private var isDraftRefinementModelAvailable = DraftRefinementService.isPreviewAvailable
 
   var body: some View {
@@ -37,8 +36,7 @@ struct DraftsTab: View {
       if shouldShowDraftRefinementPreview {
         DraftRefinementPreviewCard(
           refinement: draftRefinementPreview,
-          isGenerating: isDraftRefinementGenerating,
-          isPending: isDraftRefinementPending,
+          isRefining: isDraftRefinementActive,
           canAccept: project.hasRepository,
           accept: acceptDraftRefinement,
           modify: modifyDraftRefinement
@@ -67,9 +65,8 @@ struct DraftsTab: View {
           }
         }
         .frame(minHeight: 160)
-        .frame(maxWidth: .infinity, alignment: .topLeading)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
-    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     .onAppear {
       syncPendingDraftsFromProject()
       refreshDraftRefinementAvailability()
@@ -112,11 +109,7 @@ struct DraftsTab: View {
   private var shouldShowDraftRefinementPreview: Bool {
     isDraftRefinementModelAvailable
       && !trimmedDraftEntry.isEmpty
-      && (
-        isDraftRefinementPending
-          || isDraftRefinementGenerating
-          || draftRefinementPreview != nil
-      )
+      && (isDraftRefinementActive || draftRefinementPreview != nil)
   }
 
   private func syncPendingDraftsFromProject() {
@@ -143,7 +136,7 @@ struct DraftsTab: View {
   }
 
   private func requestDraftRefinementReschedule() {
-    guard !isDraftRefinementGenerating else { return }
+    guard !isDraftRefinementActive else { return }
     draftRefinementRescheduleTask?.cancel()
     draftRefinementRescheduleTask = Task { @MainActor in
       await Task.yield()
@@ -176,8 +169,7 @@ struct DraftsTab: View {
       cancelDraftRefinementPreview()
     case .cached:
       draftRefinementTask?.cancel()
-      isDraftRefinementPending = false
-      isDraftRefinementGenerating = false
+      isDraftRefinementActive = false
       activeDraftRefinementKey = plan.cacheKey
       draftRefinementPreview = plan.cacheKey.flatMap { draftRefinementCache[$0] }
     case .debounce:
@@ -188,8 +180,7 @@ struct DraftsTab: View {
       draftRefinementTask?.cancel()
       activeDraftRefinementKey = key
       draftRefinementPreview = nil
-      isDraftRefinementPending = true
-      isDraftRefinementGenerating = false
+      isDraftRefinementActive = true
       let draft = key.trimmedDraft
       draftRefinementTask = Task {
         do {
@@ -199,10 +190,7 @@ struct DraftsTab: View {
         }
 
         let shouldGenerate = await MainActor.run { () -> Bool in
-          guard !Task.isCancelled, activeDraftRefinementKey == key else { return false }
-          isDraftRefinementPending = false
-          isDraftRefinementGenerating = true
-          return true
+          !Task.isCancelled && activeDraftRefinementKey == key
         }
         guard shouldGenerate else { return }
 
@@ -216,7 +204,7 @@ struct DraftsTab: View {
 
         await MainActor.run {
           guard !Task.isCancelled, activeDraftRefinementKey == key else {
-            isDraftRefinementGenerating = false
+            isDraftRefinementActive = false
             return
           }
           if let refinement {
@@ -224,7 +212,7 @@ struct DraftsTab: View {
             trimDraftRefinementCache()
           }
           draftRefinementPreview = refinement
-          isDraftRefinementGenerating = false
+          isDraftRefinementActive = false
         }
       }
     }
@@ -235,8 +223,7 @@ struct DraftsTab: View {
     draftRefinementTask = nil
     activeDraftRefinementKey = nil
     draftRefinementPreview = nil
-    isDraftRefinementPending = false
-    isDraftRefinementGenerating = false
+    isDraftRefinementActive = false
   }
 
   private func trimDraftRefinementCache() {
@@ -248,7 +235,7 @@ struct DraftsTab: View {
   private func handleDraftSubmissionShortcut() -> KeyPress.Result {
     guard project.hasRepository else { return .handled }
 
-    if isDraftRefinementGenerating {
+    if isDraftRefinementActive {
       return .handled
     }
 
@@ -282,8 +269,7 @@ struct DraftsTab: View {
 
 struct DraftRefinementPreviewCard: View {
   var refinement: DraftRefinement?
-  var isGenerating: Bool
-  var isPending: Bool
+  var isRefining: Bool
   var canAccept: Bool
   var accept: (DraftRefinement) -> Void
   var modify: (DraftRefinement) -> Void
@@ -303,17 +289,13 @@ struct DraftRefinementPreviewCard: View {
             .background(.quaternary.opacity(0.7), in: Capsule())
         }
         Spacer()
-        if isPending || isGenerating {
+        if isRefining {
           ProgressView()
             .controlSize(.small)
         }
       }
 
-      if isPending {
-        Text("Waiting to refine…")
-          .font(.callout)
-          .foregroundStyle(.secondary)
-      } else if let refinement {
+      if let refinement {
         Text(refinement.refinedText)
           .font(.callout)
           .foregroundStyle(.primary)
@@ -336,12 +318,13 @@ struct DraftRefinementPreviewCard: View {
           .disabled(!canAccept)
         }
         .controlSize(.small)
-      } else if isGenerating {
-        Text("Generating refinement…")
+      } else if isRefining {
+        Text("Refining draft…")
           .font(.callout)
           .foregroundStyle(.secondary)
       }
     }
+    .frame(minHeight: 72, alignment: .topLeading)
     .padding(10)
     .background(.quaternary.opacity(0.26), in: RoundedRectangle(cornerRadius: 8))
     .overlay {

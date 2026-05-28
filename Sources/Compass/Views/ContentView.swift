@@ -29,6 +29,7 @@ struct ContentView: View {
             }
           }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
       } else {
         OnboardingView()
       }

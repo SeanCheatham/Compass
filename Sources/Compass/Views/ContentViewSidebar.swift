@@ -116,6 +116,7 @@ struct SidebarView: View {
       }
     }
     .padding()
+    .frame(maxHeight: .infinity, alignment: .topLeading)
     .navigationSplitViewColumnWidth(min: 260, ideal: 310, max: 380)
   }
 }

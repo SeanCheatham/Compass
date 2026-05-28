@@ -40,6 +40,7 @@ struct MainWorkspaceView: View {
         selectedTab: selectedTab
       )
       .padding(16)
+      .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
       .overlay(alignment: .bottom) {
         if let message = project.errorMessage {
           Text(message)
@@ -52,6 +53,7 @@ struct MainWorkspaceView: View {
         }
       }
     }
+    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
   }
 }
 
