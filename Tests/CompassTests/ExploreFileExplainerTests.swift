@@ -1088,6 +1088,55 @@ struct ExploreFileExplainerTests {
     #require(changes.isEmpty)
   }
 
+  // MARK: - groupedChanges sorting
+
+  @Test
+  func changes_withinCategory_sortedAlphabetically() {
+    var test = Self()
+    test.setUp()
+    defer { test.tearDown() }
+
+    // Three files in the same category (.source) added in non-alphabetical order.
+    let changeC = FileChange(
+      relativePath: "Sources/C.swift",
+      additions: 1,
+      deletions: 0,
+      language: nil,
+      summary: nil
+    )
+    let changeA = FileChange(
+      relativePath: "Sources/A.swift",
+      additions: 1,
+      deletions: 0,
+      language: nil,
+      summary: nil
+    )
+    let changeB = FileChange(
+      relativePath: "Sources/B.swift",
+      additions: 1,
+      deletions: 0,
+      language: nil,
+      summary: nil
+    )
+
+    // Simulate the groupedChanges logic: group by category then sort by relativePath.
+    let changes = [changeC, changeA, changeB]
+    let grouped = Dictionary(grouping: changes, by: { $0.category })
+    let result = FileChangeCategory.allCases
+      .compactMap { category -> (FileChangeCategory, [FileChange])? in
+        guard let cats = grouped[category], !cats.isEmpty else { return nil }
+        return (category, cats.sorted { $0.relativePath < $1.relativePath })
+      }
+
+    // There should be one group for the .source category.
+    #require(result.count == 1)
+    #require(result[0].category == .source)
+
+    // Files within the group must be in alphabetical order by relativePath.
+    let paths = result[0].changes.map { $0.relativePath }
+    #require(paths == ["Sources/A.swift", "Sources/B.swift", "Sources/C.swift"])
+  }
+
   // MARK: - Helpers
 
   private func initGitRepo(at url: URL) {

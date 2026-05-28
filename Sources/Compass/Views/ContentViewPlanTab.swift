@@ -1184,7 +1184,7 @@ struct ExploreFilesPopover: View {
     return FileChangeCategory.allCases
       .compactMap { category -> (FileChangeCategory, [FileChange])? in
         guard let cats = grouped[category], !cats.isEmpty else { return nil }
-        return (category, cats)
+        return (category, cats.sorted { $0.relativePath < $1.relativePath })
       }
   }
 
