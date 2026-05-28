@@ -165,7 +165,7 @@ by Compass. Rather than leaving generated code opaque, it surfaces meaning —
 what changed, why, and how the pieces fit together — using Apple's on-device
 Foundation Models so explanations stay local and fast.
 
-Explore has four main components:
+Explore has five main components:
 
 - **`CommitExplainer`** (`Sources/Compass/Explore/CommitExplainer.swift`) —
   Takes a git diff and produces a plain-English summary in roughly three
@@ -193,6 +193,14 @@ Explore has four main components:
   Models framework. Requires **macOS 26** and is gated behind `@available(macOS 26.0, *)`.
   Returns `nil` gracefully when Foundation Models is unavailable. See the
   Vision document for the full feature description.
+
+- **`ArchitectureGraph`** (`Sources/Compass/Explore/ArchitectureGraph.swift`) —
+  Produces a plain-English architectural description of a codebase's import graph.
+  Covers top-level modules, key cross-module dependencies, and architecturally
+  significant files (central infrastructure, likely entry points, unusual patterns).
+  Uses `FoundationModelsAvailability.isAvailable` from the on-device Foundation Models
+  framework. Requires **macOS 26** and is gated behind `@available(macOS 26.0, *)`.
+  Returns `nil` gracefully when Foundation Models is unavailable.
 
 Explore is documented in the Vision under the "Explore layer" section.
 
