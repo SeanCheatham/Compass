@@ -40,7 +40,7 @@ struct AgentListFilesTool: AgentTool {
     do {
       args = try JSONDecoder().decode(Arguments.self, from: arguments)
     } catch {
-      return .failure("Failed to decode arguments: \(error.localizedDescription)")
+      return .failure(.invalidArguments(error.localizedDescription))
     }
     let filter = args.filter?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
     let store = context.codemapStore()
