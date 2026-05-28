@@ -219,10 +219,10 @@ enum DraftRefinementService {
     context: DraftRefinementContext
   ) async -> DraftRefinement? {
     let trimmedDraft = normalizeDraft(draft)
-    guard !trimmedDraft.isEmpty, isPreviewAvailable else { return nil }
+    guard !trimmedDraft.isEmpty else { return nil }
 
     #if canImport(FoundationModels)
-      if #available(macOS 26.0, *) {
+      if #available(macOS 26.0, *), isPreviewAvailable {
         if let generated = try? await FoundationModelDraftRefinementGenerator.generate(
           draft: trimmedDraft,
           context: context
@@ -294,12 +294,26 @@ enum DraftRefinementService {
       .map { String($0).trimmingCharacters(in: .whitespacesAndNewlines) }
       .filter { !$0.isEmpty }
 
-    guard lines.count == 1 else { return nil }
-    let line = lines[0]
-    guard line.lowercased().hasPrefix("refined:") else { return nil }
+    if let labeledLine = lines.first(where: { $0.lowercased().hasPrefix("refined:") }) {
+      return validateGenerated(
+        refined: stripLabel(from: labeledLine),
+        draft: trimmedDraft,
+        context: context
+      )
+    }
 
+    let collapsed = lines.joined(separator: " ")
+    if collapsed.lowercased().hasPrefix("refined:") {
+      return validateGenerated(
+        refined: stripLabel(from: collapsed),
+        draft: trimmedDraft,
+        context: context
+      )
+    }
+
+    guard lines.count == 1 else { return nil }
     return validateGenerated(
-      refined: stripLabel(from: line),
+      refined: lines[0],
       draft: trimmedDraft,
       context: context
     )
@@ -394,37 +408,22 @@ enum DraftRefinementService {
     }
 
     let guardedWords = [
-      "always",
-      "before",
-      "complete",
       "completed",
-      "deadline",
       "delivered",
       "done",
       "finish",
       "finished",
       "fixed",
-      "green",
       "implemented",
       "must",
       "never",
-      "only",
       "passed",
       "passing",
-      "ready",
-      "required",
-      "requires",
       "resolved",
-      "shall",
-      "ship",
       "shipped",
-      "should",
-      "success",
       "succeeded",
       "successful",
       "verified",
-      "working",
-      "without",
     ]
     guard doesNotAddGuardedWords(guardedWords, refined: refined, source: source) else {
       return false
@@ -555,9 +554,11 @@ enum DraftRefinementService {
       draft: String,
       context: DraftRefinementContext
     ) async throws -> DraftRefinement? {
-      guard isAvailable else { return nil }
+      let model = SystemLanguageModel.default
+      guard model.isAvailable else { return nil }
 
       let session = LanguageModelSession(
+        model: model,
         instructions: """
           You refine a user's Compass draft into one queued instruction.
           Return exactly one line in this format: "Refined: ...".

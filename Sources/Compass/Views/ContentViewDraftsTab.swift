@@ -11,6 +11,7 @@ struct DraftsTab: View {
   @State private var draftRefinementCache: [DraftRefinementPreviewKey: DraftRefinement] = [:]
   @State private var activeDraftRefinementKey: DraftRefinementPreviewKey?
   @State private var isDraftRefinementGenerating = false
+  @State private var isDraftRefinementPending = false
   @State private var isDraftRefinementModelAvailable = DraftRefinementService.isPreviewAvailable
 
   var body: some View {
@@ -37,6 +38,7 @@ struct DraftsTab: View {
         DraftRefinementPreviewCard(
           refinement: draftRefinementPreview,
           isGenerating: isDraftRefinementGenerating,
+          isPending: isDraftRefinementPending,
           canAccept: project.hasRepository,
           accept: acceptDraftRefinement,
           modify: modifyDraftRefinement
@@ -108,7 +110,11 @@ struct DraftsTab: View {
   private var shouldShowDraftRefinementPreview: Bool {
     isDraftRefinementModelAvailable
       && !trimmedDraftEntry.isEmpty
-      && (isDraftRefinementGenerating || draftRefinementPreview != nil)
+      && (
+        isDraftRefinementPending
+          || isDraftRefinementGenerating
+          || draftRefinementPreview != nil
+      )
   }
 
   private func syncPendingDraftsFromProject() {
@@ -163,6 +169,7 @@ struct DraftsTab: View {
       cancelDraftRefinementPreview()
     case .cached:
       draftRefinementTask?.cancel()
+      isDraftRefinementPending = false
       isDraftRefinementGenerating = false
       activeDraftRefinementKey = plan.cacheKey
       draftRefinementPreview = plan.cacheKey.flatMap { draftRefinementCache[$0] }
@@ -174,6 +181,7 @@ struct DraftsTab: View {
       draftRefinementTask?.cancel()
       activeDraftRefinementKey = key
       draftRefinementPreview = nil
+      isDraftRefinementPending = true
       isDraftRefinementGenerating = false
       let draft = key.trimmedDraft
       draftRefinementTask = Task { @MainActor in
@@ -183,10 +191,11 @@ struct DraftsTab: View {
           return
         }
         guard !Task.isCancelled, activeDraftRefinementKey == key else { return }
+        isDraftRefinementPending = false
         isDraftRefinementGenerating = true
         let refinement = await DraftRefinementService.makeRefinement(
           draft: draft,
-          context: context
+          context: DraftRefinementContext(project: project)
         )
         guard !Task.isCancelled, activeDraftRefinementKey == key else { return }
         if let refinement {
@@ -204,6 +213,7 @@ struct DraftsTab: View {
     draftRefinementTask = nil
     activeDraftRefinementKey = nil
     draftRefinementPreview = nil
+    isDraftRefinementPending = false
     isDraftRefinementGenerating = false
   }
 
@@ -251,6 +261,7 @@ struct DraftsTab: View {
 struct DraftRefinementPreviewCard: View {
   var refinement: DraftRefinement?
   var isGenerating: Bool
+  var isPending: Bool
   var canAccept: Bool
   var accept: (DraftRefinement) -> Void
   var modify: (DraftRefinement) -> Void
@@ -261,14 +272,26 @@ struct DraftRefinementPreviewCard: View {
         Label("Refined draft", systemImage: "sparkles")
           .font(.caption.weight(.semibold))
           .foregroundStyle(.secondary)
+        if let refinement {
+          Text(refinement.source == .generated ? "On-device model" : "Quick polish")
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(.secondary)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 2)
+            .background(.quaternary.opacity(0.7), in: Capsule())
+        }
         Spacer()
-        if isGenerating {
+        if isPending || isGenerating {
           ProgressView()
             .controlSize(.small)
         }
       }
 
-      if let refinement {
+      if isPending {
+        Text("Waiting to refine…")
+          .font(.callout)
+          .foregroundStyle(.secondary)
+      } else if let refinement {
         Text(refinement.refinedText)
           .font(.callout)
           .foregroundStyle(.primary)
@@ -291,6 +314,10 @@ struct DraftRefinementPreviewCard: View {
           .disabled(!canAccept)
         }
         .controlSize(.small)
+      } else if isGenerating {
+        Text("Generating refinement…")
+          .font(.callout)
+          .foregroundStyle(.secondary)
       }
     }
     .padding(10)

@@ -62,6 +62,39 @@ struct DraftRefinementTests {
     )
   }
 
+  @Test func testParserAcceptsRefinedLineAfterPreamble() throws {
+    let context = makeContext()
+    let refinement = #require(
+      DraftRefinementService.parseGeneratedRefinement(
+        """
+        Here is a clearer version:
+        Refined: Add parser tests for Package.swift.
+        """,
+        draft: "add parser tests for Package.swift",
+        context: context
+      )
+    )
+
+    #require(refinement.refinedText == "Add parser tests for Package.swift.")
+    #require(refinement.source == .generated)
+  }
+
+  @Test func testParserIgnoresTrailingCommentaryAfterRefinedLine() throws {
+    let context = makeContext()
+    let refinement = #require(
+      DraftRefinementService.parseGeneratedRefinement(
+        """
+        Refined: Add parser tests for Package.swift.
+        Note: Also update docs.
+        """,
+        draft: "add parser tests for Package.swift",
+        context: context
+      )
+    )
+
+    #require(refinement.refinedText == "Add parser tests for Package.swift.")
+  }
+
   @Test func testParserRejectsInventedOutcomeAndExtraStructure() {
     let context = makeContext()
     let draft = "add parser tests"
@@ -85,8 +118,8 @@ struct DraftRefinementTests {
     #require(
       DraftRefinementService.parseGeneratedRefinement(
         """
-        Refined: Add parser tests.
-        Note: Also update docs.
+        Add parser tests for Package.swift.
+        Also update docs.
         """,
         draft: draft,
         context: context
