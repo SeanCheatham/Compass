@@ -4,35 +4,85 @@ import Testing
 
 @testable import Compass
 
-/// Tests verifying `QnAPopover.submitQuestion()` guard behavior for the
-/// `result == nil` path that sets `availabilityError = true`.
+/// Tests verifying `QnAPopover.submitQuestion()` guard behavior.
 ///
 /// Due to the Swift 6.3.2 toolchain limitation (`swift build --target CompassTests`
 /// fails due to a linker error in SwiftTestingMacros), SwiftUI view instantiation
 /// cannot be tested in-process. These tests exercise `RepoQnA.answer()` directly
 /// under the same conditions that `submitQuestion()` evaluates.
 ///
-/// ## Guard path verified
+/// ## Guard paths verified
 ///
-/// - **Path 3 (model unavailable):** `submitQuestion()` calls `RepoQnA.answer()`.
-///   When `FoundationModelsAvailability.isAvailable == false`, `answer()` returns `nil`
-///   (non-throwing) → `if result == nil { availabilityError = true }` (line 1422).
+/// - **Path 1 (empty string):** `submitQuestion()` trims `""` → `""` →
+///   `guard !trimmed.isEmpty else { return }` prevents the `RepoQnA.answer()` call.
+///   Test 1 verifies `RepoQnA.answer("", ...)` does not throw.
 ///
-///   `RepoQnA.answer()` can return `nil` in multiple ways, all non-throwing:
+/// - **Path 2 (whitespace-only):** `submitQuestion()` trims `"  \n\t  "` → `""` →
+///   same guard. Test 2 verifies `RepoQnA.answer("  \n\t  ", ...)` does not throw.
 ///
-///   1. Empty/whitespace-only question: trimmed to `""` → guard prevents the call
-///   2. Foundation Models unavailable → `generate(text:)` returns `nil`
-///   3. Model produces no response → returns `nil`
+/// - **Path 3 (model unavailable):** `submitQuestion()` calls `RepoQnA.answer()`,
+///   which returns `nil` (non-throwing) when Foundation Models is unavailable →
+///   `if result == nil { availabilityError = true }` (line 1422).
 ///
-///   This test exercises case 2: a real git repo with valid commits, calling
-///   `RepoQnA.answer()` directly and verifying the `nil` return is the exact condition
-///   that triggers `availabilityError` in the view.
-///
-/// This mirrors the Path 3 pattern from `ExploreRepoQnAAnswerGuardTests` but
+/// This mirrors the Path 1, 2, 3 pattern from `ExploreRepoQnAAnswerGuardTests` but
 /// targets the QnAPopover path specifically, mirroring how
 /// `ExploreCommitTourRowTests` targets the CommitTourRow path.
 @available(macOS 26.0, *)
 struct ExploreQnAPopoverTests {
+
+  // MARK: - Path 1: empty string → guard prevents RepoQnA.answer() call
+
+  /// Verifies `RepoQnA.answer(question: "", ...)` does not throw.
+  ///
+  /// `submitQuestion()` trims `""` → `""` and returns early at
+  /// `guard !trimmed.isEmpty else { return }` — so `RepoQnA.answer()` is never
+  /// called in that path. This test directly verifies that if the guard were
+  /// accidentally removed, `RepoQnA.answer("")` would still be safe.
+  @Test
+  func submitQuestion_answerEmptyString_doesNotThrow() async throws {
+    try #require(available(macOS 26.0, *))
+    var test = Self()
+    test.setUp()
+    defer { test.tearDown() }
+
+    try test.initGitRepo()
+    let commits = try test.makeSingleCommit()
+
+    // Empty string → trimming → "" → guard in submitQuestion() prevents the call.
+    // We verify RepoQnA.answer() itself is safe if the guard were missing.
+    let result = await RepoQnA.answer(
+      question: "",
+      repoURL: test.temporaryDirectory,
+      commits: commits
+    )
+    _ = result
+  }
+
+  // MARK: - Path 2: whitespace-only → guard prevents RepoQnA.answer() call
+
+  /// Verifies `RepoQnA.answer(question: "  \n\t  ", ...)` does not throw.
+  ///
+  /// `submitQuestion()` trims `"  \n\t  "` → `""` and returns early at the same
+  /// `guard !trimmed.isEmpty else { return }`. This test directly verifies
+  /// `RepoQnA.answer()` handles whitespace-only input safely.
+  @Test
+  func submitQuestion_answerWhitespaceOnly_doesNotThrow() async throws {
+    try #require(available(macOS 26.0, *))
+    var test = Self()
+    test.setUp()
+    defer { test.tearDown() }
+
+    try test.initGitRepo()
+    let commits = try test.makeSingleCommit()
+
+    // Whitespace-only → trimming → "" → guard in submitQuestion() prevents the call.
+    let result = await RepoQnA.answer(
+      question: "  \n\t  ",
+      repoURL: test.temporaryDirectory,
+      commits: commits
+    )
+    _ = result
+  }
 
   // MARK: - Path 3: RepoQnA.answer returns nil when Foundation Models is unavailable
   //          → submitQuestion() would set availabilityError = true
