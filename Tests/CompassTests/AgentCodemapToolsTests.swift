@@ -264,6 +264,29 @@ struct AgentCodemapToolsTests: ~Copyable {
     #require(names.contains(AgentImportersOfTool.toolName))
   }
 
+  // MARK: - CodemapLanguage / forRelativePath
+
+  @Test func testCodemapLanguageForRelativePath_UnusualExtensions() async throws {
+    // seedEntry uses CodemapLanguage.forRelativePath internally (line 279),
+    // so these exercise it transitively as a smoke test.
+    try seedEntry(path: "foo.mts",  symbols: [])
+    try seedEntry(path: "bar.cts",  symbols: [])
+    try seedEntry(path: "baz.tsx",  symbols: [])
+    try seedEntry(path: "qux.pyi",  symbols: [])
+    try seedEntry(path: "fle.mjs",  symbols: [])
+    try seedEntry(path: "app.cjs",  symbols: [])
+
+    // Explicit direct assertions — nil means "unsupported extension".
+    #require(CodemapLanguage.forRelativePath("foo.mts") == .typescript)
+    #require(CodemapLanguage.forRelativePath("bar.cts") == .typescript)
+    #require(CodemapLanguage.forRelativePath("baz.tsx") == .tsx)
+    #require(CodemapLanguage.forRelativePath("qux.pyi") == .python)
+    #require(CodemapLanguage.forRelativePath("fle.mjs") == .javascript)
+    #require(CodemapLanguage.forRelativePath("app.cjs") == .javascript)
+    #require(CodemapLanguage.forRelativePath("no-extension") == nil)
+    #require(CodemapLanguage.forRelativePath(".unknown-ext") == nil)
+  }
+
   // MARK: - Helpers
 
   private func seedEntry(
