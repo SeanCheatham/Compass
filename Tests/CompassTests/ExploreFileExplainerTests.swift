@@ -76,6 +76,22 @@ struct ExploreFileExplainerTests {
   }
 
   @Test
+  func parseGitDiffStat_renameWithABPrefix()  throws {
+    var test = Self()
+    test.setUp()
+    defer { test.tearDown() }
+
+    let diffStat = "a/Foo.swift => b/Bar.swift           |   6 ++++++"
+
+    let changes = FileExplainer.parseGitDiffStat(diffStat)
+
+    #require(changes.count == 1)
+    #require(changes[0].relativePath == "Bar.swift")
+    #require(changes[0].additions == 6)
+    #require(changes[0].deletions == 0)
+  }
+
+  @Test
   func parseGitDiffStat_binaryFile()  throws {
     var test = Self()
     test.setUp()

@@ -277,9 +277,8 @@ enum FileExplainer {
       let pathPart = parts[0].trimmingCharacters(in: .whitespaces)
       // Handle "a => b" renames by taking the right-hand side
       let relativePath: String
-      if pathPart.contains("=>") {
-        let renameParts = pathPart.split(separator: ">")
-        relativePath = renameParts.last?.trimmingCharacters(in: .whitespaces) ?? pathPart
+      if let arrowRange = pathPart.range(of: " => ") {
+        relativePath = String(pathPart[arrowRange.upperBound...]).trimmingCharacters(in: .whitespaces)
       } else {
         relativePath = pathPart
       }
