@@ -741,6 +741,7 @@ struct PlanSessionHistoryCard: View {
         HStack(spacing: 8) {
           ExplainChangesButton(item: item, repoURL: repoURL)
           ExploreFilesButton(item: item, repoURL: repoURL)
+          ArchitectureGraphButton(item: item, repoURL: repoURL)
           QnAButton(item: item, repoURL: repoURL)
         }
       }
@@ -1042,6 +1043,134 @@ struct ExploreFilesButton: View {
         ExploreFilesPopover(item: item, repoURL: repoURL)
       }
     }
+  }
+}
+
+struct ArchitectureGraphButton: View {
+  let item: PlanSessionHistoryItem
+  let repoURL: URL
+
+  @State private var showingPopover = false
+
+  private var canExplore: Bool {
+    item.status == .succeeded && !item.commits.isEmpty
+  }
+
+  var body: some View {
+    if canExplore {
+      Button {
+        showingPopover = true
+      } label: {
+        Label("Architecture", systemImage: "arrow.triangle.branch")
+      }
+      .buttonStyle(.bordered)
+      .controlSize(.small)
+      .popover(isPresented: $showingPopover) {
+        ArchitectureGraphPopover(item: item, repoURL: repoURL)
+      }
+    }
+  }
+}
+
+struct ArchitectureGraphPopover: View {
+  let item: PlanSessionHistoryItem
+  let repoURL: URL
+
+  @State private var graphText: String?
+  @State private var explanation: String?
+  @State private var isLoading = false
+  @State private var availabilityError = false
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 12) {
+      HStack {
+        Label("Architecture Graph", systemImage: "arrow.triangle.branch")
+          .font(.headline)
+        Spacer()
+      }
+
+      if availabilityError {
+        Label("Foundation Models is unavailable on this device.", systemImage: "exclamationmark.triangle")
+          .font(.caption)
+          .foregroundStyle(.orange)
+      }
+
+      if isLoading {
+        HStack(spacing: 8) {
+          ProgressView()
+            .controlSize(.small)
+          Text("Analyzing architecture...")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+        }
+      } else {
+        if let graphText {
+          VStack(alignment: .leading, spacing: 8) {
+            Text("Structure")
+              .font(.caption.weight(.semibold))
+              .foregroundStyle(.secondary)
+            ScrollView {
+              Text(graphText)
+                .font(.system(.caption, design: .monospaced))
+                .textSelection(.enabled)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .frame(maxHeight: 180)
+            .padding(8)
+            .background(.black.opacity(0.045), in: RoundedRectangle(cornerRadius: 6))
+          }
+        }
+
+        if let explanation {
+          VStack(alignment: .leading, spacing: 8) {
+            HStack {
+              Text("Explanation")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+              Spacer()
+              Button {
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.setString(explanation, forType: .string)
+              } label: {
+                Image(systemName: "doc.on.clipboard")
+                  .font(.caption)
+              }
+              .buttonStyle(.plain)
+              .help("Copy explanation to clipboard")
+            }
+            ScrollView {
+              Text(explanation)
+                .font(.callout)
+                .textSelection(.enabled)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .frame(maxHeight: 160)
+          }
+        }
+      }
+    }
+    .padding(16)
+    .frame(width: 440)
+    .task { await loadGraph() }
+  }
+
+  private func loadGraph() async {
+    isLoading = true
+    availabilityError = false
+
+    let codemapDir = repoURL
+      .appendingPathComponent(".compass/codemap")
+      .standardizedFileURL
+    let graph = buildGraph(codemapDirectory: codemapDir)
+    graphText = graph.textGraph()
+
+    if #available(macOS 26.0, *) {
+      let result = await ArchitectureGraph.explain(graph: graph, repoURL: repoURL)
+      explanation = result
+      if result == nil { availabilityError = true }
+    }
+
+    isLoading = false
   }
 }
 
