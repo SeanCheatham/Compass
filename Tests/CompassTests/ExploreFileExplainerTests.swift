@@ -237,6 +237,27 @@ struct ExploreFileExplainerTests {
     #require(changes[1].relativePath == "Sources/Model.swift")
   }
 
+  @Test
+  func parseGitDiffStat_lineWithoutPipeSeparator()  throws {
+    var test = Self()
+    test.setUp()
+    defer { test.tearDown() }
+
+    // A line with no `|` separator — path only, no stats — must be skipped
+    // because parseGitDiffStat requires `|` to split path from stats.
+    let diffStat = """
+    Sources/App.swift        |  4 +++
+    NoStatsFile.swift
+    Sources/Model.swift      |  2 ++
+    """
+
+    let changes = FileExplainer.parseGitDiffStat(diffStat)
+
+    #require(changes.count == 2)
+    #require(changes[0].relativePath == "Sources/App.swift")
+    #require(changes[1].relativePath == "Sources/Model.swift")
+  }
+
   // MARK: - extractLineCounts
 
   @Test
@@ -270,6 +291,17 @@ struct ExploreFileExplainerTests {
     let result = FileExplainer.extractLineCounts(from: "3 ---")
     #require(result.additions == 0)
     #require(result.deletions == 3)
+  }
+
+  @Test
+  func extractLineCounts_whitespaceOnlyString()  throws {
+    var test = Self()
+    test.setUp()
+    defer { test.tearDown() }
+
+    let result = FileExplainer.extractLineCounts(from: "   ")
+    #require(result.additions == 0)
+    #require(result.deletions == 0)
   }
 
   @Test
