@@ -28,9 +28,11 @@ import Foundation
 @available(macOS 26.0, *)
 enum CommitTourGenerator {
   /// Produces a guided-tour narrative for the given git diff text.
-  /// The narrative is 3-5 sentences and caps output at approximately 800 tokens.
+  /// The narrative is 3–5 sentences and caps output at approximately 800 tokens
+  /// to keep responses navigable.
   ///
-  /// Returns `nil` when Foundation Models is unavailable or produces no content.
+  /// Returns `nil` when Foundation Models is unavailable, the input is empty
+  /// or whitespace-only, or when the model produces no content.
   static func generate(diff: String) async -> String? {
     guard FoundationModelsAvailability.isAvailable else { return nil }
 
