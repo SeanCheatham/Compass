@@ -59,7 +59,33 @@ extension CompassProject {
 
   func fail(_ error: Error) {
     errorMessage = error.localizedDescription
-    log(error.localizedDescription, level: .error)
+    log(Self.detailedDescription(of: error), level: .error)
+  }
+
+  /// `Error.localizedDescription` collapses every `DecodingError` to a useless
+  /// "The data couldn't be read…" string. Surface the coding path and reason so
+  /// a schema-mismatched JSON file (e.g. a missing key in state.json) is
+  /// actually diagnosable from the event log.
+  static func detailedDescription(of error: Error) -> String {
+    guard let decodingError = error as? DecodingError else {
+      return error.localizedDescription
+    }
+    func location(_ context: DecodingError.Context) -> String {
+      let path = context.codingPath.map(\.stringValue).joined(separator: ".")
+      return path.isEmpty ? "root" : path
+    }
+    switch decodingError {
+    case let .keyNotFound(key, context):
+      return "Decode failed: missing key '\(key.stringValue)' at \(location(context))."
+    case let .valueNotFound(_, context):
+      return "Decode failed: missing value at \(location(context)). \(context.debugDescription)"
+    case let .typeMismatch(_, context):
+      return "Decode failed: type mismatch at \(location(context)). \(context.debugDescription)"
+    case let .dataCorrupted(context):
+      return "Decode failed: corrupted data at \(location(context)). \(context.debugDescription)"
+    @unknown default:
+      return decodingError.localizedDescription
+    }
   }
 
   func tail(_ text: String, max: Int) -> String {

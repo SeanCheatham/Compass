@@ -91,7 +91,7 @@ struct PlanState: Codable, Equatable {
 
   init(from decoder: Decoder) throws {
     let container = try decoder.container(keyedBy: CodingKeys.self)
-    let completedValues = try container.decode([LossyString].self, forKey: .completed)
+    let completedValues = try container.decodeIfPresent([LossyString].self, forKey: .completed) ?? []
     completed = completedValues.compactMap(\.value)
     immediate = try container.decodeIfPresent(PlanNext.self, forKey: .immediate)
     midTerm = try container.decodeIfPresent(String.self, forKey: .midTerm) ?? ""
