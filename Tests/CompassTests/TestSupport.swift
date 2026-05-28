@@ -1,4 +1,15 @@
 import Foundation
+@testable import Compass
+import Testing
+
+// MARK: - TestHelperError
+
+enum TestHelperError: Error {
+  case gitCommandFailed(status: Int32)
+  case noCommitSHAFound
+  case fnReturnedNil
+  case shellFailed(command: String)
+}
 
 func makeTempDir(file: StaticString = #file, line: UInt = #line) throws -> URL {
   let url = FileManager.default.temporaryDirectory
@@ -20,7 +31,7 @@ func runGit(_ command: String, at directory: URL) throws {
   try process.run()
   process.waitUntilExit()
   guard process.terminationStatus == 0 else {
-    throw "git command failed with status \(process.terminationStatus)"
+        throw TestHelperError.gitCommandFailed(status: process.terminationStatus)
   }
 }
 
@@ -62,7 +73,7 @@ func getSingleCommitSHA(at directory: URL) throws -> String {
   }
   guard let stdout = result?.stdout.trimmingCharacters(in: .whitespacesAndNewlines),
         !stdout.isEmpty else {
-    throw "no commit SHA found"
+        throw TestHelperError.noCommitSHAFound
   }
   return stdout
 }
@@ -75,7 +86,7 @@ func waitForSync<T>(_ fn: () async throws -> T?) async throws -> T {
         if let value = try await fn() {
           continuation.resume(returning: value)
         } else {
-          continuation.resume(throwing: "fn returned nil")
+                    continuation.resume(throwing: TestHelperError.fnReturnedNil)
         }
       } catch {
         continuation.resume(throwing: error)
@@ -100,7 +111,7 @@ func runShell(_ command: String, at url: URL) async throws {
         if process.terminationStatus == 0 {
           continuation.resume()
         } else {
-          continuation.resume(throwing: "shell failed: \(command)")
+                    continuation.resume(throwing: TestHelperError.shellFailed(command: command))
         }
       } catch {
         continuation.resume(throwing: error)
