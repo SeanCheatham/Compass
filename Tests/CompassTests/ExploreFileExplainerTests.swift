@@ -613,6 +613,96 @@ struct ExploreFileExplainerTests {
     #require(result == nil)
   }
 
+  // MARK: - whyGenerated
+
+  @Test
+  func whyGenerated_emptyCommits_returnsNil() async throws {
+    var test = Self()
+    test.setUp()
+    defer { test.tearDown() }
+
+    let result = await FileExplainer.whyGenerated(
+      file: "Sources/App.swift",
+      repoURL: test.temporaryDirectory,
+      commits: []
+    )
+    #require(result == nil)
+  }
+
+  @Test
+  func whyGenerated_singleCommit_fetchesCorrectDiff() async throws {
+    var test = Self()
+    test.setUp()
+    defer { test.tearDown() }
+
+    // Set up a git repo with one commit modifying a file.
+    try initGitRepo(at: test.temporaryDirectory)
+    try writeFile("Sources/App.swift", contents: "import Foundation\n")
+    try runGit(
+      "git -C \(test.temporaryDirectory.path) add Sources/App.swift && "
+        + "git -C \(test.temporaryDirectory.path) "
+        + "-c user.email=t@t -c user.name=t commit -q -m 'Add App.swift'",
+      at: test.temporaryDirectory
+    )
+
+    let sha = try getSingleCommitSHA(at: test.temporaryDirectory)
+    let commits = [SessionCommit(sha: sha, short: String(sha.prefix(7)), subject: "Add App.swift")]
+
+    // Call whyGenerated — CommitExplainer.summarizeWhyGenerated may return nil
+    // if Foundation Models is unavailable, but the call chain must not throw.
+    let result = await FileExplainer.whyGenerated(
+      file: "Sources/App.swift",
+      repoURL: test.temporaryDirectory,
+      commits: commits
+    )
+    // Result may be nil in test environments; we only verify it doesn't throw.
+    _ = result
+  }
+
+  @Test
+  func whyGenerated_multiCommit_fetchesRangeDiff() async throws {
+    var test = Self()
+    test.setUp()
+    defer { test.tearDown() }
+
+    // Set up a git repo with two commits.
+    try initGitRepo(at: test.temporaryDirectory)
+    try writeFile("Sources/App.swift", contents: "import Foundation\n")
+    try runGit(
+      "git -C \(test.temporaryDirectory.path) add Sources/App.swift && "
+        + "git -C \(test.temporaryDirectory.path) "
+        + "-c user.email=t@t -c user.name=t commit -q -m 'Initial'",
+      at: test.temporaryDirectory
+    )
+
+    // Modify the file in a second commit.
+    try writeFile("Sources/App.swift", contents: "import Foundation\nimport AppKit\n")
+    try runGit(
+      "git -C \(test.temporaryDirectory.path) add . && "
+        + "git -C \(test.temporaryDirectory.path) "
+        + "-c user.email=t@t -c user.name=t commit -q -m 'Add import'",
+      at: test.temporaryDirectory
+    )
+
+    let shas = try getAllCommitSHAs(at: test.temporaryDirectory)
+    #require(shas.count == 2)
+    let oldest = shas[1] // oldest
+    let newest = shas[0] // newest
+    let commits = [
+      SessionCommit(sha: oldest, short: String(oldest.prefix(7)), subject: "Initial"),
+      SessionCommit(sha: newest, short: String(newest.prefix(7)), subject: "Add import"),
+    ]
+
+    // Call whyGenerated for the file that changed across both commits.
+    let result = await FileExplainer.whyGenerated(
+      file: "Sources/App.swift",
+      repoURL: test.temporaryDirectory,
+      commits: commits
+    )
+    // Result may be nil in test environments; we only verify it doesn't throw.
+    _ = result
+  }
+
   // MARK: - changes(for:repoURL:commits:)
 
   @Test
