@@ -37,7 +37,10 @@ struct FileChange: Identifiable, Equatable {
   let deletions: Int
   let summary: String?
   let explanation: String?
-  let category: FileChangeCategory
+
+  var category: FileChangeCategory {
+    FileChangeCategory.categorize(relativePath)
+  }
 
   init(
     relativePath: String,
@@ -54,7 +57,6 @@ struct FileChange: Identifiable, Equatable {
     self.language = language
     self.summary = summary
     self.explanation = explanation
-    self.category = FileChangeCategory.categorize(relativePath)
   }
 
   /// One-line file name without any directory prefix.
@@ -223,12 +225,10 @@ enum FileExplainer {
 
     let diffStat: String
     if commits.count == 1 {
-      diffStat = await gitDiffStat(sha: first.sha, repoURL: repoURL)
+      diffStat = await gitDiffStatImpl(sha: first.sha, repoURL: repoURL)
     } else {
-      // commits is in insertion order (newest first).  Use last..first so
-      // git processes in reverse-chronological order (newest..oldest).
       let last = commits.last!
-      diffStat = await gitDiffStatRange(from: last.sha, to: first.sha, repoURL: repoURL)
+      diffStat = await gitDiffStatImpl(from: last.sha, to: first.sha, repoURL: repoURL)
     }
 
     let rawChanges = parseGitDiffStat(diffStat)
@@ -324,17 +324,22 @@ enum FileExplainer {
     return (additions, deletions)
   }
 
-  private static func gitDiffStat(sha: String, repoURL: URL) async -> String {
+  private static func gitDiffStatImpl(
+    sha: String? = nil,
+    from: String? = nil,
+    to: String? = nil,
+    repoURL: URL
+  ) async -> String {
+    let args: [String]
+    if let sha = sha {
+      args = ["diff", "--stat=9999", "--first-parent", sha]
+    } else if let from = from, let to = to {
+      args = ["diff", "--stat=9999", "--first-parent", "\(from)..\(to)"]
+    } else {
+      return ""
+    }
     let result = try? await ProcessRunner.runEnv(
-      "git", ["diff", "--stat=9999", "--first-parent", sha],
-      workingDirectory: repoURL
-    )
-    return result?.stdout ?? ""
-  }
-
-  private static func gitDiffStatRange(from: String, to: String, repoURL: URL) async -> String {
-    let result = try? await ProcessRunner.runEnv(
-      "git", ["diff", "--stat=9999", "--first-parent", "\(from)..\(to)"],
+      "git", args,
       workingDirectory: repoURL
     )
     return result?.stdout ?? ""
