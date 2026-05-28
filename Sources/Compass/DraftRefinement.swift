@@ -314,7 +314,7 @@ enum DraftRefinementService {
     draft: String,
     context: DraftRefinementContext
   ) -> DraftRefinement? {
-    let clean = normalizeGeneratedText(refined)
+    let clean = normalizePlainText(refined).trimmingCharacters(in: CharacterSet(charactersIn: "\"\'` "))
     guard (3...refinedTextMaxCharacters).contains(clean.count),
       wordCount(clean) <= 140,
       isUsableGeneratedText(clean),
@@ -492,11 +492,6 @@ enum DraftRefinementService {
   private static func stripLabel(from line: String) -> String {
     guard let colon = line.firstIndex(of: ":") else { return line }
     return String(line[line.index(after: colon)...])
-  }
-
-  private static func normalizeGeneratedText(_ text: String) -> String {
-    normalizePlainText(text)
-      .trimmingCharacters(in: CharacterSet(charactersIn: "\"'` "))
   }
 
   private static func normalizePlainText(_ text: String) -> String {
