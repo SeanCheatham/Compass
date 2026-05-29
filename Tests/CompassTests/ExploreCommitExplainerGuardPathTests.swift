@@ -78,7 +78,8 @@ struct ExploreCommitExplainerGuardPathTests {
       commit: commit,
       repoURL: temporaryDirectory
     )
-    try #require(result == nil)
+    // Empty tree commit: diff is "" → trimmed empty → guard fires → nil
+    try #require(result.0 == nil && result.1 == .noDiff)
   }
 
   // MARK: - Path 2b: explain — malformed SHA → empty diff → nil
@@ -104,6 +105,6 @@ struct ExploreCommitExplainerGuardPathTests {
       repoURL: temporaryDirectory
     )
     // Malformed SHA causes gitDiff to return "", trim gives "", guard fires → nil
-    try #require(result == nil)
+    try #require(result.0 == nil && result.1 == .noDiff)
   }
 }

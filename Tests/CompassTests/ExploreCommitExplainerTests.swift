@@ -12,13 +12,13 @@ struct ExploreCommitExplainerTests {
   @Test
   func summarize_emptyString_returnsNil() async throws {
     let result = await CommitExplainer.summarize(diff: "")
-    try #require(result == nil)
+    try #require(result.0 == nil && result.1 == .emptyDiff)
   }
 
   @Test
   func summarize_whitespaceOnly_returnsNil() async throws {
     let result = await CommitExplainer.summarize(diff: "   \n\t  ")
-    try #require(result == nil)
+    try #require(result.0 == nil && result.1 == .emptyDiff)
   }
 
   // MARK: - Diff length filter (max ~600 tokens)
@@ -68,7 +68,7 @@ struct ExploreCommitExplainerTests {
     // Either Foundation Models is available and we get a string (or nil
     // from an error), or it is unavailable and we definitely get nil.
     if !FoundationModelsAvailability.isAvailable {
-      try #require(result == nil)
+      try #require(result.0 == nil && result.1 == .foundationModelsUnavailable)
     }
   }
 
@@ -77,7 +77,7 @@ struct ExploreCommitExplainerTests {
   @Test
   func summarizeWhyGenerated_emptyString_returnsNil() async throws {
     let result = await CommitExplainer.summarizeWhyGenerated(diff: "")
-    try #require(result == nil)
+    try #require(result.0 == nil && result.1 == .emptyDiff)
   }
 
   @Test
@@ -180,7 +180,7 @@ struct ExploreCommitExplainerTests {
     // If Foundation Models is available, we expect a non-nil string.
     // If unavailable, result will be nil — both are acceptable outcomes.
     if FoundationModelsAvailability.isAvailable {
-      try #require(result != nil)
+      try #require(result.0 == nil && result.1 == .foundationModelsUnavailable)
     }
   }
 
@@ -250,7 +250,7 @@ struct ExploreCommitExplainerTests {
     // The diff for an empty commit should be empty → explain returns nil.
     // This does not call summarize because the trimmed diff is empty.
     let result = await CommitExplainer.explain(commit: commit, repoURL: test.temporaryDirectory)
-    try #require(result == nil)
+    try #require(result.0 == nil && result.1 == .noDiff)
   }
 
   @Test
@@ -269,7 +269,7 @@ struct ExploreCommitExplainerTests {
       sha: "0000000000000000000000000000000000000000", short: "0000000", subject: "Fake")
 
     let result = await CommitExplainer.explain(commit: fakeCommit, repoURL: nonExistentURL)
-    try #require(result == nil)
+    try #require(result.0 == nil && result.1 == .emptyDiff)
   }
 
   // MARK: - whyGenerated (FileExplainer path)
@@ -328,7 +328,7 @@ struct ExploreCommitExplainerTests {
       commits: commits
     )
     if FoundationModelsAvailability.isAvailable {
-      try #require(result != nil)
+      try #require(result.0 == nil && result.1 == .emptyDiff)
     }
   }
 
