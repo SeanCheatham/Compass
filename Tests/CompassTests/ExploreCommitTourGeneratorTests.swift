@@ -169,6 +169,28 @@ struct ExploreCommitTourGeneratorTests {
     _ = result
   }
 
+  // MARK: - Git failure path
+
+  @Test
+  func generateTour_nonExistentRepoURL_returnsNil()  async throws {
+    // When the repo URL does not exist, git diff fails and generateTour
+    // returns nil without crashing.
+    let nonExistentURL = try makeTempDir()
+    try FileManager.default.removeItem(at: nonExistentURL)
+
+    let fakeCommit = SessionCommit(
+      sha: "0000000000000000000000000000000000000000",
+      short: "0000000",
+      subject: "Fake"
+    )
+
+    let result = await CommitTourGenerator.generateTour(
+      commits: [fakeCommit],
+      repoURL: nonExistentURL
+    )
+    try #require(result == nil)
+  }
+
   // MARK: - isAvailable guard
 
   @Test
