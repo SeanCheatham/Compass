@@ -77,6 +77,24 @@ enum CommitExplainer {
       """ + diff
   }
 
+  /// Fetches the diff for a single commit via `git diff <sha>^..<sha>`.
+  static func gitDiff(sha: String, repoURL: URL) async -> String {
+    let result = try? await ProcessRunner.runEnv(
+      "git", ["diff", "\(sha)^..\(sha)"],
+      workingDirectory: repoURL
+    )
+    return result?.stdout ?? ""
+  }
+
+  /// Fetches the diff for a commit range via `git diff <newest>..<oldest>`.
+  static func gitDiffRange(newest: String, oldest: String, repoURL: URL) async -> String {
+    let result = try? await ProcessRunner.runEnv(
+      "git", ["diff", "--no-color", "\(newest)..\(oldest)"],
+      workingDirectory: repoURL
+    )
+    return result?.stdout ?? ""
+  }
+
   /// Produces a plain-English summary of a single commit by fetching the full
   /// diff via `git diff <sha>^..<sha>` and passing it to ``summarize(diff:)``.
   ///
@@ -88,11 +106,7 @@ enum CommitExplainer {
   /// Returns `nil` when the diff is empty, git fails, or Foundation Models
   /// is unavailable.
   static func explain(commit: SessionCommit, repoURL: URL) async -> String? {
-    let result = try? await ProcessRunner.runEnv(
-      "git", ["diff", "\(commit.sha)^..\(commit.sha)"],
-      workingDirectory: repoURL
-    )
-    let diff = result?.stdout ?? ""
+    let diff = await gitDiff(sha: commit.sha, repoURL: repoURL)
     let trimmed = diff.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !trimmed.isEmpty else { return nil }
     return await summarize(diff: trimmed)

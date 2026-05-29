@@ -65,23 +65,12 @@ enum CommitTourGenerator {
     guard let firstCommit = commits.first else { return nil }
     let diff: String
     if commits.count == 1 {
-      diff = await _gitDiff(args: ["diff", "--no-color", "\(firstCommit.sha)^..\(firstCommit.sha)"], repoURL: repoURL)
+      diff = await CommitExplainer.gitDiff(sha: firstCommit.sha, repoURL: repoURL)
     } else {
       let lastCommit = commits.last!
-      diff = await _gitDiff(args: ["diff", "--no-color", "\(firstCommit.sha)..\(lastCommit.sha)"], repoURL: repoURL)
+      diff = await CommitExplainer.gitDiffRange(newest: firstCommit.sha, oldest: lastCommit.sha, repoURL: repoURL)
     }
     guard !diff.isEmpty else { return nil }
     return await generate(diff: diff)
-  }
-
-  // MARK: - Private Git Helpers
-
-  private static func _gitDiff(args: [String], repoURL: URL) async -> String {
-    await withCheckedContinuation { continuation in
-      Task {
-        let result = try? await ProcessRunner.runEnv("git", args, workingDirectory: repoURL)
-        continuation.resume(returning: result?.stdout ?? "")
-      }
-    }
   }
 }
