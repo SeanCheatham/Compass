@@ -67,7 +67,14 @@ enum CommitExplainer {
   /// Returns `(nil, reason)` when Foundation Models is unavailable or produces
   /// no content; `reason` carries a user-facing message.
   static func summarizeWhyGenerated(diff: String) async -> (String?, ExplainUnavailableReason?) {
-    return await summarize(diff: diff, prompt: whyGeneratedPrompt(diff: diff))
+    return await summarize(diff: diff, prompt: """
+      You are a software engineer explaining why a source file was generated and what role it plays in the codebase.
+      Answer the question: "Why was this file generated and what is its role in the codebase?"
+      Keep the answer to roughly 3 sentences and focus on the file's purpose and architectural role.
+      Do not describe the diff mechanically — explain the reason the file exists.
+
+      Diff:
+      """ + diff)
   }
 
   // MARK: - Private
@@ -91,17 +98,6 @@ enum CommitExplainer {
       You are a software engineer explaining a git diff to a non-technical project owner.
       Provide a clear, concise summary (~3 sentences) of what changed.
       Focus on the intent and effect of the changes, not the mechanical details.
-
-      Diff:
-      """ + diff
-  }
-
-  private static func whyGeneratedPrompt(diff: String) -> String {
-    return """
-      You are a software engineer explaining why a source file was generated and what role it plays in the codebase.
-      Answer the question: "Why was this file generated and what is its role in the codebase?"
-      Keep the answer to roughly 3 sentences and focus on the file's purpose and architectural role.
-      Do not describe the diff mechanically \u{2014} explain the reason the file exists.
 
       Diff:
       """ + diff
@@ -137,21 +133,6 @@ enum CommitExplainer {
     }
     guard let oldest = commits.last else { return nil }
     return await gitDiffRange(newest: first.sha, oldest: oldest.sha, repoURL: repoURL)
-  }
-
-  /// Result of a commit explanation attempt, carrying either the explanation
-  /// string or a reason for failure.
-  struct ExplanationResult: Sendable {
-    let explanation: String?
-    let reason: ExplainUnavailableReason?
-
-    static func success(_ text: String) -> ExplanationResult {
-      ExplanationResult(explanation: text, reason: nil)
-    }
-
-    static func failure(_ reason: ExplainUnavailableReason) -> ExplanationResult {
-      ExplanationResult(explanation: nil, reason: reason)
-    }
   }
 
   /// Produces a plain-English summary of a single commit by fetching the full
