@@ -76,8 +76,6 @@ struct AgentExecutionEnvironmentReadiness: Equatable {
       return "Shared VM reported an error: \(detail)."
     }
   }
-
-  // MARK: - boundedText
 }
 
 struct AgentExecutionEnvironmentPresentation: Equatable {
@@ -104,8 +102,6 @@ struct AgentExecutionEnvironmentPresentation: Equatable {
     self.systemImage = systemImage
     self.isWarning = isWarning
   }
-
-  // MARK: - boundedText
 }
 
 struct AgentExecutionEnvironment: Equatable {
@@ -385,8 +381,6 @@ struct AgentExecutionEnvironmentCopyDiagnosticsAction: Identifiable, Equatable {
   var copyText: String {
     report.copyText
   }
-
-  // MARK: - boundedText
 }
 
 struct AgentExecutionEnvironmentMenu: Equatable {
