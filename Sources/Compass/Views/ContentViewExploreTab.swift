@@ -11,6 +11,10 @@ struct ExploreTab: View {
   @State private var fileTree: [FileTreeNode] = []
   @State private var codemapEntries: [String: CodemapEntry] = [:]
   @State private var isLoading = true
+  @State private var whyGeneratedFile: String? = nil
+  @State private var showWhyGenerated = false
+  @State private var whyGeneratedExplanation: String? = nil
+  @State private var loadingWhyGenerated = false
 
   var body: some View {
     Group {
@@ -29,13 +33,29 @@ struct ExploreTab: View {
               FileTreeRowView(
                 node: root,
                 codemapEntries: codemapEntries,
-                indentLevel: 0
+                indentLevel: 0,
+                onFileTap: { path in
+                  whyGeneratedFile = path
+                  whyGeneratedExplanation = nil
+                  loadingWhyGenerated = true
+                  showWhyGenerated = true
+                  Task { await loadWhyGenerated() }
+                }
               )
             }
           }
           .padding(.horizontal, 8)
           .padding(.vertical, 6)
         }
+      }
+    }
+    .popover(isPresented: $showWhyGenerated) {
+      if let file = whyGeneratedFile {
+        WhyGeneratedPopover(
+          fileName: (file as NSString).lastPathComponent,
+          explanation: $whyGeneratedExplanation,
+          isLoading: $loadingWhyGenerated
+        )
       }
     }
     .task {
@@ -59,6 +79,20 @@ struct ExploreTab: View {
       self.fileTree = nodes
       self.codemapEntries = entryMap
       self.isLoading = false
+    }
+  }
+
+  private func loadWhyGenerated() async {
+    guard let file = whyGeneratedFile else { return }
+    let commits = project.sessions.last?.commits ?? []
+    let result = await FileExplainer.whyGenerated(
+      file: file,
+      repoURL: project.repoURL,
+      commits: commits
+    )
+    await MainActor.run {
+      self.whyGeneratedExplanation = result
+      self.loadingWhyGenerated = false
     }
   }
 }
@@ -102,6 +136,7 @@ struct FileTreeRowView: View {
   let node: FileTreeNode
   let codemapEntries: [String: CodemapEntry]
   let indentLevel: Int
+  let onFileTap: (String) -> Void
   @State private var isExpanded = true
 
   private let rowHeight: CGFloat = 44
@@ -113,7 +148,8 @@ struct FileTreeRowView: View {
           FileTreeRowView(
             node: child,
             codemapEntries: codemapEntries,
-            indentLevel: indentLevel + 1
+            indentLevel: indentLevel + 1,
+            onFileTap: onFileTap
           )
         }
       }
@@ -132,11 +168,24 @@ struct FileTreeRowView: View {
         iconView
 
         // Name
-        Text(node.name)
-          .font(.system(.body, design: .default))
-          .fontWeight(node.isDirectory ? .medium : .regular)
-          .foregroundStyle(node.isDirectory ? .primary : .secondary)
-          .lineLimit(1)
+        if node.isDirectory {
+          Text(node.name)
+            .font(.system(.body, design: .default))
+            .fontWeight(node.isDirectory ? .medium : .regular)
+            .foregroundStyle(node.isDirectory ? .primary : .secondary)
+            .lineLimit(1)
+        } else {
+          Button {
+            onFileTap(node.relativePath)
+          } label: {
+            Text(node.name)
+              .font(.system(.body, design: .default))
+              .fontWeight(node.isDirectory ? .medium : .regular)
+              .foregroundStyle(node.isDirectory ? .primary : .secondary)
+              .lineLimit(1)
+          }
+          .buttonStyle(.plain)
+        }
 
         Spacer()
 
