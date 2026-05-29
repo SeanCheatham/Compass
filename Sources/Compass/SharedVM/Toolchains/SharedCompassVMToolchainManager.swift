@@ -141,6 +141,19 @@ struct SharedCompassVMToolchainManager: SharedVMToolchainService {
     )
   }
 
+  /// Persisted install bookkeeping for the system prompt. Probing every
+  /// catalog entry over vsock before each agent run was slow and could
+  /// stall the loop when the guest agent wedged; live probes remain
+  /// available via `listToolchains` / `installToolchain`.
+  func installedToolchainIDsFromState() -> [String] {
+    if let stored = try? bundle.loadState(fileManager: fileManager).installedToolchains,
+      !stored.isEmpty
+    {
+      return stored
+    }
+    return SharedVMToolchainCatalog.defaultProvisionedIDs
+  }
+
   func installedToolchainIDsFromProbe(runner: any AgentBashRunner) async -> [String] {
     var installed: [String] = []
     for definition in SharedVMToolchainCatalog.all {

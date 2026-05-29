@@ -160,9 +160,9 @@ extension CompassProject {
     var installedToolchainIDs: [String] = []
     if environment.kind == .sharedVM {
       installedToolchainIDs =
-        await SharedCompassVMToolchainManager(
+        SharedCompassVMToolchainManager(
           bundle: SharedCompassVM.shared.bundle
-        ).installedToolchainIDsFromProbe(runner: environment.bashRunner)
+        ).installedToolchainIDsFromState()
     }
     let validateSubmitResult = submitResultValidation(
       for: phase,
@@ -197,6 +197,7 @@ extension CompassProject {
       hostXcodeService: hostXcodeService,
       validateSubmitResult: validateSubmitResult
     )
+    log("\(phase.rawValue.capitalized): starting agent loop.", level: .info)
     let agent = AgentExecutor { [weak self] event in
       Task { @MainActor in self?.log(event) }
     }

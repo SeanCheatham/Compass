@@ -168,6 +168,29 @@ struct AgentVsockClientTests {
     }
   }
 
+  @Test func testRoundTripTimesOutWhenTransportNeverResponds() async throws {
+    let transport = HangingStubTransport()
+    let client = AgentVsockClient(
+      transportFactory: { transport },
+      requestTimeout: 0.15
+    )
+
+    do {
+      _ = try await client.readFile(at: URL(fileURLWithPath: "/opt/x"))
+      #expect(Bool(false), "expected transport timeout")
+    } catch let error as AgentFilesystemError {
+      guard case .transportFailure(let detail) = error else {
+        #expect(Bool(false), "expected .transportFailure, got \(error)")
+        return
+      }
+      try #require(detail.contains("timed out"))
+    } catch {
+      #expect(Bool(false), "expected AgentFilesystemError, got \(error)")
+    }
+
+    try #require(await transport.didClose)
+  }
+
   // MARK: - Helpers
 
   private func makeFrame(_ response: AgentRPCResponse) -> Data {
@@ -202,5 +225,22 @@ private final class StubTransport: VsockTransport, @unchecked Sendable {
 
   func close() async {
     // no-op
+  }
+}
+
+/// Never returns from `read`, simulating a wedged guest agent until
+/// the host-side timeout closes the transport.
+private actor HangingStubTransport: VsockTransport {
+  private(set) var didClose = false
+
+  func write(_ data: Data) async throws {}
+
+  func read(wanted: Int) async throws -> Data? {
+    try await Task.sleep(nanoseconds: 60_000_000_000)
+    return nil
+  }
+
+  func close() async {
+    didClose = true
   }
 }

@@ -165,6 +165,29 @@ struct AgentVsockClient: AgentFilesystem, AgentBashRunner {
   // MARK: - Wire round trip
 
   private func roundTrip(_ request: AgentRPCRequest) async throws -> AgentRPCResponse {
+    let transportHolder = VsockTransportHolder()
+    return try await withThrowingTaskGroup(of: AgentRPCResponse.self) { group in
+      group.addTask {
+        try await self.performRoundTrip(request, transportHolder: transportHolder)
+      }
+      group.addTask {
+        try await Task.sleep(nanoseconds: UInt64(self.requestTimeout * 1_000_000_000))
+        await transportHolder.close()
+        throw AgentFilesystemError.transportFailure(
+          "vsock request timed out after \(Int(self.requestTimeout))s")
+      }
+      guard let response = try await group.next() else {
+        throw AgentFilesystemError.transportFailure("vsock request failed")
+      }
+      group.cancelAll()
+      return response
+    }
+  }
+
+  private func performRoundTrip(
+    _ request: AgentRPCRequest,
+    transportHolder: VsockTransportHolder
+  ) async throws -> AgentRPCResponse {
     let transport: VsockTransport
     do {
       transport = try await transportFactory()
@@ -172,6 +195,7 @@ struct AgentVsockClient: AgentFilesystem, AgentBashRunner {
       throw AgentFilesystemError.transportFailure(
         "vsock connect failed: \(error.localizedDescription)")
     }
+    await transportHolder.set(transport)
     defer { Task { await transport.close() } }
 
     let frame: Data
@@ -251,6 +275,23 @@ protocol VsockTransport: Sendable {
 /// per request. One request, one response, then close — keeps the protocol
 /// stateless on the wire.
 typealias VsockTransportFactory = @Sendable () async throws -> any VsockTransport
+
+/// Holds the live transport so a watchdog task can close it when
+/// `requestTimeout` fires, unblocking a stuck read.
+private actor VsockTransportHolder {
+  private var transport: (any VsockTransport)?
+
+  func set(_ transport: any VsockTransport) {
+    self.transport = transport
+  }
+
+  func close() async {
+    if let transport {
+      await transport.close()
+    }
+    self.transport = nil
+  }
+}
 
 enum AgentRPCTransportError: Error, CustomStringConvertible {
   case guestReportedError(AgentRPCResponse.Error)
