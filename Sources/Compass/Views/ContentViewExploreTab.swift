@@ -326,7 +326,7 @@ struct FileTreeRowView: View {
   }
 
   @ViewBuilder
-  private var summaryButton: some View {
+  var summaryButton: some View {
     if let entry = codemapEntries[node.relativePath],
        let summary = entry.summary,
        !summary.isEmpty {

@@ -461,6 +461,148 @@ struct ExploreTabComponentsTests {
     )
     #expect(popover.bodyText.contains(summaryText))
   }
+  // MARK: - FileTreeRowView summaryButton — sparkles branch
+
+  /// Verifies the sparkles "Generate Summary" button appears when a file node
+  /// has no entry in `codemapEntries`.
+  ///
+  /// The `summaryButton` computed property returns the `else` branch (the
+  /// `Label("Generate Summary", systemImage: "sparkles")` button) when:
+  /// - `codemapEntries[node.relativePath]` is `nil` (no entry for this file), AND
+  /// - `node.isDirectory` is `false`, AND
+  /// - `node.folderSummary` is `nil` (which it always is for non-directories).
+  ///
+  /// This is the third branch of the `@ViewBuilder` at line 353–360.
+  @Test
+  func fileTreeRowView_summaryButton_sparklesButtonAppears_whenNoCodemapEntry() throws {
+    let node = FileTreeNode(
+      relativePath: "Sources/App.swift",
+      isDirectory: false,
+      language: .swift,
+      children: []
+    )
+    // Empty codemapEntries: no entry for this file.
+    var called = false
+    var capturedPath: String?
+    let sut = FileTreeRowView(
+      node: node,
+      codemapEntries: [:],
+      indentLevel: 0,
+      onFileTap: { _ in },
+      onSummaryTap: { _, _ in },
+      onSymbolDetailTap: { _ in },
+      onGenerateSummary: { path in
+        called = true
+        capturedPath = path
+      }
+    )
+
+    // The sparkles button label must be present in the rendered view.
+    #expect(sut.summaryButtonText.contains("Generate Summary"))
+    #expect(sut.summaryButtonText.contains("sparkles"))
+  }
+
+  /// Verifies that tapping the sparkles "Generate Summary" button calls
+  /// `onGenerateSummary` with the node's `relativePath`.
+  @Test
+  func fileTreeRowView_summaryButton_sparklesButton_callsOnGenerateSummary() throws {
+    let path = "Sources/Model.swift"
+    let node = FileTreeNode(
+      relativePath: path,
+      isDirectory: false,
+      language: .swift,
+      children: []
+    )
+    var called = false
+    var capturedPath: String?
+    let sut = FileTreeRowView(
+      node: node,
+      codemapEntries: [:],
+      indentLevel: 0,
+      onFileTap: { _ in },
+      onSummaryTap: { _, _ in },
+      onSymbolDetailTap: { _ in },
+      onGenerateSummary: { p in
+        called = true
+        capturedPath = p
+      }
+    )
+
+    // Invoke the sparkles button action (the else branch at line 354).
+    sut.triggerSparklesButtonAction()
+
+    #expect(called)
+    try #require(capturedPath != nil)
+    #expect(capturedPath == path)
+  }
+
+  /// Verifies the sparkles button does NOT appear when the node has a
+  /// directory type even if `codemapEntries` is empty — the directory
+  /// placeholder text is shown instead.
+  @Test
+  func fileTreeRowView_summaryButton_noSparklesButton_forDirectory() throws {
+    let node = FileTreeNode(
+      relativePath: "Sources",
+      isDirectory: true,
+      language: nil,
+      children: [
+        FileTreeNode(relativePath: "Sources/App.swift", isDirectory: false, language: .swift, children: []),
+      ]
+    )
+    var called = false
+    let sut = FileTreeRowView(
+      node: node,
+      codemapEntries: [:],
+      indentLevel: 0,
+      onFileTap: { _ in },
+      onSummaryTap: { _, _ in },
+      onSymbolDetailTap: { _ in },
+      onGenerateSummary: { _ in called = true }
+    )
+
+    // Directory with children shows folder summary, not the sparkles button.
+    #expect(!sut.summaryButtonText.contains("Generate Summary"))
+    #expect(!sut.summaryButtonText.contains("sparkles"))
+  }
+
+  /// Verifies the sparkles button does NOT appear when the file node has a
+  /// `CodemapEntry` with a non-empty summary in `codemapEntries` — the summary
+  /// popover button is shown instead.
+  @Test
+  func fileTreeRowView_summaryButton_noSparklesButton_whenEntryHasSummary() throws {
+    let node = FileTreeNode(
+      relativePath: "Sources/App.swift",
+      isDirectory: false,
+      language: .swift,
+      children: []
+    )
+    let entry = CodemapEntry(
+      relativePath: "Sources/App.swift",
+      language: .swift,
+      contentHash: "abc123",
+      sizeBytes: 100,
+      symbols: [],
+      imports: [],
+      summary: "This file provides the main entry point.",
+      summaryModel: nil,
+      summaryContentHash: nil,
+      isGenerated: false
+    )
+    var called = false
+    let sut = FileTreeRowView(
+      node: node,
+      codemapEntries: ["Sources/App.swift": entry],
+      indentLevel: 0,
+      onFileTap: { _ in },
+      onSummaryTap: { _, _ in },
+      onSymbolDetailTap: { _ in },
+      onGenerateSummary: { _ in called = true }
+    )
+
+    // Summary popover button is shown; sparkles button is not.
+    #expect(!sut.summaryButtonText.contains("Generate Summary"))
+    #expect(!sut.summaryButtonText.contains("sparkles"))
+  }
 }
 
 // MARK: - Test helpers
@@ -484,6 +626,37 @@ private func SymbolDetailPopoverTests_symbolKindLabel(_ kind: CodemapSymbolKind)
   case .impl: return "impl"
   case .extension: return "ext"
   case .constant: return "const"
+  }
+}
+
+// MARK: - View inspection helpers for FileTreeRowView
+
+private extension FileTreeRowView {
+  /// All text strings found anywhere in the `summaryButton` view subtree.
+  var summaryButtonText: String {
+    var texts: [String] = []
+    collectText(from: summaryButton, into: &texts)
+    return texts.joined()
+  }
+
+  private func collectText(from view: Any, into texts: inout [String]) {
+    guard let childView = view as? any View else { return }
+    let mirror = Mirror(reflecting: childView)
+    for child in mirror.children {
+      if let str = child.value as? String {
+        texts.append(str)
+      }
+      if child.label == nil {
+        collectText(from: child.value, into: &texts)
+      }
+    }
+  }
+
+  /// Triggers the sparkles button action directly.
+  /// This calls `onGenerateSummary(node.relativePath)` without going through
+  /// the SwiftUI button-tap machinery (which is unavailable in-process).
+  func triggerSparklesButtonAction() {
+    onGenerateSummary(node.relativePath)
   }
 }
 
