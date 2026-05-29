@@ -63,11 +63,11 @@ enum CommitTourGenerator {
   /// or when the diff is empty.
   static func generateTour(commits: [SessionCommit], repoURL: URL) async -> String? {
     guard let firstCommit = commits.first else { return nil }
+    let oldestCommit = commits.last!
     let diff: String
     if commits.count == 1 {
       diff = await CommitExplainer.gitDiff(sha: firstCommit.sha, repoURL: repoURL)
     } else {
-      let oldestCommit = commits.last!
       diff = await CommitExplainer.gitDiffRange(newest: firstCommit.sha, oldest: oldestCommit.sha, repoURL: repoURL)
     }
     guard !diff.isEmpty else { return nil }

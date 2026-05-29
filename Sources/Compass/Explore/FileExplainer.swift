@@ -236,13 +236,13 @@ enum FileExplainer {
     commits: [SessionCommit]
   ) async -> String? {
     guard let first = commits.first else { return nil }
+    let oldestCommit = commits.last!
 
     let diff: String
     if commits.count == 1 {
       diff = await CommitExplainer.gitDiff(sha: first.sha, repoURL: repoURL)
     } else {
-      let oldest = commits.last!.sha
-      diff = await CommitExplainer.gitDiffRange(newest: first.sha, oldest: oldest, repoURL: repoURL)
+      diff = await CommitExplainer.gitDiffRange(newest: first.sha, oldest: oldestCommit.sha, repoURL: repoURL)
     }
 
     if diff.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
@@ -271,13 +271,13 @@ enum FileExplainer {
     commits: [SessionCommit]
   ) async -> String? {
     guard let first = commits.first else { return nil }
+    let oldestCommit = commits.last!
 
     let diff: String
     if commits.count == 1 {
       diff = await CommitExplainer.gitDiff(sha: first.sha, repoURL: repoURL)
     } else {
-      let oldest = commits.last!.sha
-      diff = await CommitExplainer.gitDiffRange(newest: first.sha, oldest: oldest, repoURL: repoURL)
+      diff = await CommitExplainer.gitDiffRange(newest: first.sha, oldest: oldestCommit.sha, repoURL: repoURL)
     }
 
     if diff.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
@@ -306,13 +306,13 @@ enum FileExplainer {
   ///   ``explain(file:repoURL:commits:)`` instead.
   static func changes(for repoURL: URL, commits: [SessionCommit]) async -> [FileChange] {
     guard let first = commits.first else { return [] }
+    let oldestCommit = commits.last!
 
     let diffStat: String
     if commits.count == 1 {
       diffStat = await gitDiffStatImpl(sha: first.sha, repoURL: repoURL)
     } else {
-      let oldest = commits.last!.sha
-      diffStat = await gitDiffStatImpl(from: oldest, to: first.sha, repoURL: repoURL)
+      diffStat = await gitDiffStatImpl(from: oldestCommit.sha, to: first.sha, repoURL: repoURL)
     }
 
     let rawChanges = parseGitDiffStat(diffStat)
