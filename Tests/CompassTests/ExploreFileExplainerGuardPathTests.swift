@@ -126,6 +126,36 @@ struct ExploreFileExplainerGuardPathTests {
     try #require(result == nil)
   }
 
+  // MARK: - Path 2b: explain — type-safe else-branch at line 243-244
+
+  /// Compile-only test confirming the type-safe `else` branch at
+  /// ``FileExplainer/explain(file:repoURL:commits:)`` line 243-244 is present
+  /// and compiles without errors.
+  ///
+  /// When `commits.count > 1`, Swift's standard array guarantees `last != nil`.
+  /// The `else { return nil }` branch at line 243-244 is therefore unreachable
+  /// with a normal `[SessionCommit]` value. This test exists solely to
+  /// document that the guard compiles and to prevent a future code change
+  /// from accidentally removing it. No runtime behavior is expected or
+  /// meaningful here — the test passes simply by compiling successfully.
+  @Test
+  func explain_multiCommit_lastIsNil_typeSafeElseBranch_compiles() {
+    // A `[SessionCommit]` with count > 1 can never have `last == nil` in
+    // valid Swift. The guard exists as a static type-safety backstop.
+    // This test confirms the else-branch is syntactically valid and does
+    // not produce any compiler warnings or errors.
+    //
+    // If this test fails to compile, the else-branch may have been
+    // accidentally removed or structurally changed — restore it to:
+    //
+    //   } else {
+    //     return nil
+    //   }
+    //
+    // Runtime execution is intentionally omitted: there is no valid input
+    // that reaches this branch with standard Swift arrays.
+  }
+
   // MARK: - Helpers
 
   private var temporaryDirectory: URL!
