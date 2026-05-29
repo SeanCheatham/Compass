@@ -253,6 +253,111 @@ struct ExploreCommitExplainerTests {
     try #require(result.0 == nil && result.1 == .noDiff)
   }
 
+  /// Verifies `explain(commit:repoURL:)` returns `(nil, .emptyDiff)` when git
+  /// runs successfully but produces no diff output for a merge commit that
+  /// touched no files on the first-parent mainline.
+  ///
+  /// This covers the git-level empty-diff path: `gitDiff(sha:)` returns ""
+  /// because the commit introduced no file changes on main, so the guard
+  /// `guard !trimmed.isEmpty` fires and returns `(nil, .emptyDiff)`.
+  @Test
+  func explain_mergeCommitWithNoMainlineChanges_returnsNilWithEmptyDiffReason() async throws {
+    var test = Self()
+    test.explainSetUp()
+    defer { test.explainTearDown() }
+
+    test.explainInitGitRepo(at: test.temporaryDirectory)
+
+    // Create an initial commit on main
+    try test.explainWriteFile("README.md", contents: "# Test\n")
+    try test.explainRunGit(
+      "git -C \(test.temporaryDirectory.path) add . && "
+        + "git -C \(test.temporaryDirectory.path) "
+        + "-c user.email=t@t -c user.name=t commit -q -m 'Initial'",
+      at: test.temporaryDirectory
+    )
+
+    // Create a topic branch and make a commit on it
+    try test.explainRunGit(
+      "git -C \(test.temporaryDirectory.path) checkout -q -b topic",
+      at: test.temporaryDirectory
+    )
+    try test.explainWriteFile("feature.txt", contents: "feature\n")
+    try test.explainRunGit(
+      "git -C \(test.temporaryDirectory.path) add . && "
+        + "git -C \(test.temporaryDirectory.path) "
+        + "-c user.email=t@t -c user.name=t commit -q -m 'Feature on topic'",
+      at: test.temporaryDirectory
+    )
+
+    // Merge topic into main with a --no-ff merge commit
+    // The merge commit is on mainline but its diff against the first parent is empty
+    // because the topic branch changes don't affect the mainline files.
+    try test.explainRunGit(
+      "git -C \(test.temporaryDirectory.path) checkout -q main",
+      at: test.temporaryDirectory
+    )
+    try test.explainRunGit(
+      "git -C \(test.temporaryDirectory.path) merge -q --no-ff topic -m 'Merge topic'",
+      at: test.temporaryDirectory
+    )
+
+    let shaResult = try test.explainRunGitCapture(
+      "git -C \(test.temporaryDirectory.path) rev-parse HEAD",
+      at: test.temporaryDirectory
+    )
+    let mergeSha = shaResult.trimmingCharacters(in: .whitespacesAndNewlines)
+    let commit = SessionCommit(sha: mergeSha, short: String(mergeSha.prefix(7)), subject: "Merge topic")
+
+    // Git ran successfully but the diff for the merge commit against its first parent
+    // is empty — only the second parent introduced changes. explain returns .emptyDiff.
+    let result = await CommitExplainer.explain(commit: commit, repoURL: test.temporaryDirectory)
+    try #require(result.0 == nil)
+    try #require(result.1 == .emptyDiff)
+  }
+
+  /// Verifies `explain(commit:repoURL:)` returns `(nil, .emptyDiff)` when git
+  /// runs successfully but the working tree has no files (e.g. after a hard reset).
+  ///
+  /// This covers the git-level empty-diff path: `git diff <sha>^..<sha>` produces
+  /// no output because the tree is bare, so the guard `guard !trimmed.isEmpty`
+  /// fires and returns `(nil, .emptyDiff)`.
+  @Test
+  func explain_gitSucceedsButTreeIsEmpty_returnsNilWithEmptyDiffReason() async throws {
+    var test = Self()
+    test.explainSetUp()
+    defer { test.explainTearDown() }
+
+    test.explainInitGitRepo(at: test.temporaryDirectory)
+
+    // Create a commit with a file
+    try test.explainWriteFile("README.md", contents: "# Test\n")
+    try test.explainRunGit(
+      "git -C \(test.temporaryDirectory.path) add . && "
+        + "git -C \(test.temporaryDirectory.path) "
+        + "-c user.email=t@t -c user.name=t commit -q -m 'Add README'",
+      at: test.temporaryDirectory
+    )
+
+    let shaResult = try test.explainRunGitCapture(
+      "git -C \(test.temporaryDirectory.path) rev-parse HEAD",
+      at: test.temporaryDirectory
+    )
+    let sha = shaResult.trimmingCharacters(in: .whitespacesAndNewlines)
+    let commit = SessionCommit(sha: sha, short: String(sha.prefix(7)), subject: "Add README")
+
+    // Hard-reset to leave the working tree empty — but the commit still exists.
+    // git diff <sha>^..<sha> produces no output because there are no files.
+    try test.explainRunGit(
+      "git -C \(test.temporaryDirectory.path) reset --hard HEAD^",
+      at: test.temporaryDirectory
+    )
+
+    let result = await CommitExplainer.explain(commit: commit, repoURL: test.temporaryDirectory)
+    try #require(result.0 == nil)
+    try #require(result.1 == .emptyDiff)
+  }
+
   @Test
   func explain_gitFailure_returnsNil() async throws {
     // Path 3: git failure returns nil.
