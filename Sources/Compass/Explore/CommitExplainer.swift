@@ -1,5 +1,25 @@
 import Foundation
 
+/// # Explore Layer
+///
+/// `CommitExplainer` provides per-commit diff summarization for the Explore layer.
+/// It converts a raw `git diff` into plain-English prose so users can understand what
+/// changed in a given file without reading the diff themselves.
+///
+/// ## Role in the Explore layer
+///
+/// ``CommitExplainer`` is called by ``FileExplainer/explain(file:repoURL:commits:)`` when
+/// the UI requests a per-file AI explanation. Unlike ``CommitTourGenerator`` (which covers
+/// an entire multi-commit range) or ``RepoQnA`` (free-form questions), it focuses on the
+/// single-file diff for a single commit — the most targeted explanation in the layer.
+///
+/// ## Foundation Models boundary
+///
+/// The ``summarize(diff:)`` method is gated ``@available(macOS 26.0, *)`` and streams
+/// directly to Foundation Models with a fixed 3-sentence prompt template. Output is
+/// capped at ~600 tokens. Returns `nil` when Foundation Models is unavailable or
+/// produces no content.
+
 #if canImport(FoundationModels)
   import FoundationModels
 #endif

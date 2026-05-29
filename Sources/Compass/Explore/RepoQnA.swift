@@ -1,5 +1,26 @@
 import Foundation
 
+/// # Explore Layer
+///
+/// `RepoQnA` provides repository-scale Q&A for the Explore layer.
+/// It answers natural-language questions about the codebase, grounded in the actual
+/// diff and codemap of a commit range, so answers reflect reality rather than
+/// hallucinated context.
+///
+/// ## Role in the Explore layer
+///
+/// ``RepoQnA`` is available independently for free-form questions about the repository,
+/// distinct from ``CommitExplainer`` (per-file, per-commit summaries), ``CommitTourGenerator``
+/// (multi-commit guided tours), and ``ArchitectureGraph`` (static import-graph analysis).
+/// All three are called through or alongside ``FileExplainer``; ``RepoQnA`` stands alone
+/// as the exploratory Q&A surface.
+///
+/// ## Foundation Models boundary
+///
+/// All public methods are gated ``@available(macOS 26.0, *)`` and stream directly to
+/// Foundation Models. All return `nil` when Foundation Models is unavailable or
+/// produces no content.
+
 #if canImport(FoundationModels)
   import FoundationModels
 #endif

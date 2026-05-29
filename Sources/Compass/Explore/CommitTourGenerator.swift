@@ -1,5 +1,27 @@
 import Foundation
 
+/// # Explore Layer
+///
+/// `CommitTourGenerator` provides guided code tours for the Explore layer.
+/// It synthesizes a full multi-commit diff into a 3–5 sentence architectural narrative,
+/// giving users a high-level walk-through of what was built, why, and how the pieces fit
+/// together — going well beyond per-file summaries.
+///
+/// ## Role in the Explore layer
+///
+/// ``CommitTourGenerator`` is called through ``FileExplainer`` when the user wants a
+/// high-level tour of an entire commit range rather than per-file explanations from
+/// ``CommitExplainer``. It is distinct from ``RepoQnA`` (free-form questions) and
+/// ``ArchitectureGraph`` (static import-graph analysis) — its strength is narrative
+/// coherence across time.
+///
+/// ## Foundation Models boundary
+///
+/// The ``generateTour(commits:repoURL:)`` method is gated ``@available(macOS 26.0, *)``
+/// and streams to Foundation Models with a structured architectural-tour prompt.
+/// Output is capped at ~800 tokens to keep responses navigable. Returns `nil` when
+/// Foundation Models is unavailable or produces no content.
+
 #if canImport(FoundationModels)
   import FoundationModels
 #endif

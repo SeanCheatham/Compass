@@ -1,5 +1,35 @@
 import Foundation
 
+/// # Explore Layer
+///
+/// `ArchitectureGraph` provides architectural import-graph analysis for the Explore layer.
+/// It reads every codemap entry from the store, builds a complete file-to-file ``ImportGraph``,
+/// and produces a plain-English architectural description via Foundation Models.
+///
+/// ## Role in the Explore layer
+///
+/// ``ArchitectureGraph`` is available independently for import-graph visualization of the
+/// codebase structure, and is also called through ``FileExplainer`` when the UI requests an
+/// architecture overview. It complements the commit-diff and Q&A components by surfacing
+/// module boundaries and cross-module dependency patterns that are otherwise invisible.
+///
+/// ## Foundation Models boundary
+///
+/// The ``explain(graph:repoURL:)`` method is gated ``@available(macOS 26.0, *)`` and streams
+/// directly to Foundation Models with a structured architectural analysis prompt. Returns
+/// `nil` when Foundation Models is unavailable or produces no content. The ``buildGraph()``
+/// helper is version-agnostic so callers can inspect the raw graph without availability checks.
+///
+/// ## Components (Explore layer)
+///
+/// | Component | Role | Foundation Models entry point |
+/// |---|---|---|
+/// | ``FileExplainer`` | Orchestrator — UI entry point for changed-file lists and per-file explanations | Delegates to ``CommitExplainer`` |
+/// | ``CommitExplainer`` | Per-commit diff summarization | ``summarize(diff:)`` |
+/// | ``CommitTourGenerator`` | Guided code tours | ``generateTour(commits:repoURL:)`` |
+/// | ``RepoQnA`` | Repository-scale Q&A | ``answer(question:repoURL:)`` |
+/// | ``ArchitectureGraph`` | Architectural import-graph analysis | ``explain(graph:repoURL:)`` |
+
 #if canImport(FoundationModels)
   import FoundationModels
 #endif
