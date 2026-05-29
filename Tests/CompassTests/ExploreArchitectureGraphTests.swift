@@ -298,6 +298,112 @@ struct ExploreArchitectureGraphTests {
     #expect(graph.edges.isEmpty)
   }
 
+  // MARK: - resolve (private function, tested via buildGraph integration)
+
+  @Test
+  func resolve_absolutePathImport_returnsNil() throws {
+    let dir = try makeTempDir()
+
+    // Absolute path — system import, no edge
+    try writeEntry(dir, relativePath: "Sources/A.swift", imports: [
+      CodemapImport(raw: "/usr/local/Module", line: 1)
+    ])
+
+    let graph = buildGraph(codemapDirectory: dir)
+
+    #expect(graph.nodes.contains { $0.path == "Sources/A.swift" })
+    #expect(graph.edges.isEmpty)
+  }
+
+  @Test
+  func resolve_angleBracketImport_returnsNil() throws {
+    let dir = try makeTempDir()
+
+    // Angle-bracket import — system header, no edge
+    try writeEntry(dir, relativePath: "Sources/A.swift", imports: [
+      CodemapImport(raw: "<Network>", line: 1)
+    ])
+
+    let graph = buildGraph(codemapDirectory: dir)
+
+    #expect(graph.nodes.contains { $0.path == "Sources/A.swift" })
+    #expect(graph.edges.isEmpty)
+  }
+
+  @Test
+  func resolve_bareIdentifier_returnsNil() throws {
+    let dir = try makeTempDir()
+
+    // Bare identifier — system module, no edge
+    try writeEntry(dir, relativePath: "Sources/A.swift", imports: [
+      CodemapImport(raw: "Foundation", line: 1)
+    ])
+
+    let graph = buildGraph(codemapDirectory: dir)
+
+    #expect(graph.nodes.contains { $0.path == "Sources/A.swift" })
+    #expect(graph.edges.isEmpty)
+  }
+
+  @Test
+  func resolve_dotSlashImport_resolvesToCorrectPath() throws {
+    let dir = try makeTempDir()
+
+    // "./Shared" from Sources/A.swift → Sources/Shared
+    try writeEntry(dir, relativePath: "Sources/A.swift", imports: [
+      CodemapImport(raw: "./Shared", line: 1)
+    ])
+
+    let graph = buildGraph(codemapDirectory: dir)
+
+    #expect(graph.edges.count == 1)
+    #expect(graph.edges.first?.target.path == "Sources/Shared")
+  }
+
+  @Test
+  func resolve_dotDotSlashImport_resolvesCorrectly() throws {
+    let dir = try makeTempDir()
+
+    // "../Utils" from Sources/Deep/B.swift → Sources/Utils
+    try writeEntry(dir, relativePath: "Sources/Deep/B.swift", imports: [
+      CodemapImport(raw: "../Utils", line: 1)
+    ])
+
+    let graph = buildGraph(codemapDirectory: dir)
+
+    #expect(graph.edges.count == 1)
+    #expect(graph.edges.first?.target.path == "Sources/Utils")
+  }
+
+  @Test
+  func resolve_multiComponentPath_returnsRawPath() throws {
+    let dir = try makeTempDir()
+
+    // "Compass/Explore" kept as-is
+    try writeEntry(dir, relativePath: "Sources/App.swift", imports: [
+      CodemapImport(raw: "Compass/Explore", line: 1)
+    ])
+
+    let graph = buildGraph(codemapDirectory: dir)
+
+    #expect(graph.edges.count == 1)
+    #expect(graph.edges.first?.target.path == "Compass/Explore")
+  }
+
+  @Test
+  func buildGraph_singleEntryNoImports_producesIsolatedNode() throws {
+    let dir = try makeTempDir()
+
+    // One file with zero imports — isolated node with no edges
+    try writeEntry(dir, relativePath: "Sources/Lonely.swift", imports: [])
+
+    let graph = buildGraph(codemapDirectory: dir)
+
+    #expect(graph.nodes.count == 1)
+    #expect(graph.nodes.contains { $0.path == "Sources/Lonely.swift" })
+    #expect(graph.edges.isEmpty)
+  }
+
   // MARK: - explain
 
   @Test
