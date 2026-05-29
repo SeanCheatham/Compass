@@ -65,10 +65,10 @@ enum CommitTourGenerator {
     guard let firstCommit = commits.first else { return nil }
     let diff: String
     if commits.count == 1 {
-      diff = await _gitDiffForSha(firstCommit.sha, repoURL: repoURL)
+      diff = await _gitDiff(args: ["diff", "--no-color", "\(firstCommit.sha)^..\(firstCommit.sha)"], repoURL: repoURL)
     } else {
       let lastCommit = commits.last!
-      diff = await _gitDiffRange(from: firstCommit.sha, to: lastCommit.sha, repoURL: repoURL)
+      diff = await _gitDiff(args: ["diff", "--no-color", "\(firstCommit.sha)..\(lastCommit.sha)"], repoURL: repoURL)
     }
     guard !diff.isEmpty else { return nil }
     return await generate(diff: diff)
@@ -76,23 +76,10 @@ enum CommitTourGenerator {
 
   // MARK: - Private Git Helpers
 
-  private static func _gitDiffForSha(_ sha: String, repoURL: URL) async -> String {
+  private static func _gitDiff(args: [String], repoURL: URL) async -> String {
     await withCheckedContinuation { continuation in
       Task {
-        let result = try? await ProcessRunner.runEnv(
-          "git", ["diff", "--no-color", "\(sha)^..\(sha)"], workingDirectory: repoURL
-        )
-        continuation.resume(returning: result?.stdout ?? "")
-      }
-    }
-  }
-
-  private static func _gitDiffRange(from: String, to: String, repoURL: URL) async -> String {
-    await withCheckedContinuation { continuation in
-      Task {
-        let result = try? await ProcessRunner.runEnv(
-          "git", ["diff", "--no-color", "\(from)..\(to)"], workingDirectory: repoURL
-        )
+        let result = try? await ProcessRunner.runEnv("git", args, workingDirectory: repoURL)
         continuation.resume(returning: result?.stdout ?? "")
       }
     }
