@@ -414,7 +414,7 @@ struct ExploreArchitectureGraphTests {
     let graph = ImportGraph()
     let repoURL = URL(fileURLWithPath: "/tmp")
     guard #available(macOS 26.0, *) else { return }
-    let result = await ArchitectureGraph.explain(graph: graph, repoURL: repoURL)
+    let result = await ArchitectureGraph.explain(graph: graph, repoURL: repoURL, commits: [])
     // Either Foundation Models is available and we get a string (or nil
     // from an error), or it is unavailable and we definitely get nil.
     if !FoundationModelsAvailability.isAvailable {
@@ -429,7 +429,7 @@ struct ExploreArchitectureGraphTests {
     let graph = ImportGraph()
     let repoURL = URL(fileURLWithPath: "/tmp")
     guard #available(macOS 26.0, *) else { return }
-    let result = await ArchitectureGraph.explain(graph: graph, repoURL: repoURL)
+    let result = await ArchitectureGraph.explain(graph: graph, repoURL: repoURL, commits: [])
     // Result may be nil (model unavailable) or a string (model available).
     // The key guarantee is no throw.
     if FoundationModelsAvailability.isAvailable {

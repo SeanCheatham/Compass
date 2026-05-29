@@ -135,6 +135,47 @@ func buildGraph(codemapDirectory: URL) -> ImportGraph {
   let store = CodemapStore(directory: codemapDirectory)
   let entries = store.loadAllEntries()
 
+  /// Attempts to resolve a raw import string to a repo-relative file path.
+  /// Returns `nil` for system imports, absolute paths, or unresolvable refs.
+  func resolve(import raw: String, relativeTo sourcePath: String) -> String? {
+    // System imports have no file in the repo
+    guard !raw.hasPrefix("/"), !raw.hasPrefix("<") else { return nil }
+
+    // Relative imports: "./Foo" or "../Foo"
+    if raw.hasPrefix(".") {
+      let sourceDir = sourcePath.split(separator: "/").dropLast().map(String.init).joined(separator: "/")
+      let combined = [sourceDir, raw].filter { !$0.isEmpty }.joined(separator: "/")
+      return normaliseRelativePath(combined)
+    }
+
+    // Bare identifier like "Foundation" — system module, not a file
+    if !raw.contains("/") {
+      return nil
+    }
+
+    // Multi-component path like "Compass/Explore/CommitExplainer".
+    // Keep the raw path as-is so the graph reflects import relationships at the
+    // module/package level even without exact file resolution.
+    return raw
+  }
+
+  func normaliseRelativePath(_ path: String) -> String {
+    var components: [String] = []
+    for component in path.split(separator: "/").map(String.init) {
+      switch component {
+      case "", ".":
+        continue
+      case "..":
+        if !components.isEmpty {
+          components.removeLast()
+        }
+      default:
+        components.append(component)
+      }
+    }
+    return components.joined(separator: "/")
+  }
+
   var graph = ImportGraph()
 
   for entry in entries {
@@ -155,47 +196,6 @@ func buildGraph(codemapDirectory: URL) -> ImportGraph {
   }
 
   return graph
-}
-
-/// Attempts to resolve a raw import string to a repo-relative file path.
-/// Returns `nil` for system imports, absolute paths, or unresolvable refs.
-private func resolve(import raw: String, relativeTo sourcePath: String) -> String? {
-  // System imports have no file in the repo
-  guard !raw.hasPrefix("/"), !raw.hasPrefix("<") else { return nil }
-
-  // Relative imports: "./Foo" or "../Foo"
-  if raw.hasPrefix(".") {
-    let sourceDir = sourcePath.split(separator: "/").dropLast().map(String.init).joined(separator: "/")
-    let combined = [sourceDir, raw].filter { !$0.isEmpty }.joined(separator: "/")
-    return normaliseRelativePath(combined)
-  }
-
-  // Bare identifier like "Foundation" — system module, not a file
-  if !raw.contains("/") {
-    return nil
-  }
-
-  // Multi-component path like "Compass/Explore/CommitExplainer".
-  // Keep the raw path as-is so the graph reflects import relationships at the
-  // module/package level even without exact file resolution.
-  return raw
-}
-
-private func normaliseRelativePath(_ path: String) -> String {
-  var components: [String] = []
-  for component in path.split(separator: "/").map(String.init) {
-    switch component {
-    case "", ".":
-      continue
-    case "..":
-      if !components.isEmpty {
-        components.removeLast()
-      }
-    default:
-      components.append(component)
-    }
-  }
-  return components.joined(separator: "/")
 }
 
 /// Architecture overview built from a repository's codemap.
