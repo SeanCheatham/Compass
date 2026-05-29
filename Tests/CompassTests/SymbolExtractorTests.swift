@@ -273,4 +273,29 @@ struct SymbolExtractorTests {
     try #require(CodemapLanguage.forFile(at: "README.md") == nil)
     try #require(CodemapLanguage.forFile(at: "Cargo.toml") == nil)
   }
+
+  @Test
+  func testLanguageRegistryResolvesMixedCaseExtensions() throws {
+    try #require(CodemapLanguage.forFile(at: "Foo.SWIFT") == .swift)
+    try #require(CodemapLanguage.forFile(at: "Foo.Swift") == .swift)
+    try #require(CodemapLanguage.forFile(at: "Foo.TS") == .typescript)
+    try #require(CodemapLanguage.forFile(at: "Foo.Tsx") == .tsx)
+    try #require(CodemapLanguage.forFile(at: "Foo.JS") == .javascript)
+    try #require(CodemapLanguage.forFile(at: "Foo.PY") == .python)
+    try #require(CodemapLanguage.forFile(at: "Foo.GO") == .go)
+    try #require(CodemapLanguage.forFile(at: "Foo.RS") == .rust)
+    try #require(CodemapLanguage.forFile(at: "Foo.HS") == .haskell)
+  }
+
+  @Test
+  func testLanguageRegistryUnrecognizedVariantExtensionsReturnNil() throws {
+    // Unusual Swift spellings that are not in the extension map
+    try #require(CodemapLanguage.forFile(at: "Foo.sx") == nil)
+    try #require(CodemapLanguage.forFile(at: "Foo.sw") == nil)
+    // Other genuinely unrecognized extensions
+    try #require(CodemapLanguage.forFile(at: "foo.txt") == nil)
+    try #require(CodemapLanguage.forFile(at: "foo.json") == nil)
+    try #require(CodemapLanguage.forFile(at: "foo.xml") == nil)
+    try #require(CodemapLanguage.forFile(at: "foo.scss") == nil)
+  }
 }
