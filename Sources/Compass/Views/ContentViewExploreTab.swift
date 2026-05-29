@@ -28,6 +28,9 @@ struct ExploreTab: View {
   @State private var summaryPopoverText: String? = nil
   @State private var showSummaryPopover = false
 
+  @State private var symbolDetailEntry: CodemapEntry? = nil
+  @State private var showSymbolDetailPopover = false
+
   @State private var sessionScope: SessionScope = .lastSession
 
   var body: some View {
@@ -61,6 +64,10 @@ struct ExploreTab: View {
                   summaryPopoverFile = path
                   summaryPopoverText = summary
                   showSummaryPopover = true
+                },
+                onSymbolDetailTap: { entry in
+                  symbolDetailEntry = entry
+                  showSymbolDetailPopover = true
                 }
               )
             }
@@ -77,6 +84,11 @@ struct ExploreTab: View {
           fileName: (file as NSString).lastPathComponent,
           summary: text
         )
+      }
+    }
+    .popover(isPresented: $showSymbolDetailPopover) {
+      if let entry = symbolDetailEntry {
+        SymbolDetailPopover(entry: entry)
       }
     }
     .popover(isPresented: $showWhyGenerated) {
@@ -181,6 +193,7 @@ struct FileTreeRowView: View {
   let indentLevel: Int
   let onFileTap: (String) -> Void
   let onSummaryTap: (String, String) -> Void
+  let onSymbolDetailTap: (CodemapEntry) -> Void
   @State private var isExpanded = true
 
   private let rowHeight: CGFloat = 44
@@ -194,7 +207,8 @@ struct FileTreeRowView: View {
             codemapEntries: codemapEntries,
             indentLevel: indentLevel + 1,
             onFileTap: onFileTap,
-            onSummaryTap: onSummaryTap
+            onSummaryTap: onSummaryTap,
+            onSymbolDetailTap: onSymbolDetailTap
           )
         }
       }
@@ -241,6 +255,9 @@ struct FileTreeRowView: View {
 
         // Summary — tap to open full-text popover
         summaryButton
+
+        // Symbol details — tap to open symbol/import popover
+        detailsButton
       }
       .frame(height: rowHeight)
       .contentShape(Rectangle())
@@ -261,6 +278,20 @@ struct FileTreeRowView: View {
       Image(systemName: "doc")
         .foregroundStyle(.secondary)
         .imageScale(.small)
+    }
+  }
+
+  @ViewBuilder
+  private var detailsButton: some View {
+    if let entry = codemapEntries[node.relativePath] {
+      Button {
+        onSymbolDetailTap(entry)
+      } label: {
+        Image(systemName: "list.bullet")
+          .font(.caption)
+          .foregroundStyle(.tertiary)
+      }
+      .buttonStyle(.plain)
     }
   }
 
@@ -443,5 +474,137 @@ struct SummaryPopover: View {
     }
     .padding(16)
     .frame(width: 440)
+  }
+}
+
+// MARK: - CodemapSymbolKind + color
+
+extension CodemapSymbolKind {
+  /// Color used for symbol kind badges in the symbol detail popover.
+  static func color(for kind: CodemapSymbolKind) -> Color {
+    switch kind {
+    case .function, .method: return .blue
+    case .class: return .purple
+    case .interface: return .mint
+    case .struct: return .orange
+    case .enum: return .green
+    case .trait: return .pink
+    case .module: return .teal
+    case .type: return .indigo
+    case .property: return .cyan
+    case .macro: return .yellow
+    case .impl: return .brown
+    case .extension: return .gray
+    case .constant: return .orange
+    }
+  }
+}
+
+// MARK: - SymbolDetailPopover
+
+/// A popover that shows all symbols and imports for a file.
+struct SymbolDetailPopover: View {
+  let entry: CodemapEntry
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 12) {
+      HStack {
+        Label("Symbol Details", systemImage: "list.bullet")
+          .font(.headline)
+        Spacer()
+        Button("Close") {
+          // popover dismiss handled by isPresented
+        }
+        .buttonStyle(.plain)
+        .font(.caption)
+      }
+
+      ScrollView {
+        LazyVStack(alignment: .leading, spacing: 8) {
+          // Symbols section
+          if !entry.symbols.isEmpty {
+            VStack(alignment: .leading, spacing: 6) {
+              Text("Symbols")
+                .font(.caption)
+                .fontWeight(.semibold)
+                .foregroundStyle(.secondary)
+              ForEach(entry.symbols, id: \.name) { symbol in
+                HStack(spacing: 8) {
+                  Text(symbolKindLabel(symbol.kind))
+                    .font(.caption2)
+                    .fontWeight(.medium)
+                    .padding(.horizontal, 5)
+                    .padding(.vertical, 2)
+                    .background(Self.color(for: symbol.kind).opacity(0.15))
+                    .foregroundStyle(Self.color(for: symbol.kind))
+                    .clipShape(RoundedRectangle(cornerRadius: 4))
+                  Text(symbol.name)
+                    .font(.callout)
+                    .textSelection(.enabled)
+                  Spacer()
+                  Text("L\(symbol.line)")
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+                }
+              }
+            }
+          }
+
+          // Imports section
+          if !entry.imports.isEmpty {
+            VStack(alignment: .leading, spacing: 6) {
+              Text("Imports")
+                .font(.caption)
+                .fontWeight(.semibold)
+                .foregroundStyle(.secondary)
+              ForEach(entry.imports, id: \.raw) { import_ in
+                HStack(spacing: 8) {
+                  Text(import_.raw)
+                    .font(.callout)
+                    .textSelection(.enabled)
+                  Spacer()
+                  Text("L\(import_.line)")
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+                }
+              }
+            }
+          }
+
+          if entry.symbols.isEmpty && entry.imports.isEmpty {
+            Text("No symbols or imports found.")
+              .font(.caption)
+              .foregroundStyle(.tertiary)
+              .italic()
+          }
+        }
+      }
+      .frame(maxHeight: 400)
+    }
+    .padding(16)
+    .frame(width: 440)
+  }
+
+  private func symbolKindLabel(_ kind: CodemapSymbolKind) -> String {
+    switch kind {
+    case .function: return "func"
+    case .method: return "meth"
+    case .class: return "class"
+    case .interface: return "iface"
+    case .struct: return "struct"
+    case .enum: return "enum"
+    case .trait: return "trait"
+    case .module: return "mod"
+    case .type: return "type"
+    case .property: return "prop"
+    case .macro: return "macro"
+    case .impl: return "impl"
+    case .extension: return "ext"
+    case .constant: return "const"
+    }
+  }
+
+  private static func color(for kind: CodemapSymbolKind) -> Color {
+    CodemapSymbolKind.color(for: kind)
   }
 }
