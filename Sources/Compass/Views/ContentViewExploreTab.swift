@@ -210,23 +210,12 @@ struct FileTreeRowView: View {
         .imageScale(.small)
     } else if let lang = node.language {
       Image(systemName: "doc.text")
-        .foregroundStyle(iconColor(for: lang))
+        .foregroundStyle(LanguageBadge.color(for: lang))
         .imageScale(.small)
     } else {
       Image(systemName: "doc")
         .foregroundStyle(.secondary)
         .imageScale(.small)
-    }
-  }
-
-  private func iconColor(for language: CodemapLanguage) -> Color {
-    switch language {
-    case .swift: return .orange
-    case .typescript, .tsx: return .blue
-    case .javascript: return .yellow
-    case .python: return .green
-    case .go: return .cyan
-    case .rust: return .orange
     }
   }
 
@@ -265,8 +254,8 @@ struct LanguageBadge: View {
       .fontWeight(.medium)
       .padding(.horizontal, 6)
       .padding(.vertical, 2)
-      .background(badgeColor.opacity(0.15))
-      .foregroundStyle(badgeColor)
+      .background(Self.color(for: language).opacity(0.15))
+      .foregroundStyle(Self.color(for: language))
       .clipShape(RoundedRectangle(cornerRadius: 4))
   }
 
@@ -282,7 +271,8 @@ struct LanguageBadge: View {
     }
   }
 
-  private var badgeColor: Color {
+  /// Color for language badges, e.g. Swift → orange.
+  static func color(for language: CodemapLanguage) -> Color {
     switch language {
     case .swift: return .orange
     case .typescript, .tsx: return .blue
