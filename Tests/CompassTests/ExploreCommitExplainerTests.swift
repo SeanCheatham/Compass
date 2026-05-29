@@ -503,4 +503,86 @@ struct ExploreCommitExplainerTests {
     try #require(result.0 == nil)
     try #require(result.1 == .foundationModelsUnavailable)
   }
+
+  // MARK: - gitDiff
+
+  /// Verifies `gitDiff(sha:repoURL:)` returns a non-empty, well-formed diff
+  /// for a single commit that modifies a file. The diff must contain the
+  /// filename and at least one addition marker, proving the pipeline won't
+  /// silently feed empty content downstream.
+  @Test
+  func gitDiff_singleCommitWithFileChange_returnsNonEmptyDiffWithFilenameAndAdditions() async throws {
+    var test = Self()
+    test.explainSetUp()
+    defer { test.explainTearDown() }
+
+    try initGitRepo(at: test.temporaryDirectory)
+
+    // Create a commit that adds content to README.md
+    try writeFile("README.md", contents: "# Test Project\n", at: test.temporaryDirectory)
+    try runGit(
+      "git -C \(test.temporaryDirectory.path) add . && "
+        + "git -C \(test.temporaryDirectory.path) "
+        + "-c user.email=t@t -c user.name=t commit -q -m 'Add README'",
+      at: test.temporaryDirectory
+    )
+
+    let sha = try getSingleCommitSHA(at: test.temporaryDirectory)
+    let diff = await CommitExplainer.gitDiff(sha: sha, repoURL: test.temporaryDirectory)
+
+    // Diff must be non-empty
+    try #require(!diff.isEmpty)
+    // Diff must contain the filename
+    try #require(diff.contains("README.md"))
+    // Diff must contain at least one addition marker
+    try #require(diff.contains("+"))
+  }
+
+  // MARK: - gitDiffRange
+
+  /// Verifies `gitDiffRange(newest:oldest:repoURL:)` returns a non-empty diff
+  /// covering a two-commit range where each commit touches a different file.
+  /// The returned diff must contain both filenames, proving multi-commit ranges
+  /// are captured correctly for Explore commit tours and Q&A.
+  @Test
+  func gitDiffRange_twoCommitsTouchingDifferentFiles_returnsDiffWithBothFilenames() async throws {
+    var test = Self()
+    test.explainSetUp()
+    defer { test.explainTearDown() }
+
+    try initGitRepo(at: test.temporaryDirectory)
+
+    // Commit 1: add App.swift
+    try writeFile("Sources/App.swift", contents: "import Foundation\n", at: test.temporaryDirectory)
+    try runGit(
+      "git -C \(test.temporaryDirectory.path) add . && "
+        + "git -C \(test.temporaryDirectory.path) "
+        + "-c user.email=t@t -c user.name=t commit -q -m 'Add App.swift'",
+      at: test.temporaryDirectory
+    )
+
+    // Commit 2: modify README.md (different file)
+    try writeFile("README.md", contents: "# Test\nExtra line.\n", at: test.temporaryDirectory)
+    try runGit(
+      "git -C \(test.temporaryDirectory.path) add . && "
+        + "git -C \(test.temporaryDirectory.path) "
+        + "-c user.email=t@t -c user.name=t commit -q -m 'Modify README'",
+      at: test.temporaryDirectory
+    )
+
+    let allSHAs = try getAllCommitSHAs(at: test.temporaryDirectory)
+    try #require(allSHAs.count == 2)
+    let newest = allSHAs[0]
+    let oldest = allSHAs[1]
+
+    let diff = await CommitExplainer.gitDiffRange(
+      newest: newest, oldest: oldest, repoURL: test.temporaryDirectory
+    )
+
+    // Diff must be non-empty
+    try #require(!diff.isEmpty)
+    // Diff must contain both filenames
+    try #require(diff.contains("App.swift"))
+    try #require(diff.contains("README.md"))
+  }
 }
