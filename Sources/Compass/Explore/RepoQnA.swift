@@ -1,9 +1,3 @@
-import Foundation
-
-#if canImport(FoundationModels)
-  import FoundationModels
-#endif
-
 /// Interactive Q&A about repository changes, grounded in the actual diff
 /// and codemap of a commit range.
 ///
@@ -30,6 +24,10 @@ import Foundation
 /// ## Availability
 ///
 /// Available only on macOS 26.0 and later.
+import Foundation
+#if canImport(FoundationModels)
+  import FoundationModels
+#endif
 @available(macOS 26.0, *)
 enum RepoQnA {
   /// A Q&A answer with its supporting source files.
