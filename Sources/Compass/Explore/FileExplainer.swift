@@ -237,17 +237,9 @@ enum FileExplainer {
 
     let diff: String
     if commits.count == 1 {
-      let result = try? await ProcessRunner.runEnv(
-        "git", ["diff", "\(first.sha)^..\(first.sha)", "--", relativePath],
-        workingDirectory: repoURL
-      )
-      diff = result?.stdout ?? ""
+      diff = await CommitExplainer.gitDiff(sha: first.sha, repoURL: repoURL)
     } else if let last = commits.last {
-      let result = try? await ProcessRunner.runEnv(
-        "git", ["diff", "\(first.sha)..\(last.sha)", "--", relativePath],
-        workingDirectory: repoURL
-      )
-      diff = result?.stdout ?? ""
+      diff = await CommitExplainer.gitDiffRange(newest: first.sha, oldest: last.sha, repoURL: repoURL)
     } else {
       return nil
     }
@@ -281,17 +273,9 @@ enum FileExplainer {
 
     let diff: String
     if commits.count == 1 {
-      let result = try? await ProcessRunner.runEnv(
-        "git", ["diff", "\(first.sha)^..\(first.sha)", "--", relativePath],
-        workingDirectory: repoURL
-      )
-      diff = result?.stdout ?? ""
+      diff = await CommitExplainer.gitDiff(sha: first.sha, repoURL: repoURL)
     } else if let last = commits.last {
-      let result = try? await ProcessRunner.runEnv(
-        "git", ["diff", "\(first.sha)..\(last.sha)", "--", relativePath],
-        workingDirectory: repoURL
-      )
-      diff = result?.stdout ?? ""
+      diff = await CommitExplainer.gitDiffRange(newest: first.sha, oldest: last.sha, repoURL: repoURL)
     } else {
       return nil
     }
