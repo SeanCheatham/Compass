@@ -811,12 +811,8 @@ struct ExplainChangesButton: View {
   @State private var summary: String?
   @State private var isLoading = false
 
-  private var canExplain: Bool {
-    item.status == .succeeded && !item.commits.isEmpty
-  }
-
   var body: some View {
-    if canExplain {
+    if item.canExplore {
       Button {
         showingPopover = true
       } label: {
@@ -910,12 +906,8 @@ struct PerCommitNarrativesButton: View {
 
   @State private var showingPopover = false
 
-  private var canExplain: Bool {
-    item.status == .succeeded && !item.commits.isEmpty
-  }
-
   var body: some View {
-    if canExplain {
+    if item.canExplore {
       Button {
         showingPopover = true
       } label: {
