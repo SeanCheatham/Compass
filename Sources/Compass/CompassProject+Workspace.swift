@@ -30,6 +30,7 @@ extension CompassProject {
       state = .empty
       drafts = ""
       lessons = ""
+      assumptions = []
       vision = ""
       sessions = []
       activitySourceSnapshot = RepositoryActivitySourceSnapshot.noRepository(
@@ -52,6 +53,7 @@ extension CompassProject {
       state = .empty
       drafts = ""
       lessons = ""
+      assumptions = []
       vision = ""
       sessions = []
       if requireStorageRoot {
@@ -67,6 +69,7 @@ extension CompassProject {
       drafts = workspace.readDrafts()
     }
     lessons = workspace.readLessons()
+    assumptions = try workspace.readAssumptionLedger().assumptions
     vision = workspace.readVision()
     sessions = workspace.readSessions()
   }

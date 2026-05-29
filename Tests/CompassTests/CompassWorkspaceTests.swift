@@ -31,12 +31,14 @@ final class CompassWorkspaceTests {
     try #require(FileManager.default.fileExists(atPath: workspace.stateURL.path))
     try #require(FileManager.default.fileExists(atPath: workspace.draftsURL.path))
     try #require(FileManager.default.fileExists(atPath: workspace.lessonsURL.path))
+    try #require(FileManager.default.fileExists(atPath: workspace.assumptionsURL.path))
     try #require(FileManager.default.fileExists(atPath: workspace.visionURL.path))
     try #require(FileManager.default.fileExists(atPath: workspace.sessionsRecordURL.path))
 
     try #require(try workspace.readState() == .empty)
     try #require(try read(workspace.draftsURL) == "")
     try #require(try read(workspace.lessonsURL) == "")
+    try #require(try workspace.readAssumptionLedger() == .empty)
     try #require(try read(workspace.visionURL) == "")
     try #require(try read(workspace.sessionsRecordURL) == "[]\n")
 
@@ -67,6 +69,18 @@ final class CompassWorkspaceTests {
     try workspace.applyLessonEdits([
       LessonEdit(find: "old lesson", replace: "new lesson", replaceAll: nil)
     ])
+    let assumption = try workspace.recordAssumption(
+      AssumptionDraft(
+        text: "The app ships outside the Mac App Store.",
+        rationale: "The project documentation says App Sandbox is off.",
+        evidence: ["README.md"],
+        impact: "Signing choices depend on this.",
+        invalidation: "User says App Store distribution is required.",
+        scope: .project
+      ),
+      phase: .plan,
+      sessionNumber: 4
+    )
     try workspace.writeVision("vision entry\n")
     try workspace.writeSessions(records)
     let artifactURL = try workspace.writeSessionArtifact(
@@ -86,6 +100,7 @@ final class CompassWorkspaceTests {
     try #require(try read(workspace.stateBackupURL) == encodedState)
     try #require(workspace.readDrafts() == "draft entry\n")
     try #require(workspace.readLessons() == "- new lesson\n")
+    try #require(try workspace.readAssumptionLedger().assumptions == [assumption])
     try #require(workspace.readVision() == "vision entry\n")
     try #require(workspace.readSessions() == records)
     try #require(try read(artifactURL) == "artifact body\n")
@@ -125,6 +140,38 @@ final class CompassWorkspaceTests {
     try workspace.writeSessions(records)
     let rewritten = try read(workspace.sessionsRecordURL)
     try #require(!rewritten.contains("executionEnvironmentSnapshots"))
+  }
+
+  @Test func testAssumptionLedgerRecordsReviewsAndPreservesDeniedStatus() throws {
+    let workspace = try makeInitializedWorkspace()
+    let draft = AssumptionDraft(
+      text: "The project targets macOS only.",
+      rationale: "Package.swift declares only macOS.",
+      evidence: ["Package.swift"],
+      impact: "Plan should not add iOS-specific workflow.",
+      invalidation: "User asks for iOS support.",
+      scope: .project
+    )
+
+    let first = try workspace.recordAssumption(draft, phase: .plan, sessionNumber: 2)
+    try #require(first.status == .implicit)
+
+    let denied = try workspace.reviewAssumption(
+      id: first.id,
+      status: .denied,
+      comment: "iOS support is planned next."
+    )
+    try #require(denied.status == .denied)
+    try #require(denied.userComment == "iOS support is planned next.")
+
+    let rerecorded = try workspace.recordAssumption(draft, phase: .develop, sessionNumber: 3)
+    try #require(rerecorded.id == first.id)
+    try #require(rerecorded.status == .denied)
+
+    let summary = try workspace.readAssumptionLedger().formattedForPrompt()
+    try #require(summary.contains("Denied assumptions"))
+    try #require(summary.contains("do not rely"))
+    try #require(summary.contains("iOS support is planned next."))
   }
 
   @Test func testSessionsJsonRoundTripsExecutionEnvironmentSnapshotsWithoutLeakingRuntimePaths()

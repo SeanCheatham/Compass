@@ -20,6 +20,7 @@ struct CompassWorkspace {
   var stateBackupURL: URL { compassURL.appending(path: "state.json.bak") }
   var draftsURL: URL { compassURL.appending(path: "drafts.md") }
   var lessonsURL: URL { compassURL.appending(path: "lessons.md") }
+  var assumptionsURL: URL { compassURL.appending(path: "assumptions.json") }
   var visionURL: URL { compassURL.appending(path: "COMPASS.md") }
   var sessionsURL: URL { compassURL.appending(path: "sessions", directoryHint: .isDirectory) }
   var sessionsRecordURL: URL { compassURL.appending(path: "sessions.json") }
@@ -58,6 +59,7 @@ struct CompassWorkspace {
     try createFileIfMissing(stateURL, contents: Self.encodeState(.empty))
     try createFileIfMissing(draftsURL, contents: "")
     try createFileIfMissing(lessonsURL, contents: "")
+    try createFileIfMissing(assumptionsURL, contents: AssumptionLedger.emptyJSON)
     try createFileIfMissing(visionURL, contents: "")
     try createFileIfMissing(sessionsRecordURL, contents: "[]\n")
     if isRepoLocalStorage {

@@ -10,6 +10,7 @@ final class CompassProject: ObservableObject, Identifiable {
   @Published var drafts = ""
   @Published var draftEntry = ""
   @Published var lessons = ""
+  @Published var assumptions: [AssumptionRecord] = []
   @Published var vision = ""
   @Published var sessions: [SessionRecord] = []
   @Published var languageProfile = RepositoryLanguageProfile.empty

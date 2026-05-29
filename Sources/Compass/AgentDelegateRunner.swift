@@ -37,6 +37,10 @@ struct AgentExecutorDelegateRunner: AgentDelegateRunner {
   /// which is wrong for Shared-VM routes — top-level callers should
   /// always supply this.
   let codemapStoreDirectory: URL?
+  /// Host-side assumptions ledger inherited from the parent so sub-agents
+  /// can record assumptions made during focused investigations.
+  let assumptionsURL: URL?
+  let sessionNumber: Int?
   /// Snapshot of the parent's tool list. `delegate(toolNames:)` filters
   /// this; `AgentDelegateTool` is always excluded from the child's
   /// effective tool list so sub-agents cannot recurse.
@@ -87,6 +91,8 @@ struct AgentExecutorDelegateRunner: AgentDelegateRunner {
       filesystem: filesystem,
       bashRunner: bashRunner,
       codemapStoreDirectory: codemapStoreDirectory,
+      assumptionsURL: assumptionsURL,
+      sessionNumber: sessionNumber,
       toolchainService: toolchainService,
       hostXcodeService: hostXcodeService,
       maxIterations: min(parentMaxIterations, Self.maxSubAgentIterations),

@@ -687,7 +687,7 @@ struct WorkspaceTabButton: View {
         .font(.callout.weight(selectedTab == tab ? .semibold : .regular))
         .padding(.horizontal, 8)
         .padding(.vertical, 5)
-        .frame(minWidth: 82)
+        .frame(minWidth: tab.minWidth)
     }
     .buttonStyle(.plain)
     .foregroundStyle(selectedTab == tab ? .primary : .secondary)
@@ -710,6 +710,8 @@ struct WorkspaceContent: View {
       PlanTab(project: project)
     case .drafts:
       DraftsTab(project: project)
+    case .assumptions:
+      AssumptionsTab(project: project)
     case .vision:
       VisionTab(project: project)
     case .lessons:
@@ -724,6 +726,7 @@ enum WorkspaceTab: String, CaseIterable, Identifiable {
   case live
   case plan
   case drafts
+  case assumptions
   case vision
   case lessons
   case explore
@@ -735,6 +738,7 @@ enum WorkspaceTab: String, CaseIterable, Identifiable {
     case .live: return "Live"
     case .plan: return "Plan"
     case .drafts: return "Drafts"
+    case .assumptions: return "Assumptions"
     case .vision: return "Vision"
     case .lessons: return "Lessons"
     case .explore: return "Explore"
@@ -746,9 +750,19 @@ enum WorkspaceTab: String, CaseIterable, Identifiable {
     case .live: return "waveform.path.ecg"
     case .plan: return "map"
     case .drafts: return "square.and.pencil"
+    case .assumptions: return "checklist.checked"
     case .vision: return "scope"
     case .lessons: return "book.closed"
     case .explore: return "magnifyingglass"
+    }
+  }
+
+  var minWidth: CGFloat {
+    switch self {
+    case .assumptions:
+      return 116
+    default:
+      return 82
     }
   }
 }

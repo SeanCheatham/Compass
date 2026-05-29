@@ -141,6 +141,13 @@ the phase contract.
   parent's context stays focused. The sub-agent inherits the parent's
   tools minus `delegate` itself — sub-agents cannot nest, so the loop
   depth is capped at 1.
+- Every phase can call `record_assumption` when it relies on a
+  consequential guess about user intent, environment, constraints, or
+  acceptance criteria. Compass stores these in an assumptions ledger and
+  shows them to the user for explicit affirmation or denial. Affirmed
+  assumptions are injected as strong guidance, denied assumptions as
+  corrections, and unreviewed assumptions as true but lower-confidence
+  context.
 - History metadata is written to `.compass/sessions.json`.
 
 ## Compass Workspace
@@ -153,6 +160,7 @@ Everything lives in `.compass/` inside each selected repository:
 ├── state.json.bak    # Best-effort backup before each iteration.
 ├── drafts.md         # User-owned draft queue.
 ├── lessons.md        # Durable guidance shared across iterations.
+├── assumptions.json  # Agent-recorded assumptions and user reviews.
 ├── sessions.json     # Per-iteration session index and latest feedback.
 ├── sessions/         # Activity/session artifacts.
 └── COMPASS.md        # User-owned project vision.

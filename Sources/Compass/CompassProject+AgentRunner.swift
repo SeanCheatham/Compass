@@ -130,6 +130,7 @@ extension CompassProject {
     submitResultSchema: String,
     codemapStoreDirectory: URL,
     planHistoryEntries: [String] = [],
+    sessionNumber: Int? = nil,
     requiresHostXcode: Bool = false,
     hostXcodeBuildTestEnabled: Bool = false,
     decode: T.Type
@@ -193,6 +194,8 @@ extension CompassProject {
       bashRunner: environment.bashRunner,
       codemapStoreDirectory: codemapStoreDirectory,
       planHistoryEntries: planHistoryEntries,
+      assumptionsURL: makeWorkspace(repoURL: workingDirectory).assumptionsURL,
+      sessionNumber: sessionNumber,
       toolchainService: toolchainService,
       hostXcodeService: hostXcodeService,
       validateSubmitResult: validateSubmitResult

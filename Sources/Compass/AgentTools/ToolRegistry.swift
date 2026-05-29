@@ -2,12 +2,13 @@ import Foundation
 
 /// Phase-specific tool sets handed to `AgentExecutor`.
 ///
-/// All four agent phases share a common read-only inspection core
-/// (file/code reads, codemap lookups, delegation). Develop additionally
-/// gets file mutation + shell. Plan/Reflect/Critic additionally get
-/// `bash` so they can probe the project (build, test, lint, git) without
-/// touching tracked files — the system prompt is what keeps them from
-/// running mutating commands; bash itself can't enforce intent.
+/// All four agent phases share a common inspection core (file/code reads,
+/// codemap lookups, delegation, and host-side assumption recording).
+/// Develop additionally gets file mutation + shell. Plan/Reflect/Critic
+/// additionally get `bash` so they can probe the project (build, test,
+/// lint, git) without touching tracked files — the system prompt is what
+/// keeps them from running mutating commands; bash itself can't enforce
+/// intent.
 ///
 /// Media-generation tools are conditional: the user-configured
 /// per-capability assignments on `AgentRuntimeSettings` decide whether
@@ -29,6 +30,7 @@ enum ToolRegistry {
       AgentListFilesTool(),
       AgentImportersOfTool(),
       AgentDelegateTool(),
+      AgentRecordAssumptionTool(),
     ]
   }
 

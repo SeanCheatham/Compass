@@ -79,6 +79,7 @@ extension CompassProject {
         drafts: consumedDrafts,
         feedback: priorFeedback,
         lessons: workspace.readLessons(),
+        assumptions: try workspace.readAssumptionLedger().formattedForPrompt(),
         vision: workspace.readVision(),
         focus: focus,
         hostXcodeBuildTestEnabled: hostXcodeBuildTestEnabled
@@ -109,6 +110,7 @@ extension CompassProject {
         ),
         codemapStoreDirectory: CodemapStore.defaultDirectory(forWorkspace: workspace),
         planHistoryEntries: currentState.completed,
+        sessionNumber: sessionNumber,
         decode: PlanRunResult.self
       )
       let nextState = currentState.applying(proposal: planResult.state)
@@ -277,6 +279,7 @@ extension CompassProject {
           let prompt = Prompts.developPrompt(
             next: next,
             lessons: workspace.readLessons(),
+            assumptions: try workspace.readAssumptionLedger().formattedForPrompt(),
             vision: workspace.readVision(),
             attempt: attempt,
             priorIssues: priorIssues,
@@ -306,6 +309,7 @@ extension CompassProject {
               userPrompt: prompt,
               submitResultSchema: Prompts.developSchema,
               codemapStoreDirectory: CodemapStore.defaultDirectory(forWorkspace: workspace),
+              sessionNumber: sessions[sessionIndex].session,
               requiresHostXcode: next.requiresHostXcode,
               hostXcodeBuildTestEnabled: hostXcodeBuildTestEnabled,
               decode: DevelopSummary.self
@@ -517,6 +521,7 @@ extension CompassProject {
     let prompt = try Prompts.reflectPrompt(
       state: workspace.readState().proposal,
       lessons: workspace.readLessons(),
+      assumptions: try workspace.readAssumptionLedger().formattedForPrompt(),
       vision: workspace.readVision(),
       recentSessions: Array(recentSessions),
       iteration: iteration,
@@ -541,6 +546,7 @@ extension CompassProject {
         hostXcodeBuildTestEnabled: hostXcodeBuildTestEnabled
       ),
       codemapStoreDirectory: CodemapStore.defaultDirectory(forWorkspace: workspace),
+      sessionNumber: iteration,
       decode: ReflectSummary.self
     )
 
@@ -605,6 +611,7 @@ extension CompassProject {
       gitDiff: diff,
       priorCritiques: priorCritiques,
       lessons: workspace.readLessons(),
+      assumptions: (try? workspace.readAssumptionLedger().formattedForPrompt()) ?? "",
       vision: workspace.readVision(),
       iteration: iteration,
       maxIterations: maxCriticAttempts
@@ -620,6 +627,9 @@ extension CompassProject {
         userPrompt: prompt,
         submitResultSchema: Prompts.criticSchema,
         codemapStoreDirectory: CodemapStore.defaultDirectory(forWorkspace: workspace),
+        sessionNumber: sessions.indices.contains(sessionIndex)
+          ? sessions[sessionIndex].session
+          : nil,
         decode: CriticVerdict.self
       )
     } catch {

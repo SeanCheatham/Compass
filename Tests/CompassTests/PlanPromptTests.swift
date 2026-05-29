@@ -254,6 +254,59 @@ struct PlanPromptTests {
     #expect(enabled.contains("build/test checks only"))
   }
 
+  @Test func testPhasePromptsIncludeAssumptionLedgerSection() throws {
+    let assumptions = """
+      User-affirmed assumptions (strong guidance)
+      - [asm-1] The user wants a native macOS app.
+      """
+    let plan = try Prompts.planPrompt(
+      state: .empty,
+      completedCount: 0,
+      drafts: "",
+      feedback: "",
+      lessons: "",
+      assumptions: assumptions,
+      vision: "",
+      focus: .feature
+    )
+    let reflect = try Prompts.reflectPrompt(
+      state: .empty,
+      lessons: "",
+      assumptions: assumptions,
+      vision: "",
+      recentSessions: [],
+      iteration: 1
+    )
+    let develop = Prompts.developPrompt(
+      next: PlanNext(plan: "p", verify: "swift build"),
+      lessons: "",
+      assumptions: assumptions,
+      vision: "",
+      attempt: 1,
+      priorIssues: []
+    )
+    let critic = Prompts.criticPrompt(
+      next: PlanNext(plan: "p", verify: "swift build"),
+      developSummary: DevelopSummary(status: .succeeded, summary: "done", feedback: ""),
+      verifyCommand: "swift build",
+      verifyExitCode: 0,
+      verifyOutput: "",
+      gitDiff: "",
+      priorCritiques: [],
+      lessons: "",
+      assumptions: assumptions,
+      vision: "",
+      iteration: 1,
+      maxIterations: 3
+    )
+
+    for prompt in [plan, reflect, develop, critic] {
+      try #require(prompt.contains("## Assumptions"))
+      try #require(prompt.contains("The user wants a native macOS app."))
+    }
+    try #require(critic.contains("denied assumption"))
+  }
+
   private func makePlanPrompt() throws -> String {
     try Prompts.planPrompt(
       state: .empty,

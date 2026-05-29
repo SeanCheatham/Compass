@@ -31,6 +31,33 @@ extension CompassProject {
     }
   }
 
+  func affirmAssumption(id: String, comment: String?) async {
+    await reviewAssumption(
+      id: id,
+      status: .affirmed,
+      comment: comment,
+      feedback: "Assumption affirmed."
+    )
+  }
+
+  func denyAssumption(id: String, comment: String?) async {
+    await reviewAssumption(
+      id: id,
+      status: .denied,
+      comment: comment,
+      feedback: "Assumption denied."
+    )
+  }
+
+  func markAssumptionImplicit(id: String, comment: String?) async {
+    await reviewAssumption(
+      id: id,
+      status: .implicit,
+      comment: comment,
+      feedback: "Assumption moved back to implicit."
+    )
+  }
+
   func saveDrafts() async {
     do {
       guard let workspace else {
@@ -40,6 +67,26 @@ extension CompassProject {
       try await initializeIfNeeded(workspace)
       try workspace.writeDrafts(drafts)
       log("Saved drafts.", level: .success)
+    } catch {
+      fail(error)
+    }
+  }
+
+  private func reviewAssumption(
+    id: String,
+    status: AssumptionRecord.Status,
+    comment: String?,
+    feedback: String
+  ) async {
+    do {
+      guard let workspace else {
+        fail(AppModelError.noRepositorySelected)
+        return
+      }
+      try await initializeIfNeeded(workspace)
+      _ = try workspace.reviewAssumption(id: id, status: status, comment: comment)
+      assumptions = try workspace.readAssumptionLedger().assumptions
+      log(feedback, level: .success)
     } catch {
       fail(error)
     }

@@ -52,6 +52,9 @@ enum FoundationModelsAgentRuntime {
       ),
       codemapStoreDirectory: configuration.codemapStoreDirectory,
       planHistoryEntries: configuration.planHistoryEntries,
+      assumptionsURL: configuration.assumptionsURL,
+      phase: configuration.phase,
+      sessionNumber: configuration.sessionNumber,
       toolchainService: configuration.toolchainService,
       hostXcodeService: configuration.hostXcodeService
     )

@@ -34,6 +34,10 @@ struct AgentExecutionConfiguration {
   var codemapStoreDirectory: URL?
   /// Host-side completed plan summaries for the `plan_history` tool.
   var planHistoryEntries: [String]
+  /// Host-side assumptions ledger URL for `record_assumption`.
+  var assumptionsURL: URL?
+  /// Compass session number associated with this phase, when one exists.
+  var sessionNumber: Int?
   var toolchainService: (any SharedVMToolchainService)?
   var hostXcodeService: (any HostXcodeServicing)?
   /// Optional post-decode guard for `submit_result`. When it throws,
@@ -58,6 +62,8 @@ struct AgentExecutionConfiguration {
     bashRunner: AgentBashRunner = AgentHostBashRunner(),
     codemapStoreDirectory: URL? = nil,
     planHistoryEntries: [String] = [],
+    assumptionsURL: URL? = nil,
+    sessionNumber: Int? = nil,
     toolchainService: (any SharedVMToolchainService)? = nil,
     hostXcodeService: (any HostXcodeServicing)? = nil,
     validateSubmitResult: (@Sendable (Data) throws -> Void)? = nil,
@@ -76,6 +82,8 @@ struct AgentExecutionConfiguration {
     self.bashRunner = bashRunner
     self.codemapStoreDirectory = codemapStoreDirectory
     self.planHistoryEntries = planHistoryEntries
+    self.assumptionsURL = assumptionsURL
+    self.sessionNumber = sessionNumber
     self.toolchainService = toolchainService
     self.hostXcodeService = hostXcodeService
     self.validateSubmitResult = validateSubmitResult
@@ -220,6 +228,9 @@ final class AgentExecutor {
       delegateRunner: delegateRunner,
       codemapStoreDirectory: configuration.codemapStoreDirectory,
       planHistoryEntries: configuration.planHistoryEntries,
+      assumptionsURL: configuration.assumptionsURL,
+      phase: configuration.phase,
+      sessionNumber: configuration.sessionNumber,
       toolchainService: configuration.toolchainService,
       hostXcodeService: configuration.hostXcodeService
     )
@@ -498,6 +509,8 @@ final class AgentExecutor {
       filesystem: configuration.filesystem,
       bashRunner: configuration.bashRunner,
       codemapStoreDirectory: configuration.codemapStoreDirectory,
+      assumptionsURL: configuration.assumptionsURL,
+      sessionNumber: configuration.sessionNumber,
       parentTools: configuration.tools,
       parentMaxIterations: configuration.maxIterations,
       parentWallClockTimeout: configuration.wallClockTimeout,

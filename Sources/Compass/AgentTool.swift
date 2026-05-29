@@ -152,6 +152,13 @@ struct AgentToolContext: Sendable {
   /// Completed plan summaries from host-side state.json. Plan agents read
   /// these through `plan_history`; they are not writable via submit_result.
   var planHistoryEntries: [String]
+  /// Host-side assumptions ledger. The agent may run inside a Shared VM
+  /// copy, but assumptions are durable Compass state and are always written
+  /// through this host URL when present.
+  var assumptionsURL: URL?
+  /// Phase/session metadata attached to assumptions recorded by tools.
+  var phase: AgentPhase
+  var sessionNumber: Int?
   /// Shared VM toolchain listing/installation. Nil on host-route runs.
   var toolchainService: (any SharedVMToolchainService)?
   /// Restricted host-side Xcode build/test bridge. Nil unless the user
@@ -167,6 +174,9 @@ struct AgentToolContext: Sendable {
     delegateRunner: AgentDelegateRunner? = nil,
     codemapStoreDirectory: URL? = nil,
     planHistoryEntries: [String] = [],
+    assumptionsURL: URL? = nil,
+    phase: AgentPhase = .plan,
+    sessionNumber: Int? = nil,
     toolchainService: (any SharedVMToolchainService)? = nil,
     hostXcodeService: (any HostXcodeServicing)? = nil
   ) {
@@ -180,6 +190,9 @@ struct AgentToolContext: Sendable {
       codemapStoreDirectory?.standardizedFileURL
       ?? Self.defaultCodemapDirectory(forWorkingDirectory: normalizedWorkingDirectory)
     self.planHistoryEntries = planHistoryEntries
+    self.assumptionsURL = assumptionsURL?.standardizedFileURL
+    self.phase = phase
+    self.sessionNumber = sessionNumber.flatMap { $0 > 0 ? $0 : nil }
     self.toolchainService = toolchainService
     self.hostXcodeService = hostXcodeService
   }

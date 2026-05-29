@@ -98,6 +98,15 @@ struct AgentSystemPromptTests {
     }
   }
 
+  @Test func testAssumptionToolIsAdvertisedInEveryPhase() throws {
+    for phase in AgentPhase.allCases {
+      let prompt = Prompts.agentSystemPrompt(phase: phase, workingDirectoryPath: "/x")
+      try #require(prompt.contains("record_assumption"))
+      try #require(prompt.contains("Implicit assumptions are treated as true"))
+      try #require(prompt.contains("User-denied"))
+    }
+  }
+
   /// Tools registered in the schema but absent from the system prompt
   /// rarely get called — chat models heavily prefer tools the prompt
   /// acknowledges, so the codemap tools have to be mentioned in every

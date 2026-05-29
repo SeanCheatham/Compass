@@ -71,6 +71,7 @@ enum Prompts {
     drafts: String,
     feedback: String,
     lessons: String,
+    assumptions: String = "",
     vision: String,
     focus: PlanFocus,
     hostXcodeBuildTestEnabled: Bool = false
@@ -189,6 +190,9 @@ enum Prompts {
       ## Lessons
       \(fencedOrEmpty(lessons, empty: "_(no lessons yet)_"))
 
+      ## Assumptions
+      \(fencedOrEmpty(assumptions, empty: "_(no assumptions recorded)_"))
+
       ## Vision
       \(fencedOrEmpty(vision, empty: "_(no vision set)_"))
 
@@ -200,6 +204,7 @@ enum Prompts {
   static func reflectPrompt(
     state: PlanProposal,
     lessons: String,
+    assumptions: String = "",
     vision: String,
     recentSessions: [SessionRecord],
     iteration: Int,
@@ -253,6 +258,9 @@ enum Prompts {
       ## Lessons
       \(fencedOrEmpty(lessons, empty: "_(no lessons yet)_"))
 
+      ## Assumptions
+      \(fencedOrEmpty(assumptions, empty: "_(no assumptions recorded)_"))
+
       ## Vision
       \(fencedOrEmpty(vision, empty: "_(no vision set)_"))
       """
@@ -261,6 +269,7 @@ enum Prompts {
   static func developPrompt(
     next: PlanNext,
     lessons: String,
+    assumptions: String = "",
     vision: String,
     attempt: Int,
     priorIssues: [String],
@@ -291,6 +300,7 @@ enum Prompts {
     return developPromptBody(
       next: next,
       lessons: lessons,
+      assumptions: assumptions,
       vision: vision,
       attempt: attempt,
       priorIssues: priorIssues,
@@ -302,6 +312,7 @@ enum Prompts {
   private static func developPromptBody(
     next: PlanNext,
     lessons: String,
+    assumptions: String,
     vision: String,
     attempt: Int,
     priorIssues: [String],
@@ -355,6 +366,9 @@ enum Prompts {
 
       ## Lessons
       \(fencedOrEmpty(lessons, empty: "_(no lessons yet)_"))
+
+      ## Assumptions
+      \(fencedOrEmpty(assumptions, empty: "_(no assumptions recorded)_"))
 
       ## Vision
       \(fencedOrEmpty(vision, empty: "_(no vision set)_"))\(criticSection)
@@ -414,6 +428,7 @@ enum Prompts {
     gitDiff: String,
     priorCritiques: [String],
     lessons: String,
+    assumptions: String = "",
     vision: String,
     iteration: Int,
     maxIterations: Int
@@ -466,6 +481,8 @@ enum Prompts {
         (logic errors in untested branches, leaked resources, race
         conditions, broken edge cases)?
       - Does the diff break invariants stated in the lessons?
+      - Does the diff rely on a denied assumption or lean too heavily on
+        an implicit assumption that should have been verified?
       - Are new code paths exercised by tests or just by the verify
         smoke command?
       - Are there leftover TODOs, dead code, or unrelated changes that
@@ -507,6 +524,9 @@ enum Prompts {
       ## Lessons
       \(fencedOrEmpty(lessons, empty: "_(no lessons yet)_"))
 
+      ## Assumptions
+      \(fencedOrEmpty(assumptions, empty: "_(no assumptions recorded)_"))
+
       ## Vision
       \(fencedOrEmpty(vision, empty: "_(no vision set)_"))
 
@@ -537,6 +557,8 @@ enum Prompts {
       \(compassOverviewSection())
 
       \(softwareFactorySection(phase: parentPhase, role: .subAgent))
+
+      \(assumptionGuidance())
 
       Working directory: \(workingDirectoryPath)
       All tool paths are resolved against this directory. Relative paths
@@ -591,6 +613,8 @@ enum Prompts {
     let writeTools = "write_file, edit_file, bash"
     let delegateTool =
       "delegate (spawn a focused sub-agent for a self-contained sub-task; it returns a findings string)"
+    let assumptionTool =
+      "record_assumption (capture consequential assumptions for user review)"
     let hostXcodeTool =
       hostXcodeBuildTestEnabled
       ? "\n        - Host Xcode: host_xcode (restricted to host-side xcodebuild build/test only, against a temporary mirror)."
@@ -604,6 +628,7 @@ enum Prompts {
         - Shell: bash (read-only intent — run builds, tests, linters, or git inspection to ground your decisions; do not mutate tracked files and do not commit).
         - Plan history: plan_history (read paginated completed iterations managed by Compass).
         - Sub-agents: \(delegateTool).
+        - Assumptions: \(assumptionTool).
         - This phase must not write files or commit. The Develop phase has the write tools — do not request them here.
         """
     case .reflect:
@@ -612,6 +637,7 @@ enum Prompts {
         - File tools: \(fileTools).
         - Shell: bash (read-only intent — run builds, tests, linters, or git inspection to ground your decisions; do not mutate tracked files and do not commit).
         - Sub-agents: \(delegateTool).
+        - Assumptions: \(assumptionTool).
         - This phase must not write files or commit. The Develop phase has the write tools — do not request them here.
         """
     case .develop:
@@ -620,6 +646,7 @@ enum Prompts {
         - File tools: \(fileTools).
         - Write tools: \(writeTools).
         - Sub-agents: \(delegateTool).\(hostXcodeTool)
+        - Assumptions: \(assumptionTool).
         """
     case .critic:
       toolList = """
@@ -627,6 +654,7 @@ enum Prompts {
         - File tools: \(fileTools).
         - Shell: bash (read-only intent — do not mutate the working tree, do not commit).
         - Sub-agents: \(delegateTool).
+        - Assumptions: \(assumptionTool).
         - This phase is the adversarial review gate. Do not edit files; report a verdict via submit_result.
         """
     }
@@ -664,15 +692,17 @@ enum Prompts {
       Compass workspace state:
       The `.compass/` directory belongs to Compass and is gitignored, so
       it isn't present in your working tree. Everything you'd want from
-      it — current state, lessons, drafts, prior feedback — is injected
-      verbatim into the user message below. Treat that injected content
+      it — current state, lessons, assumptions, drafts, prior feedback —
+      is injected verbatim into the user message below. Treat that injected content
       as authoritative; do not try to `read_file` `.compass/lessons.md`,
       `.compass/state.json`, `.compass/drafts.md`, or any other
       `.compass/*` path. Pass lesson updates back through the
-      `lessonEdits` field on `submit_result` and Compass applies them
-      host-side.
+      `lessonEdits` field on `submit_result`; record assumptions through
+      the `record_assumption` tool. Compass applies both host-side.
 
       \(lessonEditsGuidance())
+
+      \(assumptionGuidance())
 
       \(executionEnvironmentSection(
         executionEnvironment,
@@ -693,6 +723,23 @@ enum Prompts {
       """
   }
 
+  /// How agents should use the assumption ledger. Kept distinct from
+  /// `lessonEditsGuidance` because assumptions are user-reviewable product
+  /// guesses, not durable technical lessons.
+  static func assumptionGuidance() -> String {
+    """
+    Assumption ledger:
+    Compass tracks assumptions separately from lessons. If you rely on a
+    consequential guess about user intent, product constraints, environment,
+    or acceptance criteria, call `record_assumption` with the assumption,
+    rationale, impact, evidence, and what would invalidate it. User-affirmed
+    assumptions are strong guidance. Implicit assumptions are treated as true
+    but with lower confidence, so verify them when cheap. User-denied
+    assumptions are corrections; do not rely on them, and repair or re-plan
+    work that depends on them.
+    """
+  }
+
   /// What Compass is and how durable project state is stored. Shared across
   /// phase agents and sub-agents so every role understands the product.
   static func compassOverviewSection() -> String {
@@ -702,10 +749,11 @@ enum Prompts {
     one Git repository at a time. The user sets a vision in `COMPASS.md` and
     optional drafts; Compass keeps planning state in `.compass/state.json`,
     durable guidance in `.compass/lessons.md` (persistent memory every agent
-    reads each session), and a session log of past iterations. You are one
-    specialized agent in that factory — not a one-off chat. The user may be
-    away; Compass will keep invoking phases until paused or until Plan sets
-    `immediate` to null (project complete).
+    reads each session), user-reviewable assumptions in an assumptions ledger,
+    and a session log of past iterations. You are one specialized agent in
+    that factory — not a one-off chat. The user may be away; Compass will keep
+    invoking phases until paused or until Plan sets `immediate` to null
+    (project complete).
     Compass dispatches your tool calls, enforces the working-directory
     sandbox, and applies `lessonEdits` from `submit_result` on the host so
     lessons accumulate across iterations.
