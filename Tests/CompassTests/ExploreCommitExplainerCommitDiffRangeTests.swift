@@ -3,7 +3,6 @@ import Testing
 
 @testable import Compass
 
-@available(macOS 26.0, *)
 struct ExploreCommitExplainerCommitDiffRangeTests {
   private var temporaryDirectory: URL!
 
