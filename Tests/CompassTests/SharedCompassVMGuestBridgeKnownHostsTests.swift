@@ -44,7 +44,7 @@ struct SharedCompassVMGuestBridgeKnownHostsTests {
         ofItemAtPath: stub.path
       )
     } catch {
-      #require(false, "could not write keyscan stub: \(error)")
+      #expect(Bool(false), "could not write keyscan stub: \(error)")
     }
     return stub
   }
@@ -76,13 +76,13 @@ struct SharedCompassVMGuestBridgeKnownHostsTests {
       sshKeyscanPath: keyscan.path
     )
 
-    #require(result.succeeded)
-    #require(result.entriesAppended == 2, "both non-comment lines should be appended")
+    try #require(result.succeeded)
+    try #require(result.entriesAppended == 2, "both non-comment lines should be appended")
 
     let contents = try String(contentsOf: knownHosts, encoding: .utf8)
-    #require(contents.contains("ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFAKE_KEY_DATA_HERE"))
-    #require(contents.contains("ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoFAKEECDSAKEYDATA"))
-    #require(!contents.contains("#"), "comment lines must be filtered out")
+    try #require(contents.contains("ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFAKE_KEY_DATA_HERE"))
+    try #require(contents.contains("ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoFAKEECDSAKEYDATA"))
+    try #require(!contents.contains("#"), "comment lines must be filtered out")
   }
 
   @Test
@@ -111,13 +111,13 @@ struct SharedCompassVMGuestBridgeKnownHostsTests {
       sshKeyscanPath: keyscan.path
     )
 
-    #require(result.succeeded)
-    #require(result.entriesAppended == 1, "only the new RSA line should be appended")
+    try #require(result.succeeded)
+    try #require(result.entriesAppended == 1, "only the new RSA line should be appended")
 
     let contents = try String(contentsOf: knownHosts, encoding: .utf8)
     let alreadyCount = contents.components(separatedBy: "ALREADY_PRESENT_KEY").count - 1
-    #require(alreadyCount == 1, "must not duplicate the pre-existing key")
-    #require(contents.contains("BRAND_NEW_RSA_KEY"))
+    try #require(alreadyCount == 1, "must not duplicate the pre-existing key")
+    try #require(contents.contains("BRAND_NEW_RSA_KEY"))
   }
 
   @Test
@@ -144,12 +144,12 @@ struct SharedCompassVMGuestBridgeKnownHostsTests {
       sshKeyscanPath: keyscan.path
     )
 
-    #require(result.succeeded)
-    #require(result.entriesAppended == 0)
+    try #require(result.succeeded)
+    try #require(result.entriesAppended == 0)
   }
 
   @Test
-  func testPopulateKnownHostsReturnsFailureWhenKeyscanExitsNonZero() async {
+  func testPopulateKnownHostsReturnsFailureWhenKeyscanExitsNonZero() async throws {
     let keyscan = makeFakeKeyscan(cannedOutput: "", exitCode: 1)
     let knownHosts = makeKnownHostsPath()
 
@@ -160,9 +160,9 @@ struct SharedCompassVMGuestBridgeKnownHostsTests {
       sshKeyscanPath: keyscan.path
     )
 
-    #require(!result.succeeded)
-    #require(result.entriesAppended == 0)
-    #require(
+    try #require(!result.succeeded)
+    try #require(result.entriesAppended == 0)
+    try #require(
       !FileManager.default.fileExists(atPath: knownHosts.path),
       "must not create an empty known_hosts on failure"
     )
@@ -186,22 +186,22 @@ struct SharedCompassVMGuestBridgeKnownHostsTests {
       sshKeyscanPath: keyscan.path
     )
 
-    #require(result.succeeded)
-    #require(result.entriesAppended == 1)
-    #require(FileManager.default.fileExists(atPath: knownHosts.path))
+    try #require(result.succeeded)
+    try #require(result.entriesAppended == 1)
+    try #require(FileManager.default.fileExists(atPath: knownHosts.path))
     let contents = try String(contentsOf: knownHosts, encoding: .utf8)
-    #require(contents.contains("TEST_KEY_FOR_PARENT_CREATE"))
+    try #require(contents.contains("TEST_KEY_FOR_PARENT_CREATE"))
   }
 
   @Test
-  func testPopulateKnownHostsReturnsFailureWhenKeyscanBinaryMissing() async {
+  func testPopulateKnownHostsReturnsFailureWhenKeyscanBinaryMissing() async throws {
     let result = await SharedCompassVMGuestBridge.populateKnownHosts(
       host: "192.168.64.9",
       knownHostsFile: makeKnownHostsPath().path,
       timeout: 2,
       sshKeyscanPath: "/does/not/exist/ssh-keyscan"
     )
-    #require(!result.succeeded)
-    #require(result.entriesAppended == 0)
+    try #require(!result.succeeded)
+    try #require(result.entriesAppended == 0)
   }
 }

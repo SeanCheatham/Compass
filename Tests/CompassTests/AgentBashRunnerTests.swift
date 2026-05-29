@@ -22,8 +22,8 @@ struct AgentBashRunnerTests {
       workingDirectory: tempDir,
       timeout: 10
     )
-    #require(result.exitCode == 0)
-    #require(result.stdout == "marker")
+    try #require(result.exitCode == 0)
+    try #require(result.stdout.trimmingCharacters(in: .whitespacesAndNewlines) == "marker")
   }
 
   // MARK: - AgentBashTool wires the runner
@@ -53,11 +53,11 @@ struct AgentBashRunnerTests {
       "timeoutMs": 5000,
     ])
     let result = try await tool.invoke(arguments: args, context: context)
-    #require(!result.isError)
-    #require(result.content.contains("from-runner"))
-    #require(runner.lastCommand == "echo hello")
-    #require(runner.lastWorkingDirectory?.standardizedFileURL == tempDir)
-    #require(runner.lastTimeout == 5)
+    try #require(!result.isError)
+    try #require(result.content.contains("from-runner"))
+    try #require(runner.lastCommand == "echo hello")
+    try #require(runner.lastWorkingDirectory?.standardizedFileURL == tempDir.standardizedFileURL)
+    try #require(runner.lastTimeout == 5)
   }
 
   // MARK: - Helper

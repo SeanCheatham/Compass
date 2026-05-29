@@ -4,7 +4,7 @@ import Testing
 @testable import Compass
 
 @MainActor
-struct CompassProjectActiveStorageTests : ~Copyable {
+final class CompassProjectActiveStorageTests {
   private var temporaryDirectories: [URL] = []
 
   init() throws {}
@@ -26,11 +26,11 @@ struct CompassProjectActiveStorageTests : ~Copyable {
     let standardizedRepoURL = repoURL.standardizedFileURL
     let repoLocalURL = CompassWorkspace.repoLocalStorageRootURL(for: standardizedRepoURL)
 
-    #require(resolver.activeStorage == .repoLocal)
-    #require(resolver.repoURL == standardizedRepoURL)
-    #require(resolver.storageRootURL == repoLocalURL)
-    #require(resolver.workspace.repoURL == standardizedRepoURL)
-    #require(resolver.workspace.compassURL == repoLocalURL)
+    try #require(resolver.activeStorage == .repoLocal)
+    try #require(resolver.repoURL == standardizedRepoURL)
+    try #require(resolver.storageRootURL == repoLocalURL)
+    try #require(resolver.workspace.repoURL == standardizedRepoURL)
+    try #require(resolver.workspace.compassURL == repoLocalURL)
   }
 
   @Test func resolverMapsApplicationSupportStorageToCurrentCandidate() throws {
@@ -46,11 +46,11 @@ struct CompassProjectActiveStorageTests : ~Copyable {
       applicationSupportRoots: roots
     )
 
-    #require(resolver.storageRootURL == expectedURL)
-    #require(resolver.workspace.repoURL == repoURL.standardizedFileURL)
-    #require(resolver.workspace.compassURL == expectedURL)
-    #require(!FileManager.default.fileExists(atPath: expectedURL.path))
-    #require(
+    try #require(resolver.storageRootURL == expectedURL)
+    try #require(resolver.workspace.repoURL == repoURL.standardizedFileURL)
+    try #require(resolver.workspace.compassURL == expectedURL)
+    try #require(!FileManager.default.fileExists(atPath: expectedURL.path))
+    try #require(
       !FileManager.default.fileExists(atPath: resolver.workspace.repoLocalCompassURL.path))
   }
 
@@ -68,13 +68,13 @@ struct CompassProjectActiveStorageTests : ~Copyable {
         applicationSupportRoots: roots
       )
 
-    #require(project.activeStorage == .repoLocal)
-    #require(project.compassPath == repoLocalURL.path)
+    try #require(project.activeStorage == .repoLocal)
+    try #require(project.compassPath == repoLocalURL.path)
 
     await project.initializeWorkspace()
 
-    #require(FileManager.default.fileExists(atPath: repoLocalURL.path))
-    #require(!FileManager.default.fileExists(atPath: applicationSupportURL.path))
+    try #require(FileManager.default.fileExists(atPath: repoLocalURL.path))
+    try #require(!FileManager.default.fileExists(atPath: applicationSupportURL.path))
   }
 
   @Test func applicationSupportActiveStorageRoundTripsCompassFilesWithoutRepoLocalCompass()
@@ -116,7 +116,7 @@ struct CompassProjectActiveStorageTests : ~Copyable {
       )
     ]
 
-    #require(project.compassPath == workspace.compassURL.path)
+    try #require(project.compassPath == workspace.compassURL.path)
 
     await project.initializeWorkspace()
     try workspace.writeState(state)
@@ -127,14 +127,14 @@ struct CompassProjectActiveStorageTests : ~Copyable {
 
     await project.refresh()
 
-    #require(project.state == state)
-    #require(project.drafts == "draft from support\n")
-    #require(project.lessons == "- lesson from support\n")
-    #require(project.vision == "vision from support\n")
-    #require(project.sessions == records)
-    #require(FileManager.default.fileExists(atPath: workspace.compassURL.path))
-    #require(!FileManager.default.fileExists(atPath: workspace.repoLocalCompassURL.path))
-    #require(
+    try #require(project.state == state)
+    try #require(project.drafts == "draft from support\n")
+    try #require(project.lessons == "- lesson from support\n")
+    try #require(project.vision == "vision from support\n")
+    try #require(project.sessions == records)
+    try #require(FileManager.default.fileExists(atPath: workspace.compassURL.path))
+    try #require(!FileManager.default.fileExists(atPath: workspace.repoLocalCompassURL.path))
+    try #require(
       !FileManager.default.fileExists(atPath: repoURL.appending(path: ".gitignore").path))
 
     project.drafts = "updated support draft\n"
@@ -142,9 +142,9 @@ struct CompassProjectActiveStorageTests : ~Copyable {
     project.lessons = "- updated support lesson\n"
     await project.saveLessons()
 
-    #require(workspace.readDrafts() == "updated support draft\n")
-    #require(workspace.readLessons() == "- updated support lesson\n")
-    #require(!FileManager.default.fileExists(atPath: workspace.repoLocalCompassURL.path))
+    try #require(workspace.readDrafts() == "updated support draft\n")
+    try #require(workspace.readLessons() == "- updated support lesson\n")
+    try #require(!FileManager.default.fileExists(atPath: workspace.repoLocalCompassURL.path))
   }
 
   @Test func
@@ -177,23 +177,23 @@ struct CompassProjectActiveStorageTests : ~Copyable {
     try write("pending repo worktree\n", to: repoURL.appending(path: "pending.txt"))
     project.state = supportState
 
-    #require(!FileManager.default.fileExists(atPath: workspace.repoLocalCompassURL.path))
+    try #require(!FileManager.default.fileExists(atPath: workspace.repoLocalCompassURL.path))
 
     await project.refresh()
 
     let sourceSnapshot = project.activitySourceSnapshot
 
-    #require(project.sessions == supportSessions)
-    #require(sourceSnapshot.activeStorage == .applicationSupport)
-    #require(sourceSnapshot.storageRootURL == workspace.compassURL.standardizedFileURL)
-    #require(
+    try #require(project.sessions == supportSessions)
+    try #require(sourceSnapshot.activeStorage == .applicationSupport)
+    try #require(sourceSnapshot.storageRootURL == workspace.compassURL.standardizedFileURL)
+    try #require(
       sourceSnapshot.sessionsRecordURL == workspace.sessionsRecordURL.standardizedFileURL)
-    #require(sourceSnapshot.sourceAvailability == .available)
-    #require(sourceSnapshot.repoLocalSessionsState == .ignoredMissing)
-    #require(sourceSnapshot.ignoresRepoLocalSessions)
-    #require(project.state == supportState)
-    #require(project.activeStorage == .applicationSupport)
-    #require(!FileManager.default.fileExists(atPath: workspace.repoLocalCompassURL.path))
+    try #require(sourceSnapshot.sourceAvailability == .available)
+    try #require(sourceSnapshot.repoLocalSessionsState == .ignoredMissing)
+    try #require(sourceSnapshot.ignoresRepoLocalSessions)
+    try #require(project.state == supportState)
+    try #require(project.activeStorage == .applicationSupport)
+    try #require(!FileManager.default.fileExists(atPath: workspace.repoLocalCompassURL.path))
   }
 
   @Test func testApplicationSupportActiveStorageIgnoresStaleRepoLocalSessions()
@@ -228,12 +228,12 @@ struct CompassProjectActiveStorageTests : ~Copyable {
 
     let sourceSnapshot = project.activitySourceSnapshot
 
-    #require(project.activeStorage == .applicationSupport)
-    #require(project.sessions == supportSessions)
-    #require(sourceSnapshot.sourceAvailability == .available)
-    #require(sourceSnapshot.repoLocalSessionsState == .ignoredCompatible)
-    #require(sourceSnapshot.ignoresRepoLocalSessions)
-    #require(
+    try #require(project.activeStorage == .applicationSupport)
+    try #require(project.sessions == supportSessions)
+    try #require(sourceSnapshot.sourceAvailability == .available)
+    try #require(sourceSnapshot.repoLocalSessionsState == .ignoredCompatible)
+    try #require(sourceSnapshot.ignoresRepoLocalSessions)
+    try #require(
       try String(contentsOf: repoLocalWorkspace.sessionsRecordURL, encoding: .utf8) ==
       staleRepoLocalText
     )
@@ -256,16 +256,16 @@ struct CompassProjectActiveStorageTests : ~Copyable {
     let activeStorageBeforeDiagnostics = project.activeStorage
     let sessionsBeforeDiagnostics = project.sessions
 
-    #require(snapshot.activeStorage == .applicationSupport)
-    #require(snapshot.storageRootURL == workspace.compassURL.standardizedFileURL)
-    #require(snapshot.sessionsRecordURL == workspace.sessionsRecordURL.standardizedFileURL)
-    #require(snapshot.sourceAvailability == .storageRootMissing)
-    #require(snapshot.repoLocalSessionsState == .ignoredMissing)
-    #require(project.state == stateBeforeDiagnostics)
-    #require(project.activeStorage == activeStorageBeforeDiagnostics)
-    #require(project.sessions == sessionsBeforeDiagnostics)
-    #require(!FileManager.default.fileExists(atPath: workspace.compassURL.path))
-    #require(!FileManager.default.fileExists(atPath: workspace.repoLocalCompassURL.path))
+    try #require(snapshot.activeStorage == .applicationSupport)
+    try #require(snapshot.storageRootURL == workspace.compassURL.standardizedFileURL)
+    try #require(snapshot.sessionsRecordURL == workspace.sessionsRecordURL.standardizedFileURL)
+    try #require(snapshot.sourceAvailability == .storageRootMissing)
+    try #require(snapshot.repoLocalSessionsState == .ignoredMissing)
+    try #require(project.state == stateBeforeDiagnostics)
+    try #require(project.activeStorage == activeStorageBeforeDiagnostics)
+    try #require(project.sessions == sessionsBeforeDiagnostics)
+    try #require(!FileManager.default.fileExists(atPath: workspace.compassURL.path))
+    try #require(!FileManager.default.fileExists(atPath: workspace.repoLocalCompassURL.path))
   }
 
   @Test func testActivitySourceDiagnosticsReportNoRepositoryFallbackReadOnly() async throws {
@@ -285,15 +285,15 @@ struct CompassProjectActiveStorageTests : ~Copyable {
     let activeStorageBeforeDiagnostics = project.activeStorage
     let sessionsBeforeDiagnostics = project.sessions
 
-    #require(snapshot.activeStorage == .applicationSupport)
-    #require(snapshot.storageRootURL == nil)
-    #require(snapshot.sessionsRecordURL == nil)
-    #require(snapshot.sourceAvailability == .noRepository)
-    #require(snapshot.repoLocalSessionsState == .ignoredMissing)
-    #require(project.state == stateBeforeDiagnostics)
-    #require(project.activeStorage == activeStorageBeforeDiagnostics)
-    #require(project.sessions == sessionsBeforeDiagnostics)
-    #require(!FileManager.default.fileExists(atPath: missingRepoURL.path))
+    try #require(snapshot.activeStorage == .applicationSupport)
+    try #require(snapshot.storageRootURL == nil)
+    try #require(snapshot.sessionsRecordURL == nil)
+    try #require(snapshot.sourceAvailability == .noRepository)
+    try #require(snapshot.repoLocalSessionsState == .ignoredMissing)
+    try #require(project.state == stateBeforeDiagnostics)
+    try #require(project.activeStorage == activeStorageBeforeDiagnostics)
+    try #require(project.sessions == sessionsBeforeDiagnostics)
+    try #require(!FileManager.default.fileExists(atPath: missingRepoURL.path))
   }
 
   @Test func testInitializeWorkspaceRepairsActiveSupportStorageWithoutRepoLocalSideEffects() async throws
@@ -313,22 +313,22 @@ struct CompassProjectActiveStorageTests : ~Copyable {
       applicationSupportRoots: roots
     )
 
-    #require(display.supportRepairAction?.kind == .initializeApplicationSupportWorkspace)
-    #require(display.supportRepairAction?.issueKind == .applicationSupportActiveMissing)
-    #require(!FileManager.default.fileExists(atPath: workspace.compassURL.path))
-    #require(!FileManager.default.fileExists(atPath: workspace.repoLocalCompassURL.path))
+    try #require(display.supportRepairAction?.kind == .initializeApplicationSupportWorkspace)
+    try #require(display.supportRepairAction?.issueKind == .applicationSupportActiveMissing)
+    try #require(!FileManager.default.fileExists(atPath: workspace.compassURL.path))
+    try #require(!FileManager.default.fileExists(atPath: workspace.repoLocalCompassURL.path))
 
     await project.initializeWorkspace()
 
-    #require(FileManager.default.fileExists(atPath: workspace.compassURL.path))
-    #require(FileManager.default.fileExists(atPath: workspace.sessionsURL.path))
-    #require(FileManager.default.fileExists(atPath: workspace.stateURL.path))
-    #require(FileManager.default.fileExists(atPath: workspace.draftsURL.path))
-    #require(FileManager.default.fileExists(atPath: workspace.lessonsURL.path))
-    #require(FileManager.default.fileExists(atPath: workspace.visionURL.path))
-    #require(FileManager.default.fileExists(atPath: workspace.sessionsRecordURL.path))
-    #require(!FileManager.default.fileExists(atPath: workspace.repoLocalCompassURL.path))
-    #require(
+    try #require(FileManager.default.fileExists(atPath: workspace.compassURL.path))
+    try #require(FileManager.default.fileExists(atPath: workspace.sessionsURL.path))
+    try #require(FileManager.default.fileExists(atPath: workspace.stateURL.path))
+    try #require(FileManager.default.fileExists(atPath: workspace.draftsURL.path))
+    try #require(FileManager.default.fileExists(atPath: workspace.lessonsURL.path))
+    try #require(FileManager.default.fileExists(atPath: workspace.visionURL.path))
+    try #require(FileManager.default.fileExists(atPath: workspace.sessionsRecordURL.path))
+    try #require(!FileManager.default.fileExists(atPath: workspace.repoLocalCompassURL.path))
+    try #require(
       !FileManager.default.fileExists(atPath: repoURL.appending(path: ".gitignore").path))
 
     display = CompassWorkspaceStorageDisplayStatus(
@@ -336,7 +336,7 @@ struct CompassProjectActiveStorageTests : ~Copyable {
       activeStorage: .applicationSupport,
       applicationSupportRoots: roots
     )
-    #require(display.supportRepairAction == nil)
+    try #require(display.supportRepairAction == nil)
 
     try write("- support lesson survives repair\n", to: workspace.lessonsURL)
     try FileManager.default.removeItem(at: workspace.draftsURL)
@@ -348,17 +348,17 @@ struct CompassProjectActiveStorageTests : ~Copyable {
       activeStorage: .applicationSupport,
       applicationSupportRoots: roots
     )
-    #require(display.supportRepairAction?.kind == .initializeApplicationSupportWorkspace)
-    #require(display.supportRepairAction?.issueKind == .applicationSupportActiveIncomplete)
+    try #require(display.supportRepairAction?.kind == .initializeApplicationSupportWorkspace)
+    try #require(display.supportRepairAction?.issueKind == .applicationSupportActiveIncomplete)
 
     await project.initializeWorkspace()
 
-    #require(FileManager.default.fileExists(atPath: workspace.draftsURL.path))
-    #require(FileManager.default.fileExists(atPath: workspace.sessionsRecordURL.path))
-    #require(FileManager.default.fileExists(atPath: workspace.sessionsURL.path))
-    #require(workspace.readLessons() == "- support lesson survives repair\n")
-    #require(!FileManager.default.fileExists(atPath: workspace.repoLocalCompassURL.path))
-    #require(
+    try #require(FileManager.default.fileExists(atPath: workspace.draftsURL.path))
+    try #require(FileManager.default.fileExists(atPath: workspace.sessionsRecordURL.path))
+    try #require(FileManager.default.fileExists(atPath: workspace.sessionsURL.path))
+    try #require(workspace.readLessons() == "- support lesson survives repair\n")
+    try #require(!FileManager.default.fileExists(atPath: workspace.repoLocalCompassURL.path))
+    try #require(
       !FileManager.default.fileExists(atPath: repoURL.appending(path: ".gitignore").path))
   }
 
@@ -371,32 +371,32 @@ struct CompassProjectActiveStorageTests : ~Copyable {
     )
 
     var plan = project.activeStorageActivationPlan()
-    #require(!plan.isAvailable)
-    #require(plan.kind == .candidateMissing)
+    try #require(!plan.isAvailable)
+    try #require(plan.kind == .candidateMissing)
 
     project.prepareActiveStorageActivationConfirmation()
 
-    #require(project.activeStorageActivationConfirmation == nil)
-    #require(project.activeStorageActivationState.phase == .blocked)
+    try #require(project.activeStorageActivationConfirmation == nil)
+    try #require(project.activeStorageActivationState.phase == .blocked)
 
     let supportWorkspace = applicationSupportWorkspace(repoURL: repoURL, roots: roots)
     try supportWorkspace.initialize()
 
     plan = project.activeStorageActivationPlan()
-    #require(plan.isAvailable)
+    try #require(plan.isAvailable)
 
     project.isRunning = true
     project.prepareActiveStorageActivationConfirmation()
 
-    #require(project.activeStorageActivationConfirmation == nil)
-    #require(project.activeStorageActivationState.phase == .blocked)
+    try #require(project.activeStorageActivationConfirmation == nil)
+    try #require(project.activeStorageActivationState.phase == .blocked)
 
     project.isRunning = false
     project.activeStorage = .applicationSupport
     plan = project.activeStorageActivationPlan()
 
-    #require(!plan.isAvailable)
-    #require(plan.kind == .alreadyApplicationSupport)
+    try #require(!plan.isAvailable)
+    try #require(plan.kind == .alreadyApplicationSupport)
   }
 
   @Test func testActivationPersistsThroughCallbackAndRefreshesSupportState() async throws {
@@ -420,28 +420,28 @@ struct CompassProjectActiveStorageTests : ~Copyable {
     )
 
     project.prepareActiveStorageActivationConfirmation()
-    let confirmation = #require(project.activeStorageActivationConfirmation)
+    let confirmation = try #require(project.activeStorageActivationConfirmation)
     var persistedActiveStorage: [KnownProjectActiveStorage] = []
 
     await project.confirmActiveStorageActivation(confirmation) {
       persistedActiveStorage.append(project.activeStorage)
     }
 
-    #require(persistedActiveStorage == [.applicationSupport])
-    #require(project.activeStorage == .applicationSupport)
-    #require(project.activeStorageActivationState.phase == .succeeded)
-    #require(project.compassPath == workspace.compassURL.path)
-    #require(project.state == state)
-    #require(project.drafts == "support draft\n")
-    #require(project.lessons == "- support lesson\n")
-    #require(project.vision == "support vision\n")
-    #require(!FileManager.default.fileExists(atPath: workspace.repoLocalCompassURL.path))
+    try #require(persistedActiveStorage == [.applicationSupport])
+    try #require(project.activeStorage == .applicationSupport)
+    try #require(project.activeStorageActivationState.phase == .succeeded)
+    try #require(project.compassPath == workspace.compassURL.path)
+    try #require(project.state == state)
+    try #require(project.drafts == "support draft\n")
+    try #require(project.lessons == "- support lesson\n")
+    try #require(project.vision == "support vision\n")
+    try #require(!FileManager.default.fileExists(atPath: workspace.repoLocalCompassURL.path))
 
     project.drafts = "updated after activation\n"
     await project.saveDrafts()
 
-    #require(workspace.readDrafts() == "updated after activation\n")
-    #require(!FileManager.default.fileExists(atPath: workspace.repoLocalCompassURL.path))
+    try #require(workspace.readDrafts() == "updated after activation\n")
+    try #require(!FileManager.default.fileExists(atPath: workspace.repoLocalCompassURL.path))
   }
 
   @Test func testActivationRollsBackWhenPersistenceCallbackFails() async throws {
@@ -455,7 +455,7 @@ struct CompassProjectActiveStorageTests : ~Copyable {
     )
 
     project.prepareActiveStorageActivationConfirmation()
-    let confirmation = #require(project.activeStorageActivationConfirmation)
+    let confirmation = try #require(project.activeStorageActivationConfirmation)
     var persistedActiveStorage: [KnownProjectActiveStorage] = []
 
     await project.confirmActiveStorageActivation(confirmation) {
@@ -463,19 +463,19 @@ struct CompassProjectActiveStorageTests : ~Copyable {
       throw ActiveStoragePersistenceTestError.failed("registry save failed")
     }
 
-    #require(persistedActiveStorage == [.applicationSupport, .repoLocal])
-    #require(project.activeStorage == .repoLocal)
-    #require(project.activeStorageActivationState.phase == .failed)
-    #require(project.errorMessage == project.activeStorageActivationState.detail)
-    #require(
+    try #require(persistedActiveStorage == [.applicationSupport, .repoLocal])
+    try #require(project.activeStorage == .repoLocal)
+    try #require(project.activeStorageActivationState.phase == .failed)
+    try #require(project.errorMessage == project.activeStorageActivationState.detail)
+    try #require(
       project.activeStorageActivationState.label.count <= CompassProjectActiveStorageState.labelLimit)
-    #require(
+    try #require(
       project.activeStorageActivationState.detail.count <=
       CompassProjectActiveStorageState.detailLimit)
-    #require(
+    try #require(
       project.activeStorageActivationState.helpText.count <=
       CompassProjectActiveStorageState.helpLimit)
-    #require(project.compassPath == workspace.repoLocalCompassURL.path)
+    try #require(project.compassPath == workspace.repoLocalCompassURL.path)
   }
 
   @Test func testActivationReportsMissingAndInvalidCandidateFailuresWithoutSwitching() async throws {
@@ -494,10 +494,10 @@ struct CompassProjectActiveStorageTests : ~Copyable {
       missingPersistCalls += 1
     }
 
-    #require(missingPersistCalls == 0)
-    #require(missingProject.activeStorage == .repoLocal)
-    #require(missingProject.activeStorageActivationState.phase == .failed)
-    #require(missingProject.activeStorageActivationPlan().kind == .candidateMissing)
+    try #require(missingPersistCalls == 0)
+    try #require(missingProject.activeStorage == .repoLocal)
+    try #require(missingProject.activeStorageActivationState.phase == .failed)
+    try #require(missingProject.activeStorageActivationPlan().kind == .candidateMissing)
 
     let invalidRepoURL = try makeTemporaryGitRepository()
     let invalidRoots = try makeApplicationSupportRoots()
@@ -511,12 +511,12 @@ struct CompassProjectActiveStorageTests : ~Copyable {
 
     invalidProject.prepareActiveStorageActivationConfirmation()
 
-    #require(invalidProject.activeStorageActivationConfirmation == nil)
-    #require(invalidProject.activeStorage == .repoLocal)
-    #require(invalidProject.activeStorageActivationPlan().kind == .candidateInvalid)
-    #require(invalidProject.activeStorageActivationState.phase == .blocked)
-    #require(invalidProject.errorMessage == invalidProject.activeStorageActivationState.detail)
-    #require(
+    try #require(invalidProject.activeStorageActivationConfirmation == nil)
+    try #require(invalidProject.activeStorage == .repoLocal)
+    try #require(invalidProject.activeStorageActivationPlan().kind == .candidateInvalid)
+    try #require(invalidProject.activeStorageActivationState.phase == .blocked)
+    try #require(invalidProject.errorMessage == invalidProject.activeStorageActivationState.detail)
+    try #require(
       invalidProject.activeStorageActivationState.detail.count <=
       CompassProjectActiveStorageState.detailLimit)
   }
@@ -611,10 +611,10 @@ struct CompassProjectActiveStorageTests : ~Copyable {
     _ url: URL
   ) {
     var isDirectory = ObjCBool(false)
-    #require(
+    #expect(
       FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory)
     )
-    #require(isDirectory.boolValue)
+    #expect(isDirectory.boolValue)
   }
 
   // swift-format-ignore: AlwaysUseLowerCamelCase
@@ -622,10 +622,10 @@ struct CompassProjectActiveStorageTests : ~Copyable {
     _ url: URL
   ) {
     var isDirectory = ObjCBool(false)
-    #require(
+    #expect(
       FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory)
     )
-    #require(!isDirectory.boolValue)
+    #expect(!isDirectory.boolValue)
   }
 }
 

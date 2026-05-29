@@ -31,15 +31,15 @@ struct RepoSummarizerTests: ~Copyable {
     let summarizer = makeSummarizer(store: store, recorder: recorder)
     let result = await summarizer.summarizeMissing()
 
-    #require(result.generated == 2)
-    #require(result.failed == 0)
+    try #require(result.generated == 2)
+    try #require(result.failed == 0)
     let calls = await recorder.callCount()
-    #require(calls == 2)
+    try #require(calls == 2)
 
-    let alpha = #require(store.loadEntry(forRelativePath: "alpha.swift"))
-    #require(alpha.summary == "mocked-summary")
-    #require(alpha.summaryContentHash == alpha.contentHash)
-    #require(alpha.summaryModel == "test-summary-model")
+    let alpha = try #require(store.loadEntry(forRelativePath: "alpha.swift"))
+    try #require(alpha.summary == "mocked-summary")
+    try #require(alpha.summaryContentHash == alpha.contentHash)
+    try #require(alpha.summaryModel == "test-summary-model")
   }
 
   @Test
@@ -54,12 +54,12 @@ struct RepoSummarizerTests: ~Copyable {
     let summarizer = makeSummarizer(store: store, recorder: recorder)
     _ = await summarizer.summarizeMissing()
     let firstPass = await recorder.callCount()
-    #require(firstPass == 1)
+    try #require(firstPass == 1)
 
     // Re-run: same hash, same model → no new call.
     _ = await summarizer.summarizeMissing()
     let secondPass = await recorder.callCount()
-    #require(secondPass == 1)
+    try #require(secondPass == 1)
   }
 
   @Test
@@ -77,14 +77,14 @@ struct RepoSummarizerTests: ~Copyable {
     try await primeFile("alpha.swift", contents: swiftFixture + "\nfunc more() {}\n")
     _ = try await indexer.indexAll()  // re-parse, clears summary
 
-    let entryAfterReparse = #require(
+    let entryAfterReparse = try #require(
       store.loadEntry(forRelativePath: "alpha.swift")
     )
-    #require(entryAfterReparse.summary == nil)
+    try #require(entryAfterReparse.summary == nil)
 
     _ = await summarizer.summarizeMissing()
     let calls = await recorder.callCount()
-    #require(calls == 2)
+    try #require(calls == 2)
   }
 
   @Test
@@ -103,9 +103,9 @@ struct RepoSummarizerTests: ~Copyable {
     let recorder = ChatRecorder()
     let summarizer = makeSummarizer(store: store, recorder: recorder)
     let result = await summarizer.summarizeMissing()
-    #require(result.generated == 0)
+    try #require(result.generated == 0)
     let calls = await recorder.callCount()
-    #require(calls == 0)
+    try #require(calls == 0)
   }
 
   @Test
@@ -127,9 +127,9 @@ struct RepoSummarizerTests: ~Copyable {
       chatRequest: recorder.chatRequest
     )
     let result = await summarizer.summarizeMissing()
-    #require(result.failed == 1)
+    try #require(result.failed == 1)
     let calls = await recorder.callCount()
-    #require(calls == 0)
+    try #require(calls == 0)
   }
 
   @Test
@@ -147,9 +147,9 @@ struct RepoSummarizerTests: ~Copyable {
     _ = await summarizer.summarizeMissing()
 
     let peak = await recorder.peakConcurrency()
-    #require(peak <= 2)
+    try #require(peak <= 2)
     let calls = await recorder.callCount()
-    #require(calls == fileCount)
+    try #require(calls == fileCount)
   }
 
   @Test
@@ -162,14 +162,14 @@ struct RepoSummarizerTests: ~Copyable {
     let recorder = ChatRecorder()
     let summarizer = makeSummarizer(store: store, recorder: recorder)
     let first = try await summarizer.ensureSummary(forRelativePath: "alpha.swift")
-    #require(first == "mocked-summary")
+    try #require(first == "mocked-summary")
     let firstCalls = await recorder.callCount()
-    #require(firstCalls == 1)
+    try #require(firstCalls == 1)
 
     let second = try await summarizer.ensureSummary(forRelativePath: "alpha.swift")
-    #require(second == "mocked-summary")
+    try #require(second == "mocked-summary")
     let secondCalls = await recorder.callCount()
-    #require(secondCalls == 1)
+    try #require(secondCalls == 1)
   }
 
   // MARK: - Helpers

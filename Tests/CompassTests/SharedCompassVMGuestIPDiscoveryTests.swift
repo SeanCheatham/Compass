@@ -7,56 +7,56 @@ struct SharedCompassVMGuestIPDiscoveryTests {
   // MARK: canonicalize
 
   @Test
-  func testCanonicalizeFullyExpandedMACReturnsLowercaseColonForm() {
-    #require(
+  func testCanonicalizeFullyExpandedMACReturnsLowercaseColonForm() throws {
+    try #require(
       SharedCompassVMGuestIPDiscovery.canonicalize(mac: "52:8A:01:02:03:04") ==
       "52:8a:01:02:03:04"
     )
   }
 
   @Test
-  func testCanonicalizePadsSingleHexDigitOctets() {
-    #require(
+  func testCanonicalizePadsSingleHexDigitOctets() throws {
+    try #require(
       SharedCompassVMGuestIPDiscovery.canonicalize(mac: "52:8a:1:2:3:4") ==
       "52:8a:01:02:03:04"
     )
   }
 
   @Test
-  func testCanonicalizeStripsDHCPLeasesPrefix() {
-    #require(
+  func testCanonicalizeStripsDHCPLeasesPrefix() throws {
+    try #require(
       SharedCompassVMGuestIPDiscovery.canonicalize(mac: "1,52:8a:1:2:3:4") ==
       "52:8a:01:02:03:04"
     )
   }
 
   @Test
-  func testCanonicalizeAcceptsDashSeparator() {
-    #require(
+  func testCanonicalizeAcceptsDashSeparator() throws {
+    try #require(
       SharedCompassVMGuestIPDiscovery.canonicalize(mac: "52-8a-01-02-03-04") ==
       "52:8a:01:02:03:04"
     )
   }
 
   @Test
-  func testCanonicalizeRejectsTooFewOctets() {
-    #require(
+  func testCanonicalizeRejectsTooFewOctets() throws {
+    try #require(
       SharedCompassVMGuestIPDiscovery.canonicalize(mac: "52:8a:01:02:03") ==
       ""
     )
   }
 
   @Test
-  func testCanonicalizeRejectsNonHexCharacters() {
-    #require(
+  func testCanonicalizeRejectsNonHexCharacters() throws {
+    try #require(
       SharedCompassVMGuestIPDiscovery.canonicalize(mac: "52:8a:0g:02:03:04") ==
       ""
     )
   }
 
   @Test
-  func testCanonicalizeRejectsOctetsWithMoreThanTwoDigits() {
-    #require(
+  func testCanonicalizeRejectsOctetsWithMoreThanTwoDigits() throws {
+    try #require(
       SharedCompassVMGuestIPDiscovery.canonicalize(mac: "52:8a:001:02:03:04") ==
       ""
     )
@@ -65,7 +65,7 @@ struct SharedCompassVMGuestIPDiscoveryTests {
   // MARK: parseDHCPLeases
 
   @Test
-  func testParseDHCPLeasesReturnsMatchingIP() {
+  func testParseDHCPLeasesReturnsMatchingIP() throws {
     let sample = """
       {
       	name=guest
@@ -79,11 +79,11 @@ struct SharedCompassVMGuestIPDiscoveryTests {
       sample,
       forCanonicalMAC: "52:8a:01:02:03:04"
     )
-    #require(ip == "192.168.64.4")
+    try #require(ip == "192.168.64.4")
   }
 
   @Test
-  func testParseDHCPLeasesPicksNewestLeaseAmongMultipleEntriesForSameMAC() {
+  func testParseDHCPLeasesPicksNewestLeaseAmongMultipleEntriesForSameMAC() throws {
     let sample = """
       {
       	ip_address=192.168.64.4
@@ -100,11 +100,11 @@ struct SharedCompassVMGuestIPDiscoveryTests {
       sample,
       forCanonicalMAC: "52:8a:01:02:03:04"
     )
-    #require(ip == "192.168.64.9")
+    try #require(ip == "192.168.64.9")
   }
 
   @Test
-  func testParseDHCPLeasesReturnsNilWhenMACDoesNotMatch() {
+  func testParseDHCPLeasesReturnsNilWhenMACDoesNotMatch() throws {
     let sample = """
       {
       	ip_address=192.168.64.4
@@ -116,12 +116,12 @@ struct SharedCompassVMGuestIPDiscoveryTests {
       sample,
       forCanonicalMAC: "52:8a:01:02:03:04"
     )
-    #require(ip == nil)
+    try #require(ip == nil)
   }
 
   @Test
-  func testParseDHCPLeasesReturnsNilOnEmptyInput() {
-    #require(
+  func testParseDHCPLeasesReturnsNilOnEmptyInput() throws {
+    try #require(
       SharedCompassVMGuestIPDiscovery.parseDHCPLeases("", forCanonicalMAC: "52:8a:01:02:03:04")
       == nil
     )
@@ -130,7 +130,7 @@ struct SharedCompassVMGuestIPDiscoveryTests {
   // MARK: parseARPTable
 
   @Test
-  func testParseARPTableReturnsIPForMatchingMAC() {
+  func testParseARPTableReturnsIPForMatchingMAC() throws {
     let sample = """
       ? (192.168.64.1) at b8:27:eb:1:2:3 on bridge100 ifscope [bridge]
       ? (192.168.64.4) at 52:8a:1:2:3:4 on bridge100 ifscope [bridge]
@@ -140,21 +140,21 @@ struct SharedCompassVMGuestIPDiscoveryTests {
       sample,
       forCanonicalMAC: "52:8a:01:02:03:04"
     )
-    #require(ip == "192.168.64.4")
+    try #require(ip == "192.168.64.4")
   }
 
   @Test
-  func testParseARPTableReturnsNilWhenMACDoesNotAppear() {
+  func testParseARPTableReturnsNilWhenMACDoesNotAppear() throws {
     let sample = "? (192.168.64.1) at b8:27:eb:1:2:3 on bridge100 ifscope [bridge]"
     let ip = SharedCompassVMGuestIPDiscovery.parseARPTable(
       sample,
       forCanonicalMAC: "52:8a:01:02:03:04"
     )
-    #require(ip == nil)
+    try #require(ip == nil)
   }
 
   @Test
-  func testParseARPTableSkipsLinesWithoutParenthesizedIP() {
+  func testParseARPTableSkipsLinesWithoutParenthesizedIP() throws {
     let sample = """
       Bogus header line without any IP
       ? (192.168.64.4) at 52:8a:1:2:3:4 on bridge100 ifscope [bridge]
@@ -163,23 +163,23 @@ struct SharedCompassVMGuestIPDiscoveryTests {
       sample,
       forCanonicalMAC: "52:8a:01:02:03:04"
     )
-    #require(ip == "192.168.64.4")
+    try #require(ip == "192.168.64.4")
   }
 
   // MARK: randomGuestMAC
 
   @Test
-  func testRandomGuestMACIsCanonicalAndLocallyAdministeredUnicast() {
+  func testRandomGuestMACIsCanonicalAndLocallyAdministeredUnicast() throws {
     for _ in 0..<32 {
       let mac = SharedCompassVMBundle.randomGuestMAC()
-      #require(
+      try #require(
         SharedCompassVMGuestIPDiscovery.canonicalize(mac: mac) == mac,
         "randomGuestMAC should already be canonical"
       )
       let firstOctetHex = String(mac.prefix(2))
       let firstOctet = UInt8(firstOctetHex, radix: 16) ?? 0
-      #require(firstOctet & 0b0000_0010 == 0b0000_0010, "expected locally-administered bit set")
-      #require(firstOctet & 0b0000_0001 == 0, "expected unicast bit clear")
+      try #require(firstOctet & 0b0000_0010 == 0b0000_0010, "expected locally-administered bit set")
+      try #require(firstOctet & 0b0000_0001 == 0, "expected unicast bit clear")
     }
   }
 }

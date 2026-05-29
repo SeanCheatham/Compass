@@ -21,9 +21,9 @@ struct PromptSchemaLoadingTests {
       ("subAgent", Prompts.subAgentSchema),
     ]
     for (name, text) in schemas {
-      #require(!text.isEmpty, "schema \(name) is empty")
+      try #require(!text.isEmpty, "schema \(name) is empty")
       let parsed = try JSONSerialization.jsonObject(with: Data(text.utf8))
-      #require(
+      try #require(
         parsed is [String: Any],
         "schema \(name) should decode to a JSON object"
       )
@@ -31,7 +31,7 @@ struct PromptSchemaLoadingTests {
   }
 
   @Test
-  func testHostXcodeSchemasAreOnlySelectedWhenProjectOptInIsEnabled() {
+  func testHostXcodeSchemasAreOnlySelectedWhenProjectOptInIsEnabled() throws {
     #expect(Prompts.planSchema(hostXcodeBuildTestEnabled: false) == Prompts.planSchema)
     #expect(
       Prompts.planSchema(hostXcodeBuildTestEnabled: true) == Prompts.planHostXcodeSchema

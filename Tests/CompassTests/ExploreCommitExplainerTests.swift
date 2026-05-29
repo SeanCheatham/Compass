@@ -5,18 +5,20 @@ import Testing
 @testable import Compass
 
 struct ExploreCommitExplainerTests {
+  private var temporaryDirectory: URL!
+
   // MARK: - Empty input guard
 
   @Test
   func summarize_emptyString_returnsNil() async throws {
     let result = await CommitExplainer.summarize(diff: "")
-    #require(result == nil)
+    try #require(result == nil)
   }
 
   @Test
   func summarize_whitespaceOnly_returnsNil() async throws {
     let result = await CommitExplainer.summarize(diff: "   \n\t  ")
-    #require(result == nil)
+    try #require(result == nil)
   }
 
   // MARK: - Diff length filter (max ~600 tokens)
@@ -66,7 +68,7 @@ struct ExploreCommitExplainerTests {
     // Either Foundation Models is available and we get a string (or nil
     // from an error), or it is unavailable and we definitely get nil.
     if !FoundationModelsAvailability.isAvailable {
-      #require(result == nil)
+      try #require(result == nil)
     }
   }
 
@@ -75,7 +77,7 @@ struct ExploreCommitExplainerTests {
   @Test
   func summarizeWhyGenerated_emptyString_returnsNil() async throws {
     let result = await CommitExplainer.summarizeWhyGenerated(diff: "")
-    #require(result == nil)
+    try #require(result == nil)
   }
 
   @Test
@@ -133,7 +135,7 @@ struct ExploreCommitExplainerTests {
     try process.run()
     process.waitUntilExit()
     guard process.terminationStatus == 0 else {
-      throw "git command failed with status \(process.terminationStatus)"
+      throw TestHelperError.gitCommandFailed(status: process.terminationStatus)
     }
   }
 
@@ -146,11 +148,11 @@ struct ExploreCommitExplainerTests {
     test.explainSetUp()
     defer { test.explainTearDown() }
 
-    explainInitGitRepo(at: test.temporaryDirectory)
+    test.explainInitGitRepo(at: test.temporaryDirectory)
 
     // Create first commit with an initial file
-    try explainWriteFile("README.md", contents: "# Test\n")
-    try explainRunGit(
+    try test.explainWriteFile("README.md", contents: "# Test\n")
+    try test.explainRunGit(
       "git -C \(test.temporaryDirectory.path) add . && " +
         "git -C \(test.temporaryDirectory.path) " +
         "-c user.email=t@t -c user.name=t commit -q -m 'Initial'",
@@ -158,8 +160,8 @@ struct ExploreCommitExplainerTests {
     )
 
     // Create second commit that modifies the file
-    try explainWriteFile("README.md", contents: "# Test\nExtra line.\n")
-    try explainRunGit(
+    try test.explainWriteFile("README.md", contents: "# Test\nExtra line.\n")
+    try test.explainRunGit(
       "git -C \(test.temporaryDirectory.path) add . && " +
         "git -C \(test.temporaryDirectory.path) " +
         "-c user.email=t@t -c user.name=t commit -q -m 'Add line'",
@@ -167,7 +169,7 @@ struct ExploreCommitExplainerTests {
     )
 
     // Get the second commit SHA
-    let shaResult = try explainRunGitCapture(
+    let shaResult = try test.explainRunGitCapture(
       "git -C \(test.temporaryDirectory.path) rev-parse HEAD",
       at: test.temporaryDirectory
     )
@@ -180,7 +182,7 @@ struct ExploreCommitExplainerTests {
     // If Foundation Models is available, we expect a non-nil string.
     // If unavailable, result will be nil — both are acceptable outcomes.
     if FoundationModelsAvailability.isAvailable {
-      #require(result != nil)
+      try #require(result != nil)
     }
   }
 
@@ -195,7 +197,7 @@ struct ExploreCommitExplainerTests {
     try process.run()
     process.waitUntilExit()
     guard process.terminationStatus == 0 else {
-      throw "git command failed with status \(process.terminationStatus)"
+      throw TestHelperError.gitCommandFailed(status: process.terminationStatus)
     }
     let data = outputPipe.fileHandleForReading.readDataToEndOfFile()
     return String(data: data, encoding: .utf8) ?? ""
@@ -209,11 +211,11 @@ struct ExploreCommitExplainerTests {
     test.explainSetUp()
     defer { test.explainTearDown() }
 
-    explainInitGitRepo(at: test.temporaryDirectory)
+    test.explainInitGitRepo(at: test.temporaryDirectory)
 
     // Create initial commit
-    try explainWriteFile("README.md", contents: "# Test\n")
-    try explainRunGit(
+    try test.explainWriteFile("README.md", contents: "# Test\n")
+    try test.explainRunGit(
       "git -C \(test.temporaryDirectory.path) add . && " +
         "git -C \(test.temporaryDirectory.path) " +
         "-c user.email=t@t -c user.name=t commit -q -m 'Initial'",
@@ -225,22 +227,22 @@ struct ExploreCommitExplainerTests {
     // Instead, use a merge commit that introduces no new changes.
     // Simpler: use a commit that only changes a binary file to same content.
     // Best approach: a merge commit with no changes.
-    let shaResult = try explainRunGitCapture(
+    let shaResult = try test.explainRunGitCapture(
       "git -C \(test.temporaryDirectory.path) rev-parse HEAD",
       at: test.temporaryDirectory
     )
     let initialSha = shaResult.trimmingCharacters(in: .whitespacesAndNewlines)
 
     // Create a commit that makes no file changes by touching the same content
-    try explainWriteFile("README.md", contents: "# Test\n")
-    try explainRunGit(
+    try test.explainWriteFile("README.md", contents: "# Test\n")
+    try test.explainRunGit(
       "git -C \(test.temporaryDirectory.path) add . && " +
         "git -C \(test.temporaryDirectory.path) " +
         "-c user.email=t@t -c user.name=t commit -q --allow-empty -m 'Empty change'",
       at: test.temporaryDirectory
     )
 
-    let shaResult2 = try explainRunGitCapture(
+    let shaResult2 = try test.explainRunGitCapture(
       "git -C \(test.temporaryDirectory.path) rev-parse HEAD",
       at: test.temporaryDirectory
     )
@@ -251,7 +253,7 @@ struct ExploreCommitExplainerTests {
     // The diff for an empty commit should be empty → explain returns nil.
     // This does not call summarize because the trimmed diff is empty.
     let result = await CommitExplainer.explain(commit: commit, repoURL: test.temporaryDirectory)
-    #require(result == nil)
+    try #require(result == nil)
   }
 
   @Test
@@ -262,14 +264,14 @@ struct ExploreCommitExplainerTests {
     test.explainSetUp()
     defer { test.explainTearDown() }
 
-    // Remove the directory so git fails
-    try FileManager.default.removeItem(at: test.temporaryDirectory)
+    // Remove the directory so git fails.
+    let nonExistentURL = try #require(test.temporaryDirectory)
+    try FileManager.default.removeItem(at: nonExistentURL)
 
     let fakeCommit = SessionCommit(sha: "0000000000000000000000000000000000000000", short: "0000000", subject: "Fake")
-    let nonExistentURL = test.temporaryDirectory
 
     let result = await CommitExplainer.explain(commit: fakeCommit, repoURL: nonExistentURL)
-    #require(result == nil)
+    try #require(result == nil)
   }
 
   // MARK: - whyGenerated (FileExplainer path)
@@ -284,11 +286,11 @@ struct ExploreCommitExplainerTests {
     test.explainSetUp()
     defer { test.explainTearDown() }
 
-    explainInitGitRepo(at: test.temporaryDirectory)
+    test.explainInitGitRepo(at: test.temporaryDirectory)
 
     // Create first commit with an initial file
-    try explainWriteFile("README.md", contents: "# Test\n")
-    try explainRunGit(
+    try test.explainWriteFile("README.md", contents: "# Test\n")
+    try test.explainRunGit(
       "git -C \(test.temporaryDirectory.path) add . && " +
         "git -C \(test.temporaryDirectory.path) " +
         "-c user.email=t@t -c user.name=t commit -q -m 'Initial'",
@@ -296,8 +298,8 @@ struct ExploreCommitExplainerTests {
     )
 
     // Create second commit that modifies the file
-    try explainWriteFile("README.md", contents: "# Test\nExtra line.\n")
-    try explainRunGit(
+    try test.explainWriteFile("README.md", contents: "# Test\nExtra line.\n")
+    try test.explainRunGit(
       "git -C \(test.temporaryDirectory.path) add . && " +
         "git -C \(test.temporaryDirectory.path) " +
         "-c user.email=t@t -c user.name=t commit -q -m 'Add line'",
@@ -305,13 +307,13 @@ struct ExploreCommitExplainerTests {
     )
 
     // Get both commit SHAs for a multi-commit range
-    let shaResult = try explainRunGitCapture(
+    let shaResult = try test.explainRunGitCapture(
       "git -C \(test.temporaryDirectory.path) rev-parse HEAD",
       at: test.temporaryDirectory
     )
     let newestSha = shaResult.trimmingCharacters(in: .whitespacesAndNewlines)
 
-    let shaResult2 = try explainRunGitCapture(
+    let shaResult2 = try test.explainRunGitCapture(
       "git -C \(test.temporaryDirectory.path) rev-parse HEAD~",
       at: test.temporaryDirectory
     )
@@ -330,7 +332,7 @@ struct ExploreCommitExplainerTests {
       commits: commits
     )
     if FoundationModelsAvailability.isAvailable {
-      #require(result != nil)
+      try #require(result != nil)
     }
   }
 }

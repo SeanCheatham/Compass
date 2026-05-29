@@ -5,7 +5,7 @@ import Testing
 
 struct PlanWorkflowOverviewTests {
   @Test
-  func testBuildsPopulatedOverviewSections() {
+  func testBuildsPopulatedOverviewSections() throws {
     let state = makeState(
       completed: ["Set up planning", "Ship history"],
       immediate: PlanNext(
@@ -19,28 +19,28 @@ struct PlanWorkflowOverviewTests {
 
     let overview = PlanWorkflowOverview(state: state)
 
-    #require(overview.sections.map(\.kind) == [.immediate, .midTerm, .longTerm])
-    #require(
+    try #require(overview.sections.map(\.kind) == [.immediate, .midTerm, .longTerm])
+    try #require(
       overview.immediate.body == "Build the overview\n\n- Keep completed summaries selectable")
-    #require(overview.midTerm.body == "- Queue the next planning polish")
-    #require(overview.longTerm.body == "Make waiting time easier to understand.")
-    #require(!overview.immediate.isEmpty)
+    try #require(overview.midTerm.body == "- Queue the next planning polish")
+    try #require(overview.longTerm.body == "Make waiting time easier to understand.")
+    try #require(!overview.immediate.isEmpty)
   }
 
   @Test
-  func testOverviewKindsMapToStableTimelineDestinations() {
-    #require(PlanWorkflowOverview.Kind.immediate.timelineItemID == "plan-immediate")
-    #require(PlanWorkflowOverview.Kind.midTerm.timelineItemID == "plan-mid-term")
-    #require(PlanWorkflowOverview.Kind.longTerm.timelineItemID == "plan-long-term")
+  func testOverviewKindsMapToStableTimelineDestinations() throws {
+    try #require(PlanWorkflowOverview.Kind.immediate.timelineItemID == "plan-immediate")
+    try #require(PlanWorkflowOverview.Kind.midTerm.timelineItemID == "plan-mid-term")
+    try #require(PlanWorkflowOverview.Kind.longTerm.timelineItemID == "plan-long-term")
 
-    #require(PlanWorkflowOverview.Kind(timelineItemID: "plan-immediate") == .immediate)
-    #require(PlanWorkflowOverview.Kind(timelineItemID: "plan-mid-term") == .midTerm)
-    #require(PlanWorkflowOverview.Kind(timelineItemID: "plan-long-term") == .longTerm)
-    #require(PlanWorkflowOverview.Kind(timelineItemID: "plan-history-0") == nil)
+    try #require(PlanWorkflowOverview.Kind(timelineItemID: "plan-immediate") == .immediate)
+    try #require(PlanWorkflowOverview.Kind(timelineItemID: "plan-mid-term") == .midTerm)
+    try #require(PlanWorkflowOverview.Kind(timelineItemID: "plan-long-term") == .longTerm)
+    try #require(PlanWorkflowOverview.Kind(timelineItemID: "plan-history-0") == nil)
   }
 
   @Test
-  func testSectionTimelineDestinationsFollowOverviewOrder() {
+  func testSectionTimelineDestinationsFollowOverviewOrder() throws {
     let overview = PlanWorkflowOverview(
       state: makeState(
         completed: ["Past work"],
@@ -49,19 +49,19 @@ struct PlanWorkflowOverviewTests {
       )
     )
 
-    #require(overview.sections.map(\.kind) == [.immediate, .midTerm, .longTerm])
-    #require(
+    try #require(overview.sections.map(\.kind) == [.immediate, .midTerm, .longTerm])
+    try #require(
       overview.sections.map(\.timelineItemID) ==
       ["plan-immediate", "plan-mid-term", "plan-long-term"]
     )
-    #require(
+    try #require(
       PlanWorkflowOverview.TimelineDestination.allCases.map(\.overviewKind) ==
       [.immediate, .midTerm, .longTerm]
     )
   }
 
   @Test
-  func testNoImmediateStateKeepsQueueAndArcVisible() {
+  func testNoImmediateStateKeepsQueueAndArcVisible() throws {
     let overview = PlanWorkflowOverview(
       state: makeState(
         completed: ["Everything shipped"],
@@ -71,18 +71,18 @@ struct PlanWorkflowOverviewTests {
       )
     )
 
-    #require(overview.immediate.isEmpty)
-    #require(overview.immediate.body == "")
-    #require(overview.immediate.excerpt == nil)
-    #require(overview.immediate.verifyCommand == nil)
-    #require(overview.immediate.verifyTimeoutLabel == nil)
-    #require(overview.immediate.estimatedDifficulty == nil)
-    #require(overview.midTerm.excerpt == "- Later work")
-    #require(overview.longTerm.excerpt == "Long arc")
+    try #require(overview.immediate.isEmpty)
+    try #require(overview.immediate.body == "")
+    try #require(overview.immediate.excerpt == nil)
+    try #require(overview.immediate.verifyCommand == nil)
+    try #require(overview.immediate.verifyTimeoutLabel == nil)
+    try #require(overview.immediate.estimatedDifficulty == nil)
+    try #require(overview.midTerm.excerpt == "- Later work")
+    try #require(overview.longTerm.excerpt == "Long arc")
   }
 
   @Test
-  func testEmptyQueueAndArcExposeSpecificEmptyMessages() {
+  func testEmptyQueueAndArcExposeSpecificEmptyMessages() throws {
     let overview = PlanWorkflowOverview(
       state: makeState(
         immediate: nil,
@@ -91,18 +91,18 @@ struct PlanWorkflowOverviewTests {
       )
     )
 
-    #require(overview.midTerm.isEmpty)
-    #require(overview.longTerm.isEmpty)
-    #require(
+    try #require(overview.midTerm.isEmpty)
+    try #require(overview.longTerm.isEmpty)
+    try #require(
       overview.midTerm.emptyMessage ==
       "No mid-term queue. Future planning has no staged direction yet.")
-    #require(
+    try #require(
       overview.longTerm.emptyMessage ==
       "No long-term arc. Add the larger product direction when it becomes clear.")
   }
 
   @Test
-  func testNormalizesMarkdownWhitespace() {
+  func testNormalizesMarkdownWhitespace() throws {
     let overview = PlanWorkflowOverview(
       state: makeState(
         midTerm: " \tFirst\t\titem  \r\n\r\n\r\n  - Queue\t two  \r Continued    text \n\n",
@@ -110,12 +110,12 @@ struct PlanWorkflowOverviewTests {
       )
     )
 
-    #require(overview.midTerm.body == "First item\n\n- Queue two\nContinued text")
-    #require(overview.longTerm.body == "Arc with spacing")
+    try #require(overview.midTerm.body == "First item\n\n- Queue two\nContinued text")
+    try #require(overview.longTerm.body == "Arc with spacing")
   }
 
   @Test
-  func testBoundsDenseExcerpts() {
+  func testBoundsDenseExcerpts() throws {
     let overview = PlanWorkflowOverview(
       state: makeState(
         longTerm: "Alpha beta gamma delta epsilon zeta eta theta iota"
@@ -123,12 +123,12 @@ struct PlanWorkflowOverviewTests {
       excerptLimit: 25
     )
 
-    #require(overview.longTerm.excerpt == "Alpha beta gamma delta...")
-    #require(overview.longTerm.excerpt?.count ?? 0 <= 25)
+    try #require(overview.longTerm.excerpt == "Alpha beta gamma delta...")
+    try #require(overview.longTerm.excerpt?.count ?? 0 <= 25)
   }
 
   @Test
-  func testPreservesVerifyAndDifficultyMetadata() {
+  func testPreservesVerifyAndDifficultyMetadata() throws {
     let overview = PlanWorkflowOverview(
       state: makeState(
         immediate: PlanNext(
@@ -139,35 +139,35 @@ struct PlanWorkflowOverviewTests {
       )
     )
 
-    #require(
+    try #require(
       overview.immediate.verifyCommand == "swift test --filter PlanWorkflowOverviewTests")
-    #require(overview.immediate.estimatedDifficulty == .high)
-    #require(overview.immediate.estimatedDifficultyLabel == "High")
+    try #require(overview.immediate.estimatedDifficulty == .high)
+    try #require(overview.immediate.estimatedDifficultyLabel == "High")
   }
 
   @Test
-  func testVerifyTimeoutMetadataFormatsExplicitSeconds() {
+  func testVerifyTimeoutMetadataFormatsExplicitSeconds() throws {
     let metadata = PlanVerifyMetadata(timeoutMs: 90_000)
 
-    #require(metadata.label == "Timeout 90s")
+    try #require(metadata.label == "Timeout 90s")
   }
 
   @Test
-  func testVerifyTimeoutMetadataFormatsExplicitMinutes() {
+  func testVerifyTimeoutMetadataFormatsExplicitMinutes() throws {
     let metadata = PlanVerifyMetadata(timeoutMs: 600_000)
 
-    #require(metadata.label == "Timeout 10m")
+    try #require(metadata.label == "Timeout 10m")
   }
 
   @Test
-  func testVerifyTimeoutMetadataLabelsDefaultTimeout() {
+  func testVerifyTimeoutMetadataLabelsDefaultTimeout() throws {
     let metadata = PlanVerifyMetadata(timeoutMs: nil)
 
-    #require(metadata.label == "Default timeout 10m")
+    try #require(metadata.label == "Default timeout 10m")
   }
 
   @Test
-  func testSectionPropagatesVerifyTimeoutMetadataOnlyForImmediatePlan() {
+  func testSectionPropagatesVerifyTimeoutMetadataOnlyForImmediatePlan() throws {
     let overview = PlanWorkflowOverview(
       state: makeState(
         immediate: PlanNext(
@@ -181,12 +181,12 @@ struct PlanWorkflowOverviewTests {
       )
     )
 
-    #require(overview.immediate.verifyTimeoutLabel == "Timeout 90s")
-    #require(overview.sections.map(\.verifyTimeoutLabel) == ["Timeout 90s", nil, nil])
+    try #require(overview.immediate.verifyTimeoutLabel == "Timeout 90s")
+    try #require(overview.sections.map(\.verifyTimeoutLabel) == ["Timeout 90s", nil, nil])
   }
 
   @Test
-  func testSectionPropagatesDefaultVerifyTimeoutMetadataForImmediatePlan() {
+  func testSectionPropagatesDefaultVerifyTimeoutMetadataForImmediatePlan() throws {
     let overview = PlanWorkflowOverview(
       state: makeState(
         immediate: PlanNext(
@@ -197,17 +197,17 @@ struct PlanWorkflowOverviewTests {
       )
     )
 
-    #require(overview.immediate.verifyTimeoutLabel == "Default timeout 10m")
+    try #require(overview.immediate.verifyTimeoutLabel == "Default timeout 10m")
   }
 
   @Test
-  func testPreservesCompletedCountMetadata() {
+  func testPreservesCompletedCountMetadata() throws {
     let overview = PlanWorkflowOverview(
       state: makeState(completed: ["one", "two", "three"])
     )
 
-    #require(overview.completedCount == 3)
-    #require(overview.sections.map(\.completedCount) == [3, 3, 3])
+    try #require(overview.completedCount == 3)
+    try #require(overview.sections.map(\.completedCount) == [3, 3, 3])
   }
 
   private func makeState(

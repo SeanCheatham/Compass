@@ -5,36 +5,36 @@ import Testing
 
 struct SharedCompassVMRipgrepProvisionerTests {
 
-  @Test func renderedInstallScriptStartsWithBashShebang() {
+  @Test func renderedInstallScriptStartsWithBashShebang() throws {
     let script = SharedCompassVMRipgrepProvisioner.renderInstallScript()
-    #require(script.hasPrefix("#!/bin/bash"))
+    try #require(script.hasPrefix("#!/bin/bash"))
   }
 
-  @Test func renderedInstallScriptUsesStrictErrorHandling() {
+  @Test func renderedInstallScriptUsesStrictErrorHandling() throws {
     let script = SharedCompassVMRipgrepProvisioner.renderInstallScript()
-    #require(script.contains("set -euo pipefail"))
-    #require(script.contains("fail()"))
+    try #require(script.contains("set -euo pipefail"))
+    try #require(script.contains("fail()"))
   }
 
-  @Test func renderedInstallScriptCreatesUsrLocalBinBeforeSymlink() {
+  @Test func renderedInstallScriptCreatesUsrLocalBinBeforeSymlink() throws {
     let script = SharedCompassVMRipgrepProvisioner.renderInstallScript()
-    #require(script.contains("install -d -o root -g wheel -m 0755 \"$(dirname \"$RG_BIN\")\""))
-    #require(script.contains("ln -sf \"$BREW_RG\" \"$RG_BIN\""))
+    try #require(script.contains("install -d -o root -g wheel -m 0755 \"$(dirname \"$RG_BIN\")\""))
+    try #require(script.contains("ln -sf \"$BREW_RG\" \"$RG_BIN\""))
   }
 
-  @Test func renderedInstallScriptRequiresHomebrewBeforeRipgrepInstall() {
+  @Test func renderedInstallScriptRequiresHomebrewBeforeRipgrepInstall() throws {
     let script = SharedCompassVMRipgrepProvisioner.renderInstallScript()
-    #require(script.contains("Homebrew missing"))
-    #require(script.contains("su - \"$GUEST_USER\" -c \"'$BREW_BIN' install ripgrep\""))
+    try #require(script.contains("Homebrew missing"))
+    try #require(script.contains("su - \"$GUEST_USER\" -c \"'$BREW_BIN' install ripgrep\""))
   }
 
-  @Test func parsePhaseFromLogTailRecognisesRipgrepPhases() {
-    #require(
+  @Test func parsePhaseFromLogTailRecognisesRipgrepPhases() throws {
+    try #require(
       SharedCompassVMRipgrepProvisioner.parsePhase(
         fromLogTail: "[compass-rg] bootstrapping Homebrew as compass"
       ) == .bootstrappingHomebrew
     )
-    #require(
+    try #require(
       SharedCompassVMRipgrepProvisioner.parsePhase(fromLogTail: "exit=0") == .done
     )
   }
@@ -45,15 +45,15 @@ struct SharedCompassVMRipgrepProvisionerTests {
       if command.contains("PRESENT") || command.contains("MISSING") {
         return ProcessResult(exitCode: 0, stdout: "PRESENT\n", stderr: "")
       }
-      #require(false, "Provisioner should short-circuit before any other RPC. Got: \(command)")
+      #expect(Bool(false), "Provisioner should short-circuit before any other RPC. Got: \(command)")
       return ProcessResult(exitCode: 1, stdout: "", stderr: "unexpected")
     }
     let report = try await SharedCompassVMRipgrepProvisioner.provision(
       runner: runner,
       progress: { _ in }
     )
-    #require(report.alreadyInstalled)
-    #require(runner.callCount == 1)
+    try #require(report.alreadyInstalled)
+    try #require(runner.callCount == 1)
   }
 }
 

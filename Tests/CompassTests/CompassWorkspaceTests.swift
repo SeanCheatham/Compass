@@ -3,7 +3,7 @@ import Testing
 
 @testable import Compass
 
-struct CompassWorkspaceTests : ~Copyable {
+final class CompassWorkspaceTests {
   private var temporaryDirectories: [URL] = []
 
   init() throws {}
@@ -22,26 +22,26 @@ struct CompassWorkspaceTests : ~Copyable {
     try workspace.initialize()
     try workspace.initialize()
 
-    #require(
+    try #require(
       workspace.storageRootURL == repoURL.appending(path: ".compass", directoryHint: .isDirectory))
-    #require(workspace.compassURL == workspace.repoLocalCompassURL)
-    #require(workspace.isRepoLocalStorage)
-    #require(FileManager.default.fileExists(atPath: workspace.compassURL.path))
-    #require(FileManager.default.fileExists(atPath: workspace.sessionsURL.path))
-    #require(FileManager.default.fileExists(atPath: workspace.stateURL.path))
-    #require(FileManager.default.fileExists(atPath: workspace.draftsURL.path))
-    #require(FileManager.default.fileExists(atPath: workspace.lessonsURL.path))
-    #require(FileManager.default.fileExists(atPath: workspace.visionURL.path))
-    #require(FileManager.default.fileExists(atPath: workspace.sessionsRecordURL.path))
+    try #require(workspace.compassURL == workspace.repoLocalCompassURL)
+    try #require(workspace.isRepoLocalStorage)
+    try #require(FileManager.default.fileExists(atPath: workspace.compassURL.path))
+    try #require(FileManager.default.fileExists(atPath: workspace.sessionsURL.path))
+    try #require(FileManager.default.fileExists(atPath: workspace.stateURL.path))
+    try #require(FileManager.default.fileExists(atPath: workspace.draftsURL.path))
+    try #require(FileManager.default.fileExists(atPath: workspace.lessonsURL.path))
+    try #require(FileManager.default.fileExists(atPath: workspace.visionURL.path))
+    try #require(FileManager.default.fileExists(atPath: workspace.sessionsRecordURL.path))
 
-    #require(try workspace.readState() == .empty)
-    #require(try read(workspace.draftsURL) == "")
-    #require(try read(workspace.lessonsURL) == "")
-    #require(try read(workspace.visionURL) == "")
-    #require(try read(workspace.sessionsRecordURL) == "[]\n")
+    try #require(try workspace.readState() == .empty)
+    try #require(try read(workspace.draftsURL) == "")
+    try #require(try read(workspace.lessonsURL) == "")
+    try #require(try read(workspace.visionURL) == "")
+    try #require(try read(workspace.sessionsRecordURL) == "[]\n")
 
     let gitignore = try read(repoURL.appending(path: ".gitignore"))
-    #require(gitignore.components(separatedBy: ".compass/").count - 1 == 1)
+    try #require(gitignore.components(separatedBy: ".compass/").count - 1 == 1)
   }
 
   @Test func testInjectedStorageRootRoundTripsFilesAndDoesNotCreateRepoLocalCompass() throws {
@@ -75,23 +75,24 @@ struct CompassWorkspaceTests : ~Copyable {
       contents: "artifact body\n"
     )
 
-    #require(workspace.repoURL == repoURL)
-    #require(workspace.storageRootURL == storageRootURL)
-    #require(workspace.compassURL == storageRootURL)
-    #require(!workspace.isRepoLocalStorage)
-    #require(FileManager.default.fileExists(atPath: storageRootURL.path))
-    #require(FileManager.default.fileExists(atPath: workspace.sessionsURL.path))
-    #require(try workspace.readState() == state)
-    #require(try read(workspace.stateBackupURL) == try CompassWorkspace.encodeState(state))
-    #require(workspace.readDrafts() == "draft entry\n")
-    #require(workspace.readLessons() == "- new lesson\n")
-    #require(workspace.readVision() == "vision entry\n")
-    #require(workspace.readSessions() == records)
-    #require(try read(artifactURL) == "artifact body\n")
-    #require(artifactURL == workspace.sessionsURL.appending(path: "4-plan-prompt-1.md"))
+    try #require(workspace.repoURL == repoURL)
+    try #require(workspace.storageRootURL == storageRootURL)
+    try #require(workspace.compassURL == storageRootURL)
+    try #require(!workspace.isRepoLocalStorage)
+    try #require(FileManager.default.fileExists(atPath: storageRootURL.path))
+    try #require(FileManager.default.fileExists(atPath: workspace.sessionsURL.path))
+    try #require(try workspace.readState() == state)
+    let encodedState = try CompassWorkspace.encodeState(state)
+    try #require(try read(workspace.stateBackupURL) == encodedState)
+    try #require(workspace.readDrafts() == "draft entry\n")
+    try #require(workspace.readLessons() == "- new lesson\n")
+    try #require(workspace.readVision() == "vision entry\n")
+    try #require(workspace.readSessions() == records)
+    try #require(try read(artifactURL) == "artifact body\n")
+    try #require(artifactURL == workspace.sessionsURL.appending(path: "4-plan-prompt-1.md"))
 
-    #require(!FileManager.default.fileExists(atPath: workspace.repoLocalCompassURL.path))
-    #require(
+    try #require(!FileManager.default.fileExists(atPath: workspace.repoLocalCompassURL.path))
+    try #require(
       !FileManager.default.fileExists(atPath: repoURL.appending(path: ".gitignore").path))
   }
 
@@ -115,15 +116,15 @@ struct CompassWorkspaceTests : ~Copyable {
 
     let records = workspace.readSessions()
 
-    #require(records.count == 1)
-    #require(records[0].session == 7)
-    #require(records[0].status == .succeeded)
-    #require(records[0].notes == ["legacy"])
-    #require(records[0].executionEnvironmentSnapshots.isEmpty)
+    try #require(records.count == 1)
+    try #require(records[0].session == 7)
+    try #require(records[0].status == .succeeded)
+    try #require(records[0].notes == ["legacy"])
+    try #require(records[0].executionEnvironmentSnapshots.isEmpty)
 
     try workspace.writeSessions(records)
     let rewritten = try read(workspace.sessionsRecordURL)
-    #require(!rewritten.contains("executionEnvironmentSnapshots"))
+    try #require(!rewritten.contains("executionEnvironmentSnapshots"))
   }
 
   @Test func testSessionsJsonRoundTripsExecutionEnvironmentSnapshotsWithoutLeakingRuntimePaths() throws {
@@ -153,12 +154,12 @@ struct CompassWorkspaceTests : ~Copyable {
     let decoded = workspace.readSessions()
     let persistedText = try read(workspace.sessionsRecordURL)
 
-    #require(decoded == [record])
-    #require(decoded[0].latestExecutionEnvironmentSnapshot?.phaseIdentifier == "verify")
-    #require(
+    try #require(decoded == [record])
+    try #require(decoded[0].latestExecutionEnvironmentSnapshot?.phaseIdentifier == "verify")
+    try #require(
       decoded[0].latestExecutionEnvironmentSnapshot?.effectiveRouteIdentifier == "shared-vm")
-    #require(persistedText.contains("executionEnvironmentSnapshots"))
-    #require(!persistedText.contains(repoURL.standardizedFileURL.path))
+    try #require(persistedText.contains("executionEnvironmentSnapshots"))
+    try #require(!persistedText.contains(repoURL.standardizedFileURL.path))
   }
 
   @Test func testSessionExecutionEnvironmentSnapshotsReplaceDuplicatePhaseAttemptsAndStayBounded() throws
@@ -189,14 +190,14 @@ struct CompassWorkspaceTests : ~Copyable {
       )
     )
 
-    #require(duplicateRecord.executionEnvironmentSnapshots.count == 1)
-    #require(
+    try #require(duplicateRecord.executionEnvironmentSnapshots.count == 1)
+    try #require(
       duplicateRecord.executionEnvironmentSnapshots[0].selectedPreferenceIdentifier ==
       "shared_vm"
     )
-    #require(
+    try #require(
       duplicateRecord.executionEnvironmentSnapshots[0].effectiveRouteIdentifier == "native-macos")
-    #require(
+    try #require(
       duplicateRecord.executionEnvironmentSnapshots[0].fallbackReason?.contains(
         "not been provisioned") ?? false
     )
@@ -212,12 +213,12 @@ struct CompassWorkspaceTests : ~Copyable {
       )
     }
 
-    #require(
+    try #require(
       boundedRecord.executionEnvironmentSnapshots.count ==
       SessionRecord.executionEnvironmentSnapshotLimit
     )
-    #require(boundedRecord.executionEnvironmentSnapshots.first?.attempt == 4)
-    #require(
+    try #require(boundedRecord.executionEnvironmentSnapshots.first?.attempt == 4)
+    try #require(
       boundedRecord.executionEnvironmentSnapshots.last?.attempt ==
       SessionRecord.executionEnvironmentSnapshotLimit + 3
     )
@@ -239,12 +240,12 @@ struct CompassWorkspaceTests : ~Copyable {
 
     try workspace.initialize()
 
-    #require(try workspace.readState() == state)
-    #require(try read(workspace.draftsURL) == "existing drafts\n")
-    #require(try read(workspace.lessonsURL) == "existing lessons\n")
-    #require(try read(workspace.visionURL) == "existing vision\n")
-    #require(try read(workspace.sessionsRecordURL) == "[{\"session\":1}]\n")
-    #require(try read(repoURL.appending(path: ".gitignore")) == "# keep\n.compass\n")
+    try #require(try workspace.readState() == state)
+    try #require(try read(workspace.draftsURL) == "existing drafts\n")
+    try #require(try read(workspace.lessonsURL) == "existing lessons\n")
+    try #require(try read(workspace.visionURL) == "existing vision\n")
+    try #require(try read(workspace.sessionsRecordURL) == "[{\"session\":1}]\n")
+    try #require(try read(repoURL.appending(path: ".gitignore")) == "# keep\n.compass\n")
   }
 
   @Test func testInitializeRepairsMissingCoreFilesAndGitignoreCoverageIdempotently() throws {
@@ -260,23 +261,23 @@ struct CompassWorkspaceTests : ~Copyable {
     try workspace.initialize()
     try workspace.initialize()
 
-    #require(FileManager.default.fileExists(atPath: workspace.compassURL.path))
-    #require(FileManager.default.fileExists(atPath: workspace.sessionsURL.path))
-    #require(FileManager.default.fileExists(atPath: workspace.stateURL.path))
-    #require(FileManager.default.fileExists(atPath: workspace.draftsURL.path))
-    #require(FileManager.default.fileExists(atPath: workspace.lessonsURL.path))
-    #require(FileManager.default.fileExists(atPath: workspace.visionURL.path))
-    #require(FileManager.default.fileExists(atPath: workspace.sessionsRecordURL.path))
+    try #require(FileManager.default.fileExists(atPath: workspace.compassURL.path))
+    try #require(FileManager.default.fileExists(atPath: workspace.sessionsURL.path))
+    try #require(FileManager.default.fileExists(atPath: workspace.stateURL.path))
+    try #require(FileManager.default.fileExists(atPath: workspace.draftsURL.path))
+    try #require(FileManager.default.fileExists(atPath: workspace.lessonsURL.path))
+    try #require(FileManager.default.fileExists(atPath: workspace.visionURL.path))
+    try #require(FileManager.default.fileExists(atPath: workspace.sessionsRecordURL.path))
 
-    #require(try workspace.readState() == preservedState)
-    #require(try read(workspace.lessonsURL) == "existing lessons\n")
-    #require(try read(workspace.draftsURL) == "")
-    #require(try read(workspace.visionURL) == "")
-    #require(try read(workspace.sessionsRecordURL) == "[]\n")
+    try #require(try workspace.readState() == preservedState)
+    try #require(try read(workspace.lessonsURL) == "existing lessons\n")
+    try #require(try read(workspace.draftsURL) == "")
+    try #require(try read(workspace.visionURL) == "")
+    try #require(try read(workspace.sessionsRecordURL) == "[]\n")
 
     let gitignore = try read(repoURL.appending(path: ".gitignore"))
-    #require(gitignore == "build\n.compass/\n")
-    #require(gitignore.components(separatedBy: ".compass/").count - 1 == 1)
+    try #require(gitignore == "build\n.compass/\n")
+    try #require(gitignore.components(separatedBy: ".compass/").count - 1 == 1)
   }
 
   @Test func testInitializeAppendsCompassIgnoreWithMissingTrailingNewline() throws {
@@ -288,7 +289,7 @@ struct CompassWorkspaceTests : ~Copyable {
     try workspace.initialize()
     try workspace.initialize()
 
-    #require(try read(gitignoreURL) == "build\n.compass/\n")
+    try #require(try read(gitignoreURL) == "build\n.compass/\n")
   }
 
   @Test func testWriteStateReadStateRoundTripAndBackupCreation() throws {
@@ -306,11 +307,12 @@ struct CompassWorkspaceTests : ~Copyable {
     )
 
     try workspace.writeState(state)
-    #require(try workspace.readState() == state)
+    try #require(try workspace.readState() == state)
 
     try workspace.backupStateFile()
-    #require(FileManager.default.fileExists(atPath: workspace.stateBackupURL.path))
-    #require(try read(workspace.stateBackupURL) == try CompassWorkspace.encodeState(state))
+    try #require(FileManager.default.fileExists(atPath: workspace.stateBackupURL.path))
+    let encodedState = try CompassWorkspace.encodeState(state)
+    try #require(try read(workspace.stateBackupURL) == encodedState)
   }
 
   @Test func testBackupStateFileDoesNothingWhenStateIsMissing() throws {
@@ -319,23 +321,23 @@ struct CompassWorkspaceTests : ~Copyable {
 
     try workspace.backupStateFile()
 
-    #require(!FileManager.default.fileExists(atPath: workspace.stateBackupURL.path))
+    try #require(!FileManager.default.fileExists(atPath: workspace.stateBackupURL.path))
   }
 
   @Test func testAppendDraftAddsMarkdownBulletsAndSkipsEmptyText() throws {
     let workspace = try makeInitializedWorkspace()
 
     try workspace.appendDraft("  first draft  ")
-    #require(try read(workspace.draftsURL) == "- first draft\n")
+    try #require(try read(workspace.draftsURL) == "- first draft\n")
 
     try workspace.appendDraft("second draft")
-    #require(
+    try #require(
       try read(workspace.draftsURL) ==
       "- first draft\n\n- second draft\n"
     )
 
     try workspace.appendDraft("   \n")
-    #require(try read(workspace.draftsURL) == "- first draft\n\n- second draft\n")
+    try #require(try read(workspace.draftsURL) == "- first draft\n\n- second draft\n")
   }
 
   @Test func testAppendDraftSeparatorVariants() throws {
@@ -343,15 +345,15 @@ struct CompassWorkspaceTests : ~Copyable {
 
     try workspace.writeDrafts("- existing")
     try workspace.appendDraft("without trailing newline")
-    #require(try read(workspace.draftsURL) == "- existing\n\n- without trailing newline\n")
+    try #require(try read(workspace.draftsURL) == "- existing\n\n- without trailing newline\n")
 
     try workspace.writeDrafts("- existing\n")
     try workspace.appendDraft("with one trailing newline")
-    #require(try read(workspace.draftsURL) == "- existing\n\n- with one trailing newline\n")
+    try #require(try read(workspace.draftsURL) == "- existing\n\n- with one trailing newline\n")
 
     try workspace.writeDrafts("- existing\n\n")
     try workspace.appendDraft("already separated")
-    #require(try read(workspace.draftsURL) == "- existing\n\n- already separated\n")
+    try #require(try read(workspace.draftsURL) == "- existing\n\n- already separated\n")
   }
 
   @Test func testSnapshotAndClearDraftsReturnsContentsClearsDraftsAndToleratesMissingFile() throws {
@@ -360,44 +362,44 @@ struct CompassWorkspaceTests : ~Copyable {
 
     let snapshot = try workspace.snapshotAndClearDrafts()
 
-    #require(snapshot == "- one\n\n- two\n")
-    #require(try read(workspace.draftsURL) == "")
-    #require(
+    try #require(snapshot == "- one\n\n- two\n")
+    try #require(try read(workspace.draftsURL) == "")
+    try #require(
       !FileManager.default.fileExists(
         atPath: workspace.draftsURL.appendingPathExtension("snapshot").path))
 
     try FileManager.default.removeItem(at: workspace.draftsURL)
-    #require(try workspace.snapshotAndClearDrafts() == "")
-    #require(!FileManager.default.fileExists(atPath: workspace.draftsURL.path))
+    try #require(try workspace.snapshotAndClearDrafts() == "")
+    try #require(!FileManager.default.fileExists(atPath: workspace.draftsURL.path))
   }
 
   @Test func testApplyLessonEditsSupportsExactReplacementReplaceAllAndEmptyFindForEmptyLessons() throws {
     let workspace = try makeInitializedWorkspace()
 
-    #require(
+    try #require(
       try workspace.applyLessonEdits([
         LessonEdit(find: "", replace: "- Start here\n", replaceAll: nil)
       ]) ==
       1
     )
-    #require(workspace.readLessons() == "- Start here\n")
+    try #require(workspace.readLessons() == "- Start here\n")
 
-    #require(
+    try #require(
       try workspace.applyLessonEdits([
         LessonEdit(find: "Start here", replace: "Keep this convention", replaceAll: nil)
       ]) ==
       1
     )
-    #require(workspace.readLessons() == "- Keep this convention\n")
+    try #require(workspace.readLessons() == "- Keep this convention\n")
 
     try workspace.writeLessons("- repeated\n- repeated\n")
-    #require(
+    try #require(
       try workspace.applyLessonEdits([
         LessonEdit(find: "repeated", replace: "updated", replaceAll: true)
       ]) ==
       1
     )
-    #require(workspace.readLessons() == "- updated\n- updated\n")
+    try #require(workspace.readLessons() == "- updated\n- updated\n")
   }
 
   @Test func testApplyLessonEditsRejectsEmptyFindWhenLessonsAreNonEmpty() throws {
@@ -410,7 +412,7 @@ struct CompassWorkspaceTests : ~Copyable {
       ]),
       contains: "Empty `find` is only allowed"
     )
-    #require(workspace.readLessons() == "- Existing\n")
+    try #require(workspace.readLessons() == "- Existing\n")
   }
 
   @Test func testApplyLessonEditsRejectsMissingFindAndPreservesLessons() throws {
@@ -423,7 +425,7 @@ struct CompassWorkspaceTests : ~Copyable {
       ]),
       contains: "was not found"
     )
-    #require(workspace.readLessons() == "- Existing\n")
+    try #require(workspace.readLessons() == "- Existing\n")
   }
 
   @Test func testApplyLessonEditsRejectsDuplicateFindWithoutReplaceAllAndPreservesLessons() throws {
@@ -436,7 +438,7 @@ struct CompassWorkspaceTests : ~Copyable {
       ]),
       contains: "matched 2 times"
     )
-    #require(workspace.readLessons() == "- duplicate\n- duplicate\n")
+    try #require(workspace.readLessons() == "- duplicate\n- duplicate\n")
   }
 
   @Test func testValidateLessonEditsRejectsMissingFindWithoutWriting() throws {
@@ -449,7 +451,7 @@ struct CompassWorkspaceTests : ~Copyable {
       ]),
       contains: "was not found"
     )
-    #require(workspace.readLessons() == "- Existing\n")
+    try #require(workspace.readLessons() == "- Existing\n")
   }
 
   @Test func testValidateSubmitResultLessonEditsDecodesPayloadWithoutApplying() throws {
@@ -463,7 +465,7 @@ struct CompassWorkspaceTests : ~Copyable {
       try workspace.validateSubmitResultLessonEdits(Data(payload.utf8)),
       contains: "was not found"
     )
-    #require(workspace.readLessons() == "- Existing\n")
+    try #require(workspace.readLessons() == "- Existing\n")
   }
 
   private func makeInitializedWorkspace() throws -> CompassWorkspace {
@@ -527,10 +529,10 @@ struct CompassWorkspaceTests : ~Copyable {
     _ url: URL
   ) {
     var isDirectory: ObjCBool = false
-    #require(
+    #expect(
       FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory)
     )
-    #require(!isDirectory.boolValue)
+    #expect(!isDirectory.boolValue)
   }
 
   // swift-format-ignore: AlwaysUseLowerCamelCase
@@ -538,10 +540,10 @@ struct CompassWorkspaceTests : ~Copyable {
     _ url: URL
   ) {
     var isDirectory: ObjCBool = false
-    #require(
+    #expect(
       FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory)
     )
-    #require(isDirectory.boolValue)
+    #expect(isDirectory.boolValue)
   }
 
   private func assertLessonEditFailure<T>(
@@ -550,10 +552,10 @@ struct CompassWorkspaceTests : ~Copyable {
   ) throws {
     do {
       _ = try expression()
-      #require(false, "Expected expression to throw")
+      #expect(Bool(false), "Expected expression to throw")
     } catch {
       let message = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
-      #require(
+      try #require(
         message.contains(expectedText),
         "Expected error containing `\(expectedText)`, got `\(message)`."
       )

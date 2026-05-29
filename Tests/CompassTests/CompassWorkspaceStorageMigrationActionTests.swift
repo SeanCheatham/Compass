@@ -4,7 +4,7 @@ import Testing
 @testable import Compass
 
 @MainActor
-struct CompassWorkspaceStorageMigrationActionTests : ~Copyable {
+final class CompassWorkspaceStorageMigrationActionTests {
   private var temporaryDirectories: [URL] = []
 
   init() throws {}
@@ -26,19 +26,19 @@ struct CompassWorkspaceStorageMigrationActionTests : ~Copyable {
     )
 
     let plan = project.storageMigrationPlan()
-    #require(plan.isAvailable)
+    try #require(plan.isAvailable)
 
     project.prepareStorageMigrationConfirmation()
 
-    let confirmation = #require(project.storageMigrationConfirmation)
-    #require(project.storageMigrationState.phase == .awaitingConfirmation)
-    #require(confirmation.message.contains("Source: \(plan.sourceCompassURL.path)"))
-    #require(confirmation.message.contains("Destination:"))
-    #require(confirmation.message.contains(plan.destinationURL.lastPathComponent))
-    #require(confirmation.message.contains("Manifest:"))
-    #require(confirmation.message.contains(plan.manifestURL.lastPathComponent))
-    #require(confirmation.message.contains("repo-local .compass/ remains the source of truth"))
-    #require(!FileManager.default.fileExists(atPath: plan.destinationURL.path))
+    let confirmation = try #require(project.storageMigrationConfirmation)
+    try #require(project.storageMigrationState.phase == .awaitingConfirmation)
+    try #require(confirmation.message.contains("Source: \(plan.sourceCompassURL.path)"))
+    try #require(confirmation.message.contains("Destination:"))
+    try #require(confirmation.message.contains(plan.destinationURL.lastPathComponent))
+    try #require(confirmation.message.contains("Manifest:"))
+    try #require(confirmation.message.contains(plan.manifestURL.lastPathComponent))
+    try #require(confirmation.message.contains("repo-local .compass/ remains the source of truth"))
+    try #require(!FileManager.default.fileExists(atPath: plan.destinationURL.path))
   }
 
   @Test func testConfirmingAvailablePlanPreparesCandidateStorage() async throws {
@@ -53,17 +53,17 @@ struct CompassWorkspaceStorageMigrationActionTests : ~Copyable {
     )
 
     project.prepareStorageMigrationConfirmation()
-    let confirmation = #require(project.storageMigrationConfirmation)
+    let confirmation = try #require(project.storageMigrationConfirmation)
     await project.confirmStorageMigration(confirmation)
 
     let plan = confirmation.plan
-    #require(project.storageMigrationState.phase == .succeeded)
-    #require(FileManager.default.fileExists(atPath: plan.destinationURL.path))
-    #require(try read(plan.destinationURL.appending(path: "drafts.md")) == "queued draft\n")
-    #require(FileManager.default.fileExists(atPath: plan.manifestURL.path))
-    #require(try decodeManifest(at: plan.manifestURL).sourcePath == workspace.compassURL.path)
-    #require(try read(workspace.draftsURL) == "queued draft\n")
-    #require(FileManager.default.fileExists(atPath: workspace.compassURL.path))
+    try #require(project.storageMigrationState.phase == .succeeded)
+    try #require(FileManager.default.fileExists(atPath: plan.destinationURL.path))
+    try #require(try read(plan.destinationURL.appending(path: "drafts.md")) == "queued draft\n")
+    try #require(FileManager.default.fileExists(atPath: plan.manifestURL.path))
+    try #require(try decodeManifest(at: plan.manifestURL).sourcePath == workspace.compassURL.path)
+    try #require(try read(workspace.draftsURL) == "queued draft\n")
+    try #require(FileManager.default.fileExists(atPath: workspace.compassURL.path))
   }
 
   @Test func testInjectedMigrationFailureShowsBoundedFailureFeedback() async throws {
@@ -81,22 +81,22 @@ struct CompassWorkspaceStorageMigrationActionTests : ~Copyable {
     )
 
     project.prepareStorageMigrationConfirmation()
-    let confirmation = #require(project.storageMigrationConfirmation)
+    let confirmation = try #require(project.storageMigrationConfirmation)
     await project.confirmStorageMigration(confirmation)
 
-    #require(callCount == 1)
-    #require(project.storageMigrationState.phase == .failed)
-    #require(
+    try #require(callCount == 1)
+    try #require(project.storageMigrationState.phase == .failed)
+    try #require(
       project.storageMigrationState.label.count <=
       CompassProjectStorageMigrationState.labelLimit)
-    #require(
+    try #require(
       project.storageMigrationState.detail.count <=
       CompassProjectStorageMigrationState.detailLimit)
-    #require(
+    try #require(
       project.storageMigrationState.helpText.count <=
       CompassProjectStorageMigrationState.helpLimit)
-    #require(project.errorMessage == project.storageMigrationState.detail)
-    #require(!FileManager.default.fileExists(atPath: confirmation.plan.destinationURL.path))
+    try #require(project.errorMessage == project.storageMigrationState.detail)
+    try #require(!FileManager.default.fileExists(atPath: confirmation.plan.destinationURL.path))
   }
 
   @Test func testUnavailableAndRunningPlansBlockWithoutCallingMigrator() async throws {
@@ -106,17 +106,17 @@ struct CompassWorkspaceStorageMigrationActionTests : ~Copyable {
       repoURL: missingRepoURL,
       storageApplicationSupportRoots: missingRoots,
       storageMigrationAction: { _ in
-        #require(false, "Unavailable migration should not call the migrator.")
+        #expect(Bool(false), "Unavailable migration should not call the migrator.")
         throw InjectedMigrationActionError.failed("unexpected")
       }
     )
 
     missingProject.prepareStorageMigrationConfirmation()
 
-    #require(missingProject.storageMigrationConfirmation == nil)
-    #require(missingProject.storageMigrationState.phase == .blocked)
-    #require(missingProject.storageMigrationPlan().kind == .repoLocalMissing)
-    #require(
+    try #require(missingProject.storageMigrationConfirmation == nil)
+    try #require(missingProject.storageMigrationState.phase == .blocked)
+    try #require(missingProject.storageMigrationPlan().kind == .repoLocalMissing)
+    try #require(
       !FileManager.default.fileExists(
         atPath: missingProject.storageMigrationPlan().destinationURL.path))
 
@@ -136,15 +136,15 @@ struct CompassWorkspaceStorageMigrationActionTests : ~Copyable {
 
     runningProject.prepareStorageMigrationConfirmation()
 
-    #require(runningProject.storageMigrationConfirmation == nil)
-    #require(runningProject.storageMigrationState.phase == .blocked)
-    #require(callCount == 0)
+    try #require(runningProject.storageMigrationConfirmation == nil)
+    try #require(runningProject.storageMigrationState.phase == .blocked)
+    try #require(callCount == 0)
 
     let availableConfirmation = CompassWorkspaceStorageMigrationConfirmation(
       plan: runningProject.storageMigrationPlan()
     )
     await runningProject.confirmStorageMigration(availableConfirmation)
-    #require(callCount == 0)
+    try #require(callCount == 0)
   }
 
   @Test func testConfirmationAndStateTextStayBounded() async throws {
@@ -165,39 +165,39 @@ struct CompassWorkspaceStorageMigrationActionTests : ~Copyable {
     )
 
     project.prepareStorageMigrationConfirmation()
-    let confirmation = #require(project.storageMigrationConfirmation)
+    let confirmation = try #require(project.storageMigrationConfirmation)
 
-    #require(
+    try #require(
       confirmation.title.count <= CompassWorkspaceStorageMigrationConfirmation.titleLimit)
-    #require(
+    try #require(
       confirmation.message.count <= CompassWorkspaceStorageMigrationConfirmation.messageLimit)
-    #require(
+    try #require(
       confirmation.confirmLabel.count <=
       CompassWorkspaceStorageMigrationConfirmation.actionLabelLimit
     )
-    #require(
+    try #require(
       confirmation.cancelLabel.count <=
       CompassWorkspaceStorageMigrationConfirmation.actionLabelLimit)
-    #require(
+    try #require(
       project.storageMigrationState.label.count <=
       CompassProjectStorageMigrationState.labelLimit)
-    #require(
+    try #require(
       project.storageMigrationState.detail.count <=
       CompassProjectStorageMigrationState.detailLimit)
-    #require(
+    try #require(
       project.storageMigrationState.helpText.count <=
       CompassProjectStorageMigrationState.helpLimit)
 
     await project.confirmStorageMigration(confirmation)
 
-    #require(project.storageMigrationState.phase == .failed)
-    #require(
+    try #require(project.storageMigrationState.phase == .failed)
+    try #require(
       project.storageMigrationState.label.count <=
       CompassProjectStorageMigrationState.labelLimit)
-    #require(
+    try #require(
       project.storageMigrationState.detail.count <=
       CompassProjectStorageMigrationState.detailLimit)
-    #require(
+    try #require(
       project.storageMigrationState.helpText.count <=
       CompassProjectStorageMigrationState.helpLimit)
   }
@@ -226,19 +226,19 @@ struct CompassWorkspaceStorageMigrationActionTests : ~Copyable {
     )
 
     project.prepareStorageMigrationConfirmation()
-    let confirmation = #require(project.storageMigrationConfirmation)
+    let confirmation = try #require(project.storageMigrationConfirmation)
     await project.confirmStorageMigration(confirmation)
 
-    let result = #require(capturedResult)
-    #require(result.repoLocalSourcePreserved)
-    #require(!result.activeStorageDidChange)
-    #require(project.compassPath == workspace.compassURL.path)
-    #require(try read(workspace.stateURL) == "source state\n")
-    #require(try read(workspace.lessonsURL) == "source lesson\n")
-    #require(
+    let result = try #require(capturedResult)
+    try #require(result.repoLocalSourcePreserved)
+    try #require(!result.activeStorageDidChange)
+    try #require(project.compassPath == workspace.compassURL.path)
+    try #require(try read(workspace.stateURL) == "source state\n")
+    try #require(try read(workspace.lessonsURL) == "source lesson\n")
+    try #require(
       try read(workspace.sessionsURL.appending(path: "1-transcript.txt")) == "source artifact\n")
-    #require(try recursiveFilePaths(in: workspace.compassURL) == sourceEntriesBefore)
-    #require(FileManager.default.fileExists(atPath: confirmation.plan.destinationURL.path))
+    try #require(try recursiveFilePaths(in: workspace.compassURL) == sourceEntriesBefore)
+    try #require(FileManager.default.fileExists(atPath: confirmation.plan.destinationURL.path))
   }
 
   private func makeTemporaryGitRepository(name: String? = nil) throws -> URL {

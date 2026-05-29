@@ -19,7 +19,7 @@ struct CriticPromptTests {
     DevelopSummary(status: status, summary: summary, feedback: feedback)
   }
 
-  @Test func testCriticPromptCarriesPlanAndVerifyAndDiff() {
+  @Test func testCriticPromptCarriesPlanAndVerifyAndDiff() throws {
     let prompt = Prompts.criticPrompt(
       next: makePlanNext(plan: "Plan body XYZ"),
       developSummary: makeDevelopSummary(summary: "Summary body 123"),
@@ -33,15 +33,15 @@ struct CriticPromptTests {
       iteration: 1,
       maxIterations: 3
     )
-    #require(prompt.contains("Plan body XYZ"))
-    #require(prompt.contains("Summary body 123"))
-    #require(prompt.contains("swift test --filter Parser"))
-    #require(prompt.contains("passed (exit 0)"))
-    #require(prompt.contains("ok 5 tests passed"))
-    #require(prompt.contains("+let foo = 1"))
+    try #require(prompt.contains("Plan body XYZ"))
+    try #require(prompt.contains("Summary body 123"))
+    try #require(prompt.contains("swift test --filter Parser"))
+    try #require(prompt.contains("passed (exit 0)"))
+    try #require(prompt.contains("ok 5 tests passed"))
+    try #require(prompt.contains("+let foo = 1"))
   }
 
-  @Test func testCriticPromptReportsBypassedVerifyClearly() {
+  @Test func testCriticPromptReportsBypassedVerifyClearly() throws {
     let prompt = Prompts.criticPrompt(
       next: makePlanNext(),
       developSummary: makeDevelopSummary(),
@@ -55,10 +55,10 @@ struct CriticPromptTests {
       iteration: 1,
       maxIterations: 3
     )
-    #require(prompt.contains("bypassVerify"))
+    try #require(prompt.contains("bypassVerify"))
   }
 
-  @Test func testCriticPromptCountsIterationsTowardCap() {
+  @Test func testCriticPromptCountsIterationsTowardCap() throws {
     let prompt = Prompts.criticPrompt(
       next: makePlanNext(),
       developSummary: makeDevelopSummary(),
@@ -72,14 +72,14 @@ struct CriticPromptTests {
       iteration: 3,
       maxIterations: 3
     )
-    #require(
+    try #require(
       prompt.contains("critic review 3 of at most 3"),
       "Critic must know it's the final review so it can be decisive"
     )
-    #require(prompt.contains("accept and proceed regardless"))
+    try #require(prompt.contains("accept and proceed regardless"))
   }
 
-  @Test func testCriticPromptIncludesPriorCritiquesWhenPresent() {
+  @Test func testCriticPromptIncludesPriorCritiquesWhenPresent() throws {
     let prompt = Prompts.criticPrompt(
       next: makePlanNext(),
       developSummary: makeDevelopSummary(),
@@ -93,11 +93,11 @@ struct CriticPromptTests {
       iteration: 2,
       maxIterations: 3
     )
-    #require(prompt.contains("Missing test for the empty case."))
-    #require(prompt.contains("Review 1:"))
+    try #require(prompt.contains("Missing test for the empty case."))
+    try #require(prompt.contains("Review 1:"))
   }
 
-  @Test func testCriticPromptForbidsMutatingCommandsExplicitly() {
+  @Test func testCriticPromptForbidsMutatingCommandsExplicitly() throws {
     // The bash tool itself cannot enforce intent; the prompt has to
     // tell the model not to commit / write / sed-in-place.
     let prompt = Prompts.criticPrompt(
@@ -113,8 +113,8 @@ struct CriticPromptTests {
       iteration: 1,
       maxIterations: 3
     )
-    #require(prompt.contains("CANNOT edit, write, or commit"))
-    #require(prompt.contains("no `git commit`"))
+    try #require(prompt.contains("CANNOT edit, write, or commit"))
+    try #require(prompt.contains("no `git commit`"))
   }
 
   @Test func testCriticVerdictDecodesApproveAndRequestChangesSnakeCase() throws {
@@ -122,12 +122,12 @@ struct CriticPromptTests {
     let reject = #"{"verdict":"request_changes","summary":"missing tests","feedback":"add one"}"#
     let v1 = try JSONDecoder().decode(CriticVerdict.self, from: Data(approve.utf8))
     let v2 = try JSONDecoder().decode(CriticVerdict.self, from: Data(reject.utf8))
-    #require(v1.verdict == .approve)
-    #require(v2.verdict == .requestChanges)
-    #require(v2.feedback == "add one")
+    try #require(v1.verdict == .approve)
+    try #require(v2.verdict == .requestChanges)
+    try #require(v2.feedback == "add one")
   }
 
-  @Test func testDevelopPromptInjectsCriticFeedbackSectionWhenPresent() {
+  @Test func testDevelopPromptInjectsCriticFeedbackSectionWhenPresent() throws {
     let withFeedback = Prompts.developPrompt(
       next: PlanNext(
         plan: "p", verify: "swift build", verifyTimeoutMs: nil, estimatedDifficulty: nil),
@@ -137,11 +137,11 @@ struct CriticPromptTests {
       priorIssues: [],
       criticFeedback: ["Add a test for the empty list case."]
     )
-    #require(withFeedback.contains("Critic feedback from prior passes"))
-    #require(withFeedback.contains("Add a test for the empty list case."))
+    try #require(withFeedback.contains("Critic feedback from prior passes"))
+    try #require(withFeedback.contains("Add a test for the empty list case."))
   }
 
-  @Test func testDevelopPromptOmitsCriticFeedbackSectionWhenAbsent() {
+  @Test func testDevelopPromptOmitsCriticFeedbackSectionWhenAbsent() throws {
     let withoutFeedback = Prompts.developPrompt(
       next: PlanNext(
         plan: "p", verify: "swift build", verifyTimeoutMs: nil, estimatedDifficulty: nil),
@@ -150,6 +150,6 @@ struct CriticPromptTests {
       attempt: 1,
       priorIssues: []
     )
-    #require(!withoutFeedback.contains("Critic feedback from prior passes"))
+    try #require(!withoutFeedback.contains("Critic feedback from prior passes"))
   }
 }

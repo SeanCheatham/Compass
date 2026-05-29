@@ -19,24 +19,24 @@ final class AgentBashToolTests {
 
   @Test func testCommandSucceedsAndReportsStdoutAndExit() async throws {
     let result = try await invoke(["command": "echo hello"])
-    #require(!result.isError)
-    #require(result.content.contains("[stdout]\nhello"))
-    #require(result.content.contains("[exit 0]"))
-    #require(!result.content.contains("[stderr]"))
+    try #require(!result.isError)
+    try #require(result.content.contains("[stdout]\nhello"))
+    try #require(result.content.contains("[exit 0]"))
+    try #require(!result.content.contains("[stderr]"))
   }
 
   @Test func testCommandStderrIsCapturedSeparately() async throws {
     let result = try await invoke(["command": "echo out; echo err 1>&2; exit 0"])
-    #require(!result.isError)
-    #require(result.content.contains("[stdout]\nout"))
-    #require(result.content.contains("[stderr]\nerr"))
-    #require(result.content.contains("[exit 0]"))
+    try #require(!result.isError)
+    try #require(result.content.contains("[stdout]\nout"))
+    try #require(result.content.contains("[stderr]\nerr"))
+    try #require(result.content.contains("[exit 0]"))
   }
 
   @Test func testNonZeroExitIsReported() async throws {
     let result = try await invoke(["command": "exit 7"])
-    #require(!result.isError)
-    #require(result.content.contains("[exit 7]"))
+    try #require(!result.isError)
+    try #require(result.content.contains("[exit 7]"))
   }
 
   @Test func testCommandRunsInsideWorkingDirectory() async throws {
@@ -46,8 +46,8 @@ final class AgentBashToolTests {
       encoding: .utf8
     )
     let result = try await invoke(["command": "cat ping.txt"])
-    #require(!result.isError)
-    #require(result.content.contains("marker"))
+    try #require(!result.isError)
+    try #require(result.content.contains("marker"))
   }
 
   @Test func testCwdMustResolveInsideWorkingDirectory() async throws {
@@ -55,8 +55,8 @@ final class AgentBashToolTests {
       "command": "pwd",
       "cwd": "../escape",
     ])
-    #require(result.isError)
-    #require(result.content.contains("escapes"))
+    try #require(result.isError)
+    try #require(result.content.contains("escapes"))
   }
 
   @Test func testCwdSubdirectoryIsHonored() async throws {
@@ -72,8 +72,8 @@ final class AgentBashToolTests {
       "command": "cat file.txt",
       "cwd": "inner",
     ])
-    #require(!result.isError)
-    #require(result.content.contains("deep"))
+    try #require(!result.isError)
+    try #require(result.content.contains("deep"))
   }
 
   @Test func testTimeoutTerminatesLongRunningCommand() async throws {
@@ -81,14 +81,14 @@ final class AgentBashToolTests {
       "command": "sleep 5",
       "timeoutMs": 500,
     ])
-    #require(!result.isError)
-    #require(result.content.contains("timed out"))
+    try #require(!result.isError)
+    try #require(result.content.contains("timed out"))
   }
 
   @Test func testEmptyCommandFails() async throws {
     let result = try await invoke(["command": "   "])
-    #require(result.isError)
-    #require(result.content.contains("command is empty"))
+    try #require(result.isError)
+    try #require(result.content.contains("command is empty"))
   }
 
   private func invoke(_ args: [String: Any]) async throws -> AgentToolInvocationResult {

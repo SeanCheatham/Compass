@@ -17,9 +17,9 @@ struct KnownProjectStoreTestsRecordDecoding : ~Copyable {
       ]
       """)
 
-    let record = #require(records.first)
-    #require(record.activeStorage == .repoLocal)
-    #require(record.nativeFeedbackMode == .notifications)
+    let record = try #require(records.first)
+    try #require(record.activeStorage == .repoLocal)
+    try #require(record.nativeFeedbackMode == .notifications)
     #expect(!record.hostXcodeBuildTestEnabled)
   }
 
@@ -44,7 +44,7 @@ struct KnownProjectStoreTestsRecordDecoding : ~Copyable {
       ]
       """)
 
-    #require(records.map(\.nativeFeedbackMode) == [.notifications, .notifications])
+    try #require(records.map(\.nativeFeedbackMode) == [.notifications, .notifications])
   }
 
   @Test func testDecodingClampsDefaultsAndFallsBackForUnknownValues() throws {
@@ -79,21 +79,21 @@ struct KnownProjectStoreTestsRecordDecoding : ~Copyable {
       ]
       """)
 
-    #require(records[0].activeStorage == .repoLocal)
-    #require(records[0].nativeFeedbackMode == .notifications)
-    #require(records[1].activeStorage == .applicationSupport)
-    #require(records[1].nativeFeedbackMode == .speechAndNotifications)
-    #require(records[2].activeStorage == .repoLocal)
-    #require(records[2].nativeFeedbackMode == .off)
+    try #require(records[0].activeStorage == .repoLocal)
+    try #require(records[0].nativeFeedbackMode == .notifications)
+    try #require(records[1].activeStorage == .applicationSupport)
+    try #require(records[1].nativeFeedbackMode == .speechAndNotifications)
+    try #require(records[2].activeStorage == .repoLocal)
+    try #require(records[2].nativeFeedbackMode == .off)
   }
 
   private func decodeRecords(_ json: String) throws -> [KnownProjectRecord] {
-    let data = #require(json.data(using: .utf8))
+    let data = try #require(json.data(using: .utf8))
     return try JSONDecoder().decode([KnownProjectRecord].self, from: data)
   }
 }
 
-struct KnownProjectStoreTests : ~Copyable {
+final class KnownProjectStoreTests {
   private var temporaryDirectories: [URL] = []
 
   init() throws {}
@@ -106,15 +106,15 @@ struct KnownProjectStoreTests : ~Copyable {
 
   @Test func testLoadTreatsMissingEmptyAndMalformedRegistryFilesAsEmpty() throws {
     let missingRoots = try makeApplicationSupportRoots()
-    #require(KnownProjectStore.load(applicationSupportRoots: missingRoots) == [])
+    try #require(KnownProjectStore.load(applicationSupportRoots: missingRoots) == [])
 
     let emptyCurrentRoots = try makeApplicationSupportRoots()
     try write("", to: currentProjectsURL(for: emptyCurrentRoots))
-    #require(KnownProjectStore.load(applicationSupportRoots: emptyCurrentRoots) == [])
+    try #require(KnownProjectStore.load(applicationSupportRoots: emptyCurrentRoots) == [])
 
     let malformedCurrentRoots = try makeApplicationSupportRoots()
     try write("{", to: currentProjectsURL(for: malformedCurrentRoots))
-    #require(KnownProjectStore.load(applicationSupportRoots: malformedCurrentRoots) == [])
+    try #require(KnownProjectStore.load(applicationSupportRoots: malformedCurrentRoots) == [])
   }
 
   @Test func testSaveWritesPrettySortedJSONToCurrentCompassDirectory() throws {
@@ -128,11 +128,11 @@ struct KnownProjectStoreTests : ~Copyable {
 
     try KnownProjectStore.save([record], applicationSupportRoots: roots)
 
-    #require(FileManager.default.fileExists(atPath: currentProjectsURL(for: roots).path))
-    #require(KnownProjectStore.load(applicationSupportRoots: roots) == [record])
+    try #require(FileManager.default.fileExists(atPath: currentProjectsURL(for: roots).path))
+    try #require(KnownProjectStore.load(applicationSupportRoots: roots) == [record])
 
     let saved = try read(currentProjectsURL(for: roots))
-    #require(saved.contains("\n  {\n"))
+    try #require(saved.contains("\n  {\n"))
     try assertSortedKeys(
       [
         "\"activeStorage\"",
@@ -144,8 +144,8 @@ struct KnownProjectStoreTests : ~Copyable {
       ],
       in: saved
     )
-    #require(!saved.contains("\"developSandbox\""))
-    #require(!saved.contains("\"codexExecutionEnvironmentPreference\""))
+    try #require(!saved.contains("\"developSandbox\""))
+    try #require(!saved.contains("\"codexExecutionEnvironmentPreference\""))
   }
 
   @Test func testSavePersistsNativeFeedbackModeRawValue() throws {
@@ -166,9 +166,9 @@ struct KnownProjectStoreTests : ~Copyable {
     try KnownProjectStore.save(records, applicationSupportRoots: roots)
 
     let saved = try read(currentProjectsURL(for: roots))
-    #require(saved.contains("\"nativeFeedbackMode\" : \"off\""))
-    #require(saved.contains("\"nativeFeedbackMode\" : \"speech_and_notifications\""))
-    #require(KnownProjectStore.load(applicationSupportRoots: roots) == records)
+    try #require(saved.contains("\"nativeFeedbackMode\" : \"off\""))
+    try #require(saved.contains("\"nativeFeedbackMode\" : \"speech_and_notifications\""))
+    try #require(KnownProjectStore.load(applicationSupportRoots: roots) == records)
   }
 
   @Test func testSaveOmitsLegacySandboxPreferenceKeys() throws {
@@ -187,9 +187,9 @@ struct KnownProjectStoreTests : ~Copyable {
     try KnownProjectStore.save(records, applicationSupportRoots: roots)
 
     let saved = try read(currentProjectsURL(for: roots))
-    #require(!saved.contains("\"developSandbox\""))
-    #require(!saved.contains("\"codexExecutionEnvironmentPreference\""))
-    #require(KnownProjectStore.load(applicationSupportRoots: roots) == records)
+    try #require(!saved.contains("\"developSandbox\""))
+    try #require(!saved.contains("\"codexExecutionEnvironmentPreference\""))
+    try #require(KnownProjectStore.load(applicationSupportRoots: roots) == records)
   }
 
   private func makeApplicationSupportRoots() throws -> KnownProjectStore.ApplicationSupportRoots {
@@ -252,7 +252,7 @@ struct KnownProjectStoreTests : ~Copyable {
     var previousUpperBound = json.startIndex
     for key in keys {
       guard let range = json.range(of: key, range: previousUpperBound..<json.endIndex) else {
-        #require(false, "Expected to find \(key) after previous sorted key.")
+        #expect(Bool(false), "Expected to find \(key) after previous sorted key.")
         return
       }
       previousUpperBound = range.upperBound

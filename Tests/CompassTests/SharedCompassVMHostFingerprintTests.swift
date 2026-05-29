@@ -8,21 +8,18 @@ import Testing
 /// decide whether the user edited the host repo while Compass was
 /// closed — a stale fingerprint silently discards those edits, so the
 /// invariants here matter for correctness, not just hygiene.
-struct SharedCompassVMHostFingerprintTests {
+final class SharedCompassVMHostFingerprintTests {
 
-  private var repo: URL!
+  private let repo: URL
 
-  func setup() throws {
-    repo = try makeTempDir()
+  init() throws {
+    repo = try Self.makeTempDir()
     // Skip this test if git isn't available on this host
-    #require(initGitRepo(at: repo), "git is not available on this host; skipping fingerprint tests")
+    try #require(Self.initGitRepo(at: repo), "git is not available on this host; skipping fingerprint tests")
   }
 
-  func teardown() {
-    if let repo {
-      try? FileManager.default.removeItem(at: repo)
-    }
-    repo = nil
+  deinit {
+    try? FileManager.default.removeItem(at: repo)
   }
 
   @Test
@@ -33,9 +30,9 @@ struct SharedCompassVMHostFingerprintTests {
     let first = try SharedCompassVMHostFingerprint.compute(at: repo)
     let second = try SharedCompassVMHostFingerprint.compute(at: repo)
 
-    #require(first.fingerprint == second.fingerprint)
-    #require(first.fileSet == second.fileSet)
-    #require(first.fileSet == ["a.swift", "docs/b.md"])
+    try #require(first.fingerprint == second.fingerprint)
+    try #require(first.fileSet == second.fileSet)
+    try #require(first.fileSet == ["a.swift", "docs/b.md"])
   }
 
   @Test
@@ -46,8 +43,8 @@ struct SharedCompassVMHostFingerprintTests {
     try writeFile("a.swift", contents: "v2")
     let after = try SharedCompassVMHostFingerprint.compute(at: repo)
 
-    #require(before.fingerprint != after.fingerprint)
-    #require(before.fileSet == after.fileSet, "Same paths, content-only change")
+    try #require(before.fingerprint != after.fingerprint)
+    try #require(before.fileSet == after.fileSet, "Same paths, content-only change")
   }
 
   @Test
@@ -58,8 +55,8 @@ struct SharedCompassVMHostFingerprintTests {
     try writeFile("b.swift", contents: "y")
     let after = try SharedCompassVMHostFingerprint.compute(at: repo)
 
-    #require(before.fingerprint != after.fingerprint)
-    #require(after.fileSet == ["a.swift", "b.swift"])
+    try #require(before.fingerprint != after.fingerprint)
+    try #require(after.fileSet == ["a.swift", "b.swift"])
   }
 
   @Test
@@ -71,8 +68,8 @@ struct SharedCompassVMHostFingerprintTests {
     try writeFile("secret.env", contents: "TOKEN=abc")
     let after = try SharedCompassVMHostFingerprint.compute(at: repo)
 
-    #require(before.fingerprint == after.fingerprint)
-    #require(!after.fileSet.contains("secret.env"))
+    try #require(before.fingerprint == after.fingerprint)
+    try #require(!after.fileSet.contains("secret.env"))
   }
 
   @Test
@@ -83,8 +80,8 @@ struct SharedCompassVMHostFingerprintTests {
     try writeFile("scratch.swift", contents: "tmp")
     let after = try SharedCompassVMHostFingerprint.compute(at: repo)
 
-    #require(before.fingerprint != after.fingerprint)
-    #require(after.fileSet.contains("scratch.swift"))
+    try #require(before.fingerprint != after.fingerprint)
+    try #require(after.fileSet.contains("scratch.swift"))
   }
 
   @Test
@@ -99,7 +96,7 @@ struct SharedCompassVMHostFingerprintTests {
 
     let result = try SharedCompassVMHostFingerprint.compute(at: repo)
 
-    #require(result.fileSet.contains("link"))
+    try #require(result.fileSet.contains("link"))
   }
 
   @Test
@@ -114,12 +111,12 @@ struct SharedCompassVMHostFingerprintTests {
 
     let result = try SharedCompassVMHostFingerprint.compute(at: repo)
 
-    #require(result.fileSet == ["a.swift"])
+    try #require(result.fileSet == ["a.swift"])
   }
 
   // MARK: - Helpers
 
-  private func makeTempDir() throws -> URL {
+  private static func makeTempDir() throws -> URL {
     let url = FileManager.default.temporaryDirectory
       .appending(path: "compass-fingerprint-tests-\(UUID().uuidString)", directoryHint: .isDirectory)
     try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
@@ -135,12 +132,12 @@ struct SharedCompassVMHostFingerprintTests {
     try contents.write(to: url, atomically: true, encoding: .utf8)
   }
 
-  private func initGitRepo(at url: URL) -> Bool {
+  private static func initGitRepo(at url: URL) -> Bool {
     let process = Process()
     process.launchPath = "/bin/zsh"
     process.arguments = [
       "-lc",
-      "git init -q && git -c user.email=t@t -c user.name=t commit main -q --allow-empty -m init && git branch -M main",
+      "git init -q && git -c user.email=t@t -c user.name=t commit -q --allow-empty -m init && git branch -M main",
     ]
     process.currentDirectoryURL = url
     process.standardOutput = Pipe()

@@ -5,7 +5,7 @@ import Testing
 
 struct ProjectReliabilityStatusTests {
   @Test
-  func testCleanFeedbackProducesNoCueStatus() {
+  func testCleanFeedbackProducesNoCueStatus() throws {
     let sessions = [
       makeSession(1, status: .succeeded, feedback: "done"),
       makeSession(2, status: .skipped, notes: ["Plan returned no immediate work."]),
@@ -17,15 +17,15 @@ struct ProjectReliabilityStatusTests {
 
     let status = ProjectReliabilityStatus(feedback: feedback)
 
-    #require(status.isEmpty)
-    #require(status.noticeCount == 0)
-    #require(status.countLabel == "0 cues")
-    #require(status.primaryCue == "")
-    #require(status.detail == "")
+    try #require(status.isEmpty)
+    try #require(status.noticeCount == 0)
+    try #require(status.countLabel == "0 cues")
+    try #require(status.primaryCue == "")
+    try #require(status.detail == "")
   }
 
   @Test
-  func testRejectedPlanTakesPriorityOverNewerVerifyFailure() {
+  func testRejectedPlanTakesPriorityOverNewerVerifyFailure() throws {
     let newerFailedVerify = makeSession(
       2,
       startedAt: 2_000,
@@ -51,17 +51,17 @@ struct ProjectReliabilityStatusTests {
 
     let status = ProjectReliabilityStatus(feedback: feedback)
 
-    #require(feedback.notices.map(\.kind) == [.failedVerify, .rejectedPlan])
-    #require(!status.isEmpty)
-    #require(status.primaryCue == "Plan rejected")
-    #require(status.severity == .failure)
-    #require(status.actionLabel == "Retry Plan")
-    #require(status.metadata == "#1")
-    #require(status.countLabel == "2 cues")
+    try #require(feedback.notices.map(\.kind) == [.failedVerify, .rejectedPlan])
+    try #require(!status.isEmpty)
+    try #require(status.primaryCue == "Plan rejected")
+    try #require(status.severity == .failure)
+    try #require(status.actionLabel == "Retry Plan")
+    try #require(status.metadata == "#1")
+    try #require(status.countLabel == "2 cues")
   }
 
   @Test
-  func testDevelopBlockedAndFailedCuesUseDevelopActions() {
+  func testDevelopBlockedAndFailedCuesUseDevelopActions() throws {
     let blockedFeedback = PlanReliabilityFeedback(
       state: makeState(),
       sessions: [
@@ -88,18 +88,18 @@ struct ProjectReliabilityStatusTests {
     let blockedStatus = ProjectReliabilityStatus(feedback: blockedFeedback)
     let failedStatus = ProjectReliabilityStatus(feedback: failedFeedback)
 
-    #require(blockedStatus.primaryCue == "Develop blocked")
-    #require(blockedStatus.severity == .warning)
-    #require(blockedStatus.actionLabel == "Retry Develop")
-    #require(blockedStatus.detail == "Missing signing credentials.")
-    #require(failedStatus.primaryCue == "Develop failed")
-    #require(failedStatus.severity == .failure)
-    #require(failedStatus.actionLabel == "Retry Develop")
-    #require(failedStatus.detail == "build settings were inconsistent")
+    try #require(blockedStatus.primaryCue == "Develop blocked")
+    try #require(blockedStatus.severity == .warning)
+    try #require(blockedStatus.actionLabel == "Retry Develop")
+    try #require(blockedStatus.detail == "Missing signing credentials.")
+    try #require(failedStatus.primaryCue == "Develop failed")
+    try #require(failedStatus.severity == .failure)
+    try #require(failedStatus.actionLabel == "Retry Develop")
+    try #require(failedStatus.detail == "build settings were inconsistent")
   }
 
   @Test
-  func testFailedVerifyStatusCarriesVerifyMetadata() {
+  func testFailedVerifyStatusCarriesVerifyMetadata() throws {
     let session = makeSession(
       5,
       status: .failed,
@@ -117,18 +117,18 @@ struct ProjectReliabilityStatusTests {
 
     let status = ProjectReliabilityStatus(feedback: feedback)
 
-    #require(status.primaryCue == "Verify failed")
-    #require(status.severity == .failure)
-    #require(status.actionLabel == "Retry Develop")
-    #require(
+    try #require(status.primaryCue == "Verify failed")
+    try #require(status.severity == .failure)
+    try #require(status.actionLabel == "Retry Develop")
+    try #require(
       status.metadata ==
       "swift test --filter ProjectReliabilityStatusTests · exit 65"
     )
-    #require(status.detail == "Test Suite failed Expected true but got false")
+    try #require(status.detail == "Test Suite failed Expected true but got false")
   }
 
   @Test
-  func testDirtyWorktreeStatusCarriesPostCheckMetadata() {
+  func testDirtyWorktreeStatusCarriesPostCheckMetadata() throws {
     let session = makeSession(
       9,
       status: .failed,
@@ -147,15 +147,15 @@ struct ProjectReliabilityStatusTests {
 
     let status = ProjectReliabilityStatus(feedback: feedback)
 
-    #require(status.primaryCue == "Worktree dirty")
-    #require(status.severity == .warning)
-    #require(status.actionLabel == "Clean Worktree")
-    #require(status.metadata == "#9 · 1 pending change")
-    #require(status.detail.hasPrefix("Uncommitted or untracked changes remain"))
+    try #require(status.primaryCue == "Worktree dirty")
+    try #require(status.severity == .warning)
+    try #require(status.actionLabel == "Clean Worktree")
+    try #require(status.metadata == "#9 · 1 pending change")
+    try #require(status.detail.hasPrefix("Uncommitted or untracked changes remain"))
   }
 
   @Test
-  func testPromotionFailureStatusCarriesPromotionMetadata() {
+  func testPromotionFailureStatusCarriesPromotionMetadata() throws {
     let session = makeSession(
       10,
       status: .failed,
@@ -168,15 +168,15 @@ struct ProjectReliabilityStatusTests {
 
     let status = ProjectReliabilityStatus(feedback: feedback)
 
-    #require(status.primaryCue == "Promotion failed")
-    #require(status.severity == .failure)
-    #require(status.actionLabel == "Resolve Promotion")
-    #require(status.metadata == "#10 · promotion")
-    #require(status.detail == "Develop sandbox produced no commit to promote.")
+    try #require(status.primaryCue == "Promotion failed")
+    try #require(status.severity == .failure)
+    try #require(status.actionLabel == "Resolve Promotion")
+    try #require(status.metadata == "#10 · promotion")
+    try #require(status.detail == "Develop sandbox produced no commit to promote.")
   }
 
   @Test
-  func testAwaitingApprovalStatusUsesResumeCue() {
+  func testAwaitingApprovalStatusUsesResumeCue() throws {
     let session = makeSession(
       6,
       status: .awaitingApproval,
@@ -186,16 +186,16 @@ struct ProjectReliabilityStatusTests {
 
     let status = ProjectReliabilityStatus(feedback: feedback)
 
-    #require(status.primaryCue == "Develop ready")
-    #require(status.severity == .paused)
-    #require(status.actionLabel == "Resume Develop")
-    #require(status.metadata == "#6")
-    #require(status.detail == "Implement the approved next slice")
-    #require(status.countLabel == "1 cue")
+    try #require(status.primaryCue == "Develop ready")
+    try #require(status.severity == .paused)
+    try #require(status.actionLabel == "Resume Develop")
+    try #require(status.metadata == "#6")
+    try #require(status.detail == "Implement the approved next slice")
+    try #require(status.countLabel == "1 cue")
   }
 
   @Test
-  func testMultipleCueStatusReportsCountLabel() {
+  func testMultipleCueStatusReportsCountLabel() throws {
     let session = makeSession(
       7,
       status: .failed,
@@ -211,15 +211,15 @@ struct ProjectReliabilityStatusTests {
 
     let status = ProjectReliabilityStatus(feedback: feedback)
 
-    #require(feedback.notices.map(\.kind) == [.developFailed, .failedVerify])
-    #require(status.noticeCount == 2)
-    #require(status.countLabel == "2 cues")
-    #require(status.primaryCue == "Verify failed")
-    #require(status.metadata == "swift test · exit 1")
+    try #require(feedback.notices.map(\.kind) == [.developFailed, .failedVerify])
+    try #require(status.noticeCount == 2)
+    try #require(status.countLabel == "2 cues")
+    try #require(status.primaryCue == "Verify failed")
+    try #require(status.metadata == "swift test · exit 1")
   }
 
   @Test
-  func testDetailCanBeBoundedForCompactProjectSurfaces() {
+  func testDetailCanBeBoundedForCompactProjectSurfaces() throws {
     let session = makeSession(
       11,
       status: .failed,
@@ -235,9 +235,9 @@ struct ProjectReliabilityStatusTests {
 
     let status = ProjectReliabilityStatus(feedback: feedback, detailLimit: 46)
 
-    #require(status.detail.count <= 46)
-    #require(status.detail.hasPrefix("First line second line"))
-    #require(status.detail.hasSuffix("..."))
+    try #require(status.detail.count <= 46)
+    try #require(status.detail.hasPrefix("First line second line"))
+    try #require(status.detail.hasSuffix("..."))
   }
 
   private func makeState(

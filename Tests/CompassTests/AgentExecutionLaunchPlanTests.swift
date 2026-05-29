@@ -3,7 +3,7 @@ import Testing
 
 @testable import Compass
 
-struct AgentExecutionLaunchPlanTests: ~Copyable {
+final class AgentExecutionLaunchPlanTests {
   private var temporaryDirectories: [URL] = []
 
   deinit {
@@ -31,10 +31,10 @@ struct AgentExecutionLaunchPlanTests: ~Copyable {
       sharedVMRouteFactory: { _ in route }
     )
 
-    #require(plan.isVMRoute)
-    #require(plan.effectiveRouteIdentifier == "shared-vm")
-    #require(plan.fallbackReason == nil)
-    #require(plan.workspaceLabel == "/Users/compass/Compass/Worktrees/dev-AAA/worktree")
+    try #require(plan.isVMRoute)
+    try #require(plan.effectiveRouteIdentifier == "shared-vm")
+    try #require(plan.fallbackReason == nil)
+    try #require(plan.workspaceLabel == "/Users/compass/Compass/Worktrees/dev-AAA/worktree")
   }
 
   @Test func testMissingConfigFallsBackToNativeWithBoundedReason() throws {
@@ -43,8 +43,8 @@ struct AgentExecutionLaunchPlanTests: ~Copyable {
       repoURL: repoURL,
       vmReadiness: .notProvisioned
     )
-    #require(!plan.isVMRoute)
-    #require(plan.fallbackReason?.contains("not been provisioned") ?? false)
+    try #require(!plan.isVMRoute)
+    try #require(plan.fallbackReason?.contains("not been provisioned") ?? false)
   }
 
   @Test func testMalformedConfigFallsBackToNativeWithBoundedReason() throws {
@@ -53,8 +53,8 @@ struct AgentExecutionLaunchPlanTests: ~Copyable {
       repoURL: repoURL,
       vmReadiness: .error(detail: "ssh probe failed")
     )
-    #require(!plan.isVMRoute)
-    #require(plan.fallbackReason?.contains("ssh probe failed") ?? false)
+    try #require(!plan.isVMRoute)
+    try #require(plan.fallbackReason?.contains("ssh probe failed") ?? false)
   }
 
   @Test func testReadyButNoRouteableFactoryFallsBackToHost() throws {
@@ -68,8 +68,8 @@ struct AgentExecutionLaunchPlanTests: ~Copyable {
       vmReadiness: .ready(sshDestination: "compass@192.0.2.10"),
       sharedVMRouteFactory: { _ in nil }
     )
-    #require(!plan.isVMRoute)
-    #require(plan.fallbackReason?.contains("outside the Shared VM workspaces share") ?? false)
+    try #require(!plan.isVMRoute)
+    try #require(plan.fallbackReason?.contains("outside the Shared VM workspaces share") ?? false)
   }
 
   @Test func testBuildConfigFallsBackToNativeWhenContainerToolIsUnavailable() throws {
@@ -78,8 +78,8 @@ struct AgentExecutionLaunchPlanTests: ~Copyable {
       repoURL: repoURL,
       vmReadiness: nil
     )
-    #require(!plan.isVMRoute)
-    #require(plan.fallbackReason?.contains("readiness has not been evaluated") ?? false)
+    try #require(!plan.isVMRoute)
+    try #require(plan.fallbackReason?.contains("readiness has not been evaluated") ?? false)
   }
 
   // MARK: - Decoding
@@ -91,16 +91,16 @@ struct AgentExecutionLaunchPlanTests: ~Copyable {
         var value: AgentExecutionEnvironmentPreference
       }
       let decoded = try JSONDecoder().decode(Wrapper.self, from: Data(json.utf8))
-      #require(decoded.value == .sharedVM)
+      try #require(decoded.value == .sharedVM)
     }
   }
 
   @Test func testSharedVMRawValueRoundTrips() throws {
     let encoded = try JSONEncoder().encode(AgentExecutionEnvironmentPreference.sharedVM)
     let string = String(decoding: encoded, as: UTF8.self)
-    #require(string == "\"shared_vm\"")
+    try #require(string == "\"shared_vm\"")
     let decoded = try JSONDecoder().decode(AgentExecutionEnvironmentPreference.self, from: encoded)
-    #require(decoded == .sharedVM)
+    try #require(decoded == .sharedVM)
   }
 
   // MARK: - Snapshot
@@ -119,16 +119,16 @@ struct AgentExecutionLaunchPlanTests: ~Copyable {
     )
     let snapshot = SessionExecutionEnvironmentSnapshot(
       phase: "Develop", attempt: 1, launchPlan: plan)
-    #require(snapshot.effectiveRouteIdentifier == "shared-vm")
-    #require(snapshot.provisioningAvailabilityIdentifier == "available")
-    #require(snapshot.provisioningStatusIdentifier == "ready")
-    #require(
+    try #require(snapshot.effectiveRouteIdentifier == "shared-vm")
+    try #require(snapshot.provisioningAvailabilityIdentifier == "available")
+    try #require(snapshot.provisioningStatusIdentifier == "ready")
+    try #require(
       snapshot.provisioningActionIdentifier ==
       SessionExecutionEnvironmentSnapshot.vmBuildActionIdentifier)
 
     let encoded = try JSONEncoder().encode(snapshot)
     let decoded = try JSONDecoder().decode(SessionExecutionEnvironmentSnapshot.self, from: encoded)
-    #require(decoded == snapshot)
+    try #require(decoded == snapshot)
   }
 
   @Test func
@@ -149,9 +149,9 @@ struct AgentExecutionLaunchPlanTests: ~Copyable {
         vmReadiness: readiness
       )
       let snapshot = SessionExecutionEnvironmentSnapshot(phase: "Plan", launchPlan: plan)
-      #require(snapshot.effectiveRouteIdentifier == "native-macos")
-      #require(snapshot.supportClassificationIdentifier == expectedClassification)
-      #require(!snapshot.routeSummary.contains(repoURL.path))
+      try #require(snapshot.effectiveRouteIdentifier == "native-macos")
+      try #require(snapshot.supportClassificationIdentifier == expectedClassification)
+      try #require(!snapshot.routeSummary.contains(repoURL.path))
     }
   }
 

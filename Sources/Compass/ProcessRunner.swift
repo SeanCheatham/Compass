@@ -117,6 +117,22 @@ enum ProcessRunner {
       }
 
       process.terminationHandler = { process in
+        stdoutPipe.fileHandleForReading.readabilityHandler = nil
+        stderrPipe.fileHandleForReading.readabilityHandler = nil
+        let stdoutRemainder = stdoutPipe.fileHandleForReading.readDataToEndOfFile()
+        if !stdoutRemainder.isEmpty,
+          let chunk = String(data: stdoutRemainder, encoding: .utf8)
+        {
+          outputStore.appendStdout(chunk)
+          onStdout?(chunk)
+        }
+        let stderrRemainder = stderrPipe.fileHandleForReading.readDataToEndOfFile()
+        if !stderrRemainder.isEmpty,
+          let chunk = String(data: stderrRemainder, encoding: .utf8)
+        {
+          outputStore.appendStderr(chunk)
+          onStderr?(chunk)
+        }
         let snapshot = outputStore.snapshot()
         finish(
           .success(

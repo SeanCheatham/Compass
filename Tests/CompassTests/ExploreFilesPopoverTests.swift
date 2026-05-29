@@ -54,7 +54,7 @@ struct ExploreFilesPopoverTests {
     // before any git diff is run. The popover would show the empty state.
     let result = await FileExplainer.changes(for: test.temporaryDirectory, commits: emptyCommits)
 
-    #require(result.isEmpty)
+    try #require(result.isEmpty)
   }
 
   // MARK: - Path 3: FileExplainer.explain returns nil when Foundation Models is unavailable
@@ -90,7 +90,7 @@ struct ExploreFilesPopoverTests {
 
     if !FoundationModelsAvailability.isAvailable {
       // The nil return is the expected result when the model is unavailable.
-      #require(result == nil)
+      try #require(result == nil)
     }
     // If the model IS available, a non-nil string would be returned — both are valid.
   }

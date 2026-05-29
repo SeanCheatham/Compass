@@ -3,7 +3,7 @@ import Testing
 
 @testable import Compass
 
-struct CompassWorkspaceStorageDisplayStatusTests : ~Copyable {
+final class CompassWorkspaceStorageDisplayStatusTests {
   private var temporaryDirectories: [URL] = []
 
   init() throws {}
@@ -37,24 +37,24 @@ struct CompassWorkspaceStorageDisplayStatusTests : ~Copyable {
       preflight: preflight
     )
 
-    #require(assessment.kind == .missingWorkspace)
-    #require(preflight.repoLocalReadiness == .missingWorkspace)
-    #require(display.kind == .applicationSupportActive)
-    #require(display.severity == .healthy)
-    #require(display.activeRootHealth == .healthy)
-    #require(display.activeStorageRootURL == resolver.storageRootURL.standardizedFileURL)
-    #require(display.activeStorageDisplayName == "Application Support")
-    #require(preflight.currentApplicationSupportCandidateIsOccupied)
-    #require(display.detail.contains("Active Compass state root"))
-    #require(display.detail.contains("Repo-local .compass/ is absent"))
-    #require(display.recommendation.contains("No repo-local storage action"))
-    #require(!display.detail.localizedCaseInsensitiveContains("conflict"))
-    #require(!display.recommendation.localizedCaseInsensitiveContains("repair"))
-    let compatibility = #require(display.applicationSupportCompatibility)
-    #require(compatibility.repoLocalContext.kind == .missing)
-    #require(compatibility.inspectOnlyApplicationSupportDrift.isEmpty)
-    #require(display.supportRepairAction == nil)
-    #require(
+    try #require(assessment.kind == .missingWorkspace)
+    try #require(preflight.repoLocalReadiness == .missingWorkspace)
+    try #require(display.kind == .applicationSupportActive)
+    try #require(display.severity == .healthy)
+    try #require(display.activeRootHealth == .healthy)
+    try #require(display.activeStorageRootURL == resolver.storageRootURL.standardizedFileURL)
+    try #require(display.activeStorageDisplayName == "Application Support")
+    try #require(preflight.currentApplicationSupportCandidateIsOccupied)
+    try #require(display.detail.contains("Active Compass state root"))
+    try #require(display.detail.contains("Repo-local .compass/ is absent"))
+    try #require(display.recommendation.contains("No repo-local storage action"))
+    try #require(!display.detail.localizedCaseInsensitiveContains("conflict"))
+    try #require(!display.recommendation.localizedCaseInsensitiveContains("repair"))
+    let compatibility = try #require(display.applicationSupportCompatibility)
+    try #require(compatibility.repoLocalContext.kind == .missing)
+    try #require(compatibility.inspectOnlyApplicationSupportDrift.isEmpty)
+    try #require(display.supportRepairAction == nil)
+    try #require(
       !FileManager.default.fileExists(atPath: resolver.workspace.repoLocalCompassURL.path))
   }
 
@@ -81,21 +81,21 @@ struct CompassWorkspaceStorageDisplayStatusTests : ~Copyable {
       preflight: preflight
     )
 
-    #require(preflight.repoLocalReadiness == .ready)
-    #require(preflight.kind == .applicationSupportConflict)
-    #require(preflight.currentApplicationSupportCandidateIsOccupied)
-    #require(display.kind == .applicationSupportActive)
-    #require(display.severity == .healthy)
-    #require(display.activeRootHealth == .healthy)
-    let compatibility = #require(display.applicationSupportCompatibility)
-    #require(compatibility.repoLocalContext.kind == .retainedStale)
-    #require(compatibility.inspectOnlyApplicationSupportDrift.isEmpty)
-    #require(display.detail.contains("retained stale compatibility context"))
-    #require(display.recommendation.contains("Leave repo-local state unchanged"))
-    #require(!display.detail.localizedCaseInsensitiveContains("conflict"))
-    #require(!display.detail.contains("Current:"))
-    #require(!display.recommendation.localizedCaseInsensitiveContains("repair"))
-    #require(display.supportRepairAction == nil)
+    try #require(preflight.repoLocalReadiness == .ready)
+    try #require(preflight.kind == .applicationSupportConflict)
+    try #require(preflight.currentApplicationSupportCandidateIsOccupied)
+    try #require(display.kind == .applicationSupportActive)
+    try #require(display.severity == .healthy)
+    try #require(display.activeRootHealth == .healthy)
+    let compatibility = try #require(display.applicationSupportCompatibility)
+    try #require(compatibility.repoLocalContext.kind == .retainedStale)
+    try #require(compatibility.inspectOnlyApplicationSupportDrift.isEmpty)
+    try #require(display.detail.contains("retained stale compatibility context"))
+    try #require(display.recommendation.contains("Leave repo-local state unchanged"))
+    try #require(!display.detail.localizedCaseInsensitiveContains("conflict"))
+    try #require(!display.detail.contains("Current:"))
+    try #require(!display.recommendation.localizedCaseInsensitiveContains("repair"))
+    try #require(display.supportRepairAction == nil)
   }
 
   @Test func testApplicationSupportActiveWithIncompleteRepoLocalReportsCompatibilityOnly() throws {
@@ -117,21 +117,21 @@ struct CompassWorkspaceStorageDisplayStatusTests : ~Copyable {
       applicationSupportRoots: roots
     )
 
-    #require(display.kind == .applicationSupportActive)
-    #require(display.severity == .healthy)
-    #require(display.repoLocalReadiness == .incompleteWorkspace)
-    let compatibility = #require(display.applicationSupportCompatibility)
-    #require(compatibility.repoLocalContext.kind == .incomplete)
-    #require(compatibility.repoLocalContext.missingItems.contains("state.json"))
-    #require(compatibility.repoLocalContext.missingItems.contains("drafts.md"))
-    #require(compatibility.repoLocalContext.missingItems.contains("lessons.md"))
-    #require(compatibility.repoLocalContext.missingItems.contains("COMPASS.md"))
-    #require(compatibility.repoLocalContext.missingItems.contains("sessions/"))
-    #require(!compatibility.repoLocalContext.missingItems.contains("sessions.json"))
-    #require(display.detail.contains("incomplete stale compatibility context"))
-    #require(display.recommendation.contains("Leave incomplete repo-local state unchanged"))
-    #require(!display.recommendation.localizedCaseInsensitiveContains("repair"))
-    #require(display.supportRepairAction == nil)
+    try #require(display.kind == .applicationSupportActive)
+    try #require(display.severity == .healthy)
+    try #require(display.repoLocalReadiness == .incompleteWorkspace)
+    let compatibility = try #require(display.applicationSupportCompatibility)
+    try #require(compatibility.repoLocalContext.kind == .incomplete)
+    try #require(compatibility.repoLocalContext.missingItems.contains("state.json"))
+    try #require(compatibility.repoLocalContext.missingItems.contains("drafts.md"))
+    try #require(compatibility.repoLocalContext.missingItems.contains("lessons.md"))
+    try #require(compatibility.repoLocalContext.missingItems.contains("COMPASS.md"))
+    try #require(compatibility.repoLocalContext.missingItems.contains("sessions/"))
+    try #require(!compatibility.repoLocalContext.missingItems.contains("sessions.json"))
+    try #require(display.detail.contains("incomplete stale compatibility context"))
+    try #require(display.recommendation.contains("Leave incomplete repo-local state unchanged"))
+    try #require(!display.recommendation.localizedCaseInsensitiveContains("repair"))
+    try #require(display.supportRepairAction == nil)
   }
 
   @Test func testApplicationSupportActiveReportsMissingSupportStorage() throws {
@@ -149,24 +149,24 @@ struct CompassWorkspaceStorageDisplayStatusTests : ~Copyable {
       applicationSupportRoots: roots
     )
 
-    #require(display.kind == .applicationSupportActiveMissing)
-    #require(display.severity == .warning)
-    #require(display.activeRootHealth == .missing)
-    #require(display.activeStorageRootURL == resolver.storageRootURL.standardizedFileURL)
-    #require(
+    try #require(display.kind == .applicationSupportActiveMissing)
+    try #require(display.severity == .warning)
+    try #require(display.activeRootHealth == .missing)
+    try #require(display.activeStorageRootURL == resolver.storageRootURL.standardizedFileURL)
+    try #require(
       display.activeRootFacts.missingCoreFiles == CompassWorkspaceStorageAssessment.CoreFile.allCases)
-    #require(!display.activeRootFacts.sessionsDirectoryExists)
-    #require(display.detail.contains("Active Application Support state root is missing"))
-    let repairAction = #require(display.supportRepairAction)
-    #require(repairAction.kind == .initializeApplicationSupportWorkspace)
-    #require(repairAction.issueKind == .applicationSupportActiveMissing)
-    #require(repairAction.label == "Repair support storage")
-    #require(repairAction.label.count <= CompassWorkspaceStorageDisplayStatus.repairActionLabelLimit)
-    #require(repairAction.helpText.count <= CompassWorkspaceStorageDisplayStatus.repairActionHelpLimit)
-    #require(repairAction.helpText.contains("Application Support"))
-    #require(repairAction.helpText.contains("repo-local"))
-    #require(!FileManager.default.fileExists(atPath: resolver.storageRootURL.path))
-    #require(
+    try #require(!display.activeRootFacts.sessionsDirectoryExists)
+    try #require(display.detail.contains("Active Application Support state root is missing"))
+    let repairAction = try #require(display.supportRepairAction)
+    try #require(repairAction.kind == .initializeApplicationSupportWorkspace)
+    try #require(repairAction.issueKind == .applicationSupportActiveMissing)
+    try #require(repairAction.label == "Repair support storage")
+    try #require(repairAction.label.count <= CompassWorkspaceStorageDisplayStatus.repairActionLabelLimit)
+    try #require(repairAction.helpText.count <= CompassWorkspaceStorageDisplayStatus.repairActionHelpLimit)
+    try #require(repairAction.helpText.contains("Application Support"))
+    try #require(repairAction.helpText.contains("repo-local"))
+    try #require(!FileManager.default.fileExists(atPath: resolver.storageRootURL.path))
+    try #require(
       !FileManager.default.fileExists(atPath: resolver.workspace.repoLocalCompassURL.path))
   }
 
@@ -188,26 +188,26 @@ struct CompassWorkspaceStorageDisplayStatusTests : ~Copyable {
       applicationSupportRoots: roots
     )
 
-    #require(display.kind == .applicationSupportActiveIncomplete)
-    #require(display.severity == .failure)
-    #require(display.activeRootHealth == .incomplete)
-    #require(display.activeRootFacts.presentCoreFiles.contains(.sessionsRecord))
-    #require(!display.activeRootFacts.missingItems.contains("sessions.json"))
-    #require(display.activeRootFacts.missingItems.contains("state.json"))
-    #require(display.activeRootFacts.missingItems.contains("drafts.md"))
-    #require(display.activeRootFacts.missingItems.contains("lessons.md"))
-    #require(display.activeRootFacts.missingItems.contains("COMPASS.md"))
-    #require(display.activeRootFacts.missingItems.contains("sessions/"))
-    #require(display.detail.contains("Active Application Support state root is missing"))
-    let repairAction = #require(display.supportRepairAction)
-    #require(repairAction.kind == .initializeApplicationSupportWorkspace)
-    #require(repairAction.issueKind == .applicationSupportActiveIncomplete)
-    #require(repairAction.label == "Repair support storage")
-    #require(repairAction.label.count <= CompassWorkspaceStorageDisplayStatus.repairActionLabelLimit)
-    #require(repairAction.helpText.count <= CompassWorkspaceStorageDisplayStatus.repairActionHelpLimit)
-    #require(repairAction.helpText.contains("Application Support"))
-    #require(repairAction.helpText.contains("repo-local"))
-    #require(
+    try #require(display.kind == .applicationSupportActiveIncomplete)
+    try #require(display.severity == .failure)
+    try #require(display.activeRootHealth == .incomplete)
+    try #require(display.activeRootFacts.presentCoreFiles.contains(.sessionsRecord))
+    try #require(!display.activeRootFacts.missingItems.contains("sessions.json"))
+    try #require(display.activeRootFacts.missingItems.contains("state.json"))
+    try #require(display.activeRootFacts.missingItems.contains("drafts.md"))
+    try #require(display.activeRootFacts.missingItems.contains("lessons.md"))
+    try #require(display.activeRootFacts.missingItems.contains("COMPASS.md"))
+    try #require(display.activeRootFacts.missingItems.contains("sessions/"))
+    try #require(display.detail.contains("Active Application Support state root is missing"))
+    let repairAction = try #require(display.supportRepairAction)
+    try #require(repairAction.kind == .initializeApplicationSupportWorkspace)
+    try #require(repairAction.issueKind == .applicationSupportActiveIncomplete)
+    try #require(repairAction.label == "Repair support storage")
+    try #require(repairAction.label.count <= CompassWorkspaceStorageDisplayStatus.repairActionLabelLimit)
+    try #require(repairAction.helpText.count <= CompassWorkspaceStorageDisplayStatus.repairActionHelpLimit)
+    try #require(repairAction.helpText.contains("Application Support"))
+    try #require(repairAction.helpText.contains("repo-local"))
+    try #require(
       !FileManager.default.fileExists(atPath: supportWorkspace.repoLocalCompassURL.path))
   }
 
@@ -230,15 +230,15 @@ struct CompassWorkspaceStorageDisplayStatusTests : ~Copyable {
       preflight: preflight
     )
 
-    #require(display.kind == .repoLocalRecommended)
-    #require(display.severity == boundary.severity)
-    #require(display.label == boundary.label)
-    #require(display.detail == boundary.detail)
-    #require(display.recommendation == boundary.recommendation)
-    #require(display.systemImage == boundary.systemImage)
-    #require(display.activeRootHealth == .healthy)
-    #require(display.repoLocalReadiness == .ready)
-    #require(display.supportRepairAction == nil)
+    try #require(display.kind == .repoLocalRecommended)
+    try #require(display.severity == boundary.severity)
+    try #require(display.label == boundary.label)
+    try #require(display.detail == boundary.detail)
+    try #require(display.recommendation == boundary.recommendation)
+    try #require(display.systemImage == boundary.systemImage)
+    try #require(display.activeRootHealth == .healthy)
+    try #require(display.repoLocalReadiness == .ready)
+    try #require(display.supportRepairAction == nil)
   }
 
   @Test func testRepoLocalDisplayStatusStillReportsSupportConflicts() throws {
@@ -264,12 +264,12 @@ struct CompassWorkspaceStorageDisplayStatusTests : ~Copyable {
       preflight: preflight
     )
 
-    #require(display.kind == .applicationSupportInspectOnlyConflict)
-    #require(display.severity == .warning)
-    #require(display.detail.contains("Active state remains in repo-local .compass/"))
-    #require(display.detail.contains("inspect-only conflict"))
-    #require(display.recommendation.contains("No migration or mirroring by default"))
-    #require(display.applicationSupportCompatibility == nil)
+    try #require(display.kind == .applicationSupportInspectOnlyConflict)
+    try #require(display.severity == .warning)
+    try #require(display.detail.contains("Active state remains in repo-local .compass/"))
+    try #require(display.detail.contains("inspect-only conflict"))
+    try #require(display.recommendation.contains("No migration or mirroring by default"))
+    try #require(display.applicationSupportCompatibility == nil)
   }
 
   @Test func testDisplayStatusTextAndIdentifiersStayBounded() throws {
@@ -306,38 +306,38 @@ struct CompassWorkspaceStorageDisplayStatusTests : ~Copyable {
       )
     )
 
-    #require(
+    try #require(
       display.projectStorageIdentifier.count <=
       CompassWorkspaceStorageAssessment.maxProjectIdentifierLength
     )
-    #require(display.label.count <= CompassWorkspaceStorageDisplayStatus.labelLimit)
-    #require(display.detail.count <= CompassWorkspaceStorageDisplayStatus.detailLimit)
-    #require(
+    try #require(display.label.count <= CompassWorkspaceStorageDisplayStatus.labelLimit)
+    try #require(display.detail.count <= CompassWorkspaceStorageDisplayStatus.detailLimit)
+    try #require(
       display.recommendation.count <=
       CompassWorkspaceStorageDisplayStatus.recommendationLimit
     )
-    #require(!display.label.isEmpty)
-    #require(!display.detail.isEmpty)
-    #require(!display.recommendation.isEmpty)
-    let compatibility = #require(display.applicationSupportCompatibility)
-    #require(
+    try #require(!display.label.isEmpty)
+    try #require(!display.detail.isEmpty)
+    try #require(!display.recommendation.isEmpty)
+    let compatibility = try #require(display.applicationSupportCompatibility)
+    try #require(
       compatibility.detail.count <=
       CompassWorkspaceStorageDisplayStatus.compatibilityDetailLimit
     )
-    #require(
+    try #require(
       compatibility.recommendation.count <=
       CompassWorkspaceStorageDisplayStatus.compatibilityRecommendationLimit
     )
-    #require(
+    try #require(
       compatibility.helpText.count <=
       CompassWorkspaceStorageDisplayStatus.compatibilityHelpLimit
     )
-    #require(!compatibility.detail.isEmpty)
-    #require(!compatibility.recommendation.isEmpty)
-    #require(!compatibility.helpText.isEmpty)
+    try #require(!compatibility.detail.isEmpty)
+    try #require(!compatibility.recommendation.isEmpty)
+    try #require(!compatibility.helpText.isEmpty)
   }
 
-  @Test func testHeaderActionVisibilityDistinguishesActiveStorageAndFeedback() {
+  @Test func testHeaderActionVisibilityDistinguishesActiveStorageAndFeedback() throws {
     let repoLocalActions = CompassWorkspaceStorageHeaderActions(
       activeStorage: .repoLocal,
       candidatePreparationIsAvailable: true,
@@ -348,10 +348,10 @@ struct CompassWorkspaceStorageDisplayStatusTests : ~Copyable {
       repoLocalRepairActionIsAvailable: true
     )
 
-    #require(repoLocalActions.showsCandidatePreparation)
-    #require(repoLocalActions.showsActivation)
-    #require(repoLocalActions.showsRepoLocalRepair)
-    #require(!repoLocalActions.showsApplicationSupportRepair)
+    try #require(repoLocalActions.showsCandidatePreparation)
+    try #require(repoLocalActions.showsActivation)
+    try #require(repoLocalActions.showsRepoLocalRepair)
+    try #require(!repoLocalActions.showsApplicationSupportRepair)
 
     let busyRepoLocalActions = CompassWorkspaceStorageHeaderActions(
       activeStorage: .repoLocal,
@@ -363,10 +363,10 @@ struct CompassWorkspaceStorageDisplayStatusTests : ~Copyable {
       repoLocalRepairActionIsAvailable: false
     )
 
-    #require(busyRepoLocalActions.showsCandidatePreparation)
-    #require(!busyRepoLocalActions.showsActivation)
-    #require(!busyRepoLocalActions.showsRepoLocalRepair)
-    #require(!busyRepoLocalActions.showsApplicationSupportRepair)
+    try #require(busyRepoLocalActions.showsCandidatePreparation)
+    try #require(!busyRepoLocalActions.showsActivation)
+    try #require(!busyRepoLocalActions.showsRepoLocalRepair)
+    try #require(!busyRepoLocalActions.showsApplicationSupportRepair)
 
     let supportActiveActions = CompassWorkspaceStorageHeaderActions(
       activeStorage: .applicationSupport,
@@ -378,10 +378,10 @@ struct CompassWorkspaceStorageDisplayStatusTests : ~Copyable {
       repoLocalRepairActionIsAvailable: true
     )
 
-    #require(!supportActiveActions.showsCandidatePreparation)
-    #require(!supportActiveActions.showsActivation)
-    #require(!supportActiveActions.showsRepoLocalRepair)
-    #require(!supportActiveActions.showsApplicationSupportRepair)
+    try #require(!supportActiveActions.showsCandidatePreparation)
+    try #require(!supportActiveActions.showsActivation)
+    try #require(!supportActiveActions.showsRepoLocalRepair)
+    try #require(!supportActiveActions.showsApplicationSupportRepair)
 
     let supportFeedbackActions = CompassWorkspaceStorageHeaderActions(
       activeStorage: .applicationSupport,
@@ -393,10 +393,10 @@ struct CompassWorkspaceStorageDisplayStatusTests : ~Copyable {
       repoLocalRepairActionIsAvailable: true
     )
 
-    #require(supportFeedbackActions.showsCandidatePreparation)
-    #require(supportFeedbackActions.showsActivation)
-    #require(!supportFeedbackActions.showsRepoLocalRepair)
-    #require(!supportFeedbackActions.showsApplicationSupportRepair)
+    try #require(supportFeedbackActions.showsCandidatePreparation)
+    try #require(supportFeedbackActions.showsActivation)
+    try #require(!supportFeedbackActions.showsRepoLocalRepair)
+    try #require(!supportFeedbackActions.showsApplicationSupportRepair)
 
     let supportRepairActions = CompassWorkspaceStorageHeaderActions(
       activeStorage: .applicationSupport,
@@ -409,10 +409,10 @@ struct CompassWorkspaceStorageDisplayStatusTests : ~Copyable {
       applicationSupportRepairActionIsAvailable: true
     )
 
-    #require(!supportRepairActions.showsCandidatePreparation)
-    #require(!supportRepairActions.showsActivation)
-    #require(!supportRepairActions.showsRepoLocalRepair)
-    #require(supportRepairActions.showsApplicationSupportRepair)
+    try #require(!supportRepairActions.showsCandidatePreparation)
+    try #require(!supportRepairActions.showsActivation)
+    try #require(!supportRepairActions.showsRepoLocalRepair)
+    try #require(supportRepairActions.showsApplicationSupportRepair)
 
     let repoLocalRepairActions = CompassWorkspaceStorageHeaderActions(
       activeStorage: .repoLocal,
@@ -425,8 +425,8 @@ struct CompassWorkspaceStorageDisplayStatusTests : ~Copyable {
       applicationSupportRepairActionIsAvailable: true
     )
 
-    #require(repoLocalRepairActions.showsRepoLocalRepair)
-    #require(!repoLocalRepairActions.showsApplicationSupportRepair)
+    try #require(repoLocalRepairActions.showsRepoLocalRepair)
+    try #require(!repoLocalRepairActions.showsApplicationSupportRepair)
   }
 
   private func makeTemporaryGitRepository() throws -> URL {

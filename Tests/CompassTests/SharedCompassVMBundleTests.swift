@@ -6,7 +6,7 @@ import Testing
 /// Coverage for `SharedCompassVMBundle`'s file-layout helpers and State Codable contract.
 /// The bundle's `ensureExists()` creates plain directories on disk, so we exercise it
 /// against a temporary directory instead of `~/Library/Application Support`.
-struct SharedCompassVMBundleTests {
+final class SharedCompassVMBundleTests {
   private var temporaryDirectories: [URL] = []
 
   func cleanup() {
@@ -34,18 +34,18 @@ struct SharedCompassVMBundleTests {
     let data = try encoder.encode(original)
     let decoded = try JSONDecoder().decode(SharedCompassVMBundle.State.self, from: data)
 
-    #require(decoded == original)
+    try #require(decoded == original)
   }
 
   @Test
-  func testStateDefaultsAreSensible() {
+  func testStateDefaultsAreSensible() throws {
     let state = SharedCompassVMBundle.State()
-    #require(state.provisionStep == .notProvisioned)
-    #require(state.lastKnownGoodIP == nil)
-    #require(state.guestUserName == SharedCompassVMBundle.State.defaultGuestUserName)
-    #require(state.guestOSVersion == nil)
-    #require(state.bootAttemptCounter == 0)
-    #require(state.lastBundleSize == nil)
+    try #require(state.provisionStep == .notProvisioned)
+    try #require(state.lastKnownGoodIP == nil)
+    try #require(state.guestUserName == SharedCompassVMBundle.State.defaultGuestUserName)
+    try #require(state.guestOSVersion == nil)
+    try #require(state.bootAttemptCounter == 0)
+    try #require(state.lastBundleSize == nil)
   }
 
   @Test
@@ -63,26 +63,26 @@ struct SharedCompassVMBundleTests {
         SharedCompassVMBundle.State.ProvisionStep.self,
         from: encoded
       )
-      #require(decoded == step)
+      try #require(decoded == step)
     }
   }
 
   // MARK: - Path helpers
 
   @Test
-  func testRestoreImageURLLivesUnderCacheDirectory() {
+  func testRestoreImageURLLivesUnderCacheDirectory() throws {
     let bundle = makeBundle()
     let url = bundle.restoreImageURL(forVersion: "26.0.1.23A123")
-    #require(
+    try #require(
       url.path.hasPrefix(bundle.cacheDirectoryURL.path + "/"),
       "Expected \(url.path) to be under \(bundle.cacheDirectoryURL.path)"
     )
-    #require(url.lastPathComponent.hasSuffix(".ipsw"))
-    #require(url.lastPathComponent.contains("26.0.1.23A123"))
+    try #require(url.lastPathComponent.hasSuffix(".ipsw"))
+    try #require(url.lastPathComponent.contains("26.0.1.23A123"))
   }
 
   @Test
-  func testBundleFilePathsAreUnderBundleRoot() {
+  func testBundleFilePathsAreUnderBundleRoot() throws {
     let bundle = makeBundle()
     let root = bundle.rootURL.path
     let mustBeUnderRoot: [URL] = [
@@ -97,7 +97,7 @@ struct SharedCompassVMBundleTests {
       bundle.cacheDirectoryURL,
     ]
     for url in mustBeUnderRoot {
-      #require(
+      try #require(
         url.path == root || url.path.hasPrefix(root + "/"),
         "\(url.path) is not under bundle root \(root)"
       )
@@ -109,20 +109,20 @@ struct SharedCompassVMBundleTests {
   @Test
   func testEnsureExistsCreatesBundleAndCacheDirectories() throws {
     let bundle = makeBundle()
-    #require(!FileManager.default.fileExists(atPath: bundle.rootURL.path))
+    try #require(!FileManager.default.fileExists(atPath: bundle.rootURL.path))
 
     try bundle.ensureExists()
 
     var isDir: ObjCBool = false
-    #require(FileManager.default.fileExists(atPath: bundle.rootURL.path, isDirectory: &isDir))
-    #require(isDir.boolValue)
+    try #require(FileManager.default.fileExists(atPath: bundle.rootURL.path, isDirectory: &isDir))
+    try #require(isDir.boolValue)
 
     var cacheIsDir: ObjCBool = false
-    #require(
+    try #require(
       FileManager.default.fileExists(
         atPath: bundle.cacheDirectoryURL.path, isDirectory: &cacheIsDir)
     )
-    #require(cacheIsDir.boolValue)
+    try #require(cacheIsDir.boolValue)
   }
 
   @Test
@@ -131,21 +131,21 @@ struct SharedCompassVMBundleTests {
     try bundle.ensureExists()
     // Second call must not throw and must leave the directories in place.
     try bundle.ensureExists()
-    #require(FileManager.default.fileExists(atPath: bundle.rootURL.path))
-    #require(FileManager.default.fileExists(atPath: bundle.cacheDirectoryURL.path))
+    try #require(FileManager.default.fileExists(atPath: bundle.rootURL.path))
+    try #require(FileManager.default.fileExists(atPath: bundle.cacheDirectoryURL.path))
   }
 
   @Test
   func testExistsOnDiskFalseUntilDiskAndAuxiliaryStorageArePresent() throws {
     let bundle = makeBundle()
     try bundle.ensureExists()
-    #require(!bundle.existsOnDisk())
+    try #require(!bundle.existsOnDisk())
 
     try Data("disk".utf8).write(to: bundle.diskImageURL)
-    #require(!bundle.existsOnDisk(), "Still missing AuxiliaryStorage")
+    try #require(!bundle.existsOnDisk(), "Still missing AuxiliaryStorage")
 
     try Data("aux".utf8).write(to: bundle.auxiliaryStorageURL)
-    #require(bundle.existsOnDisk())
+    try #require(bundle.existsOnDisk())
   }
 
   @Test
@@ -180,23 +180,23 @@ struct SharedCompassVMBundleTests {
 
     try bundle.resetInstalledArtifacts()
 
-    #require(!FileManager.default.fileExists(atPath: bundle.diskImageURL.path))
-    #require(!FileManager.default.fileExists(atPath: bundle.auxiliaryStorageURL.path))
-    #require(!FileManager.default.fileExists(atPath: bundle.hardwareModelURL.path))
-    #require(!FileManager.default.fileExists(atPath: bundle.machineIdentifierURL.path))
-    #require(!FileManager.default.fileExists(atPath: bundle.knownHostsURL.path))
+    try #require(!FileManager.default.fileExists(atPath: bundle.diskImageURL.path))
+    try #require(!FileManager.default.fileExists(atPath: bundle.auxiliaryStorageURL.path))
+    try #require(!FileManager.default.fileExists(atPath: bundle.hardwareModelURL.path))
+    try #require(!FileManager.default.fileExists(atPath: bundle.machineIdentifierURL.path))
+    try #require(!FileManager.default.fileExists(atPath: bundle.knownHostsURL.path))
 
-    #require(FileManager.default.fileExists(atPath: bundle.privateKeyURL.path))
-    #require(FileManager.default.fileExists(atPath: bundle.publicKeyURL.path))
-    #require(FileManager.default.fileExists(atPath: cachedRestoreImage.path))
+    try #require(FileManager.default.fileExists(atPath: bundle.privateKeyURL.path))
+    try #require(FileManager.default.fileExists(atPath: bundle.publicKeyURL.path))
+    try #require(FileManager.default.fileExists(atPath: cachedRestoreImage.path))
 
     let state = try bundle.loadState()
-    #require(state.provisionStep == .notProvisioned)
-    #require(state.lastKnownGoodIP == nil)
-    #require(state.guestOSVersion == nil)
-    #require(state.bootAttemptCounter == 0)
-    #require(state.lastBundleSize == nil)
-    #require(state.guestMACAddress == "02:11:22:33:44:55")
+    try #require(state.provisionStep == .notProvisioned)
+    try #require(state.lastKnownGoodIP == nil)
+    try #require(state.guestOSVersion == nil)
+    try #require(state.bootAttemptCounter == 0)
+    try #require(state.lastBundleSize == nil)
+    try #require(state.guestMACAddress == "02:11:22:33:44:55")
   }
 
   // MARK: - State persistence
@@ -206,7 +206,7 @@ struct SharedCompassVMBundleTests {
     let bundle = makeBundle()
     try bundle.ensureExists()
     let loaded = try bundle.loadState()
-    #require(loaded == SharedCompassVMBundle.State())
+    try #require(loaded == SharedCompassVMBundle.State())
   }
 
   @Test
@@ -223,7 +223,7 @@ struct SharedCompassVMBundleTests {
     try bundle.saveState(state)
 
     let reloaded = try bundle.loadState()
-    #require(reloaded == state)
+    try #require(reloaded == state)
   }
 
   @Test
@@ -234,11 +234,11 @@ struct SharedCompassVMBundleTests {
       state.provisionStep = .ready
       state.bootAttemptCounter += 3
     }
-    #require(result.provisionStep == .ready)
-    #require(result.bootAttemptCounter == 3)
+    try #require(result.provisionStep == .ready)
+    try #require(result.bootAttemptCounter == 3)
 
     let reloaded = try bundle.loadState()
-    #require(reloaded == result)
+    try #require(reloaded == result)
   }
 
   // MARK: - Helpers

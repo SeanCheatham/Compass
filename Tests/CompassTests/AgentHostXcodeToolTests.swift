@@ -64,7 +64,7 @@ struct AgentHostXcodeToolTests {
     #expect(calls[0].timeout == 5)
   }
 
-  @Test func testToolRegistryOmitsHostXcodeByDefaultAndAddsItWhenServiceProvided() {
+  @Test func testToolRegistryOmitsHostXcodeByDefaultAndAddsItWhenServiceProvided() throws {
     let defaultNames = Set(ToolRegistry.tools(for: .develop).map(\.spec.name))
     let service = FakeHostXcodeService()
     let enabledNames = Set(

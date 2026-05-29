@@ -3,7 +3,7 @@ import Testing
 
 @testable import Compass
 
-struct CompassWorkspaceStorageAssessmentTests : ~Copyable {
+final class CompassWorkspaceStorageAssessmentTests {
   private var temporaryDirectories: [URL] = []
 
   init() throws {}
@@ -26,14 +26,14 @@ struct CompassWorkspaceStorageAssessmentTests : ~Copyable {
       applicationSupportRoots: roots
     )
 
-    #require(assessment.isHealthy)
-    #require(assessment.issues.isEmpty)
-    #require(assessment.kind == .repoLocalHealthy)
-    #require(assessment.severity == .healthy)
-    #require(assessment.label == "Repo-local healthy")
-    #require(assessment.detail.contains("core files"))
-    #require(assessment.recommendation.contains("No storage action"))
-    #require(assessment.repairAction == nil)
+    try #require(assessment.isHealthy)
+    try #require(assessment.issues.isEmpty)
+    try #require(assessment.kind == .repoLocalHealthy)
+    try #require(assessment.severity == .healthy)
+    try #require(assessment.label == "Repo-local healthy")
+    try #require(assessment.detail.contains("core files"))
+    try #require(assessment.recommendation.contains("No storage action"))
+    try #require(assessment.repairAction == nil)
   }
 
   @Test func testMissingWorkspaceReportsUninitializedRepoLocalStorage() throws {
@@ -45,13 +45,13 @@ struct CompassWorkspaceStorageAssessmentTests : ~Copyable {
       applicationSupportRoots: roots
     )
 
-    #require(!assessment.isHealthy)
-    #require(assessment.kind == .missingWorkspace)
-    #require(assessment.severity == .warning)
-    #require(assessment.detail.contains(".compass/ has not been initialized"))
-    #require(assessment.recommendation.contains("Initialize"))
-    #require(assessment.repairAction?.kind == .initializeRepoLocalWorkspace)
-    #require(assessment.repairAction?.issueKind == .missingWorkspace)
+    try #require(!assessment.isHealthy)
+    try #require(assessment.kind == .missingWorkspace)
+    try #require(assessment.severity == .warning)
+    try #require(assessment.detail.contains(".compass/ has not been initialized"))
+    try #require(assessment.recommendation.contains("Initialize"))
+    try #require(assessment.repairAction?.kind == .initializeRepoLocalWorkspace)
+    try #require(assessment.repairAction?.issueKind == .missingWorkspace)
   }
 
   @Test func testIncompleteCoreFilesReportMissingCoreAndSessionStorage() throws {
@@ -67,16 +67,16 @@ struct CompassWorkspaceStorageAssessmentTests : ~Copyable {
       applicationSupportRoots: roots
     )
 
-    #require(assessment.kind == .incompleteCoreFiles)
-    #require(assessment.severity == .failure)
-    #require(assessment.detail.contains("state.json"))
-    #require(assessment.detail.contains("drafts.md"))
-    #require(assessment.detail.contains("lessons.md"))
-    #require(assessment.detail.contains("COMPASS.md"))
-    #require(assessment.detail.contains("sessions/"))
-    #require(!assessment.detail.contains("sessions.json"))
-    #require(assessment.repairAction?.kind == .initializeRepoLocalWorkspace)
-    #require(assessment.repairAction?.issueKind == .incompleteCoreFiles)
+    try #require(assessment.kind == .incompleteCoreFiles)
+    try #require(assessment.severity == .failure)
+    try #require(assessment.detail.contains("state.json"))
+    try #require(assessment.detail.contains("drafts.md"))
+    try #require(assessment.detail.contains("lessons.md"))
+    try #require(assessment.detail.contains("COMPASS.md"))
+    try #require(assessment.detail.contains("sessions/"))
+    try #require(!assessment.detail.contains("sessions.json"))
+    try #require(assessment.repairAction?.kind == .initializeRepoLocalWorkspace)
+    try #require(assessment.repairAction?.issueKind == .incompleteCoreFiles)
   }
 
   @Test func testGitignoreVariantsRecognizeCompassCoverageAndFlagMissingCoverage() throws {
@@ -99,7 +99,7 @@ struct CompassWorkspaceStorageAssessmentTests : ~Copyable {
         applicationSupportRoots: roots
       )
 
-      #require(assessment.kind == .repoLocalHealthy)
+      try #require(assessment.kind == .repoLocalHealthy)
     }
 
     let unignoredRepoURL = try makeTemporaryGitRepository()
@@ -113,11 +113,11 @@ struct CompassWorkspaceStorageAssessmentTests : ~Copyable {
       applicationSupportRoots: roots
     )
 
-    #require(assessment.kind == .unignoredCompass)
-    #require(assessment.severity == .warning)
-    #require(assessment.recommendation.contains(".gitignore"))
-    #require(assessment.repairAction?.kind == .initializeRepoLocalWorkspace)
-    #require(assessment.repairAction?.issueKind == .unignoredCompass)
+    try #require(assessment.kind == .unignoredCompass)
+    try #require(assessment.severity == .warning)
+    try #require(assessment.recommendation.contains(".gitignore"))
+    try #require(assessment.repairAction?.kind == .initializeRepoLocalWorkspace)
+    try #require(assessment.repairAction?.issueKind == .unignoredCompass)
   }
 
   @Test func testRepairActionsAreDerivedForRepoLocalConditionsAndStayBounded() throws {
@@ -164,15 +164,15 @@ struct CompassWorkspaceStorageAssessmentTests : ~Copyable {
         applicationSupportRoots: roots,
         facts: facts
       )
-      let action = #require(assessment.repairAction)
+      let action = try #require(assessment.repairAction)
 
-      #require(action.kind == .initializeRepoLocalWorkspace)
-      #require(action.issueKind == issueKind)
-      #require(action.label == "Repair storage")
-      #require(action.systemImage == "wrench.fill")
-      #require(action.label.count <= CompassWorkspaceStorageAssessment.repairActionLabelLimit)
-      #require(action.helpText.count <= CompassWorkspaceStorageAssessment.repairActionHelpLimit)
-      #require(!action.helpText.isEmpty)
+      try #require(action.kind == .initializeRepoLocalWorkspace)
+      try #require(action.issueKind == issueKind)
+      try #require(action.label == "Repair storage")
+      try #require(action.systemImage == "wrench.fill")
+      try #require(action.label.count <= CompassWorkspaceStorageAssessment.repairActionLabelLimit)
+      try #require(action.helpText.count <= CompassWorkspaceStorageAssessment.repairActionHelpLimit)
+      try #require(!action.helpText.isEmpty)
     }
   }
 
@@ -185,15 +185,15 @@ struct CompassWorkspaceStorageAssessmentTests : ~Copyable {
     let first = CompassWorkspaceStorageAssessment(repoURL: repoURL, applicationSupportRoots: roots)
     let second = CompassWorkspaceStorageAssessment(repoURL: repoURL, applicationSupportRoots: roots)
 
-    #require(first.projectStorageIdentifier == second.projectStorageIdentifier)
-    #require(
+    try #require(first.projectStorageIdentifier == second.projectStorageIdentifier)
+    try #require(
       first.currentApplicationSupportCandidateURL == second.currentApplicationSupportCandidateURL)
-    #require(
+    try #require(
       first.projectStorageIdentifier.count <=
       CompassWorkspaceStorageAssessment.maxProjectIdentifierLength
     )
-    #require(isSafeIdentifier(first.projectStorageIdentifier))
-    #require(
+    try #require(isSafeIdentifier(first.projectStorageIdentifier))
+    try #require(
       first.currentApplicationSupportCandidateURL.lastPathComponent == first.projectStorageIdentifier)
   }
 
@@ -211,11 +211,11 @@ struct CompassWorkspaceStorageAssessmentTests : ~Copyable {
       repoURL: repoURL, applicationSupportRoots: roots)
     let issueKinds = assessment.issues.map(\.kind)
 
-    #require(assessment.kind == .currentApplicationSupportCandidateExists)
-    #require(issueKinds.contains(.currentApplicationSupportCandidateExists))
-    #require(assessment.detail.contains("Future storage candidate"))
-    #require(assessment.severity == .warning)
-    #require(assessment.repairAction == nil)
+    try #require(assessment.kind == .currentApplicationSupportCandidateExists)
+    try #require(issueKinds.contains(.currentApplicationSupportCandidateExists))
+    try #require(assessment.detail.contains("Future storage candidate"))
+    try #require(assessment.severity == .warning)
+    try #require(assessment.repairAction == nil)
   }
 
   @Test func testAssessmentDisplayTextAndIdentifiersStayBounded() throws {
@@ -238,14 +238,14 @@ struct CompassWorkspaceStorageAssessmentTests : ~Copyable {
       facts: facts
     )
 
-    #require(
+    try #require(
       assessment.projectStorageIdentifier.count <=
       CompassWorkspaceStorageAssessment.maxProjectIdentifierLength
     )
     for issue in [assessment.primaryIssue] + assessment.issues {
-      #require(issue.label.count <= CompassWorkspaceStorageAssessment.labelLimit)
-      #require(issue.detail.count <= CompassWorkspaceStorageAssessment.detailLimit)
-      #require(
+      try #require(issue.label.count <= CompassWorkspaceStorageAssessment.labelLimit)
+      try #require(issue.detail.count <= CompassWorkspaceStorageAssessment.detailLimit)
+      try #require(
         issue.recommendation.count <= CompassWorkspaceStorageAssessment.recommendationLimit)
     }
   }
@@ -257,12 +257,12 @@ struct CompassWorkspaceStorageAssessmentTests : ~Copyable {
 
     _ = CompassWorkspaceStorageAssessment(repoURL: repoURL, applicationSupportRoots: roots)
 
-    #require(try entries(in: repoURL) == repoEntriesBefore)
-    #require(
+    try #require(try entries(in: repoURL) == repoEntriesBefore)
+    try #require(
       !FileManager.default.fileExists(atPath: CompassWorkspace(repoURL: repoURL).compassURL.path))
-    #require(
+    try #require(
       !FileManager.default.fileExists(atPath: repoURL.appending(path: ".gitignore").path))
-    #require(!FileManager.default.fileExists(atPath: roots.current.path))
+    try #require(!FileManager.default.fileExists(atPath: roots.current.path))
   }
 
   private func makeTemporaryGitRepository(name: String? = nil) throws -> URL {

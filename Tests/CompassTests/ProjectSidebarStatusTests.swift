@@ -5,7 +5,7 @@ import Testing
 
 struct ProjectSidebarStatusTests {
   @Test
-  func testCleanFeedbackProducesImmediatePlanSubtitleWithoutCue() {
+  func testCleanFeedbackProducesImmediatePlanSubtitleWithoutCue() throws {
     let feedback = PlanReliabilityFeedback(
       state: makeState(immediate: nil),
       sessions: [
@@ -20,17 +20,17 @@ struct ProjectSidebarStatusTests {
       phase: .idle
     )
 
-    #require(!sidebarStatus.hasReliabilityCue)
-    #require(!sidebarStatus.showsProgress)
-    #require(sidebarStatus.title == "")
-    #require(sidebarStatus.subtitle == "Add sidebar attention badges")
-    #require(sidebarStatus.countLabel == "0 cues")
-    #require(sidebarStatus.phaseLabel == "Idle")
-    #require(sidebarStatus.badgeLabel == "")
+    try #require(!sidebarStatus.hasReliabilityCue)
+    try #require(!sidebarStatus.showsProgress)
+    try #require(sidebarStatus.title == "")
+    try #require(sidebarStatus.subtitle == "Add sidebar attention badges")
+    try #require(sidebarStatus.countLabel == "0 cues")
+    try #require(sidebarStatus.phaseLabel == "Idle")
+    try #require(sidebarStatus.badgeLabel == "")
   }
 
   @Test
-  func testRejectedPlanTakesPriorityForSidebarBadge() {
+  func testRejectedPlanTakesPriorityForSidebarBadge() throws {
     let newerFailedVerify = makeSession(
       3,
       startedAt: 3_000,
@@ -57,20 +57,20 @@ struct ProjectSidebarStatusTests {
     let reliabilityStatus = ProjectReliabilityStatus(feedback: feedback)
     let sidebarStatus = makeSidebarStatus(reliabilityStatus: reliabilityStatus)
 
-    #require(feedback.notices.map(\.kind) == [.failedVerify, .rejectedPlan])
-    #require(sidebarStatus.hasReliabilityCue)
-    #require(sidebarStatus.title == "Plan rejected")
-    #require(sidebarStatus.badgeLabel == "Plan rejected")
-    #require(sidebarStatus.actionLabel == "Retry Plan")
-    #require(sidebarStatus.metadata == "#2")
-    #require(sidebarStatus.countLabel == "2 cues")
-    #require(sidebarStatus.helpText.contains("Retry Plan"))
-    #require(sidebarStatus.helpText.contains("#2"))
-    #require(sidebarStatus.accessibilityLabel.contains("2 cues"))
+    try #require(feedback.notices.map(\.kind) == [.failedVerify, .rejectedPlan])
+    try #require(sidebarStatus.hasReliabilityCue)
+    try #require(sidebarStatus.title == "Plan rejected")
+    try #require(sidebarStatus.badgeLabel == "Plan rejected")
+    try #require(sidebarStatus.actionLabel == "Retry Plan")
+    try #require(sidebarStatus.metadata == "#2")
+    try #require(sidebarStatus.countLabel == "2 cues")
+    try #require(sidebarStatus.helpText.contains("Retry Plan"))
+    try #require(sidebarStatus.helpText.contains("#2"))
+    try #require(sidebarStatus.accessibilityLabel.contains("2 cues"))
   }
 
   @Test
-  func testSidebarSubtitlesUsePrimaryReliabilityDetail() {
+  func testSidebarSubtitlesUsePrimaryReliabilityDetail() throws {
     let blockedStatus = makeSidebarStatus(
       reliabilityStatus: ProjectReliabilityStatus(
         feedback: PlanReliabilityFeedback(
@@ -174,24 +174,24 @@ struct ProjectSidebarStatusTests {
       )
     )
 
-    #require(blockedStatus.title == "Develop blocked")
-    #require(blockedStatus.subtitle == "Missing signing credentials.")
-    #require(failedStatus.title == "Develop failed")
-    #require(failedStatus.subtitle == "build settings were inconsistent")
-    #require(failedVerifyStatus.title == "Verify failed")
-    #require(failedVerifyStatus.subtitle == "Test Suite failed Expected true but got false")
-    #require(resumeStatus.title == "Develop ready")
-    #require(resumeStatus.subtitle == "Implement the approved next slice")
-    #require(dirtyStatus.title == "Worktree dirty")
-    #require(dirtyStatus.subtitle.hasPrefix("Uncommitted or untracked changes remain"))
-    #require(dirtyStatus.actionLabel == "Clean Worktree")
-    #require(promotionStatus.title == "Promotion failed")
-    #require(promotionStatus.actionLabel == "Resolve Promotion")
-    #require(promotionStatus.metadata == "#12 · compass/dev-123")
+    try #require(blockedStatus.title == "Develop blocked")
+    try #require(blockedStatus.subtitle == "Missing signing credentials.")
+    try #require(failedStatus.title == "Develop failed")
+    try #require(failedStatus.subtitle == "build settings were inconsistent")
+    try #require(failedVerifyStatus.title == "Verify failed")
+    try #require(failedVerifyStatus.subtitle == "Test Suite failed Expected true but got false")
+    try #require(resumeStatus.title == "Develop ready")
+    try #require(resumeStatus.subtitle == "Implement the approved next slice")
+    try #require(dirtyStatus.title == "Worktree dirty")
+    try #require(dirtyStatus.subtitle.hasPrefix("Uncommitted or untracked changes remain"))
+    try #require(dirtyStatus.actionLabel == "Clean Worktree")
+    try #require(promotionStatus.title == "Promotion failed")
+    try #require(promotionStatus.actionLabel == "Resolve Promotion")
+    try #require(promotionStatus.metadata == "#12 · compass/dev-123")
   }
 
   @Test
-  func testMultipleCueSidebarStatusReportsCountLabel() {
+  func testMultipleCueSidebarStatusReportsCountLabel() throws {
     let session = makeSession(
       8,
       status: .failed,
@@ -209,15 +209,15 @@ struct ProjectSidebarStatusTests {
       reliabilityStatus: ProjectReliabilityStatus(feedback: feedback)
     )
 
-    #require(sidebarStatus.cueCount == 2)
-    #require(sidebarStatus.countLabel == "2 cues")
-    #require(sidebarStatus.title == "Verify failed")
-    #require(sidebarStatus.helpText.contains("2 cues"))
-    #require(sidebarStatus.accessibilityLabel.contains("2 cues"))
+    try #require(sidebarStatus.cueCount == 2)
+    try #require(sidebarStatus.countLabel == "2 cues")
+    try #require(sidebarStatus.title == "Verify failed")
+    try #require(sidebarStatus.helpText.contains("2 cues"))
+    try #require(sidebarStatus.accessibilityLabel.contains("2 cues"))
   }
 
   @Test
-  func testSidebarSubtitleIsBoundedForCompactRows() {
+  func testSidebarSubtitleIsBoundedForCompactRows() throws {
     let session = makeSession(
       9,
       status: .failed,
@@ -235,13 +235,13 @@ struct ProjectSidebarStatusTests {
       subtitleLimit: 45
     )
 
-    #require(sidebarStatus.subtitle.count <= 45)
-    #require(sidebarStatus.subtitle.hasPrefix("First line second line"))
-    #require(sidebarStatus.subtitle.hasSuffix("..."))
+    try #require(sidebarStatus.subtitle.count <= 45)
+    try #require(sidebarStatus.subtitle.hasPrefix("First line second line"))
+    try #require(sidebarStatus.subtitle.hasSuffix("..."))
   }
 
   @Test
-  func testRunningAndPausedPhaseCanCoexistWithReliabilityCue() {
+  func testRunningAndPausedPhaseCanCoexistWithReliabilityCue() throws {
     let feedback = PlanReliabilityFeedback(
       state: makeState(),
       sessions: [
@@ -268,13 +268,13 @@ struct ProjectSidebarStatusTests {
       isAutoPlaying: true
     )
 
-    #require(pausedWhileRunning.hasReliabilityCue)
-    #require(pausedWhileRunning.showsProgress)
-    #require(pausedWhileRunning.phaseLabel == "Pausing after iteration")
-    #require(pausedWhileRunning.title == "Develop blocked")
-    #require(autoPlaying.hasReliabilityCue)
-    #require(autoPlaying.showsProgress)
-    #require(autoPlaying.phaseLabel == "Auto - Verifying")
+    try #require(pausedWhileRunning.hasReliabilityCue)
+    try #require(pausedWhileRunning.showsProgress)
+    try #require(pausedWhileRunning.phaseLabel == "Pausing after iteration")
+    try #require(pausedWhileRunning.title == "Develop blocked")
+    try #require(autoPlaying.hasReliabilityCue)
+    try #require(autoPlaying.showsProgress)
+    try #require(autoPlaying.phaseLabel == "Auto - Verifying")
   }
 
   private func makeSidebarStatus(

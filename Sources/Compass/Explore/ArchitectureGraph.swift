@@ -49,17 +49,19 @@ struct ImportGraph: Sendable {
   }
 
   mutating func addEdge(from source: Node, to target: Node, rawImport: String) {
-    if !nodes.contains(source) {
-      nodes.append(source)
-    }
-    if !nodes.contains(target) {
-      nodes.append(target)
-    }
+    addNode(source)
+    addNode(target)
     let edge = Edge(source: source, target: target, rawImport: rawImport)
     if !edges.contains(edge) {
       edges.append(edge)
     }
     adjacency[source, default: .init()].insert(target)
+  }
+
+  mutating func addNode(_ node: Node) {
+    if !nodes.contains(node) {
+      nodes.append(node)
+    }
   }
 
   /// Returns a plain-text representation of the graph grouped by top-level
@@ -137,6 +139,7 @@ func buildGraph(codemapDirectory: URL) -> ImportGraph {
 
   for entry in entries {
     let source = ImportGraph.Node(path: entry.relativePath)
+    graph.addNode(source)
     for imp in entry.imports {
       // Try to resolve the raw import string to a file path in the repo.
       // Handles common patterns:
@@ -164,9 +167,7 @@ private func resolve(import raw: String, relativeTo sourcePath: String) -> Strin
   if raw.hasPrefix(".") {
     let sourceDir = sourcePath.split(separator: "/").dropLast().map(String.init).joined(separator: "/")
     let combined = [sourceDir, raw].filter { !$0.isEmpty }.joined(separator: "/")
-    // Remove ./ prefix
-    let cleaned = combined.replacingOccurrences(of: "./", with: "")
-    return cleaned
+    return normaliseRelativePath(combined)
   }
 
   // Bare identifier like "Foundation" — system module, not a file
@@ -178,6 +179,23 @@ private func resolve(import raw: String, relativeTo sourcePath: String) -> Strin
   // Keep the raw path as-is so the graph reflects import relationships at the
   // module/package level even without exact file resolution.
   return raw
+}
+
+private func normaliseRelativePath(_ path: String) -> String {
+  var components: [String] = []
+  for component in path.split(separator: "/").map(String.init) {
+    switch component {
+    case "", ".":
+      continue
+    case "..":
+      if !components.isEmpty {
+        components.removeLast()
+      }
+    default:
+      components.append(component)
+    }
+  }
+  return components.joined(separator: "/")
 }
 
 /// Architecture overview built from a repository's codemap.

@@ -114,7 +114,7 @@ struct ExploreQnAPopoverTests {
 
     if !FoundationModelsAvailability.isAvailable {
       // The nil return is the exact condition that sets availabilityError = true.
-      #require(result == nil)
+      try #require(result == nil)
     }
     // If the model IS available, a non-nil Answer would be returned — both are valid.
   }

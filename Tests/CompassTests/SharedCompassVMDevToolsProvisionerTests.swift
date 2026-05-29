@@ -19,30 +19,30 @@ struct SharedCompassVMDevToolsProvisionerTests {
   // MARK: - Rendered install script
 
   @Test
-  func testRenderedInstallScriptStartsWithBashShebang() {
+  func testRenderedInstallScriptStartsWithBashShebang() throws {
     let script = SharedCompassVMDevToolsProvisioner.renderInstallScript()
-    #require(script.hasPrefix("#!/bin/bash"))
+    try #require(script.hasPrefix("#!/bin/bash"))
   }
 
   @Test
-  func testRenderedInstallScriptTouchesAppleSoftwareupdateSentinel() {
+  func testRenderedInstallScriptTouchesAppleSoftwareupdateSentinel() throws {
     let script = SharedCompassVMDevToolsProvisioner.renderInstallScript()
     // The well-known sentinel softwareupdate looks for to expose CLT
     // in its catalog without a GUI session. Bytes pinned because Apple
     // sometimes changes the path across majors — diverging silently
     // would break headless install on the new major with no error.
-    #require(
+    try #require(
       script.contains("touch \"$SENTINEL\""),
       "Script must touch the softwareupdate CLT request sentinel"
     )
-    #require(
+    try #require(
       script.contains("/tmp/.com.apple.dt.CommandLineTools.installondemand.in-progress"),
       "Script must reference Apple's documented CLT-install sentinel path"
     )
   }
 
   @Test
-  func testRenderedInstallScriptPicksLatestCLTLabel() {
+  func testRenderedInstallScriptPicksLatestCLTLabel() throws {
     let script = SharedCompassVMDevToolsProvisioner.renderInstallScript()
     // Pick by `tail -n1` of the catalog entries whose lines start
     // with `* Label: Command Line Tools`. Apple sometimes ships
@@ -51,51 +51,51 @@ struct SharedCompassVMDevToolsProvisionerTests {
     // entry is followed by an indented `Title: Command Line Tools …`
     // line that the older un-anchored matcher would also pick up
     // (producing an empty label string and breaking install).
-    #require(script.contains("softwareupdate -l"))
-    #require(
+    try #require(script.contains("softwareupdate -l"))
+    try #require(
       script.contains("'^\\* Label: Command Line Tools'"),
       "Label selector must anchor on the '* Label:' line, not match any 'Command Line Tools' substring"
     )
-    #require(script.contains("tail -n1"))
+    try #require(script.contains("tail -n1"))
   }
 
   @Test
-  func testRenderedInstallScriptInvokesSoftwareupdateVerbose() {
+  func testRenderedInstallScriptInvokesSoftwareupdateVerbose() throws {
     let script = SharedCompassVMDevToolsProvisioner.renderInstallScript()
-    #require(
+    try #require(
       script.contains("softwareupdate -i \"$LABEL\" --verbose"),
       "Must use --verbose so the host can parse progress phases out of the log"
     )
   }
 
   @Test
-  func testRenderedInstallScriptActivatesCLTAfterSuccess() {
+  func testRenderedInstallScriptActivatesCLTAfterSuccess() throws {
     let script = SharedCompassVMDevToolsProvisioner.renderInstallScript()
-    #require(
+    try #require(
       script.contains("xcode-select -s /Library/Developer/CommandLineTools"),
       "Successful install must promote CLT to active developer dir so subsequent calls (swift, clang) work without xcode-select"
     )
   }
 
   @Test
-  func testRenderedInstallScriptWritesDoneSentinelInAllExitPaths() {
+  func testRenderedInstallScriptWritesDoneSentinelInAllExitPaths() throws {
     let script = SharedCompassVMDevToolsProvisioner.renderInstallScript()
     // Two exit paths: missing label (rc=2) and softwareupdate completion
     // (rc=whatever). Both must touch the done-sentinel or the host's
     // pollUntilDone loop will hang to the timeout.
-    #require(script.contains("echo \"exit=2\" > \"$DONE_PATH\""))
-    #require(script.contains("echo \"exit=$rc\" > \"$DONE_PATH\""))
+    try #require(script.contains("echo \"exit=2\" > \"$DONE_PATH\""))
+    try #require(script.contains("echo \"exit=$rc\" > \"$DONE_PATH\""))
   }
 
   @Test
-  func testRenderedInstallScriptRemovesSentinelOnAllExitPaths() {
+  func testRenderedInstallScriptRemovesSentinelOnAllExitPaths() throws {
     let script = SharedCompassVMDevToolsProvisioner.renderInstallScript()
     // Both early-exit (missing label) and the post-install path must
     // remove the in-progress sentinel; leaving it behind on the guest
     // would confuse future softwareupdate calls (some Apple tooling
     // refuses to re-list CLT when the sentinel is stuck).
     let occurrences = script.components(separatedBy: "rm -f \"$SENTINEL\"").count - 1
-    #require(occurrences >= 2, "Sentinel must be cleared on both exit paths")
+    try #require(occurrences >= 2, "Sentinel must be cleared on both exit paths")
   }
 
   // MARK: - LaunchDaemon plist
@@ -109,127 +109,127 @@ struct SharedCompassVMDevToolsProvisionerTests {
         options: [],
         format: nil
       ) as? [String: Any]
-    #require(parsed != nil)
-    #require(parsed?["Label"] as? String == "com.seancheatham.Compass.devtools-install")
-    #require(parsed?["RunAtLoad"] as? Bool == true)
+    try #require(parsed != nil)
+    try #require(parsed?["Label"] as? String == "com.seancheatham.Compass.devtools-install")
+    try #require(parsed?["RunAtLoad"] as? Bool == true)
     // KeepAlive must be false so the script runs once and exits;
     // KeepAlive=true would have launchd restart softwareupdate after
     // it succeeds, looping forever.
-    #require(parsed?["KeepAlive"] as? Bool == false)
-    #require(parsed?["LaunchOnlyOnce"] as? Bool == true)
+    try #require(parsed?["KeepAlive"] as? Bool == false)
+    try #require(parsed?["LaunchOnlyOnce"] as? Bool == true)
     let args = parsed?["ProgramArguments"] as? [String]
-    #require(args == ["/usr/local/libexec/compass-install-clt.sh"])
+    try #require(args == ["/usr/local/libexec/compass-install-clt.sh"])
   }
 
   // MARK: - Phase parsing
 
   @Test
-  func testParsePhaseFromLogTailRecognisesScriptStart() {
+  func testParsePhaseFromLogTailRecognisesScriptStart() throws {
     let tail = "[compass-clt] 2026-05-21T17:00:00Z starting"
-    #require(SharedCompassVMDevToolsProvisioner.parsePhase(fromLogTail: tail) == .scriptRunning)
+    try #require(SharedCompassVMDevToolsProvisioner.parsePhase(fromLogTail: tail) == .scriptRunning)
   }
 
   @Test
-  func testParsePhaseFromLogTailRecognisesDownloading() {
+  func testParsePhaseFromLogTailRecognisesDownloading() throws {
     let tail = """
       [compass-clt] selected label: Command Line Tools for Xcode-15.2
       Downloading: Command Line Tools for Xcode
       """
-    #require(SharedCompassVMDevToolsProvisioner.parsePhase(fromLogTail: tail) == .downloading)
+    try #require(SharedCompassVMDevToolsProvisioner.parsePhase(fromLogTail: tail) == .downloading)
   }
 
   @Test
-  func testParsePhaseFromLogTailRecognisesDownloadingMacOS26Form() {
+  func testParsePhaseFromLogTailRecognisesDownloadingMacOS26Form() throws {
     // macOS 26's softwareupdate --verbose drops the trailing colon
     // we used to key on. Confirmed live against a Sequoia successor
     // guest: "Downloading Command Line Tools for Xcode 26.5".
     let tail = "Downloading Command Line Tools for Xcode 26.5"
-    #require(SharedCompassVMDevToolsProvisioner.parsePhase(fromLogTail: tail) == .downloading)
+    try #require(SharedCompassVMDevToolsProvisioner.parsePhase(fromLogTail: tail) == .downloading)
   }
 
   @Test
-  func testParsePhaseFromLogTailRecognisesDownloaded() {
+  func testParsePhaseFromLogTailRecognisesDownloaded() throws {
     let tail = "Downloaded: Command Line Tools for Xcode"
-    #require(SharedCompassVMDevToolsProvisioner.parsePhase(fromLogTail: tail) == .downloaded)
+    try #require(SharedCompassVMDevToolsProvisioner.parsePhase(fromLogTail: tail) == .downloaded)
   }
 
   @Test
-  func testParsePhaseFromLogTailRecognisesDownloadedMacOS26Form() {
+  func testParsePhaseFromLogTailRecognisesDownloadedMacOS26Form() throws {
     let tail = "Downloaded Command Line Tools for Xcode 26.5"
-    #require(SharedCompassVMDevToolsProvisioner.parsePhase(fromLogTail: tail) == .downloaded)
+    try #require(SharedCompassVMDevToolsProvisioner.parsePhase(fromLogTail: tail) == .downloaded)
   }
 
   @Test
-  func testParsePhaseFromLogTailRecognisesInstalling() {
+  func testParsePhaseFromLogTailRecognisesInstalling() throws {
     let tail = "Installing: Command Line Tools for Xcode"
-    #require(SharedCompassVMDevToolsProvisioner.parsePhase(fromLogTail: tail) == .installing)
+    try #require(SharedCompassVMDevToolsProvisioner.parsePhase(fromLogTail: tail) == .installing)
   }
 
   @Test
-  func testParsePhaseFromLogTailRecognisesInstallingMacOS26Form() {
+  func testParsePhaseFromLogTailRecognisesInstallingMacOS26Form() throws {
     let tail = "Installing Command Line Tools for Xcode 26.5"
-    #require(SharedCompassVMDevToolsProvisioner.parsePhase(fromLogTail: tail) == .installing)
+    try #require(SharedCompassVMDevToolsProvisioner.parsePhase(fromLogTail: tail) == .installing)
   }
 
   @Test
-  func testParsePhaseFromLogTailRecognisesInstalled() {
+  func testParsePhaseFromLogTailRecognisesInstalled() throws {
     let tail = "Installed: Command Line Tools for Xcode"
-    #require(SharedCompassVMDevToolsProvisioner.parsePhase(fromLogTail: tail) == .installed)
+    try #require(SharedCompassVMDevToolsProvisioner.parsePhase(fromLogTail: tail) == .installed)
   }
 
   @Test
-  func testParsePhaseFromLogTailRecognisesInstalledMacOS26Form() {
+  func testParsePhaseFromLogTailRecognisesInstalledMacOS26Form() throws {
     let tail = "Installed Command Line Tools for Xcode 26.5"
-    #require(SharedCompassVMDevToolsProvisioner.parsePhase(fromLogTail: tail) == .installed)
+    try #require(SharedCompassVMDevToolsProvisioner.parsePhase(fromLogTail: tail) == .installed)
   }
 
   @Test
-  func testParsePhaseFromLogTailRecognisesDone() {
+  func testParsePhaseFromLogTailRecognisesDone() throws {
     let tail = """
       Installed: Command Line Tools for Xcode
       Done.
       [compass-clt] softwareupdate exit=0
       """
-    #require(SharedCompassVMDevToolsProvisioner.parsePhase(fromLogTail: tail) == .done)
+    try #require(SharedCompassVMDevToolsProvisioner.parsePhase(fromLogTail: tail) == .done)
   }
 
   @Test
-  func testParsePhaseFromLogTailReturnsNilForNoise() {
-    #require(SharedCompassVMDevToolsProvisioner.parsePhase(fromLogTail: "") == nil)
-    #require(SharedCompassVMDevToolsProvisioner.parsePhase(fromLogTail: "no markers here") == nil)
+  func testParsePhaseFromLogTailReturnsNilForNoise() throws {
+    try #require(SharedCompassVMDevToolsProvisioner.parsePhase(fromLogTail: "") == nil)
+    try #require(SharedCompassVMDevToolsProvisioner.parsePhase(fromLogTail: "no markers here") == nil)
   }
 
   @Test
-  func testFractionForPhaseIsMonotone() {
+  func testFractionForPhaseIsMonotone() throws {
     let order: [SharedCompassVMDevToolsProvisioner.InstallPhase] = [
       .kickoff, .scriptRunning, .downloading, .downloaded, .installing, .installed, .done,
     ]
     let fractions = order.map(SharedCompassVMDevToolsProvisioner.fractionForPhase)
     for i in 1..<fractions.count {
-      #require(
+      try #require(
         fractions[i] > fractions[i - 1],
         "Fraction for \(order[i]) must be strictly greater than for \(order[i - 1])"
       )
     }
-    #require(fractions.last == 1.0)
+    try #require(fractions.last == 1.0)
   }
 
   // MARK: - Poll snapshot parsing
 
   @Test
-  func testPollSnapshotParsesRunningWhenSentinelAbsent() {
+  func testPollSnapshotParsesRunningWhenSentinelAbsent() throws {
     let raw = """
       RUNNING
       ---LOG_TAIL---
       Downloading: Command Line Tools for Xcode
       """
     let snapshot = SharedCompassVMDevToolsProvisioner.PollSnapshot(parsing: raw)
-    #require(snapshot.exitCode == nil)
-    #require(snapshot.logTail.contains("Downloading"))
+    try #require(snapshot.exitCode == nil)
+    try #require(snapshot.logTail.contains("Downloading"))
   }
 
   @Test
-  func testPollSnapshotParsesSuccessExit() {
+  func testPollSnapshotParsesSuccessExit() throws {
     let raw = """
       DONE
       exit=0
@@ -237,12 +237,12 @@ struct SharedCompassVMDevToolsProvisionerTests {
       Done.
       """
     let snapshot = SharedCompassVMDevToolsProvisioner.PollSnapshot(parsing: raw)
-    #require(snapshot.exitCode == 0)
-    #require(snapshot.logTail.contains("Done."))
+    try #require(snapshot.exitCode == 0)
+    try #require(snapshot.logTail.contains("Done."))
   }
 
   @Test
-  func testPollSnapshotParsesFailureExit() {
+  func testPollSnapshotParsesFailureExit() throws {
     let raw = """
       DONE
       exit=2
@@ -250,11 +250,11 @@ struct SharedCompassVMDevToolsProvisionerTests {
       ERROR: no Command Line Tools label found
       """
     let snapshot = SharedCompassVMDevToolsProvisioner.PollSnapshot(parsing: raw)
-    #require(snapshot.exitCode == 2)
+    try #require(snapshot.exitCode == 2)
   }
 
   @Test
-  func testPollSnapshotTreatsMissingExitLineAsFailure() {
+  func testPollSnapshotTreatsMissingExitLineAsFailure() throws {
     // Defensive: if the cat-of-sentinel got truncated, we must NOT
     // hang waiting for a clean exit code — treat as failure so the
     // caller surfaces the issue.
@@ -263,7 +263,7 @@ struct SharedCompassVMDevToolsProvisionerTests {
       ---LOG_TAIL---
       """
     let snapshot = SharedCompassVMDevToolsProvisioner.PollSnapshot(parsing: raw)
-    #require(snapshot.exitCode == -1)
+    try #require(snapshot.exitCode == -1)
   }
 
   // MARK: - Full provisioner flow with a fake runner
@@ -275,7 +275,7 @@ struct SharedCompassVMDevToolsProvisionerTests {
       if command.contains("PRESENT") || command.contains("MISSING") {
         return ProcessResult(exitCode: 0, stdout: "PRESENT\n", stderr: "")
       }
-      #require(false, "Provisioner should short-circuit before any other RPC. Got: \(command)")
+      #expect(Bool(false), "Provisioner should short-circuit before any other RPC. Got: \(command)")
       return ProcessResult(exitCode: 1, stdout: "", stderr: "unexpected")
     }
     var progressUpdates: [Double] = []
@@ -283,10 +283,10 @@ struct SharedCompassVMDevToolsProvisionerTests {
       runner: runner,
       progress: { progressUpdates.append($0) }
     )
-    #require(report.alreadyInstalled)
-    #require(runner.callCount == 1)
-    #require(progressUpdates.first == 0)
-    #require(progressUpdates.last == 1)
+    try #require(report.alreadyInstalled)
+    try #require(runner.callCount == 1)
+    try #require(progressUpdates.first == 0)
+    try #require(progressUpdates.last == 1)
   }
 
   @Test
@@ -349,7 +349,7 @@ struct SharedCompassVMDevToolsProvisionerTests {
         return ProcessResult(
           exitCode: 0, stdout: "/Library/Developer/CommandLineTools\n", stderr: "")
       }
-      #require(false, "Unexpected RPC: \(command)")
+      #expect(Bool(false), "Unexpected RPC: \(command)")
       return ProcessResult(exitCode: 1, stdout: "", stderr: "unexpected")
     }
 
@@ -361,19 +361,19 @@ struct SharedCompassVMDevToolsProvisionerTests {
       sleep: { _ in }  // Drive the poll loop without real waits.
     )
 
-    #require(!report.alreadyInstalled)
-    #require(pollCount >= 3)
-    #require(progressUpdates.first == 0)
-    #require(progressUpdates.last == 1)
+    try #require(!report.alreadyInstalled)
+    try #require(pollCount >= 3)
+    try #require(progressUpdates.first == 0)
+    try #require(progressUpdates.last == 1)
     // Monotone — once we've seen a higher fraction we must never go
     // back. UI would otherwise flicker backwards.
     for i in 1..<progressUpdates.count {
-      #require(progressUpdates[i] >= progressUpdates[i - 1])
+      try #require(progressUpdates[i] >= progressUpdates[i - 1])
     }
   }
 
   @Test
-  func testProvisionThrowsOnInstallFailure() async {
+  func testProvisionThrowsOnInstallFailure() async throws {
     let runner = FakeBashRunner()
     runner.responder = { command, _ in
       if command.contains("PRESENT") || command.contains("MISSING") {
@@ -408,19 +408,19 @@ struct SharedCompassVMDevToolsProvisionerTests {
     } catch let error as SharedCompassVMDevToolsProvisioner.ProvisionError {
       threw = true
       guard case .installFailed(let code, let tail) = error else {
-        #require(false, "Expected .installFailed, got \(error)")
+        #expect(Bool(false), "Expected .installFailed, got \(error)")
         return
       }
-      #require(code == 2)
-      #require(tail.contains("no Command Line Tools label"))
+      try #require(code == 2)
+      try #require(tail.contains("no Command Line Tools label"))
     } catch {
-      #require(false, "Unexpected error type: \(error)")
+      #expect(Bool(false), "Unexpected error type: \(error)")
     }
-    #require(threw, "Expected installFailed")
+    try #require(threw, "Expected installFailed")
   }
 
   @Test
-  func testProvisionThrowsOnPollTimeout() async {
+  func testProvisionThrowsOnPollTimeout() async throws {
     // Force `now()` to advance past the install deadline immediately
     // on the second call, so the poll loop sees one RUNNING reply and
     // then gives up. Verifies the timeout path surfaces the last
@@ -462,19 +462,19 @@ struct SharedCompassVMDevToolsProvisionerTests {
     } catch let error as SharedCompassVMDevToolsProvisioner.ProvisionError {
       threw = true
       guard case .installTimedOut(let phase, let tail) = error else {
-        #require(false, "Expected .installTimedOut, got \(error)")
+        #expect(Bool(false), "Expected .installTimedOut, got \(error)")
         return
       }
-      #require(phase == .downloading)
-      #require(tail.contains("Downloading"))
+      try #require(phase == .downloading)
+      try #require(tail.contains("Downloading"))
     } catch {
-      #require(false, "Unexpected error type: \(error)")
+      #expect(Bool(false), "Unexpected error type: \(error)")
     }
-    #require(threw, "Expected installTimedOut")
+    try #require(threw, "Expected installTimedOut")
   }
 
   @Test
-  func testProvisionThrowsOnFinaliseFailure() async {
+  func testProvisionThrowsOnFinaliseFailure() async throws {
     let runner = FakeBashRunner()
     runner.responder = { command, _ in
       // Probe says missing the first time.
@@ -520,14 +520,14 @@ struct SharedCompassVMDevToolsProvisionerTests {
     } catch let error as SharedCompassVMDevToolsProvisioner.ProvisionError {
       threw = true
       guard case .finaliseFailed(let stderr) = error else {
-        #require(false, "Expected .finaliseFailed, got \(error)")
+        #expect(Bool(false), "Expected .finaliseFailed, got \(error)")
         return
       }
-      #require(stderr.contains("no developer dir found"))
+      try #require(stderr.contains("no developer dir found"))
     } catch {
-      #require(false, "Unexpected error type: \(error)")
+      #expect(Bool(false), "Unexpected error type: \(error)")
     }
-    #require(threw, "Expected finaliseFailed")
+    try #require(threw, "Expected finaliseFailed")
   }
 }
 

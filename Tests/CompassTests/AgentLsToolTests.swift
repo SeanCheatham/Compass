@@ -33,9 +33,9 @@ struct AgentLsToolTests {
 
     let result = try await test.invoke([:])
 
-    #require(!result.isError)
+    try #require(!result.isError)
     let lines = result.content.split(separator: "\n").map(String.init)
-    #require(lines == ["alpha.txt", "beta.txt", "gamma/"])
+    try #require(lines == ["alpha.txt", "beta.txt", "gamma/"])
   }
 
   @Test
@@ -52,9 +52,9 @@ struct AgentLsToolTests {
 
     let result = try await test.invoke([:])
 
-    #require(!result.isError)
-    #require(result.content.contains(".compass"))
-    #require(result.content.contains("visible.txt"))
+    try #require(!result.isError)
+    try #require(result.content.contains(".compass"))
+    try #require(result.content.contains("visible.txt"))
   }
 
   @Test
@@ -64,8 +64,8 @@ struct AgentLsToolTests {
     defer { test.tearDown() }
 
     let result = try await test.invoke([:])
-    #require(!result.isError)
-    #require(result.content == "(empty directory)")
+    try #require(!result.isError)
+    try #require(result.content == "(empty directory)")
   }
 
   @Test
@@ -75,8 +75,8 @@ struct AgentLsToolTests {
     defer { test.tearDown() }
 
     let result = try await test.invoke(["path": "../escape"])
-    #require(result.isError)
-    #require(result.content.contains("escapes"))
+    try #require(result.isError)
+    try #require(result.content.contains("escapes"))
   }
 
   @Test
@@ -88,8 +88,8 @@ struct AgentLsToolTests {
     try "x".write(
       to: test.temporaryDirectory.appendingPathComponent("file.txt"), atomically: true, encoding: .utf8)
     let result = try await test.invoke(["path": "file.txt"])
-    #require(result.isError)
-    #require(result.content.contains("Not a directory"))
+    try #require(result.isError)
+    try #require(result.content.contains("Not a directory"))
   }
 
   private func invoke(_ args: [String: Any]) async throws -> AgentToolInvocationResult {

@@ -7,7 +7,7 @@ struct ExploreArchitectureGraphTests {
   // MARK: - ImportGraph Node and Edge construction
 
   @Test
-  func node_pathEquality_matches() {
+  func node_pathEquality_matches() throws {
     let a = ImportGraph.Node(path: "Sources/App.swift")
     let b = ImportGraph.Node(path: "Sources/App.swift")
     let c = ImportGraph.Node(path: "Sources/Model.swift")
@@ -16,7 +16,7 @@ struct ExploreArchitectureGraphTests {
   }
 
   @Test
-  func node_hashability_usableInSet() {
+  func node_hashability_usableInSet() throws {
     let a = ImportGraph.Node(path: "Sources/App.swift")
     let b = ImportGraph.Node(path: "Sources/App.swift")
     let set = Set([a, b])
@@ -24,7 +24,7 @@ struct ExploreArchitectureGraphTests {
   }
 
   @Test
-  func edge_equality_basedOnSourceAndTarget() {
+  func edge_equality_basedOnSourceAndTarget() throws {
     let n1 = ImportGraph.Node(path: "A.swift")
     let n2 = ImportGraph.Node(path: "B.swift")
     let e1 = ImportGraph.Edge(source: n1, target: n2, rawImport: "B")
@@ -37,7 +37,7 @@ struct ExploreArchitectureGraphTests {
   // MARK: - addEdge
 
   @Test
-  func addEdge_registersNodesAndEdge() {
+  func addEdge_registersNodesAndEdge() throws {
     var graph = ImportGraph()
     let source = ImportGraph.Node(path: "Sources/A.swift")
     let target = ImportGraph.Node(path: "Sources/B.swift")
@@ -49,7 +49,7 @@ struct ExploreArchitectureGraphTests {
   }
 
   @Test
-  func addEdge_deduplicatesSameEdge() {
+  func addEdge_deduplicatesSameEdge() throws {
     var graph = ImportGraph()
     let source = ImportGraph.Node(path: "Sources/A.swift")
     let target = ImportGraph.Node(path: "Sources/B.swift")
@@ -60,7 +60,7 @@ struct ExploreArchitectureGraphTests {
   }
 
   @Test
-  func addEdge_differentRawImports_sameNodes_bothEdgesKept() {
+  func addEdge_differentRawImports_sameNodes_bothEdgesKept() throws {
     var graph = ImportGraph()
     let source = ImportGraph.Node(path: "Sources/A.swift")
     let target = ImportGraph.Node(path: "Sources/B.swift")
@@ -71,7 +71,7 @@ struct ExploreArchitectureGraphTests {
   }
 
   @Test
-  func addEdge_populatesAdjacency() {
+  func addEdge_populatesAdjacency() throws {
     var graph = ImportGraph()
     let source = ImportGraph.Node(path: "Sources/A.swift")
     let target = ImportGraph.Node(path: "Sources/B.swift")
@@ -84,7 +84,7 @@ struct ExploreArchitectureGraphTests {
   // MARK: - mostDependedOn
 
   @Test
-  func mostDependedOn_ordersByIncomingEdgeCountDescending() {
+  func mostDependedOn_ordersByIncomingEdgeCountDescending() throws {
     var graph = ImportGraph()
     let a = ImportGraph.Node(path: "A.swift")
     let b = ImportGraph.Node(path: "B.swift")
@@ -103,7 +103,7 @@ struct ExploreArchitectureGraphTests {
   // MARK: - likelyEntryPoints
 
   @Test
-  func likelyEntryPoints_nodesWithOutgoingButNoIncoming() {
+  func likelyEntryPoints_nodesWithOutgoingButNoIncoming() throws {
     var graph = ImportGraph()
     let a = ImportGraph.Node(path: "A.swift")
     let b = ImportGraph.Node(path: "B.swift")
@@ -121,7 +121,7 @@ struct ExploreArchitectureGraphTests {
   }
 
   @Test
-  func likelyEntryPoints_emptyGraph_returnsEmpty() {
+  func likelyEntryPoints_emptyGraph_returnsEmpty() throws {
     var graph = ImportGraph()
     #expect(graph.likelyEntryPoints.isEmpty)
   }
@@ -129,28 +129,28 @@ struct ExploreArchitectureGraphTests {
   // MARK: - textGraph()
 
   @Test
-  func textGraph_returnsNonEmptyString() {
+  func textGraph_returnsNonEmptyString() throws {
     var graph = ImportGraph()
     let a = ImportGraph.Node(path: "Sources/A.swift")
     let b = ImportGraph.Node(path: "Sources/B.swift")
     graph.addEdge(from: a, to: b, rawImport: "B")
 
     let output = graph.textGraph()
-    #require(!output.isEmpty)
+    try #require(!output.isEmpty)
     #expect(output.contains("Architecture Graph"))
     #expect(output.contains("Sources"))
   }
 
   @Test
-  func textGraph_emptyGraph_doesNotCrash() {
+  func textGraph_emptyGraph_doesNotCrash() throws {
     var graph = ImportGraph()
     let output = graph.textGraph()
-    #require(!output.isEmpty)
+    try #require(!output.isEmpty)
     #expect(output.contains("Architecture Graph"))
   }
 
   @Test
-  func textGraph_whitespaceHandling_doesNotCrash() {
+  func textGraph_whitespaceHandling_doesNotCrash() throws {
     // Regression guard: textGraph() must not crash on edge cases
     // with unusual node names or cluster formations.
     var graph = ImportGraph()
@@ -160,7 +160,7 @@ struct ExploreArchitectureGraphTests {
       rawImport: "Other/Helper"
     )
     let output = graph.textGraph()
-    #require(!output.isEmpty)
+    try #require(!output.isEmpty)
   }
 
   // MARK: - buildGraph
@@ -307,11 +307,12 @@ struct ExploreArchitectureGraphTests {
     // attempting to call the model.
     let graph = ImportGraph()
     let repoURL = URL(fileURLWithPath: "/tmp")
-    let result = await ImportGraph.explain(graph: graph, repoURL: repoURL)
+    guard #available(macOS 26.0, *) else { return }
+    let result = await ArchitectureGraph.explain(graph: graph, repoURL: repoURL)
     // Either Foundation Models is available and we get a string (or nil
     // from an error), or it is unavailable and we definitely get nil.
     if !FoundationModelsAvailability.isAvailable {
-      #require(result == nil)
+      try #require(result == nil)
     }
   }
 
@@ -321,12 +322,13 @@ struct ExploreArchitectureGraphTests {
     // nil (model unavailable) or a string (model available).
     let graph = ImportGraph()
     let repoURL = URL(fileURLWithPath: "/tmp")
-    let result = await ImportGraph.explain(graph: graph, repoURL: repoURL)
+    guard #available(macOS 26.0, *) else { return }
+    let result = await ArchitectureGraph.explain(graph: graph, repoURL: repoURL)
     // Result may be nil (model unavailable) or a string (model available).
     // The key guarantee is no throw.
     if FoundationModelsAvailability.isAvailable {
       // When the model IS available, a result is expected.
-      #require(result != nil || result == nil) // soft check: just must not throw
+      try #require(result != nil || result == nil) // soft check: just must not throw
     }
   }
 

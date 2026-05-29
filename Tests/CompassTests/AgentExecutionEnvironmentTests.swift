@@ -3,7 +3,7 @@ import Testing
 
 @testable import Compass
 
-struct AgentExecutionEnvironmentTests: ~Copyable {
+final class AgentExecutionEnvironmentTests {
   private var temporaryDirectories: [URL] = []
 
   deinit {
@@ -18,9 +18,9 @@ struct AgentExecutionEnvironmentTests: ~Copyable {
     )
     let launchPlan = environment.launchPlan(repoURL: URL(fileURLWithPath: "/"))
     let presentation = environment.presentation(launchPlan: launchPlan)
-    #require(presentation.isWarning)
-    #require(presentation.detail.contains("2-guest cap reached"))
-    #require(launchPlan.effectiveRouteIdentifier == "native-macos")
+    try #require(presentation.isWarning)
+    try #require(presentation.detail.contains("2-guest cap reached"))
+    try #require(launchPlan.effectiveRouteIdentifier == "native-macos")
   }
 
   @Test func testMenuAndPreflightExposeUnsupportedFallbackTokens() throws {
@@ -28,7 +28,7 @@ struct AgentExecutionEnvironmentTests: ~Copyable {
       vmReadiness: .installing(fractionCompleted: 0.4)
     )
     let menu = AgentExecutionEnvironmentMenu(environment: environment)
-    #require(menu.statusText.contains("installing"))
+    try #require(menu.statusText.contains("installing"))
   }
 
   @Test func testComposeDiscoveryMenusExposeSanitizedComposeTokensWithoutPaths() throws {
@@ -36,7 +36,7 @@ struct AgentExecutionEnvironmentTests: ~Copyable {
       vmReadiness: .guestPrepping
     )
     let menu = AgentExecutionEnvironmentMenu(environment: environment)
-    #require(menu.statusText.contains("preparation") || menu.statusText.contains("preparing"))
+    try #require(menu.statusText.contains("preparation") || menu.statusText.contains("preparing"))
   }
 
   @Test func testBuildRouteableDiscoveryAndPreflightExposeLocalImageWithoutPaths() throws {
@@ -51,9 +51,9 @@ struct AgentExecutionEnvironmentTests: ~Copyable {
     )
     let plan = environment.launchPlan(repoURL: repoURL) { _ in route }
     let preflight = plan.preflightSummary(phase: "Develop")
-    #require(preflight.contains("Shared VM"))
-    #require(preflight.contains("compass@192.0.2.10"))
-    #require(!preflight.contains(repoURL.path))
+    try #require(preflight.contains("Shared VM"))
+    try #require(preflight.contains("compass@192.0.2.10"))
+    try #require(!preflight.contains(repoURL.path))
   }
 
   @Test func testContainerEnvDiagnosticsExposeNamesWithoutValues() throws {
@@ -74,8 +74,8 @@ struct AgentExecutionEnvironmentTests: ~Copyable {
     )
     let report = AgentExecutionEnvironmentDiagnosticsReport(
       environment: environment, launchPlan: plan)
-    #require(!report.copyText.contains("super-secret"))
-    #require(report.copyText.contains("effective-route: shared-vm"))
+    try #require(!report.copyText.contains("super-secret"))
+    try #require(report.copyText.contains("effective-route: shared-vm"))
   }
 
   @Test func testRuntimeDiagnosticsReportForImageRouteIsCopyableSanitizedAndStable() throws {
@@ -97,8 +97,8 @@ struct AgentExecutionEnvironmentTests: ~Copyable {
       environment: environment, launchPlan: plan)
     let report2 = AgentExecutionEnvironmentDiagnosticsReport(
       environment: environment, launchPlan: plan)
-    #require(report.copyIdentifier == report2.copyIdentifier)
-    #require(report.copyText.contains("vm-readiness: ready"))
+    try #require(report.copyIdentifier == report2.copyIdentifier)
+    try #require(report.copyText.contains("vm-readiness: ready"))
   }
 
   @Test func testRuntimeDiagnosticsReportForBuildRouteHidesBuildArgValuesAndPaths() throws {
@@ -118,7 +118,7 @@ struct AgentExecutionEnvironmentTests: ~Copyable {
     )
     let report = AgentExecutionEnvironmentDiagnosticsReport(
       environment: environment, launchPlan: plan)
-    #require(!report.copyText.contains(repoURL.path))
+    try #require(!report.copyText.contains(repoURL.path))
   }
 
   @Test func testRuntimeDiagnosticsReportCoversMissingAndMalformedProvisioningStates() throws {
@@ -126,7 +126,7 @@ struct AgentExecutionEnvironmentTests: ~Copyable {
     let environment = AgentExecutionEnvironment.discover(vmReadiness: .notProvisioned)
     let report = AgentExecutionEnvironmentDiagnosticsReport(
       environment: environment, launchPlan: plan)
-    #require(report.copyText.contains("vm-build-state:"))
+    try #require(report.copyText.contains("vm-build-state:"))
   }
 
   @Test func testRuntimeDiagnosticsReportSanitizesFallbackConfigsWithoutUnsupportedValues() throws {
@@ -135,7 +135,7 @@ struct AgentExecutionEnvironmentTests: ~Copyable {
       vmReadiness: .unavailable(reason: "2-guest cap"))
     let report = AgentExecutionEnvironmentDiagnosticsReport(
       environment: environment, launchPlan: plan)
-    #require(report.copyText.contains("fallback:"))
+    try #require(report.copyText.contains("fallback:"))
   }
 
   @Test func testRuntimeDiagnosticsReportIncludesOmittedSupportTokenCounts() throws {
@@ -143,22 +143,22 @@ struct AgentExecutionEnvironmentTests: ~Copyable {
     let environment = AgentExecutionEnvironment.discover(vmReadiness: .notProvisioned)
     let report = AgentExecutionEnvironmentDiagnosticsReport(
       environment: environment, launchPlan: plan)
-    #require(report.effectiveRouteIdentifier == "native-macos")
+    try #require(report.effectiveRouteIdentifier == "native-macos")
   }
 
   @Test func testNotProvisionedReadinessPresentationIsWarning() throws {
     let environment = AgentExecutionEnvironment.discover(vmReadiness: .notProvisioned)
     let plan = environment.launchPlan(repoURL: URL(fileURLWithPath: "/"))
     let presentation = environment.presentation(launchPlan: plan)
-    #require(presentation.title == "Shared VM")
-    #require(presentation.isWarning)
+    try #require(presentation.title == "Shared VM")
+    try #require(presentation.isWarning)
   }
 
   @Test func testErrorReadinessPresentationIsWarning() throws {
     let environment = AgentExecutionEnvironment.discover(vmReadiness: .error(detail: "boot failed"))
     let plan = environment.launchPlan(repoURL: URL(fileURLWithPath: "/"))
     let presentation = environment.presentation(launchPlan: plan)
-    #require(presentation.isWarning)
+    try #require(presentation.isWarning)
   }
 
   @Test func testReadyVMWithHostRouteIsInformationalNotAWarning() throws {
@@ -173,14 +173,14 @@ struct AgentExecutionEnvironmentTests: ~Copyable {
         "Guest workspace catalog could not map this repo."
     )
     let presentation = environment.presentation(launchPlan: plan)
-    #require(!presentation.isWarning)
-    #require(presentation.status.contains("internal fallback"))
-    #require(presentation.title == "Shared VM")
+    try #require(!presentation.isWarning)
+    try #require(presentation.status.contains("internal fallback"))
+    try #require(presentation.title == "Shared VM")
   }
 
   @Test func testDiscoveryWithNotProvisionedReadinessPreservesReadiness() throws {
     let environment = AgentExecutionEnvironment.discover(vmReadiness: .notProvisioned)
-    #require(environment.readiness.vmReadiness == SharedCompassVMReadiness.notProvisioned)
+    try #require(environment.readiness.vmReadiness == SharedCompassVMReadiness.notProvisioned)
   }
 
   // MARK: - Helpers

@@ -11,14 +11,14 @@ struct PlanFocusTests {
   /// updated deliberately rather than drift silently.
   @Test
   func testWeightsMatchExpectedDistribution()  throws {
-    #require(PlanFocus.feature.weight == 30)
-    #require(PlanFocus.test.weight == 25)
-    #require(PlanFocus.cleanup.weight == 25)
-    #require(PlanFocus.docs.weight == 10)
-    #require(PlanFocus.bugHunt.weight == 10)
+    try #require(PlanFocus.feature.weight == 30)
+    try #require(PlanFocus.test.weight == 25)
+    try #require(PlanFocus.cleanup.weight == 25)
+    try #require(PlanFocus.docs.weight == 10)
+    try #require(PlanFocus.bugHunt.weight == 10)
 
     let total = PlanFocus.allCases.reduce(0.0) { $0 + $1.weight }
-    #require(total == 100)
+    try #require(total == 100)
   }
 
   /// Smoke test the sampler with a seeded generator. We don't pin
@@ -35,7 +35,7 @@ struct PlanFocusTests {
       seen.insert(PlanFocus.weightedRandom(using: &generator))
       if seen.count == PlanFocus.allCases.count { return }
     }
-    #require(false, "weightedRandom did not cover every focus in 10k samples; saw \(seen)")
+    #expect(Bool(false), "weightedRandom did not cover every focus in 10k samples; saw \(seen)")
   }
 
   /// Over a large sample the empirical distribution should land
@@ -54,7 +54,7 @@ struct PlanFocusTests {
     for focus in PlanFocus.allCases {
       let observed = Double(counts[focus] ?? 0) / Double(trials)
       let expected = focus.weight / 100.0
-      #require(abs(observed - expected) < 0.03, "focus \(focus.displayName) sampled at \(observed), expected ~\(expected)")
+      try #require(abs(observed - expected) < 0.03, "focus \(focus.displayName) sampled at \(observed), expected ~\(expected)")
     }
   }
 }

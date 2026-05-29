@@ -4,41 +4,41 @@ import Testing
 @testable import Compass
 
 struct NativeFeedbackServiceTests {
-  @Test func testContentBoundsProjectNameAndCopy() {
+  @Test func testContentBoundsProjectNameAndCopy() throws {
     let boundedProjectName = String(repeating: "A", count: NativeFeedbackContent.projectNameLimit)
     let content = NativeFeedbackContent(
       milestone: .developStarted,
       projectName: "  \(String(repeating: "A", count: 80))  "
     )
 
-    #require(content.projectName == boundedProjectName)
-    #require(content.title == "\(boundedProjectName): Develop started")
-    #require(content.body == "Agent is working on the selected plan.")
-    #require(content.spokenPhrase == "\(boundedProjectName). Develop started.")
-    #require(content.projectName.count <= NativeFeedbackContent.projectNameLimit)
-    #require(content.title.count <= NativeFeedbackContent.titleLimit)
-    #require(content.body.count <= NativeFeedbackContent.bodyLimit)
-    #require(content.spokenPhrase.count <= NativeFeedbackContent.spokenPhraseLimit)
+    try #require(content.projectName == boundedProjectName)
+    try #require(content.title == "\(boundedProjectName): Develop started")
+    try #require(content.body == "Agent is working on the selected plan.")
+    try #require(content.spokenPhrase == "\(boundedProjectName). Develop started.")
+    try #require(content.projectName.count <= NativeFeedbackContent.projectNameLimit)
+    try #require(content.title.count <= NativeFeedbackContent.titleLimit)
+    try #require(content.body.count <= NativeFeedbackContent.bodyLimit)
+    try #require(content.spokenPhrase.count <= NativeFeedbackContent.spokenPhraseLimit)
 
     let fallback = NativeFeedbackContent(milestone: .paused, projectName: " \n ")
-    #require(fallback.projectName == "Compass project")
-    #require(fallback.title == "Compass project: Paused")
+    try #require(fallback.projectName == "Compass project")
+    try #require(fallback.title == "Compass project: Paused")
   }
 
-  @Test func testLongRunningMilestoneCopy() {
+  @Test func testLongRunningMilestoneCopy() throws {
     let verify = NativeFeedbackContent(milestone: .verifyStarted, projectName: "Editor")
-    #require(verify.title == "Editor: Verify started")
-    #require(verify.body == "Compass is running the verify command.")
-    #require(verify.spokenPhrase == "Editor. Verify started.")
+    try #require(verify.title == "Editor: Verify started")
+    try #require(verify.body == "Compass is running the verify command.")
+    try #require(verify.spokenPhrase == "Editor. Verify started.")
 
     let retry = NativeFeedbackContent(milestone: .developRetrying, projectName: "Editor")
-    #require(retry.title == "Editor: Develop retrying")
-    #require(retry.body == "Post-checks need another agent pass.")
-    #require(retry.spokenPhrase == "Editor. Develop retrying.")
+    try #require(retry.title == "Editor: Develop retrying")
+    try #require(retry.body == "Post-checks need another agent pass.")
+    try #require(retry.spokenPhrase == "Editor. Develop retrying.")
   }
 
   @MainActor
-  @Test func testDevelopReadyDeliverySnapshotCorrelatesWithoutAuthorizationInOffMode() {
+  @Test func testDevelopReadyDeliverySnapshotCorrelatesWithoutAuthorizationInOffMode() throws {
     let service = NativeFeedbackService.shared
     let before = service.deliverySnapshot(mode: .off)
 
@@ -50,64 +50,64 @@ struct NativeFeedbackServiceTests {
     )
     let after = service.deliverySnapshot(mode: .off)
 
-    #require(
+    try #require(
       after.lastAttemptedMilestoneIdentifier == NativeFeedbackMilestone.developReady.rawValue)
-    #require(after.lastAttemptResultIdentifier == "suppressed-off")
-    #require(
+    try #require(after.lastAttemptResultIdentifier == "suppressed-off")
+    try #require(
       after.authorizationRequestStateIdentifier == before.authorizationRequestStateIdentifier)
-    #require(
+    try #require(
       after.notificationAuthorizationStatusIdentifier ==
       before.notificationAuthorizationStatusIdentifier)
   }
 
-  @Test func testModeMenuSelectedStateAndOrder() {
+  @Test func testModeMenuSelectedStateAndOrder() throws {
     let menu = NativeFeedbackModeMenu(selectedMode: .speechAndNotifications, projectName: "Editor")
 
-    #require(menu.labelSystemImage == "speaker.wave.2")
-    #require(menu.helpText == "Feedback: Speech + Notifications")
-    #require(menu.items.map(\.mode) == [.off, .notifications, .speechAndNotifications])
-    #require(menu.items.map(\.title) == ["Off", "Notifications", "Speech + Notifications"])
-    #require(menu.items.map(\.systemImage) == ["bell.slash", "bell", "checkmark"])
-    #require(menu.items.map(\.isSelected) == [false, false, true])
+    try #require(menu.labelSystemImage == "speaker.wave.2")
+    try #require(menu.helpText == "Feedback: Speech + Notifications")
+    try #require(menu.items.map(\.mode) == [.off, .notifications, .speechAndNotifications])
+    try #require(menu.items.map(\.title) == ["Off", "Notifications", "Speech + Notifications"])
+    try #require(menu.items.map(\.systemImage) == ["bell.slash", "bell", "checkmark"])
+    try #require(menu.items.map(\.isSelected) == [false, false, true])
   }
 
-  @Test func testModeMenuProjectScopedCopyIsBounded() {
+  @Test func testModeMenuProjectScopedCopyIsBounded() throws {
     let rawProjectName = "  \(String(repeating: "Compass Factory ", count: 8))  "
     let projectName = NativeFeedbackContent.sanitizedProjectName(rawProjectName)
     let menu = NativeFeedbackModeMenu(selectedMode: .notifications, projectName: rawProjectName)
 
-    #require(menu.projectName == projectName)
+    try #require(menu.projectName == projectName)
     let descriptions = menu.items.map(\.description)
-    #require(descriptions == [
+    try #require(descriptions == [
       "No macOS alerts or spoken updates for \(projectName).",
       "Show macOS banners when \(projectName) reaches plan, verify, or promotion milestones.",
       "Speak updates for \(projectName) and show macOS banners for key milestones.",
     ])
-    #require(menu.items.allSatisfy { $0.description.contains(projectName) })
-    #require(menu.items.allSatisfy { $0.permissionHint.contains(projectName) })
-    #require(
+    try #require(menu.items.allSatisfy { $0.description.contains(projectName) })
+    try #require(menu.items.allSatisfy { $0.permissionHint.contains(projectName) })
+    try #require(
       menu.items.allSatisfy {
         $0.description.count <= NativeFeedbackModeMenuItem.descriptionLimit
           && $0.permissionHint.count <= NativeFeedbackModeMenuItem.permissionHintLimit
       })
   }
 
-  @Test func testModeMenuPermissionHintsExplainAuthorizationTiming() {
+  @Test func testModeMenuPermissionHintsExplainAuthorizationTiming() throws {
     let menu = NativeFeedbackModeMenu(selectedMode: .off, projectName: "Editor")
     let hints = Dictionary(uniqueKeysWithValues: menu.items.map { ($0.mode, $0.permissionHint) })
 
-    #require(hints[.off] == "No notification permission request for Editor.")
-    #require(
+    try #require(hints[.off] == "No notification permission request for Editor.")
+    try #require(
       hints[.notifications],
       "Compass asks notification permission for Editor only when enabled or first delivered."
     )
-    #require(
+    try #require(
       hints[.speechAndNotifications],
       "Speech uses local audio; notifications for Editor ask permission only when needed."
     )
   }
 
-  @Test func testDeliverySnapshotBoundsIdentifiersAndDedupeCount() {
+  @Test func testDeliverySnapshotBoundsIdentifiersAndDedupeCount() throws {
     let longIdentifier = String(repeating: "native-feedback-delivery-status-", count: 8)
     let snapshot = NativeFeedbackDeliverySnapshot(
       mode: .speechAndNotifications,
@@ -121,36 +121,36 @@ struct NativeFeedbackServiceTests {
       speechStateIdentifier: longIdentifier
     )
 
-    #require(
+    try #require(
       snapshot.notificationSupportIdentifier.count <=
       NativeFeedbackDeliverySnapshot.identifierLimit
     )
-    #require(
+    try #require(
       snapshot.authorizationRequestStateIdentifier.count <=
       NativeFeedbackDeliverySnapshot.identifierLimit
     )
-    #require(
+    try #require(
       snapshot.notificationAuthorizationStatusIdentifier.count <=
       NativeFeedbackDeliverySnapshot.identifierLimit
     )
-    #require(
+    try #require(
       snapshot.lastAttemptedMilestoneIdentifier.count <=
       NativeFeedbackDeliverySnapshot.identifierLimit
     )
-    #require(
+    try #require(
       snapshot.lastAttemptResultIdentifier.count <=
       NativeFeedbackDeliverySnapshot.identifierLimit
     )
-    #require(
+    try #require(
       snapshot.speechStateIdentifier.count <=
       NativeFeedbackDeliverySnapshot.identifierLimit
     )
-    #require(
+    try #require(
       snapshot.recentDedupeCount == NativeFeedbackDeliverySnapshot.recentDedupeCountLimit)
-    #require(!snapshot.identifier.contains("Compass has accepted"))
+    try #require(!snapshot.identifier.contains("Compass has accepted"))
   }
 
-  @Test func testModeMenuSurfacesInjectedDeliveryStatusAndBoundsIt() {
+  @Test func testModeMenuSurfacesInjectedDeliveryStatusAndBoundsIt() throws {
     let snapshot = NativeFeedbackDeliverySnapshot(
       mode: .speechAndNotifications,
       notificationSupportIdentifier: "available",
@@ -168,20 +168,20 @@ struct NativeFeedbackServiceTests {
       deliverySnapshot: snapshot
     )
 
-    #require(
+    try #require(
       menu.deliveryStatusText.count <=
       NativeFeedbackDeliverySnapshot.menuStatusLimit
     )
-    #require(menu.deliveryStatusText.contains("mode speech_and_notifications"))
-    #require(menu.deliveryStatusText.contains("notifications"))
-    #require(menu.deliveryStatusText.contains("speech"))
-    #require(menu.deliveryStatusText.contains("notification-status allowed"))
-    #require(menu.deliveryStatusText.contains("last verifyStarted/notification-delivered"))
-    #require(menu.deliveryStatusText.contains("speech suppressed-speaking"))
+    try #require(menu.deliveryStatusText.contains("mode speech_and_notifications"))
+    try #require(menu.deliveryStatusText.contains("notifications"))
+    try #require(menu.deliveryStatusText.contains("speech"))
+    try #require(menu.deliveryStatusText.contains("notification-status allowed"))
+    try #require(menu.deliveryStatusText.contains("last verifyStarted/notification-delivered"))
+    try #require(menu.deliveryStatusText.contains("speech suppressed-speaking"))
   }
 
   @MainActor
-  @Test func testReadOnlySnapshotDoesNotRequestNotificationAuthorization() {
+  @Test func testReadOnlySnapshotDoesNotRequestNotificationAuthorization() throws {
     let service = NativeFeedbackService.shared
     let before = service.deliverySnapshot(mode: .notifications)
 
@@ -192,11 +192,11 @@ struct NativeFeedbackServiceTests {
     )
     let after = service.deliverySnapshot(mode: .notifications)
 
-    #require(
+    try #require(
       after.authorizationRequestStateIdentifier == before.authorizationRequestStateIdentifier);
-    #require(
+    try #require(
       after.notificationAuthorizationStatusIdentifier ==
       before.notificationAuthorizationStatusIdentifier)
-    #require(after.lastAttemptedMilestoneIdentifier == before.lastAttemptedMilestoneIdentifier)
+    try #require(after.lastAttemptedMilestoneIdentifier == before.lastAttemptedMilestoneIdentifier)
   }
 }

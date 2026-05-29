@@ -36,32 +36,32 @@ struct SymbolExtractorTests {
 
     let extraction = try extractor.extract(source: source, language: .swift)
 
-    #require(extraction.imports.map(\.raw) == ["Foundation", "Compass"])
-    #require(extraction.imports.map(\.line) == [1, 2])
+    try #require(extraction.imports.map(\.raw) == ["Foundation", "Compass"])
+    try #require(extraction.imports.map(\.line) == [1, 2])
 
     let names = extraction.symbols.map(\.name)
-    #require(names.contains("Animal"))
-    #require(names.contains("Point2D"))
-    #require(names.contains("Greeter"))
-    #require(names.contains("Direction"))
-    #require(names.contains("topLevelHelper"))
-    #require(names.contains("Pair"))
-    #require(names.contains("bark"))
-    #require(names.contains("greet"))
+    try #require(names.contains("Animal"))
+    try #require(names.contains("Point2D"))
+    try #require(names.contains("Greeter"))
+    try #require(names.contains("Direction"))
+    try #require(names.contains("topLevelHelper"))
+    try #require(names.contains("Pair"))
+    try #require(names.contains("bark"))
+    try #require(names.contains("greet"))
 
     let kindByName: [String: CodemapSymbolKind] = Dictionary(
       uniqueKeysWithValues: extraction.symbols.map { ($0.name, $0.kind) }
     )
-    #require(kindByName["Animal"] == .class)
-    #require(kindByName["Greeter"] == .interface)
-    #require(kindByName["topLevelHelper"] == .function)
-    #require(kindByName["Pair"] == .type)
-    #require(kindByName["bark"] == .function)
-    #require(kindByName["greet"] == .method)
+    try #require(kindByName["Animal"] == .class)
+    try #require(kindByName["Greeter"] == .interface)
+    try #require(kindByName["topLevelHelper"] == .function)
+    try #require(kindByName["Pair"] == .type)
+    try #require(kindByName["bark"] == .function)
+    try #require(kindByName["greet"] == .method)
 
-    let animal = #require(extraction.symbols.first { $0.name == "Animal" })
-    #require(animal.line == 4)
-    #require(animal.endLine > animal.line)
+    let animal = try #require(extraction.symbols.first { $0.name == "Animal" })
+    try #require(animal.line == 4)
+    try #require(animal.endLine > animal.line)
   }
 
   @Test
@@ -89,14 +89,14 @@ struct SymbolExtractorTests {
 
     let extraction = try extractor.extract(source: source, language: .typescript)
 
-    #require(extraction.imports.map(\.raw) == ["./foo", "bar"])
+    try #require(extraction.imports.map(\.raw) == ["./foo", "bar"])
     let names = Set(extraction.symbols.map(\.name))
-    #require(names.contains("Service"))
-    #require(names.contains("Greeter"))
-    #require(names.contains("topLevel"))
-    #require(names.contains("Pair"))
-    #require(names.contains("arrow"))
-    #require(names.contains("run"))
+    try #require(names.contains("Service"))
+    try #require(names.contains("Greeter"))
+    try #require(names.contains("topLevel"))
+    try #require(names.contains("Pair"))
+    try #require(names.contains("arrow"))
+    try #require(names.contains("run"))
   }
 
   @Test
@@ -114,11 +114,11 @@ struct SymbolExtractorTests {
 
     let extraction = try extractor.extract(source: source, language: .python)
 
-    #require(extraction.imports.map(\.raw) == ["os", "collections"])
+    try #require(extraction.imports.map(\.raw) == ["os", "collections"])
     let names = Set(extraction.symbols.map(\.name))
-    #require(names.contains("greet"))
-    #require(names.contains("Repo"))
-    #require(names.contains("commit"))
+    try #require(names.contains("greet"))
+    try #require(names.contains("Repo"))
+    try #require(names.contains("commit"))
   }
 
   @Test
@@ -139,11 +139,11 @@ struct SymbolExtractorTests {
 
     let extraction = try extractor.extract(source: source, language: .go)
 
-    #require(extraction.imports.map(\.raw) == ["fmt"])
+    try #require(extraction.imports.map(\.raw) == ["fmt"])
     let names = Set(extraction.symbols.map(\.name))
-    #require(names.contains("Server"))
-    #require(names.contains("Start"))
-    #require(names.contains("New"))
+    try #require(names.contains("Server"))
+    try #require(names.contains("Start"))
+    try #require(names.contains("New"))
   }
 
   @Test
@@ -169,12 +169,12 @@ struct SymbolExtractorTests {
 
     let extraction = try extractor.extract(source: source, language: .rust)
 
-    #require(extraction.imports.count == 2)
+    try #require(extraction.imports.count == 2)
     let names = Set(extraction.symbols.map(\.name))
-    #require(names.contains("Cache"))
-    #require(names.contains("Lookup"))
-    #require(names.contains("version"))
-    #require(names.contains("new"))
+    try #require(names.contains("Cache"))
+    try #require(names.contains("Lookup"))
+    try #require(names.contains("version"))
+    try #require(names.contains("new"))
   }
 
   @Test
@@ -193,12 +193,12 @@ struct SymbolExtractorTests {
 
     let extraction = try extractor.extract(source: source, language: .javascript)
 
-    #require(extraction.imports.map(\.raw) == ["./mod"])
+    try #require(extraction.imports.map(\.raw) == ["./mod"])
     let names = Set(extraction.symbols.map(\.name))
-    #require(names.contains("Box"))
-    #require(names.contains("topLevel"))
-    #require(names.contains("arrow"))
-    #require(names.contains("open"))
+    try #require(names.contains("Box"))
+    try #require(names.contains("topLevel"))
+    try #require(names.contains("arrow"))
+    try #require(names.contains("open"))
   }
 
   @Test
@@ -215,22 +215,22 @@ struct SymbolExtractorTests {
 
     let extraction = try extractor.extract(source: source, language: .tsx)
 
-    #require(extraction.imports.map(\.raw) == ["react"])
+    try #require(extraction.imports.map(\.raw) == ["react"])
     let names = Set(extraction.symbols.map(\.name))
-    #require(names.contains("Panel"))
-    #require(names.contains("Greeting"))
+    try #require(names.contains("Panel"))
+    try #require(names.contains("Greeting"))
   }
 
   @Test
-  func testLanguageRegistryResolvesByExtension() {
-    #require(CodemapLanguage.forFile(at: "Foo.swift") == .swift)
-    #require(CodemapLanguage.forFile(at: "src/foo.ts") == .typescript)
-    #require(CodemapLanguage.forFile(at: "src/Foo.tsx") == .tsx)
-    #require(CodemapLanguage.forFile(at: "src/foo.js") == .javascript)
-    #require(CodemapLanguage.forFile(at: "main.py") == .python)
-    #require(CodemapLanguage.forFile(at: "main.go") == .go)
-    #require(CodemapLanguage.forFile(at: "lib.rs") == .rust)
-    #require(CodemapLanguage.forFile(at: "README.md") == nil)
-    #require(CodemapLanguage.forFile(at: "Cargo.toml") == nil)
+  func testLanguageRegistryResolvesByExtension() throws {
+    try #require(CodemapLanguage.forFile(at: "Foo.swift") == .swift)
+    try #require(CodemapLanguage.forFile(at: "src/foo.ts") == .typescript)
+    try #require(CodemapLanguage.forFile(at: "src/Foo.tsx") == .tsx)
+    try #require(CodemapLanguage.forFile(at: "src/foo.js") == .javascript)
+    try #require(CodemapLanguage.forFile(at: "main.py") == .python)
+    try #require(CodemapLanguage.forFile(at: "main.go") == .go)
+    try #require(CodemapLanguage.forFile(at: "lib.rs") == .rust)
+    try #require(CodemapLanguage.forFile(at: "README.md") == nil)
+    try #require(CodemapLanguage.forFile(at: "Cargo.toml") == nil)
   }
 }

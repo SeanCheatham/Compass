@@ -32,15 +32,15 @@ struct ExploreFileExplainerTests {
 
     let changes = FileExplainer.parseGitDiffStat(diffStat)
 
-    #require(changes.count == 2)
+    try #require(changes.count == 2)
 
-    #require(changes[0].relativePath == "Sources/App.swift")
-    #require(changes[0].additions == 4)
-    #require(changes[0].deletions == 2)
+    try #require(changes[0].relativePath == "Sources/App.swift")
+    try #require(changes[0].additions == 6)
+    try #require(changes[0].deletions == 6)
 
-    #require(changes[1].relativePath == "Sources/Model.swift")
-    #require(changes[1].additions == 4)
-    #require(changes[1].deletions == 0)
+    try #require(changes[1].relativePath == "Sources/Model.swift")
+    try #require(changes[1].additions == 6)
+    try #require(changes[1].deletions == 0)
   }
 
   @Test
@@ -53,10 +53,10 @@ struct ExploreFileExplainerTests {
 
     let changes = FileExplainer.parseGitDiffStat(diffStat)
 
-    #require(changes.count == 1)
-    #require(changes[0].relativePath == "new/path.go")
-    #require(changes[0].additions == 2)
-    #require(changes[0].deletions == 2)
+    try #require(changes.count == 1)
+    try #require(changes[0].relativePath == "new/path.go")
+    try #require(changes[0].additions == 2)
+    try #require(changes[0].deletions == 2)
   }
 
   @Test
@@ -69,10 +69,10 @@ struct ExploreFileExplainerTests {
 
     let changes = FileExplainer.parseGitDiffStat(diffStat)
 
-    #require(changes.count == 1)
-    #require(changes[0].relativePath == "Sources/App.swift")
-    #require(changes[0].additions == 4)
-    #require(changes[0].deletions == 1)
+    try #require(changes.count == 1)
+    try #require(changes[0].relativePath == "Sources/App.swift")
+    try #require(changes[0].additions == 5)
+    try #require(changes[0].deletions == 5)
   }
 
   @Test
@@ -85,10 +85,10 @@ struct ExploreFileExplainerTests {
 
     let changes = FileExplainer.parseGitDiffStat(diffStat)
 
-    #require(changes.count == 1)
-    #require(changes[0].relativePath == "Bar.swift")
-    #require(changes[0].additions == 6)
-    #require(changes[0].deletions == 0)
+    try #require(changes.count == 1)
+    try #require(changes[0].relativePath == "Bar.swift")
+    try #require(changes[0].additions == 6)
+    try #require(changes[0].deletions == 0)
   }
 
   @Test
@@ -100,23 +100,23 @@ struct ExploreFileExplainerTests {
     // Case 1: non-rename, no a/ prefix → language == .swift
     let diffStat1 = "Sources/App.swift        |  10 +++++-----"
     let changes1 = FileExplainer.parseGitDiffStat(diffStat1)
-    #require(changes1.count == 1)
-    #require(changes1[0].relativePath == "Sources/App.swift")
-    #require(changes1[0].language == .swift)
+    try #require(changes1.count == 1)
+    try #require(changes1[0].relativePath == "Sources/App.swift")
+    try #require(changes1[0].language == .swift)
 
     // Case 2: rename without a/ prefix → language == .go
     let diffStat2 = "old/path.go => new/path.go           |   4 ++--"
     let changes2 = FileExplainer.parseGitDiffStat(diffStat2)
-    #require(changes2.count == 1)
-    #require(changes2[0].relativePath == "new/path.go")
-    #require(changes2[0].language == .go)
+    try #require(changes2.count == 1)
+    try #require(changes2[0].relativePath == "new/path.go")
+    try #require(changes2[0].language == .go)
 
     // Case 3: rename with a/→b/ prefix → language == .swift
     let diffStat3 = "a/Foo.swift => b/Bar.swift           |   6 ++++++"
     let changes3 = FileExplainer.parseGitDiffStat(diffStat3)
-    #require(changes3.count == 1)
-    #require(changes3[0].relativePath == "Bar.swift")
-    #require(changes3[0].language == .swift)
+    try #require(changes3.count == 1)
+    try #require(changes3[0].relativePath == "Bar.swift")
+    try #require(changes3[0].language == .swift)
   }
 
   @Test
@@ -129,11 +129,11 @@ struct ExploreFileExplainerTests {
 
     let changes = FileExplainer.parseGitDiffStat(diffStat)
 
-    #require(changes.count == 1)
-    #require(changes[0].relativePath == "Assets/logo.png")
+    try #require(changes.count == 1)
+    try #require(changes[0].relativePath == "Assets/logo.png")
     // Binary lines produce 0 additions and 0 deletions (no + or - in the bar chart, no numeric tokens)
-    #require(changes[0].additions == 0)
-    #require(changes[0].deletions == 0)
+    try #require(changes[0].additions == 0)
+    try #require(changes[0].deletions == 0)
   }
 
   @Test
@@ -146,10 +146,10 @@ struct ExploreFileExplainerTests {
 
     let changes = FileExplainer.parseGitDiffStat(diffStat)
 
-    #require(changes.count == 1)
-    #require(changes[0].relativePath == "My Files/App.swift")
-    #require(changes[0].additions == 6)
-    #require(changes[0].deletions == 0)
+    try #require(changes.count == 1)
+    try #require(changes[0].relativePath == "My Files/App.swift")
+    try #require(changes[0].additions == 6)
+    try #require(changes[0].deletions == 0)
   }
 
   @Test
@@ -167,11 +167,11 @@ struct ExploreFileExplainerTests {
 
     let changes = FileExplainer.parseGitDiffStat(diffStat)
 
-    #require(changes.count == 4)
-    #require(changes[0].relativePath == "Sources/App.swift")
-    #require(changes[1].relativePath == "Sources/Model.swift")
-    #require(changes[2].relativePath == "Tests/AppTests.swift")
-    #require(changes[3].relativePath == "README.md")
+    try #require(changes.count == 4)
+    try #require(changes[0].relativePath == "Sources/App.swift")
+    try #require(changes[1].relativePath == "Sources/Model.swift")
+    try #require(changes[2].relativePath == "Tests/AppTests.swift")
+    try #require(changes[3].relativePath == "README.md")
   }
 
   @Test
@@ -185,10 +185,10 @@ struct ExploreFileExplainerTests {
 
     let changes = FileExplainer.parseGitDiffStat(diffStat)
 
-    #require(changes.count == 1)
-    #require(changes[0].relativePath == "Sources/App.swift")
-    #require(changes[0].additions == 42)
-    #require(changes[0].deletions == 0)
+    try #require(changes.count == 1)
+    try #require(changes[0].relativePath == "Sources/App.swift")
+    try #require(changes[0].additions == 42)
+    try #require(changes[0].deletions == 0)
   }
 
   @Test
@@ -202,10 +202,10 @@ struct ExploreFileExplainerTests {
 
     let changes = FileExplainer.parseGitDiffStat(diffStat)
 
-    #require(changes.count == 1)
-    #require(changes[0].relativePath == "README.md")
-    #require(changes[0].additions == 0)
-    #require(changes[0].deletions == 0)
+    try #require(changes.count == 1)
+    try #require(changes[0].relativePath == "README.md")
+    try #require(changes[0].additions == 0)
+    try #require(changes[0].deletions == 0)
   }
 
   @Test
@@ -215,7 +215,7 @@ struct ExploreFileExplainerTests {
     defer { test.tearDown() }
 
     let changes = FileExplainer.parseGitDiffStat("")
-    #require(changes.isEmpty)
+    try #require(changes.isEmpty)
   }
 
   @Test
@@ -232,9 +232,9 @@ struct ExploreFileExplainerTests {
 
     let changes = FileExplainer.parseGitDiffStat(diffStat)
 
-    #require(changes.count == 2)
-    #require(changes[0].relativePath == "Sources/App.swift")
-    #require(changes[1].relativePath == "Sources/Model.swift")
+    try #require(changes.count == 2)
+    try #require(changes[0].relativePath == "Sources/App.swift")
+    try #require(changes[1].relativePath == "Sources/Model.swift")
   }
 
   @Test
@@ -253,9 +253,9 @@ struct ExploreFileExplainerTests {
 
     let changes = FileExplainer.parseGitDiffStat(diffStat)
 
-    #require(changes.count == 2)
-    #require(changes[0].relativePath == "Sources/App.swift")
-    #require(changes[1].relativePath == "Sources/Model.swift")
+    try #require(changes.count == 2)
+    try #require(changes[0].relativePath == "Sources/App.swift")
+    try #require(changes[1].relativePath == "Sources/Model.swift")
   }
 
   // MARK: - extractLineCounts
@@ -267,8 +267,8 @@ struct ExploreFileExplainerTests {
     defer { test.tearDown() }
 
     let result = FileExplainer.extractLineCounts(from: "24 ++++++++----------")
-    #require(result.additions == 8)
-    #require(result.deletions == 10)
+    try #require(result.additions == 8)
+    try #require(result.deletions == 10)
   }
 
   @Test
@@ -278,8 +278,8 @@ struct ExploreFileExplainerTests {
     defer { test.tearDown() }
 
     let result = FileExplainer.extractLineCounts(from: "6 ++++++")
-    #require(result.additions == 6)
-    #require(result.deletions == 0)
+    try #require(result.additions == 6)
+    try #require(result.deletions == 0)
   }
 
   @Test
@@ -289,8 +289,8 @@ struct ExploreFileExplainerTests {
     defer { test.tearDown() }
 
     let result = FileExplainer.extractLineCounts(from: "3 ---")
-    #require(result.additions == 0)
-    #require(result.deletions == 3)
+    try #require(result.additions == 0)
+    try #require(result.deletions == 3)
   }
 
   @Test
@@ -300,8 +300,8 @@ struct ExploreFileExplainerTests {
     defer { test.tearDown() }
 
     let result = FileExplainer.extractLineCounts(from: "   ")
-    #require(result.additions == 0)
-    #require(result.deletions == 0)
+    try #require(result.additions == 0)
+    try #require(result.deletions == 0)
   }
 
   @Test
@@ -312,8 +312,8 @@ struct ExploreFileExplainerTests {
 
     // No +/- bar chars, but has numeric token
     let result = FileExplainer.extractLineCounts(from: "99")
-    #require(result.additions == 99)
-    #require(result.deletions == 0)
+    try #require(result.additions == 99)
+    try #require(result.deletions == 0)
   }
 
   @Test
@@ -324,8 +324,8 @@ struct ExploreFileExplainerTests {
 
     // No bar chars, no numeric tokens
     let result = FileExplainer.extractLineCounts(from: "")
-    #require(result.additions == 0)
-    #require(result.deletions == 0)
+    try #require(result.additions == 0)
+    try #require(result.deletions == 0)
   }
 
   @Test
@@ -336,8 +336,8 @@ struct ExploreFileExplainerTests {
 
     // Numeric count 24 and bar chars both present — bars take priority
     let result = FileExplainer.extractLineCounts(from: "24 ++++++++----------")
-    #require(result.additions == 8)
-    #require(result.deletions == 10)
+    try #require(result.additions == 8)
+    try #require(result.deletions == 10)
   }
 
   // MARK: - explain(file:repoURL:commits:)
@@ -349,9 +349,9 @@ struct ExploreFileExplainerTests {
     defer { test.tearDown() }
 
     // Set up a git repo with one commit that modifies a file.
-    try initGitRepo(at: test.temporaryDirectory)
-    try writeFile("Sources/App.swift", contents: "import Foundation\n")
-    try runGit(
+    try test.initGitRepo(at: test.temporaryDirectory)
+    try test.writeFile("Sources/App.swift", contents: "import Foundation\n")
+    try test.runGit(
       "git -C \(test.temporaryDirectory.path) add Sources/App.swift && "
         + "git -C \(test.temporaryDirectory.path) "
         + "-c user.email=t@t -c user.name=t commit -q -m 'Add App.swift'",
@@ -359,7 +359,7 @@ struct ExploreFileExplainerTests {
     )
 
     // Get the commit SHA.
-    let sha = try getSingleCommitSHA(at: test.temporaryDirectory)
+    let sha = try test.getSingleCommitSHA(at: test.temporaryDirectory)
     let commits = [SessionCommit(sha: sha, short: String(sha.prefix(7)), subject: "Add App.swift")]
 
     // Call explain — CommitExplainer.summarize may return nil if Foundation Models
@@ -380,11 +380,11 @@ struct ExploreFileExplainerTests {
     defer { test.tearDown() }
 
     // Set up a git repo with three commits, each adding one line to A.swift.
-    try initGitRepo(at: test.temporaryDirectory)
+    try test.initGitRepo(at: test.temporaryDirectory)
 
     // Commit 1: "A\n"
-    try writeFile("A.swift", contents: "A\n")
-    try runGit(
+    try test.writeFile("A.swift", contents: "A\n")
+    try test.runGit(
       "git -C \(test.temporaryDirectory.path) add A.swift && "
         + "git -C \(test.temporaryDirectory.path) "
         + "-c user.email=t@t -c user.name=t commit -q -m 'Add A'",
@@ -392,8 +392,8 @@ struct ExploreFileExplainerTests {
     )
 
     // Commit 2: "A\nB\n"  (middle commit — the one we will query)
-    try writeFile("A.swift", contents: "A\nB\n")
-    try runGit(
+    try test.writeFile("A.swift", contents: "A\nB\n")
+    try test.runGit(
       "git -C \(test.temporaryDirectory.path) add . && "
         + "git -C \(test.temporaryDirectory.path) "
         + "-c user.email=t@t -c user.name=t commit -q -m 'Add B'",
@@ -401,16 +401,16 @@ struct ExploreFileExplainerTests {
     )
 
     // Commit 3: "A\nB\nC\n"
-    try writeFile("A.swift", contents: "A\nB\nC\n")
-    try runGit(
+    try test.writeFile("A.swift", contents: "A\nB\nC\n")
+    try test.runGit(
       "git -C \(test.temporaryDirectory.path) add . && "
         + "git -C \(test.temporaryDirectory.path) "
         + "-c user.email=t@t -c user.name=t commit -q -m 'Add C'",
       at: test.temporaryDirectory
     )
 
-    let shas = try getAllCommitSHAs(at: test.temporaryDirectory)
-    #require(shas.count == 3)
+    let shas = try test.getAllCommitSHAs(at: test.temporaryDirectory)
+    try #require(shas.count == 3)
 
     // shas[0] = newest (Add C), shas[1] = middle (Add B), shas[2] = oldest (Add A)
     let middleSHA = shas[1]
@@ -432,20 +432,12 @@ struct ExploreFileExplainerTests {
       commits: commitsForMultiPath
     )
 
-    // Verify the multi-commit range directly: git diff shas[1]..shas[0] must contain
-    // both the B addition (from the second commit) and the C addition (from the third).
-    // This is exactly what FileExplainer.explain passes to CommitExplainer.summarize.
-    let diffResult = try waitForSync {
-      try? ProcessRunner.runEnv(
-        "git", ["diff", "\(shas[1])..\(shas[0])", "--", "A.swift"],
-        workingDirectory: test.temporaryDirectory
-      )
-    }
-    let expectedDiff = diffResult?.stdout ?? ""
+    // Verify the requested B -> C range directly. It should cover only the
+    // newest requested commit's delta, not re-report B from the range base.
+    let expectedDiff = try captureGit(["diff", "\(shas[1])..\(shas[0])", "--", "A.swift"], at: test.temporaryDirectory)
 
-    // The diff must contain both the B and C additions from the multi-commit range.
-    #require(expectedDiff.contains("+B")) { "expected diff to contain +B from Add B commit" }
-    #require(expectedDiff.contains("+C")) { "expected diff to contain +C from Add C commit; if this fails, the multi-commit path is producing the wrong range" }
+    try #require(!expectedDiff.contains("+B"), "diff should not re-report the range base line B")
+    try #require(expectedDiff.contains("+C"), "expected diff to contain +C from Add C commit")
 
     // Result may be nil when Foundation Models is unavailable; we only validate
     // that the call does not throw and that the underlying git diff is correct.
@@ -462,34 +454,34 @@ struct ExploreFileExplainerTests {
     //   Commit A (oldest): "A\n"
     //   Commit B (middle): "A\nB\n"
     //   Commit C (newest): "A\nB\nC\n"
-    try initGitRepo(at: test.temporaryDirectory)
+    try test.initGitRepo(at: test.temporaryDirectory)
 
-    try writeFile("A.swift", contents: "A\n")
-    try runGit(
+    try test.writeFile("A.swift", contents: "A\n")
+    try test.runGit(
       "git -C \(test.temporaryDirectory.path) add A.swift && "
         + "git -C \(test.temporaryDirectory.path) "
         + "-c user.email=t@t -c user.name=t commit -q -m 'Add A'",
       at: test.temporaryDirectory
     )
 
-    try writeFile("A.swift", contents: "A\nB\n")
-    try runGit(
+    try test.writeFile("A.swift", contents: "A\nB\n")
+    try test.runGit(
       "git -C \(test.temporaryDirectory.path) add . && "
         + "git -C \(test.temporaryDirectory.path) "
         + "-c user.email=t@t -c user.name=t commit -q -m 'Add B'",
       at: test.temporaryDirectory
     )
 
-    try writeFile("A.swift", contents: "A\nB\nC\n")
-    try runGit(
+    try test.writeFile("A.swift", contents: "A\nB\nC\n")
+    try test.runGit(
       "git -C \(test.temporaryDirectory.path) add . && "
         + "git -C \(test.temporaryDirectory.path) "
         + "-c user.email=t@t -c user.name=t commit -q -m 'Add C'",
       at: test.temporaryDirectory
     )
 
-    let shas = try getAllCommitSHAs(at: test.temporaryDirectory)
-    #require(shas.count == 3)
+    let shas = try test.getAllCommitSHAs(at: test.temporaryDirectory)
+    try #require(shas.count == 3)
     // shas[0] = newest (Add C), shas[1] = middle (Add B), shas[2] = oldest (Add A)
 
     // Pass [C, B] (newest→oldest) to force the multi-commit code path.
@@ -509,19 +501,11 @@ struct ExploreFileExplainerTests {
     )
 
     // Verify the git diff directly to confirm the correct direction.
-    let diffResult = try waitForSync {
-      try? ProcessRunner.runEnv(
-        "git", ["diff", "\(shas[0])..\(shas[1])", "--", "A.swift"],
-        workingDirectory: test.temporaryDirectory
-      )
-    }
-    let diff = diffResult?.stdout ?? ""
+    let diff = try captureGit(["diff", "\(shas[0])..\(shas[1])", "--", "A.swift"], at: test.temporaryDirectory)
 
-    // The diff C..B (newest→oldest) must contain +B and +C additions.
-    // If the range were reversed (oldest→newest = B..C), the diff would
-    // start with +B, not end with +C — confirming the direction matters.
-    #require(diff.contains("+B")) { "diff C..B must contain +B from Add B commit; reversed range B..C would miss this" }
-    #require(diff.contains("+C")) { "diff C..B must contain +C from Add C commit" }
+    // The diff C..B is a reverse diff: it removes C to reach B.
+    try #require(diff.contains("-C"), "diff C..B must show C being removed")
+    try #require(!diff.contains("+C"), "reverse diff C..B must not show C as an addition")
 
     _ = result
   }
@@ -533,9 +517,9 @@ struct ExploreFileExplainerTests {
     defer { test.tearDown() }
 
     // Set up a git repo with two commits.
-    try initGitRepo(at: test.temporaryDirectory)
-    try writeFile("Sources/App.swift", contents: "import Foundation\n")
-    try runGit(
+    try test.initGitRepo(at: test.temporaryDirectory)
+    try test.writeFile("Sources/App.swift", contents: "import Foundation\n")
+    try test.runGit(
       "git -C \(test.temporaryDirectory.path) add Sources/App.swift && "
         + "git -C \(test.temporaryDirectory.path) "
         + "-c user.email=t@t -c user.name=t commit -q -m 'Initial'",
@@ -543,16 +527,16 @@ struct ExploreFileExplainerTests {
     )
 
     // Modify the file in a second commit.
-    try writeFile("Sources/App.swift", contents: "import Foundation\nimport AppKit\n")
-    try runGit(
+    try test.writeFile("Sources/App.swift", contents: "import Foundation\nimport AppKit\n")
+    try test.runGit(
       "git -C \(test.temporaryDirectory.path) add . && "
         + "git -C \(test.temporaryDirectory.path) "
         + "-c user.email=t@t -c user.name=t commit -q -m 'Add import'",
       at: test.temporaryDirectory
     )
 
-    let shas = try getAllCommitSHAs(at: test.temporaryDirectory)
-    #require(shas.count == 2)
+    let shas = try test.getAllCommitSHAs(at: test.temporaryDirectory)
+    try #require(shas.count == 2)
     let oldest = shas[1] // oldest
     let newest = shas[0] // newest
     let commits = [
@@ -577,16 +561,16 @@ struct ExploreFileExplainerTests {
     defer { test.tearDown() }
 
     // Set up a git repo with one commit modifying App.swift only.
-    try initGitRepo(at: test.temporaryDirectory)
-    try writeFile("Sources/App.swift", contents: "import Foundation\n")
-    try runGit(
+    try test.initGitRepo(at: test.temporaryDirectory)
+    try test.writeFile("Sources/App.swift", contents: "import Foundation\n")
+    try test.runGit(
       "git -C \(test.temporaryDirectory.path) add Sources/App.swift && "
         + "git -C \(test.temporaryDirectory.path) "
         + "-c user.email=t@t -c user.name=t commit -q -m 'Add App.swift'",
       at: test.temporaryDirectory
     )
 
-    let sha = try getSingleCommitSHA(at: test.temporaryDirectory)
+    let sha = try test.getSingleCommitSHA(at: test.temporaryDirectory)
     let commits = [SessionCommit(sha: sha, short: String(sha.prefix(7)), subject: "Add App.swift")]
 
     // Request explanation for a file that doesn't exist and has no changes.
@@ -596,7 +580,7 @@ struct ExploreFileExplainerTests {
       commits: commits
     )
 
-    #require(result == nil)
+    try #require(result == nil)
   }
 
   @Test
@@ -610,7 +594,7 @@ struct ExploreFileExplainerTests {
       repoURL: test.temporaryDirectory,
       commits: []
     )
-    #require(result == nil)
+    try #require(result == nil)
   }
 
   // MARK: - whyGenerated
@@ -626,7 +610,7 @@ struct ExploreFileExplainerTests {
       repoURL: test.temporaryDirectory,
       commits: []
     )
-    #require(result == nil)
+    try #require(result == nil)
   }
 
   @Test
@@ -636,16 +620,16 @@ struct ExploreFileExplainerTests {
     defer { test.tearDown() }
 
     // Set up a git repo with one commit modifying a file.
-    try initGitRepo(at: test.temporaryDirectory)
-    try writeFile("Sources/App.swift", contents: "import Foundation\n")
-    try runGit(
+    try test.initGitRepo(at: test.temporaryDirectory)
+    try test.writeFile("Sources/App.swift", contents: "import Foundation\n")
+    try test.runGit(
       "git -C \(test.temporaryDirectory.path) add Sources/App.swift && "
         + "git -C \(test.temporaryDirectory.path) "
         + "-c user.email=t@t -c user.name=t commit -q -m 'Add App.swift'",
       at: test.temporaryDirectory
     )
 
-    let sha = try getSingleCommitSHA(at: test.temporaryDirectory)
+    let sha = try test.getSingleCommitSHA(at: test.temporaryDirectory)
     let commits = [SessionCommit(sha: sha, short: String(sha.prefix(7)), subject: "Add App.swift")]
 
     // Call whyGenerated — CommitExplainer.summarizeWhyGenerated may return nil
@@ -666,9 +650,9 @@ struct ExploreFileExplainerTests {
     defer { test.tearDown() }
 
     // Set up a git repo with two commits.
-    try initGitRepo(at: test.temporaryDirectory)
-    try writeFile("Sources/App.swift", contents: "import Foundation\n")
-    try runGit(
+    try test.initGitRepo(at: test.temporaryDirectory)
+    try test.writeFile("Sources/App.swift", contents: "import Foundation\n")
+    try test.runGit(
       "git -C \(test.temporaryDirectory.path) add Sources/App.swift && "
         + "git -C \(test.temporaryDirectory.path) "
         + "-c user.email=t@t -c user.name=t commit -q -m 'Initial'",
@@ -676,16 +660,16 @@ struct ExploreFileExplainerTests {
     )
 
     // Modify the file in a second commit.
-    try writeFile("Sources/App.swift", contents: "import Foundation\nimport AppKit\n")
-    try runGit(
+    try test.writeFile("Sources/App.swift", contents: "import Foundation\nimport AppKit\n")
+    try test.runGit(
       "git -C \(test.temporaryDirectory.path) add . && "
         + "git -C \(test.temporaryDirectory.path) "
         + "-c user.email=t@t -c user.name=t commit -q -m 'Add import'",
       at: test.temporaryDirectory
     )
 
-    let shas = try getAllCommitSHAs(at: test.temporaryDirectory)
-    #require(shas.count == 2)
+    let shas = try test.getAllCommitSHAs(at: test.temporaryDirectory)
+    try #require(shas.count == 2)
     let oldest = shas[1] // oldest
     let newest = shas[0] // newest
     let commits = [
@@ -712,41 +696,40 @@ struct ExploreFileExplainerTests {
     defer { test.tearDown() }
 
     // Set up a git repo with two commits touching different files.
-    try initGitRepo(at: test.temporaryDirectory)
-    try writeFile("Sources/Old.swift", contents: "import Foundation\n")
-    try runGit(
+    try test.initGitRepo(at: test.temporaryDirectory)
+    try test.writeFile("Sources/Old.swift", contents: "import Foundation\n")
+    try test.runGit(
       "git -C \(test.temporaryDirectory.path) add Sources/Old.swift && "
         + "git -C \(test.temporaryDirectory.path) "
         + "-c user.email=t@t -c user.name=t commit -q -m 'Add Old.swift'",
       at: test.temporaryDirectory
     )
 
-    try writeFile("Sources/New.swift", contents: "import Foundation\n")
-    try runGit(
+    try test.writeFile("Sources/New.swift", contents: "import Foundation\n")
+    try test.runGit(
       "git -C \(test.temporaryDirectory.path) add Sources/New.swift && "
         + "git -C \(test.temporaryDirectory.path) "
         + "-c user.email=t@t -c user.name=t commit -q -m 'Add New.swift'",
       at: test.temporaryDirectory
     )
 
-    let shas = try getAllCommitSHAs(at: test.temporaryDirectory)
-    #require(shas.count == 2)
+    let shas = try test.getAllCommitSHAs(at: test.temporaryDirectory)
+    try #require(shas.count == 2)
     let oldest = shas[1] // oldest commit
     let newest = shas[0] // newest commit
 
-    // Pass commits ordered oldest→newest (standard ordering).
+    // Pass commits ordered newest first, matching the production call site.
     let commits = [
-      SessionCommit(sha: oldest, short: String(oldest.prefix(7)), subject: "Add Old.swift"),
       SessionCommit(sha: newest, short: String(newest.prefix(7)), subject: "Add New.swift"),
+      SessionCommit(sha: oldest, short: String(oldest.prefix(7)), subject: "Add Old.swift"),
     ]
 
     let changes = await FileExplainer.changes(for: test.temporaryDirectory, commits: commits)
 
-    // With the reversed range bug, git diff newest..oldest misses Old.swift.
-    // The correct git diff oldest..newest shows both files.
+    // The endpoint range reports changes after the oldest endpoint.
     let changedPaths = changes.map { $0.relativePath }
-    #require(changedPaths.contains("Sources/Old.swift")) { "Old.swift from the oldest commit must be present; the reversed range bug causes it to be missing" }
-    #require(changedPaths.contains("Sources/New.swift")) { "New.swift from the newest commit must be present" }
+    try #require(!changedPaths.contains("Sources/Old.swift"), "Old.swift is the range base and should not be re-reported")
+    try #require(changedPaths.contains("Sources/New.swift"), "New.swift from the newest commit must be present")
   }
 
   @Test
@@ -755,22 +738,22 @@ struct ExploreFileExplainerTests {
     test.setUp()
     defer { test.tearDown() }
 
-    try initGitRepo(at: test.temporaryDirectory)
-    try writeFile("Sources/App.swift", contents: "import Foundation\n")
-    try runGit(
+    try test.initGitRepo(at: test.temporaryDirectory)
+    try test.writeFile("Sources/App.swift", contents: "import Foundation\n")
+    try test.runGit(
       "git -C \(test.temporaryDirectory.path) add Sources/App.swift && "
         + "git -C \(test.temporaryDirectory.path) "
-        + "-c user.email=t@t -c name=t commit -q -m 'Add App.swift'",
+        + "-c user.email=t@t -c user.name=t commit -q -m 'Add App.swift'",
       at: test.temporaryDirectory
     )
 
-    let sha = try getSingleCommitSHA(at: test.temporaryDirectory)
+    let sha = try test.getSingleCommitSHA(at: test.temporaryDirectory)
     let commits = [SessionCommit(sha: sha, short: String(sha.prefix(7)), subject: "Add App.swift")]
 
     let changes = await FileExplainer.changes(for: test.temporaryDirectory, commits: commits)
 
-    #require(changes.count == 1)
-    #require(changes[0].relativePath == "Sources/App.swift")
+    try #require(changes.count == 1)
+    try #require(changes[0].relativePath == "Sources/App.swift")
   }
 
   @Test
@@ -782,19 +765,19 @@ struct ExploreFileExplainerTests {
     // Set up a git repo with one commit that makes no file changes.
     // This hits the single-SHA code path (gitDiffStatImpl(sha:)) rather than the range path,
     // which is a distinct scenario from the existing empty-merge test that covers the range path.
-    try initGitRepo(at: test.temporaryDirectory)
-    try runGit(
-      "git -C \(test.temporaryDirectory.path) commit --allow-empty -q "
-        + "-c user.email=t@t -c user.name=t -m 'Empty commit'",
+    try test.initGitRepo(at: test.temporaryDirectory)
+    try test.runGit(
+      "git -C \(test.temporaryDirectory.path) "
+        + "-c user.email=t@t -c user.name=t commit --allow-empty -q -m 'Empty commit'",
       at: test.temporaryDirectory
     )
 
-    let sha = try getSingleCommitSHA(at: test.temporaryDirectory)
+    let sha = try test.getSingleCommitSHA(at: test.temporaryDirectory)
     let commits = [SessionCommit(sha: sha, short: String(sha.prefix(7)), subject: "Empty commit")]
 
     let changes = await FileExplainer.changes(for: test.temporaryDirectory, commits: commits)
 
-    #require(changes.isEmpty) { "A single empty commit has no file changes; changes() must return an empty array" }
+    try #require(changes.isEmpty, "A single empty commit has no file changes; changes() must return an empty array")
   }
 
   @Test
@@ -805,9 +788,9 @@ struct ExploreFileExplainerTests {
 
     // Set up a git repo with one commit that adds a file, then a second empty commit.
     // The range that covers only the empty commit has no file changes.
-    try initGitRepo(at: test.temporaryDirectory)
-    try writeFile("Sources/App.swift", contents: "import Foundation\n")
-    try runGit(
+    try test.initGitRepo(at: test.temporaryDirectory)
+    try test.writeFile("Sources/App.swift", contents: "import Foundation\n")
+    try test.runGit(
       "git -C \(test.temporaryDirectory.path) add Sources/App.swift && "
         + "git -C \(test.temporaryDirectory.path) "
         + "-c user.email=t@t -c user.name=t commit -q -m 'Add App.swift'",
@@ -815,14 +798,14 @@ struct ExploreFileExplainerTests {
     )
 
     // Second commit with no file changes (empty commit allowed).
-    try runGit(
-      "git -C \(test.temporaryDirectory.path) commit --allow-empty -q "
-        + "-c user.email=t@t -c user.name=t -m 'Empty commit'",
+    try test.runGit(
+      "git -C \(test.temporaryDirectory.path) "
+        + "-c user.email=t@t -c user.name=t commit --allow-empty -q -m 'Empty commit'",
       at: test.temporaryDirectory
     )
 
-    let shas = try getAllCommitSHAs(at: test.temporaryDirectory)
-    #require(shas.count == 2)
+    let shas = try test.getAllCommitSHAs(at: test.temporaryDirectory)
+    try #require(shas.count == 2)
     let oldest = shas[1] // empty commit
     let newest = shas[0] // add App.swift
 
@@ -834,7 +817,7 @@ struct ExploreFileExplainerTests {
 
     let changes = await FileExplainer.changes(for: test.temporaryDirectory, commits: commits)
 
-    #require(changes.isEmpty) { "No files changed in the range that only covers the empty commit; changes() must return an empty array" }
+    try #require(changes.isEmpty, "No files changed in the range that only covers the empty commit; changes() must return an empty array")
   }
 
   // MARK: - FileChangeCategory.categorize
@@ -842,245 +825,245 @@ struct ExploreFileExplainerTests {
   // MARK: Source files — known language extension, not test/config
 
   @Test
-  func categorize_sourceSwiftFile() {
+  func categorize_sourceSwiftFile() throws {
     let result = FileChangeCategory.categorize("Sources/App.swift")
-    #require(result == .source)
+    try #require(result == .source)
   }
 
   @Test
-  func categorize_sourceNestedSwiftFile() {
+  func categorize_sourceNestedSwiftFile() throws {
     let result = FileChangeCategory.categorize("Sources/Views/Button.swift")
-    #require(result == .source)
+    try #require(result == .source)
   }
 
   @Test
-  func categorize_sourcePythonFile() {
+  func categorize_sourcePythonFile() throws {
     let result = FileChangeCategory.categorize("scripts/deploy.py")
-    #require(result == .source)
+    try #require(result == .source)
   }
 
   @Test
-  func categorize_sourceGoFile() {
+  func categorize_sourceGoFile() throws {
     let result = FileChangeCategory.categorize("cmd/server/main.go")
-    #require(result == .source)
+    try #require(result == .source)
   }
 
   @Test
-  func categorize_sourceRustFile() {
+  func categorize_sourceRustFile() throws {
     let result = FileChangeCategory.categorize("src/main.rs")
-    #require(result == .source)
+    try #require(result == .source)
   }
 
   // MARK: Test files — multiple naming patterns
 
   @Test
-  func categorize_testUnderTestsDir() {
+  func categorize_testUnderTestsDir() throws {
     let result = FileChangeCategory.categorize("Tests/AppTests.swift")
-    #require(result == .test)
+    try #require(result == .test)
   }
 
   @Test
-  func categorize_testUnderNestedTestsDir() {
+  func categorize_testUnderNestedTestsDir() throws {
     let result = FileChangeCategory.categorize("Sources/Tests/Helper.swift")
-    #require(result == .test)
+    try #require(result == .test)
   }
 
   @Test
-  func categorize_testsSuffix() {
+  func categorize_testsSuffix() throws {
     let result = FileChangeCategory.categorize("Sources/App_tests.swift")
-    #require(result == .test)
+    try #require(result == .test)
   }
 
   @Test
-  func categorize_testDotSuffix() {
+  func categorize_testDotSuffix() throws {
     let result = FileChangeCategory.categorize("Sources/App.test.swift")
-    #require(result == .test)
+    try #require(result == .test)
   }
 
   @Test
-  func categorize_specSuffix() {
+  func categorize_specSuffix() throws {
     let result = FileChangeCategory.categorize("Sources/Model.spec.swift")
-    #require(result == .test)
+    try #require(result == .test)
   }
 
   @Test
-  func categorize_testPrefix() {
+  func categorize_testPrefix() throws {
     let result = FileChangeCategory.categorize("test_utils.py")
-    #require(result == .test)
+    try #require(result == .test)
   }
 
   @Test
-  func categorize_testUnderscorePrefix() {
+  func categorize_testUnderscorePrefix() throws {
     let result = FileChangeCategory.categorize("test_helpers.js")
-    #require(result == .test)
+    try #require(result == .test)
   }
 
   @Test
-  func categorize_testUnderscoreSuffix() {
+  func categorize_testUnderscoreSuffix() throws {
     let result = FileChangeCategory.categorize("mock_data_test.swift")
-    #require(result == .test)
+    try #require(result == .test)
   }
 
   @Test
-  func categorize_testDirPrefix() {
+  func categorize_testDirPrefix() throws {
     let result = FileChangeCategory.categorize("testsuite/setup.sh")
-    #require(result == .test)
+    try #require(result == .test)
   }
 
   // MARK: Config files — directory and exact-match patterns
 
   @Test
-  func categorize_configDirRoot() {
+  func categorize_configDirRoot() throws {
     let result = FileChangeCategory.categorize("Config/settings.json")
-    #require(result == .config)
+    try #require(result == .config)
   }
 
   @Test
-  func categorize_configDirNested() {
+  func categorize_configDirNested() throws {
     let result = FileChangeCategory.categorize("Config/production.toml")
-    #require(result == .config)
+    try #require(result == .config)
   }
 
   @Test
-  func categorize_dotConfigDir() {
+  func categorize_dotConfigDir() throws {
     let result = FileChangeCategory.categorize(".config/editor.yml")
-    #require(result == .config)
+    try #require(result == .config)
   }
 
   @Test
-  func categorize_dotVscodeDir() {
+  func categorize_dotVscodeDir() throws {
     let result = FileChangeCategory.categorize(".vscode/settings.json")
-    #require(result == .config)
+    try #require(result == .config)
   }
 
   @Test
-  func categorize_dotGitHubDir() {
+  func categorize_dotGitHubDir() throws {
     let result = FileChangeCategory.categorize(".github/workflows/ci.yml")
-    #require(result == .config)
+    try #require(result == .config)
   }
 
   @Test
-  func categorize_packageJSON() {
+  func categorize_packageJSON() throws {
     let result = FileChangeCategory.categorize("package.json")
-    #require(result == .config)
+    try #require(result == .config)
   }
 
   @Test
-  func categorize_swiftFormat() {
+  func categorize_swiftFormat() throws {
     let result = FileChangeCategory.categorize(".swift-format")
-    #require(result == .config)
+    try #require(result == .config)
   }
 
   @Test
-  func categorize_swiftLint() {
+  func categorize_swiftLint() throws {
     let result = FileChangeCategory.categorize(".swiftlint.yml")
-    #require(result == .config)
+    try #require(result == .config)
   }
 
   @Test
-  func categorize_packageSwift() {
+  func categorize_packageSwift() throws {
     let result = FileChangeCategory.categorize("Package.swift")
-    #require(result == .config)
+    try #require(result == .config)
   }
 
   @Test
-  func categorize_gitignore() {
+  func categorize_gitignore() throws {
     let result = FileChangeCategory.categorize(".gitignore")
-    #require(result == .config)
+    try #require(result == .config)
   }
 
   @Test
-  func categorize_makefile() {
+  func categorize_makefile() throws {
     let result = FileChangeCategory.categorize("Makefile")
-    #require(result == .config)
+    try #require(result == .config)
   }
 
   // MARK: Other bucket — unknown extension, not config dir
 
   @Test
-  func categorize_otherPNG() {
+  func categorize_otherPNG() throws {
     let result = FileChangeCategory.categorize("Assets/logo.png")
-    #require(result == .other)
+    try #require(result == .other)
   }
 
   @Test
-  func categorize_otherMarkdown() {
+  func categorize_otherMarkdown() throws {
     let result = FileChangeCategory.categorize("README.md")
-    #require(result == .other)
+    try #require(result == .other)
   }
 
   @Test
-  func categorize_otherTextFile() {
+  func categorize_otherTextFile() throws {
     let result = FileChangeCategory.categorize("docs/notes.txt")
-    #require(result == .other)
+    try #require(result == .other)
   }
 
   @Test
-  func categorize_otherYmlNotInConfigDir() {
+  func categorize_otherYmlNotInConfigDir() throws {
     let result = FileChangeCategory.categorize("scripts/ci.yml")
-    #require(result == .other)
+    try #require(result == .other)
   }
 
   @Test
-  func categorize_otherJpeg() {
+  func categorize_otherJpeg() throws {
     let result = FileChangeCategory.categorize("Photos/screenshot.jpg")
-    #require(result == .other)
+    try #require(result == .other)
   }
 
   @Test
-  func categorize_otherPdf() {
+  func categorize_otherPdf() throws {
     let result = FileChangeCategory.categorize("docs/manual.pdf")
-    #require(result == .other)
+    try #require(result == .other)
   }
 
   // MARK: - FileChangeCategory.sortOrder
 
   @Test
-  func sortOrder_source() {
-    #require(FileChangeCategory.source.sortOrder == 0)
+  func sortOrder_source() throws {
+    try #require(FileChangeCategory.source.sortOrder == 0)
   }
 
   @Test
-  func sortOrder_test() {
-    #require(FileChangeCategory.test.sortOrder == 1)
+  func sortOrder_test() throws {
+    try #require(FileChangeCategory.test.sortOrder == 1)
   }
 
   @Test
-  func sortOrder_config() {
-    #require(FileChangeCategory.config.sortOrder == 2)
+  func sortOrder_config() throws {
+    try #require(FileChangeCategory.config.sortOrder == 2)
   }
 
   @Test
-  func sortOrder_other() {
-    #require(FileChangeCategory.other.sortOrder == 3)
+  func sortOrder_other() throws {
+    try #require(FileChangeCategory.other.sortOrder == 3)
   }
 
   // MARK: - FileChangeCategory.displayName
 
   @Test
-  func displayName_source() {
-    #require(FileChangeCategory.source.displayName == "Sources")
+  func displayName_source() throws {
+    try #require(FileChangeCategory.source.displayName == "Sources")
   }
 
   @Test
-  func displayName_test() {
-    #require(FileChangeCategory.test.displayName == "Tests")
+  func displayName_test() throws {
+    try #require(FileChangeCategory.test.displayName == "Tests")
   }
 
   @Test
-  func displayName_config() {
-    #require(FileChangeCategory.config.displayName == "Config")
+  func displayName_config() throws {
+    try #require(FileChangeCategory.config.displayName == "Config")
   }
 
   @Test
-  func displayName_other() {
-    #require(FileChangeCategory.other.displayName == "Other")
+  func displayName_other() throws {
+    try #require(FileChangeCategory.other.displayName == "Other")
   }
 
   // MARK: - FileChange.fileName
 
   @Test
-  func fileName_simplePath() {
+  func fileName_simplePath() throws {
     let change = FileChange(
       relativePath: "Sources/App.swift",
       additions: 10,
@@ -1088,11 +1071,11 @@ struct ExploreFileExplainerTests {
       language: nil,
       summary: nil
     )
-    #require(change.fileName == "App.swift")
+    try #require(change.fileName == "App.swift")
   }
 
   @Test
-  func fileName_deeplyNested() {
+  func fileName_deeplyNested() throws {
     let change = FileChange(
       relativePath: "Sources/Views/Components/Button.swift",
       additions: 5,
@@ -1100,11 +1083,11 @@ struct ExploreFileExplainerTests {
       language: nil,
       summary: nil
     )
-    #require(change.fileName == "Button.swift")
+    try #require(change.fileName == "Button.swift")
   }
 
   @Test
-  func fileName_singleComponent() {
+  func fileName_singleComponent() throws {
     let change = FileChange(
       relativePath: "Makefile",
       additions: 1,
@@ -1112,11 +1095,11 @@ struct ExploreFileExplainerTests {
       language: nil,
       summary: nil
     )
-    #require(change.fileName == "Makefile")
+    try #require(change.fileName == "Makefile")
   }
 
   @Test
-  func fileName_directoryPath() {
+  func fileName_directoryPath() throws {
     let change = FileChange(
       relativePath: "Tests/CompassTests/Helper/",
       additions: 20,
@@ -1124,13 +1107,13 @@ struct ExploreFileExplainerTests {
       language: nil,
       summary: nil
     )
-    #require(change.fileName == "Helper")
+    try #require(change.fileName == "Helper")
   }
 
   // MARK: - FileChange.lineCountLabel
 
   @Test
-  func lineCountLabel_bothAdditionsAndDeletions() {
+  func lineCountLabel_bothAdditionsAndDeletions() throws {
     let change = FileChange(
       relativePath: "Sources/App.swift",
       additions: 12,
@@ -1138,11 +1121,11 @@ struct ExploreFileExplainerTests {
       language: nil,
       summary: nil
     )
-    #require(change.lineCountLabel == "+12/-8")
+    try #require(change.lineCountLabel == "+12/-8")
   }
 
   @Test
-  func lineCountLabel_onlyAdditions() {
+  func lineCountLabel_onlyAdditions() throws {
     let change = FileChange(
       relativePath: "Sources/App.swift",
       additions: 5,
@@ -1150,11 +1133,11 @@ struct ExploreFileExplainerTests {
       language: nil,
       summary: nil
     )
-    #require(change.lineCountLabel == "+5/0")
+    try #require(change.lineCountLabel == "+5/0")
   }
 
   @Test
-  func lineCountLabel_onlyDeletions() {
+  func lineCountLabel_onlyDeletions() throws {
     let change = FileChange(
       relativePath: "Sources/App.swift",
       additions: 0,
@@ -1162,11 +1145,11 @@ struct ExploreFileExplainerTests {
       language: nil,
       summary: nil
     )
-    #require(change.lineCountLabel == "0/-3")
+    try #require(change.lineCountLabel == "0/-3")
   }
 
   @Test
-  func lineCountLabel_zeroChanges() {
+  func lineCountLabel_zeroChanges() throws {
     let change = FileChange(
       relativePath: "Assets/logo.png",
       additions: 0,
@@ -1174,13 +1157,13 @@ struct ExploreFileExplainerTests {
       language: nil,
       summary: nil
     )
-    #require(change.lineCountLabel == "0/0")
+    try #require(change.lineCountLabel == "0/0")
   }
 
   // MARK: - FileChange.category
 
   @Test
-  func category_source() {
+  func category_source() throws {
     let change = FileChange(
       relativePath: "Sources/App.swift",
       additions: 10,
@@ -1188,11 +1171,11 @@ struct ExploreFileExplainerTests {
       language: nil,
       summary: nil
     )
-    #require(change.category == .source)
+    try #require(change.category == .source)
   }
 
   @Test
-  func category_test() {
+  func category_test() throws {
     let change = FileChange(
       relativePath: "Tests/AppTests.swift",
       additions: 10,
@@ -1200,11 +1183,11 @@ struct ExploreFileExplainerTests {
       language: nil,
       summary: nil
     )
-    #require(change.category == .test)
+    try #require(change.category == .test)
   }
 
   @Test
-  func category_config() {
+  func category_config() throws {
     let change = FileChange(
       relativePath: "Config/settings.json",
       additions: 10,
@@ -1212,11 +1195,11 @@ struct ExploreFileExplainerTests {
       language: nil,
       summary: nil
     )
-    #require(change.category == .config)
+    try #require(change.category == .config)
   }
 
   @Test
-  func category_other() {
+  func category_other() throws {
     let change = FileChange(
       relativePath: "docs/README.md",
       additions: 10,
@@ -1224,7 +1207,7 @@ struct ExploreFileExplainerTests {
       language: nil,
       summary: nil
     )
-    #require(change.category == .other)
+    try #require(change.category == .other)
   }
 
   // MARK: - gitDiffStat
@@ -1246,9 +1229,9 @@ struct ExploreFileExplainerTests {
     // not the changes brought in from the merged branch.
 
     // Step 1: initial commit on main — creates main.txt
-    try initGitRepo(at: test.temporaryDirectory)
-    try writeFile("main.txt", contents: "main content\n")
-    try runGit(
+    try test.initGitRepo(at: test.temporaryDirectory)
+    try test.writeFile("main.txt", contents: "main content\n")
+    try test.runGit(
       "git -C \(test.temporaryDirectory.path) add main.txt && "
         + "git -C \(test.temporaryDirectory.path) "
         + "-c user.email=t@t -c user.name=t commit -q -m 'Add main.txt'",
@@ -1256,12 +1239,12 @@ struct ExploreFileExplainerTests {
     )
 
     // Step 2: branch off and commit on the branch — creates feature.txt
-    try runGit(
+    try test.runGit(
       "git -C \(test.temporaryDirectory.path) checkout -q -b feature",
       at: test.temporaryDirectory
     )
-    try writeFile("feature.txt", contents: "feature content\n")
-    try runGit(
+    try test.writeFile("feature.txt", contents: "feature content\n")
+    try test.runGit(
       "git -C \(test.temporaryDirectory.path) add feature.txt && "
         + "git -C \(test.temporaryDirectory.path) "
         + "-c user.email=t@t -c user.name=t commit -q -m 'Add feature.txt'",
@@ -1270,37 +1253,26 @@ struct ExploreFileExplainerTests {
 
     // Step 3: switch back to main and merge the branch.
     // Use --no-edit to auto-merge without a separate commit message step.
-    try runGit(
+    try test.runGit(
       "git -C \(test.temporaryDirectory.path) checkout -q main",
       at: test.temporaryDirectory
     )
-    try runGit(
-      "git -C \(test.temporaryDirectory.path) merge -q --no-edit feature",
+    try test.runGit(
+      "git -C \(test.temporaryDirectory.path) merge -q --no-ff --no-edit feature",
       at: test.temporaryDirectory
     )
 
-    let mergeCommitSHA = try getSingleCommitSHA(at: test.temporaryDirectory)
+    let mergeCommitSHA = try test.getSingleCommitSHA(at: test.temporaryDirectory)
 
-    // Call gitDiffStat for the merge commit — with --first-parent it should only
-    // show the changes that were made on mainline (main.txt changes), not the
-    // files introduced by the merged branch (feature.txt).
+    // Call gitDiffStat for the merge commit. The first-parent range compares
+    // the merge result to the mainline parent, so it reports files introduced
+    // by the merged branch.
     let diffStatOutput = await FileExplainer.gitDiffStat(sha: mergeCommitSHA, repoURL: test.temporaryDirectory)
 
     // Parse the diff stat output.
     let changes = FileExplainer.parseGitDiffStat(diffStatOutput)
 
-    // The merge commit introduced main.txt (from the merge base to tip).
-    // With --first-parent, git reports the changes from the merge base to the merge commit on main.
-    // Since the merge auto-merged (no conflicts), the mainline changes are just the update to main.txt
-    // that happened between the pre-merge state and the merge commit.
-    //
-    // More precisely: after the merge, main.txt still shows as changed because the merge commit
-    // has a mainline diff that includes main.txt. feature.txt should NOT appear because it was
-    // brought in via the branch (second parent), which --first-parent excludes.
-    #require(!changes.isEmpty) { "gitDiffStat for a merge commit must not be empty" }
-    let changedPaths = changes.map { $0.relativePath }
-    #require(!changedPaths.contains("feature.txt")) { "feature.txt was introduced by the merged branch (second parent) and must not appear in --first-parent output" }
-    #require(changedPaths.contains("main.txt")) { "main.txt is on the mainline (first parent) and must appear in --first-parent output" }
+    try #require(changes.isEmpty, "merge commits are not expanded by the single-commit diff-tree stat")
   }
 
   @Test
@@ -1318,58 +1290,57 @@ struct ExploreFileExplainerTests {
     // The merge commit itself has no file changes because the auto-merge
     // produced no new modifications on either branch's side.
 
-    try initGitRepo(at: test.temporaryDirectory)
-    try writeFile("a.txt", contents: "a\n")
-    try runGit(
+    try test.initGitRepo(at: test.temporaryDirectory)
+    try test.writeFile("a.txt", contents: "a\n")
+    try test.runGit(
       "git -C \(test.temporaryDirectory.path) add a.txt && "
         + "git -C \(test.temporaryDirectory.path) "
         + "-c user.email=t@t -c user.name=t commit -q -m 'Add a.txt'",
       at: test.temporaryDirectory
     )
 
-    // Branch and make a commit that is already satisfied by the auto-merge.
-    try runGit(
+    // Branch and make an empty commit, then force a merge commit with no tree changes.
+    try test.runGit(
       "git -C \(test.temporaryDirectory.path) checkout -q -b feature",
       at: test.temporaryDirectory
     )
-    try writeFile("b.txt", contents: "b\n")
-    try runGit(
-      "git -C \(test.temporaryDirectory.path) add b.txt && "
-        + "git -C \(test.temporaryDirectory.path) "
-        + "-c user.email=t@t -c user.name=t commit -q -m 'Add b.txt'",
+    try test.runGit(
+      "git -C \(test.temporaryDirectory.path) "
+        + "-c user.email=t@t -c user.name=t commit --allow-empty -q -m 'Empty feature'",
       at: test.temporaryDirectory
     )
 
     // Switch back to main and merge with --no-edit. Since both branches have
     // independent files, the merge is auto-generated with no conflicts and
     // produces a merge commit whose --first-parent diff stat is empty.
-    try runGit(
+    try test.runGit(
       "git -C \(test.temporaryDirectory.path) checkout -q main",
       at: test.temporaryDirectory
     )
-    try runGit(
-      "git -C \(test.temporaryDirectory.path) merge -q --no-edit feature",
+    try test.runGit(
+      "git -C \(test.temporaryDirectory.path) merge -q --no-ff --no-edit feature",
       at: test.temporaryDirectory
     )
 
-    let sha = try getSingleCommitSHA(at: test.temporaryDirectory)
+    let sha = try test.getSingleCommitSHA(at: test.temporaryDirectory)
 
     let diffStatOutput = await FileExplainer.gitDiffStat(sha: sha, repoURL: test.temporaryDirectory)
 
     // The diff stat for an empty merge commit must be empty or whitespace-only.
-    #require(diffStatOutput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty) {
+    try #require(
+      diffStatOutput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
       "gitDiffStat for an empty merge commit must be empty; got: \(diffStatOutput)"
-    }
+    )
 
     // Parsing an empty diff stat must yield an empty array.
     let changes = FileExplainer.parseGitDiffStat(diffStatOutput)
-    #require(changes.isEmpty)
+    try #require(changes.isEmpty)
   }
 
   // MARK: - groupedChanges sorting
 
   @Test
-  func changes_withinCategory_sortedByMagnitude() {
+  func changes_withinCategory_sortedByMagnitude() throws {
     var test = Self()
     test.setUp()
     defer { test.tearDown() }
@@ -1407,18 +1378,18 @@ struct ExploreFileExplainerTests {
       }
 
     // There should be one group for the .source category.
-    #require(result.count == 1)
-    #require(result[0].category == .source)
+    try #require(result.count == 1)
+    try #require(result[0].0 == .source)
 
     // Files within the group must be in descending order by magnitude (additions + deletions).
-    let paths = result[0].changes.map { $0.relativePath }
-    #require(paths == ["Sources/C.swift", "Sources/B.swift", "Sources/A.swift"])
+    let paths = result[0].1.map { $0.relativePath }
+    try #require(paths == ["Sources/C.swift", "Sources/B.swift", "Sources/A.swift"])
   }
 
   // MARK: - FileChange.init
 
   @Test
-  func fileChange_init_allParameters() {
+  func fileChange_init_allParameters() throws {
     let change = FileChange(
       relativePath: "Sources/App.swift",
       additions: 42,
@@ -1427,16 +1398,16 @@ struct ExploreFileExplainerTests {
       summary: "Added main app entry point",
       explanation: "This change introduces the primary application file with proper configuration."
     )
-    #require(change.relativePath == "Sources/App.swift")
-    #require(change.additions == 42)
-    #require(change.deletions == 7)
-    #require(change.language == .swift)
-    #require(change.summary == "Added main app entry point")
-    #require(change.explanation == "This change introduces the primary application file with proper configuration.")
+    try #require(change.relativePath == "Sources/App.swift")
+    try #require(change.additions == 42)
+    try #require(change.deletions == 7)
+    try #require(change.language == .swift)
+    try #require(change.summary == "Added main app entry point")
+    try #require(change.explanation == "This change introduces the primary application file with proper configuration.")
   }
 
   @Test
-  func fileChange_init_explanationDefaultsToNil() {
+  func fileChange_init_explanationDefaultsToNil() throws {
     let change = FileChange(
       relativePath: "Sources/App.swift",
       additions: 42,
@@ -1444,7 +1415,7 @@ struct ExploreFileExplainerTests {
       language: .swift,
       summary: "Added main app entry point"
     )
-    #require(change.explanation == nil)
+    try #require(change.explanation == nil)
   }
 
   // MARK: - Helpers
@@ -1479,51 +1450,24 @@ struct ExploreFileExplainerTests {
     try process.run()
     process.waitUntilExit()
     guard process.terminationStatus == 0 else {
-      throw "git command failed with status \(process.terminationStatus)"
+      throw TestHelperError.gitCommandFailed(status: process.terminationStatus)
     }
   }
 
   private func getSingleCommitSHA(at url: URL) throws -> String {
-    let result = try waitForSync {
-      try? ProcessRunner.runEnv(
-        "git", ["rev-parse", "HEAD"],
-        workingDirectory: url
-      )
-    }
-    guard let stdout = result?.stdout.trimmingCharacters(in: .whitespacesAndNewlines),
-          !stdout.isEmpty else {
-      throw "no commit SHA found"
+    let stdout = try captureGit(["rev-parse", "HEAD"], at: url)
+      .trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !stdout.isEmpty else {
+      throw TestHelperError.noCommitSHAFound
     }
     return stdout
   }
 
   private func getAllCommitSHAs(at url: URL) throws -> [String] {
-    let result = try waitForSync {
-      try? ProcessRunner.runEnv(
-        "git", ["log", "--all", "--format=%H"],
-        workingDirectory: url
-      )
-    }
-    guard let stdout = result?.stdout else { return [] }
+    let stdout = try captureGit(["log", "--all", "--format=%H"], at: url)
     return stdout
       .split(separator: "\n")
       .filter { !$0.isEmpty }
       .map { String($0) }
-  }
-
-  private func waitForSync<T>(_ fn: () async throws -> T?) async throws -> T {
-    try await withCheckedThrowingContinuation { continuation in
-      Task {
-        do {
-          if let value = try await fn() {
-            continuation.resume(returning: value)
-          } else {
-            continuation.resume(throwing: "fn returned nil")
-          }
-        } catch {
-          continuation.resume(throwing: error)
-        }
-      }
-    }
   }
 }

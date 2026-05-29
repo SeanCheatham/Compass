@@ -3,7 +3,7 @@ import Testing
 
 @testable import Compass
 
-struct SharedCompassVMHeadlessPlanterTests {
+final class SharedCompassVMHeadlessPlanterTests {
   private var temporaryDirectories: [URL] = []
 
   func cleanup() {
@@ -47,7 +47,7 @@ struct SharedCompassVMHeadlessPlanterTests {
       </plist>
       """
     let devnode = try HDIUtilDiskAttacher.parseContainerDeviceNode(fromPlist: plist)
-    #require(devnode == "/dev/disk7")
+    try #require(devnode == "/dev/disk7")
   }
 
   @Test
@@ -67,11 +67,11 @@ struct SharedCompassVMHeadlessPlanterTests {
       </plist>
       """
     let devnode = try HDIUtilDiskAttacher.parseContainerDeviceNode(fromPlist: plist)
-    #require(devnode == "/dev/disk9s1")
+    try #require(devnode == "/dev/disk9s1")
   }
 
   @Test
-  func testParseContainerDevnodeRejectsEmptySystemEntities() {
+  func testParseContainerDevnodeRejectsEmptySystemEntities() throws {
     let plist = """
       <?xml version="1.0" encoding="UTF-8"?>
       <plist version="1.0">
@@ -83,14 +83,14 @@ struct SharedCompassVMHeadlessPlanterTests {
       """
     var threw = false
     do { _ = try HDIUtilDiskAttacher.parseContainerDeviceNode(fromPlist: plist) } catch { threw = true }
-    #require(threw)
+    try #require(threw)
   }
 
   @Test
-  func testParseContainerDevnodeRejectsNonPlistInput() {
+  func testParseContainerDevnodeRejectsNonPlistInput() throws {
     var threw = false
     do { _ = try HDIUtilDiskAttacher.parseContainerDeviceNode(fromPlist: "garbage") } catch { threw = true }
-    #require(threw)
+    try #require(threw)
   }
 
   // MARK: - hdiutil attach: APFS physical-store identifier
@@ -132,11 +132,11 @@ struct SharedCompassVMHeadlessPlanterTests {
       </plist>
       """
     let identifier = try HDIUtilDiskAttacher.parseAPFSPhysicalStoreIdentifier(fromPlist: plist)
-    #require(identifier == "disk4s2")
+    try #require(identifier == "disk4s2")
   }
 
   @Test
-  func testParseAPFSPhysicalStoreIdentifierThrowsWhenNoBareAppleAPFSPresent() {
+  func testParseAPFSPhysicalStoreIdentifierThrowsWhenNoBareAppleAPFSPresent() throws {
     let plist = """
       <?xml version="1.0" encoding="UTF-8"?>
       <plist version="1.0">
@@ -163,7 +163,7 @@ struct SharedCompassVMHeadlessPlanterTests {
     do {
       _ = try HDIUtilDiskAttacher.parseAPFSPhysicalStoreIdentifier(fromPlist: plist)
     } catch { threw = true }
-    #require(threw)
+    try #require(threw)
   }
 
   // MARK: - diskutil apfs list plist parsing
@@ -232,11 +232,11 @@ struct SharedCompassVMHeadlessPlanterTests {
       fromPlist: plist,
       matchingPhysicalStore: "disk4s2"
     )
-    #require(devnode == "/dev/disk9s5")
+    try #require(devnode == "/dev/disk9s5")
   }
 
   @Test
-  func testParseDataVolumeDevnodeThrowsWhenNoContainerMatchesPhysicalStore() {
+  func testParseDataVolumeDevnodeThrowsWhenNoContainerMatchesPhysicalStore() throws {
     let plist = """
       <?xml version="1.0" encoding="UTF-8"?>
       <plist version="1.0">
@@ -274,11 +274,11 @@ struct SharedCompassVMHeadlessPlanterTests {
         matchingPhysicalStore: "disk4s2"
       )
     } catch { threw = true }
-    #require(threw)
+    try #require(threw)
   }
 
   @Test
-  func testParseDataVolumeDevnodeThrowsWhenMatchingContainerHasNoDataVolume() {
+  func testParseDataVolumeDevnodeThrowsWhenMatchingContainerHasNoDataVolume() throws {
     let plist = """
       <?xml version="1.0" encoding="UTF-8"?>
       <plist version="1.0">
@@ -316,89 +316,89 @@ struct SharedCompassVMHeadlessPlanterTests {
         matchingPhysicalStore: "disk4s2"
       )
     } catch { threw = true }
-    #require(threw)
+    try #require(threw)
   }
 
   // MARK: - Elevated script rendering
 
   @Test
-  func testElevatedScriptInstallsLaunchDaemonAsRootWheel0644() {
+  func testElevatedScriptInstallsLaunchDaemonAsRootWheel0644() throws {
     let script = renderStandardScript()
-    #require(script.contains("install -o root -g wheel -m 0644"))
-    #require(
+    try #require(script.contains("install -o root -g wheel -m 0644"))
+    try #require(
       script.contains("$MOUNT_POINT/Library/LaunchDaemons/com.seancheatham.Compass.firstboot.plist")
     )
   }
 
   @Test
-  func testElevatedScriptInstallsBootstrapScriptAsRootWheel0755() {
+  func testElevatedScriptInstallsBootstrapScriptAsRootWheel0755() throws {
     let script = renderStandardScript()
-    #require(script.contains("install -o root -g wheel -m 0755"))
-    #require(script.contains("$STAGING_DIR/bootstrap.sh"))
-    #require(script.contains("$MOUNT_POINT/usr/local/libexec/compass-firstboot.sh"))
+    try #require(script.contains("install -o root -g wheel -m 0755"))
+    try #require(script.contains("$STAGING_DIR/bootstrap.sh"))
+    try #require(script.contains("$MOUNT_POINT/usr/local/libexec/compass-firstboot.sh"))
   }
 
   @Test
-  func testElevatedScriptInstallsSudoersAsRootWheel0440() {
+  func testElevatedScriptInstallsSudoersAsRootWheel0440() throws {
     let script = renderStandardScript()
-    #require(script.contains("install -o root -g wheel -m 0440"))
-    #require(script.contains("$MOUNT_POINT/private/etc/sudoers.d/compass"))
+    try #require(script.contains("install -o root -g wheel -m 0440"))
+    try #require(script.contains("$MOUNT_POINT/private/etc/sudoers.d/compass"))
   }
 
   @Test
-  func testElevatedScriptInstallsAppleSetupDoneMarker() {
+  func testElevatedScriptInstallsAppleSetupDoneMarker() throws {
     let script = renderStandardScript()
-    #require(script.contains("$MOUNT_POINT/private/var/db/.AppleSetupDone"))
+    try #require(script.contains("$MOUNT_POINT/private/var/db/.AppleSetupDone"))
   }
 
   @Test
-  func testElevatedScriptStagesPublicKeyAndPassword() {
+  func testElevatedScriptStagesPublicKeyAndPassword() throws {
     let script = renderStandardScript()
-    #require(script.contains("$MOUNT_POINT/Users/Shared/compass-firstboot/id_ed25519.pub"))
-    #require(script.contains("$MOUNT_POINT/Users/Shared/compass-firstboot/user.password"))
-    #require(script.contains("install -o root -g wheel -m 0600"))
+    try #require(script.contains("$MOUNT_POINT/Users/Shared/compass-firstboot/id_ed25519.pub"))
+    try #require(script.contains("$MOUNT_POINT/Users/Shared/compass-firstboot/user.password"))
+    try #require(script.contains("install -o root -g wheel -m 0600"))
   }
 
   @Test
-  func testElevatedScriptInstallsAutoLoginHelper() {
+  func testElevatedScriptInstallsAutoLoginHelper() throws {
     let script = renderStandardScript()
-    #require(script.contains("$MOUNT_POINT/usr/local/libexec/compass-autologin.sh"))
-    #require(
+    try #require(script.contains("$MOUNT_POINT/usr/local/libexec/compass-autologin.sh"))
+    try #require(
       script.contains(
         "$MOUNT_POINT/Library/LaunchDaemons/com.seancheatham.Compass.autologin.plist")
     )
   }
 
   @Test
-  func testElevatedScriptUnmountsViaTrapOnExit() {
+  func testElevatedScriptUnmountsViaTrapOnExit() throws {
     let script = renderStandardScript()
-    #require(script.contains("trap cleanup EXIT"))
-    #require(script.contains("diskutil unmount \"$MOUNT_POINT\""))
+    try #require(script.contains("trap cleanup EXIT"))
+    try #require(script.contains("diskutil unmount \"$MOUNT_POINT\""))
   }
 
   @Test
-  func testElevatedScriptUsesDiskutilMountWithExplicitMountPoint() {
+  func testElevatedScriptUsesDiskutilMountWithExplicitMountPoint() throws {
     let script = renderStandardScript()
-    #require(
+    try #require(
       script.contains("diskutil mount -mountPoint \"$MOUNT_POINT\" -nobrowse \"$DATA_DEV\""))
   }
 
   @Test
-  func testElevatedScriptRetriesDiskutilMountThenFallsBackToMountApfs() {
+  func testElevatedScriptRetriesDiskutilMountThenFallsBackToMountApfs() throws {
     let script = renderStandardScript()
-    #require(
+    try #require(
       script.contains("diskutil mount -mountPoint"),
       "elevated script should try diskutil mount first"
     )
-    #require(
+    try #require(
       script.contains("mount_max_attempts"),
       "elevated script should bound the diskutil retry budget so failures surface"
     )
-    #require(
+    try #require(
       script.contains("mount_apfs -o nobrowse"),
       "elevated script should fall back to mount_apfs when diskutil refuses"
     )
-    #require(
+    try #require(
       script.contains("both diskutil mount and mount_apfs failed"),
       "elevated script should explicitly report when both strategies failed"
     )
@@ -413,15 +413,15 @@ struct SharedCompassVMHeadlessPlanterTests {
     try SharedCompassVMHeadlessPlanter.stagePayload(payload, into: stagingDir)
 
     let fm = FileManager.default
-    #require(fm.fileExists(atPath: stagingDir.appendingPathComponent("launchd.plist").path))
-    #require(fm.fileExists(atPath: stagingDir.appendingPathComponent("bootstrap.sh").path))
-    #require(fm.fileExists(atPath: stagingDir.appendingPathComponent("sudoers").path))
-    #require(fm.fileExists(atPath: stagingDir.appendingPathComponent("apple-setup-done").path))
-    #require(fm.fileExists(atPath: stagingDir.appendingPathComponent("id_ed25519.pub").path))
-    #require(fm.fileExists(atPath: stagingDir.appendingPathComponent("user.password").path))
-    #require(
+    try #require(fm.fileExists(atPath: stagingDir.appendingPathComponent("launchd.plist").path))
+    try #require(fm.fileExists(atPath: stagingDir.appendingPathComponent("bootstrap.sh").path))
+    try #require(fm.fileExists(atPath: stagingDir.appendingPathComponent("sudoers").path))
+    try #require(fm.fileExists(atPath: stagingDir.appendingPathComponent("apple-setup-done").path))
+    try #require(fm.fileExists(atPath: stagingDir.appendingPathComponent("id_ed25519.pub").path))
+    try #require(fm.fileExists(atPath: stagingDir.appendingPathComponent("user.password").path))
+    try #require(
       fm.fileExists(atPath: stagingDir.appendingPathComponent("compass-autologin.sh").path))
-    #require(
+    try #require(
       fm.fileExists(
         atPath: stagingDir.appendingPathComponent("com.seancheatham.Compass.autologin.plist").path
       ))
@@ -436,7 +436,7 @@ struct SharedCompassVMHeadlessPlanterTests {
       atPath: stagingDir.appendingPathComponent("user.password").path
     )
     let perms = (attrs[.posixPermissions] as? NSNumber)?.intValue
-    #require(perms == 0o600)
+    try #require(perms == 0o600)
   }
 
   @Test
@@ -445,8 +445,8 @@ struct SharedCompassVMHeadlessPlanterTests {
     temporaryDirectories.append(first)
     let second = try SharedCompassVMHeadlessPlanter.makeStagingDirectory()
     temporaryDirectories.append(second)
-    #require(first != second)
-    #require(first.lastPathComponent.hasPrefix("Compass-HeadlessFirstBoot-"))
+    try #require(first != second)
+    try #require(first.lastPathComponent.hasPrefix("Compass-HeadlessFirstBoot-"))
   }
 
   // MARK: - plant(...) integration with mocked deps
@@ -477,28 +477,30 @@ struct SharedCompassVMHeadlessPlanterTests {
       dependencies: dependencies
     )
 
-    #require(attacher.attachedURLs == [diskImageURL])
-    #require(locator.queriedPhysicalStores == ["disk7s2"])
-    #require(elevator.invokedScriptURLs.count == 1)
-    #require(report.dataVolumeDeviceNode == "/dev/disk9s5")
-    #require(report.elevatedScriptOutput == "[compass-planter] done.\n")
+    try #require(attacher.attachedURLs == [diskImageURL])
+    try #require(locator.queriedPhysicalStores == ["disk7s2"])
+    try #require(elevator.invokedScriptURLs.count == 1)
+    try #require(report.dataVolumeDeviceNode == "/dev/disk9s5")
+    try #require(report.elevatedScriptOutput == "[compass-planter] done.\n")
 
     let writtenScript = elevator.invokedScriptContents.first ?? ""
-    #require(writtenScript.contains("/dev/disk9s5"))
-    #require(writtenScript.contains("$STAGING_DIR/launchd.plist"))
-    #require(writtenScript.contains("$STAGING_DIR/bootstrap.sh"))
-    #require(writtenScript.contains("$STAGING_DIR/sudoers"))
-    #require(writtenScript.contains("$STAGING_DIR/user.password"))
-    #require(writtenScript.contains("$STAGING_DIR/id_ed25519.pub"))
+    try #require(writtenScript.contains("/dev/disk9s5"))
+    try #require(writtenScript.contains("$STAGING_DIR/launchd.plist"))
+    try #require(writtenScript.contains("$STAGING_DIR/bootstrap.sh"))
+    try #require(writtenScript.contains("$STAGING_DIR/sudoers"))
+    try #require(writtenScript.contains("$STAGING_DIR/user.password"))
+    try #require(writtenScript.contains("$STAGING_DIR/id_ed25519.pub"))
 
     try await Task.sleep(nanoseconds: 100_000_000)
-    #require(attacher.detachedDeviceNodes == ["/dev/disk7"])
+    try #require(attacher.detachedDeviceNodes == ["/dev/disk7"])
 
-    #require(!FileManager.default.fileExists(atPath: report.stagingDirectoryURL.path))
+    try #require(!FileManager.default.fileExists(atPath: report.stagingDirectoryURL.path))
   }
 
   @Test
   func testPlantCleansUpStagingDirectoryEvenWhenElevatedScriptThrows() async throws {
+    let preexistingPlanterDirs = Set(temporaryHeadlessFirstBootDirectories().map(\.path))
+
     let attacher = FakeAttacher()
     attacher.deviceNode = "/dev/disk9"
     let locator = FakeLocator()
@@ -525,20 +527,27 @@ struct SharedCompassVMHeadlessPlanterTests {
     } catch SharedCompassVMHeadlessPlanter.Error.userCancelledElevation {
       threwExpected = true
     } catch {
-      #require(false, "unexpected error \(error)")
+      #expect(Bool(false), "unexpected error \(error)")
     }
-    #require(threwExpected, "plant should rethrow elevator failures")
+    try #require(threwExpected, "plant should rethrow elevator failures")
 
-    let leftoverDirs =
+    let leakedPlanterDirs = temporaryHeadlessFirstBootDirectories().filter {
+      !preexistingPlanterDirs.contains($0.path)
+    }
+    try #require(
+      leakedPlanterDirs.isEmpty, "plant leaked staging directories: \(leakedPlanterDirs)")
+  }
+
+  private func temporaryHeadlessFirstBootDirectories() -> [URL] {
+    let temporaryDirectory = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+    let contents =
       (try? FileManager.default.contentsOfDirectory(
-        at: URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true),
+        at: temporaryDirectory,
         includingPropertiesForKeys: nil
       )) ?? []
-    let leakedPlanterDirs = leftoverDirs.filter {
+    return contents.filter {
       $0.lastPathComponent.hasPrefix("Compass-HeadlessFirstBoot-")
     }
-    #require(
-      leakedPlanterDirs.isEmpty, "plant leaked staging directories: \(leakedPlanterDirs)")
   }
 
   // MARK: - Test doubles
@@ -553,7 +562,7 @@ struct SharedCompassVMHeadlessPlanterTests {
       attachedURLs.append(diskImageURL)
       return HostDiskAttachment(
         wholeDiskDeviceNode: deviceNode,
-        apfsPhysicalStoreIdentifier标识符: apfsPhysicalStore,
+        apfsPhysicalStoreIdentifier: apfsPhysicalStore,
         rawPlist: ""
       )
     }

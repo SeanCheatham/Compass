@@ -23,18 +23,18 @@ struct SharedVMRouteSSHArgvTests {
     )
 
     // -i <identity>
-    #require(args.contains(["-i", "/path/to/id_ed25519"]))
+    try #require(args.contains(["-i", "/path/to/id_ed25519"]))
     // -o UserKnownHostsFile="<file>" — value is inner-quoted so
     // ssh's parser treats paths-with-spaces as a single file.
-    #require(args.contains(["-o", #"UserKnownHostsFile="/path/to/known_hosts""#]))
+    try #require(args.contains(["-o", #"UserKnownHostsFile="/path/to/known_hosts""#]))
     // -o StrictHostKeyChecking=yes
-    #require(args.contains(["-o", "StrictHostKeyChecking=yes"]))
+    try #require(args.contains(["-o", "StrictHostKeyChecking=yes"]))
     // -o BatchMode=yes
-    #require(args.contains(["-o", "BatchMode=yes"]))
+    try #require(args.contains(["-o", "BatchMode=yes"]))
     // -T (no PTY)
-    #require(args.contains("-T"))
+    try #require(args.contains("-T"))
     // destination + remoteCommand are the trailing two arguments.
-    #require(args.suffix(2) == ["compass@10.0.0.42", "true"])
+    try #require(args.suffix(2) == ["compass@10.0.0.42", "true"])
   }
 
   @Test
@@ -48,8 +48,8 @@ struct SharedVMRouteSSHArgvTests {
       remoteCommand: "echo hi",
       options: options
     )
-    #require(!args.contains("-i"))
-    #require(!args.contains { $0.hasPrefix("UserKnownHostsFile=") })
+    try #require(!args.contains("-i"))
+    try #require(!args.contains { $0.hasPrefix("UserKnownHostsFile=") })
   }
 
   @Test
@@ -60,7 +60,7 @@ struct SharedVMRouteSSHArgvTests {
       remoteCommand: "true",
       options: options
     )
-    #require(args.contains(["-o", "ConnectTimeout=7"]))
+    try #require(args.contains(["-o", "ConnectTimeout=7"]))
   }
 
   @Test
@@ -71,7 +71,7 @@ struct SharedVMRouteSSHArgvTests {
       remoteCommand: "true",
       options: options
     )
-    #require(!args.contains { $0.hasPrefix("ConnectTimeout=") })
+    try #require(!args.contains { $0.hasPrefix("ConnectTimeout=") })
   }
 
   @Test
@@ -96,7 +96,7 @@ struct SharedVMRouteSSHArgvTests {
       remoteCommand: "true",
       options: options
     )
-    #require(
+    try #require(
       args.contains([
         "-o",
         #"UserKnownHostsFile="/Users/x/Library/Application Support/Compass/SharedVM/bundle.vmbundle/known_hosts""#,
@@ -113,13 +113,13 @@ struct SharedVMRouteSSHArgvTests {
       remoteCommand: "true",
       options: options
     )
-    #require(args.contains(["-o", "StrictHostKeyChecking=no"]))
-    #require(!args.contains(["-o", "StrictHostKeyChecking=yes"]))
+    try #require(args.contains(["-o", "StrictHostKeyChecking=no"]))
+    try #require(!args.contains(["-o", "StrictHostKeyChecking=yes"]))
   }
 
   @Test
   func testDefaultExecutablePathIsUsrBinSSH()  throws {
-    #require(SharedCompassVMGuestBridge.defaultSSHExecutablePath == "/usr/bin/ssh")
+    try #require(SharedCompassVMGuestBridge.defaultSSHExecutablePath == "/usr/bin/ssh")
   }
 
   // MARK: - ControlMaster multiplexing
@@ -132,12 +132,12 @@ struct SharedVMRouteSSHArgvTests {
       destination: "compass@10.0.0.42",
       remoteCommand: "true"
     )
-    #require(args.contains(["-o", "ControlMaster=auto"]))
-    #require(
+    try #require(args.contains(["-o", "ControlMaster=auto"]))
+    try #require(
       args.contains([
         "-o", "ControlPath=\(SharedCompassVMGuestBridge.controlPathTemplate)",
       ]))
-    #require(args.contains(["-o", "ControlPersist=600"]))
+    try #require(args.contains(["-o", "ControlPersist=600"]))
   }
 
   @Test
@@ -148,8 +148,8 @@ struct SharedVMRouteSSHArgvTests {
       remoteCommand: "true",
       options: options
     )
-    #require(args.contains(["-o", "ControlPersist=120"]))
-    #require(!args.contains(["-o", "ControlPersist=600"]))
+    try #require(args.contains(["-o", "ControlPersist=120"]))
+    try #require(!args.contains(["-o", "ControlPersist=600"]))
   }
 
   @Test
@@ -160,9 +160,9 @@ struct SharedVMRouteSSHArgvTests {
       remoteCommand: "true",
       options: options
     )
-    #require(!args.contains { $0.hasPrefix("ControlMaster=") })
-    #require(!args.contains { $0.hasPrefix("ControlPath=") })
-    #require(!args.contains { $0.hasPrefix("ControlPersist=") })
+    try #require(!args.contains { $0.hasPrefix("ControlMaster=") })
+    try #require(!args.contains { $0.hasPrefix("ControlPath=") })
+    try #require(!args.contains { $0.hasPrefix("ControlPersist=") })
   }
 
   @Test
@@ -177,7 +177,7 @@ struct SharedVMRouteSSHArgvTests {
       .replacingOccurrences(of: "%h", with: "ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff")
       .replacingOccurrences(of: "%p", with: "65535")
       .replacingOccurrences(of: "%r", with: String(repeating: "u", count: 32))
-    #require(
+    try #require(
       expanded.utf8.count < 104,
       "Worst-case ControlPath (\(expanded.utf8.count)B) must fit sockaddr_un.sun_path (104B)."
     )
@@ -195,13 +195,13 @@ struct SharedVMRouteSSHArgvTests {
       destination: "compass@10.0.0.42",
       options: options
     )
-    #require(args.contains(["-i", "/path/to/id_ed25519"]))
-    #require(
+    try #require(args.contains(["-i", "/path/to/id_ed25519"]))
+    try #require(
       args.contains([
         "-o", "ControlPath=\(SharedCompassVMGuestBridge.controlPathTemplate)",
       ]))
-    #require(args.contains(["-O", "exit"]))
-    #require(args.last == "compass@10.0.0.42")
+    try #require(args.contains(["-O", "exit"]))
+    try #require(args.last == "compass@10.0.0.42")
   }
 
   @Test
@@ -212,24 +212,24 @@ struct SharedVMRouteSSHArgvTests {
     let args = SharedCompassVMGuestBridge.closeControlMasterArguments(
       destination: "compass@10.0.0.42"
     )
-    #require(args.suffix(3) == ["-O", "exit", "compass@10.0.0.42"])
+    try #require(args.suffix(3) == ["-O", "exit", "compass@10.0.0.42"])
   }
 
   @Test
   func testPOSIXQuoteSafePathRequiresNoQuoting()  throws {
     // Sanity check that the safe-character fast path doesn't add ceremony.
     let quoted = SharedCompassVMGuestBridge.posixQuote("/usr/local/bin/swift")
-    #require(quoted == "/usr/local/bin/swift")
+    try #require(quoted == "/usr/local/bin/swift")
   }
 
   @Test
   func testPOSIXQuoteEmptyStringBecomesEmptyQuotes()  throws {
-    #require(SharedCompassVMGuestBridge.posixQuote("") == "''")
+    try #require(SharedCompassVMGuestBridge.posixQuote("") == "''")
   }
 
   @Test
   func testPOSIXQuoteWhitespacePathIsWrappedInSingleQuotes()  throws {
-    #require(SharedCompassVMGuestBridge.posixQuote("a b") == "'a b'")
+    try #require(SharedCompassVMGuestBridge.posixQuote("a b") == "'a b'")
   }
 
   // MARK: - Helper

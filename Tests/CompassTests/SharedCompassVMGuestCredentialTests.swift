@@ -31,7 +31,7 @@ struct SharedCompassVMGuestCredentialTests {
   @Test
   func testGeneratePasswordReturnsRequestedLength() throws {
     let pw = try SharedCompassVMGuestCredential.generatePassword(length: 32)
-    #require(pw.count == 32)
+    try #require(pw.count == 32)
   }
 
   @Test
@@ -39,7 +39,7 @@ struct SharedCompassVMGuestCredentialTests {
     let pw = try SharedCompassVMGuestCredential.generatePassword(length: 256)
     let alphabet = Set(SharedCompassVMGuestCredential.passwordAlphabet)
     for character in pw {
-      #require(
+      try #require(
         alphabet.contains(character), "unexpected character '\(character)' in generated password")
     }
   }
@@ -51,26 +51,26 @@ struct SharedCompassVMGuestCredentialTests {
       seen.insert(try SharedCompassVMGuestCredential.generatePassword(length: 32))
     }
     // 8 random 32-char passwords colliding is statistically impossible.
-    #require(seen.count == 8)
+    try #require(seen.count == 8)
   }
 
   // MARK: - Account allocation
 
   @Test
-  func testMakeAccountReturnsStableFormat() {
+  func testMakeAccountReturnsStableFormat() throws {
     let account = SharedCompassVMGuestCredential.makeAccount()
-    #require(account.hasPrefix("guest."))
+    try #require(account.hasPrefix("guest."))
     // UUID string is 36 chars; combined length is 6 + 36 = 42.
-    #require(account.count == 42)
+    try #require(account.count == 42)
   }
 
   @Test
-  func testMakeAccountReturnsFreshIdentifiers() {
+  func testMakeAccountReturnsFreshIdentifiers() throws {
     var seen = Set<String>()
     for _ in 0..<8 {
       seen.insert(SharedCompassVMGuestCredential.makeAccount())
     }
-    #require(seen.count == 8)
+    try #require(seen.count == 8)
   }
 
   // MARK: - Ensure / retrieve / delete roundtrip
@@ -83,10 +83,10 @@ struct SharedCompassVMGuestCredentialTests {
       account: account,
       storage: storage
     )
-    #require(credential.account == account)
-    #require(credential.password.count == SharedCompassVMGuestCredential.defaultPasswordLength)
-    #require(storage.storedPasswords[account] == credential.password)
-    #require(storage.storeCallCount == 1)
+    try #require(credential.account == account)
+    try #require(credential.password.count == SharedCompassVMGuestCredential.defaultPasswordLength)
+    try #require(storage.storedPasswords[account] == credential.password)
+    try #require(storage.storeCallCount == 1)
   }
 
   @Test
@@ -95,9 +95,9 @@ struct SharedCompassVMGuestCredentialTests {
     let account = SharedCompassVMGuestCredential.makeAccount()
     let first = try SharedCompassVMGuestCredential.ensure(account: account, storage: storage)
     let second = try SharedCompassVMGuestCredential.ensure(account: account, storage: storage)
-    #require(first.password == second.password)
+    try #require(first.password == second.password)
     // Second call must NOT have triggered another store.
-    #require(storage.storeCallCount == 1)
+    try #require(storage.storeCallCount == 1)
   }
 
   @Test
@@ -107,7 +107,7 @@ struct SharedCompassVMGuestCredentialTests {
       account: "missing.account",
       storage: storage
     )
-    #require(value == nil)
+    try #require(value == nil)
   }
 
   @Test
@@ -118,7 +118,7 @@ struct SharedCompassVMGuestCredentialTests {
       keychainAccount: nil,
       storage: storage
     )
-    #require(login == nil)
+    try #require(login == nil)
   }
 
   @Test
@@ -131,8 +131,8 @@ struct SharedCompassVMGuestCredentialTests {
       keychainAccount: account,
       storage: storage
     )
-    #require(login?.userName == "compass")
-    #require(login?.password.count == SharedCompassVMGuestCredential.defaultPasswordLength)
+    try #require(login?.userName == "compass")
+    try #require(login?.password.count == SharedCompassVMGuestCredential.defaultPasswordLength)
   }
 
   @Test
@@ -141,10 +141,10 @@ struct SharedCompassVMGuestCredentialTests {
     let account = SharedCompassVMGuestCredential.makeAccount()
     _ = try SharedCompassVMGuestCredential.ensure(account: account, storage: storage)
     try SharedCompassVMGuestCredential.remove(account: account, storage: storage)
-    #require(storage.storedPasswords[account] == nil)
+    try #require(storage.storedPasswords[account] == nil)
     // Remove on already-deleted account: still safe.
     try SharedCompassVMGuestCredential.remove(account: account, storage: storage)
-    #require(storage.deleteCallCount == 2)
+    try #require(storage.deleteCallCount == 2)
   }
 
   // MARK: - Bundle state codable roundtrip
@@ -160,6 +160,6 @@ struct SharedCompassVMGuestCredentialTests {
     let decoder = JSONDecoder()
     let data = try encoder.encode(state)
     let decoded = try decoder.decode(SharedCompassVMBundle.State.self, from: data)
-    #require(decoded.guestPasswordKeychainAccount == account)
+    try #require(decoded.guestPasswordKeychainAccount == account)
   }
 }

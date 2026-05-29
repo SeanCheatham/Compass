@@ -64,7 +64,7 @@ struct ExploreCommitTourRowTests {
 
     if !FoundationModelsAvailability.isAvailable {
       // The nil return is the exact condition that sets tourAvailabilityError = true.
-      #require(result == nil)
+      try #require(result == nil)
     }
     // If the model IS available, a non-nil string would be returned — both are valid.
   }
@@ -88,7 +88,7 @@ struct ExploreCommitTourRowTests {
       commits: [],
       repoURL: test.temporaryDirectory
     )
-    #require(result == nil)
+    try #require(result == nil)
   }
 
   // MARK: - Empty diff guard (generateTour internal path 2)
@@ -114,7 +114,7 @@ struct ExploreCommitTourRowTests {
       commits: commits,
       repoURL: test.temporaryDirectory
     )
-    #require(result == nil)
+    try #require(result == nil)
   }
 
   // MARK: - Helpers
@@ -142,7 +142,7 @@ struct ExploreCommitTourRowTests {
     try process.run()
     process.waitUntilExit()
     guard process.terminationStatus == 0 else {
-      throw "git init failed with status \(process.terminationStatus)"
+      throw TestHelperError.gitCommandFailed(status: process.terminationStatus)
     }
   }
 
@@ -165,7 +165,7 @@ struct ExploreCommitTourRowTests {
     try process.run()
     process.waitUntilExit()
     guard process.terminationStatus == 0 else {
-      throw "git command failed with status \(process.terminationStatus)"
+      throw TestHelperError.gitCommandFailed(status: process.terminationStatus)
     }
   }
 
@@ -181,32 +181,11 @@ struct ExploreCommitTourRowTests {
   }
 
   private func getSingleCommitSHA() throws -> String {
-    let result = try waitForSync {
-      try? ProcessRunner.runEnv(
-        "git", ["rev-parse", "HEAD"],
-        workingDirectory: temporaryDirectory
-      )
-    }
-    guard let stdout = result?.stdout.trimmingCharacters(in: .whitespacesAndNewlines),
-          !stdout.isEmpty else {
-      throw "no commit SHA found"
+    let stdout = try captureGit(["rev-parse", "HEAD"], at: temporaryDirectory)
+      .trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !stdout.isEmpty else {
+      throw TestHelperError.noCommitSHAFound
     }
     return stdout
-  }
-
-  private func waitForSync<T>(_ fn: () async throws -> T?) async throws -> T {
-    try await withCheckedThrowingContinuation { continuation in
-      Task {
-        do {
-          if let value = try await fn() {
-            continuation.resume(returning: value)
-          } else {
-            continuation.resume(throwing: "fn returned nil")
-          }
-        } catch {
-          continuation.resume(throwing: error)
-        }
-      }
-    }
   }
 }

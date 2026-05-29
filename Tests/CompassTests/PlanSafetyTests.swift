@@ -4,14 +4,14 @@ import Testing
 @testable import Compass
 
 struct PlanTransitionValidatorTests {
-  @Test func testRejectsClearingMidTermWithoutCompletion() {
+  @Test func testRejectsClearingMidTermWithoutCompletion() throws {
     let current = makeState(completed: ["done"], midTerm: "- Next queued item")
     let next = makeState(completed: ["done"], midTerm: "   \n")
 
     assertTransitionRejected(from: current, to: next, contains: "clear a non-empty midTerm queue")
   }
 
-  @Test func testRejectsPlaceholderVerifyCommands() {
+  @Test func testRejectsPlaceholderVerifyCommands() throws {
     let current = makeState()
     let next = makeState(immediate: PlanNext(plan: "Do work", verify: " true "))
 
@@ -37,7 +37,7 @@ struct PlanTransitionValidatorTests {
     )
     let next = current.applying(proposal: proposal)
 
-    #require(next.completed == current.completed)
+    try #require(next.completed == current.completed)
     try PlanTransitionValidator.validate(from: current, to: next)
   }
 
@@ -81,8 +81,8 @@ struct PlanTransitionValidatorTests {
         ?? (error as? LocalizedError)?.errorDescription
         ?? error.localizedDescription
     }
-    #require(threw, "Expected transition to be rejected but it succeeded")
-    #require(
+    #expect(threw, "Expected transition to be rejected but it succeeded")
+    #expect(
       message.contains(expectedText),
       "Expected error containing `\(expectedText)`, got `\(message)`."
     )
@@ -90,7 +90,7 @@ struct PlanTransitionValidatorTests {
 }
 
 struct PlanCompletionRecorderTests {
-  @Test func testRecordsSuccessfulSessionPlanLine() {
+  @Test func testRecordsSuccessfulSessionPlanLine() throws {
     let state = PlanState.empty
     let sessions = [
       makeSucceededSession(1, plan: "Ship feature X\n\nDetails"),
@@ -101,10 +101,10 @@ struct PlanCompletionRecorderTests {
       sessions: sessions
     )
 
-    #require(updated.completed == ["Ship feature X"])
+    try #require(updated.completed == ["Ship feature X"])
   }
 
-  @Test func testDoesNotDuplicateAlreadyRecordedSessions() {
+  @Test func testDoesNotDuplicateAlreadyRecordedSessions() throws {
     let state = makeState(completed: ["Ship feature X"])
     let sessions = [makeSucceededSession(1, plan: "Ship feature X")]
 
@@ -113,10 +113,10 @@ struct PlanCompletionRecorderTests {
       sessions: sessions
     )
 
-    #require(updated.completed == state.completed)
+    try #require(updated.completed == state.completed)
   }
 
-  @Test func testIgnoresFailedSessions() {
+  @Test func testIgnoresFailedSessions() throws {
     var failed = SessionRecord.started(1)
     failed.status = .failed
     failed.plan = "Should not record"
@@ -127,7 +127,7 @@ struct PlanCompletionRecorderTests {
       sessions: [failed]
     )
 
-    #require(updated.completed == [])
+    try #require(updated.completed == [])
   }
 
   private func makeState(completed: [String]) -> PlanState {
@@ -149,21 +149,21 @@ struct PlanCompletionRecorderTests {
 }
 
 struct PlanHistoryPageTests {
-  @Test func testReturnsNewestEntriesFirstWithPaginationHint() {
+  @Test func testReturnsNewestEntriesFirstWithPaginationHint() throws {
     let page = PlanHistoryPage.read(
       entries: ["First", "Second", "Third"],
       offset: 1,
       limit: 1
     )
 
-    #require(page.totalCount == 3)
-    #require(page.entries.map(\.iteration) == [2])
-    #require(page.entries.map(\.summary) == ["Second"])
-    #require(page.formatted().contains("offset 1 from newest"))
-    #require(page.formatted().contains("more: call plan_history with offset 2"))
+    try #require(page.totalCount == 3)
+    try #require(page.entries.map(\.iteration) == [2])
+    try #require(page.entries.map(\.summary) == ["Second"])
+    try #require(page.formatted().contains("offset 1 from newest"))
+    try #require(page.formatted().contains("more: call plan_history with offset 2"))
   }
 
-  @Test func testIterationNumbersWithOffsetAndFourPlusEntries() {
+  @Test func testIterationNumbersWithOffsetAndFourPlusEntries() throws {
     // With 4 entries ["A","B","C","D"], reversed = [D,C,B,A] with indices [0,1,2,3]
     // offset=2 skips D,C → slice=[B,A] with original entries at positions 1,0
     // Correct iterations: B is entry[1] → count(4) - offset(2) - sliceIndex(0) = 2, A is entry[0] → 4-2-1=1
@@ -181,9 +181,9 @@ struct PlanHistoryPageTests {
     )
 
     // E=5, D=4, C=3, B=2, A=1. offset=2 skips E,D → C,B remain → iterations [3,2]
-    #require(page.totalCount == 5)
-    #require(page.entries.map(\.iteration) == [3, 2])
-    #require(page.entries.map(\.summary) == ["C", "B"])
+    try #require(page.totalCount == 5)
+    try #require(page.entries.map(\.iteration) == [3, 2])
+    try #require(page.entries.map(\.summary) == ["C", "B"])
   }
 }
 
@@ -198,10 +198,10 @@ struct AgentPlanHistoryToolTests {
 
     let result = try await tool.invoke(arguments: args, context: context)
 
-    #require(!result.isError)
-    #require(result.content.contains("#3: Third"))
-    #require(result.content.contains("#2: Second"))
-    #require(!result.content.contains("#1: First"))
+    try #require(!result.isError)
+    try #require(result.content.contains("#3: Third"))
+    try #require(result.content.contains("#2: Second"))
+    try #require(!result.content.contains("#1: First"))
   }
 }
 
@@ -218,10 +218,10 @@ struct PlanNextDecoderTests {
 
     let next = try decodePlanNext(json)
 
-    #require(next.plan == "Build the slice")
-    #require(next.verify == "swift test")
-    #require(next.verifyTimeoutMs == 120000)
-    #require(next.estimatedDifficulty == .medium)
+    try #require(next.plan == "Build the slice")
+    try #require(next.verify == "swift test")
+    try #require(next.verifyTimeoutMs == 120000)
+    try #require(next.estimatedDifficulty == .medium)
     #expect(!next.requiresHostXcode)
   }
 
@@ -264,12 +264,12 @@ struct PlanNextDecoderTests {
       }
       """)
 
-    #require(zeroTimeout.verifyTimeoutMs == nil)
-    #require(negativeTimeout.verifyTimeoutMs == nil)
+    try #require(zeroTimeout.verifyTimeoutMs == nil)
+    try #require(negativeTimeout.verifyTimeoutMs == nil)
   }
 
   private func decodePlanNext(_ json: String) throws -> PlanNext {
-    let data = #require(json.data(using: .utf8))
+    let data = try #require(json.data(using: .utf8))
     return try JSONDecoder().decode(PlanNext.self, from: data)
   }
 }
@@ -277,7 +277,6 @@ struct PlanNextDecoderTests {
 struct RepositoryLanguageProfileServiceTests {
   @Test func testDetectsSwiftPackageWhileIgnoringBuildDirectories() throws {
     let repoURL = try makeTemporaryDirectory()
-    try? FileManager.default.removeItem(at: repoURL)
     defer { try? FileManager.default.removeItem(at: repoURL) }
 
     try write(
@@ -292,13 +291,13 @@ struct RepositoryLanguageProfileServiceTests {
 
     let profile = RepositoryLanguageProfileService.scan(repoURL: repoURL)
 
-    #require(profile.primaryLanguage == .swift)
-    #require(profile.manifestHints == [.packageSwift])
-    #require(profile.counts.swift == 2)
-    #require(profile.counts.typeScriptJavaScript == 0)
-    #require(profile.counts.python == 0)
-    #require(profile.scannedFileCount == 2)
-    #require(!profile.wasTruncated)
+    try #require(profile.primaryLanguage == .swift)
+    try #require(profile.manifestHints == [.packageSwift])
+    try #require(profile.counts.swift == 2)
+    try #require(profile.counts.typeScriptJavaScript == 0)
+    try #require(profile.counts.python == 0)
+    try #require(profile.scannedFileCount == 2)
+    try #require(!profile.wasTruncated)
   }
 
   private func makeTemporaryDirectory() throws -> URL {

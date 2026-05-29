@@ -49,11 +49,11 @@ struct CodemapRefresherTests : ~Copyable {
     )
 
     let result = try await refresher.refresh()
-    #require(result.indexed == 2)
-    #require(result.pruned == 0)
-    #require(result.summariesGenerated == 2)
+    try #require(result.indexed == 2)
+    try #require(result.pruned == 0)
+    try #require(result.summariesGenerated == 2)
     let calls = await recorder.callCount()
-    #require(calls == 2)
+    try #require(calls == 2)
   }
 
   @Test func testRefreshSkipsSummariesWhenDisabled() async throws {
@@ -83,10 +83,10 @@ struct CodemapRefresherTests : ~Copyable {
     )
 
     let result = try await refresher.refresh()
-    #require(result.indexed == 1)
-    #require(result.summariesGenerated == 0)
+    try #require(result.indexed == 1)
+    try #require(result.summariesGenerated == 0)
     let calls = await recorder.callCount()
-    #require(calls == 0)
+    try #require(calls == 0)
   }
 
   @Test func testRefreshPrunesEntriesAfterFileRemoval() async throws {
@@ -103,8 +103,8 @@ struct CodemapRefresherTests : ~Copyable {
       at: workingDirectory.appendingPathComponent("beta.swift")
     )
     let result = try await refresher.refresh()
-    #require(result.pruned == 1)
-    #require(store.loadEntry(forRelativePath: "beta.swift") == nil)
+    try #require(result.pruned == 1)
+    try #require(store.loadEntry(forRelativePath: "beta.swift") == nil)
   }
 
   // MARK: - Helpers

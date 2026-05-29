@@ -8,7 +8,7 @@ import Testing
 /// (Phase 3 fallback), so a wrongly-true predicate would silently misroute.
 struct SharedCompassVMReadinessTests {
   @Test func testIsReadyOnlyTrueForReadyCase()  throws {
-    #require(SharedCompassVMReadiness.ready(sshDestination: "compass@10.0.0.42").isReady)
+    try #require(SharedCompassVMReadiness.ready(sshDestination: "compass@10.0.0.42").isReady)
 
     let notReady: [SharedCompassVMReadiness] = [
       .unavailable(reason: "no virt"),
@@ -20,12 +20,12 @@ struct SharedCompassVMReadinessTests {
       .error(detail: "kaboom"),
     ]
     for readiness in notReady {
-      #require(!readiness.isReady)
+      try #require(!readiness.isReady)
     }
   }
 
   @Test func testIsUnavailableOnlyTrueForUnavailableCase()  throws {
-    #require(SharedCompassVMReadiness.unavailable(reason: "no virt").isUnavailable)
+    try #require(SharedCompassVMReadiness.unavailable(reason: "no virt").isUnavailable)
 
     let notUnavailable: [SharedCompassVMReadiness] = [
       .notProvisioned,
@@ -37,7 +37,7 @@ struct SharedCompassVMReadinessTests {
       .error(detail: "kaboom"),
     ]
     for readiness in notUnavailable {
-      #require(!readiness.isUnavailable)
+      try #require(!readiness.isUnavailable)
     }
   }
 
@@ -54,7 +54,7 @@ struct SharedCompassVMReadinessTests {
       .error(detail: "x"),
     ]
     for readiness in allCases {
-      #require(!(readiness.isReady && readiness.isUnavailable))
+      try #require(!(readiness.isReady && readiness.isUnavailable))
     }
   }
 }

@@ -24,11 +24,11 @@ struct LiveActivitySummaryTests {
       now: date(2)
     )
 
-    #require(plan.frozenClusters.count == 1)
-    let cluster = #require(plan.frozenClusters.first)
-    #require(cluster.lines.map(\.id) == Array(lines.prefix(5)).map(\.id))
-    #require(cluster.freezeReason == .lifecycleBoundary)
-    #require(plan.items.last == .line(lines[5]))
+    try #require(plan.frozenClusters.count == 1)
+    let cluster = try #require(plan.frozenClusters.first)
+    try #require(cluster.lines.map(\.id) == Array(lines.prefix(5)).map(\.id))
+    try #require(cluster.freezeReason == .lifecycleBoundary)
+    try #require(plan.items.last == .line(lines[5]))
   }
 
   @Test func testFreezesClusterAtQuietGap() throws {
@@ -46,11 +46,11 @@ struct LiveActivitySummaryTests {
       now: date(46)
     )
 
-    #require(plan.frozenClusters.count == 1)
-    let cluster = #require(plan.frozenClusters.first)
-    #require(cluster.lines.map(\.id) == Array(lines.prefix(5)).map(\.id))
-    #require(cluster.freezeReason == .quietGap)
-    #require(plan.items.last == .line(lines[5]))
+    try #require(plan.frozenClusters.count == 1)
+    let cluster = try #require(plan.frozenClusters.first)
+    try #require(cluster.lines.map(\.id) == Array(lines.prefix(5)).map(\.id))
+    try #require(cluster.freezeReason == .quietGap)
+    try #require(plan.items.last == .line(lines[5]))
   }
 
   @Test func testFreezesClusterAfterElapsedSinceStartUnderSustainedActivity() throws {
@@ -68,13 +68,13 @@ struct LiveActivitySummaryTests {
       now: date(34)
     )
 
-    #require(plan.frozenClusters.count == 1)
-    let cluster = #require(plan.frozenClusters.first)
-    #require(cluster.lines.map(\.id) == Array(lines.prefix(4)).map(\.id))
-    #require(cluster.freezeReason == .elapsedSinceStart)
+    try #require(plan.frozenClusters.count == 1)
+    let cluster = try #require(plan.frozenClusters.first)
+    try #require(cluster.lines.map(\.id) == Array(lines.prefix(4)).map(\.id))
+    try #require(cluster.freezeReason == .elapsedSinceStart)
   }
 
-  @Test func testDoesNotFreezeBelowElapsedThreshold() {
+  @Test func testDoesNotFreezeBelowElapsedThreshold() throws {
     let lines = [
       makeLine(offset: 0, text: "Read package"),
       makeLine(offset: 1, text: "Inspect source", kind: .command, status: .completed),
@@ -88,7 +88,7 @@ struct LiveActivitySummaryTests {
       now: date(10)
     )
 
-    #require(plan.frozenClusters.isEmpty)
+    try #require(plan.frozenClusters.isEmpty)
   }
 
   @Test func testRunningLifecycleMarkersDoNotBlockFreezing() throws {
@@ -105,9 +105,9 @@ struct LiveActivitySummaryTests {
       now: date(41)
     )
 
-    #require(plan.frozenClusters.count == 1)
-    let cluster = #require(plan.frozenClusters.first)
-    #require(cluster.lines.map(\.id) == Array(lines.prefix(4)).map(\.id))
+    try #require(plan.frozenClusters.count == 1)
+    let cluster = try #require(plan.frozenClusters.first)
+    try #require(cluster.lines.map(\.id) == Array(lines.prefix(4)).map(\.id))
   }
 
   @Test func testRunningCommandRowsBlockFreezing() throws {
@@ -125,8 +125,8 @@ struct LiveActivitySummaryTests {
     )
 
     let expectedItems = try lines.map(LiveActivitySummaryItem.line)
-    #require(plan.frozenClusters.isEmpty)
-    #require(plan.items == expectedItems)
+    try #require(plan.frozenClusters.isEmpty)
+    try #require(plan.items == expectedItems)
   }
 
   @Test func testClusterKeyIsStableForUnchangedRows() throws {
@@ -135,10 +135,10 @@ struct LiveActivitySummaryTests {
     let first = LiveActivitySummaryPlanner.plan(lines: lines, now: date(40))
     let second = LiveActivitySummaryPlanner.plan(lines: lines, now: date(40))
 
-    #require(first.frozenClusters.first?.key == second.frozenClusters.first?.key)
+    try #require(first.frozenClusters.first?.key == second.frozenClusters.first?.key)
   }
 
-  @Test func testClusterKeyChangesWhenRunningRowCompletesInPlace() {
+  @Test func testClusterKeyChangesWhenRunningRowCompletesInPlace() throws {
     var running = completedBatch()
     running[2].status = .running
     running[2].text = "Running verify"
@@ -155,75 +155,75 @@ struct LiveActivitySummaryTests {
       freezeReason: .quietGap
     )
 
-    #require(running[2].id == completed[2].id)
-    #require(runningCluster.key != completedCluster.key)
+    try #require(running[2].id == completed[2].id)
+    try #require(runningCluster.key != completedCluster.key)
   }
 
   @Test func testParserAcceptsTwoSentenceProse() throws {
     let cluster = LiveActivityCluster(lines: completedBatch(), freezeReason: .quietGap)
 
-    let summary = #require(
+    let summary = try #require(
       LiveActivitySummaryService.parseGeneratedSummary(
         "The agent inspected the source and tests, then reviewed the output. No failures were reported.",
         cluster: cluster
       )
     )
 
-    #require(summary.text.hasPrefix("The agent"))
-    #require(summary.source == .generated)
+    try #require(summary.text.hasPrefix("The agent"))
+    try #require(summary.source == .generated)
   }
 
   @Test func testParserStripsSummaryLabel() throws {
     let cluster = LiveActivityCluster(lines: completedBatch(), freezeReason: .quietGap)
 
-    let summary = #require(
+    let summary = try #require(
       LiveActivitySummaryService.parseGeneratedSummary(
         "Summary: The agent inspected the source and tests. The review wrapped up cleanly.",
         cluster: cluster
       )
     )
 
-    #require(!summary.text.lowercased().hasPrefix("summary:"))
+    try #require(!summary.text.lowercased().hasPrefix("summary:"))
   }
 
   @Test func testParserCollapsesMultilineProseIntoOneLine() throws {
     let cluster = LiveActivityCluster(lines: completedBatch(), freezeReason: .quietGap)
 
-    let summary = #require(
+    let summary = try #require(
       LiveActivitySummaryService.parseGeneratedSummary(
         "The agent inspected the source and tests.\nThe review wrapped up cleanly.",
         cluster: cluster
       )
     )
 
-    #require(!summary.text.contains("\n"))
+    try #require(!summary.text.contains("\n"))
   }
 
-  @Test func testParserRejectsMarkdownJSONURLsAndOverlongOutput() {
+  @Test func testParserRejectsMarkdownJSONURLsAndOverlongOutput() throws {
     let cluster = LiveActivityCluster(lines: completedBatch(), freezeReason: .quietGap)
 
-    #require(
+    try #require(
       LiveActivitySummaryService.parseGeneratedSummary(
         "```The agent inspected the source.```",
         cluster: cluster
       ) ==
       nil
     )
-    #require(
+    try #require(
       LiveActivitySummaryService.parseGeneratedSummary(
         #"{"summary":"The agent inspected the source."}"#,
         cluster: cluster
       ) ==
       nil
     )
-    #require(
+    try #require(
       LiveActivitySummaryService.parseGeneratedSummary(
         "The agent reviewed https://example.com output.",
         cluster: cluster
       ) ==
       nil
     )
-    #require(
+    try #require(
       LiveActivitySummaryService.parseGeneratedSummary(
         String(repeating: "word ", count: 200),
         cluster: cluster
@@ -235,45 +235,45 @@ struct LiveActivitySummaryTests {
   @Test func testParserAllowsNumbersFilenamesAndOutcomeWords() throws {
     let cluster = LiveActivityCluster(lines: completedBatch(), freezeReason: .quietGap)
 
-    let summary = #require(
+    let summary = try #require(
       LiveActivitySummaryService.parseGeneratedSummary(
         "The agent ran 12 commands across README.md and the test suite. All checks passed.",
         cluster: cluster
       )
     )
 
-    #require(summary.text.contains("12 commands"))
-    #require(summary.text.contains("passed"))
+    try #require(summary.text.contains("12 commands"))
+    try #require(summary.text.contains("passed"))
   }
 
-  @Test func testDeterministicFallbackDescribesCountsAndIsStable() {
+  @Test func testDeterministicFallbackDescribesCountsAndIsStable() throws {
     let cluster = LiveActivityCluster(lines: completedBatch(), freezeReason: .quietGap)
 
     let summary = LiveActivitySummaryService.deterministicSummary(for: cluster)
     let repeated = LiveActivitySummaryService.deterministicSummary(for: cluster)
 
-    #require(summary == repeated)
-    #require(summary.source == .deterministic)
-    #require(summary.text.hasPrefix("The agent"))
-    #require(summary.text.contains("2 commands"))
-    #require(summary.text.contains("1 agent note"))
-    #require(
+    try #require(summary == repeated)
+    try #require(summary.source == .deterministic)
+    try #require(summary.text.hasPrefix("The agent"))
+    try #require(summary.text.contains("2 commands"))
+    try #require(summary.text.contains("1 agent note"))
+    try #require(
       summary.text.count <=
       LiveActivitySummaryService.summaryMaxCharacters
     )
   }
 
-  @Test func testDeterministicFallbackReportsFailures() {
+  @Test func testDeterministicFallbackReportsFailures() throws {
     var lines = completedBatch()
     lines[1].status = .failed
     let cluster = LiveActivityCluster(lines: lines, freezeReason: .quietGap)
 
     let summary = LiveActivitySummaryService.deterministicSummary(for: cluster)
 
-    #require(summary.text.contains("One failure reported"))
+    try #require(summary.text.contains("One failure reported"))
   }
 
-  @Test func testPlansOnlyMissingNonInFlightSummariesAndPrunesStaleKeys() {
+  @Test func testPlansOnlyMissingNonInFlightSummariesAndPrunesStaleKeys() throws {
     let first = LiveActivityCluster(lines: completedBatch(seed: 0), freezeReason: .quietGap)
     let second = LiveActivityCluster(lines: completedBatch(seed: 10), freezeReason: .quietGap)
     let third = LiveActivityCluster(lines: completedBatch(seed: 20), freezeReason: .quietGap)
@@ -284,9 +284,9 @@ struct LiveActivitySummaryTests {
       inFlightKeys: [second.key, "stale-flight"]
     )
 
-    #require(plan.requestedClusters.map(\.key) == [third.key])
-    #require(plan.staleCacheKeys == ["stale-cache"])
-    #require(plan.staleInFlightKeys == ["stale-flight"])
+    try #require(plan.requestedClusters.map(\.key) == [third.key])
+    try #require(plan.staleCacheKeys == ["stale-cache"])
+    try #require(plan.staleInFlightKeys == ["stale-flight"])
   }
 }
 

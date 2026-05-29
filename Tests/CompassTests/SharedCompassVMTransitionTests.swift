@@ -10,27 +10,27 @@ import Testing
 struct SharedCompassVMTransitionTests {
   // MARK: - Absorbing / re-enterable states
 
-  @Test func canTransitionToErrorFromAnyState() {
+  @Test func canTransitionToErrorFromAnyState() throws {
     for state in Self.allRepresentativeStates {
-      #require(
+      try #require(
         SharedCompassVM.isLegalTransition(from: state, to: .error(detail: "boom")),
         "every state must be able to transition to .error; failed on \(state)"
       )
     }
   }
 
-  @Test func canTransitionToUnavailableFromAnyState() {
+  @Test func canTransitionToUnavailableFromAnyState() throws {
     for state in Self.allRepresentativeStates {
-      #require(
+      try #require(
         SharedCompassVM.isLegalTransition(from: state, to: .unavailable(reason: "n/a")),
         "every state must be able to transition to .unavailable; failed on \(state)"
       )
     }
   }
 
-  @Test func canTransitionToNotProvisionedFromAnyState() {
+  @Test func canTransitionToNotProvisionedFromAnyState() throws {
     for state in Self.allRepresentativeStates {
-      #require(
+      try #require(
         SharedCompassVM.isLegalTransition(from: state, to: .notProvisioned),
         "every state must be able to reset to .notProvisioned; failed on \(state)"
       )
@@ -39,7 +39,7 @@ struct SharedCompassVMTransitionTests {
 
   // MARK: - Happy-path forward progress
 
-  @Test func normalProvisioningChainIsLegal() {
+  @Test func normalProvisioningChainIsLegal() throws {
     let chain: [SharedCompassVMReadiness] = [
       .notProvisioned,
       .downloadingIPSW(fractionCompleted: 0),
@@ -49,7 +49,7 @@ struct SharedCompassVMTransitionTests {
       .ready(sshDestination: "compass@10.0.0.5"),
     ]
     for (from, to) in zip(chain, chain.dropFirst()) {
-      #require(
+      try #require(
         SharedCompassVM.isLegalTransition(from: from, to: to),
         "expected \(from) → \(to) to be legal in the happy path"
       )
@@ -58,20 +58,20 @@ struct SharedCompassVMTransitionTests {
 
   // MARK: - Progress-bearing self-edges
 
-  @Test func progressBearingStatesAcceptFractionUpdates() {
-    #require(
+  @Test func progressBearingStatesAcceptFractionUpdates() throws {
+    try #require(
       SharedCompassVM.isLegalTransition(
         from: .downloadingIPSW(fractionCompleted: 0.1),
         to: .downloadingIPSW(fractionCompleted: 0.5)
       )
     )
-    #require(
+    try #require(
       SharedCompassVM.isLegalTransition(
         from: .installing(fractionCompleted: 0.3),
         to: .installing(fractionCompleted: 0.7)
       )
     )
-    #require(
+    try #require(
       SharedCompassVM.isLegalTransition(
         from: .provisioningDevTools(fractionCompleted: 0),
         to: .provisioningDevTools(fractionCompleted: 0.8)
@@ -81,11 +81,11 @@ struct SharedCompassVMTransitionTests {
 
   // MARK: - Illegal forward jumps
 
-  @Test func cannotJumpFromNotProvisionedDirectlyToError() {
+  @Test func cannotJumpFromNotProvisionedDirectlyToError() throws {
     // .error / .unavailable / .notProvisioned themselves are always
     // legal — they're handled by the absorbing-state shortcut.  Make
     // sure a real forward jump that skips a required stage is rejected.
-    #require(
+    try #require(
       !SharedCompassVM.isLegalTransition(
         from: .downloadingIPSW(fractionCompleted: 0),
         to: .ready(sshDestination: "x")
@@ -94,15 +94,15 @@ struct SharedCompassVMTransitionTests {
     )
   }
 
-  @Test func cannotMoveBackwardsAlongTheChain() {
-    #require(
+  @Test func cannotMoveBackwardsAlongTheChain() throws {
+    try #require(
       !SharedCompassVM.isLegalTransition(
         from: .installing(fractionCompleted: 0),
         to: .downloadingIPSW(fractionCompleted: 0)
       ),
       "installing → downloadingIPSW reverses progress and should be rejected"
     )
-    #require(
+    try #require(
       !SharedCompassVM.isLegalTransition(
         from: .provisioningDevTools(fractionCompleted: 0),
         to: .installing(fractionCompleted: 0)
@@ -110,19 +110,19 @@ struct SharedCompassVMTransitionTests {
     )
   }
 
-  @Test func unavailableIsAbsorbingExceptForReset() {
+  @Test func unavailableIsAbsorbingExceptForReset() throws {
     // .unavailable is the "this Mac can't host the VM" terminal state.
     // The only legal way out is the .notProvisioned reset (via the
     // absorbing-state shortcut).
     let unavailable = SharedCompassVMReadiness.unavailable(reason: "no virt")
-    #require(
+    try #require(
       !SharedCompassVM.isLegalTransition(
         from: unavailable,
         to: .downloadingIPSW(fractionCompleted: 0)
       ),
       "unavailable should not transition forward without resetting first"
     )
-    #require(
+    try #require(
       SharedCompassVM.isLegalTransition(
         from: unavailable,
         to: .notProvisioned
@@ -133,20 +133,20 @@ struct SharedCompassVMTransitionTests {
 
   // MARK: - Ready → re-warm
 
-  @Test func readyCanRewarmIntoGuestPreppingOrDevTools() {
+  @Test func readyCanRewarmIntoGuestPreppingOrDevTools() throws {
     let ready = SharedCompassVMReadiness.ready(sshDestination: "compass@10.0.0.5")
-    #require(
+    try #require(
       SharedCompassVM.isLegalTransition(from: ready, to: .guestPrepping))
-    #require(
+    try #require(
       SharedCompassVM.isLegalTransition(
         from: ready, to: .provisioningDevTools(fractionCompleted: 0)))
   }
 
   // MARK: - Same-state nudges
 
-  @Test func sameStateIsAlwaysLegal() {
+  @Test func sameStateIsAlwaysLegal() throws {
     for state in Self.allRepresentativeStates {
-      #require(
+      try #require(
         SharedCompassVM.isLegalTransition(from: state, to: state),
         "same-state is always legal; failed on \(state)"
       )

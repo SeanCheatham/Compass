@@ -4,7 +4,7 @@ import Testing
 @testable import Compass
 
 @MainActor
-struct CompassProjectDraftRefinementTests : ~Copyable {
+final class CompassProjectDraftRefinementTests {
   private var temporaryDirectories: [URL] = []
 
   init() throws {}
@@ -44,15 +44,15 @@ struct CompassProjectDraftRefinementTests : ~Copyable {
 
     await project.acceptDraftRefinement(refinement)
 
-    #require(workspace.readDrafts() == "- Add parser tests.\n")
-    #require(project.drafts == "- Add parser tests.\n")
-    #require(project.draftEntry == "")
-    #require(project.state == state)
-    #require(project.sessions == [])
-    #require(project.activeStorage == .applicationSupport)
-    #require(project.phase == .idle)
-    #require(!project.isRunning)
-    #require(!FileManager.default.fileExists(atPath: workspace.repoLocalCompassURL.path))
+    try #require(workspace.readDrafts() == "- Add parser tests.\n")
+    try #require(project.drafts == "- Add parser tests.\n")
+    try #require(project.draftEntry == "")
+    try #require(project.state == state)
+    try #require(project.sessions == [])
+    try #require(project.activeStorage == .applicationSupport)
+    try #require(project.phase == .idle)
+    try #require(!project.isRunning)
+    try #require(!FileManager.default.fileExists(atPath: workspace.repoLocalCompassURL.path))
   }
 
   @Test func testModifyReplacesDraftEntryWithoutQueueing() throws {
@@ -71,14 +71,14 @@ struct CompassProjectDraftRefinementTests : ~Copyable {
 
     project.modifyDraft(with: refinement)
 
-    #require(project.draftEntry == "Add parser tests.")
-    #require(project.drafts == "")
-    #require(project.state == stateBefore)
-    #require(project.sessions == [])
-    #require(project.liveLog == [])
-    #require(project.activeStorage == activeStorageBefore)
-    #require(!FileManager.default.fileExists(atPath: workspace.compassURL.path))
-    #require(!project.isRunning)
+    try #require(project.draftEntry == "Add parser tests.")
+    try #require(project.drafts == "")
+    try #require(project.state == stateBefore)
+    try #require(project.sessions == [])
+    try #require(project.liveLog == [])
+    try #require(project.activeStorage == activeStorageBefore)
+    try #require(!FileManager.default.fileExists(atPath: workspace.compassURL.path))
+    try #require(!project.isRunning)
   }
 
   private func makeTemporaryGitRepository() throws -> URL {

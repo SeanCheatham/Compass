@@ -3,7 +3,7 @@ import Testing
 
 @testable import Compass
 
-struct CompassWorkspaceStorageMigrationTests : ~Copyable {
+final class CompassWorkspaceStorageMigrationTests {
   private var temporaryDirectories: [URL] = []
 
   init() throws {}
@@ -31,7 +31,7 @@ struct CompassWorkspaceStorageMigrationTests : ~Copyable {
     )
     let plan = makeMigrationPlan(repoURL: repoURL, roots: roots)
 
-    #require(plan.isAvailable)
+    try #require(plan.isAvailable)
 
     let result = try CompassWorkspaceStorageMigrator(
       now: { Date(timeIntervalSince1970: 0) },
@@ -39,13 +39,13 @@ struct CompassWorkspaceStorageMigrationTests : ~Copyable {
     )
     .migrate(plan: plan)
 
-    #require(FileManager.default.fileExists(atPath: plan.destinationURL.path))
-    #require(try read(plan.destinationURL.appending(path: "drafts.md")) == "draft entry\n")
-    #require(try read(plan.destinationURL.appending(path: "lessons.md")) == "lesson entry\n")
-    #require(try read(plan.destinationURL.appending(path: "COMPASS.md")) == "vision entry\n")
-    #require(
+    try #require(FileManager.default.fileExists(atPath: plan.destinationURL.path))
+    try #require(try read(plan.destinationURL.appending(path: "drafts.md")) == "draft entry\n")
+    try #require(try read(plan.destinationURL.appending(path: "lessons.md")) == "lesson entry\n")
+    try #require(try read(plan.destinationURL.appending(path: "COMPASS.md")) == "vision entry\n")
+    try #require(
       try read(plan.destinationURL.appending(path: "sessions.json")) == "[{\"session\":1}]\n")
-    #require(
+    try #require(
       try read(
         plan.destinationURL.appending(path: "sessions").appending(
           path: artifactURL.lastPathComponent)) ==
@@ -53,18 +53,18 @@ struct CompassWorkspaceStorageMigrationTests : ~Copyable {
     )
 
     let manifest = try decodeManifest(at: plan.manifestURL)
-    #require(manifest.repoPath == repoURL.path)
-    #require(manifest.storageIdentifier == plan.projectStorageIdentifier)
-    #require(manifest.sourcePath == workspace.compassURL.path)
-    #require(manifest.destinationPath == plan.destinationURL.path)
-    #require(manifest.copiedFileCount == 6)
-    #require(manifest.migratedAt == "1970-01-01T00:00:00Z")
+    try #require(manifest.repoPath == repoURL.path)
+    try #require(manifest.storageIdentifier == plan.projectStorageIdentifier)
+    try #require(manifest.sourcePath == workspace.compassURL.path)
+    try #require(manifest.destinationPath == plan.destinationURL.path)
+    try #require(manifest.copiedFileCount == 6)
+    try #require(manifest.migratedAt == "1970-01-01T00:00:00Z")
 
-    #require(result.manifest == manifest)
-    #require(result.copiedFileCount == 6)
-    #require(result.repoLocalSourcePreserved)
-    #require(!result.activeStorageDidChange)
-    #require(
+    try #require(result.manifest == manifest)
+    try #require(result.copiedFileCount == 6)
+    try #require(result.repoLocalSourcePreserved)
+    try #require(!result.activeStorageDidChange)
+    try #require(
       !FileManager.default.fileExists(
         atPath: plan.stagingParentURL
           .appending(path: ".\(plan.projectStorageIdentifier)-migration-success")
@@ -78,18 +78,18 @@ struct CompassWorkspaceStorageMigrationTests : ~Copyable {
     let missingRoots = try makeApplicationSupportRoots()
     let missingPlan = makeMigrationPlan(repoURL: missingRepoURL, roots: missingRoots)
 
-    #require(!missingPlan.isAvailable)
-    #require(missingPlan.kind == .repoLocalMissing)
+    try #require(!missingPlan.isAvailable)
+    try #require(missingPlan.kind == .repoLocalMissing)
     do {
       try CompassWorkspaceStorageMigrator().migrate(plan: missingPlan)
-      #require(false)
+      try #require(false)
     } catch {
-      #require(
+      try #require(
         error as? CompassWorkspaceStorageMigrationError ==
         .unavailable(kind: .repoLocalMissing, detail: missingPlan.detail)
       )
     }
-    #require(!FileManager.default.fileExists(atPath: missingPlan.destinationURL.path))
+    try #require(!FileManager.default.fileExists(atPath: missingPlan.destinationURL.path))
 
     let incompleteRepoURL = try makeTemporaryGitRepository()
     let incompleteRoots = try makeApplicationSupportRoots()
@@ -98,19 +98,19 @@ struct CompassWorkspaceStorageMigrationTests : ~Copyable {
     try write("[]\n", to: incompleteWorkspace.sessionsRecordURL)
     let incompletePlan = makeMigrationPlan(repoURL: incompleteRepoURL, roots: incompleteRoots)
 
-    #require(!incompletePlan.isAvailable)
-    #require(incompletePlan.kind == .repoLocalIncomplete)
-    #require(incompletePlan.detail.contains("state.json"))
+    try #require(!incompletePlan.isAvailable)
+    try #require(incompletePlan.kind == .repoLocalIncomplete)
+    try #require(incompletePlan.detail.contains("state.json"))
     do {
       try CompassWorkspaceStorageMigrator().migrate(plan: incompletePlan)
-      #require(false)
+      try #require(false)
     } catch {
-      #require(
+      try #require(
         error as? CompassWorkspaceStorageMigrationError ==
         .unavailable(kind: .repoLocalIncomplete, detail: incompletePlan.detail)
       )
     }
-    #require(!FileManager.default.fileExists(atPath: incompletePlan.destinationURL.path))
+    try #require(!FileManager.default.fileExists(atPath: incompletePlan.destinationURL.path))
   }
 
   @Test func testOccupiedApplicationSupportCandidateBlocksMigration() throws {
@@ -122,14 +122,14 @@ struct CompassWorkspaceStorageMigrationTests : ~Copyable {
 
     let currentPlan = makeMigrationPlan(repoURL: currentRepoURL, roots: currentRoots)
 
-    #require(!currentPlan.isAvailable)
-    #require(currentPlan.kind == .applicationSupportOccupied)
-    #require(currentPlan.detail.contains("occupied"))
+    try #require(!currentPlan.isAvailable)
+    try #require(currentPlan.kind == .applicationSupportOccupied)
+    try #require(currentPlan.detail.contains("occupied"))
     do {
       try CompassWorkspaceStorageMigrator().migrate(plan: currentPlan)
-      #require(false)
+      try #require(false)
     } catch {
-      #require(
+      try #require(
         error as? CompassWorkspaceStorageMigrationError ==
         .unavailable(kind: .applicationSupportOccupied, detail: currentPlan.detail)
       )
@@ -151,13 +151,13 @@ struct CompassWorkspaceStorageMigrationTests : ~Copyable {
 
     let plan = makeMigrationPlan(repoURL: repoURL, roots: roots)
 
-    #require(plan.sourceCompassURL == repoLocalWorkspace.compassURL)
-    #require(plan.kind == .applicationSupportOccupied)
-    #require(!plan.isAvailable)
-    #require(try read(repoLocalWorkspace.lessonsURL) == "repo-local lesson\n")
-    #require(try read(externalWorkspace.lessonsURL) == "external lesson\n")
-    #require(FileManager.default.fileExists(atPath: repoLocalWorkspace.compassURL.path))
-    #require(FileManager.default.fileExists(atPath: externalWorkspace.compassURL.path))
+    try #require(plan.sourceCompassURL == repoLocalWorkspace.compassURL)
+    try #require(plan.kind == .applicationSupportOccupied)
+    try #require(!plan.isAvailable)
+    try #require(try read(repoLocalWorkspace.lessonsURL) == "repo-local lesson\n")
+    try #require(try read(externalWorkspace.lessonsURL) == "external lesson\n")
+    try #require(FileManager.default.fileExists(atPath: repoLocalWorkspace.compassURL.path))
+    try #require(FileManager.default.fileExists(atPath: externalWorkspace.compassURL.path))
   }
 
   @Test func testRollbackCleansStagingAfterInjectedCopyFailureAndPreservesSource() throws {
@@ -185,14 +185,14 @@ struct CompassWorkspaceStorageMigrationTests : ~Copyable {
 
     do {
       try migrator.migrate(plan: plan)
-      #require(false)
+      try #require(false)
     } catch {
-      #require(error as? InjectedMigrationError == .copy)
+      try #require(error as? InjectedMigrationError == .copy)
     }
-    #require(!FileManager.default.fileExists(atPath: expectedStagingURL.path))
-    #require(!FileManager.default.fileExists(atPath: plan.destinationURL.path))
-    #require(try read(workspace.draftsURL) == "source draft\n")
-    #require(FileManager.default.fileExists(atPath: workspace.compassURL.path))
+    try #require(!FileManager.default.fileExists(atPath: expectedStagingURL.path))
+    try #require(!FileManager.default.fileExists(atPath: plan.destinationURL.path))
+    try #require(try read(workspace.draftsURL) == "source draft\n")
+    try #require(FileManager.default.fileExists(atPath: workspace.compassURL.path))
   }
 
   @Test func testRollbackCleansStagingAndPartialDestinationAfterInjectedPromoteFailure() throws {
@@ -220,14 +220,14 @@ struct CompassWorkspaceStorageMigrationTests : ~Copyable {
 
     do {
       try migrator.migrate(plan: plan)
-      #require(false)
+      try #require(false)
     } catch {
-      #require(error as? InjectedMigrationError == .promote)
+      try #require(error as? InjectedMigrationError == .promote)
     }
-    #require(!FileManager.default.fileExists(atPath: expectedStagingURL.path))
-    #require(!FileManager.default.fileExists(atPath: plan.destinationURL.path))
-    #require(try read(workspace.lessonsURL) == "source lesson\n")
-    #require(FileManager.default.fileExists(atPath: workspace.compassURL.path))
+    try #require(!FileManager.default.fileExists(atPath: expectedStagingURL.path))
+    try #require(!FileManager.default.fileExists(atPath: plan.destinationURL.path))
+    try #require(try read(workspace.lessonsURL) == "source lesson\n")
+    try #require(FileManager.default.fileExists(atPath: workspace.compassURL.path))
   }
 
   @Test func testMigrationPreservesRepoLocalStorageAsActiveSourceOfTruth() throws {
@@ -245,13 +245,13 @@ struct CompassWorkspaceStorageMigrationTests : ~Copyable {
     )
     .migrate(plan: plan)
 
-    #require(result.repoLocalSourcePreserved)
-    #require(!result.activeStorageDidChange)
-    #require(try read(workspace.stateURL) == "source state\n")
-    #require(
+    try #require(result.repoLocalSourcePreserved)
+    try #require(!result.activeStorageDidChange)
+    try #require(try read(workspace.stateURL) == "source state\n")
+    try #require(
       try read(workspace.sessionsURL.appending(path: "2-transcript.txt")) == "source session\n")
-    #require(try recursiveFilePaths(in: workspace.compassURL) == sourceEntriesBefore)
-    #require(FileManager.default.fileExists(atPath: plan.destinationURL.path))
+    try #require(try recursiveFilePaths(in: workspace.compassURL) == sourceEntriesBefore)
+    try #require(FileManager.default.fileExists(atPath: plan.destinationURL.path))
   }
 
   @Test func testMigrationManifestPlanAndResultTextStayBounded() throws {
@@ -265,17 +265,17 @@ struct CompassWorkspaceStorageMigrationTests : ~Copyable {
       migratedAt: longText
     )
 
-    #require(
+    try #require(
       manifest.repoPath.count <= CompassWorkspaceStorageMigrationManifest.pathLimit)
-    #require(
+    try #require(
       manifest.storageIdentifier.count <= CompassWorkspaceStorageMigrationManifest.identifierLimit)
-    #require(
+    try #require(
       manifest.sourcePath.count <= CompassWorkspaceStorageMigrationManifest.pathLimit)
-    #require(
+    try #require(
       manifest.destinationPath.count <= CompassWorkspaceStorageMigrationManifest.pathLimit)
-    #require(
+    try #require(
       manifest.migratedAt.count <= CompassWorkspaceStorageMigrationManifest.timestampLimit)
-    #require(manifest.copiedFileCount == 0)
+    try #require(manifest.copiedFileCount == 0)
 
     let repoURL = try makeTemporaryGitRepository(
       name: "Bounded Storage Migration " + String(repeating: "Segment ", count: 12)
@@ -284,9 +284,9 @@ struct CompassWorkspaceStorageMigrationTests : ~Copyable {
     try CompassWorkspace(repoURL: repoURL).initialize()
     let plan = makeMigrationPlan(repoURL: repoURL, roots: roots)
 
-    #require(plan.label.count <= CompassWorkspaceStorageMigrationPlan.labelLimit)
-    #require(plan.detail.count <= CompassWorkspaceStorageMigrationPlan.detailLimit)
-    #require(
+    try #require(plan.label.count <= CompassWorkspaceStorageMigrationPlan.labelLimit)
+    try #require(plan.detail.count <= CompassWorkspaceStorageMigrationPlan.detailLimit)
+    try #require(
       plan.recommendation.count <= CompassWorkspaceStorageMigrationPlan.recommendationLimit)
 
     let result = try CompassWorkspaceStorageMigrator(
@@ -294,9 +294,9 @@ struct CompassWorkspaceStorageMigrationTests : ~Copyable {
     )
     .migrate(plan: plan)
 
-    #require(
+    try #require(
       result.summary.count <= CompassWorkspaceStorageMigrationResult.summaryLimit)
-    #require(
+    try #require(
       result.detail.count <= CompassWorkspaceStorageMigrationResult.detailLimit)
   }
 

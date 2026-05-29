@@ -20,17 +20,17 @@ struct AgentVsockClientTests {
 
     let data = try await client.readFile(at: URL(fileURLWithPath: "/opt/x.bin"))
 
-    #require(data == payload)
-    #require(transport.writtenFrames.count == 1)
+    try #require(data == payload)
+    try #require(transport.writtenFrames.count == 1)
     let request = try AgentRPCFraming.decode(AgentRPCRequest.self, from: transport.writtenFrames[0])
     guard case .readFile(let args) = request else {
-      #require(false, "expected readFile request, got \(request)")
+      #expect(Bool(false), "expected readFile request, got \(request)")
       return
     }
-    #require(args.path == "/opt/x.bin")
+    try #require(args.path == "/opt/x.bin")
   }
 
-  @Test func testReadFileMapsNotFoundErrorIntoTypedFilesystemError() async {
+  @Test func testReadFileMapsNotFoundErrorIntoTypedFilesystemError() async throws {
     let transport = StubTransport(
       responses: [makeFrame(.error(.init(kind: .notFound, detail: "/opt/missing")))]
     )
@@ -38,14 +38,14 @@ struct AgentVsockClientTests {
 
     do {
       _ = try await client.readFile(at: URL(fileURLWithPath: "/opt/missing"))
-      #require(false, "expected notFound error")
+      #expect(Bool(false), "expected notFound error")
     } catch let error as AgentFilesystemError {
       guard case .notFound = error else {
-        #require(false, "expected .notFound, got \(error)")
+        #expect(Bool(false), "expected .notFound, got \(error)")
         return
       }
     } catch {
-      #require(false, "expected AgentFilesystemError, got \(error)")
+      #expect(Bool(false), "expected AgentFilesystemError, got \(error)")
     }
   }
 
@@ -58,11 +58,11 @@ struct AgentVsockClientTests {
 
     let request = try AgentRPCFraming.decode(AgentRPCRequest.self, from: transport.writtenFrames[0])
     guard case .writeFile(let args) = request else {
-      #require(false, "expected writeFile request, got \(request)")
+      #expect(Bool(false), "expected writeFile request, got \(request)")
       return
     }
-    #require(args.path == "/opt/out.txt")
-    #require(args.dataBase64 == payload.base64EncodedString())
+    try #require(args.path == "/opt/out.txt")
+    try #require(args.dataBase64 == payload.base64EncodedString())
   }
 
   @Test func testListDirectoryParsesEntries() async throws {
@@ -78,11 +78,11 @@ struct AgentVsockClientTests {
 
     let entries = try await client.listDirectory(at: URL(fileURLWithPath: "/opt/x"))
 
-    #require(entries.count == 2)
-    #require(entries.first?.name == "a.swift")
-    #require(entries.first?.isDirectory == false)
-    #require(entries.last?.name == "Sources")
-    #require(entries.last?.isDirectory == true)
+    try #require(entries.count == 2)
+    try #require(entries.first?.name == "a.swift")
+    try #require(entries.first?.isDirectory == false)
+    try #require(entries.last?.name == "Sources")
+    try #require(entries.last?.isDirectory == true)
   }
 
   @Test func testGlobReturnsMatchesWithDates() async throws {
@@ -102,10 +102,10 @@ struct AgentVsockClientTests {
       walkCap: 100
     )
 
-    #require(matches.count == 2)
-    #require(matches[0].url.path == "/opt/x/a.swift")
-    #require(matches[0].modificationDate == Date(timeIntervalSince1970: 1_700_000_000))
-    #require(matches[1].modificationDate == nil)
+    try #require(matches.count == 2)
+    try #require(matches[0].url.path == "/opt/x/a.swift")
+    try #require(matches[0].modificationDate == Date(timeIntervalSince1970: 1_700_000_000))
+    try #require(matches[1].modificationDate == nil)
   }
 
   @Test func testStatReturnsNilWhenMetadataIsNil() async throws {
@@ -113,7 +113,7 @@ struct AgentVsockClientTests {
     let client = AgentVsockClient(transportFactory: { transport })
 
     let metadata = try await client.metadata(of: URL(fileURLWithPath: "/opt/x"))
-    #require(metadata == nil)
+    try #require(metadata == nil)
   }
 
   // MARK: - Bash runner
@@ -136,35 +136,35 @@ struct AgentVsockClientTests {
       timeout: 5
     )
 
-    #require(result.exitCode == 0)
-    #require(result.stdout == "hi\n")
+    try #require(result.exitCode == 0)
+    try #require(result.stdout == "hi\n")
 
     let request = try AgentRPCFraming.decode(AgentRPCRequest.self, from: transport.writtenFrames[0])
     guard case .bash(let args) = request else {
-      #require(false, "expected bash request, got \(request)")
+      #expect(Bool(false), "expected bash request, got \(request)")
       return
     }
-    #require(args.command == "echo hi")
-    #require(args.workingDirectory == "/opt/cwd")
-    #require(args.timeoutSeconds == 5)
+    try #require(args.command == "echo hi")
+    try #require(args.workingDirectory == "/opt/cwd")
+    try #require(args.timeoutSeconds == 5)
   }
 
   // MARK: - Transport-level errors
 
-  @Test func testTransportConnectFailureSurfacesAsTransportError() async {
+  @Test func testTransportConnectFailureSurfacesAsTransportError() async throws {
     struct ConnectFailure: Error {}
     let client = AgentVsockClient(transportFactory: { throw ConnectFailure() })
 
     do {
       _ = try await client.readFile(at: URL(fileURLWithPath: "/opt/x"))
-      #require(false, "expected transport failure")
+      #expect(Bool(false), "expected transport failure")
     } catch let error as AgentFilesystemError {
       guard case .transportFailure = error else {
-        #require(false, "expected .transportFailure, got \(error)")
+        #expect(Bool(false), "expected .transportFailure, got \(error)")
         return
       }
     } catch {
-      #require(false, "expected AgentFilesystemError, got \(error)")
+      #expect(Bool(false), "expected AgentFilesystemError, got \(error)")
     }
   }
 

@@ -258,7 +258,15 @@ struct AgentHostFilesystem: AgentFilesystem {
       var grepArgs = ["-rnE"]
       if caseInsensitive { grepArgs.append("-i") }
       if let glob, !glob.isEmpty {
-        grepArgs += ["--include=\(glob)"]
+        let matches = try await self.glob(pattern: glob, under: url, walkCap: 10_000)
+        let filePaths = matches.map(\.url.path)
+        guard !filePaths.isEmpty else {
+          return ProcessResult(exitCode: 1, stdout: "", stderr: "")
+        }
+        grepArgs.append(pattern)
+        grepArgs += filePaths
+        invocationArgs = grepArgs
+        break
       }
       grepArgs += [pattern, url.path]
       invocationArgs = grepArgs

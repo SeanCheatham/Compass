@@ -42,16 +42,16 @@ struct CodemapIndexerTests : ~Copyable {
     try store.saveEntry(entry)
 
     let url = store.entryURL(forRelativePath: entry.relativePath)
-    #require(FileManager.default.fileExists(atPath: url.path))
-    #require(
+    try #require(FileManager.default.fileExists(atPath: url.path))
+    try #require(
       url.lastPathComponent ==
       "\(CodemapHash.sha256Hex(entry.relativePath)).json"
     )
 
-    let loaded = #require(
+    let loaded = try #require(
       store.loadEntry(forRelativePath: entry.relativePath)
     )
-    #require(loaded == entry)
+    try #require(loaded == entry)
   }
 
   @Test func testStoreDeletesAndIgnoresMissing() throws {
@@ -68,9 +68,9 @@ struct CodemapIndexerTests : ~Copyable {
       summaryContentHash: nil
     )
     try store.saveEntry(entry)
-    #require(store.loadEntry(forRelativePath: "lib.rs") != nil)
+    try #require(store.loadEntry(forRelativePath: "lib.rs") != nil)
     try store.deleteEntry(forRelativePath: "lib.rs")
-    #require(store.loadEntry(forRelativePath: "lib.rs") == nil)
+    try #require(store.loadEntry(forRelativePath: "lib.rs") == nil)
     // Idempotent.
     try store.deleteEntry(forRelativePath: "lib.rs")
   }
@@ -80,7 +80,7 @@ struct CodemapIndexerTests : ~Copyable {
     try store.ensureDirectoryExists()
     let corrupt = store.entryURL(forRelativePath: "broken.swift")
     try "{not json".data(using: .utf8)!.write(to: corrupt)
-    #require(store.loadEntry(forRelativePath: "broken.swift") == nil)
+    try #require(store.loadEntry(forRelativePath: "broken.swift") == nil)
   }
 
   // MARK: - Indexer
@@ -94,17 +94,17 @@ struct CodemapIndexerTests : ~Copyable {
     let indexer = makeIndexer(usingGit: false)
     let result = try await indexer.indexAll()
 
-    #require(result.indexed == 2)
-    #require(result.failed == 0)
-    #require(result.pruned == 0)
+    try #require(result.indexed == 2)
+    try #require(result.failed == 0)
+    try #require(result.pruned == 0)
 
     let store = indexer.store
-    let alpha = #require(store.loadEntry(forRelativePath: "alpha.swift"))
-    #require(alpha.language == .swift)
-    #require(alpha.symbols.contains { $0.name == "Greeter" })
-    let beta = #require(store.loadEntry(forRelativePath: "nested/beta.py"))
-    #require(beta.language == .python)
-    #require(beta.symbols.contains { $0.name == "shout" })
+    let alpha = try #require(store.loadEntry(forRelativePath: "alpha.swift"))
+    try #require(alpha.language == .swift)
+    try #require(alpha.symbols.contains { $0.name == "Greeter" })
+    let beta = try #require(store.loadEntry(forRelativePath: "nested/beta.py"))
+    try #require(beta.language == .python)
+    try #require(beta.symbols.contains { $0.name == "shout" })
   }
 
   @Test func testIndexerSurvivesACacheRoundTrip() async throws {
@@ -117,8 +117,8 @@ struct CodemapIndexerTests : ~Copyable {
     // existing entry and treat it as unchanged.
     let second = makeIndexer(usingGit: false)
     let result = try await second.indexAll()
-    #require(result.indexed == 0)
-    #require(result.unchanged == 1)
+    try #require(result.indexed == 0)
+    try #require(result.unchanged == 1)
   }
 
   @Test func testIndexerReParsesOnlyChangedFiles() async throws {
@@ -135,13 +135,13 @@ struct CodemapIndexerTests : ~Copyable {
     )
 
     let result = try await indexer.indexAll()
-    #require(result.unchanged == 1)
-    #require(result.indexed == 1)
+    try #require(result.unchanged == 1)
+    try #require(result.indexed == 1)
 
-    let updated = #require(
+    let updated = try #require(
       indexer.store.loadEntry(forRelativePath: "beta.swift")
     )
-    #require(updated.symbols.contains { $0.name == "newlyAdded" })
+    try #require(updated.symbols.contains { $0.name == "newlyAdded" })
   }
 
   @Test func testIndexerPrunesEntriesForDeletedFiles() async throws {
@@ -150,16 +150,16 @@ struct CodemapIndexerTests : ~Copyable {
 
     let indexer = makeIndexer(usingGit: false)
     _ = try await indexer.indexAll()
-    #require(indexer.store.loadEntry(forRelativePath: "beta.swift") != nil)
+    try #require(indexer.store.loadEntry(forRelativePath: "beta.swift") != nil)
 
     try FileManager.default.removeItem(
       at: workingDirectory.appendingPathComponent("beta.swift")
     )
 
     let result = try await indexer.indexAll()
-    #require(result.pruned == 1)
-    #require(indexer.store.loadEntry(forRelativePath: "beta.swift") == nil)
-    #require(indexer.store.loadEntry(forRelativePath: "alpha.swift") != nil)
+    try #require(result.pruned == 1)
+    try #require(indexer.store.loadEntry(forRelativePath: "beta.swift") == nil)
+    try #require(indexer.store.loadEntry(forRelativePath: "alpha.swift") != nil)
   }
 
   @Test func testIndexerSkipsFilesAboveSizeCap() async throws {
@@ -172,9 +172,9 @@ struct CodemapIndexerTests : ~Copyable {
       maxFileBytes: 10_000  // forces huge.swift to skip
     )
     let result = try await indexer.indexAll()
-    #require(result.indexed == 1)
-    #require(result.skipped == 1)
-    #require(indexer.store.loadEntry(forRelativePath: "huge.swift") == nil)
+    try #require(result.indexed == 1)
+    try #require(result.skipped == 1)
+    try #require(indexer.store.loadEntry(forRelativePath: "huge.swift") == nil)
   }
 
   @Test func testIndexerHonorsGitignoreWhenInsideARepo() async throws {
@@ -183,14 +183,14 @@ struct CodemapIndexerTests : ~Copyable {
     try writeFile(".gitignore", contents: "ignored.swift\n")
 
     let initStatus = runShell(
-      "git init -q && git add . && git -c user.email=t@t -c user.name=t commit -q -m init")
-    #require(initStatus, "git is not available; skipping")
+      "git init -q && git add alpha.swift .gitignore && git -c user.email=t@t -c user.name=t commit -q -m init")
+    try #require(initStatus, "git is not available; skipping")
 
     let indexer = makeIndexer(usingGit: true)
     let result = try await indexer.indexAll()
-    #require(result.indexed == 1)
-    #require(indexer.store.loadEntry(forRelativePath: "alpha.swift") != nil)
-    #require(indexer.store.loadEntry(forRelativePath: "ignored.swift") == nil)
+    try #require(result.indexed == 1)
+    try #require(indexer.store.loadEntry(forRelativePath: "alpha.swift") != nil)
+    try #require(indexer.store.loadEntry(forRelativePath: "ignored.swift") == nil)
   }
 
   // MARK: - Helpers

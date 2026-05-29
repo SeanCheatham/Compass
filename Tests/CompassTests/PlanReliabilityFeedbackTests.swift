@@ -4,7 +4,7 @@ import Testing
 @testable import Compass
 
 struct PlanReliabilityFeedbackTests {
-  @Test func testRejectedPlanStatusUsesRejectionText() {
+  @Test func testRejectedPlanStatusUsesRejectionText() throws {
     let session = makeSession(
       1,
       status: .rejectedByPlan,
@@ -16,19 +16,19 @@ struct PlanReliabilityFeedbackTests {
 
     let feedback = PlanReliabilityFeedback(state: makeState(), sessions: [session])
 
-    #require(feedback.notices.count == 1)
-    #require(feedback.notices[0].kind == .rejectedPlan)
-    #require(feedback.notices[0].title == "Plan rejected")
-    #require(
+    try #require(feedback.notices.count == 1)
+    try #require(feedback.notices[0].kind == .rejectedPlan)
+    try #require(feedback.notices[0].title == "Plan rejected")
+    try #require(
       feedback.notices[0].detail ==
       "Plan tried to shrink completed history from 3 entries to 2. Refusing to overwrite state.json."
     )
-    #require(feedback.notices[0].actionLabel == "Retry Plan")
-    #require(feedback.recentRunCues[1]?.kind == .rejectedPlan)
-    #require(feedback.recentRunCues[1]?.label == "Retry Plan")
+    try #require(feedback.notices[0].actionLabel == "Retry Plan")
+    try #require(feedback.recentRunCues[1]?.kind == .rejectedPlan)
+    try #require(feedback.recentRunCues[1]?.label == "Retry Plan")
   }
 
-  @Test func testFailedPlanTransitionNoteBecomesRejectedPlanNotice() {
+  @Test func testFailedPlanTransitionNoteBecomesRejectedPlanNotice() throws {
     let session = makeSession(
       2,
       status: .failed,
@@ -39,14 +39,14 @@ struct PlanReliabilityFeedbackTests {
 
     let feedback = PlanReliabilityFeedback(state: makeState(), sessions: [session])
 
-    #require(feedback.notices.map(\.kind) == [.rejectedPlan])
-    #require(
+    try #require(feedback.notices.map(\.kind) == [.rejectedPlan])
+    try #require(
       feedback.notices[0].detail ==
       "Plan returned placeholder verify command `true`. Refusing to overwrite state.json."
     )
   }
 
-  @Test func testDevelopBlockerUsesFeedbackText() {
+  @Test func testDevelopBlockerUsesFeedbackText() throws {
     let session = makeSession(
       3,
       status: .failed,
@@ -56,15 +56,15 @@ struct PlanReliabilityFeedbackTests {
 
     let feedback = PlanReliabilityFeedback(state: makeState(), sessions: [session])
 
-    #require(feedback.notices.map(\.kind) == [.developBlocked])
-    #require(feedback.notices[0].title == "Develop blocked")
-    #require(
+    try #require(feedback.notices.map(\.kind) == [.developBlocked])
+    try #require(feedback.notices[0].title == "Develop blocked")
+    try #require(
       feedback.notices[0].detail ==
       "Missing signing credentials. Ask the next pass to add a local fixture.")
-    #require(feedback.notices[0].actionLabel == "Retry Develop")
+    try #require(feedback.notices[0].actionLabel == "Retry Develop")
   }
 
-  @Test func testFailedDevelopUsesFeedbackWhenNoVerifyOutputExists() {
+  @Test func testFailedDevelopUsesFeedbackWhenNoVerifyOutputExists() throws {
     let session = makeSession(
       4,
       status: .failed,
@@ -74,12 +74,12 @@ struct PlanReliabilityFeedbackTests {
 
     let feedback = PlanReliabilityFeedback(state: makeState(), sessions: [session])
 
-    #require(feedback.notices.map(\.kind) == [.developFailed])
-    #require(feedback.notices[0].detail == "build settings were inconsistent")
-    #require(feedback.recentRunCues[4]?.label == "Retry Develop")
+    try #require(feedback.notices.map(\.kind) == [.developFailed])
+    try #require(feedback.notices[0].detail == "build settings were inconsistent")
+    try #require(feedback.recentRunCues[4]?.label == "Retry Develop")
   }
 
-  @Test func testFailedVerifyIncludesTailMetadata() {
+  @Test func testFailedVerifyIncludesTailMetadata() throws {
     let session = makeSession(
       5,
       status: .failed,
@@ -97,17 +97,17 @@ struct PlanReliabilityFeedbackTests {
 
     let feedback = PlanReliabilityFeedback(state: makeState(), sessions: [session])
 
-    #require(feedback.notices.map(\.kind) == [.failedVerify])
-    #require(feedback.notices[0].title == "Verify failed")
-    #require(feedback.notices[0].detail == "Test Suite failed Expected true but got false")
-    #require(
+    try #require(feedback.notices.map(\.kind) == [.failedVerify])
+    try #require(feedback.notices[0].title == "Verify failed")
+    try #require(feedback.notices[0].detail == "Test Suite failed Expected true but got false")
+    try #require(
       feedback.notices[0].metadata ==
       "swift test --filter PlanReliabilityFeedbackTests · exit 65"
     )
-    #require(feedback.recentRunCues[5]?.kind == .failedVerify)
+    try #require(feedback.recentRunCues[5]?.kind == .failedVerify)
   }
 
-  @Test func testDirtyWorktreePostCheckNoteBecomesDistinctCue() {
+  @Test func testDirtyWorktreePostCheckNoteBecomesDistinctCue() throws {
     let session = makeSession(
       12,
       status: .failed,
@@ -126,17 +126,17 @@ struct PlanReliabilityFeedbackTests {
 
     let feedback = PlanReliabilityFeedback(state: makeState(), sessions: [session])
 
-    #require(feedback.notices.map(\.kind) == [.dirtyWorktree])
-    #require(feedback.notices[0].title == "Worktree dirty")
-    #require(feedback.notices[0].severity == .warning)
-    #require(feedback.notices[0].actionLabel == "Clean Worktree")
-    #require(feedback.notices[0].metadata == "#12 · 2 pending changes")
-    #require(feedback.notices[0].detail.hasPrefix("Uncommitted or untracked changes remain"))
-    #require(feedback.recentRunCues[12]?.kind == .dirtyWorktree)
-    #require(feedback.recentRunCues[12]?.systemImage == "pencil.and.outline")
+    try #require(feedback.notices.map(\.kind) == [.dirtyWorktree])
+    try #require(feedback.notices[0].title == "Worktree dirty")
+    try #require(feedback.notices[0].severity == .warning)
+    try #require(feedback.notices[0].actionLabel == "Clean Worktree")
+    try #require(feedback.notices[0].metadata == "#12 · 2 pending changes")
+    try #require(feedback.notices[0].detail.hasPrefix("Uncommitted or untracked changes remain"))
+    try #require(feedback.recentRunCues[12]?.kind == .dirtyWorktree)
+    try #require(feedback.recentRunCues[12]?.systemImage == "pencil.and.outline")
   }
 
-  @Test func testPromotionFailurePostCheckNoteBecomesDistinctCue() {
+  @Test func testPromotionFailurePostCheckNoteBecomesDistinctCue() throws {
     let session = makeSession(
       13,
       status: .failed,
@@ -148,19 +148,19 @@ struct PlanReliabilityFeedbackTests {
 
     let feedback = PlanReliabilityFeedback(state: makeState(), sessions: [session])
 
-    #require(feedback.notices.map(\.kind) == [.promotionFailed])
-    #require(feedback.notices[0].title == "Promotion failed")
-    #require(feedback.notices[0].severity == .failure)
-    #require(feedback.notices[0].actionLabel == "Resolve Promotion")
-    #require(feedback.notices[0].metadata == "#13 · compass/dev-123")
-    #require(
+    try #require(feedback.notices.map(\.kind) == [.promotionFailed])
+    try #require(feedback.notices[0].title == "Promotion failed")
+    try #require(feedback.notices[0].severity == .failure)
+    try #require(feedback.notices[0].actionLabel == "Resolve Promotion")
+    try #require(feedback.notices[0].metadata == "#13 · compass/dev-123")
+    try #require(
       feedback.notices[0].detail ==
       "Failed to promote Develop sandbox branch compass/dev-123: fatal: Not possible to fast-forward, aborting."
     )
-    #require(feedback.recentRunCues[13]?.kind == .promotionFailed)
+    try #require(feedback.recentRunCues[13]?.kind == .promotionFailed)
   }
 
-  @Test func testRecentRunCueUsesPostCheckPriorityWithinSession() {
+  @Test func testRecentRunCueUsesPostCheckPriorityWithinSession() throws {
     let session = makeSession(
       14,
       status: .failed,
@@ -175,12 +175,12 @@ struct PlanReliabilityFeedbackTests {
 
     let feedback = PlanReliabilityFeedback(state: makeState(), sessions: [session])
 
-    #require(feedback.notices.map(\.kind) == [.developFailed, .failedVerify])
-    #require(feedback.recentRunCues[14]?.kind == .failedVerify)
-    #require(feedback.recentRunCues[14]?.label == "Retry Develop")
+    try #require(feedback.notices.map(\.kind) == [.developFailed, .failedVerify])
+    try #require(feedback.recentRunCues[14]?.kind == .failedVerify)
+    try #require(feedback.recentRunCues[14]?.label == "Retry Develop")
   }
 
-  @Test func testAwaitingApprovalShowsResumeCueWhenImmediatePlanExists() {
+  @Test func testAwaitingApprovalShowsResumeCueWhenImmediatePlanExists() throws {
     let session = makeSession(
       6,
       status: .awaitingApproval,
@@ -189,14 +189,14 @@ struct PlanReliabilityFeedbackTests {
 
     let feedback = PlanReliabilityFeedback(state: makeState(), sessions: [session])
 
-    #require(feedback.notices.map(\.kind) == [.resumeDevelop])
-    #require(feedback.notices[0].title == "Develop ready")
-    #require(feedback.notices[0].actionLabel == "Resume Develop")
-    #require(feedback.notices[0].detail == "Implement the approved next slice")
-    #require(feedback.recentRunCues[6]?.label == "Resume Develop")
+    try #require(feedback.notices.map(\.kind) == [.resumeDevelop])
+    try #require(feedback.notices[0].title == "Develop ready")
+    try #require(feedback.notices[0].actionLabel == "Resume Develop")
+    try #require(feedback.notices[0].detail == "Implement the approved next slice")
+    try #require(feedback.recentRunCues[6]?.label == "Resume Develop")
   }
 
-  @Test func testSuccessfulAndCleanStatesStayEmpty() {
+  @Test func testSuccessfulAndCleanStatesStayEmpty() throws {
     let sessions = [
       makeSession(7, status: .succeeded, feedback: "done"),
       makeSession(8, status: .skipped, notes: ["Plan returned no immediate work."]),
@@ -207,11 +207,11 @@ struct PlanReliabilityFeedbackTests {
       sessions: sessions
     )
 
-    #require(feedback.isEmpty)
-    #require(feedback.recentRunCues == [:])
+    try #require(feedback.isEmpty)
+    try #require(feedback.recentRunCues == [:])
   }
 
-  @Test func testLaterSuccessRetiresEarlierFailureCue() {
+  @Test func testLaterSuccessRetiresEarlierFailureCue() throws {
     let blocked = makeSession(
       4,
       startedAt: 4_000,
@@ -226,12 +226,12 @@ struct PlanReliabilityFeedbackTests {
       sessions: [blocked, later]
     )
 
-    #require(feedback.notices.isEmpty)
-    #require(feedback.recentRunCues[4] == nil)
-    #require(feedback.recentRunCues[5] == nil)
+    try #require(feedback.notices.isEmpty)
+    try #require(feedback.recentRunCues[4] == nil)
+    try #require(feedback.recentRunCues[5] == nil)
   }
 
-  @Test func testInFlightSessionAfterFailureKeepsCue() {
+  @Test func testInFlightSessionAfterFailureKeepsCue() throws {
     let blocked = makeSession(
       4,
       startedAt: 4_000,
@@ -246,11 +246,11 @@ struct PlanReliabilityFeedbackTests {
       sessions: [blocked, retrying]
     )
 
-    #require(feedback.notices.map(\.kind) == [.developBlocked])
-    #require(feedback.recentRunCues[4]?.kind == .developBlocked)
+    try #require(feedback.notices.map(\.kind) == [.developBlocked])
+    try #require(feedback.recentRunCues[4]?.kind == .developBlocked)
   }
 
-  @Test func testBoundsAndNormalizesDetails() {
+  @Test func testBoundsAndNormalizesDetails() throws {
     let session = makeSession(
       9,
       status: .failed,
@@ -265,11 +265,11 @@ struct PlanReliabilityFeedbackTests {
     )
 
     let detail = feedback.notices[0].detail
-    #require(detail.count <= 38)
-    #require(detail == "First line second line with enough...")
+    try #require(detail.count <= 38)
+    try #require(detail == "First line second line with enough...")
   }
 
-  @Test func testNoticeSectionLimitAndRecentRunCuePropagationCanDiffer() {
+  @Test func testNoticeSectionLimitAndRecentRunCuePropagationCanDiffer() throws {
     let newestFailedVerify = makeSession(
       10,
       startedAt: 9_000,
@@ -295,10 +295,10 @@ struct PlanReliabilityFeedbackTests {
       noticeLimit: 1
     )
 
-    #require(feedback.notices.map(\.sessionNumber) == [10])
-    #require(feedback.notices.map(\.kind) == [.failedVerify])
-    #require(feedback.recentRunCues[10]?.kind == .failedVerify)
-    #require(feedback.recentRunCues[11]?.kind == .rejectedPlan)
+    try #require(feedback.notices.map(\.sessionNumber) == [10])
+    try #require(feedback.notices.map(\.kind) == [.failedVerify])
+    try #require(feedback.recentRunCues[10]?.kind == .failedVerify)
+    try #require(feedback.recentRunCues[11]?.kind == .rejectedPlan)
   }
 
   private func makeState(

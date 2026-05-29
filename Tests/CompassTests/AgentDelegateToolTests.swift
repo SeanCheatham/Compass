@@ -18,9 +18,9 @@ struct AgentDelegateToolTests {
       arguments: Data(#"{"task":"   "}"#.utf8),
       context: context(runner: StubRunner(reply: "ignored"))
     )
-    #require(result.isError)
-    #require(result.errorKind == .invalidArguments)
-    #require(result.content.contains("task is empty"))
+    try #require(result.isError)
+    try #require(result.errorKind == .invalidArguments)
+    try #require(result.content.contains("task is empty"))
   }
 
   @Test func testInvokeReturnsFailureWhenDelegateRunnerIsAbsent() async throws {
@@ -28,8 +28,8 @@ struct AgentDelegateToolTests {
       arguments: Data(#"{"task":"investigate Foo"}"#.utf8),
       context: context(runner: nil)
     )
-    #require(result.isError)
-    #require(
+    try #require(result.isError)
+    try #require(
       result.content.contains("delegate is not available"),
       "missing runner must surface as a clean failure, not a crash: \(result.content)")
   }
@@ -41,11 +41,11 @@ struct AgentDelegateToolTests {
         #"{"task":"find callers of bar","tools":["read_file"],"model":"alt-model"}"#.utf8),
       context: context(runner: runner)
     )
-    #require(!result.isError)
-    #require(result.content == "callers in 3 files; all handle nil safely")
-    #require(runner.lastTask == "find callers of bar")
-    #require(runner.lastToolNames == ["read_file"])
-    #require(runner.lastModelOverride == "alt-model")
+    try #require(!result.isError)
+    try #require(result.content == "callers in 3 files; all handle nil safely")
+    try #require(runner.lastTask == "find callers of bar")
+    try #require(runner.lastToolNames == ["read_file"])
+    try #require(runner.lastModelOverride == "alt-model")
   }
 
   @Test func testInvokeRejectsOversizedTaskTextWithoutCallingRunner() async throws {
@@ -56,9 +56,9 @@ struct AgentDelegateToolTests {
       arguments: Data(payload.utf8),
       context: context(runner: runner)
     )
-    #require(result.isError)
-    #require(result.content.contains("exceeds"))
-    #require(runner.lastTask == nil, "runner must not be invoked when task is too long")
+    try #require(result.isError)
+    try #require(result.content.contains("exceeds"))
+    try #require(runner.lastTask == nil, "runner must not be invoked when task is too long")
   }
 
   @Test func testInvokeSurfacesRunnerErrorsAsToolFailures() async throws {
@@ -67,13 +67,13 @@ struct AgentDelegateToolTests {
       arguments: Data(#"{"task":"do a thing"}"#.utf8),
       context: context(runner: runner)
     )
-    #require(result.isError)
-    #require(result.content.contains("delegate task is empty"))
+    try #require(result.isError)
+    try #require(result.content.contains("delegate task is empty"))
   }
 
   // MARK: - Runner helper: tool filtering
 
-  @Test func testFilterToolsDropsDelegateUnconditionallyToPreventNesting() {
+  @Test func testFilterToolsDropsDelegateUnconditionallyToPreventNesting() throws {
     let parents: [AgentTool] = [
       AgentReadFileTool(),
       AgentDelegateTool(),
@@ -81,14 +81,14 @@ struct AgentDelegateToolTests {
     ]
     let filtered = AgentExecutorDelegateRunner.filterTools(parentTools: parents, requested: nil)
     let names = filtered.map { $0.spec.name }
-    #require(
+    try #require(
       !names.contains(AgentDelegateTool.toolName),
       "child tool list must never include `delegate`")
-    #require(
+    try #require(
       Set(names) == Set([AgentReadFileTool.toolName, AgentBashTool.toolName]))
   }
 
-  @Test func testFilterToolsHonorsRequestedWhitelistAndIgnoresUnknownNames() {
+  @Test func testFilterToolsHonorsRequestedWhitelistAndIgnoresUnknownNames() throws {
     let parents: [AgentTool] = [
       AgentReadFileTool(),
       AgentBashTool(),
@@ -100,13 +100,13 @@ struct AgentDelegateToolTests {
       requested: ["read_file", "delegate", "nonexistent-tool"]
     )
     let names = filtered.map { $0.spec.name }
-    #require(names == [AgentReadFileTool.toolName])
+    try #require(names == [AgentReadFileTool.toolName])
   }
 
-  @Test func testFilterToolsWithEmptyRequestedListReturnsNoTools() {
+  @Test func testFilterToolsWithEmptyRequestedListReturnsNoTools() throws {
     let parents: [AgentTool] = [AgentReadFileTool(), AgentBashTool(), AgentDelegateTool()]
     let filtered = AgentExecutorDelegateRunner.filterTools(parentTools: parents, requested: [])
-    #require(
+    try #require(
       filtered.isEmpty,
       "an empty whitelist means the caller explicitly wants no tools")
   }

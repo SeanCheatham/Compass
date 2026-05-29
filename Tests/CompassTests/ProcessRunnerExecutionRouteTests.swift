@@ -3,7 +3,7 @@ import Testing
 
 @testable import Compass
 
-struct ProcessRunnerExecutionRouteTests {
+final class ProcessRunnerExecutionRouteTests {
   private var temporaryDirectories: [URL] = []
 
   func cleanup() {
@@ -25,17 +25,17 @@ struct ProcessRunnerExecutionRouteTests {
       launchPlan: .host(),
       runner: { invocation, input, timeout, _, _ in
         capturedInvocation = invocation
-        #require(input == nil)
-        #require(timeout == 42)
+        try #require(input == nil)
+        try #require(timeout == 42)
         return ProcessResult(exitCode: 0, stdout: "ok", stderr: "")
       }
     )
 
-    #require(result.exitCode == 0)
-    let invocation = #require(capturedInvocation)
-    #require(invocation.executable == "/bin/zsh")
-    #require(invocation.arguments == ["-lc", "swift test"])
-    #require(invocation.workingDirectory == repoURL.standardizedFileURL)
+    try #require(result.exitCode == 0)
+    let invocation = try #require(capturedInvocation)
+    try #require(invocation.executable == "/bin/zsh")
+    try #require(invocation.arguments == ["-lc", "swift test"])
+    try #require(invocation.workingDirectory == repoURL.standardizedFileURL)
   }
 
   @Test
@@ -71,10 +71,10 @@ struct ProcessRunnerExecutionRouteTests {
       }
     )
 
-    let invocation = #require(capturedInvocation)
-    #require(invocation.executable == "/bin/zsh")
-    #require(invocation.arguments == ["-lc", "swift test --filter CompassTests"])
-    #require(invocation.workingDirectory == repoURL.standardizedFileURL)
+    let invocation = try #require(capturedInvocation)
+    try #require(invocation.executable == "/bin/zsh")
+    try #require(invocation.arguments == ["-lc", "swift test --filter CompassTests"])
+    try #require(invocation.workingDirectory == repoURL.standardizedFileURL)
   }
 
   @Test
@@ -96,11 +96,11 @@ struct ProcessRunnerExecutionRouteTests {
       }
     )
 
-    let invocation = #require(capturedInvocation)
-    #require(invocation.executable == "/bin/zsh")
-    #require(invocation.arguments == ["-lc", "swift test"])
-    #require(launchPlan.fallbackReason?.contains("Apple Silicon required") == true)
-    #require(
+    let invocation = try #require(capturedInvocation)
+    try #require(invocation.executable == "/bin/zsh")
+    try #require(invocation.arguments == ["-lc", "swift test"])
+    try #require(launchPlan.fallbackReason?.contains("Apple Silicon required") == true)
+    try #require(
       !launchPlan.preflightSummary(phase: "Verify").contains(repoURL.standardizedFileURL.path))
   }
 
@@ -124,11 +124,11 @@ struct ProcessRunnerExecutionRouteTests {
       }
     )
 
-    let invocation = #require(capturedInvocation)
-    #require(!launchPlan.isVMRoute)
-    #require(invocation.executable == "/bin/zsh")
-    #require(invocation.arguments == ["-lc", "swift test"])
-    #require(launchPlan.fallbackReason?.contains("not been provisioned") == true)
+    let invocation = try #require(capturedInvocation)
+    try #require(!launchPlan.isVMRoute)
+    try #require(invocation.executable == "/bin/zsh")
+    try #require(invocation.arguments == ["-lc", "swift test"])
+    try #require(launchPlan.fallbackReason?.contains("not been provisioned") == true)
   }
 
   @Test
@@ -151,10 +151,10 @@ struct ProcessRunnerExecutionRouteTests {
       }
     )
 
-    let invocation = #require(capturedInvocation)
-    #require(!launchPlan.isVMRoute)
-    #require(invocation.executable == "/bin/zsh")
-    #require(launchPlan.fallbackReason?.contains("installing") == true)
+    let invocation = try #require(capturedInvocation)
+    try #require(!launchPlan.isVMRoute)
+    try #require(invocation.executable == "/bin/zsh")
+    try #require(launchPlan.fallbackReason?.contains("installing") == true)
   }
 
   @Test
@@ -185,10 +185,10 @@ struct ProcessRunnerExecutionRouteTests {
       }
     )
 
-    #require(captured.count == 1)
-    let invocation = #require(captured.first)
-    #require(invocation.executable == "/bin/zsh")
-    #require(invocation.arguments == ["-lc", "swift test --filter CompassTests"])
+    try #require(captured.count == 1)
+    let invocation = try #require(captured.first)
+    try #require(invocation.executable == "/bin/zsh")
+    try #require(invocation.arguments == ["-lc", "swift test --filter CompassTests"])
   }
 
   @Test
@@ -211,9 +211,9 @@ struct ProcessRunnerExecutionRouteTests {
       }
     )
 
-    let invocation = #require(capturedInvocation)
-    #require(invocation.executable == "/bin/zsh")
-    #require(launchPlan.fallbackReason?.contains("boot failed") == true)
+    let invocation = try #require(capturedInvocation)
+    try #require(invocation.executable == "/bin/zsh")
+    try #require(launchPlan.fallbackReason?.contains("boot failed") == true)
   }
 
   // MARK: - Helpers

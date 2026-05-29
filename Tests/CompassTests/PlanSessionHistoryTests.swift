@@ -16,12 +16,12 @@ struct PlanSessionHistoryTests: ~Copyable {
 
     let items = PlanSessionHistory.displayItems(for: sessions)
 
-    #require(items.map(\.sessionNumber) == [4, 2, 3, 1])
+    try #require(items.map(\.sessionNumber) == [4, 2, 3, 1])
   }
 
   @Test
   func testHandlesEmptyAndPlanlessSessions() throws {
-    #require(PlanSessionHistory.displayItems(for: []) == [])
+    try #require(PlanSessionHistory.displayItems(for: []) == [])
 
     let items = PlanSessionHistory.displayItems(
       for: [
@@ -35,11 +35,11 @@ struct PlanSessionHistoryTests: ~Copyable {
       ]
     )
 
-    #require(items.count == 1)
-    #require(items[0].planExcerpt == nil)
-    #require(items[0].verifyCommand == nil)
-    #require(items[0].feedback == nil)
-    #require(items[0].statusText == "Succeeded")
+    try #require(items.count == 1)
+    try #require(items[0].planExcerpt == nil)
+    try #require(items[0].verifyCommand == nil)
+    try #require(items[0].feedback == nil)
+    try #require(items[0].statusText == "Succeeded")
   }
 
   @Test
@@ -60,10 +60,10 @@ struct PlanSessionHistoryTests: ~Copyable {
       ]
     )
 
-    let failedVerify = #require(items[0].failedVerify)
-    #require(failedVerify.command == "swift test --filter PlanSessionHistoryTests")
-    #require(failedVerify.exitCodeText == "exit 65")
-    #require(failedVerify.tail == "failure tail")
+    let failedVerify = try #require(items[0].failedVerify)
+    try #require(failedVerify.command == "swift test --filter PlanSessionHistoryTests")
+    try #require(failedVerify.exitCodeText == "exit 65")
+    try #require(failedVerify.tail == "failure tail")
   }
 
   @Test
@@ -85,9 +85,9 @@ struct PlanSessionHistoryTests: ~Copyable {
       ]
     )
 
-    #require(items[0].commits == [commit])
-    #require(items[0].notes == ["first note", "second note"])
-    #require(items[0].feedback == "useful handoff")
+    try #require(items[0].commits == [commit])
+    try #require(items[0].notes == ["first note", "second note"])
+    try #require(items[0].feedback == "useful handoff")
   }
 
   @Test
@@ -119,14 +119,14 @@ struct PlanSessionHistoryTests: ~Copyable {
       ]
     )
 
-    #require(items.map(\.sessionNumber) == [2, 1])
-    #require(items[0].runtimeRouteSummary == planSnapshot.routeSummary)
-    #require(items[1].runtimeRouteSummary == verifySnapshot.routeSummary)
-    #require(items[1].runtimeRouteSummary?.contains("Verify attempt 2") == true)
-    #require(
+    try #require(items.map(\.sessionNumber) == [2, 1])
+    try #require(items[0].runtimeRouteSummary == planSnapshot.routeSummary)
+    try #require(items[1].runtimeRouteSummary == verifySnapshot.routeSummary)
+    try #require(items[1].runtimeRouteSummary?.contains("Verify attempt 2") == true)
+    try #require(
       items[1].runtimeRouteSummary?.contains("fallback Shared VM unavailable: 2-guest cap.") == true
     )
-    #require(
+    try #require(
       items[1].runtimeRouteSummary?.count ?? 0 <= SessionExecutionEnvironmentSnapshot.summaryLimit
     )
   }
@@ -144,8 +144,8 @@ struct PlanSessionHistoryTests: ~Copyable {
       planExcerptLimit: 24
     )
 
-    #require(items[0].planExcerpt == "Build a very detailed...")
-    #require(items[0].planExcerpt?.count ?? 0 <= 24)
+    try #require(items[0].planExcerpt == "Build a very detailed...")
+    try #require(items[0].planExcerpt?.count ?? 0 <= 24)
   }
 
   @Test
@@ -159,20 +159,20 @@ struct PlanSessionHistoryTests: ~Copyable {
 
     let display = PlanSessionHistoryDisplay(items: items)
 
-    #require(display.totalCount == sessionCount)
-    #require(display.visibleCount == PlanSessionHistoryDisplay.defaultRecentLimit)
-    #require(display.hiddenCount == 3)
-    #require(
+    try #require(display.totalCount == sessionCount)
+    try #require(display.visibleCount == PlanSessionHistoryDisplay.defaultRecentLimit)
+    try #require(display.hiddenCount == 3)
+    try #require(
       display.visibleItems.map(\.sessionNumber) ==
       Array(
         (sessionCount - PlanSessionHistoryDisplay.defaultRecentLimit + 1...sessionCount).reversed())
     )
-    #require(display.countSummary == "Showing latest 8 of 11")
-    #require(display.shouldOfferModeToggle)
-    #require(display.filter == .all)
-    #require(display.unfilteredTotalCount == sessionCount)
-    #require(display.filterOptions.map(\.filter) == PlanSessionHistoryFilter.allCases)
-    #require(display.filterOptions.map(\.count) == [sessionCount, 0, 0, 0, sessionCount, 0, 0])
+    try #require(display.countSummary == "Showing latest 8 of 11")
+    try #require(display.shouldOfferModeToggle)
+    try #require(display.filter == .all)
+    try #require(display.unfilteredTotalCount == sessionCount)
+    try #require(display.filterOptions.map(\.filter) == PlanSessionHistoryFilter.allCases)
+    try #require(display.filterOptions.map(\.count) == [sessionCount, 0, 0, 0, sessionCount, 0, 0])
   }
 
   @Test
@@ -185,13 +185,13 @@ struct PlanSessionHistoryTests: ~Copyable {
 
     let display = PlanSessionHistoryDisplay(items: items, mode: .all, recentLimit: 4)
 
-    #require(display.visibleItems.map(\.sessionNumber) == [7, 6, 5, 4, 3, 2, 1])
-    #require(display.totalCount == 7)
-    #require(display.visibleCount == 7)
-    #require(display.hiddenCount == 0)
-    #require(display.hiddenStatusSummary == nil)
-    #require(display.countSummary == "Showing all 7")
-    #require(display.shouldOfferModeToggle)
+    try #require(display.visibleItems.map(\.sessionNumber) == [7, 6, 5, 4, 3, 2, 1])
+    try #require(display.totalCount == 7)
+    try #require(display.visibleCount == 7)
+    try #require(display.hiddenCount == 0)
+    try #require(display.hiddenStatusSummary == nil)
+    try #require(display.countSummary == "Showing all 7")
+    try #require(display.shouldOfferModeToggle)
   }
 
   @Test
@@ -209,9 +209,9 @@ struct PlanSessionHistoryTests: ~Copyable {
 
     let display = PlanSessionHistoryDisplay(items: items, recentLimit: 1)
 
-    #require(display.visibleItems.map(\.sessionNumber) == [6])
-    #require(display.hiddenCount == 5)
-    #require(
+    try #require(display.visibleItems.map(\.sessionNumber) == [6])
+    try #require(display.hiddenCount == 5)
+    try #require(
       display.hiddenStatusSummary ==
       "2 failed, 1 cancelled, 1 succeeded, 1 awaiting approval"
     )
@@ -227,20 +227,20 @@ struct PlanSessionHistoryTests: ~Copyable {
     )
 
     let noHiddenDisplay = PlanSessionHistoryDisplay(items: items, recentLimit: 3)
-    #require(noHiddenDisplay.totalCount == 2)
-    #require(noHiddenDisplay.visibleCount == 2)
-    #require(noHiddenDisplay.hiddenCount == 0)
-    #require(noHiddenDisplay.hiddenStatusSummary == nil)
-    #require(noHiddenDisplay.countSummary == "2 runs")
-    #require(!noHiddenDisplay.shouldOfferModeToggle)
+    try #require(noHiddenDisplay.totalCount == 2)
+    try #require(noHiddenDisplay.visibleCount == 2)
+    try #require(noHiddenDisplay.hiddenCount == 0)
+    try #require(noHiddenDisplay.hiddenStatusSummary == nil)
+    try #require(noHiddenDisplay.countSummary == "2 runs")
+    try #require(!noHiddenDisplay.shouldOfferModeToggle)
 
     let emptyDisplay = PlanSessionHistoryDisplay(items: [])
-    #require(emptyDisplay.totalCount == 0)
-    #require(emptyDisplay.visibleCount == 0)
-    #require(emptyDisplay.hiddenCount == 0)
-    #require(emptyDisplay.hiddenStatusSummary == nil)
-    #require(emptyDisplay.countSummary == "0 runs")
-    #require(!emptyDisplay.shouldOfferModeToggle)
+    try #require(emptyDisplay.totalCount == 0)
+    try #require(emptyDisplay.visibleCount == 0)
+    try #require(emptyDisplay.hiddenCount == 0)
+    try #require(emptyDisplay.hiddenStatusSummary == nil)
+    try #require(emptyDisplay.countSummary == "0 runs")
+    try #require(!emptyDisplay.shouldOfferModeToggle)
   }
 
   @Test
@@ -253,17 +253,17 @@ struct PlanSessionHistoryTests: ~Copyable {
     ]
 
     let recentDisplay = PlanSessionHistoryDisplay(items: items, recentLimit: 2)
-    #require(recentDisplay.visibleItems.map(\.sessionNumber) == [2, 5])
+    try #require(recentDisplay.visibleItems.map(\.sessionNumber) == [2, 5])
 
     let allDisplay = PlanSessionHistoryDisplay(items: items, mode: .all, recentLimit: 2)
-    #require(allDisplay.visibleItems.map(\.sessionNumber) == [2, 5, 1, 4])
+    try #require(allDisplay.visibleItems.map(\.sessionNumber) == [2, 5, 1, 4])
 
     let filteredRecentDisplay = PlanSessionHistoryDisplay(
       items: items,
       recentLimit: 2,
       filter: .failedRejected
     )
-    #require(filteredRecentDisplay.visibleItems.map(\.sessionNumber) == [2, 1])
+    try #require(filteredRecentDisplay.visibleItems.map(\.sessionNumber) == [2, 1])
 
     let filteredAllDisplay = PlanSessionHistoryDisplay(
       items: items,
@@ -271,7 +271,7 @@ struct PlanSessionHistoryTests: ~Copyable {
       recentLimit: 2,
       filter: .failedRejected
     )
-    #require(filteredAllDisplay.visibleItems.map(\.sessionNumber) == [2, 1, 4])
+    try #require(filteredAllDisplay.visibleItems.map(\.sessionNumber) == [2, 1, 4])
   }
 
   @Test
@@ -294,10 +294,10 @@ struct PlanSessionHistoryTests: ~Copyable {
 
     let display = PlanSessionHistoryDisplay(items: items)
 
-    let failedVerify = #require(display.visibleItems[0].failedVerify)
-    #require(failedVerify.command == "swift test --filter PlanSessionHistoryTests")
-    #require(failedVerify.exitCodeText == "exit 65")
-    #require(failedVerify.tail == "failure tail")
+    let failedVerify = try #require(display.visibleItems[0].failedVerify)
+    try #require(failedVerify.command == "swift test --filter PlanSessionHistoryTests")
+    try #require(failedVerify.exitCodeText == "exit 65")
+    try #require(failedVerify.tail == "failure tail")
   }
 
   @Test
@@ -318,10 +318,10 @@ struct PlanSessionHistoryTests: ~Copyable {
       ]
     )
 
-    #require(display.totalCount == 2)
-    #require(display.visibleItems.map(\.sessionNumber) == [4, 2])
-    #require(display.countSummary == "2 matching runs")
-    #require(
+    try #require(display.totalCount == 2)
+    try #require(display.visibleItems.map(\.sessionNumber) == [4, 2])
+    try #require(display.countSummary == "2 matching runs")
+    try #require(
       display.filterOptions.first { $0.filter == .attention }?.count == 2
     )
   }
@@ -349,8 +349,8 @@ struct PlanSessionHistoryTests: ~Copyable {
       ]
     )
 
-    #require(display.visibleItems.map(\.sessionNumber) == [7, 6, 5, 4, 3, 2])
-    #require(display.totalCount == 6)
+    try #require(display.visibleItems.map(\.sessionNumber) == [7, 6, 5, 4, 3, 2])
+    try #require(display.totalCount == 6)
   }
 
   @Test
@@ -371,8 +371,8 @@ struct PlanSessionHistoryTests: ~Copyable {
       ]
     )
 
-    #require(display.visibleItems.map(\.sessionNumber) == [5, 4, 3, 2])
-    #require(display.totalCount == 4)
+    try #require(display.visibleItems.map(\.sessionNumber) == [5, 4, 3, 2])
+    try #require(display.totalCount == 4)
   }
 
   @Test
@@ -391,8 +391,8 @@ struct PlanSessionHistoryTests: ~Copyable {
       filter: .completedFinished
     )
 
-    #require(display.visibleItems.map(\.sessionNumber) == [6, 5, 4])
-    #require(display.totalCount == 3)
+    try #require(display.visibleItems.map(\.sessionNumber) == [6, 5, 4])
+    try #require(display.totalCount == 3)
   }
 
   @Test
@@ -417,11 +417,11 @@ struct PlanSessionHistoryTests: ~Copyable {
       filter: .attention,
       runCues: runCues
     )
-    #require(recentDisplay.visibleItems.map(\.sessionNumber) == [6, 5])
-    #require(recentDisplay.totalCount == 3)
-    #require(recentDisplay.hiddenCount == 1)
-    #require(recentDisplay.countSummary == "Showing latest 2 of 3 matching")
-    #require(recentDisplay.shouldOfferModeToggle)
+    try #require(recentDisplay.visibleItems.map(\.sessionNumber) == [6, 5])
+    try #require(recentDisplay.totalCount == 3)
+    try #require(recentDisplay.hiddenCount == 1)
+    try #require(recentDisplay.countSummary == "Showing latest 2 of 3 matching")
+    try #require(recentDisplay.shouldOfferModeToggle)
 
     let allDisplay = PlanSessionHistoryDisplay(
       items: items,
@@ -430,7 +430,7 @@ struct PlanSessionHistoryTests: ~Copyable {
       filter: .attention,
       runCues: runCues
     )
-    #require(allDisplay.countSummary == "Showing all 3 matching")
+    try #require(allDisplay.countSummary == "Showing all 3 matching")
 
     let noHiddenDisplay = PlanSessionHistoryDisplay(
       items: items,
@@ -438,15 +438,15 @@ struct PlanSessionHistoryTests: ~Copyable {
       filter: .attention,
       runCues: runCues
     )
-    #require(noHiddenDisplay.countSummary == "3 matching runs")
+    try #require(noHiddenDisplay.countSummary == "3 matching runs")
 
     let emptyFilteredDisplay = PlanSessionHistoryDisplay(
       items: items,
       filter: .failedRejected
     )
-    #require(emptyFilteredDisplay.unfilteredTotalCount == 6)
-    #require(emptyFilteredDisplay.totalCount == 0)
-    #require(emptyFilteredDisplay.countSummary == "0 matching runs")
+    try #require(emptyFilteredDisplay.unfilteredTotalCount == 6)
+    try #require(emptyFilteredDisplay.totalCount == 0)
+    try #require(emptyFilteredDisplay.countSummary == "0 matching runs")
   }
 
   @Test
@@ -466,9 +466,9 @@ struct PlanSessionHistoryTests: ~Copyable {
       filter: .completedFinished
     )
 
-    #require(display.visibleItems.map(\.sessionNumber) == [5])
-    #require(display.hiddenCount == 2)
-    #require(display.hiddenStatusSummary == "1 cancelled, 1 skipped")
+    try #require(display.visibleItems.map(\.sessionNumber) == [5])
+    try #require(display.hiddenCount == 2)
+    try #require(display.hiddenStatusSummary == "1 cancelled, 1 skipped")
   }
 
   private func makeHistoryItem(

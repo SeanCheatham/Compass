@@ -9,8 +9,8 @@ struct AgentToolchainToolsTests {
     let tool = AgentListToolchainsTool()
     let context = AgentToolContext(workingDirectory: URL(fileURLWithPath: "/tmp/work"))
     let result = try await tool.invoke(arguments: Data("{}".utf8), context: context)
-    #require(!result.isError)
-    #require(result.content.contains("native macOS host"))
+    try #require(!result.isError)
+    try #require(result.content.contains("native macOS host"))
   }
 
   @Test func testListToolchainsFormatsStatuses() async throws {
@@ -31,9 +31,9 @@ struct AgentToolchainToolsTests {
       toolchainService: service
     )
     let result = try await tool.invoke(arguments: Data("{}".utf8), context: context)
-    #require(!result.isError)
-    #require(result.content.contains("rust"))
-    #require(result.content.contains("missing"))
+    try #require(!result.isError)
+    try #require(result.content.contains("rust"))
+    try #require(result.content.contains("missing"))
   }
 
   @Test func testInstallToolchainRejectsUnknownID() async throws {
@@ -45,8 +45,8 @@ struct AgentToolchainToolsTests {
     )
     let args = Data(#"{"id":"unknown"}"#.utf8)
     let result = try await tool.invoke(arguments: args, context: context)
-    #require(result.isError)
-    #require(result.content.contains("Unknown toolchain"))
+    try #require(result.isError)
+    try #require(result.content.contains("Unknown toolchain"))
   }
 
   @Test func testInstallToolchainReportsAlreadyInstalled() async throws {
@@ -67,24 +67,24 @@ struct AgentToolchainToolsTests {
     )
     let args = Data(#"{"id":"rust"}"#.utf8)
     let result = try await tool.invoke(arguments: args, context: context)
-    #require(!result.isError)
-    #require(result.content.contains("already installed"))
+    try #require(!result.isError)
+    try #require(result.content.contains("already installed"))
   }
 
-  @Test func testToolRegistryIncludesToolchainToolsWhenServiceProvided() {
+  @Test func testToolRegistryIncludesToolchainToolsWhenServiceProvided() throws {
     let service = FakeToolchainService(statuses: [])
     let names = Set(
       ToolRegistry.tools(for: .develop, settings: AgentRuntimeSettings(), toolchainService: service)
         .map { $0.spec.name }
     )
-    #require(names.contains("list_toolchains"))
-    #require(names.contains("install_toolchain"))
+    try #require(names.contains("list_toolchains"))
+    try #require(names.contains("install_toolchain"))
   }
 
-  @Test func testToolRegistryOmitsToolchainToolsOnHostRoute() {
+  @Test func testToolRegistryOmitsToolchainToolsOnHostRoute() throws {
     let names = Set(ToolRegistry.tools(for: .develop).map { $0.spec.name })
-    #require(!names.contains("list_toolchains"))
-    #require(!names.contains("install_toolchain"))
+    try #require(!names.contains("list_toolchains"))
+    try #require(!names.contains("install_toolchain"))
   }
 }
 

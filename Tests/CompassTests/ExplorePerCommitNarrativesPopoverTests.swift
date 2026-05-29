@@ -65,7 +65,7 @@ struct ExplorePerCommitNarrativesPopoverTests {
     )
     _ = result
     // If commits were non-empty, explain WOULD be called — verify it returns nil for fake SHA
-    #require(result == nil)
+    try #require(result == nil)
   }
 
   // MARK: - Path 2: CommitExplainer.explain returns nil when Foundation Models is unavailable
@@ -101,7 +101,7 @@ struct ExplorePerCommitNarrativesPopoverTests {
 
     if !FoundationModelsAvailability.isAvailable {
       // The nil return is the exact condition that sets availabilityError = true.
-      #require(text == nil)
+      try #require(text == nil)
     }
     // If the model IS available, a non-nil string would be returned — both are valid.
   }

@@ -23,17 +23,17 @@ struct PlanPromptTests {
 
   @Test func testPlanPromptForbidsWrappingSubmitResultInExtraState() throws {
     let prompt = try makePlanPrompt()
-    #require(
+    try #require(
       prompt.contains("Do not wrap them in another object"),
       "plan prompt must warn against wrapping in an extra object"
     )
     // The phrase wraps across a line break in the triple-quoted
     // prompt, so check the two halves separately.
-    #require(
+    try #require(
       prompt.contains("do not nest"),
       "plan prompt must call out nesting as the failure mode"
     )
-    #require(
+    try #require(
       prompt.contains("another `state` field"),
       "plan prompt must name the `state` field as the trap"
     )
@@ -41,15 +41,15 @@ struct PlanPromptTests {
 
   @Test func testPlanPromptOmitsCompletedFromSubmitResultShape() throws {
     let prompt = try makePlanPrompt()
-    #require(
+    try #require(
       prompt.contains("Completed plan history is managed by Compass, not by submit_result"),
       "plan prompt must say history is outside submit_result"
     )
-    #require(
+    try #require(
       prompt.contains("plan_history` tool"),
       "plan prompt must direct the agent to plan_history for prior work"
     )
-    #require(
+    try #require(
       !prompt.contains("\"completed\""),
       "plan prompt submit_result shape must not include completed entries"
     )
@@ -57,11 +57,11 @@ struct PlanPromptTests {
 
   @Test func testPlanPromptForbidsCdPrefixInVerifyCommand() throws {
     let prompt = try makePlanPrompt()
-    #require(
+    try #require(
       prompt.contains("never prepend a `cd`"),
       "plan prompt must forbid prepending `cd` to the verify command"
     )
-    #require(
+    try #require(
       prompt.contains("absolute paths to the working directory"),
       "plan prompt must call out absolute-path injection as the failure mode"
     )
@@ -74,7 +74,7 @@ struct PlanPromptTests {
   /// consolidation so the duplicate section doesn't sneak back in.
   @Test func testPlanPromptDoesNotIncludeRedundantStateShapeSection() throws {
     let prompt = try makePlanPrompt()
-    #require(
+    try #require(
       !prompt.contains("State shape:"),
       "plan prompt previously duplicated the schema as a `State shape:` section; consolidated into submit_result arguments"
     )
@@ -118,39 +118,29 @@ struct PlanPromptTests {
     )
 
     #expect(prompt.contains("requiresHostXcode"))
-    #expect(prompt.contains("host Xcode build/test support"))
+    #expect(prompt.contains("full host Xcode build/test"))
     #expect(!prompt.contains("simctl"))
     #expect(!prompt.contains("`open`"))
   }
 
   /// `.compass/` is supposed to be hidden from the agent — its
   /// contents are injected into the user message instead. The
-  /// system prompt names the paths once (to teach the model the
-  /// pattern), but every other agent-facing prompt should be
-  /// silent about them. Otherwise the agent sees a breadcrumb like
-  /// "edits for `.compass/lessons.md`" and feels compelled to
-  /// `read_file` that path before producing edits.
-  @Test func testPlanPromptDoesNotMentionCompassDirectoryPaths() throws {
+  /// Draft and state storage are injected into the prompt rather than exposed
+  /// as files the agent should inspect. Lessons are named explicitly because
+  /// agents edit them through structured `lessonEdits`.
+  @Test func testPlanPromptDoesNotMentionHiddenDraftOrStatePaths() throws {
     let prompt = try makePlanPrompt()
-    #require(
-      !prompt.contains(".compass/"),
-      "plan prompt must not name `.compass/` paths — the system prompt is the single point of truth for the directory's existence"
-    )
-    #require(
-      !prompt.contains("lessons.md"),
-      "plan prompt must not name `lessons.md` — reference the lessons content shown in the prompt instead"
-    )
-    #require(
+    try #require(
       !prompt.contains("drafts.md"),
       "plan prompt must not name `drafts.md` — describe drafts as host-side storage instead"
     )
-    #require(
+    try #require(
       !prompt.contains("state.json"),
       "plan prompt must not name `state.json` — refer to `## Current planning state` instead"
     )
   }
 
-  @Test func testReflectPromptDoesNotMentionCompassDirectoryPaths() throws {
+  @Test func testReflectPromptDoesNotMentionHiddenStatePath() throws {
     let prompt = try Prompts.reflectPrompt(
       state: .empty,
       lessons: "",
@@ -158,15 +148,7 @@ struct PlanPromptTests {
       recentSessions: [],
       iteration: 1
     )
-    #require(
-      !prompt.contains(".compass/"),
-      "reflect prompt must not name `.compass/` paths"
-    )
-    #require(
-      !prompt.contains("lessons.md"),
-      "reflect prompt must not name `lessons.md`"
-    )
-    #require(
+    try #require(
       !prompt.contains("state.json"),
       "reflect prompt must not name `state.json`"
     )
@@ -186,15 +168,15 @@ struct PlanPromptTests {
       vision: "",
       focus: .test
     )
-    #require(
+    try #require(
       prompt.contains("## Focus for this iteration: tests"),
       "plan prompt must include the focus header for the chosen focus"
     )
-    #require(
+    try #require(
       prompt.contains("Drafts always win"),
       "plan prompt must keep the drafts-win-over-focus rule"
     )
-    #require(
+    try #require(
       prompt.contains("skipping the head of the queue"),
       "plan prompt must permit the focus to override midTerm order"
     )
@@ -214,18 +196,18 @@ struct PlanPromptTests {
         vision: "",
         focus: focus
       )
-      #require(
+      try #require(
         prompt.contains("## Focus for this iteration: \(focus.displayName)"),
         "plan prompt missing focus header for \(focus.displayName)"
       )
-      #require(
+      try #require(
         prompt.contains("Focus details — \(focus.displayName):"),
         "plan prompt missing focus detail block for \(focus.displayName)"
       )
     }
   }
 
-  @Test func testDevelopPromptDoesNotMentionCompassDirectoryPaths() {
+  @Test func testDevelopPromptDoesNotMentionHiddenDraftOrStatePaths() throws {
     let prompt = Prompts.developPrompt(
       next: PlanNext(
         plan: "p", verify: "swift build", verifyTimeoutMs: nil, estimatedDifficulty: nil),
@@ -234,25 +216,17 @@ struct PlanPromptTests {
       attempt: 1,
       priorIssues: []
     )
-    #require(
-      !prompt.contains(".compass/"),
-      "develop prompt must not name `.compass/` paths"
-    )
-    #require(
-      !prompt.contains("lessons.md"),
-      "develop prompt must not name `lessons.md`"
-    )
-    #require(
+    try #require(
       !prompt.contains("drafts.md"),
       "develop prompt must not name `drafts.md`"
     )
-    #require(
+    try #require(
       !prompt.contains("state.json"),
       "develop prompt must not name `state.json`"
     )
   }
 
-  @Test func testDevelopPromptMentionsHostXcodeOnlyWhenEnabledAndRequired() {
+  @Test func testDevelopPromptMentionsHostXcodeOnlyWhenEnabledAndRequired() throws {
     let next = PlanNext(
       plan: "Build the app",
       verify: "xcodebuild -scheme App build",

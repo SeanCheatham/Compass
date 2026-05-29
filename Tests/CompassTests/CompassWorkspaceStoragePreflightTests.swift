@@ -3,7 +3,7 @@ import Testing
 
 @testable import Compass
 
-struct CompassWorkspaceStoragePreflightTests : ~Copyable {
+final class CompassWorkspaceStoragePreflightTests {
   private var temporaryDirectories: [URL] = []
 
   init() throws {}
@@ -26,15 +26,15 @@ struct CompassWorkspaceStoragePreflightTests : ~Copyable {
       applicationSupportRoots: roots
     )
 
-    #require(preflight.repoLocalReadiness == .ready)
-    #require(preflight.missingCoreFiles.isEmpty)
-    #require(preflight.sessionsDirectoryExists)
-    #require(!preflight.currentApplicationSupportCandidateIsOccupied)
-    #require(preflight.migrationWouldBeSafe)
-    #require(preflight.kind == .migrationReady)
-    #require(preflight.label == "Preflight clear")
-    #require(preflight.detail.contains("Application Support candidate path is empty"))
-    #require(preflight.recommendation.contains("without path conflicts"))
+    try #require(preflight.repoLocalReadiness == .ready)
+    try #require(preflight.missingCoreFiles.isEmpty)
+    try #require(preflight.sessionsDirectoryExists)
+    try #require(!preflight.currentApplicationSupportCandidateIsOccupied)
+    try #require(preflight.migrationWouldBeSafe)
+    try #require(preflight.kind == .migrationReady)
+    try #require(preflight.label == "Preflight clear")
+    try #require(preflight.detail.contains("Application Support candidate path is empty"))
+    try #require(preflight.recommendation.contains("without path conflicts"))
   }
 
   @Test func testMissingAndIncompleteRepoLocalStorageBlockPreflight() throws {
@@ -46,15 +46,15 @@ struct CompassWorkspaceStoragePreflightTests : ~Copyable {
       applicationSupportRoots: missingRoots
     )
 
-    #require(missingPreflight.repoLocalReadiness == .missingWorkspace)
-    #require(missingPreflight.kind == .repoLocalMissing)
-    #require(!missingPreflight.migrationWouldBeSafe)
-    #require(
+    try #require(missingPreflight.repoLocalReadiness == .missingWorkspace)
+    try #require(missingPreflight.kind == .repoLocalMissing)
+    try #require(!missingPreflight.migrationWouldBeSafe)
+    try #require(
       missingPreflight.missingCoreFiles ==
       CompassWorkspaceStorageAssessment.CoreFile.allCases
     )
-    #require(!missingPreflight.sessionsDirectoryExists)
-    #require(missingPreflight.recommendation.contains("repo-local repair"))
+    try #require(!missingPreflight.sessionsDirectoryExists)
+    try #require(missingPreflight.recommendation.contains("repo-local repair"))
 
     let incompleteRepoURL = try makeTemporaryGitRepository()
     let incompleteRoots = try makeApplicationSupportRoots()
@@ -67,15 +67,15 @@ struct CompassWorkspaceStoragePreflightTests : ~Copyable {
       applicationSupportRoots: incompleteRoots
     )
 
-    #require(incompletePreflight.repoLocalReadiness == .incompleteWorkspace)
-    #require(incompletePreflight.kind == .repoLocalIncomplete)
-    #require(!incompletePreflight.migrationWouldBeSafe)
-    #require(incompletePreflight.detail.contains("state.json"))
-    #require(incompletePreflight.detail.contains("drafts.md"))
-    #require(incompletePreflight.detail.contains("lessons.md"))
-    #require(incompletePreflight.detail.contains("COMPASS.md"))
-    #require(incompletePreflight.detail.contains("sessions/"))
-    #require(!incompletePreflight.detail.contains("sessions.json"))
+    try #require(incompletePreflight.repoLocalReadiness == .incompleteWorkspace)
+    try #require(incompletePreflight.kind == .repoLocalIncomplete)
+    try #require(!incompletePreflight.migrationWouldBeSafe)
+    try #require(incompletePreflight.detail.contains("state.json"))
+    try #require(incompletePreflight.detail.contains("drafts.md"))
+    try #require(incompletePreflight.detail.contains("lessons.md"))
+    try #require(incompletePreflight.detail.contains("COMPASS.md"))
+    try #require(incompletePreflight.detail.contains("sessions/"))
+    try #require(!incompletePreflight.detail.contains("sessions.json"))
   }
 
   @Test func testApplicationSupportConflictIsInspectOnly() throws {
@@ -99,17 +99,17 @@ struct CompassWorkspaceStoragePreflightTests : ~Copyable {
       applicationSupportRoots: roots
     )
 
-    #require(preflight.repoLocalReadiness == .ready)
-    #require(preflight.kind == .applicationSupportConflict)
-    #require(!preflight.migrationWouldBeSafe)
-    #require(preflight.currentApplicationSupportCandidateIsOccupied)
-    #require(preflight.occupiedApplicationSupportCandidates.count == 1)
-    #require(preflight.detail.contains("Inspect-only conflict"))
-    #require(preflight.recommendation.contains("Compass remains on repo-local .compass/"))
-    #require(try entries(in: repoURL) == repoEntriesBefore)
-    #require(
+    try #require(preflight.repoLocalReadiness == .ready)
+    try #require(preflight.kind == .applicationSupportConflict)
+    try #require(!preflight.migrationWouldBeSafe)
+    try #require(preflight.currentApplicationSupportCandidateIsOccupied)
+    try #require(preflight.occupiedApplicationSupportCandidates.count == 1)
+    try #require(preflight.detail.contains("Inspect-only conflict"))
+    try #require(preflight.recommendation.contains("Compass remains on repo-local .compass/"))
+    try #require(try entries(in: repoURL) == repoEntriesBefore)
+    try #require(
       try entries(in: seedPreflight.currentApplicationSupportCandidateURL) == currentEntriesBefore)
-    #require(
+    try #require(
       try String(
         contentsOf: seedPreflight.currentApplicationSupportCandidateURL.appending(
           path: "state.json"), encoding: .utf8) ==
@@ -133,16 +133,16 @@ struct CompassWorkspaceStoragePreflightTests : ~Copyable {
       applicationSupportRoots: roots
     )
 
-    #require(preflight.repoLocalReadiness == .missingWorkspace)
-    #require(preflight.kind == .repoLocalMissing)
-    #require(!preflight.migrationWouldBeSafe)
-    #require(preflight.currentApplicationSupportCandidateIsOccupied)
-    #require(FileManager.default.fileExists(atPath: externalWorkspace.compassURL.path))
-    #require(
+    try #require(preflight.repoLocalReadiness == .missingWorkspace)
+    try #require(preflight.kind == .repoLocalMissing)
+    try #require(!preflight.migrationWouldBeSafe)
+    try #require(preflight.currentApplicationSupportCandidateIsOccupied)
+    try #require(FileManager.default.fileExists(atPath: externalWorkspace.compassURL.path))
+    try #require(
       try String(contentsOf: externalWorkspace.draftsURL, encoding: .utf8) == "external draft\n")
-    #require(
+    try #require(
       !FileManager.default.fileExists(atPath: CompassWorkspace(repoURL: repoURL).compassURL.path))
-    #require(
+    try #require(
       !FileManager.default.fileExists(atPath: repoURL.appending(path: ".gitignore").path))
   }
 
@@ -159,19 +159,19 @@ struct CompassWorkspaceStoragePreflightTests : ~Copyable {
       applicationSupportRoots: roots
     )
 
-    #require(
+    try #require(
       preflight.projectStorageIdentifier.count <=
       CompassWorkspaceStorageAssessment.maxProjectIdentifierLength
     )
-    #require(preflight.label.count <= CompassWorkspaceStoragePreflight.labelLimit)
-    #require(preflight.detail.count <= CompassWorkspaceStoragePreflight.detailLimit)
-    #require(
+    try #require(preflight.label.count <= CompassWorkspaceStoragePreflight.labelLimit)
+    try #require(preflight.detail.count <= CompassWorkspaceStoragePreflight.detailLimit)
+    try #require(
       preflight.recommendation.count <=
       CompassWorkspaceStoragePreflight.recommendationLimit
     )
-    #require(!preflight.label.isEmpty)
-    #require(!preflight.detail.isEmpty)
-    #require(!preflight.recommendation.isEmpty)
+    try #require(!preflight.label.isEmpty)
+    try #require(!preflight.detail.isEmpty)
+    try #require(!preflight.recommendation.isEmpty)
   }
 
   @Test func testProjectStorageIdentifierAndCandidateURLsAreStable() throws {
@@ -183,15 +183,15 @@ struct CompassWorkspaceStoragePreflightTests : ~Copyable {
     let first = CompassWorkspaceStoragePreflight(repoURL: repoURL, applicationSupportRoots: roots)
     let second = CompassWorkspaceStoragePreflight(repoURL: repoURL, applicationSupportRoots: roots)
 
-    #require(first.projectStorageIdentifier == second.projectStorageIdentifier)
-    #require(
+    try #require(first.projectStorageIdentifier == second.projectStorageIdentifier)
+    try #require(
       first.currentApplicationSupportCandidateURL == second.currentApplicationSupportCandidateURL)
-    #require(isSafeIdentifier(first.projectStorageIdentifier))
-    #require(
+    try #require(isSafeIdentifier(first.projectStorageIdentifier))
+    try #require(
       first.projectStorageIdentifier.count <=
       CompassWorkspaceStorageAssessment.maxProjectIdentifierLength
     )
-    #require(
+    try #require(
       first.currentApplicationSupportCandidateURL.lastPathComponent == first.projectStorageIdentifier)
   }
 
@@ -205,13 +205,13 @@ struct CompassWorkspaceStoragePreflightTests : ~Copyable {
       applicationSupportRoots: roots
     )
 
-    #require(try entries(in: repoURL) == repoEntriesBefore)
-    #require(
+    try #require(try entries(in: repoURL) == repoEntriesBefore)
+    try #require(
       !FileManager.default.fileExists(atPath: CompassWorkspace(repoURL: repoURL).compassURL.path))
-    #require(
+    try #require(
       !FileManager.default.fileExists(atPath: repoURL.appending(path: ".gitignore").path))
-    #require(!FileManager.default.fileExists(atPath: roots.current.path))
-    #require(
+    try #require(!FileManager.default.fileExists(atPath: roots.current.path))
+    try #require(
       !FileManager.default.fileExists(atPath: preflight.currentApplicationSupportCandidateURL.path))
   }
 

@@ -5,7 +5,7 @@ import Testing
 
 struct ProjectActivitySourceStatusTests {
   @Test
-  func testRepoLocalAvailableBaselineIsHidden() {
+  func testRepoLocalAvailableBaselineIsHidden() throws {
     let snapshot = makeSnapshot(
       activeStorage: .repoLocal,
       sourceAvailability: .available,
@@ -14,19 +14,19 @@ struct ProjectActivitySourceStatusTests {
 
     let status = ProjectActivitySourceStatus(snapshot: snapshot)
 
-    #require(!status.isVisible)
-    #require(status.kind == .hidden)
-    #require(
+    try #require(!status.isVisible)
+    try #require(status.kind == .hidden)
+    try #require(
       status.identifier ==
       "hidden|storage:repo_local|availability:available|repo-local:active-source|repo-local-mode:active"
     )
-    #require(status.activitySourceIdentifier == snapshot.identifier)
-    #require(status.label == "")
-    #require(status.detail == "")
-    #require(status.helpText == "")
-    #require(status.accessibilityLabel == "")
-    #require(status.accessibilityValue == "")
-    #require(status.accessibilityHint == "")
+    try #require(status.activitySourceIdentifier == snapshot.identifier)
+    try #require(status.label == "")
+    try #require(status.detail == "")
+    try #require(status.helpText == "")
+    try #require(status.accessibilityLabel == "")
+    try #require(status.accessibilityValue == "")
+    try #require(status.accessibilityHint == "")
     assertBounded(status)
   }
 
@@ -40,25 +40,25 @@ struct ProjectActivitySourceStatusTests {
 
     let status = ProjectActivitySourceStatus(snapshot: snapshot)
 
-    #require(status.isVisible)
-    #require(status.kind == .applicationSupportActive)
-    #require(
+    try #require(status.isVisible)
+    try #require(status.kind == .applicationSupportActive)
+    try #require(
       status.identifier ==
       "application-support-active|storage:application_support|availability:available|repo-local:ignored-missing|repo-local-mode:ignored"
     )
-    #require(status.activitySourceIdentifier == snapshot.identifier)
-    #require(status.label == "Activity from Support")
-    #require(status.severity == .info)
-    #require(status.systemImage == "externaldrive.fill.badge.checkmark")
-    #require(status.detail.contains("Application Support sessions.json"))
-    #require(status.detail.contains("Repo-local sessions.json is missing and not checked"))
-    #require(status.helpText.contains("storage application_support"))
-    #require(status.helpText.contains("availability available"))
-    #require(status.helpText.contains("repo-local ignored-missing"))
-    #require(status.helpText.contains("repo-local-mode ignored"))
-    #require(status.accessibilityLabel.contains("Activity source"))
-    #require(status.accessibilityValue.contains(status.detail))
-    #require(status.accessibilityHint.contains("Read-only"))
+    try #require(status.activitySourceIdentifier == snapshot.identifier)
+    try #require(status.label == "Activity from Support")
+    try #require(status.severity == .info)
+    try #require(status.systemImage == "externaldrive.fill.badge.checkmark")
+    try #require(status.detail.contains("Application Support sessions.json"))
+    try #require(status.detail.contains("Repo-local sessions.json is missing and ignored"))
+    try #require(status.helpText.contains("storage application_support"))
+    try #require(status.helpText.contains("availability available"))
+    try #require(status.helpText.contains("repo-local ignored-missing"))
+    try #require(status.helpText.contains("repo-local-mode ignored"))
+    try #require(status.accessibilityLabel.contains("Activity source"))
+    try #require(status.accessibilityValue.contains(status.detail))
+    try #require(status.accessibilityHint.contains("Read-only"))
     assertBounded(status)
     try assertDiagnosticsParity(snapshot: snapshot, status: status)
   }
@@ -75,18 +75,18 @@ struct ProjectActivitySourceStatusTests {
 
     let status = ProjectActivitySourceStatus(snapshot: snapshot)
 
-    #require(status.isVisible)
-    #require(status.kind == .applicationSupportActive)
-    #require(status.detail.contains("present but ignored"))
-    #require(status.detail.contains("stale repo-local activity"))
-    #require(status.helpText.contains("repo-local ignored-compatible"))
-    #require(status.identifier.contains("repo-local:ignored-compatible"))
+    try #require(status.isVisible)
+    try #require(status.kind == .applicationSupportActive)
+    try #require(status.detail.contains("present but ignored"))
+    try #require(status.detail.contains("stale repo-local activity"))
+    try #require(status.helpText.contains("repo-local ignored-compatible"))
+    try #require(status.identifier.contains("repo-local:ignored-compatible"))
     assertBounded(status)
     try assertDiagnosticsParity(snapshot: snapshot, status: status)
   }
 
   @Test
-  func testIgnoredRepoLocalSessionsStatesUseExplicitCopy() {
+  func testIgnoredRepoLocalSessionsStatesUseExplicitCopy() throws {
     let cases: [(RepositoryActivitySourceSnapshot.RepoLocalSessionsState, String)] = [
       (.ignoredMissing, "missing and ignored"),
       (.ignoredCompatible, "present but ignored as stale"),
@@ -102,10 +102,10 @@ struct ProjectActivitySourceStatusTests {
       )
       let status = ProjectActivitySourceStatus(snapshot: snapshot)
 
-      #require(status.isVisible)
-      #require(
+      try #require(status.isVisible)
+      try #require(
         status.detail.contains(expectedCopy), "Missing \(expectedCopy) for \(state.rawValue)")
-      #require(status.helpText.contains("repo-local \(state.rawValue)"))
+      try #require(status.helpText.contains("repo-local \(state.rawValue)"))
       assertBounded(status)
     }
   }
@@ -120,15 +120,15 @@ struct ProjectActivitySourceStatusTests {
 
     let status = ProjectActivitySourceStatus(snapshot: snapshot)
 
-    #require(status.isVisible)
-    #require(status.kind == .applicationSupportUnavailable)
-    #require(status.label == "Activity root missing")
-    #require(status.severity == .warning)
-    #require(status.systemImage == "folder.badge.questionmark")
-    #require(status.detail.contains("Application Support activity root is missing"))
-    #require(!status.detail.contains("empty source"))
-    #require(status.helpText.contains("availability storage-root-missing"))
-    #require(status.accessibilityHint.contains("Read-only"))
+    try #require(status.isVisible)
+    try #require(status.kind == .applicationSupportUnavailable)
+    try #require(status.label == "Activity root missing")
+    try #require(status.severity == .warning)
+    try #require(status.systemImage == "folder.badge.questionmark")
+    try #require(status.detail.contains("Application Support activity root is missing"))
+    try #require(status.detail.contains("empty source"))
+    try #require(status.helpText.contains("availability storage-root-missing"))
+    try #require(status.accessibilityHint.contains("Read-only"))
     assertBounded(status)
     try assertDiagnosticsParity(snapshot: snapshot, status: status)
   }
@@ -141,15 +141,15 @@ struct ProjectActivitySourceStatusTests {
 
     let status = ProjectActivitySourceStatus(snapshot: snapshot)
 
-    #require(status.isVisible)
-    #require(status.kind == .applicationSupportUnavailable)
-    #require(status.label == "No repository activity")
-    #require(status.severity == .warning)
-    #require(status.detail.contains("No repository is available"))
-    #require(status.helpText.contains("availability no-repository"))
-    #require(status.helpText.contains("root none"))
-    #require(status.helpText.contains("sessions none"))
-    #require(status.activitySourceIdentifier == snapshot.identifier)
+    try #require(status.isVisible)
+    try #require(status.kind == .applicationSupportUnavailable)
+    try #require(status.label == "No repository activity")
+    try #require(status.severity == .warning)
+    try #require(status.detail.contains("No repository is available"))
+    try #require(status.helpText.contains("availability no-repository"))
+    try #require(status.helpText.contains("root none"))
+    try #require(status.helpText.contains("sessions none"))
+    try #require(status.activitySourceIdentifier == snapshot.identifier)
     assertBounded(status)
     try assertDiagnosticsParity(snapshot: snapshot, status: status)
   }
@@ -186,11 +186,11 @@ struct ProjectActivitySourceStatusTests {
     snapshot: RepositoryActivitySourceSnapshot,
     status: ProjectActivitySourceStatus
   ) throws {
-    #require(status.activitySourceIdentifier == snapshot.identifier)
-    #require(
+    try #require(status.activitySourceIdentifier == snapshot.identifier)
+    try #require(
       status.helpText.contains("storage \(snapshot.activeStorageIdentifier)")
     )
-    #require(
+    try #require(
       status.helpText.contains("availability \(snapshot.sourceAvailabilityIdentifier)")
     )
   }
@@ -198,16 +198,16 @@ struct ProjectActivitySourceStatusTests {
   private func assertBounded(
     _ status: ProjectActivitySourceStatus
   ) {
-    try? #require(status.label.count <= ProjectActivitySourceStatus.labelLimit)
-    try? #require(status.detail.count <= ProjectActivitySourceStatus.detailLimit)
-    try? #require(status.helpText.count <= ProjectActivitySourceStatus.helpLimit)
-    try? #require(status.systemImage.count <= ProjectActivitySourceStatus.systemImageLimit)
-    try? #require(
+    try? try #require(status.label.count <= ProjectActivitySourceStatus.labelLimit)
+    try? try #require(status.detail.count <= ProjectActivitySourceStatus.detailLimit)
+    try? try #require(status.helpText.count <= ProjectActivitySourceStatus.helpLimit)
+    try? try #require(status.systemImage.count <= ProjectActivitySourceStatus.systemImageLimit)
+    try? try #require(
       status.accessibilityLabel.count <= ProjectActivitySourceStatus.accessibilityLabelLimit
     )
-    try? #require(
+    try? try #require(
       status.accessibilityHint.count <= ProjectActivitySourceStatus.accessibilityHintLimit
     )
-    try? #require(status.severity.rawValue.count <= 16)
+    try? try #require(status.severity.rawValue.count <= 16)
   }
 }

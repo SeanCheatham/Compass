@@ -3,7 +3,7 @@ import Testing
 
 @testable import Compass
 
-struct CompassWorkspaceStorageBoundaryTests : ~Copyable {
+final class CompassWorkspaceStorageBoundaryTests {
   private var temporaryDirectories: [URL] = []
 
   init() throws {}
@@ -25,15 +25,15 @@ struct CompassWorkspaceStorageBoundaryTests : ~Copyable {
     let preflight = CompassWorkspaceStoragePreflight(assessment: assessment)
     let boundary = CompassWorkspaceStorageBoundary(assessment: assessment, preflight: preflight)
 
-    #require(boundary.kind == .repoLocalRecommended)
-    #require(boundary.severity == .healthy)
-    #require(boundary.label == "Repo-local boundary")
-    #require(boundary.detail.contains("Active project state stays in repo-local .compass/"))
-    #require(boundary.detail.contains("Application Support"))
-    #require(boundary.recommendation.contains("No migration or mirroring needed by default"))
-    #require(boundary.migrationCouldBeTechnicallyEligible)
-    #require(boundary.assessmentKind == .repoLocalHealthy)
-    #require(boundary.preflightKind == .migrationReady)
+    try #require(boundary.kind == .repoLocalRecommended)
+    try #require(boundary.severity == .healthy)
+    try #require(boundary.label == "Repo-local boundary")
+    try #require(boundary.detail.contains("Active project state stays in repo-local .compass/"))
+    try #require(boundary.detail.contains("Application Support"))
+    try #require(boundary.recommendation.contains("No migration or mirroring needed by default"))
+    try #require(boundary.migrationCouldBeTechnicallyEligible)
+    try #require(boundary.assessmentKind == .repoLocalHealthy)
+    try #require(boundary.preflightKind == .migrationReady)
   }
 
   @Test func testMissingAndIncompleteRepoLocalStorageAreRepairFirst() throws {
@@ -49,11 +49,11 @@ struct CompassWorkspaceStorageBoundaryTests : ~Copyable {
       preflight: missingPreflight
     )
 
-    #require(missingBoundary.kind == .repoLocalRepairFirst)
-    #require(missingBoundary.severity == .warning)
-    #require(missingBoundary.detail.contains(".compass/ is missing"))
-    #require(missingBoundary.recommendation.contains("repo-local repair"))
-    #require(!missingBoundary.migrationCouldBeTechnicallyEligible)
+    try #require(missingBoundary.kind == .repoLocalRepairFirst)
+    try #require(missingBoundary.severity == .warning)
+    try #require(missingBoundary.detail.contains(".compass/ is missing"))
+    try #require(missingBoundary.recommendation.contains("repo-local repair"))
+    try #require(!missingBoundary.migrationCouldBeTechnicallyEligible)
 
     let incompleteRepoURL = try makeTemporaryGitRepository()
     let incompleteRoots = try makeApplicationSupportRoots()
@@ -71,10 +71,10 @@ struct CompassWorkspaceStorageBoundaryTests : ~Copyable {
       preflight: incompletePreflight
     )
 
-    #require(incompleteBoundary.kind == .repoLocalRepairFirst)
-    #require(incompleteBoundary.severity == .failure)
-    #require(incompleteBoundary.detail.contains(".compass/ is incomplete"))
-    #require(!incompleteBoundary.migrationCouldBeTechnicallyEligible)
+    try #require(incompleteBoundary.kind == .repoLocalRepairFirst)
+    try #require(incompleteBoundary.severity == .failure)
+    try #require(incompleteBoundary.detail.contains(".compass/ is incomplete"))
+    try #require(!incompleteBoundary.migrationCouldBeTechnicallyEligible)
   }
 
   @Test func testUnignoredCompassIsRepairFirstEvenWhenPreflightIsTechnicallyEligible() throws {
@@ -88,14 +88,14 @@ struct CompassWorkspaceStorageBoundaryTests : ~Copyable {
     let preflight = CompassWorkspaceStoragePreflight(assessment: assessment)
     let boundary = CompassWorkspaceStorageBoundary(assessment: assessment, preflight: preflight)
 
-    #require(assessment.kind == .unignoredCompass)
-    #require(preflight.kind == .migrationReady)
-    #require(preflight.migrationWouldBeSafe)
-    #require(boundary.kind == .repoLocalRepairFirst)
-    #require(boundary.severity == .warning)
-    #require(boundary.detail.contains("not ignored"))
-    #require(boundary.recommendation.contains("repo-local repair"))
-    #require(boundary.migrationCouldBeTechnicallyEligible)
+    try #require(assessment.kind == .unignoredCompass)
+    try #require(preflight.kind == .migrationReady)
+    try #require(preflight.migrationWouldBeSafe)
+    try #require(boundary.kind == .repoLocalRepairFirst)
+    try #require(boundary.severity == .warning)
+    try #require(boundary.detail.contains("not ignored"))
+    try #require(boundary.recommendation.contains("repo-local repair"))
+    try #require(boundary.migrationCouldBeTechnicallyEligible)
   }
 
   @Test func testApplicationSupportConflictIsInspectOnly() throws {
@@ -114,14 +114,14 @@ struct CompassWorkspaceStorageBoundaryTests : ~Copyable {
     let preflight = CompassWorkspaceStoragePreflight(assessment: assessment)
     let boundary = CompassWorkspaceStorageBoundary(assessment: assessment, preflight: preflight)
 
-    #require(boundary.kind == .applicationSupportInspectOnlyConflict)
-    #require(boundary.severity == .warning)
-    #require(boundary.label == "Inspect support data")
-    #require(boundary.detail.contains("Active state remains in repo-local .compass/"))
-    #require(boundary.detail.contains("inspect-only conflict"))
-    #require(boundary.recommendation.contains("No migration or mirroring by default"))
-    #require(!boundary.migrationCouldBeTechnicallyEligible)
-    #require(boundary.preflightKind == .applicationSupportConflict)
+    try #require(boundary.kind == .applicationSupportInspectOnlyConflict)
+    try #require(boundary.severity == .warning)
+    try #require(boundary.label == "Inspect support data")
+    try #require(boundary.detail.contains("Active state remains in repo-local .compass/"))
+    try #require(boundary.detail.contains("inspect-only conflict"))
+    try #require(boundary.recommendation.contains("No migration or mirroring by default"))
+    try #require(!boundary.migrationCouldBeTechnicallyEligible)
+    try #require(boundary.preflightKind == .applicationSupportConflict)
   }
 
   @Test func testBoundaryDisplayTextAndIdentifiersStayBounded() throws {
@@ -145,17 +145,17 @@ struct CompassWorkspaceStorageBoundaryTests : ~Copyable {
     let preflight = CompassWorkspaceStoragePreflight(assessment: assessment)
     let boundary = CompassWorkspaceStorageBoundary(assessment: assessment, preflight: preflight)
 
-    #require(boundary.label.count <= CompassWorkspaceStorageBoundary.labelLimit)
-    #require(boundary.detail.count <= CompassWorkspaceStorageBoundary.detailLimit)
-    #require(
+    try #require(boundary.label.count <= CompassWorkspaceStorageBoundary.labelLimit)
+    try #require(boundary.detail.count <= CompassWorkspaceStorageBoundary.detailLimit)
+    try #require(
       boundary.recommendation.count <= CompassWorkspaceStorageBoundary.recommendationLimit)
-    #require(
+    try #require(
       boundary.projectStorageIdentifier.count <=
       CompassWorkspaceStorageAssessment.maxProjectIdentifierLength
     )
-    #require(!boundary.label.isEmpty)
-    #require(!boundary.detail.isEmpty)
-    #require(!boundary.recommendation.isEmpty)
+    try #require(!boundary.label.isEmpty)
+    try #require(!boundary.detail.isEmpty)
+    try #require(!boundary.recommendation.isEmpty)
   }
 
   @Test func testStableIdentifiersFlowThroughAssessmentPreflightAndBoundary() throws {
@@ -169,15 +169,15 @@ struct CompassWorkspaceStorageBoundaryTests : ~Copyable {
     let preflight = CompassWorkspaceStoragePreflight(assessment: assessment)
     let boundary = CompassWorkspaceStorageBoundary(assessment: assessment, preflight: preflight)
 
-    #require(boundary.projectStorageIdentifier == assessment.projectStorageIdentifier)
-    #require(boundary.projectStorageIdentifier == preflight.projectStorageIdentifier)
-    #require(
+    try #require(boundary.projectStorageIdentifier == assessment.projectStorageIdentifier)
+    try #require(boundary.projectStorageIdentifier == preflight.projectStorageIdentifier)
+    try #require(
       boundary.currentApplicationSupportCandidateURL ==
       assessment.currentApplicationSupportCandidateURL)
-    #require(
+    try #require(
       boundary.currentApplicationSupportCandidateURL ==
       preflight.currentApplicationSupportCandidateURL)
-    #require(
+    try #require(
       boundary.currentApplicationSupportCandidateURL.lastPathComponent ==
       boundary.projectStorageIdentifier)
   }
@@ -194,8 +194,8 @@ struct CompassWorkspaceStorageBoundaryTests : ~Copyable {
 
     let boundary = CompassWorkspaceStorageBoundary(assessment: assessment, preflight: preflight)
 
-    #require(boundary.kind == .repoLocalRecommended)
-    #require(boundary.migrationCouldBeTechnicallyEligible)
+    try #require(boundary.kind == .repoLocalRecommended)
+    try #require(boundary.migrationCouldBeTechnicallyEligible)
   }
 
   @Test func testBoundaryConstructionCreatesNoRepoOrApplicationSupportFiles() throws {
@@ -208,14 +208,14 @@ struct CompassWorkspaceStorageBoundaryTests : ~Copyable {
     let preflight = CompassWorkspaceStoragePreflight(assessment: assessment)
     let boundary = CompassWorkspaceStorageBoundary(assessment: assessment, preflight: preflight)
 
-    #require(boundary.kind == .repoLocalRepairFirst)
-    #require(try entries(in: repoURL) == repoEntriesBefore)
-    #require(
+    try #require(boundary.kind == .repoLocalRepairFirst)
+    try #require(try entries(in: repoURL) == repoEntriesBefore)
+    try #require(
       !FileManager.default.fileExists(atPath: CompassWorkspace(repoURL: repoURL).compassURL.path))
-    #require(
+    try #require(
       !FileManager.default.fileExists(atPath: repoURL.appending(path: ".gitignore").path))
-    #require(!FileManager.default.fileExists(atPath: roots.current.path))
-    #require(
+    try #require(!FileManager.default.fileExists(atPath: roots.current.path))
+    try #require(
       !FileManager.default.fileExists(atPath: boundary.currentApplicationSupportCandidateURL.path))
   }
 

@@ -9,6 +9,7 @@ enum TestHelperError: Error {
   case noCommitSHAFound
   case fnReturnedNil
   case shellFailed(command: String)
+  case message(String)
 }
 
 func makeTempDir(file: StaticString = #file, line: UInt = #line) throws -> URL {
@@ -65,34 +66,29 @@ func makeSingleCommit(at directory: URL) throws -> [SessionCommit] {
 
 /// Returns the full SHA of the current HEAD commit.
 func getSingleCommitSHA(at directory: URL) throws -> String {
-  let result = try waitForSync {
-    try? ProcessRunner.runEnv(
-      "git", ["rev-parse", "HEAD"],
-      workingDirectory: directory
-    )
-  }
-  guard let stdout = result?.stdout.trimmingCharacters(in: .whitespacesAndNewlines),
-        !stdout.isEmpty else {
+  let stdout = try captureGit(["rev-parse", "HEAD"], at: directory)
+    .trimmingCharacters(in: .whitespacesAndNewlines)
+  guard !stdout.isEmpty else {
         throw TestHelperError.noCommitSHAFound
   }
   return stdout
 }
 
-/// Bridges a sync function to async, returning the result or throwing if nil.
-func waitForSync<T>(_ fn: () async throws -> T?) async throws -> T {
-  try await withCheckedThrowingContinuation { continuation in
-    Task {
-      do {
-        if let value = try await fn() {
-          continuation.resume(returning: value)
-        } else {
-                    continuation.resume(throwing: TestHelperError.fnReturnedNil)
-        }
-      } catch {
-        continuation.resume(throwing: error)
-      }
-    }
+func captureGit(_ arguments: [String], at directory: URL) throws -> String {
+  let process = Process()
+  process.launchPath = "/usr/bin/git"
+  process.arguments = arguments
+  process.currentDirectoryURL = directory
+  let outputPipe = Pipe()
+  process.standardOutput = outputPipe
+  process.standardError = Pipe()
+  try process.run()
+  process.waitUntilExit()
+  guard process.terminationStatus == 0 else {
+    throw TestHelperError.gitCommandFailed(status: process.terminationStatus)
   }
+  let data = outputPipe.fileHandleForReading.readDataToEndOfFile()
+  return String(data: data, encoding: .utf8) ?? ""
 }
 
 /// Runs a shell command asynchronously at the given URL, throwing on non-zero exit.

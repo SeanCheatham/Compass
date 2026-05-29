@@ -28,20 +28,20 @@ struct AgentImageGenerationTests {
         model: "image-01"
       )
     )
-    #require(bytes == imageBytes)
+    try #require(bytes == imageBytes)
 
     let recorded = recorder.requests.first
-    #require(
+    try #require(
       recorded?.url?.absoluteString ==
       "https://api.minimax.io/v1/image_generation"
     )
-    #require(recorded?.value(forHTTPHeaderField: "Authorization") == "Bearer mm-key")
-    let body = #require(recorder.requests.first?.httpBody)
-    let payload = #require(
+    try #require(recorded?.value(forHTTPHeaderField: "Authorization") == "Bearer mm-key")
+    let body = try #require(recorder.requests.first?.httpBody)
+    let payload = try #require(
       JSONSerialization.jsonObject(with: body) as? [String: Any])
-    #require(payload["model"] as? String == "image-01")
-    #require(payload["prompt"] as? String == "neon koi")
-    #require(payload["response_format"] as? String == "base64")
+    try #require(payload["model"] as? String == "image-01")
+    try #require(payload["prompt"] as? String == "neon koi")
+    try #require(payload["response_format"] as? String == "base64")
   }
 
   @Test func testMiniMaxAdapterFollowsImageURLFallback() async throws {
@@ -68,8 +68,8 @@ struct AgentImageGenerationTests {
         model: "image-01"
       )
     )
-    #require(bytes == imageBytes)
-    #require(recorder.requests.count == 2)
+    try #require(bytes == imageBytes)
+    try #require(recorder.requests.count == 2)
   }
 
   // MARK: - OpenAI adapter
@@ -94,19 +94,19 @@ struct AgentImageGenerationTests {
         model: "gpt-image-1"
       )
     )
-    #require(bytes == imageBytes)
-    #require(
+    try #require(bytes == imageBytes)
+    try #require(
       recorder.requests.first?.url?.absoluteString ==
       "https://api.openai.com/v1/images/generations"
     )
-    #require(
+    try #require(
       recorder.requests.first?.value(forHTTPHeaderField: "Authorization") ==
       "Bearer sk-test")
   }
 
   // MARK: - Failure surfaces
 
-  @Test func testNon2xxResponseSurfaceAsRequestFailed() async {
+  @Test func testNon2xxResponseSurfaceAsRequestFailed() async throws {
     let transport: DefaultAgentImageGenerator.Transport = { request in
       let response = HTTPURLResponse(
         url: request.url!, statusCode: 401, httpVersion: "1.1", headerFields: nil)!
@@ -122,20 +122,20 @@ struct AgentImageGenerationTests {
           model: "image-01"
         )
       )
-      #require(false, "expected requestFailed")
+      #expect(Bool(false), "expected requestFailed")
     } catch let error as AgentImageGenerationError {
       switch error {
       case .requestFailed(let status, _):
-        #require(status == 401)
+        try #require(status == 401)
       default:
-        #require(false, "expected .requestFailed, got \(error)")
+        #expect(Bool(false), "expected .requestFailed, got \(error)")
       }
     } catch {
-      #require(false, "expected AgentImageGenerationError, got \(error)")
+      #expect(Bool(false), "expected AgentImageGenerationError, got \(error)")
     }
   }
 
-  @Test func testFoundationModelsProviderIsExplicitlyUnsupported() async {
+  @Test func testFoundationModelsProviderIsExplicitlyUnsupported() async throws {
     do {
       _ = try await DefaultAgentImageGenerator().generate(
         prompt: "p",
@@ -146,16 +146,16 @@ struct AgentImageGenerationTests {
           model: ""
         )
       )
-      #require(false, "expected unsupportedProvider")
+      #expect(Bool(false), "expected unsupportedProvider")
     } catch let error as AgentImageGenerationError {
       switch error {
       case .unsupportedProvider(let kind):
-        #require(kind == .appleFoundationModels)
+        try #require(kind == .appleFoundationModels)
       default:
-        #require(false, "expected .unsupportedProvider, got \(error)")
+        #expect(Bool(false), "expected .unsupportedProvider, got \(error)")
       }
     } catch {
-      #require(false, "expected AgentImageGenerationError, got \(error)")
+      #expect(Bool(false), "expected AgentImageGenerationError, got \(error)")
     }
   }
 }

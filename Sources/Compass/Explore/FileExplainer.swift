@@ -140,23 +140,24 @@ enum FileChangeCategory: String, CaseIterable {
   static func categorize(_ relativePath: String) -> FileChangeCategory {
     let dir = (relativePath as NSString).deletingLastPathComponent
     let lower = relativePath.lowercased()
+    let dirLower = dir.lowercased()
+    let dirComponents = dirLower.split(separator: "/").map(String.init)
 
     // Tests — test dirs and test files
-    if dir.hasPrefix("Tests") || dir.contains("/Tests/") || dir.contains("\\Tests\\") {
+    if dirComponents.contains("test") || dirComponents.contains("tests") {
       return .test
     }
     if lower.hasSuffix("_tests.swift")
+      || lower.hasSuffix("_test.swift")
       || lower.hasSuffix(".test.swift")
       || lower.hasSuffix(".spec.swift")
     {
       return .test
     }
-    if lower.hasPrefix("test"),
-      lower.contains("test_") || lower.hasSuffix("_test.swift")
-    {
+    if lower.hasPrefix("test_") || lower.hasPrefix("test.") || lower.hasPrefix("test-") {
       return .test
     }
-    if dir.hasPrefix("test") {
+    if dirLower.hasPrefix("test") {
       return .test
     }
 
@@ -364,8 +365,8 @@ enum FileExplainer {
 
       // Format: "<filename> | <N> <additions>/<deletions>"
       // e.g. "Sources/App.swift        |  12 ++++++----"
-      let parts = trimmed.split(separator: "|")
-      guard parts.count >= 1 else { continue }
+      let parts = trimmed.split(separator: "|", omittingEmptySubsequences: false)
+      guard parts.count >= 2 else { continue }
 
       let pathPart = parts[0].trimmingCharacters(in: .whitespaces)
       // Handle "a => b" renames by taking the right-hand side
@@ -407,6 +408,10 @@ enum FileExplainer {
 
   /// Extract addition/deletion counts from a stat line like "24 +++++++++++++++------"
   static func extractLineCounts(from statPart: String) -> (additions: Int, deletions: Int) {
+    if statPart.localizedCaseInsensitiveContains("bin") {
+      return (0, 0)
+    }
+
     let tokens = statPart.split(separator: " ")
     var numericCount = 0
     for token in tokens {
@@ -441,7 +446,7 @@ enum FileExplainer {
   ) async -> String {
     let args: [String]
     if let sha = sha {
-      args = ["diff", "--stat=9999", "--first-parent", sha]
+      args = ["diff-tree", "--stat=9999", "--root", "--first-parent", "--no-commit-id", sha]
     } else if let from = from, let to = to {
       args = ["diff", "--stat=9999", "--first-parent", "\(from)..\(to)"]
     } else {

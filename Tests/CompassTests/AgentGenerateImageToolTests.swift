@@ -37,13 +37,13 @@ struct AgentGenerateImageToolTests: ~Copyable {
 
     let args = #"{"prompt": "a cat on a mat", "output_path": "out/hero.png"}"#
     let result = try await tool.invoke(arguments: Data(args.utf8), context: context)
-    #require(!result.isError, "tool reported failure: \(result.content)")
-    #require(result.content.contains("out/hero.png"))
+    try #require(!result.isError, "tool reported failure: \(result.content)")
+    try #require(result.content.contains("out/hero.png"))
 
     let written = try Data(contentsOf: workingDirectory.appendingPathComponent("out/hero.png"))
-    #require(written == imageBytes)
-    #require(generator.recordedPrompts == ["a cat on a mat"])
-    #require(generator.recordedAssignments.map(\.provider) == [.minimaxToken])
+    try #require(written == imageBytes)
+    try #require(generator.recordedPrompts == ["a cat on a mat"])
+    try #require(generator.recordedAssignments.map(\.provider) == [.minimaxToken])
   }
 
   @Test func testInvokeRejectsUnsupportedExtension() async throws {
@@ -55,9 +55,9 @@ struct AgentGenerateImageToolTests: ~Copyable {
     let context = AgentToolContext(workingDirectory: workingDirectory, filesystem: filesystem)
     let args = #"{"prompt": "x", "output_path": "out/hero.bmp"}"#
     let result = try await tool.invoke(arguments: Data(args.utf8), context: context)
-    #require(result.isError)
-    #require(result.errorKind == .invalidArguments)
-    #require(generator.recordedPrompts == [], "generator should not be invoked on bad ext")
+    try #require(result.isError)
+    try #require(result.errorKind == .invalidArguments)
+    try #require(generator.recordedPrompts == [], "generator should not be invoked on bad ext")
   }
 
   @Test func testInvokeRejectsEmptyPrompt() async throws {
@@ -69,8 +69,8 @@ struct AgentGenerateImageToolTests: ~Copyable {
     let context = AgentToolContext(workingDirectory: workingDirectory, filesystem: filesystem)
     let args = #"{"prompt": "   ", "output_path": "out/x.png"}"#
     let result = try await tool.invoke(arguments: Data(args.utf8), context: context)
-    #require(result.isError)
-    #require(result.errorKind == .invalidArguments)
+    try #require(result.isError)
+    try #require(result.errorKind == .invalidArguments)
   }
 
   @Test func testInvokeRejectsPathEscape() async throws {
@@ -82,8 +82,8 @@ struct AgentGenerateImageToolTests: ~Copyable {
     let context = AgentToolContext(workingDirectory: workingDirectory, filesystem: filesystem)
     let args = #"{"prompt": "ok", "output_path": "/etc/passwd.png"}"#
     let result = try await tool.invoke(arguments: Data(args.utf8), context: context)
-    #require(result.isError)
-    #require(result.errorKind == .pathEscape)
+    try #require(result.isError)
+    try #require(result.errorKind == .pathEscape)
   }
 
   @Test func testGeneratorFailureSurfacesAsToolError() async throws {
@@ -97,33 +97,33 @@ struct AgentGenerateImageToolTests: ~Copyable {
     let context = AgentToolContext(workingDirectory: workingDirectory, filesystem: filesystem)
     let args = #"{"prompt": "ok", "output_path": "x.png"}"#
     let result = try await tool.invoke(arguments: Data(args.utf8), context: context)
-    #require(result.isError)
-    #require(result.errorKind == .ioFailure)
-    #require(result.content.contains("503"))
+    try #require(result.isError)
+    try #require(result.errorKind == .ioFailure)
+    try #require(result.content.contains("503"))
   }
 
   // MARK: - Registry conditional
 
-  @Test func testToolRegistryOmitsGenerateImageWhenUnassigned() {
+  @Test func testToolRegistryOmitsGenerateImageWhenUnassigned() throws {
     let settings = AgentRuntimeSettings()
-    #require(settings.imageAssignment == nil)
+    try #require(settings.imageAssignment == nil)
     let names = Set(ToolRegistry.tools(for: .develop, settings: settings).map { $0.spec.name })
-    #require(!names.contains(AgentGenerateImageTool.toolName))
+    try #require(!names.contains(AgentGenerateImageTool.toolName))
   }
 
-  @Test func testToolRegistryIncludesGenerateImageWhenAssigned() {
+  @Test func testToolRegistryIncludesGenerateImageWhenAssigned() throws {
     var settings = AgentRuntimeSettings()
     settings.imageAssignment = stubAssignment()
     let names = Set(ToolRegistry.tools(for: .develop, settings: settings).map { $0.spec.name })
-    #require(names.contains(AgentGenerateImageTool.toolName))
+    try #require(names.contains(AgentGenerateImageTool.toolName))
   }
 
-  @Test func testToolRegistryDoesNotExposeGenerateImageInInspectionPhases() {
+  @Test func testToolRegistryDoesNotExposeGenerateImageInInspectionPhases() throws {
     var settings = AgentRuntimeSettings()
     settings.imageAssignment = stubAssignment()
     for phase in [AgentPhase.plan, .reflect, .critic] {
       let names = Set(ToolRegistry.tools(for: phase, settings: settings).map { $0.spec.name })
-      #require(
+      try #require(
         !names.contains(AgentGenerateImageTool.toolName),
         "generate_image leaked into the \(phase) palette")
     }

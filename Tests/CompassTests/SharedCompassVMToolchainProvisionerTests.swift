@@ -16,7 +16,7 @@ struct SharedCompassVMToolchainProvisionerTests {
       definition: SharedVMToolchainCatalog.definition(for: .homebrew),
       runner: runner
     )
-    #require(installed)
+    try #require(installed)
   }
 
   @Test func provisionShortCircuitsWhenAlreadyInstalled() async throws {
@@ -24,7 +24,7 @@ struct SharedCompassVMToolchainProvisionerTests {
       if command.contains("PRESENT") || command.contains("MISSING") {
         return ProcessResult(exitCode: 0, stdout: "PRESENT\n", stderr: "")
       }
-      #require(false, "Unexpected command: \(command)")
+      #expect(Bool(false), "Unexpected command: \(command)")
       return ProcessResult(exitCode: 1, stdout: "", stderr: "")
     }
     let report = try await SharedCompassVMToolchainProvisioner.provision(
@@ -32,16 +32,16 @@ struct SharedCompassVMToolchainProvisionerTests {
       runner: runner,
       progress: { _ in }
     )
-    #require(report.alreadyInstalled)
-    #require(report.toolchainID == "node")
+    try #require(report.alreadyInstalled)
+    try #require(report.toolchainID == "node")
   }
 
   @Test func renderInstallLaunchDaemonPlistContainsLabel() throws {
     let plist = SharedCompassVMToolchainProvisioner.renderInstallLaunchDaemonPlist(
       definition: SharedVMToolchainCatalog.definition(for: .go)
     )
-    #require(plist.contains("com.seancheatham.Compass.toolchain-go"))
-    #require(plist.contains("compass-install-go.sh"))
+    try #require(plist.contains("com.seancheatham.Compass.toolchain-go"))
+    try #require(plist.contains("compass-install-go.sh"))
   }
 
   @Test func pollSnapshotParsesDoneExitCode() throws {
@@ -52,8 +52,8 @@ struct SharedCompassVMToolchainProvisionerTests {
       [compass-toolchain-go] installed
       """
     let snapshot = SharedCompassVMToolchainProvisioner.PollSnapshot(parsing: raw)
-    #require(snapshot.exitCode == 0)
-    #require(snapshot.logTail.contains("installed"))
+    try #require(snapshot.exitCode == 0)
+    try #require(snapshot.logTail.contains("installed"))
   }
 }
 

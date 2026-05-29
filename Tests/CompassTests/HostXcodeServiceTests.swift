@@ -118,7 +118,7 @@ struct HostXcodeServiceTests {
     #expect(final.arguments == ["-scheme", "App", "-derivedDataPath", derivedData.path, "build"])
   }
 
-  @Test func testStatusExplainsCommandLineToolsSelection() async {
+  @Test func testStatusExplainsCommandLineToolsSelection() async throws {
     let service = HostXcodeService(
       hostRepoURL: URL(fileURLWithPath: "/tmp/repo"),
       runner: { invocation, _, _, _, _ in

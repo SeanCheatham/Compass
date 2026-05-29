@@ -31,7 +31,7 @@ struct ExploreRepoQnATests {
       repoURL: test.temporaryDirectory,
       commits: []
     )
-    #require(result == nil)
+    try #require(result == nil)
   }
 
   @Test
@@ -41,16 +41,16 @@ struct ExploreRepoQnATests {
     defer { test.tearDown() }
 
     // Set up a git repo with one commit touching a file.
-    try initGitRepo(at: test.temporaryDirectory)
-    try writeFile("Sources/App.swift", contents: "import Foundation\n")
-    try runGit(
+    try test.initGitRepo(at: test.temporaryDirectory)
+    try test.writeFile("Sources/App.swift", contents: "import Foundation\n")
+    try test.runGit(
       "git -C \(test.temporaryDirectory.path) add Sources/App.swift && "
         + "git -C \(test.temporaryDirectory.path) "
         + "-c user.email=t@t -c user.name=t commit -q -m 'Add App.swift'",
       at: test.temporaryDirectory
     )
 
-    let sha = try getSingleCommitSHA(at: test.temporaryDirectory)
+    let sha = try test.getSingleCommitSHA(at: test.temporaryDirectory)
     let commits = [SessionCommit(sha: sha, short: String(sha.prefix(7)), subject: "Add App.swift")]
 
     let result = await RepoQnA.answer(
@@ -62,8 +62,8 @@ struct ExploreRepoQnATests {
     // When Foundation Models is unavailable in the test environment, answer() returns nil.
     // In that case we can only verify the call didn't throw.
     if let answer = result {
-      #require(!answer.text.isEmpty)
-      #require(answer.sources.contains("Sources/App.swift"))
+      try #require(!answer.text.isEmpty)
+      try #require(answer.sources.contains("Sources/App.swift"))
     }
   }
 
@@ -74,25 +74,25 @@ struct ExploreRepoQnATests {
     defer { test.tearDown() }
 
     // Set up a git repo with two commits touching different files.
-    try initGitRepo(at: test.temporaryDirectory)
-    try writeFile("Sources/Old.swift", contents: "import Foundation\n")
-    try runGit(
+    try test.initGitRepo(at: test.temporaryDirectory)
+    try test.writeFile("Sources/Old.swift", contents: "import Foundation\n")
+    try test.runGit(
       "git -C \(test.temporaryDirectory.path) add Sources/Old.swift && "
         + "git -C \(test.temporaryDirectory.path) "
         + "-c user.email=t@t -c user.name=t commit -q -m 'Add Old.swift'",
       at: test.temporaryDirectory
     )
 
-    try writeFile("Sources/New.swift", contents: "import Foundation\n")
-    try runGit(
+    try test.writeFile("Sources/New.swift", contents: "import Foundation\n")
+    try test.runGit(
       "git -C \(test.temporaryDirectory.path) add Sources/New.swift && "
         + "git -C \(test.temporaryDirectory.path) "
         + "-c user.email=t@t -c user.name=t commit -q -m 'Add New.swift'",
       at: test.temporaryDirectory
     )
 
-    let shas = try getAllCommitSHAs(at: test.temporaryDirectory)
-    #require(shas.count == 2)
+    let shas = try test.getAllCommitSHAs(at: test.temporaryDirectory)
+    try #require(shas.count == 2)
     let oldest = shas[1] // oldest
     let newest = shas[0] // newest
     let commits = [
@@ -109,9 +109,9 @@ struct ExploreRepoQnATests {
     // When Foundation Models is unavailable in the test environment, answer() returns nil.
     // In that case we can only verify the call didn't throw.
     if let answer = result {
-      #require(!answer.text.isEmpty)
+      try #require(!answer.text.isEmpty)
       // The answer should reference at least the newer file.
-      #require(answer.sources.contains("Sources/New.swift"))
+      try #require(answer.sources.contains("Sources/New.swift"))
     }
   }
 
@@ -122,25 +122,25 @@ struct ExploreRepoQnATests {
     defer { test.tearDown() }
 
     // Set up a git repo with two commits touching different files.
-    try initGitRepo(at: test.temporaryDirectory)
-    try writeFile("Sources/Old.swift", contents: "import Foundation\n")
-    try runGit(
+    try test.initGitRepo(at: test.temporaryDirectory)
+    try test.writeFile("Sources/Old.swift", contents: "import Foundation\n")
+    try test.runGit(
       "git -C \(test.temporaryDirectory.path) add Sources/Old.swift && "
         + "git -C \(test.temporaryDirectory.path) "
         + "-c user.email=t@t -c user.name=t commit -q -m 'Add Old.swift'",
       at: test.temporaryDirectory
     )
 
-    try writeFile("Sources/New.swift", contents: "import Foundation\n")
-    try runGit(
+    try test.writeFile("Sources/New.swift", contents: "import Foundation\n")
+    try test.runGit(
       "git -C \(test.temporaryDirectory.path) add Sources/New.swift && "
         + "git -C \(test.temporaryDirectory.path) "
         + "-c user.email=t@t -c user.name=t commit -q -m 'Add New.swift'",
       at: test.temporaryDirectory
     )
 
-    let shas = try getAllCommitSHAs(at: test.temporaryDirectory)
-    #require(shas.count == 2)
+    let shas = try test.getAllCommitSHAs(at: test.temporaryDirectory)
+    try #require(shas.count == 2)
     let oldest = shas[1] // oldest
     let newest = shas[0] // newest
     let commits = [
@@ -159,7 +159,7 @@ struct ExploreRepoQnATests {
     )
 
     if !FoundationModelsAvailability.isAvailable {
-      #require(result == nil)
+      try #require(result == nil)
     }
     // If the model is available the result would be non-nil; either outcome is valid.
   }
@@ -171,16 +171,16 @@ struct ExploreRepoQnATests {
     defer { test.tearDown() }
 
     // Set up a git repo with one commit so the call has valid input.
-    try initGitRepo(at: test.temporaryDirectory)
-    try writeFile("Sources/App.swift", contents: "import Foundation\n")
-    try runGit(
+    try test.initGitRepo(at: test.temporaryDirectory)
+    try test.writeFile("Sources/App.swift", contents: "import Foundation\n")
+    try test.runGit(
       "git -C \(test.temporaryDirectory.path) add Sources/App.swift && "
         + "git -C \(test.temporaryDirectory.path) "
         + "-c user.email=t@t -c user.name=t commit -q -m 'Add App.swift'",
       at: test.temporaryDirectory
     )
 
-    let sha = try getSingleCommitSHA(at: test.temporaryDirectory)
+    let sha = try test.getSingleCommitSHA(at: test.temporaryDirectory)
     let commits = [SessionCommit(sha: sha, short: String(sha.prefix(7)), subject: "Add App.swift")]
 
     // When SystemLanguageModel.default.isAvailable is false, answer() must return nil
@@ -228,51 +228,24 @@ struct ExploreRepoQnATests {
     try process.run()
     process.waitUntilExit()
     guard process.terminationStatus == 0 else {
-      throw "git command failed with status \(process.terminationStatus)"
+      throw TestHelperError.gitCommandFailed(status: process.terminationStatus)
     }
   }
 
   private func getSingleCommitSHA(at url: URL) throws -> String {
-    let result = try waitForSync {
-      try? ProcessRunner.runEnv(
-        "git", ["rev-parse", "HEAD"],
-        workingDirectory: url
-      )
-    }
-    guard let stdout = result?.stdout.trimmingCharacters(in: .whitespacesAndNewlines),
-          !stdout.isEmpty else {
-      throw "no commit SHA found"
+    let stdout = try captureGit(["rev-parse", "HEAD"], at: url)
+      .trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !stdout.isEmpty else {
+      throw TestHelperError.noCommitSHAFound
     }
     return stdout
   }
 
   private func getAllCommitSHAs(at url: URL) throws -> [String] {
-    let result = try waitForSync {
-      try? ProcessRunner.runEnv(
-        "git", ["log", "--all", "--format=%H"],
-        workingDirectory: url
-      )
-    }
-    guard let stdout = result?.stdout else { return [] }
+    let stdout = try captureGit(["log", "--all", "--format=%H"], at: url)
     return stdout
       .split(separator: "\n")
       .filter { !$0.isEmpty }
       .map { String($0) }
-  }
-
-  private func waitForSync<T>(_ fn: () async throws -> T?) async throws -> T {
-    try await withCheckedThrowingContinuation { continuation in
-      Task {
-        do {
-          if let value = try await fn() {
-            continuation.resume(returning: value)
-          } else {
-            continuation.resume(throwing: "fn returned nil")
-          }
-        } catch {
-          continuation.resume(throwing: error)
-        }
-      }
-    }
   }
 }

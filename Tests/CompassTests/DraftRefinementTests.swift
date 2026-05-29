@@ -6,7 +6,7 @@ import Testing
 struct DraftRefinementTests {
   @Test func testParserAcceptsGeneratedJSONRefinement() throws {
     let context = makeContext()
-    let refinement = #require(
+    let refinement = try #require(
       DraftRefinementService.parseGeneratedRefinement(
         #"{"refined":"Add parser tests for Package.swift."}"#,
         draft: "add parser tests for Package.swift",
@@ -14,14 +14,14 @@ struct DraftRefinementTests {
       )
     )
 
-    #require(refinement.originalDraft == "add parser tests for Package.swift")
-    #require(refinement.refinedText == "Add parser tests for Package.swift.")
-    #require(refinement.source == .generated)
+    try #require(refinement.originalDraft == "add parser tests for Package.swift")
+    try #require(refinement.refinedText == "Add parser tests for Package.swift.")
+    try #require(refinement.source == .generated)
   }
 
   @Test func testParserAcceptsGeneratedRefinedLine() throws {
     let context = makeContext()
-    let refinement = #require(
+    let refinement = try #require(
       DraftRefinementService.parseGeneratedRefinement(
         "Refined: Add parser tests for Package.swift.",
         draft: "add parser tests for Package.swift",
@@ -29,14 +29,14 @@ struct DraftRefinementTests {
       )
     )
 
-    #require(refinement.refinedText == "Add parser tests for Package.swift.")
+    try #require(refinement.refinedText == "Add parser tests for Package.swift.")
   }
 
-  @Test func testParserRejectsInventedFilesNumbersAndConstraints() {
+  @Test func testParserRejectsInventedFilesNumbersAndConstraints() throws {
     let context = makeContext()
     let draft = "add parser tests"
 
-    #require(
+    try #require(
       DraftRefinementService.parseGeneratedRefinement(
         "Refined: Add parser tests in Sources/App.swift.",
         draft: draft,
@@ -44,7 +44,7 @@ struct DraftRefinementTests {
       ) ==
       nil
     )
-    #require(
+    try #require(
       DraftRefinementService.parseGeneratedRefinement(
         "Refined: Add 3 parser tests.",
         draft: draft,
@@ -52,7 +52,7 @@ struct DraftRefinementTests {
       ) ==
       nil
     )
-    #require(
+    try #require(
       DraftRefinementService.parseGeneratedRefinement(
         "Refined: Add parser tests that must pass.",
         draft: draft,
@@ -64,7 +64,7 @@ struct DraftRefinementTests {
 
   @Test func testParserAcceptsRefinedLineAfterPreamble() throws {
     let context = makeContext()
-    let refinement = #require(
+    let refinement = try #require(
       DraftRefinementService.parseGeneratedRefinement(
         """
         Here is a clearer version:
@@ -75,13 +75,13 @@ struct DraftRefinementTests {
       )
     )
 
-    #require(refinement.refinedText == "Add parser tests for Package.swift.")
-    #require(refinement.source == .generated)
+    try #require(refinement.refinedText == "Add parser tests for Package.swift.")
+    try #require(refinement.source == .generated)
   }
 
   @Test func testParserIgnoresTrailingCommentaryAfterRefinedLine() throws {
     let context = makeContext()
-    let refinement = #require(
+    let refinement = try #require(
       DraftRefinementService.parseGeneratedRefinement(
         """
         Refined: Add parser tests for Package.swift.
@@ -92,14 +92,14 @@ struct DraftRefinementTests {
       )
     )
 
-    #require(refinement.refinedText == "Add parser tests for Package.swift.")
+    try #require(refinement.refinedText == "Add parser tests for Package.swift.")
   }
 
-  @Test func testParserRejectsInventedOutcomeAndExtraStructure() {
+  @Test func testParserRejectsInventedOutcomeAndExtraStructure() throws {
     let context = makeContext()
     let draft = "add parser tests"
 
-    #require(
+    try #require(
       DraftRefinementService.parseGeneratedRefinement(
         "Refined: Completed parser tests.",
         draft: draft,
@@ -107,7 +107,7 @@ struct DraftRefinementTests {
       ) ==
       nil
     )
-    #require(
+    try #require(
       DraftRefinementService.parseGeneratedRefinement(
         #"{"refined":"Add parser tests.","note":"extra commentary"}"#,
         draft: draft,
@@ -115,7 +115,7 @@ struct DraftRefinementTests {
       ) ==
       nil
     )
-    #require(
+    try #require(
       DraftRefinementService.parseGeneratedRefinement(
         """
         Add parser tests for Package.swift.
@@ -130,22 +130,22 @@ struct DraftRefinementTests {
 
   @Test func testDeterministicFallbackNormalizesWithoutInventingDetails() throws {
     let context = makeContext()
-    let refinement = #require(
+    let refinement = try #require(
       DraftRefinementService.deterministicRefinement(
         draft: "  - review Package.swift in 2 areas  ",
         context: context
       )
     )
 
-    #require(refinement.refinedText == "Review Package.swift in 2 areas.")
-    #require(refinement.source == .deterministic)
-    #require(refinement.refinedText.contains("Package.swift"))
-    #require(refinement.refinedText.contains("2"))
-    #require(!refinement.refinedText.contains("Sources/App.swift"))
-    #require(!refinement.refinedText.contains("must"))
+    try #require(refinement.refinedText == "Review Package.swift in 2 areas.")
+    try #require(refinement.source == .deterministic)
+    try #require(refinement.refinedText.contains("Package.swift"))
+    try #require(refinement.refinedText.contains("2"))
+    try #require(!refinement.refinedText.contains("Sources/App.swift"))
+    try #require(!refinement.refinedText.contains("must"))
   }
 
-  @Test func testPreviewPlannerDebouncesAndUsesCacheKey() {
+  @Test func testPreviewPlannerDebouncesAndUsesCacheKey() throws {
     let context = makeContext()
     let plan = DraftRefinementPreviewPlanner.plan(
       draft: "  add parser tests  ",
@@ -154,11 +154,11 @@ struct DraftRefinementTests {
       cachedKeys: []
     )
 
-    #require(plan.visibility == .debounce)
-    #require(plan.delayNanoseconds == 600_000_000)
+    try #require(plan.visibility == .debounce)
+    try #require(plan.delayNanoseconds == 600_000_000)
 
     let key = DraftRefinementPreviewKey(trimmedDraft: "add parser tests", context: context)
-    #require(plan.cacheKey == key)
+    try #require(plan.cacheKey == key)
 
     let cachedPlan = DraftRefinementPreviewPlanner.plan(
       draft: "add parser tests",
@@ -167,13 +167,13 @@ struct DraftRefinementTests {
       cachedKeys: [key]
     )
 
-    #require(cachedPlan.visibility == .cached)
-    #require(cachedPlan.delayNanoseconds == 0)
-    #require(cachedPlan.cacheKey == key)
-    #require(cachedPlan.shouldShowPreviewSurface)
+    try #require(cachedPlan.visibility == .cached)
+    try #require(cachedPlan.delayNanoseconds == 0)
+    try #require(cachedPlan.cacheKey == key)
+    try #require(cachedPlan.shouldShowPreviewSurface)
   }
 
-  @Test func testPreviewPlannerHidesForEmptyDraftAndUnavailableModel() {
+  @Test func testPreviewPlannerHidesForEmptyDraftAndUnavailableModel() throws {
     let context = makeContext()
     let emptyPlan = DraftRefinementPreviewPlanner.plan(
       draft: "   ",
@@ -188,10 +188,10 @@ struct DraftRefinementTests {
       cachedKeys: []
     )
 
-    #require(emptyPlan.visibility == .hiddenEmptyDraft)
-    #require(!emptyPlan.shouldShowPreviewSurface)
-    #require(unavailablePlan.visibility == .hiddenUnavailableModel)
-    #require(!unavailablePlan.shouldShowPreviewSurface)
+    try #require(emptyPlan.visibility == .hiddenEmptyDraft)
+    try #require(!emptyPlan.shouldShowPreviewSurface)
+    try #require(unavailablePlan.visibility == .hiddenUnavailableModel)
+    try #require(!unavailablePlan.shouldShowPreviewSurface)
   }
 
   private func makeContext() -> DraftRefinementContext {

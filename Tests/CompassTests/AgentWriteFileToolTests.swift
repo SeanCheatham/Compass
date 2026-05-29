@@ -23,11 +23,11 @@ final class AgentWriteFileToolTests {
       "content": "hello world",
     ])
 
-    #require(!result.isError)
-    #require(result.content.contains("wrote 11 bytes to fresh.txt"))
+    try #require(!result.isError)
+    try #require(result.content.contains("wrote 11 bytes to fresh.txt"))
     let written = try String(
       contentsOf: temporaryDirectory.appendingPathComponent("fresh.txt"), encoding: .utf8)
-    #require(written == "hello world")
+    try #require(written == "hello world")
   }
 
   @Test func overwritesExistingFileAfterRead() async throws {
@@ -42,9 +42,9 @@ final class AgentWriteFileToolTests {
         "content": "new",
       ], context: context)
 
-    #require(!result.isError)
+    try #require(!result.isError)
     let written = try String(contentsOf: url, encoding: .utf8)
-    #require(written == "new")
+    try #require(written == "new")
   }
 
   @Test func refusesToOverwriteUnreadFile() async throws {
@@ -56,9 +56,9 @@ final class AgentWriteFileToolTests {
       "content": "new",
     ])
 
-    #require(result.isError)
-    #require(result.content.contains("has not been read"))
-    #require(try String(contentsOf: url, encoding: .utf8) == "old")
+    try #require(result.isError)
+    try #require(result.content.contains("has not been read"))
+    try #require(try String(contentsOf: url, encoding: .utf8) == "old")
   }
 
   @Test func createsIntermediateDirectories() async throws {
@@ -67,9 +67,9 @@ final class AgentWriteFileToolTests {
       "content": "hi",
     ])
 
-    #require(!result.isError)
+    try #require(!result.isError)
     let url = temporaryDirectory.appendingPathComponent("deep/nested/path/file.txt")
-    #require(try String(contentsOf: url, encoding: .utf8) == "hi")
+    try #require(try String(contentsOf: url, encoding: .utf8) == "hi")
   }
 
   @Test func rejectsPathThatEscapesWorkingDirectory() async throws {
@@ -77,8 +77,8 @@ final class AgentWriteFileToolTests {
       "path": "../escape.txt",
       "content": "x",
     ])
-    #require(result.isError)
-    #require(result.content.contains("escapes"))
+    try #require(result.isError)
+    try #require(result.content.contains("escapes"))
   }
 
   @Test func rejectsExistingDirectory() async throws {
@@ -89,8 +89,8 @@ final class AgentWriteFileToolTests {
       "path": "blocked",
       "content": "x",
     ])
-    #require(result.isError)
-    #require(result.content.contains("Not a regular file"))
+    try #require(result.isError)
+    try #require(result.content.contains("Not a regular file"))
   }
 
   private func invoke(
