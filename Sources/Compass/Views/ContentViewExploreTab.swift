@@ -28,6 +28,8 @@ struct ExploreTab: View {
   @State private var summaryPopoverText: String? = nil
   @State private var showSummaryPopover = false
 
+  @State private var loadingSummary = false
+
   @State private var symbolDetailEntry: CodemapEntry? = nil
   @State private var showSymbolDetailPopover = false
 
@@ -68,6 +70,9 @@ struct ExploreTab: View {
                 onSymbolDetailTap: { entry in
                   symbolDetailEntry = entry
                   showSymbolDetailPopover = true
+                },
+                onGenerateSummary: { path in
+                  Task { await generateSummary(for: path) }
                 }
               )
             }
@@ -157,6 +162,29 @@ struct ExploreTab: View {
       self.loadingWhyGenerated = false
     }
   }
+
+  private func generateSummary(for relativePath: String) async {
+    let commits: [SessionCommit]
+    switch sessionScope {
+    case .lastSession:
+      commits = project.sessions.last?.commits ?? []
+    case .allSessions:
+      commits = project.sessions.flatMap(\.commits)
+    }
+    let result = await FileExplainer.explain(
+      file: relativePath,
+      repoURL: project.repoURL,
+      commits: commits
+    )
+    await MainActor.run {
+      if let summary = result {
+        self.summaryPopoverFile = relativePath
+        self.summaryPopoverText = summary
+        self.showSummaryPopover = true
+      }
+      self.loadingSummary = false
+    }
+  }
 }
 
 // MARK: - FileTreeNode
@@ -194,6 +222,7 @@ struct FileTreeRowView: View {
   let onFileTap: (String) -> Void
   let onSummaryTap: (String, String) -> Void
   let onSymbolDetailTap: (CodemapEntry) -> Void
+  let onGenerateSummary: (String) -> Void
   @State private var isExpanded = true
 
   private let rowHeight: CGFloat = 44
@@ -208,7 +237,8 @@ struct FileTreeRowView: View {
             indentLevel: indentLevel + 1,
             onFileTap: onFileTap,
             onSummaryTap: onSummaryTap,
-            onSymbolDetailTap: onSymbolDetailTap
+            onSymbolDetailTap: onSymbolDetailTap,
+            onGenerateSummary: onGenerateSummary
           )
         }
       }
@@ -321,10 +351,12 @@ struct FileTreeRowView: View {
         .italic()
         .lineLimit(1)
     } else {
-      Text("No summary yet")
-        .font(.caption)
-        .foregroundStyle(.tertiary)
-        .italic()
+      Button { onGenerateSummary(node.relativePath) } label: {
+        Label("Generate Summary", systemImage: "sparkles")
+          .font(.caption)
+          .foregroundStyle(.secondary)
+      }
+      .buttonStyle(.plain)
     }
   }
 }
