@@ -67,7 +67,7 @@ enum RepoQnA {
     if commits.count == 1 {
       diff = await CommitExplainer.gitDiff(sha: first.sha, repoURL: repoURL)
     } else if let last = commits.last {
-      diff = await CommitExplainer.gitDiffRange(newest: first.sha, oldest: last.sha, repoURL: repoURL)
+      diff = await CommitExplainer.gitDiffRange(newest: last.sha, oldest: first.sha, repoURL: repoURL)
     } else {
       return nil
     }
