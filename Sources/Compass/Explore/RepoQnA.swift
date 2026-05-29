@@ -30,9 +30,6 @@ import Foundation
 /// ## Availability
 ///
 /// Available only on macOS 26.0 and later.
-#if canImport(FoundationModels)
-  import FoundationModels
-#endif
 @available(macOS 26.0, *)
 enum RepoQnA {
   /// A Q&A answer with its supporting source files.
