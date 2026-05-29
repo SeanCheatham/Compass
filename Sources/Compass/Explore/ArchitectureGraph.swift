@@ -229,7 +229,7 @@ enum ArchitectureGraph {
   ///
   /// Returns `nil` when Foundation Models is unavailable or produces no
   /// content.
-  static func explain(graph: ImportGraph, repoURL: URL, commits: [SessionCommit]) async -> String? {
+  static func explain(graph: ImportGraph, repoURL: URL) async -> String? {
     guard FoundationModelsAvailability.isAvailable else { return nil }
 
     let nodeCount = graph.nodes.count
