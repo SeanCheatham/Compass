@@ -146,13 +146,6 @@ struct FileTreeNode: Identifiable, Equatable {
     (relativePath as NSString).lastPathComponent
   }
 
-  /// Number of source files under this node (direct children only).
-  var fileCount: Int {
-    isDirectory
-      ? children.filter { !$0.isDirectory }.count
-      : 0
-  }
-
   /// Aggregated placeholder for a folder that has children but no stored
   /// folder-level summary.
   var folderSummary: String? {
