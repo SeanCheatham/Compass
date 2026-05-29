@@ -241,8 +241,8 @@ enum FileExplainer {
     if commits.count == 1 {
       diff = await CommitExplainer.gitDiff(sha: first.sha, repoURL: repoURL)
     } else {
-      let last = commits.last!
-      diff = await CommitExplainer.gitDiffRange(newest: first.sha, oldest: last.sha, repoURL: repoURL)
+      let oldest = commits[commits.count - 1].sha
+      diff = await CommitExplainer.gitDiffRange(newest: first.sha, oldest: oldest, repoURL: repoURL)
     }
 
     if diff.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
@@ -276,8 +276,8 @@ enum FileExplainer {
     if commits.count == 1 {
       diff = await CommitExplainer.gitDiff(sha: first.sha, repoURL: repoURL)
     } else {
-      let last = commits.last!
-      diff = await CommitExplainer.gitDiffRange(newest: first.sha, oldest: last.sha, repoURL: repoURL)
+      let oldest = commits[commits.count - 1].sha
+      diff = await CommitExplainer.gitDiffRange(newest: first.sha, oldest: oldest, repoURL: repoURL)
     }
 
     if diff.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
@@ -311,8 +311,8 @@ enum FileExplainer {
     if commits.count == 1 {
       diffStat = await gitDiffStatImpl(sha: first.sha, repoURL: repoURL)
     } else {
-      let last = commits.last!
-      diffStat = await gitDiffStatImpl(from: last.sha, to: first.sha, repoURL: repoURL)
+      let oldest = commits[commits.count - 1].sha
+      diffStat = await gitDiffStatImpl(from: oldest, to: first.sha, repoURL: repoURL)
     }
 
     let rawChanges = parseGitDiffStat(diffStat)
