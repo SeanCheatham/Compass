@@ -800,31 +800,48 @@ struct PlanSessionHistoryCard: View {
   }
 }
 
-struct ExplainChangesButton: View {
-  let item: PlanSessionHistoryItem
+/// Shared explore-button wrapper for buttons that guard on `condition`,
+/// show a bordered small button, and attach a popover.
+struct ExploreButton<PopoverContent: View>: View {
+  let condition: Bool
+  let label: String
+  let systemImage: String
   let repoURL: URL
+  let content: () -> PopoverContent
 
   @State private var showingPopover = false
-  @State private var summary: String?
-  @State private var isLoading = false
 
   var body: some View {
-    if item.canExplore {
+    if condition {
       Button {
         showingPopover = true
       } label: {
-        Label("Explain Changes", systemImage: "book.pages")
+        Label(label, systemImage: systemImage)
       }
       .buttonStyle(.bordered)
       .controlSize(.small)
       .popover(isPresented: $showingPopover) {
-        CommitExplanationPopover(
-          item: item,
-          repoURL: repoURL,
-          summary: $summary,
-          isLoading: $isLoading
-        )
+        content()
       }
+    }
+  }
+}
+
+struct ExplainChangesButton: View {
+  let item: PlanSessionHistoryItem
+  let repoURL: URL
+
+  var body: some View {
+    ExploreButton(
+      condition: item.canExplore,
+      label: "Explain Changes",
+      systemImage: "book.pages",
+      repoURL: repoURL
+    ) {
+      CommitExplanationPopover(
+        item: item,
+        repoURL: repoURL
+      )
     }
   }
 }
@@ -832,8 +849,6 @@ struct ExplainChangesButton: View {
 struct CommitExplanationPopover: View {
   let item: PlanSessionHistoryItem
   let repoURL: URL
-  @Binding var summary: String?
-  @Binding var isLoading: Bool
 
   @State private var fetchedSummary: String?
 
@@ -850,7 +865,12 @@ struct CommitExplanationPopover: View {
         .font(.caption)
       }
 
-      if isLoading {
+      if let text = fetchedSummary {
+        Text(text)
+          .font(.callout)
+          .textSelection(.enabled)
+          .frame(maxWidth: 400, alignment: .leading)
+      } else {
         HStack(spacing: 8) {
           ProgressView()
             .controlSize(.small)
@@ -858,15 +878,6 @@ struct CommitExplanationPopover: View {
             .font(.caption)
             .foregroundStyle(.secondary)
         }
-      } else if let text = summary ?? fetchedSummary {
-        Text(text)
-          .font(.callout)
-          .textSelection(.enabled)
-          .frame(maxWidth: 400, alignment: .leading)
-      } else {
-        Text("Summary unavailable.")
-          .font(.caption)
-          .foregroundStyle(.secondary)
       }
     }
     .padding(16)
@@ -879,8 +890,6 @@ struct CommitExplanationPopover: View {
   private func loadExplanation() async {
     guard fetchedSummary == nil else { return }
 
-    isLoading = true
-    defer { isLoading = false }
 
     guard !item.commits.isEmpty else { return }
 
@@ -890,31 +899,21 @@ struct CommitExplanationPopover: View {
       commits: item.commits,
       repoURL: repoURL
     )
-
-    // Sync to the binding so the parent can access the loaded value.
-    summary = fetchedSummary
   }
-
 }
 
 struct PerCommitNarrativesButton: View {
   let item: PlanSessionHistoryItem
   let repoURL: URL
 
-  @State private var showingPopover = false
-
   var body: some View {
-    if item.canExplore {
-      Button {
-        showingPopover = true
-      } label: {
-        Label("Per-Commit", systemImage: "list.bullet.rectangle")
-      }
-      .buttonStyle(.bordered)
-      .controlSize(.small)
-      .popover(isPresented: $showingPopover) {
-        PerCommitNarrativesPopover(item: item, repoURL: repoURL)
-      }
+    ExploreButton(
+      condition: item.canExplore,
+      label: "Per-Commit",
+      systemImage: "list.bullet.rectangle",
+      repoURL: repoURL
+    ) {
+      PerCommitNarrativesPopover(item: item, repoURL: repoURL)
     }
   }
 }
@@ -1141,20 +1140,14 @@ struct ExploreFilesButton: View {
   let item: PlanSessionHistoryItem
   let repoURL: URL
 
-  @State private var showingPopover = false
-
   var body: some View {
-    if item.canExplore {
-      Button {
-        showingPopover = true
-      } label: {
-        Label("Explore Files", systemImage: "doc.text.magnifyingglass")
-      }
-      .buttonStyle(.bordered)
-      .controlSize(.small)
-      .popover(isPresented: $showingPopover) {
-        ExploreFilesPopover(item: item, repoURL: repoURL)
-      }
+    ExploreButton(
+      condition: item.canExplore,
+      label: "Explore Files",
+      systemImage: "doc.text.magnifyingglass",
+      repoURL: repoURL
+    ) {
+      ExploreFilesPopover(item: item, repoURL: repoURL)
     }
   }
 }
@@ -1163,20 +1156,14 @@ struct ArchitectureGraphButton: View {
   let item: PlanSessionHistoryItem
   let repoURL: URL
 
-  @State private var showingPopover = false
-
   var body: some View {
-    if item.canExplore {
-      Button {
-        showingPopover = true
-      } label: {
-        Label("Architecture", systemImage: "arrow.triangle.branch")
-      }
-      .buttonStyle(.bordered)
-      .controlSize(.small)
-      .popover(isPresented: $showingPopover) {
-        ArchitectureGraphPopover(item: item, repoURL: repoURL)
-      }
+    ExploreButton(
+      condition: item.canExplore,
+      label: "Architecture",
+      systemImage: "arrow.triangle.branch",
+      repoURL: repoURL
+    ) {
+      ArchitectureGraphPopover(item: item, repoURL: repoURL)
     }
   }
 }
@@ -1287,20 +1274,14 @@ struct QnAButton: View {
   let item: PlanSessionHistoryItem
   let repoURL: URL
 
-  @State private var showingPopover = false
-
   var body: some View {
-    if item.canQnA {
-      Button {
-        showingPopover = true
-      } label: {
-        Label("Ask", systemImage: "questionmark.circle")
-      }
-      .buttonStyle(.bordered)
-      .controlSize(.small)
-      .popover(isPresented: $showingPopover) {
-        QnAPopover(item: item, repoURL: repoURL)
-      }
+    ExploreButton(
+      condition: item.canQnA,
+      label: "Ask",
+      systemImage: "questionmark.circle",
+      repoURL: repoURL
+    ) {
+      QnAPopover(item: item, repoURL: repoURL)
     }
   }
 }
