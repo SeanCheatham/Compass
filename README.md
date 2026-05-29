@@ -197,7 +197,7 @@ Explore has five main components:
   Foundation Models. Uses `FoundationModelsAvailability.isAvailable` from the Foundation
   Models framework. Requires **macOS 26** and is gated behind `@available(macOS 26.0, *)`.
   Returns `nil` gracefully when Foundation Models is unavailable. See the
-  Vision document for the full feature description.
+  Vision document for the full feature description. Entry point: ``answer(question:repoURL:)``.
 
 - **`ArchitectureGraph`** (`Sources/Compass/Explore/ArchitectureGraph.swift`) —
   Produces a plain-English architectural description of a codebase's import graph.
@@ -205,7 +205,7 @@ Explore has five main components:
   significant files (central infrastructure, likely entry points, unusual patterns).
   Uses `FoundationModelsAvailability.isAvailable` from the on-device Foundation Models
   framework. Requires **macOS 26** and is gated behind `@available(macOS 26.0, *)`.
-  Returns `nil` gracefully when Foundation Models is unavailable.
+  Returns `nil` gracefully when Foundation Models is unavailable. Entry point: ``explain(graph:repoURL:)``.
 
 Explore is documented in the Vision under the "Explore layer" section.
 
