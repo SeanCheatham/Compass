@@ -24,15 +24,6 @@ import Testing
 ///
 /// This mirrors the Path 2 / Path 3 pattern from `ExploreCommitTourRowTests` and
 /// `ExploreQnAPopoverTests` but targets the `PerCommitNarrativesPopover` path.
-
-// MARK: - Shared test helpers
-
-private enum TestError: Error, Sendable {
-  case gitInitFailed(status: Int32)
-  case gitCommandFailed(status: Int32)
-  case noCommitSHAFound
-}
-
 struct ExplorePerCommitNarrativesPopoverTests {
 
   // MARK: - Path 1: empty commits → loadNarratives() returns early
@@ -47,11 +38,10 @@ struct ExplorePerCommitNarrativesPopoverTests {
   /// would cause the early return without calling `CommitExplainer.explain()`.
   @Test
   func loadNarratives_emptyCommits_returnsEarly() async throws {
-    var test = Self()
-    test.setUp()
-    defer { test.tearDown() }
+    let temporaryDirectory = try makeTempDir()
+    defer { try? FileManager.default.removeItem(at: temporaryDirectory) }
 
-    try test.initGitRepo()
+    try CompassTests.initGitRepo(at: temporaryDirectory)
 
     let emptyCommits: [SessionCommit] = []
 
@@ -62,7 +52,7 @@ struct ExplorePerCommitNarrativesPopoverTests {
     let result = await CommitExplainer.explain(
       commit: SessionCommit(
         sha: "0000000000000000000000000000000000000000", short: "0000000", subject: "Fake"),
-      repoURL: test.temporaryDirectory
+      repoURL: temporaryDirectory
     )
     _ = result
     // If commits were non-empty, explain WOULD be called — verify it returns nil for fake SHA
@@ -84,12 +74,11 @@ struct ExplorePerCommitNarrativesPopoverTests {
   ///                     → `narrative.availabilityError = true`
   @Test
   func loadNarratives_explainReturnsNil_setsAvailabilityError() async throws {
-    var test = Self()
-    test.setUp()
-    defer { test.tearDown() }
+    let temporaryDirectory = try makeTempDir()
+    defer { try? FileManager.default.removeItem(at: temporaryDirectory) }
 
-    try test.initGitRepo()
-    let commits = try test.makeSingleCommit()
+    try CompassTests.initGitRepo(at: temporaryDirectory)
+    let commits = try CompassTests.makeSingleCommit(at: temporaryDirectory)
 
     // Call explain directly — this is what loadNarratives() does at line 1040.
     // When Foundation Models is unavailable, it returns nil (non-throwing),
@@ -97,7 +86,7 @@ struct ExplorePerCommitNarrativesPopoverTests {
     // narrative.availabilityError = (text == nil) → true
     let text = await CommitExplainer.explain(
       commit: commits[0],
-      repoURL: test.temporaryDirectory
+      repoURL: temporaryDirectory
     )
 
     if !FoundationModelsAvailability.isAvailable {
@@ -105,92 +94,5 @@ struct ExplorePerCommitNarrativesPopoverTests {
       try #require(text == nil)
     }
     // If the model IS available, a non-nil string would be returned — both are valid.
-  }
-
-  // MARK: - Helpers
-
-  private var temporaryDirectory: URL!
-
-  private mutating func setUp() {
-    temporaryDirectory = try! makeTempDir()
-  }
-
-  private mutating func tearDown() {
-    if let temporaryDirectory {
-      try? FileManager.default.removeItem(at: temporaryDirectory)
-    }
-    temporaryDirectory = nil
-  }
-
-  private mutating func initGitRepo() throws {
-    let process = Process()
-    process.launchPath = "/bin/zsh"
-    process.arguments = ["-lc", "git init -q && git branch -M main"]
-    process.currentDirectoryURL = temporaryDirectory
-    process.standardOutput = Pipe()
-    process.standardError = Pipe()
-    try process.run()
-    process.waitUntilExit()
-    guard process.terminationStatus == 0 else {
-      throw TestError.gitInitFailed(status: process.terminationStatus)
-    }
-  }
-
-  private mutating func writeFile(_ relative: String, contents: String) throws {
-    let url = temporaryDirectory.appendingPathComponent(relative)
-    try FileManager.default.createDirectory(
-      at: url.deletingLastPathComponent(),
-      withIntermediateDirectories: true
-    )
-    try contents.write(to: url, atomically: true, encoding: .utf8)
-  }
-
-  private mutating func runGit(_ command: String) throws {
-    let process = Process()
-    process.launchPath = "/bin/zsh"
-    process.arguments = ["-lc", command]
-    process.currentDirectoryURL = temporaryDirectory
-    process.standardOutput = Pipe()
-    process.standardError = Pipe()
-    try process.run()
-    process.waitUntilExit()
-    guard process.terminationStatus == 0 else {
-      throw TestError.gitCommandFailed(status: process.terminationStatus)
-    }
-  }
-
-  private mutating func makeSingleCommit() throws -> [SessionCommit] {
-    try writeFile("Sources/App.swift", contents: "import Foundation\n")
-    try runGit(
-      "git -C \(temporaryDirectory.path) add Sources/App.swift && "
-        + "git -C \(temporaryDirectory.path) "
-        + "-c user.email=t@t -c user.name=t commit -q -m 'Add App.swift'"
-    )
-    let sha = try getSingleCommitSHA()
-    return [SessionCommit(sha: sha, short: String(sha.prefix(7)), subject: "Add App.swift")]
-  }
-
-  private func getSingleCommitSHA() throws -> String {
-    let process = Process()
-    process.launchPath = "/bin/zsh"
-    process.arguments = ["-lc", "git rev-parse HEAD"]
-    process.currentDirectoryURL = temporaryDirectory
-    let stdoutPipe = Pipe()
-    process.standardOutput = stdoutPipe
-    process.standardError = Pipe()
-    try process.run()
-    process.waitUntilExit()
-    guard process.terminationStatus == 0 else {
-      throw TestError.noCommitSHAFound
-    }
-    let data = stdoutPipe.fileHandleForReading.readDataToEndOfFile()
-    guard
-      let stdout = String(data: data, encoding: .utf8)?
-        .trimmingCharacters(in: .whitespacesAndNewlines),
-      !stdout.isEmpty
-    else {
-      throw TestError.noCommitSHAFound
-    }
-    return stdout
   }
 }

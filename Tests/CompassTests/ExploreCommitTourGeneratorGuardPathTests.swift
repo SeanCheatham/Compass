@@ -28,12 +28,11 @@ struct ExploreCommitTourGeneratorGuardPathTests {
   /// in the repository. The git call returns `""`, triggering `guard !diff.isEmpty`.
   @Test
   func generateTour_invalidSHA_returnsNil() async throws {
-    var test = Self()
-    test.setUp()
-    defer { test.tearDown() }
+    let temporaryDirectory = try makeTempDir()
+    defer { try? FileManager.default.removeItem(at: temporaryDirectory) }
 
-    try test.initGitRepo()
-    _ = try test.makeSingleCommit()
+    try CompassTests.initGitRepo(at: temporaryDirectory)
+    _ = try CompassTests.makeSingleCommit(at: temporaryDirectory)
 
     // Use a valid-format but non-existent SHA — git returns empty string,
     // which hits: guard !diff.isEmpty else { return nil }
@@ -42,7 +41,7 @@ struct ExploreCommitTourGeneratorGuardPathTests {
 
     let result = await CommitTourGenerator.generateTour(
       commits: commits,
-      repoURL: test.temporaryDirectory
+      repoURL: temporaryDirectory
     )
     try #require(result == nil)
   }
@@ -54,60 +53,25 @@ struct ExploreCommitTourGeneratorGuardPathTests {
   /// and `guard !diff.isEmpty else { return nil }` fires.
   @Test
   func generateTour_emptyTreeCommit_returnsNil() async throws {
-    var test = Self()
-    test.setUp()
-    defer { test.tearDown() }
+    let temporaryDirectory = try makeTempDir()
+    defer { try? FileManager.default.removeItem(at: temporaryDirectory) }
 
-    try test.initGitRepo()
+    try CompassTests.initGitRepo(at: temporaryDirectory)
 
     // Create an allow-empty commit (no files staged/changed)
-    try test.runGit(
-      "git -C \(test.temporaryDirectory.path) "
-        + "-c user.email=t@t -c user.name=t commit -q --allow-empty -m 'Empty commit'"
+    try CompassTests.runGit(
+      "git -C \(temporaryDirectory.path) "
+        + "-c user.email=t@t -c user.name=t commit -q --allow-empty -m 'Empty commit'",
+      at: temporaryDirectory
     )
 
-    let sha = try test.getSingleCommitSHA()
+    let sha = try CompassTests.getSingleCommitSHA(at: temporaryDirectory)
     let commits = [SessionCommit(sha: sha, short: String(sha.prefix(7)), subject: "Empty commit")]
 
     let result = await CommitTourGenerator.generateTour(
       commits: commits,
-      repoURL: test.temporaryDirectory
+      repoURL: temporaryDirectory
     )
     try #require(result == nil)
-  }
-
-  // MARK: - Helpers
-
-  private var temporaryDirectory: URL!
-
-  private mutating func setUp() {
-    temporaryDirectory = try! makeTempDir()
-  }
-
-  private mutating func tearDown() {
-    if let temporaryDirectory {
-      try? FileManager.default.removeItem(at: temporaryDirectory)
-    }
-    temporaryDirectory = nil
-  }
-
-  private mutating func initGitRepo() throws {
-    try initGitRepo(at: temporaryDirectory)
-  }
-
-  private mutating func writeFile(_ relative: String, contents: String) throws {
-    try writeFile(relative, contents: contents, at: temporaryDirectory)
-  }
-
-  private mutating func runGit(_ command: String) throws {
-    try runGit(command, at: temporaryDirectory)
-  }
-
-  private mutating func makeSingleCommit() throws -> [SessionCommit] {
-    try makeSingleCommit(at: temporaryDirectory)
-  }
-
-  private mutating func getSingleCommitSHA() throws -> String {
-    try getSingleCommitSHA(at: temporaryDirectory)
   }
 }

@@ -21,8 +21,8 @@ import Testing
 /// established in `ExploreCommitExplainerTests.summarize_returnsNilWhenModelUnavailable`
 /// and `ExploreFileExplainerGuardPathTests.whyGenerated_returnsNilWhenModelUnavailable`.
 ///
-/// This test uses the same `setUp`/`tearDown`/`initGitRepo`/`makeSingleCommit`
-/// helper pattern established across all other Explore guard-path test files.
+/// This test uses the same helper pattern established across all other
+/// Explore guard-path test files.
 struct ExploreArchitectureGraphGuardPathTests {
 
   // MARK: - isAvailable guard
@@ -35,42 +35,18 @@ struct ExploreArchitectureGraphGuardPathTests {
   /// `explain` returns `nil` without throwing.
   @Test
   func explain_returnsNilWhenModelUnavailable() async throws {
-    var test = Self()
-    test.setUp()
-    defer { test.tearDown() }
+    let temporaryDirectory = try makeTempDir()
+    defer { try? FileManager.default.removeItem(at: temporaryDirectory) }
 
-    try test.initGitRepo()
-    _ = try test.makeSingleCommit()
+    try CompassTests.initGitRepo(at: temporaryDirectory)
+    _ = try CompassTests.makeSingleCommit(at: temporaryDirectory)
 
     // Build a minimal non-empty ImportGraph with at least one node and edge.
     let node = ImportGraph.Node(path: "Sources/App.swift")
     let edge = ImportGraph.Edge(source: node, target: node, rawImport: "import Foundation")
     let graph = ImportGraph(nodes: [node], edges: [edge])
 
-    let result = await ArchitectureGraph.explain(graph: graph, repoURL: test.temporaryDirectory)
+    let result = await ArchitectureGraph.explain(graph: graph, repoURL: temporaryDirectory)
     try #require(result == nil)
-  }
-
-  // MARK: - Helpers
-
-  private var temporaryDirectory: URL!
-
-  private mutating func setUp() {
-    temporaryDirectory = try! makeTempDir()
-  }
-
-  private mutating func tearDown() {
-    if let temporaryDirectory {
-      try? FileManager.default.removeItem(at: temporaryDirectory)
-    }
-    temporaryDirectory = nil
-  }
-
-  private mutating func initGitRepo() throws {
-    try initGitRepo(at: temporaryDirectory)
-  }
-
-  private mutating func makeSingleCommit() throws -> [SessionCommit] {
-    try makeSingleCommit(at: temporaryDirectory)
   }
 }
