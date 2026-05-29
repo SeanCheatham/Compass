@@ -9,7 +9,7 @@
 ///
 /// ## Components
 ///
-/// Explore is composed of four Foundation Models-driven components:
+/// Explore is composed of five Foundation Models-driven components:
 ///
 /// | Component | Role | Foundation Models entry point |
 /// |---|---|---|
@@ -17,6 +17,7 @@
 /// | ``CommitExplainer`` | Per-commit diff summarization — converts a raw `git diff` into plain-English prose | ``summarize(diff:)`` |
 /// | ``CommitTourGenerator`` | Guided code tours — produces a narrative walk-through of a multi-commit span | ``generateTour(commits:repoURL:)`` |
 /// | ``RepoQnA`` | Repository-scale Q&A — answers natural-language questions grounded in the actual codebase | ``answer(question:repoURL:)`` |
+/// | ``ArchitectureGraph`` | Architectural import-graph analysis — visualizes module boundaries and dependencies | ``explain(graph:repoURL:)`` |
 ///
 /// ## Composition
 ///
@@ -26,13 +27,14 @@
 /// - **FileExplainer → CommitTourGenerator**: For multi-commit ranges FileExplainer
 ///   can route the commit list to CommitTourGenerator to produce a guided tour.
 /// - **RepoQnA**: Available independently for free-form questions about the repository.
+/// - **ArchitectureGraph**: Available independently for import-graph visualization of the codebase structure.
 ///
-/// ``FileExplainer`` is the only component the UI directly depends on; the other three
-/// are called through it.
+/// ``FileExplainer`` is the primary component the UI depends on for changed-file exploration;
+/// the other four are called through it or available independently.
 ///
 /// ## Source material
 ///
-/// All four components operate on live repository data — git commits, file diffs, and
+/// All five components operate on live repository data — git commits, file diffs, and
 /// the codemap — so their output is always validated against the actual codebase rather
 /// than hallucinated from training data.
 
