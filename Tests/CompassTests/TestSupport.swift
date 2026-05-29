@@ -65,6 +65,15 @@ func makeSingleCommit(at directory: URL) throws -> [SessionCommit] {
   return [SessionCommit(sha: sha, short: String(sha.prefix(7)), subject: "Add App.swift")]
 }
 
+/// Returns all commit SHAs in the repo, newest-first.
+func getAllCommitSHAs(at directory: URL) throws -> [String] {
+  let stdout = try captureGit(["log", "--all", "--format=%H"], at: directory)
+  return stdout
+    .split(separator: "\n")
+    .filter { !$0.isEmpty }
+    .map { String($0) }
+}
+
 /// Returns the full SHA of the current HEAD commit.
 func getSingleCommitSHA(at directory: URL) throws -> String {
   let stdout = try captureGit(["rev-parse", "HEAD"], at: directory)
