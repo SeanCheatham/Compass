@@ -1350,6 +1350,113 @@ struct ExploreFileExplainerTests {
     try #require(changes.isEmpty)
   }
 
+  @Test
+  func changes_multiCommit_returnsCorrectAdditionsAndDeletions() async throws {
+    var test = Self()
+    test.setUp()
+    defer { test.tearDown() }
+
+    // Set up a git repo with two commits on the same file.
+    try test.initGitRepo(at: test.temporaryDirectory)
+
+    // Commit 1 (oldest): creates App.swift with 3 lines (empty → 3 lines)
+    try test.writeFile("App.swift", contents: "line 1\nline 2\nline 3\n")
+    try test.runGit(
+      "git -C \(test.temporaryDirectory.path) add App.swift && "
+        + "git -C \(test.temporaryDirectory.path) "
+        + "-c user.email=t@t -c user.name=t commit -q -m 'Add App.swift'",
+      at: test.temporaryDirectory
+    )
+
+    // Commit 2 (newest): modifies App.swift from 3 → 5 lines (+2 net)
+    try test.writeFile("App.swift", contents: "line 1\nline 2\nline 3\nline 4\nline 5\n")
+    try test.runGit(
+      "git -C \(test.temporaryDirectory.path) add . && "
+        + "git -C \(test.temporaryDirectory.path) "
+        + "-c user.email=t@t -c user.name=t commit -q -m 'Modify App.swift'",
+      at: test.temporaryDirectory
+    )
+
+    let shas = try test.getAllCommitSHAs(at: test.temporaryDirectory)
+    try #require(shas.count == 2)
+    let oldest = shas[1]  // oldest commit
+    let newest = shas[0]  // newest commit
+
+    // Query the full range (oldest..newest with newest first in the array).
+    let commits = [
+      SessionCommit(sha: newest, short: String(newest.prefix(7)), subject: "Modify App.swift"),
+      SessionCommit(sha: oldest, short: String(oldest.prefix(7)), subject: "Add App.swift"),
+    ]
+
+    let changes = await FileExplainer.changes(for: test.temporaryDirectory, commits: commits)
+
+    try #require(changes.count == 1, "Only App.swift changed across both commits")
+    try #require(changes[0].relativePath == "App.swift")
+    // The range diff shows net 2 insertions (3-line version → 5-line version).
+    try #require(changes[0].additions == 2)
+    try #require(changes[0].deletions == 0)
+  }
+
+  @Test
+  func changes_twoSeparateFiles_returnsCorrectCountsPerFile() async throws {
+    var test = Self()
+    test.setUp()
+    defer { test.tearDown() }
+
+    // Set up a git repo with two commits touching different files.
+    try test.initGitRepo(at: test.temporaryDirectory)
+
+    // Commit 1 (oldest): adds README.md with 1 line
+    try test.writeFile("README.md", contents: "# Project\n")
+    try test.runGit(
+      "git -C \(test.temporaryDirectory.path) add README.md && "
+        + "git -C \(test.temporaryDirectory.path) "
+        + "-c user.email=t@t -c user.name=t commit -q -m 'Add README'",
+      at: test.temporaryDirectory
+    )
+
+    // Commit 2 (newest): adds Sources/App.swift with 3 lines
+    try test.writeFile("Sources/App.swift", contents: "import Foundation\n\nlet app = 1\n")
+    try test.runGit(
+      "git -C \(test.temporaryDirectory.path) add Sources/App.swift && "
+        + "git -C \(test.temporaryDirectory.path) "
+        + "-c user.email=t@t -c user.name=t commit -q -m 'Add App.swift'",
+      at: test.temporaryDirectory
+    )
+
+    let shas = try test.getAllCommitSHAs(at: test.temporaryDirectory)
+    try #require(shas.count == 2)
+    let oldest = shas[1]  // Add README
+    let newest = shas[0]  // Add App.swift
+
+    let commits = [
+      SessionCommit(sha: newest, short: String(newest.prefix(7)), subject: "Add App.swift"),
+      SessionCommit(sha: oldest, short: String(oldest.prefix(7)), subject: "Add README"),
+    ]
+
+    // Accumulate per-commit diff stats to verify correct per-file counts across commits.
+    var accumulated: [String: (additions: Int, deletions: Int)] = [:]
+    for commit in commits {
+      let diffStatOutput = await FileExplainer.gitDiffStat(sha: commit.sha, repoURL: test.temporaryDirectory)
+      let perCommitChanges = FileExplainer.parseGitDiffStat(diffStatOutput)
+      for change in perCommitChanges {
+        let existing = accumulated[change.relativePath, default: (0, 0)]
+        accumulated[change.relativePath] = (
+          additions: existing.additions + change.additions,
+          deletions: existing.deletions + change.deletions
+        )
+      }
+    }
+
+    // Verify README.md was added in the oldest commit.
+    try #require(accumulated["README.md"]?.additions == 1)
+    try #require(accumulated["README.md"]?.deletions == 0)
+
+    // Verify Sources/App.swift was added in the newest commit.
+    try #require(accumulated["Sources/App.swift"]?.additions == 3)
+    try #require(accumulated["Sources/App.swift"]?.deletions == 0)
+  }
+
   // MARK: - groupedChanges sorting
 
   @Test
