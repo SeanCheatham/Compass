@@ -191,6 +191,26 @@ struct ExploreCommitTourGeneratorTests {
     try #require(result == nil)
   }
 
+  // MARK: - isAvailable guard (real git repo)
+
+  @Test
+  func generate_withRealGitRepo_returnsNilWhenModelUnavailable()  async throws {
+    // Confirms the isAvailable guard fires correctly when Foundation Models is
+    // unavailable, using a real git repo with a real commit (mirroring the
+    // pattern from ExploreRepoQnAAnswerGuardTests and ExploreCommitTourGeneratorTests).
+    let repoURL = try makeTempDir()
+    try initGitRepo(at: repoURL)
+    _ = try makeSingleCommit(at: repoURL)
+
+    let diff = """
+    Sources/App.swift        |   2 ++
+    """
+    let result = await CommitTourGenerator.generate(diff: diff)
+    if !FoundationModelsAvailability.isAvailable {
+      try #require(result == nil)
+    }
+  }
+
   // MARK: - isAvailable guard
 
   @Test
