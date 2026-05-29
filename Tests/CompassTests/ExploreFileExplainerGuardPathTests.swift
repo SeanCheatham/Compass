@@ -156,6 +156,55 @@ struct ExploreFileExplainerGuardPathTests {
     // that reaches this branch with standard Swift arrays.
   }
 
+  // MARK: - isAvailable guard
+
+  /// Verifies `explain` returns `nil` when Foundation Models is unavailable.
+  ///
+  /// `FileExplainer.explain` calls `CommitExplainer.summarize`, which has a
+  /// `guard FoundationModelsAvailability.isAvailable else { return nil }`
+  /// guard at line 51 of `CommitExplainer.swift`. When the model is unavailable
+  /// the guard fires and `explain` returns `nil` without throwing.
+  @Test
+  func explain_returnsNilWhenModelUnavailable() async throws {
+    var test = Self()
+    test.setUp()
+    defer { test.tearDown() }
+
+    try test.initGitRepo()
+    let commits = try test.makeSingleCommit()
+
+    let result = await FileExplainer.explain(
+      file: "Sources/App.swift",
+      repoURL: test.temporaryDirectory,
+      commits: commits
+    )
+    try #require(result == nil)
+  }
+
+  /// Verifies `whyGenerated` returns `nil` when Foundation Models is unavailable.
+  ///
+  /// `FileExplainer.whyGenerated` calls `CommitExplainer.summarizeWhyGenerated`,
+  /// which calls `CommitExplainer.summarize` internally. That private method has a
+  /// `guard FoundationModelsAvailability.isAvailable else { return nil }` guard
+  /// at line 51 of `CommitExplainer.swift`. When the model is unavailable the
+  /// guard fires and `whyGenerated` returns `nil` without throwing.
+  @Test
+  func whyGenerated_returnsNilWhenModelUnavailable() async throws {
+    var test = Self()
+    test.setUp()
+    defer { test.tearDown() }
+
+    try test.initGitRepo()
+    let commits = try test.makeSingleCommit()
+
+    let result = await FileExplainer.whyGenerated(
+      file: "Sources/App.swift",
+      repoURL: test.temporaryDirectory,
+      commits: commits
+    )
+    try #require(result == nil)
+  }
+
   // MARK: - Helpers
 
   private var temporaryDirectory: URL!
