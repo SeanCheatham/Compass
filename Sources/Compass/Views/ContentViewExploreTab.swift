@@ -49,10 +49,10 @@ struct ExploreTab: View {
       isLoading = false
       return
     }
-    let store = CodemapStore.defaultDirectory(forWorkspace: workspace)
+    let codemapDir = CodemapStore.defaultDirectory(forWorkspace: workspace)
     let fs = CodemapFileSystem(rootURL: project.repoURL)
     let nodes = fs.buildTree()
-    let entries = CodemapStore(directory: store).loadAllEntries()
+    let entries = CodemapStore(directory: codemapDir).loadAllEntries()
     let entryMap = Dictionary(uniqueKeysWithValues: entries.map {
       ($0.relativePath, $0)
     })
