@@ -92,7 +92,8 @@ struct SharedVMToolchainDefinition: Sendable, Equatable {
     case .commandLineTools:
       return "xcode-select -p >/dev/null 2>&1"
     case .homebrew:
-      return "test -x \(SharedVMToolchainPaths.brewInstallPath) && \(SharedVMToolchainPaths.brewInstallPath) --version >/dev/null 2>&1"
+      return
+        "test -x \(SharedVMToolchainPaths.brewInstallPath) && \(SharedVMToolchainPaths.brewInstallPath) --version >/dev/null 2>&1"
     case .ripgrep:
       return """
         test -x \(SharedVMToolchainPaths.ripgrepInstallPath)
@@ -195,19 +196,21 @@ struct SharedVMToolchainDefinition: Sendable, Equatable {
     let id = SharedVMToolchainID.homebrew.rawValue
     let brewBin = SharedVMToolchainPaths.brewInstallPath
     let guestUser = SharedCompassVMBundle.State.defaultGuestUserName
-    return renderScriptShell(id: id, body: """
-      BREW_BIN="\(brewBin)"
-      GUEST_USER="\(guestUser)"
-      if [ -x "$BREW_BIN" ]; then
-        echo "\(SharedVMToolchainPaths.logTag(id: id)) already installed"
-      else
-        echo "\(SharedVMToolchainPaths.logTag(id: id)) bootstrapping Homebrew as $GUEST_USER"
-        su - "$GUEST_USER" -c 'NONINTERACTIVE=1 CI=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"' \\
-          || fail 2 "Homebrew bootstrap failed"
-        [ -x "$BREW_BIN" ] || fail 3 "Homebrew missing at $BREW_BIN after bootstrap"
-        echo "\(SharedVMToolchainPaths.logTag(id: id)) installed $BREW_BIN"
-      fi
-      """)
+    return renderScriptShell(
+      id: id,
+      body: """
+        BREW_BIN="\(brewBin)"
+        GUEST_USER="\(guestUser)"
+        if [ -x "$BREW_BIN" ]; then
+          echo "\(SharedVMToolchainPaths.logTag(id: id)) already installed"
+        else
+          echo "\(SharedVMToolchainPaths.logTag(id: id)) bootstrapping Homebrew as $GUEST_USER"
+          su - "$GUEST_USER" -c 'NONINTERACTIVE=1 CI=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"' \\
+            || fail 2 "Homebrew bootstrap failed"
+          [ -x "$BREW_BIN" ] || fail 3 "Homebrew missing at $BREW_BIN after bootstrap"
+          echo "\(SharedVMToolchainPaths.logTag(id: id)) installed $BREW_BIN"
+        fi
+        """)
   }
 
   private static func renderRipgrepInstallScript() -> String {
@@ -216,106 +219,114 @@ struct SharedVMToolchainDefinition: Sendable, Equatable {
     let brewRg = SharedVMToolchainPaths.brewRipgrepPath
     let brewBin = SharedVMToolchainPaths.brewInstallPath
     let guestUser = SharedCompassVMBundle.State.defaultGuestUserName
-    return renderScriptShell(id: id, body: """
-      RG_BIN="\(rgBin)"
-      BREW_RG="\(brewRg)"
-      BREW_BIN="\(brewBin)"
-      GUEST_USER="\(guestUser)"
-      if [ -x "$RG_BIN" ]; then
-        echo "\(SharedVMToolchainPaths.logTag(id: id)) already installed"
-      else
-        [ -x "$BREW_BIN" ] || fail 2 "Homebrew missing — install the homebrew toolchain first"
-        echo "\(SharedVMToolchainPaths.logTag(id: id)) brew install ripgrep"
-        su - "$GUEST_USER" -c "'$BREW_BIN' install ripgrep" \\
-          || fail 3 "brew install ripgrep failed"
-        [ -x "$BREW_RG" ] || fail 4 "ripgrep missing at $BREW_RG after brew install"
-        install -d -o root -g wheel -m 0755 "$(dirname "$RG_BIN")"
-        ln -sf "$BREW_RG" "$RG_BIN"
-        [ -x "$RG_BIN" ] || fail 5 "ripgrep symlink verification failed at $RG_BIN"
-        echo "\(SharedVMToolchainPaths.logTag(id: id)) installed $RG_BIN"
-      fi
-      """)
+    return renderScriptShell(
+      id: id,
+      body: """
+        RG_BIN="\(rgBin)"
+        BREW_RG="\(brewRg)"
+        BREW_BIN="\(brewBin)"
+        GUEST_USER="\(guestUser)"
+        if [ -x "$RG_BIN" ]; then
+          echo "\(SharedVMToolchainPaths.logTag(id: id)) already installed"
+        else
+          [ -x "$BREW_BIN" ] || fail 2 "Homebrew missing — install the homebrew toolchain first"
+          echo "\(SharedVMToolchainPaths.logTag(id: id)) brew install ripgrep"
+          su - "$GUEST_USER" -c "'$BREW_BIN' install ripgrep" \\
+            || fail 3 "brew install ripgrep failed"
+          [ -x "$BREW_RG" ] || fail 4 "ripgrep missing at $BREW_RG after brew install"
+          install -d -o root -g wheel -m 0755 "$(dirname "$RG_BIN")"
+          ln -sf "$BREW_RG" "$RG_BIN"
+          [ -x "$RG_BIN" ] || fail 5 "ripgrep symlink verification failed at $RG_BIN"
+          echo "\(SharedVMToolchainPaths.logTag(id: id)) installed $RG_BIN"
+        fi
+        """)
   }
 
   private static func renderRustInstallScript() -> String {
     let id = SharedVMToolchainID.rust.rawValue
     let guestUser = SharedCompassVMBundle.State.defaultGuestUserName
-    return renderScriptShell(id: id, body: """
-      GUEST_USER="\(guestUser)"
-      if su - "$GUEST_USER" -c 'command -v rustc' >/dev/null 2>&1; then
-        echo "\(SharedVMToolchainPaths.logTag(id: id)) already installed"
-      else
-        echo "\(SharedVMToolchainPaths.logTag(id: id)) installing rustup"
-        su - "$GUEST_USER" -c 'curl --proto "=https" --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable' \\
-          || fail 2 "rustup install failed"
-        su - "$GUEST_USER" -c 'command -v rustc && rustc --version' \\
-          || fail 3 "rustc verification failed"
-        echo "\(SharedVMToolchainPaths.logTag(id: id)) installed rust"
-      fi
-      """)
+    return renderScriptShell(
+      id: id,
+      body: """
+        GUEST_USER="\(guestUser)"
+        if su - "$GUEST_USER" -c 'command -v rustc' >/dev/null 2>&1; then
+          echo "\(SharedVMToolchainPaths.logTag(id: id)) already installed"
+        else
+          echo "\(SharedVMToolchainPaths.logTag(id: id)) installing rustup"
+          su - "$GUEST_USER" -c 'curl --proto "=https" --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable' \\
+            || fail 2 "rustup install failed"
+          su - "$GUEST_USER" -c 'command -v rustc && rustc --version' \\
+            || fail 3 "rustc verification failed"
+          echo "\(SharedVMToolchainPaths.logTag(id: id)) installed rust"
+        fi
+        """)
   }
 
   private static func renderHaskellInstallScript() -> String {
     let id = SharedVMToolchainID.haskell.rawValue
     let brewBin = SharedVMToolchainPaths.brewInstallPath
     let guestUser = SharedCompassVMBundle.State.defaultGuestUserName
-    return renderScriptShell(id: id, body: """
-      BREW_BIN="\(brewBin)"
-      GUEST_USER="\(guestUser)"
-      if su - "$GUEST_USER" -c '\(haskellVerificationCommand)' >/dev/null 2>&1; then
-        echo "\(SharedVMToolchainPaths.logTag(id: id)) already installed"
-      else
-        [ -x "$BREW_BIN" ] || fail 2 "Homebrew missing — install the homebrew toolchain first"
-        if ! su - "$GUEST_USER" -c 'command -v ghc' >/dev/null 2>&1; then
-          echo "\(SharedVMToolchainPaths.logTag(id: id)) brew install ghc"
-          su - "$GUEST_USER" -c "'$BREW_BIN' install ghc" \\
-            || fail 3 "brew install ghc failed"
+    return renderScriptShell(
+      id: id,
+      body: """
+        BREW_BIN="\(brewBin)"
+        GUEST_USER="\(guestUser)"
+        if su - "$GUEST_USER" -c '\(haskellVerificationCommand)' >/dev/null 2>&1; then
+          echo "\(SharedVMToolchainPaths.logTag(id: id)) already installed"
+        else
+          [ -x "$BREW_BIN" ] || fail 2 "Homebrew missing — install the homebrew toolchain first"
+          if ! su - "$GUEST_USER" -c 'command -v ghc' >/dev/null 2>&1; then
+            echo "\(SharedVMToolchainPaths.logTag(id: id)) brew install ghc"
+            su - "$GUEST_USER" -c "'$BREW_BIN' install ghc" \\
+              || fail 3 "brew install ghc failed"
+          fi
+          if ! su - "$GUEST_USER" -c 'command -v cabal' >/dev/null 2>&1; then
+            echo "\(SharedVMToolchainPaths.logTag(id: id)) brew install cabal-install"
+            su - "$GUEST_USER" -c "'$BREW_BIN' install cabal-install" \\
+              || fail 4 "brew install cabal-install failed"
+          fi
+          if ! su - "$GUEST_USER" -c 'command -v stack' >/dev/null 2>&1; then
+            echo "\(SharedVMToolchainPaths.logTag(id: id)) brew install stack"
+            su - "$GUEST_USER" -c "'$BREW_BIN' install stack" \\
+              || fail 5 "brew install stack failed"
+          fi
+          su - "$GUEST_USER" -c '\(haskellVerificationCommand)' \\
+            || fail 6 "ghc/cabal/stack verification failed"
+          echo "\(SharedVMToolchainPaths.logTag(id: id)) installed ghc, cabal, and stack"
         fi
-        if ! su - "$GUEST_USER" -c 'command -v cabal' >/dev/null 2>&1; then
-          echo "\(SharedVMToolchainPaths.logTag(id: id)) brew install cabal-install"
-          su - "$GUEST_USER" -c "'$BREW_BIN' install cabal-install" \\
-            || fail 4 "brew install cabal-install failed"
-        fi
-        if ! su - "$GUEST_USER" -c 'command -v stack' >/dev/null 2>&1; then
-          echo "\(SharedVMToolchainPaths.logTag(id: id)) brew install stack"
-          su - "$GUEST_USER" -c "'$BREW_BIN' install stack" \\
-            || fail 5 "brew install stack failed"
-        fi
-        su - "$GUEST_USER" -c '\(haskellVerificationCommand)' \\
-          || fail 6 "ghc/cabal/stack verification failed"
-        echo "\(SharedVMToolchainPaths.logTag(id: id)) installed ghc, cabal, and stack"
-      fi
-      """)
+        """)
   }
 
   private static func renderNodeInstallScript() -> String {
     let id = SharedVMToolchainID.node.rawValue
     let brewBin = SharedVMToolchainPaths.brewInstallPath
     let guestUser = SharedCompassVMBundle.State.defaultGuestUserName
-    return renderScriptShell(id: id, body: """
-      BREW_BIN="\(brewBin)"
-      GUEST_USER="\(guestUser)"
-      if su - "$GUEST_USER" -c '\(nodeVerificationCommand)' >/dev/null 2>&1; then
-        echo "\(SharedVMToolchainPaths.logTag(id: id)) already installed"
-      else
-        [ -x "$BREW_BIN" ] || fail 2 "Homebrew missing — install the homebrew toolchain first"
-        if ! su - "$GUEST_USER" -c 'command -v node' >/dev/null 2>&1; then
-          echo "\(SharedVMToolchainPaths.logTag(id: id)) brew install node"
-          su - "$GUEST_USER" -c "'$BREW_BIN' install node" \\
-            || fail 3 "brew install node failed"
+    return renderScriptShell(
+      id: id,
+      body: """
+        BREW_BIN="\(brewBin)"
+        GUEST_USER="\(guestUser)"
+        if su - "$GUEST_USER" -c '\(nodeVerificationCommand)' >/dev/null 2>&1; then
+          echo "\(SharedVMToolchainPaths.logTag(id: id)) already installed"
+        else
+          [ -x "$BREW_BIN" ] || fail 2 "Homebrew missing — install the homebrew toolchain first"
+          if ! su - "$GUEST_USER" -c 'command -v node' >/dev/null 2>&1; then
+            echo "\(SharedVMToolchainPaths.logTag(id: id)) brew install node"
+            su - "$GUEST_USER" -c "'$BREW_BIN' install node" \\
+              || fail 3 "brew install node failed"
+          fi
+          su - "$GUEST_USER" -c 'command -v node && command -v npm && command -v npx && node --version && npm --version' \\
+            || fail 4 "node/npm/npx verification failed"
+          if ! su - "$GUEST_USER" -c 'command -v tsc' >/dev/null 2>&1; then
+            echo "\(SharedVMToolchainPaths.logTag(id: id)) npm install -g typescript"
+            su - "$GUEST_USER" -c 'npm install -g typescript' \\
+              || fail 5 "npm install -g typescript failed"
+          fi
+          su - "$GUEST_USER" -c '\(nodeVerificationCommand)' \\
+            || fail 6 "node/js/ts verification failed"
+          echo "\(SharedVMToolchainPaths.logTag(id: id)) installed node, npm, npx, and typescript"
         fi
-        su - "$GUEST_USER" -c 'command -v node && command -v npm && command -v npx && node --version && npm --version' \\
-          || fail 4 "node/npm/npx verification failed"
-        if ! su - "$GUEST_USER" -c 'command -v tsc' >/dev/null 2>&1; then
-          echo "\(SharedVMToolchainPaths.logTag(id: id)) npm install -g typescript"
-          su - "$GUEST_USER" -c 'npm install -g typescript' \\
-            || fail 5 "npm install -g typescript failed"
-        fi
-        su - "$GUEST_USER" -c '\(nodeVerificationCommand)' \\
-          || fail 6 "node/js/ts verification failed"
-        echo "\(SharedVMToolchainPaths.logTag(id: id)) installed node, npm, npx, and typescript"
-      fi
-      """)
+        """)
   }
 
   private static func renderBrewPackageInstallScript(
@@ -331,21 +342,23 @@ struct SharedVMToolchainDefinition: Sendable, Equatable {
     }
     let brewBin = SharedVMToolchainPaths.brewInstallPath
     let guestUser = SharedCompassVMBundle.State.defaultGuestUserName
-    return renderScriptShell(id: id, body: """
-      BREW_BIN="\(brewBin)"
-      GUEST_USER="\(guestUser)"
-      if su - "$GUEST_USER" -c '\(verifyCommand)' >/dev/null 2>&1; then
-        echo "\(SharedVMToolchainPaths.logTag(id: id)) already installed"
-      else
-        [ -x "$BREW_BIN" ] || fail 2 "Homebrew missing — install the homebrew toolchain first"
-        echo "\(SharedVMToolchainPaths.logTag(id: id)) brew install \(brewPackage)"
-        su - "$GUEST_USER" -c "'$BREW_BIN' install \(brewPackage)" \\
-          || fail 3 "brew install \(brewPackage) failed"
-        su - "$GUEST_USER" -c '\(verifyCommand)' \\
-          || fail 4 "\(brewPackage) verification failed"
-        echo "\(SharedVMToolchainPaths.logTag(id: id)) installed \(brewPackage)"
-      fi
-      """)
+    return renderScriptShell(
+      id: id,
+      body: """
+        BREW_BIN="\(brewBin)"
+        GUEST_USER="\(guestUser)"
+        if su - "$GUEST_USER" -c '\(verifyCommand)' >/dev/null 2>&1; then
+          echo "\(SharedVMToolchainPaths.logTag(id: id)) already installed"
+        else
+          [ -x "$BREW_BIN" ] || fail 2 "Homebrew missing — install the homebrew toolchain first"
+          echo "\(SharedVMToolchainPaths.logTag(id: id)) brew install \(brewPackage)"
+          su - "$GUEST_USER" -c "'$BREW_BIN' install \(brewPackage)" \\
+            || fail 3 "brew install \(brewPackage) failed"
+          su - "$GUEST_USER" -c '\(verifyCommand)' \\
+            || fail 4 "\(brewPackage) verification failed"
+          echo "\(SharedVMToolchainPaths.logTag(id: id)) installed \(brewPackage)"
+        fi
+        """)
   }
 }
 
@@ -369,7 +382,8 @@ enum SharedVMToolchainCatalog {
       description: "Package manager used to install optional language toolchains in the guest.",
       defaultProvisioned: true,
       dependencies: [],
-      probeCommand: "[ -x \(SharedVMToolchainPaths.brewInstallPath) ] && echo PRESENT || echo MISSING",
+      probeCommand:
+        "[ -x \(SharedVMToolchainPaths.brewInstallPath) ] && echo PRESENT || echo MISSING",
       installTimeout: 15 * 60,
       installableViaGenericProvisioner: true
     ),
@@ -379,7 +393,8 @@ enum SharedVMToolchainCatalog {
       description: "Fast code search (`rg`) used by Compass agent grep tooling.",
       defaultProvisioned: true,
       dependencies: [.homebrew],
-      probeCommand: "[ -x \(SharedVMToolchainPaths.ripgrepInstallPath) ] && echo PRESENT || echo MISSING",
+      probeCommand:
+        "[ -x \(SharedVMToolchainPaths.ripgrepInstallPath) ] && echo PRESENT || echo MISSING",
       installTimeout: 15 * 60,
       installableViaGenericProvisioner: true
     ),

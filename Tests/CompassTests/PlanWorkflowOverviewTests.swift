@@ -51,12 +51,14 @@ struct PlanWorkflowOverviewTests {
 
     try #require(overview.sections.map(\.kind) == [.immediate, .midTerm, .longTerm])
     try #require(
-      overview.sections.map(\.timelineItemID) ==
-      ["plan-immediate", "plan-mid-term", "plan-long-term"]
+      overview.sections.map(\.timelineItemID) == [
+        "plan-immediate", "plan-mid-term", "plan-long-term",
+      ]
     )
     try #require(
-      PlanWorkflowOverview.TimelineDestination.allCases.map(\.overviewKind) ==
-      [.immediate, .midTerm, .longTerm]
+      PlanWorkflowOverview.TimelineDestination.allCases.map(\.overviewKind) == [
+        .immediate, .midTerm, .longTerm,
+      ]
     )
   }
 
@@ -94,11 +96,11 @@ struct PlanWorkflowOverviewTests {
     try #require(overview.midTerm.isEmpty)
     try #require(overview.longTerm.isEmpty)
     try #require(
-      overview.midTerm.emptyMessage ==
-      "No mid-term queue. Future planning has no staged direction yet.")
+      overview.midTerm.emptyMessage
+        == "No mid-term queue. Future planning has no staged direction yet.")
     try #require(
-      overview.longTerm.emptyMessage ==
-      "No long-term arc. Add the larger product direction when it becomes clear.")
+      overview.longTerm.emptyMessage
+        == "No long-term arc. Add the larger product direction when it becomes clear.")
   }
 
   @Test

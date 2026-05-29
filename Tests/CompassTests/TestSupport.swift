@@ -1,6 +1,7 @@
 import Foundation
-@testable import Compass
 import Testing
+
+@testable import Compass
 
 // MARK: - TestHelperError
 
@@ -32,7 +33,7 @@ func runGit(_ command: String, at directory: URL) throws {
   try process.run()
   process.waitUntilExit()
   guard process.terminationStatus == 0 else {
-        throw TestHelperError.gitCommandFailed(status: process.terminationStatus)
+    throw TestHelperError.gitCommandFailed(status: process.terminationStatus)
   }
 }
 
@@ -69,7 +70,7 @@ func getSingleCommitSHA(at directory: URL) throws -> String {
   let stdout = try captureGit(["rev-parse", "HEAD"], at: directory)
     .trimmingCharacters(in: .whitespacesAndNewlines)
   guard !stdout.isEmpty else {
-        throw TestHelperError.noCommitSHAFound
+    throw TestHelperError.noCommitSHAFound
   }
   return stdout
 }
@@ -107,7 +108,7 @@ func runShell(_ command: String, at url: URL) async throws {
         if process.terminationStatus == 0 {
           continuation.resume()
         } else {
-                    continuation.resume(throwing: TestHelperError.shellFailed(command: command))
+          continuation.resume(throwing: TestHelperError.shellFailed(command: command))
         }
       } catch {
         continuation.resume(throwing: error)

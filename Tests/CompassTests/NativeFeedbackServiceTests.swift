@@ -56,8 +56,8 @@ struct NativeFeedbackServiceTests {
     try #require(
       after.authorizationRequestStateIdentifier == before.authorizationRequestStateIdentifier)
     try #require(
-      after.notificationAuthorizationStatusIdentifier ==
-      before.notificationAuthorizationStatusIdentifier)
+      after.notificationAuthorizationStatusIdentifier
+        == before.notificationAuthorizationStatusIdentifier)
   }
 
   @Test func testModeMenuSelectedStateAndOrder() throws {
@@ -78,11 +78,12 @@ struct NativeFeedbackServiceTests {
 
     try #require(menu.projectName == projectName)
     let descriptions = menu.items.map(\.description)
-    try #require(descriptions == [
-      "No macOS alerts or spoken updates for \(projectName).",
-      "Show macOS banners when \(projectName) reaches plan, verify, or promotion milestones.",
-      "Speak updates for \(projectName) and show macOS banners for key milestones.",
-    ])
+    try #require(
+      descriptions == [
+        "No macOS alerts or spoken updates for \(projectName).",
+        "Show macOS banners when \(projectName) reaches plan, verify, or promotion milestones.",
+        "Speak updates for \(projectName) and show macOS banners for key milestones.",
+      ])
     try #require(menu.items.allSatisfy { $0.description.contains(projectName) })
     try #require(menu.items.allSatisfy { $0.permissionHint.contains(projectName) })
     try #require(
@@ -122,28 +123,25 @@ struct NativeFeedbackServiceTests {
     )
 
     try #require(
-      snapshot.notificationSupportIdentifier.count <=
-      NativeFeedbackDeliverySnapshot.identifierLimit
+      snapshot.notificationSupportIdentifier.count <= NativeFeedbackDeliverySnapshot.identifierLimit
     )
     try #require(
-      snapshot.authorizationRequestStateIdentifier.count <=
-      NativeFeedbackDeliverySnapshot.identifierLimit
+      snapshot.authorizationRequestStateIdentifier.count
+        <= NativeFeedbackDeliverySnapshot.identifierLimit
     )
     try #require(
-      snapshot.notificationAuthorizationStatusIdentifier.count <=
-      NativeFeedbackDeliverySnapshot.identifierLimit
+      snapshot.notificationAuthorizationStatusIdentifier.count
+        <= NativeFeedbackDeliverySnapshot.identifierLimit
     )
     try #require(
-      snapshot.lastAttemptedMilestoneIdentifier.count <=
-      NativeFeedbackDeliverySnapshot.identifierLimit
+      snapshot.lastAttemptedMilestoneIdentifier.count
+        <= NativeFeedbackDeliverySnapshot.identifierLimit
     )
     try #require(
-      snapshot.lastAttemptResultIdentifier.count <=
-      NativeFeedbackDeliverySnapshot.identifierLimit
+      snapshot.lastAttemptResultIdentifier.count <= NativeFeedbackDeliverySnapshot.identifierLimit
     )
     try #require(
-      snapshot.speechStateIdentifier.count <=
-      NativeFeedbackDeliverySnapshot.identifierLimit
+      snapshot.speechStateIdentifier.count <= NativeFeedbackDeliverySnapshot.identifierLimit
     )
     try #require(
       snapshot.recentDedupeCount == NativeFeedbackDeliverySnapshot.recentDedupeCountLimit)
@@ -169,8 +167,7 @@ struct NativeFeedbackServiceTests {
     )
 
     try #require(
-      menu.deliveryStatusText.count <=
-      NativeFeedbackDeliverySnapshot.menuStatusLimit
+      menu.deliveryStatusText.count <= NativeFeedbackDeliverySnapshot.menuStatusLimit
     )
     try #require(menu.deliveryStatusText.contains("mode speech_and_notifications"))
     try #require(menu.deliveryStatusText.contains("notifications"))
@@ -193,10 +190,10 @@ struct NativeFeedbackServiceTests {
     let after = service.deliverySnapshot(mode: .notifications)
 
     try #require(
-      after.authorizationRequestStateIdentifier == before.authorizationRequestStateIdentifier);
+      after.authorizationRequestStateIdentifier == before.authorizationRequestStateIdentifier)
     try #require(
-      after.notificationAuthorizationStatusIdentifier ==
-      before.notificationAuthorizationStatusIdentifier)
+      after.notificationAuthorizationStatusIdentifier
+        == before.notificationAuthorizationStatusIdentifier)
     try #require(after.lastAttemptedMilestoneIdentifier == before.lastAttemptedMilestoneIdentifier)
   }
 }

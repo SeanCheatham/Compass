@@ -9,7 +9,8 @@ struct AgentGenerateImageToolTests: ~Copyable {
 
   init() throws {
     let base = FileManager.default.temporaryDirectory
-      .appendingPathComponent("compass-generate-image-tests-\(UUID().uuidString)", isDirectory: true)
+      .appendingPathComponent(
+        "compass-generate-image-tests-\(UUID().uuidString)", isDirectory: true)
     try FileManager.default.createDirectory(at: base, withIntermediateDirectories: true)
     workingDirectory = base.standardizedFileURL
     filesystem = AgentHostFilesystem()

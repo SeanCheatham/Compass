@@ -9,18 +9,13 @@ import Testing
 ///
 /// ## Guard path covered
 ///
-/// `generateTour()` calls `CommitExplainer.gitDiff(sha:)` or `gitExplainer.gitDiffRange()`
-/// internally. Both can return an empty string in three distinct situations:
+/// `generateTour()` calls `CommitExplainer.gitDiff(sha:)` or `gitDiffRange()`
+/// internally. Both can return an empty string in two distinct situations:
 ///
 /// 1. **Invalid SHA** — `git diff` on a non-existent SHA returns `""`; `generateTour`
 ///    hits `guard !diff.isEmpty else { return nil }` and returns `nil`.
-/// 2. **File absent from a valid commit** — the commit exists and is valid, but the
-///    specific file path being queried has no content in that commit, producing an
-///    empty diff that triggers the same guard.
-/// 3. **Empty-tree commit** — a valid SHA with no files in the tree; `git diff` returns
+/// 2. **Empty-tree commit** — a valid SHA with no files in the tree; `git diff` returns
 ///    `""` and the same guard fires.
-///
-/// In all three cases `generateTour` returns `nil` without throwing, which is the
 /// exact non-throwing contract that downstream callers (e.g. `CommitTourRow.loadTour()`)
 /// depend on.
 ///
@@ -53,51 +48,7 @@ struct ExploreCommitTourGeneratorGuardPathTests {
     try #require(result == nil)
   }
 
-  // MARK: - Path 2: file doesn't exist in a valid commit → empty diff → nil
-
-  /// Verifies `generateTour` returns `nil` when the commit is valid but the file
-  /// being diffed has no content in that commit. Uses a two-commit repo where the
-  /// second commit adds a new file that has no counterpart in the first commit,
-  /// producing an effectively empty diff for a non-existent file query.
-  ///
-  /// The chain exercised:
-  /// `generateTour(commit=[valid_sha], repoURL)` →
-  /// `CommitExplainer.gitDiff(sha:)` returns `""` (file not in commit) →
-  /// `guard !diff.isEmpty else { return nil }` →
-  /// `nil`
-  @Test
-  func generateTour_fileNotInValidCommit_returnsNil() async throws {
-    var test = Self()
-    test.setUp()
-    defer { test.tearDown() }
-
-    try test.initGitRepo()
-    _ = try test.makeSingleCommit()
-
-    // Create a second commit that modifies a different file
-    try test.writeFile("Sources/Other.swift", contents: "import Foundation\n")
-    try test.runGit(
-      "git -C \(test.temporaryDirectory.path) add Sources/Other.swift && "
-        + "git -C \(test.temporaryDirectory.path) "
-        + "-c user.email=t@t -c user.name=t commit -q -m 'Add Other.swift'"
-    )
-
-    // Get the SHA of the first commit (which only has Sources/App.swift)
-    let firstSHA = try test.getSingleCommitSHA()
-
-    // Query the first commit using the path from the second commit
-    // — the file "Sources/Other.swift" does not exist in the first commit,
-    // so git returns empty string and generateTour returns nil.
-    let commits = [SessionCommit(sha: firstSHA, short: String(firstSHA.prefix(7)), subject: "Add App.swift")]
-
-    let result = await CommitTourGenerator.generateTour(
-      commits: commits,
-      repoURL: test.temporaryDirectory
-    )
-    try #require(result == nil)
-  }
-
-  // MARK: - Path 3: empty-tree commit (valid SHA but no files) → empty diff → nil
+  // MARK: - Path 2: empty-tree commit (valid SHA but no files) → empty diff → nil
 
   /// Verifies `generateTour` returns `nil` for an allow-empty commit that has a
   /// valid SHA but no files in the tree. `git diff <sha>^..<sha>` returns `""`

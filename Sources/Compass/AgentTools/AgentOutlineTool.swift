@@ -13,7 +13,7 @@ struct AgentOutlineTool: AgentTool {
   let spec: AgentToolSpec
 
   init() {
-    let schema = AgentToolParametersSchema(literal:[
+    let schema = AgentToolParametersSchema(literal: [
       "type": "object",
       "additionalProperties": false,
       "required": ["path"],
@@ -45,9 +45,10 @@ struct AgentOutlineTool: AgentTool {
       args.path, workingDirectory: context.workingDirectory)
     let store = context.codemapStore()
     guard let entry = store.loadEntry(forRelativePath: normalized) else {
-      return .failure(.invalidArguments(
-        "No codemap entry for '\(normalized)'. Run the indexer or use `list_files` to discover what's been parsed."
-      ))
+      return .failure(
+        .invalidArguments(
+          "No codemap entry for '\(normalized)'. Run the indexer or use `list_files` to discover what's been parsed."
+        ))
     }
 
     var lines: [String] = []

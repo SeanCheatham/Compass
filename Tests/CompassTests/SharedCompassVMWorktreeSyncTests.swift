@@ -16,8 +16,9 @@ struct SharedCompassVMWorktreeSyncTests {
   /// boundary along with them.
   @Test func allowedGuestPathPrefixesAreOnlyTheCatalogRoot() throws {
     try #require(
-      SharedCompassVMWorktreeSync.allowedGuestPathPrefixes ==
-      [SharedCompassVMGuestWorkspaceCatalog.guestReposRoot]
+      SharedCompassVMWorktreeSync.allowedGuestPathPrefixes == [
+        SharedCompassVMGuestWorkspaceCatalog.guestReposRoot
+      ]
     )
   }
 

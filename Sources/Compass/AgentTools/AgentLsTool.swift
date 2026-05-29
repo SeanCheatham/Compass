@@ -13,7 +13,7 @@ struct AgentLsTool: AgentTool {
   let spec: AgentToolSpec
 
   init() {
-    let schema = AgentToolParametersSchema(literal:[
+    let schema = AgentToolParametersSchema(literal: [
       "type": "object",
       "additionalProperties": false,
       "properties": [
@@ -37,7 +37,8 @@ struct AgentLsTool: AgentTool {
     do {
       args = try JSONDecoder().decode(Arguments.self, from: arguments)
     } catch {
-      return .failure(.invalidArguments("Failed to decode arguments: \(error.localizedDescription)"))
+      return .failure(
+        .invalidArguments("Failed to decode arguments: \(error.localizedDescription)"))
     }
 
     let url: URL

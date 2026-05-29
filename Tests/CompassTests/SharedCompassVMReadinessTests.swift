@@ -7,7 +7,7 @@ import Testing
 /// `SharedCompassVMReadiness`. These ride hot paths in routing decisions
 /// (Phase 3 fallback), so a wrongly-true predicate would silently misroute.
 struct SharedCompassVMReadinessTests {
-  @Test func testIsReadyOnlyTrueForReadyCase()  throws {
+  @Test func testIsReadyOnlyTrueForReadyCase() throws {
     try #require(SharedCompassVMReadiness.ready(sshDestination: "compass@10.0.0.42").isReady)
 
     let notReady: [SharedCompassVMReadiness] = [
@@ -24,7 +24,7 @@ struct SharedCompassVMReadinessTests {
     }
   }
 
-  @Test func testIsUnavailableOnlyTrueForUnavailableCase()  throws {
+  @Test func testIsUnavailableOnlyTrueForUnavailableCase() throws {
     try #require(SharedCompassVMReadiness.unavailable(reason: "no virt").isUnavailable)
 
     let notUnavailable: [SharedCompassVMReadiness] = [
@@ -41,7 +41,7 @@ struct SharedCompassVMReadinessTests {
     }
   }
 
-  @Test func testIsReadyAndIsUnavailableAreMutuallyExclusive()  throws {
+  @Test func testIsReadyAndIsUnavailableAreMutuallyExclusive() throws {
     // Cross-check: no single case may report both true.
     let allCases: [SharedCompassVMReadiness] = [
       .unavailable(reason: "x"),

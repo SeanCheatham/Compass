@@ -20,15 +20,15 @@ struct ExploreFileExplainerTests {
   // MARK: - parseGitDiffStat
 
   @Test
-  func parseGitDiffStat_normalAdditionsAndDeletions()  throws {
+  func parseGitDiffStat_normalAdditionsAndDeletions() throws {
     var test = Self()
     test.setUp()
     defer { test.tearDown() }
 
     let diffStat = """
-    Sources/App.swift        |  12 ++++++------
-    Sources/Model.swift      |   4 ++++++
-    """
+      Sources/App.swift        |  12 ++++++------
+      Sources/Model.swift      |   4 ++++++
+      """
 
     let changes = FileExplainer.parseGitDiffStat(diffStat)
 
@@ -44,7 +44,7 @@ struct ExploreFileExplainerTests {
   }
 
   @Test
-  func parseGitDiffStat_renameArrow()  throws {
+  func parseGitDiffStat_renameArrow() throws {
     var test = Self()
     test.setUp()
     defer { test.tearDown() }
@@ -60,7 +60,7 @@ struct ExploreFileExplainerTests {
   }
 
   @Test
-  func parseGitDiffStat_abPrefix()  throws {
+  func parseGitDiffStat_abPrefix() throws {
     var test = Self()
     test.setUp()
     defer { test.tearDown() }
@@ -76,7 +76,7 @@ struct ExploreFileExplainerTests {
   }
 
   @Test
-  func parseGitDiffStat_renameWithABPrefix()  throws {
+  func parseGitDiffStat_renameWithABPrefix() throws {
     var test = Self()
     test.setUp()
     defer { test.tearDown() }
@@ -92,7 +92,7 @@ struct ExploreFileExplainerTests {
   }
 
   @Test
-  func parseGitDiffStat_languageDetection()  throws {
+  func parseGitDiffStat_languageDetection() throws {
     var test = Self()
     test.setUp()
     defer { test.tearDown() }
@@ -120,7 +120,7 @@ struct ExploreFileExplainerTests {
   }
 
   @Test
-  func parseGitDiffStat_binaryFile()  throws {
+  func parseGitDiffStat_binaryFile() throws {
     var test = Self()
     test.setUp()
     defer { test.tearDown() }
@@ -137,7 +137,7 @@ struct ExploreFileExplainerTests {
   }
 
   @Test
-  func parseGitDiffStat_pathWithSpaces()  throws {
+  func parseGitDiffStat_pathWithSpaces() throws {
     var test = Self()
     test.setUp()
     defer { test.tearDown() }
@@ -153,17 +153,17 @@ struct ExploreFileExplainerTests {
   }
 
   @Test
-  func parseGitDiffStat_multiLineStatOutput()  throws {
+  func parseGitDiffStat_multiLineStatOutput() throws {
     var test = Self()
     test.setUp()
     defer { test.tearDown() }
 
     let diffStat = """
-    Sources/App.swift        |  10 ++++++++
-    Sources/Model.swift      |   5 +++++--
-    Tests/AppTests.swift    |   2 ++
-    README.md               |   1 +
-    """
+      Sources/App.swift        |  10 ++++++++
+      Sources/Model.swift      |   5 +++++--
+      Tests/AppTests.swift    |   2 ++
+      README.md               |   1 +
+      """
 
     let changes = FileExplainer.parseGitDiffStat(diffStat)
 
@@ -175,7 +175,7 @@ struct ExploreFileExplainerTests {
   }
 
   @Test
-  func parseGitDiffStat_numericOnlyFallback()  throws {
+  func parseGitDiffStat_numericOnlyFallback() throws {
     var test = Self()
     test.setUp()
     defer { test.tearDown() }
@@ -192,7 +192,7 @@ struct ExploreFileExplainerTests {
   }
 
   @Test
-  func parseGitDiffStat_absentStatsParts()  throws {
+  func parseGitDiffStat_absentStatsParts() throws {
     var test = Self()
     test.setUp()
     defer { test.tearDown() }
@@ -209,7 +209,7 @@ struct ExploreFileExplainerTests {
   }
 
   @Test
-  func parseGitDiffStat_emptyInput()  throws {
+  func parseGitDiffStat_emptyInput() throws {
     var test = Self()
     test.setUp()
     defer { test.tearDown() }
@@ -219,16 +219,16 @@ struct ExploreFileExplainerTests {
   }
 
   @Test
-  func parseGitDiffStat_whitespaceOnlyLines()  throws {
+  func parseGitDiffStat_whitespaceOnlyLines() throws {
     var test = Self()
     test.setUp()
     defer { test.tearDown() }
 
     let diffStat = """
-    Sources/App.swift        |  4 +
-                          
-    Sources/Model.swift      |  2 ++
-    """
+      Sources/App.swift        |  4 +
+                            
+      Sources/Model.swift      |  2 ++
+      """
 
     let changes = FileExplainer.parseGitDiffStat(diffStat)
 
@@ -238,7 +238,7 @@ struct ExploreFileExplainerTests {
   }
 
   @Test
-  func parseGitDiffStat_lineWithoutPipeSeparator()  throws {
+  func parseGitDiffStat_lineWithoutPipeSeparator() throws {
     var test = Self()
     test.setUp()
     defer { test.tearDown() }
@@ -246,10 +246,10 @@ struct ExploreFileExplainerTests {
     // A line with no `|` separator — path only, no stats — must be skipped
     // because parseGitDiffStat requires `|` to split path from stats.
     let diffStat = """
-    Sources/App.swift        |  4 +++
-    NoStatsFile.swift
-    Sources/Model.swift      |  2 ++
-    """
+      Sources/App.swift        |  4 +++
+      NoStatsFile.swift
+      Sources/Model.swift      |  2 ++
+      """
 
     let changes = FileExplainer.parseGitDiffStat(diffStat)
 
@@ -261,7 +261,7 @@ struct ExploreFileExplainerTests {
   // MARK: - extractLineCounts
 
   @Test
-  func extractLineCounts_additionsAndDeletions()  throws {
+  func extractLineCounts_additionsAndDeletions() throws {
     var test = Self()
     test.setUp()
     defer { test.tearDown() }
@@ -272,7 +272,7 @@ struct ExploreFileExplainerTests {
   }
 
   @Test
-  func extractLineCounts_onlyAdditions()  throws {
+  func extractLineCounts_onlyAdditions() throws {
     var test = Self()
     test.setUp()
     defer { test.tearDown() }
@@ -283,7 +283,7 @@ struct ExploreFileExplainerTests {
   }
 
   @Test
-  func extractLineCounts_onlyDeletions()  throws {
+  func extractLineCounts_onlyDeletions() throws {
     var test = Self()
     test.setUp()
     defer { test.tearDown() }
@@ -294,7 +294,7 @@ struct ExploreFileExplainerTests {
   }
 
   @Test
-  func extractLineCounts_whitespaceOnlyString()  throws {
+  func extractLineCounts_whitespaceOnlyString() throws {
     var test = Self()
     test.setUp()
     defer { test.tearDown() }
@@ -305,7 +305,7 @@ struct ExploreFileExplainerTests {
   }
 
   @Test
-  func extractLineCounts_numericFallback()  throws {
+  func extractLineCounts_numericFallback() throws {
     var test = Self()
     test.setUp()
     defer { test.tearDown() }
@@ -317,7 +317,7 @@ struct ExploreFileExplainerTests {
   }
 
   @Test
-  func extractLineCounts_absentStatsParts()  throws {
+  func extractLineCounts_absentStatsParts() throws {
     var test = Self()
     test.setUp()
     defer { test.tearDown() }
@@ -329,7 +329,7 @@ struct ExploreFileExplainerTests {
   }
 
   @Test
-  func extractLineCounts_withNumericAndBars()  throws {
+  func extractLineCounts_withNumericAndBars() throws {
     var test = Self()
     test.setUp()
     defer { test.tearDown() }
@@ -434,7 +434,8 @@ struct ExploreFileExplainerTests {
 
     // Verify the requested B -> C range directly. It should cover only the
     // newest requested commit's delta, not re-report B from the range base.
-    let expectedDiff = try captureGit(["diff", "\(shas[1])..\(shas[0])", "--", "A.swift"], at: test.temporaryDirectory)
+    let expectedDiff = try captureGit(
+      ["diff", "\(shas[1])..\(shas[0])", "--", "A.swift"], at: test.temporaryDirectory)
 
     try #require(!expectedDiff.contains("+B"), "diff should not re-report the range base line B")
     try #require(expectedDiff.contains("+C"), "expected diff to contain +C from Add C commit")
@@ -501,7 +502,8 @@ struct ExploreFileExplainerTests {
     )
 
     // Verify the git diff directly to confirm the correct direction.
-    let diff = try captureGit(["diff", "\(shas[0])..\(shas[1])", "--", "A.swift"], at: test.temporaryDirectory)
+    let diff = try captureGit(
+      ["diff", "\(shas[0])..\(shas[1])", "--", "A.swift"], at: test.temporaryDirectory)
 
     // The diff C..B is a reverse diff: it removes C to reach B.
     try #require(diff.contains("-C"), "diff C..B must show C being removed")
@@ -537,8 +539,8 @@ struct ExploreFileExplainerTests {
 
     let shas = try test.getAllCommitSHAs(at: test.temporaryDirectory)
     try #require(shas.count == 2)
-    let oldest = shas[1] // oldest
-    let newest = shas[0] // newest
+    let oldest = shas[1]  // oldest
+    let newest = shas[0]  // newest
     let commits = [
       SessionCommit(sha: oldest, short: String(oldest.prefix(7)), subject: "Initial"),
       SessionCommit(sha: newest, short: String(newest.prefix(7)), subject: "Add import"),
@@ -670,8 +672,8 @@ struct ExploreFileExplainerTests {
 
     let shas = try test.getAllCommitSHAs(at: test.temporaryDirectory)
     try #require(shas.count == 2)
-    let oldest = shas[1] // oldest
-    let newest = shas[0] // newest
+    let oldest = shas[1]  // oldest
+    let newest = shas[0]  // newest
     let commits = [
       SessionCommit(sha: oldest, short: String(oldest.prefix(7)), subject: "Initial"),
       SessionCommit(sha: newest, short: String(newest.prefix(7)), subject: "Add import"),
@@ -715,8 +717,8 @@ struct ExploreFileExplainerTests {
 
     let shas = try test.getAllCommitSHAs(at: test.temporaryDirectory)
     try #require(shas.count == 2)
-    let oldest = shas[1] // oldest commit
-    let newest = shas[0] // newest commit
+    let oldest = shas[1]  // oldest commit
+    let newest = shas[0]  // newest commit
 
     // Pass commits ordered newest first, matching the production call site.
     let commits = [
@@ -728,8 +730,12 @@ struct ExploreFileExplainerTests {
 
     // The endpoint range reports changes after the oldest endpoint.
     let changedPaths = changes.map { $0.relativePath }
-    try #require(!changedPaths.contains("Sources/Old.swift"), "Old.swift is the range base and should not be re-reported")
-    try #require(changedPaths.contains("Sources/New.swift"), "New.swift from the newest commit must be present")
+    try #require(
+      !changedPaths.contains("Sources/Old.swift"),
+      "Old.swift is the range base and should not be re-reported")
+    try #require(
+      changedPaths.contains("Sources/New.swift"), "New.swift from the newest commit must be present"
+    )
   }
 
   @Test
@@ -777,7 +783,9 @@ struct ExploreFileExplainerTests {
 
     let changes = await FileExplainer.changes(for: test.temporaryDirectory, commits: commits)
 
-    try #require(changes.isEmpty, "A single empty commit has no file changes; changes() must return an empty array")
+    try #require(
+      changes.isEmpty,
+      "A single empty commit has no file changes; changes() must return an empty array")
   }
 
   @Test
@@ -806,8 +814,8 @@ struct ExploreFileExplainerTests {
 
     let shas = try test.getAllCommitSHAs(at: test.temporaryDirectory)
     try #require(shas.count == 2)
-    let oldest = shas[1] // empty commit
-    let newest = shas[0] // add App.swift
+    let oldest = shas[1]  // empty commit
+    let newest = shas[0]  // add App.swift
 
     // Pass commits covering only the empty commit (oldest..newest = range with no changes).
     let commits = [
@@ -817,7 +825,10 @@ struct ExploreFileExplainerTests {
 
     let changes = await FileExplainer.changes(for: test.temporaryDirectory, commits: commits)
 
-    try #require(changes.isEmpty, "No files changed in the range that only covers the empty commit; changes() must return an empty array")
+    try #require(
+      changes.isEmpty,
+      "No files changed in the range that only covers the empty commit; changes() must return an empty array"
+    )
   }
 
   // MARK: - FileChangeCategory.categorize
@@ -1267,12 +1278,14 @@ struct ExploreFileExplainerTests {
     // Call gitDiffStat for the merge commit. The first-parent range compares
     // the merge result to the mainline parent, so it reports files introduced
     // by the merged branch.
-    let diffStatOutput = await FileExplainer.gitDiffStat(sha: mergeCommitSHA, repoURL: test.temporaryDirectory)
+    let diffStatOutput = await FileExplainer.gitDiffStat(
+      sha: mergeCommitSHA, repoURL: test.temporaryDirectory)
 
     // Parse the diff stat output.
     let changes = FileExplainer.parseGitDiffStat(diffStatOutput)
 
-    try #require(changes.isEmpty, "merge commits are not expanded by the single-commit diff-tree stat")
+    try #require(
+      changes.isEmpty, "merge commits are not expanded by the single-commit diff-tree stat")
   }
 
   @Test
@@ -1374,7 +1387,9 @@ struct ExploreFileExplainerTests {
     let result = FileChangeCategory.allCases
       .compactMap { category -> (FileChangeCategory, [FileChange])? in
         guard let cats = grouped[category], !cats.isEmpty else { return nil }
-        return (category, cats.sorted { ($0.additions + $0.deletions) > ($1.additions + $1.deletions) })
+        return (
+          category, cats.sorted { ($0.additions + $0.deletions) > ($1.additions + $1.deletions) }
+        )
       }
 
     // There should be one group for the .source category.
@@ -1403,7 +1418,9 @@ struct ExploreFileExplainerTests {
     try #require(change.deletions == 7)
     try #require(change.language == .swift)
     try #require(change.summary == "Added main app entry point")
-    try #require(change.explanation == "This change introduces the primary application file with proper configuration.")
+    try #require(
+      change.explanation
+        == "This change introduces the primary application file with proper configuration.")
   }
 
   @Test
@@ -1465,7 +1482,8 @@ struct ExploreFileExplainerTests {
 
   private func getAllCommitSHAs(at url: URL) throws -> [String] {
     let stdout = try captureGit(["log", "--all", "--format=%H"], at: url)
-    return stdout
+    return
+      stdout
       .split(separator: "\n")
       .filter { !$0.isEmpty }
       .map { String($0) }

@@ -181,7 +181,10 @@ struct CompassWorkspace {
       return edit.replace
     }
 
-    let matches = (current.count - current.replacingOccurrences(of: edit.find, with: "", options: .literal).count) / edit.find.count
+    let matches =
+      (current.count
+        - current.replacingOccurrences(of: edit.find, with: "", options: .literal).count)
+      / edit.find.count
     guard matches > 0 else {
       throw CompassWorkspaceError.lessonEditFailed(
         "Lesson edit `find` text was not found in lessons.md.")
@@ -2475,4 +2478,3 @@ private enum CompassWorkspaceError: LocalizedError {
     }
   }
 }
-

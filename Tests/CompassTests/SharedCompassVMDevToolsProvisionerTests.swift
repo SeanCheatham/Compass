@@ -196,7 +196,8 @@ struct SharedCompassVMDevToolsProvisionerTests {
   @Test
   func testParsePhaseFromLogTailReturnsNilForNoise() throws {
     try #require(SharedCompassVMDevToolsProvisioner.parsePhase(fromLogTail: "") == nil)
-    try #require(SharedCompassVMDevToolsProvisioner.parsePhase(fromLogTail: "no markers here") == nil)
+    try #require(
+      SharedCompassVMDevToolsProvisioner.parsePhase(fromLogTail: "no markers here") == nil)
   }
 
   @Test

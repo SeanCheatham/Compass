@@ -3,7 +3,7 @@ import Testing
 
 @testable import Compass
 
-struct CodemapIndexerTests : ~Copyable {
+struct CodemapIndexerTests: ~Copyable {
   private var workingDirectory: URL!
   private var cacheDirectory: URL!
 
@@ -45,8 +45,7 @@ struct CodemapIndexerTests : ~Copyable {
     let url = store.entryURL(forRelativePath: entry.relativePath)
     try #require(FileManager.default.fileExists(atPath: url.path))
     try #require(
-      url.lastPathComponent ==
-      "\(CodemapHash.sha256Hex(entry.relativePath)).json"
+      url.lastPathComponent == "\(CodemapHash.sha256Hex(entry.relativePath)).json"
     )
 
     let loaded = try #require(
@@ -185,7 +184,8 @@ struct CodemapIndexerTests : ~Copyable {
     try writeFile(".gitignore", contents: "ignored.swift\n")
 
     let initStatus = runShell(
-      "git init -q && git add alpha.swift .gitignore && git -c user.email=t@t -c user.name=t commit -q -m init")
+      "git init -q && git add alpha.swift .gitignore && git -c user.email=t@t -c user.name=t commit -q -m init"
+    )
     try #require(initStatus, "git is not available; skipping")
 
     let indexer = makeIndexer(usingGit: true)

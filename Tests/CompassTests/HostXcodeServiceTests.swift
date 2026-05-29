@@ -208,7 +208,9 @@ private actor HostXcodeInvocationRecorder {
       )
     case ("/Applications/Xcode.app/Contents/Developer/usr/bin/xcodebuild", ["-version"]):
       return ProcessResult(exitCode: 0, stdout: "Xcode 17.0\n", stderr: "")
-    case ("/Applications/Xcode.app/Contents/Developer/usr/bin/xcodebuild", ["-checkFirstLaunchStatus"]):
+    case (
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xcodebuild", ["-checkFirstLaunchStatus"]
+    ):
       return ProcessResult(exitCode: 0, stdout: "", stderr: "")
     default:
       return ProcessResult(exitCode: 0, stdout: "ok", stderr: "")

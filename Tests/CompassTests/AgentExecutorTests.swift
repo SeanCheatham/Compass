@@ -187,7 +187,7 @@ struct AgentExecutorTests {
       let spec = AgentToolSpec(
         name: AgentExecutor.submitResultToolName,
         description: "shadow",
-        parameters: AgentToolParametersSchema(literal:["type": "object"])
+        parameters: AgentToolParametersSchema(literal: ["type": "object"])
       )
       func invoke(arguments: Data, context: AgentToolContext) async throws
         -> AgentToolInvocationResult
@@ -217,20 +217,20 @@ struct AgentExecutorTests {
     let params = try AgentExecutor.buildOpenAITools(configuration: configuration)
     let names = params.map { $0.function.name }
     try #require(
-      Set(names) ==
-      Set([
-        AgentReadFileTool.toolName,
-        AgentLsTool.toolName,
-        AgentGrepTool.toolName,
-        AgentGlobTool.toolName,
-        AgentOutlineTool.toolName,
-        AgentFindSymbolTool.toolName,
-        AgentSummaryTool.toolName,
-        AgentListFilesTool.toolName,
-        AgentImportersOfTool.toolName,
-        AgentDelegateTool.toolName,
-        AgentExecutor.submitResultToolName,
-      ]))
+      Set(names)
+        == Set([
+          AgentReadFileTool.toolName,
+          AgentLsTool.toolName,
+          AgentGrepTool.toolName,
+          AgentGlobTool.toolName,
+          AgentOutlineTool.toolName,
+          AgentFindSymbolTool.toolName,
+          AgentSummaryTool.toolName,
+          AgentListFilesTool.toolName,
+          AgentImportersOfTool.toolName,
+          AgentDelegateTool.toolName,
+          AgentExecutor.submitResultToolName,
+        ]))
   }
 
   @Test func testBuildOpenAIToolsCarriesSubmitSchemaThroughDecodeReencode() throws {
@@ -356,7 +356,8 @@ struct AgentExecutorTests {
   }
 
   @Test func testSubmitResultValidationNudgeUsesDecodeCopyForDecodingErrors() throws {
-    let payload = Data("""
+    let payload = Data(
+      """
       {"state":{"midTerm":"x","immediate":null},"summary":"done"}
       """.utf8)
     do {
@@ -370,15 +371,18 @@ struct AgentExecutorTests {
 
   @Test func testSubmitResultValidationNudgeUsesLessonEditCopyForOtherErrors() throws {
     let nudge = AgentExecutor.submitResultValidationNudge(
-      for: NSError(domain: "test", code: 1, userInfo: [
-        NSLocalizedDescriptionKey: "Lesson edit `find` text was not found in lessons.md.",
-      ])
+      for: NSError(
+        domain: "test", code: 1,
+        userInfo: [
+          NSLocalizedDescriptionKey: "Lesson edit `find` text was not found in lessons.md."
+        ])
     )
     try #require(nudge.eventText == "submit_result lesson edits rejected")
   }
 
   @Test func testDecodingErrorMessageSurfacesMissingKey() throws {
-    let payload = Data("""
+    let payload = Data(
+      """
       {"state":{"midTerm":"x","immediate":null},"summary":"done"}
       """.utf8)
     do {
@@ -491,7 +495,8 @@ struct AgentExecutorTests {
     try #require(messages.count == 3)
     if case .tool = messages.last {
     } else {
-      #expect(Bool(false), "rollback should land on the prior tool response, got \(messages.last as Any)")
+      #expect(
+        Bool(false), "rollback should land on the prior tool response, got \(messages.last as Any)")
     }
   }
 
@@ -677,20 +682,18 @@ struct AgentExecutorTests {
 
   @Test func testAgentToolErrorKindMapsThroughFailureOverload() throws {
     try #require(
-      AgentToolInvocationResult.failure(.fileNotFound("missing.txt")).errorKind ==
-      .fileNotFound
+      AgentToolInvocationResult.failure(.fileNotFound("missing.txt")).errorKind == .fileNotFound
     )
     try #require(
-      AgentToolInvocationResult.failure(.editConflict("oldString not found")).errorKind ==
-      .editConflict
+      AgentToolInvocationResult.failure(.editConflict("oldString not found")).errorKind
+        == .editConflict
     )
     try #require(
-      AgentToolInvocationResult.failure(.rpcFailure("vsock disconnected")).errorKind ==
-      .rpcFailure
+      AgentToolInvocationResult.failure(.rpcFailure("vsock disconnected")).errorKind == .rpcFailure
     )
     try #require(
-      AgentToolInvocationResult.failure(.invalidArguments("bad json")).errorKind ==
-      .invalidArguments
+      AgentToolInvocationResult.failure(.invalidArguments("bad json")).errorKind
+        == .invalidArguments
     )
   }
 
@@ -711,7 +714,7 @@ struct AgentExecutorTests {
   ) -> AgentExecutionConfiguration {
     let schema =
       submitResultSchema
-      ?? (AgentToolParametersSchema(literal:[
+      ?? (AgentToolParametersSchema(literal: [
         "type": "object",
         "additionalProperties": false,
         "properties": [:],

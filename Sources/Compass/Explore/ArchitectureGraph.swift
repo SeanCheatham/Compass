@@ -143,7 +143,8 @@ func buildGraph(codemapDirectory: URL) -> ImportGraph {
 
     // Relative imports: "./Foo" or "../Foo"
     if raw.hasPrefix(".") {
-      let sourceDir = sourcePath.split(separator: "/").dropLast().map(String.init).joined(separator: "/")
+      let sourceDir = sourcePath.split(separator: "/").dropLast().map(String.init).joined(
+        separator: "/")
       let combined = [sourceDir, raw].filter { !$0.isEmpty }.joined(separator: "/")
       return normaliseRelativePath(combined)
     }

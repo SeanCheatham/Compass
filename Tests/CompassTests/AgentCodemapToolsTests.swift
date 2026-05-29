@@ -270,12 +270,12 @@ struct AgentCodemapToolsTests: ~Copyable {
   @Test func testCodemapLanguageForRelativePath_UnusualExtensions() async throws {
     // seedEntry uses CodemapLanguage.forRelativePath internally (line 279),
     // so these exercise it transitively as a smoke test.
-    try seedEntry(path: "foo.mts",  symbols: [])
-    try seedEntry(path: "bar.cts",  symbols: [])
-    try seedEntry(path: "baz.tsx",  symbols: [])
-    try seedEntry(path: "qux.pyi",  symbols: [])
-    try seedEntry(path: "fle.mjs",  symbols: [])
-    try seedEntry(path: "app.cjs",  symbols: [])
+    try seedEntry(path: "foo.mts", symbols: [])
+    try seedEntry(path: "bar.cts", symbols: [])
+    try seedEntry(path: "baz.tsx", symbols: [])
+    try seedEntry(path: "qux.pyi", symbols: [])
+    try seedEntry(path: "fle.mjs", symbols: [])
+    try seedEntry(path: "app.cjs", symbols: [])
 
     // Explicit direct assertions — nil means "unsupported extension".
     try #require(CodemapLanguage.forRelativePath("foo.mts") == .typescript)

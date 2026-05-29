@@ -1,6 +1,5 @@
 import AppKit
 import Foundation
-import Virtualization
 
 @MainActor
 extension CompassProject {

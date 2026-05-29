@@ -147,7 +147,8 @@ final class CompassProjectActiveStorageTests {
     try #require(!FileManager.default.fileExists(atPath: workspace.repoLocalCompassURL.path))
   }
 
-  @Test func
+  @Test
+  func
     testApplicationSupportActiveStorageReadsSupportSessionsWhenRepoLocalSessionsMissing()
     async throws
   {
@@ -234,8 +235,8 @@ final class CompassProjectActiveStorageTests {
     try #require(sourceSnapshot.repoLocalSessionsState == .ignoredCompatible)
     try #require(sourceSnapshot.ignoresRepoLocalSessions)
     try #require(
-      try String(contentsOf: repoLocalWorkspace.sessionsRecordURL, encoding: .utf8) ==
-      staleRepoLocalText
+      try String(contentsOf: repoLocalWorkspace.sessionsRecordURL, encoding: .utf8)
+        == staleRepoLocalText
     )
   }
 
@@ -296,7 +297,8 @@ final class CompassProjectActiveStorageTests {
     try #require(!FileManager.default.fileExists(atPath: missingRepoURL.path))
   }
 
-  @Test func testInitializeWorkspaceRepairsActiveSupportStorageWithoutRepoLocalSideEffects() async throws
+  @Test func testInitializeWorkspaceRepairsActiveSupportStorageWithoutRepoLocalSideEffects()
+    async throws
   {
     let repoURL = try makeTemporaryGitRepository()
     let roots = try makeApplicationSupportRoots()
@@ -468,17 +470,19 @@ final class CompassProjectActiveStorageTests {
     try #require(project.activeStorageActivationState.phase == .failed)
     try #require(project.errorMessage == project.activeStorageActivationState.detail)
     try #require(
-      project.activeStorageActivationState.label.count <= CompassProjectActiveStorageState.labelLimit)
+      project.activeStorageActivationState.label.count
+        <= CompassProjectActiveStorageState.labelLimit)
     try #require(
-      project.activeStorageActivationState.detail.count <=
-      CompassProjectActiveStorageState.detailLimit)
+      project.activeStorageActivationState.detail.count
+        <= CompassProjectActiveStorageState.detailLimit)
     try #require(
-      project.activeStorageActivationState.helpText.count <=
-      CompassProjectActiveStorageState.helpLimit)
+      project.activeStorageActivationState.helpText.count
+        <= CompassProjectActiveStorageState.helpLimit)
     try #require(project.compassPath == workspace.repoLocalCompassURL.path)
   }
 
-  @Test func testActivationReportsMissingAndInvalidCandidateFailuresWithoutSwitching() async throws {
+  @Test func testActivationReportsMissingAndInvalidCandidateFailuresWithoutSwitching() async throws
+  {
     let missingRepoURL = try makeTemporaryGitRepository()
     let missingRoots = try makeApplicationSupportRoots()
     let missingProject = CompassProject(
@@ -517,8 +521,8 @@ final class CompassProjectActiveStorageTests {
     try #require(invalidProject.activeStorageActivationState.phase == .blocked)
     try #require(invalidProject.errorMessage == invalidProject.activeStorageActivationState.detail)
     try #require(
-      invalidProject.activeStorageActivationState.detail.count <=
-      CompassProjectActiveStorageState.detailLimit)
+      invalidProject.activeStorageActivationState.detail.count
+        <= CompassProjectActiveStorageState.detailLimit)
   }
 
   private func makeTemporaryGitRepository() throws -> URL {

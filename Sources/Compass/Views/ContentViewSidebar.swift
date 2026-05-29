@@ -120,7 +120,6 @@ struct SidebarView: View {
   }
 }
 
-
 struct EmptyProjectList: View {
   var body: some View {
     VStack(alignment: .leading, spacing: 8) {
@@ -142,7 +141,6 @@ struct EmptyProjectList: View {
 
 /// Sidebar entry for the singleton Sandbox section. Selecting it sets
 /// `workspaceSelection = .sandbox` and swaps the detail pane to `SandboxView`.
-
 
 struct SidebarSandboxRow: View {
   let readiness: SharedCompassVMReadiness
@@ -190,7 +188,6 @@ struct SidebarSandboxRow: View {
 /// Status indicator next to the sidebar title. Tapping it activates the
 /// Sandbox detail pane.
 
-
 struct SidebarSharedVMStatusButton: View {
   let readiness: SharedCompassVMReadiness
   let action: () -> Void
@@ -213,7 +210,6 @@ struct SidebarSharedVMStatusButton: View {
     .accessibilityLabel("Shared VM status, \(readiness.statusSummary)")
   }
 }
-
 
 struct ProjectListRow: View {
   @ObservedObject var project: CompassProject
@@ -284,7 +280,6 @@ struct ProjectListRow: View {
   }
 }
 
-
 struct ProjectPhaseMark: View {
   @ObservedObject var project: CompassProject
   var sidebarStatus: ProjectSidebarStatus
@@ -311,7 +306,6 @@ struct ProjectPhaseMark: View {
     .accessibilityLabel(sidebarStatus.phaseLabel)
   }
 }
-
 
 struct ProjectSidebarReliabilitySummary: View {
   var status: ProjectSidebarStatus

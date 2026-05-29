@@ -1,7 +1,5 @@
 import AppKit
 import Foundation
-import Virtualization
-
 
 @MainActor
 final class CompassProject: ObservableObject, Identifiable {

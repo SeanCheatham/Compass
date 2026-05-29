@@ -5,9 +5,9 @@ import Foundation
 /// semantics as `AgentHostFilesystem` on the host, expressed against the
 /// wire types so the dispatcher can hand back response payloads directly.
 ///
-/// This binary runs as a LaunchAgent inside the user's GUI session and so
-/// is in the right TCC context to read/write VirtioFS-mounted shares. The
-/// caller (host) supplies absolute guest paths.
+/// This binary runs as a LaunchAgent inside the guest user's GUI session.
+/// The caller (host) supplies absolute paths under the synced guest
+/// workspace (~/compass/workspaces/<fingerprint>/).
 enum AgentFileOperations {
 
   static func readFile(at path: String) -> Result<

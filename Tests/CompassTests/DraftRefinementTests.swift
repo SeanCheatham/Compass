@@ -41,24 +41,21 @@ struct DraftRefinementTests {
         "Refined: Add parser tests in Sources/App.swift.",
         draft: draft,
         context: context
-      ) ==
-      nil
+      ) == nil
     )
     try #require(
       DraftRefinementService.parseGeneratedRefinement(
         "Refined: Add 3 parser tests.",
         draft: draft,
         context: context
-      ) ==
-      nil
+      ) == nil
     )
     try #require(
       DraftRefinementService.parseGeneratedRefinement(
         "Refined: Add parser tests that must pass.",
         draft: draft,
         context: context
-      ) ==
-      nil
+      ) == nil
     )
   }
 
@@ -104,16 +101,14 @@ struct DraftRefinementTests {
         "Refined: Completed parser tests.",
         draft: draft,
         context: context
-      ) ==
-      nil
+      ) == nil
     )
     try #require(
       DraftRefinementService.parseGeneratedRefinement(
         #"{"refined":"Add parser tests.","note":"extra commentary"}"#,
         draft: draft,
         context: context
-      ) ==
-      nil
+      ) == nil
     )
     try #require(
       DraftRefinementService.parseGeneratedRefinement(
@@ -123,8 +118,7 @@ struct DraftRefinementTests {
         """,
         draft: draft,
         context: context
-      ) ==
-      nil
+      ) == nil
     )
   }
 

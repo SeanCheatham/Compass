@@ -1,8 +1,8 @@
 import Foundation
 
-/// VirtioFS tag validation retained in case VirtioFS shares return.
-///
-/// Host↔guest file movement uses vsock via `SharedCompassVMWorktreeSync`.
+/// VirtioFS tag validation retained for unit tests and in case directory
+/// sharing returns. Production file movement uses vsock tar via
+/// `SharedCompassVMWorktreeSync`; no VirtioFS device is configured.
 enum SharedCompassVMFileShare {
   /// Default tag used by the parent workspace share.
   static let defaultWorkspacesTag = "compass-workspaces"

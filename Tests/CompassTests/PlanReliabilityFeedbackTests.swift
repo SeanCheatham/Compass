@@ -20,8 +20,8 @@ struct PlanReliabilityFeedbackTests {
     try #require(feedback.notices[0].kind == .rejectedPlan)
     try #require(feedback.notices[0].title == "Plan rejected")
     try #require(
-      feedback.notices[0].detail ==
-      "Plan tried to shrink completed history from 3 entries to 2. Refusing to overwrite state.json."
+      feedback.notices[0].detail
+        == "Plan tried to shrink completed history from 3 entries to 2. Refusing to overwrite state.json."
     )
     try #require(feedback.notices[0].actionLabel == "Retry Plan")
     try #require(feedback.recentRunCues[1]?.kind == .rejectedPlan)
@@ -41,8 +41,8 @@ struct PlanReliabilityFeedbackTests {
 
     try #require(feedback.notices.map(\.kind) == [.rejectedPlan])
     try #require(
-      feedback.notices[0].detail ==
-      "Plan returned placeholder verify command `true`. Refusing to overwrite state.json."
+      feedback.notices[0].detail
+        == "Plan returned placeholder verify command `true`. Refusing to overwrite state.json."
     )
   }
 
@@ -59,8 +59,8 @@ struct PlanReliabilityFeedbackTests {
     try #require(feedback.notices.map(\.kind) == [.developBlocked])
     try #require(feedback.notices[0].title == "Develop blocked")
     try #require(
-      feedback.notices[0].detail ==
-      "Missing signing credentials. Ask the next pass to add a local fixture.")
+      feedback.notices[0].detail
+        == "Missing signing credentials. Ask the next pass to add a local fixture.")
     try #require(feedback.notices[0].actionLabel == "Retry Develop")
   }
 
@@ -101,8 +101,7 @@ struct PlanReliabilityFeedbackTests {
     try #require(feedback.notices[0].title == "Verify failed")
     try #require(feedback.notices[0].detail == "Test Suite failed Expected true but got false")
     try #require(
-      feedback.notices[0].metadata ==
-      "swift test --filter PlanReliabilityFeedbackTests · exit 65"
+      feedback.notices[0].metadata == "swift test --filter PlanReliabilityFeedbackTests · exit 65"
     )
     try #require(feedback.recentRunCues[5]?.kind == .failedVerify)
   }
@@ -154,8 +153,8 @@ struct PlanReliabilityFeedbackTests {
     try #require(feedback.notices[0].actionLabel == "Resolve Promotion")
     try #require(feedback.notices[0].metadata == "#13 · compass/dev-123")
     try #require(
-      feedback.notices[0].detail ==
-      "Failed to promote Develop sandbox branch compass/dev-123: fatal: Not possible to fast-forward, aborting."
+      feedback.notices[0].detail
+        == "Failed to promote Develop sandbox branch compass/dev-123: fatal: Not possible to fast-forward, aborting."
     )
     try #require(feedback.recentRunCues[13]?.kind == .promotionFailed)
   }

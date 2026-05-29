@@ -42,7 +42,8 @@ struct ExploreFileExplainerGitDiffRangeArgOrderTests {
 
     // Empty test body — compilation verifies argument order.
     _ = verifyCallOrder
-    _ = await verifyCallOrder(newest: "NEWEST", oldest: "OLDEST", repoURL: URL(fileURLWithPath: "/"))
+    _ = await verifyCallOrder(
+      newest: "NEWEST", oldest: "OLDEST", repoURL: URL(fileURLWithPath: "/"))
   }
 
   // MARK: - whyGenerated(file:repoURL:commits:)
@@ -82,6 +83,7 @@ struct ExploreFileExplainerGitDiffRangeArgOrderTests {
 
     // Empty test body — compilation verifies argument order.
     _ = verifyCallOrder
-    _ = await verifyCallOrder(newest: "NEWEST", oldest: "OLDEST", repoURL: URL(fileURLWithPath: "/"))
+    _ = await verifyCallOrder(
+      newest: "NEWEST", oldest: "OLDEST", repoURL: URL(fileURLWithPath: "/"))
   }
 }

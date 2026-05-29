@@ -60,7 +60,8 @@ struct SharedCompassVMToolchainProvisionerTests {
 private final class FakeToolchainBashRunner: AgentBashRunner, @unchecked Sendable {
   let responder: @Sendable (_ command: String, _ workingDirectory: URL) -> ProcessResult
 
-  init(responder: @escaping @Sendable (_ command: String, _ workingDirectory: URL) -> ProcessResult) {
+  init(responder: @escaping @Sendable (_ command: String, _ workingDirectory: URL) -> ProcessResult)
+  {
     self.responder = responder
   }
 

@@ -12,7 +12,8 @@ final class AgentExecutionEnvironmentTests {
     }
   }
 
-  @Test func testDiscoveryReportsUnsupportedDevcontainerConfigWithNativeFallbackDiagnostics() throws {
+  @Test func testDiscoveryReportsUnsupportedDevcontainerConfigWithNativeFallbackDiagnostics() throws
+  {
     let environment = AgentExecutionEnvironment.discover(
       vmReadiness: .unavailable(reason: "2-guest cap reached")
     )

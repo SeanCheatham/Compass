@@ -63,9 +63,10 @@ enum ToolRegistry {
     var tools: [AgentTool]
     switch phase {
     case .plan:
-      tools = inspectionTools() + [
-        AgentPlanHistoryTool()
-      ]
+      tools =
+        inspectionTools() + [
+          AgentPlanHistoryTool()
+        ]
     case .reflect, .critic:
       tools = inspectionTools()
     case .develop:

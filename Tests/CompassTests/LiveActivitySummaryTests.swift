@@ -206,29 +206,25 @@ struct LiveActivitySummaryTests {
       LiveActivitySummaryService.parseGeneratedSummary(
         "```The agent inspected the source.```",
         cluster: cluster
-      ) ==
-      nil
+      ) == nil
     )
     try #require(
       LiveActivitySummaryService.parseGeneratedSummary(
         #"{"summary":"The agent inspected the source."}"#,
         cluster: cluster
-      ) ==
-      nil
+      ) == nil
     )
     try #require(
       LiveActivitySummaryService.parseGeneratedSummary(
         "The agent reviewed https://example.com output.",
         cluster: cluster
-      ) ==
-      nil
+      ) == nil
     )
     try #require(
       LiveActivitySummaryService.parseGeneratedSummary(
         String(repeating: "word ", count: 200),
         cluster: cluster
-      ) ==
-      nil
+      ) == nil
     )
   }
 
@@ -258,8 +254,7 @@ struct LiveActivitySummaryTests {
     try #require(summary.text.contains("2 commands"))
     try #require(summary.text.contains("1 agent note"))
     try #require(
-      summary.text.count <=
-      LiveActivitySummaryService.summaryMaxCharacters
+      summary.text.count <= LiveActivitySummaryService.summaryMaxCharacters
     )
   }
 

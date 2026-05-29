@@ -148,16 +148,15 @@ struct AgentSettingsStoreTests: ~Copyable {
   @Test func testContextWindowMatchesActiveTextProvider() throws {
     let store = makeStore(environment: [:])
     try #require(
-      store.load().contextWindowTokens ==
-      AgentProviderKind.appleFoundationModels.defaultTextContextWindowTokens)
+      store.load().contextWindowTokens
+        == AgentProviderKind.appleFoundationModels.defaultTextContextWindowTokens)
     store.setSelectedProvider(.minimaxToken, for: .text)
     try #require(
-      store.load().contextWindowTokens ==
-      AgentProviderKind.minimaxToken.defaultTextContextWindowTokens)
+      store.load().contextWindowTokens
+        == AgentProviderKind.minimaxToken.defaultTextContextWindowTokens)
     store.setSelectedProvider(.openAI, for: .text)
     try #require(
-      store.load().contextWindowTokens ==
-      AgentProviderKind.openAI.defaultTextContextWindowTokens)
+      store.load().contextWindowTokens == AgentProviderKind.openAI.defaultTextContextWindowTokens)
   }
 
   @Test func testContextWindowEnvOverrideAppliesAcrossProviders() throws {

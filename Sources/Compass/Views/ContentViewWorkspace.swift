@@ -25,7 +25,6 @@ struct NoProjectView: View {
   }
 }
 
-
 struct MainWorkspaceView: View {
   @ObservedObject var project: CompassProject
   @State private var selectedTab: WorkspaceTab = .live
@@ -55,7 +54,6 @@ struct MainWorkspaceView: View {
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
   }
 }
-
 
 struct WorkspaceHeader: View {
   @ObservedObject var project: CompassProject
@@ -176,7 +174,6 @@ struct WorkspaceHeader: View {
   }
 }
 
-
 extension CompassProject {
   var reliabilityStatus: ProjectReliabilityStatus {
     ProjectReliabilityStatus(
@@ -209,7 +206,6 @@ extension CompassProject {
     )
   }
 }
-
 
 struct ProjectStorageAssessmentPill: View {
   var displayStatus: CompassWorkspaceStorageDisplayStatus
@@ -308,7 +304,6 @@ struct ProjectStorageAssessmentPill: View {
   }
 }
 
-
 struct ProjectActivitySourceStatusPill: View {
   var status: ProjectActivitySourceStatus
 
@@ -338,7 +333,6 @@ struct ProjectActivitySourceStatusPill: View {
     storageAssessmentColor(for: status.severity)
   }
 }
-
 
 struct ProjectStorageMigrationButton: View {
   @ObservedObject var project: CompassProject
@@ -393,7 +387,6 @@ struct ProjectStorageMigrationButton: View {
       : .idle
   }
 }
-
 
 struct ProjectStorageActivationButton: View {
   @EnvironmentObject private var model: AppModel
@@ -454,7 +447,6 @@ struct ProjectStorageActivationButton: View {
   }
 }
 
-
 struct ProjectStorageRepairButton: View {
   var label: String
   var systemImage: String
@@ -477,7 +469,6 @@ struct ProjectStorageRepairButton: View {
     .accessibilityHint(helpText)
   }
 }
-
 
 struct ProjectReliabilityAttentionPill: View {
   var status: ProjectReliabilityStatus
@@ -528,7 +519,6 @@ struct ProjectReliabilityAttentionPill: View {
   }
 }
 
-
 struct ProjectPhasePill: View {
   @ObservedObject var project: CompassProject
 
@@ -561,7 +551,6 @@ struct ProjectPhasePill: View {
     return project.phase.rawValue
   }
 }
-
 
 struct ProjectRunControls: View {
   @EnvironmentObject private var model: AppModel
@@ -685,7 +674,6 @@ struct ProjectRunControls: View {
   }
 }
 
-
 struct WorkspaceTabButton: View {
   var tab: WorkspaceTab
   @Binding var selectedTab: WorkspaceTab
@@ -709,7 +697,6 @@ struct WorkspaceTabButton: View {
     )
   }
 }
-
 
 struct WorkspaceContent: View {
   @ObservedObject var project: CompassProject

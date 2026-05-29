@@ -49,37 +49,37 @@ struct ExploreTab: View {
         VStack(alignment: .leading, spacing: 0) {
           sessionScopePicker
           ScrollView {
-          LazyVStack(alignment: .leading, spacing: 2) {
-            ForEach(fileTree, id: \.relativePath) { root in
-              FileTreeRowView(
-                node: root,
-                codemapEntries: codemapEntries,
-                indentLevel: 0,
-                onFileTap: { path in
-                  whyGeneratedFile = path
-                  whyGeneratedExplanation = nil
-                  loadingWhyGenerated = true
-                  showWhyGenerated = true
-                  Task { await loadWhyGenerated() }
-                },
-                onSummaryTap: { path, summary in
-                  summaryPopoverFile = path
-                  summaryPopoverText = summary
-                  showSummaryPopover = true
-                },
-                onSymbolDetailTap: { entry in
-                  symbolDetailEntry = entry
-                  showSymbolDetailPopover = true
-                },
-                onGenerateSummary: { path in
-                  Task { await generateSummary(for: path) }
-                }
-              )
+            LazyVStack(alignment: .leading, spacing: 2) {
+              ForEach(fileTree, id: \.relativePath) { root in
+                FileTreeRowView(
+                  node: root,
+                  codemapEntries: codemapEntries,
+                  indentLevel: 0,
+                  onFileTap: { path in
+                    whyGeneratedFile = path
+                    whyGeneratedExplanation = nil
+                    loadingWhyGenerated = true
+                    showWhyGenerated = true
+                    Task { await loadWhyGenerated() }
+                  },
+                  onSummaryTap: { path, summary in
+                    summaryPopoverFile = path
+                    summaryPopoverText = summary
+                    showSummaryPopover = true
+                  },
+                  onSymbolDetailTap: { entry in
+                    symbolDetailEntry = entry
+                    showSymbolDetailPopover = true
+                  },
+                  onGenerateSummary: { path in
+                    Task { await generateSummary(for: path) }
+                  }
+                )
+              }
             }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 6)
           }
-          .padding(.horizontal, 8)
-          .padding(.vertical, 6)
-        }
         }
       }
     }
@@ -119,9 +119,10 @@ struct ExploreTab: View {
     let fs = CodemapFileSystem(rootURL: project.repoURL)
     let nodes = fs.buildTree()
     let entries = CodemapStore(directory: codemapDir).loadAllEntries()
-    let entryMap = Dictionary(uniqueKeysWithValues: entries.map {
-      ($0.relativePath, $0)
-    })
+    let entryMap = Dictionary(
+      uniqueKeysWithValues: entries.map {
+        ($0.relativePath, $0)
+      })
     await MainActor.run {
       self.fileTree = nodes
       self.codemapEntries = entryMap
@@ -328,8 +329,9 @@ struct FileTreeRowView: View {
   @ViewBuilder
   var summaryButton: some View {
     if let entry = codemapEntries[node.relativePath],
-       let summary = entry.summary,
-       !summary.isEmpty {
+      let summary = entry.summary,
+      !summary.isEmpty
+    {
       Button {
         onSummaryTap(node.relativePath, summary)
       } label: {
@@ -351,7 +353,9 @@ struct FileTreeRowView: View {
         .italic()
         .lineLimit(1)
     } else {
-      Button { onGenerateSummary(node.relativePath) } label: {
+      Button {
+        onGenerateSummary(node.relativePath)
+      } label: {
         Label("Generate Summary", systemImage: "sparkles")
           .font(.caption)
           .foregroundStyle(.secondary)
@@ -421,9 +425,11 @@ struct CodemapFileSystem {
   /// Top-level relative paths immediately under the repo root.
   private func topLevelKeys() -> [String] {
     let fm = FileManager.default
-    guard let contents = try? fm.contentsOfDirectory(
-      atPath: rootURL.path
-    ) else { return [] }
+    guard
+      let contents = try? fm.contentsOfDirectory(
+        atPath: rootURL.path
+      )
+    else { return [] }
     return contents.filter { name in
       // Hide hidden files/dirs and .compass internals
       !name.hasPrefix(".") && name != "Compass"
@@ -468,12 +474,18 @@ struct CodemapFileSystem {
     }
     return contents.filter { name in
       !name.hasPrefix(".")
+    }.map { name in
+      parent.isEmpty ? name : "\(parent)/\(name)"
     }
   }
 
   private func sortNodes(_ nodes: [FileTreeNode]) -> [FileTreeNode] {
-    let dirs = nodes.filter { $0.isDirectory }.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
-    let files = nodes.filter { !$0.isDirectory }.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+    let dirs = nodes.filter { $0.isDirectory }.sorted {
+      $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
+    }
+    let files = nodes.filter { !$0.isDirectory }.sorted {
+      $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
+    }
     return dirs + files
   }
 }

@@ -219,7 +219,8 @@ struct SharedCompassVMGuestWorkspaceCatalogTests {
     defer { try? FileManager.default.removeItem(at: repo) }
 
     _ = try SharedCompassVMGuestWorkspaceCatalog.ensureEntry(forRepoURL: repo)
-    try #require(try SharedCompassVMGuestWorkspaceCatalog.loadLastSyncedFileSet(forRepoURL: repo) == nil)
+    try #require(
+      try SharedCompassVMGuestWorkspaceCatalog.loadLastSyncedFileSet(forRepoURL: repo) == nil)
   }
 
   @Test
@@ -247,8 +248,7 @@ struct SharedCompassVMGuestWorkspaceCatalogTests {
     )
     let path = SharedCompassVMGuestWorkspaceCatalog.guestWorktreePath(forEntry: entry)
     try #require(
-      path ==
-      "/Users/compass/Compass/Repos/00000000-0000-0000-0000-000000000001/worktree"
+      path == "/Users/compass/Compass/Repos/00000000-0000-0000-0000-000000000001/worktree"
     )
   }
 

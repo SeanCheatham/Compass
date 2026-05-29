@@ -45,9 +45,9 @@ struct ExploreCommitExplainerTests {
   @Test
   func summarize_normalDiff_doesNotThrow() async throws {
     let diff = """
-    Sources/App.swift        |  12 ++++++------
-    Sources/Model.swift      |   4 ++++++
-    """
+      Sources/App.swift        |  12 ++++++------
+      Sources/Model.swift      |   4 ++++++
+      """
     // May return nil in CI / test environments without Foundation Models,
     // but must not throw.
     let result = await CommitExplainer.summarize(diff: diff)
@@ -62,8 +62,8 @@ struct ExploreCommitExplainerTests {
     // older macOS version or a simulator), summarize returns nil without
     // attempting to create a session.
     let diff = """
-    Sources/App.swift        |   2 ++
-    """
+      Sources/App.swift        |   2 ++
+      """
     let result = await CommitExplainer.summarize(diff: diff)
     // Either Foundation Models is available and we get a string (or nil
     // from an error), or it is unavailable and we definitely get nil.
@@ -83,9 +83,9 @@ struct ExploreCommitExplainerTests {
   @Test
   func summarizeWhyGenerated_normalDiff_doesNotThrow() async throws {
     let diff = """
-    Sources/App.swift        |  12 ++++++------
-    Sources/Model.swift      |   4 ++++++
-    """
+      Sources/App.swift        |  12 ++++++------
+      Sources/Model.swift      |   4 ++++++
+      """
     // May return nil in CI / test environments without Foundation Models,
     // but must not throw.
     let result = await CommitExplainer.summarizeWhyGenerated(diff: diff)
@@ -140,7 +140,7 @@ struct ExploreCommitExplainerTests {
   }
 
   @Test
-  func explain_normalSingleCommitDiff_isPassedToSummarizeAndReturnsString()  async throws {
+  func explain_normalSingleCommitDiff_isPassedToSummarizeAndReturnsString() async throws {
     // Path 1: normal single-commit diff is passed to summarize and returns a string.
     // We verify the diff is produced by git and passed to summarize.
     // Result may be nil if Foundation Models is unavailable on the test host.
@@ -153,18 +153,16 @@ struct ExploreCommitExplainerTests {
     // Create first commit with an initial file
     try test.explainWriteFile("README.md", contents: "# Test\n")
     try test.explainRunGit(
-      "git -C \(test.temporaryDirectory.path) add . && " +
-        "git -C \(test.temporaryDirectory.path) " +
-        "-c user.email=t@t -c user.name=t commit -q -m 'Initial'",
+      "git -C \(test.temporaryDirectory.path) add . && " + "git -C \(test.temporaryDirectory.path) "
+        + "-c user.email=t@t -c user.name=t commit -q -m 'Initial'",
       at: test.temporaryDirectory
     )
 
     // Create second commit that modifies the file
     try test.explainWriteFile("README.md", contents: "# Test\nExtra line.\n")
     try test.explainRunGit(
-      "git -C \(test.temporaryDirectory.path) add . && " +
-        "git -C \(test.temporaryDirectory.path) " +
-        "-c user.email=t@t -c user.name=t commit -q -m 'Add line'",
+      "git -C \(test.temporaryDirectory.path) add . && " + "git -C \(test.temporaryDirectory.path) "
+        + "-c user.email=t@t -c user.name=t commit -q -m 'Add line'",
       at: test.temporaryDirectory
     )
 
@@ -204,7 +202,7 @@ struct ExploreCommitExplainerTests {
   }
 
   @Test
-  func explain_emptyDiff_returnsNilWithoutCallingSummarize()  async throws {
+  func explain_emptyDiff_returnsNilWithoutCallingSummarize() async throws {
     // Path 2: empty diff returns nil without calling summarize.
     // An empty commit (no file changes) produces no diff output.
     var test = Self()
@@ -216,9 +214,8 @@ struct ExploreCommitExplainerTests {
     // Create initial commit
     try test.explainWriteFile("README.md", contents: "# Test\n")
     try test.explainRunGit(
-      "git -C \(test.temporaryDirectory.path) add . && " +
-        "git -C \(test.temporaryDirectory.path) " +
-        "-c user.email=t@t -c user.name=t commit -q -m 'Initial'",
+      "git -C \(test.temporaryDirectory.path) add . && " + "git -C \(test.temporaryDirectory.path) "
+        + "-c user.email=t@t -c user.name=t commit -q -m 'Initial'",
       at: test.temporaryDirectory
     )
 
@@ -236,9 +233,8 @@ struct ExploreCommitExplainerTests {
     // Create a commit that makes no file changes by touching the same content
     try test.explainWriteFile("README.md", contents: "# Test\n")
     try test.explainRunGit(
-      "git -C \(test.temporaryDirectory.path) add . && " +
-        "git -C \(test.temporaryDirectory.path) " +
-        "-c user.email=t@t -c user.name=t commit -q --allow-empty -m 'Empty change'",
+      "git -C \(test.temporaryDirectory.path) add . && " + "git -C \(test.temporaryDirectory.path) "
+        + "-c user.email=t@t -c user.name=t commit -q --allow-empty -m 'Empty change'",
       at: test.temporaryDirectory
     )
 
@@ -248,7 +244,8 @@ struct ExploreCommitExplainerTests {
     )
     let emptySha = shaResult2.trimmingCharacters(in: .whitespacesAndNewlines)
 
-    let commit = SessionCommit(sha: emptySha, short: String(emptySha.prefix(7)), subject: "Empty change")
+    let commit = SessionCommit(
+      sha: emptySha, short: String(emptySha.prefix(7)), subject: "Empty change")
 
     // The diff for an empty commit should be empty → explain returns nil.
     // This does not call summarize because the trimmed diff is empty.
@@ -257,7 +254,7 @@ struct ExploreCommitExplainerTests {
   }
 
   @Test
-  func explain_gitFailure_returnsNil()  async throws {
+  func explain_gitFailure_returnsNil() async throws {
     // Path 3: git failure returns nil.
     // Use a repo URL that does not exist.
     var test = Self()
@@ -268,7 +265,8 @@ struct ExploreCommitExplainerTests {
     let nonExistentURL = try #require(test.temporaryDirectory)
     try FileManager.default.removeItem(at: nonExistentURL)
 
-    let fakeCommit = SessionCommit(sha: "0000000000000000000000000000000000000000", short: "0000000", subject: "Fake")
+    let fakeCommit = SessionCommit(
+      sha: "0000000000000000000000000000000000000000", short: "0000000", subject: "Fake")
 
     let result = await CommitExplainer.explain(commit: fakeCommit, repoURL: nonExistentURL)
     try #require(result == nil)
@@ -291,18 +289,16 @@ struct ExploreCommitExplainerTests {
     // Create first commit with an initial file
     try test.explainWriteFile("README.md", contents: "# Test\n")
     try test.explainRunGit(
-      "git -C \(test.temporaryDirectory.path) add . && " +
-        "git -C \(test.temporaryDirectory.path) " +
-        "-c user.email=t@t -c user.name=t commit -q -m 'Initial'",
+      "git -C \(test.temporaryDirectory.path) add . && " + "git -C \(test.temporaryDirectory.path) "
+        + "-c user.email=t@t -c user.name=t commit -q -m 'Initial'",
       at: test.temporaryDirectory
     )
 
     // Create second commit that modifies the file
     try test.explainWriteFile("README.md", contents: "# Test\nExtra line.\n")
     try test.explainRunGit(
-      "git -C \(test.temporaryDirectory.path) add . && " +
-        "git -C \(test.temporaryDirectory.path) " +
-        "-c user.email=t@t -c user.name=t commit -q -m 'Add line'",
+      "git -C \(test.temporaryDirectory.path) add . && " + "git -C \(test.temporaryDirectory.path) "
+        + "-c user.email=t@t -c user.name=t commit -q -m 'Add line'",
       at: test.temporaryDirectory
     )
 

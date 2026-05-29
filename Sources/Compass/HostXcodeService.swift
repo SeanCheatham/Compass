@@ -90,9 +90,10 @@ struct HostXcodeService: HostXcodeServicing, @unchecked Sendable {
         create: true
       ))
       ?? URL(fileURLWithPath: NSHomeDirectory())
-        .appendingPathComponent("Library", isDirectory: true)
-        .appendingPathComponent("Application Support", isDirectory: true)
-    return appSupport
+      .appendingPathComponent("Library", isDirectory: true)
+      .appendingPathComponent("Application Support", isDirectory: true)
+    return
+      appSupport
       .appendingPathComponent("Compass", isDirectory: true)
       .appendingPathComponent("HostXcodeMirrors", isDirectory: true)
   }
@@ -110,10 +111,10 @@ struct HostXcodeService: HostXcodeServicing, @unchecked Sendable {
   }
 
   static func stableKey(for value: String) -> String {
-    var hash: UInt64 = 0xcbf29ce484222325
+    var hash: UInt64 = 0xcbf2_9ce4_8422_2325
     for byte in value.utf8 {
       hash ^= UInt64(byte)
-      hash &*= 0x100000001b3
+      hash &*= 0x100_0000_01b3
     }
     return String(format: "%016llx", hash)
   }
@@ -230,7 +231,9 @@ struct HostXcodeService: HostXcodeServicing, @unchecked Sendable {
     )
   }
 
-  static func parseVerifyCommand(_ command: String) throws -> (action: HostXcodeAction, arguments: [String]) {
+  static func parseVerifyCommand(_ command: String) throws -> (
+    action: HostXcodeAction, arguments: [String]
+  ) {
     let words = try ShellWords.split(command)
     guard let executable = words.first else {
       throw HostXcodeError.unsupportedVerifyCommand("command is empty")

@@ -1,6 +1,5 @@
 import AppKit
 import Foundation
-import Virtualization
 
 enum KnownProjectActiveStorage: String, Codable, CaseIterable, Identifiable {
   case repoLocal = "repo_local"

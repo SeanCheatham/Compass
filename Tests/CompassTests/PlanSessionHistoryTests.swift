@@ -163,9 +163,10 @@ struct PlanSessionHistoryTests: ~Copyable {
     try #require(display.visibleCount == PlanSessionHistoryDisplay.defaultRecentLimit)
     try #require(display.hiddenCount == 3)
     try #require(
-      display.visibleItems.map(\.sessionNumber) ==
-      Array(
-        (sessionCount - PlanSessionHistoryDisplay.defaultRecentLimit + 1...sessionCount).reversed())
+      display.visibleItems.map(\.sessionNumber)
+        == Array(
+          (sessionCount - PlanSessionHistoryDisplay.defaultRecentLimit + 1...sessionCount)
+            .reversed())
     )
     try #require(display.countSummary == "Showing latest 8 of 11")
     try #require(display.shouldOfferModeToggle)
@@ -212,8 +213,7 @@ struct PlanSessionHistoryTests: ~Copyable {
     try #require(display.visibleItems.map(\.sessionNumber) == [6])
     try #require(display.hiddenCount == 5)
     try #require(
-      display.hiddenStatusSummary ==
-      "2 failed, 1 cancelled, 1 succeeded, 1 awaiting approval"
+      display.hiddenStatusSummary == "2 failed, 1 cancelled, 1 succeeded, 1 awaiting approval"
     )
   }
 
@@ -329,13 +329,13 @@ struct PlanSessionHistoryTests: ~Copyable {
   @Test
   func testDisplayGroupsFailedAndRejectedRuns() throws {
     let items = [
-      makeHistoryItem(7+0),
-      makeHistoryItem(6+0),
-      makeHistoryItem(5+0),
-      makeHistoryItem(4+0, status: .rejectedByPlan),
-      makeHistoryItem(3+0, status: .failed),
-      makeHistoryItem(2+0),
-      makeHistoryItem(1+0),
+      makeHistoryItem(7 + 0),
+      makeHistoryItem(6 + 0),
+      makeHistoryItem(5 + 0),
+      makeHistoryItem(4 + 0, status: .rejectedByPlan),
+      makeHistoryItem(3 + 0, status: .failed),
+      makeHistoryItem(2 + 0),
+      makeHistoryItem(1 + 0),
     ]
     let display = PlanSessionHistoryDisplay(
       items: items,
@@ -356,11 +356,11 @@ struct PlanSessionHistoryTests: ~Copyable {
   @Test
   func testDisplayGroupsActiveAndPausedRuns() throws {
     let items = [
-      makeHistoryItem(5+0),
-      makeHistoryItem(4+0, status: .awaitingApproval),
-      makeHistoryItem(3+0, status: .developing),
-      makeHistoryItem(2+0, status: .planning),
-      makeHistoryItem(1+0),
+      makeHistoryItem(5 + 0),
+      makeHistoryItem(4 + 0, status: .awaitingApproval),
+      makeHistoryItem(3 + 0, status: .developing),
+      makeHistoryItem(2 + 0, status: .planning),
+      makeHistoryItem(1 + 0),
     ]
     let display = PlanSessionHistoryDisplay(
       items: items,
@@ -378,12 +378,12 @@ struct PlanSessionHistoryTests: ~Copyable {
   @Test
   func testDisplayGroupsCompletedAndFinishedRuns() throws {
     let items = [
-      makeHistoryItem(6+0, status: .succeeded),
-      makeHistoryItem(5+0, status: .cancelled),
-      makeHistoryItem(4+0, status: .skipped),
-      makeHistoryItem(3+0, status: .failed),
-      makeHistoryItem(2+0, status: .rejectedByPlan),
-      makeHistoryItem(1+0, status: .awaitingApproval),
+      makeHistoryItem(6 + 0, status: .succeeded),
+      makeHistoryItem(5 + 0, status: .cancelled),
+      makeHistoryItem(4 + 0, status: .skipped),
+      makeHistoryItem(3 + 0, status: .failed),
+      makeHistoryItem(2 + 0, status: .rejectedByPlan),
+      makeHistoryItem(1 + 0, status: .awaitingApproval),
     ]
     let display = PlanSessionHistoryDisplay(
       items: items,
@@ -398,12 +398,12 @@ struct PlanSessionHistoryTests: ~Copyable {
   @Test
   func testDisplaySummariesUseFilteredCounts() throws {
     let items = [
-      makeHistoryItem(6+0),
-      makeHistoryItem(5+0),
-      makeHistoryItem(4+0),
-      makeHistoryItem(3+0),
-      makeHistoryItem(2+0),
-      makeHistoryItem(1+0),
+      makeHistoryItem(6 + 0),
+      makeHistoryItem(5 + 0),
+      makeHistoryItem(4 + 0),
+      makeHistoryItem(3 + 0),
+      makeHistoryItem(2 + 0),
+      makeHistoryItem(1 + 0),
     ]
     let runCues = [
       6: makeRunCue(kind: .failedVerify),
@@ -452,12 +452,12 @@ struct PlanSessionHistoryTests: ~Copyable {
   @Test
   func testDisplaySummarizesHiddenStatusesAfterFiltering() throws {
     let items = [
-      makeHistoryItem(6+0, status: .failed),
-      makeHistoryItem(5+0, status: .succeeded),
-      makeHistoryItem(4+0, status: .rejectedByPlan),
-      makeHistoryItem(3+0, status: .cancelled),
-      makeHistoryItem(2+0, status: .skipped),
-      makeHistoryItem(1+0, status: .awaitingApproval),
+      makeHistoryItem(6 + 0, status: .failed),
+      makeHistoryItem(5 + 0, status: .succeeded),
+      makeHistoryItem(4 + 0, status: .rejectedByPlan),
+      makeHistoryItem(3 + 0, status: .cancelled),
+      makeHistoryItem(2 + 0, status: .skipped),
+      makeHistoryItem(1 + 0, status: .awaitingApproval),
     ]
 
     let display = PlanSessionHistoryDisplay(

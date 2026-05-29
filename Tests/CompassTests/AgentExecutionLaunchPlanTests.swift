@@ -58,10 +58,10 @@ final class AgentExecutionLaunchPlanTests {
   }
 
   @Test func testReadyButNoRouteableFactoryFallsBackToHost() throws {
-    // When the VM is ready but the worktree isn't under the workspace
-    // mount (factory returns nil), the planner falls back to host with
-    // a workspace-share-membership reason. This is the internal-only
-    // fallback the planner still keeps for Plan/Reflect on the main repo.
+    // When the VM is ready but the repo isn't in the guest workspace
+    // catalog (factory returns nil), the planner falls back to host.
+    // This is the internal-only fallback the planner still keeps for
+    // Plan/Reflect on the main repo.
     let repoURL = try makeTemporaryDirectory(prefix: "VMReadyNoRoute")
     let plan = AgentExecutionLaunchPlan.plan(
       repoURL: repoURL,
@@ -69,7 +69,7 @@ final class AgentExecutionLaunchPlanTests {
       sharedVMRouteFactory: { _ in nil }
     )
     try #require(!plan.isVMRoute)
-    try #require(plan.fallbackReason?.contains("outside the Shared VM workspaces share") ?? false)
+    try #require(plan.fallbackReason?.contains("workspace catalog") ?? false)
   }
 
   @Test func testBuildConfigFallsBackToNativeWhenContainerToolIsUnavailable() throws {
@@ -123,15 +123,16 @@ final class AgentExecutionLaunchPlanTests {
     try #require(snapshot.provisioningAvailabilityIdentifier == "available")
     try #require(snapshot.provisioningStatusIdentifier == "ready")
     try #require(
-      snapshot.provisioningActionIdentifier ==
-      SessionExecutionEnvironmentSnapshot.vmBuildActionIdentifier)
+      snapshot.provisioningActionIdentifier
+        == SessionExecutionEnvironmentSnapshot.vmBuildActionIdentifier)
 
     let encoded = try JSONEncoder().encode(snapshot)
     let decoded = try JSONDecoder().decode(SessionExecutionEnvironmentSnapshot.self, from: encoded)
     try #require(decoded == snapshot)
   }
 
-  @Test func
+  @Test
+  func
     testExecutionEnvironmentSnapshotSummariesCoverNativeBuildComposeAndFeatureRoutesWithoutLeaks()
     throws
   {

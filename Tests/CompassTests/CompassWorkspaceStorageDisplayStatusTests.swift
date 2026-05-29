@@ -154,15 +154,18 @@ final class CompassWorkspaceStorageDisplayStatusTests {
     try #require(display.activeRootHealth == .missing)
     try #require(display.activeStorageRootURL == resolver.storageRootURL.standardizedFileURL)
     try #require(
-      display.activeRootFacts.missingCoreFiles == CompassWorkspaceStorageAssessment.CoreFile.allCases)
+      display.activeRootFacts.missingCoreFiles
+        == CompassWorkspaceStorageAssessment.CoreFile.allCases)
     try #require(!display.activeRootFacts.sessionsDirectoryExists)
     try #require(display.detail.contains("Active Application Support state root is missing"))
     let repairAction = try #require(display.supportRepairAction)
     try #require(repairAction.kind == .initializeApplicationSupportWorkspace)
     try #require(repairAction.issueKind == .applicationSupportActiveMissing)
     try #require(repairAction.label == "Repair support storage")
-    try #require(repairAction.label.count <= CompassWorkspaceStorageDisplayStatus.repairActionLabelLimit)
-    try #require(repairAction.helpText.count <= CompassWorkspaceStorageDisplayStatus.repairActionHelpLimit)
+    try #require(
+      repairAction.label.count <= CompassWorkspaceStorageDisplayStatus.repairActionLabelLimit)
+    try #require(
+      repairAction.helpText.count <= CompassWorkspaceStorageDisplayStatus.repairActionHelpLimit)
     try #require(repairAction.helpText.contains("Application Support"))
     try #require(repairAction.helpText.contains("repo-local"))
     try #require(!FileManager.default.fileExists(atPath: resolver.storageRootURL.path))
@@ -203,8 +206,10 @@ final class CompassWorkspaceStorageDisplayStatusTests {
     try #require(repairAction.kind == .initializeApplicationSupportWorkspace)
     try #require(repairAction.issueKind == .applicationSupportActiveIncomplete)
     try #require(repairAction.label == "Repair support storage")
-    try #require(repairAction.label.count <= CompassWorkspaceStorageDisplayStatus.repairActionLabelLimit)
-    try #require(repairAction.helpText.count <= CompassWorkspaceStorageDisplayStatus.repairActionHelpLimit)
+    try #require(
+      repairAction.label.count <= CompassWorkspaceStorageDisplayStatus.repairActionLabelLimit)
+    try #require(
+      repairAction.helpText.count <= CompassWorkspaceStorageDisplayStatus.repairActionHelpLimit)
     try #require(repairAction.helpText.contains("Application Support"))
     try #require(repairAction.helpText.contains("repo-local"))
     try #require(
@@ -307,30 +312,27 @@ final class CompassWorkspaceStorageDisplayStatusTests {
     )
 
     try #require(
-      display.projectStorageIdentifier.count <=
-      CompassWorkspaceStorageAssessment.maxProjectIdentifierLength
+      display.projectStorageIdentifier.count
+        <= CompassWorkspaceStorageAssessment.maxProjectIdentifierLength
     )
     try #require(display.label.count <= CompassWorkspaceStorageDisplayStatus.labelLimit)
     try #require(display.detail.count <= CompassWorkspaceStorageDisplayStatus.detailLimit)
     try #require(
-      display.recommendation.count <=
-      CompassWorkspaceStorageDisplayStatus.recommendationLimit
+      display.recommendation.count <= CompassWorkspaceStorageDisplayStatus.recommendationLimit
     )
     try #require(!display.label.isEmpty)
     try #require(!display.detail.isEmpty)
     try #require(!display.recommendation.isEmpty)
     let compatibility = try #require(display.applicationSupportCompatibility)
     try #require(
-      compatibility.detail.count <=
-      CompassWorkspaceStorageDisplayStatus.compatibilityDetailLimit
+      compatibility.detail.count <= CompassWorkspaceStorageDisplayStatus.compatibilityDetailLimit
     )
     try #require(
-      compatibility.recommendation.count <=
-      CompassWorkspaceStorageDisplayStatus.compatibilityRecommendationLimit
+      compatibility.recommendation.count
+        <= CompassWorkspaceStorageDisplayStatus.compatibilityRecommendationLimit
     )
     try #require(
-      compatibility.helpText.count <=
-      CompassWorkspaceStorageDisplayStatus.compatibilityHelpLimit
+      compatibility.helpText.count <= CompassWorkspaceStorageDisplayStatus.compatibilityHelpLimit
     )
     try #require(!compatibility.detail.isEmpty)
     try #require(!compatibility.recommendation.isEmpty)

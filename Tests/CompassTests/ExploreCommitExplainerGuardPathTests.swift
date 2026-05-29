@@ -18,10 +18,8 @@ import Testing
 ///
 /// ### Path 2 — `explain(commit:)` when git returns empty diff on a valid commit
 ///
-/// `CommitExplainer.explain(commit:repoURL:)` fetches the diff then trims and
-/// guards on `!trimmed.isEmpty`. This path is triggered when the commit SHA is
-/// valid but the diff is empty — e.g., a file that was added in a later commit
-/// does not exist in the queried commit, so `git diff <sha>^..<sha>` returns `""`.
+/// An allow-empty commit produces an empty diff; trimming hits
+/// `guard !trimmed.isEmpty` and returns `nil` without throwing.
 ///
 /// This uses the same `setUp`/`tearDown`/`initGitRepo`/`makeSingleCommit` pattern
 /// established in `ExploreCommitTourGeneratorGuardPathTests.swift`.
@@ -53,51 +51,32 @@ struct ExploreCommitExplainerGuardPathTests {
     try #require(result == "")
   }
 
-  // MARK: - Path 2: explain — valid SHA but file absent from that commit → empty diff → nil
+  // MARK: - Path 2: explain — empty-tree commit → empty diff → nil
 
-  /// Verifies `explain(commit:repoURL:)` returns `nil` when the commit SHA is
-  /// valid but the file being queried has no content in that commit.
-  ///
-  /// The test creates two commits: the first adds `Sources/App.swift`, the
-  /// second adds `Sources/Other.swift`. Querying the first commit for
-  /// `Sources/Other.swift` produces an empty diff (the file did not exist yet),
-  /// which hits `guard !trimmed.isEmpty else { return nil }`.
-  ///
-  /// The chain exercised:
-  /// `explain(commit: [first_sha], repoURL)` →
-  /// `CommitExplainer.gitDiff(sha:)` returns `""` (file not in commit) →
-  /// `guard !trimmed.isEmpty else { return nil }` →
-  /// `nil`
+  /// Verifies `explain(commit:repoURL:)` returns `nil` for an allow-empty
+  /// commit. `git diff <sha>^..<sha>` returns `""`, trimming produces an
+  /// empty string, and the guard fires.
   @Test
-  func explain_commitValidButFileAbsentInCommit_returnsNil() async throws {
+  func explain_emptyTreeCommit_returnsNil() async throws {
     var test = Self()
     test.setUp()
     defer { test.tearDown() }
 
     try test.initGitRepo()
-    _ = try test.makeSingleCommit()
-
-    // Create a second commit that adds a different file
-    try test.writeFile("Sources/Other.swift", contents: "import Foundation\n")
     try test.runGit(
-      "git -C \(test.temporaryDirectory.path) add Sources/Other.swift && "
-        + "git -C \(test.temporaryDirectory.path) "
-        + "-c user.email=t@t -c user.name=t commit -q -m 'Add Other.swift'"
+      "git -C \(test.temporaryDirectory.path) "
+        + "-c user.email=t@t -c user.name=t commit -q --allow-empty -m 'Empty commit'"
     )
 
-    // Get the SHA of the first commit (which only has Sources/App.swift)
-    let firstSHA = try test.getSingleCommitSHA()
-    let firstCommit = SessionCommit(
-      sha: firstSHA,
-      short: String(firstSHA.prefix(7)),
-      subject: "Add App.swift"
+    let sha = try test.getSingleCommitSHA()
+    let commit = SessionCommit(
+      sha: sha,
+      short: String(sha.prefix(7)),
+      subject: "Empty commit"
     )
 
-    // Query the first commit using the path from the second commit
-    // — "Sources/Other.swift" did not exist in the first commit, so
-    // git returns "" and explain returns nil.
     let result = await CommitExplainer.explain(
-      commit: firstCommit,
+      commit: commit,
       repoURL: test.temporaryDirectory
     )
     try #require(result == nil)

@@ -1,6 +1,5 @@
 import AppKit
 import Foundation
-import Virtualization
 
 @MainActor
 extension CompassProject {
@@ -75,13 +74,13 @@ extension CompassProject {
       return path.isEmpty ? "root" : path
     }
     switch decodingError {
-    case let .keyNotFound(key, context):
+    case .keyNotFound(let key, let context):
       return "Decode failed: missing key '\(key.stringValue)' at \(location(context))."
-    case let .valueNotFound(_, context):
+    case .valueNotFound(_, let context):
       return "Decode failed: missing value at \(location(context)). \(context.debugDescription)"
-    case let .typeMismatch(_, context):
+    case .typeMismatch(_, let context):
       return "Decode failed: type mismatch at \(location(context)). \(context.debugDescription)"
-    case let .dataCorrupted(context):
+    case .dataCorrupted(let context):
       return "Decode failed: corrupted data at \(location(context)). \(context.debugDescription)"
     @unknown default:
       return decodingError.localizedDescription

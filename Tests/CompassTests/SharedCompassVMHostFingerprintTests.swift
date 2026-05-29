@@ -15,7 +15,8 @@ final class SharedCompassVMHostFingerprintTests {
   init() throws {
     repo = try Self.makeTempDir()
     // Skip this test if git isn't available on this host
-    try #require(Self.initGitRepo(at: repo), "git is not available on this host; skipping fingerprint tests")
+    try #require(
+      Self.initGitRepo(at: repo), "git is not available on this host; skipping fingerprint tests")
   }
 
   deinit {
@@ -118,7 +119,8 @@ final class SharedCompassVMHostFingerprintTests {
 
   private static func makeTempDir() throws -> URL {
     let url = FileManager.default.temporaryDirectory
-      .appending(path: "compass-fingerprint-tests-\(UUID().uuidString)", directoryHint: .isDirectory)
+      .appending(
+        path: "compass-fingerprint-tests-\(UUID().uuidString)", directoryHint: .isDirectory)
     try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
     return url
   }

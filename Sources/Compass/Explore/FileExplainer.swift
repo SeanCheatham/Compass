@@ -193,7 +193,6 @@ enum FileChangeCategory: String, CaseIterable {
   }
 }
 
-
 /// Provides the two-contract interface for exploring changed files in a commit range.
 ///
 /// ## Two-method contract
@@ -235,7 +234,8 @@ enum FileExplainer {
     repoURL: URL,
     commits: [SessionCommit]
   ) async -> String? {
-    guard let diff = await CommitExplainer.commitDiffRange(commits: commits, repoURL: repoURL) else {
+    guard let diff = await CommitExplainer.commitDiffRange(commits: commits, repoURL: repoURL)
+    else {
       return nil
     }
 
@@ -264,7 +264,8 @@ enum FileExplainer {
     repoURL: URL,
     commits: [SessionCommit]
   ) async -> String? {
-    guard let diff = await CommitExplainer.commitDiffRange(commits: commits, repoURL: repoURL) else {
+    guard let diff = await CommitExplainer.commitDiffRange(commits: commits, repoURL: repoURL)
+    else {
       return nil
     }
 
@@ -293,8 +294,7 @@ enum FileExplainer {
   ///   Foundation Models — the AI-powered explanations are produced by
   ///   ``explain(file:repoURL:commits:)`` instead.
   static func changes(for repoURL: URL, commits: [SessionCommit]) async -> [FileChange] {
-    guard let first = commits.first else { return [] }
-    let oldestCommit = commits.last!
+    guard let first = commits.first, let oldestCommit = commits.last else { return [] }
 
     let diffStat: String
     if commits.count == 1 {
@@ -344,7 +344,8 @@ enum FileExplainer {
       // Handle "a => b" renames by taking the right-hand side
       let relativePath: String
       if let arrowRange = pathPart.range(of: " => ") {
-        relativePath = String(pathPart[arrowRange.upperBound...]).trimmingCharacters(in: .whitespaces)
+        relativePath = String(pathPart[arrowRange.upperBound...]).trimmingCharacters(
+          in: .whitespaces)
       } else {
         relativePath = pathPart
       }
@@ -364,13 +365,14 @@ enum FileExplainer {
       }
 
       let language = CodemapLanguage.forRelativePath(strippedPath)
-      changes.append(FileChange(
-        relativePath: strippedPath,
-        additions: additions,
-        deletions: deletions,
-        language: language,
-        summary: nil // Populated later via codemap lookup
-      ))
+      changes.append(
+        FileChange(
+          relativePath: strippedPath,
+          additions: additions,
+          deletions: deletions,
+          language: language,
+          summary: nil  // Populated later via codemap lookup
+        ))
     }
 
     return changes

@@ -23,7 +23,8 @@ struct AgentHostXcodeTool: AgentTool {
         "action": [
           "type": "string",
           "enum": ["status", "build", "test"],
-          "description": "Host Xcode operation. Only build/test xcodebuild operations are supported.",
+          "description":
+            "Host Xcode operation. Only build/test xcodebuild operations are supported.",
         ],
         "arguments": [
           "type": "array",
@@ -48,7 +49,8 @@ struct AgentHostXcodeTool: AgentTool {
     )
   }
 
-  func invoke(arguments: Data, context: AgentToolContext) async throws -> AgentToolInvocationResult {
+  func invoke(arguments: Data, context: AgentToolContext) async throws -> AgentToolInvocationResult
+  {
     let args: Arguments
     do {
       args = try JSONDecoder().decode(Arguments.self, from: arguments)
@@ -93,7 +95,8 @@ struct AgentHostXcodeTool: AgentTool {
     } catch let error as HostXcodeError {
       return .failure(error.localizedDescription, kind: .bashFailure)
     } catch {
-      return .failure("Host Xcode command failed: \(error.localizedDescription)", kind: .bashFailure)
+      return .failure(
+        "Host Xcode command failed: \(error.localizedDescription)", kind: .bashFailure)
     }
   }
 

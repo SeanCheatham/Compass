@@ -87,14 +87,11 @@ final class CompassWorkspaceStorageMigrationActionTests {
     try #require(callCount == 1)
     try #require(project.storageMigrationState.phase == .failed)
     try #require(
-      project.storageMigrationState.label.count <=
-      CompassProjectStorageMigrationState.labelLimit)
+      project.storageMigrationState.label.count <= CompassProjectStorageMigrationState.labelLimit)
     try #require(
-      project.storageMigrationState.detail.count <=
-      CompassProjectStorageMigrationState.detailLimit)
+      project.storageMigrationState.detail.count <= CompassProjectStorageMigrationState.detailLimit)
     try #require(
-      project.storageMigrationState.helpText.count <=
-      CompassProjectStorageMigrationState.helpLimit)
+      project.storageMigrationState.helpText.count <= CompassProjectStorageMigrationState.helpLimit)
     try #require(project.errorMessage == project.storageMigrationState.detail)
     try #require(!FileManager.default.fileExists(atPath: confirmation.plan.destinationURL.path))
   }
@@ -172,34 +169,28 @@ final class CompassWorkspaceStorageMigrationActionTests {
     try #require(
       confirmation.message.count <= CompassWorkspaceStorageMigrationConfirmation.messageLimit)
     try #require(
-      confirmation.confirmLabel.count <=
-      CompassWorkspaceStorageMigrationConfirmation.actionLabelLimit
+      confirmation.confirmLabel.count
+        <= CompassWorkspaceStorageMigrationConfirmation.actionLabelLimit
     )
     try #require(
-      confirmation.cancelLabel.count <=
-      CompassWorkspaceStorageMigrationConfirmation.actionLabelLimit)
+      confirmation.cancelLabel.count
+        <= CompassWorkspaceStorageMigrationConfirmation.actionLabelLimit)
     try #require(
-      project.storageMigrationState.label.count <=
-      CompassProjectStorageMigrationState.labelLimit)
+      project.storageMigrationState.label.count <= CompassProjectStorageMigrationState.labelLimit)
     try #require(
-      project.storageMigrationState.detail.count <=
-      CompassProjectStorageMigrationState.detailLimit)
+      project.storageMigrationState.detail.count <= CompassProjectStorageMigrationState.detailLimit)
     try #require(
-      project.storageMigrationState.helpText.count <=
-      CompassProjectStorageMigrationState.helpLimit)
+      project.storageMigrationState.helpText.count <= CompassProjectStorageMigrationState.helpLimit)
 
     await project.confirmStorageMigration(confirmation)
 
     try #require(project.storageMigrationState.phase == .failed)
     try #require(
-      project.storageMigrationState.label.count <=
-      CompassProjectStorageMigrationState.labelLimit)
+      project.storageMigrationState.label.count <= CompassProjectStorageMigrationState.labelLimit)
     try #require(
-      project.storageMigrationState.detail.count <=
-      CompassProjectStorageMigrationState.detailLimit)
+      project.storageMigrationState.detail.count <= CompassProjectStorageMigrationState.detailLimit)
     try #require(
-      project.storageMigrationState.helpText.count <=
-      CompassProjectStorageMigrationState.helpLimit)
+      project.storageMigrationState.helpText.count <= CompassProjectStorageMigrationState.helpLimit)
   }
 
   @Test func testActionPreservesRepoLocalStorageAndDoesNotSwitchActiveStorage() async throws {

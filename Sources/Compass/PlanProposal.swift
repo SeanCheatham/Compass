@@ -120,7 +120,7 @@ struct PlanHistoryPage: Equatable {
     }
     let showing = entries.count
     var lines = [
-      "plan history: \(totalCount) total, showing \(showing) (offset \(offset) from newest)",
+      "plan history: \(totalCount) total, showing \(showing) (offset \(offset) from newest)"
     ]
     for entry in entries {
       lines.append("#\(entry.iteration): \(entry.summary)")

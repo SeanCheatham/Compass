@@ -36,7 +36,8 @@ struct AgentInstallToolchainTool: AgentTool {
     )
   }
 
-  func invoke(arguments: Data, context: AgentToolContext) async throws -> AgentToolInvocationResult {
+  func invoke(arguments: Data, context: AgentToolContext) async throws -> AgentToolInvocationResult
+  {
     guard let service = context.toolchainService else {
       return .failure(
         "Toolchains are only managed in the Compass Shared VM. This run is on the native macOS host.",

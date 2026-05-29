@@ -21,7 +21,7 @@ struct AgentDelegateTool: AgentTool {
   let spec: AgentToolSpec
 
   init() {
-    let schema = AgentToolParametersSchema(literal:[
+    let schema = AgentToolParametersSchema(literal: [
       "type": "object",
       "additionalProperties": false,
       "required": ["task"],

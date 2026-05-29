@@ -289,7 +289,8 @@ enum SharedCompassVMHeadlessFirstBoot {
     let script = renderBootstrapScript(inputs: inputs)
     let sudoers = renderSudoersFragment(guestUserName: inputs.guestUserName)
     let guestAgentPlist = renderGuestAgentLaunchDaemonPlist(profile: inputs.profile)
-    let autoLoginScript = renderAutoLoginScript(profile: inputs.profile, guestUserName: inputs.guestUserName)
+    let autoLoginScript = renderAutoLoginScript(
+      profile: inputs.profile, guestUserName: inputs.guestUserName)
     let autoLoginPlist = renderAutoLoginLaunchDaemonPlist(profile: inputs.profile)
     return Payload(
       profile: inputs.profile,

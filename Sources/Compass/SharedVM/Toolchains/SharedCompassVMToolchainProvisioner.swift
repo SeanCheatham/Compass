@@ -105,7 +105,9 @@ enum SharedCompassVMToolchainProvisioner {
     now: @Sendable () -> Date = { Date() },
     sleep: @Sendable (UInt64) async -> Void = { ns in try? await Task.sleep(nanoseconds: ns) }
   ) async throws -> ProvisionReport {
-    precondition(definition.installableViaGenericProvisioner, "Toolchain \(definition.stringID) is not installable via generic provisioner")
+    precondition(
+      definition.installableViaGenericProvisioner,
+      "Toolchain \(definition.stringID) is not installable via generic provisioner")
 
     await progress(0)
 

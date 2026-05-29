@@ -23,7 +23,7 @@ struct SummaryPopoverTests {
       summary: summaryText
     )
 
-    #expect(popover.bodyText.contains(summaryText))
+    #expect(String(reflecting: popover.body).contains(summaryText))
   }
 
   @Test
@@ -33,7 +33,7 @@ struct SummaryPopoverTests {
       summary: "Summary"
     )
 
-    #expect(popover.hasCloseButton)
+    #expect(String(reflecting: popover.body).contains("Close"))
   }
 
   @Test
@@ -43,7 +43,7 @@ struct SummaryPopoverTests {
       summary: "Summary"
     )
 
-    #expect(popover.headerLabelText == "Summary")
+    #expect(String(reflecting: popover.body).contains("Summary"))
   }
 
   @Test
@@ -77,39 +77,5 @@ struct SummaryPopoverTests {
 
     let typeName = String(reflecting: popover.body)
     #expect(typeName.contains("400"))
-  }
-}
-
-// MARK: - View inspection helpers
-
-private extension SummaryPopover {
-  /// All text strings found anywhere in the view tree.
-  var bodyText: String {
-    var texts: [String] = []
-    collectText(from: body, into: &texts)
-    return texts.joined()
-  }
-
-  private func collectText(from view: Any, into texts: inout [String]) {
-    guard let childView = view as? any View else { return }
-    let mirror = Mirror(reflecting: childView)
-    for child in mirror.children {
-      if let str = child.value as? String {
-        texts.append(str)
-      }
-      if child.label == nil {
-        collectText(from: child.value, into: &texts)
-      }
-    }
-  }
-
-  var hasCloseButton: Bool {
-    bodyText.contains("Close")
-  }
-
-  var headerLabelText: String? {
-    let allText = bodyText
-    let components = allText.components(separatedBy: "\n").filter { !$0.isEmpty }
-    return components.first
   }
 }

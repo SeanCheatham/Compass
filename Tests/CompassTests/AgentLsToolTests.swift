@@ -25,9 +25,11 @@ struct AgentLsToolTests {
     defer { test.tearDown() }
 
     try "a".write(
-      to: test.temporaryDirectory.appendingPathComponent("alpha.txt"), atomically: true, encoding: .utf8)
+      to: test.temporaryDirectory.appendingPathComponent("alpha.txt"), atomically: true,
+      encoding: .utf8)
     try "b".write(
-      to: test.temporaryDirectory.appendingPathComponent("beta.txt"), atomically: true, encoding: .utf8)
+      to: test.temporaryDirectory.appendingPathComponent("beta.txt"), atomically: true,
+      encoding: .utf8)
     let subdir = test.temporaryDirectory.appendingPathComponent("gamma")
     try FileManager.default.createDirectory(at: subdir, withIntermediateDirectories: false)
 
@@ -45,7 +47,8 @@ struct AgentLsToolTests {
     defer { test.tearDown() }
 
     try "x".write(
-      to: test.temporaryDirectory.appendingPathComponent(".compass"), atomically: true, encoding: .utf8)
+      to: test.temporaryDirectory.appendingPathComponent(".compass"), atomically: true,
+      encoding: .utf8)
     try "y".write(
       to: test.temporaryDirectory.appendingPathComponent("visible.txt"), atomically: true,
       encoding: .utf8)
@@ -86,7 +89,8 @@ struct AgentLsToolTests {
     defer { test.tearDown() }
 
     try "x".write(
-      to: test.temporaryDirectory.appendingPathComponent("file.txt"), atomically: true, encoding: .utf8)
+      to: test.temporaryDirectory.appendingPathComponent("file.txt"), atomically: true,
+      encoding: .utf8)
     let result = try await test.invoke(["path": "file.txt"])
     try #require(result.isError)
     try #require(result.content.contains("Not a directory"))

@@ -10,7 +10,7 @@ struct SharedVMRouteSSHArgvTests {
   // MARK: - sshArguments
 
   @Test
-  func testSSHArgumentsIncludeIdentityKnownHostsStrictBatchTAndDestination()  throws {
+  func testSSHArgumentsIncludeIdentityKnownHostsStrictBatchTAndDestination() throws {
     let options = SharedCompassVMGuestBridge.ConnectionOptions(
       identityFile: "/path/to/id_ed25519",
       knownHostsFile: "/path/to/known_hosts"
@@ -38,7 +38,7 @@ struct SharedVMRouteSSHArgvTests {
   }
 
   @Test
-  func testSSHArgumentsOmitIdentityAndKnownHostsWhenNil()  throws {
+  func testSSHArgumentsOmitIdentityAndKnownHostsWhenNil() throws {
     let options = SharedCompassVMGuestBridge.ConnectionOptions(
       identityFile: nil,
       knownHostsFile: nil
@@ -53,7 +53,7 @@ struct SharedVMRouteSSHArgvTests {
   }
 
   @Test
-  func testSSHArgumentsIncludeConnectTimeoutWhenSet()  throws {
+  func testSSHArgumentsIncludeConnectTimeoutWhenSet() throws {
     let options = SharedCompassVMGuestBridge.ConnectionOptions(connectTimeoutSeconds: 7)
     let args = SharedCompassVMGuestBridge.sshArguments(
       destination: "compass@10.0.0.7",
@@ -64,7 +64,7 @@ struct SharedVMRouteSSHArgvTests {
   }
 
   @Test
-  func testSSHArgumentsDoNotIncludeConnectTimeoutWhenNil()  throws {
+  func testSSHArgumentsDoNotIncludeConnectTimeoutWhenNil() throws {
     let options = SharedCompassVMGuestBridge.ConnectionOptions()
     let args = SharedCompassVMGuestBridge.sshArguments(
       destination: "compass@10.0.0.7",
@@ -75,7 +75,7 @@ struct SharedVMRouteSSHArgvTests {
   }
 
   @Test
-  func testSSHArgumentsQuoteKnownHostsPathWithSpacesAsSingleToken()  throws {
+  func testSSHArgumentsQuoteKnownHostsPathWithSpacesAsSingleToken() throws {
     // ssh's UserKnownHostsFile option treats unquoted whitespace
     // in its value as a separator between multiple files (per
     // `man ssh_config`). Compass's bundle lives under
@@ -106,7 +106,7 @@ struct SharedVMRouteSSHArgvTests {
   }
 
   @Test
-  func testSSHArgumentsHonorStrictHostKeyCheckingDisabled()  throws {
+  func testSSHArgumentsHonorStrictHostKeyCheckingDisabled() throws {
     let options = SharedCompassVMGuestBridge.ConnectionOptions(strictHostKeyChecking: false)
     let args = SharedCompassVMGuestBridge.sshArguments(
       destination: "compass@host",
@@ -118,14 +118,14 @@ struct SharedVMRouteSSHArgvTests {
   }
 
   @Test
-  func testDefaultExecutablePathIsUsrBinSSH()  throws {
+  func testDefaultExecutablePathIsUsrBinSSH() throws {
     try #require(SharedCompassVMGuestBridge.defaultSSHExecutablePath == "/usr/bin/ssh")
   }
 
   // MARK: - ControlMaster multiplexing
 
   @Test
-  func testSSHArgumentsEnableControlMasterByDefault()  throws {
+  func testSSHArgumentsEnableControlMasterByDefault() throws {
     // Multiplexing is on by default so agent tool calls reuse a single
     // TCP/SSH session instead of paying ~100ms per spawn.
     let args = SharedCompassVMGuestBridge.sshArguments(
@@ -141,7 +141,7 @@ struct SharedVMRouteSSHArgvTests {
   }
 
   @Test
-  func testSSHArgumentsHonorControlPersistOverride()  throws {
+  func testSSHArgumentsHonorControlPersistOverride() throws {
     let options = SharedCompassVMGuestBridge.ConnectionOptions(controlPersistSeconds: 120)
     let args = SharedCompassVMGuestBridge.sshArguments(
       destination: "compass@10.0.0.42",
@@ -153,7 +153,7 @@ struct SharedVMRouteSSHArgvTests {
   }
 
   @Test
-  func testSSHArgumentsOmitControlMasterWhenDisabled()  throws {
+  func testSSHArgumentsOmitControlMasterWhenDisabled() throws {
     let options = SharedCompassVMGuestBridge.ConnectionOptions(useControlMaster: false)
     let args = SharedCompassVMGuestBridge.sshArguments(
       destination: "compass@10.0.0.42",
@@ -166,7 +166,7 @@ struct SharedVMRouteSSHArgvTests {
   }
 
   @Test
-  func testControlPathTemplateFitsUnixSocketLimit()  throws {
+  func testControlPathTemplateFitsUnixSocketLimit() throws {
     // sockaddr_un.sun_path is 104 bytes on macOS; ssh silently disables
     // multiplexing if the resolved socket path exceeds it. Worst-case
     // expansion: IPv6 host (39 chars) + 5-digit port + long user. Keep
@@ -186,7 +186,7 @@ struct SharedVMRouteSSHArgvTests {
   // MARK: - closeControlMasterArguments
 
   @Test
-  func testCloseControlMasterArgumentsEndWithExitAndDestination()  throws {
+  func testCloseControlMasterArgumentsEndWithExitAndDestination() throws {
     let options = SharedCompassVMGuestBridge.ConnectionOptions(
       identityFile: "/path/to/id_ed25519",
       knownHostsFile: "/path/to/known_hosts"
@@ -205,7 +205,7 @@ struct SharedVMRouteSSHArgvTests {
   }
 
   @Test
-  func testCloseControlMasterArgumentsOmitRemoteCommand()  throws {
+  func testCloseControlMasterArgumentsOmitRemoteCommand() throws {
     // `ssh -O exit` is a local control op. It must NOT include a remote
     // command argv — passing one makes ssh complain and the master
     // never gets torn down.
@@ -216,19 +216,19 @@ struct SharedVMRouteSSHArgvTests {
   }
 
   @Test
-  func testPOSIXQuoteSafePathRequiresNoQuoting()  throws {
+  func testPOSIXQuoteSafePathRequiresNoQuoting() throws {
     // Sanity check that the safe-character fast path doesn't add ceremony.
     let quoted = SharedCompassVMGuestBridge.posixQuote("/usr/local/bin/swift")
     try #require(quoted == "/usr/local/bin/swift")
   }
 
   @Test
-  func testPOSIXQuoteEmptyStringBecomesEmptyQuotes()  throws {
+  func testPOSIXQuoteEmptyStringBecomesEmptyQuotes() throws {
     try #require(SharedCompassVMGuestBridge.posixQuote("") == "''")
   }
 
   @Test
-  func testPOSIXQuoteWhitespacePathIsWrappedInSingleQuotes()  throws {
+  func testPOSIXQuoteWhitespacePathIsWrappedInSingleQuotes() throws {
     try #require(SharedCompassVMGuestBridge.posixQuote("a b") == "'a b'")
   }
 

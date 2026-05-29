@@ -176,7 +176,8 @@ enum SharedCompassVMRepoWorkspaceSync {
     let guestPath = SharedCompassVMGuestWorkspaceCatalog.guestWorktreePath(forEntry: entry)
     let deletionScope: Set<String>?
     do {
-      deletionScope = try SharedCompassVMGuestWorkspaceCatalog
+      deletionScope =
+        try SharedCompassVMGuestWorkspaceCatalog
         .loadLastSyncedFileSet(forRepoURL: hostRepoURL)
     } catch {
       throw SyncError.catalogFailure(detail: "\(error)")

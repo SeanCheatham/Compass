@@ -50,8 +50,7 @@ final class CompassWorkspaceStoragePreflightTests {
     try #require(missingPreflight.kind == .repoLocalMissing)
     try #require(!missingPreflight.migrationWouldBeSafe)
     try #require(
-      missingPreflight.missingCoreFiles ==
-      CompassWorkspaceStorageAssessment.CoreFile.allCases
+      missingPreflight.missingCoreFiles == CompassWorkspaceStorageAssessment.CoreFile.allCases
     )
     try #require(!missingPreflight.sessionsDirectoryExists)
     try #require(missingPreflight.recommendation.contains("repo-local repair"))
@@ -112,8 +111,7 @@ final class CompassWorkspaceStoragePreflightTests {
     try #require(
       try String(
         contentsOf: seedPreflight.currentApplicationSupportCandidateURL.appending(
-          path: "state.json"), encoding: .utf8) ==
-      "current\n"
+          path: "state.json"), encoding: .utf8) == "current\n"
     )
   }
 
@@ -160,14 +158,13 @@ final class CompassWorkspaceStoragePreflightTests {
     )
 
     try #require(
-      preflight.projectStorageIdentifier.count <=
-      CompassWorkspaceStorageAssessment.maxProjectIdentifierLength
+      preflight.projectStorageIdentifier.count
+        <= CompassWorkspaceStorageAssessment.maxProjectIdentifierLength
     )
     try #require(preflight.label.count <= CompassWorkspaceStoragePreflight.labelLimit)
     try #require(preflight.detail.count <= CompassWorkspaceStoragePreflight.detailLimit)
     try #require(
-      preflight.recommendation.count <=
-      CompassWorkspaceStoragePreflight.recommendationLimit
+      preflight.recommendation.count <= CompassWorkspaceStoragePreflight.recommendationLimit
     )
     try #require(!preflight.label.isEmpty)
     try #require(!preflight.detail.isEmpty)
@@ -188,11 +185,12 @@ final class CompassWorkspaceStoragePreflightTests {
       first.currentApplicationSupportCandidateURL == second.currentApplicationSupportCandidateURL)
     try #require(isSafeIdentifier(first.projectStorageIdentifier))
     try #require(
-      first.projectStorageIdentifier.count <=
-      CompassWorkspaceStorageAssessment.maxProjectIdentifierLength
+      first.projectStorageIdentifier.count
+        <= CompassWorkspaceStorageAssessment.maxProjectIdentifierLength
     )
     try #require(
-      first.currentApplicationSupportCandidateURL.lastPathComponent == first.projectStorageIdentifier)
+      first.currentApplicationSupportCandidateURL.lastPathComponent
+        == first.projectStorageIdentifier)
   }
 
   @Test func testPreflightDoesNotCreateRepoOrApplicationSupportFiles() throws {

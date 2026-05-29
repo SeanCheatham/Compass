@@ -54,7 +54,7 @@ struct ExploreArchitectureGraphTests {
     let source = ImportGraph.Node(path: "Sources/A.swift")
     let target = ImportGraph.Node(path: "Sources/B.swift")
     graph.addEdge(from: source, to: target, rawImport: "B")
-    graph.addEdge(from: source, to: target, rawImport: "B") // duplicate
+    graph.addEdge(from: source, to: target, rawImport: "B")  // duplicate
 
     #expect(graph.edges.count == 1)
   }
@@ -65,7 +65,7 @@ struct ExploreArchitectureGraphTests {
     let source = ImportGraph.Node(path: "Sources/A.swift")
     let target = ImportGraph.Node(path: "Sources/B.swift")
     graph.addEdge(from: source, to: target, rawImport: "B")
-    graph.addEdge(from: source, to: target, rawImport: "Module/B") // different raw form
+    graph.addEdge(from: source, to: target, rawImport: "Module/B")  // different raw form
 
     #expect(graph.edges.count == 2)
   }
@@ -179,9 +179,11 @@ struct ExploreArchitectureGraphTests {
     let dir = try makeTempDir()
 
     // A imports Module/B — cross-cluster edge
-    try writeEntry(dir, relativePath: "Sources/A.swift", imports: [
-      CodemapImport(raw: "Module/B", line: 1)
-    ])
+    try writeEntry(
+      dir, relativePath: "Sources/A.swift",
+      imports: [
+        CodemapImport(raw: "Module/B", line: 1)
+      ])
     // Entry for Module/B itself so the target node exists
     try writeEntry(dir, relativePath: "Module/B.swift", imports: [])
 
@@ -199,15 +201,17 @@ struct ExploreArchitectureGraphTests {
     let dir = try makeTempDir()
 
     // "Foundation" is a bare identifier — system import, no file edge
-    try writeEntry(dir, relativePath: "Sources/A.swift", imports: [
-      CodemapImport(raw: "Foundation", line: 1),
-      CodemapImport(raw: "OSLog", line: 2),
-    ])
+    try writeEntry(
+      dir, relativePath: "Sources/A.swift",
+      imports: [
+        CodemapImport(raw: "Foundation", line: 1),
+        CodemapImport(raw: "OSLog", line: 2),
+      ])
 
     let graph = buildGraph(codemapDirectory: dir)
 
     #expect(graph.nodes.contains { $0.path == "Sources/A.swift" })
-    #expect(graph.edges.isEmpty) // no file for Foundation or OSLog
+    #expect(graph.edges.isEmpty)  // no file for Foundation or OSLog
   }
 
   @Test
@@ -215,9 +219,11 @@ struct ExploreArchitectureGraphTests {
     let dir = try makeTempDir()
 
     // A.swift in Sources/ dir imports "./Helper.swift"
-    try writeEntry(dir, relativePath: "Sources/A.swift", imports: [
-      CodemapImport(raw: "./Helper.swift", line: 1)
-    ])
+    try writeEntry(
+      dir, relativePath: "Sources/A.swift",
+      imports: [
+        CodemapImport(raw: "./Helper.swift", line: 1)
+      ])
 
     let graph = buildGraph(codemapDirectory: dir)
 
@@ -231,9 +237,11 @@ struct ExploreArchitectureGraphTests {
     let dir = try makeTempDir()
 
     // Sources/Sub/A.swift imports ../Shared/B.swift
-    try writeEntry(dir, relativePath: "Sources/Sub/A.swift", imports: [
-      CodemapImport(raw: "../Shared/B.swift", line: 1)
-    ])
+    try writeEntry(
+      dir, relativePath: "Sources/Sub/A.swift",
+      imports: [
+        CodemapImport(raw: "../Shared/B.swift", line: 1)
+      ])
 
     let graph = buildGraph(codemapDirectory: dir)
 
@@ -247,9 +255,11 @@ struct ExploreArchitectureGraphTests {
     let dir = try makeTempDir()
 
     // "Compass/Explore/CommitExplainer" kept as-is
-    try writeEntry(dir, relativePath: "Sources/App.swift", imports: [
-      CodemapImport(raw: "Compass/Explore/CommitExplainer", line: 1)
-    ])
+    try writeEntry(
+      dir, relativePath: "Sources/App.swift",
+      imports: [
+        CodemapImport(raw: "Compass/Explore/CommitExplainer", line: 1)
+      ])
 
     let graph = buildGraph(codemapDirectory: dir)
 
@@ -261,9 +271,11 @@ struct ExploreArchitectureGraphTests {
   func buildGraph_absolutePathImport_noEdge() throws {
     let dir = try makeTempDir()
 
-    try writeEntry(dir, relativePath: "Sources/A.swift", imports: [
-      CodemapImport(raw: "/usr/local/Module", line: 1)
-    ])
+    try writeEntry(
+      dir, relativePath: "Sources/A.swift",
+      imports: [
+        CodemapImport(raw: "/usr/local/Module", line: 1)
+      ])
 
     let graph = buildGraph(codemapDirectory: dir)
 
@@ -274,9 +286,11 @@ struct ExploreArchitectureGraphTests {
   func buildGraph_angleBracketImport_noEdge() throws {
     let dir = try makeTempDir()
 
-    try writeEntry(dir, relativePath: "Sources/A.swift", imports: [
-      CodemapImport(raw: "<Module/Header.h>", line: 1)
-    ])
+    try writeEntry(
+      dir, relativePath: "Sources/A.swift",
+      imports: [
+        CodemapImport(raw: "<Module/Header.h>", line: 1)
+      ])
 
     let graph = buildGraph(codemapDirectory: dir)
 
@@ -288,9 +302,11 @@ struct ExploreArchitectureGraphTests {
     let dir = try makeTempDir()
 
     // Raw import with leading/trailing whitespace — resolve should treat as-is
-    try writeEntry(dir, relativePath: "Sources/A.swift", imports: [
-      CodemapImport(raw: "  Compass  ", line: 1)
-    ])
+    try writeEntry(
+      dir, relativePath: "Sources/A.swift",
+      imports: [
+        CodemapImport(raw: "  Compass  ", line: 1)
+      ])
 
     let graph = buildGraph(codemapDirectory: dir)
 
@@ -305,9 +321,11 @@ struct ExploreArchitectureGraphTests {
     let dir = try makeTempDir()
 
     // Absolute path — system import, no edge
-    try writeEntry(dir, relativePath: "Sources/A.swift", imports: [
-      CodemapImport(raw: "/usr/local/Module", line: 1)
-    ])
+    try writeEntry(
+      dir, relativePath: "Sources/A.swift",
+      imports: [
+        CodemapImport(raw: "/usr/local/Module", line: 1)
+      ])
 
     let graph = buildGraph(codemapDirectory: dir)
 
@@ -320,9 +338,11 @@ struct ExploreArchitectureGraphTests {
     let dir = try makeTempDir()
 
     // Angle-bracket import — system header, no edge
-    try writeEntry(dir, relativePath: "Sources/A.swift", imports: [
-      CodemapImport(raw: "<Network>", line: 1)
-    ])
+    try writeEntry(
+      dir, relativePath: "Sources/A.swift",
+      imports: [
+        CodemapImport(raw: "<Network>", line: 1)
+      ])
 
     let graph = buildGraph(codemapDirectory: dir)
 
@@ -335,9 +355,11 @@ struct ExploreArchitectureGraphTests {
     let dir = try makeTempDir()
 
     // Bare identifier — system module, no edge
-    try writeEntry(dir, relativePath: "Sources/A.swift", imports: [
-      CodemapImport(raw: "Foundation", line: 1)
-    ])
+    try writeEntry(
+      dir, relativePath: "Sources/A.swift",
+      imports: [
+        CodemapImport(raw: "Foundation", line: 1)
+      ])
 
     let graph = buildGraph(codemapDirectory: dir)
 
@@ -350,9 +372,11 @@ struct ExploreArchitectureGraphTests {
     let dir = try makeTempDir()
 
     // "./Shared" from Sources/A.swift → Sources/Shared
-    try writeEntry(dir, relativePath: "Sources/A.swift", imports: [
-      CodemapImport(raw: "./Shared", line: 1)
-    ])
+    try writeEntry(
+      dir, relativePath: "Sources/A.swift",
+      imports: [
+        CodemapImport(raw: "./Shared", line: 1)
+      ])
 
     let graph = buildGraph(codemapDirectory: dir)
 
@@ -365,9 +389,11 @@ struct ExploreArchitectureGraphTests {
     let dir = try makeTempDir()
 
     // "../Utils" from Sources/Deep/B.swift → Sources/Utils
-    try writeEntry(dir, relativePath: "Sources/Deep/B.swift", imports: [
-      CodemapImport(raw: "../Utils", line: 1)
-    ])
+    try writeEntry(
+      dir, relativePath: "Sources/Deep/B.swift",
+      imports: [
+        CodemapImport(raw: "../Utils", line: 1)
+      ])
 
     let graph = buildGraph(codemapDirectory: dir)
 
@@ -380,9 +406,11 @@ struct ExploreArchitectureGraphTests {
     let dir = try makeTempDir()
 
     // "Compass/Explore" kept as-is
-    try writeEntry(dir, relativePath: "Sources/App.swift", imports: [
-      CodemapImport(raw: "Compass/Explore", line: 1)
-    ])
+    try writeEntry(
+      dir, relativePath: "Sources/App.swift",
+      imports: [
+        CodemapImport(raw: "Compass/Explore", line: 1)
+      ])
 
     let graph = buildGraph(codemapDirectory: dir)
 
@@ -434,7 +462,7 @@ struct ExploreArchitectureGraphTests {
     // The key guarantee is no throw.
     if FoundationModelsAvailability.isAvailable {
       // When the model IS available, a result is expected.
-      try #require(result != nil || result == nil) // soft check: just must not throw
+      try #require(result != nil || result == nil)  // soft check: just must not throw
     }
   }
 
@@ -446,9 +474,11 @@ struct ExploreArchitectureGraphTests {
 
     // Three files all importing the same target
     for (idx, sourcePath) in ["A.swift", "B.swift", "C.swift"].enumerated() {
-      try writeEntry(dir, relativePath: sourcePath, imports: [
-        CodemapImport(raw: "Shared", line: 1)
-      ])
+      try writeEntry(
+        dir, relativePath: sourcePath,
+        imports: [
+          CodemapImport(raw: "Shared", line: 1)
+        ])
     }
     // Target file exists
     try writeEntry(dir, relativePath: "Shared.swift", imports: [])
@@ -464,9 +494,11 @@ struct ExploreArchitectureGraphTests {
     let dir = try makeTempDir()
 
     // Source imports a module path but no entry exists on disk for the target
-    try writeEntry(dir, relativePath: "Sources/A.swift", imports: [
-      CodemapImport(raw: "Compass/Explore/CommitExplainer", line: 1)
-    ])
+    try writeEntry(
+      dir, relativePath: "Sources/A.swift",
+      imports: [
+        CodemapImport(raw: "Compass/Explore/CommitExplainer", line: 1)
+      ])
 
     let graph = buildGraph(codemapDirectory: dir)
 

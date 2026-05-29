@@ -189,12 +189,13 @@ final class CompassWorkspaceStorageAssessmentTests {
     try #require(
       first.currentApplicationSupportCandidateURL == second.currentApplicationSupportCandidateURL)
     try #require(
-      first.projectStorageIdentifier.count <=
-      CompassWorkspaceStorageAssessment.maxProjectIdentifierLength
+      first.projectStorageIdentifier.count
+        <= CompassWorkspaceStorageAssessment.maxProjectIdentifierLength
     )
     try #require(isSafeIdentifier(first.projectStorageIdentifier))
     try #require(
-      first.currentApplicationSupportCandidateURL.lastPathComponent == first.projectStorageIdentifier)
+      first.currentApplicationSupportCandidateURL.lastPathComponent
+        == first.projectStorageIdentifier)
   }
 
   @Test func testCurrentApplicationSupportCandidateIsReported() throws {
@@ -239,8 +240,8 @@ final class CompassWorkspaceStorageAssessmentTests {
     )
 
     try #require(
-      assessment.projectStorageIdentifier.count <=
-      CompassWorkspaceStorageAssessment.maxProjectIdentifierLength
+      assessment.projectStorageIdentifier.count
+        <= CompassWorkspaceStorageAssessment.maxProjectIdentifierLength
     )
     for issue in [assessment.primaryIssue] + assessment.issues {
       try #require(issue.label.count <= CompassWorkspaceStorageAssessment.labelLimit)

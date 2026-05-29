@@ -3,7 +3,7 @@ import Testing
 
 @testable import Compass
 
-struct CodemapRefresherTests : ~Copyable {
+struct CodemapRefresherTests: ~Copyable {
   private var workingDirectory: URL!
   private var cacheDirectory: URL!
 

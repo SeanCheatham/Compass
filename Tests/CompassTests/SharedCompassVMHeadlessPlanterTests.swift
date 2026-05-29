@@ -82,14 +82,18 @@ final class SharedCompassVMHeadlessPlanterTests {
       </plist>
       """
     var threw = false
-    do { _ = try HDIUtilDiskAttacher.parseContainerDeviceNode(fromPlist: plist) } catch { threw = true }
+    do { _ = try HDIUtilDiskAttacher.parseContainerDeviceNode(fromPlist: plist) } catch {
+      threw = true
+    }
     try #require(threw)
   }
 
   @Test
   func testParseContainerDevnodeRejectsNonPlistInput() throws {
     var threw = false
-    do { _ = try HDIUtilDiskAttacher.parseContainerDeviceNode(fromPlist: "garbage") } catch { threw = true }
+    do { _ = try HDIUtilDiskAttacher.parseContainerDeviceNode(fromPlist: "garbage") } catch {
+      threw = true
+    }
     try #require(threw)
   }
 

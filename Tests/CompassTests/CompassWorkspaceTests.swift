@@ -127,7 +127,9 @@ final class CompassWorkspaceTests {
     try #require(!rewritten.contains("executionEnvironmentSnapshots"))
   }
 
-  @Test func testSessionsJsonRoundTripsExecutionEnvironmentSnapshotsWithoutLeakingRuntimePaths() throws {
+  @Test func testSessionsJsonRoundTripsExecutionEnvironmentSnapshotsWithoutLeakingRuntimePaths()
+    throws
+  {
     let repoURL = try makeTemporaryGitRepository()
     let workspace = CompassWorkspace(repoURL: repoURL)
     try workspace.initialize()
@@ -162,7 +164,8 @@ final class CompassWorkspaceTests {
     try #require(!persistedText.contains(repoURL.standardizedFileURL.path))
   }
 
-  @Test func testSessionExecutionEnvironmentSnapshotsReplaceDuplicatePhaseAttemptsAndStayBounded() throws
+  @Test func testSessionExecutionEnvironmentSnapshotsReplaceDuplicatePhaseAttemptsAndStayBounded()
+    throws
   {
     let repoURL = try makeTemporaryGitRepository()
     let nativePlan = AgentExecutionLaunchPlan.plan(
@@ -192,8 +195,7 @@ final class CompassWorkspaceTests {
 
     try #require(duplicateRecord.executionEnvironmentSnapshots.count == 1)
     try #require(
-      duplicateRecord.executionEnvironmentSnapshots[0].selectedPreferenceIdentifier ==
-      "shared_vm"
+      duplicateRecord.executionEnvironmentSnapshots[0].selectedPreferenceIdentifier == "shared_vm"
     )
     try #require(
       duplicateRecord.executionEnvironmentSnapshots[0].effectiveRouteIdentifier == "native-macos")
@@ -214,17 +216,18 @@ final class CompassWorkspaceTests {
     }
 
     try #require(
-      boundedRecord.executionEnvironmentSnapshots.count ==
-      SessionRecord.executionEnvironmentSnapshotLimit
+      boundedRecord.executionEnvironmentSnapshots.count
+        == SessionRecord.executionEnvironmentSnapshotLimit
     )
     try #require(boundedRecord.executionEnvironmentSnapshots.first?.attempt == 4)
     try #require(
-      boundedRecord.executionEnvironmentSnapshots.last?.attempt ==
-      SessionRecord.executionEnvironmentSnapshotLimit + 3
+      boundedRecord.executionEnvironmentSnapshots.last?.attempt == SessionRecord
+        .executionEnvironmentSnapshotLimit + 3
     )
   }
 
-  @Test func testInitializePreservesExistingCompassFilesAndRecognizesIgnoredCompassVariants() throws {
+  @Test func testInitializePreservesExistingCompassFilesAndRecognizesIgnoredCompassVariants() throws
+  {
     let repoURL = try makeTemporaryGitRepository()
     let workspace = CompassWorkspace(repoURL: repoURL)
     try createDirectory(workspace.compassURL)
@@ -332,8 +335,7 @@ final class CompassWorkspaceTests {
 
     try workspace.appendDraft("second draft")
     try #require(
-      try read(workspace.draftsURL) ==
-      "- first draft\n\n- second draft\n"
+      try read(workspace.draftsURL) == "- first draft\n\n- second draft\n"
     )
 
     try workspace.appendDraft("   \n")
@@ -373,22 +375,22 @@ final class CompassWorkspaceTests {
     try #require(!FileManager.default.fileExists(atPath: workspace.draftsURL.path))
   }
 
-  @Test func testApplyLessonEditsSupportsExactReplacementReplaceAllAndEmptyFindForEmptyLessons() throws {
+  @Test func testApplyLessonEditsSupportsExactReplacementReplaceAllAndEmptyFindForEmptyLessons()
+    throws
+  {
     let workspace = try makeInitializedWorkspace()
 
     try #require(
       try workspace.applyLessonEdits([
         LessonEdit(find: "", replace: "- Start here\n", replaceAll: nil)
-      ]) ==
-      1
+      ]) == 1
     )
     try #require(workspace.readLessons() == "- Start here\n")
 
     try #require(
       try workspace.applyLessonEdits([
         LessonEdit(find: "Start here", replace: "Keep this convention", replaceAll: nil)
-      ]) ==
-      1
+      ]) == 1
     )
     try #require(workspace.readLessons() == "- Keep this convention\n")
 
@@ -396,8 +398,7 @@ final class CompassWorkspaceTests {
     try #require(
       try workspace.applyLessonEdits([
         LessonEdit(find: "repeated", replace: "updated", replaceAll: true)
-      ]) ==
-      1
+      ]) == 1
     )
     try #require(workspace.readLessons() == "- updated\n- updated\n")
   }

@@ -48,8 +48,7 @@ final class CompassWorkspaceStorageMigrationTests {
     try #require(
       try read(
         plan.destinationURL.appending(path: "sessions").appending(
-          path: artifactURL.lastPathComponent)) ==
-      "artifact body\n"
+          path: artifactURL.lastPathComponent)) == "artifact body\n"
     )
 
     let manifest = try decodeManifest(at: plan.manifestURL)
@@ -85,8 +84,8 @@ final class CompassWorkspaceStorageMigrationTests {
       try #require(false)
     } catch {
       try #require(
-        error as? CompassWorkspaceStorageMigrationError ==
-        .unavailable(kind: .repoLocalMissing, detail: missingPlan.detail)
+        error as? CompassWorkspaceStorageMigrationError
+          == .unavailable(kind: .repoLocalMissing, detail: missingPlan.detail)
       )
     }
     try #require(!FileManager.default.fileExists(atPath: missingPlan.destinationURL.path))
@@ -106,8 +105,8 @@ final class CompassWorkspaceStorageMigrationTests {
       try #require(false)
     } catch {
       try #require(
-        error as? CompassWorkspaceStorageMigrationError ==
-        .unavailable(kind: .repoLocalIncomplete, detail: incompletePlan.detail)
+        error as? CompassWorkspaceStorageMigrationError
+          == .unavailable(kind: .repoLocalIncomplete, detail: incompletePlan.detail)
       )
     }
     try #require(!FileManager.default.fileExists(atPath: incompletePlan.destinationURL.path))
@@ -130,8 +129,8 @@ final class CompassWorkspaceStorageMigrationTests {
       try #require(false)
     } catch {
       try #require(
-        error as? CompassWorkspaceStorageMigrationError ==
-        .unavailable(kind: .applicationSupportOccupied, detail: currentPlan.detail)
+        error as? CompassWorkspaceStorageMigrationError
+          == .unavailable(kind: .applicationSupportOccupied, detail: currentPlan.detail)
       )
     }
   }

@@ -1,14 +1,14 @@
 import AppKit
-import SwiftUI
 import FoundationModels
+import SwiftUI
 
-private extension PlanSessionHistoryItem {
-  var canExplore: Bool {
+extension PlanSessionHistoryItem {
+  fileprivate var canExplore: Bool {
     status == .succeeded && !commits.isEmpty
   }
 
-  var canTour: Bool { canExplore }
-  var canQnA: Bool { canExplore }
+  fileprivate var canTour: Bool { canExplore }
+  fileprivate var canQnA: Bool { canExplore }
 }
 
 struct PlanTab: View {
@@ -95,7 +95,6 @@ struct PlanTab: View {
   }
 }
 
-
 struct PlanWorkflowOverviewView: View {
   var overview: PlanWorkflowOverview
   var selectedKind: PlanWorkflowOverview.Kind?
@@ -139,7 +138,6 @@ struct PlanWorkflowOverviewView: View {
     .frame(maxWidth: .infinity, alignment: .leading)
   }
 }
-
 
 struct PlanWorkflowOverviewCard: View {
   var section: PlanWorkflowOverview.Section
@@ -260,7 +258,6 @@ struct PlanWorkflowOverviewCard: View {
   }
 }
 
-
 struct PlanWorkflowMetadataRow: View {
   var section: PlanWorkflowOverview.Section
   var color: Color
@@ -300,7 +297,6 @@ struct PlanWorkflowMetadataRow: View {
       .background(color.opacity(0.1), in: Capsule())
   }
 }
-
 
 struct PlanReliabilityFeedbackView: View {
   var feedback: PlanReliabilityFeedback
@@ -344,7 +340,6 @@ struct PlanReliabilityFeedbackView: View {
     feedback.notices.first.map { reliabilityColor(for: $0.severity) } ?? .red
   }
 }
-
 
 struct PlanReliabilityNoticeRow: View {
   var notice: PlanReliabilityFeedback.Notice
@@ -390,7 +385,6 @@ struct PlanReliabilityNoticeRow: View {
     reliabilityColor(for: notice.severity)
   }
 }
-
 
 struct PlanTimelineHeader: View {
   var items: [PlanTimelineItem]
@@ -453,7 +447,6 @@ struct PlanTimelineHeader: View {
   }
 }
 
-
 struct PlanTimelineTickButton: View {
   var item: PlanTimelineItem
   var isSelected: Bool
@@ -498,7 +491,6 @@ struct PlanTimelineTickButton: View {
     .accessibilityLabel(item.helpText)
   }
 }
-
 
 struct PlanFocusPanel: View {
   var item: PlanTimelineItem
@@ -550,7 +542,6 @@ struct PlanFocusPanel: View {
   }
 }
 
-
 struct VerifyCommandView: View {
   var command: String
 
@@ -562,7 +553,6 @@ struct VerifyCommandView: View {
       .padding(.top, 2)
   }
 }
-
 
 struct PlanSessionHistorySection: View {
   var display: PlanSessionHistoryDisplay
@@ -653,7 +643,6 @@ struct PlanSessionHistorySection: View {
   }
 }
 
-
 struct PlanSessionHistoryCard: View {
   var item: PlanSessionHistoryItem
   var reliabilityCue: PlanReliabilityFeedback.RunCue?
@@ -709,7 +698,6 @@ struct PlanSessionHistoryCard: View {
       if item.runtimeRouteDescriptor.isSnapshotAvailable {
         RuntimeRouteBadge(descriptor: item.runtimeRouteDescriptor)
       }
-
 
       if let feedback = item.feedback {
         LabeledHistoryBlock(title: "Feedback", systemImage: "text.bubble") {
@@ -890,7 +878,6 @@ struct CommitExplanationPopover: View {
   private func loadExplanation() async {
     guard fetchedSummary == nil else { return }
 
-
     guard !item.commits.isEmpty else { return }
 
     // Delegate diff fetching and summary generation to CommitTourGenerator,
@@ -927,7 +914,6 @@ struct PerCommitNarrativesPopover: View {
 
   /// Tracks which commits have finished loading (true = done, false = still loading).
   @State private var loadedFlags: [Bool] = []
-
 
   struct CommitNarrative: Identifiable {
     let id = UUID()
@@ -1078,9 +1064,12 @@ struct CommitTourRow: View {
         }
         .padding(.vertical, 2)
         if tourAvailabilityError {
-          Label("Foundation Models is unavailable on this device.", systemImage: "exclamationmark.triangle")
-            .font(.caption)
-            .foregroundStyle(.orange)
+          Label(
+            "Foundation Models is unavailable on this device.",
+            systemImage: "exclamationmark.triangle"
+          )
+          .font(.caption)
+          .foregroundStyle(.orange)
         }
       } else if let tourText {
         LabeledHistoryBlock(title: "What We Built", systemImage: "lightbulb") {
@@ -1186,9 +1175,12 @@ struct ArchitectureGraphPopover: View {
       }
 
       if availabilityError {
-        Label("Foundation Models is unavailable on this device.", systemImage: "exclamationmark.triangle")
-          .font(.caption)
-          .foregroundStyle(.orange)
+        Label(
+          "Foundation Models is unavailable on this device.",
+          systemImage: "exclamationmark.triangle"
+        )
+        .font(.caption)
+        .foregroundStyle(.orange)
       }
 
       if isLoading {
@@ -1254,7 +1246,8 @@ struct ArchitectureGraphPopover: View {
     isLoading = true
     availabilityError = false
 
-    let codemapDir = repoURL
+    let codemapDir =
+      repoURL
       .appendingPathComponent(".compass/codemap")
       .standardizedFileURL
     let graph = buildGraph(codemapDirectory: codemapDir)
@@ -1304,9 +1297,12 @@ struct QnAPopover: View {
       }
 
       if availabilityError {
-        Label("Foundation Models is unavailable on this device.", systemImage: "exclamationmark.triangle")
-          .font(.caption)
-          .foregroundStyle(.orange)
+        Label(
+          "Foundation Models is unavailable on this device.",
+          systemImage: "exclamationmark.triangle"
+        )
+        .font(.caption)
+        .foregroundStyle(.orange)
       }
 
       HStack(spacing: 8) {
@@ -1400,7 +1396,9 @@ struct ExploreFilesPopover: View {
     return FileChangeCategory.allCases
       .compactMap { category -> (FileChangeCategory, [FileChange])? in
         guard let cats = grouped[category], !cats.isEmpty else { return nil }
-        return (category, cats.sorted { ($0.additions + $0.deletions) > ($1.additions + $1.deletions) })
+        return (
+          category, cats.sorted { ($0.additions + $0.deletions) > ($1.additions + $1.deletions) }
+        )
       }
   }
 
@@ -1695,7 +1693,6 @@ func storageAssessmentColor(for severity: CompassWorkspaceStorageAssessment.Seve
   }
 }
 
-
 struct RuntimeRouteBadge: View {
   var descriptor: PlanSessionHistoryItem.RuntimeRouteDescriptor
 
@@ -1711,7 +1708,6 @@ struct RuntimeRouteBadge: View {
       .help(descriptor.helpText)
   }
 }
-
 
 struct LabeledHistoryBlock<Content: View>: View {
   var title: String
@@ -1739,7 +1735,6 @@ struct LabeledHistoryBlock<Content: View>: View {
     }
   }
 }
-
 
 struct PlanTimelineItem: Identifiable, Equatable {
   static let immediateID = PlanWorkflowOverview.TimelineDestination.immediate.itemID

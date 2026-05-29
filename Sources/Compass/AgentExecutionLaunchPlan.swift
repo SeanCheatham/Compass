@@ -78,7 +78,7 @@ struct AgentExecutionLaunchPlan: Equatable {
       return host(
         vmReadiness: readiness,
         fallbackReason:
-          "Worktree is outside the Shared VM workspaces share; this phase runs on the host."
+          "Repository is not registered in the Shared VM workspace catalog; this phase runs on the host."
       )
     case .unavailable(let reason):
       return host(
@@ -227,7 +227,7 @@ struct AgentExecutionLaunchPlan: Equatable {
   /// the effective route is `.sharedVM`. Under `.sharedVM`, Verify and
   /// Verify goes through the vsock bash RPC instead of this helper;
   /// the host fallback remains for Plan/Reflect and for repos outside
-  /// the guest workspaces share.
+  /// the guest workspace catalog.
   func shellInvocation(command: String, hostWorkingDirectory: URL) -> AgentExecutionInvocation {
     AgentExecutionInvocation(
       executable: "/bin/zsh",

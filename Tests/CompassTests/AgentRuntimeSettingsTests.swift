@@ -16,8 +16,8 @@ struct AgentRuntimeSettingsTests {
     // compaction triggers at the right ceiling for FM rather than
     // an unrelated network provider's number.
     try #require(
-      settings.contextWindowTokens ==
-      AgentProviderKind.appleFoundationModels.defaultTextContextWindowTokens)
+      settings.contextWindowTokens
+        == AgentProviderKind.appleFoundationModels.defaultTextContextWindowTokens)
   }
 
   @Test func testEmptyEnvWithAPIKeySelectsMiniMaxContextWindow() throws {
@@ -26,8 +26,7 @@ struct AgentRuntimeSettingsTests {
     ])
     try #require(settings.textProvider == .minimaxToken)
     try #require(
-      settings.contextWindowTokens ==
-      AgentProviderKind.minimaxToken.defaultTextContextWindowTokens)
+      settings.contextWindowTokens == AgentProviderKind.minimaxToken.defaultTextContextWindowTokens)
   }
 
   @Test func testContextWindowEnvironmentOverrideIsApplied() throws {
@@ -59,8 +58,8 @@ struct AgentRuntimeSettingsTests {
     // provider, so the fallback is FM's built-in window, not the
     // generic synthetic constant.
     try #require(
-      settings.contextWindowTokens ==
-      AgentProviderKind.appleFoundationModels.defaultTextContextWindowTokens)
+      settings.contextWindowTokens
+        == AgentProviderKind.appleFoundationModels.defaultTextContextWindowTokens)
   }
 
   @Test func testProviderBuiltInContextWindowValues() throws {

@@ -136,7 +136,8 @@ enum SharedCompassVMGuestWorkspaceCatalog {
     fileManager: FileManager = .default
   ) throws {
     let url = catalogURL(forRepoURL: repoURL)
-    var entry = try loadEntry(from: url, fileManager: fileManager)
+    var entry =
+      try loadEntry(from: url, fileManager: fileManager)
       ?? CatalogEntry(id: UUID().uuidString.lowercased(), lastSyncedHostFingerprint: nil)
     entry.lastSyncedHostFingerprint = fingerprint
     try save(entry, to: url, fileManager: fileManager)

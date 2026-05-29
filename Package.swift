@@ -21,27 +21,27 @@ let package = Package(
     ),
     .package(
       url: "https://github.com/tree-sitter/tree-sitter-typescript",
-      branch: "master"
+      revision: "75b3874edb2dc714fb1fd77a32013d0f8699989f"
     ),
     .package(
       url: "https://github.com/tree-sitter/tree-sitter-javascript",
-      branch: "master"
+      revision: "58404d8cf191d69f2674a8fd507bd5776f46cb11"
     ),
     .package(
       url: "https://github.com/tree-sitter/tree-sitter-python",
-      branch: "master"
+      revision: "26855eabccb19c6abf499fbc5b8dc7cc9ab8bc64"
     ),
     .package(
       url: "https://github.com/tree-sitter/tree-sitter-go",
-      branch: "master"
+      revision: "2346a3ab1bb3857b48b29d779a1ef9799a248cd7"
     ),
     .package(
       url: "https://github.com/tree-sitter/tree-sitter-rust",
-      branch: "master"
+      revision: "77a3747266f4d621d0757825e6b11edcbf991ca5"
     ),
     .package(
       url: "https://github.com/tree-sitter/tree-sitter-haskell",
-      branch: "master"
+      revision: "0975ef72fc3c47b530309ca93937d7d143523628"
     ),
     .package(
       url: "https://github.com/apple/swift-testing",

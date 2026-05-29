@@ -80,12 +80,12 @@ enum Prompts {
     let hostXcodePlanningRule =
       hostXcodeBuildTestEnabled
       ? """
-        - If the next increment's verify path needs full host Xcode build/test
-          support (`xcodebuild` with `.xcodeproj` / `.xcworkspace`, iOS SDKs,
-          or simulator-backed `xcodebuild test` destinations), set
-          `requiresHostXcode` to true. Use true only for build/test needs, not
-          for launching apps, opening Simulator, or arbitrary host commands.
-        """
+      - If the next increment's verify path needs full host Xcode build/test
+        support (`xcodebuild` with `.xcodeproj` / `.xcworkspace`, iOS SDKs,
+        or simulator-backed `xcodebuild test` destinations), set
+        `requiresHostXcode` to true. Use true only for build/test needs, not
+        for launching apps, opening Simulator, or arbitrary host commands.
+      """
       : ""
     let hostXcodeShape =
       hostXcodeBuildTestEnabled
@@ -211,9 +211,9 @@ enum Prompts {
     let hostXcodeGuidance =
       hostXcodeBuildTestEnabled
       ? """
-        When preserving or rewriting `immediate`, keep `requiresHostXcode`
-        true only if the verify path needs host Xcode build/test support.
-        """
+      When preserving or rewriting `immediate`, keep `requiresHostXcode`
+      true only if the verify path needs host Xcode build/test support.
+      """
       : ""
     return """
       You are the Reflect agent in Compass's software factory (see the system
@@ -312,61 +312,61 @@ enum Prompts {
       hostXcodeBuildTestEnabled && next.requiresHostXcode
       ? """
 
-        Host Xcode build/test bridge:
-        This increment requires host Xcode. Use the `host_xcode` tool for
-        Xcode build/test checks only. It runs against a temporary host mirror
-        of this guest workspace, so keep source edits in the normal file tools
-        here and do not use `bash` for Xcode-only commands.
-        """
+      Host Xcode build/test bridge:
+      This increment requires host Xcode. Use the `host_xcode` tool for
+      Xcode build/test checks only. It runs against a temporary host mirror
+      of this guest workspace, so keep source edits in the normal file tools
+      here and do not use `bash` for Xcode-only commands.
+      """
       : ""
     return """
-    You are the Develop agent in Compass's software factory (see the system
-    message for how the loop works).
+      You are the Develop agent in Compass's software factory (see the system
+      message for how the loop works).
 
-    Implement exactly the plan below. You may read, edit, and run shell
-    commands (including the verify command). Keep the change scoped to the plan.
+      Implement exactly the plan below. You may read, edit, and run shell
+      commands (including the verify command). Keep the change scoped to the plan.
 
-    Hard rules:
-    - Do not push, rebase, or use destructive git operations.
-    - Run the verify command before finishing.
-    - Leave the working tree clean, or explain why you are blocked.
-    - End the phase by calling `submit_result` exactly once.
+      Hard rules:
+      - Do not push, rebase, or use destructive git operations.
+      - Run the verify command before finishing.
+      - Leave the working tree clean, or explain why you are blocked.
+      - End the phase by calling `submit_result` exactly once.
 
-    \(lessonEditsGuidance())
+      \(lessonEditsGuidance())
 
-    Develop workspace:
-    Compass runs your tools in the working directory from the system message
-    (often a Shared VM copy of the repo). There is usually no `.git` in that
-    tree — do not try to commit here. Finish with verify passing and a clean
-    tree; after post-checks Compass lands your edits on the host checkout and
-    commits with your `summary` as the message. On the rare host route,
-    `bash` may commit in-place on the user's branch.
-    \(hostXcodeWorkflow)
+      Develop workspace:
+      Compass runs your tools in the working directory from the system message
+      (often a Shared VM copy of the repo). There is usually no `.git` in that
+      tree — do not try to commit here. Finish with verify passing and a clean
+      tree; after post-checks Compass lands your edits on the host checkout and
+      commits with your `summary` as the message. On the rare host route,
+      `bash` may commit in-place on the user's branch.
+      \(hostXcodeWorkflow)
 
-    \(developAttemptInstructions(attempt: attempt, priorIssues: priorIssues))
+      \(developAttemptInstructions(attempt: attempt, priorIssues: priorIssues))
 
-    ## Plan to implement
-    \(next.plan)
+      ## Plan to implement
+      \(next.plan)
 
-    ## Verify command
-    ```bash
-    \(next.verify)
-    ```
+      ## Verify command
+      ```bash
+      \(next.verify)
+      ```
 
-    ## Lessons
-    \(fencedOrEmpty(lessons, empty: "_(no lessons yet)_"))
+      ## Lessons
+      \(fencedOrEmpty(lessons, empty: "_(no lessons yet)_"))
 
-    ## Vision
-    \(fencedOrEmpty(vision, empty: "_(no vision set)_"))\(criticSection)
+      ## Vision
+      \(fencedOrEmpty(vision, empty: "_(no vision set)_"))\(criticSection)
 
-    submit_result arguments:
-    - `status`: `succeeded`, `blocked`, or `failed`.
-    - `summary`: concise human summary of what happened.
-    - `feedback`: short handoff note for the next planning pass.
-    - `bypassVerify`: true only if the verify command itself is wrong or out of scope.
-    - `lessonEdits`: exact find/replace edits against the lessons content
-      shown above, or [].
-    """
+      submit_result arguments:
+      - `status`: `succeeded`, `blocked`, or `failed`.
+      - `summary`: concise human summary of what happened.
+      - `feedback`: short handoff note for the next planning pass.
+      - `bypassVerify`: true only if the verify command itself is wrong or out of scope.
+      - `lessonEdits`: exact find/replace edits against the lessons content
+        shown above, or [].
+      """
   }
 
   private static func developAttemptInstructions(attempt: Int, priorIssues: [String]) -> String {
@@ -390,7 +390,8 @@ enum Prompts {
     if let gitItems = partitioned["git"], !gitItems.isEmpty {
       parts.append("**Git-status issues:**\n" + gitItems.joined(separator: "\n"))
     }
-    let issues = parts.isEmpty
+    let issues =
+      parts.isEmpty
       ? priorIssues.enumerated().map { "\($0.offset + 1). \($0.element)" }.joined(separator: "\n\n")
       : parts.joined(separator: "\n\n")
     return """
@@ -560,24 +561,24 @@ enum Prompts {
       """
   }
 
-  /// System message prepended to the per-phase user prompt. Tells the
-  /// model which tools are on the table for this phase and how to end
-  /// the turn via `submit_result`. The user prompt still carries the
-  /// per-phase instructions and the output schema.
   /// Coarse description of where the agent's tools execute. Drives the
   /// "what tooling can I assume is installed?" section of the system
   /// prompt so the model doesn't burn iterations reaching for things
   /// the environment doesn't have.
   ///
-  /// `.host` is retained as an internal-only fallback for the phases
-  /// that still read the main repo from outside the VirtioFS workspaces
-  /// share (Plan/Reflect on the user's repo path). There is no
+  /// `.host` is retained as an internal-only fallback when the Shared VM
+  /// is unavailable or the repo is not in the guest workspace catalog
+  /// (Plan/Reflect may run against the host repo path). There is no
   /// user-facing host-execution preference.
   enum ExecutionEnvironmentDescriptor {
     case host
     case sharedVM
   }
 
+  /// System message prepended to the per-phase user prompt. Tells the
+  /// model which tools are on the table for this phase and how to end
+  /// the turn via `submit_result`. The user prompt still carries the
+  /// per-phase instructions and the output schema.
   static func agentSystemPrompt(
     phase: AgentPhase,
     workingDirectoryPath: String,
@@ -760,22 +761,22 @@ enum Prompts {
         """
     }
     return """
-    Software factory loop (Compass orchestrates this; you execute one step):
-    1. Plan — pick the next `immediate` increment (`midTerm` / `longTerm` queue).
-    2. Develop — implement that increment in the working tree (often a Shared VM
-       guest copy synced from the host repo).
-    3. Post-checks — Compass runs the verify shell command you planned; retries
-       Develop on failure up to three attempts, then hands failure context to
-       Plan as feedback and continues the loop.
-    4. Critic — optional adversarial review; may loop Develop with feedback.
-    5. Land — on success Compass pulls guest changes to the host repo and commits
-       (guest workspaces have no `.git`; the agent does not commit there).
-    6. Reflect — periodic course-correction on vision and planning state, then
-       back to step 1. User drafts are consumed at the start of Plan; Develop
-       `feedback` and `lessons.md` carry memory forward.
+      Software factory loop (Compass orchestrates this; you execute one step):
+      1. Plan — pick the next `immediate` increment (`midTerm` / `longTerm` queue).
+      2. Develop — implement that increment in the working tree (often a Shared VM
+         guest copy synced from the host repo).
+      3. Post-checks — Compass runs the verify shell command you planned; retries
+         Develop on failure up to three attempts, then hands failure context to
+         Plan as feedback and continues the loop.
+      4. Critic — optional adversarial review; may loop Develop with feedback.
+      5. Land — on success Compass pulls guest changes to the host repo and commits
+         (guest workspaces have no `.git`; the agent does not commit there).
+      6. Reflect — periodic course-correction on vision and planning state, then
+         back to step 1. User drafts are consumed at the start of Plan; Develop
+         `feedback` and `lessons.md` carry memory forward.
 
-    \(roleLine)
-    """
+      \(roleLine)
+      """
   }
 
   /// How agents should treat `lessons.md` and format `lessonEdits`.

@@ -3,7 +3,7 @@ import Testing
 
 @testable import Compass
 
-struct KnownProjectStoreTestsRecordDecoding : ~Copyable {
+struct KnownProjectStoreTestsRecordDecoding: ~Copyable {
   @Test func testDecodingDefaultsFieldsAddedAfterOriginalRegistryFormat() throws {
     let records = try decodeRecords(
       """
@@ -23,7 +23,9 @@ struct KnownProjectStoreTestsRecordDecoding : ~Copyable {
     #expect(!record.hostXcodeBuildTestEnabled)
   }
 
-  @Test func testNativeFeedbackAndExecutionEnvironmentDecodingDefaultsMissingAndFutureValues() throws {
+  @Test func testNativeFeedbackAndExecutionEnvironmentDecodingDefaultsMissingAndFutureValues()
+    throws
+  {
     let records = try decodeRecords(
       """
       [

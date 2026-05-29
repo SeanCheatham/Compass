@@ -270,7 +270,8 @@ enum LiveActivitySummaryService {
     if !phrases.isEmpty {
       sentences.append("The agent " + joinPhrases(phrases) + ".")
     } else {
-      sentences.append("The agent logged \(cluster.lines.count) \(pluralize("event", cluster.lines.count)).")
+      sentences.append(
+        "The agent logged \(cluster.lines.count) \(pluralize("event", cluster.lines.count)).")
     }
 
     if failureCount > 0 {
@@ -285,7 +286,8 @@ enum LiveActivitySummaryService {
 
     if let lifecycleLine,
       let lifecycleText = firstLine(lifecycleLine.detail) ?? Optional(lifecycleLine.text),
-      !lifecycleText.isEmpty {
+      !lifecycleText.isEmpty
+    {
       sentences.append("Phase: " + normalizedPlainText(lifecycleText) + ".")
     }
 
@@ -301,7 +303,8 @@ enum LiveActivitySummaryService {
     _ raw: String,
     cluster: LiveActivityCluster
   ) -> LiveActivitySummary? {
-    let collapsed = raw
+    let collapsed =
+      raw
       .replacingOccurrences(of: "\r", with: "\n")
       .split(whereSeparator: \.isNewline)
       .map { String($0).trimmingCharacters(in: .whitespacesAndNewlines) }

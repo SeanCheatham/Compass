@@ -104,10 +104,9 @@ enum CommitExplainer {
     guard let first = commits.first else { return nil }
     if commits.count == 1 {
       return await gitDiff(sha: first.sha, repoURL: repoURL)
-    } else {
-      let oldest = commits.last!
-      return await gitDiffRange(newest: first.sha, oldest: oldest.sha, repoURL: repoURL)
     }
+    guard let oldest = commits.last else { return nil }
+    return await gitDiffRange(newest: first.sha, oldest: oldest.sha, repoURL: repoURL)
   }
 
   /// Produces a plain-English summary of a single commit by fetching the full

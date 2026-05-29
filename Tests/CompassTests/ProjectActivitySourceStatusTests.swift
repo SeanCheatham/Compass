@@ -17,8 +17,8 @@ struct ProjectActivitySourceStatusTests {
     try #require(!status.isVisible)
     try #require(status.kind == .hidden)
     try #require(
-      status.identifier ==
-      "hidden|storage:repo_local|availability:available|repo-local:active-source|repo-local-mode:active"
+      status.identifier
+        == "hidden|storage:repo_local|availability:available|repo-local:active-source|repo-local-mode:active"
     )
     try #require(status.activitySourceIdentifier == snapshot.identifier)
     try #require(status.label == "")
@@ -43,8 +43,8 @@ struct ProjectActivitySourceStatusTests {
     try #require(status.isVisible)
     try #require(status.kind == .applicationSupportActive)
     try #require(
-      status.identifier ==
-      "application-support-active|storage:application_support|availability:available|repo-local:ignored-missing|repo-local-mode:ignored"
+      status.identifier
+        == "application-support-active|storage:application_support|availability:available|repo-local:ignored-missing|repo-local-mode:ignored"
     )
     try #require(status.activitySourceIdentifier == snapshot.identifier)
     try #require(status.label == "Activity from Support")

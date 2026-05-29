@@ -150,8 +150,8 @@ final class CompassWorkspaceStorageBoundaryTests {
     try #require(
       boundary.recommendation.count <= CompassWorkspaceStorageBoundary.recommendationLimit)
     try #require(
-      boundary.projectStorageIdentifier.count <=
-      CompassWorkspaceStorageAssessment.maxProjectIdentifierLength
+      boundary.projectStorageIdentifier.count
+        <= CompassWorkspaceStorageAssessment.maxProjectIdentifierLength
     )
     try #require(!boundary.label.isEmpty)
     try #require(!boundary.detail.isEmpty)
@@ -172,14 +172,14 @@ final class CompassWorkspaceStorageBoundaryTests {
     try #require(boundary.projectStorageIdentifier == assessment.projectStorageIdentifier)
     try #require(boundary.projectStorageIdentifier == preflight.projectStorageIdentifier)
     try #require(
-      boundary.currentApplicationSupportCandidateURL ==
-      assessment.currentApplicationSupportCandidateURL)
+      boundary.currentApplicationSupportCandidateURL
+        == assessment.currentApplicationSupportCandidateURL)
     try #require(
-      boundary.currentApplicationSupportCandidateURL ==
-      preflight.currentApplicationSupportCandidateURL)
+      boundary.currentApplicationSupportCandidateURL
+        == preflight.currentApplicationSupportCandidateURL)
     try #require(
-      boundary.currentApplicationSupportCandidateURL.lastPathComponent ==
-      boundary.projectStorageIdentifier)
+      boundary.currentApplicationSupportCandidateURL.lastPathComponent
+        == boundary.projectStorageIdentifier)
   }
 
   @Test func testBoundaryConsumesProvidedSignalsWithoutRescanning() throws {

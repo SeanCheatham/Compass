@@ -1,6 +1,6 @@
 import Foundation
-import Virtualization
 import Testing
+import Virtualization
 
 @testable import Compass
 
@@ -9,7 +9,7 @@ struct SharedCompassVMConfigurationTests {
   // MARK: - vsock
 
   @Test
-  func testGuestAgentPortIsStableAcrossBuilds()  throws {
+  func testGuestAgentPortIsStableAcrossBuilds() throws {
     // Both sides of the vsock conversation (host AgentVsockClient and
     // the in-guest CompassGuestAgent) reference this constant. Lock the
     // value so a refactor on either side can't silently rewire the port.

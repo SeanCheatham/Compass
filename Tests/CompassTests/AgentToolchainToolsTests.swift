@@ -90,8 +90,7 @@ struct AgentToolchainToolsTests {
 
 private struct FakeToolchainService: SharedVMToolchainService {
   var statuses: [ToolchainStatus]
-  var installHandler:
-    (@Sendable (String) throws -> SharedCompassVMToolchainManager.InstallReport)?
+  var installHandler: (@Sendable (String) throws -> SharedCompassVMToolchainManager.InstallReport)?
 
   func listToolchains(runner: any AgentBashRunner) async throws -> [ToolchainStatus] {
     statuses

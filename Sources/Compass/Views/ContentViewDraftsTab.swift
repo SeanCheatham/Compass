@@ -265,7 +265,6 @@ struct DraftsTab: View {
   }
 }
 
-
 struct DraftRefinementPreviewCard: View {
   var refinement: DraftRefinement?
   var isRefining: Bool

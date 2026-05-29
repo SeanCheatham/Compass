@@ -7,15 +7,10 @@ import Foundation
 
 /// Listens on AF_VSOCK at a fixed port and yields each accepted connection
 /// to a handler. AF_VSOCK is a Darwin-supported socket family for VM-host
-/// communication that bypasses the network stack entirely; on the macOS
-/// guest, it's the one transport that isn't subject to the VirtioFS-mount
-/// TCC restrictions blocking sshd.
-///
-/// `mount_virtiofs`-mounted shares + sshd_spawned processes return EPERM
-/// for any access. Processes spawned from the user GUI session (e.g.
-/// Terminal.app, or LaunchAgents loaded into the session) bypass that
-/// check — the guest agent is loaded as a LaunchAgent so it inherits the
-/// right TCC profile for accessing the VirtioFS-mounted worktree.
+/// communication that bypasses the network stack entirely. The host
+/// dispatches file/bash RPCs over vsock because sshd-spawned processes on
+/// macOS guests are TCC-blocked from reading guest workspace paths.
+/// The guest agent runs as a LaunchAgent in the `compass` GUI session.
 final class VsockListener {
   /// macOS AF_VSOCK socket family (defined in <sys/socket.h>).
   static let AF_VSOCK: Int32 = 40

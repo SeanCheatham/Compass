@@ -62,13 +62,13 @@ enum CommitTourGenerator {
   /// ``generate(diff:)``. Returns `nil` when Foundation Models is unavailable
   /// or when the diff is empty.
   static func generateTour(commits: [SessionCommit], repoURL: URL) async -> String? {
-    guard let firstCommit = commits.first else { return nil }
-    let oldestCommit = commits.last!
+    guard let firstCommit = commits.first, let oldestCommit = commits.last else { return nil }
     let diff: String
     if commits.count == 1 {
       diff = await CommitExplainer.gitDiff(sha: firstCommit.sha, repoURL: repoURL)
     } else {
-      diff = await CommitExplainer.gitDiffRange(newest: firstCommit.sha, oldest: oldestCommit.sha, repoURL: repoURL)
+      diff = await CommitExplainer.gitDiffRange(
+        newest: firstCommit.sha, oldest: oldestCommit.sha, repoURL: repoURL)
     }
     guard !diff.isEmpty else { return nil }
     return await generate(diff: diff)

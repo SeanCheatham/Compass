@@ -1,7 +1,6 @@
 import AppKit
 import SwiftUI
 
-
 struct ShutdownView: View {
   var body: some View {
     VStack(spacing: 18) {

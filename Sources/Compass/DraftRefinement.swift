@@ -328,7 +328,8 @@ enum DraftRefinementService {
     draft: String,
     context: DraftRefinementContext
   ) -> DraftRefinement? {
-    let clean = normalizePlainText(refined).trimmingCharacters(in: CharacterSet(charactersIn: "\"\'` "))
+    let clean = normalizePlainText(refined).trimmingCharacters(
+      in: CharacterSet(charactersIn: "\"\'` "))
     guard (3...refinedTextMaxCharacters).contains(clean.count),
       wordCount(clean) <= 140,
       isUsableGeneratedText(clean),

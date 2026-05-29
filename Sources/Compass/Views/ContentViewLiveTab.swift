@@ -143,7 +143,6 @@ struct LiveTab: View {
   }
 }
 
-
 struct LiveActivityClusterRow: View {
   var cluster: LiveActivityCluster
   var summary: LiveActivitySummary
@@ -257,7 +256,6 @@ struct LiveActivityClusterRow: View {
   }
 }
 
-
 struct ProjectReliabilityBanner: View {
   var status: ProjectReliabilityStatus
 
@@ -329,7 +327,6 @@ struct ProjectReliabilityBanner: View {
     .joined(separator: " · ")
   }
 }
-
 
 struct LiveRow: View {
   var line: LiveLine
@@ -424,7 +421,6 @@ struct LiveRow: View {
   }
 }
 
-
 struct ThinkingLiveRow: View {
   var phase: LoopPhase
   @State private var isAnimating = false
@@ -495,7 +491,6 @@ struct ThinkingLiveRow: View {
   }
 }
 
-
 struct ThinkingDots: View {
   @State private var isAnimating = false
 
@@ -519,7 +514,6 @@ struct ThinkingDots: View {
     }
   }
 }
-
 
 struct LiveStatusIcon: View {
   var line: LiveLine
@@ -580,7 +574,6 @@ struct LiveStatusIcon: View {
     }
   }
 }
-
 
 struct LiveDetail: View {
   var line: LiveLine

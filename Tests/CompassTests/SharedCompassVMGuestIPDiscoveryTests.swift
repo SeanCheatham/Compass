@@ -9,56 +9,49 @@ struct SharedCompassVMGuestIPDiscoveryTests {
   @Test
   func testCanonicalizeFullyExpandedMACReturnsLowercaseColonForm() throws {
     try #require(
-      SharedCompassVMGuestIPDiscovery.canonicalize(mac: "52:8A:01:02:03:04") ==
-      "52:8a:01:02:03:04"
+      SharedCompassVMGuestIPDiscovery.canonicalize(mac: "52:8A:01:02:03:04") == "52:8a:01:02:03:04"
     )
   }
 
   @Test
   func testCanonicalizePadsSingleHexDigitOctets() throws {
     try #require(
-      SharedCompassVMGuestIPDiscovery.canonicalize(mac: "52:8a:1:2:3:4") ==
-      "52:8a:01:02:03:04"
+      SharedCompassVMGuestIPDiscovery.canonicalize(mac: "52:8a:1:2:3:4") == "52:8a:01:02:03:04"
     )
   }
 
   @Test
   func testCanonicalizeStripsDHCPLeasesPrefix() throws {
     try #require(
-      SharedCompassVMGuestIPDiscovery.canonicalize(mac: "1,52:8a:1:2:3:4") ==
-      "52:8a:01:02:03:04"
+      SharedCompassVMGuestIPDiscovery.canonicalize(mac: "1,52:8a:1:2:3:4") == "52:8a:01:02:03:04"
     )
   }
 
   @Test
   func testCanonicalizeAcceptsDashSeparator() throws {
     try #require(
-      SharedCompassVMGuestIPDiscovery.canonicalize(mac: "52-8a-01-02-03-04") ==
-      "52:8a:01:02:03:04"
+      SharedCompassVMGuestIPDiscovery.canonicalize(mac: "52-8a-01-02-03-04") == "52:8a:01:02:03:04"
     )
   }
 
   @Test
   func testCanonicalizeRejectsTooFewOctets() throws {
     try #require(
-      SharedCompassVMGuestIPDiscovery.canonicalize(mac: "52:8a:01:02:03") ==
-      ""
+      SharedCompassVMGuestIPDiscovery.canonicalize(mac: "52:8a:01:02:03") == ""
     )
   }
 
   @Test
   func testCanonicalizeRejectsNonHexCharacters() throws {
     try #require(
-      SharedCompassVMGuestIPDiscovery.canonicalize(mac: "52:8a:0g:02:03:04") ==
-      ""
+      SharedCompassVMGuestIPDiscovery.canonicalize(mac: "52:8a:0g:02:03:04") == ""
     )
   }
 
   @Test
   func testCanonicalizeRejectsOctetsWithMoreThanTwoDigits() throws {
     try #require(
-      SharedCompassVMGuestIPDiscovery.canonicalize(mac: "52:8a:001:02:03:04") ==
-      ""
+      SharedCompassVMGuestIPDiscovery.canonicalize(mac: "52:8a:001:02:03:04") == ""
     )
   }
 
@@ -123,7 +116,7 @@ struct SharedCompassVMGuestIPDiscoveryTests {
   func testParseDHCPLeasesReturnsNilOnEmptyInput() throws {
     try #require(
       SharedCompassVMGuestIPDiscovery.parseDHCPLeases("", forCanonicalMAC: "52:8a:01:02:03:04")
-      == nil
+        == nil
     )
   }
 

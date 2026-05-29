@@ -27,3 +27,6 @@ Thumbs.db
 .env.local
 .compass/
 App/LocalSigning.xcconfig
+
+# Local scratch clones
+.tmp-tree-sitter-haskell/

@@ -13,8 +13,8 @@ struct SharedCompassVMHeadlessFirstBootTests {
     try #require(profile?.macOSMajor == 16)
     try #require(profile?.appleSetupDoneGuestPath == "/private/var/db/.AppleSetupDone")
     try #require(
-      profile?.launchDaemonGuestPath ==
-      "/Library/LaunchDaemons/com.seancheatham.Compass.firstboot.plist")
+      profile?.launchDaemonGuestPath
+        == "/Library/LaunchDaemons/com.seancheatham.Compass.firstboot.plist")
     try #require(profile?.bootstrapScriptGuestPath == "/usr/local/libexec/compass-firstboot.sh")
     try #require(profile?.sudoersFragmentGuestPath == "/private/etc/sudoers.d/compass")
     try #require(profile?.stagingDirectoryGuestPath == "/Users/Shared/compass-firstboot")
@@ -30,8 +30,7 @@ struct SharedCompassVMHeadlessFirstBootTests {
   func testProfileRegistryClampsFutureMajorToLatestKnown() throws {
     let future = SharedCompassVMHeadlessFirstBoot.Registry.profile(forMacOSMajor: 99)
     try #require(
-      future?.macOSMajor ==
-      SharedCompassVMHeadlessFirstBoot.Registry.latestKnownMajor
+      future?.macOSMajor == SharedCompassVMHeadlessFirstBoot.Registry.latestKnownMajor
     )
   }
 
@@ -39,27 +38,26 @@ struct SharedCompassVMHeadlessFirstBootTests {
   func testMacOSMajorParsingFromBuildVersion() throws {
     // Darwin major 24 -> macOS 15 (Sequoia: e.g. 24A335)
     try #require(
- SharedCompassVMHeadlessFirstBoot.Registry.macOSMajor(forBuildVersion: "24A335") ==
-      15
+      SharedCompassVMHeadlessFirstBoot.Registry.macOSMajor(forBuildVersion: "24A335") == 15
     )
     // Darwin major 25 -> macOS 16
     try #require(
-      SharedCompassVMHeadlessFirstBoot.Registry.macOSMajor(forBuildVersion: "25B71") ==
-      16
+      SharedCompassVMHeadlessFirstBoot.Registry.macOSMajor(forBuildVersion: "25B71") == 16
     )
     // Two-digit prefix with surrounding whitespace
     try #require(
-      SharedCompassVMHeadlessFirstBoot.Registry.macOSMajor(forBuildVersion: "  26C12  ") ==
-      17
+      SharedCompassVMHeadlessFirstBoot.Registry.macOSMajor(forBuildVersion: "  26C12  ") == 17
     )
   }
 
   @Test
   func testMacOSMajorParsingRejectsUnparseableBuilds() throws {
     try #require(SharedCompassVMHeadlessFirstBoot.Registry.macOSMajor(forBuildVersion: "") == nil)
-    try #require(SharedCompassVMHeadlessFirstBoot.Registry.macOSMajor(forBuildVersion: "A24335") == nil)
+    try #require(
+      SharedCompassVMHeadlessFirstBoot.Registry.macOSMajor(forBuildVersion: "A24335") == nil)
     // Darwin 22 -> macOS 13, which is below our supported floor (15).
-    try #require(SharedCompassVMHeadlessFirstBoot.Registry.macOSMajor(forBuildVersion: "22A123") == nil)
+    try #require(
+      SharedCompassVMHeadlessFirstBoot.Registry.macOSMajor(forBuildVersion: "22A123") == nil)
   }
 
   @Test

@@ -1,6 +1,7 @@
 import Foundation
-@testable import Compass
 import Testing
+
+@testable import Compass
 
 struct CodemapStoreTests {
 

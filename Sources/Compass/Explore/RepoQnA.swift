@@ -62,7 +62,8 @@ enum RepoQnA {
     let changes = await FileExplainer.changes(for: repoURL, commits: commits)
 
     // 2. Get the actual diff text over the commit range.
-    guard let diff = await CommitExplainer.commitDiffRange(commits: commits, repoURL: repoURL) else {
+    guard let diff = await CommitExplainer.commitDiffRange(commits: commits, repoURL: repoURL)
+    else {
       return nil
     }
 

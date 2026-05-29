@@ -18,7 +18,8 @@ struct SharedVMToolchainCatalogTests {
   }
 
   @Test func eachInstallableToolchainRendersNonEmptyScript() throws {
-    for definition in SharedVMToolchainCatalog.all where definition.installableViaGenericProvisioner {
+    for definition in SharedVMToolchainCatalog.all where definition.installableViaGenericProvisioner
+    {
       let script = definition.renderInstallScript()
       try #require(script.hasPrefix("#!/bin/bash"))
       try #require(script.contains("set -euo pipefail"))

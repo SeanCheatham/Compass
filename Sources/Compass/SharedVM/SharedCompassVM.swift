@@ -708,8 +708,9 @@ final class SharedCompassVM: ObservableObject {
       (try? bundle.loadState(fileManager: dependencies.fileManager))
       ?? SharedCompassVMBundle.State()
     guard let ip = state.lastKnownGoodIP else {
-      transition(to: .error(
-        detail: "Resuming dev-tools install: guest IP is not cached. Reset and re-provision."))
+      transition(
+        to: .error(
+          detail: "Resuming dev-tools install: guest IP is not cached. Reset and re-provision."))
       return
     }
     let destination = "\(state.guestUserName)@\(ip)"
@@ -732,8 +733,9 @@ final class SharedCompassVM: ObservableObject {
       attemptIntervalNanoseconds = min(attemptIntervalNanoseconds * 2, 10_000_000_000)
     }
     guard probeOK else {
-      transition(to: .error(
-        detail: "Resuming dev-tools install: SSH probe to \(destination) timed out."))
+      transition(
+        to: .error(
+          detail: "Resuming dev-tools install: SSH probe to \(destination) timed out."))
       return
     }
     lastResolvedSSHDestination = destination
@@ -998,9 +1000,11 @@ final class SharedCompassVM: ObservableObject {
       return
     }
     guard await SharedCompassVMVsock.waitUntilReachable(on: machine) else {
-      transition(to: .error(
-        detail:
-          "Guest agent did not become reachable over vsock within 5 minutes. The VM may still be booting — quit and reopen Compass to retry."))
+      transition(
+        to: .error(
+          detail:
+            "Guest agent did not become reachable over vsock within 5 minutes. The VM may still be booting — quit and reopen Compass to retry."
+        ))
       return
     }
     let client = Self.makeVsockClient(on: machine)
@@ -1075,19 +1079,21 @@ final class SharedCompassVM: ObservableObject {
 
     let homebrewMissing: Bool
     do {
-      homebrewMissing = try await SharedCompassVMToolchainProvisioner.probe(
-        definition: SharedVMToolchainCatalog.definition(for: .homebrew),
-        runner: client
-      ) == false
+      homebrewMissing =
+        try await SharedCompassVMToolchainProvisioner.probe(
+          definition: SharedVMToolchainCatalog.definition(for: .homebrew),
+          runner: client
+        ) == false
     } catch {
       return
     }
 
     let ripgrepMissing: Bool
     do {
-      ripgrepMissing = try await SharedCompassVMRipgrepProvisioner.probeAlreadyInstalled(
-        runner: client
-      ) == false
+      ripgrepMissing =
+        try await SharedCompassVMRipgrepProvisioner.probeAlreadyInstalled(
+          runner: client
+        ) == false
     } catch {
       return
     }

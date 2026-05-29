@@ -29,7 +29,6 @@ struct VisionTab: View {
   }
 }
 
-
 struct LessonsTab: View {
   @ObservedObject var project: CompassProject
 
@@ -45,7 +44,6 @@ struct LessonsTab: View {
     }
   }
 }
-
 
 struct SectionHeader: View {
   var title: String
@@ -68,7 +66,6 @@ enum MarkdownDocumentMode: String, CaseIterable, Identifiable {
 
   var id: Self { self }
 }
-
 
 struct MarkdownDocumentBody: View {
   @Binding var text: String
@@ -95,7 +92,6 @@ struct MarkdownDocumentBody: View {
   }
 }
 
-
 struct MarkdownBlock: View {
   var text: String
   var empty: String
@@ -109,7 +105,6 @@ struct MarkdownBlock: View {
     MarkdownContent(text, empty: empty)
   }
 }
-
 
 struct EmptyState: View {
   var text: String

@@ -303,7 +303,6 @@ final class AppModel: ObservableObject {
   }
 }
 
-
 enum AppModelError: LocalizedError {
   case noRepositorySelected
   case notGitRepository(String)
@@ -326,4 +325,3 @@ enum AppModelError: LocalizedError {
     }
   }
 }
-

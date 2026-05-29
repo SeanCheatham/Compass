@@ -121,8 +121,7 @@ struct ProjectReliabilityStatusTests {
     try #require(status.severity == .failure)
     try #require(status.actionLabel == "Retry Develop")
     try #require(
-      status.metadata ==
-      "swift test --filter ProjectReliabilityStatusTests · exit 65"
+      status.metadata == "swift test --filter ProjectReliabilityStatusTests · exit 65"
     )
     try #require(status.detail == "Test Suite failed Expected true but got false")
   }

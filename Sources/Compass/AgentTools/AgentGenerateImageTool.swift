@@ -28,7 +28,7 @@ struct AgentGenerateImageTool: AgentTool {
   ) {
     self.assignment = assignment
     self.generator = generator
-    let schema = AgentToolParametersSchema(literal:[
+    let schema = AgentToolParametersSchema(literal: [
       "type": "object",
       "additionalProperties": false,
       "required": ["prompt", "output_path"],

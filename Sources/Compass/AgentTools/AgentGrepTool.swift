@@ -19,7 +19,7 @@ struct AgentGrepTool: AgentTool {
   let spec: AgentToolSpec
 
   init() {
-    let schema = AgentToolParametersSchema(literal:[
+    let schema = AgentToolParametersSchema(literal: [
       "type": "object",
       "additionalProperties": false,
       "required": ["pattern"],
@@ -56,7 +56,8 @@ struct AgentGrepTool: AgentTool {
     do {
       args = try JSONDecoder().decode(Arguments.self, from: arguments)
     } catch {
-      return .failure(.invalidArguments("Failed to decode arguments: \(error.localizedDescription)"))
+      return .failure(
+        .invalidArguments("Failed to decode arguments: \(error.localizedDescription)"))
     }
     let pattern = args.pattern.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !pattern.isEmpty else {
@@ -87,7 +88,8 @@ struct AgentGrepTool: AgentTool {
       )
     } catch let error as AgentFilesystemError {
       switch error {
-      case .transportFailure: return .failure(.rpcFailure(error.localizedDescription ?? "transport failure"))
+      case .transportFailure:
+        return .failure(.rpcFailure(error.localizedDescription ?? "transport failure"))
       default: return .failure(.ioFailure(error.localizedDescription ?? "I/O failure"))
       }
     } catch {

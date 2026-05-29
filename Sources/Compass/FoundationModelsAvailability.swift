@@ -69,24 +69,24 @@ enum FoundationModelsAvailability {
   }
 
   #if canImport(FoundationModels)
-  /// Streams a prompt through `LanguageModelSession` and returns the
-  /// accumulated, trimmed text.  Returns `nil` on error or when the
-  /// result is empty.
-  @available(macOS 26.0, *)
-  static func _streamText(prompt: String) async -> String? {
-    await FoundationModelsSessionGate.shared.withExclusiveAccess {
-      do {
-        let session = LanguageModelSession(model: .default)
-        var fullText = ""
-        for try await snapshot in session.streamResponse(to: prompt) {
-          fullText += snapshot.content
+    /// Streams a prompt through `LanguageModelSession` and returns the
+    /// accumulated, trimmed text.  Returns `nil` on error or when the
+    /// result is empty.
+    @available(macOS 26.0, *)
+    static func _streamText(prompt: String) async -> String? {
+      await FoundationModelsSessionGate.shared.withExclusiveAccess {
+        do {
+          let session = LanguageModelSession(model: .default)
+          var fullText = ""
+          for try await snapshot in session.streamResponse(to: prompt) {
+            fullText += snapshot.content
+          }
+          let result = fullText.trimmingCharacters(in: .whitespacesAndNewlines)
+          return result.isEmpty ? nil : result
+        } catch {
+          return nil
         }
-        let result = fullText.trimmingCharacters(in: .whitespacesAndNewlines)
-        return result.isEmpty ? nil : result
-      } catch {
-        return nil
       }
     }
-  }
   #endif
 }

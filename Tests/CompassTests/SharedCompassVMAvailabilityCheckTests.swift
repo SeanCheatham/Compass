@@ -1,6 +1,6 @@
 import Foundation
-import Virtualization
 import Testing
+import Virtualization
 
 @testable import Compass
 

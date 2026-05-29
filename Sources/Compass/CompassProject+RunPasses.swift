@@ -1,6 +1,5 @@
 import AppKit
 import Foundation
-import Virtualization
 
 @MainActor
 extension CompassProject {
@@ -664,7 +663,8 @@ extension CompassProject {
       break
     case .blocked:
       if summary.bypassVerify != true {
-        verifyIssues.append("[verify] Develop reported it was blocked but did not request verify bypass.")
+        verifyIssues.append(
+          "[verify] Develop reported it was blocked but did not request verify bypass.")
       }
     case .failed:
       verifyIssues.append("[verify] Develop reported failure: \(summary.feedback)")
@@ -798,7 +798,7 @@ extension CompassProject {
       """
       Develop exhausted \(attempts) attempts on this increment without passing post-checks.
       Planned verify command: `\(next.verify)`
-      """,
+      """
     ]
     if !issues.isEmpty {
       parts.append("Post-check failures:\n" + issues.joined(separator: "\n"))

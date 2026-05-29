@@ -1,7 +1,8 @@
 import Foundation
 import SwiftUI
-@testable import Compass
 import Testing
+
+@testable import Compass
 
 struct ExploreTabComponentsTests {
   // MARK: - FileTreeNode
@@ -47,8 +48,10 @@ struct ExploreTabComponentsTests {
       isDirectory: true,
       language: nil,
       children: [
-        FileTreeNode(relativePath: "Sources/App.swift", isDirectory: false, language: .swift, children: []),
-        FileTreeNode(relativePath: "Sources/Model.swift", isDirectory: false, language: .swift, children: []),
+        FileTreeNode(
+          relativePath: "Sources/App.swift", isDirectory: false, language: .swift, children: []),
+        FileTreeNode(
+          relativePath: "Sources/Model.swift", isDirectory: false, language: .swift, children: []),
       ]
     )
     #expect(node.folderSummary != nil)
@@ -62,7 +65,8 @@ struct ExploreTabComponentsTests {
       isDirectory: true,
       language: nil,
       children: [
-        FileTreeNode(relativePath: "Sources/App.swift", isDirectory: false, language: .swift, children: []),
+        FileTreeNode(
+          relativePath: "Sources/App.swift", isDirectory: false, language: .swift, children: [])
       ]
     )
     #expect(node.folderSummary != nil)
@@ -449,7 +453,7 @@ struct ExploreTabComponentsTests {
       fileName: "Example.swift",
       summary: "A summary of the file."
     )
-    #expect(popover.hasCloseButton)
+    #expect(String(reflecting: popover.body).contains("Close"))
   }
 
   @Test
@@ -459,7 +463,7 @@ struct ExploreTabComponentsTests {
       fileName: "Example.swift",
       summary: summaryText
     )
-    #expect(popover.bodyText.contains(summaryText))
+    #expect(String(reflecting: popover.body).contains(summaryText))
   }
   // MARK: - FileTreeRowView summaryButton — sparkles branch
 
@@ -498,8 +502,8 @@ struct ExploreTabComponentsTests {
     )
 
     // The sparkles button label must be present in the rendered view.
-    #expect(sut.summaryButtonText.contains("Generate Summary"))
-    #expect(sut.summaryButtonText.contains("sparkles"))
+    let buttonReflection = String(reflecting: sut.summaryButton)
+    #expect(buttonReflection.contains("Generate Summary"))
   }
 
   /// Verifies that tapping the sparkles "Generate Summary" button calls
@@ -546,7 +550,8 @@ struct ExploreTabComponentsTests {
       isDirectory: true,
       language: nil,
       children: [
-        FileTreeNode(relativePath: "Sources/App.swift", isDirectory: false, language: .swift, children: []),
+        FileTreeNode(
+          relativePath: "Sources/App.swift", isDirectory: false, language: .swift, children: [])
       ]
     )
     var called = false
@@ -561,8 +566,9 @@ struct ExploreTabComponentsTests {
     )
 
     // Directory with children shows folder summary, not the sparkles button.
-    #expect(!sut.summaryButtonText.contains("Generate Summary"))
-    #expect(!sut.summaryButtonText.contains("sparkles"))
+    let buttonReflection = String(reflecting: sut.summaryButton)
+    #expect(!buttonReflection.contains("Generate Summary"))
+    #expect(!buttonReflection.contains("sparkles"))
   }
 
   /// Verifies the sparkles button does NOT appear when the file node has a
@@ -600,8 +606,9 @@ struct ExploreTabComponentsTests {
     )
 
     // Summary popover button is shown; sparkles button is not.
-    #expect(!sut.summaryButtonText.contains("Generate Summary"))
-    #expect(!sut.summaryButtonText.contains("sparkles"))
+    let buttonReflection = String(reflecting: sut.summaryButton)
+    #expect(!buttonReflection.contains("Generate Summary"))
+    #expect(!buttonReflection.contains("sparkles"))
   }
 }
 
@@ -631,59 +638,11 @@ private func SymbolDetailPopoverTests_symbolKindLabel(_ kind: CodemapSymbolKind)
 
 // MARK: - View inspection helpers for FileTreeRowView
 
-private extension FileTreeRowView {
-  /// All text strings found anywhere in the `summaryButton` view subtree.
-  var summaryButtonText: String {
-    var texts: [String] = []
-    collectText(from: summaryButton, into: &texts)
-    return texts.joined()
-  }
-
-  private func collectText(from view: Any, into texts: inout [String]) {
-    guard let childView = view as? any View else { return }
-    let mirror = Mirror(reflecting: childView)
-    for child in mirror.children {
-      if let str = child.value as? String {
-        texts.append(str)
-      }
-      if child.label == nil {
-        collectText(from: child.value, into: &texts)
-      }
-    }
-  }
-
+extension FileTreeRowView {
   /// Triggers the sparkles button action directly.
   /// This calls `onGenerateSummary(node.relativePath)` without going through
   /// the SwiftUI button-tap machinery (which is unavailable in-process).
-  func triggerSparklesButtonAction() {
+  fileprivate func triggerSparklesButtonAction() {
     onGenerateSummary(node.relativePath)
-  }
-}
-
-// MARK: - View inspection helpers for SummaryPopover
-
-private extension SummaryPopover {
-  /// All text strings found anywhere in the view tree.
-  var bodyText: String {
-    var texts: [String] = []
-    collectText(from: body, into: &texts)
-    return texts.joined()
-  }
-
-  private func collectText(from view: Any, into texts: inout [String]) {
-    guard let childView = view as? any View else { return }
-    let mirror = Mirror(reflecting: childView)
-    for child in mirror.children {
-      if let str = child.value as? String {
-        texts.append(str)
-      }
-      if child.label == nil {
-        collectText(from: child.value, into: &texts)
-      }
-    }
-  }
-
-  var hasCloseButton: Bool {
-    bodyText.contains("Close")
   }
 }

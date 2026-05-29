@@ -17,7 +17,8 @@ struct CodemapFileSystemTests {
   @Test
   func buildTree_singleFile_returnsOneFileNode() throws {
     let root = try makeTempDir()
-    try FileManager.default.createFile(atPath: root.appendingPathComponent("Foo.swift").path, contents: nil)
+    try FileManager.default.createFile(
+      atPath: root.appendingPathComponent("Foo.swift").path, contents: nil)
     let fs = CodemapFileSystem(rootURL: root)
     let tree = fs.buildTree()
     #expect(tree.count == 1)
@@ -28,7 +29,8 @@ struct CodemapFileSystemTests {
   @Test
   func buildTree_singleDirectory_returnsOneDirectoryNode() throws {
     let root = try makeTempDir()
-    try FileManager.default.createDirectory(atPath: root.appendingPathComponent("Sources").path, withIntermediateDirectories: false)
+    try FileManager.default.createDirectory(
+      atPath: root.appendingPathComponent("Sources").path, withIntermediateDirectories: false)
     let fs = CodemapFileSystem(rootURL: root)
     let tree = fs.buildTree()
     #expect(tree.count == 1)
@@ -39,9 +41,24 @@ struct CodemapFileSystemTests {
   func buildTree_withSubdirectories_returnsNestedChildren() throws {
     let root = try makeTempDir()
     let sourcesDir = root.appendingPathComponent("Sources")
-    try FileManager.default.createDirectory(atPath: sourcesDir.path, withIntermediateDirectories: true)
-    try FileManager.default.createFile(atPath: sourcesDir.appendingPathComponent("Models").appendingPathComponent("Foo.swift").path, contents: nil)
-    try FileManager.default.createFile(atPath: sourcesDir.appendingPathComponent("Views").appendingPathComponent("Bar.swift").path, contents: nil)
+    try FileManager.default.createDirectory(
+      atPath: sourcesDir.path, withIntermediateDirectories: true)
+    try FileManager.default.createDirectory(
+      atPath: sourcesDir.appendingPathComponent("Models").path,
+      withIntermediateDirectories: true
+    )
+    try FileManager.default.createDirectory(
+      atPath: sourcesDir.appendingPathComponent("Views").path,
+      withIntermediateDirectories: true
+    )
+    try FileManager.default.createFile(
+      atPath: sourcesDir.appendingPathComponent("Models/Foo.swift").path,
+      contents: nil
+    )
+    try FileManager.default.createFile(
+      atPath: sourcesDir.appendingPathComponent("Views/Bar.swift").path,
+      contents: nil
+    )
     let fs = CodemapFileSystem(rootURL: root)
     let tree = fs.buildTree()
 
@@ -67,24 +84,34 @@ struct CodemapFileSystemTests {
   func buildTree_hiddenFilesExcluded() throws {
     let root = try makeTempDir()
     let sourcesDir = root.appendingPathComponent("Sources")
-    try FileManager.default.createDirectory(atPath: sourcesDir.path, withIntermediateDirectories: true)
-    try FileManager.default.createFile(atPath: sourcesDir.appendingPathComponent(".hidden.swift").path, contents: nil)
-    try FileManager.default.createFile(atPath: sourcesDir.appendingPathComponent("visible.swift").path, contents: nil)
+    try FileManager.default.createDirectory(
+      atPath: sourcesDir.path, withIntermediateDirectories: true)
+    try FileManager.default.createFile(
+      atPath: sourcesDir.appendingPathComponent(".hidden.swift").path, contents: nil)
+    try FileManager.default.createFile(
+      atPath: sourcesDir.appendingPathComponent("visible.swift").path, contents: nil)
     let fs = CodemapFileSystem(rootURL: root)
     let tree = fs.buildTree()
     #expect(tree.count == 1)
-    #expect(tree[0].relativePath == "visible.swift")
+    #expect(tree[0].relativePath == "Sources")
+    #expect(tree[0].isDirectory == true)
+    #expect(tree[0].children.count == 1)
+    #expect(tree[0].children[0].relativePath == "Sources/visible.swift")
   }
 
   @Test
   func buildTree_dotCompassExcluded() throws {
     let root = try makeTempDir()
     let sourcesDir = root.appendingPathComponent("Sources")
-    try FileManager.default.createDirectory(atPath: sourcesDir.path, withIntermediateDirectories: true)
-    try FileManager.default.createFile(atPath: sourcesDir.appendingPathComponent("Foo.swift").path, contents: nil)
+    try FileManager.default.createDirectory(
+      atPath: sourcesDir.path, withIntermediateDirectories: true)
+    try FileManager.default.createFile(
+      atPath: sourcesDir.appendingPathComponent("Foo.swift").path, contents: nil)
     let compassDir = root.appendingPathComponent("Compass")
-    try FileManager.default.createDirectory(atPath: compassDir.path, withIntermediateDirectories: true)
-    try FileManager.default.createFile(atPath: compassDir.appendingPathComponent("Data.swift").path, contents: nil)
+    try FileManager.default.createDirectory(
+      atPath: compassDir.path, withIntermediateDirectories: true)
+    try FileManager.default.createFile(
+      atPath: compassDir.appendingPathComponent("Data.swift").path, contents: nil)
     let fs = CodemapFileSystem(rootURL: root)
     let tree = fs.buildTree()
     #expect(tree.count == 1)
@@ -99,8 +126,10 @@ struct CodemapFileSystemTests {
     let fs = CodemapFileSystem(rootURL: root)
 
     // Create a file first, then a directory
-    try FileManager.default.createFile(atPath: root.appendingPathComponent("Bar.swift").path, contents: nil)
-    try FileManager.default.createDirectory(atPath: root.appendingPathComponent("Alpha").path, withIntermediateDirectories: false)
+    try FileManager.default.createFile(
+      atPath: root.appendingPathComponent("Bar.swift").path, contents: nil)
+    try FileManager.default.createDirectory(
+      atPath: root.appendingPathComponent("Alpha").path, withIntermediateDirectories: false)
 
     let tree = fs.buildTree()
     #expect(tree.count == 2)
@@ -117,9 +146,12 @@ struct CodemapFileSystemTests {
     let fs = CodemapFileSystem(rootURL: root)
 
     // Create files with mixed case
-    try FileManager.default.createFile(atPath: root.appendingPathComponent("file.swift").path, contents: nil)
-    try FileManager.default.createFile(atPath: root.appendingPathComponent("Alpha.swift").path, contents: nil)
-    try FileManager.default.createFile(atPath: root.appendingPathComponent("beta.swift").path, contents: nil)
+    try FileManager.default.createFile(
+      atPath: root.appendingPathComponent("file.swift").path, contents: nil)
+    try FileManager.default.createFile(
+      atPath: root.appendingPathComponent("Alpha.swift").path, contents: nil)
+    try FileManager.default.createFile(
+      atPath: root.appendingPathComponent("beta.swift").path, contents: nil)
 
     let tree = fs.buildTree()
     #expect(tree.count == 3)

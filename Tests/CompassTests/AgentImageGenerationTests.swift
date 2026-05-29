@@ -32,8 +32,7 @@ struct AgentImageGenerationTests {
 
     let recorded = recorder.requests.first
     try #require(
-      recorded?.url?.absoluteString ==
-      "https://api.minimax.io/v1/image_generation"
+      recorded?.url?.absoluteString == "https://api.minimax.io/v1/image_generation"
     )
     try #require(recorded?.value(forHTTPHeaderField: "Authorization") == "Bearer mm-key")
     let body = try #require(recorder.requests.first?.httpBody)
@@ -96,12 +95,10 @@ struct AgentImageGenerationTests {
     )
     try #require(bytes == imageBytes)
     try #require(
-      recorder.requests.first?.url?.absoluteString ==
-      "https://api.openai.com/v1/images/generations"
+      recorder.requests.first?.url?.absoluteString == "https://api.openai.com/v1/images/generations"
     )
     try #require(
-      recorder.requests.first?.value(forHTTPHeaderField: "Authorization") ==
-      "Bearer sk-test")
+      recorder.requests.first?.value(forHTTPHeaderField: "Authorization") == "Bearer sk-test")
   }
 
   // MARK: - Failure surfaces

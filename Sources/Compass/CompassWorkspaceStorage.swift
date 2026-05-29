@@ -1,10 +1,8 @@
 import AppKit
 import Foundation
-import Virtualization
 
 typealias CompassWorkspaceStorageMigrationAction = (CompassWorkspaceStorageMigrationPlan) throws ->
   CompassWorkspaceStorageMigrationResult
-
 
 struct CompassWorkspaceStorageActivationConfirmation: Identifiable, Equatable {
   static let titleLimit = 58

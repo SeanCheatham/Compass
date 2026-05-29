@@ -3,9 +3,10 @@ import Darwin
 import Foundation
 
 // Compass guest-side helper. Runs as a LaunchAgent under the auto-logged-in
-// `compass` user so it inherits the GUI session's TCC profile and can
-// read/write the VirtioFS-mounted worktree (something sshd-spawned
-// processes can't do).
+// `compass` user inside the guest GUI session. Repo contents live under
+// ~/compass/workspaces/<fingerprint>/ (synced from the host via vsock tar),
+// not a VirtioFS share — sshd-spawned processes are TCC-blocked on macOS
+// guests, so the agent must run in the user session and be reached via vsock.
 //
 // Listens on AF_VSOCK at the canonical Compass port, accepts one request
 // per connection, dispatches it, writes the response frame, closes the fd.

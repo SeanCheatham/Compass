@@ -93,8 +93,8 @@ struct ExploreRepoQnATests {
 
     let shas = try test.getAllCommitSHAs(at: test.temporaryDirectory)
     try #require(shas.count == 2)
-    let oldest = shas[1] // oldest
-    let newest = shas[0] // newest
+    let oldest = shas[1]  // oldest
+    let newest = shas[0]  // newest
     let commits = [
       SessionCommit(sha: oldest, short: String(oldest.prefix(7)), subject: "Add Old.swift"),
       SessionCommit(sha: newest, short: String(newest.prefix(7)), subject: "Add New.swift"),
@@ -141,8 +141,8 @@ struct ExploreRepoQnATests {
 
     let shas = try test.getAllCommitSHAs(at: test.temporaryDirectory)
     try #require(shas.count == 2)
-    let oldest = shas[1] // oldest
-    let newest = shas[0] // newest
+    let oldest = shas[1]  // oldest
+    let newest = shas[0]  // newest
     let commits = [
       SessionCommit(sha: oldest, short: String(oldest.prefix(7)), subject: "Add Old.swift"),
       SessionCommit(sha: newest, short: String(newest.prefix(7)), subject: "Add New.swift"),
@@ -240,7 +240,8 @@ struct ExploreRepoQnATests {
 
     // Empty test body — compilation verifies argument order.
     _ = verifyCallOrder
-    _ = await verifyCallOrder(newest: "NEWEST", oldest: "OLDEST", repoURL: URL(fileURLWithPath: "/"))
+    _ = await verifyCallOrder(
+      newest: "NEWEST", oldest: "OLDEST", repoURL: URL(fileURLWithPath: "/"))
   }
 
   // MARK: - Helpers
@@ -290,7 +291,8 @@ struct ExploreRepoQnATests {
 
   private func getAllCommitSHAs(at url: URL) throws -> [String] {
     let stdout = try captureGit(["log", "--all", "--format=%H"], at: url)
-    return stdout
+    return
+      stdout
       .split(separator: "\n")
       .filter { !$0.isEmpty }
       .map { String($0) }

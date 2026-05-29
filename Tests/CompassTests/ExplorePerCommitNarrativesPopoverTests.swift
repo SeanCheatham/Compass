@@ -60,7 +60,8 @@ struct ExplorePerCommitNarrativesPopoverTests {
     // We verify that calling explain on a non-existent commit returns nil,
     // which would NOT be called in the empty-commits path.
     let result = await CommitExplainer.explain(
-      commit: SessionCommit(sha: "0000000000000000000000000000000000000000", short: "0000000", subject: "Fake"),
+      commit: SessionCommit(
+        sha: "0000000000000000000000000000000000000000", short: "0000000", subject: "Fake"),
       repoURL: test.temporaryDirectory
     )
     _ = result
@@ -183,9 +184,11 @@ struct ExplorePerCommitNarrativesPopoverTests {
       throw TestError.noCommitSHAFound
     }
     let data = stdoutPipe.fileHandleForReading.readDataToEndOfFile()
-    guard let stdout = String(data: data, encoding: .utf8)?
-      .trimmingCharacters(in: .whitespacesAndNewlines),
-      !stdout.isEmpty else {
+    guard
+      let stdout = String(data: data, encoding: .utf8)?
+        .trimmingCharacters(in: .whitespacesAndNewlines),
+      !stdout.isEmpty
+    else {
       throw TestError.noCommitSHAFound
     }
     return stdout

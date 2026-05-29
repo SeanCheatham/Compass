@@ -93,7 +93,7 @@ struct PlanCompletionRecorderTests {
   @Test func testRecordsSuccessfulSessionPlanLine() throws {
     let state = PlanState.empty
     let sessions = [
-      makeSucceededSession(1, plan: "Ship feature X\n\nDetails"),
+      makeSucceededSession(1, plan: "Ship feature X\n\nDetails")
     ]
 
     let updated = PlanCompletionRecorder.recordingShippedIterations(

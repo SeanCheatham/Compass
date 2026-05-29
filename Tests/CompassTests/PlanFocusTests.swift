@@ -10,7 +10,7 @@ struct PlanFocusTests {
   /// categories. If someone retunes them this test should be
   /// updated deliberately rather than drift silently.
   @Test
-  func testWeightsMatchExpectedDistribution()  throws {
+  func testWeightsMatchExpectedDistribution() throws {
     try #require(PlanFocus.feature.weight == 30)
     try #require(PlanFocus.test.weight == 25)
     try #require(PlanFocus.cleanup.weight == 25)
@@ -28,7 +28,7 @@ struct PlanFocusTests {
   /// which is what "weighted but covers all" actually means in the
   /// product sense.
   @Test
-  func testWeightedRandomEventuallyPicksEveryFocus()  throws {
+  func testWeightedRandomEventuallyPicksEveryFocus() throws {
     var generator = SplitMix64(seed: 0xC0FFEE)
     var seen = Set<PlanFocus>()
     for _ in 0..<10_000 {
@@ -43,8 +43,8 @@ struct PlanFocusTests {
   /// goal is to catch a wholesale wiring bug (e.g. uniform
   /// sampling, swapped weights), not to validate the RNG.
   @Test
-  func testWeightedRandomApproximatesConfiguredWeights()  throws {
-    var generator = SplitMix64(seed: 0xDECAFBAD)
+  func testWeightedRandomApproximatesConfiguredWeights() throws {
+    var generator = SplitMix64(seed: 0xDECA_FBAD)
     let trials = 20_000
     var counts: [PlanFocus: Int] = [:]
     for _ in 0..<trials {
@@ -54,7 +54,9 @@ struct PlanFocusTests {
     for focus in PlanFocus.allCases {
       let observed = Double(counts[focus] ?? 0) / Double(trials)
       let expected = focus.weight / 100.0
-      try #require(abs(observed - expected) < 0.03, "focus \(focus.displayName) sampled at \(observed), expected ~\(expected)")
+      try #require(
+        abs(observed - expected) < 0.03,
+        "focus \(focus.displayName) sampled at \(observed), expected ~\(expected)")
     }
   }
 }
