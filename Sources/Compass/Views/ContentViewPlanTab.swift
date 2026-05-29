@@ -741,11 +741,8 @@ struct PlanSessionHistoryCard: View {
         }
       }
 
-      if item.status == .succeeded && !item.commits.isEmpty {
+      if item.canExplore {
         CommitTourRow(item: item, repoURL: repoURL)
-      }
-
-      if item.status == .succeeded && !item.commits.isEmpty {
         HStack(spacing: 8) {
           ExplainChangesButton(item: item, repoURL: repoURL)
           PerCommitNarrativesButton(item: item, repoURL: repoURL)
