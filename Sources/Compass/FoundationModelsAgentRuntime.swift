@@ -51,7 +51,9 @@ enum FoundationModelsAgentRuntime {
         onEvent: emit
       ),
       codemapStoreDirectory: configuration.codemapStoreDirectory,
-      planHistoryEntries: configuration.planHistoryEntries
+      planHistoryEntries: configuration.planHistoryEntries,
+      toolchainService: configuration.toolchainService,
+      hostXcodeService: configuration.hostXcodeService
     )
 
     let submitCapture = SubmitResultCapture()

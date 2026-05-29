@@ -1,6 +1,6 @@
 import Foundation
 
-struct ProcessResult {
+struct ProcessResult: Sendable, Equatable {
   var exitCode: Int32
   var stdout: String
   var stderr: String

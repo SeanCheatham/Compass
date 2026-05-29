@@ -29,6 +29,12 @@ struct PlanProposal: Codable, Equatable {
       longTerm: longTerm
     )
   }
+
+  func removingHostXcodeRequirement() -> PlanProposal {
+    guard var immediate else { return self }
+    immediate.requiresHostXcode = false
+    return PlanProposal(immediate: immediate, midTerm: midTerm, longTerm: longTerm)
+  }
 }
 
 enum PlanCompletionRecorder {

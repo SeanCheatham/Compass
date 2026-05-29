@@ -57,7 +57,8 @@ enum ToolRegistry {
   static func tools(
     for phase: AgentPhase,
     settings: AgentRuntimeSettings,
-    toolchainService: (any SharedVMToolchainService)? = nil
+    toolchainService: (any SharedVMToolchainService)? = nil,
+    hostXcodeService: (any HostXcodeServicing)? = nil
   ) -> [AgentTool] {
     var tools: [AgentTool]
     switch phase {
@@ -71,6 +72,9 @@ enum ToolRegistry {
       tools = developTools()
       if let imageAssignment = settings.imageAssignment {
         tools.append(AgentGenerateImageTool(assignment: imageAssignment))
+      }
+      if hostXcodeService != nil {
+        tools.append(AgentHostXcodeTool())
       }
     }
     if toolchainService != nil {
@@ -89,6 +93,6 @@ enum ToolRegistry {
 
   /// Convenience overload matching the pre-toolchain signature.
   static func tools(for phase: AgentPhase, settings: AgentRuntimeSettings) -> [AgentTool] {
-    tools(for: phase, settings: settings, toolchainService: nil)
+    tools(for: phase, settings: settings, toolchainService: nil, hostXcodeService: nil)
   }
 }

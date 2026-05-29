@@ -1,6 +1,6 @@
 import Foundation
 
-struct AgentExecutionInvocation: Equatable {
+struct AgentExecutionInvocation: Sendable, Equatable {
   var executable: String
   var arguments: [String]
   var workingDirectory: URL?

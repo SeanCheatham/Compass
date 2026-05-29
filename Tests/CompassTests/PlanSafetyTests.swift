@@ -222,6 +222,28 @@ struct PlanNextDecoderTests {
     #require(next.verify == "swift test")
     #require(next.verifyTimeoutMs == 120000)
     #require(next.estimatedDifficulty == .medium)
+    #expect(!next.requiresHostXcode)
+  }
+
+  @Test func decoderDefaultsMissingRequiresHostXcodeToFalseAndAcceptsTrue() throws {
+    let defaulted = try decodePlanNext(
+      """
+      {
+        "plan": "Build",
+        "verify": "swift build"
+      }
+      """)
+    let required = try decodePlanNext(
+      """
+      {
+        "plan": "Build in Xcode",
+        "verify": "xcodebuild -scheme App build",
+        "requiresHostXcode": true
+      }
+      """)
+
+    #expect(!defaulted.requiresHostXcode)
+    #expect(required.requiresHostXcode)
   }
 
   @Test func decoderDropsNonPositiveTimeouts() throws {

@@ -13,8 +13,10 @@ struct PromptSchemaLoadingTests {
   func testAllSchemasLoadAndParseAsJSONObjects() throws {
     let schemas: [(String, String)] = [
       ("plan", Prompts.planSchema),
+      ("planHostXcode", Prompts.planHostXcodeSchema),
       ("develop", Prompts.developSchema),
       ("reflect", Prompts.reflectSchema),
+      ("reflectHostXcode", Prompts.reflectHostXcodeSchema),
       ("critic", Prompts.criticSchema),
       ("subAgent", Prompts.subAgentSchema),
     ]
@@ -26,5 +28,19 @@ struct PromptSchemaLoadingTests {
         "schema \(name) should decode to a JSON object"
       )
     }
+  }
+
+  @Test
+  func testHostXcodeSchemasAreOnlySelectedWhenProjectOptInIsEnabled() {
+    #expect(Prompts.planSchema(hostXcodeBuildTestEnabled: false) == Prompts.planSchema)
+    #expect(
+      Prompts.planSchema(hostXcodeBuildTestEnabled: true) == Prompts.planHostXcodeSchema
+    )
+    #expect(Prompts.reflectSchema(hostXcodeBuildTestEnabled: false) == Prompts.reflectSchema)
+    #expect(
+      Prompts.reflectSchema(hostXcodeBuildTestEnabled: true) == Prompts.reflectHostXcodeSchema
+    )
+    #expect(!Prompts.planSchema.contains("requiresHostXcode"))
+    #expect(Prompts.planHostXcodeSchema.contains("requiresHostXcode"))
   }
 }

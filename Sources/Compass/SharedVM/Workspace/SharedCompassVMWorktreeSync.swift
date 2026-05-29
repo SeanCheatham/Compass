@@ -66,6 +66,7 @@ enum SharedCompassVMWorktreeSync {
     case missingHostWorktree(URL)
     case tarTooLarge(byteCount: Int)
     case invalidGuestPath(String)
+    case invalidHostMirrorPath(String)
 
     var description: String {
       switch self {
@@ -77,6 +78,8 @@ enum SharedCompassVMWorktreeSync {
       case .missingHostWorktree(let url): return "host worktree does not exist: \(url.path)"
       case .tarTooLarge(let n): return "sync tar exceeded \(maxTarByteCount) bytes (got \(n))"
       case .invalidGuestPath(let p): return "refusing to sync into suspicious guest path: \(p)"
+      case .invalidHostMirrorPath(let p):
+        return "refusing to refresh suspicious host mirror path: \(p)"
       }
     }
 
@@ -204,6 +207,65 @@ enum SharedCompassVMWorktreeSync {
     try extractTarOnHost(tarData, into: host)
   }
 
+  // MARK: - Host mirror (guest -> host, no git metadata)
+
+  /// Refreshes a Compass-owned host mirror from the current guest worktree.
+  /// Used by the host Xcode bridge so `xcodebuild` can run on the host
+  /// against the same source state the Shared VM agent just edited,
+  /// without pulling failed attempts into the user's real checkout.
+  static func refreshHostMirror(
+    guestWorktreePath: String,
+    hostMirrorURL: URL,
+    client: AgentVsockClient
+  ) async throws {
+    try validateGuestPath(guestWorktreePath)
+    try validateHostMirrorPath(hostMirrorURL)
+
+    let suffix = UUID().uuidString
+    let tarTmp = "/tmp/compass-host-xcode-\(suffix).tar"
+    let listTmp = "/tmp/compass-host-xcode-\(suffix).list"
+    let quotedGuest = SharedCompassVMGuestBridge.posixQuote(guestWorktreePath)
+    let quotedTar = SharedCompassVMGuestBridge.posixQuote(tarTmp)
+    let quotedList = SharedCompassVMGuestBridge.posixQuote(listTmp)
+    let findPredicates =
+      pullSideExcludeDirs
+      .map { "-name '\($0)'" }
+      .joined(separator: " -o ")
+    let script = """
+      set -e
+      cd \(quotedGuest)
+      find . -type d \\( \(findPredicates) \\) -prune -o -type f -print0 > \(quotedList)
+      < \(quotedList) /usr/bin/tar --null -T - -cf \(quotedTar)
+      """
+    let result = try await client.run(
+      command: script,
+      workingDirectory: URL(fileURLWithPath: "/tmp"),
+      timeout: 180
+    )
+    if result.exitCode != 0 {
+      throw SyncError.guestTarFailed(exitCode: result.exitCode, stderr: result.stderr)
+    }
+
+    let tarData = try await client.readFile(at: URL(fileURLWithPath: tarTmp))
+    _ = try await client.run(
+      command: "rm -f \(quotedTar) \(quotedList)",
+      workingDirectory: URL(fileURLWithPath: "/tmp"),
+      timeout: 30
+    )
+
+    let mirror = hostMirrorURL.standardizedFileURL
+    let fileManager = FileManager.default
+    try fileManager.createDirectory(
+      at: mirror.deletingLastPathComponent(),
+      withIntermediateDirectories: true
+    )
+    if fileManager.fileExists(atPath: mirror.path) {
+      try fileManager.removeItem(at: mirror)
+    }
+    try fileManager.createDirectory(at: mirror, withIntermediateDirectories: true)
+    try extractTarOnHost(tarData, into: mirror)
+  }
+
   // MARK: - Deletion scope
 
   /// Eligible deletions = files that were on the host last time we
@@ -258,6 +320,13 @@ enum SharedCompassVMWorktreeSync {
       }
     }
     throw SyncError.invalidGuestPath(path)
+  }
+
+  private static func validateHostMirrorPath(_ url: URL) throws {
+    let path = url.standardizedFileURL.path
+    guard path != "/", !path.isEmpty, !path.contains("..") else {
+      throw SyncError.invalidHostMirrorPath(url.path)
+    }
   }
 
   /// Tars the host's tracked + untracked-not-ignored files into a

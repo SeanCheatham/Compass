@@ -17,6 +17,7 @@ final class CompassProject: ObservableObject, Identifiable {
   @Published var languageProfile = RepositoryLanguageProfile.empty
   @Published var activitySourceSnapshot = RepositoryActivitySourceSnapshot.notScanned()
   @Published var nativeFeedbackMode: NativeFeedbackMode
+  @Published var hostXcodeBuildTestEnabled: Bool
   @Published var liveLog: [LiveLine] = []
   @Published var phase: LoopPhase = .idle
   @Published var isRunning = false
@@ -68,6 +69,7 @@ final class CompassProject: ObservableObject, Identifiable {
     addedAt: Date = Date(),
     lastOpenedAt: Date = Date(),
     nativeFeedbackMode: NativeFeedbackMode = .notifications,
+    hostXcodeBuildTestEnabled: Bool = false,
     storageApplicationSupportRoots: KnownProjectStore.ApplicationSupportRoots =
       KnownProjectStore.productionApplicationSupportRoots(),
     storageMigrationAction: @escaping CompassWorkspaceStorageMigrationAction = { plan in
@@ -82,6 +84,7 @@ final class CompassProject: ObservableObject, Identifiable {
     self.addedAt = addedAt
     self.lastOpenedAt = lastOpenedAt
     self.nativeFeedbackMode = nativeFeedbackMode
+    self.hostXcodeBuildTestEnabled = hostXcodeBuildTestEnabled
     self.storageApplicationSupportRoots = storageApplicationSupportRoots
     self.storageMigrationAction = storageMigrationAction
   }

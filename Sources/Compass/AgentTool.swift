@@ -154,6 +154,10 @@ struct AgentToolContext: Sendable {
   var planHistoryEntries: [String]
   /// Shared VM toolchain listing/installation. Nil on host-route runs.
   var toolchainService: (any SharedVMToolchainService)?
+  /// Restricted host-side Xcode build/test bridge. Nil unless the user
+  /// enabled it for this project, the active plan requires it, and host
+  /// Xcode readiness checks passed.
+  var hostXcodeService: (any HostXcodeServicing)?
 
   init(
     workingDirectory: URL,
@@ -163,7 +167,8 @@ struct AgentToolContext: Sendable {
     delegateRunner: AgentDelegateRunner? = nil,
     codemapStoreDirectory: URL? = nil,
     planHistoryEntries: [String] = [],
-    toolchainService: (any SharedVMToolchainService)? = nil
+    toolchainService: (any SharedVMToolchainService)? = nil,
+    hostXcodeService: (any HostXcodeServicing)? = nil
   ) {
     let normalizedWorkingDirectory = workingDirectory.standardizedFileURL
     self.workingDirectory = normalizedWorkingDirectory
@@ -176,6 +181,7 @@ struct AgentToolContext: Sendable {
       ?? Self.defaultCodemapDirectory(forWorkingDirectory: normalizedWorkingDirectory)
     self.planHistoryEntries = planHistoryEntries
     self.toolchainService = toolchainService
+    self.hostXcodeService = hostXcodeService
   }
 
   static func defaultCodemapDirectory(forWorkingDirectory workingDirectory: URL) -> URL {

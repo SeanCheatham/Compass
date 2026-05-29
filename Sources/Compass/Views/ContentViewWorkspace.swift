@@ -582,6 +582,20 @@ struct ProjectRunControls: View {
       Menu {
         Text(executionEnvironmentMenu.statusText)
         Divider()
+        Button {
+          project.hostXcodeBuildTestEnabled.toggle()
+          model.saveProjects()
+        } label: {
+          Label(
+            project.hostXcodeBuildTestEnabled
+              ? "Disable Host Xcode Build/Test" : "Enable Host Xcode Build/Test",
+            systemImage: project.hostXcodeBuildTestEnabled ? "checkmark.square" : "square"
+          )
+        }
+        Text(
+          "Allows plans marked for host Xcode to run build/test verification against a temporary host mirror."
+        )
+        Divider()
         let diagnosticsAction = executionEnvironmentMenu.copyDiagnosticsAction
         Button {
           copyRuntimeDiagnosticsToPasteboard(diagnosticsAction.copyText)

@@ -233,6 +233,25 @@ struct AgentSystemPromptTests {
       "Must call out the failure mode for Xcode-project builds")
   }
 
+  @Test func testHostXcodeToolIsAbsentFromSystemPromptByDefault() {
+    let prompt = Prompts.agentSystemPrompt(phase: .develop, workingDirectoryPath: "/x")
+    #expect(!prompt.contains("host_xcode"))
+    #expect(!prompt.contains("Host Xcode"))
+  }
+
+  @Test func testHostXcodeToolIsAdvertisedOnlyAsBuildTestWhenEnabled() {
+    let prompt = Prompts.agentSystemPrompt(
+      phase: .develop,
+      workingDirectoryPath: "/x",
+      executionEnvironment: .sharedVM,
+      hostXcodeBuildTestEnabled: true
+    )
+    #expect(prompt.contains("host_xcode"))
+    #expect(prompt.contains("build/test only"))
+    #expect(!prompt.contains("simctl"))
+    #expect(!prompt.contains("`open`"))
+  }
+
   @Test func testExecutionEnvironmentSectionsAreRoutedByDescriptor() {
     #require(Prompts.executionEnvironmentSection(.host).contains("native macOS host"))
     #require(Prompts.executionEnvironmentSection(.sharedVM).contains("Shared VM"))

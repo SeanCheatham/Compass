@@ -81,7 +81,8 @@ extension CompassProject {
         feedback: priorFeedback,
         lessons: workspace.readLessons(),
         vision: workspace.readVision(),
-        focus: focus
+        focus: focus,
+        hostXcodeBuildTestEnabled: hostXcodeBuildTestEnabled
       )
       let promptURL = try workspace.writeSessionArtifact(
         session: sessionNumber,
@@ -104,7 +105,9 @@ extension CompassProject {
         modelOverride: modelOverride,
         workingDirectory: workspace.repoURL,
         userPrompt: prompt,
-        submitResultSchema: Prompts.planSchema,
+        submitResultSchema: Prompts.planSchema(
+          hostXcodeBuildTestEnabled: hostXcodeBuildTestEnabled
+        ),
         codemapStoreDirectory: CodemapStore.defaultDirectory(forWorkspace: workspace),
         planHistoryEntries: currentState.completed,
         decode: PlanRunResult.self
@@ -278,7 +281,8 @@ extension CompassProject {
             vision: workspace.readVision(),
             attempt: attempt,
             priorIssues: priorIssues,
-            criticFeedback: criticFeedbacks
+            criticFeedback: criticFeedbacks,
+            hostXcodeBuildTestEnabled: hostXcodeBuildTestEnabled
           )
 
           let launchPlan = agentLaunchPlan(for: workspace.repoURL)
@@ -303,6 +307,8 @@ extension CompassProject {
               userPrompt: prompt,
               submitResultSchema: Prompts.developSchema,
               codemapStoreDirectory: CodemapStore.defaultDirectory(forWorkspace: workspace),
+              requiresHostXcode: next.requiresHostXcode,
+              hostXcodeBuildTestEnabled: hostXcodeBuildTestEnabled,
               decode: DevelopSummary.self
             )
           } catch let error as AgentExecutionError where error.isAgentBudgetExhaustion {
@@ -514,7 +520,8 @@ extension CompassProject {
       lessons: workspace.readLessons(),
       vision: workspace.readVision(),
       recentSessions: Array(recentSessions),
-      iteration: iteration
+      iteration: iteration,
+      hostXcodeBuildTestEnabled: hostXcodeBuildTestEnabled
     )
 
     let launchPlan = agentLaunchPlan(for: workspace.repoURL)
@@ -531,7 +538,9 @@ extension CompassProject {
       modelOverride: modelOverride,
       workingDirectory: workspace.repoURL,
       userPrompt: prompt,
-      submitResultSchema: Prompts.reflectSchema,
+      submitResultSchema: Prompts.reflectSchema(
+        hostXcodeBuildTestEnabled: hostXcodeBuildTestEnabled
+      ),
       codemapStoreDirectory: CodemapStore.defaultDirectory(forWorkspace: workspace),
       decode: ReflectSummary.self
     )
@@ -690,7 +699,9 @@ extension CompassProject {
         command: next.verify,
         hostWorkingDirectory: workingDirectory,
         timeoutSeconds: TimeInterval(timeoutMs) / 1000,
-        launchPlan: launchPlan
+        launchPlan: launchPlan,
+        requiresHostXcode: next.requiresHostXcode,
+        hostXcodeBuildTestEnabled: hostXcodeBuildTestEnabled
       )
       if verify.exitCode == 0 {
         log("Verify passed.", level: .success)

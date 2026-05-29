@@ -1,0 +1,70 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["state", "lessonEdits"],
+  "properties": {
+    "state": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["immediate", "midTerm", "longTerm"],
+      "properties": {
+        "immediate": {
+          "anyOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "plan",
+                "verify",
+                "verifyTimeoutMs",
+                "estimatedDifficulty",
+                "requiresHostXcode"
+              ],
+              "properties": {
+                "plan": { "type": "string" },
+                "verify": { "type": "string" },
+                "verifyTimeoutMs": {
+                  "anyOf": [
+                    { "type": "integer", "minimum": 1 },
+                    { "type": "null" }
+                  ]
+                },
+                "estimatedDifficulty": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "enum": ["low", "medium", "high"]
+                    },
+                    { "type": "null" }
+                  ]
+                },
+                "requiresHostXcode": { "type": "boolean" }
+              }
+            },
+            { "type": "null" }
+          ]
+        },
+        "midTerm": { "type": "string" },
+        "longTerm": { "type": "string" }
+      }
+    },
+    "lessonEdits": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["find", "replace", "replaceAll"],
+        "properties": {
+          "find": { "type": "string" },
+          "replace": { "type": "string" },
+          "replaceAll": {
+            "anyOf": [
+              { "type": "boolean" },
+              { "type": "null" }
+            ]
+          }
+        }
+      }
+    }
+  }
+}

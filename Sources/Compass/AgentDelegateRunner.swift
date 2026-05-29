@@ -44,6 +44,7 @@ struct AgentExecutorDelegateRunner: AgentDelegateRunner {
   let parentMaxIterations: Int
   let parentWallClockTimeout: TimeInterval
   let toolchainService: (any SharedVMToolchainService)?
+  let hostXcodeService: (any HostXcodeServicing)?
   /// Live-log sink so sub-agent activity surfaces under the parent run.
   let onEvent: @Sendable (LiveEvent) -> Void
 
@@ -69,7 +70,8 @@ struct AgentExecutorDelegateRunner: AgentDelegateRunner {
     let systemPrompt = Prompts.subAgentSystemPrompt(
       parentPhase: parentPhase,
       workingDirectoryPath: workingDirectory.path,
-      toolNames: toolNameList
+      toolNames: toolNameList,
+      hostXcodeBuildTestEnabled: hostXcodeService != nil
     )
     let configuration = AgentExecutionConfiguration(
       settings: settings,
@@ -86,6 +88,7 @@ struct AgentExecutorDelegateRunner: AgentDelegateRunner {
       bashRunner: bashRunner,
       codemapStoreDirectory: codemapStoreDirectory,
       toolchainService: toolchainService,
+      hostXcodeService: hostXcodeService,
       maxIterations: min(parentMaxIterations, Self.maxSubAgentIterations),
       wallClockTimeout: min(parentWallClockTimeout, Self.maxSubAgentWallClock)
     )

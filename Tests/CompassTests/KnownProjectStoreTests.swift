@@ -20,6 +20,7 @@ struct KnownProjectStoreTestsRecordDecoding : ~Copyable {
     let record = #require(records.first)
     #require(record.activeStorage == .repoLocal)
     #require(record.nativeFeedbackMode == .notifications)
+    #expect(!record.hostXcodeBuildTestEnabled)
   }
 
   @Test func testNativeFeedbackAndExecutionEnvironmentDecodingDefaultsMissingAndFutureValues() throws {

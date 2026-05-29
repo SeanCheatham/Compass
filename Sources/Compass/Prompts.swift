@@ -8,10 +8,20 @@ enum Prompts {
   /// silently shipping a broken phase. Schemas are validated as JSON at
   /// load time so a hand-edit that breaks syntax is caught immediately.
   static let planSchema = loadSchema("plan")
+  static let planHostXcodeSchema = loadSchema("planHostXcode")
   static let developSchema = loadSchema("develop")
   static let reflectSchema = loadSchema("reflect")
+  static let reflectHostXcodeSchema = loadSchema("reflectHostXcode")
   static let criticSchema = loadSchema("critic")
   static let subAgentSchema = loadSchema("subAgent")
+
+  static func planSchema(hostXcodeBuildTestEnabled: Bool) -> String {
+    hostXcodeBuildTestEnabled ? planHostXcodeSchema : planSchema
+  }
+
+  static func reflectSchema(hostXcodeBuildTestEnabled: Bool) -> String {
+    hostXcodeBuildTestEnabled ? reflectHostXcodeSchema : reflectSchema
+  }
 
   /// Token type used to anchor `Bundle(for:)` lookups in the Xcode-built
   /// app bundle. `Bundle.module` is only synthesized by SwiftPM, so the
@@ -62,9 +72,25 @@ enum Prompts {
     feedback: String,
     lessons: String,
     vision: String,
-    focus: PlanFocus
+    focus: PlanFocus,
+    hostXcodeBuildTestEnabled: Bool = false
   ) throws -> String {
-    let stateJSON = try CompassWorkspace.encodeProposal(state)
+    let promptState = hostXcodeBuildTestEnabled ? state : state.removingHostXcodeRequirement()
+    let stateJSON = try CompassWorkspace.encodeProposal(promptState)
+    let hostXcodePlanningRule =
+      hostXcodeBuildTestEnabled
+      ? """
+        - If the next increment's verify path needs full host Xcode build/test
+          support (`xcodebuild` with `.xcodeproj` / `.xcworkspace`, iOS SDKs,
+          or simulator-backed `xcodebuild test` destinations), set
+          `requiresHostXcode` to true. Use true only for build/test needs, not
+          for launching apps, opening Simulator, or arbitrary host commands.
+        """
+      : ""
+    let hostXcodeShape =
+      hostXcodeBuildTestEnabled
+      ? ",\n            \"requiresHostXcode\": true|false"
+      : ""
     return """
       You are the Plan agent in Compass's software factory (see the system
       message for how the loop works). Treat the structured JSON you return as
@@ -112,6 +138,7 @@ enum Prompts {
       - Never write code or commit from Plan. Running builds, tests, or other
         read-only shell commands to confirm assumptions is fine; that's what
         `bash` is for here.
+      \(hostXcodePlanningRule)
 
       \(lessonEditsGuidance())
 
@@ -125,7 +152,7 @@ enum Prompts {
             "plan": "markdown plan for one implementation increment",
             "verify": "shell command — no `cd` prefix, no absolute paths",
             "verifyTimeoutMs": 600000,
-            "estimatedDifficulty": "low|medium|high"
+            "estimatedDifficulty": "low|medium|high"\(hostXcodeShape)
           } | null,
           "midTerm": "markdown",
           "longTerm": "markdown"
@@ -175,10 +202,19 @@ enum Prompts {
     lessons: String,
     vision: String,
     recentSessions: [SessionRecord],
-    iteration: Int
+    iteration: Int,
+    hostXcodeBuildTestEnabled: Bool = false
   ) throws -> String {
-    let stateJSON = try CompassWorkspace.encodeProposal(state)
+    let promptState = hostXcodeBuildTestEnabled ? state : state.removingHostXcodeRequirement()
+    let stateJSON = try CompassWorkspace.encodeProposal(promptState)
     let sessionsJSON = try encodeSessions(recentSessions)
+    let hostXcodeGuidance =
+      hostXcodeBuildTestEnabled
+      ? """
+        When preserving or rewriting `immediate`, keep `requiresHostXcode`
+        true only if the verify path needs host Xcode build/test support.
+        """
+      : ""
     return """
       You are the Reflect agent in Compass's software factory (see the system
       message for how the loop works).
@@ -202,6 +238,7 @@ enum Prompts {
       \(lessonEditsGuidance())
 
       Keep this tight. Do not rewrite state defensively.
+      \(hostXcodeGuidance)
 
       ## Current planning state
       ```json
@@ -227,7 +264,8 @@ enum Prompts {
     vision: String,
     attempt: Int,
     priorIssues: [String],
-    criticFeedback: [String] = []
+    criticFeedback: [String] = [],
+    hostXcodeBuildTestEnabled: Bool = false
   ) -> String {
     let criticSection: String
     if criticFeedback.isEmpty {
@@ -256,7 +294,8 @@ enum Prompts {
       vision: vision,
       attempt: attempt,
       priorIssues: priorIssues,
-      criticSection: criticSection
+      criticSection: criticSection,
+      hostXcodeBuildTestEnabled: hostXcodeBuildTestEnabled
     )
   }
 
@@ -266,9 +305,21 @@ enum Prompts {
     vision: String,
     attempt: Int,
     priorIssues: [String],
-    criticSection: String
+    criticSection: String,
+    hostXcodeBuildTestEnabled: Bool
   ) -> String {
-    """
+    let hostXcodeWorkflow =
+      hostXcodeBuildTestEnabled && next.requiresHostXcode
+      ? """
+
+        Host Xcode build/test bridge:
+        This increment requires host Xcode. Use the `host_xcode` tool for
+        Xcode build/test checks only. It runs against a temporary host mirror
+        of this guest workspace, so keep source edits in the normal file tools
+        here and do not use `bash` for Xcode-only commands.
+        """
+      : ""
+    return """
     You are the Develop agent in Compass's software factory (see the system
     message for how the loop works).
 
@@ -290,6 +341,7 @@ enum Prompts {
     tree; after post-checks Compass lands your edits on the host checkout and
     commits with your `summary` as the message. On the rare host route,
     `bash` may commit in-place on the user's branch.
+    \(hostXcodeWorkflow)
 
     \(developAttemptInstructions(attempt: attempt, priorIssues: priorIssues))
 
@@ -469,7 +521,8 @@ enum Prompts {
     parentPhase: AgentPhase,
     workingDirectoryPath: String,
     toolNames: [String],
-    executionEnvironment: ExecutionEnvironmentDescriptor = .sharedVM
+    executionEnvironment: ExecutionEnvironmentDescriptor = .sharedVM,
+    hostXcodeBuildTestEnabled: Bool = false
   ) -> String {
     let toolList = toolNames.isEmpty ? "(none)" : toolNames.joined(separator: ", ")
     return """
@@ -488,7 +541,10 @@ enum Prompts {
       All tool paths are resolved against this directory. Relative paths
       are recommended; absolute paths must resolve inside it.
 
-      \(executionEnvironmentSection(executionEnvironment))
+      \(executionEnvironmentSection(
+        executionEnvironment,
+        hostXcodeBuildTestEnabled: hostXcodeBuildTestEnabled
+      ))
 
       Tools available to you this turn:
       \(toolList)
@@ -526,13 +582,18 @@ enum Prompts {
     phase: AgentPhase,
     workingDirectoryPath: String,
     executionEnvironment: ExecutionEnvironmentDescriptor = .sharedVM,
-    installedToolchainIDs: [String] = []
+    installedToolchainIDs: [String] = [],
+    hostXcodeBuildTestEnabled: Bool = false
   ) -> String {
     let fileTools = "read_file, ls, grep, glob"
     let codemapTools = "outline, find_symbol, summary, list_files, importers_of"
     let writeTools = "write_file, edit_file, bash"
     let delegateTool =
       "delegate (spawn a focused sub-agent for a self-contained sub-task; it returns a findings string)"
+    let hostXcodeTool =
+      hostXcodeBuildTestEnabled
+      ? "\n        - Host Xcode: host_xcode (restricted to host-side xcodebuild build/test only, against a temporary mirror)."
+      : ""
     let toolList: String
     switch phase {
     case .plan:
@@ -557,7 +618,7 @@ enum Prompts {
         - Codemap tools: \(codemapTools).
         - File tools: \(fileTools).
         - Write tools: \(writeTools).
-        - Sub-agents: \(delegateTool).
+        - Sub-agents: \(delegateTool).\(hostXcodeTool)
         """
     case .critic:
       toolList = """
@@ -612,7 +673,11 @@ enum Prompts {
 
       \(lessonEditsGuidance())
 
-      \(executionEnvironmentSection(executionEnvironment, installedToolchainIDs: installedToolchainIDs))
+      \(executionEnvironmentSection(
+        executionEnvironment,
+        installedToolchainIDs: installedToolchainIDs,
+        hostXcodeBuildTestEnabled: hostXcodeBuildTestEnabled
+      ))
 
       Tools available to you this turn:
       \(toolList)
@@ -739,7 +804,8 @@ enum Prompts {
   /// changes to it directly affect tool-call efficiency.
   static func executionEnvironmentSection(
     _ env: ExecutionEnvironmentDescriptor,
-    installedToolchainIDs: [String] = []
+    installedToolchainIDs: [String] = [],
+    hostXcodeBuildTestEnabled: Bool = false
   ) -> String {
     switch env {
     case .host:
@@ -761,13 +827,10 @@ enum Prompts {
         Execution environment: Compass Shared VM (headless macOS guest).
         Pre-installed: Xcode Command Line Tools (`swift`, `clang`, `git`,
         `make`, `llvm`, macOS SDK), Homebrew, and ripgrep (`rg`).
-        The full Xcode IDE is NOT installed, so `xcodebuild`, Interface
-        Builder, the iOS/watchOS/tvOS SDKs, and the Simulator are unavailable.
+        \(sharedVMXcodeAvailabilityLine(hostXcodeBuildTestEnabled: hostXcodeBuildTestEnabled))
         For SwiftPM packages, build and test with `swift build` /
         `swift test`. For `.xcodeproj`-based projects there is no
-        in-VM equivalent — those builds must happen on the host route
-        (Compass falls back to host execution automatically for those
-        phases).
+        in-VM equivalent.
         On-demand toolchains (install via `install_toolchain`): rust, go,
         node (JavaScript / TypeScript — includes npm, npx, and global `tsc`),
         python, jvm. Use `list_toolchains` to see what is installed.
@@ -777,6 +840,20 @@ enum Prompts {
         from github.com) and Homebrew works.
         """
     }
+  }
+
+  private static func sharedVMXcodeAvailabilityLine(hostXcodeBuildTestEnabled: Bool) -> String {
+    if hostXcodeBuildTestEnabled {
+      return """
+        Full Xcode is not installed in the guest. When this plan explicitly
+        requires host Xcode, use `host_xcode` for build/test only; do not use it
+        for Simulator management, app launching, or arbitrary host shell.
+        """
+    }
+    return """
+      The full Xcode IDE is NOT installed, so `xcodebuild`, Interface
+      Builder, the iOS/watchOS/tvOS SDKs, and the Simulator are unavailable.
+      """
   }
 
   /// Instruction appended to the live conversation when the executor

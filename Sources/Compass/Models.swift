@@ -5,6 +5,7 @@ struct PlanNext: Codable, Equatable {
   var verify: String
   var verifyTimeoutMs: Int?
   var estimatedDifficulty: Difficulty?
+  var requiresHostXcode: Bool
 
   enum Difficulty: String, Codable, CaseIterable {
     case low
@@ -17,18 +18,21 @@ struct PlanNext: Codable, Equatable {
     case verify
     case verifyTimeoutMs
     case estimatedDifficulty
+    case requiresHostXcode
   }
 
   init(
     plan: String,
     verify: String,
     verifyTimeoutMs: Int? = nil,
-    estimatedDifficulty: Difficulty? = nil
+    estimatedDifficulty: Difficulty? = nil,
+    requiresHostXcode: Bool = false
   ) {
     self.plan = plan.trimmingCharacters(in: .whitespacesAndNewlines)
     self.verify = verify.trimmingCharacters(in: .whitespacesAndNewlines)
     self.verifyTimeoutMs = verifyTimeoutMs
     self.estimatedDifficulty = estimatedDifficulty
+    self.requiresHostXcode = requiresHostXcode
   }
 
   init(from decoder: Decoder) throws {
@@ -51,6 +55,8 @@ struct PlanNext: Codable, Equatable {
     self.verifyTimeoutMs = rawTimeout.flatMap { $0 > 0 ? $0 : nil }
     self.estimatedDifficulty = try container.decodeIfPresent(
       Difficulty.self, forKey: .estimatedDifficulty)
+    self.requiresHostXcode =
+      try container.decodeIfPresent(Bool.self, forKey: .requiresHostXcode) ?? false
   }
 
   func encode(to encoder: Encoder) throws {
@@ -59,6 +65,9 @@ struct PlanNext: Codable, Equatable {
     try container.encode(verify, forKey: .verify)
     try container.encodeIfPresent(verifyTimeoutMs, forKey: .verifyTimeoutMs)
     try container.encodeIfPresent(estimatedDifficulty, forKey: .estimatedDifficulty)
+    if requiresHostXcode {
+      try container.encode(true, forKey: .requiresHostXcode)
+    }
   }
 }
 

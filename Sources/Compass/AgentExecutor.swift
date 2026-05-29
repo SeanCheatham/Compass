@@ -35,6 +35,7 @@ struct AgentExecutionConfiguration {
   /// Host-side completed plan summaries for the `plan_history` tool.
   var planHistoryEntries: [String]
   var toolchainService: (any SharedVMToolchainService)?
+  var hostXcodeService: (any HostXcodeServicing)?
   /// Optional post-decode guard for `submit_result`. When it throws,
   /// the executor rolls back the turn and reprompts — same remediation
   /// path as malformed tool JSON. `runAgent` uses this to reject lesson
@@ -58,6 +59,7 @@ struct AgentExecutionConfiguration {
     codemapStoreDirectory: URL? = nil,
     planHistoryEntries: [String] = [],
     toolchainService: (any SharedVMToolchainService)? = nil,
+    hostXcodeService: (any HostXcodeServicing)? = nil,
     validateSubmitResult: (@Sendable (Data) throws -> Void)? = nil,
     maxIterations: Int = 512,
     wallClockTimeout: TimeInterval = 60 * 60
@@ -75,6 +77,7 @@ struct AgentExecutionConfiguration {
     self.codemapStoreDirectory = codemapStoreDirectory
     self.planHistoryEntries = planHistoryEntries
     self.toolchainService = toolchainService
+    self.hostXcodeService = hostXcodeService
     self.validateSubmitResult = validateSubmitResult
     self.maxIterations = maxIterations
     self.wallClockTimeout = wallClockTimeout
@@ -217,7 +220,8 @@ final class AgentExecutor {
       delegateRunner: delegateRunner,
       codemapStoreDirectory: configuration.codemapStoreDirectory,
       planHistoryEntries: configuration.planHistoryEntries,
-      toolchainService: configuration.toolchainService
+      toolchainService: configuration.toolchainService,
+      hostXcodeService: configuration.hostXcodeService
     )
     let model = configuration.settings.model(
       for: configuration.phase, sidebarOverride: configuration.modelOverride)
@@ -498,6 +502,7 @@ final class AgentExecutor {
       parentMaxIterations: configuration.maxIterations,
       parentWallClockTimeout: configuration.wallClockTimeout,
       toolchainService: configuration.toolchainService,
+      hostXcodeService: configuration.hostXcodeService,
       onEvent: onEvent
     )
   }

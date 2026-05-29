@@ -80,6 +80,49 @@ struct PlanPromptTests {
     )
   }
 
+  @Test func testHostXcodePlanningIsAbsentUnlessProjectOptInIsEnabled() throws {
+    let state = PlanProposal(
+      immediate: PlanNext(
+        plan: "Build the app",
+        verify: "xcodebuild -scheme App build",
+        requiresHostXcode: true
+      ),
+      midTerm: "",
+      longTerm: ""
+    )
+
+    let prompt = try Prompts.planPrompt(
+      state: state,
+      completedCount: 0,
+      drafts: "",
+      feedback: "",
+      lessons: "",
+      vision: "",
+      focus: .feature
+    )
+
+    #expect(!prompt.contains("requiresHostXcode"))
+    #expect(!prompt.contains("Host Xcode"))
+  }
+
+  @Test func testHostXcodePlanningAppearsWhenProjectOptInIsEnabled() throws {
+    let prompt = try Prompts.planPrompt(
+      state: .empty,
+      completedCount: 0,
+      drafts: "",
+      feedback: "",
+      lessons: "",
+      vision: "",
+      focus: .feature,
+      hostXcodeBuildTestEnabled: true
+    )
+
+    #expect(prompt.contains("requiresHostXcode"))
+    #expect(prompt.contains("host Xcode build/test support"))
+    #expect(!prompt.contains("simctl"))
+    #expect(!prompt.contains("`open`"))
+  }
+
   /// `.compass/` is supposed to be hidden from the agent — its
   /// contents are injected into the user message instead. The
   /// system prompt names the paths once (to teach the model the
@@ -207,6 +250,34 @@ struct PlanPromptTests {
       !prompt.contains("state.json"),
       "develop prompt must not name `state.json`"
     )
+  }
+
+  @Test func testDevelopPromptMentionsHostXcodeOnlyWhenEnabledAndRequired() {
+    let next = PlanNext(
+      plan: "Build the app",
+      verify: "xcodebuild -scheme App build",
+      requiresHostXcode: true
+    )
+
+    let disabled = Prompts.developPrompt(
+      next: next,
+      lessons: "",
+      vision: "",
+      attempt: 1,
+      priorIssues: []
+    )
+    let enabled = Prompts.developPrompt(
+      next: next,
+      lessons: "",
+      vision: "",
+      attempt: 1,
+      priorIssues: [],
+      hostXcodeBuildTestEnabled: true
+    )
+
+    #expect(!disabled.contains("host_xcode"))
+    #expect(enabled.contains("host_xcode"))
+    #expect(enabled.contains("build/test checks only"))
   }
 
   private func makePlanPrompt() throws -> String {
