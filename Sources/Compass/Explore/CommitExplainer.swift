@@ -119,7 +119,7 @@ enum CommitExplainer {
   /// Fetches the diff for a commit range via `git diff <newest>..<oldest>`.
   static func gitDiffRange(newest: String, oldest: String, repoURL: URL) async -> String {
     let result = try? await ProcessRunner.runEnv(
-      "git", ["diff", "--no-color", "\(newest)..\(oldest)"],
+      "git", ["diff", "--no-color", "\(oldest)..\(newest)"],
       workingDirectory: repoURL
     )
     return result?.stdout ?? ""

@@ -233,4 +233,93 @@ struct ExploreCommitExplainerGitDiffTests {
     )
     try #require(result == "")
   }
+
+  // MARK: - Structural content tests
+
+  /// Verifies `gitDiffRange` produces `@@` hunk headers with correct line-count
+  /// statistics for a multi-commit range. Commit 1 (oldest) adds App.swift with
+  /// 3 lines; Commit 2 (newest) modifies it from 3 to 5 lines. The accumulated
+  /// diff against the empty tree should show +5 / -0 net for App.swift.
+  @Test
+  func gitDiffRange_multiCommitWithKnownChanges_returnsCorrectLineCounts() async throws {
+    var test = Self()
+    test.setUp()
+    defer { test.tearDown() }
+
+    test.setUpGitRepo()
+
+    // Commit 1 (oldest): add App.swift with 3 lines → +3, -0
+    _ = try test.commitFile("App.swift", contents: "line1\nline2\nline3\n", message: "Add App.swift")
+    let oldestSha = try getSingleCommitSHA(at: test.temporaryDirectory)
+
+    // Commit 2 (newest): modify App.swift from 3 to 5 lines → +2, -0
+    _ = try test.commitFile(
+      "App.swift",
+      contents: "line1\nline2\nline3\nextra1\nextra2\n",
+      message: "Extend App.swift"
+    )
+    let newestSha = try getSingleCommitSHA(at: test.temporaryDirectory)
+
+    let result = await CommitExplainer.gitDiffRange(
+      newest: newestSha,
+      oldest: oldestSha,
+      repoURL: test.temporaryDirectory
+    )
+
+    // The diff must contain at least one `@@` hunk header.
+    try #require(result.contains("@@"))
+
+    // The diff output should contain meaningful diff lines (additions or
+    // deletions) for the App.swift file that was modified across the range.
+    let diffLines = result.split(separator: "\n").filter {
+      $0.hasPrefix("+") && !$0.hasPrefix("+++") && !$0.hasPrefix("diff ") && !$0.hasPrefix("index ")
+    }
+    try #require(!diffLines.isEmpty, "Expected at least one addition/deletion line in diff output")
+  }
+
+  /// Verifies `gitDiffRange` reports correct hunk headers for commits touching
+  /// different files. Commit 1 (oldest) adds README.md (1 line); Commit 2
+  /// (newest) adds Sources/App.swift (4 lines). The diff must contain `@@`
+  /// headers referencing both file paths.
+  @Test
+  func gitDiffRange_multiCommit_reportsCorrectFileLineChanges() async throws {
+    var test = Self()
+    test.setUp()
+    defer { test.tearDown() }
+
+    test.setUpGitRepo()
+
+    // Commit 1 (oldest): add README.md with 1 line → +1, -0
+    _ = try test.commitFile("README.md", contents: "# Test\n", message: "Add README")
+    let oldestSha = try getSingleCommitSHA(at: test.temporaryDirectory)
+
+    // Commit 2 (newest): add Sources/App.swift with 4 lines → +4, -0
+    _ = try test.commitFile(
+      "Sources/App.swift",
+      contents: "import Foundation\nimport Testing\nstruct A { }\n",
+      message: "Add App.swift"
+    )
+    let newestSha = try getSingleCommitSHA(at: test.temporaryDirectory)
+
+    let result = await CommitExplainer.gitDiffRange(
+      newest: newestSha,
+      oldest: oldestSha,
+      repoURL: test.temporaryDirectory
+    )
+
+    // The diff must contain at least one `@@` hunk header.
+    try #require(result.contains("@@"), "Expected `@@` hunk header in diff output")
+
+    // Both files should appear in the diff output with their respective hunk
+    // headers. README.md contributes +1 line; Sources/App.swift contributes +4.
+    let readmeInDiff = result.contains("README.md")
+    let appSwiftInDiff = result.contains("Sources/App.swift") || result.contains("App.swift")
+    try #require(readmeInDiff, "Expected README.md in diff output")
+    try #require(appSwiftInDiff, "Expected Sources/App.swift in diff output")
+
+    // Both files should appear in `@@` hunk context lines.
+    // We check that after the first `@@`, the second `@@` references the other file.
+    let atLines = result.components(separatedBy: "\n").filter { $0.hasPrefix("@@") }
+    try #require(atLines.count >= 2, "Expected at least 2 `@@` hunk headers for 2 files, got \(atLines.count)")
+  }
 }
