@@ -110,7 +110,7 @@ struct ExploreFileExplainerGuardPathTests {
       SessionCommit(sha: fakeSHA, short: String(fakeSHA.prefix(7)), subject: "Fake last"),
     ]
     // confirm count > 1 guard is reached
-    #require(commits.count > 1)
+    try #require(commits.count > 1)
     // Note: commits.last is NOT nil here (normal array), so the actual nil-
     // return path cannot be triggered at runtime with standard Swift. This
     // test exists to document the guard and confirm the else-branch compiles.
