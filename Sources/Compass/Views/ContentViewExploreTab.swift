@@ -24,6 +24,10 @@ struct ExploreTab: View {
   @State private var whyGeneratedExplanation: String? = nil
   @State private var loadingWhyGenerated = false
 
+  @State private var summaryPopoverFile: String? = nil
+  @State private var summaryPopoverText: String? = nil
+  @State private var showSummaryPopover = false
+
   @State private var sessionScope: SessionScope = .lastSession
 
   var body: some View {
@@ -52,6 +56,11 @@ struct ExploreTab: View {
                   loadingWhyGenerated = true
                   showWhyGenerated = true
                   Task { await loadWhyGenerated() }
+                },
+                onSummaryTap: { path, summary in
+                  summaryPopoverFile = path
+                  summaryPopoverText = summary
+                  showSummaryPopover = true
                 }
               )
             }
@@ -60,6 +69,14 @@ struct ExploreTab: View {
           .padding(.vertical, 6)
         }
         }
+      }
+    }
+    .popover(isPresented: $showSummaryPopover) {
+      if let file = summaryPopoverFile, let text = summaryPopoverText {
+        SummaryPopover(
+          fileName: (file as NSString).lastPathComponent,
+          summary: text
+        )
       }
     }
     .popover(isPresented: $showWhyGenerated) {
@@ -163,6 +180,7 @@ struct FileTreeRowView: View {
   let codemapEntries: [String: CodemapEntry]
   let indentLevel: Int
   let onFileTap: (String) -> Void
+  let onSummaryTap: (String, String) -> Void
   @State private var isExpanded = true
 
   private let rowHeight: CGFloat = 44
@@ -175,7 +193,8 @@ struct FileTreeRowView: View {
             node: child,
             codemapEntries: codemapEntries,
             indentLevel: indentLevel + 1,
-            onFileTap: onFileTap
+            onFileTap: onFileTap,
+            onSummaryTap: onSummaryTap
           )
         }
       }
@@ -220,8 +239,8 @@ struct FileTreeRowView: View {
           LanguageBadge(language: lang)
         }
 
-        // Summary
-        summaryLabel
+        // Summary — tap to open full-text popover
+        summaryButton
       }
       .frame(height: rowHeight)
       .contentShape(Rectangle())
@@ -246,14 +265,24 @@ struct FileTreeRowView: View {
   }
 
   @ViewBuilder
-  private var summaryLabel: some View {
+  private var summaryButton: some View {
     if let entry = codemapEntries[node.relativePath],
        let summary = entry.summary,
        !summary.isEmpty {
-      Text(summary)
-        .font(.caption)
-        .foregroundStyle(.secondary)
-        .lineLimit(1)
+      Button {
+        onSummaryTap(node.relativePath, summary)
+      } label: {
+        HStack(spacing: 4) {
+          Text(summary)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .lineLimit(1)
+          Image(systemName: "arrow.up.left.and.arrow.down.right")
+            .font(.caption2)
+            .foregroundStyle(.tertiary)
+        }
+      }
+      .buttonStyle(.plain)
     } else if node.isDirectory, let folderSummary = node.folderSummary {
       Text(folderSummary)
         .font(.caption)
@@ -383,5 +412,36 @@ struct CodemapFileSystem {
     let dirs = nodes.filter { $0.isDirectory }.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
     let files = nodes.filter { !$0.isDirectory }.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
     return dirs + files
+  }
+}
+
+// MARK: - SummaryPopover
+
+/// A popover that shows the full codemap summary for a file.
+/// Mirrors the layout of ``WhyGeneratedPopover``.
+struct SummaryPopover: View {
+  let fileName: String
+  let summary: String
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 12) {
+      HStack {
+        Label("Summary", systemImage: "text.alignleft")
+          .font(.headline)
+        Spacer()
+        Button("Close") {
+          // popover dismiss handled by isPresented
+        }
+        .buttonStyle(.plain)
+        .font(.caption)
+      }
+
+      Text(summary)
+        .font(.callout)
+        .textSelection(.enabled)
+        .frame(maxWidth: 400, alignment: .leading)
+    }
+    .padding(16)
+    .frame(width: 440)
   }
 }
