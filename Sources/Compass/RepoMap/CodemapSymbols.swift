@@ -15,7 +15,7 @@ struct CodemapSymbol: Sendable, Codable, Equatable {
 
 /// Normalized symbol kinds. Picked to cover the union of what the supported
 /// grammars expose — not every kind applies to every language.
-enum CodemapSymbolKind: String, Sendable, Codable, Equatable {
+enum CodemapSymbolKind: String, Sendable, Codable, Equatable, CaseIterable {
   case function
   case method
   case `class`
