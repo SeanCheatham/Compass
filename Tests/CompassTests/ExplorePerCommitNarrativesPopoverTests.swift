@@ -24,7 +24,15 @@ import Testing
 ///
 /// This mirrors the Path 2 / Path 3 pattern from `ExploreCommitTourRowTests` and
 /// `ExploreQnAPopoverTests` but targets the `PerCommitNarrativesPopover` path.
-@available(macOS 26.0, *)
+
+// MARK: - Shared test helpers
+
+private enum TestError: Error, Sendable {
+  case gitInitFailed(status: Int32)
+  case gitCommandFailed(status: Int32)
+  case noCommitSHAFound
+}
+
 struct ExplorePerCommitNarrativesPopoverTests {
 
   // MARK: - Path 1: empty commits → loadNarratives() returns early
@@ -125,7 +133,7 @@ struct ExplorePerCommitNarrativesPopoverTests {
     try process.run()
     process.waitUntilExit()
     guard process.terminationStatus == 0 else {
-      throw "git init failed with status \(process.terminationStatus)"
+      throw TestError.gitInitFailed(status: process.terminationStatus)
     }
   }
 
@@ -148,7 +156,7 @@ struct ExplorePerCommitNarrativesPopoverTests {
     try process.run()
     process.waitUntilExit()
     guard process.terminationStatus == 0 else {
-      throw "git command failed with status \(process.terminationStatus)"
+      throw TestError.gitCommandFailed(status: process.terminationStatus)
     }
   }
 
@@ -164,32 +172,24 @@ struct ExplorePerCommitNarrativesPopoverTests {
   }
 
   private func getSingleCommitSHA() throws -> String {
-    let result = try waitForSync {
-      try? ProcessRunner.runEnv(
-        "git", ["rev-parse", "HEAD"],
-        workingDirectory: temporaryDirectory
-      )
+    let process = Process()
+    process.launchPath = "/bin/zsh"
+    process.arguments = ["-lc", "git rev-parse HEAD"]
+    process.currentDirectoryURL = temporaryDirectory
+    let stdoutPipe = Pipe()
+    process.standardOutput = stdoutPipe
+    process.standardError = Pipe()
+    try process.run()
+    process.waitUntilExit()
+    guard process.terminationStatus == 0 else {
+      throw TestError.noCommitSHAFound
     }
-    guard let stdout = result?.stdout.trimmingCharacters(in: .whitespacesAndNewlines),
-          !stdout.isEmpty else {
-      throw "no commit SHA found"
+    let data = stdoutPipe.fileHandleForReading.readDataToEndOfFile()
+    guard let stdout = String(data: data, encoding: .utf8)?
+      .trimmingCharacters(in: .whitespacesAndNewlines),
+      !stdout.isEmpty else {
+      throw TestError.noCommitSHAFound
     }
     return stdout
-  }
-
-  private func waitForSync<T>(_ fn: () async throws -> T?) async throws -> T {
-    try await withCheckedThrowingContinuation { continuation in
-      Task {
-        do {
-          if let value = try await fn() {
-            continuation.resume(returning: value)
-          } else {
-            continuation.resume(throwing: "fn returned nil")
-          }
-        } catch {
-          continuation.resume(throwing: error)
-        }
-      }
-    }
   }
 }
