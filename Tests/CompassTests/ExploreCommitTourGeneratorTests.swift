@@ -4,6 +4,21 @@ import Testing
 
 @testable import Compass
 
+// MARK: - ExploreCommitTourGeneratorError
+
+/// Error type used by test helpers in ExploreCommitTourGeneratorTests.
+/// Required to be `Sendable` under Swift 6 strict concurrency when thrown
+/// from async closures (e.g. inside `withCheckedThrowingContinuation`).
+struct ExploreCommitTourGeneratorError: Error, Sendable {
+  enum Kind: Sendable {
+    case gitCommandFailed(status: Int32)
+    case shellCommandFailed(command: String)
+    case noCommitSHAFound
+    case fnReturnedNil
+  }
+  let kind: Kind
+}
+
 struct ExploreCommitTourGeneratorTests {
   // MARK: - Empty string guard
 
