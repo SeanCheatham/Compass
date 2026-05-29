@@ -331,4 +331,71 @@ struct ExploreCommitExplainerTests {
       try #require(result != nil)
     }
   }
+
+  // MARK: - Tuple return: (text, reason) guard paths
+
+  /// Verifies `summarize(diff:)` returns `(nil, .foundationModelsUnavailable)`
+  /// when Foundation Models is not available on this system.
+  ///
+  /// This directly exercises the tuple return value: the first element must be
+  /// `nil` and the second must be `.foundationModelsUnavailable` — the exact
+  /// reason the UI displays when the feature fails to activate.
+  @Test
+  func summarize_modelUnavailable_returnsNilWithUnavailableReason() async throws {
+    // FoundationModelsAvailability.isAvailable is false on this test host
+    // (no Apple Intelligence runtime in the Shared VM). Confirm the method
+    // returns the correct `(nil, .foundationModelsUnavailable)` tuple.
+    let diff = """
+      Sources/App.swift        |   2 ++
+      """
+    let result = await CommitExplainer.summarize(diff: diff)
+    try #require(result.0 == nil)
+    try #require(result.1 == .foundationModelsUnavailable)
+  }
+
+  /// Verifies `summarize(diff:)` returns `(nil, .emptyDiff)` when the diff
+  /// contains only whitespace — the trimmed diff is empty, so the guard fires
+  /// and returns the correct reason tuple.
+  @Test
+  func summarize_whitespaceOnly_returnsNilWithEmptyDiffReason() async throws {
+    let result = await CommitExplainer.summarize(diff: "   \n\t  ")
+    try #require(result.0 == nil)
+    try #require(result.1 == .emptyDiff)
+  }
+
+  /// Verifies `explain(commit:repoURL:)` returns `(nil, .foundationModelsUnavailable)`
+  /// when Foundation Models is unavailable, using a real git repo with a real commit.
+  ///
+  /// The method fetches the diff internally and passes it to `summarize`; when
+  /// `FoundationModelsAvailability.isAvailable == false`, `summarize` returns
+  /// `(nil, .foundationModelsUnavailable)` and `explain` propagates that tuple
+  /// unchanged — so the second commit's diff is never consulted.
+  @Test
+  func explain_commit_modelUnavailable_returnsNilWithUnavailableReason() async throws {
+    var test = Self()
+    test.explainSetUp()
+    defer { test.explainTearDown() }
+
+    test.explainInitGitRepo(at: test.temporaryDirectory)
+
+    // Create a single commit with a file
+    try test.explainWriteFile("README.md", contents: "# Test\n")
+    try test.explainRunGit(
+      "git -C \(test.temporaryDirectory.path) add . && "
+        + "git -C \(test.temporaryDirectory.path) "
+        + "-c user.email=t@t -c user.name=t commit -q -m 'Add README'",
+      at: test.temporaryDirectory
+    )
+
+    let shaResult = try test.explainRunGitCapture(
+      "git -C \(test.temporaryDirectory.path) rev-parse HEAD",
+      at: test.temporaryDirectory
+    )
+    let sha = shaResult.trimmingCharacters(in: .whitespacesAndNewlines)
+    let commit = SessionCommit(sha: sha, short: String(sha.prefix(7)), subject: "Add README")
+
+    let result = await CommitExplainer.explain(commit: commit, repoURL: test.temporaryDirectory)
+    try #require(result.0 == nil)
+    try #require(result.1 == .foundationModelsUnavailable)
+  }
 }
