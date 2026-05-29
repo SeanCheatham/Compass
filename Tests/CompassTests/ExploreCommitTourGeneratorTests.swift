@@ -228,4 +228,24 @@ struct ExploreCommitTourGeneratorTests {
     }
   }
 
+  @Test
+  func generateTour_returnsNilWhenModelUnavailable()  async throws {
+    // Confirms the isAvailable guard fires correctly when Foundation Models is
+    // unavailable, using a real git repo with a real commit.  This mirrors
+    // the pattern from the existing `generate_withRealGitRepo_returnsNilWhenModelUnavailable`
+    // test but exercises `generateTour` (which calls `generate` internally)
+    // rather than `generate` directly.
+    let repoURL = try makeTempDir()
+    try initGitRepo(at: repoURL)
+    let sha = try makeSingleCommit(at: repoURL)
+
+    let commits = [
+      SessionCommit(sha: sha, short: String(sha.prefix(7)), subject: "Test commit"),
+    ]
+    let result = await CommitTourGenerator.generateTour(commits: commits, repoURL: repoURL)
+    if !FoundationModelsAvailability.isAvailable {
+      try #require(result == nil)
+    }
+  }
+
 }
