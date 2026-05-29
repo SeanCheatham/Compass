@@ -5,6 +5,7 @@ enum RepositoryLanguage: String, CaseIterable, Codable, Equatable, Hashable {
   case python
   case go
   case rust
+  case haskell
   case swift
   case markdown
   case other
@@ -16,6 +17,7 @@ enum RepositoryLanguage: String, CaseIterable, Codable, Equatable, Hashable {
     case .python: return "Python"
     case .go: return "Go"
     case .rust: return "Rust"
+    case .haskell: return "Haskell"
     case .swift: return "Swift"
     case .markdown: return "Markdown"
     case .other: return "Other"
@@ -29,6 +31,7 @@ enum RepositoryLanguage: String, CaseIterable, Codable, Equatable, Hashable {
     case .python: return "Python files"
     case .go: return "Go files"
     case .rust: return "Rust files"
+    case .haskell: return "Haskell files"
     case .swift: return "Swift files"
     case .markdown: return "Markdown files"
     case .other: return "other files"
@@ -42,12 +45,13 @@ struct RepositoryLanguageCounts: Codable, Equatable {
   var python = 0
   var go = 0
   var rust = 0
+  var haskell = 0
   var swift = 0
   var markdown = 0
   var other = 0
 
   var total: Int {
-    typeScriptJavaScript + python + go + rust + swift + markdown + other
+    typeScriptJavaScript + python + go + rust + haskell + swift + markdown + other
   }
 
   subscript(language: RepositoryLanguage) -> Int {
@@ -57,6 +61,7 @@ struct RepositoryLanguageCounts: Codable, Equatable {
       case .python: return python
       case .go: return go
       case .rust: return rust
+      case .haskell: return haskell
       case .swift: return swift
       case .markdown: return markdown
       case .other: return other
@@ -73,6 +78,8 @@ struct RepositoryLanguageCounts: Codable, Equatable {
         go = newValue
       case .rust:
         rust = newValue
+      case .haskell:
+        haskell = newValue
       case .swift:
         swift = newValue
       case .markdown:
@@ -96,6 +103,10 @@ enum RepositoryManifestHint: String, CaseIterable, Codable, Equatable, Hashable 
   case goMod = "go.mod"
   case cargoToml = "Cargo.toml"
   case packageSwift = "Package.swift"
+  case stackYaml = "stack.yaml"
+  case cabalProject = "cabal.project"
+  /// Any `*.cabal` package descriptor (detected by extension in the scanner).
+  case cabalPackage = "cabal package"
 
   init?(fileName: String) {
     switch fileName {
@@ -109,6 +120,10 @@ enum RepositoryManifestHint: String, CaseIterable, Codable, Equatable, Hashable 
       self = .cargoToml
     case Self.packageSwift.rawValue:
       self = .packageSwift
+    case Self.stackYaml.rawValue:
+      self = .stackYaml
+    case Self.cabalProject.rawValue:
+      self = .cabalProject
     default:
       return nil
     }
@@ -121,6 +136,7 @@ enum RepositoryManifestHint: String, CaseIterable, Codable, Equatable, Hashable 
     case .goMod: return .go
     case .cargoToml: return .rust
     case .packageSwift: return .swift
+    case .stackYaml, .cabalProject, .cabalPackage: return .haskell
     }
   }
 }
@@ -172,6 +188,8 @@ struct RepositoryLanguageProfile: Codable, Equatable {
       prefix = "Go forge profile"
     case .rust:
       prefix = "Rust forge profile"
+    case .haskell:
+      prefix = "Haskell forge profile"
     case .markdown:
       prefix = "Markdown-heavy profile"
     case .other:
@@ -203,6 +221,7 @@ private struct RepositoryLanguageProfileScanner {
     ".next",
     ".pytest_cache",
     ".ruff_cache",
+    ".stack-work",
     ".svn",
     ".tox",
     ".venv",
@@ -212,6 +231,7 @@ private struct RepositoryLanguageProfileScanner {
     "coverage",
     "DerivedData",
     "dist",
+    "dist-newstyle",
     "env",
     "node_modules",
     "target",
@@ -267,6 +287,8 @@ private struct RepositoryLanguageProfileScanner {
         scannedFiles += 1
         if let hint = RepositoryManifestHint(fileName: child.lastPathComponent) {
           manifestHints.insert(hint)
+        } else if child.pathExtension.lowercased() == "cabal" {
+          manifestHints.insert(.cabalPackage)
         }
         counts.increment(Self.language(for: child))
       }
@@ -311,6 +333,8 @@ private struct RepositoryLanguageProfileScanner {
       return .go
     case "rs":
       return .rust
+    case "hs", "lhs":
+      return .haskell
     case "swift":
       return .swift
     case "markdown", "md", "mdx":
@@ -329,6 +353,7 @@ private struct RepositoryLanguageProfileScanner {
       .python,
       .go,
       .rust,
+      .haskell,
       .swift,
       .markdown,
     ]

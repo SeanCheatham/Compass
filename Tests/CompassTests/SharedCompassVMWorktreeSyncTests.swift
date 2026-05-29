@@ -80,5 +80,9 @@ struct SharedCompassVMWorktreeSyncTests {
       SharedCompassVMWorktreeSync.excludesSyncPath(".build/arm64-apple-macosx/debug/App.swift"))
     try #require(!SharedCompassVMWorktreeSync.excludesSyncPath("Sources/App.swift"))
     try #require(!SharedCompassVMWorktreeSync.excludesSyncPath("build.gradle"))
+    try #require(SharedCompassVMWorktreeSync.excludesSyncPath("dist-newstyle"))
+    try #require(SharedCompassVMWorktreeSync.excludesSyncPath("dist-newstyle/build"))
+    try #require(SharedCompassVMWorktreeSync.excludesSyncPath(".stack-work"))
+    try #require(SharedCompassVMWorktreeSync.excludesSyncPath(".stack-work/dist"))
   }
 }

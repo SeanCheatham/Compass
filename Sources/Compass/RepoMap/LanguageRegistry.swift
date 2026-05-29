@@ -1,6 +1,7 @@
 import Foundation
 import SwiftTreeSitter
 import TreeSitterGo
+import TreeSitterHaskell
 import TreeSitterJavaScript
 import TreeSitterPython
 import TreeSitterRust
@@ -63,6 +64,7 @@ final class LanguageRegistry: @unchecked Sendable {
     case .python: return Language(language: tree_sitter_python())
     case .go: return Language(language: tree_sitter_go())
     case .rust: return Language(language: tree_sitter_rust())
+    case .haskell: return Language(language: tree_sitter_haskell())
     }
   }
 
@@ -85,6 +87,7 @@ final class LanguageRegistry: @unchecked Sendable {
     case .python: return pythonQuery
     case .go: return goQuery
     case .rust: return rustQuery
+    case .haskell: return haskellQuery
     }
   }
 
@@ -237,5 +240,55 @@ final class LanguageRegistry: @unchecked Sendable {
 
     (impl_item
       type: (type_identifier) @name) @def.impl
+    """#
+
+  private static let haskellQuery = #"""
+    (import
+      module: (module) @import.source) @import
+
+    (function
+      name: (variable) @name) @def.function
+
+    (function
+      (variable) @name) @def.function
+
+    (bind
+      name: (variable) @name) @def.function
+
+    (bind
+      (variable) @name) @def.function
+
+    (signature
+      name: (variable) @name) @def.function
+
+    (signature
+      (variable) @name) @def.function
+
+    (data_type
+      name: (name) @name) @def.struct
+
+    (data_type
+      (name) @name) @def.struct
+
+    (newtype
+      name: (name) @name) @def.struct
+
+    (newtype
+      (name) @name) @def.struct
+
+    (class
+      name: (name) @name) @def.interface
+
+    (class
+      (name) @name) @def.interface
+
+    (type_synomym
+      name: (name) @name) @def.type
+
+    (type_synomym
+      (name) @name) @def.type
+
+    (header
+      (module (module_id) @name)) @def.module
     """#
 }

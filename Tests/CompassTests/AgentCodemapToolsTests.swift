@@ -281,6 +281,7 @@ struct AgentCodemapToolsTests: ~Copyable {
     try #require(CodemapLanguage.forRelativePath("bar.cts") == .typescript)
     try #require(CodemapLanguage.forRelativePath("baz.tsx") == .tsx)
     try #require(CodemapLanguage.forRelativePath("qux.pyi") == .python)
+    try #require(CodemapLanguage.forRelativePath("lib.hs") == .haskell)
     try #require(CodemapLanguage.forRelativePath("fle.mjs") == .javascript)
     try #require(CodemapLanguage.forRelativePath("app.cjs") == .javascript)
     try #require(CodemapLanguage.forRelativePath("no-extension") == nil)

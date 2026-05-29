@@ -833,7 +833,8 @@ enum Prompts {
         in-VM equivalent.
         On-demand toolchains (install via `install_toolchain`): rust, go,
         node (JavaScript / TypeScript — includes npm, npx, and global `tsc`),
-        python, jvm. Use `list_toolchains` to see what is installed.
+        python, jvm, haskell (GHC with Cabal and Stack). Use `list_toolchains`
+        to see what is installed.
         Docker is unavailable in the Shared VM — use the host route for
         container workloads.\(installedSummary)
         Network egress to Apple's CDNs (softwareupdate, swift package fetch

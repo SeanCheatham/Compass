@@ -1,5 +1,5 @@
 {
-  "originHash" : "6f8ff44f364cec2673f29fbf60b43a2989074be192926d0b5014e5b85548b0d3",
+  "originHash" : "5f599ddc1bb80762892c705d2d8c3e923545e1c4c00514da7bb0c63f6273b42e",
   "pins" : [
     {
       "identity" : "openai",
@@ -53,6 +53,15 @@
       "state" : {
         "branch" : "master",
         "revision" : "2346a3ab1bb3857b48b29d779a1ef9799a248cd7"
+      }
+    },
+    {
+      "identity" : "tree-sitter-haskell",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/tree-sitter/tree-sitter-haskell",
+      "state" : {
+        "branch" : "master",
+        "revision" : "0975ef72fc3c47b530309ca93937d7d143523628"
       }
     },
     {

@@ -14,7 +14,8 @@ import Foundation
 /// guest because the host owns gitignore filtering on the push side
 /// and a small hard-coded exclude list on the pull side covers the
 /// heavyweight build dirs (`.build`, `target`, `node_modules`,
-/// `build`, `dist`) that dominate working-tree size.
+/// `dist-newstyle`, `.stack-work`, `build`, `dist`) that dominate
+/// working-tree size.
 enum SharedCompassVMWorktreeSync {
   /// Maximum bytes a single sync tar may occupy (after base64 in the
   /// JSON frame). The RPC framing caps total frame size at 1.5 GiB
@@ -33,7 +34,8 @@ enum SharedCompassVMWorktreeSync {
   /// single local `swift build` balloons the vsock push to thousands
   /// of object files and the Plan agent looks hung while sync runs.
   static let pullSideExcludeDirs: [String] = [
-    ".git", ".build", "target", "node_modules", "build", "dist", ".swiftpm",
+    ".git", ".build", "target", "node_modules", "dist-newstyle", ".stack-work", "build", "dist",
+    ".swiftpm",
   ]
 
   /// True when `relative` lies under a `pullSideExcludeDirs` entry.

@@ -301,6 +301,7 @@ struct LanguageBadge: View {
     case .python: return "Py"
     case .go: return "Go"
     case .rust: return "Rs"
+    case .haskell: return "Hs"
     }
   }
 
@@ -313,6 +314,7 @@ struct LanguageBadge: View {
     case .python: return .green
     case .go: return .cyan
     case .rust: return .orange
+    case .haskell: return .purple
     }
   }
 }

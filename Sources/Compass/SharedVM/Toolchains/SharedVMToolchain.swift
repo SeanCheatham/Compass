@@ -10,6 +10,7 @@ enum SharedVMToolchainID: String, CaseIterable, Sendable, Equatable {
   case node
   case python
   case jvm
+  case haskell
 }
 
 /// Guest paths and LaunchDaemon labels derived from a toolchain id.
@@ -81,6 +82,8 @@ struct SharedVMToolchainDefinition: Sendable, Equatable {
     case .jvm:
       return Self.renderBrewPackageInstallScript(
         brewPackage: "openjdk", verifyCommand: "java -version")
+    case .haskell:
+      return Self.renderHaskellInstallScript()
     }
   }
 
@@ -103,6 +106,10 @@ struct SharedVMToolchainDefinition: Sendable, Equatable {
       return """
         su - \(SharedCompassVMBundle.State.defaultGuestUserName) -c '\(Self.nodeVerificationCommand)' >/dev/null 2>&1
         """
+    case .haskell:
+      return """
+        su - \(SharedCompassVMBundle.State.defaultGuestUserName) -c '\(Self.haskellVerificationCommand)' >/dev/null 2>&1
+        """
     case .go, .python, .jvm:
       let verify: String
       switch id {
@@ -123,6 +130,14 @@ struct SharedVMToolchainDefinition: Sendable, Equatable {
 
   static let nodeProbeCommand = """
     su - \(SharedCompassVMBundle.State.defaultGuestUserName) -c 'command -v node >/dev/null 2>&1 && command -v npm >/dev/null 2>&1 && command -v npx >/dev/null 2>&1 && command -v tsc >/dev/null 2>&1 && echo PRESENT || echo MISSING'
+    """
+
+  /// Login-shell check that GHC, Cabal, and Stack are on PATH.
+  static let haskellVerificationCommand =
+    "command -v ghc && command -v cabal && command -v stack && ghc --version && cabal --version && stack --version"
+
+  static let haskellProbeCommand = """
+    su - \(SharedCompassVMBundle.State.defaultGuestUserName) -c 'command -v ghc >/dev/null 2>&1 && command -v cabal >/dev/null 2>&1 && command -v stack >/dev/null 2>&1 && echo PRESENT || echo MISSING'
     """
 
   func parseProgressFraction(fromLogTail tail: String) -> Double {
@@ -236,6 +251,39 @@ struct SharedVMToolchainDefinition: Sendable, Equatable {
         su - "$GUEST_USER" -c 'command -v rustc && rustc --version' \\
           || fail 3 "rustc verification failed"
         echo "\(SharedVMToolchainPaths.logTag(id: id)) installed rust"
+      fi
+      """)
+  }
+
+  private static func renderHaskellInstallScript() -> String {
+    let id = SharedVMToolchainID.haskell.rawValue
+    let brewBin = SharedVMToolchainPaths.brewInstallPath
+    let guestUser = SharedCompassVMBundle.State.defaultGuestUserName
+    return renderScriptShell(id: id, body: """
+      BREW_BIN="\(brewBin)"
+      GUEST_USER="\(guestUser)"
+      if su - "$GUEST_USER" -c '\(haskellVerificationCommand)' >/dev/null 2>&1; then
+        echo "\(SharedVMToolchainPaths.logTag(id: id)) already installed"
+      else
+        [ -x "$BREW_BIN" ] || fail 2 "Homebrew missing — install the homebrew toolchain first"
+        if ! su - "$GUEST_USER" -c 'command -v ghc' >/dev/null 2>&1; then
+          echo "\(SharedVMToolchainPaths.logTag(id: id)) brew install ghc"
+          su - "$GUEST_USER" -c "'$BREW_BIN' install ghc" \\
+            || fail 3 "brew install ghc failed"
+        fi
+        if ! su - "$GUEST_USER" -c 'command -v cabal' >/dev/null 2>&1; then
+          echo "\(SharedVMToolchainPaths.logTag(id: id)) brew install cabal-install"
+          su - "$GUEST_USER" -c "'$BREW_BIN' install cabal-install" \\
+            || fail 4 "brew install cabal-install failed"
+        fi
+        if ! su - "$GUEST_USER" -c 'command -v stack' >/dev/null 2>&1; then
+          echo "\(SharedVMToolchainPaths.logTag(id: id)) brew install stack"
+          su - "$GUEST_USER" -c "'$BREW_BIN' install stack" \\
+            || fail 5 "brew install stack failed"
+        fi
+        su - "$GUEST_USER" -c '\(haskellVerificationCommand)' \\
+          || fail 6 "ghc/cabal/stack verification failed"
+        echo "\(SharedVMToolchainPaths.logTag(id: id)) installed ghc, cabal, and stack"
       fi
       """)
   }
@@ -392,6 +440,17 @@ enum SharedVMToolchainCatalog {
         su - \(SharedCompassVMBundle.State.defaultGuestUserName) -c 'command -v java >/dev/null 2>&1 && echo PRESENT || echo MISSING'
         """,
       installTimeout: 15 * 60,
+      installableViaGenericProvisioner: true
+    ),
+    SharedVMToolchainDefinition(
+      id: .haskell,
+      displayName: "Haskell",
+      description:
+        "GHC compiler with Cabal and Stack build tools via Homebrew (`ghc`, `cabal-install`, `stack`).",
+      defaultProvisioned: false,
+      dependencies: [.homebrew],
+      probeCommand: SharedVMToolchainDefinition.haskellProbeCommand,
+      installTimeout: 20 * 60,
       installableViaGenericProvisioner: true
     ),
   ]

@@ -40,6 +40,10 @@ let package = Package(
       branch: "master"
     ),
     .package(
+      url: "https://github.com/tree-sitter/tree-sitter-haskell",
+      branch: "master"
+    ),
+    .package(
       url: "https://github.com/apple/swift-testing",
       exact: "6.3.2"
     ),
@@ -74,6 +78,7 @@ let package = Package(
         .product(name: "TreeSitterPython", package: "tree-sitter-python"),
         .product(name: "TreeSitterGo", package: "tree-sitter-go"),
         .product(name: "TreeSitterRust", package: "tree-sitter-rust"),
+        .product(name: "TreeSitterHaskell", package: "tree-sitter-haskell"),
       ],
       exclude: [
         "SharedVM/README.md"
