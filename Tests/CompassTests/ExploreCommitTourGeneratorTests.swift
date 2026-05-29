@@ -147,6 +147,43 @@ struct ExploreCommitTourGeneratorTests {
     }
   }
 
+  // MARK: - Large subject line does not overflow diff logic
+
+  @Test
+  func generateTour_largeCommitSubject_doesNotOverflow() async throws {
+    // Creates a real commit with a ~10,000-character subject line and
+    // exercises the single-commit `gitDiff(sha:repoURL)` path where only
+    // the SHA is used (not the subject), confirming long subjects don't
+    // overflow the diff logic.
+    let repoURL = try makeTempDir()
+    try initGitRepo(at: repoURL)
+
+    // Create a file to commit
+    try writeFile("Sources/App.swift", contents: "import Foundation\n", at: repoURL)
+
+    // Create a commit with a ~10,000 character subject
+    let longSubject = String(repeating: "x", count: 10_000)
+    try runGit(
+      "git -C \(repoURL.path) add Sources/App.swift && "
+        + "git -C \(repoURL.path) "
+        + "-c user.email=t@t -c user.name=t commit -q -m \"\(longSubject)\"",
+      at: repoURL
+    )
+
+    // Get the SHA of the single commit
+    let sha = try await capture("git -C \(repoURL.path) rev-parse HEAD", at: repoURL)
+      .trimmingCharacters(in: .whitespacesAndNewlines)
+
+    let commits = [SessionCommit(sha: sha, short: String(sha.prefix(7)), subject: longSubject)]
+    let result = await CommitTourGenerator.generateTour(commits: commits, repoURL: repoURL)
+
+    // The method must not throw regardless of subject length.
+    // Result is nil when Foundation Models is unavailable.
+    if !FoundationModelsAvailability.isAvailable {
+      try #require(result == nil)
+    }
+  }
+
   // MARK: - generateTour multi-commit integration (real git repo)
 
   @Test
