@@ -582,7 +582,7 @@ struct ExploreFileExplainerTests {
       commits: commits
     )
 
-    try #require(result == nil)
+    try #require(result.0 == nil)
   }
 
   @Test
@@ -596,7 +596,7 @@ struct ExploreFileExplainerTests {
       repoURL: test.temporaryDirectory,
       commits: []
     )
-    try #require(result == nil)
+    try #require(result.0 == nil)
   }
 
   // MARK: - whyGenerated
@@ -612,7 +612,7 @@ struct ExploreFileExplainerTests {
       repoURL: test.temporaryDirectory,
       commits: []
     )
-    try #require(result == nil)
+    try #require(result.0 == nil)
   }
 
   @Test

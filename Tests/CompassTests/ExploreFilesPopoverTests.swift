@@ -90,7 +90,7 @@ struct ExploreFilesPopoverTests {
 
     if !FoundationModelsAvailability.isAvailable {
       // The nil return is the expected result when the model is unavailable.
-      try #require(result == nil)
+      try #require(result.0 == nil)
     }
     // If the model IS available, a non-nil string would be returned — both are valid.
   }

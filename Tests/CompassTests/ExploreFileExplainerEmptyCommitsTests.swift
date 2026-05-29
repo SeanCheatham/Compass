@@ -66,6 +66,6 @@ struct ExploreFileExplainerEmptyCommitsTests {
       repoURL: temporaryDirectory,
       commits: commits
     )
-    try #require(result == nil)
+    try #require(result.0 == nil)
   }
 }

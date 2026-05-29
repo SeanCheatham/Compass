@@ -73,7 +73,7 @@ struct ExploreFileExplainerGuardPathTests {
       repoURL: temporaryDirectory,
       commits: commits
     )
-    try #require(result == nil)
+    try #require(result.0 == nil)
   }
 
   // MARK: - Path 2: explain — multi-commit with last==nil (type-safe impossibility)
@@ -122,7 +122,7 @@ struct ExploreFileExplainerGuardPathTests {
       commits: commits
     )
     // Empty diff on both commits triggers the isEmpty guard in explain
-    try #require(result == nil)
+    try #require(result.0 == nil)
   }
 
   // MARK: - Path 2b: explain — type-safe else-branch at line 243-244
@@ -176,7 +176,7 @@ struct ExploreFileExplainerGuardPathTests {
       repoURL: temporaryDirectory,
       commits: commits
     )
-    try #require(result == nil)
+    try #require(result.0 == nil)
   }
 
   /// Verifies `whyGenerated` returns `nil` when Foundation Models is unavailable.
@@ -199,6 +199,6 @@ struct ExploreFileExplainerGuardPathTests {
       repoURL: temporaryDirectory,
       commits: commits
     )
-    try #require(result == nil)
+    try #require(result.0 == nil)
   }
 }
