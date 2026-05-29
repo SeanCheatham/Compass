@@ -131,14 +131,20 @@ struct ExploreArchitectureGraphTests {
   @Test
   func textGraph_returnsNonEmptyString() throws {
     var graph = ImportGraph()
+    // Cross-cluster edge: Sources/A.swift imports Module/B
     let a = ImportGraph.Node(path: "Sources/A.swift")
-    let b = ImportGraph.Node(path: "Sources/B.swift")
-    graph.addEdge(from: a, to: b, rawImport: "B")
+    let b = ImportGraph.Node(path: "Module/B.swift")
+    graph.addEdge(from: a, to: b, rawImport: "Module/B")
 
     let output = graph.textGraph()
     try #require(!output.isEmpty)
-    #expect(output.contains("Architecture Graph"))
-    #expect(output.contains("Sources"))
+    // Verify structural markers are present
+    #expect(output.contains("=== Architecture Graph ==="))
+    #expect(output.contains("📁 "))
+    // Arrow indicates cross-cluster dependency display
+    #expect(output.contains("→"))
+    #expect(output.contains("=== Key Dependencies ==="))
+    #expect(output.contains("=== Entry Points ==="))
   }
 
   @Test
@@ -146,7 +152,10 @@ struct ExploreArchitectureGraphTests {
     var graph = ImportGraph()
     let output = graph.textGraph()
     try #require(!output.isEmpty)
-    #expect(output.contains("Architecture Graph"))
+    // Empty graph still produces all section headers
+    #expect(output.contains("=== Architecture Graph ==="))
+    #expect(output.contains("=== Key Dependencies ==="))
+    #expect(output.contains("=== Entry Points ==="))
   }
 
   @Test
@@ -161,6 +170,27 @@ struct ExploreArchitectureGraphTests {
     )
     let output = graph.textGraph()
     try #require(!output.isEmpty)
+    // Even with whitespace in paths, all section headers appear
+    #expect(output.contains("=== Architecture Graph ==="))
+    #expect(output.contains("=== Key Dependencies ==="))
+    #expect(output.contains("=== Entry Points ==="))
+  }
+
+  // MARK: - textGraph() cluster formatting
+
+  @Test
+  func textGraph_singleFileNoDeps_showsOnlyOwnCluster() throws {
+    // A single isolated node has no cross-cluster edges, so no arrow appears.
+    var graph = ImportGraph()
+    graph.addNode(ImportGraph.Node(path: "Sources/Isolated.swift"))
+    // (no edges)
+
+    let output = graph.textGraph()
+    try #require(!output.isEmpty)
+    // The cluster name appears with its folder marker
+    #expect(output.contains("📁 Sources/"))
+    // No cross-cluster arrow since there are no outgoing edges
+    #expect(!output.contains("→"))
   }
 
   // MARK: - buildGraph
