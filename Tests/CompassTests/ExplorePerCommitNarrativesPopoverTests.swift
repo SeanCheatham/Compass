@@ -56,7 +56,8 @@ struct ExplorePerCommitNarrativesPopoverTests {
     )
     _ = result
     // If commits were non-empty, explain WOULD be called — verify it returns nil for fake SHA
-    try #require(result == nil)
+    // (fake SHA has no diff → explain returns (nil, .emptyDiff))
+    try #require(result.0 == nil && result.1 == .emptyDiff)
   }
 
   // MARK: - Path 2: CommitExplainer.explain returns nil when Foundation Models is unavailable
