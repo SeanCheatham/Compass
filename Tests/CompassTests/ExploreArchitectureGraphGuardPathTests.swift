@@ -67,72 +67,10 @@ struct ExploreArchitectureGraphGuardPathTests {
   }
 
   private mutating func initGitRepo() throws {
-    let process = Process()
-    process.launchPath = "/bin/zsh"
-    process.arguments = ["-lc", "git init -q && git branch -M main"]
-    process.currentDirectoryURL = temporaryDirectory
-    process.standardOutput = Pipe()
-    process.standardError = Pipe()
-    try process.run()
-    process.waitUntilExit()
-    guard process.terminationStatus == 0 else {
-      throw TestHelperError.gitCommandFailed(status: process.terminationStatus)
-    }
-  }
-
-  private mutating func writeFile(_ relative: String, contents: String) throws {
-    let url = temporaryDirectory.appendingPathComponent(relative)
-    try FileManager.default.createDirectory(
-      at: url.deletingLastPathComponent(),
-      withIntermediateDirectories: true
-    )
-    try contents.write(to: url, atomically: true, encoding: .utf8)
-  }
-
-  private mutating func runGit(_ command: String) throws {
-    let process = Process()
-    process.launchPath = "/bin/zsh"
-    process.arguments = ["-lc", command]
-    process.currentDirectoryURL = temporaryDirectory
-    process.standardOutput = Pipe()
-    process.standardError = Pipe()
-    try process.run()
-    process.waitUntilExit()
-    guard process.terminationStatus == 0 else {
-      throw TestHelperError.gitCommandFailed(status: process.terminationStatus)
-    }
+    try initGitRepo(at: temporaryDirectory)
   }
 
   private mutating func makeSingleCommit() throws -> [SessionCommit] {
-    try writeFile("Sources/App.swift", contents: "import Foundation\n")
-    try runGit(
-      "git -C \(temporaryDirectory.path) add Sources/App.swift && "
-        + "git -C \(temporaryDirectory.path) "
-        + "-c user.email=t@t -c user.name=t commit -q -m 'Add App.swift'"
-    )
-    let sha = try getSingleCommitSHA()
-    return [SessionCommit(sha: sha, short: String(sha.prefix(7)), subject: "Add App.swift")]
-  }
-
-  private mutating func getSingleCommitSHA() throws -> String {
-    let process = Process()
-    process.launchPath = "/usr/bin/git"
-    process.arguments = ["rev-parse", "HEAD"]
-    process.currentDirectoryURL = temporaryDirectory
-    let outputPipe = Pipe()
-    process.standardOutput = outputPipe
-    process.standardError = Pipe()
-    try process.run()
-    process.waitUntilExit()
-    guard process.terminationStatus == 0 else {
-      throw TestHelperError.gitCommandFailed(status: process.terminationStatus)
-    }
-    let data = outputPipe.fileHandleForReading.readDataToEndOfFile()
-    let stdout = String(data: data, encoding: .utf8) ?? ""
-    let trimmed = stdout.trimmingCharacters(in: .whitespacesAndNewlines)
-    guard !trimmed.isEmpty else {
-      throw TestHelperError.noCommitSHAFound
-    }
-    return trimmed
+    try makeSingleCommit(at: temporaryDirectory)
   }
 }
