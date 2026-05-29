@@ -1,10 +1,6 @@
 import AppKit
 import SwiftUI
 
-
-import AppKit
-import SwiftUI
-
 struct ContentView: View {
   @EnvironmentObject private var model: AppModel
   @ObservedObject private var sharedVMHost: SharedCompassVM = .shared
