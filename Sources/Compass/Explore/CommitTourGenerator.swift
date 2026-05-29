@@ -67,7 +67,7 @@ enum CommitTourGenerator {
     if commits.count == 1 {
       diff = await CommitExplainer.gitDiff(sha: firstCommit.sha, repoURL: repoURL)
     } else {
-      let oldestCommit = commits[commits.count - 1]
+      let oldestCommit = commits.last!
       diff = await CommitExplainer.gitDiffRange(newest: firstCommit.sha, oldest: oldestCommit.sha, repoURL: repoURL)
     }
     guard !diff.isEmpty else { return nil }
