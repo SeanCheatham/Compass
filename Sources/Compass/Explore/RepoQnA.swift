@@ -57,18 +57,12 @@ enum RepoQnA {
     commits: [SessionCommit]
   ) async -> Answer? {
     guard FoundationModelsAvailability.isAvailable else { return nil }
-    guard let first = commits.first else { return nil }
 
     // 1. Get file changes with codemap summaries.
     let changes = await FileExplainer.changes(for: repoURL, commits: commits)
 
     // 2. Get the actual diff text over the commit range.
-    let diff: String
-    if commits.count == 1 {
-      diff = await CommitExplainer.gitDiff(sha: first.sha, repoURL: repoURL)
-    } else if let last = commits.last {
-      diff = await CommitExplainer.gitDiffRange(newest: first.sha, oldest: last.sha, repoURL: repoURL)
-    } else {
+    guard let diff = await CommitExplainer.commitDiffRange(commits: commits, repoURL: repoURL) else {
       return nil
     }
 

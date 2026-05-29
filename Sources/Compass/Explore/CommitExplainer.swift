@@ -95,6 +95,21 @@ enum CommitExplainer {
     return result?.stdout ?? ""
   }
 
+  /// Returns the git diff text for a commit range, delegating to the appropriate
+  /// single- or multi-commit helper based on commit count.
+  ///
+  /// - Returns: `nil` when commits is empty; otherwise the diff text (may be empty
+  ///   if git produced no output).
+  static func commitDiffRange(commits: [SessionCommit], repoURL: URL) async -> String? {
+    guard let first = commits.first else { return nil }
+    if commits.count == 1 {
+      return await gitDiff(sha: first.sha, repoURL: repoURL)
+    } else {
+      let oldest = commits.last!
+      return await gitDiffRange(newest: first.sha, oldest: oldest.sha, repoURL: repoURL)
+    }
+  }
+
   /// Produces a plain-English summary of a single commit by fetching the full
   /// diff via `git diff <sha>^..<sha>` and passing it to ``summarize(diff:)``.
   ///

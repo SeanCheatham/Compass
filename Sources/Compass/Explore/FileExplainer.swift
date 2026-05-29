@@ -235,14 +235,8 @@ enum FileExplainer {
     repoURL: URL,
     commits: [SessionCommit]
   ) async -> String? {
-    guard let first = commits.first else { return nil }
-    let oldestCommit = commits.last!
-
-    let diff: String
-    if commits.count == 1 {
-      diff = await CommitExplainer.gitDiff(sha: first.sha, repoURL: repoURL)
-    } else {
-      diff = await CommitExplainer.gitDiffRange(newest: first.sha, oldest: oldestCommit.sha, repoURL: repoURL)
+    guard let diff = await CommitExplainer.commitDiffRange(commits: commits, repoURL: repoURL) else {
+      return nil
     }
 
     if diff.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
@@ -270,14 +264,8 @@ enum FileExplainer {
     repoURL: URL,
     commits: [SessionCommit]
   ) async -> String? {
-    guard let first = commits.first else { return nil }
-    let oldestCommit = commits.last!
-
-    let diff: String
-    if commits.count == 1 {
-      diff = await CommitExplainer.gitDiff(sha: first.sha, repoURL: repoURL)
-    } else {
-      diff = await CommitExplainer.gitDiffRange(newest: first.sha, oldest: oldestCommit.sha, repoURL: repoURL)
+    guard let diff = await CommitExplainer.commitDiffRange(commits: commits, repoURL: repoURL) else {
+      return nil
     }
 
     if diff.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
