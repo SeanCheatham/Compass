@@ -171,7 +171,10 @@ Explore has five main components:
   Takes a git diff and produces a plain-English summary in roughly three
   sentences. Uses `FoundationModelsAvailability.isAvailable` from the on-device Foundation
   Models framework. Requires **macOS 26** and is gated behind `@available(macOS 26.0, *)`.
-  Returns `nil` gracefully when Foundation Models is unavailable.
+  Returns `nil` gracefully when Foundation Models is unavailable.  Supports
+  two prompt modes: ``summarize(diff:)`` answers "what changed?"; ``summarizeWhyGenerated(diff:)``
+  answers "why does this file exist?" using a distinct prompt template focused on
+  purpose and architectural role.
 
 - **`CommitTourGenerator`** (`Sources/Compass/Explore/CommitTourGenerator.swift`) —
   Synthesizes a multi-commit diff into a 3–5 sentence architectural guided-tour
@@ -185,7 +188,9 @@ Explore has five main components:
   codemap-based categorization (`Source`, `Tests`, `Config`, `Other`).
   Provides `FileChange` objects with language, line-count labels, and
   category for consistent presentation in the UI. Available on all macOS
-  versions.
+  versions. Two explanation modes are exposed: ``explain(file:repoURL:commits:)``
+  describes *what changed* via the diff; ``whyGenerated(file:repoURL:commits:)``
+  explains *why the file exists* — its purpose and architectural role.
 
 - **`RepoQnA`** (`Sources/Compass/Explore/RepoQnA.swift`) —
   Answers free-text questions about repository changes using on-device
@@ -203,6 +208,19 @@ Explore has five main components:
   Returns `nil` gracefully when Foundation Models is unavailable.
 
 Explore is documented in the Vision under the "Explore layer" section.
+
+### Why Was This File Generated?
+
+The "why generated" explainer answers a distinct question from per-file diff summarization: instead of describing *what changed* in a diff, it explains *why the file was created and what role it plays* in the codebase. This capability is surfaced via ``FileExplainer.whyGenerated(file:repoURL:commits:)``, which routes the same git diff through a purpose-focused prompt chain in ``CommitExplainer/summarizeWhyGenerated(diff:)``.
+
+The two prompt modes share the same diff input but answer different questions:
+
+| Mode | Method | Prompt focus |
+| --- | --- | --- |
+| What changed | ``CommitExplainer.summarize(diff:)`` | Intent and effect of the diff |
+| Why it exists | ``CommitExplainer.summarizeWhyGenerated(diff:)`` | Purpose and architectural role of the file |
+
+The "why generated" view is useful when exploring new or unfamiliar files — it answers "why does this file exist at all?" rather than "what happened to this file in this commit range?".
 
 ## Development
 
