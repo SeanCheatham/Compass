@@ -6,6 +6,9 @@ private extension PlanSessionHistoryItem {
   var canExplore: Bool {
     status == .succeeded && !commits.isEmpty
   }
+
+  var canTour: Bool { canExplore }
+  var canQnA: Bool { canExplore }
 }
 
 struct PlanTab: View {
@@ -1075,10 +1078,6 @@ struct CommitTourRow: View {
   @State private var tourAvailabilityError = false
   @State private var isMonospaced = false
 
-  private var canTour: Bool {
-    item.status == .succeeded && !item.commits.isEmpty
-  }
-
   var body: some View {
     Group {
       if isLoading {
@@ -1123,7 +1122,7 @@ struct CommitTourRow: View {
             }
           }
         }
-      } else if canTour {
+      } else if item.canTour {
         EmptyView()
       }
     }
@@ -1131,7 +1130,7 @@ struct CommitTourRow: View {
   }
 
   func startTour() {
-    guard canTour, tourText == nil else { return }
+    guard item.canTour, tourText == nil else { return }
     isLoading = true
     Task {
       await loadTour()
@@ -1301,12 +1300,8 @@ struct QnAButton: View {
 
   @State private var showingPopover = false
 
-  private var canQnA: Bool {
-    item.status == .succeeded && !item.commits.isEmpty
-  }
-
   var body: some View {
-    if canQnA {
+    if item.canQnA {
       Button {
         showingPopover = true
       } label: {
