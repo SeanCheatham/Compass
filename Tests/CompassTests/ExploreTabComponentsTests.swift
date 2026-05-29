@@ -441,7 +441,8 @@ struct ExploreTabComponentsTests {
   func summaryPopover_frameWidth440() throws {
     let popover = SummaryPopover(
       fileName: "Example.swift",
-      summary: "A summary of the file."
+      summary: "A summary of the file.",
+      reason: nil
     )
     let typeName = String(reflecting: popover.body)
     #expect(typeName.contains("440"))
@@ -451,7 +452,8 @@ struct ExploreTabComponentsTests {
   func summaryPopover_hasCloseButton() throws {
     let popover = SummaryPopover(
       fileName: "Example.swift",
-      summary: "A summary of the file."
+      summary: "A summary of the file.",
+      reason: nil
     )
     #expect(String(reflecting: popover.body).contains("Close"))
   }
@@ -461,7 +463,8 @@ struct ExploreTabComponentsTests {
     let summaryText = "This file does something interesting."
     let popover = SummaryPopover(
       fileName: "Example.swift",
-      summary: summaryText
+      summary: summaryText,
+      reason: nil
     )
     #expect(String(reflecting: popover.body).contains(summaryText))
   }

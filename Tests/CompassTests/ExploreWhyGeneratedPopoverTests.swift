@@ -9,6 +9,7 @@ struct ExploreWhyGeneratedPopoverTests {
     let popover = WhyGeneratedPopover(
       fileName: "GeneratedFile.swift",
       explanation: .constant(nil),
+      reason: .constant(nil),
       isLoading: .constant(true)
     )
 
@@ -22,6 +23,7 @@ struct ExploreWhyGeneratedPopoverTests {
     let popover = WhyGeneratedPopover(
       fileName: "GeneratedFile.swift",
       explanation: .constant("Created from the latest plan."),
+      reason: .constant(nil),
       isLoading: .constant(false)
     )
 
@@ -43,6 +45,7 @@ struct ExploreWhyGeneratedPopoverTests {
         get: { box.explanation },
         set: { box.explanation = $0 }
       ),
+      reason: .constant(nil),
       isLoading: Binding(
         get: { box.isLoading },
         set: { box.isLoading = $0 }

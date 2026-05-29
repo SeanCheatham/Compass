@@ -8,7 +8,8 @@ struct SummaryPopoverTests {
   func initializerKeepsFileNameAndSummary() {
     let popover = SummaryPopover(
       fileName: "Example.swift",
-      summary: "An example file that demonstrates summary display."
+      summary: "An example file that demonstrates summary display.",
+      reason: nil
     )
 
     #expect(popover.fileName == "Example.swift")
@@ -20,7 +21,8 @@ struct SummaryPopoverTests {
     let summaryText = "Detailed summary content"
     let popover = SummaryPopover(
       fileName: "Example.swift",
-      summary: summaryText
+      summary: summaryText,
+      reason: nil
     )
 
     #expect(String(reflecting: popover.body).contains(summaryText))
@@ -30,7 +32,8 @@ struct SummaryPopoverTests {
   func closeButtonPresent() {
     let popover = SummaryPopover(
       fileName: "Example.swift",
-      summary: "Summary"
+      summary: "Summary",
+      reason: nil
     )
 
     #expect(String(reflecting: popover.body).contains("Close"))
@@ -40,7 +43,8 @@ struct SummaryPopoverTests {
   func headerLabelSaysSummary() {
     let popover = SummaryPopover(
       fileName: "Example.swift",
-      summary: "Summary"
+      summary: "Summary",
+      reason: nil
     )
 
     #expect(String(reflecting: popover.body).contains("Summary"))
@@ -50,7 +54,8 @@ struct SummaryPopoverTests {
   func frameAppliesWidth440() {
     let popover = SummaryPopover(
       fileName: "Example.swift",
-      summary: "Summary"
+      summary: "Summary",
+      reason: nil
     )
 
     let typeName = String(reflecting: popover.body)
@@ -61,7 +66,8 @@ struct SummaryPopoverTests {
   func paddingAppliesValue16() {
     let popover = SummaryPopover(
       fileName: "Example.swift",
-      summary: "Summary"
+      summary: "Summary",
+      reason: nil
     )
 
     let typeName = String(reflecting: popover.body)
@@ -72,7 +78,8 @@ struct SummaryPopoverTests {
   func textFrameMaxWidthIs400() {
     let popover = SummaryPopover(
       fileName: "Example.swift",
-      summary: "Summary"
+      summary: "Summary",
+      reason: nil
     )
 
     let typeName = String(reflecting: popover.body)
