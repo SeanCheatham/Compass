@@ -102,8 +102,8 @@ struct ExploreArchitectureGraphPopoverTests {
 
     let rendered = renderView(popover)
 
-    #require(rendered.contains { $0.type == .errorLabel })
-    #require(rendered.contains { $0.type == .text("Foundation Models is unavailable on this device.") })
+    #require(rendered.contains(where: { $0.type == .errorLabel }))
+    #require(rendered.contains(where: { $0.type == .text("Foundation Models is unavailable on this device.") }))
   }
 
   /// Verifies availability error does NOT show spinner.
@@ -120,8 +120,8 @@ struct ExploreArchitectureGraphPopoverTests {
 
     let rendered = renderView(popover)
 
-    #expect(!rendered.contains { $0.type == .spinner })
-    #expect(!rendered.contains { $0.type == .text("Analyzing architecture...") })
+    #expect(!rendered.contains(where: { $0.type == .spinner }))
+    #expect(!rendered.contains(where: { $0.type == .text("Analyzing architecture...") }))
   }
 
   /// Verifies availability error does NOT show graph or explanation sections.
@@ -139,8 +139,8 @@ struct ExploreArchitectureGraphPopoverTests {
     let rendered = renderView(popover)
 
     // Error takes priority — neither section shown
-    #expect(!rendered.contains { $0.type == .text("Structure") })
-    #expect(!rendered.contains { $0.type == .text("Explanation") })
+    #expect(!rendered.contains(where: { $0.type == .text("Structure") }))
+    #expect(!rendered.contains(where: { $0.type == .text("Explanation") }))
   }
 
   // MARK: - State 3: Graph + Explanation
@@ -159,10 +159,10 @@ struct ExploreArchitectureGraphPopoverTests {
 
     let rendered = renderView(popover)
 
-    #require(rendered.contains { $0.type == .text("Structure") })
-    #require(rendered.contains { $0.type == .text("Explanation") })
-    #require(rendered.contains { $0.type == .text("cluster App\n  Sources/App.swift") })
-    #require(rendered.contains { $0.type == .text("This is the main entry point.") })
+    #require(rendered.contains(where: { $0.type == .text("Structure") }))
+    #require(rendered.contains(where: { $0.type == .text("Explanation") }))
+    #require(rendered.contains(where: { $0.type == .text("cluster App\n  Sources/App.swift") }))
+    #require(rendered.contains(where: { $0.type == .text("This is the main entry point.") }))
   }
 
   /// Verifies graph text section has `.textSelection(.enabled)`.
