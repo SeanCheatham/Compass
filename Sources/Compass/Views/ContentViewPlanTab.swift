@@ -2,6 +2,11 @@ import AppKit
 import SwiftUI
 import FoundationModels
 
+private extension PlanSessionHistoryItem {
+  var canExplore: Bool {
+    status == .succeeded && !commits.isEmpty
+  }
+}
 
 struct PlanTab: View {
   @ObservedObject var project: CompassProject
@@ -1150,12 +1155,8 @@ struct ExploreFilesButton: View {
 
   @State private var showingPopover = false
 
-  private var canExplore: Bool {
-    item.status == .succeeded && !item.commits.isEmpty
-  }
-
   var body: some View {
-    if canExplore {
+    if item.canExplore {
       Button {
         showingPopover = true
       } label: {
@@ -1176,12 +1177,8 @@ struct ArchitectureGraphButton: View {
 
   @State private var showingPopover = false
 
-  private var canExplore: Bool {
-    item.status == .succeeded && !item.commits.isEmpty
-  }
-
   var body: some View {
-    if canExplore {
+    if item.canExplore {
       Button {
         showingPopover = true
       } label: {
