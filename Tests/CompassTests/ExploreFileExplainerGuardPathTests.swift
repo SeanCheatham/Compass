@@ -201,4 +201,61 @@ struct ExploreFileExplainerGuardPathTests {
     )
     try #require(result.0 == nil)
   }
+
+  // MARK: - Structural tuple-content tests: non-nil reason verification
+
+  /// Verifies `explain` returns `(nil, .noDiff)` when given an empty commit array.
+  ///
+  /// With `commits = []`, `commitDiffRange` hits the `guard let first = commits.first`
+  /// at line 130 of `CommitExplainer.swift` and returns `nil`. The `else` branch in
+  /// `FileExplainer.explain` at line 242-244 then returns `(nil, .noDiff)`.
+  @Test
+  func explain_emptyCommits_returnsNoDiffReason() async throws {
+    let temporaryDirectory = try makeTempDir()
+    defer { try? FileManager.default.removeItem(at: temporaryDirectory) }
+
+    try CompassTests.initGitRepo(at: temporaryDirectory)
+
+    let result = await FileExplainer.explain(
+      file: "Sources/App.swift",
+      repoURL: temporaryDirectory,
+      commits: []
+    )
+    try #require(result.0 == nil)
+    try #require(result.1 == .noDiff)
+  }
+
+  /// Verifies `explain` returns `(nil, .emptyDiff)` when given a single allow-empty
+  /// commit.
+  ///
+  /// An allow-empty commit has a valid SHA but no file changes, so `git diff`
+  /// returns `""`. The guard at line 246-248 of `FileExplainer.explain` fires
+  /// (`diff.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty` is `true`)
+  /// and returns `(nil, .emptyDiff)` — without reaching the Foundation Models
+  /// `summarize` call. The test verifies the non-nil reason is `.emptyDiff`.
+  @Test
+  func explain_emptyDiff_returnsEmptyDiffReason() async throws {
+    let temporaryDirectory = try makeTempDir()
+    defer { try? FileManager.default.removeItem(at: temporaryDirectory) }
+
+    try CompassTests.initGitRepo(at: temporaryDirectory)
+
+    // Create an allow-empty commit — valid SHA, no files in the tree.
+    try CompassTests.runGit(
+      "git -C \(temporaryDirectory.path) "
+        + "-c user.email=t@t -c user.name=t commit -q --allow-empty -m 'Empty commit'",
+      at: temporaryDirectory
+    )
+
+    let sha = try CompassTests.getSingleCommitSHA(at: temporaryDirectory)
+    let commits = [SessionCommit(sha: sha, short: String(sha.prefix(7)), subject: "Empty commit")]
+
+    let result = await FileExplainer.explain(
+      file: "Sources/App.swift",
+      repoURL: temporaryDirectory,
+      commits: commits
+    )
+    try #require(result.0 == nil)
+    try #require(result.1 == .emptyDiff)
+  }
 }
