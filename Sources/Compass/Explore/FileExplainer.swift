@@ -238,10 +238,9 @@ enum FileExplainer {
     let diff: String
     if commits.count == 1 {
       diff = await CommitExplainer.gitDiff(sha: first.sha, repoURL: repoURL)
-    } else if let last = commits.last {
-      diff = await CommitExplainer.gitDiffRange(newest: first.sha, oldest: last.sha, repoURL: repoURL)
     } else {
-      return nil
+      let last = commits.last!
+      diff = await CommitExplainer.gitDiffRange(newest: first.sha, oldest: last.sha, repoURL: repoURL)
     }
 
     if diff.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
@@ -274,10 +273,9 @@ enum FileExplainer {
     let diff: String
     if commits.count == 1 {
       diff = await CommitExplainer.gitDiff(sha: first.sha, repoURL: repoURL)
-    } else if let last = commits.last {
-      diff = await CommitExplainer.gitDiffRange(newest: first.sha, oldest: last.sha, repoURL: repoURL)
     } else {
-      return nil
+      let last = commits.last!
+      diff = await CommitExplainer.gitDiffRange(newest: first.sha, oldest: last.sha, repoURL: repoURL)
     }
 
     if diff.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
