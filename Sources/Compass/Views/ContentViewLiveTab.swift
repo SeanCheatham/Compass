@@ -1,7 +1,6 @@
 import AppKit
 import SwiftUI
 
-
 struct LiveTab: View {
   @ObservedObject var project: CompassProject
   @State private var liveActivitySummaryCache: [String: LiveActivitySummary] = [:]

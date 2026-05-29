@@ -1,7 +1,6 @@
 import AppKit
 import SwiftUI
 
-
 struct SidebarView: View {
   @EnvironmentObject private var model: AppModel
   @ObservedObject private var sharedVMHost: SharedCompassVM = .shared

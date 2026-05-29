@@ -1,7 +1,6 @@
 import AppKit
 import SwiftUI
 
-
 struct NoProjectView: View {
   @EnvironmentObject private var model: AppModel
 

@@ -1,7 +1,6 @@
 import AppKit
 import SwiftUI
 
-
 struct DraftsTab: View {
   @ObservedObject var project: CompassProject
   @State private var pendingDraftsText = ""

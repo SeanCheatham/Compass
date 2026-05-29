@@ -1,7 +1,6 @@
 import AppKit
 import SwiftUI
 
-
 struct VisionTab: View {
   @ObservedObject var project: CompassProject
   @State private var mode = MarkdownDocumentMode.preview
