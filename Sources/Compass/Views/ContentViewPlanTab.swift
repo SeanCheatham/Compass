@@ -1019,7 +1019,7 @@ struct PerCommitNarrativesPopover: View {
       for (index, commit) in item.commits.enumerated() {
         group.addTask {
           if #available(macOS 26.0, *) {
-            let text = await CommitExplainer.explain(commit: commit, repoURL: repoURL)
+            let (text, _) = await CommitExplainer.explain(commit: commit, repoURL: repoURL)
             var narrative = initialNarratives[index]
             narrative.text = text
             narrative.availabilityError = (text == nil)
@@ -1476,34 +1476,34 @@ struct ExploreFilesPopover: View {
           deletions: loaded[i].deletions,
           language: loaded[i].language,
           summary: entry.summary,
-          explanation: loaded[i].explanation
+          explanation: loaded[i].explanation,
+          explanationReason: loaded[i].explanationReason
         )
       }
     }
 
     // Fetch per-file AI explanations concurrently
-    await withTaskGroup(of: (Int, String?).self) { group in
+    await withTaskGroup(of: (Int, String?, ExplainUnavailableReason?).self) { group in
       for i in loaded.indices {
         group.addTask {
-          let explanation = await FileExplainer.explain(
+          let (explanation, reason) = await FileExplainer.explain(
             file: loaded[i].relativePath,
             repoURL: repoURL,
             commits: item.commits
           )
-          return (i, explanation)
+          return (i, explanation, reason)
         }
       }
-      for await (index, explanation) in group {
-        if let explanation = explanation {
-          loaded[index] = FileChange(
-            relativePath: loaded[index].relativePath,
-            additions: loaded[index].additions,
-            deletions: loaded[index].deletions,
-            language: loaded[index].language,
-            summary: loaded[index].summary,
-            explanation: explanation
-          )
-        }
+      for await (index, explanation, reason) in group {
+        loaded[index] = FileChange(
+          relativePath: loaded[index].relativePath,
+          additions: loaded[index].additions,
+          deletions: loaded[index].deletions,
+          language: loaded[index].language,
+          summary: loaded[index].summary,
+          explanation: explanation,
+          explanationReason: reason
+        )
       }
     }
 
@@ -1519,6 +1519,7 @@ struct ExploreFileRow: View {
 
   @State private var showExplanation = false
   @State private var whyGeneratedExplanation: String?
+  @State private var whyGeneratedReason: ExplainUnavailableReason?
   @State private var showWhyGenerated = false
   @State private var loadingWhyGenerated = false
 
@@ -1544,7 +1545,7 @@ struct ExploreFileRow: View {
           .font(.caption.monospaced())
           .foregroundStyle(.secondary)
 
-        if change.explanation != nil {
+        if change.explanation != nil || change.explanationReason != nil {
           Button {
             showExplanation = true
           } label: {
@@ -1585,49 +1586,82 @@ struct ExploreFileRow: View {
     .frame(maxWidth: .infinity, alignment: .leading)
     .background(.quaternary.opacity(0.3), in: RoundedRectangle(cornerRadius: 4))
     .sheet(isPresented: $showExplanation) {
-      if let explanation = change.explanation {
-        NavigationStack {
-          ScrollView {
-            Text(explanation)
-              .font(.body)
-              .padding()
-              .frame(maxWidth: .infinity, alignment: .leading)
-          }
-          .navigationTitle(change.fileName)
-          .toolbar {
-            ToolbarItem(placement: .confirmationAction) {
-              Button("Done") { showExplanation = false }
-            }
-          }
-        }
-        .frame(minWidth: 400, minHeight: 200)
-      }
+      ExplanationSheet(
+        fileName: change.fileName,
+        explanation: change.explanation,
+        reason: change.explanationReason
+      )
     }
     .popover(isPresented: $showWhyGenerated) {
       WhyGeneratedPopover(
         fileName: change.fileName,
         explanation: $whyGeneratedExplanation,
+        reason: $whyGeneratedReason,
         isLoading: $loadingWhyGenerated
       )
     }
   }
 
   private func loadWhyGenerated() async {
-    guard whyGeneratedExplanation == nil else { return }
-    let result = await FileExplainer.whyGenerated(
+    guard whyGeneratedExplanation == nil && whyGeneratedReason == nil else { return }
+    let (result, reason) = await FileExplainer.whyGenerated(
       file: change.relativePath,
       repoURL: repoURL,
       commits: commits
     )
     await MainActor.run {
       whyGeneratedExplanation = result
+      whyGeneratedReason = reason
     }
+  }
+}
+
+struct ExplanationSheet: View {
+  let fileName: String
+  let explanation: String?
+  let reason: ExplainUnavailableReason?
+  @Environment(\.dismiss) private var dismiss
+
+  var body: some View {
+    NavigationStack {
+      ScrollView {
+        if let explanation = explanation {
+          Text(explanation)
+            .font(.body)
+            .padding()
+            .frame(maxWidth: .infinity, alignment: .leading)
+        } else if let reason = reason {
+          VStack(alignment: .leading, spacing: 12) {
+            Label("Explanation Unavailable", systemImage: "exclamationmark.triangle")
+              .font(.headline)
+            Text(reason.message)
+              .font(.body)
+              .foregroundStyle(.secondary)
+          }
+          .padding()
+          .frame(maxWidth: .infinity, alignment: .leading)
+        } else {
+          Text("Explanation unavailable.")
+            .font(.body)
+            .foregroundStyle(.secondary)
+            .padding()
+        }
+      }
+      .navigationTitle(fileName)
+      .toolbar {
+        ToolbarItem(placement: .confirmationAction) {
+          Button("Done") { dismiss() }
+        }
+      }
+    }
+    .frame(minWidth: 400, minHeight: 200)
   }
 }
 
 struct WhyGeneratedPopover: View {
   let fileName: String
   @Binding var explanation: String?
+  @Binding var reason: ExplainUnavailableReason?
   @Binding var isLoading: Bool
 
   var body: some View {
@@ -1656,6 +1690,16 @@ struct WhyGeneratedPopover: View {
           .font(.callout)
           .textSelection(.enabled)
           .frame(maxWidth: 400, alignment: .leading)
+      } else if let reason = reason {
+        HStack(alignment: .top, spacing: 8) {
+          Image(systemName: "exclamationmark.triangle")
+            .font(.caption)
+            .foregroundStyle(.orange)
+          Text(reason.message)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: 400, alignment: .leading)
       } else {
         Text("Explanation unavailable.")
           .font(.caption)

@@ -22,10 +22,12 @@ struct ExploreTab: View {
   @State private var whyGeneratedFile: String? = nil
   @State private var showWhyGenerated = false
   @State private var whyGeneratedExplanation: String? = nil
+  @State private var whyGeneratedReason: ExplainUnavailableReason? = nil
   @State private var loadingWhyGenerated = false
 
   @State private var summaryPopoverFile: String? = nil
   @State private var summaryPopoverText: String? = nil
+  @State private var summaryPopoverReason: ExplainUnavailableReason? = nil
   @State private var showSummaryPopover = false
 
   @State private var loadingSummary = false
@@ -58,6 +60,7 @@ struct ExploreTab: View {
                   onFileTap: { path in
                     whyGeneratedFile = path
                     whyGeneratedExplanation = nil
+                    whyGeneratedReason = nil
                     loadingWhyGenerated = true
                     showWhyGenerated = true
                     Task { await loadWhyGenerated() }
@@ -84,10 +87,11 @@ struct ExploreTab: View {
       }
     }
     .popover(isPresented: $showSummaryPopover) {
-      if let file = summaryPopoverFile, let text = summaryPopoverText {
+      if let file = summaryPopoverFile {
         SummaryPopover(
           fileName: (file as NSString).lastPathComponent,
-          summary: text
+          summary: summaryPopoverText,
+          reason: summaryPopoverReason
         )
       }
     }
@@ -101,6 +105,7 @@ struct ExploreTab: View {
         WhyGeneratedPopover(
           fileName: (file as NSString).lastPathComponent,
           explanation: $whyGeneratedExplanation,
+          reason: $whyGeneratedReason,
           isLoading: $loadingWhyGenerated
         )
       }
@@ -153,18 +158,20 @@ struct ExploreTab: View {
     case .allSessions:
       commits = project.sessions.flatMap(\.commits)
     }
-    let result = await FileExplainer.whyGenerated(
+    let (result, reason) = await FileExplainer.whyGenerated(
       file: file,
       repoURL: project.repoURL,
       commits: commits
     )
     await MainActor.run {
       self.whyGeneratedExplanation = result
+      self.whyGeneratedReason = reason
       self.loadingWhyGenerated = false
     }
   }
 
   private func generateSummary(for relativePath: String) async {
+    self.loadingSummary = true
     let commits: [SessionCommit]
     switch sessionScope {
     case .lastSession:
@@ -172,7 +179,7 @@ struct ExploreTab: View {
     case .allSessions:
       commits = project.sessions.flatMap(\.commits)
     }
-    let result = await FileExplainer.explain(
+    let (result, reason) = await FileExplainer.explain(
       file: relativePath,
       repoURL: project.repoURL,
       commits: commits
@@ -181,9 +188,16 @@ struct ExploreTab: View {
       if let summary = result {
         self.summaryPopoverFile = relativePath
         self.summaryPopoverText = summary
+        self.summaryPopoverReason = nil
         self.showSummaryPopover = true
+        self.loadingSummary = false
+      } else {
+        self.summaryPopoverFile = relativePath
+        self.summaryPopoverText = nil
+        self.summaryPopoverReason = reason
+        self.showSummaryPopover = true
+        self.loadingSummary = false
       }
-      self.loadingSummary = false
     }
   }
 }
@@ -496,7 +510,8 @@ struct CodemapFileSystem {
 /// Mirrors the layout of ``WhyGeneratedPopover``.
 struct SummaryPopover: View {
   let fileName: String
-  let summary: String
+  let summary: String?
+  let reason: ExplainUnavailableReason?
 
   var body: some View {
     VStack(alignment: .leading, spacing: 12) {
@@ -511,10 +526,27 @@ struct SummaryPopover: View {
         .font(.caption)
       }
 
-      Text(summary)
-        .font(.callout)
-        .textSelection(.enabled)
+      if let summary = summary {
+        Text(summary)
+          .font(.callout)
+          .textSelection(.enabled)
+          .frame(maxWidth: 400, alignment: .leading)
+      } else if let reason = reason {
+        HStack(alignment: .top, spacing: 8) {
+          Image(systemName: "exclamationmark.triangle")
+            .font(.callout)
+            .foregroundStyle(.orange)
+          Text(reason.message)
+            .font(.callout)
+            .foregroundStyle(.secondary)
+        }
         .frame(maxWidth: 400, alignment: .leading)
+      } else {
+        Text("No summary available.")
+          .font(.callout)
+          .foregroundStyle(.secondary)
+          .frame(maxWidth: 400, alignment: .leading)
+      }
     }
     .padding(16)
     .frame(width: 440)

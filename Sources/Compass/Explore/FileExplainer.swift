@@ -77,6 +77,7 @@ struct FileChange: Identifiable, Equatable {
   let deletions: Int
   let summary: String?
   let explanation: String?
+  let explanationReason: ExplainUnavailableReason?
 
   var category: FileChangeCategory {
     FileChangeCategory.categorize(relativePath)
@@ -88,7 +89,8 @@ struct FileChange: Identifiable, Equatable {
     deletions: Int,
     language: CodemapLanguage?,
     summary: String?,
-    explanation: String? = nil
+    explanation: String? = nil,
+    explanationReason: ExplainUnavailableReason? = nil
   ) {
     self.id = relativePath
     self.relativePath = relativePath
@@ -97,6 +99,7 @@ struct FileChange: Identifiable, Equatable {
     self.language = language
     self.summary = summary
     self.explanation = explanation
+    self.explanationReason = explanationReason
   }
 
   /// One-line file name without any directory prefix.
@@ -226,21 +229,22 @@ enum FileExplainer {
   ///   - repoURL: The working-copy root of the repository.
   ///   - commits: Commits to diff, in insertion order (newest first).  Single-
   ///     commit uses `sha^..sha`; multi-commit uses `newest..oldest` internally.
-  /// - Returns: An AI-generated explanation, or `nil` if no commits are
-  ///   available, no diff exists for the file, or Foundation Models is
-  ///   unavailable
+  /// - Returns: A tuple `(explanation, reason)`. The explanation is an
+  ///   AI-generated plain-English string, or `nil` when unavailable. The
+  ///   `reason` carries a user-facing message explaining why the feature
+  ///   did not activate (e.g. `.foundationModelsUnavailable`).
   static func explain(
     file relativePath: String,
     repoURL: URL,
     commits: [SessionCommit]
-  ) async -> String? {
+  ) async -> (String?, ExplainUnavailableReason?) {
     guard let diff = await CommitExplainer.commitDiffRange(commits: commits, repoURL: repoURL)
     else {
-      return nil
+      return (nil, .noDiff)
     }
 
     if diff.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-      return nil
+      return (nil, .emptyDiff)
     }
 
     return await CommitExplainer.summarize(diff: diff)
@@ -256,21 +260,22 @@ enum FileExplainer {
   ///   - repoURL: The working-copy root of the repository.
   ///   - commits: Commits to diff, in insertion order (newest first).  Single-
   ///     commit uses `sha^..sha`; multi-commit uses `newest..oldest` internally.
-  /// - Returns: An AI-generated explanation, or `nil` if no commits are
-  ///   available, no diff exists for the file, or Foundation Models is
-  ///   unavailable.
+  /// - Returns: A tuple `(explanation, reason)`. The explanation is an
+  ///   AI-generated plain-English string, or `nil` when unavailable. The
+  ///   `reason` carries a user-facing message explaining why the feature
+  ///   did not activate (e.g. `.foundationModelsUnavailable`).
   static func whyGenerated(
     file relativePath: String,
     repoURL: URL,
     commits: [SessionCommit]
-  ) async -> String? {
+  ) async -> (String?, ExplainUnavailableReason?) {
     guard let diff = await CommitExplainer.commitDiffRange(commits: commits, repoURL: repoURL)
     else {
-      return nil
+      return (nil, .noDiff)
     }
 
     if diff.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-      return nil
+      return (nil, .emptyDiff)
     }
 
     return await CommitExplainer.summarizeWhyGenerated(diff: diff)
@@ -371,7 +376,9 @@ enum FileExplainer {
           additions: additions,
           deletions: deletions,
           language: language,
-          summary: nil  // Populated later via codemap lookup
+          summary: nil,  // Populated later via codemap lookup
+          explanation: nil,
+          explanationReason: nil
         ))
     }
 

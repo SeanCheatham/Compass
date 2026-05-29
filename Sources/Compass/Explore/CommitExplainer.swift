@@ -37,21 +37,26 @@ import Foundation
 ///
 /// The diff text is streamed directly to Foundation Models with a fixed
 /// 3-sentence prompt template. Output is capped at ~600 tokens. Returns `nil`
-/// when Foundation Models is unavailable or produces no content.
+/// when Foundation Models is unavailable or produces no content, with a
+/// non-nil ``ExplainUnavailableReason`` in the second tuple position to
+/// enable user-facing messaging in the UI.
 ///
 /// ## Results
 ///
-/// The resulting plain-English summary is stored on the `FileChange.explanation`
-/// field and displayed alongside the file in the Explore popover.
+/// The plain-English summary is stored on the `FileChange.explanation`
+/// field and displayed alongside the file in the Explore popover. When
+/// `nil`, the UI surfaces the associated reason to explain why the feature
+/// did not activate.
 @available(macOS 26.0, *)
 enum CommitExplainer {
   /// Produces a plain-English summary of the given git diff text.
   /// The summary is kept to roughly three sentences and caps output
   /// at approximately 600 tokens.
   ///
-  /// Returns `nil` when Foundation Models is unavailable or produces
-  /// no content.
-  static func summarize(diff: String) async -> String? {
+  /// Returns `(nil, reason)` when Foundation Models is unavailable or
+  /// produces no content; `reason` carries a user-facing message explaining
+  /// why the feature did not activate.
+  static func summarize(diff: String) async -> (String?, ExplainUnavailableReason?) {
     return await summarize(diff: diff, prompt: whatChangedPrompt(diff: diff))
   }
 
@@ -59,21 +64,26 @@ enum CommitExplainer {
   /// and what role it plays in the codebase. Distinct from the diff-based
   /// "what changed" summary.
   ///
-  /// Returns `nil` when Foundation Models is unavailable or produces
-  /// no content.
-  static func summarizeWhyGenerated(diff: String) async -> String? {
+  /// Returns `(nil, reason)` when Foundation Models is unavailable or produces
+  /// no content; `reason` carries a user-facing message.
+  static func summarizeWhyGenerated(diff: String) async -> (String?, ExplainUnavailableReason?) {
     return await summarize(diff: diff, prompt: whyGeneratedPrompt(diff: diff))
   }
 
   // MARK: - Private
 
-  private static func summarize(diff: String, prompt: String) async -> String? {
-    guard FoundationModelsAvailability.isAvailable else { return nil }
+  private static func summarize(diff: String, prompt: String) async -> (String?, ExplainUnavailableReason?) {
+    guard FoundationModelsAvailability.isAvailable else {
+      return (nil, .foundationModelsUnavailable)
+    }
 
     let trimmed = diff.trimmingCharacters(in: .whitespacesAndNewlines)
-    guard !trimmed.isEmpty else { return nil }
+    guard !trimmed.isEmpty else { return (nil, .emptyDiff) }
 
-    return await FoundationModelsAvailability._streamText(prompt: prompt)
+    if let result = await FoundationModelsAvailability._streamText(prompt: prompt) {
+      return (result, nil)
+    }
+    return (nil, .emptyResponse)
   }
 
   private static func whatChangedPrompt(diff: String) -> String {
@@ -129,6 +139,21 @@ enum CommitExplainer {
     return await gitDiffRange(newest: first.sha, oldest: oldest.sha, repoURL: repoURL)
   }
 
+  /// Result of a commit explanation attempt, carrying either the explanation
+  /// string or a reason for failure.
+  struct ExplanationResult: Sendable {
+    let explanation: String?
+    let reason: ExplainUnavailableReason?
+
+    static func success(_ text: String) -> ExplanationResult {
+      ExplanationResult(explanation: text, reason: nil)
+    }
+
+    static func failure(_ reason: ExplainUnavailableReason) -> ExplanationResult {
+      ExplanationResult(explanation: nil, reason: reason)
+    }
+  }
+
   /// Produces a plain-English summary of a single commit by fetching the full
   /// diff via `git diff <sha>^..<sha>` and passing it to ``summarize(diff:)``.
   ///
@@ -139,10 +164,10 @@ enum CommitExplainer {
   ///
   /// Returns `nil` when the diff is empty, git fails, or Foundation Models
   /// is unavailable.
-  static func explain(commit: SessionCommit, repoURL: URL) async -> String? {
+  static func explain(commit: SessionCommit, repoURL: URL) async -> (String?, ExplainUnavailableReason?) {
     let diff = await gitDiff(sha: commit.sha, repoURL: repoURL)
     let trimmed = diff.trimmingCharacters(in: .whitespacesAndNewlines)
-    guard !trimmed.isEmpty else { return nil }
+    guard !trimmed.isEmpty else { return (nil, .emptyDiff) }
     return await summarize(diff: trimmed)
   }
 }
