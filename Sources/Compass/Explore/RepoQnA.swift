@@ -65,17 +65,9 @@ enum RepoQnA {
     // 2. Get the actual diff text over the commit range.
     let diff: String
     if commits.count == 1 {
-      let result = try? await ProcessRunner.runEnv(
-        "git", ["diff", "\(first.sha)^..\(first.sha)"],
-        workingDirectory: repoURL
-      )
-      diff = result?.stdout ?? ""
+      diff = await CommitExplainer.gitDiff(sha: first.sha, repoURL: repoURL)
     } else if let last = commits.last {
-      let result = try? await ProcessRunner.runEnv(
-        "git", ["diff", "\(last.sha)..\(first.sha)"],
-        workingDirectory: repoURL
-      )
-      diff = result?.stdout ?? ""
+      diff = await CommitExplainer.gitDiffRange(newest: last.sha, oldest: first.sha, repoURL: repoURL)
     } else {
       return nil
     }
