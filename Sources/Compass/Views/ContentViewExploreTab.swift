@@ -1,5 +1,13 @@
 import SwiftUI
 
+// MARK: - SessionScope
+
+/// Controls which sessions' commits are used for "why generated" queries.
+enum SessionScope: String, CaseIterable {
+  case lastSession = "Last Session"
+  case allSessions = "All Sessions"
+}
+
 // MARK: - ExploreTab
 
 /// A navigable tree view of the repository rooted at `repoURL`,
@@ -16,6 +24,8 @@ struct ExploreTab: View {
   @State private var whyGeneratedExplanation: String? = nil
   @State private var loadingWhyGenerated = false
 
+  @State private var sessionScope: SessionScope = .lastSession
+
   var body: some View {
     Group {
       if isLoading {
@@ -27,7 +37,9 @@ struct ExploreTab: View {
           description: Text("Open a repository to explore its source files.")
         )
       } else {
-        ScrollView {
+        VStack(alignment: .leading, spacing: 0) {
+          sessionScopePicker
+          ScrollView {
           LazyVStack(alignment: .leading, spacing: 2) {
             ForEach(fileTree, id: \.relativePath) { root in
               FileTreeRowView(
@@ -46,6 +58,7 @@ struct ExploreTab: View {
           }
           .padding(.horizontal, 8)
           .padding(.vertical, 6)
+        }
         }
       }
     }
@@ -82,9 +95,29 @@ struct ExploreTab: View {
     }
   }
 
+  private var sessionScopePicker: some View {
+    HStack {
+      Picker("Session Scope", selection: $sessionScope) {
+        Text("Last Session").tag(SessionScope.lastSession)
+        Text("All Sessions").tag(SessionScope.allSessions)
+      }
+      .pickerStyle(.menu)
+      Spacer()
+    }
+    .padding(.horizontal, 8)
+    .padding(.vertical, 6)
+    .background(Color(nsColor: .controlBackgroundColor))
+  }
+
   private func loadWhyGenerated() async {
     guard let file = whyGeneratedFile else { return }
-    let commits = project.sessions.last?.commits ?? []
+    let commits: [SessionCommit]
+    switch sessionScope {
+    case .lastSession:
+      commits = project.sessions.last?.commits ?? []
+    case .allSessions:
+      commits = project.sessions.flatMap(\.commits)
+    }
     let result = await FileExplainer.whyGenerated(
       file: file,
       repoURL: project.repoURL,
