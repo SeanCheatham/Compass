@@ -33,6 +33,12 @@ struct CodemapEntry: Codable, Sendable, Equatable {
   /// separately means the symbol cache can be invalidated without losing a
   /// still-valid summary, and vice versa.
   var summaryContentHash: String?
+  /// Whether this file is generated (e.g., by a build tool or code generator)
+  /// rather than hand-written. Populated by heuristics in the codemapper
+  /// (e.g., file extension not recognized as source, or path under a known
+  /// generated-sources directory). Used by Explore to add "why generated"
+  /// context when explaining files.
+  var isGenerated: Bool
 }
 
 enum CodemapHash {

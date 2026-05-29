@@ -29,7 +29,8 @@ struct CodemapStoreTests {
       imports: [],
       summary: nil,
       summaryModel: nil,
-      summaryContentHash: nil
+      summaryContentHash: nil,
+      isGenerated: false
     )
     try store.saveEntry(entry)
     let loaded = store.loadEntry(forRelativePath: "Sources/Foo.swift")
@@ -69,7 +70,8 @@ struct CodemapStoreTests {
       imports: [],
       summary: nil,
       summaryModel: nil,
-      summaryContentHash: nil
+      summaryContentHash: nil,
+      isGenerated: false
     )
     let entry2 = CodemapEntry(
       relativePath: "Sources/B.swift",
@@ -80,7 +82,8 @@ struct CodemapStoreTests {
       imports: [],
       summary: nil,
       summaryModel: nil,
-      summaryContentHash: nil
+      summaryContentHash: nil,
+      isGenerated: false
     )
     let entry3 = CodemapEntry(
       relativePath: "Sources/C.swift",
@@ -91,7 +94,8 @@ struct CodemapStoreTests {
       imports: [],
       summary: nil,
       summaryModel: nil,
-      summaryContentHash: nil
+      summaryContentHash: nil,
+      isGenerated: false
     )
     try store.saveEntry(entry1)
     try store.saveEntry(entry2)
@@ -119,7 +123,8 @@ struct CodemapStoreTests {
       imports: [],
       summary: nil,
       summaryModel: nil,
-      summaryContentHash: nil
+      summaryContentHash: nil,
+      isGenerated: false
     )
     try store.saveEntry(validEntry)
 
@@ -148,7 +153,8 @@ struct CodemapStoreTests {
       imports: [],
       summary: nil,
       summaryModel: nil,
-      summaryContentHash: nil
+      summaryContentHash: nil,
+      isGenerated: false
     )
     try store.saveEntry(entry)
     try store.deleteEntry(forRelativePath: "Sources/Foo.swift")

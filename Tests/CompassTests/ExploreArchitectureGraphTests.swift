@@ -494,7 +494,8 @@ private func writeEntry(
     imports: imports,
     summary: nil,
     summaryModel: nil,
-    summaryContentHash: nil
+    summaryContentHash: nil,
+    isGenerated: false
   )
   let store = CodemapStore(directory: directory, prettyPrint: true)
   try store.saveEntry(entry)

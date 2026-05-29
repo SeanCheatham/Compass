@@ -36,7 +36,8 @@ struct CodemapIndexerTests : ~Copyable {
       ],
       summary: nil,
       summaryModel: nil,
-      summaryContentHash: nil
+      summaryContentHash: nil,
+      isGenerated: false
     )
 
     try store.saveEntry(entry)
@@ -65,7 +66,8 @@ struct CodemapIndexerTests : ~Copyable {
       imports: [],
       summary: nil,
       summaryModel: nil,
-      summaryContentHash: nil
+      summaryContentHash: nil,
+      isGenerated: false
     )
     try store.saveEntry(entry)
     try #require(store.loadEntry(forRelativePath: "lib.rs") != nil)

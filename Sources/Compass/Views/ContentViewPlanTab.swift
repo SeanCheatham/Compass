@@ -1289,7 +1289,7 @@ struct ArchitectureGraphPopover: View {
     graphText = graph.textGraph()
 
     if #available(macOS 26.0, *) {
-      let result = await ArchitectureGraph.explain(graph: graph, repoURL: repoURL)
+      let result = await ArchitectureGraph.explain(graph: graph, repoURL: repoURL, commits: item.commits)
       explanation = result
       if result == nil { availabilityError = true }
     }

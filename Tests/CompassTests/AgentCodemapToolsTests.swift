@@ -238,7 +238,8 @@ struct AgentCodemapToolsTests: ~Copyable {
         imports: [],
         summary: nil,
         summaryModel: nil,
-        summaryContentHash: nil
+        summaryContentHash: nil,
+        isGenerated: false
       ))
 
     let routedContext = AgentToolContext(
@@ -307,7 +308,8 @@ struct AgentCodemapToolsTests: ~Copyable {
       imports: imports,
       summary: summary,
       summaryModel: summaryModel,
-      summaryContentHash: summary == nil ? nil : String(repeating: "a", count: 64)
+      summaryContentHash: summary == nil ? nil : String(repeating: "a", count: 64),
+      isGenerated: false
     )
     try store.saveEntry(entry)
   }

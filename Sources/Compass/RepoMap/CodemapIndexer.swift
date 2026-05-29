@@ -163,7 +163,8 @@ struct CodemapIndexer: Sendable {
       summary: existing?.summaryContentHash == contentHash ? existing?.summary : nil,
       summaryModel: existing?.summaryContentHash == contentHash ? existing?.summaryModel : nil,
       summaryContentHash: existing?.summaryContentHash == contentHash
-        ? existing?.summaryContentHash : nil
+        ? existing?.summaryContentHash : nil,
+      isGenerated: existing?.isGenerated ?? false
     )
     do {
       try store.saveEntry(entry)
