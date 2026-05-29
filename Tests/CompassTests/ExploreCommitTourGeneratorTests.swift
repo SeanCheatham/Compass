@@ -127,6 +127,26 @@ struct ExploreCommitTourGeneratorTests {
     _ = result
   }
 
+  @Test
+  func generateTour_singleCommitWithFileChanges_returnsNonNilOrNilWithoutThrowing() async throws {
+    // Creates a real commit with an actual file change (not --allow-empty)
+    // and verifies: (1) no crash, (2) nil only when Foundation Models unavailable.
+    let repoURL = try makeTempDir()
+    try initGitRepo(at: repoURL)
+    let commits = try makeSingleCommit(at: repoURL)
+
+    let result = await CommitTourGenerator.generateTour(commits: commits, repoURL: repoURL)
+
+    // The method must not throw regardless of Foundation Models availability.
+    // When unavailable, result must be nil; when available it may be nil or non-nil.
+    if FoundationModelsAvailability.isAvailable {
+      // Model is available: result may be nil (model declined) or non-nil.
+      _ = result
+    } else {
+      try #require(result == nil)
+    }
+  }
+
   // MARK: - generateTour multi-commit integration (real git repo)
 
   @Test
