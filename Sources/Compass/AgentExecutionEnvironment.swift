@@ -47,7 +47,7 @@ struct AgentExecutionEnvironmentReadiness: Equatable {
   ) {
     self.vmReadiness = vmReadiness
     let computed = detail ?? Self.detail(for: vmReadiness)
-    self.detail = Self.boundedText(computed, limit: Self.detailLimit)
+    self.detail = StringUtils.boundedText(computed, limit: Self.detailLimit)
   }
 
   static func inspect(vmReadiness: SharedCompassVMReadiness) -> Self {
@@ -77,17 +77,7 @@ struct AgentExecutionEnvironmentReadiness: Equatable {
     }
   }
 
-  private static func boundedText(_ text: String, limit: Int) -> String {
-    guard limit > 0 else { return "" }
-    let normalized =
-      text
-      .replacingOccurrences(of: "\r", with: " ")
-      .replacingOccurrences(of: "\n", with: " ")
-      .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
-      .trimmingCharacters(in: .whitespacesAndNewlines)
-    guard normalized.count > limit else { return normalized }
-    return String(normalized.prefix(limit)).trimmingCharacters(in: .whitespacesAndNewlines)
-  }
+  // MARK: - boundedText
 }
 
 struct AgentExecutionEnvironmentPresentation: Equatable {
@@ -108,24 +98,14 @@ struct AgentExecutionEnvironmentPresentation: Equatable {
     systemImage: String,
     isWarning: Bool = false
   ) {
-    self.title = Self.boundedText(title, limit: Self.titleLimit)
-    self.status = Self.boundedText(status, limit: Self.statusLimit)
-    self.detail = Self.boundedText(detail, limit: Self.detailLimit)
+    self.title = StringUtils.boundedText(title, limit: Self.titleLimit)
+    self.status = StringUtils.boundedText(status, limit: Self.statusLimit)
+    self.detail = StringUtils.boundedText(detail, limit: Self.detailLimit)
     self.systemImage = systemImage
     self.isWarning = isWarning
   }
 
-  private static func boundedText(_ text: String, limit: Int) -> String {
-    guard limit > 0 else { return "" }
-    let normalized =
-      text
-      .replacingOccurrences(of: "\r", with: " ")
-      .replacingOccurrences(of: "\n", with: " ")
-      .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
-      .trimmingCharacters(in: .whitespacesAndNewlines)
-    guard normalized.count > limit else { return normalized }
-    return String(normalized.prefix(limit)).trimmingCharacters(in: .whitespacesAndNewlines)
-  }
+  // MARK: - boundedText
 }
 
 struct AgentExecutionEnvironment: Equatable {
@@ -380,7 +360,7 @@ struct AgentExecutionEnvironmentCopyDiagnosticsAction: Identifiable, Equatable {
   var id: String { Self.actionIdentifier }
 
   var title: String {
-    Self.boundedText("Copy Runtime Diagnostics", limit: Self.titleLimit)
+    StringUtils.boundedText("Copy Runtime Diagnostics", limit: Self.titleLimit)
   }
 
   var systemImage: String {
@@ -388,7 +368,7 @@ struct AgentExecutionEnvironmentCopyDiagnosticsAction: Identifiable, Equatable {
   }
 
   var description: String {
-    Self.boundedText(
+    StringUtils.boundedText(
       "Copy a bounded sanitized runtime report for the selected route and VM readiness.",
       limit: Self.descriptionLimit
     )
@@ -406,17 +386,7 @@ struct AgentExecutionEnvironmentCopyDiagnosticsAction: Identifiable, Equatable {
     report.copyText
   }
 
-  private static func boundedText(_ text: String, limit: Int) -> String {
-    guard limit > 0 else { return "" }
-    let normalized =
-      text
-      .replacingOccurrences(of: "\r", with: " ")
-      .replacingOccurrences(of: "\n", with: " ")
-      .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
-      .trimmingCharacters(in: .whitespacesAndNewlines)
-    guard normalized.count > limit else { return normalized }
-    return String(normalized.prefix(limit)).trimmingCharacters(in: .whitespacesAndNewlines)
-  }
+  // MARK: - boundedText
 }
 
 struct AgentExecutionEnvironmentMenu: Equatable {
