@@ -714,6 +714,8 @@ struct WorkspaceContent: View {
       VisionTab(project: project)
     case .lessons:
       LessonsTab(project: project)
+    case .explore:
+      ExploreTab(project: project)
     }
   }
 }
@@ -724,6 +726,7 @@ enum WorkspaceTab: String, CaseIterable, Identifiable {
   case drafts
   case vision
   case lessons
+  case explore
 
   var id: Self { self }
 
@@ -734,6 +737,7 @@ enum WorkspaceTab: String, CaseIterable, Identifiable {
     case .drafts: return "Drafts"
     case .vision: return "Vision"
     case .lessons: return "Lessons"
+    case .explore: return "Explore"
     }
   }
 
@@ -744,6 +748,7 @@ enum WorkspaceTab: String, CaseIterable, Identifiable {
     case .drafts: return "square.and.pencil"
     case .vision: return "scope"
     case .lessons: return "book.closed"
+    case .explore: return "magnifyingglass"
     }
   }
 }
