@@ -1461,9 +1461,9 @@ struct ExploreFilesPopover: View {
     isLoading = true
     defer { isLoading = false }
 
-    // item.commits is ordered newest-first; reversing gives chronological
-    // oldest→newest order required by FileExplainer.explain().
-    var loaded = await FileExplainer.changes(for: repoURL, commits: item.commits.reversed())
+    // item.commits is already in newest-first order, which is what
+    // changes(for:) expects — it passes newest..oldest to git internally.
+    var loaded = await FileExplainer.changes(for: repoURL, commits: item.commits)
 
     // Enrich with codemap summaries
     let codemapDir = CodemapStore.defaultDirectory(
