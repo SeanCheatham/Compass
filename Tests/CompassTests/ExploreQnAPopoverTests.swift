@@ -27,7 +27,6 @@ import Testing
 /// This mirrors the Path 1, 2, 3 pattern from `ExploreRepoQnAAnswerGuardTests` but
 /// targets the QnAPopover path specifically, mirroring how
 /// `ExploreCommitTourRowTests` targets the CommitTourRow path.
-@available(macOS 26.0, *)
 struct ExploreQnAPopoverTests {
 
   // MARK: - Path 1: empty string → guard prevents RepoQnA.answer() call
@@ -40,7 +39,6 @@ struct ExploreQnAPopoverTests {
   /// accidentally removed, `RepoQnA.answer("")` would still be safe.
   @Test
   func submitQuestion_answerEmptyString_doesNotThrow() async throws {
-    try #require(available(macOS 26.0, *))
     var test = Self()
     test.setUp()
     defer { test.tearDown() }
@@ -67,7 +65,6 @@ struct ExploreQnAPopoverTests {
   /// `RepoQnA.answer()` handles whitespace-only input safely.
   @Test
   func submitQuestion_answerWhitespaceOnly_doesNotThrow() async throws {
-    try #require(available(macOS 26.0, *))
     var test = Self()
     test.setUp()
     defer { test.tearDown() }
@@ -99,7 +96,6 @@ struct ExploreQnAPopoverTests {
   ///                     → `availabilityError = true`
   @Test
   func submitQuestion_answerReturnsNil_setsAvailabilityError() async throws {
-    try #require(available(macOS 26.0, *))
     var test = Self()
     test.setUp()
     defer { test.tearDown() }

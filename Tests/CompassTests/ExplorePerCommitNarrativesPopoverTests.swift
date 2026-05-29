@@ -47,7 +47,6 @@ struct ExplorePerCommitNarrativesPopoverTests {
   /// would cause the early return without calling `CommitExplainer.explain()`.
   @Test
   func loadNarratives_emptyCommits_returnsEarly() async throws {
-    try #require(available(macOS 26.0, *))
     var test = Self()
     test.setUp()
     defer { test.tearDown() }
@@ -84,7 +83,6 @@ struct ExplorePerCommitNarrativesPopoverTests {
   ///                     → `narrative.availabilityError = true`
   @Test
   func loadNarratives_explainReturnsNil_setsAvailabilityError() async throws {
-    try #require(available(macOS 26.0, *))
     var test = Self()
     test.setUp()
     defer { test.tearDown() }

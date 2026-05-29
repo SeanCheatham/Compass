@@ -30,7 +30,6 @@ import Testing
 ///
 /// This mirrors the Path 3 pattern from `ExploreRepoQnAAnswerGuardTests` but for
 /// the tour generator path instead of the Q&A answer path.
-@available(macOS 26.0, *)
 struct ExploreCommitTourRowTests {
 
   // MARK: - Path 2: generateTour returns nil when Foundation Models is unavailable
@@ -48,7 +47,6 @@ struct ExploreCommitTourRowTests {
   ///               → `tourAvailabilityError = true`
   @Test
   func loadTour_generateTourReturnsNil_setsTourAvailabilityError() async throws {
-    try #require(available(macOS 26.0, *))
     var test = Self()
     test.setUp()
     defer { test.tearDown() }
@@ -79,7 +77,6 @@ struct ExploreCommitTourRowTests {
   /// This guard prevents git invocation for empty commit arrays and returns nil cleanly.
   @Test
   func loadTour_emptyCommits_returnsNil() async throws {
-    try #require(available(macOS 26.0, *))
     var test = Self()
     test.setUp()
     defer { test.tearDown() }
@@ -103,7 +100,6 @@ struct ExploreCommitTourRowTests {
   /// `guard !diff.isEmpty else { return nil }` before calling `generate(diff:)`.
   @Test
   func loadTour_emptyDiff_returnsNil() async throws {
-    try #require(available(macOS 26.0, *))
     var test = Self()
     test.setUp()
     defer { test.tearDown() }
