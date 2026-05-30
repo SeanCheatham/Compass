@@ -14,11 +14,14 @@ enum SessionScope: String, CaseIterable {
 /// showing each file and folder with its language badge and pre-generated
 /// codemap summary. Sub-folder nodes display an aggregated placeholder
 /// until richer folder-level summaries are available.
-struct ExploreTab: View {
-  let project: CompassProject
+struct ExploreTab: View, Equatable {
+  let repoURL: URL
+  let workspace: CompassWorkspace?
   let isActive: Bool
+  let sessionRecords: () -> [SessionRecord]
   @State private var fileTree: [FileTreeNode] = []
   @State private var codemapEntries: [String: CodemapEntry] = [:]
+  @State private var visibleRows: [ExploreVisibleRow] = []
   @State private var isLoading = true
   @State private var whyGeneratedFile: String? = nil
   @State private var showWhyGenerated = false
@@ -41,12 +44,23 @@ struct ExploreTab: View {
   @State private var loadedRepoPath: String?
   @State private var loadingRepoPath: String?
 
-  private var visibleRows: [ExploreVisibleRow] {
-    ExploreVisibleRow.visibleRows(in: fileTree, expandedPaths: expandedPaths)
+  static func == (lhs: ExploreTab, rhs: ExploreTab) -> Bool {
+    lhs.isActive == rhs.isActive
+      && lhs.repoURL == rhs.repoURL
+      && lhs.workspace?.compassURL == rhs.workspace?.compassURL
   }
 
   var body: some View {
-    exploreContent
+    ZStack(alignment: .topLeading) {
+      exploreContent
+      Color.clear
+        .frame(width: 0, height: 0)
+        .accessibilityHidden(true)
+        .task(id: repoURL.standardizedFileURL.path) {
+          guard isActive else { return }
+          await loadRepositorySnapshotIfNeeded()
+        }
+    }
       .popover(isPresented: $showSummaryPopover) {
       if let file = summaryPopoverFile {
         SummaryPopover(
@@ -78,11 +92,6 @@ struct ExploreTab: View {
     .onChange(of: isActive) { _, active in
       guard active else { return }
       applyCachedSnapshotIfAvailable()
-      Task { await loadRepositorySnapshotIfNeeded() }
-    }
-    .task(id: project.repoURL.standardizedFileURL.path) {
-      guard isActive else { return }
-      await loadRepositorySnapshotIfNeeded()
     }
   }
 
@@ -123,19 +132,24 @@ struct ExploreTab: View {
   }
 
   private func applyCachedSnapshotIfAvailable() {
-    guard loadedRepoPath != project.repoURL.standardizedFileURL.path else { return }
-    guard let snapshot = ExploreRepositorySnapshotCache.shared.snapshot(for: project.repoURL) else {
+    guard loadedRepoPath != repoURL.standardizedFileURL.path else { return }
+    guard let snapshot = ExploreRepositorySnapshotCache.shared.snapshot(for: repoURL) else {
       return
     }
-    apply(snapshot, repoPath: project.repoURL.standardizedFileURL.path)
+    apply(snapshot, repoPath: repoURL.standardizedFileURL.path)
   }
 
   private func apply(_ snapshot: ExploreRepositorySnapshot, repoPath: String) {
     fileTree = snapshot.fileTree
     codemapEntries = snapshot.codemapEntries
     expandedPaths = []
+    refreshVisibleRows()
     loadedRepoPath = repoPath
     isLoading = false
+  }
+
+  private func refreshVisibleRows() {
+    visibleRows = ExploreVisibleRow.visibleRows(in: fileTree, expandedPaths: expandedPaths)
   }
 
   private func toggleExpansion(for path: String) {
@@ -144,45 +158,50 @@ struct ExploreTab: View {
     } else {
       expandedPaths.insert(path)
     }
+    refreshVisibleRows()
   }
 
   @MainActor
   private func loadRepositorySnapshotIfNeeded() async {
-    let repoPath = project.repoURL.standardizedFileURL.path
-    guard loadedRepoPath != repoPath else { return }
+    let repoPath = repoURL.standardizedFileURL.path
+    guard loadedRepoPath != repoPath else {
+      isLoading = false
+      return
+    }
     guard loadingRepoPath != repoPath else { return }
 
-    if let cached = ExploreRepositorySnapshotCache.shared.snapshot(for: project.repoURL) {
+    if let cached = ExploreRepositorySnapshotCache.shared.snapshot(for: repoURL) {
       apply(cached, repoPath: repoPath)
       return
     }
 
     loadingRepoPath = repoPath
-    isLoading = true
-    defer {
-      if loadingRepoPath == repoPath {
-        loadingRepoPath = nil
-        isLoading = false
-      }
+    if fileTree.isEmpty {
+      isLoading = true
     }
 
-    guard let workspace = project.workspace else {
+    guard let workspace else {
       fileTree = []
       codemapEntries = [:]
       expandedPaths = []
+      visibleRows = []
       loadedRepoPath = repoPath
+      loadingRepoPath = nil
+      isLoading = false
       return
     }
 
-    let repoURL = project.repoURL
     let codemapDir = CodemapStore.defaultDirectory(forWorkspace: workspace)
     let snapshot = await Task.detached(priority: .utility) {
       ExploreRepositorySnapshotLoader.load(repoURL: repoURL, codemapDirectory: codemapDir)
     }.value
-    guard project.repoURL.standardizedFileURL.path == repoPath else { return }
+
+    guard !Task.isCancelled else { return }
+    guard repoURL.standardizedFileURL.path == repoPath else { return }
 
     ExploreRepositorySnapshotCache.shared.store(snapshot, for: repoURL)
     apply(snapshot, repoPath: repoPath)
+    loadingRepoPath = nil
   }
 
   private func handleFileTap(_ path: String) {
@@ -225,16 +244,10 @@ struct ExploreTab: View {
 
   private func loadWhyGenerated() async {
     guard let file = whyGeneratedFile else { return }
-    let commits: [SessionCommit]
-    switch sessionScope {
-    case .lastSession:
-      commits = project.sessions.last?.commits ?? []
-    case .allSessions:
-      commits = project.sessions.flatMap(\.commits)
-    }
+    let commits = commitsForSessionScope()
     let (result, reason) = await FileExplainer.whyGenerated(
       file: file,
-      repoURL: project.repoURL,
+      repoURL: repoURL,
       commits: commits
     )
     await MainActor.run {
@@ -244,18 +257,22 @@ struct ExploreTab: View {
     }
   }
 
-  private func generateSummary(for relativePath: String) async {
-    self.loadingSummary = true
-    let commits: [SessionCommit]
+  private func commitsForSessionScope() -> [SessionCommit] {
+    let sessions = sessionRecords()
     switch sessionScope {
     case .lastSession:
-      commits = project.sessions.last?.commits ?? []
+      return sessions.last?.commits ?? []
     case .allSessions:
-      commits = project.sessions.flatMap(\.commits)
+      return sessions.flatMap(\.commits)
     }
+  }
+
+  private func generateSummary(for relativePath: String) async {
+    self.loadingSummary = true
+    let commits = commitsForSessionScope()
     let (result, reason) = await FileExplainer.explain(
       file: relativePath,
-      repoURL: project.repoURL,
+      repoURL: repoURL,
       commits: commits
     )
     await MainActor.run {
@@ -506,10 +523,8 @@ struct LanguageBadge: View {
     case .typescript: return "TS"
     case .tsx: return "TSX"
     case .javascript: return "JS"
-    case .python: return "Py"
     case .go: return "Go"
     case .rust: return "Rs"
-    case .haskell: return "Hs"
     }
   }
 
@@ -519,10 +534,8 @@ struct LanguageBadge: View {
     case .swift: return .orange
     case .typescript, .tsx: return .blue
     case .javascript: return .yellow
-    case .python: return .green
     case .go: return .cyan
     case .rust: return .orange
-    case .haskell: return .purple
     }
   }
 }

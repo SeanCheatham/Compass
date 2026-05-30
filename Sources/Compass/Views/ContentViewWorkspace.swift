@@ -726,9 +726,12 @@ struct WorkspaceContent: View {
 
       if keepExploreTabMounted {
         ExploreTab(
-          project: project,
-          isActive: selectedTab == .explore
+          repoURL: project.repoURL,
+          workspace: project.workspace,
+          isActive: selectedTab == .explore,
+          sessionRecords: { project.sessions }
         )
+        .equatable()
         .opacity(selectedTab == .explore ? 1 : 0)
         .allowsHitTesting(selectedTab == .explore)
         .accessibilityHidden(selectedTab != .explore)
