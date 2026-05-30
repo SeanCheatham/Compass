@@ -195,55 +195,6 @@ struct ExploreRepoQnATests {
     _ = result
   }
 
-  // MARK: - gitDiffRange argument order
-
-  /// Compile-only test: verifies `RepoQnA.answer` calls
-  /// `CommitExplainer.gitDiffRange(newest:oldest:repoURL:)` with the correct
-  /// argument order (newest SHA first, oldest SHA second).
-  ///
-  /// `commits` is stored oldest-first (chronological), so the correct call is
-  /// `gitDiffRange(newest: last.sha, oldest: first.sha)`.
-  ///
-  /// This test is intentionally empty — it only needs to compile to establish
-  /// that the call site passes `last.sha` as `newest` and `first.sha` as `oldest`.
-  /// A logic error (swapped arguments) will cause a type mismatch with the
-  /// `GitDiffRangeCall` struct below.
-  @Test
-  func answer_gitDiffRange_argOrder() async throws {
-    struct GitDiffRangeCall: Sendable {
-      let newest: String
-      let oldest: String
-      let repoURL: URL
-    }
-
-    // GitDiffRangeRecorder intercepts CommitExplainer for this test.
-    // Because it records the actual arguments passed by RepoQnA.answer,
-    // we can verify the order without running git.
-    enum GitDiffRangeRecorder {
-      static var lastCall: GitDiffRangeCall?
-      static func record(newest: String, oldest: String, repoURL: URL) async -> String {
-        lastCall = GitDiffRangeCall(newest: newest, oldest: oldest, repoURL: repoURL)
-        return ""
-      }
-    }
-
-    // Verify the call order matches our expectation by shadowing CommitExplainer
-    // at the module level. This compiles only if RepoQnA.answer calls
-    // `gitDiffRange(newest: <newest-sh>, oldest: <oldest-sha>)`.
-    func verifyCallOrder(newest: String, oldest: String, repoURL: URL) async -> String {
-      // The type of `newest` and `oldest` here must match what RepoQnA passes.
-      // If the arguments are swapped (oldest as newest), the parameter labels
-      // won't align and this won't compile.
-      await GitDiffRangeRecorder.record(newest: newest, oldest: oldest, repoURL: repoURL)
-    }
-
-    // Empty test body — compilation verifies argument order.
-    _ = verifyCallOrder
-    _ = await verifyCallOrder(
-      newest: "NEWEST", oldest: "OLDEST", repoURL: URL(fileURLWithPath: "/")
-    )
-  }
-
   // MARK: - changes(for:commits:) argument order
 
   /// Compile-only structural test: verifies the `FileExplainer.changes` call
