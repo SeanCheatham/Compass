@@ -1555,6 +1555,72 @@ struct ExploreFileExplainerTests {
     try #require(change.explanation == nil)
   }
 
+  // MARK: - FileChange.explanationReason
+
+  @Test
+  func fileChange_init_explanationReason_allCases() throws {
+    for reason in ExplainUnavailableReason.allCases {
+      let change = FileChange(
+        relativePath: "Sources/App.swift",
+        additions: 10,
+        deletions: 2,
+        language: .swift,
+        summary: "Test change",
+        explanation: nil,
+        explanationReason: reason
+      )
+      try #require(change.explanationReason == reason)
+    }
+  }
+
+  @Test
+  func fileChange_init_explanationReasonNilDefaults() throws {
+    let change = FileChange(
+      relativePath: "Sources/App.swift",
+      additions: 10,
+      deletions: 2,
+      language: .swift,
+      summary: "Test change"
+    )
+    try #require(change.explanationReason == nil)
+  }
+
+  @Test
+  func fileChange_init_bothExplanationAndReason() throws {
+    let change = FileChange(
+      relativePath: "Sources/App.swift",
+      additions: 10,
+      deletions: 2,
+      language: .swift,
+      summary: "Test change",
+      explanation: "This file adds the main entry point.",
+      explanationReason: .foundationModelsUnavailable
+    )
+    try #require(change.explanation != nil)
+    try #require(change.explanationReason == .foundationModelsUnavailable)
+    try #require(change.explanation == "This file adds the main entry point.")
+  }
+
+  // MARK: - ExplainUnavailableReason
+
+  @Test
+  func explainUnavailableReason_allCases() throws {
+    let cases = ExplainUnavailableReason.allCases
+    try #require(cases.count == 5)
+    try #require(cases.contains(.foundationModelsUnavailable))
+    try #require(cases.contains(.noDiff))
+    try #require(cases.contains(.emptyDiff))
+    try #require(cases.contains(.emptyResponse))
+    try #require(cases.contains(.unavailable))
+  }
+
+  @Test
+  func explainUnavailableReason_message_nonEmpty() throws {
+    for reason in ExplainUnavailableReason.allCases {
+      try #require(!reason.message.isEmpty, "message for \(reason) must be non-empty")
+    }
+  }
+
   // MARK: - Helpers
 
   private func initGitRepo(at url: URL) {
