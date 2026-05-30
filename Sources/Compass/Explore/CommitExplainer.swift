@@ -203,11 +203,11 @@ enum CommitExplainer {
       baseSource = trimmedOldest
       tip = trimmedNewest
     } else if await isAncestor(trimmedNewest, of: trimmedOldest, repoURL: repoURL) {
-      baseSource = trimmedNewest
-      tip = trimmedOldest
-    } else {
       baseSource = trimmedOldest
       tip = trimmedNewest
+    } else {
+      baseSource = trimmedNewest
+      tip = trimmedOldest
     }
 
     guard let base = await baseRevisionBefore(sha: baseSource, repoURL: repoURL) else {
