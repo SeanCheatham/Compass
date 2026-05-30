@@ -122,6 +122,10 @@ enum Prompts {
       - Revise `midTerm` and `longTerm` when this iteration has a concrete
         reason to change them.
       - Ground the plan in the repository before choosing work.
+      - Default to returning an Immediate Plan. Compass projects are almost
+        never truly done; if you can name any useful cleanup, test, polish,
+        documentation, reliability, or exploration increment, choose it as
+        `immediate`.
       - Pick one commit-sized `immediate` with a real verify command that proves
         the important behavior. If there are no relevant tests, use build or
         typecheck as the fallback.
@@ -131,8 +135,8 @@ enum Prompts {
         absolute paths to the working directory. Those paths get saved to
         state and rot the moment the working directory changes.
       - Use `immediate: null` only when the project is genuinely complete:
-        every goal is shipped, `midTerm` and `longTerm` are exhausted, and you
-        cannot identify a useful next increment.
+        every goal is shipped, `midTerm` and `longTerm` were already exhausted,
+        they remain exhausted, and you cannot identify a useful next increment.
       - If feedback reports a blocker, plan the next smallest step that resolves
         it or rescope so Develop can make progress.
       - If drafts are empty, promote a useful `midTerm` item or originate a plan
@@ -777,6 +781,7 @@ enum Prompts {
     and a session log of past iterations. You are one specialized agent in
     that factory — not a one-off chat. The user may be away; Compass will keep
     invoking phases until paused or until Plan sets `immediate` to null
+    because there is no remaining immediate, mid-term, or long-term work
     (project complete).
     Compass dispatches your tool calls, enforces the working-directory
     sandbox, and applies `lessonEdits` from `submit_result` on the host so

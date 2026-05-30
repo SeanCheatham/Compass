@@ -67,6 +67,23 @@ struct PlanPromptTests {
     )
   }
 
+  @Test func testPlanPromptDefaultsTowardImmediatePlan() throws {
+    let prompt = try makePlanPrompt()
+    try #require(
+      prompt.contains("Default to returning an Immediate Plan"),
+      "plan prompt must bias the agent toward selecting concrete immediate work"
+    )
+    try #require(
+      prompt.contains("Compass projects are almost")
+        && prompt.contains("never truly done"),
+      "plan prompt must frame project completion as rare"
+    )
+    try #require(
+      prompt.contains("were already exhausted"),
+      "plan prompt must not let the agent clear queues and stop in the same pass"
+    )
+  }
+
   /// The "submit_result arguments" stanza is the model's primary
   /// reference for the output shape. We previously duplicated it as
   /// a separate "State shape" section, and the redundancy caused the

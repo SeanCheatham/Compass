@@ -225,11 +225,20 @@ extension CompassProject {
   ) -> (@Sendable (Data) throws -> Void) {
     let hostWorkspace = makeWorkspace(repoURL: hostRepoURL)
     let validatesLessonEdits = phase == .plan || phase == .develop || phase == .reflect
+    let activeForgeProfile = forgeProfile
     return { args in
       if validatesLessonEdits {
         try hostWorkspace.validateSubmitResultLessonEdits(args)
       }
-      _ = try JSONDecoder().decode(T.self, from: args)
+      let decoded = try JSONDecoder().decode(T.self, from: args)
+      guard phase == .plan, let planResult = decoded as? PlanRunResult else { return }
+      let currentState = try hostWorkspace.readState()
+      let nextState = currentState.applying(proposal: planResult.state)
+      try PlanTransitionValidator.validate(
+        from: currentState,
+        to: nextState,
+        forgeProfile: activeForgeProfile
+      )
     }
   }
 

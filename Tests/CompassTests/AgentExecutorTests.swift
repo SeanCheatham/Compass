@@ -381,6 +381,16 @@ struct AgentExecutorTests {
     try #require(nudge.eventText == "submit_result lesson edits rejected")
   }
 
+  @Test func testSubmitResultValidationNudgeUsesPlanCopyForRejectedPlan() throws {
+    let nudge = AgentExecutor.submitResultValidationNudge(
+      for: PlanTransitionValidationError(message: "Plan returned no immediate work.")
+    )
+
+    try #require(nudge.eventText == "submit_result plan rejected")
+    try #require(nudge.userMessage.contains("Immediate Plan"))
+    try #require(!nudge.userMessage.contains("lessonEdits"))
+  }
+
   @Test func testDecodingErrorMessageSurfacesMissingKey() throws {
     let payload = Data(
       """

@@ -42,11 +42,41 @@ struct PlanTransitionValidatorTests {
   }
 
   @Test func testAcceptsNoImmediateWorkState() throws {
-    let current = makeState(completed: ["Everything shipped"], midTerm: "")
+    let current = makeState(completed: ["Everything shipped"], midTerm: "", longTerm: "")
     let next = makeState(
       completed: ["Everything shipped"], immediate: nil, midTerm: "", longTerm: "")
 
     try PlanTransitionValidator.validate(from: current, to: next)
+  }
+
+  @Test func testRejectsNoImmediateWorkWhenMidTermRemains() throws {
+    let current = makeState(completed: ["done"], midTerm: "- Next queued item", longTerm: "")
+    let next = makeState(completed: ["done"], immediate: nil, midTerm: "- Next queued item", longTerm: "")
+
+    assertTransitionRejected(from: current, to: next, contains: "Immediate Plan")
+  }
+
+  @Test func testRejectsNoImmediateWorkWhenLongTermRemains() throws {
+    let current = makeState(completed: ["done"], midTerm: "", longTerm: "")
+    let next = makeState(
+      completed: ["done"],
+      immediate: nil,
+      midTerm: "",
+      longTerm: "Build toward the Explore layer"
+    )
+
+    assertTransitionRejected(from: current, to: next, contains: "proposed longTerm")
+  }
+
+  @Test func testRejectsNoImmediateWorkWhenClearingExistingLongTerm() throws {
+    let current = makeState(
+      completed: ["done"],
+      midTerm: "",
+      longTerm: "Build toward the Explore layer"
+    )
+    let next = makeState(completed: ["done"], immediate: nil, midTerm: "", longTerm: "")
+
+    assertTransitionRejected(from: current, to: next, contains: "current longTerm")
   }
 
   private func makeState(
@@ -104,6 +134,49 @@ struct PlanTransitionValidatorTests {
       message.contains(expectedText),
       "Expected error containing `\(expectedText)`, got `\(message)`."
     )
+  }
+}
+
+@MainActor
+struct PlanSubmitResultValidationTests {
+  @Test func testRejectsNoImmediateWorkBeforeAgentFinishes() throws {
+    let repoURL = try makeTempDir()
+    defer { try? FileManager.default.removeItem(at: repoURL) }
+    try initGitRepo(at: repoURL)
+
+    let project = CompassProject(repoURL: repoURL)
+    let workspace = project.makeWorkspace(repoURL: repoURL)
+    try workspace.initialize()
+    try workspace.writeState(
+      PlanState(
+        completed: ["Prior slice"],
+        immediate: nil,
+        midTerm: "",
+        longTerm: "Build toward the Explore layer"
+      )
+    )
+
+    let payload = PlanRunResult(
+      state: PlanProposal(
+        immediate: nil,
+        midTerm: "",
+        longTerm: "Build toward the Explore layer"
+      )
+    )
+    let args = try JSONEncoder().encode(payload)
+    let validate = project.submitResultValidation(
+      for: .plan,
+      hostRepoURL: repoURL,
+      decode: PlanRunResult.self
+    )
+
+    do {
+      try validate(args)
+      Issue.record("Expected no-immediate plan submit_result to be rejected.")
+    } catch let error as PlanTransitionValidationError {
+      try #require(error.message.contains("Immediate Plan"))
+      try #require(error.message.contains("current longTerm"))
+    }
   }
 }
 

@@ -897,6 +897,9 @@ final class AgentExecutor {
   /// (mid-token cutoff), so we fall back to a generic "args wouldn't
   /// parse" nudge that nudges the model toward shorter output.
   static func submitResultValidationNudge(for error: Error) -> InvalidToolArgumentsNudge {
+    if let error = error as? PlanTransitionValidationError {
+      return invalidPlanTransitionNudge(errorMessage: error.message)
+    }
     if error is DecodingError {
       return invalidSubmitResultDecodeNudge(errorMessage: decodingErrorMessage(error))
     }
@@ -954,6 +957,22 @@ final class AgentExecutor {
         matches the current lessons content exactly — re-read the Lessons section in your \
         original task. Use `[]` when you have no lesson change. If `find` would match more \
         than once, include more surrounding context or set `replaceAll` to true.
+        """
+    )
+  }
+
+  static func invalidPlanTransitionNudge(errorMessage: String) -> InvalidToolArgumentsNudge {
+    InvalidToolArgumentsNudge(
+      eventText: "submit_result plan rejected",
+      eventDetail: errorMessage,
+      userMessage: """
+        Your previous `submit_result` would stop the Compass loop instead of selecting valid immediate work: \
+        \(errorMessage)
+
+        Call `submit_result` again with a concrete `state.immediate` object containing one commit-sized \
+        Immediate Plan and a real verify command. Preserve `midTerm` and `longTerm` unless you have a \
+        specific revision. Use `immediate: null` only when there was already no mid-term or long-term \
+        runway before this Plan pass and there is still none.
         """
     )
   }
