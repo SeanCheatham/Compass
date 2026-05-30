@@ -1621,6 +1621,116 @@ struct ExploreFileExplainerTests {
     }
   }
 
+  // MARK: - FileChange computed properties (coverage)
+
+  @Test
+  func fileChange_lineCountLabel_positiveAdditions() throws {
+    let change = FileChange(
+      relativePath: "Sources/App.swift",
+      additions: 10,
+      deletions: 2,
+      language: nil,
+      summary: nil
+    )
+    try #require(change.lineCountLabel == "+10/-2")
+  }
+
+  @Test
+  func fileChange_lineCountLabel_zeroAdditions() throws {
+    let change = FileChange(
+      relativePath: "Sources/App.swift",
+      additions: 0,
+      deletions: 5,
+      language: nil,
+      summary: nil
+    )
+    try #require(change.lineCountLabel == "+0/-5")
+  }
+
+  @Test
+  func fileChange_lineCountLabel_zeroDeletions() throws {
+    let change = FileChange(
+      relativePath: "Sources/App.swift",
+      additions: 3,
+      deletions: 0,
+      language: nil,
+      summary: nil
+    )
+    try #require(change.lineCountLabel == "+3/-0")
+  }
+
+  @Test
+  func fileChange_lineCountLabel_allZeros() throws {
+    let change = FileChange(
+      relativePath: "Sources/App.swift",
+      additions: 0,
+      deletions: 0,
+      language: nil,
+      summary: nil
+    )
+    try #require(change.lineCountLabel == "+0/-0")
+  }
+
+  @Test
+  func fileChange_fileName_extractsLastPathComponent() throws {
+    let change = FileChange(
+      relativePath: "Sources/Compass/App.swift",
+      additions: 10,
+      deletions: 2,
+      language: nil,
+      summary: nil
+    )
+    try #require(change.fileName == "App.swift")
+  }
+
+  @Test
+  func fileChange_category_sourceFile() throws {
+    let change = FileChange(
+      relativePath: "Sources/App.swift",
+      additions: 10,
+      deletions: 2,
+      language: nil,
+      summary: nil
+    )
+    try #require(change.category == .source)
+  }
+
+  @Test
+  func fileChange_category_testFile() throws {
+    let change = FileChange(
+      relativePath: "Tests/AppTests.swift",
+      additions: 5,
+      deletions: 1,
+      language: nil,
+      summary: nil
+    )
+    try #require(change.category == .test)
+  }
+
+  @Test
+  func fileChange_category_configFile() throws {
+    let change = FileChange(
+      relativePath: "Package.swift",
+      additions: 20,
+      deletions: 5,
+      language: nil,
+      summary: nil
+    )
+    try #require(change.category == .config)
+  }
+
+  @Test
+  func fileChange_category_otherFile() throws {
+    let change = FileChange(
+      relativePath: "README.md",
+      additions: 1,
+      deletions: 0,
+      language: nil,
+      summary: nil
+    )
+    try #require(change.category == .other)
+  }
+
   // MARK: - Helpers
 
   private func initGitRepo(at url: URL) {

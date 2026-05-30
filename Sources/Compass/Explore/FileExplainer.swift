@@ -109,7 +109,7 @@ struct FileChange: Identifiable, Equatable {
 
   /// Short "+N/-N" line-count label.
   var lineCountLabel: String {
-    "\(additions > 0 ? "+\(additions)" : "0")/\(deletions > 0 ? "-\(deletions)" : "0")"
+    "\(additions >= 0 ? "+\(additions)" : "-\(additions)")/\(deletions >= 0 ? "-\(deletions)" : "+\(deletions)")"
   }
 }
 
