@@ -27,7 +27,7 @@ struct ProjectActivitySourceStatusTests {
     try #require(status.accessibilityLabel == "")
     try #require(status.accessibilityValue == "")
     try #require(status.accessibilityHint == "")
-    assertBounded(status)
+    try assertBounded(status)
   }
 
   @Test
@@ -59,7 +59,7 @@ struct ProjectActivitySourceStatusTests {
     try #require(status.accessibilityLabel.contains("Activity source"))
     try #require(status.accessibilityValue.contains(status.detail))
     try #require(status.accessibilityHint.contains("Read-only"))
-    assertBounded(status)
+    try assertBounded(status)
     try assertDiagnosticsParity(snapshot: snapshot, status: status)
   }
 
@@ -81,7 +81,7 @@ struct ProjectActivitySourceStatusTests {
     try #require(status.detail.contains("stale repo-local activity"))
     try #require(status.helpText.contains("repo-local ignored-compatible"))
     try #require(status.identifier.contains("repo-local:ignored-compatible"))
-    assertBounded(status)
+    try assertBounded(status)
     try assertDiagnosticsParity(snapshot: snapshot, status: status)
   }
 
@@ -106,7 +106,7 @@ struct ProjectActivitySourceStatusTests {
       try #require(
         status.detail.contains(expectedCopy), "Missing \(expectedCopy) for \(state.rawValue)")
       try #require(status.helpText.contains("repo-local \(state.rawValue)"))
-      assertBounded(status)
+      try assertBounded(status)
     }
   }
 
@@ -129,7 +129,7 @@ struct ProjectActivitySourceStatusTests {
     try #require(status.detail.contains("empty source"))
     try #require(status.helpText.contains("availability storage-root-missing"))
     try #require(status.accessibilityHint.contains("Read-only"))
-    assertBounded(status)
+    try assertBounded(status)
     try assertDiagnosticsParity(snapshot: snapshot, status: status)
   }
 
@@ -150,7 +150,7 @@ struct ProjectActivitySourceStatusTests {
     try #require(status.helpText.contains("root none"))
     try #require(status.helpText.contains("sessions none"))
     try #require(status.activitySourceIdentifier == snapshot.identifier)
-    assertBounded(status)
+    try assertBounded(status)
     try assertDiagnosticsParity(snapshot: snapshot, status: status)
   }
 
@@ -197,17 +197,17 @@ struct ProjectActivitySourceStatusTests {
 
   private func assertBounded(
     _ status: ProjectActivitySourceStatus
-  ) {
-    try? try #require(status.label.count <= ProjectActivitySourceStatus.labelLimit)
-    try? try #require(status.detail.count <= ProjectActivitySourceStatus.detailLimit)
-    try? try #require(status.helpText.count <= ProjectActivitySourceStatus.helpLimit)
-    try? try #require(status.systemImage.count <= ProjectActivitySourceStatus.systemImageLimit)
-    try? try #require(
+  ) throws {
+    try #require(status.label.count <= ProjectActivitySourceStatus.labelLimit)
+    try #require(status.detail.count <= ProjectActivitySourceStatus.detailLimit)
+    try #require(status.helpText.count <= ProjectActivitySourceStatus.helpLimit)
+    try #require(status.systemImage.count <= ProjectActivitySourceStatus.systemImageLimit)
+    try #require(
       status.accessibilityLabel.count <= ProjectActivitySourceStatus.accessibilityLabelLimit
     )
-    try? try #require(
+    try #require(
       status.accessibilityHint.count <= ProjectActivitySourceStatus.accessibilityHintLimit
     )
-    try? try #require(status.severity.rawValue.count <= 16)
+    try #require(status.severity.rawValue.count <= 16)
   }
 }
