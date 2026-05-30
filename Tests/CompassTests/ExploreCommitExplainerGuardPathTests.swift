@@ -36,8 +36,8 @@ struct ExploreCommitExplainerGuardPathTests {
     let temporaryDirectory = try makeTempDir()
     defer { try? FileManager.default.removeItem(at: temporaryDirectory) }
 
-    try CompassTests.initGitRepo(at: temporaryDirectory)
-    _ = try CompassTests.makeSingleCommit(at: temporaryDirectory)
+    try initGitRepo(at: temporaryDirectory)
+    _ = try makeSingleCommit(at: temporaryDirectory)
 
     // A SHA with an embedded newline is not valid for git — git exits non-zero
     // and `try?` returns nil. The method falls back to `""`.
@@ -60,14 +60,14 @@ struct ExploreCommitExplainerGuardPathTests {
     let temporaryDirectory = try makeTempDir()
     defer { try? FileManager.default.removeItem(at: temporaryDirectory) }
 
-    try CompassTests.initGitRepo(at: temporaryDirectory)
-    try CompassTests.runGit(
+    try initGitRepo(at: temporaryDirectory)
+    try runGit(
       "git -C \(temporaryDirectory.path) "
         + "-c user.email=t@t -c user.name=t commit -q --allow-empty -m 'Empty commit'",
       at: temporaryDirectory
     )
 
-    let sha = try CompassTests.getSingleCommitSHA(at: temporaryDirectory)
+    let sha = try getSingleCommitSHA(at: temporaryDirectory)
     let commit = SessionCommit(
       sha: sha,
       short: String(sha.prefix(7)),
@@ -92,8 +92,8 @@ struct ExploreCommitExplainerGuardPathTests {
     let temporaryDirectory = try makeTempDir()
     defer { try? FileManager.default.removeItem(at: temporaryDirectory) }
 
-    try CompassTests.initGitRepo(at: temporaryDirectory)
-    _ = try CompassTests.makeSingleCommit(at: temporaryDirectory)
+    try initGitRepo(at: temporaryDirectory)
+    _ = try makeSingleCommit(at: temporaryDirectory)
 
     let malformedCommit = SessionCommit(
       sha: "zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz",

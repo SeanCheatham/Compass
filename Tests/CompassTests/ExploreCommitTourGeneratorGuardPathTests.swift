@@ -31,8 +31,8 @@ struct ExploreCommitTourGeneratorGuardPathTests {
     let temporaryDirectory = try makeTempDir()
     defer { try? FileManager.default.removeItem(at: temporaryDirectory) }
 
-    try CompassTests.initGitRepo(at: temporaryDirectory)
-    _ = try CompassTests.makeSingleCommit(at: temporaryDirectory)
+    try initGitRepo(at: temporaryDirectory)
+    _ = try makeSingleCommit(at: temporaryDirectory)
 
     // Use a valid-format but non-existent SHA — git returns empty string,
     // which hits: guard !diff.isEmpty else { return nil }
@@ -56,16 +56,16 @@ struct ExploreCommitTourGeneratorGuardPathTests {
     let temporaryDirectory = try makeTempDir()
     defer { try? FileManager.default.removeItem(at: temporaryDirectory) }
 
-    try CompassTests.initGitRepo(at: temporaryDirectory)
+    try initGitRepo(at: temporaryDirectory)
 
     // Create an allow-empty commit (no files staged/changed)
-    try CompassTests.runGit(
+    try runGit(
       "git -C \(temporaryDirectory.path) "
         + "-c user.email=t@t -c user.name=t commit -q --allow-empty -m 'Empty commit'",
       at: temporaryDirectory
     )
 
-    let sha = try CompassTests.getSingleCommitSHA(at: temporaryDirectory)
+    let sha = try getSingleCommitSHA(at: temporaryDirectory)
     let commits = [SessionCommit(sha: sha, short: String(sha.prefix(7)), subject: "Empty commit")]
 
     let result = await CommitTourGenerator.generateTour(

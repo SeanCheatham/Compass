@@ -56,16 +56,16 @@ struct ExploreFileExplainerGuardPathTests {
     let temporaryDirectory = try makeTempDir()
     defer { try? FileManager.default.removeItem(at: temporaryDirectory) }
 
-    try CompassTests.initGitRepo(at: temporaryDirectory)
+    try initGitRepo(at: temporaryDirectory)
 
     // Create an allow-empty commit — valid SHA, no files in the tree.
-    try CompassTests.runGit(
+    try runGit(
       "git -C \(temporaryDirectory.path) "
         + "-c user.email=t@t -c user.name=t commit -q --allow-empty -m 'Empty commit'",
       at: temporaryDirectory
     )
 
-    let sha = try CompassTests.getSingleCommitSHA(at: temporaryDirectory)
+    let sha = try getSingleCommitSHA(at: temporaryDirectory)
     let commits = [SessionCommit(sha: sha, short: String(sha.prefix(7)), subject: "Empty commit")]
 
     let result = await FileExplainer.whyGenerated(
@@ -94,8 +94,8 @@ struct ExploreFileExplainerGuardPathTests {
     let temporaryDirectory = try makeTempDir()
     defer { try? FileManager.default.removeItem(at: temporaryDirectory) }
 
-    try CompassTests.initGitRepo(at: temporaryDirectory)
-    _ = try CompassTests.makeSingleCommit(at: temporaryDirectory)
+    try initGitRepo(at: temporaryDirectory)
+    _ = try makeSingleCommit(at: temporaryDirectory)
 
     // Construct a two-element commit array. With standard Swift arrays
     // `last` is never nil when count > 1 — but the guard path exists as a
@@ -168,8 +168,8 @@ struct ExploreFileExplainerGuardPathTests {
     let temporaryDirectory = try makeTempDir()
     defer { try? FileManager.default.removeItem(at: temporaryDirectory) }
 
-    try CompassTests.initGitRepo(at: temporaryDirectory)
-    let commits = try CompassTests.makeSingleCommit(at: temporaryDirectory)
+    try initGitRepo(at: temporaryDirectory)
+    let commits = try makeSingleCommit(at: temporaryDirectory)
 
     let result = await FileExplainer.explain(
       file: "Sources/App.swift",
@@ -194,8 +194,8 @@ struct ExploreFileExplainerGuardPathTests {
     let temporaryDirectory = try makeTempDir()
     defer { try? FileManager.default.removeItem(at: temporaryDirectory) }
 
-    try CompassTests.initGitRepo(at: temporaryDirectory)
-    let commits = try CompassTests.makeSingleCommit(at: temporaryDirectory)
+    try initGitRepo(at: temporaryDirectory)
+    let commits = try makeSingleCommit(at: temporaryDirectory)
 
     let result = await FileExplainer.whyGenerated(
       file: "Sources/App.swift",
@@ -220,7 +220,7 @@ struct ExploreFileExplainerGuardPathTests {
     let temporaryDirectory = try makeTempDir()
     defer { try? FileManager.default.removeItem(at: temporaryDirectory) }
 
-    try CompassTests.initGitRepo(at: temporaryDirectory)
+    try initGitRepo(at: temporaryDirectory)
 
     let result = await FileExplainer.explain(
       file: "Sources/App.swift",
@@ -244,16 +244,16 @@ struct ExploreFileExplainerGuardPathTests {
     let temporaryDirectory = try makeTempDir()
     defer { try? FileManager.default.removeItem(at: temporaryDirectory) }
 
-    try CompassTests.initGitRepo(at: temporaryDirectory)
+    try initGitRepo(at: temporaryDirectory)
 
     // Create an allow-empty commit — valid SHA, no files in the tree.
-    try CompassTests.runGit(
+    try runGit(
       "git -C \(temporaryDirectory.path) "
         + "-c user.email=t@t -c user.name=t commit -q --allow-empty -m 'Empty commit'",
       at: temporaryDirectory
     )
 
-    let sha = try CompassTests.getSingleCommitSHA(at: temporaryDirectory)
+    let sha = try getSingleCommitSHA(at: temporaryDirectory)
     let commits = [SessionCommit(sha: sha, short: String(sha.prefix(7)), subject: "Empty commit")]
 
     let result = await FileExplainer.explain(

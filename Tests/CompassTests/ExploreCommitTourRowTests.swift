@@ -50,8 +50,8 @@ struct ExploreCommitTourRowTests {
     let temporaryDirectory = try makeTempDir()
     defer { try? FileManager.default.removeItem(at: temporaryDirectory) }
 
-    try CompassTests.initGitRepo(at: temporaryDirectory)
-    let commits = try CompassTests.makeSingleCommit(at: temporaryDirectory)
+    try initGitRepo(at: temporaryDirectory)
+    let commits = try makeSingleCommit(at: temporaryDirectory)
 
     // Call generateTour directly — this is what loadTour() does at line 1140.
     // When Foundation Models is unavailable, it returns nil (non-throwing),
@@ -79,7 +79,7 @@ struct ExploreCommitTourRowTests {
     let temporaryDirectory = try makeTempDir()
     defer { try? FileManager.default.removeItem(at: temporaryDirectory) }
 
-    try CompassTests.initGitRepo(at: temporaryDirectory)
+    try initGitRepo(at: temporaryDirectory)
 
     // Empty commits array hits: guard let firstCommit = commits.first else { return nil }
     let result = await CommitTourGenerator.generateTour(
@@ -101,7 +101,7 @@ struct ExploreCommitTourRowTests {
     let temporaryDirectory = try makeTempDir()
     defer { try? FileManager.default.removeItem(at: temporaryDirectory) }
 
-    try CompassTests.initGitRepo(at: temporaryDirectory)
+    try initGitRepo(at: temporaryDirectory)
 
     // Use a valid-looking but non-existent SHA — git diff returns empty string,
     // which hits: guard !diff.isEmpty else { return nil }

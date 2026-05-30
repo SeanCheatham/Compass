@@ -44,8 +44,8 @@ struct ExploreRepoQnAAnswerGuardTests {
     let temporaryDirectory = try makeTempDir()
     defer { try? FileManager.default.removeItem(at: temporaryDirectory) }
 
-    try CompassTests.initGitRepo(at: temporaryDirectory)
-    let commits = try CompassTests.makeSingleCommit(at: temporaryDirectory)
+    try initGitRepo(at: temporaryDirectory)
+    let commits = try makeSingleCommit(at: temporaryDirectory)
 
     // Empty string → trimming → "" → guard in submitQuestion() prevents the call.
     // We verify RepoQnA.answer() itself is safe if the guard were missing.
@@ -69,8 +69,8 @@ struct ExploreRepoQnAAnswerGuardTests {
     let temporaryDirectory = try makeTempDir()
     defer { try? FileManager.default.removeItem(at: temporaryDirectory) }
 
-    try CompassTests.initGitRepo(at: temporaryDirectory)
-    let commits = try CompassTests.makeSingleCommit(at: temporaryDirectory)
+    try initGitRepo(at: temporaryDirectory)
+    let commits = try makeSingleCommit(at: temporaryDirectory)
 
     // Whitespace-only → trimming → "" → guard in submitQuestion() prevents the call.
     let result = await RepoQnA.answer(
@@ -95,8 +95,8 @@ struct ExploreRepoQnAAnswerGuardTests {
     let temporaryDirectory = try makeTempDir()
     defer { try? FileManager.default.removeItem(at: temporaryDirectory) }
 
-    try CompassTests.initGitRepo(at: temporaryDirectory)
-    let commits = try CompassTests.makeSingleCommit(at: temporaryDirectory)
+    try initGitRepo(at: temporaryDirectory)
+    let commits = try makeSingleCommit(at: temporaryDirectory)
 
     // Non-blank question passes the guard check.
     // When Foundation Models is unavailable, answer() returns nil,

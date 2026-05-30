@@ -41,7 +41,7 @@ struct ExplorePerCommitNarrativesPopoverTests {
     let temporaryDirectory = try makeTempDir()
     defer { try? FileManager.default.removeItem(at: temporaryDirectory) }
 
-    try CompassTests.initGitRepo(at: temporaryDirectory)
+    try initGitRepo(at: temporaryDirectory)
 
     let emptyCommits: [SessionCommit] = []
     try #require(emptyCommits.isEmpty)
@@ -79,8 +79,8 @@ struct ExplorePerCommitNarrativesPopoverTests {
     let temporaryDirectory = try makeTempDir()
     defer { try? FileManager.default.removeItem(at: temporaryDirectory) }
 
-    try CompassTests.initGitRepo(at: temporaryDirectory)
-    let commits = try CompassTests.makeSingleCommit(at: temporaryDirectory)
+    try initGitRepo(at: temporaryDirectory)
+    let commits = try makeSingleCommit(at: temporaryDirectory)
 
     // Call explain directly — this is what loadNarratives() does at line 1040.
     // When Foundation Models is unavailable, it returns nil text (non-throwing),
