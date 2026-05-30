@@ -28,6 +28,7 @@ struct ExploreTab: View, Equatable {
   @State private var whyGeneratedExplanation: String? = nil
   @State private var whyGeneratedReason: ExplainUnavailableReason? = nil
   @State private var loadingWhyGenerated = false
+  @State private var recentChangeSummaries: [String] = []
 
   @State private var summaryPopoverFile: String? = nil
   @State private var summaryPopoverText: String? = nil
@@ -106,10 +107,15 @@ struct ExploreTab: View, Equatable {
     .onAppear {
       guard isActive else { return }
       applyCachedSnapshotIfAvailable()
+      Task { await loadRecentChangeSummaries() }
     }
     .onChange(of: isActive) { _, active in
       guard active else { return }
       applyCachedSnapshotIfAvailable()
+      Task { await loadRecentChangeSummaries() }
+    }
+    .onChange(of: sessionScope) { _, _ in
+      Task { await loadRecentChangeSummaries() }
     }
   }
 
@@ -126,6 +132,7 @@ struct ExploreTab: View, Equatable {
     } else {
       VStack(alignment: .leading, spacing: 0) {
         sessionScopePicker
+        recentChangesHeader
         List {
           ForEach(visibleRows) { row in
             FileTreeRowView(
@@ -285,6 +292,62 @@ struct ExploreTab: View, Equatable {
       self.whyGeneratedExplanation = result
       self.whyGeneratedReason = reason
       self.loadingWhyGenerated = false
+    }
+  }
+
+  private func loadRecentChangeSummaries() async {
+    if #available(macOS 26.0, *) {
+      let commits = commitsForSessionScope()
+      guard !commits.isEmpty else {
+        await MainActor.run { self.recentChangeSummaries = [] }
+        return
+      }
+      guard FoundationModelsAvailability.isAvailable else {
+        await MainActor.run { self.recentChangeSummaries = [] }
+        return
+      }
+      var summaries: [String] = []
+      await withTaskGroup(of: String?.self) { group in
+        for commit in commits {
+          group.addTask {
+            let diff = await CommitExplainer.gitDiff(sha: commit.sha, repoURL: self.repoURL)
+            let trimmedDiff = diff.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmedDiff.isEmpty else { return nil }
+            return await CommitNarrator.narrate(commit: commit, diff: trimmedDiff)
+          }
+        }
+        for await result in group {
+          if let text = result {
+            summaries.append(text)
+          }
+        }
+      }
+      await MainActor.run { self.recentChangeSummaries = summaries }
+    }
+  }
+
+  private var recentChangesHeader: some View {
+    Group {
+      if recentChangeSummaries.isEmpty {
+        EmptyView()
+      } else {
+        VStack(alignment: .leading, spacing: 4) {
+          Text("Recent Changes")
+            .font(.headline)
+            .foregroundStyle(.secondary)
+            .padding(.horizontal, 12)
+          ForEach(Array(recentChangeSummaries.enumerated()), id: \.offset) { _, summary in
+            Text(summary)
+              .font(.caption)
+              .foregroundStyle(.secondary)
+              .padding(.horizontal, 12)
+              .lineLimit(1)
+          }
+        }
+        .padding(.vertical, 8)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color(nsColor: .controlBackgroundColor))
+      }
     }
   }
 
