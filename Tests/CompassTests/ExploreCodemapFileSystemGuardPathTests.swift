@@ -1,0 +1,151 @@
+import Foundation
+import Testing
+
+@testable import Compass
+
+/// Guard-path tests for `CodemapFileSystem.childRelativePaths` internal branches.
+///
+/// These are the two silent-skip guards that are documented but not exercised
+/// by the existing end-to-end `CodemapFileSystemTests`:
+///
+/// 1. **Symlink guard** (`directoryEntry` lines 113-114): when the directory
+///    entry reports `isSymbolicLink == true`, `directoryEntry` returns `nil`
+///    and the symbolic link is silently omitted from the tree with no error.
+///
+/// 2. **`shouldInclude` top-level exclusion guard** (lines 95-103): the
+///    `RepositoryWalkRules.shouldInclude` check filters out top-level entries
+///    such as `Compass`.  When it returns `false` the entry is silently
+///    skipped.
+struct ExploreCodemapFileSystemGuardPathTests {
+
+  // MARK: - Guard 1: symlink silently skipped
+
+  /// Verifies that `childRelativePaths` silently skips symbolic links.
+  ///
+  /// The symlink guard is in `directoryEntry` (lines 113-114): when
+  /// `values.isSymbolicLink == true` the method returns `nil` and the
+  /// `guard let entry = directoryEntry(at: childURL)` on line 93 makes the
+  /// entry disappear from the result with no error raised.
+  @Test
+  func childRelativePaths_symlinkSilentlySkipped() throws {
+    let root = try makeTempDir()
+
+    // Create a regular file and a symlink to it.
+    let regularFile = root.appendingPathComponent("Regular.swift")
+    try FileManager.default.createFile(atPath: regularFile.path, contents: nil)
+
+    let symlinkPath = root.appendingPathComponent("Link.swift")
+    try FileManager.default.createSymbolicLink(
+      atPath: symlinkPath.path,
+      withDestinationPath: regularFile.path
+    )
+
+    let fs = CodemapFileSystem(rootURL: root)
+    let tree = fs.buildTree()
+
+    // The regular file must be present.
+    let regularNode = tree.first { $0.relativePath == "Regular.swift" }
+    try #require(regularNode != nil)
+
+    // The symlink must NOT appear in the tree — the symlink guard swallows it.
+    let symlinkNodes = tree.filter { $0.relativePath == "Link.swift" }
+    #expect(symlinkNodes.isEmpty)
+  }
+
+  /// Verifies that `directoryEntry` returns `nil` for a broken symlink, so the
+  /// broken symlink is also silently excluded.
+  @Test
+  func childRelativePaths_brokenSymlinkSilentlySkipped() throws {
+    let root = try makeTempDir()
+
+    // Create a symlink pointing to a target that does not exist.
+    let brokenLink = root.appendingPathComponent("BrokenLink.swift")
+    try FileManager.default.createSymbolicLink(
+      atPath: brokenLink.path,
+      withDestinationPath: "NonExistentTarget.swift"
+    )
+
+    let fs = CodemapFileSystem(rootURL: root)
+    let tree = fs.buildTree()
+
+    // The broken symlink must not appear in the tree.
+    let brokenLinkNodes = tree.filter { $0.relativePath == "BrokenLink.swift" }
+    #expect(brokenLinkNodes.isEmpty)
+  }
+
+  // MARK: - Guard 2: shouldInclude top-level exclusion silently skips
+
+  /// Verifies that a top-level `Compass` directory is silently excluded by
+  /// `RepositoryWalkRules.shouldInclude` even when it contains valid files.
+  ///
+  /// The guard is on lines 95-103: when `shouldInclude` returns `false` the
+  /// `compactMap` on line 92 returns `nil` and the entry never reaches
+  /// `buildNode`.
+  @Test
+  func buildTree_topLevelCompassDirectorySilentlyExcluded() throws {
+    let root = try makeTempDir()
+
+    // A legitimate Sources directory with a real Swift file.
+    let sourcesDir = root.appendingPathComponent("Sources")
+    try FileManager.default.createDirectory(
+      atPath: sourcesDir.path, withIntermediateDirectories: true)
+    try FileManager.default.createFile(
+      atPath: sourcesDir.appendingPathComponent("App.swift").path,
+      contents: nil)
+
+    // A top-level Compass directory with a file — must be excluded.
+    let compassDir = root.appendingPathComponent("Compass")
+    try FileManager.default.createDirectory(
+      atPath: compassDir.path, withIntermediateDirectories: true)
+    try FileManager.default.createFile(
+      atPath: compassDir.appendingPathComponent("Internal.swift").path,
+      contents: nil)
+
+    let fs = CodemapFileSystem(rootURL: root)
+    let tree = fs.buildTree()
+
+    // Sources must be present.
+    let sourcesNode = tree.first { $0.relativePath == "Sources" }
+    try #require(sourcesNode != nil)
+    #expect(sourcesNode!.children.count == 1)
+    #expect(sourcesNode!.children[0].relativePath == "Sources/App.swift")
+
+    // The top-level Compass directory must NOT appear anywhere in the tree.
+    let compassNodes = tree.filter { $0.relativePath == "Compass" }
+    #expect(compassNodes.isEmpty)
+  }
+
+  /// Verifies that a top-level hidden entry (dot-prefix) is silently excluded
+  /// by `shouldInclude`'s `hasPrefix(".")` check.
+  @Test
+  func buildTree_topLevelHiddenEntrySilentlyExcluded() throws {
+    let root = try makeTempDir()
+
+    // A visible source directory.
+    let sourcesDir = root.appendingPathComponent("Sources")
+    try FileManager.default.createDirectory(
+      atPath: sourcesDir.path, withIntermediateDirectories: true)
+    try FileManager.default.createFile(
+      atPath: sourcesDir.appendingPathComponent("App.swift").path,
+      contents: nil)
+
+    // A top-level dot-prefix directory — must be excluded.
+    let hiddenDir = root.appendingPathComponent(".Hidden")
+    try FileManager.default.createDirectory(
+      atPath: hiddenDir.path, withIntermediateDirectories: true)
+    try FileManager.default.createFile(
+      atPath: hiddenDir.appendingPathComponent("Secret.swift").path,
+      contents: nil)
+
+    let fs = CodemapFileSystem(rootURL: root)
+    let tree = fs.buildTree()
+
+    // Sources must be present.
+    let sourcesNode = tree.first { $0.relativePath == "Sources" }
+    try #require(sourcesNode != nil)
+
+    // The hidden directory must NOT appear in the tree.
+    let hiddenNodes = tree.filter { $0.relativePath == ".Hidden" }
+    #expect(hiddenNodes.isEmpty)
+  }
+}
