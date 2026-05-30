@@ -221,14 +221,14 @@ struct ExploreRepoQnATests {
     // adding a shadow overload with these labels does not silently shadow
     // the real call — keeping the test focused on documentation.
     func changes(url: URL, items: [SessionCommit]) async -> [
-      FileExplainer.FileChange
+      FileChange
     ] {
       // If this compiles, the call site signature is well-formed.
       []
     }
 
     // Verify the documented call shape type-checks.
-    _ = changes(
+    _ = await changes(
       url: URL(fileURLWithPath: "/"),
       items: []
     )
