@@ -283,7 +283,7 @@ struct ExploreTabWhyGeneratedInteractionTests {
     // Simulate a second handleFileTap("B.swift") — the state resets synchronously
     // before the new load begins (lines 208–212).
     let newPath = "B.swift"
-    whyGeneratedFile = newPath
+    var whyGeneratedFile = newPath
     whyGeneratedExplanation = nil  // ← reset
     whyGeneratedReason = nil        // ← reset
     loadingWhyGenerated = true      // ← set true before async loadWhyGenerated()
