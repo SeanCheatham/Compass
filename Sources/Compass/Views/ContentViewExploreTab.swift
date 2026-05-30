@@ -16,6 +16,7 @@ enum SessionScope: String, CaseIterable {
 /// until richer folder-level summaries are available.
 struct ExploreTab: View {
   let project: CompassProject
+  let isActive: Bool
   @State private var fileTree: [FileTreeNode] = []
   @State private var codemapEntries: [String: CodemapEntry] = [:]
   @State private var isLoading = true
@@ -37,21 +38,14 @@ struct ExploreTab: View {
 
   @State private var sessionScope: SessionScope = .lastSession
   @State private var expandedPaths: Set<String> = []
-  @State private var loadedRepoURL: URL?
+  @State private var loadedRepoPath: String?
 
   private var visibleRows: [ExploreVisibleRow] {
     ExploreVisibleRow.visibleRows(in: fileTree, expandedPaths: expandedPaths)
   }
 
   var body: some View {
-    ZStack(alignment: .topLeading) {
-      exploreContent
-      Color.clear
-        .frame(width: 0, height: 0)
-        .task(id: project.repoURL) {
-          await loadRepositorySnapshotIfNeeded()
-        }
-    }
+    exploreContent
       .popover(isPresented: $showSummaryPopover) {
       if let file = summaryPopoverFile {
         SummaryPopover(
@@ -76,6 +70,19 @@ struct ExploreTab: View {
         )
       }
     }
+    .onAppear {
+      guard isActive else { return }
+      applyCachedSnapshotIfAvailable()
+    }
+    .onChange(of: isActive) { _, active in
+      guard active else { return }
+      applyCachedSnapshotIfAvailable()
+      Task { await loadRepositorySnapshotIfNeeded() }
+    }
+    .task(id: project.repoURL.standardizedFileURL.path) {
+      guard isActive else { return }
+      await loadRepositorySnapshotIfNeeded()
+    }
   }
 
   @ViewBuilder
@@ -91,27 +98,43 @@ struct ExploreTab: View {
     } else {
       VStack(alignment: .leading, spacing: 0) {
         sessionScopePicker
-        ScrollView {
-          LazyVStack(alignment: .leading, spacing: 2) {
-            ForEach(visibleRows) { row in
-              FileTreeRowView(
-                node: row.node,
-                depth: row.depth,
-                isExpanded: expandedPaths.contains(row.node.relativePath),
-                codemapEntries: codemapEntries,
-                onToggleExpansion: toggleExpansion,
-                onFileTap: handleFileTap,
-                onSummaryTap: handleSummaryTap,
-                onSymbolDetailTap: handleSymbolDetailTap,
-                onGenerateSummary: handleGenerateSummary
-              )
-            }
+        List {
+          ForEach(visibleRows) { row in
+            FileTreeRowView(
+              node: row.node,
+              depth: row.depth,
+              isExpanded: expandedPaths.contains(row.node.relativePath),
+              codemapEntries: codemapEntries,
+              onToggleExpansion: toggleExpansion,
+              onFileTap: handleFileTap,
+              onSummaryTap: handleSummaryTap,
+              onSymbolDetailTap: handleSymbolDetailTap,
+              onGenerateSummary: handleGenerateSummary
+            )
+            .listRowInsets(EdgeInsets(top: 2, leading: 8, bottom: 2, trailing: 8))
+            .listRowSeparator(.hidden)
           }
-          .padding(.horizontal, 8)
-          .padding(.vertical, 6)
         }
+        .listStyle(.plain)
+        .scrollContentBackground(.hidden)
       }
     }
+  }
+
+  private func applyCachedSnapshotIfAvailable() {
+    guard loadedRepoPath != project.repoURL.standardizedFileURL.path else { return }
+    guard let snapshot = ExploreRepositorySnapshotCache.shared.snapshot(for: project.repoURL) else {
+      return
+    }
+    apply(snapshot, repoPath: project.repoURL.standardizedFileURL.path)
+  }
+
+  private func apply(_ snapshot: ExploreRepositorySnapshot, repoPath: String) {
+    fileTree = snapshot.fileTree
+    codemapEntries = snapshot.codemapEntries
+    expandedPaths = []
+    loadedRepoPath = repoPath
+    isLoading = false
   }
 
   private func toggleExpansion(for path: String) {
@@ -123,7 +146,14 @@ struct ExploreTab: View {
   }
 
   private func loadRepositorySnapshotIfNeeded() async {
-    guard loadedRepoURL != project.repoURL else { return }
+    let repoPath = project.repoURL.standardizedFileURL.path
+    guard loadedRepoPath != repoPath else { return }
+
+    if let cached = ExploreRepositorySnapshotCache.shared.snapshot(for: project.repoURL) {
+      apply(cached, repoPath: repoPath)
+      return
+    }
+
     isLoading = true
     defer { isLoading = false }
 
@@ -131,27 +161,18 @@ struct ExploreTab: View {
       fileTree = []
       codemapEntries = [:]
       expandedPaths = []
-      loadedRepoURL = project.repoURL
+      loadedRepoPath = repoPath
       return
     }
 
     let repoURL = project.repoURL
     let codemapDir = CodemapStore.defaultDirectory(forWorkspace: workspace)
-    let loaded = await Task.detached(priority: .userInitiated) {
-      let fs = CodemapFileSystem(rootURL: repoURL)
-      let nodes = fs.buildSourceTree()
-      let entries = CodemapStore(directory: codemapDir).loadAllEntries()
-      let entryMap = Dictionary(
-        uniqueKeysWithValues: entries.map {
-          ($0.relativePath, $0)
-        })
-      return (nodes, entryMap)
+    let snapshot = await Task.detached(priority: .utility) {
+      ExploreRepositorySnapshotLoader.load(repoURL: repoURL, codemapDirectory: codemapDir)
     }.value
 
-    fileTree = loaded.0
-    codemapEntries = loaded.1
-    expandedPaths = []
-    loadedRepoURL = project.repoURL
+    ExploreRepositorySnapshotCache.shared.store(snapshot, for: repoURL)
+    apply(snapshot, repoPath: repoPath)
   }
 
   private func handleFileTap(_ path: String) {

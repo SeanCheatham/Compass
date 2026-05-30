@@ -701,23 +701,43 @@ struct WorkspaceTabButton: View {
 struct WorkspaceContent: View {
   @ObservedObject var project: CompassProject
   var selectedTab: WorkspaceTab
+  @State private var keepExploreTabMounted = false
 
   var body: some View {
-    switch selectedTab {
-    case .live:
-      LiveTab(project: project)
-    case .plan:
-      PlanTab(project: project)
-    case .drafts:
-      DraftsTab(project: project)
-    case .assumptions:
-      AssumptionsTab(project: project)
-    case .vision:
-      VisionTab(project: project)
-    case .lessons:
-      LessonsTab(project: project)
-    case .explore:
-      ExploreTab(project: project)
+    ZStack(alignment: .topLeading) {
+      switch selectedTab {
+      case .live:
+        LiveTab(project: project)
+      case .plan:
+        PlanTab(project: project)
+      case .drafts:
+        DraftsTab(project: project)
+      case .assumptions:
+        AssumptionsTab(project: project)
+      case .vision:
+        VisionTab(project: project)
+      case .lessons:
+        LessonsTab(project: project)
+      case .explore:
+        Color.clear
+          .frame(maxWidth: .infinity, maxHeight: .infinity)
+          .accessibilityHidden(true)
+      }
+
+      if keepExploreTabMounted {
+        ExploreTab(
+          project: project,
+          isActive: selectedTab == .explore
+        )
+        .opacity(selectedTab == .explore ? 1 : 0)
+        .allowsHitTesting(selectedTab == .explore)
+        .accessibilityHidden(selectedTab != .explore)
+      }
+    }
+    .onChange(of: selectedTab) { _, tab in
+      if tab == .explore {
+        keepExploreTabMounted = true
+      }
     }
   }
 }
