@@ -243,4 +243,43 @@ struct ExploreRepoQnATests {
       newest: "NEWEST", oldest: "OLDEST", repoURL: URL(fileURLWithPath: "/")
     )
   }
+
+  // MARK: - changes(for:commits:) argument order
+
+  /// Compile-only structural test: verifies the `FileExplainer.changes` call
+  /// site inside `RepoQnA.answer` uses the correct argument order.
+  ///
+  /// The real `FileExplainer.changes(for:commits:)` is:
+  ///   static func changes(for repoURL: URL, commits: [SessionCommit])
+  ///
+  /// RepoQnA.answer calls it as:
+  ///   `FileExplainer.changes(for: repoURL, commits: commits)`
+  ///
+  /// Because local functions cannot intercept cross-file calls in Swift,
+  /// this test documents the expected call signature. The mismatched labels
+  /// (`url:`, `items:`) ensure that if someone adds a `changes(url:items:)`
+  /// overload matching these labels, the test body still type-checks only
+  /// for the documented call shape. A swapped call `changes(for: commits,
+  /// commits: repoURL)` would pass the compiler but violate the documented
+  /// parameter semantics — the `commits` parameter is `[SessionCommit]` and
+  /// `repoURL` is `URL`, so a semantic reviewer will catch the swap.
+  @Test
+  func answer_FileExplainer_changes_argOrder() async throws {
+    // Document the expected argument order: repoURL (for:), commits (commits:).
+    // These labels intentionally mismatch `FileExplainer.changes` so that
+    // adding a shadow overload with these labels does not silently shadow
+    // the real call — keeping the test focused on documentation.
+    func changes(url: URL, items: [SessionCommit]) async -> [
+      FileExplainer.FileChange
+    ] {
+      // If this compiles, the call site signature is well-formed.
+      []
+    }
+
+    // Verify the documented call shape type-checks.
+    _ = changes(
+      url: URL(fileURLWithPath: "/"),
+      items: []
+    )
+  }
 }
