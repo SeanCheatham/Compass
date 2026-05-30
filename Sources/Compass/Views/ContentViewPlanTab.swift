@@ -1711,6 +1711,7 @@ struct WhyGeneratedPopover: View {
   @Binding var explanation: String?
   @Binding var reason: ExplainUnavailableReason?
   @Binding var isLoading: Bool
+  @State private var copiedReason = false
 
   init(fileName: String, fileURL: URL? = nil, explanation: Binding<String?>, reason: Binding<ExplainUnavailableReason?>, isLoading: Binding<Bool>) {
     self.fileName = fileName
@@ -1731,6 +1732,21 @@ struct WhyGeneratedPopover: View {
             NSWorkspace.shared.open(url)
           } label: {
             Label("Open in Xcode", systemImage: "chevron.left.forwardslash.chevron.right")
+              .font(.caption)
+          }
+          .buttonStyle(.bordered)
+          .controlSize(.small)
+        }
+        if let explanation = explanation, !explanation.isEmpty {
+          Button {
+            NSPasteboard.general.clearContents()
+            NSPasteboard.general.setString(explanation, forType: .string)
+            copiedReason = true
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+              copiedReason = false
+            }
+          } label: {
+            Label(copiedReason ? "Copied!" : "Copy reason", systemImage: copiedReason ? "checkmark" : "doc.on.doc")
               .font(.caption)
           }
           .buttonStyle(.bordered)
