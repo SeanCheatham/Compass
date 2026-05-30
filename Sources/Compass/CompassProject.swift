@@ -14,6 +14,7 @@ final class CompassProject: ObservableObject, Identifiable {
   @Published var vision = ""
   @Published var sessions: [SessionRecord] = []
   @Published var languageProfile = RepositoryLanguageProfile.empty
+  @Published var forgeProfile: ForgeProfile?
   @Published var activitySourceSnapshot = RepositoryActivitySourceSnapshot.notScanned()
   @Published var nativeFeedbackMode: NativeFeedbackMode
   @Published var hostXcodeBuildTestEnabled: Bool

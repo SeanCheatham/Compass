@@ -2,10 +2,8 @@ import Foundation
 
 enum RepositoryLanguage: String, CaseIterable, Codable, Equatable, Hashable {
   case typeScriptJavaScript
-  case python
   case go
   case rust
-  case haskell
   case swift
   case markdown
   case other
@@ -14,10 +12,8 @@ enum RepositoryLanguage: String, CaseIterable, Codable, Equatable, Hashable {
   var displayName: String {
     switch self {
     case .typeScriptJavaScript: return "TypeScript/JavaScript"
-    case .python: return "Python"
     case .go: return "Go"
     case .rust: return "Rust"
-    case .haskell: return "Haskell"
     case .swift: return "Swift"
     case .markdown: return "Markdown"
     case .other: return "Other"
@@ -28,10 +24,8 @@ enum RepositoryLanguage: String, CaseIterable, Codable, Equatable, Hashable {
   var sourceNoun: String {
     switch self {
     case .typeScriptJavaScript: return "TS/JS files"
-    case .python: return "Python files"
     case .go: return "Go files"
     case .rust: return "Rust files"
-    case .haskell: return "Haskell files"
     case .swift: return "Swift files"
     case .markdown: return "Markdown files"
     case .other: return "other files"
@@ -42,26 +36,22 @@ enum RepositoryLanguage: String, CaseIterable, Codable, Equatable, Hashable {
 
 struct RepositoryLanguageCounts: Codable, Equatable {
   var typeScriptJavaScript = 0
-  var python = 0
   var go = 0
   var rust = 0
-  var haskell = 0
   var swift = 0
   var markdown = 0
   var other = 0
 
   var total: Int {
-    typeScriptJavaScript + python + go + rust + haskell + swift + markdown + other
+    typeScriptJavaScript + go + rust + swift + markdown + other
   }
 
   subscript(language: RepositoryLanguage) -> Int {
     get {
       switch language {
       case .typeScriptJavaScript: return typeScriptJavaScript
-      case .python: return python
       case .go: return go
       case .rust: return rust
-      case .haskell: return haskell
       case .swift: return swift
       case .markdown: return markdown
       case .other: return other
@@ -72,14 +62,10 @@ struct RepositoryLanguageCounts: Codable, Equatable {
       switch language {
       case .typeScriptJavaScript:
         typeScriptJavaScript = newValue
-      case .python:
-        python = newValue
       case .go:
         go = newValue
       case .rust:
         rust = newValue
-      case .haskell:
-        haskell = newValue
       case .swift:
         swift = newValue
       case .markdown:
@@ -99,31 +85,20 @@ struct RepositoryLanguageCounts: Codable, Equatable {
 
 enum RepositoryManifestHint: String, CaseIterable, Codable, Equatable, Hashable {
   case packageJSON = "package.json"
-  case pyprojectToml = "pyproject.toml"
   case goMod = "go.mod"
   case cargoToml = "Cargo.toml"
   case packageSwift = "Package.swift"
-  case stackYaml = "stack.yaml"
-  case cabalProject = "cabal.project"
-  /// Any `*.cabal` package descriptor (detected by extension in the scanner).
-  case cabalPackage = "cabal package"
 
   init?(fileName: String) {
     switch fileName {
     case Self.packageJSON.rawValue:
       self = .packageJSON
-    case Self.pyprojectToml.rawValue:
-      self = .pyprojectToml
     case Self.goMod.rawValue:
       self = .goMod
     case Self.cargoToml.rawValue:
       self = .cargoToml
     case Self.packageSwift.rawValue:
       self = .packageSwift
-    case Self.stackYaml.rawValue:
-      self = .stackYaml
-    case Self.cabalProject.rawValue:
-      self = .cabalProject
     default:
       return nil
     }
@@ -132,11 +107,18 @@ enum RepositoryManifestHint: String, CaseIterable, Codable, Equatable, Hashable 
   var language: RepositoryLanguage {
     switch self {
     case .packageJSON: return .typeScriptJavaScript
-    case .pyprojectToml: return .python
     case .goMod: return .go
     case .cargoToml: return .rust
     case .packageSwift: return .swift
-    case .stackYaml, .cabalProject, .cabalPackage: return .haskell
+    }
+  }
+
+  var forgeProfile: ForgeProfile {
+    switch self {
+    case .packageJSON: return .typeScriptVitest
+    case .goMod: return .goModule
+    case .cargoToml: return .rustCargo
+    case .packageSwift: return .swiftSPM
     }
   }
 }
@@ -182,14 +164,10 @@ struct RepositoryLanguageProfile: Codable, Equatable {
       prefix = "Swift forge profile"
     case .typeScriptJavaScript:
       prefix = "TypeScript/JavaScript forge profile"
-    case .python:
-      prefix = "Python forge profile"
     case .go:
       prefix = "Go forge profile"
     case .rust:
       prefix = "Rust forge profile"
-    case .haskell:
-      prefix = "Haskell forge profile"
     case .markdown:
       prefix = "Markdown-heavy profile"
     case .other:
@@ -211,25 +189,16 @@ enum RepositoryWalkRules {
     ".compass",
     ".git",
     ".hg",
-    ".mypy_cache",
     ".next",
-    ".pytest_cache",
-    ".ruff_cache",
-    ".stack-work",
     ".svn",
-    ".tox",
-    ".venv",
     ".yarn",
-    "__pycache__",
     "build",
     "coverage",
     "DerivedData",
     "dist",
-    "dist-newstyle",
     "env",
     "node_modules",
     "target",
-    "venv",
   ]
 
   static func shouldInclude(name: String, isDirectory: Bool, isTopLevel: Bool = false) -> Bool {
@@ -323,8 +292,6 @@ private struct RepositoryLanguageProfileScanner {
         scannedFiles += 1
         if let hint = RepositoryManifestHint(fileName: child.lastPathComponent) {
           manifestHints.insert(hint)
-        } else if child.pathExtension.lowercased() == "cabal" {
-          manifestHints.insert(.cabalPackage)
         }
         counts.increment(Self.language(for: child))
       }
@@ -363,14 +330,10 @@ private struct RepositoryLanguageProfileScanner {
     switch fileURL.pathExtension.lowercased() {
     case "cjs", "cts", "js", "jsx", "mjs", "mts", "ts", "tsx":
       return .typeScriptJavaScript
-    case "py", "pyi":
-      return .python
     case "go":
       return .go
     case "rs":
       return .rust
-    case "hs", "lhs":
-      return .haskell
     case "swift":
       return .swift
     case "markdown", "md", "mdx":
@@ -386,10 +349,8 @@ private struct RepositoryLanguageProfileScanner {
   ) -> RepositoryLanguage {
     let codeLanguages: [RepositoryLanguage] = [
       .typeScriptJavaScript,
-      .python,
       .go,
       .rust,
-      .haskell,
       .swift,
       .markdown,
     ]

@@ -13,10 +13,8 @@
 		100000000000000000000084 /* TreeSitterSwift in Frameworks */ = {isa = PBXBuildFile; productRef = 100000000000000000000083 /* TreeSitterSwift */; };
 		100000000000000000000086 /* TreeSitterTypeScript in Frameworks */ = {isa = PBXBuildFile; productRef = 100000000000000000000085 /* TreeSitterTypeScript */; };
 		100000000000000000000088 /* TreeSitterJavaScript in Frameworks */ = {isa = PBXBuildFile; productRef = 100000000000000000000087 /* TreeSitterJavaScript */; };
-		10000000000000000000008A /* TreeSitterPython in Frameworks */ = {isa = PBXBuildFile; productRef = 100000000000000000000089 /* TreeSitterPython */; };
 		10000000000000000000008C /* TreeSitterGo in Frameworks */ = {isa = PBXBuildFile; productRef = 10000000000000000000008B /* TreeSitterGo */; };
 		10000000000000000000008E /* TreeSitterRust in Frameworks */ = {isa = PBXBuildFile; productRef = 10000000000000000000008D /* TreeSitterRust */; };
-		100000000000000000000096 /* TreeSitterHaskell in Frameworks */ = {isa = PBXBuildFile; productRef = 10000000000000000000008F /* TreeSitterHaskell */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -60,10 +58,8 @@
 				100000000000000000000084 /* TreeSitterSwift in Frameworks */,
 				100000000000000000000086 /* TreeSitterTypeScript in Frameworks */,
 				100000000000000000000088 /* TreeSitterJavaScript in Frameworks */,
-				10000000000000000000008A /* TreeSitterPython in Frameworks */,
 				10000000000000000000008C /* TreeSitterGo in Frameworks */,
 				10000000000000000000008E /* TreeSitterRust in Frameworks */,
-				100000000000000000000096 /* TreeSitterHaskell in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -127,10 +123,8 @@
 				100000000000000000000083 /* TreeSitterSwift */,
 				100000000000000000000085 /* TreeSitterTypeScript */,
 				100000000000000000000087 /* TreeSitterJavaScript */,
-				100000000000000000000089 /* TreeSitterPython */,
 				10000000000000000000008B /* TreeSitterGo */,
 				10000000000000000000008D /* TreeSitterRust */,
-				10000000000000000000008F /* TreeSitterHaskell */,
 			);
 			productName = Compass;
 			productReference = 100000000000000000000008 /* Compass.app */;
@@ -167,10 +161,8 @@
 				100000000000000000000090 /* XCRemoteSwiftPackageReference "tree-sitter-swift" */,
 				100000000000000000000091 /* XCRemoteSwiftPackageReference "tree-sitter-typescript" */,
 				100000000000000000000092 /* XCRemoteSwiftPackageReference "tree-sitter-javascript" */,
-				100000000000000000000093 /* XCRemoteSwiftPackageReference "tree-sitter-python" */,
 				100000000000000000000094 /* XCRemoteSwiftPackageReference "tree-sitter-go" */,
 				100000000000000000000095 /* XCRemoteSwiftPackageReference "tree-sitter-rust" */,
-				100000000000000000000097 /* XCRemoteSwiftPackageReference "tree-sitter-haskell" */,
 			);
 			productRefGroup = 100000000000000000000005 /* Products */;
 			projectDirPath = "";
@@ -434,14 +426,6 @@
 				revision = 58404d8cf191d69f2674a8fd507bd5776f46cb11;
 			};
 		};
-		100000000000000000000093 /* XCRemoteSwiftPackageReference "tree-sitter-python" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/tree-sitter/tree-sitter-python";
-			requirement = {
-				kind = revision;
-				revision = 26855eabccb19c6abf499fbc5b8dc7cc9ab8bc64;
-			};
-		};
 		100000000000000000000094 /* XCRemoteSwiftPackageReference "tree-sitter-go" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/tree-sitter/tree-sitter-go";
@@ -456,14 +440,6 @@
 			requirement = {
 				kind = revision;
 				revision = 77a3747266f4d621d0757825e6b11edcbf991ca5;
-			};
-		};
-		100000000000000000000097 /* XCRemoteSwiftPackageReference "tree-sitter-haskell" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/tree-sitter/tree-sitter-haskell";
-			requirement = {
-				kind = revision;
-				revision = 0975ef72fc3c47b530309ca93937d7d143523628;
 			};
 		};
 /* End XCRemoteSwiftPackageReference section */
@@ -499,11 +475,6 @@
 			package = 100000000000000000000092 /* XCRemoteSwiftPackageReference "tree-sitter-javascript" */;
 			productName = TreeSitterJavaScript;
 		};
-		100000000000000000000089 /* TreeSitterPython */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 100000000000000000000093 /* XCRemoteSwiftPackageReference "tree-sitter-python" */;
-			productName = TreeSitterPython;
-		};
 		10000000000000000000008B /* TreeSitterGo */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = 100000000000000000000094 /* XCRemoteSwiftPackageReference "tree-sitter-go" */;
@@ -513,11 +484,6 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 100000000000000000000095 /* XCRemoteSwiftPackageReference "tree-sitter-rust" */;
 			productName = TreeSitterRust;
-		};
-		10000000000000000000008F /* TreeSitterHaskell */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 100000000000000000000097 /* XCRemoteSwiftPackageReference "tree-sitter-haskell" */;
-			productName = TreeSitterHaskell;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

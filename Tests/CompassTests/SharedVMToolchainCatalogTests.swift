@@ -70,21 +70,4 @@ struct SharedVMToolchainCatalogTests {
     try #require(probe.contains("command -v npx"))
     try #require(probe.contains("command -v tsc"))
   }
-
-  @Test func haskellScriptInstallsGhcCabalAndStack() throws {
-    let script = SharedVMToolchainCatalog.definition(for: .haskell).renderInstallScript()
-    try #require(script.contains("brew install ghc"))
-    try #require(script.contains("brew install cabal-install"))
-    try #require(script.contains("brew install stack"))
-    try #require(script.contains("command -v ghc"))
-    try #require(script.contains("command -v cabal"))
-    try #require(script.contains("command -v stack"))
-  }
-
-  @Test func haskellProbeRequiresGhcCabalAndStack() throws {
-    let probe = SharedVMToolchainCatalog.definition(for: .haskell).probeCommand
-    try #require(probe.contains("command -v ghc"))
-    try #require(probe.contains("command -v cabal"))
-    try #require(probe.contains("command -v stack"))
-  }
 }

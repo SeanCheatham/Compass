@@ -74,6 +74,8 @@ enum Prompts {
     assumptions: String = "",
     vision: String,
     focus: PlanFocus,
+    forgeProfile: ForgeProfile? = nil,
+    coverageSnapshot: CoverageSnapshot? = nil,
     hostXcodeBuildTestEnabled: Bool = false
   ) throws -> String {
     let promptState = hostXcodeBuildTestEnabled ? state : state.removingHostXcodeRequirement()
@@ -143,8 +145,13 @@ enum Prompts {
       - While `CompassTests` is mid-migration from XCTest to Testing, do not plan
         bare `swift test` as verify — the target still mixes both frameworks.
         Use `swift build --target CompassTests` for compile-only increments, or
-        `swift test --filter StructNameTests` when the increment migrates named
-        test structs. Reserve full `swift test` until no file `import XCTest`s.
+        `swift test --enable-code-coverage --filter StructNameTests` when the
+        increment migrates named test structs. Reserve full `swift test` until
+        no file `import XCTest`s.
+      - Compass projects use opinionated forge profiles (Swift, Go, Rust, or
+        TypeScript/Vitest). Test verify commands must collect coverage — see
+        the forge profile section below. Compile-only verify may omit coverage.
+      \(forgeCoveragePlanningRules(forgeProfile: forgeProfile))
       - Never write code or commit from Plan. Running builds, tests, or other
         read-only shell commands to confirm assumptions is fine; that's what
         `bash` is for here.
@@ -204,6 +211,11 @@ enum Prompts {
 
       ## Vision
       \(fencedOrEmpty(vision, empty: "_(no vision set)_"))
+
+      \(forgeProfileSection(forgeProfile: forgeProfile))
+
+      ## Coverage (last successful verify)
+      \(coverageSnapshot?.formattedForPrompt() ?? "_(no coverage snapshot yet)_")
 
       When you have decided the next increment, call submit_result with the
       arguments shape above.
@@ -893,9 +905,8 @@ enum Prompts {
         `swift test`. For `.xcodeproj`-based projects there is no
         in-VM equivalent.
         On-demand toolchains (install via `install_toolchain`): rust, go,
-        node (JavaScript / TypeScript — includes npm, npx, and global `tsc`),
-        python, jvm, haskell (GHC with Cabal and Stack). Use `list_toolchains`
-        to see what is installed.
+        node (JavaScript / TypeScript — includes npm, npx, and global `tsc`).
+        Use `list_toolchains` to see what is installed.
         Docker is unavailable in the Shared VM — use the host route for
         container workloads.\(installedSummary)
         Network egress to Apple's CDNs (softwareupdate, swift package fetch
@@ -938,6 +949,31 @@ enum Prompts {
 
     Be terse but specific. Reply ONLY with the summary as plain text — no preamble, no tool call, no `submit_result`. The next turn will receive only this summary plus the original task.
     """
+
+  private static func forgeProfileSection(forgeProfile: ForgeProfile?) -> String {
+    guard let forgeProfile else {
+      return """
+        ## Forge profile
+        _(not detected — Compass supports Swift/SwiftPM, Go modules, Cargo, and TypeScript/Vitest projects)_
+        """
+    }
+    return """
+      ## Forge profile
+      Active profile: **\(forgeProfile.displayName)** (`\(forgeProfile.rawValue)`)
+
+      \(forgeProfile.planningGuidance)
+      """
+  }
+
+  private static func forgeCoveragePlanningRules(forgeProfile: ForgeProfile?) -> String {
+    guard let forgeProfile else { return "" }
+    return """
+      - Forge profile coverage rule (\(forgeProfile.displayName)): \
+      \(forgeProfile.coverageRequirementHint)
+      - When Plan focus is `test` or `bugHunt`, prefer increments that raise \
+      coverage on the lowest-covered files listed in the Coverage section.
+      """
+  }
 
   private static func encodeSessions(_ sessions: [SessionRecord]) throws -> String {
     let encoder = JSONEncoder()

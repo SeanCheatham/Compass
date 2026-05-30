@@ -63,17 +63,35 @@ struct PlanTransitionValidatorTests {
     )
   }
 
+  @Test func testRejectsTestVerifyWithoutCoverageForSwiftProfile() throws {
+    let current = makeState()
+    let next = makeState(
+      immediate: PlanNext(
+        plan: "Add tests",
+        verify: "swift test --filter FooTests"
+      )
+    )
+
+    assertTransitionRejected(
+      from: current,
+      to: next,
+      contains: "enable-code-coverage",
+      forgeProfile: .swiftSPM
+    )
+  }
+
   private func assertTransitionRejected(
     from current: PlanState,
     to next: PlanState,
     contains expectedText: String,
+    forgeProfile: ForgeProfile? = nil,
     file: StaticString = #filePath,
     line: UInt = #line
   ) {
     var threw = false
     var message = ""
     do {
-      try PlanTransitionValidator.validate(from: current, to: next)
+      try PlanTransitionValidator.validate(from: current, to: next, forgeProfile: forgeProfile)
     } catch {
       threw = true
       message =
@@ -295,42 +313,28 @@ struct RepositoryLanguageProfileServiceTests {
     try #require(profile.manifestHints == [.packageSwift])
     try #require(profile.counts.swift == 2)
     try #require(profile.counts.typeScriptJavaScript == 0)
-    try #require(profile.counts.python == 0)
+    try #require(profile.counts.other == 0)
     try #require(profile.scannedFileCount == 2)
     try #require(!profile.wasTruncated)
   }
 
-  @Test func testDetectsHaskellProjectWhileIgnoringBuildDirectories() throws {
+  @Test func testDetectsGoModuleWhileIgnoringBuildDirectories() throws {
     let repoURL = try makeTemporaryDirectory()
     defer { try? FileManager.default.removeItem(at: repoURL) }
 
-    try write("resolver: lts-22.0\n", to: repoURL.appending(path: "stack.yaml"))
+    try write("module example.com/app\n\ngo 1.22\n", to: repoURL.appending(path: "go.mod"))
     try write(
-      """
-      cabal-version: 2.4
-      name: fixture
-      version: 0.1.0.0
-      """,
-      to: repoURL.appending(path: "fixture.cabal"))
-    try createDirectory(repoURL.appending(path: "app", directoryHint: .isDirectory))
-    try write(
-      "module Main where\n\nmain = putStrLn \"hello\"\n",
-      to: repoURL.appending(path: "app/Main.hs"))
-    try createDirectory(repoURL.appending(path: ".stack-work/dist", directoryHint: .isDirectory))
-    try write("ignored\n", to: repoURL.appending(path: ".stack-work/dist/ignored.o"))
-    try createDirectory(
-      repoURL.appending(path: "dist-newstyle/build", directoryHint: .isDirectory))
-    try write("ignored\n", to: repoURL.appending(path: "dist-newstyle/build/ignored.o"))
+      "package main\n\nfunc main() {}\n",
+      to: repoURL.appending(path: "main.go"))
 
     let profile = RepositoryLanguageProfileService.scan(repoURL: repoURL)
 
-    try #require(profile.primaryLanguage == .haskell)
-    try #require(profile.manifestHints.contains(.stackYaml))
-    try #require(profile.manifestHints.contains(.cabalPackage))
-    try #require(profile.counts.haskell == 1)
-    try #require(profile.scannedFileCount == 3)
+    try #require(profile.primaryLanguage == .go)
+    try #require(profile.manifestHints == [.goMod])
+    try #require(profile.counts.go == 1)
+    try #require(profile.scannedFileCount == 2)
     try #require(!profile.wasTruncated)
-    try #require(profile.hudSummary?.contains("Haskell forge profile") == true)
+    try #require(profile.hudSummary?.contains("Go forge profile") == true)
   }
 
   private func makeTemporaryDirectory() throws -> URL {

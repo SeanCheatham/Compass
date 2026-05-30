@@ -100,28 +100,6 @@ struct SymbolExtractorTests {
   }
 
   @Test
-  func testPythonFixtureExtractsFunctionAndClass() throws {
-    let source = """
-      import os
-      from collections import OrderedDict
-
-      def greet(name):
-          return f"hi {name}"
-
-      class Repo:
-          def commit(self): ...
-      """
-
-    let extraction = try extractor.extract(source: source, language: .python)
-
-    try #require(extraction.imports.map(\.raw) == ["os", "collections"])
-    let names = Set(extraction.symbols.map(\.name))
-    try #require(names.contains("greet"))
-    try #require(names.contains("Repo"))
-    try #require(names.contains("commit"))
-  }
-
-  @Test
   func testGoFixtureExtractsFunctionMethodStruct() throws {
     let source = """
       package main
@@ -222,54 +200,15 @@ struct SymbolExtractorTests {
   }
 
   @Test
-  func testHaskellFixtureExtractsTypesFunctionsAndImports() throws {
-    let source = #"""
-      module MyApp where
-
-      import Data.List (sort)
-      import qualified Data.Text as T
-
-      data User = User
-        { name :: String
-        , age :: Int
-        }
-
-      newtype UserId = UserId Int
-
-      class ShowUser a where
-        showUser :: a -> String
-
-      greet :: String -> String
-      greet name = "hi " ++ name
-
-      main :: IO ()
-      main = putStrLn (greet "world")
-      """#
-
-    let extraction = try extractor.extract(source: source, language: .haskell)
-
-    try #require(extraction.imports.map(\.raw).contains("Data.List"))
-    try #require(extraction.imports.map(\.raw).contains("Data.Text"))
-    let names = Set(extraction.symbols.map(\.name))
-    try #require(names.contains("MyApp"))
-    try #require(names.contains("User"))
-    try #require(names.contains("UserId"))
-    try #require(names.contains("ShowUser"))
-    try #require(names.contains("greet"))
-    try #require(names.contains("main"))
-  }
-
-  @Test
   func testLanguageRegistryResolvesByExtension() throws {
     try #require(CodemapLanguage.forFile(at: "Foo.swift") == .swift)
     try #require(CodemapLanguage.forFile(at: "src/foo.ts") == .typescript)
     try #require(CodemapLanguage.forFile(at: "src/Foo.tsx") == .tsx)
     try #require(CodemapLanguage.forFile(at: "src/foo.js") == .javascript)
-    try #require(CodemapLanguage.forFile(at: "main.py") == .python)
+    try #require(CodemapLanguage.forFile(at: "main.py") == nil)
     try #require(CodemapLanguage.forFile(at: "main.go") == .go)
     try #require(CodemapLanguage.forFile(at: "lib.rs") == .rust)
-    try #require(CodemapLanguage.forFile(at: "Main.hs") == .haskell)
-    try #require(CodemapLanguage.forFile(at: "README.lhs") == .haskell)
+    try #require(CodemapLanguage.forFile(at: "Main.hs") == nil)
     try #require(CodemapLanguage.forFile(at: "README.md") == nil)
     try #require(CodemapLanguage.forFile(at: "Cargo.toml") == nil)
   }
@@ -281,10 +220,10 @@ struct SymbolExtractorTests {
     try #require(CodemapLanguage.forFile(at: "Foo.TS") == .typescript)
     try #require(CodemapLanguage.forFile(at: "Foo.Tsx") == .tsx)
     try #require(CodemapLanguage.forFile(at: "Foo.JS") == .javascript)
-    try #require(CodemapLanguage.forFile(at: "Foo.PY") == .python)
+    try #require(CodemapLanguage.forFile(at: "Foo.PY") == nil)
     try #require(CodemapLanguage.forFile(at: "Foo.GO") == .go)
     try #require(CodemapLanguage.forFile(at: "Foo.RS") == .rust)
-    try #require(CodemapLanguage.forFile(at: "Foo.HS") == .haskell)
+    try #require(CodemapLanguage.forFile(at: "Foo.HS") == nil)
   }
 
   @Test

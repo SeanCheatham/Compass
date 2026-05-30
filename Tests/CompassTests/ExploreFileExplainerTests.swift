@@ -848,9 +848,9 @@ struct ExploreFileExplainerTests {
   }
 
   @Test
-  func categorize_sourcePythonFile() throws {
+  func categorize_unsupportedPythonFileIsOther() throws {
     let result = FileChangeCategory.categorize("scripts/deploy.py")
-    try #require(result == .source)
+    try #require(result == .other)
   }
 
   @Test

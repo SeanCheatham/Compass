@@ -82,6 +82,8 @@ extension CompassProject {
         assumptions: try workspace.readAssumptionLedger().formattedForPrompt(),
         vision: workspace.readVision(),
         focus: focus,
+        forgeProfile: forgeProfile,
+        coverageSnapshot: ForgeProfileService.readCoverageSnapshot(from: workspace),
         hostXcodeBuildTestEnabled: hostXcodeBuildTestEnabled
       )
       let promptURL = try workspace.writeSessionArtifact(
@@ -650,7 +652,8 @@ extension CompassProject {
 
   func validatePlanTransition(from current: PlanState, to next: PlanState) throws {
     do {
-      try PlanTransitionValidator.validate(from: current, to: next)
+      try PlanTransitionValidator.validate(
+        from: current, to: next, forgeProfile: forgeProfile)
     } catch let error as PlanTransitionValidationError {
       throw AppModelError.rejectedPlan(error.message)
     }
@@ -716,6 +719,14 @@ extension CompassProject {
       if verify.exitCode == 0 {
         log("Verify passed.", level: .success)
         feedback(.verifyPassed)
+        if let profile = forgeProfile {
+          await collectCoverageAfterVerify(
+            profile: profile,
+            workingDirectory: workingDirectory,
+            launchPlan: launchPlan,
+            sessionIndex: sessionIndex
+          )
+        }
       } else {
         let verifyTail = tail(verify.stdout + verify.stderr, max: 4000)
         let output = VerifyOutput(
@@ -785,6 +796,46 @@ extension CompassProject {
       gitStatusIssues: gitStatusIssues,
       verifyOutput: verifyOutput
     )
+  }
+
+  /// After verify passes, run the forge profile's coverage collector and
+  /// persist a snapshot for the next Plan pass.
+  func collectCoverageAfterVerify(
+    profile: ForgeProfile,
+    workingDirectory: URL,
+    launchPlan: AgentExecutionLaunchPlan,
+    sessionIndex: Int
+  ) async {
+    guard let workspace else { return }
+    let sessionNumber = sessions.indices.contains(sessionIndex) ? sessions[sessionIndex].session : nil
+    log("Post-check: collecting coverage for \(profile.displayName).", level: .info)
+    do {
+      let result = try await runVerifyCommand(
+        command: profile.coverageCollectCommand(),
+        hostWorkingDirectory: workingDirectory,
+        timeoutSeconds: TimeInterval(verifyTimeoutMs(for: PlanNext(plan: "", verify: ""))) / 1000,
+        launchPlan: launchPlan
+      )
+      var snapshot = profile.parseCoverageReport(
+        output: result.stdout + "\n" + result.stderr,
+        workingDirectory: workingDirectory
+      )
+      snapshot.sessionNumber = sessionNumber
+      try ForgeProfileService.writeCoverageSnapshot(snapshot, workspace: workspace)
+      if let overall = snapshot.overallLineCoveragePercent {
+        log(
+          String(format: "Coverage snapshot saved (overall %.1f%%, %d files).", overall, snapshot.files.count),
+          level: .info
+        )
+      } else {
+        log("Coverage snapshot saved (\(snapshot.files.count) files).", level: .info)
+      }
+    } catch {
+      log(
+        "Coverage collection failed (verify still passed): \(error.localizedDescription)",
+        level: .warning
+      )
+    }
   }
 
   func verifyTimeoutMs(for next: PlanNext) -> Int {

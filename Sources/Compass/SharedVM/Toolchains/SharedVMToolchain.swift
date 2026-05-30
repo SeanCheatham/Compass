@@ -8,9 +8,6 @@ enum SharedVMToolchainID: String, CaseIterable, Sendable, Equatable {
   case rust
   case go
   case node
-  case python
-  case jvm
-  case haskell
 }
 
 /// Guest paths and LaunchDaemon labels derived from a toolchain id.
@@ -76,14 +73,6 @@ struct SharedVMToolchainDefinition: Sendable, Equatable {
       return Self.renderBrewPackageInstallScript(brewPackage: "go", verifyCommand: "go version")
     case .node:
       return Self.renderNodeInstallScript()
-    case .python:
-      return Self.renderBrewPackageInstallScript(
-        brewPackage: "python@3.13", verifyCommand: "python3 --version")
-    case .jvm:
-      return Self.renderBrewPackageInstallScript(
-        brewPackage: "openjdk", verifyCommand: "java -version")
-    case .haskell:
-      return Self.renderHaskellInstallScript()
     }
   }
 
@@ -107,20 +96,9 @@ struct SharedVMToolchainDefinition: Sendable, Equatable {
       return """
         su - \(SharedCompassVMBundle.State.defaultGuestUserName) -c '\(Self.nodeVerificationCommand)' >/dev/null 2>&1
         """
-    case .haskell:
+    case .go:
       return """
-        su - \(SharedCompassVMBundle.State.defaultGuestUserName) -c '\(Self.haskellVerificationCommand)' >/dev/null 2>&1
-        """
-    case .go, .python, .jvm:
-      let verify: String
-      switch id {
-      case .go: verify = "go version"
-      case .python: verify = "python3 --version"
-      case .jvm: verify = "java -version"
-      default: verify = "true"
-      }
-      return """
-        su - \(SharedCompassVMBundle.State.defaultGuestUserName) -c '\(verify)' >/dev/null 2>&1
+        su - \(SharedCompassVMBundle.State.defaultGuestUserName) -c 'go version' >/dev/null 2>&1
         """
     }
   }
@@ -131,14 +109,6 @@ struct SharedVMToolchainDefinition: Sendable, Equatable {
 
   static let nodeProbeCommand = """
     su - \(SharedCompassVMBundle.State.defaultGuestUserName) -c 'command -v node >/dev/null 2>&1 && command -v npm >/dev/null 2>&1 && command -v npx >/dev/null 2>&1 && command -v tsc >/dev/null 2>&1 && echo PRESENT || echo MISSING'
-    """
-
-  /// Login-shell check that GHC, Cabal, and Stack are on PATH.
-  static let haskellVerificationCommand =
-    "command -v ghc && command -v cabal && command -v stack && ghc --version && cabal --version && stack --version"
-
-  static let haskellProbeCommand = """
-    su - \(SharedCompassVMBundle.State.defaultGuestUserName) -c 'command -v ghc >/dev/null 2>&1 && command -v cabal >/dev/null 2>&1 && command -v stack >/dev/null 2>&1 && echo PRESENT || echo MISSING'
     """
 
   func parseProgressFraction(fromLogTail tail: String) -> Double {
@@ -262,41 +232,6 @@ struct SharedVMToolchainDefinition: Sendable, Equatable {
         """)
   }
 
-  private static func renderHaskellInstallScript() -> String {
-    let id = SharedVMToolchainID.haskell.rawValue
-    let brewBin = SharedVMToolchainPaths.brewInstallPath
-    let guestUser = SharedCompassVMBundle.State.defaultGuestUserName
-    return renderScriptShell(
-      id: id,
-      body: """
-        BREW_BIN="\(brewBin)"
-        GUEST_USER="\(guestUser)"
-        if su - "$GUEST_USER" -c '\(haskellVerificationCommand)' >/dev/null 2>&1; then
-          echo "\(SharedVMToolchainPaths.logTag(id: id)) already installed"
-        else
-          [ -x "$BREW_BIN" ] || fail 2 "Homebrew missing — install the homebrew toolchain first"
-          if ! su - "$GUEST_USER" -c 'command -v ghc' >/dev/null 2>&1; then
-            echo "\(SharedVMToolchainPaths.logTag(id: id)) brew install ghc"
-            su - "$GUEST_USER" -c "'$BREW_BIN' install ghc" \\
-              || fail 3 "brew install ghc failed"
-          fi
-          if ! su - "$GUEST_USER" -c 'command -v cabal' >/dev/null 2>&1; then
-            echo "\(SharedVMToolchainPaths.logTag(id: id)) brew install cabal-install"
-            su - "$GUEST_USER" -c "'$BREW_BIN' install cabal-install" \\
-              || fail 4 "brew install cabal-install failed"
-          fi
-          if ! su - "$GUEST_USER" -c 'command -v stack' >/dev/null 2>&1; then
-            echo "\(SharedVMToolchainPaths.logTag(id: id)) brew install stack"
-            su - "$GUEST_USER" -c "'$BREW_BIN' install stack" \\
-              || fail 5 "brew install stack failed"
-          fi
-          su - "$GUEST_USER" -c '\(haskellVerificationCommand)' \\
-            || fail 6 "ghc/cabal/stack verification failed"
-          echo "\(SharedVMToolchainPaths.logTag(id: id)) installed ghc, cabal, and stack"
-        fi
-        """)
-  }
-
   private static func renderNodeInstallScript() -> String {
     let id = SharedVMToolchainID.node.rawValue
     let brewBin = SharedVMToolchainPaths.brewInstallPath
@@ -333,13 +268,7 @@ struct SharedVMToolchainDefinition: Sendable, Equatable {
     brewPackage: String,
     verifyCommand: String
   ) -> String {
-    let id: String
-    switch brewPackage {
-    case "go": id = SharedVMToolchainID.go.rawValue
-    case "python@3.13": id = SharedVMToolchainID.python.rawValue
-    case "openjdk": id = SharedVMToolchainID.jvm.rawValue
-    default: id = brewPackage
-    }
+    let id = SharedVMToolchainID.go.rawValue
     let brewBin = SharedVMToolchainPaths.brewInstallPath
     let guestUser = SharedCompassVMBundle.State.defaultGuestUserName
     return renderScriptShell(
@@ -431,41 +360,6 @@ enum SharedVMToolchainCatalog {
       dependencies: [.homebrew],
       probeCommand: SharedVMToolchainDefinition.nodeProbeCommand,
       installTimeout: 15 * 60,
-      installableViaGenericProvisioner: true
-    ),
-    SharedVMToolchainDefinition(
-      id: .python,
-      displayName: "Python",
-      description: "Python 3 via Homebrew (`python@3.13`).",
-      defaultProvisioned: false,
-      dependencies: [.homebrew],
-      probeCommand: """
-        su - \(SharedCompassVMBundle.State.defaultGuestUserName) -c 'command -v python3 >/dev/null 2>&1 && echo PRESENT || echo MISSING'
-        """,
-      installTimeout: 15 * 60,
-      installableViaGenericProvisioner: true
-    ),
-    SharedVMToolchainDefinition(
-      id: .jvm,
-      displayName: "JVM (OpenJDK)",
-      description: "Java Development Kit via Homebrew (`openjdk`).",
-      defaultProvisioned: false,
-      dependencies: [.homebrew],
-      probeCommand: """
-        su - \(SharedCompassVMBundle.State.defaultGuestUserName) -c 'command -v java >/dev/null 2>&1 && echo PRESENT || echo MISSING'
-        """,
-      installTimeout: 15 * 60,
-      installableViaGenericProvisioner: true
-    ),
-    SharedVMToolchainDefinition(
-      id: .haskell,
-      displayName: "Haskell",
-      description:
-        "GHC compiler with Cabal and Stack build tools via Homebrew (`ghc`, `cabal-install`, `stack`).",
-      defaultProvisioned: false,
-      dependencies: [.homebrew],
-      probeCommand: SharedVMToolchainDefinition.haskellProbeCommand,
-      installTimeout: 20 * 60,
       installableViaGenericProvisioner: true
     ),
   ]

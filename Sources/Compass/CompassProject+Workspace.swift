@@ -37,6 +37,7 @@ extension CompassProject {
         activeStorage: activeStorage
       )
       languageProfile = .empty
+      forgeProfile = nil
       if requireStorageRoot {
         throw AppModelError.noRepositorySelected
       }
@@ -44,6 +45,10 @@ extension CompassProject {
     }
 
     languageProfile = RepositoryLanguageProfileService.scan(repoURL: workspace.repoURL)
+    forgeProfile = try? ForgeProfileService.detectAndPersist(
+      repoURL: workspace.repoURL,
+      workspace: workspace
+    )
     activitySourceSnapshot = RepositoryActivitySourceSnapshot.snapshot(
       activeStorage: activeStorage,
       workspace: workspace

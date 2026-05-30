@@ -9,7 +9,9 @@ struct PlanTransitionValidationError: LocalizedError, Equatable {
 }
 
 enum PlanTransitionValidator {
-  static func validate(from current: PlanState, to next: PlanState) throws {
+  static func validate(from current: PlanState, to next: PlanState, forgeProfile: ForgeProfile? = nil)
+    throws
+  {
     if !current.midTerm.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
       && next.midTerm.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
       && next.completed.count == current.completed.count
@@ -34,6 +36,12 @@ enum PlanTransitionValidator {
         message:
           "Plan returned placeholder verify command `\(immediate.verify)`. Refusing to overwrite state.json."
       )
+    }
+    if let coverageError = ForgeVerifyValidator.coverageViolation(
+      verify: immediate.verify,
+      profile: forgeProfile
+    ) {
+      throw PlanTransitionValidationError(message: coverageError)
     }
   }
 }

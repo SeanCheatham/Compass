@@ -8,10 +8,8 @@ enum CodemapLanguage: String, Sendable, CaseIterable, Codable {
   case typescript
   case tsx
   case javascript
-  case python
   case go
   case rust
-  case haskell
 
   /// Stable display name used in tool output. Distinct from `rawValue` so
   /// renaming the case (e.g. `typescript` → `ts`) doesn't churn cached files.
@@ -21,10 +19,8 @@ enum CodemapLanguage: String, Sendable, CaseIterable, Codable {
     case .typescript: return "TypeScript"
     case .tsx: return "TSX"
     case .javascript: return "JavaScript"
-    case .python: return "Python"
     case .go: return "Go"
     case .rust: return "Rust"
-    case .haskell: return "Haskell"
     }
   }
 }
@@ -54,11 +50,7 @@ extension CodemapLanguage {
     "mjs": .javascript,
     "cjs": .javascript,
     "jsx": .javascript,
-    "py": .python,
-    "pyi": .python,
     "go": .go,
     "rs": .rust,
-    "hs": .haskell,
-    "lhs": .haskell,
   ]
 }

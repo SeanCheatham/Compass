@@ -21,12 +21,12 @@ struct ExploreTabComponentsTests {
   @Test
   func fileTreeNode_name_deeplyNested() throws {
     let node = FileTreeNode(
-      relativePath: "a/b/c/d/e/file.py",
+      relativePath: "a/b/c/d/e/file.go",
       isDirectory: false,
-      language: .python,
+      language: .go,
       children: []
     )
-    #expect(node.name == "file.py")
+    #expect(node.name == "file.go")
   }
 
   @Test
@@ -159,12 +159,6 @@ struct ExploreTabComponentsTests {
   }
 
   @Test
-  func languageBadge_colorFor_python_returnsNonNil() throws {
-    let color = LanguageBadge.color(for: .python)
-    #expect(color != Color.clear)
-  }
-
-  @Test
   func languageBadge_colorFor_go_returnsNonNil() throws {
     let color = LanguageBadge.color(for: .go)
     #expect(color != Color.clear)
@@ -173,12 +167,6 @@ struct ExploreTabComponentsTests {
   @Test
   func languageBadge_colorFor_rust_returnsNonNil() throws {
     let color = LanguageBadge.color(for: .rust)
-    #expect(color != Color.clear)
-  }
-
-  @Test
-  func languageBadge_colorFor_haskell_returnsNonNil() throws {
-    let color = LanguageBadge.color(for: .haskell)
     #expect(color != Color.clear)
   }
 
