@@ -21,23 +21,36 @@ cp App/LocalSigning.example.xcconfig App/LocalSigning.xcconfig
 ```
 
 Debug builds copy to `/Applications/CompassLocal.app` by default and use the
-`com.seancheatham.CompassLocal` bundle identifier/display name. The shared Xcode
-scheme waits for that app to be launched by Finder/launchd so
-Virtualization.framework's install helper sees a signed app outside DerivedData
-without overwriting or confusing a real `/Applications/Compass.app` install:
+`com.seancheatham.CompassLocal` bundle identifier/display name. Launch that app
+via Finder/Spotlight (not from Xcode's debugger) so Virtualization.framework's
+install helper sees a signed app outside DerivedData without overwriting a real
+`/Applications/Compass.app` install.
+
+**Recommended — command line:**
+
+```bash
+./scripts/run-local.sh              # build, copy, and open CompassLocal
+./scripts/run-local.sh --clean      # wipe DerivedData/ then build + open
+./scripts/run-local.sh --no-build   # open the existing install only
+./scripts/test-local.sh             # swift test (no app bundle needed)
+```
+
+`build-local.sh` runs `xcodebuild` with a repo-local `DerivedData/` folder and
+copies the Debug app to `/Applications/CompassLocal.app`. Team id comes from
+`App/LocalSigning.xcconfig` or `COMPASS_DEVELOPMENT_TEAM`.
+
+**Optional — Xcode:**
 
 ```bash
 open Compass.xcodeproj
-# Press Cmd-R; Xcode builds/copies and waits.
+# Press Cmd-B to build (check the log for "Copied Compass.app").
 # Then launch /Applications/CompassLocal.app from Finder/Spotlight.
 ```
 
-The equivalent command-line flow is:
+Raw `xcodebuild` equivalent:
 
 ```bash
-xcodebuild -project Compass.xcodeproj -scheme Compass -configuration Debug \
-  COMPASS_DEVELOPMENT_TEAM=ABCDE12345 \
-  build
+./scripts/build-local.sh
 open "/Applications/CompassLocal.app"
 ```
 
