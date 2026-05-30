@@ -4,7 +4,6 @@ struct AgentHostXcodeTool: AgentTool {
   static let toolName = "host_xcode"
   static let defaultTimeoutMs = 120_000
   static let maxTimeoutMs = 1_800_000
-  static let maxOutputBytes = 100_000
 
   struct Arguments: Codable {
     let action: String
@@ -102,8 +101,8 @@ struct AgentHostXcodeTool: AgentTool {
 
   private func formatOutput(_ result: ProcessResult, timeoutMs: Int) -> String {
     var sections: [String] = []
-    let stdout = truncateOutput(result.stdout, label: "stdout")
-    let stderr = truncateOutput(result.stderr, label: "stderr")
+    let stdout = AgentBashTool().truncateOutput(result.stdout, label: "stdout")
+    let stderr = AgentBashTool().truncateOutput(result.stderr, label: "stderr")
     if !stdout.isEmpty {
       sections.append("[stdout]\n\(stdout)")
     }
@@ -113,13 +112,5 @@ struct AgentHostXcodeTool: AgentTool {
     sections.append("[exit \(result.exitCode)]")
     sections.append("[host_xcode timeout budget \(timeoutMs)ms]")
     return sections.joined(separator: "\n\n")
-  }
-
-  private func truncateOutput(_ text: String, label: String) -> String {
-    let stripped = text.trimmingCharacters(in: CharacterSet(charactersIn: "\n"))
-    guard stripped.utf8.count > Self.maxOutputBytes else { return stripped }
-    let truncatedBytes = Data(stripped.utf8.prefix(Self.maxOutputBytes))
-    let truncated = String(decoding: truncatedBytes, as: UTF8.self)
-    return truncated + "\n... [\(label) truncated at \(Self.maxOutputBytes) bytes]"
   }
 }

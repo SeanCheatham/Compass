@@ -133,7 +133,7 @@ struct AgentBashTool: AgentTool {
     return sections.joined(separator: "\n\n")
   }
 
-  private func truncateOutput(_ text: String, label: String) -> String {
+  func truncateOutput(_ text: String, label: String) -> String {
     let stripped = text.trimmingCharacters(in: CharacterSet(charactersIn: "\n"))
     guard stripped.utf8.count > Self.maxOutputBytes else { return stripped }
     let truncatedBytes = Data(stripped.utf8.prefix(Self.maxOutputBytes))
