@@ -148,4 +148,96 @@ struct ExploreCodemapFileSystemGuardPathTests {
     let hiddenNodes = tree.filter { $0.relativePath == ".Hidden" }
     #expect(hiddenNodes.isEmpty)
   }
+
+  // MARK: - Guard 3: non-source directory pruned from source tree
+
+  /// Verifies that `buildSourceTree()` silently removes a directory that
+  /// contains only non-source files (e.g. `.txt`, `.png`).
+  ///
+  /// The pruning guard is at `CodemapFileSystem.swift:44`
+  /// (`guard !children.isEmpty else { return nil }`): after recursively
+  /// pruning all children, if the resulting `children` array is empty the
+  /// directory node itself is removed.  Line 52 then handles individual
+  /// non-source files.
+  @Test
+  func buildSourceTree_nonSourceFileDirPruned() throws {
+    let root = try makeTempDir()
+
+    // A real source directory with a Swift file — must survive.
+    let sourcesDir = root.appendingPathComponent("Sources")
+    try FileManager.default.createDirectory(
+      atPath: sourcesDir.path, withIntermediateDirectories: true)
+    try FileManager.default.createFile(
+      atPath: sourcesDir.appendingPathComponent("App.swift").path,
+      contents: nil)
+
+    // A Docs directory with only non-source files — must be entirely absent.
+    let docsDir = root.appendingPathComponent("Docs")
+    try FileManager.default.createDirectory(
+      atPath: docsDir.path, withIntermediateDirectories: true)
+    try FileManager.default.createFile(
+      atPath: docsDir.appendingPathComponent("readme.txt").path,
+      contents: nil)
+    try FileManager.default.createFile(
+      atPath: docsDir.appendingPathComponent("CHANGES").path,
+      contents: nil)
+
+    // An Assets directory with image files only — must also be absent.
+    let assetsDir = root.appendingPathComponent("Assets")
+    try FileManager.default.createDirectory(
+      atPath: assetsDir.path, withIntermediateDirectories: true)
+    try FileManager.default.createFile(
+      atPath: assetsDir.appendingPathComponent("logo.png").path,
+      contents: nil)
+
+    let fs = CodemapFileSystem(rootURL: root)
+    let sourceTree = fs.buildSourceTree()
+
+    // Sources must be present.
+    let sourcesNode = sourceTree.first { $0.relativePath == "Sources" }
+    try #require(sourcesNode != nil)
+    #expect(sourcesNode!.children.count == 1)
+    #expect(sourcesNode!.children[0].relativePath == "Sources/App.swift")
+
+    // Docs and Assets directories must NOT appear anywhere in the tree.
+    let docsNodes = sourceTree.filter { $0.relativePath.hasPrefix("Docs") }
+    #expect(docsNodes.isEmpty)
+    let assetsNodes = sourceTree.filter { $0.relativePath.hasPrefix("Assets") }
+    #expect(assetsNodes.isEmpty)
+  }
+
+  /// Verifies that `buildSourceTree()` recursively prunes a deeply nested
+  /// directory branch when no source files exist at any level in that branch.
+  ///
+  /// The deepest common ancestor containing only non-source content is removed
+  /// entirely, including all its empty intermediate parent directories.
+  @Test
+  func buildSourceTree_deeplyNestedEmptyDirPruned() throws {
+    let root = try makeTempDir()
+
+    // A top-level source file — survives.
+    let rootFile = root.appendingPathComponent("App.swift")
+    try FileManager.default.createFile(atPath: rootFile.path, contents: nil)
+
+    // A very deep directory chain containing only non-source files — the
+    // entire branch from the deepest common ancestor down must be absent.
+    let deepDir = root.appendingPathComponent(
+      "Very/Deep/Dir/Structure/with/only/text/files")
+    try FileManager.default.createDirectory(
+      atPath: deepDir.path, withIntermediateDirectories: true)
+    try FileManager.default.createFile(
+      atPath: deepDir.appendingPathComponent("readme.txt").path,
+      contents: nil)
+
+    let fs = CodemapFileSystem(rootURL: root)
+    let sourceTree = fs.buildSourceTree()
+
+    // App.swift must be present.
+    let appNode = sourceTree.first { $0.relativePath == "App.swift" }
+    try #require(appNode != nil)
+
+    // The "Very" directory and everything below it must be absent.
+    let veryNodes = sourceTree.filter { $0.relativePath.hasPrefix("Very") }
+    #expect(veryNodes.isEmpty)
+  }
 }
