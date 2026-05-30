@@ -113,4 +113,57 @@ struct ExploreWhyGeneratedPopoverTests {
     #expect(ExplainUnavailableReason.unavailable.message
       == "Explanation unavailable.")
   }
+
+  // MARK: - fileURL property
+
+  @Test
+  func fileURL_initNil_staysNil() throws {
+    let popover = WhyGeneratedPopover(
+      fileName: "Gen.swift",
+      fileURL: nil,
+      explanation: .constant(nil),
+      reason: .constant(nil),
+      isLoading: .constant(false)
+    )
+    #expect(popover.fileURL == nil)
+  }
+
+  @Test
+  func fileURL_initNonNil_preservesURL() throws {
+    let url = URL(fileURLWithPath: "/Users/test/Gen.swift")
+    let popover = WhyGeneratedPopover(
+      fileName: "Gen.swift",
+      fileURL: url,
+      explanation: .constant(nil),
+      reason: .constant(nil),
+      isLoading: .constant(false)
+    )
+    #expect(popover.fileURL == url)
+  }
+
+  // MARK: - isLoading binding display path
+
+  @Test
+  func isLoading_true_showsGeneratingExplanation() throws {
+    let popover = WhyGeneratedPopover(
+      fileName: "Gen.swift",
+      explanation: .constant(nil),
+      reason: .constant(nil),
+      isLoading: .constant(true)
+    )
+    let body = String(reflecting: popover.body)
+    #expect(body.contains("Generating explanation..."))
+  }
+
+  @Test
+  func isLoading_false_hidesGeneratingExplanation() throws {
+    let popover = WhyGeneratedPopover(
+      fileName: "Gen.swift",
+      explanation: .constant(nil),
+      reason: .constant(nil),
+      isLoading: .constant(false)
+    )
+    let body = String(reflecting: popover.body)
+    #expect(!body.contains("Generating explanation..."))
+  }
 }
