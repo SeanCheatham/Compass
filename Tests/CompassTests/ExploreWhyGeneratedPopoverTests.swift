@@ -36,6 +36,7 @@ struct ExploreWhyGeneratedPopoverTests {
     final class BindingBox {
       var explanation: String?
       var isLoading = true
+      var reason: ExplainUnavailableReason?
     }
 
     let box = BindingBox()
@@ -45,7 +46,10 @@ struct ExploreWhyGeneratedPopoverTests {
         get: { box.explanation },
         set: { box.explanation = $0 }
       ),
-      reason: .constant(nil),
+      reason: Binding(
+        get: { box.reason },
+        set: { box.reason = $0 }
+      ),
       isLoading: Binding(
         get: { box.isLoading },
         set: { box.isLoading = $0 }
@@ -54,8 +58,10 @@ struct ExploreWhyGeneratedPopoverTests {
 
     popover.explanation = "Done."
     popover.isLoading = false
+    popover.reason = .foundationModelsUnavailable
 
     #expect(box.explanation == "Done.")
     #expect(!box.isLoading)
+    #expect(box.reason == .foundationModelsUnavailable)
   }
 }
