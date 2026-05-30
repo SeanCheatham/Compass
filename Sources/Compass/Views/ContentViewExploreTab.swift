@@ -72,13 +72,14 @@ struct ExploreTab: View, Equatable {
     }
     .popover(isPresented: $showSymbolDetailPopover) {
       if let entry = symbolDetailEntry {
-        SymbolDetailPopover(entry: entry)
+        SymbolDetailPopover(entry: entry, fileURL: repoURL.appendingPathComponent(entry.relativePath))
       }
     }
     .popover(isPresented: $showWhyGenerated) {
       if let file = whyGeneratedFile {
         WhyGeneratedPopover(
           fileName: (file as NSString).lastPathComponent,
+          fileURL: repoURL.appendingPathComponent(file),
           explanation: $whyGeneratedExplanation,
           reason: $whyGeneratedReason,
           isLoading: $loadingWhyGenerated
@@ -617,6 +618,12 @@ extension CodemapSymbolKind {
 /// A popover that shows all symbols and imports for a file.
 struct SymbolDetailPopover: View {
   let entry: CodemapEntry
+  let fileURL: URL?
+
+  init(entry: CodemapEntry, fileURL: URL? = nil) {
+    self.entry = entry
+    self.fileURL = fileURL
+  }
 
   var body: some View {
     VStack(alignment: .leading, spacing: 12) {
@@ -624,6 +631,16 @@ struct SymbolDetailPopover: View {
         Label("Symbol Details", systemImage: "list.bullet")
           .font(.headline)
         Spacer()
+        if let url = fileURL {
+          Button {
+            NSWorkspace.shared.open(url)
+          } label: {
+            Label("Open in Xcode", systemImage: "chevron.left.forwardslash.chevron.right")
+              .font(.caption)
+          }
+          .buttonStyle(.bordered)
+          .controlSize(.small)
+        }
         Button("Close") {
           // popover dismiss handled by isPresented
         }

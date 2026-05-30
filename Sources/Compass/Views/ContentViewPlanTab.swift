@@ -1707,9 +1707,18 @@ struct ExplanationSheet: View {
 
 struct WhyGeneratedPopover: View {
   let fileName: String
+  let fileURL: URL?
   @Binding var explanation: String?
   @Binding var reason: ExplainUnavailableReason?
   @Binding var isLoading: Bool
+
+  init(fileName: String, fileURL: URL? = nil, explanation: Binding<String?>, reason: Binding<ExplainUnavailableReason?>, isLoading: Binding<Bool>) {
+    self.fileName = fileName
+    self.fileURL = fileURL
+    self._explanation = explanation
+    self._reason = reason
+    self._isLoading = isLoading
+  }
 
   var body: some View {
     VStack(alignment: .leading, spacing: 12) {
@@ -1717,6 +1726,16 @@ struct WhyGeneratedPopover: View {
         Label("Why Generated?", systemImage: "questionmark.circle")
           .font(.headline)
         Spacer()
+        if let url = fileURL {
+          Button {
+            NSWorkspace.shared.open(url)
+          } label: {
+            Label("Open in Xcode", systemImage: "chevron.left.forwardslash.chevron.right")
+              .font(.caption)
+          }
+          .buttonStyle(.bordered)
+          .controlSize(.small)
+        }
         Button("Close") {
           // popover dismiss handled by isPresented
         }
