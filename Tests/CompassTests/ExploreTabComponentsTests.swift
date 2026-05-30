@@ -468,6 +468,45 @@ struct ExploreTabComponentsTests {
     )
     #expect(String(reflecting: popover.body).contains(summaryText))
   }
+  // MARK: - ExploreVisibleRow
+
+  @Test
+  func exploreVisibleRow_collapsedTree_showsRootsOnly() throws {
+    let tree = [
+      FileTreeNode(
+        relativePath: "Sources",
+        isDirectory: true,
+        language: nil,
+        children: [
+          FileTreeNode(
+            relativePath: "Sources/App.swift", isDirectory: false, language: .swift, children: [])
+        ]
+      )
+    ]
+    let rows = ExploreVisibleRow.visibleRows(in: tree, expandedPaths: [])
+    #expect(rows.count == 1)
+    #expect(rows[0].node.relativePath == "Sources")
+  }
+
+  @Test
+  func exploreVisibleRow_expandedFolder_includesChildren() throws {
+    let tree = [
+      FileTreeNode(
+        relativePath: "Sources",
+        isDirectory: true,
+        language: nil,
+        children: [
+          FileTreeNode(
+            relativePath: "Sources/App.swift", isDirectory: false, language: .swift, children: [])
+        ]
+      )
+    ]
+    let rows = ExploreVisibleRow.visibleRows(in: tree, expandedPaths: ["Sources"])
+    #expect(rows.count == 2)
+    #expect(rows[1].node.relativePath == "Sources/App.swift")
+    #expect(rows[1].depth == 1)
+  }
+
   // MARK: - FileTreeRowView summaryButton — sparkles branch
 
   /// Verifies the sparkles "Generate Summary" button appears when a file node
@@ -493,8 +532,10 @@ struct ExploreTabComponentsTests {
     var capturedPath: String?
     let sut = FileTreeRowView(
       node: node,
+      depth: 0,
+      isExpanded: false,
       codemapEntries: [:],
-      indentLevel: 0,
+      onToggleExpansion: { _ in },
       onFileTap: { _ in },
       onSummaryTap: { _, _ in },
       onSymbolDetailTap: { _ in },
@@ -524,8 +565,10 @@ struct ExploreTabComponentsTests {
     var capturedPath: String?
     let sut = FileTreeRowView(
       node: node,
+      depth: 0,
+      isExpanded: false,
       codemapEntries: [:],
-      indentLevel: 0,
+      onToggleExpansion: { _ in },
       onFileTap: { _ in },
       onSummaryTap: { _, _ in },
       onSymbolDetailTap: { _ in },
@@ -560,8 +603,10 @@ struct ExploreTabComponentsTests {
     var called = false
     let sut = FileTreeRowView(
       node: node,
+      depth: 0,
+      isExpanded: false,
       codemapEntries: [:],
-      indentLevel: 0,
+      onToggleExpansion: { _ in },
       onFileTap: { _ in },
       onSummaryTap: { _, _ in },
       onSymbolDetailTap: { _ in },
@@ -600,8 +645,10 @@ struct ExploreTabComponentsTests {
     var called = false
     let sut = FileTreeRowView(
       node: node,
+      depth: 0,
+      isExpanded: false,
       codemapEntries: ["Sources/App.swift": entry],
-      indentLevel: 0,
+      onToggleExpansion: { _ in },
       onFileTap: { _ in },
       onSummaryTap: { _, _ in },
       onSymbolDetailTap: { _ in },

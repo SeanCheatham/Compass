@@ -15,7 +15,7 @@ enum SessionScope: String, CaseIterable {
 /// codemap summary. Sub-folder nodes display an aggregated placeholder
 /// until richer folder-level summaries are available.
 struct ExploreTab: View {
-  @ObservedObject var project: CompassProject
+  let project: CompassProject
   @State private var fileTree: [FileTreeNode] = []
   @State private var codemapEntries: [String: CodemapEntry] = [:]
   @State private var isLoading = true
@@ -36,57 +36,23 @@ struct ExploreTab: View {
   @State private var showSymbolDetailPopover = false
 
   @State private var sessionScope: SessionScope = .lastSession
+  @State private var expandedPaths: Set<String> = []
+  @State private var loadedRepoURL: URL?
+
+  private var visibleRows: [ExploreVisibleRow] {
+    ExploreVisibleRow.visibleRows(in: fileTree, expandedPaths: expandedPaths)
+  }
 
   var body: some View {
-    Group {
-      if isLoading {
-        ProgressView("Loading repository…")
-      } else if fileTree.isEmpty {
-        ContentUnavailableView(
-          "No Source Files",
-          systemImage: "folder",
-          description: Text("Open a repository to explore its source files.")
-        )
-      } else {
-        VStack(alignment: .leading, spacing: 0) {
-          sessionScopePicker
-          ScrollView {
-            LazyVStack(alignment: .leading, spacing: 2) {
-              ForEach(fileTree, id: \.relativePath) { root in
-                FileTreeRowView(
-                  node: root,
-                  codemapEntries: codemapEntries,
-                  indentLevel: 0,
-                  onFileTap: { path in
-                    whyGeneratedFile = path
-                    whyGeneratedExplanation = nil
-                    whyGeneratedReason = nil
-                    loadingWhyGenerated = true
-                    showWhyGenerated = true
-                    Task { await loadWhyGenerated() }
-                  },
-                  onSummaryTap: { path, summary in
-                    summaryPopoverFile = path
-                    summaryPopoverText = summary
-                    showSummaryPopover = true
-                  },
-                  onSymbolDetailTap: { entry in
-                    symbolDetailEntry = entry
-                    showSymbolDetailPopover = true
-                  },
-                  onGenerateSummary: { path in
-                    Task { await generateSummary(for: path) }
-                  }
-                )
-              }
-            }
-            .padding(.horizontal, 8)
-            .padding(.vertical, 6)
-          }
+    ZStack(alignment: .topLeading) {
+      exploreContent
+      Color.clear
+        .frame(width: 0, height: 0)
+        .task(id: project.repoURL) {
+          await loadRepositorySnapshotIfNeeded()
         }
-      }
     }
-    .popover(isPresented: $showSummaryPopover) {
+      .popover(isPresented: $showSummaryPopover) {
       if let file = summaryPopoverFile {
         SummaryPopover(
           fileName: (file as NSString).lastPathComponent,
@@ -110,21 +76,70 @@ struct ExploreTab: View {
         )
       }
     }
-    .task {
-      await loadData()
+  }
+
+  @ViewBuilder
+  private var exploreContent: some View {
+    if isLoading {
+      ProgressView("Loading repository…")
+    } else if fileTree.isEmpty {
+      ContentUnavailableView(
+        "No Source Files",
+        systemImage: "folder",
+        description: Text("Open a repository to explore its source files.")
+      )
+    } else {
+      VStack(alignment: .leading, spacing: 0) {
+        sessionScopePicker
+        ScrollView {
+          LazyVStack(alignment: .leading, spacing: 2) {
+            ForEach(visibleRows) { row in
+              FileTreeRowView(
+                node: row.node,
+                depth: row.depth,
+                isExpanded: expandedPaths.contains(row.node.relativePath),
+                codemapEntries: codemapEntries,
+                onToggleExpansion: toggleExpansion,
+                onFileTap: handleFileTap,
+                onSummaryTap: handleSummaryTap,
+                onSymbolDetailTap: handleSymbolDetailTap,
+                onGenerateSummary: handleGenerateSummary
+              )
+            }
+          }
+          .padding(.horizontal, 8)
+          .padding(.vertical, 6)
+        }
+      }
     }
   }
 
-  private func loadData() async {
+  private func toggleExpansion(for path: String) {
+    if expandedPaths.contains(path) {
+      expandedPaths.remove(path)
+    } else {
+      expandedPaths.insert(path)
+    }
+  }
+
+  private func loadRepositorySnapshotIfNeeded() async {
+    guard loadedRepoURL != project.repoURL else { return }
+    isLoading = true
+    defer { isLoading = false }
+
     guard let workspace = project.workspace else {
-      isLoading = false
+      fileTree = []
+      codemapEntries = [:]
+      expandedPaths = []
+      loadedRepoURL = project.repoURL
       return
     }
+
     let repoURL = project.repoURL
     let codemapDir = CodemapStore.defaultDirectory(forWorkspace: workspace)
     let loaded = await Task.detached(priority: .userInitiated) {
       let fs = CodemapFileSystem(rootURL: repoURL)
-      let nodes = fs.buildTree()
+      let nodes = fs.buildSourceTree()
       let entries = CodemapStore(directory: codemapDir).loadAllEntries()
       let entryMap = Dictionary(
         uniqueKeysWithValues: entries.map {
@@ -132,9 +147,35 @@ struct ExploreTab: View {
         })
       return (nodes, entryMap)
     }.value
+
     fileTree = loaded.0
     codemapEntries = loaded.1
-    isLoading = false
+    expandedPaths = []
+    loadedRepoURL = project.repoURL
+  }
+
+  private func handleFileTap(_ path: String) {
+    whyGeneratedFile = path
+    whyGeneratedExplanation = nil
+    whyGeneratedReason = nil
+    loadingWhyGenerated = true
+    showWhyGenerated = true
+    Task { await loadWhyGenerated() }
+  }
+
+  private func handleSummaryTap(_ path: String, summary: String) {
+    summaryPopoverFile = path
+    summaryPopoverText = summary
+    showSummaryPopover = true
+  }
+
+  private func handleSymbolDetailTap(_ entry: CodemapEntry) {
+    symbolDetailEntry = entry
+    showSymbolDetailPopover = true
+  }
+
+  private func handleGenerateSummary(_ path: String) {
+    Task { await generateSummary(for: path) }
   }
 
   private var sessionScopePicker: some View {
@@ -230,97 +271,112 @@ struct FileTreeNode: Identifiable, Equatable {
   }
 }
 
+// MARK: - ExploreVisibleRow
+
+/// A flattened, lazily-rendered row in the Explore file tree.
+struct ExploreVisibleRow: Identifiable {
+  let node: FileTreeNode
+  let depth: Int
+
+  var id: String { node.relativePath }
+
+  static func visibleRows(
+    in roots: [FileTreeNode],
+    expandedPaths: Set<String>
+  ) -> [ExploreVisibleRow] {
+    var rows: [ExploreVisibleRow] = []
+    append(from: roots, depth: 0, expandedPaths: expandedPaths, into: &rows)
+    return rows
+  }
+
+  private static func append(
+    from nodes: [FileTreeNode],
+    depth: Int,
+    expandedPaths: Set<String>,
+    into rows: inout [ExploreVisibleRow]
+  ) {
+    for node in nodes {
+      rows.append(ExploreVisibleRow(node: node, depth: depth))
+      if node.isDirectory,
+        !node.children.isEmpty,
+        expandedPaths.contains(node.relativePath)
+      {
+        append(from: node.children, depth: depth + 1, expandedPaths: expandedPaths, into: &rows)
+      }
+    }
+  }
+}
+
 // MARK: - FileTreeRowView
 
 struct FileTreeRowView: View {
   let node: FileTreeNode
+  let depth: Int
+  let isExpanded: Bool
   let codemapEntries: [String: CodemapEntry]
-  let indentLevel: Int
+  let onToggleExpansion: (String) -> Void
   let onFileTap: (String) -> Void
   let onSummaryTap: (String, String) -> Void
   let onSymbolDetailTap: (CodemapEntry) -> Void
   let onGenerateSummary: (String) -> Void
-  @State private var isExpanded = false
 
   private let rowHeight: CGFloat = 44
 
   var body: some View {
-    if node.isDirectory {
-      DisclosureGroup(isExpanded: $isExpanded) {
-        ForEach(node.children, id: \.relativePath) { child in
-          FileTreeRowView(
-            node: child,
-            codemapEntries: codemapEntries,
-            indentLevel: indentLevel + 1,
-            onFileTap: onFileTap,
-            onSummaryTap: onSummaryTap,
-            onSymbolDetailTap: onSymbolDetailTap,
-            onGenerateSummary: onGenerateSummary
-          )
-        }
-      } label: {
-        rowContent
-      }
-    } else {
-      rowContent
-    }
-  }
-
-  private var rowContent: some View {
     HStack(spacing: 8) {
-        // Indent
-        HStack(spacing: 0) {
-          ForEach(0..<indentLevel, id: \.self) { _ in
-            Rectangle()
-              .fill(.clear)
-              .frame(width: 20)
-          }
+      if node.isDirectory, !node.children.isEmpty {
+        Button {
+          onToggleExpansion(node.relativePath)
+        } label: {
+          Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+            .frame(width: 12)
         }
+        .buttonStyle(.plain)
+      } else {
+        Color.clear.frame(width: 12, height: 1)
+      }
 
-        // Icon
-        iconView
+      iconView
 
-        // Name
-        if node.isDirectory {
+      if node.isDirectory {
+        Text(node.name)
+          .font(.system(.body, design: .default))
+          .fontWeight(.medium)
+          .foregroundStyle(.primary)
+          .lineLimit(1)
+      } else {
+        Button {
+          onFileTap(node.relativePath)
+        } label: {
           Text(node.name)
             .font(.system(.body, design: .default))
-            .fontWeight(node.isDirectory ? .medium : .regular)
-            .foregroundStyle(node.isDirectory ? .primary : .secondary)
+            .fontWeight(.regular)
+            .foregroundStyle(.secondary)
             .lineLimit(1)
-        } else {
-          Button {
-            onFileTap(node.relativePath)
-          } label: {
-            Text(node.name)
-              .font(.system(.body, design: .default))
-              .fontWeight(node.isDirectory ? .medium : .regular)
-              .foregroundStyle(node.isDirectory ? .primary : .secondary)
-              .lineLimit(1)
-          }
-          .buttonStyle(.plain)
         }
-
-        Spacer()
-
-        // Language badge (files only)
-        if !node.isDirectory, let lang = node.language {
-          LanguageBadge(language: lang)
-        }
-
-        // Summary — tap to open full-text popover
-        summaryButton
-
-        // Symbol details — tap to open symbol/import popover
-        detailsButton
+        .buttonStyle(.plain)
       }
-      .frame(height: rowHeight)
-      .contentShape(Rectangle())
+
+      Spacer()
+
+      if !node.isDirectory, let lang = node.language {
+        LanguageBadge(language: lang)
+      }
+
+      summaryButton
+      detailsButton
+    }
+    .padding(.leading, CGFloat(depth * 16))
+    .frame(height: rowHeight)
+    .contentShape(Rectangle())
   }
 
   @ViewBuilder
   private var iconView: some View {
     if node.isDirectory {
-      Image(systemName: isExpanded ? "folder.fill" : "folder")
+      Image(systemName: "folder")
         .foregroundStyle(.yellow)
         .imageScale(.small)
     } else if let lang = node.language {
@@ -443,6 +499,28 @@ struct CodemapFileSystem {
     let keys = topLevelKeys()
     let nodes = keys.map { buildNode(relativePath: $0) }
     return sortNodes(nodes)
+  }
+
+  /// Build a tree containing only supported source files and their parent folders.
+  func buildSourceTree() -> [FileTreeNode] {
+    pruneSourceNodes(buildTree())
+  }
+
+  private func pruneSourceNodes(_ nodes: [FileTreeNode]) -> [FileTreeNode] {
+    nodes.compactMap { node in
+      if node.isDirectory {
+        let children = pruneSourceNodes(node.children)
+        guard !children.isEmpty else { return nil }
+        return FileTreeNode(
+          relativePath: node.relativePath,
+          isDirectory: true,
+          language: nil,
+          children: children
+        )
+      }
+      guard CodemapLanguage.forRelativePath(node.relativePath) != nil else { return nil }
+      return node
+    }
   }
 
   /// Top-level relative paths immediately under the repo root.

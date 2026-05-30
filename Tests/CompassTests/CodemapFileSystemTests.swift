@@ -119,6 +119,24 @@ struct CodemapFileSystemTests {
   }
 
   @Test
+  func buildSourceTree_keepsOnlySupportedSourceFiles() throws {
+    let root = try makeTempDir()
+    let sourcesDir = root.appendingPathComponent("Sources")
+    try FileManager.default.createDirectory(
+      atPath: sourcesDir.path, withIntermediateDirectories: true)
+    try FileManager.default.createFile(
+      atPath: sourcesDir.appendingPathComponent("App.swift").path, contents: nil)
+    try FileManager.default.createFile(
+      atPath: root.appendingPathComponent("README.md").path, contents: nil)
+    let fs = CodemapFileSystem(rootURL: root)
+    let tree = fs.buildSourceTree()
+    #expect(tree.count == 1)
+    #expect(tree[0].relativePath == "Sources")
+    #expect(tree[0].children.count == 1)
+    #expect(tree[0].children[0].relativePath == "Sources/App.swift")
+  }
+
+  @Test
   func buildTree_dotCompassExcluded() throws {
     let root = try makeTempDir()
     let sourcesDir = root.appendingPathComponent("Sources")

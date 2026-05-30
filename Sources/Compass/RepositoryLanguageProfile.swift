@@ -235,6 +235,7 @@ enum RepositoryWalkRules {
   static func shouldInclude(name: String, isDirectory: Bool, isTopLevel: Bool = false) -> Bool {
     if name.hasPrefix(".") { return false }
     if isTopLevel && name == "Compass" { return false }
+    if isDirectory && name.hasSuffix(".xcodeproj") { return false }
     if isDirectory && ignoredDirectoryNames.contains(name) { return false }
     return true
   }
