@@ -1165,6 +1165,8 @@ struct ArchitectureGraphPopover: View {
   @State private var explanation: String?
   @State private var isLoading = false
   @State private var availabilityError = false
+  @State private var svgExportPath: String?
+  @State private var svgExportError: String?
 
   var body: some View {
     VStack(alignment: .leading, spacing: 12) {
@@ -1235,11 +1237,56 @@ struct ArchitectureGraphPopover: View {
             .frame(maxHeight: 160)
           }
         }
+
+        exportSVGButton
       }
     }
     .padding(16)
     .frame(width: 440)
     .task { await loadGraph() }
+  }
+
+  @ViewBuilder
+  private var exportSVGButton: some View {
+    VStack(alignment: .leading, spacing: 6) {
+      Button {
+        exportSVG()
+      } label: {
+        Label("Export SVG", systemImage: "square.and.arrow.up")
+          .font(.caption)
+      }
+      .buttonStyle(.bordered)
+      .controlSize(.small)
+
+      if let path = svgExportPath {
+        Text("Saved: \(path)")
+          .font(.caption2)
+          .foregroundStyle(.secondary)
+      }
+      if let error = svgExportError {
+        Text(error)
+          .font(.caption2)
+          .foregroundStyle(.orange)
+      }
+    }
+  }
+
+  private func exportSVG() {
+    svgExportPath = nil
+    svgExportError = nil
+    let codemapDir = repoURL
+      .appendingPathComponent(".compass/codemap")
+      .standardizedFileURL
+    let viz = CodemapGraphViz(repoURL: repoURL, codemapDirectory: codemapDir)
+    do {
+      if let url = try viz.writeOverviewSVG() {
+        svgExportPath = url.lastPathComponent
+      } else {
+        svgExportError = "Codemap is empty — no files to render."
+      }
+    } catch {
+      svgExportError = "Failed: \(error.localizedDescription)"
+    }
   }
 
   private func loadGraph() async {

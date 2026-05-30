@@ -318,4 +318,142 @@ enum ArchitectureGraph {
 
     return await FoundationModelsAvailability._streamText(prompt: prompt)
   }
+
+  // MARK: - SVG Export
+
+  /// Renders the complete import graph as an SVG image.
+  ///
+  /// Nodes are positioned using a simple ranked layout: the longest path
+  /// from any source node (node with no incoming edges) determines each
+  /// node's vertical rank; nodes within the same rank are spaced
+  /// horizontally in topological order.
+  ///
+  /// Nodes show the short filename (e.g. `AgentExecutor.swift`); edges
+  /// show directed import arrows.
+  ///
+  /// Returns `nil` when the codemap directory is empty (no files indexed).
+  static func exportSVG(from codemapDirectory: URL) -> String? {
+    let graph = buildGraph(codemapDirectory: codemapDirectory)
+    return exportSVG(from: graph)
+  }
+
+  /// Renders the given import graph as an SVG image.
+  /// Returns `nil` when the graph has no nodes.
+  static func exportSVG(from graph: ImportGraph) -> String? {
+    guard !graph.nodes.isEmpty else { return nil }
+
+    let nodeWidth: CGFloat = 130
+    let nodeHeight: CGFloat = 38
+    let rankSpacingY: CGFloat = 90
+    let nodeSpacingX: CGFloat = 30
+    let padding: CGFloat = 40
+
+    // Compute ranks via longest path from source nodes (no incoming edges).
+    var ranks: [ImportGraph.Node: Int] = [:]
+
+    let sourceNodes = graph.nodes.filter { node in
+      !graph.edges.contains { $0.target == node }
+    }
+
+    if sourceNodes.isEmpty {
+      // Cycle or fully-connected graph — treat all as rank 0.
+      for node in graph.nodes { ranks[node] = 0 }
+    } else {
+      for source in sourceNodes {
+        var visited: [ImportGraph.Node: Int] = [:]
+        var queue: [(ImportGraph.Node, Int)] = [(source, 0)]
+        while !queue.isEmpty {
+          let (node, dist) = queue.removeFirst()
+          if let existing = visited[node], existing >= dist { continue }
+          visited[node] = dist
+          if let existingRank = ranks[node] {
+            ranks[node] = max(existingRank, dist)
+          } else {
+            ranks[node] = dist
+          }
+          if let outgoing = graph.adjacency[node] {
+            for target in outgoing {
+              if visited[target] == nil || visited[target]! < dist + 1 {
+                queue.append((target, dist + 1))
+              }
+            }
+          }
+        }
+      }
+      // Nodes not reached from any source get rank 0.
+      for node in graph.nodes where ranks[node] == nil {
+        ranks[node] = 0
+      }
+    }
+
+    let maxRank = ranks.values.max() ?? 0
+
+    // Group nodes by rank, sort within rank by path for determinism.
+    var rankGroups: [[ImportGraph.Node]] = Array(repeating: [], count: maxRank + 1)
+    for (node, rank) in ranks {
+      rankGroups[rank].append(node)
+    }
+    for i in 0 ..< rankGroups.count {
+      rankGroups[i].sort { $0.path < $1.path }
+    }
+
+    // Position nodes.
+    var positions: [ImportGraph.Node: CGPoint] = [:]
+    for (rankIdx, nodes) in rankGroups.enumerated() {
+      let y = padding + CGFloat(rankIdx) * (nodeHeight + rankSpacingY)
+      let totalWidth = CGFloat(nodes.count) * nodeWidth
+        + CGFloat(max(0, nodes.count - 1)) * nodeSpacingX
+      let startX = padding + (max(0, 800 - totalWidth) / 2)
+      for (i, node) in nodes.enumerated() {
+        let x = startX + CGFloat(i) * (nodeWidth + nodeSpacingX)
+        positions[node] = CGPoint(x: x, y: y)
+      }
+    }
+
+    // SVG bounding box.
+    let contentW = positions.values.map(\.x).max() ?? 0
+    let svgW = max(800, contentW + padding + nodeWidth)
+    let svgH = max(600, CGFloat(maxRank + 1) * (nodeHeight + rankSpacingY) + padding + nodeHeight)
+
+    var svg = """
+    <svg xmlns="http://www.w3.org/2000/svg" width="\(Int(svgW))" height="\(Int(svgH))" style="background:#1e1e1e">
+      <style>
+        .node-rect { fill: #2d2d3d; stroke: #6e6e8a; stroke-width: 1; }
+        .node-label { fill: #d0d0e0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size: 11px; text-anchor: middle; dominant-baseline: middle; }
+        .cluster-label { fill: #8888aa; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size: 10px; text-anchor: start; dominant-baseline: middle; }
+        .edge { stroke: #5a5a7e; stroke-width: 1.5; fill: none; marker-end: url(#arrowhead); }
+      </style>
+      <defs>
+        <marker id="arrowhead" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+          <polygon points="0 0, 8 3, 0 6" fill="#5a5a7e"/>
+        </marker>
+      </defs>
+
+    """
+
+    // Edges drawn behind nodes.
+    for edge in graph.edges {
+      guard let src = positions[edge.source], let dst = positions[edge.target] else { continue }
+      let sx = src.x + nodeWidth / 2; let sy = src.y + nodeHeight / 2
+      let dx = dst.x + nodeWidth / 2; let dy = dst.y + nodeHeight / 2
+      let mid = (sy + dy) / 2
+      let d = "M \(sx) \(sy) C \(sx) \(mid), \(dx) \(mid), \(dx) \(dy)"
+      svg += "\n  <path d=\"\(d)\" class=\"edge\"/>"
+    }
+
+    // Nodes.
+    for (node, pos) in positions {
+      let label = (node.path as NSString).lastPathComponent
+      svg += """
+
+      <g>
+        <rect x="\(pos.x)" y="\(pos.y)" width="\(nodeWidth)" height="\(nodeHeight)" rx="5" class="node-rect"/>
+        <text x="\(pos.x + nodeWidth / 2)" y="\(pos.y + nodeHeight / 2)" class="node-label">\(label)</text>
+      </g>
+    """
+    }
+
+    svg += "\n</svg>"
+    return svg
+  }
 }
