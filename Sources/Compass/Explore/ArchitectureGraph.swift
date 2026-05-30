@@ -416,26 +416,28 @@ enum ArchitectureGraph {
     let svgH = max(600, CGFloat(maxRank + 1) * (nodeHeight + rankSpacingY) + padding + nodeHeight)
 
     var svg = """
-    <svg xmlns="http://www.w3.org/2000/svg" width="\(Int(svgW))" height="\(Int(svgH))" style="background:#1e1e1e">
-      <style>
-        .node-rect { fill: #2d2d3d; stroke: #6e6e8a; stroke-width: 1; }
-        .node-label { fill: #d0d0e0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size: 11px; text-anchor: middle; dominant-baseline: middle; }
-        .cluster-label { fill: #8888aa; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size: 10px; text-anchor: start; dominant-baseline: middle; }
-        .edge { stroke: #5a5a7e; stroke-width: 1.5; fill: none; marker-end: url(#arrowhead); }
-      </style>
-      <defs>
-        <marker id="arrowhead" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
-          <polygon points="0 0, 8 3, 0 6" fill="#5a5a7e"/>
-        </marker>
-      </defs>
+      <svg xmlns="http://www.w3.org/2000/svg" width="\(Int(svgW))" height="\(Int(svgH))" style="background:#1e1e1e">
+        <style>
+          .node-rect { fill: #2d2d3d; stroke: #6e6e8a; stroke-width: 1; }
+          .node-label { fill: #d0d0e0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size: 11px; text-anchor: middle; dominant-baseline: middle; }
+          .cluster-label { fill: #8888aa; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size: 10px; text-anchor: start; dominant-baseline: middle; }
+          .edge { stroke: #5a5a7e; stroke-width: 1.5; fill: none; marker-end: url(#arrowhead); }
+        </style>
+        <defs>
+          <marker id="arrowhead" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+            <polygon points="0 0, 8 3, 0 6" fill="#5a5a7e"/>
+          </marker>
+        </defs>
 
-    """
+      """
 
     // Edges drawn behind nodes.
     for edge in graph.edges {
       guard let src = positions[edge.source], let dst = positions[edge.target] else { continue }
-      let sx = src.x + nodeWidth / 2; let sy = src.y + nodeHeight / 2
-      let dx = dst.x + nodeWidth / 2; let dy = dst.y + nodeHeight / 2
+      let sx = src.x + nodeWidth / 2
+      let sy = src.y + nodeHeight / 2
+      let dx = dst.x + nodeWidth / 2
+      let dy = dst.y + nodeHeight / 2
       let mid = (sy + dy) / 2
       let d = "M \(sx) \(sy) C \(sx) \(mid), \(dx) \(mid), \(dx) \(dy)"
       svg += "\n  <path d=\"\(d)\" class=\"edge\"/>"
