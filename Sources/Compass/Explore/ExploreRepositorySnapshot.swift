@@ -62,8 +62,9 @@ enum ExploreRepositorySnapshotLoader {
   static func load(repoURL: URL, codemapDirectory: URL) -> ExploreRepositorySnapshot {
     let fileTree = ExploreTreeBuilder.buildSourceTree(repoURL: repoURL)
     let store = CodemapStore(directory: codemapDirectory)
+    let allPaths = ExploreTreeBuilder.allFilePaths(in: fileTree)
     var codemapEntries: [String: CodemapEntry] = [:]
-    codemapEntries.reserveCapacity(fileTree.count * 2)
+    codemapEntries.reserveCapacity(allPaths.count)
     for path in ExploreTreeBuilder.allFilePaths(in: fileTree) {
       if let entry = store.loadEntry(forRelativePath: path) {
         codemapEntries[path] = entry
