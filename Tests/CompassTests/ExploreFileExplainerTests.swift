@@ -789,6 +789,19 @@ struct ExploreFileExplainerTests {
   }
 
   @Test
+  func changes_emptyCommits_returnsEmptyArray() async throws {
+    var test = Self()
+    test.setUp()
+    defer { test.tearDown() }
+
+    // Guard at line 312: guard let first = commits.first, let oldestCommit = commits.last else { return [] }
+    // With an empty array, first and oldestCommit are nil → returns []
+    let changes = await FileExplainer.changes(for: test.temporaryDirectory, commits: [])
+
+    try #require(changes.isEmpty, "Empty commits array must return an empty array, not nil")
+  }
+
+  @Test
   func changes_noChangedFiles_returnsEmptyArray() async throws {
     var test = Self()
     test.setUp()
