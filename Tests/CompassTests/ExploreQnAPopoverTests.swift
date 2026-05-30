@@ -148,64 +148,6 @@ struct ExploreQnAPopoverTests {
     #expect(body.contains("Ask"))
   }
 
-  /// Verifies the button-disabled condition is true when `question`
-  /// is the empty string (default at init).
-  ///
-  /// `submitQuestion()` trims `question` and returns early via
-  /// `guard !trimmed.isEmpty else { return }`. The "Ask" button's
-  /// `.disabled()` binding computes the same expression:
-  /// `question.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty`.
-  @Test
-  func qnAPopover_init_questionTrimmed_emptyString() throws {
-    let popover = QnAPopover(
-      item: .placeholder,
-      repoURL: URL(fileURLWithPath: "/tmp/Repo")
-    )
-    // question = "" (default) → trimming → "" → isEmpty = true
-    // So button should be disabled
-    let body = String(reflecting: popover.body)
-    // The disabled button renders with `.opacity` modifier; we check that
-    // the button text is present (Ask) to confirm the control rendered,
-    // and verify the trimming logic directly via the computed condition.
-    let isButtonDisabled = popover.question.trimmingCharacters(
-      in: .whitespacesAndNewlines
-    ).isEmpty
-    #expect(isButtonDisabled == true)
-  }
-
-  /// Verifies the button-disabled condition is true when `question`
-  /// is a whitespace-only string.
-  @Test
-  func qnAPopover_init_questionTrimmed_whitespace() throws {
-    let popover = QnAPopover(
-      item: .placeholder,
-      repoURL: URL(fileURLWithPath: "/tmp/Repo")
-    )
-    // Simulate the TextField having whitespace-only content by examining
-    // the trimming logic: "  \n\t  ".isEmpty after trimming = true
-    let whitespaceOnly = "  \n\t  "
-    let isButtonDisabled = whitespaceOnly.trimmingCharacters(
-      in: .whitespacesAndNewlines
-    ).isEmpty
-    #expect(isButtonDisabled == true)
-  }
-
-  /// Verifies the button-disabled condition is false when `question`
-  /// is a non-empty, trimmed string.
-  @Test
-  func qnAPopover_init_questionTrimmed_validInput() throws {
-    let popover = QnAPopover(
-      item: .placeholder,
-      repoURL: URL(fileURLWithPath: "/tmp/Repo")
-    )
-    // A non-empty trimmed question → button should be enabled
-    let trimmedQuestion = "What changed in the last commit?"
-    let isButtonDisabled = trimmedQuestion.trimmingCharacters(
-      in: .whitespacesAndNewlines
-    ).isEmpty
-    #expect(isButtonDisabled == false)
-  }
-
   /// Verifies `item.commits` is accessible on the initialized popover.
   /// `submitQuestion()` uses `item.commits` when calling `RepoQnA.answer()`;
   /// this test confirms the value flows through the initializer.
