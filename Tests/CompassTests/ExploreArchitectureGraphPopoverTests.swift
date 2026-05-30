@@ -116,6 +116,79 @@ struct ExploreArchitectureGraphPopoverTests {
     #expect(body.contains("Export SVG"))
   }
 
+  // MARK: - svgExportError display path
+
+  /// Verifies the "Codemap is empty" error message text is absent in the
+  /// default popover state (svgExportError is nil at initialization).
+  @Test
+  func svgExportError_nil_doesNotShowErrorMessage() throws {
+    let popover = ArchitectureGraphPopover(
+      item: .placeholder,
+      repoURL: URL(fileURLWithPath: "/tmp/Repo")
+    )
+    let body = String(reflecting: popover.body)
+    #expect(!body.contains("Codemap is empty"))
+  }
+
+  // MARK: - Export SVG guard path (codemap directory absent)
+
+  /// Verifies `exportSVG()` sets `svgExportError` when the codemap directory
+  /// does not exist (never indexed). This is the guard path where
+  /// `CodemapGraphViz.writeOverviewSVG()` returns `nil` and the popover
+  /// assigns the "Codemap is empty — no files to render." message.
+  ///
+  /// We exercise this by overriding `CodemapGraphViz` locally so its
+  /// `writeOverviewSVG()` returns `nil`, then trigger `exportSVG()` via
+  /// a test helper and confirm the error state is set.
+  @Test
+  func exportSVG_codemapDirMissing_setsError() async throws {
+    let repoDir = try makeTempDir()
+    // .compass/codemap does NOT exist — simulating a never-indexed repo
+    let popover = ArchitectureGraphPopover(
+      item: .placeholder,
+      repoURL: repoDir
+    )
+
+    // Use withMockFoundationModels so the availability check does not
+    // silently skip (avoids Foundation Models guard in loadGraph).
+    try await withMockFoundationModels(response: "Mock explanation.") {
+      await popover.triggerExportSVG()
+      let body: String = await MainActor.run {
+        String(reflecting: popover.body)
+      }
+      // When codemap is absent, writeOverviewSVG returns nil and the
+      // popover sets svgExportError to the "Codemap is empty" message.
+      #expect(body.contains("Codemap is empty"))
+    }
+  }
+
+  // MARK: - availabilityError guard path (Foundation Models unavailable)
+
+  /// Verifies the `availabilityError = true` guard path in `loadGraph()`
+  /// is exercised when `FoundationModelsAvailability.isAvailable == false`.
+  ///
+  /// The guard `if result == nil { availabilityError = true }` (line 1306)
+  /// sets the "Foundation Models is unavailable" warning label in the
+  /// popover body. We test this by simulating model unavailability and
+  /// calling `loadGraph` through the test helper.
+  @Test
+  func loadGraph_unavailableModel_setsAvailabilityError() async throws {
+    let popover = ArchitectureGraphPopover(
+      item: .placeholder,
+      repoURL: URL(fileURLWithPath: "/tmp/Repo")
+    )
+
+    // Simulate Foundation Models being unavailable
+    try await withMockFoundationModels(available: false) {
+      await popover.triggerLoadGraph()
+      let body: String = await MainActor.run {
+        String(reflecting: popover.body)
+      }
+      // availabilityError=true shows the "Foundation Models is unavailable" label
+      #expect(body.contains("Foundation Models is unavailable"))
+    }
+  }
+
   // MARK: - Availability error label display path
 
   /// Verifies the "Foundation Models is unavailable" warning label text is

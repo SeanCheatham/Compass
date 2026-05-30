@@ -1308,6 +1308,23 @@ struct ArchitectureGraphPopover: View {
 
     isLoading = false
   }
+
+  // MARK: - Test helper
+
+  /// Triggers `exportSVG()` synchronously for testing purposes.
+  /// The method captures the `svgExportError` state that results from
+  /// `CodemapGraphViz.writeOverviewSVG()` returning `nil` (missing codemap
+  /// directory) or throwing.
+  package func triggerExportSVG() async {
+    exportSVG()
+  }
+
+  /// Triggers `loadGraph()` for testing purposes.
+  /// The method exercises the `availabilityError` guard path when
+  /// `FoundationModelsAvailability.isAvailable == false`.
+  package func triggerLoadGraph() async {
+    await loadGraph()
+  }
 }
 
 struct QnAButton: View {
