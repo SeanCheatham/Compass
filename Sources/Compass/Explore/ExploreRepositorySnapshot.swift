@@ -142,8 +142,9 @@ enum ExploreTreeBuilder {
     }
 
     let directoryIndex: Int
-    if let existing = siblings.firstIndex(where: { $0.relativePath == relativePath && $0.isDirectory })
-    {
+    if let existing = siblings.firstIndex(where: {
+      $0.relativePath == relativePath && $0.isDirectory
+    }) {
       directoryIndex = existing
     } else {
       siblings.append(
@@ -187,7 +188,8 @@ enum ExploreTreeBuilder {
 private enum GitSourcePaths {
   static func sourcePaths(in repoURL: URL) -> [String] {
     guard let listing = runGitLsFiles(repoURL: repoURL) else { return [] }
-    return listing
+    return
+      listing
       .split(separator: "\0", omittingEmptySubsequences: true)
       .map(String.init)
       .filter {
