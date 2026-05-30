@@ -1,4 +1,5 @@
 import Foundation
+import Compass
 
 /// Host-side disk planter for the Compass shared VM's headless first-boot
 /// pipeline.
@@ -480,13 +481,6 @@ struct HDIUtilDiskAttacher: HostDiskAttaching {
       executable: hdiutilPath,
       arguments: ["attach", "-nomount", "-plist", "-nobrowse", diskImageURL.path]
     )
-    guard result.exitCode == 0 else {
-      throw SharedCompassVMHeadlessPlanter.Error.toolFailed(
-        tool: "hdiutil attach",
-        exitCode: result.exitCode,
-        output: result.combinedOutput
-      )
-    }
     let wholeDiskDeviceNode = try Self.parseContainerDeviceNode(fromPlist: result.standardOutput)
     let apfsPhysicalStoreIdentifier = try Self.parseAPFSPhysicalStoreIdentifier(
       fromPlist: result.standardOutput
@@ -499,17 +493,10 @@ struct HDIUtilDiskAttacher: HostDiskAttaching {
   }
 
   func detach(deviceNode: String) async throws {
-    let result = try await HeadlessPlanterProcessRunner.runCapture(
+    _ = try await HeadlessPlanterProcessRunner.runCapture(
       executable: hdiutilPath,
       arguments: ["detach", deviceNode]
     )
-    guard result.exitCode == 0 else {
-      throw SharedCompassVMHeadlessPlanter.Error.toolFailed(
-        tool: "hdiutil detach",
-        exitCode: result.exitCode,
-        output: result.combinedOutput
-      )
-    }
   }
 
   /// Parses `hdiutil attach -plist` output and returns the first
@@ -636,13 +623,6 @@ struct DiskUtilDataVolumeLocator: DataVolumeLocating {
       executable: diskutilPath,
       arguments: ["apfs", "list", "-plist"]
     )
-    guard result.exitCode == 0 else {
-      throw SharedCompassVMHeadlessPlanter.Error.toolFailed(
-        tool: "diskutil apfs list",
-        exitCode: result.exitCode,
-        output: result.combinedOutput
-      )
-    }
     return try Self.parseDataVolumeDeviceNode(
       fromPlist: result.standardOutput,
       matchingPhysicalStore: physicalStoreIdentifier
@@ -758,6 +738,7 @@ struct OSAScriptAdminElevator: AdminElevating {
 /// runtime's streaming tool calls and offers behaviour Compass doesn't
 /// need here. Disambiguated by name from `Compass.ProcessRunner`.
 enum HeadlessPlanterProcessRunner {
+  /// Local result type using the field names expected by call sites.
   struct CaptureResult {
     var exitCode: Int32
     var standardOutput: String
@@ -779,31 +760,22 @@ enum HeadlessPlanterProcessRunner {
     }
   }
 
+  /// Delegates to `ProcessRunner.run`, mapping to the planter's own `Error`.
   static func runCapture(executable: String, arguments: [String]) async throws -> CaptureResult {
-    let fileManager = FileManager.default
-    guard fileManager.isExecutableFile(atPath: executable) else {
+    guard FileManager.default.isExecutableFile(atPath: executable) else {
       throw SharedCompassVMHeadlessPlanter.Error.toolMissing(path: executable)
     }
-    return try await Task.detached(priority: .userInitiated) { () throws -> CaptureResult in
-      let process = Process()
-      process.executableURL = URL(fileURLWithPath: executable)
-      process.arguments = arguments
-
-      let stdoutPipe = Pipe()
-      let stderrPipe = Pipe()
-      process.standardOutput = stdoutPipe
-      process.standardError = stderrPipe
-
-      try process.run()
-      process.waitUntilExit()
-
-      let outData = (try? stdoutPipe.fileHandleForReading.readToEnd()) ?? Data()
-      let errData = (try? stderrPipe.fileHandleForReading.readToEnd()) ?? Data()
-      return CaptureResult(
-        exitCode: process.terminationStatus,
-        standardOutput: String(data: outData, encoding: .utf8) ?? "",
-        standardError: String(data: errData, encoding: .utf8) ?? ""
+    let result = try await ProcessRunner.run(executable: executable, arguments: arguments)
+    guard result.exitCode == 0 else {
+      let cap = CaptureResult(exitCode: result.exitCode, standardOutput: result.stdout, standardError: result.stderr)
+      throw SharedCompassVMHeadlessPlanter.Error.toolFailed(
+        tool: executable, exitCode: result.exitCode, output: cap.combinedOutput
       )
-    }.value
+    }
+    return CaptureResult(
+      exitCode: result.exitCode,
+      standardOutput: result.stdout,
+      standardError: result.stderr
+    )
   }
 }
