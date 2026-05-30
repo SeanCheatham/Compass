@@ -100,6 +100,25 @@ struct CodemapFileSystemTests {
   }
 
   @Test
+  func buildTree_ignoredBuildDirectoryExcluded() throws {
+    let root = try makeTempDir()
+    let sourcesDir = root.appendingPathComponent("Sources")
+    try FileManager.default.createDirectory(
+      atPath: sourcesDir.path, withIntermediateDirectories: true)
+    try FileManager.default.createFile(
+      atPath: sourcesDir.appendingPathComponent("App.swift").path, contents: nil)
+    let buildDir = root.appendingPathComponent("build")
+    try FileManager.default.createDirectory(
+      atPath: buildDir.path, withIntermediateDirectories: true)
+    try FileManager.default.createFile(
+      atPath: buildDir.appendingPathComponent("generated.o").path, contents: nil)
+    let fs = CodemapFileSystem(rootURL: root)
+    let tree = fs.buildTree()
+    #expect(tree.count == 1)
+    #expect(tree[0].relativePath == "Sources")
+  }
+
+  @Test
   func buildTree_dotCompassExcluded() throws {
     let root = try makeTempDir()
     let sourcesDir = root.appendingPathComponent("Sources")

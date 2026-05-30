@@ -120,19 +120,21 @@ struct ExploreTab: View {
       isLoading = false
       return
     }
+    let repoURL = project.repoURL
     let codemapDir = CodemapStore.defaultDirectory(forWorkspace: workspace)
-    let fs = CodemapFileSystem(rootURL: project.repoURL)
-    let nodes = fs.buildTree()
-    let entries = CodemapStore(directory: codemapDir).loadAllEntries()
-    let entryMap = Dictionary(
-      uniqueKeysWithValues: entries.map {
-        ($0.relativePath, $0)
-      })
-    await MainActor.run {
-      self.fileTree = nodes
-      self.codemapEntries = entryMap
-      self.isLoading = false
-    }
+    let loaded = await Task.detached(priority: .userInitiated) {
+      let fs = CodemapFileSystem(rootURL: repoURL)
+      let nodes = fs.buildTree()
+      let entries = CodemapStore(directory: codemapDir).loadAllEntries()
+      let entryMap = Dictionary(
+        uniqueKeysWithValues: entries.map {
+          ($0.relativePath, $0)
+        })
+      return (nodes, entryMap)
+    }.value
+    fileTree = loaded.0
+    codemapEntries = loaded.1
+    isLoading = false
   }
 
   private var sessionScopePicker: some View {
@@ -238,13 +240,13 @@ struct FileTreeRowView: View {
   let onSummaryTap: (String, String) -> Void
   let onSymbolDetailTap: (CodemapEntry) -> Void
   let onGenerateSummary: (String) -> Void
-  @State private var isExpanded = true
+  @State private var isExpanded = false
 
   private let rowHeight: CGFloat = 44
 
   var body: some View {
-    DisclosureGroup(isExpanded: $isExpanded) {
-      if node.isDirectory {
+    if node.isDirectory {
+      DisclosureGroup(isExpanded: $isExpanded) {
         ForEach(node.children, id: \.relativePath) { child in
           FileTreeRowView(
             node: child,
@@ -256,9 +258,16 @@ struct FileTreeRowView: View {
             onGenerateSummary: onGenerateSummary
           )
         }
+      } label: {
+        rowContent
       }
-    } label: {
-      HStack(spacing: 8) {
+    } else {
+      rowContent
+    }
+  }
+
+  private var rowContent: some View {
+    HStack(spacing: 8) {
         // Indent
         HStack(spacing: 0) {
           ForEach(0..<indentLevel, id: \.self) { _ in
@@ -306,7 +315,6 @@ struct FileTreeRowView: View {
       }
       .frame(height: rowHeight)
       .contentShape(Rectangle())
-    }
   }
 
   @ViewBuilder
@@ -428,6 +436,7 @@ struct LanguageBadge: View {
 /// source directory layout under `rootURL`.
 struct CodemapFileSystem {
   let rootURL: URL
+  private let fileManager = FileManager.default
 
   /// Build the full tree from the repo root.
   func buildTree() -> [FileTreeNode] {
@@ -438,22 +447,16 @@ struct CodemapFileSystem {
 
   /// Top-level relative paths immediately under the repo root.
   private func topLevelKeys() -> [String] {
-    let fm = FileManager.default
-    guard
-      let contents = try? fm.contentsOfDirectory(
-        atPath: rootURL.path
-      )
-    else { return [] }
-    return contents.filter { name in
-      // Hide hidden files/dirs and .compass internals
-      !name.hasPrefix(".") && name != "Compass"
-    }
+    childRelativePaths(
+      under: "",
+      url: rootURL,
+      isTopLevel: true
+    )
   }
 
-  private func buildNode(relativePath: String, atLevel level: Int = 0) -> FileTreeNode {
+  private func buildNode(relativePath: String) -> FileTreeNode {
     let url = rootURL.appendingPathComponent(relativePath)
-    var isDirectory: ObjCBool = false
-    guard FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory) else {
+    guard let entry = directoryEntry(at: url) else {
       return FileTreeNode(
         relativePath: relativePath,
         isDirectory: false,
@@ -462,35 +465,65 @@ struct CodemapFileSystem {
       )
     }
 
-    if isDirectory.boolValue {
-      let childKeys = childKeys(under: relativePath, url: url)
-      let children = childKeys.map { buildNode(relativePath: $0, atLevel: level + 1) }
+    if entry.isDirectory {
+      let childKeys = childRelativePaths(under: relativePath, url: url)
+      let children = childKeys.map { buildNode(relativePath: $0) }
       return FileTreeNode(
         relativePath: relativePath,
         isDirectory: true,
         language: nil,
         children: sortNodes(children)
       )
-    } else {
-      return FileTreeNode(
-        relativePath: relativePath,
-        isDirectory: false,
-        language: CodemapLanguage.forRelativePath(relativePath),
-        children: []
+    }
+
+    return FileTreeNode(
+      relativePath: relativePath,
+      isDirectory: false,
+      language: CodemapLanguage.forRelativePath(relativePath),
+      children: []
+    )
+  }
+
+  private func childRelativePaths(
+    under parent: String,
+    url: URL,
+    isTopLevel: Bool = false
+  ) -> [String] {
+    guard
+      let contents = try? fileManager.contentsOfDirectory(
+        at: url,
+        includingPropertiesForKeys: [.isDirectoryKey, .isSymbolicLinkKey],
+        options: [.skipsHiddenFiles]
       )
+    else {
+      return []
+    }
+
+    return contents.compactMap { childURL in
+      guard let entry = directoryEntry(at: childURL) else { return nil }
+      let name = childURL.lastPathComponent
+      guard
+        RepositoryWalkRules.shouldInclude(
+          name: name,
+          isDirectory: entry.isDirectory,
+          isTopLevel: isTopLevel
+        )
+      else {
+        return nil
+      }
+      return parent.isEmpty ? name : "\(parent)/\(name)"
     }
   }
 
-  private func childKeys(under parent: String, url: URL) -> [String] {
-    let fm = FileManager.default
-    guard let contents = try? fm.contentsOfDirectory(atPath: url.path) else {
-      return []
+  private func directoryEntry(at url: URL) -> (isDirectory: Bool, isSymbolicLink: Bool)? {
+    guard let values = try? url.resourceValues(forKeys: [.isDirectoryKey, .isSymbolicLinkKey])
+    else {
+      return nil
     }
-    return contents.filter { name in
-      !name.hasPrefix(".")
-    }.map { name in
-      parent.isEmpty ? name : "\(parent)/\(name)"
+    if values.isSymbolicLink == true {
+      return nil
     }
+    return (values.isDirectory == true, false)
   }
 
   private func sortNodes(_ nodes: [FileTreeNode]) -> [FileTreeNode] {

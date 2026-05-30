@@ -203,16 +203,10 @@ struct RepositoryLanguageProfile: Codable, Equatable {
   }
 }
 
-enum RepositoryLanguageProfileService {
-  static func scan(repoURL: URL) -> RepositoryLanguageProfile {
-    RepositoryLanguageProfileScanner(repoURL: repoURL).scan()
-  }
-}
-
-private struct RepositoryLanguageProfileScanner {
-  private static let maxFiles = 12_000
-  private static let maxDirectories = 2_000
-  private static let ignoredDirectoryNames: Set<String> = [
+/// Shared rules for walking a repository tree without descending into
+/// build artifacts, dependency caches, or other generated directories.
+enum RepositoryWalkRules {
+  static let ignoredDirectoryNames: Set<String> = [
     ".build",
     ".compass",
     ".git",
@@ -237,6 +231,24 @@ private struct RepositoryLanguageProfileScanner {
     "target",
     "venv",
   ]
+
+  static func shouldInclude(name: String, isDirectory: Bool, isTopLevel: Bool = false) -> Bool {
+    if name.hasPrefix(".") { return false }
+    if isTopLevel && name == "Compass" { return false }
+    if isDirectory && ignoredDirectoryNames.contains(name) { return false }
+    return true
+  }
+}
+
+enum RepositoryLanguageProfileService {
+  static func scan(repoURL: URL) -> RepositoryLanguageProfile {
+    RepositoryLanguageProfileScanner(repoURL: repoURL).scan()
+  }
+}
+
+private struct RepositoryLanguageProfileScanner {
+  private static let maxFiles = 12_000
+  private static let maxDirectories = 2_000
 
   private let repoURL: URL
   private let fileManager = FileManager.default
@@ -277,7 +289,12 @@ private struct RepositoryLanguageProfileScanner {
         }
 
         if values?.isDirectory == true {
-          guard !Self.ignoredDirectoryNames.contains(child.lastPathComponent) else { continue }
+          guard
+            RepositoryWalkRules.shouldInclude(
+              name: child.lastPathComponent,
+              isDirectory: true
+            )
+          else { continue }
           childDirectories.append(child)
           continue
         }
