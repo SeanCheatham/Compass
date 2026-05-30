@@ -30,6 +30,15 @@ import Foundation
 ///    loads codemap entries via ``CodemapStore``.
 /// 3. The resulting ``ExploreRepositorySnapshot`` is stored in
 ///    ``ExploreRepositorySnapshotCache`` and consumed by the Explore UI.
+///
+/// ## Public types
+///
+/// | Type | Role |
+/// |---|---|
+/// | ``ExploreRepositorySnapshot`` | Immutable Explore tab payload: file tree + codemap entries |
+/// | ``ExploreRepositorySnapshotCache`` | Thread-safe in-memory cache keyed by repo URL |
+/// | ``ExploreRepositorySnapshotLoader`` | Assembles a snapshot from ``ExploreTreeBuilder`` + ``CodemapStore`` |
+/// | ``ExploreTreeBuilder`` | Builds the ``FileTreeNode`` hierarchy from `git ls-files` or ``CodemapFileSystem`` |
 
 /// Cached Explore tab payload for a repository.
 struct ExploreRepositorySnapshot: Sendable, Equatable {
