@@ -921,6 +921,8 @@ struct PerCommitNarrativesPopover: View {
     let subject: String
     var text: String?
     var availabilityError = false
+    var narrator: String?
+    var narratorLoading = false
   }
 
   var body: some View {
@@ -965,6 +967,21 @@ struct PerCommitNarrativesPopover: View {
                   if !loaded {
                     ProgressView()
                       .controlSize(.mini)
+                  }
+                }
+
+                if narrative.narratorLoading || narrative.narrator != nil {
+                  Group {
+                    if let narrator = narrative.narrator {
+                      Text(narrator)
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .italic()
+                        .lineLimit(1)
+                    } else {
+                      ProgressView()
+                        .controlSize(.mini)
+                    }
                   }
                 }
 
@@ -1019,6 +1036,21 @@ struct PerCommitNarrativesPopover: View {
       for (index, commit) in item.commits.enumerated() {
         group.addTask {
           if #available(macOS 26.0, *) {
+            // Fetch the diff for both narrator and explainer (runs in parallel with FM call).
+            let diff = await CommitExplainer.gitDiff(sha: commit.sha, repoURL: repoURL)
+            let trimmedDiff = diff.trimmingCharacters(in: .whitespacesAndNewlines)
+
+            // Narrator task: update narrator as soon as the diff is available.
+            if !trimmedDiff.isEmpty {
+              var narratorNarrative = initialNarratives[index]
+              narratorNarrative.narratorLoading = true
+              let narratedText = await CommitNarrator.narrate(commit: commit, diff: trimmedDiff)
+              narratorNarrative.narratorLoading = false
+              narratorNarrative.narrator = narratedText
+              narratives[index] = narratorNarrative
+            }
+
+            // Explainer task.
             let (text, _) = await CommitExplainer.explain(commit: commit, repoURL: repoURL)
             var narrative = initialNarratives[index]
             narrative.text = text
