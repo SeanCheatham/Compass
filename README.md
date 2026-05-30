@@ -186,7 +186,7 @@ by Compass. Rather than leaving generated code opaque, it surfaces meaning —
 what changed, why, and how the pieces fit together — using Apple's on-device
 Foundation Models so explanations stay local and fast.
 
-Explore has seven main components:
+Explore has seven main components (some with both a model and a view layer):
 
 - **`CodemapFileSystem`** (`Sources/Compass/Explore/CodemapFileSystem.swift`) —
   File-system scanner that walks the repository tree and produces a
@@ -256,6 +256,18 @@ The two prompt modes share the same diff input but answer different questions:
 | Why it exists | ``CommitExplainer.summarizeWhyGenerated(diff:)`` | Purpose and architectural role of the file |
 
 The "why generated" view is useful when exploring new or unfamiliar files — it answers "why does this file exist at all?" rather than "what happened to this file in this commit range?".
+
+| Component | File | Description |
+| --- | --- | --- |
+| ``CodemapFileSystem`` | `Sources/Compass/Explore/CodemapFileSystem.swift` | File-system scanner; entry point for the Explore tab's tree builder |
+| ``CodemapGraphViz`` | `Sources/Compass/Explore/CodemapGraphViz.swift` | SVG export of the import graph; used by ``ArchitectureGraphPopover`` |
+| ``CommitExplainer`` | `Sources/Compass/Explore/CommitExplainer.swift` | Summarises a single diff in plain English; also serves ``WhyGeneratedPopover`` |
+| ``CommitTourGenerator`` | `Sources/Compass/Explore/CommitTourGenerator.swift` | Synthesises a multi-commit diff into a 3–5 sentence guided-tour narrative |
+| ``ExploreRepositorySnapshot`` | `Sources/Compass/Explore/ExploreRepositorySnapshot.swift` | Immutable snapshot of file tree + indexed codemap entries |
+| ``FileExplainer`` | `Sources/Compass/Explore/FileExplainer.swift` | Categorises changed files and produces per-file diff summaries |
+| ``ArchitectureGraphPopover`` | `Sources/Compass/Views/ContentViewPlanTab.swift` | SwiftUI popover for the Explore tab; renders the SVG from ``CodemapGraphViz`` |
+| ``WhyGeneratedPopover`` | `Sources/Compass/Views/ContentViewPlanTab.swift` | SwiftUI popover for the Explore tab; shows the "why this file exists" explanation |
+| ``RepoQnA`` | `Sources/Compass/Explore/RepoQnA.swift` | Free-text Q&A about repository changes using on-device Foundation Models |
 
 ## Development
 
