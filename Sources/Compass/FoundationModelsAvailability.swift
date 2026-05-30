@@ -156,7 +156,7 @@ enum FoundationModelsAvailability {
           for try await snapshot in session.streamResponse(to: prompt) {
             latestText = snapshot.content
           }
-          let result = finalStreamText(from: [latestText])
+          let result = latestText.trimmingCharacters(in: .whitespacesAndNewlines)
           return result.isEmpty ? nil : result
         } catch {
           return nil
@@ -165,10 +165,6 @@ enum FoundationModelsAvailability {
     #else
       return nil
     #endif
-  }
-
-  static func finalStreamText(from snapshots: [String]) -> String {
-    snapshots.last?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
   }
 
   private static var shouldDisableLiveFoundationModelsForTests: Bool {

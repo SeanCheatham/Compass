@@ -4,17 +4,6 @@ import Testing
 
 struct FoundationModelsAvailabilityTests {
   @Test
-  func finalStreamText_usesLatestCumulativeSnapshot() {
-    let result = FoundationModelsAvailability.finalStreamText(from: [
-      "Here",
-      "Here is",
-      "Here is the final answer.\n",
-    ])
-
-    #expect(result == "Here is the final answer.")
-  }
-
-  @Test
   func textProviderOverride_suppliesDeterministicAvailabilityAndResponse() async throws {
     try await withMockFoundationModels(available: true, response: "mocked text") {
       #expect(FoundationModelsAvailability.isAvailable)
