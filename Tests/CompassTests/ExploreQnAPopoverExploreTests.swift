@@ -252,6 +252,61 @@ struct ExploreQnAPopoverExploreTests {
     #expect(!body.contains("Foundation Models is unavailable on this device."))
   }
 
+  // MARK: - answer.sources display path
+
+  /// Verifies that when `answer` is non-nil with non-empty `sources`, the
+  /// "Sources:" label and source file paths appear in the body.
+  ///
+  /// Exercises the path at lines 922–933 in `ContentViewExploreTab.swift`:
+  /// `if !answer.sources.isEmpty` → "Sources:" label → `ForEach(answer.sources)`.
+  @Test
+  func answer_withSources_showsSourcesSection() throws {
+    let commits = [
+      SessionCommit(sha: "abc123", short: "abc1234", subject: "Add file"),
+    ]
+
+    let popover = QnAPopoverExplore(
+      question: .constant(""),
+      answer: .constant(RepoQnA.Answer(
+        text: "Test answer",
+        sources: ["Sources/App.swift", "Sources/Model.swift"]
+      )),
+      reason: .constant(nil),
+      isLoading: .constant(false),
+      repoURL: URL(fileURLWithPath: "/tmp/Repo"),
+      commits: commits
+    )
+
+    let body = String(reflecting: popover.body)
+    #expect(body.contains("Sources:"))
+    #expect(body.contains("Sources/App.swift"))
+  }
+
+  /// Verifies that when `answer.sources` is empty, the "Sources:" label
+  /// does not appear in the body — confirming the `!answer.sources.isEmpty`
+  /// guard at line 922 correctly suppresses the sources section for empty lists.
+  @Test
+  func answer_withEmptySources_hidesSourcesSection() throws {
+    let commits = [
+      SessionCommit(sha: "abc123", short: "abc1234", subject: "Add file"),
+    ]
+
+    let popover = QnAPopoverExplore(
+      question: .constant(""),
+      answer: .constant(RepoQnA.Answer(text: "Test answer", sources: [])),
+      reason: .constant(nil),
+      isLoading: .constant(false),
+      repoURL: URL(fileURLWithPath: "/tmp/Repo"),
+      commits: commits
+    )
+
+    let body = String(reflecting: popover.body)
+    // The answer text is still present
+    #expect(body.contains("Test answer"))
+    // But the Sources label must not appear
+    #expect(!body.contains("Sources:"))
+  }
+
   // MARK: - Helpers
 
   private var temporaryDirectory: URL!
