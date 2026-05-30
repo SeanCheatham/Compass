@@ -74,7 +74,7 @@ enum ExploreRepositorySnapshotLoader {
     let allPaths = ExploreTreeBuilder.allFilePaths(in: fileTree)
     var codemapEntries: [String: CodemapEntry] = [:]
     codemapEntries.reserveCapacity(allPaths.count)
-    for path in ExploreTreeBuilder.allFilePaths(in: fileTree) {
+    for path in allPaths {
       if let entry = store.loadEntry(forRelativePath: path) {
         codemapEntries[path] = entry
       }
