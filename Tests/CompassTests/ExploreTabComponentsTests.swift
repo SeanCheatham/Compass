@@ -4,6 +4,11 @@ import Testing
 
 @testable import Compass
 
+// Enables exact Color comparison in tests via string representation.
+private func colorsEqual(_ lhs: Color, _ rhs: Color) -> Bool {
+  String(reflecting: lhs) == String(reflecting: rhs)
+}
+
 struct ExploreTabComponentsTests {
   // MARK: - FileTreeNode
 
@@ -135,39 +140,33 @@ struct ExploreTabComponentsTests {
   // We test the public static color(for:) method instead.
 
   @Test
-  func languageBadge_colorFor_swift_returnsNonNil() throws {
-    let color = LanguageBadge.color(for: .swift)
-    #expect(color != Color.clear)
+  func languageBadge_colorFor_swift() throws {
+    #expect(colorsEqual(LanguageBadge.color(for: .swift), .orange))
   }
 
   @Test
-  func languageBadge_colorFor_typescript_returnsNonNil() throws {
-    let color = LanguageBadge.color(for: .typescript)
-    #expect(color != Color.clear)
+  func languageBadge_colorFor_typescript() throws {
+    #expect(colorsEqual(LanguageBadge.color(for: .typescript), .blue))
   }
 
   @Test
-  func languageBadge_colorFor_tsx_returnsNonNil() throws {
-    let color = LanguageBadge.color(for: .tsx)
-    #expect(color != Color.clear)
+  func languageBadge_colorFor_tsx() throws {
+    #expect(colorsEqual(LanguageBadge.color(for: .tsx), .blue))
   }
 
   @Test
-  func languageBadge_colorFor_javascript_returnsNonNil() throws {
-    let color = LanguageBadge.color(for: .javascript)
-    #expect(color != Color.clear)
+  func languageBadge_colorFor_javascript() throws {
+    #expect(colorsEqual(LanguageBadge.color(for: .javascript), .yellow))
   }
 
   @Test
-  func languageBadge_colorFor_go_returnsNonNil() throws {
-    let color = LanguageBadge.color(for: .go)
-    #expect(color != Color.clear)
+  func languageBadge_colorFor_go() throws {
+    #expect(colorsEqual(LanguageBadge.color(for: .go), .cyan))
   }
 
   @Test
-  func languageBadge_colorFor_rust_returnsNonNil() throws {
-    let color = LanguageBadge.color(for: .rust)
-    #expect(color != Color.clear)
+  func languageBadge_colorFor_rust() throws {
+    #expect(colorsEqual(LanguageBadge.color(for: .rust), .orange))
   }
 
   // MARK: - CodemapSymbolKind
@@ -178,87 +177,90 @@ struct ExploreTabComponentsTests {
   }
 
   @Test
-  func codemapSymbolKind_colorFor_function_returnsNonNil() throws {
-    let color = CodemapSymbolKind.color(for: .function)
-    #expect(color != Color.clear)
+  func codemapSymbolKind_colorFor_function() throws {
+    #expect(colorsEqual(CodemapSymbolKind.color(for: .function), .blue))
   }
 
   @Test
-  func codemapSymbolKind_colorFor_method_returnsNonNil() throws {
-    let color = CodemapSymbolKind.color(for: .method)
-    #expect(color != Color.clear)
+  func codemapSymbolKind_colorFor_method() throws {
+    #expect(colorsEqual(CodemapSymbolKind.color(for: .method), .blue))
   }
 
   @Test
-  func codemapSymbolKind_colorFor_class_returnsNonNil() throws {
-    let color = CodemapSymbolKind.color(for: .class)
-    #expect(color != Color.clear)
+  func codemapSymbolKind_colorFor_class() throws {
+    #expect(colorsEqual(CodemapSymbolKind.color(for: .class), .purple))
   }
 
   @Test
-  func codemapSymbolKind_colorFor_interface_returnsNonNil() throws {
-    let color = CodemapSymbolKind.color(for: .interface)
-    #expect(color != Color.clear)
+  func codemapSymbolKind_colorFor_interface() throws {
+    #expect(colorsEqual(CodemapSymbolKind.color(for: .interface), .mint))
   }
 
   @Test
-  func codemapSymbolKind_colorFor_struct_returnsNonNil() throws {
-    let color = CodemapSymbolKind.color(for: .struct)
-    #expect(color != Color.clear)
+  func codemapSymbolKind_colorFor_struct() throws {
+    #expect(colorsEqual(CodemapSymbolKind.color(for: .struct), .orange))
   }
 
   @Test
-  func codemapSymbolKind_colorFor_enum_returnsNonNil() throws {
-    let color = CodemapSymbolKind.color(for: .enum)
-    #expect(color != Color.clear)
+  func codemapSymbolKind_colorFor_enum() throws {
+    #expect(colorsEqual(CodemapSymbolKind.color(for: .enum), .green))
   }
 
   @Test
-  func codemapSymbolKind_colorFor_trait_returnsNonNil() throws {
-    let color = CodemapSymbolKind.color(for: .trait)
-    #expect(color != Color.clear)
+  func codemapSymbolKind_colorFor_trait() throws {
+    #expect(colorsEqual(CodemapSymbolKind.color(for: .trait), .pink))
   }
 
   @Test
-  func codemapSymbolKind_colorFor_module_returnsNonNil() throws {
-    let color = CodemapSymbolKind.color(for: .module)
-    #expect(color != Color.clear)
+  func codemapSymbolKind_colorFor_module() throws {
+    #expect(colorsEqual(CodemapSymbolKind.color(for: .module), .teal))
   }
 
   @Test
-  func codemapSymbolKind_colorFor_type_returnsNonNil() throws {
-    let color = CodemapSymbolKind.color(for: .type)
-    #expect(color != Color.clear)
+  func codemapSymbolKind_colorFor_type() throws {
+    #expect(colorsEqual(CodemapSymbolKind.color(for: .type), .indigo))
   }
 
   @Test
-  func codemapSymbolKind_colorFor_property_returnsNonNil() throws {
-    let color = CodemapSymbolKind.color(for: .property)
-    #expect(color != Color.clear)
+  func codemapSymbolKind_colorFor_property() throws {
+    #expect(colorsEqual(CodemapSymbolKind.color(for: .property), .cyan))
   }
 
   @Test
-  func codemapSymbolKind_colorFor_macro_returnsNonNil() throws {
-    let color = CodemapSymbolKind.color(for: .macro)
-    #expect(color != Color.clear)
+  func codemapSymbolKind_colorFor_macro() throws {
+    #expect(colorsEqual(CodemapSymbolKind.color(for: .macro), .yellow))
   }
 
   @Test
-  func codemapSymbolKind_colorFor_impl_returnsNonNil() throws {
-    let color = CodemapSymbolKind.color(for: .impl)
-    #expect(color != Color.clear)
+  func codemapSymbolKind_colorFor_impl() throws {
+    #expect(colorsEqual(CodemapSymbolKind.color(for: .impl), .brown))
   }
 
   @Test
-  func codemapSymbolKind_colorFor_extension_returnsNonNil() throws {
-    let color = CodemapSymbolKind.color(for: .extension)
-    #expect(color != Color.clear)
+  func codemapSymbolKind_colorFor_extension() throws {
+    #expect(colorsEqual(CodemapSymbolKind.color(for: .extension), .gray))
   }
 
   @Test
-  func codemapSymbolKind_colorFor_constant_returnsNonNil() throws {
-    let color = CodemapSymbolKind.color(for: .constant)
-    #expect(color != Color.clear)
+  func codemapSymbolKind_colorFor_constant() throws {
+    #expect(colorsEqual(CodemapSymbolKind.color(for: .constant), .orange))
+  }
+
+  // MARK: - reliabilityColor(for:)
+
+  @Test
+  func reliabilityColor_for_warning() throws {
+    #expect(colorsEqual(reliabilityColor(for: .warning), .orange))
+  }
+
+  @Test
+  func reliabilityColor_for_failure() throws {
+    #expect(colorsEqual(reliabilityColor(for: .failure), .red))
+  }
+
+  @Test
+  func reliabilityColor_for_paused() throws {
+    #expect(colorsEqual(reliabilityColor(for: .paused), .blue))
   }
 
   @Test
