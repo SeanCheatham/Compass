@@ -193,7 +193,7 @@ Explore has seven main components (some with both a model and a view layer):
   ``FileTreeNode`` hierarchy mirroring the source directory layout.
   Used by ``ExploreTreeBuilder`` when ``GitSourcePaths`` cannot enumerate
   files via `git ls-files` (e.g. in a fresh or sparse checkout).
-  Available on all macOS versions. Entry point: ``CodemapFileSystem(rootURL:).buildTree()``.
+  Available on all macOS versions. Entry point: ``CodemapFileSystem(rootURL:).buildSourceTree()``.
 
 - **`CommitExplainer`** (`Sources/Compass/Explore/CommitExplainer.swift`) —
   Takes a git diff and produces a plain-English summary in roughly three
