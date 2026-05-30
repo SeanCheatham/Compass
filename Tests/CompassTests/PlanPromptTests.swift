@@ -135,7 +135,8 @@ struct PlanPromptTests {
     )
 
     #expect(prompt.contains("requiresHostXcode"))
-    #expect(prompt.contains("full host Xcode build/test"))
+    #expect(prompt.contains("default to host-side execution"))
+    #expect(prompt.contains("_TestingInterop"))
     #expect(!prompt.contains("simctl"))
     #expect(!prompt.contains("`open`"))
   }

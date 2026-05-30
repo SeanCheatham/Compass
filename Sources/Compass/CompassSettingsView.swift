@@ -5,27 +5,40 @@ struct CompassSettingsView: View {
 
   var body: some View {
     TabView {
-      Form {
-        ForEach(AgentCapability.allCases, id: \.self) { capability in
-          capabilitySection(for: capability)
-        }
+      AgentSettingsTab()
+        .environmentObject(model)
+        .tabItem { Label("Agent", systemImage: "bolt.horizontal") }
 
-        Section {
-          Text(
-            "Settings persist per (capability, provider) cell — switching providers preserves each cell's key and models. Environment variables `COMPASS_AGENT_BASE_URL`, `COMPASS_AGENT_API_KEY`, and `COMPASS_AGENT_MODEL[_PLAN/_DEV/_REFLECT/_CRITIC]` seed the active Text provider's fields when empty."
-          )
-          .font(.callout)
-          .foregroundStyle(.secondary)
-        }
-      }
-      .formStyle(.grouped)
-      .padding()
-      .tabItem { Label("Agent", systemImage: "bolt.horizontal") }
+      FactorySettingsTab()
+        .environmentObject(model)
+        .tabItem { Label("Factory", systemImage: "hammer") }
     }
     .frame(minWidth: 580, minHeight: 520)
   }
+}
 
-  // MARK: - Per-capability sections
+// MARK: - Agent tab
+
+private struct AgentSettingsTab: View {
+  @EnvironmentObject var model: AppModel
+
+  var body: some View {
+    Form {
+      ForEach(AgentCapability.allCases, id: \.self) { capability in
+        capabilitySection(for: capability)
+      }
+
+      Section {
+        Text(
+          "Settings persist per (capability, provider) cell — switching providers preserves each cell's key and models. Environment variables `COMPASS_AGENT_BASE_URL`, `COMPASS_AGENT_API_KEY`, and `COMPASS_AGENT_MODEL[_PLAN/_DEV/_REFLECT/_CRITIC]` seed the active Text provider's fields when empty."
+        )
+        .font(.callout)
+        .foregroundStyle(.secondary)
+      }
+    }
+    .formStyle(.grouped)
+    .padding()
+  }
 
   @ViewBuilder
   private func capabilitySection(for capability: AgentCapability) -> some View {
@@ -124,8 +137,6 @@ struct CompassSettingsView: View {
     }
   }
 
-  // MARK: - Helpers
-
   private struct ProviderOption {
     let provider: AgentProviderKind?
     let label: String
@@ -140,7 +151,8 @@ struct CompassSettingsView: View {
     out.append(
       contentsOf: capability.availableProviders.map {
         ProviderOption(provider: $0, label: $0.displayName)
-      })
+      }
+    )
     return out
   }
 
@@ -178,6 +190,117 @@ struct CompassSettingsView: View {
       return
         "Adversarial review pass that gates Develop output. Pointing this at a different / stronger model than Develop produces more independent critique."
     }
+  }
+}
+
+// MARK: - Factory tab
+
+private struct FactorySettingsTab: View {
+  @EnvironmentObject var model: AppModel
+
+  private var sortedProjects: [CompassProject] {
+    model.projects.sorted {
+      $0.displayName.localizedCaseInsensitiveCompare($1.displayName) == .orderedAscending
+    }
+  }
+
+  var body: some View {
+    Form {
+      Section {
+        Text(
+          """
+          Develop runs in the Shared VM (Command Line Tools only). Swift, SwiftPM, \
+          and Xcode build/test need full Xcode on your Mac — enable Host Xcode \
+          Build/Test per project so agents use `host_xcode` and host-side verify \
+          instead of guest `swift test` (which fails without libraries like `_TestingInterop`).
+          """
+        )
+        .font(.callout)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+      }
+
+      if sortedProjects.isEmpty {
+        Section("Projects") {
+          Text("Add a Git repository from the Compass sidebar to configure factory options.")
+            .foregroundStyle(.secondary)
+        }
+      } else {
+        Section("Host Xcode Build/Test") {
+          ForEach(sortedProjects) { project in
+            FactoryProjectHostXcodeRow(
+              project: project,
+              isSelected: model.selectedProjectID == project.id,
+              recommendsHostXcode: ForgeProfileService.prefersHostXcodeBridge(in: project.repoURL),
+              onToggle: { model.saveProjects() }
+            )
+          }
+        }
+
+        Section {
+          Text(
+            "New SwiftPM and Xcode projects enable this automatically. When on, Plan/Develop agents get the `host_xcode` tool and verify can run `xcodebuild` on a host mirror of the guest workspace."
+          )
+          .font(.callout)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+        }
+      }
+    }
+    .formStyle(.grouped)
+    .padding()
+  }
+}
+
+private struct FactoryProjectHostXcodeRow: View {
+  @ObservedObject var project: CompassProject
+  var isSelected: Bool
+  var recommendsHostXcode: Bool
+  var onToggle: () -> Void
+
+  var body: some View {
+    Toggle(isOn: hostXcodeBinding) {
+      VStack(alignment: .leading, spacing: 2) {
+        HStack(spacing: 6) {
+          Text(project.displayName)
+            .font(.body.weight(.medium))
+          if isSelected {
+            Text("selected")
+              .font(.caption2.weight(.semibold))
+              .foregroundStyle(.secondary)
+              .padding(.horizontal, 6)
+              .padding(.vertical, 2)
+              .background(.quaternary, in: Capsule())
+          }
+          if recommendsHostXcode && !project.hostXcodeBuildTestEnabled {
+            Text("recommended")
+              .font(.caption2.weight(.semibold))
+              .foregroundStyle(.orange)
+              .padding(.horizontal, 6)
+              .padding(.vertical, 2)
+              .background(.orange.opacity(0.15), in: Capsule())
+          }
+        }
+        Text(project.repoURL.path)
+          .font(.caption)
+          .foregroundStyle(.secondary)
+          .lineLimit(2)
+          .truncationMode(.middle)
+      }
+    }
+    .help(
+      "Route Swift and Xcode build/test through the host Mac. Required for reliable SwiftPM tests in the Shared VM."
+    )
+  }
+
+  private var hostXcodeBinding: Binding<Bool> {
+    Binding(
+      get: { project.hostXcodeBuildTestEnabled },
+      set: { newValue in
+        project.hostXcodeBuildTestEnabled = newValue
+        onToggle()
+      }
+    )
   }
 }
 

@@ -83,22 +83,21 @@ enum Prompts {
     let hostXcodePlanningRule =
       hostXcodeBuildTestEnabled
       ? """
-      - If the next increment's verify path needs full host Xcode build/test
-        support, set `requiresHostXcode` to true. This includes `xcodebuild`
-        with `.xcodeproj` / `.xcworkspace`, iOS/watchOS/tvOS SDKs,
-        simulator-backed `xcodebuild test` destinations, and tests whose
-        behavior depends on host-only Apple frameworks such as
-        `FoundationModels` / Apple Intelligence. When you set it true, choose
-        an `xcodebuild ... build` or `xcodebuild ... test` verify command that
-        the host bridge can run. Do not pair `requiresHostXcode: true` with
-        `swift test`; host Xcode verify commands must start with `xcodebuild`.
-        For SwiftPM package tests that need host-only frameworks, prefer the
-        generated package workspace form:
+      - Shared VM develop/verify runs in the guest unless this increment uses
+        host Xcode. For Swift, SwiftPM, macOS/iOS/tvOS/watchOS, and any Apple-
+        platform build or test, default to host-side execution: set
+        `requiresHostXcode` to true and choose an `xcodebuild ... build` or
+        `xcodebuild ... test` verify command (never guest `swift test` or guest
+        `xcodebuild` verify — the guest has Command Line Tools only and lacks
+        libraries such as `_TestingInterop`). Do not pair `requiresHostXcode:
+        true` with `swift test`; host verify must start with `xcodebuild`.
+        For SwiftPM packages use the generated workspace when needed:
         `xcodebuild -workspace .swiftpm/xcode/package.xcworkspace -scheme <Package>-Package -destination 'platform=macOS' -skipMacroValidation ... test`.
-        Use true only for build/test needs, not for launching apps, opening
-        Simulator, or arbitrary host commands.
+        During Plan probing, use `host_xcode` instead of `bash` for these checks.
+        Use `requiresHostXcode` for build/test only — not Simulator launch, `open`,
+        or arbitrary host shell.
       """
-      : ""
+      : sharedVMApplePlatformPlanningRuleWhenHostXcodeDisabled(forgeProfile: forgeProfile)
     let hostXcodeShape =
       hostXcodeBuildTestEnabled
       ? ",\n            \"requiresHostXcode\": true|false"
@@ -147,11 +146,9 @@ enum Prompts {
       - Never choose placeholder verify commands like `true`, `not-running-tests`,
         `none`, or `n/a`.
       - While `CompassTests` is mid-migration from XCTest to Testing, do not plan
-        bare `swift test` as verify — the target still mixes both frameworks.
-        Use `swift build --target CompassTests` for compile-only increments, or
-        `swift test --enable-code-coverage --filter StructNameTests` when the
-        increment migrates named test structs. Reserve full `swift test` until
-        no file `import XCTest`s.
+        guest `swift test` as verify. Use host `xcodebuild ... test` with
+        `requiresHostXcode: true` when host Xcode is enabled; otherwise prefer
+        `swift build --target CompassTests` for compile-only guest increments.
       - Compass projects use opinionated forge profiles (Swift, Go, Rust, or
         TypeScript/Vitest). Test verify commands must collect coverage — see
         the forge profile section below. Compile-only verify may omit coverage.
@@ -241,8 +238,9 @@ enum Prompts {
     let hostXcodeGuidance =
       hostXcodeBuildTestEnabled
       ? """
-      When preserving or rewriting `immediate`, keep `requiresHostXcode`
-      true only if the verify path needs host Xcode build/test support.
+      When preserving or rewriting `immediate`, keep `requiresHostXcode` true
+      for Swift/macOS/iOS verify that would otherwise use `swift test` or
+      `xcodebuild` in the guest. Host verify must be `xcodebuild ... build|test`.
       """
       : ""
     return """
@@ -344,18 +342,28 @@ enum Prompts {
     criticSection: String,
     hostXcodeBuildTestEnabled: Bool
   ) -> String {
+    let hostXcodeVerifyNote =
+      next.requiresHostXcode
+      ? """
+        This increment's verify runs on the host: call `host_xcode` with the
+        matching `action` and pass only xcodebuild flags in `arguments` (the tool
+        supplies `build`/`test`).
+        """
+      : """
+        If you need to probe SwiftPM or Xcode builds before finishing, still use
+        `host_xcode` even when verify is compile-only in the guest.
+        """
     let hostXcodeWorkflow =
-      hostXcodeBuildTestEnabled && next.requiresHostXcode
+      hostXcodeBuildTestEnabled
       ? """
 
-      Host Xcode build/test bridge:
-      This increment requires host Xcode. Use the `host_xcode` tool for
-      Xcode build/test checks only. It runs against a temporary host mirror
-      of this guest workspace, so keep source edits in the normal file tools
-      here and do not use `bash` for Xcode-only commands. If the verify command
-      is `xcodebuild ... test` or `xcodebuild ... build`, call `host_xcode`
-      with the matching `action` and pass only the xcodebuild flags before the
-      final action in `arguments`; the tool supplies the build/test action.
+      Host Apple platform workflow:
+      The Shared VM guest has Command Line Tools only — not full Xcode. Keep
+      edits in the normal file tools here, but run Swift/macOS/iOS build and test
+      on the host via `host_xcode` (status/build/test). Do not use `bash` for
+      `swift test`, `xcodebuild`, or other Apple-platform compile/test commands;
+      they fail or mislead in the guest (e.g. missing `_TestingInterop`).
+      \(hostXcodeVerifyNote)
       """
       : ""
     return """
@@ -645,7 +653,7 @@ enum Prompts {
       "record_assumption (capture consequential assumptions for user review)"
     let hostXcodeTool =
       hostXcodeBuildTestEnabled
-      ? "\n        - Host Xcode: host_xcode (restricted to host-side xcodebuild build/test only, against a temporary mirror; use it instead of bash for required Xcode or FoundationModels/Apple Intelligence verification)."
+      ? "\n        - Host Xcode: host_xcode (host-side xcodebuild build/test against a mirror; use instead of bash for Swift, SwiftPM, xcodebuild, and Apple-platform probes in the Shared VM)."
       : ""
     let toolList: String
     switch phase {
@@ -653,7 +661,7 @@ enum Prompts {
       toolList = """
         - Codemap tools: \(codemapTools).
         - File tools: \(fileTools).
-        - Shell: bash (read-only intent — run builds, tests, linters, or git inspection to ground your decisions; do not mutate tracked files and do not commit).
+        - Shell: bash (read-only intent — git inspection and guest-safe probes; do not mutate tracked files and do not commit).\(hostXcodeTool)
         - Plan history: plan_history (read paginated completed iterations managed by Compass).
         - Sub-agents: \(delegateTool).
         - Assumptions: \(assumptionTool).
@@ -663,7 +671,7 @@ enum Prompts {
       toolList = """
         - Codemap tools: \(codemapTools).
         - File tools: \(fileTools).
-        - Shell: bash (read-only intent — run builds, tests, linters, or git inspection to ground your decisions; do not mutate tracked files and do not commit).
+        - Shell: bash (read-only intent — git inspection and guest-safe probes; do not mutate tracked files and do not commit).\(hostXcodeTool)
         - Sub-agents: \(delegateTool).
         - Assumptions: \(assumptionTool).
         - This phase must not write files or commit. The Develop phase has the write tools — do not request them here.
@@ -680,7 +688,7 @@ enum Prompts {
       toolList = """
         - Codemap tools: \(codemapTools).
         - File tools: \(fileTools).
-        - Shell: bash (read-only intent — do not mutate the working tree, do not commit).
+        - Shell: bash (read-only intent — do not mutate the working tree, do not commit).\(hostXcodeTool)
         - Sub-agents: \(delegateTool).
         - Assumptions: \(assumptionTool).
         - This phase is the adversarial review gate. Do not edit files; report a verdict via submit_result.
@@ -905,35 +913,47 @@ enum Prompts {
         Execution environment: Compass Shared VM (headless macOS guest).
         Pre-installed: Xcode Command Line Tools (`swift`, `clang`, `git`,
         `make`, `llvm`, macOS SDK), Homebrew, and ripgrep (`rg`).
-        \(sharedVMXcodeAvailabilityLine(hostXcodeBuildTestEnabled: hostXcodeBuildTestEnabled))
-        For SwiftPM packages, build and test with `swift build` /
-        `swift test`. For `.xcodeproj`-based projects there is no
-        in-VM equivalent.
-        On-demand toolchains (install via `install_toolchain`): rust, go,
-        node (JavaScript / TypeScript — includes npm, npx, and global `tsc`).
+        \(sharedVMApplePlatformGuidance(hostXcodeBuildTestEnabled: hostXcodeBuildTestEnabled))
+        Use the guest for file edits, search, and non-Apple toolchains. On-demand
+        toolchains (install via `install_toolchain`): rust, go, node (npm, npx, `tsc`).
         Use `list_toolchains` to see what is installed.
-        Docker is unavailable in the Shared VM — use the host route for
-        container workloads.\(installedSummary)
+        Docker is unavailable in the Shared VM — use the host for container workloads.\(installedSummary)
         Network egress to Apple's CDNs (softwareupdate, swift package fetch
         from github.com) and Homebrew works.
         """
     }
   }
 
-  private static func sharedVMXcodeAvailabilityLine(hostXcodeBuildTestEnabled: Bool) -> String {
+  private static func sharedVMApplePlatformGuidance(hostXcodeBuildTestEnabled: Bool) -> String {
     if hostXcodeBuildTestEnabled {
       return """
-        Full Xcode is not installed in the guest. When this plan explicitly
-        requires host Xcode, use `host_xcode` for build/test only; do not use it
-        for Simulator management, app launching, or arbitrary host shell.
-        The guest may also differ from the host for Apple Intelligence /
-        `FoundationModels` availability, so host-sensitive model tests should
-        be planned as host Xcode verification.
+        Apple platform (host bridge):
+        Full Xcode is not in the guest. Run Swift, SwiftPM, `xcodebuild`, macOS/iOS
+        SDK work, and Apple Intelligence / `FoundationModels` checks on the host
+        via `host_xcode` and plan verify with `requiresHostXcode: true` plus
+        `xcodebuild ... build|test` (not guest `swift test`). Do not use `bash`
+        for Apple-platform build/test probes in the guest.
         """
     }
     return """
-      The full Xcode IDE is NOT installed, so `xcodebuild`, Interface
-      Builder, the iOS/watchOS/tvOS SDKs, and the Simulator are unavailable.
+      Apple platform limitation:
+      Full Xcode is not in the guest (`xcodebuild`, Simulator, and complete
+      SwiftPM test linking are unavailable). Enable **Host Xcode Build/Test**
+      for this project and use `host_xcode` with `requiresHostXcode` verify;
+      until then avoid guest `swift test` / `xcodebuild` and prefer guest-safe
+      `swift build` or read-only inspection.
+      """
+  }
+
+  private static func sharedVMApplePlatformPlanningRuleWhenHostXcodeDisabled(
+    forgeProfile: ForgeProfile?
+  ) -> String {
+    guard forgeProfile == .swiftSPM else { return "" }
+    return """
+      - This Swift repo runs in the Shared VM with Command Line Tools only.
+        Enable **Host Xcode Build/Test** in Compass before planning `swift test`
+        or `xcodebuild` verify; until then use guest `swift build` or compile-only
+        targets for verify.
       """
   }
 

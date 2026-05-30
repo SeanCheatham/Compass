@@ -196,7 +196,7 @@ struct AgentSystemPromptTests {
       vision: "",
       focus: .feature
     )
-    try #require(prompt.contains("bare `swift test` as verify"))
+    try #require(prompt.contains("guest `swift test`"))
     try #require(prompt.contains("swift build --target CompassTests"))
   }
 
@@ -278,7 +278,7 @@ struct AgentSystemPromptTests {
       hostXcodeBuildTestEnabled: true
     )
 
-    try #require(prompt.contains("Host Xcode build/test bridge"))
+    try #require(prompt.contains("Host Apple platform workflow"))
     try #require(prompt.contains("do not use `bash` for Xcode-only commands"))
     try #require(prompt.contains("call `host_xcode`"))
     try #require(prompt.contains("pass only the xcodebuild flags"))
@@ -316,6 +316,41 @@ struct AgentSystemPromptTests {
     try #require(section.contains("install_toolchain"))
     try #require(section.contains("Homebrew"))
     try #require(section.contains("Docker is unavailable"))
+    try #require(section.contains("Apple platform limitation"))
+    try #require(!section.contains("For SwiftPM packages, build and test with `swift build`"))
+  }
+
+  @Test func testSharedVMEnvironmentWithHostXcodeMentionsHostBridge() throws {
+    let section = Prompts.executionEnvironmentSection(
+      .sharedVM,
+      hostXcodeBuildTestEnabled: true
+    )
+    try #require(section.contains("Apple platform (host bridge)"))
+    try #require(section.contains("host_xcode"))
+    try #require(section.contains("not guest `swift test`"))
+  }
+
+  @Test func testPlanPromptIncludesHostXcodeToolWhenEnabled() throws {
+    let prompt = Prompts.agentSystemPrompt(
+      phase: .plan,
+      workingDirectoryPath: "/tmp/worktree",
+      executionEnvironment: .sharedVM,
+      hostXcodeBuildTestEnabled: true
+    )
+    try #require(prompt.contains("Host Xcode: host_xcode"))
+  }
+
+  @Test func testDevelopPromptIncludesHostAppleWorkflowWhenHostXcodeEnabled() throws {
+    let prompt = Prompts.developPrompt(
+      next: PlanNext(plan: "Compile only", verify: "swift build"),
+      lessons: "",
+      vision: "",
+      attempt: 1,
+      priorIssues: [],
+      hostXcodeBuildTestEnabled: true
+    )
+    try #require(prompt.contains("Host Apple platform workflow"))
+    try #require(prompt.contains("_TestingInterop"))
   }
 
   @Test func testSharedVMEnvironmentListsInstalledToolchainsWhenProvided() throws {

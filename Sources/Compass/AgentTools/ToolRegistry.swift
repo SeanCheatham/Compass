@@ -46,10 +46,14 @@ enum ToolRegistry {
   /// Read-only set plus `bash`. Plan/Reflect/Critic — phases that need to
   /// probe the project (build, test, lint, git history) but must not
   /// mutate tracked files.
-  static func inspectionTools() -> [AgentTool] {
-    readOnlyTools() + [
-      AgentBashTool()
-    ]
+  static func inspectionTools(
+    hostXcodeService: (any HostXcodeServicing)? = nil
+  ) -> [AgentTool] {
+    var tools: [AgentTool] = readOnlyTools() + [AgentBashTool()]
+    if hostXcodeService != nil {
+      tools.append(AgentHostXcodeTool())
+    }
+    return tools
   }
 
   /// Phase tools assembled with the user's per-capability provider
@@ -66,11 +70,11 @@ enum ToolRegistry {
     switch phase {
     case .plan:
       tools =
-        inspectionTools() + [
+        inspectionTools(hostXcodeService: hostXcodeService) + [
           AgentPlanHistoryTool()
         ]
     case .reflect, .critic:
-      tools = inspectionTools()
+      tools = inspectionTools(hostXcodeService: hostXcodeService)
     case .develop:
       tools = developTools()
       if let imageAssignment = settings.imageAssignment {

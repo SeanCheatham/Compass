@@ -86,7 +86,7 @@ struct SidebarView: View {
           Text("Model: \(model.agentSettings.model)")
             .font(.caption)
             .foregroundStyle(.secondary)
-          Text("Configure via Compass → Settings… (⌘,).")
+          Text("Agent: Settings… (⌘,) → Agent. Host Xcode: Settings → Factory.")
             .font(.caption2)
             .foregroundStyle(.tertiary)
           if let diagnosticsAction = model.selectedProject?.runtimeDiagnosticsMenu

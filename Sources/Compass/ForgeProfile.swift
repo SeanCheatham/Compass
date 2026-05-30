@@ -25,8 +25,11 @@ enum ForgeProfile: String, Codable, CaseIterable, Equatable, Sendable {
       return """
         Forge profile — Swift (SwiftPM):
         - Use SwiftPM only (`Package.swift`, `Sources/`, `Tests/`). Prefer Swift Testing over XCTest for new tests.
-        - Verify for test increments: `swift test --enable-code-coverage` (add `--filter StructNameTests` when scoping).
-        - Compile-only increments may use `swift build` or `swift build --target <Target>` without coverage.
+        - In the Shared VM, Swift/macOS build and test must run on the host (see execution environment):
+          plan `requiresHostXcode: true` with `xcodebuild ... test` (package workspace when needed), use
+          `host_xcode` during Develop, and do not plan guest `swift test` verify.
+        - When host Xcode is enabled, test verify uses `xcodebuild ... test` with coverage collected host-side;
+          compile-only increments may still use guest `swift build` when probing is unnecessary.
         - Compass collects line coverage from the `.profdata` artifact after verify passes.
         """
     case .goModule:
@@ -61,7 +64,10 @@ enum ForgeProfile: String, Codable, CaseIterable, Equatable, Sendable {
   var coverageRequirementHint: String {
     switch self {
     case .swiftSPM:
-      return "test verify commands must include `--enable-code-coverage` (e.g. `swift test --enable-code-coverage --filter FooTests`)."
+      return """
+        test verify must declare coverage: guest `swift test --enable-code-coverage`, or host \
+        `xcodebuild ... test` with `requiresHostXcode: true` (Compass collects coverage host-side after verify).
+        """
     case .goModule:
       return "test verify commands must include `-coverprofile=.compass/coverage.out` (e.g. `go test -coverprofile=.compass/coverage.out ./...`)."
     case .rustCargo:
@@ -150,6 +156,7 @@ enum ForgeProfile: String, Codable, CaseIterable, Equatable, Sendable {
     case .swiftSPM:
       return normalized.contains("--enable-code-coverage")
         || normalized.contains("llvm-cov")
+        || (normalized.contains("xcodebuild") && normalized.contains(" test"))
     case .goModule:
       return normalized.contains("-coverprofile") || normalized.contains("covermode")
     case .rustCargo:
@@ -279,6 +286,35 @@ enum ForgeProfileService {
       workspace: workspace
     )
     return detected
+  }
+
+  /// Repos whose factory loops need full Xcode on the host mirror, not CLT in the guest.
+  static func prefersHostXcodeBridge(in repoURL: URL) -> Bool {
+    let fm = FileManager.default
+    let root = repoURL.standardizedFileURL
+    if fm.fileExists(atPath: root.appending(path: "Package.swift").path) {
+      return true
+    }
+    if hasXcodeProjectBundle(in: root, fileManager: fm) {
+      return true
+    }
+    return false
+  }
+
+  private static func hasXcodeProjectBundle(
+    in root: URL,
+    fileManager: FileManager
+  ) -> Bool {
+    guard let children = try? fileManager.contentsOfDirectory(
+      at: root,
+      includingPropertiesForKeys: nil
+    ) else {
+      return false
+    }
+    return children.contains { url in
+      let ext = url.pathExtension.lowercased()
+      return ext == "xcodeproj" || ext == "xcworkspace"
+    }
   }
 
   static func detect(in repoURL: URL) -> ForgeProfile? {

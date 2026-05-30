@@ -257,7 +257,10 @@ final class AppModel: ObservableObject {
       return existing
     }
 
-    let project = CompassProject(repoURL: standardized)
+    let project = CompassProject(
+      repoURL: standardized,
+      hostXcodeBuildTestEnabled: ForgeProfileService.prefersHostXcodeBridge(in: standardized)
+    )
     projects.insert(project, at: 0)
     saveProjects()
     return project

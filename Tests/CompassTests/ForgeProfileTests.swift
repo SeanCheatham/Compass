@@ -41,6 +41,15 @@ struct ForgeProfileTests {
     try #require(message?.contains("coverprofile") == true)
   }
 
+  @Test func xcodebuildTestVerifySatisfiesSwiftCoverageRule() throws {
+    try #require(
+      ForgeVerifyValidator.coverageViolation(
+        verify:
+          "xcodebuild -workspace .swiftpm/xcode/package.xcworkspace -scheme Compass-Package test",
+        profile: .swiftSPM
+      ) == nil)
+  }
+
   @Test func compileOnlyVerifySkipsCoverageRequirement() throws {
     try #require(
       ForgeVerifyValidator.coverageViolation(

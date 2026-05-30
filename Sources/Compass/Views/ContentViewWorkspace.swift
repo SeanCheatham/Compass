@@ -582,8 +582,11 @@ struct ProjectRunControls: View {
           )
         }
         Text(
-          "Allows plans marked for host Xcode to run build/test verification against a temporary host mirror."
+          "Routes Swift and Xcode build/test through the host. Also in Settings (⌘,) → Factory."
         )
+        SettingsLink {
+          Label("Open Factory Settings…", systemImage: "hammer")
+        }
         Divider()
         let diagnosticsAction = executionEnvironmentMenu.copyDiagnosticsAction
         Button {
