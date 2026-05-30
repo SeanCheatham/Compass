@@ -646,6 +646,38 @@ struct ExploreFileExplainerTests {
   }
 
   @Test
+  func whyGenerated_modelUnavailable_returnsFoundationModelsUnavailable() async throws {
+    var test = Self()
+    test.setUp()
+    defer { test.tearDown() }
+
+    // Set up a git repo with one commit modifying a file.
+    try test.initGitRepo(at: test.temporaryDirectory)
+    try test.writeFile("Sources/App.swift", contents: "import Foundation\n")
+    try test.runGit(
+      "git -C \(test.temporaryDirectory.path) add Sources/App.swift && "
+        + "git -C \(test.temporaryDirectory.path) "
+        + "-c user.email=t@t -c user.name=t commit -q -m 'Add App.swift'",
+      at: test.temporaryDirectory
+    )
+
+    let sha = try test.getSingleCommitSHA(at: test.temporaryDirectory)
+    let commits = [SessionCommit(sha: sha, short: String(sha.prefix(7)), subject: "Add App.swift")]
+
+    // Force Foundation Models to be unavailable so CommitExplainer.summarizeWhyGenerated
+    // hits the guard and returns (nil, .foundationModelsUnavailable).
+    try await withMockFoundationModels(available: false) {
+      let result = await FileExplainer.whyGenerated(
+        file: "Sources/App.swift",
+        repoURL: test.temporaryDirectory,
+        commits: commits
+      )
+      try #require(result.0 == nil)
+      try #require(result.1 == .foundationModelsUnavailable)
+    }
+  }
+
+  @Test
   func whyGenerated_multiCommit_fetchesRangeDiff() async throws {
     var test = Self()
     test.setUp()
