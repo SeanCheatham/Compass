@@ -67,19 +67,23 @@ enum CommitExplainer {
   /// Returns `(nil, reason)` when Foundation Models is unavailable or produces
   /// no content; `reason` carries a user-facing message.
   static func summarizeWhyGenerated(diff: String) async -> (String?, ExplainUnavailableReason?) {
-    return await summarize(diff: diff, prompt: """
-      You are a software engineer explaining why a source file was generated and what role it plays in the codebase.
-      Answer the question: "Why was this file generated and what is its role in the codebase?"
-      Keep the answer to roughly 3 sentences and focus on the file's purpose and architectural role.
-      Do not describe the diff mechanically — explain the reason the file exists.
+    return await summarize(
+      diff: diff,
+      prompt: """
+        You are a software engineer explaining why a source file was generated and what role it plays in the codebase.
+        Answer the question: "Why was this file generated and what is its role in the codebase?"
+        Keep the answer to roughly 3 sentences and focus on the file's purpose and architectural role.
+        Do not describe the diff mechanically — explain the reason the file exists.
 
-      Diff:
-      """ + diff)
+        Diff:
+        """ + diff)
   }
 
   // MARK: - Private
 
-  private static func summarize(diff: String, prompt: String) async -> (String?, ExplainUnavailableReason?) {
+  private static func summarize(diff: String, prompt: String) async -> (
+    String?, ExplainUnavailableReason?
+  ) {
     let trimmed = diff.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !trimmed.isEmpty else { return (nil, .emptyDiff) }
 
@@ -135,7 +139,9 @@ enum CommitExplainer {
     return parentSHA.isEmpty ? emptyTreeObjectSHA : parentSHA
   }
 
-  private static func isAncestor(_ ancestor: String, of descendant: String, repoURL: URL) async -> Bool {
+  private static func isAncestor(_ ancestor: String, of descendant: String, repoURL: URL) async
+    -> Bool
+  {
     let trimmedAncestor = ancestor.trimmingCharacters(in: .whitespacesAndNewlines)
     let trimmedDescendant = descendant.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !trimmedAncestor.isEmpty, !trimmedDescendant.isEmpty else { return false }
@@ -253,7 +259,9 @@ enum CommitExplainer {
   ///
   /// Returns `nil` when the diff is empty, git fails, or Foundation Models
   /// is unavailable.
-  static func explain(commit: SessionCommit, repoURL: URL) async -> (String?, ExplainUnavailableReason?) {
+  static func explain(commit: SessionCommit, repoURL: URL) async -> (
+    String?, ExplainUnavailableReason?
+  ) {
     let diff = await gitDiff(sha: commit.sha, repoURL: repoURL)
     let trimmed = diff.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !trimmed.isEmpty else { return (nil, .emptyDiff) }
