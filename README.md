@@ -242,21 +242,6 @@ Explore has seven main components (some with both a model and a view layer):
   framework. Requires **macOS 26** and is gated behind `@available(macOS 26.0, *)`.
   Returns `nil` gracefully when Foundation Models is unavailable. Entry point: ``explain(graph:repoURL:)``.
 
-Explore is documented in the Vision under the "Explore layer" section.
-
-### Why Was This File Generated?
-
-The "why generated" explainer answers a distinct question from per-file diff summarization: instead of describing *what changed* in a diff, it explains *why the file was created and what role it plays* in the codebase. This capability is surfaced via ``FileExplainer.whyGenerated(file:repoURL:commits:)``, which routes the same git diff through a purpose-focused prompt chain in ``CommitExplainer/summarizeWhyGenerated(diff:)``.
-
-The two prompt modes share the same diff input but answer different questions:
-
-| Mode | Method | Prompt focus |
-| --- | --- | --- |
-| What changed | ``CommitExplainer.summarize(diff:)`` | Intent and effect of the diff |
-| Why it exists | ``CommitExplainer.summarizeWhyGenerated(diff:)`` | Purpose and architectural role of the file |
-
-The "why generated" view is useful when exploring new or unfamiliar files — it answers "why does this file exist at all?" rather than "what happened to this file in this commit range?".
-
 | Component | File | Description |
 | --- | --- | --- |
 | ``CodemapFileSystem`` | `Sources/Compass/Explore/CodemapFileSystem.swift` | File-system scanner; entry point for the Explore tab's tree builder |
