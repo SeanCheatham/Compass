@@ -186,7 +186,7 @@ by Compass. Rather than leaving generated code opaque, it surfaces meaning —
 what changed, why, and how the pieces fit together — using Apple's on-device
 Foundation Models so explanations stay local and fast.
 
-Explore has seven main components (some with both a model and a view layer):
+Explore has eight main components (some with both a model and a view layer):
 
 - **`CodemapFileSystem`** (`Sources/Compass/Explore/CodemapFileSystem.swift`) —
   File-system scanner that walks the repository tree and produces a
@@ -194,6 +194,12 @@ Explore has seven main components (some with both a model and a view layer):
   Used by ``ExploreTreeBuilder`` when ``GitSourcePaths`` cannot enumerate
   files via `git ls-files` (e.g. in a fresh or sparse checkout).
   Available on all macOS versions. Entry point: ``CodemapFileSystem(rootURL:).buildSourceTree()``.
+
+- **`CodemapGraphViz`** (`Sources/Compass/Explore/CodemapGraphViz.swift`) —
+  Exports the import graph as an SVG for rendering in the Explore tab.
+  Provides ``CodemapGraphVizExport`` which walks all indexed source files,
+  resolves import declarations, and produces a styled graph.  Entry point:
+  ``CodemapGraphVizExport.export(codemap:)``.
 
 - **`CommitExplainer`** (`Sources/Compass/Explore/CommitExplainer.swift`) —
   Takes a git diff and produces a plain-English summary in roughly three
@@ -241,6 +247,15 @@ Explore has seven main components (some with both a model and a view layer):
   Uses `FoundationModelsAvailability.isAvailable` from the on-device Foundation Models
   framework. Requires **macOS 26** and is gated behind `@available(macOS 26.0, *)`.
   Returns `nil` gracefully when Foundation Models is unavailable. Entry point: ``explain(graph:repoURL:)``.
+
+- **`CommitNarrator`** (`Sources/Compass/Explore/CommitNarrator.swift`) —
+  Produces a single concise sentence describing a commit, suitable for
+  notification banners, inline commit-list labels, or tour step headers.
+  Uses `FoundationModelsAvailability.isAvailable` from the on-device Foundation Models
+  framework. Requires **macOS 26** and is gated behind `@available(macOS 26.0, *)`.
+  Returns `nil` gracefully when Foundation Models is unavailable. Distinct from
+  ``CommitExplainer/summarize(diff:)`` which generates ~3 sentences for popovers.
+  Entry point: ``CommitNarrator.narrate(commit:diff:)``.
 
 | Component | File | Description |
 | --- | --- | --- |
